@@ -15,6 +15,8 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
+import { parkedVehicle } from './vehicles';
+import type { Vec3 } from '../mesh';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet,
@@ -200,20 +202,12 @@ function trafficUnit(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: -z + 2.0 + d }, 0,
       { width: 2.6, height: 3.2, double: true, glazed: true, canopy: 2.4 });
     boxSign(m, { axis: 'z', sign: 1, plane: -z + 2.0 + d }, -4.4, 4.4, h - 2.0, h - 0.8);
-    // Patrol cars under the canopy: bodies, light bars, wheels.
+    // Patrol cars under the canopy, each its own colour off its own key.
     for (let i = 0; i < 4; i++) {
       const cx = -x + 5.0 + i * 6.5;
-      m.painted(TINT.BRAND, () => m.box([cx - 2.2, 0.55, z - 7.4], [cx + 2.2, 1.65, z - 3.4], MAT.TRIM));
-      m.painted(TINT.METAL_DARK, () => {
-        m.box([cx - 1.5, 1.65, z - 6.6], [cx + 1.5, 2.15, z - 4.2], MAT.TRIM);
-        for (const pz of [z - 6.6, z - 4.2]) {
-          for (const sx of [-1, 1] as const) {
-            m.box([cx + sx * 2.05, 0.2, pz - 0.42], [cx + sx * 2.24, 0.95, pz + 0.42], MAT.TRIM);
-          }
-        }
-      });
+      parkedVehicle(m, 3200 + i * 17, cx, z - 5.4, 3, 'car');
       m.painted(TINT.SIGN_LIT, () =>
-        m.box([cx - 0.9, 2.15, z - 5.7], [cx + 0.9, 2.36, z - 5.2], MAT.TRIM));
+        m.box([cx - 0.9, 1.52, z - 5.9], [cx + 0.9, 1.72, z - 5.4], MAT.TRIM));
     }
     railing(m, -x, x, z, 0.1, 2.0, 1.6);
     // Gantry over the approach carrying two matrix signs: this unit's job.
@@ -596,19 +590,31 @@ function windFarm(lod: number): MeshBuilder {
     for (let b = 0; b < 3; b++) {
       const a = spin + (b / 3) * Math.PI * 2;
       const ca = Math.cos(a), sa = Math.sin(a);
-      // Each blade is a tapered, twisted plate rather than a stick.
+      // Each blade is a solid tapered section, not a pair of quads back to
+      // back: a plate has no edge, so from anywhere near end-on a blade
+      // vanished into a line.
       const len = h * 0.46;
       for (let k = 0; k < 7; k++) {
         const t0 = k / 7, t1 = (k + 1) / 7;
         const r0 = 1.2 + t0 * len, r1 = 1.2 + t1 * len;
         const c0 = 1.5 * (1 - t0 * 0.8), c1 = 1.5 * (1 - t1 * 0.8);
+        const th0 = 0.24 * (1 - t0 * 0.75), th1 = 0.24 * (1 - t1 * 0.75);
         const y0 = h + 0.95 + sa * r0, y1 = h + 0.95 + sa * r1;
         const px0 = cx + ca * r0, px1 = cx + ca * r1;
-        m.quad([px0 - c0 * 0.12, y0, cz + 2.7], [px1 - c1 * 0.12, y1, cz + 2.7],
-               [px1 + c1 * 0.12, y1, cz + 2.7 + c1], [px0 + c0 * 0.12, y0, cz + 2.7 + c0],
+        const z0 = cz + 2.7, z1 = cz + 2.7;
+        // Six faces per segment, built from the two end sections.
+        const A: Vec3 = [px0, y0, z0], B: Vec3 = [px1, y1, z1];
+        m.quad([A[0], A[1], A[2] - th0], [B[0], B[1], B[2] - th1],
+               [B[0], B[1], B[2] + c1], [A[0], A[1], A[2] + c0], MAT.METAL);
+        m.quad([A[0] + 0.02, A[1] - 0.02, A[2] + c0], [B[0] + 0.02, B[1] - 0.02, B[2] + c1],
+               [B[0] + 0.02, B[1] - 0.02, B[2] - th1], [A[0] + 0.02, A[1] - 0.02, A[2] - th0],
           MAT.METAL);
-        m.quad([px0 + c0 * 0.12, y0, cz + 2.7 + c0], [px1 + c1 * 0.12, y1, cz + 2.7 + c1],
-               [px1 - c1 * 0.12, y1, cz + 2.66], [px0 - c0 * 0.12, y0, cz + 2.66], MAT.METAL);
+        // Leading and trailing edges, which is where the thickness shows.
+        m.quad([A[0], A[1], A[2] + c0], [B[0], B[1], B[2] + c1],
+               [B[0] + 0.02, B[1] - 0.02, B[2] + c1], [A[0] + 0.02, A[1] - 0.02, A[2] + c0],
+          MAT.METAL);
+        m.quad([A[0] + 0.02, A[1] - 0.02, A[2] - th0], [B[0] + 0.02, B[1] - 0.02, B[2] - th1],
+               [B[0], B[1], B[2] - th1], [A[0], A[1], A[2] - th0], MAT.METAL);
       }
     }
   };

@@ -89,7 +89,7 @@ function shape(s: Section, wScale: number, yTop: number): Section {
  * wheel reading as a black disc at any distance you would actually see it.
  */
 function wheel(m: MeshBuilder, cx: number, cy: number, cz: number, r: number, halfW: number,
-  seg = 14): void {
+  seg = 18): void {
   const inner = r * 0.62;
   const dish = halfW * 0.45;
   m.painted(TINT.METAL_DARK, () => {
@@ -101,6 +101,14 @@ function wheel(m: MeshBuilder, cx: number, cy: number, cz: number, r: number, ha
       m.quad(p(a0, r, halfW), p(a1, r, halfW), p(a1, r, -halfW), p(a0, r, -halfW), MAT.TRIM);
       m.quad(p(a1, r, halfW), p(a0, r, halfW), p(a0, inner, dish), p(a1, inner, dish), MAT.TRIM);
       m.quad(p(a0, r, -halfW), p(a1, r, -halfW), p(a1, inner, -dish), p(a0, inner, -dish), MAT.TRIM);
+    }
+  });
+  // Brake disc and caliper behind the spokes. Barely visible, and the reason
+  // the gap between the spokes reads as depth instead of as a hole.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const sw of [1, -1] as const) {
+      m.cylinder(cx, cz + sw * dish * 0.2, inner * 0.72, cy - inner * 0.72, cy + inner * 0.72,
+        10, MAT.TRIM, true);
     }
   });
   // Rim: a dished disc with a hub and spokes, in bright metal.
@@ -141,12 +149,121 @@ function arch(m: MeshBuilder, cx: number, cy: number, r: number, halfW: number):
 
 // ------------------------------------------------------------------ fittings
 
+/** A raised lip around a wheel arch, so the arch has an edge and not a hole. */
+function archLip(m: MeshBuilder, cx: number, cy: number, r: number, hw: number): void {
+  for (let i = 0; i < 10; i++) {
+    const a0 = Math.PI * (i / 10), a1 = Math.PI * ((i + 1) / 10);
+    for (const sz of [1, -1] as const) {
+      const w0 = sz * hw, w1 = sz * (hw + 0.055);
+      const p = (a: number, rr: number, w: number): Vec3 =>
+        [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, w];
+      m.quad(p(a0, r, w1), p(a1, r, w1), p(a1, r + 0.075, w1), p(a0, r + 0.075, w1), MAT.PAINT);
+      m.quad(p(a0, r + 0.075, w0), p(a1, r + 0.075, w0), p(a1, r + 0.075, w1), p(a0, r + 0.075, w1),
+        MAT.PAINT);
+    }
+  }
+}
+
+/**
+ * A bumper: three boxes stepped in plan so the ends wrap round the corner.
+ *
+ * A single slab across the nose is the thing that made the first fleet read as
+ * a sculpture -- real bumpers turn the corner, and that corner is most of what
+ * you see of a car from three-quarters on.
+ */
+function bumper(m: MeshBuilder, x: number, dir: 1 | -1, hw: number, y0: number, y1: number): void {
+  m.painted(TINT.METAL_DARK, () => {
+    const a = Math.min(x, x + dir * 0.22), b = Math.max(x, x + dir * 0.22);
+    m.box([a, y0, -hw * 0.72], [b, y1, hw * 0.72], MAT.TRIM, { skipBottom: false });
+    for (const sz of [1, -1] as const) {
+      const c = Math.min(x, x + dir * 0.1), d = Math.max(x, x + dir * 0.1);
+      m.box([c, y0 + 0.03, Math.min(sz * hw, sz * hw * 0.7)],
+            [d, y1 - 0.03, Math.max(sz * hw, sz * hw * 0.7)], MAT.TRIM, { skipBottom: false });
+    }
+  });
+}
+
+/** Grille bars in a recess, with a badge in the middle. */
+function grille(m: MeshBuilder, x: number, dir: 1 | -1, y0: number, y1: number, hw: number,
+  bars = 4): void {
+  m.painted(TINT.METAL_DARK, () => {
+    const a = Math.min(x, x + dir * 0.14), b = Math.max(x, x + dir * 0.14);
+    m.box([a, y0, -hw], [b, y1, hw], MAT.TRIM, { skipBottom: false });
+    for (let i = 0; i < bars; i++) {
+      const y = y0 + ((i + 0.5) / bars) * (y1 - y0);
+      const c = Math.min(x, x + dir * 0.2), d = Math.max(x, x + dir * 0.2);
+      m.box([c, y - 0.035, -hw * 0.96], [d, y + 0.035, hw * 0.96], MAT.TRIM, { skipBottom: false });
+    }
+  });
+  const c = Math.min(x, x + dir * 0.24), d = Math.max(x, x + dir * 0.24);
+  m.box([c, (y0 + y1) / 2 - 0.11, -0.13], [d, (y0 + y1) / 2 + 0.11, 0.13], MAT.METAL,
+    { skipBottom: false });
+}
+
+/**
+ * What is behind the glass: seats, a dashboard, a wheel and head restraints.
+ *
+ * A car with clear glazing and nothing inside reads as a shell, and the
+ * interior is four boxes -- cheap next to the loft that surrounds it.
+ */
+function interior(m: MeshBuilder, x0: number, x1: number, floor: number, hw: number,
+  rows = 2): void {
+  m.keyed(900, () => {
+    // Dashboard and parcel shelf.
+    m.box([x0, floor + 0.34, -hw], [x0 + 0.42, floor + 0.62, hw], MAT.FIGURE, { skipBottom: false });
+    m.box([x1 - 0.35, floor + 0.44, -hw], [x1, floor + 0.52, hw], MAT.FIGURE, { skipBottom: false });
+    for (let r = 0; r < rows; r++) {
+      const sx = x0 + 0.62 + r * ((x1 - x0 - 1.0) / Math.max(1, rows));
+      for (const sz of [1, -1] as const) {
+        // Squab, backrest and head restraint.
+        m.box([sx, floor + 0.22, sz * hw * 0.52 - 0.22], [sx + 0.48, floor + 0.34, sz * hw * 0.52 + 0.22],
+          MAT.FIGURE, { skipBottom: false });
+        m.box([sx + 0.42, floor + 0.34, sz * hw * 0.52 - 0.22], [sx + 0.56, floor + 0.86, sz * hw * 0.52 + 0.22],
+          MAT.FIGURE, { skipBottom: false });
+        m.box([sx + 0.44, floor + 0.88, sz * hw * 0.52 - 0.14], [sx + 0.56, floor + 1.02, sz * hw * 0.52 + 0.14],
+          MAT.FIGURE, { skipBottom: false });
+      }
+    }
+  });
+  // Steering wheel and column, on the near side.
+  m.painted(TINT.METAL_DARK, () => {
+    const cx = x0 + 0.52;
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * Math.PI * 2, a1 = ((i + 1) / 8) * Math.PI * 2;
+      const p = (a: number): Vec3 =>
+        [cx + Math.cos(a) * 0.02, floor + 0.68 + Math.sin(a) * 0.16, -hw * 0.52 + Math.cos(a) * 0.16];
+      m.tri(p(a0), p(a1), [cx, floor + 0.68, -hw * 0.52], MAT.TRIM);
+    }
+  });
+}
+
+/** Wipers parked at the base of a screen. */
+function wipers(m: MeshBuilder, x: number, y: number, hw: number): void {
+  m.painted(TINT.METAL_DARK, () => {
+    for (const sz of [-1, 1] as const) {
+      m.box([x - 0.42, y, sz * hw * 0.45 - 0.03], [x + 0.18, y + 0.045, sz * hw * 0.45 + 0.03],
+        MAT.TRIM, { skipBottom: false });
+    }
+  });
+}
+
 /** Glazing set into a body: windscreen, backlight and side windows. */
 function glazing(m: MeshBuilder, x0: number, x1: number, y0: number, y1: number,
   hw: number, rake = 0.0): void {
   for (const sz of [1, -1] as const) {
     const w = sz * (hw + 0.012);
     m.quad([x0 + rake, y0, w], [x1 - rake, y0, w], [x1, y1, w], [x0, y1, w], MAT.GLASS);
+    // Surround: glass flush with the paint reads as a painted-on window.
+    m.painted(TINT.METAL_DARK, () => {
+      const a = Math.min(sz * hw, sz * (hw + 0.05)), b = Math.max(sz * hw, sz * (hw + 0.05));
+      m.box([x0 + rake - 0.05, y0 - 0.05, a], [x1 - rake + 0.05, y0 + 0.02, b], MAT.TRIM,
+        { skipBottom: false });
+      m.box([x0 - 0.05, y1 - 0.02, a], [x1 + 0.05, y1 + 0.05, b], MAT.TRIM, { skipBottom: false });
+      m.box([Math.min(x0, x0 + rake) - 0.05, y0, a], [Math.min(x0, x0 + rake) + 0.03, y1, b],
+        MAT.TRIM, { skipBottom: false });
+      m.box([Math.max(x1, x1 - rake) - 0.03, y0, a], [Math.max(x1, x1 - rake) + 0.05, y1, b],
+        MAT.TRIM, { skipBottom: false });
+    });
   }
 }
 
@@ -222,20 +339,35 @@ function tarmac(m: MeshBuilder, x: number, z: number): void {
 /**
  * One person, standing or walking, facing along +x.
  *
- * `key` picks the clothing colours: the coat, the legs and the head each take
- * their own key so a crowd is not a row of people in matching outfits.
+ * Built as a jointed figure rather than a stack of separate boxes: hips join
+ * the legs to the torso, shoulders join the arms, and the neck joins the head.
+ * The first version left visible gaps at all three, which is what makes a
+ * figure read as a pile of blocks rather than as a person.
+ *
+ * `key` drives both the clothing colours and the build. Everything that varies
+ * between people -- height, shoulder width, leg length, hair, whether they are
+ * in a long coat -- comes out of it, so a crowd is a crowd and not one model
+ * repeated in different colours.
  */
 function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
   opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number; lift?: number } = {}): void {
-  const s = opts.scale ?? 1.0;
+  // Deterministic per-person variation.
+  const rnd = (n: number): number => {
+    const v = Math.sin(key * 12.9898 + n * 78.233) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const s = (opts.scale ?? 1.0) * (0.94 + rnd(1) * 0.13);
   const lift = opts.lift ?? 0;
   const stride = opts.stride ?? 0;
+  const broad = 0.9 + rnd(2) * 0.35;          // shoulder and chest width
+  const legLen = 0.80 + rnd(3) * 0.10;        // where the hips sit
+  const coat = rnd(4) > 0.62;                 // long coat rather than a jacket
+  const hair = rnd(5);                        // style: cropped, swept, long, none
   const co = Math.cos(facing), si = Math.sin(facing);
-  // Everything is placed in the figure's own frame and rotated on the way out,
-  // so a walking pose does not have to be re-derived per direction.
+
   const at = (fx: number, fy: number, fz: number): Vec3 =>
     [cx + (fx * co - fz * si) * s, lift + fy * s, cz + (fx * si + fz * co) * s];
-  const boxAt = (f0: [number, number, number], f1: [number, number, number], mat: Material): void => {
+  const put = (f0: [number, number, number], f1: [number, number, number], mat: Material): void => {
     const a = at(f0[0], f0[1], f0[2]);
     const b = at(f1[0], f1[1], f1[2]);
     m.box([Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2])],
@@ -243,41 +375,103 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
       { skipBottom: false });
   };
 
-  // Legs: offset fore and aft by the stride, which is what makes a figure walk.
-  m.keyed(key * 3 + 1, () => {
+  const hip = legLen;
+  const chest = hip + 0.30;
+  const shoulder = hip + 0.52;
+  const neck = shoulder + 0.04;
+  const crown = neck + 0.26;
+
+  // Legs, thighs tapering to calves, with the stride swinging them fore and aft.
+  m.keyed(key * 5 + 1, () => {
     for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
       const off = stride * sgn;
-      boxAt([-0.07 + off, 0.0, sz * 0.11 - 0.055], [0.07 + off, 0.86, sz * 0.11 + 0.055], MAT.FIGURE);
-      // Shoe.
-      boxAt([-0.09 + off * 1.25, 0.0, sz * 0.11 - 0.06], [0.13 + off * 1.25, 0.09, sz * 0.11 + 0.06],
+      const w = 0.075 * broad;
+      put([-w + off * 0.4, hip * 0.48, sz * 0.10 - w], [w + off * 0.4, hip, sz * 0.10 + w], MAT.FIGURE);
+      put([-w * 0.9 + off, 0.075, sz * 0.10 - w * 0.9], [w * 0.9 + off, hip * 0.5, sz * 0.10 + w * 0.9],
+        MAT.FIGURE);
+    }
+    // Hips: the block the legs run into. Without it they hang off the torso.
+    put([-0.1 * broad, hip - 0.04, -0.17 * broad], [0.1 * broad, hip + 0.14, 0.17 * broad], MAT.FIGURE);
+  });
+  // Shoes.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
+      const off = stride * sgn;
+      put([-0.085 + off * 1.25, 0, sz * 0.10 - 0.06], [0.115 + off * 1.25, 0.078, sz * 0.10 + 0.06],
         MAT.TRIM);
     }
   });
-  // Torso: a coat that flares slightly at the shoulders.
-  m.keyed(key * 3 + 2, () => {
-    boxAt([-0.1, 0.82, -0.19], [0.1, 1.36, 0.19], MAT.FIGURE);
-    boxAt([-0.115, 1.14, -0.215], [0.115, 1.42, 0.215], MAT.FIGURE);
-    // Arms, swinging opposite the legs.
+
+  // Torso: waist, chest and shoulders, each wider than the last, plus a coat
+  // that hangs below the hips on about a third of people.
+  m.keyed(key * 5 + 2, () => {
+    put([-0.085, hip + 0.06, -0.15 * broad], [0.085, chest, 0.15 * broad], MAT.FIGURE);
+    put([-0.1, chest - 0.02, -0.185 * broad], [0.1, shoulder, 0.185 * broad], MAT.FIGURE);
+    put([-0.105, shoulder - 0.1, -0.215 * broad], [0.105, shoulder + 0.03, 0.215 * broad], MAT.FIGURE);
+    if (coat) put([-0.105, hip - 0.22, -0.17 * broad], [0.105, hip + 0.1, 0.17 * broad], MAT.FIGURE);
+    // Arms: upper arm from the shoulder, forearm angled in, then a hand.
     for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
-      const off = stride * sgn * 0.8;
-      boxAt([-0.055 + off, 0.94, sz * 0.235 - 0.055], [0.055 + off, 1.4, sz * 0.235 + 0.055],
+      const off = stride * sgn * 0.75;
+      const az = sz * (0.185 * broad + 0.06);
+      put([-0.05 + off * 0.4, chest + 0.06, az - 0.05], [0.05 + off * 0.4, shoulder + 0.02, az + 0.05],
         MAT.FIGURE);
+      put([-0.045 + off, hip + 0.14, az - 0.045 * sz - 0.045],
+          [0.045 + off, chest + 0.08, az - 0.045 * sz + 0.045], MAT.FIGURE);
     }
   });
-  // Head and neck.
-  m.keyed(key * 3, () => {
-    boxAt([-0.05, 1.4, -0.055], [0.05, 1.48, 0.055], MAT.FIGURE);
-    boxAt([-0.085, 1.46, -0.095], [0.085, 1.66, 0.095], MAT.FIGURE);
+  m.keyed(key * 5 + 3, () => {
+    for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
+      const off = stride * sgn * 0.75;
+      const az = sz * (0.185 * broad + 0.015);
+      put([-0.045 + off, hip + 0.02, az - 0.045], [0.045 + off, hip + 0.15, az + 0.045], MAT.FIGURE);
+    }
   });
+
+  // Head: neck, skull, a brow and nose that give it a front, and ears.
+  m.keyed(key * 5 + 3, () => {
+    put([-0.045, shoulder, -0.05], [0.045, neck + 0.03, 0.05], MAT.FIGURE);
+    put([-0.078, neck, -0.088], [0.072, crown, 0.088], MAT.FIGURE);
+    // Brow ridge and nose: two small boxes, and the whole reason a head reads
+    // as facing somewhere rather than as a cube on a stick.
+    put([0.072, neck + 0.13, -0.075], [0.098, neck + 0.17, 0.075], MAT.FIGURE);
+    put([0.078, neck + 0.06, -0.022], [0.112, neck + 0.14, 0.022], MAT.FIGURE);
+    for (const sz of [1, -1] as const) {
+      put([-0.02, neck + 0.09, sz * 0.088], [0.02, neck + 0.16, sz * 0.108], MAT.FIGURE);
+    }
+  });
+  // Eyes, dark, set under the brow.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const sz of [1, -1] as const) {
+      put([0.078, neck + 0.10, sz * 0.028 - 0.018], [0.092, neck + 0.13, sz * 0.028 + 0.018],
+        MAT.TRIM);
+    }
+  });
+  // Hair, in its own key so it is not the same colour as the face.
+  if (hair > 0.12) {
+    m.keyed(key * 5 + 4, () => {
+      put([-0.085, crown - 0.055, -0.095], [0.075, crown + 0.025, 0.095], MAT.FIGURE);
+      if (hair > 0.45) {
+        // Swept back and down the sides.
+        put([-0.09, neck + 0.10, -0.098], [-0.06, crown, 0.098], MAT.FIGURE);
+      }
+      if (hair > 0.75) {
+        // Long, to the shoulders.
+        put([-0.095, shoulder + 0.02, -0.1], [-0.055, crown, 0.1], MAT.FIGURE);
+      }
+    });
+  }
   if (opts.hat) {
     m.painted(TINT.METAL_DARK, () => {
-      boxAt([-0.115, 1.64, -0.12], [0.115, 1.68, 0.12], MAT.TRIM);
-      boxAt([-0.085, 1.66, -0.095], [0.085, 1.74, 0.095], MAT.TRIM);
+      put([-0.1, crown + 0.01, -0.115], [0.135, crown + 0.05, 0.115], MAT.TRIM);
+      put([-0.085, crown + 0.03, -0.095], [0.075, crown + 0.14, 0.095], MAT.TRIM);
     });
   }
   if (opts.bag) {
-    m.keyed(key * 3 + 7, () =>
-      boxAt([-0.07, 0.86, 0.2], [0.09, 1.16, 0.32], MAT.FIGURE));
+    m.keyed(key * 5 + 7, () => {
+      put([-0.075, hip + 0.02, 0.2 * broad], [0.09, chest + 0.12, 0.2 * broad + 0.12], MAT.FIGURE);
+      // Strap over the shoulder.
+      put([-0.02, chest + 0.1, 0.17 * broad], [0.02, shoulder + 0.02, 0.2 * broad + 0.06], MAT.FIGURE);
+    });
   }
 }
 
@@ -315,8 +509,10 @@ function hatchback(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.28, 1.32]) {
       arch(m, cx, 0.44, 0.46, 0.80);
+      archLip(m, cx, 0.44, 0.47, 0.88);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.34, sz * 0.72, 0.33, 0.12);
     }
+    interior(m, -0.55, 1.55, 0.72, 0.72, 2);
     // Windscreen and backlight are raked; the side glass sits in the waist.
     glazing(m, -0.62, 0.28, 1.06, 1.44, 0.845, 0.22);
     glazing(m, 1.02, 1.66, 1.06, 1.42, 0.845, -0.18);
@@ -324,9 +520,11 @@ function hatchback(lod: number): MeshBuilder {
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
       m.box([-0.60, 0.98, -0.82], [1.68, 1.10, 0.82], MAT.TRIM);
-      m.box([-2.04, 0.44, -0.76], [-1.86, 0.72, 0.76], MAT.TRIM);
-      m.box([1.94, 0.44, -0.72], [2.08, 0.74, 0.72], MAT.TRIM);
     });
+    bumper(m, -1.98, -1, 0.80, 0.42, 0.76);
+    bumper(m, 2.0, 1, 0.76, 0.42, 0.78);
+    grille(m, -2.0, -1, 0.72, 1.02, 0.44, 3);
+    wipers(m, -0.58, 1.02, 0.82);
     doors(m, [-0.52, 0.62], 0.62, 1.24, 0.90, 1.02);
     mirrors(m, -0.52, 1.16, 0.90);
     for (const sz of [1, -1] as const) {
@@ -343,6 +541,7 @@ function hatchback(lod: number): MeshBuilder {
       m.box([1.7, 0.28, 0.34], [2.06, 0.4, 0.5], MAT.TRIM);
     });
     person(m, 21, 2.9, 1.1, Math.PI, { stride: 0.1 });
+    person(m, 27, 2.6, -1.2, 0.3, { bag: true });
   }
   return m;
 }
@@ -370,21 +569,21 @@ function saloon(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.52, 1.58]) {
       arch(m, cx, 0.46, 0.48, 0.84);
+      archLip(m, cx, 0.46, 0.49, 0.92);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * 0.75, 0.34, 0.13);
     }
+    interior(m, -0.8, 1.4, 0.72, 0.76, 2);
     glazing(m, -0.85, 0.06, 1.06, 1.42, 0.87, 0.24);
     glazing(m, 0.90, 1.56, 1.06, 1.40, 0.87, -0.22);
   }
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
       m.box([-0.86, 0.98, -0.86], [1.58, 1.10, 0.86], MAT.TRIM);
-      m.box([-2.38, 0.42, -0.78], [-2.18, 0.74, 0.78], MAT.TRIM);
-      m.box([2.24, 0.42, -0.74], [2.42, 0.76, 0.74], MAT.TRIM);
-      // Radiator grille: horizontal bars, which is most of a car's face.
-      for (let i = 0; i < 4; i++) {
-        m.box([-2.36, 0.80 + i * 0.075, -0.42], [-2.24, 0.83 + i * 0.075, 0.42], MAT.TRIM);
-      }
     });
+    bumper(m, -2.30, -1, 0.84, 0.42, 0.78);
+    bumper(m, 2.34, 1, 0.80, 0.42, 0.80);
+    grille(m, -2.32, -1, 0.80, 1.08, 0.48, 4);
+    wipers(m, -0.82, 1.02, 0.86);
     doors(m, [-0.76, 0.42], 0.62, 1.24, 0.94, 1.02);
     mirrors(m, -0.78, 1.16, 0.94);
     for (const sz of [1, -1] as const) {
@@ -398,6 +597,7 @@ function saloon(lod: number): MeshBuilder {
       m.box([2.0, 0.28, -0.54], [2.4, 0.4, -0.36], MAT.TRIM);
     });
     person(m, 33, 3.2, -1.2, 0, { stride: 0.12, bag: true });
+    person(m, 39, 3.0, 1.3, Math.PI * 0.8, { hat: true });
   }
   return m;
 }
@@ -424,16 +624,20 @@ function estate(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.52, 1.58]) {
       arch(m, cx, 0.46, 0.48, 0.86);
+      archLip(m, cx, 0.46, 0.49, 0.94);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * 0.76, 0.34, 0.13);
     }
+    interior(m, -0.8, 1.9, 0.72, 0.78, 2);
     glazing(m, -0.85, 0.10, 1.06, 1.46, 0.87, 0.24);
     glazing(m, 2.10, 2.34, 1.10, 1.44, 0.87, 0.06);
   }
   if (fine) {
+    bumper(m, -2.30, -1, 0.84, 0.42, 0.78);
+    bumper(m, 2.34, 1, 0.84, 0.42, 0.82);
+    grille(m, -2.32, -1, 0.80, 1.08, 0.48, 4);
+    wipers(m, -0.82, 1.02, 0.88);
     m.painted(TINT.METAL_DARK, () => {
       m.box([-0.86, 0.98, -0.88], [2.10, 1.10, 0.88], MAT.TRIM);
-      m.box([-2.38, 0.42, -0.78], [-2.18, 0.74, 0.78], MAT.TRIM);
-      m.box([2.26, 0.42, -0.80], [2.42, 0.78, 0.80], MAT.TRIM);
       // Roof bars with cross rails, and a towbar: what an estate is for.
       for (const sz of [1, -1] as const) {
         m.box([-0.3, 1.52, sz * 0.5 - 0.05], [2.0, 1.60, sz * 0.5 + 0.05], MAT.TRIM);
@@ -451,6 +655,7 @@ function estate(lod: number): MeshBuilder {
     plate(m, -2.35, 0.64, -1);
     plate(m, 2.37, 0.62, 1);
     person(m, 44, 3.15, 1.2, Math.PI * 0.9, { stride: 0.05, hat: true });
+    person(m, 49, 3.0, -1.3, 0.4, { scale: 0.7, stride: 0.14 });
   }
   return m;
 }
@@ -478,8 +683,10 @@ function suv(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.50, 1.55]) {
       arch(m, cx, 0.62, 0.60, 0.90);
+      archLip(m, cx, 0.62, 0.61, 1.00);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.47, sz * 0.80, 0.46, 0.16);
     }
+    interior(m, -0.75, 1.9, 0.98, 0.86, 2);
     glazing(m, -0.82, 0.16, 1.30, 1.86, 0.985, 0.26);
     glazing(m, 2.12, 2.32, 1.34, 1.84, 0.985, 0.04);
     // Cladding round the arches and along the sills: an SUV's whole idiom.
@@ -490,12 +697,11 @@ function suv(lod: number): MeshBuilder {
     });
   }
   if (fine) {
+    bumper(m, -2.26, -1, 0.92, 0.56, 1.00);
+    bumper(m, 2.28, 1, 0.90, 0.56, 1.04);
+    grille(m, -2.28, -1, 1.04, 1.42, 0.52, 4);
+    wipers(m, -0.78, 1.28, 0.98);
     m.painted(TINT.METAL_DARK, () => {
-      m.box([-2.34, 0.56, -0.92], [-2.06, 0.98, 0.92], MAT.TRIM);
-      m.box([2.20, 0.56, -0.90], [2.42, 1.02, 0.90], MAT.TRIM);
-      for (let i = 0; i < 3; i++) {
-        m.box([-2.32, 1.06 + i * 0.1, -0.48], [-2.18, 1.11 + i * 0.1, 0.48], MAT.TRIM);
-      }
       // Roof rails and a spare on the tailgate.
       for (const sz of [1, -1] as const) {
         m.box([-0.4, 1.92, sz * 0.56 - 0.06], [2.0, 2.00, sz * 0.56 + 0.06], MAT.TRIM);
@@ -511,6 +717,7 @@ function suv(lod: number): MeshBuilder {
     plate(m, -2.32, 0.82, -1);
     plate(m, 2.38, 0.86, 1);
     person(m, 55, 3.1, -1.4, 0.4, { stride: 0.0 });
+    person(m, 59, 2.9, 1.4, Math.PI * 1.1, { bag: true, stride: 0.11 });
   }
   return m;
 }
@@ -541,8 +748,10 @@ function pickup(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.55, 1.75]) {
       arch(m, cx, 0.60, 0.58, 0.92);
+      archLip(m, cx, 0.60, 0.59, 1.00);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.45, sz * 0.82, 0.44, 0.16);
     }
+    interior(m, -0.85, 0.5, 0.96, 0.86, 1);
     glazing(m, -0.88, 0.05, 1.28, 1.80, 0.975, 0.26);
     glazing(m, 0.42, 0.54, 1.30, 1.78, 0.975, 0.02);
     // The bed itself: a floor with four walls, open at the top.
@@ -550,12 +759,11 @@ function pickup(lod: number): MeshBuilder {
       m.box([0.62, 1.02, -0.78], [2.5, 1.12, 0.78], MAT.TRIM));
   }
   if (fine) {
+    bumper(m, -2.36, -1, 0.94, 0.54, 0.98);
+    bumper(m, 2.58, 1, 0.90, 0.5, 1.0);
+    grille(m, -2.38, -1, 1.02, 1.44, 0.54, 4);
+    wipers(m, -0.9, 1.26, 0.98);
     m.painted(TINT.METAL_DARK, () => {
-      m.box([-2.44, 0.54, -0.94], [-2.14, 0.96, 0.94], MAT.TRIM);
-      m.box([2.5, 0.5, -0.9], [2.72, 0.98, 0.9], MAT.TRIM);
-      for (let i = 0; i < 3; i++) {
-        m.box([-2.42, 1.02 + i * 0.11, -0.5], [-2.28, 1.08 + i * 0.11, 0.5], MAT.TRIM);
-      }
       // Ribs down the inside of the bed walls, and a roll bar behind the cab.
       for (let i = 0; i < 5; i++) {
         const px = 0.8 + i * 0.42;
@@ -580,6 +788,7 @@ function pickup(lod: number): MeshBuilder {
       }
     });
     person(m, 66, 3.3, 1.3, Math.PI, { stride: 0.14, hat: true });
+    person(m, 69, 3.1, -1.4, 0.2, {});
   }
   return m;
 }
@@ -605,8 +814,10 @@ function van(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.70, 1.85]) {
       arch(m, cx, 0.52, 0.52, 0.98);
+      archLip(m, cx, 0.52, 0.53, 1.08);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.40, sz * 0.86, 0.39, 0.15);
     }
+    interior(m, -1.15, 0.4, 1.34, 0.92, 1);
     glazing(m, -1.15, -0.34, 1.70, 2.42, 1.10, 0.3);
     glazing(m, -0.28, 0.42, 1.72, 2.34, 1.15, 0.0);
     // Rear doors: two leaves with a shut line and windows in the top half.
@@ -614,9 +825,11 @@ function van(lod: number): MeshBuilder {
     glazing(m, 2.62, 2.64, 1.90, 2.30, 0.66, 0.0);
   }
   if (fine) {
+    bumper(m, -2.50, -1, 1.00, 0.60, 1.12);
+    bumper(m, 2.58, 1, 0.96, 0.58, 1.10);
+    grille(m, -2.52, -1, 1.18, 1.62, 0.60, 4);
+    wipers(m, -1.20, 1.66, 1.06);
     m.painted(TINT.METAL_DARK, () => {
-      m.box([-2.58, 0.60, -1.00], [-2.28, 1.12, 1.00], MAT.TRIM);
-      m.box([2.5, 0.58, -0.96], [2.7, 1.10, 0.96], MAT.TRIM);
       // Body swage lines: a van flank is three metres of nothing without them.
       for (const sz of [1, -1] as const) {
         for (const y of [1.34, 1.62]) {
@@ -640,6 +853,7 @@ function van(lod: number): MeshBuilder {
       }
     });
     person(m, 77, 3.4, -1.4, 0.2, { stride: 0.12, bag: true });
+    person(m, 79, 3.2, 1.5, Math.PI * 0.9, { hat: true, stride: 0.06 });
   }
   return m;
 }
@@ -665,8 +879,23 @@ function cityBus(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-4.20, 3.60, 4.85]) {
       arch(m, cx, 0.56, 0.58, 1.10);
+      archLip(m, cx, 0.56, 0.59, 1.22);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.48, sz * 0.98, 0.47, 0.17);
     }
+    // Cab: a driver's seat, a wheel and a ticket console.
+    interior(m, -6.0, -4.6, 1.30, 1.00, 1);
+    // Saloon seating, in pairs down both sides.
+    m.keyed(901, () => {
+      for (let i = 0; i < 9; i++) {
+        const px = -4.2 + i * 1.1;
+        for (const sz of [1, -1] as const) {
+          m.box([px, 1.44, sz * 0.72 - 0.42], [px + 0.44, 1.56, sz * 0.72 + 0.42], MAT.FIGURE,
+            { skipBottom: false });
+          m.box([px + 0.36, 1.56, sz * 0.72 - 0.42], [px + 0.5, 2.12, sz * 0.72 + 0.42], MAT.FIGURE,
+            { skipBottom: false });
+        }
+      }
+    });
     // The window band, which is what makes a bus a bus at any distance.
     glazing(m, -6.05, -5.4, 1.30, 2.72, 1.235, 0.3);
     for (const sz of [1, -1] as const) {
@@ -713,6 +942,12 @@ function cityBus(lod: number): MeshBuilder {
     }
     plate(m, -6.12, 0.68, -1);
     mirrors(m, -5.9, 2.5, 1.24);
+    bumper(m, -6.05, -1, 1.16, 0.68, 1.30);
+    bumper(m, 6.10, 1, 1.14, 0.68, 1.30);
+    wipers(m, -6.0, 1.36, 1.10);
+    // Passengers on board, seen through the window band.
+    person(m, 903, -3.2, 0.7, Math.PI / 2, { scale: 0.86, lift: 0.86 });
+    person(m, 931, 1.4, 0.7, Math.PI / 2, { scale: 0.86, lift: 0.86, hat: true });
     // A queue at the door, which is what the doors are for.
     person(m, 81, -2.6, 1.9, -Math.PI / 2, { bag: true });
     person(m, 82, -3.3, 2.0, -Math.PI / 2, { stride: 0.08 });
@@ -745,8 +980,10 @@ function taxi(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.35, 1.45]) {
       arch(m, cx, 0.46, 0.50, 0.86);
+      archLip(m, cx, 0.46, 0.51, 0.94);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.36, sz * 0.78, 0.35, 0.13);
     }
+    interior(m, -1.1, 1.6, 0.80, 0.80, 2);
     glazing(m, -1.15, -0.2, 1.20, 1.80, 0.905, 0.24);
     glazing(m, 1.6, 1.98, 1.24, 1.72, 0.905, -0.1);
     for (const sz of [1, -1] as const) {
@@ -769,12 +1006,11 @@ function taxi(lod: number): MeshBuilder {
     m.painted(TINT.SIGN_LIT, () => m.box([-0.35, 1.86, -0.36], [0.45, 2.06, 0.36], MAT.TRIM));
     m.painted(TINT.METAL_DARK, () => {
       m.box([-0.4, 1.80, -0.4], [0.5, 1.88, 0.4], MAT.TRIM);
-      m.box([-2.14, 0.50, -0.84], [-1.94, 0.86, 0.84], MAT.TRIM);
-      m.box([2.06, 0.50, -0.80], [2.24, 0.88, 0.80], MAT.TRIM);
-      for (let i = 0; i < 3; i++) {
-        m.box([-2.12, 0.92 + i * 0.09, -0.44], [-2.00, 0.96 + i * 0.09, 0.44], MAT.TRIM);
-      }
     });
+    bumper(m, -2.06, -1, 0.84, 0.50, 0.88);
+    bumper(m, 2.12, 1, 0.80, 0.50, 0.90);
+    grille(m, -2.08, -1, 0.92, 1.22, 0.46, 3);
+    wipers(m, -1.14, 1.20, 0.90);
     doors(m, [-0.12, 1.02], 0.68, 1.50, 1.00, 1.10);
     mirrors(m, -1.1, 1.36, 1.00);
     for (const sz of [1, -1] as const) {
@@ -813,8 +1049,10 @@ function coupe(lod: number): MeshBuilder {
   if (medium) {
     for (const cx of [-1.40, 1.45]) {
       arch(m, cx, 0.38, 0.44, 0.90);
+      archLip(m, cx, 0.38, 0.45, 0.98);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.36, sz * 0.82, 0.35, 0.16);
     }
+    interior(m, -0.45, 1.1, 0.52, 0.76, 1);
     glazing(m, -0.5, 0.35, 0.86, 1.18, 0.94, 0.24);
     glazing(m, 0.85, 1.70, 0.90, 1.14, 0.94, -0.28);
   }
@@ -852,7 +1090,12 @@ function coupe(lod: number): MeshBuilder {
     }
     plate(m, -2.22, 0.42, -1);
     plate(m, 2.26, 0.5, 1);
+    bumper(m, -2.14, -1, 0.86, 0.30, 0.66);
+    bumper(m, 2.16, 1, 0.84, 0.30, 0.70);
+    grille(m, -2.16, -1, 0.40, 0.62, 0.52, 3);
+    wipers(m, -0.52, 0.86, 0.88);
     person(m, 101, 3.0, 1.2, Math.PI, { stride: 0.1 });
+    person(m, 106, 2.8, -1.2, 0.3, { hat: true });
   }
   return m;
 }
@@ -889,8 +1132,10 @@ function lorry(lod: number): MeshBuilder {
       }
       m.box([-4.6, 0.86, -0.72], [-3.6, 1.05, 0.72], MAT.TRIM);
     });
+    interior(m, -7.1, -5.6, 1.90, 1.06, 1);
     for (const cx of [-6.30, -4.90, 5.10, 6.20]) {
       arch(m, cx, 0.62, 0.68, 1.16);
+      archLip(m, cx, 0.62, 0.69, 1.24);
       for (const sz of [1, -1] as const) {
         wheel(m, cx, 0.55, sz * 1.00, 0.54, 0.16);
         if (cx > 0 || cx < -5.5) wheel(m, cx, 0.55, sz * 0.70, 0.54, 0.15);
@@ -934,6 +1179,8 @@ function lorry(lod: number): MeshBuilder {
       lamp(m, 7.30, 1.0, sz * 0.86, 0.4, 0.3, 1, TINT.BRAND);
     }
     plate(m, -7.32, 0.94, -1);
+    bumper(m, -7.26, -1, 1.20, 0.90, 1.62);
+    wipers(m, -7.2, 1.96, 1.16);
     // Operator's name board on the trailer flank.
     m.painted(TINT.BRAND, () => {
       for (const sz of [1, -1] as const) {
@@ -961,13 +1208,13 @@ function pedestrians(lod: number): MeshBuilder {
   m.box([-x, 0.0005, z - 0.3], [x, 0.04, z], MAT.GROUND);
 
   // Two lanes of walkers passing each other, plus a group standing still.
+  // Twelve walkers, not sixteen: a figure is about three hundred triangles
+  // once it has hips, arms and a face, and the fleet ceiling is five thousand.
   const walkers: Array<[number, number, number, number]> = [
-    [-7.6, -1.9, 0, 0.16], [-6.0, -2.3, 0, 0.10], [-4.2, -1.7, 0, 0.18],
-    [-2.4, -2.2, 0, 0.06], [-0.6, -1.8, 0, 0.15], [1.4, -2.3, 0, 0.11],
-    [3.2, -1.9, 0, 0.17], [5.4, -2.1, 0, 0.08],
-    [-6.8, 0.9, Math.PI, 0.14], [-4.9, 1.4, Math.PI, 0.09], [-3.0, 0.8, Math.PI, 0.17],
-    [-1.1, 1.3, Math.PI, 0.05], [0.9, 0.9, Math.PI, 0.16], [2.9, 1.4, Math.PI, 0.12],
-    [4.8, 0.85, Math.PI, 0.18], [6.7, 1.3, Math.PI, 0.07],
+    [-7.4, -1.9, 0, 0.16], [-4.8, -2.3, 0, 0.10], [-2.2, -1.7, 0, 0.18],
+    [0.4, -2.2, 0, 0.06], [3.0, -1.8, 0, 0.15], [5.6, -2.3, 0, 0.11],
+    [-6.6, 0.9, Math.PI, 0.14], [-4.0, 1.4, Math.PI, 0.09], [-1.4, 0.8, Math.PI, 0.17],
+    [1.2, 1.3, Math.PI, 0.05], [3.8, 0.9, Math.PI, 0.16],
   ];
   for (let i = 0; i < walkers.length; i++) {
     const [px, pz, f, st] = walkers[i];
@@ -983,7 +1230,7 @@ function pedestrians(lod: number): MeshBuilder {
     // A group waiting: two facing each other, one apart, all still.
     person(m, 400, 7.2, -0.4, Math.PI * 0.5, { bag: true });
     person(m, 407, 7.9, 0.4, -Math.PI * 0.5, {});
-    person(m, 414, 6.4, 1.6, Math.PI * 0.2, { hat: true });
+
     // A child, and someone sitting on the bench.
     person(m, 421, 5.9, -0.9, Math.PI * 0.5, { scale: 0.66, stride: 0.13 });
     m.painted(TINT.WOOD, () => {
@@ -1068,6 +1315,182 @@ function cyclists(lod: number): MeshBuilder {
     });
   }
   return m;
+}
+
+
+// ------------------------------------------------------- cars in buildings
+//
+// The service and industrial generators used to draw their vehicles as a
+// painted box on four smaller boxes. Next to a lofted car in the same scene
+// that reads as a placeholder, and every yard, forecourt and appliance bay in
+// the library has one. These are the same bodies at a fraction of the cost:
+// the loft and the wheels, none of the fittings, so a yard with six of them
+// still costs less than one full car.
+
+export type ParkedKind = 'car' | 'van' | 'truck' | 'bus';
+
+/**
+ * A parked vehicle, facing along +x before placement.
+ *
+ * `turns` is quarter turns anticlockwise, so a bay facing the street is 0 or
+ * 2 and one facing across it is 1 or 3. `key` picks the paint; pass the same
+ * key twice and you get the same car twice, which is what you do not want in
+ * a row of bays.
+ */
+export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: number,
+  turns: number, kind: ParkedKind = 'car', body?: number): void {
+  m.placed(cx, cz, turns, () => {
+    const paint = (): void => {
+      if (kind === 'bus') {
+        loft(m, [
+          { x: -5.6, s: shape(BOX, 0.94, 2.90) },
+          { x: -5.2, s: shape(BOX, 1.02, 3.05) },
+          { x: 5.2, s: shape(BOX, 1.02, 3.10) },
+          { x: 5.6, s: shape(BOX, 0.94, 2.95) },
+        ], MAT.PAINT);
+      } else if (kind === 'truck') {
+        loft(m, [
+          { x: -4.2, s: shape(BOX, 0.80, 2.30) },
+          { x: -3.9, s: shape(BOX, 0.92, 2.55) },
+          { x: -2.2, s: shape(BOX, 0.94, 2.70) },
+          { x: -1.9, s: shape(BOX, 0.90, 2.30) },
+        ], MAT.PAINT);
+        loft(m, [
+          { x: -1.8, s: shape(BOX, 0.96, 3.10) },
+          { x: 4.4, s: shape(BOX, 0.96, 3.10) },
+        ], MAT.PAINT);
+      } else if (kind === 'van') {
+        loft(m, [
+          { x: -2.5, s: shape(BOX, 0.72, 1.30) },
+          { x: -2.2, s: shape(BOX, 0.88, 1.60) },
+          { x: -1.0, s: shape(BOX, 1.00, 2.42) },
+          { x: 2.4, s: shape(BOX, 1.00, 2.56) },
+        ], MAT.PAINT);
+      } else {
+        loft(m, [
+          { x: -2.2, s: shape(CAR, 0.82, 0.98) },
+          { x: -1.5, s: shape(CAR, 1.00, 1.14) },
+          { x: -0.7, s: shape(CAR, 1.04, 1.46) },
+          { x: 0.9, s: shape(CAR, 1.04, 1.48) },
+          { x: 1.7, s: shape(CAR, 1.00, 1.20) },
+          { x: 2.2, s: shape(CAR, 0.86, 1.04) },
+        ], MAT.PAINT);
+      }
+    };
+    if (body === undefined) m.keyed(key, paint);
+    else m.painted(body as never, paint);
+
+    // Wheels and glazing: the two things that stop it reading as a crate.
+    if (kind === 'bus') {
+      for (const cw of [-3.8, 3.2, 4.4]) {
+        for (const sz of [1, -1] as const) wheel(m, cw, 0.48, sz * 0.98, 0.47, 0.17, 10);
+      }
+      for (const sz of [1, -1] as const) {
+        m.quad([-4.6, 1.4, sz * 1.20], [4.6, 1.4, sz * 1.20],
+               [4.6, 2.5, sz * 1.20], [-4.6, 2.5, sz * 1.20], MAT.GLASS);
+      }
+      glazing(m, -5.55, -4.9, 1.4, 2.6, 1.20, 0.28);
+    } else if (kind === 'truck') {
+      for (const cw of [-3.5, -2.2, 2.6, 3.8]) {
+        for (const sz of [1, -1] as const) wheel(m, cw, 0.52, sz * 0.92, 0.51, 0.16, 10);
+      }
+      glazing(m, -4.15, -3.5, 1.5, 2.3, 1.14, 0.24);
+    } else if (kind === 'van') {
+      for (const cw of [-1.6, 1.7]) {
+        for (const sz of [1, -1] as const) wheel(m, cw, 0.40, sz * 0.86, 0.39, 0.15, 10);
+      }
+      glazing(m, -2.4, -1.5, 1.7, 2.4, 1.10, 0.28);
+      for (const sz of [1, -1] as const) {
+        m.quad([-0.6, 1.5, sz * 1.14], [2.2, 1.5, sz * 1.14],
+               [2.2, 2.3, sz * 1.14], [-0.6, 2.3, sz * 1.14], MAT.GLASS);
+      }
+    } else {
+      for (const cw of [-1.45, 1.5]) {
+        for (const sz of [1, -1] as const) wheel(m, cw, 0.35, sz * 0.76, 0.34, 0.13, 10);
+      }
+      glazing(m, -0.8, 0.1, 1.06, 1.44, 0.86, 0.24);
+      glazing(m, 0.85, 1.55, 1.06, 1.42, 0.86, -0.2);
+      for (const sz of [1, -1] as const) {
+        m.quad([0.15, 1.06, sz * 0.87], [0.8, 1.06, sz * 0.87],
+               [0.8, 1.42, sz * 0.87], [0.15, 1.42, sz * 0.87], MAT.GLASS);
+      }
+    }
+    // Lights, so it has a front and a back at any distance.
+    const nose = kind === 'bus' ? -5.6 : kind === 'truck' ? -4.2 : kind === 'van' ? -2.5 : -2.2;
+    const tail = kind === 'bus' ? 5.6 : kind === 'truck' ? 4.4 : kind === 'van' ? 2.4 : 2.2;
+    const lampY = kind === 'car' ? 0.9 : 1.2;
+    for (const sz of [1, -1] as const) {
+      m.painted(TINT.SIGN_LIT, () =>
+        m.box([nose - 0.04, lampY - 0.15, sz * 0.6 - 0.16], [nose + 0.06, lampY + 0.15, sz * 0.6 + 0.16],
+          MAT.TRIM, { skipBottom: false }));
+      m.painted(TINT.BRAND, () =>
+        m.box([tail - 0.06, lampY - 0.15, sz * 0.6 - 0.16], [tail + 0.04, lampY + 0.15, sz * 0.6 + 0.16],
+          MAT.TRIM, { skipBottom: false }));
+    }
+  });
+}
+
+/**
+ * An emergency or works vehicle of a given size, facing along +z.
+ *
+ * The service generators had their own box-on-four-boxes version of this. It
+ * was fine on its own and stopped being fine the moment a lofted car parked
+ * next to it, so they all call this instead: same call signature, a real body
+ * and real wheels under it.
+ */
+export function applianceVehicle(m: MeshBuilder, cx: number, cz: number, len: number,
+  wide: number, tint: number, light = true): void {
+  const hl = len / 2, hw = wide / 2;
+  // Built along +x at the origin and quarter-turned into place, because the
+  // loft only runs one way and a service yard needs them facing the street.
+  m.placed(cx, cz, 1, () => {
+    const S: Section = [[0.42, 0.62], [0.78, 0.94], [1.9, 1.0], [2.28, 0.94], [2.44, 0.72]];
+    const sc = hw / 1.0;
+    m.painted(tint as never, () => {
+      loft(m, [
+        { x: -hl, s: shape(S, sc * 0.86, 2.05) },
+        { x: -hl + 0.5, s: shape(S, sc * 0.98, 2.25) },
+        { x: -hl + len * 0.34, s: shape(S, sc, 2.45) },
+        { x: -hl + len * 0.36, s: shape(S, sc, 2.62) },
+        { x: hl - 0.4, s: shape(S, sc, 2.62) },
+        { x: hl, s: shape(S, sc * 0.94, 2.5) },
+      ], MAT.PAINT);
+    });
+    glazing(m, -hl + 0.1, -hl + len * 0.3, 1.4, 2.0, hw * 0.9, 0.16);
+    for (const sz of [1, -1] as const) {
+      m.quad([-hl + 0.3, 1.42, sz * hw * 0.95], [-hl + len * 0.3, 1.42, sz * hw * 0.95],
+             [-hl + len * 0.3, 1.98, sz * hw * 0.95], [-hl + 0.3, 1.98, sz * hw * 0.95], MAT.GLASS);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      // Locker shutters down both flanks, and the chassis rail under them.
+      for (let i = 0; i < 3; i++) {
+        const px = -hl + len * 0.42 + i * (len * 0.5) / 3;
+        for (const sz of [1, -1] as const) {
+          m.box([px, 0.78, Math.min(sz * hw, sz * (hw + 0.05))],
+                [px + (len * 0.42) / 3, 1.74, Math.max(sz * hw, sz * (hw + 0.05))], MAT.TRIM);
+        }
+      }
+      m.box([-hl + 0.2, 0.26, -hw * 0.9], [hl - 0.2, 0.44, hw * 0.9], MAT.TRIM);
+    });
+    for (const px of [-hl + len * 0.24, hl - len * 0.22]) {
+      for (const sz of [1, -1] as const) wheel(m, px, 0.46, sz * (hw - 0.1), 0.45, 0.15, 12);
+    }
+    for (const sz of [1, -1] as const) {
+      m.painted(TINT.SIGN_LIT, () =>
+        m.box([-hl - 0.05, 0.9, sz * hw * 0.62 - 0.16], [-hl + 0.05, 1.2, sz * hw * 0.62 + 0.16],
+          MAT.TRIM, { skipBottom: false }));
+    }
+    if (light) {
+      m.painted(TINT.SIGN_LIT, () =>
+        m.box([-hl + 0.5, 2.44, -hw * 0.7], [-hl + len * 0.3, 2.64, hw * 0.7], MAT.TRIM));
+    }
+  });
+}
+
+/** A figure, for building generators that want one for scale. */
+export function figure(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
+  opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number } = {}): void {
+  person(m, key, cx, cz, facing, opts);
 }
 
 // ===================================================================== table

@@ -56,6 +56,7 @@ const MAT_CONCRETE  = 11u;
 const MAT_PLASTER   = 12u;
 const MAT_PANE      = 13u;
 const MAT_ROOF_TILE = 14u;
+const MAT_PAINT     = 18u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -854,14 +855,36 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   col = col * (ambient + direct);
 
-  // Specular on the smooth materials only. Masonry does not shine.
-  if (in.material == MAT_GLASS || in.material == MAT_SHOPFRONT
-      || in.material == MAT_METAL || in.material == MAT_SHED
-      || in.material == MAT_PANE) {
+  // Specular. Masonry does not shine, so this is per material rather than
+  // global: glass and paint get a tight, bright highlight and a Fresnel rim,
+  // metal a broader one, and everything else nothing at all. Without the
+  // Fresnel term a glazed tower is matte from every angle except the one the
+  // sun happens to bounce off, which is why the curtain walls read as card.
+  var gloss = 0.0;
+  var power = 64.0;
+  var fresnel = 0.0;
+  if (in.material == MAT_GLASS || in.material == MAT_SHOPFRONT || in.material == MAT_PANE) {
+    gloss = 0.85; power = 180.0; fresnel = 0.55;
+  } else if (in.material == MAT_PAINT) {
+    // Clearcoat: a car is the glossiest thing in a city street.
+    gloss = 1.15; power = 260.0; fresnel = 0.34;
+  } else if (in.material == MAT_METAL || in.material == MAT_SHED) {
+    gloss = 0.5; power = 42.0; fresnel = 0.12;
+  } else if (in.material == MAT_TRIM || in.material == MAT_CONCRETE) {
+    // Painted trim and precast are satin, not matte, and a trace of sheen is
+    // what stops a white cornice reading as paper.
+    gloss = 0.16; power = 26.0;
+  }
+  if (gloss > 0.0) {
     let v = normalize(scene.eye.xyz - in.world);
     let h = normalize(v + sun);
-    let spec = pow(max(dot(n, h), 0.0), 64.0) * shadow * in.ao;
-    col += vec3f(0.70, 0.72, 0.76) * spec * 0.55;
+    let spec = pow(max(dot(n, h), 0.0), power) * shadow * in.ao;
+    col += vec3f(0.70, 0.72, 0.76) * spec * gloss;
+    if (fresnel > 0.0) {
+      // Sky reflection at grazing angles: the other half of what glass does.
+      let grazing = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
+      col += vec3f(0.32, 0.40, 0.52) * grazing * fresnel * mix(0.5, 1.0, in.ao);
+    }
   }
 
   // Ground fades to the background rather than ending at a visible edge.

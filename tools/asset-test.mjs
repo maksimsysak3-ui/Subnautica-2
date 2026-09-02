@@ -27,6 +27,13 @@ const MAX_TRIS = 10000;
  */
 const SERVICE_MIN = 2400;
 const SERVICE_MAX = 12000;
+/**
+ * Vehicles and figures. Narrower than a building's band on both sides: a car
+ * is seen close up on a street, so it cannot be cheap, and there will be
+ * hundreds of them on screen at once, so it cannot be expensive either.
+ */
+const FLEET_MIN = 2000;
+const FLEET_MAX = 5000;
 
 /**
  * Materials a service building may not use.
@@ -100,8 +107,9 @@ for (const a of ASSETS) {
       if (used.has(id)) note(a.id, `uses the domestic material ${name}; services must not read as housing`);
     }
   }
-  const ceiling = service ? SERVICE_MAX : MAX_TRIS;
-  const floor = service ? SERVICE_MIN : MIN_TRIS;
+  const fleet = a.zone === 'fleet';
+  const ceiling = fleet ? FLEET_MAX : service ? SERVICE_MAX : MAX_TRIS;
+  const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);
   if (tris[1] > tris[0] || tris[2] > tris[1]) note(a.id, `LOD ladder is not decreasing: ${tris.join(' / ')}`);

@@ -15,6 +15,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
+import { parkedVehicle } from './vehicles';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
@@ -666,38 +667,11 @@ function busDepot(lod: number): MeshBuilder {
       m.box([a, shedH + 0.58, sz - 3.5], [b, shedH + 0.66, sz + 3.5], MAT.GLASS);
       m.box([(a + b) / 2 - 0.06, 0.004, sz + shedD / 2 + 0.5], [(a + b) / 2 + 0.06, 0.02, z - 1.0], MAT.TRIM);
     }
-    for (const cx of [-13.0, -6.2] as const) {
-      m.painted(TINT.BRAND, () => {
-        // Skirt to within 30cm of the ground, then the body over it. A body
-        // that starts at half a metre with the wheels tucked outboard reads as
-        // a box hovering over the yard the moment the camera drops.
-        m.box([cx - 1.3, 0.3, sz - 5.9], [cx + 1.3, 0.62, sz + 5.9], MAT.TRIM);
-        m.box([cx - 1.35, 0.62, sz - 6.0], [cx + 1.35, 3.3, sz + 6.0], MAT.TRIM);
-      });
-      ribbon(m, { axis: 'x', sign: 1, plane: cx + 1.35 }, sz - 5.4, sz + 4.0, 1.7, 2.7,
-        { sill: false, head: false });
-      ribbon(m, { axis: 'x', sign: -1, plane: cx - 1.35 }, sz - 5.4, sz + 4.0, 1.7, 2.7,
-        { sill: false, head: false });
-      m.painted(TINT.METAL_DARK, () => {
-        for (const pz of [sz - 4.2, sz + 3.6]) {
-          for (const px of [cx - 1.42, cx + 1.24]) {
-            m.box([px, 0.06, pz - 0.52], [px + 0.18, 1.02, pz + 0.52], MAT.TRIM);
-          }
-        }
-      });
+    // Buses on the stands. They were painted slabs on four smaller slabs and
+    // hovered half a metre off the yard; this is the real body, wheels down.
+    for (let i = 0; i < 2; i++) {
+      parkedVehicle(m, 3300 + i * 23, [-13.0, -6.2][i], sz, 1, 'bus');
     }
-    // Fuel and wash lane along one edge.
-    portal(m, -x + 2.0, -x + 12.0, z - 8.0, 5.0, 3.0, 2);
-    m.painted(TINT.METAL_DARK, () => {
-      for (const px of [-x + 4.5, -x + 9.5]) {
-        m.box([px - 0.55, 0.2, z - 6.6], [px + 0.55, 2.0, z - 5.4], MAT.TRIM);
-      }
-      m.box([x - 12.0, 0, z - 7.0], [x - 11.6, 4.6, z - 6.6], MAT.TRIM);
-      m.box([x - 12.0, 4.2, z - 7.0], [x - 3.0, 4.6, z - 6.6], MAT.TRIM);
-      for (let i = 0; i < 6; i++) {
-        m.box([x - 11.4 + i * 1.4, 1.2, z - 6.95], [x - 11.0 + i * 1.4, 4.2, z - 6.65], MAT.TRIM);
-      }
-    });
     controlBlock(m, shedW / 2 + 1.0, sz - 4.0, x - 0.5, sz + 5.0, 6.4, 1173);
     // Workshop annex behind the shed: pits, roller doors, an overhead crane
     // rail. A depot is a garage before it is a shelter.

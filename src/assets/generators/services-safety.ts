@@ -15,6 +15,7 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
+import { applianceVehicle } from './vehicles';
 import type { Tint } from '../mesh';
 import type { Wall } from '../parts';
 import {
@@ -137,38 +138,7 @@ function mast(m: MeshBuilder, cx: number, base: number, cz: number, h: number): 
  */
 function vehicle(m: MeshBuilder, cx: number, cz: number, len: number, wide: number,
                  body: Tint, light = true): void {
-  const hl = len / 2, hw = wide / 2;
-  m.painted(body, () => {
-    m.box([cx - hw, 0.42, cz - hl], [cx + hw, 2.35, cz + hl * 0.35], MAT.TRIM);
-    m.box([cx - hw * 0.94, 0.42, cz + hl * 0.35], [cx + hw * 0.94, 2.05, cz + hl], MAT.TRIM);
-  });
-  // Windscreen and cab side glass.
-  m.opening({ axis: 'z', sign: 1, plane: cz + hl, u0: cx - hw * 0.8, u1: cx + hw * 0.8,
-    y0: 1.35, y1: 1.95, glass: MAT.GLASS, frame: 0.07, proud: 0.04 });
-  for (const sx of [-1, 1] as const) {
-    m.opening({ axis: 'x', sign: sx, plane: cx + sx * hw * 0.95, u0: cz + hl * 0.4, u1: cz + hl * 0.9,
-      y0: 1.35, y1: 1.95, glass: MAT.GLASS, frame: 0.07, proud: 0.04 });
-  }
-  m.painted(TINT.METAL_DARK, () => {
-    // Lockers down the body side, and the wheels.
-    for (let i = 0; i < 3; i++) {
-      const pz = cz - hl + 0.5 + i * (len * 0.42) / 3;
-      for (const sx of [-1, 1] as const) {
-        m.box([cx + sx * hw, 0.7, pz], [cx + sx * (hw + 0.06), 1.8, pz + (len * 0.36) / 3], MAT.TRIM);
-      }
-    }
-    for (const pz of [cz - hl * 0.6, cz + hl * 0.62]) {
-      for (const sx of [-1, 1] as const) {
-        m.box([cx + sx * (hw - 0.12), 0.06, pz - 0.42], [cx + sx * (hw + 0.06), 0.92, pz + 0.42], MAT.TRIM);
-      }
-    }
-    m.box([cx - hw * 0.9, 0.24, cz - hl], [cx + hw * 0.9, 0.44, cz + hl], MAT.TRIM);
-  });
-  if (light) {
-    m.painted(TINT.SIGN_LIT, () => {
-      m.box([cx - hw * 0.8, 2.05, cz + hl * 0.5], [cx + hw * 0.8, 2.24, cz + hl * 0.85], MAT.TRIM);
-    });
-  }
+  applianceVehicle(m, cx, cz, len, wide, body, light);
 }
 
 /** Hose reels and a hydrant board: wall furniture for an appliance bay. */

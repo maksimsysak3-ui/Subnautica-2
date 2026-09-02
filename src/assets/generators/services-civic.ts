@@ -11,6 +11,7 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
+import { parkedVehicle } from './vehicles';
 import type { Material } from '../mesh';
 import type { Wall } from '../parts';
 import {
@@ -714,20 +715,11 @@ function worksDepot(lod: number): MeshBuilder {
         m.box([px - 0.16, 0.1, -z + 3.8], [px + 0.16, 4.4, -z + 4.2], MAT.TRIM);
       }
     });
-    // Gritters and a tipper in the bays.
+    // Gritters in the bays. Real bodies rather than painted slabs: a yard of
+    // boxes beside a lofted car in the same scene reads as a placeholder.
     for (let i = 0; i < 3; i++) {
       const cx = x - 14.5 + i * 3.9;
-      m.painted(TINT.ACCENT, () => m.box([cx - 1.2, 0.55, z - 10.5], [cx + 1.2, 3.0, z - 4.5], MAT.TRIM));
-      m.painted(TINT.METAL_DARK, () => {
-        m.box([cx - 1.1, 0.2, z - 10.6], [cx + 1.1, 0.6, z - 4.4], MAT.TRIM);
-        for (const pz of [z - 9.6, z - 5.6]) {
-          for (const sx of [-1, 1] as const) {
-            m.box([cx + sx * 1.05, 0.08, pz - 0.45], [cx + sx * 1.28, 0.85, pz + 0.45], MAT.TRIM);
-          }
-        }
-      });
-      ribbon(m, { axis: 'z', sign: 1, plane: z - 4.5 }, cx - 1.0, cx + 1.0, 1.9, 2.7,
-        { sill: false, head: false });
+      parkedVehicle(m, 3100 + i * 13, cx, z - 7.5, 3, 'truck');
     }
     // Mess and stores block.
     m.box([-x + 2.0, 0.1, -z + 2.0], [-x + 11.0, 6.4, -z + 8.0], MAT.CLADDING, { roof: MAT.TRIM });

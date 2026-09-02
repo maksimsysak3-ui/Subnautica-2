@@ -143,6 +143,8 @@ export class MeshBuilder {
    * without a material per colour. Everything else ignores it.
    */
   private key = 0;
+  /** Rotation and offset applied to everything emitted, or null for none. */
+  private place: { cx: number; cz: number; q: number } | null = null;
 
   /**
    * Runs `body` with a part key applied, then restores the previous one.
@@ -173,8 +175,38 @@ export class MeshBuilder {
     return this.verts.length / FLOATS_PER_VERTEX;
   }
 
+  /**
+   * Runs `body` with everything it emits rotated about Y and moved into place.
+   *
+   * Quarter turns only, so an axis-aligned box stays axis-aligned and the
+   * facade shading -- which picks its coordinate from the dominant face normal
+   * -- keeps working. That is the whole reason the library is axis-aligned, and
+   * it is also enough: a parked car, a skip, a bench face along a street.
+   */
+  placed(cx: number, cz: number, quarterTurns: number, body: () => void): void {
+    const prev = this.place;
+    const q = ((quarterTurns % 4) + 4) % 4;
+    this.place = { cx, cz, q };
+    body();
+    this.place = prev;
+  }
+
+  /** Applies the current placement to a point. */
+  private xf(p: Vec3): Vec3 {
+    const t = this.place;
+    if (t === null) return p;
+    const [x, y, z] = p;
+    switch (t.q) {
+      case 1: return [t.cx - z, y, t.cz + x];
+      case 2: return [t.cx - x, y, t.cz - z];
+      case 3: return [t.cx + z, y, t.cz - x];
+      default: return [t.cx + x, y, t.cz + z];
+    }
+  }
+
   /** Adds one triangle from explicit positions, with a shared face normal. */
-  tri(a: Vec3, b: Vec3, c: Vec3, mat: Material): void {
+  tri(rawA: Vec3, rawB: Vec3, rawC: Vec3, mat: Material): void {
+    const a = this.xf(rawA), b = this.xf(rawB), c = this.xf(rawC);
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
     const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
     let nx = uy * vz - uz * vy;
@@ -404,7 +436,7 @@ export class MeshBuilder {
   signFace(a: Vec3, b: Vec3, c: Vec3, d: Vec3, mat: Material): void {
     const uv: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const emit = (i0: number, i1: number, i2: number): void => {
-      const p = [a, b, c, d];
+      const p = [this.xf(a), this.xf(b), this.xf(c), this.xf(d)];
       const A = p[i0], B = p[i1], C = p[i2];
       const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
       const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
