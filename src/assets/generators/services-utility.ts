@@ -17,7 +17,7 @@ import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
 import type { Wall } from '../parts';
 import {
-  band, boxSign, entrance, fins, kerb, louvres, parapet, portal, railing,
+  band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
   ribbon, roofClutter, serviceYard,
 } from '../parts';
 
@@ -622,6 +622,7 @@ function solarFarm(lod: number): MeshBuilder {
     });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3385);
   return m;
 }
 
@@ -737,6 +738,7 @@ function busDepot(lod: number): MeshBuilder {
     serviceYard(m, -shedW / 2, shedW / 2, z - 1.0, 1175, { cycles: false });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3392);
   return m;
 }
 
@@ -845,6 +847,7 @@ function busStation(lod: number): MeshBuilder {
     serviceYard(m, -x, -x + 14.0, z - 2.0, 1181, { flag: false, cycles: true });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3399);
   return m;
 }
 
@@ -959,6 +962,7 @@ function metroEntrance(lod: number): MeshBuilder {
     railing(m, -x + 1.0, x - 1.0, z - 1.0, 0, 1.05, 1.4);
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3406);
   return m;
 }
 

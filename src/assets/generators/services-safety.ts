@@ -18,7 +18,7 @@ import type { AssetDef } from '../types';
 import type { Tint } from '../mesh';
 import type { Wall } from '../parts';
 import {
-  band, bollards, boxSign, entrance, fins, frontage, kerb, parapet,
+  band, bollards, boxSign, dressRoof, entrance, fins, frontage, kerb, parapet,
   louvres, portal, railing, ribbon, roofClutter, serviceYard,
 } from '../parts';
 
@@ -230,6 +230,7 @@ function fireStation(lod: number): MeshBuilder {
     serviceYard(m, x - 6.0, x, z, 905, { flag: true });
     kerb(m, -x - 1.0, z + 9.0, x, z + 9.4);
   }
+  dressRoof(m, lod, 3343);
   return m;
 }
 
@@ -350,6 +351,7 @@ function fireHQ(lod: number): MeshBuilder {
     frontage(m, x - 10.0, x, z, 923, { planters: 3, bollards: 6, depth: 2.4 });
     kerb(m, -x, z + 12.0, x, z + 12.4);
   }
+  dressRoof(m, lod, 3350);
   return m;
 }
 
@@ -497,6 +499,7 @@ function airRescue(lod: number): MeshBuilder {
     });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3357);
   return m;
 }
 
@@ -966,6 +969,7 @@ function hospital(lod: number): MeshBuilder {
     });
     frontage(m, -x, x, z, 993, { planters: 4, bollards: 12, depth: 2.6 });
   }
+  dressRoof(m, lod, 3364);
   return m;
 }
 
@@ -1024,6 +1028,7 @@ function ambulanceDepot(lod: number): MeshBuilder {
     serviceYard(m, -x, x, z + 14.0, 1005, { flag: false });
     kerb(m, -x, z + 14.0, x, z + 14.4);
   }
+  dressRoof(m, lod, 3371);
   return m;
 }
 
@@ -1102,6 +1107,7 @@ function careHome(lod: number): MeshBuilder {
     m.box([x - 8.4, 0.002, -z + t], [x - 1.6, 0.08, -z + t + 2.6], MAT.CONCRETE);
     frontage(m, -x + t + 10.0, x, -z + t + 2.6, 1011, { planters: 3, bollards: 6, depth: 2.2 });
   }
+  dressRoof(m, lod, 3378);
   return m;
 }
 

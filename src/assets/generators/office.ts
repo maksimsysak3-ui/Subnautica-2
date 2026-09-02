@@ -15,7 +15,7 @@ import { CELL } from '../types';
 import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
-  band, boxSign, entrance, fasciaSign, fins, frontage, kerb, louvres, parapet, planter,
+  band, boxSign, dressRoof, entrance, fasciaSign, fins, frontage, kerb, louvres, parapet, planter,
   railing, ribbon, ring, roofClutter, windowGrid,
 } from '../parts';
 
@@ -64,6 +64,7 @@ function parkUnit(lod: number): MeshBuilder {
     }
     kerb(m, x + 0.4, -z, x + 0.6, z);
   }
+  dressRoof(m, lod, 3224);
   return m;
 }
 
@@ -215,6 +216,7 @@ function officeTower(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 3.6, height: 3.6, double: true, canopy: 3.4 });
     frontage(m, -x, x, z, 333, { planters: 3, bollards: 9, depth: 3.0 });
   }
+  dressRoof(m, lod, 3231);
   return m;
 }
 
@@ -269,6 +271,7 @@ function conversion(lod: number): MeshBuilder {
       m.box([-x - 1.55, 0, 1.48], [-x - 1.43, h, 1.6], MAT.TRIM);
     });
   }
+  dressRoof(m, lod, 3238);
   return m;
 }
 
@@ -438,6 +441,7 @@ function techCampus(lod: number): MeshBuilder {
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, -x + 7.0, h - 1.6, h - 0.5);
     frontage(m, -x, x, z, 357, { planters: 0, bollards: 10, depth: 2.4 });
   }
+  dressRoof(m, lod, 3245);
   return m;
 }
 
@@ -497,6 +501,7 @@ function atriumBlock(lod: number): MeshBuilder {
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.6, 3.6, 4.2, 5.4);
     frontage(m, -x, x, z + 1.2, 363, { planters: 3, bollards: 10, depth: 2.4 });
   }
+  dressRoof(m, lod, 3252);
   return m;
 }
 
@@ -562,6 +567,7 @@ function studio(lod: number): MeshBuilder {
     fasciaSign(m, { axis: 'z', sign: 1, plane: z }, x - 7.2, x - 1.2, lower + 3.4, lower + 4.4);
     frontage(m, -x, x, z, 373, { planters: 3, bollards: 9 });
   }
+  dressRoof(m, lod, 3259);
   return m;
 }
 
@@ -629,6 +635,7 @@ function civicOffice(lod: number): MeshBuilder {
     railing(m, -8.0, 8.0, z + 6.0, 0, 1.0, 1.6);
     frontage(m, -x, x, z + 6.0, 383, { planters: 4, bollards: 10, depth: 2.4 });
   }
+  dressRoof(m, lod, 3266);
   return m;
 }
 
@@ -694,6 +701,7 @@ function curtainSlab(lod: number): MeshBuilder {
     boxSign(m, { axis: 'z', sign: 1, plane: z - 1.4 }, -4.0, 4.0, 4.3, 5.3);
     frontage(m, -x, x, z, 393, { planters: 4, bollards: 12, depth: 2.4 });
   }
+  dressRoof(m, lod, 3273);
   return m;
 }
 
@@ -905,6 +913,7 @@ function pavilion(lod: number): MeshBuilder {
     for (const cx of [-11.0, 11.0]) planter(m, cx, d / 2 + 4.6, 1.1, 0.7);
     frontage(m, -x + 1.0, x - 1.0, z - 1.0, 615, { planters: 0, bollards: 6 });
   }
+  dressRoof(m, lod, 3217);
   return m;
 }
 

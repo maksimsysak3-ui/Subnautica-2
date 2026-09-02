@@ -139,6 +139,57 @@ export function roofClutter(m: MeshBuilder, x0: number, z0: number, x1: number, 
   }
 }
 
+
+/**
+ * Dresses whatever flat roof the builder already has.
+ *
+ * A flat-roofed block with a bare top is an extrusion of its own plan, and
+ * from the angle a city builder is played at, the roof is a third of what you
+ * see of every building. Sixty-odd assets in this library had one.
+ *
+ * It finds the roof itself rather than taking coordinates, because every
+ * generator already holds those numbers in three forms and restating them a
+ * fourth time is how plant ends up hovering beside a building instead of on
+ * it. Call it last, once the roof exists; it no-ops at the far LOD and on
+ * anything pitched.
+ */
+export function dressRoof(m: MeshBuilder, lod: number, seed: number,
+  opts: { density?: number; parapet?: boolean; lights?: number } = {}): void {
+  if (lod >= 2) return;
+  const roof = m.roofPlane();
+  if (roof === null) return;
+  const [x0, z0] = roof.min;
+  const [x1, z1] = roof.max;
+  const y = roof.y;
+  const w = x1 - x0, d = z1 - z0;
+  if (w < 4 || d < 4) return;
+
+  // Inset, so nothing sits on the very edge where a parapet would be.
+  const i = Math.min(1.2, Math.min(w, d) * 0.14);
+  roofClutter(m, x0 + i, z0 + i, x1 - i, z1 - i, y, seed, opts.density ?? 1);
+
+  if (opts.parapet !== false) parapet(m, x0, z0, x1, z1, y, 0.75, 0.16);
+
+  // Rooflights in a row, and the mansafe line that has to run past them.
+  const lights = opts.lights ?? Math.min(4, Math.max(0, Math.round(w / 9)));
+  for (let k = 0; k < lights; k++) {
+    const cx = x0 + i + ((k + 0.5) / lights) * (w - 2 * i);
+    const cz = (z0 + z1) / 2 + (hash2(k, 5, seed) - 0.5) * d * 0.3;
+    m.box([cx - 0.9, y, cz - 0.7], [cx + 0.9, y + 0.22, cz + 0.7], MAT.CONCRETE);
+    m.box([cx - 0.8, y + 0.22, cz - 0.6], [cx + 0.8, y + 0.42, cz + 0.6], MAT.GLASS);
+  }
+  m.painted(TINT.METAL_DARK, () => {
+    const cz = z0 + d * 0.62;
+    for (let k = 0; k <= Math.max(1, Math.round(w / 4)); k++) {
+      const cx = x0 + i + (k / Math.max(1, Math.round(w / 4))) * (w - 2 * i);
+      m.box([cx - 0.05, y, cz - 0.05], [cx + 0.05, y + 1.0, cz + 0.05], MAT.TRIM);
+    }
+    m.box([x0 + i, y + 0.95, cz - 0.03], [x1 - i, y + 1.0, cz + 0.03], MAT.TRIM);
+    // A downpipe hopper at one corner: roofs drain somewhere.
+    m.box([x1 - i - 0.3, y, z0 + i, ], [x1 - i, y + 0.5, z0 + i + 0.3], MAT.TRIM);
+  });
+}
+
 // ------------------------------------------------------------ street level
 
 /**

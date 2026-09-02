@@ -17,7 +17,7 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   awning, band, bladeSign, bollards, boxSign, fasciaSign, fireEscape,
-  chimneyStack, eavesBand, entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring,
+  chimneyStack, eavesBand, dressRoof, entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring,
   roofClutter, shopfront,
   windowGrid,
 } from '../parts';
@@ -56,6 +56,7 @@ function cornerShop(lod: number): MeshBuilder {
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.5, 5);
     planter(m, x - 1.6, z + 1.9, 0.7);
   }
+  dressRoof(m, lod, 3140);
   return m;
 }
 
@@ -219,6 +220,7 @@ function coffeeBar(lod: number): MeshBuilder {
     windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 1.0,
       { floors: 1, floorH: 3, base: 1.4, count: 2, width: 1.2, height: 1.5 });
   }
+  dressRoof(m, lod, 3147);
   return m;
 }
 
@@ -267,6 +269,7 @@ function stripMall(lod: number): MeshBuilder {
         glass: MAT.TRIM, frame: 0.1, proud: 0.07 });
     }
   }
+  dressRoof(m, lod, 3154);
   return m;
 }
 
@@ -328,6 +331,7 @@ function supermarket(lod: number): MeshBuilder {
         { floors: 1, floorH: 3, base: 5.4, count: 4, width: 1.4, height: 1.2 });
     }
   }
+  dressRoof(m, lod, 3161);
   return m;
 }
 
@@ -417,6 +421,7 @@ function boutique(lod: number): MeshBuilder {
       { floors, floorH, base: ground + 0.8, count: 3, width: 1.1, height: 1.9 });
     fireEscape(m, { axis: 'x', sign: -1, plane: -x }, -2.4, ground + 0.4, floors, floorH, 3.0);
   }
+  dressRoof(m, lod, 3168);
   return m;
 }
 
@@ -542,6 +547,7 @@ function carPark(lod: number): MeshBuilder {
     boxSign(m, { axis: 'x', sign: -1, plane: -x - 1.4 }, -z + 3.8, -z + 9.2, top + 0.4, top + 2.6);
     frontage(m, -x, x, z + 0.4, 907, { planters: 2, bollards: 6 });
   }
+  dressRoof(m, lod, 3126, { parapet: false, density: 0.6 });
   return m;
 }
 
@@ -610,6 +616,7 @@ function restaurant(lod: number): MeshBuilder {
     railing(m, -x, x, z - 0.2, 0.12, 0.95, 1.3);
     frontage(m, -x, x, z - 0.2, 911, { planters: 3, bollards: 0 });
   }
+  dressRoof(m, lod, 3133);
   return m;
 }
 
@@ -804,6 +811,7 @@ function pharmacy(lod: number): MeshBuilder {
       { floors: 1, floorH: 3, base: 2.2, count: 4, width: 1.1, height: 1.5 });
     railing(m, -x + 0.5, x - 0.5, z + 2.6, 0, 0.95, 1.3);
   }
+  dressRoof(m, lod, 3175);
   return m;
 }
 
@@ -882,6 +890,7 @@ function bankBranch(lod: number): MeshBuilder {
     boxSign(m, { axis: 'z', sign: 1, plane: z + 0.25 }, -3.2, 3.2, ground + 1.1, ground + 2.3);
     frontage(m, -x, x, z + 2.5, 403, { planters: 2, bollards: 6, depth: 2.4 });
   }
+  dressRoof(m, lod, 3182);
   return m;
 }
 
@@ -920,6 +929,7 @@ function gym(lod: number): MeshBuilder {
     bladeSign(m, { axis: 'x', sign: 1, plane: x + 0.3 }, 2.0, 5.0, 8.4, 1.5);
     frontage(m, -x, x, z, 413, { planters: 2, bollards: 8 });
   }
+  dressRoof(m, lod, 3189);
   return m;
 }
 
@@ -1082,6 +1092,7 @@ function cinema(lod: number): MeshBuilder {
     bladeSign(m, { axis: 'x', sign: 1, plane: x }, z - 2.6, foyer - 0.5, hall + 2.4, 1.6);
     frontage(m, -x, x, z + 3.2, 703, { planters: 2, bollards: 9, depth: 2.6 });
   }
+  dressRoof(m, lod, 3196);
   return m;
 }
 
@@ -1344,6 +1355,7 @@ function showroom(lod: number): MeshBuilder {
     m.box([-x, 0.001, z], [x, 0.08, z + 6.4], MAT.CONCRETE);
     kerb(m, -x, z + 6.4, x, z + 6.8);
   }
+  dressRoof(m, lod, 3203);
   return m;
 }
 
@@ -1409,6 +1421,7 @@ function mall(lod: number): MeshBuilder {
     });
     kerb(m, -x, z + 17.0, x, z + 17.4);
   }
+  dressRoof(m, lod, 3210);
   return m;
 }
 

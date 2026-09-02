@@ -15,7 +15,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import { CELL } from '../types';
 import type { AssetDef } from '../types';
 import {
-  band, eavesBand, entrance, frontage, kerb, parapet, ring, roofClutter, windowGrid,
+  band, eavesBand, dressRoof, entrance, frontage, kerb, parapet, ring, roofClutter, windowGrid,
 } from '../parts';
 
 /** Vertical silo with a plinth, a conical top and a vent. */
@@ -252,6 +252,7 @@ function processingPlant(lod: number): MeshBuilder {
       m.cylinder(x0 + 3.4 + i * 4.6, sz + 3.0, 0.6, wall + 3.4, wall + 4.7, 10, MAT.METAL);
     }
   }
+  dressRoof(m, lod, 3287);
   return m;
 }
 
@@ -306,6 +307,7 @@ function tankFarm(lod: number): MeshBuilder {
       }
     });
   }
+  dressRoof(m, lod, 3294);
   return m;
 }
 
@@ -526,6 +528,7 @@ function coldStore(lod: number): MeshBuilder {
     });
     kerb(m, -x, cz + z + 12.0, x, cz + z + 12.4);
   }
+  dressRoof(m, lod, 3301);
   return m;
 }
 
@@ -610,6 +613,7 @@ function batchingPlant(lod: number): MeshBuilder {
     });
     kerb(m, -x, z - 0.4, x, z);
   }
+  dressRoof(m, lod, 3308);
   return m;
 }
 
@@ -806,6 +810,7 @@ function assemblyPlant(lod: number): MeshBuilder {
       { width: 3.0, height: 3.0, double: true, glazed: true, canopy: 2.6 });
     frontage(m, -x + 1.5, x - 1.5, z, 533, { planters: 2, bollards: 8, depth: 2.6 });
   }
+  dressRoof(m, lod, 3315);
   return m;
 }
 
@@ -930,6 +935,7 @@ function grainStore(lod: number): MeshBuilder {
     });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3322);
   return m;
 }
 
@@ -995,6 +1001,7 @@ function printWorks(lod: number): MeshBuilder {
     m.box([x - 8.0, 0.001, z], [x, 1.2, z + 3.0], MAT.CONCRETE);
     frontage(m, -x, x - 8.5, z, 823, { planters: 2, bollards: 8, depth: 2.4 });
   }
+  dressRoof(m, lod, 3329);
   return m;
 }
 
@@ -1265,6 +1272,7 @@ function bottlingPlant(lod: number): MeshBuilder {
     });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3336);
   return m;
 }
 
@@ -1420,6 +1428,7 @@ function machineShop(lod: number): MeshBuilder {
     frontage(m, -x, x, z, 727, { planters: 0, bollards: 6, depth: 0.6 });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3280);
   return m;
 }
 

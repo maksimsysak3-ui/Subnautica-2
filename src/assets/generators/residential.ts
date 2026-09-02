@@ -17,7 +17,7 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   awning, balconies, band, bladeSign, bollards, fasciaSign, fireEscape, kerb, parapet, planter,
-  backyard, entrance, frontage, railing, ribbon, ring, roofClutter, shopfront, windowGrid,
+  backyard, dressRoof, entrance, frontage, railing, ribbon, ring, roofClutter, shopfront, windowGrid,
 } from '../parts';
 
 /** Ridge height for a span, at roughly a 38-degree pitch. */
@@ -378,6 +378,7 @@ function walkUp(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z + 0.22 }, 0,
       { width: 1.5, double: true, steps: 2, canopy: 1.5 });
   }
+  dressRoof(m, lod, 3042);
   return m;
 }
 
@@ -420,6 +421,7 @@ function tenement(lod: number): MeshBuilder {
     fireEscape(m, { axis: 'x', sign: -1, plane: -x }, -3.0, ground + 0.5, floors - 1, floorH, 3.4);
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.6, 6);
   }
+  dressRoof(m, lod, 3049);
   return m;
 }
 
@@ -537,6 +539,7 @@ function mixedUse(lod: number): MeshBuilder {
     }
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 2.0, 7);
   }
+  dressRoof(m, lod, 3056);
   return m;
 }
 
@@ -584,6 +587,7 @@ function slabBlock(lod: number): MeshBuilder {
     }
     frontage(m, -x, x, z, 261, { planters: 2, bollards: 8, depth: 2.4 });
   }
+  dressRoof(m, lod, 3063);
   return m;
 }
 
@@ -624,6 +628,7 @@ function cornerBlock(lod: number): MeshBuilder {
       { floors, floorH, base: ground + 0.85, count: 1, width: 2.2, height: 1.75 });
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.6, 6);
   }
+  dressRoof(m, lod, 3070);
   return m;
 }
 
@@ -686,6 +691,7 @@ function pointTower(lod: number): MeshBuilder {
       { width: 2.6, height: 3.2, double: true, canopy: 1.9 });
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.8, 7);
   }
+  dressRoof(m, lod, 3098);
   return m;
 }
 
@@ -839,6 +845,7 @@ function terracedTower(lod: number): MeshBuilder {
     windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 3.2, x - 3.2,
       { floors: 1, floorH: 3, base: 3.6, count: 3, width: 1.2, height: 1.4 });
   }
+  dressRoof(m, lod, 3105);
   return m;
 }
 
@@ -890,6 +897,7 @@ function twinPodium(lod: number): MeshBuilder {
       { width: 3.0, height: 3.2, double: true, canopy: 2.8 });
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1, x - 1, 1.8, 8);
   }
+  dressRoof(m, lod, 3112);
   return m;
 }
 
@@ -1204,6 +1212,7 @@ function townHouse(lod: number): MeshBuilder {
     kerb(m, -x - 0.6, z + 5.2, x + 0.6, z + 5.6);
     backyard(m, -x, -z - 7.5, x, -z - 0.2, 663);
   }
+  dressRoof(m, lod, 3028);
   return m;
 }
 
@@ -1264,6 +1273,7 @@ function villa(lod: number): MeshBuilder {
     railing(m, -x + 0.6, x - 4.8, lower + 0.02, lower, 1.0, 1.3);
     backyard(m, -x, -z - 7.0, x, -z - 1.2, 673);
   }
+  dressRoof(m, lod, 3035);
   return m;
 }
 
@@ -1323,6 +1333,7 @@ function maisonettes(lod: number): MeshBuilder {
     }
     frontage(m, -x, x, z + 2.45, 683, { planters: 2, bollards: 8, depth: 2.2 });
   }
+  dressRoof(m, lod, 3077);
   return m;
 }
 
@@ -1389,6 +1400,7 @@ function galleryBlock(lod: number): MeshBuilder {
       { width: 2.0, height: 2.6, double: true, glazed: true, canopy: 2.0 });
     frontage(m, -x, x, z, 693, { planters: 3, bollards: 9 });
   }
+  dressRoof(m, lod, 3084);
   return m;
 }
 
@@ -1442,6 +1454,7 @@ function cladTower(lod: number): MeshBuilder {
       { width: 2.4, height: 3.0, double: true, glazed: true, canopy: 2.2 });
     frontage(m, -x, x, z, 703, { planters: 3, bollards: 7 });
   }
+  dressRoof(m, lod, 3119);
   return m;
 }
 
@@ -1542,6 +1555,7 @@ function shophouseRow(lod: number): MeshBuilder {
     }
     frontage(m, -x, x, z, 723, { planters: 3, bollards: 9, depth: 2.4 });
   }
+  dressRoof(m, lod, 3091);
   return m;
 }
 
@@ -1746,6 +1760,7 @@ function courtyardHouse(lod: number): MeshBuilder {
     backyard(m, -x + 1.0, -z + 1.0, x - 1.0, -z + 1.0, 41);
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3007);
   return m;
 }
 
@@ -1817,6 +1832,7 @@ function mansardPair(lod: number): MeshBuilder {
     backyard(m, -wx, -z + 1.0, wx, -wz, 44);
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3014);
   return m;
 }
 
@@ -1875,6 +1891,7 @@ function splitLevel(lod: number): MeshBuilder {
     backyard(m, -x + 1.0, -z + 1.0, -x + 10.0, -z + 2.0, 45);
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3021);
   return m;
 }
 

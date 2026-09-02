@@ -424,6 +424,53 @@ export class MeshBuilder {
     emit(0, 2, 3);
   }
 
+  /**
+   * The main flat roof, if there is one: its height and its plan extent.
+   *
+   * Found by binning every upward-facing triangle's area by height and taking
+   * the highest bin that holds a real amount of area. A pitched roof has no
+   * such bin and returns null, which is right -- a pitch is never a bare lid.
+   *
+   * This exists so a generator can dress its own roof without restating
+   * coordinates it already has in three other forms. Getting those numbers
+   * slightly wrong is how plant ends up hovering beside a building.
+   */
+  roofPlane(): { y: number; min: [number, number]; max: [number, number] } | null {
+    let top = -Infinity;
+    for (let i = 1; i < this.verts.length; i += FLOATS_PER_VERTEX) {
+      if (this.verts[i] > top) top = this.verts[i];
+    }
+    if (!Number.isFinite(top) || top < 3) return null;
+
+    const bins = new Map<number, { area: number; x0: number; x1: number; z0: number; z1: number }>();
+    for (let t = 0; t < this.idx.length; t += 3) {
+      const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
+      if (this.verts[p[0] + 4] < 0.9) continue;
+      const cy = (this.verts[p[0] + 1] + this.verts[p[1] + 1] + this.verts[p[2] + 1]) / 3;
+      const ux = this.verts[p[1]] - this.verts[p[0]];
+      const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
+      const wx = this.verts[p[2]] - this.verts[p[0]];
+      const wz = this.verts[p[2] + 2] - this.verts[p[0] + 2];
+      const area = Math.abs(ux * wz - uz * wx) / 2;
+      const k = Math.round(cy * 4) / 4;
+      const b = bins.get(k) ?? { area: 0, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+      b.area += area;
+      for (const q of p) {
+        b.x0 = Math.min(b.x0, this.verts[q]); b.x1 = Math.max(b.x1, this.verts[q]);
+        b.z0 = Math.min(b.z0, this.verts[q + 2]); b.z1 = Math.max(b.z1, this.verts[q + 2]);
+      }
+      bins.set(k, b);
+    }
+    let bestY: number | null = null;
+    let best: { area: number; x0: number; x1: number; z0: number; z1: number } | null = null;
+    for (const [y, b] of bins) {
+      if (b.area < 30 || y < top * 0.55) continue;
+      if (bestY === null || y >= bestY) { bestY = y; best = b; }
+    }
+    if (bestY === null || best === null) return null;
+    return { y: bestY, min: [best.x0, best.z0], max: [best.x1, best.z1] };
+  }
+
   /** World-space bounds of everything pushed so far. Cheap: no AO, no copy. */
   bounds(): { min: Vec3; max: Vec3 } {
     const min: Vec3 = [Infinity, Infinity, Infinity];

@@ -158,3 +158,55 @@ for (const [id, bad] of rows) {
   }
 }
 console.log(`\n${floating} of ${ASSETS.length} assets have a detached part off the ground.`);
+
+// ------------------------------------------------------------- flat lids
+//
+// The other thing that cannot be eyeballed across a library: a roof that is
+// one bare plane. A flat-roofed block with nothing on top reads as an
+// extrusion of its own plan, and from the angle a city builder is played at,
+// the roof is a third of what you see of every building.
+
+console.log('\nFlat roofs with nothing on them:');
+let bare = 0;
+for (const a of ASSETS) {
+  if (a.zone === 'fleet') continue;
+  const mesh = a.build(0).build({ occlusion: false });
+  const v = mesh.vertices, ix = mesh.indices;
+  let top = -Infinity;
+  for (let i = 1; i < v.length; i += STRIDE) top = Math.max(top, v[i]);
+  if (top < 3) continue;
+
+  // Find the main flat roof: bin every upward-facing triangle's area by
+  // height and take the tallest bin holding a real amount of area. A pitched
+  // roof has no such bin, which is the point -- a pitch is never a bare lid.
+  const bins = new Map();
+  const tri = [];
+  for (let t = 0; t < ix.length; t += 3) {
+    const p = [0, 1, 2].map((k) => {
+      const i = ix[t + k] * STRIDE;
+      return [v[i], v[i + 1], v[i + 2], v[i + 4]];
+    });
+    const cy = (p[0][1] + p[1][1] + p[2][1]) / 3;
+    tri.push(cy);
+    if (p[0][3] < 0.9) continue;
+    const ux = p[1][0] - p[0][0], uz = p[1][2] - p[0][2];
+    const wx = p[2][0] - p[0][0], wz = p[2][2] - p[0][2];
+    const area = Math.abs(ux * wz - uz * wx) / 2;
+    const k = Math.round(cy * 4) / 4;
+    bins.set(k, (bins.get(k) ?? 0) + area);
+  }
+  let roofY = null, best = 0;
+  for (const [y, area] of bins) {
+    // Big enough to be a roof rather than a coping, and high enough to be the
+    // building's own top rather than a podium.
+    if (area >= 30 && y > top * 0.55 && y >= (roofY ?? -1)) { roofY = y; best = area; }
+  }
+  if (roofY === null) continue;
+  const above = tri.filter((y) => y > roofY + 0.35).length;
+  if (above < 24) {
+    bare++;
+    console.log(`   ${a.id.padEnd(22)} roof at ${roofY.toFixed(1)}m (${Math.round(best)} m2), ` +
+      `${above} triangles standing on it`);
+  }
+}
+console.log(`\n${bare} assets have a bare lid.`);

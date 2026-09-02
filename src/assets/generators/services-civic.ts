@@ -14,7 +14,7 @@ import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
 import type { Wall } from '../parts';
 import {
-  band, boxSign, entrance, fins, kerb, louvres, parapet, portal, railing,
+  band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
   ribbon, roofClutter, serviceYard,
 } from '../parts';
 
@@ -254,6 +254,7 @@ function primarySchool(lod: number): MeshBuilder {
     perimeter(m, -x + 0.4, -z + 0.4, x - 0.4, z - 0.4, 1.8, 2.2, [-x + 2.0, -x + 10.0]);
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3413);
   return m;
 }
 
@@ -323,6 +324,7 @@ function highSchool(lod: number): MeshBuilder {
     serviceYard(m, -x + 1.0, x - 14.0, -z + 15.0, 1213, { flag: false });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3420);
   return m;
 }
 
@@ -614,6 +616,7 @@ function courthouse(lod: number): MeshBuilder {
     });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3427);
   return m;
 }
 
@@ -663,6 +666,7 @@ function municipalOffices(lod: number): MeshBuilder {
     serviceYard(m, -w / 2, w / 2, d / 2 + 0.6, 1263, { flag: false });
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3434);
   return m;
 }
 
@@ -764,6 +768,7 @@ function worksDepot(lod: number): MeshBuilder {
     }
     kerb(m, -x, z, x, z + 0.4);
   }
+  dressRoof(m, lod, 3441);
   return m;
 }
 
