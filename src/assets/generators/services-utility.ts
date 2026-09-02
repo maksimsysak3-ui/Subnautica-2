@@ -667,7 +667,11 @@ function busDepot(lod: number): MeshBuilder {
     }
     for (const cx of [-13.0, -6.2] as const) {
       m.painted(TINT.BRAND, () => {
-        m.box([cx - 1.35, 0.5, sz - 6.0], [cx + 1.35, 3.3, sz + 6.0], MAT.TRIM);
+        // Skirt to within 30cm of the ground, then the body over it. A body
+        // that starts at half a metre with the wheels tucked outboard reads as
+        // a box hovering over the yard the moment the camera drops.
+        m.box([cx - 1.3, 0.3, sz - 5.9], [cx + 1.3, 0.62, sz + 5.9], MAT.TRIM);
+        m.box([cx - 1.35, 0.62, sz - 6.0], [cx + 1.35, 3.3, sz + 6.0], MAT.TRIM);
       });
       ribbon(m, { axis: 'x', sign: 1, plane: cx + 1.35 }, sz - 5.4, sz + 4.0, 1.7, 2.7,
         { sill: false, head: false });
@@ -675,8 +679,8 @@ function busDepot(lod: number): MeshBuilder {
         { sill: false, head: false });
       m.painted(TINT.METAL_DARK, () => {
         for (const pz of [sz - 4.2, sz + 3.6]) {
-          for (const px of [cx - 1.4, cx + 1.25]) {
-            m.box([px, 0.1, pz - 0.5], [px + 0.15, 1.0, pz + 0.5], MAT.TRIM);
+          for (const px of [cx - 1.42, cx + 1.24]) {
+            m.box([px, 0.06, pz - 0.52], [px + 0.18, 1.02, pz + 0.52], MAT.TRIM);
           }
         }
       });
