@@ -2,3 +2,7 @@ node_modules/
 .vite/
 *.local
 .DS_Store
+
+# Contact sheets rendered by tools/asset-sheet.mjs -- review artefacts, not source.
+*.png
+!public/**/*.png

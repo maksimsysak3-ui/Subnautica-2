@@ -17,7 +17,7 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   awning, band, bladeSign, bollards, boxSign, fasciaSign, fireEscape,
-  frontage, kerb, parapet, planter, pylonSign, railing, ring, roofClutter, shopfront,
+  entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring, roofClutter, shopfront,
   tree, windowGrid,
 } from '../parts';
 
@@ -456,7 +456,7 @@ export const COMMERCIAL: AssetDef[] = [
     build: supermarket,
   },
   {
-    id: 'com.office', name: 'Office block', zone: 'commercial', density: 'high',
+    id: 'off.retailbase', name: 'Offices over retail', zone: 'office', density: 'high',
     variant: 'sculpted', footprint: [2, 3], height: 32.6, brand: BRANDS.bank,
     sim: { jobs: 180, powerKW: 320, waterM3: 30, garbagePerWeek: 620, pollution: 2, upkeep: 210 },
     note: 'Curtain wall on a recessed retail base, spandrel band per floor, cornice, roof plant.',
@@ -596,5 +596,202 @@ COMMERCIAL.push(
     sim: { jobs: 14, powerKW: 40, waterM3: 4, garbagePerWeek: 80, pollution: 1, upkeep: 30 },
     note: 'Single-storey unit between rendered pilasters, entrance canopy, lit cross.',
     build: pharmacy,
+  },
+);
+
+// --------------------------------------------------------------- bank branch
+
+/**
+ * A high-street bank: masonry, a columned entrance and small deep windows.
+ * Retail is mostly glass, so the category needs one building that reads as
+ * solid or every commercial street looks like the same shopfront repeated.
+ */
+function bankBranch(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 15.0, d = 12.0;
+  const x = w / 2, z = d / 2;
+  const ground = 4.6, upper = 3.6;
+  const h = ground + upper * 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.PLASTER, { roof: MAT.ROOF });
+  // Rusticated stone base, stopping short of the corners.
+  m.box([-x - 0.25, 0, -z - 0.25], [x + 0.25, ground, z + 0.25], MAT.CONCRETE);
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.4, 0.4);
+    band(m, -x, -z, x, z, ground, 0.5, 0.35);
+    band(m, -x, -z, x, z, h - 1.5, 0.45, 0.3);
+    // Portico: a slab on four columns over the door.
+    m.box([-3.4, 0, z + 0.25], [3.4, ground + 0.9, z + 2.5], MAT.CONCRETE, { roof: MAT.TRIM });
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 401, 0.6);
+  }
+  if (fine) {
+    for (const cx of [-2.9, -1.0, 1.0, 2.9]) {
+      m.cylinder(cx, z + 1.7, 0.34, 0, ground + 0.4, 8, MAT.CONCRETE);
+      m.box([cx - 0.45, ground + 0.4, z + 1.25], [cx + 0.45, ground + 0.9, z + 2.15], MAT.CONCRETE);
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z + 0.25 }, 0, {
+      width: 2.2, height: 2.9, double: true, fanlight: true, steps: 3,
+    });
+    // Deep-set windows either side of the portico, then two upper floors.
+    for (const u of [[-x + 1.2, -4.2], [4.2, x - 1.2]] as const) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z + 0.25, from: u[0], to: u[1], y0: 1.5, y1: 3.9,
+        count: 2, width: 1.5, glass: MAT.GLASS, frame: 0.14, proud: 0.05 });
+    }
+    for (const [axis, sign, plane, u0, u1, n] of [
+      ['z', 1, z, -x + 1.0, x - 1.0, 5],
+      ['z', -1, -z, -x + 1.0, x - 1.0, 5],
+      ['x', 1, x, -z + 1.0, z - 1.0, 4],
+      ['x', -1, -x, -z + 1.0, z - 1.0, 4],
+    ] as const) {
+      windowGrid(m, { axis, sign, plane }, u0, u1,
+        { floors: 2, floorH: upper, base: ground + 0.9, count: n, width: 1.3, height: 2.2 });
+    }
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 0.25 }, -3.2, 3.2, ground + 1.1, ground + 2.3);
+    frontage(m, -x, x, z + 2.5, 403, { trees: 2, planters: 2, bollards: 6, depth: 2.4 });
+  }
+  return m;
+}
+
+// ---------------------------------------------------------------------- gym
+
+/** A leisure box: blank clad walls up high, glazed and busy at street level. */
+function gym(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 20.0, d = 15.0;
+  const x = w / 2, z = d / 2;
+  const h = 9.4;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.METAL, { roof: MAT.ROOF });
+  // Brand-coloured blade wall running up one end, the usual gym signature.
+  m.painted(TINT.ACCENT, () => m.box([x - 2.2, 0, -z - 0.3], [x + 0.3, h + 1.8, z + 0.3], MAT.TRIM));
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.0, 0.28);
+    // Horizontal cladding joints: what stops a big blank wall reading as card.
+    for (const y of [3.0, 5.4, 7.8]) band(m, -x, -z, x, z, y, 0.14, 0.1, MAT.METAL);
+    m.box([-x, 4.6, z], [x - 3.2, 5.2, z + 1.6], MAT.CONCRETE);
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 411, 1.4);
+  }
+  if (fine) {
+    // Double-height glazing to the street: treadmills in the window.
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 0.8, to: x - 3.6, y0: 0.7, y1: 4.5,
+      count: 5, width: 2.6, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.07 });
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 0.8, to: x - 3.6, y0: 5.4, y1: 8.4,
+      count: 5, width: 2.6, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.2, z - 1.2,
+      { floors: 2, floorH: 3.6, base: 1.4, count: 4, width: 1.4, height: 2.4, sill: false });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, -x + 4.0, { width: 2.4, height: 2.9, double: true, canopy: 1.8 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, x - 12.0, x - 4.0, 6.2, 7.4);
+    bladeSign(m, { axis: 'x', sign: 1, plane: x + 0.3 }, 2.0, 5.0, 8.4, 1.5);
+    frontage(m, -x, x, z, 413, { trees: 3, planters: 2, bollards: 8 });
+  }
+  return m;
+}
+
+// -------------------------------------------------------------- market hall
+
+/**
+ * Covered market: a brick hall under a pitched roof, tall arched openings
+ * down the front, and stalls with striped canopies out on the pavement.
+ */
+function marketHall(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 24.0, d = 16.0;
+  const x = w / 2, z = d / 2;
+  const eave = 6.4;
+  const bays = 5;
+
+  m.box([-x, 0, -z], [x, eave, z], MAT.BRICK);
+  m.gable([-x, eave, -z], [x, eave, z], 3.8, 'x', MAT.ROOF, MAT.BRICK);
+  // Stone plinth: markets are old buildings and old buildings have a base.
+  m.box([-x - 0.25, 0, -z - 0.25], [x + 0.25, 1.1, z + 0.25], MAT.CONCRETE);
+
+  if (medium) {
+    band(m, -x, -z, x, z, eave - 0.7, 0.5, 0.32);
+    // Piers between the openings, carried a little above the eaves band.
+    for (let i = 0; i <= bays; i++) {
+      const px = -x + (i / bays) * w;
+      for (const sz of [-1, 1] as const) {
+        m.box([px - 0.55, 0, sz * z - 0.35], [px + 0.55, eave - 0.05, sz * z + 0.35], MAT.CONCRETE);
+      }
+    }
+    // Corner pilasters only -- a full-width slab here buries the brick gable.
+    for (const sx of [-1, 1] as const) {
+      for (const sz of [-1, 1] as const) {
+        m.box([sx * x - sx * 0.6, 0, sz * z - sz * 0.6], [sx * x + sx * 0.3, eave + 0.25, sz * z + sz * 0.3],
+          MAT.CONCRETE);
+      }
+      m.box([sx * x - sx * 0.25, 0, -z + 0.6], [sx * x + sx * 0.25, eave + 0.1, z - 0.6], MAT.CONCRETE);
+    }
+    roofClutter(m, -x + 3, -z + 4.5, x - 3, z - 4.5, eave + 2.6, 421, 0.4);
+  }
+  if (fine) {
+    // Tall openings between the piers: glazed at the top, market doors below.
+    for (const sz of [1, -1] as const) {
+      const plane = sz * z;
+      for (let i = 0; i < bays; i++) {
+        const a = -x + (i / bays) * w + 0.75;
+        const b = -x + ((i + 1) / bays) * w - 0.75;
+        m.opening({ axis: 'z', sign: sz, plane, u0: a, u1: b, y0: 1.4, y1: 4.0,
+          glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.07 });
+        m.opening({ axis: 'z', sign: sz, plane, u0: a + 0.3, u1: b - 0.3, y0: 4.5, y1: eave - 0.9,
+          glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+      }
+    }
+    // Gable-end roundel windows, the detail that makes it read as a hall.
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.4, z - 1.4,
+        { floors: 1, floorH: 3, base: 1.8, count: 3, width: 1.6, height: 2.6 });
+      m.opening({ axis: 'x', sign: sx, plane: sx * x, u0: -1.4, u1: 1.4, y0: eave + 0.7, y1: eave + 2.4,
+        glass: MAT.GLASS, frame: 0.14, proud: 0.06 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0, { width: 3.2, height: 3.6, double: true, canopy: 2.2, steps: 2 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -5.0, 5.0, eave - 2.2, eave - 1.0);
+    // Stalls on the pavement, striped canopies over trestle tables.
+    for (let i = 0; i < 4; i++) {
+      const cx = -x + 3.0 + i * 5.4;
+      const sz = z + 3.4;
+      m.painted(TINT.AWNING, () => m.box([cx - 1.6, 2.4, sz - 1.3], [cx + 1.6, 2.62, sz + 1.3], MAT.TRIM));
+      for (const px of [cx - 1.45, cx + 1.45]) {
+        for (const pz of [sz - 1.15, sz + 1.15]) {
+          m.box([px - 0.05, 0, pz - 0.05], [px + 0.05, 2.4, pz + 0.05], MAT.METAL);
+        }
+      }
+      m.painted(TINT.WOOD, () => m.box([cx - 1.5, 0.85, sz - 0.5], [cx + 1.5, 0.95, sz + 0.7], MAT.TRIM));
+      m.box([cx - 1.4, 0, sz - 0.45], [cx + 1.4, 0.85, sz + 0.6], MAT.TRIM);
+    }
+    frontage(m, -x, x, z + 4.8, 423, { trees: 3, planters: 2, bollards: 9, depth: 2.2 });
+  }
+  return m;
+}
+
+COMMERCIAL.push(
+  {
+    id: 'com.bank', name: 'Bank branch', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [2, 3], height: 11.8, brand: BRANDS.bank,
+    sim: { jobs: 22, powerKW: 55, waterM3: 5, garbagePerWeek: 70, pollution: 1, upkeep: 52 },
+    note: 'Stone base, columned portico over the door, small deep windows on two upper floors.',
+    build: bankBranch,
+  },
+  {
+    id: 'com.gym', name: 'Gym', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [3, 3], height: 11.2, brand: BRANDS.gym,
+    sim: { jobs: 18, powerKW: 95, waterM3: 22, garbagePerWeek: 110, pollution: 2, upkeep: 46 },
+    note: 'Clad box with a brand blade wall, double-height glazing to the street.',
+    build: gym,
+  },
+  {
+    id: 'com.market', name: 'Market hall', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [3, 4], height: 9.4, brand: BRANDS.grocer,
+    sim: { jobs: 40, powerKW: 70, waterM3: 18, garbagePerWeek: 260, pollution: 3, upkeep: 58 },
+    note: 'Brick hall under a pitched roof, tall arched openings between piers, stalls out on the pavement.',
+    build: marketHall,
   },
 );

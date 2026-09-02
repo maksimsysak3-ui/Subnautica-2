@@ -14,7 +14,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import { CELL } from '../types';
 import type { AssetDef } from '../types';
-import { band, frontage, kerb, parapet, ring, roofClutter, tree, windowGrid } from '../parts';
+import { band, entrance, frontage, kerb, parapet, ring, roofClutter, tree, windowGrid } from '../parts';
 
 /** Vertical silo with a plinth, a conical top and a vent. */
 function silo(m: MeshBuilder, cx: number, cz: number, r: number, h: number): void {
@@ -138,7 +138,7 @@ function workshop(lod: number): MeshBuilder {
   if (fine) {
     windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 0.6, -x + 5.4,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });
-    m.painted(TINT.DOOR, () => m.opening({ axis: 'x', sign: -1, plane: -x, u0: -1.0, u1: 0.0, y0: 0.16, y1: 2.3, glass: MAT.TRIM, frame: 0.12, proud: 0.08 }));
+    entrance(m, { axis: 'x', sign: -1, plane: -x }, -0.5, { width: 1.05, steps: 1, canopy: 1.2 });
     frontage(m, -x, x, z, 251, { trees: 2, planters: 1, bollards: 5, depth: 2.6 });
     windowGrid(m, { axis: 'x', sign: -1, plane: -x }, -z + 1.2, z - 1.2,
       { floors: 2, floorH: 2.4, base: 1.3, count: 2, width: 1.1, height: 1.4 });

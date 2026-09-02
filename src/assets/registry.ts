@@ -9,9 +9,10 @@
 import { RESIDENTIAL } from './generators/residential';
 import { COMMERCIAL } from './generators/commercial';
 import { INDUSTRIAL } from './generators/industrial';
+import { OFFICE } from './generators/office';
 import type { AssetDef } from './types';
 
-export const ASSETS: AssetDef[] = [...RESIDENTIAL, ...COMMERCIAL, ...INDUSTRIAL];
+export const ASSETS: AssetDef[] = [...RESIDENTIAL, ...COMMERCIAL, ...OFFICE, ...INDUSTRIAL];
 
 // Height is measured from the mesh rather than declared. A hand-written number
 // drifts the moment a generator gains a chimney, and every consumer -- the

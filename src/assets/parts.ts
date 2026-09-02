@@ -432,3 +432,123 @@ export function railing(m: MeshBuilder, x0: number, x1: number, z: number, y: nu
     m.box([x0, y + height * 0.45, z - 0.03], [x1, y + height * 0.45 + 0.08, z + 0.03], MAT.TRIM);
   });
 }
+
+/**
+ * A front door, done properly.
+ *
+ * Doors were the weakest thing in the library: some buildings had none, and
+ * the ones that did had a painted rectangle at whatever height the caller
+ * happened to pass. A door is a threshold, a leaf set into a frame, a handle
+ * and usually a fanlight -- and it always starts at the ground, because that
+ * is what a door is for.
+ */
+export function entrance(m: MeshBuilder, w: Wall, centre: number, opts: {
+  width?: number;
+  height?: number;
+  double?: boolean;
+  fanlight?: boolean;
+  canopy?: number;
+  steps?: number;
+} = {}): void {
+  const halfW = (opts.width ?? 1.1) / 2;
+  const h = opts.height ?? 2.25;
+  const u0 = centre - halfW;
+  const u1 = centre + halfW;
+  const stepCount = opts.steps ?? 0;
+  const sill = stepCount * 0.16;
+
+  // Threshold slab, and steps up to it when the floor is raised.
+  slab(m, w, u0 - 0.3, u1 + 0.3, 0.001, Math.max(sill, 0.05), 0.0, 0.5, MAT.CONCRETE);
+  if (stepCount > 0) steps(m, w, u0 - 0.25, u1 + 0.25, stepCount);
+
+  // Frame: two jambs and a head, standing proud of the wall.
+  m.painted(TINT.DOOR, () => {
+    slab(m, w, u0 - 0.14, u0, sill, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
+    slab(m, w, u1, u1 + 0.14, sill, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
+    slab(m, w, u0 - 0.14, u1 + 0.14, sill + h, sill + h + 0.14, 0.0, 0.12, MAT.TRIM);
+    // Leaf, or two of them.
+    if (opts.double === true) {
+      slab(m, w, u0, centre - 0.03, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+      slab(m, w, centre + 0.03, u1, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+    } else {
+      slab(m, w, u0, u1, sill, sill + h, 0.01, 0.08, MAT.TRIM);
+    }
+  });
+
+  // Handle: two centimetres of geometry that makes the leaf read as a door.
+  m.painted(TINT.METAL_DARK, () => {
+    const hx = opts.double === true ? centre - 0.16 : u1 - 0.18;
+    slab(m, w, hx - 0.03, hx + 0.03, sill + 1.0, sill + 1.24, 0.08, 0.14, MAT.TRIM);
+  });
+
+  if (opts.fanlight !== false) {
+    // Glazed panel over the door, so the hall is not pitch dark.
+    m.opening({
+      axis: w.axis, sign: w.sign, plane: w.plane,
+      u0, u1, y0: sill + h + 0.2, y1: sill + h + 0.75,
+      glass: MAT.GLASS, frame: 0.09, proud: 0.06,
+    });
+  }
+  if (opts.canopy !== undefined) {
+    slab(m, w, u0 - 0.5, u1 + 0.5, sill + h + 0.95, sill + h + 1.25, 0.0, opts.canopy, MAT.CONCRETE);
+  }
+}
+
+/**
+ * A back garden: fence, lawn, patio, shed, washing line and a tree.
+ *
+ * Low-density housing looks unfinished without one, because a detached house
+ * in the real world is mostly garden. Everything sits inside the lot the
+ * caller passes.
+ */
+export function backyard(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, seed: number): void {
+  const w = x1 - x0;
+  const d = z1 - z0;
+  if (w < 3 || d < 3) return;
+
+  // Lawn, then a paved patio against the house.
+  m.painted(TINT.GREEN, () => m.box([x0, 0.001, z0], [x1, 0.06, z1], MAT.TRIM));
+  m.box([x0 + 0.4, 0.002, z1 - Math.min(2.6, d * 0.4)], [x1 - 0.4, 0.07, z1], MAT.CONCRETE);
+
+  // Close-boarded fence on three sides: posts and a rail, which is enough.
+  m.painted(TINT.WOOD, () => {
+    const post = (px: number, pz: number): void => {
+      m.box([px - 0.07, 0, pz - 0.07], [px + 0.07, 1.75, pz + 0.07], MAT.TRIM);
+    };
+    const runs: Array<[number, number, number, number]> = [
+      [x0, z0, x1, z0], [x0, z0, x0, z1], [x1, z0, x1, z1],
+    ];
+    for (const [ax, az, bx, bz] of runs) {
+      const len = Math.hypot(bx - ax, bz - az);
+      const n = Math.max(2, Math.round(len / 1.9));
+      for (let i = 0; i <= n; i++) {
+        post(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n);
+      }
+      m.box([Math.min(ax, bx) - 0.06, 0, Math.min(az, bz) - 0.06],
+            [Math.max(ax, bx) + 0.06, 1.62, Math.max(az, bz) + 0.06], MAT.TRIM);
+    }
+  });
+
+  // Shed in a back corner.
+  const sx = x0 + 0.7;
+  const sz = z0 + 0.7;
+  m.painted(TINT.WOOD, () => m.box([sx, 0, sz], [sx + 2.3, 2.0, sz + 1.9], MAT.TRIM));
+  m.gable([sx - 0.12, 2.0, sz - 0.12], [sx + 2.42, 2.0, sz + 2.02], 0.55, 'x', MAT.TILE, MAT.TRIM);
+
+  // Washing line between two posts, and a tree in the far corner.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const px of [x0 + 3.4, x1 - 1.0]) {
+      m.box([px - 0.05, 0, z0 + d * 0.55], [px + 0.05, 1.8, z0 + d * 0.55 + 0.1], MAT.TRIM);
+    }
+    m.box([x0 + 3.4, 1.72, z0 + d * 0.55], [x1 - 1.0, 1.78, z0 + d * 0.55 + 0.06], MAT.TRIM);
+  });
+  tree(m, x1 - 1.4, z0 + 1.4, 5.0 + hash2(1, 2, seed) * 1.4, seed);
+
+  // A couple of garden chairs on the patio.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const cx of [x0 + w * 0.45, x0 + w * 0.62]) {
+      m.box([cx - 0.22, 0.07, z1 - 1.4], [cx + 0.22, 0.46, z1 - 0.96], MAT.TRIM);
+      m.box([cx - 0.22, 0.46, z1 - 1.4], [cx + 0.22, 0.95, z1 - 1.28], MAT.TRIM);
+    }
+  });
+}

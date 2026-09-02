@@ -44,7 +44,17 @@ window.__BUILD__ = '__BUILD_ID__';
   h1 { font-size: 10px; letter-spacing: .34em; text-transform: uppercase;
     color: var(--dim); font-weight: 500; padding: 0 16px 12px; }
   .group { font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
-    color: var(--dim); padding: 14px 16px 5px; }
+    color: var(--dim); padding: 14px 16px 5px;
+    display: flex; align-items: center; gap: 8px; }
+  .group svg { flex: none; border-radius: 4px; }
+  #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 0 12px 12px; }
+  .zone { display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+    border-radius: 7px; background: rgba(255,255,255,.03); }
+  .zone svg { flex: none; }
+  .zn { font-size: 11px; color: #dfe7ef; }
+  .zc { font-size: 9px; letter-spacing: .08em; color: var(--dim);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .item { padding: 7px 16px; cursor: pointer; border-left: 2px solid transparent; }
   .item:hover { background: rgba(98,212,255,.05); }
   .item.on { background: rgba(98,212,255,.10); border-left-color: var(--accent); }
@@ -73,7 +83,8 @@ window.__BUILD__ = '__BUILD_ID__';
 </head>
 <body>
   <div id="app">
-    <aside id="side"><h1>assets</h1><div id="list"></div></aside>
+    <aside id="side"><h1>assets</h1><div id="legend"></div>
+  <div id="list"></div></aside>
     <div id="stage">
       <canvas id="gpu-canvas"></canvas>
       <div id="bar">

@@ -379,33 +379,39 @@ fn room(local : vec2f, par : vec2f, r : f32, lit : bool) -> vec3f {
   // Shift the contents against the view, and keep them inside the opening.
   let p = clamp(local + par, vec2f(0.0), vec2f(1.0));
 
-  let back = vec3f(0.052, 0.050, 0.056) * (0.7 + r * 0.7);
-  var col = back;
+  // A room is mostly a dark box with a bright ceiling. Build it out of smooth
+  // gradients rather than hard rectangles: the first version scattered
+  // sharp-edged furniture at random positions and a whole facade of it read
+  // as noise rather than as windows.
+  let depthShade = mix(0.55, 1.0, smoothstep(0.0, 0.75, p.y));
+  var col = vec3f(0.062, 0.060, 0.066) * (0.75 + r * 0.5) * depthShade;
 
-  // Ceiling and floor, seen at an angle through the opening.
-  col = mix(col, vec3f(0.115, 0.112, 0.108), smoothstep(0.72, 0.98, p.y));
-  col = mix(col, vec3f(0.070, 0.062, 0.056), smoothstep(0.30, 0.04, p.y));
+  // Ceiling: the brightest thing in any room seen from outside.
+  col = mix(col, vec3f(0.150, 0.148, 0.142), smoothstep(0.74, 0.99, p.y));
+  // Floor, catching a little light near the window.
+  col = mix(col, vec3f(0.086, 0.078, 0.070), smoothstep(0.26, 0.02, p.y));
 
-  // A block of furniture in the lower half, its width and place from the hash.
-  let fx = 0.12 + fract(r * 7.3) * 0.55;
-  let fw = 0.16 + fract(r * 3.1) * 0.26;
-  let fh = 0.16 + fract(r * 5.7) * 0.22;
-  if (p.x > fx && p.x < fx + fw && p.y < fh + 0.06) {
-    col = vec3f(0.088, 0.078, 0.070) * (0.8 + r * 0.5);
-  }
+  // One soft mass in the lower half -- furniture, a counter, a desk. Blurred
+  // at the edges so it reads as something in shadow rather than as a sticker.
+  let fx = 0.18 + fract(r * 7.3) * 0.5;
+  let fw = 0.14 + fract(r * 3.1) * 0.2;
+  let mass = smoothstep(fw + 0.09, fw - 0.02, abs(p.x - fx))
+           * smoothstep(0.42, 0.30, p.y);
+  col = mix(col, vec3f(0.070, 0.062, 0.058), mass * 0.85);
 
   if (lit) {
-    // Warm bounce, strongest at the ceiling where the fitting is.
-    let glow = smoothstep(0.15, 1.0, p.y);
-    col = mix(col, vec3f(0.72, 0.60, 0.40), 0.30 + glow * 0.45);
-    if (p.y > 0.86) { col = vec3f(0.88, 0.80, 0.60); }
+    // Warm light, brightest at the ceiling and falling off downwards.
+    let glow = smoothstep(0.0, 0.95, p.y);
+    col = mix(col, vec3f(0.58, 0.47, 0.31), 0.22 + glow * 0.5);
   }
 
-  // A blind, pulled down to a height that varies per opening.
-  let blind = 0.30 + fract(r * 11.7) * 0.62;
-  if (fract(r * 2.9) > 0.45 && p.y > 1.0 - blind) {
-    let slat = 0.55 + 0.45 * step(0.5, fract(p.y * 34.0));
-    col = mix(col, vec3f(0.30, 0.29, 0.27) * slat, 0.92);
+  // A blind, pulled to a height that varies per opening. Drawn as a flat
+  // panel: slats at this scale are a moire generator.
+  let blind = fract(r * 11.7);
+  if (fract(r * 2.9) > 0.5) {
+    let edge = 1.0 - (0.28 + blind * 0.52);
+    col = mix(col, vec3f(0.255, 0.248, 0.232) * (0.85 + r * 0.3),
+              smoothstep(edge - 0.02, edge + 0.02, p.y) * 0.94);
   }
   return col;
 }
@@ -609,9 +615,15 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (in.material == MAT_PANE) {
     let r = hash21(floor(vec2f(uv.x * 0.9, uv.y * 0.7)) + seed);
     let inside = room(in.local, par, r, r > 0.74);
-    // What the pane reflects, brighter higher up where it sees more sky.
-    let refl = glassColour(seed) * (1.1 + r * 0.5) + vec3f(0.02, 0.03, 0.045) * in.world.y * 0.02;
-    col = mix(inside, refl, 0.26 + 0.2 * (1.0 - clamp(dot(normalize(in.normal), -normalize(in.world - scene.eye.xyz)), 0.0, 1.0)));
+    // What the pane reflects: sky, stronger the more glancing the view. This
+    // is what makes glass read as glass rather than as a picture of a room.
+    let grazing = 1.0 - clamp(dot(n, -view), 0.0, 1.0);
+    let refl = glassColour(seed) * (1.5 + r * 0.4) + vec3f(0.05, 0.07, 0.10) * grazing;
+    col = mix(inside, refl, 0.30 + 0.45 * grazing);
+    // A transom bar across the pane, which almost every window has and which
+    // gives the eye something to read the glass by.
+    col = mix(col, vec3f(0.30, 0.30, 0.29),
+              (1.0 - smoothstep(0.008, 0.022, abs(in.local.y - 0.62))) * 0.75);
   }
 
   let sun = normalize(scene.sunDir.xyz);

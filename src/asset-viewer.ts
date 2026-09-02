@@ -14,12 +14,13 @@
 
 import { Gpu, GpuInitError } from './gfx/device';
 import { ASSETS } from './assets/registry';
-import type { AssetDef } from './assets/types';
+import type { AssetDef, Zone } from './assets/types';
 import { DEFAULT_BRAND } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
 import { log, mountConsole } from './util/log';
+import { ZONE_STYLE, zoneIcon } from './ui/zones';
 import shaderSrc from './gfx/shaders/asset.wgsl?raw';
 
 const DEPTH: GPUTextureFormat = 'depth24plus';
@@ -518,13 +519,28 @@ class Viewer {
 
 // ---- UI ----------------------------------------------------------------
 
-const GROUPS: Array<[string, (a: AssetDef) => boolean]> = [
-  ['residential · low', (a) => a.zone === 'residential' && a.density === 'low'],
-  ['residential · medium', (a) => a.zone === 'residential' && a.density === 'medium'],
-  ['residential · high', (a) => a.zone === 'residential' && a.density === 'high'],
-  ['commercial', (a) => a.zone === 'commercial'],
-  ['industrial', (a) => a.zone === 'industrial'],
+const GROUPS: Array<[string, Zone, (a: AssetDef) => boolean]> = [
+  ['residential · low', 'residential', (a) => a.zone === 'residential' && a.density === 'low'],
+  ['residential · medium', 'residential', (a) => a.zone === 'residential' && a.density === 'medium'],
+  ['residential · high', 'residential', (a) => a.zone === 'residential' && a.density === 'high'],
+  ['commercial', 'commercial', (a) => a.zone === 'commercial'],
+  ['office', 'office', (a) => a.zone === 'office'],
+  ['industrial', 'industrial', (a) => a.zone === 'industrial'],
 ];
+
+/**
+ * The zone legend at the top of the list: icon, name and hex, so the colour
+ * code is something you can read off the screen rather than out of a file.
+ */
+function buildLegend(): void {
+  const el = document.getElementById('legend');
+  if (!el) return;
+  el.innerHTML = (Object.keys(ZONE_STYLE) as Zone[]).map((z) => {
+    const s = ZONE_STYLE[z];
+    return `<div class="zone" title="${s.blurb}">${zoneIcon(z, 30)}` +
+      `<div><div class="zn">${s.label}</div><div class="zc">${s.base}</div></div></div>`;
+  }).join('');
+}
 
 function highlight(id: string): void {
   for (const el of document.querySelectorAll('.item')) {
@@ -555,12 +571,12 @@ function renderInfo(a: AssetDef, tris: number, lod: number): void {
 function buildList(onPick: (a: AssetDef) => void): void {
   const list = document.getElementById('list');
   if (!list) return;
-  for (const [label, match] of GROUPS) {
+  for (const [label, zone, match] of GROUPS) {
     const assets = ASSETS.filter(match);
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
-    h.textContent = label;
+    h.innerHTML = `${zoneIcon(zone, 16)}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
     for (const a of assets) {
       const el = document.createElement('div');
@@ -673,6 +689,7 @@ async function boot(): Promise<void> {
     recovering = false;
   });
 
+  buildLegend();
   buildList((a) => viewer.select(a));
 
   // URL parameters, so the contact-sheet tool can drive this page rather than
