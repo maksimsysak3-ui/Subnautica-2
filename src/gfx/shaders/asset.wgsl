@@ -274,8 +274,14 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let inside = room(vec2f(fract(uv.x / mullion), fract((uv.y - floorH * 0.26) / (floorH * 0.74))),
                     par, r, r > 0.72);
   var col = mix(mix(glass, inside, 0.62), spandrel, band);
+  // Reflection gradient: brighter towards the top of the tower, where more
+  // sky is in the mirror. Without it a curtain wall is the same value for
+  // forty storeys, which no glass building has ever been.
   let sky = clamp((uv.y / max(floorH * 12.0, 1.0)) * 0.5 + 0.25, 0.0, 1.0);
   col = mix(col, glassColour(seed) * (1.4 + r * 0.6), sky * 0.42 * (1.0 - band));
+  // And a faint horizontal banding, one storey apart, from the floor slabs
+  // showing through the spandrel line.
+  col = col * (1.0 - 0.06 * step(0.9, fract(uv.y / floorH)));
 
   let bars = max(stripe(uv.x, mullion, 0.035, mpp), stripe(uv.y, floorH, 0.05, mpp));
   col = mix(col, vec3f(0.30, 0.31, 0.33), bars * resolvable(0.8, mpp));
@@ -460,12 +466,41 @@ fn timber(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return col;
 }
 
+/**
+ * Painted trim: cornices, copings, frames, eaves.
+ *
+ * This was a flat mix of the render colour towards mid grey, which is why so
+ * much of the library read as one beige. Trim is nearly always the lightest
+ * plane on a building and it is what gives a facade its edges, so it is a
+ * near-white now, carrying only a trace of the building's own colour so a
+ * cream building's cornice is warm and a slate one's is cool.
+ */
+fn trim(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let tinted = mix(vec3f(0.640, 0.638, 0.628), renderColour(seed), 0.20);
+  // A faint horizontal grain, and the dirt that collects on an upward face.
+  let g = hash21(vec2f(floor(uv.x * 1.4), floor(uv.y * 2.6)) + seed) * 0.05;
+  return tinted * (0.975 + g);
+}
+
+/**
+ * Flat roof. In a city builder played from above this is the single most
+ * visible surface in the game, so it gets more than one grey: gravel grain,
+ * membrane seams both ways, and patches where water has stood.
+ */
 fn roofDeck(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
-  let base = vec3f(0.168, 0.174, 0.180);
-  let r = hash21(floor(uv / 1.1) + seed);
-  var col = base * (0.86 + r * 0.30);
-  // Seams in the membrane, and a little staining.
-  col = mix(col, col * 0.86, stripe(uv.x, 1.1, 0.02, mpp) * resolvable(1.1, mpp));
+  let base = mix(vec3f(0.168, 0.174, 0.180), vec3f(0.222, 0.212, 0.196),
+                 hash11(seed * 2.3 + 17.0));
+  let grain = hash21(floor(uv * 7.0) + seed);
+  var col = base * (0.88 + grain * 0.26);
+  // Bay pattern: sheets are laid in strips and lapped, both directions.
+  let bay = hash21(floor(uv / 1.6) + seed);
+  col = col * (0.94 + bay * 0.14);
+  let seam = max(stripe(uv.x, 1.6, 0.022, mpp), stripe(uv.y, 3.2, 0.022, mpp));
+  col = mix(col, col * 0.82, seam * resolvable(1.6, mpp));
+  // Ponding: a soft darker blotch here and there, which is what stops a big
+  // flat roof reading as a single flat colour from directly overhead.
+  let pond = hash21(floor(uv / 4.5) + seed * 3.1);
+  col = mix(col, col * 0.86, smoothstep(0.62, 0.95, pond) * resolvable(4.5, mpp));
   return col;
 }
 
@@ -589,7 +624,7 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
     case 2u: { return curtainWall(uv, mpp, seed, par); }
     case 3u: { return corrugated(uv, mpp, seed); }
     case 4u: { return brick(uv, mpp, seed); }
-    case 5u: { return mix(renderColour(seed), vec3f(0.62), 0.55); }
+    case 5u: { return trim(uv, mpp, seed); }
     case 6u: { return shopfront(uv, mpp, seed, par); }
     case 7u: { return tiles(uv, mpp, seed); }
     case 8u: { return ground(uv, mpp); }

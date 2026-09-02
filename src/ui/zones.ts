@@ -115,6 +115,22 @@ function gabled(x: number, y: number, z: number, w: number, h: number, d: number
   ];
 }
 
+/**
+ * A flat panel lying on one vertical face of a box, at the same plane.
+ *
+ * Windows and doors were being drawn as thin boxes standing proud, and three
+ * shaded faces on a 15cm-deep box reads as a soft lump rather than an opening
+ * -- which is what made the icons look inflated. A single quad on the face
+ * plane is crisp.
+ */
+function faceZ(x: number, y: number, z: number, w: number, h: number): Face[] {
+  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y + h, z], [x, y + h, z]]), shade: 1 }];
+}
+
+function faceX(x: number, y: number, z: number, d: number, h: number): Face[] {
+  return [{ d: poly([[x, y, z + d], [x, y, z], [x, y + h, z], [x, y + h, z + d]]), shade: 2 }];
+}
+
 /** A flat plate, for ground, aprons and canopies. */
 function plate(x: number, y: number, z: number, w: number, d: number): Face[] {
   return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y, z + d], [x, y, z + d]]), shade: 4 }];
@@ -123,50 +139,66 @@ function plate(x: number, y: number, z: number, w: number, d: number): Face[] {
 type Scene = Array<{ faces: Face[]; tone?: 'body' | 'accent' | 'glass' | 'ground' }>;
 
 const SCENES: Record<Zone, Scene> = {
-  // A pair of houses: one gabled and one behind, plus a garden plate. Housing
-  // is read by its roof, so both have one.
+  // One house read clearly, with a smaller one behind it for depth. Housing is
+  // recognised by its roof and its openings, so both are drawn hard.
   residential: [
-    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
-    { faces: gabled(-2.3, 0, -1.9, 2.0, 1.5, 2.0, 0.9), tone: 'body' },
-    { faces: gabled(0.1, 0, -2.3, 2.2, 1.9, 2.2, 1.1), tone: 'body' },
-    { faces: box(1.0, 0, 0.0, 0.5, 0.9, 0.35), tone: 'accent' },
-    { faces: box(1.35, 1.9, -1.5, 0.4, 0.7, 0.4), tone: 'accent' },
+    { faces: plate(-2.7, 0, -2.7, 5.4, 5.4), tone: 'ground' },
+    { faces: gabled(-2.4, 0, -2.1, 1.9, 1.4, 1.9, 0.85), tone: 'body' },
+    { faces: faceZ(-2.3, 0.35, -0.2, 0.55, 0.55), tone: 'glass' },
+    { faces: faceZ(-1.35, 0.35, -0.2, 0.55, 0.55), tone: 'glass' },
+    { faces: gabled(-0.1, 0, -2.4, 2.3, 2.0, 2.3, 1.15), tone: 'body' },
+    { faces: faceZ(0.2, 1.05, -0.1, 0.6, 0.6), tone: 'glass' },
+    { faces: faceZ(1.25, 1.05, -0.1, 0.6, 0.6), tone: 'glass' },
+    { faces: faceZ(0.2, 0.0, -0.1, 0.6, 0.6), tone: 'glass' },
+    { faces: faceZ(1.15, 0.0, -0.1, 0.75, 1.05), tone: 'accent' },
+    { faces: faceX(2.2, 0.9, -2.1, 1.7, 0.7), tone: 'glass' },
+    { faces: box(1.4, 2.0, -1.75, 0.42, 0.75, 0.42), tone: 'accent' },
   ],
   // A shopfront: a low unit with a deep fascia band and a projecting sign.
   commercial: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
-    // Two storeys, not one: a wide low box seen from above is nearly all roof,
-    // and the shopfront -- the whole point of the icon -- disappears.
     { faces: box(-2.0, 0, -1.8, 3.8, 3.4, 2.6), tone: 'body' },
     { faces: box(-2.15, 1.55, 0.75, 4.1, 0.55, 0.4), tone: 'accent' },
-    { faces: box(-1.6, 0.15, 0.78, 1.4, 1.25, 0.16), tone: 'glass' },
-    { faces: box(0.5, 0.15, 0.78, 1.1, 1.25, 0.16), tone: 'glass' },
-    { faces: box(-0.05, 0.0, 0.78, 0.5, 1.4, 0.16), tone: 'accent' },
-    { faces: box(-1.5, 2.35, 0.78, 1.1, 0.8, 0.12), tone: 'glass' },
-    { faces: box(0.4, 2.35, 0.78, 1.1, 0.8, 0.12), tone: 'glass' },
+    { faces: faceZ(-1.6, 0.15, 0.8, 1.4, 1.25), tone: 'glass' },
+    { faces: faceZ(0.5, 0.15, 0.8, 1.1, 1.25), tone: 'glass' },
+    { faces: faceZ(-0.05, 0.0, 0.8, 0.5, 1.4), tone: 'accent' },
+    { faces: faceZ(-1.5, 2.35, 0.8, 1.1, 0.8), tone: 'glass' },
+    { faces: faceZ(0.4, 2.35, 0.8, 1.1, 0.8), tone: 'glass' },
+    { faces: faceX(1.8, 2.3, -1.7, 2.4, 0.85), tone: 'glass' },
     { faces: box(1.8, 1.0, 0.1, 0.18, 1.2, 0.8), tone: 'accent' },
   ],
-  // A shed with a sawtooth end and a chimney: the industrial silhouette.
+  // A shed with roof monitors and a stack. The roller door is the detail that
+  // makes it industry rather than a bungalow.
   industrial: [
     { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
-    { faces: box(-2.3, 0, -2.2, 3.5, 1.9, 3.3), tone: 'body' },
-    // Two roof monitors, which is what says "works" faster than any other
-    // shape, and a lean-to on the near corner.
-    { faces: box(-2.3, 1.9, -1.9, 1.4, 0.55, 1.1), tone: 'glass' },
-    { faces: box(-0.5, 1.9, -1.9, 1.4, 0.55, 1.1), tone: 'glass' },
-    { faces: box(-2.5, 0, 1.1, 1.7, 1.1, 1.2), tone: 'body' },
-    { faces: box(1.6, 0, -1.2, 0.72, 4.0, 0.72), tone: 'accent' },
-    { faces: box(1.45, 4.0, -1.35, 1.02, 0.3, 1.02), tone: 'accent' },
+    { faces: box(-2.3, 0, -2.2, 3.5, 2.0, 3.2), tone: 'body' },
+    { faces: faceZ(-2.0, 0.0, 1.0, 1.5, 1.45), tone: 'glass' },
+    { faces: faceZ(-0.2, 0.0, 1.0, 1.0, 1.45), tone: 'accent' },
+    { faces: faceX(1.2, 0.55, -2.0, 2.8, 0.8), tone: 'glass' },
+    { faces: box(-2.3, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'glass' },
+    { faces: box(-0.5, 2.0, -1.9, 1.4, 0.55, 1.0), tone: 'glass' },
+    { faces: box(1.6, 0, -1.1, 0.7, 4.1, 0.7), tone: 'accent' },
+    { faces: box(1.45, 4.1, -1.25, 1.0, 0.3, 1.0), tone: 'accent' },
   ],
-  // A tower beside a lower block, both banded: offices are read by rhythm.
+  // A tower beside a lower block. The bands are drawn on the two visible faces
+  // rather than wrapped round as thin boxes, which stacked into a bun.
   office: [
     { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
-    { faces: box(-2.1, 0, -1.2, 1.5, 1.6, 1.9), tone: 'body' },
-    { faces: box(0.0, 0, -2.1, 2.0, 4.2, 2.0), tone: 'body' },
-    { faces: box(-0.05, 1.1, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
-    { faces: box(-0.05, 2.2, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
-    { faces: box(-0.05, 3.3, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
-    { faces: box(0.85, 4.2, -1.2, 0.16, 1.0, 0.16), tone: 'accent' },
+    { faces: box(-2.2, 0, -1.1, 1.6, 1.7, 1.9), tone: 'body' },
+    { faces: faceZ(-2.0, 0.35, 0.8, 0.5, 0.5), tone: 'glass' },
+    { faces: faceZ(-1.2, 0.35, 0.8, 0.5, 0.5), tone: 'glass' },
+    { faces: faceZ(-2.0, 1.05, 0.8, 0.5, 0.5), tone: 'glass' },
+    { faces: faceZ(-1.2, 1.05, 0.8, 0.5, 0.5), tone: 'glass' },
+    { faces: box(-0.1, 0, -2.2, 2.1, 4.4, 2.1), tone: 'body' },
+    { faces: faceZ(0.15, 0.5, -0.1, 1.6, 0.55), tone: 'glass' },
+    { faces: faceZ(0.15, 1.55, -0.1, 1.6, 0.55), tone: 'glass' },
+    { faces: faceZ(0.15, 2.6, -0.1, 1.6, 0.55), tone: 'glass' },
+    { faces: faceZ(0.15, 3.65, -0.1, 1.6, 0.55), tone: 'glass' },
+    { faces: faceX(2.0, 0.5, -1.95, 1.6, 0.55), tone: 'glass' },
+    { faces: faceX(2.0, 1.55, -1.95, 1.6, 0.55), tone: 'glass' },
+    { faces: faceX(2.0, 2.6, -1.95, 1.6, 0.55), tone: 'glass' },
+    { faces: faceX(2.0, 3.65, -1.95, 1.6, 0.55), tone: 'glass' },
+    { faces: box(0.75, 4.4, -1.25, 0.16, 1.1, 0.16), tone: 'accent' },
   ],
 };
 
@@ -190,7 +222,7 @@ function icon(zone: Zone): string {
       let fill = '#ffffff';
       let alpha = shades[f.shade];
       if (part.tone === 'accent') { alpha = accent[f.shade]; }
-      if (part.tone === 'glass') { fill = s.deep; alpha = f.shade === 0 ? 0.55 : 0.80; }
+      if (part.tone === 'glass') { fill = s.deep; alpha = f.shade === 0 ? 0.55 : 0.72; }
       if (part.tone === 'ground') { fill = s.deep; alpha = 0.30; }
       body += `<path d="${f.d}" fill="${fill}" fill-opacity="${alpha.toFixed(2)}"/>`;
     }
@@ -207,8 +239,8 @@ function icon(zone: Zone): string {
   </defs>
   <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-${zone})"/>
   <g clip-path="url(#c-${zone})">
-    <g transform="translate(24 30) scale(5.1)" stroke="${s.deep}" stroke-opacity="0.22"
-       stroke-width="0.055" stroke-linejoin="round">${body}</g>
+    <g transform="translate(24 30) scale(5.1)" stroke="${s.deep}" stroke-opacity="0.30"
+       stroke-width="0.05" stroke-linejoin="round">${body}</g>
   </g>
   <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
         stroke="${s.deep}" stroke-width="1.2" opacity=".8"/>

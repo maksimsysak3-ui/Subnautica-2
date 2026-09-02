@@ -1,27 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Industrial zone">
   <defs>
-    <linearGradient id="g-industrial" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="g-industrial" x1="0" y1="0" x2="0.35" y2="1">
       <stop offset="0" stop-color="#eac878"/>
-      <stop offset="0.55" stop-color="#d09a2c"/>
+      <stop offset="0.5" stop-color="#d09a2c"/>
       <stop offset="1" stop-color="#6b4a10"/>
     </linearGradient>
     <clipPath id="c-industrial"><rect x="2" y="2" width="44" height="44" rx="10"/></clipPath>
   </defs>
   <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-industrial)"/>
   <g clip-path="url(#c-industrial)">
-    <path d="M6 38h36v4H6z" fill="#eac878" opacity=".55"/>
-    <!-- chimney with a puff of smoke -->
-    <path d="M32 14h5v24h-5z" fill="#fff"/>
-    <path d="M31 14h7v2.4h-7z" fill="#6b4a10" opacity=".6"/>
-    <circle cx="36" cy="9.5" r="3" fill="#fff" opacity=".5"/>
-    <circle cx="31.5" cy="7" r="2.2" fill="#fff" opacity=".32"/>
-    <!-- sawtooth shed: the shape that says "works" faster than any other -->
-    <path d="M8 38V26l6-6 0 6 6-6 0 6 6-6 0 18z" fill="#fff"/>
-    <path d="M14 20v6M20 20v6M26 20v6" stroke="#6b4a10" stroke-width="1.4" opacity=".55"/>
-    <path d="M11 30h5v8h-5z" fill="#6b4a10"/>
-    <path d="M19 30h8v3h-8z" fill="#6b4a10" opacity=".6"/>
-    <path d="M19 34.5h8v3.5h-8z" fill="#6b4a10" opacity=".85"/>
+    <g transform="translate(24 30) scale(5.1)" stroke="#6b4a10" stroke-opacity="0.30"
+       stroke-width="0.05" stroke-linejoin="round"><path d="M0.00 -2.80L4.85 0.00L0.00 2.80L-4.85 0.00Z" fill="#6b4a10" fill-opacity="0.30"/><path d="M-0.09 -4.25L2.94 -2.50L0.17 -0.90L-2.86 -2.65Z" fill="#ffffff" fill-opacity="0.97"/><path d="M-2.86 -0.65L0.17 1.10L0.17 -0.90L-2.86 -2.65Z" fill="#ffffff" fill-opacity="0.80"/><path d="M0.17 1.10L2.94 -0.50L2.94 -2.50L0.17 -0.90Z" fill="#ffffff" fill-opacity="0.60"/><path d="M-2.60 -0.50L-1.30 0.25L-1.30 -1.20L-2.60 -1.95Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M-1.04 0.40L-0.17 0.90L-0.17 -0.55L-1.04 -1.05Z" fill="#ffffff" fill-opacity="0.88"/><path d="M0.35 0.45L2.77 -0.95L2.77 -1.75L0.35 -0.35Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M-0.35 -4.65L0.87 -3.95L0.00 -3.45L-1.21 -4.15Z" fill="#6b4a10" fill-opacity="0.55"/><path d="M-1.21 -3.60L0.00 -2.90L0.00 -3.45L-1.21 -4.15Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M0.00 -2.90L0.87 -3.40L0.87 -3.95L0.00 -3.45Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M1.21 -3.75L2.42 -3.05L1.56 -2.55L0.35 -3.25Z" fill="#6b4a10" fill-opacity="0.55"/><path d="M0.35 -2.70L1.56 -2.00L1.56 -2.55L0.35 -3.25Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M1.56 -2.00L2.42 -2.50L2.42 -3.05L1.56 -2.55Z" fill="#6b4a10" fill-opacity="0.72"/><path d="M2.34 -3.85L2.94 -3.50L2.34 -3.15L1.73 -3.50Z" fill="#ffffff" fill-opacity="1.00"/><path d="M1.73 0.60L2.34 0.95L2.34 -3.15L1.73 -3.50Z" fill="#ffffff" fill-opacity="0.88"/><path d="M2.34 0.95L2.94 0.60L2.94 -3.50L2.34 -3.15Z" fill="#ffffff" fill-opacity="0.70"/><path d="M2.34 -4.30L3.20 -3.80L2.34 -3.30L1.47 -3.80Z" fill="#ffffff" fill-opacity="1.00"/><path d="M1.47 -3.50L2.34 -3.00L2.34 -3.30L1.47 -3.80Z" fill="#ffffff" fill-opacity="0.88"/><path d="M2.34 -3.00L3.20 -3.50L3.20 -3.80L2.34 -3.30Z" fill="#ffffff" fill-opacity="0.70"/></g>
   </g>
   <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
-        stroke="#6b4a10" stroke-width="1.2" opacity=".75"/>
+        stroke="#6b4a10" stroke-width="1.2" opacity=".8"/>
 </svg>
