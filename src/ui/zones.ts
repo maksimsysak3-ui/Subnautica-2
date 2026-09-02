@@ -56,92 +56,172 @@ export const ZONE_STYLE: Record<Zone, ZoneStyle> = {
   },
 };
 
-/** The four zone icons, as standalone SVG documents keyed by zone. */
-export const ZONE_ICON: Record<Zone, string> = {
-  residential: icon('residential', `
-    <!-- garden strip and a tree, so the low-density read is immediate -->
-    <path d="M6 38h36v4H6z" fill="{light}" opacity=".55"/>
-    <path d="M11.5 38v-5" stroke="{deep}" stroke-width="1.6" stroke-linecap="round"/>
-    <circle cx="11.5" cy="30" r="3.6" fill="{deep}" opacity=".85"/>
-    <!-- terrace behind, main house in front: two depths in one silhouette -->
-    <path d="M28 20h13v18H28z" fill="{deep}" opacity=".35"/>
-    <path d="M28 20l6.5-5 6.5 5" fill="none" stroke="{deep}" stroke-width="2"
-          stroke-linejoin="round" opacity=".45"/>
-    <path d="M16 24h16v14H16z" fill="#fff"/>
-    <path d="M14 24.5L24 16l10 8.5" fill="none" stroke="#fff" stroke-width="3"
-          stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M19 28h4v4h-4zM26 28h4v4h-4z" fill="{deep}"/>
-    <path d="M22.2 34h3.6v4h-3.6z" fill="{deep}" opacity=".7"/>
-  `),
-  commercial: icon('commercial', `
-    <path d="M6 38h36v4H6z" fill="{light}" opacity=".55"/>
-    <!-- shopfront: fascia sign, striped awning, glazing, door -->
-    <path d="M12 16h24v6H12z" fill="#fff"/>
-    <path d="M15 18.2h13v1.7H15z" fill="{deep}" opacity=".8"/>
-    <path d="M12 22h24v4H12z" fill="{deep}" opacity=".45"/>
-    <path d="M14 22h3v4h-3zM20 22h3v4h-3zM26 22h3v4h-3zM32 22h3v4h-3z" fill="#fff" opacity=".9"/>
-    <path d="M12 26h24v12H12z" fill="#fff" opacity=".92"/>
-    <path d="M15 29h7v6h-7zM26 29h7v6h-7z" fill="{deep}"/>
-    <path d="M22.6 29h2.8v9h-2.8z" fill="{deep}" opacity=".65"/>
-    <!-- blade sign standing off the corner -->
-    <path d="M36 17h5v8h-5z" fill="{deep}"/>
-    <circle cx="38.5" cy="21" r="1.5" fill="{light}"/>
-  `),
-  industrial: icon('industrial', `
-    <path d="M6 38h36v4H6z" fill="{light}" opacity=".55"/>
-    <!-- chimney with a puff of smoke -->
-    <path d="M32 14h5v24h-5z" fill="#fff"/>
-    <path d="M31 14h7v2.4h-7z" fill="{deep}" opacity=".6"/>
-    <circle cx="36" cy="9.5" r="3" fill="#fff" opacity=".5"/>
-    <circle cx="31.5" cy="7" r="2.2" fill="#fff" opacity=".32"/>
-    <!-- sawtooth shed: the shape that says "works" faster than any other -->
-    <path d="M8 38V26l6-6 0 6 6-6 0 6 6-6 0 18z" fill="#fff"/>
-    <path d="M14 20v6M20 20v6M26 20v6" stroke="{deep}" stroke-width="1.4" opacity=".55"/>
-    <path d="M11 30h5v8h-5z" fill="{deep}"/>
-    <path d="M19 30h8v3h-8z" fill="{deep}" opacity=".6"/>
-    <path d="M19 34.5h8v3.5h-8z" fill="{deep}" opacity=".85"/>
-  `),
-  office: icon('office', `
-    <path d="M6 38h36v4H6z" fill="{light}" opacity=".55"/>
-    <!-- low block beside a tower: the density story in one glance -->
-    <path d="M8 26h11v12H8z" fill="{deep}" opacity=".38"/>
-    <path d="M10.5 29h2.5v2.5h-2.5zM14.5 29h2.5v2.5h-2.5zM10.5 33h2.5v2.5h-2.5zM14.5 33h2.5v2.5h-2.5z"
-          fill="#fff" opacity=".55"/>
-    <path d="M21 12h17v26H21z" fill="#fff"/>
-    <path d="M21 12h17v3.2H21z" fill="{deep}" opacity=".55"/>
-    <path d="M29.2 6h1.6v6h-1.6z" fill="{deep}"/>
-    <path d="M24 18h4v3h-4zM31 18h4v3h-4zM24 23h4v3h-4zM31 23h4v3h-4zM24 28h4v3h-4zM31 28h4v3h-4z"
-          fill="{deep}"/>
-    <path d="M27.4 33h4.2v5h-4.2z" fill="{deep}" opacity=".7"/>
-  `),
+// ------------------------------------------------------------------- icons
+//
+// The icons are built from isometric boxes rather than drawn as flat glyphs.
+//
+// A flat silhouette of a house is fine at 16px and looks like a sticker at 64,
+// which is the size that actually appears in a toolbar. Three shaded faces per
+// box costs nothing, reads at both sizes, and -- more usefully -- means the
+// icon is made of the same thing the game is made of, so a zone's icon and its
+// buildings share a language. Everything below is generated: no hand-authored
+// path data, so a change to the projection or the lighting applies to all four.
+
+/** Isometric projection constants. 2:1 would be flatter; 30 degrees reads as depth. */
+const ISO_X = 0.866;
+const ISO_Y = 0.5;
+
+interface Face { d: string; shade: number }
+
+/** Projects a world point to the icon's 2D space. */
+function project(px: number, py: number, pz: number): [number, number] {
+  return [(px - pz) * ISO_X, (px + pz) * ISO_Y - py];
+}
+
+function poly(pts: Array<[number, number, number]>): string {
+  return pts.map((p, i) => {
+    const [sx, sy] = project(p[0], p[1], p[2]);
+    return `${i === 0 ? 'M' : 'L'}${sx.toFixed(2)} ${sy.toFixed(2)}`;
+  }).join('') + 'Z';
+}
+
+/**
+ * One box, as its three visible faces.
+ *
+ * Drawn back to front within the box, and boxes are emitted in the order the
+ * caller lists them -- there is no depth sort, because at this scale composing
+ * the scene back-to-front by hand is both simpler and more controllable than
+ * getting a sort right for touching geometry.
+ */
+function box(x: number, y: number, z: number, w: number, h: number, d: number): Face[] {
+  return [
+    // Top, then the two faces that catch the light differently.
+    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: 0 },
+    { d: poly([[x, y, z + d], [x + w, y, z + d], [x + w, y + h, z + d], [x, y + h, z + d]]), shade: 1 },
+    { d: poly([[x + w, y, z + d], [x + w, y, z], [x + w, y + h, z], [x + w, y + h, z + d]]), shade: 2 },
+  ];
+}
+
+/** A gable-roofed box: walls, then two roof planes and the gable triangles. */
+function gabled(x: number, y: number, z: number, w: number, h: number, d: number, rise: number): Face[] {
+  const mz = z + d / 2;
+  return [
+    ...box(x, y, z, w, h, d).slice(1),
+    // Front slope catches more light than the back one; the gable ends read
+    // as the darkest plane, which is what gives the roof its form.
+    { d: poly([[x, y + h, z + d], [x + w, y + h, z + d], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: 0 },
+    { d: poly([[x, y + h, z], [x + w, y + h, z], [x + w, y + h + rise, mz], [x, y + h + rise, mz]]), shade: 3 },
+    { d: poly([[x + w, y + h, z + d], [x + w, y + h, z], [x + w, y + h + rise, mz]]), shade: 2 },
+  ];
+}
+
+/** A flat plate, for ground, aprons and canopies. */
+function plate(x: number, y: number, z: number, w: number, d: number): Face[] {
+  return [{ d: poly([[x, y, z], [x + w, y, z], [x + w, y, z + d], [x, y, z + d]]), shade: 4 }];
+}
+
+type Scene = Array<{ faces: Face[]; tone?: 'body' | 'accent' | 'glass' | 'ground' }>;
+
+const SCENES: Record<Zone, Scene> = {
+  // A pair of houses: one gabled and one behind, plus a garden plate. Housing
+  // is read by its roof, so both have one.
+  residential: [
+    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
+    { faces: gabled(-2.3, 0, -1.9, 2.0, 1.5, 2.0, 0.9), tone: 'body' },
+    { faces: gabled(0.1, 0, -2.3, 2.2, 1.9, 2.2, 1.1), tone: 'body' },
+    { faces: box(1.0, 0, 0.0, 0.5, 0.9, 0.35), tone: 'accent' },
+    { faces: box(1.35, 1.9, -1.5, 0.4, 0.7, 0.4), tone: 'accent' },
+  ],
+  // A shopfront: a low unit with a deep fascia band and a projecting sign.
+  commercial: [
+    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
+    // Two storeys, not one: a wide low box seen from above is nearly all roof,
+    // and the shopfront -- the whole point of the icon -- disappears.
+    { faces: box(-2.0, 0, -1.8, 3.8, 3.4, 2.6), tone: 'body' },
+    { faces: box(-2.15, 1.55, 0.75, 4.1, 0.55, 0.4), tone: 'accent' },
+    { faces: box(-1.6, 0.15, 0.78, 1.4, 1.25, 0.16), tone: 'glass' },
+    { faces: box(0.5, 0.15, 0.78, 1.1, 1.25, 0.16), tone: 'glass' },
+    { faces: box(-0.05, 0.0, 0.78, 0.5, 1.4, 0.16), tone: 'accent' },
+    { faces: box(-1.5, 2.35, 0.78, 1.1, 0.8, 0.12), tone: 'glass' },
+    { faces: box(0.4, 2.35, 0.78, 1.1, 0.8, 0.12), tone: 'glass' },
+    { faces: box(1.8, 1.0, 0.1, 0.18, 1.2, 0.8), tone: 'accent' },
+  ],
+  // A shed with a sawtooth end and a chimney: the industrial silhouette.
+  industrial: [
+    { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
+    { faces: box(-2.3, 0, -2.2, 3.5, 1.9, 3.3), tone: 'body' },
+    // Two roof monitors, which is what says "works" faster than any other
+    // shape, and a lean-to on the near corner.
+    { faces: box(-2.3, 1.9, -1.9, 1.4, 0.55, 1.1), tone: 'glass' },
+    { faces: box(-0.5, 1.9, -1.9, 1.4, 0.55, 1.1), tone: 'glass' },
+    { faces: box(-2.5, 0, 1.1, 1.7, 1.1, 1.2), tone: 'body' },
+    { faces: box(1.6, 0, -1.2, 0.72, 4.0, 0.72), tone: 'accent' },
+    { faces: box(1.45, 4.0, -1.35, 1.02, 0.3, 1.02), tone: 'accent' },
+  ],
+  // A tower beside a lower block, both banded: offices are read by rhythm.
+  office: [
+    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
+    { faces: box(-2.1, 0, -1.2, 1.5, 1.6, 1.9), tone: 'body' },
+    { faces: box(0.0, 0, -2.1, 2.0, 4.2, 2.0), tone: 'body' },
+    { faces: box(-0.05, 1.1, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
+    { faces: box(-0.05, 2.2, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
+    { faces: box(-0.05, 3.3, -2.15, 2.1, 0.22, 2.1), tone: 'glass' },
+    { faces: box(0.85, 4.2, -1.2, 0.16, 1.0, 0.16), tone: 'accent' },
+  ],
 };
 
 /**
- * Wraps a glyph in the shared badge: rounded square, zone fill, a soft top
- * highlight so the icons do not look like flat stickers, and a hairline
- * border that keeps them legible on both light and dark chrome.
+ * Renders one zone's scene into an SVG document.
+ *
+ * The badge behind it is the zone colour; the model on top is drawn in white
+ * at four opacities, so the icon reads on any badge and every zone's icon
+ * carries exactly the same lighting.
  */
-function icon(zone: string, glyph: string): string {
-  const s = ZONE_STYLE[zone as Zone];
-  const body = glyph
-    .replace(/\{deep\}/g, s.deep)
-    .replace(/\{light\}/g, s.light)
-    .replace(/\{base\}/g, s.base);
+function icon(zone: Zone): string {
+  const s = ZONE_STYLE[zone];
+  // Top, left, right, gable-back, ground: one opacity each, and they are the
+  // whole lighting model.
+  const shades = [0.97, 0.80, 0.60, 0.68, 0.30];
+  const accent = [1.0, 0.88, 0.70, 0.78, 0.36];
+
+  let body = '';
+  for (const part of SCENES[zone]) {
+    for (const f of part.faces) {
+      let fill = '#ffffff';
+      let alpha = shades[f.shade];
+      if (part.tone === 'accent') { alpha = accent[f.shade]; }
+      if (part.tone === 'glass') { fill = s.deep; alpha = f.shade === 0 ? 0.55 : 0.80; }
+      if (part.tone === 'ground') { fill = s.deep; alpha = 0.30; }
+      body += `<path d="${f.d}" fill="${fill}" fill-opacity="${alpha.toFixed(2)}"/>`;
+    }
+  }
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="${s.label} zone">
   <defs>
-    <linearGradient id="g-${zone}" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="g-${zone}" x1="0" y1="0" x2="0.35" y2="1">
       <stop offset="0" stop-color="${s.light}"/>
-      <stop offset="0.55" stop-color="${s.base}"/>
+      <stop offset="0.5" stop-color="${s.base}"/>
       <stop offset="1" stop-color="${s.deep}"/>
     </linearGradient>
     <clipPath id="c-${zone}"><rect x="2" y="2" width="44" height="44" rx="10"/></clipPath>
   </defs>
   <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#g-${zone})"/>
-  <g clip-path="url(#c-${zone})">${body}</g>
+  <g clip-path="url(#c-${zone})">
+    <g transform="translate(24 30) scale(5.1)" stroke="${s.deep}" stroke-opacity="0.22"
+       stroke-width="0.055" stroke-linejoin="round">${body}</g>
+  </g>
   <rect x="2.6" y="2.6" width="42.8" height="42.8" rx="9.4" fill="none"
-        stroke="${s.deep}" stroke-width="1.2" opacity=".75"/>
+        stroke="${s.deep}" stroke-width="1.2" opacity=".8"/>
 </svg>`;
 }
+
+/** The four zone icons, as standalone SVG documents keyed by zone. */
+export const ZONE_ICON: Record<Zone, string> = {
+  residential: icon('residential'),
+  commercial: icon('commercial'),
+  industrial: icon('industrial'),
+  office: icon('office'),
+};
 
 /** The icon inline, sized for UI. Returns SVG markup, not a data URL. */
 export function zoneIcon(zone: Zone, size = 20): string {
