@@ -38,7 +38,16 @@ export interface Palette {
   blurb: string;
 }
 
-export const ZONE_STYLE: Record<Zone, Palette> = {
+/**
+ * The zoning categories that get an icon.
+ *
+ * 'fleet' is deliberately absent: vehicles and figures are a review tab in the
+ * asset viewer, not something the player paints on the map, and giving them a
+ * zone icon would put them in the toolbar as if they were.
+ */
+export type IconZone = Exclude<Zone, 'fleet'>;
+
+export const ZONE_STYLE: Record<IconZone, Palette> = {
   residential: {
     label: 'Residential',
     deep: '#1d4a2b', base: '#3f9a55', light: '#7fc98d', wash: '#c9e8cf',
@@ -106,7 +115,7 @@ export const BRANCH_STYLE: Record<Branch, Palette> = {
 };
 
 /** Every placeable category, in the order the toolbar shows them. */
-export type Category = Zone | Branch;
+export type Category = IconZone | Branch;
 
 export function paletteFor(c: Category): Palette {
   return (ZONE_STYLE as Record<string, Palette>)[c] ?? BRANCH_STYLE[c as Branch];

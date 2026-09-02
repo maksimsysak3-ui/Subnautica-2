@@ -618,7 +618,64 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   }
 }
 
-fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
+
+// ------------------------------------------------------- paint and figures
+//
+// Both read the part key out of the local-uv x channel rather than the
+// building seed, so one asset can hold ten cars in ten colours, or a crowd in
+// a dozen different coats, without a material or a draw call per colour.
+
+/** Automotive paint: a saturated body colour under a clearcoat sheen. */
+fn carPaint(uv : vec2f, key : f32) -> vec3f {
+  // Quantise first. The key arrives interpolated across the triangle, so it
+  // carries float wobble of about 1e-5 -- harmless anywhere else, but hash11
+  // multiplies its argument by 127 inside a sin and scales the result by
+  // 43758, which turns that wobble into full-range salt-and-pepper noise. The
+  // whole first fleet came out looking sprayed with glitter because of it.
+  let k = floor(key + 0.5);
+  let r = hash11(k * 7.31 + 3.7);
+  var base : vec3f;
+  if (r < 0.13)      { base = vec3f(0.520, 0.062, 0.058); }  // red
+  else if (r < 0.24) { base = vec3f(0.055, 0.128, 0.330); }  // deep blue
+  else if (r < 0.35) { base = vec3f(0.640, 0.648, 0.660); }  // silver
+  else if (r < 0.46) { base = vec3f(0.038, 0.042, 0.050); }  // black
+  else if (r < 0.56) { base = vec3f(0.780, 0.786, 0.790); }  // white
+  else if (r < 0.65) { base = vec3f(0.086, 0.240, 0.150); }  // racing green
+  else if (r < 0.74) { base = vec3f(0.660, 0.420, 0.055); }  // amber
+  else if (r < 0.82) { base = vec3f(0.180, 0.196, 0.220); }  // graphite
+  else if (r < 0.90) { base = vec3f(0.420, 0.140, 0.320); }  // plum
+  else               { base = vec3f(0.090, 0.330, 0.400); }  // teal
+  // Flat, apart from a per-car brightness. Patterning from the facade
+  // coordinate does not work here: it is derived from world position and the
+  // dominant face normal, and on a curved body that axis flips pixel to
+  // pixel. A car body is smooth paint anyway; the form comes from shading.
+  return base * (0.92 + hash11(k * 2.13) * 0.16);
+}
+
+/** Clothing and skin: matte, with a weave rather than a flake. */
+fn figureColour(uv : vec2f, key : f32) -> vec3f {
+  // Quantised for the same reason as the paint above.
+  let k = floor(key + 0.5);
+  let r = hash11(k * 3.17 + 11.9);
+  var base : vec3f;
+  if (r < 0.09)      { base = vec3f(0.402, 0.286, 0.212); }  // skin, light
+  else if (r < 0.17) { base = vec3f(0.268, 0.176, 0.118); }  // skin, mid
+  else if (r < 0.24) { base = vec3f(0.150, 0.096, 0.066); }  // skin, deep
+  else if (r < 0.34) { base = vec3f(0.104, 0.130, 0.196); }  // navy
+  else if (r < 0.43) { base = vec3f(0.360, 0.128, 0.116); }  // red coat
+  else if (r < 0.52) { base = vec3f(0.128, 0.156, 0.128); }  // olive
+  else if (r < 0.60) { base = vec3f(0.560, 0.540, 0.490); }  // cream
+  else if (r < 0.68) { base = vec3f(0.086, 0.088, 0.096); }  // black
+  else if (r < 0.76) { base = vec3f(0.226, 0.166, 0.262); }  // purple
+  else if (r < 0.84) { base = vec3f(0.140, 0.256, 0.286); }  // teal
+  else if (r < 0.92) { base = vec3f(0.480, 0.360, 0.150); }  // tan
+  else               { base = vec3f(0.300, 0.310, 0.340); }  // grey
+  // Flat, for the same reason as the paint above, with a per-garment shade so
+  // two people in navy are not the identical navy.
+  return base * (0.88 + hash11(k * 5.7 + 0.3) * 0.24);
+}
+
+fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32) -> vec3f {
   switch (mat) {
     case 1u: { return housing(uv, mpp, seed, par); }
     case 2u: { return curtainWall(uv, mpp, seed, par); }
@@ -639,6 +696,9 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
     case 15u: { return stone(uv, mpp, seed); }
     case 16u: { return cladding(uv, mpp, seed); }
     case 17u: { return timber(uv, mpp, seed); }
+    // These two colour themselves from the part key: see MeshBuilder.keyed.
+    case 18u: { return carPaint(uv, key); }
+    case 19u: { return figureColour(uv, key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -760,7 +820,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let par = vec2f(dot(view, uDir), dot(view, vDir)) / facing * 0.26;
   // A tinted surface is painted, not patterned: the palette wins over the
   // material entirely.
-  var col = select(albedo(in.material, uv, mpp, seed, par),
+  var col = select(albedo(in.material, uv, mpp, seed, par, in.local.x),
                    palette(in.tint, uv, mpp, seed),
                    in.tint != 0u);
 

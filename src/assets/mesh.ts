@@ -91,6 +91,18 @@ export const MAT = {
   CLADDING: 16,
   /** Vertical timber boarding with battens. */
   TIMBER: 17,
+  /**
+   * Automotive paint: a flat colour with a clearcoat sheen, keyed off the
+   * part key rather than the building seed, so ten cars in one scene are ten
+   * colours without ten draw calls.
+   */
+  PAINT: 18,
+  /**
+   * Clothing and skin for figures. Same trick as PAINT -- the key picks the
+   * garment colour -- with a matte, slightly noisy finish so a crowd does not
+   * look like a row of painted bollards.
+   */
+  FIGURE: 19,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];
@@ -123,6 +135,27 @@ export class MeshBuilder {
   private idx: number[] = [];
   /** Applied to everything pushed until it is changed again. */
   private tint: number = TINT.NONE;
+  /**
+   * Part key, written into the local-uv channel.
+   *
+   * PAINT and FIGURE read it to pick a colour, which is how one asset can hold
+   * a crowd of differently dressed people, or a car park of different cars,
+   * without a material per colour. Everything else ignores it.
+   */
+  private key = 0;
+
+  /**
+   * Runs `body` with a part key applied, then restores the previous one.
+   *
+   * Any integer; only its hash matters. Use one key per thing that should be
+   * its own colour -- per car, per person, per garment.
+   */
+  keyed(key: number, body: () => void): void {
+    const prev = this.key;
+    this.key = key;
+    body();
+    this.key = prev;
+  }
 
   /** Runs `body` with a tint applied, then restores the previous one. */
   painted(tint: Tint, body: () => void): void {
@@ -152,7 +185,7 @@ export class MeshBuilder {
 
     const base = this.vertexCount;
     for (const p of [a, b, c]) {
-      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, 0, 0);
+      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, this.key, 0);
     }
     this.idx.push(base, base + 1, base + 2);
   }

@@ -14,7 +14,7 @@
 
 import { Gpu, GpuInitError } from './gfx/device';
 import { ASSETS } from './assets/registry';
-import type { AssetDef, Zone } from './assets/types';
+import type { AssetDef } from './assets/types';
 import { DEFAULT_BRAND, idSeed } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
@@ -521,7 +521,7 @@ class Viewer {
 
 // ---- UI ----------------------------------------------------------------
 
-const GROUPS: Array<[string, Zone, (a: AssetDef) => boolean]> = [
+const GROUPS: Array<[string, Category, (a: AssetDef) => boolean]> = [
   ['residential · low', 'residential', (a) => a.zone === 'residential' && a.density === 'low'],
   ['residential · medium', 'residential', (a) => a.zone === 'residential' && a.density === 'medium'],
   ['residential · high', 'residential', (a) => a.zone === 'residential' && a.density === 'high'],
@@ -535,13 +535,23 @@ const CATEGORIES: Category[] = [
   'residential', 'commercial', 'office', 'industrial', ...BRANCHES,
 ];
 
-/** Which assets belong to a category. Zones go by zone, branches by branch. */
-function inCategory(a: AssetDef, c: Category): boolean {
+/**
+ * The fleet tab: vehicles and figures.
+ *
+ * Kept out of `Category` on purpose. These are not something the player paints
+ * on the map, so they get no zone icon and no place in the game's toolbar --
+ * they are a review tab, and the bar shows them as a word rather than a mark.
+ */
+const FLEET_TAB = 'fleet' as const;
+type Tab = Category | typeof FLEET_TAB;
+
+/** Which assets belong to a tab. Zones go by zone, branches by branch. */
+function inCategory(a: AssetDef, c: Tab): boolean {
   return a.zone === 'service' ? a.branch === c : a.zone === c;
 }
 
-/** The category currently on show. Null means everything. */
-let current: Category | null = null;
+/** The tab currently on show. Null means everything. */
+let current: Tab | null = null;
 
 /**
  * The category bar: one button per zone and per service branch.
@@ -555,23 +565,28 @@ let current: Category | null = null;
 function buildBar(onPick: (a: AssetDef) => void): void {
   const el = document.getElementById('legend');
   if (!el) return;
-  const cell = (c: Category | null, label: string, svg: string, n: number): string => {
-    const tone = c ? paletteFor(c) : { base: '#7c8798', deep: '#3d4655' };
+  const cell = (c: Tab | null, label: string, svg: string, n: number): string => {
+    const tone = c && c !== FLEET_TAB ? paletteFor(c) : { base: '#7c8798', deep: '#3d4655' };
     return `<button class="cat" data-cat="${c ?? ''}" title="${label} (${n})"
       style="--c:${tone.base};--d:${tone.deep}">${svg}<span>${n}</span></button>`;
   };
+  const fleetCount = ASSETS.filter((a) => a.zone === FLEET_TAB).length;
   el.innerHTML =
-    cell(null, 'all', zoneIcon('residential', 26), ASSETS.length) +
+    cell(null, 'all', '', ASSETS.length) +
     CATEGORIES.map((c) => cell(c, paletteFor(c).label, zoneIcon(c, 26),
-      ASSETS.filter((a) => inCategory(a, c)).length)).join('');
-  // "All" borrows the residential icon, which would be confusing; blank it.
-  const all = el.querySelector('.cat') as HTMLElement | null;
-  if (all) all.innerHTML = `<span class="allx">all</span><span>${ASSETS.length}</span>`;
+      ASSETS.filter((a) => inCategory(a, c)).length)).join('') +
+    cell(FLEET_TAB, 'Vehicles and people', '', fleetCount);
+  // The two iconless tabs are words: "all" is not a zone, and the fleet tab is
+  // deliberately unbadged so it does not read as something you can zone.
+  const tiles = el.querySelectorAll('.cat');
+  tiles[0].innerHTML = `<span class="allx">all</span><span>${ASSETS.length}</span>`;
+  tiles[tiles.length - 1].innerHTML =
+    `<span class="allx">cars</span><span>${fleetCount}</span>`;
 
   for (const b of el.querySelectorAll('.cat')) {
     b.addEventListener('click', () => {
       const v = (b as HTMLElement).dataset.cat ?? '';
-      current = v === '' ? null : (v as Category);
+      current = v === '' ? null : (v as Tab);
       for (const o of el.querySelectorAll('.cat')) o.classList.remove('on');
       b.classList.add('on');
       buildList(onPick);
@@ -613,12 +628,13 @@ function buildList(onPick: (a: AssetDef) => void): void {
 
   // Zone groups keep their density split; service branches are one group each,
   // since nine branches of two or three is already the right granularity.
-  const groups: Array<[string, Category, (a: AssetDef) => boolean]> = [
+  const groups: Array<[string, Tab, (a: AssetDef) => boolean]> = [
     ...GROUPS,
     ...BRANCHES.map((b) => [
-      BRANCH_STYLE[b].label.toLowerCase(), b as Category,
+      BRANCH_STYLE[b].label.toLowerCase(), b as Tab,
       (a: AssetDef) => a.zone === 'service' && a.branch === b,
-    ] as [string, Category, (a: AssetDef) => boolean]),
+    ] as [string, Tab, (a: AssetDef) => boolean]),
+    ['vehicles and people', FLEET_TAB, (a: AssetDef) => a.zone === FLEET_TAB],
   ];
 
   for (const [label, cat, match] of groups) {
@@ -627,7 +643,8 @@ function buildList(onPick: (a: AssetDef) => void): void {
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
-    h.innerHTML = `${zoneIcon(cat, 16)}<span>${label} (${assets.length})</span>`;
+    const mark = cat === FLEET_TAB ? '' : zoneIcon(cat, 16);
+    h.innerHTML = `${mark}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
     for (const a of assets) {
       const el = document.createElement('div');

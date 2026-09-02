@@ -14,7 +14,7 @@
 
 import type { MeshBuilder } from './mesh';
 
-export type Zone = 'residential' | 'commercial' | 'industrial' | 'office' | 'service';
+export type Zone = 'residential' | 'commercial' | 'industrial' | 'office' | 'service' | 'fleet';
 export type Density = 'low' | 'medium' | 'high' | 'none';
 
 /**
