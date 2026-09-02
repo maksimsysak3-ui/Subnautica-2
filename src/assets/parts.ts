@@ -399,6 +399,65 @@ export function chimneyStack(m: MeshBuilder, cx: number, cz: number, base: numbe
   }
 }
 
+/**
+ * The furniture a civic building has that a shop does not: a lit totem by the
+ * road, a flag, a cycle shelter and a bin store.
+ *
+ * Services are placed one at a time and looked at closely, so the ground
+ * around them carries more of the read than it does for a zoned building --
+ * and a station or a clinic with a bare apron looks abandoned.
+ */
+export function serviceYard(m: MeshBuilder, x0: number, x1: number, z: number, seed: number, opts: {
+  totem?: boolean;
+  flag?: boolean;
+  cycles?: boolean;
+  bins?: boolean;
+} = {}): void {
+  if (opts.totem !== false) {
+    // Totem: a lit panel on a post, the thing you actually navigate to.
+    const tx = x1 - 1.8;
+    m.painted(TINT.METAL_DARK, () => m.box([tx - 0.18, 0, z + 1.2], [tx + 0.18, 2.2, z + 1.56], MAT.TRIM));
+    m.painted(TINT.BRAND, () => m.box([tx - 0.75, 2.2, z + 1.14], [tx + 0.75, 4.6, z + 1.62], MAT.TRIM));
+    m.painted(TINT.SIGN_LIT, () => {
+      m.signFace([tx - 0.62, 2.45, z + 1.63], [tx + 0.62, 2.45, z + 1.63],
+                 [tx + 0.62, 4.35, z + 1.63], [tx - 0.62, 4.35, z + 1.63], MAT.TRIM);
+    });
+    m.box([tx - 0.6, 0, z + 1.0], [tx + 0.6, 0.18, z + 1.8], MAT.CONCRETE);
+  }
+  if (opts.flag !== false) {
+    const fx = x0 + 1.6;
+    m.painted(TINT.METAL_DARK, () => m.box([fx - 0.09, 0, z + 1.4], [fx + 0.09, 8.5, z + 1.58], MAT.TRIM));
+    m.painted(TINT.ACCENT, () => m.box([fx + 0.09, 6.6, z + 1.44], [fx + 2.2, 7.9, z + 1.52], MAT.TRIM));
+    m.box([fx - 0.55, 0, z + 0.95], [fx + 0.55, 0.22, z + 2.05], MAT.CONCRETE);
+  }
+  if (opts.cycles !== false) {
+    // Cycle shelter: a canopy on two legs over a row of hoops.
+    const cx = (x0 + x1) / 2 + hash2(1, 2, seed) * 2.0 - 1.0;
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([cx - 2.6, 2.3, z + 1.0], [cx + 2.6, 2.5, z + 3.2], MAT.TRIM);
+      for (const px of [cx - 2.3, cx + 2.3]) {
+        m.box([px - 0.08, 0, z + 2.9], [px + 0.08, 2.3, z + 3.06], MAT.TRIM);
+      }
+      for (let i = 0; i < 5; i++) {
+        const hx = cx - 2.0 + i * 1.0;
+        m.box([hx - 0.05, 0, z + 1.6], [hx + 0.05, 0.8, z + 1.7], MAT.TRIM);
+        m.box([hx - 0.05, 0, z + 2.4], [hx + 0.05, 0.8, z + 2.5], MAT.TRIM);
+        m.box([hx - 0.05, 0.72, z + 1.6], [hx + 0.05, 0.8, z + 2.5], MAT.TRIM);
+      }
+    });
+  }
+  if (opts.bins !== false) {
+    const bx = x0 + 3.6;
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([bx - 1.5, 0, z + 1.2], [bx + 1.5, 1.5, z + 3.0], MAT.TRIM);
+      m.box([bx - 1.65, 1.5, z + 1.05], [bx + 1.65, 1.66, z + 3.15], MAT.TRIM);
+      for (let i = 0; i < 6; i++) {
+        m.box([bx - 1.5, 0.3 + i * 0.2, z + 3.0], [bx + 1.5, 0.38 + i * 0.2, z + 3.06], MAT.TRIM);
+      }
+    });
+  }
+}
+
 /** Kerb line and a strip of pavement along one edge of the lot. */
 export function kerb(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number): void {
   m.box([x0, 0.0001, z0], [x1, 0.14, z1], MAT.CONCRETE);
