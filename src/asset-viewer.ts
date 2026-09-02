@@ -148,7 +148,8 @@ class Viewer {
         { shaderLocation: 2, offset: 24, format: 'float32' },    // material
         { shaderLocation: 3, offset: 28, format: 'float32' },    // baked occlusion
         { shaderLocation: 4, offset: 32, format: 'float32' },    // tint palette index
-        { shaderLocation: 5, offset: 36, format: 'float32x2' },  // sign-face coordinates
+        { shaderLocation: 5, offset: 36, format: 'float32x2' },  // surface coordinates
+        { shaderLocation: 6, offset: 44, format: 'float32' },    // part key
       ],
     }];
 

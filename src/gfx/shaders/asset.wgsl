@@ -69,6 +69,7 @@ struct VSOut {
   @location(3) @interpolate(flat) material : u32,
   @location(4) @interpolate(flat) tint     : u32,
   @location(5)       local    : vec2f,
+  @location(6) @interpolate(flat) key : f32,
 };
 
 @vertex
@@ -77,7 +78,8 @@ fn vs(@location(0) position : vec3f,
       @location(2) material : f32,
       @location(3) ao       : f32,
       @location(4) tint     : f32,
-      @location(5) local    : vec2f) -> VSOut {
+      @location(5) local    : vec2f,
+      @location(6) key      : f32) -> VSOut {
   var out : VSOut;
   out.world = position;
   out.normal = normal;
@@ -85,6 +87,8 @@ fn vs(@location(0) position : vec3f,
   out.material = u32(material + 0.5);
   out.tint = u32(tint + 0.5);
   out.local = local;
+  // Flat, so it never carries interpolation wobble into a hash.
+  out.key = key;
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -626,13 +630,21 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
 // building seed, so one asset can hold ten cars in ten colours, or a crowd in
 // a dozen different coats, without a material or a draw call per colour.
 
-/** Automotive paint: a saturated body colour under a clearcoat sheen. */
-fn carPaint(uv : vec2f, key : f32) -> vec3f {
+/**
+ * Automotive paint, with the panel work drawn rather than modelled.
+ *
+ * `surf` is the body's own surface coordinate -- u nose to tail, v sill to
+ * roof -- written by the loft. Shut lines, the waist crease and the shadow in
+ * the sill are drawn from it. They were geometry first, and every one of them
+ * floated: a 15mm box placed at a fixed half-width sits proud where the body
+ * narrows and sinks in where it swells, and a car is nothing but curves.
+ */
+fn carPaint(surf : vec2f, d : vec2f, key : f32) -> vec3f {
   // Quantise first. The key arrives interpolated across the triangle, so it
   // carries float wobble of about 1e-5 -- harmless anywhere else, but hash11
   // multiplies its argument by 127 inside a sin and scales the result by
   // 43758, which turns that wobble into full-range salt-and-pepper noise. The
-  // whole first fleet came out looking sprayed with glitter because of it.
+  // whole first fleet came out looking sprayed with glitter.
   let k = floor(key + 0.5);
   let r = hash11(k * 7.31 + 3.7);
   var base : vec3f;
@@ -646,11 +658,53 @@ fn carPaint(uv : vec2f, key : f32) -> vec3f {
   else if (r < 0.82) { base = vec3f(0.180, 0.196, 0.220); }  // graphite
   else if (r < 0.90) { base = vec3f(0.420, 0.140, 0.320); }  // plum
   else               { base = vec3f(0.090, 0.330, 0.400); }  // teal
-  // Flat, apart from a per-car brightness. Patterning from the facade
-  // coordinate does not work here: it is derived from world position and the
-  // dominant face normal, and on a curved body that axis flips pixel to
-  // pixel. A car body is smooth paint anyway; the form comes from shading.
-  return base * (0.92 + hash11(k * 2.13) * 0.16);
+  var col = base * (0.92 + hash11(k * 2.13) * 0.16);
+
+  let u = surf.x;
+  let v = surf.y;
+  // Derivatives are taken at the entry point and passed in: fwidth may only
+  // be called from uniform control flow, and this sits inside a switch.
+  let du = max(d.x, 1e-5);
+  let dv = max(d.y, 1e-5);
+
+  // Shut lines: three, with a rebate shadow on one side and a highlight on the
+  // other, so a gap reads as a gap and not as a drawn line.
+  let cuts = array<f32, 3>(0.30, 0.52, 0.74);
+  var gap = 0.0;
+  var lip = 0.0;
+  for (var i = 0; i < 3; i = i + 1) {
+    let d = u - cuts[i];
+    gap = max(gap, 1.0 - smoothstep(0.0035, 0.0035 + du * 1.5, abs(d)));
+    lip = max(lip, (1.0 - smoothstep(0.004, 0.011 + du * 2.0, abs(d))) * step(0.0, d));
+  }
+  // Only between the sill and the shoulder: a shut line does not cross a roof.
+  let onFlank = smoothstep(0.02, 0.16, v) * (1.0 - smoothstep(0.62, 0.80, v));
+  col = mix(col, base * 0.22, gap * onFlank * 0.9);
+  col = col + base * lip * onFlank * 0.22;
+
+  // Body-side shading. This is the whole difference between a car and a solid
+  // of one colour: a real flank is dark where it tucks under the sill, bright
+  // along the shoulder where it turns to the sky, and darker again as it rolls
+  // over onto the roof. Vertex lighting cannot give you that on a shape this
+  // smooth, because the normal barely changes across the panel.
+  var shade = 0.62 + 0.50 * smoothstep(0.02, 0.34, v);          // sill to waist
+  shade = shade * (1.0 + 0.26 * smoothstep(0.30, 0.52, v)
+                        * (1.0 - smoothstep(0.52, 0.74, v)));   // shoulder line
+  shade = shade * (0.92 + 0.16 * smoothstep(0.74, 0.95, v));    // roof turn
+  col = col * shade;
+
+  // Clearcoat: a narrow, near-white band where the shoulder faces the sky, and
+  // a broad sky reflection over the top surfaces. Cars are mirrors; a car
+  // painted with only its own colour is a bar of soap.
+  let band = (1.0 - smoothstep(0.0, 0.11, abs(v - 0.60))) * 0.34;
+  col = col + vec3f(0.86, 0.89, 0.95) * band;
+  let sky = smoothstep(0.78, 1.0, v);
+  col = mix(col, vec3f(0.30, 0.40, 0.55), sky * 0.22);
+
+  // Wrap at the nose and tail: the paint darkens as the body turns away.
+  let wrap = min(smoothstep(0.0, 0.05, u), 1.0 - smoothstep(0.95, 1.0, u));
+  col = col * (0.80 + 0.20 * wrap);
+  return col;
 }
 
 /** Clothing and skin: matte, with a weave rather than a flake. */
@@ -676,7 +730,8 @@ fn figureColour(uv : vec2f, key : f32) -> vec3f {
   return base * (0.88 + hash11(k * 5.7 + 0.3) * 0.24);
 }
 
-fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32) -> vec3f {
+fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
+          surf : vec2f, surfD : vec2f) -> vec3f {
   switch (mat) {
     case 1u: { return housing(uv, mpp, seed, par); }
     case 2u: { return curtainWall(uv, mpp, seed, par); }
@@ -698,8 +753,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32) 
     case 16u: { return cladding(uv, mpp, seed); }
     case 17u: { return timber(uv, mpp, seed); }
     // These two colour themselves from the part key: see MeshBuilder.keyed.
-    case 18u: { return carPaint(uv, key); }
-    case 19u: { return figureColour(uv, key); }
+    case 18u: { return carPaint(surf, surfD, key); }
+    case 19u: { return figureColour(surf, key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -816,12 +871,15 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Derivative of the sign-face coordinate, taken here for the same reason:
   // uniform control flow.
   let localMpp = max(max(fwidth(in.local.x), fwidth(in.local.y)), 1e-5);
+  // Per-axis derivatives of the surface coordinate, for anything drawn along a
+  // body rather than tiled by world position. Taken here for the same reason.
+  let surfD = vec2f(fwidth(in.local.x), fwidth(in.local.y));
   let view = normalize(in.world - scene.eye.xyz);
   let facing = max(-dot(view, n), 0.12);
   let par = vec2f(dot(view, uDir), dot(view, vDir)) / facing * 0.26;
   // A tinted surface is painted, not patterned: the palette wins over the
   // material entirely.
-  var col = select(albedo(in.material, uv, mpp, seed, par, in.local.x),
+  var col = select(albedo(in.material, uv, mpp, seed, par, in.key, in.local, surfD),
                    palette(in.tint, uv, mpp, seed),
                    in.tint != 0u);
 
@@ -866,8 +924,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (in.material == MAT_GLASS || in.material == MAT_SHOPFRONT || in.material == MAT_PANE) {
     gloss = 0.85; power = 180.0; fresnel = 0.55;
   } else if (in.material == MAT_PAINT) {
-    // Clearcoat: a car is the glossiest thing in a city street.
-    gloss = 1.15; power = 260.0; fresnel = 0.34;
+    // Clearcoat: a car is the glossiest thing in a city street, and the
+    // Fresnel rim is what makes the flank pick up the sky at a glance.
+    gloss = 1.9; power = 320.0; fresnel = 0.62;
   } else if (in.material == MAT_METAL || in.material == MAT_SHED) {
     gloss = 0.5; power = 42.0; fresnel = 0.12;
   } else if (in.material == MAT_TRIM || in.material == MAT_CONCRETE) {

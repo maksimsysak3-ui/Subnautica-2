@@ -88,13 +88,14 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
   ] });
   const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
-  const buffers = [{ arrayStride: 44, attributes: [
+  const buffers = [{ arrayStride: 48, attributes: [
     { shaderLocation: 0, offset: 0, format: 'float32x3' },
     { shaderLocation: 1, offset: 12, format: 'float32x3' },
     { shaderLocation: 2, offset: 24, format: 'float32' },
     { shaderLocation: 3, offset: 28, format: 'float32' },
     { shaderLocation: 4, offset: 32, format: 'float32' },
     { shaderLocation: 5, offset: 36, format: 'float32x2' },
+    { shaderLocation: 6, offset: 44, format: 'float32' },
   ] }];
 
   const pipeline = device.createRenderPipeline({
@@ -137,9 +138,11 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
 
   // Ground plane, material 8, fully unoccluded.
   const G = 400;
+  // Twelve floats a vertex: position, normal, material, occlusion, tint,
+  // surface coordinates, part key.
   const gv = new Float32Array([
-    -G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0,   G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0,
-     G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0,  -G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0,
+    -G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0, 0,   G, 0, -G, 0, 1, 0, 8, 1, 0, 0, 0, 0,
+     G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0, 0,  -G, 0,  G, 0, 1, 0, 8, 1, 0, 0, 0, 0,
   ]);
   const gvb = device.createBuffer({ size: gv.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(gvb, 0, gv);
@@ -179,7 +182,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     const a = ASSETS[i];
     const mesh = a.build(LOD).build();
     let height = 0, radius = 1;
-    for (let v = 0; v < mesh.vertices.length; v += 11) {
+    for (let v = 0; v < mesh.vertices.length; v += 12) {
       height = Math.max(height, mesh.vertices[v + 1]);
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }

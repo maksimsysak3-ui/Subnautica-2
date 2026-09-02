@@ -30,7 +30,7 @@
  * between a building and a box.
  */
 
-export const FLOATS_PER_VERTEX = 11;
+export const FLOATS_PER_VERTEX = 12;
 
 /** Which face of a box to leave out. Used where one is buried in another solid. */
 export type Face = '+x' | '-x' | '+z' | '-z' | '+y';
@@ -217,7 +217,7 @@ export class MeshBuilder {
 
     const base = this.vertexCount;
     for (const p of [a, b, c]) {
-      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, this.key, 0);
+      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, 0, 0, this.key);
     }
     this.idx.push(base, base + 1, base + 2);
   }
@@ -226,6 +226,56 @@ export class MeshBuilder {
   quad(a: Vec3, b: Vec3, c: Vec3, d: Vec3, mat: Material): void {
     this.tri(a, b, c, mat);
     this.tri(a, c, d, mat);
+  }
+
+  /** A triangle carrying explicit surface coordinates at each corner. */
+  triUV(a: Vec3, b: Vec3, c: Vec3, uv: Array<[number, number]>, mat: Material): void {
+    const p = [this.xf(a), this.xf(b), this.xf(c)];
+    const ux = p[1][0] - p[0][0], uy = p[1][1] - p[0][1], uz = p[1][2] - p[0][2];
+    const vx = p[2][0] - p[0][0], vy = p[2][1] - p[0][1], vz = p[2][2] - p[0][2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    const base = this.vertexCount;
+    for (let i = 0; i < 3; i++) {
+      this.verts.push(p[i][0], p[i][1], p[i][2], nx, ny, nz, mat, 1, this.tint,
+        uv[i][0], uv[i][1], this.key);
+    }
+    this.idx.push(base, base + 1, base + 2);
+  }
+
+  /**
+   * A quad carrying explicit surface coordinates at each corner.
+   *
+   * For surfaces the shader has to draw something *along* rather than tile by
+   * world position: a car flank wants panel gaps at fractions of its own
+   * length, and the facade coordinate cannot give that, because it is derived
+   * from world position and the dominant face normal and flips axis wherever
+   * the body curves.
+   */
+  quadUV(a: Vec3, b: Vec3, c: Vec3, d: Vec3, uv: Array<[number, number]>, mat: Material): void {
+    const emit = (i0: number, i1: number, i2: number): void => {
+      const p = [this.xf(a), this.xf(b), this.xf(c), this.xf(d)];
+      const A = p[i0], B = p[i1], C = p[i2];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      const base = this.vertexCount;
+      for (const i of [i0, i1, i2]) {
+        const q = p[i];
+        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint,
+          uv[i][0], uv[i][1], this.key);
+      }
+      this.idx.push(base, base + 1, base + 2);
+    };
+    emit(0, 1, 2);
+    emit(0, 2, 3);
   }
 
   /**
@@ -448,7 +498,7 @@ export class MeshBuilder {
       const base = this.vertexCount;
       for (const i of [i0, i1, i2]) {
         const q = p[i];
-        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint, uv[i][0], uv[i][1]);
+        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint, uv[i][0], uv[i][1], this.key);
       }
       this.idx.push(base, base + 1, base + 2);
     };

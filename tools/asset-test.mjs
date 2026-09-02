@@ -12,7 +12,7 @@
 import * as esbuild from 'esbuild';
 
 /** pos(3) + normal(3) + material(1) + occlusion(1) + tint(1) + local uv(2). */
-const STRIDE = 11;
+const STRIDE = 12;
 
 const CELL = 8;
 /** Eaves, canopies and cornices may lean out this far past the lot. */

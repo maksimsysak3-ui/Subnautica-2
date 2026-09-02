@@ -39,36 +39,84 @@ interface Station { x: number; s: Section }
  */
 function loft(m: MeshBuilder, st: Station[], mat: Material, opts: { ends?: boolean } = {}): void {
   const n = st[0].s.length;
+  const x0 = st[0].x, x1 = st[st.length - 1].x;
+  const span = (x1 - x0) || 1;
+  // Surface coordinates: u runs nose to tail, v runs sill to roof. Every
+  // detail the shader draws on a car -- panel gaps, the waist crease, the
+  // shadow in the sill -- is placed in these rather than in world space,
+  // because world space on a curved body is not continuous.
+  const uAt = (x: number): number => (x - x0) / span;
+  const vAt = (j: number): number => j / (n - 1);
   for (let i = 0; i < st.length - 1; i++) {
     const a = st[i], b = st[i + 1];
+    const ua = uAt(a.x), ub = uAt(b.x);
     for (let j = 0; j < n - 1; j++) {
       const [ay0, aw0] = a.s[j], [ay1, aw1] = a.s[j + 1];
       const [by0, bw0] = b.s[j], [by1, bw1] = b.s[j + 1];
+      const v0 = vAt(j), v1 = vAt(j + 1);
       // +z flank, then -z with the winding reversed so both face outwards.
-      m.quad([a.x, ay0, aw0], [b.x, by0, bw0], [b.x, by1, bw1], [a.x, ay1, aw1], mat);
-      m.quad([a.x, ay1, -aw1], [b.x, by1, -bw1], [b.x, by0, -bw0], [a.x, ay0, -aw0], mat);
+      m.quadUV([a.x, ay0, aw0], [b.x, by0, bw0], [b.x, by1, bw1], [a.x, ay1, aw1],
+        [[ua, v0], [ub, v0], [ub, v1], [ua, v1]], mat);
+      m.quadUV([a.x, ay1, -aw1], [b.x, by1, -bw1], [b.x, by0, -bw0], [a.x, ay0, -aw0],
+        [[ua, v1], [ub, v1], [ub, v0], [ua, v0]], mat);
     }
     // Roof and floor: the strips that close the section top and bottom.
     const at = a.s[n - 1], bt = b.s[n - 1], ab = a.s[0], bb = b.s[0];
-    m.quad([a.x, at[0], at[1]], [b.x, bt[0], bt[1]], [b.x, bt[0], -bt[1]], [a.x, at[0], -at[1]], mat);
-    m.quad([a.x, ab[0], -ab[1]], [b.x, bb[0], -bb[1]], [b.x, bb[0], bb[1]], [a.x, ab[0], ab[1]], mat);
+    m.quadUV([a.x, at[0], at[1]], [b.x, bt[0], bt[1]], [b.x, bt[0], -bt[1]], [a.x, at[0], -at[1]],
+      [[ua, 1], [ub, 1], [ub, 1], [ua, 1]], mat);
+    m.quadUV([a.x, ab[0], -ab[1]], [b.x, bb[0], -bb[1]], [b.x, bb[0], bb[1]], [a.x, ab[0], ab[1]],
+      [[ua, 0], [ub, 0], [ub, 0], [ua, 0]], mat);
   }
   if (opts.ends === false) return;
   // End caps, as a fan from the section's mid-height.
   for (const [st0, dir] of [[st[0], -1], [st[st.length - 1], 1]] as const) {
     const mid = (st0.s[0][0] + st0.s[n - 1][0]) / 2;
+    const u = uAt(st0.x);
     for (let j = 0; j < n - 1; j++) {
       const [y0, w0] = st0.s[j], [y1, w1] = st0.s[j + 1];
       const c: Vec3 = [st0.x, mid, 0];
+      const v0 = vAt(j), v1 = vAt(j + 1), vm = 0.5;
+      // The caps carry coordinates too. Left at zero they came out at v = 0,
+      // which is the sill, so every nose and tail in the fleet was painted the
+      // dark colour the shader uses under the sills.
       if (dir > 0) {
-        m.tri([st0.x, y0, w0], [st0.x, y1, w1], c, mat);
-        m.tri([st0.x, y1, -w1], [st0.x, y0, -w0], c, mat);
+        m.triUV([st0.x, y0, w0], [st0.x, y1, w1], c, [[u, v0], [u, v1], [u, vm]], mat);
+        m.triUV([st0.x, y1, -w1], [st0.x, y0, -w0], c, [[u, v1], [u, v0], [u, vm]], mat);
       } else {
-        m.tri([st0.x, y1, w1], [st0.x, y0, w0], c, mat);
-        m.tri([st0.x, y0, -w0], [st0.x, y1, -w1], c, mat);
+        m.triUV([st0.x, y1, w1], [st0.x, y0, w0], c, [[u, v1], [u, v0], [u, vm]], mat);
+        m.triUV([st0.x, y0, -w0], [st0.x, y1, -w1], c, [[u, v0], [u, v1], [u, vm]], mat);
       }
     }
   }
+}
+
+/** Half-width of a lofted body at a length and a height, by interpolation. */
+function hwAt(st: Station[], x: number, y: number): number {
+  let i = 0;
+  while (i < st.length - 2 && st[i + 1].x < x) i++;
+  const a = st[i], b = st[i + 1];
+  const t = Math.max(0, Math.min(1, (x - a.x) / ((b.x - a.x) || 1)));
+  const sec: Section = a.s.map((p, j) =>
+    [p[0] + (b.s[j][0] - p[0]) * t, p[1] + (b.s[j][1] - p[1]) * t] as [number, number]);
+  // Walk the section to the requested height and interpolate the width there.
+  if (y <= sec[0][0]) return sec[0][1];
+  for (let j = 0; j < sec.length - 1; j++) {
+    if (y <= sec[j + 1][0]) {
+      const f = (y - sec[j][0]) / ((sec[j + 1][0] - sec[j][0]) || 1);
+      return sec[j][1] + (sec[j + 1][1] - sec[j][1]) * f;
+    }
+  }
+  return sec[sec.length - 1][1];
+}
+
+/** Roof height of a lofted body at a length. */
+function topAt(st: Station[], x: number): number {
+  let i = 0;
+  while (i < st.length - 2 && st[i + 1].x < x) i++;
+  const a = st[i], b = st[i + 1];
+  const t = Math.max(0, Math.min(1, (x - a.x) / ((b.x - a.x) || 1)));
+  const ay = a.s[a.s.length - 1][0], by = b.s[b.s.length - 1][0];
+  return ay + (by - ay) * t;
 }
 
 /** Scales a section's widths and shifts its heights: one profile, many bodies. */
@@ -150,16 +198,22 @@ function arch(m: MeshBuilder, cx: number, cy: number, r: number, halfW: number):
 // ------------------------------------------------------------------ fittings
 
 /** A raised lip around a wheel arch, so the arch has an edge and not a hole. */
-function archLip(m: MeshBuilder, cx: number, cy: number, r: number, hw: number): void {
+function archLip(m: MeshBuilder, st: Station[], key: number, cx: number, cy: number,
+  r: number): void {
   for (let i = 0; i < 10; i++) {
     const a0 = Math.PI * (i / 10), a1 = Math.PI * ((i + 1) / 10);
+    // Width sampled from the body at the top of the arch, so the lip sits on
+    // the flank instead of hovering a hand's breadth off it.
+    const hw = hwAt(st, cx, cy + r * 0.7) - 0.01;
     for (const sz of [1, -1] as const) {
-      const w0 = sz * hw, w1 = sz * (hw + 0.055);
+      const w0 = sz * hw, w1 = sz * (hw + 0.05);
       const p = (a: number, rr: number, w: number): Vec3 =>
         [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, w];
-      m.quad(p(a0, r, w1), p(a1, r, w1), p(a1, r + 0.075, w1), p(a0, r + 0.075, w1), MAT.PAINT);
-      m.quad(p(a0, r + 0.075, w0), p(a1, r + 0.075, w0), p(a1, r + 0.075, w1), p(a0, r + 0.075, w1),
-        MAT.PAINT);
+      m.keyed(key, () => {
+        m.quad(p(a0, r, w1), p(a1, r, w1), p(a1, r + 0.075, w1), p(a0, r + 0.075, w1), MAT.PAINT);
+        m.quad(p(a0, r + 0.075, w0), p(a1, r + 0.075, w0), p(a1, r + 0.075, w1),
+          p(a0, r + 0.075, w1), MAT.PAINT);
+      });
     }
   }
 }
@@ -171,32 +225,47 @@ function archLip(m: MeshBuilder, cx: number, cy: number, r: number, hw: number):
  * a sculpture -- real bumpers turn the corner, and that corner is most of what
  * you see of a car from three-quarters on.
  */
-function bumper(m: MeshBuilder, x: number, dir: 1 | -1, hw: number, y0: number, y1: number): void {
-  m.painted(TINT.METAL_DARK, () => {
-    const a = Math.min(x, x + dir * 0.22), b = Math.max(x, x + dir * 0.22);
-    m.box([a, y0, -hw * 0.72], [b, y1, hw * 0.72], MAT.TRIM, { skipBottom: false });
+function bumper(m: MeshBuilder, st: Station[], key: number, x: number, dir: 1 | -1,
+  y0: number, y1: number): void {
+  // Width taken from the body at the bumper's own height, and the wings set
+  // one centimetre inside it. Given a fixed width the corners either hung in
+  // the air or vanished into the wing, depending on the car.
+  const hw = hwAt(st, x - dir * 0.12, (y0 + y1) / 2) - 0.01;
+  // Body-coloured, with only a dark valance under it. Painted dark all over,
+  // a bumper reads at any distance as a black slab bolted to the boot, which
+  // is exactly what it looked like.
+  const a = Math.min(x, x + dir * 0.12), b = Math.max(x, x + dir * 0.12);
+  m.keyed(key, () => {
+    m.box([a, y0 + 0.10, -hw * 0.8], [b, y1, hw * 0.8], MAT.PAINT, { skipBottom: false });
     for (const sz of [1, -1] as const) {
-      const c = Math.min(x, x + dir * 0.1), d = Math.max(x, x + dir * 0.1);
-      m.box([c, y0 + 0.03, Math.min(sz * hw, sz * hw * 0.7)],
-            [d, y1 - 0.03, Math.max(sz * hw, sz * hw * 0.7)], MAT.TRIM, { skipBottom: false });
+      const c = Math.min(x, x - dir * 0.18), d = Math.max(x, x - dir * 0.18);
+      m.box([c, y0 + 0.12, Math.min(sz * hw, sz * hw * 0.78)],
+            [d, y1 - 0.02, Math.max(sz * hw, sz * hw * 0.78)], MAT.PAINT, { skipBottom: false });
     }
   });
+  m.painted(TINT.METAL_DARK, () =>
+    m.box([a, y0, -hw * 0.76], [b, y0 + 0.11, hw * 0.76], MAT.TRIM, { skipBottom: false }));
 }
 
 /** Grille bars in a recess, with a badge in the middle. */
-function grille(m: MeshBuilder, x: number, dir: 1 | -1, y0: number, y1: number, hw: number,
-  bars = 4): void {
+function grille(m: MeshBuilder, st: Station[], x: number, dir: 1 | -1,
+  y0: number, y1: number, bars = 4): void {
+  // Recessed into the nose, not stuck onto it: the panel sits a little inside
+  // the body and the bars sit inside that again.
+  const hw = hwAt(st, x - dir * 0.05, (y0 + y1) / 2) * 0.62;
   m.painted(TINT.METAL_DARK, () => {
-    const a = Math.min(x, x + dir * 0.14), b = Math.max(x, x + dir * 0.14);
+    const a = Math.min(x + dir * 0.02, x - dir * 0.1), b = Math.max(x + dir * 0.02, x - dir * 0.1);
     m.box([a, y0, -hw], [b, y1, hw], MAT.TRIM, { skipBottom: false });
     for (let i = 0; i < bars; i++) {
       const y = y0 + ((i + 0.5) / bars) * (y1 - y0);
-      const c = Math.min(x, x + dir * 0.2), d = Math.max(x, x + dir * 0.2);
-      m.box([c, y - 0.035, -hw * 0.96], [d, y + 0.035, hw * 0.96], MAT.TRIM, { skipBottom: false });
+      const c = Math.min(x + dir * 0.03, x - dir * 0.04);
+      const d = Math.max(x + dir * 0.03, x - dir * 0.04);
+      m.box([c, y - 0.03, -hw * 0.94], [d, y + 0.03, hw * 0.94], MAT.TRIM, { skipBottom: false });
     }
   });
-  const c = Math.min(x, x + dir * 0.24), d = Math.max(x, x + dir * 0.24);
-  m.box([c, (y0 + y1) / 2 - 0.11, -0.13], [d, (y0 + y1) / 2 + 0.11, 0.13], MAT.METAL,
+  const c = Math.min(x + dir * 0.04, x - dir * 0.02);
+  const d = Math.max(x + dir * 0.04, x - dir * 0.02);
+  m.box([c, (y0 + y1) / 2 - 0.10, -0.12], [d, (y0 + y1) / 2 + 0.10, 0.12], MAT.METAL,
     { skipBottom: false });
 }
 
@@ -206,33 +275,47 @@ function grille(m: MeshBuilder, x: number, dir: 1 | -1, y0: number, y1: number, 
  * A car with clear glazing and nothing inside reads as a shell, and the
  * interior is four boxes -- cheap next to the loft that surrounds it.
  */
-function interior(m: MeshBuilder, x0: number, x1: number, floor: number, hw: number,
-  rows = 2): void {
+function interior(m: MeshBuilder, st: Station[], x0: number, x1: number, rows = 2): void {
+  // Everything is derived from the body: the floor sits just above the sill,
+  // the seats are as wide as the cabin is at that station, and the head
+  // restraints stop short of the roof. Given fixed numbers instead, the seats
+  // came up through the roof of every car in the fleet.
+  const roofAt = (x: number): number => topAt(st, x);
+  const floor = st[0].s[0][0] + 0.22;
   m.keyed(900, () => {
-    // Dashboard and parcel shelf.
-    m.box([x0, floor + 0.34, -hw], [x0 + 0.42, floor + 0.62, hw], MAT.FIGURE, { skipBottom: false });
-    m.box([x1 - 0.35, floor + 0.44, -hw], [x1, floor + 0.52, hw], MAT.FIGURE, { skipBottom: false });
+    const dashHw = hwAt(st, x0 + 0.2, floor + 0.5) * 0.86;
+    m.box([x0, floor + 0.30, -dashHw], [x0 + 0.40, Math.min(floor + 0.58, roofAt(x0) - 0.34), dashHw],
+      MAT.FIGURE, { skipBottom: false });
+    const shelfHw = hwAt(st, x1 - 0.2, floor + 0.5) * 0.86;
+    m.box([x1 - 0.34, floor + 0.40, -shelfHw], [x1, floor + 0.48, shelfHw], MAT.FIGURE,
+      { skipBottom: false });
     for (let r = 0; r < rows; r++) {
-      const sx = x0 + 0.62 + r * ((x1 - x0 - 1.0) / Math.max(1, rows));
+      const sx = x0 + 0.58 + r * ((x1 - x0 - 0.95) / Math.max(1, rows));
+      const cabin = hwAt(st, sx + 0.25, floor + 0.5);
+      const ceil = Math.min(roofAt(sx), roofAt(sx + 0.6)) - 0.12;
       for (const sz of [1, -1] as const) {
-        // Squab, backrest and head restraint.
-        m.box([sx, floor + 0.22, sz * hw * 0.52 - 0.22], [sx + 0.48, floor + 0.34, sz * hw * 0.52 + 0.22],
-          MAT.FIGURE, { skipBottom: false });
-        m.box([sx + 0.42, floor + 0.34, sz * hw * 0.52 - 0.22], [sx + 0.56, floor + 0.86, sz * hw * 0.52 + 0.22],
-          MAT.FIGURE, { skipBottom: false });
-        m.box([sx + 0.44, floor + 0.88, sz * hw * 0.52 - 0.14], [sx + 0.56, floor + 1.02, sz * hw * 0.52 + 0.14],
-          MAT.FIGURE, { skipBottom: false });
+        const cz = sz * cabin * 0.46;
+        m.box([sx, floor + 0.18, cz - 0.21], [sx + 0.46, floor + 0.30, cz + 0.21], MAT.FIGURE,
+          { skipBottom: false });
+        m.box([sx + 0.40, floor + 0.30, cz - 0.21],
+              [sx + 0.54, Math.min(floor + 0.80, ceil - 0.14), cz + 0.21], MAT.FIGURE,
+          { skipBottom: false });
+        m.box([sx + 0.42, Math.min(floor + 0.82, ceil - 0.12),  cz - 0.13],
+              [sx + 0.54, Math.min(floor + 0.94, ceil), cz + 0.13], MAT.FIGURE,
+          { skipBottom: false });
       }
     }
   });
-  // Steering wheel and column, on the near side.
+  // Steering wheel, on the near side, tucked under the roof line.
   m.painted(TINT.METAL_DARK, () => {
-    const cx = x0 + 0.52;
+    const cx = x0 + 0.50;
+    const cabin = hwAt(st, cx, floor + 0.5);
+    const cy = Math.min(floor + 0.62, roofAt(cx) - 0.40);
     for (let i = 0; i < 8; i++) {
       const a0 = (i / 8) * Math.PI * 2, a1 = ((i + 1) / 8) * Math.PI * 2;
       const p = (a: number): Vec3 =>
-        [cx + Math.cos(a) * 0.02, floor + 0.68 + Math.sin(a) * 0.16, -hw * 0.52 + Math.cos(a) * 0.16];
-      m.tri(p(a0), p(a1), [cx, floor + 0.68, -hw * 0.52], MAT.TRIM);
+        [cx + Math.cos(a) * 0.02, cy + Math.sin(a) * 0.15, -cabin * 0.46 + Math.cos(a) * 0.15];
+      m.tri(p(a0), p(a1), [cx, cy, -cabin * 0.46], MAT.TRIM);
     }
   });
 }
@@ -247,76 +330,91 @@ function wipers(m: MeshBuilder, x: number, y: number, hw: number): void {
   });
 }
 
-/** Glazing set into a body: windscreen, backlight and side windows. */
-function glazing(m: MeshBuilder, x0: number, x1: number, y0: number, y1: number,
-  hw: number, rake = 0.0): void {
+/**
+ * Glazing set into a body: windscreen, backlight and side windows.
+ *
+ * Built as a strip that follows the body's own width along its length rather
+ * than one quad at a fixed half-width. A car tapers towards both ends, so a
+ * flat pane sized for the middle stands proud of the tail and sinks into the
+ * doors -- which is exactly what the first version did.
+ */
+function glazing(m: MeshBuilder, st: Station[], x0: number, x1: number, y0: number, y1: number,
+  rake = 0.0): void {
+  const segs = 5;
   for (const sz of [1, -1] as const) {
-    const w = sz * (hw + 0.012);
-    m.quad([x0 + rake, y0, w], [x1 - rake, y0, w], [x1, y1, w], [x0, y1, w], MAT.GLASS);
-    // Surround: glass flush with the paint reads as a painted-on window.
-    m.painted(TINT.METAL_DARK, () => {
-      const a = Math.min(sz * hw, sz * (hw + 0.05)), b = Math.max(sz * hw, sz * (hw + 0.05));
-      m.box([x0 + rake - 0.05, y0 - 0.05, a], [x1 - rake + 0.05, y0 + 0.02, b], MAT.TRIM,
-        { skipBottom: false });
-      m.box([x0 - 0.05, y1 - 0.02, a], [x1 + 0.05, y1 + 0.05, b], MAT.TRIM, { skipBottom: false });
-      m.box([Math.min(x0, x0 + rake) - 0.05, y0, a], [Math.min(x0, x0 + rake) + 0.03, y1, b],
-        MAT.TRIM, { skipBottom: false });
-      m.box([Math.max(x1, x1 - rake) - 0.03, y0, a], [Math.max(x1, x1 - rake) + 0.05, y1, b],
-        MAT.TRIM, { skipBottom: false });
-    });
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs, t1 = (i + 1) / segs;
+      const ax = x0 + (x1 - x0) * t0, bx = x0 + (x1 - x0) * t1;
+      // Lower edge rakes in at both ends; upper edge runs straight.
+      const ly0 = y0, ly1 = y0;
+      const la = ax + rake * (1 - t0), lb = ax + (bx - ax) + rake * (1 - t1);
+      const wa = sz * (hwAt(st, ax, (y0 + y1) / 2) + 0.006);
+      const wb = sz * (hwAt(st, bx, (y0 + y1) / 2) + 0.006);
+      if (sz > 0) {
+        m.quad([la, ly0, wa], [lb, ly1, wb], [bx, y1, wb], [ax, y1, wa], MAT.GLASS);
+      } else {
+        m.quad([ax, y1, wa], [bx, y1, wb], [lb, ly1, wb], [la, ly0, wa], MAT.GLASS);
+      }
+    }
   }
 }
 
 /** A lamp: a lens on a chrome bezel, sunk into the bodywork. */
 function lamp(m: MeshBuilder, x: number, y: number, z: number, w: number, h: number,
   dir: 1 | -1, tint: number): void {
+  // Set into the bodywork rather than bolted to the front of it: the bezel
+  // runs back inside the nose and only the lens stands proud, by 2cm.
   m.painted(TINT.METAL_DARK, () =>
-    m.box([x - dir * 0.06, y - h / 2 - 0.03, z - w / 2 - 0.03],
-          [x + dir * 0.02, y + h / 2 + 0.03, z + w / 2 + 0.03], MAT.TRIM, { skipBottom: false }));
+    m.box([Math.min(x - dir * 0.14, x + dir * 0.01), y - h / 2 - 0.025, z - w / 2 - 0.025],
+          [Math.max(x - dir * 0.14, x + dir * 0.01), y + h / 2 + 0.025, z + w / 2 + 0.025],
+      MAT.TRIM, { skipBottom: false }));
   m.painted(tint as never, () =>
-    m.box([Math.min(x, x + dir * 0.05), y - h / 2, z - w / 2],
-          [Math.max(x, x + dir * 0.05), y + h / 2, z + w / 2], MAT.TRIM, { skipBottom: false }));
+    m.box([Math.min(x - dir * 0.05, x + dir * 0.02), y - h / 2, z - w / 2],
+          [Math.max(x - dir * 0.05, x + dir * 0.02), y + h / 2, z + w / 2], MAT.TRIM,
+      { skipBottom: false }));
 }
 
-/** Door shut lines and handles: the detail that gives a flank its scale. */
-function doors(m: MeshBuilder, cuts: number[], y0: number, y1: number, hw: number,
-  handleY: number): void {
-  m.painted(TINT.METAL_DARK, () => {
-    for (const cx of cuts) {
-      for (const sz of [1, -1] as const) {
-        m.box([cx - 0.015, y0, Math.min(sz * hw, sz * (hw + 0.012))],
-              [cx + 0.015, y1, Math.max(sz * hw, sz * (hw + 0.012))], MAT.TRIM,
-          { skipBottom: false });
-      }
-    }
-  });
-  for (let i = 0; i < cuts.length; i++) {
+/**
+ * Door handles, sitting on the body's actual surface.
+ *
+ * The shut lines that used to come with these are drawn by the shader now.
+ * As geometry they were a strip at a fixed half-width, which stands proud
+ * where the body narrows and sinks in where it swells -- and a car is nothing
+ * but places where the body narrows and swells.
+ */
+function handles(m: MeshBuilder, st: Station[], cuts: number[], y: number): void {
+  for (const cut of cuts) {
+    const x = cut + 0.18;
+    const hw = hwAt(st, x, y);
     for (const sz of [1, -1] as const) {
-      const x = cuts[i] + 0.16;
-      m.box([x, handleY, Math.min(sz * hw, sz * (hw + 0.04))],
-            [x + 0.22, handleY + 0.055, Math.max(sz * hw, sz * (hw + 0.04))], MAT.METAL,
+      m.box([x, y, Math.min(sz * hw, sz * (hw + 0.035))],
+            [x + 0.20, y + 0.05, Math.max(sz * hw, sz * (hw + 0.035))], MAT.METAL,
         { skipBottom: false });
     }
   }
 }
 
-/** Wing mirrors on stalks. */
-function mirrors(m: MeshBuilder, x: number, y: number, hw: number): void {
+/** Wing mirrors on stalks, off the body at the height they are given. */
+function mirrors(m: MeshBuilder, st: Station[], key: number, x: number, y: number): void {
+  const hw = hwAt(st, x, y);
   for (const sz of [1, -1] as const) {
     m.painted(TINT.METAL_DARK, () =>
       m.box([x - 0.03, y - 0.03, Math.min(sz * hw, sz * (hw + 0.1))],
-            [x + 0.03, y + 0.03, Math.max(sz * hw, sz * (hw + 0.1))], MAT.TRIM, { skipBottom: false }));
-    m.box([x - 0.1, y - 0.06, Math.min(sz * (hw + 0.08), sz * (hw + 0.22))],
-          [x + 0.1, y + 0.13, Math.max(sz * (hw + 0.08), sz * (hw + 0.22))], MAT.PAINT,
-      { skipBottom: false });
+            [x + 0.03, y + 0.03, Math.max(sz * hw, sz * (hw + 0.1))], MAT.TRIM,
+        { skipBottom: false }));
+    m.keyed(key, () =>
+      m.box([x - 0.1, y - 0.06, Math.min(sz * (hw + 0.08), sz * (hw + 0.22))],
+            [x + 0.1, y + 0.13, Math.max(sz * (hw + 0.08), sz * (hw + 0.22))], MAT.PAINT,
+        { skipBottom: false }));
   }
 }
 
 /** Number plate. */
 function plate(m: MeshBuilder, x: number, y: number, dir: 1 | -1): void {
   m.painted(TINT.SIGN_LIT, () =>
-    m.box([Math.min(x, x + dir * 0.03), y - 0.09, -0.26],
-          [Math.max(x, x + dir * 0.03), y + 0.09, 0.26], MAT.TRIM, { skipBottom: false }));
+    m.box([Math.min(x - dir * 0.04, x + dir * 0.015), y - 0.085, -0.25],
+          [Math.max(x - dir * 0.04, x + dir * 0.015), y + 0.085, 0.25], MAT.TRIM,
+      { skipBottom: false }));
 }
 
 /** The ground a vehicle stands on, so it is not floating over a void. */
@@ -492,51 +590,53 @@ function hatchback(lod: number): MeshBuilder {
   const medium = lod < 2;
   tarmac(m, 3.0, 1.9);
 
-  m.keyed(1, () => {
-    loft(m, [
-      { x: -2.02, s: shape(CAR, 0.80, 0.98) },
-      { x: -1.80, s: shape(CAR, 0.94, 1.06) },
-      { x: -1.20, s: shape(CAR, 1.00, 1.18) },
-      { x: -0.55, s: shape(CAR, 1.02, 1.46) },
-      { x: 0.30, s: shape(CAR, 1.02, 1.50) },
-      { x: 1.05, s: shape(CAR, 1.00, 1.50) },
-      { x: 1.62, s: shape(CAR, 0.96, 1.44) },
-      { x: 1.92, s: shape(CAR, 0.86, 1.22) },
-      { x: 2.05, s: shape(CAR, 0.74, 1.06) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.02, s: shape(CAR, 0.80, 0.98) },
+    { x: -1.80, s: shape(CAR, 0.94, 1.06) },
+    { x: -1.20, s: shape(CAR, 1.00, 1.18) },
+    { x: -0.55, s: shape(CAR, 1.02, 1.46) },
+    { x: 0.30, s: shape(CAR, 1.02, 1.50) },
+    { x: 1.05, s: shape(CAR, 1.00, 1.50) },
+    { x: 1.62, s: shape(CAR, 0.96, 1.44) },
+    { x: 1.92, s: shape(CAR, 0.86, 1.22) },
+    { x: 2.05, s: shape(CAR, 0.74, 1.06) },
+  ];
+  m.keyed(1, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.28, 1.32]) {
       arch(m, cx, 0.44, 0.46, 0.80);
-      archLip(m, cx, 0.44, 0.47, 0.88);
+      archLip(m, st, 1, cx, 0.44, 0.47);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.34, sz * 0.72, 0.33, 0.12);
     }
-    interior(m, -0.55, 1.55, 0.72, 0.72, 2);
+    interior(m, st, -0.55, 1.55, 2);
     // Windscreen and backlight are raked; the side glass sits in the waist.
-    glazing(m, -0.62, 0.28, 1.06, 1.44, 0.845, 0.22);
-    glazing(m, 1.02, 1.66, 1.06, 1.42, 0.845, -0.18);
+    glazing(m, st, -0.62, 0.28, 1.06, 1.44, 0.22);
+    glazing(m, st, 1.02, 1.66, 1.06, 1.42, -0.18);
   }
   if (fine) {
-    m.painted(TINT.METAL_DARK, () => {
-      m.box([-0.60, 0.98, -0.82], [1.68, 1.10, 0.82], MAT.TRIM);
-    });
-    bumper(m, -1.98, -1, 0.80, 0.42, 0.76);
-    bumper(m, 2.0, 1, 0.76, 0.42, 0.78);
-    grille(m, -2.0, -1, 0.72, 1.02, 0.44, 3);
+    bumper(m, st, 1, -1.98, -1, 0.42, 0.76);
+    bumper(m, st, 1, 2.0, 1, 0.42, 0.78);
+    grille(m, st, -2.0, -1, 0.72, 1.02, 3);
     wipers(m, -0.58, 1.02, 0.82);
-    doors(m, [-0.52, 0.62], 0.62, 1.24, 0.90, 1.02);
-    mirrors(m, -0.52, 1.16, 0.90);
+    handles(m, st, [-0.52, 0.62], 1.02);
+    mirrors(m, st, 1, -0.52, 1.16);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.0, 0.88, sz * 0.56, 0.34, 0.22, -1, TINT.SIGN_LIT);
       lamp(m, 2.04, 0.98, sz * 0.58, 0.30, 0.30, 1, TINT.BRAND);
     }
     plate(m, -2.02, 0.62, -1);
     plate(m, 2.04, 0.66, 1);
-    // Roof rails and a tailpipe.
+    // Roof rails, sitting on the roof line rather than at a guessed height.
     m.painted(TINT.METAL_DARK, () => {
       for (const sz of [1, -1] as const) {
-        m.box([-0.1, 1.50, sz * 0.44 - 0.04], [1.3, 1.56, sz * 0.44 + 0.04], MAT.TRIM);
+        for (let i = 0; i < 6; i++) {
+          const a = -0.1 + i * 0.24, b = a + 0.24;
+          const y = Math.min(topAt(st, a), topAt(st, b));
+          m.box([a, y - 0.02, sz * 0.44 - 0.04], [b, y + 0.05, sz * 0.44 + 0.04], MAT.TRIM);
+        }
       }
       m.box([1.7, 0.28, 0.34], [2.06, 0.4, 0.5], MAT.TRIM);
     });
@@ -552,40 +652,38 @@ function saloon(lod: number): MeshBuilder {
   const medium = lod < 2;
   tarmac(m, 3.3, 1.9);
 
-  m.keyed(2, () => {
-    loft(m, [
-      { x: -2.35, s: shape(CAR, 0.80, 0.96) },
-      { x: -2.10, s: shape(CAR, 0.95, 1.04) },
-      { x: -1.45, s: shape(CAR, 1.02, 1.14) },
-      { x: -0.75, s: shape(CAR, 1.05, 1.44) },
-      { x: 0.10, s: shape(CAR, 1.05, 1.48) },
-      { x: 0.95, s: shape(CAR, 1.03, 1.46) },
-      { x: 1.50, s: shape(CAR, 1.00, 1.22) },
-      { x: 2.15, s: shape(CAR, 0.94, 1.14) },
-      { x: 2.38, s: shape(CAR, 0.80, 1.02) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.35, s: shape(CAR, 0.80, 0.96) },
+    { x: -2.10, s: shape(CAR, 0.95, 1.04) },
+    { x: -1.45, s: shape(CAR, 1.02, 1.14) },
+    { x: -0.75, s: shape(CAR, 1.05, 1.44) },
+    { x: 0.10, s: shape(CAR, 1.05, 1.48) },
+    { x: 0.95, s: shape(CAR, 1.03, 1.46) },
+    { x: 1.50, s: shape(CAR, 1.00, 1.22) },
+    { x: 2.15, s: shape(CAR, 0.94, 1.14) },
+    { x: 2.38, s: shape(CAR, 0.80, 1.02) },
+  ];
+  m.keyed(2, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.52, 1.58]) {
       arch(m, cx, 0.46, 0.48, 0.84);
-      archLip(m, cx, 0.46, 0.49, 0.92);
+      archLip(m, st, 2, cx, 0.46, 0.49);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * 0.75, 0.34, 0.13);
     }
-    interior(m, -0.8, 1.4, 0.72, 0.76, 2);
-    glazing(m, -0.85, 0.06, 1.06, 1.42, 0.87, 0.24);
-    glazing(m, 0.90, 1.56, 1.06, 1.40, 0.87, -0.22);
+    interior(m, st, -0.8, 1.4, 2);
+    glazing(m, st, -0.85, 0.06, 1.06, 1.42, 0.24);
+    glazing(m, st, 0.90, 1.56, 1.06, 1.40, -0.22);
   }
   if (fine) {
-    m.painted(TINT.METAL_DARK, () => {
-      m.box([-0.86, 0.98, -0.86], [1.58, 1.10, 0.86], MAT.TRIM);
-    });
-    bumper(m, -2.30, -1, 0.84, 0.42, 0.78);
-    bumper(m, 2.34, 1, 0.80, 0.42, 0.80);
-    grille(m, -2.32, -1, 0.80, 1.08, 0.48, 4);
+    bumper(m, st, 2, -2.30, -1, 0.42, 0.78);
+    bumper(m, st, 2, 2.34, 1, 0.42, 0.80);
+    grille(m, st, -2.32, -1, 0.80, 1.08, 4);
     wipers(m, -0.82, 1.02, 0.86);
-    doors(m, [-0.76, 0.42], 0.62, 1.24, 0.94, 1.02);
-    mirrors(m, -0.78, 1.16, 0.94);
+    handles(m, st, [-0.76, 0.42], 1.02);
+    mirrors(m, st, 2, -0.78, 1.16);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.33, 0.92, sz * 0.6, 0.36, 0.2, -1, TINT.SIGN_LIT);
       lamp(m, 2.37, 0.96, sz * 0.62, 0.34, 0.24, 1, TINT.BRAND);
@@ -608,36 +706,36 @@ function estate(lod: number): MeshBuilder {
   const medium = lod < 2;
   tarmac(m, 3.3, 1.9);
 
-  m.keyed(3, () => {
-    loft(m, [
-      { x: -2.35, s: shape(CAR, 0.80, 0.96) },
-      { x: -2.10, s: shape(CAR, 0.95, 1.04) },
-      { x: -1.45, s: shape(CAR, 1.02, 1.14) },
-      { x: -0.75, s: shape(CAR, 1.05, 1.46) },
-      { x: 0.20, s: shape(CAR, 1.05, 1.52) },
-      { x: 1.30, s: shape(CAR, 1.04, 1.52) },
-      { x: 2.05, s: shape(CAR, 1.02, 1.50) },
-      { x: 2.36, s: shape(CAR, 0.92, 1.34) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.35, s: shape(CAR, 0.80, 0.96) },
+    { x: -2.10, s: shape(CAR, 0.95, 1.04) },
+    { x: -1.45, s: shape(CAR, 1.02, 1.14) },
+    { x: -0.75, s: shape(CAR, 1.05, 1.46) },
+    { x: 0.20, s: shape(CAR, 1.05, 1.52) },
+    { x: 1.30, s: shape(CAR, 1.04, 1.52) },
+    { x: 2.05, s: shape(CAR, 1.02, 1.50) },
+    { x: 2.36, s: shape(CAR, 0.92, 1.34) },
+  ];
+  m.keyed(3, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.52, 1.58]) {
       arch(m, cx, 0.46, 0.48, 0.86);
-      archLip(m, cx, 0.46, 0.49, 0.94);
+      archLip(m, st, 3, cx, 0.46, 0.49);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * 0.76, 0.34, 0.13);
     }
-    interior(m, -0.8, 1.9, 0.72, 0.78, 2);
-    glazing(m, -0.85, 0.10, 1.06, 1.46, 0.87, 0.24);
-    glazing(m, 2.10, 2.34, 1.10, 1.44, 0.87, 0.06);
+    interior(m, st, -0.8, 1.9, 2);
+    glazing(m, st, -0.85, 0.10, 1.06, 1.46, 0.24);
+    glazing(m, st, 2.10, 2.34, 1.10, 1.44, 0.06);
   }
   if (fine) {
-    bumper(m, -2.30, -1, 0.84, 0.42, 0.78);
-    bumper(m, 2.34, 1, 0.84, 0.42, 0.82);
-    grille(m, -2.32, -1, 0.80, 1.08, 0.48, 4);
+    bumper(m, st, 3, -2.30, -1, 0.42, 0.78);
+    bumper(m, st, 3, 2.34, 1, 0.42, 0.82);
+    grille(m, st, -2.32, -1, 0.80, 1.08, 4);
     wipers(m, -0.82, 1.02, 0.88);
     m.painted(TINT.METAL_DARK, () => {
-      m.box([-0.86, 0.98, -0.88], [2.10, 1.10, 0.88], MAT.TRIM);
       // Roof bars with cross rails, and a towbar: what an estate is for.
       for (const sz of [1, -1] as const) {
         m.box([-0.3, 1.52, sz * 0.5 - 0.05], [2.0, 1.60, sz * 0.5 + 0.05], MAT.TRIM);
@@ -646,8 +744,8 @@ function estate(lod: number): MeshBuilder {
       m.box([2.36, 0.24, -0.08], [2.62, 0.34, 0.08], MAT.TRIM);
       m.cylinder(2.6, 0, 0.09, 0.32, 0.46, 8, MAT.TRIM);
     });
-    doors(m, [-0.76, 0.42, 1.66], 0.62, 1.26, 0.96, 1.04);
-    mirrors(m, -0.78, 1.16, 0.96);
+    handles(m, st, [-0.76, 0.42, 1.66], 1.04);
+    mirrors(m, st, 3, -0.78, 1.16);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.33, 0.92, sz * 0.6, 0.36, 0.2, -1, TINT.SIGN_LIT);
       lamp(m, 2.37, 1.06, sz * 0.66, 0.24, 0.46, 1, TINT.BRAND);
@@ -667,28 +765,29 @@ function suv(lod: number): MeshBuilder {
   tarmac(m, 3.3, 2.1);
   const S: Section = [[0.50, 0.80], [0.86, 1.00], [1.28, 1.02], [1.60, 0.94], [1.82, 0.72]];
 
-  m.keyed(4, () => {
-    loft(m, [
-      { x: -2.30, s: shape(S, 0.86, 1.30) },
-      { x: -2.05, s: shape(S, 0.97, 1.40) },
-      { x: -1.35, s: shape(S, 1.02, 1.52) },
-      { x: -0.70, s: shape(S, 1.04, 1.88) },
-      { x: 0.40, s: shape(S, 1.04, 1.94) },
-      { x: 1.45, s: shape(S, 1.03, 1.94) },
-      { x: 2.10, s: shape(S, 1.00, 1.90) },
-      { x: 2.34, s: shape(S, 0.90, 1.72) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.30, s: shape(S, 0.86, 1.30) },
+    { x: -2.05, s: shape(S, 0.97, 1.40) },
+    { x: -1.35, s: shape(S, 1.02, 1.52) },
+    { x: -0.70, s: shape(S, 1.04, 1.88) },
+    { x: 0.40, s: shape(S, 1.04, 1.94) },
+    { x: 1.45, s: shape(S, 1.03, 1.94) },
+    { x: 2.10, s: shape(S, 1.00, 1.90) },
+    { x: 2.34, s: shape(S, 0.90, 1.72) },
+  ];
+  m.keyed(4, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.50, 1.55]) {
       arch(m, cx, 0.62, 0.60, 0.90);
-      archLip(m, cx, 0.62, 0.61, 1.00);
+      archLip(m, st, 4, cx, 0.62, 0.61);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.47, sz * 0.80, 0.46, 0.16);
     }
-    interior(m, -0.75, 1.9, 0.98, 0.86, 2);
-    glazing(m, -0.82, 0.16, 1.30, 1.86, 0.985, 0.26);
-    glazing(m, 2.12, 2.32, 1.34, 1.84, 0.985, 0.04);
+    interior(m, st, -0.75, 1.9, 2);
+    glazing(m, st, -0.82, 0.16, 1.30, 1.86, 0.26);
+    glazing(m, st, 2.12, 2.32, 1.34, 1.84, 0.04);
     // Cladding round the arches and along the sills: an SUV's whole idiom.
     m.painted(TINT.METAL_DARK, () => {
       for (const sz of [1, -1] as const) {
@@ -697,9 +796,9 @@ function suv(lod: number): MeshBuilder {
     });
   }
   if (fine) {
-    bumper(m, -2.26, -1, 0.92, 0.56, 1.00);
-    bumper(m, 2.28, 1, 0.90, 0.56, 1.04);
-    grille(m, -2.28, -1, 1.04, 1.42, 0.52, 4);
+    bumper(m, st, 4, -2.26, -1, 0.56, 1.00);
+    bumper(m, st, 4, 2.28, 1, 0.56, 1.04);
+    grille(m, st, -2.28, -1, 1.04, 1.42, 4);
     wipers(m, -0.78, 1.28, 0.98);
     m.painted(TINT.METAL_DARK, () => {
       // Roof rails and a spare on the tailgate.
@@ -708,8 +807,8 @@ function suv(lod: number): MeshBuilder {
       }
     });
     wheel(m, 2.55, 1.20, 0.0, 0.42, 0.15, 12);
-    doors(m, [-0.72, 0.60], 0.86, 1.58, 1.06, 1.30);
-    mirrors(m, -0.74, 1.44, 1.06);
+    handles(m, st, [-0.72, 0.60], 1.30);
+    mirrors(m, st, 4, -0.74, 1.44);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.30, 1.22, sz * 0.66, 0.4, 0.26, -1, TINT.SIGN_LIT);
       lamp(m, 2.36, 1.36, sz * 0.72, 0.26, 0.5, 1, TINT.BRAND);
@@ -730,38 +829,41 @@ function pickup(lod: number): MeshBuilder {
   const S: Section = [[0.48, 0.82], [0.84, 1.00], [1.26, 1.02], [1.56, 0.94], [1.76, 0.74]];
 
   // Cab, then a separate bed: a pickup is two volumes and the gap shows.
-  m.keyed(5, () => {
-    loft(m, [
-      { x: -2.40, s: shape(S, 0.86, 1.24) },
-      { x: -2.15, s: shape(S, 0.98, 1.34) },
-      { x: -1.40, s: shape(S, 1.02, 1.44) },
-      { x: -0.75, s: shape(S, 1.03, 1.82) },
-      { x: 0.15, s: shape(S, 1.03, 1.86) },
-      { x: 0.55, s: shape(S, 1.02, 1.84) },
-    ], MAT.PAINT);
-    loft(m, [
-      { x: 0.58, s: shape(S, 1.03, 1.30) },
-      { x: 2.55, s: shape(S, 1.03, 1.30) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.40, s: shape(S, 0.86, 1.24) },
+    { x: -2.15, s: shape(S, 0.98, 1.34) },
+    { x: -1.40, s: shape(S, 1.02, 1.44) },
+    { x: -0.75, s: shape(S, 1.03, 1.82) },
+    { x: 0.15, s: shape(S, 1.03, 1.86) },
+    { x: 0.55, s: shape(S, 1.02, 1.84) },
+  ];
+  // The bed is a second volume: a pickup is a cab and a tray, and the gap
+  // between them is most of what says so.
+  const bed: Station[] = [
+    { x: 0.58, s: shape(S, 1.03, 1.30) },
+    { x: 2.55, s: shape(S, 1.03, 1.30) },
+  ];
+  m.keyed(5, () => { loft(m, st, MAT.PAINT); loft(m, bed, MAT.PAINT); });
 
   if (medium) {
     for (const cx of [-1.55, 1.75]) {
       arch(m, cx, 0.60, 0.58, 0.92);
-      archLip(m, cx, 0.60, 0.59, 1.00);
+      archLip(m, st, 5, cx, 0.60, 0.59);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.45, sz * 0.82, 0.44, 0.16);
     }
-    interior(m, -0.85, 0.5, 0.96, 0.86, 1);
-    glazing(m, -0.88, 0.05, 1.28, 1.80, 0.975, 0.26);
-    glazing(m, 0.42, 0.54, 1.30, 1.78, 0.975, 0.02);
+    interior(m, st, -0.85, 0.5, 1);
+    glazing(m, st, -0.88, 0.05, 1.28, 1.80, 0.26);
+    glazing(m, st, 0.42, 0.54, 1.30, 1.78, 0.02);
     // The bed itself: a floor with four walls, open at the top.
     m.painted(TINT.METAL_DARK, () =>
       m.box([0.62, 1.02, -0.78], [2.5, 1.12, 0.78], MAT.TRIM));
   }
   if (fine) {
-    bumper(m, -2.36, -1, 0.94, 0.54, 0.98);
-    bumper(m, 2.58, 1, 0.90, 0.5, 1.0);
-    grille(m, -2.38, -1, 1.02, 1.44, 0.54, 4);
+    bumper(m, st, 5, -2.36, -1, 0.54, 0.98);
+    bumper(m, st, 5, 2.58, 1, 0.5, 1.0);
+    grille(m, st, -2.38, -1, 1.02, 1.44, 4);
     wipers(m, -0.9, 1.26, 0.98);
     m.painted(TINT.METAL_DARK, () => {
       // Ribs down the inside of the bed walls, and a roll bar behind the cab.
@@ -774,8 +876,8 @@ function pickup(lod: number): MeshBuilder {
       }
       m.box([0.58, 2.00, -0.68], [0.72, 2.08, 0.68], MAT.TRIM);
     });
-    doors(m, [-0.80], 0.84, 1.54, 1.06, 1.26);
-    mirrors(m, -0.82, 1.42, 1.06);
+    handles(m, st, [-0.80], 1.26);
+    mirrors(m, st, 5, -0.82, 1.42);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.40, 1.20, sz * 0.68, 0.4, 0.26, -1, TINT.SIGN_LIT);
       lamp(m, 2.68, 1.20, sz * 0.66, 0.22, 0.4, 1, TINT.BRAND);
@@ -799,47 +901,53 @@ function van(lod: number): MeshBuilder {
   const medium = lod < 2;
   tarmac(m, 3.6, 2.1);
 
-  m.keyed(6, () => {
-    loft(m, [
-      { x: -2.55, s: shape(BOX, 0.72, 1.30) },
-      { x: -2.30, s: shape(BOX, 0.86, 1.52) },
-      { x: -1.75, s: shape(BOX, 0.96, 1.86) },
-      { x: -1.05, s: shape(BOX, 1.00, 2.42) },
-      { x: -0.30, s: shape(BOX, 1.00, 2.56) },
-      { x: 2.30, s: shape(BOX, 1.00, 2.58) },
-      { x: 2.62, s: shape(BOX, 0.96, 2.52) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.55, s: shape(BOX, 0.72, 1.30) },
+    { x: -2.30, s: shape(BOX, 0.86, 1.52) },
+    { x: -1.75, s: shape(BOX, 0.96, 1.86) },
+    { x: -1.05, s: shape(BOX, 1.00, 2.42) },
+    { x: -0.30, s: shape(BOX, 1.00, 2.56) },
+    { x: 2.30, s: shape(BOX, 1.00, 2.58) },
+    { x: 2.62, s: shape(BOX, 0.96, 2.52) },
+  ];
+  m.keyed(6, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.70, 1.85]) {
       arch(m, cx, 0.52, 0.52, 0.98);
-      archLip(m, cx, 0.52, 0.53, 1.08);
+      archLip(m, st, 6, cx, 0.52, 0.53);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.40, sz * 0.86, 0.39, 0.15);
     }
-    interior(m, -1.15, 0.4, 1.34, 0.92, 1);
-    glazing(m, -1.15, -0.34, 1.70, 2.42, 1.10, 0.3);
-    glazing(m, -0.28, 0.42, 1.72, 2.34, 1.15, 0.0);
+    interior(m, st, -1.15, 0.4, 1);
+    glazing(m, st, -1.15, -0.34, 1.70, 2.42, 0.3);
+    glazing(m, st, -0.28, 0.42, 1.72, 2.34, 0.0);
     // Rear doors: two leaves with a shut line and windows in the top half.
     m.painted(TINT.METAL_DARK, () => m.box([2.6, 0.7, -0.02], [2.66, 2.5, 0.02], MAT.TRIM));
-    glazing(m, 2.62, 2.64, 1.90, 2.30, 0.66, 0.0);
+    glazing(m, st, 2.62, 2.64, 1.90, 2.30, 0.0);
   }
   if (fine) {
-    bumper(m, -2.50, -1, 1.00, 0.60, 1.12);
-    bumper(m, 2.58, 1, 0.96, 0.58, 1.10);
-    grille(m, -2.52, -1, 1.18, 1.62, 0.60, 4);
+    bumper(m, st, 6, -2.50, -1, 0.60, 1.12);
+    bumper(m, st, 6, 2.58, 1, 0.58, 1.10);
+    grille(m, st, -2.52, -1, 1.18, 1.62, 4);
     wipers(m, -1.20, 1.66, 1.06);
     m.painted(TINT.METAL_DARK, () => {
-      // Body swage lines: a van flank is three metres of nothing without them.
+      // Body swage lines, following the flank rather than hovering off it.
       for (const sz of [1, -1] as const) {
         for (const y of [1.34, 1.62]) {
-          m.box([-1.1, y, sz * 1.16 - 0.03], [2.5, y + 0.07, sz * 1.16 + 0.03], MAT.TRIM);
+          for (let i = 0; i < 6; i++) {
+            const a = -1.1 + i * 0.6, b = a + 0.6;
+            const w = Math.min(hwAt(st, a, y), hwAt(st, b, y));
+            m.box([a, y, Math.min(sz * w, sz * (w + 0.04))],
+                  [b, y + 0.07, Math.max(sz * w, sz * (w + 0.04))], MAT.TRIM);
+          }
         }
       }
       m.box([-1.0, 2.60, -1.0], [1.2, 2.72, 1.0], MAT.TRIM);
     });
-    doors(m, [-0.32], 0.74, 2.34, 1.18, 1.44);
-    mirrors(m, -1.18, 2.0, 1.16);
+    handles(m, st, [-0.32], 1.44);
+    mirrors(m, st, 6, -1.18, 2.0);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.55, 1.34, sz * 0.72, 0.44, 0.36, -1, TINT.SIGN_LIT);
       lamp(m, 2.66, 1.34, sz * 0.74, 0.26, 0.5, 1, TINT.BRAND);
@@ -848,8 +956,12 @@ function van(lod: number): MeshBuilder {
     // A sign panel on the flank: a van is somebody's advertising.
     m.painted(TINT.BRAND, () => {
       for (const sz of [1, -1] as const) {
-        m.box([-0.7, 1.76, Math.min(sz * 1.16, sz * 1.19)], [2.0, 2.30, Math.max(sz * 1.16, sz * 1.19)],
-          MAT.TRIM);
+        for (let i = 0; i < 5; i++) {
+          const a = -0.7 + i * 0.54, b = a + 0.54;
+          const w = Math.min(hwAt(st, a, 2.0), hwAt(st, b, 2.0));
+          m.box([a, 1.76, Math.min(sz * w, sz * (w + 0.03))],
+                [b, 2.30, Math.max(sz * w, sz * (w + 0.03))], MAT.TRIM);
+        }
       }
     });
     person(m, 77, 3.4, -1.4, 0.2, { stride: 0.12, bag: true });
@@ -865,25 +977,26 @@ function cityBus(lod: number): MeshBuilder {
   tarmac(m, 7.0, 2.2);
   const S: Section = [[0.42, 0.98], [0.74, 1.22], [2.30, 1.26], [3.00, 1.22], [3.18, 0.98]];
 
-  m.keyed(7, () => {
-    loft(m, [
-      { x: -6.10, s: shape(S, 0.92, 2.90) },
-      { x: -5.85, s: shape(S, 0.99, 3.05) },
-      { x: -5.30, s: shape(S, 1.00, 3.14) },
-      { x: 5.30, s: shape(S, 1.00, 3.16) },
-      { x: 5.85, s: shape(S, 0.99, 3.08) },
-      { x: 6.10, s: shape(S, 0.92, 2.92) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -6.10, s: shape(S, 0.92, 2.90) },
+    { x: -5.85, s: shape(S, 0.99, 3.05) },
+    { x: -5.30, s: shape(S, 1.00, 3.14) },
+    { x: 5.30, s: shape(S, 1.00, 3.16) },
+    { x: 5.85, s: shape(S, 0.99, 3.08) },
+    { x: 6.10, s: shape(S, 0.92, 2.92) },
+  ];
+  m.keyed(7, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-4.20, 3.60, 4.85]) {
       arch(m, cx, 0.56, 0.58, 1.10);
-      archLip(m, cx, 0.56, 0.59, 1.22);
+      archLip(m, st, 7, cx, 0.56, 0.59);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.48, sz * 0.98, 0.47, 0.17);
     }
     // Cab: a driver's seat, a wheel and a ticket console.
-    interior(m, -6.0, -4.6, 1.30, 1.00, 1);
+    interior(m, st, -6.0, -4.6, 1);
     // Saloon seating, in pairs down both sides.
     m.keyed(901, () => {
       for (let i = 0; i < 9; i++) {
@@ -897,7 +1010,7 @@ function cityBus(lod: number): MeshBuilder {
       }
     });
     // The window band, which is what makes a bus a bus at any distance.
-    glazing(m, -6.05, -5.4, 1.30, 2.72, 1.235, 0.3);
+    glazing(m, st, -6.05, -5.4, 1.30, 2.72, 0.3);
     for (const sz of [1, -1] as const) {
       for (let i = 0; i < 7; i++) {
         const x0 = -5.0 + i * 1.5;
@@ -905,7 +1018,7 @@ function cityBus(lod: number): MeshBuilder {
                [x0 + 1.34, 2.5, sz * 1.27], [x0, 2.5, sz * 1.27], MAT.GLASS);
       }
     }
-    glazing(m, 5.4, 6.05, 1.30, 2.5, 1.235, -0.3);
+    glazing(m, st, 5.4, 6.05, 1.30, 2.5, -0.3);
   }
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
@@ -941,9 +1054,9 @@ function cityBus(lod: number): MeshBuilder {
       lamp(m, 6.14, 1.02, sz * 0.86, 0.5, 0.34, 1, TINT.BRAND);
     }
     plate(m, -6.12, 0.68, -1);
-    mirrors(m, -5.9, 2.5, 1.24);
-    bumper(m, -6.05, -1, 1.16, 0.68, 1.30);
-    bumper(m, 6.10, 1, 1.14, 0.68, 1.30);
+    mirrors(m, st, 7, -5.9, 2.5);
+    bumper(m, st, 7, -6.05, -1, 0.68, 1.30);
+    bumper(m, st, 7, 6.10, 1, 0.68, 1.30);
     wipers(m, -6.0, 1.36, 1.10);
     // Passengers on board, seen through the window band.
     person(m, 903, -3.2, 0.7, Math.PI / 2, { scale: 0.86, lift: 0.86 });
@@ -964,28 +1077,29 @@ function taxi(lod: number): MeshBuilder {
   // A tall, upright cab body: short bonnet, high roof, boxy tail.
   const S: Section = [[0.36, 0.78], [0.68, 0.94], [1.16, 0.96], [1.52, 0.88], [1.72, 0.66]];
 
-  m.keyed(8, () => {
-    loft(m, [
-      { x: -2.10, s: shape(S, 0.82, 1.00) },
-      { x: -1.90, s: shape(S, 0.95, 1.08) },
-      { x: -1.45, s: shape(S, 1.00, 1.18) },
-      { x: -1.05, s: shape(S, 1.02, 1.72) },
-      { x: 0.40, s: shape(S, 1.02, 1.86) },
-      { x: 1.55, s: shape(S, 1.01, 1.84) },
-      { x: 2.00, s: shape(S, 0.98, 1.60) },
-      { x: 2.18, s: shape(S, 0.88, 1.30) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.10, s: shape(S, 0.82, 1.00) },
+    { x: -1.90, s: shape(S, 0.95, 1.08) },
+    { x: -1.45, s: shape(S, 1.00, 1.18) },
+    { x: -1.05, s: shape(S, 1.02, 1.72) },
+    { x: 0.40, s: shape(S, 1.02, 1.86) },
+    { x: 1.55, s: shape(S, 1.01, 1.84) },
+    { x: 2.00, s: shape(S, 0.98, 1.60) },
+    { x: 2.18, s: shape(S, 0.88, 1.30) },
+  ];
+  m.keyed(8, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.35, 1.45]) {
       arch(m, cx, 0.46, 0.50, 0.86);
-      archLip(m, cx, 0.46, 0.51, 0.94);
+      archLip(m, st, 8, cx, 0.46, 0.51);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.36, sz * 0.78, 0.35, 0.13);
     }
-    interior(m, -1.1, 1.6, 0.80, 0.80, 2);
-    glazing(m, -1.15, -0.2, 1.20, 1.80, 0.905, 0.24);
-    glazing(m, 1.6, 1.98, 1.24, 1.72, 0.905, -0.1);
+    interior(m, st, -1.1, 1.6, 2);
+    glazing(m, st, -1.15, -0.2, 1.20, 1.80, 0.24);
+    glazing(m, st, 1.6, 1.98, 1.24, 1.72, -0.1);
     for (const sz of [1, -1] as const) {
       m.quad([-0.1, 1.22, sz * 0.905], [1.5, 1.22, sz * 0.905],
              [1.5, 1.74, sz * 0.905], [-0.1, 1.74, sz * 0.905], MAT.GLASS);
@@ -1007,12 +1121,12 @@ function taxi(lod: number): MeshBuilder {
     m.painted(TINT.METAL_DARK, () => {
       m.box([-0.4, 1.80, -0.4], [0.5, 1.88, 0.4], MAT.TRIM);
     });
-    bumper(m, -2.06, -1, 0.84, 0.50, 0.88);
-    bumper(m, 2.12, 1, 0.80, 0.50, 0.90);
-    grille(m, -2.08, -1, 0.92, 1.22, 0.46, 3);
+    bumper(m, st, 8, -2.06, -1, 0.50, 0.88);
+    bumper(m, st, 8, 2.12, 1, 0.50, 0.90);
+    grille(m, st, -2.08, -1, 0.92, 1.22, 3);
     wipers(m, -1.14, 1.20, 0.90);
-    doors(m, [-0.12, 1.02], 0.68, 1.50, 1.00, 1.10);
-    mirrors(m, -1.1, 1.36, 1.00);
+    handles(m, st, [-0.12, 1.02], 1.10);
+    mirrors(m, st, 8, -1.1, 1.36);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.10, 1.06, sz * 0.62, 0.34, 0.3, -1, TINT.SIGN_LIT);
       lamp(m, 2.20, 1.22, sz * 0.62, 0.24, 0.4, 1, TINT.BRAND);
@@ -1033,28 +1147,29 @@ function coupe(lod: number): MeshBuilder {
   // Low and wide, with the roofline falling all the way to the tail.
   const S: Section = [[0.22, 0.80], [0.50, 0.96], [0.82, 0.98], [1.02, 0.88], [1.16, 0.60]];
 
-  m.keyed(9, () => {
-    loft(m, [
-      { x: -2.20, s: shape(S, 0.86, 0.80) },
-      { x: -1.95, s: shape(S, 0.98, 0.86) },
-      { x: -1.20, s: shape(S, 1.04, 0.94) },
-      { x: -0.35, s: shape(S, 1.06, 1.20) },
-      { x: 0.45, s: shape(S, 1.06, 1.24) },
-      { x: 1.35, s: shape(S, 1.04, 1.16) },
-      { x: 2.00, s: shape(S, 1.00, 0.98) },
-      { x: 2.22, s: shape(S, 0.90, 0.88) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -2.20, s: shape(S, 0.86, 0.80) },
+    { x: -1.95, s: shape(S, 0.98, 0.86) },
+    { x: -1.20, s: shape(S, 1.04, 0.94) },
+    { x: -0.35, s: shape(S, 1.06, 1.20) },
+    { x: 0.45, s: shape(S, 1.06, 1.24) },
+    { x: 1.35, s: shape(S, 1.04, 1.16) },
+    { x: 2.00, s: shape(S, 1.00, 0.98) },
+    { x: 2.22, s: shape(S, 0.90, 0.88) },
+  ];
+  m.keyed(9, () => loft(m, st, MAT.PAINT));
 
   if (medium) {
     for (const cx of [-1.40, 1.45]) {
       arch(m, cx, 0.38, 0.44, 0.90);
-      archLip(m, cx, 0.38, 0.45, 0.98);
+      archLip(m, st, 9, cx, 0.38, 0.45);
       for (const sz of [1, -1] as const) wheel(m, cx, 0.36, sz * 0.82, 0.35, 0.16);
     }
-    interior(m, -0.45, 1.1, 0.52, 0.76, 1);
-    glazing(m, -0.5, 0.35, 0.86, 1.18, 0.94, 0.24);
-    glazing(m, 0.85, 1.70, 0.90, 1.14, 0.94, -0.28);
+    interior(m, st, -0.45, 1.1, 1);
+    glazing(m, st, -0.5, 0.35, 0.86, 1.18, 0.24);
+    glazing(m, st, 0.85, 1.70, 0.90, 1.14, -0.28);
   }
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
@@ -1082,17 +1197,17 @@ function coupe(lod: number): MeshBuilder {
         }
       }
     });
-    doors(m, [-0.42], 0.5, 1.02, 1.02, 0.86);
-    mirrors(m, -0.5, 0.98, 1.02);
+    handles(m, st, [-0.42], 0.86);
+    mirrors(m, st, 9, -0.5, 0.98);
     for (const sz of [1, -1] as const) {
       lamp(m, -2.20, 0.70, sz * 0.62, 0.4, 0.16, -1, TINT.SIGN_LIT);
       lamp(m, 2.24, 0.80, sz * 0.6, 0.36, 0.14, 1, TINT.BRAND);
     }
     plate(m, -2.22, 0.42, -1);
     plate(m, 2.26, 0.5, 1);
-    bumper(m, -2.14, -1, 0.86, 0.30, 0.66);
-    bumper(m, 2.16, 1, 0.84, 0.30, 0.70);
-    grille(m, -2.16, -1, 0.40, 0.62, 0.52, 3);
+    bumper(m, st, 9, -2.14, -1, 0.30, 0.66);
+    bumper(m, st, 9, 2.16, 1, 0.30, 0.70);
+    grille(m, st, -2.16, -1, 0.40, 0.62, 3);
     wipers(m, -0.52, 0.86, 0.88);
     person(m, 101, 3.0, 1.2, Math.PI, { stride: 0.1 });
     person(m, 106, 2.8, -1.2, 0.3, { hat: true });
@@ -1108,15 +1223,16 @@ function lorry(lod: number): MeshBuilder {
   const CAB: Section = [[0.75, 1.02], [1.05, 1.24], [2.60, 1.28], [3.20, 1.24], [3.38, 1.02]];
 
   // Tractor unit and a semi-trailer: two bodies with a real gap between them.
-  m.keyed(10, () => {
-    loft(m, [
-      { x: -7.30, s: shape(CAB, 0.90, 2.90) },
-      { x: -7.05, s: shape(CAB, 0.99, 3.10) },
-      { x: -6.60, s: shape(CAB, 1.00, 3.30) },
-      { x: -4.60, s: shape(CAB, 1.00, 3.34) },
-      { x: -4.35, s: shape(CAB, 0.96, 3.20) },
-    ], MAT.PAINT);
-  });
+  // The station table, kept so every fitting can sample the body it is
+  // going on rather than guess a width and hang off it.
+  const st: Station[] = [
+    { x: -7.30, s: shape(CAB, 0.90, 2.90) },
+    { x: -7.05, s: shape(CAB, 0.99, 3.10) },
+    { x: -6.60, s: shape(CAB, 1.00, 3.30) },
+    { x: -4.60, s: shape(CAB, 1.00, 3.34) },
+    { x: -4.35, s: shape(CAB, 0.96, 3.20) },
+  ];
+  m.keyed(10, () => loft(m, st, MAT.PAINT));
   m.keyed(11, () => {
     loft(m, [
       { x: -4.10, s: shape(CAB, 0.98, 3.60) },
@@ -1132,16 +1248,16 @@ function lorry(lod: number): MeshBuilder {
       }
       m.box([-4.6, 0.86, -0.72], [-3.6, 1.05, 0.72], MAT.TRIM);
     });
-    interior(m, -7.1, -5.6, 1.90, 1.06, 1);
+    interior(m, st, -7.1, -5.6, 1);
     for (const cx of [-6.30, -4.90, 5.10, 6.20]) {
       arch(m, cx, 0.62, 0.68, 1.16);
-      archLip(m, cx, 0.62, 0.69, 1.24);
+      archLip(m, st, 10, cx, 0.62, 0.69);
       for (const sz of [1, -1] as const) {
         wheel(m, cx, 0.55, sz * 1.00, 0.54, 0.16);
         if (cx > 0 || cx < -5.5) wheel(m, cx, 0.55, sz * 0.70, 0.54, 0.15);
       }
     }
-    glazing(m, -7.25, -6.5, 1.90, 3.06, 1.265, 0.3);
+    glazing(m, st, -7.25, -6.5, 1.90, 3.06, 0.3);
   }
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
@@ -1173,13 +1289,13 @@ function lorry(lod: number): MeshBuilder {
         }
       }
     });
-    mirrors(m, -6.7, 2.6, 1.24);
+    mirrors(m, st, 10, -6.7, 2.6);
     for (const sz of [1, -1] as const) {
       lamp(m, -7.30, 1.30, sz * 0.9, 0.5, 0.4, -1, TINT.SIGN_LIT);
       lamp(m, 7.30, 1.0, sz * 0.86, 0.4, 0.3, 1, TINT.BRAND);
     }
     plate(m, -7.32, 0.94, -1);
-    bumper(m, -7.26, -1, 1.20, 0.90, 1.62);
+    bumper(m, st, 10, -7.26, -1, 0.90, 1.62);
     wipers(m, -7.2, 1.96, 1.16);
     // Operator's name board on the trailer flank.
     m.painted(TINT.BRAND, () => {
@@ -1339,43 +1455,44 @@ export type ParkedKind = 'car' | 'van' | 'truck' | 'bus';
  */
 export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: number,
   turns: number, kind: ParkedKind = 'car', body?: number): void {
+  // Station tables first, so the glazing and the wheels can be sampled off the
+  // body rather than sized by hand for each kind.
+  const bus: Station[] = [
+    { x: -5.6, s: shape(BOX, 0.94, 2.90) },
+    { x: -5.2, s: shape(BOX, 1.02, 3.05) },
+    { x: 5.2, s: shape(BOX, 1.02, 3.10) },
+    { x: 5.6, s: shape(BOX, 0.94, 2.95) },
+  ];
+  const cab: Station[] = [
+    { x: -4.2, s: shape(BOX, 0.80, 2.30) },
+    { x: -3.9, s: shape(BOX, 0.92, 2.55) },
+    { x: -2.2, s: shape(BOX, 0.94, 2.70) },
+    { x: -1.9, s: shape(BOX, 0.90, 2.30) },
+  ];
+  const trailer: Station[] = [
+    { x: -1.8, s: shape(BOX, 0.96, 3.10) },
+    { x: 4.4, s: shape(BOX, 0.96, 3.10) },
+  ];
+  const van: Station[] = [
+    { x: -2.5, s: shape(BOX, 0.72, 1.30) },
+    { x: -2.2, s: shape(BOX, 0.88, 1.60) },
+    { x: -1.0, s: shape(BOX, 1.00, 2.42) },
+    { x: 2.4, s: shape(BOX, 1.00, 2.56) },
+  ];
+  const car: Station[] = [
+    { x: -2.2, s: shape(CAR, 0.82, 0.98) },
+    { x: -1.5, s: shape(CAR, 1.00, 1.14) },
+    { x: -0.7, s: shape(CAR, 1.04, 1.46) },
+    { x: 0.9, s: shape(CAR, 1.04, 1.48) },
+    { x: 1.7, s: shape(CAR, 1.00, 1.20) },
+    { x: 2.2, s: shape(CAR, 0.86, 1.04) },
+  ];
+  const st = kind === 'bus' ? bus : kind === 'truck' ? cab : kind === 'van' ? van : car;
+
   m.placed(cx, cz, turns, () => {
     const paint = (): void => {
-      if (kind === 'bus') {
-        loft(m, [
-          { x: -5.6, s: shape(BOX, 0.94, 2.90) },
-          { x: -5.2, s: shape(BOX, 1.02, 3.05) },
-          { x: 5.2, s: shape(BOX, 1.02, 3.10) },
-          { x: 5.6, s: shape(BOX, 0.94, 2.95) },
-        ], MAT.PAINT);
-      } else if (kind === 'truck') {
-        loft(m, [
-          { x: -4.2, s: shape(BOX, 0.80, 2.30) },
-          { x: -3.9, s: shape(BOX, 0.92, 2.55) },
-          { x: -2.2, s: shape(BOX, 0.94, 2.70) },
-          { x: -1.9, s: shape(BOX, 0.90, 2.30) },
-        ], MAT.PAINT);
-        loft(m, [
-          { x: -1.8, s: shape(BOX, 0.96, 3.10) },
-          { x: 4.4, s: shape(BOX, 0.96, 3.10) },
-        ], MAT.PAINT);
-      } else if (kind === 'van') {
-        loft(m, [
-          { x: -2.5, s: shape(BOX, 0.72, 1.30) },
-          { x: -2.2, s: shape(BOX, 0.88, 1.60) },
-          { x: -1.0, s: shape(BOX, 1.00, 2.42) },
-          { x: 2.4, s: shape(BOX, 1.00, 2.56) },
-        ], MAT.PAINT);
-      } else {
-        loft(m, [
-          { x: -2.2, s: shape(CAR, 0.82, 0.98) },
-          { x: -1.5, s: shape(CAR, 1.00, 1.14) },
-          { x: -0.7, s: shape(CAR, 1.04, 1.46) },
-          { x: 0.9, s: shape(CAR, 1.04, 1.48) },
-          { x: 1.7, s: shape(CAR, 1.00, 1.20) },
-          { x: 2.2, s: shape(CAR, 0.86, 1.04) },
-        ], MAT.PAINT);
-      }
+      loft(m, st, MAT.PAINT);
+      if (kind === 'truck') loft(m, trailer, MAT.PAINT);
     };
     if (body === undefined) m.keyed(key, paint);
     else m.painted(body as never, paint);
@@ -1389,17 +1506,17 @@ export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: numbe
         m.quad([-4.6, 1.4, sz * 1.20], [4.6, 1.4, sz * 1.20],
                [4.6, 2.5, sz * 1.20], [-4.6, 2.5, sz * 1.20], MAT.GLASS);
       }
-      glazing(m, -5.55, -4.9, 1.4, 2.6, 1.20, 0.28);
+      glazing(m, st, -5.55, -4.9, 1.4, 2.6, 0.28);
     } else if (kind === 'truck') {
       for (const cw of [-3.5, -2.2, 2.6, 3.8]) {
         for (const sz of [1, -1] as const) wheel(m, cw, 0.52, sz * 0.92, 0.51, 0.16, 10);
       }
-      glazing(m, -4.15, -3.5, 1.5, 2.3, 1.14, 0.24);
+      glazing(m, st, -4.15, -3.5, 1.5, 2.3, 0.24);
     } else if (kind === 'van') {
       for (const cw of [-1.6, 1.7]) {
         for (const sz of [1, -1] as const) wheel(m, cw, 0.40, sz * 0.86, 0.39, 0.15, 10);
       }
-      glazing(m, -2.4, -1.5, 1.7, 2.4, 1.10, 0.28);
+      glazing(m, st, -2.4, -1.5, 1.7, 2.4, 0.28);
       for (const sz of [1, -1] as const) {
         m.quad([-0.6, 1.5, sz * 1.14], [2.2, 1.5, sz * 1.14],
                [2.2, 2.3, sz * 1.14], [-0.6, 2.3, sz * 1.14], MAT.GLASS);
@@ -1408,16 +1525,13 @@ export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: numbe
       for (const cw of [-1.45, 1.5]) {
         for (const sz of [1, -1] as const) wheel(m, cw, 0.35, sz * 0.76, 0.34, 0.13, 10);
       }
-      glazing(m, -0.8, 0.1, 1.06, 1.44, 0.86, 0.24);
-      glazing(m, 0.85, 1.55, 1.06, 1.42, 0.86, -0.2);
-      for (const sz of [1, -1] as const) {
-        m.quad([0.15, 1.06, sz * 0.87], [0.8, 1.06, sz * 0.87],
-               [0.8, 1.42, sz * 0.87], [0.15, 1.42, sz * 0.87], MAT.GLASS);
-      }
+      glazing(m, st, -0.8, 0.1, 1.06, 1.44, 0.24);
+      glazing(m, st, 0.85, 1.55, 1.06, 1.42, -0.2);
+      glazing(m, st, 0.15, 0.8, 1.06, 1.42);
     }
     // Lights, so it has a front and a back at any distance.
-    const nose = kind === 'bus' ? -5.6 : kind === 'truck' ? -4.2 : kind === 'van' ? -2.5 : -2.2;
-    const tail = kind === 'bus' ? 5.6 : kind === 'truck' ? 4.4 : kind === 'van' ? 2.4 : 2.2;
+    const nose = st[0].x;
+    const tail = kind === 'truck' ? trailer[trailer.length - 1].x : st[st.length - 1].x;
     const lampY = kind === 'car' ? 0.9 : 1.2;
     for (const sz of [1, -1] as const) {
       m.painted(TINT.SIGN_LIT, () =>
@@ -1446,17 +1560,16 @@ export function applianceVehicle(m: MeshBuilder, cx: number, cz: number, len: nu
   m.placed(cx, cz, 1, () => {
     const S: Section = [[0.42, 0.62], [0.78, 0.94], [1.9, 1.0], [2.28, 0.94], [2.44, 0.72]];
     const sc = hw / 1.0;
-    m.painted(tint as never, () => {
-      loft(m, [
-        { x: -hl, s: shape(S, sc * 0.86, 2.05) },
-        { x: -hl + 0.5, s: shape(S, sc * 0.98, 2.25) },
-        { x: -hl + len * 0.34, s: shape(S, sc, 2.45) },
-        { x: -hl + len * 0.36, s: shape(S, sc, 2.62) },
-        { x: hl - 0.4, s: shape(S, sc, 2.62) },
-        { x: hl, s: shape(S, sc * 0.94, 2.5) },
-      ], MAT.PAINT);
-    });
-    glazing(m, -hl + 0.1, -hl + len * 0.3, 1.4, 2.0, hw * 0.9, 0.16);
+    const st: Station[] = [
+      { x: -hl, s: shape(S, sc * 0.86, 2.05) },
+      { x: -hl + 0.5, s: shape(S, sc * 0.98, 2.25) },
+      { x: -hl + len * 0.34, s: shape(S, sc, 2.45) },
+      { x: -hl + len * 0.36, s: shape(S, sc, 2.62) },
+      { x: hl - 0.4, s: shape(S, sc, 2.62) },
+      { x: hl, s: shape(S, sc * 0.94, 2.5) },
+    ];
+    m.painted(tint as never, () => loft(m, st, MAT.PAINT));
+    glazing(m, st, -hl + 0.1, -hl + len * 0.3, 1.4, 2.0, 0.16);
     for (const sz of [1, -1] as const) {
       m.quad([-hl + 0.3, 1.42, sz * hw * 0.95], [-hl + len * 0.3, 1.42, sz * hw * 0.95],
              [-hl + len * 0.3, 1.98, sz * hw * 0.95], [-hl + 0.3, 1.98, sz * hw * 0.95], MAT.GLASS);

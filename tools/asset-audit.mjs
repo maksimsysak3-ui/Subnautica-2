@@ -22,7 +22,7 @@
 
 import * as esbuild from 'esbuild';
 
-const STRIDE = 11;
+const STRIDE = 12;
 /** Coarse enough to bridge a real joint, fine enough to catch a real gap. */
 const VOX = 0.25;
 /** Components smaller than this are noise -- a stray sliver, a lamp lens. */
