@@ -188,7 +188,7 @@ for (const a of ASSETS) {
     });
     const cy = (p[0][1] + p[1][1] + p[2][1]) / 3;
     tri.push(cy);
-    if (p[0][3] < 0.9) continue;
+    if (p[0][3] < 0.995) continue;
     const ux = p[1][0] - p[0][0], uz = p[1][2] - p[0][2];
     const wx = p[2][0] - p[0][0], wz = p[2][2] - p[0][2];
     const area = Math.abs(ux * wz - uz * wx) / 2;

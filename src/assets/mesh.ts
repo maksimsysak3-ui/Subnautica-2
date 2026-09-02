@@ -445,7 +445,10 @@ export class MeshBuilder {
     const bins = new Map<number, { area: number; x0: number; x1: number; z0: number; z1: number }>();
     for (let t = 0; t < this.idx.length; t += 3) {
       const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
-      if (this.verts[p[0] + 4] < 0.9) continue;
+      // Genuinely horizontal, not merely upward. A 21-degree pitch still has
+      // a normal of 0.93, so at 0.9 the top slice of a gable binned as a flat
+      // roof and every pitched block got plant inside its own roof void.
+      if (this.verts[p[0] + 4] < 0.995) continue;
       const cy = (this.verts[p[0] + 1] + this.verts[p[1] + 1] + this.verts[p[2] + 1]) / 3;
       const ux = this.verts[p[1]] - this.verts[p[0]];
       const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
@@ -468,6 +471,32 @@ export class MeshBuilder {
       if (bestY === null || y >= bestY) { bestY = y; best = b; }
     }
     if (bestY === null || best === null) return null;
+
+    // Reject a plane that something else is sitting on top of. A gabled block
+    // is built as a box with a roof face and a gable over it, so the box's own
+    // top is still the largest upward plane in the mesh -- dressing it puts
+    // plant and a parapet *inside* the roof void, which is what the first pass
+    // did to every pitched building it touched.
+    const ix0 = best.x0 + (best.x1 - best.x0) * 0.08;
+    const ix1 = best.x1 - (best.x1 - best.x0) * 0.08;
+    const iz0 = best.z0 + (best.z1 - best.z0) * 0.08;
+    const iz1 = best.z1 - (best.z1 - best.z0) * 0.08;
+    let over = 0;
+    for (let t = 0; t < this.idx.length; t += 3) {
+      const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
+      const cy = (this.verts[p[0] + 1] + this.verts[p[1] + 1] + this.verts[p[2] + 1]) / 3;
+      if (cy < bestY + 0.4) continue;
+      const cx = (this.verts[p[0]] + this.verts[p[1]] + this.verts[p[2]]) / 3;
+      const cz = (this.verts[p[0] + 2] + this.verts[p[1] + 2] + this.verts[p[2] + 2]) / 3;
+      if (cx < ix0 || cx > ix1 || cz < iz0 || cz > iz1) continue;
+      const ux = this.verts[p[1]] - this.verts[p[0]];
+      const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
+      const wx = this.verts[p[2]] - this.verts[p[0]];
+      const wz = this.verts[p[2] + 2] - this.verts[p[0] + 2];
+      over += Math.abs(ux * wz - uz * wx) / 2;
+    }
+    if (over > best.area * 0.35) return null;
+
     return { y: bestY, min: [best.x0, best.z0], max: [best.x1, best.z1] };
   }
 

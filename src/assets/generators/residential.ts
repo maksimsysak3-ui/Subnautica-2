@@ -1311,7 +1311,17 @@ function maisonettes(lod: number): MeshBuilder {
           m.box([cx - 1.8, f * floorH, z + 2.05], [cx + 1.8, f * floorH + 1.05, z + 2.2], MAT.TRIM);
         });
       }
-      m.box([cx - 1.9, 0, z + 2.2], [cx + 1.9, h, z + 2.45], MAT.BRICK, { roof: MAT.ROOF });
+      // The stair is an enclosure, not a front wall. Built as a front and two
+      // returns it had no sides at all: from anywhere but straight on you were
+      // looking into an open slot with the landings floating inside it.
+      m.box([cx - 1.9, 0, z + 2.2], [cx + 1.9, h, z + 2.45], MAT.BRICK);
+      for (const sw of [-1, 1] as const) {
+        m.box([cx + sw * 1.65, 0, z - 0.05], [cx + sw * 1.9, h, z + 2.45], MAT.BRICK);
+      }
+      // Its own roof, stepped up over the eaves so it reads as a tower.
+      m.box([cx - 2.05, h, z - 0.05], [cx + 2.05, h + 0.9, z + 2.6], MAT.BRICK,
+        { roof: MAT.ROOF });
+      parapet(m, cx - 2.05, z - 0.05, cx + 2.05, z + 2.6, h + 0.9, 0.5, 0.18);
     }
   }
   if (fine) {
