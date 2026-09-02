@@ -34,6 +34,12 @@ const SERVICE_MAX = 12000;
  */
 const FLEET_MIN = 2000;
 const FLEET_MAX = 5000;
+/**
+ * A bus is twelve metres and an artic seventeen, with three or four axles
+ * apiece. Holding them to a hatchback's budget is arbitrary -- they are not
+ * cars -- so anything two cells long gets its own ceiling.
+ */
+const BIG_FLEET_MAX = 8000;
 
 /**
  * Materials a service building may not use.
@@ -108,7 +114,8 @@ for (const a of ASSETS) {
     }
   }
   const fleet = a.zone === 'fleet';
-  const ceiling = fleet ? FLEET_MAX : service ? SERVICE_MAX : MAX_TRIS;
+  const big = fleet && a.footprint[0] >= 2;
+  const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX) : service ? SERVICE_MAX : MAX_TRIS;
   const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);

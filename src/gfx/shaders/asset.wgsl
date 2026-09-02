@@ -57,6 +57,8 @@ const MAT_PLASTER   = 12u;
 const MAT_PANE      = 13u;
 const MAT_ROOF_TILE = 14u;
 const MAT_PAINT     = 18u;
+const MAT_PLATE     = 20u;
+const MAT_TYRE      = 21u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -730,6 +732,73 @@ fn figureColour(uv : vec2f, key : f32) -> vec3f {
   return base * (0.88 + hash11(k * 5.7 + 0.3) * 0.24);
 }
 
+/**
+ * A number plate, with its registration generated from the part key.
+ *
+ * Seven characters in the national pattern: two letters, two digits, a space,
+ * three letters. Every one of them comes out of a hash of the key, so a street
+ * of parked cars has a street of different plates and none of it is modelled
+ * or stored. `surf` runs 0..1 across the plate; the glyph table is the same
+ * 5x6 font the shop signs use.
+ */
+fn plateColour(surf : vec2f, d : vec2f, key : f32) -> vec3f {
+  let k = floor(key + 0.5);
+  let face = vec3f(0.86, 0.86, 0.82);
+  // Border and rivets: a plate with no edge reads as a sticker.
+  let edge = min(min(surf.x, 1.0 - surf.x) * 3.4, min(surf.y, 1.0 - surf.y));
+  if (edge < 0.06) { return vec3f(0.14, 0.14, 0.15); }
+
+  let count = 7u;
+  let cellW = 0.90 / f32(count);
+  let x = (surf.x - 0.05) / cellW;
+  if (x < 0.0 || x >= f32(count)) { return face; }
+  let index = u32(x);
+  let inCell = vec2f(fract(x), (surf.y - 0.22) / 0.56);
+  if (inCell.y < 0.0 || inCell.y >= 1.0) { return face; }
+
+  // Pick this slot's character. Letters, letters, digits, digits, space, then
+  // three letters -- the shape of a registration is as recognisable as the
+  // characters in it.
+  let r = hash11(k * 3.7 + f32(index) * 11.3 + 5.1);
+  var code : u32;
+  if (index == 4u) {
+    code = 40u;                                  // the gap in the middle
+  } else if (index == 2u || index == 3u) {
+    code = 26u + u32(r * 9.999);                 // digits
+  } else {
+    code = u32(r * 25.999);                      // letters
+  }
+  let col = u32(inCell.x * 5.0);
+  let row = 5u - u32(inCell.y * 6.0);
+  let bits = GLYPHS[code];
+  let on = (bits >> (row * 5u + col)) & 1u;
+  // Fade the glyph out once it is under a screen pixel, or it aliases into
+  // noise at the distance a parked car is usually seen from.
+  let px = max(d.x, 1e-5) * 6.0 / cellW;
+  let ink = f32(on) * (1.0 - smoothstep(0.9, 2.4, px));
+  return mix(face, vec3f(0.07, 0.07, 0.08), ink);
+}
+
+/** Tyre: sidewall, moulded shoulder and tread blocks. */
+fn tyreColour(surf : vec2f, key : f32) -> vec3f {
+  let base = vec3f(0.058, 0.058, 0.062);
+  // surf.x runs round the tyre, surf.y across it: 0 and 1 are the sidewalls,
+  // 0.5 the centre of the tread.
+  let across = abs(surf.y - 0.5) * 2.0;
+  // Tread blocks, in two rows offset from each other, only on the crown.
+  let bandA = step(0.5, fract(surf.x * 34.0));
+  let bandB = step(0.5, fract(surf.x * 34.0 + 0.5));
+  let band = select(bandB, bandA, surf.y > 0.5);
+  let crown = 1.0 - smoothstep(0.45, 0.85, across);
+  var col = base * (1.0 - 0.42 * band * crown);
+  // A circumferential groove either side of the centre line.
+  let groove = 1.0 - smoothstep(0.02, 0.09, abs(across - 0.34));
+  col = col * (1.0 - 0.45 * groove);
+  // Sidewall lettering band, and the shoulder catching a little light.
+  col = col * (0.86 + 0.30 * smoothstep(0.75, 1.0, across));
+  return col;
+}
+
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
           surf : vec2f, surfD : vec2f) -> vec3f {
   switch (mat) {
@@ -755,6 +824,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     // These two colour themselves from the part key: see MeshBuilder.keyed.
     case 18u: { return carPaint(surf, surfD, key); }
     case 19u: { return figureColour(surf, key); }
+    case 20u: { return plateColour(surf, surfD, key); }
+    case 21u: { return tyreColour(surf, key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -929,6 +1000,12 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     gloss = 1.9; power = 320.0; fresnel = 0.62;
   } else if (in.material == MAT_METAL || in.material == MAT_SHED) {
     gloss = 0.5; power = 42.0; fresnel = 0.12;
+  } else if (in.material == MAT_PLATE) {
+    gloss = 0.22; power = 30.0;
+  } else if (in.material == MAT_TYRE) {
+    // Rubber. Almost nothing, but not quite nothing: a tyre has a sheen on
+    // the shoulder and none at all in the tread.
+    gloss = 0.10; power = 14.0;
   } else if (in.material == MAT_TRIM || in.material == MAT_CONCRETE) {
     // Painted trim and precast are satin, not matte, and a trace of sheen is
     // what stops a white cornice reading as paper.

@@ -103,6 +103,18 @@ export const MAT = {
    * look like a row of painted bollards.
    */
   FIGURE: 19,
+  /**
+   * A number plate. The registration is generated in the shader from the part
+   * key, so every car in a car park carries a different one without any of
+   * them costing a draw call or a character of geometry.
+   */
+  PLATE: 20,
+  /**
+   * Tyre: a black rubber sidewall with a moulded shoulder and tread blocks.
+   * Distinct from painted trim because a tyre is the one thing on a car that
+   * is neither shiny nor flat, and it is a fifth of what you see of a wheel.
+   */
+  TYRE: 21,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];
