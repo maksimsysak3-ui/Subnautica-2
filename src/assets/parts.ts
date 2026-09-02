@@ -368,6 +368,30 @@ export function planter(m: MeshBuilder, cx: number, cz: number, r: number, h = 0
 }
 
 
+/**
+ * Overhanging eaves: a thin slab past the wall line, with a gutter face.
+ *
+ * A pitched roof flush with the wall reads as a lid rather than a roof, and
+ * the overhang is the cheapest thirty triangles in the library.
+ */
+export function eavesBand(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
+                          y: number, out = 0.45, depth = 0.26): void {
+  m.box([x0 - out, y - depth, z0 - out], [x1 + out, y, z1 + out], MAT.TRIM);
+  m.box([x0 - out, y - depth - 0.13, z1 + out - 0.16], [x1 + out, y - depth, z1 + out], MAT.TRIM);
+  m.box([x0 - out, y - depth - 0.13, z0 - out], [x1 + out, y - depth, z0 - out + 0.16], MAT.TRIM);
+}
+
+/** Brick stack with a capping course. */
+export function chimneyStack(m: MeshBuilder, cx: number, cz: number, base: number, top: number,
+                             w = 1.1): void {
+  m.box([cx - w / 2, base, cz - w / 2], [cx + w / 2, top, cz + w / 2], MAT.BRICK);
+  m.box([cx - w / 2 - 0.14, top, cz - w / 2 - 0.14], [cx + w / 2 + 0.14, top + 0.24, cz + w / 2 + 0.14], MAT.TRIM);
+  // Two pots, because a bare stack looks unfinished.
+  for (const dx of [-w * 0.22, w * 0.22]) {
+    m.cylinder(cx + dx, cz, 0.16, top + 0.24, top + 0.72, 6, MAT.TRIM);
+  }
+}
+
 /** Kerb line and a strip of pavement along one edge of the lot. */
 export function kerb(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number): void {
   m.box([x0, 0.0001, z0], [x1, 0.14, z1], MAT.CONCRETE);

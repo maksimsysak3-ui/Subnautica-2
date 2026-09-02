@@ -17,7 +17,8 @@ import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
   awning, band, bladeSign, bollards, boxSign, fasciaSign, fireEscape,
-  entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring, roofClutter, shopfront,
+  chimneyStack, eavesBand, entrance, frontage, kerb, parapet, planter, pylonSign, railing, ring,
+  roofClutter, shopfront,
   windowGrid,
 } from '../parts';
 
@@ -939,5 +940,545 @@ COMMERCIAL.push(
     sim: { jobs: 55, powerKW: 210, waterM3: 90, garbagePerWeek: 380, pollution: 2, upkeep: 130 },
     note: 'Banded bedroom floors over a glazed lobby, porte-cochere on columns, blade sign.',
     build: hotel,
+  },
+);
+
+// ------------------------------------------------------------- garden centre
+
+/** Glasshouse and a sales barn behind a yard of stock. */
+function gardenCentre(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 17.0, z = 13.0;
+  const barnW = 16.0, barnD = 11.0, barnH = 5.6;
+  const bx = -x + barnW / 2 + 1.0, bz = -z + barnD / 2 + 1.0;
+
+  m.box([bx - barnW / 2, 0, bz - barnD / 2], [bx + barnW / 2, barnH, bz + barnD / 2],
+    MAT.TIMBER, { roof: MAT.TRIM });
+  m.gable([bx - barnW / 2, barnH, bz - barnD / 2], [bx + barnW / 2, barnH, bz + barnD / 2],
+    2.6, 'x', MAT.ROOF_TILE, MAT.TIMBER);
+
+  if (medium) {
+    eavesBand(m, bx - barnW / 2, bz - barnD / 2, bx + barnW / 2, bz + barnD / 2, barnH);
+    // Glasshouse alongside: a ridge on posts, glazed to the ground.
+    const gx0 = bx + barnW / 2 + 2.0;
+    m.box([gx0, 0, bz - barnD / 2], [x - 0.5, 3.8, bz + barnD / 2], MAT.GLASS, { roof: MAT.TRIM });
+    m.gable([gx0, 3.8, bz - barnD / 2], [x - 0.5, 3.8, bz + barnD / 2], 1.5, 'z', MAT.GLASS, MAT.GLASS);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 5; i++) {
+        const pz = bz - barnD / 2 + (i / 5) * barnD;
+        m.box([gx0 - 0.08, 0, pz - 0.08], [x - 0.42, 0.16, pz + 0.08], MAT.TRIM);
+        m.box([gx0, 0, pz - 0.08], [gx0 + 0.16, 5.3, pz + 0.08], MAT.TRIM);
+        m.box([x - 0.66, 0, pz - 0.08], [x - 0.5, 5.3, pz + 0.08], MAT.TRIM);
+      }
+    });
+    roofClutter(m, bx - 5, bz - 3, bx + 5, bz + 3, barnH + 2.6, 731, 0.3);
+  }
+  if (fine) {
+    shopfront(m, { axis: 'z', sign: 1, plane: bz + barnD / 2 }, bx - 6.5, bx + 6.5,
+      { bays: 4, doorBay: 1, head: 3.6 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: bz + barnD / 2 }, bx - 5.0, bx + 2.0, 3.0, 4.0);
+    // Benches of stock in the yard: trays on trestles, in rows.
+    for (let r = 0; r < 3; r++) {
+      const rz = z - 9.0 + r * 3.0;
+      for (let i = 0; i < 4; i++) {
+        const cx = -x + 3.0 + i * 6.0;
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([cx - 1.6, 0.72, rz - 0.7], [cx + 1.6, 0.8, rz + 0.7], MAT.TRIM);
+          for (const px of [cx - 1.4, cx + 1.4]) {
+            m.box([px - 0.05, 0, rz - 0.6], [px + 0.05, 0.72, rz - 0.5], MAT.TRIM);
+            m.box([px - 0.05, 0, rz + 0.5], [px + 0.05, 0.72, rz + 0.6], MAT.TRIM);
+          }
+        });
+        m.painted(TINT.GREEN, () => m.box([cx - 1.5, 0.8, rz - 0.62], [cx + 1.5, 1.25, rz + 0.62], MAT.TRIM));
+      }
+    }
+    railing(m, -x, x, z, 0, 1.4, 1.8);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------------- pub
+
+/** A corner pub: brick, a hanging sign, a lantern and a paved terrace. */
+function pub(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 14.0, d = 11.0;
+  const ground = 4.2, upper = 3.2;
+  const h = ground + upper;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK);
+  m.gable([-x, h, -z], [x, h, z], 2.4, 'x', MAT.ROOF_TILE, MAT.BRICK);
+  // Painted ground floor, which is what a pub actually looks like.
+  m.painted(TINT.BRAND_DARK, () =>
+    m.box([-x - 0.14, 0, -z - 0.14], [x + 0.14, ground - 0.2, z + 0.14], MAT.PLASTER));
+
+  if (medium) {
+    eavesBand(m, -x, -z, x, z, h);
+    chimneyStack(m, -x + 1.8, 0, h + 1.4, h + 3.8, 1.2);
+    chimneyStack(m, x - 1.8, 0, h + 1.4, h + 3.6, 1.2);
+    band(m, -x, -z, x, z, ground - 0.2, 0.4, 0.24);
+    // Terrace out front, with a low wall round it.
+    m.box([-x, 0.001, z], [x, 0.1, z + 4.2], MAT.CONCRETE);
+    m.box([-x, 0.1, z + 4.0], [x, 0.75, z + 4.2], MAT.BRICK);
+  }
+  if (fine) {
+    // Big ground-floor windows with small panes, and a corner door.
+    for (const [from, to, n] of [[-x + 0.9, -2.2, 2], [2.2, x - 0.9, 2]] as const) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from, to, y0: 1.05, y1: 3.2,
+        count: n, width: 1.6, glass: MAT.GLASS, frame: 0.14, proud: 0.07 });
+    }
+    m.windowRow({ axis: 'x', sign: 1, plane: x, from: -z + 1.0, to: z - 1.0, y0: 1.05, y1: 3.2,
+      count: 3, width: 1.5, glass: MAT.GLASS, frame: 0.14, proud: 0.07 });
+    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 0.9, x - 0.9,
+      { floors: 1, floorH: upper, base: ground + 0.7, count: 4, width: 1.0, height: 1.5 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 0.9, x - 0.9,
+      { floors: 2, floorH: 3.6, base: 1.2, count: 4, width: 1.0, height: 1.4 });
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors: 1, floorH: upper, base: ground + 0.7, count: 3, width: 1.0, height: 1.4 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 1.5, height: 2.5, double: true, fanlight: true, steps: 1 });
+    // Hanging sign on a bracket, and a lantern over the door.
+    bladeSign(m, { axis: 'z', sign: 1, plane: z }, -x + 2.4, ground - 1.6, ground + 0.6, 1.5);
+    m.painted(TINT.SIGN_LIT, () => m.box([-0.28, 3.1, z + 0.02], [0.28, 3.7, z + 0.34], MAT.TRIM));
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -4.6, 4.6, ground - 1.5, ground - 0.5);
+    // Benches and parasols on the terrace.
+    for (const px of [-4.4, 4.4]) {
+      m.painted(TINT.WOOD, () => {
+        m.box([px - 1.3, 0.72, z + 1.4], [px + 1.3, 0.8, z + 2.4], MAT.TRIM);
+        for (const bz of [z + 1.1, z + 2.7]) {
+          m.box([px - 1.3, 0.42, bz - 0.16], [px + 1.3, 0.5, bz + 0.16], MAT.TRIM);
+        }
+      });
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([px - 0.06, 0, z + 1.85], [px + 0.06, 2.6, z + 1.97], MAT.TRIM);
+      });
+      m.painted(TINT.AWNING, () =>
+        m.cone(px, z + 1.91, 1.7, 0.1, 2.3, 2.85, 8, MAT.TRIM));
+    }
+    frontage(m, -x, x, z + 4.2, 741, { planters: 2, bollards: 7, depth: 2.2 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ car showroom
+
+/** Glass box on a forecourt, with cars on the apron and a service bay behind. */
+function showroom(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 22.0, d = 14.0;
+  const x = w / 2, z = d / 2;
+  const hall = 6.8, service = 5.6;
+
+  m.box([-x, 0, -z + 5.0], [x, hall, z], MAT.GLASS, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, service, -z + 5.0], MAT.CLADDING, { roof: MAT.TRIM });
+
+  if (medium) {
+    // Deep fascia wrapping the glass: the one gesture every showroom makes.
+    m.painted(TINT.BRAND, () => ring(m, -x, -z + 5.0, x, z, hall - 1.2, 1.5, 0.55));
+    m.box([-x - 0.6, hall, -z + 4.6], [x + 0.6, hall + 0.35, z + 0.6], MAT.CONCRETE);
+    parapet(m, -x, -z, x, -z + 5.0, service, 0.7, 0.24);
+    // Curved-ish corner: a chamfer is enough at this scale.
+    m.box([x - 0.4, 0, z - 3.4], [x + 0.5, hall, z + 0.4], MAT.GLASS);
+    roofClutter(m, -x + 2, -z + 1, x - 2, -z + 4, service, 751, 0.8);
+  }
+  if (fine) {
+    for (const [axis, sign, plane, u0, u1, n] of [
+      ['z', 1, z, -x + 0.6, x - 0.6, 6],
+      ['x', 1, x, -z + 5.6, z - 0.6, 3],
+      ['x', -1, -x, -z + 5.6, z - 0.6, 3],
+    ] as const) {
+      m.windowRow({ axis, sign, plane, from: u0, to: u1, y0: 0.5, y1: hall - 1.4,
+        count: n, width: 2.6, glass: MAT.SHOPFRONT, frame: 0.13, proud: 0.07 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, -3.0,
+      { width: 2.4, height: 3.0, double: true, glazed: true });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, 1.5, 9.0, hall - 0.9, hall + 0.1);
+    // Service shutters on the flank.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cz of [-z + 1.6, -z + 3.6]) {
+        m.box([-x - 0.02, 0, cz - 0.8], [-x + 0.14, 4.2, cz + 0.8], MAT.TRIM);
+      }
+    });
+    // Cars on the apron: a body, a cabin and four wheels each.
+    for (let i = 0; i < 5; i++) {
+      const cx = -x + 2.4 + i * 4.4;
+      const cz = z + 3.6;
+      m.painted(i % 2 === 0 ? TINT.ACCENT : TINT.METAL_DARK, () => {
+        m.box([cx - 0.85, 0.32, cz - 2.0], [cx + 0.85, 1.0, cz + 2.0], MAT.TRIM);
+        m.box([cx - 0.78, 1.0, cz - 0.9], [cx + 0.78, 1.48, cz + 1.1], MAT.TRIM);
+      });
+      m.painted(TINT.METAL_DARK, () => {
+        for (const wz of [cz - 1.35, cz + 1.35]) {
+          for (const wx of [cx - 0.86, cx + 0.72]) {
+            m.box([wx, 0.06, wz - 0.28], [wx + 0.14, 0.62, wz + 0.28], MAT.TRIM);
+          }
+        }
+      });
+      m.box([cx - 1.5, 0.002, cz - 2.4], [cx - 1.44, 0.02, cz + 2.4], MAT.TRIM);
+    }
+    m.box([-x, 0.001, z], [x, 0.08, z + 6.4], MAT.CONCRETE);
+    kerb(m, -x, z + 6.4, x, z + 6.8);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ shopping mall
+
+/** A mall: blank clad box, a glazed entrance drum, and a big car park apron. */
+function mall(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 42.0, d = 26.0, h = 11.5;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.CLADDING, { roof: MAT.TRIM });
+  // Entrance pavilion pushed forward, taller than the box behind it.
+  m.box([-7.0, 0, z - 0.5], [7.0, h + 2.6, z + 5.0], MAT.GLASS, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.4, 0.4);
+    parapet(m, -7.0, z - 0.5, 7.0, z + 5.0, h + 2.6, 1.2, 0.4);
+    // Banded courses and a brick-faced base, so the box is not one flat plane.
+    for (const y of [4.0, 7.4]) band(m, -x, -z, x, z, y, 0.5, 0.26, MAT.PLASTER);
+    m.box([-x - 0.2, 0, -z - 0.2], [x + 0.2, 2.6, z + 0.2], MAT.BRICK);
+    roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h, 761, 1.6);
+    // Service yard and dock on the blind end.
+    m.box([-x - 5.5, 0.001, -z], [-x, 0.1, z - 6.0], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 2; i++) {
+        const cz = -z + 3.0 + i * 4.5;
+        m.box([-x - 0.16, 0, cz - 1.7], [-x + 0.02, 4.4, cz + 1.7], MAT.TRIM);
+      }
+    });
+    m.box([-x - 3.0, 0.001, -z + 1.0], [-x, 1.2, -z + 12.0], MAT.CONCRETE);
+  }
+  if (fine) {
+    for (let f = 0; f < 2; f++) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z + 5.0, from: -6.2, to: 6.2,
+        y0: 1.0 + f * 4.6, y1: 5.0 + f * 4.6, count: 4, width: 2.8,
+        glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.12, proud: 0.07 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z + 5.0 }, 0,
+      { width: 4.0, height: 3.4, double: true, glazed: true, canopy: 3.0 });
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 5.0 }, -4.4, 4.4, h + 0.6, h + 2.2);
+    // A run of glazing along the front where the units face out.
+    for (const [from, to] of [[-x + 2.0, -8.5], [8.5, x - 2.0]] as const) {
+      m.windowRow({ axis: 'z', sign: 1, plane: z, from, to, y0: 0.7, y1: 3.6,
+        count: 5, width: 2.6, glass: MAT.SHOPFRONT, frame: 0.11, proud: 0.07 });
+    }
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 3.0, -x + 11.0, 4.2, 5.4);
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, x - 11.0, x - 3.0, 4.2, 5.4);
+    // Car park: bay markings and a lighting column per aisle.
+    m.box([-x, 0.001, z + 5.0], [x, 0.06, z + 17.0], MAT.CONCRETE);
+    for (let i = 0; i < 16; i++) {
+      const px = -x + 1.5 + i * 2.7;
+      m.box([px - 0.06, 0.004, z + 5.6], [px + 0.06, 0.02, z + 10.4], MAT.TRIM);
+      m.box([px - 0.06, 0.004, z + 11.6], [px + 0.06, 0.02, z + 16.4], MAT.TRIM);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-14.0, 0.0, 14.0]) {
+        m.box([px - 0.14, 0, z + 10.9], [px + 0.14, 8.0, z + 11.1], MAT.TRIM);
+        m.box([px - 1.1, 8.0, z + 10.7], [px + 1.1, 8.35, z + 11.3], MAT.TRIM);
+      }
+    });
+    kerb(m, -x, z + 17.0, x, z + 17.4);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ takeaway row
+
+/** Three narrow takeaway units in a row, each with its own sign and colour. */
+function takeawayRow(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const units = 3;
+  const uw = 5.0;
+  const w = units * uw, d = 8.0, h = 4.6;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 0.9, 0.3);
+    // Each unit gets its own parapet height, which is what makes a row of
+    // small units read as several businesses rather than one long shed.
+    for (let i = 0; i < units; i++) {
+      const a = -x + i * uw;
+      const b = a + uw;
+      const bump = 0.5 + (i % 2) * 0.55;
+      m.box([a + 0.1, h, z - 0.6], [b - 0.1, h + 0.9 + bump, z + 0.35], MAT.PLASTER);
+    }
+    roofClutter(m, -x + 1, -z + 1, x - 1, z - 2, h, 771, 1.4);
+  }
+  if (fine) {
+    for (let i = 0; i < units; i++) {
+      const a = -x + i * uw + 0.3;
+      const b = -x + (i + 1) * uw - 0.3;
+      shopfront(m, { axis: 'z', sign: 1, plane: z }, a, b,
+        { bays: 2, doorBay: 1, head: 3.3, fascia: 0.8, brandFascia: i === 0 });
+      if (i === 0) fasciaSign(m, { axis: 'z', sign: 1, plane: z }, a + 0.3, b - 0.3, 2.62, 3.32);
+      if (i === 1) boxSign(m, { axis: 'z', sign: 1, plane: z }, a + 0.5, b - 0.5, 3.7, 4.7);
+      if (i === 2) bladeSign(m, { axis: 'z', sign: 1, plane: z }, b - 0.6, 2.6, 4.4, 1.2);
+      // Extract duct up the back of each unit: takeaways all have one.
+      m.painted(TINT.METAL_DARK, () => {
+        const cx = (a + b) / 2;
+        m.box([cx - 0.4, 1.0, -z - 0.55], [cx + 0.4, h + 1.6, -z], MAT.TRIM);
+        m.box([cx - 0.55, h + 1.6, -z - 0.7], [cx + 0.55, h + 1.9, -z + 0.1], MAT.TRIM);
+      });
+    }
+    windowGrid(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, z - 1.2,
+      { floors: 1, floorH: 3, base: 1.6, count: 2, width: 0.9, height: 1.2 });
+    frontage(m, -x, x, z, 773, { planters: 2, bollards: 7, depth: 2.2 });
+    // Bin store round the side, because these always have one.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x - 2.6, 0, -z + 1.0], [-x - 0.2, 1.4, -z + 3.4], MAT.TRIM);
+      m.box([-x - 2.75, 1.4, -z + 0.85], [-x - 0.05, 1.55, -z + 3.55], MAT.TRIM);
+    });
+  }
+  return m;
+}
+
+// ----------------------------------------------------------------- clinic
+
+/** A small health centre: brick and render, a canopy, a clear front door. */
+function clinic(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 20.0, d = 13.0;
+  const floors = 2, floorH = 3.6;
+  const h = floors * floorH;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  // Rendered stair bay, taller, off centre.
+  m.box([-x + 2.0, 0, z - 0.3], [-x + 6.4, h + 1.8, z + 1.4], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 0.9, 0.28);
+    parapet(m, -x + 2.0, z - 0.3, -x + 6.4, z + 1.4, h + 1.8, 0.8, 0.3);
+    band(m, -x, -z, x, z, floorH - 0.4, 0.4, 0.2);
+    // Deep canopy across the entrance.
+    m.box([-1.0, h - 3.5, z], [9.0, h - 3.1, z + 2.6], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [0.2, 7.8]) m.box([px - 0.12, 0, z + 2.2], [px + 0.12, h - 3.5, z + 2.44], MAT.TRIM);
+    });
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, h, 781, 1.0);
+  }
+  if (fine) {
+    for (const [axis, sign, plane, u0, u1, n] of [
+      ['z', 1, z, -x + 7.0, x - 0.9, 4],
+      ['z', -1, -z, -x + 0.9, x - 0.9, 6],
+      ['x', 1, x, -z + 1.0, z - 1.0, 3],
+      ['x', -1, -x, -z + 1.0, z - 1.0, 3],
+    ] as const) {
+      windowGrid(m, { axis, sign, plane }, u0, u1,
+        { floors, floorH, base: 1.1, count: n, width: 1.6, height: 2.0 });
+    }
+    for (let f = 0; f < floors; f++) {
+      m.opening({ axis: 'z', sign: 1, plane: z + 1.4, u0: -x + 2.6, u1: -x + 5.8,
+        y0: f * floorH + 0.8, y1: f * floorH + 2.9, glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
+    }
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -1.0, to: 3.2, y0: 0.7, y1: 3.0,
+      count: 2, width: 1.9, glass: MAT.SHOPFRONT, frame: 0.11, proud: 0.07 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 5.6,
+      { width: 2.4, height: 2.8, double: true, glazed: true, steps: 1 });
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, 1.6, 8.4, h - 2.9, h - 1.8);
+    frontage(m, -x, x, z + 2.6, 783, { planters: 3, bollards: 8, depth: 2.4 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------- florist row
+
+/** A pair of small specialist shops under one pitched roof, with awnings. */
+function specialistPair(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 12.0, d = 9.0;
+  const ground = 3.8, upper = 3.0;
+  const h = ground + upper;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.PLASTER, { roof: MAT.ROOF });
+  m.gable([-x, h, -z], [x, h, z], 2.2, 'x', MAT.ROOF_TILE, MAT.PLASTER);
+
+  if (medium) {
+    eavesBand(m, -x, -z, x, z, h);
+    chimneyStack(m, 0, 0, h + 1.2, h + 3.2, 1.0);
+    band(m, -x, -z, x, z, ground - 0.3, 0.35, 0.2);
+    m.box([-0.16, 0, z - 0.1], [0.16, h + 2.4, z + 0.2], MAT.BRICK);
+  }
+  if (fine) {
+    for (const sx of [-1, 1] as const) {
+      const a = sx < 0 ? -x + 0.4 : 0.4;
+      const b = sx < 0 ? -0.4 : x - 0.4;
+      shopfront(m, { axis: 'z', sign: 1, plane: z }, a, b,
+        { bays: 2, doorBay: sx < 0 ? 1 : 0, head: 3.2, fascia: 0.7, brandFascia: sx < 0 });
+      awning(m, { axis: 'z', sign: 1, plane: z }, a + 0.2, b - 0.2, 3.0, 1.4);
+      windowGrid(m, { axis: 'z', sign: 1, plane: z }, a, b,
+        { floors: 1, floorH: upper, base: ground + 0.7, count: 2, width: 1.0, height: 1.6 });
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors: 1, floorH: upper, base: ground + 0.7, count: 2, width: 0.9, height: 1.4 });
+    }
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 0.9, x - 0.9,
+      { floors: 2, floorH: 3.5, base: 1.1, count: 4, width: 1.0, height: 1.4 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 0.7, -0.7, 2.52, 3.18);
+    bladeSign(m, { axis: 'z', sign: 1, plane: z }, x - 1.2, 3.6, 5.2, 1.2);
+    // Buckets of stock on the pavement outside the left-hand unit.
+    for (let i = 0; i < 4; i++) {
+      const cx = -x + 1.2 + i * 1.1;
+      m.painted(TINT.METAL_DARK, () => m.cylinder(cx, z + 1.1, 0.28, 0, 0.55, 8, MAT.TRIM));
+      m.painted(TINT.GREEN, () => m.cone(cx, z + 1.1, 0.34, 0.1, 0.55, 1.25, 7, MAT.TRIM));
+    }
+    frontage(m, -x, x, z, 791, { planters: 0, bollards: 6, depth: 2.2 });
+  }
+  return m;
+}
+
+// -------------------------------------------------------------- night club
+
+/** A blank-walled club with a lit entrance: all the detail is at the door. */
+function nightclub(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 18.0, d = 16.0, h = 9.0;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.painted(TINT.BRAND_DARK, () =>
+    m.box([-x - 0.16, 0, -z - 0.16], [x + 0.16, 3.4, z + 0.16], MAT.PLASTER));
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.2, 0.34);
+    band(m, -x, -z, x, z, 3.4, 0.4, 0.26);
+    // Entrance bay standing forward, with a lit canopy across it.
+    m.box([-4.0, 0, z], [4.0, 6.4, z + 1.6], MAT.CLADDING, { roof: MAT.TRIM });
+    m.painted(TINT.SIGN_LIT, () => m.box([-4.4, 4.4, z + 1.6], [4.4, 4.9, z + 3.6], MAT.TRIM));
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-4.0, 4.0]) m.box([px - 0.12, 0, z + 3.2], [px + 0.12, 4.4, z + 3.44], MAT.TRIM);
+    });
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 3, h, 801, 1.5);
+  }
+  if (fine) {
+    entrance(m, { axis: 'z', sign: 1, plane: z + 1.6 }, 0,
+      { width: 3.0, height: 3.0, double: true, glazed: true });
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 1.6 }, -3.2, 3.2, 4.9, 6.1);
+    // High-level slot windows only: a club does not want daylight.
+    for (const [axis, sign, plane, u0, u1] of [
+      ['x', 1, x, -z + 1.5, z - 1.5], ['x', -1, -x, -z + 1.5, z - 1.5],
+      ['z', -1, -z, -x + 1.5, x - 1.5],
+    ] as const) {
+      m.opening({ axis, sign, plane, u0, u1, y0: h - 2.2, y1: h - 1.4,
+        glass: MAT.GLASS, frame: 0.12, proud: 0.06 });
+    }
+    // Queue rail and a fire escape door on the flank.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 6; i++) {
+        const px = -6.0 + i * 2.0;
+        m.box([px - 0.05, 0, z + 4.4], [px + 0.05, 1.0, z + 4.5], MAT.TRIM);
+      }
+      m.box([-6.0, 0.92, z + 4.38], [6.0, 1.0, z + 4.52], MAT.TRIM);
+    });
+    entrance(m, { axis: 'x', sign: -1, plane: -x }, 3.0, { width: 1.4, height: 2.2, double: true });
+    // Plant on the roof and the ductwork feeding it, plus a fire escape stair
+    // down the blind flank: a club is mostly machinery and exits.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-5.0, h, -z + 3.0], [5.0, h + 2.4, -z + 8.0], MAT.TRIM);
+      for (const px of [-3.4, 0.0, 3.4]) {
+        m.cylinder(px, -z + 5.5, 0.9, h + 2.4, h + 3.6, 10, MAT.TRIM);
+      }
+      m.box([x - 0.9, 3.6, -z + 4.0], [x + 0.7, h, -z + 5.6], MAT.TRIM);
+      for (let f = 1; f <= 2; f++) {
+        const y = 2.6 + f * 2.6;
+        m.box([x, y - 0.16, -z + 7.0], [x + 1.9, y, -z + 10.4], MAT.TRIM);
+        m.box([x + 1.75, y, -z + 7.0], [x + 1.9, y + 1.05, -z + 10.4], MAT.TRIM);
+        for (let i = 0; i < 8; i++) {
+          m.box([x + 0.3, y - 2.6 + i * 0.32, -z + 10.4], [x + 1.6, y - 2.52 + i * 0.32, -z + 10.6], MAT.TRIM);
+        }
+      }
+    });
+    // Poster boards flanking the entrance bay.
+    for (const px of [-5.6, 5.6]) {
+      m.painted(TINT.BRAND_DARK, () => m.box([px - 1.0, 1.2, z + 0.02], [px + 1.0, 3.4, z + 0.18], MAT.TRIM));
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.18, u0: px - 0.85, u1: px + 0.85,
+        y0: 1.35, y1: 3.25, glass: MAT.GLASS, frame: 0.07, proud: 0.05 });
+    }
+    frontage(m, -x, x, z + 4.5, 803, { planters: 2, bollards: 6, depth: 2.0 });
+  }
+  return m;
+}
+
+COMMERCIAL.push(
+  {
+    id: 'com.garden', name: 'Garden centre', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [5, 4], height: 8.2, brand: BRANDS.grocer,
+    sim: { jobs: 16, powerKW: 45, waterM3: 30, garbagePerWeek: 120, pollution: 1, upkeep: 38 },
+    note: 'Timber sales barn beside a glasshouse, benches of stock in a railed yard.',
+    build: gardenCentre,
+  },
+  {
+    id: 'com.pub', name: 'Public house', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [3, 3], height: 9.8, brand: BRANDS.diner,
+    sim: { jobs: 15, powerKW: 50, waterM3: 24, garbagePerWeek: 200, pollution: 2, upkeep: 42 },
+    note: 'Painted brick ground floor, two chimneys, hanging sign, terrace with parasols.',
+    build: pub,
+  },
+  {
+    id: 'com.showroom', name: 'Car showroom', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [4, 4], height: 7.2, brand: BRANDS.electronics,
+    sim: { jobs: 20, powerKW: 80, waterM3: 14, garbagePerWeek: 90, pollution: 3, upkeep: 60 },
+    note: 'Glass hall under a deep brand fascia, service bays behind, cars on the apron.',
+    build: showroom,
+  },
+  {
+    id: 'com.mall', name: 'Shopping mall', zone: 'commercial', density: 'high',
+    variant: 'sculpted', footprint: [7, 8], height: 15.5, brand: BRANDS.grocer,
+    sim: { jobs: 180, powerKW: 460, waterM3: 120, garbagePerWeek: 1400, pollution: 5, upkeep: 280 },
+    note: 'Clad box with a glazed entrance pavilion, shopfronts to the street, car park and service dock.',
+    build: mall,
+  },
+  {
+    id: 'com.takeaway', name: 'Takeaway row', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [3, 2], height: 6.6, brand: BRANDS.noodle,
+    sim: { jobs: 12, powerKW: 55, waterM3: 14, garbagePerWeek: 190, pollution: 4, upkeep: 26 },
+    note: 'Three narrow units, each with its own parapet, sign type and extract duct.',
+    build: takeawayRow,
+  },
+  {
+    id: 'com.clinic', name: 'Health centre', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [3, 3], height: 9.0, brand: BRANDS.pharmacy,
+    sim: { jobs: 30, powerKW: 90, waterM3: 26, garbagePerWeek: 130, pollution: 1, upkeep: 88 },
+    note: 'Brick block with a rendered stair bay, deep entrance canopy on posts.',
+    build: clinic,
+  },
+  {
+    id: 'com.specialist', name: 'Specialist shops', zone: 'commercial', density: 'low',
+    variant: 'sculpted', footprint: [2, 2], height: 9.0, brand: BRANDS.bookshop,
+    sim: { jobs: 9, powerKW: 30, waterM3: 5, garbagePerWeek: 60, pollution: 0, upkeep: 24 },
+    note: 'Two small shops under one pitched roof, awnings, stock out on the pavement.',
+    build: specialistPair,
+  },
+  {
+    id: 'com.club', name: 'Night club', zone: 'commercial', density: 'medium',
+    variant: 'sculpted', footprint: [3, 4], height: 10.2, brand: BRANDS.gym,
+    sim: { jobs: 24, powerKW: 150, waterM3: 20, garbagePerWeek: 280, pollution: 6, upkeep: 70 },
+    note: 'Blank brick walls, high slot windows, lit entrance bay and a queue rail.',
+    build: nightclub,
   },
 );

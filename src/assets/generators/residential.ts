@@ -16,7 +16,7 @@ import { CELL } from '../types';
 import type { AssetDef } from '../types';
 import { BRANDS } from '../brands';
 import {
-  awning, balconies, band, bollards, fasciaSign, fireEscape, kerb, parapet, planter,
+  awning, balconies, band, bladeSign, bollards, fasciaSign, fireEscape, kerb, parapet, planter,
   backyard, entrance, frontage, railing, ring, roofClutter, shopfront, windowGrid,
 } from '../parts';
 
@@ -1084,6 +1084,505 @@ function estateTower(lod: number): MeshBuilder {
   return m;
 }
 
+// ------------------------------------------------------------ dormer chalet
+
+/** Storey-and-a-half: rooms in the roof, lit by two dormers. */
+function chalet(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 9.6, d = 8.0, wall = 3.4;
+  const x = w / 2, z = d / 2;
+  const ridge = pitch(d) + 0.6;
+
+  m.box([-x, 0, -z], [x, wall, z], MAT.PLASTER);
+  m.gable([-x, wall, -z], [x, wall, z], ridge, 'x', MAT.ROOF_TILE, MAT.PLASTER);
+  // Timber to the gable ends: the detail that separates a chalet from a box.
+  for (const sx of [-1, 1] as const) {
+    m.box([sx * x - sx * 0.12, wall - 1.2, -z], [sx * x, wall, z], MAT.TIMBER);
+  }
+
+  if (medium) {
+    eaves(m, -x, -z, x, z, wall, 0.6, 0.28);
+    gutters(m, -x, -z, x, z, wall, 0.6);
+    chimney(m, -x + 1.6, 0, wall + ridge * 0.5, wall + ridge + 1.2, 0.95);
+    // Two dormers on the front slope.
+    for (const dx of [-2.6, 2.6]) {
+      m.box([dx - 1.1, wall - 0.3, 0.5], [dx + 1.1, wall + 1.9, z + 0.05], MAT.TIMBER);
+      m.gable([dx - 1.3, wall + 1.9, 0.4], [dx + 1.3, wall + 1.9, z + 0.2], 0.65, 'x',
+        MAT.ROOF_TILE, MAT.TIMBER);
+    }
+  }
+  if (fine) {
+    for (const dx of [-2.6, 2.6]) {
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.05, u0: dx - 0.75, u1: dx + 0.75,
+        y0: wall + 0.25, y1: wall + 1.65, glass: MAT.GLASS, frame: 0.09, proud: 0.06 });
+    }
+    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 0.9, x - 0.9,
+      { floors: 1, floorH: 3, base: 1.0, count: 2, width: 1.4, height: 1.6 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 0.9, x - 0.9,
+      { floors: 1, floorH: 3, base: 1.0, count: 3, width: 1.1, height: 1.5 });
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors: 1, floorH: 3, base: 1.1, count: 2, width: 0.9, height: 1.4 });
+    }
+    // Porch over the door, on two posts.
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 1.05, height: 2.15, fanlight: true, steps: 1 });
+    m.box([-1.3, 2.5, z], [1.3, 2.78, z + 1.5], MAT.TIMBER);
+    m.painted(TINT.WOOD, () => {
+      for (const px of [-1.1, 1.1]) m.box([px - 0.09, 0, z + 1.25], [px + 0.09, 2.5, z + 1.43], MAT.TRIM);
+    });
+    m.box([-1.6, 0.001, z], [1.6, 0.08, z + 1.9], MAT.CONCRETE);
+    backyard(m, -x, -z - 8.0, x, -z - 0.2, 651);
+  }
+  return m;
+}
+
+// -------------------------------------------------------------- town house
+
+/** A narrow three-storey town house with the garage tucked under the front. */
+function townHouse(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 6.6, d = 10.5;
+  const floors = 3, floorH = 2.95;
+  const h = floors * floorH;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  // Rendered upper box standing forward, so the elevation has two planes.
+  m.box([-x + 0.5, floorH, z - 0.2], [x - 0.5, h - 0.3, z + 0.9], MAT.PLASTER, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 0.7, 0.22);
+    band(m, -x, -z, x, z, floorH - 0.25, 0.25, 0.14);
+    m.box([-x + 0.7, h - 0.3, z - 0.3], [x - 0.7, h + 0.05, z + 1.05], MAT.TRIM);
+    roofClutter(m, -x + 0.8, -z + 0.8, x - 0.8, z - 1.5, h, 661, 0.5);
+  }
+  if (fine) {
+    // Garage under, front door beside it, up three steps.
+    m.painted(TINT.METAL_DARK, () =>
+      m.opening({ axis: 'z', sign: 1, plane: z, u0: -x + 0.5, u1: 0.3, y0: 0.1, y1: 2.35,
+        glass: MAT.TRIM, frame: 0.11, proud: 0.09 }));
+    entrance(m, { axis: 'z', sign: 1, plane: z }, x - 1.4,
+      { width: 1.0, height: 2.1, fanlight: true, steps: 3, canopy: 1.1 });
+    for (let f = 1; f < floors; f++) {
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.9, u0: -x + 0.9, u1: x - 0.9,
+        y0: f * floorH + 0.7, y1: f * floorH + 2.4, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    }
+    windowGrid(m, { axis: 'z', sign: -1, plane: -z }, -x + 0.8, x - 0.8,
+      { floors, floorH, base: 0.9, count: 2, width: 1.2, height: 1.6 });
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.4, z - 1.4,
+        { floors, floorH, base: 1.0, count: 2, width: 0.9, height: 1.4 });
+    }
+    m.box([-x + 0.5, 0.002, z + 0.9], [0.3, 0.06, z + 5.2], MAT.CONCRETE);
+    kerb(m, -x - 0.6, z + 5.2, x + 0.6, z + 5.6);
+    backyard(m, -x, -z - 7.5, x, -z - 0.2, 663);
+  }
+  return m;
+}
+
+// ----------------------------------------------------------------- villa
+
+/** A flat-roofed timber-and-render house: the one modern thing in the set. */
+function villa(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 12.5, d = 9.5;
+  const x = w / 2, z = d / 2;
+  const lower = 3.3, upper = 6.4;
+
+  // Two boxes, the upper one turned across the lower: the whole idea.
+  m.box([-x, 0, -z], [x, lower, z], MAT.PLASTER, { roof: MAT.ROOF });
+  m.box([-x + 0.8, lower, -z - 0.9], [x - 4.2, upper, z + 0.4], MAT.TIMBER, { roof: MAT.ROOF });
+
+  if (medium) {
+    m.box([-x - 0.35, lower - 0.28, -z - 0.35], [x + 0.35, lower, z + 0.35], MAT.TRIM);
+    m.box([-x + 0.45, upper - 0.28, -z - 1.25], [x - 3.85, upper, z + 0.75], MAT.TRIM);
+    // Carport: a slab on two posts over the drive.
+    m.box([x - 4.4, lower - 0.3, z - 1.0], [x + 3.4, lower, z + 4.6], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [px, pz] of [[x + 2.9, z + 4.1], [x - 3.9, z + 4.1]] as const) {
+        m.box([px - 0.14, 0, pz - 0.14], [px + 0.14, lower - 0.3, pz + 0.14], MAT.TRIM);
+      }
+    });
+    roofClutter(m, -x + 1.2, -z + 1.2, x - 4.6, z - 1.2, upper, 671, 0.4);
+  }
+  if (fine) {
+    // Full-height glazing to the garden side, ribbon windows elsewhere.
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 0.8, to: x - 4.6, y0: 0.5, y1: 2.9,
+      count: 3, width: 2.1, glass: MAT.SHOPFRONT, frame: 0.1, proud: 0.06 });
+    m.opening({ axis: 'z', sign: 1, plane: z + 0.4, u0: -x + 1.4, u1: x - 4.8,
+      y0: lower + 0.9, y1: upper - 0.9, glass: MAT.GLASS, frame: 0.12, proud: 0.07 });
+    m.opening({ axis: 'z', sign: -1, plane: -z, u0: -x + 1.2, u1: x - 1.2,
+      y0: 1.1, y1: 2.5, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    m.opening({ axis: 'x', sign: -1, plane: -x, u0: -z + 1.2, u1: z - 1.2,
+      y0: 1.1, y1: 2.5, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    m.opening({ axis: 'x', sign: -1, plane: -x + 0.8, u0: -z - 0.5, u1: z,
+      y0: lower + 1.0, y1: upper - 1.0, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    entrance(m, { axis: 'x', sign: 1, plane: x }, z - 2.4,
+      { width: 1.2, height: 2.4, glazed: true, canopy: 1.4 });
+    m.box([x - 4.4, 0.002, z - 1.0], [x + 3.4, 0.06, z + 4.6], MAT.CONCRETE);
+    // Timber privacy screen beside the entrance, sedum on the lower roof, and
+    // the low wall that separates the plot from the pavement.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i < 12; i++) {
+        m.box([x + 0.2, 0, z - 2.9 + i * 0.28], [x + 0.28, 2.4, z - 2.78 + i * 0.28], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.GREEN, () => {
+      m.box([x - 4.0, lower, -z + 0.6], [x - 0.6, lower + 0.28, z - 0.6], MAT.TRIM);
+    });
+    m.box([-x, 0, z + 4.6], [x - 4.6, 0.65, z + 4.9], MAT.PLASTER);
+    m.box([-x - 0.1, 0.65, z + 4.55], [x - 4.5, 0.78, z + 4.95], MAT.TRIM);
+    railing(m, -x + 0.6, x - 4.8, lower + 0.02, lower, 1.0, 1.3);
+    backyard(m, -x, -z - 7.0, x, -z - 1.2, 673);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------- maisonettes
+
+/** Three-storey maisonettes reached off open stairs at each end. */
+function maisonettes(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 24.0, d = 10.0;
+  const floors = 3, floorH = 3.0;
+  const h = floors * floorH;
+  const x = w / 2, z = d / 2;
+  const bays = 6;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.gable([-x, h, -z], [x, h, z], 1.9, 'x', MAT.ROOF_TILE, MAT.BRICK);
+
+  if (medium) {
+    eaves(m, -x, -z, x, z, h + 0.05, 0.5, 0.26);
+    // Rendered panels between the window bays, alternating with the brick.
+    for (let i = 0; i < bays; i += 2) {
+      const a = -x + (i / bays) * w + 0.3;
+      const b = -x + ((i + 1) / bays) * w - 0.3;
+      m.box([a, 0, z], [b, h, z + 0.16], MAT.PLASTER);
+      m.box([a, 0, -z - 0.16], [b, h, -z], MAT.PLASTER);
+    }
+    // Open stair at each end: half-landings and a solid balustrade.
+    for (const sx of [-1, 1] as const) {
+      const cx = sx * (x - 1.9);
+      for (let f = 1; f < floors; f++) {
+        m.box([cx - 1.8, f * floorH - 0.25, z], [cx + 1.8, f * floorH, z + 2.2], MAT.CONCRETE);
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([cx - 1.8, f * floorH, z + 2.05], [cx + 1.8, f * floorH + 1.05, z + 2.2], MAT.TRIM);
+        });
+      }
+      m.box([cx - 1.9, 0, z + 2.2], [cx + 1.9, h, z + 2.45], MAT.BRICK, { roof: MAT.ROOF });
+    }
+  }
+  if (fine) {
+    for (const [sign, plane] of [[1, z + 0.16], [-1, -z - 0.16]] as const) {
+      windowGrid(m, { axis: 'z', sign, plane }, -x + 1.0, x - 4.2,
+        { floors, floorH, base: 0.95, count: 4, width: 1.5, height: 1.7 });
+    }
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors, floorH, base: 1.0, count: 2, width: 1.0, height: 1.5 });
+      // Stair lights.
+      for (let f = 0; f < floors; f++) {
+        m.opening({ axis: 'z', sign: 1, plane: z + 2.45, u0: sx * (x - 1.9) - 1.4,
+          u1: sx * (x - 1.9) + 1.4, y0: f * floorH + 0.9, y1: f * floorH + 2.3,
+          glass: MAT.GLASS, frame: 0.1, proud: 0.05 });
+      }
+      entrance(m, { axis: 'z', sign: 1, plane: z + 2.45 }, sx * (x - 1.9),
+        { width: 1.6, height: 2.4, double: true, glazed: true });
+    }
+    frontage(m, -x, x, z + 2.45, 683, { planters: 2, bollards: 8, depth: 2.2 });
+  }
+  return m;
+}
+
+// ---------------------------------------------------------- gallery access
+
+/** Timber-clad block with a glazed gallery running the length of one side. */
+function galleryBlock(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const w = 26.0, d = 12.0;
+  const floors = 5, floorH = 3.1, ground = 3.6;
+  const h = ground + floors * floorH;
+  const x = w / 2, z = d / 2;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.CLADDING, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, ground, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  // Stair and lift core at one end, carried above the parapet.
+  m.box([x - 4.4, 0, -z - 2.4], [x, h + 3.0, z], MAT.CONCRETE, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -x, -z, x, z, h, 1.0, 0.3);
+    band(m, -x, -z, x, z, ground, 0.4, 0.34);
+    // The gallery: a deck at every floor with a glazed balustrade.
+    for (let f = 0; f < floors; f++) {
+      const y = ground + f * floorH;
+      m.box([-x, y, -z - 1.9], [x - 4.4, y + 0.28, -z], MAT.CONCRETE);
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([-x, y + 0.28, -z - 1.95], [x - 4.4, y + 1.18, -z - 1.83], MAT.TRIM);
+        for (let i = 0; i <= 9; i++) {
+          const px = -x + (i / 9) * (w - 4.4);
+          m.box([px - 0.05, y + 0.28, -z - 1.98], [px + 0.05, y + 1.18, -z - 1.8], MAT.TRIM);
+        }
+      });
+    }
+    roofClutter(m, -x + 2, -z + 2, x - 5.5, z - 2, h, 691, 0.9);
+  }
+  if (fine) {
+    // Living side: full-width glazing and a shallow balcony per flat.
+    balconies(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, x - 5.6,
+      { floors, floorH, base: ground + 0.3, bays: 4, depth: 1.4, solid: false });
+    windowGrid(m, { axis: 'z', sign: 1, plane: z }, -x + 1.4, x - 5.4,
+      { floors, floorH, base: ground + 0.9, count: 4, width: 3.0, height: 2.0, sill: false });
+    // Gallery side: a door and a small window per flat.
+    for (let f = 0; f < floors; f++) {
+      const y = ground + f * floorH + 0.3;
+      for (let i = 0; i < 4; i++) {
+        const cx = -x + 2.4 + i * 5.1;
+        entrance(m, { axis: 'z', sign: -1, plane: -z }, cx,
+          { width: 1.0, height: 2.1, glazed: true, fanlight: false });
+        m.opening({ axis: 'z', sign: -1, plane: -z, u0: cx + 1.2, u1: cx + 2.8,
+          y0: y + 1.0, y1: y + 2.1, glass: MAT.GLASS, frame: 0.09, proud: 0.05 });
+      }
+      void y;
+    }
+    for (let f = 0; f < floors + 1; f++) {
+      m.opening({ axis: 'x', sign: 1, plane: x, u0: -z - 2.0, u1: -z + 1.4,
+        y0: ground + f * floorH - 1.7, y1: ground + f * floorH - 0.4,
+        glass: MAT.GLASS, frame: 0.1, proud: 0.05 });
+    }
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 1.2, to: x - 5.6, y0: 0.7, y1: 2.9,
+      count: 5, width: 2.4, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, x - 2.2,
+      { width: 2.0, height: 2.6, double: true, glazed: true, canopy: 2.0 });
+    frontage(m, -x, x, z, 693, { planters: 3, bollards: 9 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ clad tower
+
+/** A refurbished tower rewrapped in coloured panels, with a banded rhythm. */
+function cladTower(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 9.5, z = 9.5;
+  const podium = 5.0;
+  const floors = 20, floorH = 2.9;
+  const top = podium + floors * floorH;
+
+  m.box([-x, 0, -z], [x, podium, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  m.box([-x + 0.5, podium, -z + 0.5], [x - 0.5, top, z - 0.5], MAT.CLADDING, { roof: MAT.ROOF });
+
+  if (medium) {
+    band(m, -x, -z, x, z, podium, 0.6, 0.42);
+    // Every third floor gets a deeper reveal, which breaks the stripe.
+    for (let f = 3; f < floors; f += 3) {
+      band(m, -x + 0.5, -z + 0.5, x - 0.5, z - 0.5, podium + f * floorH, 0.5, 0.4, MAT.PLASTER);
+    }
+    // Vertical fins on two faces: cheap, and it stops the tower reading flat.
+    for (let i = 0; i <= 4; i++) {
+      const px = -x + 0.5 + (i / 4) * (x - 0.5) * 2;
+      m.box([px - 0.14, podium, z - 0.5], [px + 0.14, top, z - 0.1], MAT.PLASTER);
+      m.box([px - 0.14, podium, -z + 0.1], [px + 0.14, top, -z + 0.5], MAT.PLASTER);
+    }
+    parapet(m, -x + 0.5, -z + 0.5, x - 0.5, z - 0.5, top, 1.2, 0.32);
+    m.box([-2.6, top + 1.2, -2.6], [2.6, top + 4.0, 2.6], MAT.CONCRETE, { roof: MAT.ROOF });
+    roofClutter(m, -x + 2, -z + 2, x - 2, z - 2, top, 701, 0.6);
+  }
+  if (fine) {
+    for (const [axis, sign, plane, half] of [
+      ['z', 1, z - 0.5, x - 0.5], ['z', -1, -z + 0.5, x - 0.5],
+      ['x', 1, x - 0.5, z - 0.5], ['x', -1, -x + 0.5, z - 0.5],
+    ] as const) {
+      for (let f = 0; f < floors; f++) {
+        m.opening({ axis, sign, plane, u0: -half + 0.9, u1: half - 0.9,
+          y0: podium + f * floorH + 0.85, y1: podium + f * floorH + 2.35,
+          glass: MAT.GLASS, frame: 0.09, proud: 0.05 });
+      }
+    }
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 1.0, to: -2.0, y0: 0.9, y1: 3.6,
+      count: 2, width: 2.4, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    m.windowRow({ axis: 'z', sign: 1, plane: z, from: 2.0, to: x - 1.0, y0: 0.9, y1: 3.6,
+      count: 2, width: 2.4, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
+      { width: 2.4, height: 3.0, double: true, glazed: true, canopy: 2.2 });
+    frontage(m, -x, x, z, 703, { planters: 3, bollards: 7 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------ stepped slab
+
+/** A long slab that steps down in three stages, with a green roof on each. */
+function steppedSlab(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 15.0, z = 9.0;
+  const floorH = 3.0;
+  const stages: Array<[number, number, number]> = [
+    [-x, -5.0, 11], [-5.0, 5.0, 8], [5.0, x, 5],
+  ];
+
+  for (const [a, b, n] of stages) {
+    m.box([a, 0, -z], [b, n * floorH, z], MAT.BRICK, { roof: MAT.ROOF });
+  }
+
+  if (medium) {
+    for (const [a, b, n] of stages) {
+      const h = n * floorH;
+      parapet(m, a, -z, b, z, h, 1.0, 0.28);
+      for (let f = 1; f <= n; f++) band(m, a, -z, b, z, f * floorH - 0.3, 0.3, 0.16);
+      // Roof terrace on each step down.
+      m.painted(TINT.GREEN, () => m.box([a + 1.0, h, -z + 1.0], [b - 1.0, h + 0.35, z - 1.0], MAT.TRIM));
+      balconies(m, { axis: 'z', sign: 1, plane: z }, a + 0.8, b - 0.8,
+        { floors: n, floorH, base: 0.4, bays: Math.max(2, Math.round((b - a) / 5)), depth: 1.3, solid: false });
+    }
+    roofClutter(m, -x + 2, -z + 2, -6.0, z - 2, 11 * floorH, 711, 0.7);
+  }
+  if (fine) {
+    for (const [a, b, n] of stages) {
+      const bays = Math.max(2, Math.round((b - a) / 5));
+      for (const [sign, plane] of [[1, z], [-1, -z]] as const) {
+        windowGrid(m, { axis: 'z', sign, plane }, a + 0.9, b - 0.9,
+          { floors: n, floorH, base: 0.95, count: bays, width: 2.2, height: 1.8, sill: false });
+      }
+    }
+    for (const sx of [-1, 1] as const) {
+      const n = sx < 0 ? 11 : 5;
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors: n, floorH, base: 0.95, count: 2, width: 1.4, height: 1.7, sill: false });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z }, -10.0,
+      { width: 2.2, height: 2.8, double: true, glazed: true, canopy: 2.0 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, 9.5,
+      { width: 2.2, height: 2.8, double: true, glazed: true, canopy: 2.0 });
+    frontage(m, -x, x, z, 713, { planters: 4, bollards: 10 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------------- shophouse row
+
+/** Two-storey shophouses: a shop under, one flat over, four of them in a row. */
+function shophouseRow(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const units = 4;
+  const uw = 5.2;
+  const w = units * uw, d = 9.0;
+  const x = w / 2, z = d / 2;
+  const ground = 3.9, upper = 3.2;
+  const h = ground + upper;
+
+  m.box([-x, 0, -z], [x, h, z], MAT.BRICK, { roof: MAT.ROOF });
+  m.gable([-x, h, -z], [x, h, z], 1.8, 'x', MAT.ROOF_TILE, MAT.BRICK);
+
+  if (medium) {
+    eaves(m, -x, -z, x, z, h + 0.05, 0.45, 0.24);
+    // Party walls through the roof, so it reads as four buildings.
+    for (let i = 1; i < units; i++) {
+      const px = -x + i * uw;
+      m.box([px - 0.16, 0, -z - 0.12], [px + 0.16, h + 2.1, z + 0.12], MAT.BRICK);
+    }
+    band(m, -x, -z, x, z, ground - 0.35, 0.4, 0.22);
+  }
+  if (fine) {
+    for (let i = 0; i < units; i++) {
+      const a = -x + i * uw + 0.35;
+      const b = -x + (i + 1) * uw - 0.35;
+      shopfront(m, { axis: 'z', sign: 1, plane: z }, a, b,
+        { bays: 2, doorBay: 1, head: 3.3, fascia: 0.75 });
+      if (i % 2 === 0) awning(m, { axis: 'z', sign: 1, plane: z }, a, b - 1.6, 3.1, 1.3);
+      windowGrid(m, { axis: 'z', sign: 1, plane: z }, a, b,
+        { floors: 1, floorH: upper, base: ground + 0.75, count: 2, width: 1.1, height: 1.7 });
+      windowGrid(m, { axis: 'z', sign: -1, plane: -z }, a, b,
+        { floors: 2, floorH: 3.4, base: 1.0, count: 2, width: 1.0, height: 1.5 });
+    }
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 0.6, -x + uw - 0.6, 2.62, 3.28);
+    bladeSign(m, { axis: 'z', sign: 1, plane: z }, x - uw / 2, 3.6, 5.2, 1.2);
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + 1.2, z - 1.2,
+        { floors: 1, floorH: upper, base: ground + 0.75, count: 2, width: 1.0, height: 1.5 });
+    }
+    frontage(m, -x, x, z, 723, { planters: 3, bollards: 9, depth: 2.4 });
+  }
+  return m;
+}
+
+// ---------------------------------------------------------------- almshouse
+
+/** A row of single-storey cottages round three sides of a green. */
+function almshouses(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  const x = 15.0, z = 11.0;
+  const wall = 3.2, t = 6.0;
+
+  // Back range and two short wings.
+  m.box([-x, 0, -z], [x, wall, -z + t], MAT.STONE);
+  m.gable([-x, wall, -z], [x, wall, -z + t], pitch(t), 'x', MAT.ROOF_TILE, MAT.STONE);
+  for (const sx of [-1, 1] as const) {
+    m.box([Math.min(sx * x, sx * x - sx * t), 0, -z + t],
+          [Math.max(sx * x, sx * x - sx * t), wall, z - 1.0], MAT.STONE);
+    m.gable([Math.min(sx * x, sx * x - sx * t), wall, -z + t],
+            [Math.max(sx * x, sx * x - sx * t), wall, z - 1.0], pitch(t), 'z', MAT.ROOF_TILE, MAT.STONE);
+  }
+
+  if (medium) {
+    eaves(m, -x, -z, x, -z + t, wall, 0.4, 0.22);
+    for (const sx of [-1, 1] as const) {
+      eaves(m, Math.min(sx * x, sx * x - sx * t), -z + t,
+               Math.max(sx * x, sx * x - sx * t), z - 1.0, wall, 0.4, 0.22);
+      chimney(m, sx * (x - t / 2), -z + t + 3.0, wall + 1.6, wall + 3.4, 0.9);
+    }
+    for (const cx of [-8.0, 0.0, 8.0]) chimney(m, cx, -z + t / 2, wall + 1.6, wall + 3.4, 0.9);
+    // The green in the middle, with a path round it.
+    m.painted(TINT.GREEN, () => m.box([-x + t + 1.2, 0.001, -z + t + 1.2], [x - t - 1.2, 0.09, z - 2.2], MAT.TRIM));
+    m.box([-x + t, 0.0005, -z + t], [x - t, 0.05, z - 1.0], MAT.CONCRETE);
+  }
+  if (fine) {
+    // Six cottages: a door and a window each, round three sides.
+    for (let i = 0; i < 3; i++) {
+      const cx = -10.0 + i * 10.0;
+      entrance(m, { axis: 'z', sign: 1, plane: -z + t }, cx - 1.8,
+        { width: 1.0, height: 2.0, fanlight: true, steps: 1 });
+      windowGrid(m, { axis: 'z', sign: 1, plane: -z + t }, cx + 0.3, cx + 3.0,
+        { floors: 1, floorH: 3, base: 1.0, count: 1, width: 1.3, height: 1.4 });
+      windowGrid(m, { axis: 'z', sign: -1, plane: -z }, cx - 2.4, cx + 2.4,
+        { floors: 1, floorH: 3, base: 1.0, count: 2, width: 1.0, height: 1.3 });
+    }
+    for (const sx of [-1, 1] as const) {
+      const plane = sx * (x - t);
+      for (let i = 0; i < 2; i++) {
+        const cz = -z + t + 2.6 + i * 5.4;
+        entrance(m, { axis: 'x', sign: (-sx) as 1 | -1, plane }, cz - 1.2,
+          { width: 1.0, height: 2.0, fanlight: true, steps: 1 });
+        windowGrid(m, { axis: 'x', sign: (-sx) as 1 | -1, plane }, cz + 0.5, cz + 3.0,
+          { floors: 1, floorH: 3, base: 1.0, count: 1, width: 1.3, height: 1.4 });
+      }
+      windowGrid(m, { axis: 'x', sign: sx, plane: sx * x }, -z + t + 1.0, z - 2.0,
+        { floors: 1, floorH: 3, base: 1.0, count: 3, width: 1.0, height: 1.3 });
+    }
+    railing(m, -x + t, x - t, z - 1.0, 0, 0.9, 1.5);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const power = (households: number): number => households * 1.6;
@@ -1101,6 +1600,9 @@ export const RESIDENTIAL: AssetDef[] = [
   { id: 'res.low.large', name: 'Large family house', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [2, 4], height: 11.0, sim: home(1), note: 'Two-storey projecting wing, full-width porch, two chimneys.', build: largeHouse },
 
   { id: 'res.low.semi', name: 'Semi-detached pair', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [2, 4], height: 9.5, sim: home(2), note: 'Two houses under one roof, party wall through the ridge, bay windows, driveways, back gardens.', build: semiDetached },
+  { id: 'res.low.chalet', name: 'Dormer chalet', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [2, 3], height: 8.4, sim: home(1), note: 'Rooms in the roof behind two timber dormers, timber gable ends, porch on posts.', build: chalet },
+  { id: 'res.low.town', name: 'Town house', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [1, 4], height: 9.2, sim: home(1), note: 'Narrow three storeys, garage under the front, rendered box standing proud above.', build: townHouse },
+  { id: 'res.low.villa', name: 'Modern villa', zone: 'residential', density: 'low', variant: 'sculpted', footprint: [3, 4], height: 6.7, sim: home(1), note: 'Two flat-roofed boxes crossing, timber upper storey, carport on posts.', build: villa },
   { id: 'res.mid.walkup', name: 'Walk-up flats', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 18.5, sim: home(24), note: 'Masonry base, balconies front and back, stair core over the roofline.', build: walkUp },
   { id: 'res.mid.tenement', name: 'Tenement', zone: 'residential', density: 'medium', brand: BRANDS.bakery, variant: 'sculpted', footprint: [3, 2], height: 21.1, sim: home(30), note: 'Shop at street level, string course per floor, heavy cornice, fire escape.', build: tenement },
   { id: 'res.mid.courtyard', name: 'Courtyard block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 13.2, sim: home(36), note: 'Three wings round a planted court, balconies facing in.', build: courtyardBlock },
@@ -1109,12 +1611,18 @@ export const RESIDENTIAL: AssetDef[] = [
   { id: 'res.mid.corner', name: 'Corner block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [2, 3], height: 18.0, sim: home(26), note: 'Chamfered corner with its own shopfront, string courses, awning.', build: cornerBlock },
 
   { id: 'res.mid.deco', name: 'Mansion block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 25.0, sim: home(24), note: 'Inter-war brick block: projecting end bays, stepped centre crown, stone entrance, tall stair window.', build: decoBlock },
+  { id: 'res.mid.maisonette', name: 'Maisonettes', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [3, 3], height: 11.0, sim: home(12), note: 'Three storeys reached off open stairs at each end, rendered panels between brick bays.', build: maisonettes },
+  { id: 'res.mid.gallery', name: 'Gallery access block', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [4, 3], height: 22.0, sim: home(20), note: 'Clad block with a glazed deck running its length, balconies on the living side.', build: galleryBlock },
+  { id: 'res.mid.shophouse', name: 'Shophouse row', zone: 'residential', density: 'medium', brand: BRANDS.bakery, variant: 'sculpted', footprint: [3, 2], height: 8.9, sim: home(4), note: 'Four shops with a flat over each, party walls carried through the roof.', build: shophouseRow },
+  { id: 'res.mid.almshouse', name: 'Almshouses', zone: 'residential', density: 'medium', variant: 'sculpted', footprint: [4, 3], height: 6.6, sim: home(7), note: 'Stone cottages round three sides of a green, chimney to each, railings to the street.', build: almshouses },
   { id: 'res.high.point', name: 'Point tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 79, sim: home(180), note: 'Podium and setback, vertical fins full height, balcony band every third floor.', build: pointTower },
   { id: 'res.high.slab', name: 'Slab tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [4, 2], height: 55, sim: home(190), note: 'Expressed cores at both ends, solid balconies across the sunny elevation.', build: slabTower },
   { id: 'res.high.glass', name: 'Stepped glass tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 91, sim: home(210), note: 'Three setbacks with a slab band at each, crown and mast.', build: glassTower },
   { id: 'res.high.terraced', name: 'Terraced tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 49, sim: home(120), note: 'Every floor steps back, so every flat gets a planted terrace.', build: terracedTower },
   { id: 'res.high.twin', name: 'Twin towers on a podium', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [4, 4], height: 51, sim: home(200), note: 'Two towers off a shared podium with a planted deck between them.', build: twinPodium },
   { id: 'res.high.estate', name: 'Estate tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 4], height: 56.1, sim: home(64), note: 'Brick infill in an expressed concrete frame, balconies both sides, stair core carried above the roof.', build: estateTower },
+  { id: 'res.high.clad', name: 'Clad tower', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [3, 3], height: 66.0, sim: home(78), note: 'Rewrapped in coloured panels, vertical fins on two faces, deeper reveal every third floor.', build: cladTower },
+  { id: 'res.high.stepped', name: 'Stepped slab', zone: 'residential', density: 'high', variant: 'sculpted', footprint: [4, 3], height: 34.0, sim: home(58), note: 'Long slab in three descending stages, a green roof terrace on each step, balconies throughout.', build: steppedSlab },
 ];
 
 void ring;
