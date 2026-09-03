@@ -569,7 +569,7 @@ function buildBar(onPick: (a: AssetDef) => void): void {
   const el = document.getElementById('legend');
   if (!el) return;
   const cell = (c: Tab | null, label: string, svg: string, n: number): string => {
-    const plain = c === null || c === FLEET_TAB || c === ROAD_TAB;
+    const plain = c === null || c === FLEET_TAB;
     const tone = plain ? { base: '#7c8798', deep: '#3d4655' } : paletteFor(c);
     return `<button class="cat" data-cat="${c ?? ''}" title="${label} (${n})"
       style="--c:${tone.base};--d:${tone.deep}">${svg}<span>${n}</span></button>`;
@@ -581,15 +581,13 @@ function buildBar(onPick: (a: AssetDef) => void): void {
     CATEGORIES.map((c) => cell(c, paletteFor(c).label, zoneIcon(c, 26),
       ASSETS.filter((a) => inCategory(a, c)).length)).join('') +
     cell(FLEET_TAB, 'Vehicles and people', '', fleetCount) +
-    cell(ROAD_TAB, 'Roads and bridges', '', roadCount);
+    cell(ROAD_TAB, 'Roads and bridges', zoneIcon('road', 26), roadCount);
   // The iconless tabs are words: "all" is not a zone, and neither vehicles nor
   // roads are something you paint on the map, so neither gets a zone badge.
   const tiles = el.querySelectorAll('.cat');
   tiles[0].innerHTML = `<span class="allx">all</span><span>${ASSETS.length}</span>`;
   tiles[tiles.length - 2].innerHTML =
     `<span class="allx">cars</span><span>${fleetCount}</span>`;
-  tiles[tiles.length - 1].innerHTML =
-    `<span class="allx">roads</span><span>${roadCount}</span>`;
 
   for (const b of el.querySelectorAll('.cat')) {
     b.addEventListener('click', () => {
@@ -652,7 +650,7 @@ function buildList(onPick: (a: AssetDef) => void): void {
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
-    const mark = cat === FLEET_TAB || cat === ROAD_TAB ? '' : zoneIcon(cat, 16);
+    const mark = cat === FLEET_TAB ? '' : zoneIcon(cat, 16);
     h.innerHTML = `${mark}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
     for (const a of assets) {

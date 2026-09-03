@@ -45,7 +45,7 @@ export interface Palette {
  * asset viewer, not something the player paints on the map, and giving them a
  * zone icon would put them in the toolbar as if they were.
  */
-export type IconZone = Exclude<Zone, 'fleet' | 'road'>;
+export type IconZone = Exclude<Zone, 'fleet'>;
 
 export const ZONE_STYLE: Record<IconZone, Palette> = {
   residential: {
@@ -72,6 +72,11 @@ export const ZONE_STYLE: Record<IconZone, Palette> = {
     label: 'Services',
     deep: '#3c4450', base: '#79879a', light: '#b3bfcd', wash: '#dde3ea',
     blurb: 'What the city provides for itself, and pays for every week.',
+  },
+  road: {
+    label: 'Roads',
+    deep: '#2b2f36', base: '#5d6672', light: '#98a2b0', wash: '#d3d8de',
+    blurb: 'Streets, junctions and bridges. Everything else is reached by them.',
   },
 };
 
@@ -306,6 +311,25 @@ const SCENES: Record<Category, Scene> = {
     { faces: box(1.15, 0.35, 1.6, 0.42, 2.0, 0.42), tone: 'accent' },
     { faces: box(-1.95, 2.35, 1.35, 3.85, 0.45, 0.95), tone: 'accent' },
     { faces: gabled(-1.95, 2.8, 1.35, 3.85, 0.05, 0.95, 0.85), tone: 'accent' },
+  ],
+
+  // Roads: a length of carriageway with a centre line, a kerb either side and
+  // one lit column. Built in the same isometric boxes as the zones, so the
+  // roads tab reads as part of the same set rather than as a flat pictogram.
+  road: [
+    { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
+    // The carriageway slab, then the two kerbs standing proud of it.
+    { faces: box(-1.5, 0, -2.6, 3.0, 0.34, 5.2), tone: 'dark' },
+    { faces: box(-2.1, 0, -2.6, 0.62, 0.52, 5.2), tone: 'body' },
+    { faces: box(1.5, 0, -2.6, 0.62, 0.52, 5.2), tone: 'body' },
+    // Centre line, in three dashes.
+    { faces: box(-0.16, 0.34, -2.2, 0.32, 0.06, 1.1), tone: 'accent' },
+    { faces: box(-0.16, 0.34, -0.55, 0.32, 0.06, 1.1), tone: 'accent' },
+    { faces: box(-0.16, 0.34, 1.1, 0.32, 0.06, 1.1), tone: 'accent' },
+    // A lamp column behind the near kerb, leaning over the road.
+    { faces: box(1.72, 0.52, -1.5, 0.2, 2.9, 0.2), tone: 'accent' },
+    { faces: box(0.75, 3.24, -1.5, 1.17, 0.2, 0.2), tone: 'accent' },
+    { faces: box(0.62, 3.06, -1.62, 0.5, 0.2, 0.44), tone: 'accent' },
   ],
 
   // ---- service branches ------------------------------------------------

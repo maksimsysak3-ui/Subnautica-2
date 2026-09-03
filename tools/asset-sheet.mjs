@@ -34,6 +34,8 @@ const ONLY = process.argv[4] ?? '';
  *   node tools/asset-sheet.mjs doors.png 0 com. street
  */
 const STREET = (process.argv[5] ?? '') === 'street';
+/** Optional close-up multiplier, for looking at one detail rather than a lot. */
+const ZOOM = Number(process.argv[6] ?? 1) || 1;
 const TILE = 512;          // 512 * 4 bytes is a multiple of the 256-byte row alignment
 const TILE_H = 576;
 const COLS = 6;
@@ -59,7 +61,7 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://localhost:4181/');
 
-const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET }) => {
+const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM }) => {
   const all = new Function(registry + '; return REG;')().ASSETS;
   // Same seed the game uses, so the sheet shows the colours the player sees.
   const idSeed = (id) => {
@@ -187,7 +189,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }
 
-    const dist = STREET ? Math.max(height * 2.2, radius * 1.15, 16) : Math.max(height * 1.5, radius * 3.4, 12);
+    const dist = (STREET ? Math.max(height * 2.2, radius * 1.15, 16)
+                         : Math.max(height * 1.5, radius * 3.4, 12)) / ZOOM;
     const target = STREET ? [0, Math.min(4.5, height * 0.42), 0] : [0, height * 0.45, 0];
     const yaw = STREET ? 0.30 : 0.95;
     const pitch = STREET ? 0.12 : 0.30;
@@ -265,7 +268,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
   }
 
   return { png: sheet.toDataURL('image/png'), stats, errors, diags };
-}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET });
+}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM });
 
 if (result.error || result.diags?.length) {
   console.error('FAIL', result.error ?? result.diags.join('; '));

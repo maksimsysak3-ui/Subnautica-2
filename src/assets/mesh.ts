@@ -155,6 +155,15 @@ export class MeshBuilder {
    * without a material per colour. Everything else ignores it.
    */
   private key = 0;
+  /**
+   * Set once dressRoof has run on this mesh.
+   *
+   * The registry dresses every zoned building's roof as a last pass, so a
+   * generator that never asked cannot end up with a bare lid. This is how it
+   * knows not to dress a roof its generator already dressed with options of
+   * its own -- which would find the new deck and stack a second tray on it.
+   */
+  roofDressed = false;
   /** Rotation and offset applied to everything emitted, or null for none. */
   private place: { cx: number; cz: number; q: number } | null = null;
 
@@ -628,6 +637,84 @@ export class MeshBuilder {
     if (over > best.area * 0.35) return null;
 
     return { y: bestY, min: [best.x0, best.z0], max: [best.x1, best.z1] };
+  }
+
+  /**
+   * The highest horizontal plane that has nothing standing on it.
+   *
+   * roofPlane() is deliberately strict -- it refuses a plane that something
+   * else covers, so a gabled block's own box top is never dressed. That
+   * strictness also makes it refuse plenty of genuinely bare tops: a podium
+   * with a stair core in one corner, a shed with a single vent. Those are the
+   * lids the audit reports, and they are the ones worth dressing, so they get
+   * a looser search of their own: the highest real horizontal plane with
+   * almost nothing above it.
+   */
+  bareRoofPlane(): { y: number; min: [number, number]; max: [number, number] } | null {
+    let top = -Infinity;
+    for (let i = 1; i < this.verts.length; i += FLOATS_PER_VERTEX) {
+      if (this.verts[i] > top) top = this.verts[i];
+    }
+    if (!Number.isFinite(top) || top < 3) return null;
+
+    const bins = new Map<number, { area: number; x0: number; x1: number; z0: number; z1: number }>();
+    const above: number[] = [];
+    for (let t = 0; t < this.idx.length; t += 3) {
+      const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
+      const cy = (this.verts[p[0] + 1] + this.verts[p[1] + 1] + this.verts[p[2] + 1]) / 3;
+      above.push(cy);
+      if (this.verts[p[0] + 4] < 0.995) continue;
+      const ux = this.verts[p[1]] - this.verts[p[0]];
+      const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
+      const wx = this.verts[p[2]] - this.verts[p[0]];
+      const wz = this.verts[p[2] + 2] - this.verts[p[0] + 2];
+      const area = Math.abs(ux * wz - uz * wx) / 2;
+      const k = Math.round(cy * 4) / 4;
+      const b = bins.get(k) ?? { area: 0, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+      b.area += area;
+      for (const q of p) {
+        b.x0 = Math.min(b.x0, this.verts[q]); b.x1 = Math.max(b.x1, this.verts[q]);
+        b.z0 = Math.min(b.z0, this.verts[q + 2]); b.z1 = Math.max(b.z1, this.verts[q + 2]);
+      }
+      bins.set(k, b);
+    }
+    let bestY: number | null = null;
+    let best: { area: number; x0: number; x1: number; z0: number; z1: number } | null = null;
+    for (const [y, b] of bins) {
+      if (b.area < 25 || y < top * 0.55) continue;
+      // A long thin plane is a canopy or a cornice, not a roof.
+      if (Math.min(b.x1 - b.x0, b.z1 - b.z0) < 4) continue;
+      // Bare: what stands on it is a handful of triangles, not a storey.
+      if (above.filter((cy) => cy > y + 0.35).length >= 24) continue;
+      if (bestY === null || y >= bestY) { bestY = y; best = b; }
+    }
+    if (bestY === null || best === null) return null;
+    return { y: bestY, min: [best.x0, best.z0], max: [best.x1, best.z1] };
+  }
+
+  /**
+   * Whether the given roof plane already has something standing round its edge.
+   *
+   * Used to decide whether a roof still wants a parapet. Measured rather than
+   * declared, because the caller that needs to know -- the pass that dresses
+   * every roof in the library -- has no idea what each generator built.
+   */
+  hasUpstand(roof: { y: number; min: [number, number]; max: [number, number] }): boolean {
+    const [x0, z0] = roof.min;
+    const [x1, z1] = roof.max;
+    const bx = (x1 - x0) * 0.1, bz = (z1 - z0) * 0.1;
+    let edge = 0;
+    for (let t = 0; t < this.idx.length; t += 3) {
+      const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
+      const cy = (this.verts[p[0] + 1] + this.verts[p[1] + 1] + this.verts[p[2] + 1]) / 3;
+      if (cy < roof.y + 0.15 || cy > roof.y + 2.5) continue;
+      const cx = (this.verts[p[0]] + this.verts[p[1]] + this.verts[p[2]]) / 3;
+      const cz = (this.verts[p[0] + 2] + this.verts[p[1] + 2] + this.verts[p[2] + 2]) / 3;
+      if (cx < x0 - 0.6 || cx > x1 + 0.6 || cz < z0 - 0.6 || cz > z1 + 0.6) continue;
+      const near = cx < x0 + bx || cx > x1 - bx || cz < z0 + bz || cz > z1 - bz;
+      if (near) edge++;
+    }
+    return edge >= 16;
   }
 
   /** World-space bounds of everything pushed so far. Cheap: no AO, no copy. */

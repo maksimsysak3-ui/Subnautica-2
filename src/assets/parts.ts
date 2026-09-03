@@ -65,9 +65,26 @@ function signPanel(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, 
 
 // ------------------------------------------------------------------- tops
 
-/** A lip around a flat roof. Without it a flat-roofed block is an extrusion. */
+/**
+ * A lip around a flat roof: four upstands and a coping, never a lid.
+ *
+ * This was one box spanning the whole footprint, which is a solid slab sitting
+ * on the building -- and since it was drawn *after* the roof clutter, it
+ * swallowed the clutter whole. Sixty-odd assets in the library had their plant
+ * sealed inside a concrete pancake, which is exactly the "flat texture roof"
+ * this was meant to prevent. Four upstands leave the deck between them
+ * visible, and the inside face of the upstand is what makes a flat roof read
+ * as a roof.
+ */
 export function parapet(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, y: number, h = 0.85, out = 0.18, mat: Material = MAT.TRIM): void {
-  m.box([x0 - out, y, z0 - out], [x1 + out, y + h, z1 + out], mat);
+  // Thick enough to have a readable inside face, thin enough to leave a deck.
+  const t = Math.min(Math.max(0.22, out * 1.4), Math.min(x1 - x0, z1 - z0) * 0.12);
+  m.box([x0 - out, y, z1 - t], [x1 + out, y + h, z1 + out], mat);
+  m.box([x0 - out, y, z0 - out], [x1 + out, y + h, z0 + t], mat);
+  m.box([x1 - t, y, z0 + t], [x1 + out, y + h, z1 - t], mat);
+  m.box([x0 - out, y, z0 + t], [x0 + t, y + h, z1 - t], mat);
+  // Coping over the upstand, oversailing both faces so it throws a shadow.
+  ring(m, x0, z0, x1, z1, y + h, 0.11, out, mat);
 }
 
 /**
@@ -154,9 +171,16 @@ export function roofClutter(m: MeshBuilder, x0: number, z0: number, x1: number, 
  * anything pitched.
  */
 export function dressRoof(m: MeshBuilder, lod: number, seed: number,
-  opts: { density?: number; parapet?: boolean; lights?: number } = {}): void {
+  opts: { density?: number; parapet?: boolean; lights?: number;
+    at?: { y: number; min: [number, number]; max: [number, number] } | null } = {}): void {
   if (lod >= 2) return;
-  const roof = m.roofPlane();
+  if (m.roofDressed) return;
+  m.roofDressed = true;
+  // The plane may be given rather than found. It has to be, when the caller is
+  // the registry dressing every asset in the library: a coarser LOD drops the
+  // clutter that made roofPlane reject a plane at LOD0, so the same building
+  // would grow a roof tray as it got simpler and the LOD ladder would climb.
+  const roof = opts.at !== undefined ? opts.at : m.roofPlane();
   if (roof === null) return;
   const [x0, z0] = roof.min;
   const [x1, z1] = roof.max;
@@ -164,29 +188,66 @@ export function dressRoof(m: MeshBuilder, lod: number, seed: number,
   const w = x1 - x0, d = z1 - z0;
   if (w < 4 || d < 4) return;
 
-  // Inset, so nothing sits on the very edge where a parapet would be.
-  const i = Math.min(1.2, Math.min(w, d) * 0.14);
-  roofClutter(m, x0 + i, z0 + i, x1 - i, z1 - i, y, seed, opts.density ?? 1);
+  // The roof is a closed tray built *on* the plane, never a recess cut into
+  // it. Additive geometry cannot cut a hole: the first attempt dropped the
+  // deck below the found plane, which put the whole tray inside the building
+  // and left the original bare lid as the only thing anyone could see.
+  //
+  // So: a new deck a few centimetres up, four upstands standing on it, and a
+  // coping over the top of those. The inside face of the upstand is what makes
+  // a flat roof read as a roof rather than as the top of an extrusion, and
+  // because the deck is above the old plane the tray is closed on all six
+  // sides -- no gap for the camera to see through at a low angle.
+  // Does it already have an upstand? Most generators ring their own roof, and
+  // a second parapet on top of the first is a wall standing on a wall. Asked
+  // of the mesh rather than passed in, because the caller here is the registry
+  // dressing a hundred and fifty buildings it knows nothing about.
+  const ringed = m.hasUpstand(roof);
+  const wall = Math.min(0.55, Math.min(w, d) * 0.06);
+  const deck = ringed ? y + 0.02 : y + 0.07;
+  const ax = x0 + wall, bx = x1 - wall, az = z0 + wall, bz = z1 - wall;
 
-  if (opts.parapet !== false) parapet(m, x0, z0, x1, z1, y, 0.75, 0.16);
+  if (opts.parapet !== false && !ringed) {
+    // A closed tray built *on* the plane. Additive geometry cannot cut a hole,
+    // so an earlier attempt that dropped the deck below the plane put the whole
+    // tray inside the building and left the bare lid as the only visible thing.
+    m.box([x0, y, z0], [x1, deck, z1], MAT.ROOF);
+    parapet(m, x0, z0, x1, z1, deck, 0.85, 0.16, MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [px, pz] of [[ax + 0.35, az + 0.05], [bx - 0.65, bz - 0.35]] as const) {
+        m.box([px, deck, pz], [px + 0.3, deck + 0.24, pz + 0.3], MAT.TRIM);
+      }
+    });
+  }
 
-  // Rooflights in a row, and the mansafe line that has to run past them.
+  // Plant stands on a raised kerb of its own, the way it actually does: a unit
+  // bolted straight to a membrane is how you get a leak.
+  const inset = Math.min(1.5, Math.min(w, d) * 0.17);
+  const px0 = x0 + inset, pz0 = z0 + inset, px1 = x1 - inset, pz1 = z1 - inset;
+  m.box([px0 - 0.2, deck, pz0 - 0.2], [px1 + 0.2, deck + 0.2, pz1 + 0.2], MAT.CONCRETE);
+  roofClutter(m, px0, pz0, px1, pz1, deck + 0.2, seed, opts.density ?? 1);
+
+  // Rooflights sit proud of the deck on their own upstands.
   const lights = opts.lights ?? Math.min(4, Math.max(0, Math.round(w / 9)));
   for (let k = 0; k < lights; k++) {
-    const cx = x0 + i + ((k + 0.5) / lights) * (w - 2 * i);
-    const cz = (z0 + z1) / 2 + (hash2(k, 5, seed) - 0.5) * d * 0.3;
-    m.box([cx - 0.9, y, cz - 0.7], [cx + 0.9, y + 0.22, cz + 0.7], MAT.CONCRETE);
-    m.box([cx - 0.8, y + 0.22, cz - 0.6], [cx + 0.8, y + 0.42, cz + 0.6], MAT.GLASS);
+    const cx = ax + ((k + 0.5) / lights) * (bx - ax);
+    const cz = (az + bz) / 2 + (hash2(k, 5, seed) - 0.5) * d * 0.28;
+    m.box([cx - 0.95, deck, cz - 0.75], [cx + 0.95, deck + 0.34, cz + 0.75], MAT.CONCRETE);
+    m.box([cx - 0.85, deck + 0.34, cz - 0.65], [cx + 0.85, deck + 0.56, cz + 0.65], MAT.GLASS);
   }
+
   m.painted(TINT.METAL_DARK, () => {
-    const cz = z0 + d * 0.62;
-    for (let k = 0; k <= Math.max(1, Math.round(w / 4)); k++) {
-      const cx = x0 + i + (k / Math.max(1, Math.round(w / 4))) * (w - 2 * i);
-      m.box([cx - 0.05, y, cz - 0.05], [cx + 0.05, y + 1.0, cz + 0.05], MAT.TRIM);
+    // Mansafe line down the roof, and a ladder up the inside of the upstand.
+    const cz = az + (bz - az) * 0.62;
+    const posts = Math.max(1, Math.round(w / 4));
+    for (let k = 0; k <= posts; k++) {
+      const cx = ax + (k / posts) * (bx - ax);
+      m.box([cx - 0.05, deck, cz - 0.05], [cx + 0.05, deck + 1.0, cz + 0.05], MAT.TRIM);
     }
-    m.box([x0 + i, y + 0.95, cz - 0.03], [x1 - i, y + 1.0, cz + 0.03], MAT.TRIM);
-    // A downpipe hopper at one corner: roofs drain somewhere.
-    m.box([x1 - i - 0.3, y, z0 + i, ], [x1 - i, y + 0.5, z0 + i + 0.3], MAT.TRIM);
+    m.box([ax, deck + 0.95, cz - 0.03], [bx, deck + 1.0, cz + 0.03], MAT.TRIM);
+    for (let yy = deck + 0.3; yy < deck + 0.8; yy += 0.32) {
+      m.box([bx - 0.7, yy, bz - 0.1], [bx - 0.2, yy + 0.05, bz - 0.04], MAT.TRIM);
+    }
   });
 }
 
