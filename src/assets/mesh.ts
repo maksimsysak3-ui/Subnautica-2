@@ -158,6 +158,18 @@ export const MAT = {
    * from world position, which an authored model has no way to do.
    */
   IMPORTED: 26,
+  /**
+   * Skin.
+   *
+   * Split out from FIGURE because FIGURE is a wardrobe: twelve colours, of
+   * which three are skin tones. A head keyed off the same palette as the coat
+   * came out olive or teal three times in four, which is why the figures read
+   * as mannequins with a grey slab for a face. Heads and hands take this
+   * instead, and the key picks a tone rather than a garment.
+   */
+  SKIN: 27,
+  /** Hair, for the same reason: five naturals, not the whole wardrobe. */
+  HAIR: 28,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

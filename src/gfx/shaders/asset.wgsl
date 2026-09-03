@@ -64,6 +64,7 @@ const MAT_RENDER    = 23u;
 const MAT_CAR_GLASS = 24u;
 const MAT_LAMP      = 25u;
 const MAT_IMPORTED  = 26u;
+const MAT_SKIN      = 27u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -744,6 +745,41 @@ fn figureColour(uv : vec2f, key : f32) -> vec3f {
 }
 
 /**
+ * Skin, from the part key.
+ *
+ * A separate ramp from figureColour rather than a slice of it: a head and a
+ * coat are keyed independently -- they have to be, or everyone is dressed in
+ * their own complexion -- so drawing both from one twelve-colour wardrobe put
+ * three quarters of the faces in the wrong colour entirely.
+ */
+fn skinColour(key : f32) -> vec3f {
+  let k = floor(key + 0.5);
+  let r = hash11(k * 2.71 + 5.3);
+  var base : vec3f;
+  if (r < 0.17)      { base = vec3f(0.520, 0.380, 0.300); }
+  else if (r < 0.34) { base = vec3f(0.440, 0.306, 0.232); }
+  else if (r < 0.52) { base = vec3f(0.330, 0.216, 0.152); }
+  else if (r < 0.70) { base = vec3f(0.226, 0.140, 0.094); }
+  else if (r < 0.86) { base = vec3f(0.140, 0.086, 0.058); }
+  else               { base = vec3f(0.082, 0.050, 0.036); }
+  return base * (0.94 + hash11(k * 9.1 + 2.7) * 0.14);
+}
+
+/** Hair: naturals only, plus the occasional dye. */
+fn hairColour(key : f32) -> vec3f {
+  let k = floor(key + 0.5);
+  let r = hash11(k * 4.13 + 17.7);
+  var base : vec3f;
+  if (r < 0.34)      { base = vec3f(0.036, 0.028, 0.026); }  // black
+  else if (r < 0.60) { base = vec3f(0.088, 0.058, 0.040); }  // dark brown
+  else if (r < 0.78) { base = vec3f(0.170, 0.108, 0.062); }  // brown
+  else if (r < 0.88) { base = vec3f(0.320, 0.230, 0.120); }  // fair
+  else if (r < 0.96) { base = vec3f(0.230, 0.096, 0.044); }  // auburn
+  else               { base = vec3f(0.520, 0.510, 0.500); }  // grey
+  return base * (0.90 + hash11(k * 6.3 + 1.1) * 0.20);
+}
+
+/**
  * A number plate, with its registration generated from the part key.
  *
  * Seven characters in the national pattern: two letters, two digits, a space,
@@ -926,6 +962,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 23u: { return renderPanel(uv, mpp, seed); }
     case 24u: { return carGlass(surf, key); }
     case 25u: { return lampColour(surf, key < 0.5); }
+    case 27u: { return skinColour(key); }
+    case 28u: { return hairColour(key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -1113,6 +1151,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // an imported mesh has glass, rubber and trim all on the same material,
     // so a highlight tuned for paint would put a shine on the tyres.
     gloss = 0.85; power = 160.0; fresnel = 0.34;
+  } else if (in.material == MAT_SKIN) {
+    // Skin is not matte: a face with no highlight at all is a mask, and the
+    // forehead and the bridge of the nose are where it shows.
+    gloss = 0.13; power = 20.0;
   } else if (in.material == MAT_CAR_GLASS) {
     gloss = 1.5; power = 260.0; fresnel = 0.66;
   } else if (in.material == MAT_DARK) {

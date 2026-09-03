@@ -406,12 +406,23 @@ function blob(m: MeshBuilder, c: Vec3, rx: number, ry: number, rz: number,
 /**
  * A person.
  *
- * Built from bones and rounded masses rather than boxes: hips, tapered thighs
- * and calves with a real knee, a torso that swells at the chest, arms with an
- * elbow, a neck, a rounded skull, and hair, all posed by angles rather than by
- * sliding blocks sideways. Every proportion and garment comes from the key, so
- * a crowd of twenty is twenty different people and the same key is the same
- * person every time.
+ * Proportioned to a real body at 1.75m: the hip at 0.53 of standing height,
+ * the shoulder at 0.82, the chin at 0.87, and a head an eighth of the whole.
+ * The previous figure had none of that -- a head a fifth of its height on a
+ * conical trunk with no waist, arms leaving a cylinder at the shoulder, and
+ * legs meeting at a point -- which is why it read as a shop dummy.
+ *
+ * What is here now: a pelvis, thighs from sockets set apart, knees, calves and
+ * shoes that point where the person is walking; a trunk lofted through hip,
+ * waist, chest and shoulder as ellipses rather than circles; deltoids where
+ * the arms leave the yoke; a neck with a head on it rather than in it; and a
+ * face built at the scale of a face, not of a mask -- a nose that stands two
+ * centimetres off the cheek, eyes set into sockets, brows and a mouth.
+ *
+ * Skin and hair come from their own materials rather than from the garment
+ * palette, so nobody has an olive face or teal hair. Every proportion, garment
+ * and tone comes from the key, so a crowd of twenty is twenty people and the
+ * same key is the same person every time.
  */
 function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
   opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number; lift?: number } = {}): void {
@@ -419,11 +430,11 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
     const v = Math.sin(key * 12.9898 + n * 78.233) * 43758.5453;
     return v - Math.floor(v);
   };
-  const s = (opts.scale ?? 1.0) * (0.93 + rnd(1) * 0.15);
+  const s = (opts.scale ?? 1.0) * (0.94 + rnd(1) * 0.13);
   const lift = opts.lift ?? 0;
   const stride = opts.stride ?? 0;
-  const broad = 0.88 + rnd(2) * 0.34;
-  const legLen = 0.80 + rnd(3) * 0.10;
+  const broad = 0.90 + rnd(2) * 0.26;            // build, shoulder to hip
+  const tall = 0.97 + rnd(3) * 0.07;
   const coat = rnd(4) > 0.62;
   const hair = rnd(5);
   const co = Math.cos(facing), si = Math.sin(facing);
@@ -434,13 +445,46 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
   const lb = (a: [number, number, number], b: [number, number, number],
     r0: number, r1: number, mat: Material, sides = 7): void =>
     bone(m, at(a[0], a[1], a[2]), at(b[0], b[1], b[2]), r0 * s, r1 * s, mat, sides);
+  /**
+   * A lofted stack of ellipses, in local (forward, up, half-wide, half-deep).
+   *
+   * The figures were built out of `bone`, which sweeps a circular section, so
+   * every one of them had a chest as deep as it was broad -- a sausage with
+   * arms. A human trunk is about two wide to one deep at the chest and narrows
+   * at the waist, and that ratio is most of what reads as a person at any
+   * distance. Same for a skull, which is longer front to back than it is wide.
+   */
+  const stack = (rings: Array<[number, number, number, number]>, mat: Material,
+    sides = 10): void => {
+    const put = (r: [number, number, number, number], k: number): Vec3 => {
+      const t = (k / sides) * Math.PI * 2;
+      return at(r[0] + Math.cos(t) * r[3], r[1], Math.sin(t) * r[2]);
+    };
+    for (let j = 0; j + 1 < rings.length; j++) {
+      const lo = rings[j], hi = rings[j + 1];
+      for (let k = 0; k < sides; k++) {
+        m.quad(put(lo, k), put(lo, k + 1), put(hi, k + 1), put(hi, k), mat);
+      }
+    }
+    // Caps, so the stack is a solid you cannot see down.
+    const f = rings[0], l = rings[rings.length - 1];
+    for (let k = 0; k < sides; k++) {
+      m.tri(put(f, k + 1), put(f, k), at(f[0], f[1], 0), mat);
+      m.tri(put(l, k), put(l, k + 1), at(l[0], l[1], 0), mat);
+    }
+  };
 
-  const hip = legLen;
-  const chest = hip + 0.32;
-  const shoulder = hip + 0.54;
-  const neck = shoulder + 0.05;
-  const crown = neck + 0.24;
-  const hw = 0.105 * broad;                      // half the width across the hips
+  // The skeleton, as fractions of a 1.75m body.
+  const ankle = 0.075 * tall;
+  const knee = 0.480 * tall;
+  const hip = 0.930 * tall;
+  const waist = 1.075 * tall;
+  const chest = 1.245 * tall;
+  const shoulder = 1.435 * tall;
+  const chin = 1.560 * tall;
+  const crown = 1.750 * tall;
+  const hw = 0.106 * broad;                      // half the width across the hips
+  const sw = 0.216 * broad;                      // half the width across the shoulders
 
   // Legs. The stride swings the whole leg about the hip, so the knee and the
   // foot follow it; the trailing leg is straighter than the leading one.
@@ -448,96 +492,162 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
     for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
       const swing = stride * sgn;
       const kneeF = swing * 0.55, footF = swing * 1.25;
-      const bend = Math.max(0, -sgn * stride) * 0.10;
-      lb([0, hip + 0.02, sz * hw], [kneeF, hip * 0.50 + bend, sz * hw * 0.92], 0.085, 0.062, MAT.FIGURE);
-      lb([kneeF, hip * 0.50 + bend, sz * hw * 0.92], [footF, 0.075, sz * hw * 0.86], 0.062, 0.045, MAT.FIGURE);
+      const bend = Math.max(0, -sgn * stride) * 0.09;
+      lb([0, hip - 0.02, sz * hw], [kneeF, knee + bend, sz * hw * 0.93], 0.076, 0.052, MAT.FIGURE, 6);
+      lb([kneeF, knee + bend, sz * hw * 0.93], [footF, ankle + 0.03, sz * hw * 0.88], 0.055, 0.042, MAT.FIGURE, 6);
     }
-    blob(m, at(0, hip + 0.02, 0), 0.115 * s, 0.11 * s, hw * 1.5 * s, MAT.FIGURE, 6, 2);
-  });
-  m.painted(TINT.METAL_DARK, () => {
-    for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
-      const footF = stride * sgn * 1.25;
-      lb([footF - 0.05, 0.045, sz * hw * 0.86], [footF + 0.11, 0.035, sz * hw * 0.86], 0.05, 0.04, MAT.TRIM, 6);
+    // Pelvis and the trunk above it, lofted through the waist and the chest.
+    stack([
+      // The pelvis tapers down between the thighs. Ending it in a flat ring
+      // wider than the legs left its bottom cap in the open as a pale shelf
+      // slung under the hips, which is what you saw first on every figure.
+      [0, hip - 0.16, hw * 0.86, hw * 0.74],
+      [0, hip - 0.09, hw * 1.20, hw * 0.98],
+      [0, hip + 0.04, hw * 1.26, hw * 1.00],
+      [0, waist, 0.116 * broad, 0.090 * broad],
+      [0, chest, 0.150 * broad, 0.120 * broad],
+      [0, chest + 0.11, 0.164 * broad, 0.116 * broad],
+      [0, shoulder, sw * 0.94, 0.108 * broad],
+      // The trapezius. Without it the neck rises out of a flat plate and the
+      // figure looks long-necked however short the neck actually is.
+      [0, shoulder + 0.050, 0.106 * broad, 0.084 * broad],
+    ], MAT.FIGURE, 9);
+    // A deltoid where each arm leaves the yoke. There was a bone straight
+    // across the shoulders as well, which at six sides is a plank: from the
+    // front every figure had a board nailed across its collarbones.
+    for (const sz of [1, -1] as const) {
+      blob(m, at(0, shoulder - 0.052, sz * sw * 0.88), 0.058 * s, 0.062 * s, 0.054 * s,
+        MAT.FIGURE, 6, 2);
     }
-  });
-
-  // Torso: hips to chest to shoulders, each ring wider than the last, and a
-  // coat that hangs past the hips on about a third of people.
-  m.keyed(key * 5 + 2, () => {
-    lb([0, hip - 0.02, 0], [0, chest, 0], 0.115 * broad, 0.135 * broad, MAT.FIGURE, 7);
-    lb([0, chest, 0], [0, shoulder, 0], 0.135 * broad, 0.125 * broad, MAT.FIGURE, 7);
-    // Shoulders: one bone across, which is what gives the figure a yoke.
-    lb([0, shoulder, -0.16 * broad], [0, shoulder, 0.16 * broad], 0.085, 0.085, MAT.FIGURE, 7);
-    if (coat) lb([0, hip - 0.26, 0], [0, hip + 0.06, 0], 0.14 * broad, 0.125 * broad, MAT.FIGURE, 7);
+    // A coat hangs past the hips on about a third of people.
+    if (coat) {
+      stack([
+        // Hem above the knee and drawn in, so a standing camera does not look
+        // up into an open box hanging between the legs.
+        [0, hip - 0.20, 0.138 * broad, 0.102 * broad],
+        [0, hip - 0.14, 0.152 * broad, 0.114 * broad],
+        [0, hip + 0.10, 0.142 * broad, 0.106 * broad],
+      ], MAT.FIGURE);
+    }
     // Arms, swinging opposite the legs, with the forearm angled in.
     for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
       const swing = stride * sgn * 0.8;
-      const az = sz * (0.16 * broad + 0.055);
-      lb([0, shoulder - 0.01, az], [swing * 0.7, chest - 0.06, az * 1.02], 0.062, 0.05, MAT.FIGURE);
-      lb([swing * 0.7, chest - 0.06, az * 1.02], [swing * 1.5, hip + 0.10, az * 0.94], 0.05, 0.04, MAT.FIGURE);
+      const az = sz * sw * 0.92;
+      lb([0, shoulder - 0.06, az], [swing * 0.7, chest - 0.10, az * 1.00], 0.058, 0.046, MAT.FIGURE);
+      lb([swing * 0.7, chest - 0.10, az], [swing * 1.5, hip + 0.02, az * 0.90], 0.046, 0.036, MAT.FIGURE);
     }
   });
-  // Hands, in the skin key rather than the garment key.
+  // Shoes. A round-ended stub from the bone helper is an ankle with a bulb on
+  // it: the leg tapered straight past it to a point and every figure walked on
+  // spikes. A shoe is a flat box, longer than it is wide and wider than it is
+  // tall, pointing the way the person is walking.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
+      const footF = stride * sgn * 1.25;
+      const az = sz * hw * 0.88;
+      const c = (f: number, y: number, z: number): Vec3 => at(footF + f, y, az + z);
+      const hf = 0.105, hz = 0.043, top = 0.066;
+      // Toe box lower than the heel, so the shoe has a profile from the side.
+      const p = [
+        c(-0.075, 0, -hz), c(hf, 0, -hz), c(hf, 0.030, -hz), c(-0.075, top, -hz),
+        c(-0.075, 0, hz), c(hf, 0, hz), c(hf, 0.030, hz), c(-0.075, top, hz),
+      ];
+      m.quad(p[0], p[1], p[2], p[3], MAT.TRIM);
+      m.quad(p[5], p[4], p[7], p[6], MAT.TRIM);
+      m.quad(p[4], p[5], p[1], p[0], MAT.TRIM);
+      m.quad(p[3], p[2], p[6], p[7], MAT.TRIM);
+      m.quad(p[1], p[5], p[6], p[2], MAT.TRIM);
+      m.quad(p[4], p[0], p[3], p[7], MAT.TRIM);
+    }
+  });
+
+  // Hands, and the head, in skin rather than in the wardrobe.
   m.keyed(key * 5 + 3, () => {
     for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
       const swing = stride * sgn * 0.8;
-      const az = sz * (0.16 * broad + 0.055) * 0.94;
-      blob(m, at(swing * 1.55, hip + 0.05, az), 0.045 * s, 0.055 * s, 0.035 * s, MAT.FIGURE, 6, 2);
+      const az = sz * sw * 0.92 * 0.90;
+      // Centred on the wrist, not below it. A hand hung 5cm clear left the
+      // forearm's end cap in the open, and a cone of six triangles facing away
+      // from the sun is a black spike -- which is what everyone was holding.
+      // Three rows, not two: a two-row blob is a bicone, and a downward-facing
+      // cone the size of a fist takes no light at all -- everybody appeared to
+      // be carrying a black spike in each hand.
+      blob(m, at(swing * 1.5, hip + 0.02, az), 0.046 * s, 0.060 * s, 0.038 * s, MAT.SKIN, 6, 3);
     }
-    // Neck, then the head. The head is built rather than marked: a skull, a
-    // jaw under and forward of it, ears on the sides, a brow, a nose, sockets
-    // with eyes in them and a mouth. A single ellipsoid with three dark dashes
-    // on the front is a bean with a face drawn on, which is what these were.
-    lb([0, shoulder - 0.02, 0], [0, neck + 0.05, 0], 0.054, 0.049, MAT.FIGURE, 8);
-    const hy = (neck + crown) / 2;
-    blob(m, at(-0.004, hy + 0.012, 0), 0.094 * s, 0.118 * s, 0.088 * s, MAT.FIGURE, 10, 4);
-    // Jaw and chin: forward and below the skull, and narrower than it.
-    blob(m, at(0.020, neck + 0.062, 0), 0.076 * s, 0.062 * s, 0.072 * s, MAT.FIGURE, 8, 3);
-    // Brow: a ridge across the top of the face, which is what puts the eyes
-    // in shadow and stops the front of the head reading as flat.
-    lb([0.058, neck + 0.176, -0.060], [0.058, neck + 0.176, 0.060], 0.020, 0.020, MAT.FIGURE, 6);
-    // Nose, from between the brows down and out.
-    lb([0.048, neck + 0.150, 0], [0.092, neck + 0.092, 0], 0.024, 0.015, MAT.FIGURE, 6);
+    // Neck: visible, and set back, because a head sitting straight on the
+    // shoulders is the other half of why these read as dummies.
+    lb([-0.014, shoulder - 0.06, 0], [-0.006, chin + 0.02, 0], 0.060, 0.054, MAT.SKIN, 8);
+    // Skull and jaw. The head is an eighth of standing height: 0.19m from
+    // chin to crown, 0.15 across. It was a fifth before, which is a toddler's
+    // proportion on an adult body.
+    const hy = (chin + crown) / 2;
+    stack([
+      [0, chin, 0.056, 0.058],
+      [0, chin + 0.030, 0.066, 0.072],
+      [0, chin + 0.062, 0.070, 0.078],
+      [0, hy + 0.010, 0.074, 0.082],
+      [0, crown - 0.048, 0.072, 0.078],
+      [0, crown - 0.014, 0.058, 0.062],
+      [0, crown, 0.030, 0.032],
+    ], MAT.SKIN, 9);
+    // Ears, flattened against the side of the skull at eye height. There were
+    // cheekbones too, and they were a mistake: a pale mass proud of the face
+    // either side of the nose reads at any distance as a mask, not a cheek.
     for (const sz of [1, -1] as const) {
-      // Ear: a small flattened mass on the side of the skull.
-      blob(m, at(-0.012, neck + 0.132, sz * 0.088), 0.020 * s, 0.036 * s, 0.014 * s, MAT.FIGURE, 5, 2);
-      // Cheekbone, which gives the face a plane either side of the nose.
-      blob(m, at(0.052, neck + 0.118, sz * 0.050), 0.030 * s, 0.028 * s, 0.032 * s, MAT.FIGURE, 5, 2);
+      blob(m, at(-0.014, chin + 0.098, sz * 0.072), 0.018 * s, 0.028 * s, 0.010 * s,
+        MAT.SKIN, 4, 2);
     }
+    // Brow ridge, then the nose from between the brows down and out. Two
+    // centimetres of relief, which is what a nose has; the old one stood off
+    // the face by four and a half and turned every figure into a gargoyle.
+    lb([0.058, chin + 0.118, -0.046], [0.058, chin + 0.118, 0.046], 0.014, 0.014, MAT.SKIN, 6);
+    lb([0.056, chin + 0.108, 0], [0.076, chin + 0.058, 0], 0.014, 0.011, MAT.SKIN, 6);
   });
-  // The eyes themselves: a pale eyeball with a dark iris in front of it, set
-  // under the brow rather than painted on the surface.
+  // Eyes: one dark mass each, set into the socket under the brow. A pale
+  // eyeball with an iris on it was two more masses on a face 15cm across, and
+  // between them and the cheekbones the head came out scribbled on.
   for (const sz of [1, -1] as const) {
-    m.painted(TINT.SIGN_LIT, () =>
-      blob(m, at(0.064, neck + 0.145, sz * 0.036), 0.019 * s, 0.017 * s, 0.024 * s, MAT.TRIM, 6, 2));
     m.painted(TINT.METAL_DARK, () =>
-      blob(m, at(0.076, neck + 0.145, sz * 0.036), 0.011 * s, 0.012 * s, 0.012 * s, MAT.TRIM, 5, 2));
+      blob(m, at(0.056, chin + 0.098, sz * 0.030), 0.009 * s, 0.008 * s, 0.013 * s,
+        MAT.TRIM, 5, 2));
   }
   m.painted(TINT.METAL_DARK, () => {
     // Brows, angled in towards the nose, and a mouth on the jaw.
     for (const sz of [1, -1] as const) {
-      lb([0.062, neck + 0.182, sz * 0.062], [0.070, neck + 0.176, sz * 0.016], 0.011, 0.011, MAT.TRIM, 4);
+      lb([0.058, chin + 0.124, sz * 0.048], [0.064, chin + 0.118, sz * 0.014], 0.006, 0.006,
+        MAT.TRIM, 4);
     }
-    lb([0.074, neck + 0.048, -0.026], [0.074, neck + 0.048, 0.026], 0.010, 0.010, MAT.TRIM, 4);
+    lb([0.060, chin + 0.030, -0.020], [0.060, chin + 0.030, 0.020], 0.007, 0.007, MAT.TRIM, 4);
   });
-  // Hair: a cap over the skull, longer at the back on some.
-  if (hair > 0.12) {
+  // Hair: a shell over the skull in hair colours, longer at the back on some.
+  if (hair > 0.10) {
     m.keyed(key * 5 + 4, () => {
-      blob(m, at(-0.012, crown - 0.085, 0), 0.092 * s, 0.095 * s, 0.088 * s, MAT.FIGURE, 6, 2);
-      if (hair > 0.45) lb([-0.05, crown - 0.02, 0], [-0.075, neck + 0.02, 0], 0.075, 0.062, MAT.FIGURE, 7);
-      if (hair > 0.78) lb([-0.07, neck + 0.04, 0], [-0.085, shoulder + 0.02, 0], 0.07, 0.055, MAT.FIGURE, 7);
+      stack([
+        [0, chin + 0.104, 0.076, 0.084],
+        [0, crown - 0.044, 0.078, 0.084],
+        [0, crown - 0.010, 0.062, 0.066],
+        [0, crown + 0.008, 0.030, 0.032],
+      ], MAT.HAIR, 8);
+      if (hair > 0.45) lb([-0.056, crown - 0.030, 0], [-0.070, chin + 0.070, 0], 0.062, 0.056,
+        MAT.HAIR, 7);
+      if (hair > 0.78) lb([-0.068, chin + 0.060, 0], [-0.076, shoulder + 0.03, 0], 0.058, 0.046,
+        MAT.HAIR, 7);
     });
   }
   if (opts.hat) {
     m.painted(TINT.METAL_DARK, () => {
-      lb([0.01, crown - 0.02, 0], [0.01, crown + 0.02, 0], 0.145, 0.145, MAT.TRIM, 7);
-      lb([0, crown + 0.01, 0], [0, crown + 0.11, 0], 0.085, 0.078, MAT.TRIM, 7);
+      lb([0.012, crown - 0.028, 0], [0.012, crown - 0.008, 0], 0.120, 0.120, MAT.TRIM, 8);
+      lb([0, crown - 0.014, 0], [0, crown + 0.078, 0], 0.076, 0.070, MAT.TRIM, 8);
     });
   }
   if (opts.bag) {
     m.keyed(key * 5 + 7, () => {
-      blob(m, at(-0.02, chest - 0.04, 0.21 * broad), 0.075 * s, 0.13 * s, 0.055 * s, MAT.FIGURE, 6, 2);
-      lb([0, shoulder, 0.06], [-0.02, chest + 0.02, 0.20 * broad], 0.022, 0.022, MAT.FIGURE, 5);
+      // A shoulder bag hangs at the hip on a strap across the chest -- it was
+      // slung on the chest itself, which read as a slab of body armour.
+      blob(m, at(-0.05, hip + 0.06, 0.21 * broad), 0.075 * s, 0.095 * s, 0.045 * s,
+        MAT.FIGURE, 6, 2);
+      lb([0, shoulder - 0.04, -0.05], [-0.05, hip + 0.16, 0.20 * broad], 0.018, 0.018,
+        MAT.FIGURE, 4);
     });
   }
 }
@@ -609,17 +719,17 @@ function pedestrians(lod: number): MeshBuilder {
         bone(m, [sx0 + dz, 0.68, 2.34], [sx0 + dz, 0.66, 1.84], 0.085, 0.062, MAT.FIGURE, 6);
         bone(m, [sx0 + dz, 0.66, 1.84], [sx0 + dz, 0.10, 1.76], 0.062, 0.045, MAT.FIGURE, 6);
       }
-      blob(m, [sx0, 0.70, 2.30], 0.11, 0.10, 0.16, MAT.FIGURE, 7, 2);
-      bone(m, [sx0, 0.70, 2.34], [sx0, 1.06, 2.42], 0.125, 0.135, MAT.FIGURE, 8);
-      bone(m, [sx0, 1.06, 2.42], [sx0, 1.28, 2.44], 0.135, 0.115, MAT.FIGURE, 8);
+      blob(m, [sx0, 0.70, 2.30], 0.13, 0.11, 0.17, MAT.FIGURE, 7, 3);
+      bone(m, [sx0, 0.70, 2.34], [sx0, 1.06, 2.42], 0.150, 0.164, MAT.FIGURE, 8);
+      bone(m, [sx0, 1.06, 2.42], [sx0, 1.28, 2.44], 0.164, 0.140, MAT.FIGURE, 8);
       for (const dz of [-0.16, 0.16] as const) {
-        bone(m, [sx0 + dz, 1.24, 2.42], [sx0 + dz, 0.92, 2.20], 0.055, 0.045, MAT.FIGURE, 6);
+        bone(m, [sx0 + dz, 1.24, 2.42], [sx0 + dz, 0.92, 2.20], 0.062, 0.050, MAT.FIGURE, 6);
         bone(m, [sx0 + dz, 0.92, 2.20], [sx0 + dz, 0.78, 1.96], 0.045, 0.038, MAT.FIGURE, 6);
       }
-      bone(m, [sx0, 1.26, 2.44], [sx0, 1.38, 2.44], 0.048, 0.046, MAT.FIGURE, 7);
-      blob(m, [sx0, 1.50, 2.42], 0.088, 0.112, 0.084, MAT.FIGURE, 9, 4);
-      blob(m, [sx0, 1.44, 2.34], 0.070, 0.058, 0.066, MAT.FIGURE, 7, 3);
-      bone(m, [sx0, 1.50, 2.30], [sx0, 1.46, 2.24], 0.022, 0.014, MAT.FIGURE, 5);
+      bone(m, [sx0, 1.26, 2.44], [sx0, 1.40, 2.44], 0.056, 0.052, MAT.SKIN, 7);
+      blob(m, [sx0, 1.50, 2.42], 0.084, 0.106, 0.080, MAT.SKIN, 8, 4);
+      blob(m, [sx0, 1.44, 2.34], 0.066, 0.056, 0.062, MAT.SKIN, 7, 3);
+      bone(m, [sx0, 1.50, 2.30], [sx0, 1.46, 2.24], 0.018, 0.012, MAT.SKIN, 5);
     });
     m.painted(TINT.METAL_DARK, () => {
       for (const dz of [-0.035, 0.035] as const) {
@@ -627,7 +737,7 @@ function pedestrians(lod: number): MeshBuilder {
       }
       bone(m, [sx0 - 0.026, 1.415, 2.30], [sx0 + 0.026, 1.415, 2.30], 0.009, 0.009, MAT.TRIM, 4);
     });
-    m.keyed(437, () => blob(m, [sx0, 1.575, 2.44], 0.093, 0.082, 0.088, MAT.FIGURE, 8, 3));
+    m.keyed(437, () => blob(m, [sx0, 1.575, 2.44], 0.089, 0.078, 0.084, MAT.HAIR, 8, 3));
     // A lamp column and a bin, so the pavement is a street and not a stage.
     m.painted(TINT.METAL_DARK, () => {
       m.box([3.6, 0.14, 2.3], [4.0, 0.44, 2.7], MAT.TRIM);
