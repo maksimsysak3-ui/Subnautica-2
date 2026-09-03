@@ -4,18 +4,29 @@ Turns the USDZ car packs into data the game can load.
 Run once, offline, and commit what it writes. It is a build-time tool, not
 part of the game: the game has no USD parser and never sees a .usdz.
 
-Three things this has to get right, none of them obvious from the file:
+The hard part is that a pack is a scene, not a list of vehicles, and none of
+the three is arranged the way you would hope. In one, a mesh is a whole row of
+cars' worth of wheels. In another the meshes are merged BY MATERIAL across the
+entire scene, so one "mesh" is every windscreen in the pack and another is
+every body panel. Only the smallest has one mesh per vehicle.
 
-A pack is a scene, not a list of vehicles. In the largest one the car bodies
-are one set of meshes and the wheels are a handful of shared meshes that each
-span a whole row of cars -- so a vehicle is a body plus whatever slice of the
-shared meshes stands inside its own footprint. Taking the bodies alone gives
-forty-five cars with no wheels.
+So nothing here trusts the mesh boundaries. Every triangle in the pack is
+thrown into one pile and the pile is cut back into vehicles geometrically: bin
+the triangles on a coarse grid, join touching bins, and each connected island
+is a vehicle. Islands too big to be one vehicle -- two cars parked close
+enough to touch -- are cut again at the widest gap across them. An earlier
+version tried to tell bodies from shared parts by their size and hand each
+body the wheels nearest it, and it swapped roofs between neighbours and tore
+panels off half the pack.
 
-Most of those bodies are the same geometry with a different texture, which is
-how the pack gets nine colours of one hatchback. Storing them as nine models
-would be nine copies of the mesh; instead identical geometry is stored once as
-a shape and each vehicle keeps only its own colour buffer.
+Scale is per pack, not per vehicle: the median vehicle in a pack is taken to
+be 4.5m and everything else is measured against it, so a box truck comes out
+bigger than a hatchback instead of every model being stretched to a length
+somebody typed in.
+
+Most bodies are the same geometry in a different livery, which is how a pack
+gets nine colours of one hatchback. Identical geometry is stored once as a
+shape and each vehicle keeps only its own colour buffer.
 
 Colour comes from the material: sampled from the texture at each triangle's UV
 centroid where there is one, which works because a low-poly atlas is flat
@@ -27,6 +38,7 @@ is not.
 """
 
 import base64
+import math
 import hashlib
 import io
 import json
@@ -41,33 +53,34 @@ from PIL import Image
 PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
          'Low_Poly_cars_pack.usdz']
 
-# What each shape is, once it has been identified by rendering it. Keyed by the
-# name of the first body mesh that produced the shape. Real manufacturer names
-# are trademarks and every brand in this library is fictional on purpose, so
-# the models are named for what they are.
-NAMES = {
-    'Zenvo': ('hypercar', 'Hypercar', 4.7),
-    'Sterrato': ('rallysuper', 'Rally supercar', 4.6),
-    'Artura': ('midsuper', 'Mid-engined supercar', 4.6),
-    'Mercedes': ('luxsaloon', 'Luxury saloon', 5.0),
-    'Ford': ('hothatch', 'Hot hatch', 4.4),
-    'Ferrari': ('supercar', 'Supercar', 4.7),
-    'Land_Rover': ('luxsuv', 'Luxury SUV', 5.0),
-    'Transport1': ('boxtruck', 'Box truck', 6.6),
-    'Transport2': ('icecream', 'Ice cream van', 5.4),
-    'Transport3': ('ambulance', 'Ambulance', 5.9),
-    'Transport4': ('oldsaloon', 'Old saloon', 4.6),
-    'Transport5': ('bubblecar', 'Bubble car', 4.1),
-    'Transport6': ('police', 'Police car', 4.8),
-    'Transport7': ('compactsuv', 'Compact SUV', 4.3),
-    'Object_0': ('saloon', 'Saloon', 4.7),
-    'Object_2': ('hatchback', 'Hatchback', 4.0),
-    'Object_7': ('pickup', 'Pickup truck', 5.4),
-    'Object_12': ('van', 'Panel van', 5.4),
-    'Object_18': ('estate', 'Estate', 4.8),
-    'Object_27': ('pickup4x4', 'Off-road pickup', 5.6),
-    'Object_28': ('trailer', 'Tipping trailer', 4.4),
-}
+#: Every vehicle in a pack is measured against this one, in metres.
+TYPICAL = 4.5
+
+#: What to call a shape, from its measurements.
+#:
+#: Real manufacturer names are trademarks and every brand in this library is
+#: fictional on purpose, so a model is named for what it is. Height over length
+#: does most of the work: it is about 0.24 on a supercar, 0.32 on a saloon,
+#: 0.38 on an SUV and 0.45 upwards on a van, and it does not care how big the
+#: pack drew things.
+def classify(length, height):
+    """The key and label for a vehicle of these measurements, in metres."""
+    ratio = height / max(length, 1e-6)
+    if length >= 6.0:
+        return 'truck', 'Truck'
+    if ratio >= 0.42:
+        return ('van', 'Van') if length >= 4.2 else ('microvan', 'Small van')
+    if ratio >= 0.355:
+        return ('suv', 'SUV') if length >= 4.2 else ('crossover', 'Crossover')
+    if ratio <= 0.285:
+        return 'sports', 'Sports car'
+    if length < 3.8:
+        return 'citycar', 'City car'
+    if length >= 4.7:
+        return 'estate', 'Estate'
+    if length >= 4.2:
+        return 'saloon', 'Saloon'
+    return 'hatchback', 'Hatchback'
 
 
 def texture_lookup(usdz_path):
@@ -149,86 +162,136 @@ def read_mesh(prim, textures):
     return tris, box
 
 
-def vehicles_in(path):
-    """Groups of triangles, one per vehicle, keyed by the body mesh's name."""
+def all_triangles(path):
+    """Every triangle in the pack, in world space, with its colour."""
     stage = Usd.Stage.Open(str(path))
     textures = texture_lookup(path)
-    groups = {}
+    out = []
     for prim in stage.Traverse():
-        if not prim.IsA(UsdGeom.Mesh):
-            continue
-        parts = str(prim.GetPath()).split('/')
-        key = parts[parts.index('RootNode') + 1] if 'RootNode' in parts else prim.GetName()
-        groups.setdefault(key, []).append(prim)
-
-    read = {}
-    for key, prims in groups.items():
-        tris, boxes = [], []
-        for p in prims:
-            t, b = read_mesh(p, textures)
-            tris += t
-            if b:
-                boxes.append(b)
-        if not tris:
-            continue
-        box = (min(b[0] for b in boxes), max(b[1] for b in boxes),
-               min(b[2] for b in boxes), max(b[3] for b in boxes),
-               min(b[4] for b in boxes), max(b[5] for b in boxes))
-        read[key] = (tris, box)
-
-    # A body is a group whose plan is about the size of a vehicle. A shared
-    # parts mesh -- the wheels for a whole row -- is much longer than it is
-    # wide, or much wider than any single car, so it fails that test.
-    span = lambda b: (b[1] - b[0], b[5] - b[4])
-    sizes = sorted(max(span(b)) for _, b in read.values())
-    typical = sizes[len(sizes) // 2]
-    bodies, shared = {}, {}
-    for key, (tris, box) in read.items():
-        w, d = span(box)
-        bodies[key] = (tris, box) if max(w, d) < typical * 2.2 else None
-        if bodies[key] is None:
-            shared[key] = tris
-        else:
-            bodies[key] = (tris, box)
-    bodies = {k: v for k, v in bodies.items() if v is not None}
-
-    # Assign each shared triangle to the nearest body rather than to every
-    # body whose padded box it happens to fall in. Overlapping boxes let one
-    # car pick up its neighbour's wheels, which is invisible in a render and
-    # fatal to shape sharing: two cars of the same model then hash differently
-    # and the pack stores forty copies of one hatchback.
-    out = {key: list(tris) for key, (tris, _) in bodies.items()}
-    centres = [(key, (box[0] + box[1]) / 2, (box[4] + box[5]) / 2)
-               for key, (_, box) in bodies.items()]
-    reach = max(max(span(box)) for _, box in bodies.values()) * 1.2
-    for tset in shared.values():
-        for corner, col in tset:
-            cx = sum(p[0] for p in corner) / 3.0
-            cz = sum(p[2] for p in corner) / 3.0
-            key, d = min(((k, (cx - x) ** 2 + (cz - z) ** 2) for k, x, z in centres),
-                         key=lambda kv: kv[1])
-            if d <= reach * reach:
-                out[key].append((corner, col))
+        if prim.IsA(UsdGeom.Mesh):
+            out += read_mesh(prim, textures)[0]
     return out
 
 
-def pack_vehicle(tris, target_len):
-    """Recentre, stand on the ground, face +x, scale to a real length."""
+def components(tris):
+    """
+    Indices of the triangles in each welded surface, as lists.
+
+    Nothing in these packs respects vehicle boundaries -- one is merged by
+    material across the whole scene, so a single "mesh" is every windscreen in
+    it -- but the surfaces themselves do: a car's bodywork is one connected
+    sheet of triangles and its neighbour's is another, whatever file they are
+    stored in. So the vertices are welded on position and the triangles joined
+    through them. This cannot cut a car in half or fuse two together, which
+    every geometric guess at the same problem did.
+    """
+    ids, parent, faces = {}, [], []
+    for corner, _ in tris:
+        row = []
+        for p in corner:
+            k = (round(p[0], 2), round(p[1], 2), round(p[2], 2))
+            if k not in ids:
+                ids[k] = len(parent)
+                parent.append(len(parent))
+            row.append(ids[k])
+        faces.append(row)
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for row in faces:
+        for k in (1, 2):
+            ra, rb = find(row[0]), find(row[k])
+            if ra != rb:
+                parent[ra] = rb
+    out = {}
+    for i, row in enumerate(faces):
+        out.setdefault(find(row[0]), []).append(i)
+    return list(out.values())
+
+
+def box_of(group, tris):
+    """(minx, maxx, miny, maxy, minz, maxz) of a group of triangles."""
+    pts = [p for i in group for p in tris[i][0]]
+    return (min(p[0] for p in pts), max(p[0] for p in pts),
+            min(p[1] for p in pts), max(p[1] for p in pts),
+            min(p[2] for p in pts), max(p[2] for p in pts))
+
+
+def vehicles_in(path):
+    """
+    The vehicles in a pack, as lists of triangles, plus the pack's scale.
+
+    Welded surfaces are the atoms; a vehicle is every surface standing on the
+    same patch of ground. Two surfaces are the same vehicle when their plans
+    overlap, which is true of a car's paint, trim, glass, lights and wheels and
+    false of its neighbour parked half a metre away -- so the whole business
+    needs no size rule and cannot mistake a long van for two cars.
+
+    Surfaces are welded per file but not across cars, so this holds even in the
+    pack whose meshes are merged by material across the entire scene.
+    """
+    tris = all_triangles(path)
+    groups = components(tris)
+    boxes = [box_of(g, tris) for g in groups]
+
+    parent = list(range(len(groups)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    # Overlap has to be a real overlap, not a shared edge, or a row of cars
+    # bumper to bumper joins up into one very long vehicle.
+    scale_guess = max(max(b[1] - b[0], b[5] - b[4]) for b in boxes)
+    eps = scale_guess * 0.004
+    order = sorted(range(len(groups)), key=lambda i: boxes[i][0])
+    for a in range(len(order)):
+        ba = boxes[order[a]]
+        for b in range(a + 1, len(order)):
+            bb = boxes[order[b]]
+            if bb[0] > ba[1]:
+                break                       # sorted on x: nothing further can touch
+            if min(ba[1], bb[1]) - max(ba[0], bb[0]) > eps and \
+               min(ba[5], bb[5]) - max(ba[4], bb[4]) > eps:
+                ra, rb = find(order[a]), find(order[b])
+                if ra != rb:
+                    parent[ra] = rb
+    merged = {}
+    for i in range(len(groups)):
+        merged.setdefault(find(i), []).extend(groups[i])
+
+    span = lambda b: max(b[1] - b[0], b[5] - b[4])
+    vehicles = [[tris[i] for i in g] for g in merged.values() if len(g) >= 200]
+    lengths = sorted(span(box_of(range(len(v)), v)) for v in vehicles)
+    # One scale for the whole pack, from its median vehicle, so a truck stays
+    # bigger than a hatchback instead of every model being stretched to a
+    # length somebody typed in.
+    scale = TYPICAL / max(lengths[len(lengths) // 2], 1e-6)
+    return vehicles, scale
+
+
+def pack_vehicle(tris, scale):
+    """Recentre, stand on the ground, face +x, and scale into metres."""
     xs = [p[0] for t, _ in tris for p in t]
     ys = [p[1] for t, _ in tris for p in t]
     zs = [p[2] for t, _ in tris for p in t]
     ex, ez = max(xs) - min(xs), max(zs) - min(zs)
     swap = ez > ex
-    s = target_len / max(ex, ez, 1e-6)
     cx, cz, y0 = (max(xs) + min(xs)) / 2, (max(zs) + min(zs)) / 2, min(ys)
 
     seen, order, index = {}, [], []
     for corner, col in tris:
         for p in corner:
-            x, z = (p[0] - cx) * s, (p[2] - cz) * s
+            x, z = (p[0] - cx) * scale, (p[2] - cz) * scale
             if swap:
                 x, z = z, -x
-            key = (round(x, 4), round((p[1] - y0) * s, 4), round(z, 4),
+            key = (round(x, 4), round((p[1] - y0) * scale, 4), round(z, 4),
                    round(col[0], 3), round(col[1], 3), round(col[2], 3))
             i = seen.get(key)
             if i is None:
@@ -243,73 +306,52 @@ def b64(b):
     return base64.b64encode(bytes(b)).decode()
 
 
-def geo_hash(tris):
+def geo_hash(order, index):
     """
     Identity of a shape: where its triangles are, and nothing else.
 
     Colour is deliberately not in it -- the whole point is that nine liveries
     of one hatchback come out as one shape. Neither is triangle order, because
-    a vehicle's wheels are sliced out of a mesh shared with its neighbours and
-    arrive in whatever order that mesh happened to store them. So: recentre,
-    scale to unit length, round to a few millimetres, sort.
+    the triangles of a vehicle are gathered from wherever in the scene they
+    happened to be stored. Positions are already in metres at the pack's own
+    scale by the time this runs, so two copies of one body agree to the
+    millimetre and hash the same.
     """
-    xs = [p[0] for t, _ in tris for p in t]
-    ys = [p[1] for t, _ in tris for p in t]
-    zs = [p[2] for t, _ in tris for p in t]
-    ex, ez = max(xs) - min(xs), max(zs) - min(zs)
-    s = 1.0 / max(ex, ez, 1e-6)
-    cx, cz, y0 = (max(xs) + min(xs)) / 2, (max(zs) + min(zs)) / 2, min(ys)
-    rows = []
-    for corner, _ in tris:
-        rows.append(tuple(sorted(
-            (round((p[0] - cx) * s, 3), round((p[1] - y0) * s, 3),
-             round((p[2] - cz) * s, 3)) for p in corner)))
-    return hashlib.sha1(json.dumps(sorted(rows)).encode()).hexdigest()[:12]
+    rows = sorted(
+        tuple(sorted((round(order[index[i + k]][0], 3),
+                      round(order[index[i + k]][1], 3),
+                      round(order[index[i + k]][2], 3)) for k in range(3)))
+        for i in range(0, len(index), 3))
+    return hashlib.sha1(json.dumps(rows).encode()).hexdigest()[:12]
 
 
 def main(src_dir, out_path):
     src = Path(src_dir)
 
-    # Read every vehicle in every pack first. A pack is mostly one body in
-    # several liveries, and only one of those liveries carries the mesh name
-    # NAMES knows; the others have to be recognised by their geometry. So the
-    # grouping is done on a length-normalised copy -- scaling to a real length
-    # can't come first, because a variant would not know which length to use
-    # and a millimetre of difference puts it in a group of its own. That was
-    # the bug that dropped fifty-nine vehicles to twenty-one.
+    # Read every vehicle in every pack first, so a shape can be recognised
+    # across packs and named once from its measurements.
     found = []
     for f in PACKS:
-        print('==', f)
-        for key, tris in vehicles_in(src / f).items():
-            found.append((key, tris, geo_hash(tris)))
-            print(f'  read {key:14s} {len(tris):6d} tris')
+        groups, scale = vehicles_in(src / f)
+        print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
+        for tris in groups:
+            order, index = pack_vehicle(tris, scale)
+            found.append((geo_hash(order, index), order, index))
 
-    # One spec per geometry group, from whichever member of it is named.
-    spec_of = {}
-    for key, _, norm in found:
-        if key in NAMES:
-            spec_of.setdefault(norm, NAMES[key])
-    unnamed = 0
-    for _, _, norm in found:
-        if norm not in spec_of:
-            unnamed += 1
-            spec_of[norm] = (f'other{unnamed}', f'Car {unnamed}', 4.6)
-
-    shapes, models, counts = {}, {}, {}
-    for key, tris, norm in found:
-        spec = spec_of[norm]
-        order, index = pack_vehicle(tris, spec[2])
-        # Whatever is left of a shared parts mesh after every body has taken
-        # its own wheels is a strip of loose spares lying on the ground. It
-        # passes the size test -- it is car-sized -- but nothing that stands
-        # under a metre tall once scaled is a vehicle.
-        if max(v[1] for v in order) < 0.9:
-            print(f'  skip {key} ({len(index)//3} tris of loose parts)')
+    # One name per geometry, from its size, and a running number per class.
+    named, counts = {}, {}
+    for geo, order, _ in found:
+        if geo in named:
             continue
-        # Positions are shared; only the colour buffer differs per livery, and
-        # the vertex dedup keys on colour too, so a shape is only reusable when
-        # the buffers line up exactly. Cache the first one under the group.
-        geo = norm
+        length = max(v[0] for v in order) - min(v[0] for v in order)
+        height = max(v[1] for v in order)
+        key, label = classify(length, height)
+        counts[key] = n = counts.get(key, 0) + 1
+        named[geo] = (key, label, n)
+
+    shapes, models, seen = {}, {}, {}
+    for geo, order, index in found:
+        key, label, n = named[geo]
         if geo not in shapes:
             xs = [v[0] for v in order]
             ys = [v[1] for v in order]
@@ -332,27 +374,23 @@ def main(src_dir, out_path):
                 'verts': b64(buf),
                 'index': b64(ib),
                 'count': len(index),
-                'label': spec[0],
+                'label': key,
             }
         cbuf = bytearray()
         for v in order:
             for i in range(3):
                 cbuf.append(max(0, min(255, int(round(srgb_to_linear(v[3 + i]) * 255)))))
-        base = spec[0]
-        n = counts[base] = counts.get(base, 0) + 1
-        # Second and later liveries take a dash rather than a bare digit, so
-        # 'other1' and its second copy don't collide with the group 'other12'.
-        aid = f'car.{base}' + ('' if n == 1 else f'-{n}')
-        # Liveries of a named shape number ('Saloon 2'); liveries of an
-        # unnamed one letter, because 'Car 9 2' reads as two numbers.
-        suffix = '' if n == 1 else \
-            chr(ord('a') + n - 1) if spec[1][-1].isdigit() else f' {n}'
+        # Liveries of one shape share its number and take a letter.
+        seen[geo] = liv = seen.get(geo, 0) + 1
+        base = f'{key}{n}'
+        aid = f'car.{base}' + ('' if liv == 1 else chr(ord('a') + liv - 1))
         models[aid] = {
-            'name': spec[1] + suffix,
+            'name': f'{label} {n}' + ('' if liv == 1 else chr(ord('a') + liv - 1)),
             'shape': geo,
             'colour': b64(cbuf),
         }
-        print(f'  {aid:22s} {len(index)//3:6d} tris  shape {geo}')
+        length = max(v[0] for v in order) - min(v[0] for v in order)
+        print(f'  {aid:18s} {len(index)//3:6d} tris  {length:4.1f}m  shape {geo}')
 
     body = json.dumps({'shapes': shapes, 'models': models}, separators=(',', ':'))
     header = (
