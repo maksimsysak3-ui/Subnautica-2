@@ -30,7 +30,15 @@
  * between a building and a box.
  */
 
-export const FLOATS_PER_VERTEX = 12;
+/**
+ * Thirteen: position, normal, material, occlusion, tint, surface coordinates,
+ * part key, and a packed vertex colour.
+ *
+ * The colour is one float carrying four bytes rather than three floats, so
+ * importing coloured meshes cost the vertex one slot instead of three. It is
+ * only read by the imported material; everything generated leaves it zero.
+ */
+export const FLOATS_PER_VERTEX = 13;
 
 /** Which face of a box to leave out. Used where one is buried in another solid. */
 export type Face = '+x' | '-x' | '+z' | '-z' | '+y';
@@ -144,6 +152,12 @@ export const MAT = {
    * else a tail light.
    */
   LAMP: 25,
+  /**
+   * An imported mesh: takes its colour from the vertex rather than from a
+   * pattern. Everything else in the library is generated and shades itself
+   * from world position, which an authored model has no way to do.
+   */
+  IMPORTED: 26,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];
@@ -217,6 +231,53 @@ export class MeshBuilder {
     this.tint = prev;
   }
 
+  /**
+   * Emits an authored triangle list with a colour per vertex.
+   *
+   * Flat-normalled: the normal is computed per triangle rather than taken from
+   * the source, because that is what these low-poly models are shaded with
+   * anyway and it means the file need not carry normals at all.
+   *
+   * `scale` and `lift` place the model; `turns` are quarter turns about Y, the
+   * same convention as placed().
+   */
+  imported(pos: Float32Array, col: Uint8Array, index: Uint32Array,
+    opts: { scale?: number; lift?: number; turns?: number; cx?: number; cz?: number } = {}): void {
+    const s = opts.scale ?? 1;
+    const q = (((opts.turns ?? 0) % 4) + 4) % 4;
+    const cx = opts.cx ?? 0, cz = opts.cz ?? 0, lift = opts.lift ?? 0;
+    const at = (i: number): Vec3 => {
+      const x = pos[i * 3] * s, y = pos[i * 3 + 1] * s, z = pos[i * 3 + 2] * s;
+      switch (q) {
+        case 1: return [cx - z, y + lift, cz + x];
+        case 2: return [cx - x, y + lift, cz - z];
+        case 3: return [cx + z, y + lift, cz - x];
+        default: return [cx + x, y + lift, cz + z];
+      }
+    };
+    for (let t = 0; t < index.length; t += 3) {
+      const a = at(index[t]), b = at(index[t + 1]), c = at(index[t + 2]);
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-9) continue;
+      nx /= len; ny /= len; nz /= len;
+      const base = this.vertexCount;
+      for (let k = 0; k < 3; k++) {
+        const p = k === 0 ? a : k === 1 ? b : c;
+        const j = index[t + k] * 3;
+        // Four bytes in one float: r, g, b and a spare, read back in the
+        // shader with unpack4x8unorm.
+        const packed = new Float32Array(new Uint32Array([
+          col[j] | (col[j + 1] << 8) | (col[j + 2] << 16),
+        ]).buffer)[0];
+        this.verts.push(p[0], p[1], p[2], nx, ny, nz, MAT.IMPORTED, 1, 0, 0, 0, 0, packed);
+      }
+      this.idx.push(base, base + 1, base + 2);
+    }
+  }
+
   get triangleCount(): number {
     return this.idx.length / 3;
   }
@@ -267,7 +328,7 @@ export class MeshBuilder {
 
     const base = this.vertexCount;
     for (const p of [a, b, c]) {
-      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, 0, 0, this.key);
+      this.verts.push(p[0], p[1], p[2], nx, ny, nz, mat, 1, this.tint, 0, 0, this.key, 0);
     }
     this.idx.push(base, base + 1, base + 2);
   }
@@ -291,7 +352,7 @@ export class MeshBuilder {
     const base = this.vertexCount;
     for (let i = 0; i < 3; i++) {
       this.verts.push(p[i][0], p[i][1], p[i][2], nx, ny, nz, mat, 1, this.tint,
-        uv[i][0], uv[i][1], this.key);
+        uv[i][0], uv[i][1], this.key, 0);
     }
     this.idx.push(base, base + 1, base + 2);
   }
@@ -320,7 +381,7 @@ export class MeshBuilder {
       for (const i of [i0, i1, i2]) {
         const q = p[i];
         this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint,
-          uv[i][0], uv[i][1], this.key);
+          uv[i][0], uv[i][1], this.key, 0);
       }
       this.idx.push(base, base + 1, base + 2);
     };
@@ -584,7 +645,7 @@ export class MeshBuilder {
       const base = this.vertexCount;
       for (const i of [i0, i1, i2]) {
         const q = p[i];
-        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint, uv[i][0], uv[i][1], this.key);
+        this.verts.push(q[0], q[1], q[2], nx, ny, nz, mat, 1, this.tint, uv[i][0], uv[i][1], this.key, 0);
       }
       this.idx.push(base, base + 1, base + 2);
     };

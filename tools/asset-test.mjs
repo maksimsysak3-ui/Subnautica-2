@@ -12,7 +12,7 @@
 import * as esbuild from 'esbuild';
 
 /** pos(3) + normal(3) + material(1) + occlusion(1) + tint(1) + local uv(2). */
-const STRIDE = 12;
+const STRIDE = 13;
 
 const CELL = 8;
 /** Eaves, canopies and cornices may lean out this far past the lot. */
@@ -28,18 +28,18 @@ const MAX_TRIS = 10000;
 const SERVICE_MIN = 2400;
 const SERVICE_MAX = 12000;
 /**
- * Vehicles and figures. Narrower than a building's band on both sides: a car
- * is seen close up on a street, so it cannot be cheap, and there will be
- * hundreds of them on screen at once, so it cannot be expensive either.
+ * Vehicles and figures.
+ *
+ * There is no floor any more. The band existed to stop a generated car being
+ * cheap enough to read as a box, and the fleet is imported now: a model is
+ * whatever the artist built, and several of the small ones are three or four
+ * hundred triangles and look completely right at that. The ceiling still
+ * matters -- there will be hundreds on screen at once.
  */
-const FLEET_MIN = 2000;
-const FLEET_MAX = 5000;
-/**
- * A bus is twelve metres and an artic seventeen, with three or four axles
- * apiece. Holding them to a hatchback's budget is arbitrary -- they are not
- * cars -- so anything two cells long gets its own ceiling.
- */
-const BIG_FLEET_MAX = 8000;
+const FLEET_MIN = 0;
+const FLEET_MAX = 9000;
+/** One ceiling for the fleet now that a model is whatever the artist built. */
+const BIG_FLEET_MAX = 9000;
 
 /**
  * Materials a service building may not use.

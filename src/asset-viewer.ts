@@ -152,6 +152,7 @@ class Viewer {
         { shaderLocation: 4, offset: 32, format: 'float32' },    // tint palette index
         { shaderLocation: 5, offset: 36, format: 'float32x2' },  // surface coordinates
         { shaderLocation: 6, offset: 44, format: 'float32' },    // part key
+        { shaderLocation: 7, offset: 48, format: 'float32' },    // vertex colour
       ],
     }];
 

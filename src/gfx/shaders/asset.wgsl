@@ -63,6 +63,7 @@ const MAT_DARK      = 22u;
 const MAT_RENDER    = 23u;
 const MAT_CAR_GLASS = 24u;
 const MAT_LAMP      = 25u;
+const MAT_IMPORTED  = 26u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -76,6 +77,7 @@ struct VSOut {
   @location(4) @interpolate(flat) tint     : u32,
   @location(5)       local    : vec2f,
   @location(6) @interpolate(flat) key : f32,
+  @location(7) @interpolate(flat) vcol : vec3f,
 };
 
 @vertex
@@ -85,7 +87,8 @@ fn vs(@location(0) position : vec3f,
       @location(3) ao       : f32,
       @location(4) tint     : f32,
       @location(5) local    : vec2f,
-      @location(6) key      : f32) -> VSOut {
+      @location(6) key      : f32,
+      @location(7) vcol     : f32) -> VSOut {
   var out : VSOut;
   out.world = position;
   out.normal = normal;
@@ -95,6 +98,10 @@ fn vs(@location(0) position : vec3f,
   out.local = local;
   // Flat, so it never carries interpolation wobble into a hash.
   out.key = key;
+  // Four bytes packed into the float: r, g, b and a spare. Imported meshes
+  // carry their colour per vertex because an authored model has no world-space
+  // pattern to shade itself from, which is what everything generated uses.
+  out.vcol = unpack4x8unorm(bitcast<u32>(vcol)).rgb;
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -1046,6 +1053,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var col = select(albedo(in.material, uv, mpp, seed, par, in.key, in.local, surfD),
                    palette(in.tint, uv, mpp, seed),
                    in.tint != 0u);
+  // An imported mesh brings its own colour and takes no pattern at all.
+  if (in.material == MAT_IMPORTED) { col = in.vcol; }
 
   // A modelled window: one room mapped across the pane, using the pane's own
   // coordinates rather than a slice of a world-space grid.
@@ -1099,6 +1108,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // Rubber. Almost nothing, but not quite nothing: a tyre has a sheen on
     // the shoulder and none at all in the tread.
     gloss = 0.10; power = 14.0;
+  } else if (in.material == MAT_IMPORTED) {
+    // Enough clearcoat to read as a vehicle, less than the painted material:
+    // an imported mesh has glass, rubber and trim all on the same material,
+    // so a highlight tuned for paint would put a shine on the tyres.
+    gloss = 0.85; power = 160.0; fresnel = 0.34;
   } else if (in.material == MAT_CAR_GLASS) {
     gloss = 1.5; power = 260.0; fresnel = 0.66;
   } else if (in.material == MAT_DARK) {
