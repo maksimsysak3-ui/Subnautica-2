@@ -117,6 +117,14 @@ export const BRANCH_STYLE: Record<Branch, Palette> = {
     label: 'Parks', deep: '#2b5719', base: '#6ab04c', light: '#a8d693', wash: '#d9edcd',
     blurb: 'Squares, playgrounds and green space. Land value, not throughput.',
   },
+  deathcare: {
+    label: 'Death care', deep: '#2e2a33', base: '#6b6472', light: '#a49dab', wash: '#dcd8e0',
+    blurb: 'Chapels, a crematorium and burial ground. Every city needs it and no city advertises it.',
+  },
+  post: {
+    label: 'Post', deep: '#5c3a10', base: '#c8801f', light: '#e5b170', wash: '#f6e2c4',
+    blurb: 'Counters, a delivery office and the sorting centre behind them.',
+  },
 };
 
 /** Every placeable category, in the order the toolbar shows them. */
@@ -467,6 +475,24 @@ const SCENES: Record<Category, Scene> = {
     { faces: box(2.2, 0.06, -1.0, 0.18, 1.4, 0.18), tone: 'accent' },
     { faces: gabled(0.5, 1.46, -2.6, 2.1, 0.16, 2.1, 0.8), tone: 'accent' },
   ],
+  // A chapel with a tall flue beside it: the two things a crematorium has and
+  // nothing else in the set does, so the pair reads at 22px.
+  deathcare: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.4, 0, -1.9, 3.6, 2.0, 3.4), tone: 'body' },
+    { faces: gabled(-2.6, 2.0, -2.1, 4.0, 1.3, 3.8, 0.0), tone: 'dark' },
+    { faces: box(1.5, 0, -1.4, 0.9, 4.6, 0.9), tone: 'accent' },
+    { faces: box(-1.4, 0.05, 1.5, 1.0, 1.5, 0.28), tone: 'accent' },
+    { faces: box(-1.0, 0.05, 1.5, 0.28, 1.5, 0.28), tone: 'accent' },
+  ],
+  // A counter block with a posting box in front of it.
+  post: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: box(-2.4, 0, -2.2, 4.8, 2.6, 3.6), tone: 'body' },
+    { faces: plate(-2.6, 2.6, -2.4, 5.2, 4.0), tone: 'dark' },
+    { faces: box(-1.9, 0.05, 1.4, 3.8, 1.5, 0.3), tone: 'accent' },
+    { faces: box(1.5, 0.05, 1.9, 0.9, 1.5, 0.9), tone: 'accent' },
+  ],
 };
 
 /**
@@ -529,6 +555,17 @@ const GLYPH: Record<Branch, string> = {
   parks: 'M24 4c-6.6 0-12 5.2-12 11.6 0 1 .1 2 .4 3C9.2 20 7 23.2 7 27c0 5.5 4.6 10 10.2 10'
        + 'h2.9v4.4c0 .9.8 1.6 1.7 1.6h4.4c.9 0 1.7-.7 1.7-1.6V37h2.9C36.4 37 41 32.5 41 27'
        + 'c0-3.8-2.2-7-5.4-8.4.3-1 .4-2 .4-3C36 9.2 30.6 4 24 4z',
+  // An urn: a lidded vessel on a plinth. Chosen over a headstone or a cross
+  // because it belongs to no particular rite, and over a flame because the
+  // fire branch already owns that shape.
+  deathcare: 'M20 4h8v3h-8zM17.5 8.5h13c.8 0 1.4.7 1.4 1.5s-.6 1.5-1.4 1.5h-13'
+           + 'c-.8 0-1.4-.7-1.4-1.5s.6-1.5 1.4-1.5zM19 13h10c3.6 2.4 5.8 6.4 5.8 10.9'
+           + '0 5.4-3.1 10.2-7.8 12.6v2.5h4.6c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H16.4'
+           + 'c-.9 0-1.6-.7-1.6-1.6s.7-1.6 1.6-1.6H21v-2.5c-4.7-2.4-7.8-7.2-7.8-12.6'
+           + '0-4.5 2.2-8.5 5.8-10.9z',
+  // An envelope, flap down: the one postal mark everybody reads instantly.
+  post: 'M7 11h34c1.7 0 3 1.4 3 3v20c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3V14c0-1.6 1.3-3 3-3z'
+      + 'M6.5 15.4 24 27.2l17.5-11.8v3.6L24 30.8 6.5 19z',
 };
 
 /**

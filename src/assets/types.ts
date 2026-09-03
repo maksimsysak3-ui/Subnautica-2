@@ -31,11 +31,13 @@ export type Density = 'low' | 'medium' | 'high' | 'none';
  */
 export type Branch =
   | 'fire' | 'police' | 'health' | 'education' | 'water'
-  | 'power' | 'transport' | 'government' | 'parks';
+  | 'power' | 'transport' | 'government' | 'parks'
+  | 'deathcare' | 'post';
 
 export const BRANCHES: Branch[] = [
   'fire', 'police', 'health', 'education', 'water',
   'power', 'transport', 'government', 'parks',
+  'deathcare', 'post',
 ];
 
 /**
