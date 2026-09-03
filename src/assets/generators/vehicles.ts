@@ -406,23 +406,30 @@ function blob(m: MeshBuilder, c: Vec3, rx: number, ry: number, rz: number,
 /**
  * A person.
  *
- * Proportioned to a real body at 1.75m: the hip at 0.53 of standing height,
- * the shoulder at 0.82, the chin at 0.87, and a head an eighth of the whole.
- * The previous figure had none of that -- a head a fifth of its height on a
- * conical trunk with no waist, arms leaving a cylinder at the shoulder, and
- * legs meeting at a point -- which is why it read as a shop dummy.
+ * Proportioned to a real body at 1.75m: hip at 0.53 of standing height,
+ * shoulder at 0.82, chin at 0.87, head an eighth of the whole.
  *
- * What is here now: a pelvis, thighs from sockets set apart, knees, calves and
- * shoes that point where the person is walking; a trunk lofted through hip,
- * waist, chest and shoulder as ellipses rather than circles; deltoids where
- * the arms leave the yoke; a neck with a head on it rather than in it; and a
- * face built at the scale of a face, not of a mask -- a nose that stands two
- * centimetres off the cheek, eyes set into sockets, brows and a mouth.
+ * Three things carry a figure at the size it is actually seen -- a couple of
+ * hundred pixels here, three or four in play -- and none of them is anatomy.
  *
- * Skin and hair come from their own materials rather than from the garment
- * palette, so nobody has an olive face or teal hair. Every proportion, garment
- * and tone comes from the key, so a crowd of twenty is twenty people and the
- * same key is the same person every time.
+ * The silhouette: shoulders wider than hips, a waist between them, arms clear
+ * of the body, legs apart, feet flat on the ground. That is what the loft
+ * through pelvis, waist, chest, shoulder and trapezius is for, and why a limb
+ * is a tapered prism laid along its own bone rather than a stack of boxes.
+ *
+ * The colour breaks: top, trousers, shoes, skin and hair are five keys, not
+ * one. A figure in a single colour from collar to ankle is a mannequin however
+ * well it is shaped, and splitting the garment at the waist did more for these
+ * than every facial feature put together.
+ *
+ * And restraint about the face. A brow ridge, a mouth bar, cheekbones and an
+ * eyeball with an iris on it, on a head 15cm across, do not read as a face at
+ * any distance -- they read as a head that has been scribbled on. What is left
+ * is a skull, a jaw, a nose with two centimetres of relief, and one dark mass
+ * per eye set into the socket.
+ *
+ * Every proportion, garment and tone comes from the key, so a crowd of twenty
+ * is twenty people and the same key is the same person every time.
  */
 function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
   opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number; lift?: number } = {}): void {
@@ -435,8 +442,9 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
   const stride = opts.stride ?? 0;
   const broad = 0.90 + rnd(2) * 0.26;            // build, shoulder to hip
   const tall = 0.97 + rnd(3) * 0.07;
-  const coat = rnd(4) > 0.62;
+  const coat = rnd(4) > 0.66;
   const hair = rnd(5);
+  const skirt = rnd(8) > 0.78;
   const co = Math.cos(facing), si = Math.sin(facing);
 
   /** Local (forward, up, side) to world. */
@@ -448,11 +456,11 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
   /**
    * A lofted stack of ellipses, in local (forward, up, half-wide, half-deep).
    *
-   * The figures were built out of `bone`, which sweeps a circular section, so
-   * every one of them had a chest as deep as it was broad -- a sausage with
-   * arms. A human trunk is about two wide to one deep at the chest and narrows
-   * at the waist, and that ratio is most of what reads as a person at any
-   * distance. Same for a skull, which is longer front to back than it is wide.
+   * `bone` sweeps a circular section, so a trunk built from it is as deep as
+   * it is broad -- a sausage with arms. A human trunk is about two wide to one
+   * deep at the chest and narrows at the waist, and that ratio is most of what
+   * reads as a person at any distance. Same for a skull, which is longer front
+   * to back than it is wide.
    */
   const stack = (rings: Array<[number, number, number, number]>, mat: Material,
     sides = 10): void => {
@@ -466,7 +474,6 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
         m.quad(put(lo, k), put(lo, k + 1), put(hi, k + 1), put(hi, k), mat);
       }
     }
-    // Caps, so the stack is a solid you cannot see down.
     const f = rings[0], l = rings[rings.length - 1];
     for (let k = 0; k < sides; k++) {
       m.tri(put(f, k + 1), put(f, k), at(f[0], f[1], 0), mat);
@@ -486,31 +493,60 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
   const hw = 0.106 * broad;                      // half the width across the hips
   const sw = 0.216 * broad;                      // half the width across the shoulders
 
-  // Legs. The stride swings the whole leg about the hip, so the knee and the
-  // foot follow it; the trailing leg is straighter than the leading one.
+  // Trousers, in their own key. A figure in one colour from collar to ankle is
+  // a mannequin however well it is shaped; the break at the waist is worth
+  // more than any amount of detail above it.
   m.keyed(key * 5 + 1, () => {
+    if (skirt) {
+      stack([
+        [0, knee + 0.06, hw * 1.62, hw * 1.30],
+        [0, hip - 0.10, hw * 1.34, hw * 1.06],
+        [0, waist - 0.02, 0.118 * broad, 0.092 * broad],
+      ], MAT.FIGURE, 9);
+    } else {
+      for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
+        const swing = stride * sgn;
+        const kneeF = swing * 0.55;
+        const bend = Math.max(0, -sgn * stride) * 0.09;
+        lb([0, hip - 0.02, sz * hw], [kneeF, knee + bend, sz * hw * 0.93],
+          0.078, 0.054, MAT.FIGURE, 6);
+      }
+      // The seat: the two legs meet in one mass rather than at a point.
+      stack([
+        [0, hip - 0.16, hw * 0.94, hw * 0.80],
+        [0, hip - 0.04, hw * 1.24, hw * 0.98],
+        [0, waist - 0.02, 0.118 * broad, 0.092 * broad],
+      ], MAT.FIGURE, 9);
+    }
+    // Calves below the hem, whichever the garment.
     for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
       const swing = stride * sgn;
       const kneeF = swing * 0.55, footF = swing * 1.25;
       const bend = Math.max(0, -sgn * stride) * 0.09;
-      lb([0, hip - 0.02, sz * hw], [kneeF, knee + bend, sz * hw * 0.93], 0.076, 0.052, MAT.FIGURE, 6);
-      lb([kneeF, knee + bend, sz * hw * 0.93], [footF, ankle + 0.03, sz * hw * 0.88], 0.055, 0.042, MAT.FIGURE, 6);
+      const mat = skirt ? MAT.SKIN : MAT.FIGURE;
+      if (skirt) {
+        m.keyed(key * 5 + 3, () =>
+          lb([kneeF, knee + bend, sz * hw * 0.93], [footF, ankle + 0.03, sz * hw * 0.88],
+            0.052, 0.040, mat, 6));
+      } else {
+        lb([kneeF, knee + bend, sz * hw * 0.93], [footF, ankle + 0.03, sz * hw * 0.88],
+          0.055, 0.042, mat, 6);
+      }
     }
-    // Pelvis and the trunk above it, lofted through the waist and the chest.
+  });
+
+  // The top: trunk from waist to the trapezius, arms, and a coat on some.
+  m.keyed(key * 5 + 2, () => {
     stack([
-      // The pelvis tapers down between the thighs. Ending it in a flat ring
-      // wider than the legs left its bottom cap in the open as a pale shelf
-      // slung under the hips, which is what you saw first on every figure.
-      [0, hip - 0.16, hw * 0.86, hw * 0.74],
-      [0, hip - 0.09, hw * 1.20, hw * 0.98],
-      [0, hip + 0.04, hw * 1.26, hw * 1.00],
-      [0, waist, 0.116 * broad, 0.090 * broad],
+      [0, waist - 0.04, 0.122 * broad, 0.094 * broad],
       [0, chest, 0.150 * broad, 0.120 * broad],
       [0, chest + 0.11, 0.164 * broad, 0.116 * broad],
       [0, shoulder, sw * 0.94, 0.108 * broad],
-      // The trapezius. Without it the neck rises out of a flat plate and the
-      // figure looks long-necked however short the neck actually is.
-      [0, shoulder + 0.050, 0.106 * broad, 0.084 * broad],
+      // The trapezius, then a collar. Without them the neck rises out of a
+      // flat plate with twenty centimetres of it showing, and the figure looks
+      // long-necked however short the neck actually is.
+      [0, shoulder + 0.055, 0.104 * broad, 0.082 * broad],
+      [0, chin - 0.055, 0.082, 0.076],
     ], MAT.FIGURE, 9);
     // A deltoid where each arm leaves the yoke. There was a bone straight
     // across the shoulders as well, which at six sides is a plank: from the
@@ -519,35 +555,43 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
       blob(m, at(0, shoulder - 0.052, sz * sw * 0.88), 0.058 * s, 0.062 * s, 0.054 * s,
         MAT.FIGURE, 6, 2);
     }
-    // A coat hangs past the hips on about a third of people.
     if (coat) {
+      // Hem above the knee and drawn in, so a standing camera does not look
+      // up into an open box hanging between the legs.
       stack([
-        // Hem above the knee and drawn in, so a standing camera does not look
-        // up into an open box hanging between the legs.
         [0, hip - 0.20, 0.138 * broad, 0.102 * broad],
         [0, hip - 0.14, 0.152 * broad, 0.114 * broad],
-        [0, hip + 0.10, 0.142 * broad, 0.106 * broad],
-      ], MAT.FIGURE);
+        [0, waist, 0.134 * broad, 0.102 * broad],
+        [0, chest + 0.06, 0.160 * broad, 0.122 * broad],
+      ], MAT.FIGURE, 9);
     }
-    // Arms, swinging opposite the legs, with the forearm angled in.
+    // Arms, swinging opposite the legs, with the forearm angled in. The upper
+    // arm is the garment; below the cuff it is skin, unless there is a coat.
     for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
       const swing = stride * sgn * 0.8;
       const az = sz * sw * 0.92;
-      lb([0, shoulder - 0.06, az], [swing * 0.7, chest - 0.10, az * 1.00], 0.058, 0.046, MAT.FIGURE);
-      lb([swing * 0.7, chest - 0.10, az], [swing * 1.5, hip + 0.02, az * 0.90], 0.046, 0.036, MAT.FIGURE);
+      const cuff = chest - 0.10;
+      lb([0, shoulder - 0.06, az], [swing * 0.7, cuff, az], 0.058, 0.046, MAT.FIGURE);
+      if (coat || rnd(9) > 0.45) {
+        lb([swing * 0.7, cuff, az], [swing * 1.5, hip + 0.02, az * 0.90],
+          0.046, 0.036, MAT.FIGURE);
+      } else {
+        m.keyed(key * 5 + 3, () =>
+          lb([swing * 0.7, cuff, az], [swing * 1.5, hip + 0.02, az * 0.90],
+            0.044, 0.035, MAT.SKIN));
+      }
     }
   });
-  // Shoes. A round-ended stub from the bone helper is an ankle with a bulb on
-  // it: the leg tapered straight past it to a point and every figure walked on
-  // spikes. A shoe is a flat box, longer than it is wide and wider than it is
-  // tall, pointing the way the person is walking.
+
+  // Shoes: dark leather, whatever the trousers. A flat box, longer than it is
+  // wide and wider than it is tall -- the round-ended stub the bone helper
+  // gives is an ankle with a bulb on it, and the leg tapers past it to a spike.
   m.painted(TINT.METAL_DARK, () => {
     for (const [sz, sgn] of [[1, 1], [-1, -1]] as const) {
       const footF = stride * sgn * 1.25;
       const az = sz * hw * 0.88;
       const c = (f: number, y: number, z: number): Vec3 => at(footF + f, y, az + z);
       const hf = 0.105, hz = 0.043, top = 0.066;
-      // Toe box lower than the heel, so the shoe has a profile from the side.
       const p = [
         c(-0.075, 0, -hz), c(hf, 0, -hz), c(hf, 0.030, -hz), c(-0.075, top, -hz),
         c(-0.075, 0, hz), c(hf, 0, hz), c(hf, 0.030, hz), c(-0.075, top, hz),
@@ -561,25 +605,19 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
     }
   });
 
-  // Hands, and the head, in skin rather than in the wardrobe.
+  // Hands, neck and head, all skin.
   m.keyed(key * 5 + 3, () => {
     for (const [sz, sgn] of [[1, -1], [-1, 1]] as const) {
       const swing = stride * sgn * 0.8;
       const az = sz * sw * 0.92 * 0.90;
-      // Centred on the wrist, not below it. A hand hung 5cm clear left the
-      // forearm's end cap in the open, and a cone of six triangles facing away
-      // from the sun is a black spike -- which is what everyone was holding.
-      // Three rows, not two: a two-row blob is a bicone, and a downward-facing
-      // cone the size of a fist takes no light at all -- everybody appeared to
-      // be carrying a black spike in each hand.
+      // Centred on the wrist, and three rows rather than two: a two-row blob
+      // is a bicone, and a downward cone the size of a fist takes no light at
+      // all -- everybody appeared to be carrying a black spike.
       blob(m, at(swing * 1.5, hip + 0.02, az), 0.046 * s, 0.060 * s, 0.038 * s, MAT.SKIN, 6, 3);
     }
-    // Neck: visible, and set back, because a head sitting straight on the
-    // shoulders is the other half of why these read as dummies.
     lb([-0.014, shoulder - 0.06, 0], [-0.006, chin + 0.02, 0], 0.060, 0.054, MAT.SKIN, 8);
-    // Skull and jaw. The head is an eighth of standing height: 0.19m from
-    // chin to crown, 0.15 across. It was a fifth before, which is a toddler's
-    // proportion on an adult body.
+    // Skull and jaw: 0.19m chin to crown, 0.15 across, an eighth of standing
+    // height. It was a fifth, which is a toddler's proportion on an adult.
     const hy = (chin + crown) / 2;
     stack([
       [0, chin, 0.056, 0.058],
@@ -590,36 +628,21 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
       [0, crown - 0.014, 0.058, 0.062],
       [0, crown, 0.030, 0.032],
     ], MAT.SKIN, 9);
-    // Ears, flattened against the side of the skull at eye height. There were
-    // cheekbones too, and they were a mistake: a pale mass proud of the face
-    // either side of the nose reads at any distance as a mask, not a cheek.
     for (const sz of [1, -1] as const) {
       blob(m, at(-0.014, chin + 0.098, sz * 0.072), 0.018 * s, 0.028 * s, 0.010 * s,
         MAT.SKIN, 4, 2);
     }
-    // Brow ridge, then the nose from between the brows down and out. Two
-    // centimetres of relief, which is what a nose has; the old one stood off
-    // the face by four and a half and turned every figure into a gargoyle.
-    lb([0.058, chin + 0.118, -0.046], [0.058, chin + 0.118, 0.046], 0.014, 0.014, MAT.SKIN, 6);
+    // The nose, from between the brows down and out. Two centimetres of
+    // relief, which is what a nose has; four and a half is a gargoyle.
     lb([0.056, chin + 0.108, 0], [0.076, chin + 0.058, 0], 0.014, 0.011, MAT.SKIN, 6);
   });
-  // Eyes: one dark mass each, set into the socket under the brow. A pale
-  // eyeball with an iris on it was two more masses on a face 15cm across, and
-  // between them and the cheekbones the head came out scribbled on.
+  // One dark mass per eye, set into the socket under the brow.
   for (const sz of [1, -1] as const) {
     m.painted(TINT.METAL_DARK, () =>
       blob(m, at(0.056, chin + 0.098, sz * 0.030), 0.009 * s, 0.008 * s, 0.013 * s,
         MAT.TRIM, 5, 2));
   }
-  m.painted(TINT.METAL_DARK, () => {
-    // Brows, angled in towards the nose, and a mouth on the jaw.
-    for (const sz of [1, -1] as const) {
-      lb([0.058, chin + 0.124, sz * 0.048], [0.064, chin + 0.118, sz * 0.014], 0.006, 0.006,
-        MAT.TRIM, 4);
-    }
-    lb([0.060, chin + 0.030, -0.020], [0.060, chin + 0.030, 0.020], 0.007, 0.007, MAT.TRIM, 4);
-  });
-  // Hair: a shell over the skull in hair colours, longer at the back on some.
+  // Hair: a shell over the skull, longer at the back on some.
   if (hair > 0.10) {
     m.keyed(key * 5 + 4, () => {
       stack([
@@ -642,8 +665,8 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
   }
   if (opts.bag) {
     m.keyed(key * 5 + 7, () => {
-      // A shoulder bag hangs at the hip on a strap across the chest -- it was
-      // slung on the chest itself, which read as a slab of body armour.
+      // At the hip on a strap across the chest. Slung on the chest itself, it
+      // read as a slab of body armour.
       blob(m, at(-0.05, hip + 0.06, 0.21 * broad), 0.075 * s, 0.095 * s, 0.045 * s,
         MAT.FIGURE, 6, 2);
       lb([0, shoulder - 0.04, -0.05], [-0.05, hip + 0.16, 0.20 * broad], 0.018, 0.018,

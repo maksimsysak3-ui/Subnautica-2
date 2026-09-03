@@ -727,18 +727,24 @@ fn figureColour(uv : vec2f, key : f32) -> vec3f {
   let k = floor(key + 0.5);
   let r = hash11(k * 3.17 + 11.9);
   var base : vec3f;
-  if (r < 0.09)      { base = vec3f(0.402, 0.286, 0.212); }  // skin, light
-  else if (r < 0.17) { base = vec3f(0.268, 0.176, 0.118); }  // skin, mid
-  else if (r < 0.24) { base = vec3f(0.150, 0.096, 0.066); }  // skin, deep
-  else if (r < 0.34) { base = vec3f(0.104, 0.130, 0.196); }  // navy
-  else if (r < 0.43) { base = vec3f(0.360, 0.128, 0.116); }  // red coat
-  else if (r < 0.52) { base = vec3f(0.128, 0.156, 0.128); }  // olive
-  else if (r < 0.60) { base = vec3f(0.560, 0.540, 0.490); }  // cream
-  else if (r < 0.68) { base = vec3f(0.086, 0.088, 0.096); }  // black
-  else if (r < 0.76) { base = vec3f(0.226, 0.166, 0.262); }  // purple
-  else if (r < 0.84) { base = vec3f(0.140, 0.256, 0.286); }  // teal
-  else if (r < 0.92) { base = vec3f(0.480, 0.360, 0.150); }  // tan
-  else               { base = vec3f(0.300, 0.310, 0.340); }  // grey
+  // Clothes only. Three of these used to be skin tones, from when heads and
+  // hands were keyed off this same ramp -- so a figure could come out dressed
+  // in its own complexion, which reads exactly as badly as it sounds. Skin has
+  // its own material now and this is a wardrobe.
+  if (r < 0.10)      { base = vec3f(0.104, 0.130, 0.196); }  // navy
+  else if (r < 0.18) { base = vec3f(0.360, 0.128, 0.116); }  // red
+  else if (r < 0.26) { base = vec3f(0.128, 0.156, 0.128); }  // olive
+  else if (r < 0.34) { base = vec3f(0.560, 0.540, 0.490); }  // cream
+  else if (r < 0.43) { base = vec3f(0.086, 0.088, 0.096); }  // black
+  else if (r < 0.50) { base = vec3f(0.226, 0.166, 0.262); }  // purple
+  else if (r < 0.58) { base = vec3f(0.140, 0.256, 0.286); }  // teal
+  else if (r < 0.65) { base = vec3f(0.480, 0.360, 0.150); }  // tan
+  else if (r < 0.72) { base = vec3f(0.300, 0.310, 0.340); }  // grey
+  else if (r < 0.79) { base = vec3f(0.150, 0.170, 0.330); }  // denim
+  else if (r < 0.85) { base = vec3f(0.620, 0.610, 0.600); }  // white
+  else if (r < 0.90) { base = vec3f(0.190, 0.330, 0.200); }  // green
+  else if (r < 0.95) { base = vec3f(0.480, 0.250, 0.110); }  // rust
+  else               { base = vec3f(0.330, 0.120, 0.220); }  // plum
   // Flat, for the same reason as the paint above, with a per-garment shade so
   // two people in navy are not the identical navy.
   return base * (0.88 + hash11(k * 5.7 + 0.3) * 0.24);
