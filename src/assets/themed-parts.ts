@@ -100,7 +100,7 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
     }
     // Shutters and grilles are detail for the lower storeys; nobody reads one
     // at the sixteenth floor and every one of them costs ten triangles.
-    if ((!T.shutters && !T.grille) || (lite && f > first + 2) || o.base > 10) continue;
+    if ((!T.shutters && !T.grille) || (lite && f > first + 2) || o.base > 6) continue;
     for (let i = 0; i < count; i++) {
       const c = u0 + ((i + 0.5) / count) * span;
       if (T.shutters) {

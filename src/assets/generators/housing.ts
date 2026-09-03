@@ -626,14 +626,14 @@ function twin(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     parapet(m, -px, -pz, px, pz, podium, 1.0, 0.18, T.base);
     // Podium roof is the scheme's garden, which is what a podium is for.
     m.painted(TINT.GREEN, () => m.box([-px + 1.4, podium, -pz + 1.4], [px - 1.4, podium + 0.12, pz - 1.4], MAT.TRIM));
-    for (let i = 0; i < 6; i++) {
-      planter(m, -px + 2.6 + (i % 3) * 6.0, -pz + 3.0 + Math.floor(i / 3) * (pd - 6.0), 1.0, 0.6);
+    for (let i = 0; i < 4; i++) {
+      planter(m, -px + 3.4 + (i % 2) * 9.0, -pz + 3.0 + Math.floor(i / 2) * (pd - 6.0), 1.0, 0.6);
     }
     if (T.balcony !== 'none') {
       cxs.forEach((cx, i) => {
         balconies(m, { axis: 'z', sign: 1, plane: td / 2 }, cx - tw / 2 + 0.8, cx + tw / 2 - 0.8,
-          { floors: floors[i], floorH: T.floorH, base: podium + 0.5, bays: 2, depth: 1.5,
-            solid: T.balcony === 'solid' });
+          { floors: Math.min(floors[i], 12), floorH: T.floorH, base: podium + 0.5, bays: 2,
+            depth: 1.5, solid: T.balcony === 'solid' });
       });
     }
   }
@@ -757,6 +757,150 @@ function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   return m;
 }
 
+/** A bungalow: everything on one floor, so it is all roof and eaves. */
+function bungalow(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const w = 13.6, d = 8.6;
+  const x = w / 2, z = d / 2;
+  const wall = T.floorH + 0.4;
+
+  m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
+  m.box([-x - 0.1, 0, -z - 0.1], [x + 0.1, 0.55, z + 0.1], T.base);
+  const top = roofOver(m, T, -x, -z, x, z, wall, { along: 'x', dormers: medium ? 2 : 0 });
+
+  if (medium) {
+    // A projecting bay at one end and a carport at the other: on a single
+    // storey the plan is the only thing that can break the box.
+    m.box([-x + 0.8, 0, z], [-x + 4.4, wall - 0.3, z + 1.6], T.wall, { roof: T.cover });
+    roofOver(m, T, -x + 0.8, z, -x + 4.4, z + 1.6, wall - 0.3, { along: 'x' });
+    m.box([x - 0.2, wall - 0.5, -z + 0.6], [x + 5.4, wall - 0.1, z - 0.6], T.trim);
+    for (const pz of [-z + 0.9, z - 0.9]) {
+      m.box([x + 4.9, 0, pz - 0.13], [x + 5.2, wall - 0.5, pz + 0.13], T.trim);
+    }
+    if (T.chimney) {
+      m.box([-1.0, wall * 0.5, -0.7], [0.1, top + 0.9, 0.4], T.base);
+      m.box([-1.18, top + 0.9, -0.88], [0.28, top + 1.14, 0.58], T.trim);
+    }
+    if (T.veranda) veranda(m, T, -x + 4.8, x - 1.0, z, 2.0, wall - 0.2);
+  }
+  if (fine) {
+    punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 5.0, x - 0.8, { floors: 1, base: 1.0 });
+    punched(m, T, { axis: 'z', sign: 1, plane: z + 1.6 }, -x + 1.1, -x + 4.1, { floors: 1, base: 0.95 });
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 0.9, x - 0.9, { floors: 1, base: 1.0 });
+    for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
+      punched(m, T, { axis: 'x', sign, plane }, -z + 1.0, z - 1.0, { floors: 1, base: 1.0 });
+    }
+    doorway(m, T, { axis: 'z', sign: 1, plane: z }, -x + 4.7);
+    backyard(m, -x, -z - 6.0, x, -z - 0.4, seed);
+  }
+  return m;
+}
+
+/** A villa: a detached house with a wing and a garden wall to the street. */
+function villa(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const w = 11.0, d = 10.0, wing = 5.0;
+  const x = w / 2, z = d / 2;
+  const floors = 2;
+  const wall = floors * T.floorH + 0.5;
+
+  m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
+  m.box([x - 0.4, 0, -z + 1.0], [x + wing, wall - T.floorH * 0.55, z - 1.6], T.wall, { roof: T.cover });
+  m.box([-x - 0.14, 0, -z - 0.14], [x + 0.14, 1.05, z + 0.14], T.base);
+  const top = roofOver(m, T, -x, -z, x, z, wall, { along: 'z', dormers: medium ? 2 : 0 });
+  roofOver(m, T, x - 0.4, -z + 1.0, x + wing, z - 1.6, wall - T.floorH * 0.55, { along: 'x' });
+
+  if (medium) {
+    band(m, -x, -z, x, z, T.floorH + 0.3, 0.24, 0.12, T.trim);
+    // Quoins at the corners: a villa is a house with its corners emphasised.
+    for (const [px, sx] of [[-x, 1], [x, -1]] as const) {
+      for (let i = 0; i < 7; i++) {
+        const y = 0.9 + i * ((wall - 1.2) / 7);
+        const a = px, b = px + sx * (i % 2 === 0 ? 0.62 : 0.42);
+        m.box([Math.min(a, b), y, z - 0.02], [Math.max(a, b), y + 0.3, z + 0.16], T.base);
+      }
+    }
+    if (T.chimney) {
+      m.box([-x + 1.2, wall - 0.4, -0.9], [-x + 2.3, top + 1.3, 0.5], T.base);
+      m.box([-x + 1.0, top + 1.3, -1.1], [-x + 2.5, top + 1.56, 0.7], T.trim);
+    }
+    // Garden wall and gate piers to the street.
+    for (const [a, b] of [[-x - 1.4, -1.9], [1.9, x + wing]] as const) {
+      m.box([a, 0, z + 4.2], [b, 1.15, z + 4.45], T.base);
+    }
+    for (const px of [-2.1, 2.1]) m.box([px - 0.28, 0, z + 4.1], [px + 0.28, 1.85, z + 4.55], T.base);
+  }
+  if (fine) {
+    punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 0.9, x - 0.9, { floors, base: 1.15 });
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 0.9, x - 0.9, { floors, base: 1.15 });
+    punched(m, T, { axis: 'x', sign: -1, plane: -x }, -z + 1.0, z - 1.0, { floors, base: 1.15 });
+    punched(m, T, { axis: 'z', sign: 1, plane: z - 1.6 }, x + 0.4, x + wing - 0.6, { floors: 1, base: 1.15 });
+    punched(m, T, { axis: 'x', sign: 1, plane: x + wing }, -z + 1.6, z - 2.2, { floors: 1, base: 1.15 });
+    doorway(m, T, { axis: 'z', sign: 1, plane: z }, 0, true);
+    if (T.veranda) veranda(m, T, -x + 1.0, x - 1.0, z, 2.2, T.floorH + 0.1);
+    for (const px of [-3.6, 3.6]) planter(m, px, z + 2.4, 0.85, 0.55);
+    backyard(m, -x, -z - 6.5, x + wing, -z - 0.5, seed);
+  }
+  return m;
+}
+
+/** Maisonettes: two-storey flats stacked, each with its own front door. */
+function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const w = 22.0, d = 12.0, units = 4;
+  const x = w / 2, z = d / 2;
+  const floors = 4;
+  const wall = floors * T.floorH + 0.5;
+
+  m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
+  m.box([-x - 0.12, 0, -z - 0.12], [x + 0.12, 0.9, z + 0.12], T.base);
+  roofOver(m, T, -x, -z, x, z, wall, { along: 'x', dormers: medium ? 3 : 0 });
+
+  if (medium) {
+    // The stair to the upper maisonettes, expressed on the front: one flight
+    // per pair, with a landing. This is the whole character of the type.
+    for (let i = 0; i < units / 2; i++) {
+      const cx = -x + ((i + 0.5) / (units / 2)) * w;
+      const y = T.floorH * 2;
+      m.box([cx - 1.5, y - 0.22, z], [cx + 1.5, y, z + 2.2], MAT.CONCRETE);
+      for (let k = 0; k < 9; k++) {
+        const t = k / 9;
+        m.box([cx + 0.4, t * (y - 0.22), z + 2.2 - t * 2.0],
+              [cx + 1.5, (t + 0.12) * (y - 0.22), z + 2.42 - t * 2.0], MAT.CONCRETE);
+      }
+      railing(m, cx - 1.4, cx + 1.4, z + 2.1, y, 1.05, 1.3);
+      m.box([cx - 1.55, 0, z + 1.9], [cx - 1.35, y, z + 2.3], T.base);
+    }
+    band(m, -x, -z, x, z, T.floorH * 2, 0.26, 0.13, T.trim);
+    if (T.chimney) {
+      for (const cx of [-w * 0.25, w * 0.25]) m.box([cx - 0.6, wall - 0.4, -1.0], [cx + 0.6, wall + 2.2, 0.4], T.base);
+    }
+  }
+  if (fine) {
+    for (let i = 0; i < units; i++) {
+      const a = -x + (i / units) * w + 0.5;
+      const b = -x + ((i + 1) / units) * w - 0.5;
+      punched(m, T, { axis: 'z', sign: 1, plane: z }, a, b, { floors, base: 1.1 });
+      doorway(m, T, { axis: 'z', sign: 1, plane: z }, a + 1.1);
+    }
+    for (let i = 0; i < units / 2; i++) {
+      const cx = -x + ((i + 0.5) / (units / 2)) * w;
+      entrance(m, { axis: 'z', sign: 1, plane: z }, cx - 0.6,
+        { width: 1.0, height: 2.1, steps: 0 });
+    }
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 1.0, { floors, base: 1.1 });
+    for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
+      punched(m, T, { axis: 'x', sign, plane }, -z + 1.2, z - 1.2, { floors, base: 1.1 });
+    }
+    kerb(m, -x - 1.0, z + 3.0, x + 1.0, z + 4.0);
+    backyard(m, -x, -z - 7.0, x, -z - 0.5, seed);
+  }
+  return m;
+}
+
 // ------------------------------------------------------------------- table
 
 type Plan = {
@@ -773,6 +917,8 @@ const LOW: Plan[] = [
   { key: 'duplex', name: 'Duplex', build: duplex, footprint: [2, 3], households: 2 },
   { key: 'court', name: 'Courtyard house', build: court, footprint: [2, 3], households: 2 },
   { key: 'cottage', name: 'Cottage', build: cottage, footprint: [3, 3], households: 1 },
+  { key: 'bungalow', name: 'Bungalow', build: bungalow, footprint: [3, 3], households: 1 },
+  { key: 'villa', name: 'Villa', build: villa, footprint: [3, 3], households: 1 },
 ];
 
 const MID: Plan[] = [
@@ -781,15 +927,10 @@ const MID: Plan[] = [
   { key: 'gallery', name: 'Gallery block', build: gallery, footprint: [4, 3], households: 25 },
   { key: 'perimeter', name: 'Perimeter block', build: perimeter, footprint: [3, 3], households: 30 },
   { key: 'shoptop', name: 'Flats over shops', build: shoptop, footprint: [3, 3], households: 16 },
+  { key: 'maisonette', name: 'Maisonettes', build: maisonette, footprint: [3, 4], households: 16 },
 ];
 
-/**
- * Five tall plans, three to a theme.
- *
- * Rotating which three keeps every theme's high-density trio distinct from
- * its neighbours' without inventing fifteen tower plans, and every plan still
- * gets built in three different themes.
- */
+/** Five tall plans, all five in every theme. */
 const HIGH: Plan[] = [
   { key: 'point', name: 'Point block', build: point, footprint: [4, 4], households: 56 },
   { key: 'slab', name: 'Slab block', build: slab, footprint: [4, 3], households: 72 },
@@ -829,10 +970,10 @@ function defs(theme: Theme, density: Density, plans: Plan[]): AssetDef[] {
 }
 
 export const HOUSING: AssetDef[] = [
-  ...THEME_ORDER.flatMap((theme, i) => [
+  ...THEME_ORDER.flatMap((theme) => [
     ...defs(theme, 'low', LOW),
     ...defs(theme, 'medium', MID),
-    ...defs(theme, 'high', [HIGH[i % 5], HIGH[(i + 1) % 5], HIGH[(i + 2) % 5]]),
+    ...defs(theme, 'high', HIGH),
   ]),
   // Row housing is a supplement rather than a full theme: three low and three
   // medium, all of them plans where a terrace is what the street is made of.
