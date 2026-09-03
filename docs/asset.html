@@ -10,7 +10,7 @@
 /* Replace a stale cached copy of this page. Same guard as index.html: GitHub
  * Pages serves HTML with a ten-minute max-age and no way to change it, so a
  * deploy is invisible to anyone holding a cached copy. */
-window.__BUILD__ = 'mtku7iy9';
+window.__BUILD__ = 'mtkuc7pr';
 (function () {
   fetch('version.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -54,6 +54,15 @@ window.__BUILD__ = 'mtku7iy9';
     border: 1px solid rgba(255,255,255,.22); }
   .item .badge { margin-right: 6px; vertical-align: 1px; }
   /* The category bar: a grid of icon tiles, the toolbar the game will use. */
+  /* Theme row: the second axis of the library, so it gets its own filter.
+     Picking a zone alone left six themes stacked in one scroll. */
+  #themes { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 12px;
+    border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .th { background: #000; color: #8e99a8; font-size: 9px; letter-spacing: .12em;
+    padding: 4px 7px; border-radius: 3px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); }
+  .th:hover { color: #dfe7ef; }
+  .th.on { color: #fff; border-color: rgba(255,255,255,.65); }
   #legend { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;
     padding: 0 12px 14px; margin-bottom: 4px;
     border-bottom: 1px solid var(--line); }
@@ -93,12 +102,12 @@ window.__BUILD__ = 'mtku7iy9';
     text-align: center; padding: 30px; color: #ff6b7a; background: var(--bg);
     z-index: 20; font: 13px/1.6 var(--mono); }
 </style>
-  <script type="module" crossorigin src="./assets/asset-BnuDysRP.js"></script>
+  <script type="module" crossorigin src="./assets/asset-DfkeaSPr.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/m4-DvGWrzTh.js">
 </head>
 <body>
   <div id="app">
-    <aside id="side"><h1>assets</h1><div id="legend"></div>
+    <aside id="side"><h1>assets</h1><div id="legend"></div><div id="themes"></div>
   <div id="list"></div></aside>
     <div id="stage">
       <canvas id="gpu-canvas"></canvas>

@@ -14,6 +14,7 @@
 
 import { Gpu, GpuInitError } from './gfx/device';
 import { THEMES, THEME_ORDER, ALL_THEMES } from './assets/themes';
+import type { Theme } from './assets/themes';
 import { ASSETS } from './assets/registry';
 import type { AssetDef } from './assets/types';
 import { DEFAULT_BRAND, idSeed } from './assets/types';
@@ -572,6 +573,8 @@ function inCategory(a: AssetDef, c: Tab): boolean {
 
 /** The tab currently on show. Null means everything. */
 let current: Tab | null = null;
+/** Selected theme, or null for every theme. Independent of the category. */
+let theme: Theme | null = null;
 
 /**
  * The category bar: one button per zone and per service branch.
@@ -616,6 +619,33 @@ function buildBar(onPick: (a: AssetDef) => void): void {
     });
   }
   (el.querySelector('.cat') as HTMLElement | null)?.classList.add('on');
+}
+
+/**
+ * The theme row: the library's second axis.
+ *
+ * Zone and theme are independent -- there are European shops and modern shops
+ * -- so one bar cannot express both, and picking a zone on its own left six
+ * themes stacked in a single scroll with no way to get at one of them. These
+ * filter across whatever category is selected.
+ */
+function buildThemes(onPick: (a: AssetDef) => void): void {
+  const el = document.getElementById('themes');
+  if (!el) return;
+  const chip = (t: Theme | null, label: string, n: number): string =>
+    `<button class="th${t === null ? ' on' : ''}" data-theme="${t ?? ''}" title="${label} (${n})">${label}</button>`;
+  el.innerHTML = chip(null, 'ALL', ASSETS.length)
+    + ALL_THEMES.map((t) => chip(t, THEMES[t].badge,
+      ASSETS.filter((a) => a.theme === t).length)).join('');
+  for (const b of el.querySelectorAll('.th')) {
+    b.addEventListener('click', () => {
+      const v = (b as HTMLElement).dataset.theme ?? '';
+      theme = v === '' ? null : (v as Theme);
+      for (const o of el.querySelectorAll('.th')) o.classList.remove('on');
+      b.classList.add('on');
+      buildList(onPick);
+    });
+  }
 }
 
 function highlight(id: string): void {
@@ -663,7 +693,7 @@ function buildList(onPick: (a: AssetDef) => void): void {
 
   for (const [label, cat, badge, match] of groups) {
     if (current !== null && cat !== current) continue;
-    const assets = ASSETS.filter(match);
+    const assets = ASSETS.filter((a) => match(a) && (theme === null || a.theme === theme));
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
@@ -730,6 +760,7 @@ async function boot(): Promise<void> {
   // of an error page and nothing else.
   let onPick: (a: AssetDef) => void = () => {};
   buildBar((a) => onPick(a));
+  buildThemes((a) => onPick(a));
   buildList((a) => onPick(a));
 
   let gpu: Gpu;
