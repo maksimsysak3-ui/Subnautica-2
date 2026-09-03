@@ -446,7 +446,7 @@ function campus(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
         y0: f * T.floorH + 1.0, y1: f * T.floorH + 2.6, glass: MAT.GLASS, frame: 0.12, proud: 0.08 });
     }
     entrance(m, { axis: 'x', sign: -1, plane: -half }, 0, { width: 3.0, height: 3.2, double: true, glazed: true, canopy: 2.6 });
-    for (let i = 0; i < 4; i++) parkedVehicle(m, seed * 13 + i, -half + 3.0 + i * 6.0, half + 4.0, 0, 'car');
+    for (let i = 0; i < 3; i++) parkedVehicle(m, seed * 13 + i, -half + 4.0 + i * 7.0, half + 4.0, 0, 'car');
     frontage(m, -half, half, half + 0.8, seed, { planters: 2, bollards: 6 });
     roofClutter(m, -half + 3, -half + 2, half - 3, -half + depth - 2, wall, seed, 0.4);
   }

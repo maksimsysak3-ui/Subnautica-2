@@ -29,23 +29,32 @@ type Section = Array<[number, number]>;
 interface Station { x: number; s: Section }
 
 /**
- * Skins a run of stations into a closed painted shell.
+ * Skins a run of stations into one continuous closed shell.
  *
- * The flanks are quads between neighbouring section points, so a section with
- * a chamfer between the waist and the roof produces a real chamfered surface
- * with its own normal -- which is the whole reason for doing it this way
- * rather than stacking boxes, since a box roofline catches light in one flat
- * plane and reads as cardboard.
+ * The whole car is this surface: sill, door, shoulder, screen, roof,
+ * backlight and boot are all bands of the same loft, so there is no seam
+ * anywhere and the silhouette is a single curve. It was built as a lower body
+ * with a separate cabin box standing on it, which is exactly what it looked
+ * like -- two volumes with a joint round the waist.
  *
- * `upTo` skins only the bands below a given section index and closes the top
- * with a deck. That is how a car is actually made here: this builds the lower
- * body -- sills, doors, wings, bonnet and boot -- and cabin() sets the
- * greenhouse on the deck. Glazing whole bands of this shell instead was what
- * left every car in the fleet see-through, because a band runs the full length
- * of the vehicle and a single-sided pane is nothing at all from behind.
+ * `glass` cuts the glasshouse into that surface instead of adding it: bands
+ * above `above` (a fraction of the section's height) between `from` and `to`
+ * (fractions of the length) are skinned in glazing rather than paint, except
+ * where a pillar interrupts them. Cutting rather than adding is what keeps
+ * the surface continuous, and limiting it to a span of the length is what
+ * stops it running the whole car -- which is what made the first attempt
+ * see-through from end to end.
+ *
+ * The roof strip is crowned: two quads meeting at a raised centre line. A
+ * single flat quad across the top is the single most model-like thing a car
+ * can have, because no car has a flat roof.
  */
 function loft(m: MeshBuilder, st: Station[], mat: Material,
-  opts: { ends?: boolean; upTo?: number } = {}): void {
+  opts: {
+    ends?: boolean;
+    upTo?: number;
+    glass?: { from: number; to: number; above: number; pillars: number[]; width?: number };
+  } = {}): void {
   const n = st[0].s.length;
   const top = Math.min(opts.upTo ?? n - 1, n - 1);
   const x0 = st[0].x, x1 = st[st.length - 1].x;
@@ -56,30 +65,52 @@ function loft(m: MeshBuilder, st: Station[], mat: Material,
   // because world space on a curved body is not continuous.
   const uAt = (x: number): number => (x - x0) / span;
   const vAt = (j: number): number => j / (n - 1);
+  const g = opts.glass;
+  const post = g === undefined ? 0.030 : (g.width ?? 0.030);
+
+  /** Is this band of this station's flank glazing rather than bodywork? */
+  const glazed = (u: number, v: number): boolean => {
+    if (g === undefined) return false;
+    if (u < g.from || u > g.to) return false;
+    if (v < g.above) return false;
+    // The A and D posts are the ends of the run itself.
+    if (u < g.from + post || u > g.to - post) return false;
+    return !g.pillars.some((p) => Math.abs(u - p) < post);
+  };
 
   for (let i = 0; i < st.length - 1; i++) {
     const a = st[i], b = st[i + 1];
     const ua = uAt(a.x), ub = uAt(b.x);
+    const um = (ua + ub) / 2;
     for (let j = 0; j < top; j++) {
       const [ay0, aw0] = a.s[j], [ay1, aw1] = a.s[j + 1];
       const [by0, bw0] = b.s[j], [by1, bw1] = b.s[j + 1];
       const v0 = vAt(j), v1 = vAt(j + 1);
+      const band = glazed(um, (v0 + v1) / 2) ? MAT.CAR_GLASS : mat;
+      // Glazing sits a little inside the bodywork, so the pillars and the
+      // waist stand proud of it and the opening has a reveal.
+      const k = band === mat ? 1 : 0.985;
       // +z flank, then -z with the winding reversed so both face outwards.
-      m.quadUV([a.x, ay0, aw0], [b.x, by0, bw0], [b.x, by1, bw1], [a.x, ay1, aw1],
-        [[ua, v0], [ub, v0], [ub, v1], [ua, v1]], mat);
-      m.quadUV([a.x, ay1, -aw1], [b.x, by1, -bw1], [b.x, by0, -bw0], [a.x, ay0, -aw0],
-        [[ua, v1], [ub, v1], [ub, v0], [ua, v0]], mat);
+      m.quadUV([a.x, ay0, aw0 * k], [b.x, by0, bw0 * k], [b.x, by1, bw1 * k], [a.x, ay1, aw1 * k],
+        [[ua, v0], [ub, v0], [ub, v1], [ua, v1]], band);
+      m.quadUV([a.x, ay1, -aw1 * k], [b.x, by1, -bw1 * k], [b.x, by0, -bw0 * k], [a.x, ay0, -aw0 * k],
+        [[ua, v1], [ub, v1], [ub, v0], [ua, v0]], band);
     }
-    // Deck and floor: the strips that close the section top and bottom.
+    // The roof, crowned rather than flat: two quads meeting at a centre line
+    // lifted by a fiftieth of the width. Flat is what a box has.
     const at = a.s[top], bt = b.s[top], ab = a.s[0], bb = b.s[0];
     const vt = vAt(top);
-    m.quadUV([a.x, at[0], at[1]], [b.x, bt[0], bt[1]], [b.x, bt[0], -bt[1]], [a.x, at[0], -at[1]],
-      [[ua, vt], [ub, vt], [ub, vt], [ua, vt]], mat);
+    const ca = at[0] + at[1] * 0.030, cb = bt[0] + bt[1] * 0.030;
+    m.quadUV([a.x, at[0], at[1]], [b.x, bt[0], bt[1]], [b.x, cb, 0], [a.x, ca, 0],
+      [[ua, vt], [ub, vt], [ub, 1], [ua, 1]], mat);
+    m.quadUV([a.x, ca, 0], [b.x, cb, 0], [b.x, bt[0], -bt[1]], [a.x, at[0], -at[1]],
+      [[ua, 1], [ub, 1], [ub, vt], [ua, vt]], mat);
     m.quadUV([a.x, ab[0], -ab[1]], [b.x, bb[0], -bb[1]], [b.x, bb[0], bb[1]], [a.x, ab[0], ab[1]],
       [[ua, 0], [ub, 0], [ub, 0], [ua, 0]], mat);
   }
   if (opts.ends === false) return;
-  // End caps, as a fan from the mid-height of the part that was skinned.
+  // End caps, as a fan from the mid-height of the section. Always painted:
+  // glazing a cap is what made every nose and tail read as an opening.
   for (const [st0, dir] of [[st[0], -1], [st[st.length - 1], 1]] as const) {
     const mid = (st0.s[0][0] + st0.s[top][0]) / 2;
     const u = uAt(st0.x);
@@ -87,9 +118,6 @@ function loft(m: MeshBuilder, st: Station[], mat: Material,
       const [y0, w0] = st0.s[j], [y1, w1] = st0.s[j + 1];
       const c: Vec3 = [st0.x, mid, 0];
       const v0 = vAt(j), v1 = vAt(j + 1), vm = 0.5;
-      // The caps carry coordinates too. Left at zero they came out at v = 0,
-      // which is the sill, so every nose and tail in the fleet was painted the
-      // dark colour the shader uses under the sills.
       if (dir > 0) {
         m.triUV([st0.x, y0, w0], [st0.x, y1, w1], c, [[u, v0], [u, v1], [u, vm]], mat);
         m.triUV([st0.x, y1, -w1], [st0.x, y0, -w0], c, [[u, v1], [u, v0], [u, vm]], mat);
@@ -100,7 +128,6 @@ function loft(m: MeshBuilder, st: Station[], mat: Material,
     }
   }
 }
-
 /** The section index at the widest point: a car's shoulder, and its belt line. */
 function beltIndex(sec: Section): number {
   let best = 0;
@@ -108,88 +135,6 @@ function beltIndex(sec: Section): number {
   return best;
 }
 
-/**
- * The greenhouse: a closed cabin standing on the body's deck.
- *
- * Its own shell, not a glazed band of the body's. That is the whole point --
- * the cabin is closed on six sides, so there is no angle from which you can
- * see through the car, and the glass can be inset from the pillars instead of
- * replacing them. Windscreen and backlight rake in, the pillars stay in body
- * colour, and the roof is painted, because a glass roof is a sunroof.
- */
-function cabin(m: MeshBuilder, st: Station[], mat: Material,
-  o: { from: number; to: number; pillars?: number[] }): void {
-  const n = st[0].s.length;
-  const belt = beltIndex(st[0].s);
-  if (belt >= n - 1) return;
-  const bx0 = st[0].x, bx1 = st[st.length - 1].x;
-  const span = (bx1 - bx0) || 1;
-  const x0 = bx0 + span * o.from, x1 = bx0 + span * o.to;
-  const pillars = o.pillars ?? [];
-
-  /** Section values anywhere along the body, interpolated between stations. */
-  const at = (x: number): Section => {
-    let i = 0;
-    while (i < st.length - 2 && st[i + 1].x < x) i++;
-    const a = st[i], b = st[i + 1];
-    const t = Math.min(1, Math.max(0, (x - a.x) / ((b.x - a.x) || 1)));
-    return a.s.map((p, j) => [p[0] + (b.s[j][0] - p[0]) * t,
-      p[1] + (b.s[j][1] - p[1]) * t] as [number, number]);
-  };
-
-  const segs = 10;
-  const xs: number[] = [];
-  for (let i = 0; i <= segs; i++) xs.push(x0 + ((x1 - x0) * i) / segs);
-  // Cabin plan: narrower than the body at the belt, and tucked in further at
-  // the roof, which is what gives a car its tumblehome.
-  const sill = xs.map((x) => at(x)[belt]);
-  const roof = xs.map((x) => at(x)[n - 1]);
-  const tuck = (i: number, upper: boolean): number =>
-    (upper ? roof[i][1] : sill[i][1]) * (upper ? 0.90 : 0.965);
-  const yOf = (i: number, upper: boolean): number => (upper ? roof[i][0] : sill[i][0] + 0.02);
-
-  for (let i = 0; i < segs; i++) {
-    const ua = i / segs, ub = (i + 1) / segs;
-    const midU = o.from + ((ua + ub) / 2) * (o.to - o.from);
-    // A pillar is a run of the cabin side left in body colour, and the first
-    // and last runs always are: those are the A and D posts.
-    const post = i === 0 || i === segs - 1
-      || pillars.some((pu) => Math.abs(midU - pu) < 0.028);
-    const band = post ? mat : MAT.CAR_GLASS;
-    const inset = post ? 0 : 0.02;
-    for (const sz of [1, -1] as const) {
-      const wa0 = sz * (tuck(i, false) - inset), wa1 = sz * (tuck(i, true) - inset);
-      const wb0 = sz * (tuck(i + 1, false) - inset), wb1 = sz * (tuck(i + 1, true) - inset);
-      const A: Vec3 = [xs[i], yOf(i, false), wa0], B: Vec3 = [xs[i + 1], yOf(i + 1, false), wb0];
-      const C: Vec3 = [xs[i + 1], yOf(i + 1, true), wb1], D: Vec3 = [xs[i], yOf(i, true), wa1];
-      // Surface v is kept below the shader's sky-mix threshold on painted
-      // pillars and on the roof. Above it the paint takes a strong sky tint,
-      // which on a closed cabin came out as a flat grey lid sitting on a
-      // coloured car.
-      const v0 = post ? 0.56 : 0.0, v1 = post ? 0.72 : 1.0;
-      if (sz > 0) m.quadUV(A, B, C, D, [[ua, v0], [ub, v0], [ub, v1], [ua, v1]], band);
-      else m.quadUV(D, C, B, A, [[ua, v1], [ub, v1], [ub, v0], [ua, v0]], band);
-    }
-    // Roof panel.
-    m.quadUV([xs[i], yOf(i, true), tuck(i, true)], [xs[i + 1], yOf(i + 1, true), tuck(i + 1, true)],
-      [xs[i + 1], yOf(i + 1, true), -tuck(i + 1, true)], [xs[i], yOf(i, true), -tuck(i, true)],
-      [[ua, 0.7], [ub, 0.7], [ub, 0.7], [ua, 0.7]], mat);
-  }
-  // Windscreen and backlight: the two raked ends, glazed, with the rake taken
-  // from the cabin's own plan so they always meet the sides.
-  for (const [i, dir] of [[0, -1], [segs, 1]] as const) {
-    const w0 = tuck(i, false), w1 = tuck(i, true);
-    const y0 = yOf(i, false), y1 = yOf(i, true);
-    const x = xs[i];
-    const A: Vec3 = [x, y0, w0], B: Vec3 = [x, y0, -w0];
-    const C: Vec3 = [x, y1, -w1], D: Vec3 = [x, y1, w1];
-    // Wound to face out of the car. Both were inside-out, which is why the
-    // screen and the backlight vanished from the angles you actually see them
-    // from and left the cabin looking open at each end.
-    if (dir < 0) m.quadUV(D, C, B, A, [[0, 1], [0, 1], [0, 0], [0, 0]], MAT.CAR_GLASS);
-    else m.quadUV(A, B, C, D, [[1, 0], [1, 0], [1, 1], [1, 1]], MAT.CAR_GLASS);
-  }
-}
 
 /**
  * Arches the body's lower edge up over each wheel.
@@ -277,7 +222,10 @@ function topAt(st: Station[], x: number): number {
 
 /** Scales a section's widths and shifts its heights: one profile, many bodies. */
 function shape(s: Section, wScale: number, yTop: number): Section {
-  const r = refine(s, 2);
+  // Sections that already describe the shape in detail need one subdivision,
+  // not two: an eight-point profile splined twice is fifteen bands a station,
+  // which doubles the car for nothing anyone can see.
+  const r = refine(s, s.length >= 7 ? 1 : 2);
   const top = r[r.length - 1][0];
   const bot = r[0][0];
   return r.map(([y, w]) => [bot + ((y - bot) / (top - bot)) * (yTop - bot), w * wScale] as [number, number]);
@@ -549,8 +497,10 @@ function archLip(m: MeshBuilder, st: Station[], key: number, cx: number, cy: num
   // A flared wing over the wheel: the lip stands proud of the flank and rolls
   // back under. That roll is what puts a shadow on the top of the tyre, and it
   // is most of why a car looks planted rather than tucked in.
-  const flare = 0.075;
-  for (let i = 0; i < 10; i++) {
+  const flare = 0.05;
+  // From 20 degrees to 160, not the full half-turn: the last segment at each
+  // end is horizontal and sticks straight out past the body as a wedge.
+  for (let i = 1; i < 9; i++) {
     const a0 = Math.PI * (i / 10), a1 = Math.PI * ((i + 1) / 10);
     // Clipped to the deck. An arch of radius r centred on the axle reaches
     // r above the axle line, which on a low car is above the bonnet -- so the
@@ -662,37 +612,18 @@ function lamp(m: MeshBuilder, x: number, y: number, z: number, w: number, h: num
           [Math.max(p, p - dir * 0.05), y + h / 2, z + w / 2], MAT.TRIM, { skipBottom: false });
   });
 }
-/**
- * Door handles, sitting on the body's actual surface.
- *
- * The shut lines that used to come with these are drawn by the shader now.
- * As geometry they were a strip at a fixed half-width, which stands proud
- * where the body narrows and sinks in where it swells -- and a car is nothing
- * but places where the body narrows and swells.
- */
-function handles(m: MeshBuilder, st: Station[], cuts: number[], y: number): void {
-  for (const cut of cuts) {
-    const x = cut + 0.18;
-    const hw = hwAt(st, x, y);
-    for (const sz of [1, -1] as const) {
-      m.box([x, y, Math.min(sz * hw, sz * (hw + 0.035))],
-            [x + 0.20, y + 0.05, Math.max(sz * hw, sz * (hw + 0.035))], MAT.METAL,
-        { skipBottom: false });
-    }
-  }
-}
 
 /** Wing mirrors on stalks, off the body at the height they are given. */
 function mirrors(m: MeshBuilder, st: Station[], key: number, x: number, y: number): void {
   const hw = hwAt(st, x, y);
   for (const sz of [1, -1] as const) {
     m.painted(TINT.METAL_DARK, () =>
-      m.box([x - 0.03, y - 0.03, Math.min(sz * hw, sz * (hw + 0.1))],
-            [x + 0.03, y + 0.03, Math.max(sz * hw, sz * (hw + 0.1))], MAT.TRIM,
+      m.box([x - 0.022, y - 0.022, Math.min(sz * hw, sz * (hw + 0.07))],
+            [x + 0.022, y + 0.022, Math.max(sz * hw, sz * (hw + 0.07))], MAT.TRIM,
         { skipBottom: false }));
     m.keyed(key, () =>
-      m.box([x - 0.1, y - 0.06, Math.min(sz * (hw + 0.08), sz * (hw + 0.22))],
-            [x + 0.1, y + 0.13, Math.max(sz * (hw + 0.08), sz * (hw + 0.22))], MAT.PAINT,
+      m.box([x - 0.075, y - 0.04, Math.min(sz * (hw + 0.06), sz * (hw + 0.17))],
+            [x + 0.075, y + 0.075, Math.max(sz * (hw + 0.06), sz * (hw + 0.17))], MAT.PAINT,
         { skipBottom: false }));
   }
 }
@@ -899,8 +830,9 @@ function cityBus(lod: number): MeshBuilder {
     { x: 5.85, s: shape(S, 0.99, 3.08) },
     { x: 6.10, s: shape(S, 0.92, 2.92) },
   ];
-  m.keyed(7, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.02, to: 0.98, pillars: [0.18, 0.36, 0.54, 0.72, 0.88] }); });
+  m.keyed(7, () => loft(m, st, MAT.PAINT, {
+    glass: { from: 0.03, to: 0.97, above: 0.52, pillars: [0.18, 0.36, 0.54, 0.72, 0.88], width: 0.016 },
+  }));
 
 
   if (medium) {
@@ -997,8 +929,9 @@ function lorry(lod: number): MeshBuilder {
     { x: -4.60, s: shape(CAB, 1.00, 3.34) },
     { x: -4.35, s: shape(CAB, 0.96, 3.20) },
   ];
-  m.keyed(10, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.02, to: 0.3, pillars: [] }); });
+  m.keyed(10, () => loft(m, st, MAT.PAINT, {
+    glass: { from: 0.04, to: 0.30, above: 0.58, pillars: [], width: 0.02 },
+  }));
   m.keyed(11, () => {
     loft(m, [
       { x: -4.10, s: shape(CAB, 0.98, 3.60) },
@@ -1388,8 +1321,10 @@ interface CarSpec {
   axles: [number, number];
   wheel: number;
   cabin: { from: number; to: number; pillars: number[] };
-  /** Open-topped: no cabin roof, a windscreen frame and a roll hoop instead. */
-  open?: boolean;
+  /** Where the glasshouse starts, as a fraction of the section's height. */
+  glassAbove?: number;
+  /** Pillar width, as a fraction of the length. */
+  postWidth?: number;
   pad: [number, number];
   /** Extra geometry, after the fittings. */
   extra?: (m: MeshBuilder, st: Station[]) => void;
@@ -1404,43 +1339,21 @@ function buildCar(lod: number, spec: CarSpec): MeshBuilder {
   const plan: Station[] = spec.plan.map(([x, w, y]) => ({ x, s: shape(spec.section, w, y) }));
   const st = smoothBody(withArches(plan, spec.axles, spec.wheel), 2);
   const nose = st[0].x, tail = st[st.length - 1].x;
-  m.keyed(spec.key, () => {
-    loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    if (!spec.open) cabin(m, st, MAT.PAINT, spec.cabin);
-  });
-  if (spec.open) {
-    // A screen frame and a roll hoop, so an open car still has a structure.
-    m.painted(TINT.METAL_DARK, () => {
-      const sx = nose + (tail - nose) * spec.cabin.from;
-      const hx = nose + (tail - nose) * spec.cabin.to;
-      for (const sz of [1, -1] as const) {
-        const w = sz * (hwAt(st, sx, 1.0) - 0.03);
-        m.pipe([sx, topAt(st, sx) - 0.04, w], [sx + 0.34, topAt(st, sx) + 0.46, w], 0.045, MAT.TRIM, 6);
-        m.pipe([hx, topAt(st, hx) - 0.04, sz * (hwAt(st, hx, 1.0) - 0.18)],
-               [hx, topAt(st, hx) + 0.40, sz * (hwAt(st, hx, 1.0) - 0.18)], 0.05, MAT.TRIM, 6);
-      }
-      const sxx = nose + (tail - nose) * spec.cabin.from;
-      m.pipe([sxx + 0.34, topAt(st, sxx) + 0.46, hwAt(st, sxx, 1.0) - 0.03],
-             [sxx + 0.34, topAt(st, sxx) + 0.46, -(hwAt(st, sxx, 1.0) - 0.03)], 0.045, MAT.TRIM, 6);
-    });
-    // The screen itself, between the two A-posts.
-    const sx = nose + (tail - nose) * spec.cabin.from;
-    const w = hwAt(st, sx, 1.0) - 0.05;
-    m.quad([sx, topAt(st, sx) - 0.04, w], [sx, topAt(st, sx) - 0.04, -w],
-           [sx + 0.34, topAt(st, sx) + 0.44, -w], [sx + 0.34, topAt(st, sx) + 0.44, w], MAT.CAR_GLASS);
-  }
+  // One shell, with the glasshouse cut into it. Nothing stands on the body.
+  m.keyed(spec.key, () => loft(m, st, MAT.PAINT, {
+    glass: {
+      from: spec.cabin.from, to: spec.cabin.to,
+      above: spec.glassAbove ?? 0.60, pillars: spec.cabin.pillars ?? [],
+      ...(spec.postWidth !== undefined ? { width: spec.postWidth } : {}),
+    },
+  }));
 
   if (medium) {
     for (const cx of spec.axles) {
-      // The liner is as wide as the body at the arch, not 2.4 wheel radii --
-      // which on a 40cm wheel was a metre-wide hoop arcing out over the wing
-      // and reading as a piece of black wire stuck to the car.
-      // Centred on the axle, not above it: a liner centred 9cm high with a
-      // radius of r + 13cm arcs to r + 22cm above the ground, which on a low
-      // car is above the bonnet -- and it came through the wing as a black claw.
-      arch(m, cx, spec.wheel + 0.01, spec.wheel + 0.09, hwAt(st, cx, spec.wheel) * 0.92,
-        deckAt(st, cx) - 0.03);
-      archLip(m, st, spec.key, cx, spec.wheel + 0.01, spec.wheel + 0.12);
+      // No separate liner. The body's own arch cut is the opening, and a
+      // half-tube behind it only ever showed as dark wedges poking out past
+      // the wing -- one more of the stray shapes stuck to these cars.
+      archLip(m, st, spec.key, cx, spec.wheel + 0.01, spec.wheel + 0.10);
       for (const sz of [1, -1] as const) {
         wheel(m, cx, spec.wheel + 0.01, sz * axleZ(st, cx, spec.wheel, 0.17), spec.wheel, 0.17);
       }
@@ -1457,12 +1370,15 @@ function buildCar(lod: number, spec: CarSpec): MeshBuilder {
     bumper(m, st, spec.key, nose + 0.04, -1, 0.30, dn * 0.62);
     bumper(m, st, spec.key, tail - 0.04, 1, 0.30, dt * 0.64);
     grille(m, st, nose + 0.02, -1, dn * 0.30, dn * 0.60, 3);
-    handles(m, st, [nose + (tail - nose) * 0.46, nose + (tail - nose) * 0.66], dm * 0.86);
-    mirrors(m, st, spec.key, nose + (tail - nose) * (spec.cabin.from + 0.04), dm * 1.02);
+    mirrors(m, st, spec.key, nose + (tail - nose) * (spec.cabin.from + 0.05), dm * 0.98);
+    // Lamps sit in the bodywork, at the height and the width the body has
+    // there. Given a fixed inset they floated off the corners of a narrow nose
+    // and sank into a wide one.
     for (const sz of [1, -1] as const) {
-      const yf = dn * 0.62, yr = dt * 0.66;
-      lamp(m, nose + 0.02, yf, sz * (hwAt(st, nose + 0.12, yf) - 0.22), 0.36, 0.17, -1, TINT.SIGN_LIT);
-      lamp(m, tail - 0.02, yr, sz * (hwAt(st, tail - 0.12, yr) - 0.22), 0.34, 0.20, 1, TINT.BRAND);
+      const yf = dn * 0.66, yr = dt * 0.70;
+      const wf = hwAt(st, nose + 0.16, yf), wr = hwAt(st, tail - 0.16, yr);
+      lamp(m, nose + 0.10, yf, sz * (wf - 0.30), 0.34, 0.16, -1, TINT.SIGN_LIT);
+      lamp(m, tail - 0.10, yr, sz * (wr - 0.30), 0.32, 0.19, 1, TINT.BRAND);
     }
     plate(m, spec.key, nose, dn * 0.40, -1);
     plate(m, spec.key, tail, dt * 0.42, 1);
@@ -1482,14 +1398,29 @@ const TALL: Section = [[0.34, 0.80], [0.66, 0.98], [1.20, 1.02], [1.72, 0.98], [
  * what gives the flank two planes to catch light on instead of one -- the
  * single biggest difference between one of these and a slab with wheels.
  */
-const SPORT: Section = [[0.20, 0.70], [0.42, 0.92], [0.78, 1.00], [1.02, 0.98], [1.18, 0.86], [1.34, 0.56]];
+/**
+ * A sports car section.
+ *
+ * Eight points, and the two that matter are the shoulder at 1.00 and the drop
+ * to 0.80 straight above it: that step is the belt line, and it is what
+ * separates bodywork from glasshouse. Without it the section is a smooth arc
+ * from sill to roof and the car reads as a bubble -- which is exactly what the
+ * first smooth version looked like.
+ */
+const SPORT: Section = [[0.18, 0.66], [0.36, 0.90], [0.62, 0.99], [0.86, 1.00],
+                        [0.98, 0.80], [1.14, 0.74], [1.30, 0.66], [1.40, 0.46]];
 
 const COUPE: CarSpec = {
   key: 9, section: SPORT, axles: [-1.42, 1.40], wheel: 0.40, pad: [3.2, 1.9],
-  plan: [[-2.16, 0.82, 1.00], [-1.94, 0.94, 1.10], [-1.36, 1.02, 1.22],
-         [-0.55, 1.05, 1.38], [0.35, 1.05, 1.42], [1.18, 1.03, 1.36],
-         [1.86, 0.97, 1.20], [2.14, 0.86, 1.06]],
-  cabin: { from: 0.40, to: 0.80, pillars: [0.60] },
+  // The height profile is the car's side view: flat over the bonnet, a rise
+  // at the screen, flat over the roof, a fall through the backlight to the
+  // boot. Given a smooth arc from nose to tail instead, the loft produces a
+  // dome, which is what a bar of soap looks like.
+  plan: [[-2.16, 0.80, 0.98], [-1.70, 0.94, 1.02], [-1.05, 1.02, 1.06],
+         [-0.62, 1.05, 1.30], [0.05, 1.06, 1.40], [0.72, 1.05, 1.40],
+         [1.24, 1.02, 1.26], [1.78, 0.96, 1.10], [2.14, 0.84, 1.04]],
+  cabin: { from: 0.36, to: 0.80, pillars: [0.60] },
+  glassAbove: 0.62,
 };
 
 const CITY: CarSpec = {
@@ -1500,10 +1431,12 @@ const CITY: CarSpec = {
 };
 
 const ROADSTER: CarSpec = {
-  key: 12, section: CAR, axles: [-1.30, 1.36], wheel: 0.33, pad: [3.0, 1.8], open: true,
-  plan: [[-2.05, 0.86, 0.78], [-1.80, 0.98, 0.84], [-1.10, 1.04, 0.94], [-0.30, 1.06, 1.02],
-         [0.60, 1.06, 1.02], [1.40, 1.02, 0.96], [2.00, 0.90, 0.84], [2.20, 0.76, 0.76]],
-  cabin: { from: 0.34, to: 0.66, pillars: [] },
+  key: 12, section: SPORT, axles: [-1.30, 1.36], wheel: 0.34, pad: [3.0, 1.8],
+  plan: [[-2.05, 0.84, 1.02], [-1.82, 0.96, 1.10], [-1.15, 1.03, 1.20], [-0.35, 1.06, 1.30],
+         [0.55, 1.06, 1.32], [1.35, 1.03, 1.26], [1.96, 0.94, 1.10], [2.16, 0.82, 0.98]],
+  // A roadster with a hood up, not an open shell: it had no top at all, which
+  // from above was a car with a hole where the cabin should be.
+  cabin: { from: 0.34, to: 0.74, pillars: [] },
 };
 
 const MPV: CarSpec = {
@@ -1597,20 +1530,19 @@ const SUV: CarSpec = {
 
 const PICKUP: CarSpec = {
   key: 5, section: TALL, axles: [-1.55, 1.75], wheel: 0.44, pad: [3.6, 2.0],
+  // The bed is part of the shell, not a box inside it: the rear stations drop
+  // to the height of the bed sides. Built as a separate box it ended up
+  // entirely inside a full-height body and the pickup read as a fastback.
   plan: [[-2.55, 0.82, 1.40], [-2.30, 0.95, 1.62], [-1.60, 1.02, 1.90],
-         [-0.80, 1.04, 2.06], [0.10, 1.04, 2.06], [0.60, 1.02, 1.60],
-         [2.40, 1.00, 1.54], [2.62, 0.86, 1.40]],
-  cabin: { from: 0.06, to: 0.42, pillars: [0.26] },
+         [-0.80, 1.04, 2.06], [0.20, 1.04, 2.02], [0.66, 1.02, 1.20],
+         [2.40, 1.00, 1.16], [2.62, 0.86, 1.06]],
+  cabin: { from: 0.06, to: 0.40, pillars: [0.24] },
   extra: (m) => {
-    // The bed: a separate open box behind the cab, with a ribbed floor and a
-    // tailgate. Lofting it with the cab gives a wedge with a hole in it.
-    m.keyed(5, () => {
-      m.box([0.62, 0.86, -1.02], [2.44, 1.52, 1.02], MAT.PAINT);
-      m.box([0.70, 0.90, -0.92], [2.36, 1.46, 0.92], MAT.METAL);
-    });
+    // The bed floor, dropped into the shell, with a ribbed tray.
     m.painted(TINT.METAL_DARK, () => {
+      m.box([0.74, 0.80, -0.94], [2.44, 0.88, 0.94], MAT.METAL);
       for (let i = 0; i < 7; i++) {
-        m.box([0.78 + i * 0.24, 0.90, -0.90], [0.86 + i * 0.24, 0.96, 0.90], MAT.TRIM);
+        m.box([0.84 + i * 0.23, 0.88, -0.92], [0.90 + i * 0.23, 0.93, 0.92], MAT.TRIM);
       }
     });
   },
@@ -1666,13 +1598,15 @@ const LIMO: CarSpec = {
 const CREWCAB: CarSpec = {
   key: 20, section: TALL, axles: [-1.75, 1.95], wheel: 0.45, pad: [3.9, 2.0],
   plan: [[-2.80, 0.82, 1.44], [-2.55, 0.95, 1.66], [-1.85, 1.02, 1.94],
-         [-1.00, 1.04, 2.10], [0.55, 1.04, 2.10], [1.00, 1.02, 1.64],
-         [2.70, 1.00, 1.58], [2.92, 0.86, 1.44]],
-  cabin: { from: 0.06, to: 0.50, pillars: [0.24, 0.38] },
+         [-1.00, 1.04, 2.12], [0.60, 1.04, 2.08], [1.06, 1.02, 1.24],
+         [2.70, 1.00, 1.20], [2.92, 0.86, 1.10]],
+  cabin: { from: 0.06, to: 0.48, pillars: [0.22, 0.36] },
   extra: (m) => {
-    m.keyed(20, () => {
-      m.box([1.05, 0.90, -1.04], [2.74, 1.56, 1.04], MAT.PAINT);
-      m.box([1.13, 0.94, -0.94], [2.66, 1.50, 0.94], MAT.METAL);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([1.14, 0.84, -0.96], [2.74, 0.92, 0.96], MAT.METAL);
+      for (let i = 0; i < 6; i++) {
+        m.box([1.24 + i * 0.25, 0.92, -0.94], [1.30 + i * 0.25, 0.97, 0.94], MAT.TRIM);
+      }
     });
   },
 };
