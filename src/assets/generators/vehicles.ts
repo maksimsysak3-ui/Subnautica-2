@@ -188,10 +188,6 @@ function refine(sec: Section, per = 2): Section {
  * scaled and swept, which is why a hatchback and a saloon are recognisably
  * from the same world.
  */
-/** A car section: sill, waist, shoulder, tumblehome, roof. */
-const CAR: Section = [[0.30, 0.72], [0.62, 0.88], [1.00, 0.90], [1.24, 0.82], [1.42, 0.62]];
-/** A van or bus section: near-vertical sides and a slightly domed roof. */
-const BOX: Section = [[0.34, 0.90], [0.70, 1.10], [1.60, 1.16], [2.40, 1.14], [2.62, 0.92]];
 
 // ------------------------------------------------------------------- wheels
 
@@ -740,96 +736,51 @@ function cyclists(lod: number): MeshBuilder {
 export type ParkedKind = 'car' | 'van' | 'truck' | 'bus';
 
 /**
+ * Which imported models stand in for each kind, and how long they should be.
+ *
+ * Built from whatever the packs actually contain rather than from a list of
+ * ids, so adding a pack widens the choice on every forecourt in the library
+ * without touching this file.
+ */
+const POOL: Record<ParkedKind, { ids: string[]; length: number }> = {
+  car: { ids: [], length: 4.4 },
+  van: { ids: [], length: 5.2 },
+  truck: { ids: [], length: 6.4 },
+  bus: { ids: [], length: 8.4 },
+};
+for (const id of IMPORTED_IDS) {
+  const cls = id.replace(/^car\./, '').replace(/[0-9].*$/, '');
+  if (cls === 'van' || cls === 'microvan') { POOL.van.ids.push(id); POOL.truck.ids.push(id); POOL.bus.ids.push(id); }
+  else POOL.car.ids.push(id);
+}
+
+/**
  * A parked vehicle, facing along +x before placement.
  *
- * `turns` is quarter turns anticlockwise, so a bay facing the street is 0 or
- * 2 and one facing across it is 1 or 3. `key` picks the paint; pass the same
- * key twice and you get the same car twice, which is what you do not want in
- * a row of bays.
+ * `turns` is quarter turns, the same convention as MeshBuilder.placed, so a
+ * bay facing the street is 0 or 2 and one facing across it is 1 or 3. `key`
+ * picks which vehicle; pass the same key twice and you get the same one twice,
+ * which is what you do not want in a row of bays.
+ *
+ * This used to build a car out of a loft and four wheels, which is what put a
+ * pink lozenge in every yard and forecourt. It now draws one of the imported
+ * models, scaled to the length the bay expects -- so the seventy-odd places in
+ * the library that park a car get the same vehicles the fleet does, from one
+ * change here.
  */
 export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: number,
   turns: number, kind: ParkedKind = 'car', body?: number): void {
-  // Station tables first, so the glazing and the wheels can be sampled off the
-  // body rather than sized by hand for each kind.
-  const bus: Station[] = [
-    { x: -5.6, s: shape(BOX, 0.94, 2.90) },
-    { x: -5.2, s: shape(BOX, 1.02, 3.05) },
-    { x: 5.2, s: shape(BOX, 1.02, 3.10) },
-    { x: 5.6, s: shape(BOX, 0.94, 2.95) },
-  ];
-  const cab: Station[] = [
-    { x: -4.2, s: shape(BOX, 0.80, 2.30) },
-    { x: -3.9, s: shape(BOX, 0.92, 2.55) },
-    { x: -2.2, s: shape(BOX, 0.94, 2.70) },
-    { x: -1.9, s: shape(BOX, 0.90, 2.30) },
-  ];
-  const trailer: Station[] = [
-    { x: -1.8, s: shape(BOX, 0.96, 3.10) },
-    { x: 4.4, s: shape(BOX, 0.96, 3.10) },
-  ];
-  const van: Station[] = [
-    { x: -2.5, s: shape(BOX, 0.72, 1.30) },
-    { x: -2.2, s: shape(BOX, 0.88, 1.60) },
-    { x: -1.0, s: shape(BOX, 1.00, 2.42) },
-    { x: 2.4, s: shape(BOX, 1.00, 2.56) },
-  ];
-  const car: Station[] = [
-    { x: -2.2, s: shape(CAR, 0.82, 0.98) },
-    { x: -1.5, s: shape(CAR, 1.00, 1.14) },
-    { x: -0.7, s: shape(CAR, 1.04, 1.46) },
-    { x: 0.9, s: shape(CAR, 1.04, 1.48) },
-    { x: 1.7, s: shape(CAR, 1.00, 1.20) },
-    { x: 2.2, s: shape(CAR, 0.86, 1.04) },
-  ];
-  const st = kind === 'bus' ? bus : kind === 'truck' ? cab : kind === 'van' ? van : car;
-
-  m.placed(cx, cz, turns, () => {
-    const paint = (): void => {
-      loft(m, st, MAT.PAINT);
-      if (kind === 'truck') loft(m, trailer, MAT.PAINT);
-    };
-    if (body === undefined) m.keyed(key, paint);
-    else m.painted(body as never, paint);
-
-    // Wheels and glazing: the two things that stop it reading as a crate.
-    if (kind === 'bus') {
-      for (const cw of [-3.8, 3.2, 4.4]) {
-        for (const sz of [1, -1] as const) wheel(m, cw, 0.48, sz * 0.98, 0.47, 0.17, 10);
-      }
-      for (const sz of [1, -1] as const) {
-        m.quad([-4.6, 1.4, sz * 1.20], [4.6, 1.4, sz * 1.20],
-               [4.6, 2.5, sz * 1.20], [-4.6, 2.5, sz * 1.20], MAT.CAR_GLASS);
-      }
-    } else if (kind === 'truck') {
-      for (const cw of [-3.5, -2.2, 2.6, 3.8]) {
-        for (const sz of [1, -1] as const) wheel(m, cw, 0.52, sz * 0.92, 0.51, 0.16, 10);
-      }
-    } else if (kind === 'van') {
-      for (const cw of [-1.6, 1.7]) {
-        for (const sz of [1, -1] as const) wheel(m, cw, 0.40, sz * 0.86, 0.39, 0.15, 10);
-      }
-      for (const sz of [1, -1] as const) {
-        m.quad([-0.6, 1.5, sz * 1.14], [2.2, 1.5, sz * 1.14],
-               [2.2, 2.3, sz * 1.14], [-0.6, 2.3, sz * 1.14], MAT.CAR_GLASS);
-      }
-    } else {
-      for (const cw of [-1.45, 1.5]) {
-        for (const sz of [1, -1] as const) wheel(m, cw, 0.35, sz * 0.76, 0.34, 0.13, 10);
-      }
-    }
-    // Lights, so it has a front and a back at any distance.
-    const nose = st[0].x;
-    const tail = kind === 'truck' ? trailer[trailer.length - 1].x : st[st.length - 1].x;
-    const lampY = kind === 'car' ? 0.9 : 1.2;
-    for (const sz of [1, -1] as const) {
-      m.painted(TINT.SIGN_LIT, () =>
-        m.box([nose - 0.04, lampY - 0.15, sz * 0.6 - 0.16], [nose + 0.06, lampY + 0.15, sz * 0.6 + 0.16],
-          MAT.TRIM, { skipBottom: false }));
-      m.painted(TINT.BRAND, () =>
-        m.box([tail - 0.06, lampY - 0.15, sz * 0.6 - 0.16], [tail + 0.04, lampY + 0.15, sz * 0.6 + 0.16],
-          MAT.TRIM, { skipBottom: false }));
-    }
-  });
+  void body;
+  const pool = POOL[kind];
+  if (pool.ids.length === 0) return;
+  const k = Math.abs(Math.round(key));
+  const id = pool.ids[k % pool.ids.length];
+  const [hx] = importedSize(id);
+  // The cheap copy, always: a forecourt parks eight of these and the full
+  // model is four thousand triangles. At the size a parked car occupies on
+  // screen the clustered one is indistinguishable.
+  drawImported(m, id, { cx, cz, turns, low: true,
+    scale: pool.length / Math.max(hx * 2, 0.1) });
 }
 
 /**

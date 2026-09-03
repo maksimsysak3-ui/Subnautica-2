@@ -329,6 +329,82 @@ def pack_vehicle(tris, scale):
     return order, index
 
 
+def flatten(tris, keep=14):
+    """
+    Snaps a vehicle's triangle colours onto its own small palette.
+
+    The packs are not all palette atlases. One of them paints its cars with
+    baked shading in the texture, so a median texel per triangle picks up the
+    gradient and neighbouring panels land a shade or two apart -- the whole car
+    comes out mottled, which is not what a low-poly car looks like.
+
+    So each vehicle's colours are histogrammed by area on a coarse grid, the
+    heaviest are kept as its palette, and every triangle snaps to the nearest
+    of them. Bodywork becomes one flat colour, glass another, tyres another,
+    and the baked shading goes where it belongs.
+    """
+    from collections import defaultdict
+    weight = defaultdict(float)
+    for corner, col in tris:
+        # Area-weighted, so a large panel outvotes a hundred tiny bezels.
+        ax = corner[1][0] - corner[0][0]; ay = corner[1][1] - corner[0][1]
+        az = corner[1][2] - corner[0][2]
+        bx = corner[2][0] - corner[0][0]; by = corner[2][1] - corner[0][1]
+        bz = corner[2][2] - corner[0][2]
+        cx, cy, cz = ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
+        area = math.sqrt(cx * cx + cy * cy + cz * cz) / 2
+        weight[tuple(round(c * 24) for c in col)] += area
+    palette = [tuple(k[i] / 24 for i in range(3))
+               for k, _ in sorted(weight.items(), key=lambda kv: -kv[1])[:keep]]
+    if not palette:
+        return tris
+    out = []
+    for corner, col in tris:
+        best = min(palette, key=lambda p: sum((p[i] - col[i]) ** 2 for i in range(3)))
+        out.append((corner, best))
+    return out
+
+
+def cluster(order, index, cell):
+    """
+    A cheap copy of a shape: vertices welded onto a grid, and the triangles
+    that survive it.
+
+    Vertex clustering, which is the decimation that suits these models: the
+    bodies are already flat-shaded slabs, so snapping to a grid a third of a
+    metre across keeps the silhouette and the colour breaks and throws away
+    the panel gaps, the wheel spokes and the lamp bezels. A car goes from
+    three thousand triangles to a few hundred.
+
+    Needed because a forecourt parks eight of them. A full model each puts a
+    corner shop over the triangle ceiling on its own.
+    """
+    rep, remap = {}, []
+    for v in order:
+        key = (round(v[0] / cell), round(v[1] / cell), round(v[2] / cell))
+        if key not in rep:
+            rep[key] = len(rep)
+        remap.append(rep[key])
+    # The representative keeps the first position and colour that landed in it,
+    # so a cluster straddling a colour break takes one side rather than a blend.
+    out = [None] * len(rep)
+    for v, r in zip(order, remap):
+        if out[r] is None:
+            out[r] = v
+    keep = []
+    seen = set()
+    for i in range(0, len(index), 3):
+        a, b, c = (remap[index[i + k]] for k in range(3))
+        if a == b or b == c or a == c:
+            continue                       # collapsed onto a line
+        sig = tuple(sorted((a, b, c)))
+        if sig in seen:
+            continue                       # a duplicate of one already kept
+        seen.add(sig)
+        keep += [a, b, c]
+    return out, keep
+
+
 def b64(b):
     return base64.b64encode(bytes(b)).decode()
 
@@ -362,7 +438,7 @@ def main(src_dir, out_path):
         groups, scale = vehicles_in(src / f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris in groups:
-            order, index = pack_vehicle(tris, scale)
+            order, index = pack_vehicle(flatten(tris), scale)
             found.append((geo_hash(order, index), order, index))
 
     # One name per geometry, from its size, and a running number per class.
@@ -394,6 +470,19 @@ def main(src_dir, out_path):
             ib = bytearray()
             for i in index:
                 ib += struct.pack('<I' if wide else '<H', i)
+            # The cheap copy, on the same quantisation so one decoder does
+            # both. Cell size scales with the model so a van and a hatchback
+            # lose about the same proportion of their detail.
+            cell = max(span[0], span[2]) * 0.075
+            lorder, lindex = cluster(order, index, cell)
+            lbuf = bytearray()
+            for v in lorder:
+                for i in range(3):
+                    q = int(round((v[i] - lo[i]) / span[i] * 65535))
+                    lbuf += struct.pack('<H', max(0, min(65535, q)))
+            lib = bytearray()
+            for i in lindex:
+                lib += struct.pack('<H', i)
             shapes[geo] = {
                 'lo': [round(x, 4) for x in lo],
                 'span': [round(x, 4) for x in span],
@@ -401,12 +490,21 @@ def main(src_dir, out_path):
                 'verts': b64(buf),
                 'index': b64(ib),
                 'count': len(index),
+                'lowVerts': b64(lbuf),
+                'lowIndex': b64(lib),
+                'lowCount': len(lindex),
                 'label': key,
             }
+            shapes[geo]['cell'] = round(cell, 4)
         cbuf = bytearray()
         for v in order:
             for i in range(3):
                 cbuf.append(max(0, min(255, int(round(v[3 + i] * 255)))))
+        lorder, _ = cluster(order, index, shapes[geo]['cell'])
+        lcbuf = bytearray()
+        for v in lorder:
+            for i in range(3):
+                lcbuf.append(max(0, min(255, int(round(v[3 + i] * 255)))))
         # Liveries of one shape share its number and take a letter.
         seen[geo] = liv = seen.get(geo, 0) + 1
         base = f'{key}{n}'
@@ -415,6 +513,7 @@ def main(src_dir, out_path):
             'name': f'{label} {n}' + ('' if liv == 1 else chr(ord('a') + liv - 1)),
             'shape': geo,
             'colour': b64(cbuf),
+            'lowColour': b64(lcbuf),
         }
         length = max(v[0] for v in order) - min(v[0] for v in order)
         print(f'  {aid:18s} {len(index)//3:6d} tris  {length:4.1f}m  shape {geo}')
@@ -437,10 +536,12 @@ def main(src_dir, out_path):
         ' */\n\n'
         'export interface ImportedShape {\n'
         '  lo: number[];\n  span: number[];\n  wide: boolean;\n'
-        '  verts: string;\n  index: string;\n  count: number;\n  label: string;\n'
+        '  verts: string;\n  index: string;\n  count: number;\n'
+        '  lowVerts: string;\n  lowIndex: string;\n  lowCount: number;\n'
+        '  cell: number;\n  label: string;\n'
         '}\n\n'
         'export interface ImportedModel {\n'
-        '  name: string;\n  shape: string;\n  colour: string;\n'
+        '  name: string;\n  shape: string;\n  colour: string;\n  lowColour: string;\n'
         '}\n\n'
         'export const FLEET_DATA: { shapes: Record<string, ImportedShape>;'
         ' models: Record<string, ImportedModel> } = '

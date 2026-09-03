@@ -676,6 +676,77 @@ export class MeshBuilder {
    * coordinates it already has in three other forms. Getting those numbers
    * slightly wrong is how plant ends up hovering beside a building.
    */
+
+  /**
+   * The largest solid slab of horizontal triangles at one height.
+   *
+   * Both roof searches used to take the bounding box of every triangle in the
+   * winning height bin, which is only a roof if the building has exactly one
+   * thing at that level. It usually does not: a canopy over the entrance, a
+   * porte-cochere, a lower wing, a separate plant enclosure. The union of those
+   * is a rectangle spanning the gaps between them, and the dressing pass then
+   * built a deck with railings across open air beside the building -- the
+   * floating tray that turned up on the depot, the police station, the clinic
+   * and half the schools.
+   *
+   * So the triangles are binned on a two-metre grid, touching bins are joined,
+   * and only the largest connected slab counts. It also has to be reasonably
+   * solid: a slab covering less than two thirds of its own bounding box is a
+   * ring or an L or two pads side by side, and a rectangle laid over that spans
+   * a courtyard. Those get no dressing at all, which is the right answer.
+   */
+  private slabAt(tris: Array<{ area: number; x0: number; x1: number; z0: number; z1: number }>):
+    { area: number; x0: number; x1: number; z0: number; z1: number } | null {
+    if (tris.length === 0) return null;
+    const CELL = 2.0;
+    const cells = new Map<string, number[]>();
+    for (let i = 0; i < tris.length; i++) {
+      const cx = Math.floor(((tris[i].x0 + tris[i].x1) / 2) / CELL);
+      const cz = Math.floor(((tris[i].z0 + tris[i].z1) / 2) / CELL);
+      const k = `${cx},${cz}`;
+      const at = cells.get(k);
+      if (at === undefined) cells.set(k, [i]); else at.push(i);
+    }
+    const keys = [...cells.keys()];
+    const parent = new Map<string, string>(keys.map((k) => [k, k]));
+    const find = (a: string): string => {
+      let r = a;
+      while (parent.get(r) !== r) r = parent.get(r) as string;
+      while (parent.get(a) !== r) { const n = parent.get(a) as string; parent.set(a, r); a = n; }
+      return r;
+    };
+    for (const k of keys) {
+      const [cx, cz] = k.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [0, 1], [1, 1], [1, -1]] as const) {
+        const n = `${cx + dx},${cz + dz}`;
+        if (!parent.has(n)) continue;
+        const a = find(k), b = find(n);
+        if (a !== b) parent.set(a, b);
+      }
+    }
+    const groups = new Map<string, number[]>();
+    for (const k of keys) {
+      const r = find(k);
+      const at = groups.get(r);
+      const list = cells.get(k) as number[];
+      if (at === undefined) groups.set(r, [...list]); else at.push(...list);
+    }
+    let best: { area: number; x0: number; x1: number; z0: number; z1: number } | null = null;
+    for (const g of groups.values()) {
+      const b = { area: 0, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
+      for (const i of g) {
+        b.area += tris[i].area;
+        b.x0 = Math.min(b.x0, tris[i].x0); b.x1 = Math.max(b.x1, tris[i].x1);
+        b.z0 = Math.min(b.z0, tris[i].z0); b.z1 = Math.max(b.z1, tris[i].z1);
+      }
+      if (best === null || b.area > best.area) best = b;
+    }
+    if (best === null) return null;
+    const boxArea = (best.x1 - best.x0) * (best.z1 - best.z0);
+    if (boxArea <= 0 || best.area < boxArea * 0.66) return null;
+    return best;
+  }
+
   roofPlane(): { y: number; min: [number, number]; max: [number, number] } | null {
     let top = -Infinity;
     for (let i = 1; i < this.verts.length; i += FLOATS_PER_VERTEX) {
@@ -683,7 +754,8 @@ export class MeshBuilder {
     }
     if (!Number.isFinite(top) || top < 3) return null;
 
-    const bins = new Map<number, { area: number; x0: number; x1: number; z0: number; z1: number }>();
+    type Tri = { area: number; x0: number; x1: number; z0: number; z1: number };
+    const bins = new Map<number, Tri[]>();
     for (let t = 0; t < this.idx.length; t += 3) {
       const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
       // Genuinely horizontal, not merely upward. A 21-degree pitch still has
@@ -695,21 +767,26 @@ export class MeshBuilder {
       const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
       const wx = this.verts[p[2]] - this.verts[p[0]];
       const wz = this.verts[p[2] + 2] - this.verts[p[0] + 2];
-      const area = Math.abs(ux * wz - uz * wx) / 2;
+      const tri: Tri = {
+        area: Math.abs(ux * wz - uz * wx) / 2,
+        x0: Math.min(this.verts[p[0]], this.verts[p[1]], this.verts[p[2]]),
+        x1: Math.max(this.verts[p[0]], this.verts[p[1]], this.verts[p[2]]),
+        z0: Math.min(this.verts[p[0] + 2], this.verts[p[1] + 2], this.verts[p[2] + 2]),
+        z1: Math.max(this.verts[p[0] + 2], this.verts[p[1] + 2], this.verts[p[2] + 2]),
+      };
       const k = Math.round(cy * 4) / 4;
-      const b = bins.get(k) ?? { area: 0, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
-      b.area += area;
-      for (const q of p) {
-        b.x0 = Math.min(b.x0, this.verts[q]); b.x1 = Math.max(b.x1, this.verts[q]);
-        b.z0 = Math.min(b.z0, this.verts[q + 2]); b.z1 = Math.max(b.z1, this.verts[q + 2]);
-      }
-      bins.set(k, b);
+      const at = bins.get(k);
+      if (at === undefined) bins.set(k, [tri]); else at.push(tri);
     }
     let bestY: number | null = null;
-    let best: { area: number; x0: number; x1: number; z0: number; z1: number } | null = null;
-    for (const [y, b] of bins) {
-      if (b.area < 30 || y < top * 0.55) continue;
-      if (bestY === null || y >= bestY) { bestY = y; best = b; }
+    let best: Tri | null = null;
+    for (const [y, tris] of bins) {
+      if (y < top * 0.55) continue;
+      // The largest connected slab at this height, not the union of everything
+      // at it -- a canopy and a lower wing are not one roof.
+      const slab = this.slabAt(tris);
+      if (slab === null || slab.area < 30) continue;
+      if (bestY === null || y >= bestY) { bestY = y; best = slab; }
     }
     if (bestY === null || best === null) return null;
 
@@ -759,7 +836,8 @@ export class MeshBuilder {
     }
     if (!Number.isFinite(top) || top < 3) return null;
 
-    const bins = new Map<number, { area: number; x0: number; x1: number; z0: number; z1: number }>();
+    type Tri = { area: number; x0: number; x1: number; z0: number; z1: number };
+    const bins = new Map<number, Tri[]>();
     const above: number[] = [];
     for (let t = 0; t < this.idx.length; t += 3) {
       const p = [0, 1, 2].map((k) => this.idx[t + k] * FLOATS_PER_VERTEX);
@@ -770,25 +848,28 @@ export class MeshBuilder {
       const uz = this.verts[p[1] + 2] - this.verts[p[0] + 2];
       const wx = this.verts[p[2]] - this.verts[p[0]];
       const wz = this.verts[p[2] + 2] - this.verts[p[0] + 2];
-      const area = Math.abs(ux * wz - uz * wx) / 2;
+      const tri: Tri = {
+        area: Math.abs(ux * wz - uz * wx) / 2,
+        x0: Math.min(this.verts[p[0]], this.verts[p[1]], this.verts[p[2]]),
+        x1: Math.max(this.verts[p[0]], this.verts[p[1]], this.verts[p[2]]),
+        z0: Math.min(this.verts[p[0] + 2], this.verts[p[1] + 2], this.verts[p[2] + 2]),
+        z1: Math.max(this.verts[p[0] + 2], this.verts[p[1] + 2], this.verts[p[2] + 2]),
+      };
       const k = Math.round(cy * 4) / 4;
-      const b = bins.get(k) ?? { area: 0, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity };
-      b.area += area;
-      for (const q of p) {
-        b.x0 = Math.min(b.x0, this.verts[q]); b.x1 = Math.max(b.x1, this.verts[q]);
-        b.z0 = Math.min(b.z0, this.verts[q + 2]); b.z1 = Math.max(b.z1, this.verts[q + 2]);
-      }
-      bins.set(k, b);
+      const at = bins.get(k);
+      if (at === undefined) bins.set(k, [tri]); else at.push(tri);
     }
     let bestY: number | null = null;
-    let best: { area: number; x0: number; x1: number; z0: number; z1: number } | null = null;
-    for (const [y, b] of bins) {
-      if (b.area < 25 || y < top * 0.55) continue;
+    let best: Tri | null = null;
+    for (const [y, tris] of bins) {
+      if (y < top * 0.55) continue;
+      const slab = this.slabAt(tris);
+      if (slab === null || slab.area < 25) continue;
       // A long thin plane is a canopy or a cornice, not a roof.
-      if (Math.min(b.x1 - b.x0, b.z1 - b.z0) < 4) continue;
+      if (Math.min(slab.x1 - slab.x0, slab.z1 - slab.z0) < 4) continue;
       // Bare: what stands on it is a handful of triangles, not a storey.
       if (above.filter((cy) => cy > y + 0.35).length >= 24) continue;
-      if (bestY === null || y >= bestY) { bestY = y; best = b; }
+      if (bestY === null || y >= bestY) { bestY = y; best = slab; }
     }
     if (bestY === null || best === null) return null;
     return { y: bestY, min: [best.x0, best.z0], max: [best.x1, best.z1] };

@@ -58,16 +58,29 @@ function colonnade(m: MeshBuilder, x0: number, x1: number, z: number, base: numb
 /** A shallow barrel roof, faked with three facets. Sports halls and libraries. */
 function barrel(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
                 base: number, rise: number, mat: Material = MAT.METAL): void {
-  const seg: Array<[number, number, number]> = [[0, 0, 0.62], [0.34, 0.62, 0.94], [0.66, 0.94, 1.0]];
-  for (const [t0, a, b] of seg) {
-    for (const s of [-1, 1] as const) {
-      const u0 = (x0 + x1) / 2 + s * t0 * (x1 - x0) / 2;
-      const u1 = (x0 + x1) / 2 + s * Math.min(1, t0 + 0.34) * (x1 - x0) / 2;
-      const lo = Math.min(u0, u1), hi = Math.max(u0, u1);
-      const ya = base + (s < 0 ? b : a) * rise;
-      const yb = base + (s < 0 ? a : b) * rise;
-      m.quad([lo, s < 0 ? ya : yb, z1], [hi, s < 0 ? yb : ya, z1],
-             [hi, s < 0 ? yb : ya, z0], [lo, s < 0 ? ya : yb, z0], mat);
+  // A real half-cylinder swept along z, with a gable end closing each end.
+  //
+  // It used to be three quads a side off a table of overlapping spans, with
+  // the height pair swapped on one side and no ends at all -- an open fan of
+  // angled slabs hanging over the yard, which is what the depot's salt barn
+  // looked like from every angle but square on.
+  const SEG = 8;
+  const cx = (x0 + x1) / 2, r = (x1 - x0) / 2;
+  const at = (k: number): [number, number] => {
+    const t = (k / SEG) * Math.PI;
+    return [cx - Math.cos(t) * r, base + Math.sin(t) * rise];
+  };
+  for (let k = 0; k < SEG; k++) {
+    const [ax, ay] = at(k), [bx, by] = at(k + 1);
+    m.quad([ax, ay, z1], [bx, by, z1], [bx, by, z0], [ax, ay, z0], mat);
+  }
+  // The two ends, as a fan from the springing line up to the vault.
+  for (const [z, flip] of [[z0, true], [z1, false]] as const) {
+    for (let k = 0; k < SEG; k++) {
+      const [ax, ay] = at(k), [bx, by] = at(k + 1);
+      const p: [number, number, number][] = [[ax, ay, z], [bx, by, z], [cx, base, z]];
+      if (flip) m.tri(p[0], p[1], p[2], MAT.CONCRETE);
+      else m.tri(p[2], p[1], p[0], MAT.CONCRETE);
     }
   }
   m.box([x0 - 0.4, base - 0.5, z0 - 0.4], [x1 + 0.4, base, z1 + 0.4], MAT.CONCRETE);

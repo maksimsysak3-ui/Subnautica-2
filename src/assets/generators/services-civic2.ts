@@ -132,9 +132,26 @@ function funeralDirector(lod: number): MeshBuilder {
           y0: 0.2, y1: 3.2, glass: MAT.TRIM, frame: 0.16, proud: 0.1 });
       }
     });
+    // Two hearses in the yard rather than one, and a walled yard round them:
+    // a funeral director is a garage and a chapel behind a quiet frontage.
     parkedVehicle(m, 9201, -4.0, -z - 11.6, 2, 'car');
-    frontage(m, -x, x, z + 0.4, 9210, { planters: 2, bollards: 5 });
-    figure(m, 9220, 3.4, z + 1.6, Math.PI, {});
+    parkedVehicle(m, 9207, 1.2, -z - 11.6, 2, 'van');
+    m.box([-x - 0.4, 0, -z - 12.6], [-x, 2.2, -z], MAT.STONE);
+    m.box([x - 2.0, 0, -z - 12.6], [x - 1.6, 2.2, -z], MAT.STONE);
+    m.box([-x - 0.4, 0, -z - 13.0], [x - 1.6, 2.2, -z - 12.6], MAT.STONE);
+    for (const px of [-x - 0.4, x - 2.0]) {
+      m.box([px - 0.12, 2.2, -z - 13.1], [px + 0.52, 2.44, -z + 0.1], MAT.TRIM);
+    }
+    // A columned porch over the door, which is the one piece of ceremony a
+    // building like this gets.
+    m.box([-3.6, 0, z], [3.6, 0.24, z + 2.6], MAT.STONE);
+    for (const px of [-3.2, -1.1, 1.1, 3.2]) {
+      m.cylinder(px, z + 2.0, 0.26, 0.24, 3.9, 8, MAT.STONE);
+    }
+    m.box([-3.8, 3.9, z - 0.2], [3.8, 4.5, z + 2.8], MAT.STONE);
+    ring(m, -3.8, z - 0.2, 3.8, z + 2.8, 4.5, 0.22, 0.12, MAT.TRIM);
+    frontage(m, -x, x, z + 3.2, 9210, { planters: 2, bollards: 5 });
+    figure(m, 9220, 3.4, z + 4.4, Math.PI, {});
   }
   return m;
 }

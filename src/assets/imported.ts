@@ -24,6 +24,9 @@ interface Decoded {
   size: [number, number, number];
 }
 
+/** Decoded once per (id, detail); `low` is the vertex-clustered copy. */
+const KEY = (id: string, low: boolean): string => (low ? id + '~' : id);
+
 const cache = new Map<string, Decoded>();
 
 function bytes(b64: string): Uint8Array {
@@ -33,26 +36,28 @@ function bytes(b64: string): Uint8Array {
   return out;
 }
 
-function decode(id: string, model: ImportedModel, src: ImportedShape): Decoded {
-  const raw = bytes(src.verts);
+function decode(id: string, model: ImportedModel, src: ImportedShape, low: boolean): Decoded {
+  const raw = bytes(low ? src.lowVerts : src.verts);
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
   // Six bytes a vertex of position: three unsigned shorts quantised across the
   // shape's own bounding box, so the precision is a fraction of a millimetre
   // on a car. Colour is a separate three bytes a vertex from the model.
   const n = Math.floor(raw.length / 6);
   const pos = new Float32Array(n * 3);
-  const col = bytes(model.colour).slice(0, n * 3);
+  const col = bytes(low ? model.lowColour : model.colour).slice(0, n * 3);
   for (let i = 0; i < n; i++) {
     for (let k = 0; k < 3; k++) {
       const q = view.getUint16(i * 6 + k * 2, true);
       pos[i * 3 + k] = src.lo[k] + (q / 65535) * src.span[k];
     }
   }
-  const ib = bytes(src.index);
+  const ib = bytes(low ? src.lowIndex : src.index);
   const iv = new DataView(ib.buffer, ib.byteOffset, ib.byteLength);
-  const index = new Uint32Array(src.count);
-  for (let i = 0; i < src.count; i++) {
-    index[i] = src.wide ? iv.getUint32(i * 4, true) : iv.getUint16(i * 2, true);
+  const count = low ? src.lowCount : src.count;
+  const wide = src.wide && !low;             // the cheap copy always fits in 16 bits
+  const index = new Uint32Array(count);
+  for (let i = 0; i < count; i++) {
+    index[i] = wide ? iv.getUint32(i * 4, true) : iv.getUint16(i * 2, true);
   }
   let mx = 0, my = 0, mz = 0;
   for (let i = 0; i < n; i++) {
@@ -61,18 +66,18 @@ function decode(id: string, model: ImportedModel, src: ImportedShape): Decoded {
     mz = Math.max(mz, Math.abs(pos[i * 3 + 2]));
   }
   const out: Decoded = { pos, col, index, size: [mx, my, mz] };
-  cache.set(id, out);
+  cache.set(KEY(id, low), out);
   return out;
 }
 
-export function importedMesh(id: string): Decoded | null {
-  const hit = cache.get(id);
+export function importedMesh(id: string, low = false): Decoded | null {
+  const hit = cache.get(KEY(id, low));
   if (hit !== undefined) return hit;
   const model = FLEET_DATA.models[id];
   if (model === undefined) return null;
   const shape = FLEET_DATA.shapes[model.shape];
   if (shape === undefined) return null;
-  return decode(id, model, shape);
+  return decode(id, model, shape, low);
 }
 
 /** Every imported vehicle, in the order the pack listed them. */
@@ -90,8 +95,8 @@ export function importedSize(id: string): [number, number, number] {
 
 /** Draws one, standing on the ground and facing along +x. */
 export function drawImported(m: MeshBuilder, id: string,
-  opts: { cx?: number; cz?: number; turns?: number; scale?: number } = {}): void {
-  const d = importedMesh(id);
+  opts: { cx?: number; cz?: number; turns?: number; scale?: number; low?: boolean } = {}): void {
+  const d = importedMesh(id, opts.low === true);
   if (d === null) return;
   m.imported(d.pos, d.col, d.index, opts);
 }
