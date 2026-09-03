@@ -13,6 +13,7 @@
  */
 
 import type { MeshBuilder } from './mesh';
+import type { Theme } from './themes';
 
 export type Zone =
   | 'residential' | 'commercial' | 'industrial' | 'office' | 'service'
@@ -103,6 +104,8 @@ export function idSeed(id: string): number {
 
 export interface AssetDef {
   id: string;
+  /** Regional theme, for the four zoned categories. See assets/themes.ts. */
+  theme?: Theme;
   /** Service branch, for zone 'service' only. */
   branch?: Branch;
   name: string;

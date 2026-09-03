@@ -6,7 +6,7 @@
  * density and footprint.
  */
 
-import { RESIDENTIAL } from './generators/residential';
+import { HOUSING } from './generators/housing';
 import { COMMERCIAL } from './generators/commercial';
 import { INDUSTRIAL } from './generators/industrial';
 import { OFFICE } from './generators/office';
@@ -22,7 +22,7 @@ import { idSeed } from './types';
 import type { AssetDef, Zone } from './types';
 
 export const ASSETS: AssetDef[] = [
-  ...RESIDENTIAL, ...COMMERCIAL, ...OFFICE, ...INDUSTRIAL,
+  ...HOUSING, ...COMMERCIAL, ...OFFICE, ...INDUSTRIAL,
   ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...FLEET, ...ROADS,
 ];
 
