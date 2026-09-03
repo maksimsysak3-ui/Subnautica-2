@@ -7,9 +7,7 @@
  */
 
 import { HOUSING } from './generators/housing';
-import { COMMERCIAL } from './generators/commercial';
-import { INDUSTRIAL } from './generators/industrial';
-import { OFFICE } from './generators/office';
+import { COMMERCE, WORKPLACES, MAKING } from './generators/trade';
 import { SAFETY } from './generators/services-safety';
 import { UTILITY } from './generators/services-utility';
 import { CIVIC } from './generators/services-civic';
@@ -22,7 +20,7 @@ import { idSeed } from './types';
 import type { AssetDef, Zone } from './types';
 
 export const ASSETS: AssetDef[] = [
-  ...HOUSING, ...COMMERCIAL, ...OFFICE, ...INDUSTRIAL,
+  ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
   ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...FLEET, ...ROADS,
 ];
 

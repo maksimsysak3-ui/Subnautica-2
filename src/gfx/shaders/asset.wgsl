@@ -59,6 +59,8 @@ const MAT_ROOF_TILE = 14u;
 const MAT_PAINT     = 18u;
 const MAT_PLATE     = 20u;
 const MAT_TYRE      = 21u;
+const MAT_DARK      = 22u;
+const MAT_RENDER    = 23u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -799,6 +801,37 @@ fn tyreColour(surf : vec2f, key : f32) -> vec3f {
   return col;
 }
 
+/**
+ * Anodised near-black: window frames, copings and fins on the modern theme.
+ *
+ * Not pure black -- a black surface takes no light and reads as a hole. It is
+ * a very dark grey with a faint vertical grain and a slight sheen, which is
+ * what a dark powder-coated extrusion looks like against white render.
+ */
+fn darkMetal(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let grain = hash21(vec2f(floor(uv.x * 40.0), floor(uv.y * 6.0)) + seed) * 0.035;
+  let sheen = 0.02 * sin(uv.y * 3.0 + seed);
+  return vec3f(0.085 + grain + sheen, 0.088 + grain + sheen, 0.095 + grain + sheen);
+}
+
+/**
+ * White panel: the modern theme's wall.
+ *
+ * Plaster was the nearest thing in the palette and it is a warm off-cream --
+ * put beside black frames it read as another beige building. This is a cool
+ * near-white with the panel joints expressed as fine shadow lines, which is
+ * what large-format render panel actually looks like and what gives the theme
+ * its contrast.
+ */
+fn renderPanel(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
+  let base = vec3f(0.855, 0.862, 0.868) + hash21(floor(uv * 0.7) + seed) * 0.02;
+  // Joints every 1.2m each way, faded out once they are under a pixel.
+  let g = abs(fract(uv / 1.2 + 0.5) - 0.5) / max(mpp / 1.2, 0.0015);
+  let line = clamp(min(g.x, g.y), 0.0, 1.0);
+  let fade = clamp(1.0 - mpp * 5.0, 0.0, 1.0);
+  return base * (1.0 - (1.0 - line) * 0.16 * fade);
+}
+
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
           surf : vec2f, surfD : vec2f) -> vec3f {
   switch (mat) {
@@ -826,6 +859,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 19u: { return figureColour(surf, key); }
     case 20u: { return plateColour(surf, surfD, key); }
     case 21u: { return tyreColour(surf, key); }
+    case 22u: { return darkMetal(uv, mpp, seed); }
+    case 23u: { return renderPanel(uv, mpp, seed); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -1006,6 +1041,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // Rubber. Almost nothing, but not quite nothing: a tyre has a sheen on
     // the shoulder and none at all in the tread.
     gloss = 0.10; power = 14.0;
+  } else if (in.material == MAT_DARK) {
+    gloss = 0.55; power = 90.0; fresnel = 0.30;
   } else if (in.material == MAT_TRIM || in.material == MAT_CONCRETE) {
     // Painted trim and precast are satin, not matte, and a trace of sheen is
     // what stops a white cornice reading as paper.

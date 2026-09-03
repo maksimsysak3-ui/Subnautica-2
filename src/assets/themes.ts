@@ -20,7 +20,7 @@
 import { MAT, TINT, MeshBuilder } from './mesh';
 import type { Material } from './mesh';
 
-export type Theme = 'modern' | 'european' | 'american' | 'asian' | 'heritage';
+export type Theme = 'modern' | 'european' | 'american' | 'asian' | 'farming' | 'row';
 
 export interface ThemeProfile {
   id: Theme;
@@ -58,10 +58,13 @@ export interface ThemeProfile {
 
 export const THEMES: Record<Theme, ThemeProfile> = {
   modern: {
+    // White panel, black frames and glass. The whole theme is that contrast,
+    // so it takes the flattest roof, the deepest ribbon glazing and no
+    // ornament at all -- anything applied to it reads as a different theme.
     id: 'modern', badge: 'MOD', label: 'Modern',
-    wall: MAT.CLADDING, base: MAT.CONCRETE, cover: MAT.ROOF, trim: MAT.TRIM,
-    roof: 'flat', pitch: 0, eave: 0.18, floorH: 3.1,
-    winW: 2.2, winH: 2.0, rhythm: 2, shutters: false, grille: false,
+    wall: MAT.RENDER, base: MAT.CONCRETE, cover: MAT.ROOF, trim: MAT.DARK_TRIM,
+    roof: 'flat', pitch: 0, eave: 0.12, floorH: 3.2,
+    winW: 2.4, winH: 2.2, rhythm: 2, shutters: false, grille: false,
     chimney: false, veranda: false, ribbon: true, balcony: 'metal',
   },
   european: {
@@ -85,20 +88,41 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     winW: 1.7, winH: 1.7, rhythm: 2, shutters: false, grille: true,
     chimney: false, veranda: false, ribbon: false, balcony: 'recessed',
   },
-  heritage: {
-    id: 'heritage', badge: 'OLD', label: 'Old world',
-    wall: MAT.STONE, base: MAT.STONE, cover: MAT.ROOF_TILE, trim: MAT.TIMBER,
-    roof: 'gable', pitch: 0.58, eave: 0.22, floorH: 2.7,
+  farming: {
+    // Whitewashed stone and timber under a very steep tiled roof, with deep
+    // eaves and small shuttered openings: a working village rather than a
+    // period piece.
+    id: 'farming', badge: 'FARM', label: 'Farming',
+    wall: MAT.PLASTER, base: MAT.STONE, cover: MAT.ROOF_TILE, trim: MAT.TIMBER,
+    roof: 'gable', pitch: 0.62, eave: 0.44, floorH: 2.7,
     winW: 0.9, winH: 1.3, rhythm: 3, shutters: true, grille: false,
-    chimney: true, veranda: false, ribbon: false, balcony: 'none',
+    chimney: true, veranda: true, ribbon: false, balcony: 'none',
+  },
+  row: {
+    // Row housing: one wall material, one roof, one window, repeated. Kept to
+    // the two densities where a terrace is what a street is actually made of.
+    id: 'row', badge: 'ROW', label: 'Row',
+    wall: MAT.BRICK, base: MAT.CONCRETE, cover: MAT.ROOF, trim: MAT.TRIM,
+    roof: 'gable', pitch: 0.30, eave: 0.24, floorH: 2.9,
+    winW: 1.3, winH: 1.6, rhythm: 2, shutters: false, grille: false,
+    chimney: true, veranda: false, ribbon: false, balcony: 'metal',
   },
 };
 
-export const THEME_ORDER: Theme[] = ['modern', 'european', 'american', 'asian', 'heritage'];
+/**
+ * The five full themes, in list order.
+ *
+ * `row` is deliberately not among them: it is a two-density supplement rather
+ * than a vocabulary a whole district can be built from.
+ */
+export const THEME_ORDER: Theme[] = ['modern', 'european', 'american', 'asian', 'farming'];
+
+/** Every theme, including the supplements, in list order. */
+export const ALL_THEMES: Theme[] = [...THEME_ORDER, 'row'];
 
 /** Short key used in asset ids: res.eu.low.terrace. */
 export const THEME_KEY: Record<Theme, string> = {
-  modern: 'mod', european: 'eu', american: 'na', asian: 'as', heritage: 'old',
+  modern: 'mod', european: 'eu', american: 'na', asian: 'as', farming: 'farm', row: 'row',
 };
 
 // ------------------------------------------------------------------ roofing

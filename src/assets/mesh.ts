@@ -115,6 +115,16 @@ export const MAT = {
    * is neither shiny nor flat, and it is a fifth of what you see of a wheel.
    */
   TYRE: 21,
+  /**
+   * Anodised near-black extrusion: frames, copings and fins.
+   *
+   * The modern theme is white render, black frames and glass, and there was
+   * no black in the palette -- TRIM is a pale painted joinery colour. Without
+   * this the theme came out as white-on-white and read as unfinished.
+   */
+  DARK_TRIM: 22,
+  /** Cool white render panel with expressed joints: the modern theme's wall. */
+  RENDER: 23,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

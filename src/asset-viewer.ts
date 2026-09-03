@@ -13,6 +13,7 @@
  */
 
 import { Gpu, GpuInitError } from './gfx/device';
+import { THEMES, THEME_ORDER, ALL_THEMES } from './assets/themes';
 import { ASSETS } from './assets/registry';
 import type { AssetDef } from './assets/types';
 import { DEFAULT_BRAND, idSeed } from './assets/types';
@@ -522,14 +523,30 @@ class Viewer {
 
 // ---- UI ----------------------------------------------------------------
 
-const GROUPS: Array<[string, Category, (a: AssetDef) => boolean]> = [
-  ['residential · low', 'residential', (a) => a.zone === 'residential' && a.density === 'low'],
-  ['residential · medium', 'residential', (a) => a.zone === 'residential' && a.density === 'medium'],
-  ['residential · high', 'residential', (a) => a.zone === 'residential' && a.density === 'high'],
-  ['commercial', 'commercial', (a) => a.zone === 'commercial'],
-  ['office', 'office', (a) => a.zone === 'office'],
-  ['industrial', 'industrial', (a) => a.zone === 'industrial'],
-];
+/**
+ * The zoned categories, split by theme.
+ *
+ * Every zoned building belongs to a regional theme, and the list is the place
+ * that has to make that obvious -- otherwise a hundred and ninety prototypes
+ * are one undifferentiated scroll. Residential also keeps its density split,
+ * since that is the other axis the spawner picks on.
+ */
+const GROUPS: Array<[string, Category, string, (a: AssetDef) => boolean]> =
+  (['residential', 'commercial', 'office', 'industrial'] as Category[]).flatMap((zone) =>
+    (zone === 'residential' ? ALL_THEMES : THEME_ORDER).flatMap((theme) => {
+      const T = THEMES[theme];
+      const rows: Array<[string, Category, string, (a: AssetDef) => boolean]> = [];
+      if (zone === 'residential') {
+        for (const d of ['low', 'medium', 'high'] as const) {
+          rows.push([`${T.label} · ${d} density`, zone, T.badge,
+            (a) => a.zone === zone && a.theme === theme && a.density === d]);
+        }
+      } else {
+        rows.push([`${T.label} ${zone}`, zone, T.badge,
+          (a) => a.zone === zone && a.theme === theme]);
+      }
+      return rows;
+    }));
 
 /** Every category the bar offers, in the order it shows them. */
 const CATEGORIES: Category[] = [
@@ -634,30 +651,32 @@ function buildList(onPick: (a: AssetDef) => void): void {
 
   // Zone groups keep their density split; service branches are one group each,
   // since nine branches of two or three is already the right granularity.
-  const groups: Array<[string, Tab, (a: AssetDef) => boolean]> = [
+  const groups: Array<[string, Tab, string, (a: AssetDef) => boolean]> = [
     ...GROUPS,
     ...BRANCHES.map((b) => [
-      BRANCH_STYLE[b].label.toLowerCase(), b as Tab,
+      BRANCH_STYLE[b].label.toLowerCase(), b as Tab, '',
       (a: AssetDef) => a.zone === 'service' && a.branch === b,
-    ] as [string, Tab, (a: AssetDef) => boolean]),
-    ['vehicles and people', FLEET_TAB, (a: AssetDef) => a.zone === FLEET_TAB],
-    ['roads and bridges', ROAD_TAB, (a: AssetDef) => a.zone === ROAD_TAB],
+    ] as [string, Tab, string, (a: AssetDef) => boolean]),
+    ['vehicles and people', FLEET_TAB, '', (a: AssetDef) => a.zone === FLEET_TAB],
+    ['roads and bridges', ROAD_TAB, '', (a: AssetDef) => a.zone === ROAD_TAB],
   ];
 
-  for (const [label, cat, match] of groups) {
+  for (const [label, cat, badge, match] of groups) {
     if (current !== null && cat !== current) continue;
     const assets = ASSETS.filter(match);
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
     const mark = cat === FLEET_TAB ? '' : zoneIcon(cat, 16);
-    h.innerHTML = `${mark}<span>${label} (${assets.length})</span>`;
+    const chip = badge === '' ? '' : `<span class="badge">${badge}</span>`;
+    h.innerHTML = `${mark}${chip}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
     for (const a of assets) {
       const el = document.createElement('div');
       el.className = 'item';
       el.dataset.id = a.id;
-      el.innerHTML = `<div class="n">${a.name}</div><div class="m">${a.variant} · ${
+      const tag = a.theme === undefined ? '' : `<span class="badge">${THEMES[a.theme].badge}</span>`;
+      el.innerHTML = `<div class="n">${a.name}</div><div class="m">${tag}${a.variant} · ${
         a.build(0).triangleCount.toLocaleString()} tris</div>`;
       el.addEventListener('click', () => onPick(a));
       list.appendChild(el);
