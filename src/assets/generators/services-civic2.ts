@@ -196,7 +196,22 @@ function cemetery(lod: number): MeshBuilder {
         m.box([px - 0.045, 0.1, z - 0.04], [px + 0.045, 2.2, z + 0.04], MAT.TRIM);
       }
     });
+    // Mourners at a graveside, with flowers on the nearest row. A figure is a
+    // third of the triangles it used to be now they are built from boxes, so
+    // this is what the ground gets back.
     figure(m, 9301, 1.8, -2.0, 0, {});
+    figure(m, 9308, 2.9, -1.6, -Math.PI * 0.6, { bag: true });
+    figure(m, 9315, 2.3, -3.1, Math.PI * 0.9, {});
+    for (let r = 0; r < 3; r++) {
+      for (let i = 0; i < 4; i++) {
+        const px = -x + 4.2 + i * 3.6;
+        const pz = -z + 4.0 + r * 3.4;
+        m.painted(TINT.GREEN, () => m.box([px - 0.16, 0.05, pz + 0.20],
+          [px + 0.16, 0.16, pz + 0.46], MAT.TRIM));
+        m.painted(TINT.BRAND, () => m.box([px - 0.11, 0.16, pz + 0.25],
+          [px + 0.11, 0.30, pz + 0.41], MAT.TRIM));
+      }
+    }
     kerb(m, -x, z + 1.9, x, z + 2.7);
   }
   return m;
