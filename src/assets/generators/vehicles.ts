@@ -433,12 +433,12 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
       at(a[0] - pf, a[1] - py, z + hz), at(a[0] + pf, a[1] + py, z + hz),
       at(b[0] + pf, b[1] + py, z + hz), at(b[0] - pf, b[1] - py, z + hz),
     ];
-    m.quad(p[3], p[2], p[1], p[0], mat);      // the two ends
-    m.quad(p[4], p[5], p[6], p[7], mat);
-    m.quad(p[1], p[5], p[4], p[0], mat);      // and the four long faces
-    m.quad(p[2], p[6], p[5], p[1], mat);
-    m.quad(p[3], p[7], p[6], p[2], mat);
-    m.quad(p[0], p[4], p[7], p[3], mat);
+    m.quad(p[0], p[1], p[2], p[3], mat);      // the two ends
+    m.quad(p[7], p[6], p[5], p[4], mat);
+    m.quad(p[0], p[4], p[5], p[1], mat);      // and the four long faces
+    m.quad(p[1], p[5], p[6], p[2], mat);
+    m.quad(p[2], p[6], p[7], p[3], mat);
+    m.quad(p[3], p[7], p[4], p[0], mat);
   };
 
   // The skeleton, as fractions of a 1.75m body.

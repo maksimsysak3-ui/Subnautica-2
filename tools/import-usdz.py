@@ -123,6 +123,25 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
+#: Barycentric weights for sampling a triangle: the centroid, and six points
+#: pulled towards each corner and each edge.
+#:
+#: One sample at the centroid is not enough. These atlases are palettes -- a
+#: grid of flat patches -- and a triangle whose centroid lands on the hairline
+#: between two of them takes the wrong patch entirely, which is where the paint
+#: came out blotched with a neighbour's colour. Where the texture is painted
+#: rather than a palette, the same seven samples throw out a vent or a decal
+#: that happens to sit under the centroid.
+SAMPLES = [(1 / 3, 1 / 3, 1 / 3),
+           (0.6, 0.2, 0.2), (0.2, 0.6, 0.2), (0.2, 0.2, 0.6),
+           (0.45, 0.45, 0.1), (0.1, 0.45, 0.45), (0.45, 0.1, 0.45)]
+
+
+def median3(samples):
+    """Per-channel median of a list of (r, g, b), each 0..1."""
+    return tuple(sorted(s[c] for s in samples)[len(samples) // 2] for c in range(3))
+
+
 def read_mesh(prim, textures):
     """World-space triangles with a flat colour each, plus the bounding box."""
     mesh = UsdGeom.Mesh(prim)
@@ -145,14 +164,22 @@ def read_mesh(prim, textures):
         face = [idx[base + k] for k in range(c)]
         for k in range(1, c - 1):
             corner = (face[0], face[k], face[k + 1])
+            # A flat diffuseColor is already linear; only a texel needs
+            # converting. Running every colour through srgb_to_linear was why
+            # the pack with no textures at all came out two stops too dark.
             col = rgb
             if img is not None and uvs is not None and len(uvs) > max(corner):
-                u = sum(uvs[i][0] for i in corner) / 3.0
-                v = sum(uvs[i][1] for i in corner) / 3.0
-                px = int(min(max(u, 0.0), 1.0) * (img.width - 1))
-                py = int((1.0 - min(max(v, 0.0), 1.0)) * (img.height - 1))
-                r, g, b = img.getpixel((px, py))
-                col = (r / 255.0, g / 255.0, b / 255.0)
+                hits = []
+                for wa, wb, wc in SAMPLES:
+                    u = (uvs[corner[0]][0] * wa + uvs[corner[1]][0] * wb
+                         + uvs[corner[2]][0] * wc)
+                    v = (uvs[corner[0]][1] * wa + uvs[corner[1]][1] * wb
+                         + uvs[corner[2]][1] * wc)
+                    px = int(min(max(u, 0.0), 1.0) * (img.width - 1))
+                    py = int((1.0 - min(max(v, 0.0), 1.0)) * (img.height - 1))
+                    r, g, b = img.getpixel((px, py))
+                    hits.append((r / 255.0, g / 255.0, b / 255.0))
+                col = tuple(srgb_to_linear(c) for c in median3(hits))
             tris.append(([world[i] for i in corner], col))
         base += c
     xs = [p[0] for t, _ in tris for p in t]
@@ -379,7 +406,7 @@ def main(src_dir, out_path):
         cbuf = bytearray()
         for v in order:
             for i in range(3):
-                cbuf.append(max(0, min(255, int(round(srgb_to_linear(v[3 + i]) * 255)))))
+                cbuf.append(max(0, min(255, int(round(v[3 + i] * 255)))))
         # Liveries of one shape share its number and take a letter.
         seen[geo] = liv = seen.get(geo, 0) + 1
         base = f'{key}{n}'
