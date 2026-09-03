@@ -108,7 +108,14 @@ fn vs(@location(0) position : vec3f,
   // Four bytes packed into the float: r, g, b and a spare. Imported meshes
   // carry their colour per vertex because an authored model has no world-space
   // pattern to shade itself from, which is what everything generated uses.
-  out.vcol = unpack4x8unorm(bitcast<u32>(vcol)).rgb;
+  // Unpacked by hand rather than with unpack4x8unorm: that builtin is not
+  // resolved by every WGSL implementation this runs on, and a pipeline that
+  // fails to compile takes the whole renderer down. Three shifts and a mask
+  // cost nothing and work everywhere.
+  let packed = bitcast<u32>(vcol);
+  out.vcol = vec3f(f32(packed & 0xffu),
+                   f32((packed >> 8u) & 0xffu),
+                   f32((packed >> 16u) & 0xffu)) * (1.0 / 255.0);
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -1229,4 +1236,4 @@ fn fs_wire() -> @location(0) vec4f {
 
 Chrome or Edge 113+, Safari 18+, or Firefox 141+ on Windows.`):vA("Could not start the GPU",String(U));return}E.device.addEventListener("uncapturederror",U=>{vA("The GPU rejected something",U.error.message)});const D=new URLSearchParams(location.search);E.device.pushErrorScope("validation");let g;try{g=new DE(E,!D.has("noshadow"))}catch(U){E.device.popErrorScope(),vA("Could not build the render pipelines",String(U));return}const B=await E.device.popErrorScope();if(B){vA("The GPU rejected a pipeline",B.message);return}let Q=!1;E.onLost(async()=>{if(!Q){Q=!0,g.suspend();try{await E.recover(),g.rebuild(),rB.info("viewer","device recovered")}catch(U){rB.error("viewer",`recovery failed: ${String(U)}`)}Q=!1}}),Y=U=>g.select(U);const w=D,s=aA.find(U=>U.id===w.get("asset"))??aA[0],o=Number(w.get("lod")??0);if(w.get("spin")==="0"&&g.toggleSpin(),w.get("hud")==="0"){for(const U of["side","bar","info","hint"])document.getElementById(U)?.remove();document.getElementById("app")?.style.setProperty("grid-template-columns","1fr")}try{g.select(s,o)}catch(U){vA("Could not build that asset",String(U));return}Object.defineProperty(window,"viewer",{value:{show(U,n){const e=aA.find(t=>t.id===U);return e?(g.select(e,n),!0):!1},ids:aA.map(U=>U.id),capture:(U,n)=>g.capture(U,n),alive:()=>!Q}});for(const U of document.querySelectorAll("[data-lod]"))U.addEventListener("click",()=>{for(const n of document.querySelectorAll("[data-lod]"))n.classList.remove("on");U.classList.add("on"),g.setLod(Number(U.dataset.lod))});document.getElementById("wire")?.addEventListener("click",U=>{U.currentTarget.classList.toggle("on",g.toggleWire())}),document.getElementById("spin")?.addEventListener("click",U=>{U.currentTarget.classList.toggle("on",g.toggleSpin())});let I=performance.now(),c=0;const F=U=>{const n=Math.min((U-I)/1e3,.1);I=U;try{g.frame(n),c++}catch(e){vA("The render loop threw",String(e));return}requestAnimationFrame(F)};if(requestAnimationFrame(F),setTimeout(()=>{c===0&&vA("Nothing rendered","The render loop never completed a frame.")},2500),w.get("hud")!=="0"){const U=document.createElement("div");U.style.cssText=["position:absolute","left:14px","bottom:34px","color:#5d6b80","font:11px/1.6 var(--mono)","pointer-events:none","white-space:pre"].join(";"),document.getElementById("stage")?.appendChild(U),setInterval(()=>{const n=g.debug,e=E.canvas;U.textContent=`frames ${n.frames}   tris ${n.indices/3|0}   size ${n.height.toFixed(1)}m r${n.radius.toFixed(1)}   cam ${n.distance.toFixed(0)}m
 canvas ${e.width}x${e.height}   ${E.format}   shadows ${D.has("noshadow")?"off":"on"}`},400)}rB.info("viewer",`${aA.length} assets`)}IE();
-//# sourceMappingURL=asset-CnSKcTMB.js.map
+//# sourceMappingURL=asset-C0efl3k-.js.map

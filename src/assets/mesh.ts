@@ -280,7 +280,7 @@ export class MeshBuilder {
         const p = k === 0 ? a : k === 1 ? b : c;
         const j = index[t + k] * 3;
         // Four bytes in one float: r, g, b and a spare, read back in the
-        // shader with unpack4x8unorm.
+        // shader with three shifts and a mask.
         const packed = new Float32Array(new Uint32Array([
           col[j] | (col[j + 1] << 8) | (col[j + 2] << 16),
         ]).buffer)[0];

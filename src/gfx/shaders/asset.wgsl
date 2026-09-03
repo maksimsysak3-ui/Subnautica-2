@@ -102,7 +102,14 @@ fn vs(@location(0) position : vec3f,
   // Four bytes packed into the float: r, g, b and a spare. Imported meshes
   // carry their colour per vertex because an authored model has no world-space
   // pattern to shade itself from, which is what everything generated uses.
-  out.vcol = unpack4x8unorm(bitcast<u32>(vcol)).rgb;
+  // Unpacked by hand rather than with unpack4x8unorm: that builtin is not
+  // resolved by every WGSL implementation this runs on, and a pipeline that
+  // fails to compile takes the whole renderer down. Three shifts and a mask
+  // cost nothing and work everywhere.
+  let packed = bitcast<u32>(vcol);
+  out.vcol = vec3f(f32(packed & 0xffu),
+                   f32((packed >> 8u) & 0xffu),
+                   f32((packed >> 16u) & 0xffu)) * (1.0 / 255.0);
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
