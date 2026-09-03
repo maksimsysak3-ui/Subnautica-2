@@ -202,10 +202,19 @@ function cabin(m: MeshBuilder, st: Station[], mat: Material,
  */
 function withArches(st: Station[], centres: number[], r: number): Station[] {
   const out: Station[] = [];
-  const lift = (sec: Section, amount: number): Section => sec.map((p, j) => {
-    const rise = j === 0 ? amount : j === 1 ? amount * 0.45 : j === 2 ? amount * 0.08 : 0;
-    return [p[0] + rise, p[1]] as [number, number];
-  });
+  // Lift by a fraction of the section's own height rather than by index.
+  // Sections are splined to eleven points now, so lifting "points 0, 1 and 2"
+  // raised only the bottom fifth of the profile and the arch openings all but
+  // vanished -- the wheels went back under the bodywork the day the bodies
+  // were smoothed.
+  const lift = (sec: Section, amount: number): Section => {
+    const n = sec.length;
+    return sec.map((p, j) => {
+      const t = j / (n - 1);
+      const rise = amount * Math.max(0, 1 - t / 0.42);
+      return [p[0] + rise, p[1]] as [number, number];
+    });
+  };
 
   const sample = (x: number): Section => {
     let i = 0;
@@ -228,7 +237,7 @@ function withArches(st: Station[], centres: number[], r: number): Station[] {
       const x = cx + k * r * 0.42;
       if (x <= st[0].x || x >= st[st.length - 1].x) continue;
       const f = Math.cos((Math.abs(k) / 3.6) * Math.PI * 0.5);
-      extra.push({ x, s: lift(sample(x), r * 0.72 * f) });
+      extra.push({ x, s: lift(sample(x), r * 0.98 * f) });
     }
   }
   for (const s0 of st) out.push(s0);
@@ -268,10 +277,92 @@ function topAt(st: Station[], x: number): number {
 
 /** Scales a section's widths and shifts its heights: one profile, many bodies. */
 function shape(s: Section, wScale: number, yTop: number): Section {
-  const top = s[s.length - 1][0];
-  const bot = s[0][0];
-  return s.map(([y, w]) => [bot + ((y - bot) / (top - bot)) * (yTop - bot), w * wScale] as [number, number]);
+  const r = refine(s, 2);
+  const top = r[r.length - 1][0];
+  const bot = r[0][0];
+  return r.map(([y, w]) => [bot + ((y - bot) / (top - bot)) * (yTop - bot), w * wScale] as [number, number]);
 }
+
+/**
+ * Catmull-Rom through a list of numbers, at parameter t in [0, n-1].
+ *
+ * Linear interpolation between stations is why the bodies read as folded card:
+ * every station is a crease, because the tangent changes discontinuously
+ * there. A Catmull-Rom spline passes through the same points with a continuous
+ * tangent, so the same eight stations describe a curved body instead of a
+ * faceted one.
+ */
+function spline(v: number[], t: number): number {
+  const n = v.length;
+  const i = Math.max(0, Math.min(n - 2, Math.floor(t)));
+  const f = t - i;
+  const p0 = v[Math.max(0, i - 1)], p1 = v[i], p2 = v[i + 1], p3 = v[Math.min(n - 1, i + 2)];
+  return 0.5 * ((2 * p1) + (-p0 + p2) * f
+    + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f
+    + (-p0 + 3 * p1 - 3 * p2 + p3) * f * f * f);
+}
+
+/**
+ * Resamples a station list onto a smooth curve.
+ *
+ * Each section point is splined independently along the length of the car, so
+ * the sill, the shoulder and the roof each follow their own curve. `per` is
+ * how many samples to put between the original stations; two is enough to lose
+ * the creases and cheap enough to afford on twenty vehicles.
+ */
+function smoothBody(st: Station[], per = 2): Station[] {
+  if (st.length < 3) return st;
+  const n = st[0].s.length;
+  const xs = st.map((p) => p.x);
+  const ys: number[][] = [];
+  const ws: number[][] = [];
+  for (let j = 0; j < n; j++) {
+    ys.push(st.map((p) => p.s[j][0]));
+    ws.push(st.map((p) => p.s[j][1]));
+  }
+  const out: Station[] = [];
+  const steps = (st.length - 1) * per;
+  for (let k = 0; k <= steps; k++) {
+    const t = (k / steps) * (st.length - 1);
+    const sec: Section = [];
+    for (let j = 0; j < n; j++) sec.push([spline(ys[j], t), spline(ws[j], t)]);
+    out.push({ x: spline(xs, t), s: sec });
+  }
+  return out;
+}
+
+/**
+ * Subdivides a section profile, so the cross-section is a curve too.
+ *
+ * A five-point section gives a flank made of four flat bands with a hard edge
+ * between each. Splining it to eleven points rounds the shoulder and the
+ * tumblehome, which is where most of the light on a car actually lands.
+ */
+function refine(sec: Section, per = 2): Section {
+  if (sec.length < 3) return sec;
+  const ys = sec.map((p) => p[0]);
+  const ws = sec.map((p) => p[1]);
+  const out: Section = [];
+  const steps = (sec.length - 1) * per;
+  for (let k = 0; k <= steps; k++) {
+    const t = (k / steps) * (sec.length - 1);
+    out.push([spline(ys, t), spline(ws, t)]);
+  }
+  return out;
+}
+
+/**
+ * Section libraries.
+ *
+ * A section is the cross-cut of a body at one station: pairs of height and
+ * half-width from the sill up to the roof. Every vehicle is one of these
+ * scaled and swept, which is why a hatchback and a saloon are recognisably
+ * from the same world.
+ */
+/** A car section: sill, waist, shoulder, tumblehome, roof. */
+const CAR: Section = [[0.30, 0.72], [0.62, 0.88], [1.00, 0.90], [1.24, 0.82], [1.42, 0.62]];
+/** A van or bus section: near-vertical sides and a slightly domed roof. */
+const BOX: Section = [[0.34, 0.90], [0.70, 1.10], [1.60, 1.16], [2.40, 1.14], [2.62, 0.92]];
 
 // ------------------------------------------------------------------- wheels
 
@@ -436,7 +527,7 @@ function wheel(m: MeshBuilder, cx: number, cy: number, cz: number, r: number, ha
   });
 }
 /** The dark shadow of an arch, so a wheel does not float in a flat flank. */
-function arch(m: MeshBuilder, cx: number, cy: number, r: number, halfW: number): void {
+function arch(m: MeshBuilder, cx: number, cy: number, r: number, halfW: number, lid = Infinity): void {
   // The liner: a dark half-tube inside the opening, set in from the flank, so
   // an arch is a recess with something in it rather than a hole through the
   // car. It used to span the full body width at the tyre's own radius, which
@@ -445,6 +536,7 @@ function arch(m: MeshBuilder, cx: number, cy: number, r: number, halfW: number):
     const w = halfW * 0.90;
     for (let i = 0; i < 9; i++) {
       const a0 = Math.PI * (i / 9), a1 = Math.PI * ((i + 1) / 9);
+      if (cy + Math.sin(a0) * r > lid && cy + Math.sin(a1) * r > lid) continue;
       const q = (a: number, ww: number): Vec3 =>
         [cx + Math.cos(a) * r, cy + Math.sin(a) * r, ww];
       m.quad(q(a1, w), q(a0, w), q(a0, -w), q(a1, -w), MAT.TRIM);
@@ -460,6 +552,11 @@ function archLip(m: MeshBuilder, st: Station[], key: number, cx: number, cy: num
   const flare = 0.075;
   for (let i = 0; i < 10; i++) {
     const a0 = Math.PI * (i / 10), a1 = Math.PI * ((i + 1) / 10);
+    // Clipped to the deck. An arch of radius r centred on the axle reaches
+    // r above the axle line, which on a low car is above the bonnet -- so the
+    // top of the flare came out through the wing as a black claw in mid-air.
+    const lid = Math.min(deckAt(st, cx + Math.cos(a0) * r), deckAt(st, cx + Math.cos(a1) * r));
+    if (cy + Math.sin(a0) * r > lid - 0.03 && cy + Math.sin(a1) * r > lid - 0.03) continue;
     const hw = hwAt(st, cx, cy + r * 0.7) - 0.01;
     for (const sz of [1, -1] as const) {
       const w0 = sz * hw, w1 = sz * (hw + flare);
@@ -780,404 +877,10 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
 // character is: a hatchback's roof runs level to a stub tail, a saloon's steps
 // down to a boot, a coupe's falls from the B-pillar to the rear bumper.
 
-/** The generic road-car section: sill, waist, shoulder, roof edge, roof. */
-const CAR: Section = [[0.30, 0.72], [0.62, 0.88], [1.00, 0.90], [1.24, 0.82], [1.42, 0.62]];
-/** A van or bus section: near-vertical sides and a slightly domed roof. */
-const BOX: Section = [[0.34, 0.90], [0.70, 1.10], [1.60, 1.16], [2.40, 1.14], [2.62, 0.92]];
-
-function hatchback(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.0, 1.9);
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.02, s: shape(CAR, 0.80, 0.98) },
-    { x: -1.80, s: shape(CAR, 0.94, 1.06) },
-    { x: -1.20, s: shape(CAR, 1.00, 1.18) },
-    { x: -0.55, s: shape(CAR, 1.02, 1.46) },
-    { x: 0.30, s: shape(CAR, 1.02, 1.50) },
-    { x: 1.05, s: shape(CAR, 1.00, 1.50) },
-    { x: 1.62, s: shape(CAR, 0.96, 1.44) },
-    { x: 1.92, s: shape(CAR, 0.86, 1.22) },
-    { x: 2.05, s: shape(CAR, 0.74, 1.06) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.28, 1.32], 0.33);
-  m.keyed(1, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.26, to: 0.9, pillars: [0.55, 0.78] }); });
 
 
-  if (medium) {
-    for (const cx of [-1.28, 1.32]) {
-      arch(m, cx, 0.44, 0.46, 0.80);
-      archLip(m, st, 1, cx, 0.44, 0.47);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.34, sz * axleZ(st, cx, 0.34, 0.12), 0.33, 0.12);
-    }
-    // Windscreen and backlight are raked; the side glass sits in the waist.
-  }
-  if (fine) {
-    bumper(m, st, 1, -1.98, -1, 0.42, 0.76);
-    bumper(m, st, 1, 2.0, 1, 0.42, 0.78);
-    grille(m, st, -2.0, -1, 0.72, 1.02, 3);
-    wipers(m, -0.58, 1.02, 0.82);
-    handles(m, st, [-0.52, 0.62], 1.02);
-    mirrors(m, st, 1, -0.52, 1.16);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.0, 0.88, sz * 0.56, 0.34, 0.22, -1, TINT.SIGN_LIT);
-      lamp(m, 2.04, 0.98, sz * 0.58, 0.30, 0.30, 1, TINT.BRAND);
-    }
-    plate(m, 1, -2.02, 0.62, -1);
-    plate(m, 1, 2.04, 0.66, 1);
-    // Roof rails, sitting on the roof line rather than at a guessed height.
-    m.painted(TINT.METAL_DARK, () => {
-      for (const sz of [1, -1] as const) {
-        for (let i = 0; i < 6; i++) {
-          const a = -0.1 + i * 0.24, b = a + 0.24;
-          const y = Math.min(topAt(st, a), topAt(st, b));
-          m.box([a, y - 0.02, sz * 0.44 - 0.04], [b, y + 0.05, sz * 0.44 + 0.04], MAT.TRIM);
-        }
-      }
-      m.box([1.7, 0.28, 0.34], [2.06, 0.4, 0.5], MAT.TRIM);
-    });
-    person(m, 21, 2.9, 1.1, Math.PI, { stride: 0.1 });
-    person(m, 27, 2.6, -1.2, 0.3, { bag: true });
-  }
-  return m;
-}
-
-function saloon(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.3, 1.9);
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.35, s: shape(CAR, 0.80, 0.96) },
-    { x: -2.10, s: shape(CAR, 0.95, 1.04) },
-    { x: -1.45, s: shape(CAR, 1.02, 1.14) },
-    { x: -0.75, s: shape(CAR, 1.05, 1.44) },
-    { x: 0.10, s: shape(CAR, 1.05, 1.48) },
-    { x: 0.95, s: shape(CAR, 1.03, 1.46) },
-    { x: 1.50, s: shape(CAR, 1.00, 1.22) },
-    { x: 2.15, s: shape(CAR, 0.94, 1.14) },
-    { x: 2.38, s: shape(CAR, 0.80, 1.02) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.52, 1.58], 0.34);
-  m.keyed(2, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.28, to: 0.82, pillars: [0.52, 0.72] }); });
 
 
-  if (medium) {
-    for (const cx of [-1.52, 1.58]) {
-      arch(m, cx, 0.46, 0.48, 0.84);
-      archLip(m, st, 2, cx, 0.46, 0.49);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * axleZ(st, cx, 0.35, 0.13), 0.34, 0.13);
-    }
-  }
-  if (fine) {
-    bumper(m, st, 2, -2.30, -1, 0.42, 0.78);
-    bumper(m, st, 2, 2.34, 1, 0.42, 0.80);
-    grille(m, st, -2.32, -1, 0.80, 1.08, 4);
-    wipers(m, -0.82, 1.02, 0.86);
-    handles(m, st, [-0.76, 0.42], 1.02);
-    mirrors(m, st, 2, -0.78, 1.16);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.33, 0.92, sz * 0.6, 0.36, 0.2, -1, TINT.SIGN_LIT);
-      lamp(m, 2.37, 0.96, sz * 0.62, 0.34, 0.24, 1, TINT.BRAND);
-    }
-    plate(m, 2, -2.35, 0.64, -1);
-    plate(m, 2, 2.37, 0.68, 1);
-    m.painted(TINT.METAL_DARK, () => {
-      m.box([2.0, 0.28, 0.36], [2.4, 0.4, 0.54], MAT.TRIM);
-      m.box([2.0, 0.28, -0.54], [2.4, 0.4, -0.36], MAT.TRIM);
-    });
-    person(m, 33, 3.2, -1.2, 0, { stride: 0.12, bag: true });
-    person(m, 39, 3.0, 1.3, Math.PI * 0.8, { hat: true });
-  }
-  return m;
-}
-
-function estate(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.3, 1.9);
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.35, s: shape(CAR, 0.80, 0.96) },
-    { x: -2.10, s: shape(CAR, 0.95, 1.04) },
-    { x: -1.45, s: shape(CAR, 1.02, 1.14) },
-    { x: -0.75, s: shape(CAR, 1.05, 1.46) },
-    { x: 0.20, s: shape(CAR, 1.05, 1.52) },
-    { x: 1.30, s: shape(CAR, 1.04, 1.52) },
-    { x: 2.05, s: shape(CAR, 1.02, 1.50) },
-    { x: 2.36, s: shape(CAR, 0.92, 1.34) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.52, 1.58], 0.34);
-  m.keyed(3, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.28, to: 0.94, pillars: [0.5, 0.74] }); });
-
-
-  if (medium) {
-    for (const cx of [-1.52, 1.58]) {
-      arch(m, cx, 0.46, 0.48, 0.86);
-      archLip(m, st, 3, cx, 0.46, 0.49);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.35, sz * axleZ(st, cx, 0.35, 0.13), 0.34, 0.13);
-    }
-  }
-  if (fine) {
-    bumper(m, st, 3, -2.30, -1, 0.42, 0.78);
-    bumper(m, st, 3, 2.34, 1, 0.42, 0.82);
-    grille(m, st, -2.32, -1, 0.80, 1.08, 4);
-    wipers(m, -0.82, 1.02, 0.88);
-    m.painted(TINT.METAL_DARK, () => {
-      // Roof bars with cross rails, and a towbar: what an estate is for.
-      for (const sz of [1, -1] as const) {
-        m.box([-0.3, 1.52, sz * 0.5 - 0.05], [2.0, 1.60, sz * 0.5 + 0.05], MAT.TRIM);
-      }
-      for (const cx of [0.1, 1.6]) m.box([cx, 1.58, -0.55], [cx + 0.09, 1.63, 0.55], MAT.TRIM);
-      m.box([2.36, 0.24, -0.08], [2.62, 0.34, 0.08], MAT.TRIM);
-      m.cylinder(2.6, 0, 0.09, 0.32, 0.46, 8, MAT.TRIM);
-    });
-    handles(m, st, [-0.76, 0.42, 1.66], 1.04);
-    mirrors(m, st, 3, -0.78, 1.16);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.33, 0.92, sz * 0.6, 0.36, 0.2, -1, TINT.SIGN_LIT);
-      lamp(m, 2.37, 1.06, sz * 0.66, 0.24, 0.46, 1, TINT.BRAND);
-    }
-    plate(m, 3, -2.35, 0.64, -1);
-    plate(m, 3, 2.37, 0.62, 1);
-    person(m, 44, 3.15, 1.2, Math.PI * 0.9, { stride: 0.05, hat: true });
-    person(m, 49, 3.0, -1.3, 0.4, { scale: 0.7, stride: 0.14 });
-  }
-  return m;
-}
-
-function suv(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.3, 2.1);
-  const S: Section = [[0.50, 0.80], [0.86, 1.00], [1.28, 1.02], [1.60, 0.94], [1.82, 0.72]];
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.30, s: shape(S, 0.86, 1.30) },
-    { x: -2.05, s: shape(S, 0.97, 1.40) },
-    { x: -1.35, s: shape(S, 1.02, 1.52) },
-    { x: -0.70, s: shape(S, 1.04, 1.88) },
-    { x: 0.40, s: shape(S, 1.04, 1.94) },
-    { x: 1.45, s: shape(S, 1.03, 1.94) },
-    { x: 2.10, s: shape(S, 1.00, 1.90) },
-    { x: 2.34, s: shape(S, 0.90, 1.72) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.50, 1.55], 0.46);
-  m.keyed(4, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.26, to: 0.92, pillars: [0.5, 0.74] }); });
-
-
-  if (medium) {
-    for (const cx of [-1.50, 1.55]) {
-      arch(m, cx, 0.62, 0.60, 0.90);
-      archLip(m, st, 4, cx, 0.62, 0.61);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.47, sz * axleZ(st, cx, 0.47, 0.16), 0.46, 0.16);
-    }
-    // Cladding round the arches and along the sills: an SUV's whole idiom.
-    m.painted(TINT.METAL_DARK, () => {
-      for (const sz of [1, -1] as const) {
-        m.box([-1.95, 0.52, sz * 1.02 - 0.06], [2.2, 0.76, sz * 1.02 + 0.06], MAT.TRIM);
-      }
-    });
-  }
-  if (fine) {
-    bumper(m, st, 4, -2.26, -1, 0.56, 1.00);
-    bumper(m, st, 4, 2.28, 1, 0.56, 1.04);
-    grille(m, st, -2.28, -1, 1.04, 1.42, 4);
-    wipers(m, -0.78, 1.28, 0.98);
-    m.painted(TINT.METAL_DARK, () => {
-      // Roof rails and a spare on the tailgate.
-      for (const sz of [1, -1] as const) {
-        m.box([-0.4, 1.92, sz * 0.56 - 0.06], [2.0, 2.00, sz * 0.56 + 0.06], MAT.TRIM);
-      }
-    });
-    wheel(m, 2.55, 1.20, 0.0, 0.42, 0.15, 12);
-    handles(m, st, [-0.72, 0.60], 1.30);
-    mirrors(m, st, 4, -0.74, 1.44);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.30, 1.22, sz * 0.66, 0.4, 0.26, -1, TINT.SIGN_LIT);
-      lamp(m, 2.36, 1.36, sz * 0.72, 0.26, 0.5, 1, TINT.BRAND);
-    }
-    plate(m, 4, -2.32, 0.82, -1);
-    plate(m, 4, 2.38, 0.86, 1);
-    person(m, 55, 3.1, -1.4, 0.4, { stride: 0.0 });
-    person(m, 59, 2.9, 1.4, Math.PI * 1.1, { bag: true, stride: 0.11 });
-  }
-  return m;
-}
-
-function pickup(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.5, 2.0);
-  const S: Section = [[0.48, 0.82], [0.84, 1.00], [1.26, 1.02], [1.56, 0.94], [1.76, 0.74]];
-
-  // Cab, then a separate bed: a pickup is two volumes and the gap shows.
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.40, s: shape(S, 0.86, 1.24) },
-    { x: -2.15, s: shape(S, 0.98, 1.34) },
-    { x: -1.40, s: shape(S, 1.02, 1.44) },
-    { x: -0.75, s: shape(S, 1.03, 1.82) },
-    { x: 0.15, s: shape(S, 1.03, 1.86) },
-    { x: 0.55, s: shape(S, 1.02, 1.84) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.55, 1.75], 0.44);
-  // The bed is a second volume: a pickup is a cab and a tray, and the gap
-  // between them is most of what says so.
-  const bed: Station[] = [
-    { x: 0.58, s: shape(S, 1.03, 1.30) },
-    { x: 2.55, s: shape(S, 1.03, 1.30) },
-  ];
-  m.keyed(5, () => {
-    loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.24, to: 0.58, pillars: [0.42] });
-    loft(m, bed, MAT.PAINT);
-  });
-
-
-  if (medium) {
-    for (const cx of [-1.55, 1.75]) {
-      arch(m, cx, 0.60, 0.58, 0.92);
-      archLip(m, st, 5, cx, 0.60, 0.59);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.45, sz * axleZ(st, cx, 0.45, 0.16), 0.44, 0.16);
-    }
-    // The bed itself: a floor with four walls, open at the top.
-    m.painted(TINT.METAL_DARK, () =>
-      m.box([0.62, 1.02, -0.78], [2.5, 1.12, 0.78], MAT.TRIM));
-  }
-  if (fine) {
-    bumper(m, st, 5, -2.36, -1, 0.54, 0.98);
-    bumper(m, st, 5, 2.58, 1, 0.5, 1.0);
-    grille(m, st, -2.38, -1, 1.02, 1.44, 4);
-    wipers(m, -0.9, 1.26, 0.98);
-    m.painted(TINT.METAL_DARK, () => {
-      // Ribs down the inside of the bed walls, and a roll bar behind the cab.
-      for (let i = 0; i < 5; i++) {
-        const px = 0.8 + i * 0.42;
-        m.box([px - 0.04, 1.12, -0.72], [px + 0.04, 1.30, 0.72], MAT.TRIM);
-      }
-      for (const sz of [1, -1] as const) {
-        m.box([0.60, 1.30, sz * 0.62 - 0.05], [0.70, 2.05, sz * 0.62 + 0.05], MAT.TRIM);
-      }
-      m.box([0.58, 2.00, -0.68], [0.72, 2.08, 0.68], MAT.TRIM);
-    });
-    handles(m, st, [-0.80], 1.26);
-    mirrors(m, st, 5, -0.82, 1.42);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.40, 1.20, sz * 0.68, 0.4, 0.26, -1, TINT.SIGN_LIT);
-      lamp(m, 2.68, 1.20, sz * 0.66, 0.22, 0.4, 1, TINT.BRAND);
-    }
-    plate(m, 5, -2.42, 0.78, -1);
-    // Load in the bed, so the tray is not an empty tank.
-    m.painted(TINT.WOOD, () => {
-      for (let i = 0; i < 3; i++) {
-        m.box([0.9 + i * 0.5, 1.12, -0.6], [1.3 + i * 0.5, 1.5, 0.2], MAT.TRIM);
-      }
-    });
-    person(m, 66, 3.3, 1.3, Math.PI, { stride: 0.14, hat: true });
-    person(m, 69, 3.1, -1.4, 0.2, {});
-  }
-  return m;
-}
-
-function van(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.6, 2.1);
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.55, s: shape(BOX, 0.72, 1.30) },
-    { x: -2.30, s: shape(BOX, 0.86, 1.52) },
-    { x: -1.75, s: shape(BOX, 0.96, 1.86) },
-    { x: -1.05, s: shape(BOX, 1.00, 2.42) },
-    { x: -0.30, s: shape(BOX, 1.00, 2.56) },
-    { x: 2.30, s: shape(BOX, 1.00, 2.58) },
-    { x: 2.62, s: shape(BOX, 0.96, 2.52) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.70, 1.85], 0.39);
-  m.keyed(6, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.06, to: 0.98, pillars: [0.24, 0.46] }); });
-
-
-  if (medium) {
-    for (const cx of [-1.70, 1.85]) {
-      arch(m, cx, 0.52, 0.52, 0.98);
-      archLip(m, st, 6, cx, 0.52, 0.53);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.40, sz * axleZ(st, cx, 0.40, 0.15), 0.39, 0.15);
-    }
-    // Rear doors: two leaves with a shut line and windows in the top half.
-    m.painted(TINT.METAL_DARK, () => m.box([2.6, 0.7, -0.02], [2.66, 2.5, 0.02], MAT.TRIM));
-  }
-  if (fine) {
-    bumper(m, st, 6, -2.50, -1, 0.60, 1.12);
-    bumper(m, st, 6, 2.58, 1, 0.58, 1.10);
-    grille(m, st, -2.52, -1, 1.18, 1.62, 4);
-    wipers(m, -1.20, 1.66, 1.06);
-    m.painted(TINT.METAL_DARK, () => {
-      // Body swage lines, following the flank rather than hovering off it.
-      for (const sz of [1, -1] as const) {
-        for (const y of [1.34, 1.62]) {
-          for (let i = 0; i < 6; i++) {
-            const a = -1.1 + i * 0.6, b = a + 0.6;
-            const w = Math.min(hwAt(st, a, y), hwAt(st, b, y));
-            m.box([a, y, Math.min(sz * w, sz * (w + 0.04))],
-                  [b, y + 0.07, Math.max(sz * w, sz * (w + 0.04))], MAT.TRIM);
-          }
-        }
-      }
-      m.box([-1.0, 2.60, -1.0], [1.2, 2.72, 1.0], MAT.TRIM);
-    });
-    handles(m, st, [-0.32], 1.44);
-    mirrors(m, st, 6, -1.18, 2.0);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.55, 1.34, sz * 0.72, 0.44, 0.36, -1, TINT.SIGN_LIT);
-      lamp(m, 2.66, 1.34, sz * 0.74, 0.26, 0.5, 1, TINT.BRAND);
-    }
-    plate(m, 6, -2.57, 0.86, -1);
-    // A sign panel on the flank: a van is somebody's advertising.
-    m.painted(TINT.BRAND, () => {
-      for (const sz of [1, -1] as const) {
-        for (let i = 0; i < 5; i++) {
-          const a = -0.7 + i * 0.54, b = a + 0.54;
-          const w = Math.min(hwAt(st, a, 2.0), hwAt(st, b, 2.0));
-          m.box([a, 1.76, Math.min(sz * w, sz * (w + 0.03))],
-                [b, 2.30, Math.max(sz * w, sz * (w + 0.03))], MAT.TRIM);
-        }
-      }
-    });
-    person(m, 77, 3.4, -1.4, 0.2, { stride: 0.12, bag: true });
-    person(m, 79, 3.2, 1.5, Math.PI * 0.9, { hat: true, stride: 0.06 });
-  }
-  return m;
-}
 
 function cityBus(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -1276,76 +979,6 @@ function cityBus(lod: number): MeshBuilder {
   return m;
 }
 
-function taxi(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1;
-  const medium = lod < 2;
-  tarmac(m, 3.3, 1.9);
-  // A tall, upright cab body: short bonnet, high roof, boxy tail.
-  const S: Section = [[0.36, 0.78], [0.68, 0.94], [1.16, 0.96], [1.52, 0.88], [1.72, 0.66]];
-
-  // The station table, kept so every fitting can sample the body it is
-  // going on rather than guess a width and hang off it.
-  const plan: Station[] = [
-    { x: -2.10, s: shape(S, 0.82, 1.00) },
-    { x: -1.90, s: shape(S, 0.95, 1.08) },
-    { x: -1.45, s: shape(S, 1.00, 1.18) },
-    { x: -1.05, s: shape(S, 1.02, 1.72) },
-    { x: 0.40, s: shape(S, 1.02, 1.86) },
-    { x: 1.55, s: shape(S, 1.01, 1.84) },
-    { x: 2.00, s: shape(S, 0.98, 1.60) },
-    { x: 2.18, s: shape(S, 0.88, 1.30) },
-  ];
-  // Sill arched over the wheels, so the tyres are seen and not buried.
-  const st = withArches(plan, [-1.35, 1.45], 0.35);
-  m.keyed(8, () => { loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
-    cabin(m, st, MAT.PAINT, { from: 0.26, to: 0.86, pillars: [0.5, 0.74] }); });
-
-
-  if (medium) {
-    for (const cx of [-1.35, 1.45]) {
-      arch(m, cx, 0.46, 0.50, 0.86);
-      archLip(m, st, 8, cx, 0.46, 0.51);
-      for (const sz of [1, -1] as const) wheel(m, cx, 0.36, sz * axleZ(st, cx, 0.36, 0.13), 0.35, 0.13);
-    }
-    for (const sz of [1, -1] as const) {
-      m.quad([-0.1, 1.22, sz * 0.905], [1.5, 1.22, sz * 0.905],
-             [1.5, 1.74, sz * 0.905], [-0.1, 1.74, sz * 0.905], MAT.CAR_GLASS);
-    }
-  }
-  if (fine) {
-    // The livery: a chequered band along the waist, in the accent colour.
-    m.painted(TINT.ACCENT, () => {
-      for (const sz of [1, -1] as const) {
-        for (let i = 0; i < 11; i++) {
-          const px = -1.2 + i * 0.28;
-          m.box([px, 0.86 + (i % 2) * 0.14, Math.min(sz * 0.96, sz * 0.99)],
-                [px + 0.28, 1.00 + (i % 2) * 0.14, Math.max(sz * 0.96, sz * 0.99)], MAT.TRIM);
-        }
-      }
-    });
-    // Roof sign: the one thing that says taxi from behind.
-    m.painted(TINT.SIGN_LIT, () => m.box([-0.35, 1.86, -0.36], [0.45, 2.06, 0.36], MAT.TRIM));
-    m.painted(TINT.METAL_DARK, () => {
-      m.box([-0.4, 1.80, -0.4], [0.5, 1.88, 0.4], MAT.TRIM);
-    });
-    bumper(m, st, 8, -2.06, -1, 0.50, 0.88);
-    bumper(m, st, 8, 2.12, 1, 0.50, 0.90);
-    grille(m, st, -2.08, -1, 0.92, 1.22, 3);
-    wipers(m, -1.14, 1.20, 0.90);
-    handles(m, st, [-0.12, 1.02], 1.10);
-    mirrors(m, st, 8, -1.1, 1.36);
-    for (const sz of [1, -1] as const) {
-      lamp(m, -2.10, 1.06, sz * 0.62, 0.34, 0.3, -1, TINT.SIGN_LIT);
-      lamp(m, 2.20, 1.22, sz * 0.62, 0.24, 0.4, 1, TINT.BRAND);
-    }
-    plate(m, 8, -2.12, 0.72, -1);
-    plate(m, 8, 2.22, 0.74, 1);
-    person(m, 91, 2.9, 1.2, Math.PI * 0.75, { bag: true, stride: 0.06 });
-    person(m, 92, 3.1, -1.1, 0.3, {});
-  }
-  return m;
-}
 
 function lorry(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -1769,7 +1402,7 @@ function buildCar(lod: number, spec: CarSpec): MeshBuilder {
   tarmac(m, spec.pad[0], spec.pad[1]);
 
   const plan: Station[] = spec.plan.map(([x, w, y]) => ({ x, s: shape(spec.section, w, y) }));
-  const st = withArches(plan, spec.axles, spec.wheel);
+  const st = smoothBody(withArches(plan, spec.axles, spec.wheel), 2);
   const nose = st[0].x, tail = st[st.length - 1].x;
   m.keyed(spec.key, () => {
     loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
@@ -1805,7 +1438,8 @@ function buildCar(lod: number, spec: CarSpec): MeshBuilder {
       // Centred on the axle, not above it: a liner centred 9cm high with a
       // radius of r + 13cm arcs to r + 22cm above the ground, which on a low
       // car is above the bonnet -- and it came through the wing as a black claw.
-      arch(m, cx, spec.wheel + 0.01, spec.wheel + 0.09, hwAt(st, cx, spec.wheel) * 0.92);
+      arch(m, cx, spec.wheel + 0.01, spec.wheel + 0.09, hwAt(st, cx, spec.wheel) * 0.92,
+        deckAt(st, cx) - 0.03);
       archLip(m, st, spec.key, cx, spec.wheel + 0.01, spec.wheel + 0.12);
       for (const sz of [1, -1] as const) {
         wheel(m, cx, spec.wheel + 0.01, sz * axleZ(st, cx, spec.wheel, 0.17), spec.wheel, 0.17);
@@ -1848,32 +1482,14 @@ const TALL: Section = [[0.34, 0.80], [0.66, 0.98], [1.20, 1.02], [1.72, 0.98], [
  * what gives the flank two planes to catch light on instead of one -- the
  * single biggest difference between one of these and a slab with wheels.
  */
-const SPORT: Section = [[0.26, 0.72], [0.44, 0.90], [0.72, 0.99], [0.98, 0.97], [1.14, 0.86], [1.30, 0.56]];
+const SPORT: Section = [[0.20, 0.70], [0.42, 0.92], [0.78, 1.00], [1.02, 0.98], [1.18, 0.86], [1.34, 0.56]];
 
 const COUPE: CarSpec = {
   key: 9, section: SPORT, axles: [-1.42, 1.40], wheel: 0.40, pad: [3.2, 1.9],
-  plan: [[-2.16, 0.82, 0.90], [-1.94, 0.94, 1.00], [-1.36, 1.02, 1.12],
-         [-0.55, 1.05, 1.30], [0.35, 1.05, 1.34], [1.18, 1.03, 1.28],
-         [1.86, 0.97, 1.10], [2.14, 0.86, 0.96]],
+  plan: [[-2.16, 0.82, 1.00], [-1.94, 0.94, 1.10], [-1.36, 1.02, 1.22],
+         [-0.55, 1.05, 1.38], [0.35, 1.05, 1.42], [1.18, 1.03, 1.36],
+         [1.86, 0.97, 1.20], [2.14, 0.86, 1.06]],
   cabin: { from: 0.40, to: 0.80, pillars: [0.60] },
-  extra: (m, st) => {
-    m.painted(TINT.METAL_DARK, () => {
-      // A splitter under the nose, sills tucked under the flank, and two
-      // pipes. The previous set -- a plank across the boot for a ducktail, a
-      // full-length sill bar -- read as scaffolding bolted to a car, which is
-      // worse than no aero at all.
-      m.box([-2.20, 0.13, -0.78], [-1.98, 0.21, 0.78], MAT.TRIM);
-      for (const sz of [1, -1] as const) {
-        const w = hwAt(st, 0, 0.34) - 0.03;
-        m.box([-1.05, 0.20, sz * w - 0.05], [1.05, 0.30, sz * w + 0.02], MAT.TRIM);
-        m.pipe([2.06, 0.30, sz * 0.44], [2.22, 0.30, sz * 0.44], 0.065, MAT.TRIM, 8);
-      }
-      // A lip on the boot edge rather than a wing: eight centimetres, following
-      // the deck it stands on.
-      const d = deckAt(st, 1.95);
-      m.keyed(9, () => m.box([1.86, d, -0.80], [2.06, d + 0.08, 0.80], MAT.PAINT));
-    });
-  },
 };
 
 const CITY: CarSpec = {
@@ -1938,15 +1554,167 @@ const BOXTRUCK: CarSpec = {
   },
 };
 
+
+// ---------------------------------------------------------- the road fleet
+//
+// Every vehicle below is a table entry rather than a generator. The first ten
+// were written out one at a time, which is how you find out what a car needs
+// and a bad way to keep twenty of them honest: the same forty lines of
+// bumpers, lamps, mirrors and plates were restated each time and every copy
+// drifted. One builder, twenty descriptions.
+
+const HATCH: CarSpec = {
+  key: 1, section: CAR, axles: [-1.28, 1.32], wheel: 0.33, pad: [3.0, 1.9],
+  plan: [[-2.02, 0.80, 0.98], [-1.80, 0.94, 1.10], [-1.20, 1.00, 1.26],
+         [-0.55, 1.02, 1.46], [0.30, 1.02, 1.50], [1.05, 1.00, 1.50],
+         [1.62, 0.96, 1.44], [2.05, 0.82, 1.16]],
+  cabin: { from: 0.30, to: 0.90, pillars: [0.52, 0.72] },
+};
+
+const SALOON: CarSpec = {
+  key: 2, section: CAR, axles: [-1.52, 1.58], wheel: 0.34, pad: [3.3, 1.9],
+  plan: [[-2.35, 0.80, 0.96], [-2.10, 0.95, 1.06], [-1.45, 1.02, 1.18],
+         [-0.75, 1.05, 1.44], [0.10, 1.05, 1.48], [0.95, 1.03, 1.46],
+         [1.50, 1.00, 1.28], [2.38, 0.84, 1.10]],
+  cabin: { from: 0.28, to: 0.76, pillars: [0.48, 0.66] },
+};
+
+const ESTATE: CarSpec = {
+  key: 3, section: CAR, axles: [-1.52, 1.58], wheel: 0.34, pad: [3.3, 1.9],
+  plan: [[-2.35, 0.80, 0.96], [-2.10, 0.95, 1.06], [-1.45, 1.02, 1.20],
+         [-0.75, 1.05, 1.48], [0.10, 1.05, 1.54], [1.10, 1.04, 1.54],
+         [2.05, 1.00, 1.50], [2.40, 0.86, 1.26]],
+  cabin: { from: 0.28, to: 0.94, pillars: [0.48, 0.66, 0.82] },
+};
+
+const SUV: CarSpec = {
+  key: 4, section: TALL, axles: [-1.50, 1.55], wheel: 0.46, pad: [3.3, 2.0],
+  plan: [[-2.30, 0.82, 1.42], [-2.06, 0.95, 1.62], [-1.40, 1.02, 1.86],
+         [-0.60, 1.04, 2.02], [0.30, 1.04, 2.04], [1.20, 1.03, 2.02],
+         [2.02, 0.99, 1.90], [2.34, 0.84, 1.58]],
+  cabin: { from: 0.26, to: 0.92, pillars: [0.46, 0.66, 0.82] },
+};
+
+const PICKUP: CarSpec = {
+  key: 5, section: TALL, axles: [-1.55, 1.75], wheel: 0.44, pad: [3.6, 2.0],
+  plan: [[-2.55, 0.82, 1.40], [-2.30, 0.95, 1.62], [-1.60, 1.02, 1.90],
+         [-0.80, 1.04, 2.06], [0.10, 1.04, 2.06], [0.60, 1.02, 1.60],
+         [2.40, 1.00, 1.54], [2.62, 0.86, 1.40]],
+  cabin: { from: 0.06, to: 0.42, pillars: [0.26] },
+  extra: (m) => {
+    // The bed: a separate open box behind the cab, with a ribbed floor and a
+    // tailgate. Lofting it with the cab gives a wedge with a hole in it.
+    m.keyed(5, () => {
+      m.box([0.62, 0.86, -1.02], [2.44, 1.52, 1.02], MAT.PAINT);
+      m.box([0.70, 0.90, -0.92], [2.36, 1.46, 0.92], MAT.METAL);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 7; i++) {
+        m.box([0.78 + i * 0.24, 0.90, -0.90], [0.86 + i * 0.24, 0.96, 0.90], MAT.TRIM);
+      }
+    });
+  },
+};
+
+const VAN: CarSpec = {
+  key: 6, section: BOX, axles: [-1.70, 1.85], wheel: 0.39, pad: [3.6, 2.1],
+  plan: [[-2.55, 0.84, 1.66], [-2.32, 0.96, 1.98], [-1.70, 1.00, 2.36],
+         [-1.20, 1.02, 2.72], [0.60, 1.02, 2.78], [2.20, 1.02, 2.76],
+         [2.62, 0.96, 2.60], [2.80, 0.86, 2.24]],
+  cabin: { from: 0.05, to: 0.30, pillars: [0.18] },
+};
+
+const TAXI: CarSpec = {
+  key: 8, section: TALL, axles: [-1.35, 1.45], wheel: 0.35, pad: [3.1, 1.9],
+  plan: [[-2.10, 0.82, 1.26], [-1.88, 0.94, 1.46], [-1.30, 1.00, 1.76],
+         [-0.60, 1.02, 1.98], [0.30, 1.02, 2.00], [1.15, 1.01, 1.98],
+         [1.86, 0.97, 1.86], [2.15, 0.84, 1.56]],
+  cabin: { from: 0.26, to: 0.90, pillars: [0.48, 0.70] },
+  extra: (m, st) => {
+    // The roof sign, sitting on the roof line rather than at a guessed height.
+    const y = topAt(st, 0.1);
+    m.painted(TINT.SIGN_LIT, () => m.box([-0.34, y, -0.44], [0.42, y + 0.20, 0.44], MAT.TRIM));
+  },
+};
+
+// ------------------------------------------------------------ seven more
+
+const SUPERMINI: CarSpec = {
+  key: 17, section: CAR, axles: [-1.16, 1.20], wheel: 0.31, pad: [2.6, 1.8],
+  plan: [[-1.80, 0.78, 0.98], [-1.60, 0.90, 1.10], [-1.05, 0.96, 1.30],
+         [-0.35, 0.98, 1.48], [0.45, 0.98, 1.50], [1.15, 0.96, 1.46],
+         [1.62, 0.90, 1.32], [1.82, 0.78, 1.10]],
+  cabin: { from: 0.28, to: 0.88, pillars: [0.54] },
+};
+
+const GT: CarSpec = {
+  key: 18, section: SPORT, axles: [-1.55, 1.55], wheel: 0.39, pad: [3.4, 1.9],
+  plan: [[-2.42, 0.84, 1.02], [-2.18, 0.96, 1.12], [-1.50, 1.04, 1.24],
+         [-0.60, 1.07, 1.40], [0.40, 1.07, 1.44], [1.35, 1.05, 1.38],
+         [2.10, 0.99, 1.20], [2.40, 0.86, 1.04]],
+  cabin: { from: 0.34, to: 0.82, pillars: [0.62] },
+};
+
+const LIMO: CarSpec = {
+  key: 19, section: CAR, axles: [-2.00, 2.10], wheel: 0.36, pad: [4.2, 1.9],
+  plan: [[-3.10, 0.82, 1.00], [-2.85, 0.96, 1.10], [-2.10, 1.03, 1.24],
+         [-1.20, 1.06, 1.50], [0.60, 1.06, 1.54], [1.90, 1.05, 1.52],
+         [2.60, 1.01, 1.32], [3.12, 0.86, 1.12]],
+  cabin: { from: 0.26, to: 0.80, pillars: [0.42, 0.58, 0.70] },
+};
+
+const CREWCAB: CarSpec = {
+  key: 20, section: TALL, axles: [-1.75, 1.95], wheel: 0.45, pad: [3.9, 2.0],
+  plan: [[-2.80, 0.82, 1.44], [-2.55, 0.95, 1.66], [-1.85, 1.02, 1.94],
+         [-1.00, 1.04, 2.10], [0.55, 1.04, 2.10], [1.00, 1.02, 1.64],
+         [2.70, 1.00, 1.58], [2.92, 0.86, 1.44]],
+  cabin: { from: 0.06, to: 0.50, pillars: [0.24, 0.38] },
+  extra: (m) => {
+    m.keyed(20, () => {
+      m.box([1.05, 0.90, -1.04], [2.74, 1.56, 1.04], MAT.PAINT);
+      m.box([1.13, 0.94, -0.94], [2.66, 1.50, 0.94], MAT.METAL);
+    });
+  },
+};
+
+const MICROVAN: CarSpec = {
+  key: 21, section: BOX, axles: [-1.15, 1.25], wheel: 0.32, pad: [2.7, 1.9],
+  plan: [[-1.86, 0.78, 1.50], [-1.70, 0.88, 1.80], [-1.25, 0.92, 2.06],
+         [-0.85, 0.94, 2.20], [0.55, 0.94, 2.22], [1.35, 0.94, 2.20],
+         [1.72, 0.88, 2.08], [1.88, 0.78, 1.82]],
+  cabin: { from: 0.06, to: 0.34, pillars: [0.20] },
+};
+
+const LUXSUV: CarSpec = {
+  key: 22, section: TALL, axles: [-1.70, 1.78], wheel: 0.50, pad: [3.6, 2.1],
+  plan: [[-2.62, 0.84, 1.52], [-2.36, 0.97, 1.74], [-1.60, 1.05, 2.00],
+         [-0.70, 1.08, 2.16], [0.40, 1.08, 2.18], [1.40, 1.06, 2.14],
+         [2.28, 1.01, 2.00], [2.64, 0.86, 1.68]],
+  cabin: { from: 0.26, to: 0.90, pillars: [0.46, 0.66, 0.80] },
+};
+
+const HOTHATCH: CarSpec = {
+  key: 23, section: SPORT, axles: [-1.30, 1.34], wheel: 0.35, pad: [2.9, 1.9],
+  plan: [[-2.00, 0.82, 1.04], [-1.78, 0.95, 1.14], [-1.20, 1.02, 1.30],
+         [-0.50, 1.05, 1.48], [0.35, 1.05, 1.50], [1.05, 1.03, 1.48],
+         [1.60, 0.99, 1.40], [1.98, 0.84, 1.18]],
+  cabin: { from: 0.30, to: 0.90, pillars: [0.54, 0.74] },
+  extra: (m, st) => {
+    // A roof spoiler over the tailgate, following the roof it sits on.
+    const y = topAt(st, 1.6);
+    m.painted(TINT.METAL_DARK, () => m.box([1.52, y - 0.02, -0.62], [1.78, y + 0.09, 0.62], MAT.TRIM));
+  },
+};
+
 export const FLEET: AssetDef[] = [
-  { id: 'car.hatchback', name: 'Hatchback', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hatch', colour: [0.42, 0.13, 0.12], accent: [0.62, 0.20, 0.16], sign: 'none' }, sim: road(0), note: 'Lofted body, five-spoke wheels, roof rails, raked screen and backlight, one pedestrian for scale.', build: hatchback },
-  { id: 'car.saloon', name: 'Saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Saloon', colour: [0.10, 0.16, 0.34], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Three-box body with a stepped boot, barred grille, twin tailpipes, door shuts and handles.', build: saloon },
-  { id: 'car.estate', name: 'Estate', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.7, brand: { name: 'Estate', colour: [0.14, 0.26, 0.18], accent: [0.46, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Long roof carried to the tailgate, roof bars with cross rails, towbar, three doors a side.', build: estate },
-  { id: 'car.suv', name: 'SUV', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'SUV', colour: [0.20, 0.21, 0.24], accent: [0.48, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Raised body on 46cm wheels, arch and sill cladding, roof rails, spare on the tailgate.', build: suv },
-  { id: 'car.pickup', name: 'Pickup truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.2, brand: { name: 'Pickup', colour: [0.46, 0.26, 0.10], accent: [0.50, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Separate cab and bed with a ribbed tray, roll bar, timber load, tall barred grille.', build: pickup },
-  { id: 'car.van', name: 'Panel van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.8, brand: { name: 'Van', colour: [0.62, 0.62, 0.64], accent: [0.16, 0.34, 0.52], sign: 'none' }, sim: road(0), note: 'Box body with swage lines and a signwritten flank, glazed rear doors, deep windscreen.', build: van },
+  { id: 'car.hatchback', name: 'Hatchback', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hatch', colour: [0.42, 0.13, 0.12], accent: [0.62, 0.20, 0.16], sign: 'none' }, sim: road(0), note: 'Lofted body, five-spoke wheels, roof rails, raked screen and backlight, one pedestrian for scale.', build: (lod: number) => buildCar(lod, HATCH) },
+  { id: 'car.saloon', name: 'Saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Saloon', colour: [0.10, 0.16, 0.34], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Three-box body with a stepped boot, barred grille, twin tailpipes, door shuts and handles.', build: (lod: number) => buildCar(lod, SALOON) },
+  { id: 'car.estate', name: 'Estate', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.7, brand: { name: 'Estate', colour: [0.14, 0.26, 0.18], accent: [0.46, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Long roof carried to the tailgate, roof bars with cross rails, towbar, three doors a side.', build: (lod: number) => buildCar(lod, ESTATE) },
+  { id: 'car.suv', name: 'SUV', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'SUV', colour: [0.20, 0.21, 0.24], accent: [0.48, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Raised body on 46cm wheels, arch and sill cladding, roof rails, spare on the tailgate.', build: (lod: number) => buildCar(lod, SUV) },
+  { id: 'car.pickup', name: 'Pickup truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.2, brand: { name: 'Pickup', colour: [0.46, 0.26, 0.10], accent: [0.50, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Separate cab and bed with a ribbed tray, roll bar, timber load, tall barred grille.', build: (lod: number) => buildCar(lod, PICKUP) },
+  { id: 'car.van', name: 'Panel van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.8, brand: { name: 'Van', colour: [0.62, 0.62, 0.64], accent: [0.16, 0.34, 0.52], sign: 'none' }, sim: road(0), note: 'Box body with swage lines and a signwritten flank, glazed rear doors, deep windscreen.', build: (lod: number) => buildCar(lod, VAN) },
   { id: 'car.bus', name: 'City bus', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.5, brand: { name: 'Transit', colour: [0.58, 0.16, 0.14], accent: [0.72, 0.62, 0.20], sign: 'none' }, sim: road(0), note: 'Twelve-metre body, full window band on pillars, two glazed door sets with grab poles, roof pods, a queue.', build: cityBus },
-  { id: 'car.taxi', name: 'Taxi', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'Taxi', colour: [0.66, 0.50, 0.08], accent: [0.10, 0.10, 0.12], sign: 'none' }, sim: road(0), note: 'Upright cab body with a chequered waist band, lit roof sign, two fares waiting.', build: taxi },
+  { id: 'car.taxi', name: 'Taxi', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'Taxi', colour: [0.66, 0.50, 0.08], accent: [0.10, 0.10, 0.12], sign: 'none' }, sim: road(0), note: 'Upright cab body with a chequered waist band, lit roof sign, two fares waiting.', build: (lod: number) => buildCar(lod, TAXI) },
   { id: 'car.coupe', name: 'Sports coupe', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.3, brand: { name: 'Coupe', colour: [0.52, 0.06, 0.06], accent: [0.14, 0.14, 0.16], sign: 'none' }, sim: road(0), note: 'Low fastback on a six-point section with a shoulder crease, flared arches, splitter, sills and a ducktail.', build: (lod: number) => buildCar(lod, COUPE) },
   { id: 'car.lorry', name: 'Articulated lorry', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.7, brand: { name: 'Haulage', colour: [0.14, 0.28, 0.44], accent: [0.70, 0.58, 0.18], sign: 'none' }, sim: road(0), note: 'Tractor unit and semi-trailer on four bogies, exhaust stack, mud flaps, curtain tensioners, name board.', build: lorry },
   { id: 'car.city', name: 'City car', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'City', colour: [0.62, 0.54, 0.16], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Three-metre two-door on 30cm wheels, one pillar a side, short overhangs.', build: (lod: number) => buildCar(lod, CITY) },
@@ -1955,6 +1723,13 @@ export const FLEET: AssetDef[] = [
   { id: 'car.crossover', name: 'Crossover', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.0, brand: { name: 'Crossover', colour: [0.24, 0.30, 0.26], accent: [0.46, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Raised hatchback on 38cm wheels: the shape most of a modern street is made of.', build: (lod: number) => buildCar(lod, CROSSOVER) },
   { id: 'car.minibus', name: 'Minibus', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.9, brand: { name: 'Minibus', colour: [0.70, 0.70, 0.72], accent: [0.16, 0.34, 0.52], sign: 'none' }, sim: road(0), note: 'Six-metre box on four pillars a side, full window band, high roof.', build: (lod: number) => buildCar(lod, MINIBUS) },
   { id: 'car.boxtruck', name: 'Box truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 3.2, brand: { name: 'Freight', colour: [0.60, 0.30, 0.12], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Rigid seven-tonner: cab and a taller box behind it, roller shutter and tail lift.', build: (lod: number) => buildCar(lod, BOXTRUCK) },
+  { id: 'car.supermini', name: 'Supermini', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.5, brand: { name: 'Supermini', colour: [0.66, 0.28, 0.14], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Three-and-a-half metres on 31cm wheels: the smallest thing on the road that is still a car.', build: (lod: number) => buildCar(lod, SUPERMINI) },
+  { id: 'car.gt', name: 'Grand tourer', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.5, brand: { name: 'GT', colour: [0.10, 0.18, 0.36], accent: [0.62, 0.58, 0.42], sign: 'none' }, sim: road(0), note: 'Long bonnet, cabin set back over the rear axle, on the six-point sports section.', build: (lod: number) => buildCar(lod, GT) },
+  { id: 'car.limo', name: 'Limousine', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Limousine', colour: [0.08, 0.08, 0.10], accent: [0.60, 0.56, 0.36], sign: 'none' }, sim: road(0), note: 'Stretched saloon on a six-metre wheelbase with a four-pillar glasshouse.', build: (lod: number) => buildCar(lod, LIMO) },
+  { id: 'car.crewcab', name: 'Crew cab', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.2, brand: { name: 'Crew', colour: [0.18, 0.34, 0.24], accent: [0.50, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Four-door pickup: a full cabin ahead of a shorter bed, on 45cm wheels.', build: (lod: number) => buildCar(lod, CREWCAB) },
+  { id: 'car.microvan', name: 'Micro van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.3, brand: { name: 'Micro', colour: [0.72, 0.72, 0.70], accent: [0.16, 0.36, 0.52], sign: 'none' }, sim: road(0), note: 'Cab-over box on a 3.7 metre footprint: the delivery vehicle of a dense city.', build: (lod: number) => buildCar(lod, MICROVAN) },
+  { id: 'car.luxsuv', name: 'Luxury SUV', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.3, brand: { name: 'Luxury', colour: [0.26, 0.24, 0.22], accent: [0.62, 0.58, 0.40], sign: 'none' }, sim: road(0), note: 'Full-size SUV on 50cm wheels, three pillars a side, deep flared arches.', build: (lod: number) => buildCar(lod, LUXSUV) },
+  { id: 'car.hothatch', name: 'Hot hatch', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hot hatch', colour: [0.62, 0.52, 0.10], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'Short, wide and low on the sports section, with a roof spoiler over the tailgate.', build: (lod: number) => buildCar(lod, HOTHATCH) },
   { id: 'car.people', name: 'Pedestrians', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 5.3, brand: { name: 'People', colour: [0.30, 0.32, 0.36], accent: [0.52, 0.44, 0.30], sign: 'none' }, sim: road(0), note: 'Twenty figures on a kerbed pavement: two lanes walking, a group talking, a child, someone on a bench.', build: pedestrians },
   { id: 'car.cyclists', name: 'Cyclists', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 1.9, brand: { name: 'Cycles', colour: [0.16, 0.34, 0.30], accent: [0.62, 0.40, 0.12], sign: 'none' }, sim: road(0), note: 'Three riders on diamond-frame bicycles, a scooter with an apron and headlamp, and a full bike stand.', build: cyclists },
 ];
