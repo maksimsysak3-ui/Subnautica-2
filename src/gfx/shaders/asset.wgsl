@@ -62,6 +62,7 @@ const MAT_TYRE      = 21u;
 const MAT_DARK      = 22u;
 const MAT_RENDER    = 23u;
 const MAT_CAR_GLASS = 24u;
+const MAT_LAMP      = 25u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -844,12 +845,47 @@ fn renderPanel(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
 fn carGlass(surf : vec2f, key : f32) -> vec3f {
   let k = floor(key + 0.5);
   let sky = clamp((surf.y - 0.5) * 1.6, 0.0, 1.0);
-  let base = mix(vec3f(0.075, 0.088, 0.102), vec3f(0.30, 0.35, 0.40), sky);
-  // A faint sheen running along the glass, so a flat pane is not a flat colour.
-  let band = 0.03 * sin(surf.x * 9.0 + k);
-  // Seal: a dark edge on the top and bottom of the band.
-  let edge = clamp(min(surf.y, 1.0 - surf.y) * 14.0, 0.0, 1.0);
-  return (base + band) * mix(0.35, 1.0, edge);
+  var col = mix(vec3f(0.085, 0.098, 0.115), vec3f(0.34, 0.40, 0.47), sky);
+
+  // What is behind the glass. A car window that is one flat tint reads as a
+  // sticker; you always see something of the cabin through it, and the shapes
+  // you actually read at any distance are the head restraints and the dark
+  // mass of the seats under the belt line.
+  let seatA = 1.0 - smoothstep(0.05, 0.13, abs(surf.x - 0.34));
+  let seatB = 1.0 - smoothstep(0.05, 0.13, abs(surf.x - 0.62));
+  let head = max(seatA, seatB) * (1.0 - smoothstep(0.30, 0.70, surf.y));
+  col = mix(col, vec3f(0.030, 0.031, 0.036), head * 0.85);
+  // Dash and door cards along the bottom of the opening.
+  col = mix(col, vec3f(0.042, 0.044, 0.050), (1.0 - smoothstep(0.08, 0.30, surf.y)) * 0.8);
+  // A pillar-to-pillar shade band across the top, as most screens have.
+  col = mix(col, vec3f(0.02, 0.02, 0.025), smoothstep(0.86, 0.99, surf.y) * 0.7);
+
+  // Two reflection streaks raking across the glass. This is the single thing
+  // that makes glass read as glass rather than as dark paint.
+  let d = surf.x * 1.7 + surf.y;
+  let s1 = 1.0 - smoothstep(0.0, 0.10, abs(fract(d * 0.7 + k * 0.13) - 0.5));
+  col += vec3f(0.20, 0.23, 0.28) * s1 * (0.35 + 0.5 * sky);
+  // Seal: a dark edge round the opening.
+  let edge = clamp(min(surf.y, 1.0 - surf.y) * 16.0, 0.0, 1.0);
+  return col * mix(0.30, 1.0, edge);
+}
+
+/**
+ * A lamp lens: emissive, and banded the way modern lights are.
+ *
+ * Headlights and tail lights are the only part of a car that is a light
+ * source, and leaving them as painted panels is why a parked car reads as a
+ * model of a car. The bars come from the surface coordinate, so a wide lamp
+ * gets more of them and a narrow one fewer.
+ */
+fn lampColour(surf : vec2f, rear : bool) -> vec3f {
+  let base = select(vec3f(0.94, 0.95, 1.00), vec3f(0.92, 0.07, 0.05), rear);
+  // Horizontal elements, brighter in the middle of each.
+  let bar = abs(fract(surf.y * 3.0) - 0.5) * 2.0;
+  let lit = mix(1.0, 0.34, smoothstep(0.35, 0.85, bar));
+  // The lens darkens towards its edges, where the bezel is.
+  let edge = clamp(min(min(surf.x, 1.0 - surf.x), min(surf.y, 1.0 - surf.y)) * 9.0, 0.0, 1.0);
+  return base * lit * mix(0.25, 1.0, edge);
 }
 
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
@@ -882,6 +918,7 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 22u: { return darkMetal(uv, mpp, seed); }
     case 23u: { return renderPanel(uv, mpp, seed); }
     case 24u: { return carGlass(surf, key); }
+    case 25u: { return lampColour(surf, key < 0.5); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -1106,6 +1143,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // coordinates. Faces that do not have local = (0,0) and get nothing.
     let label = signLabel(in.local, u32(scene.signInfo.x + 0.5), localMpp);
     out = mix(out, clamp(scene.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
+  }
+  // A lamp is its own light source, like a lit sign: it takes no shading at
+  // all, or a headlight in shadow is a grey oval.
+  if (in.material == MAT_LAMP) {
+    out = clamp(lampColour(in.local, in.tint != 4u) * 1.45, vec3f(0.0), vec3f(1.0));
   }
   return vec4f(out, 1.0);
 }

@@ -135,6 +135,15 @@ export const MAT = {
    * with a gradient and no grid.
    */
   CAR_GLASS: 24,
+  /**
+   * A lamp lens: emissive, banded, unaffected by light.
+   *
+   * Headlights and tail lights are the only part of a car that emits, and
+   * painting them left every vehicle in the library with grey ovals at each
+   * end. The tint says which end it is: SIGN_LIT is a headlight, anything
+   * else a tail light.
+   */
+  LAMP: 25,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

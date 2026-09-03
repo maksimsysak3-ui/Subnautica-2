@@ -36,10 +36,13 @@ const ONLY = process.argv[4] ?? '';
 const STREET = (process.argv[5] ?? '') === 'street';
 /** Optional close-up multiplier, for looking at one detail rather than a lot. */
 const ZOOM = Number(process.argv[6] ?? 1) || 1;
-const TILE = 512;          // 512 * 4 bytes is a multiple of the 256-byte row alignment
-const TILE_H = 576;
-const COLS = 6;
+const TILE = Number(process.env.TILE ?? 512);          // 512 * 4 bytes is a multiple of the 256-byte row alignment
+const TILE_H = Number(process.env.TILE_H ?? 576);
+const COLS = Number(process.env.COLS ?? 6);
 const SHADOW = 1024;
+/** Camera overrides, for looking at one asset the way a photograph would. */
+const YAW = process.env.YAW === undefined ? null : Number(process.env.YAW);
+const PITCH = process.env.PITCH === undefined ? null : Number(process.env.PITCH);
 
 const shader = fs.readFileSync(new URL('../src/gfx/shaders/asset.wgsl', import.meta.url), 'utf8');
 const registry = (
@@ -61,7 +64,7 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://localhost:4181/');
 
-const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM }) => {
+const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM, YAW, PITCH }) => {
   const all = new Function(registry + '; return REG;')().ASSETS;
   // Same seed the game uses, so the sheet shows the colours the player sees.
   const idSeed = (id) => {
@@ -192,8 +195,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     const dist = (STREET ? Math.max(height * 2.2, radius * 1.15, 16)
                          : Math.max(height * 1.5, radius * 3.4, 12)) / ZOOM;
     const target = STREET ? [0, Math.min(4.5, height * 0.42), 0] : [0, height * 0.45, 0];
-    const yaw = STREET ? 0.30 : 0.95;
-    const pitch = STREET ? 0.12 : 0.30;
+    const yaw = YAW !== null ? YAW : (STREET ? 0.30 : 0.95);
+    const pitch = PITCH !== null ? PITCH : (STREET ? 0.12 : 0.30);
     const eye = [target[0] + dist * Math.cos(pitch) * Math.sin(yaw),
                  target[1] + dist * Math.sin(pitch) + (STREET ? 0 : height * 0.1),
                  target[2] + dist * Math.cos(pitch) * Math.cos(yaw)];
@@ -268,7 +271,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
   }
 
   return { png: sheet.toDataURL('image/png'), stats, errors, diags };
-}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM });
+}, { shader, registry, TILE, TILE_H, COLS, LOD, SHADOW, ONLY, STREET, ZOOM, YAW, PITCH });
 
 if (result.error || result.diags?.length) {
   console.error('FAIL', result.error ?? result.diags.join('; '));
