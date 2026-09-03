@@ -956,6 +956,494 @@ function lido(lod: number): MeshBuilder {
   return m;
 }
 
+
+// ======================================================================= parks
+//
+// Five parks. A park is mostly ground and planting, which makes it the one
+// category where the temptation is to place a green rectangle and stop -- so
+// each of these is built round one structure with a silhouette (a pergola, a
+// boathouse, a bowl, a range of sheds, a bandstand) and the planting is
+// arranged by it rather than scattered over it.
+
+/** A tree: a trunk and two stacked crowns, which is enough at city scale. */
+function tree(m: MeshBuilder, cx: number, cz: number, h: number, r: number): void {
+  m.painted(TINT.WOOD, () => m.cylinder(cx, cz, r * 0.16, 0, h * 0.42, 6, MAT.TIMBER));
+  m.painted(TINT.GREEN, () => {
+    m.cone(cx, cz, r, r * 0.75, h * 0.34, h * 0.72, 8, MAT.TRIM);
+    m.cone(cx, cz, r * 0.78, 0.0, h * 0.66, h, 8, MAT.TRIM);
+  });
+}
+
+/** A bench: two ends and a slatted seat and back. */
+function bench(m: MeshBuilder, cx: number, cz: number, turns: number): void {
+  m.placed(cx, cz, turns, () => {
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sx of [-0.8, 0.8]) {
+        m.box([sx - 0.06, 0, -0.24], [sx + 0.06, 0.44, 0.24], MAT.TRIM);
+        m.box([sx - 0.06, 0.44, -0.24], [sx + 0.06, 0.92, -0.14], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.WOOD, () => {
+      for (const pz of [-0.22, -0.04, 0.14]) m.box([-0.9, 0.44, pz], [0.9, 0.5, pz + 0.14], MAT.TIMBER);
+      for (const py of [0.58, 0.74]) m.box([-0.9, py, -0.22], [0.9, py + 0.13, -0.15], MAT.TIMBER);
+    });
+  });
+}
+
+/** A clipped hedge run. */
+function hedge(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, h = 0.9): void {
+  m.painted(TINT.GREEN, () => m.box([x0, 0.04, z0], [x1, h, z1], MAT.TRIM));
+}
+
+/** Formal garden: a parterre round a fountain, with a pergola on the axis. */
+function formalGarden(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 22.0, z = 18.0;
+
+  m.painted(TINT.GREEN, () => m.box([-x, 0.001, -z], [x, 0.06, z], MAT.TRIM));
+  // Gravel walks: a cross axis and a perimeter, which is what makes it formal.
+  m.box([-x, 0.02, -1.6], [x, 0.08, 1.6], MAT.GROUND);
+  m.box([-1.6, 0.02, -z], [1.6, 0.08, z], MAT.GROUND);
+  m.box([-x, 0.02, -z], [x, 0.08, -z + 1.4], MAT.GROUND);
+  m.box([-x, 0.02, z - 1.4], [x, 0.08, z], MAT.GROUND);
+
+  // Fountain on the crossing: basin, bowl and a jet.
+  m.cylinder(0, 0, 3.4, 0.08, 0.62, 16, MAT.STONE);
+  m.cylinder(0, 0, 3.0, 0.5, 0.56, 16, MAT.GLASS);
+  m.cylinder(0, 0, 0.55, 0.56, 1.5, 12, MAT.STONE);
+  m.cone(0, 0, 1.5, 0.3, 1.5, 2.1, 12, MAT.STONE);
+  m.cylinder(0, 0, 0.14, 2.1, 3.1, 8, MAT.GLASS);
+
+  if (medium) {
+    // Pergola across the far end: the one piece of structure in the garden.
+    const py = 3.2;
+    for (const sz of [-1, 1] as const) {
+      for (let i = 0; i <= 7; i++) {
+        const px = -10.5 + i * 3.0;
+        m.cylinder(px, sz * (z - 4.5), 0.28, 0, py, 10, MAT.STONE);
+      }
+      m.box([-11.0, py, sz * (z - 4.5) - 0.22], [11.0, py + 0.34, sz * (z - 4.5) + 0.22], MAT.TIMBER);
+    }
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 14; i++) {
+        const px = -11.0 + i * (22.0 / 14);
+        m.box([px - 0.09, py + 0.34, -(z - 4.9)], [px + 0.09, py + 0.5, z - 4.1], MAT.TIMBER);
+      }
+    });
+    // Parterre: four quarters of clipped box round the fountain.
+    for (const sx of [-1, 1] as const) {
+      for (const sz of [-1, 1] as const) {
+        const ax = sx * 5.0, az = sz * 5.0, bx = sx * 13.0, bz = sz * 12.0;
+        hedge(m, Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.min(az, bz) + 0.5);
+        hedge(m, Math.min(ax, bx), Math.max(az, bz) - 0.5, Math.max(ax, bx), Math.max(az, bz));
+        hedge(m, Math.min(ax, bx), Math.min(az, bz), Math.min(ax, bx) + 0.5, Math.max(az, bz));
+        hedge(m, Math.max(ax, bx) - 0.5, Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz));
+      }
+    }
+  }
+  if (fine) {
+    for (const sx of [-1, 1] as const) {
+      for (const sz of [-1, 1] as const) {
+        // Bedding inside each quarter, and a standard tree at its centre.
+        m.painted(TINT.ACCENT, () => m.box([sx * 6.4, 0.06, sz * 6.4], [sx * 11.6, 0.34, sz * 10.6], MAT.TRIM));
+        tree(m, sx * 9.0, sz * 8.5, 6.4, 2.0);
+        tree(m, sx * 17.0, sz * 12.0, 8.0, 2.6);
+        tree(m, sx * 17.5, sz * 4.0, 6.8, 2.2);
+        // Clipped cones down the quarter's edge, which is what a parterre has
+        // instead of shrubs: four a side, alternating height.
+        for (let k = 0; k < 4; k++) {
+          const px = sx * (6.2 + k * 1.9), pz = sz * 5.6;
+          m.painted(TINT.GREEN, () => m.cone(px, pz, 0.55, 0.05, 0.06, 1.5 + (k % 2) * 0.5, 8, MAT.TRIM));
+          m.painted(TINT.GREEN, () => m.cone(px, sz * 11.4, 0.5, 0.05, 0.06, 1.3 + (k % 2) * 0.4, 8, MAT.TRIM));
+        }
+      }
+    }
+    for (const sz of [-1, 1] as const) {
+      bench(m, -6.0, sz * 2.6, sz > 0 ? 0 : 2);
+      bench(m, 6.0, sz * 2.6, sz > 0 ? 0 : 2);
+    }
+    // Urns on plinths down the main walk.
+    for (const px of [-14.0, -7.0, 7.0, 14.0]) {
+      for (const sz of [-1, 1] as const) {
+        m.box([px - 0.5, 0.08, sz * 2.4 - 0.5], [px + 0.5, 0.9, sz * 2.4 + 0.5], MAT.STONE);
+        m.cone(px, sz * 2.4, 0.28, 0.55, 0.9, 1.5, 10, MAT.STONE);
+        m.painted(TINT.GREEN, () => m.cone(px, sz * 2.4, 0.5, 0.3, 1.5, 2.0, 8, MAT.TRIM));
+      }
+    }
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.0, 3.0, 1.4, 2.2);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
+/** Boating lake: water, an island, a jetty and a boathouse. */
+function boatingLake(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 26.0, z = 20.0;
+
+  m.painted(TINT.GREEN, () => m.box([-x, 0.001, -z], [x, 0.07, z], MAT.TRIM));
+  // The lake: a sunken basin with a stone edge, not a blue rectangle laid on
+  // the grass -- the edge is what stops water reading as a painted panel.
+  const lx = 20.0, lz = 13.0;
+  m.box([-lx - 0.6, 0, -lz - 0.6], [lx + 0.6, 0.34, lz + 0.6], MAT.STONE);
+  m.box([-lx, 0, -lz], [lx, 0.2, lz], MAT.GLASS);
+  // Island with three trees.
+  m.painted(TINT.GREEN, () => m.cone(4.0, -1.0, 3.4, 2.6, 0.2, 0.7, 12, MAT.TRIM));
+
+  if (medium) {
+    // Boathouse on the near shore, open to the water.
+    const bx0 = -16.0, bx1 = -7.0, bz0 = lz + 0.6, bz1 = lz + 7.0;
+    m.box([bx0, 0, bz0], [bx1, 3.6, bz1], MAT.TIMBER);
+    m.gable([bx0 - 0.5, 3.6, bz0 - 0.5], [bx1 + 0.5, 3.6, bz1 + 0.5], 2.2, 'x', MAT.METAL, MAT.TIMBER);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 4; i++) {
+        const px = bx0 + (i / 4) * (bx1 - bx0);
+        m.box([px - 0.1, 0, bz0 - 0.1], [px + 0.1, 3.6, bz0 + 0.1], MAT.TRIM);
+      }
+    });
+    // Jetty out over the water on piles.
+    m.box([-2.0, 0.34, lz - 5.0], [2.0, 0.52, lz + 0.6], MAT.TIMBER);
+    m.painted(TINT.WOOD, () => {
+      for (const px of [-1.8, 1.8]) {
+        for (const pz of [lz - 4.6, lz - 2.4, lz - 0.2]) m.cylinder(px, pz, 0.14, 0, 0.34, 6, MAT.TIMBER);
+      }
+    });
+    railing(m, -2.0, 2.0, lz - 5.0, 0.52, 0.95, 1.2);
+    // A humpback footbridge to the island.
+    for (let i = 0; i < 8; i++) {
+      const t0 = i / 8, t1 = (i + 1) / 8;
+      const az = -lz - 0.6 + t0 * 9.0, bz = -lz - 0.6 + t1 * 9.0;
+      const ay = 0.34 + Math.sin(t0 * Math.PI) * 1.5, by = 0.34 + Math.sin(t1 * Math.PI) * 1.5;
+      m.quad([-1.4, ay, az], [1.4, ay, az], [1.4, by, bz], [-1.4, by, bz], MAT.TIMBER);
+      m.quad([-1.4, ay - 0.22, az], [-1.4, by - 0.22, bz], [-1.4, by, bz], [-1.4, ay, az], MAT.TIMBER);
+      m.quad([1.4, by - 0.22, bz], [1.4, ay - 0.22, az], [1.4, ay, az], [1.4, by, bz], MAT.TIMBER);
+    }
+  }
+  if (fine) {
+    // Rowing boats drawn up at the jetty.
+    m.painted(TINT.ACCENT, () => {
+      for (let i = 0; i < 4; i++) {
+        const pz = lz - 4.6 + (i % 2) * 2.2;
+        const px = i < 2 ? -3.4 : 3.4;
+        m.box([px - 0.7, 0.2, pz - 0.36], [px + 0.7, 0.52, pz + 0.36], MAT.TIMBER);
+        m.box([px - 0.55, 0.44, pz - 0.26], [px + 0.55, 0.5, pz + 0.26], MAT.TIMBER);
+      }
+    });
+    for (const [tx, tz] of [[4.0, -1.6], [2.2, -0.4], [5.6, 0.2]] as const) tree(m, tx, tz, 6.0, 1.9);
+    for (let i = 0; i < 6; i++) {
+      tree(m, -x + 3.5 + i * 9.5, -z + 3.0, 7.4, 2.4);
+    }
+    for (const px of [-10.0, 0.0, 10.0]) bench(m, px, lz + 3.0, 2);
+    for (const px of [-14.0, 14.0]) bench(m, px, -lz - 3.0, 0);
+    for (let i = 0; i < 5; i++) tree(m, -x + 5.0 + i * 11.0, z - 3.2, 7.0, 2.3);
+    for (const sx of [-1, 1] as const) {
+      for (let i = 0; i < 3; i++) tree(m, sx * (x - 3.0), -8.0 + i * 8.0, 6.4, 2.1);
+    }
+    // Reeds along the far bank, and a pair of waterfowl on the water.
+    m.painted(TINT.GREEN, () => {
+      for (let i = 0; i < 22; i++) {
+        const px = -lx + 1.0 + i * (2 * lx - 2.0) / 21;
+        m.cone(px, -lz + 0.9, 0.28, 0.05, 0.2, 1.2 + (i % 3) * 0.25, 5, MAT.TRIM);
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [px, pz] of [[-6.0, 3.0], [-5.0, 4.2]] as const) {
+        m.box([px - 0.28, 0.2, pz - 0.16], [px + 0.28, 0.42, pz + 0.16], MAT.TRIM);
+        m.box([px + 0.16, 0.42, pz - 0.07], [px + 0.34, 0.66, pz + 0.07], MAT.TRIM);
+      }
+    });
+    // Lamp columns round the walk.
+    for (const [px, pz] of [[-16.0, lz + 2.0], [0.0, lz + 2.0], [16.0, lz + 2.0]] as const) {
+      m.painted(TINT.METAL_DARK, () => m.pipe([px, 0.07, pz], [px, 4.2, pz], 0.09, MAT.TRIM, 6));
+      m.painted(TINT.SIGN_LIT, () => m.box([px - 0.3, 4.2, pz - 0.3], [px + 0.3, 4.5, pz + 0.3], MAT.TRIM));
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: lz + 7.0 }, -11.5, { width: 1.2, height: 2.2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: lz + 7.0 }, -15.0, -8.0, 3.8, 4.6);
+    // Railing round the water, which every municipal lake has.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 30; i++) {
+        const px = -lx + (i / 30) * 2 * lx;
+        for (const pz of [lz + 0.5, -lz - 0.5] as const) {
+          m.box([px - 0.05, 0.34, pz - 0.05], [px + 0.05, 1.2, pz + 0.05], MAT.TRIM);
+        }
+      }
+      for (const pz of [lz + 0.5, -lz - 0.5] as const) {
+        m.box([-lx, 1.06, pz - 0.04], [lx, 1.16, pz + 0.04], MAT.TRIM);
+      }
+    });
+    kerb(m, -x, z - 0.4, x, z);
+  }
+  return m;
+}
+
+/** Skate park: a concrete bowl, ramps and rails, floodlit and fenced. */
+function skatePark(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 20.0, z = 15.0;
+
+  m.box([-x, 0.001, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The bowl, built up rather than dug in: a ring berm whose inside face
+  // dishes down to the flat. Sinking it put two metres of concrete below
+  // ground, which nothing in this library is allowed to do -- the terrain is
+  // not carved, so anything under zero is simply lost.
+  const bowlR = 9.0, bowlH = 2.8, cx = -7.0;
+  for (let i = 0; i < 6; i++) {
+    const t0 = i / 6, t1 = (i + 1) / 6;
+    // Outside: a straight batter. Inside: a quarter-circle transition.
+    const ro0 = bowlR + 1.6 - t0 * 0.9, ro1 = bowlR + 1.6 - t1 * 0.9;
+    const y0 = 0.1 + t0 * bowlH, y1 = 0.1 + t1 * bowlH;
+    m.cone(cx, 0, ro0, ro1, y0, y1, 20, MAT.CONCRETE);
+    const ri0 = bowlR - Math.cos(t0 * Math.PI * 0.5) * 3.2;
+    const ri1 = bowlR - Math.cos(t1 * Math.PI * 0.5) * 3.2;
+    const iy0 = 0.1 + Math.sin(t0 * Math.PI * 0.5) * bowlH;
+    const iy1 = 0.1 + Math.sin(t1 * Math.PI * 0.5) * bowlH;
+    m.cone(cx, 0, ri1, ri0, iy1, iy0, 20, MAT.CONCRETE);
+  }
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i < 20; i++) {
+      const a0 = (i / 20) * Math.PI * 2, a1 = ((i + 1) / 20) * Math.PI * 2;
+      m.pipe([cx + Math.cos(a0) * bowlR, 0.1 + bowlH, Math.sin(a0) * bowlR],
+             [cx + Math.cos(a1) * bowlR, 0.1 + bowlH, Math.sin(a1) * bowlR], 0.07, MAT.TRIM, 5);
+    }
+  });
+
+  if (medium) {
+    // Quarter pipe against the back, built as a curved ramp.
+    for (let i = 0; i < 8; i++) {
+      const t0 = i / 8, t1 = (i + 1) / 8;
+      const y0 = Math.sin(t0 * Math.PI * 0.5) * 2.6, y1 = Math.sin(t1 * Math.PI * 0.5) * 2.6;
+      const z0 = -z + 2.0 + (1 - Math.cos(t0 * Math.PI * 0.5)) * 3.4;
+      const z1 = -z + 2.0 + (1 - Math.cos(t1 * Math.PI * 0.5)) * 3.4;
+      m.quad([4.0, y1, z1], [16.0, y1, z1], [16.0, y0, z0], [4.0, y0, z0], MAT.CONCRETE);
+    }
+    m.painted(TINT.METAL_DARK, () => m.pipe([4.0, 2.7, -z + 2.0], [16.0, 2.7, -z + 2.0], 0.08, MAT.TRIM, 8));
+    // A funbox with rails and a set of steps.
+    m.box([4.0, 0.1, 3.0], [11.0, 0.9, 8.0], MAT.CONCRETE);
+    m.cone(7.5, 5.5, 4.0, 3.5, 0.9, 0.96, 4, MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([3.4, 0.95, 4.2], [11.6, 0.95, 4.2], 0.07, MAT.TRIM, 8);
+      m.pipe([3.4, 0.5, 7.0], [11.6, 0.95, 7.0], 0.07, MAT.TRIM, 8);
+      for (const px of [4.2, 10.8]) m.pipe([px, 0.1, 4.2], [px, 0.95, 4.2], 0.05, MAT.TRIM, 6);
+    });
+    // Fence round the lot.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 20; i++) {
+        const px = -x + (i / 20) * (2 * x);
+        for (const pz of [-z, z] as const) m.box([px - 0.06, 0.1, pz - 0.06], [px + 0.06, 2.4, pz + 0.06], MAT.TRIM);
+      }
+      for (const pz of [-z, z] as const) m.box([-x, 2.2, pz - 0.04], [x, 2.32, pz + 0.04], MAT.TRIM);
+    });
+  }
+  if (fine) {
+    m.painted(TINT.METAL_DARK, () => {
+      // Floodlights on two columns.
+      for (const px of [-x + 3.0, x - 3.0]) {
+        m.pipe([px, 0.1, -z + 1.2], [px, 8.4, -z + 1.2], 0.16, MAT.TRIM, 8);
+        m.box([px - 1.4, 8.4, -z + 0.9], [px + 1.4, 8.8, -z + 1.5], MAT.TRIM);
+      }
+      // A grind rail and a kerb block on the flat.
+      m.pipe([-16.0, 0.5, 7.0], [-2.0, 0.5, 7.0], 0.07, MAT.TRIM, 8);
+      for (const px of [-15.4, -8.6, -2.6]) m.pipe([px, 0.1, 7.0], [px, 0.5, 7.0], 0.05, MAT.TRIM, 6);
+    });
+    m.box([-17.0, 0.1, -6.0], [-13.0, 0.5, -4.0], MAT.CONCRETE);
+    for (const px of [-14.0, 0.0, 14.0]) bench(m, px, z - 2.0, 2);
+    for (let i = 0; i < 4; i++) tree(m, -x + 4.0 + i * 10.0, z - 4.4, 6.6, 2.2);
+    // A spine ramp and a bank on the open side, plus a run of coping.
+    for (let i = 0; i < 6; i++) {
+      const t0 = i / 6, t1 = (i + 1) / 6;
+      const y0 = Math.sin(t0 * Math.PI * 0.5) * 1.6, y1 = Math.sin(t1 * Math.PI * 0.5) * 1.6;
+      const z0 = 9.0 - (1 - Math.cos(t0 * Math.PI * 0.5)) * 2.6;
+      const z1 = 9.0 - (1 - Math.cos(t1 * Math.PI * 0.5)) * 2.6;
+      m.quad([-17.0, y0, z0], [-4.0, y0, z0], [-4.0, y1, z1], [-17.0, y1, z1], MAT.CONCRETE);
+      m.quad([-17.0, y1, z1], [-4.0, y1, z1], [-4.0, y1, z1 + 1.2], [-17.0, y1, z1 + 1.2], MAT.CONCRETE);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([-17.0, 1.7, 6.4], [-4.0, 1.7, 6.4], 0.07, MAT.TRIM, 8);
+      for (let i = 0; i < 6; i++) {
+        const px = 5.0 + i * 1.9;
+        m.pipe([px, 0.1, -6.0], [px, 1.1, -6.0], 0.05, MAT.TRIM, 6);
+        m.pipe([px, 1.1, -6.0], [px, 1.1, -3.4], 0.05, MAT.TRIM, 6);
+      }
+    });
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.4, 3.4, 1.4, 2.3);
+    kerb(m, -x, z + 0.4, x, z + 0.8);
+  }
+  return m;
+}
+
+/** Allotments: plots, sheds, cold frames and a standpipe. */
+function allotments(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 22.0, z = 16.0;
+  const cols = 5, rows = 2;
+
+  m.painted(TINT.GREEN, () => m.box([-x, 0.001, -z], [x, 0.05, z], MAT.TRIM));
+  m.box([-x, 0.02, -1.2], [x, 0.09, 1.2], MAT.GROUND);
+
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const cx = -x + 2.6 + c * ((2 * x - 5.2) / (cols - 1));
+      const cz = r === 0 ? -8.0 : 8.0;
+      // Beds: four raised rows per plot, in soil rather than grass.
+      for (let b = 0; b < 4; b++) {
+        const bz = cz - 4.4 + b * 2.4;
+        m.box([cx - 3.0, 0.05, bz], [cx + 3.0, 0.34, bz + 1.5], MAT.GROUND);
+        m.painted(TINT.WOOD, () => {
+          m.box([cx - 3.05, 0.05, bz - 0.05], [cx + 3.05, 0.4, bz + 0.06], MAT.TIMBER);
+          m.box([cx - 3.05, 0.05, bz + 1.44], [cx + 3.05, 0.4, bz + 1.55], MAT.TIMBER);
+        });
+        if (medium && b % 2 === 0) {
+          m.painted(TINT.GREEN, () => {
+            for (let k = 0; k < 5; k++) {
+              m.cone(cx - 2.4 + k * 1.2, bz + 0.75, 0.34, 0.1, 0.34, 1.1, 6, MAT.TRIM);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  if (medium) {
+    for (let c = 0; c < cols; c++) {
+      const cx = -x + 2.6 + c * ((2 * x - 5.2) / (cols - 1));
+      for (const cz of [-13.4, 13.4]) {
+        // A shed per plot, each turned a little differently.
+        m.painted(TINT.WOOD, () => m.box([cx - 1.2, 0, cz - 1.0], [cx + 1.2, 2.0, cz + 1.0], MAT.TIMBER));
+        m.box([cx - 1.35, 2.0, cz - 1.15], [cx + 1.35, 2.16, cz + 1.15], MAT.METAL);
+        m.gable([cx - 1.35, 2.16, cz - 1.15], [cx + 1.35, 2.16, cz + 1.15], 0.7, 'x', MAT.METAL, MAT.TIMBER);
+        // Water butt beside it.
+        m.painted(TINT.METAL_DARK, () => m.cylinder(cx + 1.7, cz + 0.4, 0.42, 0, 1.2, 10, MAT.TRIM));
+      }
+    }
+    // Cold frames along the centre walk.
+    for (let i = 0; i < 6; i++) {
+      const px = -18.0 + i * 7.0;
+      m.box([px - 1.6, 0.05, -0.9], [px + 1.6, 0.5, 0.9], MAT.TIMBER);
+      m.quad([px - 1.6, 0.5, 0.9], [px + 1.6, 0.5, 0.9], [px + 1.6, 0.95, -0.9], [px - 1.6, 0.95, -0.9], MAT.GLASS);
+    }
+  }
+  if (fine) {
+    // Standpipe and trough at the entrance, and canes on the plots.
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([-x + 2.0, 0, 0], [-x + 2.0, 1.3, 0], 0.09, MAT.TRIM, 6);
+      m.pipe([-x + 2.0, 1.3, 0], [-x + 2.0, 1.3, 0.7], 0.07, MAT.TRIM, 6);
+      for (let c = 0; c < cols; c++) {
+        const cx = -x + 2.6 + c * ((2 * x - 5.2) / (cols - 1));
+        for (const cz of [-6.0, 6.0]) {
+          for (let k = 0; k < 5; k++) {
+            m.pipe([cx - 1.6 + k * 0.8, 0.34, cz - 0.6], [cx - 1.2 + k * 0.8, 2.1, cz], 0.03, MAT.TRIM, 4);
+          }
+        }
+      }
+    });
+    m.box([-x + 1.2, 0.05, -0.9], [-x + 2.8, 0.5, 0.9], MAT.STONE);
+    // Fence and a gate on the road side.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i <= 22; i++) {
+        const px = -x + (i / 22) * (2 * x);
+        m.box([px - 0.06, 0, z - 0.06], [px + 0.06, 1.3, z + 0.06], MAT.TIMBER);
+      }
+      m.box([-x, 1.1, z - 0.04], [x, 1.22, z + 0.04], MAT.TIMBER);
+    });
+    for (let i = 0; i < 3; i++) tree(m, -x + 6.0 + i * 15.0, -z + 1.6, 6.0, 2.0);
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.0, 3.0, 1.4, 2.2);
+    kerb(m, -x, z + 0.4, x, z + 0.8);
+  }
+  return m;
+}
+
+/** A green with a bandstand, a path circuit, trees and a drinking fountain. */
+function bandstandGreen(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 20.0, z = 18.0;
+
+  m.painted(TINT.GREEN, () => m.box([-x, 0.001, -z], [x, 0.06, z], MAT.TRIM));
+  // Path circuit: an oval walk, drawn as a ring of paving.
+  for (let i = 0; i < 28; i++) {
+    const a0 = (i / 28) * Math.PI * 2, a1 = ((i + 1) / 28) * Math.PI * 2;
+    const r0 = 12.5, r1 = 14.5;
+    m.quad([Math.cos(a0) * r0, 0.07, Math.sin(a0) * r0 * 0.8],
+           [Math.cos(a1) * r0, 0.07, Math.sin(a1) * r0 * 0.8],
+           [Math.cos(a1) * r1, 0.07, Math.sin(a1) * r1 * 0.8],
+           [Math.cos(a0) * r1, 0.07, Math.sin(a0) * r1 * 0.8], MAT.GROUND);
+  }
+
+  // The bandstand: an octagonal stone platform, cast columns, a tiered roof
+  // and a finial. This is the whole reason the park has a centre.
+  m.cylinder(0, 0, 5.2, 0, 0.9, 8, MAT.STONE);
+  m.cylinder(0, 0, 4.6, 0.9, 1.0, 8, MAT.CONCRETE);
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      m.cylinder(Math.cos(a) * 4.2, Math.sin(a) * 4.2, 0.17, 1.0, 4.2, 8, MAT.TRIM);
+    }
+  });
+  m.cone(0, 0, 5.4, 3.4, 4.2, 5.4, 8, MAT.METAL);
+  m.cone(0, 0, 3.4, 0.0, 5.4, 7.2, 8, MAT.METAL);
+  m.cylinder(0, 0, 0.16, 7.2, 8.2, 6, MAT.METAL);
+
+  if (medium) {
+    // Steps up to the platform, and a balustrade round the rest of it.
+    for (let i = 0; i < 3; i++) {
+      m.box([-1.8, 0.9 - (i + 1) * 0.3, 5.0 + i * 0.5], [1.8, 0.9 - i * 0.3, 5.6 + i * 0.5], MAT.STONE);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 8; i++) {
+        const a0 = (i / 8) * Math.PI * 2 + Math.PI / 8;
+        const a1 = ((i + 1) / 8) * Math.PI * 2 + Math.PI / 8;
+        const p0: Vec3 = [Math.cos(a0) * 4.2, 1.9, Math.sin(a0) * 4.2];
+        const p1: Vec3 = [Math.cos(a1) * 4.2, 1.9, Math.sin(a1) * 4.2];
+        if (Math.abs(a0 - Math.PI / 2) < 0.5) continue;
+        m.pipe(p0, p1, 0.06, MAT.TRIM, 5);
+        m.pipe([p0[0], 1.0, p0[2]], [p0[0], 1.9, p0[2]], 0.04, MAT.TRIM, 5);
+      }
+      // Frieze under the eaves.
+      for (let i = 0; i < 8; i++) {
+        const a0 = (i / 8) * Math.PI * 2 + Math.PI / 8;
+        const a1 = ((i + 1) / 8) * Math.PI * 2 + Math.PI / 8;
+        m.pipe([Math.cos(a0) * 4.2, 4.0, Math.sin(a0) * 4.2],
+               [Math.cos(a1) * 4.2, 4.0, Math.sin(a1) * 4.2], 0.08, MAT.TRIM, 5);
+      }
+    });
+  }
+  if (fine) {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      tree(m, Math.cos(a) * 17.0, Math.sin(a) * 14.5, 7.6 + (i % 3) * 0.8, 2.5);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      bench(m, Math.cos(a) * 11.0, Math.sin(a) * 9.0, i < 3 ? 0 : 2);
+    }
+    // Drinking fountain and a litter bin on the walk.
+    m.cylinder(-13.5, 2.0, 0.4, 0.07, 0.95, 10, MAT.STONE);
+    m.cylinder(-13.5, 2.0, 0.5, 0.95, 1.1, 10, MAT.STONE);
+    m.painted(TINT.METAL_DARK, () => {
+      m.cylinder(13.5, -2.0, 0.35, 0.07, 0.95, 10, MAT.TRIM);
+      m.cylinder(13.5, -2.0, 0.4, 0.95, 1.05, 10, MAT.TRIM);
+    });
+    // A second, outer ring of trees, and lamp columns on the walk.
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.4;
+      tree(m, Math.cos(a) * 9.5, Math.sin(a) * 7.6, 5.4, 1.8);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.15;
+      const px = Math.cos(a) * 13.5, pz = Math.sin(a) * 11.0;
+      m.painted(TINT.METAL_DARK, () => m.pipe([px, 0.07, pz], [px, 4.0, pz], 0.09, MAT.TRIM, 6));
+      m.painted(TINT.SIGN_LIT, () => m.box([px - 0.28, 4.0, pz - 0.28], [px + 0.28, 4.32, pz + 0.28], MAT.TRIM));
+    }
+    boxSign(m, { axis: 'z', sign: 1, plane: z }, -3.2, 3.2, 1.4, 2.3);
+    kerb(m, -x, z, x, z + 0.4);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const civ = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -971,5 +1459,10 @@ export const EXTRA_SERVICES: AssetDef[] = [
   { id: 'svc.power.wind', name: 'Wind turbines', zone: 'service', branch: 'power', density: 'none', variant: 'sculpted', footprint: [7, 5], height: 60.0, brand: { name: 'Wind', colour: [0.62, 0.64, 0.66], accent: [0.72, 0.60, 0.16], sign: 'none' }, sim: civ(4, 240, 0, 0), note: 'Three tapered towers of unequal height with twisted tapering blades, access tracks, substation compound.', build: windFarm },
   { id: 'svc.transport.ferry', name: 'Ferry terminal', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [7, 5], height: 11.4, brand: { name: 'Ferries', colour: [0.16, 0.44, 0.44], accent: [0.72, 0.62, 0.22], sign: 'box' }, sim: civ(34, 340, 130, 70), note: 'Quay with bollards and fenders, counterweighted linkspan, glazed passenger hall under a mast-hung canopy.', build: ferryTerminal },
   { id: 'svc.gov.archive', name: 'City archive', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 23.6, brand: { name: 'Archive', colour: [0.44, 0.38, 0.24], accent: [0.66, 0.60, 0.34], sign: 'box' }, sim: civ(30, 400, 320, 40), note: 'Blind stone vault oversailing a glazed reading base on columns, pilastered all round, roof plant screen.', build: archive },
+  { id: 'svc.parks.garden', name: 'Formal garden', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 4.0, brand: { name: 'Garden', colour: [0.24, 0.46, 0.26], accent: [0.68, 0.60, 0.34], sign: 'box' }, sim: civ(6, 130, 20, 220), note: 'Parterre of clipped box round a tiered fountain, pergola across the far end, urns down the main walk.', build: formalGarden },
+  { id: 'svc.parks.lake', name: 'Boating lake', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [7, 6], height: 6.0, brand: { name: 'Lake', colour: [0.18, 0.42, 0.52], accent: [0.62, 0.56, 0.32], sign: 'box' }, sim: civ(8, 180, 30, 60), note: 'Stone-edged basin with a planted island, timber boathouse, jetty on piles and a humpback footbridge.', build: boatingLake },
+  { id: 'svc.parks.skate', name: 'Skate park', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 9.0, brand: { name: 'Skate', colour: [0.28, 0.30, 0.34], accent: [0.72, 0.52, 0.16], sign: 'box' }, sim: civ(3, 110, 40, 10), note: 'Stepped concrete bowl, curved quarter pipe, funbox with rails and steps, floodlights and a mesh fence.', build: skatePark },
+  { id: 'svc.parks.allotments', name: 'Allotments', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 3.0, brand: { name: 'Allotments', colour: [0.30, 0.42, 0.20], accent: [0.62, 0.50, 0.28], sign: 'box' }, sim: civ(2, 60, 5, 180), note: 'Ten plots of raised beds with timber sheds and water butts, cold frames down the centre walk, standpipe.', build: allotments },
+  { id: 'svc.parks.bandstand', name: 'Bandstand green', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [5, 5], height: 8.2, brand: { name: 'Green', colour: [0.26, 0.44, 0.28], accent: [0.66, 0.58, 0.30], sign: 'box' }, sim: civ(4, 90, 25, 90), note: 'Octagonal bandstand on a stone platform with cast columns and a tiered roof, oval walk, benches and trees.', build: bandstandGreen },
   { id: 'svc.parks.lido', name: 'Lido', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 9.6, brand: { name: 'Lido', colour: [0.18, 0.48, 0.52], accent: [0.72, 0.60, 0.24], sign: 'box' }, sim: civ(16, 220, 90, 400), note: 'Open-air pool with lane ropes, colonnaded terrace of changing cabins, three-level diving platform.', build: lido },
 ];

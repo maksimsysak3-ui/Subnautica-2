@@ -1073,96 +1073,141 @@ function sportsGround(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * A half-elliptical vault, closed at both ends.
+ *
+ * barrel() above is three flat facets and no ends, which from any angle but
+ * dead-on reads as folded card with the inside showing. This is a real arch
+ * swept along the ridge, with a tympanum at each end so the volume is closed.
+ */
+function vault(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
+               base: number, rise: number, mat: Material, segs = 12): void {
+  const cz = (z0 + z1) / 2, hz = (z1 - z0) / 2;
+  const pt = (k: number): [number, number] => {
+    const a = (k / segs) * Math.PI;
+    return [cz - Math.cos(a) * hz, base + Math.sin(a) * rise];
+  };
+  for (let k = 0; k < segs; k++) {
+    const [az, ay] = pt(k), [bz, by] = pt(k + 1);
+    m.quad([x0, ay, az], [x1, ay, az], [x1, by, bz], [x0, by, bz], mat);
+  }
+  // Tympana, as fans from the springing line's centre.
+  for (const [x, dir] of [[x0, -1], [x1, 1]] as const) {
+    for (let k = 0; k < segs; k++) {
+      const [az, ay] = pt(k), [bz, by] = pt(k + 1);
+      if (dir > 0) m.tri([x, ay, az], [x, by, bz], [x, base, cz], mat);
+      else m.tri([x, by, bz], [x, ay, az], [x, base, cz], mat);
+    }
+  }
+}
+
 /** Botanical glasshouse: a barrel-vaulted palm house on a stone plinth. */
 function glasshouse(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1;
   const medium = lod < 2;
-  const x = 20.0, z = 15.0;
-  const w = 26.0, d = 15.0, eave = 6.5;
+  const w = 26.0, d = 15.0, eave = 6.0, rise = 5.2;
+  const hx = w / 2, hz = d / 2;
 
-  m.box([-w / 2 - 0.6, 0, -d / 2 - 0.6], [w / 2 + 0.6, 0.9, d / 2 + 0.6], MAT.STONE);
-  m.box([-w / 2, 0.9, -d / 2], [w / 2, eave, d / 2], MAT.GLASS);
+  // Plinth, then a glazed wall, then the vault standing on it.
+  m.box([-hx - 0.7, 0, -hz - 0.7], [hx + 0.7, 1.0, hz + 0.7], MAT.STONE);
+  m.box([-hx, 1.0, -hz], [hx, eave, hz], MAT.GLASS);
+  vault(m, -hx, -hz, hx, hz, eave, rise, MAT.GLASS);
+
+  // Central drum and dome, over the middle of the house rather than in front
+  // of it. It was a separate pavilion standing off the end with a spike on
+  // top, which read as a second building that had landed beside the first.
+  const drum = 4.6;
+  m.cylinder(0, 0, drum, eave + rise - 1.6, eave + rise + 2.4, 16, MAT.GLASS, false);
+  m.cone(0, 0, drum, 0.5, eave + rise + 2.4, eave + rise + 6.0, 16, MAT.METAL);
+  m.cylinder(0, 0, 0.3, eave + rise + 6.0, eave + rise + 7.2, 8, MAT.METAL);
 
   if (medium) {
-    barrel(m, -w / 2, -d / 2, w / 2, d / 2, eave, 4.6, MAT.GLASS);
-    // Ribs: a glasshouse is its structure, and nothing else.
     m.painted(TINT.METAL_DARK, () => {
+      // Main ribs: one arch every 2.6m, each following the vault exactly.
       for (let i = 0; i <= 10; i++) {
-        const px = -w / 2 + (i / 10) * w;
-        m.box([px - 0.11, 0.9, -d / 2 - 0.06], [px + 0.11, eave, d / 2 + 0.06], MAT.TRIM);
-        for (let k = 0; k <= 8; k++) {
-          const t = k / 8;
-          const py = eave + (0.5 - Math.abs(t - 0.5)) * 4.6 * 2;
-          m.box([px - 0.11, py - 0.22, -d / 2 + t * d - 0.11],
-                [px + 0.11, py, -d / 2 + t * d + 0.11], MAT.TRIM);
+        const px = -hx + (i / 10) * w;
+        m.box([px - 0.11, 1.0, -hz - 0.07], [px + 0.11, eave, hz + 0.07], MAT.TRIM);
+        for (let k = 0; k < 8; k++) {
+          const a0 = (k / 8) * Math.PI, a1 = ((k + 1) / 8) * Math.PI;
+          m.pipe([px, eave + Math.sin(a0) * rise, -Math.cos(a0) * hz],
+                 [px, eave + Math.sin(a1) * rise, -Math.cos(a1) * hz], 0.10, MAT.TRIM, 5);
         }
       }
-      for (const y of [2.4, 4.4]) {
-        m.box([-w / 2 - 0.06, y, -d / 2 - 0.06], [w / 2 + 0.06, y + 0.1, -d / 2 + 0.06], MAT.TRIM);
-        m.box([-w / 2 - 0.06, y, d / 2 - 0.06], [w / 2 + 0.06, y + 0.1, d / 2 + 0.06], MAT.TRIM);
+      // Purlins round the vault, and two bands round the glazed wall.
+      for (const t of [0.3, 0.7]) {
+        const a = t * Math.PI;
+        const py = eave + Math.sin(a) * rise, pz = -Math.cos(a) * hz;
+        for (const sz of [pz, -pz]) m.box([-hx, py - 0.09, sz - 0.09], [hx, py + 0.09, sz + 0.09], MAT.TRIM);
+      }
+      for (const y of [2.6, 4.4]) {
+        for (const sz of [hz, -hz]) m.box([-hx - 0.07, y, sz - 0.07], [hx + 0.07, y + 0.11, sz + 0.07], MAT.TRIM);
+      }
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        m.box([Math.cos(a) * drum - 0.08, eave + rise - 1.6, Math.sin(a) * drum - 0.08],
+              [Math.cos(a) * drum + 0.08, eave + rise + 2.4, Math.sin(a) * drum + 0.08], MAT.TRIM);
       }
     });
-    // Entrance pavilion with a small dome.
-    m.cylinder(0, d / 2 + 3.0, 3.4, 0.9, 5.0, 14, MAT.GLASS, false);
-    m.cone(0, d / 2 + 3.0, 3.6, 0.5, 5.0, 8.0, 14, MAT.METAL);
-    m.cylinder(0, d / 2 + 3.0, 0.35, 8.0, 9.4, 8, MAT.METAL);
+    // Porch: a low glazed lobby against the long side, standing on the plinth.
+    m.box([-4.6, 0, hz + 0.7], [4.6, 1.0, hz + 4.2], MAT.STONE);
+    m.box([-4.0, 1.0, hz], [4.0, 4.2, hz + 3.2], MAT.GLASS);
+    m.box([-4.3, 4.2, hz - 0.2], [4.3, 4.6, hz + 3.5], MAT.METAL);
   }
   if (fine) {
     m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i < 14; i++) {
-        const a = (i / 14) * Math.PI * 2;
-        m.box([Math.cos(a) * 3.4 - 0.08, 0.9, d / 2 + 3.0 + Math.sin(a) * 3.4 - 0.08],
-              [Math.cos(a) * 3.4 + 0.08, 5.0, d / 2 + 3.0 + Math.sin(a) * 3.4 + 0.08], MAT.TRIM);
-      }
-      // Roof vents propped open along the ridge.
-      for (let i = 0; i < 5; i++) {
-        const px = -9.0 + i * 4.5;
-        m.quad([px - 1.6, eave + 4.6, -1.2], [px + 1.6, eave + 4.6, -1.2],
-               [px + 1.6, eave + 5.3, 0.4], [px - 1.6, eave + 5.3, 0.4], MAT.GLASS);
-        m.box([px - 0.06, eave + 4.6, -1.3], [px + 0.06, eave + 5.3, 0.5], MAT.TRIM);
-      }
-    });
-    entrance(m, { axis: 'z', sign: 1, plane: d / 2 + 6.4 }, 0,
-      { width: 2.4, height: 3.0, double: true, glazed: true, steps: 2 });
-    // Planting beds and a path inside, seen through the glass.
-    m.painted(TINT.GREEN, () => {
-      for (const sx of [-1, 1] as const) {
-        m.box([sx * 2.0, 0.9, -d / 2 + 1.2], [sx * (w / 2 - 1.4), 1.5, d / 2 - 1.2], MAT.TRIM);
-      }
-      for (let i = 0; i < 4; i++) {
-        const px = -8.0 + i * 5.4;
-        m.cone(px, 2.0, 1.4, 0.4, 1.5, 7.5, 8, MAT.TRIM);
-        m.cone(px, -3.0, 1.1, 0.3, 1.5, 5.5, 8, MAT.TRIM);
-      }
-    });
-    m.box([-1.6, 0.9, -d / 2], [1.6, 1.0, d / 2], MAT.CONCRETE);
-    boxSign(m, { axis: 'z', sign: 1, plane: d / 2 + 6.4 }, -2.6, 2.6, 3.4, 4.4);
-    serviceYard(m, -w / 2, w / 2, d / 2 + 6.4, 1281, { flag: false, bins: false });
-    // Secondary glazing bars between the main ribs, both ways.
-    m.painted(TINT.METAL_DARK, () => {
       for (let i = 0; i < 10; i++) {
-        const px = -w / 2 + (i + 0.5) * (w / 10);
-        m.box([px - 0.05, 0.9, -d / 2 - 0.04], [px + 0.05, eave, d / 2 + 0.04], MAT.TRIM);
-        for (let k = 0; k <= 8; k++) {
-          const t = k / 8;
-          const py = eave + (0.5 - Math.abs(t - 0.5)) * 4.6 * 2;
-          m.box([px - 0.05, py - 0.14, -d / 2 + t * d - 0.05],
-                [px + 0.05, py, -d / 2 + t * d + 0.05], MAT.TRIM);
+        const px = -hx + (i + 0.5) * (w / 10);
+        m.box([px - 0.05, 1.0, -hz - 0.05], [px + 0.05, eave, hz + 0.05], MAT.TRIM);
+        for (let k = 0; k < 5; k++) {
+          const a0 = (k / 5) * Math.PI, a1 = ((k + 1) / 5) * Math.PI;
+          m.pipe([px, eave + Math.sin(a0) * rise, -Math.cos(a0) * hz],
+                 [px, eave + Math.sin(a1) * rise, -Math.cos(a1) * hz], 0.05, MAT.TRIM, 4);
         }
       }
+      // Ridge vents, propped open along the top of the vault.
+      for (let i = 0; i < 4; i++) {
+        const px = i < 2 ? -10.4 + i * 3.4 : 3.6 + (i - 2) * 3.4;
+        m.quad([px - 1.5, eave + rise, -1.1], [px + 1.5, eave + rise, -1.1],
+               [px + 1.5, eave + rise + 0.75, 0.5], [px - 1.5, eave + rise + 0.75, 0.5], MAT.GLASS);
+        m.box([px - 0.05, eave + rise, -1.2], [px + 0.05, eave + rise + 0.75, 0.6], MAT.TRIM);
+      }
+      for (let i = 0; i <= 6; i++) {
+        const px = -4.0 + (i / 6) * 8.0;
+        m.box([px - 0.07, 1.0, hz + 3.1], [px + 0.07, 4.2, hz + 3.3], MAT.TRIM);
+      }
     });
-    for (let i = 0; i <= 18; i++) {
-      const px = -w / 2 - 0.6 + (i / 18) * (w + 1.2);
-      m.box([px - 0.08, 0.9, d / 2 + 0.44], [px + 0.08, 1.6, d / 2 + 0.6], MAT.STONE);
-      m.box([px - 0.08, 0.9, -d / 2 - 0.6], [px + 0.08, 1.6, -d / 2 - 0.44], MAT.STONE);
+    entrance(m, { axis: 'z', sign: 1, plane: hz + 3.2 }, 0,
+      { width: 2.6, height: 3.0, double: true, glazed: true, steps: 2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: hz + 3.2 }, -2.8, 2.8, 4.7, 5.6);
+    // Planting inside, seen through the glass: beds, a path, and palms whose
+    // heads reach up into the vault, which is what the vault is for.
+    m.painted(TINT.GREEN, () => {
+      for (const sx of [-1, 1] as const) {
+        m.box([sx * 2.0, 1.0, -hz + 1.4], [sx * (hx - 1.6), 1.6, hz - 1.4], MAT.TRIM);
+      }
+      for (let i = 0; i < 5; i++) {
+        const px = -9.6 + i * 4.8;
+        m.cone(px, 2.4, 1.5, 0.4, 1.6, 8.4, 8, MAT.TRIM);
+        m.cone(px, -3.2, 1.1, 0.3, 1.6, 6.0, 8, MAT.TRIM);
+      }
+    });
+    m.box([-1.7, 1.0, -hz], [1.7, 1.1, hz], MAT.CONCRETE);
+    for (let i = 0; i <= 20; i++) {
+      const px = -hx - 0.7 + (i / 20) * (w + 1.4);
+      for (const sz of [hz + 0.5, -hz - 0.62] as const) {
+        m.box([px - 0.08, 1.0, sz], [px + 0.08, 1.7, sz + 0.12], MAT.STONE);
+      }
     }
-    lamp(m, -w / 2 - 1.8, d / 2 + 5.0, 4.2);
-    lamp(m, w / 2 + 1.8, d / 2 + 5.0, 4.2);
-    kerb(m, -x, z, x, z + 0.4);
+    m.box([-hx - 0.7, 1.7, hz + 0.44], [hx + 0.7, 1.86, hz + 0.7], MAT.STONE);
+    m.box([-hx - 0.7, 1.7, -hz - 0.7], [hx + 0.7, 1.86, -hz - 0.44], MAT.STONE);
+    lamp(m, -hx - 2.0, hz + 5.4, 4.2);
+    lamp(m, hx + 2.0, hz + 5.4, 4.2);
+    kerb(m, -hx - 2.6, hz + 6.0, hx + 2.6, hz + 6.4);
   }
   return m;
 }
+
 
 // ==================================================================== table
 
