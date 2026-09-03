@@ -1,16 +1,20 @@
 /**
  * Decoding for the imported vehicle meshes.
  *
- * The data is base64 in fleet-data.ts: quantised positions, a colour per
- * vertex and an index list. Decoded once on first use and cached, because the
+ * The data is base64 in fleet-data.ts, split in two: a shape holds quantised
+ * positions and an index list, and a model holds a shape plus a colour per
+ * vertex. The packs are mostly one body in a dozen liveries, so the split
+ * stores each body's geometry once and pays three bytes a vertex per livery.
+ *
+ * Decoded once on first use and cached, because the
  * registry builds every asset at least twice -- once to measure its height and
  * again for whatever asks for it -- and a fleet of thirty models is a few
  * hundred thousand vertices to unpack.
  */
 
 import { MeshBuilder } from './mesh';
-import { IMPORTED } from './fleet-data';
-import type { ImportedMesh } from './fleet-data';
+import { FLEET_DATA } from './fleet-data';
+import type { ImportedShape, ImportedModel } from './fleet-data';
 
 interface Decoded {
   pos: Float32Array;
@@ -29,23 +33,20 @@ function bytes(b64: string): Uint8Array {
   return out;
 }
 
-function decode(id: string, src: ImportedMesh): Decoded {
+function decode(id: string, model: ImportedModel, src: ImportedShape): Decoded {
   const raw = bytes(src.verts);
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  // Nine bytes a vertex: three unsigned shorts of position, three bytes of
-  // colour. Positions are quantised across the model's own bounding box, so
-  // the precision is about a tenth of a millimetre on a car.
-  const n = Math.floor(raw.length / 9);
+  // Six bytes a vertex of position: three unsigned shorts quantised across the
+  // shape's own bounding box, so the precision is a fraction of a millimetre
+  // on a car. Colour is a separate three bytes a vertex from the model.
+  const n = Math.floor(raw.length / 6);
   const pos = new Float32Array(n * 3);
-  const col = new Uint8Array(n * 3);
+  const col = bytes(model.colour).slice(0, n * 3);
   for (let i = 0; i < n; i++) {
     for (let k = 0; k < 3; k++) {
-      const q = view.getUint16(i * 9 + k * 2, true);
+      const q = view.getUint16(i * 6 + k * 2, true);
       pos[i * 3 + k] = src.lo[k] + (q / 65535) * src.span[k];
     }
-    col[i * 3] = raw[i * 9 + 6];
-    col[i * 3 + 1] = raw[i * 9 + 7];
-    col[i * 3 + 2] = raw[i * 9 + 8];
   }
   const ib = bytes(src.index);
   const iv = new DataView(ib.buffer, ib.byteOffset, ib.byteLength);
@@ -67,17 +68,19 @@ function decode(id: string, src: ImportedMesh): Decoded {
 export function importedMesh(id: string): Decoded | null {
   const hit = cache.get(id);
   if (hit !== undefined) return hit;
-  const src = IMPORTED[id];
-  if (src === undefined) return null;
-  return decode(id, src);
+  const model = FLEET_DATA.models[id];
+  if (model === undefined) return null;
+  const shape = FLEET_DATA.shapes[model.shape];
+  if (shape === undefined) return null;
+  return decode(id, model, shape);
 }
 
 /** Every imported vehicle, in the order the pack listed them. */
-export const IMPORTED_IDS: string[] = Object.keys(IMPORTED);
+export const IMPORTED_IDS: string[] = Object.keys(FLEET_DATA.models);
 
 /** The label the pack gave a model. */
 export function importedName(id: string): string {
-  return IMPORTED[id]?.name ?? id;
+  return FLEET_DATA.models[id]?.name ?? id;
 }
 
 /** Half-extents and height, so the lot size and the pad can be measured. */
