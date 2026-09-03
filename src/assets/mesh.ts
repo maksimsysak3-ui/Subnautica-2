@@ -125,6 +125,16 @@ export const MAT = {
   DARK_TRIM: 22,
   /** Cool white render panel with expressed joints: the modern theme's wall. */
   RENDER: 23,
+  /**
+   * Vehicle glazing.
+   *
+   * Cars used MAT.GLASS, which is the building curtain wall -- a mullion grid
+   * with a floor line in it. At car scale that grid reads as an open frame,
+   * and every car in the fleet looked as though you could see straight through
+   * its greenhouse into the street beyond. This is a single dark tinted pane
+   * with a gradient and no grid.
+   */
+  CAR_GLASS: 24,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

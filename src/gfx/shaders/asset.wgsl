@@ -61,6 +61,7 @@ const MAT_PLATE     = 20u;
 const MAT_TYRE      = 21u;
 const MAT_DARK      = 22u;
 const MAT_RENDER    = 23u;
+const MAT_CAR_GLASS = 24u;
 const MAT_STONE     = 15u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
@@ -832,6 +833,25 @@ fn renderPanel(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return base * (1.0 - (1.0 - line) * 0.16 * fade);
 }
 
+/**
+ * Vehicle glazing, in the body's own surface coordinates.
+ *
+ * Darkest at the bottom of the screen and lightening towards the roof, the
+ * way glass does when it is picking up sky rather than road, with a black
+ * band round the edge for the seal. No mullions: this is one pane, which is
+ * the whole difference between a car window and a shopfront.
+ */
+fn carGlass(surf : vec2f, key : f32) -> vec3f {
+  let k = floor(key + 0.5);
+  let sky = clamp((surf.y - 0.5) * 1.6, 0.0, 1.0);
+  let base = mix(vec3f(0.075, 0.088, 0.102), vec3f(0.30, 0.35, 0.40), sky);
+  // A faint sheen running along the glass, so a flat pane is not a flat colour.
+  let band = 0.03 * sin(surf.x * 9.0 + k);
+  // Seal: a dark edge on the top and bottom of the band.
+  let edge = clamp(min(surf.y, 1.0 - surf.y) * 14.0, 0.0, 1.0);
+  return (base + band) * mix(0.35, 1.0, edge);
+}
+
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
           surf : vec2f, surfD : vec2f) -> vec3f {
   switch (mat) {
@@ -861,6 +881,7 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 21u: { return tyreColour(surf, key); }
     case 22u: { return darkMetal(uv, mpp, seed); }
     case 23u: { return renderPanel(uv, mpp, seed); }
+    case 24u: { return carGlass(surf, key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -1041,6 +1062,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // Rubber. Almost nothing, but not quite nothing: a tyre has a sheen on
     // the shoulder and none at all in the tread.
     gloss = 0.10; power = 14.0;
+  } else if (in.material == MAT_CAR_GLASS) {
+    gloss = 1.5; power = 260.0; fresnel = 0.66;
   } else if (in.material == MAT_DARK) {
     gloss = 0.55; power = 90.0; fresnel = 0.30;
   } else if (in.material == MAT_TRIM || in.material == MAT_CONCRETE) {
