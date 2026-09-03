@@ -760,6 +760,17 @@ async function boot(): Promise<void> {
   // no WebGPU still gets the library -- names, counts, categories -- instead
   // of an error page and nothing else.
   let onPick: (a: AssetDef) => void = () => {};
+  // Stamp the count and the build id into the heading.
+  //
+  // Twice now a change has looked like it did not land when what had actually
+  // happened was a cached page: GitHub Pages serves HTML with a ten-minute
+  // max-age and a tab left open never re-reads it at all. A number on screen
+  // settles that in a second -- if the count is wrong, the page is stale.
+  const title = document.getElementById('title');
+  if (title !== null) {
+    const build = (window as unknown as { __BUILD__?: string }).__BUILD__ ?? '';
+    title.textContent = `assets · ${ASSETS.length}` + (build === '' ? '' : ` · ${build}`);
+  }
   buildBar((a) => onPick(a));
   buildThemes((a) => onPick(a));
   buildList((a) => onPick(a));
