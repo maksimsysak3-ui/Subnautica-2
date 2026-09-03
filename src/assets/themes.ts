@@ -54,6 +54,31 @@ export interface ThemeProfile {
   ribbon: boolean;
   /** Balcony treatment on medium and high density. */
   balcony: 'none' | 'metal' | 'solid' | 'recessed';
+
+  // ------------------------------------------------------------- massing
+  //
+  // How a theme builds mass, as opposed to how it dresses it. Without these a
+  // theme was a skin: the point block was one shape in five materials, and
+  // five towers in a row differed only in what they were painted. A place is
+  // recognised by its shape from a distance and by its material only up
+  // close, so the shape has to come first.
+
+  /**
+   * Frontage against depth. Above one is a wide shallow plot; below one is a
+   * narrow deep one -- a European street of narrow frontages against an
+   * American suburb of wide ones.
+   */
+  plot: number;
+  /** Multiplier on a plan's storey count. */
+  storeys: number;
+  /** How far the top of a tall block steps in, as a fraction of its width. */
+  setback: number;
+  /** Podium height in storeys, or zero for none. */
+  podium: number;
+  /** A wing off the back or side, as a fraction of the plan's depth. */
+  wing: number;
+  /** An attic storey inside the roof, with dormers. */
+  attic: boolean;
 }
 
 export const THEMES: Record<Theme, ThemeProfile> = {
@@ -66,6 +91,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'flat', pitch: 0, eave: 0.12, floorH: 3.2,
     winW: 2.4, winH: 2.2, rhythm: 2, shutters: false, grille: false,
     chimney: false, veranda: false, ribbon: true, balcony: 'metal',
+    plot: 1.24, storeys: 1.15, setback: 0.22, podium: 1.4, wing: 0.00, attic: false,
   },
   european: {
     id: 'european', badge: 'EU', label: 'European',
@@ -73,6 +99,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'gable', pitch: 0.46, eave: 0.30, floorH: 3.0,
     winW: 1.1, winH: 1.9, rhythm: 3, shutters: true, grille: false,
     chimney: true, veranda: false, ribbon: false, balcony: 'metal',
+    plot: 0.72, storeys: 1.00, setback: 0.00, podium: 0.0, wing: 0.34, attic: true,
   },
   american: {
     id: 'american', badge: 'NA', label: 'North American',
@@ -80,6 +107,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'gable', pitch: 0.36, eave: 0.52, floorH: 2.9,
     winW: 1.5, winH: 1.5, rhythm: 2, shutters: true, grille: false,
     chimney: true, veranda: true, ribbon: false, balcony: 'solid',
+    plot: 1.38, storeys: 0.85, setback: 0.00, podium: 0.0, wing: 0.42, attic: true,
   },
   asian: {
     id: 'asian', badge: 'AS', label: 'East Asian',
@@ -87,6 +115,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'hip', pitch: 0.28, eave: 0.75, floorH: 3.0,
     winW: 1.7, winH: 1.7, rhythm: 2, shutters: false, grille: true,
     chimney: false, veranda: false, ribbon: false, balcony: 'recessed',
+    plot: 0.92, storeys: 1.30, setback: 0.10, podium: 2.2, wing: 0.00, attic: false,
   },
   farming: {
     // Whitewashed stone and timber under a very steep tiled roof, with deep
@@ -97,6 +126,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'gable', pitch: 0.62, eave: 0.44, floorH: 2.7,
     winW: 0.9, winH: 1.3, rhythm: 3, shutters: true, grille: false,
     chimney: true, veranda: true, ribbon: false, balcony: 'none',
+    plot: 1.55, storeys: 0.75, setback: 0.00, podium: 0.0, wing: 0.55, attic: true,
   },
   row: {
     // Row housing: one wall material, one roof, one window, repeated. Kept to
@@ -106,6 +136,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'gable', pitch: 0.30, eave: 0.24, floorH: 2.9,
     winW: 1.3, winH: 1.6, rhythm: 2, shutters: false, grille: false,
     chimney: true, veranda: false, ribbon: false, balcony: 'metal',
+    plot: 0.62, storeys: 0.95, setback: 0.00, podium: 0.0, wing: 0.28, attic: true,
   },
 };
 

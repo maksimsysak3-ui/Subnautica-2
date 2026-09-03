@@ -19,7 +19,10 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import { idSeed } from '../types';
 import type { AssetDef, Density } from '../types';
 import { THEMES, THEME_ORDER, THEME_KEY } from '../themes';
-import { roofOver, punched, banded, doorway, veranda, compound, crown } from '../themed-parts';
+import {
+  roofOver, punched, banded, doorway, veranda, compound, crown, plotOf, storeysOf,
+  topMass, wing as rearWing,
+} from '../themed-parts';
 import type { Theme, ThemeProfile } from '../themes';
 import {
   awning, balconies, band, backyard, bollards, entrance, fasciaSign, fireEscape, kerb,
@@ -33,7 +36,8 @@ import type { Wall } from '../parts';
 function house(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 10.4, d = 9.2, floors = T.id === 'farming' ? 2 : 2;
+  const [w, d] = plotOf(T, 10.4, 9.2);
+  const floors = storeysOf(T, 2);
   const x = w / 2, z = d / 2;
   const wall = floors * T.floorH + 0.4;
 
@@ -52,6 +56,7 @@ function house(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     }
     if (T.veranda) veranda(m, T, px1 + 0.3, x - 0.4, z, 2.2, 3.0);
   }
+  if (medium) rearWing(m, T, -x, -z, x, z, wall, seed);
   if (fine) {
     for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
       punched(m, T, { axis: 'x', sign, plane }, -z + 1.0, z - 1.0, { floors, base: 1.1 });
@@ -79,7 +84,7 @@ function row(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const units = 3, unitW = 4.6, d = 8.4;
   const w = units * unitW;
   const x = w / 2, z = d / 2;
-  const floors = T.id === 'modern' ? 3 : 2;
+  const floors = storeysOf(T, T.id === 'modern' ? 3 : 2);
   const wall = floors * T.floorH + 0.4;
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
@@ -118,9 +123,9 @@ function row(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function duplex(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 12.6, d = 9.0;
+  const [w, d] = plotOf(T, 12.6, 9.0);
   const x = w / 2, z = d / 2;
-  const floors = 2;
+  const floors = storeysOf(T, 2);
   const wall = floors * T.floorH + 0.4;
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
@@ -160,9 +165,9 @@ function duplex(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function court(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 14.0, d = 13.0;
+  const [w, d] = plotOf(T, 14.0, 13.0);
   const x = w / 2, z = d / 2;
-  const floors = T.id === 'modern' ? 2 : 1;
+  const floors = storeysOf(T, T.id === 'modern' ? 2 : 1);
   const wall = floors * T.floorH + 0.5;
   const wingD = 4.6;
 
@@ -205,7 +210,7 @@ function court(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function cottage(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 8.2, d = 7.4;
+  const [w, d] = plotOf(T, 8.2, 7.4);
   const x = w / 2, z = d / 2;
   const wall = T.floorH * 1.6 + 0.3;
 
@@ -223,6 +228,7 @@ function cottage(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       m.box([-x + 0.72, top + 1.0, -0.78], [-x + 2.08, top + 1.24, 0.78], T.trim);
     }
   }
+  if (medium) rearWing(m, T, -x, -z, x, z, wall, seed);
   if (fine) {
     const gx0 = x + 1.0, gx1 = x + 7.0;
     m.painted(TINT.WOOD, () => m.opening({ axis: 'z', sign: 1, plane: -z + 6.4, u0: gx0 + 0.7, u1: gx1 - 0.7,
@@ -243,9 +249,9 @@ function cottage(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function walkup(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 21.0, d = 13.0;
+  const [w, d] = plotOf(T, 21.0, 13.0);
   const x = w / 2, z = d / 2;
-  const floors = T.id === 'farming' ? 4 : 5;
+  const floors = storeysOf(T, 5);
   const wall = floors * T.floorH + 0.6;
   const cores = 2;
 
@@ -298,7 +304,7 @@ function corner(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
   const arm = 20.0, depth = 11.0;
-  const floors = 5;
+  const floors = storeysOf(T, 5);
   const wall = floors * T.floorH + 0.6;
   const x0 = -arm / 2, z0 = -arm / 2;
 
@@ -347,9 +353,9 @@ function corner(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function gallery(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 23.0, d = 11.0;
+  const [w, d] = plotOf(T, 23.0, 11.0);
   const x = w / 2, z = d / 2;
-  const floors = 5;
+  const floors = storeysOf(T, 5);
   const wall = floors * T.floorH + 0.5;
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
@@ -400,9 +406,10 @@ function gallery(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function perimeter(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 22.0, d = 18.0, wing = 8.0;
+  const [w, d] = plotOf(T, 22.0, 18.0);
+  const wing = 8.0;
   const x = w / 2, z = d / 2;
-  const floors = 5;
+  const floors = storeysOf(T, 5);
   const wall = floors * T.floorH + 0.5;
 
   // Three ranges round a court open to the back.
@@ -453,9 +460,9 @@ function perimeter(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function shoptop(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 21.4, d = 12.0;
+  const [w, d] = plotOf(T, 21.4, 12.0);
   const x = w / 2, z = d / 2;
-  const floors = 4;
+  const floors = storeysOf(T, 4);
   const shop = 4.2;
   const wall = shop + floors * T.floorH;
   const units = 3;
@@ -521,15 +528,19 @@ function tallSkin(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x1: n
 function point(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 19.0, d = 17.0;
+  const [w, d] = plotOf(T, 19.0, 17.0);
   const x = w / 2, z = d / 2;
-  const floors = 14;
-  const podium = T.floorH * 1.4;
+  const floors = storeysOf(T, 14);
+  const podium = T.floorH * Math.max(1.2, T.podium);
   const wall = podium + floors * T.floorH;
 
   m.box([-x - 1.4, 0, -z - 1.4], [x + 1.4, podium, z + 1.4], T.base, { roof: MAT.ROOF });
   m.box([-x, podium, -z], [x, wall, z], T.wall, { roof: T.cover });
-  const top = crown(m, T, -x, -z, x, z, wall, seed);
+  // What the theme does at the top: modern steps in behind a terrace, East
+  // Asian stands its plant room and water tanks up there, the pitched themes
+  // take a roof off the wall head as before.
+  const head = topMass(m, T, -x, -z, x, z, wall);
+  const top = crown(m, T, -x, -z, x, z, head, seed);
 
   if (medium) {
     band(m, -x - 1.4, -z - 1.4, x + 1.4, z + 1.4, podium, 0.4, 0.2, T.trim);
@@ -562,15 +573,19 @@ function point(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function slab(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 26.0, d = 13.0;
+  const [w, d] = plotOf(T, 26.0, 13.0);
   const x = w / 2, z = d / 2;
-  const floors = 12;
-  const podium = T.floorH * 1.3;
+  const floors = storeysOf(T, 12);
+  const podium = T.floorH * Math.max(1.1, T.podium);
   const wall = podium + floors * T.floorH;
 
   m.box([-x, 0, -z - 1.2], [x, podium, z + 1.2], T.base, { roof: MAT.ROOF });
   m.box([-x, podium, -z], [x, wall, z], T.wall, { roof: T.cover });
-  const top = crown(m, T, -x, -z, x, z, wall, seed);
+  // What the theme does at the top: modern steps in behind a terrace, East
+  // Asian stands its plant room and water tanks up there, the pitched themes
+  // take a roof off the wall head as before.
+  const head = topMass(m, T, -x, -z, x, z, wall);
+  const top = crown(m, T, -x, -z, x, z, head, seed);
 
   if (medium) {
     band(m, -x, -z - 1.2, x, z + 1.2, podium, 0.42, 0.2, T.trim);
@@ -608,10 +623,10 @@ function slab(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 17.0, d = 15.0;
+  const [w, d] = plotOf(T, 17.0, 15.0);
   const x = w / 2, z = d / 2;
-  const floors = 16;
-  const podium = T.floorH * 1.5;
+  const floors = storeysOf(T, 16);
+  const podium = T.floorH * Math.max(1.3, T.podium);
   const wall = podium + floors * T.floorH;
 
   m.box([-x - 1.0, 0, -z - 1.0], [x + 1.0, podium, z + 1.0], T.base, { roof: MAT.ROOF });
@@ -620,7 +635,7 @@ function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const core: [number, number, number, number] = [x - 0.6, -4.2, x + 3.6, 4.2];
   m.box([core[0], 0, core[1]], [core[2], wall + 3.2, core[3]], T.base, { roof: MAT.ROOF });
   parapet(m, core[0], core[1], core[2], core[3], wall + 3.2, 0.9, 0.16, T.base);
-  crown(m, T, -x, -z, x, z, wall, seed);
+  crown(m, T, -x, -z, x, z, topMass(m, T, -x, -z, x, z, wall), seed);
 
   if (medium) {
     band(m, -x - 1.0, -z - 1.0, x + 1.0, z + 1.0, podium, 0.42, 0.2, T.trim);
@@ -662,7 +677,7 @@ function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function bungalow(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 13.6, d = 8.6;
+  const [w, d] = plotOf(T, 13.6, 8.6);
   const x = w / 2, z = d / 2;
   const wall = T.floorH + 0.4;
 
@@ -685,6 +700,7 @@ function bungalow(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     }
     if (T.veranda) veranda(m, T, -x + 4.8, x - 1.0, z, 2.0, wall - 0.2);
   }
+  if (medium) rearWing(m, T, -x, -z, x, z, wall, seed);
   if (fine) {
     punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 5.0, x - 0.8, { floors: 1, base: 1.0 });
     punched(m, T, { axis: 'z', sign: 1, plane: z + 1.6 }, -x + 1.1, -x + 4.1, { floors: 1, base: 0.95 });
@@ -702,9 +718,10 @@ function bungalow(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function villa(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 11.0, d = 10.0, wing = 5.0;
+  const [w, d] = plotOf(T, 11.0, 10.0);
+  const wing = 5.0;
   const x = w / 2, z = d / 2;
-  const floors = 2;
+  const floors = storeysOf(T, 2);
   const wall = floors * T.floorH + 0.5;
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
@@ -751,9 +768,10 @@ function villa(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 22.0, d = 12.0, units = 4;
+  const [w, d] = plotOf(T, 22.0, 12.0);
+  const units = 4;
   const x = w / 2, z = d / 2;
-  const floors = 4;
+  const floors = storeysOf(T, 4);
   const wall = floors * T.floorH + 0.5;
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
@@ -815,8 +833,8 @@ function cross(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const fine = lod < 1, medium = lod < 2;
   const arm = 21.0, wide = 9.0;
   const half = arm / 2, hw = wide / 2;
-  const floors = 13;
-  const podium = T.floorH * 1.4;
+  const floors = storeysOf(T, 13);
+  const podium = T.floorH * Math.max(1.2, T.podium);
   const wall = podium + floors * T.floorH;
 
   m.box([-half - 1.0, 0, -half - 1.0], [half + 1.0, podium, half + 1.0], T.base, { roof: MAT.ROOF });
@@ -891,9 +909,10 @@ function cross(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function urban(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 30.0, d = 26.0, range = 11.0;
+  const [w, d] = plotOf(T, 30.0, 26.0);
+  const range = 11.0;
   const x = w / 2, z = d / 2;
-  const floors = 8;
+  const floors = storeysOf(T, 8);
   const ground = T.floorH + 1.2;
   const wall = ground + floors * T.floorH;
 

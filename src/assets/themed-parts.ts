@@ -279,3 +279,94 @@ export function crown(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x
   }
 }
 
+
+// ------------------------------------------------------------------ massing
+//
+// A theme was a skin: the point block was one shape in five materials, and
+// five towers in a row differed only in what they were painted. A place is
+// recognised by its shape at a distance and by its material only up close, so
+// these turn the theme's massing numbers into actual form.
+
+/**
+ * A plan's footprint, turned to the theme's plot proportion.
+ *
+ * Only ever shrinks. A plan is already sized to fill its declared cells, so
+ * stretching one axis would put it over its lot and into the street -- which
+ * the asset test rightly fails. A wide-frontage theme therefore loses depth
+ * and a narrow-frontage one loses width: a European terrace stands narrow and
+ * deep on the same lot where a farmstead sprawls wide and shallow, and the
+ * mass either lost is given back in storeys and in a rear wing.
+ */
+export function plotOf(T: ThemeProfile, w: number, d: number): [number, number] {
+  const r = Math.sqrt(T.plot);
+  return [w * Math.min(r, 1), d * Math.min(1 / r, 1)];
+}
+
+/** A plan's storey count under this theme, never below two. */
+export function storeysOf(T: ThemeProfile, floors: number): number {
+  return Math.max(2, Math.round(floors * T.storeys));
+}
+
+/**
+ * What a theme does at the top of a tall block.
+ *
+ * Modern steps the top storeys in behind a terrace; East Asian sets a plant
+ * room and water tanks on the roof; the pitched themes put an attic storey
+ * with dormers in. Returns the height the roof should now be taken from.
+ */
+export function topMass(m: MeshBuilder, T: ThemeProfile,
+  x0: number, z0: number, x1: number, z1: number, y: number): number {
+  const w = x1 - x0, d = z1 - z0;
+  if (T.setback > 0) {
+    const i = Math.min(w, d) * T.setback;
+    const h = y + T.floorH * (T.podium > 0 ? 2 : 1.4);
+    // The terrace the setback leaves, then the storeys that stand back on it.
+    m.box([x0 + i * 0.5, y, z0 + i * 0.5], [x1 - i * 0.5, y + 0.24, z1 - i * 0.5], T.base);
+    m.box([x0 + i, y, z0 + i], [x1 - i, h, z1 - i], T.wall, { roof: T.cover });
+    for (const [a, b, z] of [[x0 + i * 0.5, x1 - i * 0.5, z0 + i * 0.5],
+      [x0 + i * 0.5, x1 - i * 0.5, z1 - i * 0.5]] as const) {
+      railing(m, a, b, z, y + 0.24, 1.0);
+    }
+    return h;
+  }
+  if (T.podium >= 2) {
+    // A plant room and two water tanks, which is what an East Asian roofline
+    // is: the building carries its services on top rather than hiding them.
+    m.box([x0 + w * 0.28, y, z0 + d * 0.30], [x0 + w * 0.62, y + 2.8, z0 + d * 0.70],
+      T.base, { roof: MAT.ROOF });
+    for (const f of [0.70, 0.84]) {
+      m.cylinder(x0 + w * f, (z0 + z1) / 2, 1.05, y + 0.5, y + 2.7, 8, MAT.METAL);
+      m.box([x0 + w * f - 1.05, y, z0 + d * 0.5 - 1.05],
+        [x0 + w * f + 1.05, y + 0.5, z0 + d * 0.5 + 1.05], T.base);
+    }
+    return y;
+  }
+  return y;
+}
+
+/**
+ * A wing off the back, and on the deep-eaved themes a lean-to beside it.
+ *
+ * This is the difference between a farmhouse and a villa more than any amount
+ * of walling: one is a long low range with things added on, the other is a
+ * single compact block.
+ */
+export function wing(m: MeshBuilder, T: ThemeProfile,
+  x0: number, z0: number, x1: number, z1: number, y: number, seed: number): void {
+  if (T.wing <= 0) return;
+  const w = x1 - x0, d = z1 - z0;
+  const wd = d * T.wing;
+  const wx0 = x0 + w * (seed % 2 === 0 ? 0.10 : 0.34);
+  const wx1 = wx0 + w * 0.52;
+  const h = y * (T.wing > 0.45 ? 0.72 : 0.86);
+  m.box([wx0, 0, z0 - wd], [wx1, h, z0 + 0.4], T.wall);
+  roofOver(m, T, wx0, z0 - wd, wx1, z0 + 0.4, h, { along: 'z' });
+  if (T.eave > 0.4) {
+    // A lean-to against the wing: a mono-pitch off its flank, open at the
+    // front, which is where a farmyard keeps everything it owns.
+    const lx = wx1 + 0.2, lz0 = z0 - wd * 0.8;
+    m.box([lx, 0, lz0], [lx + 2.6, h * 0.52, lz0 + wd * 0.7], T.base);
+    m.gable([lx, h * 0.52, lz0], [lx + 2.6, h * 0.52, lz0 + wd * 0.7], 0.5, 'z',
+      T.cover, T.wall);
+  }
+}
