@@ -800,25 +800,41 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
       const az = sz * (0.16 * broad + 0.055) * 0.94;
       blob(m, at(swing * 1.55, hip + 0.05, az), 0.045 * s, 0.055 * s, 0.035 * s, MAT.FIGURE, 6, 2);
     }
-    // Neck and head.
-    lb([0, shoulder - 0.02, 0], [0, neck + 0.04, 0], 0.05, 0.046, MAT.FIGURE, 7);
-    blob(m, at(0, (neck + crown) / 2, 0), 0.088 * s, 0.125 * s, 0.082 * s, MAT.FIGURE, 7, 3);
-    // A nose, which is most of what makes a head read as facing somewhere.
-    lb([0.055, neck + 0.10, 0], [0.098, neck + 0.09, 0], 0.028, 0.016, MAT.FIGURE, 5);
-  });
-  // A face. Eyes, brows and a mouth, all small and all dark, set on the front
-  // of the skull. Without them a head is a bean on a stick from every angle,
-  // and at the distance a city builder is played at these three marks are the
-  // whole difference.
-  m.painted(TINT.METAL_DARK, () => {
+    // Neck, then the head. The head is built rather than marked: a skull, a
+    // jaw under and forward of it, ears on the sides, a brow, a nose, sockets
+    // with eyes in them and a mouth. A single ellipsoid with three dark dashes
+    // on the front is a bean with a face drawn on, which is what these were.
+    lb([0, shoulder - 0.02, 0], [0, neck + 0.05, 0], 0.054, 0.049, MAT.FIGURE, 8);
+    const hy = (neck + crown) / 2;
+    blob(m, at(-0.004, hy + 0.012, 0), 0.094 * s, 0.118 * s, 0.088 * s, MAT.FIGURE, 10, 4);
+    // Jaw and chin: forward and below the skull, and narrower than it.
+    blob(m, at(0.020, neck + 0.062, 0), 0.076 * s, 0.062 * s, 0.072 * s, MAT.FIGURE, 8, 3);
+    // Brow: a ridge across the top of the face, which is what puts the eyes
+    // in shadow and stops the front of the head reading as flat.
+    lb([0.058, neck + 0.176, -0.060], [0.058, neck + 0.176, 0.060], 0.020, 0.020, MAT.FIGURE, 6);
+    // Nose, from between the brows down and out.
+    lb([0.048, neck + 0.150, 0], [0.092, neck + 0.092, 0], 0.024, 0.015, MAT.FIGURE, 6);
     for (const sz of [1, -1] as const) {
-      // Eye: a small flattened mass sunk into the socket.
-      blob(m, at(0.070, neck + 0.140, sz * 0.032), 0.016 * s, 0.014 * s, 0.022 * s, MAT.TRIM, 5, 2);
-      // Brow above it, angled slightly in towards the nose.
-      lb([0.066, neck + 0.172, sz * 0.058], [0.072, neck + 0.166, sz * 0.014], 0.010, 0.010, MAT.TRIM, 4);
+      // Ear: a small flattened mass on the side of the skull.
+      blob(m, at(-0.012, neck + 0.132, sz * 0.088), 0.020 * s, 0.036 * s, 0.014 * s, MAT.FIGURE, 5, 2);
+      // Cheekbone, which gives the face a plane either side of the nose.
+      blob(m, at(0.052, neck + 0.118, sz * 0.050), 0.030 * s, 0.028 * s, 0.032 * s, MAT.FIGURE, 5, 2);
     }
-    // Mouth: one short bar across, below the nose.
-    lb([0.070, neck + 0.050, -0.030], [0.070, neck + 0.050, 0.030], 0.011, 0.011, MAT.TRIM, 4);
+  });
+  // The eyes themselves: a pale eyeball with a dark iris in front of it, set
+  // under the brow rather than painted on the surface.
+  for (const sz of [1, -1] as const) {
+    m.painted(TINT.SIGN_LIT, () =>
+      blob(m, at(0.064, neck + 0.145, sz * 0.036), 0.019 * s, 0.017 * s, 0.024 * s, MAT.TRIM, 6, 2));
+    m.painted(TINT.METAL_DARK, () =>
+      blob(m, at(0.076, neck + 0.145, sz * 0.036), 0.011 * s, 0.012 * s, 0.012 * s, MAT.TRIM, 5, 2));
+  }
+  m.painted(TINT.METAL_DARK, () => {
+    // Brows, angled in towards the nose, and a mouth on the jaw.
+    for (const sz of [1, -1] as const) {
+      lb([0.062, neck + 0.182, sz * 0.062], [0.070, neck + 0.176, sz * 0.016], 0.011, 0.011, MAT.TRIM, 4);
+    }
+    lb([0.074, neck + 0.048, -0.026], [0.074, neck + 0.048, 0.026], 0.010, 0.010, MAT.TRIM, 4);
   });
   // Hair: a cap over the skull, longer at the back on some.
   if (hair > 0.12) {
@@ -1061,14 +1077,14 @@ function pedestrians(lod: number): MeshBuilder {
   m.box([-x, 0.0005, z - 0.3], [x, 0.04, z], MAT.GROUND);
 
   // Two lanes of walkers passing each other, plus a group standing still.
-  // Nine walkers, not twelve: a figure built from bones and rounded masses is
-  // about five hundred triangles, and the two-cell fleet ceiling is eight
-  // thousand. Better nine people than twelve stacks of bricks.
+  // Seven walkers. A figure with a built head -- skull, jaw, ears, brow, nose,
+  // sockets and eyes -- is about a thousand triangles, and the two-cell fleet
+  // ceiling is eight thousand. Seven people you can look at beats twelve you
+  // cannot.
   const walkers: Array<[number, number, number, number]> = [
-    [-7.4, -1.9, 0, 0.16], [-4.4, -2.3, 0, 0.10], [-1.4, -1.7, 0, 0.18],
-    [1.6, -2.2, 0, 0.06], [4.8, -1.8, 0, 0.15],
-    [-6.0, 0.9, Math.PI, 0.14], [-2.8, 1.4, Math.PI, 0.09], [0.6, 0.8, Math.PI, 0.17],
-    [4.0, 1.3, Math.PI, 0.05],
+    [-7.0, -1.9, 0, 0.16], [-3.4, -2.3, 0, 0.10], [0.2, -1.7, 0, 0.18],
+    [4.0, -2.2, 0, 0.06],
+    [-5.2, 1.0, Math.PI, 0.14], [-0.4, 1.4, Math.PI, 0.09],
   ];
   for (let i = 0; i < walkers.length; i++) {
     const [px, pz, f, st] = walkers[i];
@@ -1094,13 +1110,34 @@ function pedestrians(lod: number): MeshBuilder {
     m.painted(TINT.METAL_DARK, () => {
       for (const px of [-2.4, 0.1]) m.box([px, 0.14, 2.1], [px + 0.12, 0.6, 2.5], MAT.TRIM);
     });
-    // Seated: legs forward, torso upright, on the bench.
+    // Seated: thighs forward along the seat, calves down to the ground, torso
+    // upright against the back. Four raw boxes before, which from any angle
+    // but square on was a pile of bricks on a bench.
+    const sx0 = -1.36;
     m.keyed(431, () => {
-      m.box([-1.5, 0.6, 2.16], [-1.2, 1.16, 2.48], MAT.FIGURE);
-      m.box([-1.5, 0.52, 1.72], [-1.22, 0.66, 2.2], MAT.FIGURE);
-      m.box([-1.52, 0.06, 1.7], [-1.2, 0.56, 1.86], MAT.FIGURE);
-      m.box([-1.46, 1.14, 2.2], [-1.24, 1.34, 2.42], MAT.FIGURE);
+      for (const dz of [-0.14, 0.14] as const) {
+        bone(m, [sx0 + dz, 0.68, 2.34], [sx0 + dz, 0.66, 1.84], 0.085, 0.062, MAT.FIGURE, 6);
+        bone(m, [sx0 + dz, 0.66, 1.84], [sx0 + dz, 0.10, 1.76], 0.062, 0.045, MAT.FIGURE, 6);
+      }
+      blob(m, [sx0, 0.70, 2.30], 0.11, 0.10, 0.16, MAT.FIGURE, 7, 2);
+      bone(m, [sx0, 0.70, 2.34], [sx0, 1.06, 2.42], 0.125, 0.135, MAT.FIGURE, 8);
+      bone(m, [sx0, 1.06, 2.42], [sx0, 1.28, 2.44], 0.135, 0.115, MAT.FIGURE, 8);
+      for (const dz of [-0.16, 0.16] as const) {
+        bone(m, [sx0 + dz, 1.24, 2.42], [sx0 + dz, 0.92, 2.20], 0.055, 0.045, MAT.FIGURE, 6);
+        bone(m, [sx0 + dz, 0.92, 2.20], [sx0 + dz, 0.78, 1.96], 0.045, 0.038, MAT.FIGURE, 6);
+      }
+      bone(m, [sx0, 1.26, 2.44], [sx0, 1.38, 2.44], 0.048, 0.046, MAT.FIGURE, 7);
+      blob(m, [sx0, 1.50, 2.42], 0.088, 0.112, 0.084, MAT.FIGURE, 9, 4);
+      blob(m, [sx0, 1.44, 2.34], 0.070, 0.058, 0.066, MAT.FIGURE, 7, 3);
+      bone(m, [sx0, 1.50, 2.30], [sx0, 1.46, 2.24], 0.022, 0.014, MAT.FIGURE, 5);
     });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const dz of [-0.035, 0.035] as const) {
+        blob(m, [sx0 + dz, 1.53, 2.32], 0.013, 0.012, 0.012, MAT.TRIM, 5, 2);
+      }
+      bone(m, [sx0 - 0.026, 1.415, 2.30], [sx0 + 0.026, 1.415, 2.30], 0.009, 0.009, MAT.TRIM, 4);
+    });
+    m.keyed(437, () => blob(m, [sx0, 1.575, 2.44], 0.093, 0.082, 0.088, MAT.FIGURE, 8, 3));
     // A lamp column and a bin, so the pavement is a street and not a stage.
     m.painted(TINT.METAL_DARK, () => {
       m.box([3.6, 0.14, 2.3], [4.0, 0.44, 2.7], MAT.TRIM);
@@ -2075,7 +2112,7 @@ const O_GWAGON: CarSpec = {
   extra: (m, st) => {
     // Spare wheel on the back door and a snorkel up the A pillar: the two
     // things that say this one goes off the road.
-    wheel(m, 2.34, 1.30, 0.0, 0.42, 0.15, 14);
+    wheel(m, 2.34, 1.30, 0.0, 0.42, 0.15, 10);
     m.painted(TINT.METAL_DARK, () => {
       const hw = hwAt(st, -1.0, 1.6);
       m.pipe([-1.30, 0.9, hw + 0.04], [-1.30, topAt(st, -1.0) + 0.10, hw + 0.04], 0.07, MAT.TRIM, 8);
@@ -2127,7 +2164,7 @@ const O_JEEP: CarSpec = {
       }
       m.pipe([1.10, y + 0.04, -0.82], [1.10, y + 0.04, 0.82], 0.05, MAT.TRIM, 6);
     });
-    wheel(m, 1.98, 1.20, 0.0, 0.40, 0.14, 14);
+    wheel(m, 1.98, 1.20, 0.0, 0.40, 0.14, 10);
   },
 };
 
