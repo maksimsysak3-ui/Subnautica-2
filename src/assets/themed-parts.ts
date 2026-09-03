@@ -51,6 +51,20 @@ export function roofOver(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number
   return y + h;
 }
 
+/** A flat panel laid against a wall: one quad, wound to face outwards. */
+function face(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number,
+  d: number): void {
+  const p = w.plane + w.sign * d;
+  if (w.axis === 'x') {
+    if (w.sign > 0) m.quad([p, y0, u1], [p, y0, u0], [p, y1, u0], [p, y1, u1], MAT.TRIM);
+    else m.quad([p, y0, u0], [p, y0, u1], [p, y1, u1], [p, y1, u0], MAT.TRIM);
+  } else if (w.sign > 0) {
+    m.quad([u0, y0, p], [u1, y0, p], [u1, y1, p], [u0, y1, p], MAT.TRIM);
+  } else {
+    m.quad([u1, y0, p], [u0, y0, p], [u0, y1, p], [u1, y1, p], MAT.TRIM);
+  }
+}
+
 /**
  * Windows in the theme's rhythm, with whatever the theme hangs beside them.
  *
@@ -68,7 +82,11 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
   // more than the whole building's budget. Above a few dozen openings the
   // frame becomes a continuous lintel and cill per storey -- which is what a
   // repetitive facade actually looks like anyway -- and the glass a quad.
-  const lite = (o.floors - first) * count > 22;
+  // Fourteen openings, not twenty-two. A cruciform tower has twelve
+  // elevations of two windows over eleven floors, which lands just under a
+  // twenty-two threshold and costs forty triangles an opening -- the whole
+  // budget for the building, spent on frames nobody can see.
+  const lite = (o.floors - first) * count > 14;
   for (let f = first; f < o.floors; f++) {
     const y0 = o.base + f * T.floorH;
     if (!lite) {
@@ -90,13 +108,13 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
           m.signFace([b, y0, d0], [a, y0, d0], [a, y0 + T.winH, d0], [b, y0 + T.winH, d0], MAT.PANE);
         }
       }
-      // Continuous cill and lintel, standing proud so they cast the reveal.
+      // One continuous lintel band, standing proud so it casts a reveal. Two
+      // bands -- a cill as well -- doubled the cost of the cheapest facade in
+      // the library for a line nobody reads from the air.
       const p0 = w.plane + w.sign * 0.02, p1 = w.plane + w.sign * 0.15;
       const lo = Math.min(p0, p1), hi = Math.max(p0, p1);
-      for (const [ya, yb] of [[y0 - 0.14, y0], [y0 + T.winH, y0 + T.winH + 0.16]] as const) {
-        if (w.axis === 'x') m.box([lo, ya, u0], [hi, yb, u1], T.trim);
-        else m.box([u0, ya, lo], [u1, yb, hi], T.trim);
-      }
+      if (w.axis === 'x') m.box([lo, y0 + T.winH, u0], [hi, y0 + T.winH + 0.16, u1], T.trim);
+      else m.box([u0, y0 + T.winH, lo], [u1, y0 + T.winH + 0.16, hi], T.trim);
     }
     // Shutters and grilles are detail for the lower storeys; nobody reads one
     // at the sixteenth floor and every one of them costs ten triangles.
@@ -104,13 +122,15 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
     for (let i = 0; i < count; i++) {
       const c = u0 + ((i + 0.5) / count) * span;
       if (T.shutters) {
+        // A shutter is a panel against the wall, so it is one quad rather than
+        // a box: five triangles saved on each of them, and on a block with a
+        // hundred windows that is the difference between fitting the budget
+        // and losing the shutters altogether.
         m.painted(TINT.DOOR, () => {
-          for (const s of [-1, 1]) {
-            const a = c + s * (T.winW / 2 + 0.14);
-            const b = a + s * T.winW * 0.5;
-            const [lo, hi] = [Math.min(a, b), Math.max(a, b)];
-            if (w.axis === 'x') m.box([w.plane + w.sign * 0.02, y0, lo], [w.plane + w.sign * 0.13, y0 + T.winH, hi], MAT.TRIM);
-            else m.box([lo, y0, w.plane + w.sign * 0.02], [hi, y0 + T.winH, w.plane + w.sign * 0.13], MAT.TRIM);
+          for (const sgn of [-1, 1]) {
+            const a = c + sgn * (T.winW / 2 + 0.13);
+            const b = a + sgn * T.winW * 0.5;
+            face(m, w, Math.min(a, b), Math.max(a, b), y0, y0 + T.winH, 0.10);
           }
         });
       } else {
@@ -118,8 +138,7 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
         m.painted(TINT.METAL_DARK, () => {
           for (let k = 0; k < 5; k++) {
             const p = c - T.winW / 2 + ((k + 0.5) / 5) * T.winW;
-            if (w.axis === 'x') m.box([w.plane + w.sign * 0.08, y0 + 0.05, p - 0.03], [w.plane + w.sign * 0.14, y0 + T.winH - 0.05, p + 0.03], MAT.TRIM);
-            else m.box([p - 0.03, y0 + 0.05, w.plane + w.sign * 0.08], [p + 0.03, y0 + T.winH - 0.05, w.plane + w.sign * 0.14], MAT.TRIM);
+            face(m, w, p - 0.028, p + 0.028, y0 + 0.05, y0 + T.winH - 0.05, 0.11);
           }
         });
       }

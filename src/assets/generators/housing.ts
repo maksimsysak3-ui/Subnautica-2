@@ -602,106 +602,7 @@ function slab(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   return m;
 }
 
-/** Twin towers on a shared podium, which is how a dense scheme is built. */
-function twin(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const pw = 27.0, pd = 20.0;
-  const px = pw / 2, pz = pd / 2;
-  const podium = T.floorH * 2.1;
-  const tw = 10.6, td = 11.0;
-  const floors = [11, 15];
 
-  m.box([-px, 0, -pz], [px, podium, pz], T.base, { roof: MAT.ROOF });
-  const cxs = [-pw * 0.24, pw * 0.24];
-  let highest = podium;
-  cxs.forEach((cx, i) => {
-    const wall = podium + floors[i] * T.floorH;
-    m.box([cx - tw / 2, podium, -td / 2], [cx + tw / 2, wall, td / 2], T.wall, { roof: T.cover });
-    highest = Math.max(highest, crown(m, T, cx - tw / 2, -td / 2, cx + tw / 2, td / 2, wall, seed + i * 17));
-  });
-
-  if (medium) {
-    band(m, -px, -pz, px, pz, podium, 0.45, 0.22, T.trim);
-    parapet(m, -px, -pz, px, pz, podium, 1.0, 0.18, T.base);
-    // Podium roof is the scheme's garden, which is what a podium is for.
-    m.painted(TINT.GREEN, () => m.box([-px + 1.4, podium, -pz + 1.4], [px - 1.4, podium + 0.12, pz - 1.4], MAT.TRIM));
-    for (let i = 0; i < 4; i++) {
-      planter(m, -px + 3.4 + (i % 2) * 9.0, -pz + 3.0 + Math.floor(i / 2) * (pd - 6.0), 1.0, 0.6);
-    }
-    if (T.balcony !== 'none') {
-      cxs.forEach((cx, i) => {
-        balconies(m, { axis: 'z', sign: 1, plane: td / 2 }, cx - tw / 2 + 0.8, cx + tw / 2 - 0.8,
-          { floors: Math.min(floors[i], 12), floorH: T.floorH, base: podium + 0.5, bays: 2,
-            depth: 1.5, solid: T.balcony === 'solid' });
-      });
-    }
-  }
-  if (fine) {
-    cxs.forEach((cx, i) => {
-      tallSkin(m, T, cx - tw / 2, -td / 2, cx + tw / 2, td / 2, floors[i], podium);
-    });
-    for (let i = 0; i < 4; i++) {
-      const a = -px + 1.4 + i * ((pw - 2.8) / 4);
-      shopfront(m, { axis: 'z', sign: 1, plane: pz }, a + 0.4, a + (pw - 2.8) / 4 - 0.4,
-        { bays: 3, doorBay: 1, head: T.floorH * 1.5, fascia: 0.9 });
-    }
-    doorway(m, T, { axis: 'z', sign: -1, plane: -pz }, 0, true);
-    ribbon(m, { axis: 'z', sign: -1, plane: -pz }, -px + 1.4, -3.0, T.floorH * 1.6, podium - 0.7, { mullions: 6 });
-    ribbon(m, { axis: 'z', sign: -1, plane: -pz }, 3.0, px - 1.4, T.floorH * 1.6, podium - 0.7, { mullions: 6 });
-    kerb(m, -px - 1.2, pz + 1.6, px + 1.2, pz + 2.8);
-  }
-  return m;
-}
-
-/** A stepped block: each setback is a terrace, which is why it is stepped. */
-function stepped(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const tiers = [
-    { w: 25.0, d: 19.0, floors: 4 },
-    { w: 20.0, d: 15.0, floors: 4 },
-    { w: 14.0, d: 11.0, floors: 4 },
-  ];
-  let y = 0;
-  const tops: number[] = [];
-  for (const t of tiers) {
-    const h = t.floors * T.floorH;
-    m.box([-t.w / 2, y, -t.d / 2], [t.w / 2, y + h, t.d / 2], y === 0 ? T.base : T.wall, { roof: T.cover });
-    y += h;
-    tops.push(y);
-  }
-  const last = tiers[tiers.length - 1];
-  const top = crown(m, T, -last.w / 2, -last.d / 2, last.w / 2, last.d / 2, y, seed);
-
-  if (medium) {
-    tiers.forEach((_t, i) => {
-      if (i === 0) return;
-      const prev = tiers[i - 1];
-      const py = tops[i - 1];
-      // The terrace left by the setback, with a balustrade and planting.
-      m.box([-prev.w / 2, py, -prev.d / 2], [prev.w / 2, py + 0.14, prev.d / 2], MAT.CONCRETE);
-      m.painted(TINT.GREEN, () => {
-        m.box([-prev.w / 2 + 0.5, py + 0.14, prev.d / 2 - 2.2], [prev.w / 2 - 0.5, py + 0.5, prev.d / 2 - 0.6], MAT.TRIM);
-      });
-      railing(m, -prev.w / 2 + 0.3, prev.w / 2 - 0.3, prev.d / 2 - 0.35, py + 0.14, 1.05, 1.5);
-      railing(m, -prev.w / 2 + 0.3, prev.w / 2 - 0.3, -prev.d / 2 + 0.35, py + 0.14, 1.05, 1.5);
-    });
-    band(m, -tiers[0].w / 2, -tiers[0].d / 2, tiers[0].w / 2, tiers[0].d / 2, T.floorH + 0.2, 0.3, 0.14, T.trim);
-    if (T.chimney) m.box([-1.0, top - 1.0, -1.0], [1.0, top + 2.0, 0.6], T.base);
-  }
-  if (fine) {
-    let base = 0;
-    tiers.forEach((t: { w: number; d: number; floors: number }) => {
-      tallSkin(m, T, -t.w / 2, -t.d / 2, t.w / 2, t.d / 2, t.floors, base);
-      base += t.floors * T.floorH;
-    });
-    doorway(m, T, { axis: 'z', sign: 1, plane: tiers[0].d / 2 }, 0, true);
-    kerb(m, -tiers[0].w / 2 - 1.0, tiers[0].d / 2 + 1.6, tiers[0].w / 2 + 1.0, tiers[0].d / 2 + 2.8);
-    bollards(m, { axis: 'z', sign: 1, plane: tiers[0].d / 2 }, -8, 8, 2.0, 6);
-  }
-  return m;
-}
 
 /** A tower with its core outside the envelope, expressed as a shaft. */
 function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
@@ -860,19 +761,13 @@ function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   roofOver(m, T, -x, -z, x, z, wall, { along: 'x', dormers: medium ? 3 : 0 });
 
   if (medium) {
-    // The stair to the upper maisonettes, expressed on the front: one flight
-    // per pair, with a landing. This is the whole character of the type.
+    // The stair to the upper maisonettes is inside, in a projecting bay with
+    // its own window, rather than a concrete flight bolted to the front. The
+    // external version read as scaffolding across the whole elevation.
     for (let i = 0; i < units / 2; i++) {
       const cx = -x + ((i + 0.5) / (units / 2)) * w;
-      const y = T.floorH * 2;
-      m.box([cx - 1.5, y - 0.22, z], [cx + 1.5, y, z + 2.2], MAT.CONCRETE);
-      for (let k = 0; k < 9; k++) {
-        const t = k / 9;
-        m.box([cx + 0.4, t * (y - 0.22), z + 2.2 - t * 2.0],
-              [cx + 1.5, (t + 0.12) * (y - 0.22), z + 2.42 - t * 2.0], MAT.CONCRETE);
-      }
-      railing(m, cx - 1.4, cx + 1.4, z + 2.1, y, 1.05, 1.3);
-      m.box([cx - 1.55, 0, z + 1.9], [cx - 1.35, y, z + 2.3], T.base);
+      m.box([cx - 1.4, 0, z], [cx + 1.4, wall - 0.8, z + 1.1], T.wall, { roof: T.cover });
+      roofOver(m, T, cx - 1.4, z, cx + 1.4, z + 1.1, wall - 0.8, { along: 'x' });
     }
     band(m, -x, -z, x, z, T.floorH * 2, 0.26, 0.13, T.trim);
     if (T.chimney) {
@@ -888,8 +783,13 @@ function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     }
     for (let i = 0; i < units / 2; i++) {
       const cx = -x + ((i + 0.5) / (units / 2)) * w;
-      entrance(m, { axis: 'z', sign: 1, plane: z }, cx - 0.6,
-        { width: 1.0, height: 2.1, steps: 0 });
+      // The common door into the stair bay, and the stair window stacked over
+      // it, which is how a maisonette block reads from the street.
+      doorway(m, T, { axis: 'z', sign: 1, plane: z + 1.1 }, cx);
+      for (let f = 1; f < floors; f++) {
+        m.opening({ axis: 'z', sign: 1, plane: z + 1.1, u0: cx - 0.7, u1: cx + 0.7,
+          y0: f * T.floorH + 0.9, y1: f * T.floorH + 2.3, glass: MAT.GLASS, frame: 0.1, proud: 0.07 });
+      }
     }
     punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 1.0, { floors, base: 1.1 });
     for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
@@ -897,6 +797,168 @@ function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     }
     kerb(m, -x - 1.0, z + 3.0, x + 1.0, z + 4.0);
     backyard(m, -x, -z - 7.0, x, -z - 0.5, seed);
+  }
+  return m;
+}
+
+/**
+ * A cruciform tower: four wings off a central core.
+ *
+ * The plan most real point blocks use, and for a reason -- every flat gets two
+ * outside walls and daylight from two directions, and the re-entrant corners
+ * give the tower a silhouette that changes as you walk round it. A square
+ * prism has one silhouette from every angle, which is why the twin-tower and
+ * stepped blocks it replaces read as massing studies rather than buildings.
+ */
+function cross(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const arm = 21.0, wide = 9.0;
+  const half = arm / 2, hw = wide / 2;
+  const floors = 13;
+  const podium = T.floorH * 1.4;
+  const wall = podium + floors * T.floorH;
+
+  m.box([-half - 1.0, 0, -half - 1.0], [half + 1.0, podium, half + 1.0], T.base, { roof: MAT.ROOF });
+  // The two arms, crossed. Drawn as two slabs rather than a plus-shaped prism
+  // because their overlap is the core and wants no seam through it.
+  m.box([-half, podium, -hw], [half, wall, hw], T.wall, { roof: T.cover });
+  m.box([-hw, podium, -half], [hw, wall, half], T.wall, { roof: T.cover });
+  const top = Math.max(
+    crown(m, T, -half, -hw, half, hw, wall, seed),
+    crown(m, T, -hw, -half, hw, half, wall, seed + 11),
+  );
+
+  if (medium) {
+    band(m, -half - 1.0, -half - 1.0, half + 1.0, half + 1.0, podium, 0.42, 0.2, T.trim);
+    parapet(m, -half - 1.0, -half - 1.0, half + 1.0, half + 1.0, podium, 0.95, 0.16, T.base);
+    // A pier in each of the four re-entrant corners, carried the full height:
+    // this is what stops the crossing reading as two slabs that met by chance.
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      m.box([Math.min(sx * hw, sx * (hw + 0.7)), podium, Math.min(sz * hw, sz * (hw + 0.7))],
+            [Math.max(sx * hw, sx * (hw + 0.7)), top - 0.6, Math.max(sz * hw, sz * (hw + 0.7))], T.base);
+    }
+    if (T.balcony !== 'none') {
+      // Two of the four re-entrant faces, not all four: a balcony is fifty
+      // triangles a floor and a cruciform tower has twelve elevations.
+      for (const [axis, sign, plane, u0, u1] of [
+        ['z', 1, hw, hw + 1.0, half - 1.0], ['z', -1, -hw, -half + 1.0, -hw - 1.0],
+      ] as const) {
+        balconies(m, { axis, sign, plane }, u0, u1,
+          { floors, floorH: T.floorH, base: podium + 0.5, bays: 1, depth: 1.5,
+            solid: T.balcony === 'solid' });
+      }
+    }
+  }
+  if (fine) {
+    // Each arm's end and both flanks, so all twelve outside faces are glazed.
+    for (const [a, b, wl] of [
+      [-hw + 0.9, hw - 0.9, { axis: 'x', sign: 1, plane: half } as Wall],
+      [-hw + 0.9, hw - 0.9, { axis: 'x', sign: -1, plane: -half } as Wall],
+      [-hw + 0.9, hw - 0.9, { axis: 'z', sign: 1, plane: half } as Wall],
+      [-hw + 0.9, hw - 0.9, { axis: 'z', sign: -1, plane: -half } as Wall],
+      [-half + 1.0, -hw - 0.8, { axis: 'z', sign: 1, plane: hw } as Wall],
+      [hw + 0.8, half - 1.0, { axis: 'z', sign: 1, plane: hw } as Wall],
+      [-half + 1.0, -hw - 0.8, { axis: 'z', sign: -1, plane: -hw } as Wall],
+      [hw + 0.8, half - 1.0, { axis: 'z', sign: -1, plane: -hw } as Wall],
+      [-half + 1.0, -hw - 0.8, { axis: 'x', sign: 1, plane: hw } as Wall],
+      [hw + 0.8, half - 1.0, { axis: 'x', sign: 1, plane: hw } as Wall],
+      [-half + 1.0, -hw - 0.8, { axis: 'x', sign: -1, plane: -hw } as Wall],
+      [hw + 0.8, half - 1.0, { axis: 'x', sign: -1, plane: -hw } as Wall],
+    ] as const) {
+      // Every other floor on the flanks. Twelve fully glazed elevations is
+      // more than twice the budget for one building.
+      if (T.ribbon) banded(m, T, wl, a, b, floors, podium);
+      else punched(m, T, wl, a, b, { floors, base: podium + 0.9 });
+    }
+    doorway(m, T, { axis: 'z', sign: 1, plane: half + 1.0 }, 0, true);
+    ribbon(m, { axis: 'z', sign: 1, plane: half + 1.0 }, -half, -2.6, 1.2, podium - 0.9, { mullions: 6 });
+    ribbon(m, { axis: 'z', sign: 1, plane: half + 1.0 }, 2.6, half, 1.2, podium - 0.9, { mullions: 6 });
+    kerb(m, -half - 3.0, half + 2.6, half + 3.0, half + 3.8);
+    bollards(m, { axis: 'z', sign: 1, plane: half + 1.0 }, -half, half, 2.2, 8);
+  }
+  return m;
+}
+
+/**
+ * A dense street block: eight storeys round a courtyard, shops on the corner.
+ *
+ * The most common form of genuinely high-density housing anywhere, and the
+ * one the library did not have -- a wall of building along the pavement with
+ * the block's own green space hidden behind it, rather than an object standing
+ * on a plot with space all round.
+ */
+function urban(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const w = 30.0, d = 26.0, range = 11.0;
+  const x = w / 2, z = d / 2;
+  const floors = 8;
+  const ground = T.floorH + 1.2;
+  const wall = ground + floors * T.floorH;
+
+  // Four ranges round a court, the front one a storey taller.
+  const put = (x0: number, z0: number, x1: number, z1: number, h: number): void => {
+    m.box([x0, 0, z0], [x1, ground, z1], T.base, { roof: MAT.ROOF });
+    m.box([x0, ground, z0], [x1, h, z1], T.wall, { roof: T.cover });
+  };
+  put(-x, z - range, x, z, wall + T.floorH);
+  put(-x, -z, x, -z + range, wall);
+  put(-x, -z + range, -x + range, z - range, wall);
+  put(x - range, -z + range, x, z - range, wall);
+  crown(m, T, -x, z - range, x, z, wall + T.floorH, seed);
+  crown(m, T, -x, -z, x, -z + range, wall, seed + 7);
+  crown(m, T, -x, -z + range, -x + range, z - range, wall, seed + 13);
+  crown(m, T, x - range, -z + range, x, z - range, wall, seed + 19);
+
+  if (medium) {
+    band(m, -x, -z, x, z, ground, 0.4, 0.22, T.trim);
+    // The courtyard: planted, with the block's own trees in it.
+    m.painted(TINT.GREEN, () =>
+      m.box([-x + range, 0.01, -z + range], [x - range, 0.08, z - range], MAT.TRIM));
+    m.box([-1.6, 0.02, -z + range], [1.6, 0.09, z - range], MAT.GROUND);
+    for (let i = 0; i < 4; i++) {
+      const px = -4.0 + (i % 2) * 8.0, pz = -3.0 + Math.floor(i / 2) * 6.0;
+      m.painted(TINT.WOOD, () => m.cylinder(px, pz, 0.18, 0.08, 2.2, 6, MAT.TIMBER));
+      m.painted(TINT.GREEN, () => {
+        m.cone(px, pz, 1.8, 1.2, 2.0, 4.6, 8, MAT.TRIM);
+        m.cone(px, pz, 1.3, 0.0, 4.2, 6.4, 8, MAT.TRIM);
+      });
+    }
+    // The carriage arch through the front range into the court.
+    m.box([-2.6, 0, z - range - 0.2], [2.6, ground + 0.3, z + 0.2], T.base);
+    if (T.balcony !== 'none') {
+      balconies(m, { axis: 'z', sign: 1, plane: z }, -x + 1.4, -3.4,
+        { floors: floors - 1, floorH: T.floorH, base: ground + T.floorH + 0.4, bays: 3,
+          depth: 1.4, solid: T.balcony === 'solid' });
+      balconies(m, { axis: 'z', sign: 1, plane: z }, 3.4, x - 1.4,
+        { floors: floors - 1, floorH: T.floorH, base: ground + T.floorH + 0.4, bays: 3,
+          depth: 1.4, solid: T.balcony === 'solid' });
+    }
+  }
+  if (fine) {
+    // Shops along the whole street frontage, flats above.
+    for (let i = 0; i < 4; i++) {
+      const a = -x + (i / 4) * w + 0.7, b = -x + ((i + 1) / 4) * w - 0.7;
+      if (a < -3.0 || a > 3.0) {
+        shopfront(m, { axis: 'z', sign: 1, plane: z }, a, Math.min(b, -3.2) > a ? Math.min(b, -3.2) : b,
+          { bays: 3, doorBay: 1, head: ground - 0.9, fascia: 0.85 });
+      }
+    }
+    punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, { floors: floors + 1, base: ground + 0.9 });
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 1.0, { floors, base: ground + 0.9 });
+    for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
+      punched(m, T, { axis: 'x', sign, plane }, -z + 1.0, z - 1.0, { floors, base: ground + 0.9 });
+    }
+    // The court elevations, plainer than the street.
+    punched(m, T, { axis: 'z', sign: -1, plane: z - range }, -x + range + 1.0, x - range - 1.0,
+      { floors, base: ground + 0.9 });
+    punched(m, T, { axis: 'z', sign: 1, plane: -z + range }, -x + range + 1.0, x - range - 1.0,
+      { floors, base: ground + 0.9 });
+    doorway(m, T, { axis: 'z', sign: 1, plane: z }, -x + 3.4, true);
+    kerb(m, -x - 1.2, z + 1.6, x + 1.2, z + 2.8);
+    bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 2.0, 9);
+    roofClutter(m, -x + 2, z - range + 2, x - 2, z - 2, wall + T.floorH, seed, 0.5);
   }
   return m;
 }
@@ -934,8 +996,8 @@ const MID: Plan[] = [
 const HIGH: Plan[] = [
   { key: 'point', name: 'Point block', build: point, footprint: [4, 4], households: 56 },
   { key: 'slab', name: 'Slab block', build: slab, footprint: [4, 3], households: 72 },
-  { key: 'twin', name: 'Twin towers', build: twin, footprint: [4, 4], households: 96 },
-  { key: 'stepped', name: 'Stepped block', build: stepped, footprint: [4, 4], households: 78 },
+  { key: 'cross', name: 'Cruciform tower', build: cross, footprint: [4, 4], households: 90 },
+  { key: 'urban', name: 'Street block', build: urban, footprint: [4, 4], households: 120 },
   { key: 'cored', name: 'Cored tower', build: cored, footprint: [4, 3], households: 64 },
 ];
 
