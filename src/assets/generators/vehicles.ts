@@ -806,10 +806,19 @@ function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: num
     // A nose, which is most of what makes a head read as facing somewhere.
     lb([0.055, neck + 0.10, 0], [0.098, neck + 0.09, 0], 0.028, 0.016, MAT.FIGURE, 5);
   });
+  // A face. Eyes, brows and a mouth, all small and all dark, set on the front
+  // of the skull. Without them a head is a bean on a stick from every angle,
+  // and at the distance a city builder is played at these three marks are the
+  // whole difference.
   m.painted(TINT.METAL_DARK, () => {
     for (const sz of [1, -1] as const) {
-      lb([0.062, neck + 0.14, sz * 0.030], [0.076, neck + 0.14, sz * 0.030], 0.020, 0.016, MAT.TRIM, 5);
+      // Eye: a small flattened mass sunk into the socket.
+      blob(m, at(0.070, neck + 0.140, sz * 0.032), 0.016 * s, 0.014 * s, 0.022 * s, MAT.TRIM, 5, 2);
+      // Brow above it, angled slightly in towards the nose.
+      lb([0.066, neck + 0.172, sz * 0.058], [0.072, neck + 0.166, sz * 0.014], 0.010, 0.010, MAT.TRIM, 4);
     }
+    // Mouth: one short bar across, below the nose.
+    lb([0.070, neck + 0.050, -0.030], [0.070, neck + 0.050, 0.030], 0.011, 0.011, MAT.TRIM, 4);
   });
   // Hair: a cap over the skull, longer at the back on some.
   if (hair > 0.12) {
@@ -1671,6 +1680,779 @@ const HOTHATCH: CarSpec = {
   },
 };
 
+// ------------------------------------------------------- more sections
+
+/**
+ * A supercar section: almost no sill, a very wide shoulder and a roof that
+ * is barely wider than a person. The proportion is the whole car.
+ */
+const WEDGE: Section = [[0.14, 0.62], [0.28, 0.94], [0.50, 1.06], [0.68, 1.06],
+                        [0.78, 0.84], [0.92, 0.74], [1.06, 0.62], [1.14, 0.40]];
+
+/** A boxy off-roader: vertical sides, square shoulders, a flat roof. */
+const SQUARE: Section = [[0.36, 0.86], [0.62, 1.00], [1.20, 1.02], [1.58, 1.02],
+                         [1.70, 0.98], [1.92, 0.96], [2.06, 0.90], [2.14, 0.72]];
+
+/** A high-sided cargo body: a van or a rigid truck box. */
+const CARGO: Section = [[0.40, 0.92], [0.72, 1.10], [1.60, 1.16], [2.60, 1.16],
+                        [3.10, 1.14], [3.30, 0.96]];
+
+/** A light bar: the thing that makes a vehicle read as an emergency one. */
+function lightBar(m: MeshBuilder, st: Station[], x: number, blue = true): void {
+  const y = topAt(st, x);
+  const hw = hwAt(st, x, y - 0.1) * 0.72;
+  m.painted(TINT.METAL_DARK, () =>
+    m.box([x - 0.22, y, -hw], [x + 0.22, y + 0.09, hw], MAT.TRIM));
+  for (let i = 0; i < 4; i++) {
+    const z = -hw + ((i + 0.5) / 4) * hw * 2;
+    m.painted(((i % 2 === 0) === blue ? TINT.SIGN_LIT : TINT.BRAND) as never, () =>
+      m.box([x - 0.18, y + 0.09, z - 0.16], [x + 0.18, y + 0.28, z + 0.16], MAT.TRIM));
+  }
+}
+
+/** A body-side stripe, for a livery. Follows the flank at the belt line. */
+function stripe(m: MeshBuilder, st: Station[], x0: number, x1: number, y: number,
+  h: number, tint: number): void {
+  m.painted(tint as never, () => {
+    const segs = 8;
+    for (let i = 0; i < segs; i++) {
+      const ax = x0 + ((x1 - x0) * i) / segs, bx = x0 + ((x1 - x0) * (i + 1)) / segs;
+      for (const sz of [1, -1] as const) {
+        const wa = sz * (hwAt(st, ax, y) + 0.012), wb = sz * (hwAt(st, bx, y) + 0.012);
+        if (sz > 0) m.quad([ax, y, wa], [bx, y, wb], [bx, y + h, wb], [ax, y + h, wa], MAT.TRIM);
+        else m.quad([ax, y + h, wa], [bx, y + h, wb], [bx, y, wb], [ax, y, wa], MAT.TRIM);
+      }
+    }
+  });
+}
+
+// ------------------------------------------------------------- supercars
+
+const S_WEDGE: CarSpec = {
+  key: 24, section: WEDGE, axles: [-1.40, 1.48], wheel: 0.38, pad: [3.2, 1.9],
+  plan: [[-2.14, 0.78, 0.78], [-1.86, 0.92, 0.86], [-1.20, 1.00, 0.94],
+         [-0.66, 1.04, 1.16], [0.22, 1.06, 1.20], [1.02, 1.06, 1.18],
+         [1.72, 1.02, 1.02], [2.10, 0.88, 0.92]],
+  cabin: { from: 0.32, to: 0.70, pillars: [] }, glassAbove: 0.60, postWidth: 0.022,
+};
+
+const S_TARGA: CarSpec = {
+  key: 25, section: WEDGE, axles: [-1.44, 1.50], wheel: 0.38, pad: [3.2, 1.9],
+  plan: [[-2.20, 0.78, 0.84], [-1.92, 0.92, 0.92], [-1.24, 1.00, 1.00],
+         [-0.60, 1.04, 1.22], [0.28, 1.06, 1.26], [1.10, 1.05, 1.22],
+         [1.80, 1.00, 1.08], [2.16, 0.86, 0.96]],
+  cabin: { from: 0.34, to: 0.74, pillars: [0.56] }, glassAbove: 0.58,
+  extra: (m, st) => {
+    // The targa band: a painted hoop over the cabin, which is the whole point.
+    m.painted(TINT.METAL_DARK, () => {
+      const y = topAt(st, 0.55);
+      m.box([0.42, y - 0.30, -hwAt(st, 0.55, y - 0.2)], [0.68, y + 0.02, hwAt(st, 0.55, y - 0.2)], MAT.TRIM);
+    });
+  },
+};
+
+const S_HYPER: CarSpec = {
+  key: 26, section: WEDGE, axles: [-1.48, 1.52], wheel: 0.40, pad: [3.3, 2.0],
+  plan: [[-2.28, 0.80, 0.72], [-1.98, 0.94, 0.80], [-1.28, 1.02, 0.90],
+         [-0.62, 1.08, 1.12], [0.30, 1.10, 1.16], [1.14, 1.08, 1.12],
+         [1.86, 1.02, 0.96], [2.22, 0.86, 0.86]],
+  cabin: { from: 0.32, to: 0.70, pillars: [] }, glassAbove: 0.62, postWidth: 0.02,
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      // A rear wing on two swan necks, and a diffuser under the tail.
+      const y = topAt(st, 1.8);
+      for (const sz of [1, -1] as const) {
+        m.box([1.86, y - 0.24, sz * 0.42 - 0.05], [1.98, y + 0.14, sz * 0.42 + 0.05], MAT.TRIM);
+      }
+      m.box([1.78, y + 0.14, -0.78], [2.10, y + 0.21, 0.78], MAT.TRIM);
+      for (let i = 0; i < 5; i++) {
+        m.box([2.02, 0.16, -0.6 + i * 0.3], [2.24, 0.42, -0.54 + i * 0.3], MAT.TRIM);
+      }
+    });
+  },
+};
+
+const S_RACER: CarSpec = {
+  key: 27, section: WEDGE, axles: [-1.42, 1.46], wheel: 0.39, pad: [3.2, 1.9],
+  plan: [[-2.20, 0.82, 0.70], [-1.90, 0.96, 0.78], [-1.22, 1.04, 0.88],
+         [-0.58, 1.10, 1.08], [0.30, 1.12, 1.12], [1.10, 1.10, 1.08],
+         [1.80, 1.04, 0.94], [2.14, 0.88, 0.84]],
+  cabin: { from: 0.34, to: 0.70, pillars: [] }, glassAbove: 0.62,
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      // Splitter, canards and a big swan-neck wing: a racing car in three moves.
+      m.box([-2.30, 0.10, -0.92], [-1.94, 0.17, 0.92], MAT.TRIM);
+      for (const sz of [1, -1] as const) {
+        m.box([-2.16, 0.24, sz * 0.72], [-1.98, 0.30, sz * 0.96], MAT.TRIM);
+        m.box([1.82, topAt(st, 1.8) - 0.10, sz * 0.5 - 0.05], [1.94, topAt(st, 1.8) + 0.40, sz * 0.5 + 0.05], MAT.TRIM);
+      }
+      m.box([1.70, topAt(st, 1.8) + 0.40, -0.86], [2.14, topAt(st, 1.8) + 0.48, 0.86], MAT.TRIM);
+    });
+    stripe(m, st, -2.0, 2.0, 0.52, 0.10, TINT.SIGN_LIT);
+  },
+};
+
+const S_RETRO: CarSpec = {
+  key: 28, section: SPORT, axles: [-1.30, 1.34], wheel: 0.37, pad: [3.0, 1.8],
+  plan: [[-2.00, 0.76, 0.96], [-1.74, 0.88, 1.02], [-1.10, 0.96, 1.10],
+         [-0.50, 0.98, 1.28], [0.30, 0.98, 1.32], [1.02, 0.96, 1.26],
+         [1.66, 0.90, 1.10], [1.98, 0.78, 1.00]],
+  cabin: { from: 0.34, to: 0.78, pillars: [0.58] }, glassAbove: 0.60,
+  extra: (m, st) => {
+    // Chrome bumpers and a stripe: the fifties and sixties in two details.
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const [x, w] of [[-1.98, 0.14], [1.96, 0.14]] as const) {
+        const hw = hwAt(st, x, 0.5) * 0.92;
+        m.box([x - w, 0.42, -hw], [x + w, 0.58, hw], MAT.METAL);
+      }
+    });
+    stripe(m, st, -1.6, 1.6, 0.60, 0.09, TINT.METAL_DARK);
+  },
+};
+
+const S_SPIDER: CarSpec = {
+  key: 29, section: WEDGE, axles: [-1.36, 1.42], wheel: 0.37, pad: [3.1, 1.9],
+  plan: [[-2.10, 0.78, 0.82], [-1.84, 0.92, 0.90], [-1.18, 1.00, 0.98],
+         [-0.56, 1.04, 1.14], [0.30, 1.06, 1.16], [1.06, 1.04, 1.14],
+         [1.74, 0.98, 1.02], [2.06, 0.84, 0.92]],
+  cabin: { from: 0.36, to: 0.72, pillars: [] }, glassAbove: 0.64,
+  extra: (m, st) => {
+    // Twin humps behind the seats: what a spider has instead of a roofline.
+    m.keyed(29, () => {
+      for (const sz of [1, -1] as const) {
+        const y = topAt(st, 1.1);
+        bone(m, [0.86, y - 0.16, sz * 0.34], [1.34, y - 0.10, sz * 0.34], 0.14, 0.16, MAT.PAINT, 7);
+      }
+    });
+  },
+};
+
+// ----------------------------------------------------------- basic cars
+
+const B_COMPACT: CarSpec = {
+  key: 30, section: CAR, axles: [-1.22, 1.26], wheel: 0.32, pad: [2.8, 1.8],
+  plan: [[-1.92, 0.80, 1.00], [-1.70, 0.92, 1.10], [-1.12, 0.98, 1.28],
+         [-0.42, 1.00, 1.48], [0.36, 1.00, 1.50], [1.08, 0.98, 1.46],
+         [1.62, 0.92, 1.34], [1.90, 0.80, 1.14]],
+  cabin: { from: 0.28, to: 0.88, pillars: [0.54] },
+};
+
+const B_SEDAN: CarSpec = {
+  key: 31, section: CAR, axles: [-1.44, 1.50], wheel: 0.34, pad: [3.2, 1.9],
+  plan: [[-2.26, 0.80, 0.98], [-2.02, 0.94, 1.06], [-1.38, 1.02, 1.20],
+         [-0.68, 1.04, 1.46], [0.16, 1.04, 1.50], [0.92, 1.02, 1.46],
+         [1.56, 0.98, 1.24], [2.28, 0.84, 1.10]],
+  cabin: { from: 0.28, to: 0.74, pillars: [0.46, 0.62] },
+};
+
+const B_WAGON: CarSpec = {
+  key: 32, section: CAR, axles: [-1.46, 1.54], wheel: 0.34, pad: [3.3, 1.9],
+  plan: [[-2.32, 0.80, 0.98], [-2.08, 0.94, 1.06], [-1.42, 1.02, 1.22],
+         [-0.70, 1.04, 1.50], [0.16, 1.04, 1.56], [1.10, 1.03, 1.56],
+         [2.02, 0.99, 1.50], [2.36, 0.86, 1.26]],
+  cabin: { from: 0.28, to: 0.92, pillars: [0.46, 0.64, 0.80] },
+};
+
+const B_THREEDOOR: CarSpec = {
+  key: 33, section: CAR, axles: [-1.26, 1.30], wheel: 0.33, pad: [2.9, 1.8],
+  plan: [[-1.98, 0.80, 1.00], [-1.76, 0.92, 1.10], [-1.16, 0.98, 1.28],
+         [-0.46, 1.00, 1.46], [0.34, 1.00, 1.48], [1.06, 0.98, 1.44],
+         [1.58, 0.94, 1.34], [1.94, 0.82, 1.16]],
+  cabin: { from: 0.30, to: 0.86, pillars: [0.62] },
+};
+
+const B_FIVEDOOR: CarSpec = {
+  key: 34, section: CAR, axles: [-1.30, 1.36], wheel: 0.33, pad: [3.0, 1.8],
+  plan: [[-2.06, 0.80, 1.02], [-1.84, 0.92, 1.12], [-1.20, 0.99, 1.30],
+         [-0.48, 1.01, 1.50], [0.36, 1.01, 1.54], [1.10, 0.99, 1.50],
+         [1.66, 0.95, 1.40], [2.02, 0.82, 1.18]],
+  cabin: { from: 0.28, to: 0.88, pillars: [0.50, 0.68] },
+};
+
+const B_KEI: CarSpec = {
+  key: 35, section: TALL, axles: [-1.02, 1.06], wheel: 0.29, pad: [2.5, 1.7],
+  plan: [[-1.62, 0.72, 1.30], [-1.44, 0.82, 1.52], [-1.00, 0.86, 1.76],
+         [-0.40, 0.88, 1.88], [0.34, 0.88, 1.90], [0.98, 0.87, 1.86],
+         [1.44, 0.82, 1.72], [1.62, 0.72, 1.44]],
+  cabin: { from: 0.24, to: 0.90, pillars: [0.48, 0.70] },
+};
+
+const B_OLDSALOON: CarSpec = {
+  key: 36, section: CAR, axles: [-1.50, 1.58], wheel: 0.35, pad: [3.3, 1.9],
+  plan: [[-2.36, 0.86, 1.06], [-2.10, 0.96, 1.12], [-1.44, 1.02, 1.20],
+         [-0.72, 1.04, 1.42], [0.14, 1.04, 1.46], [0.94, 1.03, 1.44],
+         [1.60, 1.00, 1.26], [2.38, 0.90, 1.14]],
+  cabin: { from: 0.30, to: 0.74, pillars: [0.44, 0.60] },
+  extra: (m, st) => {
+    // Chrome trim along the flank, which every car of this age had.
+    stripe(m, st, -1.9, 1.9, 0.62, 0.055, TINT.SIGN_LIT);
+  },
+};
+
+const B_MICROCAR: CarSpec = {
+  key: 37, section: TALL, axles: [-0.80, 0.84], wheel: 0.26, pad: [2.1, 1.6],
+  plan: [[-1.24, 0.66, 1.20], [-1.10, 0.76, 1.42], [-0.76, 0.80, 1.62],
+         [-0.30, 0.82, 1.72], [0.26, 0.82, 1.72], [0.74, 0.81, 1.66],
+         [1.08, 0.76, 1.52], [1.24, 0.66, 1.28]],
+  cabin: { from: 0.26, to: 0.86, pillars: [0.56] },
+};
+
+const B_NOTCHBACK: CarSpec = {
+  key: 38, section: CAR, axles: [-1.38, 1.44], wheel: 0.34, pad: [3.1, 1.9],
+  plan: [[-2.16, 0.80, 1.00], [-1.94, 0.94, 1.08], [-1.32, 1.01, 1.22],
+         [-0.62, 1.03, 1.46], [0.20, 1.03, 1.50], [0.98, 1.01, 1.44],
+         [1.62, 0.97, 1.28], [2.18, 0.84, 1.12]],
+  cabin: { from: 0.30, to: 0.78, pillars: [0.50, 0.66] },
+};
+
+const B_CABRIO: CarSpec = {
+  key: 39, section: CAR, axles: [-1.30, 1.36], wheel: 0.33, pad: [3.0, 1.8],
+  plan: [[-2.04, 0.80, 1.00], [-1.82, 0.92, 1.08], [-1.20, 0.99, 1.20],
+         [-0.50, 1.01, 1.38], [0.34, 1.01, 1.42], [1.08, 0.99, 1.38],
+         [1.66, 0.95, 1.24], [2.00, 0.82, 1.10]],
+  cabin: { from: 0.34, to: 0.76, pillars: [] }, glassAbove: 0.64,
+  extra: (m, st) => {
+    // A folded hood stacked behind the cabin.
+    m.painted(TINT.METAL_DARK, () => {
+      const y = topAt(st, 1.3);
+      bone(m, [1.06, y - 0.16, -hwAt(st, 1.3, y - 0.2) * 0.7],
+            [1.06, y - 0.16, hwAt(st, 1.3, y - 0.2) * 0.7], 0.13, 0.13, MAT.TRIM, 7);
+    });
+  },
+};
+
+// ---------------------------------------------------------- medium cars
+
+const M_EXECUTIVE: CarSpec = {
+  key: 40, section: CAR, axles: [-1.62, 1.70], wheel: 0.36, pad: [3.5, 1.9],
+  plan: [[-2.54, 0.82, 1.02], [-2.28, 0.96, 1.10], [-1.56, 1.04, 1.24],
+         [-0.78, 1.07, 1.50], [0.20, 1.07, 1.54], [1.06, 1.05, 1.50],
+         [1.76, 1.01, 1.28], [2.56, 0.88, 1.14]],
+  cabin: { from: 0.28, to: 0.76, pillars: [0.46, 0.62] },
+};
+
+const M_TOURER: CarSpec = {
+  key: 41, section: CAR, axles: [-1.60, 1.68], wheel: 0.36, pad: [3.5, 1.9],
+  plan: [[-2.52, 0.82, 1.02], [-2.26, 0.96, 1.10], [-1.54, 1.04, 1.26],
+         [-0.76, 1.07, 1.54], [0.22, 1.07, 1.60], [1.20, 1.06, 1.60],
+         [2.20, 1.02, 1.54], [2.56, 0.88, 1.30]],
+  cabin: { from: 0.28, to: 0.92, pillars: [0.46, 0.64, 0.80] },
+};
+
+const M_SUVMID: CarSpec = {
+  key: 42, section: TALL, axles: [-1.52, 1.58], wheel: 0.42, pad: [3.3, 2.0],
+  plan: [[-2.34, 0.82, 1.34], [-2.10, 0.96, 1.56], [-1.44, 1.03, 1.82],
+         [-0.64, 1.06, 1.96], [0.28, 1.06, 1.98], [1.18, 1.05, 1.96],
+         [2.04, 1.00, 1.86], [2.36, 0.86, 1.56]],
+  cabin: { from: 0.26, to: 0.90, pillars: [0.46, 0.66, 0.82] },
+};
+
+const M_MPVMID: CarSpec = {
+  key: 43, section: TALL, axles: [-1.48, 1.54], wheel: 0.36, pad: [3.4, 1.9],
+  plan: [[-2.36, 0.82, 1.36], [-2.12, 0.94, 1.60], [-1.40, 1.01, 1.96],
+         [-0.50, 1.03, 2.06], [0.50, 1.03, 2.06], [1.40, 1.02, 2.00],
+         [2.10, 0.97, 1.76], [2.40, 0.84, 1.46]],
+  cabin: { from: 0.22, to: 0.92, pillars: [0.44, 0.64, 0.80] },
+};
+
+const M_SPORTSEDAN: CarSpec = {
+  key: 44, section: SPORT, axles: [-1.54, 1.60], wheel: 0.38, pad: [3.4, 1.9],
+  plan: [[-2.42, 0.82, 1.00], [-2.16, 0.96, 1.06], [-1.48, 1.04, 1.18],
+         [-0.72, 1.07, 1.40], [0.22, 1.07, 1.44], [1.06, 1.05, 1.40],
+         [1.74, 1.00, 1.22], [2.44, 0.86, 1.08]],
+  cabin: { from: 0.30, to: 0.76, pillars: [0.48, 0.64] },
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      const d = deckAt(st, 2.0);
+      m.box([1.86, d, -0.78], [2.06, d + 0.07, 0.78], MAT.TRIM);
+      for (const sz of [1, -1] as const) {
+        m.pipe([2.34, 0.32, sz * 0.44], [2.50, 0.32, sz * 0.44], 0.07, MAT.TRIM, 8);
+      }
+    });
+  },
+};
+
+// --------------------------------------------------------------- cargo
+
+const C_CARGOVAN: CarSpec = {
+  key: 45, section: CARGO, axles: [-1.80, 1.95], wheel: 0.40, pad: [3.8, 2.1],
+  plan: [[-2.70, 0.84, 1.70], [-2.46, 0.96, 2.04], [-1.80, 1.00, 2.44],
+         [-1.30, 1.02, 2.90], [0.70, 1.02, 2.96], [2.40, 1.02, 2.94],
+         [2.86, 0.96, 2.76], [3.02, 0.86, 2.36]],
+  cabin: { from: 0.05, to: 0.28, pillars: [0.17] },
+};
+
+const C_LUTON: CarSpec = {
+  key: 46, section: CARGO, axles: [-1.90, 2.05], wheel: 0.42, pad: [4.1, 2.1],
+  plan: [[-2.96, 0.84, 1.76], [-2.70, 0.96, 2.10], [-2.00, 1.00, 2.50],
+         [-1.50, 1.02, 2.66], [-1.30, 1.04, 3.20], [2.60, 1.04, 3.24],
+         [3.20, 1.00, 3.20], [3.36, 0.90, 2.90]],
+  cabin: { from: 0.04, to: 0.24, pillars: [0.15] },
+  extra: (m) => {
+    // The luton: the box overhanging the cab, which is what names the type.
+    m.keyed(46, () => m.box([-2.50, 2.30, -1.06], [-1.30, 3.18, 1.06], MAT.PAINT));
+  },
+};
+
+const C_TIPPER: CarSpec = {
+  key: 47, section: TALL, axles: [-1.85, 2.00], wheel: 0.44, pad: [4.0, 2.1],
+  plan: [[-2.90, 0.84, 1.56], [-2.64, 0.96, 1.86], [-1.94, 1.02, 2.28],
+         [-1.10, 1.04, 2.42], [-0.80, 1.02, 1.30], [2.60, 1.00, 1.26],
+         [3.00, 0.96, 1.22], [3.16, 0.86, 1.10]],
+  cabin: { from: 0.04, to: 0.30, pillars: [0.18] },
+  extra: (m) => {
+    // The skip body, tipped slightly, on a subframe.
+    m.keyed(47, () => {
+      m.box([-0.70, 0.94, -1.04], [3.00, 1.90, 1.04], MAT.PAINT);
+      m.box([-0.60, 1.00, -0.94], [2.90, 1.84, 0.94], MAT.METAL);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-0.80, 0.80, -1.02], [3.10, 0.94, 1.02], MAT.TRIM);
+      for (let i = 0; i < 5; i++) m.box([-0.40 + i * 0.8, 1.90, -1.06], [-0.24 + i * 0.8, 2.00, 1.06], MAT.TRIM);
+    });
+  },
+};
+
+const C_FLATBED: CarSpec = {
+  key: 48, section: TALL, axles: [-1.90, 2.10], wheel: 0.44, pad: [4.2, 2.1],
+  plan: [[-3.00, 0.84, 1.56], [-2.74, 0.96, 1.86], [-2.04, 1.02, 2.28],
+         [-1.20, 1.04, 2.42], [-0.90, 1.02, 1.16], [2.90, 1.00, 1.12],
+         [3.30, 0.96, 1.08], [3.46, 0.86, 1.00]],
+  cabin: { from: 0.04, to: 0.28, pillars: [0.16] },
+  extra: (m) => {
+    // A flat deck with dropsides folded down and a load strapped to it.
+    m.painted(TINT.WOOD, () => m.box([-0.82, 1.06, -1.06], [3.30, 1.16, 1.06], MAT.TIMBER));
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sz of [1, -1] as const) {
+        m.box([-0.82, 1.16, sz * 1.06 - 0.06], [3.30, 1.52, sz * 1.06 + 0.06], MAT.TRIM);
+      }
+      for (let i = 0; i < 4; i++) m.box([0.0 + i * 1.0, 1.16, -1.02], [0.1 + i * 1.0, 2.10, 1.02], MAT.TRIM);
+    });
+    m.painted(TINT.GREEN, () => m.box([0.2, 1.16, -0.86], [2.6, 1.94, 0.86], MAT.TRIM));
+  },
+};
+
+const C_FRIDGE: CarSpec = {
+  key: 49, section: CARGO, axles: [-1.95, 2.10], wheel: 0.42, pad: [4.2, 2.1],
+  plan: [[-3.04, 0.84, 1.76], [-2.78, 0.96, 2.10], [-2.06, 1.00, 2.52],
+         [-1.56, 1.02, 2.70], [-1.36, 1.04, 3.30], [2.90, 1.04, 3.34],
+         [3.44, 1.00, 3.28], [3.60, 0.90, 2.98]],
+  cabin: { from: 0.04, to: 0.22, pillars: [0.14] },
+  extra: (m) => {
+    // The refrigeration unit on the front of the box.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-1.44, 2.60, -0.72], [-1.30, 3.24, 0.72], MAT.TRIM);
+      m.box([-1.56, 2.74, -0.58], [-1.44, 3.12, 0.58], MAT.METAL);
+    });
+  },
+};
+
+const C_DROPSIDE: CarSpec = {
+  key: 50, section: TALL, axles: [-1.70, 1.85], wheel: 0.40, pad: [3.8, 2.0],
+  plan: [[-2.70, 0.82, 1.44], [-2.46, 0.94, 1.72], [-1.80, 1.00, 2.10],
+         [-1.00, 1.02, 2.22], [-0.70, 1.00, 1.10], [2.40, 0.98, 1.06],
+         [2.80, 0.94, 1.02], [2.96, 0.84, 0.96]],
+  cabin: { from: 0.05, to: 0.32, pillars: [0.19] },
+  extra: (m) => {
+    m.keyed(50, () => {
+      for (const sz of [1, -1] as const) {
+        m.box([-0.62, 1.00, sz * 1.00 - 0.06], [2.80, 1.62, sz * 1.00 + 0.06], MAT.PAINT);
+      }
+      m.box([2.74, 1.00, -1.00], [2.86, 1.62, 1.00], MAT.PAINT);
+    });
+    m.painted(TINT.WOOD, () => m.box([-0.62, 0.96, -1.00], [2.86, 1.04, 1.00], MAT.TIMBER));
+  },
+};
+
+// ----------------------------------------------------------- off-roaders
+
+const O_GWAGON: CarSpec = {
+  key: 51, section: SQUARE, axles: [-1.42, 1.48], wheel: 0.44, pad: [3.2, 2.0],
+  plan: [[-2.20, 0.84, 1.56], [-2.00, 0.98, 1.84], [-1.40, 1.02, 2.06],
+         [-0.60, 1.03, 2.12], [0.40, 1.03, 2.12], [1.30, 1.03, 2.12],
+         [2.06, 1.00, 2.08], [2.24, 0.88, 1.86]],
+  cabin: { from: 0.20, to: 0.92, pillars: [0.42, 0.62, 0.80] }, glassAbove: 0.66,
+  extra: (m, st) => {
+    // Spare wheel on the back door and a snorkel up the A pillar: the two
+    // things that say this one goes off the road.
+    wheel(m, 2.34, 1.30, 0.0, 0.42, 0.15, 14);
+    m.painted(TINT.METAL_DARK, () => {
+      const hw = hwAt(st, -1.0, 1.6);
+      m.pipe([-1.30, 0.9, hw + 0.04], [-1.30, topAt(st, -1.0) + 0.10, hw + 0.04], 0.07, MAT.TRIM, 8);
+      for (const sz of [1, -1] as const) {
+        m.box([-1.2, 0.62, sz * (hw + 0.02)], [1.6, 0.74, sz * (hw + 0.1)], MAT.TRIM);
+      }
+    });
+  },
+};
+
+const O_CRUISER: CarSpec = {
+  key: 52, section: SQUARE, axles: [-1.56, 1.62], wheel: 0.46, pad: [3.4, 2.0],
+  plan: [[-2.40, 0.84, 1.60], [-2.18, 0.98, 1.86], [-1.52, 1.03, 2.10],
+         [-0.66, 1.05, 2.18], [0.42, 1.05, 2.18], [1.40, 1.05, 2.16],
+         [2.24, 1.01, 2.10], [2.44, 0.88, 1.86]],
+  cabin: { from: 0.20, to: 0.92, pillars: [0.42, 0.62, 0.80] }, glassAbove: 0.66,
+  extra: (m, st) => {
+    // Roof rack and a light bar over the screen.
+    m.painted(TINT.METAL_DARK, () => {
+      const y = topAt(st, 0.4);
+      for (const sz of [1, -1] as const) {
+        m.box([-1.10, y, sz * 0.86 - 0.05], [1.90, y + 0.10, sz * 0.86 + 0.05], MAT.TRIM);
+      }
+      for (let i = 0; i < 5; i++) m.box([-1.0 + i * 0.7, y, -0.9], [-0.92 + i * 0.7, y + 0.08, 0.9], MAT.TRIM);
+      m.box([-1.30, y + 0.02, -0.62], [-1.14, y + 0.18, 0.62], MAT.TRIM);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      const y = topAt(st, 0.4);
+      for (let i = 0; i < 4; i++) {
+        m.box([-1.30, y + 0.06, -0.5 + i * 0.3], [-1.24, y + 0.16, -0.34 + i * 0.3], MAT.TRIM);
+      }
+    });
+  },
+};
+
+const O_JEEP: CarSpec = {
+  key: 53, section: SQUARE, axles: [-1.26, 1.32], wheel: 0.42, pad: [3.0, 1.9],
+  plan: [[-1.94, 0.82, 1.46], [-1.76, 0.94, 1.70], [-1.24, 0.98, 1.90],
+         [-0.50, 0.99, 1.96], [0.36, 0.99, 1.96], [1.16, 0.99, 1.94],
+         [1.82, 0.96, 1.90], [1.98, 0.84, 1.70]],
+  cabin: { from: 0.22, to: 0.90, pillars: [0.52] }, glassAbove: 0.68,
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      // Flat screen frame and a bar across the back: an open-topped shape.
+      const y = topAt(st, 0.3);
+      for (const sz of [1, -1] as const) {
+        m.pipe([-0.62, y - 0.5, sz * 0.82], [-0.42, y + 0.04, sz * 0.82], 0.05, MAT.TRIM, 6);
+        m.pipe([1.10, y - 0.5, sz * 0.82], [1.10, y + 0.04, sz * 0.82], 0.05, MAT.TRIM, 6);
+      }
+      m.pipe([1.10, y + 0.04, -0.82], [1.10, y + 0.04, 0.82], 0.05, MAT.TRIM, 6);
+    });
+    wheel(m, 1.98, 1.20, 0.0, 0.40, 0.14, 14);
+  },
+};
+
+const O_PICKUP4X4: CarSpec = {
+  key: 54, section: SQUARE, axles: [-1.60, 1.80], wheel: 0.46, pad: [3.7, 2.0],
+  plan: [[-2.66, 0.84, 1.56], [-2.42, 0.96, 1.84], [-1.76, 1.02, 2.10],
+         [-0.90, 1.04, 2.20], [0.30, 1.04, 2.16], [0.76, 1.02, 1.34],
+         [2.60, 1.00, 1.30], [2.82, 0.88, 1.16]],
+  cabin: { from: 0.06, to: 0.46, pillars: [0.24, 0.36] }, glassAbove: 0.66,
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([0.84, 0.92, -1.00], [2.62, 1.00, 1.00], MAT.METAL);
+      // A roll bar behind the cab with lamps on it.
+      const y = topAt(st, 0.3);
+      for (const sz of [1, -1] as const) m.pipe([0.60, 1.0, sz * 0.78], [0.60, y + 0.16, sz * 0.62], 0.06, MAT.TRIM, 7);
+      m.pipe([0.60, y + 0.16, -0.62], [0.60, y + 0.16, 0.62], 0.06, MAT.TRIM, 7);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      const y = topAt(st, 0.3);
+      for (const sz of [1, -1] as const) m.box([0.52, y + 0.12, sz * 0.34 - 0.1], [0.68, y + 0.30, sz * 0.34 + 0.1], MAT.TRIM);
+    });
+  },
+};
+
+const O_EXPEDITION: CarSpec = {
+  key: 55, section: SQUARE, axles: [-1.66, 1.74], wheel: 0.50, pad: [3.6, 2.1],
+  plan: [[-2.50, 0.86, 1.70], [-2.28, 0.98, 2.00], [-1.62, 1.04, 2.30],
+         [-0.70, 1.06, 2.42], [0.44, 1.06, 2.44], [1.50, 1.06, 2.42],
+         [2.36, 1.02, 2.32], [2.56, 0.90, 2.04]],
+  cabin: { from: 0.20, to: 0.90, pillars: [0.42, 0.64, 0.80] }, glassAbove: 0.68,
+  extra: (m, st) => {
+    m.painted(TINT.METAL_DARK, () => {
+      const y = topAt(st, 0.4);
+      // A roof tent box and a ladder up the back.
+      m.box([-0.90, y, -0.94], [1.70, y + 0.36, 0.94], MAT.TRIM);
+      for (let i = 0; i < 7; i++) {
+        m.box([2.44, 0.8 + i * 0.22, -0.3], [2.56, 0.86 + i * 0.22, 0.3], MAT.TRIM);
+      }
+      for (const sz of [1, -1] as const) m.box([2.44, 0.8, sz * 0.3 - 0.05], [2.56, y, sz * 0.3 + 0.05], MAT.TRIM);
+    });
+  },
+};
+
+// -------------------------------------------------------------- trucks
+
+const T_TANKER: CarSpec = {
+  key: 56, section: TALL, axles: [-2.30, 2.60], wheel: 0.48, pad: [5.0, 2.2],
+  plan: [[-3.70, 0.86, 1.70], [-3.44, 0.98, 2.06], [-2.70, 1.04, 2.60],
+         [-1.90, 1.06, 2.74], [-1.60, 1.02, 1.20], [3.60, 1.00, 1.16],
+         [4.00, 0.96, 1.12], [4.16, 0.86, 1.02]],
+  cabin: { from: 0.03, to: 0.24, pillars: [0.14] },
+  extra: (m) => {
+    // The barrel, on saddles, with a walkway and a manhole on top.
+    // The barrel, as a swept prism rather than a hand-wound cylinder: bone()
+    // caps both ends the right way round, and a tanker whose end cap faces
+    // inwards reads as an open trough.
+    m.keyed(56, () => bone(m, [-1.50, 1.94, 0], [3.70, 1.94, 0], 0.94, 0.94, MAT.PAINT, 14));
+    m.painted(TINT.METAL_DARK, () => {
+      for (const x of [-1.20, 0.60, 2.40, 3.40]) {
+        m.box([x - 0.06, 1.00, -1.00], [x + 0.06, 1.94, 1.00], MAT.TRIM);
+      }
+      m.box([-1.40, 2.86, -0.34], [3.60, 2.94, 0.34], MAT.TRIM);
+      for (const x of [0.0, 1.6, 3.0]) m.cylinder(x, 0, 0.24, 2.88, 3.08, 8, MAT.TRIM);
+    });
+  },
+};
+
+const T_MIXER: CarSpec = {
+  key: 57, section: TALL, axles: [-2.20, 2.50], wheel: 0.48, pad: [4.8, 2.2],
+  plan: [[-3.50, 0.86, 1.70], [-3.24, 0.98, 2.06], [-2.50, 1.04, 2.60],
+         [-1.70, 1.06, 2.74], [-1.40, 1.02, 1.24], [3.40, 1.00, 1.20],
+         [3.80, 0.96, 1.14], [3.96, 0.86, 1.04]],
+  cabin: { from: 0.03, to: 0.24, pillars: [0.14] },
+  extra: (m) => {
+    // The drum, tilted, on rollers, with a chute at the back.
+    m.keyed(57, () => {
+      const A: Vec3 = [-1.10, 1.70, 0], B: Vec3 = [2.90, 2.60, 0];
+      bone(m, A, [0.4, 2.05, 0], 0.55, 1.05, MAT.PAINT, 12);
+      bone(m, [0.4, 2.05, 0], [1.9, 2.40, 0], 1.05, 1.05, MAT.PAINT, 12);
+      bone(m, [1.9, 2.40, 0], B, 1.05, 0.50, MAT.PAINT, 12);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const x of [-0.9, 2.6]) m.box([x - 0.08, 1.06, -0.7], [x + 0.08, 1.9, 0.7], MAT.TRIM);
+      m.box([2.90, 1.90, -0.42], [3.90, 2.10, 0.42], MAT.TRIM);
+      m.box([3.70, 1.20, -0.34], [3.96, 1.96, 0.34], MAT.TRIM);
+    });
+  },
+};
+
+const T_CARRIER: CarSpec = {
+  key: 58, section: TALL, axles: [-2.40, 2.70], wheel: 0.46, pad: [5.2, 2.2],
+  plan: [[-3.90, 0.86, 1.66], [-3.64, 0.98, 2.02], [-2.90, 1.04, 2.56],
+         [-2.10, 1.06, 2.70], [-1.80, 1.02, 1.10], [3.80, 1.00, 1.06],
+         [4.20, 0.96, 1.02], [4.36, 0.86, 0.96]],
+  cabin: { from: 0.03, to: 0.22, pillars: [0.13] },
+  extra: (m, st) => {
+    // Two decks of ramps with cars on them, which is the whole vehicle.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const y of [0.98, 2.60]) {
+        for (const sz of [1, -1] as const) {
+          m.box([-1.70, y, sz * 1.02 - 0.06], [4.10, y + 0.12, sz * 1.02 + 0.06], MAT.TRIM);
+        }
+        for (let i = 0; i < 8; i++) m.box([-1.6 + i * 0.76, y, -1.02], [-1.5 + i * 0.76, y + 0.06, 1.02], MAT.TRIM);
+      }
+      for (const x of [-1.70, 1.20, 4.10]) {
+        for (const sz of [1, -1] as const) m.box([x - 0.07, 0.98, sz * 1.0 - 0.07], [x + 0.07, 2.72, sz * 1.0 + 0.07], MAT.TRIM);
+      }
+    });
+    void st;
+    parkedVehicle(m, 5801, 0.4, 0, 0, 'car', 31);
+    parkedVehicle(m, 5817, 3.0, 0, 0, 'car', 44);
+  },
+};
+
+const T_SKIP: CarSpec = {
+  key: 59, section: TALL, axles: [-1.90, 2.10], wheel: 0.44, pad: [4.2, 2.1],
+  plan: [[-3.00, 0.84, 1.60], [-2.74, 0.96, 1.90], [-2.04, 1.02, 2.34],
+         [-1.20, 1.04, 2.48], [-0.90, 1.02, 1.20], [2.90, 1.00, 1.16],
+         [3.30, 0.96, 1.10], [3.46, 0.86, 1.00]],
+  cabin: { from: 0.04, to: 0.28, pillars: [0.16] },
+  extra: (m) => {
+    // The skip itself, and the two lifting arms over the cab.
+    m.painted(TINT.ACCENT, () => {
+      m.box([0.10, 1.06, -1.02], [2.90, 2.10, 1.02], MAT.METAL);
+      m.box([0.20, 1.14, -0.92], [2.80, 2.02, 0.92], MAT.TRIM);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sz of [1, -1] as const) {
+        m.pipe([-0.60, 1.20, sz * 0.86], [-0.10, 2.60, sz * 0.86], 0.09, MAT.TRIM, 7);
+        m.pipe([-0.10, 2.60, sz * 0.86], [1.40, 2.60, sz * 0.86], 0.09, MAT.TRIM, 7);
+      }
+    });
+  },
+};
+
+const T_RIGID: CarSpec = {
+  key: 60, section: CARGO, axles: [-2.10, 2.40], wheel: 0.46, pad: [4.8, 2.2],
+  plan: [[-3.50, 0.86, 1.80], [-3.24, 0.98, 2.16], [-2.54, 1.04, 2.66],
+         [-1.90, 1.06, 2.90], [-1.60, 1.06, 3.40], [3.40, 1.06, 3.44],
+         [3.90, 1.02, 3.38], [4.06, 0.90, 3.00]],
+  cabin: { from: 0.03, to: 0.22, pillars: [0.13] },
+  extra: (m) => {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 9; i++) {
+        const y = 0.9 + i * 0.26;
+        m.box([4.00, y, -1.00], [4.08, y + 0.18, 1.00], MAT.TRIM);
+      }
+      m.box([4.06, 0.50, -1.06], [4.52, 0.68, 1.06], MAT.TRIM);
+    });
+  },
+};
+
+const T_REFUSE: CarSpec = {
+  key: 61, section: CARGO, axles: [-2.00, 2.30], wheel: 0.46, pad: [4.6, 2.2],
+  plan: [[-3.30, 0.86, 1.76], [-3.04, 0.98, 2.12], [-2.34, 1.04, 2.60],
+         [-1.80, 1.06, 2.84], [-1.50, 1.06, 3.10], [2.90, 1.06, 3.14],
+         [3.40, 1.02, 2.70], [3.56, 0.90, 2.20]],
+  cabin: { from: 0.03, to: 0.24, pillars: [0.14] },
+  extra: (m) => {
+    // The bin lift on the back, and two wheelie bins waiting beside it.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([3.30, 0.70, -1.02], [3.80, 2.30, 1.02], MAT.TRIM);
+      m.box([3.76, 0.60, -0.90], [4.10, 1.20, 0.90], MAT.TRIM);
+    });
+    for (const [pz, t] of [[-1.6, TINT.GREEN], [-2.4, TINT.BRAND]] as const) {
+      m.painted(t as never, () => {
+        m.box([3.4, 0, pz - 0.34], [4.1, 1.06, pz + 0.34], MAT.TRIM);
+        m.box([3.36, 1.06, pz - 0.38], [4.14, 1.16, pz + 0.38], MAT.TRIM);
+      });
+    }
+  },
+};
+
+// -------------------------------------------------------- service fleet
+
+const E_AMBULANCE: CarSpec = {
+  key: 62, section: CARGO, axles: [-1.85, 2.00], wheel: 0.40, pad: [4.0, 2.1],
+  plan: [[-2.86, 0.84, 1.72], [-2.60, 0.96, 2.06], [-1.94, 1.02, 2.46],
+         [-1.44, 1.04, 2.66], [-1.24, 1.06, 3.00], [2.70, 1.06, 3.04],
+         [3.16, 1.02, 2.92], [3.32, 0.90, 2.50]],
+  cabin: { from: 0.04, to: 0.24, pillars: [0.15] },
+  extra: (m, st) => {
+    lightBar(m, st, -1.90, true);
+    stripe(m, st, -2.6, 3.2, 1.30, 0.34, TINT.GREEN);
+    m.painted(TINT.SIGN_LIT, () => {
+      // Battenburg blocks along the body, which is what these actually carry.
+      for (let i = 0; i < 8; i++) {
+        for (const sz of [1, -1] as const) {
+          const x = -2.2 + i * 0.66;
+          const w = hwAt(st, x, 1.9) + 0.014;
+          m.box([x, 1.64, Math.min(sz * w, sz * (w + 0.01))],
+                [x + 0.5, 2.16, Math.max(sz * w, sz * (w + 0.01))], MAT.TRIM);
+        }
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 8; i++) m.box([3.20, 0.9 + i * 0.26, -0.98], [3.28, 1.08 + i * 0.26, 0.98], MAT.TRIM);
+    });
+  },
+};
+
+const E_POLICE: CarSpec = {
+  key: 63, section: CAR, axles: [-1.46, 1.54], wheel: 0.35, pad: [3.3, 1.9],
+  plan: [[-2.32, 0.80, 1.00], [-2.08, 0.94, 1.08], [-1.42, 1.02, 1.24],
+         [-0.70, 1.05, 1.52], [0.16, 1.05, 1.58], [1.10, 1.04, 1.56],
+         [2.02, 1.00, 1.48], [2.36, 0.86, 1.24]],
+  cabin: { from: 0.28, to: 0.90, pillars: [0.46, 0.64, 0.80] },
+  extra: (m, st) => {
+    lightBar(m, st, 0.10, true);
+    stripe(m, st, -2.1, 2.2, 0.66, 0.30, TINT.SIGN_LIT);
+  },
+};
+
+const E_POLICEVAN: CarSpec = {
+  key: 64, section: CARGO, axles: [-1.80, 1.95], wheel: 0.40, pad: [3.9, 2.1],
+  plan: [[-2.76, 0.84, 1.70], [-2.50, 0.96, 2.04], [-1.84, 1.00, 2.44],
+         [-1.34, 1.02, 2.80], [0.66, 1.02, 2.86], [2.40, 1.02, 2.84],
+         [2.90, 0.96, 2.66], [3.06, 0.86, 2.26]],
+  cabin: { from: 0.05, to: 0.28, pillars: [0.17] },
+  extra: (m, st) => {
+    lightBar(m, st, -1.80, true);
+    stripe(m, st, -2.4, 2.9, 1.24, 0.32, TINT.SIGN_LIT);
+    // Window grilles over the rear side glass.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sz of [1, -1] as const) {
+        const w = hwAt(st, 1.4, 2.2) + 0.02;
+        for (let i = 0; i < 5; i++) {
+          m.box([0.7 + i * 0.3, 1.9, Math.min(sz * w, sz * (w + 0.02))],
+                [0.76 + i * 0.3, 2.5, Math.max(sz * w, sz * (w + 0.02))], MAT.TRIM);
+        }
+      }
+    });
+  },
+};
+
+const E_FIRE: CarSpec = {
+  key: 65, section: CARGO, axles: [-2.10, 2.40], wheel: 0.48, pad: [4.8, 2.2],
+  plan: [[-3.50, 0.86, 1.86], [-3.24, 0.98, 2.24], [-2.54, 1.04, 2.72],
+         [-1.94, 1.06, 2.96], [-1.64, 1.06, 3.20], [3.10, 1.06, 3.24],
+         [3.66, 1.02, 3.10], [3.82, 0.90, 2.66]],
+  cabin: { from: 0.03, to: 0.24, pillars: [0.14] },
+  extra: (m, st) => {
+    lightBar(m, st, -2.20, false);
+    // Locker shutters down the flank, and a ladder on the roof.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sz of [1, -1] as const) {
+        const w = hwAt(st, 1.0, 1.8) + 0.015;
+        for (let i = 0; i < 3; i++) {
+          m.box([-1.4 + i * 1.6, 1.10, Math.min(sz * w, sz * (w + 0.02))],
+                [-0.2 + i * 1.6, 2.20, Math.max(sz * w, sz * (w + 0.02))], MAT.TRIM);
+        }
+      }
+      const y = topAt(st, 0.6);
+      for (const sz of [1, -1] as const) m.box([-1.4, y, sz * 0.52 - 0.05], [3.2, y + 0.10, sz * 0.52 + 0.05], MAT.TRIM);
+      for (let i = 0; i < 12; i++) m.box([-1.3 + i * 0.38, y, -0.52], [-1.24 + i * 0.38, y + 0.06, 0.52], MAT.TRIM);
+    });
+    stripe(m, st, -3.2, 3.6, 1.44, 0.22, TINT.SIGN_LIT);
+  },
+};
+
+const E_MAILVAN: CarSpec = {
+  key: 66, section: CARGO, axles: [-1.60, 1.72], wheel: 0.36, pad: [3.5, 2.0],
+  plan: [[-2.46, 0.82, 1.60], [-2.22, 0.94, 1.92], [-1.60, 0.98, 2.28],
+         [-1.14, 1.00, 2.56], [0.50, 1.00, 2.60], [1.96, 1.00, 2.58],
+         [2.44, 0.94, 2.42], [2.60, 0.84, 2.06]],
+  cabin: { from: 0.05, to: 0.30, pillars: [0.18] },
+  extra: (m, st) => {
+    stripe(m, st, -2.1, 2.4, 1.20, 0.26, TINT.ACCENT);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 7; i++) m.box([2.50, 0.8 + i * 0.24, -0.92], [2.58, 0.96 + i * 0.24, 0.92], MAT.TRIM);
+    });
+  },
+};
+
+const E_MAILTRUCK: CarSpec = {
+  key: 67, section: CARGO, axles: [-2.00, 2.30], wheel: 0.44, pad: [4.6, 2.2],
+  plan: [[-3.30, 0.86, 1.76], [-3.04, 0.98, 2.12], [-2.34, 1.04, 2.62],
+         [-1.80, 1.06, 2.86], [-1.50, 1.06, 3.30], [3.10, 1.06, 3.34],
+         [3.60, 1.02, 3.28], [3.76, 0.90, 2.94]],
+  cabin: { from: 0.03, to: 0.22, pillars: [0.13] },
+  extra: (m, st) => {
+    stripe(m, st, -2.9, 3.5, 1.90, 0.40, TINT.ACCENT);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([3.70, 0.50, -1.02], [4.16, 0.68, 1.02], MAT.TRIM);
+      for (let i = 0; i < 8; i++) m.box([3.66, 0.9 + i * 0.28, -1.00], [3.74, 1.10 + i * 0.28, 1.00], MAT.TRIM);
+    });
+  },
+};
+
+const E_HEARSE: CarSpec = {
+  key: 68, section: CAR, axles: [-1.70, 1.86], wheel: 0.35, pad: [3.8, 1.9],
+  plan: [[-2.72, 0.80, 0.98], [-2.46, 0.94, 1.06], [-1.80, 1.02, 1.22],
+         [-1.00, 1.05, 1.50], [0.10, 1.05, 1.60], [1.40, 1.04, 1.60],
+         [2.60, 1.00, 1.54], [2.86, 0.86, 1.28]],
+  cabin: { from: 0.26, to: 0.94, pillars: [0.42, 0.56] },
+  extra: (m, st) => {
+    // Long blank rear quarters with a chrome bar: what makes a hearse.
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const sz of [1, -1] as const) {
+        const w = hwAt(st, 1.6, 1.2) + 0.014;
+        m.box([0.60, 1.10, Math.min(sz * w, sz * (w + 0.01))],
+              [2.40, 1.18, Math.max(sz * w, sz * (w + 0.01))], MAT.METAL);
+      }
+    });
+  },
+};
+
+const E_TOW: CarSpec = {
+  key: 69, section: TALL, axles: [-1.70, 1.90], wheel: 0.42, pad: [3.9, 2.0],
+  plan: [[-2.74, 0.82, 1.48], [-2.50, 0.94, 1.76], [-1.84, 1.00, 2.14],
+         [-1.04, 1.02, 2.28], [-0.74, 1.00, 1.16], [2.60, 0.98, 1.12],
+         [3.00, 0.94, 1.08], [3.16, 0.84, 1.00]],
+  cabin: { from: 0.05, to: 0.32, pillars: [0.19] },
+  extra: (m, st) => {
+    lightBar(m, st, -1.90, false);
+    // A tilting bed and the winch frame at the front of it.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-0.66, 1.02, -1.00], [2.90, 1.12, 1.00], MAT.METAL);
+      m.box([-0.72, 1.12, -1.02], [-0.50, 2.10, 1.02], MAT.TRIM);
+      m.cylinder(-0.61, 0, 0.18, 1.60, 1.90, 8, MAT.TRIM);
+      for (const sz of [1, -1] as const) m.box([-0.66, 1.12, sz * 1.00 - 0.05], [2.90, 1.34, sz * 1.00 + 0.05], MAT.TRIM);
+    });
+  },
+};
+
 export const FLEET: AssetDef[] = [
   { id: 'car.hatchback', name: 'Hatchback', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hatch', colour: [0.42, 0.13, 0.12], accent: [0.62, 0.20, 0.16], sign: 'none' }, sim: road(0), note: 'Lofted body, five-spoke wheels, roof rails, raked screen and backlight, one pedestrian for scale.', build: (lod: number) => buildCar(lod, HATCH) },
   { id: 'car.saloon', name: 'Saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Saloon', colour: [0.10, 0.16, 0.34], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Three-box body with a stepped boot, barred grille, twin tailpipes, door shuts and handles.', build: (lod: number) => buildCar(lod, SALOON) },
@@ -1695,6 +2477,52 @@ export const FLEET: AssetDef[] = [
   { id: 'car.microvan', name: 'Micro van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.3, brand: { name: 'Micro', colour: [0.72, 0.72, 0.70], accent: [0.16, 0.36, 0.52], sign: 'none' }, sim: road(0), note: 'Cab-over box on a 3.7 metre footprint: the delivery vehicle of a dense city.', build: (lod: number) => buildCar(lod, MICROVAN) },
   { id: 'car.luxsuv', name: 'Luxury SUV', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.3, brand: { name: 'Luxury', colour: [0.26, 0.24, 0.22], accent: [0.62, 0.58, 0.40], sign: 'none' }, sim: road(0), note: 'Full-size SUV on 50cm wheels, three pillars a side, deep flared arches.', build: (lod: number) => buildCar(lod, LUXSUV) },
   { id: 'car.hothatch', name: 'Hot hatch', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hot hatch', colour: [0.62, 0.52, 0.10], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'Short, wide and low on the sports section, with a roof spoiler over the tailgate.', build: (lod: number) => buildCar(lod, HOTHATCH) },
+  { id: 'car.wedge', name: 'Mid-engined wedge', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Mid-engined wedge', colour: [0.72, 0.58, 0.08], accent: [0.12, 0.12, 0.14], sign: 'none' }, sim: road(0), note: 'Flat-planed supercar on the wedge section: no sill, a wide shoulder and a roof no wider than a person.', build: (lod: number) => buildCar(lod, S_WEDGE) },
+  { id: 'car.targa', name: 'Targa', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Targa', colour: [0.10, 0.30, 0.52], accent: [0.14, 0.14, 0.16], sign: 'none' }, sim: road(0), note: 'Supercar with a painted roll hoop across the cabin where a roof panel lifts out.', build: (lod: number) => buildCar(lod, S_TARGA) },
+  { id: 'car.hyper', name: 'Hypercar', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hypercar', colour: [0.06, 0.06, 0.08], accent: [0.66, 0.10, 0.08], sign: 'none' }, sim: road(0), note: 'Longest and widest of the supercars, with a swan-neck wing and a five-strake diffuser.', build: (lod: number) => buildCar(lod, S_HYPER) },
+  { id: 'car.racer', name: 'Race car', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Race car', colour: [0.68, 0.10, 0.08], accent: [0.92, 0.92, 0.90], sign: 'none' }, sim: road(0), note: 'Splitter, canards, a full-width rear wing and a livery stripe down the flank.', build: (lod: number) => buildCar(lod, S_RACER) },
+  { id: 'car.retro', name: 'Retro sports', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Retro sports', colour: [0.60, 0.14, 0.12], accent: [0.80, 0.78, 0.72], sign: 'none' }, sim: road(0), note: 'Sixties proportions: chrome bumpers at each end and a dark stripe along the waist.', build: (lod: number) => buildCar(lod, S_RETRO) },
+  { id: 'car.spider', name: 'Spider', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Spider', colour: [0.72, 0.72, 0.70], accent: [0.12, 0.12, 0.14], sign: 'none' }, sim: road(0), note: 'Open two-seater with twin body-coloured humps behind the seats instead of a roofline.', build: (lod: number) => buildCar(lod, S_SPIDER) },
+  { id: 'car.compact', name: 'Compact', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Compact', colour: [0.16, 0.36, 0.30], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Four metres of hatchback: the commonest thing on any street.', build: (lod: number) => buildCar(lod, B_COMPACT) },
+  { id: 'car.sedan', name: 'Small sedan', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Small sedan', colour: [0.20, 0.24, 0.34], accent: [0.50, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Three-box saloon with a stepped boot and two pillars a side.', build: (lod: number) => buildCar(lod, B_SEDAN) },
+  { id: 'car.wagon', name: 'Small wagon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Small wagon', colour: [0.24, 0.30, 0.22], accent: [0.46, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'The saloon with the roof carried level to a vertical tailgate.', build: (lod: number) => buildCar(lod, B_WAGON) },
+  { id: 'car.threedoor', name: 'Three-door', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Three-door', colour: [0.56, 0.44, 0.10], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'One long door a side and a single pillar: the cheap version of the five-door.', build: (lod: number) => buildCar(lod, B_THREEDOOR) },
+  { id: 'car.fivedoor', name: 'Five-door', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Five-door', colour: [0.42, 0.44, 0.48], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'The five-door hatch, two pillars a side, the shape most families own.', build: (lod: number) => buildCar(lod, B_FIVEDOOR) },
+  { id: 'car.kei', name: 'Kei car', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Kei car', colour: [0.72, 0.70, 0.66], accent: [0.16, 0.34, 0.52], sign: 'none' }, sim: road(0), note: 'Tall and short on 29cm wheels: maximum room inside a minimum footprint.', build: (lod: number) => buildCar(lod, B_KEI) },
+  { id: 'car.oldsaloon', name: 'Old saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Old saloon', colour: [0.40, 0.30, 0.18], accent: [0.70, 0.68, 0.62], sign: 'none' }, sim: road(0), note: 'Upright glasshouse, long overhangs and a chrome strip along the flank.', build: (lod: number) => buildCar(lod, B_OLDSALOON) },
+  { id: 'car.microcar', name: 'Microcar', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Microcar', colour: [0.62, 0.52, 0.12], accent: [0.20, 0.20, 0.24], sign: 'none' }, sim: road(0), note: 'Two and a half metres on four small wheels, one pillar a side.', build: (lod: number) => buildCar(lod, B_MICROCAR) },
+  { id: 'car.notchback', name: 'Notchback', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Notchback', colour: [0.30, 0.20, 0.36], accent: [0.60, 0.56, 0.40], sign: 'none' }, sim: road(0), note: 'Between a hatch and a saloon: a short boot and a raked backlight.', build: (lod: number) => buildCar(lod, B_NOTCHBACK) },
+  { id: 'car.cabrio', name: 'Cabriolet', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Cabriolet', colour: [0.66, 0.24, 0.30], accent: [0.14, 0.14, 0.16], sign: 'none' }, sim: road(0), note: 'Soft-top with the hood folded and stacked behind the cabin.', build: (lod: number) => buildCar(lod, B_CABRIO) },
+  { id: 'car.executive', name: 'Executive saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Executive saloon', colour: [0.10, 0.10, 0.13], accent: [0.62, 0.58, 0.42], sign: 'none' }, sim: road(0), note: 'Five metres of saloon on a long wheelbase, two pillars a side.', build: (lod: number) => buildCar(lod, M_EXECUTIVE) },
+  { id: 'car.tourer', name: 'Estate tourer', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Estate tourer', colour: [0.16, 0.28, 0.40], accent: [0.44, 0.42, 0.36], sign: 'none' }, sim: road(0), note: 'The executive saloon with a level roof to the tailgate and a third pillar.', build: (lod: number) => buildCar(lod, M_TOURER) },
+  { id: 'car.suvmid', name: 'Mid-size SUV', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Mid-size SUV', colour: [0.28, 0.28, 0.30], accent: [0.52, 0.20, 0.14], sign: 'none' }, sim: road(0), note: 'The tall section on 42cm wheels: the default family car of the last twenty years.', build: (lod: number) => buildCar(lod, M_SUVMID) },
+  { id: 'car.mpvmid', name: 'People mover', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'People mover', colour: [0.44, 0.20, 0.24], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'One-box body with a long four-pillar glasshouse and a near-vertical tailgate.', build: (lod: number) => buildCar(lod, M_MPVMID) },
+  { id: 'car.sportsedan', name: 'Sports saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Sports saloon', colour: [0.10, 0.14, 0.30], accent: [0.66, 0.62, 0.20], sign: 'none' }, sim: road(0), note: 'Saloon on the sports section, with a boot-lid lip and twin pipes.', build: (lod: number) => buildCar(lod, M_SPORTSEDAN) },
+  { id: 'car.cargovan', name: 'Cargo van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.9, brand: { name: 'Cargo van', colour: [0.70, 0.70, 0.72], accent: [0.16, 0.30, 0.50], sign: 'none' }, sim: road(0), note: 'Long-wheelbase panel van, cab glazed and the body blind.', build: (lod: number) => buildCar(lod, C_CARGOVAN) },
+  { id: 'car.luton', name: 'Luton van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.3, brand: { name: 'Luton van', colour: [0.72, 0.68, 0.60], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Box body overhanging the cab, which is what names the type.', build: (lod: number) => buildCar(lod, C_LUTON) },
+  { id: 'car.tipper', name: 'Tipper', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.5, brand: { name: 'Tipper', colour: [0.60, 0.34, 0.10], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Cab and a steel tipping body on a subframe, with ribs across it.', build: (lod: number) => buildCar(lod, C_TIPPER) },
+  { id: 'car.flatbed', name: 'Flatbed', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.5, brand: { name: 'Flatbed', colour: [0.20, 0.34, 0.44], accent: [0.50, 0.44, 0.28], sign: 'none' }, sim: road(0), note: 'Timber deck with dropsides and stanchions, and a load strapped down.', build: (lod: number) => buildCar(lod, C_FLATBED) },
+  { id: 'car.fridge', name: 'Refrigerated van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.4, brand: { name: 'Refrigerated van', colour: [0.86, 0.86, 0.86], accent: [0.14, 0.32, 0.50], sign: 'none' }, sim: road(0), note: 'Insulated box with the chiller unit on the front of it.', build: (lod: number) => buildCar(lod, C_FRIDGE) },
+  { id: 'car.dropside', name: 'Dropside', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.3, brand: { name: 'Dropside', colour: [0.34, 0.36, 0.24], accent: [0.62, 0.56, 0.36], sign: 'none' }, sim: road(0), note: 'Light truck with a timber floor and body-coloured dropsides.', build: (lod: number) => buildCar(lod, C_DROPSIDE) },
+  { id: 'car.gwagon', name: 'Boxy off-roader', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.2, brand: { name: 'Boxy off-roader', colour: [0.24, 0.26, 0.24], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'Vertical sides and a flat roof, with a spare on the back door and a snorkel up the A pillar.', build: (lod: number) => buildCar(lod, O_GWAGON) },
+  { id: 'car.cruiser', name: 'Station wagon 4x4', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.3, brand: { name: 'Station wagon 4x4', colour: [0.60, 0.58, 0.50], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Full-size off-roader with a roof rack and a light bar over the screen.', build: (lod: number) => buildCar(lod, O_CRUISER) },
+  { id: 'car.jeep', name: 'Open 4x4', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'Open 4x4', colour: [0.30, 0.38, 0.24], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'Short-wheelbase open-topped off-roader with a screen frame, a rear bar and a spare.', build: (lod: number) => buildCar(lod, O_JEEP) },
+  { id: 'car.pickup4x4', name: 'Off-road pickup', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.4, brand: { name: 'Off-road pickup', colour: [0.46, 0.16, 0.14], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Double cab and a short bed on 46cm wheels, with a lit roll bar behind the cab.', build: (lod: number) => buildCar(lod, O_PICKUP4X4) },
+  { id: 'car.expedition', name: 'Expedition truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.9, brand: { name: 'Expedition truck', colour: [0.36, 0.34, 0.26], accent: [0.62, 0.50, 0.14], sign: 'none' }, sim: road(0), note: 'The tallest off-roader: 50cm wheels, a roof tent and a ladder up the tailgate.', build: (lod: number) => buildCar(lod, O_EXPEDITION) },
+  { id: 'car.tanker', name: 'Tanker', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.1, brand: { name: 'Tanker', colour: [0.72, 0.72, 0.74], accent: [0.60, 0.14, 0.12], sign: 'none' }, sim: road(0), note: 'Rigid tanker: a barrel on saddles with a walkway and three manholes along the top.', build: (lod: number) => buildCar(lod, T_TANKER) },
+  { id: 'car.mixer', name: 'Concrete mixer', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.7, brand: { name: 'Concrete mixer', colour: [0.62, 0.60, 0.58], accent: [0.66, 0.36, 0.10], sign: 'none' }, sim: road(0), note: 'Tilted drum on rollers with a delivery chute at the back.', build: (lod: number) => buildCar(lod, T_MIXER) },
+  { id: 'car.carrier', name: 'Car transporter', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.6, brand: { name: 'Car transporter', colour: [0.20, 0.28, 0.44], accent: [0.70, 0.66, 0.20], sign: 'none' }, sim: road(0), note: 'Two decks of ramps on stanchions with cars on both of them.', build: (lod: number) => buildCar(lod, T_CARRIER) },
+  { id: 'car.skiploader', name: 'Skip loader', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.9, brand: { name: 'Skip loader', colour: [0.62, 0.46, 0.10], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Skip on the back and the two lifting arms curving over the cab.', build: (lod: number) => buildCar(lod, T_SKIP) },
+  { id: 'car.rigid', name: 'Rigid box truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.5, brand: { name: 'Rigid box truck', colour: [0.16, 0.36, 0.30], accent: [0.72, 0.70, 0.66], sign: 'none' }, sim: road(0), note: 'Seven-tonne box with a roller shutter and a tail lift.', build: (lod: number) => buildCar(lod, T_RIGID) },
+  { id: 'car.refuse', name: 'Refuse lorry', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.3, brand: { name: 'Refuse lorry', colour: [0.16, 0.34, 0.24], accent: [0.72, 0.66, 0.20], sign: 'none' }, sim: road(0), note: 'Bin lorry with the lift on the back and two wheelie bins beside it.', build: (lod: number) => buildCar(lod, T_REFUSE) },
+  { id: 'car.ambulance', name: 'Ambulance', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.3, brand: { name: 'Ambulance', colour: [0.92, 0.92, 0.90], accent: [0.20, 0.52, 0.36], sign: 'none' }, sim: road(0), note: 'Box body with a light bar, battenburg blocks down the flank and a shuttered rear.', build: (lod: number) => buildCar(lod, E_AMBULANCE) },
+  { id: 'car.police', name: 'Police car', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Police car', colour: [0.92, 0.92, 0.92], accent: [0.10, 0.20, 0.52], sign: 'none' }, sim: road(0), note: 'Estate patrol car with a roof light bar and a livery stripe along the waist.', build: (lod: number) => buildCar(lod, E_POLICE) },
+  { id: 'car.policevan', name: 'Police van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.0, brand: { name: 'Police van', colour: [0.90, 0.90, 0.92], accent: [0.10, 0.20, 0.52], sign: 'none' }, sim: road(0), note: 'Crew van with a light bar, a livery stripe and grilles over the rear side glass.', build: (lod: number) => buildCar(lod, E_POLICEVAN) },
+  { id: 'car.firetruck', name: 'Fire appliance', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.5, brand: { name: 'Fire appliance', colour: [0.62, 0.10, 0.08], accent: [0.90, 0.88, 0.20], sign: 'none' }, sim: road(0), note: 'Pumping appliance: light bar, locker shutters down both flanks and a ladder on the roof.', build: (lod: number) => buildCar(lod, E_FIRE) },
+  { id: 'car.mailvan', name: 'Mail van', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.7, brand: { name: 'Mail van', colour: [0.62, 0.12, 0.10], accent: [0.90, 0.86, 0.24], sign: 'none' }, sim: road(0), note: 'Delivery van in postal livery with a shuttered rear.', build: (lod: number) => buildCar(lod, E_MAILVAN) },
+  { id: 'car.mailtruck', name: 'Mail truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.5, brand: { name: 'Mail truck', colour: [0.60, 0.12, 0.10], accent: [0.90, 0.86, 0.24], sign: 'none' }, sim: road(0), note: 'Box truck in postal livery, with a tail lift and a roller shutter.', build: (lod: number) => buildCar(lod, E_MAILTRUCK) },
+  { id: 'car.hearse', name: 'Hearse', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 1.7, brand: { name: 'Hearse', colour: [0.06, 0.06, 0.07], accent: [0.70, 0.68, 0.62], sign: 'none' }, sim: road(0), note: 'Long saloon with blank rear quarters and a chrome bar along them.', build: (lod: number) => buildCar(lod, E_HEARSE) },
+  { id: 'car.tow', name: 'Recovery truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 2.4, brand: { name: 'Recovery truck', colour: [0.66, 0.44, 0.08], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Tilt-bed recovery truck with a winch frame, bed rails and an amber light bar.', build: (lod: number) => buildCar(lod, E_TOW) },
   { id: 'car.people', name: 'Pedestrians', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 5.3, brand: { name: 'People', colour: [0.30, 0.32, 0.36], accent: [0.52, 0.44, 0.30], sign: 'none' }, sim: road(0), note: 'Twenty figures on a kerbed pavement: two lanes walking, a group talking, a child, someone on a bench.', build: pedestrians },
   { id: 'car.cyclists', name: 'Cyclists', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 1.9, brand: { name: 'Cycles', colour: [0.16, 0.34, 0.30], accent: [0.62, 0.40, 0.12], sign: 'none' }, sim: road(0), note: 'Three riders on diamond-frame bicycles, a scooter with an apron and headlamp, and a full bike stand.', build: cyclists },
 ];
