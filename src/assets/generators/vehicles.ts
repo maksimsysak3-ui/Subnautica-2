@@ -183,8 +183,11 @@ function cabin(m: MeshBuilder, st: Station[], mat: Material,
     const x = xs[i];
     const A: Vec3 = [x, y0, w0], B: Vec3 = [x, y0, -w0];
     const C: Vec3 = [x, y1, -w1], D: Vec3 = [x, y1, w1];
-    if (dir < 0) m.quadUV(A, B, C, D, [[0, 0], [0, 0], [0, 1], [0, 1]], MAT.CAR_GLASS);
-    else m.quadUV(D, C, B, A, [[1, 1], [1, 1], [1, 0], [1, 0]], MAT.CAR_GLASS);
+    // Wound to face out of the car. Both were inside-out, which is why the
+    // screen and the backlight vanished from the angles you actually see them
+    // from and left the cabin looking open at each end.
+    if (dir < 0) m.quadUV(D, C, B, A, [[0, 1], [0, 1], [0, 0], [0, 0]], MAT.CAR_GLASS);
+    else m.quadUV(A, B, C, D, [[1, 0], [1, 0], [1, 1], [1, 1]], MAT.CAR_GLASS);
   }
 }
 
@@ -1727,6 +1730,160 @@ const road = (jobs: number): AssetDef['sim'] => ({
   jobs, powerKW: 0, waterM3: 0, garbagePerWeek: 0, pollution: 0, upkeep: 0,
 });
 
+
+/**
+ * A car from a description, rather than another hand-written generator.
+ *
+ * The first ten were each written out in full, which is the right way to find
+ * out what a car needs but the wrong way to have twenty of them: the same
+ * forty lines of bumpers, lamps, handles, mirrors and plates were restated
+ * every time, and every one of them drifted. Everything below is the same
+ * body-and-cabin construction driven by a table.
+ */
+interface CarSpec {
+  key: number;
+  /** Half length and the station heights, nose to tail. */
+  plan: Array<[number, number, number]>;
+  section: Section;
+  axles: [number, number];
+  wheel: number;
+  cabin: { from: number; to: number; pillars: number[] };
+  /** Open-topped: no cabin roof, a windscreen frame and a roll hoop instead. */
+  open?: boolean;
+  pad: [number, number];
+  /** Extra geometry, after the fittings. */
+  extra?: (m: MeshBuilder, st: Station[]) => void;
+}
+
+function buildCar(lod: number, spec: CarSpec): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1;
+  const medium = lod < 2;
+  tarmac(m, spec.pad[0], spec.pad[1]);
+
+  const plan: Station[] = spec.plan.map(([x, w, y]) => ({ x, s: shape(spec.section, w, y) }));
+  const st = withArches(plan, spec.axles, spec.wheel);
+  const nose = st[0].x, tail = st[st.length - 1].x;
+  m.keyed(spec.key, () => {
+    loft(m, st, MAT.PAINT, { upTo: beltIndex(st[0].s) });
+    if (!spec.open) cabin(m, st, MAT.PAINT, spec.cabin);
+  });
+  if (spec.open) {
+    // A screen frame and a roll hoop, so an open car still has a structure.
+    m.painted(TINT.METAL_DARK, () => {
+      const sx = nose + (tail - nose) * spec.cabin.from;
+      const hx = nose + (tail - nose) * spec.cabin.to;
+      for (const sz of [1, -1] as const) {
+        const w = sz * (hwAt(st, sx, 1.0) - 0.03);
+        m.pipe([sx, topAt(st, sx) - 0.04, w], [sx + 0.34, topAt(st, sx) + 0.46, w], 0.045, MAT.TRIM, 6);
+        m.pipe([hx, topAt(st, hx) - 0.04, sz * (hwAt(st, hx, 1.0) - 0.18)],
+               [hx, topAt(st, hx) + 0.40, sz * (hwAt(st, hx, 1.0) - 0.18)], 0.05, MAT.TRIM, 6);
+      }
+      const sxx = nose + (tail - nose) * spec.cabin.from;
+      m.pipe([sxx + 0.34, topAt(st, sxx) + 0.46, hwAt(st, sxx, 1.0) - 0.03],
+             [sxx + 0.34, topAt(st, sxx) + 0.46, -(hwAt(st, sxx, 1.0) - 0.03)], 0.045, MAT.TRIM, 6);
+    });
+    // The screen itself, between the two A-posts.
+    const sx = nose + (tail - nose) * spec.cabin.from;
+    const w = hwAt(st, sx, 1.0) - 0.05;
+    m.quad([sx, topAt(st, sx) - 0.04, w], [sx, topAt(st, sx) - 0.04, -w],
+           [sx + 0.34, topAt(st, sx) + 0.44, -w], [sx + 0.34, topAt(st, sx) + 0.44, w], MAT.CAR_GLASS);
+  }
+
+  if (medium) {
+    for (const cx of spec.axles) {
+      arch(m, cx, spec.wheel + 0.11, spec.wheel + 0.13, spec.wheel * 2.4);
+      archLip(m, st, spec.key, cx, spec.wheel + 0.11, spec.wheel + 0.14);
+      for (const sz of [1, -1] as const) {
+        wheel(m, cx, spec.wheel + 0.01, sz * (hwAt(st, cx, spec.wheel) - 0.06), spec.wheel, 0.13);
+      }
+    }
+  }
+  if (fine) {
+    const y = (f: number): number => topAt(st, 0) * f;
+    bumper(m, st, spec.key, nose + 0.04, -1, 0.42, y(0.52));
+    bumper(m, st, spec.key, tail - 0.04, 1, 0.42, y(0.54));
+    grille(m, st, nose + 0.02, -1, y(0.46), y(0.68), 3);
+    wipers(m, nose + (tail - nose) * spec.cabin.from, y(0.66), hwAt(st, 0, y(0.66)) * 0.9);
+    handles(m, st, [nose + (tail - nose) * 0.45, nose + (tail - nose) * 0.66], y(0.66));
+    mirrors(m, st, spec.key, nose + (tail - nose) * spec.cabin.from, y(0.74));
+    for (const sz of [1, -1] as const) {
+      lamp(m, nose + 0.02, y(0.58), sz * (hwAt(st, nose + 0.1, y(0.58)) - 0.16), 0.32, 0.2, -1, TINT.SIGN_LIT);
+      lamp(m, tail - 0.02, y(0.62), sz * (hwAt(st, tail - 0.1, y(0.62)) - 0.16), 0.30, 0.24, 1, TINT.BRAND);
+    }
+    plate(m, spec.key, nose, y(0.40), -1);
+    plate(m, spec.key, tail, y(0.42), 1);
+    if (spec.extra !== undefined) spec.extra(m, st);
+    person(m, spec.key * 7 + 3, tail + 0.9, 1.1, Math.PI, { stride: 0.12 });
+  }
+  return m;
+}
+
+/** A tall one-box section: an MPV, a minibus, anything with a high roof. */
+const TALL: Section = [[0.34, 0.80], [0.66, 0.98], [1.20, 1.02], [1.72, 0.98], [1.94, 0.78]];
+
+const CITY: CarSpec = {
+  key: 11, section: CAR, axles: [-1.05, 1.10], wheel: 0.30, pad: [2.4, 1.7],
+  plan: [[-1.62, 0.78, 0.94], [-1.42, 0.90, 1.06], [-0.90, 0.96, 1.30], [-0.10, 0.96, 1.52],
+         [0.70, 0.94, 1.52], [1.34, 0.90, 1.36], [1.58, 0.76, 1.10]],
+  cabin: { from: 0.24, to: 0.86, pillars: [0.56] },
+};
+
+const ROADSTER: CarSpec = {
+  key: 12, section: CAR, axles: [-1.30, 1.36], wheel: 0.33, pad: [3.0, 1.8], open: true,
+  plan: [[-2.05, 0.86, 0.78], [-1.80, 0.98, 0.84], [-1.10, 1.04, 0.94], [-0.30, 1.06, 1.02],
+         [0.60, 1.06, 1.02], [1.40, 1.02, 0.96], [2.00, 0.90, 0.84], [2.20, 0.76, 0.76]],
+  cabin: { from: 0.34, to: 0.66, pillars: [] },
+};
+
+const MPV: CarSpec = {
+  key: 13, section: TALL, axles: [-1.45, 1.50], wheel: 0.34, pad: [3.2, 1.9],
+  plan: [[-2.20, 0.84, 1.30], [-1.95, 0.94, 1.50], [-1.20, 1.00, 1.86], [-0.30, 1.02, 1.94],
+         [0.70, 1.02, 1.94], [1.60, 0.99, 1.88], [2.15, 0.90, 1.62], [2.35, 0.78, 1.36]],
+  cabin: { from: 0.22, to: 0.92, pillars: [0.44, 0.66] },
+};
+
+const CROSSOVER: CarSpec = {
+  key: 14, section: TALL, axles: [-1.40, 1.46], wheel: 0.38, pad: [3.1, 1.9],
+  plan: [[-2.05, 0.84, 1.24], [-1.82, 0.95, 1.42], [-1.10, 1.01, 1.70], [-0.20, 1.02, 1.78],
+         [0.70, 1.01, 1.76], [1.50, 0.98, 1.66], [2.00, 0.88, 1.44], [2.20, 0.76, 1.24]],
+  cabin: { from: 0.26, to: 0.88, pillars: [0.48, 0.70] },
+};
+
+const MINIBUS: CarSpec = {
+  key: 15, section: BOX, axles: [-1.90, 1.95], wheel: 0.38, pad: [3.9, 2.0],
+  plan: [[-2.90, 0.88, 1.90], [-2.70, 0.97, 2.20], [-1.90, 1.00, 2.50], [-0.60, 1.00, 2.54],
+         [0.90, 1.00, 2.54], [2.10, 0.99, 2.50], [2.85, 0.92, 2.30], [3.05, 0.80, 2.00]],
+  cabin: { from: 0.10, to: 0.96, pillars: [0.30, 0.50, 0.70, 0.86] },
+};
+
+const BOXTRUCK: CarSpec = {
+  // Cab only. The box behind it is its own closed loft, because a rigid truck
+  // is two volumes and lofting it as one gives a wedge with a hole in it.
+  key: 16, section: BOX, axles: [-2.10, 2.20], wheel: 0.42, pad: [4.2, 2.1],
+  plan: [[-3.20, 0.86, 2.10], [-3.00, 0.96, 2.40], [-2.40, 1.00, 2.70], [-1.70, 1.00, 2.74],
+         [-1.50, 0.98, 2.20], [3.30, 0.96, 2.10], [3.45, 0.88, 1.90]],
+  cabin: { from: 0.02, to: 0.22, pillars: [] },
+  extra: (m, st) => {
+    const box: Station[] = [
+      { x: -1.45, s: shape(BOX, 1.02, 3.10) },
+      { x: 0.60, s: shape(BOX, 1.04, 3.14) },
+      { x: 2.60, s: shape(BOX, 1.04, 3.14) },
+      { x: 3.40, s: shape(BOX, 1.02, 3.06) },
+    ];
+    m.keyed(16, () => loft(m, box, MAT.PAINT));
+    void st;
+    // A roller shutter and a tail lift on the back of the box.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 9; i++) {
+        const yy = 0.9 + i * 0.24;
+        m.box([3.40, yy, -0.98], [3.48, yy + 0.17, 0.98], MAT.TRIM);
+      }
+      m.box([3.46, 0.52, -1.04], [3.92, 0.70, 1.04], MAT.TRIM);
+    });
+  },
+};
+
 export const FLEET: AssetDef[] = [
   { id: 'car.hatchback', name: 'Hatchback', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Hatch', colour: [0.42, 0.13, 0.12], accent: [0.62, 0.20, 0.16], sign: 'none' }, sim: road(0), note: 'Lofted body, five-spoke wheels, roof rails, raked screen and backlight, one pedestrian for scale.', build: hatchback },
   { id: 'car.saloon', name: 'Saloon', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'Saloon', colour: [0.10, 0.16, 0.34], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'Three-box body with a stepped boot, barred grille, twin tailpipes, door shuts and handles.', build: saloon },
@@ -1738,6 +1895,12 @@ export const FLEET: AssetDef[] = [
   { id: 'car.taxi', name: 'Taxi', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.1, brand: { name: 'Taxi', colour: [0.66, 0.50, 0.08], accent: [0.10, 0.10, 0.12], sign: 'none' }, sim: road(0), note: 'Upright cab body with a chequered waist band, lit roof sign, two fares waiting.', build: taxi },
   { id: 'car.coupe', name: 'Sports coupe', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.3, brand: { name: 'Coupe', colour: [0.52, 0.06, 0.06], accent: [0.14, 0.14, 0.16], sign: 'none' }, sim: road(0), note: 'Low fastback on wide wheels, splitter and sills, bonnet and arch vents, ducktail, quad pipes.', build: coupe },
   { id: 'car.lorry', name: 'Articulated lorry', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 3.7, brand: { name: 'Haulage', colour: [0.14, 0.28, 0.44], accent: [0.70, 0.58, 0.18], sign: 'none' }, sim: road(0), note: 'Tractor unit and semi-trailer on four bogies, exhaust stack, mud flaps, curtain tensioners, name board.', build: lorry },
+  { id: 'car.city', name: 'City car', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.6, brand: { name: 'City', colour: [0.62, 0.54, 0.16], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Three-metre two-door on 30cm wheels, one pillar a side, short overhangs.', build: (lod: number) => buildCar(lod, CITY) },
+  { id: 'car.roadster', name: 'Roadster', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 1.3, brand: { name: 'Roadster', colour: [0.52, 0.10, 0.10], accent: [0.16, 0.16, 0.18], sign: 'none' }, sim: road(0), note: 'Open two-seater: no roof, a raked screen frame and twin roll hoops behind the seats.', build: (lod: number) => buildCar(lod, ROADSTER) },
+  { id: 'car.mpv', name: 'People carrier', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.2, brand: { name: 'MPV', colour: [0.16, 0.30, 0.44], accent: [0.44, 0.16, 0.14], sign: 'none' }, sim: road(0), note: 'One-box body with a long glasshouse on three pillars and a near-vertical tailgate.', build: (lod: number) => buildCar(lod, MPV) },
+  { id: 'car.crossover', name: 'Crossover', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.0, brand: { name: 'Crossover', colour: [0.24, 0.30, 0.26], accent: [0.46, 0.18, 0.14], sign: 'none' }, sim: road(0), note: 'Raised hatchback on 38cm wheels: the shape most of a modern street is made of.', build: (lod: number) => buildCar(lod, CROSSOVER) },
+  { id: 'car.minibus', name: 'Minibus', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 2.9, brand: { name: 'Minibus', colour: [0.70, 0.70, 0.72], accent: [0.16, 0.34, 0.52], sign: 'none' }, sim: road(0), note: 'Six-metre box on four pillars a side, full window band, high roof.', build: (lod: number) => buildCar(lod, MINIBUS) },
+  { id: 'car.boxtruck', name: 'Box truck', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [1, 1], height: 3.2, brand: { name: 'Freight', colour: [0.60, 0.30, 0.12], accent: [0.20, 0.22, 0.26], sign: 'none' }, sim: road(0), note: 'Rigid seven-tonner: cab and a taller box behind it, roller shutter and tail lift.', build: (lod: number) => buildCar(lod, BOXTRUCK) },
   { id: 'car.people', name: 'Pedestrians', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 5.3, brand: { name: 'People', colour: [0.30, 0.32, 0.36], accent: [0.52, 0.44, 0.30], sign: 'none' }, sim: road(0), note: 'Twenty figures on a kerbed pavement: two lanes walking, a group talking, a child, someone on a bench.', build: pedestrians },
   { id: 'car.cyclists', name: 'Cyclists', zone: 'fleet', density: 'none', variant: 'sculpted', footprint: [2, 1], height: 1.9, brand: { name: 'Cycles', colour: [0.16, 0.34, 0.30], accent: [0.62, 0.40, 0.12], sign: 'none' }, sim: road(0), note: 'Three riders on diamond-frame bicycles, a scooter with an apron and headlamp, and a full bike stand.', build: cyclists },
 ];
