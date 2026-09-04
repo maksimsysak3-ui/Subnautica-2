@@ -1218,6 +1218,106 @@ function centralStation(lod: number): MeshBuilder {
   return m;
 }
 
+/** A pipe run with flange collars along it: utility plumbing, not a tube. */
+function pipeRun(m: MeshBuilder, a: [number, number, number], b: [number, number, number],
+                 r: number, flanges = 2): void {
+  m.pipe(a, b, r, MAT.METAL);
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i < flanges; i++) {
+      const t = (i + 0.5) / flanges;
+      const c: [number, number, number] = [
+        a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      const along: [number, number, number] = [
+        (b[0] - a[0]) * 0.02, (b[1] - a[1]) * 0.02, (b[2] - a[2]) * 0.02];
+      m.pipe([c[0] - along[0], c[1] - along[1], c[2] - along[2]],
+             [c[0] + along[0], c[1] + along[1], c[2] + along[2]], r * 1.35, MAT.TRIM);
+    }
+  });
+}
+
+/**
+ * A sewage works: the largest thing a water branch has.
+ *
+ * The treatment works on six by five cells is a filter house. This is the
+ * works -- circular clarifiers you can see from the air, rectangular aeration
+ * lanes, sludge digesters, an inlet screen house and a control block. It is
+ * mostly outdoors, which is what a works is, and what makes it read as one
+ * rather than as another shed.
+ */
+function sewageWorks(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 48.0, z = 36.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // Four circular clarifiers, which are the shape everyone recognises.
+  for (const [cx, cz] of [[-26.0, -14.0], [-4.0, -14.0], [-26.0, 12.0], [-4.0, 12.0]] as const) {
+    m.cylinder(cx, cz, 10.0, 0.1, 3.6, 20, MAT.CONCRETE, false);
+    m.cylinder(cx, cz, 9.4, 0.1, 3.0, 20, MAT.GLASS, true);
+    m.cylinder(cx, cz, 1.4, 3.0, 5.2, 10, MAT.CONCRETE, true);
+  }
+  // Aeration lanes: long rectangular tanks in a bank.
+  for (let i = 0; i < 4; i++) {
+    const cx = 12.0 + i * 7.0;
+    m.box([cx, 0.1, -20.0], [cx + 5.6, 4.0, 6.0], MAT.CONCRETE);
+    m.box([cx + 0.5, 0.1, -19.5], [cx + 5.1, 3.4, 5.5], MAT.GLASS);
+  }
+  // Sludge digesters: two domed drums, the tallest thing on site.
+  for (const cz of [16.0, 26.0]) {
+    m.cylinder(24.0, cz, 5.0, 0.1, 14.0, 16, MAT.METAL, false);
+    m.cone(24.0, cz, 5.2, 1.2, 14.0, 18.0, 16, MAT.METAL);
+  }
+  // Inlet screen house and the control block on the road.
+  m.box([-44.0, 0.1, 20.0], [-30.0, 8.0, 32.0], MAT.CONCRETE, { roof: MAT.ROOF });
+  m.box([-24.0, 0.1, 24.0], [-8.0, 6.4, 32.0], MAT.CLADDING, { roof: MAT.ROOF });
+
+  if (medium) {
+    parapet(m, -44.0, 20.0, -30.0, 32.0, 8.0, 0.9, 0.26);
+    parapet(m, -24.0, 24.0, -8.0, 32.0, 6.4, 0.8, 0.24);
+    band(m, -24.0, 24.0, -8.0, 32.0, 3.2, 0.4, 0.2, MAT.CONCRETE);
+    // Walkways across the clarifiers -- the rotating scraper bridges.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [cx, cz] of [[-26.0, -14.0], [-4.0, -14.0], [-26.0, 12.0], [-4.0, 12.0]] as const) {
+        m.box([cx - 10.0, 3.6, cz - 0.5], [cx + 10.0, 4.1, cz + 0.5], MAT.TRIM);
+        m.box([cx - 0.6, 4.1, cz - 0.6], [cx + 0.6, 5.6, cz + 0.6], MAT.TRIM);
+      }
+      // Handrails along the aeration lanes.
+      for (let i = 0; i < 4; i++) {
+        const cx = 12.0 + i * 7.0;
+        for (const px of [cx, cx + 5.6]) {
+          m.box([px - 0.06, 4.0, -20.0], [px + 0.06, 5.1, 6.0], MAT.TRIM);
+        }
+      }
+    });
+    // Pipework linking the stages, which is what ties a works together.
+    for (const py of [1.4, 2.6]) {
+      pipeRun(m, [-16.0, py, -14.0], [10.0, py, -14.0], 0.4, 3);
+      pipeRun(m, [-16.0, py, 12.0], [10.0, py, 12.0], 0.4, 3);
+    }
+    pipeRun(m, [-30.0, 2.0, 26.0], [-24.0, 2.0, 26.0], 0.5, 2);
+  }
+  if (fine) {
+    ribbonStack(m, { axis: 'z', sign: 1, plane: 32.0 }, -22.0, -10.0,
+      { floors: 2, floorH: 3.2, base: 1.2, height: 1.8 });
+    entrance(m, { axis: 'z', sign: 1, plane: 32.0 }, -16.0,
+      { width: 2.0, height: 3.0, double: true, glazed: true, canopy: 2.0 });
+    louvres(m, { axis: 'z', sign: 1, plane: 32.0 }, -42.0, -32.0, 2.0, 6.4);
+    boxSign(m, { axis: 'z', sign: 1, plane: 32.0 }, -21.0, -11.0, 4.6, 5.8);
+    // Valve wheels and access ladders on the digesters.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cz of [16.0, 26.0]) {
+        for (let k = 0; k < 9; k++) {
+          m.box([28.8, 0.6 + k * 1.5, cz - 0.5], [29.2, 0.8 + k * 1.5, cz + 0.5], MAT.TRIM);
+        }
+        m.cylinder(24.0, cz, 0.5, 18.0, 19.6, 8, MAT.TRIM, true);
+      }
+    });
+    for (let i = 0; i < 2; i++) parkedVehicle(m, 4610 + i * 13, -34.0 + i * 7.0, 12.0, 1, 'truck');
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const util = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1227,6 +1327,7 @@ const util = (jobs: number, upkeep: number, power: number, water: number): Asset
 export const UTILITY: AssetDef[] = [
   { id: 'svc.water.pump', name: 'Pumping station', zone: 'service', branch: 'water', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 11.0, brand: { name: 'Water', colour: [0.16, 0.52, 0.62], accent: [0.70, 0.72, 0.74], sign: 'box' }, sim: util(10, 210, 420, 0), note: 'Ribbed pump hall lit only by a clerestory, surge tank, wet well with a davit, mains on stools.', build: pumpStation },
   { id: 'svc.water.tower', name: 'Water tower', zone: 'service', branch: 'water', density: 'none', variant: 'sculpted', footprint: [3, 3], height: 36.6, brand: { name: 'Water', colour: [0.16, 0.52, 0.62], accent: [0.70, 0.72, 0.74], sign: 'box' }, sim: util(3, 90, 40, 0), note: 'Flared bowl on a shaft with a walkway and a caged ladder. The tallest thing in the branch.', build: waterTower },
+  { id: 'svc.water.sewage', name: 'Sewage works', zone: 'service', branch: 'water', density: 'none', variant: 'sculpted', footprint: [12, 9], height: 19.6, brand: { name: 'Water', colour: [0.16, 0.52, 0.62], accent: [0.70, 0.72, 0.74], sign: 'box' }, sim: util(60, 1100, 620, 0), note: 'Four circular clarifiers with scraper bridges, a bank of aeration lanes, two domed sludge digesters, an inlet screen house and a control block, tied together with pipe runs.', build: sewageWorks },
   { id: 'svc.water.treatment', name: 'Treatment works', zone: 'service', branch: 'water', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 13.0, brand: { name: 'Water', colour: [0.16, 0.52, 0.62], accent: [0.70, 0.72, 0.74], sign: 'box' }, sim: util(22, 420, 300, 0), note: 'Two clarifiers with rotating bridges, a baffled aeration lane, sludge tank and pipe bridge.', build: treatmentWorks },
   { id: 'svc.water.reservoir', name: 'Service reservoir', zone: 'service', branch: 'water', density: 'none', variant: 'sculpted', footprint: [5, 5], height: 9.5, brand: { name: 'Water', colour: [0.16, 0.52, 0.62], accent: [0.70, 0.72, 0.74], sign: 'box' }, sim: util(4, 130, 60, 0), note: 'Buttressed covered tank under a grassed deck, eight vent stacks with hatch rails, valve house.', build: reservoir },
 

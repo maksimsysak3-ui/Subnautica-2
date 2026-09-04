@@ -1592,6 +1592,103 @@ function stadium(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * A civic centre: the council's whole estate on one block.
+ *
+ * The city hall on six by five cells is a town hall. This is what a city of
+ * any size actually builds -- a colonnaded assembly hall on the square, an
+ * eight-storey office slab behind it for the departments, a council chamber
+ * expressed as a drum, and a public square with a fountain in front of the
+ * lot, because a civic building without somewhere to stand outside it is an
+ * office block with a flag.
+ */
+function civicCentre(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 44.0, z = 34.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The square, with its paving pattern and a fountain on the axis.
+  m.box([-26.0, 0.1, 8.0], [26.0, 0.2, 30.0], MAT.STONE);
+  // The assembly hall: stone, on a plinth, facing the square.
+  m.box([-24.0, 0.1, -10.0], [24.0, 2.0, 8.0], MAT.STONE);
+  m.box([-22.0, 2.0, -9.0], [22.0, 16.0, 7.0], MAT.STONE, { roof: MAT.ROOF });
+  // The council chamber: a drum on the corner, which is how you tell a civic
+  // centre from an office at a glance.
+  m.cylinder(-30.0, 0.0, 8.0, 0.1, 14.0, 16, MAT.STONE, false);
+  m.cylinder(-30.0, 0.0, 8.6, 14.0, 15.4, 16, MAT.STONE, true);
+  m.cone(-30.0, 0.0, 8.2, 0.0, 15.4, 22.0, 16, MAT.ROOF);
+  // The department slab behind, in a plainer material, deliberately.
+  m.box([-28.0, 0.1, -32.0], [28.0, 30.0, -12.0], MAT.CONCRETE, { roof: MAT.ROOF });
+
+  if (medium) {
+    band(m, -22.0, -9.0, 22.0, 7.0, 14.4, 1.0, 0.45);
+    parapet(m, -22.0, -9.0, 22.0, 7.0, 16.0, 1.3, 0.36);
+    parapet(m, -28.0, -32.0, 28.0, -12.0, 30.0, 1.2, 0.32, MAT.CONCRETE);
+    for (let f = 1; f < 9; f++) {
+      band(m, -28.0, -32.0, 28.0, -12.0, f * 3.3 + 0.4, 0.5, 0.24, MAT.CONCRETE);
+    }
+    // The portico across the front of the hall.
+    colonnade(m, -14.0, 14.0, 7.4, 2.0, 12.0, 8, 0.66);
+    m.gable([-16.4, 15.8, 6.2], [16.4, 15.8, 8.8], 2.8, 'x', MAT.ROOF, MAT.STONE);
+    for (let i = 0; i < 6; i++) {
+      m.box([-16.0, 0.1 + i * 0.3, 8.0], [16.0, 0.1 + (i + 1) * 0.3, 11.4 - i * 0.5], MAT.STONE);
+    }
+    // The fountain.
+    m.cylinder(0, 22.0, 5.0, 0.2, 1.0, 16, MAT.STONE, false);
+    m.painted(TINT.GREEN, () => m.cylinder(0, 22.0, 4.5, 0.2, 0.85, 16, MAT.GLASS, true));
+    m.cylinder(0, 22.0, 1.2, 0.85, 2.6, 10, MAT.STONE, true);
+    m.cylinder(0, 22.0, 2.6, 2.6, 3.0, 12, MAT.STONE, true);
+    roofClutter(m, -26.0, -30.0, 26.0, -14.0, 30.0, 7901, 0.9);
+    flagpole(m, -18.0, 16.0, -1.0, 9.0);
+    flagpole(m, 18.0, 16.0, -1.0, 9.0);
+  }
+  if (fine) {
+    // The hall's tall windows either side of the portico.
+    for (const sx of [-1, 1] as const) {
+      for (let i = 0; i < 2; i++) {
+        const cx = sx * (16.5 + i * 4.0);
+        m.opening({ axis: 'z', sign: 1, plane: 7.0, u0: cx - 1.3, u1: cx + 1.3,
+          y0: 4.0, y1: 12.0, glass: MAT.GLASS, frame: 0.24, proud: 0.12 });
+      }
+      // And down its flanks.
+      windowGrid(m, { axis: 'x', sign: sx as 1 | -1, plane: sx * 22.0 }, -7.4, 5.4,
+        { floors: 2, floorH: 5.4, base: 3.4, count: 3, width: 1.6, height: 3.4 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: 7.0 }, 0,
+      { width: 4.4, height: 4.4, double: true, glazed: true });
+    clock(m, { axis: 'z', sign: 1, plane: 7.0 }, 0, 17.4, 1.7);
+    boxSign(m, { axis: 'z', sign: 1, plane: 7.0 }, -7.0, 7.0, 12.6, 13.8);
+    // The department slab: eight floors of ribbon glazing on three faces.
+    for (const [sign, plane, u0, u1, axis] of [
+      [1, -12.0, -26.0, 26.0, 'z'], [-1, -32.0, -26.0, 26.0, 'z'],
+      [1, 28.0, -30.0, -14.0, 'x'], [-1, -28.0, -30.0, -14.0, 'x'],
+    ] as const) {
+      ribbonStack(m, { axis, sign, plane }, u0, u1,
+        { floors: 8, floorH: 3.3, base: 1.6, height: 2.0 });
+    }
+    // The chamber drum's windows, one to each face.
+    for (let i = 0; i < 8; i++) {
+      const t = (i / 8) * Math.PI * 2;
+      m.painted(TINT.METAL_DARK, () =>
+        m.box([-30.0 + Math.cos(t) * 7.9 - 0.5, 5.0, Math.sin(t) * 7.9 - 0.5],
+              [-30.0 + Math.cos(t) * 7.9 + 0.5, 12.0, Math.sin(t) * 7.9 + 0.5], MAT.TRIM));
+    }
+    // Benches, lamps, people on the square.
+    for (const px of [-18.0, 18.0]) {
+      bench(m, px, 14.0, 3.0, 'z');
+      bench(m, px, 26.0, 3.0, 'z');
+      lamp(m, px, 20.0, 5.4);
+    }
+    figure(m, 7910, -6.0, 16.0, 0, { stride: 0.14, bag: true });
+    figure(m, 7917, 5.0, 26.0, Math.PI, { stride: 0.12 });
+    figure(m, 7924, 10.0, 12.0, -Math.PI / 2, {});
+    for (let i = 0; i < 3; i++) parkedVehicle(m, 7930 + i * 13, -34.0 + i * 7.0, 24.0, 1, 'car');
+    kerb(m, -x + 2.0, z - 1.6, x - 2.0, z - 0.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const civ = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1605,6 +1702,7 @@ export const CIVIC: AssetDef[] = [
   { id: 'svc.edu.college', name: 'College campus', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [18, 15], height: 45.6, brand: { name: 'College', colour: [0.30, 0.24, 0.46], accent: [0.68, 0.58, 0.28], sign: 'box' }, sim: civ(420, 3200, 1250, 900), note: 'Domed hall and portico at the head of a lawn, with a science block, an engineering hall under a sawtooth, a chapel with a spire, a barrel-vaulted field house, a colonnaded library over a gateway, and four halls of residence.', build: collegeCampus },
   { id: 'svc.edu.library', name: 'Library', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 12.9, brand: { name: 'Library', colour: [0.36, 0.28, 0.52], accent: [0.66, 0.58, 0.30], sign: 'box' }, sim: civ(24, 240, 110, 40), note: 'Barrel-vaulted reading room on a stone plinth, full-height glazing between deep fins.', build: library },
 
+  { id: 'svc.gov.civic', name: 'Civic centre', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [11, 9], height: 30.0, brand: { name: 'Civic Centre', colour: [0.46, 0.40, 0.24], accent: [0.68, 0.60, 0.28], sign: 'box' }, sim: civ(320, 2200, 780, 340), note: 'Colonnaded assembly hall on a public square with a fountain, a drum council chamber on the corner and an eight-storey department slab behind.', build: civicCentre },
   { id: 'svc.gov.hall', name: 'City hall', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 37.0, brand: { name: 'City Hall', colour: [0.46, 0.40, 0.24], accent: [0.68, 0.60, 0.28], sign: 'box' }, sim: civ(140, 900, 300, 150), note: 'Stone block with a six-column portico and pediment, octagonal lantern, clock and two flags.', build: cityHall },
   { id: 'svc.gov.court', name: 'Courthouse', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [5, 5], height: 19.0, brand: { name: 'Courts', colour: [0.44, 0.38, 0.24], accent: [0.66, 0.58, 0.28], sign: 'box' }, sim: civ(80, 620, 190, 90), note: 'Near-blind stone box on a podium, deep pilaster slots, colonnade over a fourteen-step flight.', build: courthouse },
   { id: 'svc.gov.offices', name: 'Municipal offices', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 27.6, brand: { name: 'Council', colour: [0.44, 0.38, 0.24], accent: [0.66, 0.58, 0.28], sign: 'box' }, sim: civ(190, 780, 380, 140), note: 'Finned slab on a colonnaded, recessed ground floor. Where the paperwork actually happens.', build: municipalOffices },

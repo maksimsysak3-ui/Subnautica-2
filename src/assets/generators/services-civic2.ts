@@ -554,6 +554,197 @@ function sortingCentre(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * A memorial park: a burial ground the size of a real one.
+ *
+ * The cemetery on seven by six cells is a churchyard. A city cemetery is a
+ * landscape -- an avenue in from a lodge at the gate, a chapel on the axis, a
+ * columbarium colonnade, sections of graves divided by hedges and trees, and a
+ * war memorial where the paths cross.
+ */
+function memorialPark(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 44.0, z = 36.0;
+
+  m.painted(TINT.GREEN, () => m.box([-x, 0.001, -z], [x, 0.09, z], MAT.TRIM));
+  // The wall, with a break for the gates.
+  for (const [a2, b2, c2, d2] of [
+    [-x, -z, x, -z + 0.7], [-x, z - 0.7, -6.0, z], [6.0, z - 0.7, x, z],
+    [-x, -z, -x + 0.7, z], [x - 0.7, -z, x, z],
+  ] as const) {
+    m.box([a2, 0, b2], [c2, 1.8, d2], MAT.STONE);
+    m.box([a2 - 0.15, 1.8, b2 - 0.15], [c2 + 0.15, 2.05, d2 + 0.15], MAT.TRIM);
+  }
+  // The avenue in, and the cross path.
+  m.box([-3.0, 0.09, -22.0], [3.0, 0.18, z], MAT.GROUND);
+  m.box([-x + 4.0, 0.09, -4.0], [x - 4.0, 0.18, 1.0], MAT.GROUND);
+  // The chapel on the axis, at the head of the avenue.
+  m.box([-9.0, 0.09, -34.0], [9.0, 9.0, -22.0], MAT.STONE);
+  m.gable([-9.6, 9.0, -34.6], [9.6, 9.0, -21.4], 4.6, 'x', MAT.ROOF, MAT.STONE);
+  m.box([-3.4, 0.09, -37.0], [3.4, 15.0, -33.0], MAT.STONE);
+  m.cone(0, -35.0, 3.8, 0.0, 15.0, 24.0, 4, MAT.ROOF);
+  // The lodge beside the gate.
+  m.box([10.0, 0.09, z - 10.0], [20.0, 5.4, z - 2.0], MAT.STONE);
+  m.gable([9.4, 5.4, z - 10.6], [20.6, 5.4, z - 1.4], 2.6, 'x', MAT.ROOF, MAT.STONE);
+
+  if (medium) {
+    // The columbarium: a colonnade down one side of the cross path.
+    colonnade(m, -x + 6.0, -8.0, 1.4, 3.0, 4.0, 8);
+    // Section hedges, which is what divides a cemetery into plots.
+    m.painted(TINT.GREEN, () => {
+      for (const cz of [-16.0, 8.0, 20.0]) {
+        m.box([-x + 4.0, 0.09, cz - 0.5], [x - 4.0, 1.3, cz + 0.5], MAT.TRIM);
+      }
+      for (const cx of [-20.0, 20.0]) {
+        m.box([cx - 0.5, 0.09, -20.0], [cx + 0.5, 1.3, z - 4.0], MAT.TRIM);
+      }
+    });
+    // The war memorial where the paths cross.
+    m.box([-2.4, 0.18, -2.6], [2.4, 0.9, 2.2], MAT.STONE);
+    m.box([-1.4, 0.9, -1.6], [1.4, 1.6, 1.2], MAT.STONE);
+    m.box([-0.55, 1.6, -0.75], [0.55, 8.4, 0.35], MAT.STONE);
+    m.box([-1.8, 6.4, -0.85], [1.8, 7.5, 0.45], MAT.STONE);
+    // Yews along the avenue.
+    for (let i = 0; i < 5; i++) {
+      const cz = -18.0 + i * 12.0;
+      for (const sx of [-1, 1] as const) {
+        m.painted(TINT.WOOD, () => m.cylinder(sx * 6.0, cz, 0.3, 0.09, 2.0, 6, MAT.TIMBER));
+        m.painted(TINT.GREEN, () => m.cone(sx * 6.0, cz, 2.2, 0.5, 2.0, 8.4, 7, MAT.TRIM));
+      }
+    }
+  }
+  if (fine) {
+    // Rows of headstones, section by section, out of line with each other.
+    for (let s2 = 0; s2 < 4; s2++) {
+      const z0 = [-19.0, 3.0, 10.0, 22.0][s2];
+      const rows = [3, 2, 3, 3][s2];
+      for (let r = 0; r < rows; r++) {
+        for (let i = 0; i < 16; i++) {
+          const px = -x + 6.0 + i * ((2 * x - 12.0) / 15);
+          if (Math.abs(px) < 4.5) continue;
+          const pz = z0 + r * 3.4;
+          const hgt = 0.7 + ((i * 7 + r * 3 + s2) % 5) * 0.15;
+          m.box([px - 0.38, 0.09, pz - 0.13], [px + 0.38, hgt, pz + 0.13], MAT.STONE);
+          m.box([px - 0.46, 0.09, pz - 0.22], [px + 0.46, 0.2, pz + 0.22], MAT.STONE);
+        }
+      }
+    }
+    // The gates, the chapel's east window and its door.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sx of [-1, 1] as const) {
+        m.box([sx * 6.0 - 0.35, 0, z - 0.9], [sx * 6.0 + 0.35, 3.4, z - 0.1], MAT.TRIM);
+        for (let i = 0; i < 5; i++) {
+          const px = sx * (1.0 + i * 1.1);
+          m.box([px - 0.05, 0.1, z - 0.55], [px + 0.05, 2.4, z - 0.45], MAT.TRIM);
+        }
+      }
+    });
+    m.opening({ axis: 'z', sign: 1, plane: -22.0, u0: -2.6, u1: 2.6, y0: 2.4, y1: 7.4,
+      glass: MAT.GLASS, frame: 0.24, proud: 0.12 });
+    entrance(m, { axis: 'z', sign: 1, plane: -22.0 }, 0,
+      { width: 2.2, height: 3.2, double: true, steps: 2 });
+    for (const sx of [-1, 1] as const) {
+      windowGrid(m, { axis: 'x', sign: sx as 1 | -1, plane: sx * 9.0 }, -32.4, -23.6,
+        { floors: 1, floorH: 5.0, base: 2.6, count: 3, width: 0.7, height: 3.4 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z - 2.0 }, 15.0,
+      { width: 1.4, height: 2.6, double: false, steps: 1 });
+    figure(m, 9701, -1.0, 14.0, 0, { stride: 0.12 });
+    figure(m, 9708, 3.6, -6.0, Math.PI, { bag: true });
+    parkedVehicle(m, 9715, -16.0, z - 5.0, 1, 'car');
+  }
+  return m;
+}
+
+/**
+ * A mail hub: the sorting centre's big brother, out by the ring road.
+ *
+ * The sorting centre on eight by eight cells is a shed with dock doors. A
+ * national hub is a shed of a different order -- a hundred and thirty metres
+ * long, twenty dock doors down one side under a continuous canopy, a
+ * lorry park deep enough to hold what comes off them, a glazed office end and
+ * a conveyor bridge crossing the yard to the rail dock.
+ */
+function mailHub(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 52.0, z = 40.0;
+  const h = 14.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The shed, and the office end standing proud of it.
+  m.box([-46.0, 0.1, -18.0], [38.0, h, 12.0], MAT.SHED_WALL, { roof: MAT.METAL });
+  m.box([38.0, 0.1, -18.0], [50.0, 17.0, 12.0], MAT.CLADDING, { roof: MAT.ROOF });
+  // The rail dock across the yard, and the bridge that reaches it.
+  m.box([-46.0, 0.1, 26.0], [4.0, 8.0, 36.0], MAT.CONCRETE, { roof: MAT.METAL });
+  m.box([-26.0, 9.0, 12.0], [-18.0, 13.0, 26.0], MAT.METAL);
+
+  if (medium) {
+    band(m, -46.0, -18.0, 38.0, 12.0, 8.0, 0.5, 0.22, MAT.METAL);
+    parapet(m, -46.0, -18.0, 38.0, 12.0, h, 0.9, 0.26, MAT.METAL);
+    parapet(m, 38.0, -18.0, 50.0, 12.0, 17.0, 1.0, 0.28);
+    parapet(m, -46.0, 26.0, 4.0, 36.0, 8.0, 0.8, 0.24, MAT.METAL);
+    // The dock canopy, continuous down the whole loading face.
+    m.box([-46.0, 5.6, 12.0], [38.0, 6.4, 17.0], MAT.METAL);
+    for (let i = 0; i < 11; i++) {
+      const px = -44.0 + i * 8.2;
+      m.box([px - 0.22, 0.1, 16.4], [px + 0.22, 5.6, 16.8], MAT.METAL);
+    }
+    // The loading apron and the lorry park beyond it.
+    m.box([-48.0, 0.1, 12.0], [40.0, 1.2, 17.0], MAT.CONCRETE);
+    m.box([-48.0, 0.11, 17.0], [40.0, 0.18, 26.0], MAT.GROUND);
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 12; i++) {
+        m.box([-46.0 + i * 7.2, 0.18, 18.0], [-45.7 + i * 7.2, 0.22, 25.0], MAT.TRIM);
+      }
+    });
+    roofClutter(m, -44.0, -16.0, 36.0, 10.0, h, 9801, 0.7);
+  }
+  if (fine) {
+    // Twenty dock doors, which is what makes it a hub and not a depot.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 20; i++) {
+        const cx = -44.0 + i * 4.3;
+        m.opening({ axis: 'z', sign: 1, plane: 12.0, u0: cx - 1.5, u1: cx + 1.5,
+          y0: 1.3, y1: 5.2, glass: MAT.TRIM, frame: 0.14, proud: 0.08 });
+      }
+    });
+    // The office end: four floors of glazing on two faces, and the door.
+    for (const [sign, plane, u0, u1, axis] of [
+      [1, 50.0, -16.0, 10.0, 'x'], [-1, -18.0, 39.4, 48.6, 'z'],
+    ] as const) {
+      for (let f = 0; f < 4; f++) {
+        ribbon(m, { axis, sign, plane }, u0, u1, 1.4 + f * 3.6, 3.6 + f * 3.6, { mullions: 6 });
+      }
+    }
+    entrance(m, { axis: 'x', sign: 1, plane: 50.0 }, -3.0,
+      { width: 2.4, height: 3.2, double: true, glazed: true, canopy: 2.4 });
+    boxSign(m, { axis: 'x', sign: 1, plane: 50.0 }, -9.0, 3.0, 14.6, 16.0);
+    // Big lettering along the shed's long flank, as these always carry.
+    m.painted(TINT.BRAND, () =>
+      m.box([-34.0, 9.4, 11.9], [-4.0, 12.4, 12.1], MAT.TRIM));
+    // The bridge's glazing, so it reads as a conveyor and not a duct.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-26.0, -18.0]) {
+        m.box([px - 0.06, 10.0, 12.0], [px + 0.06, 12.2, 26.0], MAT.TRIM);
+      }
+    });
+    // Lorries on the apron and in the park.
+    for (let i = 0; i < 5; i++) parkedVehicle(m, 9810 + i * 13, -40.0 + i * 9.0, 21.0, 3, 'truck');
+    for (let i = 0; i < 3; i++) parkedVehicle(m, 9860 + i * 17, 8.0 + i * 9.0, 21.0, 3, 'van');
+    // Floodlight masts over the yard.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-30.0, 0.0, 30.0]) {
+        m.cylinder(px, 24.0, 0.24, 0.1, 12.0, 8, MAT.TRIM, false);
+        m.box([px - 1.6, 12.0, 23.4], [px + 1.6, 13.0, 24.6], MAT.TRIM);
+      }
+    });
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const civ = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -565,7 +756,9 @@ export const DEATH_AND_POST: AssetDef[] = [
   { id: 'svc.death.director', name: 'Funeral director', zone: 'service', branch: 'deathcare', density: 'none', variant: 'sculpted', footprint: [4, 5], height: 7.6, brand: { name: 'Funeral Director', colour: [0.20, 0.18, 0.22], accent: [0.62, 0.58, 0.44], sign: 'box' }, sim: civ(8, 120, 50, 30), note: 'Chapel of rest behind a single deep display window with a blind, and a hearse garage in the yard behind.', build: funeralDirector },
   { id: 'svc.death.church', name: 'Church', zone: 'service', branch: 'deathcare', density: 'none', variant: 'sculpted', footprint: [6, 6], height: 32.9, brand: { name: 'Church', colour: [0.42, 0.40, 0.36], accent: [0.56, 0.52, 0.44], sign: 'box' }, sim: civ(6, 140, 40, 40), note: 'Nave and chancel under steep roofs with buttressed lancets, a west tower with a clock, louvred belfry and spire, in a walled yard with a lychgate.', build: church },
   { id: 'svc.death.cemetery', name: 'Cemetery', zone: 'service', branch: 'deathcare', density: 'none', variant: 'sculpted', footprint: [7, 6], height: 7.6, brand: { name: 'Cemetery', colour: [0.30, 0.34, 0.28], accent: [0.58, 0.56, 0.50], sign: 'box' }, sim: civ(4, 90, 10, 40), note: 'Walled ground with a timber lychgate, five rows of headstones, a small chapel and yews along the wall.', build: cemetery },
+  { id: 'svc.death.memorial', name: 'Memorial park', zone: 'service', branch: 'deathcare', density: 'none', variant: 'sculpted', footprint: [11, 10], height: 24.0, brand: { name: 'Memorial Park', colour: [0.30, 0.34, 0.28], accent: [0.58, 0.56, 0.50], sign: 'box' }, sim: civ(10, 220, 30, 90), note: 'Walled ground with iron gates and a lodge, a yew avenue to a spired chapel, a columbarium colonnade, a war memorial where the paths cross and four hedged sections of graves.', build: memorialPark },
   { id: 'svc.post.office', name: 'Post office', zone: 'service', branch: 'post', density: 'none', variant: 'sculpted', footprint: [4, 5], height: 8.7, brand: { name: 'Post Office', colour: [0.66, 0.14, 0.10], accent: [0.90, 0.84, 0.24], sign: 'box' }, sim: civ(14, 160, 70, 30), note: 'Counter hall articulated by pilasters, a fascia band, two posting boxes on the pavement and a van yard behind.', build: postOffice },
   { id: 'svc.post.delivery', name: 'Delivery office', zone: 'service', branch: 'post', density: 'none', variant: 'sculpted', footprint: [5, 6], height: 8.0, brand: { name: 'Delivery', colour: [0.64, 0.14, 0.10], accent: [0.90, 0.84, 0.24], sign: 'box' }, sim: civ(40, 280, 140, 60), note: 'Shed with four dock doors and canopies, roll cages on the apron, a clad office end and a yard of vans.', build: deliveryOffice },
+  { id: 'svc.post.hub', name: 'Mail hub', zone: 'service', branch: 'post', density: 'none', variant: 'sculpted', footprint: [13, 10], height: 17.0, brand: { name: 'Mail Hub', colour: [0.62, 0.14, 0.10], accent: [0.90, 0.84, 0.24], sign: 'box' }, sim: civ(320, 1600, 900, 260), note: 'Hundred-and-thirty-metre shed with twenty dock doors under a continuous canopy, a glazed four-storey office end, a lorry park with floodlight masts and a conveyor bridge to the rail dock.', build: mailHub },
   { id: 'svc.post.sorting', name: 'Sorting centre', zone: 'service', branch: 'post', density: 'none', variant: 'sculpted', footprint: [8, 8], height: 13.1, brand: { name: 'Sorting', colour: [0.62, 0.14, 0.10], accent: [0.90, 0.84, 0.24], sign: 'box' }, sim: civ(140, 780, 520, 180), note: 'Long clad shed with six dock doors, a glazed office end, a conveyor bridge over the yard and floodlit lorry parking.', build: sortingCentre },
 ];
