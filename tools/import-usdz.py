@@ -169,7 +169,7 @@ def read_mesh(prim, textures):
     #: Sampling only the middle of the facet cannot reach the seam at all.
     _RAW = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
             for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
-    _PULL = 0.55
+    _PULL = 0.78
     SPREAD = [tuple(w * (1 - _PULL) + _PULL / 3 for w in p) for p in _RAW]
 
     tris, base = [], 0
@@ -386,6 +386,132 @@ def pack_vehicle(tris, scale):
     return order, index
 
 
+def despeckle(tris, rounds=3):
+    """
+    Removes single facets that took a neighbouring panel's colour.
+
+    Sampling can only ever be a guess for a long thin facet. These atlases pack
+    their islands with no padding, so a sliver along the top of a windscreen or
+    down an A-pillar has a UV footprint a texel or two wide that straddles two
+    islands, and no choice of sample position fixes it -- the facet genuinely
+    covers both. That is where the ragged red teeth along the glass edge, the
+    olive slivers at the wiper line and the dark wedges on the bonnet came
+    from.
+
+    So it is cleaned up topologically instead, the way speckle is removed from
+    any segmentation. Facets are grouped into regions of one colour that touch
+    along an edge; a region far too small to be a panel, and fenced in on
+    nearly every side by one other region, is not a panel -- it is a misread of
+    the region around it, and it takes that region's colour.
+
+    The two conditions matter equally. Size alone would eat the headlamps and
+    the mirrors; being surrounded alone would eat a whole roof panel where the
+    glass wraps it. A real feature is either big or it borders several things.
+    """
+    if not tris:
+        return tris
+    key = lambda p: (round(p[0], 3), round(p[1], 3), round(p[2], 3))
+    ckey = lambda c: (round(c[0], 2), round(c[1], 2), round(c[2], 2))
+
+    def area_of(t):
+        a, b, c = t
+        ux, uy, uz = b[0] - a[0], b[1] - a[1], b[2] - a[2]
+        vx, vy, vz = c[0] - a[0], c[1] - a[1], c[2] - a[2]
+        return math.sqrt((uy * vz - uz * vy) ** 2 + (uz * vx - ux * vz) ** 2
+                         + (ux * vy - uy * vx) ** 2) / 2
+
+    areas = [area_of(t) for t, _ in tris]
+    total = sum(areas) or 1.0
+
+    # Facets that share an edge, found through welded vertex positions.
+    edges = {}
+    for i, (corner, _) in enumerate(tris):
+        k = [key(p) for p in corner]
+        for a, b in ((0, 1), (1, 2), (2, 0)):
+            e = tuple(sorted((k[a], k[b])))
+            edges.setdefault(e, []).append(i)
+    neighbours = [[] for _ in tris]
+    for share in edges.values():
+        if len(share) < 2:
+            continue
+        for a in share:
+            for b in share:
+                if a != b:
+                    neighbours[a].append(b)
+
+    cols = [list(c[0]) for _, c in tris]
+
+    for _ in range(rounds):
+        # Regions: adjacent facets of the same colour.
+        parent = list(range(len(tris)))
+
+        def find(a):
+            while parent[a] != a:
+                parent[a] = parent[parent[a]]
+                a = parent[a]
+            return a
+
+        for i, ns in enumerate(neighbours):
+            for j in ns:
+                if ckey(cols[i]) == ckey(cols[j]):
+                    ra, rb = find(i), find(j)
+                    if ra != rb:
+                        parent[ra] = rb
+        region, size = {}, {}
+        for i in range(len(tris)):
+            r = find(i)
+            region.setdefault(r, []).append(i)
+            size[r] = size.get(r, 0.0) + areas[i]
+
+        # How much of the car each colour covers in total, across every
+        # region. A colour used once, on three facets by the windscreen
+        # surround, is a misread; a colour used on all four wheels is a
+        # material, however little of the car each spoke covers.
+        spread = {}
+        for i in range(len(tris)):
+            k = ckey(cols[i])
+            spread[k] = spread.get(k, 0.0) + areas[i]
+
+        changed = False
+        for r, members in region.items():
+            # Far too small to be a panel: a fiftieth of the whole car.
+            if size[r] > total * 0.02:
+                continue
+            oneoff = spread.get(ckey(cols[members[0]]), 0.0) < total * 0.004
+            border, around = {}, {}
+            for i in members:
+                for j in neighbours[i]:
+                    rj = find(j)
+                    if rj == r:
+                        continue
+                    k = ckey(cols[j])
+                    border[k] = border.get(k, 0) + 1
+                    around[k] = max(around.get(k, 0.0), size[rj])
+            if not border:
+                continue
+            edge_total = sum(border.values())
+            best, n = max(border.items(), key=lambda kv: kv[1])
+            # Fenced in on nearly every side by one other region -- unless the
+            # colour is a one-off, in which case there is nothing to protect:
+            # it is not a material the model uses anywhere else.
+            if not oneoff and n < edge_total * 0.6:
+                continue
+            # And that region has to be a panel in its own right, an order of
+            # magnitude bigger than the speck. Without this the rule eats the
+            # spokes out of every alloy wheel: a spoke is small and it is
+            # surrounded by the hub, but the hub is no bigger than it is. A
+            # windscreen next to a sliver of body colour is fifty times larger.
+            if around.get(best, 0.0) < size[r] * 18.0:
+                continue
+            for i in members:
+                cols[i] = list(best)
+            changed = True
+        if not changed:
+            break
+
+    return [(t[0], [tuple(cols[i])] * 3) for i, t in enumerate(tris)]
+
+
 def unbake(tris):
     """
     Lifts a vehicle's albedo back out of its own baked shading.
@@ -522,7 +648,7 @@ def main(src_dir, out_path):
         groups, scale = vehicles_in(src / f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris in groups:
-            order, index = pack_vehicle(unbake(tris), scale)
+            order, index = pack_vehicle(unbake(despeckle(tris)), scale)
             # Two hashes, doing two different jobs. The loose one groups
             # liveries of one body so they get one name and one number, and it
             # has to ignore triangle order to do that. The strict one decides
