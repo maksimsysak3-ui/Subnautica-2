@@ -51,7 +51,10 @@ from pxr import Usd, UsdGeom, UsdShade, Gf
 from PIL import Image
 
 PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
-         'Low_Poly_cars_pack.usdz']
+         'Low_Poly_cars_pack.usdz', 'Free_Low_Poly_Vehicles_Pack.usdz']
+
+#: Meshes to leave out, by a fragment of their prim path.
+SKIP_MESH = ('Monster_Truck',)
 
 #: Every vehicle in a pack is measured against this one, in metres.
 TYPICAL = 4.5
@@ -222,15 +225,71 @@ def read_mesh(prim, textures):
     return tris, box
 
 
+#: Part words to strip when a mesh name is used to name the vehicle it is
+#: part of. One pack names its meshes "Firetruck_body_red_0" and the like,
+#: which is worth far more than a name derived from measurements.
+PART_WORDS = (
+    'body', 'windows', 'window', 'wheel', 'wheels', 'tires', 'tyres', 'rear',
+    'front', 'head', 'lights', 'light', 'flashers', 'siren', 'trim', 'glass',
+    'grill', 'grille', 'bumper', 'interior', 'seats', 'plate', 'mirror',
+    'rim', 'rims', 'tire', 'tyre', 'hub', 'hubs', 'brake', 'exhaust', 'roof',
+    'door', 'doors', 'hood', 'bonnet', 'boot', 'spoiler', 'chassis', 'panel',
+    'black', 'white', 'grey', 'gray', 'silver', 'red', 'blue', 'green',
+    'yellow', 'orange', 'purple', 'brown', 'pink', 'light', 'dark', 'cyan',
+    'teal', 'gold', 'beige', 'tan', 'lime', 'navy', 'maroon',
+)
+
+
+#: Mesh names that describe the mesh rather than the vehicle.
+#:
+#: Only one of the four packs names its meshes after what they are part of
+#: ("Firetruck_body_red_0"). The others name them after the exporter's own
+#: bookkeeping -- Object_12, Paint_Material_020, Transport3_TransportPack --
+#: and taking those as vehicle names produced a fleet called "Object 6c" and
+#: "Paint Material 1b". A hint is only worth having if it is a word about a
+#: vehicle, so anything starting with one of these is refused and the model
+#: falls back to being named from its measurements.
+GENERIC = {
+    'object', 'paint', 'trim', 'body', 'material', 'mesh', 'transport',
+    'group', 'node', 'default', 'polygon', 'cube', 'plane', 'part', 'item',
+    'geo', 'model', 'shape', 'element', 'piece', 'obj', 'sm', 'mi',
+}
+
+
+def name_hint(prim):
+    """The vehicle a mesh belongs to, from its name, or None."""
+    parts = prim.GetName().split('_')
+    keep = []
+    for w in parts:
+        if w.lower() in PART_WORDS or w.isdigit():
+            break
+        keep.append(w)
+    if not keep:
+        return None
+    head = keep[0].rstrip('0123456789').lower()
+    if head in GENERIC or head == '':
+        return None
+    label = ' '.join(keep).strip()
+    return label if len(label) > 2 else None
+
+
 def all_triangles(path):
-    """Every triangle in the pack, in world space, with its colour."""
+    """
+    Every triangle in the pack, in world space, with its colour, plus the
+    vehicle name each one's mesh suggests.
+    """
     stage = Usd.Stage.Open(str(path))
     textures = texture_lookup(path)
-    out = []
+    out, hints = [], []
     for prim in stage.Traverse():
-        if prim.IsA(UsdGeom.Mesh):
-            out += read_mesh(prim, textures)[0]
-    return out
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        if any(skip in str(prim.GetPath()) for skip in SKIP_MESH):
+            continue
+        tris = read_mesh(prim, textures)[0]
+        out += tris
+        hints += [name_hint(prim)] * len(tris)
+    return out, hints
 
 
 def components(tris):
@@ -294,7 +353,7 @@ def vehicles_in(path):
     Surfaces are welded per file but not across cars, so this holds even in the
     pack whose meshes are merged by material across the entire scene.
     """
-    tris = all_triangles(path)
+    tris, hints = all_triangles(path)
     groups = components(tris)
     boxes = [box_of(g, tris) for g in groups]
 
@@ -327,13 +386,23 @@ def vehicles_in(path):
         merged.setdefault(find(i), []).extend(groups[i])
 
     span = lambda b: max(b[1] - b[0], b[5] - b[4])
-    vehicles = [[tris[i] for i in g] for g in merged.values() if len(g) >= 200]
+    kept = [g for g in merged.values() if len(g) >= 200]
+    vehicles = [[tris[i] for i in g] for g in kept]
+    # The name its meshes agree on, if they carry one.
+    names = []
+    for g in kept:
+        tally = {}
+        for i in g:
+            h = hints[i]
+            if h is not None:
+                tally[h] = tally.get(h, 0) + 1
+        names.append(max(tally.items(), key=lambda kv: kv[1])[0] if tally else None)
     lengths = sorted(span(box_of(range(len(v)), v)) for v in vehicles)
     # One scale for the whole pack, from its median vehicle, so a truck stays
     # bigger than a hatchback instead of every model being stretched to a
     # length somebody typed in.
     scale = TYPICAL / max(lengths[len(lengths) // 2], 1e-6)
-    return vehicles, scale
+    return vehicles, scale, names
 
 
 def pack_vehicle(tris, scale):
@@ -645,9 +714,9 @@ def main(src_dir, out_path):
     # across packs and named once from its measurements.
     found = []
     for f in PACKS:
-        groups, scale = vehicles_in(src / f)
+        groups, scale, names = vehicles_in(src / f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
-        for tris in groups:
+        for tris, given in zip(groups, names):
             order, index = pack_vehicle(unbake(despeckle(tris)), scale)
             # Two hashes, doing two different jobs. The loose one groups
             # liveries of one body so they get one name and one number, and it
@@ -657,17 +726,23 @@ def main(src_dir, out_path):
             # own vertex order, so sharing between two orderings that merely
             # describe the same solid paints one car with the other's colours.
             found.append((geo_hash(order, index), packed_hash(order, index),
-                          order, index))
+                          order, index, given))
 
     # One name per geometry, from its size, and a running number per class.
     named, counts = {}, {}
-    for norm, _geo, order, _index in found:
+    for norm, _geo, order, _index, given in found:
         geo = norm
         if geo in named:
             continue
         length = max(v[0] for v in order) - min(v[0] for v in order)
         height = max(v[1] for v in order)
-        key, label = classify(length, height)
+        if given:
+            # The pack named it; a name the artist gave is worth more than one
+            # derived from a bounding box.
+            key = given.lower().replace(' ', '')
+            label = given.replace('_', ' ')
+        else:
+            key, label = classify(length, height)
         counts[key] = n = counts.get(key, 0) + 1
         named[geo] = (key, label, n)
 
@@ -694,7 +769,7 @@ def main(src_dir, out_path):
         return n / max(len(order), 1)
 
     glass = {}
-    for norm, _geo, order, _index in found:
+    for norm, _geo, order, _index, _given in found:
         glass.setdefault(norm, []).append(glazed(order))
     broken = set()
     for norm, fracs in glass.items():
@@ -709,7 +784,7 @@ def main(src_dir, out_path):
 
     shapes, models, seen = {}, {}, {}
     livery = {}
-    for norm, geo, order, index in found:
+    for norm, geo, order, index, _given in found:
         livery[norm] = k = livery.get(norm, -1) + 1
         if (norm, k) in broken or geo in DROP_SHAPES:
             continue
