@@ -56,6 +56,22 @@ PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
 #: Every vehicle in a pack is measured against this one, in metres.
 TYPICAL = 4.5
 
+#: Source variants to leave out, by the hash of their packed geometry.
+#:
+#: Three liveries of the small van have their cab glazing, grille and lamps
+#: painted the body colour in the pack's own texture -- the front of the van is
+#: one flat sheet of red, teal or brown with no windscreen in it. Nothing in
+#: the import can recover what the artist did not put there, and the automatic
+#: test for it ("much less glass than my siblings") threw away good cars to
+#: catch these, so they are named outright instead. The hash is of the geometry
+#: after packing, which is stable across runs.
+DROP_SHAPES = {
+    'd1056e32904a',                        # small van, red livery
+    '5ab7d2f06a62',                        # small van, teal livery
+    'd7830ed2d51b',                        # small van, brown livery
+}
+
+
 #: What to call a shape, from its measurements.
 #:
 #: Real manufacturer names are trademarks and every brand in this library is
@@ -313,9 +329,15 @@ def pack_vehicle(tris, scale):
     cx, cz, y0 = (max(xs) + min(xs)) / 2, (max(zs) + min(zs)) / 2, min(ys)
 
     def canon(t):
-        pts = sorted((round((p[0] - cx) * scale, 3), round((p[1] - y0) * scale, 3),
-                      round((p[2] - cz) * scale, 3)) for p in t[0])
-        return pts
+        # Rotated so the smallest corner comes first, not sorted: rotation
+        # keeps the winding, and two triangles that share all three positions
+        # with opposite windings -- which these packs are full of, every
+        # double-sided quad is a pair -- must not compare equal, or the sort
+        # falls back on input order and the whole exercise is defeated.
+        pts = [(round((p[0] - cx) * scale, 3), round((p[1] - y0) * scale, 3),
+                round((p[2] - cz) * scale, 3)) for p in t[0]]
+        k = pts.index(min(pts))
+        return pts[k:] + pts[:k]
 
     seen, order, index = {}, [], []
     for corner, cols in sorted(tris, key=canon):
@@ -332,6 +354,44 @@ def pack_vehicle(tris, scale):
                 order.append(key)
             index.append(i)
     return order, index
+
+
+def unbake(tris):
+    """
+    Lifts a vehicle's albedo back out of its own baked shading.
+
+    These textures are painted with the light already in them -- ambient
+    occlusion in the wheel arches, a highlight along the shoulder, a shaded
+    underside. The renderer then lights the model again, so everything arrives
+    twice-darkened: the whole fleet came out muted and washed out beside the
+    procedural buildings, whose albedo is authored bright because it is albedo.
+
+    So each vehicle is scaled until its brightest body colour sits at a proper
+    albedo level, and its chroma is pushed back out by the amount the double
+    shading cost it. Per vehicle rather than globally, because a black car and
+    a white one need different amounts and a single constant would blow one out
+    to keep the other visible.
+    """
+    lum = lambda c: 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    vals = sorted(lum(c) for _, cols in tris for c in cols)
+    if not vals:
+        return tris
+    # The ninetieth percentile rather than the maximum: a single specular
+    # texel would otherwise set the scale for the whole car.
+    top = vals[int(len(vals) * 0.90)]
+    gain = min(3.2, 0.74 / max(top, 0.02))
+    out = []
+    for corner, cols in tris:
+        lifted = []
+        for c in cols:
+            v = [min(1.0, x * gain) for x in c]
+            g = lum(v)
+            # Chroma back out around the luminance, which is what baked shading
+            # flattens first.
+            lifted.append(tuple(min(1.0, max(0.0, g + (v[i] - g) * 1.45))
+                                for i in range(3)))
+        out.append((corner, lifted))
+    return out
 
 
 def cluster(order, index, cell):
@@ -378,6 +438,23 @@ def b64(b):
     return base64.b64encode(bytes(b)).decode()
 
 
+def packed_hash(order, index):
+    """
+    Shape identity: the packed vertex positions and index list exactly.
+
+    Deliberately stricter than the class hash below. Two liveries may only
+    share a stored shape if their packed buffers agree vertex for vertex,
+    because each livery's colour buffer is indexed by that order -- share a
+    shape between two orderings that merely describe the same solid and one car
+    gets painted with the other's colours in the wrong places. Canonical
+    sorting makes genuine copies agree; anything that does not agree now keeps
+    its own shape, which costs a little data and cannot be wrong.
+    """
+    return hashlib.sha1(
+        json.dumps([[v[0], v[1], v[2]] for v in order]).encode()
+        + json.dumps(index).encode()).hexdigest()[:12]
+
+
 def geo_hash(order, index):
     """
     Identity of a shape: where its triangles are, and nothing else.
@@ -407,12 +484,21 @@ def main(src_dir, out_path):
         groups, scale = vehicles_in(src / f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris in groups:
-            order, index = pack_vehicle(tris, scale)
-            found.append((geo_hash(order, index), order, index))
+            order, index = pack_vehicle(unbake(tris), scale)
+            # Two hashes, doing two different jobs. The loose one groups
+            # liveries of one body so they get one name and one number, and it
+            # has to ignore triangle order to do that. The strict one decides
+            # whether they may share a stored shape, and it must not: a shape
+            # is stored once but every livery's colour buffer is indexed by its
+            # own vertex order, so sharing between two orderings that merely
+            # describe the same solid paints one car with the other's colours.
+            found.append((geo_hash(order, index), packed_hash(order, index),
+                          order, index))
 
     # One name per geometry, from its size, and a running number per class.
     named, counts = {}, {}
-    for geo, order, _ in found:
+    for norm, _geo, order, _index in found:
+        geo = norm
         if geo in named:
             continue
         length = max(v[0] for v in order) - min(v[0] for v in order)
@@ -421,9 +507,49 @@ def main(src_dir, out_path):
         counts[key] = n = counts.get(key, 0) + 1
         named[geo] = (key, label, n)
 
+    # Some liveries in these packs have their glass painted the body colour --
+    # the windscreen, the side windows and the light lenses all sample the same
+    # patch of the atlas as the panels do. On its own that is indistinguishable
+    # from a car with very dark glass, so it is judged against its own
+    # siblings: liveries of one body share geometry, so if some of them have a
+    # neutral mid-grey glazing material and others have none at all, the ones
+    # with none have broken UVs rather than tinted windows.
+    # Deliberately conservative. An earlier, looser version of this threw away
+    # thirteen liveries to catch three, including some of the best in the pack:
+    # "less glass than my siblings" is a weak signal because a livery may
+    # legitimately have darker glass, and the strong signal -- essentially none
+    # at all -- is the only one worth acting on automatically.
+    def glazed(order):
+        n = 0
+        for v in order:
+            lum = 0.2126 * v[3] + 0.7152 * v[4] + 0.0722 * v[5]
+            hi, lo = max(v[3], v[4], v[5]), min(v[3], v[4], v[5])
+            sat = (hi - lo) / max(hi, 1e-6)
+            if 0.10 < lum < 0.62 and sat < 0.18:
+                n += 1
+        return n / max(len(order), 1)
+
+    glass = {}
+    for norm, _geo, order, _index in found:
+        glass.setdefault(norm, []).append(glazed(order))
+    broken = set()
+    for norm, fracs in glass.items():
+        best = max(fracs)
+        if best < 0.10 or len(fracs) < 2:
+            continue                       # nothing to compare against
+        for i, f in enumerate(fracs):
+            if f < best * 0.25:
+                broken.add((norm, i))
+    if broken:
+        print(f'  dropping {len(broken)} liveries whose glass is painted body colour')
+
     shapes, models, seen = {}, {}, {}
-    for geo, order, index in found:
-        key, label, n = named[geo]
+    livery = {}
+    for norm, geo, order, index in found:
+        livery[norm] = k = livery.get(norm, -1) + 1
+        if (norm, k) in broken or geo in DROP_SHAPES:
+            continue
+        key, label, n = named[norm]
         if geo not in shapes:
             xs = [v[0] for v in order]
             ys = [v[1] for v in order]
@@ -475,7 +601,7 @@ def main(src_dir, out_path):
             for i in range(3):
                 lcbuf.append(max(0, min(255, int(round(v[3 + i] * 255)))))
         # Liveries of one shape share its number and take a letter.
-        seen[geo] = liv = seen.get(geo, 0) + 1
+        seen[norm] = liv = seen.get(norm, 0) + 1
         base = f'{key}{n}'
         aid = f'car.{base}' + ('' if liv == 1 else chr(ord('a') + liv - 1))
         models[aid] = {
