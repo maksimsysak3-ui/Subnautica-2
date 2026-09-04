@@ -846,7 +846,7 @@ export function applianceVehicle(m: MeshBuilder, cx: number, cz: number, len: nu
 
 /** A figure, for building generators that want one for scale. */
 export function figure(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
-  opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number } = {}): void {
+  opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number; lift?: number } = {}): void {
   person(m, key, cx, cz, facing, opts);
 }
 

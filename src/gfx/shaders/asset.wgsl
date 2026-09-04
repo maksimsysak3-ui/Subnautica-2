@@ -333,6 +333,62 @@ fn corrugated(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   return mix(base, col, resolvable(0.28, mpp));
 }
 
+/**
+ * Harbour water.
+ *
+ * Two swells crossing at an angle plus a fine chop, all of it shading a flat
+ * quad rather than moving it -- a vessel's pad is seen from above at a slant
+ * and never edge on, so displaced geometry would buy nothing. The glitter is
+ * the crests only: a smooth gradient over the whole surface reads as painted
+ * metal, and it is the small bright specks that say liquid.
+ */
+fn water(uv : vec2f, mpp : f32) -> vec3f {
+  let deep = vec3f(0.031, 0.070, 0.086);
+  let shallow = vec3f(0.062, 0.135, 0.150);
+  let swell = sin(uv.x * 0.62 + uv.y * 0.31) * 0.5
+            + sin(uv.x * 0.21 - uv.y * 0.74) * 0.5;
+  var col = mix(deep, shallow, clamp(swell * 0.5 + 0.5, 0.0, 1.0));
+  let chop = sin(uv.x * 4.3 + uv.y * 2.1) * sin(uv.y * 3.7 - uv.x * 1.9);
+  col *= 0.90 + 0.20 * (chop * 0.5 + 0.5);
+  // Crests only, and only while they are big enough to resolve -- at distance
+  // this decays to the swell, which is what water does.
+  let crest = smoothstep(0.72, 0.98, chop) * resolvable(1.4, mpp);
+  return col + vec3f(0.10, 0.13, 0.14) * crest;
+}
+
+/**
+ * Container steel.
+ *
+ * The same folded-sheet trick as corrugated(), at a quarter of the pitch and
+ * with the top and bottom rails left flat, because that is the proportion that
+ * makes a six-metre box read as a container rather than as a shed wall.
+ */
+fn containerColour(key : f32) -> vec3f {
+  // Quantised for the same reason carPaint quantises: the key is interpolated
+  // across the facet and arrives with float wobble that hash11 turns into
+  // noise. A yard of containers is one colour per box, keyed per box.
+  let r = hash11(floor(key + 0.5) * 5.17 + 1.9);
+  if (r < 0.20) { return vec3f(0.070, 0.170, 0.330); }   // line blue
+  if (r < 0.38) { return vec3f(0.360, 0.120, 0.080); }   // oxide red
+  if (r < 0.52) { return vec3f(0.090, 0.220, 0.150); }   // green
+  if (r < 0.66) { return vec3f(0.420, 0.420, 0.410); }   // grey
+  if (r < 0.80) { return vec3f(0.520, 0.260, 0.060); }   // orange
+  if (r < 0.91) { return vec3f(0.640, 0.640, 0.630); }   // white
+  return vec3f(0.180, 0.180, 0.195);                     // dark
+}
+
+fn containerSide(uv : vec2f, mpp : f32, seed : f32, key : f32) -> vec3f {
+  let base = containerColour(key);
+  let rib = cos(uv.x * 6.2831853 / 0.075) * 0.5 + 0.5;
+  var col = base * (0.84 + rib * 0.30);
+  // Rails: a hand's width of flat plate top and bottom, darker than the wall.
+  let rail = step(uv.y, 0.16) + step(2.44, uv.y);
+  col = mix(col, base * 0.74, clamp(rail, 0.0, 1.0));
+  let rust = hash21(vec2f(floor(uv.x * 2.0), floor(uv.y * 2.0)) + seed) * 0.14;
+  col *= 1.0 - rust * step(0.55, hash21(vec2f(floor(uv.x), 0.0) + seed));
+  return mix(base * 0.92, col, resolvable(0.075, mpp));
+}
+
 fn brick(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   let course = 0.085;
   let brickLen = 0.24;
@@ -983,6 +1039,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 25u: { return lampColour(surf, key < 0.5); }
     case 27u: { return skinColour(key); }
     case 28u: { return hairColour(key); }
+    case 29u: { return water(uv, mpp); }
+    case 30u: { return containerSide(uv, mpp, seed, key); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }

@@ -170,6 +170,21 @@ export const MAT = {
   SKIN: 27,
   /** Hair, for the same reason: five naturals, not the whole wardrobe. */
   HAIR: 28,
+  /**
+   * Harbour water, for the pad a vessel floats on.
+   *
+   * A boat standing on the tarmac the road fleet uses reads as a boat on a
+   * lorry. It is a flat quad like any other ground: two crossed swells and a
+   * little glitter, enough to say water at the distance a hull is seen from.
+   */
+  WATER: 29,
+  /**
+   * Corrugated container steel, ribbed the short way.
+   *
+   * CLADDING ribs a wall at building scale; a container's corrugation is a
+   * quarter of that pitch and is the whole read on a box six metres long.
+   */
+  CONTAINER: 30,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];
