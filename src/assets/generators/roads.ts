@@ -1827,6 +1827,203 @@ function layby(lod: number): MeshBuilder {
 }
 
 
+// ------------------------------------------------- high-capacity dual roads
+//
+// The library had one motorway and one boulevard, which is the whole of its
+// high-capacity vocabulary. A city builder needs the ladder: four lanes, six,
+// eight, ten, with and without a hard shoulder, elevated, and the merges and
+// diverges that join them. These all come from one builder, because that is
+// what makes them read as a family rather than as eight unrelated assets.
+
+interface DualOpts {
+  /** Lanes in each direction. */
+  lanes: number;
+  /** Half-width of the central reservation, or 0 for a barrier on the line. */
+  median?: number;
+  /** A hard shoulder outside the running lanes. */
+  shoulder?: boolean;
+  /** Trees down the median, rather than a steel barrier. */
+  planted?: boolean;
+  /** Footways rather than verges: an urban arterial, not a motorway. */
+  urban?: boolean;
+  /** Height of the lighting columns, or 0 for none. */
+  lighting?: number;
+}
+
+/**
+ * A dual carriageway of any width.
+ *
+ * Everything is derived from the lane count, so the markings, the barrier, the
+ * lighting spacing and the marker posts all stay in step -- a ten-lane road
+ * with a six-lane road's lighting looks wrong in a way that is hard to name
+ * and easy to see.
+ */
+function dual(lod: number, o: DualOpts): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const z0 = -CELL * 2, z1 = CELL * 2;
+  const med = o.median ?? 0.9;
+  const shoulder = o.shoulder === true ? 2.9 : 0;
+  const half = med + o.lanes * LANE + shoulder;
+
+  for (const sx of [1, -1] as const) {
+    m.box([Math.min(sx * med, sx * half), 0, z0],
+          [Math.max(sx * med, sx * half), DECK, z1], MAT.GROUND);
+  }
+  if (med > 0.4) {
+    m.painted(TINT.GREEN, () => m.box([-med, DECK, z0], [med, DECK + 0.1, z1], MAT.TRIM));
+    for (const sx of [1, -1] as const) {
+      m.box([Math.min(sx * med - sx * 0.16, sx * med), 0, z0],
+            [Math.max(sx * med - sx * 0.16, sx * med), DECK + KERB, z1], MAT.STONE);
+    }
+  }
+  if (o.urban === true) {
+    for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1, WALK + 1.2);
+  }
+
+  if (medium) {
+    for (const sx of [1, -1] as const) {
+      for (let i = 1; i < o.lanes; i++) {
+        line(m, sx * (med + i * LANE), z0, z1, { dash: 3.0, gap: 9.0 });
+      }
+      line(m, sx * (med + 0.2), z0, z1, { width: 0.14 });
+      line(m, sx * (half - 0.2), z0, z1, { width: shoulder > 0 ? 0.22 : 0.14 });
+      if (o.urban !== true) verge(m, sx, half, half + 3.4, z0, z1);
+    }
+    if (o.planted === true) {
+      for (let z = z0 + 3.0; z < z1 - 2.2; z += 7.0) {
+        m.painted(TINT.WOOD, () => m.cylinder(0, z, 0.22, DECK, DECK + 2.2, 6, MAT.TIMBER));
+        m.painted(TINT.GREEN, () => m.cone(0, z, 1.9, 0.5, DECK + 2.2, DECK + 7.0, 7, MAT.TRIM));
+      }
+    } else if (med > 0.4) {
+      barrier(m, -med + 0.3, z0, z1, 1);
+      barrier(m, med - 0.3, z0, z1, -1);
+    } else {
+      barrier(m, 0, z0, z1, 1);
+    }
+  }
+  if (fine) {
+    const h = o.lighting ?? (o.urban === true ? 10.0 : 12.0);
+    if (h > 0) {
+      const step = Math.max(11.0, o.lanes * 4.5);
+      for (let z = z0 + 4.0; z < z1; z += step) {
+        if (o.urban === true) {
+          for (const sx of [1, -1] as const) streetLight(m, sx, sx * (half + 1.2), z, h);
+        } else {
+          // Staggered, one carriageway then the other. The offset light has to
+          // be checked against the end of the asset or it stands past it and
+          // the piece overflows its own lot.
+          streetLight(m, 1, -0.4, z, h);
+          if (z + step / 2 < z1) streetLight(m, -1, 0.4, z + step / 2, h);
+        }
+      }
+    }
+    if (o.urban !== true) {
+      m.painted(TINT.SIGN_LIT, () => {
+        for (const sx of [1, -1] as const) {
+          for (let z = z0; z < z1; z += 5.5) {
+            m.box([sx * (half + 0.7) - 0.06, DECK, z - 0.06],
+                  [sx * (half + 0.7) + 0.06, DECK + 1.0, z + 0.06], MAT.TRIM);
+          }
+        }
+      });
+    }
+  }
+  return m;
+}
+
+/** An elevated motorway: six lanes carried on piers over open ground. */
+function elevated(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const z0 = -CELL * 2.5, z1 = CELL * 2.5;
+  const half = 0.9 + 3 * LANE;
+  const y = 11.0;
+
+  for (let z = z0 + 6.0; z < z1; z += 16.0) {
+    m.box([-2.2, 0, z - 1.6], [2.2, y - 1.8, z + 1.6], MAT.CONCRETE);
+    m.box([-half - 1.0, y - 1.8, z - 2.0], [half + 1.0, y - 0.9, z + 2.0], MAT.CONCRETE);
+  }
+  m.box([-half - 1.2, y - 0.9, z0], [half + 1.2, y, z1], MAT.CONCRETE);
+  for (const sx of [1, -1] as const) {
+    m.box([Math.min(sx * 0.9, sx * half), y, z0], [Math.max(sx * 0.9, sx * half), y + DECK, z1],
+      MAT.GROUND);
+    // Solid parapets, which is what an elevated road has instead of verges.
+    m.box([Math.min(sx * half, sx * (half + 1.2)), y, z0],
+          [Math.max(sx * half, sx * (half + 1.2)), y + 1.5, z1], MAT.CONCRETE);
+    m.box([Math.min(sx * (half - 0.1), sx * (half + 1.3)), y + 1.5, z0],
+          [Math.max(sx * (half - 0.1), sx * (half + 1.3)), y + 1.72, z1], MAT.TRIM);
+  }
+  m.box([-0.9, y, z0], [0.9, y + 1.2, z1], MAT.CONCRETE);
+
+  if (medium) {
+    m.painted(TINT.GREEN, () => m.box([-CELL * 2.5, 0.001, z0], [CELL * 2.5, 0.08, z1], MAT.TRIM));
+    for (const sx of [1, -1] as const) {
+      for (let i = 1; i < 3; i++) {
+        line(m, sx * (0.9 + i * LANE), z0, z1, { dash: 3.0, gap: 9.0 });
+      }
+    }
+  }
+  if (fine) {
+    for (let z = z0 + 5.0; z < z1; z += 15.0) {
+      streetLight(m, 1, -half - 0.6, z, 8.0);
+      if (z + 7.5 < z1) streetLight(m, -1, half + 0.6, z + 7.5, 8.0);
+    }
+  }
+  return m;
+}
+
+/** A lane gained or lost: the taper, the chevrons and the sign that go with it. */
+function laneDrop(lod: number, gain: boolean): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const z0 = -CELL * 2.5, z1 = CELL * 2.5;
+  const med = 0.9;
+  const wide = med + 4 * LANE, narrow = med + 3 * LANE;
+
+  m.box([-wide, 0, z0], [-med, DECK, z1], MAT.GROUND);
+  for (let i = 0; i < 24; i++) {
+    const t0 = i / 24, t1 = (i + 1) / 24;
+    const za = z0 + t0 * (z1 - z0), zb = z0 + t1 * (z1 - z0);
+    const ease = (t: number): number => (gain ? 1 - t : t);
+    const wa = narrow + (wide - narrow) * (1 - ease(t0));
+    const wb = narrow + (wide - narrow) * (1 - ease(t1));
+    m.quad([med, DECK, za], [wa, DECK, za], [wb, DECK, zb], [med, DECK, zb], MAT.GROUND);
+    m.quad([wa, 0, za], [wa, DECK, za], [wb, DECK, zb], [wb, 0, zb], MAT.GROUND);
+  }
+  m.painted(TINT.GREEN, () => {
+    m.box([-wide - 3.4, DECK + KERB - 0.02, z0], [-wide, DECK + KERB + 0.08, z1], MAT.TRIM);
+    m.box([wide, DECK + KERB - 0.02, z0], [wide + 3.4, DECK + KERB + 0.08, z1], MAT.TRIM);
+  });
+
+  if (medium) {
+    for (let i = 1; i < 4; i++) line(m, -(med + i * LANE), z0, z1, { dash: 3.0, gap: 9.0 });
+    for (let i = 1; i < 3; i++) line(m, med + i * LANE, z0, z1, { dash: 3.0, gap: 9.0 });
+    line(m, -med - 0.2, z0, z1, { width: 0.14 });
+    line(m, med + 0.2, z0, z1, { width: 0.14 });
+    line(m, -wide + 0.2, z0, z1, { width: 0.14 });
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 12; i++) {
+        const t = gain ? 1 - i / 12 : i / 12;
+        const z = z0 + (0.15 + (i / 12) * 0.7) * (z1 - z0);
+        const w = narrow + (wide - narrow) * (1 - t);
+        if (w - narrow < 0.6) continue;
+        m.box([narrow + 0.3, DECK + 0.004, z], [w - 0.3, DECK + 0.01, z + 0.55], MAT.TRIM);
+      }
+    });
+    barrier(m, -med + 0.3, z0, z1, 1);
+    barrier(m, med - 0.3, z0, z1, -1);
+  }
+  if (fine) {
+    sign(m, wide + 2.4, gain ? -8.0 : 8.0, 2.6, 1.6, TINT.GREEN);
+    for (let z = z0 + 4.0; z < z1; z += 16.0) {
+      streetLight(m, 1, -0.4, z, 12.0);
+      if (z + 8.0 < z1) streetLight(m, -1, 0.4, z + 8.0, 12.0);
+    }
+  }
+  return m;
+}
+
 const road = (upkeep: number): AssetDef['sim'] => ({
   jobs: 0, powerKW: 0, waterM3: 0, garbagePerWeek: 0, pollution: 0, upkeep,
 });
@@ -1836,6 +2033,15 @@ export const ROADS: AssetDef[] = [
   { id: 'road.oneway', name: 'One-way street', zone: 'road', density: 'none', variant: 'sculpted', footprint: [3, 4], height: 7.0, sim: road(5), note: 'Two lanes the same way with painted arrows, parking down one side, footways both.', build: oneway },
   { id: 'road.boulevard', name: 'Boulevard', zone: 'road', density: 'none', variant: 'sculpted', footprint: [4, 5], height: 9.0, sim: road(16), note: 'Three lanes each way about a planted median of trees, twin-arm lighting, wide footways.', build: boulevard },
   { id: 'road.motorway', name: 'Motorway', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 11.0, sim: road(30), note: 'Three lanes and a hard shoulder each way, central steel barrier, high-mast lighting, marker posts.', build: motorway },
+  { id: 'road.dual4', name: 'Four-lane dual', zone: 'road', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 12.0, sim: road(18), note: 'Two lanes each way about a kerbed central reservation with a steel barrier, verges and marker posts.', build: (l) => dual(l, { lanes: 2 }) },
+  { id: 'road.dual6', name: 'Six-lane dual', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 12.0, sim: road(26), note: 'Three lanes and a hard shoulder each way, central barrier, high lighting off the reservation.', build: (l) => dual(l, { lanes: 3, shoulder: true }) },
+  { id: 'road.dual8', name: 'Eight-lane motorway', zone: 'road', density: 'none', variant: 'sculpted', footprint: [6, 4], height: 12.0, sim: road(38), note: 'Four lanes and a hard shoulder each way about a wide reservation, alternating high-mast lighting.', build: (l) => dual(l, { lanes: 4, median: 2.4, shoulder: true }) },
+  { id: 'road.dual10', name: 'Ten-lane motorway', zone: 'road', density: 'none', variant: 'sculpted', footprint: [7, 4], height: 12.0, sim: road(52), note: 'Five lanes and a hard shoulder each way, the widest section in the library, on a three-metre reservation.', build: (l) => dual(l, { lanes: 5, median: 3.0, shoulder: true }) },
+  { id: 'road.arterial', name: 'Urban arterial', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 10.0, sim: road(24), note: 'Three lanes each way between wide footways, kerbed reservation, lighting from both pavements.', build: (l) => dual(l, { lanes: 3, median: 1.6, urban: true }) },
+  { id: 'road.parkway', name: 'Parkway', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 10.0, sim: road(22), note: 'Two lanes each way about a planted reservation of trees rather than a barrier, verges both sides.', build: (l) => dual(l, { lanes: 2, median: 3.4, planted: true }) },
+  { id: 'road.elevated', name: 'Elevated motorway', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 5], height: 12.8, sim: road(70), note: 'Six lanes carried eleven metres up on tapered piers and crossheads, solid parapets, lit off the deck.', build: elevated },
+  { id: 'road.merge', name: 'Lane gain', zone: 'road', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 12.0, sim: road(30), note: 'A fourth lane opening out of the taper, with the chevrons in the wedge and a sign on the verge.', build: (l) => laneDrop(l, true) },
+  { id: 'road.diverge', name: 'Lane drop', zone: 'road', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 12.0, sim: road(30), note: 'A fourth lane closing into the taper, chevroned off, with the warning sign ahead of it.', build: (l) => laneDrop(l, false) },
   { id: 'road.gantry', name: 'Motorway gantry', zone: 'road', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 7.0, sim: road(20), note: 'Lattice portal over both carriageways carrying a lane signal per lane and a sign board each way.', build: gantry },
   { id: 'road.slip', name: 'Slip road', zone: 'road', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 3.0, sim: road(14), note: 'A lane peeling away from the main line on a curve, with the hatched nose between the two.', build: slipRoad },
   { id: 'road.viaduct', name: 'Viaduct', zone: 'road', density: 'none', variant: 'sculpted', footprint: [4, 5], height: 16.5, sim: road(44), note: 'Two-lane deck on tapered piers and crossheads, solid parapets, lit off the deck edge.', build: viaduct },
