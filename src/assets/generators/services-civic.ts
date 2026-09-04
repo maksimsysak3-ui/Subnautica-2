@@ -16,7 +16,7 @@ import type { Material } from '../mesh';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
-  ribbon, roofClutter, serviceYard, windowGrid,
+  ribbon, ring, roofClutter, serviceYard, windowGrid,
 } from '../parts';
 
 // -------------------------------------------------------------- shared parts
@@ -1468,6 +1468,130 @@ function glasshouse(lod: number): MeshBuilder {
 }
 
 
+/**
+ * A stadium: a bowl, not a pitch with a shed beside it.
+ *
+ * The sports ground on seven by five cells is a playing field. This is the one
+ * a city builds once -- a pitch inside a continuous ring of raked seating, a
+ * cantilevered roof over it, floodlight masts on the corners and a concourse
+ * with turnstiles round the outside.
+ */
+function stadium(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 48.0, z = 40.0;
+  // The pitch, and the bowl round it.
+  const px = 26.0, pz = 18.0;                    // pitch half-extents
+  const bx = 40.0, bz = 32.0;                    // bowl outer half-extents
+  const rim = 20.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  m.painted(TINT.GREEN, () => m.box([-px, 0.1, -pz], [px, 0.2, pz], MAT.TRIM));
+
+  /** One side of the bowl: a raked bank of seating from the pitch outwards. */
+  const bank = (sign: 1 | -1, axis: 'x' | 'z'): void => {
+    const STEPS = 9;
+    for (let i = 0; i < STEPS; i++) {
+      const t0 = i / STEPS, t1 = (i + 1) / STEPS;
+      const y0 = 1.4 + t0 * (rim - 1.4), y1 = 1.4 + t1 * (rim - 1.4);
+      if (axis === 'x') {
+        const a0 = sign > 0 ? px + t0 * (bx - px) : -px - t0 * (bx - px);
+        const a1 = sign > 0 ? px + t1 * (bx - px) : -px - t1 * (bx - px);
+        m.box([Math.min(a0, a1), 0.2, -bz], [Math.max(a0, a1), y1, bz], MAT.CONCRETE);
+        void y0;
+      } else {
+        const c0 = sign > 0 ? pz + t0 * (bz - pz) : -pz - t0 * (bz - pz);
+        const c1 = sign > 0 ? pz + t1 * (bz - pz) : -pz - t1 * (bz - pz);
+        m.box([-bx, 0.2, Math.min(c0, c1)], [bx, y1, Math.max(c0, c1)], MAT.CONCRETE);
+        void y0;
+      }
+    }
+  };
+  bank(1, 'x'); bank(-1, 'x'); bank(1, 'z'); bank(-1, 'z');
+
+  if (medium) {
+    // The roof: a ring cantilevered in over the back rows.
+    // Only over the seating: the inner edge sits just outside the touchline,
+    // so the bowl is open to the sky over the pitch. Roofing to within three
+    // metres of the halfway line made it a lid with a hole in it.
+    for (const [a, b, c, d] of [
+      [-bx - 1.0, -bz - 1.0, -px - 1.0, bz + 1.0],
+      [px + 1.0, -bz - 1.0, bx + 1.0, bz + 1.0],
+      [-px - 1.0, -bz - 1.0, px + 1.0, -pz - 1.0],
+      [-px - 1.0, pz + 1.0, px + 1.0, bz + 1.0],
+    ] as const) {
+      m.box([a, rim + 2.0, b], [c, rim + 3.0, d], MAT.METAL);
+    }
+    ring(m, -bx - 1.0, -bz - 1.0, bx + 1.0, bz + 1.0, rim + 3.0, 0.6, 0.5, MAT.TRIM);
+    // Seat banding, so the bowl is not a grey ramp.
+    m.painted(TINT.BRAND, () => {
+      for (let i = 1; i < 9; i += 2) {
+        const t = i / 9, y = 1.4 + t * (rim - 1.4);
+        const ax = px + t * (bx - px), az = pz + t * (bz - pz);
+        ring(m, -ax, -az, ax, az, y, 0.9, 0.1, MAT.TRIM);
+      }
+    });
+    // Floodlight masts on the four corners.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        const cx = sx * (bx - 2.0), cz = sz * (bz - 2.0);
+        m.cylinder(cx, cz, 0.55, rim + 3.0, rim + 16.0, 8, MAT.TRIM, false);
+        m.box([cx - 3.0, rim + 16.0, cz - 1.0], [cx + 3.0, rim + 18.4, cz + 1.0], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        m.box([sx * (bx - 2.0) - 2.8, rim + 16.2, sz * (bz - 2.0) - 0.9],
+              [sx * (bx - 2.0) + 2.8, rim + 18.2, sz * (bz - 2.0) + 0.9], MAT.TRIM);
+      }
+    });
+  }
+  if (fine) {
+    // The concourse: a band of turnstile openings all the way round.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [sign, plane] of [[1, bz], [-1, -bz]] as const) {
+        for (let i = 0; i < 12; i++) {
+          const c = -bx + 3.4 + i * ((2 * bx - 6.8) / 11);
+          m.box([c - 1.1, 0.2, plane - sign * 0.12], [c + 1.1, 4.2, plane + sign * 0.12], MAT.TRIM);
+        }
+      }
+      for (const [sign, plane] of [[1, bx], [-1, -bx]] as const) {
+        for (let i = 0; i < 9; i++) {
+          const c = -bz + 3.0 + i * ((2 * bz - 6.0) / 8);
+          m.box([plane - sign * 0.12, 0.2, c - 1.1], [plane + sign * 0.12, 4.2, c + 1.1], MAT.TRIM);
+        }
+      }
+    });
+    // Pitch markings.
+    m.painted(TINT.SIGN_LIT, () => {
+      ring(m, -px + 2.0, -pz + 2.0, px - 2.0, pz - 2.0, 0.21, 0.24, 0.02, MAT.TRIM);
+      m.box([-0.12, 0.2, -pz + 2.0], [0.12, 0.22, pz - 2.0], MAT.TRIM);
+      m.cylinder(0, 0, 6.0, 0.2, 0.22, 20, MAT.TRIM, false);
+      for (const sx of [-1, 1] as const) {
+        m.box([sx * (px - 2.0), 0.2, -8.0], [sx * (px - 12.0), 0.22, -7.8], MAT.TRIM);
+        m.box([sx * (px - 2.0), 0.2, 7.8], [sx * (px - 12.0), 0.22, 8.0], MAT.TRIM);
+        m.box([sx * (px - 12.0), 0.2, -8.0], [sx * (px - 11.8), 0.22, 8.0], MAT.TRIM);
+      }
+    });
+    // Goals, a big screen and supporters on the concourse.
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const sx of [-1, 1] as const) {
+        m.box([sx * (px - 2.2), 0.2, -3.7], [sx * (px - 2.0), 2.6, 3.7], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.METAL_DARK, () =>
+      m.box([-7.0, rim + 3.0, bz - 2.0], [7.0, rim + 9.0, bz - 1.4], MAT.TRIM));
+    for (let i = 0; i < 4; i++) {
+      figure(m, 7801 + i * 13, -18.0 + i * 12.0, bz + 3.0, 0, { stride: 0.14, bag: i % 2 === 0 });
+    }
+    for (let i = 0; i < 4; i++) {
+      parkedVehicle(m, 7820 + i * 17, -22.0 + i * 9.0, -z + 4.0, 1, 'car');
+    }
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const civ = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1488,6 +1612,7 @@ export const CIVIC: AssetDef[] = [
 
   { id: 'svc.parks.square', name: 'City square', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 7.0, brand: { name: 'Parks', colour: [0.32, 0.52, 0.24], accent: [0.66, 0.62, 0.40], sign: 'none' }, sim: civ(6, 120, 30, 60), note: 'Paved square in four planted quarters round a three-basin fountain, colonnaded shelter, lamp columns.', build: citySquare },
   { id: 'svc.parks.playground', name: 'Playground', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [4, 3], height: 4.3, brand: { name: 'Parks', colour: [0.32, 0.52, 0.24], accent: [0.68, 0.44, 0.16], sign: 'none' }, sim: civ(3, 70, 12, 20), note: 'Two towers linked by a bridge, slide, swings, roundabout, safety surfacing and a parents shelter.', build: playground },
+  { id: 'svc.parks.stadium', name: 'Stadium', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [12, 10], height: 38.4, brand: { name: 'Stadium', colour: [0.32, 0.52, 0.24], accent: [0.62, 0.30, 0.24], sign: 'box' }, sim: civ(90, 1200, 640, 400), note: 'Pitch inside a continuous raked bowl under a cantilevered roof ring, four floodlight masts, a turnstile concourse right round the outside and a big screen over the end.', build: stadium },
   { id: 'svc.parks.sports', name: 'Sports ground', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [7, 5], height: 16.7, brand: { name: 'Parks', colour: [0.32, 0.52, 0.24], accent: [0.62, 0.30, 0.24], sign: 'none' }, sim: civ(12, 200, 180, 90), note: 'Marked pitch with goals, a raked stand under a cantilevered roof, four floodlight masts.', build: sportsGround },
   { id: 'svc.parks.glasshouse', name: 'Botanical glasshouse', zone: 'service', branch: 'parks', density: 'none', variant: 'sculpted', footprint: [5, 5], height: 11.1, brand: { name: 'Botanic', colour: [0.30, 0.50, 0.26], accent: [0.66, 0.62, 0.40], sign: 'box' }, sim: civ(14, 260, 140, 120), note: 'Barrel-vaulted palm house on a stone plinth, ribbed throughout, domed entrance pavilion, roof vents.', build: glasshouse },
 ];

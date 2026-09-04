@@ -15,7 +15,7 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
-import { applianceVehicle, parkedVehicle } from './vehicles';
+import { applianceVehicle, parkedVehicle, figure } from './vehicles';
 import type { Tint } from '../mesh';
 import type { Wall } from '../parts';
 import {
@@ -1109,6 +1109,176 @@ function careHome(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * Fire and rescue headquarters: the brigade, not a station.
+ *
+ * A fire house on three by five cells is a garage with a red door. This is
+ * where the brigade is actually run from -- eight appliance bays under one
+ * roof, a four-storey administration block over them, a drill tower you can
+ * see from the next district, a hose-drying tower, a workshop and a yard big
+ * enough to turn a ladder in.
+ */
+function brigadeHQ(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 44.0, z = 32.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The appliance hall, with the administration block standing on it.
+  m.box([-36.0, 0.1, -6.0], [16.0, 8.4, 14.0], MAT.CLADDING, { roof: MAT.TRIM });
+  m.box([-36.0, 8.4, -6.0], [-4.0, 22.0, 14.0], MAT.CONCRETE, { roof: MAT.ROOF });
+  // Drill tower: five floors of open balconies, which is what makes it read.
+  m.box([24.0, 0.1, -8.0], [34.0, 26.0, 2.0], MAT.CONCRETE, { roof: MAT.ROOF });
+  // Hose tower beside it, narrow and taller than the drill floors.
+  m.box([36.0, 0.1, -4.0], [41.0, 30.0, 1.0], MAT.CONCRETE, { roof: MAT.ROOF });
+  // Workshop and stores along the back.
+  m.box([-36.0, 0.1, 18.0], [8.0, 9.0, 30.0], MAT.SHED_WALL, { roof: MAT.METAL });
+
+  if (medium) {
+    band(m, -36.0, -6.0, 16.0, 14.0, 8.4, 0.7, 0.34, MAT.METAL);
+    parapet(m, -36.0, -6.0, 16.0, 14.0, 8.4, 0.8, 0.26);
+    parapet(m, -36.0, -6.0, -4.0, 14.0, 22.0, 1.1, 0.3);
+    parapet(m, 24.0, -8.0, 34.0, 2.0, 26.0, 1.0, 0.28);
+    parapet(m, 36.0, -4.0, 41.0, 1.0, 30.0, 0.8, 0.22);
+    parapet(m, -36.0, 18.0, 8.0, 30.0, 9.0, 0.7, 0.24, MAT.METAL);
+    // Drill tower balconies: one open floor every five metres.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let f = 1; f < 5; f++) {
+        const y = f * 5.0;
+        m.box([23.4, y, -8.6], [34.6, y + 0.3, 2.6], MAT.TRIM);
+        for (const [a2, b2, zz] of [[23.4, 34.6, -8.6], [23.4, 34.6, 2.3]] as const) {
+          railing(m, a2, b2, zz, y + 0.3, 1.1);
+        }
+      }
+    });
+    roofClutter(m, -34.0, -4.0, -6.0, 12.0, 22.0, 5501, 0.8);
+    // The drill yard, and the turning circle in front of the bays.
+    m.box([-32.0, 0.1, -26.0], [22.0, 0.2, -8.0], MAT.GROUND);
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 9; i++) {
+        m.box([-30.0 + i * 6.0, 0.2, -18.0], [-27.0 + i * 6.0, 0.24, -17.6], MAT.TRIM);
+      }
+    });
+  }
+  if (fine) {
+    // Eight appliance bays, which is the whole point of the building.
+    bayDoors(m, -34.0, 14.0, -6.0, 8, 6.4, TINT.BRAND);
+    for (let f = 0; f < 4; f++) {
+      ribbonStack(m, { axis: 'z', sign: -1, plane: -6.0 }, -34.0, -6.0,
+        { floors: 1, floorH: 3.4, base: 9.8 + f * 3.2, height: 2.0 });
+    }
+    ribbonStack(m, { axis: 'x', sign: -1, plane: -36.0 }, -4.0, 12.0,
+      { floors: 4, floorH: 3.2, base: 9.8, height: 2.0 });
+    entrance(m, { axis: 'x', sign: -1, plane: -36.0 }, 12.0,
+      { width: 2.2, height: 3.2, double: true, glazed: true, canopy: 2.2 });
+    boxSign(m, { axis: 'z', sign: -1, plane: -6.0 }, -20.0, -6.0, 9.0, 10.4);
+    // The drill tower's window openings, one to each floor.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let f = 0; f < 5; f++) {
+        m.box([25.0, f * 5.0 + 1.2, -8.2], [28.0, f * 5.0 + 3.6, -7.8], MAT.TRIM);
+        m.box([30.0, f * 5.0 + 1.2, -8.2], [33.0, f * 5.0 + 3.6, -7.8], MAT.TRIM);
+      }
+    });
+    // Appliances on the apron, and crew on the yard.
+    for (let i = 0; i < 3; i++) {
+      vehicle(m, -30.0 + i * 9.0, -12.0, 7.4, 2.6, TINT.BRAND);
+    }
+    for (let i = 0; i < 2; i++) parkedVehicle(m, 5510 + i * 13, 16.0 + i * 6.0, 22.0, 1, 'van');
+    figure(m, 5520, -18.0, -20.0, 0, { stride: 0.15 });
+    figure(m, 5527, -12.0, -21.0, Math.PI, {});
+    serviceYard(m, 12.0, 22.0, 26.0, 5501, { bins: true });
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
+/**
+ * A prison: perimeter wall, gatehouse, four cell wings off a hub.
+ *
+ * The detention centre on six by six cells is a police station with bars on
+ * it. This is the institution -- a radial layout, which is what a Victorian
+ * prison is and what makes one recognisable from above at any distance, inside
+ * a wall with watchtowers on its corners.
+ */
+function prison(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 44.0, z = 36.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The wall, and the exercise yards it encloses.
+  m.painted(TINT.GREEN, () => m.box([-38.0, 0.1, -30.0], [38.0, 0.16, 30.0], MAT.TRIM));
+  for (const [a, b, c, d] of [
+    [-40.0, -32.0, 40.0, -30.0], [-40.0, 30.0, 40.0, 32.0],
+    [-40.0, -32.0, -38.0, 32.0], [38.0, -32.0, 40.0, 32.0],
+  ] as const) {
+    m.box([a, 0.1, b], [c, 7.0, d], MAT.CONCRETE);
+    m.box([a - 0.3, 7.0, b - 0.3], [c + 0.3, 7.6, d + 0.3], MAT.TRIM);
+  }
+  // The hub, and four cell wings radiating from it.
+  m.cylinder(0, 0, 9.0, 0.1, 16.0, 12, MAT.CONCRETE, true);
+  m.cone(0, 0, 9.4, 0.0, 16.0, 22.0, 12, MAT.ROOF);
+  for (const [ax, az, bx, bz] of [
+    [-30.0, -5.0, -8.0, 5.0], [8.0, -5.0, 30.0, 5.0],
+    [-5.0, -28.0, 5.0, -8.0], [-5.0, 8.0, 5.0, 28.0],
+  ] as const) {
+    m.box([ax, 0.1, az], [bx, 14.0, bz], MAT.CONCRETE, { roof: MAT.ROOF });
+  }
+
+  if (medium) {
+    for (const [ax, az, bx, bz] of [
+      [-30.0, -5.0, -8.0, 5.0], [8.0, -5.0, 30.0, 5.0],
+      [-5.0, -28.0, 5.0, -8.0], [-5.0, 8.0, 5.0, 28.0],
+    ] as const) {
+      parapet(m, ax, az, bx, bz, 14.0, 1.0, 0.28);
+      band(m, ax, az, bx, bz, 7.0, 0.5, 0.24);
+    }
+    // Watchtowers on the corners of the wall.
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      const cx = sx * 39.0, cz = sz * 31.0;
+      m.cylinder(cx, cz, 2.4, 0.1, 11.0, 8, MAT.CONCRETE, false);
+      m.cylinder(cx, cz, 3.2, 11.0, 14.0, 8, MAT.CONCRETE, true);
+      m.cone(cx, cz, 3.4, 0.0, 14.0, 16.4, 8, MAT.ROOF);
+    }
+    // The gatehouse, straddling the wall on the south side.
+    m.box([-10.0, 0.1, 28.0], [10.0, 10.0, 36.0], MAT.CONCRETE, { roof: MAT.ROOF });
+    parapet(m, -10.0, 28.0, 10.0, 36.0, 10.0, 1.0, 0.28);
+  }
+  if (fine) {
+    // Cell windows: small, high, and in a strict grid. Nothing else reads as
+    // a prison so immediately.
+    for (const [ax, az, bx, bz, axis] of [
+      [-30.0, -5.0, -8.0, 5.0, 'z'], [8.0, -5.0, 30.0, 5.0, 'z'],
+      [-5.0, -28.0, 5.0, -8.0, 'x'], [-5.0, 8.0, 5.0, 28.0, 'x'],
+    ] as const) {
+      for (const [sign, plane] of (axis === 'z'
+        ? [[-1, az], [1, bz]] : [[-1, ax], [1, bx]]) as ReadonlyArray<readonly [number, number]>) {
+        const [u0, u1] = axis === 'z' ? [ax + 1.6, bx - 1.6] : [az + 1.6, bz - 1.6];
+        m.painted(TINT.METAL_DARK, () => {
+          for (let f = 0; f < 4; f++) {
+            const n = Math.max(3, Math.round((u1 - u0) / 3.0));
+            for (let i = 0; i < n; i++) {
+              const c = u0 + ((i + 0.5) / n) * (u1 - u0);
+              const p = plane + sign * 0.06;
+              if (axis === 'z') m.box([c - 0.42, 1.8 + f * 3.0, p - 0.06], [c + 0.42, 3.2 + f * 3.0, p + 0.06], MAT.TRIM);
+              else m.box([p - 0.06, 1.8 + f * 3.0, c - 0.42], [p + 0.06, 3.2 + f * 3.0, c + 0.42], MAT.TRIM);
+            }
+          }
+        });
+      }
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: 36.0 }, 0,
+      { width: 3.4, height: 4.0, double: true, steps: 1 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 36.0 }, -5.0, 5.0, 5.4, 6.6);
+    // Vehicle lock inside the gate, and a van waiting in it.
+    m.box([-9.0, 0.1, 22.0], [9.0, 0.2, 28.0], MAT.GROUND);
+    parkedVehicle(m, 5601, 0.0, 25.0, 1, 'van');
+    for (let i = 0; i < 2; i++) parkedVehicle(m, 5610 + i * 13, -26.0 + i * 8.0, 33.0, 1, 'car');
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const svc = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1124,6 +1294,8 @@ export const SAFETY: AssetDef[] = [
   { id: 'svc.police.post', name: 'Police post', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [3, 3], height: 5.6, brand: { name: 'Police', colour: [0.16, 0.26, 0.50], accent: [0.72, 0.72, 0.74], sign: 'box' }, sim: svc(12, 80, 30, 12), note: 'One storey with a glazed counter bay, blue lamp over the door, barred rear windows.', build: policePost },
   { id: 'svc.police.station', name: 'Police station', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [6, 4], height: 13.2, brand: { name: 'Police', colour: [0.16, 0.26, 0.50], accent: [0.72, 0.72, 0.74], sign: 'box' }, sim: svc(45, 260, 90, 35), note: 'Three storeys on a stone base, clad entrance bay, secure yard behind a wall and a gate.', build: policeStation },
   { id: 'svc.police.hq', name: 'Police headquarters', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 44.0, brand: { name: 'Police HQ', colour: [0.14, 0.24, 0.48], accent: [0.70, 0.70, 0.74], sign: 'box' }, sim: svc(140, 640, 300, 90), note: 'Glazed tower on a stone podium, service core carried above the roof, mast.', build: policeHQ },
+  { id: 'svc.fire.brigade', name: 'Fire and rescue HQ', zone: 'service', branch: 'fire', density: 'none', variant: 'sculpted', footprint: [11, 8], height: 30.0, brand: { name: 'Fire & Rescue', colour: [0.66, 0.20, 0.12], accent: [0.72, 0.70, 0.68], sign: 'box' }, sim: svc(120, 900, 320, 180), note: 'Eight appliance bays under a four-storey administration block, a twenty-six-metre drill tower with open balconies, a hose tower, workshop range and drill yard.', build: brigadeHQ },
+  { id: 'svc.police.prison', name: 'Prison', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [11, 9], height: 22.0, brand: { name: 'Prison', colour: [0.20, 0.24, 0.32], accent: [0.60, 0.60, 0.62], sign: 'box' }, sim: svc(180, 1500, 480, 420), note: 'Four cell wings radiating from a domed hub, inside a walled compound with corner watchtowers, a gatehouse over the road and a vehicle lock behind it.', build: prison },
   { id: 'svc.police.detention', name: 'Detention centre', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [6, 6], height: 11.1, brand: { name: 'Detention', colour: [0.20, 0.24, 0.32], accent: [0.62, 0.62, 0.64], sign: 'box' }, sim: svc(60, 480, 140, 120), note: 'Blank cell block with slot windows inside a walled compound, two watch towers, a gate.', build: detention },
 
   { id: 'svc.health.clinic', name: 'Clinic', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 8.5, brand: { name: 'Clinic', colour: [0.66, 0.22, 0.30], accent: [0.72, 0.72, 0.72], sign: 'box' }, sim: svc(35, 200, 90, 60), note: 'Two storeys with a glazed waiting room, ambulance canopy on posts, parapet cross.', build: clinic },
