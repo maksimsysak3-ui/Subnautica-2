@@ -156,34 +156,57 @@ def read_mesh(prim, textures):
         if a and a.Get() is not None:
             uvs = a.Get()
             break
+    #: Barycentric weights for sampling one facet's UV footprint.
+    #:
+    #: Sixteen points spread over the triangle rather than three at its
+    #: corners. The corners are the worst places to read a texture: they sit
+    #: exactly on the seam between two patches of the atlas, so a corner sample
+    #: is as likely to pick up the neighbouring panel as the one it belongs to.
+    SPREAD = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
+              for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
+
     tris, base = [], 0
     for c in counts:
         face = [idx[base + k] for k in range(c)]
         for k in range(1, c - 1):
             corner = (face[0], face[k], face[k + 1])
-            # One colour per corner, sampled at that corner's own UV.
+            # One colour for the whole facet: the dominant texel over its own
+            # UV footprint, not a colour per corner.
             #
-            # The texture is already in the file and already fits the model --
-            # the UVs are the artist's own -- so the closest thing to using it
-            # is to read it at each vertex and let the rasteriser interpolate
-            # between them, which is what a texture lookup does anyway. Taking
-            # one flat colour per triangle threw away every gradient the artist
-            # baked in, and approximating it by median or by palette was
-            # guessing at something the file states outright.
-            cols = []
-            for i in corner:
-                if img is not None and uvs is not None and len(uvs) > i:
-                    px = int(min(max(uvs[i][0], 0.0), 1.0) * (img.width - 1))
-                    py = int((1.0 - min(max(uvs[i][1], 0.0), 1.0)) * (img.height - 1))
-                    r, g, b = img.getpixel((px, py))
-                    cols.append(tuple(srgb_to_linear(v / 255.0) for v in (r, g, b)))
-                else:
-                    # A flat diffuseColor is already linear; only a texel needs
-                    # converting. Running every colour through srgb_to_linear
-                    # was why the pack that carries no textures at all and
-                    # states its colours outright came out two stops dark.
-                    cols.append(rgb)
-            tris.append(([world[i] for i in corner], cols))
+            # A low-poly car is a set of crisp flat planes, and a colour per
+            # corner means the rasteriser gradients across every one of them --
+            # which is what made the whole fleet look smeared and foggy. So the
+            # facet is sampled across its area and the winner is the colour
+            # that covers most of it, by mode rather than by mean: a mean of
+            # two patches is a colour that appears nowhere on the car, while
+            # the mode is the panel colour with the seam and the decal outvoted.
+            if img is not None and uvs is not None and len(uvs) > max(corner):
+                votes = {}
+                for wa, wb, wc in SPREAD:
+                    u = (uvs[corner[0]][0] * wa + uvs[corner[1]][0] * wb
+                         + uvs[corner[2]][0] * wc)
+                    v = (uvs[corner[0]][1] * wa + uvs[corner[1]][1] * wb
+                         + uvs[corner[2]][1] * wc)
+                    px = int(min(max(u, 0.0), 1.0) * (img.width - 1))
+                    py = int((1.0 - min(max(v, 0.0), 1.0)) * (img.height - 1))
+                    texel = img.getpixel((px, py))
+                    # Bucketed, so two texels a shade apart count as one vote
+                    # rather than splitting the panel's majority between them.
+                    key = tuple(q >> 3 for q in texel)
+                    hit = votes.get(key)
+                    if hit is None:
+                        votes[key] = [1, texel]
+                    else:
+                        hit[0] += 1
+                n, texel = max(votes.values(), key=lambda h: h[0])
+                col = tuple(srgb_to_linear(q / 255.0) for q in texel)
+            else:
+                # A flat diffuseColor is already linear; only a texel needs
+                # converting. Running every colour through srgb_to_linear was
+                # why the pack that carries no textures at all and states its
+                # colours outright came out two stops dark.
+                col = rgb
+            tris.append(([world[i] for i in corner], [col, col, col]))
         base += c
     xs = [p[0] for t, _ in tris for p in t]
     ys = [p[1] for t, _ in tris for p in t]

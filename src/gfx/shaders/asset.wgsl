@@ -78,12 +78,13 @@ struct VSOut {
   @location(4) @interpolate(flat) tint     : u32,
   @location(5)       local    : vec2f,
   @location(6) @interpolate(flat) key : f32,
-  // Interpolated, not flat. The imported models carry a colour per vertex
-  // read from the artist's own texture at that vertex's own UV, so letting the
-  // rasteriser blend between them is what reproduces the texture -- flat
-  // shading would throw away every gradient baked into it. Where a face is one
-  // colour all three vertices agree and it stays flat anyway.
-  @location(7) vcol : vec3f,
+  // Flat, not interpolated. Blending between the three corners of a facet is
+  // what made the fleet look smeared and foggy: a low-poly car is a set of
+  // crisp flat planes, and the moment the rasteriser gradients across one it
+  // reads as a smudge rather than as bodywork. The importer picks one colour
+  // per facet -- the dominant texel over its own UV footprint -- so there is
+  // nothing to interpolate and every panel comes out clean-edged.
+  @location(7) @interpolate(flat) vcol : vec3f,
 };
 
 @vertex
