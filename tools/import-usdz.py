@@ -291,7 +291,20 @@ def vehicles_in(path):
 
 
 def pack_vehicle(tris, scale):
-    """Recentre, stand on the ground, face +x, and scale into metres."""
+    """
+    Recentre, stand on the ground, face +x, and scale into metres.
+
+    The triangles are put into a canonical order first, and that matters more
+    than it looks. Two liveries of one body are matched by a geometry hash that
+    ignores triangle order -- it has to, because the same model exported twice
+    comes out traversed differently. But the shape is then stored once, from
+    whichever livery was read first, while every livery keeps its own colour
+    buffer indexed by ITS vertex order. Get those two orders out of step and a
+    car is painted with another car's colours in the wrong places: glass and
+    wheels come out body-coloured, which is what happened to the orange saloon.
+    Sorting here makes any two identical bodies produce identical ordering, so
+    the colour buffers line up by construction.
+    """
     xs = [p[0] for t, _ in tris for p in t]
     ys = [p[1] for t, _ in tris for p in t]
     zs = [p[2] for t, _ in tris for p in t]
@@ -299,8 +312,13 @@ def pack_vehicle(tris, scale):
     swap = ez > ex
     cx, cz, y0 = (max(xs) + min(xs)) / 2, (max(zs) + min(zs)) / 2, min(ys)
 
+    def canon(t):
+        pts = sorted((round((p[0] - cx) * scale, 3), round((p[1] - y0) * scale, 3),
+                      round((p[2] - cz) * scale, 3)) for p in t[0])
+        return pts
+
     seen, order, index = {}, [], []
-    for corner, cols in tris:
+    for corner, cols in sorted(tris, key=canon):
         for p, col in zip(corner, cols):
             x, z = (p[0] - cx) * scale, (p[2] - cz) * scale
             if swap:
