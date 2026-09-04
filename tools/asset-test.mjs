@@ -28,15 +28,18 @@ const MAX_TRIS = 10000;
 const SERVICE_MIN = 2400;
 const SERVICE_MAX = 12000;
 /**
- * Landmarks: a service asset ten cells or more on both sides.
+ * Landmarks: a service asset covering seventy cells or more.
  *
- * There is one of these on a map, it is a hundred metres across, and it is the
- * middle of whatever district the player puts it in. Holding it to the same
- * budget as a fire station means either a hundred metres of blank wall or no
- * landmark at all, so it gets its own ceiling -- still a ceiling, because it
- * is drawn every frame like everything else.
+ * There is one of these on a map, it is the better part of a hundred metres
+ * across, and it is the middle of whatever district the player puts it in.
+ * Holding it to the same budget as a fire station buys either a hundred metres
+ * of blank wall or no landmark at all, so it gets its own ceiling -- still a
+ * ceiling, because it is drawn every frame like everything else.
+ *
+ * Measured on area rather than on both sides, so a hospital that is long and
+ * not square counts.
  */
-const LANDMARK_CELLS = 10;
+const LANDMARK_AREA = 70;
 const LANDMARK_MAX = 20000;
 /**
  * Vehicles and figures.
@@ -126,7 +129,7 @@ for (const a of ASSETS) {
   }
   const fleet = a.zone === 'fleet';
   const big = fleet && a.footprint[0] >= 2;
-  const landmark = service && a.footprint[0] >= LANDMARK_CELLS && a.footprint[1] >= LANDMARK_CELLS;
+  const landmark = service && a.footprint[0] * a.footprint[1] >= LANDMARK_AREA;
   const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX)
     : service ? (landmark ? LANDMARK_MAX : SERVICE_MAX) : MAX_TRIS;
   const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : MIN_TRIS;

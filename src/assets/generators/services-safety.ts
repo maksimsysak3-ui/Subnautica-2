@@ -15,7 +15,7 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
-import { applianceVehicle } from './vehicles';
+import { applianceVehicle, parkedVehicle } from './vehicles';
 import type { Tint } from '../mesh';
 import type { Wall } from '../parts';
 import {
@@ -865,98 +865,109 @@ function hospital(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1;
   const medium = lod < 2;
-  const x = 20.0, z = 15.0;
-  const podium = 8.0;
-  const floors = 8, floorH = 3.6;
+  // A hospital is not a fire station with more windows on it. This one takes
+  // ten by eight cells -- eighty metres by sixty-four -- because that is what
+  // a district general is, and because a library where every service is the
+  // same three-by-five block reads as a set of tiles rather than a city.
+  const x = 40.0, z = 32.0;
+  const podium = 8.4;
+  const floors = 9, floorH = 3.6;
   const top = podium + floors * floorH;
-  const wx = 13.0, wz = 8.0;
+  const wx = 15.0, wz = 8.5;
 
-  m.box([-x, 0, -z], [x, podium, z], MAT.CONCRETE, { roof: MAT.TRIM });
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The main block: a broad two-storey podium of departments, with the ward
+  // tower standing on it and two wings running off it.
+  m.box([-30.0, 0.1, -18.0], [30.0, podium, 16.0], MAT.CONCRETE, { roof: MAT.TRIM });
   m.box([-wx, podium, -wz], [wx, top, wz], MAT.PLASTER, { roof: MAT.ROOF });
+  // Outpatients, west; accident and emergency, east. Both reachable from the
+  // street rather than buried in the middle, which is the point of a wing.
+  m.box([-38.0, 0.1, -8.0], [-30.0, 13.0, 20.0], MAT.CLADDING, { roof: MAT.ROOF });
+  m.box([30.0, 0.1, -8.0], [38.0, 13.0, 20.0], MAT.CLADDING, { roof: MAT.ROOF });
+  // The entrance concourse: a glazed link between the wings, open to the
+  // forecourt, so the front of the building is a way in and not a wall.
+  m.box([-22.0, 0.1, 16.0], [22.0, 6.2, 22.0], MAT.CONCRETE, { roof: MAT.TRIM });
 
   if (medium) {
-    band(m, -x, -z, x, z, podium, 0.8, 0.5);
-    for (let f = 1; f <= floors; f++) band(m, -wx, -wz, wx, wz, podium + f * floorH - 0.55, 0.55, 0.26);
-    parapet(m, -wx, -wz, wx, wz, top, 1.2, 0.34);
-    // Service cores at both ends of the ward slab. Narrower than the slab is
-    // deep, so the ward's own end wall still reads either side of them --
-    // before, the core covered the whole end and the building presented a
-    // storey-high blank tiled panel to the street.
-    for (const sx of [-1, 1] as const) {
-      m.box([sx * wx - sx * 2.4, podium, -wz + 1.4], [sx * wx + sx * 0.6, top + 3.2, wz - 1.4],
-        MAT.CLADDING, { roof: MAT.ROOF });
-      // The stair light: one tall slot up the core, which is what a stair
-      // tower has and what stops it reading as a slab of tile.
-      m.painted(TINT.METAL_DARK, () =>
-        m.box([sx * wx + sx * 0.6, podium + 1.0, -0.55],
-              [sx * wx + sx * 0.72, top + 1.6, 0.55], MAT.TRIM));
-      for (let f = 0; f < floors; f += 2) {
-        m.opening({ axis: 'x', sign: sx, plane: sx > 0 ? wx + 0.6 : -wx - 0.6,
-          u0: -1.4, u1: 1.4, y0: podium + f * floorH + 1.2, y1: podium + f * floorH + 3.0,
-          glass: MAT.GLASS, frame: 0.14, proud: 0.07 });
-      }
+    band(m, -30.0, -18.0, 30.0, 16.0, podium, 0.9, 0.55);
+    for (let f = 1; f <= floors; f++) {
+      band(m, -wx, -wz, wx, wz, podium + f * floorH - 0.55, 0.55, 0.26);
     }
-    // Helipad on the podium roof, clear of the slab.
-    const hx = 0, hz = z - 4.0;
-    m.box([hx - 6.0, podium, hz - 3.4], [hx + 6.0, podium + 0.35, hz + 3.4], MAT.CONCRETE);
+    parapet(m, -wx, -wz, wx, wz, top, 1.2, 0.34);
+    parapet(m, -30.0, -18.0, 30.0, 16.0, podium, 1.0, 0.3);
+    parapet(m, -38.0, -8.0, -30.0, 20.0, 13.0, 0.9, 0.26);
+    parapet(m, 30.0, -8.0, 38.0, 20.0, 13.0, 0.9, 0.26);
+    parapet(m, -22.0, 16.0, 22.0, 22.0, 6.2, 0.8, 0.24);
+    // Service cores at both ends of the ward slab, narrower than the slab is
+    // deep so the ward's own end wall still reads either side of them.
+    for (const sx of [-1, 1] as const) {
+      m.box([sx * wx - sx * 2.6, podium, -wz + 1.6], [sx * wx + sx * 0.6, top + 3.4, wz - 1.6],
+        MAT.CLADDING, { roof: MAT.ROOF });
+      m.painted(TINT.METAL_DARK, () =>
+        m.box([sx * wx + sx * 0.6, podium + 1.0, -0.6],
+              [sx * wx + sx * 0.74, top + 1.8, 0.6], MAT.TRIM));
+    }
+    // Helipad on the podium roof, clear of the tower.
+    const hz = -13.0;
+    m.box([-6.5, podium, hz - 4.0], [6.5, podium + 0.4, hz + 4.0], MAT.CONCRETE);
     m.painted(TINT.SIGN_LIT, () => {
-      for (let i = 0; i < 12; i++) {
-        const a = (i / 12) * Math.PI * 2;
-        m.box([hx + Math.cos(a) * 5.2 - 0.14, podium + 0.35, hz + Math.sin(a) * 3.0 - 0.14],
-              [hx + Math.cos(a) * 5.2 + 0.14, podium + 0.6, hz + Math.sin(a) * 3.0 + 0.14], MAT.TRIM);
-      }
+      m.box([-4.6, podium + 0.4, hz - 0.5], [4.6, podium + 0.5, hz + 0.5], MAT.TRIM);
+      m.box([-0.6, podium + 0.4, hz - 3.2], [0.6, podium + 0.5, hz + 3.2], MAT.TRIM);
     });
-    roofClutter(m, -wx + 2, -wz + 2, wx - 2, wz - 2, top, 991, 1.4);
-    // Ambulance canopy at the podium's flank.
-    m.box([-x - 6.5, 5.0, -z + 2.0], [-x, 5.5, -z + 12.0], MAT.CONCRETE);
-    m.painted(TINT.METAL_DARK, () => {
-      for (const pz of [-z + 3.0, -z + 11.0]) {
-        m.box([-x - 5.9, 0, pz - 0.18], [-x - 5.6, 5.0, pz + 0.18], MAT.TRIM);
-      }
-    });
-    m.box([-x - 6.5, 0.001, -z + 2.0], [-x, 0.1, -z + 12.4], MAT.CONCRETE);
+    roofClutter(m, -26.0, 2.0, -18.0, 13.0, podium, 3364, 0.9);
+    roofClutter(m, 18.0, 2.0, 26.0, 13.0, podium, 3371, 0.9);
   }
   if (fine) {
-    for (let f = 0; f < floors; f++) {
-      const y = podium + f * floorH + 0.9;
-      for (const [axis, sign, plane, half, n] of [
-        ['z', 1, wz, wx, 6], ['z', -1, -wz, wx, 6],
-        ['x', 1, wx, wz, 4], ['x', -1, -wx, wz, 4],
-      ] as const) {
-        m.windowRow({ axis, sign, plane, from: -half + 3.0, to: half - 3.0, y0: y, y1: y + 1.9,
-          count: n, width: 1.6, glass: MAT.GLASS, frame: 0.1, proud: 0.06 });
+    // The concourse: full-height glazing right across it, which is what says
+    // "the door is here" from a distance.
+    for (let i = 0; i < 9; i++) {
+      const cx = -19.0 + i * 4.75;
+      m.opening({ axis: 'z', sign: 1, plane: 22.0, u0: cx - 1.7, u1: cx + 1.7,
+        y0: 0.6, y1: 5.4, glass: MAT.SHOPFRONT, frame: 0.16, proud: 0.09 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: 22.0 }, 0,
+      { width: 5.0, height: 4.0, double: true, glazed: true, canopy: 4.5 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 22.0 }, -6.0, 6.0, 5.6, 6.2);
+    // Podium and wings: ward windows on every face that faces out.
+    for (let f = 0; f < 2; f++) {
+      m.windowRow({ axis: 'z', sign: -1, plane: -18.0, from: -28.0, to: 28.0,
+        y0: 1.2 + f * 3.6, y1: 3.6 + f * 3.6, count: 12, width: 2.6,
+        glass: MAT.GLASS, frame: 0.12, proud: 0.07 });
+    }
+    for (const sx of [-1, 1] as const) {
+      for (const [sign, plane] of [[-1, sx * 38.0], [1, sx * 30.0]] as const) {
+        ribbonStack(m, { axis: 'x', sign: (sx * sign) as 1 | -1, plane }, -6.0, 18.0,
+          { floors: 4, floorH: 3.1, base: 1.4, height: 1.9 });
+      }
+      entrance(m, { axis: 'z', sign: 1, plane: 20.0 }, sx * 34.0,
+        { width: 2.4, height: 3.2, double: true, glazed: true, canopy: 2.4 });
+      // Ambulances at the emergency wing, on their own apron.
+      if (sx > 0) {
+        m.box([28.0, 0.1, 22.0], [40.0, 0.2, 30.0], MAT.CONCRETE);
+        for (let i = 0; i < 2; i++) parkedVehicle(m, 3390 + i * 17, 31.0 + i * 5.5, 26.0, 1, 'van');
       }
     }
-    // Podium: a glazed concourse to the street, solid everywhere else.
-    for (let f = 0; f < 2; f++) {
-      m.windowRow({ axis: 'z', sign: 1, plane: z, from: -x + 1.5, to: x - 1.5,
-        y0: 1.0 + f * 3.4, y1: 3.4 + f * 3.4, count: 8, width: 2.6,
-        glass: f === 0 ? MAT.SHOPFRONT : MAT.GLASS, frame: 0.12, proud: 0.07 });
+    // The ward tower's own glazing, and the cross on its end wall.
+    for (let f = 0; f < floors; f++) {
+      for (const [sign, plane] of [[1, wz], [-1, -wz]] as const) {
+        m.windowRow({ axis: 'z', sign, plane, from: -wx + 2.0, to: wx - 2.0,
+          y0: podium + f * floorH + 1.0, y1: podium + f * floorH + 2.8, count: 7, width: 1.8,
+          glass: MAT.GLASS, frame: 0.11, proud: 0.06 });
+      }
     }
-    ribbonStack(m, { axis: 'x', sign: 1, plane: x }, -z + 1.5, z - 1.5,
-      { floors: 2, floorH: 3.6, base: 1.2, height: 2.0 });
-    entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
-      { width: 4.0, height: 3.4, double: true, glazed: true, canopy: 3.2 });
-    boxSign(m, { axis: 'z', sign: 1, plane: z }, -5.0, 5.0, podium - 1.6, podium - 0.3);
-    // The cross, big, on the ward slab's end wall. Both bars are now centred
-    // on the same point: the upright used to start above the crossbar's own
-    // bottom edge, so the sign came out as a T with a stub on it.
     m.painted(TINT.BRAND, () => {
-      const cy = top - 5.8, arm = 2.7, bar = 0.85;
-      const p = wx + 0.74, q = wx + 0.94;
+      const cy = top - 6.4, arm = 3.0, bar = 0.95;
+      const p = wx + 0.76, q = wx + 0.98;
       m.box([p, cy - bar, -arm], [q, cy + bar, arm], MAT.TRIM);
       m.box([p, cy - arm, -bar], [q, cy + arm, bar], MAT.TRIM);
     });
-    // Ambulance bay doors under the canopy.
-    m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i < 2; i++) {
-        const pz = -z + 4.0 + i * 4.0;
-        m.box([-x - 0.02, 0, pz], [-x + 0.16, 4.2, pz + 3.0], MAT.TRIM);
-      }
-    });
-    frontage(m, -x, x, z, 993, { planters: 4, bollards: 12, depth: 2.6 });
+    // The forecourt: a drop-off loop, planting and visitor parking.
+    m.box([-24.0, 0.1, 22.0], [24.0, 0.2, 27.0], MAT.GROUND);
+    frontage(m, -24.0, 24.0, 27.0, 993, { planters: 5, bollards: 14, depth: 2.6 });
+    for (let i = 0; i < 4; i++) {
+      parkedVehicle(m, 3410 + i * 13, -21.0 + i * 6.5, 29.5, 1, 'car');
+    }
   }
-  dressRoof(m, lod, 3364);
   return m;
 }
 
@@ -1116,7 +1127,7 @@ export const SAFETY: AssetDef[] = [
   { id: 'svc.police.detention', name: 'Detention centre', zone: 'service', branch: 'police', density: 'none', variant: 'sculpted', footprint: [6, 6], height: 11.1, brand: { name: 'Detention', colour: [0.20, 0.24, 0.32], accent: [0.62, 0.62, 0.64], sign: 'box' }, sim: svc(60, 480, 140, 120), note: 'Blank cell block with slot windows inside a walled compound, two watch towers, a gate.', build: detention },
 
   { id: 'svc.health.clinic', name: 'Clinic', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 8.5, brand: { name: 'Clinic', colour: [0.66, 0.22, 0.30], accent: [0.72, 0.72, 0.72], sign: 'box' }, sim: svc(35, 200, 90, 60), note: 'Two storeys with a glazed waiting room, ambulance canopy on posts, parapet cross.', build: clinic },
-  { id: 'svc.health.hospital', name: 'General hospital', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [7, 5], height: 40.0, brand: { name: 'Hospital', colour: [0.66, 0.22, 0.30], accent: [0.74, 0.74, 0.74], sign: 'box' }, sim: svc(320, 1400, 700, 520), note: 'Ward slab with end cores on a glazed podium, helipad on the podium roof, ambulance bay.', build: hospital },
+  { id: 'svc.health.hospital', name: 'General hospital', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [10, 8], height: 44.4, brand: { name: 'Hospital', colour: [0.66, 0.22, 0.30], accent: [0.74, 0.74, 0.74], sign: 'box' }, sim: svc(320, 1400, 700, 520), note: 'Nine-storey ward tower on a sixty-metre department podium, outpatients and emergency wings either side, a glazed entrance concourse across the front, helipad, drop-off and ambulance apron.', build: hospital },
   { id: 'svc.health.ambulance', name: 'Ambulance depot', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [4, 6], height: 7.6, brand: { name: 'Ambulance', colour: [0.64, 0.24, 0.30], accent: [0.28, 0.62, 0.42], sign: 'box' }, sim: svc(28, 190, 70, 45), note: 'Four bays with vision panels, mess block, wash apron with a drain channel.', build: ambulanceDepot },
   { id: 'svc.health.care', name: 'Care home', zone: 'service', branch: 'health', density: 'none', variant: 'sculpted', footprint: [5, 4], height: 10.6, brand: { name: 'Care Home', colour: [0.52, 0.28, 0.36], accent: [0.66, 0.62, 0.48], sign: 'box' }, sim: svc(40, 240, 80, 90), note: 'Two brick wings round a sheltered garden, glazed garden room, ramp and handrail.', build: careHome },
 ];
