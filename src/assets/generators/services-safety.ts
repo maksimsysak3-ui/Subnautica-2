@@ -878,10 +878,23 @@ function hospital(lod: number): MeshBuilder {
     band(m, -x, -z, x, z, podium, 0.8, 0.5);
     for (let f = 1; f <= floors; f++) band(m, -wx, -wz, wx, wz, podium + f * floorH - 0.55, 0.55, 0.26);
     parapet(m, -wx, -wz, wx, wz, top, 1.2, 0.34);
-    // Service cores at both ends of the ward slab.
+    // Service cores at both ends of the ward slab. Narrower than the slab is
+    // deep, so the ward's own end wall still reads either side of them --
+    // before, the core covered the whole end and the building presented a
+    // storey-high blank tiled panel to the street.
     for (const sx of [-1, 1] as const) {
-      m.box([sx * wx - sx * 2.4, podium, -wz - 0.6], [sx * wx + sx * 0.6, top + 3.2, wz + 0.6],
+      m.box([sx * wx - sx * 2.4, podium, -wz + 1.4], [sx * wx + sx * 0.6, top + 3.2, wz - 1.4],
         MAT.CLADDING, { roof: MAT.ROOF });
+      // The stair light: one tall slot up the core, which is what a stair
+      // tower has and what stops it reading as a slab of tile.
+      m.painted(TINT.METAL_DARK, () =>
+        m.box([sx * wx + sx * 0.6, podium + 1.0, -0.55],
+              [sx * wx + sx * 0.72, top + 1.6, 0.55], MAT.TRIM));
+      for (let f = 0; f < floors; f += 2) {
+        m.opening({ axis: 'x', sign: sx, plane: sx > 0 ? wx + 0.6 : -wx - 0.6,
+          u0: -1.4, u1: 1.4, y0: podium + f * floorH + 1.2, y1: podium + f * floorH + 3.0,
+          glass: MAT.GLASS, frame: 0.14, proud: 0.07 });
+      }
     }
     // Helipad on the podium roof, clear of the slab.
     const hx = 0, hz = z - 4.0;
@@ -925,10 +938,14 @@ function hospital(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: z }, 0,
       { width: 4.0, height: 3.4, double: true, glazed: true, canopy: 3.2 });
     boxSign(m, { axis: 'z', sign: 1, plane: z }, -5.0, 5.0, podium - 1.6, podium - 0.3);
-    // The cross, big, on the ward slab's end wall.
+    // The cross, big, on the ward slab's end wall. Both bars are now centred
+    // on the same point: the upright used to start above the crossbar's own
+    // bottom edge, so the sign came out as a T with a stub on it.
     m.painted(TINT.BRAND, () => {
-      m.box([wx + 0.6, top - 8.0, -2.6], [wx + 0.8, top - 5.4, 2.6], MAT.TRIM);
-      m.box([wx + 0.6, top - 7.3, -0.9], [wx + 0.8, top - 2.8, 0.9], MAT.TRIM);
+      const cy = top - 5.8, arm = 2.7, bar = 0.85;
+      const p = wx + 0.74, q = wx + 0.94;
+      m.box([p, cy - bar, -arm], [q, cy + bar, arm], MAT.TRIM);
+      m.box([p, cy - arm, -bar], [q, cy + arm, bar], MAT.TRIM);
     });
     // Ambulance bay doors under the canopy.
     m.painted(TINT.METAL_DARK, () => {

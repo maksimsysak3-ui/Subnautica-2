@@ -28,6 +28,17 @@ const MAX_TRIS = 10000;
 const SERVICE_MIN = 2400;
 const SERVICE_MAX = 12000;
 /**
+ * Landmarks: a service asset ten cells or more on both sides.
+ *
+ * There is one of these on a map, it is a hundred metres across, and it is the
+ * middle of whatever district the player puts it in. Holding it to the same
+ * budget as a fire station means either a hundred metres of blank wall or no
+ * landmark at all, so it gets its own ceiling -- still a ceiling, because it
+ * is drawn every frame like everything else.
+ */
+const LANDMARK_CELLS = 10;
+const LANDMARK_MAX = 20000;
+/**
  * Vehicles and figures.
  *
  * There is no floor any more. The band existed to stop a generated car being
@@ -115,7 +126,9 @@ for (const a of ASSETS) {
   }
   const fleet = a.zone === 'fleet';
   const big = fleet && a.footprint[0] >= 2;
-  const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX) : service ? SERVICE_MAX : MAX_TRIS;
+  const landmark = service && a.footprint[0] >= LANDMARK_CELLS && a.footprint[1] >= LANDMARK_CELLS;
+  const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX)
+    : service ? (landmark ? LANDMARK_MAX : SERVICE_MAX) : MAX_TRIS;
   const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);
