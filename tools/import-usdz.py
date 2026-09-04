@@ -85,6 +85,46 @@ DROP_SHAPES = {
 #: what makes it read as a smear of orange and black rather than a car.
 DROP_MODELS = {
     'car.saloon1b',
+
+    # Everything from car.crossover3 down the sheet. These are the tail of the
+    # largest pack, where the atlas packs its islands hard against each other
+    # and a facet's UV footprint genuinely straddles two of them -- the
+    # blotching on these is in the source, not in the read of it.
+    'car.crossover3',
+    'car.microvan1',
+    'car.microvan2',
+    'car.microvan1b',
+    'car.microvan2b',
+    'car.crossover3b',
+    'car.microvan3',
+    'car.microvan3b',
+    'car.microvan3c',
+    'car.van4',
+    'car.van4b',
+    'car.van4c',
+    'car.van4d',
+    'car.saloon2',
+    'car.saloon2b',
+    'car.saloon2c',
+    'car.saloon2d',
+    'car.saloon2e',
+    'car.saloon2f',
+    'car.saloon2g',
+    'car.saloon2h',
+    'car.saloon2i',
+    'car.estate4',
+    'car.crossover3c',
+    'car.estate4b',
+    'car.estate4c',
+    'car.estate4d',
+    'car.estate4e',
+    'car.estate4f',
+    'car.crossover3d',
+    'car.crossover3e',
+    'car.crossover3f',
+    'car.crossover3g',
+    'car.crossover3h',
+    'car.microvan1c',
 }
 
 
