@@ -15,7 +15,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
-import { parkedVehicle } from './vehicles';
+import { parkedVehicle, figure } from './vehicles';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
@@ -1020,6 +1020,204 @@ function railStation(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * A half-cylinder vault swept along z, with a gable screen at each end.
+ *
+ * A trainshed is the one roof shape that has to be a real curve: faceted with
+ * eight segments it reads as a vault, and with three it reads as a tent.
+ */
+function barrelVault(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
+                     base: number, rise: number, mat: Material = MAT.METAL): void {
+  const SEG = 10;
+  const cx = (x0 + x1) / 2, r = (x1 - x0) / 2;
+  const at = (k: number): [number, number] => {
+    const t = (k / SEG) * Math.PI;
+    return [cx - Math.cos(t) * r, base + Math.sin(t) * rise];
+  };
+  for (let k = 0; k < SEG; k++) {
+    const [ax, ay] = at(k), [bx, by] = at(k + 1);
+    m.quad([ax, ay, z1], [bx, by, z1], [bx, by, z0], [ax, ay, z0], mat);
+  }
+  for (const [z, flip] of [[z0, true], [z1, false]] as const) {
+    for (let k = 0; k < SEG; k++) {
+      const [ax, ay] = at(k), [bx, by] = at(k + 1);
+      const p: [number, number, number][] = [[ax, ay, z], [bx, by, z], [cx, base, z]];
+      if (flip) m.tri(p[0], p[1], p[2], MAT.STONE);
+      else m.tri(p[2], p[1], p[0], MAT.STONE);
+    }
+  }
+}
+
+/**
+ * A coal or gas power station: the biggest thing a utility branch has.
+ *
+ * The turbine plant on six by five cells is a plant room; this is a station --
+ * a boiler house you can see across the city, a turbine hall beside it, a
+ * chimney taller than any tower in the library, four cooling towers and a coal
+ * yard. A hundred metres by eighty, because that is what one is, and because a
+ * library where the power station and the substation are the same size tells
+ * the player nothing about either.
+ */
+function powerStation(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 50.0, z = 40.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // Boiler house: tall, blind, clad. The turbine hall runs off its flank,
+  // lower and longer, which is the shape of every station ever built.
+  m.box([-26.0, 0.1, -22.0], [-2.0, 42.0, 4.0], MAT.CLADDING, { roof: MAT.METAL });
+  m.box([-2.0, 0.1, -18.0], [26.0, 22.0, 0.0], MAT.SHED_WALL, { roof: MAT.METAL });
+  // The chimney, on its own base.
+  m.cylinder(36.0, -26.0, 5.4, 0.1, 4.0, 16, MAT.CONCRETE, true);
+  m.cylinder(36.0, -26.0, 4.4, 4.0, 74.0, 16, MAT.CONCRETE, false);
+  m.cylinder(36.0, -26.0, 4.8, 74.0, 76.0, 16, MAT.CONCRETE, true);
+  // Cooling towers: hyperboloids, faked as two cones back to back.
+  for (const [cx, cz] of [[-32.0, 22.0], [-14.0, 26.0], [8.0, 22.0], [26.0, 26.0]] as const) {
+    m.cone(cx, cz, 9.0, 5.6, 0.1, 22.0, 14, MAT.CONCRETE);
+    m.cone(cx, cz, 5.6, 7.4, 22.0, 34.0, 14, MAT.CONCRETE);
+  }
+
+  if (medium) {
+    band(m, -26.0, -22.0, -2.0, 4.0, 30.0, 1.2, 0.4, MAT.METAL);
+    band(m, -26.0, -22.0, -2.0, 4.0, 16.0, 1.2, 0.4, MAT.METAL);
+    parapet(m, -26.0, -22.0, -2.0, 4.0, 42.0, 1.4, 0.4, MAT.METAL);
+    parapet(m, -2.0, -18.0, 26.0, 0.0, 22.0, 1.0, 0.3, MAT.METAL);
+    // The coal yard: a heap on a slab with a stacker over it.
+    m.box([-44.0, 0.1, 10.0], [-36.0, 0.2, 34.0], MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => m.cone(-40.0, 22.0, 7.0, 0.5, 0.2, 7.0, 10, MAT.GROUND));
+    // Flue ducts from the boiler house to the chimney.
+    for (const py of [26.0, 32.0]) {
+      m.pipe([-2.0, py, -12.0], [31.6, py, -12.0], 2.2, MAT.METAL);
+    }
+    m.pipe([31.6, 26.0, -12.0], [31.6, 26.0, -26.0], 2.2, MAT.METAL);
+    m.pipe([31.6, 32.0, -12.0], [31.6, 32.0, -26.0], 2.2, MAT.METAL);
+    roofClutter(m, -24.0, -20.0, -4.0, 2.0, 42.0, 4401, 1.0);
+  }
+  if (fine) {
+    // The turbine hall's clerestory, and the boiler house's stair tower.
+    ribbonStack(m, { axis: 'z', sign: -1, plane: -18.0 }, -0.4, 24.4,
+      { floors: 2, floorH: 6.0, base: 10.0, height: 3.4 });
+    m.box([-30.0, 0.1, -18.0], [-26.0, 46.0, -8.0], MAT.CONCRETE, { roof: MAT.ROOF });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let f = 0; f < 11; f++) {
+        m.box([-30.1, 2.0 + f * 4.0, -16.4], [-25.9, 4.6 + f * 4.0, -9.6], MAT.TRIM);
+      }
+      // Aircraft warning bands up the chimney.
+      for (const y of [24.0, 44.0, 64.0]) {
+        m.cylinder(36.0, -26.0, 4.55, y, y + 4.0, 16, MAT.TRIM, false);
+      }
+    });
+    // The switchyard: gantries and a line of transformers.
+    for (let i = 0; i < 4; i++) {
+      const cx = -18.0 + i * 11.0;
+      m.painted(TINT.METAL_DARK, () => {
+        for (const px of [cx - 3.0, cx + 3.0]) {
+          m.box([px - 0.2, 0.1, 32.0], [px + 0.2, 12.0, 32.4], MAT.TRIM);
+        }
+        m.box([cx - 3.4, 12.0, 31.8], [cx + 3.4, 12.6, 32.6], MAT.TRIM);
+      });
+      m.box([cx - 2.2, 0.1, 34.0], [cx + 2.2, 3.6, 37.0], MAT.METAL, { roof: MAT.TRIM });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: 0.0 }, 20.0,
+      { width: 2.4, height: 3.2, double: true, glazed: true, canopy: 2.4 });
+    serviceYard(m, -8.0, 20.0, -26.0, 4401, { bins: true });
+    for (let i = 0; i < 3; i++) parkedVehicle(m, 4410 + i * 13, -2.0 + i * 6.0, -32.0, 1, 'truck');
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
+/**
+ * A central railway station: a trainshed over the platforms.
+ *
+ * The six-by-five rail station is a suburban halt with a canopy. This is the
+ * terminus -- a stone head building on the street, a barrel-vaulted shed a
+ * hundred metres long behind it, six platforms under it and a clock over the
+ * concourse doors.
+ */
+function centralStation(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 44.0, z = 32.0;
+
+  m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
+  // The head building: a stone range facing the forecourt.
+  m.box([-34.0, 0.1, 16.0], [34.0, 18.0, 30.0], MAT.STONE, { roof: MAT.ROOF });
+  m.box([-10.0, 0.1, 14.0], [10.0, 24.0, 30.0], MAT.STONE, { roof: MAT.ROOF });
+  // The trainshed: a barrel vault carried on piers, not on walls. Solid
+  // flanks turn a shed into a hangar -- you could see nothing of the platforms
+  // and the station presented forty metres of blank stone to the street.
+  for (const sx of [-1, 1] as const) {
+    const [px0, px1] = sx > 0 ? [32.0, 36.0] : [-36.0, -32.0];
+    for (let i = 0; i < 8; i++) {
+      const pz = -29.0 + i * 6.3;
+      m.box([px0, 0.1, pz], [px1, 20.0, pz + 2.4], MAT.STONE);
+    }
+    // A spandrel band tying the piers together under the springing.
+    m.box([px0, 17.0, -30.0], [px1, 20.0, 16.0], MAT.STONE);
+  }
+  barrelVault(m, -36.0, -30.0, 36.0, 16.0, 20.0, 13.0);
+
+  if (medium) {
+    band(m, -34.0, 16.0, 34.0, 30.0, 16.4, 1.0, 0.4, MAT.STONE);
+    parapet(m, -34.0, 16.0, 34.0, 30.0, 18.0, 1.2, 0.32, MAT.STONE);
+    parapet(m, -10.0, 14.0, 10.0, 30.0, 24.0, 1.3, 0.34, MAT.STONE);
+    // Platforms and tracks under the shed.
+    for (let i = 0; i < 3; i++) {
+      const cx = -24.0 + i * 24.0;
+      m.box([cx - 5.0, 0.1, -30.0], [cx + 5.0, 1.0, 14.0], MAT.CONCRETE);
+      m.painted(TINT.SIGN_LIT, () =>
+        m.box([cx - 5.0, 1.0, -30.0], [cx - 4.4, 1.06, 14.0], MAT.TRIM));
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cx of [-13.0, -5.0, 11.0, 19.0]) {
+        for (const o of [-0.72, 0.72]) {
+          m.box([cx + o - 0.08, 0.1, -30.0], [cx + o + 0.08, 0.28, 14.0], MAT.TRIM);
+        }
+      }
+    });
+  }
+  if (fine) {
+    // The concourse front: a screen of tall arched lights and the clock.
+    for (let i = 0; i < 5; i++) {
+      const cx = -26.0 + i * 13.0;
+      if (Math.abs(cx) < 5.0) continue;
+      m.opening({ axis: 'z', sign: 1, plane: 30.0, u0: cx - 3.4, u1: cx + 3.4,
+        y0: 2.0, y1: 12.0, glass: MAT.GLASS, frame: 0.3, proud: 0.14 });
+    }
+    m.opening({ axis: 'z', sign: 1, plane: 30.0, u0: -6.4, u1: 6.4, y0: 1.0, y1: 13.0,
+      glass: MAT.SHOPFRONT, frame: 0.34, proud: 0.16 });
+    entrance(m, { axis: 'z', sign: 1, plane: 30.0 }, 0,
+      { width: 5.0, height: 4.2, double: true, glazed: true, canopy: 4.0 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 30.0 }, -9.0, 9.0, 13.6, 14.8);
+    // Gable screen at the open end of the shed, which is what a terminus has.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 13; i++) {
+        const cx = -34.0 + i * 5.67;
+        m.box([cx - 0.16, 0.1, -30.4], [cx + 0.16, 20.0 + 13.0 * Math.sqrt(
+          Math.max(0, 1 - (cx / 36.0) ** 2)), -30.0], MAT.TRIM);
+      }
+    });
+    // Platform furniture, and travellers on the concourse.
+    for (let i = 0; i < 3; i++) {
+      const cx = -24.0 + i * 24.0;
+      for (let k = 0; k < 3; k++) {
+        m.painted(TINT.METAL_DARK, () =>
+          m.box([cx - 1.2, 1.0, -20.0 + k * 12.0], [cx + 1.2, 1.5, -19.4 + k * 12.0], MAT.TRIM));
+      }
+      figure(m, 4501 + i * 17, cx + 2.0, -8.0 + i * 6.0, 0, { bag: true });
+    }
+    figure(m, 4560, -3.0, 33.0, 0, { stride: 0.16, bag: true });
+    figure(m, 4567, 3.4, 34.0, Math.PI, { stride: 0.12 });
+    // The forecourt: a taxi rank and a drop-off.
+    m.box([-30.0, 0.1, 30.0], [30.0, 0.2, z], MAT.GROUND);
+    for (let i = 0; i < 4; i++) parkedVehicle(m, 4570 + i * 13, -18.0 + i * 8.0, 34.0, 1, 'car');
+    kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+  }
+  return m;
+}
+
 // ==================================================================== table
 
 const util = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1039,5 +1237,7 @@ export const UTILITY: AssetDef[] = [
   { id: 'svc.transport.depot', name: 'Bus depot', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [6, 6], height: 8.1, brand: { name: 'Transit', colour: [0.18, 0.52, 0.40], accent: [0.72, 0.66, 0.24], sign: 'box' }, sim: util(48, 320, 130, 60), note: 'Open-sided portal shed over five stands with rooflights, fuel island and a wash lane.', build: busDepot },
   { id: 'svc.transport.station', name: 'Bus station', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [6, 4], height: 8.0, brand: { name: 'Transit', colour: [0.18, 0.52, 0.40], accent: [0.72, 0.66, 0.24], sign: 'box' }, sim: util(24, 260, 90, 30), note: 'Two island platforms under one branching canopy, glazed shelters, finned concourse.', build: busStation },
   { id: 'svc.transport.metro', name: 'Metro entrance', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [3, 3], height: 7.4, brand: { name: 'Metro', colour: [0.18, 0.52, 0.40], accent: [0.72, 0.66, 0.24], sign: 'box' }, sim: util(8, 190, 220, 10), note: 'Glazed drum over the stair with a cantilevered disc roof, louvred vent shaft, totem.', build: metroEntrance },
+  { id: 'svc.power.station', name: 'Power station', zone: 'service', branch: 'power', density: 'none', variant: 'sculpted', footprint: [13, 10], height: 76.0, brand: { name: 'Power', colour: [0.60, 0.46, 0.14], accent: [0.70, 0.70, 0.72], sign: 'box' }, sim: util(90, 1800, 0, 900), note: 'Forty-metre boiler house and turbine hall, a seventy-six-metre chimney, four cooling towers, coal yard, flue ducts and a switchyard.', build: powerStation },
+  { id: 'svc.transport.central', name: 'Central station', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [11, 9], height: 33.0, brand: { name: 'Central', colour: [0.18, 0.52, 0.40], accent: [0.72, 0.66, 0.24], sign: 'box' }, sim: util(180, 1500, 700, 240), note: 'Stone head building with an arched concourse screen and a clock, a barrel-vaulted trainshed a hundred metres long over six platforms, taxi rank and drop-off.', build: centralStation },
   { id: 'svc.transport.rail', name: 'Rail station', zone: 'service', branch: 'transport', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 13.0, brand: { name: 'Rail', colour: [0.18, 0.52, 0.40], accent: [0.72, 0.66, 0.24], sign: 'box' }, sim: util(60, 620, 340, 80), note: 'Glazed train shed on lattice trusses over two platforms, finned concourse with a clock.', build: railStation },
 ];
