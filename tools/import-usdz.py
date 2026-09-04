@@ -51,10 +51,10 @@ from pxr import Usd, UsdGeom, UsdShade, Gf
 from PIL import Image
 
 PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
-         'Low_Poly_cars_pack.usdz', 'Free_Low_Poly_Vehicles_Pack.usdz']
+         'Low_Poly_cars_pack.usdz']
 
 #: Meshes to leave out, by a fragment of their prim path.
-SKIP_MESH = ('Monster_Truck',)
+SKIP_MESH = ()
 
 #: Every vehicle in a pack is measured against this one, in metres.
 TYPICAL = 4.5
@@ -72,6 +72,19 @@ DROP_SHAPES = {
     'd1056e32904a',                        # small van, red livery
     '5ab7d2f06a62',                        # small van, teal livery
     'd7830ed2d51b',                        # small van, brown livery
+}
+
+#: Liveries to leave out, by asset id.
+#:
+#: DROP_SHAPES cannot express these: a livery shares its packed shape with its
+#: siblings, so dropping the shape would take the good cars with it. These are
+#: dropped after naming, so the ones that stay keep the ids they already had --
+#: pulling a livery does not renumber the rest of the pack.
+#:
+#: car.saloon1b's body and glass sample the same band of the atlas, which is
+#: what makes it read as a smear of orange and black rather than a car.
+DROP_MODELS = {
+    'car.saloon1b',
 }
 
 
@@ -851,6 +864,17 @@ def main(src_dir, out_path):
         }
         length = max(v[0] for v in order) - min(v[0] for v in order)
         print(f'  {aid:18s} {len(index)//3:6d} tris  {length:4.1f}m  shape {geo}')
+
+    for aid in DROP_MODELS:
+        if models.pop(aid, None) is None:
+            print(f'  ! {aid} is not in the pack; DROP_MODELS is out of date')
+        else:
+            print(f'  dropped {aid}')
+
+    # A shape only earns its place if a surviving livery still points at it.
+    used = {m['shape'] for m in models.values()}
+    for geo in [g for g in shapes if g not in used]:
+        del shapes[geo]
 
     body = json.dumps({'shapes': shapes, 'models': models}, separators=(',', ':'))
     header = (
