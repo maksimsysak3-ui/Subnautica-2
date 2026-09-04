@@ -913,14 +913,14 @@ const fleetOf = (id: string): AssetDef => {
     footprint: [cells(hx), cells(hz)],
     height: hy,
     sim: road(0),
-    note: `Imported low-poly model, ${(hx * 2).toFixed(1)}m long, coloured per vertex.`,
+    note: `Imported low-poly model, ${(hx * 2).toFixed(1)}m long, one flat colour per facet.`,
     build: (lod: number): MeshBuilder => {
       const m = new MeshBuilder();
       tarmac(m, hx + 0.9, hz + 0.9);
-      // The pack ships one level of detail, so the ladder is: the model, the
-      // model without the figure beside it, then a coloured box.
+      // The pack ships one level of detail, so the ladder is built here: the
+      // full model, the vertex-clustered copy of it, then a coloured box.
       if (lod >= 2) drawImpostor(m, id);
-      else drawImported(m, id);
+      else drawImported(m, id, { low: lod >= 1 });
       if (lod < 1) person(m, id.length * 37 + 3, hx + 1.4, hz + 0.6, Math.PI, { stride: 0.12 });
       return m;
     },

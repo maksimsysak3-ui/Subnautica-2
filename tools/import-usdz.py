@@ -158,12 +158,19 @@ def read_mesh(prim, textures):
             break
     #: Barycentric weights for sampling one facet's UV footprint.
     #:
-    #: Sixteen points spread over the triangle rather than three at its
-    #: corners. The corners are the worst places to read a texture: they sit
-    #: exactly on the seam between two patches of the atlas, so a corner sample
-    #: is as likely to pick up the neighbouring panel as the one it belongs to.
-    SPREAD = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
-              for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
+    #: Points spread over the triangle rather than at its corners -- a corner
+    #: sits exactly on the seam between two patches of the atlas and is the
+    #: worst place to read one -- and then pulled well in towards the centroid.
+    #:
+    #: The pull is what stops colour leaking between panels. These atlases have
+    #: no padding around their islands, so a sample anywhere near a facet's own
+    #: edge can land a texel into the neighbouring patch and win the vote, which
+    #: is how a windscreen ends up body-coloured or a wing ends up glass-blue.
+    #: Sampling only the middle of the facet cannot reach the seam at all.
+    _RAW = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
+            for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
+    _PULL = 0.55
+    SPREAD = [tuple(w * (1 - _PULL) + _PULL / 3 for w in p) for p in _RAW]
 
     tris, base = [], 0
     for c in counts:
@@ -431,14 +438,22 @@ def cluster(order, index, cell):
     Needed because a forecourt parks eight of them. A full model each puts a
     corner shop over the triangle ceiling on its own.
     """
+    # The colour is part of the cluster key, not just the position.
+    #
+    # Welding on position alone merges a windscreen vertex with the roof vertex
+    # beside it, and the survivor keeps whichever colour happened to arrive
+    # first -- so the body colour bleeds into the glass or the glass into the
+    # body, on every parked car in the city, because parked cars all use this
+    # copy. Keying on colour as well means a weld never crosses a colour
+    # boundary: the panel edges stay exactly where the artist put them, and the
+    # decimation only ever collapses vertices that were the same colour anyway.
     rep, remap = {}, []
     for v in order:
-        key = (round(v[0] / cell), round(v[1] / cell), round(v[2] / cell))
+        key = (round(v[0] / cell), round(v[1] / cell), round(v[2] / cell),
+               round(v[3], 2), round(v[4], 2), round(v[5], 2))
         if key not in rep:
             rep[key] = len(rep)
         remap.append(rep[key])
-    # The representative keeps the first position and colour that landed in it,
-    # so a cluster straddling a colour break takes one side rather than a blend.
     out = [None] * len(rep)
     for v, r in zip(order, remap):
         if out[r] is None:
