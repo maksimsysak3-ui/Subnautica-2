@@ -16,28 +16,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Vec3 } from '../mesh';
-import { parkedVehicle, figure } from './vehicles';
-import type { ParkedKind } from './vehicles';
-
-/**
- * A vehicle on the carriageway, facing the way it would actually be driving.
- *
- * Every road in this file runs along z, and every one of these calls passed a
- * quarter-turn of 0 or 2 -- which faces along x. So the whole library had its
- * traffic parked broadside across the road it was standing on. Rather than fix
- * forty-eight call sites and wait for the next one to be written wrong, the
- * heading comes from the position: right-hand traffic, so a vehicle on the
- * positive side of the centre line drives one way and one on the negative side
- * drives the other. `axis` is for the arms of a junction that run the other
- * way.
- */
-function traffic(m: MeshBuilder, key: number, cx: number, cz: number,
-  kind: ParkedKind = 'car', axis: 'x' | 'z' = 'z'): void {
-  const turns = axis === 'z' ? (cx >= 0 ? 1 : 3) : (cz >= 0 ? 2 : 0);
-  parkedVehicle(m, key, cx, cz, turns, kind);
-}
-
-
+import { figure } from './vehicles';
 
 // ------------------------------------------------------------- dimensions
 
@@ -227,9 +206,6 @@ function street(lod: number): MeshBuilder {
       verge(m, sx, half + 1.6, half + 2.4, z0, z1);
     }
     // Cars parked in the bays, and someone crossing between them.
-    traffic(m, 5101, half - 1.0, -9.0);
-    traffic(m, 5117, half - 1.0, 3.0);
-    traffic(m, 5131, -(half - 1.0), -2.0);
     figure(m, 5140, 0.4, 7.0, Math.PI / 2, { stride: 0.16 });
     figure(m, 5147, half + 1.4, -1.0, Math.PI, { bag: true });
   }
@@ -293,10 +269,6 @@ function avenue(lod: number): MeshBuilder {
       for (const z of [-10.0, 6.0]) ironwork(m, sx * (half - 0.5), z, 'gully');
       sign(m, sx * (half + 1.2), sx > 0 ? -14.0 : 12.0, 0.7, 0.7, TINT.BRAND);
     }
-    traffic(m, 5201, median / 2 + LANE * 0.5, -6.0);
-    traffic(m, 5213, median / 2 + LANE * 1.5, 4.0, 'van');
-    traffic(m, 5227, -(median / 2 + LANE * 0.5), 8.0, 'bus');
-    traffic(m, 5241, -(median / 2 + LANE * 1.5), -10.0);
   }
   return m;
 }
@@ -379,8 +351,6 @@ function crossroads(lod: number): MeshBuilder {
         m.box([-half, DECK + 0.003, t - 0.05], [half, DECK + 0.009, t + 0.05], MAT.TRIM);
       }
     });
-    traffic(m, 5301, LANE * 0.5, -(half + 5.0));
-    traffic(m, 5313, -LANE * 0.5, half + 6.0);
     figure(m, 5320, -half - 1.4, half + 1.4, 0, { stride: 0.14 });
     figure(m, 5327, half + 1.5, -half - 1.5, Math.PI, { bag: true });
   }
@@ -455,9 +425,6 @@ function roundabout(lod: number): MeshBuilder {
       streetLight(m, 1, Math.cos(a) * (outer + 1.6), Math.sin(a) * (outer + 1.6), 8.0);
     }
     // Traffic going round it, so the geometry has something to explain.
-    traffic(m, 5401, 0, -(island + LANE * 0.5));
-    traffic(m, 5417, island + LANE * 0.5, 0, 'car', 'x');
-    traffic(m, 5433, 0, island + LANE * 0.5, 'van');
     figure(m, 5440, -(outer + 1.4), 2.0, 0, { stride: 0.12 });
   }
   return m;
@@ -561,8 +528,6 @@ function beamBridge(lod: number): MeshBuilder {
         }
       });
     }
-    traffic(m, 5501, LANE * 0.5, -5.0);
-    traffic(m, 5519, -LANE * 0.5, 6.0, 'truck');
     figure(m, 5526, half + 1.2, 2.0, 0, { stride: 0.15, bag: true });
     figure(m, 5533, -(half + 1.2), -4.0, Math.PI, { hat: true });
   }
@@ -645,9 +610,6 @@ function cableBridge(lod: number): MeshBuilder {
     // Aircraft warning light on the pylon head.
     m.painted(TINT.BRAND, () =>
       m.box([-0.4, pylon + 3.2, -0.4], [0.4, pylon + 3.6, 0.4], MAT.TRIM));
-    traffic(m, 5601, LANE * 0.5, -8.0);
-    traffic(m, 5617, LANE * 0.5, 6.0, 'bus');
-    traffic(m, 5633, -LANE * 0.5, 0.0);
     figure(m, 5640, half + 1.2, -12.0, 0, { stride: 0.14 });
   }
   return m;
@@ -736,7 +698,6 @@ function footbridge(lod: number): MeshBuilder {
     });
     figure(m, 5701, -2.0, 0.0, 0, { stride: 0.16, bag: true });
     figure(m, 5717, 3.0, 0.5, Math.PI, { stride: 0.12 });
-    traffic(m, 5733, LANE * 0.5, -4.0);
   }
   return m;
 }
@@ -852,7 +813,6 @@ function lane(lod: number): MeshBuilder {
         m.box([-(half + 0.62), DECK + 0.75, z - 0.1], [-(half + 0.38), DECK + 1.0, z + 0.1], MAT.TRIM));
     }
     ironwork(m, half - 0.3, 6.0, 'gully');
-    traffic(m, 6101, half + 1.2, 0.0);
   }
   return m;
 }
@@ -881,8 +841,6 @@ function oneway(lod: number): MeshBuilder {
   if (fine) {
     for (const sx of [1, -1] as const) streetLight(m, sx, sx * (half + 0.8), sx > 0 ? -8.0 : 8.0, 7.0);
     sign(m, half + 1.2, -14.0, 0.7, 0.7, TINT.BRAND);
-    traffic(m, 6201, -(half - 1.2), -6.0);
-    traffic(m, 6217, -(half - 1.2), 6.0);
     figure(m, 6230, half + 1.4, 2.0, Math.PI, { bag: true });
     ironwork(m, half - 0.35, -4.0, 'gully');
   }
@@ -933,8 +891,6 @@ function boulevard(lod: number): MeshBuilder {
     for (const sx of [1, -1] as const) {
       for (const z of [-10.0, 4.0]) figure(m, 6300 + z + sx * 7, sx * (half + 1.6), z, sx > 0 ? Math.PI : 0, {});
     }
-    traffic(m, 6321, half - 1.6, -12.0);
-    traffic(m, 6337, -(half - 1.6), 10.0);
   }
   return m;
 }
@@ -981,8 +937,6 @@ function motorway(lod: number): MeshBuilder {
       }
     }
     for (let i = 0; i < 5; i++) {
-      parkedVehicle(m, 6400 + i * 13, (i % 2 === 0 ? 1 : -1) * (med + LANE * (0.5 + (i % 3))),
-        z0 + 3.0 + i * 6.5, i % 2 === 0 ? 0 : 2, i === 2 ? 'truck' : 'car');
     }
   }
   return m;
@@ -1037,8 +991,6 @@ function gantry(lod: number): MeshBuilder {
   }
   if (fine) {
     for (let i = 0; i < 4; i++) {
-      parkedVehicle(m, 6500 + i * 17, (i % 2 === 0 ? 1 : -1) * (med + LANE * (0.5 + (i % 3))),
-        z0 + 4.0 + i * 8.0, i % 2 === 0 ? 0 : 2, i === 1 ? 'truck' : 'car');
     }
   }
   return m;
@@ -1083,8 +1035,6 @@ function slipRoad(lod: number): MeshBuilder {
         m.box([-(half + 0.5) - 0.06, DECK, z - 0.06], [-(half + 0.5) + 0.06, DECK + 1.0, z + 0.06], MAT.TRIM));
     }
     barrier(m, -(half + 0.6), z0, z1, 1);
-    traffic(m, 6601, LANE * 1.6, 6.0, 'truck');
-    traffic(m, 6617, -LANE * 0.6, -8.0);
   }
   return m;
 }
@@ -1131,8 +1081,6 @@ function viaduct(lod: number): MeshBuilder {
         m.box([half - 1.8, y + 8.7, z - 0.17], [half - 1.2, y + 8.86, z + 0.17], MAT.TRIM);
       });
     }
-    traffic(m, 6701, LANE * 0.6, -6.0, 'truck');
-    traffic(m, 6717, -LANE * 0.6, 8.0);
   }
   return m;
 }
@@ -1183,7 +1131,6 @@ function tJunction(lod: number): MeshBuilder {
     ironwork(m, half - 0.35, -6.0, 'gully');
     ironwork(m, -(half - 0.35), 6.0, 'gully');
     figure(m, 6801, half + 3.0, half + 1.4, Math.PI, {});
-    traffic(m, 6817, -LANE * 0.5, -12.0);
   }
   return m;
 }
@@ -1231,8 +1178,6 @@ function miniRoundabout(lod: number): MeshBuilder {
     }
     streetLight(m, 1, half + 1.4, -8.0, 8.0);
     streetLight(m, -1, -(half + 1.4), 8.0, 8.0);
-    traffic(m, 6901, -1.6, -8.0);
-    traffic(m, 6917, 1.6, 8.0);
     figure(m, 6930, half + 2.0, half + 2.0, Math.PI, { bag: true });
   }
   return m;
@@ -1267,8 +1212,6 @@ function busLane(lod: number): MeshBuilder {
   }
   if (fine) {
     for (const sx of [1, -1] as const) streetLight(m, sx, sx * (half + 0.8), sx > 0 ? -12.0 : 10.0, 8.0);
-    traffic(m, 7001, half - LANE / 2, 0.0, 'bus');
-    traffic(m, 7017, -LANE * 0.5, -10.0);
     for (let i = 0; i < 4; i++) figure(m, 7030 + i * 7, half + 1.2, -3.0 + i * 2.0, Math.PI, { bag: i % 2 === 0 });
     ironwork(m, -(half - 0.35), 4.0, 'gully');
   }
@@ -1317,7 +1260,6 @@ function tramway(lod: number): MeshBuilder {
     m.painted(TINT.METAL_DARK, () => m.cylinder(0, 4.4, 0.06, DECK + 0.24, DECK + 3.0, 6, MAT.TRIM, false));
     m.painted(TINT.SIGN_LIT, () => m.box([-0.42, DECK + 2.5, 4.34], [0.42, DECK + 3.0, 4.46], MAT.TRIM));
     for (let i = 0; i < 4; i++) figure(m, 7130 + i * 9, -1.0 + (i % 2) * 2.0, -2.0 + i * 1.6, i % 2 ? 0 : Math.PI, {});
-    traffic(m, 7101, -(half - LANE / 2), -8.0);
   }
   return m;
 }
@@ -1359,7 +1301,6 @@ function cycleTrack(lod: number): MeshBuilder {
     signal(m, half + 0.4 + track2 + 0.6, 6.0, -1, 2.8);
     sign(m, -(half + 1.0), -12.0, 0.6, 0.6, TINT.SIGN_LIT);
     ironwork(m, half - 0.35, 2.0, 'gully');
-    traffic(m, 7201, -LANE * 0.5, -6.0);
     figure(m, 7220, half + 1.7, 2.0, 0, { stride: 0.2 });
     figure(m, 7233, half + 0.4 + track2 + 1.0, -2.0, Math.PI, {});
   }
@@ -1519,7 +1460,6 @@ function parkingBays(lod: number): MeshBuilder {
   }
   if (fine) {
     for (let i = 0; i < 5; i++) {
-      traffic(m, 7500 + i * 13, half + bay / 2 - 0.3, z0 + 3.4 + i * 6.0, i === 3 ? 'van' : 'car');
     }
     streetLight(m, 1, half + bay + 0.9, -10.0, 8.0);
     streetLight(m, -1, -(half + 0.9), 8.0, 8.0);
@@ -1564,10 +1504,6 @@ function carPark(lod: number): MeshBuilder {
     }
   }
   if (fine) {
-    for (let i = 0; i < 8; i++) {
-      const px = -x + 2.4 + (i % 4) * ((2 * x - 5.0) / 3.4);
-      traffic(m, 7600 + i * 19, px, i < 4 ? -5.5 : 5.5, i === 5 ? 'van' : 'car');
-    }
     for (const px of [-x + 5.0, x - 5.0]) {
       m.painted(TINT.METAL_DARK, () => {
         m.cylinder(px, 0, 0.14, DECK, 9.0, 8, MAT.TRIM, false);
@@ -1639,7 +1575,6 @@ function levelCrossing(lod: number): MeshBuilder {
     m.box([-arm + 2.0, DECK, 3.6], [-arm + 4.4, DECK + 2.4, 5.8], MAT.CONCRETE);
     m.box([-arm + 1.8, DECK + 2.4, 3.4], [-arm + 4.6, DECK + 2.6, 6.0], MAT.METAL);
     sign(m, half + 1.4, -6.0, 0.8, 0.8, TINT.SIGN_LIT);
-    traffic(m, 7701, -LANE * 0.5, -9.0);
   }
   return m;
 }
@@ -1695,8 +1630,6 @@ function tunnelPortal(lod: number): MeshBuilder {
         }
       });
     }
-    traffic(m, 7801, -LANE * 0.6, -6.0, 'truck');
-    traffic(m, 7817, LANE * 0.6, 2.0);
   }
   return m;
 }
@@ -1744,9 +1677,6 @@ function flyover(lod: number): MeshBuilder {
       streetLight(m, sz > 0 ? 1 : -1, sz * (half + 0.3), sz * 10.0, y + 8.0);
     }
     sign(m, -x + 3.0, half + 2.4, 1.4, 0.9, TINT.SIGN_LIT);
-    traffic(m, 7901, 0.0, -half - 0.0, 'truck');
-    traffic(m, 7917, -LANE * 0.6, 0.0);
-    traffic(m, 7933, LANE * 0.6, 12.0);
   }
   return m;
 }
@@ -1799,7 +1729,6 @@ function trafficCalming(lod: number): MeshBuilder {
     }
     streetLight(m, 1, half + 0.9, 0.0, 7.0);
     figure(m, 8001, -1.0, 3.0, Math.PI / 2, { stride: 0.18 });
-    traffic(m, 8017, -LANE * 0.5, -11.0);
   }
   return m;
 }
@@ -1850,10 +1779,6 @@ function tollPlaza(lod: number): MeshBuilder {
     for (const sx of [1, -1] as const) verge(m, sx, half, half + 4.0, z0, z1);
   }
   if (fine) {
-    for (let i = 0; i < lanes; i++) {
-      const x = -half + ((i + 0.5) / lanes) * half * 2;
-      if (i % 2 === 0) traffic(m, 8100 + i * 21, x, -8.0 - i * 1.5, i === 2 ? 'truck' : 'car');
-    }
     for (let z = z0; z < z1; z += 6.0) {
       for (const sx of [1, -1] as const) {
         m.painted(TINT.SIGN_LIT, () =>
@@ -1893,8 +1818,6 @@ function layby(lod: number): MeshBuilder {
     verge(m, 1, half + bay + 2.2, half + bay + 4.0, z0, z1);
   }
   if (fine) {
-    traffic(m, 8201, half + bay / 2 + 0.4, -2.0, 'truck');
-    traffic(m, 8217, half + bay / 2 + 0.4, 6.0);
     streetLight(m, 1, half + bay + 2.6, 8.0, 8.0);
     sign(m, half + bay + 2.6, -9.0, 1.1, 0.7, TINT.GREEN);
     for (let i = 0; i < 3; i++) figure(m, 8230 + i * 11, half + bay + 0.6, -2.0 + i * 2.0, Math.PI, {});

@@ -434,7 +434,7 @@ function collegeCampus(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1;
   const medium = lod < 2;
-  const x = 56.0, z = 48.0;
+  const x = 72.0, z = 60.0;
 
   /**
    * A span mirrored to one side, written lo-to-hi.
@@ -448,196 +448,191 @@ function collegeCampus(lod: number): MeshBuilder {
     sx > 0 ? [a, b] : [-b, -a];
 
   m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
-  // The lawn the whole campus faces, with its cross paths and diagonals.
-  m.painted(TINT.GREEN, () => m.box([-30.0, 0.1, -18.0], [30.0, 0.18, 26.0], MAT.TRIM));
-  m.box([-2.6, 0.1, -18.0], [2.6, 0.2, 26.0], MAT.GROUND);
-  m.box([-30.0, 0.1, 1.4], [30.0, 0.2, 6.0], MAT.GROUND);
-  m.box([-30.0, 0.1, 21.0], [30.0, 0.2, 24.4], MAT.GROUND);
+  // The lawn everything faces, its cross paths and its diagonals.
+  m.painted(TINT.GREEN, () => m.box([-34.0, 0.1, -20.0], [34.0, 0.18, 30.0], MAT.TRIM));
+  m.box([-2.8, 0.1, -20.0], [2.8, 0.2, 30.0], MAT.GROUND);
+  m.box([-34.0, 0.1, 2.0], [34.0, 0.2, 7.0], MAT.GROUND);
+  m.box([-34.0, 0.1, 24.0], [34.0, 0.2, 27.6], MAT.GROUND);
 
-  // Old Main: a long stone hall on a plinth, portico and dome on the axis.
+  // ---- Old Main: the domed hall at the head of the lawn.
   const mh = 19.0;
-  m.box([-27.0, 0.1, -44.0], [27.0, 1.8, -19.0], MAT.STONE);
-  m.box([-25.0, 1.8, -43.0], [25.0, mh, -20.0], MAT.STONE, { roof: MAT.ROOF });
-  // End pavilions, taller, which is what stops a long range reading as a wall.
+  m.box([-30.0, 0.1, -48.0], [30.0, 1.8, -21.0], MAT.STONE);
+  m.box([-28.0, 1.8, -47.0], [28.0, mh, -22.0], MAT.STONE, { roof: MAT.ROOF });
   for (const sx of [-1, 1] as const) {
-    const [px0, px1] = span(16.0, 25.0, sx);
-    m.box([px0, 1.8, -44.0], [px1, mh + 3.4, -20.0], MAT.STONE, { roof: MAT.ROOF });
+    const [px0, px1] = span(18.0, 28.0, sx);
+    m.box([px0, 1.8, -48.0], [px1, mh + 3.6, -22.0], MAT.STONE, { roof: MAT.ROOF });
   }
-  // The centre bay steps forward and up, and carries the dome.
-  m.box([-9.0, 1.8, -30.0], [9.0, mh + 4.5, -19.4], MAT.STONE, { roof: MAT.ROOF });
-  m.cylinder(0, -24.7, 7.4, mh + 4.5, mh + 6.0, 16, MAT.STONE, true);
-  m.cylinder(0, -24.7, 6.4, mh + 6.0, mh + 11.6, 16, MAT.STONE, false);
-  m.cone(0, -24.7, 6.6, 0.0, mh + 11.6, mh + 21.0, 16, MAT.ROOF);
-  m.cylinder(0, -24.7, 0.6, mh + 21.0, mh + 25.4, 8, MAT.STONE, true);
+  m.box([-9.5, 1.8, -32.0], [9.5, mh + 4.8, -21.4], MAT.STONE, { roof: MAT.ROOF });
+  m.cylinder(0, -26.7, 7.8, mh + 4.8, mh + 6.4, 16, MAT.STONE, true);
+  m.cylinder(0, -26.7, 6.8, mh + 6.4, mh + 12.2, 16, MAT.STONE, false);
+  m.cone(0, -26.7, 7.0, 0.0, mh + 12.2, mh + 22.0, 16, MAT.ROOF);
+  m.cylinder(0, -26.7, 0.6, mh + 22.0, mh + 26.6, 8, MAT.STONE, true);
 
-  // Teaching ranges down both sides of the lawn, in two blocks each with a
-  // link between them, so the quad has a colonnaded edge rather than a slab.
+  // ---- The buildings round the lawn, each a different thing.
+  //
+  // A campus is not one hall and a ring of identical blocks. These are the
+  // buildings a college actually has, and each is built to look like what it
+  // is: a science block with a rooftop plant deck, an engineering hall with a
+  // sawtooth roof over its workshops, a chapel with a spire, a field house
+  // under a barrel vault, and a library with a portico and a gateway under it.
   for (const sx of [-1, 1] as const) {
-    const [rx0, rx1] = span(32.0, 48.0, sx);
-    for (const [z0, z1] of [[-16.0, 2.0], [8.0, 26.0]] as const) {
-      m.box([rx0, 0.1, z0], [rx1, 15.4, z1], MAT.STONE, { roof: MAT.ROOF });
-      m.box([rx0 - 0.7, 0.1, z0 - 0.7], [rx1 + 0.7, 1.6, z1 + 0.7], MAT.STONE);
-    }
-    const [lx0, lx1] = span(34.0, 44.0, sx);
-    m.box([lx0, 0.1, 2.0], [lx1, 9.6, 8.0], MAT.STONE, { roof: MAT.ROOF });
+    // Science: a tall glazed teaching block, plant on the roof.
+    const [sc0, sc1] = span(38.0, 54.0, sx);
+    m.box([sc0, 0.1, -18.0], [sc1, 20.0, 2.0], MAT.CLADDING, { roof: MAT.ROOF });
+    // Engineering: lower and longer, with a sawtooth over the workshops.
+    const [en0, en1] = span(38.0, 56.0, sx);
+    m.box([en0, 0.1, 10.0], [en1, 11.0, 30.0], MAT.SHED_WALL, { roof: MAT.METAL });
+    // Halls of residence, out on the flanks behind everything.
+    const [hx0, hx1] = span(44.0, 60.0, sx);
+    m.box([hx0, 0.1, -48.0], [hx1, 23.0, -30.0], MAT.CLADDING, { roof: MAT.ROOF });
+    m.box([hx0, 0.1, 38.0], [hx1, 23.0, 56.0], MAT.CLADDING, { roof: MAT.ROOF });
   }
-  // The library at the south end, in two wings either side of an open
-  // gateway. It used to be one solid range closing the quad, which made the
-  // whole campus read as a walled compound -- you could see no way into it.
-  // Now the axis runs straight out through an arch, and the quad has a front
-  // door rather than a back wall.
-  m.box([-24.0, 0.1, 30.0], [24.0, 2.2, 46.0], MAT.STONE);
+  // The chapel, on the lawn's east edge, with a spire.
+  m.box([26.0, 0.1, -12.0], [34.0, 12.0, 8.0], MAT.STONE);
+  m.gable([25.4, 12.0, -12.6], [34.6, 12.0, 8.6], 4.4, 'z', MAT.ROOF, MAT.STONE);
+  m.box([27.0, 0.1, -18.0], [33.0, 22.0, -12.0], MAT.STONE);
+  m.cone(30.0, -15.0, 3.4, 0.0, 22.0, 34.0, 4, MAT.ROOF);
+  // The field house, on the west edge, under a barrel vault.
+  m.box([-34.0, 0.1, -14.0], [-24.0, 10.0, 10.0], MAT.CONCRETE);
+  barrel(m, -34.0, -14.0, -24.0, 10.0, 10.0, 4.0);
+
+  // ---- The library closes the south end, in two wings round a gateway, so
+  // the axis runs straight out and the quad has a front door, not a back wall.
+  m.box([-26.0, 0.1, 34.0], [26.0, 2.2, 52.0], MAT.STONE);
   for (const sx of [-1, 1] as const) {
-    const [lx0, lx1] = span(6.0, 21.0, sx);
-    m.box([lx0, 2.2, 31.0], [lx1, 17.0, 45.0], MAT.STONE, { roof: MAT.ROOF });
+    const [lx0, lx1] = span(6.5, 23.0, sx);
+    m.box([lx0, 2.2, 35.0], [lx1, 18.0, 51.0], MAT.STONE, { roof: MAT.ROOF });
   }
-  // The gateway between them: a deep arch carrying a linking storey over it.
-  m.box([-6.0, 9.6, 31.0], [6.0, 17.0, 45.0], MAT.STONE, { roof: MAT.ROOF });
+  m.box([-6.5, 10.4, 35.0], [6.5, 18.0, 51.0], MAT.STONE, { roof: MAT.ROOF });
   for (const sx of [-1, 1] as const) {
-    const [gx0, gx1] = span(4.4, 6.0, sx);
-    m.box([gx0, 2.2, 31.0], [gx1, 9.6, 45.0], MAT.STONE);
-  }
-  // Halls of residence out on the flanks, behind the ranges.
-  for (const sx of [-1, 1] as const) {
-    for (const [z0, z1] of [[-44.0, -30.0], [-8.0, 8.0]] as const) {
-      const [hx0, hx1] = span(38.0, 52.0, sx);
-      m.box([hx0, 0.1, z0], [hx1, 21.0, z1], MAT.CLADDING, { roof: MAT.ROOF });
-    }
+    const [gx0, gx1] = span(4.6, 6.5, sx);
+    m.box([gx0, 2.2, 35.0], [gx1, 10.4, 51.0], MAT.STONE);
   }
 
   if (medium) {
-    band(m, -25.0, -43.0, 25.0, -20.0, mh - 1.8, 1.1, 0.5);
-    parapet(m, -25.0, -43.0, 25.0, -20.0, mh, 1.4, 0.36);
-    // The portico: a deep colonnade and a pediment over the centre bay.
-    colonnade(m, -7.8, 7.8, -18.6, 1.8, 14.0, 8, 0.72);
-    m.gable([-10.2, 17.8, -20.0], [10.2, 17.8, -17.2], 3.2, 'x', MAT.ROOF, MAT.STONE);
-    // Steps up to it, narrowing as they rise.
+    band(m, -28.0, -47.0, 28.0, -22.0, mh - 1.8, 1.1, 0.5);
+    parapet(m, -28.0, -47.0, 28.0, -22.0, mh, 1.4, 0.36);
+    colonnade(m, -8.2, 8.2, -20.6, 1.8, 14.0, 8, 0.74);
+    m.gable([-10.8, 17.8, -22.0], [10.8, 17.8, -19.2], 3.3, 'x', MAT.ROOF, MAT.STONE);
     for (let i = 0; i < 10; i++) {
-      m.box([-12.5, 0.1 + i * 0.17, -19.4], [12.5, 0.1 + (i + 1) * 0.17, -13.0 - i * 0.5],
+      m.box([-13.0, 0.1 + i * 0.17, -21.4], [13.0, 0.1 + (i + 1) * 0.17, -15.0 - i * 0.5],
         MAT.STONE);
     }
     for (const sx of [-1, 1] as const) {
-      const [rx0, rx1] = span(32.0, 48.0, sx);
-      for (const [z0, z1] of [[-16.0, 2.0], [8.0, 26.0]] as const) {
-        band(m, rx0, z0, rx1, z1, 15.4, 0.9, 0.36, MAT.STONE);
-        parapet(m, rx0, z0, rx1, z1, 15.4, 1.1, 0.3, MAT.STONE);
+      const [sc0, sc1] = span(38.0, 54.0, sx);
+      parapet(m, sc0, -18.0, sc1, 2.0, 20.0, 1.1, 0.3, MAT.CONCRETE);
+      band(m, sc0, -18.0, sc1, 2.0, 10.2, 0.5, 0.24, MAT.CONCRETE);
+      roofClutter(m, sc0 + 2.0, -15.0, sc1 - 2.0, -1.0, 20.0, 7750 + sx, 1.0);
+      // The engineering hall's sawtooth: north lights over the workshops.
+      const [en0, en1] = span(38.0, 56.0, sx);
+      for (let i = 0; i < 5; i++) {
+        const z0 = 10.0 + i * 4.0;
+        m.box([en0, 11.0, z0], [en1, 12.6, z0 + 2.2], MAT.METAL);
+        m.painted(TINT.METAL_DARK, () =>
+          m.box([en0, 11.0, z0 + 2.2], [en1, 12.6, z0 + 2.5], MAT.TRIM));
       }
-      // A projecting entrance bay on each range's inner face.
-      const [bx0, bx1] = span(30.4, 32.4, sx);
-      m.box([bx0, 0.1, -9.0], [bx1, 10.5, -3.0], MAT.STONE, { roof: MAT.ROOF });
-      m.box([bx0, 0.1, 14.0], [bx1, 10.5, 20.0], MAT.STONE, { roof: MAT.ROOF });
-      for (const [z0, z1] of [[-44.0, -30.0], [-8.0, 8.0]] as const) {
-        const [hx0, hx1] = span(38.0, 52.0, sx);
-        parapet(m, hx0, z0, hx1, z1, 21.0, 1.0, 0.26, MAT.CONCRETE);
-      }
+      const [hx0, hx1] = span(44.0, 60.0, sx);
+      parapet(m, hx0, -48.0, hx1, -30.0, 23.0, 1.0, 0.26, MAT.CONCRETE);
+      parapet(m, hx0, 38.0, hx1, 56.0, 23.0, 1.0, 0.26, MAT.CONCRETE);
     }
-    band(m, -21.0, 31.0, 21.0, 45.0, 15.4, 1.0, 0.4, MAT.STONE);
-    parapet(m, -21.0, 31.0, 21.0, 45.0, 17.0, 1.3, 0.34, MAT.STONE);
-    // A colonnade across each wing, stopping short of the gateway.
+    band(m, -23.0, 35.0, 23.0, 51.0, 16.2, 1.0, 0.4, MAT.STONE);
+    parapet(m, -23.0, 35.0, 23.0, 51.0, 18.0, 1.3, 0.34, MAT.STONE);
     for (const sx of [-1, 1] as const) {
-      const [cx0, cx1] = span(7.5, 19.5, sx);
-      colonnade(m, cx0, cx1, 30.2, 2.2, 11.5, 4, 0.6);
+      const [cx0, cx1] = span(8.0, 21.0, sx);
+      colonnade(m, cx0, cx1, 34.2, 2.2, 12.0, 4, 0.62);
     }
     // Avenue trees down both sides of the lawn.
-    for (let i = 0; i < 6; i++) {
-      const pz = -14.0 + i * 7.6;
+    for (let i = 0; i < 7; i++) {
+      const pz = -16.0 + i * 7.4;
       for (const sx of [-1, 1] as const) {
-        m.painted(TINT.WOOD, () => m.cylinder(sx * 24.0, pz, 0.3, 0.18, 2.6, 6, MAT.TIMBER));
-        m.painted(TINT.GREEN, () => m.cone(sx * 24.0, pz, 3.0, 0.7, 2.6, 9.0, 7, MAT.TRIM));
+        m.painted(TINT.WOOD, () => m.cylinder(sx * 27.5, pz, 0.3, 0.18, 2.6, 6, MAT.TIMBER));
+        m.painted(TINT.GREEN, () => m.cone(sx * 27.5, pz, 3.0, 0.7, 2.6, 9.0, 7, MAT.TRIM));
       }
     }
-    flagpole(m, 0, 0.2, 14.0, 14.0);
+    flagpole(m, 0, 0.2, 16.0, 14.0);
   }
   if (fine) {
-    // Old Main: four storeys of tall lights, skipping the portico bay.
-    for (let i = 0; i < 16; i++) {
-      const cx = -23.4 + i * 3.12;
-      if (Math.abs(cx) < 10.0) continue;
-      m.opening({ axis: 'z', sign: 1, plane: -20.0, u0: cx - 0.9, u1: cx + 0.9,
-        y0: 3.0, y1: 6.4, glass: MAT.GLASS, frame: 0.18, proud: 0.09 });
-      m.opening({ axis: 'z', sign: 1, plane: -20.0, u0: cx - 0.9, u1: cx + 0.9,
-        y0: 8.4, y1: 11.8, glass: MAT.GLASS, frame: 0.18, proud: 0.09 });
-      m.opening({ axis: 'z', sign: 1, plane: -20.0, u0: cx - 0.9, u1: cx + 0.9,
-        y0: 13.4, y1: 16.4, glass: MAT.GLASS, frame: 0.18, proud: 0.09 });
+    // Old Main: three storeys of tall lights, skipping the portico bay.
+    for (let i = 0; i < 18; i++) {
+      const cx = -26.4 + i * 3.1;
+      if (Math.abs(cx) < 10.6) continue;
+      for (const y0 of [3.0, 8.4, 13.4]) {
+        m.opening({ axis: 'z', sign: 1, plane: -22.0, u0: cx - 0.9, u1: cx + 0.9,
+          y0, y1: y0 + 3.4, glass: MAT.GLASS, frame: 0.18, proud: 0.09 });
+      }
     }
-    // Dome windows, so it is a lantern and not a lump.
     for (let i = 0; i < 8; i++) {
       const t = (i / 8) * Math.PI * 2;
       m.painted(TINT.METAL_DARK, () =>
-        m.box([Math.cos(t) * 6.3 - 0.34, mh + 6.8, -24.7 + Math.sin(t) * 6.3 - 0.34],
-              [Math.cos(t) * 6.3 + 0.34, mh + 10.6, -24.7 + Math.sin(t) * 6.3 + 0.34],
+        m.box([Math.cos(t) * 6.7 - 0.34, mh + 7.2, -26.7 + Math.sin(t) * 6.7 - 0.34],
+              [Math.cos(t) * 6.7 + 0.34, mh + 11.2, -26.7 + Math.sin(t) * 6.7 + 0.34],
               MAT.TRIM));
     }
-    entrance(m, { axis: 'z', sign: 1, plane: -19.4 }, 0,
-      { width: 4.0, height: 4.6, double: true, glazed: true });
-    clock(m, { axis: 'z', sign: 1, plane: -19.4 }, 0, 19.4, 1.9);
-    // The ranges, inner and outer faces.
+    entrance(m, { axis: 'z', sign: 1, plane: -21.4 }, 0,
+      { width: 4.2, height: 4.8, double: true, glazed: true });
+    clock(m, { axis: 'z', sign: 1, plane: -21.4 }, 0, 19.6, 1.9);
     for (const sx of [-1, 1] as const) {
-      for (const [z0, z1] of [[-16.0, 2.0], [8.0, 26.0]] as const) {
-        for (const [sign, plane] of [[1, sx * 32.0], [-1, sx * 48.0]] as const) {
-          windowGrid(m, { axis: 'x', sign: (sx * sign) as 1 | -1, plane },
-            z0 + 1.6, z1 - 1.6,
-            { floors: 4, floorH: 3.4, base: 2.4, count: 5, width: 1.3, height: 1.9 });
-        }
+      // Science: ribbon glazing, which is what a post-war teaching block has.
+      const [sc0, sc1] = span(38.0, 54.0, sx);
+      for (const [sign, plane] of [[1, sc0], [-1, sc1]] as const) {
+        ribbonStack(m, { axis: 'x', sign: (sign) as 1 | -1, plane }, -16.0, 0.0,
+          { floors: 6, floorH: 3.2, base: 1.4, height: 2.0 });
       }
-      // The ranges' end walls, which face out along the campus edges and were
-      // the one blank thing left on it.
-      for (const [z0, z1] of [[-16.0, 2.0], [8.0, 26.0]] as const) {
-        const [rx0, rx1] = span(32.0, 48.0, sx);
-        // The outward end only: the inner ends face the link block and are
-        // barely visible, and four storeys of glazing is not cheap.
-        const outward = z0 < 0 ? ([-1, z0] as const) : ([1, z1] as const);
-        windowGrid(m, { axis: 'z', sign: outward[0], plane: outward[1] },
-          rx0 + 2.6, rx1 - 2.6,
-          { floors: 4, floorH: 3.4, base: 2.4, count: 2, width: 1.3, height: 1.9 });
-      }
-      entrance(m, { axis: 'x', sign: (-sx) as 1 | -1, plane: sx * 30.4 }, -6.0,
-        { width: 2.0, height: 3.2, double: true, steps: 2 });
-      entrance(m, { axis: 'x', sign: (-sx) as 1 | -1, plane: sx * 30.4 }, 17.0,
-        { width: 2.0, height: 3.2, double: true, steps: 2 });
-      // Halls of residence: six storeys, plainer, as they should be.
-      for (const [z0, z1] of [[-44.0, -30.0], [-8.0, 8.0]] as const) {
-        const [hx0] = span(38.0, 52.0, sx);
-        windowGrid(m, { axis: 'x', sign: (-sx) as 1 | -1, plane: sx * 38.0 },
-          z0 + 1.4, z1 - 1.4,
-          { floors: 6, floorH: 3.3, base: 1.8, count: 4, width: 1.2, height: 1.6 });
-        // One tall slot up each end instead of a grid: it reads as a stair
-        // and it costs a twentieth of what six storeys of windows do.
-        m.painted(TINT.METAL_DARK, () => {
-          for (const zz of [z0, z1] as const) {
-            m.box([hx0 + 5.4, 2.0, zz - 0.12], [hx0 + 8.6, 19.4, zz + 0.12], MAT.TRIM);
-          }
-        });
+      entrance(m, { axis: 'z', sign: -1, plane: -18.0 }, (sc0 + sc1) / 2,
+        { width: 2.4, height: 3.2, double: true, glazed: true, canopy: 2.4 });
+      // Engineering: a workshop door and a strip of glazing over it.
+      const [en0, en1] = span(38.0, 56.0, sx);
+      m.painted(TINT.METAL_DARK, () =>
+        m.opening({ axis: 'z', sign: -1, plane: 10.0, u0: (en0 + en1) / 2 - 3.0,
+          u1: (en0 + en1) / 2 + 3.0, y0: 0.2, y1: 4.8,
+          glass: MAT.TRIM, frame: 0.18, proud: 0.1 }));
+      ribbonStack(m, { axis: 'z', sign: -1, plane: 10.0 }, en0 + 1.4, en1 - 1.4,
+        { floors: 1, floorH: 3.0, base: 6.4, height: 2.2 });
+      // Halls of residence: six storeys of paired windows.
+      const [hx0, hx1] = span(44.0, 60.0, sx);
+      for (const [z0, z1] of [[-48.0, -30.0], [38.0, 56.0]] as const) {
+        windowGrid(m, { axis: 'x', sign: (-sx) as 1 | -1, plane: sx > 0 ? hx0 : hx1 },
+          z0 + 1.6, z1 - 1.6,
+          { floors: 6, floorH: 3.4, base: 1.8, count: 4, width: 1.2, height: 1.7 });
       }
     }
-    // The library's reading-room windows, tall between the columns.
+    // The chapel's lancets and door.
+    for (let i = 0; i < 4; i++) {
+      const u = -9.0 + i * 4.8;
+      m.opening({ axis: 'x', sign: -1, plane: 26.0, u0: u - 0.4, u1: u + 0.4,
+        y0: 3.0, y1: 9.4, glass: MAT.GLASS, frame: 0.16, proud: 0.09 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: 8.0 }, 30.0,
+      { width: 2.0, height: 3.2, double: true, steps: 2 });
+    // The field house: a long strip of clerestory under the vault.
+    ribbonStack(m, { axis: 'x', sign: 1, plane: -24.0 }, -12.0, 8.0,
+      { floors: 1, floorH: 3.0, base: 7.0, height: 2.2 });
+    entrance(m, { axis: 'z', sign: -1, plane: -14.0 }, -29.0,
+      { width: 2.4, height: 3.2, double: true, glazed: true, canopy: 2.2 });
+    // The library's reading rooms, and the gateway through it.
     for (const sx of [-1, 1] as const) {
       for (let i = 0; i < 3; i++) {
-        const cx = sx * (8.6 + i * 5.2);
-        m.opening({ axis: 'z', sign: -1, plane: 31.0, u0: cx - 1.1, u1: cx + 1.1,
-          y0: 4.0, y1: 12.6, glass: MAT.GLASS, frame: 0.22, proud: 0.11 });
+        const cx = sx * (9.2 + i * 5.6);
+        m.opening({ axis: 'z', sign: -1, plane: 35.0, u0: cx - 1.1, u1: cx + 1.1,
+          y0: 4.0, y1: 13.4, glass: MAT.GLASS, frame: 0.22, proud: 0.11 });
       }
-      entrance(m, { axis: 'z', sign: -1, plane: 31.0 }, sx * 13.0,
+      entrance(m, { axis: 'z', sign: -1, plane: 35.0 }, sx * 14.5,
         { width: 2.4, height: 3.6, double: true, glazed: true });
     }
-    // The gateway's own arch head, so the opening reads as a way through.
-    m.painted(TINT.METAL_DARK, () =>
-      m.box([-4.4, 9.0, 30.9], [4.4, 9.6, 45.1], MAT.TRIM));
-    // The path continues out through it.
-    m.box([-2.6, 0.1, 26.0], [2.6, 0.2, z], MAT.GROUND);
-    // Benches round the lawn, lamps along the axis, students on the paths.
+    m.painted(TINT.METAL_DARK, () => m.box([-4.6, 9.8, 34.9], [4.6, 10.4, 51.1], MAT.TRIM));
+    m.box([-2.8, 0.1, 30.0], [2.8, 0.2, z], MAT.GROUND);
+    // Benches, lamps and students.
     for (let i = 0; i < 4; i++) {
-      bench(m, -20.0, -8.0 + i * 8.0, 2.4, 'z');
-      bench(m, 20.0, -8.0 + i * 8.0, 2.4, 'z');
+      bench(m, -22.0, -8.0 + i * 9.0, 2.4, 'z');
+      bench(m, 22.0, -8.0 + i * 9.0, 2.4, 'z');
     }
-    for (const px of [-26.0, -9.0, 9.0, 26.0]) lamp(m, px, 3.7, 5.6);
-    figure(m, 7701, -1.4, 12.0, 0, { stride: 0.16, bag: true });
-    figure(m, 7708, 1.6, 4.0, Math.PI, { stride: 0.13 });
-    figure(m, 7715, -12.0, 3.7, Math.PI / 2, { bag: true });
-    figure(m, 7722, 14.0, -6.0, -Math.PI / 2, { stride: 0.15 });
-    // Visitor parking off the front, outside the portico steps.
+    for (const px of [-28.0, -10.0, 10.0, 28.0]) lamp(m, px, 4.5, 5.6);
+    figure(m, 7701, -1.6, 14.0, 0, { stride: 0.16, bag: true });
+    figure(m, 7708, 1.8, 5.0, Math.PI, { stride: 0.13 });
+    figure(m, 7715, -14.0, 4.5, Math.PI / 2, { bag: true });
+    figure(m, 7722, 16.0, -8.0, -Math.PI / 2, { stride: 0.15 });
     for (let i = 0; i < 3; i++) {
-      parkedVehicle(m, 7740 + i * 11, -14.0 + i * 7.0, -47.0, 1, 'car');
+      parkedVehicle(m, 7740 + i * 11, -15.0 + i * 7.5, -53.0, 1, 'car');
     }
     kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
   }
@@ -1467,7 +1462,7 @@ export const CIVIC: AssetDef[] = [
   { id: 'svc.edu.primary', name: 'Primary school', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 10.0, brand: { name: 'School', colour: [0.40, 0.30, 0.56], accent: [0.72, 0.60, 0.22], sign: 'box' }, sim: civ(30, 280, 120, 90), note: 'Two single-storey teaching wings under monopitches, barrel-roofed hall, yard canopy and ball court.', build: primarySchool },
   { id: 'svc.edu.high', name: 'High school', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [7, 5], height: 13.0, brand: { name: 'High School', colour: [0.40, 0.30, 0.56], accent: [0.72, 0.60, 0.22], sign: 'box' }, sim: civ(60, 520, 260, 180), note: 'Finned three-storey teaching block with a stair drum, barrel sports hall, floodlit all-weather pitch.', build: highSchool },
   { id: 'svc.edu.university', name: 'University', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 30.2, brand: { name: 'University', colour: [0.36, 0.28, 0.52], accent: [0.66, 0.58, 0.30], sign: 'box' }, sim: civ(180, 1400, 520, 400), note: 'Stone ranges round a quadrangle, gate tower with a clock, cloister arcade to the lawn.', build: university },
-  { id: 'svc.edu.college', name: 'College campus', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [14, 13], height: 44.4, brand: { name: 'College', colour: [0.30, 0.24, 0.46], accent: [0.68, 0.58, 0.28], sign: 'box' }, sim: civ(420, 3200, 1250, 900), note: 'Forty-metre domed hall behind an eight-column portico at the head of a lawn, four teaching ranges down the sides, a colonnaded library closing the far end, four halls of residence on the flanks.', build: collegeCampus },
+  { id: 'svc.edu.college', name: 'College campus', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [18, 15], height: 45.6, brand: { name: 'College', colour: [0.30, 0.24, 0.46], accent: [0.68, 0.58, 0.28], sign: 'box' }, sim: civ(420, 3200, 1250, 900), note: 'Domed hall and portico at the head of a lawn, with a science block, an engineering hall under a sawtooth, a chapel with a spire, a barrel-vaulted field house, a colonnaded library over a gateway, and four halls of residence.', build: collegeCampus },
   { id: 'svc.edu.library', name: 'Library', zone: 'service', branch: 'education', density: 'none', variant: 'sculpted', footprint: [4, 4], height: 12.9, brand: { name: 'Library', colour: [0.36, 0.28, 0.52], accent: [0.66, 0.58, 0.30], sign: 'box' }, sim: civ(24, 240, 110, 40), note: 'Barrel-vaulted reading room on a stone plinth, full-height glazing between deep fins.', build: library },
 
   { id: 'svc.gov.hall', name: 'City hall', zone: 'service', branch: 'government', density: 'none', variant: 'sculpted', footprint: [6, 5], height: 37.0, brand: { name: 'City Hall', colour: [0.46, 0.40, 0.24], accent: [0.68, 0.60, 0.28], sign: 'box' }, sim: civ(140, 900, 300, 150), note: 'Stone block with a six-column portico and pediment, octagonal lantern, clock and two flags.', build: cityHall },

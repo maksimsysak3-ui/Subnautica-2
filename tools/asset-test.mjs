@@ -70,6 +70,16 @@ const DOMESTIC = new Map([[4, 'BRICK'], [7, 'TILE'], [9, 'HOUSE_WALL'], [14, 'RO
  * furniture, nothing at street level -- and it shows next to its neighbours.
  */
 const MIN_TRIS = 1000;
+/**
+ * Roads get a lower one.
+ *
+ * A road piece is a carriageway, its markings, its kerbs and whatever
+ * furniture stands on it, and that is genuinely less geometry than a building.
+ * These used to clear the building floor only because each one shipped with
+ * two or three cars modelled into it -- which is wrong: traffic is something
+ * the simulation puts on a road, not part of the road.
+ */
+const ROAD_MIN = 300;
 
 const bundle = (
   await esbuild.build({
@@ -132,7 +142,8 @@ for (const a of ASSETS) {
   const landmark = service && a.footprint[0] * a.footprint[1] >= LANDMARK_AREA;
   const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX)
     : service ? (landmark ? LANDMARK_MAX : SERVICE_MAX) : MAX_TRIS;
-  const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : MIN_TRIS;
+  const road = a.zone === 'road';
+  const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);
   if (tris[1] > tris[0] || tris[2] > tris[1]) note(a.id, `LOD ladder is not decreasing: ${tris.join(' / ')}`);

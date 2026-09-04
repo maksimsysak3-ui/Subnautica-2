@@ -775,12 +775,15 @@ export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: numbe
   if (pool.ids.length === 0) return;
   const k = Math.abs(Math.round(key));
   const id = pool.ids[k % pool.ids.length];
-  const [hx] = importedSize(id);
+  // Drawn at its own size. The importer already scales each pack so its
+  // median vehicle is 4.5m, so a van is longer than a hatchback and a truck
+  // longer again -- stretching every model to a fixed bay length threw that
+  // away and made a forecourt a row of identically sized boxes.
+  //
   // The cheap copy, always: a forecourt parks eight of these and the full
   // model is four thousand triangles. At the size a parked car occupies on
   // screen the clustered one is indistinguishable.
-  drawImported(m, id, { cx, cz, turns, low: true,
-    scale: pool.length / Math.max(hx * 2, 0.1) });
+  drawImported(m, id, { cx, cz, turns, low: true });
 }
 
 /**

@@ -528,7 +528,7 @@ function tallSkin(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x1: n
 function point(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 19.0, 17.0);
+  const [w, d] = plotOf(T, 22.0, 20.0);
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, 14);
   const podium = T.floorH * Math.max(1.2, T.podium);
@@ -573,7 +573,7 @@ function point(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function slab(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 26.0, 13.0);
+  const [w, d] = plotOf(T, 32.0, 17.0);
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, 12);
   const podium = T.floorH * Math.max(1.1, T.podium);
@@ -623,7 +623,7 @@ function slab(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function cored(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 17.0, 15.0);
+  const [w, d] = plotOf(T, 21.0, 18.0);
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, 16);
   const podium = T.floorH * Math.max(1.3, T.podium);
@@ -831,7 +831,7 @@ function maisonette(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function cross(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const arm = 21.0, wide = 9.0;
+  const arm = 26.0, wide = 11.0;
   const half = arm / 2, hw = wide / 2;
   const floors = storeysOf(T, 13);
   const podium = T.floorH * Math.max(1.2, T.podium);
@@ -909,7 +909,7 @@ function cross(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function urban(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 30.0, 26.0);
+  const [w, d] = plotOf(T, 34.0, 30.0);
   const range = 11.0;
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, 8);
@@ -1011,13 +1011,20 @@ const MID: Plan[] = [
   { key: 'maisonette', name: 'Maisonettes', build: maisonette, footprint: [3, 4], households: 16 },
 ];
 
-/** Five tall plans, all five in every theme. */
+/**
+ * Five tall plans, all five in every theme.
+ *
+ * On bigger lots than the medium-density block, which is what actually
+ * distinguishes them. A tower filling its plot edge to edge reads as the same
+ * building as the walk-up next to it, only taller; a tower standing in its own
+ * grounds, with the podium and the kerb clear of the street, reads as a tower.
+ */
 const HIGH: Plan[] = [
-  { key: 'point', name: 'Point block', build: point, footprint: [4, 4], households: 56 },
-  { key: 'slab', name: 'Slab block', build: slab, footprint: [4, 3], households: 72 },
-  { key: 'cross', name: 'Cruciform tower', build: cross, footprint: [4, 4], households: 90 },
-  { key: 'urban', name: 'Street block', build: urban, footprint: [4, 4], households: 120 },
-  { key: 'cored', name: 'Cored tower', build: cored, footprint: [4, 3], households: 64 },
+  { key: 'point', name: 'Point block', build: point, footprint: [5, 5], households: 56 },
+  { key: 'slab', name: 'Slab block', build: slab, footprint: [6, 4], households: 72 },
+  { key: 'cross', name: 'Cruciform tower', build: cross, footprint: [5, 5], households: 90 },
+  { key: 'urban', name: 'Street block', build: urban, footprint: [5, 5], households: 120 },
+  { key: 'cored', name: 'Cored tower', build: cored, footprint: [5, 4], households: 64 },
 ];
 
 const SIM = {
