@@ -52,8 +52,15 @@ const LANDMARK_MAX = 20000;
  */
 const FLEET_MIN = 0;
 const FLEET_MAX = 9000;
-/** One ceiling for the fleet now that a model is whatever the artist built. */
-const BIG_FLEET_MAX = 9000;
+/**
+ * The ceiling for a fleet asset that covers more than one cell.
+ *
+ * A car is four and a half metres and a widebody airliner is sixty, and there
+ * is exactly one of the latter on an airfield against hundreds of the former
+ * on the roads. Held to the car's ceiling an aeroplane loses its engines, and
+ * it is still far cheaper per metre than anything else in the library.
+ */
+const BIG_FLEET_MAX = 14000;
 
 /**
  * Materials a service building may not use.

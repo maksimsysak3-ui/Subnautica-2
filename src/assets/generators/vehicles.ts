@@ -749,6 +749,9 @@ const POOL: Record<ParkedKind, { ids: string[]; length: number }> = {
   bus: { ids: [], length: 8.4 },
 };
 for (const id of IMPORTED_IDS) {
+  // Road vehicles only. The fleet also holds aircraft, and a driveway that
+  // picks its car by index would eventually put a 787 in one.
+  if (!id.startsWith('car.')) continue;
   const cls = id.replace(/^car\./, '').replace(/[0-9].*$/, '');
   if (cls === 'van' || cls === 'microvan') { POOL.van.ids.push(id); POOL.truck.ids.push(id); POOL.bus.ids.push(id); }
   else POOL.car.ids.push(id);

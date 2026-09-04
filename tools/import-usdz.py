@@ -51,7 +51,32 @@ from pxr import Usd, UsdGeom, UsdShade, Gf
 from PIL import Image
 
 PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
-         'Low_Poly_cars_pack.usdz']
+         'Low_Poly_cars_pack.usdz', 'Mini_Pack_8.usdz', 'Ultimate_Pack_2.usdz',
+         'Airplane.usdz', 'Boeing_787.usdz']
+
+#: Packs whose contents are one vehicle, however many surfaces it is drawn in.
+#:
+#: The overlap rule that separates cars parked side by side has nothing to
+#: separate here, and it gets the aircraft wrong: a 787's engine fans are
+#: modelled as free discs that touch neither wing, so they come out as two more
+#: "vehicles" a quarter the size of the aeroplane. A pack holding one model is
+#: told so rather than guessed at.
+WHOLE_PACKS = {'Airplane.usdz', 'Boeing_787.usdz'}
+
+#: The real length of a pack's median vehicle, in metres.
+#:
+#: Every pack is scaled so its median vehicle is TYPICAL long, which is right
+#: for a pack of cars and absurd for a pack of one aeroplane -- a 787 scaled to
+#: 4.5m would park in a driveway. A pack of aircraft says its own size instead.
+PACK_LENGTH = {'Airplane.usdz': 34.0, 'Boeing_787.usdz': 60.0}
+
+#: The id prefix and name for a pack whose contents are not cars.
+#:
+#: classify() reads a height-to-length ratio, which says nothing useful about
+#: an aeroplane -- both of these would come out "Truck" -- so an aircraft pack
+#: names its own.
+PACK_KIND = {'Airplane.usdz': ('air', 'airliner', 'Airliner'),
+             'Boeing_787.usdz': ('air', 'widebody', 'Widebody airliner')}
 
 #: Meshes to leave out, by a fragment of their prim path.
 SKIP_MESH = ()
@@ -306,6 +331,7 @@ GENERIC = {
     'object', 'paint', 'trim', 'body', 'material', 'mesh', 'transport',
     'group', 'node', 'default', 'polygon', 'cube', 'plane', 'part', 'item',
     'geo', 'model', 'shape', 'element', 'piece', 'obj', 'sm', 'mi',
+    'palette', 'cylinder', 'sphere', 'box', 'circle', 'curve', 'lp', 'hp',
 }
 
 
@@ -320,7 +346,10 @@ def name_hint(prim):
     if not keep:
         return None
     head = keep[0].rstrip('0123456789').lower()
-    if head in GENERIC or head == '':
+    # A one- or two-letter head is an index, not a word: "e1_palette" is the
+    # exporter counting its materials, and taking it produced a fleet of cars
+    # called "E1 palette".
+    if head in GENERIC or len(head) < 3:
         return None
     label = ' '.join(keep).strip()
     return label if len(label) > 2 else None
@@ -393,7 +422,7 @@ def box_of(group, tris):
             min(p[2] for p in pts), max(p[2] for p in pts))
 
 
-def vehicles_in(path):
+def vehicles_in(path, whole=False, typical=TYPICAL):
     """
     The vehicles in a pack, as lists of triangles, plus the pack's scale.
 
@@ -407,6 +436,10 @@ def vehicles_in(path):
     pack whose meshes are merged by material across the entire scene.
     """
     tris, hints = all_triangles(path)
+    if whole:
+        span_all = box_of(range(len(tris)), tris)
+        long_side = max(span_all[1] - span_all[0], span_all[5] - span_all[4])
+        return [tris], typical / max(long_side, 1e-6), [None]
     groups = components(tris)
     boxes = [box_of(g, tris) for g in groups]
 
@@ -439,7 +472,15 @@ def vehicles_in(path):
         merged.setdefault(find(i), []).extend(groups[i])
 
     span = lambda b: max(b[1] - b[0], b[5] - b[4])
-    kept = [g for g in merged.values() if len(g) >= 200]
+    # A vehicle has a plan; a decal does not. One pack ships a flat 300-facet
+    # sheet beside each model -- a backdrop or a shadow catcher, a metre and a
+    # half wide and sixty long -- and it is connected to nothing, so the
+    # overlap rule leaves it standing on its own as a "vehicle".
+    def solid(g):
+        b = box_of(g, tris)
+        w, d = b[1] - b[0], b[5] - b[4]
+        return min(w, d) >= 0.15 * max(w, d)
+    kept = [g for g in merged.values() if len(g) >= 200 and solid(g)]
     vehicles = [[tris[i] for i in g] for g in kept]
     # The name its meshes agree on, if they carry one.
     names = []
@@ -454,7 +495,7 @@ def vehicles_in(path):
     # One scale for the whole pack, from its median vehicle, so a truck stays
     # bigger than a hatchback instead of every model being stretched to a
     # length somebody typed in.
-    scale = TYPICAL / max(lengths[len(lengths) // 2], 1e-6)
+    scale = typical / max(lengths[len(lengths) // 2], 1e-6)
     return vehicles, scale, names
 
 
@@ -767,7 +808,9 @@ def main(src_dir, out_path):
     # across packs and named once from its measurements.
     found = []
     for f in PACKS:
-        groups, scale, names = vehicles_in(src / f)
+        groups, scale, names = vehicles_in(src / f, f in WHOLE_PACKS,
+                                           PACK_LENGTH.get(f, TYPICAL))
+        kind = PACK_KIND.get(f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris, given in zip(groups, names):
             order, index = pack_vehicle(unbake(despeckle(tris)), scale)
@@ -779,25 +822,29 @@ def main(src_dir, out_path):
             # own vertex order, so sharing between two orderings that merely
             # describe the same solid paints one car with the other's colours.
             found.append((geo_hash(order, index), packed_hash(order, index),
-                          order, index, given))
+                          order, index, given, kind))
 
     # One name per geometry, from its size, and a running number per class.
     named, counts = {}, {}
-    for norm, _geo, order, _index, given in found:
+    for norm, _geo, order, _index, given, kind in found:
         geo = norm
         if geo in named:
             continue
         length = max(v[0] for v in order) - min(v[0] for v in order)
         height = max(v[1] for v in order)
-        if given:
+        if kind:
+            prefix, key, label = kind
+        elif given:
             # The pack named it; a name the artist gave is worth more than one
             # derived from a bounding box.
+            prefix = 'car'
             key = given.lower().replace(' ', '')
             label = given.replace('_', ' ')
         else:
+            prefix = 'car'
             key, label = classify(length, height)
         counts[key] = n = counts.get(key, 0) + 1
-        named[geo] = (key, label, n)
+        named[geo] = (prefix, key, label, n)
 
     # Some liveries in these packs have their glass painted the body colour --
     # the windscreen, the side windows and the light lenses all sample the same
@@ -822,7 +869,7 @@ def main(src_dir, out_path):
         return n / max(len(order), 1)
 
     glass = {}
-    for norm, _geo, order, _index, _given in found:
+    for norm, _geo, order, _index, _given, _kind in found:
         glass.setdefault(norm, []).append(glazed(order))
     broken = set()
     for norm, fracs in glass.items():
@@ -836,12 +883,12 @@ def main(src_dir, out_path):
         print(f'  dropping {len(broken)} liveries whose glass is painted body colour')
 
     shapes, models, seen = {}, {}, {}
-    livery = {}
-    for norm, geo, order, index, _given in found:
+    livery, dupes = {}, set()
+    for norm, geo, order, index, _given, _kind in found:
         livery[norm] = k = livery.get(norm, -1) + 1
         if (norm, k) in broken or geo in DROP_SHAPES:
             continue
-        key, label, n = named[norm]
+        prefix, key, label, n = named[norm]
         if geo not in shapes:
             xs = [v[0] for v in order]
             ys = [v[1] for v in order]
@@ -892,10 +939,18 @@ def main(src_dir, out_path):
         for v in lorder:
             for i in range(3):
                 lcbuf.append(max(0, min(255, int(round(v[3 + i] * 255)))))
+        # Two packs ship the same model three times over -- the same solid with
+        # the same paint on it, not three liveries -- and an exact duplicate is
+        # a second entry in the picker that draws the first one again.
+        stamp = (geo, bytes(cbuf))
+        if stamp in dupes:
+            continue
+        dupes.add(stamp)
+
         # Liveries of one shape share its number and take a letter.
         seen[norm] = liv = seen.get(norm, 0) + 1
         base = f'{key}{n}'
-        aid = f'car.{base}' + ('' if liv == 1 else chr(ord('a') + liv - 1))
+        aid = f'{prefix}.{base}' + ('' if liv == 1 else chr(ord('a') + liv - 1))
         models[aid] = {
             'name': f'{label} {n}' + ('' if liv == 1 else chr(ord('a') + liv - 1)),
             'shape': geo,
