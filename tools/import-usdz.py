@@ -123,25 +123,6 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-#: Barycentric weights for sampling a triangle: the centroid, and six points
-#: pulled towards each corner and each edge.
-#:
-#: One sample at the centroid is not enough. These atlases are palettes -- a
-#: grid of flat patches -- and a triangle whose centroid lands on the hairline
-#: between two of them takes the wrong patch entirely, which is where the paint
-#: came out blotched with a neighbour's colour. Where the texture is painted
-#: rather than a palette, the same seven samples throw out a vent or a decal
-#: that happens to sit under the centroid.
-SAMPLES = [(1 / 3, 1 / 3, 1 / 3),
-           (0.6, 0.2, 0.2), (0.2, 0.6, 0.2), (0.2, 0.2, 0.6),
-           (0.45, 0.45, 0.1), (0.1, 0.45, 0.45), (0.45, 0.1, 0.45)]
-
-
-def median3(samples):
-    """Per-channel median of a list of (r, g, b), each 0..1."""
-    return tuple(sorted(s[c] for s in samples)[len(samples) // 2] for c in range(3))
-
-
 def read_mesh(prim, textures):
     """World-space triangles with a flat colour each, plus the bounding box."""
     mesh = UsdGeom.Mesh(prim)
@@ -164,23 +145,29 @@ def read_mesh(prim, textures):
         face = [idx[base + k] for k in range(c)]
         for k in range(1, c - 1):
             corner = (face[0], face[k], face[k + 1])
-            # A flat diffuseColor is already linear; only a texel needs
-            # converting. Running every colour through srgb_to_linear was why
-            # the pack with no textures at all came out two stops too dark.
-            col = rgb
-            if img is not None and uvs is not None and len(uvs) > max(corner):
-                hits = []
-                for wa, wb, wc in SAMPLES:
-                    u = (uvs[corner[0]][0] * wa + uvs[corner[1]][0] * wb
-                         + uvs[corner[2]][0] * wc)
-                    v = (uvs[corner[0]][1] * wa + uvs[corner[1]][1] * wb
-                         + uvs[corner[2]][1] * wc)
-                    px = int(min(max(u, 0.0), 1.0) * (img.width - 1))
-                    py = int((1.0 - min(max(v, 0.0), 1.0)) * (img.height - 1))
+            # One colour per corner, sampled at that corner's own UV.
+            #
+            # The texture is already in the file and already fits the model --
+            # the UVs are the artist's own -- so the closest thing to using it
+            # is to read it at each vertex and let the rasteriser interpolate
+            # between them, which is what a texture lookup does anyway. Taking
+            # one flat colour per triangle threw away every gradient the artist
+            # baked in, and approximating it by median or by palette was
+            # guessing at something the file states outright.
+            cols = []
+            for i in corner:
+                if img is not None and uvs is not None and len(uvs) > i:
+                    px = int(min(max(uvs[i][0], 0.0), 1.0) * (img.width - 1))
+                    py = int((1.0 - min(max(uvs[i][1], 0.0), 1.0)) * (img.height - 1))
                     r, g, b = img.getpixel((px, py))
-                    hits.append((r / 255.0, g / 255.0, b / 255.0))
-                col = tuple(srgb_to_linear(c) for c in median3(hits))
-            tris.append(([world[i] for i in corner], col))
+                    cols.append(tuple(srgb_to_linear(v / 255.0) for v in (r, g, b)))
+                else:
+                    # A flat diffuseColor is already linear; only a texel needs
+                    # converting. Running every colour through srgb_to_linear
+                    # was why the pack that carries no textures at all and
+                    # states its colours outright came out two stops dark.
+                    cols.append(rgb)
+            tris.append(([world[i] for i in corner], cols))
         base += c
     xs = [p[0] for t, _ in tris for p in t]
     ys = [p[1] for t, _ in tris for p in t]
@@ -313,8 +300,8 @@ def pack_vehicle(tris, scale):
     cx, cz, y0 = (max(xs) + min(xs)) / 2, (max(zs) + min(zs)) / 2, min(ys)
 
     seen, order, index = {}, [], []
-    for corner, col in tris:
-        for p in corner:
+    for corner, cols in tris:
+        for p, col in zip(corner, cols):
             x, z = (p[0] - cx) * scale, (p[2] - cz) * scale
             if swap:
                 x, z = z, -x
@@ -327,42 +314,6 @@ def pack_vehicle(tris, scale):
                 order.append(key)
             index.append(i)
     return order, index
-
-
-def flatten(tris, keep=14):
-    """
-    Snaps a vehicle's triangle colours onto its own small palette.
-
-    The packs are not all palette atlases. One of them paints its cars with
-    baked shading in the texture, so a median texel per triangle picks up the
-    gradient and neighbouring panels land a shade or two apart -- the whole car
-    comes out mottled, which is not what a low-poly car looks like.
-
-    So each vehicle's colours are histogrammed by area on a coarse grid, the
-    heaviest are kept as its palette, and every triangle snaps to the nearest
-    of them. Bodywork becomes one flat colour, glass another, tyres another,
-    and the baked shading goes where it belongs.
-    """
-    from collections import defaultdict
-    weight = defaultdict(float)
-    for corner, col in tris:
-        # Area-weighted, so a large panel outvotes a hundred tiny bezels.
-        ax = corner[1][0] - corner[0][0]; ay = corner[1][1] - corner[0][1]
-        az = corner[1][2] - corner[0][2]
-        bx = corner[2][0] - corner[0][0]; by = corner[2][1] - corner[0][1]
-        bz = corner[2][2] - corner[0][2]
-        cx, cy, cz = ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
-        area = math.sqrt(cx * cx + cy * cy + cz * cz) / 2
-        weight[tuple(round(c * 24) for c in col)] += area
-    palette = [tuple(k[i] / 24 for i in range(3))
-               for k, _ in sorted(weight.items(), key=lambda kv: -kv[1])[:keep]]
-    if not palette:
-        return tris
-    out = []
-    for corner, col in tris:
-        best = min(palette, key=lambda p: sum((p[i] - col[i]) ** 2 for i in range(3)))
-        out.append((corner, best))
-    return out
 
 
 def cluster(order, index, cell):
@@ -438,7 +389,7 @@ def main(src_dir, out_path):
         groups, scale = vehicles_in(src / f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris in groups:
-            order, index = pack_vehicle(flatten(tris), scale)
+            order, index = pack_vehicle(tris, scale)
             found.append((geo_hash(order, index), order, index))
 
     # One name per geometry, from its size, and a running number per class.

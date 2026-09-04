@@ -386,6 +386,14 @@ function university(lod: number): MeshBuilder {
       [{ axis: 'z', sign: 1, plane: -z + 1.0 + t } as Wall, 6.0, x - 2.4, 4],
       [{ axis: 'x', sign: 1, plane: -x + 1.0 + t } as Wall, -z + 2.4 + t, z - 5.4, 5],
       [{ axis: 'x', sign: -1, plane: x - 1.0 - t } as Wall, -z + 2.4 + t, z - 5.4, 5],
+      // The outward faces of the two side ranges, which are what the street
+      // actually sees: they had nothing on them at all, so a university
+      // presented two blank stone walls to its own frontage.
+      [{ axis: 'x', sign: -1, plane: -x + 1.0 } as Wall, -z + 2.4 + t, z - 5.4, 5],
+      [{ axis: 'x', sign: 1, plane: x - 1.0 } as Wall, -z + 2.4 + t, z - 5.4, 5],
+      // And the open ends where the ranges stop short of the fourth side.
+      [{ axis: 'z', sign: 1, plane: z - 4.0 } as Wall, -x + 2.4, -x + t, 2],
+      [{ axis: 'z', sign: 1, plane: z - 4.0 } as Wall, x - t, x - 2.4, 2],
     ] as const) {
       for (let f = 0; f < floors; f++) {
         for (let i = 0; i < n; i++) {
@@ -410,6 +418,14 @@ function university(lod: number): MeshBuilder {
     flagpole(m, 0, h + 9.8, -z + 5.0, 6.0);
     // Cloister arcade round two sides of the quad.
     colonnade(m, -x + 3.0 + t, x - 3.0 - t, -z + 2.2 + t, 0, 4.6, 8, 0.4);
+    // Doors into the ranges off the quad, and one on each street elevation:
+    // a building this size with a single gate arch has no way in.
+    for (const sx of [-1, 1] as const) {
+      entrance(m, { axis: 'x', sign: (-sx) as 1 | -1, plane: sx * (x - 1.0 - t) }, 2.0,
+        { width: 1.8, height: 3.0, double: true, steps: 1 });
+      entrance(m, { axis: 'x', sign: sx as 1 | -1, plane: sx * (x - 1.0) }, -2.0,
+        { width: 1.8, height: 3.0, double: true, glazed: true, canopy: 1.6 });
+    }
     boxSign(m, { axis: 'z', sign: -1, plane: -z + 0.4 }, -4.4, 4.4, 6.0, 7.2);
     kerb(m, -x, z, x, z + 0.4);
   }

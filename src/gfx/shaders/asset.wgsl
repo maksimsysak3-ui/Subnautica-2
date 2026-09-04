@@ -78,7 +78,12 @@ struct VSOut {
   @location(4) @interpolate(flat) tint     : u32,
   @location(5)       local    : vec2f,
   @location(6) @interpolate(flat) key : f32,
-  @location(7) @interpolate(flat) vcol : vec3f,
+  // Interpolated, not flat. The imported models carry a colour per vertex
+  // read from the artist's own texture at that vertex's own UV, so letting the
+  // rasteriser blend between them is what reproduces the texture -- flat
+  // shading would throw away every gradient baked into it. Where a face is one
+  // colour all three vertices agree and it stays flat anyway.
+  @location(7) vcol : vec3f,
 };
 
 @vertex
