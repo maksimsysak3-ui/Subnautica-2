@@ -395,17 +395,38 @@ function gridiron(lod: number): MeshBuilder {
     deck(m, grow(mid, 0.90), grow(mid, 1.02), 21.4, 22.2, MAT.METAL, OPEN);
     bowl(m, { inner: grow(mid, 0.94), outer, y0: 22.4, y1: 46.0, steps: 15, open: OPEN, block: 6 });
     vomitories(m, outer, 24.0, 44.0, 4);
-    skin(m, outer, 0.2, 46.0, MAT.CONCRETE, OPEN);
+    // The outer wall, in bands. Left as one face it is a hundred and eighty
+    // metres of blank concrete forty-six metres high with no way into it.
+    skin(m, outer, 7.0, 42.0, MAT.CONCRETE, OPEN);
+    skin(m, grow(outer, 0.965), 0.2, 7.0, MAT.GLASS, OPEN);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < N; i++) {
+        const k = ((i - OPEN[0]) % N + N) % N;
+        if (k < OPEN[1]) continue;
+        const p = outer[i], q = outer[(i + 1) % N];
+        m.pipe([p[0] * 1.008, 0.2, p[1] * 1.008], [p[0] * 1.008, 42.0, p[1] * 1.008], 0.46, MAT.TRIM, 5);
+        if (i % 4 === 0) {
+          m.quad([p[0], 7.0, p[1]], [q[0], 7.0, q[1]], [q[0], 9.2, q[1]], [p[0], 9.2, p[1]], MAT.TRIM);
+        }
+      }
+    });
+    skin(m, grow(outer, 1.004), 26.0, 31.0, MAT.GLASS, OPEN);
+    m.painted(TINT.BRAND, () => {
+      deck(m, grow(outer, 1.00), grow(outer, 1.05), 42.0, 45.6, MAT.CLADDING, OPEN);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      skin(m, grow(outer, 1.052), 43.0, 45.0, MAT.PLATE, OPEN);
+    });
     // Roof over the back rows only, with a translucent leading edge. Roofed to
     // the touchline it is a lid with a hole in it and the bowl disappears.
-    deck(m, grow(outer, 0.84), grow(outer, 1.03), 49.0, 50.6, MAT.METAL, OPEN);
-    deck(m, grow(outer, 0.74), grow(outer, 0.84), 49.2, 50.2, MAT.GLASS, OPEN);
+    deck(m, grow(outer, 0.84), grow(outer, 1.05), 48.0, 49.6, MAT.METAL, OPEN);
+    deck(m, grow(outer, 0.74), grow(outer, 0.84), 48.2, 49.2, MAT.GLASS, OPEN);
     m.painted(TINT.METAL_DARK, () => {
       for (let i = 0; i < N; i += 3) {
         const k = ((i - OPEN[0]) % N + N) % N;
         if (k < OPEN[1]) continue;
         const p = outer[i];
-        m.pipe([p[0] * 0.97, 42.0, p[1] * 0.97], [p[0] * 1.02, 49.0, p[1] * 1.02], 0.32, MAT.TRIM, 5);
+        m.pipe([p[0] * 0.97, 41.0, p[1] * 0.97], [p[0] * 1.02, 48.0, p[1] * 1.02], 0.32, MAT.TRIM, 5);
       }
     });
     // The scoreboard stands in the open end, which is what an open end is for.
@@ -413,6 +434,37 @@ function gridiron(lod: number): MeshBuilder {
   }
 
   if (fine) {
+    // The two cut faces of the horseshoe.
+    //
+    // A bowl with a run of segments left out has open ends: you were looking
+    // straight through the raked section of thirteen terraces and out the far
+    // side, which reads as a piece missing rather than as a stadium that is
+    // open at one end. Every real horseshoe closes its ends with a stair tower
+    // and a blank wall, so these do.
+    for (const end of [OPEN[0], (OPEN[0] + OPEN[1]) % N]) {
+      const a = inner[end % N], b = mid[end % N], c = outer[end % N];
+      // The lower tier's section, then the upper tier's, then the tower.
+      m.quad([a[0], 0.2, a[1]], [b[0], 0.2, b[1]], [b[0], 17.0, b[1]], [a[0], 1.8, a[1]], MAT.CONCRETE);
+      m.quad([b[0], 0.2, b[1]], [c[0], 0.2, c[1]], [c[0], 46.0, c[1]], [b[0], 22.4, b[1]], MAT.CONCRETE);
+      // A stair tower on the corner, which is what actually gets people up to
+      // an upper tier that stops here.
+      const t = 0.5;
+      const tx = b[0] + (c[0] - b[0]) * t, tz = b[1] + (c[1] - b[1]) * t;
+      m.box([tx - 5.6, 0.2, tz - 5.6], [tx + 5.6, 50.0, tz + 5.6], MAT.CONCRETE, { roof: MAT.ROOF });
+      // Glazed on all four faces with a floor band every seven metres, so the
+      // tower reads as a stair you can see people on rather than as the corner
+      // of a slab.
+      for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        m.box([tx - (az ? 4.6 : 5.75) + ax * 5.15, 3.0, tz - (ax ? 4.6 : 5.75) + az * 5.15],
+              [tx + (az ? 4.6 : 5.75) + ax * 5.15, 47.0, tz + (ax ? 4.6 : 5.75) + az * 5.15], MAT.GLASS);
+      }
+      m.painted(TINT.METAL_DARK, () => {
+        for (let f = 1; f < 7; f++) {
+          m.box([tx - 5.9, f * 7.0, tz - 5.9], [tx + 5.9, f * 7.0 + 0.45, tz + 5.9], MAT.TRIM);
+        }
+        m.box([tx - 6.1, 50.0, tz - 6.1], [tx + 6.1, 51.2, tz + 6.1], MAT.TRIM);
+      });
+    }
     tunnel(m, 0, -fz - 5.6, -1, 5.0, 4.0);
     bench(m, -24.0, fz + 4.4, 22.0);
     bench(m, 24.0, fz + 4.4, 22.0);
@@ -484,31 +536,51 @@ function soccer(lod: number): MeshBuilder {
     skin(m, grow(outer, 0.74), 24.9, 28.4, MAT.GLASS, undefined, true);
     bowl(m, { inner: grow(outer, 0.78), outer, y0: 28.6, y1: 44.0, steps: 11, block: 8 });
     vomitories(m, outer, 30.0, 42.0, 5);
-    skin(m, outer, 0.2, 44.0, MAT.CLADDING);
-    // The outer skin gets a louvred band and a brand fascia, because a drum
-    // this size with nothing on it is a gasholder.
+    // The outer drum, in four bands rather than one wall.
+    //
+    // It was one: a hundred and eighty metres of blank cream cladding forty
+    // metres high, with no way in and nothing to measure it against. A stadium
+    // is a public building and the outside of it is where the public are, so
+    // it gets what the inside already had -- a ground floor you can walk into,
+    // a rhythm of structure, and a top that stops.
+    skin(m, outer, 6.5, 40.0, MAT.CLADDING);
+    // Ground floor: a glazed concourse behind a colonnade, with an entrance
+    // portal every fourth bay.
+    skin(m, grow(outer, 0.965), 0.2, 6.5, MAT.GLASS);
     m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i < N; i += 2) {
+      for (let i = 0; i < N; i++) {
         const p = outer[i], q = outer[(i + 1) % N];
-        m.quad([p[0] * 1.012, 8.0, p[1] * 1.012], [q[0] * 1.012, 8.0, q[1] * 1.012],
-               [q[0] * 1.012, 34.0, q[1] * 1.012], [p[0] * 1.012, 34.0, p[1] * 1.012], MAT.TRIM);
+        // Columns at every bay, full height: the ribs that give the drum its
+        // vertical grain and stop it reading as a gasholder.
+        m.pipe([p[0] * 1.008, 0.2, p[1] * 1.008], [p[0] * 1.008, 40.0, p[1] * 1.008], 0.42, MAT.TRIM, 5);
+        if (i % 4 === 0) {
+          // The portal: a taller, deeper opening between two columns.
+          m.quad([p[0], 6.5, p[1]], [q[0], 6.5, q[1]],
+                 [q[0], 8.6, q[1]], [p[0], 8.6, p[1]], MAT.TRIM);
+        }
       }
     });
+    // A glazed band at the box level, and the lit fascia over the top of the
+    // wall so the drum has a crown.
+    skin(m, grow(outer, 1.004), 24.0, 29.0, MAT.GLASS);
     m.painted(TINT.BRAND, () => {
-      deck(m, grow(outer, 1.00), grow(outer, 1.05), 44.0, 46.6, MAT.CLADDING);
+      deck(m, grow(outer, 1.00), grow(outer, 1.05), 40.0, 43.4, MAT.CLADDING);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      skin(m, grow(outer, 1.052), 41.0, 42.8, MAT.PLATE);
     });
     // One continuous roof, opaque outside and translucent at the leading edge.
-    deck(m, grow(outer, 0.82), grow(outer, 1.05), 47.0, 48.8, MAT.METAL);
-    deck(m, grow(outer, 0.68), grow(outer, 0.82), 47.2, 48.4, MAT.GLASS);
+    deck(m, grow(outer, 0.84), grow(outer, 1.05), 46.0, 47.8, MAT.METAL);
+    deck(m, grow(outer, 0.70), grow(outer, 0.84), 46.2, 47.4, MAT.GLASS);
     m.painted(TINT.METAL_DARK, () => {
       for (let i = 0; i < N; i += 3) {
         const p = outer[i];
-        m.pipe([p[0] * 0.98, 40.0, p[1] * 0.98], [p[0] * 1.04, 47.0, p[1] * 1.04], 0.34, MAT.TRIM, 5);
-        m.pipe([p[0] * 1.04, 47.0, p[1] * 1.04], [p[0] * 0.70, 47.4, p[1] * 0.70], 0.20, MAT.TRIM, 4);
+        m.pipe([p[0] * 0.98, 40.0, p[1] * 0.98], [p[0] * 1.04, 46.0, p[1] * 1.04], 0.34, MAT.TRIM, 5);
+        m.pipe([p[0] * 1.04, 46.0, p[1] * 1.04], [p[0] * 0.72, 46.4, p[1] * 0.72], 0.20, MAT.TRIM, 4);
       }
     });
-    bigScreen(m, -fx - 18.0, -fz - 14.0, 30.0, 24.0, 11.0, 1);
-    bigScreen(m, fx + 18.0, fz + 14.0, 30.0, 24.0, 11.0, -1);
+    bigScreen(m, 0, -fz - 26.0, 31.0, 26.0, 12.0, 1);
+    bigScreen(m, 0, fz + 26.0, 31.0, 26.0, 12.0, -1);
   }
 
   if (fine) {
@@ -774,11 +846,14 @@ function airTerminal(lod: number): MeshBuilder {
     // Aircraft on two of the four stands.
     const wide = IMPORTED_IDS.find((id) => id.startsWith('air.widebody'));
     const small = IMPORTED_IDS.find((id) => id.startsWith('air.airliner'));
-    // The clustered copies. A widebody is nine thousand triangles on its own
-    // and there are two of them parked beside a building that is already the
-    // biggest thing in the library.
-    if (wide) drawImported(m, wide, { cx: -96.0, cz: 58.0, turns: 1, low: true });
-    if (small) drawImported(m, small, { cx: 32.0, cz: 54.0, turns: 1, low: true });
+    // The full models. Everywhere else in the library an imported vehicle on
+    // an asset is the clustered copy, and everywhere else that is right: a car
+    // in a yard is scenery. An aeroplane on a stand is not scenery -- it is
+    // the reason the building exists, it is sixty metres long, and the
+    // clustering rounds the engines and the tail into lumps. This is the one
+    // place the full model earns the triangles.
+    if (wide) drawImported(m, wide, { cx: -96.0, cz: 58.0, turns: 1 });
+    if (small) drawImported(m, small, { cx: 32.0, cz: 54.0, turns: 1 });
     // Ground fleet along the apron and the service road behind the piers.
     for (let i = 0; i < 8; i++) {
       parkedVehicle(m, 400 + i * 9, -112 + i * 30, 84.0, 1, i % 3 === 0 ? 'truck' : 'van');

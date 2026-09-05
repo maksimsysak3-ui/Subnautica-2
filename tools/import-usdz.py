@@ -284,6 +284,18 @@ def read_mesh(prim, textures):
     _PULL = 0.30
     SPREAD = [tuple(w * (1 - _PULL) + _PULL / 3 for w in p) for p in _RAW]
 
+    #: Whether this mesh is a decal: a texture that is transparent somewhere.
+    #:
+    #: A decal is a separate sheet of geometry laid on the bodywork carrying a
+    #: livery stripe, a badge or a door line, and it needs different treatment
+    #: from bodywork in three ways. It is coarse geometry with a fine mark on
+    #: it, so it needs splitting much further. A facet that only clips the mark
+    #: must be dropped rather than painted, or it comes out as a black triangle
+    #: the size of the facet -- which is what put the sawtooth down the flank of
+    #: every bus in the pack. And what survives sits in the same plane as the
+    #: body, so it has to be lifted clear or it z-fights.
+    decal = img is not None and img.mode == 'RGBA' and img.getextrema()[3][0] < 250
+
     def sample(uv):
         """(rgb, alpha) at a uv, or None where the texture is transparent."""
         px = int(min(max(uv[0], 0.0), 1.0) * (img.width - 1))
@@ -314,7 +326,12 @@ def read_mesh(prim, textures):
             else:
                 hits.append(texel)
         n = len(SPREAD)
-        if clear * 2 > n or not hits:
+        # A body facet needs a majority to be opaque; a decal facet needs
+        # nearly all of it. Anything less is a facet clipping the edge of the
+        # mark, and painting it the mark's colour is how a badge becomes a
+        # black triangle four metres long.
+        keep = 0.98 if decal else 0.5
+        if clear > n * (1.0 - keep) or not hits:
             return None, 1.0            # transparent: draw nothing here
         groups = []                     # [count, running sum, representative]
         for t in hits:
@@ -341,7 +358,22 @@ def read_mesh(prim, textures):
     AGREE = 0.80
     #: How far a facet may be split. Each level is four sub-facets, so 2 is at
     #: most sixteen -- and only where the texture actually changes.
-    DEPTH = 2
+    #:
+    #: A decal goes five levels, up to 1024. That sounds extravagant and is
+    #: not: there are eight decal meshes in the pack against two hundred body
+    #: ones, the mark on them is a few texels across, and two levels cannot
+    #: resolve a stripe at all -- they can only decide whether to paint the
+    #: whole facet.
+    #:
+    #: Bodywork goes two. Three was tried, against the school bus's rub rail:
+    #: ten centimetres of black on a facet a metre long, which at two levels
+    #: the sub-facets straddle, so the mode picks black for some and yellow for
+    #: others and the stripe comes out as a sawtooth down the flank. Three made
+    #: the sawtooth finer and never made it a line, at 2.3 times the facets
+    #: against 1.7 and three megabytes of bundle. A thin stripe is the limit of
+    #: one colour per facet, and more subdivision buys a smaller version of the
+    #: same artefact rather than fixing it.
+    DEPTH = 5 if decal else 2
 
     def split(pos, uv, depth, out):   # noqa: kept for subdivide() below
         """
@@ -363,7 +395,19 @@ def read_mesh(prim, textures):
             return                      # transparent decal: nothing to draw
         if agree >= AGREE or depth >= DEPTH:
             col = tuple(srgb_to_linear(q / 255.0) for q in texel)
-            out.append(([world_of(p) for p in pos], [col, col, col]))
+            pts = [world_of(p) for p in pos]
+            if decal:
+                # Lift it clear of the bodywork along its own normal. A decal
+                # is modelled in the same plane as the panel it is printed on,
+                # and coplanar surfaces flicker.
+                ux, uy, uz = (pts[1][i] - pts[0][i] for i in range(3))
+                vx, vy, vz = (pts[2][i] - pts[0][i] for i in range(3))
+                nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+                ln = (nx * nx + ny * ny + nz * nz) ** 0.5
+                if ln > 1e-9:
+                    d = LIFT / ln
+                    pts = [(q[0] + nx * d, q[1] + ny * d, q[2] + nz * d) for q in pts]
+            out.append((pts, [col, col, col]))
             return
         mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
         mu = [mid2(uv[1], uv[2]), mid2(uv[2], uv[0]), mid2(uv[0], uv[1])]
@@ -382,6 +426,12 @@ def read_mesh(prim, textures):
     # time this ran in the wrong order. So the facet keeps its uvs and its
     # splitter, grouping runs on the coarse mesh, and subdivide() below is
     # called once each vehicle is known.
+    # How far to lift a decal, in this file's own units. Taken from the mesh's
+    # own size so it is the same fraction of a bus as of a badge.
+    span = max(max(p[i] for p in world) - min(p[i] for p in world) for i in range(3)) \
+        if world else 1.0
+    LIFT = span * 0.0016
+
     tris, base = [], 0
     for c in counts:
         face = [idx[base + k] for k in range(c)]

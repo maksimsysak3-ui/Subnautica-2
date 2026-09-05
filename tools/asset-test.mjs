@@ -52,7 +52,7 @@ const LANDMARK_MAX = 20000;
  * every frame like everything else, and its own LOD1 is under four thousand.
  */
 const MEGA_AREA = 300;
-const MEGA_MAX = 36000;
+const MEGA_MAX = 46000;
 /**
  * Vehicles and figures.
  *
