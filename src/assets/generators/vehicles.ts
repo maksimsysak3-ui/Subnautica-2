@@ -798,9 +798,12 @@ export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: numbe
   // longer again -- stretching every model to a fixed bay length threw that
   // away and made a forecourt a row of identically sized boxes.
   //
-  // The cheap copy, always: a forecourt parks eight of these and the full
-  // model is four thousand triangles. At the size a parked car occupies on
-  // screen the clustered one is indistinguishable.
+  // The clustered copy, always. Full models here were tried and measured: a
+  // works yard parks a dozen cars and went to fifty-four thousand triangles,
+  // more than the stadium, for vehicles nobody is looking at. The clustering
+  // costs a tenth of that and is indistinguishable at the size a car occupies
+  // beside a building. The one place the full model earns its keep is the
+  // fleet viewer, which draws it already.
   drawImported(m, id, { cx, cz, turns, low: true });
 }
 

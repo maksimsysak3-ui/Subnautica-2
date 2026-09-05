@@ -112,10 +112,58 @@ DROP_SHAPES: set[str] = set()
 
 #: Liveries to leave out, by asset id.
 #:
-#: Empty. Unlike DROP_SHAPES this can name one livery of a shared body, which
-#: is what it was for. Both lists stay because the mechanism is worth keeping
-#: for the next pack that ships something unrecoverable.
-DROP_MODELS: set[str] = set()
+#: car.suv1 through car.van12: the whole of Low_Poly_cars_pack, which is the
+#: one pack in the library with a baked atlas and no padding between its
+#: islands. Everything that survives is either flat-coloured or textured one
+#: image per vehicle, and neither can bleed.
+DROP_MODELS = {
+    'car.suv1',
+    'car.suv2',
+    'car.van1',
+    'car.van2',
+    'car.van3',
+    'car.van4',
+    'car.van5',
+    'car.microvan1',
+    'car.suv3',
+    'car.microvan2',
+    'car.microvan3',
+    'car.microvan4',
+    'car.van6',
+    'car.van7',
+    'car.van8',
+    'car.van9',
+    'car.van10',
+    'car.van11',
+    'car.estate2',
+    'car.estate3',
+    'car.estate4',
+    'car.estate5',
+    'car.estate6',
+    'car.estate7',
+    'car.estate8',
+    'car.estate9',
+    'car.estate10',
+    'car.microvan5',
+    'car.microvan6',
+    'car.suv4',
+    'car.microvan7',
+    'car.microvan8',
+    'car.microvan9',
+    'car.microvan10',
+    'car.microvan11',
+    'car.microvan12',
+    'car.microvan13',
+    'car.microvan14',
+    'car.microvan15',
+    'car.microvan16',
+    'car.suv5',
+    'car.suv6',
+    'car.suv7',
+    'car.suv8',
+    'car.suv9',
+    'car.van12',
+}
 
 
 #: What to call a shape, from its measurements.
