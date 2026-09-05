@@ -57,6 +57,8 @@ interface HullOpts {
   stations?: number;
   /** Flare: the bottom is this fraction of the deck's half-beam. */
   tumble?: number;
+  /** Paint key: one per vessel, so no two hulls come out the same colour. */
+  key?: number;
 }
 
 interface Hull {
@@ -68,7 +70,21 @@ interface Hull {
   beam: number;
 }
 
+/**
+ * A hull, painted.
+ *
+ * The paint key is per vessel. Without one every hull in the library took the
+ * same colour out of carPaint and the whole fleet came out the same teal --
+ * seven boats that differ in every dimension and read as one boat at seven
+ * sizes.
+ */
 function hull(m: MeshBuilder, o: HullOpts): Hull {
+  let built: Hull | null = null;
+  m.keyed(o.key ?? 0, () => { built = hullBody(m, o); });
+  return built as unknown as Hull;
+}
+
+function hullBody(m: MeshBuilder, o: HullOpts): Hull {
   const n = o.stations ?? 16;
   const half = o.length / 2;
   const tumble = o.tumble ?? 0.74;
@@ -109,6 +125,24 @@ function hull(m: MeshBuilder, o: HullOpts): Hull {
     // Deck.
     m.quad([a.x, a.y, -a.hw], [a.x, a.y, a.hw], [b.x, b.y, b.hw], [b.x, b.y, -b.hw], o.deck);
   }
+  // The rubbing strake: a raised line along the hull at deck level.
+  //
+  // The single biggest thing missing from the first version. A lofted hull
+  // with nothing on it is a bar of soap; one horizontal line down its length
+  // gives the eye the sheer to read and the topsides something to be above and
+  // below. Every working vessel afloat has one.
+  for (let i = 0; i < n; i++) {
+    const a = at(i), b = at(i + 1);
+    for (const s of [1, -1]) {
+      const q0: Vec3 = [a.x, a.y - 0.34, s * (a.hw + 0.10)];
+      const q1: Vec3 = [b.x, b.y - 0.34, s * (b.hw + 0.10)];
+      const q2: Vec3 = [b.x, b.y - 0.08, s * (b.hw + 0.10)];
+      const q3: Vec3 = [a.x, a.y - 0.08, s * (a.hw + 0.10)];
+      if (s > 0) m.quad(q0, q1, q2, q3, MAT.DARK_TRIM);
+      else m.quad(q3, q2, q1, q0, MAT.DARK_TRIM);
+    }
+  }
+
   // Transom.
   const s0 = at(0);
   m.quad([s0.x, 0, s0.hw * tumble], [s0.x, 0, -s0.hw * tumble],
@@ -126,6 +160,41 @@ function hull(m: MeshBuilder, o: HullOpts): Hull {
     length: o.length,
     beam: o.beam,
   };
+}
+
+/**
+ * Mooring furniture: bitts down each side and an anchor in its hawse.
+ *
+ * Small, and worth more than its size. A hull with nothing on the deck edge
+ * reads as a bath toy; a row of bitts gives the deck a scale, and the anchor
+ * pulled up tight into the bow is the detail everyone knows even if they have
+ * never looked at a ship.
+ */
+function mooring(m: MeshBuilder, h: Hull, x0: number, x1: number, count: number,
+  anchor = true): void {
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i < count; i++) {
+      const x = x0 + ((i + 0.5) / count) * (x1 - x0);
+      const y = h.deckAt(x);
+      for (const s of [1, -1]) {
+        const w = (h.halfAt(x) - 0.55) * s;
+        m.box([x - 0.5, y, w - 0.34], [x + 0.5, y + 0.18, w + 0.34], MAT.TRIM);
+        for (const t of [-0.22, 0.22]) {
+          m.cylinder(x + t, w, 0.14, y + 0.18, y + 0.78, 8, MAT.TRIM);
+        }
+      }
+    }
+    if (anchor) {
+      const bx = x1 + (h.length / 2 - x1) * 0.55;
+      for (const s of [1, -1]) {
+        const w = h.halfAt(bx) * s;
+        // The hawse pipe, and the fluke sitting proud of it.
+        m.cylinder(bx, w, 0.42, h.deckAt(bx) - 1.5, h.deckAt(bx) - 0.7, 8, MAT.TRIM, false);
+        m.box([bx - 0.7, h.deckAt(bx) - 1.9, w - 0.16], [bx + 0.7, h.deckAt(bx) - 0.6, w + 0.16], MAT.TRIM);
+        m.box([bx - 1.0, h.deckAt(bx) - 2.1, w - 0.12], [bx + 1.0, h.deckAt(bx) - 1.6, w + 0.12], MAT.TRIM);
+      }
+    }
+  });
 }
 
 /** Bulwark: the low wall round the edge of a deck, and its capping rail. */
@@ -165,6 +234,19 @@ function deckhouse(m: MeshBuilder, o: {
     m.box([o.x0 + 0.25, wy0, -o.hw - 0.04], [o.x1 - 0.25, wy1, o.hw + 0.04], MAT.CAR_GLASS);
     m.box([o.x0 + 0.18, wy0 - 0.09, -o.hw - 0.06], [o.x1 - 0.18, wy0, o.hw + 0.06], MAT.TRIM);
     m.box([o.x0 + 0.18, wy1, -o.hw - 0.06], [o.x1 - 0.18, wy1 + 0.09, o.hw + 0.06], MAT.TRIM);
+    // Mullions. A continuous ribbon of glass round a deckhouse reads as a
+    // painted stripe; the divisions are what make it windows.
+    m.painted(TINT.METAL_DARK, () => {
+      const panes = Math.max(2, Math.round((o.x1 - o.x0) / 1.5));
+      for (let i = 1; i < panes; i++) {
+        const x = o.x0 + 0.25 + (i / panes) * (o.x1 - o.x0 - 0.5);
+        m.box([x - 0.06, wy0, -o.hw - 0.07], [x + 0.06, wy1, o.hw + 0.07], MAT.TRIM);
+      }
+      // And the corner posts, so the box has an edge.
+      for (const sx of [o.x0, o.x1 - 0.14]) {
+        m.box([sx, o.y0, -o.hw - 0.05], [sx + 0.14, o.y1, o.hw + 0.05], MAT.TRIM);
+      }
+    });
   }
   if (o.door !== false) {
     m.painted(TINT.DOOR, () => {
@@ -175,9 +257,19 @@ function deckhouse(m: MeshBuilder, o: {
 
 /** A funnel: a raked oval stack with a cap band. */
 function funnel(m: MeshBuilder, cx: number, y0: number, y1: number, r: number, mat: Material): void {
-  m.cone(cx, 0, r, r * 0.86, y0, y1 - 0.28, 10, mat);
+  m.painted(TINT.BRAND, () => {
+    m.cone(cx, 0, r, r * 0.86, y0, y1 - 0.28, 10, mat);
+  });
+  // A band below the cap, which is how every shipping line on earth marks a
+  // funnel, and the black top that every one of them has above it.
+  m.painted(TINT.ACCENT, () => {
+    m.cylinder(cx, 0, r * 0.94, y1 - 1.5, y1 - 0.9, 10, MAT.PAINT, false);
+  });
   m.painted(TINT.METAL_DARK, () => {
     m.cylinder(cx, 0, r * 0.92, y1 - 0.28, y1, 10, MAT.TRIM);
+    // Uptakes: two pipes standing out of the top, so it is a funnel and not a
+    // solid cone with a lid.
+    for (const t of [-0.4, 0.4]) m.cylinder(cx + t * r, 0, r * 0.22, y1, y1 + 0.5, 6, MAT.TRIM);
   });
 }
 
@@ -305,17 +397,17 @@ function sea(m: MeshBuilder, x: number, z: number): void {
 
 function tug(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 12.0, 5.5);
+  sea(m, 12.6, 7.0);
   const h = hull(m, {
-    length: 21, beam: 7.4, freeboard: 2.5,
+    key: 3, length: 21, beam: 7.4, freeboard: 2.5,
     // Very full forward and cut away aft: a tug is mostly bow, because the
     // bow is the working end.
     shape: (t) => (t < 0.12 ? 0.80 + t * 1.4 : t < 0.72 ? 1.0 : 1.0 - ((t - 0.72) / 0.28) ** 1.7 * 0.92),
     sheer: (t) => 1.0 + 0.20 * (t - 0.45) ** 2 * 4,
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 14, tumble: 0.80,
   });
-  m.keyed(4, () => { /* hull paint key */ });
   bulwark(m, h, -9.5, 9.0, 1.05, MAT.PAINT);
+  mooring(m, h, -8.0, 8.6, 4);
   // Deckhouse, then the wheelhouse standing on it: the two-box stack with a
   // ring of glass on top is the whole silhouette of a harbour tug.
   deckhouse(m, { x0: -6.4, x1: 1.6, hw: 2.7, y0: 2.7, y1: 5.5 });
@@ -341,9 +433,9 @@ function tug(lod: number): MeshBuilder {
 
 function trawler(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 14.5, 5.5);
+  sea(m, 15.6, 7.0);
   const h = hull(m, {
-    length: 26, beam: 7.6, freeboard: 2.8,
+    key: 11, length: 26, beam: 7.6, freeboard: 2.8,
     shape: (t) => (t < 0.08 ? 0.88 : t < 0.62 ? 1.0 : 1.0 - ((t - 0.62) / 0.38) ** 1.6 * 0.94),
     // A working boat's sheer: high at the bow, dropping to a low working deck
     // aft where the net comes over the stern ramp.
@@ -351,6 +443,7 @@ function trawler(lod: number): MeshBuilder {
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 16, tumble: 0.76,
   });
   bulwark(m, h, -12.0, 11.0, 1.15, MAT.PAINT);
+  mooring(m, h, -10.0, 11.0, 5);
   deckhouse(m, { x0: -1.0, x1: 6.5, hw: 2.9, y0: 3.2, y1: 6.0 });
   deckhouse(m, { x0: 0.6, x1: 5.0, hw: 2.4, y0: 6.0, y1: 8.4, mat: MAT.PLASTER });
   m.box([0.1, 8.35, -2.8], [5.5, 8.6, 2.8], MAT.ROOF);
@@ -390,13 +483,14 @@ function trawler(lod: number): MeshBuilder {
 
 function pilotBoat(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 8.5, 3.6);
+  sea(m, 8.6, 4.6);
   const h = hull(m, {
-    length: 14, beam: 4.4, freeboard: 1.9,
+    key: 7, length: 14, beam: 4.4, freeboard: 1.9,
     shape: (t) => (t < 0.10 ? 0.86 : t < 0.60 ? 1.0 : 1.0 - ((t - 0.60) / 0.40) ** 1.5 * 0.93),
     sheer: (t) => 0.82 + 0.5 * t ** 2,
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 12, tumble: 0.70,
   });
+  mooring(m, h, -5.0, 5.6, 3);
   deckhouse(m, { x0: -1.4, x1: 3.4, hw: 1.7, y0: 2.1, y1: 4.4, mat: MAT.PLASTER });
   m.box([-1.8, 4.35, -1.9], [3.8, 4.6, 1.9], MAT.ROOF);
   // A light bar and a radar dome, which is what marks a boat out as official
@@ -419,15 +513,16 @@ function pilotBoat(lod: number): MeshBuilder {
 
 function motorYacht(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 15.0, 4.6);
+  sea(m, 16.6, 4.6);
   const h = hull(m, {
-    length: 24, beam: 6.0, freeboard: 2.4,
+    key: 27, length: 24, beam: 6.0, freeboard: 2.4,
     // Long fine entry and a broad transom: the plan of a planing motor yacht,
     // and the opposite of the tug's.
     shape: (t) => (t < 0.55 ? 0.92 + t * 0.15 : 1.0 - ((t - 0.55) / 0.45) ** 1.35 * 0.95),
     sheer: (t) => 0.90 + 0.32 * t ** 1.6,
     mat: MAT.PLASTER, boot: MAT.DARK_TRIM, deck: MAT.ROOF, stations: 16, tumble: 0.66,
   });
+  mooring(m, h, -10.0, 10.0, 3);
   // Superstructure in two long low steps, raked back, with a continuous band
   // of glass. Nothing about a yacht is vertical.
   m.box([-3.0, h.deckAt(0), -2.5], [7.0, h.deckAt(0) + 2.1, 2.5], MAT.PLASTER, { roof: MAT.ROOF });
@@ -455,14 +550,15 @@ function motorYacht(lod: number): MeshBuilder {
 
 function ferry(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 24.5, 8.5);
+  sea(m, 24.6, 8.6);
   const h = hull(m, {
-    length: 44, beam: 12.5, freeboard: 3.4,
+    key: 34, length: 44, beam: 12.5, freeboard: 3.4,
     shape: (t) => (t < 0.10 ? 0.90 : t < 0.72 ? 1.0 : 1.0 - ((t - 0.72) / 0.28) ** 1.5 * 0.92),
     sheer: (t) => 0.94 + 0.16 * t ** 2,
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 18, tumble: 0.82,
   });
   const d = h.deckAt(0);
+  mooring(m, h, -19.0, 19.0, 7);
   // Two enclosed decks of seating with a window band each, then an open top
   // deck. The bow ramp forward is what makes it a ferry and not a launch.
   for (let f = 0; f < 2; f++) {
@@ -508,9 +604,9 @@ function ferry(lod: number): MeshBuilder {
 
 function containerShip(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 48.0, 10.5);
+  sea(m, 48.6, 12.6);
   const h = hull(m, {
-    length: 92, beam: 17.0, freeboard: 7.0,
+    key: 42, length: 92, beam: 17.0, freeboard: 7.0,
     // Parallel-sided for two thirds of her length, which is the whole point of
     // a box boat: the cargo is rectangular, so the ship is too.
     shape: (t) => (t < 0.06 ? 0.82 + t * 3 : t < 0.80 ? 1.0 : 1.0 - ((t - 0.80) / 0.20) ** 1.8 * 0.95),
@@ -518,6 +614,7 @@ function containerShip(lod: number): MeshBuilder {
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 20, tumble: 0.90,
   });
   const d = h.deckAt(0);
+  mooring(m, h, -44.0, 44.0, 12);
   // Accommodation block aft, five storeys with a bridge wing each side.
   for (let f = 0; f < 5; f++) {
     const y0 = d + f * 3.0;
@@ -566,9 +663,9 @@ function containerShip(lod: number): MeshBuilder {
 
 function barge(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  sea(m, 24.5, 5.5);
+  sea(m, 24.6, 7.0);
   const h = hull(m, {
-    length: 44, beam: 11.0, freeboard: 2.6,
+    key: 58, length: 44, beam: 11.0, freeboard: 2.6,
     // A barge is a box with the ends pushed in: almost no shape at all, which
     // is exactly what distinguishes it from everything else here.
     shape: (t) => (t < 0.10 ? 0.55 + t * 4.5 : t < 0.90 ? 1.0 : 1.0 - ((t - 0.90) / 0.10) ** 1.2 * 0.45),
@@ -576,6 +673,7 @@ function barge(lod: number): MeshBuilder {
     mat: MAT.PAINT, boot: MAT.DARK_TRIM, deck: MAT.METAL, stations: 14, tumble: 0.94,
   });
   const d = h.deckAt(0);
+  mooring(m, h, -20.0, 20.0, 8, false);
   // The hold: a coaming round a well, heaped with aggregate.
   m.painted(TINT.METAL_DARK, () => {
     m.box([-16.0, d, -4.9], [16.0, d + 1.5, 4.9], MAT.TRIM);

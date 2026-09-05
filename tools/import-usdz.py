@@ -151,7 +151,14 @@ def texture_lookup(usdz_path):
     with zipfile.ZipFile(usdz_path) as z:
         for n in z.namelist():
             if n.lower().endswith(('.jpg', '.jpeg', '.png')):
-                out[Path(n).name] = Image.open(io.BytesIO(z.read(n))).convert('RGB')
+                # RGBA, always. The decal sheets in these packs are PNGs that
+                # are transparent everywhere except the badge or the stripe on
+                # them, and converting one to RGB paints every transparent
+                # texel pure black. That is where the black triangles all over
+                # the civil fleet came from: a decal is separate geometry laid
+                # on the bodywork, and away from the mark it must draw nothing
+                # rather than a black patch.
+                out[Path(n).name] = Image.open(io.BytesIO(z.read(n))).convert('RGBA')
     return out
 
 
@@ -185,6 +192,21 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
+def mid(a, b):
+    """Midpoint of two world-space points."""
+    return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
+
+
+def mid2(a, b):
+    """Midpoint of two uvs."""
+    return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+
+
+def world_of(p):
+    """Subdivision works in world space already; this keeps the types even."""
+    return (p[0], p[1], p[2])
+
+
 def read_mesh(prim, textures):
     """World-space triangles with a flat colour each, plus the bounding box."""
     mesh = UsdGeom.Mesh(prim)
@@ -202,70 +224,154 @@ def read_mesh(prim, textures):
         if a and a.Get() is not None:
             uvs = a.Get()
             break
-    #: Barycentric weights for sampling one facet's UV footprint.
+    #: Barycentric weights for sampling a facet's UV footprint.
     #:
-    #: Points spread over the triangle rather than at its corners -- a corner
-    #: sits exactly on the seam between two patches of the atlas and is the
-    #: worst place to read one -- and then pulled well in towards the centroid.
-    #:
-    #: The pull is what stops colour leaking between panels. These atlases have
-    #: no padding around their islands, so a sample anywhere near a facet's own
-    #: edge can land a texel into the neighbouring patch and win the vote, which
-    #: is how a windscreen ends up body-coloured or a wing ends up glass-blue.
-    #: Sampling only the middle of the facet cannot reach the seam at all.
+    #: Spread over the triangle rather than at its corners -- a corner sits on
+    #: the seam between two patches of the atlas and is the worst place to read
+    #: one -- and pulled in towards the centroid, because these atlases have no
+    #: padding and a sample near a facet's edge can land a texel into the
+    #: neighbouring island.
     _RAW = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
             for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
-    _PULL = 0.78
+    _PULL = 0.30
     SPREAD = [tuple(w * (1 - _PULL) + _PULL / 3 for w in p) for p in _RAW]
 
+    def sample(uv):
+        """(rgb, alpha) at a uv, or None where the texture is transparent."""
+        px = int(min(max(uv[0], 0.0), 1.0) * (img.width - 1))
+        py = int((1.0 - min(max(uv[1], 0.0), 1.0)) * (img.height - 1))
+        t = img.getpixel((px, py))
+        return (t[0], t[1], t[2]), (t[3] if len(t) > 3 else 255)
+
+    def vote(pa, pb, pc):
+        """
+        The colour covering most of a facet, and how much of it that is.
+
+        Samples are grouped by how far apart they are rather than by bucketing
+        them, and that distinction is the whole thing. These textures are JPEGs
+        and a flat panel is never two texels the same: bucketing splits one
+        panel's votes across four neighbouring buckets, every facet in the pack
+        then looks like a boundary, and the subdivision below fires everywhere
+        -- it turned an eight megabyte fleet into thirty-eight. Grouping by
+        distance is blind to that noise and still sees a real edge, where the
+        two colours are nowhere near each other.
+        """
+        hits, clear = [], 0
+        for wa, wb, wc in SPREAD:
+            uv = (pa[0] * wa + pb[0] * wb + pc[0] * wc,
+                  pa[1] * wa + pb[1] * wb + pc[1] * wc)
+            texel, alpha = sample(uv)
+            if alpha < 128:
+                clear += 1
+            else:
+                hits.append(texel)
+        n = len(SPREAD)
+        if clear * 2 > n or not hits:
+            return None, 1.0            # transparent: draw nothing here
+        groups = []                     # [count, running sum, representative]
+        for t in hits:
+            for g in groups:
+                if max(abs(t[i] - g[2][i]) for i in range(3)) <= NOISE:
+                    g[0] += 1
+                    g[1] = tuple(g[1][i] + t[i] for i in range(3))
+                    break
+            else:
+                groups.append([1, t, t])
+        best = max(groups, key=lambda g: g[0])
+        # The mean of the winning group, not one sample of it: within a group
+        # the spread is JPEG noise, and averaging it out is the one place a
+        # mean is the right answer.
+        texel = tuple(int(round(c / best[0])) for c in best[1])
+        return texel, best[0] / len(hits)
+
+    #: How far apart two samples may be and still be the same panel, per
+    #: channel out of 255. Wide enough to swallow JPEG ringing on a flat
+    #: colour, far narrower than the gap between a body and its glass.
+    NOISE = 26
+
+    #: How much of a facet one colour has to cover before it is called flat.
+    AGREE = 0.80
+    #: How far a facet may be split. Each level is four sub-facets, so 2 is at
+    #: most sixteen -- and only where the texture actually changes.
+    DEPTH = 2
+
+    def split(pos, uv, depth, out):   # noqa: kept for subdivide() below
+        """
+        Emit this facet, subdivided until each piece is one colour.
+
+        This is the fix for the whole class of problem. One colour per facet is
+        what keeps these models crisp -- a colour per corner gradients across
+        every flat panel and the fleet came out looking smeared -- but a facet
+        that straddles a window frame, a door shut line or a livery stripe has
+        no one colour, and forcing one on it is what made the windows read as
+        triangles with the glass leaking past the frame. So a facet that does
+        not agree with itself is cut at its edge midpoints, in position and in
+        uv together, and each quarter asks the same question again. The frame
+        gets resolved because the geometry follows the texture instead of the
+        texture being flattened onto the geometry.
+        """
+        texel, agree = vote(*uv)
+        if texel is None:
+            return                      # transparent decal: nothing to draw
+        if agree >= AGREE or depth >= DEPTH:
+            col = tuple(srgb_to_linear(q / 255.0) for q in texel)
+            out.append(([world_of(p) for p in pos], [col, col, col]))
+            return
+        mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
+        mu = [mid2(uv[1], uv[2]), mid2(uv[2], uv[0]), mid2(uv[0], uv[1])]
+        split((pos[0], mp[2], mp[1]), (uv[0], mu[2], mu[1]), depth + 1, out)
+        split((mp[2], pos[1], mp[0]), (mu[2], uv[1], mu[0]), depth + 1, out)
+        split((mp[1], mp[0], pos[2]), (mu[1], mu[0], uv[2]), depth + 1, out)
+        split((mp[0], mp[1], mp[2]), (mu[0], mu[1], mu[2]), depth + 1, out)
+
+    # Facets undivided, each carrying what it needs to be split later.
+    #
+    # Subdivision cannot happen here. Vehicles are found by welding vertices
+    # and walking the surface, and two neighbouring facets split to different
+    # depths no longer share the vertices along their common edge -- so every
+    # surface in the pack shatters into fragments and the grouping collapses.
+    # The civil fleet came out as a hundred and sixty-five "vehicles" the one
+    # time this ran in the wrong order. So the facet keeps its uvs and its
+    # splitter, grouping runs on the coarse mesh, and subdivide() below is
+    # called once each vehicle is known.
     tris, base = [], 0
     for c in counts:
         face = [idx[base + k] for k in range(c)]
         for k in range(1, c - 1):
             corner = (face[0], face[k], face[k + 1])
-            # One colour for the whole facet: the dominant texel over its own
-            # UV footprint, not a colour per corner.
-            #
-            # A low-poly car is a set of crisp flat planes, and a colour per
-            # corner means the rasteriser gradients across every one of them --
-            # which is what made the whole fleet look smeared and foggy. So the
-            # facet is sampled across its area and the winner is the colour
-            # that covers most of it, by mode rather than by mean: a mean of
-            # two patches is a colour that appears nowhere on the car, while
-            # the mode is the panel colour with the seam and the decal outvoted.
+            pos = [world[i] for i in corner]
             if img is not None and uvs is not None and len(uvs) > max(corner):
-                votes = {}
-                for wa, wb, wc in SPREAD:
-                    u = (uvs[corner[0]][0] * wa + uvs[corner[1]][0] * wb
-                         + uvs[corner[2]][0] * wc)
-                    v = (uvs[corner[0]][1] * wa + uvs[corner[1]][1] * wb
-                         + uvs[corner[2]][1] * wc)
-                    px = int(min(max(u, 0.0), 1.0) * (img.width - 1))
-                    py = int((1.0 - min(max(v, 0.0), 1.0)) * (img.height - 1))
-                    texel = img.getpixel((px, py))
-                    # Bucketed, so two texels a shade apart count as one vote
-                    # rather than splitting the panel's majority between them.
-                    key = tuple(q >> 3 for q in texel)
-                    hit = votes.get(key)
-                    if hit is None:
-                        votes[key] = [1, texel]
-                    else:
-                        hit[0] += 1
-                n, texel = max(votes.values(), key=lambda h: h[0])
-                col = tuple(srgb_to_linear(q / 255.0) for q in texel)
+                tris.append((pos, [rgb, rgb, rgb],
+                             tuple((uvs[i][0], uvs[i][1]) for i in corner), split))
             else:
                 # A flat diffuseColor is already linear; only a texel needs
                 # converting. Running every colour through srgb_to_linear was
                 # why the pack that carries no textures at all and states its
                 # colours outright came out two stops dark.
-                col = rgb
-            tris.append(([world[i] for i in corner], [col, col, col]))
+                tris.append((pos, [rgb, rgb, rgb], None, None))
         base += c
-    xs = [p[0] for t, _ in tris for p in t]
-    ys = [p[1] for t, _ in tris for p in t]
-    zs = [p[2] for t, _ in tris for p in t]
+    xs = [p[0] for t in tris for p in t[0]]
+    ys = [p[1] for t in tris for p in t[0]]
+    zs = [p[2] for t in tris for p in t[0]]
     box = (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)) if tris else None
     return tris, box, texname
+
+
+def subdivide(tris):
+    """
+    Split every facet until each piece is one colour, and drop the clear ones.
+
+    Run once a vehicle is known, never before: see read_mesh. A facet whose uv
+    footprint is transparent throughout disappears here, which is what takes
+    the black patches off the decal geometry.
+    """
+    out = []
+    for t in tris:
+        if t[2] is None:
+            out.append((t[0], t[1]))
+        else:
+            t[3](tuple(t[0]), t[2], 0, out)
+    return out
 
 
 #: Part words to strip when a mesh name is used to name the vehicle it is
@@ -356,7 +462,7 @@ def components(tris):
     every geometric guess at the same problem did.
     """
     ids, parent, faces = {}, [], []
-    for corner, _ in tris:
+    for corner in (t[0] for t in tris):
         row = []
         for p in corner:
             k = (round(p[0], 2), round(p[1], 2), round(p[2], 2))
@@ -823,7 +929,7 @@ def main(src_dir, out_path):
             # a door line and a livery stripe are exactly the small regions
             # despeckle ate, and unbake turned a correctly exposed texture into
             # a garish one. The rule now is the file as the artist shipped it.
-            order, index = pack_vehicle(tris, scale)
+            order, index = pack_vehicle(subdivide(tris), scale)
             # Two hashes, doing two different jobs. The loose one groups
             # liveries of one body so they get one name and one number, and it
             # has to ignore triangle order to do that. The strict one decides

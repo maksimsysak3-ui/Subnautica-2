@@ -208,6 +208,16 @@ export const TINT = {
   METAL_DARK: 7,   // dark ironwork, railings, fire escapes
   WOOD: 8,
   GREEN: 9,        // planting
+  /**
+   * The darker half of a mown pitch.
+   *
+   * Turf drawn as one flat green reads as a teal sheet at the size a stadium
+   * is seen from: there is nothing on it for the eye to measure. The mower
+   * bands are what make it grass, and they need a second green rather than a
+   * borrowed brand colour, which is how the football pitch ended up striped
+   * navy blue.
+   */
+  GREEN_DARK: 10,
 } as const;
 
 export type Tint = (typeof TINT)[keyof typeof TINT];

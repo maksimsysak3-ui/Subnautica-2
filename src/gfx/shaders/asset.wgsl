@@ -343,17 +343,28 @@ fn corrugated(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
  * metal, and it is the small bright specks that say liquid.
  */
 fn water(uv : vec2f, mpp : f32) -> vec3f {
-  let deep = vec3f(0.031, 0.070, 0.086);
-  let shallow = vec3f(0.062, 0.135, 0.150);
-  let swell = sin(uv.x * 0.62 + uv.y * 0.31) * 0.5
-            + sin(uv.x * 0.21 - uv.y * 0.74) * 0.5;
-  var col = mix(deep, shallow, clamp(swell * 0.5 + 0.5, 0.0, 1.0));
-  let chop = sin(uv.x * 4.3 + uv.y * 2.1) * sin(uv.y * 3.7 - uv.x * 1.9);
-  col *= 0.90 + 0.20 * (chop * 0.5 + 0.5);
-  // Crests only, and only while they are big enough to resolve -- at distance
-  // this decays to the swell, which is what water does.
-  let crest = smoothstep(0.72, 0.98, chop) * resolvable(1.4, mpp);
-  return col + vec3f(0.10, 0.13, 0.14) * crest;
+  let deep = vec3f(0.026, 0.062, 0.078);
+  let shallow = vec3f(0.058, 0.128, 0.146);
+  // Three swells at angles that share no common period, so nothing lines up
+  // with the quad's own axes. The first version crossed two axis-aligned sines
+  // and multiplied them, which is the definition of a grid: the pads came out
+  // as a chequerboard of dots.
+  let a = uv.x * 0.311 + uv.y * 0.194;
+  let b = uv.x * -0.147 + uv.y * 0.263;
+  let c = uv.x * 0.088 - uv.y * 0.121;
+  let swell = sin(a) * 0.5 + sin(b * 1.618) * 0.33 + sin(c * 2.414) * 0.17;
+  var col = mix(deep, shallow, clamp(swell * 0.6 + 0.5, 0.0, 1.0));
+  // Chop rides on the swell rather than multiplying against it, so the fine
+  // detail follows the big shape instead of tiling over it.
+  let chop = sin(a * 7.3 + swell * 2.1) * 0.6 + sin(b * 11.9 - swell * 1.4) * 0.4;
+  col *= 0.93 + 0.14 * (chop * 0.5 + 0.5);
+  // Crests, gated by noise. Summed sines are a lattice however you rotate
+  // them -- the first two attempts both came out as a regular field of dots --
+  // so where a crest is allowed to catch the light is decided by a hash of the
+  // cell it falls in, and the regularity goes.
+  let cell = hash21(floor(uv * 0.55));
+  let crest = smoothstep(0.55, 0.95, chop) * step(0.62, cell) * resolvable(2.2, mpp);
+  return col + vec3f(0.08, 0.10, 0.11) * crest;
 }
 
 /**
@@ -701,6 +712,10 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
     case 9u: {
       let leaf = hash21(floor(uv * 5.0) + seed);
       return vec3f(0.118, 0.212, 0.108) * (0.75 + leaf * 0.6);
+    }
+    case 10u: {
+      let blade = hash21(floor(uv * 5.0) + seed);
+      return vec3f(0.072, 0.146, 0.070) * (0.80 + blade * 0.45);
     }
     default: { return brand; }
   }

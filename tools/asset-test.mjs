@@ -42,6 +42,18 @@ const SERVICE_MAX = 12000;
 const LANDMARK_AREA = 70;
 const LANDMARK_MAX = 20000;
 /**
+ * Venues: a service asset covering three hundred cells or more.
+ *
+ * A tier above the landmark, and there are five of them in the library. A
+ * gridiron stadium is a hundred and sixty metres of bowl with two tiers, a
+ * roof on props, four masts and three car parks -- held to the landmark
+ * ceiling it loses the roof or the car parks, and either one makes it read as
+ * a model of a stadium rather than a stadium. Still a ceiling: it is drawn
+ * every frame like everything else, and its own LOD1 is under four thousand.
+ */
+const MEGA_AREA = 300;
+const MEGA_MAX = 36000;
+/**
  * Vehicles and figures.
  *
  * There is no floor any more. The band existed to stop a generated car being
@@ -51,7 +63,7 @@ const LANDMARK_MAX = 20000;
  * matters -- there will be hundreds on screen at once.
  */
 const FLEET_MIN = 0;
-const FLEET_MAX = 9000;
+const FLEET_MAX = 16000;
 /**
  * The ceiling for a fleet asset that covers more than one cell.
  *
@@ -153,9 +165,11 @@ for (const a of ASSETS) {
   }
   const fleet = a.zone === 'fleet';
   const big = fleet && a.footprint[0] >= 2;
-  const landmark = service && a.footprint[0] * a.footprint[1] >= LANDMARK_AREA;
+  const area = a.footprint[0] * a.footprint[1];
+  const landmark = service && area >= LANDMARK_AREA;
   const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX)
-    : service ? (landmark ? LANDMARK_MAX : SERVICE_MAX) : MAX_TRIS;
+    : service ? (area >= MEGA_AREA ? MEGA_MAX : landmark ? LANDMARK_MAX : SERVICE_MAX)
+      : MAX_TRIS;
   const road = a.zone === 'road';
   const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
