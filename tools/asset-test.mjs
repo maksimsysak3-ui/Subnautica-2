@@ -59,8 +59,15 @@ const FLEET_MAX = 9000;
  * is exactly one of the latter on an airfield against hundreds of the former
  * on the roads. Held to the car's ceiling an aeroplane loses its engines, and
  * it is still far cheaper per metre than anything else in the library.
+ *
+ * The civil service pack pushed this up again. Its fire engine is twenty-three
+ * thousand triangles as the artist built it -- ladder, hose reels, roller
+ * shutters and all -- and the brief for these imports is the model as shipped,
+ * not a version of it this tool decided to thin out. There is one fire station
+ * on a map. The clustered LOD copy, which is what a parked appliance and
+ * anything at distance actually draws, is a tenth of that.
  */
-const BIG_FLEET_MAX = 14000;
+const BIG_FLEET_MAX = 26000;
 
 /**
  * Materials a service building may not use.

@@ -50,8 +50,8 @@ from pathlib import Path
 from pxr import Usd, UsdGeom, UsdShade, Gf
 from PIL import Image
 
-PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_poly_cars_pack (1).usdz',
-         'Low_Poly_cars_pack.usdz', 'Mini_Pack_8.usdz', 'Ultimate_Pack_2.usdz',
+PACKS = ['Ultimate_Low-Poly_Car_Pack.usdz', 'Low_Poly_cars_pack.usdz',
+         'Mini_Pack_8.usdz', 'Ultimate_Pack_2.usdz', 'Civil_Service.usdz',
          'Airplane.usdz', 'Boeing_787.usdz']
 
 #: Packs whose contents are one vehicle, however many surfaces it is drawn in.
@@ -68,7 +68,26 @@ WHOLE_PACKS = {'Airplane.usdz', 'Boeing_787.usdz'}
 #: Every pack is scaled so its median vehicle is TYPICAL long, which is right
 #: for a pack of cars and absurd for a pack of one aeroplane -- a 787 scaled to
 #: 4.5m would park in a driveway. A pack of aircraft says its own size instead.
-PACK_LENGTH = {'Airplane.usdz': 34.0, 'Boeing_787.usdz': 60.0}
+PACK_LENGTH = {'Airplane.usdz': 34.0, 'Boeing_787.usdz': 60.0,
+               # A civil fleet's median is a truck, not a hatchback: scaled to
+               # 4.5m its taxi came out 2.9m long and its bus 6.3m.
+               'Civil_Service.usdz': 6.5}
+
+#: Names this library gives to run-together mesh names.
+#:
+#: One pack names its meshes after the vehicle -- which is worth having -- but
+#: as "Rdservtruck_CervicetruckTex_0", and the first word of that is not
+#: something to show a player. Only the compound names actually shipped are
+#: listed; anything not here keeps the artist's word, title-cased.
+NAME_ALIAS = {
+    'garbagetruck': 'Refuse truck',
+    'citybus': 'City bus',
+    'firetruck': 'Fire engine',
+    'policesedan': 'Police car',
+    'rdservtruck': 'Service truck',
+    'towtruck': 'Tow truck',
+    'postvan': 'Post van',
+}
 
 #: The id prefix and name for a pack whose contents are not cars.
 #:
@@ -86,71 +105,17 @@ TYPICAL = 4.5
 
 #: Source variants to leave out, by the hash of their packed geometry.
 #:
-#: Three liveries of the small van have their cab glazing, grille and lamps
-#: painted the body colour in the pack's own texture -- the front of the van is
-#: one flat sheet of red, teal or brown with no windscreen in it. Nothing in
-#: the import can recover what the artist did not put there, and the automatic
-#: test for it ("much less glass than my siblings") threw away good cars to
-#: catch these, so they are named outright instead. The hash is of the geometry
-#: after packing, which is stable across runs.
-DROP_SHAPES = {
-    'd1056e32904a',                        # small van, red livery
-    '5ab7d2f06a62',                        # small van, teal livery
-    'd7830ed2d51b',                        # small van, brown livery
-}
+#: Empty. It held three liveries of one small van whose glazing and lamps were
+#: painted body colour in the atlas; they come back in with the rest of the
+#: pack now that the sampler no longer needs them excluded.
+DROP_SHAPES: set[str] = set()
 
 #: Liveries to leave out, by asset id.
 #:
-#: DROP_SHAPES cannot express these: a livery shares its packed shape with its
-#: siblings, so dropping the shape would take the good cars with it. These are
-#: dropped after naming, so the ones that stay keep the ids they already had --
-#: pulling a livery does not renumber the rest of the pack.
-#:
-#: car.saloon1b's body and glass sample the same band of the atlas, which is
-#: what makes it read as a smear of orange and black rather than a car.
-DROP_MODELS = {
-    'car.saloon1b',
-
-    # Everything from car.crossover3 down the sheet. These are the tail of the
-    # largest pack, where the atlas packs its islands hard against each other
-    # and a facet's UV footprint genuinely straddles two of them -- the
-    # blotching on these is in the source, not in the read of it.
-    'car.crossover3',
-    'car.microvan1',
-    'car.microvan2',
-    'car.microvan1b',
-    'car.microvan2b',
-    'car.crossover3b',
-    'car.microvan3',
-    'car.microvan3b',
-    'car.microvan3c',
-    'car.van4',
-    'car.van4b',
-    'car.van4c',
-    'car.van4d',
-    'car.saloon2',
-    'car.saloon2b',
-    'car.saloon2c',
-    'car.saloon2d',
-    'car.saloon2e',
-    'car.saloon2f',
-    'car.saloon2g',
-    'car.saloon2h',
-    'car.saloon2i',
-    'car.estate4',
-    'car.crossover3c',
-    'car.estate4b',
-    'car.estate4c',
-    'car.estate4d',
-    'car.estate4e',
-    'car.estate4f',
-    'car.crossover3d',
-    'car.crossover3e',
-    'car.crossover3f',
-    'car.crossover3g',
-    'car.crossover3h',
-    'car.microvan1c',
-}
+#: Empty. Unlike DROP_SHAPES this can name one livery of a shared body, which
+#: is what it was for. Both lists stay because the mechanism is worth keeping
+#: for the next pack that ships something unrecoverable.
+DROP_MODELS: set[str] = set()
 
 
 #: What to call a shape, from its measurements.
@@ -191,14 +156,14 @@ def texture_lookup(usdz_path):
 
 
 def material_colour(prim, textures):
-    """(rgb, image) for a mesh: a flat colour, a texture, or a mid grey."""
+    """(rgb, image, texture name) for a mesh: a colour, a texture, or grey."""
     mat = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0]
     if not mat:
-        return (0.6, 0.6, 0.6), None
+        return (0.6, 0.6, 0.6), None, None
     surf = mat.GetSurfaceOutput()
     src = surf.GetConnectedSources()[0] if surf else None
     if not src:
-        return (0.6, 0.6, 0.6), None
+        return (0.6, 0.6, 0.6), None, None
     shader = UsdShade.Shader(src[0].source)
     diff = shader.GetInput('diffuseColor')
     if diff:
@@ -209,11 +174,11 @@ def material_colour(prim, textures):
             if f and f.Get() is not None:
                 name = Path(str(f.Get()).strip('@')).name
                 if name in textures:
-                    return (0.6, 0.6, 0.6), textures[name]
+                    return (0.6, 0.6, 0.6), textures[name], name
         val = diff.Get()
         if val is not None:
-            return (float(val[0]), float(val[1]), float(val[2])), None
-    return (0.6, 0.6, 0.6), None
+            return (float(val[0]), float(val[1]), float(val[2])), None, None
+    return (0.6, 0.6, 0.6), None, None
 
 
 def srgb_to_linear(c):
@@ -230,7 +195,7 @@ def read_mesh(prim, textures):
         return [], None
     xf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
     world = [xf.Transform(Gf.Vec3d(p[0], p[1], p[2])) for p in pts]
-    rgb, img = material_colour(prim, textures)
+    rgb, img, texname = material_colour(prim, textures)
     uvs = None
     for nm in ('primvars:st', 'primvars:st0', 'primvars:UVMap'):
         a = prim.GetAttribute(nm)
@@ -300,7 +265,7 @@ def read_mesh(prim, textures):
     ys = [p[1] for t, _ in tris for p in t]
     zs = [p[2] for t, _ in tris for p in t]
     box = (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)) if tris else None
-    return tris, box
+    return tris, box, texname
 
 
 #: Part words to strip when a mesh name is used to name the vehicle it is
@@ -351,27 +316,31 @@ def name_hint(prim):
     # called "E1 palette".
     if head in GENERIC or len(head) < 3:
         return None
-    label = ' '.join(keep).strip()
+    # The first word only. A mesh called "Garbagetruck_GarbagetruckTex_0"
+    # names its vehicle twice over and its texture once, and joining what
+    # survives the part-word filter produced "Garbagetruck Garbagetrucktex".
+    label = NAME_ALIAS.get(head, keep[0].capitalize())
     return label if len(label) > 2 else None
 
 
 def all_triangles(path):
     """
-    Every triangle in the pack, in world space, with its colour, plus the
-    vehicle name each one's mesh suggests.
+    Every triangle in the pack, in world space, with its colour, the vehicle
+    name each one's mesh suggests, and the texture its mesh reads from.
     """
     stage = Usd.Stage.Open(str(path))
     textures = texture_lookup(path)
-    out, hints = [], []
+    out, hints, texes = [], [], []
     for prim in stage.Traverse():
         if not prim.IsA(UsdGeom.Mesh):
             continue
         if any(skip in str(prim.GetPath()) for skip in SKIP_MESH):
             continue
-        tris = read_mesh(prim, textures)[0]
+        tris, _box, texname = read_mesh(prim, textures)
         out += tris
         hints += [name_hint(prim)] * len(tris)
-    return out, hints
+        texes += [texname] * len(tris)
+    return out, hints, texes
 
 
 def components(tris):
@@ -435,7 +404,7 @@ def vehicles_in(path, whole=False, typical=TYPICAL):
     Surfaces are welded per file but not across cars, so this holds even in the
     pack whose meshes are merged by material across the entire scene.
     """
-    tris, hints = all_triangles(path)
+    tris, hints, texes = all_triangles(path)
     if whole:
         span_all = box_of(range(len(tris)), tris)
         long_side = max(span_all[1] - span_all[0], span_all[5] - span_all[4])
@@ -453,17 +422,48 @@ def vehicles_in(path, whole=False, typical=TYPICAL):
 
     # Overlap has to be a real overlap, not a shared edge, or a row of cars
     # bumper to bumper joins up into one very long vehicle.
-    scale_guess = max(max(b[1] - b[0], b[5] - b[4]) for b in boxes)
-    eps = scale_guess * 0.004
+    #
+    # Measured against the SMALLER of the two footprints, in both axes. A part
+    # of a vehicle -- a wheel, a mirror, a light bar -- sits wholly inside its
+    # vehicle's plan, so it scores 1.0 however small it is, while two vehicles
+    # standing side by side share an edge at most. A bare epsilon here was not
+    # enough: the civil service pack parks its models close, and a fire engine
+    # and a school bus a few centimetres apart came in as one vehicle.
     order = sorted(range(len(groups)), key=lambda i: boxes[i][0])
+
+    # The texture each surface reads from.
+    #
+    # Overlap alone cannot separate two models the pack parked overlapping --
+    # its police cruiser stands half inside an unmarked sedan, and its service
+    # truck inside a flatbed -- because they really do share a plan. But the
+    # pack paints each vehicle from its own image, and two surfaces that read
+    # from different images are never the same vehicle. Where a surface has no
+    # texture at all (a flat-coloured pack) this says nothing and the overlap
+    # rule decides on its own.
+    def tex_of(g):
+        tally = {}
+        for i in g:
+            if texes[i] is not None:
+                tally[texes[i]] = tally.get(texes[i], 0) + 1
+        return max(tally.items(), key=lambda kv: kv[1])[0] if tally else None
+
+    gtex = [tex_of(g) for g in groups]
+
+    def share(a0, a1, b0, b1):
+        span = min(a1 - a0, b1 - b0)
+        return (min(a1, b1) - max(a0, b0)) / max(span, 1e-6)
+
     for a in range(len(order)):
         ba = boxes[order[a]]
         for b in range(a + 1, len(order)):
             bb = boxes[order[b]]
             if bb[0] > ba[1]:
                 break                       # sorted on x: nothing further can touch
-            if min(ba[1], bb[1]) - max(ba[0], bb[0]) > eps and \
-               min(ba[5], bb[5]) - max(ba[4], bb[4]) > eps:
+            ta, tb = gtex[order[a]], gtex[order[b]]
+            if ta is not None and tb is not None and ta != tb:
+                continue
+            if share(ba[0], ba[1], bb[0], bb[1]) > 0.55 and \
+               share(ba[4], ba[5], bb[4], bb[5]) > 0.55:
                 ra, rb = find(order[a]), find(order[b])
                 if ra != rb:
                     parent[ra] = rb
@@ -813,7 +813,17 @@ def main(src_dir, out_path):
         kind = PACK_KIND.get(f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
         for tris, given in zip(groups, names):
-            order, index = pack_vehicle(unbake(despeckle(tris)), scale)
+            # The triangles as read, and nothing else.
+            #
+            # There were two passes here and both are gone. despeckle()
+            # absorbed small regions of colour into their neighbours, and
+            # unbake() lifted the albedo and pushed the chroma. Both were
+            # written for one pack whose atlas has no padding, and both are
+            # damage on a pack that is correctly mapped: a decal, a light lens,
+            # a door line and a livery stripe are exactly the small regions
+            # despeckle ate, and unbake turned a correctly exposed texture into
+            # a garish one. The rule now is the file as the artist shipped it.
+            order, index = pack_vehicle(tris, scale)
             # Two hashes, doing two different jobs. The loose one groups
             # liveries of one body so they get one name and one number, and it
             # has to ignore triangle order to do that. The strict one decides
@@ -846,41 +856,12 @@ def main(src_dir, out_path):
         counts[key] = n = counts.get(key, 0) + 1
         named[geo] = (prefix, key, label, n)
 
-    # Some liveries in these packs have their glass painted the body colour --
-    # the windscreen, the side windows and the light lenses all sample the same
-    # patch of the atlas as the panels do. On its own that is indistinguishable
-    # from a car with very dark glass, so it is judged against its own
-    # siblings: liveries of one body share geometry, so if some of them have a
-    # neutral mid-grey glazing material and others have none at all, the ones
-    # with none have broken UVs rather than tinted windows.
-    # Deliberately conservative. An earlier, looser version of this threw away
-    # thirteen liveries to catch three, including some of the best in the pack:
-    # "less glass than my siblings" is a weak signal because a livery may
-    # legitimately have darker glass, and the strong signal -- essentially none
-    # at all -- is the only one worth acting on automatically.
-    def glazed(order):
-        n = 0
-        for v in order:
-            lum = 0.2126 * v[3] + 0.7152 * v[4] + 0.0722 * v[5]
-            hi, lo = max(v[3], v[4], v[5]), min(v[3], v[4], v[5])
-            sat = (hi - lo) / max(hi, 1e-6)
-            if 0.10 < lum < 0.62 and sat < 0.18:
-                n += 1
-        return n / max(len(order), 1)
-
-    glass = {}
-    for norm, _geo, order, _index, _given, _kind in found:
-        glass.setdefault(norm, []).append(glazed(order))
+    # There was a heuristic here that dropped a livery whose glazing was
+    # painted body colour in the atlas -- "much less glass than my siblings".
+    # It is gone. It was always a guess, it cost good cars to catch bad ones,
+    # and the packs are now taken whole; where a livery really is unrecoverable
+    # it goes in DROP_MODELS by name instead of being sniffed out.
     broken = set()
-    for norm, fracs in glass.items():
-        best = max(fracs)
-        if best < 0.10 or len(fracs) < 2:
-            continue                       # nothing to compare against
-        for i, f in enumerate(fracs):
-            if f < best * 0.25:
-                broken.add((norm, i))
-    if broken:
-        print(f'  dropping {len(broken)} liveries whose glass is painted body colour')
 
     shapes, models, seen = {}, {}, {}
     livery, dupes = {}, set()

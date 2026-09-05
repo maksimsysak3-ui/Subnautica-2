@@ -753,8 +753,23 @@ for (const id of IMPORTED_IDS) {
   // picks its car by index would eventually put a 787 in one.
   if (!id.startsWith('car.')) continue;
   const cls = id.replace(/^car\./, '').replace(/[0-9].*$/, '');
-  if (cls === 'van' || cls === 'microvan') { POOL.van.ids.push(id); POOL.truck.ids.push(id); POOL.bus.ids.push(id); }
-  else POOL.car.ids.push(id);
+  // Which bays a model may stand in. Before the civil service pack this was
+  // one test -- van or not -- because a van was the only thing in the library
+  // longer than a car, and every depot, yard and loading bay drew one. There
+  // are now a refuse truck, a fire engine and a bus, and a bay that asks for a
+  // truck should get one rather than a Transit.
+  if (cls === 'citybus') POOL.bus.ids.push(id);
+  else if (cls === 'garbage' || cls === 'fire' || cls === 'towtruck' || cls === 'truck') {
+    POOL.truck.ids.push(id);
+  } else if (cls === 'van' || cls === 'microvan' || cls === 'postvan' || cls === 'servicetruck') {
+    POOL.van.ids.push(id);
+    POOL.truck.ids.push(id);
+  } else POOL.car.ids.push(id);
+}
+// A bay never draws nothing: where a pack left a class empty, it falls back to
+// the next size down rather than leaving the bay bare.
+for (const [pool, fallback] of [[POOL.bus, POOL.truck], [POOL.truck, POOL.van], [POOL.van, POOL.car]] as const) {
+  if (pool.ids.length === 0) pool.ids.push(...fallback.ids);
 }
 
 /**
@@ -906,7 +921,11 @@ const road = (jobs: number): AssetDef['sim'] => ({
  */
 const fleetOf = (id: string): AssetDef => {
   const [hx, hy, hz] = importedSize(id);
-  const cells = (v: number): number => Math.max(1, Math.ceil((v * 2 + 1.6) / CELL));
+  // 1.8 rather than 1.6 of margin: the pad is drawn at hx + 0.9 a side, so a
+  // model whose length lands exactly on a cell boundary asks for a lot the
+  // width of its own pad and fails containment by nothing at all. The
+  // ambulance is 4.75m from centre and did exactly that.
+  const cells = (v: number): number => Math.max(1, Math.ceil((v * 2 + 1.8) / CELL));
   return {
     id,
     name: importedName(id),
