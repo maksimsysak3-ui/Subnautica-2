@@ -16,6 +16,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
 import { parkedVehicle, figure } from './vehicles';
+import { tree } from './landscape';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet, portal, railing,
@@ -1314,6 +1315,38 @@ function sewageWorks(lod: number): MeshBuilder {
     });
     for (let i = 0; i < 2; i++) parkedVehicle(m, 4610 + i * 13, -34.0 + i * 7.0, 12.0, 1, 'truck');
     kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
+    // Sludge drying beds along the south boundary: shallow walled pans, which
+    // is the stage between the digesters and a lorry leaving.
+    for (let i = 0; i < 5; i++) {
+      const cx = -40.0 + i * 8.4;
+      m.box([cx, 0.1, -33.0], [cx + 7.2, 1.1, -25.0], MAT.CONCRETE);
+      m.box([cx + 0.5, 0.1, -32.5], [cx + 6.7, 0.75, -25.5], MAT.GROUND);
+    }
+    // A storm tank in the corner the digesters left empty.
+    m.cylinder(38.0, 22.0, 8.0, 0.1, 4.4, 18, MAT.CONCRETE, false);
+    m.cylinder(38.0, 22.0, 7.4, 0.1, 3.8, 18, MAT.GLASS, true);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([30.0, 4.4, 21.5], [46.0, 4.9, 22.5], MAT.TRIM);
+      for (const px of [30.0, 46.0]) m.box([px - 0.5, 0.1, 21.4], [px + 0.5, 4.4, 22.6], MAT.TRIM);
+    });
+    for (const py of [1.4, 2.6]) pipeRun(m, [29.0, py, 22.0], [30.0, py, 22.0], 0.45, 2);
+    // Palisade fence round the site, which every works has and which is what
+    // makes the empty ground read as a compound rather than as a field.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 28; i++) {
+        const px = -x + (i / 28) * (x * 2);
+        for (const pz of [-z + 0.2, z - 0.2]) m.box([px - 0.08, 0.1, pz - 0.08], [px + 0.08, 2.6, pz + 0.08], MAT.TRIM);
+      }
+      for (let i = 0; i <= 20; i++) {
+        const pz = -z + (i / 20) * (z * 2);
+        for (const px of [-x + 0.2, x - 0.2]) m.box([px - 0.08, 0.1, pz - 0.08], [px + 0.08, 2.6, pz + 0.08], MAT.TRIM);
+      }
+      for (const pz of [-z + 0.2, z - 0.2]) m.box([-x, 2.35, pz - 0.04], [x, 2.5, pz + 0.04], MAT.TRIM);
+      for (const px of [-x + 0.2, x - 0.2]) m.box([px - 0.04, 2.35, -z], [px + 0.04, 2.5, z], MAT.TRIM);
+    });
+    // Screening trees inside the fence on the two open sides.
+    for (let i = 0; i < 6; i++) tree(m, -42.0 + i * 5.0, -z + 3.4, 6.2, 1.7);
+    for (let i = 0; i < 4; i++) tree(m, x - 3.4, -26.0 + i * 5.0, 6.2, 1.7);
   }
   return m;
 }

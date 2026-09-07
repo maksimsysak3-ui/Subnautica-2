@@ -773,38 +773,19 @@ for (const [pool, fallback] of [[POOL.bus, POOL.truck], [POOL.truck, POOL.van], 
 }
 
 /**
- * A parked vehicle, facing along +x before placement.
+ * A parked vehicle in a yard, forecourt or bay -- currently a no-op.
  *
- * `turns` is quarter turns, the same convention as MeshBuilder.placed, so a
- * bay facing the street is 0 or 2 and one facing across it is 1 or 3. `key`
- * picks which vehicle; pass the same key twice and you get the same one twice,
- * which is what you do not want in a row of bays.
- *
- * This used to build a car out of a loft and four wheels, which is what put a
- * pink lozenge in every yard and forecourt. It now draws one of the imported
- * models, scaled to the length the bay expects -- so the seventy-odd places in
- * the library that park a car get the same vehicles the fleet does, from one
- * change here.
+ * See the body: the static cars are removed on purpose, and every call site is
+ * left in place as a marker for where the game's own traffic will stand.
  */
 export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: number,
   turns: number, kind: ParkedKind = 'car', body?: number): void {
-  void body;
-  const pool = POOL[kind];
-  if (pool.ids.length === 0) return;
-  const k = Math.abs(Math.round(key));
-  const id = pool.ids[k % pool.ids.length];
-  // Drawn at its own size. The importer already scales each pack so its
-  // median vehicle is 4.5m, so a van is longer than a hatchback and a truck
-  // longer again -- stretching every model to a fixed bay length threw that
-  // away and made a forecourt a row of identically sized boxes.
-  //
-  // The clustered copy, always. Full models here were tried and measured: a
-  // works yard parks a dozen cars and went to fifty-four thousand triangles,
-  // more than the stadium, for vehicles nobody is looking at. The clustering
-  // costs a tenth of that and is indistinguishable at the size a car occupies
-  // beside a building. The one place the full model earns its keep is the
-  // fleet viewer, which draws it already.
-  drawImported(m, id, { cx, cz, turns, low: true });
+  // Deliberately draws nothing. Buildings used to park imported cars in their
+  // yards and forecourts; traffic is going to be placed by the game itself
+  // instead, so the static ones are gone rather than fighting the real cars
+  // for the same bay. The call sites all stay -- they mark where a vehicle
+  // belongs, and are what this will be re-pointed at when that lands.
+  void m; void key; void cx; void cz; void turns; void kind; void body;
 }
 
 /**

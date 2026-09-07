@@ -12,11 +12,55 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import { parkedVehicle, figure } from './vehicles';
+import { container, racking, pallet, crate, drum } from './freight';
+import { tree, bench, hedge } from './landscape';
 
 import {
   band, bollards, boxSign, entrance, frontage, kerb, louvres, parapet,
   planter, railing, ribbon, ring, roofClutter, serviceYard, windowGrid,
 } from '../parts';
+
+/**
+ * A garden of remembrance: hedged beds, a path, benches and memorial plaques.
+ *
+ * Both death-care buildings need one, and both were leaning on parked cars for
+ * the space around them. A crematorium with an empty forecourt is a shed; the
+ * garden is the half of the building people actually stand in.
+ */
+function remembrance(m: MeshBuilder, x0: number, x1: number, z0: number, z1: number,
+  seed: number): void {
+  const w = x1 - x0, d = z1 - z0;
+  m.box([x0, 0.01, z0], [x1, 0.06, z1], MAT.GROUND);
+  // A gravel path down the middle, with a bed either side of it.
+  m.painted(TINT.NONE, () => m.box([x0 + w * 0.44, 0.06, z0], [x0 + w * 0.56, 0.1, z1], MAT.CONCRETE));
+  for (const [a, b] of [[x0 + 0.6, x0 + w * 0.4], [x0 + w * 0.6, x1 - 0.6]] as const) {
+    hedge(m, a, z0 + 0.6, b, z0 + 1.1, 0.75);
+    hedge(m, a, z1 - 1.1, b, z1 - 0.6, 0.75);
+    hedge(m, a, z0 + 1.1, a + 0.5, z1 - 1.1, 0.75);
+    hedge(m, b - 0.5, z0 + 1.1, b, z1 - 1.1, 0.75);
+    m.painted(TINT.GREEN, () =>
+      m.box([a + 0.5, 0.06, z0 + 1.1], [b - 0.5, 0.34, z1 - 1.1], MAT.TRIM));
+  }
+  for (let i = 0; i < 3; i++) {
+    const t = (i + 0.5) / 3;
+    tree(m, x0 + 0.3, z0 + t * d, 5.4 + (seed + i) % 3 * 0.6, 1.5);
+    tree(m, x1 - 0.3, z0 + t * d, 5.4 + (seed + i * 2) % 3 * 0.6, 1.5);
+  }
+  for (let i = 0; i < 4; i++) {
+    bench(m, x0 + w * (i % 2 === 0 ? 0.36 : 0.64), z0 + 1.8 + Math.floor(i / 2) * (d - 3.6),
+      i % 2 === 0 ? 1 : 3);
+  }
+  // Plaques set flat in the low wall along the far edge, which is what a
+  // garden of remembrance is for.
+  m.box([x0, 0, z1], [x1, 0.62, z1 + 0.4], MAT.STONE);
+  m.painted(TINT.METAL_DARK, () => {
+    const n = Math.max(4, Math.floor(w / 0.9));
+    for (let i = 0; i < n; i++) {
+      const px = x0 + 0.3 + (i + 0.5) * ((w - 0.6) / n);
+      m.box([px - 0.32, 0.58, z1 + 0.06], [px + 0.32, 0.64, z1 + 0.34], MAT.TRIM);
+    }
+  });
+}
 
 /** A colonnade of square columns carrying a beam: a portico without a pediment. */
 function colonnade(m: MeshBuilder, x0: number, x1: number, z: number, depth: number,
@@ -124,6 +168,7 @@ function crematorium(lod: number): MeshBuilder {
     parkedVehicle(m, 9117, -3.0, -z - 5.0, 0, 'car');
     parkedVehicle(m, 9133, 2.0, -z - 5.0, 0, 'van');
     kerb(m, -x, -z - 7.4, x, -z - 6.6);
+    remembrance(m, x + 1.4, x + 8.2, -z + 2.0, z + 11.0, 9160);
     figure(m, 9140, -5.4, -z - 3.2, Math.PI / 2, {});
     figure(m, 9151, -4.6, -z - 3.4, -Math.PI / 2, {});
   }
@@ -290,6 +335,8 @@ function funeralDirector(lod: number): MeshBuilder {
     // a funeral director is a garage and a chapel behind a quiet frontage.
     parkedVehicle(m, 9201, -4.0, -z - 11.6, 2, 'car');
     parkedVehicle(m, 9207, 1.2, -z - 11.6, 2, 'van');
+    // A small walled garden beside the chapel, for the same reason.
+    remembrance(m, x + 1.2, x + 7.6, -z - 6.0, z + 2.0, 9220);
     m.box([-x - 0.4, 0, -z - 12.6], [-x, 2.2, -z], MAT.STONE);
     m.box([x - 2.0, 0, -z - 12.6], [x - 1.6, 2.2, -z], MAT.STONE);
     m.box([-x - 0.4, 0, -z - 13.0], [x - 1.6, 2.2, -z - 12.6], MAT.STONE);
@@ -439,6 +486,14 @@ function postOffice(lod: number): MeshBuilder {
     });
     parkedVehicle(m, 9401, -5.0, -z - 10.6, 2, 'van');
     parkedVehicle(m, 9417, 1.0, -z - 10.6, 2, 'van');
+    // The sorting side of a post office, which is most of it: frames of mail
+    // in the rear hall and the parcels waiting to go out on the apron.
+    racking(m, -x + 1.0, x - 4.0, -z - 3.6, 5, 2, 941);
+    for (let i = 0; i < 5; i++) {
+      pallet(m, -x + 2.0 + i * 1.5, 0.02, -z - 9.4, 0);
+      crate(m, -x + 2.0 + i * 1.5, 0.16, -z - 9.4, 1.05, 0.7, 0.6 + (i % 3) * 0.3);
+    }
+    for (let i = 0; i < 4; i++) drum(m, x - 1.6, -z - 2.0 - (i % 2) * 0.7, 0.02, TINT.METAL_DARK);
     frontage(m, -x, x, z + 0.4, 9420, { planters: 2, bollards: 6 });
     figure(m, 9430, -3.0, z + 1.6, Math.PI, { bag: true });
     roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h, 9440, 0.4);
@@ -490,6 +545,14 @@ function deliveryOffice(lod: number): MeshBuilder {
       }
     });
     for (let i = 0; i < 4; i++) parkedVehicle(m, 9500 + i * 13, -x + 8.0 + i * 5.0, z + 8.6, 0, 'van');
+    // Racking down the back wall inside, and pallets of parcels made up on the
+    // apron -- the work of the building, which the vans only carried away.
+    racking(m, -x + 2.0, x - 2.0, -z + 2.4, 7, 3, 953);
+    for (let i = 0; i < 6; i++) {
+      const px = -x + 17.0 + (i % 3) * 1.6, pz = z + 1.0 + Math.floor(i / 3) * 1.6;
+      pallet(m, px, 0.02, pz, 0);
+      crate(m, px, 0.16, pz, 1.05, 0.7, 0.7 + (i % 2) * 0.4);
+    }
     serviceYard(m, -x, x, -z - 8.0, 9520, { bins: true, cycles: true });
     roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h, 9530, 0.7);
   }
@@ -540,6 +603,14 @@ function sortingCentre(lod: number): MeshBuilder {
     louvres(m, { axis: 'x', sign: 1, plane: x }, -z + 2.0, -z + 3.6, 7.0, 10.0, 6);
     for (let i = 0; i < 4; i++) {
       parkedVehicle(m, 9600 + i * 17, -x + 12.0 + i * 7.0, z + 10.0, 0, 'truck');
+    }
+    // Swap bodies dropped in the yard and a stack of empties at the back: what
+    // a sorting centre's apron actually holds between shifts.
+    for (let i = 0; i < 3; i++) container(m, -x + 13.0 + i * 7.0, 0.08, z + 14.5, false, 960 + i * 7, false);
+    for (let i = 0; i < 2; i++) container(m, x - 6.0, i * 2.59 + 0.08, -z + 12.0, true, 970 + i * 5, true);
+    for (let i = 0; i < 4; i++) {
+      pallet(m, -x + 14.0 + i * 1.5, 0.02, z + 5.4, 0);
+      crate(m, -x + 14.0 + i * 1.5, 0.16, z + 5.4, 1.05, 0.7, 0.8);
     }
     for (const px of [-x + 4.0, x - 4.0]) {
       m.painted(TINT.METAL_DARK, () => {

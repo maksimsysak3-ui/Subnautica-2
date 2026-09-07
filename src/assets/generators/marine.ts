@@ -19,9 +19,10 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
-import type { Material, Tint, Vec3 } from '../mesh';
+import type { Material, Vec3 } from '../mesh';
 import { railing } from '../parts';
 import { figure } from './vehicles';
+import { container, pallet, drum, crate } from './freight';
 
 // --------------------------------------------------------------------- hulls
 
@@ -295,93 +296,9 @@ function fenders(m: MeshBuilder, h: Hull, x0: number, x1: number, count: number)
 }
 
 // ------------------------------------------------------------------ freight
+// (the boxes themselves live in freight.ts -- every yard in the library wants
+// them, not only the quayside.)
 
-/** One ISO container. `key` picks its colour; `long` is a forty-foot box. */
-function container(m: MeshBuilder, x: number, y: number, z: number, long: boolean, key: number,
-  turned = false, plain = false): void {
-  const L = long ? 12.19 : 6.06, W = 2.44, H = 2.59;
-  const hx = (turned ? W : L) / 2, hz = (turned ? L : W) / 2;
-  m.keyed(key, () => {
-    m.box([x - hx, y, z - hz], [x + hx, y + H, z + hz], MAT.CONTAINER, { roof: MAT.CONTAINER });
-    // Corner castings. They are what a stack actually rests on, and the gap
-    // they leave between boxes is the reason a stack does not read as one
-    // striped block. Skipped on a ship's deck cargo: two hundred boxes seen
-    // from the quayside is the one place the castings are not worth eighty
-    // triangles each, and it is the difference between fitting the budget and
-    // not.
-    if (plain) {
-      // One dark rail across the top instead. It costs a tenth of the castings
-      // and does the job they were there for: it draws the line between one
-      // box and the one stacked on it, so a bay reads as boxes rather than as
-      // a striped block.
-      m.painted(TINT.METAL_DARK, () => {
-        m.box([x - hx, y + H - 0.16, z - hz - 0.03], [x + hx, y + H, z + hz + 0.03], MAT.TRIM);
-      });
-      return;
-    }
-    m.painted(TINT.METAL_DARK, () => {
-      for (const sx of [-1, 1]) {
-        for (const sz of [-1, 1]) {
-          m.box([x + sx * hx - 0.3, y, z + sz * hz - 0.3],
-                [x + sx * hx + 0.3, y + 0.22, z + sz * hz + 0.3], MAT.TRIM);
-          m.box([x + sx * hx - 0.3, y + H - 0.22, z + sz * hz - 0.3],
-                [x + sx * hx + 0.3, y + H, z + sz * hz + 0.3], MAT.TRIM);
-        }
-      }
-      // Doors at one end: two leaves with four locking bars each.
-      const dx = turned ? 0 : hx, dz = turned ? hz : 0;
-      for (let i = 0; i < 4; i++) {
-        const u = (-0.72 + i * 0.48) * (turned ? 1 : 1);
-        const bx = turned ? x + u : x + dx + 0.05;
-        const bz = turned ? z + dz + 0.05 : z + u;
-        m.box([bx - (turned ? 0.05 : 0.06), y + 0.2, bz - (turned ? 0.06 : 0.05)],
-              [bx + (turned ? 0.05 : 0.06), y + H - 0.2, bz + (turned ? 0.06 : 0.05)], MAT.TRIM);
-      }
-    });
-  });
-}
-
-/** A euro pallet, with stringers you can see daylight through. */
-function pallet(m: MeshBuilder, x: number, y: number, z: number, turns: 0 | 1 = 0): void {
-  const L = turns ? 0.8 : 1.2, W = turns ? 1.2 : 0.8;
-  m.painted(TINT.WOOD, () => {
-    for (let i = 0; i < 3; i++) {
-      const u = -L / 2 + 0.09 + (i / 2) * (L - 0.18);
-      m.box([x + u - 0.08, y, z - W / 2], [x + u + 0.08, y + 0.1, z + W / 2], MAT.TIMBER);
-    }
-    for (let i = 0; i < 5; i++) {
-      const v = -W / 2 + (i / 4) * (W - 0.11);
-      m.box([x - L / 2, y + 0.1, z + v], [x + L / 2, y + 0.145, z + v + 0.11], MAT.TIMBER);
-    }
-  });
-}
-
-/** A drum, banded. */
-function drum(m: MeshBuilder, x: number, z: number, y: number, tint: Tint): void {
-  m.painted(tint, () => {
-    m.cylinder(x, z, 0.29, y, y + 0.88, 10, MAT.PAINT);
-  });
-  m.painted(TINT.METAL_DARK, () => {
-    m.cylinder(x, z, 0.31, y + 0.24, y + 0.32, 10, MAT.TRIM, false);
-    m.cylinder(x, z, 0.31, y + 0.56, y + 0.64, 10, MAT.TRIM, false);
-  });
-}
-
-/** A timber crate: boards, corner posts and a diagonal brace. */
-function crate(m: MeshBuilder, x: number, y: number, z: number, w: number, d: number, h: number): void {
-  m.painted(TINT.WOOD, () => {
-    m.box([x - w / 2, y, z - d / 2], [x + w / 2, y + h, z + d / 2], MAT.TIMBER, { roof: MAT.TIMBER });
-    for (const sx of [-1, 1]) {
-      m.box([x + sx * w / 2 - 0.07, y, z - d / 2 - 0.05],
-            [x + sx * w / 2 + 0.07, y + h, z + d / 2 + 0.05], MAT.TIMBER);
-      m.box([x - w / 2 - 0.05, y, z + sx * d / 2 - 0.07],
-            [x + w / 2 + 0.05, y + h, z + sx * d / 2 + 0.07], MAT.TIMBER);
-    }
-    for (const yy of [y + h * 0.18, y + h * 0.82]) {
-      m.box([x - w / 2 - 0.05, yy, z - d / 2 - 0.05], [x + w / 2 + 0.05, yy + 0.1, z + d / 2 + 0.05], MAT.TIMBER);
-    }
-  });
-}
 
 /** The concrete a yard stands on. */
 function apron(m: MeshBuilder, x: number, z: number): void {

@@ -31,6 +31,7 @@ import {
 } from '../parts';
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
+import { container, racking, stockpile, drum, crate, pallet } from './freight';
 
 // -------------------------------------------------------------- commercial
 
@@ -696,6 +697,19 @@ function yard(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       y0: 0.2, y1: 5.0, glass: MAT.TRIM, frame: 0.18, proud: 0.1 }));
     for (let i = 0; i < 2; i++) parkedVehicle(m, seed * 5 + i, -x + 13.0 + i * 8.0, -z + 3.4, 0, 'truck');
     parkedVehicle(m, seed + 21, -x + 4.5, -z + 12.0, 0, 'van');
+    // What is actually stored here. A storage yard whose stock was a row of
+    // parked lorries had nothing in it once the lorries went; this is the
+    // stock, and it is the reason to build the yard.
+    racking(m, 3.5, 14.5, -z + 8.1, 4, 3, seed);
+    for (let i = 0; i < 2; i++) container(m, 10.5, i * 2.59 + 0.08, 6.5, false, seed + i * 5, true);
+    stockpile(m, -x + 5.0, z - 4.2, 9.0, 5.4, 2.2, TINT.WOOD);
+    for (let i = 0; i < 6; i++) {
+      drum(m, x - 2.2 - (i % 3) * 0.66, 2.4 + Math.floor(i / 3) * 0.66, 0.08, i % 2 ? TINT.METAL_DARK : TINT.WOOD);
+    }
+    for (let i = 0; i < 3; i++) {
+      crate(m, -x + 12.5, 0.08, -z + 12.0 + i * 1.9, 1.6, 1.4, 1.1 + (i % 2) * 0.4);
+      pallet(m, -x + 15.0, 0.08, -z + 12.4 + i * 1.6, 1);
+    }
   }
   return m;
 }
