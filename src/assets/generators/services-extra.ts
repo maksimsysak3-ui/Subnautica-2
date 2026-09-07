@@ -368,6 +368,20 @@ function nursery(lod: number): MeshBuilder {
     slopedSlab(m, [[-x + 0.6, wall + 1.9, -z + 8.0], [-x + 0.6, wall + 0.3, z - 1.0],
       [-x + 8.4, wall + 0.3, z - 1.0], [-x + 8.4, wall + 1.9, -z + 8.0]], 0.28, MAT.METAL, MAT.CLADDING);
     m.box([-x + 0.6, wall + 1.75, -z + 0.2], [x - 0.6, wall + 2.0, -z + 1.0], MAT.CONCRETE);
+    // Rooflights and vents on the ridge. A nursery is a single storey seen
+    // mostly from above, so an empty roof plane is most of what you look at.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 5; i++) {
+        const cx = -x + 4.0 + i * 6.4;
+        m.box([cx - 1.5, wall + 1.9, -z + 1.4], [cx + 1.5, wall + 2.05, -z + 3.4], MAT.TRIM);
+        m.box([cx - 1.3, wall + 2.05, -z + 1.6], [cx + 1.3, wall + 2.5, -z + 3.2], MAT.GLASS);
+      }
+      for (let i = 0; i < 3; i++) {
+        const cx = -x + 6.0 + i * 10.0;
+        m.cylinder(cx, -z + 0.6, 0.34, wall + 2.0, wall + 2.9, 8, MAT.TRIM, false);
+        m.cone(cx, -z + 0.6, 0.52, 0.1, wall + 2.9, wall + 3.3, 8, MAT.TRIM);
+      }
+    });
     // The covered play deck: a canopy on bright posts, which is the whole idea.
     m.box([-x + 8.0, 2.9, -z + 8.0], [x - 3.0, 3.2, z - 4.0], MAT.METAL);
     m.painted(TINT.ACCENT, () => {

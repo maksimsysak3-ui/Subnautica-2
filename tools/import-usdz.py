@@ -343,11 +343,136 @@ def read_mesh(prim, textures):
             else:
                 groups.append([1, t, t])
         best = max(groups, key=lambda g: g[0])
+        # A flank covered in fine lines -- the school bus has four rub rails
+        # and two rows of rivets across one panel -- is not a boundary and not
+        # a flat colour. The mode picks whichever line happened to win the
+        # samples and paints the whole facet black, which is where the sawtooth
+        # down its side came from. Averaging everything instead gives the
+        # slightly darker yellow the panel actually reads as from any distance,
+        # which is the honest answer when the detail is finer than a facet.
+        if best[0] < len(hits) * 0.55:
+            avg = tuple(int(round(sum(t[i] for t in hits) / len(hits))) for i in range(3))
+            return avg, 1.0
         # The mean of the winning group, not one sample of it: within a group
         # the spread is JPEG noise, and averaging it out is the one place a
         # mean is the right answer.
         texel = tuple(int(round(c / best[0])) for c in best[1])
         return texel, best[0] / len(hits)
+
+    def blur(uv):
+        """A texel and its neighbours, averaged. Point-sampling a JPEG lies."""
+        acc, n, clear = [0, 0, 0], 0, 0
+        for du in (-0.6, 0.0, 0.6):
+            for dv in (-0.6, 0.0, 0.6):
+                texel, alpha = sample((uv[0] + du / img.width, uv[1] + dv / img.height))
+                if alpha < 128:
+                    clear += 1
+                    continue
+                for i in range(3):
+                    acc[i] += texel[i]
+                n += 1
+        if n == 0:
+            return None
+        return tuple(acc[i] / n for i in range(3))
+
+    def two(pa, pb, pc):
+        """
+        The two colours covering a facet, if that is what covers it.
+
+        Returns (major, minor) means, or None when the facet is one colour, is
+        transparent, or is a mess of more than two. A stripe, a shut line and a
+        window frame all land here: two flat colours with a straight edge
+        between them.
+        """
+        hits = []
+        for wa, wb, wc in SPREAD:
+            uv = (pa[0] * wa + pb[0] * wb + pc[0] * wc,
+                  pa[1] * wa + pb[1] * wb + pc[1] * wc)
+            texel, alpha = sample(uv)
+            if alpha >= 128:
+                hits.append(texel)
+        if len(hits) < len(SPREAD) * 0.9:
+            return None
+        groups = []
+        for t in hits:
+            for g in groups:
+                if max(abs(t[i] - g[2][i]) for i in range(3)) <= NOISE:
+                    g[0] += 1
+                    g[1] = tuple(g[1][i] + t[i] for i in range(3))
+                    break
+            else:
+                groups.append([1, t, t])
+        groups.sort(key=lambda g: -g[0])
+        if len(groups) < 2:
+            return None
+        # The two of them have to be nearly all of it. Three colours on one
+        # facet is a corner, not an edge, and a single straight cut would be a
+        # worse answer there than four sub-facets.
+        if (groups[0][0] + groups[1][0]) < len(hits) * 0.94:
+            return None
+        return tuple(tuple(g[1][i] / g[0] for i in range(3)) for g in groups[:2])
+
+    def cut(pos, uv, out):
+        """
+        Split a two-colour facet along the line the colours actually meet on.
+
+        This is what a thin stripe needs. Midpoint subdivision can only decide
+        which colour a whole sub-facet is, so a ten-centimetre rub rail on a
+        metre-long panel comes out as a sawtooth however deep you go -- each
+        level halves the teeth and never removes them. Cutting on the boundary
+        instead finds where along each edge the colour changes, to within a
+        two-hundred-and-fiftieth of the edge, and splits there: one straight
+        line down the flank, three facets instead of sixteen.
+        """
+        pair = two(*uv)
+        if pair is None:
+            return False
+        major, minor = pair
+
+        def which(p):
+            t = blur(p)
+            if t is None:
+                return None
+            dj = max(abs(t[i] - major[i]) for i in range(3))
+            dn = max(abs(t[i] - minor[i]) for i in range(3))
+            return 0 if dj <= dn else 1
+
+        side = [which(p) for p in uv]
+        if None in side or len(set(side)) != 2:
+            return False                # the corners do not straddle the edge
+        # The odd corner out, and the two edges leaving it that get cut.
+        odd = side.index(side[0] if side.count(side[0]) == 1 else side[1])
+        a, b = (odd + 1) % 3, (odd + 2) % 3
+
+        def crossing(i, j):
+            """Where along edge i->j the colour changes, by bisection."""
+            lo, hi = 0.0, 1.0
+            for _ in range(8):
+                t = (lo + hi) / 2
+                w = which((uv[i][0] + (uv[j][0] - uv[i][0]) * t,
+                           uv[i][1] + (uv[j][1] - uv[i][1]) * t))
+                if w is None or w == side[i]:
+                    lo = t
+                else:
+                    hi = t
+            return (lo + hi) / 2
+
+        ta, tb = crossing(odd, a), crossing(odd, b)
+        # A crossing hard against a corner is not an edge across the facet, it
+        # is one corner sampling the neighbouring panel. Leave those to the
+        # midpoint path rather than emitting a sliver.
+        if not (0.04 < ta < 0.96 and 0.04 < tb < 0.96):
+            return False
+
+        def lerp(u, v, t):
+            return tuple(u[k] + (v[k] - u[k]) * t for k in range(len(u)))
+
+        pa, pb = lerp(pos[odd], pos[a], ta), lerp(pos[odd], pos[b], tb)
+        emit(out, (pos[odd], pa, pb), major if side[odd] == 0 else minor)
+        far = minor if side[odd] == 0 else major
+        emit(out, (pa, pos[a], pos[b]), far)
+        emit(out, (pa, pos[b], pb), far)
+        return True
 
     #: How far apart two samples may be and still be the same panel, per
     #: channel out of 255. Wide enough to swallow JPEG ringing on a flat
@@ -365,7 +490,15 @@ def read_mesh(prim, textures):
     #: resolve a stripe at all -- they can only decide whether to paint the
     #: whole facet.
     #:
-    #: Bodywork goes two. Three was tried, against the school bus's rub rail:
+    #: Bodywork goes two, and does not need more: a facet that straddles a
+    #: single boundary is cut on the boundary rather than at its midpoints
+    #: (see cut()), and a facet whose detail is finer than a boundary is
+    #: averaged rather than voted on (see vote()). Four was measured against
+    #: the school bus with both of those in place and made the flank worse,
+    #: not better, at forty thousand triangles against fifteen.
+    #:
+    #: The old argument, kept because it is the reason the two above exist:
+    #: three was tried, against the school bus's rub rail:
     #: ten centimetres of black on a facet a metre long, which at two levels
     #: the sub-facets straddle, so the mode picks black for some and yellow for
     #: others and the stripe comes out as a sawtooth down the flank. Three made
@@ -374,6 +507,23 @@ def read_mesh(prim, textures):
     #: one colour per facet, and more subdivision buys a smaller version of the
     #: same artefact rather than fixing it.
     DEPTH = 5 if decal else 2
+
+    def emit(out, pos, texel):
+        """One flat-coloured facet, lifted clear of the panel if it is a decal."""
+        col = tuple(srgb_to_linear(q / 255.0) for q in texel)
+        pts = [world_of(p) for p in pos]
+        if decal:
+            # Lift it clear of the bodywork along its own normal. A decal
+            # is modelled in the same plane as the panel it is printed on,
+            # and coplanar surfaces flicker.
+            ux, uy, uz = (pts[1][i] - pts[0][i] for i in range(3))
+            vx, vy, vz = (pts[2][i] - pts[0][i] for i in range(3))
+            nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+            ln = (nx * nx + ny * ny + nz * nz) ** 0.5
+            if ln > 1e-9:
+                d = LIFT / ln
+                pts = [(q[0] + nx * d, q[1] + ny * d, q[2] + nz * d) for q in pts]
+        out.append((pts, [col, col, col]))
 
     def split(pos, uv, depth, out):   # noqa: kept for subdivide() below
         """
@@ -394,21 +544,14 @@ def read_mesh(prim, textures):
         if texel is None:
             return                      # transparent decal: nothing to draw
         if agree >= AGREE or depth >= DEPTH:
-            col = tuple(srgb_to_linear(q / 255.0) for q in texel)
-            pts = [world_of(p) for p in pos]
-            if decal:
-                # Lift it clear of the bodywork along its own normal. A decal
-                # is modelled in the same plane as the panel it is printed on,
-                # and coplanar surfaces flicker.
-                ux, uy, uz = (pts[1][i] - pts[0][i] for i in range(3))
-                vx, vy, vz = (pts[2][i] - pts[0][i] for i in range(3))
-                nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
-                ln = (nx * nx + ny * ny + nz * nz) ** 0.5
-                if ln > 1e-9:
-                    d = LIFT / ln
-                    pts = [(q[0] + nx * d, q[1] + ny * d, q[2] + nz * d) for q in pts]
-            out.append((pts, [col, col, col]))
+            emit(out, pos, texel)
             return
+        # A facet of exactly two colours is cut on the line between them, which
+        # is a straight stripe rather than a staircase. Only bodywork: a decal
+        # is a shape, not a boundary, and the midpoint path resolves it better.
+        if not decal and cut(pos, uv, out):
+            return
+        mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
         mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
         mu = [mid2(uv[1], uv[2]), mid2(uv[2], uv[0]), mid2(uv[0], uv[1])]
         split((pos[0], mp[2], mp[1]), (uv[0], mu[2], mu[1]), depth + 1, out)
