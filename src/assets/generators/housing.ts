@@ -51,7 +51,11 @@ function house(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     m.box([px0, 0, z], [px1, wall - 0.6, z + 2.4], T.wall, { roof: T.cover });
     roofOver(m, T, px0, z, px1, z + 2.4, wall - 0.6, { along: 'z' });
     if (T.chimney) {
-      m.box([x - 2.2, wall * 0.4, -z - 0.35], [x - 1.1, top + 0.9, -z + 0.5], T.base);
+      // The breast runs to the ground. It used to start at two-fifths of the
+      // wall, which is fine for a stack buried inside the plan but not for
+      // this one -- it stands proud of the back wall, so the bottom of it was
+      // a slab of masonry hanging in the air with nothing under it.
+      m.box([x - 2.2, 0, -z - 0.35], [x - 1.1, top + 0.9, -z + 0.5], T.base);
       m.box([x - 2.35, top + 0.9, -z - 0.5], [x - 0.95, top + 1.15, -z + 0.65], T.trim);
     }
     if (T.veranda) veranda(m, T, px1 + 0.3, x - 0.4, z, 2.2, 3.0);
@@ -68,7 +72,14 @@ function house(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       // Split units on brackets: what an Asian house has instead of a chimney.
       m.painted(TINT.METAL_DARK, () => {
         for (const py of [T.floorH + 0.4, T.floorH * 2 - 0.6]) {
-          m.box([x + 0.02, py, -1.2], [x + 0.72, py + 0.62, 0.1], MAT.TRIM);
+          // The unit, and the brackets holding it. Without them it is a box
+          // stuck to a wall by nothing, which is what it looked like.
+          m.box([x + 0.06, py, -1.2], [x + 0.76, py + 0.62, 0.1], MAT.TRIM);
+          for (const pz of [-1.14, -0.02]) {
+            m.box([x + 0.02, py - 0.06, pz], [x + 0.7, py + 0.02, pz + 0.12], MAT.TRIM);
+            m.box([x + 0.02, py - 0.34, pz + 0.02], [x + 0.1, py + 0.02, pz + 0.1], MAT.TRIM);
+            m.box([x + 0.02, py - 0.34, pz + 0.02], [x + 0.62, py - 0.26, pz + 0.1], MAT.TRIM);
+          }
         }
       });
     }

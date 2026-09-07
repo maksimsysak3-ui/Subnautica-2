@@ -17,7 +17,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import { parkedVehicle } from './vehicles';
 import { tree, bench, hedge } from './landscape';
-import type { Vec3 } from '../mesh';
+import type { Material, Vec3 } from '../mesh';
 import type { Wall } from '../parts';
 import {
   band, boxSign, dressRoof, entrance, fins, kerb, louvres, parapet,
@@ -320,6 +320,34 @@ function pathologyLab(lod: number): MeshBuilder {
 
 // ================================================================= education
 
+/**
+ * A sloping roof slab with thickness, from its four top corners.
+ *
+ * A roof written as a single quad is one-sided: from whichever side the
+ * winding does not face, you look straight through it into the rooms. The
+ * nursery's folded plane was exactly that, and read as a hole in the roof.
+ * This makes a real slab -- top, soffit and four fascias -- and sorts the
+ * winding itself, so a caller cannot get the plane inside out.
+ */
+function slopedSlab(m: MeshBuilder, corners: [Vec3, Vec3, Vec3, Vec3], t: number,
+  mat: Material, soffit: Material = mat): void {
+  // Shoelace in xz: negative is counter-clockwise seen from above, which is
+  // the order the top face wants.
+  let area = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i], b = corners[(i + 1) % 4];
+    area += a[0] * b[2] - b[0] * a[2];
+  }
+  const c = area > 0 ? ([corners[3], corners[2], corners[1], corners[0]] as [Vec3, Vec3, Vec3, Vec3]) : corners;
+  const lo = c.map((v) => [v[0], v[1] - t, v[2]] as Vec3);
+  m.quad(c[0], c[1], c[2], c[3], mat);
+  m.quad(lo[3], lo[2], lo[1], lo[0], soffit);
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    m.quad(lo[i], lo[j], c[j], c[i], mat);
+  }
+}
+
 /** Nursery: a single-storey ring of rooms round a covered play yard. */
 function nursery(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -335,10 +363,10 @@ function nursery(lod: number): MeshBuilder {
 
   if (medium) {
     // A single folded roof plane over both wings, rather than a flat lid.
-    m.quad([-x + 1.0, wall + 1.9, -z + 0.6], [x - 1.0, wall + 1.9, -z + 0.6],
-           [x - 1.0, wall + 0.3, -z + 8.6], [-x + 1.0, wall + 0.3, -z + 8.6], MAT.METAL);
-    m.quad([-x + 0.6, wall + 1.9, -z + 8.0], [-x + 0.6, wall + 0.3, z - 1.0],
-           [-x + 8.4, wall + 0.3, z - 1.0], [-x + 8.4, wall + 1.9, -z + 8.0], MAT.METAL);
+    slopedSlab(m, [[-x + 1.0, wall + 1.9, -z + 0.6], [x - 1.0, wall + 1.9, -z + 0.6],
+      [x - 1.0, wall + 0.3, -z + 8.6], [-x + 1.0, wall + 0.3, -z + 8.6]], 0.28, MAT.METAL, MAT.CLADDING);
+    slopedSlab(m, [[-x + 0.6, wall + 1.9, -z + 8.0], [-x + 0.6, wall + 0.3, z - 1.0],
+      [-x + 8.4, wall + 0.3, z - 1.0], [-x + 8.4, wall + 1.9, -z + 8.0]], 0.28, MAT.METAL, MAT.CLADDING);
     m.box([-x + 0.6, wall + 1.75, -z + 0.2], [x - 0.6, wall + 2.0, -z + 1.0], MAT.CONCRETE);
     // The covered play deck: a canopy on bright posts, which is the whole idea.
     m.box([-x + 8.0, 2.9, -z + 8.0], [x - 3.0, 3.2, z - 4.0], MAT.METAL);
