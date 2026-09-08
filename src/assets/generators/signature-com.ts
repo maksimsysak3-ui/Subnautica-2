@@ -13,6 +13,8 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
+import { THEME_ORDER } from '../themes';
+import type { Theme } from '../themes';
 import {
   barrelVault, curtain, flags, forecourt, loft, marquee,
   pierWall, plan, porteCochere, sawtooth, scaled, shelf,
@@ -21,7 +23,7 @@ import {
   awning, band, bladeSign, entrance, parapet, planter, railing,
   roofClutter, shopfront,
 } from '../parts';
-import { hedge, bench } from './landscape';
+import { hedge, bench, tree } from './landscape';
 import { figure } from './vehicles';
 
 // ----------------------------------------------------------------- 1. arcade
@@ -510,6 +512,337 @@ function pictureHouse(lod: number): MeshBuilder {
   return m;
 }
 
+// ---------------------------------------------------------- 7. night market
+
+/**
+ * A night market: two shophouse ranges over a street roofed in awning and
+ * lantern.
+ *
+ * The East Asian answer to the arcade, and structurally its opposite -- there
+ * is no vault, because the roof is a hundred separate stall canopies strung
+ * between the two sides. What holds it together is the signage: every unit
+ * hangs its own board across the street, and the street reads as a ceiling of
+ * them.
+ */
+function nightMarket(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 42.0, hz = 17.0, aisle = 7.0, floorH = 3.6, floors = 4;
+  const top = 0.6 + floors * floorH;
+
+  forecourt(m, -50, -28, 50, 28, 9109, { trees: 3, lamps: 6, people: 12, benches: 2 });
+  m.box([-hx, 0.1, -hz], [hx, 0.5, hz], MAT.CONCRETE);
+
+  const units = 12, w = (hx * 2) / units;
+  for (const s of [-1, 1]) {
+    const z0 = s > 0 ? aisle : -hz, z1 = s > 0 ? hz : -aisle;
+    m.box([-hx, 0.5, z0], [hx, top, z1], MAT.PLASTER, { roof: MAT.ROOF });
+    if (medium) {
+      for (let i = 0; i < units; i++) {
+        const x0 = -hx + i * w, x1 = x0 + w;
+        shopfront(m, { axis: 'z', sign: -s as 1 | -1, plane: s > 0 ? aisle : -aisle }, x0 + 0.5, x1 - 0.5,
+          { bays: 2, head: 3.4, fascia: 0.8 });
+        // A party pier past the parapet, which is what gives these terraces
+        // their comb silhouette.
+        m.box([x1 - 0.22, 0.5, z0 - 0.2], [x1 + 0.22, top + 1.4, z1 + 0.2], MAT.TILE);
+      }
+      band(m, -hx, z0, hx, z1, top - 0.6, 0.6, 0.4, MAT.TRIM);
+      parapet(m, -hx, z0, hx, z1, top, 1.2, 0.3, MAT.TILE);
+      shopfront(m, { axis: 'z', sign: s as 1 | -1, plane: s > 0 ? hz : -hz }, -hx + 1, hx - 1,
+        { bays: 14, head: 3.8, fascia: 0.9 });
+    }
+    if (fine) {
+      for (let i = 0; i < units; i++) {
+        const x0 = -hx + i * w;
+        for (let f = 1; f < floors; f++) {
+          const y = 0.6 + f * floorH;
+          const pz = s > 0 ? aisle : -aisle;
+          m.box([x0 + 0.8, y + 0.6, pz - 0.12], [x0 + w - 0.8, y + floorH - 0.8, pz + 0.12], MAT.PANE);
+          m.painted(TINT.METAL_DARK, () => {
+            m.box([x0 + 0.9, y + 0.15, pz + s * 0.1], [x0 + 1.9, y + 0.8, pz + s * 0.75], MAT.TRIM);
+          });
+        }
+        // The signboard hung out across the street, and its bracket.
+        m.painted(i % 3 === 0 ? TINT.BRAND : i % 3 === 1 ? TINT.ACCENT : TINT.SIGN_LIT, () => {
+          m.box([x0 + 0.6, top - 4.4, s * (aisle - 1.9)], [x0 + w - 0.6, top - 1.4, s * (aisle - 1.5)], MAT.CLADDING);
+        });
+        m.painted(TINT.METAL_DARK, () => {
+          m.pipe([x0 + w / 2, top - 1.2, s * aisle], [x0 + w / 2, top - 4.0, s * (aisle - 1.7)], 0.07, MAT.TRIM, 4);
+        });
+      }
+      roofClutter(m, -hx + 2, z0 + 1.5, hx - 2, z1 - 1.5, top, 71 + s, 1.0);
+    }
+  }
+  if (fine) {
+    // The street: stall canopies staggered down it, lanterns strung over, and
+    // a crowd between them.
+    for (let i = 0; i < 9; i++) {
+      const x = -hx + 4.5 + i * 9.4;
+      const s = i % 2 === 0 ? -1 : 1;
+      m.painted(TINT.METAL_DARK, () => {
+        for (const sx of [-2.6, 2.6]) for (const sz of [-1.8, 1.8]) {
+          m.cylinder(x + sx, s * 3.2 + sz, 0.07, 0.5, 2.9, 4, MAT.TRIM, false);
+        }
+      });
+      m.painted(i % 3 === 0 ? TINT.AWNING : i % 3 === 1 ? TINT.BRAND : TINT.ACCENT, () => {
+        m.box([x - 3.1, 2.9, s * 3.2 - 2.3], [x + 3.1, 3.25, s * 3.2 + 2.3], MAT.TRIM);
+      });
+      m.painted(TINT.WOOD, () => m.box([x - 2.4, 0.5, s * 3.2 - 0.9], [x + 2.4, 1.4, s * 3.2 + 0.9], MAT.TIMBER));
+      m.painted(TINT.NONE, () => m.box([x - 2.2, 1.4, s * 3.2 - 0.8], [x + 2.2, 1.75, s * 3.2 + 0.8], MAT.TIMBER));
+    }
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 22; i++) {
+        const x = -hx + 2 + i * 3.8;
+        m.cylinder(x, 0, 0.42, 6.6, 7.5, 8, MAT.PLATE, true);
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (const pz of [-1.2, 1.2]) m.pipe([-hx, 7.5, pz], [hx, 7.5, pz], 0.05, MAT.TRIM, 4);
+    });
+    for (let i = 0; i < 14; i++) {
+      figure(m, 7300 + i * 11, -38 + i * 5.6, (i % 3 - 1) * 2.2, i % 2 ? 1.4 : 4.6, { stride: 0.24 });
+    }
+    for (const s of [-1, 1]) {
+      marquee(m, -12, 12, s * hz + s * 0.3, s as 1 | -1, top - 5.0, 2.6);
+    }
+  }
+  return m;
+}
+
+// --------------------------------------------------------- 8. the leisure box
+
+/**
+ * A modern leisure block: cinema, food and a gym stacked behind one glass
+ * wall, with the escalators and the media screen on the outside.
+ *
+ * The out-of-town multiplex, and the honest form for it: a big windowless
+ * volume with everything that moves pushed onto the front. The escalator run
+ * up the glazed face is what makes it read from the car park, and the media
+ * wall is the only genuinely twenty-first-century thing in the library.
+ */
+function leisureBox(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 34.0, hz = 26.0;
+
+  forecourt(m, -44, -40, 44, 34, 3907, { trees: 5, lamps: 8, people: 10, benches: 3 });
+  // The auditoria block, stepped so the rake is visible from outside.
+  m.box([-hx, 0.1, -hz], [hx, 22.0, hz - 11.0], MAT.CLADDING, { roof: MAT.ROOF });
+  m.box([-hx, 0.1, -hz], [hx, 15.0, -hz + 7.0], MAT.CLADDING);
+  if (medium) {
+    // The glazed front, the escalator run and the deck it lands on.
+    curtain(m, -hx + 1.0, hz - 11.4, hx - 1.0, hz - 0.6, 0.5, 4, 4.6, { mullions: 3.6 });
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-hx + 0.4, 19.0, hz - 12.0], [hx - 0.4, 20.2, hz + 0.6], MAT.TRIM, { skipBottom: false });
+      for (let i = 0; i <= 8; i++) {
+        const x = -hx + 1 + (i / 8) * (hx * 2 - 2);
+        m.cylinder(x, hz - 0.4, 0.22, 0.1, 19.0, 6, MAT.TRIM, false);
+      }
+      // Two escalator runs crossing the glass.
+      for (const k of [0, 1]) {
+        const y0 = 0.9 + k * 4.6, y1 = y0 + 4.6;
+        const a: [number, number, number] = [k === 0 ? -18 : 18, y0, hz - 1.6];
+        const b: [number, number, number] = [k === 0 ? 2 : -2, y1, hz - 1.6];
+        m.pipe(a, b, 0.9, MAT.TRIM, 4);
+        m.pipe([a[0], a[1] + 1.2, a[2] - 0.9], [b[0], b[1] + 1.2, b[2] - 0.9], 0.08, MAT.TRIM, 4);
+      }
+      m.box([-hx + 1.5, 5.4, hz - 5.4], [hx - 1.5, 5.7, hz - 1.0], MAT.TRIM, { skipBottom: false });
+      m.box([-hx + 1.5, 10.0, hz - 5.4], [hx - 1.5, 10.3, hz - 1.0], MAT.TRIM, { skipBottom: false });
+    });
+  }
+  if (fine) {
+    parapet(m, -hx, -hz, hx, hz - 11.0, 22.0, 1.1, 0.3, MAT.CONCRETE);
+    roofClutter(m, -hx + 3, -hz + 3, hx - 3, hz - 14, 22.0, 39, 1.0);
+    // The media wall: a grid of lit panels above the entrance.
+    m.painted(TINT.BRAND, () => m.box([-20, 20.2, hz - 1.6], [20, 30.0, hz - 0.4], MAT.CLADDING));
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 5; c++) {
+          m.box([-18.6 + c * 7.4, 21.0 + r * 2.9, hz - 0.42], [-12.8 + c * 7.4, 23.4 + r * 2.9, hz - 0.3], MAT.PLATE);
+        }
+      }
+    });
+    marquee(m, -14, 14, hz + 0.2, 1, 6.2, 2.4);
+    porteCochere(m, -13, 13, hz + 0.6, 7.0, 6.0, 5);
+    // A row of poster totems along the frontage.
+    for (const sx of [-26, -20, 20, 26]) {
+      m.painted(TINT.METAL_DARK, () => m.box([sx - 1.4, 0.2, hz + 6.0], [sx + 1.4, 4.6, hz + 6.5], MAT.TRIM));
+      m.painted(TINT.ACCENT, () => m.box([sx - 1.2, 0.5, hz + 5.9], [sx + 1.2, 4.3, hz + 6.02], MAT.PLATE));
+    }
+    flags(m, -30, 30, hz + 10.0, 0.2, 7, 9.0);
+    for (let i = 0; i < 8; i++) figure(m, 9200 + i * 13, -14 + i * 4.0, hz + 8.0, Math.PI, { stride: 0.24 });
+    for (let i = 0; i < 4; i++) hedge(m, -34 + i * 20, hz + 12.5, -22 + i * 20, hz + 13.6, 0.9);
+  }
+  return m;
+}
+
+// -------------------------------------------------------- 9. the sign tower
+
+/**
+ * An entertainment tower: ten floors of karaoke, restaurants and arcades,
+ * every one of them advertising itself down the outside.
+ *
+ * The building is a plain slab and is meant to be -- what you look at is the
+ * signage, and the signage is the programme made visible: one board per floor
+ * per corner, stacked, lit, and stepping out over the pavement. Nothing else
+ * in the library gets its identity so completely from what is bolted to it.
+ */
+function signTower(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 15.0, hz = 13.0, floorH = 4.2, floors = 11;
+  const top = 5.6 + floors * floorH;
+
+  forecourt(m, -26, -24, 26, 24, 6421, { trees: 3, lamps: 6, people: 11, benches: 2 });
+  m.box([-hx - 2, 0.1, -hz - 2], [hx + 2, 5.6, hz + 2], MAT.TILE, { roof: MAT.ROOF });
+  m.box([-hx, 5.6, -hz], [hx, top, hz], MAT.PLASTER, { roof: MAT.ROOF });
+  if (medium) {
+    shopfront(m, { axis: 'z', sign: 1, plane: hz + 2 }, -hx, hx, { bays: 5, head: 4.6, fascia: 1.2 });
+    shopfront(m, { axis: 'x', sign: 1, plane: hx + 2 }, -hz, hz, { bays: 4, head: 4.6, fascia: 1.2 });
+    for (let f = 0; f < floors; f++) {
+      const y = 5.6 + f * floorH;
+      for (const [axis, sign, pln, a, b] of [
+        ['z', 1, hz, -hx + 1.5, hx - 1.5], ['z', -1, -hz, -hx + 1.5, hx - 1.5],
+        ['x', 1, hx, -hz + 1.5, hz - 1.5], ['x', -1, -hx, -hz + 1.5, hz - 1.5],
+      ] as const) {
+        m.windowRow({
+          axis, sign, plane: pln, from: a, to: b, y0: y + 0.8, y1: y + floorH - 1.0,
+          count: 3, width: 2.6, glass: MAT.PANE, frame: 0.1, proud: 0.05,
+        });
+      }
+    }
+    parapet(m, -hx, -hz, hx, hz, top, 1.2, 0.3, MAT.TILE);
+  }
+  if (fine) {
+    // The stacked signage: a board per floor on two elevations, each one
+    // standing further out than the wall it hangs on.
+    for (let f = 0; f < floors; f++) {
+      const y = 5.6 + f * floorH + 0.5;
+      const t = f % 3 === 0 ? TINT.BRAND : f % 3 === 1 ? TINT.ACCENT : TINT.SIGN_LIT;
+      m.painted(t, () => {
+        m.box([-hx + 1.0, y, hz + 0.1], [hx - 1.0, y + floorH - 1.6, hz + 1.5], MAT.CLADDING);
+        m.box([hx + 0.1, y, -hz + 1.0], [hx + 1.5, y + floorH - 1.6, hz - 1.0], MAT.CLADDING);
+      });
+      m.painted(TINT.SIGN_LIT, () => {
+        m.signFace([-hx + 1.2, y + 0.3, hz + 1.55], [hx - 1.2, y + 0.3, hz + 1.55],
+                   [hx - 1.2, y + floorH - 1.9, hz + 1.55], [-hx + 1.2, y + floorH - 1.9, hz + 1.55], MAT.TRIM);
+      });
+    }
+    // A vertical blade on the corner, taller than the building.
+    m.painted(TINT.BRAND, () => m.box([hx - 0.4, 6.0, hz - 0.4], [hx + 2.6, top + 9.0, hz + 2.6], MAT.CLADDING));
+    m.painted(TINT.SIGN_LIT, () => {
+      m.box([hx + 2.62, 8.0, hz - 0.2], [hx + 2.72, top + 8.0, hz + 2.4], MAT.PLATE);
+      m.box([hx - 0.2, 8.0, hz + 2.62], [hx + 2.4, top + 8.0, hz + 2.72], MAT.PLATE);
+    });
+    // A roof garden with a pergola and a lit crown box.
+    m.painted(TINT.GREEN, () => m.box([-hx + 2, top, -hz + 2], [hx - 2, top + 0.5, hz - 2], MAT.TRIM));
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 5; i++) {
+        const x = -hx + 3 + (i / 5) * (hx * 2 - 6);
+        m.cylinder(x, 0, 0.11, top + 0.5, top + 3.2, 4, MAT.TRIM, false);
+        m.box([x - 0.1, top + 3.2, -hz + 3], [x + 0.1, top + 3.4, hz - 3], MAT.TRIM);
+      }
+    });
+    roofClutter(m, -hx + 3, -hz + 3, hx - 3, -2, top, 87, 0.6);
+    for (let i = 0; i < 9; i++) figure(m, 8800 + i * 11, -12 + i * 3.2, hz + 4.4, Math.PI, { stride: 0.24 });
+  }
+  return m;
+}
+
+// ------------------------------------------------------- 10. the coaching inn
+
+/**
+ * A country inn round its own yard, with a brewery tap and a cart shed.
+ *
+ * The rural theme's one real destination building. The yard is the point --
+ * it is what a coaching inn is, an entrance arch into a court with the
+ * stables on one side and the tap room on the other -- and it is the only
+ * commercial plan in the library where the parking is a paddock.
+ */
+function coachingInn(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const floorH = 3.0;
+  const hx = 26.0, hz = 20.0, depth = 9.5;
+  const top = 0.7 + 3 * floorH;
+
+  forecourt(m, -36, -30, 36, 30, 4409, { trees: 7, lamps: 5, people: 7, benches: 4 });
+  m.box([-hx + depth, 0.1, -hz + depth], [hx - depth, 0.24, hz - depth], MAT.GROUND);
+
+  const ranges: Array<[number, number, number, number, number]> = [
+    [-hx, hz - depth, hx, hz, top],
+    [-hx, -hz, hx, -hz + depth, top - floorH],
+    [-hx, -hz + depth, -hx + depth, hz - depth, top - floorH],
+    [hx - depth, -hz + depth, hx, hz - depth, top - floorH],
+  ];
+  for (const [x0, z0, x1, z1, h] of ranges) {
+    m.box([x0, 0.1, z0], [x1, 0.7, z1], MAT.STONE);
+    m.box([x0, 0.7, z0], [x1, h, z1], MAT.PLASTER);
+    if (medium) {
+      m.gable([x0 - 0.4, h, z0 - 0.4], [x1 + 0.4, h, z1 + 0.4],
+        Math.min(x1 - x0, z1 - z0) * 0.55, x1 - x0 >= z1 - z0 ? 'x' : 'z', MAT.ROOF_TILE, MAT.PLASTER);
+      // Exposed timber framing, which is the whole of this theme's identity.
+      m.painted(TINT.WOOD, () => {
+        for (const [pz, sgn] of [[z0 - 0.06, -1], [z1 + 0.06, 1]] as const) {
+          if (z1 - z0 > x1 - x0) break;
+          void sgn;
+          for (let i = 0; i <= Math.round((x1 - x0) / 3.2); i++) {
+            const x = x0 + (i / Math.max(1, Math.round((x1 - x0) / 3.2))) * (x1 - x0);
+            m.box([x - 0.16, 0.7, pz - 0.06], [x + 0.16, h, pz + 0.06], MAT.TIMBER);
+          }
+          for (const y of [0.7 + floorH, 0.7 + floorH * 2]) {
+            if (y > h) continue;
+            m.box([x0, y - 0.14, pz - 0.06], [x1, y + 0.14, pz + 0.06], MAT.TIMBER);
+          }
+        }
+      });
+    }
+  }
+  if (fine) {
+    for (let f = 0; f < 3; f++) {
+      const y = 0.7 + f * floorH;
+      m.windowRow({
+        axis: 'z', sign: 1, plane: hz, from: -hx + 2, to: hx - 2, y0: y + 0.7, y1: y + 2.1,
+        count: 9, width: 1.2, glass: MAT.PANE, frame: 0.14, proud: 0.08,
+      });
+      if (f < 2) {
+        m.windowRow({
+          axis: 'z', sign: -1, plane: -hz, from: -hx + 2, to: hx - 2, y0: y + 0.7, y1: y + 2.1,
+          count: 9, width: 1.2, glass: MAT.PANE, frame: 0.14, proud: 0.08,
+        });
+      }
+    }
+    // The arch through the south range, and the inn sign hanging beside it.
+    m.box([-3.4, 0.12, -hz - 0.3], [3.4, 4.6, -hz + depth + 0.3], MAT.DARK_TRIM);
+    m.painted(TINT.NONE, () => {
+      for (const s of [-1, 1]) m.box([s * 3.4, 0.1, -hz - 0.4], [s * 4.4, 5.4, -hz + depth + 0.4], MAT.STONE);
+      m.box([-4.4, 4.6, -hz - 0.4], [4.4, 5.4, -hz + depth + 0.4], MAT.STONE);
+    });
+    bladeSign(m, { axis: 'z', sign: -1, plane: -hz }, -7.5, 3.6, 6.4, 2.2);
+    entrance(m, { axis: 'z', sign: 1, plane: hz }, 0,
+      { width: 1.6, height: 2.5, double: false, glazed: false, fanlight: true });
+    // The yard: cart shed, water trough, barrels, benches and a chestnut tree.
+    m.painted(TINT.WOOD, () => {
+      for (let i = 0; i < 4; i++) m.cylinder(-11 + i * 2.0, 4.0, 0.55, 0.24, 1.35, 8, MAT.TIMBER, true);
+      m.box([6.0, 0.24, -2.0], [7.4, 1.0, 2.0], MAT.TIMBER);
+    });
+    for (let i = 0; i < 4; i++) bench(m, -6 + i * 5, -3.0, 0);
+    tree(m, 11, 4.0, 8.5, 3.0);
+    // The brewery tap: a small gabled block with a vent cowl, off the yard.
+    m.box([-hx - 9.0, 0.1, -4.0], [-hx - 0.5, 7.4, 8.0], MAT.STONE);
+    m.gable([-hx - 9.4, 7.4, -4.4], [-hx - 0.1, 7.4, 8.4], 4.4, 'z', MAT.ROOF_TILE, MAT.STONE);
+    m.painted(TINT.METAL_DARK, () => {
+      m.cylinder(-hx - 4.7, 2.0, 1.0, 11.8, 14.4, 8, MAT.METAL, false);
+      m.cone(-hx - 4.7, 2.0, 1.2, 0.3, 14.4, 16.2, 8, MAT.METAL);
+    });
+    for (const sx of [-30, 24]) tree(m, sx, hz + 6.0, 9.5, 3.4);
+    hedge(m, -hx, hz + 9.0, hx, hz + 10.2, 1.0);
+    for (let i = 0; i < 5; i++) figure(m, 6900 + i * 13, -8 + i * 4.4, 0.0, 1.0 * i, { stride: 0.2 });
+    flags(m, -3, 3, hz + 2.0, top + 1.0, 1, 5.5);
+  }
+  return m;
+}
+
 // ====================================================================== table
 
 const trade = (jobs: number, upkeep: number, power: number): AssetDef['sim'] => ({
@@ -517,53 +850,108 @@ const trade = (jobs: number, upkeep: number, power: number): AssetDef['sim'] => 
   pollution: 1, upkeep,
 });
 
-export const SIGNATURE_COMMERCIAL: AssetDef[] = [
-  {
-    id: 'sig.com.arcade', name: 'Fenwick Arcade', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', theme: 'european', signature: true, footprint: [12, 7], height: 0,
-    brand: { name: 'Fenwick Arcade', colour: [0.32, 0.22, 0.28], accent: [0.66, 0.58, 0.36], sign: 'blade' },
-    sim: trade(150, 520, 640),
-    note: 'Two three-storey stone ranges either side of a glazed barrel-vaulted street, shops facing both ways, arched screens with a lit clock at each end, and the arcade floor paved, planted and occupied.',
-    build: arcade,
-  },
-  {
-    id: 'sig.com.emporium', name: 'Halvard & Co', zone: 'commercial', density: 'high',
-    variant: 'sculpted', theme: 'european', signature: true, footprint: [10, 9], height: 0,
-    brand: { name: 'Halvard & Co', colour: [0.26, 0.18, 0.30], accent: [0.70, 0.60, 0.26], sign: 'fascia' },
-    sim: trade(320, 940, 1500),
-    note: 'A five-storey stone department store turning the corner on a glazed drum, with shop windows the whole way round it, a clock in the drum and a three-stage dome and flagpole over the junction.',
-    build: emporium,
-  },
-  {
-    id: 'sig.com.market', name: 'Greyfriars Market', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', theme: 'european', signature: true, footprint: [11, 9], height: 0,
-    brand: { name: 'Greyfriars Market', colour: [0.40, 0.24, 0.14], accent: [0.66, 0.62, 0.44], sign: 'fascia' },
-    sim: trade(180, 460, 720),
-    note: 'A brick market hall on open arcading under a six-bay north-light saw-tooth roof, with fourteen canopied stalls and a crowd inside it.',
-    build: marketHall,
-  },
-  {
-    id: 'sig.com.mall', name: 'Northgate Centre', zone: 'commercial', density: 'high',
-    variant: 'sculpted', theme: 'modern', signature: true, footprint: [14, 12], height: 0,
-    brand: { name: 'Northgate', colour: [0.16, 0.34, 0.46], accent: [0.74, 0.58, 0.20], sign: 'box' },
-    sim: trade(420, 1280, 2200),
+/**
+ * Two archetypes in each theme: the covered retail hall, and the anchor.
+ *
+ * A hall is the place a district shops in the round -- an arcade, a store, a
+ * mall, a market, a night street -- and an anchor is the one thing people
+ * make an evening of. Both exist everywhere and look nothing alike from one
+ * region to the next, which is exactly what a signature building is for.
+ */
+interface Row {
+  key: string; name: string; foot: [number, number]; jobs: number;
+  upkeep: number; power: number; colour: [number, number, number];
+  accent: [number, number, number]; note: string;
+  build: (lod: number) => MeshBuilder;
+}
+
+const HALL: Record<Theme, Row> = {
+  modern: {
+    key: 'hall', name: 'Northgate Centre', foot: [14, 12], jobs: 420, upkeep: 1280, power: 2200,
+    colour: [0.16, 0.34, 0.46], accent: [0.74, 0.58, 0.20],
     note: 'Two retail wings either side of a ninety-metre glazed mall with balconies at first floor, a glazed rotunda over the crossing, a canopied drop-off and two decks of marked-out parking behind.',
     build: shoppingMall,
   },
-  {
-    id: 'sig.com.hotel', name: 'The Aldermoor', zone: 'commercial', density: 'high',
-    variant: 'sculpted', theme: 'american', signature: true, footprint: [9, 8], height: 0,
-    brand: { name: 'The Aldermoor', colour: [0.22, 0.16, 0.26], accent: [0.70, 0.58, 0.28], sign: 'box' },
-    sim: trade(240, 880, 1400),
+  european: {
+    key: 'hall', name: 'Fenwick Arcade', foot: [12, 7], jobs: 150, upkeep: 520, power: 640,
+    colour: [0.32, 0.22, 0.28], accent: [0.66, 0.58, 0.36],
+    note: 'Two three-storey stone ranges either side of a glazed barrel-vaulted street, shops facing both ways, arched screens with a lit clock at each end, and the arcade floor paved, planted and occupied.',
+    build: arcade,
+  },
+  american: {
+    key: 'hall', name: 'Halvard & Co', foot: [10, 9], jobs: 320, upkeep: 940, power: 1500,
+    colour: [0.26, 0.18, 0.30], accent: [0.70, 0.60, 0.26],
+    note: 'A five-storey stone department store turning the corner on a glazed drum, with shop windows the whole way round it, a clock in the drum and a three-stage dome and flagpole over the junction.',
+    build: emporium,
+  },
+  asian: {
+    key: 'hall', name: 'Lantern Night Market', foot: [13, 8], jobs: 260, upkeep: 610, power: 900,
+    colour: [0.46, 0.14, 0.18], accent: [0.76, 0.58, 0.16],
+    note: 'Twelve shophouse units either side of a street roofed in nothing but signage: a board hung out from every unit, twenty-two lanterns strung down the middle, nine stall canopies and a crowd under them.',
+    build: nightMarket,
+  },
+  farming: {
+    key: 'hall', name: 'Greyfriars Market', foot: [11, 9], jobs: 180, upkeep: 460, power: 720,
+    colour: [0.40, 0.24, 0.14], accent: [0.66, 0.62, 0.44],
+    note: 'A brick market hall on open arcading under a six-bay north-light saw-tooth roof, with fourteen canopied stalls and a crowd inside it.',
+    build: marketHall,
+  },
+  row: {
+    key: 'hall', name: '', foot: [1, 1], jobs: 0, upkeep: 0, power: 0,
+    colour: [0, 0, 0], accent: [0, 0, 0], note: '', build: marketHall,
+  },
+};
+
+const ANCHOR: Record<Theme, Row> = {
+  modern: {
+    key: 'anchor', name: 'The Halo', foot: [12, 11], jobs: 180, upkeep: 700, power: 1600,
+    colour: [0.18, 0.26, 0.40], accent: [0.72, 0.50, 0.16],
+    note: 'A stepped auditorium block behind a four-storey glazed front with two crossing escalator runs in it, a fifteen-panel media wall over the entrance, poster totems and a canopied drop-off.',
+    build: leisureBox,
+  },
+  european: {
+    key: 'anchor', name: 'The Aldermoor', foot: [9, 8], jobs: 240, upkeep: 880, power: 1400,
+    colour: [0.22, 0.16, 0.26], accent: [0.70, 0.58, 0.28],
     note: 'A fourteen-storey brick hotel on a stone base with a dormered mansard, a canopied drop-off on columns, drum lamps either side of the door and five flags over it.',
     build: grandHotel,
   },
-  {
-    id: 'sig.com.cinema', name: 'The Rialto', zone: 'commercial', density: 'medium',
-    variant: 'sculpted', theme: 'american', signature: true, footprint: [9, 9], height: 0,
-    brand: { name: 'The Rialto', colour: [0.38, 0.12, 0.22], accent: [0.76, 0.62, 0.22], sign: 'pylon' },
-    sim: trade(90, 420, 900),
+  american: {
+    key: 'anchor', name: 'The Rialto', foot: [9, 9], jobs: 90, upkeep: 420, power: 900,
+    colour: [0.38, 0.12, 0.22], accent: [0.76, 0.62, 0.22],
     note: 'A stepped windowless auditorium block with the rake expressed in buttresses down both flanks, a glazed foyer, a bulb-edged marquee over the doors and a thirty-metre lit fin carrying the name above the parapet.',
     build: pictureHouse,
   },
-];
+  asian: {
+    key: 'anchor', name: 'Golden Crane Tower', foot: [7, 6], jobs: 210, upkeep: 760, power: 1500,
+    colour: [0.44, 0.16, 0.22], accent: [0.78, 0.62, 0.18],
+    note: 'Eleven floors of karaoke, restaurants and arcades over a shop podium, every floor advertising itself on a lit board across two elevations, a corner blade nine metres above the parapet, and a pergola garden on the roof.',
+    build: signTower,
+  },
+  farming: {
+    key: 'anchor', name: 'The Wheatsheaf', foot: [10, 9], jobs: 70, upkeep: 300, power: 460,
+    colour: [0.34, 0.22, 0.14], accent: [0.64, 0.56, 0.34],
+    note: 'A timber-framed coaching inn round its own yard: an arch through the south range under a hanging sign, cart shed, barrels, a water trough and a brewery tap with a vent cowl beside it.',
+    build: coachingInn,
+  },
+  row: {
+    key: 'anchor', name: '', foot: [1, 1], jobs: 0, upkeep: 0, power: 0,
+    colour: [0, 0, 0], accent: [0, 0, 0], note: '', build: coachingInn,
+  },
+};
+
+export const SIGNATURE_COMMERCIAL: AssetDef[] = THEME_ORDER.flatMap((t) =>
+  [HALL[t], ANCHOR[t]].map((r): AssetDef => ({
+    id: `sig.com.${t}.${r.key}`,
+    name: r.name,
+    zone: 'commercial',
+    density: 'high',
+    variant: 'sculpted',
+    theme: t,
+    signature: true,
+    footprint: r.foot,
+    height: 0,
+    brand: { name: r.name, colour: r.colour, accent: r.accent, sign: 'box' },
+    sim: trade(r.jobs, r.upkeep, r.power),
+    note: r.note,
+    build: r.build,
+  })));
