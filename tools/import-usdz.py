@@ -281,15 +281,52 @@ def read_mesh(prim, textures):
             break
     #: Barycentric weights for sampling a facet's UV footprint.
     #:
-    #: Spread over the triangle rather than at its corners -- a corner sits on
-    #: the seam between two patches of the atlas and is the worst place to read
-    #: one -- and pulled in towards the centroid, because these atlases have no
-    #: padding and a sample near a facet's edge can land a texel into the
-    #: neighbouring island.
-    _RAW = [(a2 / 6, b2 / 6, 1 - a2 / 6 - b2 / 6)
-            for a2 in range(1, 6) for b2 in range(1, 6 - a2)]
-    _PULL = 0.30
-    SPREAD = [tuple(w * (1 - _PULL) + _PULL / 3 for w in p) for p in _RAW]
+    #: A lattice over the whole facet, corners included, inset off its edges by
+    #: a fixed number of texels.
+    #:
+    #: The inset used to be a fixed *share* of the facet, and that was the
+    #: livery bug in one line. The lattice was already strictly interior and
+    #: was then pulled a further thirty per cent towards the centroid, so every
+    #: facet was judged by the middle half of itself. A metre of ambulance
+    #: flank with the red stripe crossing its lower third has no sample
+    #: anywhere near the stripe: all ten come back white, the facet reports
+    #: perfect agreement, and it is emitted flat white. Nothing downstream ever
+    #: ran -- which is why raising the subdivision depth, tightening the
+    #: agreement threshold and cutting the facet on its colour boundary each
+    #: changed precisely nothing. The facet never admitted it had two colours
+    #: on it, so there was nothing for any of them to act on, and the stripe
+    #: came out as whole triangles of the mesh painted red or white by whatever
+    #: happened to be under their middles.
+    #:
+    #: The reason for insetting at all is real: these atlases have no padding,
+    #: and a sample exactly on a facet's edge reads a texel from the island
+    #: next door. But that is a distance in texels, not a share of the facet --
+    #: the same hand's breadth whether the facet is a door handle or a whole
+    #: flank -- so it is measured that way here, and capped so that a facet
+    #: smaller than the margin still gets sampled rather than collapsing to its
+    #: centroid.
+    _N = 7
+    _RAW = [(a2 / _N, b2 / _N, 1 - a2 / _N - b2 / _N)
+            for a2 in range(0, _N + 1) for b2 in range(0, _N + 1 - a2)]
+    #: How far off its own edge a sample stays, in texels.
+    EDGE = 2.0
+    #: ...and the most of a facet that margin may ever eat.
+    MAX_PULL = 0.34
+
+    def spread(pa, pb, pc):
+        """This facet's sample weights, inset off its edges by EDGE texels."""
+        if img is None:
+            return _RAW
+        w, h = img.width, img.height
+        e = max(((pb[0] - pa[0]) * w) ** 2 + ((pb[1] - pa[1]) * h) ** 2,
+                ((pc[0] - pb[0]) * w) ** 2 + ((pc[1] - pb[1]) * h) ** 2,
+                ((pa[0] - pc[0]) * w) ** 2 + ((pa[1] - pc[1]) * h) ** 2) ** 0.5
+        pull = MAX_PULL if e < 1e-6 else min(MAX_PULL, EDGE * 3.0 / e)
+        if pull <= 1e-4:
+            return _RAW
+        k = pull / 3.0
+        return [(a * (1 - pull) + k, b * (1 - pull) + k, c * (1 - pull) + k)
+                for a, b, c in _RAW]
 
     #: Whether this mesh is a decal: a texture that is transparent somewhere.
     #:
@@ -324,7 +361,7 @@ def read_mesh(prim, textures):
         two colours are nowhere near each other.
         """
         hits, clear = [], 0
-        for wa, wb, wc in SPREAD:
+        for wa, wb, wc in spread(pa, pb, pc):
             uv = (pa[0] * wa + pb[0] * wb + pc[0] * wc,
                   pa[1] * wa + pb[1] * wb + pc[1] * wc)
             texel, alpha = sample(uv)
@@ -332,7 +369,7 @@ def read_mesh(prim, textures):
                 clear += 1
             else:
                 hits.append(texel)
-        n = len(SPREAD)
+        n = len(_RAW)
         # A body facet needs a majority to be opaque; a decal facet needs
         # nearly all of it. Anything less is a facet clipping the edge of the
         # mark, and painting it the mark's colour is how a badge becomes a
@@ -358,18 +395,19 @@ def read_mesh(prim, textures):
         # slightly darker yellow the panel actually reads as from any distance,
         # which is the honest answer when the detail is finer than a facet.
         #
-        # But only when the facet really is fragmented. A facet cut in half by
-        # a livery stripe has no group over 55% either, and this branch was
-        # swallowing it whole: it returned an average with an agreement of 1.0,
-        # which says "flat, stop" -- so the facet was never subdivided and
-        # never cut on its boundary, and the ambulance's stripe came out as
-        # two four-square-metre triangles of dusty red. Two groups covering
-        # nearly everything is a boundary, whatever the split between them,
-        # and it belongs to cut() rather than here.
-        top2 = groups[0][0] + (groups[1][0] if len(groups) > 1 else 0)
-        if best[0] < len(hits) * 0.55 and top2 < len(hits) * 0.85:
+        # What it must not do is claim the facet is uniform. This returned an
+        # agreement of 1.0 with the average -- "here is the colour, and it is
+        # flat" -- and those are two different questions. The caller stops
+        # splitting on the second one, so every fragmented facet stopped dead
+        # at whatever size it happened to be, and a facet is fragmented exactly
+        # where a stripe crosses it. The average is the right colour to fall
+        # back to; the agreement stays honest, so the facet goes on being cut
+        # until its pieces are smaller than a texel or two, and it is only
+        # there -- where the detail really is finer than the geometry can carry
+        # -- that the average is what gets drawn.
+        if best[0] < len(hits) * 0.55 and len(groups) > 2:
             avg = tuple(int(round(sum(t[i] for t in hits) / len(hits))) for i in range(3))
-            return avg, 1.0
+            return avg, best[0] / len(hits)
         if best[0] < len(hits) * 0.55:
             groups.sort(key=lambda g: -g[0])
             best = groups[0]
@@ -405,13 +443,13 @@ def read_mesh(prim, textures):
         between them.
         """
         hits = []
-        for wa, wb, wc in SPREAD:
+        for wa, wb, wc in spread(pa, pb, pc):
             uv = (pa[0] * wa + pb[0] * wb + pc[0] * wc,
                   pa[1] * wa + pb[1] * wb + pc[1] * wc)
             texel, alpha = sample(uv)
             if alpha >= 128:
                 hits.append(texel)
-        if len(hits) < len(SPREAD) * 0.9:
+        if len(hits) < len(_RAW) * 0.9:
             return None
         groups = []
         for t in hits:
@@ -425,12 +463,37 @@ def read_mesh(prim, textures):
         groups.sort(key=lambda g: -g[0])
         if len(groups) < 2:
             return None
-        # The two of them have to be nearly all of it. Three colours on one
-        # facet is a corner, not an edge, and a single straight cut would be a
-        # worse answer there than four sub-facets.
-        if (groups[0][0] + groups[1][0]) < len(hits) * 0.88:
+        major, minor = (tuple(g[1][i] / g[0] for i in range(3)) for g in groups[:2])
+        # Every sample has to lie on the line between those two colours.
+        #
+        # Counting the two biggest groups and demanding they be nearly all of
+        # it is the obvious test and it is the wrong one on a photograph. These
+        # atlases are JPEGs: the boundary between a red stripe and a white
+        # panel is not a step but a two- or three-texel ramp through every pink
+        # in between, and each of those pinks is far enough from both ends to
+        # become a group of its own. On a facet the stripe crosses, a dozen
+        # samples can land on the ramp -- so the two real colours came to less
+        # than the required share of the facet and two thirds of every boundary
+        # in the pack was rejected as "a mess of more than two colours" and
+        # fell back to being subdivided into a sawtooth.
+        #
+        # A ramp between two colours is still two colours. What distinguishes
+        # it from a genuine third is that it lies *between* them, so that is
+        # what gets measured: the distance from each sample to the segment
+        # joining the two, rather than to either end of it. A fringe texel sits
+        # on that segment and costs nothing; a real third colour -- a window
+        # rubber against red and white -- sits off it and still fails.
+        ab = [minor[i] - major[i] for i in range(3)]
+        ll = sum(v * v for v in ab) or 1.0
+        on = 0
+        for t in hits:
+            u = sum((t[i] - major[i]) * ab[i] for i in range(3)) / ll
+            u = 1.0 if u > 1.0 else (0.0 if u < 0.0 else u)
+            if max(abs(t[i] - (major[i] + ab[i] * u)) for i in range(3)) <= NOISE:
+                on += 1
+        if on < len(hits) * 0.85:
             return None
-        return tuple(tuple(g[1][i] / g[0] for i in range(3)) for g in groups[:2])
+        return major, minor
 
     def carve(pos, uv, out):
         """
@@ -511,18 +574,31 @@ def read_mesh(prim, textures):
         for k in range(3):
             i, j = k, (k + 1) % 3
             loop.append((pos[i], uv[i]))
-            last = None
-            for t in flips(i, j):
-                # A crossing hard against a corner, or two of them almost on
-                # top of each other, is noise rather than a boundary across
-                # the facet: emitting it makes a sliver nobody asked for.
-                if not (0.04 < t < 0.96) or (last is not None and t - last < 0.06):
-                    return False
-                last = t
+            # A crossing hard against a corner, or two of them almost on top of
+            # each other, is noise rather than a boundary across the facet:
+            # emitting it makes a sliver nobody asked for. Those are dropped
+            # rather than taken as proof the whole facet cannot be cut -- which
+            # is what abandoning the cut here amounted to, and it threw away
+            # one boundary in nine over a crossing a millimetre from a corner.
+            # A close pair goes as a pair, so the crossings stay even and the
+            # regions below still close.
+            ts = [t for t in flips(i, j) if 0.04 < t < 0.96]
+            keep, k = [], 0
+            while k < len(ts):
+                if k + 1 < len(ts) and ts[k + 1] - ts[k] < 0.06:
+                    k += 2
+                    continue
+                keep.append(ts[k])
+                k += 1
+            for t in keep:
                 p, u = at(i, j, t)
                 cross.append(len(loop))
                 loop.append((p, u))
-        if len(cross) not in (2, 4):
+        # Two crossings is one boundary, four is a stripe, six is a stripe that
+        # steps or a corner clipped by one -- all of them cut into regions the
+        # same way, and each region is coloured from its own centroid, so the
+        # count only has to be even for the regions to close.
+        if len(cross) not in (2, 4, 6):
             return False
 
         # One region per arc between consecutive crossings, plus -- when a
@@ -572,16 +648,14 @@ def read_mesh(prim, textures):
     #: colour, far narrower than the gap between a body and its glass.
     NOISE = 26
 
-    #: How much of a facet one colour has to cover before it is called flat.
+    #: How much of a facet may disagree with its own colour, in texels.
     #:
-    #: Raised from 0.80 once the boundary cut below could be relied on. At 0.80
-    #: a facet four-fifths white and one-fifth red is called white, its
-    #: neighbour four-fifths red is called red, and the stripe between them
-    #: comes out as a staircase -- which is the whole artefact this file exists
-    #: to avoid. There is no cost to being strict now: a facet that fails this
-    #: is cut on the boundary rather than subdivided, so it becomes three or
-    #: five facets with a straight edge instead of sixteen with a jagged one.
-    AGREE = 0.88
+    #: The stop that decides whether a facet is one colour or has to be cut up,
+    #: and it is an area rather than a fraction for the reason set out where it
+    #: is used. Roughly a five-by-five patch: below that the minority colour is
+    #: a speck at any distance the vehicle is drawn from, and above it the
+    #: facet is carrying two colours and needs to say so.
+    STRAY = 8.0
     #: How far a facet may be split. Each level is four sub-facets, so 2 is at
     #: most sixteen -- and only where the texture actually changes.
     #:
@@ -668,8 +742,30 @@ def read_mesh(prim, textures):
             ((uv[j][0] - uv[i][0]) * img.width) ** 2
             + ((uv[j][1] - uv[i][1]) * img.height) ** 2
             for i, j in ((0, 1), (1, 2), (2, 0))) > TEXELS * TEXELS
-        if agree >= AGREE or depth >= DEPTH or not big:
-            STATS['flat' if agree >= AGREE else 'deep'] += 1
+        # How much of the facet is *not* the colour it is about to be painted,
+        # measured in texels rather than as a share of itself.
+        #
+        # A share is the wrong measure and was the second half of the livery
+        # bug. Agreement of 0.88 stops a facet the size of a door handle, where
+        # the twelve per cent that disagrees is a texel and nobody will ever
+        # see it, and it equally stops half an ambulance flank, where the same
+        # twelve per cent is a hand's width of red stripe painted out. Two
+        # thousand two hundred facets in this pack are over sixty texels
+        # across, and three quarters of them were being emitted flat on that
+        # rule -- which is precisely the staircase of red and white triangles
+        # down the side of every liveried vehicle in the fleet.
+        #
+        # Measured as an area instead, the same number does the right thing at
+        # both ends: a stray texel or two is not worth a split whatever the
+        # facet's size, and anything bigger is, however good the agreement
+        # looks as a percentage.
+        ax = (uv[1][0] - uv[0][0]) * img.width
+        ay = (uv[1][1] - uv[0][1]) * img.height
+        bx = (uv[2][0] - uv[0][0]) * img.width
+        by = (uv[2][1] - uv[0][1]) * img.height
+        stray = (1.0 - agree) * abs(ax * by - ay * bx) / 2.0
+        if stray < STRAY or depth >= DEPTH or not big:
+            STATS['flat' if stray < STRAY else 'deep'] += 1
             emit(out, pos, texel)
             return
         # A facet of exactly two colours is cut on the line between them, which
