@@ -558,11 +558,17 @@ const GLYPH: Record<Branch, string> = {
   // An urn: a lidded vessel on a plinth. Chosen over a headstone or a cross
   // because it belongs to no particular rite, and over a flame because the
   // fire branch already owns that shape.
+  // Note the leading spaces on the continuation lines. Both curves here run
+  // over a line break in the middle of their parameter list, and without the
+  // space "10.9" and the "0" that follows it concatenate into "10.90" -- one
+  // number where there should be two, so the rest of the curve is short a
+  // parameter and the browser drops the whole subpath. Which is exactly what
+  // it did: three console errors and an urn with no body.
   deathcare: 'M20 4h8v3h-8zM17.5 8.5h13c.8 0 1.4.7 1.4 1.5s-.6 1.5-1.4 1.5h-13'
            + 'c-.8 0-1.4-.7-1.4-1.5s.6-1.5 1.4-1.5zM19 13h10c3.6 2.4 5.8 6.4 5.8 10.9'
-           + '0 5.4-3.1 10.2-7.8 12.6v2.5h4.6c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H16.4'
+           + ' 0 5.4-3.1 10.2-7.8 12.6v2.5h4.6c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H16.4'
            + 'c-.9 0-1.6-.7-1.6-1.6s.7-1.6 1.6-1.6H21v-2.5c-4.7-2.4-7.8-7.2-7.8-12.6'
-           + '0-4.5 2.2-8.5 5.8-10.9z',
+           + ' 0-4.5 2.2-8.5 5.8-10.9z',
   // An envelope, flap down: the one postal mark everybody reads instantly.
   post: 'M7 11h34c1.7 0 3 1.4 3 3v20c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3V14c0-1.6 1.3-3 3-3z'
       + 'M6.5 15.4 24 27.2l17.5-11.8v3.6L24 30.8 6.5 19z',
