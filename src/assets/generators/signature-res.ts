@@ -35,6 +35,31 @@ import {
 import { bench, hedge, tree } from './landscape';
 import { figure } from './vehicles';
 
+/**
+ * Windows on all four faces of an added mass.
+ *
+ * The towers and slabs each theme stands on its block are the only pieces
+ * here not drawn by `punched`, and left bare they read as packaging. This is
+ * the cheap general version: a row per floor per elevation.
+ */
+function glazeAll(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
+  base: number, floors: number, fh: number): void {
+  const nx = Math.max(2, Math.round((x1 - x0) / 4.2));
+  const nz = Math.max(2, Math.round((z1 - z0) / 4.2));
+  for (let f = 0; f < floors; f++) {
+    const y = base + f * fh;
+    for (const [axis, sign, pln, a, b, n] of [
+      ['z', 1, z1, x0 + 1.2, x1 - 1.2, nx], ['z', -1, z0, x0 + 1.2, x1 - 1.2, nx],
+      ['x', 1, x1, z0 + 1.2, z1 - 1.2, nz], ['x', -1, x0, z0 + 1.2, z1 - 1.2, nz],
+    ] as const) {
+      m.windowRow({
+        axis, sign, plane: pln, from: a, to: b, y0: y + 0.85, y1: y + fh - 0.95,
+        count: n, width: 1.9, glass: MAT.PANE, frame: 0.1, proud: 0.06,
+      });
+    }
+  }
+}
+
 /** Storeys a signature block of this theme runs to. Housing scale, throughout. */
 const STOREYS: Record<Theme, number> = {
   modern: 8, european: 6, american: 7, asian: 9, farming: 3, row: 5,
@@ -67,16 +92,83 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
 
   forecourt(m, -38, -32, 38, 32, 4211, { trees: 5, lamps: 6, people: 8, benches: 3 });
 
-  // Two wings in an L, so the building has a back and a yard behind it.
+  // Two wings in an L, so the building has a back and a yard behind it. How
+  // tall each wing runs, and what else stands on it, is the theme's -- a
+  // re-skinned block is not a different landmark, so the massing differs
+  // before the material does.
   const wings: Array<[number, number, number, number]> = [
     [-hx, hz - depth, hx, hz], [hx - depth, -hz, hx, hz - depth],
   ];
-  for (const [x0, z0, x1, z1] of wings) {
+  //: [north wing top, east wing top], as a fraction of the full height.
+  const RUN: Record<Theme, [number, number]> = {
+    modern: [1.0, 0.62], european: [1.0, 1.0], american: [1.0, 0.78],
+    asian: [0.72, 1.0], farming: [1.0, 0.55], row: [1.0, 1.0],
+  };
+  const tops = RUN[T.id].map((f) => base + (top - base) * f);
+  wings.forEach(([x0, z0, x1, z1], i) => {
+    const h = tops[i];
     m.box([x0, 0.1, z0], [x1, base, z1], T.base, { roof: MAT.ROOF });
-    m.box([x0, base, z0], [x1, top, z1], T.wall, { roof: MAT.ROOF });
+    m.box([x0, base, z0], [x1, h, z1], T.wall, { roof: MAT.ROOF });
     if (medium) {
       band(m, x0, z0, x1, z1, base - 0.3, 0.45, 0.26, T.trim);
-      band(m, x0, z0, x1, z1, top - 0.8, 0.8, 0.5, T.trim);
+      band(m, x0, z0, x1, z1, h - 0.8, 0.8, 0.5, T.trim);
+    }
+  });
+  // The one piece of extra mass each theme puts on the short wing, which is
+  // what makes five corner blocks five silhouettes.
+  if (medium) {
+    switch (T.id) {
+      case 'modern':
+        // A planted deck over the low wing, with a pergola over half of it.
+        m.painted(TINT.GREEN, () => m.box([hx - depth + 1, tops[1], -hz + 1], [hx - 1, tops[1] + 0.5, hz - depth - 1], MAT.TRIM));
+        m.painted(TINT.METAL_DARK, () => {
+          for (let i = 0; i <= 4; i++) {
+            const pz = -hz + 3 + i * 4.5;
+            m.cylinder(hx - depth + 3, pz, 0.12, tops[1], tops[1] + 3.0, 4, MAT.TRIM, false);
+            m.cylinder(hx - 3, pz, 0.12, tops[1], tops[1] + 3.0, 4, MAT.TRIM, false);
+            m.box([hx - depth + 2.8, tops[1] + 3.0, pz - 0.1], [hx - 2.8, tops[1] + 3.2, pz + 0.1], MAT.TRIM);
+          }
+        });
+        railing(m, -hz + 1, hz - depth - 1, hx - 0.6, tops[1] + 0.5, 1.05, 2.2);
+        break;
+      case 'american': {
+        // A stepped brick tower over the far end of the short wing.
+        const y = tops[1];
+        m.box([hx - depth + 1.0, y, -hz + 1.0], [hx - 1.0, top + 6.0, -hz + 14.0], T.wall, { roof: MAT.ROOF });
+        m.box([hx - depth + 2.6, top + 6.0, -hz + 2.6], [hx - 2.6, top + 11.0, -hz + 12.4], T.base, { roof: MAT.ROOF });
+        if (fine) glazeAll(m, hx - depth + 1.0, -hz + 1.0, hx - 1.0, -hz + 14.0, y, Math.floor((top + 6.0 - y) / fh), fh);
+        band(m, hx - depth + 1.0, -hz + 1.0, hx - 1.0, -hz + 14.0, top + 6.0, 0.9, 0.5, T.base);
+        break;
+      }
+      case 'asian': {
+        // A slab tower standing on the long wing's podium: the East Asian
+        // block is a podium with a tower on it, not a perimeter block.
+        const y = tops[0];
+        m.box([-hx + 4.0, y, hz - depth + 1.5], [-hx + 24.0, y + 9 * fh, hz - 1.5], T.wall, { roof: MAT.ROOF });
+        band(m, -hx + 4.0, hz - depth + 1.5, -hx + 24.0, hz - 1.5, y + 9 * fh - 0.7, 0.7, 0.45, T.trim);
+        hip(m, -hx + 3.0, hz - depth + 0.5, -hx + 25.0, hz - 0.5, y + 9 * fh, 4.2, T.cover);
+        if (fine) glazeAll(m, -hx + 4.0, hz - depth + 1.5, -hx + 24.0, hz - 1.5, y, 9, fh);
+        break;
+      }
+      case 'farming': {
+        // A long open cart barn on the short wing, and a lean-to beside it.
+        const y = tops[1];
+        m.gable([hx - depth - 0.6, y, -hz - 0.6], [hx + 0.6, y, hz - depth + 0.6], 5.4, 'z', T.cover, T.wall);
+        m.painted(TINT.WOOD, () => {
+          for (let i = 0; i < 5; i++) {
+            const pz = -hz + 2 + i * 5.0;
+            m.box([hx - depth + 0.4, 0.1, pz - 0.2], [hx - depth + 0.9, y, pz + 0.2], MAT.TIMBER);
+          }
+        });
+        break;
+      }
+      default: {
+        // European: an attic storey with dormers over both wings.
+        for (const [x0, z0, x1, z1] of wings) {
+          m.box([x0 + 0.6, top, z0 + 0.6], [x1 - 0.6, top + 2.6, z1 - 0.6], T.wall);
+        }
+        break;
+      }
     }
   }
   m.placed(cx, cz, 0, () => {
@@ -96,10 +188,9 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
   }
   if (fine) {
     for (let f = 1; f < floors; f++) {
-      punched(m, T, { axis: 'z', sign: 1, plane: hz }, -hx + 2, cx - 7.0,
-        { floors: 1, base: base + (f - 1) * fh });
-      punched(m, T, { axis: 'x', sign: 1, plane: hx }, -hz + 2, cz - 7.0,
-        { floors: 1, base: base + (f - 1) * fh });
+      const y = base + (f - 1) * fh;
+      if (y + fh <= tops[0]) punched(m, T, { axis: 'z', sign: 1, plane: hz }, -hx + 2, cx - 7.0, { floors: 1, base: y });
+      if (y + fh <= tops[1]) punched(m, T, { axis: 'x', sign: 1, plane: hx }, -hz + 2, cz - 7.0, { floors: 1, base: y });
     }
     // Windows in the drum, on the same floor lines, one every other facet.
     m.placed(cx, cz, 0, () => {
@@ -117,10 +208,14 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
   }
 
   if (medium) {
-    for (const [x0, z0, x1, z1] of wings) {
-      roofOver(m, T, x0, z0, x1, z1, top,
+    wings.forEach(([x0, z0, x1, z1], i) => {
+      if (T.id === 'farming' && i === 1) return;                 // the cart barn has its own roof
+      if (T.id === 'modern' && i === 1) return;                  // and the low wing is a terrace
+      const y = T.id === 'european' ? top + 2.6 : tops[i];
+      const in0 = T.id === 'european' ? 0.6 : 0;
+      roofOver(m, T, x0 + in0, z0 + in0, x1 - in0, z1 - in0, y,
         { dormers: fine ? 4 : 0, along: x1 - x0 >= z1 - z0 ? 'x' : 'z' });
-    }
+    });
     m.placed(cx, cz, 0, () => {
       switch (T.id) {
         case 'european': {
@@ -277,13 +372,81 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
     [-hx, -hz, hx, -hz + depth], [-hx, hz - depth, hx, hz],
     [-hx, -hz + depth, -hx + depth, hz - depth], [hx - depth, -hz + depth, hx, hz - depth],
   ];
-  for (const [x0, z0, x1, z1] of ranges) {
+  // How much of the perimeter each theme actually builds, and how tall.
+  //
+  // A courtyard block is not one plan in five materials. Europe closes all
+  // four sides; America leaves the street side open between two pavilions;
+  // Asia walls the compound and puts a tower on one range; the modern block
+  // lifts a range and stands a slab on another; a farmstead is an L with its
+  // barns making up the rest.
+  const SIDES: Record<Theme, [number, number, number, number]> = {
+    modern: [1.0, 1.0, 1.0, 1.0], european: [1.0, 1.0, 1.0, 1.0],
+    american: [0.85, 1.0, 1.0, 1.0], asian: [0.62, 0.82, 0.82, 0.82],
+    farming: [0.0, 0.72, 0.72, 0.0], row: [1.0, 1.0, 1.0, 1.0],
+  };
+  const runs = SIDES[T.id].map((f) => 0.6 + (top - 0.6) * f);
+  ranges.forEach(([x0, z0, x1, z1], i) => {
+    if (SIDES[T.id][i] === 0) return;
+    const h = runs[i];
     m.box([x0, 0.1, z0], [x1, 0.6, z1], T.base);
-    m.box([x0, 0.6, z0], [x1, top, z1], T.wall, { roof: MAT.ROOF });
+    m.box([x0, 0.6, z0], [x1, h, z1], T.wall, { roof: MAT.ROOF });
     if (medium) {
-      band(m, x0, z0, x1, z1, top - 0.7, 0.7, 0.45, T.trim);
-      roofOver(m, T, x0, z0, x1, z1, top,
+      band(m, x0, z0, x1, z1, h - 0.7, 0.7, 0.45, T.trim);
+      roofOver(m, T, x0, z0, x1, z1, h,
         { dormers: fine ? 5 : 0, along: x1 - x0 >= z1 - z0 ? 'x' : 'z' });
+    }
+  });
+  if (medium) {
+    switch (T.id) {
+      case 'modern': {
+        // A slab standing on the east range, four storeys clear of the rest.
+        m.box([hx - depth, top, -hz + depth + 2], [hx, top + 4 * fh, hz - depth - 2], MAT.RENDER, { roof: MAT.ROOF });
+        m.box([hx - depth + 0.6, top + 0.8, hz - depth - 2.4], [hx - 0.6, top + 4 * fh - 0.8, hz - depth - 2.1], MAT.GLASS);
+        if (fine) glazeAll(m, hx - depth, -hz + depth + 2, hx, hz - depth - 2, top, 4, fh);
+        parapet(m, hx - depth, -hz + depth + 2, hx, hz - depth - 2, top + 4 * fh, 1.0, 0.25, T.trim);
+        break;
+      }
+      case 'american': {
+        // A taller block across the back of the court, which is where a
+        // garden-apartment scheme puts its lifts.
+        m.box([-14, top, hz - depth], [14, top + 3 * fh, hz], T.wall, { roof: MAT.ROOF });
+        band(m, -14, hz - depth, 14, hz, top + 3 * fh - 0.8, 0.8, 0.5, T.base);
+        if (fine) glazeAll(m, -14, hz - depth, 14, hz, top, 3, fh);
+        parapet(m, -14, hz - depth, 14, hz, top + 3 * fh, 1.1, 0.3, T.base);
+        break;
+      }
+      case 'asian': {
+        // A slab tower over the east range, and a tiled pavilion in the court.
+        m.box([hx - depth + 0.5, runs[3], -hz + depth + 3], [hx - 0.5, runs[3] + 7 * fh, hz - depth - 3], T.wall, { roof: MAT.ROOF });
+        if (fine) glazeAll(m, hx - depth + 0.5, -hz + depth + 3, hx - 0.5, hz - depth - 3, runs[3], 7, fh);
+        hip(m, hx - depth - 0.5, -hz + depth + 2, hx + 0.5, hz - depth - 2, runs[3] + 7 * fh, 3.6, T.cover);
+        break;
+      }
+      case 'farming': {
+        // The two missing sides are open cart barns on posts.
+        for (const [x0, z0, x1, z1, along] of [
+          [-hx, -hz, hx, -hz + depth, 'x'], [hx - depth, -hz + depth, hx, hz - depth, 'z'],
+        ] as const) {
+          m.gable([x0 - 0.5, 5.6, z0 - 0.5], [x1 + 0.5, 5.6, z1 + 0.5],
+            Math.min(x1 - x0, z1 - z0) * 0.5, along, T.cover, T.wall);
+          m.box([x0, 0.1, z0], [x1, 0.4, z1], MAT.GROUND);
+          m.painted(TINT.WOOD, () => {
+            const n = along === 'x' ? 7 : 4;
+            for (let i = 0; i <= n; i++) {
+              const u = along === 'x' ? x0 + (i / n) * (x1 - x0) : z0 + (i / n) * (z1 - z0);
+              if (along === 'x') {
+                m.box([u - 0.24, 0.1, z0 + 0.6], [u + 0.24, 5.6, z0 + 1.1], MAT.TIMBER);
+                m.box([u - 0.24, 0.1, z1 - 1.1], [u + 0.24, 5.6, z1 - 0.6], MAT.TIMBER);
+              } else {
+                m.box([x0 + 0.6, 0.1, u - 0.24], [x0 + 1.1, 5.6, u + 0.24], MAT.TIMBER);
+                m.box([x1 - 1.1, 0.1, u - 0.24], [x1 - 0.6, 5.6, u + 0.24], MAT.TIMBER);
+              }
+            }
+          });
+        }
+        break;
+      }
+      default: break;
     }
   }
   if (fine) {
@@ -314,6 +477,7 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
       case 'asian': {
         // A moon gate cut through a tiled screen wall.
         m.box([-9.0, 0.1, -hz - 0.4], [9.0, 7.2, -hz + depth + 0.4], T.wall);
+        void runs;
         for (let i = 0; i < 14; i++) {
           const a0 = Math.PI * (i / 14), a1 = Math.PI * ((i + 1) / 14);
           m.quad([Math.cos(a0) * 3.4, 0.12 + Math.sin(a0) * 3.4, -hz - 0.5],

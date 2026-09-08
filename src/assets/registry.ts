@@ -10,6 +10,7 @@ import { HOUSING } from './generators/housing';
 import { SIGNATURE_RESIDENTIAL } from './generators/signature-res';
 import { SIGNATURE_COMMERCIAL } from './generators/signature-com';
 import { SIGNATURE_OFFICE } from './generators/signature-off';
+import { SIGNATURE_INDUSTRIAL } from './generators/signature-ind';
 import { COMMERCE, WORKPLACES, MAKING } from './generators/trade';
 import { SAFETY } from './generators/services-safety';
 import { UTILITY } from './generators/services-utility';
@@ -27,7 +28,7 @@ import type { AssetDef, Zone } from './types';
 
 export const ASSETS: AssetDef[] = [
   ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
-  ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE,
+  ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE, ...SIGNATURE_INDUSTRIAL,
   ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SPORT, ...FLEET, ...MARINE, ...ROADS,
 ];
 

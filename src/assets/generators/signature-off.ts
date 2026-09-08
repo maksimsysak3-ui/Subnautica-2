@@ -1,25 +1,35 @@
 /**
- * Signature offices: the five towers a skyline is recognised by.
+ * Signature offices: two in each theme, and they are meant to be big.
  *
  * An office tower is the hardest thing in this library to make distinctive,
  * because the programme is identical every time -- a core, a floor plate, a
  * skin -- and the honest answer is that a tower is distinguished by exactly
  * three things: its plan, what happens where it meets the ground, and what
- * happens where it stops. So each of these five takes a different answer to
- * all three, and none of them is "make it taller".
+ * happens where it stops. So no two of these ten share a plan, and none of
+ * them is distinguished by being taller than the last.
+ *
+ * Each theme gets a tower and a headquarters, and the pair is regional rather
+ * than translated: the American tower is a zoning-envelope masonry skyscraper
+ * and its headquarters is a trading floor with a diagrid round it; the
+ * European pair is a stone chancery and a quadrangle round a glazed court; the
+ * East Asian pair is a sky-garden shaft and two towers on a skybridge; the
+ * farming pair is a grain exchange and a research campus with glasshouses.
+ * None of them would be recognisable as any of the others re-skinned.
  */
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
+import { THEME_ORDER } from '../themes';
+import type { Theme } from '../themes';
 import {
-  cap, crownStack, curtain, flags, forecourt, loft, marquee, pierWall,
-  plan, porteCochere, scaled, shelf,
+  barrelVault, cap, conveyor, crownStack, curtain, flags, forecourt, lattice,
+  loft, marquee, pierWall, plan, porteCochere, sawtooth, scaled, shelf, silo,
 } from './signature-parts';
 import { band, entrance, parapet, planter, railing, roofClutter } from '../parts';
-import { tree, hedge } from './landscape';
+import { tree, hedge, bench } from './landscape';
 import { figure } from './vehicles';
 
-// -------------------------------------------------------------- 1. supertall
+// ================================================================ 1. modern
 
 /**
  * A supertall on a nine-square plan, losing a square at every setback.
@@ -37,7 +47,6 @@ function supertall(lod: number): MeshBuilder {
   const q = 8.0, floorH = 3.9;
 
   forecourt(m, -46, -40, 46, 40, 1201, { trees: 8, lamps: 8, people: 10, benches: 4 });
-  // The base: a colonnade round a glazed lobby, the full nine squares wide.
   m.box([-q * 1.5 - 3, 0.1, -q * 1.5 - 3], [q * 1.5 + 3, 12.0, q * 1.5 + 3], MAT.STONE, { roof: MAT.ROOF });
   if (medium) {
     m.box([-q * 1.5 - 1, 0.6, -q * 1.5 - 1], [q * 1.5 + 1, 10.8, q * 1.5 + 1], MAT.GLASS);
@@ -53,32 +62,26 @@ function supertall(lod: number): MeshBuilder {
     band(m, -q * 1.5 - 3, -q * 1.5 - 3, q * 1.5 + 3, q * 1.5 + 3, 12.0, 1.4, 0.8, MAT.STONE);
   }
 
-  // Three stages. Each is a curtain-walled block, and each loses part of the
-  // plan below it.
-  const stages: Array<[number, number, number]> = [[1.5, 22, 13.4], [1.0, 22, 13.4], [0.5, 18, 13.4]];
+  const stages: Array<[number, number]> = [[1.5, 22], [1.0, 22], [0.5, 18]];
   let y = 13.4;
   for (const [half, n] of stages) {
     const h = q * half;
     m.box([-h, y, -h], [h, y + n * floorH, h], MAT.GLASS);
     if (medium) {
       curtain(m, -h, -h, h, h, y, n, floorH, { mullions: 4.0 });
-      // The four corner piers, which is what carries a tower like this.
       m.painted(TINT.METAL_DARK, () => {
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-          m.box([sx * h - sx * 1.5, y, sz * h - sz * 1.5], [sx * h + sx * 0.25, y + n * floorH + 1.6, sz * h + sz * 0.25], MAT.CLADDING);
+          m.box([sx * h - sx * 1.5, y, sz * h - sz * 1.5],
+                [sx * h + sx * 0.25, y + n * floorH + 1.6, sz * h + sz * 0.25], MAT.CLADDING);
         }
       });
     }
     y += n * floorH;
-    if (medium) {
-      shelf(m, plan(h * 0.97, h * 0.97, 0.02, 4), plan(h + 1.6, h + 1.6, 0.02, 4), y, y + 1.2, MAT.CONCRETE);
-    }
+    if (medium) shelf(m, plan(h * 0.97, h * 0.97, 0.02, 4), plan(h + 1.6, h + 1.6, 0.02, 4), y, y + 1.2, MAT.CONCRETE);
     if (fine) railing(m, -h - 1.4, h + 1.4, h + 1.4, y + 1.2, 1.05, 2.4);
     y += 1.2;
   }
-  if (medium) {
-    crownStack(m, q * 0.5, q * 0.5, y, 4, MAT.CLADDING, { mast: 34, taper: 0.8 });
-  }
+  if (medium) crownStack(m, q * 0.5, q * 0.5, y, 4, MAT.CLADDING, { mast: 34, taper: 0.8 });
   if (fine) {
     porteCochere(m, -10, 10, q * 1.5 + 3.4, 6.0, 7.4, 4);
     entrance(m, { axis: 'z', sign: 1, plane: q * 1.5 + 3 }, 0,
@@ -90,88 +93,13 @@ function supertall(lod: number): MeshBuilder {
   return m;
 }
 
-// ------------------------------------------------------------------ 2. prism
-
 /**
- * A triangular prism under a raked glass roof.
- *
- * The one plan nothing else in the library has, and it changes everything: a
- * triangle read from any angle shows one face and two edges, so the building
- * has a front from everywhere. The roof is cut on the diagonal, which turns
- * the top into an event instead of a lid, and the sloped face is where the
- * whole thing gets its name.
- */
-function prismTower(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const R = 26.0, floorH = 3.8, floors = 27;
-
-  forecourt(m, -40, -36, 40, 36, 5099, { trees: 7, lamps: 7, people: 9, benches: 3 });
-  // The triangle, as a three-point ring. Everything is lofted off it.
-  const tri = (r: number): Array<[number, number]> => {
-    const out: Array<[number, number]> = [];
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2 + Math.PI / 2;
-      out.push([Math.cos(a) * r, Math.sin(a) * r]);
-    }
-    return out;
-  };
-  const base = tri(R);
-  const top = 6.0 + floors * floorH;
-
-  m.box([-R - 2, 0.1, -R * 0.6 - 2], [R + 2, 0.4, R + 2], MAT.CONCRETE);
-  loft(m, scaled(base, 1.06), scaled(base, 1.06), 0.4, 6.0, MAT.GLASS);
-  loft(m, base, base, 6.0, top, MAT.GLASS);
-  if (medium) {
-    // Slab edges every floor and a heavy mullion at every third bay: the
-    // triangle's long faces are forty-five metres across and need the grain.
-    m.painted(TINT.METAL_DARK, () => {
-      for (let f = 0; f <= floors; f++) {
-        const y = 6.0 + f * floorH;
-        shelf(m, scaled(base, 0.99), scaled(base, 1.02), y - 0.24, y + 0.24, MAT.TRIM);
-      }
-      for (let i = 0; i < 3; i++) {
-        const p = base[i], q = base[(i + 1) % 3];
-        for (let k = 1; k < 12; k++) {
-          const x = p[0] + (q[0] - p[0]) * (k / 12), z = p[1] + (q[1] - p[1]) * (k / 12);
-          m.pipe([x * 1.02, 6.0, z * 1.02], [x * 1.02, top, z * 1.02], 0.17, MAT.TRIM, 4);
-        }
-        // The three corners, expressed as a full-height fin.
-        m.pipe([p[0] * 1.06, 0.4, p[1] * 1.06], [p[0] * 1.06, top + 14.0, p[1] * 1.06], 0.7, MAT.TRIM, 5);
-      }
-    });
-    // The raked roof: one corner carried up, the opposite edge left low.
-    const a = base[0], b = base[1], c = base[2];
-    m.tri([a[0], top + 14.0, a[1]], [b[0], top + 1.0, b[1]], [c[0], top + 1.0, c[1]], MAT.GLASS);
-    m.quad([b[0], top, b[1]], [c[0], top, c[1]], [c[0], top + 1.0, c[1]], [b[0], top + 1.0, b[1]], MAT.DARK_TRIM);
-    for (const [p, qq] of [[a, b], [c, a]] as const) {
-      m.tri([p[0], top, p[1]], [qq[0], top, qq[1]],
-            [p === a ? p[0] : qq[0], top + (p === a ? 14.0 : 1.0), p === a ? p[1] : qq[1]], MAT.DARK_TRIM);
-    }
-    m.painted(TINT.SIGN_LIT, () => {
-      m.box([a[0] - 1.4, top + 14.0, a[1] - 1.4], [a[0] + 1.4, top + 18.0, a[1] + 1.4], MAT.PLATE);
-    });
-  }
-  if (fine) {
-    // The entrance is cut into one corner: a glazed notch under a canopy.
-    porteCochere(m, -9, 9, R * 0.55, 6.0, 6.6, 3);
-    marquee(m, -7, 7, R * 0.55 + 0.2, 1, 7.0, 2.0);
-    flags(m, -20, 20, R * 0.72, 0.4, 5, 9.0);
-    for (const s of [-1, 1]) planter(m, s * 22, 24, 2.4, 0.7);
-    for (let i = 0; i < 6; i++) figure(m, 8100 + i * 17, -10 + i * 4.0, R * 0.62, Math.PI, { stride: 0.22 });
-  }
-  return m;
-}
-
-// --------------------------------------------------------------------- 3. HQ
-
-/**
- * A corporate headquarters: a curved slab on a landscaped podium.
+ * A corporate headquarters: a curved glass slab on a landscaped podium.
  *
  * Low, wide and out of town rather than tall and downtown, which is what half
- * of the world's biggest companies actually build. The plan is a shallow arc,
- * so the building has no flat elevation at all, and the podium it sits on is
- * a garden rather than a car park -- both of which are the point of the type.
+ * the world's biggest companies actually build. The plan is a shallow arc, so
+ * the building has no flat elevation anywhere, and what it stands on is a
+ * garden rather than a car park.
  */
 function corporateHq(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -179,9 +107,6 @@ function corporateHq(lod: number): MeshBuilder {
   const floors = 9, floorH = 4.0, base = 5.5;
   const R = 96.0, span = 1.05, depth = 17.0;
   const top = base + floors * floorH;
-
-  forecourt(m, -56, -44, 56, 30, 6607, { trees: 10, lamps: 8, people: 9, benches: 4 });
-  // The arc, as two rings at radius R and R - depth.
   const N = 22;
   const arc = (r: number): Array<[number, number]> => {
     const out: Array<[number, number]> = [];
@@ -193,13 +118,12 @@ function corporateHq(lod: number): MeshBuilder {
   };
   const outer = arc(R), inner = arc(R - depth);
 
-  // Podium: a stone plinth under the whole arc, planted on top.
+  forecourt(m, -56, -44, 56, 30, 6607, { trees: 10, lamps: 8, people: 9, benches: 4 });
   for (let i = 0; i < N; i++) {
     const a = outer[i], b = outer[i + 1], c = inner[i], d = inner[i + 1];
     m.quad([a[0], base, a[1]], [b[0], base, b[1]], [d[0], base, d[1]], [c[0], base, c[1]], MAT.ROOF);
     m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], base, a[1]], [b[0], base, b[1]], MAT.STONE);
     m.quad([c[0], 0.1, c[1]], [d[0], 0.1, d[1]], [d[0], base, d[1]], [c[0], base, c[1]], MAT.STONE);
-    // The shaft above it.
     m.quad([b[0], base, b[1]], [a[0], base, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], MAT.GLASS);
     m.quad([c[0], base, c[1]], [d[0], base, d[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.GLASS);
     m.quad([a[0], top, a[1]], [b[0], top, b[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.ROOF);
@@ -210,11 +134,9 @@ function corporateHq(lod: number): MeshBuilder {
         const y = base + f * floorH;
         for (let i = 0; i < N; i++) {
           for (const r of [outer, inner]) {
-            const a = r[i], b = r[i + 1];
-            m.quad([b[0] * 1.004, y - 0.28, b[1] + (r === outer ? 0.3 : -0.3)],
-                   [a[0] * 1.004, y - 0.28, a[1] + (r === outer ? 0.3 : -0.3)],
-                   [a[0] * 1.004, y + 0.28, a[1] + (r === outer ? 0.3 : -0.3)],
-                   [b[0] * 1.004, y + 0.28, b[1] + (r === outer ? 0.3 : -0.3)], MAT.TRIM);
+            const a = r[i], b = r[i + 1], o = r === outer ? 0.3 : -0.3;
+            m.quad([b[0], y - 0.28, b[1] + o], [a[0], y - 0.28, a[1] + o],
+                   [a[0], y + 0.28, a[1] + o], [b[0], y + 0.28, b[1] + o], MAT.TRIM);
           }
         }
       }
@@ -223,8 +145,7 @@ function corporateHq(lod: number): MeshBuilder {
         m.pipe([a[0], base, a[1] + 0.4], [a[0], top + 2.4, a[1] + 0.4], 0.28, MAT.TRIM, 4);
       }
     });
-    // A brise-soleil on the outer face: horizontal fins every floor, which is
-    // what a west-facing glass arc actually needs.
+    // A brise-soleil on the outer face: what a west-facing glass arc needs.
     for (let f = 1; f < floors; f++) {
       const y = base + f * floorH + 2.6;
       for (let i = 0; i < N; i++) {
@@ -235,7 +156,6 @@ function corporateHq(lod: number): MeshBuilder {
     }
   }
   if (fine) {
-    // The entrance pavilion in the middle of the arc, and the garden in front.
     m.box([-13, 0.1, -30.0], [13, 9.0, -18.0], MAT.GLASS);
     m.painted(TINT.METAL_DARK, () => {
       m.box([-13.6, 8.6, -30.6], [13.6, 9.8, -17.4], MAT.TRIM, { skipBottom: false });
@@ -253,14 +173,163 @@ function corporateHq(lod: number): MeshBuilder {
   return m;
 }
 
-// ------------------------------------------------------------------ 4. deco
+// ============================================================== 2. european
+
+/**
+ * A stone chancery: a masonry tower with a clock stage and a copper roof.
+ *
+ * The European tall building is a civic object rather than a commercial one --
+ * it is stone to the top, it has a public storey at the bottom you can walk
+ * through, and it finishes in a roof rather than in a mast. So this one is
+ * built out of arcading and cornices, has an arched loggia at ground level,
+ * and puts a four-faced clock and a copper spire where the American one puts
+ * an aerial.
+ */
+function chanceryTower(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const floorH = 3.8;
+  const hx = 17.0, hz = 15.0;
+  const base = 11.0;
+
+  forecourt(m, -34, -30, 34, 30, 5099, { trees: 6, lamps: 7, people: 9, benches: 4 });
+  // The loggia: an arcade you can see through, round the whole base.
+  m.box([-hx - 3.5, 0.1, -hz - 3.5], [hx + 3.5, base, hz + 3.5], MAT.STONE, { roof: MAT.ROOF });
+  m.box([-hx - 2.2, 0.4, -hz - 2.2], [hx + 2.2, base - 1.6, hz + 2.2], MAT.DARK_TRIM);
+  if (medium) {
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i <= 9; i++) {
+        const u = -hx - 3.5 + (i / 9) * (hx + 3.5) * 2;
+        m.box([u - 1.0, 0.1, -hz - 3.6], [u + 1.0, base, -hz - 1.6], MAT.STONE);
+        m.box([u - 1.0, 0.1, hz + 1.6], [u + 1.0, base, hz + 3.6], MAT.STONE);
+      }
+      for (let i = 0; i <= 8; i++) {
+        const u = -hz - 3.5 + (i / 8) * (hz + 3.5) * 2;
+        m.box([-hx - 3.6, 0.1, u - 1.0], [-hx - 1.6, base, u + 1.0], MAT.STONE);
+        m.box([hx + 1.6, 0.1, u - 1.0], [hx + 3.6, base, u + 1.0], MAT.STONE);
+      }
+    });
+    band(m, -hx - 3.5, -hz - 3.5, hx + 3.5, hz + 3.5, base - 1.6, 1.6, 0.9, MAT.STONE);
+  }
+
+  pierWall(m, -hx, -hz, hx, hz, base, 20, floorH, MAT.STONE,
+    { bays: 6, glass: MAT.PANE, windows: medium, strips: true, depth: 0.5 });
+  let y = base + 20 * floorH;
+  if (medium) {
+    band(m, -hx, -hz, hx, hz, y, 1.4, 1.0, MAT.STONE);
+    y += 1.4;
+    // The clock stage: a set-back drum with four faces and a colonnade.
+    const N = 16;
+    const drum = plan(hx * 0.72, hz * 0.72, 0.9, N);
+    loft(m, drum, drum, y, y + 9.0, MAT.STONE);
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i < N; i++) {
+        const p = scaled(drum, 1.1)[i];
+        m.cylinder(p[0], p[1], 0.4, y, y + 8.2, 6, MAT.STONE, false);
+      }
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        m.cylinder(ax * hx * 0.74, az * hz * 0.74, 2.6, y + 2.6, y + 2.8, 14, MAT.PLATE, true);
+      }
+    });
+    shelf(m, scaled(drum, 1.0), scaled(drum, 1.22), y + 9.0, y + 10.2, MAT.STONE);
+    // A copper spire in three stages with a weathervane.
+    m.cone(0, 0, hx * 0.78, hx * 0.5, y + 10.2, y + 16.0, N, MAT.METAL);
+    m.cone(0, 0, hx * 0.5, hx * 0.22, y + 16.0, y + 24.0, N, MAT.METAL);
+    m.cone(0, 0, hx * 0.22, 0.0, y + 24.0, y + 31.0, N, MAT.METAL);
+    m.painted(TINT.METAL_DARK, () => m.cylinder(0, 0, 0.18, y + 31.0, y + 36.0, 5, MAT.TRIM, false));
+    m.painted(TINT.ACCENT, () => m.box([0.1, y + 34.0, -0.04], [2.2, y + 35.6, 0.04], MAT.TRIM));
+  }
+  if (fine) {
+    entrance(m, { axis: 'z', sign: 1, plane: hz + 3.5 }, 0,
+      { width: 4.6, height: 6.6, double: true, glazed: true, fanlight: true });
+    marquee(m, -7, 7, hz + 3.8, 1, base + 0.2, 2.0);
+    flags(m, -14, 14, hz + 6.0, base, 3, 7.0);
+    for (const sx of [-24, 24]) tree(m, sx, hz + 12, 9.0, 3.2);
+    for (let i = 0; i < 6; i++) figure(m, 1810 + i * 13, -12 + i * 4.4, hz + 6.8, Math.PI, { stride: 0.22 });
+  }
+  return m;
+}
+
+/**
+ * A quadrangle: four stone ranges round a glazed court.
+ *
+ * The European headquarters is a block with a hole in it, and the hole is
+ * roofed. That single move gives it everything a tower gets from height --
+ * a public interior, a front door that means something, a section worth
+ * looking at -- at six storeys, which is what a European city will actually
+ * let anyone build.
+ */
+function quadrangleHq(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 42.0, hz = 30.0, depth = 15.0, floorH = 4.2, floors = 6;
+  const top = 1.0 + floors * floorH;
+
+  forecourt(m, -52, -40, 52, 40, 4241, { trees: 8, lamps: 8, people: 10, benches: 4 });
+  const ranges: Array<[number, number, number, number]> = [
+    [-hx, -hz, hx, -hz + depth], [-hx, hz - depth, hx, hz],
+    [-hx, -hz + depth, -hx + depth, hz - depth], [hx - depth, -hz + depth, hx, hz - depth],
+  ];
+  for (const [x0, z0, x1, z1] of ranges) {
+    m.box([x0, 0.1, z0], [x1, 1.0, z1], MAT.STONE);
+    m.box([x0, 1.0, z0], [x1, top, z1], MAT.STONE, { roof: MAT.ROOF });
+    if (medium) {
+      band(m, x0, z0, x1, z1, top - 1.2, 1.2, 0.75, MAT.STONE);
+      // A mansard with dormers over each range.
+      m.cone((x0 + x1) / 2, (z0 + z1) / 2, 1.0, 0.86, top + 1.2, top + 5.4, 4, MAT.ROOF_TILE);
+    }
+    if (fine) parapet(m, x0, z0, x1, z1, top, 1.0, 0.3, MAT.STONE);
+  }
+  if (medium) {
+    // Stone piers and glazing on every elevation, inside and out.
+    for (const [axis, sign, pln, a, b] of [
+      ['z', -1, -hz, -hx + 2, hx - 2], ['z', 1, hz, -hx + 2, hx - 2],
+      ['x', -1, -hx, -hz + 2, hz - 2], ['x', 1, hx, -hz + 2, hz - 2],
+      ['z', 1, -hz + depth, -hx + depth + 2, hx - depth - 2],
+      ['z', -1, hz - depth, -hx + depth + 2, hx - depth - 2],
+    ] as const) {
+      for (let f = 0; f < floors; f++) {
+        m.windowRow({
+          axis, sign, plane: pln, from: a, to: b, y0: 1.0 + f * floorH + 0.9, y1: 1.0 + (f + 1) * floorH - 1.0,
+          count: Math.max(3, Math.round((b - a) / 5.0)), width: 2.6,
+          glass: MAT.PANE, frame: 0.16, proud: 0.1,
+        });
+      }
+    }
+    // The court, roofed: a shallow glazed vault the length of it.
+    barrelVault(m, -hx + depth, -hz + depth, hx - depth, hz - depth, top - 6.0, 7.0, 9, { ribs: 9 });
+  }
+  if (fine) {
+    // The entrance: a pedimented centrepiece with a giant order.
+    m.box([-9.0, 0.1, hz], [9.0, top + 2.4, hz + 2.4], MAT.STONE);
+    m.painted(TINT.NONE, () => {
+      for (const sx of [-7.4, -3.0, 3.0, 7.4]) m.cylinder(sx, hz + 1.6, 0.85, 1.0, top - 4.0, 10, MAT.STONE, false);
+      m.box([-9.4, top - 4.0, hz - 0.2], [9.4, top - 2.2, hz + 3.0], MAT.STONE);
+    });
+    m.gable([-9.4, top - 2.2, hz - 0.2], [9.4, top - 2.2, hz + 3.0], 3.2, 'x', MAT.STONE, MAT.STONE);
+    entrance(m, { axis: 'z', sign: 1, plane: hz + 2.4 }, 0,
+      { width: 4.6, height: 6.0, double: true, glazed: true, fanlight: true });
+    // The court floor: paving, planting, and people crossing it.
+    m.painted(TINT.NONE, () => m.box([-hx + depth, 0.1, -hz + depth], [hx - depth, 0.26, hz - depth], MAT.STONE));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) tree(m, sx * 14, sz * 6, 8.0, 2.8);
+    for (let i = 0; i < 4; i++) bench(m, -12 + i * 8, 0, 0);
+    for (let i = 0; i < 8; i++) figure(m, 2410 + i * 11, -20 + i * 5.4, (i % 3 - 1) * 4.0, 0.5 * i, { stride: 0.22 });
+    flags(m, -20, 20, hz + 5.0, 0.2, 5, 9.0);
+    roofClutter(m, -hx + 3, -hz + 3, -hx + 14, hz - 3, top, 59, 0.4);
+  }
+  return m;
+}
+
+// ============================================================== 3. american
 
 /**
  * A stepped 1930s skyscraper: masonry, five setbacks, a crown of tiers.
  *
  * The zoning-envelope tower, and the reason a pre-war downtown looks the way
- * it does. It is drawn as masonry the whole way up -- deep continuous piers,
- * recessed spandrels, no expressed floor line -- which is the opposite of
+ * it does. Drawn as masonry the whole way up -- deep continuous piers, a
+ * recessed spandrel, no expressed floor line -- which is the opposite of
  * everything else here and reads as age from a very long way off.
  */
 function decoTower(lod: number): MeshBuilder {
@@ -272,8 +341,6 @@ function decoTower(lod: number): MeshBuilder {
   const stages: Array<[number, number, number]> = [
     [24.0, 20.0, 6], [20.0, 16.5, 7], [16.0, 13.0, 7], [12.0, 10.0, 7], [8.0, 7.0, 6],
   ];
-  let y = 0.1;
-  // A stone base with a tall arched entrance bay.
   m.box([-25.0, 0.1, -21.0], [25.0, 9.0, 21.0], MAT.STONE, { roof: MAT.ROOF });
   if (medium) {
     m.painted(TINT.NONE, () => {
@@ -299,15 +366,13 @@ function decoTower(lod: number): MeshBuilder {
     }
     band(m, -25.0, -21.0, 25.0, 21.0, 9.0, 1.4, 0.9, MAT.STONE);
   }
-  y = 10.4;
+  let y = 10.4;
   for (const [hx, hz, n] of stages) {
     pierWall(m, -hx, -hz, hx, hz, y, n, floorH, MAT.BRICK,
       { bays: Math.max(3, Math.round(hx / 3.2)), glass: MAT.PANE, windows: medium, depth: 0.42, strips: true });
     y += n * floorH;
     if (medium) {
       band(m, -hx, -hz, hx, hz, y, 1.0, 0.85, MAT.STONE);
-      // A chevron frieze in the accent colour: the one ornament this style is
-      // never without, and four boxes a bay.
       m.painted(TINT.ACCENT, () => {
         const bays = Math.max(3, Math.round(hx / 3.2));
         for (let i = 0; i < bays; i++) {
@@ -320,7 +385,6 @@ function decoTower(lod: number): MeshBuilder {
     if (fine) railing(m, -hx, hx, hz + 0.6, y, 0.9, 2.0);
   }
   if (medium) {
-    // The crown: five diminishing tiers with a lit lantern and a spire.
     let cy = y, r = 7.4;
     for (let i = 0; i < 5; i++) {
       m.cone(0, 0, r, r * 0.8, cy, cy + 2.6, 12, MAT.METAL);
@@ -342,16 +406,14 @@ function decoTower(lod: number): MeshBuilder {
   return m;
 }
 
-// ----------------------------------------------------------------- 5. exchange
-
 /**
  * A trading tower: two cores flanking a full-height glazed atrium.
  *
  * The trading-floor building. It has to hold a column-free floor the size of a
  * pitch, so the structure goes to the outside and the two cores go to the
  * ends, and the space between them is left as an atrium the whole height of
- * the building. Externally that is a diagrid: a lattice of braces on the face,
- * which is the one facade nothing else here has.
+ * the building. Externally that is a diagrid -- a lattice of braces on the
+ * face -- which is a facade nothing else here has.
  */
 function exchangeTower(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -361,7 +423,6 @@ function exchangeTower(lod: number): MeshBuilder {
   const top = base + floors * floorH;
 
   forecourt(m, -42, -34, 42, 34, 8807, { trees: 6, lamps: 8, people: 11, benches: 3 });
-  // The trading hall: a two-storey podium with a deep glazed wall.
   m.box([-hx - 4, 0.1, -hz - 4], [hx + 4, base, hz + 4], MAT.CONCRETE, { roof: MAT.ROOF });
   if (medium) {
     m.box([-hx - 2, 1.4, -hz - 4.4], [hx + 2, base - 1.6, hz + 4.4], MAT.GLASS);
@@ -374,8 +435,6 @@ function exchangeTower(lod: number): MeshBuilder {
       m.box([-hx - 4.4, base - 1.6, -hz - 4.4], [hx + 4.4, base - 0.8, hz + 4.4], MAT.TRIM);
     });
   }
-
-  // Two cores in solid stone, the atrium glazed between them.
   for (const s of [-1, 1]) {
     m.box([s * hx - s * 9.0, base, -hz], [s * hx, top + 6.0, hz], MAT.CONCRETE, { roof: MAT.ROOF });
     if (medium) {
@@ -393,7 +452,6 @@ function exchangeTower(lod: number): MeshBuilder {
   m.box([-ax, base, -hz], [ax, top, hz], MAT.GLASS);
   if (medium) {
     curtain(m, -ax, -hz, ax, hz, base, floors, floorH, { mullions: 5.2, band: 0.34 });
-    // The diagrid: braces across four floors at a time, both long faces.
     m.painted(TINT.METAL_DARK, () => {
       const rise = floorH * 4;
       for (let f = 0; f + 4 <= floors; f += 4) {
@@ -407,7 +465,6 @@ function exchangeTower(lod: number): MeshBuilder {
         }
       }
     });
-    // The atrium roof: a shallow glazed pyramid between the cores.
     const lid = plan(ax, hz, 0.02, 4);
     shelf(m, scaled(lid, 0.98), scaled(lid, 1.05), top, top + 1.0, MAT.CONCRETE);
     m.cone(0, 0, Math.min(ax, hz) * 1.02, 1.5, top + 1.0, top + 9.0, 4, MAT.GLASS);
@@ -427,6 +484,315 @@ function exchangeTower(lod: number): MeshBuilder {
   return m;
 }
 
+// ================================================================= 4. asian
+
+/**
+ * A sky-garden tower: a glass shaft with three storeys cut out of it, twice.
+ *
+ * The move that defines the type: instead of ending in a crown, the tower
+ * gives up floor area in the middle and lets you see daylight through it.
+ * Structurally the two voids are where the transfer floors go, and visually
+ * they are the only thing that makes a two-hundred-metre glass shaft anything
+ * other than a two-hundred-metre glass shaft.
+ */
+function skyGardenTower(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 15.0, hz = 15.0, floorH = 3.8;
+  const base = 14.0;
+  //: [start floor, floors] of each void.
+  const voids: Array<[number, number]> = [[14, 3], [30, 3]];
+  const floors = 44;
+  const top = base + floors * floorH;
+
+  forecourt(m, -38, -34, 38, 34, 7013, { trees: 7, lamps: 8, people: 10, benches: 4 });
+  // A deep podium with a tiled canopy over it, which is what these stand on.
+  m.box([-30, 0.1, -26], [30, base, 26], MAT.TILE, { roof: MAT.ROOF });
+  if (medium) {
+    m.box([-28, 1.0, -26.4], [28, base - 2.4, 26.4], MAT.GLASS);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 14; i++) {
+        const x = -28 + (i / 14) * 56;
+        m.box([x - 0.22, 0.6, -26.7], [x + 0.22, base - 2.2, -26.2], MAT.TRIM);
+        m.box([x - 0.22, 0.6, 26.2], [x + 0.22, base - 2.2, 26.7], MAT.TRIM);
+      }
+    });
+    m.cone(0, 0, 1.0, 0.88, base, base + 3.4, 4, MAT.ROOF_TILE);
+    m.painted(TINT.BRAND, () => band(m, -30, -26, 30, 26, base - 2.4, 2.0, 0.6, MAT.CLADDING));
+  }
+
+  const inVoid = (f: number): boolean => voids.some(([a, n]) => f >= a && f < a + n);
+  for (let f = 0; f < floors; f++) {
+    const y = base + 3.4 + f * floorH;
+    if (inVoid(f)) {
+      // The void: the two cores carry through it and nothing else does.
+      for (const s of [-1, 1]) {
+        m.box([s * hx - s * 5.0, y, -5.0], [s * hx, y + floorH, 5.0], MAT.CONCRETE);
+      }
+      if (fine) {
+        m.painted(TINT.GREEN, () => m.box([-hx + 5.4, y, -hz + 1], [hx - 5.4, y + 0.6, hz - 1], MAT.TRIM));
+        railing(m, -hx, hx, hz - 0.4, y + 0.6, 1.05, 2.6);
+        railing(m, -hx, hx, -hz + 0.4, y + 0.6, 1.05, 2.6);
+      }
+      continue;
+    }
+    m.box([-hx, y, -hz], [hx, y + floorH, hz], MAT.GLASS);
+  }
+  if (medium) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let f = 0; f <= floors; f++) {
+        if (inVoid(f) || inVoid(f - 1)) continue;
+        const y = base + 3.4 + f * floorH;
+        m.box([-hx - 0.2, y - 0.28, -hz - 0.2], [hx + 0.2, y + 0.28, hz + 0.2], MAT.TRIM);
+      }
+      // Four corner columns full height, which is what carries the voids.
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        m.box([sx * hx - sx * 1.4, base, sz * hz - sz * 1.4],
+              [sx * hx + sx * 0.35, top + 6.0, sz * hz + sz * 0.35], MAT.CLADDING);
+      }
+    });
+    // A tiered crown: three tiled hips, diminishing, on a set-back attic.
+    m.box([-hx * 0.8, top, -hz * 0.8], [hx * 0.8, top + 4.0, hz * 0.8], MAT.PLASTER, { roof: MAT.ROOF });
+    for (let k = 0; k < 3; k++) {
+      const r = hx * (1.0 - k * 0.22), y0 = top + 4.0 + k * 5.0;
+      m.cone(0, 0, r, r * 0.62, y0, y0 + 3.2, 12, MAT.ROOF_TILE);
+      m.cylinder(0, 0, r * 0.62, y0 + 3.2, y0 + 5.0, 12, MAT.PLASTER, false);
+    }
+    m.cone(0, 0, hx * 0.36, 0.0, top + 19.0, top + 26.0, 12, MAT.ROOF_TILE);
+    m.painted(TINT.ACCENT, () => m.cylinder(0, 0, 0.6, top + 26.0, top + 29.0, 6, MAT.TRIM, true));
+  }
+  if (fine) {
+    porteCochere(m, -12, 12, 26.4, 7.0, 8.0, 4);
+    marquee(m, -16, 16, 26.6, 1, base - 1.6, 2.6);
+    flags(m, -26, 26, 30.0, 0.2, 7, 9.0);
+    for (const s of [-1, 1]) planter(m, s * 24, 30.0, 2.4, 0.7);
+    roofClutter(m, -12, -12, 12, 12, top + 4.0, 73, 0.3);
+  }
+  return m;
+}
+
+/**
+ * Two towers on a shared podium, tied by a skybridge.
+ *
+ * The pair is the point: one tower of the same floor area is a stick, and two
+ * of three-quarters the width read as a gateway from every direction but one.
+ * The bridge is what makes them one building rather than two, and it goes two
+ * thirds up, clear of the podium and under the crowns.
+ */
+function twinTowers(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const floorH = 3.9, floors = 36;
+  const hx = 10.5, hz = 13.0, gap = 19.0;
+  const base = 10.0;
+  const top = base + floors * floorH;
+
+  forecourt(m, -50, -36, 50, 36, 4211, { trees: 8, lamps: 8, people: 11, benches: 4 });
+  m.box([-44, 0.1, -22], [44, base, 22], MAT.TILE, { roof: MAT.ROOF });
+  if (medium) {
+    m.box([-42, 1.0, -22.4], [42, base - 2.2, 22.4], MAT.GLASS);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 18; i++) {
+        const x = -42 + (i / 18) * 84;
+        m.box([x - 0.22, 0.6, -22.7], [x + 0.22, base - 2.0, -22.2], MAT.TRIM);
+        m.box([x - 0.22, 0.6, 22.2], [x + 0.22, base - 2.0, 22.7], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.BRAND, () => band(m, -44, -22, 44, 22, base - 2.2, 1.8, 0.55, MAT.CLADDING));
+    parapet(m, -44, -22, 44, 22, base, 1.0, 0.25, MAT.CONCRETE);
+  }
+  for (const s of [-1, 1]) {
+    const cx = s * (gap / 2 + hx);
+    m.box([cx - hx, base, -hz], [cx + hx, top, hz], MAT.GLASS);
+    if (medium) {
+      curtain(m, cx - hx, -hz, cx + hx, hz, base, floors, floorH, { mullions: 3.4 });
+      // The core expressed as a solid slab on the inner face.
+      m.box([cx - hx * 0.34, base, -hz - 0.5], [cx + hx * 0.34, top + 3.0, -hz + 0.4], MAT.CLADDING);
+      m.painted(TINT.BRAND, () => {
+        m.box([cx - hx * 0.3, base, -hz - 0.62], [cx + hx * 0.3, top, -hz - 0.52], MAT.CLADDING);
+      });
+      // A tiered cap, which is what makes these a pair of Asian towers rather
+      // than a pair of anonymous ones.
+      m.placed(cx, 0, 0, () => {
+        for (let k = 0; k < 3; k++) {
+          const r = hx * (1.0 - k * 0.2), y0 = top + k * 4.4;
+          m.cone(0, 0, r, r * 0.66, y0, y0 + 2.8, 10, MAT.ROOF_TILE);
+          m.cylinder(0, 0, r * 0.66, y0 + 2.8, y0 + 4.4, 10, MAT.CLADDING, false);
+        }
+        m.painted(TINT.METAL_DARK, () => {
+          m.cylinder(0, 0, 0.4, top + 13.2, top + 24.0, 6, MAT.TRIM, false);
+          m.cylinder(0, 0, 0.16, top + 24.0, top + 34.0, 5, MAT.TRIM, false);
+        });
+        m.painted(TINT.SIGN_LIT, () => m.box([-0.5, top + 18.0, -0.5], [0.5, top + 18.8, 0.5], MAT.LAMP));
+      });
+    }
+  }
+  if (medium) {
+    const y = base + floors * floorH * 0.62;
+    m.box([-gap / 2 - 1, y, -6.0], [gap / 2 + 1, y + 8.0, 6.0], MAT.GLASS);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-gap / 2 - 1.4, y - 0.8, -6.4], [gap / 2 + 1.4, y, 6.4], MAT.TRIM, { skipBottom: false });
+      m.box([-gap / 2 - 1.4, y + 8.0, -6.4], [gap / 2 + 1.4, y + 8.8, 6.4], MAT.TRIM);
+      for (let i = 0; i <= 5; i++) {
+        const x = -gap / 2 + (i / 5) * gap;
+        m.box([x - 0.14, y, -6.5], [x + 0.14, y + 8.0, -6.35], MAT.TRIM);
+        m.box([x - 0.14, y, 6.35], [x + 0.14, y + 8.0, 6.5], MAT.TRIM);
+      }
+      // Two raking props under the bridge, off each tower.
+      for (const s of [-1, 1]) {
+        m.pipe([s * gap / 2, y - 0.8, 0], [s * (gap / 2 + hx * 0.8), y - 14.0, 0], 0.5, MAT.TRIM, 5);
+      }
+    });
+  }
+  if (fine) {
+    porteCochere(m, -11, 11, 22.4, 7.0, 7.0, 4);
+    marquee(m, -18, 18, 22.6, 1, base - 1.4, 2.6);
+    flags(m, -36, 36, 26.0, 0.2, 9, 9.5);
+    roofClutter(m, -34, -18, -18, 18, base, 77, 0.5);
+    for (const s of [-1, 1]) planter(m, s * 30, 27.0, 2.6, 0.75);
+  }
+  return m;
+}
+
+// =============================================================== 5. farming
+
+/**
+ * A grain exchange: a trading hall under a saw-tooth, with the silos attached.
+ *
+ * The rural theme's big office, and the only honest form for one -- a company
+ * that trades what the region grows has its floor beside the thing it trades.
+ * So it is one long two-storey block of offices, a top-lit hall, and six
+ * concrete silos joined to it by a conveyor. Wide rather than tall, which is
+ * how a farming region builds anything.
+ */
+function grainExchange(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const hx = 44.0, hz = 20.0, floorH = 4.2, floors = 4;
+  const top = 0.8 + floors * floorH;
+
+  forecourt(m, -56, -34, 56, 34, 2903, { trees: 7, lamps: 8, people: 8, benches: 3 });
+  m.box([-hx, 0.1, -hz], [hx, 0.8, hz], MAT.STONE);
+  m.box([-hx, 0.8, -hz], [hx, top, hz], MAT.BRICK, { roof: MAT.ROOF });
+  if (medium) {
+    // Brick piers with timber-framed glazing between them, which is what a
+    // nineteenth-century exchange actually looks like.
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i <= 14; i++) {
+        const x = -hx + (i / 14) * hx * 2;
+        m.box([x - 1.1, 0.8, -hz - 0.5], [x + 1.1, top + 0.8, -hz], MAT.BRICK);
+        m.box([x - 1.1, 0.8, hz], [x + 1.1, top + 0.8, hz + 0.5], MAT.BRICK);
+      }
+    });
+    for (let f = 0; f < floors; f++) {
+      for (const [sign, pln] of [[1, hz], [-1, -hz]] as const) {
+        m.windowRow({
+          axis: 'z', sign, plane: pln, from: -hx + 2, to: hx - 2,
+          y0: 0.8 + f * floorH + 0.8, y1: 0.8 + (f + 1) * floorH - 0.8,
+          count: 14, width: 3.2, glass: MAT.PANE, frame: 0.16, proud: 0.1,
+        });
+      }
+    }
+    band(m, -hx, -hz, hx, hz, top - 0.9, 0.9, 0.6, MAT.STONE);
+    sawtooth(m, -hx + 0.5, -hz + 0.5, hx - 0.5, hz - 0.5, top + 0.8, 5, 4.2, MAT.METAL);
+    for (const s of [-1, 1]) {
+      m.box([s * (hx - 0.4), top - 0.4, -hz], [s * (hx + 0.2), top + 5.4, hz], MAT.BRICK);
+    }
+  }
+  if (fine) {
+    // A clock gable over the entrance, which is the one vertical it gets.
+    m.box([-8.0, 0.1, hz], [8.0, top + 3.0, hz + 3.0], MAT.BRICK);
+    m.gable([-8.6, top + 3.0, hz - 0.6], [8.6, top + 3.0, hz + 3.6], 4.6, 'x', MAT.ROOF_TILE, MAT.BRICK);
+    m.painted(TINT.SIGN_LIT, () => m.cylinder(0, hz + 3.05, 2.2, top + 4.0, top + 4.2, 14, MAT.PLATE, true));
+    entrance(m, { axis: 'z', sign: 1, plane: hz + 3.0 }, 0,
+      { width: 3.8, height: 5.0, double: true, glazed: true, fanlight: true });
+    marquee(m, -7, 7, hz + 3.3, 1, 6.4, 2.0);
+    // The silo battery and the conveyor that feeds it.
+    for (let i = 0; i < 6; i++) {
+      silo(m, -hx + 8 + i * 12.5, -hz - 14.0, 5.4, 0.1, 26.0, { cone: 3.4, ribs: 4, mat: MAT.CONCRETE });
+    }
+    m.box([-hx + 2, 26.0, -hz - 19.0], [hx - 2, 30.0, -hz - 9.0], MAT.METAL, { roof: MAT.ROOF });
+    conveyor(m, [hx - 4, 30.0, -hz - 14.0], [hx + 14, 8.0, -hz - 14.0], 2.0);
+    m.painted(TINT.NONE, () => m.box([-hx, 0.11, -hz - 24.0], [hx, 0.2, -hz - 1.0], MAT.GROUND));
+    flags(m, -20, 20, hz + 8.0, 0.2, 5, 8.5);
+    for (const sx of [-40, 40]) tree(m, sx, hz + 12, 9.5, 3.4);
+    for (let i = 0; i < 7; i++) figure(m, 3311 + i * 13, -18 + i * 6.0, hz + 6.0, Math.PI, { stride: 0.22 });
+  }
+  return m;
+}
+
+/**
+ * An agricultural research campus: three pavilions and a run of glasshouses.
+ *
+ * The other kind of big rural employer, and it is a campus rather than a
+ * building -- low blocks in a landscape, joined by a covered walk, with the
+ * glasshouses that are the actual work laid out beside them. Nothing else in
+ * the library is a plan rather than an object, which is the point.
+ */
+function agriCampus(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const floorH = 4.0;
+
+  forecourt(m, -56, -40, 56, 24, 6151, { trees: 12, lamps: 8, people: 8, benches: 5 });
+  // Three pavilions on a spine, each two or three storeys of glass and timber.
+  const pav: Array<[number, number, number]> = [[-34, 3, 20], [0, 2, 24], [34, 3, 20]];
+  for (const [cx, n, w] of pav) {
+    const h = 0.6 + n * floorH;
+    m.box([cx - w / 2, 0.1, -16], [cx + w / 2, 0.6, 12], MAT.STONE);
+    m.box([cx - w / 2, 0.6, -16], [cx + w / 2, h, 12], MAT.RENDER, { roof: MAT.ROOF });
+    if (medium) {
+      curtain(m, cx - w / 2 + 0.5, -16.4, cx + w / 2 - 0.5, 12.4, 0.6, n, floorH,
+        { mullions: 3.0, frame: MAT.TIMBER });
+      // A deep timber brise-soleil, which is the theme's one modern gesture.
+      m.painted(TINT.WOOD, () => {
+        for (let f = 1; f <= n; f++) {
+          m.box([cx - w / 2 - 1.2, 0.6 + f * floorH - 0.9, 12.4], [cx + w / 2 + 1.2, 0.6 + f * floorH - 0.6, 14.2], MAT.TIMBER);
+        }
+        for (let i = 0; i <= 6; i++) {
+          const x = cx - w / 2 + (i / 6) * w;
+          m.box([x - 0.16, 0.6, 13.6], [x + 0.16, h, 14.0], MAT.TIMBER);
+        }
+      });
+      m.gable([cx - w / 2 - 0.8, h, -16.8], [cx + w / 2 + 0.8, h, 12.8], 3.6, 'x', MAT.ROOF_TILE, MAT.RENDER);
+    }
+    if (fine) roofClutter(m, cx - w / 2 + 2, -14, cx + w / 2 - 2, 10, h, 43 + cx, 0.4);
+  }
+  if (medium) {
+    // The covered walk that joins them.
+    m.painted(TINT.WOOD, () => {
+      m.box([-46, 4.2, 12.6], [46, 4.6, 17.4], MAT.TIMBER, { skipBottom: false });
+      for (let i = 0; i <= 22; i++) {
+        const x = -46 + (i / 22) * 92;
+        m.cylinder(x, 17.0, 0.2, 0.2, 4.2, 6, MAT.TIMBER, false);
+      }
+    });
+  }
+  if (fine) {
+    // The glasshouses: five spans of glazed barrel vault on dwarf walls.
+    for (let i = 0; i < 5; i++) {
+      const z0 = -38.0, z1 = -18.0;
+      const x0 = -44 + i * 18, x1 = x0 + 14;
+      m.box([x0, 0.1, z0], [x1, 1.2, z1], MAT.CONCRETE);
+      m.box([x0 + 0.3, 1.2, z0 + 0.3], [x1 - 0.3, 4.2, z1 - 0.3], MAT.GLASS);
+      barrelVault(m, x0, z0, x1, z1, 4.2, 4.0, 7, { ribs: 6 });
+      m.painted(TINT.GREEN, () => m.box([x0 + 1, 1.2, z0 + 1], [x1 - 1, 2.4, z1 - 1], MAT.TRIM));
+    }
+    // Trial plots between the glasshouses and the pavilions.
+    m.painted(TINT.GREEN, () => {
+      for (let i = 0; i < 6; i++) m.box([-46 + i * 15.5, 0.12, -16.0], [-36 + i * 15.5, 0.34, -6.0], MAT.TRIM);
+    });
+    hedge(m, -50, -4.0, 50, -2.8, 1.0);
+    porteCochere(m, -8, 8, 14.4, 5.5, 5.5, 3);
+    marquee(m, -12, 12, 14.6, 1, 6.6, 2.2);
+    flags(m, -24, 24, 20.0, 0.2, 5, 8.0);
+    for (let i = 0; i < 8; i++) figure(m, 4409 + i * 11, -30 + i * 8.0, 19.0, Math.PI, { stride: 0.22 });
+    for (const sx of [-50, 50]) tree(m, sx, 18, 10.0, 3.6);
+    lattice(m, 50, -30, 1.4, 0.7, 0.1, 26.0, 6);
+  }
+  return m;
+}
+
 // ====================================================================== table
 
 const desks = (jobs: number, upkeep: number, power: number): AssetDef['sim'] => ({
@@ -434,45 +800,100 @@ const desks = (jobs: number, upkeep: number, power: number): AssetDef['sim'] => 
   pollution: 0, upkeep,
 });
 
-export const SIGNATURE_OFFICE: AssetDef[] = [
-  {
-    id: 'sig.off.supertall', name: 'Ardent Tower', zone: 'office', density: 'high',
-    variant: 'sculpted', theme: 'modern', signature: true, footprint: [12, 11], height: 0,
-    brand: { name: 'Ardent', colour: [0.16, 0.26, 0.40], accent: [0.72, 0.62, 0.30], sign: 'box' },
-    sim: desks(2600, 3400, 5200),
+interface Row {
+  key: string; name: string; foot: [number, number]; jobs: number;
+  upkeep: number; power: number; colour: [number, number, number];
+  accent: [number, number, number]; note: string;
+  build: (lod: number) => MeshBuilder;
+}
+
+const TOWER: Record<Theme, Row> = {
+  modern: {
+    key: 'tower', name: 'Ardent Tower', foot: [12, 11], jobs: 2600, upkeep: 3400, power: 5200,
+    colour: [0.16, 0.26, 0.40], accent: [0.72, 0.62, 0.30],
     note: 'Sixty-two storeys on a nine-square plan that loses its corners, then its sides: three curtain-walled stages with a railed terrace at each setback, a colonnaded stone base and a thirty-four metre mast.',
     build: supertall,
   },
-  {
-    id: 'sig.off.prism', name: 'The Prism', zone: 'office', density: 'high',
-    variant: 'sculpted', theme: 'modern', signature: true, footprint: [11, 10], height: 0,
-    brand: { name: 'Prism', colour: [0.14, 0.32, 0.44], accent: [0.66, 0.70, 0.74], sign: 'box' },
-    sim: desks(1900, 2500, 3900),
-    note: 'A twenty-seven storey equilateral prism with a full-height fin on each corner, cut off on the diagonal under a raked glass roof that carries one corner fourteen metres higher than the other two.',
-    build: prismTower,
+  european: {
+    key: 'tower', name: 'The Chancery', foot: [9, 8], jobs: 1500, upkeep: 2200, power: 2800,
+    colour: [0.22, 0.24, 0.30], accent: [0.66, 0.58, 0.34],
+    note: 'Twenty storeys of stone piers over an arcaded loggia you can see through, finishing in a colonnaded clock stage with four lit faces and a three-stage copper spire with a weathervane on it.',
+    build: chanceryTower,
   },
-  {
-    id: 'sig.off.hq', name: 'Vance Group HQ', zone: 'office', density: 'high',
-    variant: 'sculpted', theme: 'modern', signature: true, footprint: [14, 11], height: 0,
-    brand: { name: 'Vance Group', colour: [0.18, 0.30, 0.34], accent: [0.70, 0.58, 0.24], sign: 'box' },
-    sim: desks(1400, 2100, 3000),
-    note: 'A nine-storey glass slab bent into a shallow arc on a stone podium, with a horizontal brise-soleil on the outer face, a glazed entrance pavilion under a canopy, and a garden and flag line in front.',
-    build: corporateHq,
-  },
-  {
-    id: 'sig.off.deco', name: 'The Corvid Building', zone: 'office', density: 'high',
-    variant: 'sculpted', theme: 'american', signature: true, footprint: [9, 8], height: 0,
-    brand: { name: 'Corvid', colour: [0.24, 0.18, 0.22], accent: [0.74, 0.60, 0.22], sign: 'box' },
-    sim: desks(1200, 1900, 2400),
+  american: {
+    key: 'tower', name: 'The Corvid Building', foot: [9, 8], jobs: 1200, upkeep: 1900, power: 2400,
+    colour: [0.24, 0.18, 0.22], accent: [0.74, 0.60, 0.22],
     note: 'A stepped masonry skyscraper: a stone base with an arched entrance bay, five brick stages of deep continuous piers with a chevron frieze at every setback, and a crown of five diminishing tiers under a lit lantern and spire.',
     build: decoTower,
   },
-  {
-    id: 'sig.off.exchange', name: 'The Exchange', zone: 'office', density: 'high',
-    variant: 'sculpted', theme: 'modern', signature: true, footprint: [11, 10], height: 0,
-    brand: { name: 'The Exchange', colour: [0.20, 0.22, 0.30], accent: [0.72, 0.52, 0.16], sign: 'box' },
-    sim: desks(2100, 2800, 4600),
+  asian: {
+    key: 'tower', name: 'Cloud Terrace', foot: [10, 9], jobs: 2200, upkeep: 3000, power: 4400,
+    colour: [0.18, 0.30, 0.36], accent: [0.72, 0.46, 0.22],
+    note: 'Forty-four storeys with two three-storey sky gardens cut clean through the shaft, carried on four corner columns, over a glazed podium with a tiled canopy, and finishing in three diminishing tiled tiers and a finial.',
+    build: skyGardenTower,
+  },
+  farming: {
+    key: 'tower', name: 'Wheatmarket Exchange', foot: [15, 11], jobs: 900, upkeep: 1400, power: 1800,
+    colour: [0.36, 0.26, 0.16], accent: [0.68, 0.60, 0.30],
+    note: 'A ninety-metre brick exchange in fourteen piered bays under a five-bay north-light roof, with a clock gable over the door and a battery of six twenty-six metre silos joined to it by a conveyor.',
+    build: grainExchange,
+  },
+  row: {
+    key: 'tower', name: '', foot: [1, 1], jobs: 0, upkeep: 0, power: 0,
+    colour: [0, 0, 0], accent: [0, 0, 0], note: '', build: supertall,
+  },
+};
+
+const HQ: Record<Theme, Row> = {
+  modern: {
+    key: 'hq', name: 'Vance Group HQ', foot: [14, 11], jobs: 1400, upkeep: 2100, power: 3000,
+    colour: [0.18, 0.30, 0.34], accent: [0.70, 0.58, 0.24],
+    note: 'A nine-storey glass slab bent into a shallow arc on a stone podium, with a horizontal brise-soleil on the outer face, a glazed entrance pavilion under a canopy, and a garden and flag line in front.',
+    build: corporateHq,
+  },
+  european: {
+    key: 'hq', name: 'Ravensholt Quadrangle', foot: [14, 11], jobs: 1300, upkeep: 1900, power: 2400,
+    colour: [0.26, 0.26, 0.28], accent: [0.64, 0.58, 0.38],
+    note: 'Four six-storey stone ranges round a court roofed in a glazed barrel vault, mansards over each range, a pedimented centrepiece on four giant columns, and the court paved, planted and walked across.',
+    build: quadrangleHq,
+  },
+  american: {
+    key: 'hq', name: 'The Exchange', foot: [11, 10], jobs: 2100, upkeep: 2800, power: 4600,
+    colour: [0.20, 0.22, 0.30], accent: [0.72, 0.52, 0.16],
     note: 'Two concrete cores flanking a twenty-four storey glazed atrium under a pyramid roof, braced by a four-storey diagrid on both long faces, over a two-storey trading hall glazed all the way round.',
     build: exchangeTower,
   },
-];
+  asian: {
+    key: 'hq', name: 'Twin Cranes', foot: [13, 10], jobs: 2400, upkeep: 3200, power: 4800,
+    colour: [0.20, 0.28, 0.42], accent: [0.74, 0.54, 0.20],
+    note: 'Two thirty-six storey towers on a shared glazed podium, tied at the twenty-third floor by a skybridge on raking props, each capped with three diminishing tiled tiers and a mast.',
+    build: twinTowers,
+  },
+  farming: {
+    key: 'hq', name: 'Fallowmere Research', foot: [14, 10], jobs: 700, upkeep: 1100, power: 1600,
+    colour: [0.24, 0.32, 0.24], accent: [0.66, 0.60, 0.36],
+    note: 'Three timber-and-glass pavilions on a covered walk, five glazed barrel-vaulted glasshouses laid out beside them, trial plots between the two and a met mast at the end of the site.',
+    build: agriCampus,
+  },
+  row: {
+    key: 'hq', name: '', foot: [1, 1], jobs: 0, upkeep: 0, power: 0,
+    colour: [0, 0, 0], accent: [0, 0, 0], note: '', build: corporateHq,
+  },
+};
+
+export const SIGNATURE_OFFICE: AssetDef[] = THEME_ORDER.flatMap((t) =>
+  [TOWER[t], HQ[t]].map((r): AssetDef => ({
+    id: `sig.off.${t}.${r.key}`,
+    name: r.name,
+    zone: 'office',
+    density: 'high',
+    variant: 'sculpted',
+    theme: t,
+    signature: true,
+    footprint: r.foot,
+    height: 0,
+    brand: { name: r.name, colour: r.colour, accent: r.accent, sign: 'box' },
+    sim: desks(r.jobs, r.upkeep, r.power),
+    note: r.note,
+    build: r.build,
+  })));
