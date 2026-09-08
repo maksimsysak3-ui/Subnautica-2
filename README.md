@@ -18,10 +18,11 @@ Add `?bench` to the URL to fly a fixed route and print frame times; `?lite`
 builds a small world for weak GPUs and for CI.
 
 **Asset viewer at [`/asset.html`](https://maksimsysak3-ui.github.io/Subnautica-2/asset.html).**
-Ten procedural buildings — low, medium and high density housing, commercial and
-industrial — each in two variants at the same footprint: one where the detail
-is drawn by the facade shader, one where it is modelled. Flip between them to
-see what the geometry actually buys.
+Four hundred assets: the zoned density ladder in five regional themes, eleven
+branches of city service, the road and bridge kit, the imported vehicle fleet,
+and a **signature** tab of forty-five landmarks — three residential, two
+commercial, two office and two industrial in each theme, each of them one to a
+city and designed rather than re-skinned.
 
 ---
 
@@ -138,7 +139,8 @@ src/
   assets/
     mesh.ts            boxes, gables, cylinders, windows; bakes vertex AO
     types.ts           asset descriptor: footprint, sim costs, LOD builder
-    generators/        residential, commercial, industrial
+    generators/        residential, commercial, industrial, services, fleet
+    generators/signature-*  the landmarks: nine per theme, plus their own kit
   asset-viewer.ts      the /asset.html preview page
   input/controls.ts    pointer, wheel, touch and keyboard camera control
   math/m4.ts           mat4 / vec3, column-major, allocation-free

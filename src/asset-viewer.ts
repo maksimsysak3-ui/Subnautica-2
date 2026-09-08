@@ -695,10 +695,12 @@ function renderInfo(a: AssetDef, tris: number, lod: number): void {
     row('height', `${a.height.toFixed(1)} m`) +
     row(`triangles (LOD ${lod})`, tris.toLocaleString()) +
     row('LOD ladder', counts.map((c) => c.toLocaleString()).join(' → ')) +
-    (sim.households ? row('households', String(sim.households)) : '') +
-    (sim.jobs ? row('jobs', String(sim.jobs)) : '') +
-    row('power', `${sim.powerKW} kW`) +
-    row('upkeep', `${sim.upkeep}/wk`) +
+    (sim.households ? row('households', sim.households.toLocaleString()) : '') +
+    (sim.jobs ? row('jobs', sim.jobs.toLocaleString()) : '') +
+    // Rounded. The sim costs are per-household multiples, so a block of
+    // ninety-six flats reports 460.79999999999995 kW if you print the float.
+    row('power', `${Math.round(sim.powerKW).toLocaleString()} kW`) +
+    row('upkeep', `${Math.round(sim.upkeep).toLocaleString()}/wk`) +
     `<div class="note">${a.note}</div>`;
 }
 

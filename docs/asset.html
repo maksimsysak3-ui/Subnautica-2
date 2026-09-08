@@ -10,7 +10,7 @@
 /* Replace a stale cached copy of this page. Same guard as index.html: GitHub
  * Pages serves HTML with a ten-minute max-age and no way to change it, so a
  * deploy is invisible to anyone holding a cached copy. */
-window.__BUILD__ = 'mton0ff8';
+window.__BUILD__ = 'mts7fe7d';
 (function () {
   fetch('version.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -77,6 +77,11 @@ window.__BUILD__ = 'mton0ff8';
   .cat.on { background: color-mix(in srgb, var(--c) 22%, transparent);
     border-color: var(--c); }
   .cat.on span { color: #eef4fb; }
+  /* The landmarks tab. A star rather than a zone mark, because a signature
+     building is not something the player paints on the map -- it is the one
+     of its kind, and the bar should say so at a glance. */
+  .cat.sig { --c: #dfb45c; --d: #6b5322; }
+  .cat.sig .star { color: #f0c96e; font-size: 17px; letter-spacing: 0; }
   .item { padding: 7px 16px; cursor: pointer; border-left: 2px solid transparent; }
   .item:hover { background: rgba(98,212,255,.05); }
   .item.on { background: rgba(98,212,255,.10); border-left-color: var(--accent); }
@@ -102,7 +107,7 @@ window.__BUILD__ = 'mton0ff8';
     text-align: center; padding: 30px; color: #ff6b7a; background: var(--bg);
     z-index: 20; font: 13px/1.6 var(--mono); }
 </style>
-  <script type="module" crossorigin src="./assets/asset-vPpS1u9i.js"></script>
+  <script type="module" crossorigin src="./assets/asset-DEw0qHSS.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/m4-DvGWrzTh.js">
 </head>
 <body>

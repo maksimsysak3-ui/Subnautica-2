@@ -627,8 +627,11 @@ function leisureBox(lod: number): MeshBuilder {
 
   forecourt(m, -44, -40, 44, 34, 3907, { trees: 5, lamps: 8, people: 10, benches: 3 });
   // The auditoria block, stepped so the rake is visible from outside.
-  m.box([-hx, 0.1, -hz], [hx, 22.0, hz - 11.0], MAT.CLADDING, { roof: MAT.ROOF });
-  m.box([-hx, 0.1, -hz], [hx, 15.0, -hz + 7.0], MAT.CLADDING);
+  // Concrete rather than cladding. CLADDING is the one material allowed a
+  // saturated colour, and forty metres of it is a highlighter pen: the
+  // auditorium is the quiet mass and the colour belongs on the front.
+  m.box([-hx, 0.1, -hz], [hx, 22.0, hz - 11.0], MAT.CONCRETE, { roof: MAT.ROOF });
+  m.box([-hx, 0.1, -hz], [hx, 15.0, -hz + 7.0], MAT.CONCRETE);
   if (medium) {
     // The glazed front, the escalator run and the deck it lands on.
     curtain(m, -hx + 1.0, hz - 11.4, hx - 1.0, hz - 0.6, 0.5, 4, 4.6, { mullions: 3.6 });
@@ -720,12 +723,12 @@ function signTower(lod: number): MeshBuilder {
       const y = 5.6 + f * floorH + 0.5;
       const t = f % 3 === 0 ? TINT.BRAND : f % 3 === 1 ? TINT.ACCENT : TINT.SIGN_LIT;
       m.painted(t, () => {
-        m.box([-hx + 1.0, y, hz + 0.1], [hx - 1.0, y + floorH - 1.6, hz + 1.5], MAT.CLADDING);
-        m.box([hx + 0.1, y, -hz + 1.0], [hx + 1.5, y + floorH - 1.6, hz - 1.0], MAT.CLADDING);
+        m.box([-hx + 1.0, y, hz + 0.1], [hx - 1.0, y + floorH - 2.4, hz + 1.5], MAT.CLADDING);
+        m.box([hx + 0.1, y, -hz + 1.0], [hx + 1.5, y + floorH - 2.4, hz - 1.0], MAT.CLADDING);
       });
       m.painted(TINT.SIGN_LIT, () => {
         m.signFace([-hx + 1.2, y + 0.3, hz + 1.55], [hx - 1.2, y + 0.3, hz + 1.55],
-                   [hx - 1.2, y + floorH - 1.9, hz + 1.55], [-hx + 1.2, y + floorH - 1.9, hz + 1.55], MAT.TRIM);
+                   [hx - 1.2, y + floorH - 2.7, hz + 1.55], [-hx + 1.2, y + floorH - 2.7, hz + 1.55], MAT.TRIM);
       });
     }
     // A vertical blade on the corner, taller than the building.
