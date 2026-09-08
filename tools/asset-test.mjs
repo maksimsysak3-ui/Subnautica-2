@@ -54,6 +54,17 @@ const LANDMARK_MAX = 20000;
 const MEGA_AREA = 300;
 const MEGA_MAX = 46000;
 /**
+ * Signature buildings: the zoned landmarks.
+ *
+ * A zoned prototype is held to ten thousand because a city has three hundred
+ * of it. There is one Meridian Towers, the player put it where it would be
+ * seen, and it is a hundred and sixty metres tall -- so it gets the landmark
+ * band a service asset of the same size gets, and for the same reason. It is
+ * still a ceiling, and the LOD ladder below is still checked: what makes this
+ * affordable is that LOD1 drops the four thousand window frames.
+ */
+const SIGNATURE_MAX = 26000;
+/**
  * Vehicles and figures.
  *
  * There is no floor any more. The band existed to stop a generated car being
@@ -169,7 +180,7 @@ for (const a of ASSETS) {
   const landmark = service && area >= LANDMARK_AREA;
   const ceiling = fleet ? (big ? BIG_FLEET_MAX : FLEET_MAX)
     : service ? (area >= MEGA_AREA ? MEGA_MAX : landmark ? LANDMARK_MAX : SERVICE_MAX)
-      : MAX_TRIS;
+      : a.signature ? SIGNATURE_MAX : MAX_TRIS;
   const road = a.zone === 'road';
   const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
   if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);

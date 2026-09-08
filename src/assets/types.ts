@@ -121,6 +121,18 @@ export interface AssetDef {
   sim: SimCosts;
   /** One line on what this asset is demonstrating. */
   note: string;
+  /**
+   * A landmark rather than stock.
+   *
+   * The four zoned categories are a spawner's inventory: prototypes designed
+   * to be repeated down a street, where any one of them being memorable would
+   * be a fault. A signature building is the opposite -- there is one of it in
+   * the city, it is placed deliberately, and it is allowed a shape nothing
+   * else has and several times the triangles. The flag is what keeps the two
+   * apart in the viewer and, later, in the spawner: stock is picked at random
+   * from a bucket, and these never are.
+   */
+  signature?: true;
   /** Business identity, for anything with a shopfront. */
   brand?: Brand;
   /**
