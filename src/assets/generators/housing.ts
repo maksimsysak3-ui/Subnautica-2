@@ -350,6 +350,22 @@ function corner(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     }
     punched(m, T, { axis: 'x', sign: -1, plane: x0 }, z0 + depth + 0.6, z0 + arm - 0.6, { floors, base: 1.2, skipGround: true });
     punched(m, T, { axis: 'x', sign: 1, plane: x0 + depth }, z0 + depth + 0.6, z0 + arm - 0.6, { floors, base: 1.2 });
+    // The ends of the two wings, and the two outer faces of the turret.
+    //
+    // A corner block is the one prototype the spawner cannot orient away from
+    // the player: it stands at a junction and two of its elevations are always
+    // in view from somewhere. These four were written as bare boxes, so half
+    // of every corner in the city was a twenty-metre blank slab. They are gable
+    // ends and a return, so they take a narrower rhythm than a frontage --
+    // stair and bathroom windows, not the full bay -- but they are not blank.
+    punched(m, T, { axis: 'x', sign: 1, plane: x0 + arm }, z0 + 1.4, z0 + depth - 1.4,
+      { floors, base: 1.2 });
+    punched(m, T, { axis: 'z', sign: 1, plane: z0 + arm }, x0 + 1.4, x0 + depth - 1.4,
+      { floors, base: 1.2 });
+    punched(m, T, { axis: 'x', sign: -1, plane: x0 - 0.4 }, z0 + 0.6, z0 + depth - 0.2,
+      { floors, base: 1.2, skipGround: true });
+    punched(m, T, { axis: 'z', sign: -1, plane: z0 - 0.4 }, x0 + depth + 0.6, x0 + arm - 0.6,
+      { floors, base: 1.2, skipGround: true });
     for (let f = 1; f < floors; f++) {
       m.opening({ axis: 'z', sign: -1, plane: z0 - 0.4, u0: x0 + 1.2, u1: x0 + depth - 1.2,
         y0: f * T.floorH + 1.0, y1: f * T.floorH + 2.5, glass: MAT.GLASS, frame: 0.12, proud: 0.08 });

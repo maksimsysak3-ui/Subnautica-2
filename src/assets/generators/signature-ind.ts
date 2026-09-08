@@ -45,16 +45,24 @@ function apron(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
 /** A run of roller-shutter loading doors along a wall. */
 function docks(m: MeshBuilder, x0: number, x1: number, z: number, sign: 1 | -1,
   count: number, h = 4.6, y = 0): void {
+  // Depths measured out from the wall, returned low corner first. A bay on a
+  // wall facing -z has `sign` -1, and `z + sign * d` is then *below* `z`, so
+  // writing the pair in source order handed every box on that elevation its
+  // corners reversed -- and a reversed box is wound inside out and culled.
+  const out = (a: number, b: number): [number, number] =>
+    (sign > 0 ? [z + a, z + b] : [z - b, z - a]);
   for (let i = 0; i < count; i++) {
     const c = x0 + ((i + 0.5) / count) * (x1 - x0);
+    const [s0, s1] = out(0, 0.3), [c0, c1] = out(0, 1.6);
+    const [g0, g1] = out(0.32, 0.42), [l0, l1] = out(0.3, 1.5);
     m.painted(TINT.METAL_DARK, () => {
-      m.box([c - 1.9, y + 0.1, z], [c + 1.9, y + h, z + sign * 0.3], MAT.TRIM);
-      m.box([c - 2.2, y + h, z], [c + 2.2, y + h + 0.5, z + sign * 1.6], MAT.TRIM, { skipBottom: false });
+      m.box([c - 1.9, y + 0.1, s0], [c + 1.9, y + h, s1], MAT.TRIM);
+      m.box([c - 2.2, y + h, c0], [c + 2.2, y + h + 0.5, c1], MAT.TRIM, { skipBottom: false });
     });
-    m.box([c - 1.6, y + 1.2, z + sign * 0.32], [c + 1.6, y + h - 0.3, z + sign * 0.42], MAT.METAL);
+    m.box([c - 1.6, y + 1.2, g0], [c + 1.6, y + h - 0.3, g1], MAT.METAL);
     // The dock leveller: the lip a trailer's floor meets, which is the one
     // thing that says loading bay rather than roller shutter.
-    m.box([c - 2.0, y + 1.1, z + sign * 0.3], [c + 2.0, y + 1.2, z + sign * 1.5], MAT.CONCRETE);
+    m.box([c - 2.0, y + 1.1, l0], [c + 2.0, y + 1.2, l1], MAT.CONCRETE);
   }
 }
 

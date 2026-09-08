@@ -103,6 +103,13 @@ SKIP_MESH = ()
 #: Every vehicle in a pack is measured against this one, in metres.
 TYPICAL = 4.5
 
+#: How each facet was resolved, counted across a run.
+#:
+#: Tuning any of the thresholds below without this is guesswork: the only
+#: honest question is what fraction of facets reach the midpoint fallback,
+#: because that fallback is the one that produces sawtooth.
+STATS = {'flat': 0, 'deep': 0, 'carve': 0, 'split': 0, 'clear': 0}
+
 #: Source variants to leave out, by the hash of their packed geometry.
 #:
 #: Empty. It held three liveries of one small van whose glazing and lamps were
@@ -350,9 +357,22 @@ def read_mesh(prim, textures):
         # down its side came from. Averaging everything instead gives the
         # slightly darker yellow the panel actually reads as from any distance,
         # which is the honest answer when the detail is finer than a facet.
-        if best[0] < len(hits) * 0.55:
+        #
+        # But only when the facet really is fragmented. A facet cut in half by
+        # a livery stripe has no group over 55% either, and this branch was
+        # swallowing it whole: it returned an average with an agreement of 1.0,
+        # which says "flat, stop" -- so the facet was never subdivided and
+        # never cut on its boundary, and the ambulance's stripe came out as
+        # two four-square-metre triangles of dusty red. Two groups covering
+        # nearly everything is a boundary, whatever the split between them,
+        # and it belongs to cut() rather than here.
+        top2 = groups[0][0] + (groups[1][0] if len(groups) > 1 else 0)
+        if best[0] < len(hits) * 0.55 and top2 < len(hits) * 0.85:
             avg = tuple(int(round(sum(t[i] for t in hits) / len(hits))) for i in range(3))
             return avg, 1.0
+        if best[0] < len(hits) * 0.55:
+            groups.sort(key=lambda g: -g[0])
+            best = groups[0]
         # The mean of the winning group, not one sample of it: within a group
         # the spread is JPEG noise, and averaging it out is the one place a
         # mean is the right answer.
@@ -408,21 +428,33 @@ def read_mesh(prim, textures):
         # The two of them have to be nearly all of it. Three colours on one
         # facet is a corner, not an edge, and a single straight cut would be a
         # worse answer there than four sub-facets.
-        if (groups[0][0] + groups[1][0]) < len(hits) * 0.94:
+        if (groups[0][0] + groups[1][0]) < len(hits) * 0.88:
             return None
         return tuple(tuple(g[1][i] / g[0] for i in range(3)) for g in groups[:2])
 
-    def cut(pos, uv, out):
+    def carve(pos, uv, out):
         """
-        Split a two-colour facet along the line the colours actually meet on.
+        Cut a facet on the boundaries the colours actually meet on.
 
-        This is what a thin stripe needs. Midpoint subdivision can only decide
-        which colour a whole sub-facet is, so a ten-centimetre rub rail on a
-        metre-long panel comes out as a sawtooth however deep you go -- each
-        level halves the teeth and never removes them. Cutting on the boundary
-        instead finds where along each edge the colour changes, to within a
-        two-hundred-and-fiftieth of the edge, and splits there: one straight
-        line down the flank, three facets instead of sixteen.
+        This is what a stripe needs, and midpoint subdivision cannot give it.
+        Splitting at midpoints can only decide which colour a whole sub-facet
+        is, so a ten-centimetre rub rail on a metre-long panel comes out as a
+        sawtooth however deep you go -- each level halves the teeth and never
+        removes them. Worse, these meshes map a whole flank to three or four
+        triangles: the ambulance's box side is four facets covering a third of
+        its atlas, and a livery stripe across one of them either becomes a
+        staircase or, if a single straight cut is forced on it, half the panel
+        painted red. Both artefacts were on every vehicle in the pack.
+
+        So the facet's own boundary is walked, and every point where the colour
+        flips along it is found by bisection. A single boundary crossing the
+        facet leaves two of those; a stripe -- which has two edges, and is the
+        thing that was missing -- leaves four. Either way they cut the triangle
+        into convex regions: one per arc of the boundary between consecutive
+        crossings, plus, when there are four, the polygon the crossings
+        themselves enclose. Each region is one colour and is fanned into
+        triangles. A stripe comes out parallel-sided and straight, at the width
+        the artist painted it, in five facets rather than sixteen.
         """
         pair = two(*uv)
         if pair is None:
@@ -437,41 +469,102 @@ def read_mesh(prim, textures):
             dn = max(abs(t[i] - minor[i]) for i in range(3))
             return 0 if dj <= dn else 1
 
-        side = [which(p) for p in uv]
-        if None in side or len(set(side)) != 2:
-            return False                # the corners do not straddle the edge
-        # The odd corner out, and the two edges leaving it that get cut.
-        odd = side.index(side[0] if side.count(side[0]) == 1 else side[1])
-        a, b = (odd + 1) % 3, (odd + 2) % 3
+        def at(i, j, t):
+            return (tuple(pos[i][k] + (pos[j][k] - pos[i][k]) * t for k in range(3)),
+                    tuple(uv[i][k] + (uv[j][k] - uv[i][k]) * t for k in range(2)))
 
-        def crossing(i, j):
-            """Where along edge i->j the colour changes, by bisection."""
-            lo, hi = 0.0, 1.0
-            for _ in range(8):
-                t = (lo + hi) / 2
-                w = which((uv[i][0] + (uv[j][0] - uv[i][0]) * t,
-                           uv[i][1] + (uv[j][1] - uv[i][1]) * t))
-                if w is None or w == side[i]:
-                    lo = t
-                else:
-                    hi = t
-            return (lo + hi) / 2
+        # The corners are never asked what colour they are.
+        #
+        # A corner sits on the seam between two patches of an atlas -- it is
+        # the one place on a facet where a sample is least trustworthy, which
+        # is why `vote` spreads its samples and pulls them inwards. Deciding a
+        # whole region from its corner is the same mistake magnified: one
+        # misread corner painted an entire sub-facet the stripe's colour, and
+        # those are the red shards that were scattered up the ambulance's
+        # flank well away from its stripe. So corners are used for nothing.
+        # Boundaries are found from samples along the edges, and each region's
+        # colour is read at its own centroid, which is by construction the
+        # point furthest inside it.
+        def flips(i, j, n=28):
+            """Parameters along edge i->j where the colour changes."""
+            step = 1.0 / (n + 1)
+            walk = [(k * step, which(at(i, j, k * step)[1])) for k in range(1, n + 1)]
+            walk = [(t, w) for t, w in walk if w is not None]
+            found = []
+            for k in range(1, len(walk)):
+                if walk[k][1] == walk[k - 1][1]:
+                    continue
+                lo, hi = walk[k - 1][0], walk[k][0]
+                base = walk[k - 1][1]
+                for _ in range(6):
+                    mt = (lo + hi) / 2
+                    wm = which(at(i, j, mt)[1])
+                    if wm is None or wm == base:
+                        lo = mt
+                    else:
+                        hi = mt
+                found.append((lo + hi) / 2)
+            return found
 
-        ta, tb = crossing(odd, a), crossing(odd, b)
-        # A crossing hard against a corner is not an edge across the facet, it
-        # is one corner sampling the neighbouring panel. Leave those to the
-        # midpoint path rather than emitting a sliver.
-        if not (0.04 < ta < 0.96 and 0.04 < tb < 0.96):
+        # The facet's boundary, in winding order, with the crossings spliced in.
+        loop, cross = [], []
+        for k in range(3):
+            i, j = k, (k + 1) % 3
+            loop.append((pos[i], uv[i]))
+            last = None
+            for t in flips(i, j):
+                # A crossing hard against a corner, or two of them almost on
+                # top of each other, is noise rather than a boundary across
+                # the facet: emitting it makes a sliver nobody asked for.
+                if not (0.04 < t < 0.96) or (last is not None and t - last < 0.06):
+                    return False
+                last = t
+                p, u = at(i, j, t)
+                cross.append(len(loop))
+                loop.append((p, u))
+        if len(cross) not in (2, 4):
             return False
 
-        def lerp(u, v, t):
-            return tuple(u[k] + (v[k] - u[k]) * t for k in range(len(u)))
+        # One region per arc between consecutive crossings, plus -- when a
+        # stripe has left four -- the polygon they enclose between them.
+        regions = []
+        n = len(loop)
+        for a in range(len(cross)):
+            i, j = cross[a], cross[(a + 1) % len(cross)]
+            poly, k = [], i
+            while True:
+                poly.append(loop[k])
+                if k == j:
+                    break
+                k = (k + 1) % n
+            regions.append(poly)
+        if len(cross) == 4:
+            regions.append([loop[c] for c in cross])
 
-        pa, pb = lerp(pos[odd], pos[a], ta), lerp(pos[odd], pos[b], tb)
-        emit(out, (pos[odd], pa, pb), major if side[odd] == 0 else minor)
-        far = minor if side[odd] == 0 else major
-        emit(out, (pa, pos[a], pos[b]), far)
-        emit(out, (pa, pos[b], pb), far)
+        emitted = []
+        for poly in regions:
+            if len(poly) < 3:
+                continue                # an arc lying flat along one edge
+            # Pulled a little towards the centroid twice over: once to be
+            # inside the region, and again because a point on a region's own
+            # edge is a point on the boundary.
+            cx = tuple(sum(q[1][k] for q in poly) / len(poly) for k in range(2))
+            lit = which(cx)
+            if lit is None:
+                return False
+            texel = major if lit == 0 else minor
+            for k in range(1, len(poly) - 1):
+                tri = (poly[0][0], poly[k][0], poly[k + 1][0])
+                ux, uy, uz = (tri[1][i] - tri[0][i] for i in range(3))
+                vx, vy, vz = (tri[2][i] - tri[0][i] for i in range(3))
+                nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+                if nx * nx + ny * ny + nz * nz < 1e-18:
+                    continue            # a sliver against a corner
+                emitted.append((tri, texel))
+        if not emitted:
+            return False
+        for tri, texel in emitted:
+            emit(out, tri, texel)
         return True
 
     #: How far apart two samples may be and still be the same panel, per
@@ -480,7 +573,15 @@ def read_mesh(prim, textures):
     NOISE = 26
 
     #: How much of a facet one colour has to cover before it is called flat.
-    AGREE = 0.80
+    #:
+    #: Raised from 0.80 once the boundary cut below could be relied on. At 0.80
+    #: a facet four-fifths white and one-fifth red is called white, its
+    #: neighbour four-fifths red is called red, and the stripe between them
+    #: comes out as a staircase -- which is the whole artefact this file exists
+    #: to avoid. There is no cost to being strict now: a facet that fails this
+    #: is cut on the boundary rather than subdivided, so it becomes three or
+    #: five facets with a straight edge instead of sixteen with a jagged one.
+    AGREE = 0.88
     #: How far a facet may be split. Each level is four sub-facets, so 2 is at
     #: most sixteen -- and only where the texture actually changes.
     #:
@@ -506,7 +607,26 @@ def read_mesh(prim, textures):
     #: against 1.7 and three megabytes of bundle. A thin stripe is the limit of
     #: one colour per facet, and more subdivision buys a smaller version of the
     #: same artefact rather than fixing it.
-    DEPTH = 5 if decal else 2
+    DEPTH = 5 if decal else 6
+
+    #: When a facet is too small in the texture to be worth splitting again.
+    #:
+    #: A depth limit is the wrong control for these meshes and was the reason
+    #: raising it always cost more than it bought. The mapping is wildly
+    #: non-uniform: the ambulance's flank is four triangles covering a third of
+    #: its atlas, while its light clusters and door handles are thousands
+    #: covering a few texels each. A depth that is barely enough for the flank
+    #: is a hundred times more than the handles need, so the cost went
+    #: everywhere and the benefit nowhere.
+    #:
+    #: Measuring the facet's own footprint puts the work where the problem is.
+    #: Under about five texels a side there is nothing left to resolve -- the
+    #: split would be deciding between two samples of the same texel -- so it
+    #: stops, whatever depth it is at. The giant panels get six levels and the
+    #: greeble gets none, and because only the sub-facets that actually
+    #: straddle a boundary recurse, the cost is along the stripe rather than
+    #: over the panel.
+    TEXELS = 5.0
 
     def emit(out, pos, texel):
         """One flat-coloured facet, lifted clear of the panel if it is a decal."""
@@ -542,16 +662,30 @@ def read_mesh(prim, textures):
         """
         texel, agree = vote(*uv)
         if texel is None:
+            STATS['clear'] += 1
             return                      # transparent decal: nothing to draw
-        if agree >= AGREE or depth >= DEPTH:
+        big = max(
+            ((uv[j][0] - uv[i][0]) * img.width) ** 2
+            + ((uv[j][1] - uv[i][1]) * img.height) ** 2
+            for i, j in ((0, 1), (1, 2), (2, 0))) > TEXELS * TEXELS
+        if agree >= AGREE or depth >= DEPTH or not big:
+            STATS['flat' if agree >= AGREE else 'deep'] += 1
             emit(out, pos, texel)
             return
         # A facet of exactly two colours is cut on the line between them, which
         # is a straight stripe rather than a staircase. Only bodywork: a decal
         # is a shape, not a boundary, and the midpoint path resolves it better.
-        if not decal and cut(pos, uv, out):
+        # A facet crossed by a stripe is cut on both of its edges; one
+        # straddling a single boundary is cut on that. Only bodywork: a decal
+        # is a shape rather than a boundary and the midpoint path resolves it
+        # better.
+        # A facet that straddles a boundary or is crossed by a stripe is cut
+        # on the boundary itself. Only bodywork: a decal is a shape rather than
+        # a boundary and the midpoint path resolves it better.
+        if not decal and carve(pos, uv, out):
+            STATS['carve'] += 1
             return
-        mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
+        STATS['split'] += 1
         mp = [mid(pos[1], pos[2]), mid(pos[2], pos[0]), mid(pos[0], pos[1])]
         mu = [mid2(uv[1], uv[2]), mid2(uv[2], uv[0]), mid2(uv[0], uv[1])]
         split((pos[0], mp[2], mp[1]), (uv[0], mu[2], mu[1]), depth + 1, out)
@@ -1155,10 +1289,22 @@ def main(src_dir, out_path):
     # across packs and named once from its measurements.
     found = []
     for f in PACKS:
+        # A pack that is not in the directory is skipped rather than fatal.
+        #
+        # The library was imported from seven files at once and this refused to
+        # start without all seven, which makes re-importing one of them
+        # impossible -- and re-importing one of them is the whole reason you
+        # would ever run this again. Missing packs simply contribute nothing;
+        # what comes out is a fleet-data.ts holding what was actually read, to
+        # be merged into the shipped one by tools/merge-fleet.mjs.
+        if not (src / f).exists():
+            print(f'-- {f}: not in {src}, skipped')
+            continue
         groups, scale, names = vehicles_in(src / f, f in WHOLE_PACKS,
                                            PACK_LENGTH.get(f, TYPICAL))
         kind = PACK_KIND.get(f)
         print(f'== {f}: {len(groups)} vehicles, {1 / scale:.1f} units per metre')
+        before = dict(STATS)
         for tris, given in zip(groups, names):
             # The triangles as read, and nothing else.
             #
@@ -1180,6 +1326,8 @@ def main(src_dir, out_path):
             # describe the same solid paints one car with the other's colours.
             found.append((geo_hash(order, index), packed_hash(order, index),
                           order, index, given, kind))
+        print('   facets: ' + '  '.join(
+            f'{k} {STATS[k] - before[k]}' for k in STATS if STATS[k] - before[k]))
 
     # One name per geometry, from its size, and a running number per class.
     named, counts = {}, {}

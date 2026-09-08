@@ -62,26 +62,111 @@ function supertall(lod: number): MeshBuilder {
     band(m, -q * 1.5 - 3, -q * 1.5 - 3, q * 1.5 + 3, q * 1.5 + 3, 12.0, 1.4, 0.8, MAT.STONE);
   }
 
-  const stages: Array<[number, number]> = [[1.5, 22], [1.0, 22], [0.5, 18]];
-  let y = 13.4;
-  for (const [half, n] of stages) {
-    const h = q * half;
-    m.box([-h, y, -h], [h, y + n * floorH, h], MAT.GLASS);
+  /**
+   * A stage of the shaft.
+   *
+   * Glass between expressed slab edges is what a tower is made of, and on its
+   * own it is also what makes one indistinguishable from the next at the
+   * distance a city is actually looked at. So each stage carries three things
+   * beyond its skin: fins on the module lines deep enough to throw a shadow
+   * down the whole face, a banded mechanical storey where the plant is, and a
+   * belt of structure at the setback. Those are the parts of a tall building
+   * that read from a kilometre away.
+   */
+  const shaft = (h: number, d: number, y: number, n: number, lobby: number): number => {
+    const top = y + n * floorH;
+    m.box([-h, y, -d], [h, top, d], MAT.GLASS);
     if (medium) {
-      curtain(m, -h, -h, h, h, y, n, floorH, { mullions: 4.0 });
-      m.painted(TINT.METAL_DARK, () => {
-        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-          m.box([sx * h - sx * 1.5, y, sz * h - sz * 1.5],
-                [sx * h + sx * 0.25, y + n * floorH + 1.6, sz * h + sz * 0.25], MAT.CLADDING);
+      curtain(m, -h, -d, h, d, y, n, floorH, { mullions: 4.2 });
+      // The fins are left the cladding's own colour rather than tinted dark.
+      // A dark fin on dark glass is a fin nobody sees: the whole point of
+      // carrying structure outside the skin is that it stripes the tower, and
+      // it only stripes it if it is lighter than what it stands on.
+      m.painted(TINT.NONE, () => {
+        // Fins on the module lines, carried past the head of the stage so the
+        // silhouette is toothed rather than cut flat.
+        for (const [a, b, along] of [[h, d, 'x'], [d, h, 'z']] as const) {
+          const n2 = Math.max(2, Math.round(a / 4.0));
+          for (let i = 0; i <= n2; i++) {
+            const u = -a + (i / n2) * 2 * a;
+            for (const sgn of [-1, 1]) {
+              if (along === 'x') {
+                m.box([u - 0.45, y, sgn > 0 ? b - 0.05 : -b - 0.7],
+                      [u + 0.45, top + 1.8, sgn > 0 ? b + 0.7 : -b + 0.05], MAT.STONE);
+              } else {
+                m.box([sgn > 0 ? b - 0.05 : -b - 0.7, y, u - 0.45],
+                      [sgn > 0 ? b + 0.7 : -b + 0.05, top + 1.8, u + 0.45], MAT.STONE);
+              }
+            }
+          }
         }
       });
+      // The mechanical floor: two solid storeys, louvred, standing proud.
+      m.painted(TINT.METAL_DARK, () => {
+        const ly = y + lobby * floorH;
+        m.box([-h - 0.4, ly, -d - 0.4], [h + 0.4, ly + 2 * floorH, d + 0.4], MAT.CLADDING);
+      });
+      if (fine) {
+        const ly = y + lobby * floorH;
+        m.painted(TINT.NONE, () => {
+          for (let k = 0; k < 5; k++) {
+            const yy = ly + 0.7 + k * ((2 * floorH - 1.4) / 5);
+            m.box([-h - 0.55, yy, -d - 0.55], [h + 0.55, yy + 0.14, d + 0.55], MAT.TRIM);
+          }
+        });
+      }
     }
-    y += n * floorH;
-    if (medium) shelf(m, plan(h * 0.97, h * 0.97, 0.02, 4), plan(h + 1.6, h + 1.6, 0.02, 4), y, y + 1.2, MAT.CONCRETE);
-    if (fine) railing(m, -h - 1.4, h + 1.4, h + 1.4, y + 1.2, 1.05, 2.4);
-    y += 1.2;
+    return top;
+  };
+
+  /** The terrace a setback leaves, and the belt of structure under it. */
+  const setback = (h: number, d: number, y: number): number => {
+    if (medium) {
+      shelf(m, plan(h * 0.99, d * 0.99, 0.02, 4), plan(h + 2.2, d + 2.2, 0.02, 4), y, y + 1.4, MAT.CONCRETE);
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([-h - 0.9, y - 2.2, -d - 0.9], [h + 0.9, y, d + 0.9], MAT.CLADDING);
+      });
+    }
+    if (fine) {
+      railing(m, -h - 2.0, h + 2.0, d + 2.0, y + 1.4, 1.05, 2.6);
+      railing(m, -h - 2.0, h + 2.0, -d - 2.0, y + 1.4, 1.05, 2.6);
+      m.painted(TINT.GREEN, () => m.box([-h + 1, y + 1.4, -d + 1], [h - 1, y + 1.7, d - 1], MAT.TRIM));
+    }
+    return y + 1.4;
+  };
+
+  // Nine squares at the base; the four corners go, leaving a cross; then the
+  // arms go too and one square carries the crown. The plan is the design, and
+  // it is why the silhouette is still legible at forty pixels tall.
+  let y = 13.4;
+  y = setback(q * 1.5, q * 1.5, shaft(q * 1.5, q * 1.5, y, 22, 11));
+  // The cross: two bars across the same centre, so the corners of the stage
+  // below are left as terraces on all four sides rather than a single ledge.
+  const arm = q * 1.5, wide = q * 0.62;
+  const crossTop = shaft(arm, wide, y, 20, 10);
+  shaft(wide, arm, y, 20, 10);
+  if (fine) {
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      m.painted(TINT.GREEN, () => {
+        m.box([sx > 0 ? wide + 0.6 : -arm, y, sz > 0 ? wide + 0.6 : -arm],
+              [sx > 0 ? arm : -wide - 0.6, y + 0.3, sz > 0 ? arm : -wide - 0.6], MAT.TRIM);
+      });
+    }
   }
-  if (medium) crownStack(m, q * 0.5, q * 0.5, y, 4, MAT.CLADDING, { mast: 34, taper: 0.8 });
+  y = setback(arm, arm, crossTop);
+  y = setback(q * 0.85, q * 0.85, shaft(q * 0.85, q * 0.85, y, 16, 8));
+  if (medium) {
+    // The crown: a lantern of four diminishing glazed tiers, then the mast.
+    for (let k = 0; k < 4; k++) {
+      const h = q * (0.85 - k * 0.16);
+      m.box([-h, y, -h], [h, y + 5.4, h], MAT.GLASS);
+      m.painted(TINT.SIGN_LIT, () => {
+        m.box([-h - 0.5, y + 5.4, -h - 0.5], [h + 0.5, y + 6.2, h + 0.5], MAT.CLADDING);
+      });
+      y += 6.2;
+    }
+    crownStack(m, q * 0.2, q * 0.2, y, 3, MAT.CLADDING, { mast: 30, taper: 0.75 });
+  }
   if (fine) {
     porteCochere(m, -10, 10, q * 1.5 + 3.4, 6.0, 7.4, 4);
     entrance(m, { axis: 'z', sign: 1, plane: q * 1.5 + 3 }, 0,
@@ -212,15 +297,38 @@ function chanceryTower(lod: number): MeshBuilder {
     band(m, -hx - 3.5, -hz - 3.5, hx + 3.5, hz + 3.5, base - 1.6, 1.6, 0.9, MAT.STONE);
   }
 
-  pierWall(m, -hx, -hz, hx, hz, base, 20, floorH, MAT.STONE,
+  // Two shafts, not one. A twenty-storey block with a hat on it is an office
+  // building; what makes a stone tower read as a tower is that it steps in
+  // once on the way up, so the piers of the upper shaft land on the cornice of
+  // the lower and the whole thing has a waist. It also takes it half as tall
+  // again, which is the other half of what the silhouette needs.
+  pierWall(m, -hx, -hz, hx, hz, base, 22, floorH, MAT.STONE,
     { bays: 6, glass: MAT.PANE, windows: medium, strips: true, depth: 0.5 });
-  let y = base + 20 * floorH;
+  let y = base + 22 * floorH;
+  const ux = hx * 0.76, uz = hz * 0.76;
   if (medium) {
-    band(m, -hx, -hz, hx, hz, y, 1.4, 1.0, MAT.STONE);
+    band(m, -hx, -hz, hx, hz, y, 1.6, 1.1, MAT.STONE);
+    // The setback: a balustraded terrace where the lower shaft stops, with an
+    // urn on each corner -- the one place a stone tower is allowed ornament.
+    shelf(m, plan(ux * 1.02, uz * 1.02, 0.02, 4), plan(hx + 1.0, hz + 1.0, 0.02, 4), y, y + 1.0, MAT.STONE);
+    if (fine) {
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        m.cylinder(sx * (hx - 1.2), sz * (hz - 1.2), 0.9, y + 1.0, y + 3.4, 8, MAT.STONE, true);
+      }
+      railing(m, -hx + 0.6, hx - 0.6, hz - 0.6, y + 1.0, 1.1, 2.4);
+      railing(m, -hx + 0.6, hx - 0.6, -hz + 0.6, y + 1.0, 1.1, 2.4);
+    }
+  }
+  y += 1.6;
+  pierWall(m, -ux, -uz, ux, uz, y, 14, floorH, MAT.STONE,
+    { bays: 5, glass: MAT.PANE, windows: medium, strips: true, depth: 0.45 });
+  y += 14 * floorH;
+  if (medium) {
+    band(m, -ux, -uz, ux, uz, y, 1.4, 1.0, MAT.STONE);
     y += 1.4;
     // The clock stage: a set-back drum with four faces and a colonnade.
     const N = 16;
-    const drum = plan(hx * 0.72, hz * 0.72, 0.9, N);
+    const drum = plan(ux * 0.86, uz * 0.86, 0.9, N);
     loft(m, drum, drum, y, y + 9.0, MAT.STONE);
     m.painted(TINT.NONE, () => {
       for (let i = 0; i < N; i++) {
@@ -230,16 +338,16 @@ function chanceryTower(lod: number): MeshBuilder {
     });
     m.painted(TINT.SIGN_LIT, () => {
       for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-        m.cylinder(ax * hx * 0.74, az * hz * 0.74, 2.6, y + 2.6, y + 2.8, 14, MAT.PLATE, true);
+        m.cylinder(ax * ux * 0.88, az * uz * 0.88, 2.6, y + 2.6, y + 2.8, 14, MAT.PLATE, true);
       }
     });
     shelf(m, scaled(drum, 1.0), scaled(drum, 1.22), y + 9.0, y + 10.2, MAT.STONE);
     // A copper spire in three stages with a weathervane.
-    m.cone(0, 0, hx * 0.78, hx * 0.5, y + 10.2, y + 16.0, N, MAT.METAL);
-    m.cone(0, 0, hx * 0.5, hx * 0.22, y + 16.0, y + 24.0, N, MAT.METAL);
-    m.cone(0, 0, hx * 0.22, 0.0, y + 24.0, y + 31.0, N, MAT.METAL);
-    m.painted(TINT.METAL_DARK, () => m.cylinder(0, 0, 0.18, y + 31.0, y + 36.0, 5, MAT.TRIM, false));
-    m.painted(TINT.ACCENT, () => m.box([0.1, y + 34.0, -0.04], [2.2, y + 35.6, 0.04], MAT.TRIM));
+    m.cone(0, 0, ux * 0.94, ux * 0.6, y + 10.2, y + 17.0, N, MAT.METAL);
+    m.cone(0, 0, ux * 0.6, ux * 0.26, y + 17.0, y + 26.0, N, MAT.METAL);
+    m.cone(0, 0, ux * 0.26, 0.0, y + 26.0, y + 34.0, N, MAT.METAL);
+    m.painted(TINT.METAL_DARK, () => m.cylinder(0, 0, 0.18, y + 34.0, y + 40.0, 5, MAT.TRIM, false));
+    m.painted(TINT.ACCENT, () => m.box([0.1, y + 37.6, -0.04], [2.2, y + 39.2, 0.04], MAT.TRIM));
   }
   if (fine) {
     entrance(m, { axis: 'z', sign: 1, plane: hz + 3.5 }, 0,
@@ -338,8 +446,16 @@ function decoTower(lod: number): MeshBuilder {
   const floorH = 3.6;
 
   forecourt(m, -36, -32, 36, 32, 3701, { trees: 6, lamps: 6, people: 9, benches: 3 });
+  // Five stages, and each of them a real number of storeys.
+  //
+  // The zoning envelope this shape comes from bought height by giving up plan,
+  // and a tower that steps five times in thirty-three floors has given up the
+  // plan without taking the height -- it reads as a wedding cake rather than a
+  // skyscraper. Fifty-five storeys is what the shape is for, and the lower
+  // stages carry most of them, which is also what makes the taper look like a
+  // consequence of the setback rule rather than a decision about proportion.
   const stages: Array<[number, number, number]> = [
-    [24.0, 20.0, 6], [20.0, 16.5, 7], [16.0, 13.0, 7], [12.0, 10.0, 7], [8.0, 7.0, 6],
+    [24.0, 20.0, 14], [20.0, 16.5, 12], [16.0, 13.0, 11], [12.0, 10.0, 10], [8.0, 7.0, 8],
   ];
   m.box([-25.0, 0.1, -21.0], [25.0, 9.0, 21.0], MAT.STONE, { roof: MAT.ROOF });
   if (medium) {
@@ -501,8 +617,13 @@ function skyGardenTower(lod: number): MeshBuilder {
   const hx = 15.0, hz = 15.0, floorH = 3.8;
   const base = 14.0;
   //: [start floor, floors] of each void.
-  const voids: Array<[number, number]> = [[14, 3], [30, 3]];
-  const floors = 44;
+  //
+  // Three gardens rather than two, and fifty-eight storeys rather than
+  // forty-four. The void cut through the shaft is this tower's whole idea, and
+  // the idea reads better the more times it happens on the way up -- it turns
+  // the shaft into four stacked blocks instead of a slab with two notches.
+  const voids: Array<[number, number]> = [[13, 3], [28, 3], [43, 3]];
+  const floors = 58;
   const top = base + floors * floorH;
 
   forecourt(m, -38, -34, 38, 34, 7013, { trees: 7, lamps: 8, people: 10, benches: 4 });

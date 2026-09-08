@@ -223,6 +223,16 @@ export const TINT = {
 export type Tint = (typeof TINT)[keyof typeof TINT];
 
 export class MeshBuilder {
+  /**
+   * How many boxes have been passed corners the wrong way round, ever.
+   *
+   * A counter rather than a throw: the generators run at startup to build the
+   * atlas, and a city that refuses to load is a worse outcome than one wall
+   * drawn from the corners the author actually meant. `asset-test` reads it
+   * and fails, which is where a bug like this should surface.
+   */
+  static inverted = 0;
+
   private verts: number[] = [];
   private idx: number[] = [];
   /** Applied to everything pushed until it is changed again. */
@@ -429,9 +439,24 @@ export class MeshBuilder {
   /**
    * Axis-aligned box. `skipBottom` defaults true: the underside of anything
    * standing on the ground is never seen, and it is a sixth of the triangles.
+   *
+   * The corners are sorted rather than trusted. Every face here is wound on
+   * the assumption that `min` is the low corner, so a caller that passes them
+   * the other way round on any one axis -- which happens the moment an offset
+   * is computed rather than written, `[p + out, ..]` to `[p - out, ..]` -- gets
+   * a solid wound inside out, and a solid wound inside out is invisible from
+   * outside and see-through from every angle, with backface culling on. That
+   * is a rendering bug with a geometric cause, so it is fixed geometrically
+   * here and counted, and `asset-test` fails the build on the count.
    */
   box(min: Vec3, max: Vec3, mat: Material,
       opts: { skipBottom?: boolean; roof?: Material; skip?: Face } = {}): void {
+    if (min[0] > max[0] || min[1] > max[1] || min[2] > max[2]) {
+      MeshBuilder.inverted++;
+      const lo: Vec3 = [Math.min(min[0], max[0]), Math.min(min[1], max[1]), Math.min(min[2], max[2])];
+      const hi: Vec3 = [Math.max(min[0], max[0]), Math.max(min[1], max[1]), Math.max(min[2], max[2])];
+      min = lo; max = hi;
+    }
     const [x0, y0, z0] = min;
     const [x1, y1, z1] = max;
     const roof = opts.roof ?? mat;
@@ -527,8 +552,14 @@ export class MeshBuilder {
 
     /** A box spanning [ua,ub] x [ya,yb], between two depths from the wall. */
     const slab = (ua: number, ub: number, ya: number, yb: number, da: number, db: number, mat: Material): void => {
-      const lo = o.plane + o.sign * Math.min(da, db);
-      const hi = o.plane + o.sign * Math.max(da, db);
+      // Sorted after the sign is applied, not before. `sign` is -1 for the
+      // two walls facing back down each axis, and multiplying by it reverses
+      // the pair -- so the near depth became the box's far corner and every
+      // frame on those two elevations was wound inside out and culled away.
+      // Half the windows in the library were a floating pane with no frame.
+      const da2 = o.plane + o.sign * da, db2 = o.plane + o.sign * db;
+      const lo = Math.min(da2, db2);
+      const hi = Math.max(da2, db2);
       // Frames are seen from outside and from the sides, never from below, so
       // the default five faces is right. Over hundreds of windows per building
       // that sixth face is hundreds of triangles for nothing.

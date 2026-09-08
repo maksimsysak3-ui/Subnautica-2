@@ -189,9 +189,14 @@ export function pierWall(m: MeshBuilder, x0: number, z0: number, x1: number, z1:
       for (let f = 1; f < floors; f++) {
         const y = base + f * floorH;
         for (const pln of [p0, p1]) {
-          const out = pln === p0 ? -0.1 : 0.1;
-          if (axis === 'z') m.box([a, y - 0.75, pln + out], [b, y - 0.1, pln - out], wall);
-          else m.box([pln + out, y - 0.75, a], [pln - out, y - 0.1, b], wall);
+          // A band straddling the glass plane, so it stands proud on both
+          // sides of it. Written as low corner then high, rather than as a
+          // signed offset either side of `pln`: the signed form reversed the
+          // corners on the far face of the shaft and culled every spandrel
+          // along it.
+          const lo = pln - 0.1, hi = pln + 0.1;
+          if (axis === 'z') m.box([a, y - 0.75, lo], [b, y - 0.1, hi], wall);
+          else m.box([lo, y - 0.75, a], [hi, y - 0.1, b], wall);
         }
       }
     };

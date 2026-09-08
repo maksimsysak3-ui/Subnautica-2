@@ -118,14 +118,20 @@ const MIN_TRIS = 1000;
  */
 const ROAD_MIN = 300;
 
+const src = new URL('../src/assets/', import.meta.url).pathname;
 const bundle = (
   await esbuild.build({
-    entryPoints: [new URL('../src/assets/registry.ts', import.meta.url).pathname],
+    // A stub entry rather than the registry itself, so the builder comes with
+    // it: the inverted-box count below is on the class, not on any asset.
+    stdin: {
+      contents: `export { ASSETS } from '${src}registry';\nexport { MeshBuilder } from '${src}mesh';`,
+      resolveDir: src, loader: 'ts',
+    },
     bundle: true, format: 'esm', write: false, target: 'es2022',
   })
 ).outputFiles[0].text;
 
-const { ASSETS } = await import('data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
+const { ASSETS, MeshBuilder } = await import('data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
 
 const fails = [];
 const note = (id, msg) => fails.push(`${id}: ${msg}`);
@@ -196,6 +202,26 @@ for (const a of ASSETS) {
   if (needX > a.footprint[0] || needZ > a.footprint[1]) {
     note(a.id, `declared ${a.footprint[0]}x${a.footprint[1]} cells but needs ${needX}x${needZ}`);
   }
+}
+
+/**
+ * Boxes whose corners arrived the wrong way round.
+ *
+ * `MeshBuilder.box` sorts them and draws what the author meant, so this is no
+ * longer a rendering fault -- but it was one, and a bad one: a reversed box is
+ * wound inside out, back-face culling throws it away, and the building loses a
+ * wall, a window frame or a loading bay with nothing to show that it has. It
+ * came from writing a depth as `plane + sign * d`, which reverses the pair on
+ * the two elevations where `sign` is -1. So the count is reported: a ceiling
+ * rather than zero, because the remainder are one-off corner piers each
+ * spelled `sx * h - sx * w`, and a number that goes up is the signal. The
+ * count includes the prototypes the registry builds as it loads, so it is
+ * higher than one pass over `ASSETS` alone.
+ */
+const INVERTED_MAX = 1300;
+console.log(`\n${MeshBuilder.inverted} boxes needed their corners sorted (ceiling ${INVERTED_MAX})`);
+if (MeshBuilder.inverted > INVERTED_MAX) {
+  note('mesh', `${MeshBuilder.inverted} inverted boxes, over the ${INVERTED_MAX} ceiling`);
 }
 
 if (fails.length) {

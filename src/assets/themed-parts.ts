@@ -73,7 +73,21 @@ function face(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: n
  * which of the two it gets.
  */
 export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1: number,
-                 o: { floors: number; base: number; skipGround?: boolean }): void {
+                 o: { floors: number; base: number; skipGround?: boolean;
+                   /**
+                    * Force the cheap treatment on an elevation the caller
+                    * knows is secondary.
+                    *
+                    * The heuristic below counts openings and switches to a
+                    * continuous lintel once there are enough of them, which is
+                    * right for a frontage. It cannot know that a rear
+                    * elevation onto a yard should take the plain version at
+                    * any size -- and a caller writing one floor at a time,
+                    * because its storey height is not the theme's, never
+                    * reaches the threshold at all and pays for framed
+                    * openings on a wall nobody stands in front of.
+                    */
+                   lite?: boolean }): void {
   const span = u1 - u0;
   const count = Math.max(1, Math.round((span / 6) * T.rhythm));
   const first = o.skipGround ? 1 : 0;
@@ -86,7 +100,7 @@ export function punched(m: MeshBuilder, T: ThemeProfile, w: Wall, u0: number, u1
   // elevations of two windows over eleven floors, which lands just under a
   // twenty-two threshold and costs forty triangles an opening -- the whole
   // budget for the building, spent on frames nobody can see.
-  const lite = (o.floors - first) * count > 14;
+  const lite = o.lite === true || (o.floors - first) * count > 14;
   for (let f = first; f < o.floors; f++) {
     const y0 = o.base + f * T.floorH;
     if (!lite) {

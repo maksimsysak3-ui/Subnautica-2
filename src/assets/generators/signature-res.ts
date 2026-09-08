@@ -191,6 +191,29 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
       const y = base + (f - 1) * fh;
       if (y + fh <= tops[0]) punched(m, T, { axis: 'z', sign: 1, plane: hz }, -hx + 2, cx - 7.0, { floors: 1, base: y });
       if (y + fh <= tops[1]) punched(m, T, { axis: 'x', sign: 1, plane: hx }, -hz + 2, cz - 7.0, { floors: 1, base: y });
+      // The yard elevations and the two gable ends.
+      //
+      // Only the two street frontages were drawn, so every one of these was a
+      // thirty-metre blank wall the moment the camera went round the back --
+      // and the back of a corner block is a yard the flats above look into,
+      // not a party wall. It takes the plainer rhythm a rear elevation has:
+      // the same floor lines, narrower openings, no shopfront under it.
+      if (y + fh <= tops[0]) {
+        punched(m, T, { axis: 'z', sign: -1, plane: hz - depth }, -hx + 2, cx - 8.0, { floors: 1, base: y, lite: true });
+        punched(m, T, { axis: 'x', sign: -1, plane: -hx }, hz - depth + 1.6, hz - 1.6, { floors: 1, base: y, lite: true });
+      }
+      if (y + fh <= tops[1]) {
+        punched(m, T, { axis: 'x', sign: -1, plane: hx - depth }, -hz + 2, cz - 8.0, { floors: 1, base: y, lite: true });
+        punched(m, T, { axis: 'z', sign: -1, plane: -hz }, hx - depth + 1.6, hx - 1.6, { floors: 1, base: y, lite: true });
+      }
+    }
+    // Ground floor at the back: service doors and yard windows, since the
+    // shopfront that fills this level on the street does not turn the corner.
+    for (const [axis, sign, pln, a, b] of [
+      ['z', -1, hz - depth, -hx + 3.0, cx - 9.0], ['x', -1, hx - depth, -hz + 3.0, cz - 9.0],
+    ] as const) {
+      punched(m, T, { axis, sign, plane: pln }, a, b, { floors: 1, base: 1.4 });
+      doorway(m, T, { axis, sign, plane: pln }, (a + b) / 2, false);
     }
     // Windows in the drum, on the same floor lines, one every other facet.
     m.placed(cx, cz, 0, () => {
@@ -619,6 +642,118 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
     };
     const front = arc(R), back = arc(R - depth);
     const top = 0.7 + floors * fh;
+    /**
+     * The three masses that stop a crescent being a curved wall.
+     *
+     * A crescent is not an arc of facade -- it is a centrepiece with a
+     * pavilion at each end and the plain ranges between them, and that is the
+     * whole of why the form works. Drawn as a smooth arc it has no plan depth
+     * anywhere, and from the ground it reads as flat as a painted backdrop
+     * however many windows are cut into it. Each of these projects two and a
+     * half metres, carries its own cornice, and returns to the range with a
+     * short side wall on each side of it -- so the crescent has shadow on it
+     * at every hour, which is the only thing that gives a curve any relief.
+     */
+    const BAYS: Array<[number, number]> = [[0, 2], [N / 2 - 1, N / 2 + 1], [N - 2, N]];
+    const PROUD = 2.6;
+    const proud = arc(R + PROUD);
+    for (const [i0, i1] of BAYS) {
+      for (let i = i0; i < i1; i++) {
+        const a = proud[i], b = proud[i + 1], c = front[i], d = front[i + 1];
+        m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
+        m.quad([a[0], top, a[1]], [b[0], top, b[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.ROOF);
+      }
+      // The returns: the two short walls that carry the projection back into
+      // the range. Without them the pavilion is a floating panel.
+      for (const [i, out] of [[i0, false], [i1, true]] as const) {
+        const a = front[i], b = proud[i];
+        if (out) m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], T.wall);
+        else m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
+      }
+      if (medium) {
+        // A cornice round the projection, and a parapet or pediment over it.
+        for (let i = i0; i < i1; i++) {
+          const a = proud[i], b = proud[i + 1];
+          m.quad([b[0], top - 1.1, b[1] - 0.5], [a[0], top - 1.1, a[1] - 0.5],
+                 [a[0], top + 0.2, a[1] - 0.5], [b[0], top + 0.2, b[1] - 0.5], T.trim);
+          m.quad([b[0], top, b[1]], [a[0], top, a[1]],
+                 [a[0], top + 1.9, a[1]], [b[0], top + 1.9, b[1]], T.trim);
+        }
+      }
+      if (fine && T.id === 'european') {
+        // Engaged columns across the centrepiece: a giant order two storeys
+        // tall, which is what the middle of a crescent always has.
+        const c0 = proud[i0], c1 = proud[i1];
+        const n = i1 - i0 === 2 ? 4 : 3;
+        for (let k = 0; k <= n; k++) {
+          const t = k / n;
+          const px = c0[0] + (c1[0] - c0[0]) * t, pz = c0[1] + (c1[1] - c0[1]) * t;
+          m.cylinder(px, pz - 0.35, 0.52, 4.0, 4.0 + 2 * fh, 8, T.trim, false);
+          m.box([px - 0.7, 4.0 + 2 * fh, pz - 1.05], [px + 0.7, 4.0 + 2 * fh + 0.4, pz + 0.35], T.trim);
+        }
+      }
+    }
+    // The garden elevation gets its own relief: four stair bays standing out
+    // of the back of the range, which is what a crescent has behind it and
+    // also the only thing that stops the convex side reading as a drawing of
+    // a building rather than a building.
+    const REAR: Array<[number, number]> = [[3, 4], [7, 8], [10, 11], [14, 15]];
+    const rear = arc(R - depth - 2.4);
+    for (const [i0, i1] of REAR) {
+      for (let i = i0; i < i1; i++) {
+        const a = rear[i], b = rear[i + 1], c = back[i], d = back[i + 1];
+        m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], T.wall);
+        m.quad([c[0], top, c[1]], [d[0], top, d[1]], [b[0], top, b[1]], [a[0], top, a[1]], MAT.ROOF);
+      }
+      for (const [i, out] of [[i0, true], [i1, false]] as const) {
+        const a = back[i], b = rear[i];
+        if (out) m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
+        else m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], T.wall);
+      }
+      if (fine) {
+        // The stair itself, read as a tall slot of glazing up the middle.
+        const a = rear[i0], b = rear[i1];
+        const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+        m.box([mx - 1.3, 1.2, mz + 0.02], [mx + 1.3, top - 0.9, mz + 0.16], MAT.PANE);
+        m.painted(TINT.METAL_DARK, () => {
+          for (let f = 1; f < floors; f++) {
+            const y = 0.7 + f * fh;
+            m.box([mx - 1.4, y - 0.16, mz + 0.04], [mx + 1.4, y + 0.06, mz + 0.24], MAT.TRIM);
+          }
+        });
+      }
+    }
+
+    /** True where a segment is under one of the projecting masses. */
+    const under = (i: number): boolean => BAYS.some(([a, b]) => i >= a && i < b);
+    // The two ends of the crescent.
+    //
+    // The arc was a ribbon: a front skin, a back skin, a lid and a floor, and
+    // nothing whatever across the ends of it. From either side you looked
+    // straight through the building at the inside faces of its own windows,
+    // which is the worst kind of hole because the mesh looks closed from the
+    // two views a generator is usually checked in. A crescent ends in a blind
+    // flank wall, so that is what goes there.
+    for (const [i, out] of [[0, false], [N, true]] as const) {
+      const f = proud[i], b = back[i];
+      if (out) m.quad([b[0], 0.1, b[1]], [f[0], 0.1, f[1]], [f[0], top, f[1]], [b[0], top, b[1]], T.wall);
+      else m.quad([f[0], 0.1, f[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [f[0], top, f[1]], T.wall);
+      // A flank is plainer than a frontage, not blind: a stair window on each
+      // floor and the one at the front of the plan lighting the end rooms.
+      // The wall is radial and so a few degrees off the axis, which the frame
+      // absorbs -- at this width the reveal reads as a reveal either way.
+      if (!fine) continue;
+      for (let fl = 1; fl < floors; fl++) {
+        const y = 0.7 + (fl - 1) * fh;
+        for (const t of [0.24, 0.62]) {
+          const px = f[0] + (b[0] - f[0]) * t, pz = f[1] + (b[1] - f[1]) * t;
+          m.opening({
+            axis: 'x', sign: out ? 1 : -1, plane: px, u0: pz - 0.62, u1: pz + 0.62,
+            y0: y + 1.0, y1: y + fh - 1.0, glass: MAT.PANE, frame: 0.11, proud: 0.07,
+          });
+        }
+      }
+    }
     for (let i = 0; i < N; i++) {
       const a = front[i], b = front[i + 1], c = back[i], d = back[i + 1];
       m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
@@ -639,7 +774,10 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
                [d[0], top, d[1] + 0.55], [c[0], top, c[1] + 0.55], T.trim);
       }
       if (fine) {
-        const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+        // Where the range steps forward, its windows step forward with it --
+        // otherwise the whole run of them is buried inside the pavilion.
+        const pf = under(i) ? proud : front;
+        const mx = (pf[i][0] + pf[i + 1][0]) / 2, mz = (pf[i][1] + pf[i + 1][1]) / 2;
         const nl = Math.hypot(mx, mz - (R - 20.0)) || 1;
         const ox = mx / nl, oz = (mz - (R - 20.0)) / nl;
         const rx = (c[0] + d[0]) / 2, rz = (c[1] + d[1]) / 2;
@@ -674,6 +812,15 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
         m.quad([a[0] * 0.985, top + h, a[1] + 2.2], [b[0] * 0.985, top + h, b[1] + 2.2],
                [d[0] * 1.012, top + h, d[1] - 2.2], [c[0] * 1.012, top + h, c[1] - 2.2], T.cover);
         if (fine && i % 2 === 0) dormer(m, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 0.7, -1, top + 1.5, T);
+      }
+      // ...and the two ends of the mansard, which were open for the same
+      // reason the walls under them were.
+      for (const [i, out] of [[0, false], [N, true]] as const) {
+        const a = front[i], c = back[i];
+        const p: [number, number, number] = [a[0] * 0.985, top + h, a[1] + 2.2];
+        const q: [number, number, number] = [c[0] * 1.012, top + h, c[1] - 2.2];
+        if (out) m.quad([a[0], top, a[1]], [c[0], top, c[1]], q, p, T.cover);
+        else m.quad([c[0], top, c[1]], [a[0], top, a[1]], p, q, T.cover);
       }
     }
     if (medium && T.id === 'modern') {
@@ -746,6 +893,23 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
       parapet(m, hx, -d / 2, hx + 9.0, d / 2, top + 1.4, 1.0, 0.3, T.base);
     }
     if (fine) {
+      // The flats over the corner store. The shopfront fills the ground floor
+      // on two sides and nothing filled the four storeys above it, which left
+      // the one part of this asset that stands proud of the terrace as a
+      // sixteen-metre blank corner.
+      for (let f = 0; f < floors - 1; f++) {
+        const y = 5.4 + f * fh;
+        if (y + fh > top + 1.0) break;
+        m.windowRow({ axis: 'x', sign: 1, plane: hx + 9.0, from: -d / 2 + 1.2, to: d / 2 - 1.2,
+          y0: y + 0.5, y1: y + fh - 0.8, count: 3, width: 1.25,
+          glass: MAT.PANE, frame: 0.12, proud: 0.07 });
+        for (const [sign, pln] of [[1, d / 2], [-1, -d / 2]] as const) {
+          m.windowRow({ axis: 'z', sign, plane: pln, from: hx + 1.0, to: hx + 8.0,
+            y0: y + 0.5, y1: y + fh - 0.8, count: 2, width: 1.25,
+            glass: MAT.PANE, frame: 0.12, proud: 0.07 });
+        }
+        band(m, hx, -d / 2, hx + 9.0, d / 2, y + 0.3, 0.22, 0.16, T.trim);
+      }
       awning(m, { axis: 'z', sign: 1, plane: d / 2 }, hx + 0.8, hx + 8.2, 4.2, 1.9);
       marquee(m, hx + 0.8, hx + 8.2, d / 2 + 0.3, 1, 5.4, 1.8);
       roofClutter(m, -hx + 2, -d / 2 + 2, hx - 2, d / 2 - 2, top, 51, 0.8);
@@ -795,11 +959,62 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
           m.box([x0 + 0.7, 4.6, d / 2 + 0.05], [x0 + 1.9, top - 1.2, d / 2 + 0.5], MAT.CLADDING);
         });
         marquee(m, x0 + 2.2, x1 - 0.7, d / 2 + 0.06, 1, 4.3, 1.1);
+        // The back lane.
+        //
+        // A shophouse is two elevations, not one: the street front is the shop
+        // and the rear is where the kitchen, the back stair and the washing
+        // are, opening onto a service lane. It was a blank slab the full
+        // length of the terrace, which is the one view of this asset the
+        // spawner cannot avoid giving the player. Grilled windows, a rear
+        // light well every other unit, and the drying poles that are the whole
+        // character of the thing.
+        for (let f = 1; f < floors; f++) {
+          const y = 0.6 + f * fh;
+          m.box([x0 + 1.0, y + 0.7, -d / 2 - 0.02], [x1 - 1.0, y + fh - 0.9, -d / 2 + 0.16], MAT.PANE);
+          m.painted(TINT.METAL_DARK, () => {
+            for (let k = 0; k < 4; k++) {
+              const px = x0 + 1.1 + (k / 3) * (w - 2.2);
+              m.box([px - 0.045, y + 0.7, -d / 2 - 0.1], [px + 0.045, y + fh - 0.9, -d / 2 - 0.02], MAT.TRIM);
+            }
+            // Bamboo poles out of the wall, which is what a rear elevation in
+            // this theme is actually covered in.
+            if (i % 2 === 1) {
+              for (let k = 0; k < 3; k++) {
+                m.box([x0 + 1.2, y + 0.9 + k * 0.34, -d / 2 - 1.7],
+                      [x1 - 1.2, y + 0.96 + k * 0.34, -d / 2 - 1.62], MAT.TRIM);
+              }
+            }
+          });
+        }
+        if (i % 2 === 0) {
+          // The light well: a half-depth rear projection with its own window,
+          // and the back stair landing beside it.
+          m.box([x0 + 0.9, 0.1, -d / 2 - 1.9], [x1 - 0.9, top - 1.6, -d / 2], T.base, { roof: MAT.ROOF });
+          for (let f = 1; f < floors; f++) {
+            const y = 0.6 + f * fh;
+            m.box([x0 + 1.5, y + 0.7, -d / 2 - 2.0], [x1 - 1.5, y + fh - 1.0, -d / 2 - 1.86], MAT.PANE);
+          }
+          railing(m, x0 + 0.9, x1 - 0.9, -d / 2 - 1.9, top - 1.6, 0.9, 1.9);
+        }
       }
     }
     if (medium) {
       parapet(m, -hx, -d / 2, hx, d / 2, top, 1.2, 0.28, T.base);
       hip(m, -hx - 0.6, -d / 2 - 0.6, hx + 0.6, d / 2 - 3.0, top + 1.2, 3.0, T.cover);
+      // The end walls. A terrace's flanks are party walls with nothing on
+      // them but paint -- so they take the painted advertisement they carry
+      // in every city this terrace is from, rather than being left bare.
+      for (const s of [-1, 1] as const) {
+        m.painted(s > 0 ? TINT.BRAND : TINT.ACCENT, () => {
+          m.box([s * hx - s * 0.02, 5.4, -d / 2 + 2.0], [s * hx + s * 0.16, top - 2.2, d / 2 - 4.0],
+            MAT.CLADDING, { skip: s > 0 ? '-x' : '+x' });
+        });
+        for (let f = 1; f < floors; f++) {
+          const y = 0.6 + f * fh;
+          m.opening({ axis: 'x', sign: s, plane: s * hx, u0: d / 2 - 3.4, u1: d / 2 - 1.8,
+            y0: y + 0.8, y1: y + fh - 1.1, glass: MAT.PANE, frame: 0.1, proud: 0.07 });
+        }
+      }
     }
     if (fine) {
       roofClutter(m, -hx + 2, -d / 2 + 2, hx - 2, d / 2 - 5, top, 63, 1.0);

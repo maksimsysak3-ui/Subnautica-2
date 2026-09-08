@@ -621,6 +621,42 @@ function gridiron(lod: number): MeshBuilder {
       railing(m, s * 48.0 - 11.0, s * 48.0 + 11.0, bz + 11.6, 11.1);
     }
     pennants(m, grow(outer, 0.97), 11.1, 3, 7.0, END);
+
+    // The end's upper deck, in two wedges either side of the board.
+    //
+    // A low terrace and a plaza closed the end at ground level and left the
+    // ring of upper tier with a ninety-metre bite out of it, which from above
+    // -- the view this asset is mostly seen in -- reads as a stadium that was
+    // never finished rather than as one that is open at one end. So the upper
+    // tier carries on round: it runs in from both corners at exactly the
+    // height and rake it has everywhere else, and stops either side of the
+    // board, which then sits in the gap it left rather than in a hole. Three
+    // segments of the nine stay out, and the board is four of them wide.
+    // Which segments take it is asked of the geometry rather than counted out
+    // by hand: the board stands across the middle of the end and everything
+    // clear of it gets seating, so the two are guaranteed to meet whatever the
+    // ring is divided into or however wide the board is set.
+    const BOARD_HALF = 34.0;
+    for (let j = 0; j < OPEN[1]; j++) {
+      const k = (OPEN[0] + j) % N;
+      const p = outer[k], q = outer[(k + 1) % N];
+      if (Math.abs((p[0] + q[0]) / 2) < BOARD_HALF) continue;
+      const only: [number, number] = [(k + 1) % N, N - 1];
+      bowl(m, { inner: grow(mid, 0.94), outer, y0: 22.4, y1: 46.0, steps: 15, open: only, block: 6 });
+      // The wall under it, so the wedge is carried down to the plaza rather
+      // than floating over it, and the roof over it, so it is covered like
+      // the rest of the ring.
+      skin(m, outer, 11.1, 42.0, MAT.CONCRETE, only);
+      deck(m, grow(outer, 1.00), grow(outer, 1.05), 42.0, 45.6, MAT.CLADDING, only);
+      deck(m, grow(outer, 0.84), grow(outer, 1.05), 48.0, 49.6, MAT.METAL, only);
+      deck(m, grow(outer, 0.74), grow(outer, 0.84), 48.2, 49.2, MAT.GLASS, only);
+      if (fine) {
+        m.painted(TINT.METAL_DARK, () => {
+          const r = grow(outer, 1.02)[k];
+          m.pipe([r[0], 42.0, r[1]], [r[0] * 0.86, 48.4, r[1] * 0.86], 0.42, MAT.TRIM, 6);
+        });
+      }
+    }
   }
 
   if (fine) {
