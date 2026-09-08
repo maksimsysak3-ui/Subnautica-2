@@ -22,7 +22,7 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
-import type { Material } from '../mesh';
+import type { Material, Tint } from '../mesh';
 import { band, kerb, parapet, railing, roofClutter } from '../parts';
 import { figure, parkedVehicle } from './vehicles';
 import { IMPORTED_IDS, drawImported } from '../imported';
@@ -327,6 +327,127 @@ function bench(m: MeshBuilder, cx: number, cz: number, len: number): void {
   });
 }
 
+
+// ------------------------------------------------------------- club identity
+
+/**
+ * The segments a stand covers, given the run its bowl leaves out.
+ *
+ * `bowl`, `skin` and `deck` all take the run to skip, so the way to build
+ * something in the gap the rest of the stadium leaves is to hand them the
+ * complement of it. No new argument, and the two halves cannot drift apart.
+ */
+function other(open: [number, number], n: number): [number, number] {
+  return [(open[0] + open[1]) % n, n - open[1]];
+}
+
+/**
+ * Pitchside LED boards: a lit ring at the front of the lowest terrace.
+ *
+ * The one piece of a stadium that is nothing but the club's identity, and the
+ * cheapest: a band at the foot of the bowl, facing the field. Without it the
+ * gap between the touchline and the first row is a bare concrete kerb, which
+ * is the one place in a real ground that is never bare.
+ */
+function ribbonBoard(m: MeshBuilder, plan: Plan, y0: number, y1: number,
+  open?: [number, number]): void {
+  m.painted(TINT.SIGN_LIT, () => {
+    skin(m, grow(plan, 0.995), y0, y1, MAT.PLATE, open, true);
+  });
+  m.painted(TINT.BRAND, () => {
+    skin(m, grow(plan, 0.994), y1, y1 + 0.22, MAT.TRIM, open, true);
+  });
+}
+
+/**
+ * Pennants on poles round a roof edge.
+ *
+ * Two triangles and a stick each, and between them they do more for "this is a
+ * stadium and somebody plays here" than anything else of the same cost. The
+ * cloth alternates the club's two colours so the ring reads as a scheme rather
+ * than as bunting.
+ */
+function pennants(m: MeshBuilder, plan: Plan, y: number, every: number,
+  height = 8.0, open?: [number, number]): void {
+  const n = plan.length;
+  for (let i = 0; i < n; i += every) {
+    if (open) {
+      const k = ((i - open[0]) % n + n) % n;
+      if (k < open[1]) continue;
+    }
+    const p = plan[i];
+    const out = Math.hypot(p[0], p[1]) || 1;
+    const nx = p[0] / out, nz = p[1] / out;
+    m.painted(TINT.METAL_DARK, () => {
+      m.cylinder(p[0], p[1], 0.13, y, y + height, 5, MAT.TRIM, false);
+    });
+    // Hung along the tangent, so a ring of them is seen edge-on from nowhere.
+    const tx = -nz, tz = nx;
+    m.painted((i / every) % 2 === 0 ? TINT.BRAND : TINT.ACCENT, () => {
+      m.quad([p[0], y + height, p[1]],
+             [p[0] + tx * 2.4, y + height - 0.35, p[1] + tz * 2.4],
+             [p[0] + tx * 2.4, y + height - 2.6, p[1] + tz * 2.4],
+             [p[0], y + height - 2.9, p[1]], MAT.TRIM);
+    });
+  }
+}
+
+/**
+ * The club crest, as a badge on a wall: a brand shield, an accent disc, a
+ * lit rim.
+ *
+ * Flat plates rather than a modelled emblem. At the distance a stadium facade
+ * is read from, a crest is a shape and two colours, and three concentric
+ * discs give that for sixty triangles. `facing` is the axis it stands proud
+ * of: +1 or -1 on z, or 'x' for the other pair of walls.
+ */
+function crest(m: MeshBuilder, cx: number, cz: number, y: number, r: number,
+  axis: 'x' | 'z', facing: 1 | -1): void {
+  // A cylinder standing on its side is not something the builder does, so the
+  // badge is built as three flat discs of decreasing radius stacked forward.
+  const disc = (rr: number, d: number, tint: Tint, mat: Material): void => {
+    m.painted(tint, () => {
+      const seg = 20;
+      for (let i = 0; i < seg; i++) {
+        const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+        const p0: [number, number] = [Math.cos(a0) * rr, Math.sin(a0) * rr];
+        const p1: [number, number] = [Math.cos(a1) * rr, Math.sin(a1) * rr];
+        if (axis === 'z') {
+          const zz = cz + facing * d;
+          if (facing > 0) m.tri([cx, y, zz], [cx + p0[0], y + p0[1], zz], [cx + p1[0], y + p1[1], zz], mat);
+          else m.tri([cx, y, zz], [cx + p1[0], y + p1[1], zz], [cx + p0[0], y + p0[1], zz], mat);
+        } else {
+          const xx = cx + facing * d;
+          if (facing > 0) m.tri([xx, y, cz], [xx, y + p0[1], cz + p0[0]], [xx, y + p1[1], cz + p1[0]], mat);
+          else m.tri([xx, y, cz], [xx, y + p1[1], cz + p1[0]], [xx, y + p0[1], cz + p0[0]], mat);
+        }
+      }
+    });
+  };
+  disc(r, 0.30, TINT.BRAND_DARK, MAT.TRIM);
+  disc(r * 0.84, 0.46, TINT.BRAND, MAT.TRIM);
+  disc(r * 0.52, 0.60, TINT.ACCENT, MAT.TRIM);
+  disc(r * 0.22, 0.72, TINT.SIGN_LIT, MAT.PLATE);
+}
+
+/** A lit name board: the club's name over an entrance, in its own colours. */
+function nameBoard(m: MeshBuilder, cx: number, cz: number, y: number,
+  w: number, h: number, axis: 'x' | 'z', facing: 1 | -1): void {
+  const d = 0.5;
+  m.painted(TINT.BRAND, () => {
+    if (axis === 'z') m.box([cx - w / 2, y, cz - d], [cx + w / 2, y + h, cz + d], MAT.CLADDING);
+    else m.box([cx - d, y, cz - w / 2], [cx + d, y + h, cz + w / 2], MAT.CLADDING);
+  });
+  m.painted(TINT.SIGN_LIT, () => {
+    const i = h * 0.18;
+    if (axis === 'z') {
+      m.box([cx - w / 2 + i, y + i, cz + facing * d], [cx + w / 2 - i, y + h - i, cz + facing * (d + 0.14)], MAT.PLATE);
+    } else {
+      m.box([cx + facing * d, y + i, cz - w / 2 + i], [cx + facing * (d + 0.14), y + h - i, cz + w / 2 - i], MAT.PLATE);
+    }
+  });
+}
+
 // ==================================================================== venues
 
 /**
@@ -386,6 +507,7 @@ function gridiron(lod: number): MeshBuilder {
   // one `open` argument threaded through all of them.
   bowl(m, { inner, outer: mid, y0: 1.8, y1: 17.0, steps: 13, open: OPEN, block: 5 });
   undercroft(m, inner, 0.2, 1.8, 3);
+  if (medium) ribbonBoard(m, inner, 0.4, 1.7);
   if (medium) {
     // The hospitality ring: glazed boxes on the break between tiers, which is
     // the horizontal line that stops a bowl reading as one long ramp.
@@ -429,8 +551,76 @@ function gridiron(lod: number): MeshBuilder {
         m.pipe([p[0] * 0.97, 41.0, p[1] * 0.97], [p[0] * 1.02, 48.0, p[1] * 1.02], 0.32, MAT.TRIM, 5);
       }
     });
-    // The scoreboard stands in the open end, which is what an open end is for.
-    bigScreen(m, 0, fz + 46.0, 26.0, 46.0, 20.0, -1);
+    // ---------------------------------------------------- the open end
+    //
+    // This is the part that was missing. Every ring above -- both bowls, the
+    // hospitality band, the outer wall, the roof -- skips the same nine
+    // segments, and nothing was ever built in the gap they leave: from outside
+    // you looked through a bite taken out of the building and onto the pad,
+    // and the scoreboard that was supposed to stand in it had been planted at
+    // `+z`, against the back of the closed end, where it read as a black slab
+    // stuck to the outside of the north stand.
+    //
+    // A horseshoe is not open in the sense of unbuilt. The end carries a low
+    // terrace, the plaza behind it, and the board -- and the board is the
+    // whole reason the end is open, so it is a structure rather than a panel:
+    // legs down to the plaza, a clad mass, the screen in its face, a sponsor
+    // band under and the club's name over.
+    const END = other(OPEN, N);
+    bowl(m, { inner, outer: grow(mid, 0.80), y0: 1.8, y1: 10.4, steps: 7, open: END, block: 4 });
+    deck(m, grow(mid, 0.80), grow(outer, 0.94), 10.4, 11.1, MAT.CONCRETE, END);
+    // The end's own facade. Without it the plaza deck is a shelf with the
+    // bowl visible under it from outside, which reads as the same hole one
+    // storey up. It gets what the rest of the outside got: a concourse you can
+    // walk into, a glazed band over it, and the club's name across the top.
+    skin(m, grow(outer, 0.94), 0.2, 11.1, MAT.CONCRETE, END);
+    undercroft(m, grow(outer, 0.93), 0.2, 6.4, 3);
+    skin(m, grow(outer, 0.94), 11.1, 19.6, MAT.CLADDING, END);
+    skin(m, grow(outer, 0.928), 12.2, 17.4, MAT.GLASS, END);
+    deck(m, grow(outer, 0.90), grow(outer, 0.985), 19.6, 20.8, MAT.METAL, END);
+    m.painted(TINT.BRAND, () => {
+      skin(m, grow(outer, 0.987), 19.8, 20.7, MAT.CLADDING, END);
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < N; i++) {
+        const k = ((i - OPEN[0]) % N + N) % N;
+        if (k >= OPEN[1]) continue;
+        const p = grow(mid, 0.80)[i], q = grow(mid, 0.80)[(i + 1) % N];
+        m.pipe([p[0], 11.1, p[1]], [q[0], 11.1, q[1]], 0.09, MAT.TRIM, 4);
+        m.pipe([p[0], 12.2, p[1]], [q[0], 12.2, q[1]], 0.09, MAT.TRIM, 4);
+        m.cylinder(p[0], p[1], 0.09, 11.1, 12.3, 4, MAT.TRIM, false);
+      }
+    });
+    const bz = -(fz + 28.0);
+    m.painted(TINT.METAL_DARK, () => {
+      for (const s of [-1, 1]) {
+        m.box([s * 21.0 - 1.7, 11.1, bz - 1.6], [s * 21.0 + 1.7, 26.0, bz + 1.6], MAT.TRIM);
+        m.pipe([s * 21.0, 24.0, bz + 1.6], [s * 30.0, 12.0, bz + 9.0], 0.4, MAT.TRIM, 5);
+      }
+    });
+    m.box([-31.0, 24.0, bz - 2.8], [31.0, 49.0, bz + 2.8], MAT.CONCRETE, { roof: MAT.ROOF });
+    m.painted(TINT.SIGN_LIT, () => {
+      m.box([-27.0, 27.4, bz + 2.8], [27.0, 45.0, bz + 3.0], MAT.PLATE);
+    });
+    m.painted(TINT.BRAND, () => {
+      m.box([-31.4, 20.6, bz - 3.0], [31.4, 24.2, bz + 3.0], MAT.CLADDING);
+      m.box([-31.4, 45.6, bz - 3.0], [31.4, 49.4, bz + 3.0], MAT.CLADDING);
+    });
+    m.painted(TINT.ACCENT, () => {
+      m.box([-31.6, 21.4, bz + 3.0], [31.6, 23.4, bz + 3.2], MAT.PLATE);
+    });
+    nameBoard(m, 0, bz - 3.0, 46.2, 46.0, 2.8, 'z', -1);
+    crest(m, 0, bz - 3.0, 36.0, 8.4, 'z', -1);
+    // The two party decks either side of the board, which is what the rest of
+    // the end plaza is for.
+    for (const s of [-1, 1]) {
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([s * 48.0 - 11.0, 11.1, bz - 1.0], [s * 48.0 + 11.0, 15.6, bz + 11.0], MAT.TRIM, { roof: MAT.METAL });
+      });
+      m.box([s * 48.0 - 10.4, 11.4, bz + 10.6], [s * 48.0 + 10.4, 14.6, bz + 11.2], MAT.GLASS);
+      railing(m, s * 48.0 - 11.0, s * 48.0 + 11.0, bz + 11.6, 11.1);
+    }
+    pennants(m, grow(outer, 0.97), 11.1, 3, 7.0, END);
   }
 
   if (fine) {
@@ -471,6 +661,15 @@ function gridiron(lod: number): MeshBuilder {
     for (const [sx, sz] of [[-1, -1], [1, -1]] as const) {
       floodMast(m, sx * (fx + 30.0), sz * (fz + 40.0), 0.2, 58.0, 5);
     }
+    // The press box, on the halfway line of the west stand, and the crest and
+    // name on the outside of the east one.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-24.0, 46.0, -mid[24][1] - 6.0], [24.0, 53.4, -mid[24][1] + 4.0], MAT.TRIM, { roof: MAT.ROOF });
+    });
+    m.box([-22.6, 47.0, -mid[24][1] - 6.2], [22.6, 52.2, -mid[24][1] - 5.9], MAT.GLASS);
+    crest(m, 0, outer[12][1] * 1.05, 26.0, 9.0, 'z', 1);
+    for (const s of [-1, 1]) crest(m, s * outer[0][0] * 1.05, 0, 24.0, 8.0, 'x', s as 1 | -1);
+    pennants(m, grow(outer, 1.05), 45.6, 3, 8.5, OPEN);
     turnstiles(m, -40, 40, -fz - 44.0, 9, 0.2);
     carPark(m, -114, -92, -96, 92, 11, 0.6, 10);
     carPark(m, 96, -92, 114, 92, 29, 0.6, 10);
@@ -530,6 +729,7 @@ function soccer(lod: number): MeshBuilder {
 
   bowl(m, { inner, outer: grow(outer, 0.80), y0: 2.0, y1: 24.0, steps: 16, block: 7 });
   undercroft(m, inner, 0.2, 2.0, 3);
+  if (medium) ribbonBoard(m, inner, 0.5, 1.9);
   if (medium) {
     // The upper ring, set back over a band of boxes.
     deck(m, grow(outer, 0.74), grow(outer, 0.83), 24.0, 24.9, MAT.CLADDING);
@@ -581,12 +781,32 @@ function soccer(lod: number): MeshBuilder {
     });
     bigScreen(m, 0, -fz - 26.0, 31.0, 26.0, 12.0, 1);
     bigScreen(m, 0, fz + 26.0, 31.0, 26.0, 12.0, -1);
+    // The club on the outside of its own ground: a badge on each end of the
+    // drum, pennants round the roof edge, and the name over the main gate.
+    crest(m, 0, outer[N / 4][1] * 1.06, 22.0, 9.0, 'z', 1);
+    crest(m, 0, outer[(N * 3) / 4][1] * 1.06, 22.0, 9.0, 'z', -1);
+    for (const s of [-1, 1]) crest(m, s * outer[0][0] * 1.06, 0, 20.0, 8.0, 'x', s as 1 | -1);
+    pennants(m, grow(outer, 1.05), 43.4, 4, 8.0);
+    nameBoard(m, 0, outer[(N * 3) / 4][1] * 1.06, 9.4, 40.0, 3.4, 'z', -1);
   }
 
   if (fine) {
     tunnel(m, 0, -fz - 4.6, -1, 4.4, 3.6);
     bench(m, -14.0, fz + 3.6, 16.0);
     bench(m, 14.0, fz + 3.6, 16.0);
+    // Corner flags, which is the one thing on a pitch that is nothing but
+    // "a match is played here".
+    m.painted(TINT.METAL_DARK, () => {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        m.cylinder(sx * (fx - 0.3), sz * (fz - 0.3), 0.06, 0.2, 1.7, 4, MAT.TRIM, false);
+      }
+    });
+    m.painted(TINT.ACCENT, () => {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        m.box([sx * (fx - 0.3), 1.15, sz * (fz - 0.3)],
+              [sx * (fx - 0.3) + sx * 0.75, 1.68, sz * (fz - 0.3) + sz * 0.06], MAT.TRIM);
+      }
+    });
     turnstiles(m, -34, 34, -fz - 36.0, 9, 0.2);
     carPark(m, -106, -86, -92, 86, 13, 0.6, 10);
     carPark(m, 92, -86, 106, 86, 31, 0.6, 10);
@@ -662,6 +882,7 @@ function arena(lod: number): MeshBuilder {
   // The seating bowl, ringing the rink, and the shell round that.
   bowl(m, { inner: grow(rinkPlan, 1.12), outer: bowlTop, y0: 2.6, y1: 21.0, steps: 15, block: 5 });
   undercroft(m, grow(rinkPlan, 1.12), 1.0, 2.6, 3);
+  if (medium) ribbonBoard(m, grow(rinkPlan, 1.12), 1.4, 2.5);
   skin(m, shell, 0.1, 8.0, MAT.STONE);
   skin(m, shell, 8.0, 28.0, MAT.CLADDING);
   if (medium) {
@@ -699,6 +920,9 @@ function arena(lod: number): MeshBuilder {
       }
     });
     roofClutter(m, -26, 18, 26, 34, 33.2, 71, 0.7);
+    crest(m, 0, shell[(N * 3) / 4][1] * 1.07, 21.0, 7.0, 'z', -1);
+    for (const s of [-1, 1]) crest(m, s * shell[0][0] * 1.07, 0, 20.0, 6.4, 'x', s as 1 | -1);
+    pennants(m, grow(shell, 1.06), 31.2, 3, 6.5);
   }
 
   if (fine) {
