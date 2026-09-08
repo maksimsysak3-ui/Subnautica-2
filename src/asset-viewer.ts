@@ -538,14 +538,18 @@ const GROUPS: Array<[string, Category, string, (a: AssetDef) => boolean]> =
     (zone === 'residential' ? ALL_THEMES : THEME_ORDER).flatMap((theme) => {
       const T = THEMES[theme];
       const rows: Array<[string, Category, string, (a: AssetDef) => boolean]> = [];
+      // Signature buildings are excluded here and given their own tab. They
+      // are landmarks rather than stock, so listing them inside the density
+      // ladder would put a domed department store in the same row as the
+      // parade of shops the spawner repeats down a street.
       if (zone === 'residential') {
         for (const d of ['low', 'medium', 'high'] as const) {
           rows.push([`${T.label} · ${d} density`, zone, T.badge,
-            (a) => a.zone === zone && a.theme === theme && a.density === d]);
+            (a) => a.zone === zone && a.theme === theme && a.density === d && !a.signature]);
         }
       } else {
         rows.push([`${T.label} ${zone}`, zone, T.badge,
-          (a) => a.zone === zone && a.theme === theme]);
+          (a) => a.zone === zone && a.theme === theme && !a.signature]);
       }
       return rows;
     }));
@@ -565,12 +569,28 @@ const CATEGORIES: Category[] = [
 const FLEET_TAB = 'fleet' as const;
 /** Roads and bridges: the other review tab, and likewise not a zone. */
 const ROAD_TAB = 'road' as const;
-type Tab = Category | typeof FLEET_TAB | typeof ROAD_TAB;
+/**
+ * Signature buildings: the landmarks, in their own tab.
+ *
+ * They belong to the four zones and the spawner will treat them as such, but
+ * browsing them beside the stock is useless in both directions -- forty-five
+ * one-offs buried in two hundred prototypes, and two hundred prototypes in
+ * the way of the forty-five. So they come out into a tab of their own, still
+ * grouped by zone and theme, and every zone tab and theme chip filters them
+ * out.
+ */
+const SIG_TAB = 'signature' as const;
+type Tab = Category | typeof FLEET_TAB | typeof ROAD_TAB | typeof SIG_TAB;
 
 /** Which assets belong to a tab. Zones go by zone, branches by branch. */
 function inCategory(a: AssetDef, c: Tab): boolean {
+  if (c === SIG_TAB) return a.signature === true;
+  if (a.signature === true) return false;
   return a.zone === 'service' ? a.branch === c : a.zone === c;
 }
+
+/** The four zones the signature tab is split into, in bar order. */
+const SIG_ZONES: Category[] = ['residential', 'commercial', 'office', 'industrial'];
 
 /** The tab currently on show. Null means everything. */
 let current: Tab | null = null;
@@ -590,23 +610,28 @@ function buildBar(onPick: (a: AssetDef) => void): void {
   const el = document.getElementById('legend');
   if (!el) return;
   const cell = (c: Tab | null, label: string, svg: string, n: number): string => {
-    const plain = c === null || c === FLEET_TAB;
+    const plain = c === null || c === FLEET_TAB || c === SIG_TAB;
     const tone = plain ? { base: '#7c8798', deep: '#3d4655' } : paletteFor(c);
     return `<button class="cat" data-cat="${c ?? ''}" title="${label} (${n})"
       style="--c:${tone.base};--d:${tone.deep}">${svg}<span>${n}</span></button>`;
   };
   const fleetCount = ASSETS.filter((a) => a.zone === FLEET_TAB).length;
   const roadCount = ASSETS.filter((a) => a.zone === ROAD_TAB).length;
+  const sigCount = ASSETS.filter((a) => a.signature === true).length;
   el.innerHTML =
     cell(null, 'all', '', ASSETS.length) +
+    cell(SIG_TAB, 'Signature buildings', '', sigCount) +
     CATEGORIES.map((c) => cell(c, paletteFor(c).label, zoneIcon(c, 26),
       ASSETS.filter((a) => inCategory(a, c)).length)).join('') +
     cell(FLEET_TAB, 'Vehicles and people', '', fleetCount) +
     cell(ROAD_TAB, 'Roads and bridges', zoneIcon('road', 26), roadCount);
-  // The iconless tabs are words: "all" is not a zone, and neither vehicles nor
-  // roads are something you paint on the map, so neither gets a zone badge.
+  // The iconless tabs are words: "all" is not a zone, and neither the
+  // landmarks nor the vehicles nor the roads are something you paint on the
+  // map, so none of them gets a zone badge.
   const tiles = el.querySelectorAll('.cat');
   tiles[0].innerHTML = `<span class="allx">all</span><span>${ASSETS.length}</span>`;
+  tiles[1].innerHTML = `<span class="allx star">★</span><span>${sigCount}</span>`;
+  (tiles[1] as HTMLElement).classList.add('sig');
   tiles[tiles.length - 2].innerHTML =
     `<span class="allx">cars</span><span>${fleetCount}</span>`;
 
@@ -638,6 +663,8 @@ function buildThemes(onPick: (a: AssetDef) => void): void {
   el.innerHTML = chip(null, 'ALL', ASSETS.length)
     + ALL_THEMES.map((t) => chip(t, THEMES[t].badge,
       ASSETS.filter((a) => a.theme === t).length)).join('');
+  // Row is not a signature theme, so the chip is hidden while the landmarks
+  // are on show rather than left there returning nothing.
   for (const b of el.querySelectorAll('.th')) {
     b.addEventListener('click', () => {
       const v = (b as HTMLElement).dataset.theme ?? '';
@@ -690,6 +717,11 @@ function buildList(onPick: (a: AssetDef) => void): void {
     ] as [string, Tab, string, (a: AssetDef) => boolean]),
     ['vehicles and people', FLEET_TAB, '', (a: AssetDef) => a.zone === FLEET_TAB],
     ['roads and bridges', ROAD_TAB, '', (a: AssetDef) => a.zone === ROAD_TAB],
+    // The signature tab's own four groups, one per zone.
+    ...SIG_ZONES.map((z) => [
+      `signature ${z}`, SIG_TAB as Tab, '',
+      (a: AssetDef) => a.signature === true && a.zone === z,
+    ] as [string, Tab, string, (a: AssetDef) => boolean]),
   ];
 
   for (const [label, cat, badge, match] of groups) {
@@ -698,7 +730,9 @@ function buildList(onPick: (a: AssetDef) => void): void {
     if (!assets.length) continue;
     const h = document.createElement('div');
     h.className = 'group';
-    const mark = cat === FLEET_TAB ? '' : zoneIcon(cat, 16);
+    const mark = cat === FLEET_TAB ? ''
+      : cat === SIG_TAB ? zoneIcon(label.split(' ')[1] as Category, 16)
+        : zoneIcon(cat, 16);
     const chip = badge === '' ? '' : `<span class="badge">${badge}</span>`;
     h.innerHTML = `${mark}${chip}<span>${label} (${assets.length})</span>`;
     list.appendChild(h);
