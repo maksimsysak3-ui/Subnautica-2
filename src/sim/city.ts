@@ -30,8 +30,11 @@
 import { hash2 } from './hash';
 import { baseHeightAt } from './terrain';
 import { simConfig } from './config';
-import { stock, signatures, services, roads, planting, PROTO_COUNT } from './inventory';
+import { stock, signatures, services, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
+import { RoadNet } from './roadnet';
+import type { Placement } from './roadnet';
+import { assetById } from '../assets/registry';
 import type { Pad } from './grading';
 import type { Proto } from './inventory';
 import type { Density, Zone } from '../assets/types';
@@ -43,12 +46,21 @@ import type { Theme } from '../assets/themes';
  *
  *   x, z, baseY, yaw            world placement; yaw is quarter turns, 0..3
  *   halfX, halfZ, height, proto axis-aligned culling box and the prototype
+ *   stretch, spare, spare, spare
+ *
+ * `stretch` scales the prototype along its own Z before it is turned and
+ * placed. Exactly one thing uses it and it is the thing that makes a road
+ * network possible on a grid: a straight run between two junctions is whatever
+ * length the player drew, and a rigid four-cell tile can only cover a multiple
+ * of four. Stretching the tiles of a run by a few per cent covers any length
+ * exactly, and a road tile is an extrusion along its own Z, so stretching it
+ * that way is the one deformation that is not a distortion.
  *
  * The per-instance colour seed is not stored: the shader hashes the instance's
  * own world position for it, which is deterministic, free, and one float
  * lighter across twenty thousand instances.
  */
-export const INSTANCE_FLOATS = 8;
+export const INSTANCE_FLOATS = 12;
 
 /** Zoning cell, metres. */
 const CELL = 8;
@@ -58,9 +70,6 @@ const BLOCK = 12;
 const STREET = 3;
 /** One block plus its street. */
 const PERIOD = BLOCK + STREET;
-/** Cells along a corridor covered by one road tile. */
-const TILE = 4;
-
 /** Largest fall across a footprint before the lot is left empty, in metres. */
 const MAX_SLOPE = 4.5;
 /**
@@ -97,11 +106,28 @@ export function makeCity(): City {
 
   const at = (gx: number, gz: number): number => gz * GRID + gx;
 
-  for (let gz = 0; gz < GRID; gz++) {
-    for (let gx = 0; gx < GRID; gx++) {
-      if (gx % PERIOD >= BLOCK || gz % PERIOD >= BLOCK) cells[at(gx, gz)] = STREET_CELL;
-    }
+  const blocks = Math.floor(GRID / PERIOD);
+
+  // The road network first, because everything else is placed around it. The
+  // default city draws a grid, which the network then treats exactly as it
+  // would treat a grid the player drew: it finds the crossings itself, sizes
+  // each junction from the widest road in it, and tiles the runs to fit.
+  //
+  // Reserving the street cells from the network rather than from the grid
+  // formula matters: an avenue is four cells across and a street is three, so
+  // where the corridor is depends on what was drawn there, and computing it
+  // twice is how buildings ended up standing in the road.
+  const net = new RoadNet(GRID);
+  for (let b = 0; b <= blocks; b++) {
+    const line = b * PERIOD + BLOCK + 1;      // the centre cell of the corridor
+    if (line >= GRID) continue;
+    // Every fourth street is an avenue, which is what gives a grid a hierarchy
+    // instead of making every junction look like every other one.
+    const cls = b % 4 === 2 ? 'avenue' : 'street';
+    net.add(0, line, GRID - 1, line, cls);
+    net.add(line, 0, line, GRID - 1, cls);
   }
+  for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
 
   /** World coordinate of a cell's low edge. */
   const wx = (gx: number): number => (gx - half) * CELL;
@@ -159,7 +185,7 @@ export function makeCity(): City {
   };
 
   const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number,
-    grade: boolean | number = true): boolean => {
+    grade: boolean | number = true, stretch = 1): boolean => {
     const x0 = wx(gx), z0 = wx(gz), x1 = x0 + w * CELL, z1 = z0 + d * CELL;
     // Every corner of the lot, not the four outer ones: a lot up to
     // thirty-five cells across can have a hump in the middle that its corners
@@ -188,6 +214,7 @@ export function makeCity(): City {
       // the meshes inside, and a box exactly on that boundary would cull a
       // prototype's own parapet at the screen edge.
       (w * CELL) / 2 + 0.8, (d * CELL) / 2 + 0.8, p.height * 1.2 + 3, p.index,
+      stretch, 0, 0, 0,
     );
     population[p.index]++;
     claim(gx, gz, w, d);
@@ -282,12 +309,12 @@ export function makeCity(): City {
     const ox = gx + ((spanW - p.w) >> 1), oz = gz + ((spanD - p.d) >> 1);
     if (!emit(p, ox, oz, p.w, p.d, hash2(bx, bz, salt) < 0.5 ? 0 : 2)) return false;
     // The whole superblock is spent whether or not the building filled it: the
-    // remainder is this building's grounds, not a lot for something else.
+    // remainder is this building's grounds, not a lot for something else. And
+    // the streets it swallowed are demolished rather than drawn underneath it.
     claim(gx, gz, spanW, spanD);
+    net.clear(gx, gz, spanW, spanD);
     return true;
   };
-
-  const blocks = Math.floor(GRID / PERIOD);
 
   // Signature buildings first and downtown, because they are what a skyline
   // is, and because they need the biggest superblocks that are still free.
@@ -479,74 +506,76 @@ export function makeCity(): City {
   }
 
   // ---- pass 3: roads --------------------------------------------------
+  //
+  // Laid through the road network rather than by hand. The default city draws
+  // a grid, which the network then treats exactly as it would treat a grid the
+  // player drew: it finds the crossings itself, sizes the junction from the
+  // widest road in it, and tiles the runs between them to fit.
 
-  // Corridor tiles: three cells across, four long, and filling their lot --
-  // a tile narrower than the corridor leaves bare ground beside it and meets
-  // the full-width junction with a step. A bridge spans a gap and is not a
-  // corridor tile whatever its footprint says.
-  const corridor = roads(STREET).filter((p) => p.d === TILE && !p.id.includes('bridge'));
-  const junction = roads(STREET).filter((p) => p.d === STREET);
+  // Built last, so anything demolished for a superblock is already gone.
+  layRoads(net.build());
 
-  if (corridor.length > 0) {
-    /**
-     * Lays one straight run of street at a single height.
-     *
-     * One height for the whole run, not one per tile. A road tile is a rigid
-     * slab: if each grades its own lot to its own mean, two of them butted
-     * together sit at different heights and the graded ground between them
-     * rises through the lower one, which is what put a green gap every four
-     * cells down every street in the city.
-     */
-    const run = (p: Proto, gx: number, gz: number, w: number, d: number,
-      along: 'x' | 'z', count: number, over = 0): number => {
-      // `over` extends the survey and the pad past the last tile, so a run can
-      // take in the junction at its end and the two meet at one height instead
-      // of stepping against each other.
-      const spanX = along === 'z' ? w : w * count + over;
-      const spanZ = along === 'z' ? d * count + over : d;
-      const level = survey(gx, gz, spanX, spanZ).mean;
-      for (let k = 0; k < count; k++) {
-        const cx = gx + (along === 'x' ? k * w : 0);
-        const cz = gz + (along === 'z' ? k * d : 0);
-        if (!free(cx, cz, w, d, STREET_CELL)) continue;
-        emit(p, cx, cz, w, d, along === 'z' ? 0 : 1, level);
-      }
-      // One pad for the whole run, which is what makes it flat end to end.
-      pads.push({ gx, gz, w: spanX, d: spanZ, y: level });
-      return level;
-    };
-
-    for (let bz = 0; bz <= blocks; bz++) {
-      for (let bx = 0; bx <= blocks; bx++) {
-        const sx = bx * PERIOD + BLOCK, sz = bz * PERIOD + BLOCK;
-        // One corridor prototype per street, so a street is one kind of street
-        // for its whole length instead of changing every thirty metres.
-        const nsRoad = pick(corridor, bx, bz, 701);
-        const ewRoad = pick(corridor, bx, bz, 709);
-        const tiles = BLOCK / TILE;
-
-        // North-south: the tile is three cells across and four long already,
-        // and the junction at the end of the run shares the run's height so
-        // the two meet flush.
-        let cross: number | null = null;
-        if (nsRoad && bz < blocks) {
-          cross = run(nsRoad, sx, bz * PERIOD, STREET, TILE, 'z', tiles, STREET);
-        }
-        // East-west: the same tile turned a quarter.
-        if (ewRoad && bx < blocks) {
-          run(ewRoad, bx * PERIOD, sz, TILE, STREET, 'x', tiles);
-        }
-        // The junction where two corridors cross: three cells square, which is
-        // exactly what road.mini is built as.
-        const j = junction.length > 0 ? junction[0] : null;
-        if (j && free(sx, sz, STREET, STREET, STREET_CELL)) {
-          // At the height of the run that runs through it, not its own: a
-          // junction graded to its own mean is a slab standing proud of the
-          // street it belongs to.
-          emit(j, sx, sz, STREET, STREET, 0, cross ?? true);
-        }
-      }
+  function layRoads(places: readonly Placement[]): void {
+    // Junctions first, and each on its own pad: a junction is where a street
+    // is allowed to change grade, and the runs either side take their level
+    // from the ground they cover rather than from each tile of themselves.
+    for (const q of places) {
+      if (q.run !== -1) continue;
+      const gx = Math.round(q.gx), gz = Math.round(q.gz);
+      const w = Math.round(q.w), d = Math.round(q.d);
+      if (!free(gx, gz, w, d, STREET_CELL)) continue;
+      const y = survey(gx, gz, w, d).mean;
+      if (lay(q, y)) { pads.push({ gx, gz, w, d, y }); claim(gx, gz, w, d); }
     }
+
+    // Then the runs, grouped: one survey, one level and one pad for the whole
+    // run. A run tiled at each tile's own mean has a step at every tile.
+    const byRun = new Map<number, Placement[]>();
+    for (const q of places) {
+      if (q.run === -1) continue;
+      const list = byRun.get(q.run);
+      if (list) list.push(q); else byRun.set(q.run, [q]);
+    }
+    for (const group of byRun.values()) {
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const q of group) {
+        x0 = Math.min(x0, q.gx); z0 = Math.min(z0, q.gz);
+        x1 = Math.max(x1, q.gx + q.w); z1 = Math.max(z1, q.gz + q.d);
+      }
+      const gx = Math.round(x0), gz = Math.round(z0);
+      const w = Math.max(1, Math.round(x1 - x0)), d = Math.max(1, Math.round(z1 - z0));
+      const y = survey(gx, gz, w, d).mean;
+      let laid = false;
+      for (const q of group) laid = lay(q, y) || laid;
+      if (laid) { pads.push({ gx, gz, w, d, y }); claim(gx, gz, w, d); }
+    }
+  }
+
+  /**
+   * Emits one road piece, unless the ground under it is spoken for.
+   *
+   * Tested at the centre cell rather than over the whole footprint: a
+   * stretched tile covers a fraction of a cell at each end and rounds into its
+   * neighbour's, so a footprint test rejects every other tile of a run. What
+   * the test is actually for is keeping a road out of a superblock, and the
+   * centre cell answers that.
+   */
+  function lay(q: Placement, y: number): boolean {
+    const cx = Math.floor(q.gx + q.w / 2), cz = Math.floor(q.gz + q.d / 2);
+    if (cx < 0 || cz < 0 || cx >= GRID || cz >= GRID) return false;
+    if (cells[at(cx, cz)] === TAKEN) return false;
+    const index = ASSET_INDEX.get(q.id);
+    const p = assetById(q.id);
+    if (index === undefined || p === undefined) return false;
+    const x0 = wx(q.gx), z0 = wx(q.gz);
+    const x1 = x0 + q.w * CELL, z1 = z0 + q.d * CELL;
+    out.push(
+      (x0 + x1) / 2, (z0 + z1) / 2, y - 0.25, q.yaw,
+      (q.w * CELL) / 2 + 0.8, (q.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
+      q.stretch, 0, 0, 0,
+    );
+    population[index]++;
+    return true;
   }
 
   // Grade last, once every pad is known. The placement above ran against the

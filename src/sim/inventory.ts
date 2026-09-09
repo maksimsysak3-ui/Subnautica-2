@@ -110,3 +110,12 @@ export function planting(): readonly Proto[] {
 
 /** Every prototype, by index, for the renderer's side of the handshake. */
 export const PROTO_COUNT = ASSETS.length;
+
+/**
+ * Where an asset sits in the registry, by id.
+ *
+ * The road tiler names the piece it wants rather than carrying a descriptor
+ * around, so something has to turn that name into the index the instance
+ * format and the atlas both key on.
+ */
+export const ASSET_INDEX = new Map<string, number>(ASSETS.map((a, i) => [a.id, i]));

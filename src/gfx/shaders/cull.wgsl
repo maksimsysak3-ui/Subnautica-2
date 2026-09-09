@@ -34,6 +34,8 @@ struct Instance {
   place : vec4f,
   // half extent x, half extent z, height, prototype index
   form  : vec4f,
+  // x = stretch along the prototype's own Z; the rest spare
+  extra : vec4f,
 };
 
 // Matches GPURenderPassEncoder.drawIndirect's expected layout.

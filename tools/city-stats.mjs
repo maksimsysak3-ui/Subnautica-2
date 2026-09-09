@@ -81,6 +81,11 @@ const never = ASSETS.filter((a, i) => city.population[i] === 0
   && a.zone !== 'fleet');
 // Overlap. Two prototypes on the same ground is the one spawner fault that
 // cannot be seen from above and cannot be missed from the street.
+//
+// Road on road is excluded, and not as a convenience: a straight run is
+// deliberately a continuous carriageway of tiles stretched to fit, so
+// consecutive tiles share the cell their boundary falls inside. What must
+// never happen is a building on a road, or a building on a building.
 const CELLS = grid;
 const grid2 = new Int32Array(CELLS * CELLS).fill(-1);
 let clashes = 0; let firstClash = null;
@@ -94,8 +99,12 @@ for (let i = 0; i < city.count; i++) {
       const c = (gz0 + b) * CELLS + gx0 + a;
       if (c < 0 || c >= grid2.length) continue;
       if (grid2[c] >= 0) {
-        clashes++;
-        if (!firstClash) firstClash = [ASSETS[d[grid2[c] * INSTANCE_FLOATS + 7]].id, ASSETS[d[o + 7]].id];
+        const other = ASSETS[d[grid2[c] * INSTANCE_FLOATS + 7]];
+        const mine = ASSETS[d[o + 7]];
+        if (!(other.zone === 'road' && mine.zone === 'road')) {
+          clashes++;
+          if (!firstClash) firstClash = [other.id, mine.id];
+        }
       }
       grid2[c] = i;
     }

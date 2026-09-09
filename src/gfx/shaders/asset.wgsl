@@ -187,6 +187,8 @@ struct Instance {
   place : vec4f,
   /** half extent x, half extent z, height, prototype index. */
   form  : vec4f,
+  /** x = stretch along the prototype's own Z; the rest spare. */
+  extra : vec4f,
 };
 
 @group(2) @binding(0) var<storage, read> instances : array<Instance>;
@@ -225,7 +227,11 @@ fn turn(v : vec3f, q : u32) -> vec3f {
 /** World placement of one packed vertex. Shared by the colour and shadow passes. */
 fn cityVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
   let q = vec3f(f32(packed.x & 0xffffu), f32(packed.x >> 16u), f32(packed.y & 0xffffu));
-  let local = p.frame.xyz + q * (1.0 / 65535.0) * p.span.xyz;
+  var local = p.frame.xyz + q * (1.0 / 65535.0) * p.span.xyz;
+  // Stretched along its own Z before it is turned. Roads use this and nothing
+  // else does; a road tile is an extrusion along Z, so a few per cent either
+  // way lengthens the extrusion rather than distorting anything.
+  local.z *= inst.extra.x;
   return turn(local, u32(inst.place.w + 0.5))
        + vec3f(inst.place.x, inst.place.z, inst.place.y);
 }
