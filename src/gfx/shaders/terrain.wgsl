@@ -353,10 +353,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // standing on it agree about where the sun is and what the sky is worth.
   let sun = normalize(camera.sunDir.xyz);
   let ndl = dot(n, sun);
-  let sky = vec3f(0.34, 0.40, 0.50);
-  let bounce = vec3f(0.24, 0.21, 0.18);
-  let ambient = mix(bounce, sky, n.y * 0.5 + 0.5);
-  col = col * (ambient + SUN_COLOUR * max(ndl, 0.0) * 1.15);
+  let ambient = mix(ambientGround(sun), ambientSky(sun), n.y * 0.5 + 0.5);
+  col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * shadowFactor(in.world, ndl));
 
   // And the same filmic shoulder, for the same reason: a ground that clipped
   // where the buildings rolled off would read as a different material every
@@ -369,5 +367,5 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // And the same filmic shoulder the buildings use, for the same reason: a
   // ground that clipped where they rolled off would read as a different
   // material every time the sun caught it.
-  return vec4f(pow(col / (col + vec3f(0.72)) * 1.42, vec3f(0.9)), 1.0);
+  return vec4f(tonemap(col), 1.0);
 }

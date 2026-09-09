@@ -402,6 +402,22 @@ fn metalColour(seed : f32) -> vec3f {
 
 // ----------------------------------------------------------------- patterns
 
+/**
+ * Where the pattern that shaded this pixel put a window, and which one.
+ *
+ * `x` is coverage, 0 to 1; `yz` identifies the opening, so one window lights
+ * or stays dark as a whole rather than fading across its own glass.
+ *
+ * A private module variable rather than a second return value, because the
+ * alternative is threading an out-parameter through nine pattern functions and
+ * the switch that dispatches them. Cleared at the top of albedo(), written by
+ * the patterns that draw openings, read once by the night lighting -- which is
+ * the only thing in the shader that needs to know where a window is, and which
+ * has to know exactly, or a city at night is lit rectangles that miss the
+ * windows they are meant to be in.
+ */
+var<private> opening : vec3f;
+
 fn housing(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let bay = 3.0;
   let floorH = 3.05;
@@ -418,6 +434,7 @@ fn housing(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let reveal = inRect(p, centre, vec2f(0.84, 0.84), mpp) - win;
 
   let r = hash21(id + seed);
+  opening = vec3f(win, id);
   // The room behind the opening, mixed with what the pane reflects.
   let inside = room((p - centre + vec2f(0.72, 0.72)) / 1.44, par, r, r > 0.82);
   let glass = mix(glassColour(seed) * (0.9 + r * 0.5), inside, 0.72);
@@ -445,6 +462,7 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   // The office behind each pane, then the sky reflected off the front of it.
   // A curtain wall is both at once, which is why a flat blue box never looks
   // like one.
+  opening = vec3f(1.0 - band, id);
   let inside = room(vec2f(fract(uv.x / mullion), fract((uv.y - floorH * 0.26) / (floorH * 0.74))),
                     par, r, r > 0.72);
   var col = mix(mix(glass, inside, 0.62), spandrel, band);
@@ -578,6 +596,7 @@ fn houseWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
 
   let r = hash21(id + seed);
   let win = inRect(p, centre, half, mpp);
+  opening = vec3f(win, id);
   let reveal = inRect(p, centre, half + vec2f(0.14), mpp) - win;
 
   let inside = room((p - centre + half) / (half * 2.0), par, r, r > 0.78);
@@ -610,6 +629,7 @@ fn shedWall(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
   let pane = stripe(uv.x, 2.1, 0.06, mpp);
   var glass = glassColour(seed) * 0.75;
   glass = mix(glass, vec3f(0.30, 0.32, 0.33), pane);
+  opening = vec3f(inBand * (1.0 - pane), floor(uv.x / 2.1), floor(uv.y / 12.0));
   col = mix(col, glass, inBand * resolvable(1.6, mpp));
 
   // Sill flashing under the band.
@@ -1163,6 +1183,9 @@ fn lampColour(surf : vec2f, rear : bool) -> vec3f {
 
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
           surf : vec2f, surfD : vec2f) -> vec3f {
+  // Cleared here so a material that draws no openings leaves none behind from
+  // the last pixel a wall pattern shaded.
+  opening = vec3f(0.0);
   switch (mat) {
     case 1u: { return housing(uv, mpp, seed, par); }
     case 2u: { return curtainWall(uv, mpp, seed, par); }
@@ -1433,6 +1456,29 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let label = signLabel(look.signText, in.local, u32(look.signInfo.x + 0.5), localMpp);
     out = mix(out, clamp(look.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
   }
+  // Windows come on at night, which is most of what a city looks like after
+  // dark. Lit exactly where the wall pattern drew an opening, and switched per
+  // opening rather than per pixel, so a tower ends up with a scatter of lit
+  // floors rather than a gradient -- and so a lit rectangle never lands beside
+  // the window it was meant to be in.
+  let night = 1.0 - dayPhase(sun).x;
+  if (night > 0.01) {
+    // Modelled glass is all opening; drawn glass reports its own coverage.
+    var cover = opening.x;
+    var id = opening.yz;
+    if (in.material == MAT_PANE || in.material == MAT_GLASS) {
+      cover = 1.0;
+      id = floor(uv / vec2f(2.35, 3.15));
+    }
+    if (cover > 0.01) {
+      let r = hash21(id * 1.7 + seed);
+      // Tungsten in most, cool fluorescent in a few: an office tower left on
+      // overnight is not the same colour as a lit sitting room.
+      let warm = mix(vec3f(1.00, 0.80, 0.50), vec3f(0.82, 0.90, 1.00), step(0.88, r));
+      out = mix(out, warm * (0.52 + r * 0.55), step(0.44, r) * night * cover * 0.94);
+    }
+  }
+
   // A lamp is its own light source, like a lit sign: it takes no shading at
   // all, or a headlight in shadow is a grey oval.
   if (in.material == MAT_LAMP) {

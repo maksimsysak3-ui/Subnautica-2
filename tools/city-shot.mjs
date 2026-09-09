@@ -35,6 +35,7 @@ const cfg = {
   distance: Number(process.env.DIST ?? 620),
   focus: (process.env.FOCUS || '0,0').split(',').map(Number),
   frames: Number(process.env.FRAMES || 8),
+  hour: Number(process.env.HOUR ?? 0.34),
   lite: !!process.env.LITE,
 };
 

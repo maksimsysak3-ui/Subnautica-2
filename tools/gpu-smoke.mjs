@@ -54,7 +54,7 @@ await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
 // Two views, because they exercise different halves of the draw path: from
 // high up almost everything is coarse and most of the map is outside the
 // frustum, from street level a handful of buildings are at full detail.
-const shots = { width: W, height: H, focus: [0, 0], frames: 6, lite: true };
+const shots = { width: W, height: H, focus: [0, 0], frames: 6, lite: true, hour: 0.34 };
 const result = await page.evaluate(async (cfg) => {
   // Sky is the bright, blue-biased part of the frame; ground and buildings
   // are everything else with light on it. Classifying by hue rather than by
@@ -76,11 +76,16 @@ const result = await page.evaluate(async (cfg) => {
   for (const [name, over] of [['far', { distance: 900, pitch: 0.55 }],
                               ['near', { distance: 90, pitch: 0.25 }]]) {
     const shot = await HEADLESS.shoot({ ...cfg, yaw: 0.62, ...over });
-    out[name] = {
-      ...stat(shot.pixels),
-      topLeft: [shot.pixels[0], shot.pixels[1], shot.pixels[2]],
-      stats: shot.stats,
-    };
+    // Sky in the top row, counted rather than sampled at one corner: from
+    // street level a building fills the corner, and asserting on one pixel
+    // made the test a statement about where the camera happened to point.
+    let topSky = 0;
+    for (let x = 0; x < cfg.width; x++) {
+      const i = x * 4;
+      if (shot.pixels[i + 2] > shot.pixels[i] + 10
+        && shot.pixels[i] + shot.pixels[i + 1] + shot.pixels[i + 2] > 240) topSky++;
+    }
+    out[name] = { ...stat(shot.pixels), topSkyPct: (topSky / cfg.width) * 100, stats: shot.stats };
   }
   out.errors = errors;
   return out;
@@ -103,9 +108,7 @@ for (const view of ['far', 'near']) {
   if (!(lod.reduce((a, b) => a + b, 0) === shown)) {
     push(`${view}: level-of-detail counts ${lod.join('/')} do not sum to ${shown}`);
   }
-  if (!(v.topLeft[2] > v.topLeft[0] + 10 && v.topLeft[2] > 100)) {
-    push(`${view}: top of frame is not sky (${v.topLeft})`);
-  }
+  if (!(v.topSkyPct > 30)) push(`${view}: only ${v.topSkyPct.toFixed(0)}% of the top row is sky`);
   if (!(v.skyPct > 3 && v.skyPct < 92)) push(`${view}: sky covers ${v.skyPct.toFixed(0)}%`);
   if (!(v.litPct > 1)) push(`${view}: only ${v.litPct.toFixed(1)}% of pixels are lit geometry`);
 }

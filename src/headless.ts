@@ -25,6 +25,8 @@ export interface ShotRequest {
   focus: [number, number];
   /** Frames to run before reading back. The overlay's counts lag by one. */
   frames: number;
+  /** Where in the day to freeze the sun: 0 and 1 midnight, 0.5 noon. */
+  hour: number;
   lite: boolean;
 }
 
@@ -45,6 +47,9 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   const host = document.createElement('div');
   const stats = new Stats(host);
   const renderer = new Renderer(gpu, camera, stats);
+  // A picture wants a fixed hour, or two runs of the same shot differ.
+  renderer.clockRunning = false;
+  renderer.timeOfDay = req.hour;
   renderer.build();
 
   camera.yaw = req.yaw;

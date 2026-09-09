@@ -32,8 +32,7 @@ fn vs(@builtin(vertex_index) i : u32) -> VSOut {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
-  let col = skyColour(in.dir, normalize(camera.sunDir.xyz));
   // The same filmic shoulder the ground and the buildings use, so the horizon
   // meets the terrain without a seam.
-  return vec4f(pow(col / (col + vec3f(0.72)) * 1.42, vec3f(0.9)), 1.0);
+  return vec4f(tonemap(skyColour(in.dir, normalize(camera.sunDir.xyz))), 1.0);
 }

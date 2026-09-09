@@ -22,11 +22,11 @@ import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
 import { Frustum } from './frustum';
-import { invert, mat4 } from '../math/m4';
+import { invert, mat4, ortho, lookAt, multiply } from '../math/m4';
 import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
-import type { Bucket } from './city-draw';
+import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN,
@@ -37,10 +37,21 @@ import { SHADERS } from './shaders';
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
 /**
- * viewProj (64) + its inverse (64) + eye (16) + sun (16) + params (16)
- * + six frustum planes (96).
+ * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
+ * + sun (16) + focus (16) + params (16) + six frustum planes (96).
  */
-const CAMERA_UNIFORM_SIZE = 272;
+const CAMERA_UNIFORM_SIZE = 352;
+
+/** Edge of the shadow map, in texels. */
+const SHADOW_SIZE = 2048;
+
+/**
+ * Seconds in a game day.
+ *
+ * Eight minutes: long enough that the sun is not visibly sweeping while the
+ * player builds, short enough that anyone who sits with the game sees dusk.
+ */
+const DAY_SECONDS = 480;
 
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign. */
 const SCENE_UNIFORM_SIZE = 240;
@@ -49,17 +60,36 @@ const SCENE_UNIFORM_SIZE = 240;
 const FOV_Y = (50 * Math.PI) / 180;
 
 /**
- * Sun direction, the same one the asset viewer lights its subjects with, so a
- * building looks in the city like it looked in the viewer.
+ * Where the sun is at a given point in the day, as a unit vector pointing at
+ * it. `t` runs 0 to 1 over one day, with noon at 0.5.
+ *
+ * A tilted circle rather than a great circle through the zenith: the sun
+ * passing directly overhead flattens every facade at midday and makes the
+ * shadow volume degenerate, and no inhabited latitude sees it happen anyway.
+ * The tilt is about what a temperate summer gives.
  */
-const SUN = ((): [number, number, number] => {
-  const v: [number, number, number] = [0.48, 0.68, 0.38];
-  const l = Math.hypot(...v);
-  return [v[0] / l, v[1] / l, v[2] / l];
-})();
+function sunAt(t: number): [number, number, number] {
+  const a = (t - 0.25) * Math.PI * 2;
+  const tilt = 0.62;
+  const x = Math.cos(a);
+  const y = Math.sin(a) * Math.cos(tilt);
+  const z = -Math.sin(a) * Math.sin(tilt) - 0.18;
+  const l = Math.hypot(x, y, z) || 1;
+  return [x / l, y / l, z / l];
+}
 
 interface Resources {
   sky: GPURenderPipeline;
+  shadow: GPURenderPipeline;
+  shadowView: GPUTextureView;
+  shadowTexture: GPUTexture;
+  shadowSceneGroup: GPUBindGroup;
+  castGroup: GPUBindGroup;
+  castArgsBuffer: GPUBuffer;
+  castBaseBuffer: GPUBuffer;
+  castVisibleBuffer: GPUBuffer;
+  castArgsReset: Uint32Array<ArrayBuffer>;
+  casts: CityDrawCast[];
   terrain: GPURenderPipeline;
   city: GPURenderPipeline;
   cull: GPUComputePipeline;
@@ -91,6 +121,18 @@ export class Renderer {
   private res: Resources | null = null;
   private cameraData = new Float32Array(CAMERA_UNIFORM_SIZE / 4);
   private invViewProj = mat4();
+  private sunView = mat4();
+  private sunProj = mat4();
+  private sunViewProj = mat4();
+  /**
+   * Where in the day the world is: 0 and 1 are midnight, 0.5 is noon.
+   *
+   * Public and writable, because a tool taking a picture wants a fixed hour
+   * and the benchmark wants the same light on every run.
+   */
+  timeOfDay = 0.33;
+  /** Whether the clock advances. Off for tools; on in the game. */
+  clockRunning = true;
   private sceneData = new Float32Array(SCENE_UNIFORM_SIZE / 4);
   private raf = 0;
   private startedAt = 0;
@@ -124,13 +166,28 @@ export class Renderer {
 
     // ---- bind group layouts -------------------------------------------
 
+    // The camera group carries the shadow map as well as the uniform, so the
+    // ground receives shadows through the same code the buildings do. The
+    // culling pass shares the layout and simply never touches the texture.
     const cameraLayout = device.createBindGroupLayout({
       label: 'camera-bgl',
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-        buffer: { type: 'uniform' },
-      }],
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+          buffer: { type: 'uniform' },
+        },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+      ],
+    });
+    // The shadow pass must not bind the map it is writing into: sampling a
+    // texture while rendering to it is a usage conflict, and in practice it
+    // takes the device down rather than raising a tidy error. So the depth
+    // pass gets a layout carrying only the uniform, which is all it reads.
+    const shadowSceneLayout = device.createBindGroupLayout({
+      label: 'shadow-scene-bgl',
+      entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }],
     });
     // What the asset shader calls group 0: the scene uniform and the shadow
     // map. Same layout the asset viewer uses, so one shader serves both.
@@ -170,6 +227,9 @@ export class Renderer {
         { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+        { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+        { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+        { binding: 6, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
       ],
     });
 
@@ -239,6 +299,29 @@ export class Renderer {
       depthStencil,
     });
 
+    // Depth only, from the sun. Front faces culled rather than back: shadow
+    // acne appears on lit surfaces, and casting from the far side of each
+    // object moves the error into geometry the camera cannot see.
+    const shadow = device.createRenderPipeline({
+      label: 'shadow-pipeline',
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [shadowSceneLayout, protoLayout, cityLayout],
+      }),
+      vertex: {
+        module: assetModule,
+        entryPoint: 'vs_city_shadow',
+        buffers: [{
+          arrayStride: VERTEX_BYTES,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'uint32x4' },
+            { shaderLocation: 1, offset: 16, format: 'uint32' },
+          ],
+        }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'front', frontFace: 'ccw' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: true, depthCompare: 'less' },
+    });
+
     const cull = device.createComputePipeline({
       label: 'cull-pipeline',
       layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, cullLayout] }),
@@ -255,9 +338,21 @@ export class Renderer {
       size: CAMERA_UNIFORM_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    const shadowTexture = device.createTexture({
+      label: 'shadow-map',
+      size: { width: SHADOW_SIZE, height: SHADOW_SIZE },
+      format: DEPTH_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    const shadowView = shadowTexture.createView();
+    const shadowSampler = device.createSampler({ compare: 'less' });
     const cameraGroup = device.createBindGroup({
       label: 'camera-bg', layout: cameraLayout,
-      entries: [{ binding: 0, resource: { buffer: cameraBuffer } }],
+      entries: [
+        { binding: 0, resource: { buffer: cameraBuffer } },
+        { binding: 1, resource: shadowView },
+        { binding: 2, resource: shadowSampler },
+      ],
     });
 
     const sceneBuffer = device.createBuffer({
@@ -265,32 +360,17 @@ export class Renderer {
       size: SCENE_UNIFORM_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    // Shadows are not cast yet, so the map is a single texel cleared to "far":
-    // the shader samples unconditionally and gets "nothing occludes here".
-    const shadowStub = device.createTexture({
-      label: 'shadow-stub',
-      size: { width: 1, height: 1 },
-      format: DEPTH_FORMAT,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-    });
-    const stubView = shadowStub.createView();
-    {
-      const clear = device.createCommandEncoder({ label: 'clear-shadow-stub' });
-      clear.beginRenderPass({
-        colorAttachments: [],
-        depthStencilAttachment: {
-          view: stubView, depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store',
-        },
-      }).end();
-      device.queue.submit([clear.finish()]);
-    }
     const sceneGroup = device.createBindGroup({
       label: 'scene-bg', layout: sceneLayout,
       entries: [
         { binding: 0, resource: { buffer: sceneBuffer } },
-        { binding: 1, resource: stubView },
-        { binding: 2, resource: device.createSampler({ compare: 'less' }) },
+        { binding: 1, resource: shadowView },
+        { binding: 2, resource: shadowSampler },
       ],
+    });
+    const shadowSceneGroup = device.createBindGroup({
+      label: 'shadow-scene-bg', layout: shadowSceneLayout,
+      entries: [{ binding: 0, resource: { buffer: sceneBuffer } }],
     });
 
     // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
@@ -360,6 +440,23 @@ export class Renderer {
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
 
+    const castVisibleBuffer = device.createBuffer({
+      label: 'caster-lists',
+      size: Math.max(plan.castEntries * 4, 256),
+      usage: GPUBufferUsage.STORAGE,
+    });
+    const castBaseBuffer = device.createBuffer({
+      label: 'caster-bases',
+      size: Math.max(plan.castBases.byteLength, 4),
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(castBaseBuffer, 0, plan.castBases);
+    const castArgsBuffer = device.createBuffer({
+      label: 'caster-args',
+      size: plan.castArgs.byteLength,
+      usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+
     const cullGroup = device.createBindGroup({
       label: 'cull-bg', layout: cullLayout,
       entries: [
@@ -367,6 +464,9 @@ export class Renderer {
         { binding: 1, resource: { buffer: visibleBuffer } },
         { binding: 2, resource: { buffer: argsBuffer } },
         { binding: 3, resource: { buffer: baseBuffer } },
+        { binding: 4, resource: { buffer: castVisibleBuffer } },
+        { binding: 5, resource: { buffer: castArgsBuffer } },
+        { binding: 6, resource: { buffer: castBaseBuffer } },
       ],
     });
     const cityGroup = device.createBindGroup({
@@ -376,13 +476,23 @@ export class Renderer {
         { binding: 1, resource: { buffer: visibleBuffer, offset: 0, size: plan.sliceBytes } },
       ],
     });
+    const castGroup = device.createBindGroup({
+      label: 'cast-bg', layout: cityLayout,
+      entries: [
+        { binding: 0, resource: { buffer: instanceBuffer } },
+        { binding: 1, resource: { buffer: castVisibleBuffer, offset: 0, size: plan.sliceBytes } },
+      ],
+    });
 
     const { depth, depthView } = this.createDepth(this.gpu.viewport);
 
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
     this.res = {
-      sky, terrain, city: cityPipeline, cull,
+      sky, shadow, shadowView, shadowTexture, shadowSceneGroup, castGroup,
+      castArgsBuffer, castBaseBuffer, castVisibleBuffer,
+      castArgsReset: plan.castArgs, casts: plan.casts,
+      terrain, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup, protoGroup, cityGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
@@ -475,27 +585,47 @@ export class Renderer {
     const { device, context, viewport } = this.gpu;
     const cam = this.camera;
 
+    if (this.clockRunning) {
+      this.timeOfDay = (this.timeOfDay + dt / DAY_SECONDS) % 1;
+    }
+    const sun = sunAt(this.timeOfDay);
+
+    // The sun's view, refitted to what the camera is looking at. One cascade,
+    // sized to the zoom: at street level the volume is a couple of hundred
+    // metres and the shadows are sharp, and from the sky it grows to cover
+    // what is on screen and softens, which is the right trade in both places.
+    const extent = Math.min(Math.max(cam.distance * 1.15, 140), 1100);
+    const focus = cam.focus;
+    const back = extent * 2.4;
+    lookAt(this.sunView,
+      [focus[0] + sun[0] * back, focus[1] + sun[1] * back, focus[2] + sun[2] * back],
+      [focus[0], focus[1], focus[2]], [0, 1, 0]);
+    ortho(this.sunProj, -extent, extent, -extent, extent, 1, back * 2 + 900);
+    multiply(this.sunViewProj, this.sunProj, this.sunView);
+
     this.cameraData.set(cam.viewProjMatrix, 0);
     // The inverse, for unprojecting a screen corner into a view ray. The sky
     // pass is the only thing that wants it, and it wants it once per frame.
     invert(this.invViewProj, cam.viewProjMatrix);
     this.cameraData.set(this.invViewProj, 16);
-    this.cameraData[32] = cam.eye[0];
-    this.cameraData[33] = cam.eye[1];
-    this.cameraData[34] = cam.eye[2];
-    this.cameraData[35] = cam.far;
-    this.cameraData.set([SUN[0], SUN[1], SUN[2], 0], 36);
-    this.cameraData[40] = (now - this.startedAt) / 1000;
-    this.cameraData[41] = TERRAIN.size * 0.5;
-    this.cameraData[42] = 0;
+    this.cameraData.set(this.sunViewProj, 32);
+    this.cameraData[48] = cam.eye[0];
+    this.cameraData[49] = cam.eye[1];
+    this.cameraData[50] = cam.eye[2];
+    this.cameraData[51] = cam.far;
+    this.cameraData.set([sun[0], sun[1], sun[2], 0], 52);
+    this.cameraData.set([focus[0], focus[1], focus[2], extent], 56);
+    this.cameraData[60] = (now - this.startedAt) / 1000;
+    this.cameraData[61] = TERRAIN.size * 0.5;
+    this.cameraData[62] = 1 / SHADOW_SIZE;
     // Converts metres-at-a-distance into pixels, so the culling pass can drop
     // anything too small to resolve and pick a level of detail for the rest.
-    this.cameraData[43] = viewport.height / (2 * Math.tan(FOV_Y / 2));
+    this.cameraData[63] = viewport.height / (2 * Math.tan(FOV_Y / 2));
 
     // The same six planes the CPU uses for terrain chunks, handed to the
     // culling pass so both agree by construction rather than by coincidence.
     this.frustum.update(cam.viewProjMatrix);
-    this.cameraData.set(this.frustum.planes, 44);
+    this.cameraData.set(this.frustum.planes, 64);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -503,17 +633,18 @@ export class Renderer {
     // drawing four hundred prototypes -- but the layout is shared with the
     // viewer and the padding costs nothing.
     this.sceneData.set(cam.viewProjMatrix, 0);
-    this.sceneData.set(cam.viewProjMatrix, 16);
+    this.sceneData.set(this.sunViewProj, 16);
     this.sceneData.set([cam.eye[0], cam.eye[1], cam.eye[2], 0], 32);
-    this.sceneData.set([SUN[0], SUN[1], SUN[2], 0], 36);
+    this.sceneData.set([sun[0], sun[1], sun[2], 0], 36);
     // x turns aerial perspective on: the city wants it, the viewer does not.
-    this.sceneData.set([1, 1, TERRAIN.size * 0.5, 0], 40);
+    this.sceneData.set([1, 1 / SHADOW_SIZE, TERRAIN.size * 0.5, 0], 40);
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
     // each DrawArgs -- the mesh's vertex count and where it starts -- is fixed
     // for the life of the run and rides along in the same upload.
     device.queue.writeBuffer(res.argsBuffer, 0, res.argsReset);
+    device.queue.writeBuffer(res.castArgsBuffer, 0, res.castArgsReset);
 
     const drawWrites = this.profiler?.writes('draw');
     const encoder = device.createCommandEncoder({ label: 'frame' });
@@ -530,6 +661,29 @@ export class Renderer {
     cullPass.setBindGroup(1, res.cullGroup);
     cullPass.dispatchWorkgroups(Math.ceil(res.instanceCount / 64));
     cullPass.end();
+
+    // Depth from the sun's point of view, before anything is shaded, because
+    // everything shaded reads it. One draw per prototype rather than three:
+    // the shadow lists carry only the coarsest mesh.
+    const shadowPass = encoder.beginRenderPass({
+      label: 'shadow',
+      colorAttachments: [],
+      depthStencilAttachment: {
+        view: res.shadowView,
+        depthClearValue: 1.0,
+        depthLoadOp: 'clear',
+        depthStoreOp: 'store',
+      },
+    });
+    shadowPass.setPipeline(res.shadow);
+    shadowPass.setBindGroup(0, res.shadowSceneGroup);
+    shadowPass.setBindGroup(1, res.protoGroup);
+    shadowPass.setVertexBuffer(0, res.assetVertices);
+    for (const c of res.casts) {
+      shadowPass.setBindGroup(2, res.castGroup, [c.sliceOffset]);
+      shadowPass.drawIndirect(res.castArgsBuffer, c.argsOffset);
+    }
+    shadowPass.end();
 
     const pass = encoder.beginRenderPass({
       label: 'main',
@@ -590,7 +744,8 @@ export class Renderer {
     this.readDrawnCounts(res);
 
     this.stats.sample(performance.now() - cpuStart);
-    this.stats.set('draws', String(1 + chunks + res.buckets.length));
+    this.stats.set('draws', String(1 + chunks + res.buckets.length + res.casts.length));
+    this.stats.set('hour', `${Math.floor(this.timeOfDay * 24)}:${String(Math.floor((this.timeOfDay * 24 % 1) * 60)).padStart(2, '0')}`);
     this.stats.set('chunks', `${chunks}/${res.chunks.length}`);
     if (this.profiler?.enabled) {
       this.stats.set('gpu cull', this.profiler.ms('cull').toFixed(2));
@@ -656,10 +811,12 @@ export class Renderer {
     if (!this.res) return;
     const r = this.res;
     r.depth.destroy();
+    r.shadowTexture.destroy();
     for (const b of [
       r.cameraBuffer, r.sceneBuffer, r.terrainVertices, r.terrainIndices,
       r.assetVertices, r.protoBuffer, r.instanceBuffer, r.visibleBuffer,
       r.baseBuffer, r.argsBuffer, r.argsRead,
+      r.castVisibleBuffer, r.castBaseBuffer, r.castArgsBuffer,
     ]) b.destroy();
     this.res = null;
   }

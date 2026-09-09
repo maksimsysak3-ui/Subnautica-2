@@ -43,6 +43,14 @@ export interface Bucket {
   sliceOffset: number;
 }
 
+/** One prototype's shadow-map draw: always the coarsest mesh. */
+export interface CastBucket {
+  proto: number;
+  base: number;
+  argsOffset: number;
+  sliceOffset: number;
+}
+
 export interface CityDraw {
   /** The packed vertex arena for every prototype the city placed. */
   vertices: Uint8Array<ArrayBuffer>;
@@ -58,6 +66,12 @@ export interface CityDraw {
   sliceBytes: number;
   /** The buckets with something to draw, in a stable order. */
   buckets: Bucket[];
+  /** Slice base per prototype, for the shadow half of the culling pass. */
+  castBases: Uint32Array<ArrayBuffer>;
+  /** DrawArgs for the shadow pass, counts zeroed. Uploaded each frame. */
+  castArgs: Uint32Array<ArrayBuffer>;
+  castEntries: number;
+  casts: CastBucket[];
   /** Triangles in the arena, per level of detail, for the overlay. */
   triangles: [number, number, number];
 }
@@ -73,7 +87,11 @@ export function planCity(city: City, atlas: Atlas): CityDraw {
   const protoCount = atlas.prototypes.length;
   const bases = new Uint32Array(protoCount * 3);
   const args = new Uint32Array(protoCount * 3 * ARGS_WORDS);
+  const castBases = new Uint32Array(protoCount);
+  const castArgs = new Uint32Array(protoCount * ARGS_WORDS);
   const buckets: Bucket[] = [];
+  const casts: CastBucket[] = [];
+  let castCursor = 0;
   const triangles: [number, number, number] = [0, 0, 0];
   let cursor = 0;
   let sliceBytes = 0;
@@ -103,12 +121,26 @@ export function planCity(city: City, atlas: Atlas): CityDraw {
       });
       cursor += slice;
     }
+    // The shadow list: one bucket, always the coarsest mesh. A shadow map at
+    // half a metre a texel cannot resolve anything finer, and drawing the full
+    // mesh into it would triple the cost of a pass nobody looks at directly.
+    const lod2 = atlas.bake(proto.id, 2);
+    castBases[p] = castCursor;
+    const co = p * ARGS_WORDS;
+    castArgs[co] = lod2.count;
+    castArgs[co + 2] = lod2.first;
+    casts.push({
+      proto: p, base: castCursor,
+      argsOffset: p * ARGS_WORDS * 4, sliceOffset: castCursor * 4,
+    });
+    castCursor += slice;
   }
 
   return {
     vertices: atlas.bytes,
     protos: protoTable(atlas.prototypes),
-    bases, args,
+    bases, args, castBases, castArgs, casts,
+    castEntries: castCursor + sliceBytes / 4,
     // The last slice must fit a whole binding past its own offset, or the
     // final bucket's dynamic offset runs off the end of the buffer.
     visibleEntries: cursor + sliceBytes / 4,
