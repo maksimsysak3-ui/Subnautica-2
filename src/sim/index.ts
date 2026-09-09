@@ -9,7 +9,8 @@
 export { makeCity, INSTANCE_FLOATS } from './city';
 export type { City } from './city';
 export { PROTO_COUNT } from './inventory';
-export { buildTerrain, heightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
+export { buildTerrain, heightAt, baseHeightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
+export { clearGrading } from './grading';
 export type { Chunk, TerrainMesh } from './terrain';
 export { hash2, noise2, fbm } from './hash';
 export { simConfig, configureSim, LITE } from './config';

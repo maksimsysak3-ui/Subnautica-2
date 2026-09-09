@@ -28,9 +28,11 @@
  */
 
 import { hash2 } from './hash';
-import { heightAt } from './terrain';
+import { baseHeightAt } from './terrain';
 import { simConfig } from './config';
 import { stock, signatures, services, roads, PROTO_COUNT } from './inventory';
+import { gradeGround, baseAtCorner } from './grading';
+import type { Pad } from './grading';
 import type { Proto } from './inventory';
 import type { Density, Zone } from '../assets/types';
 import { THEME_ORDER } from '../assets/themes';
@@ -90,6 +92,8 @@ export function makeCity(): City {
   const out: number[] = [];
   const cells = new Uint8Array(GRID * GRID);
   const population = new Uint32Array(PROTO_COUNT);
+  /** What each placement wants the ground under it to be. */
+  const pads: Pad[] = [];
 
   const at = (gx: number, gz: number): number => gz * GRID + gx;
 
@@ -141,13 +145,29 @@ export function makeCity(): City {
    */
   const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number): boolean => {
     const x0 = wx(gx), z0 = wx(gz), x1 = x0 + w * CELL, z1 = z0 + d * CELL;
-    const h0 = heightAt(x0, z0), h1 = heightAt(x1, z0);
-    const h2 = heightAt(x0, z1), h3 = heightAt(x1, z1);
-    const lo = Math.min(h0, h1, h2, h3);
-    if (Math.max(h0, h1, h2, h3) - lo > MAX_SLOPE) return false;
+    // Every corner of the lot, not the four outer ones: a lot up to
+    // thirty-five cells across can have a hump in the middle that its corners
+    // know nothing about, and the whole point of grading is that the ground
+    // ends up level with the building rather than near it.
+    let lo = Infinity, hi = -Infinity, sum = 0, n = 0;
+    for (let j = 0; j <= d; j++) {
+      for (let i = 0; i <= w; i++) {
+        const y = baseAtCorner(gx + i, gz + j, baseHeightAt);
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+        sum += y; n++;
+      }
+    }
+    if (hi - lo > MAX_SLOPE) return false;
+
+    // The mean, not the minimum. Cutting to the lowest corner digs every site
+    // into a pit its neighbours look down into; the mean cuts as much as it
+    // fills, which is what grading actually is.
+    const level = sum / n;
+    pads.push({ gx, gz, w, d, y: level });
 
     out.push(
-      (x0 + x1) / 2, (z0 + z1) / 2, lo - 0.25, yaw,
+      (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
       // the meshes inside, and a box exactly on that boundary would cull a
       // prototype's own parapet at the screen edge.
@@ -443,6 +463,12 @@ export function makeCity(): City {
       }
     }
   }
+
+  // Grade last, once every pad is known. The placement above ran against the
+  // ungraded ground on purpose: a spawner deciding whether a slope is
+  // buildable while the slope is being flattened underneath it would build
+  // anywhere, and the map would end up as one terrace.
+  gradeGround(pads, baseHeightAt);
 
   const data = new Float32Array(out.length);
   data.set(out);

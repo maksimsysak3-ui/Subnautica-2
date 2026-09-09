@@ -15,6 +15,7 @@
 
 import { fbm } from './hash';
 import { simConfig } from './config';
+import { gradingAt } from './grading';
 
 export const TERRAIN = {
   /** Metres across, centred on the origin. Set by configureSim. */
@@ -30,13 +31,18 @@ export const INDICES_PER_CHUNK = TERRAIN.res * TERRAIN.res * 6;
 export const FLOATS_PER_VERTEX = 6;
 
 /**
- * Height in metres at a world position.
+ * Height in metres at a world position, before anything is built on it.
  *
  * Flattened towards the origin so the city has buildable ground: the noise
  * amplitude ramps in with distance rather than being cut off, which avoids a
  * visible rim around the flat area.
+ *
+ * The spawner works against this while it is deciding where things go, and
+ * the grading it produces is then folded into heightAt below. Everything
+ * after placement -- the terrain mesh, the camera, anything asking what the
+ * ground is doing -- wants heightAt, not this.
  */
-export function heightAt(x: number, z: number): number {
+export function baseHeightAt(x: number, z: number): number {
   const s = 1 / 1100;
   const hills = (fbm(x * s, z * s, 5, 101) - 0.5) * 2;      // [-1, 1]
   const ridges = (fbm(x * s * 3.7, z * s * 3.7, 3, 233) - 0.5) * 2;
@@ -52,6 +58,17 @@ export function heightAt(x: number, z: number): number {
   const detail = (fbm(x / 90, z / 90, 3, 909) - 0.5) * 2 * 2.1;
 
   return (hills * 150 + ridges * 34) * relief + detail;
+}
+
+/**
+ * Height in metres at a world position, as built.
+ *
+ * The ground plus whatever the city did to it. A lot is levelled and ramps out
+ * to the terrain around it, so a building stands on flat ground instead of
+ * being buried at one corner and on stilts at the other.
+ */
+export function heightAt(x: number, z: number): number {
+  return baseHeightAt(x, z) + gradingAt(x, z);
 }
 
 /** Central difference normal. Matches heightAt exactly, so no seams. */
