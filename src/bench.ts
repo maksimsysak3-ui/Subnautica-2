@@ -42,8 +42,8 @@ export interface StopResult {
   cpuMs: number;
   gpuCullMs: number;
   gpuDrawMs: number;
-  drawnNear: number;
-  drawnFar: number;
+  /** Buildings drawn at each level of detail. */
+  drawnByLod: [number, number, number];
 }
 
 export class Benchmark {
@@ -111,7 +111,7 @@ export class Benchmark {
     const mean = (xs: number[]): number =>
       xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
     const frame = mean(this.samples);
-    const [near, far] = this.renderer.drawn;
+    const [l0, l1, l2] = this.renderer.drawn;
 
     this.results.push({
       name: stop.name,
@@ -120,8 +120,7 @@ export class Benchmark {
       cpuMs: frame,
       gpuCullMs: mean(this.gpuCull),
       gpuDrawMs: mean(this.gpuDraw),
-      drawnNear: near,
-      drawnFar: far,
+      drawnByLod: [l0, l1, l2],
     });
   }
 }
@@ -133,7 +132,7 @@ export function formatResults(results: StopResult[], instances: number): string 
     `citysim benchmark — ${instances.toLocaleString()} buildings`,
     `${navigator.userAgent}`,
     '',
-    'stop        dist    fps   frame   gpu cull   gpu draw    drawn',
+    'stop        dist    fps   frame   gpu cull   gpu draw    drawn      lod 0·1·2',
   ];
   for (const r of results) {
     lines.push(
@@ -143,7 +142,8 @@ export function formatResults(results: StopResult[], instances: number): string 
       pad(`${r.cpuMs.toFixed(1)}ms`, 8) +
       pad(r.gpuCullMs ? `${r.gpuCullMs.toFixed(2)}ms` : '—', 11) +
       pad(r.gpuDrawMs ? `${r.gpuDrawMs.toFixed(2)}ms` : '—', 11) +
-      pad((r.drawnNear + r.drawnFar).toLocaleString(), 9),
+      pad(r.drawnByLod.reduce((a, b) => a + b, 0).toLocaleString(), 9) +
+      pad(r.drawnByLod.join('\u00b7'), 15),
     );
   }
   return lines.join('\n');

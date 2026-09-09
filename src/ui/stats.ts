@@ -35,6 +35,11 @@ export class Stats {
     this.rows.set(key, value);
   }
 
+  /** The current rows, for tools that read the numbers rather than the panel. */
+  snapshot(): Record<string, string> {
+    return Object.fromEntries(this.rows);
+  }
+
   paint(now: number): void {
     if (now - this.lastPaint < 250) return;   // 4Hz is plenty; repainting DOM is not free
     this.lastPaint = now;

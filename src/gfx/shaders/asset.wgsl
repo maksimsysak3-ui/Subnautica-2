@@ -41,6 +41,33 @@ struct Scene {
 @group(0) @binding(1) var shadowMap : texture_depth_2d;
 @group(0) @binding(2) var shadowSampler : sampler_comparison;
 
+/**
+ * One prototype: everything about an asset that is the same for every copy of
+ * it standing in the city.
+ *
+ * The viewer draws one asset at a time and passed all of this in the scene
+ * uniform. A city draws four hundred prototypes in one pass, so it moves into
+ * a table the shader indexes by the instance's own prototype. The viewer binds
+ * a table of one row, which keeps a single fragment stage serving both.
+ */
+struct Proto {
+  /** xyz = the quantisation origin the vertices were packed against;
+   *  w = the prototype's colour seed, from its id. */
+  frame    : vec4f,
+  /** xyz = the quantisation extent. */
+  span     : vec4f,
+  /** Primary brand colour: fascia signs, awnings, painted trim. */
+  brand    : vec4f,
+  /** Secondary: stripes, doors, sign returns. */
+  accent   : vec4f,
+  /** The brand name, four characters packed per component, 16 max. */
+  signText : vec4u,
+  /** x = character count. */
+  signInfo : vec4f,
+};
+
+@group(1) @binding(0) var<storage, read> protos : array<Proto>;
+
 const MAT_ROOF      = 0u;
 const MAT_HOUSING   = 1u;
 const MAT_GLASS     = 2u;
@@ -85,6 +112,10 @@ struct VSOut {
   // per facet -- the dominant texel over its own UV footprint -- so there is
   // nothing to interpolate and every panel comes out clean-edged.
   @location(7) @interpolate(flat) vcol : vec3f,
+  /** Which row of the prototype table this surface belongs to. */
+  @location(8) @interpolate(flat) proto : u32,
+  /** The colour seed: the prototype's, plus the instance's own. */
+  @location(9) @interpolate(flat) seed : f32,
 };
 
 @vertex
@@ -116,6 +147,8 @@ fn vs(@location(0) position : vec3f,
   out.vcol = vec3f(f32(packed & 0xffu),
                    f32((packed >> 8u) & 0xffu),
                    f32((packed >> 16u) & 0xffu)) * (1.0 / 255.0);
+  out.proto = 0u;
+  out.seed = scene.params.x;
   out.pos = scene.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -124,6 +157,112 @@ fn vs(@location(0) position : vec3f,
 @vertex
 fn vs_shadow(@location(0) position : vec3f) -> @builtin(position) vec4f {
   return scene.sunViewProj * vec4f(position, 1.0);
+}
+
+// -------------------------------------------------- the city's vertex stage
+//
+// The viewer feeds this shader one asset at a time out of a fifty-two-byte
+// float vertex. The city feeds it four hundred prototypes out of one packed
+// arena, twenty bytes a vertex, drawn instanced. Everything downstream is the
+// same -- the fragment stage cannot tell which stage produced its input, and
+// that is the point: what the viewer shows is what the city renders.
+//
+// The packing, from src/gfx/atlas.ts:
+//
+//   x  position x, y      u16, u16, against the prototype's own bounding box
+//   y  position z, normal u16, u16 octahedral
+//   z  material, occlusion, tint, spare   u8 x4
+//   w  local u, v         u16, u16
+//   extra  the part key, or the imported vertex colour: the material says
+//          which, and no vertex in the library carries both.
+
+struct Instance {
+  /** x, z, base height, yaw in quarter turns. */
+  place : vec4f,
+  /** half extent x, half extent z, height, prototype index. */
+  form  : vec4f,
+};
+
+@group(2) @binding(0) var<storage, read> instances : array<Instance>;
+/** The survivors of one bucket, bound at that bucket's offset. */
+@group(2) @binding(1) var<storage, read> visible : array<u32>;
+
+/** The inverse of atlas.ts's packNormal: two bytes back to a unit vector. */
+fn unpackNormal(word : u32) -> vec3f {
+  let x = (f32(word & 255u) - 127.5) / 127.5;
+  let z = (f32((word >> 8u) & 255u) - 127.5) / 127.5;
+  let y = 1.0 - abs(x) - abs(z);
+  var o = vec3f(x, y, z);
+  if (y < 0.0) {
+    o = vec3f((1.0 - abs(z)) * select(-1.0, 1.0, x >= 0.0), y,
+              (1.0 - abs(x)) * select(-1.0, 1.0, z >= 0.0));
+  }
+  return normalize(o);
+}
+
+/**
+ * A quarter turn about Y, the same convention as MeshBuilder.placed.
+ *
+ * Quarter turns only, and that is a rule rather than a limitation: the facade
+ * patterns are computed from world position and the dominant face normal, so
+ * a wall has to stay axis-aligned or every brick course in the city shears.
+ */
+fn turn(v : vec3f, q : u32) -> vec3f {
+  switch q {
+    case 1u: { return vec3f(-v.z, v.y, v.x); }
+    case 2u: { return vec3f(-v.x, v.y, -v.z); }
+    case 3u: { return vec3f(v.z, v.y, -v.x); }
+    default: { return v; }
+  }
+}
+
+/** World placement of one packed vertex. Shared by the colour and shadow passes. */
+fn cityVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
+  let q = vec3f(f32(packed.x & 0xffffu), f32(packed.x >> 16u), f32(packed.y & 0xffffu));
+  let local = p.frame.xyz + q * (1.0 / 65535.0) * p.span.xyz;
+  return turn(local, u32(inst.place.w + 0.5))
+       + vec3f(inst.place.x, inst.place.z, inst.place.y);
+}
+
+@vertex
+fn vs_city(@location(0) packed : vec4u, @location(1) extra : u32,
+           @builtin(instance_index) slot : u32) -> VSOut {
+  let inst = instances[visible[slot]];
+  let index = u32(inst.form.w + 0.5);
+  let p = protos[index];
+
+  var out : VSOut;
+  out.world = cityVertex(packed, inst, p);
+  out.normal = turn(unpackNormal(packed.y >> 16u), u32(inst.place.w + 0.5));
+  out.material = packed.z & 255u;
+  out.ao = f32((packed.z >> 8u) & 255u) * (1.0 / 255.0);
+  out.tint = (packed.z >> 16u) & 255u;
+  out.local = vec2f(f32(packed.w & 0xffffu), f32(packed.w >> 16u)) * (1.0 / 65535.0);
+  out.proto = index;
+
+  // The union word. Only one of the two is ever read for a given material,
+  // which is what let the atlas share the word in the first place.
+  out.key = f32(extra);
+  out.vcol = vec3f(f32(extra & 0xffu), f32((extra >> 8u) & 0xffu),
+                   f32((extra >> 16u) & 0xffu)) * (1.0 / 255.0);
+
+  // The prototype's own character, plus this copy's. Without the second term
+  // a terrace of eight identical houses is eight identical houses; with it
+  // they are the same house in eight sets of curtains. Hashed from the lot
+  // rather than stored, which is deterministic and costs no memory.
+  out.seed = p.frame.w + hash21(floor(inst.place.xy * 0.125)) * 512.0;
+
+  out.pos = scene.viewProj * vec4f(out.world, 1.0);
+  return out;
+}
+
+/** The same placement, depth only, from the sun. */
+@vertex
+fn vs_city_shadow(@location(0) packed : vec4u, @location(1) extra : u32,
+                  @builtin(instance_index) slot : u32) -> @builtin(position) vec4f {
+  let inst = instances[visible[slot]];
+  let world = cityVertex(packed, inst, protos[u32(inst.form.w + 0.5)]);
+  return scene.sunViewProj * vec4f(world, 1.0);
 }
 
 // ---------------------------------------------------------------- utilities
@@ -685,9 +824,7 @@ fn plaster(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
  * Brand palette. A tint index paints a surface instead of patterning it, which
  * is how one shopfront generator makes a green grocer and a red diner.
  */
-fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32) -> vec3f {
-  let brand = scene.brand.rgb;
-  let accent = scene.accent.rgb;
+fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32, brand : vec3f, accent : vec3f) -> vec3f {
   switch (i) {
     case 1u: { return brand; }
     case 2u: { return brand * 0.48; }
@@ -1088,8 +1225,8 @@ fn glyphIndex(code : u32) -> u32 {
   return 40u;
 }
 
-fn charAt(i : u32) -> u32 {
-  let word = scene.signText[i / 4u];
+fn charAt(text : vec4u, i : u32) -> u32 {
+  let word = text[i / 4u];
   return (word >> ((i % 4u) * 8u)) & 255u;
 }
 
@@ -1097,7 +1234,7 @@ fn charAt(i : u32) -> u32 {
  * Draws the brand name across a sign face. `p` is 0..1 across the board.
  * Returns coverage, anti-aliased by the local derivative.
  */
-fn signLabel(p : vec2f, count : u32, mpp : f32) -> f32 {
+fn signLabel(text : vec4u, p : vec2f, count : u32, mpp : f32) -> f32 {
   if (count == 0u) { return 0.0; }
   // Letters occupy the middle 92% of the board.
   let cellW = 0.92 / f32(count);
@@ -1113,7 +1250,7 @@ fn signLabel(p : vec2f, count : u32, mpp : f32) -> f32 {
   let row = i32(floor((1.0 - inCell.y) * 6.0));
   if (col < 0 || col > 4 || row < 0 || row > 5) { return 0.0; }
 
-  let bits = GLYPHS[glyphIndex(charAt(index))];
+  let bits = GLYPHS[glyphIndex(charAt(text, index))];
   let on = (bits >> u32(row * 5 + col)) & 1u;
 
   // Fade out once a glyph pixel is smaller than a screen pixel. `mpp` is
@@ -1161,7 +1298,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let uv = facadeUV(in.world, n);
   // Taken here, in uniform control flow, then passed down.
   let mpp = max(max(fwidth(uv.x), fwidth(uv.y)), 1e-6);
-  let seed = scene.params.x;
+  let look = protos[in.proto];
+  let seed = in.seed;
 
   // Parallax for the interiors: the view direction expressed in the same two
   // axes the facade coordinate uses, divided by how square-on the surface is.
@@ -1181,7 +1319,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // A tinted surface is painted, not patterned: the palette wins over the
   // material entirely.
   var col = select(albedo(in.material, uv, mpp, seed, par, in.key, in.local, surfD),
-                   palette(in.tint, uv, mpp, seed),
+                   palette(in.tint, uv, mpp, seed, look.brand.rgb, look.accent.rgb),
                    in.tint != 0u);
   // An imported mesh brings its own colour and takes no pattern at all.
   if (in.material == MAT_IMPORTED) { col = in.vcol; }
@@ -1286,11 +1424,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (in.tint == 4u) {
     // Scaled, not mixed towards white. Any lift towards white raises the weak
     // channels and a saturated red becomes salmon -- twice now.
-    out = clamp(scene.brand.rgb * 1.35, vec3f(0.0), vec3f(1.0));
+    out = clamp(look.brand.rgb * 1.35, vec3f(0.0), vec3f(1.0));
     // The business name, in the accent colour, on faces that carry sign
     // coordinates. Faces that do not have local = (0,0) and get nothing.
-    let label = signLabel(in.local, u32(scene.signInfo.x + 0.5), localMpp);
-    out = mix(out, clamp(scene.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
+    let label = signLabel(look.signText, in.local, u32(look.signInfo.x + 0.5), localMpp);
+    out = mix(out, clamp(look.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
   }
   // A lamp is its own light source, like a lit sign: it takes no shading at
   // all, or a headlight in shadow is a grey oval.

@@ -19,6 +19,7 @@ import { ASSETS } from './assets/registry';
 import type { AssetDef } from './assets/types';
 import { DEFAULT_BRAND, idSeed } from './assets/types';
 import { FLOATS_PER_VERTEX } from './assets/mesh';
+import { PROTO_FLOATS } from './gfx/atlas';
 import { mat4, lookAt, perspective, ortho, multiply, clamp } from './math/m4';
 import type { Vec3 } from './math/m4';
 import { log, mountConsole } from './util/log';
@@ -56,6 +57,9 @@ interface Drawable {
 class Viewer {
   private pipeline!: GPURenderPipeline;
   private wirePipeline!: GPURenderPipeline;
+  private protoBuffer!: GPUBuffer;
+  private protoGroup!: GPUBindGroup;
+  private protoData = new Float32Array(PROTO_FLOATS);
   private shadowPipeline!: GPURenderPipeline;
   private shadowBindGroup!: GPUBindGroup;
   private sceneBuffer!: GPUBuffer;
@@ -141,7 +145,28 @@ class Viewer {
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
       ],
     });
-    const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
+    // The prototype table. A city binds four hundred rows and indexes them by
+    // the instance's prototype; the viewer binds one, because it is showing
+    // one asset -- but the fragment stage is the same either way, which is the
+    // whole reason a building looks the same in both.
+    const protoLayout = device.createBindGroupLayout({
+      entries: [{
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        buffer: { type: 'read-only-storage' },
+      }],
+    });
+    this.protoBuffer = device.createBuffer({
+      size: PROTO_FLOATS * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    this.protoGroup = device.createBindGroup({
+      layout: protoLayout,
+      entries: [{ binding: 0, resource: { buffer: this.protoBuffer } }],
+    });
+    const pipelineLayout = device.createPipelineLayout({
+      bindGroupLayouts: [layout, protoLayout],
+    });
     const buffers: GPUVertexBufferLayout[] = [{
       arrayStride: FLOATS_PER_VERTEX * 4,
       attributes: [
@@ -243,6 +268,7 @@ class Viewer {
 
   private hookInput(): void {
     const canvas = this.gpu.canvas;
+    if (!canvas) return;
     let dragging = false;
     let lx = 0, ly = 0;
     canvas.addEventListener('pointerdown', (e) => {
@@ -452,18 +478,25 @@ class Viewer {
     // its own but never change between frames.
     this.sceneData.set([idSeed(this.asset.id),
       1 / SHADOW_SIZE, this.groundRadius, 0], 40);
+    device.queue.writeBuffer(this.sceneBuffer, 0, this.sceneData);
+
+    // The prototype row. The viewer's vertices arrive unquantised, so the
+    // frame is the identity -- vs never reads it -- and only the seed, the
+    // brand and the sign text are live.
     const brand = this.asset.brand ?? DEFAULT_BRAND;
-    this.sceneData.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
-    this.sceneData.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 48);
-    // The name, four characters per 32-bit word, as the shader reads it.
+    this.protoData.fill(0);
+    this.protoData[3] = idSeed(this.asset.id);
+    this.protoData.set([1, 1, 1], 4);
+    this.protoData.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 8);
+    this.protoData.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 12);
     const name = (brand.name || '').toUpperCase().slice(0, 16);
-    const words = new Uint32Array(4);
+    const words = new Uint32Array(this.protoData.buffer, 16 * 4, 4);
+    words.fill(0);
     for (let i = 0; i < name.length; i++) {
       words[i >> 2] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
     }
-    new Uint32Array(this.sceneData.buffer, 52 * 4, 4).set(words);
-    this.sceneData.set([name.length, 0, 0, 0], 56);
-    device.queue.writeBuffer(this.sceneBuffer, 0, this.sceneData);
+    this.protoData[20] = name.length;
+    device.queue.writeBuffer(this.protoBuffer, 0, this.protoData);
 
     const encoder = device.createCommandEncoder();
 
@@ -496,6 +529,7 @@ class Viewer {
       },
     });
     pass.setBindGroup(0, this.bindGroup);
+    pass.setBindGroup(1, this.protoGroup);
     pass.setPipeline(this.pipeline);
 
     pass.setVertexBuffer(0, this.ground.vertices);
@@ -952,6 +986,7 @@ async function boot(): Promise<void> {
     setInterval(() => {
       const d = viewer.debug;
       const c = gpu.canvas;
+      if (!c) return;
       el.textContent =
         `frames ${d.frames}   tris ${(d.indices / 3) | 0}   ` +
         `size ${d.height.toFixed(1)}m r${d.radius.toFixed(1)}   ` +

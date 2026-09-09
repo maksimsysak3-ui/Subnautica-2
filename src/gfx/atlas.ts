@@ -2,7 +2,7 @@
  * The asset library, packed for the GPU.
  *
  * The game has never drawn an asset. It draws `makeCity()`'s output -- a
- * hundred thousand parametric boxes expanded in `box.wgsl` -- and the four
+ * hundred thousand parametric boxes -- and the four
  * hundred and ten generators in `src/assets` have only ever been called by the
  * viewer. This is the seam between them: it turns a generator into a span of
  * vertices the renderer can point an instanced draw at.
@@ -35,6 +35,7 @@
  */
 
 import { ASSETS } from '../assets/registry';
+import { DEFAULT_BRAND, idSeed } from '../assets/types';
 import type { AssetDef } from '../assets/types';
 
 /**
@@ -147,7 +148,7 @@ export class Atlas {
   get vertexCount(): number { return this.used; }
   get byteLength(): number { return this.used * VERTEX_BYTES; }
   /** The packed arena, trimmed to what has been written. */
-  get bytes(): Uint8Array { return new Uint8Array(this.data, 0, this.byteLength); }
+  get bytes(): Uint8Array<ArrayBuffer> { return new Uint8Array(this.data, 0, this.byteLength); }
 
   get(id: string): Prototype | undefined { return this.byId.get(id); }
 
@@ -237,4 +238,47 @@ export class Atlas {
   bakeAll(id: string): void {
     for (const lod of [0, 1, 2]) this.bake(id, lod);
   }
+}
+
+/**
+ * Floats per prototype in the GPU-side table:
+ *
+ *   lo       xyz = quantisation origin, w = the prototype's colour seed
+ *   span     xyz = quantisation extent, w = spare
+ *   brand    rgb = primary identity colour
+ *   accent   rgb = secondary
+ *   signText 16 characters, four packed per word (read as u32)
+ *   signInfo x = character count
+ *
+ * The viewer passed all of this in the scene uniform because it draws one
+ * asset at a time. A city draws four hundred at once, so it moves here and the
+ * shader indexes it by the instance's prototype.
+ */
+export const PROTO_FLOATS = 24;
+
+/**
+ * The prototype table, ready to upload.
+ *
+ * Every prototype gets a row whether or not it has been baked -- the table is
+ * indexed by prototype, and a hole would mean the index no longer is the row.
+ * At ninety-six bytes each that is forty kilobytes for the whole library.
+ */
+export function protoTable(protos: readonly Prototype[]): Float32Array<ArrayBuffer> {
+  const out = new Float32Array(protos.length * PROTO_FLOATS);
+  const words = new Uint32Array(out.buffer);
+  for (const p of protos) {
+    const o = p.index * PROTO_FLOATS;
+    out[o] = p.lo[0]; out[o + 1] = p.lo[1]; out[o + 2] = p.lo[2];
+    out[o + 3] = idSeed(p.id);
+    out[o + 4] = p.span[0]; out[o + 5] = p.span[1]; out[o + 6] = p.span[2];
+    const brand = p.def.brand ?? DEFAULT_BRAND;
+    out.set(brand.colour, o + 8); out[o + 11] = 1;
+    out.set(brand.accent, o + 12); out[o + 15] = 1;
+    const name = (brand.name || '').toUpperCase().slice(0, 16);
+    for (let i = 0; i < name.length; i++) {
+      words[o + 16 + (i >> 2)] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
+    }
+    out[o + 20] = name.length;
+  }
+  return out;
 }
