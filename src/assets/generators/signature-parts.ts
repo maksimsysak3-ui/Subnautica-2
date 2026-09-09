@@ -456,19 +456,77 @@ export function silo(m: MeshBuilder, cx: number, cz: number, r: number, y0: numb
     else m.cylinder(cx, cz, r, y1 - 0.02, y1, 14, mat, true);
   };
   if (opts.tint !== undefined) m.painted(opts.tint, body); else body();
-  m.painted(TINT.METAL_DARK, () => {
-    for (let i = 0; i < (opts.ribs ?? 3); i++) {
-      const y = y0 + ((i + 1) / ((opts.ribs ?? 3) + 1)) * (y1 - y0);
-      m.cylinder(cx, cz, r * 1.02, y, y + 0.22, 14, MAT.TRIM, false);
+  // `ribs: 0` asks for the drum and nothing else.
+  //
+  // The bands and the ladder together are most of a silo's triangles and none
+  // of its outline, so a caller drawing a battery of them at distance wants
+  // the cylinders alone -- and wanted one switch for it rather than two.
+  const ribs = opts.ribs ?? 3;
+  if (ribs > 0) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < ribs; i++) {
+        const y = y0 + ((i + 1) / (ribs + 1)) * (y1 - y0);
+        m.cylinder(cx, cz, r * 1.02, y, y + 0.22, 14, MAT.TRIM, false);
+      }
+      // The ladder: two stringers and a cage, which is what says "industrial
+      // scale" on a drum that has no other feature to be measured against.
+      m.box([cx + r * 0.99, y0, cz - 0.32], [cx + r * 1.05, y1 + 0.6, cz - 0.26], MAT.TRIM);
+      m.box([cx + r * 0.99, y0, cz + 0.26], [cx + r * 1.05, y1 + 0.6, cz + 0.32], MAT.TRIM);
+      for (let y = y0 + 0.6; y < y1; y += 2.4) {
+        m.box([cx + r * 0.98, y, cz - 0.55], [cx + r * 1.4, y + 0.07, cz + 0.55], MAT.TRIM);
+      }
+    });
+  }
+}
+
+/**
+ * A tower over a building that would otherwise have no vertical at all.
+ *
+ * Half the signature commercial buildings are long low sheds -- an arcade, a
+ * market hall, a night market -- and a long low shed is a perfectly good
+ * building and never a landmark, because a landmark is something you can see
+ * over the roofs from three streets away. This is the cheapest honest way to
+ * give one: a shaft, an open belfry stage with something lit inside it, and a
+ * cap. Every market square in the world has one.
+ */
+export function campanile(m: MeshBuilder, cx: number, cz: number, w: number, h: number,
+  mat: Material, opts: { belfry?: number; cap?: 'pyramid' | 'dome' | 'flat'; clock?: boolean;
+    tint?: Tint } = {}): void {
+  const belfry = opts.belfry ?? h * 0.22;
+  const shaft = h - belfry;
+  const body = (): void => {
+    m.box([cx - w, 0.1, cz - w], [cx + w, shaft, cz + w], mat, { roof: MAT.ROOF });
+    // The belfry: four piers with daylight between them, which is what stops
+    // the top reading as more shaft.
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      m.box([cx + sx * w - sx * 0.62, shaft, cz + sz * w - sz * 0.62],
+            [cx + sx * w, shaft + belfry, cz + sz * w], mat);
     }
-    // The ladder: two stringers and a cage, which is what says "industrial
-    // scale" on a drum that has no other feature to be measured against.
-    m.box([cx + r * 0.99, y0, cz - 0.32], [cx + r * 1.05, y1 + 0.6, cz - 0.26], MAT.TRIM);
-    m.box([cx + r * 0.99, y0, cz + 0.26], [cx + r * 1.05, y1 + 0.6, cz + 0.32], MAT.TRIM);
-    for (let y = y0 + 0.6; y < y1; y += 2.4) {
-      m.box([cx + r * 0.98, y, cz - 0.55], [cx + r * 1.4, y + 0.07, cz + 0.55], MAT.TRIM);
-    }
+    m.box([cx - w - 0.5, shaft - 0.9, cz - w - 0.5], [cx + w + 0.5, shaft, cz + w + 0.5], mat);
+    m.box([cx - w - 0.5, shaft + belfry, cz - w - 0.5],
+          [cx + w + 0.5, shaft + belfry + 0.9, cz + w + 0.5], mat);
+  };
+  if (opts.tint !== undefined) m.painted(opts.tint, body); else body();
+  m.painted(TINT.SIGN_LIT, () => {
+    m.box([cx - w + 0.5, shaft + 0.4, cz - w + 0.5],
+          [cx + w - 0.5, shaft + belfry - 0.4, cz + w - 0.5], MAT.PANE);
   });
+  if (opts.clock === true) {
+    m.painted(TINT.NONE, () => {
+      for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        m.cylinder(cx + ax * (w + 0.1), cz + az * (w + 0.1), w * 0.52,
+          shaft - 0.9 - w * 1.15, shaft - 0.9 - w * 0.1, 12, MAT.PLATE, true);
+      }
+    });
+  }
+  const y = shaft + belfry + 0.9;
+  if (opts.cap === 'dome') {
+    m.cone(cx, cz, w + 0.5, w * 0.3, y, y + w * 1.5, 12, MAT.METAL);
+    m.cone(cx, cz, w * 0.3, 0, y + w * 1.5, y + w * 2.1, 8, MAT.METAL);
+  } else if (opts.cap !== 'flat') {
+    m.cone(cx, cz, w + 0.5, 0, y, y + w * 2.4, 4, MAT.ROOF_TILE);
+  }
+  m.painted(TINT.METAL_DARK, () => m.cylinder(cx, cz, 0.12, y + w * 2.2, y + w * 3.4, 4, MAT.TRIM, false));
 }
 
 /** A run of pipes on a rack: the connective tissue of any heavy plant. */

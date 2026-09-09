@@ -824,19 +824,55 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
       }
     }
     if (medium && T.id === 'modern') {
+      // The roofscape, as solids rather than as planes.
+      //
+      // Two set-back storeys drawn as a wall, a lid and a strip of green was
+      // three single-sided quads per segment: no thickness anywhere, so the
+      // top of the building read as coloured paper laid over the arc and the
+      // parapet had no edge to catch the light. Each storey now closes --
+      // front, back, lid, and a return at each end of the run -- and carries a
+      // parapet standing proud of its own face, which is the only part of a
+      // flat roof anybody actually sees from the ground.
       for (let k = 0; k < 2; k++) {
-        const inn = arc(R - 3.5 - k * 3.5), out = arc(R - depth + 1.5);
+        const inn = arc(R - 3.5 - k * 3.5);
+        const out = arc(R - depth + 1.5 + k * 2.0);
         const y0 = top + k * fh, y1 = y0 + fh;
         for (let i = 0; i < N; i++) {
           const a = inn[i], b = inn[i + 1], c = out[i], d = out[i + 1];
           m.quad([b[0], y0, b[1]], [a[0], y0, a[1]], [a[0], y1, a[1]], [b[0], y1, b[1]], MAT.GLASS);
+          m.quad([c[0], y0, c[1]], [d[0], y0, d[1]], [d[0], y1, d[1]], [c[0], y1, c[1]], T.wall);
           m.quad([a[0], y1, a[1]], [b[0], y1, b[1]], [d[0], y1, d[1]], [c[0], y1, c[1]], MAT.ROOF);
+          // The parapet: a band standing above the lid on both faces, with a
+          // coping across it, so the roof has an edge.
+          for (const [p, q, o] of [[a, b, -0.35], [c, d, 0.35]] as const) {
+            m.quad([q[0], y1, q[1] + o], [p[0], y1, p[1] + o],
+                   [p[0], y1 + 1.0, p[1] + o], [q[0], y1 + 1.0, q[1] + o], T.trim);
+            m.quad([p[0], y1 + 1.0, p[1] + o], [q[0], y1 + 1.0, q[1] + o],
+                   [q[0], y1 + 1.0, q[1]], [p[0], y1 + 1.0, p[1]], T.trim);
+          }
           m.painted(TINT.GREEN, () => {
             const e = arc(R - 0.6 - k * 3.5);
             m.quad([e[i + 1][0], y0, e[i + 1][1]], [e[i][0], y0, e[i][1]],
                    [a[0], y0 + 0.75, a[1]], [b[0], y0 + 0.75, b[1]], MAT.TRIM);
           });
         }
+        // The two ends of the set-back run, which were open to the sky.
+        for (const [i, outward] of [[0, false], [N, true]] as const) {
+          const a = inn[i], c = out[i];
+          if (outward) m.quad([c[0], y0, c[1]], [a[0], y0, a[1]], [a[0], y1, a[1]], [c[0], y1, c[1]], T.wall);
+          else m.quad([a[0], y0, a[1]], [c[0], y0, c[1]], [c[0], y1, c[1]], [a[0], y1, a[1]], T.wall);
+        }
+      }
+      // Plant and lift overruns on the top deck: what is actually up there,
+      // and the thing that stops the last lid reading as a lid.
+      const cap2 = arc(R - 7.0);
+      for (let i = 2; i < N; i += 6) {
+        const p = cap2[i], q = cap2[i + 2];
+        const cx2 = (p[0] + q[0]) / 2, cz2 = (p[1] + q[1]) / 2;
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([cx2 - 3.0, top + 2 * fh, cz2 - 2.2], [cx2 + 3.0, top + 2 * fh + 3.2, cz2 + 2.2],
+            MAT.CLADDING, { roof: MAT.METAL });
+        });
       }
     }
     if (fine) {

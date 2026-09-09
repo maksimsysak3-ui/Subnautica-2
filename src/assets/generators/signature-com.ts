@@ -16,7 +16,7 @@ import type { AssetDef } from '../types';
 import { THEME_ORDER } from '../themes';
 import type { Theme } from '../themes';
 import {
-  barrelVault, curtain, flags, forecourt, loft, marquee,
+  barrelVault, campanile, curtain, flags, forecourt, loft, marquee,
   pierWall, plan, porteCochere, sawtooth, scaled, shelf,
 } from './signature-parts';
 import {
@@ -107,6 +107,17 @@ function arcade(lod: number): MeshBuilder {
     for (let i = 0; i < 10; i++) {
       figure(m, 3100 + i * 17, -34 + i * 7.5, -3.0 + (i % 3) * 2.4, i % 2 ? 0 : Math.PI, { stride: 0.22 });
     }
+  }
+  if (medium) {
+    // The campanile over the entrance.
+    //
+    // An arcade is a hundred metres of two-storey shopfront and a glass roof,
+    // which is a lovely thing to walk down and completely invisible from the
+    // next street. Every real one of these has a tower on the corner where it
+    // meets the street, and that is what makes it a place people navigate by
+    // rather than a building people are surprised to find.
+    campanile(m, -hx + 7.0, hz - 6.0, 4.2, 34.0, MAT.STONE,
+      { belfry: 7.0, cap: 'dome', clock: true, tint: TINT.NONE });
   }
   return m;
 }
@@ -272,6 +283,11 @@ function marketHall(lod: number): MeshBuilder {
       marquee(m, s * 18 - 8, s * 18 + 8, hz + 0.4, 1, wall + 0.6, 2.2);
     }
     for (let i = 0; i < 4; i++) planter(m, -24 + i * 16, hz + 4.0, 1.4, 0.6);
+  }
+  if (medium) {
+    // The market cross: the tower every market square is laid out around.
+    campanile(m, 0, hz + 9.0, 3.2, 26.0, MAT.STONE,
+      { belfry: 5.6, cap: 'pyramid', clock: true, tint: TINT.NONE });
   }
   return m;
 }
@@ -652,6 +668,41 @@ function leisureBox(lod: number): MeshBuilder {
       m.box([-hx + 1.5, 5.4, hz - 5.4], [hx - 1.5, 5.7, hz - 1.0], MAT.TRIM, { skipBottom: false });
       m.box([-hx + 1.5, 10.0, hz - 5.4], [hx - 1.5, 10.3, hz - 1.0], MAT.TRIM, { skipBottom: false });
     });
+  }
+  if (medium) {
+    // The halo. The building is named after it and did not have one: a lit
+    // ring twenty metres across standing over the roof on four masts, which
+    // is the only part of this that anybody will describe to anybody else.
+    const R = 19.0, SEG = 24, ry = 33.0;
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < SEG; i++) {
+        const a = (i / SEG) * Math.PI * 2, b = ((i + 1) / SEG) * Math.PI * 2;
+        m.pipe([Math.cos(a) * R, ry, Math.sin(a) * R - 5.0],
+               [Math.cos(b) * R, ry, Math.sin(b) * R - 5.0], 0.85, MAT.PLATE, 5);
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        m.cylinder(Math.cos(a) * R, Math.sin(a) * R - 5.0, 0.42, 22.0, ry, 6, MAT.TRIM, false);
+      }
+    });
+    // The two flanks, which were forty metres of blank concrete each. A
+    // multiplex has its plant and its fire escapes down the side, so that is
+    // what goes there -- ribbed bays with a stair tower standing off each one.
+    for (const sx of [-1, 1] as const) {
+      m.painted(TINT.METAL_DARK, () => {
+        for (let i = 0; i < 7; i++) {
+          const z = -hz + 2.5 + i * 2.1;
+          m.box([sx * hx - sx * 0.1, 2.0, z - 0.45], [sx * hx + sx * 0.55, 21.0, z + 0.45], MAT.TRIM);
+        }
+      });
+      m.box([sx * hx - sx * 0.2, 0.1, -hz + 17.0], [sx * hx + sx * 3.4, 24.5, -hz + 24.0],
+        MAT.CONCRETE, { roof: MAT.ROOF });
+      m.box([sx * hx + sx * 0.6, 1.4, -hz + 18.2], [sx * hx + sx * 3.5, 22.6, -hz + 22.8], MAT.GLASS);
+    }
+    // The back: the loading yard elevation, banded rather than bare.
+    m.painted(TINT.BRAND, () => m.box([-hx + 4, 15.5, -hz - 0.5], [hx - 4, 18.5, -hz + 0.2], MAT.CLADDING));
   }
   if (fine) {
     parapet(m, -hx, -hz, hx, hz - 11.0, 22.0, 1.1, 0.3, MAT.CONCRETE);
