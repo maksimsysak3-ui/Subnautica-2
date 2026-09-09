@@ -22,7 +22,7 @@ const MAX_RECOVERY_ATTEMPTS = 3;
 // Tells the watchdog in index.html that the bundle actually executed. If this
 // never runs, the watchdog goes and works out why.
 declare global {
-  interface Window { __citysimBooted?: boolean }
+  interface Window { __citysimBooted?: boolean; __citysim?: { camera: Camera } }
 }
 window.__citysimBooted = true;
 
@@ -82,6 +82,13 @@ async function boot(): Promise<void> {
 
   const camera = new Camera();
   const controls = new Controls(canvas, camera);
+  // A handle on the camera for tooling.
+  //
+  // `tools/city-shot.mjs` drives this to take the store-page screenshots, and
+  // it is the only way to get a repeatable frame out of the real game rather
+  // than a picture of assets lined up on a grid. Read-write on purpose and
+  // harmless: it exposes the view, not the simulation.
+  window.__citysim = { camera };
   const renderer = new Renderer(gpu, camera, stats);
   renderer.build();
 
