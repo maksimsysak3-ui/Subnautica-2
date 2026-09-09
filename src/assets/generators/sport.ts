@@ -640,9 +640,17 @@ function gridiron(lod: number): MeshBuilder {
     for (let j = 0; j < OPEN[1]; j++) {
       const k = (OPEN[0] + j) % N;
       const p = outer[k], q = outer[(k + 1) % N];
-      if (Math.abs((p[0] + q[0]) / 2) < BOARD_HALF) continue;
+      const seats = Math.abs((p[0] + q[0]) / 2) >= BOARD_HALF;
       const only: [number, number] = [(k + 1) % N, N - 1];
-      bowl(m, { inner: grow(mid, 0.94), outer, y0: 22.4, y1: 46.0, steps: 15, open: only, block: 6 });
+      // Seating stops either side of the board; the wall and the roof do not.
+      // Gating all of it on the board test left the three middle segments with
+      // no outer wall above the plaza and no roof over them, so the ring was
+      // still open -- you looked through the gap at the underside of the deck
+      // on the far side. The board stands in front of the facade, not instead
+      // of it.
+      if (seats) {
+        bowl(m, { inner: grow(mid, 0.94), outer, y0: 22.4, y1: 46.0, steps: 15, open: only, block: 6 });
+      }
       // The wall under it, so the wedge is carried down to the plaza rather
       // than floating over it, and the roof over it, so it is covered like
       // the rest of the ring.
@@ -651,8 +659,10 @@ function gridiron(lod: number): MeshBuilder {
       // blank grey between two articulated bays, which reads as the piece
       // nobody finished -- the exact fault the upper tier was added to cure.
       skin(m, outer, 11.1, 42.0, MAT.CONCRETE, only);
-      skin(m, grow(outer, 0.965), 11.1, 18.0, MAT.GLASS, only);
-      skin(m, grow(outer, 1.004), 26.0, 31.0, MAT.GLASS, only);
+      if (seats) {
+        skin(m, grow(outer, 0.965), 11.1, 18.0, MAT.GLASS, only);
+        skin(m, grow(outer, 1.004), 26.0, 31.0, MAT.GLASS, only);
+      }
       m.painted(TINT.METAL_DARK, () => {
         for (let t = 0; t < N; t++) {
           const k2 = ((t - only[0]) % N + N) % N;
@@ -667,11 +677,11 @@ function gridiron(lod: number): MeshBuilder {
           m.pipe([p[0], 32.0, p[1]], [q[0], 32.0, q[1]], 0.3, MAT.TRIM, 4);
         }
       });
-      m.painted(TINT.BRAND, () => skin(m, grow(outer, 1.01), 33.0, 37.0, MAT.CLADDING, only));
+      if (seats) m.painted(TINT.BRAND, () => skin(m, grow(outer, 1.01), 33.0, 37.0, MAT.CLADDING, only));
       deck(m, grow(outer, 1.00), grow(outer, 1.05), 42.0, 45.6, MAT.CLADDING, only);
       deck(m, grow(outer, 0.84), grow(outer, 1.05), 48.0, 49.6, MAT.METAL, only);
       deck(m, grow(outer, 0.74), grow(outer, 0.84), 48.2, 49.2, MAT.GLASS, only);
-      if (fine) {
+      if (fine && seats) {
         m.painted(TINT.METAL_DARK, () => {
           const r = grow(outer, 1.02)[k];
           m.pipe([r[0], 42.0, r[1]], [r[0] * 0.86, 48.4, r[1] * 0.86], 0.42, MAT.TRIM, 6);
