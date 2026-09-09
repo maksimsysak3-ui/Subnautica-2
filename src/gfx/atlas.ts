@@ -23,19 +23,57 @@
  * does not need fifty-two bytes. Position quantises to three unsigned shorts
  * against the prototype's own bounding box -- the same trick the fleet
  * importer already ships -- the normal octahedron-encodes into one word, and
- * material, tint, occlusion and part key pack into another. Sixteen bytes.
+ * material, tint and occlusion pack into another, the facade uv into a fourth,
+ * and the fifth carries either the part key or the imported vertex colour --
+ * never both, because the shader reads the one or the other and no vertex in
+ * the library sets both. Twenty bytes, down from fifty-two.
  *
- * That is eighty-seven megabytes for every LOD0 in the library, and the game
- * never needs every LOD0 at once: baking is on demand and cached, so what is
- * resident is what has actually been placed. A city of a hundred and fifty
- * distinct prototypes is about forty-eight megabytes.
+ * That is a hundred and fifteen megabytes for every LOD0 in the library, and
+ * the game never needs every LOD0 at once: baking is on demand and cached, so
+ * what is resident is what has actually been placed. A city of a hundred and
+ * fifty distinct prototypes is about sixty megabytes.
  */
 
 import { ASSETS } from '../assets/registry';
 import type { AssetDef } from '../assets/types';
 
-/** Bytes per packed vertex: pos u16x3 + pad, normal u32, attributes u32. */
-export const VERTEX_BYTES = 16;
+/**
+ * Bytes per packed vertex: five words.
+ *
+ *   w0  position x, y            u16, u16
+ *   w1  position z, normal       u16, u16 (octahedral)
+ *   w2  material, occlusion, tint, spare   u8 x4
+ *   w3  local u, v               u16, u16
+ *   w4  part key, or packed vertex colour
+ *
+ * The last word is a union, and the shader's own switch is what makes it
+ * legal: `vcol` is read only for MAT_IMPORTED and the part key only for the
+ * nine materials that colour themselves from it, which does not include
+ * MAT_IMPORTED. Checked against the whole library rather than assumed -- no
+ * vertex of the four hundred and ten prototypes carries both.
+ */
+export const VERTEX_BYTES = 20;
+
+/** Words per packed vertex. */
+const WORDS = VERTEX_BYTES / 4;
+
+/** Material that reads the vertex colour instead of the part key. */
+const MAT_IMPORTED = 26;
+
+/**
+ * How the packed arena binds as a vertex buffer.
+ *
+ * Two attributes rather than five: the driver fetches sixteen bytes and four
+ * in one go each, and the shader unpacks. Non-indexed draws, so `firstVertex`
+ * on the draw is the whole of the addressing.
+ */
+export const VERTEX_LAYOUT = {
+  arrayStride: VERTEX_BYTES,
+  attributes: [
+    { shaderLocation: 0, offset: 0, format: 'uint32x4' },
+    { shaderLocation: 1, offset: 16, format: 'uint32' },
+  ],
+} as const;
 
 /** How much vertex arena to start with, in vertices. Grows by doubling. */
 const INITIAL_VERTS = 1 << 18;
@@ -91,7 +129,6 @@ export class Atlas {
   readonly prototypes: Prototype[] = [];
   private byId = new Map<string, Prototype>();
   private data = new ArrayBuffer(INITIAL_VERTS * VERTEX_BYTES);
-  private u16 = new Uint16Array(this.data);
   private u32 = new Uint32Array(this.data);
   /** Vertices written so far. The arena is dense; spans never move. */
   private used = 0;
@@ -121,7 +158,6 @@ export class Atlas {
     const next = new ArrayBuffer(size);
     new Uint8Array(next).set(new Uint8Array(this.data, 0, this.used * VERTEX_BYTES));
     this.data = next;
-    this.u16 = new Uint16Array(next);
     this.u32 = new Uint32Array(next);
   }
 
@@ -169,21 +205,27 @@ export class Atlas {
     const count = ix.length;
     this.grow(this.used + count);
     const first = this.used;
+    // The vertex colour is four bytes already, stashed in a float slot by
+    // MeshBuilder.imported and bitcast straight back in the shader. Read it
+    // through a word view rather than through the float, which would round it.
+    const raw = new Uint32Array(v.buffer, v.byteOffset, v.length);
+    const q16 = (x: number): number => (x < 0 ? 0 : x > 65535 ? 65535 : Math.round(x));
     for (let t = 0; t < count; t++) {
       const o = ix[t] * STRIDE;
-      const w = (first + t) * 8;          // u16 words per vertex
-      for (let k = 0; k < 3; k++) {
-        const q = ((v[o + k] - p.lo[k]) / p.span[k]) * 65535;
-        this.u16[w + k] = q < 0 ? 0 : q > 65535 ? 65535 : Math.round(q);
-      }
-      this.u16[w + 3] = 0;
-      const d = (first + t) * 4;          // u32 words per vertex
-      this.u32[d + 2] = packNormal(v[o + 3], v[o + 4], v[o + 5]);
-      // material, occlusion, tint slot, part key -- one byte each.
-      this.u32[d + 3] = (v[o + 6] & 255)
-        | ((Math.max(0, Math.min(255, Math.round(v[o + 7] * 255))) & 255) << 8)
-        | ((v[o + 8] & 255) << 16)
-        | ((v[o + 11] & 255) << 24);
+      const d = (first + t) * WORDS;
+      const px = q16(((v[o] - p.lo[0]) / p.span[0]) * 65535);
+      const py = q16(((v[o + 1] - p.lo[1]) / p.span[1]) * 65535);
+      const pz = q16(((v[o + 2] - p.lo[2]) / p.span[2]) * 65535);
+      this.u32[d] = px | (py << 16);
+      this.u32[d + 1] = pz | (packNormal(v[o + 3], v[o + 4], v[o + 5]) << 16);
+      const mat = v[o + 6] & 255;
+      this.u32[d + 2] = mat
+        | ((q16(v[o + 7] * 255) & 255) << 8)
+        | ((v[o + 8] & 255) << 16);
+      this.u32[d + 3] = q16(v[o + 9] * 65535) | (q16(v[o + 10] * 65535) << 16);
+      // The union. An imported mesh shades from its baked colour and never
+      // reads a key; everything keyed is generated and has no vertex colour.
+      this.u32[d + 4] = mat === MAT_IMPORTED ? raw[o + 12] : v[o + 11] >>> 0;
     }
     this.used += count;
     const span: Span = { first, count };

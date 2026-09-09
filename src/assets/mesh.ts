@@ -362,7 +362,18 @@ export class MeshBuilder {
     }
   }
 
-  /** Adds one triangle from explicit positions, with a shared face normal. */
+  /**
+   * Adds one triangle from explicit positions, with a shared face normal.
+   *
+   * A triangle with no area is dropped rather than emitted with a zero normal.
+   * It draws nothing either way, but a zero normal is not a direction: it
+   * shades as whatever the lighting does with a null vector, and it makes the
+   * packed vertex format's normal unrecoverable, so the atlas round-trip has
+   * no way to tell a degenerate face from a corrupt one. Five hundred of the
+   * library's two-point-nine million triangles are like this -- slivers where
+   * a wall meets a roof at exactly the same point -- and none of them is load
+   * bearing.
+   */
   tri(rawA: Vec3, rawB: Vec3, rawC: Vec3, mat: Material): void {
     const a = this.xf(rawA), b = this.xf(rawB), c = this.xf(rawC);
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
@@ -370,7 +381,8 @@ export class MeshBuilder {
     let nx = uy * vz - uz * vy;
     let ny = uz * vx - ux * vz;
     let nz = ux * vy - uy * vx;
-    const len = Math.hypot(nx, ny, nz) || 1;
+    const len = Math.hypot(nx, ny, nz);
+    if (len < 1e-9) return;
     nx /= len; ny /= len; nz /= len;
 
     const base = this.vertexCount;
@@ -394,7 +406,8 @@ export class MeshBuilder {
     let nx = uy * vz - uz * vy;
     let ny = uz * vx - ux * vz;
     let nz = ux * vy - uy * vx;
-    const len = Math.hypot(nx, ny, nz) || 1;
+    const len = Math.hypot(nx, ny, nz);
+    if (len < 1e-9) return;                 // no area: see tri()
     nx /= len; ny /= len; nz /= len;
     const base = this.vertexCount;
     for (let i = 0; i < 3; i++) {
