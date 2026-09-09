@@ -22,6 +22,7 @@ import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
 import { Frustum } from './frustum';
+import { invert, mat4 } from '../math/m4';
 import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
@@ -31,15 +32,15 @@ import {
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN,
 } from '../sim';
 import type { Chunk } from '../sim';
-import commonSrc from './shaders/common.wgsl?raw';
-import cullSrc from './shaders/cull.wgsl?raw';
-import terrainSrc from './shaders/terrain.wgsl?raw';
-import assetSrc from './shaders/asset.wgsl?raw';
+import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
-/** mat4 viewProj (64) + eye (16) + params (16) + six frustum planes (96). */
-const CAMERA_UNIFORM_SIZE = 192;
+/**
+ * viewProj (64) + its inverse (64) + eye (16) + sun (16) + params (16)
+ * + six frustum planes (96).
+ */
+const CAMERA_UNIFORM_SIZE = 272;
 
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign. */
 const SCENE_UNIFORM_SIZE = 240;
@@ -57,12 +58,8 @@ const SUN = ((): [number, number, number] => {
   return [v[0] / l, v[1] / l, v[2] / l];
 })();
 
-/** The whole preprocessor: one directive, resolved at load. */
-function resolve(src: string): string {
-  return src.replace(/^[ \t]*#include\s+"common\.wgsl"[ \t]*$/m, commonSrc);
-}
-
 interface Resources {
+  sky: GPURenderPipeline;
   terrain: GPURenderPipeline;
   city: GPURenderPipeline;
   cull: GPUComputePipeline;
@@ -93,6 +90,7 @@ interface Resources {
 export class Renderer {
   private res: Resources | null = null;
   private cameraData = new Float32Array(CAMERA_UNIFORM_SIZE / 4);
+  private invViewProj = mat4();
   private sceneData = new Float32Array(SCENE_UNIFORM_SIZE / 4);
   private raf = 0;
   private startedAt = 0;
@@ -183,7 +181,20 @@ export class Renderer {
 
     // ---- pipelines ----------------------------------------------------
 
-    const terrainModule = device.createShaderModule({ label: 'terrain', code: resolve(terrainSrc) });
+    // The sky goes down first with depth writes off, so every later pass
+    // paints over it. Clearing to a flat colour was cheaper and was why a
+    // scene lit for midday read as midnight.
+    const skyModule = device.createShaderModule({ label: 'sky', code: SHADERS.sky });
+    const sky = device.createRenderPipeline({
+      label: 'sky-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      vertex: { module: skyModule, entryPoint: 'vs' },
+      fragment: { module: skyModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
+    });
+
+    const terrainModule = device.createShaderModule({ label: 'terrain', code: SHADERS.terrain });
     const terrain = device.createRenderPipeline({
       label: 'terrain-pipeline',
       layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
@@ -203,7 +214,7 @@ export class Renderer {
       depthStencil,
     });
 
-    const assetModule = device.createShaderModule({ label: 'asset', code: assetSrc });
+    const assetModule = device.createShaderModule({ label: 'asset', code: SHADERS.asset });
     const cityPipeline = device.createRenderPipeline({
       label: 'city-pipeline',
       layout: device.createPipelineLayout({
@@ -232,7 +243,7 @@ export class Renderer {
       label: 'cull-pipeline',
       layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, cullLayout] }),
       compute: {
-        module: device.createShaderModule({ label: 'cull', code: resolve(cullSrc) }),
+        module: device.createShaderModule({ label: 'cull', code: SHADERS.cull }),
         entryPoint: 'main',
       },
     });
@@ -371,7 +382,7 @@ export class Renderer {
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
     this.res = {
-      terrain, city: cityPipeline, cull,
+      sky, terrain, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup, protoGroup, cityGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
@@ -465,21 +476,26 @@ export class Renderer {
     const cam = this.camera;
 
     this.cameraData.set(cam.viewProjMatrix, 0);
-    this.cameraData[16] = cam.eye[0];
-    this.cameraData[17] = cam.eye[1];
-    this.cameraData[18] = cam.eye[2];
-    this.cameraData[19] = cam.far;
-    this.cameraData[20] = (now - this.startedAt) / 1000;
-    this.cameraData[21] = TERRAIN.size * 0.5;
-    this.cameraData[22] = 0;
+    // The inverse, for unprojecting a screen corner into a view ray. The sky
+    // pass is the only thing that wants it, and it wants it once per frame.
+    invert(this.invViewProj, cam.viewProjMatrix);
+    this.cameraData.set(this.invViewProj, 16);
+    this.cameraData[32] = cam.eye[0];
+    this.cameraData[33] = cam.eye[1];
+    this.cameraData[34] = cam.eye[2];
+    this.cameraData[35] = cam.far;
+    this.cameraData.set([SUN[0], SUN[1], SUN[2], 0], 36);
+    this.cameraData[40] = (now - this.startedAt) / 1000;
+    this.cameraData[41] = TERRAIN.size * 0.5;
+    this.cameraData[42] = 0;
     // Converts metres-at-a-distance into pixels, so the culling pass can drop
     // anything too small to resolve and pick a level of detail for the rest.
-    this.cameraData[23] = viewport.height / (2 * Math.tan(FOV_Y / 2));
+    this.cameraData[43] = viewport.height / (2 * Math.tan(FOV_Y / 2));
 
     // The same six planes the CPU uses for terrain chunks, handed to the
     // culling pass so both agree by construction rather than by coincidence.
     this.frustum.update(cam.viewProjMatrix);
-    this.cameraData.set(this.frustum.planes, 24);
+    this.cameraData.set(this.frustum.planes, 44);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -490,7 +506,8 @@ export class Renderer {
     this.sceneData.set(cam.viewProjMatrix, 16);
     this.sceneData.set([cam.eye[0], cam.eye[1], cam.eye[2], 0], 32);
     this.sceneData.set([SUN[0], SUN[1], SUN[2], 0], 36);
-    this.sceneData.set([0, 1, TERRAIN.size * 0.5, 0], 40);
+    // x turns aerial perspective on: the city wants it, the viewer does not.
+    this.sceneData.set([1, 1, TERRAIN.size * 0.5, 0], 40);
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -518,7 +535,9 @@ export class Renderer {
       label: 'main',
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
-        clearValue: { r: 0.043, g: 0.055, b: 0.075, a: 1 },
+        // Cleared only because a load op is required; the sky pass covers
+        // every pixel of it before anything else is drawn.
+        clearValue: { r: 0, g: 0, b: 0, a: 1 },
         loadOp: 'clear',
         storeOp: 'store',
       }],
@@ -531,10 +550,13 @@ export class Renderer {
       ...(drawWrites ? { timestampWrites: drawWrites } : {}),
     });
 
+    pass.setBindGroup(0, res.cameraGroup);
+    pass.setPipeline(res.sky);
+    pass.draw(3);
+
     // Terrain, one draw per visible chunk. Culling here is what keeps the draw
     // count flat as the map grows past the view.
     pass.setPipeline(res.terrain);
-    pass.setBindGroup(0, res.cameraGroup);
     pass.setVertexBuffer(0, res.terrainVertices);
     pass.setIndexBuffer(res.terrainIndices, 'uint32');
     let chunks = 0;
@@ -568,7 +590,7 @@ export class Renderer {
     this.readDrawnCounts(res);
 
     this.stats.sample(performance.now() - cpuStart);
-    this.stats.set('draws', String(chunks + res.buckets.length));
+    this.stats.set('draws', String(1 + chunks + res.buckets.length));
     this.stats.set('chunks', `${chunks}/${res.chunks.length}`);
     if (this.profiler?.enabled) {
       this.stats.set('gpu cull', this.profiler.ms('cull').toFixed(2));

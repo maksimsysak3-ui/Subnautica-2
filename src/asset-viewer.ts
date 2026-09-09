@@ -26,7 +26,7 @@ import { log, mountConsole } from './util/log';
 import { BRANCH_STYLE, paletteFor, zoneIcon } from './ui/zones';
 import type { Category } from './ui/zones';
 import { BRANCHES } from './assets/types';
-import shaderSrc from './gfx/shaders/asset.wgsl?raw';
+import { SHADERS } from './gfx/shaders';
 
 const DEPTH: GPUTextureFormat = 'depth24plus';
 // depth24plus rather than depth32float: comparison sampling of a 32-bit depth
@@ -109,7 +109,7 @@ class Viewer {
 
   private buildPipelines(): void {
     const { device, format } = this.gpu;
-    const module = device.createShaderModule({ label: 'asset', code: shaderSrc });
+    const module = device.createShaderModule({ label: 'asset', code: SHADERS.asset });
 
     const shadow = device.createTexture({
       label: 'shadow-map',
@@ -474,10 +474,10 @@ class Viewer {
     this.sceneData.set(this.sunViewProj, 16);
     this.sceneData.set([eye[0], eye[1], eye[2], 0], 32);
     this.sceneData.set([SUN[0], SUN[1], SUN[2], 0], 36);
-    // Seed from the asset id, so each asset's colours and window pattern are
-    // its own but never change between frames.
-    this.sceneData.set([idSeed(this.asset.id),
-      1 / SHADOW_SIZE, this.groundRadius, 0], 40);
+    // No aerial perspective: the subject is eighty metres away and the
+    // background is a studio backdrop, not sky. The colour seed that used to
+    // sit in this slot moved into the prototype table below.
+    this.sceneData.set([0, 1 / SHADOW_SIZE, this.groundRadius, 0], 40);
     device.queue.writeBuffer(this.sceneBuffer, 0, this.sceneData);
 
     // The prototype row. The viewer's vertices arrive unquantised, so the

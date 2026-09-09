@@ -20,12 +20,15 @@
 // or a zoomed-out city turns into aliasing soup -- the lesson the terrain grid
 // taught, applied per material.
 
+#include "atmosphere.wgsl"
+
 struct Scene {
   viewProj    : mat4x4f,
   sunViewProj : mat4x4f,
   eye         : vec4f,
   sunDir      : vec4f,
-  // x = per-building seed, y = shadow map texel size, z = ground fade radius
+  // x = aerial perspective strength, y = shadow map texel size,
+  // z = ground fade radius
   params      : vec4f,
   /** Primary brand colour: fascia signs, awnings, painted trim. */
   brand       : vec4f,
@@ -1434,6 +1437,23 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // all, or a headlight in shadow is a grey oval.
   if (in.material == MAT_LAMP) {
     out = clamp(lampColour(in.local, in.tint != 4u) * 1.45, vec3f(0.0), vec3f(1.0));
+  }
+
+  // Air in front of the building. Without it a white block a kilometre away is
+  // the same white as one across the street, and the city reads as a model on
+  // a table rather than as a place with distance in it. Off in the viewer,
+  // where the subject is eighty metres away and the background is not sky.
+  let haze = scene.params.x;
+  if (haze > 0.0) {
+    let toEye = in.world - scene.eye.xyz;
+    // After the tonemap, unlike the ground: the surface colours here have
+    // already been through it, and running it twice crushes them.
+    let air = skyColour(toEye, sun);
+    let lit = pow(air / (air + vec3f(0.72)) * 1.42, vec3f(0.9));
+    let d = length(toEye);
+    let amount = clamp((1.0 - exp(-d * (1.0 / 2600.0))) * 0.62
+                     + smoothstep(1600.0, 4200.0, d) * 0.55, 0.0, 1.0) * haze;
+    out = mix(out, lit, amount);
   }
   return vec4f(out, 1.0);
 }
