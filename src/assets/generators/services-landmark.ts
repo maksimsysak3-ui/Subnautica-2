@@ -20,7 +20,7 @@ import {
   band, bollards, entrance, kerb, parapet, planter, railing, roofClutter,
 } from '../parts';
 import {
-  barrelVault, conveyor, curtain, flags, forecourt, lattice, loft,
+  barrelVault, conveyor, curtain, flags, forecourt, lattice, lid, loft,
   marquee, pipeRack, plan, porteCochere, scaled, shelf, silo,
 } from './signature-parts';
 import { bench, hedge, tree } from './landscape';
@@ -652,8 +652,19 @@ function maternityHospital(lod: number): MeshBuilder {
     const a = outer[i], b = outer[i + 1], c = inner[i], d = inner[i + 1];
     m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], MAT.RENDER);
     m.quad([c[0], 0.1, c[1]], [d[0], 0.1, d[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.RENDER);
-    m.quad([a[0], top, a[1]], [b[0], top, b[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.ROOF);
-    m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [d[0], 0.1, d[1]], [c[0], 0.1, c[1]], MAT.GROUND);
+    lid(m, [a, b, d, c], top, MAT.ROOF);
+    lid(m, [a, b, d, c], 0.1, MAT.GROUND);
+    // The parapet, following the arc. It used to be an axis-aligned rectangle
+    // laid over a curved building, which stood off the roof on three sides
+    // and read as a frame hanging in the air above it.
+    if (medium) {
+      for (const [p, q, o] of [[a, b, -0.3], [c, d, 0.3]] as const) {
+        m.quad([q[0], top, q[1] + o], [p[0], top, p[1] + o],
+               [p[0], top + 1.1, p[1] + o], [q[0], top + 1.1, q[1] + o], MAT.CONCRETE);
+      }
+      lid(m, [[a[0], a[1] - 0.3], [b[0], b[1] - 0.3], [b[0], b[1]], [a[0], a[1]]], top + 1.1, MAT.CONCRETE);
+      lid(m, [[c[0], c[1] + 0.3], [d[0], d[1] + 0.3], [d[0], d[1]], [c[0], c[1]]], top + 1.1, MAT.CONCRETE);
+    }
     if (medium) {
       // Ribbon glazing on both faces, with a slab band between floors.
       for (let f = 0; f < floors; f++) {
@@ -673,12 +684,26 @@ function maternityHospital(lod: number): MeshBuilder {
     }
   }
   if (medium) {
-    parapet(m, -34, -18, 34, 2, top, 1.1, 0.3, MAT.CONCRETE);
+    // The two ends of the ward block. A curved slab drawn as a front skin, a
+    // back skin and a lid has nothing across its ends, so you looked straight
+    // through the building from either side of it.
+    for (const [i, out] of [[0, false], [N, true]] as const) {
+      const f = outer[i], b = inner[i];
+      if (out) m.quad([b[0], 0.1, b[1]], [f[0], 0.1, f[1]], [f[0], top, f[1]], [b[0], top, b[1]], MAT.RENDER);
+      else m.quad([f[0], 0.1, f[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [f[0], top, f[1]], MAT.RENDER);
+      // A stair window on each floor, so the flank is not blank either.
+      for (let fl = 1; fl < floors; fl++) {
+        const y = base + fl * floorH;
+        const px = f[0] + (b[0] - f[0]) * 0.42, pz = f[1] + (b[1] - f[1]) * 0.42;
+        m.opening({ axis: 'x', sign: out ? 1 : -1, plane: px, u0: pz - 1.5, u1: pz + 1.5,
+          y0: y + 0.9, y1: y + floorH - 0.9, glass: MAT.PANE, frame: 0.12, proud: 0.07 });
+      }
+    }
     // The plant enclosure and the lift overrun on the roof.
-    m.box([-10, top, -12], [10, top + 4.2, -2], MAT.CLADDING, { roof: MAT.ROOF });
+    m.box([-10, top + 1.1, -12], [10, top + 5.3, -2], MAT.CLADDING, { roof: MAT.ROOF });
   }
   if (fine) {
-    roofClutter(m, -30, -16, -12, 0, top, 43, 0.5);
+    roofClutter(m, -30, -16, -12, 0, top + 1.1, 43, 0.5);
     // The arrivals canopy, and the ambulance bay beside it.
     porteCochere(m, -13, 13, -22.0, 8.0, 6.4, 4);
     marquee(m, -16, 16, -22.2, -1, 7.2, 2.6);

@@ -646,7 +646,28 @@ function gridiron(lod: number): MeshBuilder {
       // The wall under it, so the wedge is carried down to the plaza rather
       // than floating over it, and the roof over it, so it is covered like
       // the rest of the ring.
+      // The wall gets the same facade the rest of the ring has, not a plain
+      // slab. Left as bare concrete these two wedges were thirty metres of
+      // blank grey between two articulated bays, which reads as the piece
+      // nobody finished -- the exact fault the upper tier was added to cure.
       skin(m, outer, 11.1, 42.0, MAT.CONCRETE, only);
+      skin(m, grow(outer, 0.965), 11.1, 18.0, MAT.GLASS, only);
+      skin(m, grow(outer, 1.004), 26.0, 31.0, MAT.GLASS, only);
+      m.painted(TINT.METAL_DARK, () => {
+        for (let t = 0; t < N; t++) {
+          const k2 = ((t - only[0]) % N + N) % N;
+          if (k2 < only[1]) continue;
+          const p = grow(outer, 1.006)[t], q = grow(outer, 1.006)[(t + 1) % N];
+          for (let r = 0; r < 4; r++) {
+            const u = (r + 0.5) / 4;
+            const x = p[0] + (q[0] - p[0]) * u, z = p[1] + (q[1] - p[1]) * u;
+            m.cylinder(x, z, 0.42, 11.1, 42.0, 6, MAT.TRIM, false);
+          }
+          m.pipe([p[0], 24.4, p[1]], [q[0], 24.4, q[1]], 0.3, MAT.TRIM, 4);
+          m.pipe([p[0], 32.0, p[1]], [q[0], 32.0, q[1]], 0.3, MAT.TRIM, 4);
+        }
+      });
+      m.painted(TINT.BRAND, () => skin(m, grow(outer, 1.01), 33.0, 37.0, MAT.CLADDING, only));
       deck(m, grow(outer, 1.00), grow(outer, 1.05), 42.0, 45.6, MAT.CLADDING, only);
       deck(m, grow(outer, 0.84), grow(outer, 1.05), 48.0, 49.6, MAT.METAL, only);
       deck(m, grow(outer, 0.74), grow(outer, 0.84), 48.2, 49.2, MAT.GLASS, only);
