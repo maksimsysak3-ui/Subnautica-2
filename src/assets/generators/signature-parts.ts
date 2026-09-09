@@ -78,6 +78,36 @@ export function shelf(m: MeshBuilder, inner: Ring, outer: Ring, y0: number, y1: 
   }
 }
 
+/**
+ * A horizontal face, wound to face upward whatever order its corners arrive in.
+ *
+ * Every roof on the crescents was wound face-down -- twelve hundred square
+ * metres of it -- so the buildings were open to the sky from any view above
+ * their own eaves, and closed from directly overhead only because a mansard
+ * happened to sit on top. The mistake is easy and invisible: on a vertical
+ * wall the corner order is obvious from the elevation you are drawing, and on
+ * a horizontal one there is no elevation to think about, so whichever order
+ * the four points were already in gets used.
+ *
+ * So it is not left to the caller. The shoelace area of the loop in plan says
+ * which way round it is, and the loop is reversed when that comes out the
+ * wrong sign. Costs one multiply per corner and removes the whole class.
+ */
+export function lid(m: MeshBuilder, corners: Array<[number, number]>, y: number,
+  mat: Material): void {
+  let twice = 0;
+  for (let i = 0; i < corners.length; i++) {
+    const a = corners[i], b = corners[(i + 1) % corners.length];
+    twice += a[0] * b[1] - b[0] * a[1];
+  }
+  // n_y works out as -2A for a loop in the xz plane, so a non-negative area
+  // is the clockwise-from-above case and points the face at the ground.
+  const p = twice >= 0 ? [...corners].reverse() : corners;
+  for (let i = 1; i < p.length - 1; i++) {
+    m.tri([p[0][0], y, p[0][1]], [p[i][0], y, p[i][1]], [p[i + 1][0], y, p[i + 1][1]], mat);
+  }
+}
+
 /** A lid over a plan, as a fan from its centroid. */
 export function cap(m: MeshBuilder, r: Ring, y: number, mat: Material): void {
   let cx = 0, cz = 0;

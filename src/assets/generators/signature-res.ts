@@ -26,7 +26,7 @@ import { THEMES, THEME_ORDER, hip, mansard, dormer } from '../themes';
 import type { Theme, ThemeProfile } from '../themes';
 import { roofOver, punched, doorway } from '../themed-parts';
 import {
-  balconyStack, cap, flags, forecourt, loft, marquee, plan, scaled, shelf,
+  balconyStack, cap, flags, forecourt, lid, loft, marquee, plan, scaled, shelf,
 } from './signature-parts';
 import {
   awning, band, bollards, entrance, fireEscape, parapet, planter, railing,
@@ -549,15 +549,27 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
     }
   }
   if (fine) {
-    const punchAll = (axis: 'x' | 'z', sign: 1 | -1, plane: number, a: number, b: number): void => {
-      punched(m, T, { axis, sign, plane }, a, b, { floors, base: 0.6, skipGround: true });
+    // Windows belong to the range they are cut into, not to the tallest one.
+    //
+    // This punched every elevation to the full floor count, which was harmless
+    // while all four ranges ran to the same parapet and became four separate
+    // faults the moment they stopped: on a range built to two-fifths of the
+    // height the upper windows stood in mid-air above its roof, and on the two
+    // ranges the farmstead does not build at all there was no wall under any
+    // of them. So each elevation asks its own range how tall it is, and a
+    // range that was never built gets nothing.
+    const punchAll = (range: number, axis: 'x' | 'z', sign: 1 | -1,
+      plane: number, a: number, b: number): void => {
+      if (SIDES[T.id][range] === 0) return;
+      const n = Math.max(1, Math.floor((runs[range] - 0.6) / fh));
+      punched(m, T, { axis, sign, plane }, a, b, { floors: n, base: 0.6, skipGround: true });
     };
-    punchAll('z', -1, -hz, -hx + 2, hx - 2);
-    punchAll('z', 1, hz, -hx + 2, hx - 2);
-    punchAll('x', -1, -hx, -hz + 2, hz - 2);
-    punchAll('x', 1, hx, -hz + 2, hz - 2);
-    punchAll('z', 1, -hz + depth, -hx + depth + 2, hx - depth - 2);
-    punchAll('z', -1, hz - depth, -hx + depth + 2, hx - depth - 2);
+    punchAll(0, 'z', -1, -hz, -hx + 2, hx - 2);
+    punchAll(1, 'z', 1, hz, -hx + 2, hx - 2);
+    punchAll(2, 'x', -1, -hx, -hz + 2, hz - 2);
+    punchAll(3, 'x', 1, hx, -hz + 2, hz - 2);
+    punchAll(0, 'z', 1, -hz + depth, -hx + depth + 2, hx - depth - 2);
+    punchAll(1, 'z', -1, hz - depth, -hx + depth + 2, hx - depth - 2);
   }
 
   if (medium) {
@@ -737,7 +749,7 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
       for (let i = i0; i < i1; i++) {
         const a = proud[i], b = proud[i + 1], c = front[i], d = front[i + 1];
         m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
-        m.quad([a[0], top, a[1]], [b[0], top, b[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.ROOF);
+        lid(m, [a, b, d, c], top, MAT.ROOF);
       }
       // The returns: the two short walls that carry the projection back into
       // the range. Without them the pavilion is a floating panel.
@@ -779,7 +791,7 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
       for (let i = i0; i < i1; i++) {
         const a = rear[i], b = rear[i + 1], c = back[i], d = back[i + 1];
         m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], T.wall);
-        m.quad([c[0], top, c[1]], [d[0], top, d[1]], [b[0], top, b[1]], [a[0], top, a[1]], MAT.ROOF);
+        lid(m, [c, d, b, a], top, MAT.ROOF);
       }
       for (const [i, out] of [[i0, true], [i1, false]] as const) {
         const a = back[i], b = rear[i];
@@ -834,8 +846,8 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
       const a = front[i], b = front[i + 1], c = back[i], d = back[i + 1];
       m.quad([b[0], 0.1, b[1]], [a[0], 0.1, a[1]], [a[0], top, a[1]], [b[0], top, b[1]], T.wall);
       m.quad([c[0], 0.1, c[1]], [d[0], 0.1, d[1]], [d[0], top, d[1]], [c[0], top, c[1]], T.wall);
-      m.quad([a[0], top, a[1]], [b[0], top, b[1]], [d[0], top, d[1]], [c[0], top, c[1]], MAT.ROOF);
-      m.quad([a[0], 0.1, a[1]], [b[0], 0.1, b[1]], [d[0], 0.1, d[1]], [c[0], 0.1, c[1]], MAT.GROUND);
+      lid(m, [a, b, d, c], top, MAT.ROOF);
+      lid(m, [a, b, d, c], 0.1, MAT.GROUND);
       if (medium) {
         // A base storey in stone, and a cornice under the roof: two bands that
         // turn a curved wall into a building.
@@ -885,8 +897,8 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
                [a[0] * 0.985, top + h, a[1] + 2.2], [b[0] * 0.985, top + h, b[1] + 2.2], T.cover);
         m.quad([c[0], top, c[1]], [d[0], top, d[1]],
                [d[0] * 1.012, top + h, d[1] - 2.2], [c[0] * 1.012, top + h, c[1] - 2.2], T.cover);
-        m.quad([a[0] * 0.985, top + h, a[1] + 2.2], [b[0] * 0.985, top + h, b[1] + 2.2],
-               [d[0] * 1.012, top + h, d[1] - 2.2], [c[0] * 1.012, top + h, c[1] - 2.2], T.cover);
+        lid(m, [[a[0] * 0.985, a[1] + 2.2], [b[0] * 0.985, b[1] + 2.2],
+                [d[0] * 1.012, d[1] - 2.2], [c[0] * 1.012, c[1] - 2.2]], top + h, T.cover);
         if (fine && i % 2 === 0) dormer(m, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 0.7, -1, top + 1.5, T);
       }
       // ...and the two ends of the mansard, which were open for the same
@@ -917,14 +929,14 @@ function setPiece(T: ThemeProfile, lod: number): MeshBuilder {
           const a = inn[i], b = inn[i + 1], c = out[i], d = out[i + 1];
           m.quad([b[0], y0, b[1]], [a[0], y0, a[1]], [a[0], y1, a[1]], [b[0], y1, b[1]], MAT.GLASS);
           m.quad([c[0], y0, c[1]], [d[0], y0, d[1]], [d[0], y1, d[1]], [c[0], y1, c[1]], T.wall);
-          m.quad([a[0], y1, a[1]], [b[0], y1, b[1]], [d[0], y1, d[1]], [c[0], y1, c[1]], MAT.ROOF);
+          lid(m, [a, b, d, c], y1, MAT.ROOF);
           // The parapet: a band standing above the lid on both faces, with a
           // coping across it, so the roof has an edge.
           for (const [p, q, o] of [[a, b, -0.35], [c, d, 0.35]] as const) {
             m.quad([q[0], y1, q[1] + o], [p[0], y1, p[1] + o],
                    [p[0], y1 + 1.0, p[1] + o], [q[0], y1 + 1.0, q[1] + o], T.trim);
-            m.quad([p[0], y1 + 1.0, p[1] + o], [q[0], y1 + 1.0, q[1] + o],
-                   [q[0], y1 + 1.0, q[1]], [p[0], y1 + 1.0, p[1]], T.trim);
+            lid(m, [[p[0], p[1] + o], [q[0], q[1] + o], [q[0], q[1]], [p[0], p[1]]],
+              y1 + 1.0, T.trim);
           }
           m.painted(TINT.GREEN, () => {
             const e = arc(R - 0.6 - k * 3.5);
