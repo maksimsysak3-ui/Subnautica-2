@@ -28,10 +28,10 @@ import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
-  makeCity, INSTANCE_FLOATS, buildTerrain, heightAt,
+  makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN,
 } from '../sim';
-import type { Chunk } from '../sim';
+import type { Chunk, World } from '../sim';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -78,27 +78,25 @@ function sunAt(t: number): [number, number, number] {
   return [x / l, y / l, z / l];
 }
 
-interface Resources {
-  sky: GPURenderPipeline;
-  shadow: GPURenderPipeline;
-  shadowView: GPUTextureView;
-  shadowTexture: GPUTexture;
-  shadowSceneGroup: GPUBindGroup;
-  castGroup: GPUBindGroup;
-  castArgsBuffer: GPUBuffer;
-  castBaseBuffer: GPUBuffer;
-  castVisibleBuffer: GPUBuffer;
-  castArgsReset: Uint32Array<ArrayBuffer>;
-  casts: CityDrawCast[];
-  terrain: GPURenderPipeline;
-  city: GPURenderPipeline;
-  cull: GPUComputePipeline;
-  cameraBuffer: GPUBuffer;
-  cameraGroup: GPUBindGroup;
-  sceneBuffer: GPUBuffer;
-  sceneGroup: GPUBindGroup;
+/** The bind group layouts, kept so world buffers can be rebound after a change. */
+interface Layouts {
+  camera: GPUBindGroupLayout;
+  proto: GPUBindGroupLayout;
+  city: GPUBindGroupLayout;
+  cull: GPUBindGroupLayout;
+}
+
+/**
+ * Everything that depends on what the city currently is.
+ *
+ * Thrown away and made again whenever the player changes a road or a zone.
+ * The pipelines, the layouts and the camera are not in here, because none of
+ * them care what is standing on the ground.
+ */
+interface WorldRes {
   protoGroup: GPUBindGroup;
   cityGroup: GPUBindGroup;
+  castGroup: GPUBindGroup;
   cullGroup: GPUBindGroup;
   terrainVertices: GPUBuffer;
   terrainIndices: GPUBuffer;
@@ -112,6 +110,28 @@ interface Resources {
   argsRead: GPUBuffer;
   argsReset: Uint32Array<ArrayBuffer>;
   buckets: Bucket[];
+  castArgsBuffer: GPUBuffer;
+  castBaseBuffer: GPUBuffer;
+  castVisibleBuffer: GPUBuffer;
+  castArgsReset: Uint32Array<ArrayBuffer>;
+  casts: CityDrawCast[];
+  instanceCount: number;
+}
+
+interface Resources extends WorldRes {
+  layouts: Layouts;
+  sky: GPURenderPipeline;
+  shadow: GPURenderPipeline;
+  shadowView: GPUTextureView;
+  shadowTexture: GPUTexture;
+  shadowSceneGroup: GPUBindGroup;
+  terrain: GPURenderPipeline;
+  city: GPURenderPipeline;
+  cull: GPUComputePipeline;
+  cameraBuffer: GPUBuffer;
+  cameraGroup: GPUBindGroup;
+  sceneBuffer: GPUBuffer;
+  sceneGroup: GPUBindGroup;
   depth: GPUTexture;
   depthView: GPUTextureView;
   instanceCount: number;
@@ -141,6 +161,16 @@ export class Renderer {
   private running = false;
   private onUpdate: ((dt: number) => void) | null = null;
   private frustum = new Frustum();
+  /**
+   * The asset arena, kept across rebuilds.
+   *
+   * Baking is the expensive half of a rebuild and it is entirely reusable: a
+   * prototype the last city placed is already in the arena, and the arena only
+   * ever grows.
+   */
+  private atlas = new Atlas();
+  /** What the city is derived from. The tools edit this, then rebuild. */
+  readonly world: World = defaultWorld();
   private profiler: GpuProfiler | null = null;
   /** Survivors per level of detail, read back asynchronously for the overlay. */
   private drawnByLod: [number, number, number] = [0, 0, 0];
@@ -157,12 +187,6 @@ export class Renderer {
 
   build(): void {
     const { device, format } = this.gpu;
-
-    // The city and the atlas first: everything sized below comes from them,
-    // and a prototype the spawner never placed is never generated.
-    const city = makeCity();
-    const atlas = new Atlas();
-    const plan = planCity(city, atlas);
 
     // ---- bind group layouts -------------------------------------------
 
@@ -216,7 +240,11 @@ export class Renderer {
         { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
         {
           binding: 1, visibility: GPUShaderStage.VERTEX,
-          buffer: { type: 'read-only-storage', hasDynamicOffset: true, minBindingSize: plan.sliceBytes },
+              // No minimum binding size: the layout outlives any one city, and a
+          // rebuild that placed more of some prototype than the last one would
+          // otherwise need a new pipeline. What a draw may read is settled by
+          // the size the bind group is made with.
+          buffer: { type: 'read-only-storage', hasDynamicOffset: true },
         },
       ],
     });
@@ -373,6 +401,52 @@ export class Renderer {
       entries: [{ binding: 0, resource: { buffer: sceneBuffer } }],
     });
 
+    const { depth, depthView } = this.createDepth(this.gpu.viewport);
+
+    this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
+
+    const layouts: Layouts = {
+      camera: cameraLayout, proto: protoLayout, city: cityLayout, cull: cullLayout,
+    };
+    this.res = {
+      layouts,
+      sky, shadow, shadowView, shadowTexture, shadowSceneGroup,
+      terrain, city: cityPipeline, cull,
+      cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
+      depth, depthView,
+      ...this.loadWorld(layouts),
+    };
+
+    this.unsubscribeResize?.();
+    this.unsubscribeResize = this.gpu.onResize((v) => this.onResize(v));
+    this.camera.groundHeight = heightAt;
+    // Keep the focus inside the terrain, whatever size it was built at.
+    this.camera.extent = TERRAIN.size * 0.5 - TERRAIN.chunk;
+    this.camera.setViewport(this.gpu.viewport.width, this.gpu.viewport.height);
+    this.camera.update();
+
+    log.info('render', this.profiler.enabled
+      ? 'GPU timing available (timestamp-query)'
+      : 'no timestamp-query: GPU times will read 0');
+  }
+
+
+  /**
+   * Builds everything that depends on what the city currently is.
+   *
+   * Called once at load and again whenever the player changes a road or a
+   * zone. The atlas is deliberately kept across rebuilds: a prototype baked
+   * for the last city is still baked for this one, so a rebuild pays only for
+   * prototypes it has not seen before.
+   */
+  private loadWorld(layouts: Layouts): WorldRes {
+    const { device } = this.gpu;
+    const protoLayout = layouts.proto, cityLayout = layouts.city, cullLayout = layouts.cull;
+
+    // A prototype the spawner never placed is never generated.
+    const city = makeCity(this.world);
+    const plan = planCity(city, this.atlas);
+
     // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
     // topology is identical, so each is drawn with its own baseVertex.
     const mesh = buildTerrain();
@@ -484,40 +558,38 @@ export class Renderer {
       ],
     });
 
-    const { depth, depthView } = this.createDepth(this.gpu.viewport);
 
-    this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
+    const mib = (b: number): string => (b / 1048576).toFixed(1);
+    log.info('render', `terrain ${mesh.chunks.length} chunks (${mib(mesh.vertices.byteLength)} MiB), `
+      + `${city.count.toLocaleString()} instances of ${plan.buckets.length / 3} prototypes, `
+      + `arena ${mib(plan.vertices.byteLength)} MiB in ${plan.buckets.length} buckets`);
 
-    this.res = {
-      sky, shadow, shadowView, shadowTexture, shadowSceneGroup, castGroup,
-      castArgsBuffer, castBaseBuffer, castVisibleBuffer,
-      castArgsReset: plan.castArgs, casts: plan.casts,
-      terrain, city: cityPipeline, cull,
-      cameraBuffer, cameraGroup, sceneBuffer, sceneGroup, protoGroup, cityGroup, cullGroup,
+    return {
+      protoGroup, cityGroup, castGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
       argsBuffer, argsRead, argsReset: plan.args, buckets: plan.buckets,
-      depth, depthView, instanceCount: city.count,
+      castArgsBuffer, castBaseBuffer, castVisibleBuffer,
+      castArgsReset: plan.castArgs, casts: plan.casts,
+      instanceCount: city.count,
     };
+  }
 
-    this.unsubscribeResize?.();
-    this.unsubscribeResize = this.gpu.onResize((v) => this.onResize(v));
-    this.camera.groundHeight = heightAt;
-    // Keep the focus inside the terrain, whatever size it was built at.
-    this.camera.extent = TERRAIN.size * 0.5 - TERRAIN.chunk;
-    this.camera.setViewport(this.gpu.viewport.width, this.gpu.viewport.height);
-    this.camera.update();
-
-    const mib = (b: number): string => (b / 1048576).toFixed(1);
-    const placed = plan.buckets.length / 3;
-    log.info('render', `terrain ${mesh.chunks.length} chunks (${mib(mesh.vertices.byteLength)} MiB), `
-      + `${city.count.toLocaleString()} instances of ${placed} prototypes`);
-    log.info('render', `asset arena ${mib(plan.vertices.byteLength)} MiB, `
-      + `${(plan.triangles.reduce((a, b) => a + b, 0) / 1000).toFixed(0)}k triangles, `
-      + `${plan.buckets.length} buckets`);
-    log.info('render', this.profiler.enabled
-      ? 'GPU timing available (timestamp-query)'
-      : 'no timestamp-query: GPU times will read 0');
+  /**
+   * Throws the world away and builds it again from the current state.
+   *
+   * What a placement costs: the simulation rerunning and its output being
+   * re-uploaded. Nothing about the pipelines changes.
+   */
+  rebuild(): void {
+    const res = this.res;
+    if (!res) return;
+    for (const b of [
+      res.assetVertices, res.protoBuffer, res.instanceBuffer, res.visibleBuffer,
+      res.baseBuffer, res.argsBuffer, res.argsRead, res.castVisibleBuffer,
+      res.castBaseBuffer, res.castArgsBuffer, res.terrainVertices, res.terrainIndices,
+    ]) b.destroy();
+    Object.assign(res, this.loadWorld(res.layouts));
   }
 
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {

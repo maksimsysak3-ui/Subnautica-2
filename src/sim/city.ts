@@ -29,11 +29,11 @@
 
 import { hash2 } from './hash';
 import { baseHeightAt } from './terrain';
-import { simConfig } from './config';
 import { stock, signatures, services, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
-import { RoadNet } from './roadnet';
 import type { Placement } from './roadnet';
+import { defaultWorld, zoneOf, BLOCK, STREET, PERIOD } from './world';
+import type { World } from './world';
 import { assetById } from '../assets/registry';
 import type { Pad } from './grading';
 import type { Proto } from './inventory';
@@ -64,12 +64,6 @@ export const INSTANCE_FLOATS = 12;
 
 /** Zoning cell, metres. */
 const CELL = 8;
-/** Cells of buildable block. Twelve cells is 96 m, about a real city block. */
-const BLOCK = 12;
-/** Cells of street between blocks. Three cells is 24 m, one road tile wide. */
-const STREET = 3;
-/** One block plus its street. */
-const PERIOD = BLOCK + STREET;
 /** Largest fall across a footprint before the lot is left empty, in metres. */
 const MAX_SLOPE = 4.5;
 /**
@@ -95,8 +89,16 @@ export interface City {
   population: Uint32Array;
 }
 
-export function makeCity(): City {
-  const GRID = simConfig.cityGrid;
+/**
+ * Builds the city the world describes.
+ *
+ * Everything here is derived: the world says where the roads are and what each
+ * cell is zoned for, and this decides what actually stands on the ground. Run
+ * it again after the player changes anything and the city is rebuilt to match,
+ * deterministically -- the same world always produces the same city.
+ */
+export function makeCity(world: World = defaultWorld()): City {
+  const GRID = world.grid;
   const half = GRID / 2;
   const out: number[] = [];
   const cells = new Uint8Array(GRID * GRID);
@@ -107,26 +109,12 @@ export function makeCity(): City {
   const at = (gx: number, gz: number): number => gz * GRID + gx;
 
   const blocks = Math.floor(GRID / PERIOD);
+  const net = world.net;
 
-  // The road network first, because everything else is placed around it. The
-  // default city draws a grid, which the network then treats exactly as it
-  // would treat a grid the player drew: it finds the crossings itself, sizes
-  // each junction from the widest road in it, and tiles the runs to fit.
-  //
-  // Reserving the street cells from the network rather than from the grid
-  // formula matters: an avenue is four cells across and a street is three, so
-  // where the corridor is depends on what was drawn there, and computing it
-  // twice is how buildings ended up standing in the road.
-  const net = new RoadNet(GRID);
-  for (let b = 0; b <= blocks; b++) {
-    const line = b * PERIOD + BLOCK + 1;      // the centre cell of the corridor
-    if (line >= GRID) continue;
-    // Every fourth street is an avenue, which is what gives a grid a hierarchy
-    // instead of making every junction look like every other one.
-    const cls = b % 4 === 2 ? 'avenue' : 'street';
-    net.add(0, line, GRID - 1, line, cls);
-    net.add(line, 0, line, GRID - 1, cls);
-  }
+  // The roads are reserved before anything else is placed, straight from the
+  // network. Computing where a corridor is a second time is how buildings
+  // ended up standing in the road: an avenue is four cells across and a street
+  // is three, so where the corridor is depends on what was drawn there.
   for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
 
   /** World coordinate of a cell's low edge. */
@@ -232,38 +220,27 @@ export function makeCity(): City {
    * every lot would read as noise, and the whole point of five regional themes
    * is that a quarter of the city looks European and another looks American.
    */
-  const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } => {
+  /**
+   * What a block builds, and in what regional style.
+   *
+   * The zone and the density come from the world -- they are the player's, and
+   * painting over them is the whole of zoning. The theme does not: a quarter
+   * of the city looking European is a fact about the place rather than a
+   * decision anyone made, so it stays derived from where the block is.
+   */
+  const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
+    const code = world.zones[at(Math.min(gx + 1, GRID - 1), Math.min(gz + 1, GRID - 1))];
+    const painted = zoneOf(code);
+    if (painted === null) return null;
     const dx = Math.floor(gx / (PERIOD * DISTRICT)), dz = Math.floor(gz / (PERIOD * DISTRICT));
-    const d = downtown(gx, gz);
-    const roll = hash2(dx, dz, 101);
     const theme = THEME_ORDER[Math.floor(hash2(dx, dz, 211) * THEME_ORDER.length) % THEME_ORDER.length];
-
-    // Industry sits on one side of the city, downwind of nothing in
-    // particular but always together -- a scatter of single factories between
-    // houses is the one thing that never happens in a real city.
-    if (d < 0.30 && hash2(dx, dz, 307) > 0.72) {
-      return { zone: 'industrial', density: 'none', theme };
-    }
-    if (d > 0.62) {
-      if (roll < 0.42) return { zone: 'office', density: 'high', theme };
-      if (roll < 0.82) return { zone: 'commercial', density: 'high', theme };
-      return { zone: 'residential', density: 'high', theme };
-    }
-    if (d > 0.34) {
-      if (roll < 0.24) return { zone: 'office', density: 'medium', theme };
-      if (roll < 0.48) return { zone: 'commercial', density: 'high', theme };
-      if (roll < 0.62) return { zone: 'commercial', density: 'medium', theme };
-      return { zone: 'residential', density: 'high', theme };
-    }
-    if (d > 0.12) {
-      if (roll < 0.20) return { zone: 'commercial', density: 'medium', theme };
-      if (roll < 0.30) return { zone: 'office', density: 'low', theme };
-      if (roll < 0.38) return { zone: 'commercial', density: 'low', theme };
-      return { zone: 'residential', density: 'medium', theme };
-    }
     // Terraces are a low-density form and the registry only builds them as
-    // one, so the row theme belongs here and nowhere else.
-    return { zone: 'residential', density: 'low', theme: roll < 0.18 ? 'row' : theme };
+    // one, so the row theme belongs there and nowhere else.
+    if (painted.density === 'low' && painted.zone === 'residential'
+      && hash2(dx, dz, 101) < 0.18) {
+      return { zone: painted.zone, density: painted.density, theme: 'row' };
+    }
+    return { zone: painted.zone, density: painted.density, theme };
   };
 
   // ---- pass 1: superblocks --------------------------------------------
@@ -440,7 +417,9 @@ export function makeCity(): City {
   for (let bz = 0; bz < blocks; bz++) {
     for (let bx = 0; bx < blocks; bx++) {
       const gx = bx * PERIOD, gz = bz * PERIOD;
-      const { zone, density, theme } = districtOf(gx, gz);
+      const district = districtOf(gx, gz);
+      if (district === null) continue;          // unzoned: nothing grows here
+      const { zone, density, theme } = district;
       const list = stock(zone, density, theme);
       if (list.length === 0) continue;
       // Half the block per side leaves nothing for the other two frontages, and

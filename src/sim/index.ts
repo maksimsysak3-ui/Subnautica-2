@@ -9,6 +9,10 @@
 export { makeCity, INSTANCE_FLOATS } from './city';
 export type { City } from './city';
 export { PROTO_COUNT } from './inventory';
+export { defaultWorld, emptyWorld, paint, zoneCode, zoneOf, ZONES, DENSITIES, BLOCK, STREET, PERIOD } from './world';
+export type { World } from './world';
+export { RoadNet, ROAD_CLASSES } from './roadnet';
+export type { RoadClass } from './roadnet';
 export { buildTerrain, heightAt, baseHeightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
 export { clearGrading } from './grading';
 export type { Chunk, TerrainMesh } from './terrain';

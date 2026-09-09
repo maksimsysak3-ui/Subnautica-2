@@ -87,6 +87,13 @@ const result = await page.evaluate(async (cfg) => {
     }
     out[name] = { ...stat(shot.pixels), topSkyPct: (topSky / cfg.width) * 100, stats: shot.stats };
   }
+  // The rebuild path: a road placed and a block zoned, then the world made
+  // again from the changed state.
+  try {
+    out.rebuild = await HEADLESS.probeRebuild(cfg.width, cfg.height);
+  } catch (err) {
+    out.rebuild = { error: String(err) };
+  }
   out.errors = errors;
   return out;
 }, shots).catch((err) => ({ error: String(err).split('\n')[0] }));
@@ -123,6 +130,22 @@ if (result.far?.stats && result.near?.stats) {
   if (!(share(result.near.stats) > share(result.far.stats))) {
     push(`level of detail does not follow distance: near ${result.near.stats.lod}, far ${result.far.stats.lod}`);
   }
+}
+
+const rb = result.rebuild;
+if (!rb || rb.error) {
+  push(`rebuild failed: ${rb?.error ?? 'no result'}`);
+} else {
+  // Different, not larger: a road driven through a built-up quarter demolishes
+  // what stood in it, so the count can move either way. What must not happen
+  // is that it does not move, which is what a placement silently failing to
+  // take, or a stale buffer left bound, would look like.
+  const total = (s) => Number((s.buildings ?? '0/0').split('/')[1].replace(/,/g, ''));
+  if (total(rb.after) === total(rb.before)) {
+    push(`rebuild changed nothing: ${total(rb.before)} instances before and after`);
+  }
+  console.log(`rebuild  ${total(rb.before).toLocaleString()} instances -> `
+    + `${total(rb.after).toLocaleString()} after an avenue through a built quarter`);
 }
 
 for (const view of ['far', 'near']) {

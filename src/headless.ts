@@ -14,7 +14,7 @@ import { Gpu } from './gfx/device';
 import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
-import { configureSim, LITE } from './sim';
+import { configureSim, LITE, paint, zoneCode } from './sim';
 
 export interface ShotRequest {
   width: number;
@@ -35,6 +35,41 @@ export interface Shot {
   pixels: Uint8Array;
   /** What the stats overlay would have said. */
   stats: Record<string, string>;
+}
+
+/**
+ * Builds a city, edits it, rebuilds, and reports what changed.
+ *
+ * The rebuild path is the one thing in the renderer that cannot be checked by
+ * looking at a screenshot: a placement that silently fails to take, or a
+ * rebuild that leaves a stale buffer bound, both produce a perfectly ordinary
+ * frame. So the test is what the numbers did.
+ */
+export async function probeRebuild(width: number, height: number):
+Promise<{ before: Record<string, string>; after: Record<string, string> }> {
+  configureSim(LITE);
+  const gpu = await Gpu.headless(width, height);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.build();
+  camera.distance = 300;
+  camera.update();
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
+  const before = stats.snapshot();
+
+  // A road across the middle of an unzoned quarter, and a block of housing
+  // beside it. Both have to change the city, and the road has to cross what
+  // is already there and grow the junctions itself.
+  const g = renderer.world.grid;
+  renderer.world.net.add(4, (g >> 1) + 1, g - 5, (g >> 1) + 1, 'avenue');
+  paint(renderer.world, 6, (g >> 1) + 6, 12, 12, zoneCode('residential', 'high'));
+  renderer.rebuild();
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
+  return { before, after: stats.snapshot() };
 }
 
 export async function shoot(req: ShotRequest): Promise<Shot> {
