@@ -87,6 +87,15 @@ export interface City {
    *  The renderer sizes its per-bucket visibility lists from this, so a
    *  prototype the city never placed costs nothing at all. */
   population: Uint32Array;
+  /**
+   * Where open ground was left, one byte per cell.
+   *
+   * 255 is grass, 0 is built on or paved. The renderer uploads it as a texture
+   * and the grass pass reads it to decide where a blade may stand -- which is
+   * the only way that pass can know, since it runs on the GPU and the cell
+   * grid is the simulation's.
+   */
+  cover: Uint8Array;
 }
 
 /**
@@ -105,6 +114,26 @@ export function makeCity(world: World = defaultWorld()): City {
   const population = new Uint32Array(PROTO_COUNT);
   /** What each placement wants the ground under it to be. */
   const pads: Pad[] = [];
+  /**
+   * Where grass cannot grow: paving and the footprint of a building.
+   *
+   * Not the same as the occupancy grid, which is about what may be *placed*.
+   * A tree's lot is two cells of which the tree occupies a trunk's worth, and
+   * a building's lot has margin around it -- all of that is lawn. Taking the
+   * occupancy grid as the answer left ten per cent of the map growing grass
+   * and the rest of it bald.
+   */
+  const hard = new Uint8Array(GRID * GRID);
+  const harden = (gx: number, gz: number, w: number, d: number): void => {
+    for (let j = 0; j < d; j++) {
+      const z = gz + j;
+      if (z < 0 || z >= GRID) continue;
+      for (let i = 0; i < w; i++) {
+        const x = gx + i;
+        if (x >= 0 && x < GRID) hard[z * GRID + x] = 1;
+      }
+    }
+  };
 
   const at = (gx: number, gz: number): number => gz * GRID + gx;
 
@@ -206,6 +235,8 @@ export function makeCity(world: World = defaultWorld()): City {
     );
     population[p.index]++;
     claim(gx, gz, w, d);
+    // Planting stands in grass; everything else stands on its own ground.
+    if (p.def.zone !== 'nature') harden(gx, gz, w, d);
     return true;
   };
 
@@ -272,6 +303,7 @@ export function makeCity(world: World = defaultWorld()): City {
     population[index]++;
     pads.push({ gx: lot.gx, gz: lot.gz, w: lot.w, d: lot.d, y: ground.mean });
     claim(lot.gx, lot.gz, lot.w, lot.d);
+    harden(lot.gx, lot.gz, lot.w, lot.d);
     // The grounds around a big one, so nothing else builds in its forecourt.
     if (lot.grounds !== undefined) {
       claim(lot.grounds[0], lot.grounds[1], lot.grounds[2], lot.grounds[3]);
@@ -460,6 +492,8 @@ export function makeCity(world: World = defaultWorld()): City {
       q.stretch, 0, 0, 0,
     );
     population[index]++;
+    harden(Math.floor(q.gx), Math.floor(q.gz),
+      Math.max(1, Math.round(q.w)), Math.max(1, Math.round(q.d)));
     return true;
   }
 
@@ -469,7 +503,23 @@ export function makeCity(world: World = defaultWorld()): City {
   // anywhere, and the map would end up as one terrace.
   gradeGround(pads, baseHeightAt);
 
+  // Open ground, for the grass. Thinned by one cell against anything hard, so
+  // a blade does not stop dead at a kerb -- real grass runs up to an edge and
+  // gets worn as it goes.
+  const cover = new Uint8Array(GRID * GRID);
+  for (let gz = 0; gz < GRID; gz++) {
+    for (let gx = 0; gx < GRID; gx++) {
+      if (hard[at(gx, gz)] === 1) continue;
+      let open = 4;
+      if (gx > 0 && hard[at(gx - 1, gz)] === 1) open--;
+      if (gx + 1 < GRID && hard[at(gx + 1, gz)] === 1) open--;
+      if (gz > 0 && hard[at(gx, gz - 1)] === 1) open--;
+      if (gz + 1 < GRID && hard[at(gx, gz + 1)] === 1) open--;
+      cover[at(gx, gz)] = 110 + open * 36;
+    }
+  }
+
   const data = new Float32Array(out.length);
   data.set(out);
-  return { data, count: out.length / INSTANCE_FLOATS, population };
+  return { data, count: out.length / INSTANCE_FLOATS, population, cover };
 }

@@ -26,6 +26,7 @@ import { invert, mat4, ortho, lookAt, multiply } from '../math/m4';
 import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
+import { buildGroundMap } from './ground-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
@@ -38,6 +39,28 @@ const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
 /** Written where there is nothing to mark. */
 const ZERO4 = [0, 0, 0, 0];
+
+/**
+ * The grass lattice: cells across, and how far apart.
+ *
+ * Four hundred square at fifteen and a half centimetres is a patch sixty-two
+ * metres across holding a hundred and sixty thousand blades -- about forty a
+ * square metre. Real turf is thousands, and forty is what actually reads:
+ * enough that the ground has things standing on it, few enough that each one
+ * is more than a pixel. Beyond the patch the ground shader's own grass takes
+ * over, and the two meet in a thinning band rather than at a line.
+ */
+const GRASS_SIDE = 400;
+const GRASS_CELL = 0.155;
+/** Vertices per blade, which must match grass.wgsl. */
+const GRASS_VERTS = 15;
+/** Blade height and half-width, in metres. */
+const GRASS_TALL = 0.34;
+const GRASS_WIDE = 0.019;
+/** Past this many metres from the eye, no blades. */
+const GRASS_REACH = 31;
+/** Past this camera distance the patch is not drawn at all. */
+const GRASS_ZOOM = 320;
 
 /**
  * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
@@ -85,6 +108,7 @@ function sunAt(t: number): [number, number, number] {
 /** The bind group layouts, kept so world buffers can be rebound after a change. */
 interface Layouts {
   camera: GPUBindGroupLayout;
+  grass: GPUBindGroupLayout;
   proto: GPUBindGroupLayout;
   city: GPUBindGroupLayout;
   cull: GPUBindGroupLayout;
@@ -98,6 +122,8 @@ interface Layouts {
  * them care what is standing on the ground.
  */
 interface WorldRes {
+  groundTexture: GPUTexture;
+  grassGroup: GPUBindGroup;
   protoGroup: GPUBindGroup;
   cityGroup: GPUBindGroup;
   castGroup: GPUBindGroup;
@@ -124,6 +150,8 @@ interface WorldRes {
 
 interface Resources extends WorldRes {
   layouts: Layouts;
+  grass: GPURenderPipeline;
+  grassBuffer: GPUBuffer;
   sky: GPURenderPipeline;
   shadow: GPURenderPipeline;
   shadowView: GPUTextureView;
@@ -173,6 +201,15 @@ export class Renderer {
    * ever grows.
    */
   private atlas = new Atlas();
+  /**
+   * The grass patch's uniform, made before the first world load.
+   *
+   * It has to outlive a rebuild -- the bind group that names it is remade with
+   * the ground map, and a buffer replaced under a live bind group is a use
+   * after free.
+   */
+  private grassUniform: GPUBuffer | null = null;
+  private grassData = new Float32Array(8);
   /** What the city is derived from. The tools edit this, then rebuild. */
   readonly world: World = defaultWorld();
   /**
@@ -234,6 +271,14 @@ export class Renderer {
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
       ],
     });
+    // The grass reads the ground map and its own patch uniform.
+    const grassLayout = device.createBindGroupLayout({
+      label: 'grass-bgl',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.VERTEX, texture: { sampleType: 'unfilterable-float' } },
+        { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
+      ],
+    });
     const protoLayout = device.createBindGroupLayout({
       label: 'proto-bgl',
       entries: [{
@@ -291,6 +336,18 @@ export class Renderer {
       fragment: { module: skyModule, entryPoint: 'fs', targets: [{ format }] },
       primitive: { topology: 'triangle-list' },
       depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
+    });
+
+    // Blades, drawn after the ground so the ground's depth rejects most of
+    // them before they shade. Two-sided: a blade is a surface with no inside.
+    const grassModule = device.createShaderModule({ label: 'grass', code: SHADERS.grass });
+    const grass = device.createRenderPipeline({
+      label: 'grass-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, grassLayout] }),
+      vertex: { module: grassModule, entryPoint: 'vs' },
+      fragment: { module: grassModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-strip', cullMode: 'none' },
+      depthStencil,
     });
 
     const terrainModule = device.createShaderModule({ label: 'terrain', code: SHADERS.terrain });
@@ -372,6 +429,11 @@ export class Renderer {
 
     // ---- buffers ------------------------------------------------------
 
+    this.grassUniform ??= device.createBuffer({
+      label: 'grass-uniform', size: 32,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
     const cameraBuffer = device.createBuffer({
       label: 'camera-uniform',
       size: CAMERA_UNIFORM_SIZE,
@@ -417,10 +479,12 @@ export class Renderer {
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
     const layouts: Layouts = {
-      camera: cameraLayout, proto: protoLayout, city: cityLayout, cull: cullLayout,
+      camera: cameraLayout, proto: protoLayout, city: cityLayout,
+      cull: cullLayout, grass: grassLayout,
     };
     this.res = {
       layouts,
+      grass, grassBuffer: this.grassUniform,
       sky, shadow, shadowView, shadowTexture, shadowSceneGroup,
       terrain, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
@@ -490,6 +554,19 @@ export class Renderer {
     const protoGroup = device.createBindGroup({
       label: 'proto-bg', layout: protoLayout,
       entries: [{ binding: 0, resource: { buffer: protoBuffer } }],
+    });
+
+    // The ground the grass stands on: the graded height and what the spawner
+    // left open, one texel a cell. Rebuilt with the city, because both change.
+    const ground = buildGroundMap(device, city, this.world.grid);
+    const grassUniform = this.grassUniform;
+    if (grassUniform === null) throw new Error('loadWorld before build');
+    const grassGroup = device.createBindGroup({
+      label: 'grass-bg', layout: layouts.grass,
+      entries: [
+        { binding: 0, resource: ground.view },
+        { binding: 1, resource: { buffer: grassUniform } },
+      ],
     });
 
     const instanceBuffer = device.createBuffer({
@@ -576,6 +653,7 @@ export class Renderer {
       + `arena ${mib(plan.vertices.byteLength)} MiB in ${plan.buckets.length} buckets`);
 
     return {
+      groundTexture: ground.texture, grassGroup,
       protoGroup, cityGroup, castGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
@@ -600,6 +678,7 @@ export class Renderer {
       res.baseBuffer, res.argsBuffer, res.argsRead, res.castVisibleBuffer,
       res.castBaseBuffer, res.castArgsBuffer, res.terrainVertices, res.terrainIndices,
     ]) b.destroy();
+    res.groundTexture.destroy();
     Object.assign(res, this.loadWorld(res.layouts));
   }
 
@@ -805,6 +884,22 @@ export class Renderer {
       if (!this.frustum.containsBox(chunk.min, chunk.max)) continue;
       pass.drawIndexed(INDICES_PER_CHUNK, 1, 0, chunk.baseVertex);
       chunks++;
+    }
+
+    // Grass, after the ground so most blades are rejected on depth before
+    // they shade. The lattice is snapped to its own cell size around the eye:
+    // the blades stand still in the world and the window into them slides.
+    if (cam.distance < GRASS_ZOOM) {
+      const snap = GRASS_CELL * 8;
+      const ox = Math.floor(cam.eye[0] / snap) * snap - (GRASS_SIDE * GRASS_CELL) / 2;
+      const oz = Math.floor(cam.eye[2] / snap) * snap - (GRASS_SIDE * GRASS_CELL) / 2;
+      this.grassData.set([ox, oz, GRASS_CELL, res.groundTexture.width], 0);
+      this.grassData.set([GRASS_TALL, GRASS_WIDE, GRASS_REACH, GRASS_SIDE], 4);
+      device.queue.writeBuffer(res.grassBuffer, 0, this.grassData);
+      pass.setPipeline(res.grass);
+      pass.setBindGroup(1, res.grassGroup);
+      pass.draw(GRASS_VERTS, GRASS_SIDE * GRASS_SIDE);
+      pass.setBindGroup(0, res.cameraGroup);
     }
 
     // The city. One indirect draw per bucket, each pointed at its own slice of
