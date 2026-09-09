@@ -121,9 +121,16 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
  */
 const SHADOW_MIN_SIZE = 0.006;
 
-/** Under this many pixels tall, a building is not drawn at all. */
-const MIN_PIXELS = 3.0;
+/**
+ * Under this many pixels tall, a building is not drawn at all.
+ *
+ * Three was too generous and it showed in the measurements: the triangle count
+ * *rose* with distance, because at two kilometres a three-pixel threshold
+ * still admits every house on the map. Detail culling is worth more than the
+ * level-of-detail split on a city, and this is the knob that does it.
+ */
+const MIN_PIXELS = 4.5;
 /** Over this many pixels tall, the full mesh is worth its triangles. */
-const LOD0_PIXELS = 150.0;
+const LOD0_PIXELS = 110.0;
 /** Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing. */
-const LOD1_PIXELS = 45.0;
+const LOD1_PIXELS = 32.0;

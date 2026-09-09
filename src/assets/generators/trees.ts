@@ -201,11 +201,13 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
   let fine = true;
   let depth = 4 - s.young;
   const sides = fine ? 7 : 5;
-  const massSides = fine ? 6 : medium ? 6 : 5;
+  const massSides = fine ? 6 : medium ? 5 : 4;
   // Four, not three. Three puts one ring above the equator and one below, so
   // the mass is a drum with a flat top -- and a canopy of flat-topped drums is
-  // what the crown looked like.
-  const massRings = fine ? 4 : 3;
+  // what the crown looked like. Two, at the coarsest level, is a bipyramid --
+  // eight triangles for a thing that is about to be twenty pixels tall, and
+  // trees are the most numerous asset in the city by a wide margin.
+  const massRings = fine ? 4 : medium ? 3 : 2;
 
   let clusters = 0;
   /** Highest point the skeleton reached, for the normalising pass below. */
@@ -284,7 +286,10 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
       // falls outside the quantisation frame the atlas shares between levels.
       // The saving comes from the mass being cheaper, not from it being
       // absent: fewer sides, fewer rings, same crown.
-      const heads = 3;
+      // Fewer at distance, never larger: dropping a mass shrinks the crown,
+      // which keeps the coarse tree inside the fine one's bounds. Growing the
+      // remaining ones to compensate is what broke that before.
+      const heads = fine ? 3 : medium ? 3 : 2;
       for (let k = 0; k < heads; k++) {
         const r0 = crown * (0.13 + rand(seed, id * 7 + k) * 0.10);
         const along = len * (0.10 + k * 0.22);
