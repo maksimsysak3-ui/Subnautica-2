@@ -173,10 +173,77 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
   }
   m.placed(cx, cz, 0, () => {
     loft(m, drum, drum, 0.1, top, T.wall);
+    // The lid.
+    //
+    // The corner mass was an open tube: lofted from the pavement to the
+    // parapet with nothing across the top of it, so from anywhere above street
+    // level you looked straight down inside the building. Whatever each theme
+    // stands on the corner sits on this.
+    cap(m, drum, top, MAT.ROOF);
     if (medium) {
       loft(m, scaled(drum, 1.008), scaled(drum, 1.008), 0.1, base, T.base);
       shelf(m, scaled(drum, 0.99), scaled(drum, 1.06), base - 0.3, base + 0.15, T.trim);
       shelf(m, scaled(drum, 0.99), scaled(drum, 1.07), top - 0.8, top, T.trim);
+    }
+    // What each theme does with its corner, which is the one part of this
+    // archetype that has to differ before the material does. A rotunda, a
+    // mansard turret, a stepped stone lantern, a tiered tiled cap and a
+    // dovecote are five buildings; one drum in five colours is one building.
+    if (!medium) return;
+    switch (T.id) {
+      case 'modern': {
+        // A glazed pavilion and a planted terrace ring: the corner is a room.
+        loft(m, scaled(drum, 0.86), scaled(drum, 0.86), top + 0.2, top + 4.6, MAT.GLASS);
+        shelf(m, scaled(drum, 0.84), scaled(drum, 1.02), top + 4.6, top + 5.4, MAT.CONCRETE);
+        cap(m, scaled(drum, 0.86), top + 5.4, MAT.ROOF);
+        m.painted(TINT.GREEN, () => {
+          shelf(m, scaled(drum, 0.88), scaled(drum, 1.0), top + 0.2, top + 0.9, MAT.TRIM);
+        });
+        break;
+      }
+      case 'european': {
+        // A mansard turret with a lead dome and a finial.
+        loft(m, drum, scaled(drum, 0.9), top + 0.2, top + 4.2, T.cover);
+        loft(m, scaled(drum, 0.9), scaled(drum, 0.9), top + 4.2, top + 6.0, T.wall);
+        m.cone(0, 0, 9.0, 0.0, top + 6.0, top + 14.0, N, MAT.METAL);
+        m.painted(TINT.METAL_DARK, () => m.cylinder(0, 0, 0.2, top + 14.0, top + 18.0, 5, MAT.TRIM, false));
+        break;
+      }
+      case 'american': {
+        // A stepped stone lantern, squared off against the round drum below.
+        m.box([-6.8, top + 0.2, -6.8], [6.8, top + 7.0, 6.8], T.base, { roof: MAT.ROOF });
+        m.box([-5.0, top + 7.0, -5.0], [5.0, top + 11.0, 5.0], T.base, { roof: MAT.ROOF });
+        m.painted(TINT.SIGN_LIT, () => {
+          for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            m.box([ax * 5.1 - 2.6, top + 7.6, az * 5.1 - 2.6],
+                  [ax * 5.1 + 2.6, top + 10.4, az * 5.1 + 2.6], MAT.PANE);
+          }
+        });
+        m.cone(0, 0, 5.6, 0.0, top + 11.0, top + 17.0, 4, MAT.METAL);
+        break;
+      }
+      case 'asian': {
+        // Three diminishing tiled eaves, which is what a corner gets here.
+        for (let k = 0; k < 3; k++) {
+          const r = 1.06 - k * 0.2, y = top + 0.2 + k * 3.0;
+          loft(m, scaled(drum, r - 0.14), scaled(drum, r - 0.14), y, y + 1.8, T.wall);
+          shelf(m, scaled(drum, r - 0.16), scaled(drum, r), y + 1.8, y + 2.6, T.cover);
+        }
+        m.cone(0, 0, 5.4, 0.0, top + 9.4, top + 14.0, N, T.cover);
+        break;
+      }
+      default: {
+        // A dovecote on a boarded lantern: the farm's own corner marker.
+        m.painted(TINT.WOOD, () => {
+          loft(m, scaled(drum, 0.5), scaled(drum, 0.5), top + 0.2, top + 4.0, MAT.TIMBER);
+        });
+        m.cone(0, 0, 5.2, 0.0, top + 4.0, top + 8.4, N, T.cover);
+        m.painted(TINT.METAL_DARK, () => {
+          m.cylinder(0, 0, 0.14, top + 8.4, top + 11.0, 4, MAT.TRIM, false);
+          m.box([0.1, top + 9.6, -0.05], [1.8, top + 10.6, 0.05], MAT.TRIM);
+        });
+        break;
+      }
     }
   });
 
@@ -402,10 +469,19 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
   // Asia walls the compound and puts a tower on one range; the modern block
   // lifts a range and stands a slab on another; a farmstead is an L with its
   // barns making up the rest.
+  //
+  // The heights differ as well as the extents, and that is most of the work.
+  // Four ranges all run to the same parapet is a donut, and a donut in five
+  // materials is one building drawn five times -- which is exactly what these
+  // read as. Stepping them turns the same footprint into five massings: the
+  // modern block lifts one range half as high again and drops the one
+  // opposite; Europe keeps its long ranges tall and its returns lower, the way
+  // a courtyard actually gets built; America opens the street side down to a
+  // low range between two taller wings.
   const SIDES: Record<Theme, [number, number, number, number]> = {
-    modern: [1.0, 1.0, 1.0, 1.0], european: [1.0, 1.0, 1.0, 1.0],
-    american: [0.85, 1.0, 1.0, 1.0], asian: [0.62, 0.82, 0.82, 0.82],
-    farming: [0.0, 0.72, 0.72, 0.0], row: [1.0, 1.0, 1.0, 1.0],
+    modern: [1.34, 0.58, 1.0, 0.78], european: [1.0, 1.0, 0.84, 0.84],
+    american: [0.42, 1.06, 1.18, 1.18], asian: [0.62, 0.82, 0.82, 1.15],
+    farming: [0.0, 0.72, 0.86, 0.0], row: [1.0, 1.0, 1.0, 1.0],
   };
   const runs = SIDES[T.id].map((f) => 0.6 + (top - 0.6) * f);
   ranges.forEach(([x0, z0, x1, z1], i) => {
