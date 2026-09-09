@@ -14,6 +14,7 @@ import { Gpu } from './gfx/device';
 import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
+import { BuildTools } from './ui/build-tools';
 import { configureSim, LITE, paint, zoneCode } from './sim';
 
 export interface ShotRequest {
@@ -70,6 +71,79 @@ Promise<{ before: Record<string, string>; after: Record<string, string> }> {
   renderer.frameForTools(performance.now());
   await gpu.device.queue.onSubmittedWorkDone();
   return { before, after: stats.snapshot() };
+}
+
+/**
+ * Drives the build tools the way a player does, and reports what changed.
+ *
+ * Everything about a tool that can go wrong goes wrong silently: a pick that
+ * lands on the wrong cell, a drag the camera swallowed, a commit that edits
+ * the world but never rebuilds. None of it shows in a frame. So this puts a
+ * canvas on the page, dispatches real pointer events at real screen
+ * coordinates, and checks the world underneath.
+ */
+export async function probeTools(): Promise<{
+  roadCellsBefore: number; roadCellsAfter: number;
+  zonedBefore: number; zonedAfter: number; picked: boolean;
+}> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.build();
+  // Straight down over the middle of the map, so a screen point maps to a cell
+  // without depending on the terrain.
+  camera.setViewport(800, 450);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 1.2;
+  camera.distance = 400;
+  camera.update();
+
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  const world = renderer.world;
+  const count = (a: Uint8Array): number => {
+    let n = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== 0) n++;
+    return n;
+  };
+  const roadCellsBefore = count(world.net.cls);
+  const zonedBefore = count(world.zones);
+
+  const drag = (kind: string, x0: number, y0: number, x1: number, y1: number): void => {
+    const opts = { bubbles: true, clientX: 0, clientY: 0, button: 0, pointerId: 1 };
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x0, clientY: y0 }));
+    canvas.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x1, clientY: y1 }));
+    canvas.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x1, clientY: y1 }));
+    void kind;
+  };
+
+  // The toolbar buttons are the only way in, which is the point: this tests
+  // what a player can reach, not an internal method.
+  const press = (title: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button'))
+      .find((el) => (el as HTMLElement).title.startsWith(title));
+    (b as HTMLElement | undefined)?.click();
+  };
+
+  press('Avenue');
+  const picked = tools.active;
+  drag('road', 120, 120, 640, 130);
+
+  press('Residential');
+  drag('zone', 200, 200, 420, 340);
+
+  return {
+    roadCellsBefore, roadCellsAfter: count(world.net.cls),
+    zonedBefore, zonedAfter: count(world.zones), picked,
+  };
 }
 
 export async function shoot(req: ShotRequest): Promise<Shot> {

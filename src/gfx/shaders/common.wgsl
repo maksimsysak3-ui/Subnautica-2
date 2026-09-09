@@ -15,6 +15,10 @@ struct Camera {
   // w = viewportHeight / (2 * tan(fovY / 2)), which converts a size in metres
   // at a given distance into a size in pixels
   params   : vec4f,
+  /** What the build tool is about to affect, in metres: x0, z0, x1, z1. */
+  mark     : vec4f,
+  /** rgb = the mark's colour, w = 0 when there is nothing to show. */
+  markTint : vec4f,
   planes   : array<vec4f, 6>,   // frustum, for the culling pass
 };
 

@@ -36,11 +36,15 @@ import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
+/** Written where there is nothing to mark. */
+const ZERO4 = [0, 0, 0, 0];
+
 /**
  * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
- * + sun (16) + focus (16) + params (16) + six frustum planes (96).
+ * + sun (16) + focus (16) + params (16) + the build mark (32)
+ * + six frustum planes (96).
  */
-const CAMERA_UNIFORM_SIZE = 352;
+const CAMERA_UNIFORM_SIZE = 384;
 
 /** Edge of the shadow map, in texels. */
 const SHADOW_SIZE = 2048;
@@ -171,6 +175,13 @@ export class Renderer {
   private atlas = new Atlas();
   /** What the city is derived from. The tools edit this, then rebuild. */
   readonly world: World = defaultWorld();
+  /**
+   * What the build tool is about to affect, drawn into the ground.
+   *
+   * `rect` is x0, z0, x1, z1 in metres. Null when no tool is dragging, which
+   * is most of the time and costs the terrain shader one comparison.
+   */
+  mark: { rect: [number, number, number, number]; tint: [number, number, number] } | null = null;
   private profiler: GpuProfiler | null = null;
   /** Survivors per level of detail, read back asynchronously for the overlay. */
   private drawnByLod: [number, number, number] = [0, 0, 0];
@@ -694,10 +705,14 @@ export class Renderer {
     // anything too small to resolve and pick a level of detail for the rest.
     this.cameraData[63] = viewport.height / (2 * Math.tan(FOV_Y / 2));
 
+    const mark = this.mark;
+    this.cameraData.set(mark ? mark.rect : ZERO4, 64);
+    this.cameraData.set(mark ? [mark.tint[0], mark.tint[1], mark.tint[2], 1] : ZERO4, 68);
+
     // The same six planes the CPU uses for terrain chunks, handed to the
     // culling pass so both agree by construction rather than by coincidence.
     this.frustum.update(cam.viewProjMatrix);
-    this.cameraData.set(this.frustum.planes, 64);
+    this.cameraData.set(this.frustum.planes, 72);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are

@@ -94,6 +94,13 @@ const result = await page.evaluate(async (cfg) => {
   } catch (err) {
     out.rebuild = { error: String(err) };
   }
+  // And the same thing again through the toolbar and the pointer, which is
+  // the only path a player has.
+  try {
+    out.tools = await HEADLESS.probeTools();
+  } catch (err) {
+    out.tools = { error: String(err) };
+  }
   out.errors = errors;
   return out;
 }, shots).catch((err) => ({ error: String(err).split('\n')[0] }));
@@ -146,6 +153,22 @@ if (!rb || rb.error) {
   }
   console.log(`rebuild  ${total(rb.before).toLocaleString()} instances -> `
     + `${total(rb.after).toLocaleString()} after an avenue through a built quarter`);
+}
+
+const tl = result.tools;
+if (!tl || tl.error) {
+  push(`build tools failed: ${tl?.error ?? 'no result'}`);
+} else {
+  if (!tl.picked) push('selecting a tool did not take the pointer from the camera');
+  if (!(tl.roadCellsAfter > tl.roadCellsBefore)) {
+    push(`dragging a road laid nothing: ${tl.roadCellsBefore} road cells before and `
+      + `${tl.roadCellsAfter} after`);
+  }
+  if (tl.zonedAfter === tl.zonedBefore) {
+    push(`dragging a zone painted nothing: ${tl.zonedBefore} zoned cells before and after`);
+  }
+  console.log(`tools    ${tl.roadCellsBefore} road cells -> ${tl.roadCellsAfter}, `
+    + `${tl.zonedBefore} zoned -> ${tl.zonedAfter}`);
 }
 
 for (const view of ['far', 'near']) {

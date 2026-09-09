@@ -38,6 +38,16 @@ export class Controls {
   private b: Vec3 = [0, 0, 0];
   private disposers: Array<() => void> = [];
 
+  /**
+   * Asked before the camera takes a left drag.
+   *
+   * A build tool and the camera both want the left button, and the tool wins
+   * while one is selected. Asked rather than told, because the tool's own
+   * state changes on every click of the toolbar and a copy here would be one
+   * more thing to keep in step.
+   */
+  buildActive: () => boolean = () => false;
+
   constructor(
     private canvas: HTMLCanvasElement,
     private camera: Camera,
@@ -84,8 +94,10 @@ export class Controls {
       return;
     }
 
-    // Right button, middle button, or a modifier orbits; plain left drag pans.
+    // Right button, middle button, or a modifier orbits; plain left drag pans,
+    // unless a build tool has taken it.
     const orbit = e.button === 1 || e.button === 2 || e.shiftKey || e.altKey;
+    if (!orbit && this.buildActive()) { this.mode = 'none'; return; }
     this.mode = orbit ? 'orbit' : 'pan';
     this.lastX = e.clientX;
     this.lastY = e.clientY;

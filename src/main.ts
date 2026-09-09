@@ -11,6 +11,7 @@ import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
 import { Camera } from './gfx/camera';
 import { Controls } from './input/controls';
+import { BuildTools } from './ui/build-tools';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
 import { configureSim, LITE } from './sim';
@@ -91,6 +92,12 @@ async function boot(): Promise<void> {
   window.__citysim = { camera };
   const renderer = new Renderer(gpu, camera, stats);
   renderer.build();
+
+  // The build tools take the left button while one is selected; the camera
+  // keeps the right button and the wheel throughout, so the player never has
+  // to put a tool down to look somewhere else.
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  controls.buildActive = () => tools.active;
 
   // A lost device invalidates every GPU object. Rebuild from scratch rather
   // than leaving the player with a dead canvas.

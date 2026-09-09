@@ -92,12 +92,13 @@ export class Camera {
    *
    * Returns null when the ray points at the sky.
    */
-  groundPointAt(ndcX: number, ndcY: number, out: Vec3 = [0, 0, 0]): Vec3 | null {
+  groundPointAt(ndcX: number, ndcY: number, out: Vec3 = [0, 0, 0],
+    atHeight?: number): Vec3 | null {
     const nearPt = transformPoint(this.scratch, this.invViewProj, ndcX, ndcY, 0);
     const nx = nearPt[0], ny = nearPt[1], nz = nearPt[2];
     const farPt = transformPoint(this.scratch, this.invViewProj, ndcX, ndcY, 1);
 
-    const planeY = this.focus[1];
+    const planeY = atHeight ?? this.focus[1];
     const dy = farPt[1] - ny;
     if (Math.abs(dy) < 1e-6) return null;      // ray parallel to the ground
     const t = (planeY - ny) / dy;

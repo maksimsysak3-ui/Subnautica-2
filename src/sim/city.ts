@@ -31,7 +31,7 @@ import { hash2 } from './hash';
 import { baseHeightAt } from './terrain';
 import { stock, signatures, services, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
-import type { Placement } from './roadnet';
+import type { Placement, Frontage } from './roadnet';
 import { defaultWorld, zoneOf, BLOCK, STREET, PERIOD } from './world';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
@@ -229,7 +229,8 @@ export function makeCity(world: World = defaultWorld()): City {
    * decision anyone made, so it stays derived from where the block is.
    */
   const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
-    const code = world.zones[at(Math.min(gx + 1, GRID - 1), Math.min(gz + 1, GRID - 1))];
+    if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return null;
+    const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;
     const dx = Math.floor(gx / (PERIOD * DISTRICT)), dz = Math.floor(gz / (PERIOD * DISTRICT));
@@ -367,46 +368,52 @@ export function makeCity(world: World = defaultWorld()): City {
     }
   }
 
-  // ---- pass 2: blocks -------------------------------------------------
+  // ---- pass 2: frontage -----------------------------------------------
+  //
+  // Buildings attach to roads, not to blocks. A block is what is left over
+  // between roads, and the moment a player can draw a road anywhere there is
+  // no grid of blocks to iterate -- but there is always a list of road
+  // frontages, and a frontage is what a building actually fronts onto.
+  //
+  // This is also what makes zoning mean something: a lot is built when it is
+  // zoned *and* it has a road, which is the rule every city builder uses and
+  // the reason a road through empty countryside fills up and a zoned field in
+  // the middle of nowhere does not.
 
   /**
-   * Lines one edge of a block with buildings facing the street.
+   * Lines one side of one road with buildings facing it.
    *
-   * The four edges share one implementation because they are the same problem
-   * turned round: a frontage that runs `run` cells along the street and takes
-   * up to `deep` cells back into the block. What differs is only how (along,
-   * depth) maps onto (gx, gz), which is what `edge` selects.
-   *
+   * `deep` is how far back from the kerb this side may take, so two roads
+   * either side of a narrow block do not both build through the middle of it.
    * A prototype is built with its frontage on +Z and is `p.w` wide by `p.d`
    * deep in its own axes, so an odd quarter turn swaps those against the grid.
    */
-  const frontage = (
-    gx: number, gz: number, edge: number, run: number, deep: number,
-    list: readonly Proto[], salt: number,
-  ): void => {
-    let a = 0, guard = 0;
-    while (a < run && guard++ < 96) {
+  const buildFrontage = (f: Frontage, deep: number): void => {
+    let a = f.from, guard = 0;
+    while (a <= f.to && guard++ < 512) {
       let step = 1;
       // A handful of tries at different prototypes before conceding the cell.
       // One try would put whichever building the hash favours along the whole
       // street; scanning the bucket in order would be worse still.
       for (let attempt = 0; attempt < 8; attempt++) {
-        const p = pick(list, gx * 7 + a, gz * 13 + attempt, salt + attempt);
+        // The zone is read at the lot's own front cell, so a frontage can run
+        // out of one zone and into the next along a single street.
+        const front = f.axis === 'x' ? at(a, f.kerb) : at(f.kerb, a);
+        if (front < 0 || front >= cells.length) break;
+        const district = districtOf(f.axis === 'x' ? a : f.kerb,
+          f.axis === 'x' ? f.kerb : a);
+        if (district === null) break;
+        const list = stock(district.zone, district.density, district.theme);
+        const p = pick(list, a * 7 + f.kerb, attempt * 13 + f.yaw, 601 + attempt);
         if (!p) break;
-        if (p.w > run - a || p.d > deep) continue;
-        // Lot origin, in the block's own (along, depth) frame, then rotated
-        // onto the grid. `back` is how far the lot's low corner sits from the
-        // block edge the frontage faces.
-        const back = BLOCK - p.d;
+        if (p.w > f.to - a + 1 || p.d > deep) continue;
+        // The lot runs `p.d` cells back from the kerb and `p.w` along it.
+        const back = f.step > 0 ? f.kerb : f.kerb - p.d + 1;
         let cx = 0, cz = 0, w = 0, d = 0;
-        switch (edge) {
-          case 0: cx = gx + a; cz = gz + back; w = p.w; d = p.d; break;        // faces +Z
-          case 2: cx = gx + a; cz = gz; w = p.w; d = p.d; break;               // faces -Z
-          case 1: cx = gx; cz = gz + a; w = p.d; d = p.w; break;               // faces -X
-          default: cx = gx + back; cz = gz + a; w = p.d; d = p.w; break;       // faces +X
-        }
+        if (f.axis === 'x') { cx = a; cz = back; w = p.w; d = p.d; }
+        else { cx = back; cz = a; w = p.d; d = p.w; }
         if (!free(cx, cz, w, d, FREE)) continue;
-        if (!emit(p, cx, cz, w, d, edge)) continue;
+        if (!emit(p, cx, cz, w, d, f.yaw)) continue;
         step = p.w;
         break;
       }
@@ -414,41 +421,30 @@ export function makeCity(world: World = defaultWorld()): City {
     }
   };
 
-  for (let bz = 0; bz < blocks; bz++) {
-    for (let bx = 0; bx < blocks; bx++) {
-      const gx = bx * PERIOD, gz = bz * PERIOD;
+  // Half the block per side leaves nothing for the frontage opposite, and a
+  // quarter rejects every prototype deeper than three cells. So they compete:
+  // each may take up to half, in an order that turns with the road, which is
+  // what makes one street deep-plotted and the next one not.
+  const fronts = net.frontages();
+  const order = fronts.map((f, i) => ({ f, key: hash2(f.kerb, f.from + i, 631) }));
+  order.sort((p, q) => p.key - q.key);
+  for (const { f } of order) buildFrontage(f, BLOCK >> 1);
+
+  // Whatever the frontages left behind them. Backland is real -- mews, yards,
+  // workshops behind a street -- and without it the middle of every block in
+  // the city is an identical empty square.
+  for (let gz = 1; gz < GRID - 1; gz++) {
+    for (let gx = 1; gx < GRID - 1; gx++) {
+      if (cells[at(gx, gz)] !== FREE) continue;
+      if (hash2(gx, gz, 647) > 0.34) continue;
       const district = districtOf(gx, gz);
-      if (district === null) continue;          // unzoned: nothing grows here
-      const { zone, density, theme } = district;
-      const list = stock(zone, density, theme);
-      if (list.length === 0) continue;
-      // Half the block per side leaves nothing for the other two frontages, and
-      // a quarter each rejects every prototype deeper than three cells. So the
-      // edges compete: each may take up to half the block, and the order they
-      // run in turns with the block. One block ends up deep-plotted north to
-      // south, its neighbour east to west, and neither looks stamped.
-      const deep = BLOCK >> 1;
-      const first = Math.floor(hash2(bx, bz, 631) * 4) % 4;
-      for (let e = 0; e < 4; e++) {
-        const edge = (first + e) % 4;
-        frontage(gx, gz, edge, BLOCK, deep, list, 601 + edge * 6);
-      }
-      // Whatever the perimeter left in the middle. Backland is real -- mews,
-      // yards, workshops behind a frontage -- and without this the core of
-      // every block in the city is an identical empty square.
-      for (let j = 1; j < BLOCK - 1; j++) {
-        for (let i = 1; i < BLOCK - 1; i++) {
-          if (cells[at(gx + i, gz + j)] !== FREE) continue;
-          if (hash2(gx + i, gz + j, 647) > 0.5) continue;
-          const p = pick(list, gx + i, gz + j, 653);
-          if (!p) continue;
-          const yaw = Math.floor(hash2(gx + i, gz + j, 659) * 4) % 4;
-          const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
-          if (gx + i + w > gx + BLOCK || gz + j + d > gz + BLOCK) continue;
-          if (!free(gx + i, gz + j, w, d, FREE)) continue;
-          emit(p, gx + i, gz + j, w, d, yaw);
-        }
-      }
+      if (district === null) continue;
+      const p = pick(stock(district.zone, district.density, district.theme), gx, gz, 653);
+      if (!p) continue;
+      const yaw = Math.floor(hash2(gx, gz, 659) * 4) % 4;
+      const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
+      if (!free(gx, gz, w, d, FREE)) continue;
+      emit(p, gx, gz, w, d, yaw);
     }
   }
 

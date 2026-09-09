@@ -99,6 +99,21 @@ export interface Placement {
   run: number;
 }
 
+/** One side of one road, and the land behind it. */
+export interface Frontage {
+  /** Which way the road runs. */
+  axis: 'x' | 'z';
+  /** The cell just outside the carriageway, in the other axis. */
+  kerb: number;
+  /** Which way is away from the road: -1 or +1 on the kerb's axis. */
+  step: -1 | 1;
+  /** Inclusive range along the road. */
+  from: number;
+  to: number;
+  /** The quarter turn that points a prototype's front at the road. */
+  yaw: number;
+}
+
 /** A straight stretch of one class, as drawn. */
 interface Segment {
   axis: 'x' | 'z';
@@ -216,6 +231,42 @@ export class RoadNet {
         this.axis[k] |= bit;
       }
     }
+  }
+
+  /**
+   * Every stretch of road frontage, as a line of cells to build against.
+   *
+   * This is what a zoned lot actually attaches to. A building does not belong
+   * to a block -- blocks are what is left over between roads, and once a
+   * player can draw a road anywhere there is no grid of them to iterate. It
+   * belongs to a frontage: a run of road, one side of it, and the cells
+   * immediately behind the kerb.
+   *
+   * `yaw` is the quarter turn that points a prototype's front (its +Z) at the
+   * road, so the caller does not have to work out which way is out.
+   */
+  frontages(): Frontage[] {
+    const out: Frontage[] = [];
+    for (const s of this.segments) {
+      const spec = ROAD_CLASSES[s.cls];
+      for (const near of [true, false]) {
+        // The cell just outside the band, and the direction that walks away
+        // from the road into the land behind it.
+        const kerb = near ? s.side - 1 : s.side + spec.width;
+        const step: -1 | 1 = near ? -1 : 1;
+        out.push({
+          axis: s.axis,
+          kerb,
+          step,
+          from: s.from,
+          to: s.to,
+          // A prototype fronts +Z. On a road running east-west the land to the
+          // north is behind a building that faces south, and so on round.
+          yaw: s.axis === 'x' ? (near ? 0 : 2) : (near ? 3 : 1),
+        });
+      }
+    }
+    return out;
   }
 
   /**

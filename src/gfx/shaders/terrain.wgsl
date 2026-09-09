@@ -249,6 +249,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // And the same filmic shoulder, for the same reason: a ground that clipped
   // where the buildings rolled off would read as a different material every
   // time the sun caught it.
+  // What the build tool is about to do to this ground.
+  //
+  // Drawn into the surface rather than as geometry hovering over it: a
+  // translucent quad at the terrain's own height z-fights with it, and one
+  // lifted clear of it floats. A tint with a bright edge reads as a marked
+  // area at every camera angle and costs four comparisons.
+  if (camera.markTint.w > 0.0) {
+    let m = camera.mark;
+    let inside = f32(in.world.x >= m.x && in.world.x <= m.z
+                  && in.world.z >= m.y && in.world.z <= m.w);
+    // The edge: within a metre and a bit of any side of the rectangle.
+    let edge = inside * (1.0 - smoothstep(0.0, 1.6, min(
+      min(in.world.x - m.x, m.z - in.world.x),
+      min(in.world.z - m.y, m.w - in.world.z))));
+    col = mix(col, camera.markTint.rgb * 0.5, inside * camera.markTint.w * 0.34);
+    col = mix(col, camera.markTint.rgb * 2.2, edge * camera.markTint.w);
+  }
+
   // Air in front of the ground, before the tonemap rather than after it, so
   // the haze is a colour the sky actually is rather than a wash over the top.
   let view = in.world - camera.eye.xyz;
