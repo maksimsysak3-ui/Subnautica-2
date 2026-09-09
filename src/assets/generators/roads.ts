@@ -165,6 +165,32 @@ function sign(m: MeshBuilder, x: number, z: number, w: number, h: number, tint: 
       MAT.TRIM));
 }
 
+/**
+ * Fills from the back of the footway out to the edge of the declared lot.
+ *
+ * A road asset declares a lot -- three cells across for a local street -- and
+ * builds a carriageway and footways narrower than it, which is correct: a
+ * twenty-four metre corridor holds a fifteen metre street and nine metres of
+ * verge. What was wrong is that the nine metres were nothing at all, so the
+ * city laid full-width junctions between narrow strips of tarmac with bare
+ * grass showing through the gaps, and a street read as a row of slabs rather
+ * than as a street.
+ *
+ * This is the verge. It runs the full length of the tile at the same height as
+ * the kerb, so consecutive tiles butt together exactly and a tile meets a
+ * junction without a step -- which is the whole of what "roads snap together"
+ * needs to mean on a fixed grid.
+ */
+function toLotEdge(m: MeshBuilder, from: number, z0: number, z1: number,
+  lotHalf = CELL * 1.5): void {
+  if (from >= lotHalf - 0.05) return;
+  for (const sx of [1, -1] as const) {
+    const a = sx * from, b = sx * lotHalf;
+    m.painted(TINT.GREEN, () => m.box(
+      [Math.min(a, b), 0, z0], [Math.max(a, b), DECK + KERB * 0.55, z1], MAT.TRIM));
+  }
+}
+
 /** Verge planting between the kerb and the boundary. */
 function verge(m: MeshBuilder, sx: 1 | -1, x0: number, x1: number, z0: number, z1: number): void {
   m.painted(TINT.GREEN, () =>
@@ -184,6 +210,7 @@ function street(lod: number): MeshBuilder {
 
   carriageway(m, half, z0, z1);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
 
   if (medium) {
     // Centre line, broken; edge lines solid; parking bays marked out.
@@ -230,6 +257,7 @@ function avenue(lod: number): MeshBuilder {
   m.box([-median / 2 + 0.2, DECK + KERB - 0.02, z0], [median / 2 - 0.2, DECK + KERB + 0.06, z1],
     MAT.CONCRETE);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1, 3.0);
+  toLotEdge(m, half + 3.0, z0, z1);
 
   if (medium) {
     m.painted(TINT.GREEN, () =>
@@ -798,6 +826,7 @@ function lane(lod: number): MeshBuilder {
   // single-track road and the only thing that distinguishes it from a path.
   m.box([half, 0, -4.0], [half + 2.6, DECK, 4.0], MAT.GROUND);
 
+  toLotEdge(m, half, z0, z1);
   if (medium) {
     for (const sx of [1, -1] as const) verge(m, sx, half, half + 2.2, z0, z1);
     verge(m, 1, half + 2.6, half + 3.4, -4.0, 4.0);
@@ -826,6 +855,7 @@ function oneway(lod: number): MeshBuilder {
 
   carriageway(m, half, z0, z1);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
 
   if (medium) {
     line(m, 0, z0, z1, { dash: 3.0, gap: 6.0 });
@@ -1193,6 +1223,7 @@ function busLane(lod: number): MeshBuilder {
 
   carriageway(m, half, z0, z1);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
   // The bus lane, surfaced in a different colour rather than only lined.
   m.painted(TINT.BRAND, () =>
     m.box([half - LANE, DECK + 0.002, z0], [half - 0.1, DECK + 0.012, z1], MAT.TRIM));
@@ -1227,6 +1258,7 @@ function tramway(lod: number): MeshBuilder {
 
   carriageway(m, half, z0, z1);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
   for (const sx of [1, -1] as const) track(m, sx * 1.6, z0, z1, 1.435, DECK + 0.02);
 
   if (medium) {
@@ -1315,6 +1347,7 @@ function pedestrianised(lod: number): MeshBuilder {
   const half = 6.0;
 
   m.box([-half, 0, z0], [half, DECK + KERB, z1], MAT.CONCRETE);
+  toLotEdge(m, half, z0, z1);
   // A banded paving pattern across the street, which is what these always have
   // and what stops the surface reading as one grey sheet.
   m.painted(TINT.METAL_DARK, () => {
@@ -1690,6 +1723,7 @@ function trafficCalming(lod: number): MeshBuilder {
 
   carriageway(m, half, z0, z1);
   for (const sx of [1, -1] as const) footway(m, sx, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
   // The table: the carriageway raised to footway level over eight metres,
   // with a ramp at each end.
   m.box([-half, DECK, -4.0], [half, DECK + KERB, 4.0], MAT.CONCRETE);
@@ -1809,6 +1843,7 @@ function layby(lod: number): MeshBuilder {
            [half + wOf(t1), DECK, zb], [half + wOf(t1), 0, zb], MAT.GROUND);
   }
   footway(m, -1, half, z0, z1);
+  toLotEdge(m, half + WALK, z0, z1);
 
   if (medium) {
     line(m, 0, z0, z1, { dash: 2.0, gap: 4.0 });

@@ -17,7 +17,7 @@ import type { Theme } from './themes';
 
 export type Zone =
   | 'residential' | 'commercial' | 'industrial' | 'office' | 'service'
-  | 'fleet' | 'road';
+  | 'fleet' | 'road' | 'nature';
 export type Density = 'low' | 'medium' | 'high' | 'none';
 
 /**

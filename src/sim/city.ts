@@ -30,7 +30,7 @@
 import { hash2 } from './hash';
 import { baseHeightAt } from './terrain';
 import { simConfig } from './config';
-import { stock, signatures, services, roads, PROTO_COUNT } from './inventory';
+import { stock, signatures, services, roads, planting, PROTO_COUNT } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
 import type { Pad } from './grading';
 import type { Proto } from './inventory';
@@ -143,12 +143,9 @@ export function makeCity(): City {
    * swapped when the turn is odd, because the box the culler tests has to stay
    * axis-aligned in world space.
    */
-  const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number): boolean => {
-    const x0 = wx(gx), z0 = wx(gz), x1 = x0 + w * CELL, z1 = z0 + d * CELL;
-    // Every corner of the lot, not the four outer ones: a lot up to
-    // thirty-five cells across can have a hump in the middle that its corners
-    // know nothing about, and the whole point of grading is that the ground
-    // ends up level with the building rather than near it.
+  /** The mean ungraded height over a rectangle of cells, and its extremes. */
+  const survey = (gx: number, gz: number, w: number, d: number):
+    { lo: number; hi: number; mean: number } => {
     let lo = Infinity, hi = -Infinity, sum = 0, n = 0;
     for (let j = 0; j <= d; j++) {
       for (let i = 0; i <= w; i++) {
@@ -158,13 +155,32 @@ export function makeCity(): City {
         sum += y; n++;
       }
     }
-    if (hi - lo > MAX_SLOPE) return false;
+    return { lo, hi, mean: sum / n };
+  };
+
+  const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number,
+    grade: boolean | number = true): boolean => {
+    const x0 = wx(gx), z0 = wx(gz), x1 = x0 + w * CELL, z1 = z0 + d * CELL;
+    // Every corner of the lot, not the four outer ones: a lot up to
+    // thirty-five cells across can have a hump in the middle that its corners
+    // know nothing about, and the whole point of grading is that the ground
+    // ends up level with the building rather than near it.
+    const ground = survey(gx, gz, w, d);
+    if (ground.hi - ground.lo > MAX_SLOPE) return false;
 
     // The mean, not the minimum. Cutting to the lowest corner digs every site
     // into a pit its neighbours look down into; the mean cuts as much as it
     // fills, which is what grading actually is.
-    const level = sum / n;
-    pads.push({ gx, gz, w, d, y: level });
+    //
+    // A number instead of true means the caller has already decided the
+    // height -- a street is graded as one run rather than one tile at a time,
+    // because two tiles butted together at their own mean heights leave a step
+    // between them with the terrain showing through it.
+    const level = typeof grade === 'number' ? grade : ground.mean;
+    // Trees do not level the ground: they grow on it. Grading for every one of
+    // several thousand would flatten the map into a table, and a tree on a
+    // slope is a tree on a slope.
+    if (grade === true) pads.push({ gx, gz, w, d, y: level });
 
     out.push(
       (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
@@ -430,35 +446,104 @@ export function makeCity(): City {
     }
   }
 
+  // ---- planting -------------------------------------------------------
+  //
+  // Whatever the blocks did not build on. Weighted towards the street edge,
+  // because that is where a city plants: a verge tree every few metres along a
+  // frontage, and the rest scattered through the gardens and yards behind.
+  const nursery = planting();
+  if (nursery.length > 0) {
+    for (let bz = 0; bz < blocks; bz++) {
+      for (let bx = 0; bx < blocks; bx++) {
+        const gx = bx * PERIOD, gz = bz * PERIOD;
+        const d = downtown(gx, gz);
+        // Denser in the suburbs than downtown, which is what a city is.
+        const density = 0.42 - d * 0.22;
+        for (let j = 0; j < BLOCK; j++) {
+          for (let i = 0; i < BLOCK; i++) {
+            const cx = gx + i, cz = gz + j;
+            if (cells[at(cx, cz)] !== FREE) continue;
+            const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
+            if (hash2(cx, cz, 811) > density * (edge ? 2.1 : 0.7)) continue;
+            const p = pick(nursery, cx, cz, 821);
+            if (!p) continue;
+            const yaw = Math.floor(hash2(cx, cz, 823) * 4) % 4;
+            const [w, dd] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
+            if (cx + w > gx + BLOCK || cz + dd > gz + BLOCK) continue;
+            if (!free(cx, cz, w, dd, FREE)) continue;
+            emit(p, cx, cz, w, dd, yaw, false);
+          }
+        }
+      }
+    }
+  }
+
   // ---- pass 3: roads --------------------------------------------------
 
-  const corridor = roads(STREET).filter((p) => p.d === TILE);
+  // Corridor tiles: three cells across, four long, and filling their lot --
+  // a tile narrower than the corridor leaves bare ground beside it and meets
+  // the full-width junction with a step. A bridge spans a gap and is not a
+  // corridor tile whatever its footprint says.
+  const corridor = roads(STREET).filter((p) => p.d === TILE && !p.id.includes('bridge'));
   const junction = roads(STREET).filter((p) => p.d === STREET);
 
   if (corridor.length > 0) {
+    /**
+     * Lays one straight run of street at a single height.
+     *
+     * One height for the whole run, not one per tile. A road tile is a rigid
+     * slab: if each grades its own lot to its own mean, two of them butted
+     * together sit at different heights and the graded ground between them
+     * rises through the lower one, which is what put a green gap every four
+     * cells down every street in the city.
+     */
+    const run = (p: Proto, gx: number, gz: number, w: number, d: number,
+      along: 'x' | 'z', count: number, over = 0): number => {
+      // `over` extends the survey and the pad past the last tile, so a run can
+      // take in the junction at its end and the two meet at one height instead
+      // of stepping against each other.
+      const spanX = along === 'z' ? w : w * count + over;
+      const spanZ = along === 'z' ? d * count + over : d;
+      const level = survey(gx, gz, spanX, spanZ).mean;
+      for (let k = 0; k < count; k++) {
+        const cx = gx + (along === 'x' ? k * w : 0);
+        const cz = gz + (along === 'z' ? k * d : 0);
+        if (!free(cx, cz, w, d, STREET_CELL)) continue;
+        emit(p, cx, cz, w, d, along === 'z' ? 0 : 1, level);
+      }
+      // One pad for the whole run, which is what makes it flat end to end.
+      pads.push({ gx, gz, w: spanX, d: spanZ, y: level });
+      return level;
+    };
+
     for (let bz = 0; bz <= blocks; bz++) {
       for (let bx = 0; bx <= blocks; bx++) {
         const sx = bx * PERIOD + BLOCK, sz = bz * PERIOD + BLOCK;
-        // The junction where two corridors cross: three cells square, which is
-        // exactly what road.mini is built as.
-        const j = junction.length > 0 ? junction[0] : null;
-        if (j && free(sx, sz, STREET, STREET, STREET_CELL)) {
-          emit(j, sx, sz, STREET, STREET, 0);
-        }
         // One corridor prototype per street, so a street is one kind of street
         // for its whole length instead of changing every thirty metres.
         const nsRoad = pick(corridor, bx, bz, 701);
         const ewRoad = pick(corridor, bx, bz, 709);
-        for (let t = 0; t < BLOCK; t += TILE) {
-          // North-south: the tile is 3 wide in x and 4 long in z already.
-          if (nsRoad && bz < blocks && free(sx, bz * PERIOD + t, STREET, TILE, STREET_CELL)) {
-            emit(nsRoad, sx, bz * PERIOD + t, STREET, TILE, 0);
-          }
-          // East-west: the same tile turned a quarter, so it is 4 in x and 3
-          // in z, and the frontage rule keeps the kerbs on the right sides.
-          if (ewRoad && bx < blocks && free(bx * PERIOD + t, sz, TILE, STREET, STREET_CELL)) {
-            emit(ewRoad, bx * PERIOD + t, sz, TILE, STREET, 1);
-          }
+        const tiles = BLOCK / TILE;
+
+        // North-south: the tile is three cells across and four long already,
+        // and the junction at the end of the run shares the run's height so
+        // the two meet flush.
+        let cross: number | null = null;
+        if (nsRoad && bz < blocks) {
+          cross = run(nsRoad, sx, bz * PERIOD, STREET, TILE, 'z', tiles, STREET);
+        }
+        // East-west: the same tile turned a quarter.
+        if (ewRoad && bx < blocks) {
+          run(ewRoad, bx * PERIOD, sz, TILE, STREET, 'x', tiles);
+        }
+        // The junction where two corridors cross: three cells square, which is
+        // exactly what road.mini is built as.
+        const j = junction.length > 0 ? junction[0] : null;
+        if (j && free(sx, sz, STREET, STREET, STREET_CELL)) {
+          // At the height of the run that runs through it, not its own: a
+          // junction graded to its own mean is a slab standing proud of the
+          // street it belongs to.
+          emit(j, sx, sz, STREET, STREET, 0, cross ?? true);
         }
       }
     }

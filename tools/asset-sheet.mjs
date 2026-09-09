@@ -55,7 +55,14 @@ const PITCH = process.env.PITCH === undefined ? null : Number(process.env.PITCH)
 const AIM = process.env.AIM === undefined ? null : process.env.AIM.split(',').map(Number);
 const DIST = process.env.DIST === undefined ? null : Number(process.env.DIST);
 
-const shader = fs.readFileSync(new URL('../src/gfx/shaders/asset.wgsl', import.meta.url), 'utf8');
+const shaderDir = new URL('../src/gfx/shaders/', import.meta.url).pathname;
+// The same textual include the renderer resolves at load. Without it the
+// module fails to compile and the failure surfaces as "invalid character
+// found" on the line the directive sits on.
+const shader = fs.readFileSync(shaderDir + 'asset.wgsl', 'utf8')
+  .replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,
+    (whole, name) => (fs.existsSync(shaderDir + name)
+      ? fs.readFileSync(shaderDir + name, 'utf8') : whole));
 const registry = (
   await esbuild.build({
     entryPoints: [new URL('../src/assets/registry.ts', import.meta.url).pathname],
@@ -103,7 +110,19 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
   ] });
-  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
+  // The prototype table. The city binds four hundred rows and indexes them by
+  // the instance's prototype; this binds one, because it photographs one asset
+  // at a time -- but the fragment stage is the same either way, which is the
+  // whole reason the sheet shows what the game renders.
+  const protoLayout = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+      buffer: { type: 'read-only-storage' } },
+  ] });
+  const protoBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const protoData = new Float32Array(24);
+  const protoBg = device.createBindGroup({ layout: protoLayout,
+    entries: [{ binding: 0, resource: { buffer: protoBuf } }] });
+  const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout, protoLayout] });
   const buffers = [{ arrayStride: 52, attributes: [
     { shaderLocation: 0, offset: 0, format: 'float32x3' },
     { shaderLocation: 1, offset: 12, format: 'float32x3' },
@@ -226,16 +245,25 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     scene.set(sunViewProj, 16);
     scene.set([eye[0], eye[1], eye[2], 0], 32);
     scene.set([sun[0], sun[1], sun[2], 0], 36);
-    scene.set([idSeed(a.id), 1 / SHADOW, Math.max(height, radius) * 4.5 + 20, 0], 40);
-    const brand = a.brand ?? { colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35] };
-    scene.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 44);
-    scene.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 48);
-    const name = ((a.brand && a.brand.name) || '').toUpperCase().slice(0, 16);
-    const words = new Uint32Array(4);
-    for (let i = 0; i < name.length; i++) words[i >> 2] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
-    new Uint32Array(scene.buffer, 52 * 4, 4).set(words);
-    scene.set([name.length, 0, 0, 0], 56);
+    // No aerial perspective: the subject is metres away against a studio
+    // backdrop, not sky.
+    scene.set([0, 1 / SHADOW, Math.max(height, radius) * 4.5 + 20, 0], 40);
     device.queue.writeBuffer(sceneBuf, 0, scene);
+
+    // The prototype row: an identity quantisation frame, because these
+    // vertices arrive unquantised, plus the seed and the brand.
+    protoData.fill(0);
+    protoData[3] = idSeed(a.id);
+    protoData.set([1, 1, 1], 4);
+    const brand = a.brand ?? { colour: [0.42, 0.44, 0.47], accent: [0.30, 0.32, 0.35] };
+    protoData.set([brand.colour[0], brand.colour[1], brand.colour[2], 1], 8);
+    protoData.set([brand.accent[0], brand.accent[1], brand.accent[2], 1], 12);
+    const name = ((a.brand && a.brand.name) || '').toUpperCase().slice(0, 16);
+    const words = new Uint32Array(protoData.buffer, 16 * 4, 4);
+    words.fill(0);
+    for (let i = 0; i < name.length; i++) words[i >> 2] |= (name.charCodeAt(i) & 255) << ((i % 4) * 8);
+    protoData[20] = name.length;
+    device.queue.writeBuffer(protoBuf, 0, protoData);
 
     const vb = device.createBuffer({ size: mesh.vertices.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(vb, 0, mesh.vertices);
@@ -258,6 +286,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     });
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bg);
+    pass.setBindGroup(1, protoBg);
     pass.setVertexBuffer(0, gvb);
     pass.setIndexBuffer(gib, 'uint32');
     pass.drawIndexed(gi.length);

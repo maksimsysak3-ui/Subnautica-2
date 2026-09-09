@@ -181,16 +181,26 @@ export class Atlas {
     const STRIDE = 13;
 
     if (p.lods.every((s) => s === null)) {
-      // First bake of this prototype sets the frame, from LOD0 wherever it can
-      // be had, so the coarser levels quantise against the shape's real bounds
-      // rather than their own.
-      const src = lod === 0 ? v : p.def.build(0).build().vertices;
+      // First bake of this prototype sets the frame, and it is the union of
+      // all three levels rather than LOD0's bounds.
+      //
+      // LOD0 alone is the obvious choice and it is wrong. It holds only while
+      // every coarse level is a subset of the fine one, which is what dropping
+      // detail usually means -- but a generator is free to substitute rather
+      // than subtract, and one that swaps three small canopy masses for two
+      // larger ones produces a coarse mesh that reaches further out than the
+      // fine one. Those vertices then clamp to the frame's edge and the tree
+      // is visibly wrong at distance. The union costs two extra builds once
+      // per prototype and cannot be got wrong later.
       const lo: [number, number, number] = [Infinity, Infinity, Infinity];
       const hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-      for (let i = 0; i < src.length; i += STRIDE) {
-        for (let k = 0; k < 3; k++) {
-          if (src[i + k] < lo[k]) lo[k] = src[i + k];
-          if (src[i + k] > hi[k]) hi[k] = src[i + k];
+      for (const level of [0, 1, 2]) {
+        const src = level === lod ? v : p.def.build(level).build().vertices;
+        for (let i = 0; i < src.length; i += STRIDE) {
+          for (let k = 0; k < 3; k++) {
+            if (src[i + k] < lo[k]) lo[k] = src[i + k];
+            if (src[i + k] > hi[k]) hi[k] = src[i + k];
+          }
         }
       }
       p.lo = lo;

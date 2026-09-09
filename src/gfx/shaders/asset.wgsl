@@ -21,6 +21,7 @@
 // taught, applied per material.
 
 #include "atmosphere.wgsl"
+#include "noise.wgsl"
 
 struct Scene {
   viewProj    : mat4x4f,
@@ -96,6 +97,8 @@ const MAT_LAMP      = 25u;
 const MAT_IMPORTED  = 26u;
 const MAT_SKIN      = 27u;
 const MAT_STONE     = 15u;
+const MAT_FOLIAGE   = 31u;
+const MAT_BARK      = 32u;
 const MAT_CLADDING  = 16u;
 const MAT_TIMBER    = 17u;
 
@@ -478,6 +481,94 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let bars = max(stripe(uv.x, mullion, 0.035, mpp), stripe(uv.y, floorH, 0.05, mpp));
   col = mix(col, vec3f(0.30, 0.31, 0.33), bars * resolvable(0.8, mpp));
   return mix(glass, col, resolvable(1.8, mpp));
+}
+
+/**
+ * A tree canopy.
+ *
+ * The surface is a lumpy shell, and what has to happen on it is the thing a
+ * shell cannot do by itself: read as thousands of separate leaves. Cells give
+ * that -- each one a leaf with its own green, and the gap between two of them
+ * in shadow, which is where the depth comes from.
+ *
+ * `up` is the surface normal's Y. A canopy is not one colour: the leaves on
+ * top of the crown are in full sun and bleached towards yellow, the ones
+ * underneath are in the tree's own shade and much bluer, and getting that
+ * gradient right is most of the difference between a tree and a green boulder.
+ */
+fn foliage(world : vec3f, mpp : f32, seed : f32, up : f32) -> vec3f {
+  // A skewed world projection rather than the facade coordinate. facadeUV
+  // picks its plane from the dominant face normal, which on a lumpy shell
+  // flips from one plane to another partway across the surface and tears the
+  // leaves along the seam. This is continuous everywhere, and leaves are
+  // isotropic enough that the distortion costs nothing.
+  let uv = vec2f(world.x * 0.81 + world.z * 0.59, world.y + world.x * 0.14);
+  let sunlit = smoothstep(-0.35, 0.75, up);
+  let shade = vec3f(0.034, 0.070, 0.034);
+  let lit   = vec3f(0.140, 0.205, 0.072);
+  var col = mix(shade, lit, sunlit);
+  // A slow drift, so one side of a crown is not the same green as the other.
+  col *= 0.86 + vnoise(uv * (1.0 / 1.4) + seed) * 0.30;
+
+  // Sprays: clumps of leaves about a third of a metre across. This is the
+  // scale that does the work, because a leaf is six centimetres and from any
+  // normal viewing distance six centimetres is under a pixel -- so a canopy
+  // shaded only at leaf scale is a flat green surface everywhere except with
+  // your nose against it, which is exactly what the first version was. The
+  // spray is what carries the texture at thirty metres, and the shadow
+  // between two sprays is what gives a crown its depth.
+  let spray = smoothstep(1.4, 4.5, 0.34 / max(mpp, 1e-6));
+  if (spray > 0.0) {
+    let c = cells(vec2f(uv.x / 0.34, uv.y / 0.26));
+    let gap = smoothstep(0.0, 0.30, c.d2 - c.d1);
+    var clump = col * (0.72 + c.id * 0.58);
+    clump *= 0.56 + 0.58 * gap;
+    col = mix(col, clump, spray);
+  }
+
+  // Leaves. Roughly 6 cm across and slightly elongated, which is what most
+  // broadleaves are, and dropped entirely once they are under a couple of
+  // pixels rather than left to alias into a green fizz.
+  let fade = smoothstep(1.3, 4.0, 0.06 / max(mpp, 1e-6));
+  if (fade > 0.0) {
+    let c = cells(vec2f(uv.x / 0.06, uv.y / 0.085));
+    let gap = smoothstep(0.0, 0.12, c.d2 - c.d1);
+    // Each leaf its own shade, a few of them turning.
+    var leaf = col * (0.72 + c.id * 0.62);
+    leaf = mix(leaf, vec3f(0.145, 0.108, 0.038), smoothstep(0.93, 0.995, c.id) * 0.7 * sunlit);
+    // Dark into the gaps: a canopy is mostly the shadow between its leaves.
+    leaf *= 0.52 + 0.58 * gap;
+    col = mix(col, leaf, fade);
+  }
+  return col;
+}
+
+/**
+ * Bark.
+ *
+ * TIMBER is sawn boards with battens, which wrapped round a trunk reads as a
+ * barrel. Bark runs the other way: irregular vertical ridges with the fissures
+ * between them in deep shadow, breaking into plates on the old wood low down.
+ */
+fn bark(world : vec3f, mpp : f32, seed : f32) -> vec3f {
+  // Continuous around the trunk, for the same reason the canopy is: the
+  // facade coordinate changes plane at each forty-five degree line and the
+  // ridges would step across it.
+  let uv = vec2f(world.x + world.z, world.y);
+  let base = mix(vec3f(0.078, 0.066, 0.056), vec3f(0.128, 0.114, 0.098),
+                 hash11(seed * 3.1 + 8.0));
+  // Ridges: cells stretched hard along the trunk, so they are long and narrow
+  // the way bark is, rather than a field of round lumps.
+  let c = cells(vec2f(uv.x / 0.055, uv.y / 0.62));
+  let fissure = smoothstep(0.34, 0.0, c.d2 - c.d1);
+  var col = base * (0.80 + c.id * 0.46);
+  col = mix(col, base * 0.34, fissure);
+  // Cross-cracks, sparse, breaking the ridges into plates.
+  let plate = vnoise(vec2f(uv.x * 3.4, uv.y * 1.15) + seed * 0.7);
+  col *= 0.90 + plate * 0.22;
+  // Moss and damp on the shaded lower trunk, which every mature tree has.
+  col = mix(col, vec3f(0.052, 0.086, 0.046), smoothstep(0.72, 0.95, plate) * 0.35);
+  return col;
 }
 
 fn corrugated(uv : vec2f, mpp : f32, seed : f32) -> vec3f {
@@ -1182,7 +1273,7 @@ fn lampColour(surf : vec2f, rear : bool) -> vec3f {
 }
 
 fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
-          surf : vec2f, surfD : vec2f) -> vec3f {
+          surf : vec2f, surfD : vec2f, world : vec3f, wmpp : f32, up : f32) -> vec3f {
   // Cleared here so a material that draws no openings leaves none behind from
   // the last pixel a wall pattern shaded.
   opening = vec3f(0.0);
@@ -1219,6 +1310,8 @@ fn albedo(mat : u32, uv : vec2f, mpp : f32, seed : f32, par : vec2f, key : f32,
     case 28u: { return hairColour(key); }
     case 29u: { return water(uv, mpp); }
     case 30u: { return containerSide(uv, mpp, seed, key); }
+    case 31u: { return foliage(world, wmpp, seed, up); }
+    case 32u: { return bark(world, wmpp, seed); }
     default: { return roofDeck(uv, mpp, seed); }
   }
 }
@@ -1344,7 +1437,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let par = vec2f(dot(view, uDir), dot(view, vDir)) / facing * 0.26;
   // A tinted surface is painted, not patterned: the palette wins over the
   // material entirely.
-  var col = select(albedo(in.material, uv, mpp, seed, par, in.key, in.local, surfD),
+  // Derivatives of world position, for the materials whose pattern is not on
+  // the facade grid. Taken here with the others, in uniform control flow.
+  let wmpp = max(max(fwidth(in.world.x), fwidth(in.world.y)), max(fwidth(in.world.z), 1e-6));
+  var col = select(albedo(in.material, uv, mpp, seed, par, in.key, in.local, surfD,
+                          in.world, wmpp, n.y),
                    palette(in.tint, uv, mpp, seed, look.brand.rgb, look.accent.rgb),
                    in.tint != 0u);
   // An imported mesh brings its own colour and takes no pattern at all.

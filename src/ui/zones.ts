@@ -73,6 +73,11 @@ export const ZONE_STYLE: Record<IconZone, Palette> = {
     deep: '#3c4450', base: '#79879a', light: '#b3bfcd', wash: '#dde3ea',
     blurb: 'What the city provides for itself, and pays for every week.',
   },
+  nature: {
+    label: 'Nature',
+    deep: '#1e3f22', base: '#4d7a3a', light: '#93bd77', wash: '#d2e4c4',
+    blurb: 'Trees and planting. Placed on verges and in parks, never zoned.',
+  },
   road: {
     label: 'Roads',
     deep: '#2b2f36', base: '#5d6672', light: '#98a2b0', wash: '#d3d8de',
@@ -324,6 +329,16 @@ const SCENES: Record<Category, Scene> = {
   // Roads: a length of carriageway with a centre line, a kerb either side and
   // one lit column. Built in the same isometric boxes as the zones, so the
   // roads tab reads as part of the same set rather than as a flat pictogram.
+  // A broadleaf, not a conifer: the cone icon every game uses reads as
+  // forestry, and this is street planting. A short trunk and three stacked
+  // masses, widest in the middle, which is the deciduous silhouette at 22px.
+  nature: [
+    { faces: plate(-2.6, 0, -2.6, 5.2, 5.2), tone: 'ground' },
+    { faces: box(-0.34, 0, -0.34, 0.68, 1.9, 0.68), tone: 'dark' },
+    { faces: box(-1.5, 1.6, -1.5, 3.0, 1.5, 3.0), tone: 'body' },
+    { faces: box(-2.1, 2.5, -1.15, 4.2, 1.35, 2.3), tone: 'body' },
+    { faces: box(-1.15, 3.5, -1.15, 2.3, 1.3, 2.3), tone: 'accent' },
+  ],
   road: [
     { faces: plate(-2.8, 0, -2.8, 5.6, 5.6), tone: 'ground' },
     // The carriageway slab, then the two kerbs standing proud of it.

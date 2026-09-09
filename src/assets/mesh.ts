@@ -185,6 +185,24 @@ export const MAT = {
    * quarter of that pitch and is the whole read on a box six metres long.
    */
   CONTAINER: 30,
+  /**
+   * Foliage: a canopy, shaded as leaves rather than as a green surface.
+   *
+   * A tree crown is not a solid object and cannot be shaded like one. This
+   * gives it separate leaves with dark gaps between them, a colour that
+   * shifts from the sunlit top of the crown to the shaded underside, and
+   * translucency -- a leaf with the sun behind it glows, which is most of
+   * what makes a tree read as a tree rather than as a green boulder.
+   */
+  FOLIAGE: 31,
+  /**
+   * Bark: vertical ridges with the fissures between them in shadow.
+   *
+   * TIMBER is sawn boards with battens, which on a round trunk reads as a
+   * barrel. Bark runs the other way -- irregular ridges that widen with the
+   * trunk and break into plates on the old wood at the base.
+   */
+  BARK: 32,
 } as const;
 
 export type Material = (typeof MAT)[keyof typeof MAT];

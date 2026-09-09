@@ -48,6 +48,8 @@ const serviceList: Proto[] = [];
 const roadBy = new Map<number, Proto[]>();
 /** Last-resort bucket: every stock prototype of a zone, at any density. */
 const zoneAll = new Map<Zone, Proto[]>();
+/** Trees and planting: never zoned, scattered onto whatever is left. */
+const nurseryList: Proto[] = [];
 
 const push = <K,>(m: Map<K, Proto[]>, k: K, p: Proto): void => {
   const list = m.get(k);
@@ -59,6 +61,7 @@ ASSETS.forEach((def, index) => {
   if (def.zone === 'service') { serviceList.push(p); return; }
   if (def.zone === 'road') { push(roadBy, p.w, p); return; }
   if (def.zone === 'fleet') return;                   // placed on the road graph, later
+  if (def.zone === 'nature') { nurseryList.push(p); return; }
   if (def.signature) { push(signatureBy, def.zone, p); return; }
   push(stockBy, `${def.zone}|${def.density}|${def.theme ?? 'modern'}`, p);
   push(zoneAll, def.zone, p);
@@ -98,6 +101,11 @@ export const services: readonly Proto[] = serviceList;
 /** Road tiles exactly `width` cells across, so they fit a corridor edge to edge. */
 export function roads(width: number): readonly Proto[] {
   return roadBy.get(width) ?? [];
+}
+
+/** Trees, smallest first, so a spawner filling a gap can find one that fits. */
+export function planting(): readonly Proto[] {
+  return nurseryList;
 }
 
 /** Every prototype, by index, for the renderer's side of the handshake. */
