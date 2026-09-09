@@ -29,10 +29,10 @@
 
 import { hash2 } from './hash';
 import { baseHeightAt } from './terrain';
-import { stock, signatures, services, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
+import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
 import type { Placement, Frontage } from './roadnet';
-import { defaultWorld, zoneOf, BLOCK, STREET, PERIOD } from './world';
+import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
 import type { Pad } from './grading';
@@ -244,127 +244,37 @@ export function makeCity(world: World = defaultWorld()): City {
     return { zone: painted.zone, density: painted.density, theme };
   };
 
-  // ---- pass 1: superblocks --------------------------------------------
-
-  /**
-   * Reserves k x k blocks for one big prototype, swallowing the streets
-   * between them but leaving the streets around the outside.
-   *
-   * A superblock of k blocks is k * PERIOD - STREET cells across: 8, 19, 30,
-   * 41. That ladder is what decides how many blocks a footprint needs.
-   */
-  const blocksFor = (n: number): number => Math.max(1, Math.ceil((n + STREET) / PERIOD));
-
-  /**
-   * Puts a prototype somewhere in one block without spending the rest of it.
-   *
-   * Most services are small -- a clinic is four cells, a water tower three --
-   * and giving each of them a whole ninety-six-metre block was emptying a
-   * quarter of the city. These take a corner lot like anything else, and the
-   * frontage pass fills the rest of the block around them.
-   */
-  const placeSmall = (p: Proto, bx: number, bz: number, salt: number): boolean => {
-    const gx = bx * PERIOD, gz = bz * PERIOD;
-    const yaw = Math.floor(hash2(bx, bz, salt) * 4) % 4;
-    const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
-    if (w > BLOCK || d > BLOCK) return false;
-    // Against the street the frontage faces, so a fire station opens onto a
-    // road rather than onto the backs of houses.
-    const ox = yaw === 3 ? gx + BLOCK - w : gx;
-    const oz = yaw === 0 ? gz + BLOCK - d : gz;
-    if (!free(ox, oz, w, d, FREE)) return false;
-    return emit(p, ox, oz, w, d, yaw);
-  };
-
-  const placeBig = (p: Proto, bx: number, bz: number, salt: number): boolean => {
-    if (p.w <= BLOCK && p.d <= BLOCK) return placeSmall(p, bx, bz, salt);
-    const kw = blocksFor(p.w), kd = blocksFor(p.d);
-    const spanW = kw * PERIOD - STREET, spanD = kd * PERIOD - STREET;
-    const gx = bx * PERIOD, gz = bz * PERIOD;
-    if (!free(gx, gz, spanW, spanD, STREET_CELL)) return false;
-    // Centred in its superblock, so the slack falls as forecourt on every side
-    // rather than all of it behind the building.
-    const ox = gx + ((spanW - p.w) >> 1), oz = gz + ((spanD - p.d) >> 1);
-    if (!emit(p, ox, oz, p.w, p.d, hash2(bx, bz, salt) < 0.5 ? 0 : 2)) return false;
-    // The whole superblock is spent whether or not the building filled it: the
-    // remainder is this building's grounds, not a lot for something else. And
-    // the streets it swallowed are demolished rather than drawn underneath it.
-    claim(gx, gz, spanW, spanD);
-    net.clear(gx, gz, spanW, spanD);
-    return true;
-  };
-
-  // Signature buildings first and downtown, because they are what a skyline
-  // is, and because they need the biggest superblocks that are still free.
-  for (const zone of ['office', 'commercial', 'residential', 'industrial'] as const) {
-    const list = signatures(zone);
-    if (list.length === 0) continue;
-    for (let bz = 0; bz < blocks; bz++) {
-      for (let bx = 0; bx < blocks; bx++) {
-        const gx = bx * PERIOD, gz = bz * PERIOD;
-        const d = downtown(gx, gz);
-        // Offices and commerce cluster in the centre; residential signatures
-        // are the mansion blocks and crescents, which belong further out.
-        const want = zone === 'residential' ? 1 - Math.abs(d - 0.42) * 2.2
-          : zone === 'industrial' ? 0.5 - d : Math.pow(d, 1.4);
-        if (hash2(bx, bz, 401 + zone.length) > want * 0.16) continue;
-        const p = pick(list, bx, bz, 409);
-        if (p) placeBig(p, bx, bz, 419);
-      }
-    }
-  }
-
-  // Landmark services first, before anything can take the ground out from
-  // under them. An airport is thirty-five cells across -- twelve blocks of
-  // contiguous free land -- and drawing it from the same bag as a clinic meant
-  // it was never once placed on a 3.5 km map. These are sited, not scattered:
-  // every candidate block is scored and the best few win, which is also the
-  // only way to keep the airport out of the middle of downtown.
-  const landmarks = services.filter((p) => p.w > BLOCK || p.d > BLOCK);
-  for (const p of landmarks) {
-    const area = p.w * p.d;
-    const want = Math.max(1, Math.round((blocks * blocks) / (area * 2.4)));
-    // Score every site, keep the best. Out-of-town for the things that need
-    // room and make noise, the middle ring for the ones a city puts on show.
-    const sites: Array<{ bx: number; bz: number; score: number }> = [];
-    for (let bz = 0; bz < blocks; bz++) {
-      for (let bx = 0; bx < blocks; bx++) {
-        const d = downtown(bx * PERIOD + BLOCK / 2, bz * PERIOD + BLOCK / 2);
-        const fit = area > 600 ? 1 - d : 1 - Math.abs(d - 0.4) * 1.8;
-        sites.push({ bx, bz, score: fit + hash2(bx, bz, 541 + p.index) * 0.55 });
-      }
-    }
-    sites.sort((a, b) => b.score - a.score);
-    let placed = 0;
-    for (const site of sites) {
-      if (placed >= want) break;
-      if (placeBig(p, site.bx, site.bz, 547)) placed++;
-    }
-  }
-
-  // Services next, spread by coverage rather than by land value: a city needs
-  // a fire station near every district, not fourteen of them downtown.
+  // ---- pass 1: the lots the world already holds ------------------------
   //
-  // Weighted by footprint, and drawn per block rather than scanned per
-  // service. Scanning per service gave the big ones two or three chances on
-  // the whole map and they mostly landed on none of them -- half the service
-  // roster never appeared. Here every block that rolls a service picks from a
-  // bag in which a clinic has sixteen tickets and an airport has one.
-  const bag: Proto[] = [];
-  for (const p of services) {
-    if (p.w > BLOCK || p.d > BLOCK) continue;   // sited above
-    const tickets = Math.max(1, Math.round(240 / (p.w * p.d)));
-    for (let i = 0; i < tickets; i++) bag.push(p);
-  }
-  for (let bz = 0; bz < blocks; bz++) {
-    for (let bx = 0; bx < blocks; bx++) {
-      if (hash2(bx, bz, 503) > 0.22) continue;
-      // Three draws, so a block whose first pick will not fit still gets a
-      // service rather than being left to the housing pass.
-      for (let k = 0; k < 3; k++) {
-        const p = pick(bag, bx, bz, 509 + k);
-        if (p && placeBig(p, bx, bz, 521)) break;
-      }
+  // Services, landmarks and signature buildings are not re-rolled here. They
+  // are part of the world, sited once when it was made, and a rebuild places
+  // exactly the ones it is given.
+  //
+  // That is not tidiness. Re-rolling them meant every rebuild moved them: draw
+  // a road and the hospital jumps across town. Worse, the siting pass was
+  // allowed to take street cells and demolish what it took -- which is right
+  // for an airport being sited on open country and catastrophic when it runs
+  // on ground a player has just laid roads through, where it quietly bulldozed
+  // them and left the new district empty.
+  for (const lot of world.lots) {
+    const index = ASSET_INDEX.get(lot.id);
+    const p = assetById(lot.id);
+    if (index === undefined || p === undefined) continue;
+    if (!free(lot.gx, lot.gz, lot.w, lot.d, STREET_CELL)) continue;
+    const ground = survey(lot.gx, lot.gz, lot.w, lot.d);
+    const x0 = wx(lot.gx), z0 = wx(lot.gz);
+    const x1 = x0 + lot.w * CELL, z1 = z0 + lot.d * CELL;
+    out.push(
+      (x0 + x1) / 2, (z0 + z1) / 2, ground.mean - 0.25, lot.yaw,
+      (lot.w * CELL) / 2 + 0.8, (lot.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
+      1, 0, 0, 0,
+    );
+    population[index]++;
+    pads.push({ gx: lot.gx, gz: lot.gz, w: lot.w, d: lot.d, y: ground.mean });
+    claim(lot.gx, lot.gz, lot.w, lot.d);
+    // The grounds around a big one, so nothing else builds in its forecourt.
+    if (lot.grounds !== undefined) {
+      claim(lot.grounds[0], lot.grounds[1], lot.grounds[2], lot.grounds[3]);
     }
   }
 

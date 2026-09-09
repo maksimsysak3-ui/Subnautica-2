@@ -9,7 +9,7 @@
 export { makeCity, INSTANCE_FLOATS } from './city';
 export type { City } from './city';
 export { PROTO_COUNT } from './inventory';
-export { defaultWorld, emptyWorld, paint, zoneCode, zoneOf, ZONES, DENSITIES, BLOCK, STREET, PERIOD } from './world';
+export { defaultWorld, emptyWorld, paint, demolish, zoneCode, zoneOf, ZONES, DENSITIES, BLOCK, STREET, PERIOD } from './world';
 export type { World } from './world';
 export { RoadNet, ROAD_CLASSES } from './roadnet';
 export type { RoadClass } from './roadnet';

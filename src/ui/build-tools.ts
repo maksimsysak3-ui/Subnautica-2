@@ -19,7 +19,7 @@ import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt } from '../sim';
-import { paint, zoneCode, ZONES, DENSITIES } from '../sim';
+import { paint, demolish, zoneCode, ZONES, DENSITIES } from '../sim';
 import type { RoadClass } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import type { Density, Zone } from '../assets/types';
@@ -222,19 +222,17 @@ export class BuildTools {
   private commit(a: [number, number], b: [number, number]): void {
     const world = this.renderer.world;
     const t = this.tool;
+    const r = this.area(a, b);
     if (t.kind === 'road') {
+      // What the road runs over goes first: zoning under a carriageway would
+      // grow houses in it, and a building left standing there is a building
+      // the road has to be dropped around.
+      demolish(world, r.gx, r.gz, r.w, r.d);
       world.net.add(a[0], a[1], b[0], b[1], t.cls);
-      // Zoning under a new road is nonsense, and leaving it would grow houses
-      // in the carriageway the next time the city is built.
-      const r = this.area(a, b);
-      paint(world, r.gx, r.gz, r.w, r.d, 0);
     } else if (t.kind === 'zone') {
-      const r = this.area(a, b);
       paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density));
     } else if (t.kind === 'clear') {
-      const r = this.area(a, b);
-      paint(world, r.gx, r.gz, r.w, r.d, 0);
-      world.net.clear(r.gx, r.gz, r.w, r.d);
+      demolish(world, r.gx, r.gz, r.w, r.d);
     } else {
       return;
     }

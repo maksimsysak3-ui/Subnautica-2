@@ -15,7 +15,7 @@ import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
 import { BuildTools } from './ui/build-tools';
-import { configureSim, LITE, paint, zoneCode } from './sim';
+import { configureSim, LITE, paint, demolish, zoneCode } from './sim';
 
 export interface ShotRequest {
   width: number;
@@ -28,6 +28,12 @@ export interface ShotRequest {
   frames: number;
   /** Where in the day to freeze the sun: 0 and 1 midnight, 0.5 noon. */
   hour: number;
+  /**
+   * Clear a square of the map, draw a road into the empty land and zone one
+   * side of it, then rebuild -- the player's own workflow, so a picture can
+   * show whether it produced a street or a mess.
+   */
+  edit?: boolean;
   lite: boolean;
 }
 
@@ -160,6 +166,23 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   renderer.clockRunning = false;
   renderer.timeOfDay = req.hour;
   renderer.build();
+
+  if (req.edit === true) {
+    const w = renderer.world;
+    const g = w.grid;
+    const c = g >> 1;
+    // Clear a quarter of the map back to open ground, then build into it.
+    demolish(w, c - 22, c - 22, 44, 44);
+    // One avenue and two streets off it, drawn as a player would: each ends
+    // on the avenue rather than being aligned to anything.
+    w.net.add(c - 20, c - 6, c + 20, c - 6, 'avenue');
+    w.net.add(c - 12, c - 6, c - 12, c + 16, 'street');
+    w.net.add(c + 6, c - 6, c + 6, c + 14, 'street');
+    w.net.add(c - 12, c + 10, c + 6, c + 10, 'street');
+    paint(w, c - 20, c - 20, 40, 12, zoneCode('commercial', 'high'));
+    paint(w, c - 20, c - 2, 40, 26, zoneCode('residential', 'medium'));
+    renderer.rebuild();
+  }
 
   camera.yaw = req.yaw;
   camera.pitch = req.pitch;
