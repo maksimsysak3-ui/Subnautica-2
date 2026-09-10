@@ -15,17 +15,20 @@ const src = new URL('../src/', import.meta.url).pathname;
 const bundle = (await esbuild.build({
   stdin: {
     contents: `export { makeCity, INSTANCE_FLOATS } from '${src}sim/city';\n`
-      + `export { configureSim } from '${src}sim/config';\n`
+      + `export { configureSim, simConfig } from '${src}sim/config';\n`
       + `export { ASSETS } from '${src}assets/registry';`,
     resolveDir: src, loader: 'ts',
   },
   bundle: true, format: 'esm', write: false, target: 'es2022',
 })).outputFiles[0].text;
-const { makeCity, INSTANCE_FLOATS, configureSim, ASSETS } = await import(
+const { makeCity, INSTANCE_FLOATS, configureSim, simConfig, ASSETS } = await import(
   'data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
 
-const grid = Number(process.argv[2] || 440);
-configureSim({ cityGrid: grid });
+// The map's own size unless one is asked for, so the numbers here are the
+// numbers the game actually builds.
+const asked = Number(process.argv[2] || 0);
+if (asked > 0) configureSim({ cityGrid: asked });
+const grid = asked > 0 ? asked : simConfig.cityGrid;
 
 const t0 = performance.now();
 const city = makeCity();
@@ -101,7 +104,10 @@ for (let i = 0; i < city.count; i++) {
       if (grid2[c] >= 0) {
         const other = ASSETS[d[grid2[c] * INSTANCE_FLOATS + 7]];
         const mine = ASSETS[d[o + 7]];
-        if (!(other.zone === 'road' && mine.zone === 'road')) {
+        // Planting is allowed to overlap: a wood is interlocking crowns, and
+        // trees deliberately do not reserve the ground they stand on.
+        if (other.zone !== 'nature' && mine.zone !== 'nature'
+          && !(other.zone === 'road' && mine.zone === 'road')) {
           clashes++;
           if (!firstClash) firstClash = [other.id, mine.id];
         }

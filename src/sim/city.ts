@@ -476,16 +476,21 @@ export function makeCity(world: World = defaultWorld()): City {
     let s = f.from, guard = 0;
     while (s < f.to && guard++ < 400) {
       let step = 4;
+      // Hoisted out of the attempt loop: neither depends on which prototype is
+      // being tried, and looking the district and its stock up eight times per
+      // position was most of what a frontage cost.
+      const probe = net.siteAt(f.link, f.side, s);
+      // Read a little way back from the kerb line rather than on it, so a
+      // plot takes the zone of the ground it stands on rather than of the cell
+      // the corridor happens to end in.
+      const [pgx, pgz] = net.cellAt(probe.x + Math.sin(probe.yaw) * CELL,
+        probe.z - Math.cos(probe.yaw) * CELL);
+      const district = districtOf(pgx, pgz);
+      if (district === null) { s += step; continue; }
+      const list = stock(district.zone, district.density, district.theme);
+      if (list.length === 0) { s += step; continue; }
+
       for (let attempt = 0; attempt < 8; attempt++) {
-        const probe = net.siteAt(f.link, f.side, s);
-        // Read a little way back from the kerb line rather than on it, so a
-        // plot takes the zone of the ground it stands on rather than of the
-        // cell the corridor happens to end in.
-        const [pgx, pgz] = net.cellAt(probe.x + Math.sin(probe.yaw) * CELL,
-          probe.z - Math.cos(probe.yaw) * CELL);
-        const district = districtOf(pgx, pgz);
-        if (district === null) break;
-        const list = stock(district.zone, district.density, district.theme);
         const p = pick(list, Math.round(s), f.link * 13 + f.side, 601 + attempt);
         if (!p) break;
         const wide = p.w * CELL, back = p.d * CELL;
@@ -496,6 +501,12 @@ export function makeCity(world: World = defaultWorld()): City {
         const mid = net.siteAt(f.link, f.side, s + wide / 2);
         const nx = Math.sin(mid.yaw), nz = -Math.cos(mid.yaw);
         const cx = mid.x + nx * (back / 2), cz = mid.z + nz * (back / 2);
+        // The middle of the plot, tested first. Most attempts fail because the
+        // block behind is already full, and walking every cell of a forty-metre
+        // footprint to find that out is thirty tests where one will do.
+        const [mgx, mgz] = net.cellAt(cx, cz);
+        if (mgx < 0 || mgz < 0 || mgx >= GRID || mgz >= GRID) continue;
+        if (cells[at(mgx, mgz)] !== FREE) continue;
         if (!freeBox(cx, cz, wide / 2, back / 2, mid.yaw, FREE)) continue;
         if (!emitAt(p, cx, cz, mid.yaw)) continue;
         step = wide;

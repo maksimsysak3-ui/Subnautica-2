@@ -19,7 +19,20 @@ export interface SimConfig {
   terrainSize: number;
 }
 
-const FULL: SimConfig = { cityGrid: 440, terrainSize: 6144 };
+/**
+ * The map: 640 cells of eight metres, so a bit over five kilometres square
+ * and twenty-six square kilometres of buildable land.
+ *
+ * It was 440. What made the bigger map affordable was not a faster machine
+ * but four fixes worth measuring: the polyline walk binary-searches instead of
+ * scanning, the frontage pass looks up its district and stock once per
+ * position rather than once per attempt and rejects a plot on its middle cell
+ * before walking its whole footprint, and the road mesh pins the ground
+ * through flat arrays rather than a map. A rebuild -- what the player waits
+ * for after every edit -- costs 836 ms across twenty-six square kilometres,
+ * against about a second for the old twelve.
+ */
+const FULL: SimConfig = { cityGrid: 640, terrainSize: 9216 };
 
 /** Small enough to build and render anywhere, same code, same layout rules. */
 export const LITE: SimConfig = { cityGrid: 90, terrainSize: 1536 };

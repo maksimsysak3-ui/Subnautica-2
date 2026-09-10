@@ -743,13 +743,24 @@ export class RoadGraph {
   }
 }
 
-/** Linear interpolation along a sampled polyline, by arc length. */
+/**
+ * Interpolation along a sampled polyline, by arc length.
+ *
+ * Binary search, not a scan. The spawner asks for a point on a frontage twice
+ * for every plot it considers and there are a couple of hundred samples on a
+ * link, and walking them from the start each time was most of the cost of
+ * laying out a city.
+ */
 export function walk(pts: readonly Along[], s: number): Along {
   if (s <= 0) return pts[0];
   const last = pts[pts.length - 1];
   if (s >= last.s) return last;
-  let i = 0;
-  while (i + 1 < pts.length && pts[i + 1].s < s) i++;
+  let lo = 0, hi = pts.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].s <= s) lo = mid; else hi = mid;
+  }
+  const i = lo;
   const span = pts[i + 1].s - pts[i].s || 1;
   const f = (s - pts[i].s) / span;
   return {

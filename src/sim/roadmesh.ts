@@ -223,28 +223,39 @@ export function buildRoadMesh(graph: RoadGraph,
   const buf = new Buf();
   const lamps: RoadMesh['lamps'] = [];
   /**
-   * One entry per cell corner the corridor covers, keyed by corner index and
-   * holding the height of the nearest point of road. Nearest, because two
-   * samples two metres apart disagree by centimetres and the corner should
-   * take the one that is actually over it.
+   * One entry per cell corner the corridor covers, holding the height of the
+   * nearest point of road. Nearest, because two samples a few metres apart
+   * disagree by centimetres and the corner should take the one that is
+   * actually over it.
+   *
+   * Flat arrays over the whole corner grid rather than a map. This is written
+   * about four million times on a full map -- every sample along every road
+   * against every corner within its corridor -- and a map lookup per write is
+   * most of what generating the roads used to cost.
    */
-  const pinAt = new Map<number, { y: number; d: number }>();
   const stride = graph.grid + 1;
+  const pinY = new Float32Array(stride * stride);
+  const pinD = new Float32Array(stride * stride);
+  const pinSet = new Uint8Array(stride * stride);
+  const half = graph.grid / 2;
   const hold = (x: number, z: number, reach: number, y: number): void => {
-    const gx0 = Math.floor((x - reach) / 8 + graph.grid / 2);
-    const gx1 = Math.ceil((x + reach) / 8 + graph.grid / 2);
-    const gz0 = Math.floor((z - reach) / 8 + graph.grid / 2);
-    const gz1 = Math.ceil((z + reach) / 8 + graph.grid / 2);
+    // Squared throughout: this runs a few hundred thousand times on a full
+    // map and the square roots were most of what the road mesh cost.
+    const r2 = reach * reach;
+    const gx0 = Math.max(0, Math.floor((x - reach) / 8 + half));
+    const gx1 = Math.min(stride - 1, Math.ceil((x + reach) / 8 + half));
+    const gz0 = Math.max(0, Math.floor((z - reach) / 8 + half));
+    const gz1 = Math.min(stride - 1, Math.ceil((z + reach) / 8 + half));
     for (let gz = gz0; gz <= gz1; gz++) {
-      if (gz < 0 || gz >= stride) continue;
+      const cz = (gz - half) * 8 - z;
+      const cz2 = cz * cz;
+      if (cz2 > r2) continue;
       for (let gx = gx0; gx <= gx1; gx++) {
-        if (gx < 0 || gx >= stride) continue;
-        const cx = (gx - graph.grid / 2) * 8, cz = (gz - graph.grid / 2) * 8;
-        const d = Math.hypot(cx - x, cz - z);
-        if (d > reach) continue;
+        const cx = (gx - half) * 8 - x;
+        const d = cx * cx + cz2;
+        if (d > r2) continue;
         const k = gz * stride + gx;
-        const have = pinAt.get(k);
-        if (have === undefined || d < have.d) pinAt.set(k, { y, d });
+        if (pinSet[k] === 0 || d < pinD[k]) { pinSet[k] = 1; pinD[k] = d; pinY[k] = y; }
       }
     }
   };
@@ -322,11 +333,11 @@ export function buildRoadMesh(graph: RoadGraph,
         // The ground under the span, held at the road's own height all the
         // way along it rather than cut as a chain of flat rectangles.
         const span = at[k] - at[k - 1];
-        const steps = Math.max(1, Math.round(span / 3.5));
+        const steps = Math.max(1, Math.round(span / 5.5));
         for (let q = 0; q <= steps; q++) {
           const s0 = at[k - 1] + (span * q) / steps;
           const a = walk(dense, s0);
-          hold(a.x, a.z, spec.edge + 4, levelAt(s0));
+          hold(a.x, a.z, spec.edge + 5, levelAt(s0));
         }
       }
       // Street lighting, spaced along the arc and alternating sides.
@@ -434,6 +445,8 @@ export function buildRoadMesh(graph: RoadGraph,
   const indices = new Uint32Array(new ArrayBuffer(buf.i.length * 4));
   indices.set(buf.i);
   const pins: Pin[] = [];
-  for (const [k, v] of pinAt) pins.push({ gx: k % stride, gz: (k / stride) | 0, y: v.y });
+  for (let k = 0; k < pinSet.length; k++) {
+    if (pinSet[k] === 1) pins.push({ gx: k % stride, gz: (k / stride) | 0, y: pinY[k] });
+  }
   return { vertices, indices, pins, lamps };
 }
