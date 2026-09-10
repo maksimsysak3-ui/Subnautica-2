@@ -39,8 +39,23 @@ export interface ClassSpec {
   width: number;
   /** Cells one straight tile covers along the road. */
   tile: number;
-  /** Straight tiles, any of which may be used for a run. */
-  straights: readonly string[];
+  /**
+   * Through carriageways. One is picked per corridor -- not per run -- so a
+   * boulevard is a boulevard for its whole length instead of changing
+   * character at every junction.
+   */
+  through: readonly string[];
+  /**
+   * What this class is out in the country, where a kerbed urban street would
+   * be wrong. Absent means the through list is used everywhere.
+   */
+  rural?: string;
+  /**
+   * Pieces that belong *in* a run but only once in it: a lay-by, a calmed
+   * table, a row of parking bays. Tiling a whole block with one of these is
+   * how a street ended up as three lay-bys in a row.
+   */
+  inserts: readonly string[];
   /** Four arms. */
   cross: string;
   /** Three arms; drawn with its side arm on local +X, so yaw picks the gap. */
@@ -59,19 +74,26 @@ export interface ClassSpec {
 export const ROAD_CLASSES: Record<RoadClass, ClassSpec> = {
   street: {
     width: 3, tile: 4,
-    straights: ['road.street', 'road.avenue', 'road.oneway', 'road.buslane',
-      'road.calming', 'road.layby', 'road.lane'],
+    through: ['road.street', 'road.avenue', 'road.oneway', 'road.buslane'],
+    rural: 'road.lane',
+    inserts: ['road.calming', 'road.layby'],
     cross: 'road.mini', tee: 'road.mini', corner: 'road.mini',
   },
   avenue: {
     width: 4, tile: 4,
-    // Dual carriageway most of the time; the others are what a boulevard has
-    // in one stretch and not the next.
-    straights: ['road.dual4', 'road.dual4', 'road.dual4', 'road.tram',
-      'road.crossing', 'road.bays'],
+    // Dual carriageway three times in four; a tram corridor otherwise.
+    through: ['road.dual4', 'road.dual4', 'road.dual4', 'road.tram'],
+    inserts: ['road.bays'],
     cross: 'road.crossroads', tee: 'road.tjunction', corner: 'road.crossroads',
   },
 };
+
+// road.crossing is deliberately absent. It is a level crossing -- rails, a
+// timber deck, half barriers -- and the tiler has no railway to cross, so
+// sprinkling it through the runs put three of them nose to tail in the middle
+// of a block with no line either side. It stays in the library, for the day
+// there is a railway to put it on.
+
 
 const ORDER: RoadClass[] = ['street', 'avenue'];
 
@@ -410,14 +432,33 @@ export class RoadNet {
     const len = to - from + 1;
     const n = Math.max(1, Math.round(len / spec.tile));
     const each = len / n;
+
+    // The corridor's own character, hashed from the segment and not from the
+    // run: runs are the stretches between junctions, and a road that picks a
+    // new carriageway at every junction is a different road every block.
+    // Mixed by a real hash, because `side * 7 + from * 13` on a regular grid
+    // lands on the same bucket almost every time -- which is how a city of
+    // seven street types came out as one street type.
+    const axis = s.axis === 'x' ? 0 : 1;
+    const seed = hash3(axis * 977 + s.side, s.from, s.to);
+    const through = spec.rural !== undefined && this.rural(s, from, to)
+      ? spec.rural
+      : spec.through[seed % spec.through.length];
+
+    // One insert in the middle of a long enough run, never at either end,
+    // where it would sit against a junction. A lay-by is a thing a street has
+    // once; tiling a block with them is what made a street read as a car park.
+    // Not on every run either: a calmed table on every block is a chicane
+    // course, not a street. Roughly one run in three, and never a short one.
+    const insert = spec.inserts.length === 0 || n < 3 || (seed >>> 24) % 3 !== 0
+      ? -1
+      : 1 + (seed >>> 8) % (n - 2);
+
     for (let k = 0; k < n; k++) {
       const a = from + k * each;
-      // One kind of street for the whole run, chosen from the run rather than
-      // from the tile: a street that changes character every thirty metres is
-      // not a street. Mixed by a real hash, because `side * 7 + from * 13` on
-      // a regular grid lands on the same bucket almost every time -- which is
-      // how a city of seven street types came out as one street type.
-      const id = spec.straights[hash3(s.side, s.from, run) % spec.straights.length];
+      const id = k === insert
+        ? spec.inserts[(seed >>> 16) % spec.inserts.length]
+        : through;
       // A straight is drawn running along its own Z, so an east-west run is
       // the same tile given a quarter turn.
       out.push({
@@ -431,5 +472,25 @@ export class RoadNet {
         run,
       });
     }
+  }
+
+  /**
+   * Is this run out in the country?
+   *
+   * Measured on the map rather than on the zoning, because the tiler runs
+   * before anything is zoned. The built-up area is the middle of the grid; a
+   * run whose whole length lies outside it gets the class's rural carriageway,
+   * so the outer ring reads as lanes between fields rather than as city
+   * streets with nothing on them.
+   */
+  private rural(s: Segment, from: number, to: number): boolean {
+    const half = this.grid / 2;
+    const mid = (from + to) / 2;
+    const a = mid - half, b = s.side + ROAD_CLASSES[s.cls].width / 2 - half;
+    // Outside the circle the map's built-up area is drawn in -- the four
+    // corners, and nothing else. A lane is single track with hedges and no
+    // markings: right for the land past the last suburb, wrong for the
+    // suburb, and half the city if the radius is set anywhere nearer in.
+    return Math.hypot(a, b) > half * 1.02;
   }
 }

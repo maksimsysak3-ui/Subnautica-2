@@ -146,6 +146,25 @@ export function makeCity(world: World = defaultWorld()): City {
   // is three, so where the corridor is depends on what was drawn there.
   for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
 
+  // The pieces themselves, as well as the corridor they run in. A junction is
+  // sized from the widest class in it and rounded to whole cells, so a
+  // four-cell junction on a three-cell crossing overhangs by a cell that the
+  // corridor never claimed -- and a building put on that cell killed the
+  // junction when the tiler came to lay it. Half the T-junctions in the
+  // default city were being dropped that way.
+  const places = net.build();
+  for (const q of places) {
+    const gx = Math.floor(q.gx), gz = Math.floor(q.gz);
+    const w = Math.max(1, Math.ceil(q.gx + q.w) - gx), d = Math.max(1, Math.ceil(q.gz + q.d) - gz);
+    for (let j = 0; j < d; j++) {
+      for (let i = 0; i < w; i++) {
+        const x = gx + i, z = gz + j;
+        if (x < 0 || z < 0 || x >= GRID || z >= GRID) continue;
+        if (cells[at(x, z)] === FREE) cells[at(x, z)] = STREET_CELL;
+      }
+    }
+  }
+
   /** World coordinate of a cell's low edge. */
   const wx = (gx: number): number => (gx - half) * CELL;
 
@@ -430,42 +449,98 @@ export function makeCity(world: World = defaultWorld()): City {
   // widest road in it, and tiles the runs between them to fit.
 
   // Built last, so anything demolished for a superblock is already gone.
-  layRoads(net.build());
+  layRoads(places);
 
   function layRoads(places: readonly Placement[]): void {
-    // Junctions first, and each on its own pad: a junction is where a street
-    // is allowed to change grade, and the runs either side take their level
-    // from the ground they cover rather than from each tile of themselves.
+    // Junctions first. A junction is a node of the network and the only place
+    // a road is allowed to pick its own level from the ground it sits on --
+    // everything between two of them is then a ramp from one to the other.
+    const nodeY = new Map<number, number>();
     for (const q of places) {
       if (q.run !== -1) continue;
       const gx = Math.round(q.gx), gz = Math.round(q.gz);
       const w = Math.round(q.w), d = Math.round(q.d);
       if (!free(gx, gz, w, d, STREET_CELL)) continue;
       const y = survey(gx, gz, w, d).mean;
-      if (lay(q, y)) { pads.push({ gx, gz, w, d, y }); claim(gx, gz, w, d); }
+      if (!lay(q, y)) continue;
+      pads.push({ gx, gz, w, d, y });
+      claim(gx, gz, w, d);
+      for (let j = 0; j < d; j++) {
+        for (let i = 0; i < w; i++) {
+          if (gx + i < GRID && gz + j < GRID) nodeY.set(at(gx + i, gz + j), y);
+        }
+      }
     }
 
-    // Then the runs, grouped: one survey, one level and one pad for the whole
-    // run. A run tiled at each tile's own mean has a step at every tile.
     const byRun = new Map<number, Placement[]>();
     for (const q of places) {
       if (q.run === -1) continue;
       const list = byRun.get(q.run);
       if (list) list.push(q); else byRun.set(q.run, [q]);
     }
+
+    // Then the runs, one tile at a time, ramped between the junctions at
+    // their ends.
+    //
+    // This used to be one level for the whole run, on the reasoning that a
+    // run tiled at each tile's own mean steps at every tile. It does -- but
+    // levelling a hundred metres of hillside to a single height puts a step
+    // of *two metres* where the run meets its junction, which is the median
+    // measured on the default map, and the graded ground ramping between two
+    // pads that far apart rises straight through the lower slab. That is what
+    // the bands of grass across the carriageway were: not missing tarmac, but
+    // tarmac buried under the ramp to the next pad.
+    //
+    // Interpolating instead makes the corridor a ribbon that follows the
+    // land. Its ends match the junctions exactly, because they are the
+    // interpolation's endpoints, and the step between one tile and the next
+    // is the fall between the junctions divided by the tiles in the run.
     for (const group of byRun.values()) {
-      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-      for (const q of group) {
-        x0 = Math.min(x0, q.gx); z0 = Math.min(z0, q.gz);
-        x1 = Math.max(x1, q.gx + q.w); z1 = Math.max(z1, q.gz + q.d);
+      const along: 'x' | 'z' = group[0].yaw === 1 ? 'x' : 'z';
+      group.sort((a, b) => (along === 'x' ? a.gx - b.gx : a.gz - b.gz));
+
+      const first = group[0], last = group[group.length - 1];
+      const lo = along === 'x' ? Math.floor(first.gx) : Math.floor(first.gz);
+      const hi = along === 'x' ? Math.ceil(last.gx + last.w) : Math.ceil(last.gz + last.d);
+      const cross = along === 'x'
+        ? Math.floor(first.gz + first.d / 2)
+        : Math.floor(first.gx + first.w / 2);
+      const endCell = (i: number): number =>
+        along === 'x' ? at(clampCell(i), clampCell(cross)) : at(clampCell(cross), clampCell(i));
+
+      const rect = (q: Placement): { gx: number; gz: number; w: number; d: number } => ({
+        gx: Math.floor(q.gx), gz: Math.floor(q.gz),
+        w: Math.max(1, Math.ceil(q.gx + q.w) - Math.floor(q.gx)),
+        d: Math.max(1, Math.ceil(q.gz + q.d) - Math.floor(q.gz)),
+      });
+      const own = (q: Placement): number => {
+        const r = rect(q);
+        return survey(r.gx, r.gz, r.w, r.d).mean;
+      };
+      // A run need not end on a junction: it can stop at the map edge or at
+      // ground a superblock took. There it takes its own level.
+      const y0 = nodeY.get(endCell(lo - 1)) ?? own(first);
+      const y1 = nodeY.get(endCell(hi)) ?? own(last);
+
+      const n = group.length;
+      for (let k = 0; k < n; k++) {
+        const q = group[k];
+        const y = y0 + (y1 - y0) * ((k + 0.5) / n);
+        if (!lay(q, y)) continue;
+        const r = rect(q);
+        pads.push({ gx: r.gx, gz: r.gz, w: r.w, d: r.d, y });
       }
-      const gx = Math.round(x0), gz = Math.round(z0);
-      const w = Math.max(1, Math.round(x1 - x0)), d = Math.max(1, Math.round(z1 - z0));
-      const y = survey(gx, gz, w, d).mean;
-      let laid = false;
-      for (const q of group) laid = lay(q, y) || laid;
-      if (laid) { pads.push({ gx, gz, w, d, y }); claim(gx, gz, w, d); }
+      // Claimed for the whole run and not tile by tile. A tile's rounded
+      // rectangle reaches into its neighbour's centre cell, so claiming each
+      // one in turn marks the next one's ground as taken and drops it -- a
+      // run laid as every other tile with grass between them.
+      const r0 = rect(first), r1 = rect(last);
+      claim(r0.gx, r0.gz, r1.gx + r1.w - r0.gx, r1.gz + r1.d - r0.gz);
     }
+  }
+
+  function clampCell(i: number): number {
+    return i < 0 ? 0 : i >= GRID ? GRID - 1 : i;
   }
 
   /**
@@ -487,7 +562,11 @@ export function makeCity(world: World = defaultWorld()): City {
     const x0 = wx(q.gx), z0 = wx(q.gz);
     const x1 = x0 + q.w * CELL, z1 = z0 + q.d * CELL;
     out.push(
-      (x0 + x1) / 2, (z0 + z1) / 2, y - 0.25, q.yaw,
+      // Just proud of the pad, not sunk into it. A building is buried a
+      // quarter of a metre so an uneven lot cannot leave it on stilts; a road
+      // is a flat slab on ground that was graded flat for it, and sinking it
+      // only lets the ramp to the next pad come up through the carriageway.
+      (x0 + x1) / 2, (z0 + z1) / 2, y + 0.05, q.yaw,
       (q.w * CELL) / 2 + 0.8, (q.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
       q.stretch, 0, 0, 0,
     );
