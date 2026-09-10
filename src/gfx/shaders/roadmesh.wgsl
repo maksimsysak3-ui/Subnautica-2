@@ -30,8 +30,11 @@ struct VSOut {
   @builtin(position) pos   : vec4f,
   @location(0)       world : vec3f,
   @location(1)       normal: vec3f,
-  /** x = metres across from the centreline, y = metres along the road. */
-  @location(2)       coord : vec2f,
+  /**
+   * x = metres across from the centreline, y = metres along the road,
+   * z = metres to the nearer end of the run, for the stop line at a junction.
+   */
+  @location(2)       coord : vec3f,
   /** x = surface, y = carriageway half-width, z = lanes each way, w = flags. */
   @location(3) @interpolate(flat) info : vec4f,
 };
@@ -39,7 +42,7 @@ struct VSOut {
 @vertex
 fn vs(@location(0) position : vec3f,
       @location(1) normal   : vec3f,
-      @location(2) coord    : vec2f,
+      @location(2) coord    : vec3f,
       @location(3) info     : vec4f) -> VSOut {
   var out : VSOut;
   out.world = position;
@@ -180,12 +183,20 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var col : vec3f;
   if (surf < 0.5) {
     col = asphalt(w2, u, half, lanes, mpp);
-    let paint = markings(u, v, half, lanes, flags, mpp);
+    var paint = markings(u, v, half, lanes, flags, mpp);
+    // The stop line, where the carriageway meets a junction. This is most of
+    // what makes a junction read as a junction rather than as a hole in the
+    // road: the eye is looking for where it is told to stop.
+    let toEnd = in.coord.z;
+    let bar = (1.0 - smoothstep(0.30, 0.30 + mpp * 1.5, abs(toEnd - 0.9)))
+            * step(0.0, u * select(1.0, -1.0, (flags & 1u) != 0u) + select(0.0, half, (flags & 1u) != 0u));
+    paint = max(paint, bar);
     // Road paint is never white by the time anyone sees it.
     col = mix(col, vec3f(0.46, 0.45, 0.42) * (0.8 + 0.3 * vnoise(w2 * 3.0)), paint * 0.92);
   } else if (surf < 1.5) {
-    // The kerb face, which is the one surface always in its own shadow.
-    col = concrete(w2, mpp) * 0.72;
+    // The kerb face. It is lit by its own normal now rather than by a
+    // constant, so this only carries the weathering a vertical face gets.
+    col = concrete(w2, mpp) * 0.88;
   } else if (surf < 2.5) {
     col = concrete(w2, mpp) * 1.06;
   } else if (surf < 3.5) {
@@ -195,7 +206,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // but the stop line itself is what makes a junction read as one.
     col = asphalt(w2, 0.0, half, 0.0, mpp);
     // Worn darker towards the middle, where every turning movement crosses.
-    col *= 1.0 - (1.0 - smoothstep(0.0, half * 0.8, abs(u))) * 0.06;
+    col *= 1.0 - (1.0 - smoothstep(0.0, half * 0.8, abs(u))) * 0.08;
   } else if (surf < 5.5) {
     col = concrete(w2, mpp) * 0.96;
   } else {
@@ -206,10 +217,20 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let sun = normalize(camera.sunDir.xyz);
   let ndl = dot(n, sun);
   let lit = shadowFactor(in.world, ndl);
+  // A kerb face looks sideways and sees half as much sky as the footway above
+  // it, which is the whole reason a kerb reads as a step rather than a line.
   let ambient = mix(ambientGround(sun), ambientSky(sun), 0.5 + n.y * 0.5);
   col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * lit);
 
   let toEye = in.world - camera.eye.xyz;
   col = aerial(col, length(toEye), toEye, sun);
-  return vec4f(tonemap(col), 1.0);
+
+  // A road that has not been built yet: the same geometry, said differently.
+  // Tinted rather than outlined, because what a player is judging is where the
+  // carriageway will sit against what is already there, and an outline hides
+  // exactly that. Chosen at the end rather than returned early -- the shadow
+  // lookup above has to stay in uniform control flow.
+  let proposal = mix(vec3f(0.12, 0.34, 0.46), vec3f(0.42, 0.76, 0.92),
+                     clamp(col.r * 5.0, 0.0, 1.0));
+  return vec4f(tonemap(select(col, proposal, (flags & 8u) != 0u)), 1.0);
 }

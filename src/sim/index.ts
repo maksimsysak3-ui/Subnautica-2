@@ -13,7 +13,7 @@ export { defaultWorld, emptyWorld, paint, demolish, zoneCode, zoneOf, ZONES, DEN
 export type { World } from './world';
 export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from './roadgraph';
 export type { RoadClass, RoadSpec, Site } from './roadgraph';
-export { buildRoadMesh, ROAD_FLOATS, SURF } from './roadmesh';
+export { buildRoadMesh, previewRoad, ROAD_FLOATS, SURF } from './roadmesh';
 export type { RoadMesh } from './roadmesh';
 export { buildTerrain, heightAt, baseHeightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
 export { clearGrading } from './grading';

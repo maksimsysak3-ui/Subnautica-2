@@ -22,19 +22,19 @@
  * straight, which is the thing that actually reads.
  */
 
-import { ROAD_SPECS, walk } from './roadgraph';
-import type { RoadGraph, RoadLink, Along } from './roadgraph';
+import { ROAD_SPECS, RoadGraph, walk } from './roadgraph';
+import type { RoadLink, RoadClass } from './roadgraph';
 import type { Pin } from './grading';
 
 /**
  * Floats per vertex: position, normal, road coordinate, and what the road is.
  *
- * The last four are the whole reason the markings work on a curve. `u` is
+ * The last five are the whole reason the markings work on a curve. `u` is
  * metres across from the centreline and `v` metres along the arc, so the
  * shader can put a lane line at a fixed offset and a dash at a fixed pitch and
  * have both come out right whatever the road is doing.
  */
-export const ROAD_FLOATS = 12;
+export const ROAD_FLOATS = 13;
 
 /** What a vertex is part of, so the shader knows what to draw on it. */
 export const SURF = {
@@ -71,10 +71,21 @@ export interface RoadMesh {
   lamps: Array<{ x: number; y: number; z: number; yaw: number; side: -1 | 1 }>;
 }
 
-/** One point of the cross-section: across, above the road level, and what it is. */
-interface Rib {
-  u: number;
-  y: number;
+/**
+ * One strip of the cross-section: from one point across the road to the next.
+ *
+ * Strips rather than points, because a point between two strips belongs to
+ * both and they disagree about everything that matters. The surface is
+ * flat-interpolated, so a shared vertex hands its material to whichever
+ * triangle the rasteriser provokes from -- which put the kerb's material on
+ * the carriageway down one whole side of every road in the city, and shaded
+ * the footway on that side as a kerb top. The normal is worse: a kerb face is
+ * vertical and the footway beside it is horizontal, and averaging the two
+ * lights neither of them correctly.
+ */
+interface Strip {
+  u0: number; y0: number;
+  u1: number; y1: number;
   surf: number;
 }
 
@@ -86,37 +97,42 @@ interface Rib {
  * footway fills to the corridor edge, and a reservation is a raised strip down
  * the middle of the same section.
  */
-function section(cls: keyof typeof ROAD_SPECS): Rib[] {
+function section(cls: keyof typeof ROAD_SPECS): Strip[] {
   const spec = ROAD_SPECS[cls];
   const half = spec.half, edge = spec.edge;
-  const right: Rib[] = [];
+
+  /** The right-hand half, built outward from the centreline. */
+  const right: Strip[] = [];
+  let u = 0, y = 0;
+  const to = (nu: number, ny: number, surf: number): void => {
+    right.push({ u0: u, y0: y, u1: nu, y1: ny, surf });
+    u = nu; y = ny;
+  };
 
   if (spec.median > 0) {
-    right.push({ u: 0, y: KERB, surf: SURF.MEDIAN });
-    right.push({ u: spec.median, y: KERB, surf: SURF.MEDIAN });
-    right.push({ u: spec.median, y: 0, surf: SURF.KERB_FACE });
-  } else {
-    right.push({ u: 0, y: 0, surf: SURF.ROAD });
+    y = KERB;
+    to(spec.median, KERB, SURF.MEDIAN);          // the reservation
+    to(spec.median, 0, SURF.KERB_FACE);          // down onto the carriageway
   }
-  right.push({ u: half, y: 0, surf: SURF.ROAD });
-
+  to(half, 0, SURF.ROAD);                        // the carriageway
   if (spec.kerbed) {
-    right.push({ u: half, y: KERB, surf: SURF.KERB_FACE });
-    right.push({ u: half + 0.32, y: KERB, surf: SURF.KERB_TOP });
-    right.push({ u: edge, y: KERB - 0.03, surf: SURF.FOOTWAY });
+    to(half, KERB, SURF.KERB_FACE);              // the kerb, standing up
+    to(half + 0.32, KERB, SURF.KERB_TOP);        // its top
+    to(edge, KERB - 0.03, SURF.FOOTWAY);         // the footway behind it
   } else {
     // A lane has no kerb: the carriageway runs straight out into its verge.
-    right.push({ u: half + 0.5, y: 0.02, surf: SURF.VERGE });
-    right.push({ u: edge, y: 0.06, surf: SURF.VERGE });
+    to(half + 0.5, 0.02, SURF.VERGE);
+    to(edge, 0.06, SURF.VERGE);
   }
   // A skirt below the outer edge, so the ribbon meets the graded ground
   // without a hairline of terrain showing under it at a grazing angle.
-  right.push({ u: edge, y: -0.55, surf: spec.kerbed ? SURF.FOOTWAY : SURF.VERGE });
+  to(edge, -0.55, spec.kerbed ? SURF.FOOTWAY : SURF.VERGE);
 
-  const left: Rib[] = [];
-  for (let i = right.length - 1; i >= 1; i--) {
-    left.push({ u: -right[i].u, y: right[i].y, surf: right[i].surf });
-  }
+  // Mirrored. Each strip keeps its own material and slope; only which way it
+  // runs across the road changes.
+  const left: Strip[] = right.map((t) => ({
+    u0: -t.u0, y0: t.y0, u1: -t.u1, y1: t.y1, surf: t.surf,
+  }));
   return [...left, ...right];
 }
 
@@ -128,9 +144,10 @@ class Buf {
   get count(): number { return this.v.length / ROAD_FLOATS; }
 
   push(x: number, y: number, z: number, nx: number, ny: number, nz: number,
-    u: number, s: number, surf: number, half: number, lanes: number, flags: number): number {
+    u: number, s: number, toEnd: number,
+    surf: number, half: number, lanes: number, flags: number): number {
     const at = this.count;
-    this.v.push(x, y, z, nx, ny, nz, u, s, surf, half, lanes, flags);
+    this.v.push(x, y, z, nx, ny, nz, u, s, toEnd, surf, half, lanes, flags);
     return at;
   }
 
@@ -180,10 +197,29 @@ function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): n
   return level;
 }
 
+/**
+ * One road, on its own, as it would look if it were built.
+ *
+ * The drag preview used to be an axis-aligned rectangle drawn on the ground,
+ * which could not show a curve and was half a cell off from where the road
+ * actually landed -- the band was centred on a cell edge and the road on the
+ * cell's centre. Showing the road itself removes the whole class of problem:
+ * what is drawn while dragging is the same geometry the same code will build
+ * on release, at the same place.
+ */
+export function previewRoad(grid: number, ax: number, az: number, bx: number, bz: number,
+  cls: RoadClass, bend: number, base: (x: number, z: number) => number): RoadMesh | null {
+  if (Math.hypot(bx - ax, bz - az) < 12) return null;
+  const one = new RoadGraph(grid);
+  one.add(ax, az, bx, bz, cls, bend);
+  if (one.links.length === 0) return null;
+  return buildRoadMesh(one, base, false);
+}
+
 /** Builds the whole network's geometry. */
 export function buildRoadMesh(graph: RoadGraph,
-  base: (x: number, z: number) => number): RoadMesh {
-  graph.rasterise();
+  base: (x: number, z: number) => number, raster = true): RoadMesh {
+  if (raster) graph.rasterise();
   const buf = new Buf();
   const lamps: RoadMesh['lamps'] = [];
   /**
@@ -217,7 +253,7 @@ export function buildRoadMesh(graph: RoadGraph,
   for (let li = 0; li < graph.links.length; li++) {
     const link: RoadLink = graph.links[li];
     const spec = ROAD_SPECS[link.cls];
-    const ribs = section(link.cls);
+    const ribs: Strip[] = section(link.cls);
     const flags = (spec.oneWay ? 1 : 0) | (spec.tram ? 2 : 0) | (spec.median > 0 ? 4 : 0);
     const dense = graph.samples(link);
     const total = dense[dense.length - 1].s;
@@ -237,24 +273,48 @@ export function buildRoadMesh(graph: RoadGraph,
     at[0] = cut0;
     at[at.length - 1] = total - cut1;
 
+    /**
+     * The ramp, over the range actually drawn.
+     *
+     * Not over the whole link: the ribbon starts at the junction trim, and
+     * interpolating on distance from the link's start meant the first
+     * cross-section was already a sixth of the way down the ramp -- a step of
+     * a metre and a half against the junction it was supposed to meet, with a
+     * band of bare ground visible through it on every approach in the city.
+     */
+    const drawn = Math.max(1e-6, total - cut1 - cut0);
+    const levelAt = (s: number): number =>
+      level[link.a] + (level[link.b] - level[link.a]) * ((s - cut0) / drawn);
+
     let prevRow: number[] | null = null;
-    let prev: Along | null = null;
     let lampAt = 0;
     for (let k = 0; k < at.length; k++) {
       const p = walk(dense, at[k]);
-      const y = level[link.a] + (level[link.b] - level[link.a]) * (at[k] / total);
+      const y = levelAt(at[k]);
       // Left of travel, in the ground plane.
       const nx = -p.tz, nz = p.tx;
+      // How far this cross-section is from the nearer end of the drawn run, so
+      // the shader can put a stop line where the road meets a junction.
+      const toEnd = Math.min(at[k] - cut0, total - cut1 - at[k]);
       const row: number[] = [];
-      for (const rib of ribs) {
+      for (const t of ribs) {
+        const du = t.u1 - t.u0, dy = t.y1 - t.y0;
+        const len = Math.hypot(du, dy) || 1;
+        // Perpendicular to the strip within the cross-section, carried into
+        // the world by the road's own normal: a flat strip faces up, a kerb
+        // face faces back across the carriageway.
+        const mx = (-dy * nx) / len, my = Math.abs(du) / len, mz = (-dy * nz) / len;
         row.push(buf.push(
-          p.x + nx * rib.u, y + rib.y + LIFT, p.z + nz * rib.u,
-          0, 1, 0,
-          rib.u, at[k], rib.surf, spec.half, spec.lanes, flags,
+          p.x + nx * t.u0, y + t.y0 + LIFT, p.z + nz * t.u0,
+          mx, my, mz, t.u0, at[k], toEnd, t.surf, spec.half, spec.lanes, flags,
+        ));
+        row.push(buf.push(
+          p.x + nx * t.u1, y + t.y1 + LIFT, p.z + nz * t.u1,
+          mx, my, mz, t.u1, at[k], toEnd, t.surf, spec.half, spec.lanes, flags,
         ));
       }
-      if (prevRow !== null && prev !== null) {
-        for (let r = 0; r + 1 < row.length; r++) {
+      if (prevRow !== null) {
+        for (let r = 0; r + 1 < row.length; r += 2) {
           buf.quad(prevRow[r], prevRow[r + 1], row[r + 1], row[r]);
         }
         // One pad per span, plus enough extra along a long straight that the
@@ -266,8 +326,7 @@ export function buildRoadMesh(graph: RoadGraph,
         for (let q = 0; q <= steps; q++) {
           const s0 = at[k - 1] + (span * q) / steps;
           const a = walk(dense, s0);
-          hold(a.x, a.z, spec.edge + 4,
-            level[link.a] + (level[link.b] - level[link.a]) * (s0 / total));
+          hold(a.x, a.z, spec.edge + 4, levelAt(s0));
         }
       }
       // Street lighting, spaced along the arc and alternating sides.
@@ -288,7 +347,6 @@ export function buildRoadMesh(graph: RoadGraph,
         }
       }
       prevRow = row;
-      prev = p;
     }
   }
 
@@ -333,7 +391,7 @@ export function buildRoadMesh(graph: RoadGraph,
     const y = level[n];
     const at = (x: number, z: number, up: number, surf: number): number =>
       buf.push(x, y + LIFT + up, z, 0, 1, 0,
-        Math.hypot(x - node.x, z - node.z), 0, surf, r, 0, 0);
+        Math.hypot(x - node.x, z - node.z), 0, 0, surf, r, 0, 0);
 
     // The carriageway: a fan through the arms' kerb lines.
     const centre = at(node.x, node.z, 0, SURF.JUNCTION);

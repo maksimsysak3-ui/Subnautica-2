@@ -32,7 +32,7 @@ import {
   makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
 } from '../sim';
-import type { Chunk, World } from '../sim';
+import type { Chunk, World, RoadMesh } from '../sim';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -206,6 +206,17 @@ export class Renderer {
    */
   private atlas = new Atlas();
   /**
+   * The road being dragged, drawn as the road it will be.
+   *
+   * Its own buffers, sized once and rewritten in place: a preview is rebuilt
+   * on every pointer move, and allocating a vertex buffer sixty times a second
+   * is how a build tool comes to stutter.
+   */
+  private previewVerts: GPUBuffer | null = null;
+  private previewIndices: GPUBuffer | null = null;
+  private previewCount = 0;
+
+  /**
    * The grass patch's uniform, made before the first world load.
    *
    * It has to outlive a rebuild -- the bind group that names it is remade with
@@ -369,8 +380,8 @@ export class Renderer {
           attributes: [
             { shaderLocation: 0, offset: 0, format: 'float32x3' },   // position
             { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
-            { shaderLocation: 2, offset: 24, format: 'float32x2' },  // across, along
-            { shaderLocation: 3, offset: 32, format: 'float32x4' },  // surface, width, lanes, flags
+            { shaderLocation: 2, offset: 24, format: 'float32x3' },  // across, along, to the end
+            { shaderLocation: 3, offset: 36, format: 'float32x4' },  // surface, width, lanes, flags
           ],
         }],
       },
@@ -781,6 +792,42 @@ export class Renderer {
     this.frame(now);
   }
 
+  /**
+   * Shows a road that has not been built yet, or clears it.
+   *
+   * The mesh comes from the same builder the real network uses, so what the
+   * player sees while dragging is what release will produce -- including the
+   * curve, which a rectangle drawn on the ground could never show, and the
+   * position, which that rectangle got wrong by half a cell because it was
+   * centred on a cell edge while the road runs down the cell's middle.
+   */
+  setRoadPreview(mesh: RoadMesh | null): void {
+    const { device } = this.gpu;
+    if (mesh === null || mesh.indices.length === 0) { this.previewCount = 0; return; }
+    const maxVerts = 24576, maxIndices = 49152;
+    if (mesh.vertices.length / ROAD_FLOATS > maxVerts || mesh.indices.length > maxIndices) {
+      this.previewCount = 0;
+      return;
+    }
+    this.previewVerts ??= device.createBuffer({
+      label: 'road-preview-vertices', size: maxVerts * ROAD_FLOATS * 4,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.previewIndices ??= device.createBuffer({
+      label: 'road-preview-indices', size: maxIndices * 4,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    for (let i = 0; i < mesh.vertices.length; i += ROAD_FLOATS) {
+      // Flagged, so the shader draws it as a proposal rather than as a road,
+      // and lifted clear of whatever it is being drawn over.
+      mesh.vertices[i + ROAD_FLOATS - 1] += 8;
+      mesh.vertices[i + 1] += 0.22;
+    }
+    device.queue.writeBuffer(this.previewVerts, 0, mesh.vertices);
+    device.queue.writeBuffer(this.previewIndices, 0, mesh.indices);
+    this.previewCount = mesh.indices.length;
+  }
+
   private frame(now: number): void {
     const res = this.res;
     if (!res) return;
@@ -939,6 +986,14 @@ export class Renderer {
       pass.setVertexBuffer(0, res.roadVertices);
       pass.setIndexBuffer(res.roadIndices, 'uint32');
       pass.drawIndexed(res.roadCount);
+    }
+
+    // And the road being dragged, over the top of everything it crosses.
+    if (this.previewCount > 0 && this.previewVerts !== null && this.previewIndices !== null) {
+      pass.setPipeline(res.road);
+      pass.setVertexBuffer(0, this.previewVerts);
+      pass.setIndexBuffer(this.previewIndices, 'uint32');
+      pass.drawIndexed(this.previewCount);
     }
 
     // Grass, after the ground so most blades are rejected on depth before

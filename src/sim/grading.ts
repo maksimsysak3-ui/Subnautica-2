@@ -23,8 +23,18 @@
 
 import { simConfig } from './config';
 
-/** Cells the ramp from a pad out to open ground is spread over. */
-const RAMP = 4;
+/**
+ * Cells the ramp from a pad out to open ground is spread over.
+ *
+ * Four was too few. The relaxation decays fast, so the first unpinned corner
+ * beside a pad takes about a fifth of its offset -- which for a road cut five
+ * metres into a hillside is a four-metre step across one eight-metre facet,
+ * steep enough that the terrain shader sheds its turf and draws bare earth.
+ * That is what the band of scarred ground across every junction approach was.
+ * Nine cells and a slower decay spread the same cut over seventy metres, which
+ * is what a real cutting looks like and what a bulldozer would actually do.
+ */
+const RAMP = 9;
 
 /** Height offset per cell corner, or null before any grading has been done. */
 let offset: Float32Array<ArrayBuffer> | null = null;
@@ -166,7 +176,7 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
         if (z + 1 < stride) { sum += src[k + stride]; count++; }
         // Decayed, not just averaged: without the decay the offset spreads
         // over the whole map and the hills flatten out along with the city.
-        dst[k] = count > 0 ? (sum / count) * 0.86 : 0;
+        dst[k] = count > 0 ? (sum / count) * 0.93 : 0;
       }
     }
     const swap = src; src = dst; dst = swap;

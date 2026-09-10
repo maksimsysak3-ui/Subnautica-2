@@ -18,7 +18,7 @@
 import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
-import { heightAt } from '../sim';
+import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, ZONES, DENSITIES } from '../sim';
 import type { RoadClass } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
@@ -187,6 +187,7 @@ export class BuildTools {
     e.stopPropagation();
     const from = this.from;
     this.from = null;
+    this.renderer.setRoadPreview(null);
     this.commit(from, this.to);
     this.showMark();
   };
@@ -194,6 +195,7 @@ export class BuildTools {
   private onCancel = (): void => {
     this.from = null;
     this.renderer.mark = null;
+    this.renderer.setRoadPreview(null);
   };
 
   private onKey = (e: KeyboardEvent): void => {
@@ -245,8 +247,28 @@ export class BuildTools {
   }
 
   private showMark(): void {
-    if (!this.active) { this.renderer.mark = null; return; }
+    if (!this.active) {
+      this.renderer.mark = null;
+      this.renderer.setRoadPreview(null);
+      return;
+    }
     const a = this.from ?? this.to;
+    if (this.tool.kind === 'road') {
+      // A road previews as the road. The rectangle below cannot show a curve,
+      // and was half a cell off from where the road actually lands.
+      this.renderer.mark = null;
+      if (this.from === null) { this.renderer.setRoadPreview(null); return; }
+      const world = this.renderer.world;
+      const half = world.grid / 2;
+      const at = (c: [number, number]): [number, number] =>
+        world.net.snapPoint((c[0] - half + 0.5) * CELL, (c[1] - half + 0.5) * CELL);
+      const [ax, az] = at(a);
+      const [bx, bz] = at(this.to);
+      this.renderer.setRoadPreview(
+        previewRoad(world.grid, ax, az, bx, bz, this.tool.cls, this.bend(), baseHeightAt));
+      return;
+    }
+    this.renderer.setRoadPreview(null);
     const r = this.area(a, this.to);
     const half = this.renderer.world.grid / 2;
     this.renderer.mark = {
@@ -273,7 +295,9 @@ export class BuildTools {
       // across: crossing one builds a junction, and clearing the band first
       // deleted every road the new one met. The graph finds its own crossings.
       paint(world, r.gx, r.gz, r.w, r.d, 0);
-      world.net.addCells(a[0], a[1], b[0], b[1], t.cls, this.bend());
+      const half = world.grid / 2;
+      world.net.add((a[0] - half + 0.5) * CELL, (a[1] - half + 0.5) * CELL,
+        (b[0] - half + 0.5) * CELL, (b[1] - half + 0.5) * CELL, t.cls, this.bend());
     } else if (t.kind === 'zone') {
       paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density));
     } else if (t.kind === 'clear') {

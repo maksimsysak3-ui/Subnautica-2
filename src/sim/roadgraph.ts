@@ -437,6 +437,38 @@ export class RoadGraph {
     this.dirty = true;
   }
 
+  /**
+   * Where an endpoint would land, without changing anything.
+   *
+   * The preview has to snap the same way the real thing does, or the road the
+   * player sees while dragging is not the road they get. This answers the
+   * question `nodeAt` answers, minus the part where it splits a link to do it.
+   */
+  snapPoint(x: number, z: number): [number, number] {
+    let best = -1, bestD = SNAP;
+    for (let i = 0; i < this.nodes.length; i++) {
+      const d = Math.hypot(this.nodes[i].x - x, this.nodes[i].z - z);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best >= 0) return [this.nodes[best].x, this.nodes[best].z];
+
+    let hit: [number, number] | null = null, hitD = TOUCH;
+    for (const link of this.links) {
+      const b = this.box(link);
+      if (x < b[0] - TOUCH || x > b[2] + TOUCH || z < b[1] - TOUCH || z > b[3] + TOUCH) continue;
+      const pts = this.shape(link);
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const dx = pts[k + 1].x - pts[k].x, dz = pts[k + 1].z - pts[k].z;
+        const len2 = dx * dx + dz * dz || 1;
+        const f = Math.min(1, Math.max(0, ((x - pts[k].x) * dx + (z - pts[k].z) * dz) / len2));
+        const px = pts[k].x + dx * f, pz = pts[k].z + dz * f;
+        const d = Math.hypot(px - x, pz - z);
+        if (d < hitD) { hitD = d; hit = [px, pz]; }
+      }
+    }
+    return hit ?? [x, z];
+  }
+
   /** The same, from cell coordinates, for callers that think in the grid. */
   addCells(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0): void {
     const h = this.grid / 2;
