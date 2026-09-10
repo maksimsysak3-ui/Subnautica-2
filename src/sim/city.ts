@@ -27,7 +27,7 @@
  * Two runs of the same seed produce the same city, byte for byte.
  */
 
-import { hash2 } from './hash';
+import { hash2, fbm } from './hash';
 import { baseHeightAt } from './terrain';
 import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
@@ -137,7 +137,7 @@ export function makeCity(world: World = defaultWorld()): City {
 
   const at = (gx: number, gz: number): number => gz * GRID + gx;
 
-  const blocks = Math.floor(GRID / PERIOD);
+
   const net = world.net;
 
   // The roads are reserved before anything else is placed, straight from the
@@ -228,7 +228,11 @@ export function makeCity(world: World = defaultWorld()): City {
     // know nothing about, and the whole point of grading is that the ground
     // ends up level with the building rather than near it.
     const ground = survey(gx, gz, w, d);
-    if (ground.hi - ground.lo > MAX_SLOPE) return false;
+    // A building has a flat underside and has to be sited on ground that can
+    // be graded to it. A tree does not: it grows on whatever is there, and
+    // holding it to a building's slope limit is what kept the oaks off every
+    // hillside on the map.
+    if (p.def.zone !== 'nature' && ground.hi - ground.lo > MAX_SLOPE) return false;
 
     // The mean, not the minimum. Cutting to the lowest corner digs every site
     // into a pit its neighbours look down into; the mean cuts as much as it
@@ -253,9 +257,12 @@ export function makeCity(world: World = defaultWorld()): City {
       stretch, 0, 0, 0,
     );
     population[p.index]++;
-    claim(gx, gz, w, d);
-    // Planting stands in grass; everything else stands on its own ground.
-    if (p.def.zone !== 'nature') harden(gx, gz, w, d);
+    // Planting neither claims the ground nor hardens it. A wood is
+    // interlocking crowns, and a tree that reserves its whole lot puts the
+    // next one two cells away -- which caps a park at a quarter of its cells
+    // and makes it read as an orchard. Trees are still one to a cell, and
+    // still only go where nothing was built.
+    if (p.def.zone !== 'nature') { claim(gx, gz, w, d); harden(gx, gz, w, d); }
     return true;
   };
 
@@ -411,32 +418,84 @@ export function makeCity(world: World = defaultWorld()): City {
 
   // ---- planting -------------------------------------------------------
   //
-  // Whatever the blocks did not build on. Weighted towards the street edge,
-  // because that is where a city plants: a verge tree every few metres along a
-  // frontage, and the rest scattered through the gardens and yards behind.
-  const nursery = planting();
+  // Two regimes, because a city and the country around it are planted by
+  // different things. Inside the built-up area a tree is a street tree or a
+  // garden tree: it goes where a building did not, weighted hard towards the
+  // block edge, because that is where a city plants. Outside it, the land is
+  // not a lawn -- it is woodland with a city in it, and woodland comes in
+  // copses rather than an even sprinkle.
+  //
+  // Species are tried largest first. Picking one at random and giving up when
+  // it does not fit sounds fair and is not: a three-cell oak needs a
+  // three-cell hole, almost every hole left by the spawner is one cell, and
+  // the result was a map of thirteen hundred saplings and seventy oaks.
+  const nursery = [...planting()].sort((a, b) => b.w * b.d - a.w * a.d);
   if (nursery.length > 0) {
-    for (let bz = 0; bz < blocks; bz++) {
-      for (let bx = 0; bx < blocks; bx++) {
-        const gx = bx * PERIOD, gz = bz * PERIOD;
-        const d = downtown(gx, gz);
-        // Denser in the suburbs than downtown, which is what a city is.
-        const density = 0.42 - d * 0.22;
-        for (let j = 0; j < BLOCK; j++) {
-          for (let i = 0; i < BLOCK; i++) {
-            const cx = gx + i, cz = gz + j;
-            if (cells[at(cx, cz)] !== FREE) continue;
-            const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
-            if (hash2(cx, cz, 811) > density * (edge ? 2.1 : 0.7)) continue;
-            const p = pick(nursery, cx, cz, 821);
-            if (!p) continue;
-            const yaw = Math.floor(hash2(cx, cz, 823) * 4) % 4;
-            const [w, dd] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
-            if (cx + w > gx + BLOCK || cz + dd > gz + BLOCK) continue;
-            if (!free(cx, cz, w, dd, FREE)) continue;
-            emit(p, cx, cz, w, dd, yaw, false);
-          }
+    const big = nursery.filter((p) => p.w >= 3);
+    const mid = nursery.filter((p) => p.w === 2);
+    const small = nursery.filter((p) => p.w <= 1);
+
+    /**
+     * Plants the biggest thing that fits, from the tiers offered.
+     *
+     * Yaw is quantised to the tree's own hash rather than to a rotation the
+     * player could notice, so a row of limes along a frontage is a row of
+     * different limes rather than one lime stamped six times.
+     */
+    const plant = (cx: number, cz: number, tiers: readonly (readonly Proto[])[]): boolean => {
+      for (const tier of tiers) {
+        if (tier.length === 0) continue;
+        const p = pick(tier, cx, cz, 821);
+        if (p === null) continue;
+        const yaw = Math.floor(hash2(cx, cz, 823) * 4) % 4;
+        const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
+        if (!free(cx, cz, w, d, FREE)) continue;
+        // Only the emit settles it. It can still refuse the site, and a
+        // `plant` that reported success on a refusal spent the cell without
+        // putting anything on it -- which is most of why the big species
+        // never appeared.
+        if (emit(p, cx, cz, w, d, yaw, false)) return true;
+      }
+      return false;
+    };
+
+    for (let cz = 0; cz < GRID; cz++) {
+      for (let cx = 0; cx < GRID; cx++) {
+        if (cells[at(cx, cz)] !== FREE) continue;
+        const inBlock = cx % PERIOD < BLOCK && cz % PERIOD < BLOCK;
+        const i = cx % PERIOD, j = cz % PERIOD;
+        const d = downtown(cx, cz);
+
+        // A park block: planted like woodland rather than like a back garden,
+        // because that is what it is for.
+        const zoned = zoneOf(world.zones[at(cx, cz)]);
+        if (zoned !== null && zoned.zone === 'nature') {
+          // Almost every slot, and the two-cell species first. A crown is
+          // wider than the lot it stands on, so trees on a two-cell pitch
+          // close their canopy while three-cell ones leave gaps between --
+          // and a park you can see the grass through is a lawn.
+          if (hash2(cx, cz, 815) > 0.58) continue;
+          plant(cx, cz, [mid, big, small]);
+          continue;
         }
+
+        if (d > 0.02 && inBlock) {
+          // In town. Denser in the suburbs than downtown, which is what a
+          // city is, and four times denser against the street than behind it.
+          const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
+          const density = (0.5 - d * 0.24) * (edge ? 1.7 : 0.42);
+          if (hash2(cx, cz, 811) > density) continue;
+          plant(cx, cz, [mid, small, big]);
+          continue;
+        }
+
+        // Out of town. Copses: a low-frequency noise decides where woodland
+        // is at all, and inside one the canopy is close to continuous. An
+        // even scatter at the same tree count reads as an orchard.
+        const wood = fbm(cx * 0.021, cz * 0.021, 3, 917);
+        const cover = Math.max(0, wood - 0.40) * 2.6 - d * 0.6;
+        if (cover <= 0 || hash2(cx, cz, 813) > cover) continue;
+        plant(cx, cz, [mid, big, small]);
       }
     }
   }

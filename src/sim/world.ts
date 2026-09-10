@@ -22,7 +22,15 @@ import type { Proto } from './inventory';
 import { baseHeightAt } from './terrain';
 
 /** The four zones a player can paint. Services are placed, not zoned. */
-export const ZONES: Zone[] = ['residential', 'commercial', 'industrial', 'office'];
+/**
+ * The zones a player can paint.
+ *
+ * `nature` is one of them and builds nothing: it is parkland, and what fills
+ * it is the planting pass. A city with no green in it reads as a model of a
+ * city rather than a city, and leaving that to whatever gaps the spawner
+ * happened not to use produced a map of saplings in back gardens.
+ */
+export const ZONES: Zone[] = ['residential', 'commercial', 'industrial', 'office', 'nature'];
 export const DENSITIES: Density[] = ['low', 'medium', 'high'];
 
 /**
@@ -323,6 +331,10 @@ export function defaultWorld(grid = simConfig.cityGrid): World {
         else if (roll < 0.38) { zone = 'commercial'; density = 'low'; }
         else { zone = 'residential'; density = 'medium'; }
       }
+      // Parks. One block in eleven, and never in the middle of downtown --
+      // land is worth too much there for a square of trees, which is exactly
+      // why a real downtown park is a landmark and a suburban one is not.
+      if (hash2(bx, bz, 419) < 0.09 - d * 0.045) { zone = 'nature'; density = 'low'; }
       paint(world, gx, gz, BLOCK, BLOCK, zoneCode(zone, density));
     }
   }

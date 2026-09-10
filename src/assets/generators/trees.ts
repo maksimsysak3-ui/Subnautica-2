@@ -356,21 +356,26 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
   return m;
 }
 
+// Crown widths are the thing to get right, and the first pass had them too
+// narrow: a mature ash came out nine metres across, which is a fifteen-year-old
+// tree, and a park planted with them read as an orchard. These are the open-
+// grown widths -- an ash and an oak both round thirteen to fifteen metres, a
+// plane wider, a street lime deliberately narrower because it is pruned.
 const SPECIES: Record<string, Species> = {
   // The reference: a mature ash in open ground. Short trunk, low fork, crown
   // half as wide again as it is tall above the fork.
-  ash:      { height: 12.5, spread: 0.36, fork: 0.28, butt: 0.42, lean: 0.58, reach: 0.60, flat: 0.94, young: 0 },
+  ash:      { height: 12.5, spread: 0.50, fork: 0.28, butt: 0.42, lean: 0.58, reach: 0.60, flat: 0.94, young: 0 },
   // Street lime: pruned up for headroom, so the fork is high and the crown is
   // narrower and more upright than a tree that grew in a field.
-  lime:     { height: 11.0, spread: 0.27, fork: 0.42, butt: 0.26, lean: 0.46, reach: 0.78, flat: 1.00, young: 0 },
+  lime:     { height: 11.0, spread: 0.35, fork: 0.42, butt: 0.26, lean: 0.46, reach: 0.78, flat: 1.00, young: 0 },
   // Plane: the big one. Heavy limbs, broad crown, the tree of every boulevard.
-  plane:    { height: 16.0, spread: 0.34, fork: 0.32, butt: 0.54, lean: 0.62, reach: 0.58, flat: 0.92, young: 0 },
+  plane:    { height: 16.0, spread: 0.44, fork: 0.32, butt: 0.54, lean: 0.62, reach: 0.58, flat: 0.92, young: 0 },
   // Oak: wide, low and slow. Limbs almost horizontal, crown flat on top.
-  oak:      { height: 13.0, spread: 0.42, fork: 0.24, butt: 0.58, lean: 0.80, reach: 0.40, flat: 0.86, young: 0 },
+  oak:      { height: 13.0, spread: 0.56, fork: 0.24, butt: 0.58, lean: 0.80, reach: 0.40, flat: 0.86, young: 0 },
   // Birch: slight, upright, open. The gaps in it are the point.
-  birch:    { height: 9.5,  spread: 0.25, fork: 0.34, butt: 0.16, lean: 0.42, reach: 0.70, flat: 1.05, young: 0 },
+  birch:    { height: 9.5,  spread: 0.31, fork: 0.34, butt: 0.16, lean: 0.42, reach: 0.70, flat: 1.05, young: 0 },
   // A young street tree, newly planted and staked in the parks generators.
-  sapling:  { height: 5.2,  spread: 0.24, fork: 0.46, butt: 0.075, lean: 0.40, reach: 0.85, flat: 1.00, young: 1 },
+  sapling:  { height: 5.2,  spread: 0.27, fork: 0.46, butt: 0.075, lean: 0.40, reach: 0.85, flat: 1.00, young: 1 },
 };
 
 function def(id: string, name: string, key: keyof typeof SPECIES,
