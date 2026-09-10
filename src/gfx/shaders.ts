@@ -15,6 +15,7 @@ import cullSrc from './shaders/cull.wgsl?raw';
 import terrainSrc from './shaders/terrain.wgsl?raw';
 import skySrc from './shaders/sky.wgsl?raw';
 import grassSrc from './shaders/grass.wgsl?raw';
+import roadSrc from './shaders/roadmesh.wgsl?raw';
 
 /** Files that may be included. Anything with an entry point is not one. */
 const INCLUDES: Record<string, string> = {
@@ -35,4 +36,5 @@ export const SHADERS = {
   terrain: resolve(terrainSrc),
   sky: resolve(skySrc),
   grass: resolve(grassSrc),
+  road: resolve(roadSrc),
 };

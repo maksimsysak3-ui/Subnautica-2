@@ -12,8 +12,8 @@
  * of information sits on.
  */
 
-import { RoadNet } from './roadnet';
-import type { RoadClass } from './roadnet';
+import { RoadGraph } from './roadgraph';
+import type { RoadClass } from './roadgraph';
 import { simConfig } from './config';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
@@ -74,7 +74,7 @@ export interface Lot {
 export interface World {
   /** Cells across, the same grid as everything else. */
   grid: number;
-  net: RoadNet;
+  net: RoadGraph;
   /** One zoning code per cell. */
   zones: Uint8Array;
   /** What was placed on the map, as opposed to grown on it. */
@@ -89,7 +89,7 @@ export const STREET = 3;
 export const PERIOD = BLOCK + STREET;
 
 export function emptyWorld(grid = simConfig.cityGrid): World {
-  return { grid, net: new RoadNet(grid), zones: new Uint8Array(grid * grid), lots: [] };
+  return { grid, net: new RoadGraph(grid), zones: new Uint8Array(grid * grid), lots: [] };
 }
 
 /**
@@ -292,15 +292,21 @@ export function defaultWorld(grid = simConfig.cityGrid): World {
   const blocks = Math.floor(grid / PERIOD);
   const half = grid / 2;
 
+  // The starting grid, drawn in world metres through exactly the same call the
+  // road tool uses. The network finds its own crossings, so nothing here has
+  // to know that a grid has nine hundred junctions in it.
+  const reach = (half - 2) * 8;
   for (let b = 0; b <= blocks; b++) {
     const line = b * PERIOD + BLOCK + 1;      // the centre cell of the corridor
     if (line >= grid) continue;
-    // Every fourth street is an avenue, which is what gives a grid a hierarchy
-    // instead of making every junction look like every other one.
-    const cls: RoadClass = b % 4 === 2 ? 'avenue' : 'street';
-    world.net.add(0, line, grid - 1, line, cls);
-    world.net.add(line, 0, line, grid - 1, cls);
+    const at = (line - half + 0.5) * 8;
+    // Every fourth street is a dual carriageway, which is what gives a grid a
+    // hierarchy instead of making every junction look like every other one.
+    const cls: RoadClass = b % 4 === 2 ? 'dual' : 'street';
+    world.net.add(-reach, at, reach, at, cls);
+    world.net.add(at, -reach, at, reach, cls);
   }
+  world.net.rasterise();
 
   /** Land value: 1 at the centre, 0 at the edge of the built-up area. */
   const core = half * 8 * 0.8;

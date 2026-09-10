@@ -95,7 +95,24 @@ export function clearGrading(): void {
  * roughly thirty metres, which is a street's width and looks like grading
  * rather than like a wall.
  */
-export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) => number): void {
+/**
+ * A single cell corner held at an exact height.
+ *
+ * Pads are rectangles and a road is not one. Cutting a road as a chain of
+ * small rectangles has them meet at shared corners, and the higher-wins rule
+ * then takes the uphill value at every join -- which turns a ramp into a
+ * staircase and leaves the carriageway below the ground over most of each
+ * step. A road pins the corners it actually covers, at the height it actually
+ * has there.
+ */
+export interface Pin {
+  gx: number;
+  gz: number;
+  y: number;
+}
+
+export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) => number,
+  pins: readonly Pin[] = []): void {
   const grid = simConfig.cityGrid;
   stride = grid + 1;
   const n = stride * stride;
@@ -120,6 +137,15 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
         pinned[k] = 1;
       }
     }
+  }
+
+  // Pins last, so they win over any pad that overlapped them. A building
+  // beside a road must not lift the road it fronts onto.
+  for (const p of pins) {
+    if (p.gx < 0 || p.gz < 0 || p.gx >= stride || p.gz >= stride) continue;
+    const k = p.gz * stride + p.gx;
+    offset[k] = p.y - baseAtCorner(p.gx, p.gz, base);
+    pinned[k] = 1;
   }
 
   // Relaxation. Two buffers, because averaging in place propagates a value

@@ -31,7 +31,8 @@ import { hash2, fbm } from './hash';
 import { baseHeightAt } from './terrain';
 import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner } from './grading';
-import type { Placement, Frontage } from './roadnet';
+import { buildRoadMesh } from './roadmesh';
+import type { RoadMesh } from './roadmesh';
 import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
@@ -105,6 +106,8 @@ export interface City {
    * grid is the simulation's.
    */
   cover: Uint8Array;
+  /** The road surface, generated from the network. Drawn in one call. */
+  roads: RoadMesh;
 }
 
 /**
@@ -150,29 +153,11 @@ export function makeCity(world: World = defaultWorld()): City {
   const net = world.net;
 
   // The roads are reserved before anything else is placed, straight from the
-  // network. Computing where a corridor is a second time is how buildings
-  // ended up standing in the road: an avenue is four cells across and a street
-  // is three, so where the corridor is depends on what was drawn there.
+  // network's own raster of its corridor -- junctions and all. Working out
+  // where a corridor is a second time is how buildings ended up standing in
+  // the road, and with curves there is no formula to work it out from anyway.
+  net.rasterise();
   for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
-
-  // The pieces themselves, as well as the corridor they run in. A junction is
-  // sized from the widest class in it and rounded to whole cells, so a
-  // four-cell junction on a three-cell crossing overhangs by a cell that the
-  // corridor never claimed -- and a building put on that cell killed the
-  // junction when the tiler came to lay it. Half the T-junctions in the
-  // default city were being dropped that way.
-  const places = net.build();
-  for (const q of places) {
-    const gx = Math.floor(q.gx), gz = Math.floor(q.gz);
-    const w = Math.max(1, Math.ceil(q.gx + q.w) - gx), d = Math.max(1, Math.ceil(q.gz + q.d) - gz);
-    for (let j = 0; j < d; j++) {
-      for (let i = 0; i < w; i++) {
-        const x = gx + i, z = gz + j;
-        if (x < 0 || z < 0 || x >= GRID || z >= GRID) continue;
-        if (cells[at(x, z)] === FREE) cells[at(x, z)] = STREET_CELL;
-      }
-    }
-  }
 
   /** World coordinate of a cell's low edge. */
   const wx = (gx: number): number => (gx - half) * CELL;
@@ -240,6 +225,99 @@ export function makeCity(world: World = defaultWorld()): City {
   const turnedHalf = (hx: number, hz: number, yaw: number): [number, number] => {
     const c = Math.abs(Math.cos(yaw)), s = Math.abs(Math.sin(yaw));
     return [hx * c + hz * s, hx * s + hz * c];
+  };
+
+  /**
+   * Walks the cells an oriented rectangle covers.
+   *
+   * The zoning grid is axis-aligned and buildings no longer are, so a lot is
+   * a box at an angle over a grid of squares. Every cell of the box's bounding
+   * rectangle is tested by bringing its centre into the box's own frame, which
+   * is exact and costs a sine and a cosine for the whole lot.
+   */
+  const overBox = (cx: number, cz: number, hw: number, hd: number, yaw: number,
+    fn: (gx: number, gz: number) => boolean): boolean => {
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
+    const rx = Math.abs(hw * c) + Math.abs(hd * sn);
+    const rz = Math.abs(hw * sn) + Math.abs(hd * c);
+    const gx0 = Math.floor((cx - rx) / CELL + half), gx1 = Math.floor((cx + rx) / CELL + half);
+    const gz0 = Math.floor((cz - rz) / CELL + half), gz1 = Math.floor((cz + rz) / CELL + half);
+    for (let gz = gz0; gz <= gz1; gz++) {
+      for (let gx = gx0; gx <= gx1; gx++) {
+        const wx0 = (gx - half + 0.5) * CELL - cx, wz0 = (gz - half + 0.5) * CELL - cz;
+        // Into the box's frame: the inverse of a rotation by yaw.
+        const lx = wx0 * c + wz0 * sn, lz = -wx0 * sn + wz0 * c;
+        if (Math.abs(lx) > hw || Math.abs(lz) > hd) continue;
+        if (!fn(gx, gz)) return false;
+      }
+    }
+    return true;
+  };
+
+  const freeBox = (cx: number, cz: number, hw: number, hd: number, yaw: number,
+    over: number): boolean =>
+    overBox(cx, cz, hw, hd, yaw, (gx, gz) => {
+      if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return false;
+      const c = cells[at(gx, gz)];
+      if (c === TAKEN) return false;
+      if (c === STREET_CELL && over !== STREET_CELL) return false;
+      return true;
+    });
+
+  const claimBox = (cx: number, cz: number, hw: number, hd: number, yaw: number): void => {
+    overBox(cx, cz, hw, hd, yaw, (gx, gz) => {
+      if (gx >= 0 && gz >= 0 && gx < GRID && gz < GRID) {
+        cells[at(gx, gz)] = TAKEN;
+        hard[at(gx, gz)] = 1;
+      }
+      return true;
+    });
+  };
+
+  /**
+   * Emits one building standing anywhere, at any angle.
+   *
+   * The grid-aligned `emit` above is what the lots and the planting still use,
+   * because those sit on cells. A building on a frontage does not: it stands
+   * on the kerb line of a road that may be curving, so its position is metres
+   * and its yaw is whatever the road is doing there.
+   */
+  const emitAt = (p: Proto, cx: number, cz: number, yaw: number): boolean => {
+    const hw = (p.w * CELL) / 2, hd = (p.d * CELL) / 2;
+    // The ground it stands on, sampled over its own footprint.
+    let lo = Infinity, hi = -Infinity, sum = 0, n = 0;
+    for (let j = -1; j <= 1; j++) {
+      for (let i = -1; i <= 1; i++) {
+        const c = Math.cos(yaw), sn = Math.sin(yaw);
+        const ox = i * hw, oz = j * hd;
+        const y = baseHeightAt(cx + ox * c - oz * sn, cz + ox * sn + oz * c);
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+        sum += y; n++;
+      }
+    }
+    if (hi - lo > MAX_SLOPE) return false;
+    const level = sum / n;
+    // The pad is the lot's own turned footprint, not a square big enough to
+    // hold it whichever way it faces. Grading a sixty-metre square under every
+    // twenty-metre house terraces the entire map to building levels, and the
+    // roads -- which are graded to their own -- end up metres underground.
+    const [bx, bz] = turnedHalf(hw, hd, yaw);
+    const pgx = Math.floor((cx - bx) / CELL + half), pgz = Math.floor((cz - bz) / CELL + half);
+    pads.push({
+      gx: pgx, gz: pgz,
+      w: Math.max(1, Math.ceil((cx + bx) / CELL + half) - pgx),
+      d: Math.max(1, Math.ceil((cz + bz) / CELL + half) - pgz),
+      y: level,
+    });
+    out.push(
+      cx, cz, level - 0.25, yaw,
+      bx + 0.8, bz + 0.8, p.height * 1.2 + 3, p.index,
+      1, 0, 0, 0,
+    );
+    population[p.index]++;
+    claimBox(cx, cz, hw, hd, yaw);
+    return true;
   };
 
   const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number,
@@ -384,45 +462,56 @@ export function makeCity(world: World = defaultWorld()): City {
    * A prototype is built with its frontage on +Z and is `p.w` wide by `p.d`
    * deep in its own axes, so an odd quarter turn swaps those against the grid.
    */
-  const buildFrontage = (f: Frontage, deep: number): void => {
-    let a = f.from, guard = 0;
-    while (a <= f.to && guard++ < 512) {
-      let step = 1;
-      // A handful of tries at different prototypes before conceding the cell.
-      // One try would put whichever building the hash favours along the whole
-      // street; scanning the bucket in order would be worse still.
+  /**
+   * Lines one side of one road with buildings facing it.
+   *
+   * This walks metres along the road rather than cells along an axis, because
+   * the road is a curve now: a plot's position is a point on the kerb line and
+   * its yaw is whatever the road is doing there. `deep` is how far back from
+   * the kerb this side may take, so two roads either side of a narrow block do
+   * not both build through the middle of it.
+   */
+  const buildFrontage = (f: { link: number; side: -1 | 1; from: number; to: number },
+    deep: number): void => {
+    let s = f.from, guard = 0;
+    while (s < f.to && guard++ < 400) {
+      let step = 4;
       for (let attempt = 0; attempt < 8; attempt++) {
-        // The zone is read at the lot's own front cell, so a frontage can run
-        // out of one zone and into the next along a single street.
-        const front = f.axis === 'x' ? at(a, f.kerb) : at(f.kerb, a);
-        if (front < 0 || front >= cells.length) break;
-        const district = districtOf(f.axis === 'x' ? a : f.kerb,
-          f.axis === 'x' ? f.kerb : a);
+        const probe = net.siteAt(f.link, f.side, s);
+        // Read a little way back from the kerb line rather than on it, so a
+        // plot takes the zone of the ground it stands on rather than of the
+        // cell the corridor happens to end in.
+        const [pgx, pgz] = net.cellAt(probe.x + Math.sin(probe.yaw) * CELL,
+          probe.z - Math.cos(probe.yaw) * CELL);
+        const district = districtOf(pgx, pgz);
         if (district === null) break;
         const list = stock(district.zone, district.density, district.theme);
-        const p = pick(list, a * 7 + f.kerb, attempt * 13 + f.yaw, 601 + attempt);
+        const p = pick(list, Math.round(s), f.link * 13 + f.side, 601 + attempt);
         if (!p) break;
-        if (p.w > f.to - a + 1 || p.d > deep) continue;
-        // The lot runs `p.d` cells back from the kerb and `p.w` along it.
-        const back = f.step > 0 ? f.kerb : f.kerb - p.d + 1;
-        let cx = 0, cz = 0, w = 0, d = 0;
-        if (f.axis === 'x') { cx = a; cz = back; w = p.w; d = p.d; }
-        else { cx = back; cz = a; w = p.d; d = p.w; }
-        if (!free(cx, cz, w, d, FREE)) continue;
-        if (!emit(p, cx, cz, w, d, f.yaw * QUARTER)) continue;
-        step = p.w;
+        const wide = p.w * CELL, back = p.d * CELL;
+        if (s + wide > f.to || back > deep * CELL) continue;
+        // The plot's middle: half its depth *out* from the kerb line, along
+        // the outward normal. `yaw` turns a prototype's +Z front back at the
+        // road, so the outward normal is (sin yaw, -cos yaw).
+        const mid = net.siteAt(f.link, f.side, s + wide / 2);
+        const nx = Math.sin(mid.yaw), nz = -Math.cos(mid.yaw);
+        const cx = mid.x + nx * (back / 2), cz = mid.z + nz * (back / 2);
+        if (!freeBox(cx, cz, wide / 2, back / 2, mid.yaw, FREE)) continue;
+        if (!emitAt(p, cx, cz, mid.yaw)) continue;
+        step = wide;
         break;
       }
-      a += step;
+      s += step;
     }
   };
 
   // Half the block per side leaves nothing for the frontage opposite, and a
   // quarter rejects every prototype deeper than three cells. So they compete:
-  // each may take up to half, in an order that turns with the road, which is
-  // what makes one street deep-plotted and the next one not.
+  // each may take up to half, in an order that is shuffled rather than
+  // north-to-south, which is what makes one street deep-plotted and the next
+  // one not.
   const fronts = net.frontages();
-  const order = fronts.map((f, i) => ({ f, key: hash2(f.kerb, f.from + i, 631) }));
+  const order = fronts.map((f, i) => ({ f, key: hash2(f.link, i, 631) }));
   order.sort((p, q) => p.key - q.key);
   for (const { f } of order) buildFrontage(f, BLOCK >> 1);
 
@@ -528,146 +617,27 @@ export function makeCity(world: World = defaultWorld()): City {
     }
   }
 
-  // ---- pass 3: roads --------------------------------------------------
-  //
-  // Laid through the road network rather than by hand. The default city draws
-  // a grid, which the network then treats exactly as it would treat a grid the
-  // player drew: it finds the crossings itself, sizes the junction from the
-  // widest road in it, and tiles the runs between them to fit.
+  // Roads are not placed here any more. They are a graph of curves and their
+  // geometry is generated straight from it -- see src/sim/roadmesh.ts -- so
+  // what used to be a third pass of five and a half thousand prefabricated
+  // tiles is now a mesh the renderer draws in one call. What the spawner still
+  // needs from the network is the corridor, and that came in at the top as
+  // reserved cells.
 
-  // Built last, so anything demolished for a superblock is already gone.
-  layRoads(places);
-
-  function layRoads(places: readonly Placement[]): void {
-    // Junctions first. A junction is a node of the network and the only place
-    // a road is allowed to pick its own level from the ground it sits on --
-    // everything between two of them is then a ramp from one to the other.
-    const nodeY = new Map<number, number>();
-    for (const q of places) {
-      if (q.run !== -1) continue;
-      const gx = Math.round(q.gx), gz = Math.round(q.gz);
-      const w = Math.round(q.w), d = Math.round(q.d);
-      if (!free(gx, gz, w, d, STREET_CELL)) continue;
-      const y = survey(gx, gz, w, d).mean;
-      if (!lay(q, y)) continue;
-      pads.push({ gx, gz, w, d, y });
-      claim(gx, gz, w, d);
-      for (let j = 0; j < d; j++) {
-        for (let i = 0; i < w; i++) {
-          if (gx + i < GRID && gz + j < GRID) nodeY.set(at(gx + i, gz + j), y);
-        }
-      }
-    }
-
-    const byRun = new Map<number, Placement[]>();
-    for (const q of places) {
-      if (q.run === -1) continue;
-      const list = byRun.get(q.run);
-      if (list) list.push(q); else byRun.set(q.run, [q]);
-    }
-
-    // Then the runs, one tile at a time, ramped between the junctions at
-    // their ends.
-    //
-    // This used to be one level for the whole run, on the reasoning that a
-    // run tiled at each tile's own mean steps at every tile. It does -- but
-    // levelling a hundred metres of hillside to a single height puts a step
-    // of *two metres* where the run meets its junction, which is the median
-    // measured on the default map, and the graded ground ramping between two
-    // pads that far apart rises straight through the lower slab. That is what
-    // the bands of grass across the carriageway were: not missing tarmac, but
-    // tarmac buried under the ramp to the next pad.
-    //
-    // Interpolating instead makes the corridor a ribbon that follows the
-    // land. Its ends match the junctions exactly, because they are the
-    // interpolation's endpoints, and the step between one tile and the next
-    // is the fall between the junctions divided by the tiles in the run.
-    for (const group of byRun.values()) {
-      const along: 'x' | 'z' = group[0].yaw === 1 ? 'x' : 'z';
-      group.sort((a, b) => (along === 'x' ? a.gx - b.gx : a.gz - b.gz));
-
-      const first = group[0], last = group[group.length - 1];
-      const lo = along === 'x' ? Math.floor(first.gx) : Math.floor(first.gz);
-      const hi = along === 'x' ? Math.ceil(last.gx + last.w) : Math.ceil(last.gz + last.d);
-      const cross = along === 'x'
-        ? Math.floor(first.gz + first.d / 2)
-        : Math.floor(first.gx + first.w / 2);
-      const endCell = (i: number): number =>
-        along === 'x' ? at(clampCell(i), clampCell(cross)) : at(clampCell(cross), clampCell(i));
-
-      const rect = (q: Placement): { gx: number; gz: number; w: number; d: number } => ({
-        gx: Math.floor(q.gx), gz: Math.floor(q.gz),
-        w: Math.max(1, Math.ceil(q.gx + q.w) - Math.floor(q.gx)),
-        d: Math.max(1, Math.ceil(q.gz + q.d) - Math.floor(q.gz)),
-      });
-      const own = (q: Placement): number => {
-        const r = rect(q);
-        return survey(r.gx, r.gz, r.w, r.d).mean;
-      };
-      // A run need not end on a junction: it can stop at the map edge or at
-      // ground a superblock took. There it takes its own level.
-      const y0 = nodeY.get(endCell(lo - 1)) ?? own(first);
-      const y1 = nodeY.get(endCell(hi)) ?? own(last);
-
-      const n = group.length;
-      for (let k = 0; k < n; k++) {
-        const q = group[k];
-        const y = y0 + (y1 - y0) * ((k + 0.5) / n);
-        if (!lay(q, y)) continue;
-        const r = rect(q);
-        pads.push({ gx: r.gx, gz: r.gz, w: r.w, d: r.d, y });
-      }
-      // Claimed for the whole run and not tile by tile. A tile's rounded
-      // rectangle reaches into its neighbour's centre cell, so claiming each
-      // one in turn marks the next one's ground as taken and drops it -- a
-      // run laid as every other tile with grass between them.
-      const r0 = rect(first), r1 = rect(last);
-      claim(r0.gx, r0.gz, r1.gx + r1.w - r0.gx, r1.gz + r1.d - r0.gz);
-    }
-  }
-
-  function clampCell(i: number): number {
-    return i < 0 ? 0 : i >= GRID ? GRID - 1 : i;
-  }
-
-  /**
-   * Emits one road piece, unless the ground under it is spoken for.
-   *
-   * Tested at the centre cell rather than over the whole footprint: a
-   * stretched tile covers a fraction of a cell at each end and rounds into its
-   * neighbour's, so a footprint test rejects every other tile of a run. What
-   * the test is actually for is keeping a road out of a superblock, and the
-   * centre cell answers that.
-   */
-  function lay(q: Placement, y: number): boolean {
-    const cx = Math.floor(q.gx + q.w / 2), cz = Math.floor(q.gz + q.d / 2);
-    if (cx < 0 || cz < 0 || cx >= GRID || cz >= GRID) return false;
-    if (cells[at(cx, cz)] === TAKEN) return false;
-    const index = ASSET_INDEX.get(q.id);
-    const p = assetById(q.id);
-    if (index === undefined || p === undefined) return false;
-    const x0 = wx(q.gx), z0 = wx(q.gz);
-    const x1 = x0 + q.w * CELL, z1 = z0 + q.d * CELL;
-    out.push(
-      // Just proud of the pad, not sunk into it. A building is buried a
-      // quarter of a metre so an uneven lot cannot leave it on stilts; a road
-      // is a flat slab on ground that was graded flat for it, and sinking it
-      // only lets the ramp to the next pad come up through the carriageway.
-      (x0 + x1) / 2, (z0 + z1) / 2, y + 0.05, q.yaw * QUARTER,
-      (q.w * CELL) / 2 + 0.8, (q.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
-      q.stretch, 0, 0, 0,
-    );
-    population[index]++;
-    harden(Math.floor(q.gx), Math.floor(q.gz),
-      Math.max(1, Math.round(q.w)), Math.max(1, Math.round(q.d)));
-    return true;
-  }
+  // The roads. Generated from the graph rather than placed, and their pads go
+  // in with everyone else's so the corridor is cut level in the same pass that
+  // levels the building plots -- which is what stops a road and the lot beside
+  // it disagreeing about where the ground is.
+  const roads = buildRoadMesh(net, baseHeightAt);
+  // Paved ground takes no grass. The corridor raster already knows where the
+  // road is, so this is the same set the spawner reserved from.
+  for (let i = 0; i < hard.length; i++) if (net.cls[i] !== 0) hard[i] = 1;
 
   // Grade last, once every pad is known. The placement above ran against the
   // ungraded ground on purpose: a spawner deciding whether a slope is
   // buildable while the slope is being flattened underneath it would build
   // anywhere, and the map would end up as one terrace.
-  gradeGround(pads, baseHeightAt);
+  gradeGround(pads, baseHeightAt, roads.pins);
 
   // Open ground, for the grass. Thinned by one cell against anything hard, so
   // a blade does not stop dead at a kerb -- real grass runs up to an edge and
@@ -687,5 +657,5 @@ export function makeCity(world: World = defaultWorld()): City {
 
   const data = new Float32Array(out.length);
   data.set(out);
-  return { data, count: out.length / INSTANCE_FLOATS, population, cover };
+  return { data, count: out.length / INSTANCE_FLOATS, population, cover, roads };
 }

@@ -30,7 +30,7 @@ import { buildGroundMap } from './ground-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
-  FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN,
+  FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
 } from '../sim';
 import type { Chunk, World } from '../sim';
 import { SHADERS } from './shaders';
@@ -130,6 +130,9 @@ interface WorldRes {
   cullGroup: GPUBindGroup;
   terrainVertices: GPUBuffer;
   terrainIndices: GPUBuffer;
+  roadVertices: GPUBuffer;
+  roadIndices: GPUBuffer;
+  roadCount: number;
   chunks: Chunk[];
   assetVertices: GPUBuffer;
   protoBuffer: GPUBuffer;
@@ -158,6 +161,7 @@ interface Resources extends WorldRes {
   shadowTexture: GPUTexture;
   shadowSceneGroup: GPUBindGroup;
   terrain: GPURenderPipeline;
+  road: GPURenderPipeline;
   city: GPURenderPipeline;
   cull: GPUComputePipeline;
   cameraBuffer: GPUBuffer;
@@ -350,6 +354,32 @@ export class Renderer {
       depthStencil,
     });
 
+    // The road surface. Its own pipeline because its vertices carry where they
+    // are on the road -- across and along -- which is what the markings are
+    // drawn from, and nothing else in the frame has anything like it.
+    const roadModule = device.createShaderModule({ label: 'road', code: SHADERS.road });
+    const road = device.createRenderPipeline({
+      label: 'road-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      vertex: {
+        module: roadModule,
+        entryPoint: 'vs',
+        buffers: [{
+          arrayStride: ROAD_FLOATS * 4,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },   // position
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
+            { shaderLocation: 2, offset: 24, format: 'float32x2' },  // across, along
+            { shaderLocation: 3, offset: 32, format: 'float32x4' },  // surface, width, lanes, flags
+          ],
+        }],
+      },
+      fragment: { module: roadModule, entryPoint: 'fs', targets: [{ format }] },
+      // Two-sided: the skirt at the outer edge faces down into the ground.
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil,
+    });
+
     const terrainModule = device.createShaderModule({ label: 'terrain', code: SHADERS.terrain });
     const terrain = device.createRenderPipeline({
       label: 'terrain-pipeline',
@@ -486,7 +516,7 @@ export class Renderer {
       layouts,
       grass, grassBuffer: this.grassUniform,
       sky, shadow, shadowView, shadowTexture, shadowSceneGroup,
-      terrain, city: cityPipeline, cull,
+      terrain, road, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
       depth, depthView,
       ...this.loadWorld(layouts),
@@ -521,6 +551,22 @@ export class Renderer {
     // A prototype the spawner never placed is never generated.
     const city = makeCity(this.world);
     const plan = planCity(city, this.atlas);
+
+    // The roads, as one mesh. It is small -- a full grid city is under two
+    // megabytes -- and it is drawn in a single call whatever shape the network
+    // is, which is the payoff for generating it rather than tiling it.
+    const roadVertices = device.createBuffer({
+      label: 'road-vertices',
+      size: Math.max(16, city.roads.vertices.byteLength),
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(roadVertices, 0, city.roads.vertices);
+    const roadIndices = device.createBuffer({
+      label: 'road-indices',
+      size: Math.max(16, city.roads.indices.byteLength),
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(roadIndices, 0, city.roads.indices);
 
     // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
     // topology is identical, so each is drawn with its own baseVertex.
@@ -656,6 +702,7 @@ export class Renderer {
       groundTexture: ground.texture, grassGroup,
       protoGroup, cityGroup, castGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
+      roadVertices, roadIndices, roadCount: city.roads.indices.length,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
       argsBuffer, argsRead, argsReset: plan.args, buckets: plan.buckets,
       castArgsBuffer, castBaseBuffer, castVisibleBuffer,
@@ -884,6 +931,14 @@ export class Renderer {
       if (!this.frustum.containsBox(chunk.min, chunk.max)) continue;
       pass.drawIndexed(INDICES_PER_CHUNK, 1, 0, chunk.baseVertex);
       chunks++;
+    }
+
+    // The roads, on top of the ground they were graded into. One call.
+    if (res.roadCount > 0) {
+      pass.setPipeline(res.road);
+      pass.setVertexBuffer(0, res.roadVertices);
+      pass.setIndexBuffer(res.roadIndices, 'uint32');
+      pass.drawIndexed(res.roadCount);
     }
 
     // Grass, after the ground so most blades are rejected on depth before

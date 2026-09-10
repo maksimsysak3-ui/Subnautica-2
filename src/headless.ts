@@ -71,7 +71,7 @@ Promise<{ before: Record<string, string>; after: Record<string, string> }> {
   // beside it. Both have to change the city, and the road has to cross what
   // is already there and grow the junctions itself.
   const g = renderer.world.grid;
-  renderer.world.net.add(4, (g >> 1) + 1, g - 5, (g >> 1) + 1, 'avenue');
+  renderer.world.net.addCells(4, (g >> 1) + 1, g - 5, (g >> 1) + 1, 'dual');
   paint(renderer.world, 6, (g >> 1) + 6, 12, 12, zoneCode('residential', 'high'));
   renderer.rebuild();
   renderer.frameForTools(performance.now());
@@ -175,10 +175,13 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
     demolish(w, c - 22, c - 22, 44, 44);
     // One avenue and two streets off it, drawn as a player would: each ends
     // on the avenue rather than being aligned to anything.
-    w.net.add(c - 20, c - 6, c + 20, c - 6, 'avenue');
-    w.net.add(c - 12, c - 6, c - 12, c + 16, 'street');
-    w.net.add(c + 6, c - 6, c + 6, c + 14, 'street');
-    w.net.add(c - 12, c + 10, c + 6, c + 10, 'street');
+    // A boulevard sweeping across the cleared ground, two streets curving off
+    // it, and one straight -- the shapes a player draws, and the ones the
+    // tiled network could not make at all.
+    w.net.addCells(c - 20, c - 6, c + 20, c - 6, 'dual', 90);
+    w.net.addCells(c - 12, c - 6, c - 12, c + 16, 'street', -40);
+    w.net.addCells(c + 6, c - 6, c + 6, c + 14, 'street', 30);
+    w.net.addCells(c - 12, c + 10, c + 6, c + 10, 'street');
     paint(w, c - 20, c - 20, 40, 12, zoneCode('commercial', 'high'));
     paint(w, c - 20, c - 2, 40, 26, zoneCode('residential', 'medium'));
     renderer.rebuild();

@@ -21,6 +21,7 @@ import type { Vec3 } from '../math/m4';
 import { heightAt } from '../sim';
 import { paint, demolish, zoneCode, ZONES, DENSITIES } from '../sim';
 import type { RoadClass } from '../sim';
+import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import type { Density, Zone } from '../assets/types';
 import type { IconZone } from './zones';
@@ -48,6 +49,8 @@ function hexToRgb(hex: string): [number, number, number] {
 export class BuildTools {
   private tool: Tool = { kind: 'look' };
   private from: [number, number] | null = null;
+  /** Every cell the pointer passed through during a drag, for the curve. */
+  private path: Array<[number, number]> = [];
   private to: [number, number] = [0, 0];
   private disposers: Array<() => void> = [];
   private scratch: Vec3 = [0, 0, 0];
@@ -128,6 +131,7 @@ export class BuildTools {
     e.stopPropagation();
     this.from = cell;
     this.to = cell;
+    this.path = [cell];
     this.showMark();
   };
 
@@ -136,9 +140,47 @@ export class BuildTools {
     const cell = this.pick(e.clientX, e.clientY);
     if (!cell) return;
     this.to = cell;
-    if (this.from) e.stopPropagation();
+    if (this.from) {
+      e.stopPropagation();
+      const last = this.path[this.path.length - 1];
+      if (last === undefined || last[0] !== cell[0] || last[1] !== cell[1]) {
+        this.path.push(cell);
+        if (this.path.length > 512) this.path.shift();
+      }
+    }
     this.showMark();
   };
+
+  /**
+   * How far the drag bowed away from a straight line, in metres.
+   *
+   * This is the whole of the curve tool. A player who wants a straight road
+   * drags in a straight line and gets one; a player who sweeps the pointer
+   * round a corner gets a road that follows the sweep. There is no mode to
+   * enter and no modifier to hold, and the shape you drew is the shape you
+   * get -- which is the only part of a curve tool anyone actually wants.
+   *
+   * The measure is the signed area between the drag's path and its chord,
+   * divided by the chord: the mean offset, which is exactly what a quadratic's
+   * control point wants scaled by two.
+   */
+  private bend(): number {
+    if (this.path.length < 3 || this.from === null) return 0;
+    const a = this.path[0], b = this.path[this.path.length - 1];
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz);
+    if (len < 2) return 0;
+    // Left of the direction of travel is positive, matching RoadGraph.add.
+    const nx = -dz / len, nz = dx / len;
+    let sum = 0;
+    for (const p of this.path) sum += (p[0] - a[0]) * nx + (p[1] - a[1]) * nz;
+    const mean = sum / this.path.length;
+    // Twice the mean offset puts the control point where the curve passes
+    // through the path; below a cell of bow it is a straight, because nobody
+    // drags in a perfectly straight line and a road that wobbles is worse
+    // than one that does not curve.
+    return Math.abs(mean) < 0.9 ? 0 : mean * 2 * CELL;
+  }
 
   private onUp = (e: PointerEvent): void => {
     if (!this.from) return;
@@ -197,7 +239,9 @@ export class BuildTools {
   }
 
   private roadWidth(): number {
-    return this.tool.kind === 'road' && this.tool.cls === 'avenue' ? 4 : 3;
+    return this.tool.kind === 'road'
+      ? Math.max(2, Math.round((ROAD_SPECS[this.tool.cls].edge * 2) / CELL))
+      : 3;
   }
 
   private showMark(): void {
@@ -224,11 +268,12 @@ export class BuildTools {
     const t = this.tool;
     const r = this.area(a, b);
     if (t.kind === 'road') {
-      // What the road runs over goes first: zoning under a carriageway would
-      // grow houses in it, and a building left standing there is a building
-      // the road has to be dropped around.
-      demolish(world, r.gx, r.gz, r.w, r.d);
-      world.net.add(a[0], a[1], b[0], b[1], t.cls);
+      // Only the zoning under the new carriageway goes -- zoning there would
+      // grow houses in the road. What must *not* go is the roads it runs
+      // across: crossing one builds a junction, and clearing the band first
+      // deleted every road the new one met. The graph finds its own crossings.
+      paint(world, r.gx, r.gz, r.w, r.d, 0);
+      world.net.addCells(a[0], a[1], b[0], b[1], t.cls, this.bend());
     } else if (t.kind === 'zone') {
       paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density));
     } else if (t.kind === 'clear') {
@@ -264,7 +309,10 @@ export class BuildTools {
 
   private describe(t: Tool): string {
     if (t.kind === 'look') return 'drag to pan, right-drag to orbit, wheel to zoom';
-    if (t.kind === 'road') return `drag to lay a ${t.cls} — it will cross and join what is there`;
+    if (t.kind === 'road') {
+      return `drag to lay a ${ROAD_SPECS[t.cls].label} — sweep the drag to curve it; `
+        + 'it will cross and join what is there';
+    }
     if (t.kind === 'zone') return `drag to zone ${t.density} ${t.zone}`;
     return 'drag to clear roads and zoning';
   }
@@ -317,9 +365,9 @@ export class BuildTools {
     bar.appendChild(sep());
 
     const roads = group();
-    for (const cls of ['street', 'avenue'] as const) {
+    for (const cls of ROAD_ORDER) {
       add(roads, { kind: 'road', cls }, `${cls[0].toUpperCase()}${cls.slice(1)}`,
-        `${zoneIcon('road', 18)}<span>${cls}</span>`, ZONE_STYLE.road.light);
+        `${zoneIcon('road', 18)}<span>${ROAD_SPECS[cls].label}</span>`, ZONE_STYLE.road.light);
     }
     bar.appendChild(roads);
     bar.appendChild(sep());
