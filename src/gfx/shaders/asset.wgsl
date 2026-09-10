@@ -122,6 +122,25 @@ struct VSOut {
   @location(8) @interpolate(flat) proto : u32,
   /** The colour seed: the prototype's, plus the instance's own. */
   @location(9) @interpolate(flat) seed : f32,
+  /**
+   * Position and normal in the prototype's own frame, before the instance was
+   * turned.
+   *
+   * Every facade pattern used to be projected onto a world axis plane picked
+   * by the dominant face normal. That is exact for a building standing square
+   * to the axes and wrong for every other angle: a wall at forty degrees has
+   * its brick courses compressed by the cosine, so the pattern shears. It is
+   * also why the whole simulation was locked to an axis-aligned grid.
+   *
+   * Shading in the prototype's frame removes the constraint entirely. At the
+   * four quarter turns it is identical to what the world projection did,
+   * because a quarter turn maps axes onto axes; at every other angle it is the
+   * only one of the two that is right.
+   */
+  @location(10)                    shade : vec3f,
+  @location(11)                    pnorm : vec3f,
+  /** cos and sin of the instance's yaw, to bring world vectors into that frame. */
+  @location(12) @interpolate(flat) spin  : vec2f,
 };
 
 @vertex
@@ -215,24 +234,29 @@ fn unpackNormal(word : u32) -> vec3f {
  * patterns are computed from world position and the dominant face normal, so
  * a wall has to stay axis-aligned or every brick course in the city shears.
  */
-fn turn(v : vec3f, q : u32) -> vec3f {
-  switch q {
-    case 1u: { return vec3f(-v.z, v.y, v.x); }
-    case 2u: { return vec3f(-v.x, v.y, -v.z); }
-    case 3u: { return vec3f(v.z, v.y, -v.x); }
-    default: { return v; }
-  }
+fn turn(v : vec3f, c : f32, s : f32) -> vec3f {
+  return vec3f(v.x * c - v.z * s, v.y, v.x * s + v.z * c);
+}
+
+/** The same rotation the other way: a world vector into the prototype's frame. */
+fn unturn(v : vec3f, c : f32, s : f32) -> vec3f {
+  return vec3f(v.x * c + v.z * s, v.y, -v.x * s + v.z * c);
 }
 
 /** World placement of one packed vertex. Shared by the colour and shadow passes. */
-fn cityVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
+fn protoVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
   let q = vec3f(f32(packed.x & 0xffffu), f32(packed.x >> 16u), f32(packed.y & 0xffffu));
   var local = p.frame.xyz + q * (1.0 / 65535.0) * p.span.xyz;
   // Stretched along its own Z before it is turned. Roads use this and nothing
   // else does; a road tile is an extrusion along Z, so a few per cent either
   // way lengthens the extrusion rather than distorting anything.
   local.z *= inst.extra.x;
-  return turn(local, u32(inst.place.w + 0.5))
+  return local;
+}
+
+fn cityVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
+  let a = inst.place.w;
+  return turn(protoVertex(packed, inst, p), cos(a), sin(a))
        + vec3f(inst.place.x, inst.place.z, inst.place.y);
 }
 
@@ -243,9 +267,16 @@ fn vs_city(@location(0) packed : vec4u, @location(1) extra : u32,
   let index = u32(inst.form.w + 0.5);
   let p = protos[index];
 
+  let a = inst.place.w;
+  let c = cos(a);
+  let s = sin(a);
+
   var out : VSOut;
-  out.world = cityVertex(packed, inst, p);
-  out.normal = turn(unpackNormal(packed.y >> 16u), u32(inst.place.w + 0.5));
+  out.shade = protoVertex(packed, inst, p);
+  out.pnorm = unpackNormal(packed.y >> 16u);
+  out.spin = vec2f(c, s);
+  out.world = turn(out.shade, c, s) + vec3f(inst.place.x, inst.place.z, inst.place.y);
+  out.normal = turn(out.pnorm, c, s);
   out.material = packed.z & 255u;
   out.ao = f32((packed.z >> 8u) & 255u) * (1.0 / 255.0);
   out.tint = (packed.z >> 16u) & 255u;
@@ -273,7 +304,7 @@ fn vs_city(@location(0) packed : vec4u, @location(1) extra : u32,
 fn vs_city_shadow(@location(0) packed : vec4u, @location(1) extra : u32,
                   @builtin(instance_index) slot : u32) -> @builtin(position) vec4f {
   let inst = instances[visible[slot]];
-  let world = cityVertex(packed, inst, protos[u32(inst.form.w + 0.5)]);
+  let world = cityVertex(packed, inst, protos[u32(inst.form.w + 0.5)]);   // yaw in radians
   return scene.sunViewProj * vec4f(world, 1.0);
 }
 
@@ -1420,7 +1451,9 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   let n = normalize(in.normal);
-  let uv = facadeUV(in.world, n);
+  // The pattern frame is the prototype's, not the world's: see VSOut.shade.
+  let sn = normalize(in.pnorm);
+  let uv = facadeUV(in.shade, sn);
   // Taken here, in uniform control flow, then passed down.
   let mpp = max(max(fwidth(uv.x), fwidth(uv.y)), 1e-6);
   let look = protos[in.proto];
@@ -1430,16 +1463,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // axes the facade coordinate uses, divided by how square-on the surface is.
   var uDir = vec3f(1.0, 0.0, 0.0);
   var vDir = vec3f(0.0, 1.0, 0.0);
-  if (abs(n.y) > 0.6) { vDir = vec3f(0.0, 0.0, 1.0); }
-  else if (abs(n.x) > abs(n.z)) { uDir = vec3f(0.0, 0.0, 1.0); }
+  if (abs(sn.y) > 0.6) { vDir = vec3f(0.0, 0.0, 1.0); }
+  else if (abs(sn.x) > abs(sn.z)) { uDir = vec3f(0.0, 0.0, 1.0); }
   // Derivative of the sign-face coordinate, taken here for the same reason:
   // uniform control flow.
   let localMpp = max(max(fwidth(in.local.x), fwidth(in.local.y)), 1e-5);
   // Per-axis derivatives of the surface coordinate, for anything drawn along a
   // body rather than tiled by world position. Taken here for the same reason.
   let surfD = vec2f(fwidth(in.local.x), fwidth(in.local.y));
-  let view = normalize(in.world - scene.eye.xyz);
-  let facing = max(-dot(view, n), 0.12);
+  let viewWorld = normalize(in.world - scene.eye.xyz);
+  // Into the prototype's frame, so the parallax axes are the same two the
+  // facade coordinate is built from.
+  let view = unturn(viewWorld, in.spin.x, in.spin.y);
+  let facing = max(-dot(view, sn), 0.12);
   let par = vec2f(dot(view, uDir), dot(view, vDir)) / facing * 0.26;
   // A tinted surface is painted, not patterned: the palette wins over the
   // material entirely.
@@ -1460,7 +1496,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let inside = room(in.local, par, r, r > 0.74);
     // What the pane reflects: sky, stronger the more glancing the view. This
     // is what makes glass read as glass rather than as a picture of a room.
-    let grazing = 1.0 - clamp(dot(n, -view), 0.0, 1.0);
+    let grazing = 1.0 - clamp(dot(n, -viewWorld), 0.0, 1.0);
     let refl = glassColour(seed) * (1.5 + r * 0.4) + vec3f(0.05, 0.07, 0.10) * grazing;
     col = mix(inside, refl, 0.30 + 0.45 * grazing);
     // A transom bar across the pane, which almost every window has and which

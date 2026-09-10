@@ -66,6 +66,15 @@ export const INSTANCE_FLOATS = 12;
 const CELL = 8;
 /** Largest fall across a footprint before the lot is left empty, in metres. */
 const MAX_SLOPE = 4.5;
+
+/**
+ * A quarter turn, in radians.
+ *
+ * The instance format carries yaw as an angle rather than as one of four
+ * cases. Everything the spawner places is still square to the grid and goes
+ * in as a multiple of this; what changed is that it no longer has to be.
+ */
+const QUARTER = Math.PI / 2;
 /**
  * Blocks per district, so a neighbourhood shares a theme and a density.
  *
@@ -220,6 +229,19 @@ export function makeCity(world: World = defaultWorld()): City {
     return { lo, hi, mean: sum / n };
   };
 
+  /**
+   * Half extents of the axis-aligned box that contains a lot turned by `yaw`.
+   *
+   * The instance's own yaw is a real angle in radians, not one of four cases.
+   * Everything the spawner places today happens to be at a quarter turn, and
+   * for those this returns exactly what swapping width for depth returned --
+   * but a road that curves puts buildings at every angle in between.
+   */
+  const turnedHalf = (hx: number, hz: number, yaw: number): [number, number] => {
+    const c = Math.abs(Math.cos(yaw)), s = Math.abs(Math.sin(yaw));
+    return [hx * c + hz * s, hx * s + hz * c];
+  };
+
   const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number,
     grade: boolean | number = true, stretch = 1): boolean => {
     const x0 = wx(gx), z0 = wx(gz), x1 = x0 + w * CELL, z1 = z0 + d * CELL;
@@ -248,12 +270,18 @@ export function makeCity(world: World = defaultWorld()): City {
     // slope is a tree on a slope.
     if (grade === true) pads.push({ gx, gz, w, d, y: level });
 
+    // The culling box is the axis-aligned one that contains the lot after it
+    // has been turned, computed from the prototype's own extents and the
+    // angle rather than by swapping width for depth. At a quarter turn the two
+    // agree exactly; at any other angle only this one is right, and the
+    // spawner is about to start using angles that are not quarter turns.
+    const [hx, hz] = turnedHalf((p.w * CELL) / 2, (p.d * CELL) / 2, yaw);
     out.push(
       (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
       // the meshes inside, and a box exactly on that boundary would cull a
       // prototype's own parapet at the screen edge.
-      (w * CELL) / 2 + 0.8, (d * CELL) / 2 + 0.8, p.height * 1.2 + 3, p.index,
+      hx + 0.8, hz + 0.8, p.height * 1.2 + 3, p.index,
       stretch, 0, 0, 0,
     );
     population[p.index]++;
@@ -322,7 +350,7 @@ export function makeCity(world: World = defaultWorld()): City {
     const x0 = wx(lot.gx), z0 = wx(lot.gz);
     const x1 = x0 + lot.w * CELL, z1 = z0 + lot.d * CELL;
     out.push(
-      (x0 + x1) / 2, (z0 + z1) / 2, ground.mean - 0.25, lot.yaw,
+      (x0 + x1) / 2, (z0 + z1) / 2, ground.mean - 0.25, lot.yaw * QUARTER,
       (lot.w * CELL) / 2 + 0.8, (lot.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
       1, 0, 0, 0,
     );
@@ -381,7 +409,7 @@ export function makeCity(world: World = defaultWorld()): City {
         if (f.axis === 'x') { cx = a; cz = back; w = p.w; d = p.d; }
         else { cx = back; cz = a; w = p.d; d = p.w; }
         if (!free(cx, cz, w, d, FREE)) continue;
-        if (!emit(p, cx, cz, w, d, f.yaw)) continue;
+        if (!emit(p, cx, cz, w, d, f.yaw * QUARTER)) continue;
         step = p.w;
         break;
       }
@@ -412,7 +440,7 @@ export function makeCity(world: World = defaultWorld()): City {
       const yaw = Math.floor(hash2(gx, gz, 659) * 4) % 4;
       const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
       if (!free(gx, gz, w, d, FREE)) continue;
-      emit(p, gx, gz, w, d, yaw);
+      emit(p, gx, gz, w, d, yaw * QUARTER);
     }
   }
 
@@ -454,7 +482,7 @@ export function makeCity(world: World = defaultWorld()): City {
         // `plant` that reported success on a refusal spent the cell without
         // putting anything on it -- which is most of why the big species
         // never appeared.
-        if (emit(p, cx, cz, w, d, yaw, false)) return true;
+        if (emit(p, cx, cz, w, d, yaw * QUARTER, false)) return true;
       }
       return false;
     };
@@ -625,7 +653,7 @@ export function makeCity(world: World = defaultWorld()): City {
       // quarter of a metre so an uneven lot cannot leave it on stilts; a road
       // is a flat slab on ground that was graded flat for it, and sinking it
       // only lets the ramp to the next pad come up through the carriageway.
-      (x0 + x1) / 2, (z0 + z1) / 2, y + 0.05, q.yaw,
+      (x0 + x1) / 2, (z0 + z1) / 2, y + 0.05, q.yaw * QUARTER,
       (q.w * CELL) / 2 + 0.8, (q.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
       q.stretch, 0, 0, 0,
     );
