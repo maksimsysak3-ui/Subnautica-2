@@ -170,6 +170,10 @@ export class BuildTools {
     this.foot.appendChild(this.status);
     this.foot.appendChild(this.buildBar());
     parent.appendChild(this.foot);
+    // Out of sight until the menu lets go. The bar is built at boot so it is
+    // ready the instant play starts, and a toolbar sitting behind a main menu
+    // is clutter over the one thing the menu is there to show.
+    this.visible = false;
     this.styleStatus();
 
     this.on(canvas, 'pointerdown', this.onDown as EventListener);
@@ -182,7 +186,25 @@ export class BuildTools {
 
   /** True while a build tool owns the pointer, so the camera leaves it alone. */
   get active(): boolean {
-    return this.tool.kind !== 'look';
+    return this.shown && this.tool.kind !== 'look';
+  }
+
+  private shown = true;
+
+  /** Shows or hides the whole bar, and with it the tools' hold on the pointer. */
+  set visible(on: boolean) {
+    this.shown = on;
+    this.foot.style.display = on ? 'flex' : 'none';
+    if (on) return;
+    this.closeDrawer();
+    this.from = null;
+    this.curveA = null;
+    this.curveVia = null;
+    this.curveStage = 'none';
+    this.renderer.mark = null;
+    this.renderer.setRoadPreview(null);
+    this.renderer.setGhost(null);
+    this.renderer.building = false;
   }
 
   dispose(): void {
@@ -320,6 +342,16 @@ export class BuildTools {
     }
     if (e.key !== 'Escape') return;
     if (this.drawer !== null) { this.closeDrawer(); return; }
+    // A half-drawn road first, then the tool. Escape while dragging one has to
+    // stop the road before it stops anything else, or the one thing a player
+    // presses it for is the one thing it will not do.
+    if (this.from !== null) {
+      this.from = null;
+      this.renderer.setRoadPreview(null);
+      this.showMark();
+      this.say('cancelled');
+      return;
+    }
     // The first Escape drops a half-drawn run, the second puts the tool away.
     // Losing the tool as well would mean re-selecting it after every misclick.
     if (this.curveStage !== 'none') { this.endRun(); return; }
@@ -928,7 +960,7 @@ export class BuildTools {
       glyph.style.cssText = GLYPH;
       b.appendChild(glyph);
       b.addEventListener('click', () => {
-        this.say(saveFromGame(this.renderer.world, CITY_NAME) || 'not saved');
+        saveFromGame(this.renderer.world, CITY_NAME, (t) => this.say(t));
       });
       keep.appendChild(b);
     }
@@ -1010,12 +1042,17 @@ export class BuildTools {
     row.appendChild(this.readSeason);
     row.appendChild(rule());
 
-    row.appendChild(cell('<span style="color:#7fd4a8">◆</span>'
-      + `<span style="color:#dbe6f3;letter-spacing:.06em">${CITY_NAME}</span>`, true));
-
+    // The city and what lives in it, together. The population used to sit at
+    // the far right beside the money, a whole bar away from the name of the
+    // place it belongs to -- which is the one number a player checks against
+    // the one word that identifies their city.
     this.readPeople = cell('');
-    row.appendChild(rule());
-    row.appendChild(this.readPeople);
+    const named = document.createElement('div');
+    named.style.cssText = 'display:flex;align-items:center;gap:0;flex:1';
+    named.appendChild(cell('<span style="color:#7fd4a8">◆</span>'
+      + `<span style="color:#dbe6f3;letter-spacing:.06em">${CITY_NAME}</span>`));
+    named.appendChild(this.readPeople);
+    row.appendChild(named);
     this.readMoney = cell('<span style="color:#7fd4a8">●</span>'
       + '<span style="color:#dbe6f3">∞</span>');
     row.appendChild(rule());

@@ -185,11 +185,31 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   // Relaxation. Two buffers, because averaging in place propagates a value
   // across the whole grid in one pass in the direction of the sweep and
   // produces a visible bias towards one corner of the map.
+  // How far the relaxation can possibly reach.
+  //
+  // Each pass moves a value one corner, so after `RAMP + 2` passes nothing
+  // more than that many corners from a pad can be anything but zero -- it is
+  // provably zero, not approximately. Relaxing the rest of the map anyway cost
+  // four and a half million iterations on every edit whatever the size of the
+  // city, which on a map that is mostly empty is the whole of the work for
+  // none of the result.
+  const reach = RAMP + 3;
+  let bx0 = stride, bz0 = stride, bx1 = -1, bz1 = -1;
+  const cover = (gx: number, gz: number, w: number, d: number): void => {
+    bx0 = Math.min(bx0, gx - reach); bz0 = Math.min(bz0, gz - reach);
+    bx1 = Math.max(bx1, gx + w + reach); bz1 = Math.max(bz1, gz + d + reach);
+  };
+  for (const pad of pads) cover(pad.gx, pad.gz, pad.w, pad.d);
+  for (const p of pins) cover(p.gx, p.gz, 0, 0);
+  bx0 = Math.max(0, bx0); bz0 = Math.max(0, bz0);
+  bx1 = Math.min(stride - 1, bx1); bz1 = Math.min(stride - 1, bz1);
+  if (bx1 < bx0 || bz1 < bz0) return;   // nothing graded anywhere
+
   let src: Float32Array<ArrayBuffer> = offset;
   let dst: Float32Array<ArrayBuffer> = new Float32Array(n);
   for (let pass = 0; pass < RAMP + 2; pass++) {
-    for (let z = 0; z < stride; z++) {
-      for (let x = 0; x < stride; x++) {
+    for (let z = bz0; z <= bz1; z++) {
+      for (let x = bx0; x <= bx1; x++) {
         const k = z * stride + x;
         if (pinned[k]) { dst[k] = src[k]; continue; }
         let sum = 0;

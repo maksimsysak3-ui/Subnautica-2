@@ -187,7 +187,16 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var col : vec3f;
   if (surf < 0.5) {
     col = asphalt(w2, u, half, lanes, mpp);
-    var paint = markings(u, v, half, lanes, flags, mpp);
+    // Markings fade out as they stop being resolvable.
+    //
+    // A dashed line whose gaps are under a pixel is not a dashed line, it is a
+    // row of flickering dots -- and with edge lines, a centre line and a lane
+    // divider per lane all doing it at once, a road seen from any height came
+    // out as a mess of sparkle. They now go quietly to nothing once the pixel
+    // is wider than the paint, which is the point past which they were only
+    // ever adding noise.
+    let legible = 1.0 - smoothstep(0.10, 0.34, mpp);
+    var paint = markings(u, v, half, lanes, flags, mpp) * legible;
     // The stop line, where the carriageway meets a junction. This is most of
     // what makes a junction read as a junction rather than as a hole in the
     // road: the eye is looking for where it is told to stop.

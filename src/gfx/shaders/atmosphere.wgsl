@@ -57,7 +57,15 @@ fn sunLight(sun : vec3f) -> vec3f {
 /** Skylight from above: the dominant ambient term, and blue. */
 fn ambientSky(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let night = vec3f(0.026, 0.034, 0.062);
+  // Moonlight, not darkness.
+  //
+  // Physically a moonlit night is about a four-hundred-thousandth of daylight,
+  // and at that figure a 0.08-albedo road under this term comes out at 0.002 --
+  // black after the tonemap, which is exactly what it did. Every game cheats
+  // here and this one does too: enough of a cool floor that the ground, the
+  // kerbs and the parked cars are all still readable, while the lit windows
+  // stay far and away the brightest thing in the frame.
+  let night = vec3f(0.150, 0.178, 0.250);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   return mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -66,7 +74,7 @@ fn ambientSky(sun : vec3f) -> vec3f {
 /** Bounce from the ground: warmer, weaker, and what fills the undersides. */
 fn ambientGround(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let night = vec3f(0.020, 0.022, 0.030);
+  let night = vec3f(0.094, 0.098, 0.118);
   let lit = vec3f(0.240, 0.210, 0.180);
   return mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
 }

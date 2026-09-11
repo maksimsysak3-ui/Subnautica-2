@@ -548,9 +548,74 @@ function when(at: number): string {
  * A prompt rather than a panel: naming a save is the only decision, and a
  * screen built to collect one string is a screen in the way.
  */
-export function saveFromGame(world: World, suggested: string): string {
-  const name = window.prompt('Name this city', suggested);
-  if (name === null || name.trim() === '') return '';
-  const why = writeSave(world, name.trim());
-  return why === null ? `saved as “${name.trim()}”` : `could not save: ${why}`;
+export function saveFromGame(world: World, suggested: string,
+  say: (text: string) => void): void {
+  // A panel, not `window.prompt`.
+  //
+  // `prompt` is refused outright in a sandboxed iframe -- which is exactly
+  // where this game is played most of the time -- and a refused prompt returns
+  // null, which is indistinguishable from the player pressing cancel. So
+  // saving looked like it worked and quietly did nothing, every time, with no
+  // way to tell. This asks for the name itself.
+  const back = document.createElement('div');
+  back.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:40', 'display:grid', 'place-items:center',
+    'background:rgba(4,8,14,.62)', 'backdrop-filter:blur(3px)',
+    'font:400 14px/1.5 var(--ui, system-ui, sans-serif)',
+  ].join(';');
+
+  const card = document.createElement('div');
+  card.style.cssText = [
+    'display:flex', 'flex-direction:column', 'gap:12px', 'width:min(400px,90vw)',
+    'padding:20px', 'border-radius:14px', 'background:rgba(17,25,37,.96)',
+    'border:1px solid rgba(160,205,245,.22)', 'color:#f2f6fb',
+    'box-shadow:0 24px 60px rgba(0,0,0,.6)',
+  ].join(';');
+
+  const h = document.createElement('div');
+  h.textContent = 'Name this city';
+  h.style.cssText = 'font:600 15px/1.2 inherit';
+  const field = document.createElement('input');
+  field.value = suggested;
+  field.spellcheck = false;
+  field.style.cssText = [
+    'width:100%', 'padding:11px 13px', 'border-radius:10px',
+    'border:1px solid rgba(160,205,245,.28)', 'background:rgba(8,13,21,.85)',
+    'color:#f2f6fb', 'font:500 14px/1.2 inherit', 'outline:none',
+  ].join(';');
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px';
+  const shut = (): void => { back.remove(); document.removeEventListener('keydown', key); };
+  const make = (label: string, primary: boolean, fn: () => void): HTMLElement => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = [
+      'flex:1', 'padding:10px 14px', 'border-radius:10px', 'cursor:pointer',
+      `border:1px solid ${primary ? 'rgba(143,216,255,.45)' : 'rgba(160,205,245,.20)'}`,
+      primary ? 'background:rgba(56,142,196,.32)' : 'background:rgba(12,19,30,.7)',
+      `color:${primary ? '#f2f6fb' : '#a9bcd2'}`, 'font:600 12px/1 inherit',
+    ].join(';');
+    b.addEventListener('click', fn);
+    return b;
+  };
+  const commit = (): void => {
+    const name = field.value.trim();
+    if (name === '') { say('a city needs a name'); return; }
+    const why = writeSave(world, name);
+    shut();
+    say(why === null ? `saved as “${name}”` : `could not save: ${why}`);
+  };
+  const key = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') { shut(); say('not saved'); }
+    if (e.key === 'Enter') commit();
+  };
+  document.addEventListener('keydown', key);
+
+  row.append(make('Save', true, commit), make('Cancel', false, () => { shut(); say('not saved'); }));
+  card.append(h, field, row);
+  back.appendChild(card);
+  document.body.appendChild(back);
+  field.focus();
+  field.select();
 }

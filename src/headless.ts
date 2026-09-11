@@ -121,6 +121,10 @@ export async function probeTools(): Promise<{
   camera.update();
 
   const tools = new BuildTools(canvas, camera, renderer, overlay);
+  // The bar is built hidden, because at boot the main menu is over it. This
+  // probe is testing the game rather than the menu, so it starts where a
+  // player starts: in play, with the toolbar up.
+  tools.visible = true;
   const world = renderer.world;
   const count = (a: Uint8Array): number => {
     let n = 0;
@@ -225,6 +229,7 @@ export async function probeCurve(): Promise<{
   renderer.rebuild();
 
   const tools = new BuildTools(canvas, camera, renderer, overlay);
+  tools.visible = true;   // as above: the probe plays the game, not the menu
   // Matched on the tooltip or on the face of the button, because the bar uses
   // one and the drawers' tabs and tiles use the other -- and a probe that can
   // only reach half the controls is not testing what a player can reach.

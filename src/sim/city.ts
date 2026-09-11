@@ -118,10 +118,48 @@ export interface City {
  * it again after the player changes anything and the city is rebuilt to match,
  * deterministically -- the same world always produces the same city.
  */
+/**
+ * The instance buffer, written straight instead of through a number[].
+ *
+ * A rebuild emits tens of thousands of instances of twelve floats each. Held
+ * as a plain array that is hundreds of thousands of boxed doubles which then
+ * have to be copied into a Float32Array anyway, and it showed up as garbage
+ * collection on every road a player drew. Writing into the typed array as it
+ * grows costs one allocation per doubling and no copy at the end.
+ */
+class Instances {
+  private buf = new Float32Array(INSTANCE_FLOATS * 4096);
+  private n = 0;
+
+  /** One instance: place, form, extra. Twelve floats, in that order. */
+  add(x: number, z: number, y: number, yaw: number,
+    hx: number, hz: number, h: number, proto: number,
+    stretch: number, ghost: number, e2: number, e3: number): void {
+    if (this.n + INSTANCE_FLOATS > this.buf.length) {
+      const grown = new Float32Array(this.buf.length * 2);
+      grown.set(this.buf);
+      this.buf = grown;
+    }
+    const b = this.buf;
+    let k = this.n;
+    b[k++] = x; b[k++] = z; b[k++] = y; b[k++] = yaw;
+    b[k++] = hx; b[k++] = hz; b[k++] = h; b[k++] = proto;
+    b[k++] = stretch; b[k++] = ghost; b[k++] = e2; b[k++] = e3;
+    this.n = k;
+  }
+
+  get count(): number { return this.n / INSTANCE_FLOATS; }
+
+  /** A view of exactly what was written. Not a copy. */
+  get data(): Float32Array<ArrayBuffer> {
+    return this.buf.subarray(0, this.n) as Float32Array<ArrayBuffer>;
+  }
+}
+
 export function makeCity(world: World = defaultWorld()): City {
   const GRID = world.grid;
   const half = GRID / 2;
-  const out: number[] = [];
+  const out = new Instances();
   const cells = new Uint8Array(GRID * GRID);
   const population = new Uint32Array(PROTO_COUNT);
   /** What each placement wants the ground under it to be. */
@@ -161,16 +199,6 @@ export function makeCity(world: World = defaultWorld()): City {
 
   /** World coordinate of a cell's low edge. */
   const wx = (gx: number): number => (gx - half) * CELL;
-
-  /**
-   * Land value: 1 at the centre, 0 at the edge of the built-up area.
-   *
-   * Scaled to the map rather than to a fixed radius, so a lite build has a
-   * downtown of the same shape as a full one instead of a single tower.
-   */
-  const CORE = half * CELL * 0.8;
-  const downtown = (gx: number, gz: number): number =>
-    Math.max(0, 1 - Math.hypot(wx(gx), wx(gz)) / CORE);
 
   const free = (gx: number, gz: number, w: number, d: number, over: number): boolean => {
     if (gx < 0 || gz < 0 || gx + w > GRID || gz + d > GRID) return false;
@@ -310,7 +338,7 @@ export function makeCity(world: World = defaultWorld()): City {
       d: Math.max(1, Math.ceil((cz + bz) / CELL + half) - pgz),
       y: level,
     });
-    out.push(
+    out.add(
       cx, cz, level - 0.25, yaw,
       bx + 0.8, bz + 0.8, p.height * 1.2 + 3, p.index,
       1, 0, 0, 0,
@@ -354,7 +382,7 @@ export function makeCity(world: World = defaultWorld()): City {
     // agree exactly; at any other angle only this one is right, and the
     // spawner is about to start using angles that are not quarter turns.
     const [hx, hz] = turnedHalf((p.w * CELL) / 2, (p.d * CELL) / 2, yaw);
-    out.push(
+    out.add(
       (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
       // the meshes inside, and a box exactly on that boundary would cull a
@@ -427,7 +455,7 @@ export function makeCity(world: World = defaultWorld()): City {
     const ground = survey(lot.gx, lot.gz, lot.w, lot.d);
     const x0 = wx(lot.gx), z0 = wx(lot.gz);
     const x1 = x0 + lot.w * CELL, z1 = z0 + lot.d * CELL;
-    out.push(
+    out.add(
       (x0 + x1) / 2, (z0 + z1) / 2, ground.mean - 0.25, lot.yaw * QUARTER,
       (lot.w * CELL) / 2 + 0.8, (lot.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
       1, 0, 0, 0,
@@ -572,6 +600,7 @@ export function makeCity(world: World = defaultWorld()): City {
   // three-cell hole, almost every hole left by the spawner is one cell, and
   // the result was a map of thirteen hundred saplings and seventy oaks.
   const canopy = woodland(GRID);
+  const value = landValue(GRID);
   const nursery = [...planting()].sort((a, b) => b.w * b.d - a.w * a.d);
   if (nursery.length > 0) {
     const big = nursery.filter((p) => p.w >= 3);
@@ -625,7 +654,7 @@ export function makeCity(world: World = defaultWorld()): City {
           continue;
         }
 
-        const d = downtown(cx, cz);
+        const d = value[cell];
         const i = cx % PERIOD, j = cz % PERIOD;
         if (d > 0.02 && i < BLOCK && j < BLOCK) {
           // In town. Denser in the suburbs than downtown, which is what a
@@ -685,9 +714,7 @@ export function makeCity(world: World = defaultWorld()): City {
     }
   }
 
-  const data = new Float32Array(out.length);
-  data.set(out);
-  return { data, count: out.length / INSTANCE_FLOATS, population, cover, roads };
+  return { data: out.data, count: out.count, population, cover, roads };
 }
 
 /**
@@ -707,16 +734,58 @@ function woodland(grid: number): Float32Array {
   const out = new Float32Array(grid * grid);
   for (let cz = 0; cz < grid; cz++) {
     for (let cx = 0; cx < grid; cx++) {
-      // Thresholded high and scaled low: woodland covers less of the map and
-      // is thinner inside itself. At the old figures a copse took every free
-      // cell it touched -- a tree every eight metres, which is a plantation,
-      // not woodland -- and the whole map came to 131,575 trees. Crowns are
-      // wider than their cells, so thinning the stand closes the canopy just
-      // the same and costs a third of the instances.
-      out[cz * grid + cx] = Math.max(0, fbm(cx * 0.021, cz * 0.021, 3, 917) - 0.54) * 0.95;
+      // Woodland in stands, with real country between them.
+      //
+      // Three things, and the first is the one that matters. A single noise
+      // field thresholded low spreads a thin scatter of trees over the whole
+      // map, which is neither forest nor field -- it is static. A *high*
+      // threshold on a low-frequency field gives distinct woods with open
+      // ground between, which is what countryside actually looks like from the
+      // air, and it costs a fraction of the trees for a far stronger read.
+      //
+      // Then the density inside a stand is capped, because crowns are wider
+      // than their cells and a canopy closes long before every cell is taken.
+      //
+      // And the middle of the map is left alone entirely: that is where the
+      // player starts, and a starting site they have to clear before they can
+      // draw anything is a chore, not a challenge.
+      const wood = fbm(cx * 0.0115, cz * 0.0115, 3, 917);
+      const grain = fbm(cx * 0.052, cz * 0.052, 2, 331);
+      const stand = Math.max(0, wood - 0.575) * 2.4;
+      // The edge of a wood is ragged, not a contour: the finer field breaks it.
+      const edge = Math.max(0, stand * (0.55 + grain * 0.9));
+      const home = Math.hypot(cx - grid / 2, cz - grid / 2) / (grid * 0.5);
+      const clear = Math.min(1, Math.max(0, (home - 0.16) / 0.14));
+      out[cz * grid + cx] = Math.min(0.46, edge) * clear;
     }
   }
   woodMask = out;
   woodFor = grid;
+  return out;
+}
+
+/**
+ * How central a cell is, 1 in the middle and 0 at the edge of the built area.
+ *
+ * Memoised for the same reason the woodland mask is: it depends on the cell
+ * and nothing else, and the planting pass asked for it four hundred thousand
+ * times an edit -- a square root each, for an answer that never changes.
+ */
+let valueMask: Float32Array | null = null;
+let valueFor = -1;
+
+function landValue(grid: number): Float32Array {
+  if (valueMask !== null && valueFor === grid) return valueMask;
+  const out = new Float32Array(grid * grid);
+  const half = grid / 2;
+  const core = half * 8 * 0.8;
+  for (let cz = 0; cz < grid; cz++) {
+    for (let cx = 0; cx < grid; cx++) {
+      out[cz * grid + cx] =
+        Math.max(0, 1 - Math.hypot((cx - half) * 8, (cz - half) * 8) / core);
+    }
+  }
+  valueMask = out;
+  valueFor = grid;
   return out;
 }

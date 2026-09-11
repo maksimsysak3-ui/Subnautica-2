@@ -123,12 +123,17 @@ async function boot(): Promise<void> {
   // city is showing you something the game is not; this one is the game,
   // turning slowly, with the panel over the top.
   let cinematic = true;
+  // Declared before the menu because the menu shows and hides it, and built
+  // after the world because it reads the grid.
+  let tools: BuildTools | null = null;
   const menu = new Menu(overlay, {
     onNew: () => { renderer.useWorld(startingWorld(renderer.world.grid)); renderer.rebuild(); },
     onLoad: (world) => { renderer.useWorld(world); renderer.rebuild(); },
     world: () => renderer.world,
     cinematic: (on) => {
       cinematic = on;
+      // The toolbar belongs to the game, not to the menu.
+      if (tools !== null) tools.visible = !on;
       // A full day in about two minutes while the menu is up, and back to the
       // game's own pace on the way in. Sitting on the menu should be worth
       // doing; sitting in the game at that speed would be unplayable.
@@ -200,8 +205,8 @@ async function boot(): Promise<void> {
   // The build tools take the left button while one is selected; the camera
   // keeps the right button and the wheel throughout, so the player never has
   // to put a tool down to look somewhere else.
-  const tools = new BuildTools(canvas, camera, renderer, overlay);
-  controls.buildActive = () => tools.active;
+  tools = new BuildTools(canvas, camera, renderer, overlay);
+  controls.buildActive = () => tools?.active ?? false;
 
   // A lost device invalidates every GPU object. Rebuild from scratch rather
   // than leaving the player with a dead canvas.
