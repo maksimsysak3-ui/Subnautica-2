@@ -713,7 +713,7 @@ function woodland(grid: number): Float32Array {
       // not woodland -- and the whole map came to 131,575 trees. Crowns are
       // wider than their cells, so thinning the stand closes the canopy just
       // the same and costs a third of the instances.
-      out[cz * grid + cx] = Math.max(0, fbm(cx * 0.021, cz * 0.021, 3, 917) - 0.47) * 1.30;
+      out[cz * grid + cx] = Math.max(0, fbm(cx * 0.021, cz * 0.021, 3, 917) - 0.54) * 0.95;
     }
   }
   woodMask = out;

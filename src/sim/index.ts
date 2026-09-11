@@ -25,3 +25,5 @@ export { hash2, noise2, fbm } from './hash';
 export { simConfig, configureSim, LITE } from './config';
 export type { SimConfig } from './config';
 export { buildingPrice, roadPrice, zonePrice, money } from './costs';
+export { serialise, deserialise, listSaves, writeSave, readSave, deleteSave, toCode, fromCode } from './save';
+export type { SaveInfo } from './save';

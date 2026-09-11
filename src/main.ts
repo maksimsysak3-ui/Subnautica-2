@@ -14,7 +14,8 @@ import { Controls } from './input/controls';
 import { BuildTools } from './ui/build-tools';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
-import { configureSim, LITE } from './sim';
+import { configureSim, LITE, startingWorld, defaultWorld } from './sim';
+import { Menu } from './ui/menu';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
 
@@ -91,7 +92,56 @@ async function boot(): Promise<void> {
   // harmless: it exposes the view, not the simulation.
   window.__citysim = { camera };
   const renderer = new Renderer(gpu, camera, stats);
-  renderer.build();
+
+  // The menu goes up before the world is built, not after, so the facets have
+  // something to light up in time with -- and so the first thing on screen is
+  // the game's own face rather than a blank canvas with a word on it.
+  //
+  // The scene runs behind it throughout. A menu that paints a picture of a
+  // city is showing you something the game is not; this one is the game,
+  // turning slowly, with the panel over the top.
+  let cinematic = true;
+  const menu = new Menu(overlay, {
+    onNew: () => { renderer.useWorld(startingWorld(renderer.world.grid)); renderer.rebuild(); },
+    onLoad: (world) => { renderer.useWorld(world); renderer.rebuild(); },
+    world: () => renderer.world,
+    cinematic: (on) => { cinematic = on; },
+  });
+  document.getElementById('boot')?.classList.add('done');
+
+  // Built in steps with a frame between them, because a single synchronous
+  // build hands the browser one long block and the loader never draws -- the
+  // player watches a frozen page and is told nothing. Each await yields.
+  const steps: Array<[string, () => void]> = [
+    ['reading the land', () => { /* terrain is built inside build() below */ }],
+    ['cutting the river', () => { /* likewise; these two name what is happening */ }],
+    // The menu stands over a built city rather than over the empty site the
+    // game starts on. A skyline is the picture; a field is a field.
+    ['raising the skyline', () => {
+      renderer.useWorld(defaultWorld(renderer.world.grid));
+      renderer.build();
+    }],
+    ['planting', () => { /* the build above did it; the beat is for the eye */ }],
+    ['bringing the road in', () => { /* the starting world is already on the map */ }],
+    ['opening', () => { /* nothing left; the last facet lands on a finished world */ }],
+  ];
+  for (let i = 0; i < steps.length; i++) {
+    menu.progress(i / steps.length, steps[i][0]);
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    steps[i][1]();
+  }
+  menu.progress(1, '');
+  menu.ready();
+
+  // The menu's camera: a slow orbit at dawn, well back, so the first thing
+  // anyone sees is the site they are about to build on.
+  // Low and far back, at the hour the sun is in the buildings rather than
+  // over them: a skyline against a lit sky, which is the shot every city
+  // builder's box art is.
+  camera.distance = 900;
+  camera.pitch = 0.20;
+  camera.yaw = 0.8;
+  renderer.timeOfDay = 0.285;
 
   // The build tools take the left button while one is selected; the camera
   // keeps the right button and the wheel throughout, so the player never has
@@ -137,6 +187,12 @@ async function boot(): Promise<void> {
     : null;
 
   renderer.start((dt) => {
+    // Hands the camera back the moment the menu is gone, and never fights the
+    // player for it: the orbit only runs while nobody else is driving.
+    if (cinematic) {
+      camera.yaw += dt * 0.035;
+      camera.update();
+    }
     controls.update(dt);
     benchmark?.update(dt);
   });

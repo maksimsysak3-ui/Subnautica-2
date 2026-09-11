@@ -520,6 +520,25 @@ export class RoadGraph {
     return hit ?? [x, z];
   }
 
+  /**
+   * Puts a node back exactly where it was, for loading a save.
+   *
+   * Not `nodeAt`: that snaps to whatever is nearby and splits links to make a
+   * junction, which is right when a player draws a road and wrong when
+   * restoring a graph where all of that already happened. Loading is not
+   * drawing -- it is putting back what drawing produced.
+   */
+  restoreNode(x: number, z: number): number {
+    return this.addNode(x, z);
+  }
+
+  /** The same for a link: its ends and its control point, taken as given. */
+  restoreLink(a: number, b: number, cx: number, cz: number, cls: RoadClass): void {
+    if (a === b) return;
+    this.links.push({ a, b, cx, cz, cls });
+    this.dirty = true;
+  }
+
   /** The same, from cell coordinates, for callers that think in the grid. */
   addCells(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0): void {
     const h = this.grid / 2;

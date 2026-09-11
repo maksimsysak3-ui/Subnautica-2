@@ -26,6 +26,7 @@ import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen } from './icons';
+import { saveFromGame } from './menu';
 import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
 import { BRANCHES } from '../assets/types';
 import type { Branch, Density, Zone } from '../assets/types';
@@ -915,6 +916,24 @@ export class BuildTools {
       svgCross(), '#f08a6e');
     tools.appendChild(clear);
 
+    // Saving sits on the bar rather than behind a menu, because a city
+    // builder's one unrecoverable mistake is closing the tab.
+    const keep = group();
+    {
+      const b = document.createElement('button');
+      b.title = 'Save this city to this browser';
+      chip(b, '#8fe0a8');
+      const glyph = document.createElement('span');
+      glyph.innerHTML = svgSave();
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.addEventListener('click', () => {
+        this.say(saveFromGame(this.renderer.world, CITY_NAME) || 'not saved');
+      });
+      keep.appendChild(b);
+    }
+    tools.appendChild(keep);
+
     bar.appendChild(tools);
     bar.appendChild(this.buildStatusRow());
     return bar;
@@ -1099,9 +1118,12 @@ export class BuildTools {
     const label = document.createElement('span');
     label.textContent = name;
     const meta = document.createElement('span');
-    meta.innerHTML = `<span style="color:${accent};opacity:.8">${size}</span>`
-      + `<span style="opacity:.35"> · </span>`
-      + `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">${money(cost)}</span>`
+    // The price, and nothing else. The footprint used to sit beside it as
+    // "4x3", which is a number a player has to convert into a picture -- and
+    // the picture is already right there above it, drawn to scale.
+    void size;
+    meta.innerHTML = `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">`
+      + `${money(cost)}</span>`
       + (per === '' ? '' : `<span style="opacity:.45"> ${per}</span>`);
     b.append(label, meta);
     b.addEventListener('mouseenter', () => {
@@ -1367,6 +1389,13 @@ function underline(colour: string): HTMLElement {
     `background:${colour}`, `box-shadow:0 0 7px ${colour}aa`,
   ].join(';');
   return el;
+}
+
+function svgSave(): string {
+  return '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h10L20 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/>'
+    + '<path d="M8 4v5h7V4"/><path d="M7.5 20v-6h9v6"/></svg>';
 }
 
 function svgCross(): string {

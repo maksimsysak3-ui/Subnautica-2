@@ -23,9 +23,17 @@ import fs from 'node:fs';
 import http from 'node:http';
 import * as esbuild from 'esbuild';
 
-/** Rendered at this, packed at ICON. 128 * 4 is a multiple of the 256-byte row alignment. */
-const TILE = 128;
-const ICON = 48;
+/**
+ * Rendered at TILE, packed at ICON. TILE * 4 must be a multiple of the
+ * 256-byte row alignment, so TILE is a multiple of 64.
+ *
+ * Packed at 96 rather than 48: the drawer draws these at 52 and upward of
+ * that on a high-density screen, and a 48-pixel sprite shown at 52 is being
+ * *enlarged* -- which is exactly why they looked soft. At 96 there is a real
+ * pixel behind every one drawn on any display worth having.
+ */
+const TILE = 192;
+const ICON = 96;
 const COLS = 12;
 const SHADOW = 1024;
 const OUT = new URL('../src/ui/icon-sheet.ts', import.meta.url).pathname;
