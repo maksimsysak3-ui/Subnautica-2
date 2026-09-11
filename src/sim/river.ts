@@ -103,13 +103,19 @@ function route(extent: number): Point[] {
     // back across itself, and buried a quarter of its own channel under the
     // valley the other branch had cut.
     //
-    // The pull towards the middle fades once it is there. Without it the
-    // steepest descent takes the river to whichever edge the land falls
-    // towards and the city never sees it; held all the way, it runs dead
-    // straight down the middle, which no river does.
-    const home = Math.max(0, 1 - Math.abs(x) / (extent * 0.55));
+    // Kept off the middle of the map. A river through the centre of the
+    // buildable land is a wall across the one part of the site the player
+    // actually wants, and no amount of bridge-building makes that a feature
+    // when they did not choose it. So there is a repulsion from the origin,
+    // strongest in the core and gone by the time the river is clear of it,
+    // pushing whichever way the river already leans rather than picking a
+    // side -- the shape stays the terrain's, the centre stays buildable.
+    const core = extent * 0.42;
+    const away = Math.max(0, 1 - Math.hypot(x, z) / core);
+    const lean = z === 0 ? 1 : Math.sign(z);
     let nx = dx * 0.62 + gx * 0.26 + 0.30;
-    let nz = dz * 0.62 + gz * 0.26 - (z / extent) * 0.40 * (1 - home);
+    let nz = dz * 0.62 + gz * 0.26 - (z / extent) * 0.40
+           + lean * away * 0.85;
     const n = Math.hypot(nx, nz) || 1;
     nx /= n; nz /= n;
     dx = nx; dz = nz;

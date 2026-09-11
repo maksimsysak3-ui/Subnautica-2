@@ -480,12 +480,21 @@ export function makeCity(world: World = defaultWorld()): City {
       // being tried, and looking the district and its stock up eight times per
       // position was most of what a frontage cost.
       const probe = net.siteAt(f.link, f.side, s);
-      // Read a little way back from the kerb line rather than on it, so a
-      // plot takes the zone of the ground it stands on rather than of the cell
-      // the corridor happens to end in.
-      const [pgx, pgz] = net.cellAt(probe.x + Math.sin(probe.yaw) * CELL,
-        probe.z - Math.cos(probe.yaw) * CELL);
-      const district = districtOf(pgx, pgz);
+      // The zone is read along the whole depth this plot may take, not at one
+      // cell behind the kerb.
+      //
+      // That single probe was the bug behind "I zoned it and nothing built".
+      // A plot is up to half a block deep, so a player painting anywhere in
+      // that depth is painting ground a building would stand on -- but only
+      // the one ring of cells exactly eight metres back from the kerb was ever
+      // looked at, and four cells in five did nothing at all. The first zoned
+      // cell going back now wins, which is the rule a player already assumes.
+      const nx = Math.sin(probe.yaw), nz = -Math.cos(probe.yaw);
+      let district: ReturnType<typeof districtOf> = null;
+      for (let back = 1; back <= (BLOCK >> 1) && district === null; back++) {
+        const [pgx, pgz] = net.cellAt(probe.x + nx * CELL * back, probe.z + nz * CELL * back);
+        district = districtOf(pgx, pgz);
+      }
       if (district === null) { s += step; continue; }
       const list = stock(district.zone, district.density, district.theme);
       if (list.length === 0) { s += step; continue; }
@@ -546,6 +555,11 @@ export function makeCity(world: World = defaultWorld()): City {
 
   // ---- planting -------------------------------------------------------
   //
+  // The woodland mask is the same every time -- it is a function of the cell
+  // and nothing else -- and computing three octaves of noise for four hundred
+  // thousand cells was most of what a rebuild on open country cost. It is
+  // built once and kept; see `woodland` below.
+  //
   // Two regimes, because a city and the country around it are planted by
   // different things. Inside the built-up area a tree is a street tree or a
   // garden tree: it goes where a building did not, weighted hard towards the
@@ -557,6 +571,7 @@ export function makeCity(world: World = defaultWorld()): City {
   // it does not fit sounds fair and is not: a three-cell oak needs a
   // three-cell hole, almost every hole left by the spawner is one cell, and
   // the result was a map of thirteen hundred saplings and seventy oaks.
+  const canopy = woodland(GRID);
   const nursery = [...planting()].sort((a, b) => b.w * b.d - a.w * a.d);
   if (nursery.length > 0) {
     const big = nursery.filter((p) => p.w >= 3);
@@ -620,9 +635,8 @@ export function makeCity(world: World = defaultWorld()): City {
         // Out of town. Copses: a low-frequency noise decides where woodland
         // is at all, and inside one the canopy is close to continuous. An
         // even scatter at the same tree count reads as an orchard.
-        const wood = fbm(cx * 0.021, cz * 0.021, 3, 917);
-        const cover = Math.max(0, wood - 0.40) * 2.6 - d * 0.6;
-        if (cover <= 0 || hash2(cx, cz, 813) > cover) continue;
+        const shade = canopy[at(cx, cz)] - d * 0.6;
+        if (shade <= 0 || hash2(cx, cz, 813) > shade) continue;
         plant(cx, cz, [mid, big, small]);
       }
     }
@@ -669,4 +683,35 @@ export function makeCity(world: World = defaultWorld()): City {
   const data = new Float32Array(out.length);
   data.set(out);
   return { data, count: out.length / INSTANCE_FLOATS, population, cover, roads };
+}
+
+/**
+ * Where woodland is, as a value per cell.
+ *
+ * A pure function of the grid, so it is computed once for the life of the
+ * process rather than on every rebuild. That matters because a rebuild runs on
+ * every road the player draws and every block they zone: at 640 cells this is
+ * four hundred thousand three-octave noise lookups, and on a map that is
+ * mostly open country it was the single largest thing an edit paid for.
+ */
+let woodMask: Float32Array | null = null;
+let woodFor = -1;
+
+function woodland(grid: number): Float32Array {
+  if (woodMask !== null && woodFor === grid) return woodMask;
+  const out = new Float32Array(grid * grid);
+  for (let cz = 0; cz < grid; cz++) {
+    for (let cx = 0; cx < grid; cx++) {
+      // Thresholded high and scaled low: woodland covers less of the map and
+      // is thinner inside itself. At the old figures a copse took every free
+      // cell it touched -- a tree every eight metres, which is a plantation,
+      // not woodland -- and the whole map came to 131,575 trees. Crowns are
+      // wider than their cells, so thinning the stand closes the canopy just
+      // the same and costs a third of the instances.
+      out[cz * grid + cx] = Math.max(0, fbm(cx * 0.021, cz * 0.021, 3, 917) - 0.47) * 1.30;
+    }
+  }
+  woodMask = out;
+  woodFor = grid;
+  return out;
 }

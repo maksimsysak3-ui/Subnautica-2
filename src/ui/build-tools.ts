@@ -32,6 +32,24 @@ import type { IconZone } from './zones';
 /** Metres per zoning cell. */
 const CELL = 8;
 
+// The bar's own palette. Cool slate rather than black, because the bar sits
+// over grass and sky all day and a true black panel reads as a hole cut in the
+// picture rather than as a thing lying on top of it.
+const PANEL = 'rgba(19,26,36,.90)';
+const WELL = 'rgba(10,15,22,.62)';
+const EDGE = 'rgba(120,160,200,.14)';
+
+const CITY_NAME = 'Salford';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Season by quarter, with the day's temperature range it swings between. */
+const SEASONS = [
+  { name: 'Winter', glyph: '❄', tint: '#8fc7ff', low: -1, high: 5 },
+  { name: 'Spring', glyph: '❀', tint: '#8fe0a8', low: 6, high: 15 },
+  { name: 'Summer', glyph: '☀', tint: '#ffd166', low: 14, high: 26 },
+  { name: 'Autumn', glyph: '☂', tint: '#e8a35a', low: 5, high: 14 },
+];
+
 type Tool =
   | { kind: 'look' }
   | { kind: 'road'; cls: RoadClass }
@@ -115,6 +133,12 @@ export class BuildTools {
   private drawer: HTMLElement | null = null;
   /** The column the drawer, the status line and the bar stack in. */
   private foot!: HTMLElement;
+  private readClock!: HTMLElement;
+  private readSeason!: HTMLElement;
+  private readPeople!: HTMLElement;
+  private readMoney!: HTMLElement;
+  private ticked = 0;
+  private raf = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -152,6 +176,7 @@ export class BuildTools {
   }
 
   dispose(): void {
+    cancelAnimationFrame(this.raf);
     for (const d of this.disposers) d();
     this.disposers = [];
   }
@@ -608,8 +633,9 @@ export class BuildTools {
     this.showMark();
     for (const el of this.buttons) {
       el.dataset.on = el.dataset.tool === this.key(tool) ? '1' : '';
-      el.style.borderColor = el.dataset.on ? 'rgba(98,212,255,.75)' : 'rgba(255,255,255,.10)';
-      el.style.background = el.dataset.on ? 'rgba(98,212,255,.16)' : 'rgba(10,14,20,.72)';
+      el.style.borderColor = el.dataset.on ? 'rgba(120,214,255,.55)' : 'transparent';
+      el.style.background = el.dataset.on ? 'rgba(98,212,255,.15)' : 'transparent';
+      el.style.boxShadow = el.dataset.on ? '0 0 0 1px rgba(98,212,255,.12) inset' : 'none';
     }
     this.canvas.style.cursor = tool.kind === 'look' ? '' : 'crosshair';
     this.say(this.describe(tool));
@@ -646,30 +672,54 @@ export class BuildTools {
   private buttons: HTMLElement[] = [];
 
   private buildBar(): HTMLElement {
+    // The shell: one dark slab with a tool row above a status row, the way a
+    // city builder's bar is always laid out. What a player reaches for is on
+    // top where the pointer already is; what they only read sits below it.
     const bar = document.createElement('div');
     bar.style.cssText = [
-      // Wraps, because the bar now carries eight road classes, five zones and
-      // eleven service branches, and a row of that on one line is a bar that
-      // runs off the side of the screen on anything but a desktop.
-      'display:flex', 'flex-wrap:wrap', 'justify-content:center', 'gap:6px',
-      'max-width:min(1180px,94vw)',
-      'padding:6px', 'border-radius:6px',
-      'background:rgba(6,9,13,.78)', 'border:1px solid rgba(98,212,255,.16)',
-      'backdrop-filter:blur(6px)', 'z-index:5',
+      'display:flex', 'flex-direction:column', 'gap:0',
+      'max-width:min(1280px,96vw)', 'border-radius:14px', 'overflow:hidden',
+      `background:${PANEL}`, `border:1px solid ${EDGE}`,
+      'box-shadow:0 10px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)',
+      'backdrop-filter:blur(14px)', 'z-index:5',
       // The overlay it lives in is click-through so the camera can be dragged
       // anywhere; the bar itself has to take its own clicks back.
       'pointer-events:auto',
     ].join(';');
 
+    const tools = document.createElement('div');
+    tools.style.cssText = [
+      'display:flex', 'flex-wrap:wrap', 'align-items:center',
+      'justify-content:center', 'gap:5px', 'padding:8px 10px',
+    ].join(';');
+
     const group = (): HTMLElement => {
+      // Each group is its own recessed pill, which is what separates roads
+      // from zones from services without a row of hairlines doing it.
       const g = document.createElement('div');
-      g.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:center;gap:4px';
+      g.style.cssText = [
+        'display:flex', 'flex-wrap:wrap', 'justify-content:center', 'gap:3px',
+        'padding:3px', 'border-radius:11px', `background:${WELL}`,
+        'border:1px solid rgba(255,255,255,.045)',
+      ].join(';');
       return g;
     };
-    const sep = (): HTMLElement => {
-      const s = document.createElement('div');
-      s.style.cssText = 'width:1px;margin:4px 3px;background:rgba(255,255,255,.10)';
-      return s;
+    /** Every button on the bar is this shape; only its contents differ. */
+    const chip = (el: HTMLElement, colour: string): void => {
+      el.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:6px',
+        'height:34px', 'padding:0 10px', 'border-radius:9px',
+        'border:1px solid transparent', 'background:transparent',
+        `color:${colour}`, 'cursor:pointer', 'white-space:nowrap',
+        'font:600 11px/1 var(--ui, system-ui, sans-serif)', 'letter-spacing:.02em',
+        'transition:background .12s, border-color .12s',
+      ].join(';');
+      el.addEventListener('pointerenter', () => {
+        if (!el.dataset.on) el.style.background = 'rgba(255,255,255,.06)';
+      });
+      el.addEventListener('pointerleave', () => {
+        if (!el.dataset.on) el.style.background = 'transparent';
+      });
     };
 
     const add = (parent: HTMLElement, make: Tool | (() => Tool), label: string,
@@ -679,12 +729,7 @@ export class BuildTools {
       b.dataset.tool = this.key(pick());
       b.title = label;
       b.innerHTML = icon;
-      b.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:6px', 'padding:6px 9px',
-        'border-radius:4px', 'border:1px solid rgba(255,255,255,.10)',
-        'background:rgba(10,14,20,.72)', `color:${colour}`, 'cursor:pointer',
-        'font:11px/1 var(--mono, ui-monospace, monospace)', 'letter-spacing:.03em',
-      ].join(';');
+      chip(b, colour);
       b.addEventListener('click', () => this.select(pick()));
       parent.appendChild(b);
       this.buttons.push(b);
@@ -692,8 +737,7 @@ export class BuildTools {
 
     const look = group();
     add(look, { kind: 'look' }, 'Look around', svgHand(), '#8fa3bd');
-    bar.appendChild(look);
-    bar.appendChild(sep());
+    tools.appendChild(look);
 
     // How a road is drawn is a property of the drawing, not of the road, so
     // it is one button beside the classes rather than a second copy of all of
@@ -707,12 +751,7 @@ export class BuildTools {
         ? 'Curved roads — click, click the bend, click the end'
         : 'Dragged roads — sweep the drag to bow the road';
     };
-    mode.style.cssText = [
-      'display:flex', 'align-items:center', 'gap:6px', 'padding:6px 9px',
-      'border-radius:4px', 'border:1px solid rgba(255,255,255,.10)',
-      'background:rgba(10,14,20,.72)', `color:${ZONE_STYLE.road.light}`, 'cursor:pointer',
-      'font:11px/1 var(--mono, ui-monospace, monospace)', 'letter-spacing:.03em',
-    ].join(';');
+    chip(mode, ZONE_STYLE.road.light);
     mode.addEventListener('click', () => {
       this.roadMode = this.roadMode === 'curve' ? 'road' : 'curve';
       paintMode();
@@ -729,8 +768,7 @@ export class BuildTools {
         `${cls[0].toUpperCase()}${cls.slice(1)}`,
         `${zoneIcon('road', 18)}<span>${ROAD_SPECS[cls].label}</span>`, ZONE_STYLE.road.light);
     }
-    bar.appendChild(roads);
-    bar.appendChild(sep());
+    tools.appendChild(roads);
 
     // One button per zone, cycling density on repeated clicks: four buttons
     // and a modifier beats twelve buttons, and density is the thing a player
@@ -759,12 +797,7 @@ export class BuildTools {
         b.appendChild(tag);
       };
       face();
-      b.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:5px', 'padding:5px 8px',
-        'border-radius:4px', 'border:1px solid rgba(255,255,255,.10)',
-        'background:rgba(10,14,20,.72)', `color:${style.light}`, 'cursor:pointer',
-        'font:11px/1 var(--mono, ui-monospace, monospace)', 'letter-spacing:.03em',
-      ].join(';');
+      chip(b, style.light);
       b.addEventListener('click', () => {
         if (this.tool.kind === 'zone' && this.tool.zone === zone) {
           level = (level + 1) % DENSITIES.length;
@@ -776,8 +809,7 @@ export class BuildTools {
       zones.appendChild(b);
       this.buttons.push(b);
     }
-    bar.appendChild(zones);
-    bar.appendChild(sep());
+    tools.appendChild(zones);
 
     // Eleven branches, each a drawer of buildings. A flat list of eighty-nine
     // buttons is not a palette, and the branch is how a player thinks about it
@@ -790,13 +822,12 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = branch;
       b.title = `${style.label} — ${list.length} buildings`;
-      b.innerHTML = `<span>${style.label.toLowerCase()}</span>`;
-      b.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:6px', 'padding:6px 9px',
-        'border-radius:4px', 'border:1px solid rgba(255,255,255,.10)',
-        'background:rgba(10,14,20,.72)', `color:${style.colour}`, 'cursor:pointer',
-        'font:11px/1 var(--mono, ui-monospace, monospace)', 'letter-spacing:.03em',
-      ].join(';');
+      // A dot in the branch's colour and the name. Eleven of these read as a
+      // palette; eleven grey glyphs read as a toolbar nobody wants to learn.
+      b.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;`
+        + `background:${style.colour};box-shadow:0 0 8px ${style.colour}88"></span>`
+        + `<span>${style.label.toLowerCase()}</span>`;
+      chip(b, '#c6d2e2');
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === branch) { this.closeDrawer(); return; }
@@ -805,14 +836,139 @@ export class BuildTools {
       civic.appendChild(b);
       this.buttons.push(b);
     }
-    bar.appendChild(civic);
-    bar.appendChild(sep());
+    tools.appendChild(civic);
 
     const clear = group();
-    add(clear, { kind: 'clear' }, 'Clear', `${svgCross()}<span>clear</span>`, '#e8836e');
-    bar.appendChild(clear);
+    add(clear, { kind: 'clear' }, 'Clear', `${svgCross()}<span>clear</span>`, '#f08a6e');
+    tools.appendChild(clear);
+
+    bar.appendChild(tools);
+    bar.appendChild(this.buildStatusRow());
     return bar;
   }
+
+  /**
+   * The row under the tools: what the city is, rather than what you can do.
+   *
+   * Everything on it is real. The clock is the one the sun runs on, the
+   * season and temperature follow it round the year, and the population is
+   * counted from the buildings actually standing -- so it is zero on the first
+   * frame and climbs as districts fill, which is the whole feedback loop a
+   * city builder runs on.
+   */
+  private buildStatusRow(): HTMLElement {
+    const row = document.createElement('div');
+    row.style.cssText = [
+      'display:flex', 'align-items:center', 'gap:0', 'height:36px',
+      'padding:0 6px', `background:${WELL}`,
+      'border-top:1px solid rgba(255,255,255,.05)',
+      'font:600 11px/1 var(--ui, system-ui, sans-serif)', 'color:#93a3b8',
+    ].join(';');
+
+    const cell = (html: string, wide = false): HTMLElement => {
+      const d = document.createElement('div');
+      d.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:7px', 'padding:0 12px',
+        'height:22px', wide ? 'flex:1' : '', 'white-space:nowrap',
+      ].filter(Boolean).join(';');
+      d.innerHTML = html;
+      return d;
+    };
+    const rule = (): HTMLElement => {
+      const r = document.createElement('div');
+      r.style.cssText = 'width:1px;height:16px;background:rgba(255,255,255,.07)';
+      return r;
+    };
+
+    // Speed. The clock is the renderer's own, so pausing here pauses the sun,
+    // the lit windows and the shadows together -- there is only one clock.
+    const speeds = document.createElement('div');
+    speeds.style.cssText = 'display:flex;gap:2px;padding:0 4px';
+    const rates = [0, 1, 3, 10];
+    const marks = ['❚❚', '▶', '▶▶', '▶▶▶'];
+    const pick = (i: number): void => {
+      this.renderer.clockRunning = rates[i] > 0;
+      this.renderer.clockRate = rates[i];
+      for (let k = 0; k < buttons.length; k++) {
+        const on = k === i;
+        buttons[k].style.background = on ? 'rgba(98,212,255,.16)' : 'transparent';
+        buttons[k].style.color = on ? '#8fe3ff' : '#61738a';
+      }
+    };
+    const buttons: HTMLElement[] = rates.map((_, i) => {
+      const b = document.createElement('button');
+      b.textContent = marks[i];
+      b.title = i === 0 ? 'Pause' : `Speed ${i}`;
+      b.style.cssText = [
+        'height:24px', 'min-width:30px', 'padding:0 7px', 'border-radius:7px',
+        'border:0', 'background:transparent', 'color:#61738a', 'cursor:pointer',
+        'font:11px/1 var(--ui, system-ui, sans-serif)',
+      ].join(';');
+      b.addEventListener('click', () => pick(i));
+      speeds.appendChild(b);
+      return b;
+    });
+    row.appendChild(speeds);
+    row.appendChild(rule());
+
+    this.readClock = cell('<span style="color:#dbe6f3">--:--</span><span>—</span>');
+    row.appendChild(this.readClock);
+    row.appendChild(rule());
+    this.readSeason = cell('');
+    row.appendChild(this.readSeason);
+    row.appendChild(rule());
+
+    row.appendChild(cell('<span style="color:#7fd4a8">◆</span>'
+      + `<span style="color:#dbe6f3;letter-spacing:.06em">${CITY_NAME}</span>`, true));
+
+    this.readPeople = cell('');
+    row.appendChild(rule());
+    row.appendChild(this.readPeople);
+    this.readMoney = cell('<span style="color:#7fd4a8">●</span>'
+      + '<span style="color:#dbe6f3">∞</span>');
+    row.appendChild(rule());
+    row.appendChild(this.readMoney);
+
+    pick(1);
+    this.tick();
+    return row;
+  }
+
+  /**
+   * Refreshes the readouts. Cheap, and only the text nodes that changed.
+   *
+   * Driven off requestAnimationFrame rather than a timer so it stops with the
+   * tab, and throttled to four a second because nobody reads a clock faster
+   * than that and the string building is not free.
+   */
+  private tick = (): void => {
+    const now = performance.now();
+    if (now - this.ticked > 240) {
+      this.ticked = now;
+      const t = this.renderer.timeOfDay;
+      const hh = Math.floor(t * 24), mm = Math.floor((t * 24 % 1) * 60);
+      // The year turns once per real hour, so a session passes through the
+      // seasons rather than sitting in one.
+      const doy = (now / 3600000) % 1;
+      const month = Math.floor(doy * 12);
+      const season = SEASONS[Math.floor(((month + 1) % 12) / 3)];
+      const temp = Math.round(season.low + (season.high - season.low)
+        * (0.5 - 0.5 * Math.cos(t * Math.PI * 2 - Math.PI)));
+      this.readClock.innerHTML =
+        `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">`
+        + `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}</span>`
+        + `<span>${MONTHS[month]} ${2027 + Math.floor(now / 3600000)}</span>`;
+      this.readSeason.innerHTML = `<span style="color:${season.tint}">${season.glyph}</span>`
+        + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">${temp}°C</span>`
+        + `<span>${season.name}</span>`;
+      const s = this.renderer.summary;
+      this.readPeople.innerHTML = '<span style="color:#8fb8e8">☗</span>'
+        + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">`
+        + `${s.people.toLocaleString()}</span>`
+        + `<span style="opacity:.7">${s.buildings.toLocaleString()} bldg</span>`;
+    }
+    this.raf = requestAnimationFrame(this.tick);
+  };
 
   /**
    * The drawer of one branch's buildings.
@@ -830,10 +986,11 @@ export class BuildTools {
     panel.dataset.branch = branch;
     panel.style.cssText = [
       'display:grid', 'grid-template-columns:repeat(auto-fill,minmax(92px,1fr))',
-      'gap:4px', 'padding:8px', 'border-radius:6px', 'width:min(760px,86vw)',
+      'gap:5px', 'padding:10px', 'border-radius:14px', 'width:min(860px,94vw)',
       'max-height:46vh', 'overflow-y:auto',
-      'background:rgba(6,9,13,.92)', `border:1px solid ${style.colour}44`,
-      'backdrop-filter:blur(8px)', 'z-index:6', 'pointer-events:auto',
+      `background:${PANEL}`, `border:1px solid ${style.colour}55`,
+      'box-shadow:0 10px 34px rgba(0,0,0,.5)',
+      'backdrop-filter:blur(14px)', 'z-index:6', 'pointer-events:auto',
     ].join(';');
     // Clicks inside the drawer must not reach the bar's own dismissal.
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -843,9 +1000,9 @@ export class BuildTools {
       b.title = p.def.note;
       b.style.cssText = [
         'display:flex', 'flex-direction:column', 'align-items:center', 'gap:3px',
-        'padding:6px 4px', 'border-radius:4px', 'border:1px solid rgba(255,255,255,.08)',
-        'background:rgba(12,17,24,.8)', 'color:#c8d4e4', 'cursor:pointer',
-        'font:10px/1.25 var(--mono, ui-monospace, monospace)', 'text-align:center',
+        'padding:7px 4px', 'border-radius:10px', 'border:1px solid rgba(255,255,255,.06)',
+        `background:${WELL}`, 'color:#c8d4e4', 'cursor:pointer',
+        'font:600 10px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
       ].join(';');
       b.appendChild(assetIcon(p.id, 52));
       const name = document.createElement('span');
@@ -854,8 +1011,14 @@ export class BuildTools {
       size.textContent = `${p.w}x${p.d}`;
       size.style.cssText = `color:${style.colour};opacity:.75`;
       b.append(name, size);
-      b.addEventListener('mouseenter', () => { b.style.borderColor = `${style.colour}88`; });
-      b.addEventListener('mouseleave', () => { b.style.borderColor = 'rgba(255,255,255,.08)'; });
+      b.addEventListener('mouseenter', () => {
+        b.style.borderColor = `${style.colour}99`;
+        b.style.background = 'rgba(255,255,255,.05)';
+      });
+      b.addEventListener('mouseleave', () => {
+        b.style.borderColor = 'rgba(255,255,255,.06)';
+        b.style.background = WELL;
+      });
       b.addEventListener('click', () => this.select({ kind: 'place', proto: p }));
       panel.appendChild(b);
     }
@@ -874,9 +1037,10 @@ export class BuildTools {
 
   private styleStatus(): void {
     this.status.style.cssText = [
-      'padding:4px 10px', 'border-radius:3px', 'background:rgba(6,9,13,.7)',
-      'color:#8fa3bd', 'font:11px/1.5 var(--mono, ui-monospace, monospace)',
-      'pointer-events:none', 'white-space:nowrap',
+      'padding:5px 12px', 'border-radius:9px', `background:${PANEL}`,
+      `border:1px solid ${EDGE}`, 'color:#9fb2c9',
+      'font:500 11px/1.4 var(--ui, system-ui, sans-serif)',
+      'pointer-events:none', 'white-space:nowrap', 'backdrop-filter:blur(10px)',
     ].join(';');
     this.say(this.describe(this.tool));
   }

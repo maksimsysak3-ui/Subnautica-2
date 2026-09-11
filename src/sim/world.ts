@@ -73,7 +73,7 @@ export interface Lot {
 
 export interface World {
   /** Cells across, the same grid as everything else. */
-  grid: number;
+  readonly grid: number;
   net: RoadGraph;
   /** One zoning code per cell. */
   zones: Uint8Array;
@@ -342,7 +342,40 @@ export function placeLot(world: World, id: string, gx: number, gz: number, yaw: 
 }
 
 /**
- * The city the game starts with: a grid of streets, and every block zoned.
+ * The map the game starts on: empty land, and one road in from the edge.
+ *
+ * A city builder that opens on a finished city has already played itself. What
+ * a player wants on the first frame is the site and a way in -- the one thing
+ * they cannot draw for themselves, because a road has to connect to something.
+ *
+ * So: a motorway running in from the west edge to a junction near the middle,
+ * and a short avenue stub off it to build the first street from. Everything
+ * else is theirs.
+ */
+export function startingWorld(grid = simConfig.cityGrid): World {
+  const world = emptyWorld(grid);
+  const half = grid / 2;
+  const edge = (half - 1) * 8;
+
+  // In from the edge, stopping short of the middle: the connection arrives
+  // somewhere, it does not drive through the whole site.
+  const gate = -half * 8 * 0.18;
+  world.net.add(-edge, 0, gate, 0, 'motorway');
+  // And the first piece of city road, square to it, so the player has a
+  // junction to draw from rather than an end to guess at.
+  world.net.add(gate, 0, gate, -half * 8 * 0.16, 'avenue');
+  world.net.add(gate, 0, gate, half * 8 * 0.16, 'avenue');
+  world.net.rasterise();
+  return world;
+}
+
+/**
+ * A full generated city, for the tools and the tests that need one to measure.
+ *
+ * Not what the game opens on any more -- see `startingWorld` -- but the
+ * screenshot tools, the benchmark and the smoke test all need a city that
+ * exists without a player having built it, and a generator that only runs in
+ * tests rots. This is the one the stats are quoted from.
  *
  * Which zone a block takes is the same land-value rule the generator used
  * before -- offices and commerce in the middle, industry on one side, housing

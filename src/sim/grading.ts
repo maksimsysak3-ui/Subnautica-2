@@ -84,10 +84,22 @@ export interface Pad {
   y: number;
 }
 
-/** Throws the grading away. The ground is whatever the noise says again. */
+/**
+ * Throws the grading away. The ground is whatever the noise says again.
+ *
+ * The corner cache deliberately survives. It holds the *ungraded* ground --
+ * the terrain function and the river, neither of which a player can change --
+ * so dropping it here meant every rebuild resampled four hundred thousand
+ * corners of three-octave noise. That was half of what an edit cost, and an
+ * edit happens on every road drawn and every block zoned.
+ */
 export function clearGrading(): void {
   offset = null;
   pinned = null;
+}
+
+/** Drops the ungraded ground too, for a tool that changes the terrain itself. */
+export function clearTerrainCache(): void {
   corners = null;
 }
 

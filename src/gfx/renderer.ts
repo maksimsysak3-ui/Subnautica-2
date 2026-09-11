@@ -18,6 +18,7 @@
  */
 
 import { log } from '../util/log';
+import { ASSETS } from '../assets/registry';
 import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
@@ -29,7 +30,7 @@ import { planCity } from './city-draw';
 import { buildGroundMap } from './ground-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
-  makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
+  makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
   buildWaterMesh, WATER_FLOATS,
 } from '../sim';
@@ -194,6 +195,8 @@ export class Renderer {
   timeOfDay = 0.33;
   /** Whether the clock advances. Off for tools; on in the game. */
   clockRunning = true;
+  /** How fast, as a multiple of the base day. The bar's speed buttons set it. */
+  clockRate = 1;
   private sceneData = new Float32Array(SCENE_UNIFORM_SIZE / 4);
   private raf = 0;
   private startedAt = 0;
@@ -231,7 +234,49 @@ export class Renderer {
   private grassUniform: GPUBuffer | null = null;
   private grassData = new Float32Array(8);
   /** What the city is derived from. The tools edit this, then rebuild. */
-  readonly world: World = defaultWorld();
+  readonly world: World = startingWorld();
+
+  /**
+   * Replaces what is on the map, keeping the same World object.
+   *
+   * The game opens on empty land, which is right for a player and useless for
+   * a screenshot, a benchmark or a smoke test -- all of which need a city that
+   * exists without one having been built by hand. Those ask for one through
+   * here. Mutated in place rather than reassigned because the tools, the
+   * camera and the build tools all hold this reference.
+   */
+  /**
+   * What the city is worth, for the readout on the bar.
+   *
+   * Counted from the same instances that were just placed rather than
+   * estimated from the zoning, so the number on the bar is the number of
+   * buildings actually standing. Households carry 2.4 people, which is close
+   * enough to a real average that the figure moves believably as a district
+   * fills in.
+   */
+  readonly summary = { people: 0, jobs: 0, buildings: 0 };
+
+  private summarise(city: { population: Uint32Array }): void {
+    let people = 0, jobs = 0, buildings = 0;
+    for (let i = 0; i < city.population.length; i++) {
+      const n = city.population[i];
+      if (n === 0) continue;
+      const def = ASSETS[i];
+      if (def === undefined || def.zone === 'nature') continue;
+      buildings += n;
+      people += n * (def.sim.households ?? 0) * 2.4;
+      jobs += n * (def.sim.jobs ?? 0);
+    }
+    this.summary.people = Math.round(people);
+    this.summary.jobs = Math.round(jobs);
+    this.summary.buildings = buildings;
+  }
+
+  useWorld(next: World): void {
+    this.world.net = next.net;
+    this.world.zones = next.zones;
+    this.world.lots = next.lots;
+  }
   /**
    * What the build tool is about to affect, drawn into the ground.
    *
@@ -602,6 +647,7 @@ export class Renderer {
 
     // A prototype the spawner never placed is never generated.
     const city = makeCity(this.world);
+    this.summarise(city);
     const plan = planCity(city, this.atlas);
 
     // The roads, as one mesh. It is small -- a full grid city is under two
@@ -898,7 +944,7 @@ export class Renderer {
     const cam = this.camera;
 
     if (this.clockRunning) {
-      this.timeOfDay = (this.timeOfDay + dt / DAY_SECONDS) % 1;
+      this.timeOfDay = (this.timeOfDay + (dt * this.clockRate) / DAY_SECONDS) % 1;
     }
     const sun = sunAt(this.timeOfDay);
 
