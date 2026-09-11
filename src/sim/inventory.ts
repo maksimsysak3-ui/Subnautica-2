@@ -34,8 +34,14 @@ export interface Proto {
 }
 
 const proto = (def: AssetDef, index: number): Proto => ({
-  index, id: def.id, w: def.footprint[0], d: def.footprint[1],
-  height: def.height, def,
+  index, id: def.id, w: def.footprint[0], d: def.footprint[1], def,
+  // Read through to the asset rather than copied out of it. An asset measures
+  // its own height by building itself the first time it is asked, so copying
+  // the number here -- for all four hundred of them, while this module
+  // evaluates -- would build the entire library before the game could draw
+  // anything. That is the stall this whole indirection exists to avoid. A
+  // prototype the city never places never gets measured.
+  get height(): number { return def.height; },
 });
 
 /** Zoned stock, keyed `zone|density|theme`. Signature buildings excluded. */
