@@ -218,7 +218,18 @@ export class Menu {
 
   // ---- the front page ---------------------------------------------------
 
+  private opened = false;
+
+  /**
+   * The loading is done; show the front page.
+   *
+   * Idempotent, because two things can call it: the build finishing, and the
+   * timer that opens the menu anyway if the build overruns. If the slow one
+   * lands second it must not wipe a page the player is already using.
+   */
   ready(): void {
+    if (this.opened) return;
+    this.opened = true;
     for (const f of this.facets) f.style.opacity = '1';
     this.lit = 6;
     this.show();

@@ -33,6 +33,28 @@ function status(text: string): void {
   if (el) el.textContent = text;
 }
 
+/**
+ * Hands the browser a frame, and does not depend on getting one.
+ *
+ * `requestAnimationFrame` is the right way to let a loader draw between steps
+ * and the wrong thing to *wait* on: a browser does not run animation frames
+ * for a page it is not showing, so a tab opened in the background or an iframe
+ * that has not been scrolled into view never fires one. Awaiting rAF there
+ * waits forever, and the game sits on its loading screen for good.
+ *
+ * So the frame is raced against a timer. Visible, the timer never wins and the
+ * loader paints between every step; hidden, the timer carries the build to the
+ * end and the game is ready when the page finally is.
+ */
+function breathe(): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const go = (): void => { if (!done) { done = true; resolve(); } };
+    requestAnimationFrame(go);
+    setTimeout(go, 60);
+  });
+}
+
 async function boot(): Promise<void> {
   const overlay = document.getElementById('overlay');
   const canvas = document.getElementById('gpu-canvas');
@@ -112,23 +134,46 @@ async function boot(): Promise<void> {
   // Built in steps with a frame between them, because a single synchronous
   // build hands the browser one long block and the loader never draws -- the
   // player watches a frozen page and is told nothing. Each await yields.
+  // Each step is one synchronous block with a frame between it and the next.
+  //
+  // The split is not decoration. Laying out the city and building its GPU
+  // buffers are seconds of work apiece, and run back to back they are one
+  // block the browser cannot paint through -- so the loader freezes on
+  // whatever facet it reached and the whole thing reads as a hang. Cut in two,
+  // the loader draws in the gap and the wait has a shape.
   const steps: Array<[string, () => void]> = [
-    ['reading the land', () => { /* terrain is built inside build() below */ }],
-    ['cutting the river', () => { /* likewise; these two name what is happening */ }],
+    ['reading the land', () => { /* the terrain builds inside build() below */ }],
     // The menu stands over a built city rather than over the empty site the
     // game starts on. A skyline is the picture; a field is a field.
-    ['raising the skyline', () => {
+    ['laying out the city', () => {
       renderer.useWorld(defaultWorld(renderer.world.grid));
-      renderer.build();
     }],
-    ['planting', () => { /* the build above did it; the beat is for the eye */ }],
-    ['bringing the road in', () => { /* the starting world is already on the map */ }],
+    ['raising the skyline', () => renderer.build()],
     ['opening', () => { /* nothing left; the last facet lands on a finished world */ }],
   ];
-  for (let i = 0; i < steps.length; i++) {
-    menu.progress(i / steps.length, steps[i][0]);
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    steps[i][1]();
+  // Whatever happens below, the menu becomes usable. A loading screen with no
+  // way off it is the one failure a player cannot work around, and it is worth
+  // a timer to make sure this is never that.
+  const rescue = setTimeout(() => {
+    log.warn('boot', 'world build overran; opening the menu anyway');
+    menu.progress(1, '');
+    menu.ready();
+  }, 90000);
+  try {
+    for (let i = 0; i < steps.length; i++) {
+      menu.progress(i / steps.length, steps[i][0]);
+      await breathe();
+      steps[i][1]();
+    }
+    clearTimeout(rescue);
+  } catch (err) {
+    clearTimeout(rescue);
+    // A build that throws used to leave the menu sitting there half-lit with
+    // no buttons and nothing said -- which looks exactly like a hang and tells
+    // the player nothing. Whatever went wrong, it goes on screen.
+    log.error('boot', `world build failed: ${String(err)}`);
+    fatal('internal', String(err));
+    return;
   }
   menu.progress(1, '');
   menu.ready();
@@ -233,4 +278,9 @@ function showBenchResults(table: string): void {
 addEventListener('error', (e) => log.error('window', `${e.message} @ ${e.filename}:${e.lineno}`));
 addEventListener('unhandledrejection', (e) => log.error('window', `unhandled rejection: ${String(e.reason)}`));
 
-void boot();
+boot().catch((err: unknown) => {
+  // Nothing above this catches, and an unhandled rejection here is a blank
+  // page with the reason only in the console.
+  log.error('boot', String(err));
+  fatal('internal', String(err));
+});
