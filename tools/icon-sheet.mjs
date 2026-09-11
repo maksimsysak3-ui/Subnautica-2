@@ -64,8 +64,30 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
   // tree so the nature tool has a face. Zoned stock is not placeable -- it
   // grows -- so photographing four hundred houses would be four hundred icons
   // nobody can click.
-  const ASSETS = all.filter((a) => a.zone === 'service'
+  const placeable = all.filter((a) => a.zone === 'service'
     || (a.zone === 'nature' && /oak|pine|birch|maple|plane|willow/.test(a.id)));
+
+  // One specimen per zone and density, for the zoning buttons. A zone button
+  // saying "medium residential" is a category; a picture of the kind of
+  // building that actually grows there is the answer to the question the
+  // player is asking, which is what am I about to get.
+  const zoneRep = {};
+  for (const zone of ['residential', 'commercial', 'industrial', 'office']) {
+    for (const density of ['low', 'medium', 'high']) {
+      // Industry carries no density ladder -- every works is 'none' -- and the
+      // spawner already treats its three buttons as one pool, so the icon does
+      // the same rather than leaving that zone with no picture at all.
+      const pool = all.filter((a) => a.zone === zone && !a.signature
+        && (a.density === density || a.density === 'none'));
+      if (pool.length === 0) continue;
+      // The median footprint: the typical one, not the runt or the outlier.
+      pool.sort((a, b) => a.footprint[0] * a.footprint[1] - b.footprint[0] * b.footprint[1]);
+      const pick = pool[Math.floor(pool.length / 2)];
+      zoneRep[`${zone}|${density}`] = pick.id;
+      if (!placeable.includes(pick)) placeable.push(pick);
+    }
+  }
+  const ASSETS = placeable;
 
   const idSeed = (id) => {
     let h = 2166136261;
@@ -273,7 +295,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     index[a.id] = i;
   }
 
-  return { png: sheet.toDataURL('image/png'), index, count: ASSETS.length, rows, errors, diags };
+  return { png: sheet.toDataURL('image/png'), index, zoneRep,
+    count: ASSETS.length, rows, errors, diags };
 }, { shader, registry, TILE, ICON, COLS, SHADOW });
 
 if (result.error || result.diags?.length) {
@@ -283,6 +306,8 @@ if (result.error || result.diags?.length) {
   const base64 = result.png.split(',')[1];
   const entries = Object.entries(result.index)
     .map(([id, i]) => `  '${id}': ${i},`).join('\n');
+  const zoneEntries = Object.entries(result.zoneRep)
+    .map(([k, id]) => `  '${k}': '${id}',`).join('\n');
   fs.writeFileSync(OUT, `/**
  * The toolbar's icons: every placeable building, photographed.
  *
@@ -302,6 +327,11 @@ export const ICON_ROWS = ${result.rows};
 /** Which cell of the sheet each asset is in, left to right, top to bottom. */
 export const ICON_INDEX: Record<string, number> = {
 ${entries}
+};
+
+/** The building that stands for each \`zone|density\`, for the zoning buttons. */
+export const ICON_ZONE: Record<string, string> = {
+${zoneEntries}
 };
 
 export const ICON_SHEET = 'data:image/png;base64,${base64}';

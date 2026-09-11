@@ -24,7 +24,7 @@ import { services } from '../sim';
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
-import { assetIcon } from './icons';
+import { assetIcon, zoneSpecimen } from './icons';
 import { BRANCHES } from '../assets/types';
 import type { Branch, Density, Zone } from '../assets/types';
 import type { IconZone } from './zones';
@@ -319,11 +319,13 @@ export class BuildTools {
       this.curveVia = cell;
       this.curveStage = 'via';
       this.say('click where it ends — double-click to finish');
-    } else {
-      this.lay(this.curveA, cell, this.curveVia);
+    } else if (this.lay(this.curveA, cell, this.curveVia)) {
       this.curveA = cell;
       this.curveVia = null;
       this.curveStage = 'laid';
+    } else {
+      this.say('too short to be a road — click further away');
+      return;
     }
     this.showMark();
   }
@@ -518,15 +520,15 @@ export class BuildTools {
    * road the new one met. The graph finds its own crossings.
    */
   private lay(a: [number, number], b: [number, number],
-    via: [number, number] | null, bend = 0): void {
+    via: [number, number] | null, bend = 0): boolean {
     const t = this.tool;
-    if (t.kind !== 'road' && t.kind !== 'curve') return;
+    if (t.kind !== 'road' && t.kind !== 'curve') return false;
     const world = this.renderer.world;
     const [ax, az] = this.metres(a);
     const [bx, bz] = this.metres(b);
     // Shorter than a junction is wide is not a road, and the graph would drop
     // it anyway -- but not before this had cleared the zoning and rebuilt.
-    if (Math.hypot(bx - ax, bz - az) < 12) return;
+    if (Math.hypot(bx - ax, bz - az) < 12) return false;
     // Ending on the bend point means the bend point was the first half of a
     // double-click, and what the player asked for is a straight run to there.
     if (via !== null && Math.abs(via[0] - b[0]) <= 1 && Math.abs(via[1] - b[1]) <= 1) {
@@ -535,6 +537,7 @@ export class BuildTools {
     this.clearUnder(a, b, via, bend);
     world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via));
     this.rebuild();
+    return true;
   }
 
   /**
@@ -740,9 +743,24 @@ export class BuildTools {
       const tool = (): Tool => ({ kind: 'zone', zone, density: DENSITIES[level] });
       b.dataset.tool = this.key(tool());
       b.title = `${style.label} — click again for higher density`;
-      b.innerHTML = `${zoneIcon(zone as IconZone, 18)}<span>${DENSITIES[level]}</span>`;
+      // The zone's own glyph beside a specimen of what grows there: the glyph
+      // says which zone, the building says what it will look like, and neither
+      // says both.
+      const face = (): void => {
+        b.replaceChildren();
+        const glyph = document.createElement('span');
+        glyph.innerHTML = zoneIcon(zone as IconZone, 16);
+        glyph.style.cssText = 'display:flex';
+        b.appendChild(glyph);
+        const rep = zoneSpecimen(zone, DENSITIES[level]);
+        if (rep !== null) b.appendChild(assetIcon(rep, 26));
+        const tag = document.createElement('span');
+        tag.textContent = DENSITIES[level];
+        b.appendChild(tag);
+      };
+      face();
       b.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:6px', 'padding:6px 9px',
+        'display:flex', 'align-items:center', 'gap:5px', 'padding:5px 8px',
         'border-radius:4px', 'border:1px solid rgba(255,255,255,.10)',
         'background:rgba(10,14,20,.72)', `color:${style.light}`, 'cursor:pointer',
         'font:11px/1 var(--mono, ui-monospace, monospace)', 'letter-spacing:.03em',
@@ -751,7 +769,7 @@ export class BuildTools {
         if (this.tool.kind === 'zone' && this.tool.zone === zone) {
           level = (level + 1) % DENSITIES.length;
         }
-        b.innerHTML = `${zoneIcon(zone as IconZone, 18)}<span>${DENSITIES[level]}</span>`;
+        face();
         b.dataset.tool = this.key(tool());
         this.select(tool());
       });

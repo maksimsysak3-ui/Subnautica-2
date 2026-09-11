@@ -24,9 +24,20 @@
 // back the cost -- from a kilometre up only two of the four octaves are
 // evaluated at all.
 //
-// Cover is chosen by slope, not painted: grass on the flats, earth where the
-// ground steepens enough to shed it, rock on the faces. That survives the
-// player reshaping the terrain, which a painted mask would not.
+// Cover is chosen by slope and altitude, not painted: grass on the low flats,
+// thinner and browner as the ground rises, earth where it steepens enough to
+// shed turf, rock on the faces. That survives the player reshaping the
+// terrain, which a painted mask would not.
+//
+// Altitude matters as much as slope and was missing, which is why the hills
+// used to read as one green wash: real high ground is drier, thinner and
+// stonier than the valley under it whatever its gradient, and a hillside that
+// is the same colour as the meadow below it has no relief in it at all.
+//
+// Two more things run at scales above any of the octaves below. Fields, at
+// 190 m, which is what breaks open country into parcels that differ in
+// character rather than only in brightness. And the low ground, which is wet:
+// the greenest grass on any map is in the bottom of the valley.
 //
 // The zoning grid stays, because it is what the player builds against, but it
 // is drawn as mown lines in the turf and fades out with distance rather than
@@ -91,19 +102,41 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     wear = mix(0.5, vnoise(in.world.xz * (1.0 / 14.0) + vec2f(3.1, 9.4)), fWear);
   }
 
+  // Where this ground sits in the landscape. The city is built around y = 0
+  // and the hills reach a couple of hundred metres, so these two ramps leave
+  // the built-up flats alone and do their work on the relief around it.
+  let alt = smoothstep(26.0, 125.0, in.world.y);
+  let wet = 1.0 - smoothstep(-16.0, 7.0, in.world.y);
+
+  // Fields: parcels of open country with their own character, at a scale
+  // above every octave below. Without this a square kilometre of grass is one
+  // colour with the brightness wobbling, which reads as lighting rather than
+  // as land.
+  // Two scales, because a parcel of land has a shape as well as a size: the
+  // larger sets which fields there are and the smaller breaks their edges so
+  // they are not all the same soft blob.
+  let field = vnoise(in.world.xz * (1.0 / 190.0) + vec2f(41.0, 17.0)) * 0.72
+            + vnoise(in.world.xz * (1.0 / 74.0) + vec2f(7.0, 63.0)) * 0.28;
+  let meadow = smoothstep(0.50, 0.70, field) * (1.0 - alt);
+  let moor = smoothstep(0.44, 0.22, field);
+
   // ---- cover ---------------------------------------------------------
   //
   // Slope decides, with the ground octave pushing the boundary about so the
   // transition is a ragged edge rather than a contour line.
   let slope = 1.0 - clamp(n.y, 0.0, 1.0);
-  let ragged = slope + (ground - 0.5) * 0.10;
+  let ragged = slope + (ground - 0.5) * 0.10 + alt * 0.11;
   let rock  = smoothstep(0.32, 0.58, ragged);
   // Earth appears where the ground is steep enough to shed turf, and in the
   // driest worn patches. The slope threshold has to clear the terrain's own
   // faceting -- one vertex every eight metres means a gentle hill has a real
   // slope at every facet edge, and a threshold under about a fifth put a brown
   // triangle on the side of every mound.
-  let worn  = smoothstep(0.70, 0.92, wear * 0.55 + soil * 0.45);
+  //
+  // Altitude counts towards bare ground as well as slope: turf thins out as it
+  // climbs, and a hilltop of unbroken lawn is the one thing that gives a
+  // procedural landscape away.
+  let worn  = smoothstep(0.64, 0.90, wear * 0.50 + soil * 0.34 + alt * 0.34 - wet * 0.25);
   let earth = max(smoothstep(0.21, 0.44, ragged), worn) * (1.0 - rock);
   let grass = 1.0 - rock - earth;
 
@@ -119,10 +152,26 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Dryness runs the colour, not the brightness: lush turf is blue-green and
   // dry turf is yellow-green, and interpolating between two greens of similar
   // value is what stops a big field looking like one flat paint chip.
-  let dryness = clamp(soil * 0.62 + wear * 0.38, 0.0, 1.0);
-  let lush = vec3f(0.048, 0.106, 0.038);
-  let dry  = vec3f(0.128, 0.132, 0.058);
-  var turf = mix(lush, dry, smoothstep(0.22, 0.88, dryness));
+  //
+  // Both noise terms are centred on a half and the ramp across them used to be
+  // wide, which compressed every field on the map into the middle of the mix:
+  // the whole map came out one colour. So the spread is opened up about its
+  // own mean before the ramp sees it, and the ramp itself is narrower.
+  // The 140 m soil octave leads and the 14 m wear only modulates it. Weighting
+  // them 62/38 and adding them was the actual bug: averaging two noise fields
+  // narrows the distribution instead of widening it, and that is why a square
+  // kilometre of grass came out as one colour with the brightness wobbling.
+  let damp = clamp((soil - 0.5) * 2.3 + (wear - 0.5) * 0.5 + 0.5
+                   + alt * 0.42 - wet * 0.38, 0.0, 1.0);
+  let dryness = smoothstep(0.22, 0.82, damp);
+  let lush = vec3f(0.040, 0.104, 0.034);
+  let dry  = vec3f(0.136, 0.136, 0.056);
+  var turf = mix(lush, dry, dryness);
+  // Meadow is taller and yellower; moor is the olive-brown of heath and rough
+  // grazing. Two named covers rather than a continuum, because a landscape
+  // reads as parcelled land and a continuum reads as a gradient.
+  turf = mix(turf, vec3f(0.158, 0.146, 0.052), meadow * 0.62);
+  turf = mix(turf, vec3f(0.074, 0.070, 0.042), moor * 0.55);
   // A slow hue drift across a field, on top of the dryness ramp. Two greens
   // are not enough for a kilometre of grass: without this the whole map is one
   // colour with the brightness wobbling, which reads as lighting rather than
@@ -252,8 +301,25 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // standing on it agree about where the sun is and what the sky is worth.
   let sun = normalize(camera.sunDir.xyz);
   let ndl = dot(n, sun);
+  let lit = shadowFactor(in.world, ndl);
   let ambient = mix(ambientGround(sun), ambientSky(sun), n.y * 0.5 + 0.5);
-  col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * shadowFactor(in.world, ndl));
+  // Wrapped, not clamped. Turf is a deep pile of translucent blades rather
+  // than a hard surface, so light carries a little way past the terminator --
+  // which is the difference between a hillside that turns away from the sun
+  // and one that has a line drawn across it.
+  let wrap = max((ndl + 0.18) / 1.18, 0.0);
+  col = col * (ambient + sunLight(sun) * wrap * lit);
+
+  // The sheen. Grass and dry earth both scatter forward, so a field lights up
+  // when the sun is low and behind what you are looking at -- and that one
+  // effect is most of what makes late light read as late light. Broad and
+  // weak: this is a sheen off a million blades, not a highlight off a surface.
+  let toEye = normalize(camera.eye.xyz - in.world);
+  let halfway = normalize(toEye + sun);
+  let sheen = pow(max(dot(n, halfway), 0.0), 9.0)
+            * (1.0 - smoothstep(0.30, 0.75, sun.y))
+            * (grass * 0.55 + earth * 0.30);
+  col += sunLight(sun) * sheen * 0.28 * lit;
 
   // And the same filmic shoulder, for the same reason: a ground that clipped
   // where the buildings rolled off would read as a different material every

@@ -127,7 +127,10 @@ fn verge(world : vec2f, mpp : f32) -> vec3f {
   let blades = cells(world / 0.045);
   let blade = clamp(blades.d2 - blades.d1, 0.0, 1.0) * octaveFade(0.045, mpp);
   let sward = vnoise(world * 0.38);
-  var col = mix(vec3f(0.055, 0.083, 0.036), vec3f(0.088, 0.116, 0.049), sward);
+  // The endpoints are the terrain's own lush and dry, pulled towards each
+  // other: a verge is mown and watered, so it does not reach either extreme,
+  // but it has to sit between them or it bands against the grass it meets.
+  var col = mix(vec3f(0.048, 0.096, 0.034), vec3f(0.104, 0.122, 0.050), sward);
   col *= 0.86 + blade * 0.34;
   return col;
 }

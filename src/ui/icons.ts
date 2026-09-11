@@ -10,9 +10,27 @@
  * decode and one GPU upload however many icons are on screen.
  */
 
-import { ICON_SHEET, ICON_COLS, ICON_INDEX } from './icon-sheet';
+import { ICON_SHEET, ICON_COLS, ICON_INDEX, ICON_ZONE } from './icon-sheet';
 
 export { ICON_INDEX };
+
+/**
+ * The building that stands for a zone at a density.
+ *
+ * A zone button saying "medium residential" names a category; a picture of the
+ * kind of building that actually grows there answers the question the player
+ * is asking, which is what am I about to get. Falls back to the zone's other
+ * densities, because industry has no density ladder and the spawner treats its
+ * three buttons as one pool.
+ */
+export function zoneSpecimen(zone: string, density: string): string | null {
+  const exact = ICON_ZONE[`${zone}|${density}`];
+  if (exact !== undefined) return exact;
+  for (const key of Object.keys(ICON_ZONE)) {
+    if (key.startsWith(`${zone}|`)) return ICON_ZONE[key];
+  }
+  return null;
+}
 
 /** True if this asset was photographed, so a caller can fall back if not. */
 export function hasIcon(id: string): boolean {
