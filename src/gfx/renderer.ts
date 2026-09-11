@@ -31,14 +31,15 @@ import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, defaultWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
+  buildWaterMesh, WATER_FLOATS,
 } from '../sim';
 import type { Chunk, World, RoadMesh } from '../sim';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
-/** Written where there is nothing to mark. */
-const ZERO4 = [0, 0, 0, 0];
+/** A rectangle no point is inside, for a tool that is up but not yet aimed. */
+const NOWHERE4 = [1, 1, -1, -1];
 
 /**
  * The grass lattice: cells across, and how far apart.
@@ -133,6 +134,9 @@ interface WorldRes {
   roadVertices: GPUBuffer;
   roadIndices: GPUBuffer;
   roadCount: number;
+  waterVertices: GPUBuffer;
+  waterIndices: GPUBuffer;
+  waterCount: number;
   chunks: Chunk[];
   assetVertices: GPUBuffer;
   protoBuffer: GPUBuffer;
@@ -162,6 +166,7 @@ interface Resources extends WorldRes {
   shadowSceneGroup: GPUBindGroup;
   terrain: GPURenderPipeline;
   road: GPURenderPipeline;
+  water: GPURenderPipeline;
   city: GPURenderPipeline;
   cull: GPUComputePipeline;
   cameraBuffer: GPUBuffer;
@@ -234,6 +239,18 @@ export class Renderer {
    * is most of the time and costs the terrain shader one comparison.
    */
   mark: { rect: [number, number, number, number]; tint: [number, number, number] } | null = null;
+
+  /**
+   * True while a build tool has the pointer.
+   *
+   * The ground draws its zoning grid only when this is set. A lattice mown
+   * into the turf every eight metres is exactly what a player wants while they
+   * are laying something out against it and exactly what they do not want the
+   * rest of the time, when it turns a kilometre of countryside into graph
+   * paper. Nothing else in the frame needs to know, so it rides along in the
+   * mark's alpha rather than growing the camera uniform a field.
+   */
+  building = false;
   private profiler: GpuProfiler | null = null;
   /** Survivors per level of detail, read back asynchronously for the overlay. */
   private drawnByLod: [number, number, number] = [0, 0, 0];
@@ -391,6 +408,30 @@ export class Renderer {
       depthStencil,
     });
 
+    // The river surface. Opaque: it computes its own transmission from depth
+    // rather than blending, which keeps it out of the sorting problem entirely
+    // and costs nothing a blend would have bought.
+    const waterModule = device.createShaderModule({ label: 'water', code: SHADERS.water });
+    const water = device.createRenderPipeline({
+      label: 'water-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      vertex: {
+        module: waterModule,
+        entryPoint: 'vs',
+        buffers: [{
+          arrayStride: WATER_FLOATS * 4,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },   // position
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
+            { shaderLocation: 2, offset: 24, format: 'float32x2' },  // across, along
+          ],
+        }],
+      },
+      fragment: { module: waterModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil,
+    });
+
     const terrainModule = device.createShaderModule({ label: 'terrain', code: SHADERS.terrain });
     const terrain = device.createRenderPipeline({
       label: 'terrain-pipeline',
@@ -527,7 +568,7 @@ export class Renderer {
       layouts,
       grass, grassBuffer: this.grassUniform,
       sky, shadow, shadowView, shadowTexture, shadowSceneGroup,
-      terrain, road, city: cityPipeline, cull,
+      terrain, road, water, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
       depth, depthView,
       ...this.loadWorld(layouts),
@@ -578,6 +619,20 @@ export class Renderer {
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(roadIndices, 0, city.roads.indices);
+
+    // The river, as a ribbon down its own channel. Tiny -- a few hundred
+    // triangles for nine kilometres of water.
+    const river = buildWaterMesh();
+    const waterVertices = device.createBuffer({
+      label: 'water-vertices', size: Math.max(16, river.vertices.byteLength),
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(waterVertices, 0, river.vertices);
+    const waterIndices = device.createBuffer({
+      label: 'water-indices', size: Math.max(16, river.indices.byteLength),
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(waterIndices, 0, river.indices);
 
     // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
     // topology is identical, so each is drawn with its own baseVertex.
@@ -714,6 +769,7 @@ export class Renderer {
       protoGroup, cityGroup, castGroup, cullGroup,
       terrainVertices, terrainIndices, chunks: mesh.chunks,
       roadVertices, roadIndices, roadCount: city.roads.indices.length,
+      waterVertices, waterIndices, waterCount: river.indices.length,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
       argsBuffer, argsRead, argsReset: plan.args, buckets: plan.buckets,
       castArgsBuffer, castBaseBuffer, castVisibleBuffer,
@@ -879,8 +935,13 @@ export class Renderer {
     this.cameraData[63] = viewport.height / (2 * Math.tan(FOV_Y / 2));
 
     const mark = this.mark;
-    this.cameraData.set(mark ? mark.rect : ZERO4, 64);
-    this.cameraData.set(mark ? [mark.tint[0], mark.tint[1], mark.tint[2], 1] : ZERO4, 68);
+    // A degenerate rectangle when a tool is up but has nothing to show yet:
+    // the terrain tests x >= x0 && x <= x1, which no point satisfies, so the
+    // tint draws nothing and the alpha still says a tool is in hand.
+    this.cameraData.set(mark ? mark.rect : NOWHERE4, 64);
+    this.cameraData.set(
+      mark ? [mark.tint[0], mark.tint[1], mark.tint[2], 1]
+        : [0, 0, 0, this.building ? 1 : 0], 68);
 
     // The same six planes the CPU uses for terrain chunks, handed to the
     // culling pass so both agree by construction rather than by coincidence.
@@ -978,6 +1039,14 @@ export class Renderer {
       if (!this.frustum.containsBox(chunk.min, chunk.max)) continue;
       pass.drawIndexed(INDICES_PER_CHUNK, 1, 0, chunk.baseVertex);
       chunks++;
+    }
+
+    // The river, before the roads: a bridge deck has to draw over it.
+    if (res.waterCount > 0) {
+      pass.setPipeline(res.water);
+      pass.setVertexBuffer(0, res.waterVertices);
+      pass.setIndexBuffer(res.waterIndices, 'uint32');
+      pass.drawIndexed(res.waterCount);
     }
 
     // The roads, on top of the ground they were graded into. One call.

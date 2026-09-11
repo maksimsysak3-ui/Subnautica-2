@@ -101,6 +101,14 @@ const result = await page.evaluate(async (cfg) => {
   } catch (err) {
     out.tools = { error: String(err) };
   }
+  // And the curve tool, which is clicked rather than dragged and whose whole
+  // job -- a bend where one was asked for, and a run that stays one road --
+  // is invisible in a screenshot.
+  try {
+    out.curve = await HEADLESS.probeCurve();
+  } catch (err) {
+    out.curve = { error: String(err) };
+  }
   out.errors = errors;
   return out;
 }, shots).catch((err) => ({ error: String(err).split('\n')[0] }));
@@ -167,8 +175,32 @@ if (!tl || tl.error) {
   if (tl.zonedAfter === tl.zonedBefore) {
     push(`dragging a zone painted nothing: ${tl.zonedBefore} zoned cells before and after`);
   }
+  if (!(tl.drawerSize > 4)) push(`the parks drawer offered ${tl.drawerSize} buildings`);
+  if (!(tl.lotsAfter > tl.lotsBefore)) {
+    push(`placing a service from the drawer put nothing down: ${tl.lotsBefore} lots before and after`);
+  }
   console.log(`tools    ${tl.roadCellsBefore} road cells -> ${tl.roadCellsAfter}, `
-    + `${tl.zonedBefore} zoned -> ${tl.zonedAfter}`);
+    + `${tl.zonedBefore} zoned -> ${tl.zonedAfter}, `
+    + `${tl.lotsBefore} lots -> ${tl.lotsAfter} from a drawer of ${tl.drawerSize}`);
+}
+
+const cv = result.curve;
+if (!cv || cv.error) {
+  push(`curve tool failed: ${cv?.error ?? 'no result'}`);
+} else {
+  if (cv.links !== 2) push(`curve tool laid ${cv.links} roads where five clicks should lay 2`);
+  if (cv.bowed !== cv.links) {
+    push(`${cv.links - cv.bowed} of ${cv.links} curved roads came out straight`);
+  }
+  // Two segments clicked end to start are one run: three nodes, and only the
+  // two ends of the run are dead ends. Four would mean the chain broke and the
+  // player is looking at two roads that merely finish near each other.
+  if (cv.deadEnds !== 2) {
+    push(`a chained run left ${cv.deadEnds} loose ends where it should leave 2`);
+  }
+  if (cv.nodes !== 3) push(`a chained run made ${cv.nodes} nodes where it should make 3`);
+  console.log(`curve    ${cv.links} roads, ${cv.nodes} nodes, ${cv.deadEnds} loose ends, `
+    + `bowed up to ${cv.longest.toFixed(0)} m off the chord`);
 }
 
 for (const view of ['far', 'near']) {

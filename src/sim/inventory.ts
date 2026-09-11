@@ -96,6 +96,15 @@ export function signatures(zone: Zone): readonly Proto[] {
   return signatureBy.get(zone) ?? [];
 }
 
+/** One signature building by id, for the tools that place one deliberately. */
+export function signatureById(id: string): Proto | undefined {
+  for (const list of signatureBy.values()) {
+    const hit = list.find((p) => p.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export const services: readonly Proto[] = serviceList;
 
 /** Road tiles exactly `width` cells across, so they fit a corridor edge to edge. */

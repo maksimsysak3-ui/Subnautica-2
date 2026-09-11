@@ -208,10 +208,11 @@ function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): n
  * on release, at the same place.
  */
 export function previewRoad(grid: number, ax: number, az: number, bx: number, bz: number,
-  cls: RoadClass, bend: number, base: (x: number, z: number) => number): RoadMesh | null {
+  cls: RoadClass, bend: number, base: (x: number, z: number) => number,
+  through: [number, number] | null = null): RoadMesh | null {
   if (Math.hypot(bx - ax, bz - az) < 12) return null;
   const one = new RoadGraph(grid);
-  one.add(ax, az, bx, bz, cls, bend);
+  one.add(ax, az, bx, bz, cls, bend, through);
   if (one.links.length === 0) return null;
   return buildRoadMesh(one, base, false);
 }

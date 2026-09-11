@@ -91,6 +91,7 @@ Promise<{ before: Record<string, string>; after: Record<string, string> }> {
 export async function probeTools(): Promise<{
   roadCellsBefore: number; roadCellsAfter: number;
   zonedBefore: number; zonedAfter: number; picked: boolean;
+  lotsBefore: number; lotsAfter: number; drawerSize: number;
 }> {
   configureSim(LITE);
   const canvas = document.createElement('canvas');
@@ -146,10 +147,118 @@ export async function probeTools(): Promise<{
   press('Residential');
   drag('zone', 200, 200, 420, 340);
 
+  // And a service, placed from its drawer -- the other half of the palette,
+  // and the only one whose buttons are built on demand rather than at boot.
+  const lotsBefore = world.lots.length;
+  press('Parks');
+  const drawer = Array.from(overlay.querySelectorAll('div'))
+    .find((el) => (el as HTMLElement).dataset.branch !== undefined);
+  const tiles = drawer ? Array.from(drawer.querySelectorAll('button')) : [];
+  const tile = tiles.find((el) => (el.textContent ?? '').includes('Playground')) ?? tiles[0];
+  (tile as HTMLElement | undefined)?.click();
+  // Swept, because a single point lands on a carriageway about as often as not
+  // and a playground must not go on one. What is being tested is that placing
+  // works at all, not that any particular pixel is buildable.
+  const clickAt = (x: number, y: number): void => {
+    const o = { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 1 };
+    canvas.dispatchEvent(new PointerEvent('pointermove', o));
+    canvas.dispatchEvent(new PointerEvent('pointerdown', o));
+    canvas.dispatchEvent(new PointerEvent('pointerup', o));
+  };
+  for (let y = 180; y <= 340 && world.lots.length === lotsBefore; y += 20) {
+    for (let x = 200; x <= 620 && world.lots.length === lotsBefore; x += 20) clickAt(x, y);
+  }
+
   return {
     roadCellsBefore, roadCellsAfter: count(world.net.cls),
     zonedBefore, zonedAfter: count(world.zones), picked,
+    lotsBefore, lotsAfter: world.lots.length, drawerSize: tiles.length,
   };
+}
+
+/**
+ * Lays a curved run through the toolbar, and reports what the graph got.
+ *
+ * The two things a player complains about here are invisible in a frame: a
+ * road that comes out straight when they asked for a bend, and a run of
+ * segments that ends up as separate roads with a break between them. Both are
+ * questions about the graph, so this asks the graph -- over a cleared map, so
+ * the counts are exact rather than relative to whatever the generator built.
+ */
+export async function probeCurve(): Promise<{
+  links: number; nodes: number; deadEnds: number; bowed: number; longest: number;
+}> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.build();
+  camera.setViewport(800, 450);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 1.2;
+  camera.distance = 400;
+  camera.update();
+
+  const world = renderer.world;
+  demolish(world, 0, 0, world.grid, world.grid);
+  renderer.rebuild();
+
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  const press = (title: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button'))
+      .find((el) => (el as HTMLElement).title.startsWith(title));
+    (b as HTMLElement | undefined)?.click();
+  };
+  const opts = { bubbles: true, button: 0, pointerId: 1 };
+  const click = (x: number, y: number): void => {
+    canvas.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x, clientY: y }));
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x, clientY: y }));
+    canvas.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x, clientY: y }));
+  };
+
+  press('Dragged roads');   // flips to curved
+  press('Avenue');
+  void tools;
+
+  // Two segments, chained: start, bend, end -- then bend, end again. If the
+  // chain works the second run starts where the first ended and the middle
+  // node has two arms rather than two nodes having one each.
+  click(180, 300);
+  click(330, 190);
+  click(420, 300);
+  click(540, 190);
+  click(640, 300);
+  canvas.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 640, clientY: 300 }));
+
+  let deadEnds = 0, nodes = 0;
+  const arms = new Int32Array(world.net.nodes.length);
+  for (const l of world.net.links) { arms[l.a]++; arms[l.b]++; }
+  // Only nodes something is attached to. Clearing the map leaves the nodes of
+  // what was there behind with nothing joined to them, and they are not part
+  // of the question being asked.
+  for (let i = 0; i < arms.length; i++) {
+    if (arms[i] > 0) nodes++;
+    if (arms[i] === 1) deadEnds++;
+  }
+
+  // How far each link's control point sits off its own chord: zero is a
+  // straight, and a bend the player clicked out is tens of metres.
+  let bowed = 0, longest = 0;
+  for (const l of world.net.links) {
+    const a = world.net.nodes[l.a], b = world.net.nodes[l.b];
+    const off = Math.hypot(l.cx - (a.x + b.x) / 2, l.cz - (a.z + b.z) / 2);
+    if (off > 4) bowed++;
+    longest = Math.max(longest, off);
+  }
+  return { links: world.net.links.length, nodes, deadEnds, bowed, longest };
 }
 
 export async function shoot(req: ShotRequest): Promise<Shot> {

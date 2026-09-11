@@ -17,7 +17,7 @@ import type { RoadClass } from './roadgraph';
 import { simConfig } from './config';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
-import { signatures, services } from './inventory';
+import { signatures, services, signatureById } from './inventory';
 import type { Proto } from './inventory';
 import { baseHeightAt } from './terrain';
 
@@ -276,6 +276,69 @@ export function demolish(world: World, gx: number, gz: number, w: number, d: num
   world.net.clear(gx, gz, w, d);
   world.lots = world.lots.filter((l) =>
     l.gx + l.w <= gx || l.gx >= gx + w || l.gz + l.d <= gz || l.gz >= gz + d);
+}
+
+/**
+ * Whether one placed building would fit, and why not if it would not.
+ *
+ * The same three questions `siteLots` asks of every lot it sites -- inside the
+ * map, nothing already there, level enough to stand on -- asked once, about a
+ * lot the player chose. Saying no is as much of the feature as saying yes: a
+ * hospital that silently lands on top of a school, or on a carriageway, is
+ * worse than one that refuses to land and says what is in the way.
+ *
+ * Returns the footprint as it would be oriented, so the caller can draw it
+ * without working the rotation out a second time.
+ */
+export function lotFits(world: World, id: string, gx: number, gz: number, yaw: number,
+  ground: (x: number, z: number) => number = baseHeightAt):
+{ w: number; d: number; why: string | null } {
+  const p = services.find((s) => s.id === id) ?? signatureById(id);
+  if (p === undefined) return { w: 1, d: 1, why: 'no such building' };
+  const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
+  const fail = (why: string): { w: number; d: number; why: string } => ({ w, d, why });
+
+  if (gx < 0 || gz < 0 || gx + w > world.grid || gz + d > world.grid) {
+    return fail('off the map');
+  }
+  for (let j = 0; j < d; j++) {
+    for (let i = 0; i < w; i++) {
+      if (world.net.has(gx + i, gz + j)) return fail('a road is in the way');
+    }
+  }
+  for (const l of world.lots) {
+    if (l.gx + l.w > gx && l.gx < gx + w && l.gz + l.d > gz && l.gz < gz + d) {
+      return fail('something is already there');
+    }
+  }
+  // Levelled at the corners and the middle, the same five points siteLots
+  // measures. Grading will take the rest; more than four and a half metres of
+  // fall is a cliff, and a building pad cut into one reads as a quarry.
+  const half = world.grid / 2;
+  let lo = Infinity, hi = -Infinity;
+  for (const [i, j] of [[0, 0], [w, 0], [0, d], [w, d], [w >> 1, d >> 1]]) {
+    const y = ground((gx + i - half) * 8, (gz + j - half) * 8);
+    if (y < lo) lo = y;
+    if (y > hi) hi = y;
+  }
+  if (hi - lo > 4.5) return fail(`the ground falls ${(hi - lo).toFixed(1)} m across the lot`);
+  return { w, d, why: null };
+}
+
+/**
+ * Places one building the player chose, and clears the zoning under it.
+ *
+ * Returns null if it went down, or why it did not. The zoning goes for the same
+ * reason it goes under a road: a lot that is still zoned grows frontage houses
+ * inside the hospital.
+ */
+export function placeLot(world: World, id: string, gx: number, gz: number, yaw: number,
+  ground: (x: number, z: number) => number = baseHeightAt): string | null {
+  const fit = lotFits(world, id, gx, gz, yaw, ground);
+  if (fit.why !== null) return fit.why;
+  paint(world, gx, gz, fit.w, fit.d, 0);
+  world.lots.push({ id, gx, gz, w: fit.w, d: fit.d, yaw });
+  return null;
 }
 
 /**

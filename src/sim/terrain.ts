@@ -13,9 +13,10 @@
  * makes multi-draw indirect possible later without reshuffling anything.
  */
 
-import { fbm } from './hash';
 import { simConfig } from './config';
 import { gradingAt } from './grading';
+import { valleyAt } from './river';
+import { naturalHeightAt } from './land';
 
 export const TERRAIN = {
   /** Metres across, centred on the origin. Set by configureSim. */
@@ -43,21 +44,25 @@ export const FLOATS_PER_VERTEX = 6;
  * ground is doing -- wants heightAt, not this.
  */
 export function baseHeightAt(x: number, z: number): number {
-  const s = 1 / 1100;
-  const hills = (fbm(x * s, z * s, 5, 101) - 0.5) * 2;      // [-1, 1]
-  const ridges = (fbm(x * s * 3.7, z * s * 3.7, 3, 233) - 0.5) * 2;
+  const land = naturalHeightAt(x, z);
 
-  // Distance from the city centre, 0 at origin and 1 at the map edge.
-  const d = Math.min(Math.hypot(x, z) / (TERRAIN.size * 0.5), 1);
-  const relief = Math.pow(Math.max(0, (d - 0.05) / 0.95), 1.05);
-
-  // Fine undulation everywhere, including under the city. Undamped by the
-  // relief ramp on purpose: without it the buildable centre is a dead-flat
-  // plate that reads as a bug from overhead, and at +/-2 m over a ~90 m
-  // wavelength it is shallow enough to build on and steep enough to shade.
-  const detail = (fbm(x / 90, z / 90, 3, 909) - 0.5) * 2 * 2.1;
-
-  return (hills * 150 + ridges * 34) * relief + detail;
+  // The river. Folded into the height rather than added to the map after it,
+  // so everything that asks what the ground is doing -- the spawner's slope
+  // test, the grading, the planting, the road tiler -- sees a valley without
+  // any of them having to know what a river is.
+  const valley = valleyAt(x, z);
+  if (valley === null) return land;
+  const y = land + (valley.y - land) * valley.w;
+  // The ground beside a river cannot be below the river. Where the country the
+  // valley crosses happens to fall away, blending straight back to it leaves
+  // the water sitting on a ridge above a terrace -- so the floodplain is held
+  // at the water line and released over the outermost part of the bank, which
+  // is far enough away to read as the land taking over rather than as a step.
+  // Not in the channel itself, obviously: the bed is meant to be under the
+  // water, and clamping it too filled the river in with its own floor.
+  if (valley.bed) return y;
+  const hold = Math.min(1, valley.w / 0.28);
+  return y + (Math.max(y, valley.water + 0.4) - y) * hold;
 }
 
 /**

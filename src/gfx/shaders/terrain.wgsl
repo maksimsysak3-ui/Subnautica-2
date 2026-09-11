@@ -206,15 +206,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   // ---- the zoning grid ------------------------------------------------
   //
-  // Mown into the turf rather than drawn over the map: a darker line in the
-  // grass, gone by a few hundred metres, and absent from rock and steep ground
-  // where nothing would be laid out anyway.
-  let near = 1.0 - smoothstep(0.35, 1.4, mpp);
+  // Only while a build tool is in hand. A lattice mown into the turf every
+  // eight metres is exactly what a player wants when they are laying something
+  // out against it, and exactly what they do not want the rest of the time --
+  // at the default camera the fade below still had it at four fifths strength
+  // over the whole map, which turned a kilometre of countryside into graph
+  // paper. That was most of what was wrong with the ground.
+  //
+  // The cell lines are also held back further than the block lines now. Eight
+  // metres is under a pixel and a half at the distance a city is usually
+  // watched from, and a line that cannot be resolved is not guidance, it is
+  // noise on top of the grass.
   let flatness = 1.0 - smoothstep(0.08, 0.28, slope);
-  let show = near * flatness * (1.0 - rock);
+  let show = camera.markTint.w * flatness * (1.0 - rock);
   if (show > 0.001) {
-    let minor = gridLine(in.world.xz, CELL, dxz) * 0.22;
-    let major = gridLine(in.world.xz, BLOCK, dxz) * 0.40;
+    let minor = gridLine(in.world.xz, CELL, dxz) * 0.18
+              * (1.0 - smoothstep(0.10, 0.40, mpp));
+    let major = gridLine(in.world.xz, BLOCK, dxz) * 0.34
+              * (1.0 - smoothstep(0.60, 2.20, mpp));
     col = mix(col, col * vec3f(0.62, 0.72, 0.58), max(minor, major) * show);
   }
 

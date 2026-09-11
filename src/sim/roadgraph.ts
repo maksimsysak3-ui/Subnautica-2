@@ -407,34 +407,85 @@ export class RoadGraph {
    * tangent, which is what makes a road drawn onto the end of another read as
    * the same road continuing.
    */
-  add(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0): void {
+  add(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0,
+    through: [number, number] | null = null): void {
     if (Math.hypot(bx - ax, bz - az) < SNAP) return;
     const a = this.nodeAt(ax, az);
     const b = this.nodeAt(bx, bz);
     if (a === b) return;
 
     const na = this.nodes[a], nb = this.nodes[b];
-    let cx = (na.x + nb.x) / 2, cz = (na.z + nb.z) / 2;
-    if (bend !== 0) {
-      const dx = nb.x - na.x, dz = nb.z - na.z;
-      const n = Math.hypot(dx, dz) || 1;
-      cx += (-dz / n) * bend;
-      cz += (dx / n) * bend;
-    } else {
-      const tan = this.armTangent(a, b);
-      if (tan !== null) {
-        // The control point on the tangent line, at the distance that makes
-        // the curve leave along it and still reach the far end.
-        const dx = nb.x - na.x, dz = nb.z - na.z;
-        const along = dx * tan[0] + dz * tan[1];
-        if (along > 0) { cx = na.x + tan[0] * along * 0.5; cz = na.z + tan[1] * along * 0.5; }
-      }
-    }
+    const [cx, cz] = this.control(na.x, na.z, nb.x, nb.z, bend, through, a, b);
 
     const link: RoadLink = { a, b, cx, cz, cls };
     this.links.push(link);
     this.crossAll(this.links.length - 1);
     this.dirty = true;
+  }
+
+  /**
+   * The control point of a link between two resolved endpoints.
+   *
+   * Three ways a road gets its shape, in the order they win: the player named
+   * a point it must pass through, the player bowed a drag, or -- neither --
+   * the road leaves an existing dead end along the way that end already
+   * points, so a chain of segments flows instead of kinking at every join.
+   *
+   * `a` and `b` are node indices, or -1 for an end that is not on the graph
+   * yet. Split out of `add` so a preview can ask the same question without
+   * changing anything.
+   */
+  private control(ax: number, az: number, bx: number, bz: number,
+    bend: number, through: [number, number] | null,
+    a: number, b: number): [number, number] {
+    if (through !== null) {
+      // The player named a point the road should pass through, not a Bezier
+      // control point -- nobody thinks in control points. A quadratic is at
+      // (A + 2C + B) / 4 halfway along, so the control that puts the curve on
+      // their point is twice it minus the average of the ends.
+      return [2 * through[0] - (ax + bx) / 2, 2 * through[1] - (az + bz) / 2];
+    }
+    let cx = (ax + bx) / 2, cz = (az + bz) / 2;
+    const dx = bx - ax, dz = bz - az;
+    if (bend !== 0) {
+      const n = Math.hypot(dx, dz) || 1;
+      return [cx + (-dz / n) * bend, cz + (dx / n) * bend];
+    }
+    if (a >= 0) {
+      const tan = this.armTangent(a, b);
+      if (tan !== null) {
+        // The control point on the tangent line, at the distance that makes
+        // the curve leave along it and still reach the far end.
+        const along = dx * tan[0] + dz * tan[1];
+        if (along > 0) { cx = ax + tan[0] * along * 0.5; cz = az + tan[1] * along * 0.5; }
+      }
+    }
+    return [cx, cz];
+  }
+
+  /**
+   * The point a proposed road would actually pass through halfway along.
+   *
+   * The preview builds its own one-link graph, which has no arms to take a
+   * tangent from, so handing it this as a pass-through point is what makes a
+   * previewed road the road the player gets. Without it every chained segment
+   * previewed straight and then committed as a curve.
+   */
+  midpointOf(ax: number, az: number, bx: number, bz: number,
+    bend = 0, through: [number, number] | null = null): [number, number] {
+    const [sax, saz] = this.snapPoint(ax, az);
+    const [sbx, sbz] = this.snapPoint(bx, bz);
+    const [cx, cz] = this.control(sax, saz, sbx, sbz, bend, through,
+      this.nodeNear(sax, saz), this.nodeNear(sbx, sbz));
+    return [(sax + 2 * cx + sbx) / 4, (saz + 2 * cz + sbz) / 4];
+  }
+
+  /** The node an exact point is, or -1 if it is not one. */
+  private nodeNear(x: number, z: number): number {
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (Math.abs(this.nodes[i].x - x) < 1e-6 && Math.abs(this.nodes[i].z - z) < 1e-6) return i;
+    }
+    return -1;
   }
 
   /**
