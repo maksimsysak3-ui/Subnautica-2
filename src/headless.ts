@@ -140,17 +140,24 @@ export async function probeTools(): Promise<{
 
   // The toolbar buttons are the only way in, which is the point: this tests
   // what a player can reach, not an internal method.
-  const press = (title: string): void => {
-    const b = Array.from(overlay.querySelectorAll('button'))
-      .find((el) => (el as HTMLElement).title.startsWith(title));
+  // Matched on the tooltip or on the face of the button, because the bar uses
+  // one and the drawers' tabs and tiles use the other -- and a probe that can
+  // only reach half the controls is not testing what a player can reach.
+  const press = (label: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
+      const h = el as HTMLElement;
+      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+    });
     (b as HTMLElement | undefined)?.click();
   };
 
+  press('Roads');
   press('Avenue');
   const picked = tools.active;
   drag('road', 120, 120, 640, 130);
 
-  press('Residential');
+  press('Zoning');
+  press('medium residential');
   drag('zone', 200, 200, 420, 340);
 
   // And a service, placed from its drawer -- the other half of the palette,
@@ -218,9 +225,14 @@ export async function probeCurve(): Promise<{
   renderer.rebuild();
 
   const tools = new BuildTools(canvas, camera, renderer, overlay);
-  const press = (title: string): void => {
-    const b = Array.from(overlay.querySelectorAll('button'))
-      .find((el) => (el as HTMLElement).title.startsWith(title));
+  // Matched on the tooltip or on the face of the button, because the bar uses
+  // one and the drawers' tabs and tiles use the other -- and a probe that can
+  // only reach half the controls is not testing what a player can reach.
+  const press = (label: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
+      const h = el as HTMLElement;
+      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+    });
     (b as HTMLElement | undefined)?.click();
   };
   const opts = { bubbles: true, button: 0, pointerId: 1 };
@@ -230,7 +242,8 @@ export async function probeCurve(): Promise<{
     canvas.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x, clientY: y }));
   };
 
-  press('Dragged roads');   // flips to curved
+  press('Roads');
+  press('Curved');
   press('Avenue');
   void tools;
 
