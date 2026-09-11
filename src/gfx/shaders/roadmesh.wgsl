@@ -25,6 +25,7 @@ const SURF_FOOTWAY   = 3.0;
 const SURF_JUNCTION  = 4.0;
 const SURF_MEDIAN    = 5.0;
 const SURF_VERGE     = 6.0;
+const SURF_CROSSING  = 7.0;
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -212,8 +213,26 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col *= 1.0 - (1.0 - smoothstep(0.0, half * 0.8, abs(u))) * 0.08;
   } else if (surf < 5.5) {
     col = concrete(w2, mpp) * 0.96;
-  } else {
+  } else if (surf < 6.5) {
     col = verge(w2, mpp);
+  } else {
+    // A crossing across the mouth of a junction.
+    //
+    // The bars are pitched off the road's own lane width rather than a
+    // constant, so a dual carriageway gets a wider ladder than a lane does --
+    // which is what tells the eye how many lanes are running through the
+    // junction without a single lane line being drawn across it.
+    col = asphalt(w2, u, half, 0.0, mpp);
+    let laneW = half / max(lanes, 1.0);
+    let pitch = clamp(laneW * 0.52, 0.55, 1.30);
+    let f = abs(fract(u / pitch) - 0.5) * pitch * 2.0;
+    // Worn: a crossing is the most driven-over paint on a road, and fresh
+    // white bars are the giveaway that a junction was stamped rather than used.
+    let wear = 0.55 + 0.45 * vnoise(w2 * 1.7);
+    let bar = (1.0 - smoothstep(pitch * 0.46, pitch * 0.46 + mpp * 1.6, f))
+            * (1.0 - smoothstep(half - 0.45, half - 0.08, abs(u)));
+    col = mix(col, vec3f(0.52, 0.51, 0.47) * (0.72 + 0.36 * vnoise(w2 * 3.0)),
+              bar * wear * 0.94);
   }
 
   let n = normalize(in.normal);

@@ -43,6 +43,8 @@ export const SURF = {
   KERB_TOP: 2,
   FOOTWAY: 3,
   JUNCTION: 4,
+  /** A crossing across one arm of a junction. */
+  CROSSING: 7,
   MEDIAN: 5,
   VERGE: 6,
 } as const;
@@ -371,6 +373,9 @@ export function buildRoadMesh(graph: RoadGraph,
   for (let n = 0; n < graph.nodes.length; n++) {
     interface Arm {
       angle: number;
+      /** Where the arm meets the junction, and the way it points out of it. */
+      x: number; z: number; tx: number; tz: number;
+      spec: typeof ROAD_SPECS[RoadClass];
       /** Left and right of the carriageway, and of the whole corridor. */
       lx: number; lz: number; rx: number; rz: number;
       elx: number; elz: number; erx: number; erz: number;
@@ -390,6 +395,7 @@ export function buildRoadMesh(graph: RoadGraph,
       const nx = -tz, nz = tx;
       arms.push({
         angle: Math.atan2(tz, tx),
+        x: p.x, z: p.z, tx, tz, spec,
         lx: p.x + nx * spec.half, lz: p.z + nz * spec.half,
         rx: p.x - nx * spec.half, rz: p.z - nz * spec.half,
         elx: p.x + nx * spec.edge, elz: p.z + nz * spec.edge,
@@ -414,6 +420,38 @@ export function buildRoadMesh(graph: RoadGraph,
     }
     for (let i = 0; i < ring.length; i++) {
       buf.tri(centre, ring[i], ring[(i + 1) % ring.length]);
+    }
+
+    // A crossing across the mouth of every arm.
+    //
+    // This is what was missing. A junction whose whole slab is one flat
+    // material is a hole where the roads stop -- the eye has nothing to tell
+    // it how the lanes carry through, which way traffic gives way, or where a
+    // person on foot is meant to go. So each arm gets a crossing laid across
+    // its own carriageway, in its own frame: the bars run across the lanes
+    // that feed it and their spacing comes from that road's lane width, so a
+    // dual carriageway gets a wider ladder than a lane does.
+    //
+    // Geometry rather than paint on the junction slab, because the junction
+    // has no idea where its arms point and this does. Only where three or more
+    // roads meet: two arms is a road carrying on, and a crossing in the middle
+    // of a straight is a crossing nobody asked for.
+    if (arms.length >= 3) {
+      for (const arm of arms) {
+        const half = arm.spec.half;
+        const nx = -arm.tz, nz = arm.tx;
+        // Just inside the junction, so it sits between the stop line on the
+        // approach and the open middle where turning traffic crosses.
+        const near = 0.55, deep = Math.min(2.8, r * 0.62);
+        const mark = (across: number, along: number): number => {
+          const x = arm.x + arm.tx * -along + nx * across;
+          const z = arm.z + arm.tz * -along + nz * across;
+          return buf.push(x, y + LIFT + 0.004, z, 0, 1, 0,
+            across, along, 9, SURF.CROSSING, half, arm.spec.lanes, 0);
+        };
+        buf.quad(mark(-half, near), mark(half, near),
+          mark(half, near + deep), mark(-half, near + deep));
+      }
     }
 
     // The corners between one arm and the next: pavement, with a kerb face

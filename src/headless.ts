@@ -15,7 +15,7 @@ import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
 import { BuildTools } from './ui/build-tools';
-import { configureSim, LITE, paint, demolish, zoneCode } from './sim';
+import { configureSim, LITE, paint, demolish, zoneCode, defaultWorld } from './sim';
 
 export interface ShotRequest {
   width: number;
@@ -34,6 +34,8 @@ export interface ShotRequest {
    * show whether it produced a street or a mess.
    */
   edit?: boolean;
+  /** Photograph the map the game actually opens on, rather than a built city. */
+  empty?: boolean;
   lite: boolean;
 }
 
@@ -60,6 +62,9 @@ Promise<{ before: Record<string, string>; after: Record<string, string> }> {
   const stats = new Stats(document.createElement('div'));
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
+  // The game opens on empty land now. What is being measured here is a
+  // rebuild of a city, so one is put on the map first.
+  renderer.useWorld(defaultWorld(renderer.world.grid));
   renderer.build();
   camera.distance = 300;
   camera.update();
@@ -105,6 +110,7 @@ export async function probeTools(): Promise<{
   const stats = new Stats(document.createElement('div'));
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
+  renderer.useWorld(defaultWorld(renderer.world.grid));
   renderer.build();
   // Straight down over the middle of the map, so a screen point maps to a cell
   // without depending on the terrain.
@@ -274,6 +280,9 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   // A picture wants a fixed hour, or two runs of the same shot differ.
   renderer.clockRunning = false;
   renderer.timeOfDay = req.hour;
+  // A photograph of empty land is a photograph of nothing, so unless the
+  // caller asked for the starting map it gets the generated city.
+  if (req.empty !== true) renderer.useWorld(defaultWorld(renderer.world.grid));
   renderer.build();
 
   if (req.edit === true) {

@@ -24,3 +24,4 @@ export type { Chunk, TerrainMesh } from './terrain';
 export { hash2, noise2, fbm } from './hash';
 export { simConfig, configureSim, LITE } from './config';
 export type { SimConfig } from './config';
+export { buildingPrice, roadPrice, zonePrice, money } from './costs';

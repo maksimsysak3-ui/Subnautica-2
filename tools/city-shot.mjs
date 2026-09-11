@@ -37,6 +37,7 @@ const cfg = {
   frames: Number(process.env.FRAMES || 8),
   hour: Number(process.env.HOUR ?? 0.34),
   edit: !!process.env.EDIT,
+  empty: !!process.env.EMPTY,
   lite: !!process.env.LITE,
 };
 

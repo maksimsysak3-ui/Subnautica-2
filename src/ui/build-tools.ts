@@ -25,6 +25,7 @@ import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen } from './icons';
+import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
 import { BRANCHES } from '../assets/types';
 import type { Branch, Density, Zone } from '../assets/types';
 import type { IconZone } from './zones';
@@ -155,7 +156,7 @@ export class BuildTools {
     this.foot.style.cssText = [
       'position:absolute', 'left:50%', 'bottom:12px', 'transform:translateX(-50%)',
       'display:flex', 'flex-direction:column', 'align-items:center', 'gap:6px',
-      'z-index:5', 'pointer-events:none',
+      'width:100%', 'z-index:5', 'pointer-events:none',
     ].join(';');
     this.foot.appendChild(this.status);
     this.foot.appendChild(this.buildBar());
@@ -631,11 +632,23 @@ export class BuildTools {
     if (tool.kind === 'road' || tool.kind === 'curve') this.roadMode = tool.kind;
     this.closeDrawer();
     this.showMark();
+    // Selected reads as pressed in: the light moves to the bottom, the
+    // shadow goes inside, and the tile sits a pixel low. Nothing else on a
+    // physical panel looks like that, so it is unmistakable at a glance.
     for (const el of this.buttons) {
-      el.dataset.on = el.dataset.tool === this.key(tool) ? '1' : '';
-      el.style.borderColor = el.dataset.on ? 'rgba(120,214,255,.55)' : 'transparent';
-      el.style.background = el.dataset.on ? 'rgba(98,212,255,.15)' : 'transparent';
-      el.style.boxShadow = el.dataset.on ? '0 0 0 1px rgba(98,212,255,.12) inset' : 'none';
+      const on = el.dataset.tool === this.key(tool);
+      el.dataset.on = on ? '1' : '';
+      el.style.transform = on ? 'translateY(1px)' : 'translateY(0)';
+      el.style.borderColor = on ? 'rgba(120,214,255,.5)' : 'rgba(255,255,255,.07)';
+      el.style.background = on
+        ? 'linear-gradient(177deg,rgba(60,150,190,.34),rgba(98,212,255,.14))'
+        : 'linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
+          + 'rgba(0,0,0,.20))';
+      el.style.boxShadow = on
+        ? 'inset 0 2px 6px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.14),'
+          + '0 0 12px rgba(98,212,255,.25)'
+        : 'inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.42),'
+          + '0 2px 4px rgba(0,0,0,.42)';
     }
     this.canvas.style.cursor = tool.kind === 'look' ? '' : 'crosshair';
     this.say(this.describe(tool));
@@ -653,8 +666,8 @@ export class BuildTools {
   private describe(t: Tool): string {
     if (t.kind === 'look') return 'drag to pan, right-drag to orbit, wheel to zoom';
     if (t.kind === 'road') {
-      return `drag to lay a ${ROAD_SPECS[t.cls].label} — sweep the drag to curve it; `
-        + 'it will cross and join what is there';
+      return `drag to lay a ${ROAD_SPECS[t.cls].label} (${money(roadPrice(t.cls))}/m) `
+        + '— sweep the drag to curve it; it will cross and join what is there';
     }
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
@@ -663,9 +676,13 @@ export class BuildTools {
     if (t.kind === 'place') {
       const [w, d] = this.placeYaw % 2 === 0 ? [t.proto.w, t.proto.d] : [t.proto.d, t.proto.w];
       return `click to place the ${t.proto.def.name.toLowerCase()} `
-        + `(${w}x${d} cells, ${w * 8}x${d * 8} m) — R rotates`;
+        + `— ${money(buildingPrice(t.proto.def))}, ${w}\u00d7${d} cells `
+        + `(${w * 8}\u00d7${d * 8} m) — R rotates`;
     }
-    if (t.kind === 'zone') return `drag to zone ${t.density} ${t.zone}`;
+    if (t.kind === 'zone') {
+      return `drag to zone ${t.density} ${t.zone} `
+        + `(${money(zonePrice(t.zone, t.density))} a cell)`;
+    }
     return 'drag to clear roads and zoning';
   }
 
@@ -678,7 +695,7 @@ export class BuildTools {
     const bar = document.createElement('div');
     bar.style.cssText = [
       'display:flex', 'flex-direction:column', 'gap:0',
-      'max-width:min(1280px,96vw)', 'border-radius:14px', 'overflow:hidden',
+      'width:calc(100vw - 20px)', 'border-radius:14px', 'overflow:hidden',
       `background:${PANEL}`, `border:1px solid ${EDGE}`,
       'box-shadow:0 10px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)',
       'backdrop-filter:blur(14px)', 'z-index:5',
@@ -690,7 +707,7 @@ export class BuildTools {
     const tools = document.createElement('div');
     tools.style.cssText = [
       'display:flex', 'flex-wrap:wrap', 'align-items:center',
-      'justify-content:center', 'gap:5px', 'padding:8px 10px',
+      'justify-content:center', 'gap:6px', 'padding:7px 9px',
     ].join(';');
 
     const group = (): HTMLElement => {
@@ -704,22 +721,53 @@ export class BuildTools {
       ].join(';');
       return g;
     };
-    /** Every button on the bar is this shape; only its contents differ. */
+    /**
+     * Every button on the bar is this shape: a square the size of a fingertip,
+     * holding a picture and nothing else.
+     *
+     * Labels were the first attempt and they made the bar four hundred pixels
+     * tall -- twenty-seven buttons each carrying a word wrap onto six rows,
+     * and six rows of toolbar is a menu, not a bar. The name lives in the
+     * tooltip and in the status line under the cursor instead, which is where
+     * every builder puts it.
+     */
     const chip = (el: HTMLElement, colour: string): void => {
+      // A key, not a square. The depth is three cheap tricks stacked: a
+      // top-lit gradient so the face is brighter where a light above it would
+      // catch, a hairline highlight along the top edge and a dark one along
+      // the bottom, and a drop shadow under the whole thing. Together those
+      // are what the eye reads as a raised object -- and pressing it moves it
+      // down a pixel and shortens the shadow, which is the other half.
       el.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:6px',
-        'height:34px', 'padding:0 10px', 'border-radius:9px',
-        'border:1px solid transparent', 'background:transparent',
-        `color:${colour}`, 'cursor:pointer', 'white-space:nowrap',
-        'font:600 11px/1 var(--ui, system-ui, sans-serif)', 'letter-spacing:.02em',
-        'transition:background .12s, border-color .12s',
+        'display:flex', 'align-items:center', 'justify-content:center',
+        'width:42px', 'height:42px', 'padding:0', 'border-radius:11px',
+        'border:1px solid rgba(255,255,255,.07)',
+        'background:linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
+          + 'rgba(0,0,0,.20))',
+        'box-shadow:inset 0 1px 0 rgba(255,255,255,.16),'
+          + 'inset 0 -1px 0 rgba(0,0,0,.42), 0 2px 4px rgba(0,0,0,.42)',
+        `color:${colour}`, 'cursor:pointer', 'position:relative',
+        'font:600 10px/1 var(--ui, system-ui, sans-serif)',
+        'transition:transform .1s, box-shadow .1s, background .12s, border-color .12s',
       ].join(';');
-      el.addEventListener('pointerenter', () => {
-        if (!el.dataset.on) el.style.background = 'rgba(255,255,255,.06)';
+      // The glyph sits above the face rather than being printed on it.
+      el.style.setProperty('--lift', '0px');
+      const raise = (on: boolean): void => {
+        if (el.dataset.on) return;
+        el.style.transform = on ? 'translateY(-1px)' : 'translateY(0)';
+        el.style.boxShadow = on
+          ? 'inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.42),'
+            + `0 4px 8px rgba(0,0,0,.5), 0 0 0 1px ${colour}33`
+          : 'inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.42),'
+            + '0 2px 4px rgba(0,0,0,.42)';
+      };
+      el.addEventListener('pointerenter', () => raise(true));
+      el.addEventListener('pointerleave', () => raise(false));
+      el.addEventListener('pointerdown', () => {
+        el.style.transform = 'translateY(1px)';
+        el.style.boxShadow = 'inset 0 2px 5px rgba(0,0,0,.55)';
       });
-      el.addEventListener('pointerleave', () => {
-        if (!el.dataset.on) el.style.background = 'transparent';
-      });
+      el.addEventListener('pointerup', () => raise(true));
     };
 
     const add = (parent: HTMLElement, make: Tool | (() => Tool), label: string,
@@ -736,7 +784,8 @@ export class BuildTools {
     };
 
     const look = group();
-    add(look, { kind: 'look' }, 'Look around', svgHand(), '#8fa3bd');
+    add(look, { kind: 'look' }, 'Look around — drag to pan, right-drag to orbit',
+      svgHand(), '#8fa3bd');
     tools.appendChild(look);
 
     // How a road is drawn is a property of the drawing, not of the road, so
@@ -745,8 +794,7 @@ export class BuildTools {
     const mode = document.createElement('button');
     const paintMode = (): void => {
       const curving = this.roadMode === 'curve';
-      mode.innerHTML = `${curving ? svgCurve() : svgStraight()}`
-        + `<span>${curving ? 'curve' : 'drag'}</span>`;
+      mode.innerHTML = curving ? svgCurve() : svgStraight();
       mode.title = curving
         ? 'Curved roads — click, click the bend, click the end'
         : 'Dragged roads — sweep the drag to bow the road';
@@ -765,46 +813,33 @@ export class BuildTools {
     roads.appendChild(mode);
     for (const cls of ROAD_ORDER) {
       add(roads, (): Tool => ({ kind: this.roadMode, cls }),
-        `${cls[0].toUpperCase()}${cls.slice(1)}`,
-        `${zoneIcon('road', 18)}<span>${ROAD_SPECS[cls].label}</span>`, ZONE_STYLE.road.light);
+        `${ROAD_SPECS[cls].label} — ${money(roadPrice(cls))} a metre`,
+        roadGlyph(cls), ZONE_STYLE.road.light);
     }
     tools.appendChild(roads);
 
     // One button per zone, cycling density on repeated clicks: four buttons
     // and a modifier beats twelve buttons, and density is the thing a player
     // changes least often.
+    // Zones and services are the same idea on the bar: one flat icon for the
+    // category, and the things you can actually place behind it. The bar is
+    // what you choose *between*; the drawer is what you choose.
     const zones = group();
     for (const zone of ZONES) {
       const style = ZONE_STYLE[zone as IconZone];
       const b = document.createElement('button');
-      let level = 0;
-      const tool = (): Tool => ({ kind: 'zone', zone, density: DENSITIES[level] });
-      b.dataset.tool = this.key(tool());
-      b.title = `${style.label} — click again for higher density`;
-      // The zone's own glyph beside a specimen of what grows there: the glyph
-      // says which zone, the building says what it will look like, and neither
-      // says both.
-      const face = (): void => {
-        b.replaceChildren();
-        const glyph = document.createElement('span');
-        glyph.innerHTML = zoneIcon(zone as IconZone, 16);
-        glyph.style.cssText = 'display:flex';
-        b.appendChild(glyph);
-        const rep = zoneSpecimen(zone, DENSITIES[level]);
-        if (rep !== null) b.appendChild(assetIcon(rep, 26));
-        const tag = document.createElement('span');
-        tag.textContent = DENSITIES[level];
-        b.appendChild(tag);
-      };
-      face();
+      b.dataset.branch = `zone:${zone}`;
+      b.title = `${style.label} — three densities`;
       chip(b, style.light);
-      b.addEventListener('click', () => {
-        if (this.tool.kind === 'zone' && this.tool.zone === zone) {
-          level = (level + 1) % DENSITIES.length;
-        }
-        face();
-        b.dataset.tool = this.key(tool());
-        this.select(tool());
+      const glyph = document.createElement('span');
+      glyph.innerHTML = zoneIcon(zone as IconZone, 26);
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.appendChild(underline(style.base));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.drawer?.dataset.branch === `zone:${zone}`) { this.closeDrawer(); return; }
+        this.openZoneDrawer(zone as IconZone, style);
       });
       zones.appendChild(b);
       this.buttons.push(b);
@@ -822,12 +857,12 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = branch;
       b.title = `${style.label} — ${list.length} buildings`;
-      // A dot in the branch's colour and the name. Eleven of these read as a
-      // palette; eleven grey glyphs read as a toolbar nobody wants to learn.
-      b.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;`
-        + `background:${style.colour};box-shadow:0 0 8px ${style.colour}88"></span>`
-        + `<span>${style.label.toLowerCase()}</span>`;
-      chip(b, '#c6d2e2');
+      chip(b, style.colour);
+      const glyph = document.createElement('span');
+      glyph.innerHTML = zoneIcon(branch, 26);
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.appendChild(underline(style.colour));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === branch) { this.closeDrawer(); return; }
@@ -839,7 +874,8 @@ export class BuildTools {
     tools.appendChild(civic);
 
     const clear = group();
-    add(clear, { kind: 'clear' }, 'Clear', `${svgCross()}<span>clear</span>`, '#f08a6e');
+    add(clear, { kind: 'clear' }, 'Bulldoze — drag to clear roads and zoning',
+      svgCross(), '#f08a6e');
     tools.appendChild(clear);
 
     bar.appendChild(tools);
@@ -980,53 +1016,97 @@ export class BuildTools {
    * finding that out by clicking is the frustrating way to find it out.
    */
   private openDrawer(branch: Branch, list: Proto[], bar: HTMLElement): void {
-    this.closeDrawer();
     const style = BRANCH_STYLE[branch];
-    const panel = document.createElement('div');
-    panel.dataset.branch = branch;
-    panel.style.cssText = [
-      'display:grid', 'grid-template-columns:repeat(auto-fill,minmax(92px,1fr))',
-      'gap:5px', 'padding:10px', 'border-radius:14px', 'width:min(860px,94vw)',
-      'max-height:46vh', 'overflow-y:auto',
-      `background:${PANEL}`, `border:1px solid ${style.colour}55`,
-      'box-shadow:0 10px 34px rgba(0,0,0,.5)',
-      'backdrop-filter:blur(14px)', 'z-index:6', 'pointer-events:auto',
-    ].join(';');
-    // Clicks inside the drawer must not reach the bar's own dismissal.
-    panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const panel = this.drawerPanel(branch, style.colour);
 
     for (const p of list) {
-      const b = document.createElement('button');
-      b.title = p.def.note;
-      b.style.cssText = [
-        'display:flex', 'flex-direction:column', 'align-items:center', 'gap:3px',
-        'padding:7px 4px', 'border-radius:10px', 'border:1px solid rgba(255,255,255,.06)',
-        `background:${WELL}`, 'color:#c8d4e4', 'cursor:pointer',
-        'font:600 10px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
-      ].join(';');
-      b.appendChild(assetIcon(p.id, 52));
-      const name = document.createElement('span');
-      name.textContent = p.def.name;
-      const size = document.createElement('span');
-      size.textContent = `${p.w}x${p.d}`;
-      size.style.cssText = `color:${style.colour};opacity:.75`;
-      b.append(name, size);
-      b.addEventListener('mouseenter', () => {
-        b.style.borderColor = `${style.colour}99`;
-        b.style.background = 'rgba(255,255,255,.05)';
-      });
-      b.addEventListener('mouseleave', () => {
-        b.style.borderColor = 'rgba(255,255,255,.06)';
-        b.style.background = WELL;
-      });
-      b.addEventListener('click', () => this.select({ kind: 'place', proto: p }));
-      panel.appendChild(b);
+      panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
+        buildingPrice(p.def), style.colour, p.def.note,
+        () => this.select({ kind: 'place', proto: p })));
     }
     void bar;
     this.foot.insertBefore(panel, this.foot.firstChild);
     this.drawer = panel;
     for (const el of this.buttons) {
       if (el.dataset.branch === branch) el.style.borderColor = `${style.colour}aa`;
+    }
+  }
+
+  /**
+   * One thing you can place: its picture, its name, its size and its price.
+   *
+   * The price is the point. Without one the drawer is a list of shapes and
+   * every choice in it is free, which is not a choice.
+   */
+  private tile(id: string, name: string, size: string, cost: number,
+    accent: string, note: string, onPick: () => void): HTMLElement {
+    const b = document.createElement('button');
+    b.title = note;
+    const rest = ['border:1px solid rgba(255,255,255,.06)', `background:${WELL}`];
+    b.style.cssText = [
+      'display:flex', 'flex-direction:column', 'align-items:center', 'gap:2px',
+      'padding:7px 4px', 'border-radius:10px', ...rest,
+      'color:#c8d4e4', 'cursor:pointer',
+      'font:600 10px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
+    ].join(';');
+    b.appendChild(assetIcon(id, 52));
+    const label = document.createElement('span');
+    label.textContent = name;
+    const meta = document.createElement('span');
+    meta.innerHTML = `<span style="color:${accent};opacity:.8">${size}</span>`
+      + `<span style="opacity:.35"> · </span>`
+      + `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">${money(cost)}</span>`;
+    b.append(label, meta);
+    b.addEventListener('mouseenter', () => {
+      b.style.borderColor = `${accent}99`;
+      b.style.background = 'rgba(255,255,255,.05)';
+    });
+    b.addEventListener('mouseleave', () => {
+      b.style.borderColor = 'rgba(255,255,255,.06)';
+      b.style.background = WELL;
+    });
+    b.addEventListener('click', onPick);
+    return b;
+  }
+
+  /** The shell every drawer sits in. */
+  private drawerPanel(key: string, accent: string): HTMLElement {
+    this.closeDrawer();
+    const panel = document.createElement('div');
+    panel.dataset.branch = key;
+    panel.style.cssText = [
+      'display:grid', 'grid-template-columns:repeat(auto-fill,minmax(96px,1fr))',
+      'gap:5px', 'padding:10px', 'border-radius:14px', 'width:min(1100px,94vw)',
+      'max-height:46vh', 'overflow-y:auto',
+      `background:${PANEL}`, `border:1px solid ${accent}55`,
+      'box-shadow:0 10px 34px rgba(0,0,0,.5)',
+      'backdrop-filter:blur(14px)', 'z-index:6', 'pointer-events:auto',
+    ].join(';');
+    panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+    return panel;
+  }
+
+  /**
+   * The densities of one zone, each shown as what actually grows there.
+   *
+   * Density used to cycle on repeated clicks of one button, which hid two of
+   * the three choices behind a convention nobody is told about. Three tiles
+   * say what there is.
+   */
+  private openZoneDrawer(zone: IconZone, style: { colour?: string; base: string; light: string }): void {
+    const accent = style.base;
+    const panel = this.drawerPanel(`zone:${zone}`, accent);
+    for (const density of DENSITIES) {
+      const rep = zoneSpecimen(zone, density);
+      panel.appendChild(this.tile(rep ?? '', `${density} ${zone}`,
+        'per cell', zonePrice(zone as Zone, density), accent,
+        `Zone for ${density}-density ${zone}`,
+        () => this.select({ kind: 'zone', zone: zone as Zone, density })));
+    }
+    this.foot.insertBefore(panel, this.foot.firstChild);
+    this.drawer = panel;
+    for (const el of this.buttons) {
+      if (el.dataset.branch === `zone:${zone}`) el.style.borderColor = `${accent}aa`;
     }
   }
 
@@ -1055,6 +1135,74 @@ function svgHand(): string {
     + ' stroke-width="1.6"><path d="M7 12V6.5a1.5 1.5 0 0 1 3 0V11m0-.5V5a1.5 1.5 0 0 1 3 0v6m0-.5'
     + 'V6.5a1.5 1.5 0 0 1 3 0V13m0-1.5a1.5 1.5 0 0 1 3 0V16a5 5 0 0 1-5 5h-1.5a6 6 0 0 1-5.2-3L7 15"'
     + '/></svg>';
+}
+
+/**
+ * One road class, drawn as what it is: a section through it.
+ *
+ * Eight road buttons carrying the same picture of a road tell a player
+ * nothing. This draws the carriageway to scale against the widest class, with
+ * a divider per lane, a reservation where there is one and rails where there
+ * is a tram -- so the difference between a lane and a dual carriageway is the
+ * thing you can see, which is exactly the difference you are choosing.
+ */
+function roadGlyph(cls: RoadClass): string {
+  const spec = ROAD_SPECS[cls];
+  const widest = Math.max(...ROAD_ORDER.map((c) => ROAD_SPECS[c].half));
+  // Tarmac dark against the bar and the paint bright on it, which is the way
+  // round a road actually is. The first attempt drew the carriageway in the
+  // button's own colour at a fifth opacity and every class came out as the
+  // same grey smudge.
+  const w = 7 + (spec.half / widest) * 15;
+  const x0 = 14 - w / 2;
+  const parts: string[] = [
+    `<rect x="${x0.toFixed(2)}" y="3" width="${w.toFixed(2)}" height="22" rx="1.5"`
+    + ' fill="#11161d" stroke="currentColor" stroke-opacity=".45" stroke-width="1"/>',
+  ];
+  const each = w / (spec.oneWay ? spec.lanes : spec.lanes * 2);
+  for (let i = 1; i < (spec.oneWay ? spec.lanes : spec.lanes * 2); i++) {
+    const mid = !spec.oneWay && i === spec.lanes;
+    if (mid && spec.median) continue;
+    const x = (x0 + i * each).toFixed(2);
+    parts.push(`<line x1="${x}" y1="4.5" x2="${x}" y2="23.5" stroke="#e8eef6"`
+      + ` stroke-opacity="${mid ? '.95' : '.62'}" stroke-width="${mid ? 1.2 : 1}"`
+      + ` ${mid ? '' : 'stroke-dasharray="2.6 2.6"'}/>`);
+  }
+  // The reservation, and the arrow that says a street runs one way.
+  if (spec.median) {
+    parts.push('<rect x="13" y="4" width="2" height="20" rx="1" fill="#8fe3ff" fill-opacity=".85"/>');
+  }
+  if (spec.oneWay) {
+    parts.push('<path d="M14 20 L14 8 M11.4 10.6 L14 8 L16.6 10.6" stroke="#ffd166"'
+      + ' stroke-opacity=".95" stroke-width="1.3" fill="none" stroke-linecap="round"/>');
+  }
+  if (spec.tram) {
+    for (const x of [14 - w / 5, 14 + w / 5]) {
+      parts.push(`<line x1="${x.toFixed(2)}" y1="4" x2="${x.toFixed(2)}" y2="24"`
+        + ' stroke="#8fe3ff" stroke-opacity=".95" stroke-width="1.5"/>');
+    }
+  }
+  return `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">${parts.join('')}</svg>`;
+}
+
+/**
+ * How a glyph sits on its tile: floating a little above it.
+ *
+ * A drop shadow under a flat icon is the cheapest depth cue there is, and on a
+ * lit tile it is the one that sells the whole thing -- without it the icon is
+ * printed on the key rather than standing on it.
+ */
+const GLYPH = 'display:flex;filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))';
+
+/** The colour bar under a category icon, which is how the bar is read. */
+function underline(colour: string): HTMLElement {
+  const el = document.createElement('span');
+  el.style.cssText = [
+    'position:absolute', 'left:50%', 'bottom:4px', 'transform:translateX(-50%)',
+    'width:18px', 'height:2px', 'border-radius:2px', 'pointer-events:none',
+    `background:${colour}`, `box-shadow:0 0 7px ${colour}aa`,
+  ].join(';');
+  return el;
 }
 
 function svgStraight(): string {

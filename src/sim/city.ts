@@ -602,16 +602,19 @@ export function makeCity(world: World = defaultWorld()): City {
       return false;
     };
 
+    // Four hundred thousand cells, and most of them take the last branch. So
+    // nothing above a branch is computed for cells that will not use it: the
+    // distance to downtown was a square root per cell thrown away, and
+    // `zoneOf` allocated an object per cell for a map that is mostly unzoned.
     for (let cz = 0; cz < GRID; cz++) {
       for (let cx = 0; cx < GRID; cx++) {
-        if (cells[at(cx, cz)] !== FREE) continue;
-        const inBlock = cx % PERIOD < BLOCK && cz % PERIOD < BLOCK;
-        const i = cx % PERIOD, j = cz % PERIOD;
-        const d = downtown(cx, cz);
+        const cell = at(cx, cz);
+        if (cells[cell] !== FREE) continue;
 
         // A park block: planted like woodland rather than like a back garden,
         // because that is what it is for.
-        const zoned = zoneOf(world.zones[at(cx, cz)]);
+        const code = world.zones[cell];
+        const zoned = code === 0 ? null : zoneOf(code);
         if (zoned !== null && zoned.zone === 'nature') {
           // Almost every slot, and the two-cell species first. A crown is
           // wider than the lot it stands on, so trees on a two-cell pitch
@@ -622,7 +625,9 @@ export function makeCity(world: World = defaultWorld()): City {
           continue;
         }
 
-        if (d > 0.02 && inBlock) {
+        const d = downtown(cx, cz);
+        const i = cx % PERIOD, j = cz % PERIOD;
+        if (d > 0.02 && i < BLOCK && j < BLOCK) {
           // In town. Denser in the suburbs than downtown, which is what a
           // city is, and four times denser against the street than behind it.
           const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
@@ -635,7 +640,7 @@ export function makeCity(world: World = defaultWorld()): City {
         // Out of town. Copses: a low-frequency noise decides where woodland
         // is at all, and inside one the canopy is close to continuous. An
         // even scatter at the same tree count reads as an orchard.
-        const shade = canopy[at(cx, cz)] - d * 0.6;
+        const shade = canopy[cell] - d * 0.6;
         if (shade <= 0 || hash2(cx, cz, 813) > shade) continue;
         plant(cx, cz, [mid, big, small]);
       }
