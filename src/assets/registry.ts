@@ -46,11 +46,20 @@ for (const a of ASSETS) {
   if (!DRESSED.has(a.zone)) continue;
   const inner = a.build.bind(a);
   const seed = Math.round(idSeed(a.id));
-  // Decided once, from the full-detail mesh, and reused at every LOD.
-  const lod0 = inner(0);
-  const plane = lod0.roofPlane() ?? lod0.bareRoofPlane();
+  // Decided once from the full-detail mesh and reused at every LOD -- but on
+  // the first build, not here. Working it out for all three hundred and fifty
+  // assets while this module evaluated meant a full build of every asset in
+  // the library before the page could paint, and a second one for the heights
+  // below. That was several seconds of blocked main thread on a fast machine
+  // and long enough to look like a hang on a laptop. Almost none of it was
+  // needed: a session looks at a handful of assets.
+  let plane: ReturnType<MeshBuilder['roofPlane']> | undefined;
   a.build = (lod: number): MeshBuilder => {
     const m = inner(lod);
+    if (plane === undefined) {
+      const lod0 = lod === 0 ? m : inner(0);
+      plane = lod0.roofPlane() ?? lod0.bareRoofPlane();
+    }
     dressRoof(m, lod, seed, { at: plane });
     return m;
   };
@@ -59,9 +68,25 @@ for (const a of ASSETS) {
 // Height is measured from the mesh rather than declared. A hand-written number
 // drifts the moment a generator gains a chimney, and every consumer -- the
 // spawner, the LOD selector, the viewer's framing -- would then be working
-// from a lie. Cheap: bounds() reads the vertex list without baking occlusion.
+// from a lie.
+//
+// Measured on first read rather than up front, for the reason above: this was
+// a second full build of the whole library during module evaluation. bounds()
+// itself is cheap -- it reads the vertex list without baking occlusion -- but
+// the build feeding it is not.
 for (const a of ASSETS) {
-  a.height = Math.round(a.build(0).bounds().max[1] * 10) / 10;
+  let measured: number | undefined;
+  Object.defineProperty(a, 'height', {
+    configurable: true,
+    enumerable: true,
+    get(): number {
+      if (measured === undefined) {
+        measured = Math.round(a.build(0).bounds().max[1] * 10) / 10;
+      }
+      return measured;
+    },
+    set(v: number) { measured = v; },
+  });
 }
 
 export function assetById(id: string): AssetDef | undefined {

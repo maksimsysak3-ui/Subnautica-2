@@ -296,7 +296,11 @@ class Viewer {
   select(asset: AssetDef, lod = this.lod): void {
     this.asset = asset;
     this.lod = lod;
-    const mesh = asset.build(lod).build();
+    const built = asset.build(lod);
+    // This build is happening anyway, so the count comes free -- the sidebar
+    // and the LOD ladder then never rebuild the asset you are looking at.
+    TRIS.set(`${asset.id}:${lod}`, built.triangleCount);
+    const mesh = built.build();
     const { device } = this.gpu;
 
     this.current?.vertices.destroy();
@@ -716,10 +720,70 @@ function highlight(id: string): void {
   }
 }
 
+/**
+ * Triangle counts, built once each and kept.
+ *
+ * The sidebar shows a count against every asset, and it used to get it by
+ * calling build() on all three hundred and fifty-one of them while the page
+ * loaded -- then again on every category and theme change, and three more
+ * times per asset on every selection for the LOD ladder. A build is not free:
+ * a fire engine is a hundred milliseconds on its own, and the whole library is
+ * the better part of three seconds of blocked main thread on a fast machine.
+ * A browser with no other work to do calls that a hang.
+ *
+ * So: memoised, and filled in off the critical path. Nothing here changes what
+ * is displayed, only when the work happens.
+ */
+const TRIS = new Map<string, number>();
+
+function triangles(a: AssetDef, lod: number): number {
+  const key = `${a.id}:${lod}`;
+  let n = TRIS.get(key);
+  if (n === undefined) {
+    n = a.build(lod).triangleCount;
+    TRIS.set(key, n);
+  }
+  return n;
+}
+
+/**
+ * Fill in the counts the list was rendered without, a few milliseconds at a
+ * time.
+ *
+ * Yielding between batches is the whole point: the page paints, the canvas
+ * draws its first frame and the sidebar is scrollable while this runs, instead
+ * of everything waiting on a number nobody has looked at yet. The token makes
+ * a pass abandon itself when the list is rebuilt under it.
+ */
+let fillToken = 0;
+
+function fillCounts(): void {
+  const token = ++fillToken;
+  const pending = Array.from(document.querySelectorAll('.item .tris')) as HTMLElement[];
+  let i = 0;
+  const step = (): void => {
+    if (token !== fillToken) return;
+    // One asset can exceed the slice on its own -- the biggest are around a
+    // tenth of a second -- so this bounds the batch, not the single build.
+    // A hitch is survivable; a three-second freeze is not.
+    const until = performance.now() + 6;
+    while (i < pending.length && performance.now() < until) {
+      const el = pending[i++];
+      const a = BY_ID.get(el.dataset.for ?? '');
+      if (a) el.textContent = `${triangles(a, 0).toLocaleString()} tris`;
+    }
+    if (i < pending.length) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/** Assets by id, for the count filler above. */
+const BY_ID = new Map(ASSETS.map((a) => [a.id, a] as const));
+
 function renderInfo(a: AssetDef, tris: number, lod: number): void {
   const el = document.getElementById('info');
   if (!el) return;
-  const counts = [0, 1, 2].map((l) => a.build(l).triangleCount);
+  const counts = [0, 1, 2].map((l) => triangles(a, l));
   const row = (k: string, v: string): string =>
     `<div class="row"><span>${k}</span><b>${v}</b></div>`;
   const sim = a.sim;
@@ -777,12 +841,16 @@ function buildList(onPick: (a: AssetDef) => void): void {
       el.className = 'item';
       el.dataset.id = a.id;
       const tag = a.theme === undefined ? '' : `<span class="badge">${THEMES[a.theme].badge}</span>`;
-      el.innerHTML = `<div class="n">${a.name}</div><div class="m">${tag}${a.variant} · ${
-        a.build(0).triangleCount.toLocaleString()} tris</div>`;
+      // The count goes in empty and is filled by fillCounts() below, unless
+      // this asset has already been built once and the number is known.
+      const known = TRIS.get(`${a.id}:0`);
+      el.innerHTML = `<div class="n">${a.name}</div><div class="m">${tag}${a.variant} · <span
+        class="tris" data-for="${a.id}">${known === undefined ? '…' : `${known.toLocaleString()} tris`}</span></div>`;
       el.addEventListener('click', () => onPick(a));
       list.appendChild(el);
     }
   }
+  fillCounts();
 }
 
 // ---- boot --------------------------------------------------------------
