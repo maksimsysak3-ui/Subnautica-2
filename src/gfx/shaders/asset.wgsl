@@ -1613,11 +1613,35 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       id = floor(uv / vec2f(2.35, 3.15));
     }
     if (cover > 0.01) {
-      let r = hash21(id * 1.7 + seed);
+      // Which windows are lit, and why they are not a coin flip.
+      //
+      // Every opening used to light independently at a fifty-six per cent
+      // chance, and uncorrelated flips at a half are the recipe for maximum
+      // visual noise: a tower came out as television static. A real building
+      // is nothing like that. A floor's lights are on one circuit, a tenant
+      // takes a run of bays, and most of the building is dark.
+      //
+      // So three terms, weighted so the floor dominates: lit windows arrive in
+      // rows and in blocks, and the threshold lands about a quarter of them.
+      let rw = hash21(id * 1.7 + seed);
+      let rf = hash21(vec2f(11.3, floor(id.y)) * 3.1 + seed);
+      let rb = hash21(vec2f(floor(id.x * 0.34), 7.9) * 5.7 + seed);
+      let occupancy = rf * 0.46 + rb * 0.30 + rw * 0.24;
+      let on = step(0.615, occupancy);
+
       // Tungsten in most, cool fluorescent in a few: an office tower left on
-      // overnight is not the same colour as a lit sitting room.
-      let warm = mix(vec3f(1.00, 0.80, 0.50), vec3f(0.82, 0.90, 1.00), step(0.88, r));
-      out = mix(out, warm * (0.52 + r * 0.55), step(0.44, r) * night * cover * 0.94);
+      // overnight is not the same colour as a lit sitting room. Keyed off the
+      // floor rather than the window, because a floor is one tenant with one
+      // kind of light fitting.
+      let warm = mix(vec3f(1.00, 0.79, 0.48), vec3f(0.80, 0.89, 1.00), step(0.86, rf));
+      // Blinds, lamps, how deep the room is: a lit floor is not a flat bar of
+      // light, and this is what stops one reading as a painted stripe.
+      let strength = 0.40 + rw * 0.62;
+      out = mix(out, warm * strength, on * night * cover * 0.94);
+
+      // A window that is dark is not black. It takes the night sky, which is
+      // what gives an unlit face its shape instead of a silhouette.
+      out = mix(out, vec3f(0.045, 0.058, 0.080), (1.0 - on) * night * cover * 0.55);
     }
   }
 
