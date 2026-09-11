@@ -48,6 +48,36 @@ export const CELL = 8;
 /** Ungraded height at every cell corner, computed once. */
 let corners: Float32Array | null = null;
 
+/** World-space box, or null meaning "assume everything". */
+export interface Bounds { x0: number; z0: number; x1: number; z1: number; }
+
+/** The grading as it stood before the last pass, for diffing against. */
+let previous: Float32Array | null = null;
+let changed: Bounds | null = null;
+
+/**
+ * Where the ground actually moved in the last grading pass.
+ *
+ * Null means "everywhere, or it cannot be known" -- the first pass, or a change
+ * of map size.
+ *
+ * This exists because rebuilding the terrain mesh is most of what an edit
+ * costs, and almost none of it is necessary: drawing one street changes the
+ * ground under that street and nowhere else, while the mesh was regenerated
+ * from end to end. The offsets are compared rather than reasoned about, so the
+ * answer is exact -- a chunk outside this box is provably identical to the one
+ * already on the GPU, not merely likely to be.
+ */
+export function gradedSince(): Bounds | null {
+  return changed;
+}
+
+/** Forgets the comparison, so the next pass reports everything. */
+export function forgetGrading(): void {
+  previous = null;
+  changed = null;
+}
+
 /**
  * The ungraded ground at a cell corner.
  *
@@ -57,20 +87,49 @@ let corners: Float32Array | null = null;
  * is a hundred and ninety thousand samples and is wanted by the grading pass
  * regardless.
  */
-export function baseAtCorner(gx: number, gz: number, base: (x: number, z: number) => number): number {
+/** Lowest cell index the cache covers; negative, because it reaches outside. */
+let cornerFrom = 0;
+/** Corners across one side of the cache. */
+let cornerSpan = 0;
+
+/**
+ * Makes sure the cache exists and covers the whole map.
+ *
+ * The whole *terrain*, not just the city. The map is wider than the zoned area
+ * -- nine kilometres against five -- so two thirds of the terrain mesh sits
+ * outside the cell grid, and a cache that stopped at the grid's edge left every
+ * one of those vertices resampling three octaves of noise and a river lookup on
+ * every rebuild. That was the single largest term in an edit.
+ *
+ * Filled lazily, one corner at a time, because filling it eagerly is one and a
+ * third million samples and that lands on the loading screen. NaN marks a
+ * corner nobody has asked for yet: a height is never NaN, so the flag costs no
+ * second array.
+ */
+function ensureCorners(): void {
   const grid = simConfig.cityGrid;
-  const n = grid + 1;
-  if (corners === null || corners.length !== n * n) {
-    corners = new Float32Array(n * n);
-    const half = grid / 2;
-    for (let z = 0; z < n; z++) {
-      for (let x = 0; x < n; x++) {
-        corners[z * n + x] = base((x - half) * CELL, (z - half) * CELL);
-      }
-    }
+  const reach = Math.ceil(simConfig.terrainSize / 2 / CELL) + 2;
+  const from = Math.min(0, grid / 2 - reach);
+  const span = Math.max(grid + 1, reach * 2 + 1);
+  if (corners !== null && cornerFrom === from && cornerSpan === span) return;
+  corners = new Float32Array(span * span).fill(NaN);
+  cornerFrom = from;
+  cornerSpan = span;
+}
+
+export function baseAtCorner(gx: number, gz: number, base: (x: number, z: number) => number): number {
+  ensureCorners();
+  const half = simConfig.cityGrid / 2;
+  const ix = gx - cornerFrom, iz = gz - cornerFrom;
+  if (ix < 0 || iz < 0 || ix >= cornerSpan || iz >= cornerSpan) {
+    return base((gx - half) * CELL, (gz - half) * CELL);
   }
-  if (gx < 0 || gz < 0 || gx >= n || gz >= n) return base((gx - grid / 2) * CELL, (gz - grid / 2) * CELL);
-  return corners[gz * n + gx];
+  const k = iz * cornerSpan + ix;
+  const was = (corners as Float32Array)[k];
+  if (!Number.isNaN(was)) return was;
+  const y = base((gx - half) * CELL, (gz - half) * CELL);
+  (corners as Float32Array)[k] = y;
+  return y;
 }
 
 export interface Pad {
@@ -101,6 +160,7 @@ export function clearGrading(): void {
 /** Drops the ungraded ground too, for a tool that changes the terrain itself. */
 export function clearTerrainCache(): void {
   corners = null;
+  forgetGrading();
 }
 
 /**
@@ -112,7 +172,14 @@ export function clearTerrainCache(): void {
  * deliberately lets the loading screen draw in between.
  */
 export function warmTerrain(base: (x: number, z: number) => number): void {
-  baseAtCorner(0, 0, base);
+  ensureCorners();
+  // The zoned area only. The rest of the map fills itself the first time the
+  // terrain mesh is built, which happens on the next step of the same loading
+  // screen -- filling it here as well would double this step for nothing.
+  const grid = simConfig.cityGrid;
+  for (let gz = 0; gz <= grid; gz++) {
+    for (let gx = 0; gx <= grid; gx++) baseAtCorner(gx, gz, base);
+  }
 }
 
 /**
@@ -203,7 +270,10 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   for (const p of pins) cover(p.gx, p.gz, 0, 0);
   bx0 = Math.max(0, bx0); bz0 = Math.max(0, bz0);
   bx1 = Math.min(stride - 1, bx1); bz1 = Math.min(stride - 1, bz1);
-  if (bx1 < bx0 || bz1 < bz0) return;   // nothing graded anywhere
+  if (bx1 < bx0 || bz1 < bz0) {        // nothing graded anywhere
+    settle(offset);
+    return;
+  }
 
   let src: Float32Array<ArrayBuffer> = offset;
   let dst: Float32Array<ArrayBuffer> = new Float32Array(n);
@@ -226,6 +296,51 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
     const swap = src; src = dst; dst = swap;
   }
   offset = src;
+  settle(offset);
+}
+
+/**
+ * Records what moved, against the previous pass.
+ *
+ * One linear scan of the corner grid. It costs a fraction of a millisecond and
+ * it saves regenerating thirty-six terrain chunks, so the trade is not close.
+ *
+ * The epsilon is a tenth of a millimetre: an offset that differs by less than
+ * that cannot move a vertex anywhere the eye could find it, and treating exact
+ * equality as the test would report the whole map as changed every time a
+ * float landed one unit in the last place away from where it did before.
+ */
+function settle(next: Float32Array): void {
+  const half = simConfig.cityGrid / 2;
+  if (previous === null || previous.length !== next.length) {
+    previous = next.slice();
+    changed = null;
+    return;
+  }
+  let cx0 = stride, cz0 = stride, cx1 = -1, cz1 = -1;
+  for (let z = 0; z < stride; z++) {
+    const row = z * stride;
+    for (let x = 0; x < stride; x++) {
+      if (Math.abs(next[row + x] - previous[row + x]) <= 1e-4) continue;
+      if (x < cx0) cx0 = x;
+      if (x > cx1) cx1 = x;
+      if (z < cz0) cz0 = z;
+      if (z > cz1) cz1 = z;
+    }
+  }
+  previous = next.slice();
+  if (cx1 < cx0) {
+    // Nothing moved at all. A zoning edit that grew no buildings, or a road
+    // redrawn where one already was.
+    changed = { x0: 0, z0: 0, x1: 0, z1: 0 };
+    return;
+  }
+  // One cell of margin either way, because a corner's move tilts the facets on
+  // both sides of it.
+  changed = {
+    x0: (cx0 - half - 1) * CELL, z0: (cz0 - half - 1) * CELL,
+    x1: (cx1 - half + 1) * CELL, z1: (cz1 - half + 1) * CELL,
+  };
 }
 
 /**

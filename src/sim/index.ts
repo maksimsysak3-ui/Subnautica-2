@@ -17,14 +17,21 @@ export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from './roadgraph';
 export type { RoadClass, RoadSpec, Site } from './roadgraph';
 export { buildRoadMesh, previewRoad, ROAD_FLOATS, SURF } from './roadmesh';
 export type { RoadMesh } from './roadmesh';
-export { buildTerrain, heightAt, baseHeightAt, TERRAIN, FLOATS_PER_VERTEX, INDICES_PER_CHUNK } from './terrain';
-export { clearGrading, clearTerrainCache, warmTerrain } from './grading';
+export {
+  buildTerrain, heightAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,
+  INDICES_PER_CHUNK,
+} from './terrain';
+export { terrainChunksRebuilt } from './terrain';
+export { clearGrading, clearTerrainCache, warmTerrain, gradedSince, forgetGrading } from './grading';
+export type { Bounds } from './grading';
 export { waterAt, valleyAt, buildWaterMesh, WATER_FLOATS } from './river';
 export type { Chunk, TerrainMesh } from './terrain';
 export { hash2, noise2, fbm } from './hash';
 export { simConfig, configureSim, LITE } from './config';
 export type { SimConfig } from './config';
 export { buildingPrice, roadPrice, zonePrice, money } from './costs';
+export { Weather } from './weather';
+export type { Sky } from './weather';
 export {
   serialise, deserialise, listSaves, writeSave, writeAutosave, readSave, deleteSave,
   toCode, fromCode,

@@ -39,6 +39,15 @@ struct Scene {
   signText    : vec4u,
   /** x = character count. */
   signInfo    : vec4f,
+  /**
+   * x = cloud cover, y = fog, z = rain, w = ground wetness.
+   *
+   * Here as well as on the camera uniform because the buildings have to agree
+   * with the ground about the weather. Zero for the icon renderer and the asset
+   * viewer, which photograph a building on a clear day whatever the city is
+   * doing.
+   */
+  weather     : vec4f,
 };
 
 @group(0) @binding(0) var<uniform> scene : Scene;
@@ -208,9 +217,35 @@ struct Instance {
   place : vec4f,
   /** half extent x, half extent z, height, prototype index. */
   form  : vec4f,
-  /** x = stretch along the prototype's own Z; the rest spare. */
+  /**
+   * x = stretch along the prototype's own Z
+   * y = ghost, when this is a preview rather than a building
+   * z = when this building first appeared, in seconds on the renderer's clock
+   */
   extra : vec4f,
 };
+
+/** Seconds a new building takes to rise. */
+const GROW_SECONDS = 2.6;
+
+/**
+ * How far up a building is, 0 to 1.
+ *
+ * Buildings do not appear, they are built. A city that grows a hundred houses
+ * the instant a block is zoned reads as a switch being thrown; the same hundred
+ * rising over a couple of seconds reads as the city doing something, and it
+ * gives the eye somewhere to look after a decision instead of a jump cut.
+ *
+ * Eased at both ends, and the first fifth of the curve is nearly flat, so a
+ * building spends a moment as a footprint before it starts to climb -- which is
+ * what makes it look like a site rather than an extrusion.
+ */
+fn growth(inst : Instance) -> f32 {
+  let born = inst.extra.z;
+  if (born <= 0.0) { return 1.0; }
+  let t = clamp((scene.params.w - born) / GROW_SECONDS, 0.0, 1.0);
+  return smoothstep(0.0, 1.0, t * t * (3.0 - 2.0 * t));
+}
 
 @group(2) @binding(0) var<storage, read> instances : array<Instance>;
 /** The survivors of one bucket, bound at that bucket's offset. */
@@ -253,6 +288,11 @@ fn protoVertex(packed : vec4u, inst : Instance, p : Proto) -> vec3f {
   // else does; a road tile is an extrusion along Z, so a few per cent either
   // way lengthens the extrusion rather than distorting anything.
   local.z *= inst.extra.x;
+  // Rising out of the ground. Scaled about its own base rather than moved up
+  // from below, because a building sliding up out of the terrain shows its
+  // underside through the hillside it is cut into, and a building that grows
+  // does not.
+  local.y *= growth(inst);
   return local;
 }
 
@@ -1453,6 +1493,9 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, from this shader's own uniform: the icon renderer and the
+  // asset viewer leave it at zero, which is a clear day.
+  setWeather(scene.weather.x, scene.weather.y);
   let n = normalize(in.normal);
   // The pattern frame is the prototype's, not the world's: see VSOut.shade.
   let sn = normalize(in.pnorm);

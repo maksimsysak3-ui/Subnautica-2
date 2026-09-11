@@ -175,6 +175,8 @@ fn markings(u : f32, v : f32, half : f32, lanes : f32, flags : u32, mpp : f32) -
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, once, before anything reads the atmosphere.
+  setWeather(camera.weather.x, camera.weather.y);
   let surf = in.info.x;
   let half = in.info.y;
   let lanes = in.info.z;
@@ -252,6 +254,29 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // it, which is the whole reason a kerb reads as a step rather than a line.
   let ambient = mix(ambientGround(sun), ambientSky(sun), 0.5 + n.y * 0.5);
   col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * lit);
+
+  // Wet tarmac.
+  //
+  // This is where rain is most visible in a city and where the shading has the
+  // most to gain: dry asphalt is nearly matt, and wet asphalt is a mirror with
+  // the road markings showing through it. So the specular goes up hard, and it
+  // reflects the sky rather than a white highlight -- at dusk a wet road is
+  // orange, and that is the whole reason anyone photographs one.
+  //
+  // Kerbs and footways take less: they are rougher, and they drain.
+  let soak = camera.weather.w;
+  if (soak > 0.002) {
+    let porosity = select(0.55, 1.0, surf == SURF_ROAD || surf == SURF_JUNCTION
+                                  || surf == SURF_CROSSING);
+    let w = soak * porosity;
+    col *= mix(1.0, 0.52, w);
+    let toSun = normalize(camera.eye.xyz - in.world);
+    let gloss = pow(max(dot(n, normalize(toSun + sun)), 0.0), 180.0);
+    // The sky in the mirror direction, which is what a wet road actually shows.
+    let mirror = reflect(-toSun, n);
+    col += skyColour(mirror, sun) * w * 0.34;
+    col += sunLight(sun) * gloss * lit * w * 2.6;
+  }
 
   let toEye = in.world - camera.eye.xyz;
   col = aerial(col, length(toEye), toEye, sun);

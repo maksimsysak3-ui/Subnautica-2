@@ -14,7 +14,7 @@
  */
 
 import { simConfig } from './config';
-import { gradingAt } from './grading';
+import { gradingAt, baseAtCorner, CELL } from './grading';
 import { valleyAt } from './river';
 import { naturalHeightAt } from './land';
 
@@ -76,11 +76,40 @@ export function heightAt(x: number, z: number): number {
   return baseHeightAt(x, z) + gradingAt(x, z);
 }
 
-/** Central difference normal. Matches heightAt exactly, so no seams. */
-function normalAt(x: number, z: number, out: [number, number, number]): void {
-  const e = 2;
-  const dx = heightAt(x + e, z) - heightAt(x - e, z);
-  const dz = heightAt(x, z + e) - heightAt(x, z - e);
+/**
+ * The height at a terrain vertex, through the cached corner grid.
+ *
+ * Terrain vertices sit at eight metres, which is exactly the zoning cell
+ * pitch, so every one of them is a corner the grading pass has already
+ * sampled. Going through the cache turns three octaves of noise and a river
+ * lookup into an array read -- and there are five of those per vertex once the
+ * normal is counted, which is why generating the mesh was most of what an edit
+ * cost.
+ *
+ * Falls through to the real function outside the cell grid, where the map is
+ * wider than the city and there is nothing cached to read.
+ */
+function gridHeight(x: number, z: number): number {
+  const half = simConfig.cityGrid / 2;
+  const gx = Math.round(x / CELL + half);
+  const gz = Math.round(z / CELL + half);
+  return baseAtCorner(gx, gz, baseHeightAt) + gradingAt(x, z);
+}
+
+/**
+ * The normal at a terrain vertex, from its neighbours on the same grid.
+ *
+ * A central difference over one cell rather than over two metres. That is not
+ * a compromise for speed, it is more correct: the mesh is faceted at eight
+ * metres, and a difference taken two metres either side samples the height
+ * field inside a facet and returns a normal the facet does not have. Over the
+ * facet's own span the two agree, and it costs four cache reads instead of
+ * four evaluations of the noise.
+ */
+function gridNormal(x: number, z: number, out: [number, number, number]): void {
+  const e = CELL;
+  const dx = gridHeight(x + e, z) - gridHeight(x - e, z);
+  const dz = gridHeight(x, z + e) - gridHeight(x, z - e);
   const len = Math.hypot(dx, 2 * e, dz) || 1;
   out[0] = -dx / len;
   out[1] = (2 * e) / len;
@@ -100,7 +129,30 @@ export interface TerrainMesh {
   chunks: Chunk[];
 }
 
-export function buildTerrain(): TerrainMesh {
+/**
+ * The mesh as it was last built, so a rebuild can keep the chunks that did not
+ * move. Dropped whenever the map size changes, which reallocates it anyway.
+ */
+let cached: TerrainMesh | null = null;
+/** How much of the mesh the last call rewrote, for the rebuild profile. */
+export let terrainChunksRebuilt = 0;
+
+/**
+ * The terrain mesh.
+ *
+ * `only` is a world-space box: chunks that do not touch it keep the vertices
+ * they already had, because the ground there is provably unchanged. It comes
+ * from the grading, which knows exactly which corners moved.
+ *
+ * That matters because this is the single most expensive thing a rebuild does,
+ * and nearly all of it is wasted: every vertex costs five evaluations of the
+ * height field -- its own, and four more for the normal -- and drawing one
+ * street moves the ground under one street. Regenerating the other thirty-five
+ * chunks produced, at considerable expense, exactly the bytes already on the
+ * GPU.
+ */
+export function buildTerrain(only?: { x0: number; z0: number; x1: number; z1: number } | null):
+TerrainMesh {
   const chunksPerEdge = Math.max(1, Math.round(TERRAIN.size / TERRAIN.chunk));
   const vpe = VERTS_PER_CHUNK_EDGE;
   const vertsPerChunk = vpe * vpe;
@@ -108,16 +160,33 @@ export function buildTerrain(): TerrainMesh {
   const step = TERRAIN.chunk / TERRAIN.res;
   const half = TERRAIN.size / 2;
 
-  const vertices = new Float32Array(chunkCount * vertsPerChunk * FLOATS_PER_VERTEX);
+  const floats = chunkCount * vertsPerChunk * FLOATS_PER_VERTEX;
+  const reuse = only !== undefined && only !== null
+    && cached !== null && cached.vertices.length === floats;
+  const vertices = reuse ? cached!.vertices : new Float32Array(floats);
   const chunks: Chunk[] = [];
   const n: [number, number, number] = [0, 0, 0];
   let v = 0;
+  terrainChunksRebuilt = 0;
 
   for (let cz = 0; cz < chunksPerEdge; cz++) {
     for (let cx = 0; cx < chunksPerEdge; cx++) {
       const baseVertex = v / FLOATS_PER_VERTEX;
       const originX = cx * TERRAIN.chunk - half;
       const originZ = cz * TERRAIN.chunk - half;
+
+      // Untouched: keep the vertices and the bounds exactly as they were.
+      if (reuse && only !== undefined && only !== null
+        && (originX + TERRAIN.chunk < only.x0 || originX > only.x1
+          || originZ + TERRAIN.chunk < only.z0 || originZ > only.z1)) {
+        const was = cached!.chunks[chunks.length];
+        if (was !== undefined) {
+          chunks.push(was);
+          v += vertsPerChunk * FLOATS_PER_VERTEX;
+          continue;
+        }
+      }
+      terrainChunksRebuilt++;
       let lo = Infinity;
       let hi = -Infinity;
 
@@ -127,8 +196,8 @@ export function buildTerrain(): TerrainMesh {
           // same world position, so edges match exactly and no cracks appear.
           const x = originX + i * step;
           const z = originZ + j * step;
-          const y = heightAt(x, z);
-          normalAt(x, z, n);
+          const y = gridHeight(x, z);
+          gridNormal(x, z, n);
 
           vertices[v++] = x;
           vertices[v++] = y;
@@ -164,5 +233,12 @@ export function buildTerrain(): TerrainMesh {
     }
   }
 
-  return { vertices, indices, chunks };
+  const mesh = { vertices, indices, chunks };
+  cached = mesh;
+  return mesh;
+}
+
+/** Forgets the cached mesh, for a tool that changes the terrain itself. */
+export function forgetTerrain(): void {
+  cached = null;
 }

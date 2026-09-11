@@ -140,6 +140,8 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, once, before anything reads the atmosphere.
+  setWeather(camera.weather.x, camera.weather.y);
   // Darker at the base, where a real sward is in its own shadow, and yellower
   // at the tip where it is bleached. This gradient is most of what stops a
   // field of blades reading as green wire.

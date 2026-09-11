@@ -165,6 +165,7 @@ export class BuildTools {
   private readSeason!: HTMLElement;
   private readPeople!: HTMLElement;
   private readName!: HTMLElement;
+  private readWeather!: HTMLElement;
   private name = DEFAULT_NAME;
   private readMoney!: HTMLElement;
   private ticked = 0;
@@ -1097,6 +1098,12 @@ export class BuildTools {
     this.readSeason = cell('');
     row.appendChild(this.readSeason);
     row.appendChild(rule());
+    // The weather, beside the season and the temperature it belongs with. It
+    // changes the light enough that a player who has not noticed the sky needs
+    // somewhere to read why the city went grey.
+    this.readWeather = cell('');
+    row.appendChild(this.readWeather);
+    row.appendChild(rule());
 
     // The city and what lives in it, together. The population used to sit at
     // the far right beside the money, a whole bar away from the name of the
@@ -1147,6 +1154,9 @@ export class BuildTools {
       this.readSeason.innerHTML = `<span style="color:${season.tint}">${season.glyph}</span>`
         + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">${temp}°C</span>`
         + `<span>${season.name}</span>`;
+      const w = this.renderer.weather;
+      this.readWeather.innerHTML = `<span style="color:#a8c8e8">${w.glyph}</span>`
+        + `<span style="color:#dbe6f3">${w.label}</span>`;
       const s = this.renderer.summary;
       this.readPeople.innerHTML = '<span style="color:#8fb8e8">☗</span>'
         + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">`

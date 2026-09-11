@@ -170,49 +170,69 @@ export class Atlas {
    * separately per level would make a building's LOD1 a slightly different
    * size from its LOD0 and pop as it crossed the switch.
    */
+  /** How many meshes have actually been generated. For the rebuild profile. */
+  baked = 0;
+
+  /**
+   * Bake one level of detail, baking the whole prototype if it is new.
+   *
+   * All three levels at once, because the quantisation frame is the union of
+   * the three and working that out needs all three built anyway. The old shape
+   * -- build the asked-for level, build the other two to measure them, throw
+   * those away, then build them again when they were asked for -- generated
+   * five meshes where three were wanted, and generating a mesh is the most
+   * expensive thing this file does. That waste showed up as a stall the first
+   * time a player's zoning produced a kind of building the city had not had
+   * before, which is exactly when they are watching.
+   */
   bake(id: string, lod: number): Span {
     const p = this.byId.get(id);
     if (p === undefined) throw new Error(`no such asset: ${id}`);
     const have = p.lods[lod];
     if (have !== null) return have;
 
-    const mesh = p.def.build(lod).build();
-    const v = mesh.vertices, ix = mesh.indices;
     const STRIDE = 13;
+    const built = [0, 1, 2].map((level) => {
+      this.baked++;
+      return p.def.build(level).build();
+    });
 
-    if (p.lods.every((s) => s === null)) {
-      // First bake of this prototype sets the frame, and it is the union of
-      // all three levels rather than LOD0's bounds.
-      //
-      // LOD0 alone is the obvious choice and it is wrong. It holds only while
-      // every coarse level is a subset of the fine one, which is what dropping
-      // detail usually means -- but a generator is free to substitute rather
-      // than subtract, and one that swaps three small canopy masses for two
-      // larger ones produces a coarse mesh that reaches further out than the
-      // fine one. Those vertices then clamp to the frame's edge and the tree
-      // is visibly wrong at distance. The union costs two extra builds once
-      // per prototype and cannot be got wrong later.
-      const lo: [number, number, number] = [Infinity, Infinity, Infinity];
-      const hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-      for (const level of [0, 1, 2]) {
-        const src = level === lod ? v : p.def.build(level).build().vertices;
-        for (let i = 0; i < src.length; i += STRIDE) {
-          for (let k = 0; k < 3; k++) {
-            if (src[i + k] < lo[k]) lo[k] = src[i + k];
-            if (src[i + k] > hi[k]) hi[k] = src[i + k];
-          }
+    // LOD0's bounds alone are the obvious choice and they are wrong. They hold
+    // only while every coarse level is a subset of the fine one, which is what
+    // dropping detail usually means -- but a generator is free to substitute
+    // rather than subtract, and one that swaps three small canopy masses for
+    // two larger ones produces a coarse mesh that reaches further out than the
+    // fine one. Those vertices then clamp to the frame's edge and the tree is
+    // visibly wrong at distance.
+    const lo: [number, number, number] = [Infinity, Infinity, Infinity];
+    const hi: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+    for (const m of built) {
+      const src = m.vertices;
+      for (let i = 0; i < src.length; i += STRIDE) {
+        for (let k = 0; k < 3; k++) {
+          if (src[i + k] < lo[k]) lo[k] = src[i + k];
+          if (src[i + k] > hi[k]) hi[k] = src[i + k];
         }
       }
-      p.lo = lo;
-      // A degenerate axis would divide by zero; a millimetre of span is
-      // cheaper than a special case in the shader.
-      p.span = [
-        Math.max(hi[0] - lo[0], 0.001),
-        Math.max(hi[1] - lo[1], 0.001),
-        Math.max(hi[2] - lo[2], 0.001),
-      ];
     }
+    p.lo = lo;
+    // A degenerate axis would divide by zero; a millimetre of span is cheaper
+    // than a special case in the shader.
+    p.span = [
+      Math.max(hi[0] - lo[0], 0.001),
+      Math.max(hi[1] - lo[1], 0.001),
+      Math.max(hi[2] - lo[2], 0.001),
+    ];
 
+    for (let level = 0; level < 3; level++) this.pack(p, level, built[level]);
+    return p.lods[lod] as Span;
+  }
+
+  /** Writes one already-built level into the arena, against the frame above. */
+  private pack(p: Prototype, lod: number,
+    mesh: { vertices: Float32Array; indices: Uint32Array }): void {
+    const v = mesh.vertices, ix = mesh.indices;
+    const STRIDE = 13;
     const count = ix.length;
     this.grow(this.used + count);
     const first = this.used;
@@ -239,9 +259,7 @@ export class Atlas {
       this.u32[d + 4] = mat === MAT_IMPORTED ? raw[o + 12] : v[o + 11] >>> 0;
     }
     this.used += count;
-    const span: Span = { first, count };
-    p.lods[lod] = span;
-    return span;
+    p.lods[lod] = { first, count };
   }
 
   /** Bake every level of a prototype. What a placed asset needs. */

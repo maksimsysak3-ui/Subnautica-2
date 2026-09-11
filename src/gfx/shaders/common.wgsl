@@ -19,6 +19,14 @@ struct Camera {
   mark     : vec4f,
   /** rgb = the mark's colour, w = 0 when there is nothing to show. */
   markTint : vec4f,
+  /**
+   * x = cloud cover, y = fog, z = rain, w = how wet the ground is.
+   *
+   * Rain and wetness are not the same number and must not be: ground stays wet
+   * for a while after a shower stops, and that lag is most of what makes rain
+   * read as weather rather than as a particle effect.
+   */
+  weather  : vec4f,
   planes   : array<vec4f, 6>,   // frustum, for the culling pass
 };
 

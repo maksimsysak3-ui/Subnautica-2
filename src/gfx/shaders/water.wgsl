@@ -69,6 +69,8 @@ fn ripple(p : vec2f, t : f32, fade : f32) -> vec3f {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, once, before anything reads the atmosphere.
+  setWeather(camera.weather.x, camera.weather.y);
   let sun = normalize(camera.sunDir.xyz);
   let toEye = camera.eye.xyz - in.world;
   let dist = length(toEye);

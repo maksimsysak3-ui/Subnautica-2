@@ -101,6 +101,13 @@ const result = await page.evaluate(async (cfg) => {
   } catch (err) {
     out.tools = { error: String(err) };
   }
+  // And the growth animation, which no count can see: the instances are all
+  // present from the first frame and the question is how tall they are.
+  try {
+    out.growth = await HEADLESS.probeGrowth(cfg.width, cfg.height);
+  } catch (err) {
+    out.growth = { error: String(err) };
+  }
   // And the curve tool, which is clicked rather than dragged and whose whole
   // job -- a bend where one was asked for, and a run that stays one road --
   // is invisible in a screenshot.
@@ -161,6 +168,26 @@ if (!rb || rb.error) {
   }
   console.log(`rebuild  ${total(rb.before).toLocaleString()} instances -> `
     + `${total(rb.after).toLocaleString()} after an avenue through a built quarter`);
+}
+
+const cst = result.rebuild;
+if (cst && cst.cost) {
+  const parts = Object.entries(cst.cost).filter(([k]) => k !== 'total')
+    .sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v.toFixed(0)}`);
+  console.log(`cost     rebuild ${cst.cost.total.toFixed(0)}ms  (${parts.join(', ')})`);
+  console.log(`edits    ${cst.edits.join(' ')} ms`);
+  console.log(`meshes   ${cst.meshes.join(' ')} newly baked per edit`);
+  console.log(`chunks   ${cst.cost.terrainChunks} terrain chunks rebuilt on the last edit`);
+}
+
+const gr = result.growth;
+if (!gr || gr.error) {
+  push(`growth probe failed: ${gr?.error ?? 'no result'}`);
+} else {
+  const [, b, c] = gr.lit;
+  if (!(b > 0.3)) push(`nothing moved as the block came up: ${b}% of the frame changed`);
+  if (!(c > b)) push(`the growth stopped early: ${b}% changed, then ${c}%`);
+  console.log(`growth   ${gr.lit.map((v) => `${v}%`).join(' -> ')} of the frame moved as ${gr.count} buildings came up`);
 }
 
 const tl = result.tools;

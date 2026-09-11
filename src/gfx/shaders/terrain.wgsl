@@ -79,6 +79,8 @@ fn gridLine(xz : vec2f, spacing : f32, d : vec2f) -> f32 {
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, once, before anything reads the atmosphere.
+  setWeather(camera.weather.x, camera.weather.y);
   var n = normalize(in.normal);
 
   // Every derivative taken up front, in uniform control flow, so the octave
@@ -320,6 +322,23 @@ fn fs(in : VSOut) -> @location(0) vec4f {
             * (1.0 - smoothstep(0.30, 0.75, sun.y))
             * (grass * 0.55 + earth * 0.30);
   col += sunLight(sun) * sheen * 0.28 * lit;
+
+  // Wet ground.
+  //
+  // Two things happen when it rains and only one of them is obvious. The
+  // obvious one: everything goes darker, because a film of water fills the
+  // pores that were scattering light back out. The other one, which is what
+  // actually makes it read as wet: the surface becomes specular, so it picks up
+  // the sky in a way dry earth never does. Bare earth and rock take more of
+  // both than turf does -- grass sheds water and stays green, mud does not.
+  let soak = camera.weather.w;
+  if (soak > 0.002) {
+    let porous = clamp(earth * 0.85 + rock * 0.70 + grass * 0.30, 0.0, 1.0);
+    let w = soak * porous;
+    col *= mix(1.0, 0.58, w);
+    let gloss = pow(max(dot(n, normalize(toEye + sun)), 0.0), 64.0);
+    col += (ambientSky(sun) * 0.55 + sunLight(sun) * gloss * lit * 1.6) * w * 0.42;
+  }
 
   // And the same filmic shoulder, for the same reason: a ground that clipped
   // where the buildings rolled off would read as a different material every

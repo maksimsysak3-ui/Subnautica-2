@@ -172,7 +172,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
 
   const shadowTex = device.createTexture({ size: [SHADOW, SHADOW], format: 'depth32float',
     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-  const sceneBuf = device.createBuffer({ size: 240, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const sceneBuf = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const shadowBg = device.createBindGroup({ layout: shadowLayout,
     entries: [{ binding: 0, resource: { buffer: sceneBuf } }] });
   const bg = device.createBindGroup({ layout, entries: [
@@ -296,7 +296,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     const sunViewProj = mul(ortho(-extent, extent, -extent, extent, 0.5, extent * 6),
       look(sunEye, centre, [0, 1, 0]));
 
-    const scene = new Float32Array(60);
+    const scene = new Float32Array(64);   // 256 bytes: the last vec4 is the weather, left at zero for a clear day
     scene.set(viewProj, 0);
     scene.set(sunViewProj, 16);
     scene.set([eye[0], eye[1], eye[2], 0], 32);

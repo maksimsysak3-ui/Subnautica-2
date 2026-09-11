@@ -62,15 +62,23 @@ fn clouds(d : vec3f, sun : vec3f, t : f32) -> vec4f {
   let p = d.xz / d.y * 0.55;
   // Overhead the deck is near; at a grazing angle the same cell of noise is
   // stretched over the whole horizon, so it is faded before it smears.
-  let reach = 1.0 - smoothstep(0.06, 0.40, length(p) * 0.05);
+  // Faded out before the projection smears, and further out under cover so the
+  // deck does not stop at a visible line with the flat lid beyond it.
+  let reach = 1.0 - smoothstep(0.06, 0.40 + weather.cover * 0.55, length(p) * 0.05);
   if (reach <= 0.001) { return vec4f(0.0); }
 
   let f = cloudField(p, t);
   // Coverage: a hard-ish edge, because a cloud has one. Softened a little at
   // the top so the deck thins out rather than stopping.
-  let body = smoothstep(0.50, 0.70, f);
-  let edge = smoothstep(0.44, 0.62, f);
-  let a = edge * reach * 0.92;
+  //
+  // The weather moves the threshold rather than the noise. Dropping it fills
+  // the sky from the same field, so a front comes in as the clouds it already
+  // had growing together -- which is what a sky actually does -- instead of a
+  // second layer fading up over the first.
+  let cut = mix(0.62, 0.06, weather.cover);
+  let body = smoothstep(cut, cut + 0.20, f);
+  let edge = smoothstep(cut - 0.06, cut + 0.12, f);
+  let a = edge * reach * mix(0.92, 1.0, weather.cover);
   if (a <= 0.002) { return vec4f(0.0); }
 
   let phase = dayPhase(sun);
@@ -88,11 +96,17 @@ fn clouds(d : vec3f, sun : vec3f, t : f32) -> vec4f {
   var col = mix(top, base, thick * 0.78);
   // The silver lining: light through a thin edge, aimed at the sun.
   col += warm * pow(towards, 6.0) * (1.0 - thick) * (0.55 + phase.y * 1.4) * lit;
+  // Rain cloud is darker and flatter, and it loses the lining -- there is no
+  // thin edge left to see the sun through.
+  let heavy = weather.cover * weather.cover;
+  col = mix(col, overcastTint(sun) * mix(0.86, 0.48, thick), heavy);
   return vec4f(col, a);
 }
 
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
+  // The weather, once, before anything reads the atmosphere.
+  setWeather(camera.weather.x, camera.weather.y);
   let sun = normalize(camera.sunDir.xyz);
   let d = normalize(in.dir);
   var col = skyColour(in.dir, sun);

@@ -1,9 +1,8 @@
 // The sky, the light that comes out of it, and what distance does to
 // everything seen through it.
 //
-// Pure functions, no bindings: this is included by the sky pass, by the
-// terrain and by the asset shader, and those three do not agree on what is
-// bound at group 0. What they do have to agree on is the sun and the colour
+// No bindings: this is included by the sky pass, by the terrain and by the
+// asset shader, and those three do not agree on what is bound at group 0. What they do have to agree on is the sun and the colour
 // of the air, because the moment they disagree the ground is lit for one time
 // of day and the buildings standing on it for another.
 //
@@ -16,6 +15,50 @@
 // Not a scattering integral. A city builder needs a sky that is right at a
 // glance from a camera that never leaves the ground, and a handful of lobes
 // keyed to the sun's elevation does that for a hundredth of the cost.
+
+// ---- the weather -------------------------------------------------------
+//
+// A private global rather than a parameter on all sixteen call sites below.
+//
+// The weather is ambient scene state, exactly as the sun is -- every surface
+// in the frame has to agree about it or the ground is overcast while the
+// buildings standing on it are in sunshine, which is the failure this file's
+// header exists to prevent. Threading it through as a parameter would say the
+// same thing sixteen times and let one of them be forgotten.
+//
+// Each fragment entry point sets it once, from its own uniform, before it
+// touches anything here. Anything that does not -- a vertex stage, the icon
+// renderer -- gets the default, which is a clear day. That is the right answer
+// for a photograph of a building, and it is why this is the zero value.
+//
+//   x -- cloud cover: 0 open sky, 1 solid overcast.
+//   y -- fog: extra air between the eye and everything, 0 to 1.
+struct Weather {
+  cover : f32,
+  fog   : f32,
+}
+
+var<private> weather : Weather = Weather(0.0, 0.0);
+
+fn setWeather(cover : f32, fog : f32) {
+  weather.cover = clamp(cover, 0.0, 1.0);
+  weather.fog = clamp(fog, 0.0, 1.0);
+}
+
+/**
+ * The colour an overcast sky and the light under it tend towards.
+ *
+ * Not grey. An overcast sky is a diffuser lit from behind by the sun, so it
+ * keeps the sun's own colour and loses its direction -- which is why an
+ * overcast afternoon is silver and an overcast dusk is still orange, just
+ * flat. A fixed grey would have made every weather in the game noon.
+ */
+fn overcastTint(sun : vec3f) -> vec3f {
+  let p = dayPhase(sun);
+  let lit = max(p.x, p.y * 0.9);
+  let warm = mix(vec3f(0.60, 0.62, 0.66), vec3f(0.52, 0.40, 0.36), p.y);
+  return mix(vec3f(0.052, 0.060, 0.078), warm, lit);
+}
 
 // ---- palettes, at the three times of day that have their own colour ------
 
@@ -51,7 +94,11 @@ fn sunLight(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
   let high = vec3f(1.02, 0.96, 0.86);
   let low = vec3f(1.10, 0.52, 0.24);
-  return mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 1.15;
+  let clear = mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 1.15;
+  // Cover takes the direct sun out, and with it the shadows. It does not take
+  // it all: even under a solid deck there is a brighter half of the sky, and a
+  // scene with no directional term at all goes completely flat.
+  return clear * (1.0 - weather.cover * 0.88);
 }
 
 /** Skylight from above: the dominant ambient term, and blue. */
@@ -68,7 +115,12 @@ fn ambientSky(sun : vec3f) -> vec3f {
   let night = vec3f(0.150, 0.178, 0.250);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
-  return mix(night, mix(noon, dawn, p.y * 0.75), p.x);
+  let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
+  // Under cover the sky becomes the light. The whole dome is the source, so
+  // the ambient goes up as the sun goes out -- which is why an overcast day is
+  // shadowless rather than dark, and why a photograph taken under one needs
+  // less exposure than the sky suggests.
+  return mix(clear, overcastTint(sun) * 1.22, weather.cover);
 }
 
 /** Bounce from the ground: warmer, weaker, and what fills the undersides. */
@@ -76,7 +128,10 @@ fn ambientGround(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
   let night = vec3f(0.094, 0.098, 0.118);
   let lit = vec3f(0.240, 0.210, 0.180);
-  return mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
+  let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
+  // The ground bounces less when there is less on it to bounce, and wet ground
+  // bounces less still.
+  return mix(clear, overcastTint(sun) * 0.52, weather.cover);
 }
 
 /**
@@ -128,7 +183,8 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
   let below = mix(NIGHT_DOWN, DAY_DOWN, lit);
   var col = mix(below, above, smoothstep(-0.10, 0.02, up));
 
-  col += stars(d, 1.0 - max(p.x, p.y * 0.8));
+  // No stars through cloud.
+  col += stars(d, (1.0 - max(p.x, p.y * 0.8)) * (1.0 - weather.cover));
 
   // Forward scattering: the whole half of the sky the sun is in is warmer and
   // brighter, not just the disc. At sunrise this is most of the sky.
@@ -142,6 +198,21 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
        * p.y * 0.55 * (1.0 - smoothstep(-0.02, 0.30, up)) * smoothstep(-0.16, 0.0, up);
   // The disc. Gone below the horizon rather than sinking into the ground.
   col += glow * pow(towards, 1400.0) * 9.0 * smoothstep(-0.03, 0.02, sun.y);
+
+  // Overcast: the lid.
+  //
+  // The deck itself is drawn by the sky pass, but the sky *behind* it has to go
+  // too, or an overcast day is a blue sky with clouds over it -- and the two
+  // read completely differently. Under full cover the dome flattens towards the
+  // overcast tint, a shade darker overhead than at the horizon, which is the
+  // one gradient a solid deck still has.
+  //
+  // Darker overhead than at the horizon, but only just: a big difference puts
+  // a visible band across the sky where the deck stops and the lid starts, and
+  // a real overcast has almost no gradient in it at all -- that flatness is
+  // most of what makes one oppressive.
+  let lid = overcastTint(sun) * mix(0.90, 1.04, 1.0 - abs(up));
+  col = mix(col, lid, weather.cover * smoothstep(-0.30, 0.10, up));
   return col;
 }
 
@@ -154,8 +225,14 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
  * into the horizon instead of ending at a visible edge.
  */
 fn hazeAmount(metres : f32) -> f32 {
-  let near = 1.0 - exp(-metres * (1.0 / 2600.0));
-  return clamp(near * 0.62 + smoothstep(1600.0, 4200.0, metres) * 0.55, 0.0, 1.0);
+  // Fog is air brought closer. One scale length instead of two thousand six
+  // hundred metres is a thick morning; the same curve, just shorter, so the
+  // near and far terms keep their relationship and nothing pops.
+  let scale = mix(2600.0, 420.0, weather.fog);
+  let near = 1.0 - exp(-metres * (1.0 / scale));
+  let far = smoothstep(mix(1600.0, 200.0, weather.fog),
+                       mix(4200.0, 900.0, weather.fog), metres);
+  return clamp(near * 0.62 + far * (0.55 + weather.fog * 0.42), 0.0, 1.0);
 }
 
 fn aerial(col : vec3f, metres : f32, dir : vec3f, sun : vec3f) -> vec3f {

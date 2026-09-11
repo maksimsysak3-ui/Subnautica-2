@@ -35,7 +35,7 @@ const DEPTH: GPUTextureFormat = 'depth24plus';
 const SHADOW_FORMAT: GPUTextureFormat = 'depth24plus';
 const SHADOW_SIZE = 1024;
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign */
-const SCENE_SIZE = 240;
+const SCENE_SIZE = 256;
 
 /** Sun direction, shared by the shadow pass and the shading. */
 const SUN: Vec3 = (() => {

@@ -29,6 +29,14 @@ export interface ShotRequest {
   /** Where in the day to freeze the sun: 0 and 1 midnight, 0.5 noon. */
   hour: number;
   /**
+   * Where in the weather cycle to freeze the sky: 0 settled, 1 stormy.
+   *
+   * Pinned for the same reason the hour is. The weather runs on the clock, and
+   * a picture taken on whatever the clock happened to be doing is a picture
+   * that differs between runs of the same shot.
+   */
+  front?: number;
+  /**
    * Clear a square of the map, draw a road into the empty land and zone one
    * side of it, then rebuild -- the player's own workflow, so a picture can
    * show whether it produced a street or a mess.
@@ -55,7 +63,8 @@ export interface Shot {
  * frame. So the test is what the numbers did.
  */
 export async function probeRebuild(width: number, height: number):
-Promise<{ before: Record<string, string>; after: Record<string, string> }> {
+Promise<{ before: Record<string, string>; after: Record<string, string>;
+  cost: Record<string, number>; first: Record<string, number>; edits: number[]; meshes: number[] }> {
   configureSim(LITE);
   const gpu = await Gpu.headless(width, height);
   const camera = new Camera();
@@ -81,7 +90,24 @@ Promise<{ before: Record<string, string>; after: Record<string, string> }> {
   renderer.rebuild();
   renderer.frameForTools(performance.now());
   await gpu.device.queue.onSubmittedWorkDone();
-  return { before, after: stats.snapshot() };
+  const first = { ...renderer.cost };
+
+  // What a player actually feels: the wall time of one more edit, several
+  // times over. A single sample is dominated by whatever the first one warmed
+  // up, and the complaint is about the steady state.
+  const edits: number[] = [];
+  const meshes: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    renderer.world.net.addCells(10 + i * 3, 6, 10 + i * 3, g - 6, 'street');
+    const t = performance.now();
+    renderer.rebuild();
+    edits.push(Math.round(performance.now() - t));
+    meshes.push(renderer.cost.newMeshes);
+  }
+  // The steady state, not the first one: the first rebuild after a build is
+  // still baking prototypes the edit introduced, and what a player feels is
+  // the fiftieth road they draw rather than the first.
+  return { before, after: stats.snapshot(), cost: { ...renderer.cost }, first, edits, meshes };
 }
 
 /**
@@ -224,6 +250,70 @@ export async function probeTools(): Promise<{
 }
 
 /**
+ * Watches a freshly zoned block come up out of the ground.
+ *
+ * The growth is a vertex-shader effect keyed on a per-instance birth time, so
+ * it is invisible to every other test here: the instance count is right, the
+ * buffers are right, and the buildings could still be flat on the floor or
+ * standing full height the instant they appear. What this measures is how much
+ * of the frame is lit geometry at three moments after the edit -- which has to
+ * climb, and has to stop climbing.
+ */
+export async function probeGrowth(width: number, height: number):
+Promise<{ lit: number[]; debug: number[]; count: number }> {
+  configureSim(LITE);
+  const gpu = await Gpu.headless(width, height);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.build();
+  camera.setViewport(width, height);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 0.22; camera.distance = 240; camera.yaw = 0.62;
+  camera.update();
+
+  // A street, and housing zoned along it. Nothing stands here before this.
+  const g = renderer.world.grid;
+  renderer.world.net.addCells(4, g >> 1, g - 5, g >> 1, 'street');
+  paint(renderer.world, 6, (g >> 1) + 3, g - 12, 10, zoneCode('residential', 'high'));
+  renderer.rebuild();
+
+  const lit: number[] = [];
+  const debug: number[] = [];
+  let first: Uint8Array | null = null;
+  // The shader reads performance.now(); the frames are taken far enough apart
+  // that the curve has visibly moved between them.
+  for (const wait of [0, 900, 2600]) {
+    const until = performance.now() + wait;
+    while (performance.now() < until) { /* the clock is the input */ }
+    renderer.frameForTools(performance.now());
+    await gpu.device.queue.onSubmittedWorkDone();
+    const px = await gpu.readPixels();
+    // How much of the frame differs from the first one.
+    //
+    // Not a count of lit pixels: thirty houses coming up in a valley full of
+    // trees move that figure by less than a tenth of a per cent, which is
+    // indistinguishable from nothing. What is unambiguous is whether the
+    // picture changed at all, and by how much -- the scene is otherwise frozen,
+    // so every pixel that moved, moved because a building grew.
+    if (first === null) {
+      first = px.slice();
+      lit.push(0);
+    } else {
+      let moved = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        if (Math.abs(px[i] - first[i]) + Math.abs(px[i + 1] - first[i + 1])
+          + Math.abs(px[i + 2] - first[i + 2]) > 12) moved++;
+      }
+      lit.push(Math.round((moved / (px.length / 4)) * 1000) / 10);
+    }
+    debug.push(Math.round(performance.now() / 100) / 10);
+  }
+  return { lit, debug, count: renderer.summary.buildings };
+}
+
+/**
  * Lays a curved run through the toolbar, and reports what the graph got.
  *
  * The two things a player complains about here are invisible in a frame: a
@@ -328,6 +418,7 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   // A picture wants a fixed hour, or two runs of the same shot differ.
   renderer.clockRunning = false;
   renderer.timeOfDay = req.hour;
+  renderer.weather.set(req.front ?? 0.08);
   // A photograph of empty land is a photograph of nothing, so unless the
   // caller asked for the starting map it gets the generated city.
   if (req.empty !== true) renderer.useWorld(defaultWorld(renderer.world.grid));

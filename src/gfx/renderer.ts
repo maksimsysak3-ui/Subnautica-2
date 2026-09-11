@@ -18,6 +18,8 @@
  */
 
 import { log } from '../util/log';
+import { Weather } from '../sim/weather';
+import type { Sky } from '../sim/weather';
 import { ASSETS } from '../assets/registry';
 import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
@@ -32,9 +34,12 @@ import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
-  buildWaterMesh, WATER_FLOATS,
+  buildWaterMesh, WATER_FLOATS, gradedSince,
 } from '../sim';
-import type { Chunk, World, RoadMesh } from '../sim';
+// A live binding: the terrain module updates it on every build, and importing
+// the value rather than the binding would read whatever it was at load.
+import { terrainChunksRebuilt } from '../sim/terrain';
+import type { Chunk, World, RoadMesh, City } from '../sim';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -69,7 +74,7 @@ const GRASS_ZOOM = 320;
  * + sun (16) + focus (16) + params (16) + the build mark (32)
  * + six frustum planes (96).
  */
-const CAMERA_UNIFORM_SIZE = 384;
+const CAMERA_UNIFORM_SIZE = 400;
 
 /** Edge of the shadow map, in texels. */
 const SHADOW_SIZE = 2048;
@@ -83,7 +88,7 @@ const SHADOW_SIZE = 2048;
 const DAY_SECONDS = 480;
 
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign. */
-const SCENE_UNIFORM_SIZE = 240;
+const SCENE_UNIFORM_SIZE = 256;
 
 /** Vertical field of view, shared with the camera. */
 const FOV_Y = (50 * Math.PI) / 180;
@@ -161,6 +166,7 @@ interface Resources extends WorldRes {
   grass: GPURenderPipeline;
   grassBuffer: GPUBuffer;
   sky: GPURenderPipeline;
+  rain: GPURenderPipeline;
   shadow: GPURenderPipeline;
   shadowView: GPUTextureView;
   shadowTexture: GPUTexture;
@@ -197,6 +203,17 @@ export class Renderer {
   clockRunning = true;
   /** How fast, as a multiple of the base day. The bar's speed buttons set it. */
   clockRate = 1;
+  /**
+   * The weather, on the same clock as the sun.
+   *
+   * Public so the bar can read what it is called and a tool can pin it. It runs
+   * whenever the clock does, which means it also runs twelve times as fast
+   * behind the main menu -- where watching a front come over the valley is most
+   * of what makes that shot worth sitting through.
+   */
+  readonly weather = new Weather();
+
+  private get sky(): Sky { return this.weather.sky; }
   private sceneData = new Float32Array(SCENE_UNIFORM_SIZE / 4);
   private raf = 0;
   private startedAt = 0;
@@ -309,7 +326,16 @@ export class Renderer {
     this.world.net = next.net;
     this.world.zones = next.zones;
     this.world.lots = next.lots;
+    // A world that arrives whole was not built by the player watching it, so
+    // nothing in it rises: every instance in the next rebuild is dated to that
+    // moment, and the growth curve treats them all as new. Clearing the ages
+    // instead of stamping them makes the whole city count as already standing.
+    this.settleCity();
+    this.settled = true;
   }
+
+  /** Set for one rebuild after a world is handed in whole. */
+  private settled = false;
   /**
    * What the build tool is about to affect, drawn into the ground.
    *
@@ -444,6 +470,29 @@ export class Renderer {
       layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
       vertex: { module: skyModule, entryPoint: 'vs' },
       fragment: { module: skyModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
+    });
+
+    // Rain, over the finished frame. No depth at all -- it is in front of
+    // everything by construction -- and blended rather than written, because
+    // what it is drawing is a thin veil that the scene shows through.
+    const rainModule = device.createShaderModule({ label: 'rain', code: SHADERS.rain });
+    const rain = device.createRenderPipeline({
+      label: 'rain-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      vertex: { module: rainModule, entryPoint: 'vs' },
+      fragment: {
+        module: rainModule,
+        entryPoint: 'fs',
+        targets: [{
+          format,
+          blend: {
+            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+            alpha: { srcFactor: 'zero', dstFactor: 'one' },
+          },
+        }],
+      },
       primitive: { topology: 'triangle-list' },
       depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
     });
@@ -645,7 +694,7 @@ export class Renderer {
     this.res = {
       layouts,
       grass, grassBuffer: this.grassUniform,
-      sky, shadow, shadowView, shadowTexture, shadowSceneGroup,
+      sky, rain, shadow, shadowView, shadowTexture, shadowSceneGroup,
       terrain, road, water, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
       depth, depthView,
@@ -674,14 +723,108 @@ export class Renderer {
    * for the last city is still baked for this one, so a rebuild pays only for
    * prototypes it has not seen before.
    */
-  private loadWorld(layouts: Layouts): WorldRes {
+  /** Where the last rebuild's time went, in milliseconds. For the profiler. */
+  readonly cost: Record<string, number> = {};
+
+  /**
+   * When each building standing in the city first appeared.
+   *
+   * A rebuild regenerates every instance from scratch, so nothing survives it
+   * that could carry an age -- which means a building that has been there for
+   * ten minutes is indistinguishable from one the player has just zoned, and
+   * every edit would make the whole city jump. This is the identity a rebuild
+   * does not preserve, kept outside it: where a building stands and what it is.
+   *
+   * Keyed on position rounded to two metres and the prototype index, packed
+   * into one number. Two buildings can only collide if they are the same
+   * building in the same place, which is the case where sharing an age is
+   * right anyway.
+   */
+  private births = new Map<number, number>();
+
+  /**
+   * Stamps each instance with when it first appeared, and forgets the ones
+   * that are gone.
+   */
+  private dateCity(city: City, standing = false): void {
+    // Zero means "has always been here", which is what the shader reads as
+    // fully grown -- so a loaded city is standing the moment it appears.
+    const now = standing ? 0 : performance.now() / 1000;
+    const next = new Map<number, number>();
+    const d = city.data;
+    const half = TERRAIN.size / 2;
+    for (let i = 0; i < city.count; i++) {
+      const o = i * INSTANCE_FLOATS;
+      const qx = Math.round((d[o] + half) * 0.5);
+      const qz = Math.round((d[o + 1] + half) * 0.5);
+      // 2^35 at the largest, which a double holds exactly.
+      const key = (qx * 8192 + qz) * 512 + d[o + 7];
+      const born = this.births.get(key) ?? now;
+      next.set(key, born);
+      d[o + 10] = born;
+    }
+    this.births = next;
+  }
+
+  /**
+   * Makes everything standing now count as already built.
+   *
+   * For a world that arrives whole -- a save being loaded, the map the game
+   * opens on -- where a city rising out of the ground would be a two-second
+   * animation of something the player did not do.
+   */
+  private settleCity(): void {
+    this.births.clear();
+  }
+
+  /**
+   * Bytes of the asset arena already on the GPU.
+   *
+   * The arena only ever grows -- baking appends, and a mesh once baked is never
+   * changed -- so everything below this mark is already correct in the buffer
+   * and re-sending it is pure cost. Reset whenever the buffer is replaced.
+   */
+  private arenaUploaded = 0;
+
+  /**
+   * Keeps a buffer if it is still big enough, or replaces it.
+   *
+   * A rebuild used to destroy every buffer and make them all again, which for
+   * the asset arena meant allocating and filling sixteen megabytes on every
+   * road a player drew -- for contents that had not changed.
+   */
+  private hold(old: GPUBuffer | undefined, bytes: number, label: string,
+    usage: number): { buffer: GPUBuffer; fresh: boolean } {
+    if (old !== undefined && old.size >= bytes) return { buffer: old, fresh: false };
+    old?.destroy();
+    return {
+      buffer: this.gpu.device.createBuffer({ label, size: Math.max(16, bytes), usage }),
+      fresh: true,
+    };
+  }
+
+  private loadWorld(layouts: Layouts, old?: WorldRes): WorldRes {
     const { device } = this.gpu;
     const protoLayout = layouts.proto, cityLayout = layouts.city, cullLayout = layouts.cull;
+    const clock = performance.now();
+    let last = clock;
+    const lap = (name: string): void => {
+      const now = performance.now();
+      this.cost[name] = now - last;
+      last = now;
+    };
 
     // A prototype the spawner never placed is never generated.
     const city = makeCity(this.world);
+    lap('makeCity');
+    this.dateCity(city, this.settled);
+    this.settled = false;
+    lap('births');
     this.summarise(city);
+    const wasBaked = this.atlas.baked;
     const plan = planCity(city, this.atlas);
+    lap('planCity');
+    this.cost.newMeshes = this.atlas.baked - wasBaked;
 
     // The roads, as one mesh. It is small -- a full grid city is under two
     // megabytes -- and it is drawn in a single call whatever shape the network
@@ -698,6 +841,7 @@ export class Renderer {
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(roadIndices, 0, city.roads.indices);
+    lap('roads');
 
     // The river, as a ribbon down its own channel. Tiny -- a few hundred
     // triangles for nine kilometres of water.
@@ -715,12 +859,13 @@ export class Renderer {
 
     // Terrain: one vertex buffer and one index buffer for every chunk. Chunk
     // topology is identical, so each is drawn with its own baseVertex.
-    const mesh = buildTerrain();
-    const terrainVertices = device.createBuffer({
-      label: 'terrain-vertices',
-      size: mesh.vertices.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
+    // Only the chunks the grading actually moved. The rest are byte-identical
+    // to what is already on the GPU, and proving that costs a scan of the
+    // corner grid rather than five height evaluations per vertex.
+    const mesh = buildTerrain(gradedSince());
+    const terrain = this.hold(old?.terrainVertices, mesh.vertices.byteLength,
+      'terrain-vertices', GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+    const terrainVertices = terrain.buffer;
     device.queue.writeBuffer(terrainVertices, 0, mesh.vertices);
     const terrainIndices = device.createBuffer({
       label: 'terrain-indices',
@@ -728,13 +873,30 @@ export class Renderer {
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(terrainIndices, 0, mesh.indices);
+    lap('terrain');
+    this.cost.terrainChunks = terrainChunksRebuilt;
 
-    const assetVertices = device.createBuffer({
-      label: 'asset-arena',
-      size: plan.vertices.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(assetVertices, 0, plan.vertices);
+    // The arena, grown rather than rebuilt, and only the new tail uploaded.
+    //
+    // Sixteen megabytes of baked geometry that does not change when a road is
+    // drawn was being reallocated and re-sent on every edit. Held instead, with
+    // a generous margin so a handful of newly discovered prototypes do not
+    // force a copy, and written from the high-water mark.
+    const arena = this.hold(old?.assetVertices,
+      Math.ceil(plan.vertices.byteLength * 1.35),
+      'asset-arena', GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST);
+    const assetVertices = arena.buffer;
+    if (arena.fresh) this.arenaUploaded = 0;
+    if (plan.vertices.byteLength > this.arenaUploaded) {
+      // writeBuffer wants whole 4-byte words; the arena's stride is a multiple
+      // of four, so the mark always is.
+      const from = this.arenaUploaded;
+      device.queue.writeBuffer(assetVertices, from, plan.vertices, from,
+        plan.vertices.byteLength - from);
+      this.arenaUploaded = plan.vertices.byteLength;
+    }
+    this.cost.arenaSentKiB = Math.round(plan.vertices.byteLength / 1024);
+    lap('arena');
 
     const protoBuffer = device.createBuffer({
       label: 'prototypes',
@@ -750,6 +912,7 @@ export class Renderer {
     // The ground the grass stands on: the graded height and what the spawner
     // left open, one texel a cell. Rebuilt with the city, because both change.
     const ground = buildGroundMap(device, city, this.world.grid);
+    lap('groundMap');
     const grassUniform = this.grassUniform;
     if (grassUniform === null) throw new Error('loadWorld before build');
     const grassGroup = device.createBindGroup({
@@ -848,6 +1011,8 @@ export class Renderer {
       + `${city.count.toLocaleString()} instances of ${plan.buckets.length / 3} prototypes, `
       + `arena ${mib(plan.vertices.byteLength)} MiB in ${plan.buckets.length} buckets`);
 
+    lap('buffers');
+    this.cost.total = performance.now() - clock;
     return {
       groundTexture: ground.texture, grassGroup,
       protoGroup, cityGroup, castGroup, cullGroup,
@@ -879,13 +1044,16 @@ export class Renderer {
     const res = this.res;
     if (!res) return;
     this.revision++;
+    // The arena and the terrain vertices are handed to loadWorld to keep or
+    // replace as it sees fit -- they are the two big ones, and both are usually
+    // still exactly the right size. Everything else goes.
     for (const b of [
-      res.assetVertices, res.protoBuffer, res.instanceBuffer, res.visibleBuffer,
+      res.protoBuffer, res.instanceBuffer, res.visibleBuffer,
       res.baseBuffer, res.argsBuffer, res.argsRead, res.castVisibleBuffer,
-      res.castBaseBuffer, res.castArgsBuffer, res.terrainVertices, res.terrainIndices,
+      res.castBaseBuffer, res.castArgsBuffer, res.terrainIndices,
     ]) b.destroy();
     res.groundTexture.destroy();
-    Object.assign(res, this.loadWorld(res.layouts));
+    Object.assign(res, this.loadWorld(res.layouts, res));
   }
 
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {
@@ -991,6 +1159,7 @@ export class Renderer {
 
     if (this.clockRunning) {
       this.timeOfDay = (this.timeOfDay + (dt * this.clockRate) / DAY_SECONDS) % 1;
+      this.weather.advance(dt * this.clockRate, DAY_SECONDS);
     }
     const sun = sunAt(this.timeOfDay);
 
@@ -1038,7 +1207,9 @@ export class Renderer {
     // The same six planes the CPU uses for terrain chunks, handed to the
     // culling pass so both agree by construction rather than by coincidence.
     this.frustum.update(cam.viewProjMatrix);
-    this.cameraData.set(this.frustum.planes, 72);
+    const w = this.sky;
+    this.cameraData.set([w.cover, w.fog, w.rain, w.wet], 72);
+    this.cameraData.set(this.frustum.planes, 76);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -1050,7 +1221,11 @@ export class Renderer {
     this.sceneData.set([cam.eye[0], cam.eye[1], cam.eye[2], 0], 32);
     this.sceneData.set([sun[0], sun[1], sun[2], 0], 36);
     // x turns aerial perspective on: the city wants it, the viewer does not.
-    this.sceneData.set([1, 1 / SHADOW_SIZE, TERRAIN.size * 0.5, 0], 40);
+    // w is the clock the growth animation is measured against.
+    this.sceneData.set([1, 1 / SHADOW_SIZE, TERRAIN.size * 0.5,
+      performance.now() / 1000], 40);
+    // The weather, so the buildings are standing in the same one as the ground.
+    this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -1184,6 +1359,16 @@ export class Renderer {
     for (const b of res.buckets) {
       pass.setBindGroup(2, res.cityGroup, [b.sliceOffset]);
       pass.drawIndirect(res.argsBuffer, b.argsOffset);
+    }
+
+    // Rain last, over everything, and only when there is any. The pass is a
+    // single triangle but it is a full-screen one: skipping the draw outright
+    // is the difference between free and a fill of the whole frame every frame
+    // on a clear day.
+    if (this.sky.rain > 0.004) {
+      pass.setPipeline(res.rain);
+      pass.setBindGroup(0, res.cameraGroup);
+      pass.draw(3);
     }
 
     pass.end();
