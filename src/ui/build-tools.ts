@@ -1113,6 +1113,14 @@ export class BuildTools {
   private closeDrawer(): void {
     this.drawer?.remove();
     this.drawer = null;
+    // And take the open-drawer highlight off whichever category had it.
+    // Without this, opening a second drawer left the first one still lit and
+    // the bar claimed two categories were open at once.
+    for (const el of this.buttons) {
+      if (el.dataset.branch !== undefined && !el.dataset.on) {
+        el.style.borderColor = 'rgba(255,255,255,.07)';
+      }
+    }
   }
 
   private styleStatus(): void {
