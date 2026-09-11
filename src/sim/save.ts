@@ -25,6 +25,8 @@ const VERSION = 1;
 
 interface SaveFile {
   v: number;
+  /** Set on the rolling slot the game writes itself. */
+  auto?: 1;
   /** Cells across. A save from a different map size cannot be loaded onto it. */
   grid: number;
   name: string;
@@ -58,9 +60,30 @@ export interface SaveInfo {
   /** Roads and placed buildings, so a slot says something about itself. */
   roads: number;
   lots: number;
+  /** True for the rolling slot, which a player did not choose to make. */
+  auto: boolean;
 }
 
 const PREFIX = 'citysim.save.';
+
+/**
+ * The slot the game writes on its own.
+ *
+ * A city builder's one unrecoverable mistake is closing the tab, and a save
+ * system that only saves when asked hands that mistake to the player to make.
+ *
+ * It has a key of its own rather than being a slot named "Autosave", because
+ * the two jobs are different: a deliberate save is a point a player chose to be
+ * able to come back to, and a rolling save that overwrote one would destroy the
+ * thing it is there to protect. It still lists and loads like any other slot,
+ * carrying the city's own name, marked as the rolling one.
+ */
+const AUTO_KEY = 'citysim.auto';
+
+/** Trims a name to something that can be a key and still read as a name. */
+function cleanName(name: string): string {
+  return name.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 48);
+}
 
 function encodeZones(zones: Uint8Array): number[] {
   const out: number[] = [];
@@ -85,8 +108,8 @@ function decodeZones(rle: readonly number[], into: Uint8Array): void {
   }
 }
 
-/** A world, as a string. */
-export function serialise(world: World, name: string): string {
+/** A world, as a string. `auto` marks the rolling slot. */
+export function serialise(world: World, name: string, auto = false): string {
   const nodes: number[] = [];
   for (const n of world.net.nodes) nodes.push(n.x, n.z);
   const links: number[] = [];
@@ -95,6 +118,7 @@ export function serialise(world: World, name: string): string {
   }
   const file: SaveFile = {
     v: VERSION,
+    ...(auto ? { auto: 1 as const } : {}),
     grid: world.grid,
     name,
     at: Date.now(),
@@ -167,10 +191,13 @@ function store(): Storage | null {
 export function listSaves(): SaveInfo[] {
   const s = store();
   if (s === null) return [];
-  const out: SaveInfo[] = [];
+  const keys: string[] = [AUTO_KEY];
   for (let i = 0; i < s.length; i++) {
     const key = s.key(i);
-    if (key === null || !key.startsWith(PREFIX)) continue;
+    if (key !== null && key.startsWith(PREFIX)) keys.push(key);
+  }
+  const out: SaveInfo[] = [];
+  for (const key of keys) {
     const text = s.getItem(key);
     if (text === null) continue;
     try {
@@ -178,6 +205,7 @@ export function listSaves(): SaveInfo[] {
       out.push({
         key, name: f.name ?? key.slice(PREFIX.length), at: f.at ?? 0,
         roads: Math.floor((f.links?.length ?? 0) / 5), lots: f.lots?.length ?? 0,
+        auto: f.auto === 1,
       });
     } catch {
       // A slot that will not parse is a slot that is gone. Skipping it beats
@@ -187,12 +215,31 @@ export function listSaves(): SaveInfo[] {
   return out.sort((a, b) => b.at - a.at);
 }
 
+/**
+ * Writes the rolling slot. Silent about failure, deliberately.
+ *
+ * This runs on a timer and on the page going away, where there is nobody to
+ * tell and nothing a player could do about it anyway. A full disk must not put
+ * a toast over the city every ninety seconds.
+ */
+export function writeAutosave(world: World, name: string): void {
+  const s = store();
+  if (s === null) return;
+  try {
+    s.setItem(AUTO_KEY, serialise(world, cleanName(name) || 'City', true));
+  } catch {
+    // Quota, or a browser refusing to store. Either way: nothing useful to do.
+  }
+}
+
 /** Writes a slot. Returns why not, or null if it went in. */
 export function writeSave(world: World, name: string): string | null {
   const s = store();
   if (s === null) return 'this browser will not let the page store anything';
+  const clean = cleanName(name);
+  if (clean === '') return 'a city needs a name';
   try {
-    s.setItem(PREFIX + name, serialise(world, name));
+    s.setItem(PREFIX + clean, serialise(world, clean));
     return null;
   } catch {
     // Quota. Almost always a map with a very large road network on a browser

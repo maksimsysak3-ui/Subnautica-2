@@ -14,7 +14,9 @@ import { Controls } from './input/controls';
 import { BuildTools } from './ui/build-tools';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
-import { configureSim, LITE, startingWorld, warmTerrain, baseHeightAt } from './sim';
+import {
+  configureSim, LITE, startingWorld, warmTerrain, baseHeightAt, writeAutosave,
+} from './sim';
 import { Menu } from './ui/menu';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
@@ -103,6 +105,10 @@ async function boot(): Promise<void> {
   status('building the city…');
   const stats = new Stats(overlay);
   stats.set('isolated', crossOriginIsolated ? 'yes' : 'no');
+  // Down until play starts. It is built here because the frame loop wants it
+  // from the first frame, and an empty bordered box in the corner of a loading
+  // screen is the game's plumbing on show.
+  stats.visible = false;
 
   const camera = new Camera();
   const controls = new Controls(canvas, camera);
@@ -126,14 +132,23 @@ async function boot(): Promise<void> {
   // Declared before the menu because the menu shows and hides it, and built
   // after the world because it reads the grid.
   let tools: BuildTools | null = null;
+  /** The name a loaded save came in under, applied once the tools exist. */
+  let loaded: string | null = null;
   const menu = new Menu(overlay, {
     onNew: () => { renderer.useWorld(startingWorld(renderer.world.grid)); renderer.rebuild(); },
-    onLoad: (world) => { renderer.useWorld(world); renderer.rebuild(); },
+    onLoad: (world, name) => {
+      renderer.useWorld(world);
+      renderer.rebuild();
+      loaded = name;
+    },
     world: () => renderer.world,
     cinematic: (on) => {
       cinematic = on;
-      // The toolbar belongs to the game, not to the menu.
+      // The toolbar and the budget readout belong to the game, not to the
+      // menu. Anything of the game's that stays up behind the title reads as
+      // the menu being drawn on top of a half-started session.
       if (tools !== null) tools.visible = !on;
+      stats.visible = !on;
       // A full day in about two minutes while the menu is up, and back to the
       // game's own pace on the way in. Sitting on the menu should be worth
       // doing; sitting in the game at that speed would be unplayable.
@@ -207,6 +222,8 @@ async function boot(): Promise<void> {
   // to put a tool down to look somewhere else.
   tools = new BuildTools(canvas, camera, renderer, overlay);
   controls.buildActive = () => tools?.active ?? false;
+  if (loaded !== null) tools.cityName = loaded;
+  autosave(renderer, tools);
 
   // A lost device invalidates every GPU object. Rebuild from scratch rather
   // than leaving the player with a dead canvas.
@@ -258,6 +275,38 @@ async function boot(): Promise<void> {
   canvas.focus();
   document.getElementById('boot')?.classList.add('done');
   log.info('boot', 'running — drag to pan, right-drag to orbit, wheel to zoom');
+}
+
+/**
+ * The rolling save.
+ *
+ * A city builder's one unrecoverable mistake is closing the tab, and a save
+ * system that only writes when asked hands that mistake to the player. This
+ * writes whenever the city has changed and the moment has passed -- and again
+ * when the page goes away, which is the case that actually loses work: a tab
+ * closed, a phone switched away from, a browser deciding to discard a
+ * background page.
+ *
+ * `visibilitychange` rather than `beforeunload`, because a page on a phone is
+ * frequently discarded without ever firing unload, and because a sandboxed
+ * frame is not guaranteed to get one either. It is keyed on the renderer's
+ * revision so an idle city is not rewritten every minute for nothing.
+ */
+function autosave(renderer: Renderer, tools: BuildTools): void {
+  const EVERY = 45000;
+  let written = renderer.revision;
+  const keep = (): void => {
+    if (renderer.revision === written) return;
+    written = renderer.revision;
+    writeAutosave(renderer.world, tools.cityName);
+  };
+  setInterval(keep, EVERY);
+  // Not `keep`: on the way out, write whatever is there rather than checking
+  // whether it is worth it.
+  addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') keep();
+  });
+  addEventListener('pagehide', keep);
 }
 
 /** Puts the benchmark table on screen, and one click away from the clipboard. */

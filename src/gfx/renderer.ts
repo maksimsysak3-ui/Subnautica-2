@@ -863,6 +863,13 @@ export class Renderer {
   }
 
   /**
+   * Counts world rebuilds, so anything outside can tell the city has changed
+   * without inspecting it. The autosave reads this rather than diffing a
+   * hundred thousand cells on a timer.
+   */
+  revision = 0;
+
+  /**
    * Throws the world away and builds it again from the current state.
    *
    * What a placement costs: the simulation rerunning and its output being
@@ -871,6 +878,7 @@ export class Renderer {
   rebuild(): void {
     const res = this.res;
     if (!res) return;
+    this.revision++;
     for (const b of [
       res.assetVertices, res.protoBuffer, res.instanceBuffer, res.visibleBuffer,
       res.baseBuffer, res.argsBuffer, res.argsRead, res.castVisibleBuffer,

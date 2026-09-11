@@ -125,7 +125,15 @@ fn sunLight(sun : vec3f) -> vec3f {
 /** Skylight from above: the dominant ambient term, and blue. */
 fn ambientSky(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let night = vec3f(0.026, 0.034, 0.062);
+  // Moonlight, not darkness.
+  //
+  // Physically a moonlit night is about a four-hundred-thousandth of daylight,
+  // and at that figure a 0.08-albedo road under this term comes out at 0.002 --
+  // black after the tonemap, which is exactly what it did. Every game cheats
+  // here and this one does too: enough of a cool floor that the ground, the
+  // kerbs and the parked cars are all still readable, while the lit windows
+  // stay far and away the brightest thing in the frame.
+  let night = vec3f(0.150, 0.178, 0.250);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   return mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -134,7 +142,7 @@ fn ambientSky(sun : vec3f) -> vec3f {
 /** Bounce from the ground: warmer, weaker, and what fills the undersides. */
 fn ambientGround(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let night = vec3f(0.020, 0.022, 0.030);
+  let night = vec3f(0.094, 0.098, 0.118);
   let lit = vec3f(0.240, 0.210, 0.180);
   return mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
 }
@@ -2999,7 +3007,16 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var col : vec3f;
   if (surf < 0.5) {
     col = asphalt(w2, u, half, lanes, mpp);
-    var paint = markings(u, v, half, lanes, flags, mpp);
+    // Markings fade out as they stop being resolvable.
+    //
+    // A dashed line whose gaps are under a pixel is not a dashed line, it is a
+    // row of flickering dots -- and with edge lines, a centre line and a lane
+    // divider per lane all doing it at once, a road seen from any height came
+    // out as a mess of sparkle. They now go quietly to nothing once the pixel
+    // is wider than the paint, which is the point past which they were only
+    // ever adding noise.
+    let legible = 1.0 - smoothstep(0.10, 0.34, mpp);
+    var paint = markings(u, v, half, lanes, flags, mpp) * legible;
     // The stop line, where the carriageway meets a junction. This is most of
     // what makes a junction read as a junction rather than as a hole in the
     // road: the eye is looking for where it is told to stop.
@@ -3185,4 +3202,4 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   return vec4f(tonemap(col), 1.0);
 }
 `,gU={"common.wgsl":rI,"atmosphere.wgsl":pI,"noise.wgsl":mI};function JQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,F)=>gU[F]??A)}const aU={asset:JQ(uI),cull:JQ(qI),terrain:JQ(_I),sky:JQ($I),grass:JQ(AU),road:JQ(QU),water:JQ(BU)};export{wU as A,hE as B,JE as D,AQ as F,IB as G,rg as P,aU as S,iQ as T,UB as V,iE as Z,Cg as a,jB as b,CB as c,lI as d,UU as e,kU as f,cU as g,FU as h,oU as i,fB as j,IU as k,uA as l,EU as m,CU as n,YU as o,zI as p,EQ as q,DU as r,MU as s,RU as t,sU as u,LU as z};
-//# sourceMappingURL=shaders-Do_YYhBB.js.map
+//# sourceMappingURL=shaders-BVVXZ97x.js.map

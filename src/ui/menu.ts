@@ -28,7 +28,7 @@ export interface MenuHooks {
   /** Start on empty land with the road in from the edge. */
   onNew: () => void;
   /** Put a loaded world on the map. */
-  onLoad: (world: World) => void;
+  onLoad: (world: World, name: string) => void;
   /** The world as it stands, for saving and for sharing. */
   world: () => World;
   /** Let the menu drive the camera and the clock while it is up. */
@@ -357,8 +357,7 @@ export class Menu {
     if (saves.length > 0) {
       const last = saves[0];
       this.body.appendChild(this.button(`Continue — ${last.name}`,
-        `${last.roads} roads, ${last.lots} placed · ${when(last.at)}`, false,
-        () => this.open(last.key)));
+        `${slotHint(last)} · ${when(last.at)}`, false, () => this.open(last.key)));
     }
     this.body.appendChild(this.row([
       ['Load', () => this.showLoad(listSaves())],
@@ -380,7 +379,7 @@ export class Menu {
         'max-height:min(320px,44vh)', 'overflow-y:auto',
       ].join(';');
       for (const s of saves) {
-        const b = this.button(s.name, `${s.roads} roads, ${s.lots} placed · ${when(s.at)}`,
+        const b = this.button(s.name, `${slotHint(s)} · ${when(s.at)}`,
           false, () => this.open(s.key));
         const x = document.createElement('span');
         x.textContent = '✕';
@@ -428,7 +427,7 @@ export class Menu {
         void (async (): Promise<void> => {
           const got = await fromCode(box.value);
           if (got === null) { this.note.textContent = 'That is not a city code.'; return; }
-          this.close(() => this.hooks.onLoad(got.world));
+          this.close(() => this.hooks.onLoad(got.world, got.name));
         })();
       }],
       ['Copy mine', () => {
@@ -453,7 +452,7 @@ export class Menu {
   private open(key: string): void {
     const got = readSave(key);
     if (got === null) { this.note.textContent = 'That save will not open.'; return; }
-    this.close(() => this.hooks.onLoad(got.world));
+    this.close(() => this.hooks.onLoad(got.world, got.name));
   }
 
   // ---- parts ------------------------------------------------------------
@@ -533,6 +532,18 @@ export class Menu {
  * A timestamp is a fact; "4 min ago" answers the question actually being
  * asked, which is "is this the one I was just in".
  */
+/**
+ * What a slot says about itself under its name.
+ *
+ * The rolling slot says so. A player who sees two entries for the same city
+ * needs to know which one the game wrote and which one they chose, or deleting
+ * the wrong one is a coin toss.
+ */
+function slotHint(s: SaveInfo): string {
+  const body = `${s.roads} roads, ${s.lots} placed`;
+  return s.auto ? `${body} · autosaved` : body;
+}
+
 function when(at: number): string {
   if (at === 0) return 'unknown';
   const s = Math.max(0, (Date.now() - at) / 1000);
@@ -549,7 +560,7 @@ function when(at: number): string {
  * screen built to collect one string is a screen in the way.
  */
 export function saveFromGame(world: World, suggested: string,
-  say: (text: string) => void): void {
+  say: (text: string) => void, named: (name: string) => void = () => {}): void {
   // A panel, not `window.prompt`.
   //
   // `prompt` is refused outright in a sandboxed iframe -- which is exactly
@@ -604,7 +615,11 @@ export function saveFromGame(world: World, suggested: string,
     if (name === '') { say('a city needs a name'); return; }
     const why = writeSave(world, name);
     shut();
-    say(why === null ? `saved as “${name}”` : `could not save: ${why}`);
+    if (why !== null) { say(`could not save: ${why}`); return; }
+    // Naming the save names the city. They were separate, which meant the two
+    // could disagree and the one on screen was always the wrong one.
+    named(name);
+    say(`saved as \u201c${name}\u201d`);
   };
   const key = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') { shut(); say('not saved'); }

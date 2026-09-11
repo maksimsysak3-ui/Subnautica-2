@@ -24,6 +24,17 @@ export class Stats {
     parent.appendChild(this.el);
   }
 
+  /**
+   * Shows or hides the panel.
+   *
+   * It is an in-game readout and the main menu is not the game: a budget panel
+   * sitting over the title is the game's instrumentation showing through its
+   * own front door.
+   */
+  set visible(on: boolean) {
+    this.el.style.display = on ? 'block' : 'none';
+  }
+
   /** Records one frame's CPU time in milliseconds. */
   sample(ms: number): void {
     this.samples[this.cursor] = ms;

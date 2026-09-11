@@ -42,7 +42,20 @@ const PANEL = 'rgba(19,26,36,.90)';
 const WELL = 'rgba(10,15,22,.62)';
 const EDGE = 'rgba(120,160,200,.14)';
 
-const CITY_NAME = 'Salford';
+/** What a city is called before anyone names it. */
+const DEFAULT_NAME = 'Salford';
+
+/**
+ * Makes a player's text safe to put in innerHTML.
+ *
+ * The city's name is typed by a player and then written into markup beside a
+ * coloured glyph. Anything a player can type into a field that ends up in
+ * innerHTML has to come back out as text, whatever else it looked like.
+ */
+function escapeText(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => (
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;'));
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** Season by quarter, with the day's temperature range it swings between. */
@@ -144,6 +157,8 @@ export class BuildTools {
   private readClock!: HTMLElement;
   private readSeason!: HTMLElement;
   private readPeople!: HTMLElement;
+  private readName!: HTMLElement;
+  private name = DEFAULT_NAME;
   private readMoney!: HTMLElement;
   private ticked = 0;
   private raf = 0;
@@ -205,6 +220,33 @@ export class BuildTools {
     this.renderer.setRoadPreview(null);
     this.renderer.setGhost(null);
     this.renderer.building = false;
+  }
+
+  /**
+   * What the city is called.
+   *
+   * It used to be a constant, which meant naming a save did not name the city:
+   * a player typed "Brighton", reloaded, and was back in Salford with
+   * Brighton's roads. The name is part of the city, so it lives here and the
+   * save carries it both ways.
+   */
+  get cityName(): string { return this.name; }
+
+  set cityName(next: string) {
+    const clean = next.trim().slice(0, 48);
+    this.name = clean === '' ? DEFAULT_NAME : clean;
+    this.paintName();
+  }
+
+  private paintName(): void {
+    this.readName.innerHTML = '<span style="color:#7fd4a8">\u25c6</span>'
+      + `<span style="color:#dbe6f3;letter-spacing:.06em">${escapeText(this.name)}</span>`;
+  }
+
+  /** Opens the save panel, and takes the name the player types as the city's. */
+  save(): void {
+    saveFromGame(this.renderer.world, this.name, (t) => this.say(t),
+      (named) => { this.cityName = named; });
   }
 
   dispose(): void {
@@ -331,6 +373,13 @@ export class BuildTools {
   };
 
   private onKey = (e: KeyboardEvent): void => {
+    // Ctrl+S, because that is the key everyone already presses and the browser
+    // otherwise answers it by offering to save the page's HTML.
+    if ((e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (this.shown) this.save();
+      return;
+    }
     // Rotate what is about to be placed. A footprint is rarely square and the
     // whole reason a lot refuses to fit is usually that it is the wrong way
     // round, so this is the first thing a player reaches for.
@@ -959,9 +1008,7 @@ export class BuildTools {
       glyph.innerHTML = svgSave();
       glyph.style.cssText = GLYPH;
       b.appendChild(glyph);
-      b.addEventListener('click', () => {
-        saveFromGame(this.renderer.world, CITY_NAME, (t) => this.say(t));
-      });
+      b.addEventListener('click', () => this.save());
       keep.appendChild(b);
     }
     tools.appendChild(keep);
@@ -1049,9 +1096,10 @@ export class BuildTools {
     this.readPeople = cell('');
     const named = document.createElement('div');
     named.style.cssText = 'display:flex;align-items:center;gap:0;flex:1';
-    named.appendChild(cell('<span style="color:#7fd4a8">◆</span>'
-      + `<span style="color:#dbe6f3;letter-spacing:.06em">${CITY_NAME}</span>`));
+    this.readName = cell('');
+    named.appendChild(this.readName);
     named.appendChild(this.readPeople);
+    this.paintName();
     row.appendChild(named);
     this.readMoney = cell('<span style="color:#7fd4a8">●</span>'
       + '<span style="color:#dbe6f3">∞</span>');
