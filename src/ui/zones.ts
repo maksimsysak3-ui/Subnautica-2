@@ -55,7 +55,7 @@ export const ZONE_STYLE: Record<IconZone, Palette> = {
   },
   commercial: {
     label: 'Commercial',
-    deep: '#123a63', base: '#2f7fc1', light: '#79b7e2', wash: '#c6e0f2',
+    deep: '#0d2c52', base: '#1f5fae', light: '#6ba3dd', wash: '#c2d9f0',
     blurb: 'Shops, food, fuel and services that need passing trade.',
   },
   industrial: {
@@ -65,7 +65,7 @@ export const ZONE_STYLE: Record<IconZone, Palette> = {
   },
   office: {
     label: 'Office',
-    deep: '#0f4a4c', base: '#2a9d9c', light: '#7ecfcd', wash: '#c8e9e8',
+    deep: '#3a1f63', base: '#7b4fc4', light: '#b394e4', wash: '#ddd0f2',
     blurb: 'Desk work. Clean, dense, and hungry for transport rather than footfall.',
   },
   service: {

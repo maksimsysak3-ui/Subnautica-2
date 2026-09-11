@@ -10,7 +10,7 @@ export { makeCity, INSTANCE_FLOATS } from './city';
 export type { City } from './city';
 export { PROTO_COUNT } from './inventory';
 export { defaultWorld, startingWorld, emptyWorld, paint, demolish, zoneCode, zoneOf, lotFits, placeLot, ZONES, DENSITIES, BLOCK, STREET, PERIOD } from './world';
-export { services, planting, signatureById } from './inventory';
+export { services, planting, signatures, signatureById, ASSET_INDEX } from './inventory';
 export type { Proto } from './inventory';
 export type { World } from './world';
 export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from './roadgraph';

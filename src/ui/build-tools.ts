@@ -20,7 +20,8 @@ import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
-import { services } from '../sim';
+import { services, signatures, ASSET_INDEX } from '../sim';
+
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
@@ -91,6 +92,11 @@ const BRANCH_STYLE: Record<Branch, { label: string; colour: string }> = {
   post: { label: 'Post', colour: '#d98f5a' },
 };
 
+/** Every one-of-a-kind building, smallest first, across all four zones. */
+const SIGNATURES: Proto[] = ZONES
+  .flatMap((z) => [...signatures(z)])
+  .sort((a, b) => a.w * a.d - b.w * b.d);
+
 const BY_BRANCH = new Map<Branch, Proto[]>();
 for (const p of services) {
   const b = p.def.branch;
@@ -140,6 +146,8 @@ export class BuildTools {
   private readMoney!: HTMLElement;
   private ticked = 0;
   private raf = 0;
+  /** Which zone the zoning drawer is showing. Remembered between openings. */
+  private zoneTab: IconZone = 'residential';
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -469,23 +477,38 @@ export class BuildTools {
       return;
     }
     if (this.tool.kind === 'place') {
-      // The footprint where it would land, green if it fits and red if it does
-      // not. Answering before the click is the whole point: a player should
-      // never have to click to find out that a road is in the way.
+      // The building itself, standing where it would stand, over a footprint
+      // that says green or red. The footprint answers "does it fit"; the
+      // model answers everything else -- how tall it is against its
+      // neighbours, which way its front faces, whether it suits the gap.
       this.renderer.setRoadPreview(null);
       const p = this.tool.proto;
       const [gx, gz] = this.lotOrigin(this.to, p);
       const fit = lotFits(this.renderer.world, p.id, gx, gz, this.placeYaw, baseHeightAt);
       const half = this.renderer.world.grid / 2;
+      const x0 = (gx - half) * CELL, z0 = (gz - half) * CELL;
+      const x1 = x0 + fit.w * CELL, z1 = z0 + fit.d * CELL;
       this.renderer.mark = {
-        rect: [
-          (gx - half) * CELL, (gz - half) * CELL,
-          (gx + fit.w - half) * CELL, (gz + fit.d - half) * CELL,
-        ],
+        rect: [x0, z0, x1, z1],
         tint: fit.why === null ? [0.35, 0.92, 0.55] : [0.95, 0.32, 0.28],
       };
+      const index = ASSET_INDEX.get(p.id);
+      if (index === undefined) { this.renderer.setGhost(null); return; }
+      // Its own corners, averaged, so the ghost stands on the ground it would
+      // be graded onto rather than hovering over the slope it is crossing.
+      let sum = 0;
+      for (const [i, j] of [[0, 0], [fit.w, 0], [0, fit.d], [fit.w, fit.d]]) {
+        sum += baseHeightAt((gx + i - half) * CELL, (gz + j - half) * CELL);
+      }
+      this.renderer.setGhost({
+        proto: index, x: (x0 + x1) / 2, z: (z0 + z1) / 2, y: sum / 4 - 0.25,
+        yaw: this.placeYaw * (Math.PI / 2),
+        halfX: (fit.w * CELL) / 2 + 0.8, halfZ: (fit.d * CELL) / 2 + 0.8,
+        height: p.height * 1.2 + 3,
+      });
       return;
     }
+    this.renderer.setGhost(null);
     if (this.tool.kind === 'curve') {
       this.renderer.mark = null;
       if (this.curveA === null) { this.renderer.setRoadPreview(null); return; }
@@ -788,33 +811,27 @@ export class BuildTools {
       svgHand(), '#8fa3bd');
     tools.appendChild(look);
 
-    // How a road is drawn is a property of the drawing, not of the road, so
-    // it is one button beside the classes rather than a second copy of all of
-    // them. Drag sweeps a shape; curve clicks one out three points at a time.
-    const mode = document.createElement('button');
-    const paintMode = (): void => {
-      const curving = this.roadMode === 'curve';
-      mode.innerHTML = curving ? svgCurve() : svgStraight();
-      mode.title = curving
-        ? 'Curved roads — click, click the bend, click the end'
-        : 'Dragged roads — sweep the drag to bow the road';
-    };
-    chip(mode, ZONE_STYLE.road.light);
-    mode.addEventListener('click', () => {
-      this.roadMode = this.roadMode === 'curve' ? 'road' : 'curve';
-      paintMode();
-      const cls = this.tool.kind === 'road' || this.tool.kind === 'curve'
-        ? this.tool.cls : ROAD_ORDER[0];
-      this.select({ kind: this.roadMode, cls });
-    });
-    paintMode();
-
+    // Roads, zones and signatures each collapse to one icon. Eight road
+    // classes, five zones and a dozen landmarks spread along the bar is a
+    // bar you scan; one icon each is a bar you read.
     const roads = group();
-    roads.appendChild(mode);
-    for (const cls of ROAD_ORDER) {
-      add(roads, (): Tool => ({ kind: this.roadMode, cls }),
-        `${ROAD_SPECS[cls].label} — ${money(roadPrice(cls))} a metre`,
-        roadGlyph(cls), ZONE_STYLE.road.light);
+    {
+      const b = document.createElement('button');
+      b.dataset.branch = 'roads';
+      b.title = 'Roads — eight classes, straight or curved';
+      chip(b, ZONE_STYLE.road.light);
+      const glyph = document.createElement('span');
+      glyph.innerHTML = zoneIcon('road', 26);
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.appendChild(underline(ZONE_STYLE.road.base));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.drawer?.dataset.branch === 'roads') { this.closeDrawer(); return; }
+        this.openRoadDrawer();
+      });
+      roads.appendChild(b);
+      this.buttons.push(b);
     }
     tools.appendChild(roads);
 
@@ -825,26 +842,46 @@ export class BuildTools {
     // category, and the things you can actually place behind it. The bar is
     // what you choose *between*; the drawer is what you choose.
     const zones = group();
-    for (const zone of ZONES) {
-      const style = ZONE_STYLE[zone as IconZone];
+    {
       const b = document.createElement('button');
-      b.dataset.branch = `zone:${zone}`;
-      b.title = `${style.label} — three densities`;
-      chip(b, style.light);
-      const glyph = document.createElement('span');
-      glyph.innerHTML = zoneIcon(zone as IconZone, 26);
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
-      b.appendChild(underline(style.base));
+      b.dataset.branch = 'zones';
+      b.title = 'Zoning — residential, commercial, industrial, office, parks';
+      chip(b, ZONE_STYLE.residential.light);
+      b.appendChild(zoneSwatch());
+      b.appendChild(underline(ZONE_STYLE.residential.base));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (this.drawer?.dataset.branch === `zone:${zone}`) { this.closeDrawer(); return; }
-        this.openZoneDrawer(zone as IconZone, style);
+        if (this.drawer?.dataset.branch === 'zones') { this.closeDrawer(); return; }
+        this.openZoneDrawer(this.zoneTab);
       });
       zones.appendChild(b);
       this.buttons.push(b);
     }
+
     tools.appendChild(zones);
+
+    // Landmarks. There is exactly one of each in a city, which is what makes
+    // them worth a category of their own rather than a corner of services.
+    const marks = group();
+    {
+      const b = document.createElement('button');
+      b.dataset.branch = 'signature';
+      b.title = `Landmarks — ${SIGNATURES.length} one-of-a-kind buildings`;
+      chip(b, '#ffd166');
+      const glyph = document.createElement('span');
+      glyph.innerHTML = svgStar();
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.appendChild(underline('#ffd166'));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.drawer?.dataset.branch === 'signature') { this.closeDrawer(); return; }
+        this.openSignatureDrawer();
+      });
+      marks.appendChild(b);
+      this.buttons.push(b);
+    }
+    tools.appendChild(marks);
 
     // Eleven branches, each a drawer of buildings. A flat list of eighty-nine
     // buttons is not a palette, and the branch is how a player thinks about it
@@ -1025,11 +1062,7 @@ export class BuildTools {
         () => this.select({ kind: 'place', proto: p })));
     }
     void bar;
-    this.foot.insertBefore(panel, this.foot.firstChild);
-    this.drawer = panel;
-    for (const el of this.buttons) {
-      if (el.dataset.branch === branch) el.style.borderColor = `${style.colour}aa`;
-    }
+    this.mount(panel, branch, style.colour);
   }
 
   /**
@@ -1038,8 +1071,9 @@ export class BuildTools {
    * The price is the point. Without one the drawer is a list of shapes and
    * every choice in it is free, which is not a choice.
    */
-  private tile(id: string, name: string, size: string, cost: number,
-    accent: string, note: string, onPick: () => void): HTMLElement {
+  private tile(id: string | null, name: string, size: string, cost: number,
+    accent: string, note: string, onPick: () => void,
+    glyph?: string, per = ''): HTMLElement {
     const b = document.createElement('button');
     b.title = note;
     const rest = ['border:1px solid rgba(255,255,255,.06)', `background:${WELL}`];
@@ -1049,13 +1083,26 @@ export class BuildTools {
       'color:#c8d4e4', 'cursor:pointer',
       'font:600 10px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
     ].join(';');
-    b.appendChild(assetIcon(id, 52));
+    if (glyph !== undefined) {
+      const g = document.createElement('span');
+      g.innerHTML = glyph;
+      g.style.cssText = `${GLYPH};height:52px;align-items:center`;
+      b.appendChild(g);
+    } else if (id !== null && id !== '') {
+      b.appendChild(assetIcon(id, 52));
+    } else {
+      const g = document.createElement('span');
+      g.style.cssText = `display:block;width:52px;height:52px;border-radius:10px;`
+        + `background:${accent}33;border:1px solid ${accent}66`;
+      b.appendChild(g);
+    }
     const label = document.createElement('span');
     label.textContent = name;
     const meta = document.createElement('span');
     meta.innerHTML = `<span style="color:${accent};opacity:.8">${size}</span>`
       + `<span style="opacity:.35"> · </span>`
-      + `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">${money(cost)}</span>`;
+      + `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">${money(cost)}</span>`
+      + (per === '' ? '' : `<span style="opacity:.45"> ${per}</span>`);
     b.append(label, meta);
     b.addEventListener('mouseenter', () => {
       b.style.borderColor = `${accent}99`;
@@ -1067,6 +1114,81 @@ export class BuildTools {
     });
     b.addEventListener('click', onPick);
     return b;
+  }
+
+  /**
+   * The road classes, as a drawer.
+   *
+   * The drag/curve choice lives here too, at the top, because it belongs to
+   * the road you are about to draw rather than to the bar.
+   */
+  private openRoadDrawer(): void {
+    const accent = ZONE_STYLE.road.base;
+    const panel = this.drawerPanel('roads', accent);
+    panel.style.gridTemplateColumns = 'repeat(auto-fill,minmax(108px,1fr))';
+    panel.appendChild(this.tabs([
+      { key: 'road', label: 'Straight & dragged', on: this.roadMode === 'road' },
+      { key: 'curve', label: 'Curved', on: this.roadMode === 'curve' },
+    ], accent, (key) => {
+      this.roadMode = key as 'road' | 'curve';
+      this.openRoadDrawer();
+    }));
+    for (const cls of ROAD_ORDER) {
+      const spec = ROAD_SPECS[cls];
+      const lanes = spec.oneWay ? spec.lanes : spec.lanes * 2;
+      panel.appendChild(this.tile(null, spec.label,
+        `${lanes} lane${lanes === 1 ? '' : 's'}`, roadPrice(cls), accent,
+        `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
+        () => this.select({ kind: this.roadMode, cls }),
+        roadGlyph(cls, 48), 'a metre'));
+    }
+    this.mount(panel, 'roads', accent);
+  }
+
+  /** Every landmark there is only one of. */
+  private openSignatureDrawer(): void {
+    const accent = '#ffd166';
+    const panel = this.drawerPanel('signature', accent);
+    for (const p of SIGNATURES) {
+      panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
+        buildingPrice(p.def), accent, p.def.note,
+        () => this.select({ kind: 'place', proto: p })));
+    }
+    this.mount(panel, 'signature', accent);
+  }
+
+  /** A row of tabs across the top of a drawer. */
+  private tabs(items: readonly { key: string; label: string; on: boolean }[],
+    accent: string, onPick: (key: string) => void): HTMLElement {
+    const row = document.createElement('div');
+    row.style.cssText = [
+      'grid-column:1/-1', 'display:flex', 'flex-wrap:wrap', 'gap:4px',
+      'padding-bottom:8px', 'margin-bottom:2px',
+      'border-bottom:1px solid rgba(255,255,255,.07)',
+    ].join(';');
+    for (const it of items) {
+      const t = document.createElement('button');
+      t.textContent = it.label;
+      t.style.cssText = [
+        'height:28px', 'padding:0 12px', 'border-radius:8px', 'cursor:pointer',
+        `border:1px solid ${it.on ? accent + '99' : 'rgba(255,255,255,.07)'}`,
+        `background:${it.on ? accent + '26' : 'rgba(255,255,255,.03)'}`,
+        `color:${it.on ? '#eef4fb' : '#9fb2c9'}`,
+        'font:600 11px/1 var(--ui, system-ui, sans-serif)',
+      ].join(';');
+      t.addEventListener('click', (e) => { e.stopPropagation(); onPick(it.key); });
+      row.appendChild(t);
+    }
+    return row;
+  }
+
+  /** Puts a finished drawer on screen and lights its category. */
+  private mount(panel: HTMLElement, key: string, accent: string): void {
+    this.foot.insertBefore(panel, this.foot.firstChild);
+    this.drawer = panel;
+    for (const el of this.buttons) {
+      if (el.dataset.branch === key) el.style.borderColor = `${accent}aa`;
+    }
   }
 
   /** The shell every drawer sits in. */
@@ -1093,21 +1215,21 @@ export class BuildTools {
    * the three choices behind a convention nobody is told about. Three tiles
    * say what there is.
    */
-  private openZoneDrawer(zone: IconZone, style: { colour?: string; base: string; light: string }): void {
+  private openZoneDrawer(zone: IconZone): void {
+    this.zoneTab = zone;
+    const style = ZONE_STYLE[zone];
     const accent = style.base;
-    const panel = this.drawerPanel(`zone:${zone}`, accent);
+    const panel = this.drawerPanel('zones', accent);
+    panel.appendChild(this.tabs(ZONES.map((z) => ({
+      key: z, label: ZONE_STYLE[z as IconZone].label, on: z === zone,
+    })), accent, (key) => this.openZoneDrawer(key as IconZone)));
     for (const density of DENSITIES) {
-      const rep = zoneSpecimen(zone, density);
-      panel.appendChild(this.tile(rep ?? '', `${density} ${zone}`,
+      panel.appendChild(this.tile(zoneSpecimen(zone, density), `${density} ${zone}`,
         'per cell', zonePrice(zone as Zone, density), accent,
-        `Zone for ${density}-density ${zone}`,
+        `${style.blurb} Zoned for ${density} density.`,
         () => this.select({ kind: 'zone', zone: zone as Zone, density })));
     }
-    this.foot.insertBefore(panel, this.foot.firstChild);
-    this.drawer = panel;
-    for (const el of this.buttons) {
-      if (el.dataset.branch === `zone:${zone}`) el.style.borderColor = `${accent}aa`;
-    }
+    this.mount(panel, 'zones', accent);
   }
 
   private closeDrawer(): void {
@@ -1154,7 +1276,7 @@ function svgHand(): string {
  * is a tram -- so the difference between a lane and a dual carriageway is the
  * thing you can see, which is exactly the difference you are choosing.
  */
-function roadGlyph(cls: RoadClass): string {
+function roadGlyph(cls: RoadClass, size = 28): string {
   const spec = ROAD_SPECS[cls];
   const widest = Math.max(...ROAD_ORDER.map((c) => ROAD_SPECS[c].half));
   // Tarmac dark against the bar and the paint bright on it, which is the way
@@ -1190,7 +1312,8 @@ function roadGlyph(cls: RoadClass): string {
         + ' stroke="#8fe3ff" stroke-opacity=".95" stroke-width="1.5"/>');
     }
   }
-  return `<svg width="28" height="28" viewBox="0 0 28 28" fill="none">${parts.join('')}</svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 28 28" fill="none">`
+    + `${parts.join('')}</svg>`;
 }
 
 /**
@@ -1202,6 +1325,39 @@ function roadGlyph(cls: RoadClass): string {
  */
 const GLYPH = 'display:flex;filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))';
 
+/**
+ * The zoning icon: the four zones as one square, quartered.
+ *
+ * A category icon has to say what is behind it, and what is behind this one is
+ * four colours the player is going to spend the rest of the game reading off
+ * the map. Showing them together on the button is the cheapest possible
+ * legend, and it is always in the same place.
+ */
+function zoneSwatch(): HTMLElement {
+  const el = document.createElement('span');
+  const quads: IconZone[] = ['residential', 'commercial', 'industrial', 'office'];
+  el.style.cssText = [
+    'display:grid', 'grid-template-columns:1fr 1fr', 'grid-template-rows:1fr 1fr',
+    'gap:2px', 'width:24px', 'height:24px',
+    'filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))',
+  ].join(';');
+  for (const z of quads) {
+    const q = document.createElement('i');
+    const c = ZONE_STYLE[z].base;
+    q.style.cssText = `display:block;border-radius:2.5px;background:`
+      + `linear-gradient(160deg,${ZONE_STYLE[z].light},${c});`
+      + `box-shadow:inset 0 1px 0 rgba(255,255,255,.35)`;
+    el.appendChild(q);
+  }
+  return el;
+}
+
+function svgStar(): string {
+  return '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">'
+    + '<path d="M12 2.6l2.7 5.9 6.4.7-4.8 4.3 1.3 6.3L12 16.6 6.4 19.8l1.3-6.3L2.9 9.2l6.4-.7z"/>'
+    + '</svg>';
+}
+
 /** The colour bar under a category icon, which is how the bar is read. */
 function underline(colour: string): HTMLElement {
   const el = document.createElement('span');
@@ -1211,19 +1367,6 @@ function underline(colour: string): HTMLElement {
     `background:${colour}`, `box-shadow:0 0 7px ${colour}aa`,
   ].join(';');
   return el;
-}
-
-function svgStraight(): string {
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.6"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="2" fill="currentColor"'
-    + ' stroke="none"/><circle cx="20" cy="4" r="2" fill="currentColor" stroke="none"/></svg>';
-}
-
-function svgCurve(): string {
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.6"><path d="M4 20Q4 6 20 6"/><circle cx="4" cy="20" r="2"'
-    + ' fill="currentColor" stroke="none"/><circle cx="20" cy="6" r="2" fill="currentColor"'
-    + ' stroke="none"/><circle cx="5.5" cy="7.5" r="1.6" fill="none"/></svg>';
 }
 
 function svgCross(): string {

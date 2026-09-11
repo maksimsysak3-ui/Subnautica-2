@@ -122,6 +122,8 @@ struct VSOut {
   @location(8) @interpolate(flat) proto : u32,
   /** The colour seed: the prototype's, plus the instance's own. */
   @location(9) @interpolate(flat) seed : f32,
+  /** 1 for the building being placed, which is not there yet. */
+  @location(13) @interpolate(flat) ghost : f32,
   /**
    * Position and normal in the prototype's own frame, before the instance was
    * turned.
@@ -272,6 +274,7 @@ fn vs_city(@location(0) packed : vec4u, @location(1) extra : u32,
   let s = sin(a);
 
   var out : VSOut;
+  out.ghost = inst.extra.y;
   out.shade = protoVertex(packed, inst, p);
   out.pnorm = unpackNormal(packed.y >> 16u);
   out.spin = vec2f(c, s);
@@ -1639,6 +1642,28 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let amount = clamp((1.0 - exp(-d * (1.0 / 2600.0))) * 0.62
                      + smoothstep(1600.0, 4200.0, d) * 0.55, 0.0, 1.0) * haze;
     out = mix(out, lit, amount);
+  }
+
+  // The building being placed, which is not there yet.
+  //
+  // Shown as itself rather than as a footprint rectangle, because what a
+  // player is judging is the thing -- how tall it is against its neighbours,
+  // which way its front faces, whether it fits the gap. A rectangle on the
+  // ground answers none of that.
+  //
+  // Drawn as the real mesh, lit the real way, then pushed towards a cold
+  // blue and banded horizontally so it reads as a projection rather than as a
+  // building that is already built. Opaque, so it needs no sorting: the bands
+  // are what says "not yet", not transparency.
+  if (in.ghost > 0.5) {
+    let band = 0.5 + 0.5 * sin(in.world.y * 2.6 - scene.params.x * 2.2);
+    let tone = dot(out, vec3f(0.30, 0.59, 0.11));
+    let cold = mix(vec3f(0.10, 0.30, 0.42), vec3f(0.46, 0.82, 0.98),
+                   clamp(tone * 2.6, 0.0, 1.0));
+    out = cold * (0.72 + band * 0.42);
+    // A bright rim, so the silhouette is legible against whatever is behind it.
+    let rim = pow(1.0 - abs(dot(normalize(in.normal), normalize(scene.eye.xyz - in.world))), 3.0);
+    out += vec3f(0.30, 0.70, 0.90) * rim * 0.9;
   }
   return vec4f(out, 1.0);
 }

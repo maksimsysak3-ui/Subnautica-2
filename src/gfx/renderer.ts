@@ -272,6 +272,39 @@ export class Renderer {
     this.summary.buildings = buildings;
   }
 
+  /**
+   * The building the player is about to place, drawn where it would stand.
+   *
+   * Written into the slot reserved past the end of the city and picked up by
+   * the cull, so it is the real mesh at a real level of detail with the real
+   * lighting on it -- the shader tints it cold and bands it, and that is the
+   * only thing that distinguishes it from the building it is about to become.
+   *
+   * Null takes it away. Called on every pointer move, so it is one twelve-float
+   * write and nothing else: no rebuild, no reallocation, no new pipeline.
+   */
+  setGhost(g: { proto: number; x: number; z: number; y: number; yaw: number;
+    halfX: number; halfZ: number; height: number } | null): void {
+    const res = this.res;
+    if (res === null) return;
+    if (g === null) { this.ghosting = false; return; }
+    this.ghost[0] = g.x; this.ghost[1] = g.z; this.ghost[2] = g.y; this.ghost[3] = g.yaw;
+    this.ghost[4] = g.halfX; this.ghost[5] = g.halfZ;
+    this.ghost[6] = g.height; this.ghost[7] = g.proto;
+    this.ghost[8] = 1; this.ghost[9] = 1; this.ghost[10] = 0; this.ghost[11] = 0;
+    this.gpu.device.queue.writeBuffer(res.instanceBuffer,
+      res.instanceCount * INSTANCE_FLOATS * 4, this.ghost);
+    this.ghosting = true;
+  }
+
+  private readonly ghost = new Float32Array(INSTANCE_FLOATS);
+  private ghosting = false;
+
+  /** How many instances the cull walks: the city, plus the ghost if there is one. */
+  private cullCount(res: { instanceCount: number }): number {
+    return res.instanceCount + (this.ghosting ? 1 : 0);
+  }
+
   useWorld(next: World): void {
     this.world.net = next.net;
     this.world.zones = next.zones;
@@ -727,9 +760,14 @@ export class Renderer {
       ],
     });
 
+    // One slot past the end of the city, for the building being placed. The
+    // cull is dispatched over a count rather than over the buffer, so the
+    // spare slot costs nothing while it is empty and needs no second pipeline
+    // when it is not -- the ghost is culled, given a level of detail and drawn
+    // by exactly the machinery every other building goes through.
     const instanceBuffer = device.createBuffer({
       label: 'city-instances',
-      size: Math.max(city.data.byteLength, INSTANCE_FLOATS * 4),
+      size: Math.max((city.count + 1) * INSTANCE_FLOATS * 4, INSTANCE_FLOATS * 4),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(instanceBuffer, 0, city.data);
@@ -1026,7 +1064,7 @@ export class Renderer {
     cullPass.setPipeline(res.cull);
     cullPass.setBindGroup(0, res.cameraGroup);
     cullPass.setBindGroup(1, res.cullGroup);
-    cullPass.dispatchWorkgroups(Math.ceil(res.instanceCount / 64));
+    cullPass.dispatchWorkgroups(Math.ceil(this.cullCount(res) / 64));
     cullPass.end();
 
     // Depth from the sun's point of view, before anything is shaded, because
