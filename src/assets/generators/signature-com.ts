@@ -768,21 +768,47 @@ function signTower(lod: number): MeshBuilder {
     parapet(m, -hx, -hz, hx, hz, top, 1.2, 0.3, MAT.TILE);
   }
   if (fine) {
-    // The stacked signage: a board per floor on two elevations, each one
-    // standing further out than the wall it hangs on.
+    // The stacked signage.
+    //
+    // A board across the whole of both elevations on every floor, in brand,
+    // accent and lit white by turns, is not a sign tower -- it is a barcode.
+    // Eleven of them made the building two colours from a distance and nothing
+    // else, which is exactly what it looked like on the palette: red and yellow
+    // stripes with no building behind them.
+    //
+    // What the real thing is: separate boards of different widths, hung with
+    // gaps between them and gaps between floors, most of them lit white with
+    // the house colours as the minority. So the wall reads as a wall, the signs
+    // read as signs, and the tower is recognisable rather than loud.
+    const panels = (f: number, face: 'z' | 'x'): void => {
+      const seed = f * 7 + (face === 'z' ? 0 : 3);
+      const y = 5.6 + f * floorH + 0.9;
+      const h = floorH - 2.9;
+      const span = face === 'z' ? hx - 1.0 : hz - 1.0;
+      // Two or three boards across the face, at widths that do not agree.
+      const cuts = seed % 3 === 0 ? [0.00, 0.46, 0.54, 1.00]
+        : seed % 3 === 1 ? [0.00, 0.30, 0.38, 0.74, 0.82, 1.00]
+          : [0.06, 0.52, 0.60, 0.94];
+      for (let i = 0; i < cuts.length; i += 2) {
+        const roll = (seed * 13 + i * 5) % 9;
+        if (roll === 0) continue;                     // a gap where a tenant left
+        const t = roll < 6 ? TINT.SIGN_LIT : roll < 8 ? TINT.ACCENT : TINT.BRAND;
+        const u0 = -span + cuts[i] * span * 2, u1 = -span + cuts[i + 1] * span * 2;
+        m.painted(t, () => {
+          if (face === 'z') m.box([u0, y, hz + 0.1], [u1, y + h, hz + 1.3], MAT.CLADDING);
+          else m.box([hx + 0.1, y, u0], [hx + 1.3, y + h, u1], MAT.CLADDING);
+        });
+      }
+    };
     for (let f = 0; f < floors; f++) {
-      const y = 5.6 + f * floorH + 0.5;
-      const t = f % 3 === 0 ? TINT.BRAND : f % 3 === 1 ? TINT.ACCENT : TINT.SIGN_LIT;
-      m.painted(t, () => {
-        m.box([-hx + 1.0, y, hz + 0.1], [hx - 1.0, y + floorH - 2.4, hz + 1.5], MAT.CLADDING);
-        m.box([hx + 0.1, y, -hz + 1.0], [hx + 1.5, y + floorH - 2.4, hz - 1.0], MAT.CLADDING);
-      });
-      m.painted(TINT.SIGN_LIT, () => {
-        m.signFace([-hx + 1.2, y + 0.3, hz + 1.55], [hx - 1.2, y + 0.3, hz + 1.55],
-                   [hx - 1.2, y + floorH - 2.7, hz + 1.55], [-hx + 1.2, y + floorH - 2.7, hz + 1.55], MAT.TRIM);
-      });
+      panels(f, 'z');
+      // Every other floor on the return elevation, so the two faces are not
+      // the same building twice.
+      if (f % 2 === 0) panels(f, 'x');
     }
-    // A vertical blade on the corner, taller than the building.
+    // A vertical blade on the corner, taller than the building. It carries the
+    // brand colour -- one element rather than the whole facade, which is what
+    // makes it read as the building's own.
     m.painted(TINT.BRAND, () => m.box([hx - 0.4, 6.0, hz - 0.4], [hx + 2.6, top + 9.0, hz + 2.6], MAT.CLADDING));
     m.painted(TINT.SIGN_LIT, () => {
       m.box([hx + 2.62, 8.0, hz - 0.2], [hx + 2.72, top + 8.0, hz + 2.4], MAT.PLATE);
@@ -971,13 +997,18 @@ const ANCHOR: Record<Theme, Row> = {
   },
   american: {
     key: 'anchor', name: 'The Rialto', foot: [9, 9], jobs: 90, upkeep: 420, power: 900,
-    colour: [0.38, 0.12, 0.22], accent: [0.76, 0.62, 0.22],
+    // A cinema blade is red, not plum. The original leaned purple and the fin
+    // is twenty-five metres of it.
+    colour: [0.44, 0.11, 0.13], accent: [0.70, 0.57, 0.22],
     note: 'A stepped windowless auditorium block with the rake expressed in buttresses down both flanks, a glazed foyer, a bulb-edged marquee over the doors and a thirty-metre lit fin carrying the name above the parapet.',
     build: pictureHouse,
   },
   asian: {
     key: 'anchor', name: 'Golden Crane Tower', foot: [7, 6], jobs: 210, upkeep: 760, power: 1500,
-    colour: [0.44, 0.16, 0.22], accent: [0.78, 0.62, 0.18],
+    // Lacquer red and old gold, both taken down: the shader lifts a brand
+    // colour a long way and the pair as first written came back off the
+    // building as pink and canary.
+    colour: [0.32, 0.10, 0.12], accent: [0.62, 0.48, 0.16],
     note: 'Eleven floors of karaoke, restaurants and arcades over a shop podium, every floor advertising itself on a lit board across two elevations, a corner blade nine metres above the parapet, and a pergola garden on the roof.',
     build: signTower,
   },

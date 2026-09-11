@@ -20,6 +20,8 @@ import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
 import type { Proto } from './inventory';
 import { baseHeightAt } from './terrain';
+import { ALL_THEMES } from '../assets/themes';
+import type { Theme } from '../assets/themes';
 
 /** The four zones a player can paint. Services are placed, not zoned. */
 /**
@@ -33,23 +35,44 @@ import { baseHeightAt } from './terrain';
 export const ZONES: Zone[] = ['residential', 'commercial', 'industrial', 'office', 'nature'];
 export const DENSITIES: Density[] = ['low', 'medium', 'high'];
 
+/** How many theme values a code can carry: the six, plus "whichever". */
+const THEME_SLOTS = ALL_THEMES.length + 1;
+
 /**
  * A zoning code, packed into a byte.
  *
  * Zero is unzoned, which is the common case over most of a map, so it gets to
  * be the value a fresh array already holds.
+ *
+ * The theme is part of the code and not derived from where the cell is, because
+ * a player who wants a European quarter should be able to zone one. Leaving it
+ * out still means what it always meant -- let the district decide -- so the
+ * two can sit side by side on a map: a deliberate quarter beside a grown one.
+ *
+ * Five zones times three densities times seven theme slots is a hundred and
+ * five values, which is what a byte is for.
  */
-export function zoneCode(zone: Zone, density: Density): number {
+export function zoneCode(zone: Zone, density: Density, theme?: Theme): number {
   const z = ZONES.indexOf(zone);
   const d = DENSITIES.indexOf(density);
   if (z < 0 || d < 0) return 0;
-  return 1 + z * DENSITIES.length + d;
+  const t = theme === undefined ? 0 : ALL_THEMES.indexOf(theme) + 1;
+  return 1 + (z * DENSITIES.length + d) * THEME_SLOTS + Math.max(0, t);
 }
 
-export function zoneOf(code: number): { zone: Zone; density: Density } | null {
+export function zoneOf(code: number):
+{ zone: Zone; density: Density; theme: Theme | null } | null {
   if (code <= 0) return null;
   const i = code - 1;
-  return { zone: ZONES[(i / DENSITIES.length) | 0], density: DENSITIES[i % DENSITIES.length] };
+  const t = i % THEME_SLOTS;
+  const zd = (i / THEME_SLOTS) | 0;
+  const zone = ZONES[(zd / DENSITIES.length) | 0];
+  if (zone === undefined) return null;
+  return {
+    zone,
+    density: DENSITIES[zd % DENSITIES.length],
+    theme: t === 0 ? null : ALL_THEMES[t - 1] ?? null,
+  };
 }
 
 /**

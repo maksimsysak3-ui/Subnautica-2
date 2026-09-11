@@ -82,20 +82,30 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
   // saying "medium residential" is a category; a picture of the kind of
   // building that actually grows there is the answer to the question the
   // player is asking, which is what am I about to get.
+  //
+  // Per theme as well as per density. The drawer used to show one tile called
+  // "low residential", which names a category and hides the fact that low
+  // residential is six different streets depending on the theme. Six tiles
+  // showing what each one actually builds is the choice a player is making.
+  const THEMES = ['modern', 'european', 'american', 'asian', 'farming', 'row'];
   const zoneRep = {};
   for (const zone of ['residential', 'commercial', 'industrial', 'office']) {
     for (const density of ['low', 'medium', 'high']) {
       // Industry carries no density ladder -- every works is 'none' -- and the
       // spawner already treats its three buttons as one pool, so the icon does
       // the same rather than leaving that zone with no picture at all.
-      const pool = all.filter((a) => a.zone === zone && !a.signature
+      const band = all.filter((a) => a.zone === zone && !a.signature
         && (a.density === density || a.density === 'none'));
-      if (pool.length === 0) continue;
-      // The median footprint: the typical one, not the runt or the outlier.
-      pool.sort((a, b) => a.footprint[0] * a.footprint[1] - b.footprint[0] * b.footprint[1]);
-      const pick = pool[Math.floor(pool.length / 2)];
-      zoneRep[`${zone}|${density}`] = pick.id;
-      if (!placeable.includes(pick)) placeable.push(pick);
+      for (const theme of [null, ...THEMES]) {
+        const pool = theme === null ? band : band.filter((a) => a.theme === theme);
+        if (pool.length === 0) continue;
+        // The median footprint: the typical one, not the runt or the outlier.
+        const sorted = [...pool].sort((a, b) =>
+          a.footprint[0] * a.footprint[1] - b.footprint[0] * b.footprint[1]);
+        const pick = sorted[Math.floor(sorted.length / 2)];
+        zoneRep[theme === null ? `${zone}|${density}` : `${zone}|${density}|${theme}`] = pick.id;
+        if (!placeable.includes(pick)) placeable.push(pick);
+      }
     }
   }
   const ASSETS = placeable;
@@ -215,10 +225,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
       radius = Math.max(radius, Math.hypot(mesh.vertices[v], mesh.vertices[v + 2]));
     }
 
-    // Framed on the whole thing, from a three-quarter view high enough to read
-    // the roof. The subject has to fill the tile at every scale from a water
-    // tower to an airport, so the distance comes from its own extent rather
-    // than from a constant.
+    // Framed from a three-quarter view high enough to read the roof, at a
+    // distance taken from the subject's own extent so a water tower and an
+    // airport both arrive at a workable size.
     const reach = Math.max(radius, height * 0.6);
     const dist = reach * 2.75 + 4;
     const target = [0, height * 0.42, 0];
@@ -226,7 +235,59 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     const eye = [target[0] + dist * Math.cos(pitch) * Math.sin(yaw),
       target[1] + dist * Math.sin(pitch),
       target[2] + dist * Math.cos(pitch) * Math.cos(yaw)];
-    const viewProj = mul(persp((38 * Math.PI) / 180, 1, 0.2, 4000), look(eye, target, [0, 1, 0]));
+    const raw = mul(persp((38 * Math.PI) / 180, 1, 0.2, 4000), look(eye, target, [0, 1, 0]));
+
+    // Then fitted exactly, by projecting the mesh and scaling what comes back
+    // to the edges of the tile.
+    //
+    // A distance worked out from a bounding sphere is a guess, and it was
+    // wrong in both directions: a long low warehouse sat in the middle of the
+    // tile at half size because its diagonal is its radius, and a slender
+    // tower left two-thirds of the tile empty on either side. This measures
+    // what the camera is actually going to see and fills the frame with it.
+    //
+    // The fit ignores the apron -- the paving, verges and trees the asset
+    // builds around itself below knee height. Including it framed the lot
+    // rather than the building, which is why every icon had a grey slab across
+    // it and the building sitting small and high above the slab. Letting the
+    // apron run off the bottom edge is what makes the building the subject.
+    const SKIRT = 1.2;
+    const fit = (skirted) => {
+      let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, seen = 0;
+      for (let v = 0; v < mesh.vertices.length; v += 13) {
+        const y = mesh.vertices[v + 1];
+        if (skirted && y < SKIRT) continue;
+        const x = mesh.vertices[v], z = mesh.vertices[v + 2];
+        const cw = raw[3] * x + raw[7] * y + raw[11] * z + raw[15];
+        if (cw <= 0.0001) continue;
+        const cx = (raw[0] * x + raw[4] * y + raw[8] * z + raw[12]) / cw;
+        const cy = (raw[1] * x + raw[5] * y + raw[9] * z + raw[13]) / cw;
+        u0 = Math.min(u0, cx); u1 = Math.max(u1, cx);
+        v0 = Math.min(v0, cy); v1 = Math.max(v1, cy);
+        seen++;
+      }
+      return seen > 8 ? { u0, u1, v0, v1 } : null;
+    };
+    // Falls back to the whole mesh for anything that is all apron -- a plaza,
+    // a car park, a tree -- where there is no building to prefer.
+    const box = fit(true) ?? fit(false);
+    const viewProj = raw.slice();
+    if (box !== null) {
+      const MARGIN = 0.94;
+      const su = (2 * MARGIN) / Math.max(box.u1 - box.u0, 1e-4);
+      const sv = (2 * MARGIN) / Math.max(box.v1 - box.v0, 1e-4);
+      // One scale for both axes: the aspect is the subject's and squashing it
+      // to the tile would make every building the same shape.
+      const k = Math.min(su, sv, 6);
+      const cu = (box.u0 + box.u1) / 2, cv = (box.v0 + box.v1) / 2;
+      // Post-multiply a 2D scale-about-centre onto the clip-space result,
+      // which is the same as moving and zooming the camera but exact.
+      for (let c = 0; c < 4; c++) {
+        const x = raw[c * 4], y = raw[c * 4 + 1], w = raw[c * 4 + 3];
+        viewProj[c * 4] = (x - cu * w) * k;
+        viewProj[c * 4 + 1] = (y - cv * w) * k;
+      }
+    }
 
     const extent = Math.max(radius * 1.7, height * 0.9, 8);
     const centre = [0, height * 0.5, 0];

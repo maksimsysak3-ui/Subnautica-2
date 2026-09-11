@@ -179,6 +179,19 @@ if (!tl || tl.error) {
   if (!(tl.lotsAfter > tl.lotsBefore)) {
     push(`placing a service from the drawer put nothing down: ${tl.lotsBefore} lots before and after`);
   }
+  // The two data-built drawers. A zone drawer that lost its per-style tiles,
+  // or a landmark drawer that lost its tabs, is a regression nothing else here
+  // would notice.
+  if (!(tl.zoneTiles >= 20)) push(`the zone drawer offered ${tl.zoneTiles} tiles`);
+  for (const badge of ['ANY', 'MOD', 'EU', 'NA', 'AS', 'FARM']) {
+    if (!String(tl.zoneBadges).split(',').includes(badge)) {
+      push(`the zone drawer has no ${badge} tile (badges: ${tl.zoneBadges})`);
+    }
+  }
+  if (tl.sigTabs !== 4) push(`the landmark drawer had ${tl.sigTabs} tabs, wanted 4`);
+  if (!(tl.sigTiles > 2)) push(`the landmark drawer showed ${tl.sigTiles} buildings`);
+  console.log(`drawers  ${tl.zoneTiles} zone tiles [${tl.zoneBadges}], `
+    + `${tl.sigTabs} landmark tabs over ${tl.sigTiles} buildings`);
   console.log(`tools    ${tl.roadCellsBefore} road cells -> ${tl.roadCellsAfter}, `
     + `${tl.zonedBefore} zoned -> ${tl.zonedAfter}, `
     + `${tl.lotsBefore} lots -> ${tl.lotsAfter} from a drawer of ${tl.drawerSize}`);

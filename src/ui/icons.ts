@@ -19,17 +19,29 @@ export { ICON_INDEX };
  *
  * A zone button saying "medium residential" names a category; a picture of the
  * kind of building that actually grows there answers the question the player
- * is asking, which is what am I about to get. Falls back to the zone's other
- * densities, because industry has no density ladder and the spawner treats its
- * three buttons as one pool.
+ * is asking, which is what am I about to get. With a theme, it is the building
+ * that theme builds -- the same density is six different streets, and the
+ * drawer is where that becomes a choice rather than a surprise.
+ *
+ * Falls back to the zone's other densities, because industry has no density
+ * ladder and the spawner treats its three buttons as one pool.
  */
-export function zoneSpecimen(zone: string, density: string): string | null {
+export function zoneSpecimen(zone: string, density: string, theme?: string): string | null {
+  if (theme !== undefined) {
+    const themed = ICON_ZONE[`${zone}|${density}|${theme}`];
+    if (themed !== undefined) return themed;
+  }
   const exact = ICON_ZONE[`${zone}|${density}`];
   if (exact !== undefined) return exact;
   for (const key of Object.keys(ICON_ZONE)) {
     if (key.startsWith(`${zone}|`)) return ICON_ZONE[key];
   }
   return null;
+}
+
+/** True if this zone, density and theme actually builds anything. */
+export function hasSpecimen(zone: string, density: string, theme: string): boolean {
+  return ICON_ZONE[`${zone}|${density}|${theme}`] !== undefined;
 }
 
 /** True if this asset was photographed, so a caller can fall back if not. */

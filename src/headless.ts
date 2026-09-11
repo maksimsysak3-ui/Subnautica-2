@@ -97,6 +97,7 @@ export async function probeTools(): Promise<{
   roadCellsBefore: number; roadCellsAfter: number;
   zonedBefore: number; zonedAfter: number; picked: boolean;
   lotsBefore: number; lotsAfter: number; drawerSize: number;
+  zoneTiles: number; zoneBadges: string; sigTabs: number; sigTiles: number;
 }> {
   configureSim(LITE);
   const canvas = document.createElement('canvas');
@@ -186,10 +187,39 @@ export async function probeTools(): Promise<{
     for (let x = 200; x <= 620 && world.lots.length === lotsBefore; x += 20) clickAt(x, y);
   }
 
+  // What the two rebuilt drawers actually hold.
+  //
+  // Both are grids built from data, and both have been wrong in ways a
+  // screenshot would show and a smoke test would not: a zone drawer with one
+  // tile per density rather than one per style, and a landmark list with every
+  // zone in it at once. These count what is on screen.
+  const openDrawer = (): HTMLElement | undefined => Array.from(overlay.querySelectorAll('div'))
+    .find((el) => (el as HTMLElement).dataset.branch !== undefined) as HTMLElement | undefined;
+  press('Zoning');
+  const zonePanel = openDrawer();
+  const zoneButtons = zonePanel ? Array.from(zonePanel.querySelectorAll('button')) : [];
+  // A badge is the small black block on a tile; the tabs across the top carry
+  // none, so this counts the styles on offer.
+  const badges = zoneButtons
+    .map((b) => Array.from(b.querySelectorAll('span'))
+      .find((sp) => (sp as HTMLElement).style.position === 'absolute'))
+    .filter((sp): sp is HTMLSpanElement => sp !== undefined)
+    .map((sp) => sp.textContent ?? '');
+
+  press('Landmarks');
+  const sigPanel = openDrawer();
+  const sigButtons = sigPanel ? Array.from(sigPanel.querySelectorAll('button')) : [];
+  // The tab row is the panel's first child; everything after it is a tile.
+  const sigTabRow = sigPanel?.firstElementChild;
+  const sigTabs = sigTabRow ? sigTabRow.querySelectorAll('button').length : 0;
+
   return {
     roadCellsBefore, roadCellsAfter: count(world.net.cls),
     zonedBefore, zonedAfter: count(world.zones), picked,
     lotsBefore, lotsAfter: world.lots.length, drawerSize: tiles.length,
+    zoneTiles: zoneButtons.length,
+    zoneBadges: [...new Set(badges)].join(','),
+    sigTabs, sigTiles: sigButtons.length - sigTabs,
   };
 }
 

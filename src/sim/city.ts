@@ -414,16 +414,19 @@ export function makeCity(world: World = defaultWorld()): City {
   /**
    * What a block builds, and in what regional style.
    *
-   * The zone and the density come from the world -- they are the player's, and
-   * painting over them is the whole of zoning. The theme does not: a quarter
-   * of the city looking European is a fact about the place rather than a
-   * decision anyone made, so it stays derived from where the block is.
+   * All three come from the world when the player said so. Painting a theme is
+   * how you get a European quarter on purpose; leaving it off is how you get
+   * one that grew, which is derived from where the block is -- a fact about the
+   * place rather than a decision anyone made. Both on one map is the point.
    */
   const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
     if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return null;
     const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;
+    if (painted.theme !== null) {
+      return { zone: painted.zone, density: painted.density, theme: painted.theme };
+    }
     const dx = Math.floor(gx / (PERIOD * DISTRICT)), dz = Math.floor(gz / (PERIOD * DISTRICT));
     const theme = THEME_ORDER[Math.floor(hash2(dx, dz, 211) * THEME_ORDER.length) % THEME_ORDER.length];
     // Terraces are a low-density form and the registry only builds them as

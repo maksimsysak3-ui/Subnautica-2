@@ -20,8 +20,14 @@ import type { World, Lot } from './world';
 import { ROAD_ORDER } from './roadgraph';
 import type { RoadClass } from './roadgraph';
 
-/** Bumped whenever the shape below changes in a way an old file cannot meet. */
-const VERSION = 1;
+/**
+ * Bumped whenever the shape below changes in a way an old file cannot meet.
+ *
+ * 2: the zoning byte carries a regional theme as well as a zone and a density,
+ * so every code in a version 1 file means something different now. The bytes
+ * would have loaded and produced a map zoned at random.
+ */
+const VERSION = 2;
 
 interface SaveFile {
   v: number;

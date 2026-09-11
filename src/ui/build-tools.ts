@@ -25,7 +25,9 @@ import { services, signatures, ASSET_INDEX } from '../sim';
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
-import { assetIcon, zoneSpecimen } from './icons';
+import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
+import { ALL_THEMES, THEMES } from '../assets/themes';
+import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
 import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
 import { BRANCHES } from '../assets/types';
@@ -70,7 +72,8 @@ type Tool =
   | { kind: 'look' }
   | { kind: 'road'; cls: RoadClass }
   | { kind: 'curve'; cls: RoadClass }
-  | { kind: 'zone'; zone: Zone; density: Density }
+  /** `theme` undefined means whatever the district around it grows. */
+  | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
   | { kind: 'place'; proto: Proto }
   | { kind: 'clear' };
 
@@ -105,6 +108,10 @@ const BRANCH_STYLE: Record<Branch, { label: string; colour: string }> = {
   deathcare: { label: 'Deathcare', colour: '#9aa6b8' },
   post: { label: 'Post', colour: '#d98f5a' },
 };
+
+/** The zones a landmark can belong to, in the order their tabs read. */
+const SIGNATURE_ZONES = ['residential', 'commercial', 'office', 'industrial'] as const;
+type SignatureZone = (typeof SIGNATURE_ZONES)[number];
 
 /** Every one-of-a-kind building, smallest first, across all four zones. */
 const SIGNATURES: Proto[] = ZONES
@@ -163,6 +170,7 @@ export class BuildTools {
   private ticked = 0;
   private raf = 0;
   /** Which zone the zoning drawer is showing. Remembered between openings. */
+  private sigTab: SignatureZone = 'residential';
   private zoneTab: IconZone = 'residential';
 
   constructor(
@@ -717,7 +725,7 @@ export class BuildTools {
       this.lay(a, b, null, this.bend());
       return;
     } else if (t.kind === 'zone') {
-      paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density));
+      paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density, t.theme));
     } else if (t.kind === 'clear') {
       demolish(world, r.gx, r.gz, r.w, r.d);
     } else {
@@ -763,7 +771,7 @@ export class BuildTools {
     // Both road tools answer to the same class button; which of the two it
     // selects is the mode button beside them.
     if (t.kind === 'road' || t.kind === 'curve') return `road:${t.cls}`;
-    if (t.kind === 'zone') return `zone:${t.zone}:${t.density}`;
+    if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     return t.kind;
   }
@@ -785,7 +793,8 @@ export class BuildTools {
         + `(${w * 8}\u00d7${d * 8} m) — R rotates`;
     }
     if (t.kind === 'zone') {
-      return `drag to zone ${t.density} ${t.zone} `
+      const style = t.theme === undefined ? '' : ` in the ${THEMES[t.theme].label} style`;
+      return `drag to zone ${t.density} ${t.zone}${style} `
         + `(${money(zonePrice(t.zone, t.density))} a cell)`;
     }
     return 'drag to clear roads and zoning';
@@ -1177,9 +1186,10 @@ export class BuildTools {
    */
   private tile(id: string | null, name: string, size: string, cost: number,
     accent: string, note: string, onPick: () => void,
-    glyph?: string, per = ''): HTMLElement {
+    glyph?: string, per = '', badge = ''): HTMLElement {
     const b = document.createElement('button');
     b.title = note;
+    if (badge !== '') b.style.position = 'relative';
     const rest = ['border:1px solid rgba(255,255,255,.06)', `background:${WELL}`];
     b.style.cssText = [
       'display:flex', 'flex-direction:column', 'align-items:center', 'gap:2px',
@@ -1211,6 +1221,23 @@ export class BuildTools {
       + `${money(cost)}</span>`
       + (per === '' ? '' : `<span style="opacity:.45"> ${per}</span>`);
     b.append(label, meta);
+    // The theme's abbreviation, in a black block on the picture.
+    //
+    // Six tiles of low-density housing differ by what they are made of, which
+    // a 52-pixel picture shows but does not name. The block names it without
+    // taking a line of the tile, and it reads at a glance once a player has
+    // learned three of them -- which is the whole job of an abbreviation.
+    if (badge !== '') {
+      const tag = document.createElement('span');
+      tag.textContent = badge;
+      tag.style.cssText = [
+        'position:absolute', 'left:5px', 'top:5px', 'padding:1px 4px',
+        'border-radius:4px', 'background:rgba(0,0,0,.82)', 'color:#e8f0fa',
+        'font:700 8px/1.5 var(--ui, system-ui, sans-serif)', 'letter-spacing:.08em',
+        'pointer-events:none',
+      ].join(';');
+      b.appendChild(tag);
+    }
     b.addEventListener('mouseenter', () => {
       b.style.borderColor = `${accent}99`;
       b.style.background = 'rgba(255,255,255,.05)';
@@ -1252,11 +1279,23 @@ export class BuildTools {
     this.mount(panel, 'roads', accent);
   }
 
-  /** Every landmark there is only one of. */
-  private openSignatureDrawer(): void {
+  /**
+   * Every landmark there is only one of, by what it is.
+   *
+   * Forty-five of them in one scrolling list is a catalogue, and looking for
+   * the concert hall meant reading past nine apartment blocks and a dozen
+   * factories. They are already sorted into the four zones by the registry --
+   * the drawer just has to say so, and put a tab on each.
+   */
+  private openSignatureDrawer(zone: SignatureZone = this.sigTab): void {
+    this.sigTab = zone;
     const accent = '#ffd166';
     const panel = this.drawerPanel('signature', accent);
+    panel.appendChild(this.tabs(SIGNATURE_ZONES.map((z) => ({
+      key: z, label: ZONE_STYLE[z].label, on: z === zone,
+    })), accent, (key) => this.openSignatureDrawer(key as SignatureZone)));
     for (const p of SIGNATURES) {
+      if (p.def.zone !== zone) continue;
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
         buildingPrice(p.def), accent, p.def.note,
         () => this.select({ kind: 'place', proto: p })));
@@ -1316,11 +1355,20 @@ export class BuildTools {
   }
 
   /**
-   * The densities of one zone, each shown as what actually grows there.
+   * One zone, as three densities of what actually grows there -- in each of
+   * the regional styles that builds it.
    *
-   * Density used to cycle on repeated clicks of one button, which hid two of
-   * the three choices behind a convention nobody is told about. Three tiles
-   * say what there is.
+   * Three tiles reading "low residential", "medium residential", "high
+   * residential" name a category three times. But low-density residential is
+   * not one thing: it is a European brick street, an American timber suburb,
+   * an Asian render-and-tile block, a farming hamlet or a modern estate, and
+   * which one you get was decided by where on the map you happened to paint.
+   * That is a fine default and a bad only option, so the theme is a tile now.
+   *
+   * The first tile of each band is still the default -- let the district
+   * decide -- because a player who does not care should not have to choose,
+   * and a city where every quarter was chosen deliberately looks designed
+   * rather than grown.
    */
   private openZoneDrawer(zone: IconZone): void {
     this.zoneTab = zone;
@@ -1330,13 +1378,42 @@ export class BuildTools {
     panel.appendChild(this.tabs(ZONES.map((z) => ({
       key: z, label: ZONE_STYLE[z as IconZone].label, on: z === zone,
     })), accent, (key) => this.openZoneDrawer(key as IconZone)));
+
+    // Parkland builds nothing, so it has nothing to show six ways.
+    const themed = zone !== 'nature' && zone !== 'road' && zone !== 'service';
     for (const density of DENSITIES) {
-      panel.appendChild(this.tile(zoneSpecimen(zone, density), `${density} ${zone}`,
-        'per cell', zonePrice(zone as Zone, density), accent,
-        `${style.blurb} Zoned for ${density} density.`,
-        () => this.select({ kind: 'zone', zone: zone as Zone, density })));
+      const price = zonePrice(zone as Zone, density);
+      if (themed) panel.appendChild(this.band(`${density} ${style.label}`));
+      panel.appendChild(this.tile(zoneSpecimen(zone, density),
+        themed ? 'Whichever' : `${density} ${zone}`, 'per cell', price, accent,
+        `${style.blurb} Zoned for ${density} density, in whatever style the`
+        + ' district around it is growing in.',
+        () => this.select({ kind: 'zone', zone: zone as Zone, density }),
+        undefined, '', themed ? 'ANY' : ''));
+      if (!themed) continue;
+      for (const theme of ALL_THEMES) {
+        if (!hasSpecimen(zone, density, theme)) continue;
+        const profile = THEMES[theme];
+        panel.appendChild(this.tile(zoneSpecimen(zone, density, theme),
+          profile.label, 'per cell', price, accent,
+          `${style.blurb} Zoned for ${density} density in the ${profile.label} style.`,
+          () => this.select({ kind: 'zone', zone: zone as Zone, density, theme }),
+          undefined, '', profile.badge));
+      }
     }
     this.mount(panel, 'zones', accent);
+  }
+
+  /** A full-width heading inside a drawer's grid. */
+  private band(label: string): HTMLElement {
+    const el = document.createElement('div');
+    el.textContent = label;
+    el.style.cssText = [
+      'grid-column:1/-1', 'padding:8px 2px 2px', 'color:#7f93ab',
+      'font:700 9px/1.2 var(--ui, system-ui, sans-serif)',
+      'letter-spacing:.14em', 'text-transform:uppercase',
+    ].join(';');
+    return el;
   }
 
   private closeDrawer(): void {
