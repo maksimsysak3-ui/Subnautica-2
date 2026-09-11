@@ -104,6 +104,18 @@ export function clearTerrainCache(): void {
 }
 
 /**
+ * Builds the corner cache now rather than on the first thing that asks.
+ *
+ * Four hundred thousand corners of three-octave noise is most of a second, and
+ * it lands inside whatever happens to touch the ground first -- which at boot
+ * is the city build, making one long block out of two shorter ones. Doing it
+ * deliberately lets the loading screen draw in between.
+ */
+export function warmTerrain(base: (x: number, z: number) => number): void {
+  baseAtCorner(0, 0, base);
+}
+
+/**
  * Levels the ground under each pad and ramps out to the terrain around it.
  *
  * `base` is the ungraded height at a world position -- passed in rather than

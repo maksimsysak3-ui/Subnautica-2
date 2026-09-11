@@ -1,33 +1,28 @@
 /**
- * The front of the game: a loading sequence, a title, and a way in.
+ * The front of the game: a loading screen, then a menu.
  *
- * The whole thing is one idea. A menu that paints a picture of a city is
- * showing you something the game is not; this one has the game itself running
- * behind it, on a camera that drifts slowly round the site at dawn, with the
- * panel over the top. Nothing here is concept art -- it is the first frame of
- * the thing you are about to play, held still enough to read.
+ * They are deliberately two different things, because they have two different
+ * jobs. The loading screen has to hold attention while nothing can be
+ * interacted with, so it is a painting -- full bleed, with the lock-up over it
+ * and a bar that tells the truth about how far along the build is. The menu
+ * has to get out of the way, so it is the game's own terrain at whatever hour
+ * the clock has reached, turning slowly, with as little over the top of it as
+ * the words will allow.
  *
- * The mark is six glass facets in a hexagon, and they are glass in earnest:
- * `backdrop-filter` frosts and brightens the live scene behind each one, so
- * the panels carry the real sky, the real hills and the real water, and they
- * change as the camera moves. That is also the loader -- the facets light one
- * at a time as the world is built, so the thing you watch while waiting is the
- * thing that becomes the logo, rather than a spinner borrowed from a form.
+ * The mark is six glass facets in a hexagon. On the loading screen they light
+ * one per build step, so the thing you watch while waiting becomes the logo.
  */
 
 import { listSaves, readSave, writeSave, deleteSave, fromCode, toCode } from '../sim';
 import type { SaveInfo, World } from '../sim';
+import { LOADING_ART } from './loading-art';
 
-/**
- * The palette, taken off a dawn: the hour the game looks best and the one the
- * camera sits at while the menu is up.
- */
-const INK = '#eaf1f8';
-const DIM = '#9fb4cc';
-const GLASS = 'rgba(14,22,34,.62)';
-const EDGE = 'rgba(150,200,240,.20)';
-const WARM = '#ffd39b';
-const COOL = '#7fd4ff';
+const INK = '#f2f6fb';
+const DIM = '#a9bcd2';
+const GLASS = 'rgba(12,19,30,.55)';
+const EDGE = 'rgba(160,205,245,.22)';
+const COOL = '#8fd8ff';
+const UI = 'var(--ui, system-ui, -apple-system, "Segoe UI", sans-serif)';
 
 export interface MenuHooks {
   /** Start on empty land with the road in from the edge. */
@@ -36,121 +31,184 @@ export interface MenuHooks {
   onLoad: (world: World) => void;
   /** The world as it stands, for saving and for sharing. */
   world: () => World;
-  /** Where the camera should sit while the menu is up, and afterwards. */
+  /** Let the menu drive the camera and the clock while it is up. */
   cinematic: (on: boolean) => void;
 }
 
 export class Menu {
+  private loader: HTMLElement;
   private root: HTMLElement;
   private facets: HTMLElement[] = [];
+  private bar: HTMLElement;
+  private step: HTMLElement;
   private body: HTMLElement;
   private note: HTMLElement;
   private lit = 0;
+  private opened = false;
 
   constructor(host: HTMLElement, private hooks: MenuHooks) {
-    this.root = document.createElement('div');
-    // The picture keeps the frame; the panel takes the left third.
-    //
-    // Centring everything was the first attempt and it put the title, the
-    // buttons and the logo in one stack down the middle, which covers the one
-    // thing worth looking at. A key art holds its city across the whole frame
-    // and puts the words to one side of it, and that is what this does: a
-    // gradient that only darkens the left, and nothing at all over the right.
-    this.root.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:20', 'pointer-events:auto',
-      'display:grid', 'grid-template-columns:minmax(340px,38%) 1fr',
-      'align-items:center',
-      // Barely there. The map *is* the background -- what this does is give the
-      // words on the left enough ground to be read against, and stop before it
-      // touches the picture. Everything on the panel carries its own shadow so
-      // this can stay this light.
-      'background:linear-gradient(97deg,rgba(4,8,15,.74) 0%,rgba(5,10,18,.44) 26%,'
-        + 'rgba(6,11,20,.12) 46%,rgba(6,11,20,0) 62%)',
-      `color:${INK}`, 'font:400 14px/1.5 var(--ui, system-ui, sans-serif)',
-      'opacity:0', 'transition:opacity .7s ease',
+    this.loader = this.buildLoader();
+    host.appendChild(this.loader);
+
+    this.root = this.buildMenu();
+    host.appendChild(this.root);
+
+    this.bar = this.loader.querySelector('[data-bar]') as HTMLElement;
+    this.step = this.loader.querySelector('[data-step]') as HTMLElement;
+    this.body = this.root.querySelector('[data-body]') as HTMLElement;
+    this.note = this.root.querySelector('[data-note]') as HTMLElement;
+  }
+
+  // ---- the loading screen ----------------------------------------------
+
+  /**
+   * Full bleed art, with everything else stacked down the middle of it.
+   *
+   * Every size below is a `clamp`, and the stack is capped at the viewport
+   * height with its own gaps proportional to it. That is what makes the thing
+   * fit rather than merely fitting on the screen it was designed on: a title
+   * set in pixels overflows a laptop in landscape, and a stack sized in `vh`
+   * with no ceiling collapses on a phone.
+   */
+  private buildLoader(): HTMLElement {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:30', 'pointer-events:auto',
+      'display:grid', 'place-items:center', 'overflow:hidden',
+      'background:#070b12', `color:${INK}`, `font:400 14px/1.5 ${UI}`,
+      'transition:opacity .85s ease',
     ].join(';');
 
-    const panel = document.createElement('div');
-    panel.style.cssText = [
-      'display:flex', 'flex-direction:column', 'align-items:flex-start',
-      'gap:20px', 'padding:0 clamp(28px,5vw,64px)', 'max-width:520px',
+    // The painting. `cover` so it fills any shape without distorting, and
+    // biased low so the skyline stays in frame when the viewport is short --
+    // the sky is the part that can be cropped without losing the picture.
+    const art = document.createElement('div');
+    art.style.cssText = [
+      'position:absolute', 'inset:0',
+      `background:url('${LOADING_ART}') center 38% / cover no-repeat`,
+      // A slow drift in, so the first frame is not a static poster. Small
+      // enough that nothing reaches an edge.
+      'animation:citysim-drift 26s ease-out forwards',
     ].join(';');
-    this.root.appendChild(panel);
+    el.appendChild(art);
 
-    // Mark beside the wordmark, not above it: a stacked logo is a splash
-    // screen, a lock-up on one line is a masthead.
-    const head = document.createElement('div');
-    head.style.cssText = 'display:flex;align-items:center;gap:18px';
-    head.appendChild(this.buildMark());
+    // Two scrims rather than one. A flat wash over a painting kills it; these
+    // darken only where the words are -- the middle band and the very bottom
+    // -- and leave the sun, the water and the far shore untouched.
+    const scrim = document.createElement('div');
+    scrim.style.cssText = [
+      'position:absolute', 'inset:0',
+      'background:radial-gradient(58% 46% at 50% 52%,rgba(3,7,13,.86),rgba(3,7,13,.52) 52%,'
+        + 'rgba(3,7,13,0) 84%),'
+        + 'linear-gradient(180deg,rgba(4,8,14,.46) 0%,rgba(4,8,14,0) 26%,'
+        + 'rgba(4,8,14,0) 64%,rgba(4,8,14,.72) 100%)',
+    ].join(';');
+    el.appendChild(scrim);
 
-    const title = document.createElement('div');
-    title.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+    const stack = document.createElement('div');
+    stack.style.cssText = [
+      'position:relative', 'display:flex', 'flex-direction:column',
+      'align-items:center', 'gap:clamp(14px,2.4vh,26px)',
+      'width:min(760px,88vw)', 'max-height:92vh', 'text-align:center',
+      'animation:citysim-rise 1.1s cubic-bezier(.16,.84,.28,1) both',
+    ].join(';');
+
+    stack.appendChild(this.buildMark('clamp(84px,12vh,132px)', true));
+
     const h1 = document.createElement('h1');
     h1.textContent = 'CITYSIM';
-    // Heavy, tight and uppercase, with the strapline light and wide under it.
-    // The contrast between the two is the whole typographic idea, and it is
-    // the one the poster on the wall is using.
     h1.style.cssText = [
-      'margin:0', 'font:800 clamp(40px,5.2vw,64px)/0.92 var(--ui, system-ui, sans-serif)',
-      'letter-spacing:-.022em', `color:${INK}`,
-      'text-shadow:0 2px 34px rgba(0,0,0,.6)',
+      'margin:0', `font:800 clamp(38px,7.4vw,92px)/0.9 ${UI}`,
+      'letter-spacing:clamp(.02em,.6vw,.10em)', `color:${INK}`,
+      'text-shadow:0 2px 12px rgba(0,0,0,.55),0 8px 60px rgba(0,0,0,.5)',
+      // Never wider than the stack, whatever the viewport does.
+      'max-width:100%', 'white-space:nowrap',
     ].join(';');
+    stack.appendChild(h1);
+
     const sub = document.createElement('p');
     sub.textContent = 'every building is a program';
     sub.style.cssText = [
-      'margin:0', 'font:500 10px/1 var(--ui, system-ui, sans-serif)',
-      'letter-spacing:.34em', 'text-transform:uppercase', `color:${COOL}`,
-      'opacity:.85',
+      'margin:0', `font:500 clamp(9px,1.25vw,13px)/1.4 ${UI}`,
+      'letter-spacing:clamp(.22em,.62vw,.42em)', 'text-transform:uppercase',
+      `color:${COOL}`, 'text-shadow:0 1px 10px rgba(0,0,0,.7)',
+      // The tracking adds a trailing space; the indent puts it back centre.
+      'text-indent:clamp(.22em,.62vw,.42em)', 'max-width:100%',
     ].join(';');
-    title.append(h1, sub);
-    head.appendChild(title);
-    panel.appendChild(head);
+    stack.appendChild(sub);
 
-    this.body = document.createElement('div');
-    this.body.style.cssText = [
-      'display:flex', 'flex-direction:column', 'gap:9px', 'width:100%',
-      // No reserved height. It was there to stop the panel jumping between
-      // pages and it bought that with a permanent hole under the buttons,
-      // which is a worse thing to look at than a panel that moves.
+    // The bar. Thin, wide, and honest: it is driven by the build steps rather
+    // than by a timer pretending to be one.
+    const rail = document.createElement('div');
+    rail.style.cssText = [
+      'position:relative', 'width:min(420px,72vw)', 'height:3px',
+      'border-radius:3px', 'background:rgba(255,255,255,.14)',
+      'overflow:hidden', 'margin-top:clamp(4px,1.2vh,14px)',
     ].join(';');
-    panel.appendChild(this.body);
-
-    this.note = document.createElement('p');
-    this.note.style.cssText = [
-      'margin:0', 'min-height:2.6em', `color:${DIM}`, 'font-size:12px',
-      'letter-spacing:.02em', 'max-width:44ch',
+    const fill = document.createElement('div');
+    fill.dataset.bar = '';
+    fill.style.cssText = [
+      'position:absolute', 'inset:0 auto 0 0', 'width:0%', 'border-radius:3px',
+      `background:linear-gradient(90deg,${COOL},#ffd7a1)`,
+      'box-shadow:0 0 14px rgba(143,216,255,.6)',
+      'transition:width .5s cubic-bezier(.3,.8,.4,1)',
     ].join(';');
-    panel.appendChild(this.note);
+    rail.appendChild(fill);
+    stack.appendChild(rail);
 
-    host.appendChild(this.root);
-    requestAnimationFrame(() => { this.root.style.opacity = '1'; });
+    const step = document.createElement('p');
+    step.dataset.step = '';
+    step.style.cssText = [
+      'margin:0', `font:500 clamp(10px,1.15vw,12px)/1.4 ${UI}`,
+      'letter-spacing:.18em', 'text-transform:uppercase', `color:${DIM}`,
+      'min-height:1.4em', 'text-shadow:0 1px 8px rgba(0,0,0,.8)',
+    ].join(';');
+    stack.appendChild(step);
+
+    el.appendChild(stack);
+
+    // Keyframes, once. Written into the document rather than inline because a
+    // transform cannot be animated from a style attribute.
+    if (!document.getElementById('citysim-menu-css')) {
+      const css = document.createElement('style');
+      css.id = 'citysim-menu-css';
+      css.textContent = `
+@keyframes citysim-drift { from { transform: scale(1.075); } to { transform: scale(1); } }
+@keyframes citysim-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="citysim-drift"], [style*="citysim-rise"] { animation: none !important; }
+}`;
+      document.head.appendChild(css);
+    }
+    return el;
   }
 
-  // ---- the mark, which is also the loader -------------------------------
+  // ---- the mark ---------------------------------------------------------
 
   /**
-   * Six glass facets around a hexagon.
+   * Six facets of glass in a hexagon.
    *
-   * Laid out by angle rather than by a path, because each one has to be its
-   * own element: `backdrop-filter` frosts what is behind an element, and one
-   * SVG cannot give six pieces six different views of the scene.
+   * A facet is the trapezium between one edge of the hexagon and the same edge
+   * shrunk towards the middle: six of them make a ring with a hollow centre.
+   * Each is its own element because `backdrop-filter` frosts what is behind an
+   * element, and one SVG cannot give six pieces six different views.
    */
-  private buildMark(): HTMLElement {
-    const SIZE = 96;
+  private buildMark(size: string, solid = false): HTMLElement {
     const wrap = document.createElement('div');
     wrap.style.cssText = [
-      'position:relative', `width:${SIZE}px`, `height:${SIZE}px`, 'flex:0 0 auto',
-      'filter:drop-shadow(0 16px 44px rgba(0,0,0,.55))',
+      'position:relative', `width:${size}`, `aspect-ratio:1`, 'flex:0 0 auto',
+      solid
+        ? 'filter:drop-shadow(0 6px 20px rgba(0,0,0,.7)) drop-shadow(0 0 34px rgba(150,205,255,.45))'
+        : 'filter:drop-shadow(0 14px 42px rgba(0,0,0,.6))',
     ].join(';');
 
-    // The six corners of a hexagon, point up, as percentages of the box.
     const corner = (i: number, r: number): [number, number] => {
       const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
       return [50 + Math.cos(a) * r, 50 + Math.sin(a) * r];
     };
-    // A facet is the trapezium between one edge of the hexagon and the same
-    // edge shrunk towards the middle: six of them make a ring with a hollow
-    // centre, which is the shape on the poster rather than a pie chart.
     const OUT = 48, IN = 21, GAP = 0.055;
     const lerp = (a: [number, number], b: [number, number], t: number): [number, number] =>
       [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
@@ -158,81 +216,137 @@ export class Menu {
     for (let i = 0; i < 6; i++) {
       const o0 = corner(i, OUT), o1 = corner(i + 1, OUT);
       const i0 = corner(i, IN), i1 = corner(i + 1, IN);
-      // Pulled off both ends, which is what puts a seam of sky between one
-      // facet and the next -- the detail that makes it read as panels of glass
-      // rather than as a solid ring.
-      const p = [
-        lerp(o0, o1, GAP), lerp(o1, o0, GAP),
-        lerp(i1, i0, GAP), lerp(i0, i1, GAP),
-      ];
+      // Pulled off both ends, which puts a seam of sky between one facet and
+      // the next -- the detail that makes it read as panels rather than a ring.
+      const p = [lerp(o0, o1, GAP), lerp(o1, o0, GAP), lerp(i1, i0, GAP), lerp(i0, i1, GAP)];
       const f = document.createElement('div');
-      // Each facet catches the light a little differently, as glass at six
-      // angles would. The ones facing the top are brighter.
       const tilt = Math.cos((i / 6) * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5;
+      // Two ways of being glass, for two kinds of background.
+      //
+      // Over the live scene, `backdrop-filter` is the right answer: the facets
+      // frost whatever the camera is looking at and change as it moves. Over
+      // the painting it is the wrong one -- frosting a bright sunset sky gives
+      // a bright panel on a bright ground, and the mark vanished. So on the
+      // loading screen the facets are lit from within instead, pale and edged,
+      // which reads at any brightness because it does not depend on what is
+      // underneath.
+      const face = solid
+        ? `background:linear-gradient(${(i * 60 + 150) % 360}deg,`
+            + `rgba(255,255,255,${(0.62 + tilt * 0.30).toFixed(2)}),`
+            + `rgba(206,232,255,${(0.34 + tilt * 0.22).toFixed(2)}) 56%,`
+            + `rgba(150,192,236,${(0.26 + tilt * 0.14).toFixed(2)}));`
+            + 'box-shadow:inset 0 1px 0 rgba(255,255,255,.85)'
+        : `background:linear-gradient(${(i * 60 + 150) % 360}deg,`
+            + `rgba(212,236,255,${(0.20 + tilt * 0.30).toFixed(2)}),`
+            + `rgba(128,182,230,.12) 58%,rgba(46,84,132,.26));`
+            + `backdrop-filter:blur(2px) saturate(${(1.25 + tilt * 0.5).toFixed(2)})`
+            + ` brightness(${(1.10 + tilt * 0.35).toFixed(2)})`;
       f.style.cssText = [
         'position:absolute', 'inset:0',
         `clip-path:polygon(${p.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(',')})`,
-        `background:linear-gradient(${(i * 60 + 150) % 360}deg,`
-          + `rgba(205,232,255,${(0.16 + tilt * 0.26).toFixed(2)}),`
-          + `rgba(120,175,225,.10) 58%,rgba(48,86,132,.22))`,
-        `backdrop-filter:blur(2px) saturate(${(1.25 + tilt * 0.5).toFixed(2)})`
-          + ` brightness(${(1.10 + tilt * 0.35).toFixed(2)})`,
-        'opacity:.08', 'transition:opacity .55s ease, filter .55s ease',
+        face,
+        solid ? 'opacity:.16' : 'opacity:.09',
+        'transition:opacity .5s ease, filter .5s ease',
       ].join(';');
       this.facets.push(f);
       wrap.appendChild(f);
     }
-
-    // The hairline along the outer edge, drawn once over the top so the
-    // silhouette stays crisp where six clipped elements meet.
-    const rim = document.createElement('div');
-    const outer = Array.from({ length: 6 }, (_, i) => corner(i, OUT));
-    rim.style.cssText = [
-      'position:absolute', 'inset:0', 'pointer-events:none',
-      `clip-path:polygon(${outer.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(',')})`,
-      'background:radial-gradient(circle at 50% 26%,rgba(255,255,255,.22),transparent 62%)',
-      'mix-blend-mode:screen',
-    ].join(';');
-    wrap.appendChild(rim);
     return wrap;
   }
 
-  /**
-   * How far along the loading is, 0 to 1.
-   *
-   * Lights facets in order. A progress bar would say the same thing; this says
-   * it with the shape the player is about to recognise as the game's.
-   */
+  /** How far along the build is, 0 to 1, with the step named. */
   progress(t: number, label: string): void {
-    const want = Math.min(6, Math.floor(t * 6 + 0.0001));
+    const want = Math.min(6, Math.floor(t * 6 + 1e-4));
     for (; this.lit < want; this.lit++) {
       const f = this.facets[this.lit];
       f.style.opacity = '1';
-      f.style.filter = 'brightness(1.5)';
-      // The flare fades to the facet's resting brightness a moment later, so
-      // each one lands rather than simply appearing.
+      f.style.filter = 'brightness(1.55)';
       setTimeout(() => { f.style.filter = 'none'; }, 260);
     }
-    this.note.textContent = label;
+    this.bar.style.width = `${Math.round(Math.min(1, Math.max(0, t)) * 100)}%`;
+    this.step.textContent = label;
   }
 
-  // ---- the front page ---------------------------------------------------
-
-  private opened = false;
+  // ---- the menu ---------------------------------------------------------
 
   /**
-   * The loading is done; show the front page.
+   * Clean and quiet, over the live terrain.
    *
-   * Idempotent, because two things can call it: the build finishing, and the
-   * timer that opens the menu anyway if the build overruns. If the slow one
-   * lands second it must not wipe a page the player is already using.
+   * One column on the left, nothing on the right, and a scrim that fades out
+   * before it reaches the middle. The land is the background and the menu is a
+   * caption on it.
+   */
+  private buildMenu(): HTMLElement {
+    const el = document.createElement('div');
+    el.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:20', 'pointer-events:none',
+      'display:flex', 'align-items:center', 'opacity:0',
+      'background:linear-gradient(97deg,rgba(4,8,15,.70) 0%,rgba(5,10,18,.40) 24%,'
+        + 'rgba(6,11,20,.10) 44%,rgba(6,11,20,0) 60%)',
+      `color:${INK}`, `font:400 14px/1.5 ${UI}`, 'transition:opacity .85s ease',
+    ].join(';');
+
+    const panel = document.createElement('div');
+    panel.style.cssText = [
+      'display:flex', 'flex-direction:column', 'align-items:flex-start',
+      'gap:clamp(16px,2.6vh,26px)', 'padding:0 clamp(26px,5vw,68px)',
+      'width:min(460px,86vw)', 'pointer-events:auto',
+    ].join(';');
+    el.appendChild(panel);
+
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;flex-direction:column;gap:5px';
+    const h1 = document.createElement('h1');
+    h1.textContent = 'CITYSIM';
+    h1.style.cssText = [
+      'margin:0', `font:800 clamp(34px,4.4vw,54px)/0.92 ${UI}`,
+      'letter-spacing:-.02em', `color:${INK}`,
+      'text-shadow:0 2px 30px rgba(0,0,0,.65)', 'white-space:nowrap',
+    ].join(';');
+    const sub = document.createElement('p');
+    sub.textContent = 'every building is a program';
+    sub.style.cssText = [
+      'margin:0', `font:500 10px/1 ${UI}`, 'letter-spacing:.32em',
+      'text-indent:.32em', 'text-transform:uppercase', `color:${COOL}`,
+      'opacity:.9', 'text-shadow:0 1px 10px rgba(0,0,0,.6)',
+    ].join(';');
+    head.append(h1, sub);
+    panel.appendChild(head);
+
+    const body = document.createElement('div');
+    body.dataset.body = '';
+    body.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%';
+    panel.appendChild(body);
+
+    const note = document.createElement('p');
+    note.dataset.note = '';
+    note.style.cssText = [
+      'margin:0', 'min-height:2.6em', `color:${DIM}`, 'font-size:12px',
+      'max-width:40ch', 'text-shadow:0 1px 10px rgba(0,0,0,.6)',
+    ].join(';');
+    panel.appendChild(note);
+    return el;
+  }
+
+  /**
+   * Loading is done: put the painting away and show the land.
+   *
+   * Idempotent, because two things can call it -- the build finishing, and the
+   * timer that opens the menu anyway if the build overruns.
    */
   ready(): void {
     if (this.opened) return;
     this.opened = true;
-    for (const f of this.facets) f.style.opacity = '1';
-    this.lit = 6;
-    this.show();
+    this.progress(1, '');
+    this.hooks.cinematic(true);
+    // The art goes first and the menu follows it, so there is a moment of the
+    // terrain on its own between them. That beat is the whole transition.
+    this.loader.style.opacity = '0';
+    setTimeout(() => this.loader.remove(), 900);
+    setTimeout(() => {
+      this.show();
+      this.root.style.opacity = '1';
+    }, 420);
   }
 
   private show(): void {
@@ -247,7 +361,7 @@ export class Menu {
         () => this.open(last.key)));
     }
     this.body.appendChild(this.row([
-      ['Load', () => this.showLoad(saves)],
+      ['Load', () => this.showLoad(listSaves())],
       ['Join a city', () => this.showJoin()],
     ]));
     this.note.textContent = saves.length > 0
@@ -263,12 +377,11 @@ export class Menu {
       const list = document.createElement('div');
       list.style.cssText = [
         'display:flex', 'flex-direction:column', 'gap:6px', 'width:100%',
-        'max-height:250px', 'overflow-y:auto', 'padding-right:2px',
+        'max-height:min(320px,44vh)', 'overflow-y:auto',
       ].join(';');
       for (const s of saves) {
         const b = this.button(s.name, `${s.roads} roads, ${s.lots} placed · ${when(s.at)}`,
           false, () => this.open(s.key));
-        // A delete that sits inside the row rather than behind a mode.
         const x = document.createElement('span');
         x.textContent = '✕';
         x.title = `Delete ${s.name}`;
@@ -304,7 +417,7 @@ export class Menu {
     box.placeholder = 'Paste a city code…';
     box.spellcheck = false;
     box.style.cssText = [
-      'width:100%', 'height:104px', 'resize:none', 'padding:12px 14px',
+      'width:100%', 'height:96px', 'resize:none', 'padding:12px 14px',
       'border-radius:12px', `border:1px solid ${EDGE}`, `background:${GLASS}`,
       `color:${INK}`, 'font:400 11px/1.5 ui-monospace,monospace',
       'backdrop-filter:blur(12px)', 'outline:none',
@@ -350,29 +463,29 @@ export class Menu {
     const b = document.createElement('button');
     b.style.cssText = [
       'position:relative', 'width:100%', 'text-align:left', 'cursor:pointer',
-      'padding:13px 16px', 'border-radius:13px',
-      `border:1px solid ${primary ? 'rgba(127,212,255,.45)' : EDGE}`,
+      'padding:12px 15px', 'border-radius:12px',
+      `border:1px solid ${primary ? 'rgba(143,216,255,.42)' : EDGE}`,
       primary
-        ? 'background:linear-gradient(160deg,rgba(60,150,200,.34),rgba(30,80,120,.30))'
+        ? 'background:linear-gradient(160deg,rgba(56,142,196,.32),rgba(26,72,112,.28))'
         : `background:${GLASS}`,
       'backdrop-filter:blur(14px) saturate(1.2)', `color:${INK}`,
-      'font:600 15px/1.25 var(--ui, system-ui, sans-serif)',
-      'box-shadow:0 6px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.14)',
-      'transition:transform .12s, border-color .12s, background .12s',
+      `font:600 14px/1.25 ${UI}`,
+      'box-shadow:0 6px 22px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12)',
+      'transition:transform .12s, border-color .12s',
     ].join(';');
     const t = document.createElement('div');
     t.textContent = label;
     const h = document.createElement('div');
     h.textContent = hint;
-    h.style.cssText = `margin-top:3px;font:500 11px/1.35 inherit;color:${DIM};letter-spacing:.02em`;
+    h.style.cssText = `margin-top:3px;font:500 11px/1.35 inherit;color:${DIM}`;
     b.append(t, h);
     b.addEventListener('pointerenter', () => {
       b.style.transform = 'translateY(-1px)';
-      b.style.borderColor = 'rgba(127,212,255,.6)';
+      b.style.borderColor = 'rgba(143,216,255,.6)';
     });
     b.addEventListener('pointerleave', () => {
       b.style.transform = 'none';
-      b.style.borderColor = primary ? 'rgba(127,212,255,.45)' : EDGE;
+      b.style.borderColor = primary ? 'rgba(143,216,255,.42)' : EDGE;
     });
     b.addEventListener('click', onClick);
     return b;
@@ -385,13 +498,13 @@ export class Menu {
       const b = document.createElement('button');
       b.textContent = label;
       b.style.cssText = [
-        'flex:1', 'padding:11px 14px', 'border-radius:11px', `border:1px solid ${EDGE}`,
+        'flex:1', 'padding:10px 14px', 'border-radius:11px', `border:1px solid ${EDGE}`,
         `background:${GLASS}`, 'backdrop-filter:blur(12px)', `color:${DIM}`,
-        'cursor:pointer', 'font:600 12px/1 var(--ui, system-ui, sans-serif)',
-        'letter-spacing:.06em', 'transition:color .12s, border-color .12s',
+        'cursor:pointer', `font:600 12px/1 ${UI}`, 'letter-spacing:.05em',
+        'transition:color .12s, border-color .12s',
       ].join(';');
       b.addEventListener('pointerenter', () => {
-        b.style.color = INK; b.style.borderColor = 'rgba(127,212,255,.5)';
+        b.style.color = INK; b.style.borderColor = 'rgba(143,216,255,.5)';
       });
       b.addEventListener('pointerleave', () => {
         b.style.color = DIM; b.style.borderColor = EDGE;
@@ -402,22 +515,23 @@ export class Menu {
     return r;
   }
 
-  /** Fades out, then hands over. The scene is already running underneath. */
+  /** Fades out and hands over. The scene is already running underneath. */
   private close(then: () => void): void {
     this.root.style.opacity = '0';
+    this.root.style.pointerEvents = 'none';
     this.hooks.cinematic(false);
     setTimeout(() => {
       this.root.remove();
       then();
-    }, 420);
+    }, 460);
   }
 }
 
 /**
  * A save's age, in the words a person would use.
  *
- * A timestamp is a fact; "4 minutes ago" is the answer to the question the
- * player is actually asking, which is "is this the one I was just in".
+ * A timestamp is a fact; "4 min ago" answers the question actually being
+ * asked, which is "is this the one I was just in".
  */
 function when(at: number): string {
   if (at === 0) return 'unknown';
@@ -440,5 +554,3 @@ export function saveFromGame(world: World, suggested: string): string {
   const why = writeSave(world, name.trim());
   return why === null ? `saved as “${name.trim()}”` : `could not save: ${why}`;
 }
-
-export { INK, DIM, WARM, COOL };

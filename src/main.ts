@@ -14,7 +14,7 @@ import { Controls } from './input/controls';
 import { BuildTools } from './ui/build-tools';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
-import { configureSim, LITE, startingWorld, defaultWorld } from './sim';
+import { configureSim, LITE, startingWorld, warmTerrain, baseHeightAt } from './sim';
 import { Menu } from './ui/menu';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
@@ -127,38 +127,45 @@ async function boot(): Promise<void> {
     onNew: () => { renderer.useWorld(startingWorld(renderer.world.grid)); renderer.rebuild(); },
     onLoad: (world) => { renderer.useWorld(world); renderer.rebuild(); },
     world: () => renderer.world,
-    cinematic: (on) => { cinematic = on; },
+    cinematic: (on) => {
+      cinematic = on;
+      // A full day in about two minutes while the menu is up, and back to the
+      // game's own pace on the way in. Sitting on the menu should be worth
+      // doing; sitting in the game at that speed would be unplayable.
+      renderer.clockRate = on ? 12 : 1;
+    },
   });
   document.getElementById('boot')?.classList.add('done');
 
   // Built in steps with a frame between them, because a single synchronous
   // build hands the browser one long block and the loader never draws -- the
   // player watches a frozen page and is told nothing. Each await yields.
-  // Each step is one synchronous block with a frame between it and the next.
+  // The build, in steps, with a frame between each.
   //
-  // The split is not decoration. Laying out the city and building its GPU
-  // buffers are seconds of work apiece, and run back to back they are one
-  // block the browser cannot paint through -- so the loader freezes on
-  // whatever facet it reached and the whole thing reads as a hang. Cut in two,
-  // the loader draws in the gap and the wait has a shape.
+  // What is *not* here is the fix for the hang. An earlier version built a
+  // whole generated city behind the menu for the look of it, and that is
+  // several seconds of one unbreakable block on a fast machine and a locked
+  // page on a slow one -- the loader froze on "raising the skyline" and never
+  // came back. Nothing about a menu is worth that.
+  //
+  // The menu now stands over the site the game actually starts on, which costs
+  // about a tenth of a second to build, so there is no long block to break up
+  // and nothing to stall on.
   const steps: Array<[string, () => void]> = [
-    ['reading the land', () => { /* the terrain builds inside build() below */ }],
-    // The menu stands over a built city rather than over the empty site the
-    // game starts on. A skyline is the picture; a field is a field.
-    ['laying out the city', () => {
-      renderer.useWorld(defaultWorld(renderer.world.grid));
-    }],
-    ['raising the skyline', () => renderer.build()],
-    ['opening', () => { /* nothing left; the last facet lands on a finished world */ }],
+    // Measuring the ground is its own step because it is half the work: four
+    // hundred thousand corners of noise, which otherwise lands inside the city
+    // build and makes one long block out of two shorter ones.
+    ['reading the land', () => warmTerrain(baseHeightAt)],
+    ['raising the ground', () => renderer.build()],
+    ['opening', () => { /* the last facet lands on a finished world */ }],
   ];
+
   // Whatever happens below, the menu becomes usable. A loading screen with no
-  // way off it is the one failure a player cannot work around, and it is worth
-  // a timer to make sure this is never that.
+  // way off it is the one failure a player cannot work around.
   const rescue = setTimeout(() => {
     log.warn('boot', 'world build overran; opening the menu anyway');
-    menu.progress(1, '');
     menu.ready();
-  }, 90000);
+  }, 45000);
   try {
     for (let i = 0; i < steps.length; i++) {
       menu.progress(i / steps.length, steps[i][0]);
@@ -169,35 +176,26 @@ async function boot(): Promise<void> {
   } catch (err) {
     clearTimeout(rescue);
     // A build that throws used to leave the menu sitting there half-lit with
-    // no buttons and nothing said -- which looks exactly like a hang and tells
-    // the player nothing. Whatever went wrong, it goes on screen.
+    // no buttons and nothing said -- which looks exactly like a hang.
     log.error('boot', `world build failed: ${String(err)}`);
     fatal('internal', String(err));
     return;
   }
-  menu.progress(1, '');
   menu.ready();
 
-  // The menu's camera: elevated, looking out across the city to a horizon,
-  // at golden hour.
+  // The menu's camera: over the empty site, turning slowly, with the day
+  // running across it.
   //
-  // Three attempts got here. Level with the ground (6.6 degrees) put a wall of
-  // foreground grass across the bottom half and no city in it. Steeply down
-  // (54 degrees) gave rooftops edge to edge -- dense, but with no sky, no
-  // horizon and no depth, so it read as a texture rather than a place. This
-  // sits between them: high enough to see the city spread away and low enough
-  // to keep sky in the top of the frame, which is where the depth comes from.
-  //
-  // The hour matters as much as the angle. A low sun rakes across the fronts
-  // of the buildings instead of lighting their roofs, the shadows run long
-  // enough to describe the street grid, and the aerial-perspective term in the
-  // shaders does the rest -- the far side of the city goes hazy on its own.
-  camera.distance = 760;
-  camera.pitch = 0.44;
-  camera.yaw = 0.62;
-  camera.focus[0] = -120;
-  camera.focus[2] = 40;
-  renderer.timeOfDay = 0.762;
+  // The land is the background and the menu is a caption on it, so the shot
+  // wants to be calm rather than dramatic: high enough to take in the river
+  // and the hills, slow enough that nothing demands attention, and moving
+  // through the hours so the light is never twice the same.
+  camera.distance = 1100;
+  camera.pitch = 0.55;
+  camera.yaw = 0.7;
+  camera.focus[0] = 0;
+  camera.focus[2] = 0;
+  renderer.timeOfDay = 0.30;
 
   // The build tools take the left button while one is selected; the camera
   // keeps the right button and the wheel throughout, so the player never has
@@ -246,7 +244,7 @@ async function boot(): Promise<void> {
     // Hands the camera back the moment the menu is gone, and never fights the
     // player for it: the orbit only runs while nobody else is driving.
     if (cinematic) {
-      camera.yaw += dt * 0.035;
+      camera.yaw += dt * 0.022;
       camera.update();
     }
     controls.update(dt);
