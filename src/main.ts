@@ -133,25 +133,26 @@ async function boot(): Promise<void> {
   menu.progress(1, '');
   menu.ready();
 
-  // The menu's camera: an oblique aerial over the middle of the city, at
-  // night, turning slowly.
+  // The menu's camera: elevated, looking out across the city to a horizon,
+  // at golden hour.
   //
-  // Two earlier attempts are worth the note. Looking down from high up gave a
-  // rooftop plan with the map's own edge in shot and half the frame in empty
-  // grass. Dropping level with the ground for a skyline fixed the edge and
-  // kept the emptiness: at dawn the ground is the brightest thing in the
-  // picture and there is a great deal of ground.
+  // Three attempts got here. Level with the ground (6.6 degrees) put a wall of
+  // foreground grass across the bottom half and no city in it. Steeply down
+  // (54 degrees) gave rooftops edge to edge -- dense, but with no sky, no
+  // horizon and no depth, so it read as a texture rather than a place. This
+  // sits between them: high enough to see the city spread away and low enough
+  // to keep sky in the top of the frame, which is where the depth comes from.
   //
-  // After dark the land falls away to nothing, the windows come on -- they are
-  // on a schedule the same sun drives -- and the street network becomes the
-  // picture: lit lines running off in every direction. That is the thing this
-  // game has that a photograph of a skyline does not.
-  camera.distance = 500;
-  camera.pitch = 0.95;
+  // The hour matters as much as the angle. A low sun rakes across the fronts
+  // of the buildings instead of lighting their roofs, the shadows run long
+  // enough to describe the street grid, and the aerial-perspective term in the
+  // shaders does the rest -- the far side of the city goes hazy on its own.
+  camera.distance = 760;
+  camera.pitch = 0.44;
   camera.yaw = 0.62;
-  camera.focus[0] = -60;
-  camera.focus[2] = 30;
-  renderer.timeOfDay = 0.925;
+  camera.focus[0] = -120;
+  camera.focus[2] = 40;
+  renderer.timeOfDay = 0.762;
 
   // The build tools take the left button while one is selected; the camera
   // keeps the right button and the wheel throughout, so the player never has
