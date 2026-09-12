@@ -126,6 +126,7 @@ const result = await page.evaluate(async (cfg) => {
   // is invisible in a screenshot.
   try {
     out.curve = await HEADLESS.probeCurve();
+    out.upgrade = await HEADLESS.probeUpgrade();
   } catch (err) {
     out.curve = { error: String(err) };
   }
@@ -283,6 +284,22 @@ if (!cv || cv.error) {
   if (cv.nodes !== 3) push(`a chained run made ${cv.nodes} nodes where it should make 3`);
   console.log(`curve    ${cv.links} roads, ${cv.nodes} nodes, ${cv.deadEnds} loose ends, `
     + `bowed up to ${cv.longest.toFixed(0)} m off the chord`);
+}
+
+// Upgrading a road must change what it is and nothing else. The failure this
+// guards is a tool that quietly bulldozes and relays, which loses the
+// buildings along the road and renumbers the graph under everything holding a
+// link id.
+const up = result.upgrade;
+if (!up || up.error) {
+  push(`upgrade tool failed: ${up?.error ?? 'no result'}`);
+} else {
+  if (up.after !== 'avenue') push(`upgrade left the road a ${up.after}, not an avenue`);
+  if (up.kept === 0) push('upgrade replaced the links instead of converting them');
+  if (!up.widened) push('upgrading a street to an avenue did not widen the corridor');
+  console.log(`upgrade  ${up.links} road: ${up.before} -> ${up.after}, `
+    + `${up.kept ? 'links kept' : 'LINKS REPLACED'}, `
+    + `${up.widened ? 'corridor widened' : 'CORRIDOR UNCHANGED'}`);
 }
 
 for (const view of ['far', 'near']) {

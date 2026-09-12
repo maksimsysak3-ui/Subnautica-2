@@ -952,6 +952,60 @@ export class RoadGraph {
    * the polygon's box contains the curve but is loose enough on a hard bend to
    * pull in half the map.
    */
+  /**
+   * Changes the class of every link a rectangle of cells touches.
+   *
+   * The one operation a road network needs that drawing a new road cannot do.
+   * A street that has become the spine of a district has to be able to become
+   * an avenue without being bulldozed first -- bulldozing it takes the
+   * buildings along it with it, and rebuilding them is not something a player
+   * should have to do to widen a road.
+   *
+   * Whole links rather than the piece under the cursor: a link is the unit the
+   * network is made of, its junctions are fitted to the widths of the arms
+   * that meet them, and half a link of avenue meeting half a link of street in
+   * the middle of nowhere is not a road anybody would build. Dragging picks up
+   * everything the drag crossed.
+   *
+   * Returns how many links changed, so the caller can charge for them and say
+   * nothing happened when nothing did.
+   */
+  upgrade(x0: number, z0: number, x1: number, z1: number, cls: RoadClass): number {
+    const lo = Math.min(x0, x1), hi = Math.max(x0, x1);
+    const loz = Math.min(z0, z1), hiz = Math.max(z0, z1);
+    let changed = 0;
+    for (let i = 0; i < this.links.length; i++) {
+      const link = this.links[i];
+      if (link.cls === cls) continue;
+      // Against the link's own curve, not its bounding box: a long diagonal
+      // link's box covers ground the road never goes near, and picking it up
+      // because the drag touched a corner of that box is how a player ends up
+      // upgrading a road on the other side of town.
+      const pts = this.samples(link);
+      let hit = false;
+      for (const p of pts) {
+        const half = ROAD_SPECS[link.cls].edge;
+        if (p.x + half >= lo && p.x - half <= hi && p.z + half >= loz && p.z - half <= hiz) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) continue;
+      link.cls = cls;
+      changed++;
+    }
+    if (changed > 0) {
+      // The corridor raster is additive -- nothing ever unsets a cell -- so a
+      // road that got narrower would leave its old width behind as ground
+      // buildings still refuse to stand on. Redrawn from nothing instead,
+      // which is what `wiped` is for.
+      this.dirty = true;
+      this.wiped = true;
+      this.rasterise();
+    }
+    return changed;
+  }
+
   linkBounds(index: number): { x0: number; z0: number; x1: number; z1: number } {
     const pts = this.samples(this.links[index]);
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;

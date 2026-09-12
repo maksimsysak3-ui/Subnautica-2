@@ -74,6 +74,7 @@ type Tool =
   | { kind: 'look' }
   | { kind: 'road'; cls: RoadClass }
   | { kind: 'curve'; cls: RoadClass }
+  | { kind: 'upgrade'; cls: RoadClass }
   /** `theme` undefined means whatever the district around it grows. */
   | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
   | { kind: 'place'; proto: Proto }
@@ -159,7 +160,7 @@ export class BuildTools {
   private curveStage: 'none' | 'start' | 'via' | 'laid' = 'none';
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
-  private roadMode: 'road' | 'curve' = 'road';
+  private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
   /** Quarter turns the next placed building is rotated by. */
   private placeYaw = 0;
   /** The open service drawer, if one is open. */
@@ -921,6 +922,23 @@ export class BuildTools {
     if (t.kind === 'road') {
       this.lay(a, b, null, this.bend());
       return;
+    } else if (t.kind === 'upgrade') {
+      // Converting rather than building. The rectangle the drag swept, in
+      // metres, against the links' own curves rather than their bounding
+      // boxes -- see RoadGraph.upgrade.
+      const half = world.grid / 2;
+      const changed = world.net.upgrade(
+        (r.gx - half) * CELL, (r.gz - half) * CELL,
+        (r.gx + r.w - half) * CELL, (r.gz + r.d - half) * CELL, t.cls);
+      if (changed === 0) { this.say('drag over a road to convert it'); return; }
+      // Every link the drag caught, and the ground around all of them: a
+      // wider road takes cells the buildings beside it were standing on, so
+      // this is a full rebuild rather than a rectangle.
+      this.renderer.rebuild();
+      this.showMark();
+      this.say(`${changed} road${changed === 1 ? '' : 's'} converted to `
+        + ROAD_SPECS[t.cls].label.toLowerCase());
+      return;
     } else if (t.kind === 'zone') {
       if (!ownsCells(world.land, world.grid, r.gx, r.gz, r.w, r.d)) {
         this.say('you do not own all of that land — buy it with the land tool');
@@ -959,7 +977,9 @@ export class BuildTools {
     this.curveA = null;
     this.curveVia = null;
     this.curveStage = 'none';
-    if (tool.kind === 'road' || tool.kind === 'curve') this.roadMode = tool.kind;
+    if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'upgrade') {
+      this.roadMode = tool.kind;
+    }
     this.closeDrawer();
     this.showMark();
     // Selected reads as pressed in: the light moves to the bottom, the
@@ -1002,6 +1022,10 @@ export class BuildTools {
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
         + 'click where it ends — double-click to finish the run';
+    }
+    if (t.kind === 'upgrade') {
+      return `drag over roads to convert them to a ${ROAD_SPECS[t.cls].label.toLowerCase()} `
+        + '— whole roads at a time, and the buildings along them stay';
     }
     if (t.kind === 'place') {
       const [w, d] = this.placeYaw % 2 === 0 ? [t.proto.w, t.proto.d] : [t.proto.d, t.proto.w];
@@ -1500,16 +1524,19 @@ export class BuildTools {
     panel.appendChild(this.tabs([
       { key: 'road', label: 'Straight & dragged', on: this.roadMode === 'road' },
       { key: 'curve', label: 'Curved', on: this.roadMode === 'curve' },
+      { key: 'upgrade', label: 'Upgrade', on: this.roadMode === 'upgrade' },
     ], accent, (key) => {
-      this.roadMode = key as 'road' | 'curve';
+      this.roadMode = key as 'road' | 'curve' | 'upgrade';
       this.openRoadDrawer();
     }));
     for (const cls of ROAD_ORDER) {
       const spec = ROAD_SPECS[cls];
       const lanes = spec.oneWay ? spec.lanes : spec.lanes * 2;
+      const up = this.roadMode === 'upgrade';
       panel.appendChild(this.tile(null, spec.label,
         `${lanes} lane${lanes === 1 ? '' : 's'}`, roadPrice(cls), accent,
-        `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
+        up ? `Convert what you drag over to a ${spec.label.toLowerCase()}`
+          : `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
         () => this.select({ kind: this.roadMode, cls }),
         roadGlyph(cls, 48), 'a metre'));
     }

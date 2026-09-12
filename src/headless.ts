@@ -622,6 +622,74 @@ export async function probeCurve(): Promise<{
   return { links: world.net.links.length, nodes, deadEnds, bowed, longest };
 }
 
+/**
+ * The upgrade tool: convert a road that is already there, without losing it.
+ *
+ * The thing this has to prove is that the road survives and only its class
+ * changes -- the failure mode is a tool that bulldozes and rebuilds, which
+ * takes the buildings along the road with it and renumbers the graph.
+ */
+export async function probeUpgrade(): Promise<{
+  before: string; after: string; links: number; kept: number; widened: boolean;
+}> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  grantAll(renderer.world);
+  renderer.build();
+  camera.setViewport(800, 450);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 1.2;
+  camera.distance = 400;
+  camera.update();
+
+  const world = renderer.world;
+  demolish(world, 0, 0, world.grid, world.grid);
+  const g = world.grid, c = g >> 1;
+  world.net.addCells(c - 18, c, c + 18, c, 'street');
+  renderer.rebuild();
+
+  const before = world.net.links[0].cls;
+  const links = world.net.links.length;
+  const ids = world.net.links.map((l) => l.id).join(',');
+  const cells = world.net.cls.reduce((n, v) => n + (v !== 0 ? 1 : 0), 0);
+
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  tools.visible = true;
+  const press = (label: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
+      const h = el as HTMLElement;
+      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+    });
+    (b as HTMLElement | undefined)?.click();
+  };
+  press('Roads');
+  press('Upgrade');
+  press('Avenue');
+  void tools;
+
+  // A drag straight down the middle of the screen, where the road is.
+  const opts = { bubbles: true, button: 0, pointerId: 1 };
+  canvas.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: 250, clientY: 225 }));
+  canvas.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: 250, clientY: 225 }));
+  canvas.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: 550, clientY: 232 }));
+  canvas.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: 550, clientY: 232 }));
+
+  const after = world.net.links[0]?.cls ?? 'gone';
+  const kept = world.net.links.map((l) => l.id).join(',') === ids ? links : 0;
+  const now = world.net.cls.reduce((n, v) => n + (v !== 0 ? 1 : 0), 0);
+  return { before, after, links: world.net.links.length, kept, widened: now > cells };
+}
+
 export async function shoot(req: ShotRequest): Promise<Shot> {
   if (req.lite) configureSim(LITE);
 

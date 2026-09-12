@@ -1116,7 +1116,24 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
 
         const d = value[cell];
         const i = cx % PERIOD, j = cz % PERIOD;
-        if (d > 0.02 && i < BLOCK && j < BLOCK) {
+        // "In town" has to mean there is a town.
+        //
+        // Land value is a static field with its peak at the middle of the map,
+        // so on a map nobody has built on yet the centre reads as downtown and
+        // this branch scattered street and garden trees over the whole of it --
+        // which is exactly the starting plot, and exactly the ground that has
+        // to be clear for a player to draw their first road on. The woodland
+        // mask leaves that square alone and this pass walked straight over the
+        // top of it.
+        //
+        // Two conditions now. A street tree needs a street, so the cell has to
+        // be near one; and nothing at all is planted on the starting land until
+        // the player has zoned it, so the site they begin on is the open ground
+        // it should be, and fills with trees as they build rather than before.
+        const home = Math.max(Math.abs(cx - GRID / 2), Math.abs(cz - GRID / 2))
+          <= plotCells(GRID);
+        if (d > 0.02 && i < BLOCK && j < BLOCK
+          && net.nearRoad(cx, cz) && !(home && code === 0)) {
           // In town. Denser in the suburbs than downtown, which is what a
           // city is, and four times denser against the street than behind it.
           const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
