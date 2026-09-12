@@ -652,6 +652,15 @@ export class BuildTools {
       this.renderer.setRoadPreview(null);
       return;
     }
+    if (this.tool.kind === 'land') {
+      // The land tool has its own overlay, drawn across the whole map by the
+      // terrain shader. A cell-sized rectangle under the pointer as well would
+      // be a second, smaller answer to the same question.
+      this.renderer.mark = null;
+      this.renderer.setRoadPreview(null);
+      this.renderer.setGhost(null);
+      return;
+    }
     if (this.tool.kind === 'place') {
       // The building itself, standing where it would stand, over a footprint
       // that says green or red. The footprint answers "does it fit"; the
@@ -1112,8 +1121,11 @@ export class BuildTools {
     tools.appendChild(civic);
 
     const clear = group();
+    // "Buy land", not "Land": the landmarks button is two along and starts with
+    // the same four letters, and a player scanning tooltips should not have to
+    // read to the dash to tell them apart.
     add(clear, { kind: 'land' },
-      'Land — lift the camera and buy the ground your city grows onto',
+      'Buy land — lift the camera and buy the ground your city grows onto',
       svgPlot(), '#8fd4ff');
     add(clear, { kind: 'clear' }, 'Bulldoze — drag to clear roads and zoning',
       svgCross(), '#f08a6e');

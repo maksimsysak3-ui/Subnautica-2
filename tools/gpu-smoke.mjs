@@ -108,6 +108,13 @@ const result = await page.evaluate(async (cfg) => {
   } catch (err) {
     out.growth = { error: String(err) };
   }
+  // And the land tool: a bitmask and a shader overlay, invisible to every other
+  // check here.
+  try {
+    out.land = await HEADLESS.probeLand();
+  } catch (err) {
+    out.land = { error: String(err) };
+  }
   // And the curve tool, which is clicked rather than dragged and whose whole
   // job -- a bend where one was asked for, and a run that stays one road --
   // is invisible in a screenshot.
@@ -178,6 +185,18 @@ if (cst && cst.cost) {
   console.log(`edits    ${cst.edits.join(' ')} ms`);
   console.log(`meshes   ${cst.meshes.join(' ')} newly baked per edit`);
   console.log(`chunks   ${cst.cost.terrainChunks} terrain chunks rebuilt on the last edit`);
+}
+
+const ld = result.land;
+if (!ld || ld.error) {
+  push(`land probe failed: ${ld?.error ?? 'no result'}`);
+} else {
+  if (ld.owned !== 4) push(`a new city starts owning ${ld.owned} plots, wanted 4`);
+  if (!(ld.after > ld.owned)) push(`clicking a plot bought nothing: still ${ld.after}`);
+  if (ld.zonedOffLand !== 0) push(`zoning took on land nobody owns: ${ld.zonedOffLand} cells`);
+  if (!(ld.camera > 400)) push(`the land tool did not lift the camera: ${ld.camera}m`);
+  console.log(`land     ${ld.owned} plots -> ${ld.after} bought through the bar, `
+    + `camera at ${ld.camera}m, ${ld.zonedOffLand} cells zoned off-plot`);
 }
 
 const gr = result.growth;

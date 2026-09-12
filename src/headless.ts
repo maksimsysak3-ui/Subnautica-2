@@ -332,6 +332,83 @@ Promise<{ lit: number[]; debug: number[]; count: number }> {
 }
 
 /**
+ * Buys land through the toolbar, the way a player does.
+ *
+ * Nothing else here can see this: the plots are drawn by the terrain shader
+ * from a bitmask, and a screenshot of a grid says nothing about whether
+ * clicking one of its squares buys anything. What is being asked is whether the
+ * tool takes the pointer, whether a click on a plot next to your own takes it,
+ * and whether zoning off your land is refused.
+ */
+export async function probeLand(): Promise<{
+  owned: number; after: number; zonedOffLand: number; camera: number;
+}> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.build();
+  camera.setViewport(800, 450);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 1.2; camera.distance = 400; camera.update();
+
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  tools.visible = true;
+  const world = renderer.world;
+  const owned = world.land.count;
+
+  const press = (label: string): void => {
+    const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
+      const h = el as HTMLElement;
+      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+    });
+    (b as HTMLElement | undefined)?.click();
+  };
+  const clickAt = (x: number, y: number): void => {
+    const o = { bubbles: true, clientX: x, clientY: y, button: 0, pointerId: 1 };
+    canvas.dispatchEvent(new PointerEvent('pointermove', o));
+    canvas.dispatchEvent(new PointerEvent('pointerdown', o));
+    canvas.dispatchEvent(new PointerEvent('pointerup', o));
+  };
+
+  press('Buy land');
+  const lifted = camera.distance;
+  // Sweep: somewhere in this arc is a plot touching the four you start with.
+  for (let y = 60; y <= 400 && world.land.count === owned; y += 24) {
+    for (let x = 40; x <= 760 && world.land.count === owned; x += 24) clickAt(x, y);
+  }
+  const after = world.land.count;
+
+  // And zoning beyond the frontier, which must not take. The far corner of the
+  // map is as far from the middle four plots as the map goes.
+  press('Zoning');
+  press('medium residential');
+  const before = (() => { let n = 0; for (const z of world.zones) if (z !== 0) n++; return n; })();
+  const drag = (x0: number, y0: number, x1: number, y1: number): void => {
+    const o = { bubbles: true, button: 0, pointerId: 1 };
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { ...o, clientX: x0, clientY: y0 }));
+    canvas.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: x1, clientY: y1 }));
+    canvas.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: x1, clientY: y1 }));
+  };
+  // A long drag from one screen corner to the other crosses the frontier, so
+  // this is the case that matters: it must be refused whole, not clipped.
+  drag(20, 20, 120, 90);
+  let now = 0;
+  for (const z of world.zones) if (z !== 0) now++;
+
+  tools.dispose();
+  return { owned, after, zonedOffLand: now - before, camera: Math.round(lifted) };
+}
+
+/**
  * Lays a curved run through the toolbar, and reports what the graph got.
  *
  * The two things a player complains about here are invisible in a frame: a
