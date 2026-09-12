@@ -313,6 +313,10 @@ export class BuildTools {
 
   private onDown = (e: PointerEvent): void => {
     if (!this.active || e.button !== 0) return;
+    // A move recorded before the button went down describes the state before
+    // this gesture; letting it land afterwards would push a pre-drag cell into
+    // the path the curve is measured from.
+    this.movedTo = null;
     const cell = this.pick(e.clientX, e.clientY);
     if (!cell) return;
     e.stopPropagation();
@@ -325,14 +329,62 @@ export class BuildTools {
     this.showMark();
   };
 
+  /**
+   * The pointer moved. Records where, and does the work once a frame.
+   *
+   * A mouse reports at its own rate, which is a hundred and twenty-five times
+   * a second on the cheapest one and a thousand on a gaming one -- several to
+   * a dozen reports per rendered frame. Every one of them was raycasting into
+   * the terrain and then rebuilding the whole previewed road, or refitting a
+   * building and re-surveying its four corners. All but the last were thrown
+   * away by the next report before anything drew them, so the cost bought
+   * nothing at all: it just made the frame that happened to contain eight of
+   * them take eight times as long as its neighbours, which is precisely the
+   * stutter a player feels while dragging a road out.
+   *
+   * So the handler now does the two things that have to happen synchronously
+   * -- taking the event away from the camera, and remembering the position --
+   * and everything else runs once, on the next frame, from the last position
+   * seen. The pointer is sampled at the frame rate because the frame rate is
+   * the rate at which anything can be shown.
+   */
   private onMove = (e: PointerEvent): void => {
     if (!this.active) return;
-    const cell = this.pick(e.clientX, e.clientY);
+    // Held back from the camera here rather than in the deferred half: by the
+    // time a frame callback runs, the camera has already panned.
+    if (this.from) e.stopPropagation();
+    this.movedTo = [e.clientX, e.clientY];
+    if (this.moveQueued) return;
+    this.moveQueued = true;
+    requestAnimationFrame(this.applyMove);
+  };
+
+  /** Where the pointer last was, in client pixels, or null if it has not moved. */
+  private movedTo: [number, number] | null = null;
+  private moveQueued = false;
+
+  /**
+   * Runs a pending move now.
+   *
+   * A button going down or up has to act on where the pointer *is*, not on
+   * where it was when the last frame drew: a drag quick enough to start and
+   * finish inside one frame would otherwise commit from a stale position, or
+   * from no position at all, and lay nothing.
+   */
+  private flushMove(): void {
+    if (this.movedTo !== null) this.applyMove();
+  }
+
+  private applyMove = (): void => {
+    this.moveQueued = false;
+    const at = this.movedTo;
+    this.movedTo = null;
+    if (at === null || !this.active) return;
+    const cell = this.pick(at[0], at[1]);
     if (!cell) return;
     this.to = cell;
     if (this.tool.kind === 'land') { this.hoverLand(cell); return; }
     if (this.from) {
-      e.stopPropagation();
       const last = this.path[this.path.length - 1];
       if (last === undefined || last[0] !== cell[0] || last[1] !== cell[1]) {
         this.path.push(cell);
@@ -374,6 +426,7 @@ export class BuildTools {
   }
 
   private onUp = (e: PointerEvent): void => {
+    this.flushMove();
     if (this.tool.kind === 'curve' || this.tool.kind === 'place'
       || this.tool.kind === 'land') return;
     if (!this.from) return;
@@ -386,6 +439,7 @@ export class BuildTools {
   };
 
   private onCancel = (): void => {
+    this.movedTo = null;
     this.from = null;
     this.renderer.mark = null;
     this.renderer.setRoadPreview(null);
