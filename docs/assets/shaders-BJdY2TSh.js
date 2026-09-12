@@ -2526,6 +2526,18 @@ struct VSOut {
   @builtin(position) pos    : vec4f,
   @location(0)       world  : vec3f,
   @location(1)       normal : vec3f,
+  /**
+   * The three slow fields, sampled per vertex instead of per pixel.
+   *
+   * x = regional ground, y = soil, z = the hue drift. Their features are
+   * twenty-six, forty-six and a hundred and forty metres across and a terrain
+   * vertex stands every eight, so interpolating them over a triangle is not an
+   * approximation of sampling them per pixel -- there is nothing between two
+   * vertices for a per-pixel sample to find. Twelve lattice hashes a pixel,
+   * over ground that is most of the screen, become twelve per vertex on a mesh
+   * of a few thousand.
+   */
+  @location(2)       slow   : vec3f,
 };
 
 @vertex
@@ -2534,6 +2546,11 @@ fn vs(@location(0) position : vec3f,
   var out : VSOut;
   out.world = position;
   out.normal = normal;
+  out.slow = vec3f(
+    vnoise(position.xz * (1.0 / 46.0)),
+    vnoise(position.xz * (1.0 / 140.0) + vec2f(11.3, 4.7)),
+    vnoise(position.xz * (1.0 / 26.0) + vec2f(2.7, 8.1)) - 0.5,
+  );
   out.pos = camera.viewProj * vec4f(position, 1.0);
   return out;
 }
@@ -2577,8 +2594,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Regional character: always evaluated, because at every distance this is
   // the octave doing the work. Two samples at different scales, so a hillside
   // has both a drainage pattern and a soil pattern.
-  let ground = vnoise(in.world.xz * (1.0 / 46.0));
-  let soil = vnoise(in.world.xz * (1.0 / 140.0) + vec2f(11.3, 4.7));
+  let ground = in.slow.x;
+  let soil = in.slow.y;
 
   var wear = 0.5;
   if (fWear > 0.0) {
@@ -2712,7 +2729,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // are not enough for a kilometre of grass: without this the whole map is one
   // colour with the brightness wobbling, which reads as lighting rather than
   // as ground.
-  let hue = vnoise(in.world.xz * (1.0 / 26.0) + vec2f(2.7, 8.1)) - 0.5;
+  let hue = in.slow.z;
   turf.r += hue * 0.016;
   turf.g += hue * 0.008;
   turf.b -= hue * 0.006;
@@ -3956,4 +3973,4 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   return vec4f(col, clamp(v, 0.0, 1.0) * 0.48);
 }
 `,CU={"common.wgsl":mI,"atmosphere.wgsl":uI,"noise.wgsl":qI};function NQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,F)=>CU[F]??A)}const nU={asset:NQ(_I),cull:NQ($I),terrain:NQ(AU),sky:NQ(QU),grass:NQ(BU),road:NQ(gU),water:NQ(EU),rain:NQ(wU)};export{IU as A,lE as B,bE as D,AQ as F,IB as G,jg as P,MU as R,nU as S,iQ as T,UB as V,GE as Z,Dg as a,rB as b,CB as c,fI as d,oU as e,GU as f,kU as g,RU as h,aU as i,fB as j,UU as k,uA as l,DU as m,cU as n,sU as o,yI as p,EQ as q,FU as r,YU as s,LU as t,iU as u,VU as z};
-//# sourceMappingURL=shaders-BytOFy6J.js.map
+//# sourceMappingURL=shaders-BJdY2TSh.js.map
