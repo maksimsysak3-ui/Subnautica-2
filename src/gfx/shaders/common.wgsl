@@ -27,6 +27,16 @@ struct Camera {
    * read as weather rather than as a particle effect.
    */
   weather  : vec4f,
+  /**
+   * The land overlay.
+   *
+   * xy = which of the sixty-four plots are owned, as two thirty-two bit halves
+   * z  = how strongly to draw the grid, 0 when the land tool is not in hand
+   * w  = the plot under the pointer, or -1
+   */
+  land     : vec4f,
+  /** Metres across one plot, and the world coordinate of the grid's corner. */
+  plotGrid : vec4f,
   planes   : array<vec4f, 6>,   // frustum, for the culling pass
 };
 

@@ -18,7 +18,10 @@ const UP: Vec3 = [0, 1, 0];
 
 export const LIMITS = {
   minDistance: 8,
-  maxDistance: 3400,
+  // Far enough to take in the whole plot grid at once, which is what the land
+  // tool needs and what a player wants at least once a session: five kilometres
+  // of city does not fit in a view built for looking at a street.
+  maxDistance: 4400,
   minPitch: (12 * Math.PI) / 180,   // never quite horizontal: the far plane would swallow the world
   maxPitch: (88 * Math.PI) / 180,   // never quite top-down: gimbal-flip territory
   extent: 2900,                     // focus stays inside +/- this, just inside the terrain edge

@@ -34,7 +34,7 @@ import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
-  buildWaterMesh, WATER_FLOATS, gradedSince,
+  buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan,
 } from '../sim';
 // A live binding: the terrain module updates it on every build, and importing
 // the value rather than the binding would read whatever it was at load.
@@ -74,7 +74,7 @@ const GRASS_ZOOM = 320;
  * + sun (16) + focus (16) + params (16) + the build mark (32)
  * + six frustum planes (96).
  */
-const CAMERA_UNIFORM_SIZE = 400;
+const CAMERA_UNIFORM_SIZE = 432;
 
 /** Edge of the shadow map, in texels. */
 const SHADOW_SIZE = 2048;
@@ -86,6 +86,16 @@ const SHADOW_SIZE = 2048;
  * player builds, short enough that anyone who sits with the game sees dusk.
  */
 const DAY_SECONDS = 480;
+
+/**
+ * Scratch for bitcasting the land mask into the uniform.
+ *
+ * The mask is sixty-four bits of ownership and a float cannot carry them: the
+ * moment one passes through a f32 the low bits are rounded away and a player
+ * owns a different set of plots than the one they bought.
+ */
+const LAND_BITS = new Uint32Array(2);
+const LAND_FLOATS = new Float32Array(LAND_BITS.buffer);
 
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign. */
 const SCENE_UNIFORM_SIZE = 256;
@@ -1028,6 +1038,14 @@ export class Renderer {
   }
 
   /**
+   * How strongly the land grid is drawn, 0 to 1, and which plot is under the
+   * pointer, or -1. Both public: the land tool owns them, and the renderer only
+   * carries them to the shader.
+   */
+  landView = 0;
+  hotPlot = -1;
+
+  /**
    * Counts world rebuilds, so anything outside can tell the city has changed
    * without inspecting it. The autosave reads this rather than diffing a
    * hundred thousand cells on a timer.
@@ -1209,7 +1227,18 @@ export class Renderer {
     this.frustum.update(cam.viewProjMatrix);
     const w = this.sky;
     this.cameraData.set([w.cover, w.fog, w.rain, w.wet], 72);
-    this.cameraData.set(this.frustum.planes, 76);
+    // The land overlay. The bitmask is bitcast rather than converted: sixty-four
+    // bits do not survive a trip through a float, and the shader reads them back
+    // as the words they are.
+    LAND_BITS[0] = this.world.land.lo;
+    LAND_BITS[1] = this.world.land.hi;
+    this.cameraData[76] = LAND_FLOATS[0];
+    this.cameraData[77] = LAND_FLOATS[1];
+    this.cameraData[78] = this.landView;
+    this.cameraData[79] = this.hotPlot;
+    const origin = -(this.world.grid / 2) * 8;
+    this.cameraData.set([plotSpan(this.world.grid), origin, origin, 0], 80);
+    this.cameraData.set(this.frustum.planes, 84);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are

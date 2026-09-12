@@ -224,6 +224,20 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
  * looking cut out, and the far term is what makes the last kilometre dissolve
  * into the horizon instead of ending at a visible edge.
  */
+/**
+ * Set while the land overlay is up, to take the air out.
+ *
+ * The land view is a plan, not a vista: what it is for is comparing one plot
+ * against another across five kilometres, and aerial perspective -- which is
+ * exactly right for a view of a city -- turns the far half of that comparison
+ * into grey. This is the one place the atmosphere is deliberately wrong.
+ */
+var<private> planView : f32 = 0.0;
+
+fn setPlanView(on : f32) {
+  planView = clamp(on, 0.0, 1.0);
+}
+
 fn hazeAmount(metres : f32) -> f32 {
   // Fog is air brought closer. One scale length instead of two thousand six
   // hundred metres is a thick morning; the same curve, just shorter, so the
@@ -232,7 +246,8 @@ fn hazeAmount(metres : f32) -> f32 {
   let near = 1.0 - exp(-metres * (1.0 / scale));
   let far = smoothstep(mix(1600.0, 200.0, weather.fog),
                        mix(4200.0, 900.0, weather.fog), metres);
-  return clamp(near * 0.62 + far * (0.55 + weather.fog * 0.42), 0.0, 1.0);
+  let air = clamp(near * 0.62 + far * (0.55 + weather.fog * 0.42), 0.0, 1.0);
+  return air * (1.0 - planView * 0.72);
 }
 
 fn aerial(col : vec3f, metres : f32, dir : vec3f, sun : vec3f) -> vec3f {

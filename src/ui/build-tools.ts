@@ -26,6 +26,7 @@ import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
+import { plotAt, plotSpan, ownsCells, ownsAt } from '../sim';
 import { ALL_THEMES, THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
@@ -75,7 +76,9 @@ type Tool =
   /** `theme` undefined means whatever the district around it grows. */
   | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
   | { kind: 'place'; proto: Proto }
-  | { kind: 'clear' };
+  | { kind: 'clear' }
+  /** Buying land: an overhead view of the plot grid, one click a plot. */
+  | { kind: 'land' };
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
@@ -86,6 +89,7 @@ const TOOL_TINT: Record<string, [number, number, number]> = {
   curve: [0.72, 0.76, 0.82],
   place: [0.45, 0.86, 0.62],
   clear: [0.95, 0.42, 0.30],
+  land: [0.55, 0.86, 1.0],
 };
 
 /**
@@ -225,6 +229,8 @@ export class BuildTools {
     this.curveA = null;
     this.curveVia = null;
     this.curveStage = 'none';
+    if (this.tool.kind === 'land') this.enterLand(false);
+    this.tool = { kind: 'look' };
     this.renderer.mark = null;
     this.renderer.setRoadPreview(null);
     this.renderer.setGhost(null);
@@ -309,6 +315,7 @@ export class BuildTools {
     const cell = this.pick(e.clientX, e.clientY);
     if (!cell) return;
     e.stopPropagation();
+    if (this.tool.kind === 'land') { this.buyLand(cell); return; }
     if (this.tool.kind === 'curve') { this.curveClick(cell); return; }
     if (this.tool.kind === 'place') { this.dropLot(cell); return; }
     this.from = cell;
@@ -322,6 +329,7 @@ export class BuildTools {
     const cell = this.pick(e.clientX, e.clientY);
     if (!cell) return;
     this.to = cell;
+    if (this.tool.kind === 'land') { this.hoverLand(cell); return; }
     if (this.from) {
       e.stopPropagation();
       const last = this.path[this.path.length - 1];
@@ -365,7 +373,8 @@ export class BuildTools {
   }
 
   private onUp = (e: PointerEvent): void => {
-    if (this.tool.kind === 'curve' || this.tool.kind === 'place') return;
+    if (this.tool.kind === 'curve' || this.tool.kind === 'place'
+      || this.tool.kind === 'land') return;
     if (!this.from) return;
     e.stopPropagation();
     const from = this.from;
@@ -494,6 +503,82 @@ export class BuildTools {
    * building, and a lot that grows away to the south-east of the pointer
    * cannot be placed against anything by eye.
    */
+  // ---- land -----------------------------------------------------------
+
+  /** The camera as it was before the land tool lifted it, to put it back. */
+  private beforeLand: { distance: number; pitch: number } | null = null;
+
+  /**
+   * Lifts the camera to where the whole map is legible, and puts it back after.
+   *
+   * The plot grid is six hundred metres a side. From the height a player builds
+   * at, one plot fills the screen and the grid is a line in the middle
+   * distance; the decision the tool exists for -- which way should the city
+   * grow -- cannot be made from there. So the tool takes the camera up, and
+   * gives it back exactly where it was, because a tool that leaves you
+   * somewhere else is a tool you stop using.
+   */
+  private enterLand(on: boolean): void {
+    const cam = this.camera;
+    if (on) {
+      if (this.beforeLand === null) {
+        this.beforeLand = { distance: cam.distance, pitch: cam.pitch };
+      }
+      cam.distance = Math.max(cam.distance, plotSpan(this.renderer.world.grid) * 6.4);
+      cam.pitch = 1.18;
+      cam.update();
+      this.renderer.landView = 1;
+      return;
+    }
+    this.renderer.landView = 0;
+    this.renderer.hotPlot = -1;
+    const was = this.beforeLand;
+    this.beforeLand = null;
+    if (was === null) return;
+    cam.distance = was.distance;
+    cam.pitch = was.pitch;
+    cam.update();
+  }
+
+  /** Lights the plot under the pointer and says what it would cost. */
+  private hoverLand(cell: [number, number]): void {
+    const world = this.renderer.world;
+    const plot = plotAt(world.grid, cell[0], cell[1]);
+    this.renderer.hotPlot = plot;
+    this.renderer.mark = null;
+    if (plot < 0) { this.say('outside the map'); return; }
+    if (world.land.owns(plot)) { this.say('you own this land'); return; }
+    if (!world.land.canBuy(plot)) {
+      this.say('not for sale — a city has to grow out from itself, so only land '
+        + 'touching what you own can be bought');
+      return;
+    }
+    this.say(`click to buy this plot — ${money(world.land.price())}`);
+  }
+
+  /**
+   * Buys the plot under the pointer.
+   *
+   * The city is rebuilt afterwards because zoning already painted on the plot
+   * -- which a player can do before they own it, and often will, having
+   * decided what a quarter is for before they can afford it -- comes up the
+   * moment the land is theirs.
+   */
+  private buyLand(cell: [number, number]): void {
+    const world = this.renderer.world;
+    const plot = plotAt(world.grid, cell[0], cell[1]);
+    if (plot < 0 || world.land.owns(plot)) return;
+    if (!world.land.canBuy(plot)) {
+      this.say('that plot does not touch land you own');
+      return;
+    }
+    const paid = world.land.price();
+    world.land.take(plot);
+    this.say(`bought for ${money(paid)} — ${world.land.count} plots, `
+      + `next ${money(world.land.price())}`);
+    this.rebuild();
+  }
+
   private dropLot(cell: [number, number]): void {
     const t = this.tool;
     if (t.kind !== 'place') return;
@@ -669,6 +754,16 @@ export class BuildTools {
     // Shorter than a junction is wide is not a road, and the graph would drop
     // it anyway -- but not before this had cleared the zoning and rebuilt.
     if (Math.hypot(bx - ax, bz - az) < 12) return false;
+    // Both ends on land you own. Testing the ends rather than every cell of the
+    // run is deliberate: a road that starts and finishes on your land but clips
+    // the corner of a plot you have not bought is not the thing anyone means by
+    // building on someone else's land, and refusing it would be a rule about
+    // geometry rather than about the city.
+    if (!ownsAt(world.land, world.grid, ax, az)
+      || !ownsAt(world.land, world.grid, bx, bz)) {
+      this.say('you do not own that land — buy it with the land tool');
+      return false;
+    }
     // Ending on the bend point means the bend point was the first half of a
     // double-click, and what the player asked for is a straight run to there.
     if (via !== null && Math.abs(via[0] - b[0]) <= 1 && Math.abs(via[1] - b[1]) <= 1) {
@@ -726,6 +821,10 @@ export class BuildTools {
       this.lay(a, b, null, this.bend());
       return;
     } else if (t.kind === 'zone') {
+      if (!ownsCells(world.land, world.grid, r.gx, r.gz, r.w, r.d)) {
+        this.say('you do not own all of that land — buy it with the land tool');
+        return;
+      }
       paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density, t.theme));
     } else if (t.kind === 'clear') {
       demolish(world, r.gx, r.gz, r.w, r.d);
@@ -738,6 +837,11 @@ export class BuildTools {
   // ---- the bar ---------------------------------------------------------
 
   private select(tool: Tool): void {
+    // The land tool owns the camera while it is up, so entering and leaving it
+    // is part of selecting it rather than something the caller remembers.
+    if ((tool.kind === 'land') !== (this.tool.kind === 'land')) {
+      this.enterLand(tool.kind === 'land');
+    }
     this.tool = tool;
     this.from = null;
     this.curveA = null;
@@ -792,6 +896,11 @@ export class BuildTools {
       return `click to place the ${t.proto.def.name.toLowerCase()} `
         + `— ${money(buildingPrice(t.proto.def))}, ${w}\u00d7${d} cells `
         + `(${w * 8}\u00d7${d * 8} m) — R rotates`;
+    }
+    if (t.kind === 'land') {
+      const land = this.renderer.world.land;
+      return `click a dashed plot to buy it — ${land.count} owned, `
+        + `next ${money(land.price())}`;
     }
     if (t.kind === 'zone') {
       const style = t.theme === undefined ? '' : ` in the ${THEMES[t.theme].label} style`;
@@ -1003,6 +1112,9 @@ export class BuildTools {
     tools.appendChild(civic);
 
     const clear = group();
+    add(clear, { kind: 'land' },
+      'Land — lift the camera and buy the ground your city grows onto',
+      svgPlot(), '#8fd4ff');
     add(clear, { kind: 'clear' }, 'Bulldoze — drag to clear roads and zoning',
       svgCross(), '#f08a6e');
     tools.appendChild(clear);
@@ -1544,6 +1656,23 @@ function zoneSwatch(): HTMLElement {
     el.appendChild(q);
   }
   return el;
+}
+
+/**
+ * The land tool's glyph: an empty plot.
+ *
+ * A clear box in dashed outline with one solid corner, because what the tool
+ * does is turn a dashed square into a solid one. Nothing else on the bar is an
+ * outline, so it reads as "land" rather than as another building.
+ */
+function svgPlot(): string {
+  return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"'
+    + ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round">'
+    + '<path d="M4 7.5 L12 3.5 L20 7.5 L12 11.5 Z" stroke-dasharray="2.6 2.2"/>'
+    + '<path d="M4 7.5 L4 15 L12 19 L12 11.5" stroke-dasharray="2.6 2.2"/>'
+    + '<path d="M20 7.5 L20 15 L12 19" stroke-opacity=".95"/>'
+    + '<path d="M12 11.5 L12 19" stroke-opacity=".5"/>'
+    + '</svg>';
 }
 
 function svgStar(): string {

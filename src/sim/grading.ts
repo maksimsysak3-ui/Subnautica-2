@@ -161,6 +161,19 @@ export function clearGrading(): void {
 export function clearTerrainCache(): void {
   corners = null;
   forgetGrading();
+  onTerrainChange?.();
+}
+
+/**
+ * Told when the ground itself changes, so caches built against it can go.
+ *
+ * A callback rather than an import: the countryside cache lives in the spawner,
+ * which imports this file, and calling it from here directly would be a cycle.
+ */
+let onTerrainChange: (() => void) | null = null;
+
+export function whenTerrainChanges(fn: () => void): void {
+  onTerrainChange = fn;
 }
 
 /**

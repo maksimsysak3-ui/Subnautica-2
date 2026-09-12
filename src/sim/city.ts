@@ -30,10 +30,11 @@
 import { hash2, fbm } from './hash';
 import { baseHeightAt } from './terrain';
 import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
-import { gradeGround, baseAtCorner } from './grading';
+import { gradeGround, baseAtCorner, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
 import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
+import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
 import type { Pad } from './grading';
@@ -160,6 +161,10 @@ export function makeCity(world: World = defaultWorld()): City {
   const GRID = world.grid;
   const half = GRID / 2;
   const out = new Instances();
+  /** Set while the planting pass is putting a tree on ground nobody owns. */
+  let wild = false;
+  const wildOut = new Instances();
+  const wildPop = new Uint32Array(PROTO_COUNT);
   const cells = new Uint8Array(GRID * GRID);
   const population = new Uint32Array(PROTO_COUNT);
   /** What each placement wants the ground under it to be. */
@@ -382,7 +387,8 @@ export function makeCity(world: World = defaultWorld()): City {
     // agree exactly; at any other angle only this one is right, and the
     // spawner is about to start using angles that are not quarter turns.
     const [hx, hz] = turnedHalf((p.w * CELL) / 2, (p.d * CELL) / 2, yaw);
-    out.add(
+    const into = wild ? wildOut : out;
+    into.add(
       (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
       // the meshes inside, and a box exactly on that boundary would cull a
@@ -390,7 +396,7 @@ export function makeCity(world: World = defaultWorld()): City {
       hx + 0.8, hz + 0.8, p.height * 1.2 + 3, p.index,
       stretch, 0, 0, 0,
     );
-    population[p.index]++;
+    (wild ? wildPop : population)[p.index]++;
     // Planting neither claims the ground nor hardens it. A wood is
     // interlocking crowns, and a tree that reserves its whole lot puts the
     // next one two cells away -- which caps a park at a quarter of its cells
@@ -421,6 +427,10 @@ export function makeCity(world: World = defaultWorld()): City {
    */
   const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
     if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return null;
+    // Nothing grows on land nobody bought. Checked here as well as in the
+    // tools, because zoning painted before a plot was sold back, or carried in
+    // by an old save, must not quietly come up as a suburb.
+    if (!world.land.owns(plotAt(GRID, gx, gz))) return null;
     const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;
@@ -604,6 +614,23 @@ export function makeCity(world: World = defaultWorld()): City {
   // the result was a map of thirteen hundred saplings and seventy oaks.
   const canopy = woodland(GRID);
   const value = landValue(GRID);
+
+  // The countryside, kept between rebuilds.
+  //
+  // Ninety-five per cent of what stands on this map is trees, nearly all of
+  // them on land nobody owns -- and a player cannot touch any of it. Drawing a
+  // street regenerated all fifty thousand of them, every time, to produce
+  // exactly the same fifty thousand.
+  //
+  // A plot is live if it is owned or touches something owned; everything
+  // outside that is wild, and wild ground is generated once per land purchase
+  // and then spliced in. Dilating by a whole plot rather than by the grading's
+  // reach is deliberate slack: the grading can push ground about seventy metres
+  // past a building, a plot is six hundred, so the cached trees are provably
+  // standing on ground the edit did not move.
+  const live = livePlots(world);
+  const wildKey = `${GRID}:${world.land.lo}:${world.land.hi}`;
+  const cached = wildCache !== null && wildCache.key === wildKey ? wildCache : null;
   const nursery = [...planting()].sort((a, b) => b.w * b.d - a.w * a.d);
   if (nursery.length > 0) {
     const big = nursery.filter((p) => p.w >= 3);
@@ -638,8 +665,25 @@ export function makeCity(world: World = defaultWorld()): City {
     // nothing above a branch is computed for cells that will not use it: the
     // distance to downtown was a square root per cell thrown away, and
     // `zoneOf` allocated an object per cell for a map that is mostly unzoned.
+    // Wild plots are stepped over whole rather than cell by cell. The scan is
+    // four hundred thousand iterations on a map where, early on, a player owns
+    // four plots of sixty-four -- and every one of those iterations outside the
+    // live set was about to reach the same `continue` anyway.
+    const plotWide = plotCells(GRID);
     for (let cz = 0; cz < GRID; cz++) {
       for (let cx = 0; cx < GRID; cx++) {
+        // Wild ground: every tree on it, whichever branch below plants it,
+        // belongs to the cache rather than to this rebuild. Set once per cell
+        // rather than per branch -- the first version set it only in the
+        // out-of-town branch, and the in-town branch plants on unowned land
+        // too, so a quarter of the map's trees were generated into the live
+        // buffer and then vanished on the next edit when their plot was
+        // skipped.
+        wild = live[plotAt(GRID, cx, cz)] === 0;
+        if (cached !== null && wild) {
+          cx = (Math.floor(cx / plotWide) + 1) * plotWide - 1;
+          continue;
+        }
         const cell = at(cx, cz);
         if (cells[cell] !== FREE) continue;
 
@@ -672,11 +716,16 @@ export function makeCity(world: World = defaultWorld()): City {
         // Out of town. Copses: a low-frequency noise decides where woodland
         // is at all, and inside one the canopy is close to continuous. An
         // even scatter at the same tree count reads as an orchard.
+        //
+        // Wild ground is skipped entirely when the cache holds it: nothing
+        // here claims a cell or hardens one, so leaving it out changes nothing
+        // the rest of the pass can see.
         const shade = canopy[cell] - d * 0.6;
         if (shade <= 0 || hash2(cx, cz, 813) > shade) continue;
         plant(cx, cz, [mid, big, small]);
       }
     }
+    wild = false;
   }
 
   // Roads are not placed here any more. They are a graph of curves and their
@@ -717,7 +766,37 @@ export function makeCity(world: World = defaultWorld()): City {
     }
   }
 
-  return { data: out.data, count: out.count, population, cover, roads };
+  // The countryside, then the city.
+  //
+  // That order rather than the other way round, and into a buffer that is kept
+  // between rebuilds: the wild half is the big half and it does not change, so
+  // putting it first means it is written once per land purchase and the edit
+  // only ever rewrites the tail. Appending it instead would have moved fifty
+  // thousand instances every time the city grew by one, which is most of a
+  // three-megabyte copy per road drawn.
+  //
+  // Nothing downstream cares what order instances arrive in: the culler sorts
+  // them into buckets by prototype.
+  const fresh = cached === null;
+  const keep = cached ?? { key: wildKey, data: wildOut.data.slice(), pop: wildPop };
+  wildCache = keep;
+  const liveData = out.data;
+  const total = keep.data.length + liveData.length;
+  if (joined === null || joined.length < total) {
+    joined = new Float32Array(Math.ceil(total * 1.3));
+    joinedWild = -1;
+  }
+  if (fresh || joinedWild !== keep.data.length) {
+    joined.set(keep.data, 0);
+    joinedWild = keep.data.length;
+  }
+  joined.set(liveData, keep.data.length);
+  for (let i = 0; i < population.length; i++) population[i] += keep.pop[i];
+
+  return {
+    data: joined.subarray(0, total) as Float32Array<ArrayBuffer>,
+    count: total / INSTANCE_FLOATS, population, cover, roads,
+  };
 }
 
 /**
@@ -764,6 +843,56 @@ function woodland(grid: number): Float32Array {
   }
   woodMask = out;
   woodFor = grid;
+  return out;
+}
+
+/**
+ * The countryside as it was last generated, and which land that was for.
+ *
+ * Module scope, like the woodland and land-value masks above and for the same
+ * reason: it depends on the map and on what the player owns, and on nothing
+ * that an edit changes.
+ */
+let wildCache: { key: string; data: Float32Array; pop: Uint32Array } | null = null;
+
+/**
+ * The buffer the two halves are joined in, kept so an edit is one write of the
+ * part that changed rather than an allocation and a copy of the whole city.
+ */
+let joined: Float32Array | null = null;
+/** How many floats of `joined` currently hold the countryside. */
+let joinedWild = -1;
+
+/** Throws the cached countryside away, for a tool that changes the terrain. */
+whenTerrainChanges(() => clearWild());
+
+export function clearWild(): void {
+  wildCache = null;
+  joined = null;
+  joinedWild = -1;
+}
+
+/**
+ * Which plots are close enough to owned land that an edit could reach them.
+ *
+ * A plot is live if it is owned or touches one that is. Everything else is
+ * wild: too far for the grading to move and too far for anything to be built
+ * on, so what stands there this rebuild is what stood there last.
+ */
+function livePlots(world: World): Uint8Array {
+  const out = new Uint8Array(PLOTS * PLOTS);
+  for (let pz = 0; pz < PLOTS; pz++) {
+    for (let px = 0; px < PLOTS; px++) {
+      if (!world.land.owns(pz * PLOTS + px)) continue;
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = px + dx, nz = pz + dz;
+          if (nx < 0 || nz < 0 || nx >= PLOTS || nz >= PLOTS) continue;
+          out[nz * PLOTS + nx] = 1;
+        }
+      }
+    }
+  }
   return out;
 }
 

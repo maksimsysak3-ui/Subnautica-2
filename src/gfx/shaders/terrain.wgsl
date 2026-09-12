@@ -77,10 +77,19 @@ fn gridLine(xz : vec2f, spacing : f32, d : vec2f) -> f32 {
 
 // ------------------------------------------------------------------ ground
 
+/** Whether the player owns the plot at these plot coordinates. */
+fn ownsPlot(px : i32, pz : i32) -> bool {
+  if (px < 0 || pz < 0 || px >= 8 || pz >= 8) { return false; }
+  let i = pz * 8 + px;
+  let word = select(bitcast<u32>(camera.land.y), bitcast<u32>(camera.land.x), i < 32);
+  return (word & (1u << u32(i % 32))) != 0u;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   // The weather, once, before anything reads the atmosphere.
   setWeather(camera.weather.x, camera.weather.y);
+  setPlanView(camera.land.z);
   var n = normalize(in.normal);
 
   // Every derivative taken up front, in uniform control flow, so the octave
@@ -121,6 +130,31 @@ fn fs(in : VSOut) -> @location(0) vec4f {
             + vnoise(in.world.xz * (1.0 / 74.0) + vec2f(7.0, 63.0)) * 0.28;
   let meadow = smoothstep(0.50, 0.70, field) * (1.0 - alt);
   let moor = smoothstep(0.44, 0.22, field);
+
+  // Parcels.
+  //
+  // Above every octave below sat one smooth blend from meadow to moor, and a
+  // smooth blend reads as a gradient rather than as land. Countryside seen from
+  // any height a player actually uses is not a gradient: it is *divided* --
+  // fields with hard edges, each cut or grazed or left at a different time, and
+  // a darker line where one meets the next. That division is the single thing
+  // that tells the eye it is looking at ground somebody farms rather than at
+  // noise, and it is the scale the camera spends its whole life at.
+  //
+  // A cell decomposition at about a hundred and thirty metres, warped so the
+  // parcels are not all convex blobs, with each one taking its own character
+  // from its own id.
+  let warp = vec2f(vnoise(in.world.xz * (1.0 / 210.0)) - 0.5,
+                   vnoise(in.world.xz * (1.0 / 210.0) + vec2f(37.0, 11.0)) - 0.5);
+  let parcel = cells(in.world.xz * (1.0 / 132.0) + warp * 0.55);
+  // How far into the parcel this is: 0 on the boundary, 1 well inside.
+  let inField = smoothstep(0.0, 0.055, parcel.d2 - parcel.d1);
+  // Faded out beyond about a kilometre. Field colour is a texture, and a
+  // texture the eye cannot resolve is noise -- at map distance the parcels read
+  // as a Voronoi diagram laid over the country rather than as fields in it.
+  let parcelFade = 1.0 - smoothstep(700.0, 1900.0, length(camera.eye.xz - in.world.xz));
+  // Each parcel's own state, in three bands that do not blend into each other.
+  let cut = fract(parcel.id * 7.13);
 
   // ---- cover ---------------------------------------------------------
   //
@@ -174,6 +208,25 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // reads as parcelled land and a continuum reads as a gradient.
   turf = mix(turf, vec3f(0.158, 0.146, 0.052), meadow * 0.62);
   turf = mix(turf, vec3f(0.074, 0.070, 0.042), moor * 0.55);
+
+  // The parcel's own colour, applied hard rather than blended, and only inside
+  // its boundary -- which is what makes the boundary a boundary.
+  //
+  // Three states: recently cut and pale, standing and green, left and gone to
+  // seed. They are far enough apart to read from a kilometre up, which is where
+  // a player spends most of their time, and each is a shift in hue as well as
+  // in value so they survive the tonemap.
+  let mown = smoothstep(0.68, 0.74, cut);
+  let rank = smoothstep(0.28, 0.22, cut);
+  turf = mix(turf, mix(turf, vec3f(0.150, 0.139, 0.062), 0.44), mown * inField * parcelFade);
+  turf = mix(turf, mix(turf, vec3f(0.052, 0.094, 0.038), 0.36), rank * inField * parcelFade);
+  // And a little each way even inside a plain parcel, so no two are identical.
+  turf *= 1.0 + (fract(parcel.id * 19.7) - 0.5) * 0.09 * inField * parcelFade;
+  // The boundary itself: a hedge line, darker and a shade bluer, the width of
+  // a real field margin rather than a drawn line. Faint -- it is a hedge, not
+  // a drawn border, and at full strength the map read as a Voronoi diagram.
+  let margin = (1.0 - inField) * (1.0 - rock);
+  turf = mix(turf, vec3f(0.030, 0.058, 0.030), margin * 0.26 * parcelFade);
   // A slow hue drift across a field, on top of the dryness ramp. Two greens
   // are not enough for a kilometre of grass: without this the whole map is one
   // colour with the brightness wobbling, which reads as lighting rather than
@@ -359,6 +412,92 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       min(in.world.z - m.y, m.w - in.world.z))));
     col = mix(col, camera.markTint.rgb * 0.5, inside * camera.markTint.w * 0.34);
     col = mix(col, camera.markTint.rgb * 2.2, edge * camera.markTint.w);
+  }
+
+  // The land you own, and the land you could buy.
+  //
+  // Drawn into the ground rather than as geometry over it, for the same reason
+  // the build mark is: a translucent quad at the terrain's own height z-fights
+  // with it and one lifted clear of it floats over the hills. This follows
+  // every contour by construction.
+  //
+  // Unowned land is desaturated and darkened rather than tinted a colour --
+  // what a player needs to read is "not yours yet", and a wash of blue over a
+  // third of the map reads as a different biome. The boundaries are dashed,
+  // which is the one convention everybody already knows means a line on a plan
+  // rather than a thing on the ground.
+  {
+    let span = camera.plotGrid.x;
+    let origin = camera.plotGrid.yz;
+    let cell = (in.world.xz - origin) / span;
+    let px = i32(floor(cell.x));
+    let pz = i32(floor(cell.y));
+    let inside = px >= 0 && pz >= 0 && px < 8 && pz < 8;
+    let mine = ownsPlot(px, pz);
+    let here = select(-1, pz * 8 + px, inside);
+    let strength = camera.land.z;
+
+    // The edge of what you own is drawn whatever tool is in hand: it is the
+    // one boundary that governs every other decision, and a player should not
+    // have to open a menu to see where their city can go. The rest of the grid
+    // -- the squares nobody has bought, the prices, the hover -- only appears
+    // when the land tool is up, because sixty-four dashed squares over a city
+    // you are trying to look at is a plan, not a view.
+    var frontier = 0.0;
+    {
+      let f0 = fract(cell);
+      let d = min(min(f0.x, 1.0 - f0.x), min(f0.y, 1.0 - f0.y));
+      // A boundary only where the neighbour across it differs. Sampling the
+      // mask on both sides is what stops this drawing a grid over the middle
+      // of a block someone owns outright.
+      let nx = i32(floor(cell.x + select(-0.5, 0.5, f0.x > 0.5)));
+      let nz = i32(floor(cell.y + select(-0.5, 0.5, f0.y > 0.5)));
+      let sideX = select(false, ownsPlot(nx, pz), nx >= 0 && nx < 8 && pz >= 0 && pz < 8);
+      let sideZ = select(false, ownsPlot(px, nz), nz >= 0 && nz < 8 && px >= 0 && px < 8);
+      let crossX = f32(mine != sideX) * (1.0 - smoothstep(0.0, 0.004, min(f0.x, 1.0 - f0.x)));
+      let crossZ = f32(mine != sideZ) * (1.0 - smoothstep(0.0, 0.004, min(f0.y, 1.0 - f0.y)));
+      frontier = max(crossX, crossZ) * (1.0 - strength);
+      // Dashed, in the direction it runs.
+      let along = select(cell.x, cell.y, crossZ > crossX);
+      frontier *= step(0.34, fract(along * 22.0));
+      // Faint, and gone under a low camera: this is a note on the ground, and
+      // at street level it would be a painted line across the pavement.
+      frontier *= smoothstep(140.0, 420.0, length(camera.eye.xz - in.world.xz));
+      let _unused = d;
+    }
+    col = mix(col, vec3f(0.58, 0.95, 0.74) * 1.5, clamp(frontier, 0.0, 1.0) * 0.5);
+
+    if (strength > 0.0 && !mine) {
+      // Off the map entirely, or land not bought: both are "you cannot build
+      // here", and saying so the same way is less to learn than two rules.
+      // Enough to read as "not yours", not so much that two thirds of the map
+      // turns to mud. The first version desaturated hard and darkened hard, and
+      // over a distant view with haze already on it the result was a grey field
+      // with a grid drawn on it -- which told a player nothing about the land
+      // they were being asked to buy.
+      let grey = dot(col, vec3f(0.30, 0.59, 0.11));
+      col = mix(col, mix(vec3f(grey), col, 0.55) * 0.80, strength * 0.55);
+    }
+    if (inside && strength > 0.0) {
+      // The dashes. Distance to the nearest plot edge, in plot units, against a
+      // sawtooth along that edge -- so the line is dashed in the direction it
+      // runs rather than being a dotted grid of squares.
+      let f = fract(cell);
+      let edgeX = min(f.x, 1.0 - f.x);
+      let edgeZ = min(f.y, 1.0 - f.y);
+      let near = min(edgeX, edgeZ);
+      let along = select(cell.x, cell.y, edgeZ < edgeX);
+      let dash = step(0.32, fract(along * 26.0));
+      let width = 0.006 + 0.010 * step(0.5, strength);
+      var line = (1.0 - smoothstep(0.0, width, near)) * dash * strength;
+      // The plot under the pointer gets a solid edge and a lift, because the
+      // one a click would buy has to be unmistakable among sixty-three others.
+      let hot = f32(here == i32(camera.land.w + 0.5));
+      line = max(line, (1.0 - smoothstep(0.0, width * 2.2, near)) * hot * strength);
+      let ink = select(vec3f(0.62, 0.86, 1.00), vec3f(0.55, 1.00, 0.72), mine);
+      col = mix(col, ink * 1.6, clamp(line, 0.0, 1.0) * 0.85);
+      col = mix(col, ink * 0.9, hot * strength * 0.10);
+    }
   }
 
   // Air in front of the ground, before the tonemap rather than after it, so

@@ -20,6 +20,8 @@ import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
 import type { Proto } from './inventory';
 import { baseHeightAt } from './terrain';
+import { startingLand, ownsCells, PLOTS } from './plots';
+import type { Land } from './plots';
 import { ALL_THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
 
@@ -102,6 +104,8 @@ export interface World {
   zones: Uint8Array;
   /** What was placed on the map, as opposed to grown on it. */
   lots: Lot[];
+  /** Which plots of land the player has bought. */
+  land: Land;
 }
 
 /** Cells of buildable block between corridors. */
@@ -112,7 +116,10 @@ export const STREET = 3;
 export const PERIOD = BLOCK + STREET;
 
 export function emptyWorld(grid = simConfig.cityGrid): World {
-  return { grid, net: new RoadGraph(grid), zones: new Uint8Array(grid * grid), lots: [] };
+  return {
+    grid, net: new RoadGraph(grid), zones: new Uint8Array(grid * grid), lots: [],
+    land: startingLand(),
+  };
 }
 
 /**
@@ -321,6 +328,9 @@ export function lotFits(world: World, id: string, gx: number, gz: number, yaw: n
   const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
   const fail = (why: string): { w: number; d: number; why: string } => ({ w, d, why });
 
+  if (!ownsCells(world.land, world.grid, gx, gz, w, d)) {
+    return fail('not on land you own');
+  }
   if (gx < 0 || gz < 0 || gx + w > world.grid || gz + d > world.grid) {
     return fail('off the map');
   }
@@ -408,6 +418,11 @@ export function startingWorld(grid = simConfig.cityGrid): World {
  */
 export function defaultWorld(grid = simConfig.cityGrid): World {
   const world = emptyWorld(grid);
+  // A generated city covers the map, so it owns the map. This is not a world a
+  // player is playing -- it is the showcase the screenshot tools and the asset
+  // tests photograph -- and starting it on four plots would make every one of
+  // those a picture of an empty valley with a village in it.
+  for (let p = 0; p < PLOTS * PLOTS; p++) world.land.take(p);
   const blocks = Math.floor(grid / PERIOD);
   const half = grid / 2;
 

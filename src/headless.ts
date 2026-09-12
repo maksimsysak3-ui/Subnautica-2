@@ -15,7 +15,7 @@ import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
 import { BuildTools } from './ui/build-tools';
-import { configureSim, LITE, paint, demolish, zoneCode, defaultWorld } from './sim';
+import { configureSim, LITE, paint, demolish, zoneCode, defaultWorld, PLOTS } from './sim';
 
 export interface ShotRequest {
   width: number;
@@ -45,6 +45,8 @@ export interface ShotRequest {
   /** Photograph the map the game actually opens on, rather than a built city. */
   empty?: boolean;
   lite: boolean;
+  /** Draw the land grid, as the land tool does. */
+  land?: boolean;
 }
 
 export interface Shot {
@@ -62,6 +64,19 @@ export interface Shot {
  * rebuild that leaves a stale buffer bound, both produce a perfectly ordinary
  * frame. So the test is what the numbers did.
  */
+
+/**
+ * Hands a probe the whole map.
+ *
+ * Land is bought a plot at a time in the game, and every probe below is testing
+ * something else -- the road tool, the curve tool, the rebuild path -- against a
+ * map far bigger than the four plots a city starts with. Buying the map up
+ * front keeps each test about the one thing it is named for.
+ */
+function grantAll(world: { land: { take: (p: number) => void } }): void {
+  for (let i = 0; i < PLOTS * PLOTS; i++) world.land.take(i);
+}
+
 export async function probeRebuild(width: number, height: number):
 Promise<{ before: Record<string, string>; after: Record<string, string>;
   cost: Record<string, number>; first: Record<string, number>; edits: number[]; meshes: number[] }> {
@@ -74,6 +89,7 @@ Promise<{ before: Record<string, string>; after: Record<string, string>;
   // The game opens on empty land now. What is being measured here is a
   // rebuild of a city, so one is put on the map first.
   renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
   renderer.build();
   camera.distance = 300;
   camera.update();
@@ -138,6 +154,7 @@ export async function probeTools(): Promise<{
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
   renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
   renderer.build();
   // Straight down over the middle of the map, so a screen point maps to a cell
   // without depending on the terrain.
@@ -267,6 +284,7 @@ Promise<{ lit: number[]; debug: number[]; count: number }> {
   const stats = new Stats(document.createElement('div'));
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
+  grantAll(renderer.world);
   renderer.build();
   camera.setViewport(width, height);
   camera.focus[0] = 0; camera.focus[2] = 0;
@@ -337,6 +355,7 @@ export async function probeCurve(): Promise<{
   const stats = new Stats(document.createElement('div'));
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
+  grantAll(renderer.world);
   renderer.build();
   camera.setViewport(800, 450);
   camera.focus[0] = 0; camera.focus[2] = 0;
@@ -422,6 +441,10 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   // A photograph of empty land is a photograph of nothing, so unless the
   // caller asked for the starting map it gets the generated city.
   if (req.empty !== true) renderer.useWorld(defaultWorld(renderer.world.grid));
+  // A photograph is of a city, not of a land-buying decision: the shot tools
+  // get the whole map so the picture shows what the generator makes of it.
+  if (req.empty !== true) grantAll(renderer.world);
+  if (req.land === true) { renderer.landView = 1; renderer.hotPlot = 28; }
   renderer.build();
 
   if (req.edit === true) {

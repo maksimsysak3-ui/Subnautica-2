@@ -62,21 +62,35 @@ let checkedVerts = 0;
 const perLod = [0, 0, 0];
 
 for (const def of ASSETS) {
+  // A prototype is baked as a unit -- all three levels on the first touch,
+  // because the quantisation frame is the union of the three and measuring it
+  // needs all three built. So the invariant is about the prototype, not about
+  // the call: its three spans lie end to end in the arena, in order, and
+  // together they are exactly what the arena grew by.
+  const before = atlas.vertexCount;
+  const spans = [0, 1, 2].map((lod) => atlas.bake(def.id, lod));
+  let at = before;
   for (const lod of [0, 1, 2]) {
-    const before = atlas.vertexCount;
-    const span = atlas.bake(def.id, lod);
-    if (span.first !== before) note(`${def.id} lod${lod}: span starts at ${span.first}, arena was at ${before}`);
-    if (atlas.vertexCount !== before + span.count) {
-      note(`${def.id} lod${lod}: arena grew by ${atlas.vertexCount - before}, span claims ${span.count}`);
+    const span = spans[lod];
+    if (span.first !== at) {
+      note(`${def.id} lod${lod}: span starts at ${span.first}, expected ${at}`);
     }
+    at += span.count;
     perLod[lod] += span.count;
+  }
+  if (atlas.vertexCount !== at) {
+    note(`${def.id}: arena is at ${atlas.vertexCount}, its spans end at ${at}`);
+  }
 
-    // Baking twice must be free and must return the same span.
+  // Baking again must be free and must return the same spans.
+  const grew = atlas.vertexCount;
+  for (const lod of [0, 1, 2]) {
     const again = atlas.bake(def.id, lod);
-    if (again.first !== span.first || again.count !== span.count) {
+    if (again.first !== spans[lod].first || again.count !== spans[lod].count) {
       note(`${def.id} lod${lod}: re-bake returned a different span`);
     }
   }
+  if (atlas.vertexCount !== grew) note(`${def.id}: re-baking grew the arena`);
 }
 
 // Decode the arena once and compare it against freshly built meshes.

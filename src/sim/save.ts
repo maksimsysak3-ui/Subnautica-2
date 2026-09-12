@@ -26,8 +26,11 @@ import type { RoadClass } from './roadgraph';
  * 2: the zoning byte carries a regional theme as well as a zone and a density,
  * so every code in a version 1 file means something different now. The bytes
  * would have loaded and produced a map zoned at random.
+ *
+ * 3: land is bought a plot at a time, and a file with no record of which plots
+ * were bought would load as a city standing on land nobody owns.
  */
-const VERSION = 2;
+const VERSION = 3;
 
 interface SaveFile {
   v: number;
@@ -44,6 +47,8 @@ interface SaveFile {
   links: number[];
   /** Zoning, run-length encoded as [code, run, code, run, ...]. */
   zones: number[];
+  /** Which plots of land are owned, as two thirty-two bit halves. */
+  land: [number, number];
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -131,6 +136,7 @@ export function serialise(world: World, name: string, auto = false): string {
     nodes,
     links,
     zones: encodeZones(world.zones),
+    land: [world.land.lo, world.land.hi],
     lots: world.lots.map((l) => (l.grounds === undefined
       ? [l.id, l.gx, l.gz, l.w, l.d, l.yaw] as SaveFile['lots'][number]
       : [l.id, l.gx, l.gz, l.w, l.d, l.yaw,
@@ -171,6 +177,10 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   world.net.rasterise();
   decodeZones(file.zones ?? [], world.zones);
+  if (Array.isArray(file.land) && file.land.length === 2) {
+    world.land.lo = file.land[0] >>> 0;
+    world.land.hi = file.land[1] >>> 0;
+  }
   for (const l of file.lots ?? []) {
     const lot: Lot = { id: l[0], gx: l[1], gz: l[2], w: l[3], d: l[4], yaw: l[5] };
     const g = l[6];
