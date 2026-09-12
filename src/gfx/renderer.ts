@@ -279,6 +279,8 @@ export class Renderer {
   private inFlight = 0;
   /** Frames dropped to the bound above since the last readout. */
   private stalled = 0;
+  /** Whether the bound applies. Off while a tool is driving frames by hand. */
+  private paced = true;
   /** Counts frames, to run the once-a-few-frames work off the hot path. */
   private beat = 0;
   /** Blades in the lattice this frame, for the readout. */
@@ -1210,7 +1212,12 @@ export class Renderer {
    * they are finished. Same frame, called by hand.
    */
   frameForTools(now: number): void {
+    // Unpaced. A tool asks for a fixed number of frames and expects that many
+    // to be drawn; skipping one because the queue is busy would leave it
+    // reading a picture it did not render.
+    this.paced = false;
     this.frame(now);
+    this.paced = true;
   }
 
   /**
@@ -1262,7 +1269,7 @@ export class Renderer {
     // Backpressure. The camera has already moved and the input has already
     // been read; what is skipped is only the drawing of a frame the GPU has
     // no room for yet.
-    if (this.inFlight >= MAX_IN_FLIGHT) {
+    if (this.paced && this.inFlight >= MAX_IN_FLIGHT) {
       this.stalled++;
       this.stats.paint(now);
       return;
