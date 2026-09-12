@@ -112,7 +112,11 @@ fn concrete(world : vec2f, mpp : f32) -> vec3f {
 
 /** Footway: slabs, with the joints between them. */
 fn footway(world : vec2f, u : f32, v : f32, mpp : f32) -> vec3f {
-  var col = concrete(world, mpp);
+  // Darker and a shade warmer than the concrete it is made of. A pavement that
+  // has been walked on is not the colour of a fresh precast slab, and taking
+  // the slab colour straight was half of why a street read as a grey band from
+  // above -- the other half being that the pavement was twice as wide as one.
+  var col = concrete(world, mpp) * vec3f(0.80, 0.785, 0.755);
   // Laid to the road, so the joints run across and along it rather than
   // north-south: a pavement is set out from the kerb.
   let g = fract(vec2f(u, v) / 0.9);

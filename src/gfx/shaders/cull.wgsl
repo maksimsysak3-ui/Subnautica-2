@@ -132,8 +132,18 @@ const SHADOW_MIN_SIZE = 0.006;
  * level-of-detail split on a city, and this is the knob that does it.
  */
 const MIN_PIXELS = 4.5;
-/** Over this many pixels tall, the full mesh is worth its triangles. */
-const LOD0_PIXELS = 110.0;
+/**
+ * Over this many pixels tall, the full mesh is worth its triangles.
+ *
+ * Fifty-five, not a hundred and ten. A building a hundred and ten pixels tall
+ * is a tenth of the screen -- on a 1080-line window that is a house at two
+ * hundred metres and a corner shop at eighty, and dropping its window reveals
+ * there is far too early: a player pulling back one notch from street level
+ * watched the facades go flat. The threshold has to be where detail stops
+ * being resolvable, not where it stops being cheap, and the frame budget this
+ * spends is a fraction of what the last few rounds bought back.
+ */
+const LOD0_PIXELS = 55.0;
 /**
  * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
  *

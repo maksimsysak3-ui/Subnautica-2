@@ -89,6 +89,16 @@ export interface RoadSpec {
  * two-metre reservation. Getting these right is most of what makes a city read
  * at street level, and all of what makes the buildings sit at the correct
  * distance from each other.
+ *
+ * `edge` was carrying nearly four metres of footway on a street, which is a
+ * boulevard's pavement on a suburban road, and it cost twice over. From above
+ * more than half the ribbon was pale concrete, so every street in the city
+ * read as a grey band rather than as tarmac; and the spawner puts a building's
+ * front face on this line, so every house was set back the width of that
+ * pavement and a strip of open ground was left between the two. Two metres of
+ * footway on a street and two and a half on an avenue is what is actually
+ * built, and it fixes both: the ribbon is mostly road, and the frontage stands
+ * where a frontage stands.
  */
 export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
   // ---- the small stuff -------------------------------------------------
@@ -98,7 +108,7 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     surface: 'gravel', cycle: 0,
   },
   lane: {
-    label: 'Country lane', half: 2.6, edge: 5.4, lanes: 1, median: 0,
+    label: 'Country lane', half: 2.6, edge: 4.4, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 0, kerbed: false,
     surface: 'tarmac', cycle: 0,
   },
@@ -118,47 +128,47 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     surface: 'setts', cycle: 0,
   },
   street: {
-    label: 'Street', half: 3.6, edge: 7.4, lanes: 1, median: 0,
+    label: 'Street', half: 3.6, edge: 5.7, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 34, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   cycleStreet: {
-    label: 'Cycle street', half: 3.4, edge: 9.0, lanes: 1, median: 0,
+    label: 'Cycle street', half: 3.4, edge: 6.0, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 34, kerbed: true,
     surface: 'tarmac', cycle: 1.1,
   },
   oneway: {
-    label: 'One-way', half: 3.4, edge: 7.2, lanes: 2, median: 0,
+    label: 'One-way', half: 3.4, edge: 5.5, lanes: 2, median: 0,
     oneWay: true, tram: false, lamp: 34, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   bus: {
-    label: 'Bus route', half: 5.2, edge: 9.6, lanes: 2, median: 0,
+    label: 'Bus route', half: 5.2, edge: 7.5, lanes: 2, median: 0,
     oneWay: false, tram: false, lamp: 32, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   promenade: {
-    label: 'Promenade', half: 3.2, edge: 12.0, lanes: 1, median: 0,
+    label: 'Promenade', half: 3.2, edge: 9.0, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 24, kerbed: true,
     surface: 'setts', cycle: 0,
   },
   avenue: {
-    label: 'Avenue', half: 7.0, edge: 11.6, lanes: 2, median: 0,
+    label: 'Avenue', half: 7.0, edge: 9.7, lanes: 2, median: 0,
     oneWay: false, tram: false, lamp: 30, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   boulevard: {
-    label: 'Boulevard', half: 7.0, edge: 15.4, lanes: 2, median: 2.6,
+    label: 'Boulevard', half: 7.0, edge: 12.0, lanes: 2, median: 2.6,
     oneWay: false, tram: false, lamp: 28, kerbed: true,
     surface: 'tarmac', cycle: 1.1,
   },
   tram: {
-    label: 'Tram boulevard', half: 8.4, edge: 13.6, lanes: 2, median: 0,
+    label: 'Tram boulevard', half: 8.4, edge: 11.1, lanes: 2, median: 0,
     oneWay: false, tram: true, lamp: 30, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   tramStreet: {
-    label: 'Tram street', half: 5.6, edge: 9.8, lanes: 1, median: 0,
+    label: 'Tram street', half: 5.6, edge: 8.1, lanes: 1, median: 0,
     oneWay: false, tram: true, lamp: 32, kerbed: true,
     surface: 'setts', cycle: 0,
   },
@@ -168,12 +178,12 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     surface: 'concrete', cycle: 0,
   },
   highway: {
-    label: 'Divided highway', half: 8.4, edge: 12.6, lanes: 2, median: 1.4,
+    label: 'Divided highway', half: 8.4, edge: 11.1, lanes: 2, median: 1.4,
     oneWay: false, tram: false, lamp: 34, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
   dual: {
-    label: 'Dual carriageway', half: 9.2, edge: 14.4, lanes: 2, median: 1.6,
+    label: 'Dual carriageway', half: 9.2, edge: 12.0, lanes: 2, median: 1.6,
     oneWay: false, tram: false, lamp: 30, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },

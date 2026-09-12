@@ -645,14 +645,20 @@ export class MeshBuilder {
       } else if (glazed) this.signFace(b, a, d, c, mat); else this.quad(b, a, d, c, mat);
     }
 
-    // The frame is four boxes and forty triangles, against two for the glass.
-    // At the middle level the whole building is under a hundred and ten pixels
-    // tall, so a frame is a fraction of one -- and it was most of what the
-    // building cost. The glass stays: the pane is what a window is at any
-    // distance, and dropping it would leave a blank wall.
-    if (MeshBuilder.detail >= 1) return;
+    // The frame is four boxes and forty triangles, against two for the glass,
+    // and a tower has three hundred windows -- so this is where a building's
+    // triangles actually are, and where a level of detail has to find them.
+    //
+    // But dropping it outright was wrong, and it showed: a facade with panes
+    // and no reveals is a flat sheet with darker rectangles printed on it,
+    // which is what "just empty boxes" means. What makes a window read as a
+    // window from a distance is the shadow line above and below it -- the head
+    // and the cill, which are horizontal and therefore catch the sun. The
+    // jambs are vertical, they catch almost nothing, and they are the two that
+    // can go. Half the triangles, nearly all of the read.
     slab(o.u0 - f, o.u1 + f, o.y1, o.y1 + f, -inset, proud, frameMat);
     slab(o.u0 - f, o.u1 + f, o.y0 - f, o.y0, -inset, proud, frameMat);
+    if (MeshBuilder.detail >= 1) return;
     slab(o.u0 - f, o.u0, o.y0, o.y1, -inset, proud, frameMat);
     slab(o.u1, o.u1 + f, o.y0, o.y1, -inset, proud, frameMat);
   }
