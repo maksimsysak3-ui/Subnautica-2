@@ -94,6 +94,9 @@ const DAY_SECONDS = 480;
  * moment one passes through a f32 the low bits are rounded away and a player
  * owns a different set of plots than the one they bought.
  */
+/** Frames a bucket stays in the draw list after it last drew anything. */
+const WARM_FRAMES = 12;
+
 const LAND_BITS = new Uint32Array(2);
 const LAND_FLOATS = new Float32Array(LAND_BITS.buffer);
 
@@ -161,6 +164,8 @@ interface WorldRes {
   baseBuffer: GPUBuffer;
   argsBuffer: GPUBuffer;
   argsRead: GPUBuffer;
+  /** Bytes of `argsRead` holding the shadow casters, after the colour ones. */
+  castArgsBytes: number;
   argsReset: Uint32Array<ArrayBuffer>;
   buckets: Bucket[];
   castArgsBuffer: GPUBuffer;
@@ -962,12 +967,18 @@ export class Renderer {
       usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE
            | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
-    // Read back purely so the overlay can show how many buildings survived
-    // culling and at which level. Nothing in the frame depends on it, so the
-    // read stays async and a frame or two stale.
+    // Both args buffers, read back into one staging buffer: the colour buckets
+    // first, then the shadow casters after them.
+    //
+    // The overlay reads these, and so does the next frame's encoder -- a bucket
+    // that survived nothing is a bucket the next frame does not have to encode,
+    // and at full scale that is the difference between fifteen hundred draw
+    // calls and two hundred. One mapAsync rather than two, because the round
+    // trip is the expensive part and the two buffers are wanted together.
+    const castArgsBytes = Math.max(16, plan.castArgs.byteLength);
     const argsRead = device.createBuffer({
       label: 'draw-args-read',
-      size: plan.args.byteLength,
+      size: plan.args.byteLength + castArgsBytes,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
 
@@ -984,8 +995,9 @@ export class Renderer {
     device.queue.writeBuffer(castBaseBuffer, 0, plan.castBases);
     const castArgsBuffer = device.createBuffer({
       label: 'caster-args',
-      size: plan.castArgs.byteLength,
-      usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+      size: Math.max(16, plan.castArgs.byteLength),
+      usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.STORAGE
+           | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
 
     const cullGroup = device.createBindGroup({
@@ -1030,7 +1042,7 @@ export class Renderer {
       roadVertices, roadIndices, roadCount: city.roads.indices.length,
       waterVertices, waterIndices, waterCount: river.indices.length,
       assetVertices, protoBuffer, instanceBuffer, visibleBuffer, baseBuffer,
-      argsBuffer, argsRead, argsReset: plan.args, buckets: plan.buckets,
+      argsBuffer, argsRead, castArgsBytes, argsReset: plan.args, buckets: plan.buckets,
       castArgsBuffer, castBaseBuffer, castVisibleBuffer,
       castArgsReset: plan.castArgs, casts: plan.casts,
       instanceCount: city.count,
@@ -1044,6 +1056,19 @@ export class Renderer {
    */
   landView = 0;
   hotPlot = -1;
+
+  /**
+   * How many frames a bucket keeps its place in the draw list after it empties.
+   *
+   * One would be enough for correctness and wrong in practice: a building on a
+   * level-of-detail boundary crosses it back and forth as the camera breathes,
+   * and a bucket dropped the instant it empties would cost that building a
+   * missing frame every time it came back.
+   */
+  private warm = new Uint8Array(0);
+  private castWarm = new Uint8Array(0);
+  private encodedBuckets = 0;
+  private encodedCasts = 0;
 
   /**
    * Counts world rebuilds, so anything outside can tell the city has changed
@@ -1296,10 +1321,19 @@ export class Renderer {
     shadowPass.setBindGroup(0, res.shadowSceneGroup);
     shadowPass.setBindGroup(1, res.protoGroup);
     shadowPass.setVertexBuffer(0, res.assetVertices);
-    for (const c of res.casts) {
+    // The same skip the colour pass makes, from the same readback: one draw per
+    // prototype whether or not a single copy of it is inside the sun's volume.
+    const castWarm = this.castWarm;
+    const castKnown = castWarm.length === res.casts.length;
+    let casts = 0;
+    for (let i = 0; i < res.casts.length; i++) {
+      if (castKnown && castWarm[i] === 0) continue;
+      const c = res.casts[i];
       shadowPass.setBindGroup(2, res.castGroup, [c.sliceOffset]);
       shadowPass.drawIndirect(res.castArgsBuffer, c.argsOffset);
+      casts++;
     }
+    this.encodedCasts = casts;
     shadowPass.end();
 
     const pass = encoder.beginRenderPass({
@@ -1385,10 +1419,29 @@ export class Renderer {
     pass.setBindGroup(0, res.sceneGroup);
     pass.setBindGroup(1, res.protoGroup);
     pass.setVertexBuffer(0, res.assetVertices);
-    for (const b of res.buckets) {
+    // Only the buckets that had something in them recently.
+    //
+    // Every prototype in the city gets three buckets, one per level of detail,
+    // and every one of them was encoded every frame whether or not a single
+    // instance survived culling. At full scale that is eight hundred indirect
+    // draws to put fifteen hundred buildings on screen, and the encoding is not
+    // free -- it is most of what a frame costs before the GPU has drawn
+    // anything.
+    //
+    // The culler's counts come back a frame late, which is exactly the right
+    // trade: a bucket that has just become visible is drawn one frame after it
+    // should be, at sixty frames a second, and nobody has ever seen that.
+    const warm = this.warm;
+    const known = warm.length === res.buckets.length;
+    let encoded = 0;
+    for (let i = 0; i < res.buckets.length; i++) {
+      if (known && warm[i] === 0) continue;
+      const b = res.buckets[i];
       pass.setBindGroup(2, res.cityGroup, [b.sliceOffset]);
       pass.drawIndirect(res.argsBuffer, b.argsOffset);
+      encoded++;
     }
+    this.encodedBuckets = encoded;
 
     // Rain last, over everything, and only when there is any. The pass is a
     // single triangle but it is a full-screen one: skipping the draw outright
@@ -1404,6 +1457,8 @@ export class Renderer {
 
     if (!this.countsPending) {
       encoder.copyBufferToBuffer(res.argsBuffer, 0, res.argsRead, 0, res.argsReset.byteLength);
+      encoder.copyBufferToBuffer(res.castArgsBuffer, 0, res.argsRead,
+        res.argsReset.byteLength, res.castArgsBytes);
     }
     this.profiler?.resolve(encoder);
     device.queue.submit([encoder.finish()]);
@@ -1411,7 +1466,7 @@ export class Renderer {
     this.readDrawnCounts(res);
 
     this.stats.sample(performance.now() - cpuStart);
-    this.stats.set('draws', String(1 + chunks + res.buckets.length + res.casts.length));
+    this.stats.set('draws', String(1 + chunks + this.encodedBuckets + this.encodedCasts));
     this.stats.set('hour', `${Math.floor(this.timeOfDay * 24)}:${String(Math.floor((this.timeOfDay * 24 % 1) * 60)).padStart(2, '0')}`);
     this.stats.set('chunks', `${chunks}/${res.chunks.length}`);
     if (this.profiler?.enabled) {
@@ -1443,11 +1498,33 @@ export class Renderer {
         const v = new Uint32Array(res.argsRead.getMappedRange().slice(0));
         const byLod: [number, number, number] = [0, 0, 0];
         let tris = 0;
-        for (const b of res.buckets) {
+        // Which buckets had anything in them, so the next frame can stop
+        // encoding the ones that did not. See `warm` below.
+        const warm = this.warm.length === res.buckets.length
+          ? this.warm : new Uint8Array(res.buckets.length);
+        for (let i = 0; i < res.buckets.length; i++) {
+          const b = res.buckets[i];
           const n = v[(b.argsOffset / 4) + 1];
           byLod[b.lod] += n;
           tris += (n * b.vertices) / 3;
+          // A short memory rather than a single frame: a bucket that flickers
+          // in and out at a level-of-detail boundary would otherwise be
+          // re-encoded and dropped on alternate frames, and every reappearance
+          // costs it a frame of absence.
+          warm[i] = n > 0 ? WARM_FRAMES : (warm[i] > 0 ? warm[i] - 1 : 0);
         }
+        this.warm = warm;
+
+        // And the casters, out of the tail of the same read.
+        const castAt = res.argsReset.byteLength / 4;
+        const cw = this.castWarm.length === res.casts.length
+          ? this.castWarm : new Uint8Array(res.casts.length);
+        for (let i = 0; i < res.casts.length; i++) {
+          const n = v[castAt + (res.casts[i].argsOffset / 4) + 1];
+          cw[i] = n > 0 ? WARM_FRAMES : (cw[i] > 0 ? cw[i] - 1 : 0);
+        }
+        this.castWarm = cw;
+
         this.drawnByLod = byLod;
         this.drawnTris = tris;
         res.argsRead.unmap();

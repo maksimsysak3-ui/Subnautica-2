@@ -22,9 +22,22 @@ export const TERRAIN = {
   /** Metres across, centred on the origin. Set by configureSim. */
   get size(): number { return simConfig.terrainSize; },
   /** Metres per chunk. */
-  chunk: 256,
-  /** Quads per chunk edge. 8 m between vertices at 256/32 -- one zoning cell. */
-  res: 32,
+  /**
+   * Metres across one chunk, and quads across it. Eight metres a vertex either
+   * way -- one zoning cell, which is what lets the mesh read its heights
+   * straight out of the grading's corner cache.
+   *
+   * Five hundred and twelve rather than two hundred and fifty-six. A chunk is
+   * the unit of both culling and drawing, and those two want opposite things:
+   * small chunks cull tightly, and small chunks mean four hundred draw calls to
+   * put the ground on screen. Four hundred draws is most of a frame's encoding
+   * budget spent on terrain, and terrain is the cheapest thing in the scene to
+   * actually rasterise -- so the trade is the wrong way round at 256. At 512
+   * there are a hundred chunks in view rather than four hundred, and the extra
+   * ground drawn outside the frustum costs almost nothing.
+   */
+  chunk: 512,
+  res: 64,
 };
 export const VERTS_PER_CHUNK_EDGE = TERRAIN.res + 1;       // 33
 export const INDICES_PER_CHUNK = TERRAIN.res * TERRAIN.res * 6;

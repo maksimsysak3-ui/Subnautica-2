@@ -696,7 +696,7 @@ export function makeCity(world: World = defaultWorld()): City {
           // wider than the lot it stands on, so trees on a two-cell pitch
           // close their canopy while three-cell ones leave gaps between --
           // and a park you can see the grass through is a lawn.
-          if (hash2(cx, cz, 815) > 0.58) continue;
+          if (hash2(cx, cz, 815) > 0.42) continue;
           plant(cx, cz, [mid, big, small]);
           continue;
         }
@@ -707,7 +707,10 @@ export function makeCity(world: World = defaultWorld()): City {
           // In town. Denser in the suburbs than downtown, which is what a
           // city is, and four times denser against the street than behind it.
           const edge = i === 0 || j === 0 || i === BLOCK - 1 || j === BLOCK - 1;
-          const density = (0.5 - d * 0.24) * (edge ? 1.7 : 0.42);
+          // Street trees stay -- they are what a street looks like -- but the
+          // back-garden ones mostly go: they are behind buildings, invisible
+          // from any camera a player uses, and there were tens of thousands.
+          const density = (0.5 - d * 0.24) * (edge ? 1.15 : 0.10);
           if (hash2(cx, cz, 811) > density) continue;
           plant(cx, cz, [mid, small, big]);
           continue;
@@ -833,12 +836,20 @@ function woodland(grid: number): Float32Array {
       // draw anything is a chore, not a challenge.
       const wood = fbm(cx * 0.0115, cz * 0.0115, 3, 917);
       const grain = fbm(cx * 0.052, cz * 0.052, 2, 331);
-      const stand = Math.max(0, wood - 0.575) * 2.4;
+      // A higher bar and fewer trees behind it.
+      //
+      // Fifty thousand trees was most of the instance count, most of the
+      // culling, most of the shadow pass and most of a rebuild -- and it did
+      // not buy a better landscape, it bought a busier one. Raising the
+      // threshold shrinks the woods rather than thinning them, which is the
+      // right way round: a wood with half the trees in it reads as a wood that
+      // is dying, while half as many woods reads as countryside.
+      const stand = Math.max(0, wood - 0.655) * 2.4;
       // The edge of a wood is ragged, not a contour: the finer field breaks it.
       const edge = Math.max(0, stand * (0.55 + grain * 0.9));
       const home = Math.hypot(cx - grid / 2, cz - grid / 2) / (grid * 0.5);
       const clear = Math.min(1, Math.max(0, (home - 0.16) / 0.14));
-      out[cz * grid + cx] = Math.min(0.46, edge) * clear;
+      out[cz * grid + cx] = Math.min(0.30, edge) * clear;
     }
   }
   woodMask = out;
