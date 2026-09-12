@@ -15,7 +15,7 @@ export type { Proto } from './inventory';
 export type { World } from './world';
 export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from './roadgraph';
 export type { RoadClass, RoadSpec, Site } from './roadgraph';
-export { buildRoadMesh, previewRoad, clearRoadMesh, ROAD_FLOATS, SURF } from './roadmesh';
+export { buildRoadMesh, previewRoad, clearRoadMesh, ROAD_FLOATS, ROAD_FLAGS, SURF } from './roadmesh';
 export type { RoadMesh } from './roadmesh';
 export {
   buildTerrain, heightAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,

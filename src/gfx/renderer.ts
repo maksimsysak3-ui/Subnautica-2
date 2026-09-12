@@ -34,7 +34,8 @@ import { buildGroundMap } from './ground-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
-  FLOATS_PER_VERTEX, TERRAIN, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES, ROAD_FLOATS,
+  FLOATS_PER_VERTEX, TERRAIN, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES,
+  ROAD_FLOATS, ROAD_FLAGS,
   buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan, clearStanding,
 } from '../sim';
 // A live binding: the terrain module updates it on every build, and importing
@@ -659,6 +660,7 @@ export class Renderer {
             { shaderLocation: 1, offset: 12, format: 'float32x3' },  // normal
             { shaderLocation: 2, offset: 24, format: 'float32x3' },  // across, along, to the end
             { shaderLocation: 3, offset: 36, format: 'float32x4' },  // surface, width, lanes, flags
+            { shaderLocation: 4, offset: 52, format: 'float32' },    // height above the carriageway
           ],
         }],
       },
@@ -1309,7 +1311,11 @@ export class Renderer {
     for (let i = 0; i < mesh.vertices.length; i += ROAD_FLOATS) {
       // Flagged, so the shader draws it as a proposal rather than as a road,
       // and lifted clear of whatever it is being drawn over.
-      mesh.vertices[i + ROAD_FLOATS - 1] += 8;
+      // The flags word, by name rather than by "the last float" -- which it
+      // stopped being the moment the vertex grew a height field on the end,
+      // and the preview would then have been raising its geometry eight metres
+      // into the air instead of marking itself as a proposal.
+      mesh.vertices[i + ROAD_FLAGS] += 8;
       mesh.vertices[i + 1] += 0.22;
     }
     device.queue.writeBuffer(this.previewVerts, 0, mesh.vertices);

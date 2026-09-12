@@ -34,7 +34,16 @@ import type { Pin } from './grading';
  * shader can put a lane line at a fixed offset and a dash at a fixed pitch and
  * have both come out right whatever the road is doing.
  */
-export const ROAD_FLOATS = 13;
+export const ROAD_FLOATS = 14;
+
+/**
+ * Where the flags word sits in a road vertex.
+ *
+ * Named, because it used to be "the last float" and the drag preview reached
+ * for it that way -- so the day the vertex grew a fifteenth field the preview
+ * started writing its marker into the wrong one.
+ */
+export const ROAD_FLAGS = 12;
 
 /** What a vertex is part of, so the shader knows what to draw on it. */
 export const SURF = {
@@ -47,6 +56,15 @@ export const SURF = {
   CROSSING: 7,
   MEDIAN: 5,
   VERGE: 6,
+  /**
+   * The apron below the ribbon's outer edge.
+   *
+   * It hides the hairline of terrain that would otherwise show under the road
+   * at a grazing angle, and it needs a value of its own rather than borrowing
+   * the footway's: it is the cut edge of the road bed, not a pavement, and
+   * shading it as pale concrete put a bright wall down the side of every road.
+   */
+  SKIRT: 12,
   /** Loose stone: a farm track, and the shoulder of one. */
   GRAVEL: 8,
   /** Setts. A service alley, a pedestrianised street, a promenade. */
@@ -144,7 +162,7 @@ function section(cls: keyof typeof ROAD_SPECS): Strip[] {
   }
   // A skirt below the outer edge, so the ribbon meets the graded ground
   // without a hairline of terrain showing under it at a grazing angle.
-  to(edge, -0.55, spec.kerbed ? SURF.FOOTWAY : SURF.VERGE);
+  to(edge, -0.55, SURF.SKIRT);
 
   // Mirrored. Each strip keeps its own material and slope; only which way it
   // runs across the road changes.
@@ -170,10 +188,10 @@ class Buf {
 
   push(x: number, y: number, z: number, nx: number, ny: number, nz: number,
     u: number, s: number, toEnd: number,
-    surf: number, half: number, lanes: number, flags: number): number {
+    surf: number, half: number, lanes: number, flags: number, lift = 0): number {
     const p = this.into();
     const at = p.v.length / ROAD_FLOATS;
-    p.v.push(x, y, z, nx, ny, nz, u, s, toEnd, surf, half, lanes, flags);
+    p.v.push(x, y, z, nx, ny, nz, u, s, toEnd, surf, half, lanes, flags, lift);
     return at;
   }
 
@@ -461,13 +479,16 @@ export function buildRoadMesh(graph: RoadGraph,
         // the world by the road's own normal: a flat strip faces up, a kerb
         // face faces back across the carriageway.
         const mx = (-dy * nx) / len, my = Math.abs(du) / len, mz = (-dy * nz) / len;
+        // t.y0/t.y1 are the strip's height above the carriageway, and they
+        // travel with the vertex so the shader can flatten the cross-section
+        // at distance -- see the road's vertex shader.
         row.push(buf.push(
           p.x + nx * t.u0, y + t.y0 + LIFT, p.z + nz * t.u0,
-          mx, my, mz, t.u0, at[k], toEnd, t.surf, spec.half, spec.lanes, flags,
+          mx, my, mz, t.u0, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.y0,
         ));
         row.push(buf.push(
           p.x + nx * t.u1, y + t.y1 + LIFT, p.z + nz * t.u1,
-          mx, my, mz, t.u1, at[k], toEnd, t.surf, spec.half, spec.lanes, flags,
+          mx, my, mz, t.u1, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.y1,
         ));
       }
       if (prevRow !== null) {
