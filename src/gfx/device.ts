@@ -42,8 +42,49 @@ export interface Viewport {
 /** Hard ceiling on DPR. Retina at 3x is 9x the pixels for no visible gain. */
 const MAX_DPR = 2;
 
+/**
+ * Most pixels the renderer will draw in one frame, before the browser scales
+ * the result up to the window.
+ *
+ * A ceiling on the device pixel ratio is not a ceiling on anything. Two things
+ * defeat it: `devicePixelContentBoxSize`, which reports the browser's real
+ * backing-store size and skips the multiply entirely -- so on a retina display
+ * the ratio was capped at two and then ignored -- and the size of the window
+ * itself, because two hundred per cent of a small laptop screen and two
+ * hundred per cent of a 4K monitor are not remotely the same amount of work.
+ * A full-screen 4K window at that ratio is fifteen million pixels a frame, and
+ * this scene shades every one of them: sky, then ground over the whole of it,
+ * then a two-thousand-square shadow map besides.
+ *
+ * A budget on the product is the thing that actually holds. Two and a half
+ * million is a little over 1920x1200 -- the resolution the game was tuned at,
+ * where nothing changes -- and a bigger or denser display renders at that and
+ * is scaled up, which costs some crispness at the edges of buildings and buys
+ * back the frame rate it was spending on them.
+ */
+const PIXEL_BUDGET = 2_500_000;
+
+/**
+ * Resolution steps the frame-rate governor may choose between.
+ *
+ * Coarse and few, because changing one means rebuilding the swapchain and the
+ * depth buffer, which costs a frame. Five steps span a four-to-one range in
+ * pixels, which is more than the difference between the machines this has to
+ * run on.
+ */
+export const RENDER_SCALES = [1, 0.86, 0.72, 0.6, 0.5] as const;
+
 export class Gpu {
   readonly viewport: Viewport = { width: 1, height: 1, dpr: 1 };
+
+  /**
+   * A further multiplier on the framebuffer, set by the frame-rate governor.
+   *
+   * Separate from the budget above: the budget is a fixed ceiling that stops
+   * a big display asking for absurd amounts of work, and this is what actually
+   * responds to the machine in front of it.
+   */
+  private renderScale = 1;
 
   private resizeHandlers = new Set<(v: Viewport) => void>();
   private lostHandlers = new Set<(info: GPUDeviceLostInfo) => void>();
@@ -203,6 +244,24 @@ export class Gpu {
     this.setSize(w, h, dpr);
   }
 
+  /**
+   * Sets the governor's multiplier, and resizes if it changed.
+   *
+   * Returns whether anything moved, so the caller can tell a step that did
+   * something from one that was already at the end of the range.
+   */
+  setRenderScale(scale: number): boolean {
+    const next = Math.max(0.25, Math.min(1, scale));
+    if (Math.abs(next - this.renderScale) < 1e-4) return false;
+    this.renderScale = next;
+    const before = this.viewport.width * this.viewport.height;
+    this.resizeNow();
+    return this.viewport.width * this.viewport.height !== before;
+  }
+
+  /** The governor's current multiplier. */
+  get scale(): number { return this.renderScale; }
+
   /** Recomputes size from the element's current layout box. */
   resizeNow(): void {
     if (!this.canvas) return;
@@ -213,8 +272,15 @@ export class Gpu {
 
   private setSize(w: number, h: number, dpr: number): void {
     const max = this.device.limits.maxTextureDimension2D;
-    const width = Math.max(1, Math.min(w, max));
-    const height = Math.max(1, Math.min(h, max));
+    // The budget, applied here because this is the one place every path to a
+    // framebuffer size passes through -- the resize observer's exact device
+    // box, the fallback that multiplies by the ratio, and the initial measure.
+    // Scaled on both axes together so the aspect ratio, and therefore the
+    // projection, is untouched.
+    const shrink = Math.min(1, Math.sqrt(PIXEL_BUDGET / Math.max(w * h, 1)))
+      * this.renderScale;
+    const width = Math.max(1, Math.min(Math.round(w * shrink), max));
+    const height = Math.max(1, Math.min(Math.round(h * shrink), max));
     if (width === this.viewport.width && height === this.viewport.height) return;
 
     if (this.canvas) {
@@ -224,7 +290,8 @@ export class Gpu {
     this.viewport.width = width;
     this.viewport.height = height;
     this.viewport.dpr = dpr;
-    log.debug('gpu', `viewport ${width}x${height} @${dpr}x`);
+    log.debug('gpu', `viewport ${width}x${height} @${dpr}x`
+      + (shrink < 1 ? ` (scaled ${(shrink * 100).toFixed(0)}% from ${w}x${h})` : ''));
     for (const cb of this.resizeHandlers) cb(this.viewport);
   }
 

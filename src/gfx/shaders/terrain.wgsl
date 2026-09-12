@@ -144,15 +144,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // A cell decomposition at about a hundred and thirty metres, warped so the
   // parcels are not all convex blobs, with each one taking its own character
   // from its own id.
-  let warp = vec2f(vnoise(in.world.xz * (1.0 / 210.0)) - 0.5,
-                   vnoise(in.world.xz * (1.0 / 210.0) + vec2f(37.0, 11.0)) - 0.5);
-  let parcel = cells(in.world.xz * (1.0 / 132.0) + warp * 0.55);
-  // How far into the parcel this is: 0 on the boundary, 1 well inside.
-  let inField = smoothstep(0.0, 0.055, parcel.d2 - parcel.d1);
-  // Faded out beyond about a kilometre. Field colour is a texture, and a
-  // texture the eye cannot resolve is noise -- at map distance the parcels read
-  // as a Voronoi diagram laid over the country rather than as fields in it.
+  //
+  // Faded out beyond about a kilometre, and the fade is tested *before* the
+  // work rather than multiplied into it afterwards. Field colour is a texture,
+  // and a texture the eye cannot resolve is noise -- at map distance the
+  // parcels read as a Voronoi diagram laid over the country rather than as
+  // fields in it. Computing two warp octaves and a cell decomposition for
+  // every pixel of far ground and then multiplying the answer by zero is the
+  // most expensive way to draw nothing, and the ground is most of the screen.
   let parcelFade = 1.0 - smoothstep(700.0, 1900.0, length(camera.eye.xz - in.world.xz));
+  var parcel = Cell(1.0, 1.0, 0.0);
+  var inField = 1.0;
+  if (parcelFade > 0.002) {
+    let warp = vec2f(vnoise(in.world.xz * (1.0 / 210.0)) - 0.5,
+                     vnoise(in.world.xz * (1.0 / 210.0) + vec2f(37.0, 11.0)) - 0.5);
+    parcel = cells(in.world.xz * (1.0 / 132.0) + warp * 0.55);
+    // How far into the parcel this is: 0 on the boundary, 1 well inside.
+    inField = smoothstep(0.0, 0.055, parcel.d2 - parcel.d1);
+  }
   // Each parcel's own state, in three bands that do not blend into each other.
   let cut = fract(parcel.id * 7.13);
 

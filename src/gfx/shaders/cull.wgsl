@@ -134,5 +134,12 @@ const SHADOW_MIN_SIZE = 0.006;
 const MIN_PIXELS = 4.5;
 /** Over this many pixels tall, the full mesh is worth its triangles. */
 const LOD0_PIXELS = 110.0;
-/** Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing. */
-const LOD1_PIXELS = 32.0;
+/**
+ * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
+ *
+ * Lowered from thirty-two once the coarsest tree became an impostor rather
+ * than a smaller tree. A blob on a stick is indistinguishable from a tree at
+ * twenty pixels and obviously a blob on a stick at thirty-five, so the level
+ * that draws one has to start where the eye stops being able to tell.
+ */
+const LOD1_PIXELS = 21.0;

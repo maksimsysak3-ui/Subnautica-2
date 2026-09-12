@@ -21,6 +21,7 @@ import { log } from '../util/log';
 import { Weather } from '../sim/weather';
 import type { Sky } from '../sim/weather';
 import { ASSETS } from '../assets/registry';
+import { RENDER_SCALES } from './device';
 import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
@@ -33,7 +34,7 @@ import { buildGroundMap } from './ground-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
-  FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
+  FLOATS_PER_VERTEX, TERRAIN, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES, ROAD_FLOATS,
   buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan, clearStanding,
 } from '../sim';
 // A live binding: the terrain module updates it on every build, and importing
@@ -95,6 +96,15 @@ function smooth01(t: number): number {
  * frames, and the picture is never more than one frame behind the input.
  */
 const MAX_IN_FLIGHT = 2;
+
+/** How long the governor watches before it judges, in milliseconds. */
+const GOVERN_MS = 1000;
+/** Dropped frames a second above which the GPU is judged to be behind. */
+const GOVERN_BEHIND = 6;
+/** And below which it is judged to be comfortable. */
+const GOVERN_CLEAR = 0.5;
+/** Comfortable judgements in a row before it tries a step back up. */
+const GOVERN_PATIENCE = 5;
 
 /**
  * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
@@ -279,12 +289,23 @@ export class Renderer {
   private inFlight = 0;
   /** Frames dropped to the bound above since the last readout. */
   private stalled = 0;
+  /**
+   * The frame-rate governor's state: which of RENDER_SCALES is in use, when it
+   * last moved, and how many frames it has had to drop since.
+   */
+  private step = 0;
+  private judgedAt = 0;
+  private dropped = 0;
+  /** Consecutive judgements with the GPU comfortably keeping up. */
+  private clear = 0;
   /** Whether the bound applies. Off while a tool is driving frames by hand. */
   private paced = true;
   /** Counts frames, to run the once-a-few-frames work off the hot path. */
   private beat = 0;
   /** Blades in the lattice this frame, for the readout. */
   private grassBlades = 0;
+  /** Ground triangles drawn this frame, for the readout. */
+  private terrainTris = 0;
   /** Reused destination for the counter readback, so it allocates once. */
   private countsScratch: Uint32Array | null = null;
   private unsubscribeResize: (() => void) | null = null;
@@ -1256,6 +1277,53 @@ export class Renderer {
     this.previewCount = mesh.indices.length;
   }
 
+  /**
+   * Resolution, chosen from what the machine is actually managing.
+   *
+   * The signal is the pacing bound above, and it is the right one because it
+   * is the only one that is not a lie. Frame interval is capped by the display
+   * -- on a sixty-hertz panel a machine with twice the power it needs and one
+   * with exactly enough both report sixteen milliseconds, so a governor
+   * chasing a frame time either does nothing or winds the resolution down
+   * forever chasing a number vsync will never let it reach. A frame *dropped*
+   * because two are already in the queue means one thing only: the GPU is
+   * behind. That is true at any refresh rate, and it is false the moment the
+   * machine is keeping up, so a fast one is never quietly downscaled.
+   *
+   * Judged over a second, moved one step at a time, and slow to climb back --
+   * every change rebuilds the swapchain and costs a frame, and a governor that
+   * hunts is worse than one that settles a step low.
+   */
+  private govern(now: number): void {
+    if (!this.paced) return;
+    if (this.judgedAt === 0) { this.judgedAt = now; return; }
+    const span = now - this.judgedAt;
+    if (span < GOVERN_MS) return;
+    const perSecond = (this.dropped * 1000) / span;
+    this.dropped = 0;
+    this.judgedAt = now;
+
+    if (perSecond > GOVERN_BEHIND && this.step < RENDER_SCALES.length - 1) {
+      this.step++;
+      this.gpu.setRenderScale(RENDER_SCALES[this.step]);
+      this.clear = 0;
+      return;
+    }
+    // Nothing dropped for a while: try one step back up. If it was a mistake
+    // the next judgement drops it again, and the pair costs two frames a
+    // minute at worst.
+    if (perSecond <= GOVERN_CLEAR) {
+      this.clear++;
+      if (this.clear >= GOVERN_PATIENCE && this.step > 0) {
+        this.step--;
+        this.gpu.setRenderScale(RENDER_SCALES[this.step]);
+        this.clear = 0;
+      }
+    } else {
+      this.clear = 0;
+    }
+  }
+
   private frame(now: number): void {
     const res = this.res;
     if (!res) return;
@@ -1271,9 +1339,12 @@ export class Renderer {
     // no room for yet.
     if (this.paced && this.inFlight >= MAX_IN_FLIGHT) {
       this.stalled++;
+      this.dropped++;
+      this.govern(now);
       this.stats.paint(now);
       return;
     }
+    this.govern(now);
 
     const cpuStart = performance.now();
     const { device, context, viewport } = this.gpu;
@@ -1444,9 +1515,21 @@ export class Renderer {
     pass.setVertexBuffer(0, res.terrainVertices);
     pass.setIndexBuffer(res.terrainIndices, 'uint32');
     let chunks = 0;
+    let terrainTris = 0;
     for (const chunk of res.chunks) {
       if (!this.frustum.containsBox(chunk.min, chunk.max)) continue;
-      pass.drawIndexed(INDICES_PER_CHUNK, 1, 0, chunk.baseVertex);
+      // Level of detail by distance from the eye to the chunk's nearest face,
+      // not to its centre: a five-hundred-metre chunk the camera is standing
+      // on the corner of has its centre two hundred and fifty metres away, and
+      // picking on that would drop a level under the player's feet.
+      const dx = Math.max(chunk.min[0] - cam.eye[0], 0, cam.eye[0] - chunk.max[0]);
+      const dy = Math.max(chunk.min[1] - cam.eye[1], 0, cam.eye[1] - chunk.max[1]);
+      const dz = Math.max(chunk.min[2] - cam.eye[2], 0, cam.eye[2] - chunk.max[2]);
+      const near = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const level = near > TERRAIN_LOD_METRES[1] ? 2 : near > TERRAIN_LOD_METRES[0] ? 1 : 0;
+      const span = TERRAIN_LOD_SPANS[level];
+      pass.drawIndexed(span.count, 1, span.first, chunk.baseVertex);
+      terrainTris += span.count / 3;
       chunks++;
     }
 
@@ -1568,6 +1651,7 @@ export class Renderer {
     this.profiler?.poll();
     if (wantCounts) this.readDrawnCounts(res);
 
+    this.terrainTris = terrainTris;
     this.stats.sample(performance.now() - cpuStart);
     // Every row below is a string built from a number, and at several hundred
     // frames a second that is tens of thousands of throwaway strings a second
@@ -1578,6 +1662,7 @@ export class Renderer {
     this.stats.set('draws', String(1 + chunks + this.encodedBuckets + this.encodedCasts));
     this.stats.set('hour', `${Math.floor(this.timeOfDay * 24)}:${String(Math.floor((this.timeOfDay * 24 % 1) * 60)).padStart(2, '0')}`);
     this.stats.set('chunks', `${chunks}/${res.chunks.length}`);
+    this.stats.set('ground', `${(this.terrainTris / 1000).toFixed(0)}k`);
     if (this.profiler?.enabled) {
       this.stats.set('gpu cull', this.profiler.ms('cull').toFixed(2));
       this.stats.set('gpu draw', this.profiler.ms('draw').toFixed(2));
@@ -1590,6 +1675,7 @@ export class Renderer {
     this.stats.set('px', `${viewport.width}×${viewport.height}`);
     this.stats.set('grass', this.grassBlades ? `${(this.grassBlades / 1000).toFixed(0)}k` : '—');
     if (this.stalled > 0) { this.stats.set('paced', String(this.stalled)); this.stalled = 0; }
+    if (this.gpu.scale < 1) this.stats.set('scale', `${(this.gpu.scale * 100).toFixed(0)}%`);
     this.stats.paint(now);
   }
 

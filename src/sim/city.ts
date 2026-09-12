@@ -30,7 +30,7 @@
 import { hash2, fbm } from './hash';
 import { baseHeightAt } from './terrain';
 import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
-import { gradeGround, baseAtCorner, whenTerrainChanges } from './grading';
+import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
 import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
@@ -735,7 +735,15 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     // height -- a street is graded as one run rather than one tile at a time,
     // because two tiles butted together at their own mean heights leave a step
     // between them with the terrain showing through it.
-    const level = typeof grade === 'number' ? grade : ground.mean;
+    // Graded things stand on the mean of their lot, because that is the height
+    // the ground under them is about to be cut to. Ungraded things -- trees --
+    // stand on the ground where they are, sampled the way the terrain is drawn
+    // rather than averaged over their lot: the mean of a two-cell lot's
+    // corners describes a sixteen-metre square, and on a slope that is most of
+    // a metre between a trunk and the soil.
+    const level = typeof grade === 'number' ? grade
+      : grade === true ? ground.mean
+        : baseAtPoint((x0 + x1) / 2, (z0 + z1) / 2, baseHeightAt);
     // Trees do not level the ground: they grow on it. Grading for every one of
     // several thousand would flatten the map into a table, and a tree on a
     // slope is a tree on a slope.

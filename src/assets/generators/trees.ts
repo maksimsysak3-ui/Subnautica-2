@@ -158,6 +158,107 @@ function mass(m: MeshBuilder, c: Vec3, r: number, flat: number, seed: number,
   }
 }
 
+/**
+ * The far tree: a trunk and a crown, built to the box the real one fills.
+ *
+ * Sized from the measured crown rather than from the species, so it stands in
+ * the same space as the level it replaces -- the crown's own centre, its own
+ * width, its own underside. A coarse level that is a different size from the
+ * fine one pops at the switch and falls outside the frame the atlas quantises
+ * all three levels into, which is the failure this whole file is careful
+ * about.
+ *
+ * Lumpy, for the same reason mass() is: at eight pixels the silhouette is the
+ * entire tree, and a smooth ellipsoid on a stick reads as a lollipop.
+ */
+function impostor(m: MeshBuilder, s: Species, seed: number, k: number,
+  lo: Vec3, hi: Vec3, fine: { min: Vec3; max: Vec3 }): void {
+  // Nothing was measured -- a species with no canopy at all. Fall back to the
+  // declared height so the mesh is still the size it says it is.
+  const has = Number.isFinite(lo[0]);
+  const cx = has ? ((lo[0] + hi[0]) / 2) * k : 0;
+  const cz = has ? ((lo[2] + hi[2]) / 2) * k : 0;
+  const y0 = has ? lo[1] * k : s.height * s.fork;
+  const y1 = has ? hi[1] * k : s.height;
+  // Half-width from the wider of the two horizontal spans: the crown is not
+  // round and taking the mean would leave the coarse tree narrower than the
+  // fine one on its long axis, which is the direction it is most often seen
+  // from.
+  const rx = has ? Math.max(hi[0] - lo[0], hi[2] - lo[2]) * k * 0.5 : s.height * s.spread;
+  const cy = (y0 + y1) / 2;
+  const ry = (y1 - y0) / 2;
+
+  // How far the wobble below can push a vertex past its nominal radius. The
+  // impostor is fitted so that even the furthest-out vertex lands inside the
+  // fine tree, with a hair to spare -- never on it, because equal is one
+  // floating-point rounding away from outside.
+  const WOB = 1.12, SNUG = 0.995;
+  const room = (want: number, at: number, min: number, max: number): number => {
+    const reach = Math.min(at - min, max - at);
+    return Math.min(want, (reach / WOB) * SNUG);
+  };
+  const fitX = room(rx, cx, fine.min[0], fine.max[0]);
+  const fitZ = room(rx, cz, fine.min[2], fine.max[2]);
+  const fitR = Math.max(0.05, Math.min(fitX, fitZ));
+  const fitY = Math.max(0.05, room(ry, cy, fine.min[1], fine.max[1]));
+
+  // The trunk, and it is deliberately fatter than the real one.
+  //
+  // This level is chosen when the tree is about twenty pixels tall, and a
+  // lime's trunk is a quarter of a metre through -- which at twenty pixels is
+  // half a pixel, so it vanished into the background and left the crown
+  // hanging in the air with nothing under it. That is what "the trees look
+  // like they are floating" was.
+  //
+  // The fine tree does not have this problem because it has not got one trunk
+  // at that height, it has four or five limbs fanning out, and together they
+  // read as a dark mass a metre or two wide. So the impostor's single trunk is
+  // sized to stand in for all of them: scaled off the crown, which is what
+  // sets how big the tree looks, rather than off the species' true calliper.
+  //
+  // Dead vertical, too: a limb's end rings stand perpendicular to its axis, so
+  // leaning it towards the crown's centre tipped the ground ring below y = 0
+  // and put the coarse tree's feet under the fine one's.
+  const butt = Math.max(s.butt * k * 1.15, rx * 0.085);
+  // Up into the crown rather than to its underside, so there is no seam where
+  // the two meet, and barely tapered -- a trunk that narrows to nothing is the
+  // other way to make a crown look unsupported.
+  limb(m, [0, 0, 0], [0, Math.max(cy, butt * 2), 0], butt * 1.3, butt * 0.9, 5);
+
+  // The crown. Six around and three high is twenty-four triangles, and it is
+  // the smallest thing that still has a top, a middle and a bottom -- a
+  // bipyramid, which is what four-by-two gives, reads as a diamond.
+  const SIDES = 6, RINGS = 3;
+  const grid: Vec3[][] = [];
+  for (let j = 1; j < RINGS; j++) {
+    const phi = (j / RINGS) * Math.PI;
+    const row: Vec3[] = [];
+    for (let i = 0; i < SIDES; i++) {
+      const th = (i / SIDES) * Math.PI * 2;
+      const wob = 0.82 + rand(seed, j * 37 + i * 11) * 0.30;
+      row.push([
+        cx + Math.sin(phi) * Math.cos(th) * fitR * wob,
+        cy + Math.cos(phi) * fitY * wob,
+        cz + Math.sin(phi) * Math.sin(th) * fitR * wob,
+      ]);
+    }
+    grid.push(row);
+  }
+  const cap: Vec3 = [cx, Math.min(y1, fine.max[1] * SNUG), cz];
+  const base: Vec3 = [cx, Math.max(y0, cy - fitY * WOB), cz];
+  m.painted(TINT.NONE, () => {
+    for (let i = 0; i < SIDES; i++) {
+      const j = (i + 1) % SIDES;
+      m.tri(cap, grid[0][j], grid[0][i], MAT.FOLIAGE);
+      for (let r = 0; r + 1 < grid.length; r++) {
+        m.quad(grid[r][i], grid[r][j], grid[r + 1][j], grid[r + 1][i], MAT.FOLIAGE);
+      }
+      const last = grid[grid.length - 1];
+      m.tri(base, last[j], last[i], MAT.FOLIAGE);
+    }
+  });
+}
+
 interface Species {
   /** Metres, to the top of the crown. */
   height: number;
@@ -188,6 +289,14 @@ interface Species {
 function grow(lod: number, s: Species, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const medium = lod < 2;
+  /**
+   * The crown, as a box, measured off the full-detail tree.
+   *
+   * The coarse level is built from this rather than grown, so it occupies
+   * exactly the space the fine tree does. See `impostor` below.
+   */
+  const lo: Vec3 = [Infinity, Infinity, Infinity];
+  const hi: Vec3 = [-Infinity, -Infinity, -Infinity];
   // A young tree has not had time to branch as far as an old one, so its
   // depth is short by a generation whatever the level of detail.
   //
@@ -201,13 +310,13 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
   let fine = true;
   let depth = 4 - s.young;
   const sides = fine ? 7 : 5;
-  const massSides = fine ? 6 : medium ? 5 : 4;
+  const massSides = fine ? 6 : 5;
   // Four, not three. Three puts one ring above the equator and one below, so
   // the mass is a drum with a flat top -- and a canopy of flat-topped drums is
   // what the crown looked like. Two, at the coarsest level, is a bipyramid --
   // eight triangles for a thing that is about to be twenty pixels tall, and
   // trees are the most numerous asset in the city by a wide margin.
-  const massRings = fine ? 4 : medium ? 3 : 2;
+  const massRings = fine ? 4 : 3;
 
   let clusters = 0;
   /** Highest point the skeleton reached, for the normalising pass below. */
@@ -260,6 +369,16 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
       // height is a number that does not describe the mesh.
       const tip = massTop(c, r0, s.flat, seed + id2, sides2, rings2);
       if (tip > top) top = tip;
+      // The box every mass of the full-detail crown sits in. Only the
+      // measuring pass runs at full detail, so this is the one place the
+      // coarse levels can learn what shape they are replacing.
+      if (!emitting) {
+        const ry = r0 * s.flat * 1.12;
+        for (const [i, r] of [[0, r0 * 1.14], [1, ry], [2, r0 * 1.14]] as const) {
+          if (c[i] - r < lo[i]) lo[i] = c[i] - r;
+          if (c[i] + r > hi[i]) hi[i] = c[i] + r;
+        }
+      }
       if (!emitting) return;
       mass(m, c, r0, s.flat, seed + id2, sides2, rings2);
       clusters++;
@@ -289,7 +408,7 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
       // Fewer at distance, never larger: dropping a mass shrinks the crown,
       // which keeps the coarse tree inside the fine one's bounds. Growing the
       // remaining ones to compensate is what broke that before.
-      const heads = fine ? 3 : medium ? 3 : 2;
+      const heads = 3;
       for (let k = 0; k < heads; k++) {
         const r0 = crown * (0.13 + rand(seed, id * 7 + k) * 0.10);
         const along = len * (0.10 + k * 0.22);
@@ -346,8 +465,42 @@ function grow(lod: number, s: Species, seed: number): MeshBuilder {
   };
   run();
   k = s.height / Math.max(top, 0.001);
+
+  // The coarsest level is an impostor, not a smaller tree.
+  //
+  // Growing the same tree two generations less far keeps its proportions, and
+  // that was the right instinct -- but it is the wrong economy. A tree twelve
+  // metres tall seen from six hundred metres is eight pixels of screen, and
+  // two generations of branching with a spheroid on every tip still cost six
+  // hundred and sixty triangles to draw those eight pixels. Trees outnumber
+  // every other asset in the map by an order of magnitude, so that was ten
+  // million triangles of foliage per frame for a landscape of specks, and it
+  // was most of the frame.
+  //
+  // What survives at eight pixels is the silhouette: a trunk, and a mass above
+  // it of the right width and the right height. That is forty triangles. The
+  // shadow pass draws this level too, so it pays for itself twice.
+  if (lod >= 2) {
+    // Fitted to the real mesh, not to an estimate of it.
+    //
+    // The measured crown box below is where each mass was *centred* and how
+    // far it could reach, which is an upper bound rather than the extent the
+    // tree actually realises -- the spheroid only samples a handful of angles,
+    // so it never gets all the way out to its own bound. Fitting to that put
+    // the coarse plane four per cent wider than the fine one and the coarse
+    // ash a third of a metre taller, and a coarse level that is bigger than
+    // the level it replaces pops at the switch and falls outside the frame the
+    // atlas quantises all three into.
+    //
+    // So the box comes from building the fine tree and asking it. That is one
+    // extra build of six prototypes, once, at bake time.
+    impostor(m, s, seed, k, lo, hi, grow(0, s, seed).bounds());
+    void clusters;
+    return m;
+  }
+
   fine = lod < 1;
-  depth = (lod < 1 ? 4 : lod < 2 ? 3 : 2) - s.young;
+  depth = (lod < 1 ? 4 : 3) - s.young;
   emitting = true;
   top = 0;
   m.painted(TINT.NONE, run);

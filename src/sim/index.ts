@@ -21,7 +21,7 @@ export {
   buildTerrain, heightAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,
   INDICES_PER_CHUNK,
 } from './terrain';
-export { terrainChunksRebuilt } from './terrain';
+export { terrainChunksRebuilt, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES } from './terrain';
 export { clearGrading, clearTerrainCache, warmTerrain, gradedSince, forgetGrading } from './grading';
 export { clearWild, clearStanding } from './city';
 export type { Dirty } from './city';

@@ -39,8 +39,52 @@ export const TERRAIN = {
   chunk: 512,
   res: 64,
 };
-export const VERTS_PER_CHUNK_EDGE = TERRAIN.res + 1;       // 33
+export const VERTS_PER_CHUNK_EDGE = TERRAIN.res + 1;       // 65
 export const INDICES_PER_CHUNK = TERRAIN.res * TERRAIN.res * 6;
+
+/**
+ * Levels of detail for a chunk, as strides through its vertex grid.
+ *
+ * A chunk is sixty-four quads across whether it is under the camera or four
+ * kilometres away, and at four kilometres that is eight thousand triangles for
+ * a patch of ground a hundred pixels wide -- with a hundred and fifty chunks
+ * in view, more than a million triangles of far distance every frame. Taking
+ * every second or every fourth vertex of the same grid quarters and then
+ * sixteenths that, and costs nothing but index buffer: the vertices are
+ * already there and already uploaded, so a level of detail here is a different
+ * range of the index buffer and nothing else.
+ *
+ * Two levels rather than four. The saving is a geometric series -- the first
+ * step is three quarters of it -- and every extra level is another seam
+ * between chunks that disagree about where the ground is.
+ */
+export const TERRAIN_STRIDES = [1, 2, 4] as const;
+
+/** Where each level's indices start, and how many there are. */
+export interface LodSpan { first: number; count: number; }
+export const TERRAIN_LOD_SPANS: LodSpan[] = (() => {
+  const out: LodSpan[] = [];
+  let first = 0;
+  for (const stride of TERRAIN_STRIDES) {
+    const quads = TERRAIN.res / stride;
+    const count = quads * quads * 6;
+    out.push({ first, count });
+    first += count;
+  }
+  return out;
+})();
+const TOTAL_INDICES = TERRAIN_LOD_SPANS.reduce((n, s) => n + s.count, 0);
+
+/**
+ * How far from the eye each level takes over, in metres.
+ *
+ * Set from what the seam costs rather than from what looks tidy on paper. Two
+ * neighbouring chunks at different levels disagree about the ground by roughly
+ * the curvature over one vertex spacing -- a few tens of centimetres on this
+ * terrain. At nine hundred metres, thirty centimetres is a tenth of a pixel,
+ * so the crack the seam would open is smaller than the pixel it would open in.
+ */
+export const TERRAIN_LOD_METRES = [900, 2000];
 /** position(3) + normal(3) */
 export const FLOATS_PER_VERTEX = 6;
 
@@ -232,17 +276,20 @@ TerrainMesh {
     }
   }
 
-  // One index buffer, reused by every chunk via baseVertex.
-  const indices = new Uint32Array(INDICES_PER_CHUNK);
+  // One index buffer, reused by every chunk via baseVertex, holding all three
+  // levels of detail end to end over the same vertices.
+  const indices = new Uint32Array(TOTAL_INDICES);
   let k = 0;
-  for (let j = 0; j < TERRAIN.res; j++) {
-    for (let i = 0; i < TERRAIN.res; i++) {
-      const a = j * vpe + i;
-      const b = a + 1;
-      const c = a + vpe;
-      const d = c + 1;
-      indices[k++] = a; indices[k++] = c; indices[k++] = b;
-      indices[k++] = b; indices[k++] = c; indices[k++] = d;
+  for (const stride of TERRAIN_STRIDES) {
+    for (let j = 0; j < TERRAIN.res; j += stride) {
+      for (let i = 0; i < TERRAIN.res; i += stride) {
+        const a = j * vpe + i;
+        const b = a + stride;
+        const c = a + vpe * stride;
+        const d = c + stride;
+        indices[k++] = a; indices[k++] = c; indices[k++] = b;
+        indices[k++] = b; indices[k++] = c; indices[k++] = d;
+      }
     }
   }
 

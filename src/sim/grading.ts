@@ -135,6 +135,43 @@ export function baseAtCorner(gx: number, gz: number, base: (x: number, z: number
   return y;
 }
 
+/**
+ * The ground exactly where the terrain draws it, at any point -- not at the
+ * nearest corner.
+ *
+ * Anything that is graded stands on a level pad, so the corner it rounds to is
+ * the ground it will get and rounding is free. Anything that is *not* graded
+ * -- which is every tree, and there are tens of thousands of them -- stands on
+ * the ground as it lies, and there the rounding is a real error: a tree's lot
+ * is two cells, so the mean of its corners describes a sixteen-metre square
+ * while the trunk is somewhere inside it. On rolling country that is most of a
+ * metre, and most of a metre is a tree hovering over its own shadow or buried
+ * to the first branch.
+ *
+ * So: the height the renderer will actually show at that point. The terrain
+ * mesh puts a vertex on every cell corner and splits each quad into two
+ * triangles along the anti-diagonal, so interpolating over the same two
+ * triangles gives the drawn surface exactly rather than approximately, and a
+ * trunk meets the ground at every point on every slope by construction.
+ */
+export function baseAtPoint(x: number, z: number,
+  base: (px: number, pz: number) => number): number {
+  const half = simConfig.cityGrid / 2;
+  const fx = x / CELL + half, fz = z / CELL + half;
+  const gx = Math.floor(fx), gz = Math.floor(fz);
+  const u = fx - gx, v = fz - gz;
+  const a = baseAtCorner(gx, gz, base);
+  const b = baseAtCorner(gx + 1, gz, base);
+  const c = baseAtCorner(gx, gz + 1, base);
+  const d = baseAtCorner(gx + 1, gz + 1, base);
+  // The split runs from (gx+1, gz) to (gx, gz+1): the near triangle is the one
+  // with u + v <= 1. Matching it matters on a ridge, where the two triangles
+  // of one quad can be half a metre apart in the middle.
+  return u + v <= 1
+    ? a + (b - a) * u + (c - a) * v
+    : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}
+
 export interface Pad {
   /** Cell coordinates of the low corner. */
   gx: number;
