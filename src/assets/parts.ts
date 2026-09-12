@@ -591,7 +591,14 @@ export function ribbon(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: numb
     axis: w.axis, sign: w.sign, plane: w.plane,
     u0, u1, y0, y1, glass: MAT.GLASS, frame: 0.13, proud: 0.07,
   });
-  const n = opts.mullions ?? Math.max(1, Math.round((u1 - u0) / 1.8));
+  // Mullions are a box each, ten triangles, and a tower's elevation has
+  // hundreds of them -- which is why several signature buildings had a middle
+  // level within a few per cent of their full mesh. Thinned rather than
+  // dropped: the vertical rhythm is what a curtain wall *is*, and losing it
+  // entirely turns a tower into a mirrored slab.
+  const full = opts.mullions ?? Math.max(1, Math.round((u1 - u0) / 1.8));
+  const n = MeshBuilder.detail >= 2 ? 0
+    : MeshBuilder.detail >= 1 ? Math.max(1, Math.round(full / 3)) : full;
   m.painted(TINT.METAL_DARK, () => {
     for (let i = 1; i < n; i++) {
       const px = u0 + (i / n) * (u1 - u0);
@@ -606,7 +613,9 @@ export function ribbon(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: numb
 /** Vertical shading fins across an elevation. Cheap, and unmistakably civic. */
 export function fins(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: number, y1: number,
                      count: number, depth = 0.45): void {
-  for (let i = 0; i <= count; i++) {
+  // Every third at the middle level: the rhythm survives, the count does not.
+  const stride = MeshBuilder.detail >= 2 ? 4 : MeshBuilder.detail >= 1 ? 3 : 1;
+  for (let i = 0; i <= count; i += stride) {
     const px = u0 + (i / count) * (u1 - u0);
     slab(m, w, px - 0.11, px + 0.11, y0, y1, 0.0, depth, MAT.CONCRETE);
   }
@@ -617,6 +626,9 @@ export function louvres(m: MeshBuilder, w: Wall, u0: number, u1: number, y0: num
                         pitch = 0.3): void {
   m.painted(TINT.METAL_DARK, () => {
     slab(m, w, u0 - 0.1, u1 + 0.1, y0 - 0.1, y1 + 0.1, 0.0, 0.1, MAT.TRIM);
+    // A louvre bank reads as a dark textured panel from any distance at all,
+    // and the frame above already draws that panel.
+    if (MeshBuilder.detail >= 1) return;
     const n = Math.max(2, Math.floor((y1 - y0) / pitch));
     for (let i = 0; i < n; i++) {
       const y = y0 + i * ((y1 - y0) / n);
@@ -692,7 +704,10 @@ export function frontage(m: MeshBuilder, x0: number, x1: number, z: number, _see
 /** A run of railing: posts and two rails. */
 export function railing(m: MeshBuilder, x0: number, x1: number, z: number, y: number, height = 1.05, spacing = 1.4): void {
   m.painted(TINT.METAL_DARK, () => {
-    const n = Math.max(2, Math.round((x1 - x0) / spacing));
+    // The rails carry the railing; the posts are what cost. A post is five
+    // centimetres across, which is under a pixel long before the middle level
+    // is chosen.
+    const n = Math.max(2, Math.round((x1 - x0) / (spacing * (MeshBuilder.detail >= 1 ? 3 : 1))));
     for (let i = 0; i <= n; i++) {
       const px = x0 + (i / n) * (x1 - x0);
       m.box([px - 0.05, y, z - 0.05], [px + 0.05, y + height, z + 0.05], MAT.TRIM);

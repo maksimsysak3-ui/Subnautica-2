@@ -99,12 +99,31 @@ const MAX_IN_FLIGHT = 2;
 
 /** How long the governor watches before it judges, in milliseconds. */
 const GOVERN_MS = 1000;
-/** Dropped frames a second above which the GPU is judged to be behind. */
+/** Dropped frames a second above which the GPU is certainly behind. */
 const GOVERN_BEHIND = 6;
+/**
+ * How much worse than the machine's own best frame counts as behind.
+ *
+ * The dropped-frame signal is sound but it is not sufficient, and shipping it
+ * alone was a mistake: requestAnimationFrame is already throttled to the
+ * display, so the browser paces submissions for us and the queue almost never
+ * reaches the bound. A machine sitting at fifty frames a second on a
+ * sixty-hertz panel drops almost nothing -- it just misses one deadline in
+ * six -- and the governor slept through exactly the case it exists for.
+ *
+ * What that case does show is the mean interval drifting above the best the
+ * machine has demonstrated it can do. Eighteen per cent above is one frame in
+ * six missed, which is visible; a machine holding its refresh rate sits at
+ * 1.00 and is never touched.
+ */
+const GOVERN_SLIP = 1.18;
 /** And below which it is judged to be comfortable. */
 const GOVERN_CLEAR = 0.5;
+const GOVERN_GOOD = 1.06;
 /** Comfortable judgements in a row before it tries a step back up. */
 const GOVERN_PATIENCE = 5;
+/** Seconds before a step-up that failed is worth trying again. */
+const GOVERN_RETRY = 60;
 
 /**
  * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
@@ -298,6 +317,17 @@ export class Renderer {
   private dropped = 0;
   /** Consecutive judgements with the GPU comfortably keeping up. */
   private clear = 0;
+  /** Frame intervals gathered since the last judgement. */
+  private watchSum = 0;
+  private watchCount = 0;
+  private watchLow = Infinity;
+  /** The fastest frame of each of the last thirty seconds. */
+  private floors = new Float32Array(30);
+  private floorAt = 0;
+  /** A step that was tried and did not hold, and when it was last tried. */
+  private ceiling = 0;
+  private ceilingAt = 0;
+  private tried = false;
   /** Whether the bound applies. Off while a tool is driving frames by hand. */
   private paced = true;
   /** Counts frames, to run the once-a-few-frames work off the hot path. */
@@ -564,7 +594,17 @@ export class Renderer {
       vertex: { module: skyModule, entryPoint: 'vs' },
       fragment: { module: skyModule, entryPoint: 'fs', targets: [{ format }] },
       primitive: { topology: 'triangle-list' },
-      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
+      // Tested against the cleared depth rather than drawn over everything.
+      //
+      // The sky used to go first, with `always`, and then the ground was drawn
+      // on top of it -- so every pixel of an empty map was shaded twice, once
+      // by a shader with stars, a moon, a sun disc, two scattering lobes and a
+      // cloud deck in it, and then again by the terrain that hid it. On a map
+      // with nothing built the ground is most of the frame, which is exactly
+      // the case that was slowest. Drawn last instead, and only where the
+      // depth buffer is still at its clear value, so it shades the sky and
+      // nothing else.
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'equal' },
     });
 
     // Rain, over the finished frame. No depth at all -- it is in front of
@@ -1294,33 +1334,69 @@ export class Renderer {
    * every change rebuilds the swapchain and costs a frame, and a governor that
    * hunts is worse than one that settles a step low.
    */
-  private govern(now: number): void {
+  private govern(now: number, dt: number): void {
     if (!this.paced) return;
+    // Gathered every frame; judged once a second.
+    if (dt > 0.0005 && dt < 0.5) {
+      this.watchSum += dt * 1000;
+      this.watchCount++;
+      if (dt * 1000 < this.watchLow) this.watchLow = dt * 1000;
+    }
     if (this.judgedAt === 0) { this.judgedAt = now; return; }
     const span = now - this.judgedAt;
     if (span < GOVERN_MS) return;
-    const perSecond = (this.dropped * 1000) / span;
-    this.dropped = 0;
-    this.judgedAt = now;
 
-    if (perSecond > GOVERN_BEHIND && this.step < RENDER_SCALES.length - 1) {
+    const perSecond = (this.dropped * 1000) / span;
+    const mean = this.watchCount > 0 ? this.watchSum / this.watchCount : 0;
+    // The best this machine has been seen to do, as the floor of the fastest
+    // second in the last half minute. A per-second floor rather than the
+    // single fastest frame ever, because one freak frame -- the one after a
+    // resize, or after the tab came back -- would set an unreachable target
+    // and wind the resolution down against it for ever.
+    if (this.watchCount > 0 && this.watchLow > 0.5) {
+      this.floors[this.floorAt] = this.watchLow;
+      this.floorAt = (this.floorAt + 1) % this.floors.length;
+    }
+    let best = Infinity;
+    for (const f of this.floors) if (f > 0 && f < best) best = f;
+
+    this.dropped = 0;
+    this.watchSum = 0;
+    this.watchCount = 0;
+    this.watchLow = Infinity;
+    this.judgedAt = now;
+    if (!Number.isFinite(best) || mean <= 0) return;
+
+    const slip = mean / best;
+    const behind = perSecond > GOVERN_BEHIND || slip > GOVERN_SLIP;
+    if (behind && this.step < RENDER_SCALES.length - 1) {
+      // Stepping down straight after stepping up means the step up was wrong.
+      // Remember that, so the two do not trade places for ever -- a governor
+      // that oscillates is worse than one that settles a step low, because the
+      // resize itself costs a frame each time.
+      if (this.tried) this.ceiling = Math.max(this.ceiling, this.step);
       this.step++;
       this.gpu.setRenderScale(RENDER_SCALES[this.step]);
       this.clear = 0;
+      this.tried = false;
       return;
     }
-    // Nothing dropped for a while: try one step back up. If it was a mistake
-    // the next judgement drops it again, and the pair costs two frames a
-    // minute at worst.
-    if (perSecond <= GOVERN_CLEAR) {
+    // Comfortable for a while: try one step back up, unless that step is known
+    // not to hold and the timeout on it has not expired.
+    if (perSecond <= GOVERN_CLEAR && slip <= GOVERN_GOOD) {
       this.clear++;
-      if (this.clear >= GOVERN_PATIENCE && this.step > 0) {
+      const blocked = this.step - 1 < this.ceiling && now - this.ceilingAt < GOVERN_RETRY * 1000;
+      if (this.clear >= GOVERN_PATIENCE && this.step > 0 && !blocked) {
+        if (this.step - 1 < this.ceiling) { this.ceiling = 0; }
+        this.ceilingAt = now;
         this.step--;
         this.gpu.setRenderScale(RENDER_SCALES[this.step]);
         this.clear = 0;
+        this.tried = true;
       }
     } else {
       this.clear = 0;
+      this.tried = false;
     }
   }
 
@@ -1340,11 +1416,11 @@ export class Renderer {
     if (this.paced && this.inFlight >= MAX_IN_FLIGHT) {
       this.stalled++;
       this.dropped++;
-      this.govern(now);
+      this.govern(now, dt);
       this.stats.paint(now);
       return;
     }
-    this.govern(now);
+    this.govern(now, dt);
 
     const cpuStart = performance.now();
     const { device, context, viewport } = this.gpu;
@@ -1506,8 +1582,6 @@ export class Renderer {
     });
 
     pass.setBindGroup(0, res.cameraGroup);
-    pass.setPipeline(res.sky);
-    pass.draw(3);
 
     // Terrain, one draw per visible chunk. Culling here is what keeps the draw
     // count flat as the map grows past the view.
@@ -1617,6 +1691,13 @@ export class Renderer {
       encoded++;
     }
     this.encodedBuckets = encoded;
+
+    // The sky, after the opaques and before the rain. Its pipeline tests equal
+    // against the cleared depth, so this draws only the pixels nothing else
+    // reached -- the whole point of moving it here.
+    pass.setBindGroup(0, res.cameraGroup);
+    pass.setPipeline(res.sky);
+    pass.draw(3);
 
     // Rain last, over everything, and only when there is any. The pass is a
     // single triangle but it is a full-screen one: skipping the draw outright

@@ -35,7 +35,20 @@ import { simConfig } from './config';
 const CELL = 8;
 
 export type RoadClass =
-  | 'lane' | 'street' | 'oneway' | 'avenue' | 'bus' | 'dual' | 'tram' | 'motorway';
+  | 'track' | 'lane' | 'alley' | 'path' | 'pedestrian'
+  | 'street' | 'cycleStreet' | 'oneway' | 'bus' | 'promenade'
+  | 'avenue' | 'boulevard' | 'tram' | 'tramStreet'
+  | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway';
+
+/**
+ * What the carriageway is made of.
+ *
+ * Widths alone stopped being enough once there were more than a handful of
+ * classes: a four-metre gravel track and a four-metre setted alley are the
+ * same rectangle until the surface says otherwise, and the surface is most of
+ * what tells a player which one they drew.
+ */
+export type Surface = 'tarmac' | 'gravel' | 'setts' | 'concrete';
 
 export interface RoadSpec {
   label: string;
@@ -55,6 +68,17 @@ export interface RoadSpec {
   lamp: number;
   /** Kerbed, with a footway outside it. A country lane has neither. */
   kerbed: boolean;
+  /** What the carriageway is made of. */
+  surface: Surface;
+  /**
+   * Half-width of a cycle track on each side, inside the kerb. Zero for none.
+   *
+   * Inside the kerb rather than outside it, because that is where a painted
+   * or lightly segregated lane actually goes, and it is what makes the class
+   * read as a street that took a lane away from cars rather than as a wider
+   * street.
+   */
+  cycle: number;
 }
 
 /**
@@ -67,42 +91,142 @@ export interface RoadSpec {
  * distance from each other.
  */
 export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
+  // ---- the small stuff -------------------------------------------------
+  track: {
+    label: 'Farm track', half: 2.0, edge: 3.8, lanes: 1, median: 0,
+    oneWay: false, tram: false, lamp: 0, kerbed: false,
+    surface: 'gravel', cycle: 0,
+  },
   lane: {
     label: 'Country lane', half: 2.6, edge: 5.4, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 0, kerbed: false,
+    surface: 'tarmac', cycle: 0,
+  },
+  alley: {
+    label: 'Service alley', half: 2.4, edge: 3.6, lanes: 1, median: 0,
+    oneWay: true, tram: false, lamp: 24, kerbed: true,
+    surface: 'setts', cycle: 0,
+  },
+  path: {
+    label: 'Cycle path', half: 1.5, edge: 3.2, lanes: 1, median: 0,
+    oneWay: false, tram: false, lamp: 0, kerbed: false,
+    surface: 'tarmac', cycle: 1.5,
+  },
+  pedestrian: {
+    label: 'Pedestrian street', half: 4.4, edge: 6.6, lanes: 1, median: 0,
+    oneWay: false, tram: false, lamp: 22, kerbed: false,
+    surface: 'setts', cycle: 0,
   },
   street: {
     label: 'Street', half: 3.6, edge: 7.4, lanes: 1, median: 0,
     oneWay: false, tram: false, lamp: 34, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  cycleStreet: {
+    label: 'Cycle street', half: 3.4, edge: 9.0, lanes: 1, median: 0,
+    oneWay: false, tram: false, lamp: 34, kerbed: true,
+    surface: 'tarmac', cycle: 1.1,
   },
   oneway: {
     label: 'One-way', half: 3.4, edge: 7.2, lanes: 2, median: 0,
     oneWay: true, tram: false, lamp: 34, kerbed: true,
+    surface: 'tarmac', cycle: 0,
   },
   bus: {
     label: 'Bus route', half: 5.2, edge: 9.6, lanes: 2, median: 0,
     oneWay: false, tram: false, lamp: 32, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  promenade: {
+    label: 'Promenade', half: 3.2, edge: 12.0, lanes: 1, median: 0,
+    oneWay: false, tram: false, lamp: 24, kerbed: true,
+    surface: 'setts', cycle: 0,
   },
   avenue: {
     label: 'Avenue', half: 7.0, edge: 11.6, lanes: 2, median: 0,
     oneWay: false, tram: false, lamp: 30, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  boulevard: {
+    label: 'Boulevard', half: 7.0, edge: 15.4, lanes: 2, median: 2.6,
+    oneWay: false, tram: false, lamp: 28, kerbed: true,
+    surface: 'tarmac', cycle: 1.1,
   },
   tram: {
     label: 'Tram boulevard', half: 8.4, edge: 13.6, lanes: 2, median: 0,
     oneWay: false, tram: true, lamp: 30, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  tramStreet: {
+    label: 'Tram street', half: 5.6, edge: 9.8, lanes: 1, median: 0,
+    oneWay: false, tram: true, lamp: 32, kerbed: true,
+    surface: 'setts', cycle: 0,
+  },
+  industrial: {
+    label: 'Industrial road', half: 6.4, edge: 8.6, lanes: 2, median: 0,
+    oneWay: false, tram: false, lamp: 38, kerbed: false,
+    surface: 'concrete', cycle: 0,
+  },
+  highway: {
+    label: 'Divided highway', half: 8.4, edge: 12.6, lanes: 2, median: 1.4,
+    oneWay: false, tram: false, lamp: 34, kerbed: true,
+    surface: 'tarmac', cycle: 0,
   },
   dual: {
     label: 'Dual carriageway', half: 9.2, edge: 14.4, lanes: 2, median: 1.6,
     oneWay: false, tram: false, lamp: 30, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  slip: {
+    label: 'Slip road', half: 4.2, edge: 7.2, lanes: 2, median: 0,
+    oneWay: true, tram: false, lamp: 40, kerbed: false,
+    surface: 'tarmac', cycle: 0,
   },
   motorway: {
     label: 'Motorway', half: 12.6, edge: 18.0, lanes: 3, median: 2.2,
     oneWay: false, tram: false, lamp: 42, kerbed: false,
+    surface: 'tarmac', cycle: 0,
   },
 };
 
-export const ROAD_ORDER: RoadClass[] =
-  ['lane', 'street', 'oneway', 'bus', 'avenue', 'tram', 'dual', 'motorway'];
+/**
+ * How far from tarmac a building may stand, in cells.
+ *
+ * Six, which is forty-eight metres: half a block, and exactly the depth the
+ * frontage pass is already allowed to plot back from a kerb. So a normal block
+ * between two streets is buildable end to end and nothing that used to grow
+ * stops growing -- what this cuts is the deep middle of an over-wide block,
+ * and the interior of a large rectangle painted with one road along its edge,
+ * which are the two places buildings appeared with no way to reach them.
+ */
+export const REACH_CELLS = 6;
+
+/**
+ * The order a saved file numbers them in. Append only, never reorder.
+ *
+ * Separate from ROAD_ORDER, which is the order the drawer lists them in and is
+ * free to change whenever the list reads better a different way. They were the
+ * same array once, and a save stored the index into it -- so the first time
+ * the drawer was reordered, every motorway in every existing save quietly
+ * became whatever now sat at index seven. The eight original classes keep
+ * their original indices here, which is what makes old files still correct.
+ */
+export const ROAD_IDS: RoadClass[] = [
+  'lane', 'street', 'oneway', 'bus', 'avenue', 'tram', 'dual', 'motorway',
+  'track', 'alley', 'path', 'pedestrian', 'cycleStreet', 'promenade',
+  'boulevard', 'tramStreet', 'industrial', 'highway', 'slip',
+];
+
+/**
+ * The order the drawer lists them in: smallest first, so the list reads as a
+ * scale from a footpath to a motorway rather than as an inventory.
+ */
+export const ROAD_ORDER: RoadClass[] = [
+  'path', 'track', 'alley', 'pedestrian', 'lane',
+  'street', 'cycleStreet', 'oneway', 'promenade', 'bus',
+  'avenue', 'boulevard', 'tramStreet', 'tram',
+  'industrial', 'highway', 'dual', 'slip', 'motorway',
+];
 
 export interface RoadNode {
   x: number;
@@ -186,6 +310,8 @@ export class RoadGraph {
 
   /** Bumped on every edit, so caches downstream know to rebuild. */
   version = 0;
+  private reachCache: Uint8Array | null = null;
+  private reachFor = -1;
   /** Links already drawn into the raster, and whether it must go from scratch. */
   private rastered = 0;
   private wiped = true;
@@ -856,6 +982,81 @@ export class RoadGraph {
       s,
       cls: l.cls,
     };
+  }
+
+  /**
+   * Distance from every cell to the nearest road corridor, in cells, capped.
+   *
+   * A city builder where a painted rectangle fills with houses whether or not
+   * anything can reach them is a texture painter. This is what "near a road"
+   * means, computed once for the whole grid: a two-sweep chamfer transform,
+   * one pass down and right taking the best of the four neighbours already
+   * visited and one back up and left taking the other four. Two passes is the
+   * whole cost of an exact eight-connected distance field, which is a great
+   * deal less than asking the question separately for four hundred thousand
+   * cells.
+   *
+   * Cached against the graph's version, because this changes when roads change
+   * and at no other time -- and zoning, which is the edit a player makes most
+   * often and the one that has to feel instant, does not change it.
+   */
+  reach(): Uint8Array {
+    if (this.reachFor === this.version && this.reachCache !== null) return this.reachCache;
+    const g = this.grid;
+    const n = g * g;
+    const d = this.reachCache ?? new Uint8Array(n);
+    const FAR = 255;
+    for (let i = 0; i < n; i++) d[i] = this.cls[i] !== 0 ? 0 : FAR;
+
+    // Takes the neighbour's distance plus one when that beats what is here.
+    // Written as a comparison rather than a min of a sum so the count cannot
+    // wrap round the top of the byte.
+    const step = (from: number, best: number): number => (from < best - 1 ? from + 1 : best);
+    for (let z = 0; z < g; z++) {
+      const row = z * g;
+      for (let x = 0; x < g; x++) {
+        const i = row + x;
+        if (d[i] === 0) continue;
+        let m = d[i];
+        if (x > 0) m = step(d[i - 1], m);
+        if (z > 0) {
+          m = step(d[i - g], m);
+          if (x > 0) m = step(d[i - g - 1], m);
+          if (x < g - 1) m = step(d[i - g + 1], m);
+        }
+        d[i] = m;
+      }
+    }
+    for (let z = g - 1; z >= 0; z--) {
+      const row = z * g;
+      for (let x = g - 1; x >= 0; x--) {
+        const i = row + x;
+        if (d[i] === 0) continue;
+        let m = d[i];
+        if (x < g - 1) m = step(d[i + 1], m);
+        if (z < g - 1) {
+          m = step(d[i + g], m);
+          if (x < g - 1) m = step(d[i + g + 1], m);
+          if (x > 0) m = step(d[i + g - 1], m);
+        }
+        d[i] = m;
+      }
+    }
+    this.reachCache = d;
+    this.reachFor = this.version;
+    return d;
+  }
+
+  /**
+   * Whether a cell is close enough to a road to be worth zoning.
+   *
+   * The brush and the spawner both ask this, so what a player can paint and
+   * what will actually build agree by construction rather than by two
+   * constants somebody has to keep in step.
+   */
+  nearRoad(gx: number, gz: number): boolean {
+    if (gx < 0 || gz < 0 || gx >= this.grid || gz >= this.grid) return false;
+    return this.reach()[gz * this.grid + gx] <= REACH_CELLS;
   }
 
   * sites(step: number): Generator<Site> {

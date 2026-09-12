@@ -24,7 +24,7 @@ import { ROADS } from './generators/roads';
 import { FLEET } from './generators/vehicles';
 import { MARINE } from './generators/marine';
 import { SPORT } from './generators/sport';
-import type { MeshBuilder } from './mesh';
+import { MeshBuilder } from './mesh';
 import { dressRoof } from './parts';
 import { idSeed } from './types';
 import type { AssetDef, Zone } from './types';
@@ -55,12 +55,19 @@ for (const a of ASSETS) {
   // needed: a session looks at a handful of assets.
   let plane: ReturnType<MeshBuilder['roofPlane']> | undefined;
   a.build = (lod: number): MeshBuilder => {
+    MeshBuilder.detail = lod;
     const m = inner(lod);
     if (plane === undefined) {
+      // Measured off the full-detail mesh, so the roof a coarse level is
+      // dressed on is the same roof the fine one has. Building that
+      // measurement at the outer level's detail would let the two disagree.
+      MeshBuilder.detail = 0;
       const lod0 = lod === 0 ? m : inner(0);
       plane = lod0.roofPlane() ?? lod0.bareRoofPlane();
+      MeshBuilder.detail = lod;
     }
     dressRoof(m, lod, seed, { at: plane });
+    MeshBuilder.detail = 0;
     return m;
   };
 }

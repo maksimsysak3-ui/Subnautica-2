@@ -17,7 +17,7 @@
 
 import { emptyWorld } from './world';
 import type { World, Lot } from './world';
-import { ROAD_ORDER } from './roadgraph';
+import { ROAD_IDS } from './roadgraph';
 import type { RoadClass } from './roadgraph';
 
 /**
@@ -125,7 +125,7 @@ export function serialise(world: World, name: string, auto = false): string {
   for (const n of world.net.nodes) nodes.push(n.x, n.z);
   const links: number[] = [];
   for (const l of world.net.links) {
-    links.push(l.a, l.b, l.cx, l.cz, Math.max(0, ROAD_ORDER.indexOf(l.cls)));
+    links.push(l.a, l.b, l.cx, l.cz, Math.max(0, ROAD_IDS.indexOf(l.cls)));
   }
   const file: SaveFile = {
     v: VERSION,
@@ -172,7 +172,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   for (let i = 0; i + 4 < file.links.length; i += 5) {
     const a = file.links[i], b = file.links[i + 1];
     if (a < 0 || b < 0 || a >= count || b >= count) continue;
-    const cls: RoadClass = ROAD_ORDER[file.links[i + 4]] ?? ROAD_ORDER[0];
+    const cls: RoadClass = ROAD_IDS[file.links[i + 4]] ?? ROAD_IDS[0];
     world.net.restoreLink(a, b, file.links[i + 2], file.links[i + 3], cls);
   }
   world.net.rasterise();

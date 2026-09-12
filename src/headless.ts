@@ -660,6 +660,13 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
     w.net.addCells(c - 12, c - 6, c - 12, c + 16, 'street', -40);
     w.net.addCells(c + 6, c - 6, c + 6, c + 14, 'street', 30);
     w.net.addCells(c - 12, c + 10, c + 6, c + 10, 'street');
+    // A run of the newer classes side by side, so a shot of this scene shows
+    // the surfaces against each other rather than one at a time.
+    w.net.addCells(c - 20, c + 16, c + 20, c + 16, 'boulevard');
+    w.net.addCells(c - 20, c + 22, c + 20, c + 22, 'pedestrian');
+    w.net.addCells(c - 20, c + 26, c + 20, c + 26, 'track');
+    w.net.addCells(c - 20, c + 30, c + 20, c + 30, 'industrial');
+    w.net.addCells(c - 20, c + 34, c + 20, c + 34, 'cycleStreet');
     paint(w, c - 20, c - 20, 40, 12, zoneCode('commercial', 'high'));
     paint(w, c - 20, c - 2, 40, 26, zoneCode('residential', 'medium'));
     renderer.rebuild();

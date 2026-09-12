@@ -251,6 +251,23 @@ export class MeshBuilder {
    */
   static inverted = 0;
 
+  /**
+   * How much detail the shared parts should emit: 0 full, 1 reduced, 2 massing.
+   *
+   * A level of detail is a property of the *build*, not of every call site in
+   * four hundred generators, and trying to make it one is why the ladder was
+   * broken. Several signature buildings had a mid level within four per cent
+   * of their full mesh -- which is not a level of detail, it is the same
+   * building drawn again -- because the generator's own `if (lod < 2)` guards
+   * covered the shapes and nothing covered the trim, and the trim is where the
+   * triangles are. A window frame is forty triangles and a tower has three
+   * hundred windows.
+   *
+   * Set once per build by the registry, read by the handful of shared parts
+   * that emit repeated detail. One switch, every generator.
+   */
+  static detail = 0;
+
   private verts: number[] = [];
   private idx: number[] = [];
   /** Applied to everything pushed until it is changed again. */
@@ -628,6 +645,12 @@ export class MeshBuilder {
       } else if (glazed) this.signFace(b, a, d, c, mat); else this.quad(b, a, d, c, mat);
     }
 
+    // The frame is four boxes and forty triangles, against two for the glass.
+    // At the middle level the whole building is under a hundred and ten pixels
+    // tall, so a frame is a fraction of one -- and it was most of what the
+    // building cost. The glass stays: the pane is what a window is at any
+    // distance, and dropping it would leave a blank wall.
+    if (MeshBuilder.detail >= 1) return;
     slab(o.u0 - f, o.u1 + f, o.y1, o.y1 + f, -inset, proud, frameMat);
     slab(o.u0 - f, o.u1 + f, o.y0 - f, o.y0, -inset, proud, frameMat);
     slab(o.u0 - f, o.u0, o.y0, o.y1, -inset, proud, frameMat);

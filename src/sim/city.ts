@@ -33,6 +33,7 @@ import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
+import { REACH_CELLS } from './roadgraph';
 import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
 import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
@@ -296,6 +297,8 @@ export interface Dirty { gx: number; gz: number; w: number; d: number; }
  * hundred metres instead of one.
  */
 const REACH = 28;
+
+
 
 /**
  * The city as it currently stands, kept so the next edit can reuse it.
@@ -796,12 +799,26 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
    * one that grew, which is derived from where the block is -- a fact about the
    * place rather than a decision anyone made. Both on one map is the point.
    */
+  // Nothing grows out of reach of a road.
+  //
+  // A city builder where a painted rectangle fills with houses whether or not
+  // anything can get to them is not a city builder, it is a texture painter.
+  // Two things went wrong without this. The backland pass -- which is right,
+  // because mews and yards behind a street are real -- would fill the middle
+  // of an arbitrarily large painted area with buildings that fronted nothing,
+  // and the player would see houses standing in open country with a field
+  // between them and the nearest tarmac. And painting far from a road silently
+  // did nothing at all, which reads as the tool being broken rather than as
+  // the rule it actually is.
+  const reach = net.reach();
+
   const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
     if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return null;
     // Nothing grows on land nobody bought. Checked here as well as in the
     // tools, because zoning painted before a plot was sold back, or carried in
     // by an old save, must not quietly come up as a suburb.
     if (!world.land.owns(plotAt(GRID, gx, gz))) return null;
+    if (reach[at(gx, gz)] > REACH_CELLS) return null;
     const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;

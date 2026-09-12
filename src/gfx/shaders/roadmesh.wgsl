@@ -26,6 +26,10 @@ const SURF_JUNCTION  = 4.0;
 const SURF_MEDIAN    = 5.0;
 const SURF_VERGE     = 6.0;
 const SURF_CROSSING  = 7.0;
+const SURF_GRAVEL    = 8.0;
+const SURF_SETTS     = 9.0;
+const SURF_CONCRETE  = 10.0;
+const SURF_CYCLE     = 11.0;
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -137,6 +141,76 @@ fn verge(world : vec2f, mpp : f32) -> vec3f {
 }
 
 /**
+ * Loose stone: a farm track, and the shoulder of one.
+ *
+ * Two cell fields at different scales rather than noise. Gravel is *stones* --
+ * a surface made of discrete things with shadow between them -- and smooth
+ * noise reads as mud however it is coloured, which is what the first attempt
+ * looked like.
+ */
+fn gravel(world : vec2f, mpp : f32) -> vec3f {
+  let coarse = cells(world / 0.16);
+  let fine = cells(world / 0.055);
+  let stone = clamp(coarse.d2 - coarse.d1, 0.0, 1.0) * octaveFade(0.16, mpp);
+  let grit = clamp(fine.d2 - fine.d1, 0.0, 1.0) * octaveFade(0.055, mpp);
+  // Pale dry limestone through to the damp brown underneath.
+  var col = mix(vec3f(0.118, 0.106, 0.086), vec3f(0.196, 0.181, 0.152),
+                vnoise(world * 0.9));
+  // Each stone its own value, and the gaps between them darker.
+  col *= 0.80 + stone * 0.42 + grit * 0.16;
+  col *= 0.94 + 0.12 * lattice(vec2i(i32(floor(world.x / 0.16)), i32(floor(world.y / 0.16))));
+  return col;
+}
+
+/**
+ * Setts: granite blocks, laid in courses across the way.
+ *
+ * Across rather than along, because that is how a street is actually set out
+ * and it is what stops the surface reading as tiling. Each block takes its own
+ * value, and the joints are wide -- the joints are most of what says setts
+ * rather than slabs.
+ */
+fn setts(world : vec2f, u : f32, v : f32, mpp : f32) -> vec3f {
+  let pitch = vec2f(0.20, 0.13);
+  // Courses offset by half a block, alternating: a running bond.
+  let course = floor(v / pitch.y);
+  let shift = select(0.0, pitch.x * 0.5, (i32(course) & 1) == 0);
+  let cell = vec2f(floor((u + shift) / pitch.x), course);
+  let g = vec2f(fract((u + shift) / pitch.x), fract(v / pitch.y));
+  let edge = max(1.0 - smoothstep(0.0, mpp * 2.2 / pitch.x + 0.055, min(g.x, 1.0 - g.x)),
+                 1.0 - smoothstep(0.0, mpp * 2.2 / pitch.y + 0.075, min(g.y, 1.0 - g.y)));
+  let tone = lattice(vec2i(i32(cell.x), i32(cell.y)));
+  // Grey granite with a warm and a cool end, which is what a real setted
+  // street has -- they were never one quarry.
+  var col = mix(vec3f(0.098, 0.094, 0.092), vec3f(0.168, 0.160, 0.150), tone);
+  // Domed: a sett is not flat, and the crown catching light is what makes a
+  // wet one glitter.
+  let dome = 1.0 - max(abs(g.x - 0.5), abs(g.y - 0.5)) * 0.7;
+  col *= 0.72 + dome * 0.42;
+  col *= 1.0 - edge * 0.46;
+  return col;
+}
+
+/**
+ * Poured concrete, in bays, with the joints between them.
+ *
+ * The road an industrial estate is built with: pale, jointed every few metres,
+ * and stained where the lorries turn.
+ */
+fn slabRoad(world : vec2f, u : f32, v : f32, mpp : f32) -> vec3f {
+  var col = concrete(world, mpp) * 1.34;
+  let bay = 4.2;
+  let g = fract(v / bay);
+  let joint = 1.0 - smoothstep(0.0, mpp * 1.4 / bay + 0.006, min(g, 1.0 - g));
+  col *= 1.0 - joint * 0.34;
+  col *= 0.95 + 0.10 * lattice(vec2i(0, i32(floor(v / bay))));
+  // Tyre tracks: two darker bands where every wheel has run.
+  let track = exp(-pow((abs(u) - 1.5) / 0.75, 2.0));
+  col *= 1.0 - track * 0.10;
+  return col;
+}
+
+/**
  * Everything painted on the carriageway.
  *
  * Returns coverage, so the caller can mix towards the paint colour rather than
@@ -226,6 +300,22 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col = concrete(w2, mpp) * 0.96;
   } else if (surf < 6.5) {
     col = verge(w2, mpp);
+  } else if (surf > 7.5 && surf < 8.5) {
+    col = gravel(w2, mpp);
+  } else if (surf > 8.5 && surf < 9.5) {
+    col = setts(w2, u, v, mpp);
+  } else if (surf > 9.5 && surf < 10.5) {
+    col = slabRoad(w2, u, v, mpp);
+  } else if (surf > 10.5) {
+    // A cycle track. Coloured surfacing, because that is what a cycle lane is
+    // -- the colour is the segregation -- with the tarmac showing through it
+    // where it has worn, and a white edge line against the carriageway.
+    let base = asphalt(w2, u, half, 0.0, mpp);
+    let worn = 0.62 + 0.38 * vnoise(w2 * 1.3);
+    col = mix(base, vec3f(0.126, 0.052, 0.040) * (0.7 + 0.6 * vnoise(w2 * 5.0)),
+              0.72 * worn);
+    let line = 1.0 - smoothstep(0.0, mpp * 1.4 + 0.02, abs(abs(u) - (half - 0.10)));
+    col = mix(col, vec3f(0.46, 0.45, 0.42), line * 0.8 * (1.0 - smoothstep(0.10, 0.34, mpp)));
   } else {
     // A crossing across the mouth of a junction.
     //
@@ -266,8 +356,15 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Kerbs and footways take less: they are rougher, and they drain.
   let soak = camera.weather.w;
   if (soak > 0.002) {
-    let porosity = select(0.55, 1.0, surf == SURF_ROAD || surf == SURF_JUNCTION
-                                  || surf == SURF_CROSSING);
+    // How much a surface shines when it is wet. Sealed tarmac is a mirror;
+    // setts are a mirror with the joints still matt; gravel drains and never
+    // shines at all, which is most of what tells a wet track from a wet road.
+    var porosity = 0.55;
+    if (surf == SURF_ROAD || surf == SURF_JUNCTION || surf == SURF_CROSSING
+        || surf == SURF_CYCLE) { porosity = 1.0; }
+    else if (surf == SURF_SETTS) { porosity = 0.86; }
+    else if (surf == SURF_CONCRETE) { porosity = 0.62; }
+    else if (surf == SURF_GRAVEL) { porosity = 0.12; }
     let w = soak * porosity;
     col *= mix(1.0, 0.52, w);
     let toSun = normalize(camera.eye.xyz - in.world);

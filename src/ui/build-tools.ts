@@ -1706,10 +1706,47 @@ function roadGlyph(cls: RoadClass, size = 28): string {
   // same grey smudge.
   const w = 7 + (spec.half / widest) * 15;
   const x0 = 14 - w / 2;
+  // The surface, because widths alone stopped telling these apart once there
+  // were nineteen of them: a four-metre gravel track and a four-metre setted
+  // alley are the same rectangle until the fill says which is which.
+  const FILL: Record<string, string> = {
+    tarmac: '#11161d', gravel: '#2b2620', setts: '#232630', concrete: '#2c2e2c',
+  };
   const parts: string[] = [
     `<rect x="${x0.toFixed(2)}" y="3" width="${w.toFixed(2)}" height="22" rx="1.5"`
-    + ' fill="#11161d" stroke="currentColor" stroke-opacity=".45" stroke-width="1"/>',
+    + ` fill="${FILL[spec.surface] ?? FILL.tarmac}" stroke="currentColor"`
+    + ' stroke-opacity=".45" stroke-width="1"/>',
   ];
+  if (spec.surface === 'setts') {
+    // Courses across the way, which is how setts are laid and the quickest
+    // read there is that this is not tarmac.
+    for (let y = 5.5; y < 24; y += 2.6) {
+      parts.push(`<line x1="${x0.toFixed(2)}" y1="${y.toFixed(1)}"`
+        + ` x2="${(x0 + w).toFixed(2)}" y2="${y.toFixed(1)}"`
+        + ' stroke="#9fb0c6" stroke-opacity=".28" stroke-width=".7"/>');
+    }
+  } else if (spec.surface === 'gravel') {
+    for (let i = 0; i < 14; i++) {
+      const gx = x0 + ((i * 7 + 3) % 10) / 10 * w;
+      const gy = 4.5 + ((i * 13 + 5) % 19);
+      parts.push(`<circle cx="${gx.toFixed(2)}" cy="${gy.toFixed(1)}" r=".55"`
+        + ' fill="#b7a487" fill-opacity=".45"/>');
+    }
+  } else if (spec.surface === 'concrete') {
+    for (let y = 8; y < 24; y += 6) {
+      parts.push(`<line x1="${x0.toFixed(2)}" y1="${y}" x2="${(x0 + w).toFixed(2)}" y2="${y}"`
+        + ' stroke="#9fb0c6" stroke-opacity=".34" stroke-width=".9"/>');
+    }
+  }
+  // Cycle tracks, in the colour a real one is surfaced.
+  if (spec.cycle > 0) {
+    const cw = Math.max(1.4, (spec.cycle * 2 / spec.half) * w * 0.5);
+    for (const side of [-1, 1]) {
+      const cx = 14 + side * (w / 2 - cw / 2);
+      parts.push(`<rect x="${(cx - cw / 2).toFixed(2)}" y="3.6" width="${cw.toFixed(2)}"`
+        + ' height="20.8" fill="#c2503a" fill-opacity=".62"/>');
+    }
+  }
   const each = w / (spec.oneWay ? spec.lanes : spec.lanes * 2);
   for (let i = 1; i < (spec.oneWay ? spec.lanes : spec.lanes * 2); i++) {
     const mid = !spec.oneWay && i === spec.lanes;

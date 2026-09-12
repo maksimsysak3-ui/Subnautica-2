@@ -138,6 +138,13 @@ export function paint(world: World, gx: number, gz: number, w: number, d: number
       const x = gx + i;
       if (x < 0 || x >= world.grid) continue;
       if (code !== 0 && world.net.has(x, z)) continue;
+      // Zoning is a request for buildings, and a building needs a road. Ground
+      // out of reach of one cannot be zoned at all, so the brush stops at the
+      // edge of what will actually build rather than accepting paint that
+      // quietly does nothing -- which reads as a broken tool, not as a rule.
+      // Erasing is always allowed: land that has fallen out of reach because a
+      // road was bulldozed has to be clearable.
+      if (code !== 0 && !world.net.nearRoad(x, z)) continue;
       world.zones[z * world.grid + x] = code;
     }
   }

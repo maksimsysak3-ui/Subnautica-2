@@ -17,11 +17,14 @@
  * visibly repeats. Hashing the floored lattice point as bits does not care how
  * far from the origin it is.
  */
-fn lattice(p : vec2i) -> f32 {
+fn latticeBits(p : vec2i) -> u32 {
   var h = u32(p.x) * 374761393u + u32(p.y) * 668265263u;
   h = (h ^ (h >> 13u)) * 1274126177u;
-  h = h ^ (h >> 16u);
-  return f32(h) * (1.0 / 4294967296.0);
+  return h ^ (h >> 16u);
+}
+
+fn lattice(p : vec2i) -> f32 {
+  return f32(latticeBits(p)) * (1.0 / 4294967296.0);
 }
 
 /** Value noise on that lattice, smoothstep-interpolated. Returns 0..1. */
@@ -66,10 +69,20 @@ fn cells(p : vec2f) -> Cell {
   for (var y = -1; y <= 1; y++) {
     for (var x = -1; x <= 1; x++) {
       let c = c0 + vec2i(x, y);
-      let h = lattice(c);
-      // A second, decorrelated hash for the other axis of the jitter. Reusing
-      // one hash for both puts every seed on the cell's diagonal.
-      let g = lattice(c + vec2i(7919, 104729));
+      // Both jitter axes out of one hash.
+      //
+      // Two calls put every seed off the diagonal correctly and cost eighteen
+      // hashes per lookup -- and this is the most-called function in the
+      // renderer: the field parcels, the tussocks, the blades and the road
+      // verge all go through it, over ground that is most of the screen. One
+      // hash has thirty-two bits and needs about eleven per axis to place a
+      // seed inside its cell finely enough that nobody can see the lattice, so
+      // taking two disjoint slices of the same word is not an approximation of
+      // two hashes, it is two hashes -- the halves of an avalanched word are
+      // independent. Nine lookups instead of eighteen, for the same field.
+      let bits = latticeBits(c);
+      let h = f32(bits & 0xffffu) * (1.0 / 65536.0);
+      let g = f32(bits >> 16u) * (1.0 / 65536.0);
       let o = vec2f(f32(x), f32(y)) + vec2f(h, g) - f;
       let d = dot(o, o);
       if (d < out.d1) {

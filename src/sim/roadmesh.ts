@@ -47,6 +47,19 @@ export const SURF = {
   CROSSING: 7,
   MEDIAN: 5,
   VERGE: 6,
+  /** Loose stone: a farm track, and the shoulder of one. */
+  GRAVEL: 8,
+  /** Setts. A service alley, a pedestrianised street, a promenade. */
+  SETTS: 9,
+  /** Poured concrete bays, for the roads that carry lorries. */
+  CONCRETE: 10,
+  /** A cycle track, inside the kerb and in its own colour. */
+  CYCLE: 11,
+} as const;
+
+/** Which surface value a class's carriageway uses. */
+const CARRIAGEWAY = {
+  tarmac: SURF.ROAD, gravel: SURF.GRAVEL, setts: SURF.SETTS, concrete: SURF.CONCRETE,
 } as const;
 
 /** Kerb upstand. Low enough to drive over, high enough to read as a kerb. */
@@ -116,7 +129,10 @@ function section(cls: keyof typeof ROAD_SPECS): Strip[] {
     to(spec.median, KERB, SURF.MEDIAN);          // the reservation
     to(spec.median, 0, SURF.KERB_FACE);          // down onto the carriageway
   }
-  to(half, 0, SURF.ROAD);                        // the carriageway
+  // The carriageway, in whatever it is made of, then a cycle track inside the
+  // kerb if the class has one.
+  to(half - spec.cycle * 2, 0, CARRIAGEWAY[spec.surface]);
+  if (spec.cycle > 0) to(half, 0.015, SURF.CYCLE);
   if (spec.kerbed) {
     to(half, KERB, SURF.KERB_FACE);              // the kerb, standing up
     to(half + 0.32, KERB, SURF.KERB_TOP);        // its top
