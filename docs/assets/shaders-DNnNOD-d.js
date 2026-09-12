@@ -3341,6 +3341,7 @@ const SURF_GRAVEL    = 8.0;
 const SURF_SETTS     = 9.0;
 const SURF_CONCRETE  = 10.0;
 const SURF_CYCLE     = 11.0;
+const SURF_SKIRT     = 12.0;
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -3355,17 +3356,48 @@ struct VSOut {
   @location(3) @interpolate(flat) info : vec4f,
 };
 
+/**
+ * How much of the cross-section's relief to keep, by how far away it is.
+ *
+ * A kerb stands fifteen centimetres above the carriageway and the footway
+ * behind it twelve, and at a shallow angle those centimetres *occlude the road
+ * itself*: once the whole ribbon is a pixel or two tall on screen, what wins
+ * the depth test along its length is the raised pale edge, not the tarmac
+ * behind it. That is the grey road, and it is geometry rather than shading --
+ * which is why a shading fix improved the far view, where the ribbon is thin
+ * enough to average, and did nothing at the middle distance where it is a few
+ * pixels of solid kerb.
+ *
+ * So the relief goes away with distance. Past three hundred metres the strips
+ * settle towards the carriageway plane, and by seven the ribbon is flat: a
+ * road seen from a distance is a flat band of tarmac with a pale margin, which
+ * is what a road seen from a distance is. Near enough to see a kerb as a step,
+ * every millimetre of it is still there.
+ */
+fn relief(world : vec3f) -> f32 {
+  return 1.0 - smoothstep(300.0, 700.0, length(world - camera.eye.xyz));
+}
+
 @vertex
 fn vs(@location(0) position : vec3f,
       @location(1) normal   : vec3f,
       @location(2) coord    : vec3f,
-      @location(3) info     : vec4f) -> VSOut {
+      @location(3) info     : vec4f,
+      @location(4) lift     : f32) -> VSOut {
   var out : VSOut;
-  out.world = position;
-  out.normal = normal;
+  // Flattened about the carriageway plane. The skirt goes with it: it exists
+  // to hide a hairline of terrain under the near edge, and at this distance
+  // there is no hairline to hide.
+  var p = position;
+  p.y -= lift * (1.0 - relief(position));
+  out.world = p;
+  // The normals flatten too. A kerb face pointing sideways is what makes one
+  // side of a distant road bright and the other dark, and once the face has
+  // no height left it should not still be lit as though it had.
+  out.normal = normalize(mix(vec3f(0.0, 1.0, 0.0), normal, relief(position)));
   out.coord = coord;
   out.info = info;
-  out.pos = camera.viewProj * vec4f(position, 1.0);
+  out.pos = camera.viewProj * vec4f(p, 1.0);
   return out;
 }
 
@@ -3615,6 +3647,13 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col = concrete(w2, mpp) * 0.96;
   } else if (surf < 6.5) {
     col = verge(w2, mpp);
+  } else if (surf > 11.5) {
+    // The apron under the ribbon's edge: the cut face of the road bed, seen
+    // only where the ground falls away from it. Dark earth, and darker still
+    // at the bottom, so where it does show it reads as the shadow under a kerb
+    // rather than as a wall of pavement.
+    col = mix(vec3f(0.052, 0.044, 0.034), vec3f(0.088, 0.078, 0.060),
+              vnoise(w2 * 2.2));
   } else if (surf > 7.5 && surf < 8.5) {
     col = gravel(w2, mpp);
   } else if (surf > 8.5 && surf < 9.5) {
@@ -4011,4 +4050,4 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   return vec4f(col, clamp(v, 0.0, 1.0) * 0.48);
 }
 `,CU={"common.wgsl":mI,"atmosphere.wgsl":uI,"noise.wgsl":qI};function NQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,F)=>CU[F]??A)}const nU={asset:NQ(_I),cull:NQ($I),terrain:NQ(AU),sky:NQ(QU),grass:NQ(BU),road:NQ(gU),water:NQ(EU),rain:NQ(wU)};export{IU as A,lE as B,bE as D,AQ as F,IB as G,jg as P,MU as R,nU as S,iQ as T,UB as V,GE as Z,Dg as a,rB as b,CB as c,fI as d,oU as e,GU as f,aU as g,RU as h,kU as i,fB as j,UU as k,uA as l,DU as m,cU as n,sU as o,yI as p,EQ as q,FU as r,YU as s,LU as t,iU as u,VU as z};
-//# sourceMappingURL=shaders-C5au72yQ.js.map
+//# sourceMappingURL=shaders-DNnNOD-d.js.map
