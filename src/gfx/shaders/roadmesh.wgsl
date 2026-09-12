@@ -345,6 +345,52 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let ambient = mix(ambientGround(sun), ambientSky(sun), 0.5 + n.y * 0.5);
   col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * lit);
 
+  // Street lighting, as light rather than as lamp posts.
+  //
+  // The road already knows how far apart its columns stand -- the mesh builder
+  // has been working it out and throwing it away since the day it was written.
+  // What a player sees of a lit street from anywhere above walking height is
+  // not the poles, it is the chain of warm pools down the carriageway and the
+  // way they run out into the dark between. A thousand lamp instances draw the
+  // poles and cost a thousand instances; this draws the light, for a fract and
+  // a smoothstep, and it reads from a kilometre up where a five-metre pole is
+  // a third of a pixel.
+  //
+  // Alternating sides, matching the spacing the mesh builder uses, because a
+  // real street staggers them and a single row down one side reads as an
+  // airport runway.
+  let spacing = f32(flags >> 8u);
+  if (spacing > 0.5) {
+    let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
+    if (night > 0.004) {
+      // Which lamp is nearest along the road, and which side it stands on.
+      let idx = floor(v / spacing + 0.5);
+      let along = v - idx * spacing;
+      let side = select(-1.0, 1.0, (i32(idx) & 1) == 0);
+      let post = vec2f(side * half * 1.06, 0.0);
+      let d = vec2f(u, along) - post;
+      // An ellipse, longer along the road than across it: a lamp throws down
+      // the street, not sideways. Two terms -- a bright core under the lantern
+      // and a wide spill -- because one Gaussian is a spotlight and a street
+      // lamp is not a spotlight.
+      let r = vec2f(d.x / (half * 1.5 + 3.0), d.y / (spacing * 0.62));
+      let fall = exp(-dot(r, r) * 2.6);
+      let core = exp(-dot(vec2f(d.x / 3.4, d.y / 3.4), vec2f(d.x / 3.4, d.y / 3.4)) * 1.4);
+      // Sodium, not white. The colour is half of what says street lamp.
+      let glow = vec3f(1.00, 0.72, 0.36) * (fall * 0.55 + core * 0.42) * night;
+      // Lands on what is under it, and lands hard.
+      //
+      // The first pass at this multiplied the surface by the light, which is
+      // physically the right shape and visually nothing at all: a night road
+      // reflects about one part in eighty, so lighting it by its own albedo
+      // leaves it as dark as it started. A lamp is one of the few genuinely
+      // bright things in a night frame and has to be treated as one -- most of
+      // the term is additive, which is also what a real sodium lamp looks like
+      // through the dust and damp over a road.
+      col += col * glow * 3.0 + glow * 0.62;
+    }
+  }
+
   // Wet tarmac.
   //
   // This is where rain is most visible in a city and where the shading has the
@@ -371,7 +417,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let gloss = pow(max(dot(n, normalize(toSun + sun)), 0.0), 180.0);
     // The sky in the mirror direction, which is what a wet road actually shows.
     let mirror = reflect(-toSun, n);
-    col += skyColour(mirror, sun) * w * 0.34;
+    // Wet road only, and a wet road means the sky is a grey lid, so the
+    // detail the full sky adds is not in the reflection to begin with.
+    col += skyBody(mirror, sun) * w * 0.34;
     col += sunLight(sun) * gloss * lit * w * 2.6;
   }
 

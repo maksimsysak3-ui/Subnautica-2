@@ -110,6 +110,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Rain takes its colour from the sky it fell out of, so it is bright over a
   // dark street and nearly invisible against a bright horizon -- which is what
   // puts it in front of the scene instead of on top of it.
-  let col = tonemap(skyColour(vec3f(0.0, 1.0, 0.0), sun) * 1.9 + vec3f(0.06));
+  // Straight up, and only the broad colour: a raindrop is two pixels and it
+  // is not going to show anyone a star. This runs over the whole screen for
+  // as long as it is raining.
+  let col = tonemap(skyBody(vec3f(0.0, 1.0, 0.0), sun) * 1.9 + vec3f(0.06));
   return vec4f(col, clamp(v, 0.0, 1.0) * 0.48);
 }

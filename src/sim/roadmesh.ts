@@ -405,7 +405,13 @@ export function buildRoadMesh(graph: RoadGraph,
     freshLinks.set(link.id, piece);
     const spec = ROAD_SPECS[link.cls];
     const ribs: Strip[] = section(link.cls);
-    const flags = (spec.oneWay ? 1 : 0) | (spec.tram ? 2 : 0) | (spec.median > 0 ? 4 : 0);
+    // Bits 0-3 are the road's own switches; bit 3 is added later by the drag
+    // preview. Above the low byte rides the lamp spacing in metres, which is
+    // what the shader needs to know where the light falls at night -- there is
+    // no spare attribute and no room for one, and the alternative was a
+    // thousand lamp instances to do what one number and a fract can.
+    const flags = (spec.oneWay ? 1 : 0) | (spec.tram ? 2 : 0) | (spec.median > 0 ? 4 : 0)
+      | (Math.min(63, Math.round(spec.lamp)) << 8);
     const dense = graph.samples(link);
     const total = dense[dense.length - 1].s;
 

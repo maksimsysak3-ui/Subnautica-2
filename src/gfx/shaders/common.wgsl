@@ -64,17 +64,27 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
   // Slope-scaled bias: a surface nearly edge-on to the sun needs far more
   // bias than one facing it, and a single constant either acnes the flat
   // faces or peters the contact shadows away.
-  let bias = clamp(0.0022 * tan(acos(clamp(ndl, 0.0, 1.0))), 0.0008, 0.010);
+  // tan(acos(n)) is sqrt(1 - n*n) / n, which is the same number without two
+  // transcendentals -- and this runs on every lit pixel of every surface in
+  // the frame, so two is a great many.
+  let c = clamp(ndl, 0.0, 1.0);
+  let bias = clamp(0.0022 * (sqrt(max(1.0 - c * c, 0.0)) / max(c, 0.02)), 0.0008, 0.010);
   let texel = camera.params.z;
 
-  var sum = 0.0;
-  for (var y = -1; y <= 1; y++) {
-    for (var x = -1; x <= 1; x++) {
-      let o = vec2f(f32(x), f32(y)) * texel;
-      sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + o, ndc.z - bias);
-    }
-  }
-  return mix(sum / 9.0, 1.0, outside);
+  // Four taps, not nine.
+  //
+  // The sampler compares with linear filtering, so each tap is already four
+  // texel comparisons blended in hardware -- a two-by-two pattern at three
+  // quarters of a texel covers the same footprint a three-by-three grid of
+  // point taps would, for a bit over half the fetches. Shadow sampling happens
+  // once per lit pixel of the ground, the roads and every building, so it is
+  // one of the few things in the frame that is genuinely paid for everywhere.
+  let o = texel * 0.75;
+  var sum = textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(-o, -o), ndc.z - bias);
+  sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(o, -o), ndc.z - bias);
+  sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(-o, o), ndc.z - bias);
+  sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(o, o), ndc.z - bias);
+  return mix(sum * 0.25, 1.0, outside);
 }
 
 

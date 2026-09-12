@@ -198,13 +198,22 @@ fn stars(d : vec3f, night : f32) -> vec3f {
 }
 
 /**
- * The sky in one direction.
+ * The body of the sky: its gradient, its horizon band, and the sun's half of
+ * it being warmer than the other half.
  *
- * `dir` need not be normalised by the caller; `sun` must be. The sun's disc is
- * deliberately a little wider than half a degree -- an exact one is a hard
- * white dot that aliases into a flickering speck the moment the camera moves.
+ * Split out from the full sky below because *every opaque surface in the game*
+ * calls this, once per pixel, for the colour distance fades into. Terrain,
+ * roads, water, grass and buildings all do -- and they were all calling the
+ * full version, which meant a star field hash, a moon with a disc and a halo
+ * and maria on it, and a sun disc raised to the fourteen-hundredth power,
+ * evaluated for every pixel of the ground and then mixed in at a tenth
+ * strength where not one of those details is resolvable. It was the most
+ * expensive function in the renderer and it ran over the whole screen.
+ *
+ * What haze actually needs is the broad colour of the sky in that direction,
+ * which is all of this and none of that.
  */
-fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
+fn skyBody(dir : vec3f, sun : vec3f) -> vec3f {
   let d = normalize(dir);
   let up = clamp(d.y, -1.0, 1.0);
   let p = dayPhase(sun);
@@ -225,15 +234,46 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
   let below = mix(NIGHT_DOWN, DAY_DOWN, lit);
   var col = mix(below, above, smoothstep(-0.10, 0.02, up));
 
-  // No stars through cloud.
-  col += stars(d, (1.0 - max(p.x, p.y * 0.8)) * (1.0 - weather.cover));
-
   // Forward scattering: the whole half of the sky the sun is in is warmer and
-  // brighter, not just the disc. At sunrise this is most of the sky.
+  // brighter, not just the disc. At sunrise this is most of the sky, and it is
+  // the part of it distance actually fades into.
   let towards = clamp(dot(d, sun), 0.0, 1.0);
   let glow = mix(vec3f(1.00, 0.90, 0.72), vec3f(1.05, 0.46, 0.20), p.y);
   col += glow * pow(towards, 5.0) * (0.20 + p.y * 1.15) * lit
        * (1.0 - smoothstep(0.0, 0.55, up));
+
+  // Overcast: the lid.
+  //
+  // The deck itself is drawn by the sky pass, but the sky *behind* it has to
+  // go too, or an overcast day is a blue sky with clouds over it -- and the
+  // two read completely differently. Kept here rather than in the full sky
+  // because haze under a solid deck has to be grey as well.
+  let lid = overcastTint(sun) * mix(0.90, 1.04, 1.0 - abs(up));
+  return mix(col, lid, weather.cover * smoothstep(-0.30, 0.10, up));
+}
+
+/**
+ * The sky in one direction, in full: everything above, plus everything in it.
+ *
+ * `dir` need not be normalised by the caller; `sun` must be. The sun's disc is
+ * deliberately a little wider than half a degree -- an exact one is a hard
+ * white dot that aliases into a flickering speck the moment the camera moves.
+ *
+ * Only the sky pass wants this. Anything asking what colour the distance is
+ * wants skyBody above.
+ */
+fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
+  let d = normalize(dir);
+  let up = clamp(d.y, -1.0, 1.0);
+  let p = dayPhase(sun);
+  let lit = max(p.x, p.y * 0.92);
+  var col = skyBody(dir, sun);
+
+  // No stars through cloud.
+  col += stars(d, (1.0 - max(p.x, p.y * 0.8)) * (1.0 - weather.cover));
+
+  let towards = clamp(dot(d, sun), 0.0, 1.0);
+  let glow = mix(vec3f(1.00, 0.90, 0.72), vec3f(1.05, 0.46, 0.20), p.y);
   // A band of fire along the horizon in the sun's half of the sky. Twilight is
   // not a glow around a point, it is a lit edge to the world.
   col += glow * pow(clamp(dot(normalize(vec3f(d.x, 0.0, d.z)), normalize(vec3f(sun.x, 0.0, sun.z))), 0.0, 1.0), 2.2)
@@ -250,27 +290,14 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
   if (m.y > 0.004 && mn.y > -0.06) {
     let toM = clamp(dot(d, mn), 0.0, 1.0);
     let disc = smoothstep(0.99955, 0.99978, toM);
-    // Maria: two crossed low-frequency waves over the face, so the pattern
-    // sits still on the disc rather than swimming with the camera.
     let mottle = 0.80 + 0.20 * sin(d.x * 900.0) * sin(d.z * 760.0 + 1.3);
     let halo = pow(toM, 340.0) * 0.55 + pow(toM, 26.0) * 0.055 + pow(toM, 4.0) * 0.012;
-    let above = smoothstep(-0.06, 0.10, mn.y);
+    let over = smoothstep(-0.06, 0.10, mn.y);
     col += (vec3f(0.94, 0.95, 1.00) * disc * 6.2 * mottle
-          + vec3f(0.58, 0.66, 0.86) * halo) * m.y * above;
+          + vec3f(0.58, 0.66, 0.86) * halo) * m.y * over;
   }
-
-  // Overcast: the lid.
-  //
-  // The deck itself is drawn by the sky pass, but the sky *behind* it has to go
-  // too, or an overcast day is a blue sky with clouds over it -- and the two
-  // read completely differently. Under full cover the dome flattens towards the
-  // overcast tint, a shade darker overhead than at the horizon, which is the
-  // one gradient a solid deck still has.
-  //
-  // Darker overhead than at the horizon, but only just: a big difference puts
-  // a visible band across the sky where the deck stops and the lid starts, and
-  // a real overcast has almost no gradient in it at all -- that flatness is
-  // most of what makes one oppressive.
+  // The lid again, over what the full sky added, so a star or a moon does not
+  // shine through a solid overcast.
   let lid = overcastTint(sun) * mix(0.90, 1.04, 1.0 - abs(up));
   col = mix(col, lid, weather.cover * smoothstep(-0.30, 0.10, up));
   return col;
@@ -311,7 +338,7 @@ fn hazeAmount(metres : f32) -> f32 {
 }
 
 fn aerial(col : vec3f, metres : f32, dir : vec3f, sun : vec3f) -> vec3f {
-  return mix(col, skyColour(dir, sun), hazeAmount(metres));
+  return mix(col, skyBody(dir, sun), hazeAmount(metres));
 }
 
 /** The filmic shoulder every surface in the game shares. */
