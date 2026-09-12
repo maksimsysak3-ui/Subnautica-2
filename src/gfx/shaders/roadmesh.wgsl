@@ -340,7 +340,31 @@ fn fs(in : VSOut) -> @location(0) vec4f {
               bar * wear * 0.94);
   }
 
-  let n = normalize(in.normal);
+  // Seen from far enough that one pixel spans more than one strip of it.
+  //
+  // The ribbon is built as strips across its width -- carriageway, kerb face,
+  // kerb top, footway -- each with its own material and its own normal, and
+  // nothing mips them. Once a pixel is wider than a strip, the shader returns
+  // whichever strip its single sample happened to land on, and a road running
+  // to the horizon becomes a shimmer of pale pavement and dark tarmac: it
+  // reads as a dashed white line rather than as a road. That is the whole of
+  // the "roads are half grey from far away" problem, and it is neither the
+  // skirt nor the terrain under it -- both were ruled out by rendering with
+  // each removed and getting the same picture.
+  //
+  // A mip level would return the average of what it covers, so this does: past
+  // about a metre a pixel, every strip fades to what the full width comes to,
+  // which is mostly carriageway with a fringe of pavement either side. The
+  // normal goes with it -- a kerb face pointing sideways is a strip too, and
+  // its lighting shimmers for exactly the same reason.
+  let coarse = smoothstep(0.75, 2.60, mpp);
+  if (coarse > 0.0) {
+    let mean = mix(asphalt(w2, 0.0, half, 0.0, mpp), concrete(w2, mpp) * 0.80, 0.28);
+    col = mix(col, mean, coarse);
+  }
+
+  var n = normalize(in.normal);
+  n = normalize(mix(n, vec3f(0.0, 1.0, 0.0), coarse));
   let sun = normalize(camera.sunDir.xyz);
   let ndl = dot(n, sun);
   let lit = shadowFactor(in.world, ndl);
