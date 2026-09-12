@@ -67,12 +67,12 @@ const DAY_LOW    = vec3f(0.500, 0.600, 0.750);
 /** Low sun: the zenith holds while the horizon goes to fire. */
 const DUSK_HIGH  = vec3f(0.085, 0.090, 0.180);
 const DUSK_LOW   = vec3f(0.720, 0.330, 0.150);
-const NIGHT_HIGH = vec3f(0.0045, 0.0075, 0.0180);
-const NIGHT_LOW  = vec3f(0.0180, 0.0250, 0.0480);
+const NIGHT_HIGH = vec3f(0.0115, 0.0175, 0.0370);
+const NIGHT_LOW  = vec3f(0.0330, 0.0430, 0.0770);
 
 /** Below the horizon: haze over ground the map does not extend to. */
 const DAY_DOWN   = vec3f(0.300, 0.330, 0.360);
-const NIGHT_DOWN = vec3f(0.012, 0.014, 0.020);
+const NIGHT_DOWN = vec3f(0.026, 0.030, 0.042);
 
 /**
  * How far through the day the sun is.
@@ -87,6 +87,36 @@ fn dayPhase(sun : vec3f) -> vec2f {
   let day = smoothstep(-0.09, 0.22, up);
   let low = exp(-pow((up - 0.03) / 0.15, 2.0));
   return vec2f(day, low);
+}
+
+/**
+ * The moon, and how much light it is giving.
+ *
+ * Opposite the sun, which is where a full moon sits -- so it rises as the sun
+ * sets and is highest at midnight, for free, from the one direction the frame
+ * already has. `x` is how far up it is, `y` how much it counts: nothing while
+ * there is daylight, nothing through cloud.
+ */
+fn moonDir(sun : vec3f) -> vec3f {
+  // Opposite the sun, then pulled down towards the horizon.
+  //
+  // A full moon is exactly opposite the sun, which puts it at its highest at
+  // midnight -- sixty degrees up here, and a city builder's camera looks down
+  // at the ground, so a moon straight overhead is a moon nobody ever sees. The
+  // real one is not opposite either: it lags the sun by about fifty minutes a
+  // day and runs on its own tilted orbit, so it is usually somewhere lower and
+  // off to one side. This is that, cheaply: the same arc, flattened, which
+  // gives it a rise and a set of its own inside the night.
+  var m = -sun;
+  m.y = m.y * 0.17 - 0.02;
+  return normalize(m);
+}
+
+fn moonPhase(sun : vec3f) -> vec2f {
+  let p = dayPhase(sun);
+  let up = clamp(-sun.y, 0.0, 1.0);
+  let night = (1.0 - max(p.x, p.y * 0.8)) * (1.0 - weather.cover * 0.92);
+  return vec2f(up, clamp(night, 0.0, 1.0));
 }
 
 /** The sun's own colour, reddened as it drops. Zero once it has set. */
@@ -112,7 +142,16 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // here and this one does too: enough of a cool floor that the ground, the
   // kerbs and the parked cars are all still readable, while the lit windows
   // stay far and away the brightest thing in the frame.
-  let night = vec3f(0.150, 0.178, 0.250);
+  //
+  // The floor is lifted and the moon drives it. A flat night term meant the
+  // darkest part of the night and the last of the dusk were lit the same, and
+  // set that one level low enough to be pitch black: streets you could not
+  // follow, parks that were holes, buildings readable only by their windows.
+  // Tying it to how high the moon is gives midnight *more* light than the hour
+  // after sunset, which is both true and the right way round for a player, who
+  // is most likely to still be building at midnight.
+  let m = moonPhase(sun);
+  let night = vec3f(0.255, 0.292, 0.385) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -126,7 +165,10 @@ fn ambientSky(sun : vec3f) -> vec3f {
 /** Bounce from the ground: warmer, weaker, and what fills the undersides. */
 fn ambientGround(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let night = vec3f(0.094, 0.098, 0.118);
+  // Bounce follows the same moon, a little cooler: moonlight off asphalt is
+  // grey, not the warm fill daylight gives.
+  let m = moonPhase(sun);
+  let night = vec3f(0.168, 0.176, 0.208) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground
@@ -198,6 +240,24 @@ fn skyColour(dir : vec3f, sun : vec3f) -> vec3f {
        * p.y * 0.55 * (1.0 - smoothstep(-0.02, 0.30, up)) * smoothstep(-0.16, 0.0, up);
   // The disc. Gone below the horizon rather than sinking into the ground.
   col += glow * pow(towards, 1400.0) * 9.0 * smoothstep(-0.03, 0.02, sun.y);
+
+  // The moon. A disc with a soft limb, faint maria across it so it is not a
+  // white pill, and a wide halo -- which is the part that does the work: the
+  // halo is what makes the sky around it read as lit rather than as a light
+  // pasted onto black.
+  let m = moonPhase(sun);
+  let mn = moonDir(sun);
+  if (m.y > 0.004 && mn.y > -0.06) {
+    let toM = clamp(dot(d, mn), 0.0, 1.0);
+    let disc = smoothstep(0.99955, 0.99978, toM);
+    // Maria: two crossed low-frequency waves over the face, so the pattern
+    // sits still on the disc rather than swimming with the camera.
+    let mottle = 0.80 + 0.20 * sin(d.x * 900.0) * sin(d.z * 760.0 + 1.3);
+    let halo = pow(toM, 340.0) * 0.55 + pow(toM, 26.0) * 0.055 + pow(toM, 4.0) * 0.012;
+    let above = smoothstep(-0.06, 0.10, mn.y);
+    col += (vec3f(0.94, 0.95, 1.00) * disc * 6.2 * mottle
+          + vec3f(0.58, 0.66, 0.86) * halo) * m.y * above;
+  }
 
   // Overcast: the lid.
   //

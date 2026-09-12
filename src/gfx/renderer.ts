@@ -66,8 +66,35 @@ const GRASS_TALL = 0.34;
 const GRASS_WIDE = 0.019;
 /** Past this many metres from the eye, no blades. */
 const GRASS_REACH = 31;
-/** Past this camera distance the patch is not drawn at all. */
-const GRASS_ZOOM = 320;
+/**
+ * Where the blades start thinning with the zoom, and where they are gone.
+ *
+ * A blade is two centimetres wide. From a hundred metres up it is a fraction
+ * of a pixel, and the lattice is a hundred and sixty thousand instances of
+ * something nobody can resolve -- which was most of what a frame cost at any
+ * zoom short of the old three-hundred-metre cutoff, for no picture at all.
+ * Both the reach and the lattice sized to it shrink across this band, so the
+ * near view keeps every blade and the far one stops paying.
+ *
+ * A band rather than a threshold because the threshold popped: sixty thousand
+ * blades appeared in one frame as the camera crossed it.
+ */
+const GRASS_NEAR = 42;
+const GRASS_FAR = 135;
+
+/** A smoothstep on 0..1, clamped. */
+function smooth01(t: number): number {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t;
+  return x * x * (3 - 2 * x);
+}
+
+/**
+ * How many frames may be in the GPU's queue at once.
+ *
+ * Two: one being drawn and one waiting, so the card never idles between
+ * frames, and the picture is never more than one frame behind the input.
+ */
+const MAX_IN_FLIGHT = 2;
 
 /**
  * viewProj (64) + its inverse (64) + the sun's view (64) + eye (16)
@@ -233,6 +260,31 @@ export class Renderer {
   private raf = 0;
   private startedAt = 0;
   private lastFrame = 0;
+  /**
+   * Frames submitted but not yet finished on the GPU.
+   *
+   * requestAnimationFrame fires at the display's rate whatever the GPU is
+   * managing, and WebGPU's queue is unbounded: a scene the card draws in
+   * twenty milliseconds, submitted every seven, backs the queue up without
+   * limit. The frame the player is looking at is then several behind the one
+   * the camera is in, which is what "smooth numbers, laggy picture" is -- the
+   * CPU readout said six thousand frames a second because encoding a frame is
+   * all it was measuring.
+   *
+   * So: at most a couple of frames in flight. Beyond that the camera still
+   * integrates and input is still read, but no new frame is encoded, which
+   * bounds the latency to what the GPU can actually deliver and makes the
+   * interval between presented frames even instead of sawtoothed.
+   */
+  private inFlight = 0;
+  /** Frames dropped to the bound above since the last readout. */
+  private stalled = 0;
+  /** Counts frames, to run the once-a-few-frames work off the hot path. */
+  private beat = 0;
+  /** Blades in the lattice this frame, for the readout. */
+  private grassBlades = 0;
+  /** Reused destination for the counter readback, so it allocates once. */
+  private countsScratch: Uint32Array | null = null;
   private unsubscribeResize: (() => void) | null = null;
   private running = false;
   private onUpdate: ((dt: number) => void) | null = null;
@@ -1205,6 +1257,16 @@ export class Renderer {
     const dt = Math.min((now - this.lastFrame) / 1000, 0.1);
     this.lastFrame = now;
     this.onUpdate?.(dt);
+    this.stats.interval(dt * 1000);
+
+    // Backpressure. The camera has already moved and the input has already
+    // been read; what is skipped is only the drawing of a frame the GPU has
+    // no room for yet.
+    if (this.inFlight >= MAX_IN_FLIGHT) {
+      this.stalled++;
+      this.stats.paint(now);
+      return;
+    }
 
     const cpuStart = performance.now();
     const { device, context, viewport } = this.gpu;
@@ -1408,17 +1470,30 @@ export class Renderer {
     // Grass, after the ground so most blades are rejected on depth before
     // they shade. The lattice is snapped to its own cell size around the eye:
     // the blades stand still in the world and the window into them slides.
-    if (cam.distance < GRASS_ZOOM) {
+    // How far the blades reach, and so how big a lattice is needed to hold
+    // them. Both fall away with the zoom together: the shader thins the field
+    // towards its own edge, so a shrinking reach reads as the grass fading out
+    // rather than as a ring closing in.
+    const zoom = 1 - smooth01((cam.distance - GRASS_NEAR) / (GRASS_FAR - GRASS_NEAR));
+    const reach = GRASS_REACH * zoom;
+    if (reach > 1.5) {
+      // Rounded up to a multiple of eight so the workgroup-shaped instance
+      // count does not wobble by one blade as the camera creeps.
+      const side = Math.min(GRASS_SIDE,
+        Math.ceil((2 * reach) / GRASS_CELL / 8) * 8);
       const snap = GRASS_CELL * 8;
-      const ox = Math.floor(cam.eye[0] / snap) * snap - (GRASS_SIDE * GRASS_CELL) / 2;
-      const oz = Math.floor(cam.eye[2] / snap) * snap - (GRASS_SIDE * GRASS_CELL) / 2;
+      const ox = Math.floor(cam.eye[0] / snap) * snap - (side * GRASS_CELL) / 2;
+      const oz = Math.floor(cam.eye[2] / snap) * snap - (side * GRASS_CELL) / 2;
       this.grassData.set([ox, oz, GRASS_CELL, res.groundTexture.width], 0);
-      this.grassData.set([GRASS_TALL, GRASS_WIDE, GRASS_REACH, GRASS_SIDE], 4);
+      this.grassData.set([GRASS_TALL, GRASS_WIDE, reach, side], 4);
       device.queue.writeBuffer(res.grassBuffer, 0, this.grassData);
       pass.setPipeline(res.grass);
       pass.setBindGroup(1, res.grassGroup);
-      pass.draw(GRASS_VERTS, GRASS_SIDE * GRASS_SIDE);
+      pass.draw(GRASS_VERTS, side * side);
       pass.setBindGroup(0, res.cameraGroup);
+      this.grassBlades = side * side;
+    } else {
+      this.grassBlades = 0;
     }
 
     // The city. One indirect draw per bucket, each pointed at its own slice of
@@ -1465,17 +1540,34 @@ export class Renderer {
 
     pass.end();
 
-    if (!this.countsPending) {
+    // The survivor counts, every third frame. They drive the overlay and the
+    // warm list, and the warm list has a twelve-frame memory -- so reading
+    // them every frame bought nothing and cost a round trip, a map and a
+    // copy of the whole args buffer per frame.
+    this.beat++;
+    // The first few frames read every time, so a tool that renders three of them
+    // and prints the numbers gets real ones.
+    const wantCounts = !this.countsPending && (this.beat < 4 || this.beat % 3 === 0);
+    if (wantCounts) {
       encoder.copyBufferToBuffer(res.argsBuffer, 0, res.argsRead, 0, res.argsReset.byteLength);
       encoder.copyBufferToBuffer(res.castArgsBuffer, 0, res.argsRead,
         res.argsReset.byteLength, res.castArgsBytes);
     }
     this.profiler?.resolve(encoder);
     device.queue.submit([encoder.finish()]);
+    this.inFlight++;
+    device.queue.onSubmittedWorkDone().then(() => { this.inFlight--; },
+      () => { this.inFlight--; });
     this.profiler?.poll();
-    this.readDrawnCounts(res);
+    if (wantCounts) this.readDrawnCounts(res);
 
     this.stats.sample(performance.now() - cpuStart);
+    // Every row below is a string built from a number, and at several hundred
+    // frames a second that is tens of thousands of throwaway strings a second
+    // feeding the collector -- which is felt as a hitch every so often, not as
+    // a frame time. The panel repaints at 4Hz; the rows are now built at 4Hz
+    // to match.
+    if (!this.stats.due(now)) return;
     this.stats.set('draws', String(1 + chunks + this.encodedBuckets + this.encodedCasts));
     this.stats.set('hour', `${Math.floor(this.timeOfDay * 24)}:${String(Math.floor((this.timeOfDay * 24 % 1) * 60)).padStart(2, '0')}`);
     this.stats.set('chunks', `${chunks}/${res.chunks.length}`);
@@ -1489,6 +1581,8 @@ export class Renderer {
     this.stats.set('tris', `${(this.drawnTris / 1000).toFixed(0)}k`);
     this.stats.set('zoom', `${cam.distance.toFixed(0)}m`);
     this.stats.set('px', `${viewport.width}×${viewport.height}`);
+    this.stats.set('grass', this.grassBlades ? `${(this.grassBlades / 1000).toFixed(0)}k` : '—');
+    if (this.stalled > 0) { this.stats.set('paced', String(this.stalled)); this.stalled = 0; }
     this.stats.paint(now);
   }
 
@@ -1505,7 +1599,10 @@ export class Renderer {
     this.countsPending = true;
     res.argsRead.mapAsync(GPUMapMode.READ).then(
       () => {
-        const v = new Uint32Array(res.argsRead.getMappedRange().slice(0));
+        const mapped = new Uint32Array(res.argsRead.getMappedRange());
+        this.countsScratch ??= new Uint32Array(mapped.length);
+        const v = this.countsScratch;
+        v.set(mapped);
         const byLod: [number, number, number] = [0, 0, 0];
         let tris = 0;
         // Which buckets had anything in them, so the next frame can stop

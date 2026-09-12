@@ -1232,39 +1232,62 @@ let woodFor = -1;
 function woodland(grid: number): Float32Array {
   if (woodMask !== null && woodFor === grid) return woodMask;
   const out = new Float32Array(grid * grid);
+  const half = grid / 2;
+  // The starting land is the middle four plots, so it reaches this many cells
+  // either side of the centre. Taken from the plot grid rather than written
+  // down, because a change to one should move the other.
+  const homeHalf = plotCells(grid);
+  // The belt outside it, in cells: about two hundred metres.
+  const BELT = 26;
   for (let cz = 0; cz < grid; cz++) {
     for (let cx = 0; cx < grid; cx++) {
-      // Woodland in stands, with real country between them.
+      // How far outside the starting land this cell is, measured as a box
+      // rather than a radius: the land the player owns is a square, and a
+      // circular clearing inside a square plot leaves trees in the corners of
+      // the one place that has to be clear.
+      const outside = Math.max(Math.abs(cx - half), Math.abs(cz - half)) - homeHalf;
+      // Nothing at all on the starting land. A site the player has to clear
+      // before they can draw their first road is a chore, not a challenge.
+      if (outside <= 0) continue;
+
+      // Woodland at two scales, which is the whole point.
       //
-      // Three things, and the first is the one that matters. A single noise
-      // field thresholded low spreads a thin scatter of trees over the whole
-      // map, which is neither forest nor field -- it is static. A *high*
-      // threshold on a low-frequency field gives distinct woods with open
-      // ground between, which is what countryside actually looks like from the
-      // air, and it costs a fraction of the trees for a far stronger read.
+      // One noise field thresholded once gives one size of wood, repeated
+      // across the map at one spacing -- which is an even spread wearing a
+      // disguise. Countryside is not like that: it has wooded country and open
+      // country, and inside the wooded country it has closed forest, and inside
+      // the open country it has the odd copse in a field corner.
       //
-      // Then the density inside a stand is capped, because crowns are wider
-      // than their cells and a canopy closes long before every cell is taken.
-      //
-      // And the middle of the map is left alone entirely: that is where the
-      // player starts, and a starting site they have to clear before they can
-      // draw anything is a chore, not a challenge.
-      const wood = fbm(cx * 0.0115, cz * 0.0115, 3, 917);
-      const grain = fbm(cx * 0.052, cz * 0.052, 2, 331);
-      // A higher bar and fewer trees behind it.
-      //
-      // Fifty thousand trees was most of the instance count, most of the
-      // culling, most of the shadow pass and most of a rebuild -- and it did
-      // not buy a better landscape, it bought a busier one. Raising the
-      // threshold shrinks the woods rather than thinning them, which is the
-      // right way round: a wood with half the trees in it reads as a wood that
-      // is dying, while half as many woods reads as countryside.
-      const stand = Math.max(0, wood - 0.655) * 2.4;
-      // The edge of a wood is ragged, not a contour: the finer field breaks it.
-      const edge = Math.max(0, stand * (0.55 + grain * 0.9));
-      const home = Math.hypot(cx - grid / 2, cz - grid / 2) / (grid * 0.5);
-      const clear = Math.min(1, Math.max(0, (home - 0.16) / 0.14));
-      out[cz * grid + cx] = Math.min(0.30, edge) * clear;
+      // So: a very low frequency field decides which kind of country this is,
+      // and it moves the *threshold* the wood field has to clear. In forest
+      // country the bar is low and the woods join up into something you could
+      // lose a road in; in open country the bar is high and only the peaks of
+      // the wood field get through, as small stands with fields between them.
+      const region = fbm(cx * 0.0041, cz * 0.0041, 2, 4103);
+      const wood = fbm(cx * 0.0128, cz * 0.0128, 3, 917);
+      const grain = fbm(cx * 0.055, cz * 0.055, 2, 331);
+
+      const bar = 0.71 - region * 0.31;
+      if (wood <= bar) continue;
+      const stand = (wood - bar) / (1 - bar);
+
+      // How thick a wood gets here, also from the region field: a forest is
+      // closed and a field-corner copse is a dozen trees. One cap for both
+      // made the forests thin and the copses into thickets.
+      const thick = 0.13 + region * 0.26;
+
+      // The ragged edge, and glades. The fine field both breaks the outline of
+      // a wood and punches holes in the middle of one, because a forest with a
+      // uniform interior reads as a texture rather than as trees.
+      let d = stand * (0.45 + grain * 1.05);
+      if (grain < 0.30) d *= grain / 0.30;
+      d = Math.min(thick, d);
+
+      // The belt around the starting land: some trees, not many, and fewer the
+      // closer to the fence. A bare plain around the site looks mown, and full
+      // countryside right up against it looks like a wall.
+      const ramp = Math.min(1, outside / BELT);
+      out[cz * grid + cx] = d * (0.20 + 0.80 * ramp * ramp);
     }
   }
   woodMask = out;
