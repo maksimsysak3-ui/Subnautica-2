@@ -197,10 +197,17 @@ const ic = result.incremental;
 if (!ic || ic.error) {
   push(`incremental probe failed: ${ic?.error ?? 'no result'}`);
 } else {
-  // A few tenths of a per cent is the algorithm's own sensitivity to order and
-  // is invisible; whole per cents mean a pass is being skipped or run twice.
-  if (!(ic.worst < 2.5)) push(`incremental rebuild is ${ic.worst}% away from a full one`);
-  console.log(`partial  incremental vs full: ${ic.sizes} — worst ${ic.worst}% apart`);
+  // Exactly, not approximately. Rebuilding the part an edit changed produces
+  // the same city as rebuilding all of it, building for building -- the passes
+  // are deterministic and the region is sized so nothing outside it can be
+  // affected. Anything above zero means a pass is being skipped, run twice, or
+  // run against ground whose claims were not put back.
+  if (ic.worst !== 0) push(`incremental rebuild is ${ic.worst}% away from a full one`);
+  // The road mesh, unlike the buildings, has to match exactly: it is cached
+  // piece by piece, and a piece that comes back even slightly different means
+  // the roads drift further from the truth with every road drawn.
+  if (ic.roads !== 'same') push(`the road mesh does not match a full rebuild — ${ic.roads}`);
+  console.log(`partial  incremental vs full: ${ic.sizes} — worst ${ic.worst}% apart, roads ${ic.roads}`);
 }
 
 const ld = result.land;

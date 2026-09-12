@@ -17,7 +17,8 @@ import { Stats } from './ui/stats';
 import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
-  emptyWorld, makeCity, clearStanding, clearWild, clearGrading, INSTANCE_FLOATS,
+  emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt,
 } from './sim';
 import type { Dirty } from './sim';
 
@@ -346,7 +347,7 @@ Promise<{ lit: number[]; debug: number[]; count: number }> {
  * oracle. After each edit the incremental result is compared against one, and
  * what comes back is how far apart they are.
  */
-export function probeIncremental(): { worst: number; sizes: string } {
+export function probeIncremental(): { worst: number; sizes: string; roads: string } {
   configureSim(LITE);
   const g = simConfig.cityGrid;
   const key = (d: Float32Array, i: number): string => {
@@ -370,22 +371,58 @@ export function probeIncremental(): { worst: number; sizes: string } {
   clearStanding(); clearWild(); clearGrading();
   makeCity(w);
 
+  /**
+   * A fingerprint of the road mesh.
+   *
+   * Every kerb, marking, junction polygon and grading pin in the city, as four
+   * numbers. The point of caching the road mesh piece by piece is that the
+   * pieces nobody touched come back identical, and "identical" has to mean
+   * bit-for-bit or the roads drift a little further from the truth with every
+   * road drawn. A count alone would miss a vertex in the wrong place, so the
+   * sum goes in too -- scaled and truncated, because a float sum over a hundred
+   * thousand vertices loses its low bits to rounding and would report a
+   * difference that is not there.
+   */
+  const fingerprint = (m: { vertices: Float32Array; indices: Uint32Array;
+    pins: Array<{ gx: number; gz: number; y: number }> }): string => {
+    let v = 0;
+    for (let i = 0; i < m.vertices.length; i++) v += Math.round(m.vertices[i] * 64);
+    let x = 0;
+    for (let i = 0; i < m.indices.length; i++) x += m.indices[i];
+    let p = 0;
+    for (const q of m.pins) p += q.gx * 7919 + q.gz * 104729 + Math.round(q.y * 64);
+    return `${m.vertices.length}:${m.indices.length}:${m.pins.length}:${v}:${x}:${p}`;
+  };
+
   let worst = 0;
   let sizes = '';
+  let roads = 'same';
   const edits: Array<() => Dirty> = [
     () => { w.net.add(-40, -260, -40, 260, 'street');
       return { gx: (g >> 1) - 8, gz: 4, w: 16, d: g - 8 }; },
     () => { const r = { gx: 10, gz: 10, w: 18, d: 18 };
       paint(w, r.gx, r.gz, r.w, r.d, zoneCode('commercial', 'high')); return r; },
-    () => { const r = { gx: g - 30, gz: g - 30, w: 16, d: 16 };
-      demolish(w, r.gx, r.gz, r.w, r.d); return r; },
+    // A road drawn onto the end of another, which is what chaining does and
+    // where the junction radii at the shared node change under both.
+    () => { w.net.add(-40, 260, 240, 400, 'avenue');
+      return { gx: (g >> 1) - 12, gz: (g >> 1) + 20, w: 44, d: 26 }; },
+    // And a landmark, whose grounds reach well past its own footprint.
+    () => { const r = { gx: 30, gz: g - 34, w: 10, d: 10 };
+      paint(w, r.gx, r.gz, r.w, r.d, zoneCode('industrial', 'high'));
+      return { gx: r.gx - 2, gz: r.gz - 2, w: r.w + 4, d: r.d + 4 }; },
   ];
   for (const edit of edits) {
     const dirty = edit();
     clearGrading();
-    const inc = setOf(makeCity(w, dirty));
-    clearStanding(); clearWild(); clearGrading();
-    const ref = setOf(makeCity(w));
+    const partial = makeCity(w, dirty);
+    const incRoads = fingerprint(partial.roads);
+    const inc = setOf(partial);
+    clearStanding(); clearWild(); clearRoadMesh(); clearGrading();
+    const whole = makeCity(w);
+    if (fingerprint(whole.roads) !== incRoads) {
+      roads = `differ: ${incRoads} vs ${fingerprint(whole.roads)}`;
+    }
+    const ref = setOf(whole);
     // Put the incremental city back, so the next edit runs on what the game
     // would actually be holding.
     clearGrading(); makeCity(w);
@@ -395,8 +432,24 @@ export function probeIncremental(): { worst: number; sizes: string } {
     worst = Math.max(worst, (apart / Math.max(1, ref.size)) * 100);
     sizes += `${inc.size}/${ref.size} `;
   }
+  // And the drag preview, which builds a one-link graph of its own on every
+  // pointer move. If that were allowed into the caches it would replace the
+  // city's road pieces with its own, and the next real rebuild would find
+  // nothing kept -- once per frame, for the length of a drag.
+  clearGrading();
+  const before = makeCity(w, { gx: 4, gz: 4, w: 8, d: 8 });
+  const beforeRoads = fingerprint(before.roads);
+  for (let i = 0; i < 4; i++) {
+    previewRoad(g, -100 + i * 20, -100, 200, 240, 'street', 0, baseHeightAt);
+  }
+  clearGrading();
+  const after = makeCity(w, { gx: 4, gz: 4, w: 8, d: 8 });
+  if (fingerprint(after.roads) !== beforeRoads) {
+    roads = 'the drag preview changed the city\u2019s own road mesh';
+  }
+
   clearStanding();
-  return { worst: Math.round(worst * 100) / 100, sizes: sizes.trim() };
+  return { worst: Math.round(worst * 100) / 100, sizes: sizes.trim(), roads };
 }
 
 /**

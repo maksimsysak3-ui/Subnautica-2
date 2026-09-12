@@ -53,6 +53,9 @@ export interface Bounds { x0: number; z0: number; x1: number; z1: number; }
 
 /** The grading as it stood before the last pass, for diffing against. */
 let previous: Float32Array | null = null;
+let scratchOffset: Float32Array<ArrayBuffer> | null = null;
+let scratchPinned: Uint8Array | null = null;
+let scratchDst: Float32Array<ArrayBuffer> | null = null;
 let changed: Bounds | null = null;
 
 /**
@@ -230,10 +233,32 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   const grid = simConfig.cityGrid;
   stride = grid + 1;
   const n = stride * stride;
-  offset = new Float32Array(n);
-  pinned = new Uint8Array(n);
+  // Reused between passes. Three arrays of four hundred thousand floats
+  // allocated on every edit is a megabyte and a half of garbage for an answer
+  // that mostly does not change, and the collector charges for it later.
+  if (scratchOffset === null || scratchOffset.length !== n) {
+    scratchOffset = new Float32Array(n);
+    scratchPinned = new Uint8Array(n);
+    scratchDst = new Float32Array(n);
+  } else {
+    scratchOffset.fill(0);
+    scratchPinned!.fill(0);
+  }
+  offset = scratchOffset;
+  pinned = scratchPinned as Uint8Array;
+  const mark = pinned;
 
+  // With a hint, only the pads inside it are worth pinning: outside the box the
+  // offsets are copied from the previous pass, which already pinned them.
+  const h0 = only === undefined || only === null ? null : {
+    x0: Math.floor(only.x0 / CELL + simConfig.cityGrid / 2) - RAMP - 4,
+    z0: Math.floor(only.z0 / CELL + simConfig.cityGrid / 2) - RAMP - 4,
+    x1: Math.ceil(only.x1 / CELL + simConfig.cityGrid / 2) + RAMP + 4,
+    z1: Math.ceil(only.z1 / CELL + simConfig.cityGrid / 2) + RAMP + 4,
+  };
   for (const pad of pads) {
+    if (h0 !== null && (pad.gx + pad.w < h0.x0 || pad.gx > h0.x1
+      || pad.gz + pad.d < h0.z0 || pad.gz > h0.z1)) continue;
     // Corners, not cells: a lot of w cells spans w + 1 corners, and pinning
     // only the cells would leave the lot's own edge free to tilt.
     for (let j = 0; j <= pad.d; j++) {
@@ -247,8 +272,8 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
         // Where two pads meet, the higher one wins. A lot that lost would be
         // left with its own ground cut away under one edge, which is the
         // sunken building again by another route.
-        if (pinned[k] === 0 || want > offset[k]) offset[k] = want;
-        pinned[k] = 1;
+        if (mark[k] === 0 || want > offset[k]) offset[k] = want;
+        mark[k] = 1;
       }
     }
   }
@@ -257,9 +282,10 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   // beside a road must not lift the road it fronts onto.
   for (const p of pins) {
     if (p.gx < 0 || p.gz < 0 || p.gx >= stride || p.gz >= stride) continue;
+    if (h0 !== null && (p.gx < h0.x0 || p.gx > h0.x1 || p.gz < h0.z0 || p.gz > h0.z1)) continue;
     const k = p.gz * stride + p.gx;
     offset[k] = p.y - baseAtCorner(p.gx, p.gz, base);
-    pinned[k] = 1;
+    mark[k] = 1;
   }
 
   // Relaxation. Two buffers, because averaging in place propagates a value
@@ -299,28 +325,52 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   bx1 = Math.min(stride - 1, bx1); bz1 = Math.min(stride - 1, bz1);
   }
   if (bx1 < bx0 || bz1 < bz0) {        // nothing graded anywhere
-    settle(offset);
+    settle(offset, null);
     return;
   }
 
   // Outside the box, the previous pass's answer stands: it was computed from
   // pads that have not moved and terrain that cannot.
   if (only !== undefined && only !== null && previous !== null && previous.length === n) {
-    for (let z = 0; z < stride; z++) {
-      for (let x = 0; x < stride; x++) {
-        if (x >= bx0 && x <= bx1 && z >= bz0 && z <= bz1) continue;
-        offset[z * stride + x] = previous[z * stride + x];
+    // The whole array in one copy, then the box cleared back out of it. A
+    // nested loop that skipped the box touched four hundred thousand cells one
+    // at a time to do the same thing; `set` is a memory copy and `fill` on each
+    // row of the box is another, and together they are a fraction of it.
+    const keep = offset;
+    keep.set(previous);
+    for (let z = bz0; z <= bz1; z++) {
+      keep.fill(0, z * stride + bx0, z * stride + bx1 + 1);
+    }
+    // The pads and pins inside the box have already been written; put them back
+    // over the zeroes.
+    for (const pad of pads) {
+      if (h0 !== null && (pad.gx + pad.w < h0.x0 || pad.gx > h0.x1
+        || pad.gz + pad.d < h0.z0 || pad.gz > h0.z1)) continue;
+      for (let j = 0; j <= pad.d; j++) {
+        const gz = pad.gz + j;
+        if (gz < 0 || gz >= stride) continue;
+        for (let i = 0; i <= pad.w; i++) {
+          const gx = pad.gx + i;
+          if (gx < 0 || gx >= stride || gx < bx0 || gx > bx1 || gz < bz0 || gz > bz1) continue;
+          const k = gz * stride + gx;
+          const want = pad.y - baseAtCorner(gx, gz, base);
+          if (mark[k] === 0 || want > keep[k]) keep[k] = want;
+        }
       }
+    }
+    for (const p of pins) {
+      if (p.gx < bx0 || p.gx > bx1 || p.gz < bz0 || p.gz > bz1) continue;
+      keep[p.gz * stride + p.gx] = p.y - baseAtCorner(p.gx, p.gz, base);
     }
   }
 
   let src: Float32Array<ArrayBuffer> = offset;
-  let dst: Float32Array<ArrayBuffer> = new Float32Array(n);
+  let dst: Float32Array<ArrayBuffer> = scratchDst!;
   for (let pass = 0; pass < RAMP + 2; pass++) {
     for (let z = bz0; z <= bz1; z++) {
       for (let x = bx0; x <= bx1; x++) {
         const k = z * stride + x;
-        if (pinned[k]) { dst[k] = src[k]; continue; }
+        if (mark[k]) { dst[k] = src[k]; continue; }
         let sum = 0;
         let count = 0;
         if (x > 0) { sum += src[k - 1]; count++; }
@@ -335,7 +385,7 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
     const swap = src; src = dst; dst = swap;
   }
   offset = src;
-  settle(offset);
+  settle(offset, { x0: bx0, z0: bz0, x1: bx1, z1: bz1 });
 }
 
 /**
@@ -349,17 +399,29 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
  * equality as the test would report the whole map as changed every time a
  * float landed one unit in the last place away from where it did before.
  */
-function settle(next: Float32Array): void {
+function settle(next: Float32Array,
+  look: { x0: number; z0: number; x1: number; z1: number } | null): void {
   const half = simConfig.cityGrid / 2;
   if (previous === null || previous.length !== next.length) {
     previous = next.slice();
     changed = null;
     return;
   }
+  // `next` is one of the two ping-pong buffers and the other is about to be
+  // written over, so the record of what stood before has to be its own array --
+  // but it can be the same one every time.
+  // Only where the relaxation ran. Outside that box the offsets were copied
+  // straight from the previous pass, so they are equal by construction and
+  // comparing four hundred thousand of them to find that out is a sweep of the
+  // whole map on every edit.
+  const sx0 = look === null ? 0 : Math.max(0, look.x0);
+  const sz0 = look === null ? 0 : Math.max(0, look.z0);
+  const sx1 = look === null ? stride - 1 : Math.min(stride - 1, look.x1);
+  const sz1 = look === null ? stride - 1 : Math.min(stride - 1, look.z1);
   let cx0 = stride, cz0 = stride, cx1 = -1, cz1 = -1;
-  for (let z = 0; z < stride; z++) {
+  for (let z = sz0; z <= sz1; z++) {
     const row = z * stride;
-    for (let x = 0; x < stride; x++) {
+    for (let x = sx0; x <= sx1; x++) {
       if (Math.abs(next[row + x] - previous[row + x]) <= 1e-4) continue;
       if (x < cx0) cx0 = x;
       if (x > cx1) cx1 = x;
@@ -367,7 +429,7 @@ function settle(next: Float32Array): void {
       if (z > cz1) cz1 = z;
     }
   }
-  previous = next.slice();
+  previous.set(next);
   if (cx1 < cx0) {
     // Nothing moved at all. A zoning edit that grew no buildings, or a road
     // redrawn where one already was.

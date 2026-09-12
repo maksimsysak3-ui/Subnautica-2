@@ -139,27 +139,39 @@ function section(cls: keyof typeof ROAD_SPECS): Strip[] {
 }
 
 /** Growable float and index buffers, so the sweep can just push. */
+/**
+ * Where a piece's geometry goes.
+ *
+ * A thin front on whichever piece is being made, so the generating code below
+ * never has to know that its output is cached. Indices come back relative to
+ * the piece's own first vertex, which is what makes concatenating pieces a copy
+ * and an offset rather than a rewrite.
+ */
 class Buf {
-  v: number[] = [];
-  i: number[] = [];
+  constructor(private readonly into: () => Piece) {}
 
-  get count(): number { return this.v.length / ROAD_FLOATS; }
+  get count(): number { return this.into().v.length / ROAD_FLOATS; }
 
   push(x: number, y: number, z: number, nx: number, ny: number, nz: number,
     u: number, s: number, toEnd: number,
     surf: number, half: number, lanes: number, flags: number): number {
-    const at = this.count;
-    this.v.push(x, y, z, nx, ny, nz, u, s, toEnd, surf, half, lanes, flags);
+    const p = this.into();
+    const at = p.v.length / ROAD_FLOATS;
+    p.v.push(x, y, z, nx, ny, nz, u, s, toEnd, surf, half, lanes, flags);
     return at;
   }
 
   tri(a: number, b: number, c: number): void {
-    this.i.push(a, b, c);
+    this.into().i.push(a, b, c);
   }
 
   quad(a: number, b: number, c: number, d: number): void {
-    this.i.push(a, b, c, a, c, d);
+    this.into().i.push(a, b, c, a, c, d);
   }
+}
+
+function blankPiece(sig: string): Piece {
+  return { sig, v: [], i: [], lamps: [], pk: [], pd: [], py: [] };
 }
 
 /**
@@ -234,20 +246,68 @@ export function previewRoad(grid: number, ax: number, az: number, bx: number, bz
  */
 let cachedMesh: { graph: RoadGraph; version: number; mesh: RoadMesh } | null = null;
 
+/**
+ * One road or one junction, kept so it need not be made twice.
+ *
+ * Caching the whole mesh on the graph's version stops zoning and land buying
+ * paying for it, but a road drawn anywhere still remade every kerb, marking and
+ * junction in the city -- and that is the one cost that grows with how much has
+ * been built. A road two kilometres away has not changed, and this is the unit
+ * at which that can be said.
+ *
+ * `sig` is everything the piece was made from. When it still matches, the piece
+ * is reused byte for byte; when anything it depends on moves, it is made again.
+ * The indices are relative to the piece's own first vertex, so concatenating is
+ * a copy and an offset.
+ */
+interface Piece {
+  sig: string;
+  v: number[];
+  i: number[];
+  lamps: RoadMesh['lamps'];
+  /** Corners this piece holds down: cell index, distance squared, height. */
+  pk: number[];
+  pd: number[];
+  py: number[];
+}
+
+/** Keyed on a link's own name, and on a node's index. */
+/** How much of the last mesh had to be made, for the rebuild profile. */
+export let roadPiecesMade = 0;
+export let roadPiecesKept = 0;
+
+let linkPieces = new Map<number, Piece>();
+let nodePieces = new Map<number, Piece>();
+
 /** Throws the cached road mesh away, for a tool that changes the terrain. */
 export function clearRoadMesh(): void {
   cachedMesh = null;
+  linkPieces = new Map();
+  nodePieces = new Map();
 }
 
 export function buildRoadMesh(graph: RoadGraph,
   base: (x: number, z: number) => number, raster = true): RoadMesh {
   if (raster) graph.rasterise();
-  if (cachedMesh !== null && cachedMesh.graph === graph
+  // `raster: false` means this is not the city's network but a throwaway --
+  // the one-link graph the drag preview builds on every pointer move. Such a
+  // graph must not touch the caches: it would replace the city's pieces with
+  // its own on the way past, and the next real rebuild would find nothing kept
+  // and make the whole map again, once per frame of the drag.
+  const own = raster;
+  if (own && cachedMesh !== null && cachedMesh.graph === graph
     && cachedMesh.version === graph.version) {
     return cachedMesh.mesh;
   }
-  const buf = new Buf();
-  const lamps: RoadMesh['lamps'] = [];
+  const wasLinks = linkPieces, wasNodes = nodePieces;
+  if (!own) { linkPieces = new Map(); nodePieces = new Map(); }
+  // The piece being made. Everything below writes through these rather than
+  // into one buffer, which is the whole of the change: the generating code is
+  // untouched, it just no longer knows whether its output is going straight
+  // into the city or into a drawer to be used again.
+  let piece: Piece = blankPiece('');
+  const buf = new Buf(() => piece);
+  const lamps = { push: (l: RoadMesh['lamps'][number]): void => { piece.lamps.push(l); } };
   /**
    * One entry per cell corner the corridor covers, holding the height of the
    * nearest point of road. Nearest, because two samples a few metres apart
@@ -260,10 +320,9 @@ export function buildRoadMesh(graph: RoadGraph,
    * most of what generating the roads used to cost.
    */
   const stride = graph.grid + 1;
-  const pinY = new Float32Array(stride * stride);
-  const pinD = new Float32Array(stride * stride);
-  const pinSet = new Uint8Array(stride * stride);
   const half = graph.grid / 2;
+  /** Which entry of the current piece holds a corner, while it is being made. */
+  let mark: Array<number | undefined> = [];
   const hold = (x: number, z: number, reach: number, y: number): void => {
     // Squared throughout: this runs a few hundred thousand times on a full
     // map and the square roots were most of what the road mesh cost.
@@ -281,14 +340,53 @@ export function buildRoadMesh(graph: RoadGraph,
         const d = cx * cx + cz2;
         if (d > r2) continue;
         const k = gz * stride + gx;
-        if (pinSet[k] === 0 || d < pinD[k]) { pinSet[k] = 1; pinD[k] = d; pinY[k] = y; }
+        // Recorded on the piece and merged at the end, by the same rule: the
+        // nearest road to a corner sets its height, and the first to claim it
+        // at a given distance keeps it. Deduplicating within the piece and then
+        // merging across pieces in the order they were made gives exactly what
+        // one pass over one array gave.
+        const seen = mark[k];
+        if (seen === undefined || d < piece.pd[seen]) {
+          if (seen === undefined) {
+            mark[k] = piece.pk.length;
+            piece.pk.push(k); piece.pd.push(d); piece.py.push(y);
+          } else {
+            piece.pd[seen] = d; piece.py[seen] = y;
+          }
+        }
       }
     }
   };
   const level = nodeLevels(graph, base);
 
+  /** The pieces of this mesh, in the order they go into it. */
+  const order: Piece[] = [];
+  let made = 0;
+  const freshLinks = new Map<number, Piece>();
+  const freshNodes = new Map<number, Piece>();
+
   for (let li = 0; li < graph.links.length; li++) {
     const link: RoadLink = graph.links[li];
+    // Everything this road's geometry is made from. Its own curve and class,
+    // where its ends are, how far back the junctions at either end trim it, and
+    // the heights those junctions sit at -- change any of them and the ribbon
+    // is different; change none and it is the same road it was.
+    const na = graph.nodes[link.a], nb = graph.nodes[link.b];
+    const sig = `${link.a},${link.b},${link.cx},${link.cz},${link.cls},`
+      + `${na.x},${na.z},${nb.x},${nb.z},`
+      + `${graph.junctionRadius(link.a)},${graph.junctionRadius(link.b)},`
+      + `${level[link.a]},${level[link.b]}`;
+    const had = linkPieces.get(link.id);
+    if (had !== undefined && had.sig === sig) {
+      order.push(had);
+      freshLinks.set(link.id, had);
+      continue;
+    }
+    made++;
+    piece = blankPiece(sig);
+    mark = [];
+    order.push(piece);
+    freshLinks.set(link.id, piece);
     const spec = ROAD_SPECS[link.cls];
     const ribs: Strip[] = section(link.cls);
     const flags = (spec.oneWay ? 1 : 0) | (spec.tram ? 2 : 0) | (spec.median > 0 ? 4 : 0);
@@ -394,6 +492,27 @@ export function buildRoadMesh(graph: RoadGraph,
   // covers exactly the hole they left; between one arm and the next the edge
   // runs straight across, which is the chamfer a real junction has.
   for (let n = 0; n < graph.nodes.length; n++) {
+    // A junction is made from where it is, how high it sits, and the arms that
+    // arrive -- which road, of which class, coming from where. Its own radius
+    // follows from those, so it does not need saying twice.
+    const here = graph.nodes[n];
+    let nsig = `${here.x},${here.z},${level[n]}`;
+    for (const ai of graph.armsOf(n)) {
+      const l = graph.links[ai];
+      const far = graph.nodes[l.a === n ? l.b : l.a];
+      nsig += `|${l.id},${l.cls},${far.x},${far.z},${l.cx},${l.cz}`;
+    }
+    const kept = nodePieces.get(n);
+    if (kept !== undefined && kept.sig === nsig) {
+      order.push(kept);
+      freshNodes.set(n, kept);
+      continue;
+    }
+    made++;
+    piece = blankPiece(nsig);
+    mark = [];
+    order.push(piece);
+    freshNodes.set(n, piece);
     interface Arm {
       angle: number;
       /** Where the arm meets the junction, and the way it points out of it. */
@@ -502,15 +621,40 @@ export function buildRoadMesh(graph: RoadGraph,
     hold(node.x, node.z, r + 4, y);
   }
 
-  const vertices = new Float32Array(new ArrayBuffer(buf.v.length * 4));
-  vertices.set(buf.v);
-  const indices = new Uint32Array(new ArrayBuffer(buf.i.length * 4));
-  indices.set(buf.i);
+  roadPiecesMade = made;
+  roadPiecesKept = order.length - made;
+  linkPieces = own ? freshLinks : wasLinks;
+  nodePieces = own ? freshNodes : wasNodes;
+
+  // The pieces, joined. Vertices in the order the loops ran, indices offset by
+  // where each piece landed, and the corners merged by the rule each piece
+  // already applied to itself: nearest road wins, first to claim keeps a tie.
+  let vCount = 0, iCount = 0;
+  for (const q of order) { vCount += q.v.length; iCount += q.i.length; }
+  const vertices = new Float32Array(new ArrayBuffer(vCount * 4));
+  const indices = new Uint32Array(new ArrayBuffer(iCount * 4));
+  const pinY = new Float32Array(stride * stride);
+  const pinD = new Float32Array(stride * stride);
+  const pinSet = new Uint8Array(stride * stride);
+  const out: RoadMesh['lamps'] = [];
+  let vAt = 0, iAt = 0;
+  for (const q of order) {
+    const base = vAt / ROAD_FLOATS;
+    vertices.set(q.v, vAt);
+    vAt += q.v.length;
+    for (let k = 0; k < q.i.length; k++) indices[iAt + k] = q.i[k] + base;
+    iAt += q.i.length;
+    for (const l of q.lamps) out.push(l);
+    for (let k = 0; k < q.pk.length; k++) {
+      const c = q.pk[k], d = q.pd[k];
+      if (pinSet[c] === 0 || d < pinD[c]) { pinSet[c] = 1; pinD[c] = d; pinY[c] = q.py[k]; }
+    }
+  }
   const pins: Pin[] = [];
   for (let k = 0; k < pinSet.length; k++) {
     if (pinSet[k] === 1) pins.push({ gx: k % stride, gz: (k / stride) | 0, y: pinY[k] });
   }
-  const mesh = { vertices, indices, pins, lamps };
-  cachedMesh = { graph, version: graph.version, mesh };
+  const mesh = { vertices, indices, pins, lamps: out };
+  if (own) cachedMesh = { graph, version: graph.version, mesh };
   return mesh;
 }

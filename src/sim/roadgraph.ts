@@ -575,7 +575,13 @@ export class RoadGraph {
     return link.a === node ? [-tx, -tz] : [tx, tz];
   }
 
-  private armsOf(node: number): number[] {
+  /**
+   * The links that meet at a node.
+   *
+   * Public because the road mesh caches a junction on what arrives at it, and
+   * that is the list.
+   */
+  armsOf(node: number): number[] {
     const out: number[] = [];
     for (let i = 0; i < this.links.length; i++) {
       if (this.links[i].a === node || this.links[i].b === node) out.push(i);
@@ -782,6 +788,15 @@ export class RoadGraph {
    */
   frontages(): Array<{ link: number; id: number; side: -1 | 1; from: number; to: number;
     cls: RoadClass }> {
+    // Kept until the graph changes.
+    //
+    // This walks every link, samples its curve and asks both its junctions how
+    // far back they trim it -- and the spawner asks for it twice on every
+    // rebuild, once to work out which frontages an edit could have reached and
+    // once to build them. On a city of sixty streets that was the single most
+    // expensive thing about zoning a block, for a list that cannot have changed
+    // unless a road did.
+    if (this.frontCache !== null && this.frontFor === this.version) return this.frontCache;
     const out: Array<{ link: number; id: number; side: -1 | 1; from: number; to: number;
       cls: RoadClass }> = [];
     for (let i = 0; i < this.links.length; i++) {
@@ -794,8 +809,14 @@ export class RoadGraph {
       out.push({ link: i, id: link.id, side: -1, from, to, cls: link.cls });
       out.push({ link: i, id: link.id, side: 1, from, to, cls: link.cls });
     }
+    this.frontCache = out;
+    this.frontFor = this.version;
     return out;
   }
+
+  private frontCache: Array<{ link: number; id: number; side: -1 | 1; from: number;
+    to: number; cls: RoadClass }> | null = null;
+  private frontFor = -1;
 
   /**
    * The box one link's curve lies inside, in world metres.

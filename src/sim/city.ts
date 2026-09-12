@@ -129,7 +129,15 @@ export interface City {
  * grows costs one allocation per doubling and no copy at the end.
  */
 class Instances {
-  private buf = new Float32Array(INSTANCE_FLOATS * 4096);
+  /**
+   * Empty until something is written.
+   *
+   * The countryside buffer is made on every rebuild and, once the wild half is
+   * cached, never written to -- a quarter of a megabyte of garbage per edit for
+   * an array that stays empty. Growing from nothing costs one allocation the
+   * first time anything is added and none after.
+   */
+  private buf = EMPTY_F32;
   private n = 0;
 
   /**
@@ -146,7 +154,7 @@ class Instances {
    * this, and widening the instance to carry it would put five floats of
    * bookkeeping into every vertex fetch in the frame.
    */
-  private tags = new Int32Array(5 * 4096);
+  private tags = EMPTY_I32;
 
   /** The owner the next `add` is attributed to. See `OWNER` below. */
   owner = OWNER_NONE;
@@ -158,10 +166,11 @@ class Instances {
     hx: number, hz: number, h: number, proto: number,
     stretch: number, ghost: number, e2: number, e3: number): void {
     if (this.n + INSTANCE_FLOATS > this.buf.length) {
-      const grown = new Float32Array(this.buf.length * 2);
+      const want = Math.max(INSTANCE_FLOATS * 4096, this.buf.length * 2);
+      const grown = new Float32Array(want);
       grown.set(this.buf);
       this.buf = grown;
-      const tags = new Int32Array(this.tags.length * 2);
+      const tags = new Int32Array((want / INSTANCE_FLOATS) * 5);
       tags.set(this.tags);
       this.tags = tags;
     }
@@ -250,6 +259,9 @@ class Instances {
  * attributed to the cell they started from, encoded negative so the two spaces
  * cannot collide.
  */
+const EMPTY_F32 = new Float32Array(0);
+const EMPTY_I32 = new Int32Array(0);
+
 const OWNER_NONE = -1;
 const ownerOfCell = (cell: number): number => -2 - cell;
 const cellOfOwner = (owner: number): number => -2 - owner;
@@ -270,13 +282,20 @@ export interface Dirty { gx: number; gz: number; w: number; d: number; }
 /**
  * How far a change can reach, in cells.
  *
- * The largest lot in the library is thirty-five cells across, and a frontage
- * may take half a block behind the kerb. Something placed that far from the
- * edit could have been blocked by it, or could block what the edit puts there,
- * so everything within this distance is made again. Beyond it the two cannot
- * touch: a building claims only the cells under itself.
+ * Two of the largest things these passes can grow, plus the depth a frontage
+ * builds back from its kerb and the kerb's own offset from the road. The
+ * biggest building the frontage, backland and planting passes can place is
+ * seven cells across -- `tools/` will say so -- so two of them interact at
+ * fourteen, and six more covers the build-back with slack to spare.
+ *
+ * It was forty-two, taken from the largest lot in the whole library. That is
+ * the wrong number: an airport is thirty-five cells across but it is *placed*,
+ * not grown, and a placed building that did not change keeps its claim on the
+ * ground whatever happens nearby. Sizing the region for it made every edit
+ * remake four times the area it needed to, and every frontage within three
+ * hundred metres instead of one.
  */
-const REACH = 42;
+const REACH = 28;
 
 /**
  * The city as it currently stands, kept so the next edit can reuse it.
@@ -292,12 +311,12 @@ interface Standing {
   grid: number;
   cells: Uint8Array;
   hard: Uint8Array;
-  data: Float32Array;
-  record: Int32Array;
-  count: number;
+  /** The buffer itself, not a copy of it. See below. */
+  out: Instances;
   pads: Pad[];
   padOwner: number[];
   pop: Uint32Array;
+  cover: Uint8Array;
   roads: number;
 }
 
@@ -311,17 +330,31 @@ export function clearStanding(): void {
 export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   const GRID = world.grid;
   const half = GRID / 2;
-  const out = new Instances();
+  // Whether this build can carry on from the last one.
+  //
+  // Decided before anything is allocated, because the whole point is not to
+  // allocate: the occupancy grid, the instance buffer, the pad list and the
+  // grass map are all held from last time and worked on in place. Copying them
+  // to be safe is three megabytes an edit, which on a small edit is the entire
+  // cost.
+  const carry = dirty !== undefined && standing !== null
+    && standing.world === world && standing.grid === GRID ? standing : null;
+  // Taken down while the city is being changed. Anything that throws below
+  // leaves half-edited arrays behind, and the next build must start clean
+  // rather than carry them on.
+  standing = null;
+
+  const out = carry !== null ? carry.out : new Instances();
   /** Set while the planting pass is putting a tree on ground nobody owns. */
   let wild = false;
   const wildOut = new Instances();
   const wildPop = new Uint32Array(PROTO_COUNT);
-  const cells = new Uint8Array(GRID * GRID);
-  const population = new Uint32Array(PROTO_COUNT);
+  const cells = carry !== null ? carry.cells : new Uint8Array(GRID * GRID);
+  const population = carry !== null ? carry.pop : new Uint32Array(PROTO_COUNT);
   /** What each placement wants the ground under it to be. */
-  const pads: Pad[] = [];
+  const pads: Pad[] = carry !== null ? carry.pads : [];
   /** Who each pad belongs to, so a re-run pass can drop its own. */
-  const padOwner: number[] = [];
+  const padOwner: number[] = carry !== null ? carry.padOwner : [];
   /**
    * Where grass cannot grow: paving and the footprint of a building.
    *
@@ -331,7 +364,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
    * occupancy grid as the answer left ten per cent of the map growing grass
    * and the rest of it bald.
    */
-  const hard = new Uint8Array(GRID * GRID);
+  const hard = carry !== null ? carry.hard : new Uint8Array(GRID * GRID);
   const harden = (gx: number, gz: number, w: number, d: number): void => {
     for (let j = 0; j < d; j++) {
       const z = gz + j;
@@ -359,8 +392,12 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // With a dirty rectangle and a city already standing, only the part of the
   // map an edit could have reached is rebuilt. Everything else is adopted
   // whole: its instances, its pads, its claim on the ground.
-  const prior = dirty !== undefined && standing !== null
-    && standing.world === world && standing.grid === GRID ? standing : null;
+  const prior = carry;
+  /**
+   * The ground the grass map has to be worked out again over: the region, plus
+   * everywhere a dropped building gave its footprint back.
+   */
+  let coverBox = { x0: 0, z0: 0, x1: GRID - 1, z1: GRID - 1 };
   /** Whether the network moved, which re-cuts corridors anywhere they run. */
   const roadsChanged = prior === null || prior.roads !== net.version;
   const zone = prior === null ? null : {
@@ -417,9 +454,6 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
 
   if (prior !== null) {
     // Adopt the standing city, then take out everything the region owns.
-    cells.set(prior.cells);
-    hard.set(prior.hard);
-    population.set(prior.pop);
     // How far a cell-addressed thing has to be from a remade road before it can
     // be left standing: the depth a frontage builds back, and a little more.
     /** True for anything the region is about to make again. */
@@ -428,7 +462,6 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       const cell = cellOfOwner(owner);
       return remakes(cell % GRID, (cell / GRID) | 0);
     };
-    out.adopt(prior.data, prior.record, prior.count);
     // Everything the region and its frontages give back, as one box, so the
     // survivors that reach into it can be found in a single sweep.
     let cx0 = zone!.x0, cz0 = zone!.z0, cx1 = zone!.x1, cz1 = zone!.z1;
@@ -448,11 +481,15 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       if (gx + w - 1 > cx1) cx1 = gx + w - 1;
       if (gz + d - 1 > cz1) cz1 = gz + d - 1;
     });
-    for (let i = 0; i < prior.pads.length; i++) {
-      if (replaced(prior.padOwner[i])) continue;
-      pads.push(prior.pads[i]);
-      padOwner.push(prior.padOwner[i]);
+    let keptPads = 0;
+    for (let i = 0; i < pads.length; i++) {
+      if (replaced(padOwner[i])) continue;
+      pads[keptPads] = pads[i];
+      padOwner[keptPads] = padOwner[i];
+      keptPads++;
     }
+    pads.length = keptPads;
+    padOwner.length = keptPads;
     // The ground the region stood on goes back to nothing, then the claims of
     // everything that survived and reaches into it are put back. Without that
     // second step a building just outside the region loses its footprint and
@@ -463,6 +500,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         hard[gz * GRID + gx] = 0;
       }
     }
+    coverBox = { x0: cx0, z0: cz0, x1: cx1, z1: cz1 };
     /** Overlaps the ground that was given back, so it must be marked again. */
     const cleared = (gx: number, gz: number, w: number, d: number): boolean =>
       gx + w > cx0 && gx <= cx1 && gz + d > cz0 && gz <= cz1;
@@ -486,7 +524,20 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     }
   }
 
-  for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
+  // The corridor, marked as unbuildable. Only over the ground that was given
+  // back when there is a region: everywhere else the mark is already there and
+  // sweeping four hundred thousand cells to write it again is the largest fixed
+  // cost an edit had left.
+  if (prior === null) {
+    for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
+  } else {
+    for (let gz = coverBox.z0; gz <= coverBox.z1; gz++) {
+      const row = gz * GRID;
+      for (let gx = coverBox.x0; gx <= coverBox.x1; gx++) {
+        if (net.cls[row + gx] !== 0) cells[row + gx] = STREET_CELL;
+      }
+    }
+  }
 
   /** World coordinate of a cell's low edge. */
   const wx = (gx: number): number => (gx - half) * CELL;
@@ -604,12 +655,23 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   const emitAt = (p: Proto, cx: number, cz: number, yaw: number): boolean => {
     const hw = (p.w * CELL) / 2, hd = (p.d * CELL) / 2;
     // The ground it stands on, sampled over its own footprint.
+    // Nine points over the footprint, read through the corner cache.
+    //
+    // These used to call the height field directly, which is three octaves of
+    // noise and a river lookup nine times for every building the spawner tries
+    // -- and it tries eight prototypes at each position along every frontage.
+    // That was the largest single cost of zoning a block. The ground is graded
+    // to the cell corners anyway, so reading the nearest corner is not an
+    // approximation of what the building will stand on, it is what it will
+    // stand on.
     let lo = Infinity, hi = -Infinity, sum = 0, n = 0;
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
     for (let j = -1; j <= 1; j++) {
       for (let i = -1; i <= 1; i++) {
-        const c = Math.cos(yaw), sn = Math.sin(yaw);
         const ox = i * hw, oz = j * hd;
-        const y = baseHeightAt(cx + ox * c - oz * sn, cz + ox * sn + oz * c);
+        const px = cx + ox * c - oz * sn, pz = cz + ox * sn + oz * c;
+        const y = baseAtCorner(Math.round(px / CELL + half),
+          Math.round(pz / CELL + half), baseHeightAt);
         if (y < lo) lo = y;
         if (y > hi) hi = y;
         sum += y; n++;
@@ -1094,10 +1156,19 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // Open ground, for the grass. Thinned by one cell against anything hard, so
   // a blade does not stop dead at a kerb -- real grass runs up to an edge and
   // gets worn as it goes.
-  const cover = new Uint8Array(GRID * GRID);
-  for (let gz = 0; gz < GRID; gz++) {
-    for (let gx = 0; gx < GRID; gx++) {
-      if (hard[at(gx, gz)] === 1) continue;
+  // Where grass grows, from where paving does not.
+  //
+  // Only over the ground that was given back, when there is any: this reads
+  // four neighbours per cell over four hundred thousand cells, and outside the
+  // edit the answer is the one already in the array.
+  const cover = carry !== null ? carry.cover : new Uint8Array(GRID * GRID);
+  const gz0 = carry === null ? 0 : Math.max(0, coverBox.z0 - 1);
+  const gz1 = carry === null ? GRID - 1 : Math.min(GRID - 1, coverBox.z1 + 1);
+  const gx0 = carry === null ? 0 : Math.max(0, coverBox.x0 - 1);
+  const gx1 = carry === null ? GRID - 1 : Math.min(GRID - 1, coverBox.x1 + 1);
+  for (let gz = gz0; gz <= gz1; gz++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      if (hard[at(gx, gz)] === 1) { cover[at(gx, gz)] = 0; continue; }
       let open = 4;
       if (gx > 0 && hard[at(gx - 1, gz)] === 1) open--;
       if (gx + 1 < GRID && hard[at(gx + 1, gz)] === 1) open--;
@@ -1120,9 +1191,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // them into buckets by prototype.
   // What stands now, for the next edit to reuse.
   standing = {
-    world, grid: GRID, cells, hard,
-    data: out.data.slice(), record: out.record.slice(), count: out.count,
-    pads: pads.slice(), padOwner: padOwner.slice(), pop: population.slice(),
+    world, grid: GRID, cells, hard, out, pads, padOwner, pop: population, cover,
     roads: net.version,
   };
 

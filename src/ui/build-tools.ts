@@ -588,9 +588,19 @@ export class BuildTools {
     const [gx, gz] = this.lotOrigin(cell, t.proto);
     const why = placeLot(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
     if (why !== null) { this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${why}`); return; }
+    // The whole of what it took: its footprint, and the grounds a landmark
+    // reserves around itself, which reach well past it.
+    const placed = world.lots[world.lots.length - 1];
     const [w, d] = this.placeYaw % 2 === 0
       ? [t.proto.w, t.proto.d] : [t.proto.d, t.proto.w];
-    this.rebuild({ gx: gx - 2, gz: gz - 2, w: w + 4, d: d + 4 });
+    let x0 = gx, z0 = gz, x1 = gx + w, z1 = gz + d;
+    if (placed?.grounds !== undefined) {
+      x0 = Math.min(x0, placed.grounds[0]);
+      z0 = Math.min(z0, placed.grounds[1]);
+      x1 = Math.max(x1, placed.grounds[0] + placed.grounds[2]);
+      z1 = Math.max(z1, placed.grounds[1] + placed.grounds[3]);
+    }
+    this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
     this.showMark();
   }
 
@@ -864,7 +874,18 @@ export class BuildTools {
       }
       paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density, t.theme));
     } else if (t.kind === 'clear') {
+      // Bulldozing rebuilds the whole city, and that is the right trade.
+      //
+      // It is the one edit that takes things away rather than adding them:
+      // roads vanish, which means the corridor raster has to be drawn again
+      // from nothing anyway, and ground that was claimed by a landmark is
+      // suddenly free for anything within thirty-five cells of it. Working out
+      // exactly how far that reaches is possible and it saves a fraction of a
+      // second on an action a player takes a handful of times an hour, at the
+      // cost of being the one path in here that is only approximately right.
       demolish(world, r.gx, r.gz, r.w, r.d);
+      this.rebuild();
+      return;
     } else {
       return;
     }

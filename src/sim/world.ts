@@ -301,11 +301,34 @@ function siteLots(world: World, ground: (x: number, z: number) => number): void 
  * survives is a lot the next rebuild still tries to place, and a road drawn
  * through it is quietly dropped where the two overlap.
  */
-export function demolish(world: World, gx: number, gz: number, w: number, d: number): void {
+/**
+ * Clears a rectangle, and reports how far the clearing actually reaches.
+ *
+ * Wider than the rectangle whenever a landmark was standing in it: a museum is
+ * thirty-five cells across with a superblock of grounds around it, and knocking
+ * it down frees all of that. The caller needs the real extent, because it is
+ * what decides how much of the city has to be worked out again -- and using the
+ * player's own rectangle instead leaves buildings standing on ground that is no
+ * longer claimed.
+ */
+export function demolish(world: World, gx: number, gz: number, w: number, d: number):
+{ gx: number; gz: number; w: number; d: number } {
   paint(world, gx, gz, w, d, 0);
   world.net.clear(gx, gz, w, d);
-  world.lots = world.lots.filter((l) =>
-    l.gx + l.w <= gx || l.gx >= gx + w || l.gz + l.d <= gz || l.gz >= gz + d);
+  let x0 = gx, z0 = gz, x1 = gx + w, z1 = gz + d;
+  const take = (ax: number, az: number, aw: number, ad: number): void => {
+    x0 = Math.min(x0, ax); z0 = Math.min(z0, az);
+    x1 = Math.max(x1, ax + aw); z1 = Math.max(z1, az + ad);
+  };
+  world.lots = world.lots.filter((l) => {
+    const clear = l.gx + l.w <= gx || l.gx >= gx + w
+      || l.gz + l.d <= gz || l.gz >= gz + d;
+    if (clear) return true;
+    take(l.gx, l.gz, l.w, l.d);
+    if (l.grounds !== undefined) take(l.grounds[0], l.grounds[1], l.grounds[2], l.grounds[3]);
+    return false;
+  });
+  return { gx: x0, gz: z0, w: x1 - x0, d: z1 - z0 };
 }
 
 /**
