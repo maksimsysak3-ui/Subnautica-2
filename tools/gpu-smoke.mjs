@@ -108,6 +108,12 @@ const result = await page.evaluate(async (cfg) => {
   } catch (err) {
     out.growth = { error: String(err) };
   }
+  // And the incremental rebuild, against a rebuild from nothing.
+  try {
+    out.incremental = HEADLESS.probeIncremental();
+  } catch (err) {
+    out.incremental = { error: String(err) };
+  }
   // And the land tool: a bitmask and a shader overlay, invisible to every other
   // check here.
   try {
@@ -185,6 +191,16 @@ if (cst && cst.cost) {
   console.log(`edits    ${cst.edits.join(' ')} ms`);
   console.log(`meshes   ${cst.meshes.join(' ')} newly baked per edit`);
   console.log(`chunks   ${cst.cost.terrainChunks} terrain chunks rebuilt on the last edit`);
+}
+
+const ic = result.incremental;
+if (!ic || ic.error) {
+  push(`incremental probe failed: ${ic?.error ?? 'no result'}`);
+} else {
+  // A few tenths of a per cent is the algorithm's own sensitivity to order and
+  // is invisible; whole per cents mean a pass is being skipped or run twice.
+  if (!(ic.worst < 2.5)) push(`incremental rebuild is ${ic.worst}% away from a full one`);
+  console.log(`partial  incremental vs full: ${ic.sizes} — worst ${ic.worst}% apart`);
 }
 
 const ld = result.land;

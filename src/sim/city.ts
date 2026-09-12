@@ -132,6 +132,27 @@ class Instances {
   private buf = new Float32Array(INSTANCE_FLOATS * 4096);
   private n = 0;
 
+  /**
+   * Who produced each instance, and what it took.
+   *
+   * Five numbers an instance: the owner tag, then the cell rectangle it
+   * claimed. An incremental rebuild needs both -- the tag to know which
+   * instances a re-run pass is replacing, and the rectangle to put back the
+   * claims of everything that survived, because clearing the occupancy grid
+   * around an edit also clears the marks of buildings that merely reach into
+   * it from outside.
+   *
+   * Kept beside the instance data rather than inside it: the GPU never sees
+   * this, and widening the instance to carry it would put five floats of
+   * bookkeeping into every vertex fetch in the frame.
+   */
+  private tags = new Int32Array(5 * 4096);
+
+  /** The owner the next `add` is attributed to. See `OWNER` below. */
+  owner = OWNER_NONE;
+  /** The cells the next `add` claimed: gx, gz, w, d. Zero for a tree. */
+  took: [number, number, number, number] = [0, 0, 0, 0];
+
   /** One instance: place, form, extra. Twelve floats, in that order. */
   add(x: number, z: number, y: number, yaw: number,
     hx: number, hz: number, h: number, proto: number,
@@ -140,7 +161,16 @@ class Instances {
       const grown = new Float32Array(this.buf.length * 2);
       grown.set(this.buf);
       this.buf = grown;
+      const tags = new Int32Array(this.tags.length * 2);
+      tags.set(this.tags);
+      this.tags = tags;
     }
+    const t = (this.n / INSTANCE_FLOATS) * 5;
+    this.tags[t] = this.owner;
+    this.tags[t + 1] = this.took[0];
+    this.tags[t + 2] = this.took[1];
+    this.tags[t + 3] = this.took[2];
+    this.tags[t + 4] = this.took[3];
     const b = this.buf;
     let k = this.n;
     b[k++] = x; b[k++] = z; b[k++] = y; b[k++] = yaw;
@@ -149,15 +179,136 @@ class Instances {
     this.n = k;
   }
 
-  get count(): number { return this.n / INSTANCE_FLOATS; }
-
   /** A view of exactly what was written. Not a copy. */
   get data(): Float32Array<ArrayBuffer> {
     return this.buf.subarray(0, this.n) as Float32Array<ArrayBuffer>;
   }
+
+  /** The owner and claim record, five numbers an instance. */
+  get record(): Int32Array {
+    return this.tags.subarray(0, (this.n / INSTANCE_FLOATS) * 5);
+  }
+
+  get count(): number { return this.n / INSTANCE_FLOATS; }
+
+  /**
+   * Removes every instance a predicate claims, and takes them off the census.
+   *
+   * Compacted in place rather than rebuilt: the survivors are the great
+   * majority and copying them into a second buffer to throw the first one away
+   * is the allocation this whole exercise exists to avoid.
+   */
+  dropWhere(gone: (owner: number) => boolean, census: Uint32Array,
+    release: (gx: number, gz: number, w: number, d: number) => void): void {
+    let kept = 0;
+    const n = this.count;
+    for (let i = 0; i < n; i++) {
+      if (gone(this.tags[i * 5])) {
+        census[this.buf[i * INSTANCE_FLOATS + 7]]--;
+        // The ground it stood on goes back, wherever it stood.
+        //
+        // Clearing only the region around the edit is not enough: a frontage
+        // runs the whole length of its road, so remaking one drops buildings
+        // two kilometres from the edit -- and if their footprints stay marked
+        // as taken, the frontage re-runs into its own ghosts and eleven hundred
+        // buildings quietly fail to come back.
+        const t = i * 5;
+        if (this.tags[t + 3] > 0) {
+          release(this.tags[t + 1], this.tags[t + 2], this.tags[t + 3], this.tags[t + 4]);
+        }
+        continue;
+      }
+      if (kept !== i) {
+        this.buf.copyWithin(kept * INSTANCE_FLOATS, i * INSTANCE_FLOATS,
+          (i + 1) * INSTANCE_FLOATS);
+        this.tags.copyWithin(kept * 5, i * 5, (i + 1) * 5);
+      }
+      kept++;
+    }
+    this.n = kept * INSTANCE_FLOATS;
+  }
+
+  /** Adopts an existing block of instances and their records, as the start. */
+  adopt(data: Float32Array, rec: Int32Array, count: number): void {
+    const floats = count * INSTANCE_FLOATS;
+    if (this.buf.length < floats) {
+      this.buf = new Float32Array(Math.ceil(floats * 1.3));
+      this.tags = new Int32Array(Math.ceil(count * 5 * 1.3));
+    }
+    this.buf.set(data.subarray(0, floats), 0);
+    this.tags.set(rec.subarray(0, count * 5), 0);
+    this.n = floats;
+  }
 }
 
-export function makeCity(world: World = defaultWorld()): City {
+/**
+ * Who produced an instance.
+ *
+ * A frontage is `link * 2 + side`, which is stable across edits because the
+ * graph appends links and splits them in place rather than renumbering. Passes
+ * that walk cells -- the placed lots, the backland, the planting -- are
+ * attributed to the cell they started from, encoded negative so the two spaces
+ * cannot collide.
+ */
+const OWNER_NONE = -1;
+const ownerOfCell = (cell: number): number => -2 - cell;
+const cellOfOwner = (owner: number): number => -2 - owner;
+const frontageOwner = (id: number, side: -1 | 1): number => id * 2 + (side === 1 ? 1 : 0);
+
+/** A tree takes no cells: it grows where nothing was built. */
+const NO_CLAIM: [number, number, number, number] = [0, 0, 0, 0];
+
+/**
+ * A rectangle of cells an edit touched.
+ *
+ * Handed to `makeCity` so it can rebuild that part of the city and reuse the
+ * rest. Omit it and the whole city is made again, which is what loading a save
+ * and starting a game both want.
+ */
+export interface Dirty { gx: number; gz: number; w: number; d: number; }
+
+/**
+ * How far a change can reach, in cells.
+ *
+ * The largest lot in the library is thirty-five cells across, and a frontage
+ * may take half a block behind the kerb. Something placed that far from the
+ * edit could have been blocked by it, or could block what the edit puts there,
+ * so everything within this distance is made again. Beyond it the two cannot
+ * touch: a building claims only the cells under itself.
+ */
+const REACH = 42;
+
+/**
+ * The city as it currently stands, kept so the next edit can reuse it.
+ *
+ * The whole reason this exists: a rebuild regenerates every building in the
+ * city, and a measurement of what an edit actually changes says nought point
+ * one to two per cent of it. Doing a hundred per cent of the work for two per
+ * cent of the change is fine on a village and unplayable on a city, and it gets
+ * worse in exactly the direction a game goes.
+ */
+interface Standing {
+  world: World;
+  grid: number;
+  cells: Uint8Array;
+  hard: Uint8Array;
+  data: Float32Array;
+  record: Int32Array;
+  count: number;
+  pads: Pad[];
+  padOwner: number[];
+  pop: Uint32Array;
+  roads: number;
+}
+
+let standing: Standing | null = null;
+
+/** Throws the standing city away, so the next build is made from nothing. */
+export function clearStanding(): void {
+  standing = null;
+}
+
+export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   const GRID = world.grid;
   const half = GRID / 2;
   const out = new Instances();
@@ -169,6 +320,8 @@ export function makeCity(world: World = defaultWorld()): City {
   const population = new Uint32Array(PROTO_COUNT);
   /** What each placement wants the ground under it to be. */
   const pads: Pad[] = [];
+  /** Who each pad belongs to, so a re-run pass can drop its own. */
+  const padOwner: number[] = [];
   /**
    * Where grass cannot grow: paving and the footprint of a building.
    *
@@ -200,6 +353,139 @@ export function makeCity(world: World = defaultWorld()): City {
   // where a corridor is a second time is how buildings ended up standing in
   // the road, and with curves there is no formula to work it out from anyway.
   net.rasterise();
+
+  // ---- what has to be made again --------------------------------------
+  //
+  // With a dirty rectangle and a city already standing, only the part of the
+  // map an edit could have reached is rebuilt. Everything else is adopted
+  // whole: its instances, its pads, its claim on the ground.
+  const prior = dirty !== undefined && standing !== null
+    && standing.world === world && standing.grid === GRID ? standing : null;
+  /** Whether the network moved, which re-cuts corridors anywhere they run. */
+  const roadsChanged = prior === null || prior.roads !== net.version;
+  const zone = prior === null ? null : {
+    x0: Math.max(0, dirty!.gx - REACH), z0: Math.max(0, dirty!.gz - REACH),
+    x1: Math.min(GRID - 1, dirty!.gx + dirty!.w + REACH),
+    z1: Math.min(GRID - 1, dirty!.gz + dirty!.d + REACH),
+  };
+  /** True for a cell rectangle that overlaps the region being remade. */
+  const inZone = (gx: number, gz: number, w = 1, d = 1): boolean =>
+    zone !== null && gx + w > zone.x0 && gx <= zone.x1
+      && gz + d > zone.z0 && gz <= zone.z1;
+
+  // Which frontages are remade: any whose road passes through the region, plus
+  // the reach behind it, because a frontage builds back from its kerb.
+  const remade = new Set<number>();
+  /** Every frontage there still is, so a road that was bulldozed takes its
+   * buildings with it. Without this a demolished street leaves its terrace
+   * standing in a field: the frontage that owns those buildings is simply gone
+   * from the graph, so nothing ever asks for them to be made again and nothing
+   * ever drops them. */
+  const alive = new Set<number>();
+  if (zone !== null) {
+    for (const f of net.frontages()) {
+      alive.add(frontageOwner(f.id, f.side));
+    }
+    for (const f of net.frontages()) {
+      const b = net.linkBounds(f.link);
+      const m = REACH * CELL;
+      const zx0 = (zone.x0 - half) * CELL, zx1 = (zone.x1 + 1 - half) * CELL;
+      const zz0 = (zone.z0 - half) * CELL, zz1 = (zone.z1 + 1 - half) * CELL;
+      if (b.x1 + m < zx0 || b.x0 - m > zx1 || b.z1 + m < zz0 || b.z0 - m > zz1) continue;
+      remade.add(frontageOwner(f.id, f.side));
+    }
+  }
+
+  /**
+   * The box the cell-addressed passes have to cover: the region, and every
+   * corridor whose frontage is being remade.
+   */
+  const cellSpan = (): { x0: number; z0: number; x1: number; z1: number } =>
+    (zone === null ? { x0: 0, z0: 0, x1: GRID - 1, z1: GRID - 1 } : zone);
+
+  /**
+   * True where a cell-addressed pass must run: the same test the drop uses, so
+   * exactly what was taken away is put back.
+   *
+   * The region and nothing more. Widening it to the whole length of every road
+   * whose frontage is being remade was tried and is wrong: a street is two and a
+   * half kilometres long, its bounding box is most of the map, and remaking
+   * "everything near a remade street" remakes the city -- which is both slower
+   * and, because the region is then only partly cleared, less accurate.
+   */
+  const remakes = (gx: number, gz: number): boolean => inZone(gx, gz);
+
+  if (prior !== null) {
+    // Adopt the standing city, then take out everything the region owns.
+    cells.set(prior.cells);
+    hard.set(prior.hard);
+    population.set(prior.pop);
+    // How far a cell-addressed thing has to be from a remade road before it can
+    // be left standing: the depth a frontage builds back, and a little more.
+    /** True for anything the region is about to make again. */
+    const replaced = (owner: number): boolean => {
+      if (owner >= 0) return remade.has(owner) || !alive.has(owner);
+      const cell = cellOfOwner(owner);
+      return remakes(cell % GRID, (cell / GRID) | 0);
+    };
+    out.adopt(prior.data, prior.record, prior.count);
+    // Everything the region and its frontages give back, as one box, so the
+    // survivors that reach into it can be found in a single sweep.
+    let cx0 = zone!.x0, cz0 = zone!.z0, cx1 = zone!.x1, cz1 = zone!.z1;
+    out.dropWhere(replaced, population, (gx, gz, w, d) => {
+      for (let j = 0; j < d; j++) {
+        const z = gz + j;
+        if (z < 0 || z >= GRID) continue;
+        for (let i = 0; i < w; i++) {
+          const x = gx + i;
+          if (x < 0 || x >= GRID) continue;
+          cells[z * GRID + x] = FREE;
+          hard[z * GRID + x] = 0;
+        }
+      }
+      if (gx < cx0) cx0 = gx;
+      if (gz < cz0) cz0 = gz;
+      if (gx + w - 1 > cx1) cx1 = gx + w - 1;
+      if (gz + d - 1 > cz1) cz1 = gz + d - 1;
+    });
+    for (let i = 0; i < prior.pads.length; i++) {
+      if (replaced(prior.padOwner[i])) continue;
+      pads.push(prior.pads[i]);
+      padOwner.push(prior.padOwner[i]);
+    }
+    // The ground the region stood on goes back to nothing, then the claims of
+    // everything that survived and reaches into it are put back. Without that
+    // second step a building just outside the region loses its footprint and
+    // the rebuild puts a terrace through it.
+    for (let gz = zone!.z0; gz <= zone!.z1; gz++) {
+      for (let gx = zone!.x0; gx <= zone!.x1; gx++) {
+        cells[gz * GRID + gx] = FREE;
+        hard[gz * GRID + gx] = 0;
+      }
+    }
+    /** Overlaps the ground that was given back, so it must be marked again. */
+    const cleared = (gx: number, gz: number, w: number, d: number): boolean =>
+      gx + w > cx0 && gx <= cx1 && gz + d > cz0 && gz <= cz1;
+    const keptRec = out.record;
+    for (let i = 0; i < out.count; i++) {
+      const t = i * 5;
+      const w = keptRec[t + 3], d = keptRec[t + 4];
+      if (w <= 0 || d <= 0) continue;
+      const gx = keptRec[t + 1], gz = keptRec[t + 2];
+      if (!cleared(gx, gz, w, d)) continue;
+      for (let j = 0; j < d; j++) {
+        const z = gz + j;
+        if (z < 0 || z >= GRID) continue;
+        for (let i = 0; i < w; i++) {
+          const x = gx + i;
+          if (x < 0 || x >= GRID) continue;
+          cells[z * GRID + x] = TAKEN;
+          hard[z * GRID + x] = 1;
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < cells.length; i++) if (net.cls[i] !== 0) cells[i] = STREET_CELL;
 
   /** World coordinate of a cell's low edge. */
@@ -337,6 +623,8 @@ export function makeCity(world: World = defaultWorld()): City {
     // roads -- which are graded to their own -- end up metres underground.
     const [bx, bz] = turnedHalf(hw, hd, yaw);
     const pgx = Math.floor((cx - bx) / CELL + half), pgz = Math.floor((cz - bz) / CELL + half);
+    out.took = boxCells(cx, cz, hw, hd, yaw);
+    padOwner.push(out.owner);
     pads.push({
       gx: pgx, gz: pgz,
       w: Math.max(1, Math.ceil((cx + bx) / CELL + half) - pgx),
@@ -351,6 +639,16 @@ export function makeCity(world: World = defaultWorld()): City {
     population[p.index]++;
     claimBox(cx, cz, hw, hd, yaw);
     return true;
+  };
+
+  /** The rectangle `claimBox` would take, in cells, for the claim record. */
+  const boxCells = (cx: number, cz: number, hw: number, hd: number, yaw: number):
+  [number, number, number, number] => {
+    const c = Math.abs(Math.cos(yaw)), sn = Math.abs(Math.sin(yaw));
+    const rx = hw * c + hd * sn, rz = hw * sn + hd * c;
+    const gx0 = Math.floor((cx - rx) / CELL + half), gx1 = Math.floor((cx + rx) / CELL + half);
+    const gz0 = Math.floor((cz - rz) / CELL + half), gz1 = Math.floor((cz + rz) / CELL + half);
+    return [gx0, gz0, gx1 - gx0 + 1, gz1 - gz0 + 1];
   };
 
   const emit = (p: Proto, gx: number, gz: number, w: number, d: number, yaw: number,
@@ -388,6 +686,9 @@ export function makeCity(world: World = defaultWorld()): City {
     // spawner is about to start using angles that are not quarter turns.
     const [hx, hz] = turnedHalf((p.w * CELL) / 2, (p.d * CELL) / 2, yaw);
     const into = wild ? wildOut : out;
+    into.owner = out.owner;
+    into.took = p.def.zone === 'nature' ? NO_CLAIM : [gx, gz, w, d];
+    if (grade === true) padOwner.push(out.owner);
     into.add(
       (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
@@ -461,6 +762,7 @@ export function makeCity(world: World = defaultWorld()): City {
   // on ground a player has just laid roads through, where it quietly bulldozed
   // them and left the new district empty.
   for (const lot of world.lots) {
+    if (zone !== null && !inZone(lot.gx, lot.gz, lot.w, lot.d)) continue;
     const index = ASSET_INDEX.get(lot.id);
     const p = assetById(lot.id);
     if (index === undefined || p === undefined) continue;
@@ -468,6 +770,17 @@ export function makeCity(world: World = defaultWorld()): City {
     const ground = survey(lot.gx, lot.gz, lot.w, lot.d);
     const x0 = wx(lot.gx), z0 = wx(lot.gz);
     const x1 = x0 + lot.w * CELL, z1 = z0 + lot.d * CELL;
+    out.owner = ownerOfCell(at(lot.gx, lot.gz));
+    // A landmark's grounds are claimed as well as its footprint, so the record
+    // has to cover both or a rebuild beside one lets a terrace into its lawn.
+    out.took = lot.grounds === undefined
+      ? [lot.gx, lot.gz, lot.w, lot.d]
+      : [Math.min(lot.gx, lot.grounds[0]), Math.min(lot.gz, lot.grounds[1]),
+        Math.max(lot.gx + lot.w, lot.grounds[0] + lot.grounds[2])
+          - Math.min(lot.gx, lot.grounds[0]),
+        Math.max(lot.gz + lot.d, lot.grounds[1] + lot.grounds[3])
+          - Math.min(lot.gz, lot.grounds[1])];
+    padOwner.push(out.owner);
     out.add(
       (x0 + x1) / 2, (z0 + z1) / 2, ground.mean - 0.25, lot.yaw * QUARTER,
       (lot.w * CELL) / 2 + 0.8, (lot.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, index,
@@ -512,8 +825,9 @@ export function makeCity(world: World = defaultWorld()): City {
    * the kerb this side may take, so two roads either side of a narrow block do
    * not both build through the middle of it.
    */
-  const buildFrontage = (f: { link: number; side: -1 | 1; from: number; to: number },
+  const buildFrontage = (f: { link: number; id: number; side: -1 | 1; from: number; to: number },
     deep: number): void => {
+    out.owner = frontageOwner(f.id, f.side);
     let s = f.from, guard = 0;
     while (s < f.to && guard++ < 400) {
       let step = 4;
@@ -574,13 +888,21 @@ export function makeCity(world: World = defaultWorld()): City {
   const fronts = net.frontages();
   const order = fronts.map((f, i) => ({ f, key: hash2(f.link, i, 631) }));
   order.sort((p, q) => p.key - q.key);
-  for (const { f } of order) buildFrontage(f, BLOCK >> 1);
+  for (const { f } of order) {
+    if (zone !== null && !remade.has(frontageOwner(f.id, f.side))) continue;
+    buildFrontage(f, BLOCK >> 1);
+  }
 
   // Whatever the frontages left behind them. Backland is real -- mews, yards,
   // workshops behind a street -- and without it the middle of every block in
   // the city is an identical empty square.
-  for (let gz = 1; gz < GRID - 1; gz++) {
-    for (let gx = 1; gx < GRID - 1; gx++) {
+  // The cell passes cover the region *and* every corridor whose frontage was
+  // remade, because those are exactly the cells that were given back.
+  const span = cellSpan();
+  for (let gz = span.z0; gz <= span.z1; gz++) {
+    for (let gx = span.x0; gx <= span.x1; gx++) {
+      if (gx < 1 || gz < 1 || gx >= GRID - 1 || gz >= GRID - 1) continue;
+      if (zone !== null && !remakes(gx, gz)) continue;
       if (cells[at(gx, gz)] !== FREE) continue;
       if (hash2(gx, gz, 647) > 0.34) continue;
       const district = districtOf(gx, gz);
@@ -590,6 +912,7 @@ export function makeCity(world: World = defaultWorld()): City {
       const yaw = Math.floor(hash2(gx, gz, 659) * 4) % 4;
       const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
       if (!free(gx, gz, w, d, FREE)) continue;
+      out.owner = ownerOfCell(at(gx, gz));
       emit(p, gx, gz, w, d, yaw * QUARTER);
     }
   }
@@ -670,8 +993,10 @@ export function makeCity(world: World = defaultWorld()): City {
     // four plots of sixty-four -- and every one of those iterations outside the
     // live set was about to reach the same `continue` anyway.
     const plotWide = plotCells(GRID);
-    for (let cz = 0; cz < GRID; cz++) {
-      for (let cx = 0; cx < GRID; cx++) {
+    const grow = cellSpan();
+    for (let cz = grow.z0; cz <= grow.z1; cz++) {
+      for (let cx = grow.x0; cx <= grow.x1; cx++) {
+        if (zone !== null && !remakes(cx, cz)) continue;
         // Wild ground: every tree on it, whichever branch below plants it,
         // belongs to the cache rather than to this rebuild. Set once per cell
         // rather than per branch -- the first version set it only in the
@@ -679,6 +1004,7 @@ export function makeCity(world: World = defaultWorld()): City {
         // too, so a quarter of the map's trees were generated into the live
         // buffer and then vanished on the next edit when their plot was
         // skipped.
+        out.owner = ownerOfCell(at(cx, cz));
         wild = live[plotAt(GRID, cx, cz)] === 0;
         if (cached !== null && wild) {
           cx = (Math.floor(cx / plotWide) + 1) * plotWide - 1;
@@ -751,7 +1077,19 @@ export function makeCity(world: World = defaultWorld()): City {
   // ungraded ground on purpose: a spawner deciding whether a slope is
   // buildable while the slope is being flattened underneath it would build
   // anywhere, and the map would end up as one terrace.
-  gradeGround(pads, baseHeightAt, roads.pins);
+  // Only the ground the region could have moved, when there is a region: the
+  // pads outside it are the ones that were already standing, at the heights
+  // they were already graded to.
+  let moved: { x0: number; z0: number; x1: number; z1: number } | null = null;
+  if (zone !== null) {
+    moved = {
+      x0: (zone.x0 - half) * CELL, z0: (zone.z0 - half) * CELL,
+      x1: (zone.x1 + 1 - half) * CELL, z1: (zone.z1 + 1 - half) * CELL,
+    };
+    // A road that changed re-cuts its own corridor wherever it runs.
+    if (roadsChanged) moved = null;
+  }
+  gradeGround(pads, baseHeightAt, roads.pins, moved);
 
   // Open ground, for the grass. Thinned by one cell against anything hard, so
   // a blade does not stop dead at a kerb -- real grass runs up to an edge and
@@ -780,6 +1118,14 @@ export function makeCity(world: World = defaultWorld()): City {
   //
   // Nothing downstream cares what order instances arrive in: the culler sorts
   // them into buckets by prototype.
+  // What stands now, for the next edit to reuse.
+  standing = {
+    world, grid: GRID, cells, hard,
+    data: out.data.slice(), record: out.record.slice(), count: out.count,
+    pads: pads.slice(), padOwner: padOwner.slice(), pop: population.slice(),
+    roads: net.version,
+  };
+
   const fresh = cached === null;
   const keep = cached ?? { key: wildKey, data: wildOut.data.slice(), pop: wildPop };
   wildCache = keep;

@@ -34,12 +34,12 @@ import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, INDICES_PER_CHUNK, TERRAIN, ROAD_FLOATS,
-  buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan,
+  buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan, clearStanding,
 } from '../sim';
 // A live binding: the terrain module updates it on every build, and importing
 // the value rather than the binding would read whatever it was at load.
 import { terrainChunksRebuilt } from '../sim/terrain';
-import type { Chunk, World, RoadMesh, City } from '../sim';
+import type { Chunk, World, RoadMesh, City, Dirty } from '../sim';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -347,6 +347,9 @@ export class Renderer {
     // instead of stamping them makes the whole city count as already standing.
     this.settleCity();
     this.settled = true;
+    // A world handed in whole shares nothing with the one standing, so the
+    // next build starts from nothing rather than trying to patch it.
+    clearStanding();
   }
 
   /** Set for one rebuild after a world is handed in whole. */
@@ -830,7 +833,9 @@ export class Renderer {
     };
 
     // A prototype the spawner never placed is never generated.
-    const city = makeCity(this.world);
+    // The part of the map the edit touched, or nothing at all, which makes the
+    // whole city again -- what a new game and a loaded save both want.
+    const city = makeCity(this.world, this.dirty);
     lap('makeCity');
     this.dateCity(city, this.settled);
     this.settled = false;
@@ -1057,6 +1062,9 @@ export class Renderer {
   landView = 0;
   hotPlot = -1;
 
+  /** What the current rebuild is allowed to remake. Set by `rebuild`. */
+  private dirty: Dirty | undefined = undefined;
+
   /**
    * How many frames a bucket keeps its place in the draw list after it empties.
    *
@@ -1083,10 +1091,11 @@ export class Renderer {
    * What a placement costs: the simulation rerunning and its output being
    * re-uploaded. Nothing about the pipelines changes.
    */
-  rebuild(): void {
+  rebuild(dirty?: Dirty): void {
     const res = this.res;
     if (!res) return;
     this.revision++;
+    this.dirty = dirty;
     // The arena and the terrain vertices are handed to loadWorld to keep or
     // replace as it sees fit -- they are the two big ones, and both are usually
     // still exactly the right size. Everything else goes.
@@ -1097,6 +1106,7 @@ export class Renderer {
     ]) b.destroy();
     res.groundTexture.destroy();
     Object.assign(res, this.loadWorld(res.layouts, res));
+    this.dirty = undefined;
   }
 
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {

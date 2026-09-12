@@ -26,7 +26,8 @@ import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
-import { plotAt, plotSpan, ownsCells, ownsAt } from '../sim';
+import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
+import type { Dirty } from '../sim';
 import { ALL_THEMES, THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
@@ -576,7 +577,8 @@ export class BuildTools {
     world.land.take(plot);
     this.say(`bought for ${money(paid)} — ${world.land.count} plots, `
       + `next ${money(world.land.price())}`);
-    this.rebuild();
+    const [bx0, bz0, bx1, bz1] = plotBounds(world.grid, plot);
+    this.rebuild(this.box(bx0, bz0, bx1, bz1, 0));
   }
 
   private dropLot(cell: [number, number]): void {
@@ -586,7 +588,9 @@ export class BuildTools {
     const [gx, gz] = this.lotOrigin(cell, t.proto);
     const why = placeLot(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
     if (why !== null) { this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${why}`); return; }
-    this.rebuild();
+    const [w, d] = this.placeYaw % 2 === 0
+      ? [t.proto.w, t.proto.d] : [t.proto.d, t.proto.w];
+    this.rebuild({ gx: gx - 2, gz: gz - 2, w: w + 4, d: d + 4 });
     this.showMark();
   }
 
@@ -780,7 +784,12 @@ export class BuildTools {
     }
     this.clearUnder(a, b, via, bend);
     world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via));
-    this.rebuild();
+    // The chord and the bend both, since a curve leaves the straight line
+    // between its ends by as much as the player pulled it.
+    const swing = Math.abs(bend) + 8;
+    this.rebuild(this.box(
+      Math.min(ax, bx) - swing, Math.min(az, bz) - swing,
+      Math.max(ax, bx) + swing, Math.max(az, bz) + swing, 3));
     return true;
   }
 
@@ -816,10 +825,29 @@ export class BuildTools {
     }
   }
 
-  private rebuild(): void {
+  /**
+   * Rebuilds the city, telling it what the edit touched.
+   *
+   * Without a rectangle the whole city is made again, which on a five-kilometre
+   * map is most of a second. Every edit here knows where it happened, so every
+   * one of them says so.
+   */
+  private rebuild(dirty?: Dirty): void {
     const started = performance.now();
-    this.renderer.rebuild();
+    this.renderer.rebuild(dirty);
     this.say(`rebuilt in ${(performance.now() - started).toFixed(0)} ms`);
+  }
+
+  /** The cells a rectangle of world metres covers, with a margin. */
+  private box(x0: number, z0: number, x1: number, z1: number, pad = 2): Dirty {
+    const half = this.renderer.world.grid / 2;
+    const c = (m: number): number => Math.floor(m / CELL + half);
+    const gx = Math.min(c(x0), c(x1)) - pad, gz = Math.min(c(z0), c(z1)) - pad;
+    return {
+      gx, gz,
+      w: Math.abs(c(x1) - c(x0)) + 1 + pad * 2,
+      d: Math.abs(c(z1) - c(z0)) + 1 + pad * 2,
+    };
   }
 
   private commit(a: [number, number], b: [number, number]): void {
@@ -840,7 +868,7 @@ export class BuildTools {
     } else {
       return;
     }
-    this.rebuild();
+    this.rebuild({ gx: r.gx - 2, gz: r.gz - 2, w: r.w + 4, d: r.d + 4 });
   }
 
   // ---- the bar ---------------------------------------------------------

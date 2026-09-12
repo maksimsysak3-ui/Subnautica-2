@@ -220,9 +220,32 @@ export function previewRoad(grid: number, ax: number, az: number, bx: number, bz
 }
 
 /** Builds the whole network's geometry. */
+/**
+ * The road mesh as it was last made, and for which state of the graph.
+ *
+ * Every kerb, marking and junction in the city is regenerated here, and on a
+ * five-kilometre map that is the single most expensive thing a rebuild does --
+ * for a mesh that cannot have changed unless a road did. Zoning a block, buying
+ * a plot, placing a hospital: none of them touch the network, and all of them
+ * were paying for the whole thing.
+ *
+ * Keyed on the graph's own version, which it bumps when it re-rasterises, so
+ * this cannot go stale without the graph saying so.
+ */
+let cachedMesh: { graph: RoadGraph; version: number; mesh: RoadMesh } | null = null;
+
+/** Throws the cached road mesh away, for a tool that changes the terrain. */
+export function clearRoadMesh(): void {
+  cachedMesh = null;
+}
+
 export function buildRoadMesh(graph: RoadGraph,
   base: (x: number, z: number) => number, raster = true): RoadMesh {
   if (raster) graph.rasterise();
+  if (cachedMesh !== null && cachedMesh.graph === graph
+    && cachedMesh.version === graph.version) {
+    return cachedMesh.mesh;
+  }
   const buf = new Buf();
   const lamps: RoadMesh['lamps'] = [];
   /**
@@ -487,5 +510,7 @@ export function buildRoadMesh(graph: RoadGraph,
   for (let k = 0; k < pinSet.length; k++) {
     if (pinSet[k] === 1) pins.push({ gx: k % stride, gz: (k / stride) | 0, y: pinY[k] });
   }
-  return { vertices, indices, pins, lamps };
+  const mesh = { vertices, indices, pins, lamps };
+  cachedMesh = { graph, version: graph.version, mesh };
+  return mesh;
 }

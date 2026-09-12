@@ -15,7 +15,11 @@ import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
 import { BuildTools } from './ui/build-tools';
-import { configureSim, LITE, paint, demolish, zoneCode, defaultWorld, PLOTS } from './sim';
+import {
+  configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
+  emptyWorld, makeCity, clearStanding, clearWild, clearGrading, INSTANCE_FLOATS,
+} from './sim';
+import type { Dirty } from './sim';
 
 export interface ShotRequest {
   width: number;
@@ -329,6 +333,70 @@ Promise<{ lit: number[]; debug: number[]; count: number }> {
     debug.push(Math.round(performance.now() / 100) / 10);
   }
   return { lit, debug, count: renderer.summary.buildings };
+}
+
+/**
+ * Does rebuilding only the changed part give the same city as rebuilding it all?
+ *
+ * The whole safety of the incremental path rests on this, and nothing else here
+ * can see it: an incremental rebuild that quietly loses a street of houses
+ * produces a perfectly ordinary frame with a street of houses missing.
+ *
+ * `makeCity` is deterministic, which makes a rebuild from nothing a perfect
+ * oracle. After each edit the incremental result is compared against one, and
+ * what comes back is how far apart they are.
+ */
+export function probeIncremental(): { worst: number; sizes: string } {
+  configureSim(LITE);
+  const g = simConfig.cityGrid;
+  const key = (d: Float32Array, i: number): string => {
+    const o = i * INSTANCE_FLOATS;
+    return `${Math.round(d[o])},${Math.round(d[o + 1])},${d[o + 7]}`;
+  };
+  const setOf = (c: { data: Float32Array; count: number }): Set<string> => {
+    const out = new Set<string>();
+    for (let i = 0; i < c.count; i++) out.add(key(c.data, i));
+    return out;
+  };
+
+  const w = emptyWorld(g);
+  for (let p = 0; p < PLOTS * PLOTS; p++) w.land.take(p);
+  for (let i = -3; i <= 3; i++) {
+    const t = (i / 3) * (g * 0.36) * 8;
+    w.net.add(t, -g * 3, t, g * 3, 'street');
+    w.net.add(-g * 3, t, g * 3, t, 'street');
+  }
+  paint(w, 4, 4, g - 8, g - 8, zoneCode('residential', 'medium'));
+  clearStanding(); clearWild(); clearGrading();
+  makeCity(w);
+
+  let worst = 0;
+  let sizes = '';
+  const edits: Array<() => Dirty> = [
+    () => { w.net.add(-40, -260, -40, 260, 'street');
+      return { gx: (g >> 1) - 8, gz: 4, w: 16, d: g - 8 }; },
+    () => { const r = { gx: 10, gz: 10, w: 18, d: 18 };
+      paint(w, r.gx, r.gz, r.w, r.d, zoneCode('commercial', 'high')); return r; },
+    () => { const r = { gx: g - 30, gz: g - 30, w: 16, d: 16 };
+      demolish(w, r.gx, r.gz, r.w, r.d); return r; },
+  ];
+  for (const edit of edits) {
+    const dirty = edit();
+    clearGrading();
+    const inc = setOf(makeCity(w, dirty));
+    clearStanding(); clearWild(); clearGrading();
+    const ref = setOf(makeCity(w));
+    // Put the incremental city back, so the next edit runs on what the game
+    // would actually be holding.
+    clearGrading(); makeCity(w);
+    let apart = 0;
+    for (const k of ref) if (!inc.has(k)) apart++;
+    for (const k of inc) if (!ref.has(k)) apart++;
+    worst = Math.max(worst, (apart / Math.max(1, ref.size)) * 100);
+    sizes += `${inc.size}/${ref.size} `;
+  }
+  clearStanding();
+  return { worst: Math.round(worst * 100) / 100, sizes: sizes.trim() };
 }
 
 /**

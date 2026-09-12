@@ -226,7 +226,7 @@ export interface Pin {
 }
 
 export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) => number,
-  pins: readonly Pin[] = []): void {
+  pins: readonly Pin[] = [], only?: Bounds | null): void {
   const grid = simConfig.cityGrid;
   stride = grid + 1;
   const n = stride * stride;
@@ -275,6 +275,20 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   // none of the result.
   const reach = RAMP + 3;
   let bx0 = stride, bz0 = stride, bx1 = -1, bz1 = -1;
+  // A hint from the caller: only this part of the map can have moved.
+  //
+  // The pad list is every building in the city, so the box it spans is the
+  // city -- and relaxing that box eleven times over is most of what grading
+  // costs on a big map, to produce, outside the edit, exactly the offsets that
+  // were there before. When the caller knows which pads are new, everything
+  // else keeps the height it already had.
+  if (only !== undefined && only !== null) {
+    const h = simConfig.cityGrid / 2;
+    bx0 = Math.max(0, Math.floor(only.x0 / CELL + h) - reach);
+    bz0 = Math.max(0, Math.floor(only.z0 / CELL + h) - reach);
+    bx1 = Math.min(stride - 1, Math.ceil(only.x1 / CELL + h) + reach);
+    bz1 = Math.min(stride - 1, Math.ceil(only.z1 / CELL + h) + reach);
+  } else {
   const cover = (gx: number, gz: number, w: number, d: number): void => {
     bx0 = Math.min(bx0, gx - reach); bz0 = Math.min(bz0, gz - reach);
     bx1 = Math.max(bx1, gx + w + reach); bz1 = Math.max(bz1, gz + d + reach);
@@ -283,9 +297,21 @@ export function gradeGround(pads: readonly Pad[], base: (x: number, z: number) =
   for (const p of pins) cover(p.gx, p.gz, 0, 0);
   bx0 = Math.max(0, bx0); bz0 = Math.max(0, bz0);
   bx1 = Math.min(stride - 1, bx1); bz1 = Math.min(stride - 1, bz1);
+  }
   if (bx1 < bx0 || bz1 < bz0) {        // nothing graded anywhere
     settle(offset);
     return;
+  }
+
+  // Outside the box, the previous pass's answer stands: it was computed from
+  // pads that have not moved and terrain that cannot.
+  if (only !== undefined && only !== null && previous !== null && previous.length === n) {
+    for (let z = 0; z < stride; z++) {
+      for (let x = 0; x < stride; x++) {
+        if (x >= bx0 && x <= bx1 && z >= bz0 && z <= bz1) continue;
+        offset[z * stride + x] = previous[z * stride + x];
+      }
+    }
   }
 
   let src: Float32Array<ArrayBuffer> = offset;

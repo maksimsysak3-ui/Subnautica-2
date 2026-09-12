@@ -15,7 +15,7 @@ export type { Proto } from './inventory';
 export type { World } from './world';
 export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from './roadgraph';
 export type { RoadClass, RoadSpec, Site } from './roadgraph';
-export { buildRoadMesh, previewRoad, ROAD_FLOATS, SURF } from './roadmesh';
+export { buildRoadMesh, previewRoad, clearRoadMesh, ROAD_FLOATS, SURF } from './roadmesh';
 export type { RoadMesh } from './roadmesh';
 export {
   buildTerrain, heightAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,
@@ -23,7 +23,8 @@ export {
 } from './terrain';
 export { terrainChunksRebuilt } from './terrain';
 export { clearGrading, clearTerrainCache, warmTerrain, gradedSince, forgetGrading } from './grading';
-export { clearWild } from './city';
+export { clearWild, clearStanding } from './city';
+export type { Dirty } from './city';
 export type { Bounds } from './grading';
 export { waterAt, valleyAt, buildWaterMesh, WATER_FLOATS } from './river';
 export type { Chunk, TerrainMesh } from './terrain';

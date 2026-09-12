@@ -112,6 +112,17 @@ export interface RoadNode {
 }
 
 export interface RoadLink {
+  /**
+   * A name that outlives the array.
+   *
+   * Links are held in an array and bulldozing compacts it, so an index is not
+   * an identity: remove one road and every road after it in the list answers to
+   * a different number. Anything that remembers a link between rebuilds -- the
+   * spawner, which attributes each building to the frontage that placed it --
+   * has to hold this instead, or a bulldoze somewhere makes it think a
+   * completely different street has changed.
+   */
+  id: number;
   a: number;
   b: number;
   /** The quadratic's control point. On the chord's midpoint, a link is straight. */
@@ -119,6 +130,9 @@ export interface RoadLink {
   cz: number;
   cls: RoadClass;
 }
+
+/** Never reused, so a link's name is unique for the life of the page. */
+let nextLinkId = 1;
 
 /** A point on a link, with the direction the road runs there. */
 export interface Along {
@@ -172,6 +186,9 @@ export class RoadGraph {
 
   /** Bumped on every edit, so caches downstream know to rebuild. */
   version = 0;
+  /** Links already drawn into the raster, and whether it must go from scratch. */
+  private rastered = 0;
+  private wiped = true;
 
   private dirty = true;
 
@@ -389,7 +406,7 @@ export class RoadGraph {
     const mx = lerp(m0x, m1x, t), mz = lerp(m0z, m1z, t);
 
     const mid = this.addNode(mx, mz);
-    const tail: RoadLink = { a: mid, b: link.b, cx: m1x, cz: m1z, cls: link.cls };
+    const tail: RoadLink = { id: nextLinkId++, a: mid, b: link.b, cx: m1x, cz: m1z, cls: link.cls };
     link.b = mid;
     link.cx = m0x; link.cz = m0z;
     this.forget(link);
@@ -417,7 +434,7 @@ export class RoadGraph {
     const na = this.nodes[a], nb = this.nodes[b];
     const [cx, cz] = this.control(na.x, na.z, nb.x, nb.z, bend, through, a, b);
 
-    const link: RoadLink = { a, b, cx, cz, cls };
+    const link: RoadLink = { id: nextLinkId++, a, b, cx, cz, cls };
     this.links.push(link);
     this.crossAll(this.links.length - 1);
     this.dirty = true;
@@ -535,7 +552,7 @@ export class RoadGraph {
   /** The same for a link: its ends and its control point, taken as given. */
   restoreLink(a: number, b: number, cx: number, cz: number, cls: RoadClass): void {
     if (a === b) return;
-    this.links.push({ a, b, cx, cz, cls });
+    this.links.push({ id: nextLinkId++, a, b, cx, cz, cls });
     this.dirty = true;
   }
 
@@ -653,6 +670,9 @@ export class RoadGraph {
     this.links.length = 0;
     this.links.push(...keep);
     this.dirty = true;
+    // Roads went away, so cells that were corridor are not any more and the
+    // raster cannot be added to -- it has to be drawn again from nothing.
+    this.wiped = true;
   }
 
   /** Cell coordinates, from world metres. */
@@ -675,9 +695,21 @@ export class RoadGraph {
     if (!this.dirty) return;
     this.dirty = false;
     this.version++;
-    this.cls.fill(0);
+    // Only the roads that are new.
+    //
+    // The raster is additive -- every cell a corridor covers is set to one, and
+    // nothing ever unsets it -- so drawing a road again produces the cells it
+    // produced before. Links are only ever appended, and splitting one mutates
+    // it in place into two halves covering the same ground, so unless something
+    // was bulldozed the cells already there are still right and only the new
+    // links need drawing. Bulldozing sets `wiped`, and then it all goes again.
+    const from = this.wiped ? 0 : this.rastered;
+    if (this.wiped) this.cls.fill(0);
+    this.wiped = false;
+    this.rastered = this.links.length;
     const g = this.grid, half = g / 2;
-    for (const link of this.links) {
+    for (let li = from; li < this.links.length; li++) {
+      const link = this.links[li];
       const spec = ROAD_SPECS[link.cls];
       // Exactly the corridor, not a cell more. The spawner puts a building's
       // front face on this same line and tests the cells its plot covers by
@@ -698,7 +730,9 @@ export class RoadGraph {
         }
       }
     }
-    // Junctions are wider than either arm, so they get their own disc.
+    // Junctions are wider than either arm, so they get their own disc. Always
+    // redrawn: a junction grows when an arm arrives, there are a thousand of
+    // them at most, and each is a few dozen cells.
     for (let i = 0; i < this.nodes.length; i++) {
       const arms = this.armsOf(i);
       if (arms.length === 0) continue;
@@ -746,8 +780,10 @@ export class RoadGraph {
    * spawner decides to build there, and it needs to be free to take six metres
    * for a terrace and thirty for a supermarket.
    */
-  frontages(): Array<{ link: number; side: -1 | 1; from: number; to: number; cls: RoadClass }> {
-    const out: Array<{ link: number; side: -1 | 1; from: number; to: number; cls: RoadClass }> = [];
+  frontages(): Array<{ link: number; id: number; side: -1 | 1; from: number; to: number;
+    cls: RoadClass }> {
+    const out: Array<{ link: number; id: number; side: -1 | 1; from: number; to: number;
+      cls: RoadClass }> = [];
     for (let i = 0; i < this.links.length; i++) {
       const link = this.links[i];
       const pts = this.samples(link);
@@ -755,10 +791,30 @@ export class RoadGraph {
       const from = this.junctionRadius(link.a) + 2;
       const to = total - this.junctionRadius(link.b) - 2;
       if (to - from < 6) continue;
-      out.push({ link: i, side: -1, from, to, cls: link.cls });
-      out.push({ link: i, side: 1, from, to, cls: link.cls });
+      out.push({ link: i, id: link.id, side: -1, from, to, cls: link.cls });
+      out.push({ link: i, id: link.id, side: 1, from, to, cls: link.cls });
     }
     return out;
+  }
+
+  /**
+   * The box one link's curve lies inside, in world metres.
+   *
+   * For deciding whether a link could possibly be affected by an edit
+   * somewhere. Taken from the samples rather than from the control polygon:
+   * the polygon's box contains the curve but is loose enough on a hard bend to
+   * pull in half the map.
+   */
+  linkBounds(index: number): { x0: number; z0: number; x1: number; z1: number } {
+    const pts = this.samples(this.links[index]);
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const p of pts) {
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.z < z0) z0 = p.z;
+      if (p.z > z1) z1 = p.z;
+    }
+    return { x0, z0, x1, z1 };
   }
 
   /** One point on a frontage: on the corridor edge, facing the carriageway. */
