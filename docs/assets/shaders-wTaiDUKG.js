@@ -3619,6 +3619,21 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let v = in.coord.y;
   let w2 = in.world.xz;
   let mpp = max(max(fwidth(u), fwidth(v)), 1e-5);
+  // How much road one pixel spans *across* the ribbon, as opposed to along it.
+  //
+  // These are very different numbers and confusing them is what put a slab of
+  // flat grey over roads right in front of the camera. \`v\` is metres along the
+  // road, and looking down a road at a shallow angle one pixel spans tens of
+  // them -- so a footprint taken as the larger of the two is enormous for
+  // tarmac twenty metres away, and any test against it fires when it should
+  // not. It also varies across the picture in a way that looks like nothing
+  // else: the grey lifts where the camera happens to look across the road and
+  // comes back a few metres further along, which is one patch clearing while
+  // the one beside it stays.
+  //
+  // Anything about the road's *cross-section* -- which is the strips, and the
+  // averaging of them -- has to ask this one.
+  let mppU = max(fwidth(u), 1e-5);
 
   var col : vec3f;
   if (surf < 0.5) {
@@ -3720,7 +3735,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // which is mostly carriageway with a fringe of pavement either side. The
   // normal goes with it -- a kerb face pointing sideways is a strip too, and
   // its lighting shimmers for exactly the same reason.
-  let coarse = smoothstep(0.75, 2.60, mpp);
+  // Now that the geometry flattens on its own, this only has to blend colour
+  // once a pixel genuinely covers more than one strip across the width. A
+  // street's footway is two metres and its carriageway seven, so a pixel
+  // spanning more than about a metre across is mixing them whatever it does.
+  let coarse = smoothstep(1.20, 3.50, mppU);
   if (coarse > 0.0) {
     let mean = mix(asphalt(w2, 0.0, half, 0.0, mpp), concrete(w2, mpp) * 0.80, 0.28);
     col = mix(col, mean, coarse);
@@ -4063,4 +4082,4 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   return vec4f(col, clamp(v, 0.0, 1.0) * 0.48);
 }
 `,MU={"common.wgsl":qI,"atmosphere.wgsl":_I,"noise.wgsl":$I};function NQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,F)=>MU[F]??A)}const NU={asset:NQ(AU),cull:NQ(QU),terrain:NQ(BU),sky:NQ(gU),grass:NQ(EU),road:NQ(wU),water:NQ(CU),rain:NQ(DU)};export{FU as A,bE as B,XE as D,AQ as F,IB as G,pg as P,UU as R,NU as S,iQ as T,UB as V,VE as Z,Dg as a,rB as b,CB as c,PI as d,sU as e,nU as f,LU as g,aU as h,iU as i,fB as j,YU as k,uA as l,IU as m,RU as n,kU as o,vI as p,EQ as q,cU as r,oU as s,GU as t,VU as u,eU as z};
-//# sourceMappingURL=shaders-BL-pkeKK.js.map
+//# sourceMappingURL=shaders-wTaiDUKG.js.map
