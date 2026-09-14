@@ -18,6 +18,18 @@ import type { Wall } from './parts';
 export function roofOver(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x1: number, z1: number,
                   y: number, opts: { dormers?: number; along?: 'x' | 'z' } = {}): number {
   const w = x1 - x0, d = z1 - z0;
+
+/**
+ * Roof rise, as a fraction of what `pitch` asks for.
+ *
+ * `pitch` is applied to the *full* span, so a value of 0.46 is a rise of 0.46
+ * spans -- which over a half-span is a slope of 0.92, or forty-three degrees.
+ * That is a steep alpine roof on every house in the city, and on a twelve-metre
+ * span it is five and a half metres of roof sitting on top of the walls. Pulled
+ * back to about thirty-five degrees, which is what a pitched roof is.
+ */
+const PITCH = 0.78;
+
   const e = T.eave;
   const ax0 = x0 - e, az0 = z0 - e, ax1 = x1 + e, az1 = z1 + e;
   const span = Math.min(w, d) + e * 2;
@@ -31,17 +43,17 @@ export function roofOver(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number
   // Eaves: a thin overhanging slab. A roof flush with the wall reads as a lid.
   m.box([ax0, y - 0.26, az0], [ax1, y, az1], T.trim);
   if (T.roof === 'hip') {
-    const h = span * T.pitch;
+    const h = span * T.pitch * PITCH;
     hip(m, ax0, az0, ax1, az1, y, h, T.cover);
     if (e > 0.5) brackets(m, x0, z0, x1, z1, y, e);
     return y + h;
   }
   if (T.roof === 'mansard') {
-    const h = span * T.pitch;
+    const h = span * T.pitch * PITCH;
     mansard(m, ax0, az0, ax1, az1, y, h, T.cover, T.wall);
     return y + h;
   }
-  const h = span * T.pitch;
+  const h = span * T.pitch * PITCH;
   m.gable([ax0, y, az0], [ax1, y, az1], h, along, T.cover, T.wall);
   const n = opts.dormers ?? 0;
   for (let i = 0; i < n; i++) {
@@ -319,6 +331,22 @@ export function plotOf(T: ThemeProfile, w: number, d: number): [number, number] 
 /** A plan's storey count under this theme, never below two. */
 export function storeysOf(T: ThemeProfile, floors: number): number {
   return Math.max(2, Math.round(floors * T.storeys));
+}
+
+/**
+ * How tall a house's walls are, to the eaves.
+ *
+ * `floorH` is a floor-to-floor for a flat or an office -- three metres and a
+ * bit, which is what those actually are. A house is not: domestic floor to
+ * floor is about two and a half, because nobody puts a suspended ceiling and a
+ * service void over a bedroom. Two storeys at the office figure put the eaves
+ * of every detached house at six and a half metres and its ridge at twelve,
+ * which is a four-storey building with a front door and a garden.
+ */
+const DOMESTIC = 0.85;
+
+export function homeWall(T: ThemeProfile, floors: number): number {
+  return floors * T.floorH * DOMESTIC + 0.4;
 }
 
 /**

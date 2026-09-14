@@ -735,6 +735,11 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
     w.net.addCells(c - 20, c + 26, c + 20, c + 26, 'track');
     w.net.addCells(c - 20, c + 30, c + 20, c + 30, 'industrial');
     w.net.addCells(c - 20, c + 34, c + 20, c + 34, 'cycleStreet');
+    // A tight curve continued by a much wider class, which is the join that
+    // was reported as "not connected properly": two arms, very different
+    // widths, arriving at an angle.
+    w.net.addCells(c - 30, c - 30, c - 14, c - 18, 'street', 70);
+    w.net.addCells(c - 14, c - 18, c + 4, c - 30, 'motorway', -60);
     paint(w, c - 20, c - 20, 40, 12, zoneCode('commercial', 'high'));
     paint(w, c - 20, c - 2, 40, 26, zoneCode('residential', 'medium'));
     renderer.rebuild();

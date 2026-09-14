@@ -21,6 +21,7 @@ import type { AssetDef, Density } from '../types';
 import { THEMES, THEME_ORDER, THEME_KEY } from '../themes';
 import {
   roofOver, punched, banded, doorway, veranda, compound, crown, plotOf, storeysOf,
+  homeWall,
   topMass, wing as rearWing,
 } from '../themed-parts';
 import type { Theme, ThemeProfile } from '../themes';
@@ -39,7 +40,7 @@ function house(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const [w, d] = plotOf(T, 10.4, 9.2);
   const floors = storeysOf(T, 2);
   const x = w / 2, z = d / 2;
-  const wall = floors * T.floorH + 0.4;
+  const wall = homeWall(T, floors);
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
   m.box([-x - 0.08, 0, -z - 0.08], [x + 0.08, 0.75, z + 0.08], T.base);
@@ -96,7 +97,7 @@ function row(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const w = units * unitW;
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, T.id === 'modern' ? 3 : 2);
-  const wall = floors * T.floorH + 0.4;
+  const wall = homeWall(T, floors);
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
   m.box([-x - 0.1, 0, -z - 0.1], [x + 0.1, 0.9, z + 0.1], T.base);
@@ -137,7 +138,7 @@ function duplex(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const [w, d] = plotOf(T, 12.6, 9.0);
   const x = w / 2, z = d / 2;
   const floors = storeysOf(T, 2);
-  const wall = floors * T.floorH + 0.4;
+  const wall = homeWall(T, floors);
 
   m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
   m.box([-x - 0.09, 0, -z - 0.09], [x + 0.09, 0.8, z + 0.09], T.base);

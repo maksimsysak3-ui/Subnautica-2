@@ -596,6 +596,70 @@ export function buildRoadMesh(graph: RoadGraph,
       buf.push(x, y + LIFT + up, z, 0, 1, 0,
         Math.hypot(x - node.x, z - node.z), 0, 0, surf, r, 0, 0);
 
+    // Two arms is a road carrying on, not a crossing, and it needs a
+    // transition rather than a junction.
+    //
+    // The fan below is right for three arms or more: a polygon through the
+    // kerb lines of everything that arrives. With two it is four triangles
+    // stretched across the gap between two mouths that can be eight metres
+    // apart, pointing different ways and -- if the player continued a street
+    // as a motorway -- eighteen metres apart in width. What that draws is a
+    // notch: a hard V where the road should flow, with the kerb lines breaking
+    // either side of it. That is "continuing a curved road as a motorway is
+    // not connected properly".
+    //
+    // So two arms get a short ribbon instead, curved between the two mouths
+    // along the tangents they leave on, with the cross-section lerped from one
+    // road's to the other's across it. A street becoming a motorway now widens
+    // out over a few metres the way a real one does.
+    if (arms.length === 2) {
+      const [a, b] = arms;
+      // Hermite between the mouths. The tangents point out of the junction, so
+      // the curve leaves `a` along -a.t and arrives at `b` along -b.t.
+      const span = Math.hypot(b.x - a.x, b.z - a.z);
+      const grip = Math.max(span * 0.55, 0.6);
+      const p0x = a.x, p0z = a.z, p1x = b.x, p1z = b.z;
+      const m0x = -a.tx * grip, m0z = -a.tz * grip;
+      const m1x = -b.tx * grip, m1z = -b.tz * grip;
+      const STEPS = 8;
+      let prev: number[] | null = null;
+      for (let k = 0; k <= STEPS; k++) {
+        const t = k / STEPS;
+        const h00 = 2 * t ** 3 - 3 * t ** 2 + 1, h10 = t ** 3 - 2 * t ** 2 + t;
+        const h01 = -2 * t ** 3 + 3 * t ** 2, h11 = t ** 3 - t ** 2;
+        const px = h00 * p0x + h10 * m0x + h01 * p1x + h11 * m1x;
+        const pz = h00 * p0z + h10 * m0z + h01 * p1z + h11 * m1z;
+        // Derivative, for the cross-section's direction.
+        const g00 = 6 * t ** 2 - 6 * t, g10 = 3 * t ** 2 - 4 * t + 1;
+        const g01 = -6 * t ** 2 + 6 * t, g11 = 3 * t ** 2 - 2 * t;
+        let dx = g00 * p0x + g10 * m0x + g01 * p1x + g11 * m1x;
+        let dz = g00 * p0z + g10 * m0z + g01 * p1z + g11 * m1z;
+        const dl = Math.hypot(dx, dz) || 1;
+        dx /= dl; dz /= dl;
+        const nx2 = -dz, nz2 = dx;
+        // Widths lerped end to end. `a` is the left arm after the sort, and
+        // the curve runs from it, so t is exactly how far along we are.
+        const half = a.spec.half + (b.spec.half - a.spec.half) * t;
+        const edge = a.spec.edge + (b.spec.edge - a.spec.edge) * t;
+        const kerbed = (t < 0.5 ? a.spec : b.spec).kerbed;
+        const row = [
+          at(px - nx2 * edge, pz - nz2 * edge, kerbed ? KERB - 0.03 : 0.06,
+            kerbed ? SURF.FOOTWAY : SURF.VERGE),
+          at(px - nx2 * half, pz - nz2 * half, 0, SURF.JUNCTION),
+          at(px + nx2 * half, pz + nz2 * half, 0, SURF.JUNCTION),
+          at(px + nx2 * edge, pz + nz2 * edge, kerbed ? KERB - 0.03 : 0.06,
+            kerbed ? SURF.FOOTWAY : SURF.VERGE),
+        ];
+        if (prev !== null) {
+          for (let q = 0; q + 1 < row.length; q++) {
+            buf.quad(prev[q], prev[q + 1], row[q + 1], row[q]);
+          }
+        }
+        prev = row;
+      }
+      continue;
+    }
+
     // The carriageway: a fan through the arms' kerb lines.
     const centre = at(node.x, node.z, 0, SURF.JUNCTION);
     const ring: number[] = [];

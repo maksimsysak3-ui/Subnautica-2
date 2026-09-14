@@ -500,26 +500,38 @@ export class RoadGraph {
 
   /** The node at this point, making or splitting one where there is none. */
   private nodeAt(x: number, z: number): number {
-    let best = -1, bestD = SNAP;
+    // How close counts as "the same place" depends on how big the thing is.
+    //
+    // Fixed radii of nine and eleven metres are fine among streets and wrong
+    // among everything else: a motorway corridor is thirty-six metres across,
+    // so a road ended squarely *on* one could be fifteen metres from its
+    // centreline and be told it had touched nothing -- it got its own node in
+    // the middle of the carriageway and the two never joined. Which is exactly
+    // "continuing as a motorway is not connected properly". Both thresholds
+    // now grow with the road being joined, so ending anywhere inside a
+    // corridor joins the road that owns it.
+    let best = -1, bestD = 0;
     for (let i = 0; i < this.nodes.length; i++) {
+      const reach = Math.max(SNAP, this.junctionRadius(i) * 1.1);
       const d = Math.hypot(this.nodes[i].x - x, this.nodes[i].z - z);
-      if (d < bestD) { bestD = d; best = i; }
+      if (d < reach && (best < 0 || d < bestD)) { bestD = d; best = i; }
     }
     if (best >= 0) return best;
 
     // Not near a node, but perhaps on a link: ending a road on another road
     // joins it, and joining it means splitting it so there is a node to join.
-    let hit = -1, hitT = 0, hitD = TOUCH;
+    let hit = -1, hitT = 0, hitD = Infinity;
     for (let i = 0; i < this.links.length; i++) {
+      const reach = Math.max(TOUCH, ROAD_SPECS[this.links[i].cls].edge + 2);
       const b = this.box(this.links[i]);
-      if (x < b[0] - TOUCH || x > b[2] + TOUCH || z < b[1] - TOUCH || z > b[3] + TOUCH) continue;
+      if (x < b[0] - reach || x > b[2] + reach || z < b[1] - reach || z > b[3] + reach) continue;
       const pts = this.shape(this.links[i]);
       for (let k = 0; k + 1 < pts.length; k++) {
         const dx = pts[k + 1].x - pts[k].x, dz = pts[k + 1].z - pts[k].z;
         const len2 = dx * dx + dz * dz || 1;
         const f = Math.min(1, Math.max(0, ((x - pts[k].x) * dx + (z - pts[k].z) * dz) / len2));
         const d = Math.hypot(pts[k].x + dx * f - x, pts[k].z + dz * f - z);
-        if (d < hitD) { hitD = d; hit = i; hitT = (k + f) / (pts.length - 1); }
+        if (d < reach && d < hitD) { hitD = d; hit = i; hitT = (k + f) / (pts.length - 1); }
       }
     }
     if (hit >= 0 && hitT > 0.04 && hitT < 0.96) return this.splitLink(hit, hitT);

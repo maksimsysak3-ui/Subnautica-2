@@ -46,25 +46,37 @@ struct VSOut {
 };
 
 /**
- * How much of the cross-section's relief to keep, by how far away it is.
+ * How much of the cross-section's relief to keep, by how thick the ribbon is
+ * on screen.
  *
  * A kerb stands fifteen centimetres above the carriageway and the footway
  * behind it twelve, and at a shallow angle those centimetres *occlude the road
- * itself*: once the whole ribbon is a pixel or two tall on screen, what wins
- * the depth test along its length is the raised pale edge, not the tarmac
- * behind it. That is the grey road, and it is geometry rather than shading --
- * which is why a shading fix improved the far view, where the ribbon is thin
- * enough to average, and did nothing at the middle distance where it is a few
- * pixels of solid kerb.
+ * itself*: what wins the depth test along the ribbon's length is the raised
+ * pale edge nearest the camera, not the tarmac behind it. So a road comes out
+ * as a band of pavement with the road hidden behind it, down one side.
  *
- * So the relief goes away with distance. Past three hundred metres the strips
- * settle towards the carriageway plane, and by seven the ribbon is flat: a
- * road seen from a distance is a flat band of tarmac with a pale margin, which
- * is what a road seen from a distance is. Near enough to see a kerb as a step,
- * every millimetre of it is still there.
+ * The first attempt at this keyed on distance, and distance is the wrong
+ * variable -- which is why it fixed the far view and left the near one alone.
+ * How much road a kerb hides is `height / tan(elevation)`: it is set by the
+ * angle the camera looks down at, and barely by the range. A road a hundred
+ * metres away seen almost edge-on is hit hard; the same road from overhead is
+ * not hit at all.
+ *
+ * What actually matters is how many pixels the ribbon covers across its width,
+ * which folds both in: the road's own width, foreshortened by the elevation
+ * angle, over the distance. Under a few pixels there is no room to draw a kerb
+ * and a carriageway separately, so the relief flattens and the ribbon is one
+ * band of road. Over twenty there is, so it keeps every millimetre -- and that
+ * now holds at a shallow angle close up, which is where this was still wrong.
  */
-fn relief(world : vec3f) -> f32 {
-  return 1.0 - smoothstep(300.0, 700.0, length(world - camera.eye.xyz));
+fn relief(world : vec3f, half : f32) -> f32 {
+  let toEye = camera.eye.xyz - world;
+  let dist = max(length(toEye), 1.0);
+  // 1 looking straight down at it, towards 0 looking along it.
+  let elev = abs(normalize(toEye).y);
+  // params.w converts metres-at-a-distance into pixels.
+  let pixels = (half * 2.0 * elev) * camera.params.w / dist;
+  return smoothstep(5.0, 24.0, pixels);
 }
 
 @vertex
@@ -78,12 +90,13 @@ fn vs(@location(0) position : vec3f,
   // to hide a hairline of terrain under the near edge, and at this distance
   // there is no hairline to hide.
   var p = position;
-  p.y -= lift * (1.0 - relief(position));
+  let keep = relief(position, info.y);
+  p.y -= lift * (1.0 - keep);
   out.world = p;
   // The normals flatten too. A kerb face pointing sideways is what makes one
   // side of a distant road bright and the other dark, and once the face has
   // no height left it should not still be lit as though it had.
-  out.normal = normalize(mix(vec3f(0.0, 1.0, 0.0), normal, relief(position)));
+  out.normal = normalize(mix(vec3f(0.0, 1.0, 0.0), normal, keep));
   out.coord = coord;
   out.info = info;
   out.pos = camera.viewProj * vec4f(p, 1.0);

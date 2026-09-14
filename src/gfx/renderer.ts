@@ -425,7 +425,8 @@ export class Renderer {
     halfX: number; halfZ: number; height: number } | null): void {
     const res = this.res;
     if (res === null) return;
-    if (g === null) { this.ghosting = false; return; }
+    if (g === null) { this.ghosting = false; this.ghostProto = -1; return; }
+    this.ghostProto = g.proto;
     this.ghost[0] = g.x; this.ghost[1] = g.z; this.ghost[2] = g.y; this.ghost[3] = g.yaw;
     this.ghost[4] = g.halfX; this.ghost[5] = g.halfZ;
     this.ghost[6] = g.height; this.ghost[7] = g.proto;
@@ -437,6 +438,17 @@ export class Renderer {
 
   private readonly ghost = new Float32Array(INSTANCE_FLOATS);
   private ghosting = false;
+  /**
+   * The prototype the placement ghost is showing, or -1.
+   *
+   * The draw loop skips buckets that nothing has landed in recently, which is
+   * most of the frame's saving and is right for the city -- but the ghost is a
+   * single instance of a prototype the city very often has none of, so its
+   * bucket was cold and its draw was skipped. The building then appeared at
+   * the moment it was placed, because placing it is what warmed the bucket.
+   * That is the whole of "the preview does not show until it is placed".
+   */
+  private ghostProto = -1;
 
   /** How many instances the cull walks: the city, plus the ghost if there is one. */
   private cullCount(res: { instanceCount: number }): number {
@@ -1559,8 +1571,8 @@ export class Renderer {
     const castKnown = castWarm.length === res.casts.length;
     let casts = 0;
     for (let i = 0; i < res.casts.length; i++) {
-      if (castKnown && castWarm[i] === 0) continue;
       const c = res.casts[i];
+      if (castKnown && castWarm[i] === 0 && c.proto !== this.ghostProto) continue;
       shadowPass.setBindGroup(2, res.castGroup, [c.sliceOffset]);
       shadowPass.drawIndirect(res.castArgsBuffer, c.argsOffset);
       casts++;
@@ -1690,8 +1702,10 @@ export class Renderer {
     const known = warm.length === res.buckets.length;
     let encoded = 0;
     for (let i = 0; i < res.buckets.length; i++) {
-      if (known && warm[i] === 0) continue;
       const b = res.buckets[i];
+      // Never skip the ghost's own prototype: it is one instance the culler
+      // has only just been handed, so no history can vouch for it.
+      if (known && warm[i] === 0 && b.proto !== this.ghostProto) continue;
       pass.setBindGroup(2, res.cityGroup, [b.sliceOffset]);
       pass.drawIndirect(res.argsBuffer, b.argsOffset);
       encoded++;
