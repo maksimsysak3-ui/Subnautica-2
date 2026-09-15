@@ -138,6 +138,16 @@ export interface LaneGraph {
   index: Uint8Array;
   /** What may use it. */
   use: Uint8Array;
+  /**
+   * How important the road is: 0 a back lane, 1 a street, 2 an arterial, 3 a
+   * motorway.
+   *
+   * The router uses it to stop searching every cul-de-sac on the far side of the
+   * city. A cross-town trip is allowed to leave its origin on a back street and
+   * arrive on one, and in between it has to stay on roads that go somewhere --
+   * which is both how people actually drive and how the search stays small.
+   */
+  rank: Uint8Array;
   /** Metres. */
   length: Float32Array;
   /** Metres a second. */
@@ -196,6 +206,23 @@ function admits(cls: RoadClass): number {
   return use;
 }
 
+/**
+ * How far up the road hierarchy a class sits.
+ *
+ * Not the same question as how fast it is: an industrial road is slower than a
+ * country lane is wide, and it is still a road a lorry crosses the city on.
+ * What this ranks is whether traffic is *meant* to pass along it.
+ */
+function rankOf(cls: RoadClass): number {
+  switch (cls) {
+    case 'motorway': case 'dual': case 'highway': case 'slip': return 3;
+    case 'avenue': case 'boulevard': case 'industrial': case 'tram': case 'bus': return 2;
+    case 'street': case 'oneway': case 'cycleStreet': case 'tramStreet': case 'promenade':
+      return 1;
+    default: return 0;
+  }
+}
+
 /** Free-flow speed in metres a second. */
 function speedOf(cls: RoadClass): number {
   const kph: Record<string, number> = {
@@ -251,6 +278,7 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     count: 0,
     link: new Int32Array(count), dir: new Uint8Array(count),
     index: new Uint8Array(count), use: new Uint8Array(count),
+    rank: new Uint8Array(count),
     length: new Float32Array(count), speed: new Float32Array(count),
     free: new Float32Array(count),
     from: new Int32Array(count), to: new Int32Array(count),
@@ -279,12 +307,14 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     const n = routeLanes(link.cls);
     const use = admits(link.cls);
     const v = speedOf(link.cls);
+    const rk = rankOf(link.cls);
     const dirs = spec.oneWay ? [FORWARD] : [FORWARD, BACKWARD];
     for (const d of dirs) {
       const slot = i * 2 + d;
       linkStart[slot] = at;
       for (let k = 0; k < n; k++) {
         g.link[at] = i; g.dir[at] = d; g.index[at] = k; g.use[at] = use;
+        g.rank[at] = rk;
         g.length[at] = Math.max(total, 1);
         g.speed[at] = v;
         g.free[at] = Math.max(total, 1) / v;
@@ -397,6 +427,7 @@ function permits(g: LaneGraph, a: number, b: number, deadEnd: Uint8Array): boole
 /** Bytes the graph occupies. */
 export function laneBytes(g: LaneGraph): number {
   return g.link.byteLength + g.dir.byteLength + g.index.byteLength + g.use.byteLength
+    + g.rank.byteLength
     + g.length.byteLength + g.speed.byteLength + g.free.byteLength
     + g.from.byteLength + g.to.byteLength
     + g.ax.byteLength + g.az.byteLength + g.bx.byteLength + g.bz.byteLength
@@ -404,4 +435,116 @@ export function laneBytes(g: LaneGraph): number {
     + g.edgeStart.byteLength + g.edgeEnd.byteLength
     + g.edgeTo.byteLength + g.edgeTurn.byteLength + g.edgeCost.byteLength
     + g.linkStart.byteLength + g.linkEnd.byteLength;
+}
+
+/**
+ * Where the lanes are, so a building can find the road it fronts onto.
+ *
+ * A uniform grid. Not a quadtree: lanes are spread fairly evenly over a city by
+ * construction -- that is what a road network is -- and a grid answers "what is
+ * near this point" in a handful of array reads with no pointer chasing and no
+ * rebalancing. The one thing it must get right is that a long lane belongs in
+ * every cell it passes through, or the motorway is invisible to everything that
+ * is not standing near its midpoint.
+ */
+export interface LaneIndex {
+  /** Metres a cell. */
+  cell: number;
+  /** Cells across, and the world coordinate of the grid's corner. */
+  side: number;
+  x0: number;
+  z0: number;
+  /** Compressed sparse row: cell c holds lanes [start[c], start[c + 1]). */
+  start: Int32Array;
+  lane: Int32Array;
+}
+
+export function buildLaneIndex(g: LaneGraph, cell = 48): LaneIndex {
+  // Bounds from the lanes themselves, padded so a point just off the edge of
+  // the network still lands in a cell.
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let l = 0; l < g.count; l++) {
+    x0 = Math.min(x0, g.ax[l], g.bx[l]); x1 = Math.max(x1, g.ax[l], g.bx[l]);
+    z0 = Math.min(z0, g.az[l], g.bz[l]); z1 = Math.max(z1, g.az[l], g.bz[l]);
+  }
+  if (!Number.isFinite(x0)) { x0 = 0; z0 = 0; x1 = 0; z1 = 0; }
+  x0 -= cell; z0 -= cell; x1 += cell; z1 += cell;
+  const side = Math.max(1, Math.ceil(Math.max(x1 - x0, z1 - z0) / cell));
+
+  // Walked twice: once to count what lands in each cell, once to fill. The walk
+  // steps along the lane at half a cell so nothing is skipped, and skips a
+  // repeat of the cell it is already in, which is most steps on a long lane.
+  const counts = new Int32Array(side * side + 1);
+  const visit = (l: number, fn: (c: number) => void): void => {
+    const ax = g.ax[l], az = g.az[l], bx = g.bx[l], bz = g.bz[l];
+    const d = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(d / (cell * 0.5)));
+    let last = -1;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const gx = Math.min(side - 1, Math.max(0, ((ax + (bx - ax) * t) - x0) / cell | 0));
+      const gz = Math.min(side - 1, Math.max(0, ((az + (bz - az) * t) - z0) / cell | 0));
+      const c = gz * side + gx;
+      if (c !== last) { fn(c); last = c; }
+    }
+  };
+  for (let l = 0; l < g.count; l++) visit(l, (c) => { counts[c + 1]++; });
+  for (let c = 0; c < side * side; c++) counts[c + 1] += counts[c];
+  const start = counts;
+  const lane = new Int32Array(start[side * side]);
+  const at = start.slice(0, side * side);
+  for (let l = 0; l < g.count; l++) visit(l, (c) => { lane[at[c]++] = l; });
+  return { cell, side, x0, z0, start, lane };
+}
+
+/**
+ * The nearest lane to a point that a given user may travel on, or -1.
+ *
+ * Rings outward from the point's own cell and stops as soon as the next ring
+ * cannot possibly beat what has been found -- without that test it either
+ * searches one ring and misses a lane just over the boundary, or searches a
+ * fixed radius and does far more work than it needs to.
+ */
+export function nearestLane(g: LaneGraph, ix: LaneIndex, x: number, z: number,
+  use: number, maxMetres = 400): number {
+  const cx = Math.min(ix.side - 1, Math.max(0, (x - ix.x0) / ix.cell | 0));
+  const cz = Math.min(ix.side - 1, Math.max(0, (z - ix.z0) / ix.cell | 0));
+  const rings = Math.ceil(maxMetres / ix.cell);
+  let best = -1, bestD = maxMetres * maxMetres;
+  for (let r = 0; r <= rings; r++) {
+    // Nothing in this ring can be closer than (r - 1) cells away.
+    if (best >= 0 && ((r - 1) * ix.cell) ** 2 > bestD) break;
+    const gz0 = Math.max(0, cz - r), gz1 = Math.min(ix.side - 1, cz + r);
+    const gx0 = Math.max(0, cx - r), gx1 = Math.min(ix.side - 1, cx + r);
+    for (let gz = gz0; gz <= gz1; gz++) {
+      const edgeRow = gz === cz - r || gz === cz + r;
+      for (let gx = gx0; gx <= gx1; gx++) {
+        if (r > 0 && !edgeRow && gx !== cx - r && gx !== cx + r) continue;
+        const c = gz * ix.side + gx;
+        for (let i = ix.start[c]; i < ix.start[c + 1]; i++) {
+          const l = ix.lane[i];
+          if ((g.use[l] & use) === 0) continue;
+          const d = pointToSegment(x, z, g.ax[l], g.az[l], g.bx[l], g.bz[l]);
+          if (d < bestD) { bestD = d; best = l; }
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/** Squared distance from a point to a segment. */
+function pointToSegment(px: number, pz: number,
+  ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const len = dx * dx + dz * dz;
+  let t = len > 0 ? ((px - ax) * dx + (pz - az) * dz) / len : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const qx = ax + dx * t - px, qz = az + dz * t - pz;
+  return qx * qx + qz * qz;
+}
+
+/** Bytes the index occupies. */
+export function indexBytes(ix: LaneIndex): number {
+  return ix.start.byteLength + ix.lane.byteLength;
 }

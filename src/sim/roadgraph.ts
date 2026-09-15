@@ -295,6 +295,24 @@ export interface Site {
 
 /** Two endpoints closer than this are the same junction. */
 const SNAP = 11;
+/**
+ * No junction can reach further than this, whatever is built there.
+ *
+ * `junctionRadius` is at most the widest arm's corridor times 1.15, and the
+ * snap test then allows another tenth on top. Derived rather than written down
+ * so that adding a wider road class cannot silently make it wrong. It exists so
+ * that finding the node nearest a point does not have to ask every node in the
+ * city how big its junction is -- which means asking every node how many arms it
+ * has, which means walking every link, once per node. On a city-sized network
+ * that was the better part of a second every time a road was drawn.
+ */
+const MAX_JUNCTION = (() => {
+  let widest = 0;
+  for (const k of Object.keys(ROAD_SPECS) as RoadClass[]) {
+    widest = Math.max(widest, ROAD_SPECS[k].edge);
+  }
+  return Math.max(SNAP, widest * 1.15 * 1.1) + 1;
+})();
 /** A node this close to a link is on it, and splits it. */
 const TOUCH = 9;
 /** Curve sampling: never coarser than this along the arc. */
@@ -511,10 +529,15 @@ export class RoadGraph {
     // now grow with the road being joined, so ending anywhere inside a
     // corridor joins the road that owns it.
     let best = -1, bestD = 0;
+    const far = MAX_JUNCTION * MAX_JUNCTION;
     for (let i = 0; i < this.nodes.length; i++) {
+      const dx = this.nodes[i].x - x, dz = this.nodes[i].z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > far) continue;            // cannot reach, whatever is built here
+      if (best >= 0 && d2 >= bestD * bestD) continue;
+      const d = Math.sqrt(d2);
       const reach = Math.max(SNAP, this.junctionRadius(i) * 1.1);
-      const d = Math.hypot(this.nodes[i].x - x, this.nodes[i].z - z);
-      if (d < reach && (best < 0 || d < bestD)) { bestD = d; best = i; }
+      if (d < reach) { bestD = d; best = i; }
     }
     if (best >= 0) return best;
 
@@ -746,19 +769,61 @@ export class RoadGraph {
    * crosses a handful of others, and a rewrite that is obviously right beats
    * one that is fast and subtly not.
    */
+  /**
+   * Splits a newly drawn link, and everything it crosses, at every crossing.
+   *
+   * A work list rather than a loop on one index, and that is the whole of the
+   * fix: `splitLink` keeps the head half at the index it was given and pushes
+   * the tail onto the end of the list, so re-examining only that index examines
+   * only the first piece. A road drawn across ten existing streets found its
+   * first crossing, split there, and then looked for more crossings along the
+   * hundred metres before it -- and found none. The remaining nine crossings
+   * were never made: nine places where two roads overlap on the map and do not
+   * meet in the graph, so traffic passes straight through the intersection and
+   * nothing about it looks wrong from above.
+   *
+   * Only this road's own pieces go back on the list. Crossings are symmetric, so
+   * anything still crossing the other road is found from this side, and the other
+   * road was already square with everything that existed before this one.
+   */
   private crossAll(index: number): void {
-    for (let guard = 0; guard < 64; guard++) {
-      const cut = this.firstCrossing(index);
-      if (cut === null) return;
-      const other = this.splitLink(cut.other, cut.otherT);
-      // The split may have renumbered nothing, but `index` itself is the link
-      // being drawn and is never the one split above.
-      const mine = this.splitLink(index, cut.selfT);
-      this.mergeNodes(mine, other);
+    // Which links could possibly be crossed, worked out once.
+    //
+    // Without this, every pass rescans the whole network: a road drawn across a
+    // sixty-by-sixty grid does sixty splits and each one tests all seven
+    // thousand links again. The drawn road's bounding box only overlaps the few
+    // hundred links actually near it, and that set can only be added to by the
+    // splits themselves -- a piece of a candidate is still a candidate, and a
+    // piece of a non-candidate is still not one.
+    const box = this.box(this.links[index]);
+    const candidates: number[] = [];
+    for (let j = 0; j < this.links.length; j++) {
+      if (j === index) continue;
+      const b = this.box(this.links[j]);
+      if (b[0] > box[2] || b[2] < box[0] || b[1] > box[3] || b[3] < box[1]) continue;
+      candidates.push(j);
+    }
+
+    const work = [index];
+    // Each pass either finds nothing, or makes a split -- and a link can cross
+    // each other link at most twice. A guard, not a work limit.
+    let guard = candidates.length * 4 + 256;
+    while (work.length > 0 && guard-- > 0) {
+      const i = work.pop() as number;
+      const cut = this.firstCrossing(i, candidates);
+      if (cut === null) continue;
+      const otherTail = this.links.length;
+      const otherMid = this.splitLink(cut.other, cut.otherT);
+      // splitLink pushes the tail, so this is where our own tail will land.
+      const tail = this.links.length;
+      const myMid = this.splitLink(i, cut.selfT);
+      this.mergeNodes(myMid, otherMid);
+      candidates.push(otherTail, tail);
+      work.push(i, tail);
     }
   }
 
-  private firstCrossing(index: number):
+  private firstCrossing(index: number, candidates: readonly number[]):
   { other: number; selfT: number; otherT: number } | null {
     const self = this.links[index];
     // The shape polyline, not the dense one: it is exact for a straight, which
@@ -766,7 +831,7 @@ export class RoadGraph {
     // junction lands within a few centimetres of the true crossing.
     const mine = this.shape(self);
     const mineBox = this.box(self);
-    for (let j = 0; j < this.links.length; j++) {
+    for (const j of candidates) {
       if (j === index) continue;
       const link = this.links[j];
       // Links that already share a node meet there; that is not a crossing.

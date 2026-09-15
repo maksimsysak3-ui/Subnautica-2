@@ -24,6 +24,8 @@ const bundle = (await esbuild.build({
       `export * from '${src}sim/agents/store';`,
       `export * from '${src}sim/agents/tick';`,
       `export * from '${src}sim/agents/lanes';`,
+      `export * from '${src}sim/agents/path';`,
+      `export * from '${src}sim/agents/router';`,
       `export { RoadGraph, ROAD_SPECS, ROAD_ORDER } from '${src}sim/roadgraph';`,
       `export { configureSim, simConfig } from '${src}sim/config';`,
     ].join('\n'),
@@ -37,6 +39,9 @@ const {
   Table, NO_HANDLE, handleId, handleGen,
   Scheduler, Rate, due, slice, TICK_HZ,
   buildLaneGraph, laneBytes, Use, Turn, FORWARD, BACKWARD,
+  buildLaneIndex, nearestLane, indexBytes,
+  Pathfinder, Layer, Outcome, NO_PATH, profileOf,
+  Router, PathStore, CACHE_MISS, MAX_PATH,
   RoadGraph, ROAD_SPECS,
 } = M;
 
@@ -438,6 +443,513 @@ section('lane graph');
     'rebuilding the same network gives the same graph',
     `${again.count}/${again.edgeCount} vs ${g.count}/${g.edgeCount}`);
 }
+
+// ------------------------------------------------------------ the lane index
+
+section('lane index');
+{
+  const net = new RoadGraph(640);
+  const span = 640 * 8 * 0.4;
+  for (let i = 0; i < 20; i++) {
+    const c = -span + (i / 19) * 2 * span;
+    net.add(c, -span, c, span, 'street', 0);
+    net.add(-span, c, span, c, 'street', 0);
+  }
+  // One very long lane, which is the case a midpoint-bucketed index gets wrong.
+  net.add(-span, span * 0.97, span, span * 0.97, 'motorway', 0);
+  const g = buildLaneGraph(net);
+  const t0 = performance.now();
+  const ix = buildLaneIndex(g);
+  const built = performance.now() - t0;
+  console.log(`  index              ${ix.side}x${ix.side} cells of ${ix.cell} m, `
+    + `${kib(indexBytes(ix))}, built in ${ms(built)}`);
+
+  // Brute force is the oracle: for a sample of points, the index must name the
+  // same lane the exhaustive search does.
+  const brute = (x, z, use) => {
+    let best = -1, bestD = Infinity;
+    for (let l = 0; l < g.count; l++) {
+      if ((g.use[l] & use) === 0) continue;
+      const ax = g.ax[l], az = g.az[l], bx = g.bx[l], bz = g.bz[l];
+      const dx = bx - ax, dz = bz - az, len = dx * dx + dz * dz;
+      let t = len > 0 ? ((x - ax) * dx + (z - az) * dz) / len : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const qx = ax + dx * t - x, qz = az + dz * t - z;
+      const d = qx * qx + qz * qz;
+      if (d < bestD) { bestD = d; best = l; }
+    }
+    return [best, Math.sqrt(bestD)];
+  };
+  let wrong = 0, worstOff = 0, tested = 0;
+  let rng = 1;
+  const rand = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let i = 0; i < 400; i++) {
+    const x = (rand() * 2 - 1) * span, z = (rand() * 2 - 1) * span;
+    const [want, wantD] = brute(x, z, Use.CAR);
+    if (wantD > 380) continue;              // outside what the index is asked for
+    tested++;
+    const got = nearestLane(g, ix, x, z, Use.CAR);
+    if (got < 0) { wrong++; continue; }
+    const gx = g.ax[got], gz = g.az[got], hx = g.bx[got], hz = g.bz[got];
+    const dx = hx - gx, dz = hz - gz, len = dx * dx + dz * dz;
+    let t = len > 0 ? ((x - gx) * dx + (z - gz) * dz) / len : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = gx + dx * t - x, qz = gz + dz * t - z;
+    const gotD = Math.hypot(qx, qz);
+    if (gotD > wantD + 0.01) { wrong++; worstOff = Math.max(worstOff, gotD - wantD); }
+    void want;
+  }
+  ok(tested > 200, 'the index was asked enough questions', `${tested}`);
+  ok(wrong === 0, 'the index names the truly nearest lane every time',
+    `${wrong} wrong, worst ${worstOff.toFixed(1)} m too far`);
+
+  // And the long lane is findable from along its whole length, not just its middle.
+  let missed = 0, probes = 0;
+  for (let i = 1; i < 20; i++) {
+    const x = -span + (i / 20) * 2 * span;
+    // Away from the ends, where a cross street's own endpoint is genuinely the
+    // nearer thing and the question stops being about the long lane.
+    if (Math.abs(Math.abs(x) - span) < 120) continue;
+    probes++;
+    const l = nearestLane(g, ix, x, span * 0.97 + 3, Use.CAR, 60);
+    if (l < 0 || net.links[g.link[l]].cls !== 'motorway') missed++;
+  }
+  ok(probes >= 15, 'the long lane was probed along its length', `${probes}`);
+  ok(missed === 0, 'a long lane is in every cell it crosses', `${missed} of ${probes} points`);
+
+  // Off the end of the world finds nothing rather than something absurd.
+  ok(nearestLane(g, ix, 1e6, 1e6, Use.CAR) === -1, 'nothing is near nowhere');
+  ok(nearestLane(g, ix, 0, 0, Use.TRAM) === -1, 'and nothing admits a tram here');
+}
+
+// ------------------------------------------------------------ routing
+
+section('routing');
+{
+  // A denser city than the lane-graph section's, because routing is the part
+  // whose cost depends on how much there is to search.
+  const net = new RoadGraph(640);
+  const span = 640 * 8 * 0.44;
+  net.add(-span, -span * 0.15, span, span * 0.15, 'motorway', 0.12);
+  net.add(-span * 0.15, -span, span * 0.15, span, 'motorway', -0.1);
+  for (let i = 0; i < 9; i++) {
+    const c = -span + (i / 8) * 2 * span;
+    net.add(c, -span, c, span, i % 2 ? 'avenue' : 'boulevard', 0);
+    net.add(-span, c, span, c, i % 2 ? 'dual' : 'avenue', 0);
+  }
+  for (let i = 0; i < 41; i++) {
+    const c = -span * 0.98 + (i / 40) * 1.96 * span;
+    net.add(c, -span * 0.98, c, span * 0.98, 'street', 0);
+    net.add(-span * 0.98, c, span * 0.98, c, i % 7 === 3 ? 'oneway' : 'street', 0);
+  }
+  // Somewhere with no way in or out, to prove an unreachable route is cheap.
+  net.add(span * 1.5, span * 1.5, span * 1.5 + 200, span * 1.5, 'street', 0);
+
+  const g = buildLaneGraph(net);
+  const ix = buildLaneIndex(g);
+  const finder = new Pathfinder(g);
+  console.log(`  network            ${net.links.length.toLocaleString()} links, `
+    + `${g.count.toLocaleString()} lanes, ${g.edgeCount.toLocaleString()} movements`);
+  console.log(`  scratch            ${kib(finder.bytes())}`);
+
+  const out = new Int32Array(MAX_PATH);
+
+  // --- the oracle: Dijkstra over the same cost model, no heuristic, no
+  // --- hierarchy. Slow and obviously correct, which is the point of it.
+  const dijkstra = (layer, from, to) => {
+    const p = profileOf(layer);
+    const travel = (l) => {
+      const v = Math.min(g.speed[l], p.top);
+      const km = g.length[l] / 1000;
+      return g.length[l] / v + km * (g.rank[l] < 2 ? p.minorPenalty : p.majorPenalty);
+    };
+    const dist = new Float64Array(g.count).fill(Infinity);
+    const done = new Uint8Array(g.count);
+    const heap = [[travel(from), from]];
+    dist[from] = travel(from);
+    while (heap.length) {
+      let bi = 0;
+      for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[bi][0]) bi = i;
+      const [d, l] = heap.splice(bi, 1)[0];
+      if (done[l]) continue;
+      done[l] = 1;
+      if (l === to) return d;
+      for (let e = g.edgeStart[l]; e < g.edgeEnd[l]; e++) {
+        const o = g.edgeTo[e];
+        if ((g.use[o] & p.use) === 0 || done[o]) continue;
+        const nd = d + g.edgeCost[e] * p.turn + travel(o);
+        if (nd < dist[o]) { dist[o] = nd; heap.push([nd, o]); }
+      }
+    }
+    return Infinity;
+  };
+
+  // --- a path has to be a walk somebody could actually drive
+  const validate = (layer, from, to, n) => {
+    const p = profileOf(layer);
+    if (n === 0) return 'empty';
+    if (out[0] !== from) return 'does not start at the origin';
+    if (out[n - 1] !== to) return 'does not end at the destination';
+    for (let i = 0; i < n; i++) {
+      if ((g.use[out[i]] & p.use) === 0) return `lane ${i} does not admit this traveller`;
+      if (i === 0) continue;
+      let joined = false;
+      for (let e = g.edgeStart[out[i - 1]]; e < g.edgeEnd[out[i - 1]]; e++) {
+        if (g.edgeTo[e] === out[i]) { joined = true; break; }
+      }
+      if (!joined) return `lanes ${i - 1} and ${i} are not connected`;
+    }
+    return null;
+  };
+
+  // A spread of origins and destinations, taken from real positions on the map
+  // rather than from lane ids, because that is how the game will ask.
+  let rng = 7;
+  const rand = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const pick = (use) => {
+    for (let tries = 0; tries < 40; tries++) {
+      const l = nearestLane(g, ix, (rand() * 2 - 1) * span * 0.95,
+        (rand() * 2 - 1) * span * 0.95, use);
+      if (l >= 0) return l;
+    }
+    return -1;
+  };
+  const pairs = [];
+  while (pairs.length < 400) {
+    const a = pick(Use.CAR), b = pick(Use.CAR);
+    if (a >= 0 && b >= 0 && a !== b) pairs.push([a, b]);
+  }
+
+  // --- every path is a walk
+  let broken = null, found = 0;
+  for (const [a, b] of pairs) {
+    const n = finder.find(Layer.CAR, a, b, out);
+    if (n === 0) continue;
+    found++;
+    const why = validate(Layer.CAR, a, b, n);
+    if (why && !broken) broken = `${a} -> ${b}: ${why}`;
+  }
+  ok(found > pairs.length * 0.9, 'nearly every pair is routable', `${found}/${pairs.length}`);
+  ok(broken === null, 'every path is a walk a driver could follow', broken ?? '');
+
+  // --- short trips must be exactly optimal: no restriction applies there, so a
+  // --- disagreement with Dijkstra is a bug in the heuristic or the heap.
+  // With the heuristic unweighted, A* must agree with Dijkstra to the last
+  // decimal. That is the proof the heap, the stamps and the cost model are
+  // right; the weighted default that follows trades a measured slice of that
+  // for speed, and the two tests keep those two things separate.
+  const exact = new Pathfinder(g, 1);
+  let shortTested = 0, suboptimal = 0, worstShort = 0, weighted = 0, worstWeighted = 0;
+  for (const [a, b] of pairs) {
+    const d = Math.hypot(g.bx[b] - g.ax[a], g.bz[b] - g.az[a]);
+    if (d > 900 || shortTested >= 40) continue;
+    const n = exact.find(Layer.CAR, a, b, out);
+    if (n === 0) continue;
+    const best = dijkstra(Layer.CAR, a, b);
+    if (!Number.isFinite(best)) continue;
+    shortTested++;
+    const excess = (exact.seconds - best) / best;
+    if (excess > 1e-4) { suboptimal++; worstShort = Math.max(worstShort, excess); }
+    if (finder.find(Layer.CAR, a, b, out) > 0) {
+      const w = (finder.seconds - best) / best;
+      if (w > 1e-4) { weighted++; worstWeighted = Math.max(worstWeighted, w); }
+    }
+  }
+  ok(shortTested >= 12, 'there were short trips to check', `${shortTested}`);
+  ok(suboptimal === 0, 'unweighted, A* is exactly the route Dijkstra finds',
+    `${suboptimal} worse, worst by ${(worstShort * 100).toFixed(2)}%`);
+  console.log(`  weighted heuristic epsilon ${finder.epsilon}: `
+    + `${weighted}/${shortTested} short trips differ, worst `
+    + `${(worstWeighted * 100).toFixed(1)}% over optimal`);
+  ok(worstWeighted < finder.epsilon - 1 + 1e-6,
+    'and the weighted one stays inside its own bound',
+    `${(worstWeighted * 100).toFixed(1)}% vs ${((finder.epsilon - 1) * 100).toFixed(0)}%`);
+
+  // --- long trips: the hierarchy is a deliberate approximation, so measure what
+  // --- it costs in route quality and what it buys in work.
+  let longTested = 0, sumExcess = 0, worstLong = 0, sumFast = 0, sumSlow = 0;
+  for (const [a, b] of pairs) {
+    const d = Math.hypot(g.bx[b] - g.ax[a], g.bz[b] - g.az[a]);
+    if (d < 2500 || longTested >= 25) continue;
+    const n = finder.find(Layer.CAR, a, b, out);
+    if (n === 0) continue;
+    const best = dijkstra(Layer.CAR, a, b);
+    if (!Number.isFinite(best)) continue;
+    longTested++;
+    const excess = (finder.seconds - best) / best;
+    sumExcess += excess; worstLong = Math.max(worstLong, excess);
+    sumFast += finder.expanded;
+    sumSlow += exact.find(Layer.CAR, a, b, out) > 0 ? exact.expanded : 0;
+  }
+  ok(longTested >= 8, 'there were long trips to check', `${longTested}`);
+  const meanExcess = longTested ? sumExcess / longTested : 0;
+  console.log(`  long-trip detour   mean ${(meanExcess * 100).toFixed(1)}%, `
+    + `worst ${(worstLong * 100).toFixed(1)}% over optimal, `
+    + `${(sumFast / Math.max(1, longTested)).toFixed(0)} lanes expanded `
+    + `vs ${(sumSlow / Math.max(1, longTested)).toFixed(0)} unweighted`);
+  ok(meanExcess < 0.12, 'the hierarchy and the weighting cost little route quality',
+    `${(meanExcess * 100).toFixed(1)}% mean`);
+  ok(worstLong < 0.45, 'and never send anyone badly wrong',
+    `${(worstLong * 100).toFixed(1)}%`);
+  console.log(`  narrowing          ${finder.restricted} long searches, `
+    + `${finder.widened} needed a wider window, ${finder.fallbacks} gave up on it`);
+  ok(finder.fallbacks / Math.max(1, finder.restricted) < 0.05,
+    'the narrowed search almost never has to be abandoned',
+    `${(finder.fallbacks / Math.max(1, finder.restricted) * 100).toFixed(1)}%`);
+
+  // --- unreachable is answered, not hung on
+  const island = (() => {
+    for (let l = 0; l < g.count; l++) {
+      if (g.ax[l] > span * 1.4 && g.az[l] > span * 1.4) return l;
+    }
+    return -1;
+  })();
+  ok(island >= 0, 'the island exists', `${island}`);
+  const n0 = finder.find(Layer.CAR, pairs[0][0], island, out);
+  ok(n0 === 0 && finder.outcome === Outcome.UNREACHABLE,
+    'a route to nowhere comes back unreachable', `n ${n0} outcome ${finder.outcome}`);
+
+  // --- a route to itself is a route of one lane
+  const self = finder.find(Layer.CAR, pairs[0][0], pairs[0][0], out);
+  ok(self === 1 && out[0] === pairs[0][0], 'a trip to where you already are is one lane',
+    `${self}`);
+
+  // --- modes go where they belong
+  const shareOf = (layer, want) => {
+    let lanes = 0, hit = 0, trips = 0;
+    for (const [a0, b0] of pairs) {
+      const a = (g.use[a0] & profileOf(layer).use) ? a0
+        : nearestLane(g, ix, g.ax[a0], g.az[a0], profileOf(layer).use);
+      const b = (g.use[b0] & profileOf(layer).use) ? b0
+        : nearestLane(g, ix, g.bx[b0], g.bz[b0], profileOf(layer).use);
+      if (a < 0 || b < 0 || a === b) continue;
+      if (trips >= 60) break;
+      const n = finder.find(layer, a, b, out);
+      if (n === 0) continue;
+      trips++;
+      for (let i = 0; i < n; i++) { lanes++; if (want(out[i])) hit++; }
+    }
+    return { share: lanes ? hit / lanes : 0, trips };
+  };
+  const onFoot = shareOf(Layer.FOOT, (l) => net.links[g.link[l]].cls === 'motorway');
+  ok(onFoot.trips > 10, 'pedestrians had trips to make', `${onFoot.trips}`);
+  ok(onFoot.share === 0, 'nobody is routed along the motorway on foot',
+    `${(onFoot.share * 100).toFixed(1)}%`);
+
+  const minor = (l) => g.rank[l] < 2;
+  const carMinor = shareOf(Layer.CAR, minor);
+  const cargoMinor = shareOf(Layer.CARGO, minor);
+  console.log(`  back-street share  cars ${(carMinor.share * 100).toFixed(0)}%, `
+    + `lorries ${(cargoMinor.share * 100).toFixed(0)}%`);
+  ok(cargoMinor.share <= carMinor.share + 1e-6,
+    'lorries use fewer back streets than cars', 
+    `${(cargoMinor.share * 100).toFixed(1)}% vs ${(carMinor.share * 100).toFixed(1)}%`);
+
+  // --- congestion actually diverts traffic
+  {
+    const [a, b] = pairs.find(([p0, p1]) =>
+      Math.hypot(g.bx[p1] - g.ax[p0], g.bz[p1] - g.az[p0]) > 1500) ?? pairs[0];
+    const clear = finder.find(Layer.CAR, a, b, out);
+    const first = out.slice(0, clear);
+    const free = finder.seconds;
+    const load = new Float32Array(g.count);
+    for (let i = 0; i < clear; i++) load[first[i]] = 4;   // that route is now solid
+    const jammed = finder.find(Layer.CAR, a, b, out, load);
+    ok(jammed > 0, 'there is still a route when the direct one jams', `${jammed}`);
+    let same = 0;
+    for (let i = 0; i < jammed; i++) if (first.includes(out[i])) same++;
+    ok(same < jammed, 'and it is not the same route', `${same} of ${jammed} lanes shared`);
+    ok(finder.seconds > free, 'the jammed trip takes longer',
+      `${finder.seconds.toFixed(0)} s vs ${free.toFixed(0)} s`);
+  }
+
+  // --- the path store
+  {
+    const store = new PathStore(64);
+    const a = new Int32Array([1, 2, 3, 4, 5]);
+    const h1 = store.alloc(a, 5);
+    ok(store.length(h1) === 5, 'a stored path keeps its length', `${store.length(h1)}`);
+    ok([...store.view(h1)].join() === '1,2,3,4,5', 'and its contents',
+      [...store.view(h1)].join());
+    ok(store.at(h1, 2) === 3, 'and can be read one lane at a time');
+    ok(store.at(h1, 9) === -1, 'and refuses to read past the end');
+    ok(store.refs(h1) === 1, 'a fresh path has one reference');
+    store.retain(h1);
+    ok(store.refs(h1) === 2, 'retain takes another');
+    store.release(h1);
+    ok(store.refs(h1) === 1 && store.count === 1, 'release gives one back');
+    store.release(h1);
+    ok(store.count === 0, 'and the last release frees it');
+
+    // The freed block must come back rather than growing the arena.
+    const before = store.used;
+    const h2 = store.alloc(a, 5);
+    ok(store.used === before, 'a freed block is reused, not appended',
+      `${store.used} vs ${before}`);
+    ok([...store.view(h2)].join() === '1,2,3,4,5', 'and the reused block is rewritten');
+
+    // Growth, through several size classes, with the contents intact.
+    const kept = [], want = [];
+    for (let i = 0; i < 200; i++) {
+      const n = 1 + (i * 37) % 300;
+      const src = new Int32Array(n);
+      for (let k = 0; k < n; k++) src[k] = i * 1000 + k;
+      kept.push(store.alloc(src, n));
+      want.push(src);
+    }
+    let corrupt = 0;
+    for (let i = 0; i < kept.length; i++) {
+      const v = store.view(kept[i]);
+      if (v.length !== want[i].length) { corrupt++; continue; }
+      for (let k = 0; k < v.length; k++) if (v[k] !== want[i][k]) { corrupt++; break; }
+    }
+    ok(corrupt === 0, 'growing the arena keeps every path intact', `${corrupt} of 200`);
+    ok(store.alloc(new Int32Array(MAX_PATH + 1), MAX_PATH + 1) === NO_PATH,
+      'a path longer than the arena allows is refused');
+    console.log(`  arena              ${store.count} paths in `
+      + `${kib(store.bytes())} (${store.used}/${store.capacity} ints)`);
+  }
+
+  // --- the router
+  {
+    const router = new Router(g, 4096);
+    const SLOTS = 4096;
+    const paths = new Int32Array(SLOTS).fill(NO_PATH);
+    const liveRows = new Uint8Array(SLOTS).fill(1);
+    const sink = router.addSink({
+      name: 'test', out: paths, alive: (slot) => liveRows[slot] === 1,
+    });
+
+    // A request answers into the sink, and not before it is served.
+    router.request(Layer.CAR, pairs[0][0], pairs[0][1], sink, 0, 0);
+    ok(paths[0] === NO_PATH, 'a request does not answer immediately');
+    ok(router.pending === 1, 'it queues', `${router.pending}`);
+    router.serve(10, 100);
+    ok(paths[0] >= 0, 'and serve answers it', `${paths[0]}`);
+    ok(router.paths.refs(paths[0]) === 2, 'the cache and the caller each hold it',
+      `${router.paths.refs(paths[0])}`);
+
+    // The same route again comes from the cache and costs no search.
+    const solved0 = router.stats.solved;
+    router.request(Layer.CAR, pairs[0][0], pairs[0][1], sink, 1, 0);
+    router.serve(10, 100);
+    ok(paths[1] === paths[0], 'the same route is the same path', `${paths[1]}`);
+    ok(router.stats.solved === solved0, 'and did not search again');
+    ok(router.paths.refs(paths[0]) === 3, 'with another reference on it',
+      `${router.paths.refs(paths[0])}`);
+
+    // A request for a traveller that has since died is dropped, not written.
+    liveRows[2] = 0;
+    const stale0 = router.stats.stale;
+    router.request(Layer.CAR, pairs[1][0], pairs[1][1], sink, 2, 0);
+    router.serve(10, 100);
+    ok(paths[2] === NO_PATH, 'nothing is written for a traveller that has gone');
+    ok(router.stats.stale === stale0 + 1, 'and it is counted', `${router.stats.stale}`);
+
+    // Urgent requests jump the queue.
+    liveRows[2] = 1;
+    const order = [];
+    const spySink = router.addSink({
+      name: 'spy', out: paths,
+      alive: (slot) => { order.push(slot); return true; },
+    });
+    for (let i = 10; i < 20; i++) router.request(Layer.CAR, pairs[i][0], pairs[i][1], spySink, i, 0);
+    router.request(Layer.EMERGENCY, pairs[3][0], pairs[3][1], spySink, 99, 0, true);
+    router.serve(50, 100);
+    ok(order[0] === 99, 'the ambulance is served first', `${order[0]}`);
+
+    // The budget is honoured: a flood of cold requests is spread over ticks.
+    const flood = 3000;
+    for (let i = 0; i < flood; i++) {
+      const [a, b] = pairs[i % pairs.length];
+      router.request(Layer.CAR, a, b, sink, 100 + (i % 2000), 0);
+    }
+    let ticks = 0, worst = 0;
+    while (router.pending > 0 && ticks < 4000) {
+      router.serve(2, 256);
+      worst = Math.max(worst, router.stats.ms);
+      ticks++;
+    }
+    ok(router.pending === 0, 'the queue drains', `${router.pending} left`);
+    // One request can always overrun -- the budget is checked between them, not
+    // inside a search -- so the bound is the budget plus the worst single query.
+    ok(worst < 3.5, 'and no tick meaningfully blew its 2 ms budget',
+      `worst ${ms(worst)} over ${ticks} ticks`);
+    console.log(`  budget             ${flood} requests over ${ticks} ticks, `
+      + `worst tick ${ms(worst)}, cache ${(router.hitRate * 100).toFixed(0)}%`);
+
+    // Releasing everything must leave nothing behind but what the cache holds.
+    const held = new Set();
+    for (let i = 0; i < SLOTS; i++) if (paths[i] >= 0) held.add(i);
+    for (const i of held) { router.release(paths[i]); paths[i] = NO_PATH; }
+    const afterCallers = router.paths.count;
+    router.rebind(g);
+    ok(router.paths.count === 0, 'every path is freed once nobody holds it',
+      `${router.paths.count} left, ${afterCallers} before the cache let go`);
+    ok(router.version === 1, 'and a rebind is a new version', `${router.version}`);
+  }
+
+  // --- what it costs at the scale the game has to run at
+  {
+    const router = new Router(g);
+    const N = 20000;
+    const paths = new Int32Array(N);
+    const sink = router.addSink({ name: 'bench', out: paths, alive: () => true });
+
+    // Cold: every request a different pair, so the cache cannot help.
+    const cold = [];
+    for (let i = 0; i < N; i++) {
+      const a = pick(Use.CAR), b = pick(Use.CAR);
+      cold.push([a < 0 ? pairs[i % pairs.length][0] : a,
+        b < 0 ? pairs[i % pairs.length][1] : b]);
+    }
+    for (let i = 0; i < N; i++) router.request(Layer.CAR, cold[i][0], cold[i][1], sink, i, 0);
+    const t0 = performance.now();
+    while (router.pending > 0) router.serve(1e9, 1e9);
+    const coldMs = performance.now() - t0;
+    const st = router.stats;
+    console.log(`  cold routing       ${N.toLocaleString()} trips in ${coldMs.toFixed(0)} ms `
+      + `= ${Math.round(N / (coldMs / 1000)).toLocaleString()} a second`);
+    console.log(`  per trip           ${(coldMs / N * 1000).toFixed(0)} us, `
+      + `cache ${(router.hitRate * 100).toFixed(0)}%, `
+      + `${router.report}`);
+    ok(coldMs / N < 1.0, 'a cold route averages under a millisecond',
+      `${(coldMs / N).toFixed(3)} ms`);
+    void st;
+
+    // Warm: the pattern a city actually has, where people leave the same places
+    // for the same places.
+    for (let i = 0; i < N; i++) {
+      const [a, b] = cold[i % 250];
+      router.request(Layer.CAR, a, b, sink, i, 0);
+    }
+    const t1 = performance.now();
+    while (router.pending > 0) router.serve(1e9, 1e9);
+    const warmMs = performance.now() - t1;
+    console.log(`  warm routing       ${N.toLocaleString()} trips in ${warmMs.toFixed(0)} ms `
+      + `= ${Math.round(N / (warmMs / 1000)).toLocaleString()} a second`);
+    ok(warmMs < coldMs / 5, 'the cache is worth at least five times',
+      `${warmMs.toFixed(0)} vs ${coldMs.toFixed(0)} ms`);
+
+    // The requirement, stated properly. A hundred thousand citizens making three
+    // trips a day, with a day running in twenty minutes of real time, is 250
+    // routes a second. Most of those are cache hits; what has to fit in the tick
+    // budget is the cold remainder.
+    const TRIPS_PER_SECOND = 250;
+    const hit = router.hitRate;
+    const coldPerSecond = TRIPS_PER_SECOND * (1 - hit);
+    const msPerSecond = coldPerSecond * (coldMs / N) + TRIPS_PER_SECOND * hit * (warmMs / N);
+    console.log(`  metropolis load    ${TRIPS_PER_SECOND} trips a second at `
+      + `${(hit * 100).toFixed(0)}% cached = ${msPerSecond.toFixed(1)} ms a second `
+      + `(${(msPerSecond / 10).toFixed(2)} ms of each 10 Hz tick)`);
+    ok(msPerSecond < 100, 'a metropolis of routing fits in a tenth of one core',
+      `${msPerSecond.toFixed(0)} ms a second`);
+    ok(msPerSecond / 10 < 2, 'and inside a 2 ms slice of every tick',
+      `${(msPerSecond / 10).toFixed(2)} ms`);
+    console.log(`  router memory      ${kib(router.bytes())}`);
+  }
+}
+
 
 console.log(`\n${failed === 0 ? 'SIM_OK' : 'SIM_FAIL'}  ${checks - failed}/${checks} checks`);
 process.exit(failed === 0 ? 0 : 1);
