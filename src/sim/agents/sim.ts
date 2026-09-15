@@ -37,6 +37,11 @@ import { Migration } from './migration';
 import { Routine } from './routine';
 import { Junctions } from './junctions';
 import { Traffic } from './driving';
+import { Utilities } from './utilities';
+import { Services } from './services';
+import { Views, View } from './views';
+import type { Stat } from './views';
+import { Stage } from './people';
 import type { RoadGraph } from '../roadgraph';
 import type { City } from '../city';
 
@@ -140,13 +145,22 @@ export class Simulation {
   readonly routine: Routine;
   junctions: Junctions;
   traffic: Traffic;
+  readonly utilities: Utilities;
+  readonly services: Services;
+  readonly views: Views;
+  /** The information view the player has open, or View.NONE. */
+  openView: number = View.NONE;
 
   /** The player's time control. 0 is paused. */
   speed = 1;
 
   private readonly displaced: number[] = [];
 
+  /** Nodes in the road graph, kept so a rewire does not need the graph passed in. */
+  private nodes = 0;
+
   constructor(city: City, net: RoadGraph, seed = 0x1b0b0) {
+    this.nodes = net.nodes.length;
     this.lanes = buildLaneGraph(net);
     this.index = buildLaneIndex(this.lanes);
     this.places = buildPlaces(city, this.lanes, this.index);
@@ -170,6 +184,21 @@ export class Simulation {
     this.junctions = new Junctions(this.lanes, net.nodes.length);
     this.traffic = new Traffic(this.lanes, this.junctions, VEHICLE_BUDGET, seed ^ 0xca25);
     this.traffic.informedBy(this.routine.load, this.router.paths);
+    this.utilities = new Utilities(this.places);
+    this.services = new Services(this.places, this.lanes);
+    this.utilities.rewire(this.lanes, net.nodes.length);
+    // The population and the migration model now read the real thing rather than
+    // their proximity fallbacks. Attached after construction because the dependency
+    // is genuinely mutual: what people feel depends on the services, and where the
+    // services are needed depends on the people.
+    this.people.informedBy(this.services, this.utilities);
+    this.migration.informedBy(this.services, this.utilities);
+    this.views = new Views({
+      places: this.places, utilities: this.utilities, services: this.services,
+      people: this.people, routine: this.routine, traffic: this.traffic,
+      junctions: this.junctions, migration: this.migration, lanes: this.lanes,
+      extent: net.grid * 8,
+    });
     this.install();
   }
 
@@ -261,6 +290,34 @@ export class Simulation {
       run: () => { this.routine.reweigh(); },
     });
 
+    // The utilities: what every network makes and draws, and who that leaves short.
+    // Slow, because nothing about a power grid needs to be fresher than a few
+    // seconds and the pass is over every building in the city.
+    s.add({
+      name: 'utility', rate: Rate.SLOW,
+      run: () => { this.utilities.settle(Rate.SLOW / TICKS_PER_DAY); },
+    });
+
+    // Service coverage: one branch's search advanced a bounded amount each time, so
+    // it goes round all eleven every few seconds and never costs a spike.
+    s.add({
+      name: 'cover', rate: Rate.FAST,
+      run: () => {
+        const p = this.people;
+        const children = p.byStage[Stage.INFANT] + p.byStage[Stage.CHILD]
+          + p.byStage[Stage.TEEN];
+        this.services.refresh(p.population, children, this.places.workers);
+      },
+    });
+
+    // The view the player has open, rebuilt as the numbers behind it move.
+    s.add({
+      name: 'views', rate: Rate.BRISK,
+      run: (tick) => {
+        if (this.openView !== View.NONE) this.views.build(this.openView, tick);
+      },
+    });
+
     // Which travellers are worth moving individually.
     s.add({
       name: 'focus', rate: Rate.BRISK,
@@ -288,6 +345,17 @@ export class Simulation {
     }
   }
 
+  /** Opens an information view, or closes them with View.NONE. */
+  show(view: number): void {
+    this.openView = view;
+    if (view !== View.NONE) this.views.build(view, this.clock.tick);
+  }
+
+  /** The grid the renderer tints the ground with. */
+  get viewGrid(): Uint8Array { return this.views.grid; }
+  /** The statistics panel for whatever is open. */
+  get viewStats(): Stat[] { return this.views.stats(this.openView); }
+
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }
 
@@ -312,6 +380,10 @@ export class Simulation {
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
+    this.services.rebind(this.lanes);
+    this.views.rebind(this.lanes);
+    this.utilities.rewire(this.lanes, net.nodes.length);
+    this.nodes = net.nodes.length;
     this.junctions = new Junctions(this.lanes, net.nodes.length);
     this.traffic.rebind(this.lanes);
     (this.traffic as { junctions: Junctions }).junctions = this.junctions;
@@ -328,8 +400,11 @@ export class Simulation {
    * which is the honest outcome: the player demolished their house.
    */
   buildingsChanged(city: City): void {
-    const { removed } = reconcilePlaces(city, this.lanes, this.index,
+    const { removed, added } = reconcilePlaces(city, this.lanes, this.index,
       this.places, this.displaced);
+    // A new building has to be put on a network before anybody asks whether it has
+    // power, and a demolished one has to come off before its supply is counted.
+    if (added > 0 || removed.length > 0) this.utilities.rewire(this.lanes, this.nodes);
     if (removed.length === 0) return;
     const people = this.people;
     const cz = people.citizens;
@@ -390,6 +465,7 @@ export class Simulation {
     return laneBytes(this.lanes) + indexBytes(this.index)
       + this.router.bytes() + this.places.bytes()
       + this.people.bytes() + this.migration.bytes() + this.routine.bytes()
-      + this.junctions.bytes() + this.traffic.bytes();
+      + this.junctions.bytes() + this.traffic.bytes()
+      + this.utilities.bytes() + this.services.bytes() + this.views.bytes();
   }
 }

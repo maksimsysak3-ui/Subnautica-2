@@ -139,7 +139,7 @@ export const Outcome = {
  * heap for never having to know where in it a lane sits, which in a search that
  * touches thousands of lanes is much the better deal.
  */
-class Heap {
+export class Heap {
   private key: Float32Array;
   private val: Int32Array;
   private n = 0;

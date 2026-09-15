@@ -44,6 +44,8 @@ import { Places, Purpose } from './places';
 import { People, Wealth, Stage, Edu, NONE, MAX_HOUSEHOLD } from './people';
 import { ASSETS } from '../../assets/registry';
 import { BRANCHES } from '../../assets/types';
+import type { Services } from './services';
+import type { Utilities } from './utilities';
 
 // ---- the rates ------------------------------------------------------------
 
@@ -305,11 +307,43 @@ export class Migration {
    * answered before it exists, and it already produces the right behaviour --
    * a city with no water and no power is not somewhere anybody moves to.
    */
+  /** The service and utility models, once they exist. */
+  services: Services | null = null;
+  utilities: Utilities | null = null;
+
+  informedBy(services: Services, utilities: Utilities): void {
+    this.services = services;
+    this.utilities = utilities;
+  }
+
+  /**
+   * Whether the services reach, weighted by how much people notice the absence.
+   *
+   * From the real coverage: what share of homes are within the standard for each
+   * branch, and whether the power and the water are actually on. Before the service
+   * model is attached it falls back to whether anything is built at all -- and the
+   * difference between those two is the difference between a game where placing one
+   * fire station makes the whole city safe and one where the player has to cover it.
+   */
   get serviceAppeal(): number {
+    const services = this.services;
+    const utilities = this.utilities;
     let have = 0;
     for (let i = 0; i < NEEDED.length; i++) {
       const b = NEEDED_BRANCH[i];
-      if (b >= 0 && this.places.byBranch[b].size > 0) have += NEEDED[i][1];
+      if (b < 0) continue;
+      const name = NEEDED[i][0];
+      let quality: number;
+      if (name === 'power' || name === 'water') {
+        quality = utilities === null
+          ? (this.places.byBranch[b].size > 0 ? 1 : 0)
+          : utilities.report.served[name === 'power' ? 0 : 1];
+      } else if (services !== null) {
+        quality = services.cover[b].served;
+      } else {
+        quality = this.places.byBranch[b].size > 0 ? 1 : 0;
+      }
+      have += NEEDED[i][1] * Math.max(0, Math.min(1, quality));
     }
     return NEEDED_TOTAL === 0 ? 0 : have / NEEDED_TOTAL;
   }

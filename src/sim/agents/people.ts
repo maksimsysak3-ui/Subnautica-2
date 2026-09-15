@@ -28,6 +28,8 @@ import { Rng } from './rand';
 import { Clock, YEARS_PER_DAY, TICKS_PER_DAY } from './calendar';
 import { Places, Purpose, Teaches, NO_BRANCH } from './places';
 import { BRANCHES } from '../../assets/types';
+import type { Services } from './services';
+import type { Utilities } from './utilities';
 
 /** Life stages, in order. */
 export const Stage = {
@@ -180,6 +182,9 @@ const CITIZEN_SCHEMA = {
   idleDays: Uint8Array,
 } as const;
 
+/** The service branches whose work needs more than a school leaving certificate. */
+const LEARNED = new Set(['health', 'education', 'government', 'deathcare']);
+
 /** Mood at which a household starts counting the days. */
 export const FED_UP = 90;
 /** Days of being fed up before it goes. */
@@ -207,6 +212,9 @@ export class People {
   /** Since founding. */
   births = 0;
   deaths = 0;
+
+  /** Reused for the four utility readings, so the hot loop allocates nothing. */
+  private readonly utilScratch = new Float32Array(4);
 
   /** By stage, for the age pyramid. */
   readonly byStage = new Int32Array(STAGE_NAMES.length);
@@ -434,11 +442,17 @@ export class People {
         this.onGrewUp(id, stage);
       }
 
-      // Health drifts towards what the city provides. Coverage arrives from the
-      // service systems; with none built, it settles low but not fatal, which is
-      // what a city with no hospitals should feel like rather than a plague.
+      // Health drifts towards what the city provides: how quickly an ambulance can
+      // reach them, whether there is clean water, and whether the sewage is being
+      // treated. Untreated sewage in the river is a health problem and this is where
+      // it lands -- a city that dumps it has a sicker, shorter-lived population, and
+      // the effect arrives slowly enough that the player has to work out why.
+      this.utilitiesAt(id, this.utilScratch);
       const care = this.coverageAt(id, 'health');
-      const want = 90 + care * 150;
+      const clean = this.utilScratch[1];                    // water
+      const sewer = this.utilScratch[2];
+      const bins = this.utilScratch[3];
+      const want = 70 + care * 110 + clean * 45 + sewer * 25 + bins * 10;
       const h = c.health[id];
       c.health[id] = h + Math.sign(want - h) * Math.min(Math.abs(want - h), 6 * days);
 
@@ -464,12 +478,23 @@ export class People {
       // Mood follows having somewhere to be, being looked after, and not having
       // been on a bus for an hour. Trips write their own dissatisfaction in;
       // this is the slow part.
-      let target = 130;
-      if (c.work[id] !== NONE || c.study[id] !== NONE) target += 50;
+      // Mood. The utilities come first and they come hard: a household with no
+      // power or no water is not mildly inconvenienced, it is leaving, and that is
+      // what makes them a necessity rather than a bonus. Everything else is worth a
+      // few points either way.
+      let target = 150;
+      target -= (1 - this.utilScratch[0]) * 90;              // power
+      target -= (1 - this.utilScratch[1]) * 85;              // water
+      target -= (1 - this.utilScratch[2]) * 30;              // sewage
+      target -= (1 - this.utilScratch[3]) * 35;              // rubbish
+      if (c.work[id] !== NONE || c.study[id] !== NONE) target += 40;
       else if (this.canWork(id)) target -= 60;
       if (c.stage[id] === Stage.SENIOR) target += 20;        // retired, not idle
       target += (c.health[id] - 160) * 0.2;
-      target += this.coverageAt(id, 'parks') * 30;
+      target += this.coverageAt(id, 'parks') * 26;
+      target += this.coverageAt(id, 'police') * 22;
+      target += this.coverageAt(id, 'fire') * 14;
+      target += this.coverageAt(id, 'transport') * 12;
       const m = c.mood[id];
       this.setMood(id, m + Math.sign(target - m) * Math.min(Math.abs(target - m), 8 * days));
     }
@@ -655,14 +680,17 @@ export class People {
     const hx = home === NONE ? c.x[id] : col.x[home];
     const hz = home === NONE ? c.z[id] : col.z[home];
     const edu = c.edu[id];
-    let best = NONE, bestD = Infinity;
+    let best = NONE, bestScore = Infinity;
     for (let k = 0; k < 5; k++) {
       const p = this.places.pickJob(this.rng.next());
       if (p < 0) break;
-      if (!this.qualified(edu, col.purpose[p])) continue;
+      if (!this.qualified(edu, p)) continue;
       const dx = col.x[p] - hx, dz = col.z[p] - hz;
-      const d = dx * dx + dz * dz;
-      if (d < bestD) { bestD = d; best = p; }
+      // Distance against how many posts are open, so a large employer wins over a
+      // slightly nearer tiny one -- which is what makes a power station fill up
+      // rather than losing every applicant to the shop next door to it.
+      const score = (dx * dx + dz * dz) / Math.max(1, this.places.openPosts(p));
+      if (score < bestScore) { bestScore = score; best = p; }
     }
     if (best === NONE) return false;
     if (!this.places.hire(best)) return false;
@@ -672,28 +700,67 @@ export class People {
     return true;
   }
 
-  /** Whether somebody's education admits them to a kind of work. */
-  private qualified(edu: number, purpose: number): boolean {
-    switch (purpose) {
+  /**
+   * Whether somebody's education admits them to a kind of work.
+   *
+   * Service jobs are split by branch rather than lumped together, and that mattered
+   * more than it looks. Requiring a degree for every civic job meant nobody in a new
+   * city could staff the power station -- so it ran at its unstaffed floor, which
+   * made the city short of power, which made it short of water, which made people
+   * leave before anybody could get the education to fix it. A power station operator
+   * and a bin lorry driver need a school leaving certificate; a doctor, a teacher and
+   * a civil servant need more.
+   */
+  private qualified(edu: number, place: number): boolean {
+    const col = this.places.col;
+    switch (col.purpose[place]) {
       case Purpose.WORKS: return true;                        // anybody
       case Purpose.SHOP: return edu >= Edu.SCHOOL;
-      case Purpose.SERVICE: return edu >= Edu.COLLEGE;
       case Purpose.OFFICE: return edu >= Edu.COLLEGE;
+      case Purpose.SERVICE: {
+        const branch = col.branch[place];
+        const name = branch === NO_BRANCH ? '' : BRANCHES[branch];
+        return LEARNED.has(name) ? edu >= Edu.COLLEGE : edu >= Edu.SCHOOL;
+      }
       default: return true;
     }
   }
 
   /**
+   * The service and utility models, once they exist.
+   *
+   * Given rather than constructed, because the population has to be able to run
+   * without them -- a test that only wants to check births and deaths should not
+   * have to build a power grid -- and because the dependency genuinely runs this
+   * way round: what people feel depends on the services, and the services depend on
+   * where the people are.
+   */
+  services: Services | null = null;
+  utilities: Utilities | null = null;
+
+  informedBy(services: Services, utilities: Utilities): void {
+    this.services = services;
+    this.utilities = utilities;
+  }
+
+  /**
    * How well a branch of service reaches somebody, 0 to 1.
    *
-   * A placeholder shape, not a placeholder system: it answers from the real
-   * service buildings and the real distances, and what it does not yet know is
-   * whether the building has the *capacity* to serve them, which is what the
-   * service simulation will add. Until then it is coverage by proximity, which is
-   * the right first approximation and already makes a city with no fire station
-   * behave differently from one with six.
+   * From the real coverage model: how long it takes a fire engine to get there over
+   * the real roads, against how overloaded the stations are. Before the service
+   * model is attached it falls back to proximity, which is what the population
+   * tests use and is a fair first approximation -- but the fallback is not the
+   * answer the game gives, and the difference is the whole point of the service
+   * simulation: a station across the river covers nothing.
    */
-  coverageAt(id: number, branch: 'health' | 'education' | 'parks'): number {
+  coverageAt(id: number, branch: 'health' | 'education' | 'parks' | 'fire'
+  | 'police' | 'transport'): number {
+    const services = this.services;
+    if (services !== null) {
+      const home = this.homeOf(id);
+      if (home === NONE) return 0;
+      return services.byName(home, branch);
+    }
     const b = BRANCHES.indexOf(branch);
     if (b < 0) return 0;
     const pool = this.places.byBranch[b];
@@ -702,7 +769,6 @@ export class People {
     const col = this.places.col;
     const home = c.where[id] === NONE ? c.x[id] : col.x[c.where[id]];
     const homeZ = c.where[id] === NONE ? c.z[id] : col.z[c.where[id]];
-    // Nearest of a few probes, falling off over a kilometre.
     let bestD = Infinity;
     for (let k = 0; k < 3; k++) {
       const p = pool.pick(this.rng.next());
@@ -714,6 +780,26 @@ export class People {
     if (!Number.isFinite(bestD)) return 0;
     const metres = Math.sqrt(bestD);
     return Math.max(0, Math.min(1, 1 - metres / 1200));
+  }
+
+  /** The building somebody lives in, or NONE. */
+  private homeOf(id: number): number {
+    const hh = this.citizens.col.house[id];
+    return hh === NONE ? NONE : this.households.col.home[hh];
+  }
+
+  /**
+   * How well the utilities reach somebody's home, 0 to 1 each.
+   *
+   * Written into a caller's buffer rather than returned, because it is asked for
+   * every citizen on every visit and a four-element array each time is four
+   * allocations a citizen a visit.
+   */
+  utilitiesAt(id: number, out: Float32Array): void {
+    const u = this.utilities;
+    const home = this.homeOf(id);
+    if (u === null || home === NONE) { out[0] = 1; out[1] = 1; out[2] = 1; out[3] = 1; return; }
+    for (let k = 0; k < 4; k++) out[k] = u.at(home, k);
   }
 
   /**

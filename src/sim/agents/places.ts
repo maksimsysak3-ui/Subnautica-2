@@ -214,6 +214,17 @@ export class Places {
   jobCapacity = 0;
   households = 0;
   workers = 0;
+  /**
+   * Vacancies by purpose, maintained rather than counted.
+   *
+   * Because a job search weighted by how many *buildings* have a vacancy is not the
+   * same as one weighted by how many vacancies there are, and the difference is not
+   * academic: a power station with ninety posts counted the same as a corner shop
+   * with six, so a city's power stations were never staffed and a city with three of
+   * them had no electricity at all. Weighting by the number of posts is both cheaper
+   * to maintain and the thing that actually happens.
+   */
+  readonly vacancies = new Int32Array(PURPOSES);
 
   constructor(capacity = 1 << 16) {
     this.vacantHomes = new Pool(capacity);
@@ -279,7 +290,11 @@ export class Places {
 
     this.byPurpose[purpose].add(id);
     if (homes > 0) { this.homes.add(id); this.vacantHomes.add(id); this.homeCapacity += homes; }
-    if (jobs > 0) { this.vacantJobs[purpose].add(id); this.jobCapacity += jobs; }
+    if (jobs > 0) {
+      this.vacantJobs[purpose].add(id);
+      this.jobCapacity += jobs;
+      this.vacancies[purpose] += jobs;
+    }
     if (branch !== NO_BRANCH) this.byBranch[branch].add(id);
     if (c.teaches[id] !== Teaches.NONE && c.serves[id] > 0) {
       this.schools[c.teaches[id]].add(id);
@@ -293,6 +308,7 @@ export class Places {
     const c = this.table.col;
     this.homeCapacity -= c.homes[id];
     this.jobCapacity -= c.jobs[id];
+    this.vacancies[c.purpose[id]] -= Math.max(0, c.jobs[id] - c.working[id]);
     this.households -= c.living[id];
     this.workers -= c.working[id];
     this.homes.remove(id);
@@ -326,6 +342,7 @@ export class Places {
     const c = this.table.col;
     if (this.table.live[id] === 0 || c.working[id] >= c.jobs[id]) return false;
     if (++c.working[id] >= c.jobs[id]) this.vacantJobs[c.purpose[id]].remove(id);
+    this.vacancies[c.purpose[id]]--;
     this.workers++;
     return true;
   }
@@ -335,6 +352,7 @@ export class Places {
     if (this.table.live[id] === 0 || c.working[id] === 0) return;
     c.working[id]--;
     this.workers--;
+    this.vacancies[c.purpose[id]]++;
     if (c.working[id] < c.jobs[id]) this.vacantJobs[c.purpose[id]].add(id);
   }
 
@@ -373,21 +391,25 @@ export class Places {
 
   /** A vacant job anywhere, weighted by how many vacancies each kind holds. */
   pickJob(r: number): number {
-    // Weighted by pool size rather than by vacancies, which is close enough and
-    // avoids keeping a second running total per purpose. Offices hold most of
-    // the jobs in a city and most of the buildings that have any, so the two
-    // weightings agree in the case that matters.
     let total = 0;
-    for (let p = 0; p < PURPOSES; p++) if (p !== Purpose.HOME) total += this.vacantJobs[p].size;
+    for (let p = 0; p < PURPOSES; p++) {
+      if (p !== Purpose.HOME) total += Math.max(0, this.vacancies[p]);
+    }
     if (total === 0) return -1;
     let pick = r * total;
     for (let p = 0; p < PURPOSES; p++) {
       if (p === Purpose.HOME) continue;
-      const n = this.vacantJobs[p].size;
-      if (pick < n) return this.vacantJobs[p].pick(pick / Math.max(1, n));
+      const n = Math.max(0, this.vacancies[p]);
+      if (pick < n) return this.vacantJobs[p].pick(n > 0 ? pick / n : 0);
       pick -= n;
     }
     return -1;
+  }
+
+  /** Posts still open at a building. */
+  openPosts(id: number): number {
+    const c = this.table.col;
+    return this.table.live[id] === 0 ? 0 : Math.max(0, c.jobs[id] - c.working[id]);
   }
 
   bytes(): number {

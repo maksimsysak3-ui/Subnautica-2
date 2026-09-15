@@ -74,3 +74,9 @@ export {
   Traffic, Driver, Kind, DRIVER_NAMES, KIND_NAMES, VEHICLE_LENGTH,
 } from './agents/driving';
 export type { TrafficStats } from './agents/driving';
+export { Utilities, Util, UTIL_NAMES, supplyOf, producerIds } from './agents/utilities';
+export type { Network, UtilityReport } from './agents/utilities';
+export { Services, UNREACHED } from './agents/services';
+export type { Cover } from './agents/services';
+export { Views, View, VIEWS, VIEW_GRID, Look, NO_DATA } from './agents/views';
+export type { ViewInfo, Stat } from './agents/views';
