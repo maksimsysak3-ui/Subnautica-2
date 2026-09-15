@@ -83,16 +83,23 @@ section('store');
   ok(T.valid(T.handle(reused)), 'the new occupant has a valid handle');
   ok(!T.valid(NO_HANDLE), 'NO_HANDLE is never valid');
 
-  // Generation wraps at 256; a handle that survives exactly 256 removals is
+  // Generation wraps at 128; a handle that survives exactly 128 removals is
   // indistinguishable from a fresh one. Known and bounded -- a handle is meant
   // to be checked, not stored for an hour -- but it must not be worse than that.
+  // And no handle is ever negative, whatever generation it is on, because every
+  // validity test treats a negative as "none".
   let wrapped = T.add();
   const first = T.handle(wrapped);
-  for (let i = 0; i < 255; i++) { T.remove(wrapped); wrapped = T.add(); }
+  let negative = 0;
+  for (let i = 0; i < 127; i++) {
+    if (T.handle(wrapped) < 0) negative++;
+    T.remove(wrapped); wrapped = T.add();
+  }
+  ok(negative === 0, 'no handle is ever negative, at any generation', `${negative}`);
   ok(handleId(first) === wrapped, 'the row cycles back to the same id');
-  ok(!T.valid(first), '255 removals later the handle is still stale');
+  ok(!T.valid(first), '127 removals later the handle is still stale');
   T.remove(wrapped); wrapped = T.add();
-  ok(T.valid(first), 'generation wraps at 256, as documented');
+  ok(T.valid(first), 'generation wraps at 128, as documented');
   ok(handleGen(first) === 0, 'the first handle was generation 0');
 
   // Removing what is not there must not corrupt the free list.
@@ -859,18 +866,34 @@ section('routing');
     ok(order[0] === 99, 'the ambulance is served first', `${order[0]}`);
 
     // The budget is honoured: a flood of cold requests is spread over ticks.
+    //
+    // Offered as the game offers them -- a burst each tick, then a serve -- rather
+    // than all at once, because the router refuses a request when its queue is
+    // already as deep as it can drain. That refusal is the contract: the caller
+    // is being told to work the trip out the cheap way instead of joining a queue
+    // nobody can clear.
     const flood = 3000;
-    for (let i = 0; i < flood; i++) {
-      const [a, b] = pairs[i % pairs.length];
-      router.request(Layer.CAR, a, b, sink, 100 + (i % 2000), 0);
+    let offered = 0, refused = 0, ticks = 0, worst = 0;
+    while (offered < flood && ticks < 4000) {
+      for (let k = 0; k < 120 && offered < flood; k++) {
+        const [a, b] = pairs[offered % pairs.length];
+        if (!router.request(Layer.CAR, a, b, sink, 100 + (offered % 2000), 0)) refused++;
+        offered++;
+      }
+      router.serve(2, 256);
+      worst = Math.max(worst, router.stats.ms);
+      ticks++;
     }
-    let ticks = 0, worst = 0;
-    while (router.pending > 0 && ticks < 4000) {
+    while (router.pending > 0 && ticks < 8000) {
       router.serve(2, 256);
       worst = Math.max(worst, router.stats.ms);
       ticks++;
     }
     ok(router.pending === 0, 'the queue drains', `${router.pending} left`);
+    ok(refused < flood, 'the router accepted most of the flood',
+      `${refused} of ${flood} refused`);
+    ok(router.queueLimit >= 64, 'the queue depth tracks what it can serve',
+      `${router.queueLimit}`);
     // One request can always overrun -- the budget is checked between them, not
     // inside a search -- so the bound is the budget plus the worst single query.
     ok(worst < 3.5, 'and no tick meaningfully blew its 2 ms budget',
@@ -903,9 +926,17 @@ section('routing');
       cold.push([a < 0 ? pairs[i % pairs.length][0] : a,
         b < 0 ? pairs[i % pairs.length][1] : b]);
     }
-    for (let i = 0; i < N; i++) router.request(Layer.CAR, cold[i][0], cold[i][1], sink, i, 0);
+    // Fed and drained in step, because the queue has a depth and refuses past it.
+    const drain = (want) => {
+      let at = 0;
+      while (at < N) {
+        while (at < N && router.request(Layer.CAR, want[at][0], want[at][1], sink, at, 0)) at++;
+        router.serve(1e9, 1e9);
+      }
+      while (router.pending > 0) router.serve(1e9, 1e9);
+    };
     const t0 = performance.now();
-    while (router.pending > 0) router.serve(1e9, 1e9);
+    drain(cold);
     const coldMs = performance.now() - t0;
     const st = router.stats;
     console.log(`  cold routing       ${N.toLocaleString()} trips in ${coldMs.toFixed(0)} ms `
@@ -919,12 +950,10 @@ section('routing');
 
     // Warm: the pattern a city actually has, where people leave the same places
     // for the same places.
-    for (let i = 0; i < N; i++) {
-      const [a, b] = cold[i % 250];
-      router.request(Layer.CAR, a, b, sink, i, 0);
-    }
+    const repeat = [];
+    for (let i = 0; i < N; i++) repeat.push(cold[i % 250]);
     const t1 = performance.now();
-    while (router.pending > 0) router.serve(1e9, 1e9);
+    drain(repeat);
     const warmMs = performance.now() - t1;
     console.log(`  warm routing       ${N.toLocaleString()} trips in ${warmMs.toFixed(0)} ms `
       + `= ${Math.round(N / (warmMs / 1000)).toLocaleString()} a second`);

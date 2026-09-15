@@ -37,6 +37,27 @@ import type { LaneGraph } from './lanes';
 /** Nothing is known about this route yet. Distinct from a known failure. */
 export const CACHE_MISS = -2;
 
+/**
+ * How many ticks of work the queue is allowed to hold, and the bounds on that.
+ *
+ * A hard cap, and refusing a request is a feature. Without one, a city of a
+ * hundred thousand people asks for routes faster than any budget can answer them,
+ * and the queue grows without bound: nine and a half million requests deep, every
+ * traveller waiting minutes for an answer, and a hundred-and-fifty-millisecond
+ * hitch every time the ring doubled and copied itself. A refusal is information --
+ * it tells the caller to work the trip out the cheap way -- whereas a queue is a
+ * promise nobody can keep.
+ *
+ * The limit is three ticks of whatever the router actually managed last tick,
+ * rather than a constant, so it tunes itself to the size of the city, the state of
+ * the cache and the speed of the machine. A constant cannot do that: forty-eight
+ * was four ticks of work on a small city and a fifth of a tick on a large one, so
+ * half of every rush hour was refused on a budget that was not even being spent.
+ */
+const QUEUE_TICKS = 3;
+const QUEUE_MIN = 64;
+const QUEUE_MAX = 2048;
+
 /** The longest route the arena will store, in lanes. */
 export const MAX_PATH = 2048;
 /** Size classes: 2^4 .. 2^11 lanes. */
@@ -59,6 +80,10 @@ interface Stats {
   expanded: number;
   /** Requests dropped because their traveller no longer exists. */
   stale: number;
+  /** Requests refused because the queue was full. */
+  refused: number;
+  /** Requests handled in the last serve, which sets the queue's depth. */
+  served: number;
 }
 
 /**
@@ -364,7 +389,7 @@ export class Router {
   version = 0;
 
   readonly stats: Stats = {
-    solved: 0, cached: 0, failed: 0, queued: 0, ms: 0, expanded: 0, stale: 0,
+    solved: 0, cached: 0, failed: 0, queued: 0, ms: 0, expanded: 0, stale: 0, refused: 0, served: 0,
   };
 
   constructor(graph: LaneGraph, cacheEntries = 1 << 15) {
@@ -397,9 +422,26 @@ export class Router {
    * route is worked out a tick after their neighbour's has no way to tell.
    */
   request(layer: number, from: number, to: number, sink: number, slot: number,
-    token: number, urgent = false): void {
+    token: number, urgent = false): boolean {
+    // Urgent requests have their own, smaller ring and are never refused: an
+    // ambulance that cannot get a route is the one case where the cheap answer is
+    // not good enough.
+    if (!urgent && this.normal.size >= this.queueLimit) {
+      this.stats.refused++;
+      return false;
+    }
     (urgent ? this.urgent : this.normal).push(layer, from, to, sink, slot, token);
+    return true;
   }
+
+  /** How deep the queue may get, from what the router is managing. */
+  get queueLimit(): number {
+    const want = this.stats.served * QUEUE_TICKS;
+    return want < QUEUE_MIN ? QUEUE_MIN : want > QUEUE_MAX ? QUEUE_MAX : want;
+  }
+
+  /** How full the queue is, 0 to 1. Callers use it to decide whether to ask. */
+  get pressure(): number { return Math.min(1, this.normal.size / this.queueLimit); }
 
   /**
    * Spends up to `budgetMs` on the queue, and at most `maxQueries` searches.
@@ -451,6 +493,7 @@ export class Router {
       st.solved++;
     }
     st.queued = this.pending;
+    st.served = done;
     st.ms = performance.now() - t0;
   }
 

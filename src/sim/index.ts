@@ -43,3 +43,29 @@ export {
   toCode, fromCode,
 } from './save';
 export type { SaveInfo } from './save';
+
+// ---- the simulation ------------------------------------------------------
+//
+// The living city: who is in it, what they do all day, and how they get there.
+// One object owns the lot and schedules it; everything under `agents/` is
+// reachable through it, and the pieces are exported too for the readouts.
+export { Simulation } from './agents/sim';
+export type { SimReport } from './agents/sim';
+export { Clock, SECONDS_PER_DAY, TICKS_PER_DAY, YEARS_PER_DAY, SEASON_NAMES } from './agents/calendar';
+export { Scheduler, Rate, TICK_HZ, due, slice } from './agents/tick';
+export type { System } from './agents/tick';
+export { Table, NO_HANDLE } from './agents/store';
+export { Rng } from './agents/rand';
+export { buildLaneGraph, buildLaneIndex, nearestLane, Use, Turn, laneBytes } from './agents/lanes';
+export type { LaneGraph, LaneIndex } from './agents/lanes';
+export { Pathfinder, Layer, Outcome, NO_PATH, profileOf } from './agents/path';
+export { Router, PathStore, MAX_PATH } from './agents/router';
+export type { Sink } from './agents/router';
+export { Places, Purpose, Teaches, Pool, buildPlaces, reconcilePlaces } from './agents/places';
+export {
+  People, Stage, Edu, Doing, Wealth, STAGE_NAMES, EDU_NAMES, DOING_NAMES, stageOf,
+} from './agents/people';
+export { Migration } from './agents/migration';
+export type { Flow } from './agents/migration';
+export { Routine, Mode, MODE_NAMES, MOVING_BUDGET, belongs } from './agents/routine';
+export type { TripStats } from './agents/routine';

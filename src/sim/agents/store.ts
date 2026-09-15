@@ -56,11 +56,24 @@ export type Handle = number;
 export const NO_HANDLE = -1;
 const ID_BITS = 24;
 const ID_MASK = (1 << ID_BITS) - 1;
+/**
+ * Seven bits of generation, not eight.
+ *
+ * Eight would put the top bit of a 32-bit integer in play, so a handle to a row
+ * on its 128th occupant came out negative -- and every "is this handle any good"
+ * test starts by rejecting a negative, because that is what "none" is. So handles
+ * silently stopped working on rows that had turned over 128 times, which in a
+ * city is the busiest rows: the ones people are constantly born into and die out
+ * of. Sixteen million ids and a hundred and twenty-eight generations, all
+ * non-negative, is the right side of that trade.
+ */
+const GEN_BITS = 7;
+const GEN_MASK = (1 << GEN_BITS) - 1;
 
 export const handleId = (h: Handle): number => h & ID_MASK;
-export const handleGen = (h: Handle): number => (h >>> ID_BITS) & 0xff;
+export const handleGen = (h: Handle): number => (h >>> ID_BITS) & GEN_MASK;
 export const makeHandle = (id: number, gen: number): Handle =>
-  (id & ID_MASK) | ((gen & 0xff) << ID_BITS);
+  (id & ID_MASK) | ((gen & GEN_MASK) << ID_BITS);
 
 /**
  * A table of rows.
@@ -132,7 +145,7 @@ export class Table<S extends Schema> {
   remove(id: number): void {
     if (id < 0 || id >= this.high || this.live[id] === 0) return;
     this.live[id] = 0;
-    this.gen[id] = (this.gen[id] + 1) & 0xff;
+    this.gen[id] = (this.gen[id] + 1) & GEN_MASK;
     this.freed[this.freedCount++] = id;
     this.alive--;
   }
