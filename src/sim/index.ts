@@ -69,3 +69,8 @@ export { Migration } from './agents/migration';
 export type { Flow } from './agents/migration';
 export { Routine, Mode, MODE_NAMES, MOVING_BUDGET, belongs } from './agents/routine';
 export type { TripStats } from './agents/routine';
+export { Junctions, Control, Light, CONTROL_NAMES, crosses } from './agents/junctions';
+export {
+  Traffic, Driver, Kind, DRIVER_NAMES, KIND_NAMES, VEHICLE_LENGTH,
+} from './agents/driving';
+export type { TrafficStats } from './agents/driving';

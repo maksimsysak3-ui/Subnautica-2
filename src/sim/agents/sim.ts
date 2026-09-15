@@ -26,7 +26,7 @@
  * is fixed either way; what changes is whether it arrives all at once.
  */
 
-import { Scheduler, Rate, slice, TICK_SECONDS } from './tick';
+import { Scheduler, Rate, slice, TICK_SECONDS, TICK_HZ } from './tick';
 import { Clock, TICKS_PER_DAY } from './calendar';
 import { buildLaneGraph, buildLaneIndex, laneBytes, indexBytes } from './lanes';
 import type { LaneGraph, LaneIndex } from './lanes';
@@ -35,6 +35,8 @@ import { Places, buildPlaces, reconcilePlaces, relinkPlaces } from './places';
 import { People, NONE } from './people';
 import { Migration } from './migration';
 import { Routine } from './routine';
+import { Junctions } from './junctions';
+import { Traffic } from './driving';
 import type { RoadGraph } from '../roadgraph';
 import type { City } from '../city';
 
@@ -93,6 +95,25 @@ const TRIPS_PER_TICK = 250;
 const ROUTE_BUDGET_MS = 1.2;
 const ROUTE_BUDGET_COUNT = 600;
 
+/**
+ * Vehicles driven one at a time.
+ *
+ * Fewer than the six thousand pedestrians and cyclists the flow model can move,
+ * because a vehicle is far more work: a leader to read, a junction to ask about, a
+ * following model to integrate. Two and a half thousand fills the streets of a
+ * district at the distance a player looks at one from, and nothing outside that
+ * district would be drawn anyway.
+ */
+const VEHICLE_BUDGET = 2500;
+
+/**
+ * Vehicles put on or taken off the road per tick.
+ *
+ * Because the alternative is a hundred cars appearing on one tick when the camera
+ * moves, which is both a visible pop and a spike in the frame it lands on.
+ */
+const VEHICLES_PER_TICK = 24;
+
 export interface SimReport {
   when: string;
   population: number;
@@ -117,6 +138,8 @@ export class Simulation {
   readonly people: People;
   readonly migration: Migration;
   readonly routine: Routine;
+  junctions: Junctions;
+  traffic: Traffic;
 
   /** The player's time control. 0 is paused. */
   speed = 1;
@@ -144,6 +167,9 @@ export class Simulation {
     this.migration = new Migration(this.people, this.places, this.clock, seed ^ 0x5eed);
     this.routine = new Routine(this.people, this.places, this.router, this.lanes,
       this.clock, seed ^ 0x707e);
+    this.junctions = new Junctions(this.lanes, net.nodes.length);
+    this.traffic = new Traffic(this.lanes, this.junctions, VEHICLE_BUDGET, seed ^ 0xca25);
+    this.traffic.informedBy(this.routine.load, this.router.paths);
     this.install();
   }
 
@@ -161,6 +187,33 @@ export class Simulation {
     s.add({
       name: 'route', rate: Rate.REALTIME,
       run: () => { this.router.serve(ROUTE_BUDGET_MS, ROUTE_BUDGET_COUNT); },
+    });
+
+    // The visible traffic. Driven in *real* seconds, not game seconds, because a
+    // tick is ninety-six game seconds and a following model needs a step of well
+    // under one -- see the note at the top of driving.ts. So this is the one system
+    // in the simulation that does not scale with the game speed: the streets look
+    // the same whether the player is watching the clock or racing it.
+    s.add({
+      name: 'drive', rate: Rate.REALTIME,
+      run: (tick) => {
+        this.traffic.drive(TICK_SECONDS, tick, tick / TICK_HZ);
+      },
+    });
+
+    // The signals. Vehicle-actuated, so they need the demand the driving model just
+    // measured -- which is why this runs after it rather than before.
+    s.add({
+      name: 'signals', rate: Rate.FAST,
+      run: (tick) => {
+        this.junctions.step(tick / TICK_HZ, this.traffic.waiting);
+      },
+    });
+
+    // How many vehicles there should be, from the congestion the flow model found.
+    s.add({
+      name: 'cars', rate: Rate.FAST,
+      run: () => { this.traffic.populate(VEHICLES_PER_TICK); },
     });
 
     // Moving. Every tick, all of it: this is the one system whose whole job is to
@@ -242,6 +295,8 @@ export class Simulation {
   look(x: number, z: number): void {
     this.routine.focusX = x;
     this.routine.focusZ = z;
+    this.traffic.focusX = x;
+    this.traffic.focusZ = z;
   }
 
   /**
@@ -257,6 +312,10 @@ export class Simulation {
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
+    this.junctions = new Junctions(this.lanes, net.nodes.length);
+    this.traffic.rebind(this.lanes);
+    (this.traffic as { junctions: Junctions }).junctions = this.junctions;
+    this.traffic.informedBy(this.routine.load, this.router.paths);
     relinkPlaces(this.lanes, this.index, this.places);
   }
 
@@ -330,6 +389,7 @@ export class Simulation {
   bytes(): number {
     return laneBytes(this.lanes) + indexBytes(this.index)
       + this.router.bytes() + this.places.bytes()
-      + this.people.bytes() + this.migration.bytes() + this.routine.bytes();
+      + this.people.bytes() + this.migration.bytes() + this.routine.bytes()
+      + this.junctions.bytes() + this.traffic.bytes();
   }
 }
