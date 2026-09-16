@@ -21,7 +21,7 @@
  * simulation arriving in one lump.
  */
 
-import { Simulation, View } from './sim';
+import { Simulation, View, heightAt } from './sim';
 import { Main } from './sim/mains';
 
 /** Which utility's connection markers each view turns on. */
@@ -34,6 +34,7 @@ import type { Camera } from './gfx/camera';
 import type { Stats } from './ui/stats';
 import { InfoViews } from './ui/info-views';
 import { DemandBars } from './ui/demand-bars';
+import { Thoughts } from './ui/thoughts';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 
@@ -55,6 +56,7 @@ export class LiveCity {
   private sim: Simulation | null = null;
   readonly info: InfoViews;
   private readonly bars: DemandBars;
+  private readonly thoughts: Thoughts;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
   private readoutAt = -1;
@@ -71,6 +73,9 @@ export class LiveCity {
   ) {
     this.info = new InfoViews(ui, (view, meta) => this.onView(view, meta));
     this.bars = new DemandBars(ui);
+    // The graded height, not the raw terrain: a bubble belongs over the building,
+    // and the building stands on ground the city cut flat for it.
+    this.thoughts = new Thoughts(ui, heightAt);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
   }
 
@@ -95,6 +100,7 @@ export class LiveCity {
     this.running = on;
     this.info.visible = on;
     this.bars.visible = on;
+    this.thoughts.visible = on;
     if (on && this.sim !== null && !this.founded) {
       this.sim.found(FOUNDING);
       this.founded = true;
@@ -161,6 +167,13 @@ export class LiveCity {
       waiting: sim.growth?.report.waiting ?? 0,
       released: sim.growth?.report.released ?? 0,
     }));
+
+    // What the buildings are complaining about, over the buildings. Projected
+    // here rather than drawn by the renderer: a dozen icons that have to be
+    // clickable are interface, and the artwork is the same artwork as the button
+    // the player has to press to fix it.
+    this.thoughts.refresh(now, this.camera, this.camera.width, this.camera.height,
+      sim.complaints.list);
 
     if (now - this.readoutAt >= READOUT_MS) {
       this.readoutAt = now;

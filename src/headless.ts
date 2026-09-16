@@ -18,9 +18,9 @@ import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
   emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
-  INSTANCE_FLOATS, previewRoad, baseHeightAt,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt, GRIPE_INFO, Purpose,
 } from './sim';
-import type { Dirty } from './sim';
+import type { Dirty, Simulation } from './sim';
 import { LiveCity } from './live';
 import { Main } from './sim/mains';
 
@@ -890,10 +890,14 @@ export async function probeViews(): Promise<{
     return true;
   };
   press('Information views');
-  const icons = ui.querySelectorAll('button').length - 1;
+  // Scoped to the rail rather than to the whole interface layer. The thought
+  // bubbles are buttons too and they live in the same layer, so counting every
+  // button in it counted the city's complaints as information views.
+  const rail = ui.querySelector('[data-panel="view-rail"]');
+  const icons = rail === null ? 0 : rail.querySelectorAll('button').length;
   const railShown = shown('view-rail');
-  const views = Array.from(ui.querySelectorAll('button'))
-    .map((b) => b.title).filter((t) => t !== 'Information views');
+  const views = rail === null ? []
+    : Array.from(rail.querySelectorAll('button')).map((b) => (b as HTMLButtonElement).title);
 
   press('Traffic');
   live.update(1 / 30, performance.now());
@@ -922,6 +926,120 @@ export async function probeViews(): Promise<{
     trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
     closed, closedBack: moved(plainPx, backPx),
     population: live.population, views,
+  };
+}
+
+/**
+ * The thought bubbles, over a real city, in a real camera.
+ *
+ * The simulation's own test proves which gripe a building has. What this proves
+ * is the half between that and the player, which fails silently: a projection
+ * with the wrong sign puts every bubble behind the camera on screen mirrored, a
+ * layer the browser has not laid out projects everything to the top-left corner,
+ * and an icon table with a missing key draws a blank circle. None of those throw.
+ */
+export async function probeThoughts(width: number, height: number): Promise<{
+  complaints: number; shown: number; inside: number; distinct: string[];
+  behind: number; cardOpen: boolean; cardTitle: string; cardFix: boolean;
+  closed: boolean; tally: Record<string, number>;
+  /** What it says once the mains are no longer the answer to everything. */
+  next: Record<string, number>; nextShown: number; nextDistinct: string[];
+}> {
+  configureSim(LITE);
+  const ui = document.createElement('div');
+  ui.style.cssText = `position:relative;width:${width}px;height:${height}px`;
+  document.body.appendChild(ui);
+
+  const gpu = await Gpu.headless(width, height);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  const live = new LiveCity(renderer, camera, stats, ui);
+  renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
+  renderer.build();
+  live.playing = true;
+
+  camera.setViewport(width, height);
+  camera.yaw = 0.6; camera.pitch = 0.42; camera.distance = 300;
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.update();
+
+  const sim = (live as unknown as { sim: Simulation }).sim;
+  // Staffed by hand. A power station makes nothing until somebody turns up to
+  // run it, and a city founded eight households ago has nobody to send -- so a
+  // probe that only waited would photograph a blackout and call it a feature.
+  // What is being tested here is the bubbles, not how long a city takes to hire.
+  const pl = sim.places;
+  for (let id = 0; id < pl.count; id++) {
+    if (pl.live[id] === 0 || pl.col.purpose[id] !== Purpose.SERVICE) continue;
+    for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+  }
+
+  // Long enough for the utility pass to settle, the coverage to go round every
+  // branch, and the gripe sweep to get round the whole table more than once.
+  for (let i = 0; i < 400; i++) live.update(1 / 20, performance.now() + i * 50);
+  const list = sim.complaints.list;
+  const tally: Record<string, number> = {};
+  for (const [g, info] of Object.entries(GRIPE_INFO)) {
+    const n = sim.complaints.tally[Number(g)];
+    if (n > 0) tally[info.title] = n;
+  }
+
+  const bubbles = Array.from(ui.querySelectorAll('[data-bubble]'))
+    .filter((b) => b instanceof HTMLElement && b.style.display !== 'none') as HTMLElement[];
+  let inside = 0;
+  const distinct = new Set<string>();
+  for (const b of bubbles) {
+    const x = parseFloat(b.style.left), y = parseFloat(b.style.top);
+    if (x >= 0 && x <= width && y >= 0 && y <= height) inside++;
+    distinct.add(b.title);
+  }
+
+  // Nothing behind the camera. The whole city is in front of it at this angle,
+  // so the honest test is the count of bubbles whose world point is behind --
+  // which the projection is supposed to drop.
+  const m = camera.viewProj;
+  let behind = 0;
+  for (const c of list) {
+    const w = m[3] * c.x + m[11] * c.z + m[15];
+    if (w <= 0) behind++;
+  }
+
+  const card = ui.querySelector('[data-panel="thought-card"]');
+  const open = (): boolean => card instanceof HTMLElement && card.style.display !== 'none';
+  bubbles[0]?.click();
+  const cardOpen = open();
+  const cardText = card?.textContent ?? '';
+  const cardTitle = bubbles[0]?.title ?? '';
+  const cardFix = cardText.length > cardTitle.length + 10;
+  bubbles[0]?.click();
+  const closed = !open();
+
+  // And now the second reading. The gripes are strictly ordered -- a building
+  // with no water has one problem and it is the water -- so a city short of a
+  // utility exercises exactly one row of the table however many rows there are.
+  // Granting the mains and the coverage is not a fix to the city; it is the only
+  // way to ask what it would say next, and what it says next is the half of the
+  // table the first reading can never reach.
+  for (let u = 0; u < 3; u++) sim.utilities.have[u].fill(255);
+  for (const reach of sim.services.reach) reach.fill(1);
+  for (let i = 0; i < 12; i++) sim.complaints.survey();
+  live.update(1 / 20, performance.now() + 60000);
+  const next: Record<string, number> = {};
+  for (const [g, info] of Object.entries(GRIPE_INFO)) {
+    const n = sim.complaints.tally[Number(g)];
+    if (n > 0) next[info.title] = n;
+  }
+  const after = Array.from(ui.querySelectorAll('[data-bubble]'))
+    .filter((b) => b instanceof HTMLElement && b.style.display !== 'none') as HTMLElement[];
+  const nextDistinct = [...new Set(after.map((b) => b.title))];
+
+  return {
+    complaints: list.length, shown: bubbles.length, inside,
+    distinct: [...distinct], behind, cardOpen, cardTitle, cardFix, closed, tally,
+    next, nextShown: after.length, nextDistinct,
   };
 }
 

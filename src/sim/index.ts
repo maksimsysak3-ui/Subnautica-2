@@ -83,3 +83,6 @@ export type { DispatchStats } from './agents/dispatch';
 export type { Cover } from './agents/services';
 export { Views, View, VIEWS, VIEW_GRID, Look, NO_DATA } from './agents/views';
 export type { ViewInfo, Stat } from './agents/views';
+export { Gripe, GRIPE_INFO } from './agents/complaints';
+export type { Complaint, GripeInfo } from './agents/complaints';
+export { Want, WANT_NAMES } from './agents/demand';

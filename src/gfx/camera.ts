@@ -52,11 +52,24 @@ export class Camera {
   readonly invViewProj = mat4();
   readonly eye: Vec3 = [0, 0, 0];
 
+  /**
+   * The viewport, in pixels.
+   *
+   * Kept as well as the aspect because anything that projects a world point to a
+   * screen position needs the size and not the ratio -- and taking that from the
+   * DOM instead means a layer whose box the browser has not laid out yet projects
+   * everything to zero.
+   */
+  width = 1;
+  height = 1;
+
   private aspect = 1;
   private scratch: Vec3 = [0, 0, 0];
 
   setViewport(width: number, height: number): void {
-    this.aspect = width / Math.max(height, 1);
+    this.width = Math.max(1, width);
+    this.height = Math.max(1, height);
+    this.aspect = this.width / this.height;
   }
 
   /** Recomputes the derived matrices. Call once per frame, after input. */

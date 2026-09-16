@@ -42,6 +42,7 @@ import { Services } from './services';
 import { Dispatch } from './dispatch';
 import { Demand } from './demand';
 import { Growth } from './growth';
+import { Complaints } from './complaints';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 
@@ -169,6 +170,8 @@ export class Simulation {
    * world underneath it, and only a game grows.
    */
   readonly growth: Growth | undefined;
+  /** What each building is complaining about, for the bubbles over them. */
+  readonly complaints: Complaints;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -223,6 +226,8 @@ export class Simulation {
     this.people.informedBy(this.services, this.utilities);
     this.migration.informedBy(this.services, this.utilities);
     this.demand = new Demand(this.places, this.people, this.migration);
+    this.complaints = new Complaints(this.places, this.people, this.utilities,
+      this.services);
     this.growth = world === undefined ? undefined
       : new Growth(world, this.demand, () => this.people.population);
     this.views = new Views({
@@ -377,6 +382,14 @@ export class Simulation {
     s.add({
       name: 'focus', rate: Rate.BRISK,
       run: () => { this.routine.refocus(); },
+    });
+
+    // What each building is unhappy about. A slice a visit, like everything else
+    // that walks a table, so a city of thirty thousand buildings costs what a
+    // village does and gets round them all in a few seconds.
+    s.add({
+      name: 'gripe', rate: Rate.FAST,
+      run: () => { this.complaints.survey(); },
     });
 
     // What the city is short of. Every input is a running total somebody else
@@ -574,6 +587,6 @@ export class Simulation {
       + this.people.bytes() + this.migration.bytes() + this.routine.bytes()
       + this.junctions.bytes() + this.traffic.bytes()
       + this.utilities.bytes() + this.services.bytes() + this.views.bytes()
-      + this.dispatch.bytes();
+      + this.dispatch.bytes() + this.complaints.bytes();
   }
 }
