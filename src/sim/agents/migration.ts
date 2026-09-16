@@ -52,13 +52,19 @@ import type { Utilities } from './utilities';
 /**
  * Households a day that hear about a city of no size at all.
  *
- * Six, which at ninety seconds to the day is one every fifteen seconds at full
- * appeal. Enough that a player who has just drawn one street and zoned it sees
- * somebody move in almost at once -- the first family arriving is the moment the
- * game starts -- and few enough that a village stays a village until the player
- * does something about it.
+ * This used to be six, on the reasoning that a village should stay a village
+ * until the player does something about it. That reasoning was right about the
+ * game it was written for and wrong about this one: back then the buildings went
+ * up the instant they were zoned and this rate only decided how fast they filled.
+ * Now it decides how fast the city is *built*, because a house is only worth
+ * building when somebody wants it -- so six a day meant a player who zoned a
+ * district watched twenty houses appear and then nothing at all for five minutes.
+ *
+ * Eighteen is one every five seconds at full appeal, which is the pace of a new
+ * town actually being founded, and the compounding term below still does all the
+ * work of turning that town into a city.
  */
-const ENQUIRIES_PER_DAY = 6;
+const ENQUIRIES_PER_DAY = 18;
 
 /**
  * Extra households a day per thousand people already living there.

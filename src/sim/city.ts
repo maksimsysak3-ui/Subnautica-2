@@ -71,6 +71,34 @@ const CELL = 8;
 const MAX_SLOPE = 4.5;
 
 /**
+ * How far a building is bedded into the ground it stands on, in metres.
+ *
+ * It was a flat quarter of a metre, for everything, and that quarter of a metre
+ * was eating the ground floor of the whole city. Every model's site detail is
+ * built on its own y = 0 plane and is exactly as thick as such things are: a lawn
+ * is six centimetres, a patio seven, a driveway and a car park about the same. A
+ * building sunk twenty-five centimetres therefore had all of it underground -- the
+ * drives, the forecourts, the parking, the doorsteps -- so a house read as a box
+ * standing in open grass, set back from its own street, with nothing between the
+ * kerb and the front wall.
+ *
+ * Four centimetres is what it is actually for: the ground inside a pad is pinned
+ * flat at exactly this height, so the only gap to hide is the hairline one a
+ * shared corner or a float can leave. The site detail now stands two to three
+ * centimetres proud of the ground, which is where it belongs.
+ */
+const BEDDED = 0.04;
+
+/**
+ * And how far something the ground was *not* graded for is bedded in.
+ *
+ * Trees. They stand on whatever is there, sampled at one point, so the ground
+ * under a trunk falls away on a slope -- and a quarter of a metre is what stops a
+ * hillside of oaks standing on their roots.
+ */
+const BEDDED_WILD = 0.25;
+
+/**
  * A quarter turn, in radians.
  *
  * The instance format carries yaw as an angle rather than as one of four
@@ -697,7 +725,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       y: level,
     });
     out.add(
-      cx, cz, level - 0.25, yaw,
+      cx, cz, level - BEDDED, yaw,
       bx + 0.8, bz + 0.8, p.height * 1.2 + 3, p.index,
       1, 0, 0, 0,
     );
@@ -763,7 +791,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     into.took = p.def.zone === 'nature' ? NO_CLAIM : [gx, gz, w, d];
     if (grade === true) padOwner.push(out.owner);
     into.add(
-      (x0 + x1) / 2, (z0 + z1) / 2, level - 0.25, yaw,
+      (x0 + x1) / 2, (z0 + z1) / 2, level - (grade === false ? BEDDED_WILD : BEDDED), yaw,
       // A tenth of a cell of slack: the declared lot is what asset-test holds
       // the meshes inside, and a box exactly on that boundary would cull a
       // prototype's own parapet at the screen edge.
@@ -819,6 +847,11 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     // by an old save, must not quietly come up as a suburb.
     if (!world.land.owns(plotAt(GRID, gx, gz))) return null;
     if (reach[at(gx, gz)] > REACH_CELLS) return null;
+    // Zoned, but not yet earned. Painting a district is a request; what fills it
+    // is the city growing into it, a few buildings at a time, in whatever order
+    // the demand for each zone pays for -- see `agents/growth.ts`. A world that
+    // nobody is growing has this mask all ones and never notices it.
+    if (world.grown[at(gx, gz)] === 0) return null;
     const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;

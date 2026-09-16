@@ -40,6 +40,8 @@ import { Traffic } from './driving';
 import { Utilities } from './utilities';
 import { Services } from './services';
 import { Dispatch } from './dispatch';
+import { Demand } from './demand';
+import { Growth } from './growth';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 
@@ -52,8 +54,8 @@ const VIEW_BRANCH: Record<number, string> = {
 import type { Stat } from './views';
 import { Stage } from './people';
 import type { RoadGraph } from '../roadgraph';
-import type { City } from '../city';
-import type { Mains } from '../mains';
+import type { City, Dirty } from '../city';
+import type { World } from '../world';
 
 /**
  * Ticks to get round the whole population, per system.
@@ -158,6 +160,15 @@ export class Simulation {
   readonly utilities: Utilities;
   readonly services: Services;
   readonly dispatch: Dispatch;
+  readonly demand: Demand;
+  /**
+   * What turns zoned land into buildings, or undefined when there is no world.
+   *
+   * The tools and the tests build a simulation over a `City` alone, which is a
+   * city that already exists and has nothing left to grow into. Only a game has a
+   * world underneath it, and only a game grows.
+   */
+  readonly growth: Growth | undefined;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -170,11 +181,12 @@ export class Simulation {
   /** Nodes in the road graph, kept so a rewire does not need the graph passed in. */
   private nodes = 0;
 
-  /** The mains the player has laid, or undefined for a test with no world. */
-  private mains: Mains | undefined;
+  /** The state the city is derived from, or undefined for a test with no world. */
+  private world: World | undefined;
 
-  constructor(city: City, net: RoadGraph, seed = 0x1b0b0, mains?: Mains) {
-    this.mains = mains;
+  constructor(city: City, net: RoadGraph, seed = 0x1b0b0, world?: World) {
+    this.world = world;
+    const mains = world?.mains;
     this.nodes = net.nodes.length;
     this.lanes = buildLaneGraph(net);
     this.index = buildLaneIndex(this.lanes);
@@ -210,6 +222,9 @@ export class Simulation {
       this.utilities, this.traffic, this.router, this.lanes, this.clock, seed ^ 0xd15);
     this.people.informedBy(this.services, this.utilities);
     this.migration.informedBy(this.services, this.utilities);
+    this.demand = new Demand(this.places, this.people, this.migration);
+    this.growth = world === undefined ? undefined
+      : new Growth(world, this.demand, () => this.people.population);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,
@@ -363,6 +378,31 @@ export class Simulation {
       name: 'focus', rate: Rate.BRISK,
       run: () => { this.routine.refocus(); },
     });
+
+    // What the city is short of. Every input is a running total somebody else
+    // already keeps, so this is a dozen divisions -- but the bars are read by a
+    // human, and a number that twitches four times a second is unreadable.
+    s.add({
+      name: 'demand', rate: Rate.BRISK,
+      run: () => { this.demand.refresh(); },
+    });
+
+    // Zoned land coming up. On STEADY rather than anything faster because each
+    // visit that releases something costs a rebuild of the ground it released --
+    // the same cost as the player drawing a road -- and three seconds apart is
+    // both smooth to watch and cheap to pay for.
+    const growth = this.growth;
+    if (growth !== undefined) {
+      s.add({
+        name: 'grow', rate: Rate.STEADY,
+        run: () => { growth.grow(Rate.STEADY / TICKS_PER_DAY); },
+      });
+      // What is still waiting, for the readout. A whole-map pass, so: rarely.
+      s.add({
+        name: 'survey', rate: Rate.SLOW,
+        run: () => { growth.survey(); },
+      });
+    }
   }
 
   /** Spends real time. */
@@ -404,16 +444,13 @@ export class Simulation {
   get viewStats(): Stat[] { return this.views.stats(this.openView); }
 
   /**
-   * The player laid or lifted a main.
+   * The rectangle growth has released since this was last asked, or null.
    *
-   * Only the utility networks change: nothing about a pipe moves a building, a road
-   * or a citizen, so this is one pass over the buildings rather than the rebuild a
-   * road edit costs.
+   * Asked from outside the tick: acting on it rebuilds the city, and rebuilding
+   * the city calls back into the simulation, which must not happen while the
+   * scheduler is partway through a tick's systems.
    */
-  mainsChanged(mains: Mains): void {
-    this.mains = mains;
-    this.utilities.rewire(this.lanes, this.nodes, mains);
-  }
+  grew(): Dirty | null { return this.growth?.take() ?? null; }
 
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }
@@ -436,15 +473,15 @@ export class Simulation {
    * every building is re-pointed at whatever road now serves it. Places keep their
    * ids throughout -- a road edit must not make the whole city change jobs.
    */
-  roadsChanged(net: RoadGraph, mains?: Mains): void {
-    if (mains !== undefined) this.mains = mains;
+  roadsChanged(net: RoadGraph, world?: World): void {
+    if (world !== undefined) this.world = world;
     this.lanes = buildLaneGraph(net);
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
     this.services.resize(net.grid * 8);
     this.views.rebind(this.lanes);
-    this.utilities.rewire(this.lanes, net.nodes.length, this.mains);
+    this.utilities.rewire(this.lanes, net.nodes.length, this.world?.mains);
     this.nodes = net.nodes.length;
     this.junctions = new Junctions(this.lanes, net.nodes.length);
     // Before the traffic model is rebound: rebinding it drops every vehicle, and
@@ -471,7 +508,7 @@ export class Simulation {
     // A new building has to be put on a network before anybody asks whether it has
     // power, and a demolished one has to come off before its supply is counted.
     if (added > 0 || removed.length > 0) {
-      this.utilities.rewire(this.lanes, this.nodes, this.mains);
+      this.utilities.rewire(this.lanes, this.nodes, this.world?.mains);
     }
     if (removed.length === 0) return;
     // Anything the machine had open at a building that is no longer there.

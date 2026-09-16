@@ -33,6 +33,8 @@ import type { Renderer } from './gfx/renderer';
 import type { Camera } from './gfx/camera';
 import type { Stats } from './ui/stats';
 import { InfoViews } from './ui/info-views';
+import { DemandBars } from './ui/demand-bars';
+import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 
 /** How often the readout's city rows are rewritten, in milliseconds. */
@@ -52,6 +54,7 @@ const FOUNDING = 8;
 export class LiveCity {
   private sim: Simulation | null = null;
   readonly info: InfoViews;
+  private readonly bars: DemandBars;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
   private readoutAt = -1;
@@ -67,6 +70,7 @@ export class LiveCity {
     ui: HTMLElement,
   ) {
     this.info = new InfoViews(ui, (view, meta) => this.onView(view, meta));
+    this.bars = new DemandBars(ui);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
   }
 
@@ -90,6 +94,7 @@ export class LiveCity {
   set playing(on: boolean) {
     this.running = on;
     this.info.visible = on;
+    this.bars.visible = on;
     if (on && this.sim !== null && !this.founded) {
       this.sim.found(FOUNDING);
       this.founded = true;
@@ -99,7 +104,7 @@ export class LiveCity {
   private reconcile(city: City, net: RoadGraph, roads: boolean): void {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
-      this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world.mains);
+      this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
       this.uploaded = -1;
       if (this.running && !this.founded) {
         this.sim.found(FOUNDING);
@@ -110,7 +115,7 @@ export class LiveCity {
     }
     // Order matters: the lane graph has to exist in its new shape before the
     // places are re-pointed at it, and `roadsChanged` is what rebuilds it.
-    if (roads) this.sim.roadsChanged(net, this.renderer.world.mains);
+    if (roads) this.sim.roadsChanged(net, this.renderer.world);
     this.sim.buildingsChanged(city);
     // The grid named lanes that no longer exist, or buildings that do not.
     this.uploaded = -1;
@@ -131,6 +136,13 @@ export class LiveCity {
     sim.look(this.camera.focus[0], this.camera.focus[2]);
     sim.advance(dt, now);
 
+    // Land the city has just grown into. Taken here rather than called back from
+    // inside the tick on purpose: rebuilding re-enters this object through
+    // `Renderer.onCity`, and doing that partway through a tick would reconcile the
+    // places while the systems that had not run yet still held the old ones.
+    const grew = sim.grew();
+    if (grew !== null) this.renderer.rebuild(grew);
+
     const view = this.info.view;
     if (view !== View.NONE) {
       const meta = sim.views.built === view ? this.info.meta(view) : null;
@@ -142,6 +154,13 @@ export class LiveCity {
       }
       this.info.refresh(now, (): Stat[] => sim.viewStats);
     }
+
+    // What the city is short of, and how much painted land is waiting on it.
+    this.bars.refresh(now, (): DemandReading | null => ({
+      want: sim.demand.want,
+      waiting: sim.growth?.report.waiting ?? 0,
+      released: sim.growth?.report.released ?? 0,
+    }));
 
     if (now - this.readoutAt >= READOUT_MS) {
       this.readoutAt = now;

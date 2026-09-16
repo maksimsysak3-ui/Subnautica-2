@@ -79,6 +79,21 @@ export function zoneOf(code: number):
 }
 
 /**
+ * Which of `ZONES` a code is, without unpacking the rest of it.
+ *
+ * `zoneOf` allocates an object, which is the right shape for the handful of calls
+ * that want the density and the theme as well and the wrong shape entirely for a
+ * pass that asks the question of twenty thousand cells a second. Minus one for
+ * unzoned.
+ */
+export function zoneIndexOf(code: number): number {
+  if (code <= 0) return -1;
+  const zd = ((code - 1) / THEME_SLOTS) | 0;
+  const z = (zd / DENSITIES.length) | 0;
+  return z < ZONES.length ? z : -1;
+}
+
+/**
  * Something standing on the map that was placed rather than grown.
  *
  * Services, landmarks and signature buildings. They are world state for the
@@ -109,6 +124,25 @@ export interface World {
   land: Land;
   /** Power lines, water pipes and sewers, as laid by the player. */
   mains: Mains;
+  /**
+   * Which zoned cells the city has actually earned, one byte each.
+   *
+   * Zoning marks land; this says which of the marked land has come up. Nothing
+   * grows on a cell whose byte is zero, so a painted district fills in over game
+   * days as the demand for its zone is met -- see `agents/growth.ts`, which is the
+   * only thing that ever sets a one.
+   *
+   * It is a mask rather than a queue because the spawner is a pure function of the
+   * world: the same zoning always produces the same city, which is what lets an
+   * edit rebuild one rectangle instead of the map. A list of pending buildings
+   * would break that; a bit per cell keeps it, because it is part of the world the
+   * spawner reads.
+   *
+   * A fresh array is all ones -- released -- so a world that nobody is growing (a
+   * generated city, a screenshot, a test) behaves exactly as it always did. The
+   * world the player starts on zeroes it, which is what turns the mask on.
+   */
+  grown: Uint8Array;
 }
 
 /** Cells of buildable block between corridors. */
@@ -122,6 +156,8 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
   return {
     grid, net: new RoadGraph(grid), zones: new Uint8Array(grid * grid), lots: [],
     land: startingLand(), mains: new Mains(grid),
+    // All ones: released. See `World.grown`.
+    grown: new Uint8Array(grid * grid).fill(1),
   };
 }
 
@@ -149,6 +185,12 @@ export function paint(world: World, gx: number, gz: number, w: number, d: number
       // road was bulldozed has to be clearable.
       if (code !== 0 && !world.net.nearRoad(x, z)) continue;
       world.zones[z * world.grid + x] = code;
+      // Cleared ground has to be earned again. Bulldozing a street of houses and
+      // repainting it must not put them straight back -- the city lost them, and
+      // the demand that pays for them is the same demand everything else queues
+      // behind. Only on erase: repainting a grown cell from housing to shops is a
+      // conversion, and a conversion happens now.
+      if (code === 0) world.grown[z * world.grid + x] = 0;
     }
   }
 }
@@ -436,6 +478,9 @@ export function startingWorld(grid = simConfig.cityGrid): World {
   // player's opening move is to lay three pipes down the road they were given is
   // a tutorial, not a game -- and every road they draw from here is bare.
   world.mains.layEverywhere(world.net);
+  // The one world that is actually played is the one world that grows. Everything
+  // painted from here on waits its turn -- see `World.grown`.
+  world.grown.fill(0);
   return world;
 }
 

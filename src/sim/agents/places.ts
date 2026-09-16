@@ -225,6 +225,16 @@ export class Places {
    * to maintain and the thing that actually happens.
    */
   readonly vacancies = new Int32Array(PURPOSES);
+  /**
+   * Every post of each purpose, filled or not.
+   *
+   * Separate from `vacancies`, which is only the empty ones. The demand model
+   * wants both: how many jobs a city has says whether it needs more industry, and
+   * how many are going begging says whether it needs more people.
+   */
+  readonly posts = new Int32Array(PURPOSES);
+  /** Homes of each purpose -- which is only ever HOME, kept for symmetry. */
+  readonly dwellings = new Int32Array(PURPOSES);
 
   constructor(capacity = 1 << 16) {
     this.vacantHomes = new Pool(capacity);
@@ -289,11 +299,16 @@ export class Places {
       ? teachesOf(def.id) : Teaches.NONE;
 
     this.byPurpose[purpose].add(id);
-    if (homes > 0) { this.homes.add(id); this.vacantHomes.add(id); this.homeCapacity += homes; }
+    if (homes > 0) {
+      this.homes.add(id); this.vacantHomes.add(id);
+      this.homeCapacity += homes;
+      this.dwellings[purpose] += homes;
+    }
     if (jobs > 0) {
       this.vacantJobs[purpose].add(id);
       this.jobCapacity += jobs;
       this.vacancies[purpose] += jobs;
+      this.posts[purpose] += jobs;
     }
     if (branch !== NO_BRANCH) this.byBranch[branch].add(id);
     if (c.teaches[id] !== Teaches.NONE && c.serves[id] > 0) {
@@ -307,7 +322,9 @@ export class Places {
     if (this.table.live[id] === 0) return;
     const c = this.table.col;
     this.homeCapacity -= c.homes[id];
+    this.dwellings[c.purpose[id]] -= c.homes[id];
     this.jobCapacity -= c.jobs[id];
+    this.posts[c.purpose[id]] -= c.jobs[id];
     this.vacancies[c.purpose[id]] -= Math.max(0, c.jobs[id] - c.working[id]);
     this.households -= c.living[id];
     this.workers -= c.working[id];

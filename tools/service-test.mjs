@@ -262,7 +262,7 @@ section('a district off the grid has nothing');
   const run = (piped) => {
     const world = defaultWorld();
     if (!piped) world.mains.clear();
-    const sim = new Simulation(makeCity(world), world.net, 0x91e5, world.mains);
+    const sim = new Simulation(makeCity(world), world.net, 0x91e5, world);
     const pc = sim.places.col;
     for (let p = 0; p < sim.places.count; p++) {
       if (sim.places.live[p] === 0 || pc.purpose[p] !== Purpose.SERVICE) continue;

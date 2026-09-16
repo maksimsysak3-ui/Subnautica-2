@@ -525,6 +525,16 @@ export class Renderer {
     // worth, and made every building outside them read as unconnected on a map
     // that had been fully serviced a moment earlier.
     this.world.mains = next.mains;
+    // Which of its zoned cells have come up. Without this a loaded save keeps the
+    // *starting* map's mask -- which is all zeroes, because the starting map is
+    // the one that grows -- and the city it was saved from comes back as bare
+    // zoning.
+    this.world.grown = next.grown;
+    // And the plots that were bought. Same bug as the mains had and with the same
+    // shape: every check for owned land reads this object, so a loaded city with
+    // half the map bought came back owning the four plots the starting map does,
+    // and nothing outside them would build.
+    this.world.land = next.land;
     // A world that arrives whole was not built by the player watching it, so
     // nothing in it rises: every instance in the next rebuild is dated to that
     // moment, and the growth curve treats them all as new. Clearing the ages

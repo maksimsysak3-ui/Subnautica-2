@@ -657,6 +657,10 @@ export class BuildTools {
       z1 = Math.max(z1, placed.grounds[1] + placed.grounds[3]);
     }
     this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
+    // The real building now stands where the ghost was, and two copies of it in
+    // the same place is what "it is stuck there" looks like. The next pointer
+    // move puts a fresh ghost up for the next one.
+    this.renderer.setGhost(null);
     this.showMark();
   }
 
@@ -720,6 +724,12 @@ export class BuildTools {
     if (!this.active) {
       this.renderer.mark = null;
       this.renderer.setRoadPreview(null);
+      // And the placement ghost, which this used to leave standing. Putting the
+      // tool away cleared the footprint and the road preview and left the
+      // building itself hanging over the map with nothing to dismiss it --
+      // Escape included, because Escape's last act is to select the look tool
+      // and arrive here.
+      this.renderer.setGhost(null);
       return;
     }
     if (this.tool.kind === 'land') {
@@ -974,10 +984,9 @@ export class BuildTools {
       this.enterLand(tool.kind === 'land');
     }
     this.tool = tool;
-    // The connection markers follow the pipe in hand: pick water and every source
-    // of it says whether a main reaches it, which is the question you are holding
-    // the tool to answer.
+    // Anything the last tool was showing goes with it.
     this.renderer.showDots(0);
+    if (tool.kind !== 'place') this.renderer.setGhost(null);
     this.from = null;
     this.curveA = null;
     this.curveVia = null;

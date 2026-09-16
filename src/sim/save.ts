@@ -60,6 +60,15 @@ interface SaveFile {
    */
   mains?: number[];
   /**
+   * Which zoned cells have come up, run-length encoded the same way.
+   *
+   * Absent in a save written before buildings had to be earned. Those cities were
+   * built the instant they were zoned, so a file without this loads with every
+   * cell released -- which is exactly what the player had when they saved it.
+   * Loading one with the mask clear would knock their whole city down.
+   */
+  grown?: number[];
+  /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
    *
@@ -147,6 +156,7 @@ export function serialise(world: World, name: string, auto = false): string {
     links,
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
+    grown: encodeZones(world.grown),
     land: [world.land.lo, world.land.hi],
     lots: world.lots.map((l) => (l.grounds === undefined
       ? [l.id, l.gx, l.gz, l.w, l.d, l.yaw] as SaveFile['lots'][number]
@@ -193,6 +203,13 @@ export function deserialise(text: string): { world: World; name: string; at: num
     world.mains.rebuild();
   } else {
     world.mains.layEverywhere(world.net);
+  }
+  if (Array.isArray(file.grown) && file.grown.length > 0) {
+    // Zeroed first: the run-length decoder only writes the runs that are not
+    // zero, and a fresh world's mask is all ones -- so decoding over it without
+    // this would release every cell the file says is still waiting.
+    world.grown.fill(0);
+    decodeZones(file.grown, world.grown);
   }
   if (Array.isArray(file.land) && file.land.length === 2) {
     world.land.lo = file.land[0] >>> 0;

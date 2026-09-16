@@ -311,6 +311,11 @@ Promise<{ lit: number[]; debug: number[]; count: number }> {
   const g = renderer.world.grid;
   renderer.world.net.addCells(4, g >> 1, g - 5, g >> 1, 'street');
   paint(renderer.world, 6, (g >> 1) + 3, g - 12, 10, zoneCode('residential', 'high'));
+  // Released, because this probe is about the shader and not about the economy.
+  // Zoned land now waits for the city to earn it -- which takes game days and a
+  // running simulation -- and without this the block the probe is watching never
+  // comes up at all, so it measured a frame in which nothing happened and passed.
+  renderer.world.grown.fill(1);
   renderer.rebuild();
 
   const lit: number[] = [];
