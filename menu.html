@@ -5074,11 +5074,11 @@ function frame(now) {
   /* Wear and tear, from what the car is actually doing: running wide loads
      the floor and wing, and big lateral spikes work the suspension. */
   if (veh.offTrack && veh.speed > 12) {
-    damage.floor = Math.min(1, damage.floor + frameDt * 0.012);
-    damage.wing = Math.min(1, damage.wing + frameDt * 0.006);
+    damage.floor = Math.min(1, damage.floor + dt * 0.012);
+    damage.wing = Math.min(1, damage.wing + dt * 0.006);
   }
   const gLat = Math.abs(veh.ay) / 9.81;
-  if (gLat > 4.4) damage.susp = Math.min(1, damage.susp + frameDt * (gLat - 4.4) * 0.004);
+  if (gLat > 4.4) damage.susp = Math.min(1, damage.susp + dt * (gLat - 4.4) * 0.004);
 
   // place the car on the road
   const ws = scene.userData.waterShader;
