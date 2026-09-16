@@ -25,7 +25,6 @@ import { services, signatures, ASSET_INDEX } from '../sim';
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon, GLYPH as BRANCH_GLYPH } from './zones';
-import { EXTRA_GLYPH } from './info-views';
 import { Main, MAIN_COLOURS } from '../sim/mains';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
@@ -111,6 +110,7 @@ const BRANCH_STYLE: Record<Branch, { label: string; colour: string }> = {
   health: { label: 'Health', colour: '#e8637f' },
   education: { label: 'Schools', colour: '#e0b048' },
   water: { label: 'Water', colour: '#3fb9c8' },
+  sewage: { label: 'Sewage', colour: '#6f9c56' },
   power: { label: 'Power', colour: '#e5d14a' },
   transport: { label: 'Transport', colour: '#8f7ce8' },
   government: { label: 'Civic', colour: '#c8ccd6' },
@@ -1316,7 +1316,7 @@ export class BuildTools {
       mainIcon(BRANCH_GLYPH.water, MAIN_COLOURS[Main.WATER]), MAIN_COLOURS[Main.WATER]);
     add(pipes, { kind: 'main', main: Main.SEWAGE },
       'Sewers — drag along a road to lay, shift-drag to lift',
-      mainIcon(EXTRA_GLYPH.sewage, MAIN_COLOURS[Main.SEWAGE]), MAIN_COLOURS[Main.SEWAGE]);
+      mainIcon(BRANCH_GLYPH.sewage, MAIN_COLOURS[Main.SEWAGE]), MAIN_COLOURS[Main.SEWAGE]);
     tools.appendChild(pipes);
 
     const clear = group();

@@ -6,12 +6,11 @@
  * placing circles; a *grid* produces a game about connecting things, which is what
  * running a city actually is. So:
  *
- *   THE NETWORK IS THE ROAD NETWORK. Mains run under the streets, as they do, so a
- *   building on a road connected to a power station has power and one on an
- *   isolated road does not, however close together the two are. The player never
- *   draws a pipe -- they draw roads, which they were doing anyway -- and the
- *   failure mode is legible the moment they look at it: that district is not joined
- *   to this one.
+ *   THE NETWORK IS WHAT THE PLAYER LAID. Mains run under the streets, as they do,
+ *   but a street does not come with them: see `mains.ts`. A building is served when
+ *   a main of that kind reaches it, and the failure mode is legible the moment it
+ *   is looked at -- there is no pipe down that road. Rubbish is the exception and
+ *   still follows the roads, because a lorry drives to it.
  *
  *   SUPPLY AND DEMAND ARE PER NETWORK. Each connected component of the road graph
  *   totals what its generators make and what its buildings draw. Short, and every
@@ -19,9 +18,11 @@
  *   because that is how a grid fails. Two districts joined by one street share
  *   their power; cut the street and one of them goes dark.
  *
- *   WATER HAS TO COME FROM SOMEWHERE. A pump inland pumps nothing. It has to sit
- *   on the river, which is a constraint the player can see and solve, and it is
- *   the one thing about water that is not the same as power.
+ *   WATER HAS TO COME FROM SOMEWHERE, and where decides how much. A pumping
+ *   station on the river takes surface water and manages its full rating; one
+ *   inland sinks a borehole and manages rather over a third of it. So a city away
+ *   from the water can still be supplied, by building more of them, and reaching
+ *   the river is worth doing rather than compulsory.
  *
  *   SEWAGE GOES SOMEWHERE TOO. What a treatment works cannot handle is discharged
  *   into the river, and the river carries it downstream -- so the city that dumps
@@ -63,7 +64,14 @@ interface Supply {
   sewage?: number;
   /** Units of rubbish dealt with a week. */
   rubbish?: number;
-  /** Must stand on water to work at all. */
+  /**
+   * Draws from surface water, so it does far better standing on the river.
+   *
+   * Not a requirement any more. A pumping station away from the river sinks a
+   * borehole and takes groundwater, which is a real way to supply a town and a
+   * much smaller one -- so an inland city can have water without the river
+   * dictating where it is built, and riverside is still worth walking to.
+   */
   needsRiver?: boolean;
   /** Days of supply it can hold, for a reservoir or a water tower. */
   storeDays?: number;
@@ -105,7 +113,8 @@ const SUPPLY: Record<string, Supply> = {
 /** Whether an asset is one of the producers, for the test to check the table. */
 export function producerIds(): string[] {
   return ASSETS.filter((a) => a.zone === 'service'
-    && (a.branch === 'power' || a.branch === 'water')).map((a) => a.id);
+    && (a.branch === 'power' || a.branch === 'water' || a.branch === 'sewage'))
+    .map((a) => a.id);
 }
 
 export const supplyOf = (id: string): Supply | undefined => SUPPLY[id];
@@ -126,6 +135,18 @@ const BIN_WORST = 12;
 
 /** Metres a pump may be from water and still draw from it. */
 const RIVER_REACH = 70;
+
+/**
+ * What a pumping station manages inland, against what it manages on the river.
+ *
+ * A borehole rather than a surface intake. Enough that a city nowhere near water
+ * is supplied by building more of them, and little enough that the river is worth
+ * reaching for -- which is the trade a real water authority makes and, before
+ * this, a trade the player could not make at all: a pump off the river pumped
+ * nothing, so a map whose river ran along one edge had one place its water could
+ * come from.
+ */
+const GROUNDWATER = 0.38;
 
 /**
  * How one network is doing.
@@ -604,7 +625,7 @@ export class Utilities {
     if ((def?.sim?.powerKW ?? 0) > 0) ok *= this.at(p, Util.POWER);
     if (supply.needsRiver === true) {
       const level = waterAt(c.x[p], c.z[p]);
-      if (level === null && !this.nearRiver(c.x[p], c.z[p])) return 0;
+      if (level === null && !this.nearRiver(c.x[p], c.z[p])) ok *= GROUNDWATER;
     }
     return ok;
   }

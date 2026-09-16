@@ -143,17 +143,26 @@ section('water has to come from somewhere');
     const pump = ASSETS.findIndex((a) => a.id === 'svc.water.pump');
     ok(pump >= 0, 'the library has a pump in it');
     // Two one-road cities, one with the pump on the river and one without.
+    const gas = ASSETS.findIndex((a) => a.id === 'svc.power.gas');
     const build = (at) => {
       const net = new RoadGraph(200);
       net.add(at[0] - 220, at[1], at[0] + 220, at[1], 'street', 0);
-      const city = makeCity(defaultWorld());
-      const sim = new Simulation(city, net, 0x9a1);
+      // Empty land, one road, one pump and one generator. The first version of
+      // this built the whole generated city around the road, so the two runs had
+      // different buildings attached to their single street and therefore
+      // different power margins -- and a pump with no power makes no water, which
+      // looked exactly like a pump with no river.
+      const sim = new Simulation(makeCity(emptyWorld(200)), net, 0x9a1);
       const p = sim.places.add(pump, at[0], at[1], 0, 0);
+      const g = sim.places.add(gas, at[0] + 90, at[1] + 40, 0, 0);
       sim.utilities.rewire(sim.lanes, net.nodes.length);
-      // Staff it, so that only the river is in question.
-      const jobs = sim.places.col.jobs[p];
-      for (let k = 0; k < jobs; k++) sim.places.hire(p);
+      // Staffed, so that only the river is in question.
+      for (const b of [p, g]) {
+        for (let k = 0; k < sim.places.col.jobs[b]; k++) sim.places.hire(b);
+      }
       sim.utilities.settle(1);
+      ok(sim.utilities.at(p, Util.POWER) > 0.9, 'the pump has power',
+        `${sim.utilities.at(p, Util.POWER).toFixed(2)}`);
       let made = 0;
       for (const n of sim.utilities.networks) made += n.waterMade;
       return made;
@@ -163,7 +172,9 @@ section('water has to come from somewhere');
     console.log(`  pump on the river       ${Math.round(wet).toLocaleString()} m³ a day`);
     console.log(`  pump inland             ${Math.round(dry).toLocaleString()} m³ a day`);
     ok(wet > 0, 'a pump on the river pumps', `${wet}`);
-    ok(dry === 0, 'a pump inland pumps nothing', `${dry}`);
+    ok(dry > 0, 'and one inland still pumps, from a borehole', `${dry}`);
+    ok(dry < wet * 0.6, 'but nothing like as much, so the river is worth reaching',
+      `${Math.round(dry)} against ${Math.round(wet)}`);
   }
 }
 

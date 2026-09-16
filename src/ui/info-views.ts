@@ -40,11 +40,6 @@ export const EXTRA_GLYPH: Record<string, string> = {
          + 'M24 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z'
          + 'M24 18.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z'
          + 'M24 28.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z',
-  // A flanged pipe with something leaving it. A manhole cover reads as a circle
-  // at sixteen pixels and a circle reads as nothing.
-  sewage: 'M5 13h5v20H5zM38 13h5v20h-5zM10 18h28v12H10z'
-        + 'M24 30c-.4 0-.7.2-.9.5C21.5 32.9 19 36.6 19 39.2 19 41.9 21.2 44 24 44'
-        + 's5-2.1 5-4.8c0-2.6-2.5-6.3-4.1-8.7A1.1 1.1 0 0 0 24 30z',
   // A wheeled bin: lid, handle, tapered body, two ribs cut through it.
   rubbish: 'M20 5h8v4h-8zM13 10h22v5H13z'
          + 'M14 16h20l-1.7 24.2a3 3 0 0 1-3 2.8H18.7a3 3 0 0 1-3-2.8L14 16z'

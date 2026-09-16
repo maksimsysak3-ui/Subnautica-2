@@ -106,6 +106,10 @@ export const BRANCH_STYLE: Record<Branch, Palette> = {
     label: 'Water & sewage', deep: '#0f4657', base: '#2aa3c4', light: '#84d0e2', wash: '#ccebf3',
     blurb: 'Pumping, treatment and storage. Nobody notices it until it stops.',
   },
+  sewage: {
+    label: 'Sewage', deep: '#24401f', base: '#4e7a3e', light: '#8fb87a', wash: '#d6e6c9',
+    blurb: 'Works and treatment. Everything a city drinks it has to send somewhere.',
+  },
   power: {
     label: 'Electricity', deep: '#6a4a0f', base: '#e0a52c', light: '#f2cf82', wash: '#faecc9',
     blurb: 'Generation and the substations that get it to the street.',
@@ -416,6 +420,16 @@ const SCENES: Record<Category, Scene> = {
     { faces: box(-0.5, 2.2, -1.8, 1.0, 0.9, 1.0), tone: 'accent' },
     { faces: gabled(-0.65, 3.1, -1.95, 1.3, 0.15, 1.3, 0.7), tone: 'body' },
   ],
+  // Two circular settlement tanks and the low control block between them. Not
+  // used while the branch has a flat glyph, which it does -- kept because the
+  // icon builder falls back to a scene and a branch without one is a hole.
+  sewage: [
+    { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
+    { faces: drum(-2.4, 0, -1.2, 1.5, 0.75), tone: 'dark' },
+    { faces: drum(0.6, 0, -1.6, 1.7, 0.75), tone: 'dark' },
+    { faces: box(-1.1, 0, 1.3, 2.6, 1.5, 1.4), tone: 'body' },
+    { faces: faceZ(-0.6, 0.4, 2.71, 0.7, 0.7), tone: 'accent' },
+  ],
   // Two storage tanks, a filter house and a pipe run.
   water: [
     { faces: plate(-2.9, 0, -2.9, 5.8, 5.8), tone: 'ground' },
@@ -593,6 +607,11 @@ export const GLYPH: Record<Branch, string> = {
            + ' 0 5.4-3.1 10.2-7.8 12.6v2.5h4.6c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6H16.4'
            + 'c-.9 0-1.6-.7-1.6-1.6s.7-1.6 1.6-1.6H21v-2.5c-4.7-2.4-7.8-7.2-7.8-12.6'
            + ' 0-4.5 2.2-8.5 5.8-10.9z',
+  // A flanged pipe with something leaving it. A manhole cover reads as a circle
+  // at sixteen pixels and a circle reads as nothing.
+  sewage: 'M5 13h5v20H5zM38 13h5v20h-5zM10 18h28v12H10z'
+        + 'M24 30c-.4 0-.7.2-.9.5C21.5 32.9 19 36.6 19 39.2 19 41.9 21.2 44 24 44'
+        + 's5-2.1 5-4.8c0-2.6-2.5-6.3-4.1-8.7A1.1 1.1 0 0 0 24 30z',
   // An envelope, flap down: the one postal mark everybody reads instantly.
   post: 'M7 11h34c1.7 0 3 1.4 3 3v20c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3V14c0-1.6 1.3-3 3-3z'
       + 'M6.5 15.4 24 27.2l17.5-11.8v3.6L24 30.8 6.5 19z',

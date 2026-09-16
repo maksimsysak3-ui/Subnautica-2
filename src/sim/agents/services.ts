@@ -100,11 +100,12 @@ const STANDARD: Record<string, Standard> = {
   post: { good: 700, worst: 1800, per: 90, who: 'all' },
   government: { good: 1200, worst: 3000, per: 200, who: 'all' },
   water: { good: 0, worst: 0, per: 1, who: 'all' },
+  sewage: { good: 0, worst: 0, per: 1, who: 'all' },
   power: { good: 0, worst: 0, per: 1, who: 'all' },
 };
 
 /** Branches whose coverage is a network along the roads, answered elsewhere. */
-const PIPED = new Set(['water', 'power']);
+const PIPED = new Set(['water', 'sewage', 'power']);
 
 /**
  * Cells stamped per visit, across all of a branch's stations.
