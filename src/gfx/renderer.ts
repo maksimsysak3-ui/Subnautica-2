@@ -32,7 +32,7 @@ import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
 import { buildGroundMap } from './ground-map';
 import {
-  overlayLayout, buildOverlayMap, writeOverlay, clearOverlay, OverlayMode,
+  overlayLayout, buildOverlayMap, writeOverlay, writeSurface, clearOverlay, OverlayMode,
 } from './overlay-map';
 import { MAIN_COLOURS, Main as MainKind } from '../sim/mains';
 import { buildMainsMesh, MAIN_VERTEX_FLOATS } from './mains-mesh';
@@ -990,7 +990,11 @@ export class Renderer {
       city: cityLayout, cull: cullLayout, grass: grassLayout,
     };
     // Survives a rebuild -- the grid is a reading about the city, not part of it.
-    const overlay = buildOverlayMap(device, overlayBgl, VIEW_GRID);
+    // The overlay grid is a reading about the city and survives a rebuild. The
+    // surface map that rides with it is one texel per zoning cell, so it is
+    // sized to the world rather than to the view.
+    const overlay = buildOverlayMap(device, overlayBgl, VIEW_GRID,
+      this.world.grid, this.world.grid * CELL_METRES);
     this.res = {
       layouts,
       grass, grassBuffer: this.grassUniform,
@@ -1002,6 +1006,9 @@ export class Renderer {
       ...this.makeDots(device, dotsBgl, 1),
       ...this.loadWorld(layouts),
     };
+    // `loadWorld` ran before `this.res` existed, so the ground it just worked
+    // out has not been uploaded yet. Every later build goes up from inside it.
+    this.uploadSurface();
 
     this.unsubscribeResize?.();
     this.unsubscribeResize = this.gpu.onResize((v) => this.onResize(v));
@@ -1329,6 +1336,7 @@ export class Renderer {
     // and a simulation that missed any of the three would be modelling a city
     // that is not on screen.
     this.city = city;
+    this.uploadSurface();
     // The mains follow the roads. A street carries its services, so drawing one
     // puts them in and demolishing one takes them out, and a building beside a
     // road is on them without the player doing anything else about it.
@@ -2112,6 +2120,18 @@ export class Renderer {
     this.dotKind = kind;
     this.buildDots();
     this.buildMainsLines();
+  }
+
+  /**
+   * Sends up what the ground is made of.
+   *
+   * Silent before the first build, because `loadWorld` runs once before the
+   * resources it is filling in exist -- `build` makes the call that covers it.
+   */
+  private uploadSurface(): void {
+    const res = this.res;
+    if (!res || !this.city) return;
+    writeSurface(this.gpu.device, res.overlay, this.city.surface);
   }
 
   setOverlay(grid: Uint8Array, look: number,

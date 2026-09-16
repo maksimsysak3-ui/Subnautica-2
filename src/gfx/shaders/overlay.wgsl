@@ -19,7 +19,9 @@ struct Overlay {
   extent: f32,
   // How strongly to tint, 0 to 1.
   strength: f32,
-  pad: f32,
+  // Metres across the whole surface map. Survives a view being closed, because
+  // the ground's surfaces are not a view.
+  cells: f32,
   // The ends and middle of the colour ramp.
   lo: vec4f,
   mid: vec4f,
@@ -29,6 +31,18 @@ struct Overlay {
 @group(1) @binding(0) var overlayTex: texture_2d<f32>;
 @group(1) @binding(1) var overlaySampler: sampler;
 @group(1) @binding(2) var<uniform> overlay: Overlay;
+// What the ground is made of: r paving, g yard, b garden, a park. All zero is
+// open country. One texel per zoning cell, filtered, so a boundary between two
+// surfaces is a metre or two wide rather than a staircase of eight-metre steps.
+@group(1) @binding(3) var surfaceTex: texture_2d<f32>;
+
+/** The surface weights under a world position. Zero everywhere off the map. */
+fn surfaceAt(world : vec3f) -> vec4f {
+  if (overlay.cells <= 0.0) { return vec4f(0.0); }
+  let uv = world.xz / overlay.cells + vec2f(0.5);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec4f(0.0); }
+  return textureSampleLevel(surfaceTex, overlaySampler, uv, 0.0);
+}
 
 // The ramp: bad at nothing, middling in the middle, good at one. Two mixes rather
 // than a gradient texture, because three stops is all a legend can explain and a

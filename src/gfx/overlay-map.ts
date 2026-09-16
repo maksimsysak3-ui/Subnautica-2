@@ -23,6 +23,26 @@
 /** rg8unorm: r is the reading, g is whether there is one. */
 export const OVERLAY_FORMAT: GPUTextureFormat = 'rg8unorm';
 
+/**
+ * The ground's own surfaces, which ride along in the same bind group.
+ *
+ * Not an overlay -- it is there whether or not a view is open, and it is what
+ * turns a block of pasture with houses standing in it into a street with
+ * gardens, forecourts and yards. It lives here because it is sampled by exactly
+ * the two shaders that already take this group, the terrain and the roads, and
+ * a group of its own would be a fourth layout, a fourth bind, and two more
+ * pipeline layouts for one texture.
+ *
+ * Four channels because filtering is the point. A class id cannot be blended --
+ * halfway between garden and yard is paving, which is nonsense -- so each class
+ * is its own channel and the filter mixes weights, which is exactly right: a
+ * garden that meets a yard should meet it over a metre or two, the way a real
+ * boundary does.
+ *
+ * r paving, g yard, b garden, a park. All zero is open country.
+ */
+export const SURFACE_FORMAT: GPUTextureFormat = 'rgba8unorm';
+
 /** How the ground is tinted. Must match `overlayTint` in common.wgsl. */
 export const OverlayMode = { OFF: 0, SURFACE: 1, UNDERGROUND: 2 } as const;
 
@@ -34,6 +54,11 @@ export interface OverlayMap {
   group: GPUBindGroup;
   /** Cells across; the texture is this square. */
   size: number;
+  /** The ground surfaces, at one texel per zoning cell. */
+  surface: GPUTexture;
+  /** Cells across the surface texture, and metres across the whole of it. */
+  surfaceCells: number;
+  extent: number;
   /**
    * The staging copy, written on the CPU and uploaded whole. Typed with its buffer
    * because WebGPU's queue will not take a SharedArrayBuffer view and the bare
@@ -42,7 +67,14 @@ export interface OverlayMap {
   data: Uint8Array<ArrayBuffer>;
 }
 
-/** Floats in the uniform: mode, extent, strength, pad, then three ramp colours. */
+/**
+ * Floats in the uniform: mode, extent, strength, and the metres across the
+ * surface map -- then three ramp colours.
+ *
+ * The fourth was padding and is now the one field that has to survive a view
+ * being closed: the surfaces are drawn whether or not anything is overlaid, so
+ * `clearOverlay` puts the mode back to zero and leaves this alone.
+ */
 const UNIFORM_FLOATS = 4 + 12;
 
 export function overlayLayout(device: GPUDevice): GPUBindGroupLayout {
@@ -52,12 +84,13 @@ export function overlayLayout(device: GPUDevice): GPUBindGroupLayout {
       { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+      { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
     ],
   });
 }
 
 export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
-  size: number): OverlayMap {
+  size: number, surfaceCells: number, extent: number): OverlayMap {
   const texture = device.createTexture({
     label: 'overlay-map',
     size: { width: size, height: size },
@@ -75,21 +108,60 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
     size: UNIFORM_FLOATS * 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+  const surface = device.createTexture({
+    label: 'surface-map',
+    size: { width: surfaceCells, height: surfaceCells },
+    format: SURFACE_FORMAT,
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture: surface },
+    new Uint8Array(surfaceCells * surfaceCells * 4),
+    { bytesPerRow: surfaceCells * 4 }, { width: surfaceCells, height: surfaceCells });
   const group = device.createBindGroup({
     label: 'overlay-bg', layout,
     entries: [
       { binding: 0, resource: view },
       { binding: 1, resource: sampler },
       { binding: 2, resource: { buffer: uniform } },
+      { binding: 3, resource: surface.createView() },
     ],
   });
   // Two bytes a texel, and writeTexture wants rows padded to 256 bytes -- which a
   // power-of-two grid at two bytes a texel already is for anything from 128 up.
   const data = new Uint8Array(size * size * 2);
-  device.queue.writeBuffer(uniform, 0, new Float32Array(UNIFORM_FLOATS));
+  const u = new Float32Array(UNIFORM_FLOATS);
+  u[3] = extent;
+  device.queue.writeBuffer(uniform, 0, u);
   device.queue.writeTexture({ texture }, data, { bytesPerRow: size * 2 },
     { width: size, height: size });
-  return { texture, view, sampler, uniform, group, size, data };
+  return {
+    texture, view, sampler, uniform, group, size, data,
+    surface, surfaceCells, extent,
+  };
+}
+
+/**
+ * Class per cell in, weights per texel out.
+ *
+ * The expansion happens here rather than in the shader because it is what makes
+ * the filtering mean something: every texel holds one class at full weight, so
+ * what the sampler returns between two of them is a blend of those two and
+ * nothing else. Written whole -- a megabyte and a half on a full map, once per
+ * rebuild, against working out which texels moved.
+ */
+export function writeSurface(device: GPUDevice, map: OverlayMap,
+  kinds: Uint8Array): void {
+  const cells = map.surfaceCells;
+  const data = new Uint8Array(cells * cells * 4);
+  const n = Math.min(kinds.length, cells * cells);
+  for (let i = 0; i < n; i++) {
+    const k = kinds[i];
+    if (k === 0) continue;
+    // 1 garden -> b, 2 paving -> r, 3 yard -> g, 4 park -> a.
+    data[i * 4 + (k === 2 ? 0 : k === 3 ? 1 : k === 1 ? 2 : 3)] = 255;
+  }
+  device.queue.writeTexture({ texture: map.surface }, data,
+    { bytesPerRow: cells * 4 }, { width: cells, height: cells });
 }
 
 /** Turns "#rrggbb" into linear-ish floats the shader can mix. */
@@ -122,7 +194,7 @@ export function writeOverlay(device: GPUDevice, map: OverlayMap, grid: Uint8Arra
   device.queue.writeTexture({ texture: map.texture }, data,
     { bytesPerRow: map.size * 2 }, { width: map.size, height: map.size });
   const u = new Float32Array(UNIFORM_FLOATS);
-  u[0] = mode; u[1] = extent; u[2] = strength; u[3] = 0;
+  u[0] = mode; u[1] = extent; u[2] = strength; u[3] = map.extent;
   const lo = hex(ramp[0]), mid = hex(ramp[1]), hi = hex(ramp[2]);
   u.set([lo[0], lo[1], lo[2], 0], 4);
   u.set([mid[0], mid[1], mid[2], 0], 8);
@@ -132,5 +204,9 @@ export function writeOverlay(device: GPUDevice, map: OverlayMap, grid: Uint8Arra
 
 /** Turns the overlay off without touching the texture. */
 export function clearOverlay(device: GPUDevice, map: OverlayMap): void {
-  device.queue.writeBuffer(map.uniform, 0, new Float32Array(UNIFORM_FLOATS));
+  const u = new Float32Array(UNIFORM_FLOATS);
+  // Everything off except the map's own extent, which the surfaces need and
+  // which has nothing to do with any view being open.
+  u[3] = map.extent;
+  device.queue.writeBuffer(map.uniform, 0, u);
 }

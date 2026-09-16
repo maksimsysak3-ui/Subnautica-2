@@ -335,6 +335,67 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   var col = turf * grass + dirt * earth + stone * rock;
 
+  // ---- what the city laid over it -------------------------------------
+  //
+  // A block that has come up is not a field with buildings standing in it. It
+  // has forecourts, drives, yards, car parks and gardens, and without them the
+  // best buildings in the world sit in open pasture with nothing between the
+  // kerb and the front wall -- which is the single thing that made this map
+  // read as a model rather than as a place.
+  //
+  // Built out of the same octaves as the countryside rather than painted over
+  // it: a flat tint on top of five scales of noise sits there like a sticker,
+  // and paving that does not answer to the light and the weather stops being
+  // ground. The weights arrive filtered, so a garden meets a yard over a metre
+  // or two the way a real boundary does.
+  let surf = surfaceAt(in.world);
+  let built = surf.r + surf.g;
+  if (surf.r + surf.g + surf.b + surf.a > 0.002) {
+    // Paving: precast slabs. The joints are the whole of it -- concrete
+    // without them is a grey plane, and at two metres they are the scale the
+    // eye actually reads a forecourt at.
+    var paved = mix(vec3f(0.118, 0.116, 0.110), vec3f(0.166, 0.163, 0.155),
+                    smoothstep(0.35, 0.72, wear));
+    if (fBlade > 0.0) {
+      let g = vnoise(in.world.xz * (1.0 / 0.11) + vec2f(3.7, 12.1));
+      paved += vec3f(0.030, 0.029, 0.027) * smoothstep(0.78, 0.99, g) * fBlade;
+    }
+    // Held back hard, and faded out early. A two-metre lattice is guidance at
+    // walking distance and graph paper from anywhere else, which is the same
+    // mistake the zoning grid used to make over the whole map.
+    let joint = gridLine(in.world.xz, 2.0, dxz) * (1.0 - smoothstep(0.05, 0.20, mpp));
+    paved *= 1.0 - joint * 0.11;
+
+    // Yard: laid asphalt, darker and more worn, with the patching and the oil
+    // that every industrial hardstanding has on it.
+    var yard = mix(vec3f(0.049, 0.048, 0.047), vec3f(0.081, 0.079, 0.075),
+                   smoothstep(0.25, 0.80, ground));
+    yard *= 1.0 + (wear - 0.5) * 0.42;
+    if (fTuft > 0.0) {
+      let mend = vnoise(in.world.xz * (1.0 / 5.5) + vec2f(21.0, 3.0));
+      yard *= 1.0 + (smoothstep(0.55, 0.75, mend) - 0.25) * 0.30 * fTuft;
+    }
+
+    // Garden: the same turf, mown. Tidier and deeper than a field, because
+    // that is what the difference between a lawn and a meadow is -- and the
+    // parcel colouring that makes open country read as farmland is exactly
+    // what a suburb must not have.
+    let garden = mix(turf, vec3f(0.044, 0.099, 0.034), 0.52) * (0.94 + wear * 0.12);
+    // Park: watered, and striped by the mower at a scale you can see.
+    let stripe = 0.5 - abs(fract(dot(in.world.xz, vec2f(0.19, 0.14))) - 0.5);
+    let park = mix(turf, vec3f(0.036, 0.112, 0.030), 0.66)
+             * (1.0 + stripe * 0.14 * (1.0 - smoothstep(0.30, 1.20, mpp)));
+
+    // Grass and earth give way to it; rock does not -- an outcrop is still an
+    // outcrop, and paving a cliff face is how a map ends up with grey ramps
+    // running up the hills.
+    let take = 1.0 - rock;
+    col = mix(col, paved, surf.r * take);
+    col = mix(col, yard, surf.g * take);
+    col = mix(col, garden, surf.b * take * grass);
+    col = mix(col, park, surf.a * take * grass);
+  }
+
   // ---- the zoning grid ------------------------------------------------
   //
   // Only while a build tool is in hand. A lattice mown into the turf every
@@ -372,7 +433,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let hz = vnoise((in.world.xz + vec2f(0.0, e)) * (1.0 / scale));
     // The amplitude is a real height, so grass gets a few centimetres and
     // broken rock gets more.
-    let amp = (0.055 * grass + 0.030 * earth + 0.110 * rock) * fTuft;
+    let amp = (0.055 * grass + 0.030 * earth + 0.110 * rock)
+            * fTuft * (1.0 - built * 0.85);
     let bump = vec3f(-(hx - h0) * amp, e, -(hz - h0) * amp);
     n = normalize(n + normalize(bump) - vec3f(0.0, 1.0, 0.0));
   }
@@ -400,7 +462,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let halfway = normalize(toEye + sun);
   let sheen = pow(max(dot(n, halfway), 0.0), 9.0)
             * (1.0 - smoothstep(0.30, 0.75, sun.y))
-            * (grass * 0.55 + earth * 0.30);
+            * (grass * 0.55 + earth * 0.30) * (1.0 - built);
   col += sunLight(sun) * sheen * 0.28 * lit;
 
   // Wet ground.
@@ -413,7 +475,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // both than turf does -- grass sheds water and stays green, mud does not.
   let soak = camera.weather.w;
   if (soak > 0.002) {
-    let porous = clamp(earth * 0.85 + rock * 0.70 + grass * 0.30, 0.0, 1.0);
+    // Tarmac is the one surface that really does mirror the sky when it is wet.
+    let porous = clamp(earth * 0.85 + rock * 0.70 + grass * 0.30 + built * 0.55,
+                       0.0, 1.0);
     let w = soak * porous;
     col *= mix(1.0, 0.58, w);
     let gloss = pow(max(dot(n, normalize(toEye + sun)), 0.0), 64.0);

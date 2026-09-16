@@ -34,7 +34,7 @@ import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './gr
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
 import { REACH_CELLS } from './roadgraph';
-import { defaultWorld, zoneOf, BLOCK, PERIOD } from './world';
+import { defaultWorld, zoneOf, zoneIndexOf, BLOCK, PERIOD } from './world';
 import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
@@ -136,6 +136,22 @@ export interface City {
    * grid is the simulation's.
    */
   cover: Uint8Array;
+  /**
+   * What the ground is made of, one `Surface` class per cell.
+   *
+   * A city is not a lawn with buildings on it. Every block in the first version
+   * of this was open pasture right up to the front wall -- no forecourts, no
+   * yards, no car parks, nothing between a warehouse and the kerb but grass --
+   * and that one fact did more to make the map read as a model than anything
+   * about the buildings themselves.
+   *
+   * A class rather than a colour, because the terrain shader owns the colours:
+   * the ground is computed from noise at five scales and a flat tint painted
+   * over it would sit on top of that like a sticker. What goes to the GPU is
+   * which surface each cell is, and the shader builds each one out of the same
+   * octaves the countryside is built from.
+   */
+  surface: Uint8Array;
   /** The road surface, generated from the network. Drawn in one call. */
   roads: RoadMesh;
 }
@@ -309,6 +325,23 @@ const NO_CLAIM: [number, number, number, number] = [0, 0, 0, 0];
 export interface Dirty { gx: number; gz: number; w: number; d: number; }
 
 /**
+ * What a cell's ground is, for the terrain shader.
+ *
+ * Five, because five is what a city's ground actually is at this scale: open
+ * country, the gardens and verges of a residential street, the paving of a high
+ * street or a civic forecourt, the hardstanding of an industrial yard or a car
+ * park, and parkland. Anything finer is a texture and anything coarser is the
+ * lawn this replaced.
+ */
+export const Surface = {
+  COUNTRY: 0,
+  GARDEN: 1,
+  PAVING: 2,
+  YARD: 3,
+  PARK: 4,
+} as const;
+
+/**
  * How far a change can reach, in cells.
  *
  * Two of the largest things these passes can grow, plus the depth a frontage
@@ -342,6 +375,8 @@ interface Standing {
   grid: number;
   cells: Uint8Array;
   hard: Uint8Array;
+  /** See `City.surface`. Kept between rebuilds like the cover map. */
+  surface: Uint8Array;
   /** The buffer itself, not a copy of it. See below. */
   out: Instances;
   pads: Pad[];
@@ -1237,19 +1272,41 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // four neighbours per cell over four hundred thousand cells, and outside the
   // edit the answer is the one already in the array.
   const cover = carry !== null ? carry.cover : new Uint8Array(GRID * GRID);
+  const surface = carry !== null ? carry.surface : new Uint8Array(GRID * GRID);
   const gz0 = carry === null ? 0 : Math.max(0, coverBox.z0 - 1);
   const gz1 = carry === null ? GRID - 1 : Math.min(GRID - 1, coverBox.z1 + 1);
   const gx0 = carry === null ? 0 : Math.max(0, coverBox.x0 - 1);
   const gx1 = carry === null ? GRID - 1 : Math.min(GRID - 1, coverBox.x1 + 1);
   for (let gz = gz0; gz <= gz1; gz++) {
     for (let gx = gx0; gx <= gx1; gx++) {
-      if (hard[at(gx, gz)] === 1) { cover[at(gx, gz)] = 0; continue; }
+      const i = at(gx, gz);
+      // What this cell's ground is. A street is the road mesh's business and
+      // gets nothing; everywhere else, the zoning says it -- a block that has
+      // come up is a block with kerbs, drives and yards in it whether or not a
+      // building happens to stand on this particular cell, which is the whole
+      // difference between a district and a field with houses in it. Anything
+      // built that was never zoned -- a hospital, a depot, a landmark -- gets
+      // its forecourt from having been built at all.
+      let kind: number = Surface.COUNTRY;
+      if (net.cls[i] === 0) {
+        const zi = world.grown[i] !== 0 ? zoneIndexOf(world.zones[i]) : -1;
+        kind = zi === 0 ? Surface.GARDEN
+          : zi === 1 || zi === 3 ? Surface.PAVING
+            : zi === 2 ? Surface.YARD
+              : zi === 4 ? Surface.PARK
+                : hard[i] === 1 ? Surface.PAVING : Surface.COUNTRY;
+      }
+      surface[i] = kind;
+      if (hard[i] === 1) { cover[i] = 0; continue; }
+      // Grass does not grow on tarmac. It does grow in a garden and in a park,
+      // which is what those two are.
+      if (kind === Surface.PAVING || kind === Surface.YARD) { cover[i] = 0; continue; }
       let open = 4;
       if (gx > 0 && hard[at(gx - 1, gz)] === 1) open--;
       if (gx + 1 < GRID && hard[at(gx + 1, gz)] === 1) open--;
       if (gz > 0 && hard[at(gx, gz - 1)] === 1) open--;
       if (gz + 1 < GRID && hard[at(gx, gz + 1)] === 1) open--;
-      cover[at(gx, gz)] = 110 + open * 36;
+      cover[i] = 110 + open * 36;
     }
   }
 
@@ -1267,7 +1324,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // What stands now, for the next edit to reuse.
   standing = {
     world, grid: GRID, cells, hard, out, pads, padOwner, pop: population, cover,
-    roads: net.version,
+    surface, roads: net.version,
   };
 
   const fresh = cached === null;
@@ -1288,7 +1345,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
 
   return {
     data: joined.subarray(0, total) as Float32Array<ArrayBuffer>,
-    count: total / INSTANCE_FLOATS, population, cover, roads,
+    count: total / INSTANCE_FLOATS, population, cover, surface, roads,
   };
 }
 
