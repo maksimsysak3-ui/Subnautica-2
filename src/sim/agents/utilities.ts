@@ -45,6 +45,8 @@ import { ASSETS } from '../../assets/registry';
 import { BRANCHES } from '../../assets/types';
 import { waterAt } from '../river';
 import type { LaneGraph } from './lanes';
+import { Main } from '../mains';
+import type { Mains } from '../mains';
 
 /** The four utilities. */
 export const Util = { POWER: 0, WATER: 1, SEWAGE: 2, GARBAGE: 3 } as const;
@@ -125,8 +127,16 @@ const BIN_WORST = 12;
 /** Metres a pump may be from water and still draw from it. */
 const RIVER_REACH = 70;
 
-/** How a network is doing. One per connected component of the road graph. */
+/**
+ * How one network is doing.
+ *
+ * One per connected component *of that utility's mains*, not of the road graph.
+ * Since the player lays the pipes, two districts can share a grid and have separate
+ * water, and a single set of components could not say so.
+ */
 export interface Network {
+  /** Which utility this is a network of. */
+  kind: number;
   /** Places on it. */
   buildings: number;
   /** Kilowatts made and drawn. */
@@ -154,6 +164,15 @@ export interface UtilityReport {
   margin: Float64Array;
   /** Share of buildings with each utility satisfied. */
   served: Float64Array;
+  /**
+   * Share of buildings a main of each utility actually reaches.
+   *
+   * Distinct from `served`, and the distinction is the whole point of the mains:
+   * a building can be on the grid and the grid short of power, or off it
+   * entirely. Those want different things from the player -- another power
+   * station, or a line down that street -- and one number cannot say which.
+   */
+  onMain: Float64Array;
   /** Share of buildings not on any network with a producer at all. */
   cutOff: number;
   /** Cubic metres a day going into the river untreated. */
@@ -165,14 +184,22 @@ export interface UtilityReport {
 }
 
 export class Utilities {
-  /** Which network each place is on, or -1 for one with no road. */
-  private net: Int32Array = new Int32Array(0);
+  /**
+   * Which network each place is on, per utility, or -1 for one nothing reaches.
+   *
+   * Four arrays rather than one, which is the whole of the mains change as far as
+   * everything downstream is concerned: a building can be on the grid and off the
+   * water, and before this it could not.
+   */
+  private netOf: Int32Array[] = [];
+  /** How many networks there are of each utility. */
+  private readonly netCount = new Int32Array(UTILS);
   /** Satisfaction per place per utility, 0..255. */
   readonly have: Uint8Array[] = [];
   /** Units of rubbish sitting at each place. */
   private pile: Float32Array = new Float32Array(0);
 
-  /** The networks, rebuilt whenever the roads change. */
+  /** The networks, rebuilt by every `settle`. One entry per utility network. */
   networks: Network[] = [];
   /** Component of each road node. */
   private node: Int32Array = new Int32Array(0);
@@ -180,11 +207,15 @@ export class Utilities {
   readonly report: UtilityReport = {
     networks: 0, biggest: 0,
     margin: new Float64Array(UTILS), served: new Float64Array(UTILS),
+    onMain: new Float64Array(UTILS),
     cutOff: 0, spilled: 0, piled: 0, smelly: 0,
   };
 
   constructor(readonly places: Places) {
-    for (let u = 0; u < UTILS; u++) this.have.push(new Uint8Array(0));
+    for (let u = 0; u < UTILS; u++) {
+      this.have.push(new Uint8Array(0));
+      this.netOf.push(new Int32Array(0));
+    }
   }
 
   /** Satisfaction of a utility at a place, 0 to 1. */
@@ -193,9 +224,15 @@ export class Utilities {
     return place >= 0 && place < a.length ? a[place] / 255 : 0;
   }
 
-  /** The network a place is on, or -1. */
-  networkOf(place: number): number {
-    return place >= 0 && place < this.net.length ? this.net[place] : -1;
+  /** The network a place is on for a utility, or -1. */
+  networkOf(place: number, util: number = Util.POWER): number {
+    const a = this.netOf[util];
+    return a !== undefined && place >= 0 && place < a.length ? a[place] : -1;
+  }
+
+  /** Whether a main of this utility reaches a place at all. */
+  connected(place: number, util: number): boolean {
+    return this.networkOf(place, util) >= 0;
   }
 
   /** Rubbish sitting at a place, in days' worth. */
@@ -226,13 +263,13 @@ export class Utilities {
 
   private grow(): void {
     const want = Math.max(16, this.places.count);
-    if (this.net.length >= want) return;
-    let size = Math.max(16, this.net.length || 16);
+    if (this.netOf[0].length >= want) return;
+    let size = Math.max(16, this.netOf[0].length || 16);
     while (size < want) size *= 2;
-    const net = new Int32Array(size).fill(-1); net.set(this.net); this.net = net;
     const pile = new Float32Array(size); pile.set(this.pile); this.pile = pile;
     for (let u = 0; u < UTILS; u++) {
       const a = new Uint8Array(size); a.set(this.have[u]); this.have[u] = a;
+      const n = new Int32Array(size).fill(-1); n.set(this.netOf[u]); this.netOf[u] = n;
     }
   }
 
@@ -244,7 +281,23 @@ export class Utilities {
    * -- which is also when a pipe could run between them. Rebuilt when the roads
    * change, which is the only time it can change.
    */
-  rewire(g: LaneGraph, nodeCount: number): void {
+  /**
+   * Rebuilds every network from the mains the player has laid.
+   *
+   * Power, water and sewage each come straight off the mains grid: a building's
+   * network is whatever network of that kind reaches its cell, and -1 if none does.
+   * That is the whole model, and it is one array read per building per utility
+   * because `Mains` has already done the flood fill.
+   *
+   * RUBBISH IS DIFFERENT and stays on the roads, because it is not piped -- a lorry
+   * drives to it. So its components are the connected components of the road graph,
+   * computed here as everything used to be: a district reachable by road from an
+   * incinerator has its bins emptied, and one that is not, does not.
+   *
+   * Called with no mains -- a test, or a city built before they existed -- every
+   * utility falls back to the roads, which is exactly the old behaviour.
+   */
+  rewire(g: LaneGraph, nodeCount: number, mains?: Mains): void {
     const parent = new Int32Array(nodeCount);
     for (let i = 0; i < nodeCount; i++) parent[i] = i;
     const find = (x: number): number => {
@@ -263,143 +316,190 @@ export class Utilities {
     }
     // Number the components densely, so a network is an index into an array.
     const label = new Int32Array(nodeCount).fill(-1);
-    let count = 0;
+    let roads = 0;
     for (let i = 0; i < nodeCount; i++) {
       const r = find(i);
-      if (label[r] < 0) label[r] = count++;
+      if (label[r] < 0) label[r] = roads++;
       label[i] = label[r];
     }
     this.node = label;
-    this.networks = Array.from({ length: count }, () => ({
-      buildings: 0, powerMade: 0, powerUsed: 0, waterMade: 0, waterUsed: 0,
-      sewageMade: 0, sewageTreated: 0, rubbishMade: 0, rubbishBurnt: 0, storeDays: 0,
-    }));
     this.grow();
-    // And which network each building is on, from the road it fronts.
+
     const c = this.places.col;
-    for (let p = 0; p < this.places.count; p++) {
-      if (this.places.live[p] === 0) { this.net[p] = -1; continue; }
-      const lane = c.lane[p];
-      this.net[p] = lane >= 0 && lane < g.count ? this.node[g.from[lane]] : -1;
+    const piped = [
+      { util: Util.POWER, kind: Main.POWER },
+      { util: Util.WATER, kind: Main.WATER },
+      { util: Util.SEWAGE, kind: Main.SEWAGE },
+    ];
+    for (const { util, kind } of piped) {
+      const to = this.netOf[util];
+      for (let p = 0; p < this.places.count; p++) {
+        if (this.places.live[p] === 0) { to[p] = -1; continue; }
+        to[p] = mains === undefined
+          ? this.roadNetOf(p, g)
+          : mains.netAt(c.x[p], c.z[p], kind);
+      }
+      this.netCount[util] = mains === undefined ? roads : mains.networksOf(kind);
     }
+    const bins = this.netOf[Util.GARBAGE];
+    for (let p = 0; p < this.places.count; p++) {
+      bins[p] = this.places.live[p] === 0 ? -1 : this.roadNetOf(p, g);
+    }
+    this.netCount[Util.GARBAGE] = roads;
+    this.resetNetworks();
   }
 
   /**
-   * Totals every network's supply and demand, then tells every building how it did.
+   * Empty ledgers, one per network, so the count is right before anything settles.
    *
-   * Two passes over the buildings, which is the whole cost of the utility model and
-   * is why it runs on a slow tick: a city of thirty thousand buildings is sixty
-   * thousand rows, a few times a second at most, and nothing about power needs to
-   * be fresher than that.
+   * `networks` used to be built by `rewire` and is now filled by `settle`, and for
+   * one commit in between "how many networks are there" answered zero until the
+   * first tick -- which is a question every readout and every test asks the moment
+   * the roads change.
    */
+  private resetNetworks(): void {
+    this.networks.length = 0;
+    for (let u = 0; u < UTILS; u++) {
+      for (let i = 0; i < this.netCount[u]; i++) {
+        this.networks.push({
+          kind: u, buildings: 0,
+          powerMade: 0, powerUsed: 0, waterMade: 0, waterUsed: 0,
+          sewageMade: 0, sewageTreated: 0, rubbishMade: 0, rubbishBurnt: 0,
+          storeDays: 0,
+        });
+      }
+    }
+    this.report.networks = this.networks.length;
+  }
+
+  /** How many networks of one utility there are. */
+  networkCount(util: number): number {
+    return util >= 0 && util < UTILS ? this.netCount[util] : 0;
+  }
+
+  /** The road component a building fronts onto, or -1. */
+  private roadNetOf(p: number, g: LaneGraph): number {
+    const lane = this.places.col.lane[p];
+    return lane >= 0 && lane < g.count ? this.node[g.from[lane]] : -1;
+  }
+
   settle(days: number): void {
     this.grow();
-    const nets = this.networks;
-    for (const n of nets) {
-      n.buildings = 0;
-      n.powerMade = 0; n.powerUsed = 0;
-      n.waterMade = 0; n.waterUsed = 0;
-      n.sewageMade = 0; n.sewageTreated = 0;
-      n.rubbishMade = 0; n.rubbishBurnt = 0; n.storeDays = 0;
-    }
     const c = this.places.col;
     const count = this.places.count;
     const live = this.places.live;
+    const sizes = this.netCount;
 
-    // POWER FIRST, and the order is the whole reason this is three passes rather
-    // than two. A pump needs electricity to pump; a sewage works needs it to treat.
-    // Resolving everything at once meant asking whether a pump was powered before
-    // anything had worked out whether the grid was up -- the answer was always no,
-    // so nothing ever started, and a city with three waterworks on the river had no
-    // water in it. The grid comes up, and then the plants that depend on it run.
+    const made: Float64Array[] = [];
+    const used: Float64Array[] = [];
+    const store: Float64Array[] = [];
+    const held: Int32Array[] = [];
+    for (let u = 0; u < UTILS; u++) {
+      const n = Math.max(1, sizes[u]);
+      made.push(new Float64Array(n));
+      used.push(new Float64Array(n));
+      store.push(new Float64Array(n));
+      held.push(new Int32Array(n));
+    }
+
+    // ---- what the city draws, and what the grid makes ---------------------
     for (let p = 0; p < count; p++) {
       if (live[p] === 0) continue;
-      const which = this.net[p];
-      if (which < 0 || which >= nets.length) continue;
-      const n = nets[which];
-      n.buildings++;
       const def = ASSETS[c.proto[p]];
       const sim = def?.sim;
       if (sim === undefined) continue;
-
-      // What it uses. A building with nobody in it uses almost nothing, which is
-      // what makes a half-empty district cheap to serve and a full one expensive.
+      // A building with nobody in it uses almost nothing, which is what makes a
+      // half-empty district cheap to serve and a full one expensive.
       const busy = this.occupancy(p);
-      n.powerUsed += (sim.powerKW ?? 0) * busy;
+
+      const onPower = this.netOf[Util.POWER][p];
+      const onWater = this.netOf[Util.WATER][p];
+      const onSewer = this.netOf[Util.SEWAGE][p];
+      const onBins = this.netOf[Util.GARBAGE][p];
+      if (onPower >= 0) { used[Util.POWER][onPower] += (sim.powerKW ?? 0) * busy; held[Util.POWER][onPower]++; }
       const water = (sim.waterM3 ?? 0) * busy;
-      n.waterUsed += water;
-      n.sewageMade += water * SEWAGE_PER_WATER;
-      n.rubbishMade += (sim.garbagePerWeek ?? 0) * busy;
+      if (onWater >= 0) { used[Util.WATER][onWater] += water; held[Util.WATER][onWater]++; }
+      if (onSewer >= 0) { used[Util.SEWAGE][onSewer] += water * SEWAGE_PER_WATER; held[Util.SEWAGE][onSewer]++; }
+      if (onBins >= 0) { used[Util.GARBAGE][onBins] += (sim.garbagePerWeek ?? 0) * busy; held[Util.GARBAGE][onBins]++; }
 
       const supply = SUPPLY[def.id];
       if (supply === undefined) continue;
       // A generator needs staff and, for a waste incinerator, its own supply of
-      // rubbish -- but not electricity, which is what it makes.
-      n.powerMade += (supply.power ?? 0) * this.staffed(p);
-      n.storeDays += supply.storeDays ?? 0;
+      // rubbish -- but not electricity, which is what it makes. It also has to be
+      // connected to the grid it is feeding: a power station with no line to it
+      // lights nothing, which is the whole point of the mains.
+      if (onPower >= 0) made[Util.POWER][onPower] += (supply.power ?? 0) * this.staffed(p);
+      if (onWater >= 0) store[Util.WATER][onWater] += supply.storeDays ?? 0;
     }
 
-    const margin = new Float64Array(nets.length * UTILS);
-    for (let i = 0; i < nets.length; i++) {
-      margin[i * UTILS + Util.POWER] = ratio(nets[i].powerMade, nets[i].powerUsed);
+    // ---- the grid comes up ------------------------------------------------
+    const margin: Float64Array[] = [];
+    for (let u = 0; u < UTILS; u++) margin.push(new Float64Array(Math.max(1, sizes[u])));
+    for (let i = 0; i < sizes[Util.POWER]; i++) {
+      margin[Util.POWER][i] = ratio(made[Util.POWER][i], used[Util.POWER][i]);
     }
-    // Tell every building about its power, so the plants can read it.
     for (let p = 0; p < count; p++) {
       if (live[p] === 0) continue;
-      const which = this.net[p];
-      this.have[Util.POWER][p] = which < 0 || which >= nets.length ? 0
-        : Math.round(Math.max(0, Math.min(1, margin[which * UTILS + Util.POWER])) * 255);
+      const on = this.netOf[Util.POWER][p];
+      this.have[Util.POWER][p] = on < 0 ? 0
+        : Math.round(Math.max(0, Math.min(1, margin[Util.POWER][on])) * 255);
     }
 
-    // Now the plants that need power to work.
+    // ---- and then the plants that needed it -------------------------------
     for (let p = 0; p < count; p++) {
       if (live[p] === 0) continue;
-      const which = this.net[p];
-      if (which < 0 || which >= nets.length) continue;
-      const def = ASSETS[c.proto[p]];
-      const supply = SUPPLY[def?.id ?? ''];
+      const supply = SUPPLY[ASSETS[c.proto[p]]?.id ?? ''];
       if (supply === undefined) continue;
       const running = this.running(p, supply);
       if (running <= 0) continue;
-      const n = nets[which];
-      n.waterMade += (supply.water ?? 0) * running;
-      n.sewageTreated += (supply.sewage ?? 0) * running;
-      n.rubbishBurnt += (supply.rubbish ?? 0) * running;
+      const onWater = this.netOf[Util.WATER][p];
+      const onSewer = this.netOf[Util.SEWAGE][p];
+      const onBins = this.netOf[Util.GARBAGE][p];
+      if (onWater >= 0) made[Util.WATER][onWater] += (supply.water ?? 0) * running;
+      if (onSewer >= 0) made[Util.SEWAGE][onSewer] += (supply.sewage ?? 0) * running;
+      if (onBins >= 0) made[Util.GARBAGE][onBins] += (supply.rubbish ?? 0) * running;
     }
 
-    for (let i = 0; i < nets.length; i++) {
-      const n = nets[i];
+    for (let i = 0; i < sizes[Util.WATER]; i++) {
       // Storage smooths a shortfall: a reservoir carries a city through a day of
       // the pumps being short, which is what a reservoir is for.
-      const stored = Math.min(1, n.storeDays * 0.35);
-      margin[i * UTILS + Util.WATER] = Math.min(1,
-        ratio(n.waterMade, n.waterUsed) + stored * 0.5);
-      margin[i * UTILS + Util.SEWAGE] = ratio(n.sewageTreated, n.sewageMade);
-      margin[i * UTILS + Util.GARBAGE] = ratio(n.rubbishBurnt, n.rubbishMade);
+      const stored = Math.min(1, store[Util.WATER][i] * 0.35);
+      margin[Util.WATER][i] = Math.min(1,
+        ratio(made[Util.WATER][i], used[Util.WATER][i]) + stored * 0.5);
+    }
+    for (let i = 0; i < sizes[Util.SEWAGE]; i++) {
+      margin[Util.SEWAGE][i] = ratio(made[Util.SEWAGE][i], used[Util.SEWAGE][i]);
+    }
+    for (let i = 0; i < sizes[Util.GARBAGE]; i++) {
+      margin[Util.GARBAGE][i] = ratio(made[Util.GARBAGE][i], used[Util.GARBAGE][i]);
     }
 
-    let spilled = 0, piled = 0, smelly = 0, cutOff = 0, served = [0, 0, 0, 0];
-    let considered = 0;
+    // ---- what each building actually gets ---------------------------------
+    let piled = 0, smelly = 0, cutOff = 0, considered = 0;
+    const served = [0, 0, 0, 0];
+    const reached = [0, 0, 0, 0];
     for (let p = 0; p < count; p++) {
       if (live[p] === 0) continue;
-      const which = this.net[p];
       considered++;
-      if (which < 0 || which >= nets.length) {
-        for (let u = 0; u < UTILS; u++) this.have[u][p] = 0;
-        cutOff++;
-        continue;
-      }
-      const base = which * UTILS;
+      let anything = false;
       for (let u = 0; u < UTILS; u++) {
-        const v = Math.round(Math.max(0, Math.min(1, margin[base + u])) * 255);
+        if (u === Util.GARBAGE) continue;
+        const on = this.netOf[u][p];
+        if (on >= 0) reached[u]++;
+        const v = on < 0 ? 0
+          : Math.round(Math.max(0, Math.min(1, margin[u][on])) * 255);
         this.have[u][p] = v;
         if (v >= 200) served[u]++;
+        if (on >= 0) anything = true;
       }
+      if (!anything) cutOff++;
+
       // Rubbish is a stock. What the network cannot burn piles up here.
-      const def = ASSETS[c.proto[p]];
-      const perDay = ((def?.sim?.garbagePerWeek ?? 0) / 7) * this.occupancy(p);
-      const collected = perDay * Math.max(0, Math.min(1, margin[base + Util.GARBAGE]));
-      this.pile[p] = Math.max(0, this.pile[p] + (perDay - collected) * days);
+      const onBins = this.netOf[Util.GARBAGE][p];
+      if (onBins >= 0) reached[Util.GARBAGE]++;
+      const perDay = ((ASSETS[c.proto[p]]?.sim?.garbagePerWeek ?? 0) / 7) * this.occupancy(p);
+      const taken = onBins < 0 ? 0 : Math.max(0, Math.min(1, margin[Util.GARBAGE][onBins]));
+      this.pile[p] = Math.max(0, this.pile[p] + perDay * (1 - taken) * days);
       const daysHeld = perDay > 0 ? this.pile[p] / perDay : 0;
       if (daysHeld > BIN_DAYS) smelly++;
       piled += this.pile[p];
@@ -407,25 +507,49 @@ export class Utilities {
       // about the network's average -- a bin that has been emptied is fine even in
       // a city that is behind.
       const bin = 1 - Math.max(0, Math.min(1, (daysHeld - BIN_DAYS) / (BIN_WORST - BIN_DAYS)));
-      this.have[Util.GARBAGE][p] = Math.round(bin * 255);
+      const v = Math.round(bin * 255);
+      this.have[Util.GARBAGE][p] = v;
+      if (v >= 200) served[Util.GARBAGE]++;
     }
-    for (const n of nets) spilled += Math.max(0, n.sewageMade - n.sewageTreated);
+
+    // ---- the readout ------------------------------------------------------
+    this.networks.length = 0;
+    let spilled = 0;
+    for (let u = 0; u < UTILS; u++) {
+      for (let i = 0; i < sizes[u]; i++) {
+        const n: Network = {
+          kind: u, buildings: held[u][i],
+          powerMade: 0, powerUsed: 0, waterMade: 0, waterUsed: 0,
+          sewageMade: 0, sewageTreated: 0, rubbishMade: 0, rubbishBurnt: 0,
+          storeDays: store[u][i],
+        };
+        if (u === Util.POWER) { n.powerMade = made[u][i]; n.powerUsed = used[u][i]; }
+        if (u === Util.WATER) { n.waterMade = made[u][i]; n.waterUsed = used[u][i]; }
+        if (u === Util.SEWAGE) {
+          n.sewageTreated = made[u][i]; n.sewageMade = used[u][i];
+          spilled += Math.max(0, used[u][i] - made[u][i]);
+        }
+        if (u === Util.GARBAGE) { n.rubbishBurnt = made[u][i]; n.rubbishMade = used[u][i]; }
+        this.networks.push(n);
+      }
+    }
 
     const r = this.report;
-    r.networks = nets.length;
+    r.networks = this.networks.length;
+    // The largest *power* grid's share, because that is the one a player means by
+    // "is my city joined up" -- and because with four sets of networks there is no
+    // longer a single largest anything.
     let biggest = 0;
-    for (const n of nets) if (n.buildings > biggest) biggest = n.buildings;
-    r.biggest = considered > 0 ? biggest / considered : 0;
-    let made = [0, 0, 0, 0], used = [0, 0, 0, 0];
-    for (const n of nets) {
-      made[Util.POWER] += n.powerMade; used[Util.POWER] += n.powerUsed;
-      made[Util.WATER] += n.waterMade; used[Util.WATER] += n.waterUsed;
-      made[Util.SEWAGE] += n.sewageTreated; used[Util.SEWAGE] += n.sewageMade;
-      made[Util.GARBAGE] += n.rubbishBurnt; used[Util.GARBAGE] += n.rubbishMade;
+    for (let i = 0; i < sizes[Util.POWER]; i++) {
+      if (held[Util.POWER][i] > biggest) biggest = held[Util.POWER][i];
     }
+    r.biggest = considered > 0 ? biggest / considered : 0;
     for (let u = 0; u < UTILS; u++) {
-      r.margin[u] = used[u] > 0 ? made[u] / used[u] : made[u] > 0 ? 2 : 1;
+      let m = 0, d = 0;
+      for (let i = 0; i < sizes[u]; i++) { m += made[u][i]; d += used[u][i]; }
+      r.margin[u] = d > 0 ? m / d : m > 0 ? 2 : 1;
       r.served[u] = considered > 0 ? served[u] / considered : 0;
+      r.onMain[u] = considered > 0 ? reached[u] / considered : 0;
     }
     r.cutOff = considered > 0 ? cutOff / considered : 0;
     r.spilled = spilled;
@@ -512,8 +636,9 @@ export class Utilities {
   }
 
   bytes(): number {
-    let n = this.net.byteLength + this.pile.byteLength + this.node.byteLength;
+    let n = this.pile.byteLength + this.node.byteLength;
     for (const a of this.have) n += a.byteLength;
+    for (const a of this.netOf) n += a.byteLength;
     return n;
   }
 }

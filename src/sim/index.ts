@@ -76,6 +76,7 @@ export {
 export type { TrafficStats } from './agents/driving';
 export { Utilities, Util, UTIL_NAMES, supplyOf, producerIds } from './agents/utilities';
 export type { Network, UtilityReport } from './agents/utilities';
+export { Mains, Main, MAIN_KINDS, MAIN_NAMES, MAIN_COLOURS } from './mains';
 export { Services, UNREACHED, SERVICE_GRID } from './agents/services';
 export { Dispatch, Need, NEED_NAMES } from './agents/dispatch';
 export type { DispatchStats } from './agents/dispatch';

@@ -15,6 +15,7 @@
 import { RoadGraph } from './roadgraph';
 import type { RoadClass } from './roadgraph';
 import { simConfig } from './config';
+import { Mains } from './mains';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
@@ -106,6 +107,8 @@ export interface World {
   lots: Lot[];
   /** Which plots of land the player has bought. */
   land: Land;
+  /** Power lines, water pipes and sewers, as laid by the player. */
+  mains: Mains;
 }
 
 /** Cells of buildable block between corridors. */
@@ -118,7 +121,7 @@ export const PERIOD = BLOCK + STREET;
 export function emptyWorld(grid = simConfig.cityGrid): World {
   return {
     grid, net: new RoadGraph(grid), zones: new Uint8Array(grid * grid), lots: [],
-    land: startingLand(),
+    land: startingLand(), mains: new Mains(grid),
   };
 }
 
@@ -429,6 +432,10 @@ export function startingWorld(grid = simConfig.cityGrid): World {
   world.net.add(gate, 0, gate, -half * 8 * 0.16, 'avenue');
   world.net.add(gate, 0, gate, half * 8 * 0.16, 'avenue');
   world.net.rasterise();
+  // The first streets come with their mains in. A brand new city where the
+  // player's opening move is to lay three pipes down the road they were given is
+  // a tutorial, not a game -- and every road they draw from here is bare.
+  world.mains.layEverywhere(world.net);
   return world;
 }
 
@@ -511,5 +518,8 @@ export function defaultWorld(grid = simConfig.cityGrid): World {
 
   // Sited last, so they can see the roads and the zoning they will sit among.
   siteLots(world, baseHeightAt);
+  // A city that arrived already built arrived with its services working. Every
+  // street carries every main, which is what this city was generated under.
+  world.mains.layEverywhere(world.net);
   return world;
 }

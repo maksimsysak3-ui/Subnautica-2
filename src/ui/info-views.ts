@@ -33,7 +33,7 @@ const REPAINT_MS = 250;
  * the branch glyphs, so one renderer serves both: an inner subpath cuts a hole
  * rather than drawing over the top.
  */
-const EXTRA_GLYPH: Record<string, string> = {
+export const EXTRA_GLYPH: Record<string, string> = {
   // A traffic light on its pole, with the three lamps cut out.
   traffic: 'M20 4h8a6 6 0 0 1 6 6v24a6 6 0 0 1-6 6h-8a6 6 0 0 1-6-6V10a6 6 0 0 1 6-6z'
          + 'M21.5 40h5v5h-5z'

@@ -31,6 +31,8 @@ const bundle = (await esbuild.build({
       `export { makeCity, INSTANCE_FLOATS } from '${src}sim/city';`,
       `export { defaultWorld, emptyWorld, paint, placeLot, ZONES } from '${src}sim/world';`,
       `export { RoadGraph } from '${src}sim/roadgraph';`,
+      `export * from '${src}sim/mains';`,
+      `export { buildMainsMesh, MAIN_VERTEX_FLOATS } from '${src}gfx/mains-mesh';`,
       `export { ASSETS } from '${src}assets/registry';`,
       `export { BRANCHES } from '${src}assets/types';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
@@ -47,6 +49,7 @@ const {
   Simulation, Utilities, Util, UTIL_NAMES, supplyOf, producerIds,
   Services, UNREACHED, Views, View, VIEWS, VIEW_GRID, Look, NO_DATA,
   Purpose, Stage, makeCity, INSTANCE_FLOATS, defaultWorld, emptyWorld, RoadGraph,
+  Mains, Main, buildMainsMesh, MAIN_VERTEX_FLOATS,
   ASSETS, BRANCHES, TICKS_PER_DAY, configureSim, waterAt,
 } = M;
 
@@ -97,17 +100,19 @@ section('networks');
   const sim = new Simulation(city, net, 0x5e12);
   const u = sim.utilities;
 
-  console.log(`  two districts           ${u.networks.length} networks`);
-  ok(u.networks.length >= 2, 'two unjoined districts are two networks',
-    `${u.networks.length}`);
+  // Counted per utility now that each one has its own mains. With none laid --
+  // which is this case, since the Simulation was built without a world -- every
+  // utility falls back to the road components, which is the old behaviour.
+  const before = u.networkCount(Util.POWER);
+  console.log(`  two districts           ${before} power networks`);
+  ok(before >= 2, 'two unjoined districts are two networks', `${before}`);
 
   // Join them, and they become one.
   net.add(-300, -400, 400, 300, 'street', 0);
   sim.roadsChanged(net);
-  const after = sim.utilities.networks.length;
+  const after = sim.utilities.networkCount(Util.POWER);
   console.log(`  joined by one street    ${after} networks`);
-  ok(after < u.networks.length || after === 1,
-    'joining them joins their grids', `${after}`);
+  ok(after < before || after === 1, 'joining them joins their grids', `${after}`);
 }
 
 // ---- a pump has to stand on water -----------------------------------------
@@ -160,6 +165,118 @@ section('water has to come from somewhere');
     ok(wet > 0, 'a pump on the river pumps', `${wet}`);
     ok(dry === 0, 'a pump inland pumps nothing', `${dry}`);
   }
+}
+
+// ---- the mains --------------------------------------------------------------
+
+section('pipes are laid, not free with the road');
+{
+  // One street, and a building on it. Nothing is piped until the player lays it,
+  // which is the whole change: a road used to carry every utility the moment it
+  // was drawn, and now it carries nothing.
+  const grid = 200;
+  const net = new RoadGraph(grid);
+  net.add(-600, 0, 600, 0, 'street', 0);
+  net.rasterise();
+  const mains = new Mains(grid);
+
+  ok(mains.netAt(0, 0, Main.WATER) < 0, 'a new street has no water main in it');
+  const laid = mains.lay(net, -400, 0, 400, 0, Main.WATER, true);
+  console.log(`  dragged 800 m of water  ${laid} cells`);
+  ok(laid > 40, 'dragging along it lays one', `${laid}`);
+  ok(mains.netAt(0, 0, Main.WATER) >= 0, 'and the street now has water');
+  ok(mains.netAt(0, 0, Main.POWER) < 0, 'but not power: they are separate networks');
+
+  // The service band: a house set back from the kerb connects, one behind the
+  // block does not. That band is the whole of "drag along the road and the houses
+  // connect themselves".
+  const near = mains.netAt(0, 24, Main.WATER);
+  const far = mains.netAt(0, 90, Main.WATER);
+  console.log(`  24 m back from the kerb ${near >= 0 ? 'connected' : 'not'}`);
+  console.log(`  90 m back               ${far >= 0 ? 'connected' : 'not'}`);
+  ok(near >= 0, 'a house set back from the street connects itself');
+  ok(far < 0, 'one across the block does not');
+
+  // Off the road it does not go, however the drag wanders.
+  const before = mains.report.laid[Main.POWER] ?? 0;
+  mains.lay(net, -400, 300, 400, 300, Main.POWER, true);
+  ok((mains.report.laid[Main.POWER] ?? 0) === before,
+    'a drag across open ground lays nothing: a main goes in the street');
+
+  // Two runs with a gap are two networks; closing the gap makes them one.
+  const m2 = new Mains(grid);
+  m2.lay(net, -600, 0, -200, 0, Main.POWER, true);
+  m2.lay(net, 200, 0, 600, 0, Main.POWER, true);
+  const split = m2.networksOf(Main.POWER);
+  m2.lay(net, -220, 0, 220, 0, Main.POWER, true);
+  const joined = m2.networksOf(Main.POWER);
+  console.log(`  two runs with a gap     ${split} grids -> ${joined} after joining`);
+  ok(split === 2, 'a gap in the line is two grids', `${split}`);
+  ok(joined === 1, 'and closing it makes one', `${joined}`);
+
+  // Drawn as one line down the middle of the street, not as a ladder.
+  //
+  // A street is three cells wide, so the first version of the mesh -- a segment
+  // between every laid pair of neighbouring cells -- drew two rails and a rung
+  // every eight metres. The test is geometric: every vertex has to sit within a
+  // couple of metres of the road's centreline, which a rung cannot.
+  {
+    const mesh = buildMainsMesh(mains, net, () => 0, Main.WATER);
+    let worst = 0;
+    for (let i = 0; i < mesh.count; i++) {
+      const at = i * MAIN_VERTEX_FLOATS;
+      // The road under test runs along z = 0, so the offset from it is |z|.
+      worst = Math.max(worst, Math.abs(mesh.vertices[at + 2]));
+    }
+    console.log(`  drawn line              ${mesh.count / 6} segments, `
+      + `worst ${worst.toFixed(2)} m off the centreline`);
+    ok(mesh.count > 0, 'the main is drawn', `${mesh.count} vertices`);
+    ok(worst < 2.5, 'as one line down the middle of the street, not a ladder',
+      `${worst.toFixed(2)} m`);
+  }
+
+  // And lifting takes it away again.
+  const lifted = m2.lay(net, -600, 0, 600, 0, Main.POWER, false);
+  ok(lifted > 0 && m2.networksOf(Main.POWER) === 0,
+    'lifting the whole run leaves no grid', `${lifted} cells`);
+}
+
+section('a city with no pipes has no power');
+{
+  // The same city twice. In one the mains are laid the way the generator leaves
+  // them; in the other they are pulled up. Nothing else differs, so everything
+  // that follows is the pipes.
+  configureSim({ cityGrid: 160 });
+  const run = (piped) => {
+    const world = defaultWorld();
+    if (!piped) world.mains.clear();
+    const sim = new Simulation(makeCity(world), world.net, 0x91e5, world.mains);
+    const pc = sim.places.col;
+    for (let p = 0; p < sim.places.count; p++) {
+      if (sim.places.live[p] === 0 || pc.purpose[p] !== Purpose.SERVICE) continue;
+      for (let k = 0; k < pc.jobs[p]; k++) sim.places.hire(p);
+    }
+    sim.found(12);
+    for (let i = 0; i < 12 * TICKS_PER_DAY; i++) sim.step(1);
+    return {
+      power: sim.utilities.report.served[Util.POWER],
+      water: sim.utilities.report.served[Util.WATER],
+      cutOff: sim.utilities.report.cutOff,
+      pop: sim.people.population,
+      happy: sim.people.happiness,
+    };
+  };
+  const on = run(true);
+  const off = run(false);
+  console.log(`  mains laid              ${pct(on.power)} powered, ${pct(on.water)} watered, `
+    + `pop ${on.pop.toLocaleString()}, happy ${pct(on.happy)}`);
+  console.log(`  mains pulled up         ${pct(off.power)} powered, ${pct(off.water)} watered, `
+    + `pop ${off.pop.toLocaleString()}, happy ${pct(off.happy)}`);
+  ok(on.power > 0.5, 'a piped city is powered', pct(on.power));
+  ok(off.power === 0, 'one with the pipes pulled up is not', pct(off.power));
+  ok(off.cutOff > 0.9, 'and reads as cut off', pct(off.cutOff));
+  ok(off.happy < on.happy, 'and the people in it are unhappier',
+    `${pct(off.happy)} vs ${pct(on.happy)}`);
 }
 
 // ---- coverage is an area, and a full station covers it less ---------------

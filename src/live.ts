@@ -22,6 +22,12 @@
  */
 
 import { Simulation, View } from './sim';
+import { Main } from './sim/mains';
+
+/** Which utility's connection markers each view turns on. */
+const DOT_FOR_VIEW: Record<number, number> = {
+  [View.POWER]: Main.POWER, [View.WATER]: Main.WATER, [View.SEWAGE]: Main.SEWAGE,
+};
 import type { City, RoadGraph, ViewInfo, Stat } from './sim';
 import type { Renderer } from './gfx/renderer';
 import type { Camera } from './gfx/camera';
@@ -62,6 +68,7 @@ export class LiveCity {
   ) {
     this.info = new InfoViews(ui, (view, meta) => this.onView(view, meta));
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
+    renderer.onMains = () => this.sim?.mainsChanged(renderer.world.mains);
   }
 
   /**
@@ -93,7 +100,7 @@ export class LiveCity {
   private reconcile(city: City, net: RoadGraph, roads: boolean): void {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
-      this.sim = new Simulation(city, net);
+      this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world.mains);
       this.uploaded = -1;
       if (this.running && !this.founded) {
         this.sim.found(FOUNDING);
@@ -104,7 +111,7 @@ export class LiveCity {
     }
     // Order matters: the lane graph has to exist in its new shape before the
     // places are re-pointed at it, and `roadsChanged` is what rebuilds it.
-    if (roads) this.sim.roadsChanged(net);
+    if (roads) this.sim.roadsChanged(net, this.renderer.world.mains);
     this.sim.buildingsChanged(city);
     // The grid named lanes that no longer exist, or buildings that do not.
     this.uploaded = -1;
@@ -154,8 +161,13 @@ export class LiveCity {
     this.uploaded = -1;
     if (meta === null) {
       this.renderer.hideOverlay();
+      this.renderer.showDots(0);
       return;
     }
+    // An underground view is about a main, so it shows where the mains reach and
+    // which buildings are on them -- the same two questions the pipe tool answers,
+    // asked from the map instead of from the palette.
+    this.renderer.showDots(DOT_FOR_VIEW[view] ?? 0);
     // Shown at once rather than on the next rebuild: `show` built the grid, and
     // a view that takes most of a second to appear reads as a dropped click.
     if (this.sim !== null) {

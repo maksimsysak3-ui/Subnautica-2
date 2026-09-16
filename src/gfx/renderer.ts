@@ -34,6 +34,9 @@ import { buildGroundMap } from './ground-map';
 import {
   overlayLayout, buildOverlayMap, writeOverlay, clearOverlay, OverlayMode,
 } from './overlay-map';
+import { MAIN_COLOURS, Main as MainKind } from '../sim/mains';
+import { buildMainsMesh, MAIN_VERTEX_FLOATS } from './mains-mesh';
+import { supplyOf } from '../sim/agents/utilities';
 import type { OverlayMap } from './overlay-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
@@ -169,6 +172,32 @@ const SCENE_UNIFORM_SIZE = 272;
 /** Metres a zoning cell, which is what the overlay grid is scattered over. */
 const CELL_METRES = 8;
 
+/** Floats per connection marker: position and radius, then colour and whether. */
+const DOT_FLOATS = 8;
+
+/**
+ * Whether a prototype is a source of a utility.
+ *
+ * Read from the same supply table the simulation uses, so a building that makes
+ * power has a power terminal on it and nothing else does -- rather than a second
+ * list of ids that drifts out of step with the first.
+ */
+function makes(proto: number, kind: number): boolean {
+  const supply = supplyOf(ASSETS[proto]?.id ?? '');
+  if (supply === undefined) return false;
+  if (kind === MainKind.POWER) return (supply.power ?? 0) > 0;
+  if (kind === MainKind.WATER) return (supply.water ?? 0) > 0;
+  if (kind === MainKind.SEWAGE) return (supply.sewage ?? 0) > 0;
+  return false;
+}
+
+/** "#rrggbb" to the linear-ish floats the marker shader mixes. */
+function hexRgb(s: string): [number, number, number] {
+  const n = parseInt(s.replace('#', ''), 16);
+  const to = (v: number): number => (v / 255) ** 2.2;
+  return [to((n >> 16) & 255), to((n >> 8) & 255), to(n & 255)];
+}
+
 /**
  * How hard an open view tints the map.
  *
@@ -205,6 +234,7 @@ function sunAt(t: number): [number, number, number] {
 interface Layouts {
   camera: GPUBindGroupLayout;
   overlay: GPUBindGroupLayout;
+  dots: GPUBindGroupLayout;
   grass: GPUBindGroupLayout;
   proto: GPUBindGroupLayout;
   city: GPUBindGroupLayout;
@@ -277,6 +307,15 @@ interface Resources extends WorldRes {
   instanceCount: number;
   /** The information view's grid, sampled by the ground and the roads. */
   overlay: OverlayMap;
+  /** The connection marker on each utility source, and the buffer it lives in. */
+  dots: GPURenderPipeline;
+  dotBuffer: GPUBuffer;
+  dotGroup: GPUBindGroup;
+  dotCount: number;
+  /** The mains, as lines along the streets. */
+  mainsPipeline: GPURenderPipeline;
+  mainsVertices: GPUBuffer;
+  mainsCount: number;
 }
 
 export class Renderer {
@@ -481,6 +520,11 @@ export class Renderer {
     this.world.net = next.net;
     this.world.zones = next.zones;
     this.world.lots = next.lots;
+    // And its mains. Left out on the first pass, so a generated city or a loaded
+    // save kept whatever pipes the *starting* map had -- which is three streets'
+    // worth, and made every building outside them read as unconnected on a map
+    // that had been fully serviced a moment earlier.
+    this.world.mains = next.mains;
     // A world that arrives whole was not built by the player watching it, so
     // nothing in it rises: every instance in the next rebuild is dated to that
     // moment, and the growth curve treats them all as new. Clearing the ages
@@ -550,6 +594,17 @@ export class Renderer {
     // The information overlay, which the ground and the roads sample and nothing
     // else does. Group 1 for both, and always bound: see overlay.wgsl.
     const overlayBgl = overlayLayout(device);
+    // The connection markers, as a storage buffer the vertex shader indexes. A
+    // vertex buffer would work too; a storage buffer means the quad's corners come
+    // from the vertex index instead of from memory, which is four fewer bytes a
+    // dot and one fewer thing to keep in step.
+    const dotsBgl = device.createBindGroupLayout({
+      label: 'dots-bgl',
+      entries: [{
+        binding: 0, visibility: GPUShaderStage.VERTEX,
+        buffer: { type: 'read-only-storage' },
+      }],
+    });
     // The shadow pass must not bind the map it is writing into: sampling a
     // texture while rendering to it is a usage conflict, and in practice it
     // takes the device down rather than raising a tidy error. So the depth
@@ -863,8 +918,64 @@ export class Renderer {
 
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
+    // Markers. Blended and depth-tested but not depth-writing: they sit on the
+    // world rather than in it, and a dot that occluded the building behind it
+    // would be a worse answer than the question deserves.
+    const dotsModule = device.createShaderModule({ label: 'dots', code: SHADERS.dots });
+    const dots = device.createRenderPipeline({
+      label: 'dots-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, dotsBgl] }),
+      vertex: { module: dotsModule, entryPoint: 'vs' },
+      fragment: {
+        module: dotsModule, entryPoint: 'fs',
+        targets: [{
+          format,
+          blend: {
+            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+            alpha: { srcFactor: 'zero', dstFactor: 'one' },
+          },
+        }],
+      },
+      primitive: { topology: 'triangle-strip' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
+    });
+
+    // The mains themselves: unlit ribbons on the road surface, blended so three
+    // side by side in one street meet at their edges instead of fighting.
+    const mainsModule = device.createShaderModule({ label: 'mains', code: SHADERS.mains });
+    const mainsPipeline = device.createRenderPipeline({
+      label: 'mains-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      vertex: {
+        module: mainsModule, entryPoint: 'vs',
+        buffers: [{
+          arrayStride: MAIN_VERTEX_FLOATS * 4,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },
+          ],
+        }],
+      },
+      fragment: {
+        module: mainsModule, entryPoint: 'fs',
+        targets: [{
+          format,
+          blend: {
+            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+            alpha: { srcFactor: 'zero', dstFactor: 'one' },
+          },
+        }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'less-equal' },
+    });
+    const mainsVertices = device.createBuffer({
+      label: 'mains-lines', size: 6 * MAIN_VERTEX_FLOATS * 4,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+
     const layouts: Layouts = {
-      camera: cameraLayout, overlay: overlayBgl, proto: protoLayout,
+      camera: cameraLayout, overlay: overlayBgl, dots: dotsBgl, proto: protoLayout,
       city: cityLayout, cull: cullLayout, grass: grassLayout,
     };
     // Survives a rebuild -- the grid is a reading about the city, not part of it.
@@ -875,7 +986,9 @@ export class Renderer {
       sky, rain, shadow, shadowView, shadowTexture, shadowSceneGroup,
       terrain, road, water, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
-      depth, depthView, overlay,
+      depth, depthView, overlay, dots,
+      mainsPipeline, mainsVertices, mainsCount: 0,
+      ...this.makeDots(device, dotsBgl, 1),
       ...this.loadWorld(layouts),
     };
 
@@ -1204,6 +1317,7 @@ export class Renderer {
     // from a save, a device recovery and an edit all come through this one path,
     // and a simulation that missed any of the three would be modelling a city
     // that is not on screen.
+    this.city = city;
     this.onCity?.(city, this.world.net, this.world.net.version !== this.notifiedVersion);
     this.notifiedVersion = this.world.net.version;
     this.cost.total = performance.now() - clock;
@@ -1234,6 +1348,13 @@ export class Renderer {
 
   /** How far the world is buried for an underground view, 0 to 1. */
   private buried = 0;
+
+  /** The staging copies for the markers and for the lines. */
+  private dotData = new Float32Array(0);
+  private mainsData = new Float32Array(0) as Float32Array<ArrayBuffer>;
+
+  /** The city the markers were built from, kept so a pipe edit can redraw them. */
+  private city: City | null = null;
 
   /**
    * Called whenever the city is rebuilt, with what it now is.
@@ -1289,6 +1410,8 @@ export class Renderer {
     res.groundTexture.destroy();
     Object.assign(res, this.loadWorld(res.layouts, res));
     this.dirty = undefined;
+    this.buildDots();
+    this.buildMainsLines();
   }
 
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {
@@ -1702,6 +1825,23 @@ export class Renderer {
       pass.drawIndexed(res.roadCount);
     }
 
+    // The mains, on the road surface and under anything standing on it.
+    if (res.mainsCount > 0) {
+      pass.setPipeline(res.mainsPipeline);
+      pass.setVertexBuffer(0, res.mainsVertices);
+      pass.draw(res.mainsCount);
+    }
+
+    // The connection markers, over the ground and the roads and under everything
+    // that stands up: they are an answer about a building, drawn at it.
+    if (res.dotCount > 0) {
+      pass.setPipeline(res.dots);
+      pass.setBindGroup(1, res.dotGroup);
+      pass.draw(4, res.dotCount);
+      // Group 1 goes back to the overlay, which the road preview below samples.
+      pass.setBindGroup(1, res.overlay.group);
+    }
+
     // And the road being dragged, over the top of everything it crosses.
     if (this.previewCount > 0 && this.previewVerts !== null && this.previewIndices !== null) {
       pass.setPipeline(res.road);
@@ -1904,6 +2044,14 @@ export class Renderer {
    * has to be the one the grid was scattered at -- the city grid, not the terrain,
    * which is half again as wide.
    */
+  /** Shows the connection markers for a utility, or hides them with 0. */
+  showDots(kind: number): void {
+    if (this.dotKind === kind) return;
+    this.dotKind = kind;
+    this.buildDots();
+    this.buildMainsLines();
+  }
+
   setOverlay(grid: Uint8Array, look: number,
     ramp: readonly [string, string, string]): void {
     const res = this.res;
@@ -1921,6 +2069,131 @@ export class Renderer {
     this.buried = 0;
     clearOverlay(this.gpu.device, res.overlay);
   }
+
+  /**
+   * Which utility the connection markers are showing, or 0 for none.
+   *
+   * Set by the mains tool and by the underground views. Public because both of
+   * them own it and the renderer only draws what it is told.
+   */
+  dotKind = 0;
+
+  /** A buffer for `n` markers, and the group that binds it. */
+  private makeDots(device: GPUDevice, layout: GPUBindGroupLayout, n: number): {
+    dotBuffer: GPUBuffer; dotGroup: GPUBindGroup; dotCount: number;
+  } {
+    const dotBuffer = device.createBuffer({
+      label: 'dots',
+      size: Math.max(1, n) * DOT_FLOATS * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    const dotGroup = device.createBindGroup({
+      label: 'dots-bg', layout,
+      entries: [{ binding: 0, resource: { buffer: dotBuffer } }],
+    });
+    return { dotBuffer, dotGroup, dotCount: 0 };
+  }
+
+  /**
+   * Rebuilds the connection marker on every source of a utility.
+   *
+   * ONE DOT PER PLANT, not one per building. The marker is the point a main comes
+   * out of -- the power station's terminal, the pump's outlet -- because that is
+   * where the player starts the drag, and because a dot on every house was a
+   * blizzard that answered a question nobody asked: whether a district has water
+   * is what the map is already coloured for.
+   *
+   * Filled when a main of that kind reaches the plant, hollow and red when it does
+   * not, which is the state that matters: a power station with no line out of it
+   * lights nothing, and from above it looks exactly like one that does.
+   */
+  private buildDots(): void {
+    const res = this.res;
+    if (!res) return;
+    const kind = this.dotKind;
+    const city = this.city;
+    if (kind === 0 || city === null || city.count === 0) {
+      res.dotCount = 0;
+      return;
+    }
+    const mains = this.world.mains;
+    const rgb = hexRgb(MAIN_COLOURS[kind] ?? '#ffffff');
+    if (city.count * DOT_FLOATS > this.dotData.length) {
+      this.dotData = new Float32Array(city.count * DOT_FLOATS);
+    }
+    const out = this.dotData;
+    const d = city.data;
+    let n = 0;
+    for (let i = 0; i < city.count; i++) {
+      const base = i * INSTANCE_FLOATS;
+      if (!makes(d[base + 7] | 0, kind)) continue;
+      // x, z, baseY -- in that order. Reading it as x, y, z put every marker in
+      // the sky, which at least made it obvious.
+      const x = d[base], z = d[base + 1], y = d[base + 2];
+      const at = n * DOT_FLOATS;
+      // Over the roof: at the door is where the connection really is and is also
+      // inside the building from every angle but one.
+      out[at] = x; out[at + 1] = y + d[base + 6] + 3.5; out[at + 2] = z;
+      out[at + 3] = 1.6;
+      out[at + 4] = rgb[0]; out[at + 5] = rgb[1]; out[at + 6] = rgb[2];
+      out[at + 7] = mains.netAt(x, z, kind) >= 0 ? 1 : 0;
+      n++;
+    }
+    const { device } = this.gpu;
+    if (res.dotBuffer.size < Math.max(1, n) * DOT_FLOATS * 4) {
+      res.dotBuffer.destroy();
+      Object.assign(res, this.makeDots(device, res.layouts.dots, n));
+    }
+    if (n > 0) device.queue.writeBuffer(res.dotBuffer, 0, out, 0, n * DOT_FLOATS);
+    res.dotCount = n;
+  }
+
+  /**
+   * Rebuilds the lines the mains are drawn as.
+   *
+   * Whole rather than patched, for the same reason the markers are: a drag can
+   * reach anywhere along a street, and working out which segments it touched costs
+   * more than rebuilding a mesh that is a few thousand triangles.
+   */
+  private buildMainsLines(): void {
+    const res = this.res;
+    if (!res) return;
+    if (this.dotKind === 0) { res.mainsCount = 0; return; }
+    // Only the utility in hand. All three at once is what the trench really looks
+    // like and is unreadable at the zoom somebody lays pipes from.
+    const mesh = buildMainsMesh(this.world.mains, this.world.net, heightAt,
+      this.dotKind, this.mainsData);
+    this.mainsData = mesh.vertices;
+    const { device } = this.gpu;
+    const want = Math.max(1, mesh.count) * MAIN_VERTEX_FLOATS * 4;
+    if (res.mainsVertices.size < want) {
+      res.mainsVertices.destroy();
+      res.mainsVertices = device.createBuffer({
+        label: 'mains-lines', size: want,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+    }
+    if (mesh.count > 0) {
+      device.queue.writeBuffer(res.mainsVertices, 0, mesh.vertices, 0,
+        mesh.count * MAIN_VERTEX_FLOATS);
+    }
+    res.mainsCount = mesh.count;
+  }
+
+  /**
+   * The player laid or lifted a main.
+   *
+   * No city rebuild: a pipe moves no building and no road. The markers are redrawn
+   * and whoever is simulating the city is told, and that is the whole cost.
+   */
+  mainsChanged(): void {
+    this.buildDots();
+    this.buildMainsLines();
+    this.onMains?.();
+  }
+
+  /** Called when the mains change, so the simulation can rewire. */
+  onMains: (() => void) | null = null;
 
   /** Total buildings in the world, drawn or not. */
   get buildingCount(): number {

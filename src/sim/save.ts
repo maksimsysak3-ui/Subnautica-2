@@ -50,6 +50,16 @@ interface SaveFile {
   /** Which plots of land are owned, as two thirty-two bit halves. */
   land: [number, number];
   /**
+   * The mains, run-length encoded the same way the zoning is.
+   *
+   * Absent in a save written before the player laid their own pipes. Those cities
+   * were built when a road carried every utility, so a save without this gets its
+   * mains put down on every street -- see `deserialise`. Loading one into a game
+   * where a road carries nothing would cut the power off in every building at once,
+   * which is not a migration, it is a bug report.
+   */
+  mains?: number[];
+  /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
    *
@@ -136,6 +146,7 @@ export function serialise(world: World, name: string, auto = false): string {
     nodes,
     links,
     zones: encodeZones(world.zones),
+    mains: encodeZones(world.mains.bits),
     land: [world.land.lo, world.land.hi],
     lots: world.lots.map((l) => (l.grounds === undefined
       ? [l.id, l.gx, l.gz, l.w, l.d, l.yaw] as SaveFile['lots'][number]
@@ -177,6 +188,12 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   world.net.rasterise();
   decodeZones(file.zones ?? [], world.zones);
+  if (Array.isArray(file.mains) && file.mains.length > 0) {
+    decodeZones(file.mains, world.mains.bits);
+    world.mains.rebuild();
+  } else {
+    world.mains.layEverywhere(world.net);
+  }
   if (Array.isArray(file.land) && file.land.length === 2) {
     world.land.lo = file.land[0] >>> 0;
     world.land.hi = file.land[1] >>> 0;

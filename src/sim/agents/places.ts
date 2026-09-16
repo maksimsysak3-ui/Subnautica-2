@@ -422,8 +422,13 @@ export class Places {
   }
 }
 
-/** Whether an instance is somewhere a person can be. */
-function occupiable(proto: number): boolean {
+/**
+ * Whether an instance is somewhere a person can be.
+ *
+ * Exported because the renderer's connection markers have to draw exactly the set
+ * the simulation counts as buildings -- otherwise there is a dot on every tree.
+ */
+export function occupiable(proto: number): boolean {
   const def = ASSETS[proto];
   if (def === undefined || def.sim === undefined) return false;
   return (def.sim.households ?? 0) > 0 || (def.sim.jobs ?? 0) > 0;

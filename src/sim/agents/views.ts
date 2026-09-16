@@ -493,13 +493,21 @@ export class Views {
             : view === View.SEWAGE ? Util.SEWAGE : Util.GARBAGE;
         const r = s.utilities.report;
         const made = r.margin[util];
+        const nets = s.utilities.networkCount(util);
+        const on = r.onMain[util];
         const rows: Stat[] = [
-          line('Networks', r.networks.toLocaleString(), -1, r.networks > 3),
+          // The mains first, because they are the question the player can do
+          // something about with one drag, and because a building with no pipe to
+          // it is short of the utility for a completely different reason from one
+          // whose grid is short of supply.
+          line(util === Util.GARBAGE ? 'On a collection round' : 'On a main',
+            pct(on), on, on < 0.95),
+          line('Separate networks', nets.toLocaleString(), -1, nets > 3),
           line('Largest network', pct(r.biggest), r.biggest, r.biggest < 0.8),
           line('Supply against demand', pct(made), Math.min(1, made), made < 1),
           line('Buildings supplied', pct(r.served[util]), r.served[util],
             r.served[util] < 0.9),
-          line('Not connected to anything', pct(r.cutOff), r.cutOff, r.cutOff > 0.02),
+          line('Nothing reaches at all', pct(r.cutOff), r.cutOff, r.cutOff > 0.02),
         ];
         if (util === Util.POWER) {
           let made2 = 0, used = 0;

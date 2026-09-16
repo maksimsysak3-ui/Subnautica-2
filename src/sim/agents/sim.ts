@@ -53,6 +53,7 @@ import type { Stat } from './views';
 import { Stage } from './people';
 import type { RoadGraph } from '../roadgraph';
 import type { City } from '../city';
+import type { Mains } from '../mains';
 
 /**
  * Ticks to get round the whole population, per system.
@@ -169,7 +170,11 @@ export class Simulation {
   /** Nodes in the road graph, kept so a rewire does not need the graph passed in. */
   private nodes = 0;
 
-  constructor(city: City, net: RoadGraph, seed = 0x1b0b0) {
+  /** The mains the player has laid, or undefined for a test with no world. */
+  private mains: Mains | undefined;
+
+  constructor(city: City, net: RoadGraph, seed = 0x1b0b0, mains?: Mains) {
+    this.mains = mains;
     this.nodes = net.nodes.length;
     this.lanes = buildLaneGraph(net);
     this.index = buildLaneIndex(this.lanes);
@@ -196,7 +201,7 @@ export class Simulation {
     this.traffic.informedBy(this.routine.load, this.router.paths);
     this.utilities = new Utilities(this.places);
     this.services = new Services(this.places, net.grid * 8);
-    this.utilities.rewire(this.lanes, net.nodes.length);
+    this.utilities.rewire(this.lanes, net.nodes.length, mains);
     // The population and the migration model now read the real thing rather than
     // their proximity fallbacks. Attached after construction because the dependency
     // is genuinely mutual: what people feel depends on the services, and where the
@@ -398,6 +403,18 @@ export class Simulation {
   /** The statistics panel for whatever is open. */
   get viewStats(): Stat[] { return this.views.stats(this.openView); }
 
+  /**
+   * The player laid or lifted a main.
+   *
+   * Only the utility networks change: nothing about a pipe moves a building, a road
+   * or a citizen, so this is one pass over the buildings rather than the rebuild a
+   * road edit costs.
+   */
+  mainsChanged(mains: Mains): void {
+    this.mains = mains;
+    this.utilities.rewire(this.lanes, this.nodes, mains);
+  }
+
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }
 
@@ -419,14 +436,15 @@ export class Simulation {
    * every building is re-pointed at whatever road now serves it. Places keep their
    * ids throughout -- a road edit must not make the whole city change jobs.
    */
-  roadsChanged(net: RoadGraph): void {
+  roadsChanged(net: RoadGraph, mains?: Mains): void {
+    if (mains !== undefined) this.mains = mains;
     this.lanes = buildLaneGraph(net);
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
     this.services.resize(net.grid * 8);
     this.views.rebind(this.lanes);
-    this.utilities.rewire(this.lanes, net.nodes.length);
+    this.utilities.rewire(this.lanes, net.nodes.length, this.mains);
     this.nodes = net.nodes.length;
     this.junctions = new Junctions(this.lanes, net.nodes.length);
     // Before the traffic model is rebound: rebinding it drops every vehicle, and
@@ -452,7 +470,9 @@ export class Simulation {
       this.places, this.displaced);
     // A new building has to be put on a network before anybody asks whether it has
     // power, and a demolished one has to come off before its supply is counted.
-    if (added > 0 || removed.length > 0) this.utilities.rewire(this.lanes, this.nodes);
+    if (added > 0 || removed.length > 0) {
+      this.utilities.rewire(this.lanes, this.nodes, this.mains);
+    }
     if (removed.length === 0) return;
     // Anything the machine had open at a building that is no longer there.
     for (const p of removed) this.dispatch.forget(p);

@@ -24,7 +24,9 @@ import { services, signatures, ASSET_INDEX } from '../sim';
 
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
-import { ZONE_STYLE, zoneIcon } from './zones';
+import { ZONE_STYLE, zoneIcon, GLYPH as BRANCH_GLYPH } from './zones';
+import { EXTRA_GLYPH } from './info-views';
+import { Main, MAIN_COLOURS } from '../sim/mains';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
 import type { Dirty } from '../sim';
@@ -80,7 +82,9 @@ type Tool =
   | { kind: 'place'; proto: Proto }
   | { kind: 'clear' }
   /** Buying land: an overhead view of the plot grid, one click a plot. */
-  | { kind: 'land' };
+  | { kind: 'land' }
+  /** Laying a main along the streets. Shift while dragging lifts it instead. */
+  | { kind: 'main'; main: number };
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
@@ -161,6 +165,8 @@ export class BuildTools {
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
   private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
+  /** Whether the drag in progress lifts a main rather than laying one. */
+  private liftMains = false;
   /** Quarter turns the next placed building is rotated by. */
   private placeYaw = 0;
   /** The open service drawer, if one is open. */
@@ -428,6 +434,9 @@ export class BuildTools {
 
   private onUp = (e: PointerEvent): void => {
     this.flushMove();
+    // Read here rather than on the way down, so a player can change their mind
+    // halfway through a drag -- which is what everybody tries.
+    this.liftMains = e.shiftKey;
     if (this.tool.kind === 'curve' || this.tool.kind === 'place'
       || this.tool.kind === 'land') return;
     if (!this.from) return;
@@ -919,6 +928,7 @@ export class BuildTools {
     const world = this.renderer.world;
     const t = this.tool;
     const r = this.area(a, b);
+    if (t.kind === 'main') { this.layMain(t.main, a, b); return; }
     if (t.kind === 'road') {
       this.lay(a, b, null, this.bend());
       return;
@@ -964,6 +974,44 @@ export class BuildTools {
     this.rebuild({ gx: r.gx - 2, gz: r.gz - 2, w: r.w + 4, d: r.d + 4 });
   }
 
+  /**
+   * Lays or lifts a main along the path the pointer actually took.
+   *
+   * The drag's own trail rather than its endpoints, which is what makes this feel
+   * like laying a pipe: streets bend, and a main that jumped the chord between
+   * where the drag started and where it ended would cut across three gardens. The
+   * trail is already kept for the curve tool -- this is the second thing it has
+   * turned out to be exactly right for.
+   */
+  private layMain(kind: number, a: [number, number], b: [number, number]): void {
+    const world = this.renderer.world;
+    const half = world.grid / 2;
+    const mid = (cell: number): number => (cell - half) * CELL + CELL / 2;
+    const trail: Array<[number, number]> = this.path.length > 1
+      ? this.path.slice() : [a, b];
+    const on = !this.liftMains;
+    let changed = 0;
+    for (let i = 1; i < trail.length; i++) {
+      // The first stretch of the drag may cross open ground, so a line started at
+      // a power station's terminal reaches the street it is being dragged to.
+      // After that a main goes where a road goes.
+      changed += world.mains.lay(world.net,
+        mid(trail[i - 1][0]), mid(trail[i - 1][1]),
+        mid(trail[i][0]), mid(trail[i][1]), kind, on, i <= 3);
+    }
+    if (changed === 0) {
+      this.say(on ? 'drag along a road to lay a main' : 'nothing there to lift');
+      return;
+    }
+    // No city rebuild: a pipe moves no building and no road. The renderer is told
+    // so it can redraw the mains and the connection dots, and the simulation so it
+    // can work out who is on which network now.
+    this.renderer.mainsChanged();
+    const name = kind === Main.WATER ? 'water' : kind === Main.SEWAGE ? 'sewer' : 'power';
+    this.say(`${changed} cell${changed === 1 ? '' : 's'} of ${name} `
+      + `${on ? 'laid' : 'lifted'}`);
+  }
+
   // ---- the bar ---------------------------------------------------------
 
   private select(tool: Tool): void {
@@ -973,6 +1021,10 @@ export class BuildTools {
       this.enterLand(tool.kind === 'land');
     }
     this.tool = tool;
+    // The connection markers follow the pipe in hand: pick water and every
+    // building says whether it has water, which is the question you are holding
+    // the tool to answer.
+    this.renderer.showDots(tool.kind === 'main' ? tool.main : 0);
     this.from = null;
     this.curveA = null;
     this.curveVia = null;
@@ -1009,6 +1061,7 @@ export class BuildTools {
     // selects is the mode button beside them.
     if (t.kind === 'road' || t.kind === 'curve') return `road:${t.cls}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
+    if (t.kind === 'main') return `main:${t.main}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     return t.kind;
   }
@@ -1246,6 +1299,25 @@ export class BuildTools {
       this.buttons.push(b);
     }
     tools.appendChild(civic);
+
+    // The mains. Three buttons rather than a drawer, because a player laying pipes
+    // switches between them constantly -- power down a street, then water down the
+    // same street -- and a drawer would be two clicks for every one of those.
+    const pipes = group();
+    const mainIcon = (path: string, colour: string): string =>
+      `<span style="${GLYPH}"><svg viewBox="0 0 48 48" width="26" height="26"`
+      + ` aria-hidden="true"><path d="${path}" fill="${colour}"`
+      + ' fill-rule="evenodd"/></svg></span>';
+    add(pipes, { kind: 'main', main: Main.POWER },
+      'Power lines — drag along a road to lay, shift-drag to lift',
+      mainIcon(BRANCH_GLYPH.power, MAIN_COLOURS[Main.POWER]), MAIN_COLOURS[Main.POWER]);
+    add(pipes, { kind: 'main', main: Main.WATER },
+      'Water mains — drag along a road to lay, shift-drag to lift',
+      mainIcon(BRANCH_GLYPH.water, MAIN_COLOURS[Main.WATER]), MAIN_COLOURS[Main.WATER]);
+    add(pipes, { kind: 'main', main: Main.SEWAGE },
+      'Sewers — drag along a road to lay, shift-drag to lift',
+      mainIcon(EXTRA_GLYPH.sewage, MAIN_COLOURS[Main.SEWAGE]), MAIN_COLOURS[Main.SEWAGE]);
+    tools.appendChild(pipes);
 
     const clear = group();
     // "Buy land", not "Land": the landmarks button is two along and starts with
