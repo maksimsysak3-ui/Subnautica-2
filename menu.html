@@ -4268,21 +4268,26 @@ function buildEnvironment(scene, track) {
     }
     return true;
   };
+  /* 1150 maples at 12.4k triangles each is fourteen million triangles before
+     anything else is drawn, which is what made the frame rate collapse. The
+     band is now half as dense and hugs the circuit, where the trees are the
+     ones you actually see. */
+  const TREE_MAX = 430;
   // the avenue: two ragged rows following the lap
-  for (let s2 = 0; s2 < track.count; s2 += 3) {
+  for (let s2 = 0; s2 < track.count && sites.length < TREE_MAX; s2 += 5) {
     for (const side of [-1, 1]) {
-      if (Math.random() > 0.42) continue;
-      const off = side * (34 + Math.random() * 120);
+      if (Math.random() > 0.34) continue;
+      const off = side * (34 + Math.random() * 84);
       const p = ptAt(s2 % track.count, off);
-      const x = p.x + (Math.random() - 0.5) * 22;
-      const z = p.z + (Math.random() - 0.5) * 22;
+      const x = p.x + (Math.random() - 0.5) * 20;
+      const z = p.z + (Math.random() - 0.5) * 20;
       if (clear(x, z)) sites.push([x, z]);
     }
   }
   /* A thinner band just beyond the avenue. Anything past this is behind the
      fog and the treeline in front of it, so it is 12k triangles a piece that
      never reaches the screen — that was most of the cost. */
-  for (let i = 0; i < 6000 && sites.length < 1150; i++) {
+  for (let i = 0; i < 3000 && sites.length < TREE_MAX; i++) {
     const a2 = Math.random() * Math.PI * 2;
     const j = Math.floor(Math.random() * track.count);
     const off = (Math.random() < 0.5 ? -1 : 1) * (160 + Math.random() * 130);
@@ -4334,7 +4339,13 @@ function placeProps(scene, track, treeGltf, standGltf) {
       if (!o.isMesh) return;
       const g = o.geometry.clone();
       g.applyMatrix4(o.matrixWorld);
-      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      /* Clone: disposeScene walks the scene and disposes every material it
+         finds, and these came straight off cachedTree. Switching circuits
+         therefore disposed the cached tree's textures and the next build drew
+         with freed GPU resources, which is what killed the context. */
+      const src = Array.isArray(o.material) ? o.material[0] : o.material;
+      const m = src.clone();
+      m.userData.sharedTex = true;            // the maps still belong to cachedTree
       m.side = THREE.DoubleSide;              // leaf cards are single-sided sheets
       m.roughness = 0.94; m.metalness = 0;
       parts.push({ g, m });
@@ -4360,7 +4371,10 @@ function placeProps(scene, track, treeGltf, standGltf) {
           im.setMatrixAt(i, mtx);
         });
         im.instanceMatrix.needsUpdate = true;
-        im.castShadow = true;
+        /* No shadow casting. Every caster is drawn a second time into the
+           shadow map, so the treeline was costing twice its triangle count for
+           shadows the sun camera clips at 78 m regardless. */
+        im.castShadow = false;
         im.computeBoundingSphere();
         scene.add(im);
       }
@@ -4553,7 +4567,9 @@ function buildScene(canvas) {
   track = buildTrack();
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  /* 2x device pixel ratio is four times the fragment work of 1x, which a
+     scene this heavy cannot afford on a laptop panel. */
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.18;
@@ -4914,14 +4930,14 @@ function updateHUD(sample, frameDt) {
 
   // live position: dot, pulse ring and the stretch of road just covered
   const uNow = sample.s / track.length;
-  const pNow = hud.mapPath.getPointAtLength(uNow * hud.mapLen);
+  const pNow = hud.mapAt(uNow);
   hud.mapDot.setAttribute('cx', pNow.x); hud.mapDot.setAttribute('cy', pNow.y);
   hud.mapRing.setAttribute('cx', pNow.x); hud.mapRing.setAttribute('cy', pNow.y);
   hud.mapName.textContent = trackName();
   let d = '';
   for (let k = 0; k <= 14; k++) {
     const uu = uNow - (14 - k) * 0.006;
-    const q = hud.mapPath.getPointAtLength(((uu % 1) + 1) % 1 * hud.mapLen);
+    const q = hud.mapAt(uu);
     d += (k ? 'L' : 'M') + q.x.toFixed(1) + ' ' + q.y.toFixed(1);
   }
   hud.mapTrail.setAttribute('d', d);
@@ -4989,13 +5005,19 @@ function frame(now) {
   }
   const inp = cine.on ? { throttle: 0, brake: 1, steer: 0 } : input();
   acc += dt;
-  const H = 1 / 300;
+  const H = 1 / 240;
+  const MAXSTEPS = 16;
   let n = 0;
-  while (acc >= H && n < 24) {
+  while (acc >= H && n < MAXSTEPS) {
     const s = sampleTrack(veh.x, veh.z, veh.yaw);
     veh.step(H, inp, s);
     acc -= H; n++;
   }
+  /* Drop whatever is left over once the cap is hit. Carrying it meant a single
+     slow frame left the accumulator ahead of the clock for good, so every
+     later frame ran the maximum number of substeps and the drop never
+     recovered — the stutter was feeding itself. */
+  if (n >= MAXSTEPS) acc = 0;
   const sample = sampleTrack(veh.x, veh.z, veh.yaw);
 
   // lap timing
@@ -5254,6 +5276,20 @@ function collectHUD() {
     telLaps: $('#hTelLaps')
   };
   hud.mapLen = hud.mapPath.getTotalLength();
+  /* getPointAtLength forces the browser to re-measure the path geometry, and
+     the trail asked for sixteen of them every frame. Sample the lap once here
+     and read the table instead. */
+  const MAPN = 720;
+  hud.mapPts = new Float32Array((MAPN + 1) * 2);
+  for (let i = 0; i <= MAPN; i++) {
+    const q = hud.mapPath.getPointAtLength(i / MAPN * hud.mapLen);
+    hud.mapPts[i * 2] = q.x; hud.mapPts[i * 2 + 1] = q.y;
+  }
+  hud.mapAt = u => {
+    const t = ((u % 1) + 1) % 1 * MAPN;
+    const i = Math.min(MAPN, Math.round(t)) * 2;
+    return { x: hud.mapPts[i], y: hud.mapPts[i + 1] };
+  };
 
   // the speedometer arc: one 270-degree sweep, with a tick every 40 km/h
   hud.dialLen = hud.dialFill.getTotalLength();
@@ -5328,8 +5364,12 @@ function disposeScene() {
     if (o.geometry) o.geometry.dispose();
     const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
     for (const m of mats) {
-      for (const k of ['map', 'normalMap', 'roughnessMap', 'alphaMap', 'emissiveMap']) {
-        if (m[k] && m[k].dispose) m[k].dispose();
+      // a material cloned off a cached model shares its textures; freeing them
+      // here leaves the cache holding dead GPU handles for the next circuit
+      if (!(m.userData && m.userData.sharedTex)) {
+        for (const k of ['map', 'normalMap', 'roughnessMap', 'alphaMap', 'emissiveMap']) {
+          if (m[k] && m[k].dispose) m[k].dispose();
+        }
       }
       m.dispose();
     }
