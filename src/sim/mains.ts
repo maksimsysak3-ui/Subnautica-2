@@ -101,6 +101,8 @@ export class Mains {
   private readonly queue: Int32Array;
 
   readonly report: MainsReport = { laid: {}, networks: {} };
+  /** Set when bits have changed and the networks have not caught up. */
+  private dirty = false;
 
   constructor(readonly grid: number) {
     const n = grid * grid;
@@ -155,7 +157,7 @@ export class Mains {
    * whether the drag did anything and charge for it.
    */
   lay(net: RoadGraph, x0: number, z0: number, x1: number, z1: number,
-    kind: number, on: boolean, spur = false): number {
+    kind: number, on: boolean, spur = false, defer = false): number {
     const half = this.grid / 2;
     const ax = x0 / CELL + half, az = z0 / CELL + half;
     const bx = x1 / CELL + half, bz = z1 / CELL + half;
@@ -184,8 +186,27 @@ export class Mains {
         }
       }
     }
-    if (changed > 0) this.rebuild();
+    if (changed > 0) {
+      // Deferred while the pointer is still down. The networks are three flood
+      // fills over the whole grid and the tool lays a cell every frame, so doing
+      // them per frame would turn a drag across a district into a slideshow. The
+      // bits are right immediately, which is what the drawn line reads; the
+      // networks catch up when the button comes up.
+      if (defer) this.dirty = true; else this.rebuild();
+    }
     return changed;
+  }
+
+  /**
+   * Brings the networks up to date if a deferred edit left them behind.
+   *
+   * Returns whether it had to, so a caller can tell whether anything downstream
+   * needs telling.
+   */
+  settle(): boolean {
+    if (!this.dirty) return false;
+    this.rebuild();
+    return true;
   }
 
   /**
@@ -223,6 +244,7 @@ export class Mains {
    * form this needs, and costs one pass rather than one search per building.
    */
   rebuild(): void {
+    this.dirty = false;
     const g = this.grid;
     const n = g * g;
     const q = this.queue;

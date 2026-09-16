@@ -2056,18 +2056,45 @@ export class Renderer {
    * ends, and an index of plant positions would be a third thing to keep in step
    * with the city for no measurable gain.
    */
-  sourceNear(x: number, z: number, kind: number, metres = 90): boolean {
+  sourceAt(x: number, z: number, kind: number, metres = 90): [number, number] | null {
     const city = this.city;
-    if (city === null) return false;
+    if (city === null) return null;
     const d = city.data;
-    const r2 = metres * metres;
+    let best: [number, number] | null = null;
+    let bestD = metres * metres;
     for (let i = 0; i < city.count; i++) {
       const base = i * INSTANCE_FLOATS;
       if (!makes(d[base + 7] | 0, kind)) continue;
       const dx = d[base] - x, dz = d[base + 1] - z;
-      if (dx * dx + dz * dz <= r2) return true;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= bestD) { bestD = d2; best = [d[base], d[base + 1]]; }
     }
-    return false;
+    return best;
+  }
+
+  /** Is there one within reach. */
+  sourceNear(x: number, z: number, kind: number, metres = 90): boolean {
+    return this.sourceAt(x, z, kind, metres) !== null;
+  }
+
+  /**
+   * The source the pointer is hovering, drawn larger so the snap is visible.
+   *
+   * A snap the player cannot see before they press is a snap they find out about
+   * afterwards, which is worse than none.
+   */
+  set hotSource(at: [number, number] | null) {
+    const was = this.hotAt;
+    if ((was === null) === (at === null)
+      && (at === null || (was !== null && was[0] === at[0] && was[1] === at[1]))) return;
+    this.hotAt = at;
+    this.buildDots();
+  }
+  private hotAt: [number, number] | null = null;
+
+  /** Redraws the mains' lines only, for a drag still in progress. */
+  mainsDrawn(): void {
+    this.buildMainsLines();
   }
 
   /** Shows the connection markers for a utility, or hides them with 0. */
@@ -2159,8 +2186,10 @@ export class Renderer {
       const at = n * DOT_FLOATS;
       // Over the roof: at the door is where the connection really is and is also
       // inside the building from every angle but one.
+      const hot = this.hotAt !== null
+        && Math.abs(this.hotAt[0] - x) < 0.5 && Math.abs(this.hotAt[1] - z) < 0.5;
       out[at] = x; out[at + 1] = y + d[base + 6] + 3.5; out[at + 2] = z;
-      out[at + 3] = 1.6;
+      out[at + 3] = hot ? 2.6 : 1.6;
       out[at + 4] = rgb[0]; out[at + 5] = rgb[1]; out[at + 6] = rgb[2];
       out[at + 7] = mains.netAt(x, z, kind) >= 0 ? 1 : 0;
       n++;

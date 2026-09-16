@@ -88,6 +88,26 @@ if (r.laidOffRoad !== 0) {
 }
 if (r.lines < 10) push(`the main is drawn as ${r.lines} segments; it is not being drawn`);
 
+// A pencil draws as it moves. A tool that commits on the way up looks exactly the
+// same once the drag is over, so the only moment the difference exists is during
+// it: the count has to climb while the pointer is still down.
+const steps = r.duringDrag.length;
+const grew = r.duringDrag.filter((n, i) => i > 0 && n > r.duringDrag[i - 1]).length;
+const midway = r.duringDrag[Math.floor(steps / 2)] ?? 0;
+console.log(`while dragging        ${r.duringDrag[0] ?? 0} -> ${midway} -> `
+  + `${r.duringDrag[steps - 1] ?? 0} cells over ${steps} moves`);
+if (midway < 10) {
+  push('nothing was laid until the button came up; the tool is not a pencil');
+}
+if (grew < 5) push(`the line grew on ${grew} of ${steps} moves; it is not drawing live`);
+if (r.marked) push('a rectangle was marked on the ground while drawing a line');
+
+console.log(`snap to the plant     ${r.snapped ? 'yes' : 'no'}, ${r.snapLaid} cells`);
+if (!r.snapped) {
+  push('pressing near a plant did not start the line at it, so the plant is not on '
+    + 'the network it was dragged from');
+}
+
 if (fails.length) {
   console.error('\nFAIL\n' + fails.map((f) => '  - ' + f).join('\n'));
   console.error('\n' + logs.slice(-12).join('\n'));

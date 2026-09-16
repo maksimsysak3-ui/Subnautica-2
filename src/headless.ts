@@ -18,7 +18,7 @@ import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
   emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
-  INSTANCE_FLOATS, previewRoad, baseHeightAt, heightAt,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt, heightAt, placeLot,
 } from './sim';
 import type { Dirty } from './sim';
 import { LiveCity } from './live';
@@ -934,7 +934,14 @@ export async function probeMains(): Promise<{
   buttons: string[]; onBar: string[]; picked: boolean;
   laidAlongRoad: number; laidOffRoad: number; lifted: number;
   connectedBefore: boolean; connectedAfter: boolean;
-  lines: number; from: number[]; to: number[]; error?: string;
+  lines: number; from: number[]; to: number[];
+  /** Cells laid after each step of one drag, to show it draws as it goes. */
+  duringDrag: number[];
+  /** Whether a rectangle was marked on the ground while drawing. */
+  marked: boolean;
+  /** Whether pressing near a plant started the line at the plant. */
+  snapped: boolean; snapLaid: number;
+  error?: string;
 }> {
   configureSim(LITE);
   const canvas = document.createElement('canvas');
@@ -1030,7 +1037,7 @@ export async function probeMains(): Promise<{
     await new Promise<void>((done) => requestAnimationFrame(() => done()));
   };
   const drag = async (a: [number, number], b: [number, number],
-    steps = 24): Promise<void> => {
+    steps = 24, watch?: () => void): Promise<void> => {
     const opts = { bubbles: true, button: 0, pointerId: 1 };
     canvas.dispatchEvent(new PointerEvent('pointerdown',
       { ...opts, clientX: a[0], clientY: a[1] }));
@@ -1043,6 +1050,7 @@ export async function probeMains(): Promise<{
       // given one or the whole drag collapses to its last position -- which is
       // also true of a real pointer and is why the trail exists at all.
       await frame();
+      watch?.();
     }
     canvas.dispatchEvent(new PointerEvent('pointerup',
       { ...opts, clientX: b[0], clientY: b[1] }));
@@ -1068,7 +1076,14 @@ export async function probeMains(): Promise<{
   const start = ground(...screen(-250, 0));
   const end = ground(...screen(250, 0));
 
-  await drag(screen(-250, 0), screen(250, 0));
+  // Watched a step at a time: a pencil draws as it moves, and a tool that
+  // commits on the way up looks identical afterwards.
+  const duringDrag: number[] = [];
+  let marked = false;
+  await drag(screen(-250, 0), screen(250, 0), 24, () => {
+    duringDrag.push(laid());
+    if (renderer.mark !== null) marked = true;
+  });
   const laidAlongRoad = laid();
   const connectedAfter = mains.netAt(0, 40, Main.WATER) >= 0;
 
@@ -1077,12 +1092,43 @@ export async function probeMains(): Promise<{
   await drag(screen(-250, 160), screen(250, 160));
   const laidOffRoad = laid() - before;
 
+  // And the snap. A power station off the road, a press on it, a drag to the
+  // street: the line has to start at the plant rather than where the pointer was.
+  // Beside the road but off it, which is where a power station goes. Tried at a
+  // few offsets because `placeLot` refuses ground that does not suit, and a test
+  // that silently placed nothing would be testing the snap against no plant.
+  let placed: string | null = 'not tried';
+  for (const [gx, gz] of [[40, 34], [34, 34], [46, 34], [40, 52], [30, 52]]) {
+    placed = placeLot(renderer.world, 'svc.power.gas', gx, gz, 0, baseHeightAt);
+    if (placed === null) break;
+  }
+  renderer.rebuild();
+  press('Power');
+  press('Drag along a road');
+  const roof = renderer.sourceAt(0, 0, Main.POWER, 4000);
+  if (roof === null) throw new Error(`no power source to snap to: ${placed}`);
+  let snapped = false;
+  let snapLaid = 0;
+  if (roof !== null) {
+    const before = (): number => {
+      let n = 0;
+      for (const b of mains.bits) if ((b & Main.POWER) !== 0) n++;
+      return n;
+    };
+    const was = before();
+    // Pressed sixty metres off the plant, which is inside the snap and outside
+    // the building: if the snap works the line still starts at the terminal.
+    await drag(screen(roof[0] + 60, roof[1] + 60), screen(roof[0], 0), 20);
+    snapLaid = before() - was;
+    snapped = mains.netAt(roof[0], roof[1], Main.POWER) >= 0;
+  }
+
   const mesh = buildMainsMesh(mains, renderer.world.net, heightAt, Main.WATER);
   const lines = mesh.count / 6;
 
   return {
     buttons, onBar, picked, laidAlongRoad, laidOffRoad, lifted: 0,
-    connectedBefore, connectedAfter, lines,
+    connectedBefore, connectedAfter, lines, duringDrag, marked, snapped, snapLaid,
     from: start === null ? [NaN, NaN] : start,
     to: end === null ? [NaN, NaN] : end,
   };
