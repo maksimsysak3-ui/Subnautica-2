@@ -21,6 +21,7 @@ import {
   INSTANCE_FLOATS, previewRoad, baseHeightAt,
 } from './sim';
 import type { Dirty } from './sim';
+import { LiveCity } from './live';
 
 export interface ShotRequest {
   width: number;
@@ -52,6 +53,15 @@ export interface ShotRequest {
   lite: boolean;
   /** Draw the land grid, as the land tool does. */
   land?: boolean;
+  /**
+   * Open an information view by name, e.g. "Traffic" or "Power", and photograph
+   * the map with it up.
+   *
+   * The only way to look at a heatmap. Its correctness can be asserted -- and is,
+   * in `probeViews` -- but whether it is legible over a real city at a real camera
+   * distance is a question about a picture.
+   */
+  view?: string;
 }
 
 export interface Shot {
@@ -752,6 +762,28 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   camera.focus[2] = req.focus[1];
   camera.update();
 
+  // An information view, if one was asked for. Built after the camera so the
+  // simulation spends its first ticks on what the shot is pointed at.
+  let live: LiveCity | null = null;
+  if (req.view !== undefined && req.view !== '') {
+    live = new LiveCity(renderer, camera, stats, host);
+    // The renderer is already built, so the notification that creates the
+    // simulation has been and gone. One more rebuild hands it the city.
+    renderer.rebuild();
+    live.playing = true;
+    for (let i = 0; i < 120; i++) live.update(1 / 30, performance.now());
+    const b = Array.from(host.querySelectorAll('button'))
+      .find((el) => el.title === req.view);
+    if (b === undefined) throw new Error(`no such view: ${req.view}`);
+    // The launcher first: the rail is hidden until it is pressed, and a click on
+    // a hidden button still lands, which would make a typo here look like a pass.
+    const launcher = Array.from(host.querySelectorAll('button'))
+      .find((el) => el.title === 'Information views');
+    launcher?.click();
+    b.click();
+    live.update(1 / 30, performance.now());
+  }
+
   // Driven by hand rather than by requestAnimationFrame: a tool wants a known
   // number of frames, and wants to know when they are done.
   for (let i = 0; i < req.frames; i++) {
@@ -762,4 +794,127 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
 
   const pixels = await gpu.readPixels();
   return { pixels, stats: stats.snapshot() };
+}
+
+/**
+ * The information views, driven through the interface, asserted on the pixels.
+ *
+ * There are three ways this can be broken and a screenshot shows none of them.
+ * The panel can go up with no icons, because a glyph key does not match. The
+ * click can reach the simulation and never reach the GPU, because the uniform was
+ * written to a buffer nothing samples. And the shader can sample it and change
+ * nothing, because the bind group went to the wrong index -- which WebGPU is
+ * perfectly happy with as long as nothing reads it.
+ *
+ * So the probe clicks the launcher, clicks a view, and compares the frame with
+ * the frame before it. A view that is working moves a large fraction of the
+ * picture towards the colours of its own ramp; an underground view makes the
+ * picture darker. Both are claims about the pixels, which is the only level at
+ * which "the heatmap shows" is a true or false statement.
+ */
+export async function probeViews(): Promise<{
+  icons: number; railHidden: boolean; railShown: boolean;
+  title: string; rows: number; bars: number;
+  /** Mean brightness of the frame, per stage. */
+  plain: number; traffic: number; buried: number;
+  /** Share of pixels that changed by more than a rounding error. */
+  trafficMoved: number; buriedMoved: number;
+  closed: boolean; closedBack: number;
+  population: number; views: string[];
+}> {
+  configureSim(LITE);
+  const ui = document.createElement('div');
+  document.body.appendChild(ui);
+
+  const gpu = await Gpu.headless(320, 180);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.timeOfDay = 0.42;
+  renderer.weather.set(0.05);
+  const live = new LiveCity(renderer, camera, stats, ui);
+  renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
+  renderer.build();
+  live.playing = true;
+
+  camera.yaw = 0.6; camera.pitch = 0.62; camera.distance = 520;
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.update();
+
+  // Enough simulated time for the utilities to settle and somebody to be on the
+  // road, so the views have something to say.
+  for (let i = 0; i < 90; i++) live.update(1 / 30, performance.now());
+
+  const frame = async (): Promise<Uint8Array> => {
+    camera.update();
+    renderer.frameForTools(performance.now());
+    await gpu.device.queue.onSubmittedWorkDone();
+    return gpu.readPixels();
+  };
+  const mean = (px: Uint8Array): number => {
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
+    return sum / (px.length / 4) / 3;
+  };
+  const moved = (a: Uint8Array, b: Uint8Array): number => {
+    let n = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1])
+        + Math.abs(a[i + 2] - b[i + 2]) > 12) n++;
+    }
+    return n / (a.length / 4);
+  };
+
+  const plainPx = await frame();
+  // Hidden rather than absent: the buttons are built once and the rail is shown
+  // and hidden, so counting elements would say it was open from the start.
+  const shown = (part: string): boolean => {
+    const el = ui.querySelector(`[data-panel="${part}"]`);
+    return el instanceof HTMLElement && el.style.display !== 'none';
+  };
+  const railHidden = !shown('view-rail');
+
+  const press = (label: string): boolean => {
+    const b = Array.from(ui.querySelectorAll('button'))
+      .find((el) => el.title === label);
+    if (b === undefined) return false;
+    b.click();
+    return true;
+  };
+  press('Information views');
+  const icons = ui.querySelectorAll('button').length - 1;
+  const railShown = shown('view-rail');
+  const views = Array.from(ui.querySelectorAll('button'))
+    .map((b) => b.title).filter((t) => t !== 'Information views');
+
+  press('Traffic');
+  live.update(1 / 30, performance.now());
+  const trafficPx = await frame();
+  const title = (ui.textContent ?? '').slice(0, 7);
+  // A row is a label, a value and a track; a bar is a track that is showing.
+  const rows = ui.querySelectorAll('[data-stat]').length;
+  let bars = 0;
+  for (const t of Array.from(ui.querySelectorAll('[data-bar]'))) {
+    if ((t as HTMLElement).style.display !== 'none') bars++;
+  }
+
+  press('Power');
+  live.update(1 / 30, performance.now());
+  const buriedPx = await frame();
+
+  // Closing puts the map back. Not "roughly back": the same uniform is zeroed,
+  // so the frame has to return to what it was within the noise of one frame.
+  press('Power');
+  const backPx = await frame();
+  const closed = !shown('view-stats');
+
+  return {
+    icons, railHidden, railShown, title, rows, bars,
+    plain: mean(plainPx), traffic: mean(trafficPx), buried: mean(buriedPx),
+    trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
+    closed, closedBack: moved(plainPx, backPx),
+    population: live.population, views,
+  };
 }

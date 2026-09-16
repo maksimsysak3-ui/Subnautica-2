@@ -15,6 +15,7 @@
 // by every pixel of every road on screen.
 
 #include "common.wgsl"
+#include "overlay.wgsl"
 #include "atmosphere.wgsl"
 #include "noise.wgsl"
 
@@ -524,6 +525,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   let toEye = in.world - camera.eye.xyz;
   col = aerial(col, length(toEye), toEye, sun);
+
+  // The information overlay. On the carriageway rather than only the land
+  // beside it, because every reading in the game is measured along the streets
+  // -- and a utility main is under this exact surface.
+  col = overlayTint(col, in.world);
 
   // A road that has not been built yet: the same geometry, said differently.
   // Tinted rather than outlined, because what a player is judging is where the

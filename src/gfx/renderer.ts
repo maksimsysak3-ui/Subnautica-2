@@ -31,17 +31,23 @@ import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
 import { buildGroundMap } from './ground-map';
+import {
+  overlayLayout, buildOverlayMap, writeOverlay, clearOverlay, OverlayMode,
+} from './overlay-map';
+import type { OverlayMap } from './overlay-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
   makeCity, startingWorld, INSTANCE_FLOATS, buildTerrain, heightAt,
   FLOATS_PER_VERTEX, TERRAIN, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES,
   ROAD_FLOATS, ROAD_FLAGS,
   buildWaterMesh, WATER_FLOATS, gradedSince, plotSpan, clearStanding,
+  VIEW_GRID, Look,
 } from '../sim';
 // A live binding: the terrain module updates it on every build, and importing
 // the value rather than the binding would read whatever it was at load.
 import { terrainChunksRebuilt } from '../sim/terrain';
 import type { Chunk, World, RoadMesh, City, Dirty } from '../sim';
+import type { RoadGraph } from '../sim/roadgraph';
 import { SHADERS } from './shaders';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
@@ -131,7 +137,7 @@ const GOVERN_RETRY = 60;
  * + sun (16) + focus (16) + params (16) + the build mark (32)
  * + six frustum planes (96).
  */
-const CAMERA_UNIFORM_SIZE = 432;
+const CAMERA_UNIFORM_SIZE = 448;
 
 /** Edge of the shadow map, in texels. */
 const SHADOW_SIZE = 2048;
@@ -158,7 +164,20 @@ const LAND_BITS = new Uint32Array(2);
 const LAND_FLOATS = new Float32Array(LAND_BITS.buffer);
 
 /** viewProj + sunViewProj + eye + sunDir + params + brand + accent + sign. */
-const SCENE_UNIFORM_SIZE = 256;
+const SCENE_UNIFORM_SIZE = 272;
+
+/** Metres a zoning cell, which is what the overlay grid is scattered over. */
+const CELL_METRES = 8;
+
+/**
+ * How hard an open view tints the map.
+ *
+ * Not one: a heatmap that replaces the landscape stops being a map of anywhere,
+ * and the thing a player is actually doing with it is relating a reading to a
+ * street they recognise. Eighty-eight per cent leaves the ground legible
+ * underneath and still reads as one flat colour per district from altitude.
+ */
+const OVERLAY_STRENGTH = 0.88;
 
 /** Vertical field of view, shared with the camera. */
 const FOV_Y = (50 * Math.PI) / 180;
@@ -185,6 +204,7 @@ function sunAt(t: number): [number, number, number] {
 /** The bind group layouts, kept so world buffers can be rebound after a change. */
 interface Layouts {
   camera: GPUBindGroupLayout;
+  overlay: GPUBindGroupLayout;
   grass: GPUBindGroupLayout;
   proto: GPUBindGroupLayout;
   city: GPUBindGroupLayout;
@@ -255,6 +275,8 @@ interface Resources extends WorldRes {
   depth: GPUTexture;
   depthView: GPUTextureView;
   instanceCount: number;
+  /** The information view's grid, sampled by the ground and the roads. */
+  overlay: OverlayMap;
 }
 
 export class Renderer {
@@ -525,6 +547,9 @@ export class Renderer {
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
       ],
     });
+    // The information overlay, which the ground and the roads sample and nothing
+    // else does. Group 1 for both, and always bound: see overlay.wgsl.
+    const overlayBgl = overlayLayout(device);
     // The shadow pass must not bind the map it is writing into: sampling a
     // texture while rendering to it is a usage conflict, and in practice it
     // takes the device down rather than raising a tidy error. So the depth
@@ -661,7 +686,9 @@ export class Renderer {
     const roadModule = device.createShaderModule({ label: 'road', code: SHADERS.road });
     const road = device.createRenderPipeline({
       label: 'road-pipeline',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [cameraLayout, overlayBgl],
+      }),
       vertex: {
         module: roadModule,
         entryPoint: 'vs',
@@ -709,7 +736,9 @@ export class Renderer {
     const terrainModule = device.createShaderModule({ label: 'terrain', code: SHADERS.terrain });
     const terrain = device.createRenderPipeline({
       label: 'terrain-pipeline',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [cameraLayout, overlayBgl],
+      }),
       vertex: {
         module: terrainModule,
         entryPoint: 'vs',
@@ -835,16 +864,18 @@ export class Renderer {
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
     const layouts: Layouts = {
-      camera: cameraLayout, proto: protoLayout, city: cityLayout,
-      cull: cullLayout, grass: grassLayout,
+      camera: cameraLayout, overlay: overlayBgl, proto: protoLayout,
+      city: cityLayout, cull: cullLayout, grass: grassLayout,
     };
+    // Survives a rebuild -- the grid is a reading about the city, not part of it.
+    const overlay = buildOverlayMap(device, overlayBgl, VIEW_GRID);
     this.res = {
       layouts,
       grass, grassBuffer: this.grassUniform,
       sky, rain, shadow, shadowView, shadowTexture, shadowSceneGroup,
       terrain, road, water, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
-      depth, depthView,
+      depth, depthView, overlay,
       ...this.loadWorld(layouts),
     };
 
@@ -1168,6 +1199,13 @@ export class Renderer {
       + `arena ${mib(plan.vertices.byteLength)} MiB in ${plan.buckets.length} buckets`);
 
     lap('buffers');
+    // Whatever is simulating the city is told what the city now is, before the
+    // frame that shows it. Here rather than in `rebuild` because a world loaded
+    // from a save, a device recovery and an edit all come through this one path,
+    // and a simulation that missed any of the three would be modelling a city
+    // that is not on screen.
+    this.onCity?.(city, this.world.net, this.world.net.version !== this.notifiedVersion);
+    this.notifiedVersion = this.world.net.version;
     this.cost.total = performance.now() - clock;
     return {
       groundTexture: ground.texture, grassGroup,
@@ -1193,6 +1231,21 @@ export class Renderer {
 
   /** What the current rebuild is allowed to remake. Set by `rebuild`. */
   private dirty: Dirty | undefined = undefined;
+
+  /** How far the world is buried for an underground view, 0 to 1. */
+  private buried = 0;
+
+  /**
+   * Called whenever the city is rebuilt, with what it now is.
+   *
+   * `roads` says whether the road network changed as well as the buildings, which
+   * is the difference between relinking a few places and rebuilding the whole lane
+   * graph -- and painting one zoning cell must not cost the latter.
+   */
+  onCity: ((city: City, net: RoadGraph, roads: boolean) => void) | null = null;
+
+  /** The road version the last notification carried. */
+  private notifiedVersion = -1;
 
   /**
    * How many frames a bucket keeps its place in the draw list after it empties.
@@ -1508,6 +1561,10 @@ export class Renderer {
     const origin = -(this.world.grid / 2) * 8;
     this.cameraData.set([plotSpan(this.world.grid), origin, origin, 0], 80);
     this.cameraData.set(this.frustum.planes, 84);
+    // How far the world is buried, for the passes that sample no overlay: the
+    // sky, the river and the grass. One number in two uniforms, because the
+    // buildings read the scene's rather than the camera's.
+    this.cameraData[108] = this.buried;
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -1524,6 +1581,7 @@ export class Renderer {
       performance.now() / 1000], 40);
     // The weather, so the buildings are standing in the same one as the ground.
     this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
+    this.sceneData[64] = this.buried;
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -1600,6 +1658,9 @@ export class Renderer {
     });
 
     pass.setBindGroup(0, res.cameraGroup);
+    // The overlay stays bound through the ground, the river and the roads. The
+    // grass pass overwrites group 1 with its own, and comes after all three.
+    pass.setBindGroup(1, res.overlay.group);
 
     // Terrain, one draw per visible chunk. Culling here is what keeps the draw
     // count flat as the map grows past the view.
@@ -1833,6 +1894,32 @@ export class Renderer {
       },
       () => { this.countsPending = false; },
     );
+  }
+
+  /**
+   * Shows an information view over the map, or hides one.
+   *
+   * `grid` is the simulation's byte a cell; `look` decides whether it washes over
+   * the surface or buries the world and lights the network through it. The extent
+   * has to be the one the grid was scattered at -- the city grid, not the terrain,
+   * which is half again as wide.
+   */
+  setOverlay(grid: Uint8Array, look: number,
+    ramp: readonly [string, string, string]): void {
+    const res = this.res;
+    if (!res) return;
+    const mode = look === Look.UNDERGROUND ? OverlayMode.UNDERGROUND : OverlayMode.SURFACE;
+    this.buried = mode === OverlayMode.UNDERGROUND ? OVERLAY_STRENGTH : 0;
+    writeOverlay(this.gpu.device, res.overlay, grid, mode,
+      this.world.grid * CELL_METRES, OVERLAY_STRENGTH, ramp);
+  }
+
+  /** Puts the map back to how it looks. */
+  hideOverlay(): void {
+    const res = this.res;
+    if (!res) return;
+    this.buried = 0;
+    clearOverlay(this.gpu.device, res.overlay);
   }
 
   /** Total buildings in the world, drawn or not. */

@@ -38,6 +38,15 @@ struct Camera {
   /** Metres across one plot, and the world coordinate of the grid's corner. */
   plotGrid : vec4f,
   planes   : array<vec4f, 6>,   // frustum, for the culling pass
+  /**
+   * x = how far the world is buried, 0 to 1.
+   *
+   * Set while an underground information view is open. The overlay tints the
+   * ground and the roads itself, but the sky, the river and the grass sample no
+   * overlay and would otherwise stay in full daylight around a darkened street --
+   * which reads as a rendering fault rather than as a drawing of what is below.
+   */
+  view     : vec4f,
 };
 
 @group(0) @binding(0) var<uniform> camera : Camera;
@@ -87,4 +96,14 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
   return mix(sum * 0.25, 1.0, outside);
 }
 
-
+/**
+ * Sinks a colour towards the slate an underground view is drawn on.
+ *
+ * The same expression `overlayTint` uses, so the ground, the sky, the river and
+ * the buildings all arrive at one colour rather than three near-misses. Repeated
+ * rather than shared in asset.wgsl, which cannot include this file: it binds
+ * group 1 to its prototypes and the overlay wants the same index.
+ */
+fn bury(col: vec3f, k: f32) -> vec3f {
+  return mix(col, col * 0.11 + vec3f(0.013, 0.017, 0.024), k);
+}

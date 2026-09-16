@@ -39,7 +39,15 @@ import { Junctions } from './junctions';
 import { Traffic } from './driving';
 import { Utilities } from './utilities';
 import { Services } from './services';
+import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
+
+/** Which service branch a coverage view is about, for bringing it up to date. */
+const VIEW_BRANCH: Record<number, string> = {
+  [View.FIRE]: 'fire', [View.POLICE]: 'police', [View.HEALTH]: 'health',
+  [View.EDUCATION]: 'education', [View.PARKS]: 'parks',
+  [View.TRANSPORT]: 'transport',
+};
 import type { Stat } from './views';
 import { Stage } from './people';
 import type { RoadGraph } from '../roadgraph';
@@ -185,7 +193,7 @@ export class Simulation {
     this.traffic = new Traffic(this.lanes, this.junctions, VEHICLE_BUDGET, seed ^ 0xca25);
     this.traffic.informedBy(this.routine.load, this.router.paths);
     this.utilities = new Utilities(this.places);
-    this.services = new Services(this.places, this.lanes);
+    this.services = new Services(this.places, net.grid * 8);
     this.utilities.rewire(this.lanes, net.nodes.length);
     // The population and the migration model now read the real thing rather than
     // their proximity fallbacks. Attached after construction because the dependency
@@ -348,7 +356,14 @@ export class Simulation {
   /** Opens an information view, or closes them with View.NONE. */
   show(view: number): void {
     this.openView = view;
-    if (view !== View.NONE) this.views.build(view, this.clock.tick);
+    if (view === View.NONE) return;
+    // A coverage view is brought up to date before it is drawn. Branches take
+    // turns, so the one being opened could be most of a second away -- and that
+    // second is spent showing a city with no coverage at all, which reads as the
+    // click having missed rather than as a queue.
+    const branch = VIEW_BRANCH[view];
+    if (branch !== undefined) this.services.focus(BRANCHES.indexOf(branch as never));
+    this.views.build(view, this.clock.tick);
   }
 
   /** The grid the renderer tints the ground with. */
@@ -380,7 +395,7 @@ export class Simulation {
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
-    this.services.rebind(this.lanes);
+    this.services.resize(net.grid * 8);
     this.views.rebind(this.lanes);
     this.utilities.rewire(this.lanes, net.nodes.length);
     this.nodes = net.nodes.length;

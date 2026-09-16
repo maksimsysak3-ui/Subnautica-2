@@ -48,6 +48,12 @@ struct Scene {
    * doing.
    */
   weather     : vec4f,
+  /**
+   * x = how far the world is buried, 0 to 1, while an underground information
+   * view is open. See `bury` in common.wgsl, which this matches by hand -- this
+   * shader cannot include that file, because both want group 1.
+   */
+  view        : vec4f,
 };
 
 @group(0) @binding(0) var<uniform> scene : Scene;
@@ -1743,6 +1749,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let rim = pow(1.0 - abs(dot(normalize(in.normal), normalize(scene.eye.xyz - in.world))), 3.0);
     out += vec3f(0.30, 0.70, 0.90) * rim * 0.9;
   }
+  // Buried while an underground view is open. `bury` in common.wgsl by hand;
+  // see the note on Scene.view above for why this shader cannot include it.
+  out = mix(out, out * 0.11 + vec3f(0.013, 0.017, 0.024), scene.view.x);
   return vec4f(out, 1.0);
 }
 

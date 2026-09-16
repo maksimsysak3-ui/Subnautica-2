@@ -44,6 +44,7 @@
 // glowing over the whole map.
 
 #include "common.wgsl"
+#include "overlay.wgsl"
 #include "atmosphere.wgsl"
 #include "noise.wgsl"
 
@@ -530,6 +531,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // the haze is a colour the sky actually is rather than a wash over the top.
   let view = in.world - camera.eye.xyz;
   col = aerial(col, length(view), view, sun);
+
+  // The information overlay, after the haze and before the tonemap: it is a
+  // reading rather than a material, so distance must not wash it out, but it
+  // still has to go through the same shoulder or a saturated red would clip.
+  col = overlayTint(col, in.world);
 
   // And the same filmic shoulder the buildings use, for the same reason: a
   // ground that clipped where they rolled off would read as a different

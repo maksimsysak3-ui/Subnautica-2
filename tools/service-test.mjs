@@ -46,7 +46,7 @@ const M = await import('data:text/javascript;base64,' + Buffer.from(bundle).toSt
 const {
   Simulation, Utilities, Util, UTIL_NAMES, supplyOf, producerIds,
   Services, UNREACHED, Views, View, VIEWS, VIEW_GRID, Look, NO_DATA,
-  Purpose, Stage, makeCity, INSTANCE_FLOATS, defaultWorld, RoadGraph,
+  Purpose, Stage, makeCity, INSTANCE_FLOATS, defaultWorld, emptyWorld, RoadGraph,
   ASSETS, BRANCHES, TICKS_PER_DAY, configureSim, waterAt,
 } = M;
 
@@ -162,52 +162,87 @@ section('water has to come from somewhere');
   }
 }
 
-// ---- coverage follows the roads, not the crow ------------------------------
+// ---- coverage is an area, and a full station covers it less ---------------
 
-section('coverage is a response time');
+section('coverage is a catchment, not a route');
 {
-  // Two parallel streets a hundred metres apart, joined only at one far end. A
-  // station on one is a hundred metres from the other as the crow flies and over a
-  // kilometre away by road -- which is the case a coverage circle gets wrong.
-  const net = new RoadGraph(200);
+  // Nothing about a school catchment is a journey down a road: it is the ground
+  // around the building. So the test is the shape of that ground, and what happens
+  // to it when more people stand inside it than the building can look after.
+  // Six hundred cells rather than two hundred: the grid's extent is the map's,
+  // and a probe past the edge of the map reads as uncovered whatever the station
+  // is doing -- which looked like a broken falloff and was a small map.
+  const net = new RoadGraph(600);
   net.add(-600, -50, 600, -50, 'street', 0);
-  net.add(-600, 50, 600, 50, 'street', 0);
-  net.add(600, -50, 600, 50, 'street', 0);
-  const world = defaultWorld();
+  // Empty land, so the only fire station on the map is the one placed below. The
+  // generated city has its own, and a probe past the edge of this catchment was
+  // reading one of those -- which looked like a falloff that never fell.
+  const world = emptyWorld(600);
   const city = makeCity(world);
   const sim = new Simulation(city, net, 0x3c0f);
   const fire = ASSETS.findIndex((a) => a.id === 'svc.fire.station');
   ok(fire >= 0, 'the library has a fire station');
 
-  const station = sim.places.add(fire, -560, -50, -1, -1);
-  // Point it at the near street.
-  const { nearestLane } = await (async () => {
-    const b = (await esbuild.build({
-      stdin: {
-        contents: `export { nearestLane, buildLaneIndex, Use } from '${src}sim/agents/lanes';`,
-        resolveDir: src, loader: 'ts',
-      }, bundle: true, format: 'esm', write: false, target: 'es2022',
-    })).outputFiles[0].text;
-    return import('data:text/javascript;base64,' + Buffer.from(b).toString('base64'));
-  })();
-  sim.places.col.lane[station] = nearestLane(sim.lanes, sim.index, -560, -50, 1, 200);
-  ok(sim.places.col.lane[station] >= 0, 'the station fronts a road');
+  const station = sim.places.add(fire, 0, 0, -1, -1);
   for (let k = 0; k < sim.places.col.jobs[station]; k++) sim.places.hire(station);
-
-  // Run the coverage search to completion.
   const b = BRANCHES.indexOf('fire');
-  for (let i = 0; i < 400; i++) sim.services.refresh(1000, 200, 500, 20000);
+  const std = sim.services.standardOf('fire');
+  const settle = () => { for (let i = 0; i < 60; i++) sim.services.refresh(0, 0, 0, 1e9); };
+  settle();
 
-  const near = nearestLane(sim.lanes, sim.index, -400, -50, 1, 200);
-  const far = nearestLane(sim.lanes, sim.index, -400, 50, 1, 200);
-  const mNear = sim.services.minutes[b][near];
-  const mFar = sim.services.minutes[b][far];
-  console.log(`  160 m along the same street   ${mNear.toFixed(2)} min`);
-  console.log(`  100 m away, other side        ${mFar.toFixed(2)} min`);
-  ok(mNear < 2, 'the near end of the same street is covered', `${mNear.toFixed(2)} min`);
-  ok(mFar > mNear * 3, 'the street a hundred metres away is not, because of the roads',
-    `${mFar.toFixed(2)} vs ${mNear.toFixed(2)} min`);
-  ok(mFar < UNREACHED, 'but it is reachable, the long way round', `${mFar}`);
+  const on = sim.services.coverAt(0, 0, b);
+  // Off the road entirely, and across it: neither is a journey, both are inside
+  // the catchment, and both must read as covered. This is the assertion that would
+  // fail if coverage went back to following the streets.
+  const beside = sim.services.coverAt(0, -300, b);
+  const across = sim.services.coverAt(200, 260, b);
+  const edge = sim.services.coverAt(std.worst - 60, 0, b);
+  const outside = sim.services.coverAt(std.worst + 300, 0, b);
+  console.log(`  at the station          ${pct(on)}`);
+  console.log(`  300 m off, no road      ${pct(beside)}`);
+  console.log(`  330 m off, across it    ${pct(across)}`);
+  console.log(`  just inside the edge    ${pct(edge)}`);
+  console.log(`  past the edge           ${pct(outside)}`);
+  ok(on > 0.95, 'the station covers where it stands', pct(on));
+  ok(beside > 0.9, 'and the open ground beside it, with no road to get there',
+    pct(beside));
+  ok(across > 0.6, 'and the far side of the street', pct(across));
+  ok(edge > 0 && edge < 0.35, 'the edge of the catchment is weak, not sharp',
+    pct(edge));
+  ok(outside === 0, 'and past it there is nothing', pct(outside));
+
+  // Now fill the catchment. A station rated for a few thousand people with fifty
+  // thousand living on top of it has to read as overloaded -- that is the whole of
+  // "a percentage of usage", and it is the half of coverage a circle cannot say.
+  const holds = Math.max(1, sim.places.col.serves[station]) * std.per;
+  const homes = ASSETS.findIndex((a) => a.id.startsWith('res.'));
+  ok(homes >= 0, 'the library has housing');
+  let placed = 0;
+  for (let i = 0; i < 120; i++) {
+    const a = (i / 120) * Math.PI * 2;
+    const r = 40 + (i % 6) * 30;
+    const h = sim.places.add(homes, Math.cos(a) * r, Math.sin(a) * r, -1, -1);
+    if (h < 0) continue;
+    // Straight into the column: what is being tested is the load model, and going
+    // through the migration system to get ten thousand residents would be testing
+    // that instead.
+    sim.places.col.living[h] = Math.min(0xffff, Math.ceil(holds / 40));
+    placed++;
+  }
+  ok(placed > 100, 'the district was built', `${placed} homes`);
+  settle();
+
+  const loaded = sim.services.coverAt(0, 0, b);
+  const load = sim.services.cover[b].worstLoad;
+  console.log(`  rated for               ${Math.round(holds).toLocaleString()} people`);
+  console.log(`  standing in it          ${(placed * Math.ceil(holds / 40)).toLocaleString()}`);
+  console.log(`  the station is at       ${pct(load)} of what it can do`);
+  console.log(`  coverage there is now   ${pct(loaded)} (was ${pct(on)})`);
+  ok(load > 1.5, 'the station reads as overloaded', pct(load));
+  ok(loaded < on * 0.75, 'and the district it covers reads worse for it',
+    `${pct(loaded)} vs ${pct(on)}`);
+  ok(loaded > 0, 'but not as abandoned: an overstretched service is still a service',
+    pct(loaded));
 }
 
 // ---- a city that depends on its utilities ---------------------------------
@@ -295,14 +330,14 @@ section('a necessity, not a bonus');
     console.log(`  ${cov.branch.padEnd(11)} ${String(cov.stations).padStart(3)} built  `
       + `${pct(cov.wellServed).padStart(4)} well served  `
       + `${pct(cov.served).padStart(4)} served  `
-      + `${(cov.meanMinutes >= UNREACHED ? '--' : cov.meanMinutes.toFixed(1) + ' min').padStart(8)}  `
-      + `capacity ${pct(cov.capacityRatio)}`);
+      + `${(cov.meanMetres >= UNREACHED ? '--' : Math.round(cov.meanMetres) + ' m').padStart(8)}  `
+      + `capacity ${pct(cov.capacityRatio)}  busiest ${pct(cov.worstLoad)}`);
   }
   const built = lit.services.cover.filter((c) => c.stations > 0);
   ok(built.length >= 4, 'several branches are built', `${built.length}`);
   ok(built.some((c) => c.served > 0.2), 'and at least one of them covers the city',
     built.map((c) => `${c.branch} ${pct(c.served)}`).join(' '));
-  ok(built.every((c) => c.meanMinutes >= 0), 'every mean response time is a number');
+  ok(built.every((c) => c.meanMetres >= 0), 'every mean distance is a number');
 
   // ---- the views -------------------------------------------------------
   section('views');

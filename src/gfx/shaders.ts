@@ -10,6 +10,7 @@
 import commonSrc from './shaders/common.wgsl?raw';
 import atmosphereSrc from './shaders/atmosphere.wgsl?raw';
 import noiseSrc from './shaders/noise.wgsl?raw';
+import overlaySrc from './shaders/overlay.wgsl?raw';
 import assetSrc from './shaders/asset.wgsl?raw';
 import cullSrc from './shaders/cull.wgsl?raw';
 import terrainSrc from './shaders/terrain.wgsl?raw';
@@ -24,6 +25,7 @@ const INCLUDES: Record<string, string> = {
   'common.wgsl': commonSrc,
   'atmosphere.wgsl': atmosphereSrc,
   'noise.wgsl': noiseSrc,
+  'overlay.wgsl': overlaySrc,
 };
 
 /** The whole preprocessor: textual include, one pass, resolved at load. */

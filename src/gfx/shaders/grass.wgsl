@@ -162,5 +162,6 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   let toEye = in.world - camera.eye.xyz;
   col = aerial(col, length(toEye), toEye, sun);
+  col = bury(col, camera.view.x);
   return vec4f(tonemap(col), 1.0);
 }

@@ -18,6 +18,7 @@ import {
   configureSim, LITE, startingWorld, warmTerrain, baseHeightAt, writeAutosave,
 } from './sim';
 import { Menu } from './ui/menu';
+import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
 
@@ -121,6 +122,11 @@ async function boot(): Promise<void> {
   window.__citysim = { camera };
   const renderer = new Renderer(gpu, camera, stats);
 
+  // The simulation, before the world is built rather than after: it is created
+  // from the city the renderer makes, and the notification that carries it fires
+  // inside `renderer.build()` below. Built later, the first city would go past it.
+  const live = new LiveCity(renderer, camera, stats, overlay);
+
   // The menu goes up before the world is built, not after, so the facets have
   // something to light up in time with -- and so the first thing on screen is
   // the game's own face rather than a blank canvas with a word on it.
@@ -135,8 +141,13 @@ async function boot(): Promise<void> {
   /** The name a loaded save came in under, applied once the tools exist. */
   let loaded: string | null = null;
   const menu = new Menu(overlay, {
-    onNew: () => { renderer.useWorld(startingWorld(renderer.world.grid)); renderer.rebuild(); },
+    onNew: () => {
+      live.reset();
+      renderer.useWorld(startingWorld(renderer.world.grid));
+      renderer.rebuild();
+    },
     onLoad: (world, name) => {
+      live.reset();
       renderer.useWorld(world);
       renderer.rebuild();
       loaded = name;
@@ -149,6 +160,10 @@ async function boot(): Promise<void> {
       // the menu being drawn on top of a half-started session.
       if (tools !== null) tools.visible = !on;
       stats.visible = !on;
+      // Paused behind the menu, and founded the moment the player goes in. A
+      // city that aged while its owner read the title screen would be handing
+      // them somebody else's mistakes.
+      live.playing = !on;
       // A full day in about two minutes while the menu is up, and back to the
       // game's own pace on the way in. Sitting on the menu should be worth
       // doing; sitting in the game at that speed would be unplayable.
@@ -270,6 +285,9 @@ async function boot(): Promise<void> {
       camera.update();
     }
     controls.update(dt);
+    // After the camera: the simulation spends its movement budget on whatever
+    // the player is looking at, and looking at it is what the line above did.
+    live.update(dt, performance.now());
     benchmark?.update(dt);
   });
   canvas.focus();

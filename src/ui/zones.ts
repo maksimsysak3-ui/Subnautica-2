@@ -536,7 +536,14 @@ function xml(t: string): string {
  * Drawn rather than generated, because a good pictogram is not a projection of
  * anything -- it is a shape chosen to survive at 20 pixels.
  */
-const GLYPH: Record<Branch, string> = {
+/**
+ * The branch pictograms, by branch.
+ *
+ * Exported because the information views need eight of these twelve and drawing
+ * a second fire engine and a second bolt is how two icons for one thing end up
+ * disagreeing.
+ */
+export const GLYPH: Record<Branch, string> = {
   // Flame: an asymmetric teardrop with a lick off one side.
   fire: 'M24 3.5 C 23 10 18 13 15 18 C 13.4 21 12.6 24.4 12.6 27.9 '
       + 'C 12.6 36.2 17.7 43 24 43 C 30.3 43 35.4 36.2 35.4 27.9 '

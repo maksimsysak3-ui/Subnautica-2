@@ -119,6 +119,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // that wide bands visibly -- this costs nothing and removes it.
   let grain = (lattice(vec2i(in.pos.xy)) - 0.5) * 0.0022;
 
+  // Buried with everything else while an underground view is up. A daylit sky
+  // over a darkened city reads as a bug, not as a drawing of what is below.
+  col = bury(col, camera.view.x);
+
   // The same filmic shoulder the ground and the buildings use, so the horizon
   // meets the terrain without a seam.
   return vec4f(tonemap(col) + grain, 1.0);

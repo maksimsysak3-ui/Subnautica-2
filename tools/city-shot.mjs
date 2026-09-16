@@ -41,6 +41,7 @@ const cfg = {
   edit: !!process.env.EDIT,
   empty: !!process.env.EMPTY,
   lite: !!process.env.LITE,
+  view: process.env.VIEW || '',
 };
 
 const bundle = (await esbuild.build({

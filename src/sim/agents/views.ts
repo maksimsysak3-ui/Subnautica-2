@@ -27,7 +27,7 @@
 
 import { Places, Purpose } from './places';
 import { Utilities, Util, UTIL_NAMES } from './utilities';
-import { Services, UNREACHED } from './services';
+import { Services, SERVICE_GRID, UNREACHED } from './services';
 import { People, Stage } from './people';
 import { Routine } from './routine';
 import { Traffic } from './driving';
@@ -113,33 +113,33 @@ export const VIEWS: ViewInfo[] = [
   },
   {
     id: View.FIRE, name: 'Fire', icon: 'fire', look: Look.SURFACE,
-    legend: 'Minutes for an engine to arrive. Red is over nine.',
-    ramp: ['#d8402e', '#e0a040', '#58c078'], unit: 'within the standard',
+    legend: 'What the stations cover. Red is outside every catchment.',
+    ramp: ['#d8402e', '#e0a040', '#58c078'], unit: 'covered',
   },
   {
     id: View.POLICE, name: 'Police', icon: 'police', look: Look.SURFACE,
-    legend: 'Minutes for a car to arrive. Red is over fifteen.',
-    ramp: ['#c03a4a', '#d8a850', '#4a9ed8'], unit: 'within the standard',
+    legend: 'Where a patrol reaches. Red is beyond it.',
+    ramp: ['#c03a4a', '#d8a850', '#4a9ed8'], unit: 'covered',
   },
   {
     id: View.HEALTH, name: 'Health', icon: 'health', look: Look.SURFACE,
-    legend: 'Minutes for an ambulance. Red is over twelve.',
-    ramp: ['#cc3a52', '#e0a068', '#66c8a0'], unit: 'within the standard',
+    legend: 'Clinic and hospital catchments, and how full they are.',
+    ramp: ['#cc3a52', '#e0a068', '#66c8a0'], unit: 'covered',
   },
   {
     id: View.EDUCATION, name: 'Schools', icon: 'education', look: Look.SURFACE,
-    legend: 'How far the children travel, and whether there is room.',
-    ramp: ['#a8402e', '#d8b050', '#6aa8e0'], unit: 'within the standard',
+    legend: 'Which streets a school takes from, and whether it has room.',
+    ramp: ['#a8402e', '#d8b050', '#6aa8e0'], unit: 'covered',
   },
   {
     id: View.PARKS, name: 'Parks', icon: 'parks', look: Look.SURFACE,
-    legend: 'Somewhere to walk to. Measured on foot.',
-    ramp: ['#8a5a3a', '#bfc05a', '#4fbf6a'], unit: 'within the standard',
+    legend: 'Somewhere to walk to, and how crowded it will be.',
+    ramp: ['#8a5a3a', '#bfc05a', '#4fbf6a'], unit: 'covered',
   },
   {
     id: View.TRANSPORT, name: 'Transport', icon: 'transport', look: Look.SURFACE,
     legend: 'How near a stop or a station is.',
-    ramp: ['#8a3a5a', '#c89a50', '#5ab0c8'], unit: 'within the standard',
+    ramp: ['#8a3a5a', '#c89a50', '#5ab0c8'], unit: 'covered',
   },
   {
     id: View.DESIRABILITY, name: 'Desirability', icon: 'desire', look: Look.SURFACE,
@@ -360,30 +360,58 @@ export class Views {
     }
   }
 
+  /**
+   * A service branch: its catchments, straight off the coverage grid.
+   *
+   * No scattering and no spreading, because the thing being drawn is already an
+   * area -- the simulation stamped each station's catchment into a grid of its
+   * own and this resamples it. Which also makes it the cheapest view in the game:
+   * one read per cell, no walk over the lanes at all.
+   *
+   * Everywhere inside the city reads *something*, including zero, because a
+   * coverage map that paints nothing where there is no station reads as "no data"
+   * and sends the player looking for a bug instead of for a fire station.
+   */
   private fromBranch(branch: string): void {
     const b = BRANCHES.indexOf(branch as never);
-    const { services, lanes } = this.src;
     if (b < 0) return;
-    const std = services.standardOf(branch);
-    const good = std?.good ?? 5;
-    const worst = std?.worst ?? 15;
-    const mins = services.minutes[b];
-    const full = Math.min(1, services.cover[b].capacityRatio);
-    // Nothing built means the whole city is unserved, and that is the single most
-    // important thing a coverage map can say -- so it paints the roads at the worst
-    // reading rather than painting nothing, which reads as "no data" and sends the
-    // player looking for a bug instead of for a fire station.
-    const none = services.cover[b].stations === 0;
-    for (let l = 0; l < this.perLane.length; l++) {
-      if (none) { this.perLane[l] = 0.01; continue; }
-      const m = l < mins.length ? mins[l] : UNREACHED;
-      if (m >= UNREACHED) { this.perLane[l] = 0.01; continue; }
-      const near = m <= good ? 1 : m >= worst ? 0.02 : 1 - (m - good) / (worst - good);
-      this.perLane[l] = Math.max(0.02, Math.min(near, full));
-    }
-    void lanes;
+    const { services, extent } = this.src;
+    const reach = services.reach[b];
+
+    // Where the city is. A coverage grid has a reading for every cell on the map,
+    // including the hillside nobody has built on, and painting all of it gave a
+    // scarlet rectangle with a ruler-straight edge across open country -- which
+    // says nothing and looks like a rendering fault. The roads are what the city
+    // is, so the roads and the ground around them are what gets painted. The
+    // *value* is still the catchment: this decides where the map is drawn, not
+    // what it says.
+    for (let l = 0; l < this.perLane.length; l++) this.perLane[l] = 1;
     this.scatter();
-    this.spread();
+    this.spread(6);
+
+    // The two grids cover the same ground at different resolutions, so a view cell
+    // maps to a coverage cell by ratio. Nearest rather than bilinear: the falloff
+    // it is sampling is already smooth, and the overlay texture filters again on
+    // the way to the screen.
+    const ratio = SERVICE_GRID / VIEW_GRID;
+    const span = services.span;
+    // A loaded save can be a different size from the one the coverage grid was
+    // built at, between the road change and the next refresh.
+    const fit = span > 0 ? extent / span : 1;
+    for (let gz = 0; gz < VIEW_GRID; gz++) {
+      const sz = ((gz + 0.5) * ratio * fit) | 0;
+      for (let gx = 0; gx < VIEW_GRID; gx++) {
+        const at = gz * VIEW_GRID + gx;
+        if (this.grid[at] === NO_DATA) continue;
+        const sx = ((gx + 0.5) * ratio * fit) | 0;
+        const v = (sz < 0 || sz >= SERVICE_GRID || sx < 0 || sx >= SERVICE_GRID)
+          ? 0 : reach[sz * SERVICE_GRID + sx];
+        // One rather than zero where nothing covers it: zero is "no reading" and
+        // would leave a hole in the map exactly where the player needs to be told
+        // there is no fire station.
+        this.grid[at] = Math.max(1, Math.min(255, Math.round(v * 255)));
+      }
+    }
   }
 
   /**
@@ -395,7 +423,6 @@ export class Views {
   private fromDesire(): void {
     const { places, services, utilities, routine } = this.src;
     const c = places.col;
-    for (let l = 0; l < this.perLane.length; l++) this.perLane[l] = 0;
     for (let p = 0; p < places.count; p++) {
       if (places.live[p] === 0) continue;
       const lane = c.lane[p];
@@ -412,9 +439,11 @@ export class Views {
       v += 0.06 * services.byName(p, 'parks');
       // Traffic on the doorstep is a cost, not a benefit.
       v += 0.04 * Math.max(0, 1 - Math.min(1, routine.load[lane]));
-      this.perLane[lane] = Math.max(0.02, Math.min(1, v));
+      // Stamped where the building stands rather than on the road it fronts on:
+      // desirability is a property of a plot, and painting it along the kerb made
+      // a quiet cul-de-sac and the dual carriageway behind it read the same.
+      this.stamp(c.x[p], c.z[p], Math.max(0.02, Math.min(1, v)));
     }
-    this.scatter();
     this.spread();
   }
 
@@ -531,16 +560,18 @@ export class Views {
           line('Served at all', pct(cov.served), cov.served, cov.served < 0.9),
           line('Out of reach', pct(cov.unreachable), cov.unreachable,
             cov.unreachable > 0.05),
-          line('Average time', cov.meanMinutes >= UNREACHED ? '--'
-            : `${cov.meanMinutes.toFixed(1)} min`, -1,
-          std !== undefined && cov.meanMinutes > std.worst),
+          line('Average distance', cov.meanMetres >= UNREACHED ? '--'
+            : `${Math.round(cov.meanMetres)} m`, -1,
+          std !== undefined && cov.meanMetres > std.worst),
           line('Capacity against need', pct(cov.capacityRatio),
             Math.min(1, cov.capacityRatio), cov.capacityRatio < 1),
+          line('Busiest one is at', pct(cov.worstLoad),
+            Math.min(1, cov.worstLoad), cov.worstLoad > 1),
           line('Can look after', cov.capacity.toLocaleString()),
           line('Who need it', Math.round(cov.demand).toLocaleString()),
         ];
         if (std !== undefined) {
-          rows.push(line('The standard', `${std.good} min, useless past ${std.worst}`));
+          rows.push(line('The catchment', `${std.good} m, nothing past ${std.worst}`));
         }
         if (branch === 'education') {
           for (let lv = 1; lv <= 3; lv++) {
