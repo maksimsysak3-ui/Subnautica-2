@@ -24,8 +24,7 @@ import { services, signatures, ASSET_INDEX } from '../sim';
 
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
-import { ZONE_STYLE, zoneIcon, GLYPH as BRANCH_GLYPH } from './zones';
-import { Main, MAIN_COLOURS } from '../sim/mains';
+import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
 import type { Dirty } from '../sim';
@@ -81,37 +80,10 @@ type Tool =
   | { kind: 'place'; proto: Proto }
   | { kind: 'clear' }
   /** Buying land: an overhead view of the plot grid, one click a plot. */
-  | { kind: 'land' }
-  /** Laying a main along the streets. Shift while dragging lifts it instead. */
-  | { kind: 'main'; main: number };
+  | { kind: 'land' };
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
-
-/** Which utility each branch's drawer can lay, if any. */
-const MAIN_FOR_BRANCH: Partial<Record<Branch, number>> = {
-  power: Main.POWER, water: Main.WATER, sewage: Main.SEWAGE,
-};
-const MAIN_LABEL: Record<number, string> = {
-  [Main.POWER]: 'Power line', [Main.WATER]: 'Water main', [Main.SEWAGE]: 'Sewer',
-};
-/**
- * Metres within which the pointer snaps to a plant's terminal.
- *
- * Generous. The dot sits over the roof and the terminal it stands for is anywhere
- * on the building, so anything short of the whole footprint plus its forecourt
- * would be a snap you have to aim at.
- */
-const SNAP_METRES = 110;
-
-/** Segments out of a snapped start that may cross open ground. */
-const SPUR_SEGMENTS = 4;
-
-const MAIN_GLYPH: Record<number, string> = {
-  [Main.POWER]: BRANCH_GLYPH.power,
-  [Main.WATER]: BRANCH_GLYPH.water,
-  [Main.SEWAGE]: BRANCH_GLYPH.sewage,
-};
 
 const TOOL_TINT: Record<string, [number, number, number]> = {
   look: [0.6, 0.7, 0.8],
@@ -190,14 +162,6 @@ export class BuildTools {
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
   private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
-  /** Whether the drag in progress lifts a main rather than laying one. */
-  private liftMains = false;
-  /** The last cell the pencil laid into, so a move continues the line. */
-  private penAt: [number, number] | null = null;
-  /** Segments still allowed to cross open ground, out of a plant's forecourt. */
-  private spurLeft = 0;
-  /** Cells laid by the drag in progress, for the status line. */
-  private penLaid = 0;
   /** Quarter turns the next placed building is rotated by. */
   private placeYaw = 0;
   /** The open service drawer, if one is open. */
@@ -364,87 +328,8 @@ export class BuildTools {
     this.from = cell;
     this.to = cell;
     this.path = [cell];
-    if (this.tool.kind === 'main') this.penDown(cell, e.shiftKey);
     this.showMark();
   };
-
-  /**
-   * Starts a line of main.
-   *
-   * Snapped to the nearest plant's terminal if the pointer is near one, because
-   * that is where a main starts and hunting for the exact cell a dot sits on is
-   * not a skill anybody wants to practise. The snap is also what earns the spur:
-   * a line that begins at a source may cross that source's forecourt to reach the
-   * street, and one that begins in a field may not.
-   */
-  private penDown(cell: [number, number], lift: boolean): void {
-    const t = this.tool;
-    if (t.kind !== 'main') return;
-    const world = this.renderer.world;
-    const half = world.grid / 2;
-    const at = this.renderer.sourceAt(
-      (cell[0] - half) * CELL + CELL / 2, (cell[1] - half) * CELL + CELL / 2,
-      t.main, SNAP_METRES);
-    let start = cell;
-    if (at !== null) {
-      start = [Math.floor(at[0] / CELL + half), Math.floor(at[1] / CELL + half)];
-      this.from = start;
-      this.to = start;
-      this.path = [start];
-    }
-    this.liftMains = lift;
-    this.penAt = start;
-    this.spurLeft = at !== null ? SPUR_SEGMENTS : 0;
-    this.penLaid = 0;
-  }
-
-  /**
-   * Continues the line to a cell. Called on every move while the button is down.
-   *
-   * The whole of "draw it like a pencil": the main appears under the pointer as it
-   * passes rather than arriving when the button comes up. The networks are not
-   * recomputed here -- see `Mains.lay` -- so this costs one line of cells and a
-   * mesh rebuild, and the flood fill happens once when the drag ends.
-   */
-  private penTo(cell: [number, number]): void {
-    const t = this.tool;
-    if (t.kind !== 'main' || this.penAt === null) return;
-    const from = this.penAt;
-    if (from[0] === cell[0] && from[1] === cell[1]) return;
-    const world = this.renderer.world;
-    const half = world.grid / 2;
-    const mid = (c: number): number => (c - half) * CELL + CELL / 2;
-    const laid = world.mains.lay(world.net, mid(from[0]), mid(from[1]),
-      mid(cell[0]), mid(cell[1]), t.main, !this.liftMains,
-      this.spurLeft > 0, true);
-    if (this.spurLeft > 0) this.spurLeft--;
-    this.penAt = cell;
-    if (laid === 0) return;
-    this.penLaid += laid;
-    // The line, and only the line: what is connected to what is settled on the way
-    // up, because that is the expensive half and nobody can read it mid-drag.
-    this.renderer.mainsDrawn();
-  }
-
-  /** The button came up on a line of main. */
-  private penUp(): void {
-    const t = this.tool;
-    this.penAt = null;
-    if (t.kind !== 'main') return;
-    const world = this.renderer.world;
-    if (this.penLaid === 0) {
-      this.say(this.liftMains ? 'nothing there to lift'
-        : 'drag along a road to lay a main — start on the plant to run a spur out');
-      return;
-    }
-    world.mains.settle();
-    this.renderer.mainsChanged();
-    const name = t.main === Main.WATER ? 'water'
-      : t.main === Main.SEWAGE ? 'sewer' : 'power';
-    this.say(`${this.penLaid} cell${this.penLaid === 1 ? '' : 's'} of ${name} `
-      + `${this.liftMains ? 'lifted' : 'laid'}`);
-    this.penLaid = 0;
-  }
 
   /**
    * The pointer moved. Records where, and does the work once a frame.
@@ -508,42 +393,8 @@ export class BuildTools {
         if (this.path.length > 512) this.path.shift();
       }
     }
-    if (this.tool.kind === 'main') {
-      if (this.from) this.penTo(cell);
-      else this.hoverSource(cell);
-    }
     this.showMark();
   };
-
-  /**
-   * What to expect, said once when the pipe is picked up.
-   *
-   * Because a city with no power station has no terminal to snap to, and a snap
-   * that silently does not happen is indistinguishable from one that is broken --
-   * which is how it was reported. If there is nothing to start at, say so.
-   */
-  private sayMains(kind: number): void {
-    const name = kind === Main.WATER ? 'water main'
-      : kind === Main.SEWAGE ? 'sewer' : 'power line';
-    const n = this.renderer.sourceCount(kind);
-    const plant = kind === Main.WATER ? 'pumping station'
-      : kind === Main.SEWAGE ? 'sewage works' : 'power station';
-    this.say(n === 0
-      ? `no ${plant} built yet — drag along a road to lay ${name} anyway, `
-        + `then build one on it`
-      : `drag along a road to lay ${name} — start on one of your `
-        + `${n} ${plant}${n === 1 ? '' : 's'} to run a spur out`);
-  }
-
-  /** Lights up the plant the pointer would snap to, before anything is pressed. */
-  private hoverSource(cell: [number, number]): void {
-    const t = this.tool;
-    if (t.kind !== 'main') return;
-    const half = this.renderer.world.grid / 2;
-    this.renderer.hotSource = this.renderer.sourceAt(
-      (cell[0] - half) * CELL + CELL / 2, (cell[1] - half) * CELL + CELL / 2,
-      t.main, SNAP_METRES);
-  }
 
   /**
    * How far the drag bowed away from a straight line, in metres.
@@ -578,9 +429,6 @@ export class BuildTools {
 
   private onUp = (e: PointerEvent): void => {
     this.flushMove();
-    // Read here rather than on the way down, so a player can change their mind
-    // halfway through a drag -- which is what everybody tries.
-    this.liftMains = e.shiftKey;
     if (this.tool.kind === 'curve' || this.tool.kind === 'place'
       || this.tool.kind === 'land') return;
     if (!this.from) return;
@@ -588,10 +436,7 @@ export class BuildTools {
     const from = this.from;
     this.from = null;
     this.renderer.setRoadPreview(null);
-    // A main was drawn as the pointer moved; there is nothing left to commit but
-    // the networks it changed.
-    if (this.tool.kind === 'main') this.penUp();
-    else this.commit(from, this.to);
+    this.commit(from, this.to);
     this.showMark();
   };
 
@@ -886,15 +731,6 @@ export class BuildTools {
       this.renderer.setGhost(null);
       return;
     }
-    if (this.tool.kind === 'main') {
-      // No rectangle. A main is a line, and a cell-sized box following the pointer
-      // is what made this feel like zoning -- which is what it was told it felt
-      // like, and it was right. The line itself is the feedback.
-      this.renderer.mark = null;
-      this.renderer.setRoadPreview(null);
-      this.renderer.setGhost(null);
-      return;
-    }
     if (this.tool.kind === 'place') {
       // The building itself, standing where it would stand, over a footprint
       // that says green or red. The footprint answers "does it fit"; the
@@ -1141,8 +977,7 @@ export class BuildTools {
     // The connection markers follow the pipe in hand: pick water and every source
     // of it says whether a main reaches it, which is the question you are holding
     // the tool to answer.
-    this.renderer.showDots(tool.kind === 'main' ? tool.main : 0);
-    if (tool.kind === 'main') this.sayMains(tool.main);
+    this.renderer.showDots(0);
     this.from = null;
     this.curveA = null;
     this.curveVia = null;
@@ -1179,7 +1014,6 @@ export class BuildTools {
     // selects is the mode button beside them.
     if (t.kind === 'road' || t.kind === 'curve') return `road:${t.cls}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
-    if (t.kind === 'main') return `main:${t.main}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     return t.kind;
   }
@@ -1600,24 +1434,6 @@ export class BuildTools {
   private openDrawer(branch: Branch, list: Proto[], bar: HTMLElement): void {
     const style = BRANCH_STYLE[branch];
     const panel = this.drawerPanel(branch, style.colour);
-
-    // The main goes first, in the drawer of the thing it carries. It was three
-    // more buttons on the bar, in the same bolt, droplet and pipe the branches
-    // already use -- six icons for three subjects, and no way to tell from the
-    // picture which one placed a building and which one drew a line. A branch's
-    // drawer is where everything about that branch belongs.
-    const kind = MAIN_FOR_BRANCH[branch];
-    if (kind !== undefined) {
-      panel.appendChild(this.tile(null, MAIN_LABEL[kind], 'drag along a road', 0,
-        MAIN_COLOURS[kind],
-        `Drag along a road to lay it. Buildings within about fifty metres connect `
-        + `themselves. Start on the plant to run a spur out to the street, and `
-        + `hold shift while dragging to lift one.`,
-        () => this.select({ kind: 'main', main: kind }),
-        `<svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">`
-        + `<path d="${MAIN_GLYPH[kind]}" fill="${MAIN_COLOURS[kind]}"`
-        + ' fill-rule="evenodd"/></svg>', 'free'));
-    }
 
     for (const p of list) {
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,

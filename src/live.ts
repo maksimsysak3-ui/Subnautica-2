@@ -68,7 +68,6 @@ export class LiveCity {
   ) {
     this.info = new InfoViews(ui, (view, meta) => this.onView(view, meta));
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
-    renderer.onMains = () => this.sim?.mainsChanged(renderer.world.mains);
   }
 
   /**

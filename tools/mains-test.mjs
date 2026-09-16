@@ -1,11 +1,11 @@
 /**
- * The mains tool, driven the way a player drives it.
+ * A road carries its services, and a building beside one is fed.
  *
- * `Mains` has a unit test and it passes; what it does not test is everything
- * between a pointer and `lay` -- the button existing, the pick landing on the
- * right cell, the trail surviving the drag, `commit` being reached at all. That
- * gap is exactly where a tool goes wrong, and "I cannot draw or connect any" is
- * what it looks like from outside.
+ * There is no pipe tool. The whole feature is that drawing a road puts the power,
+ * the water and the sewer in with it, and the whole failure mode is that it
+ * silently does not -- which a screenshot cannot tell you and a unit test over
+ * `Mains` would not either, because the thing being tested is the wiring between a
+ * road edit, the mains and the simulation.
  *
  *   node tools/mains-test.mjs
  */
@@ -51,7 +51,6 @@ const r = await page.evaluate(async () => {
   }
 });
 
-for (const l of logs) if (l.includes('LAYMAIN')) console.log(l);
 if (r.error) {
   console.error('FAIL  the probe threw\n' + r.error);
   console.error('\n' + logs.slice(-20).join('\n'));
@@ -62,61 +61,32 @@ if (r.error) {
 
 const fails = [];
 const push = (m) => fails.push(m);
+const show = (o) => Object.entries(o).map(([k, v]) => `${k} ${v ? 'yes' : 'no'}`).join(', ');
 
-console.log(`on the bar            ${r.onBar.length} mains controls`);
-console.log(`in the water drawer   ${r.buttons.length ? 'yes' : 'no'}`);
+console.log(`pipe controls         ${r.onBar.length}`);
+console.log(`before the road       ${show(r.fedBefore)}`);
+console.log(`after drawing it      ${show(r.fed)}`);
+console.log(`after bulldozing it   ${show(r.fedAfter)}`);
+console.log(`drawn                 ${r.drawn.yellow} pixels of ${r.drawn.pixels}`);
+
 if (r.onBar.length !== 0) {
-  push(`${r.onBar.length} mains controls sit on the bar; they belong in the branch `
-    + 'drawers, beside the buildings they carry for');
+  push(`${r.onBar.length} pipe controls are still in the interface; a road carries `
+    + 'its services and there is nothing to lay');
 }
-if (!r.picked) push('the water main could not be found in the water drawer');
-console.log(`drag ran from         ${r.from.map(Math.round).join(', ')} to `
-  + `${r.to.map(Math.round).join(', ')} in metres`);
-console.log(`drag along the road   ${r.laidAlongRoad} cells laid`);
-console.log(`drag across open land ${r.laidOffRoad} cells laid`);
-console.log(`a house 40 m off it   ${r.connectedBefore ? 'connected' : 'not'} before, `
-  + `${r.connectedAfter ? 'connected' : 'not'} after`);
-console.log(`drawn                 ${r.lines} segments`);
-
-if (r.laidAlongRoad < 20) {
-  push(`dragging along a road laid ${r.laidAlongRoad} cells; the tool does not draw`);
+for (const [k, v] of Object.entries(r.fedBefore)) {
+  if (v) push(`${k} reached open ground before any road was drawn`);
 }
-if (r.connectedBefore) push('something was connected before anything was laid');
-if (!r.connectedAfter) push('laying a main down the street connected nothing beside it');
-if (r.laidOffRoad !== 0) {
-  push(`a drag across open land laid ${r.laidOffRoad} cells; a main goes in the street`);
+for (const [k, v] of Object.entries(r.fed)) {
+  if (!v) push(`${k} does not reach a building beside a road the player drew`);
 }
-if (r.lines < 10) push(`the main is drawn as ${r.lines} segments; it is not being drawn`);
-
-// A pencil draws as it moves. A tool that commits on the way up looks exactly the
-// same once the drag is over, so the only moment the difference exists is during
-// it: the count has to climb while the pointer is still down.
-const steps = r.duringDrag.length;
-const grew = r.duringDrag.filter((n, i) => i > 0 && n > r.duringDrag[i - 1]).length;
-const midway = r.duringDrag[Math.floor(steps / 2)] ?? 0;
-console.log(`while dragging        ${r.duringDrag[0] ?? 0} -> ${midway} -> `
-  + `${r.duringDrag[steps - 1] ?? 0} cells over ${steps} moves`);
-if (midway < 10) {
-  push('nothing was laid until the button came up; the tool is not a pencil');
+for (const [k, v] of Object.entries(r.fedAfter)) {
+  if (v) push(`${k} still reaches after the road was bulldozed`);
 }
-if (grew < 5) push(`the line grew on ${grew} of ${steps} moves; it is not drawing live`);
-if (r.marked) push('a rectangle was marked on the ground while drawing a line');
-
-console.log(`on screen             ${r.drawn.blue} water pixels, `
-  + `${r.drawn.yellow} power, of ${r.drawn.pixels}`);
-// A real number, not a token one. The line was once drawn at its true width of
-// about a metre, which from four hundred metres up is under a pixel: eight hundred
-// pixels across a five-hundred-metre run, correctly drawn and invisible. Anything
-// under a couple of thousand here is that bug coming back.
-if (r.drawn.blue + r.drawn.yellow < 1600) {
-  push(`only ${r.drawn.blue + r.drawn.yellow} pixels of main are in the frame; `
-    + 'it is drawn too thin to see');
-}
-
-console.log(`snap to the plant     ${r.snapped ? 'yes' : 'no'}, ${r.snapLaid} cells`);
-if (!r.snapped) {
-  push('pressing near a plant did not start the line at it, so the plant is not on '
-    + 'the network it was dragged from');
+// The line was once baked at a main's true width -- about a metre, which from
+// four hundred metres up is under a pixel: correctly drawn and invisible.
+if (r.drawn.yellow < 1200) {
+  push(`only ${r.drawn.yellow} pixels of main are in the frame; it is drawn too `
+    + 'thin to see');
 }
 
 if (fails.length) {
@@ -124,7 +94,8 @@ if (fails.length) {
   console.error('\n' + logs.slice(-12).join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('\nPASS  a drag along a street lays a main, connects the houses, and draws');
+  console.log('\nPASS  a road carries its services, a building beside one is fed, '
+    + 'and bulldozing takes them away');
 }
 
 await browser.close();

@@ -180,64 +180,63 @@ section('water has to come from somewhere');
 
 // ---- the mains --------------------------------------------------------------
 
-section('pipes are laid, not free with the road');
+section('a road carries its services');
 {
-  // One street, and a building on it. Nothing is piped until the player lays it,
-  // which is the whole change: a road used to carry every utility the moment it
-  // was drawn, and now it carries nothing.
+  // One street. The mains go in with it, because that is what a street is: the
+  // player said where the city goes by drawing the road, and saying it three more
+  // times with a pipe tool added nothing to the game.
   const grid = 200;
   const net = new RoadGraph(grid);
-  net.add(-600, 0, 600, 0, 'street', 0);
-  net.rasterise();
   const mains = new Mains(grid);
 
-  ok(mains.netAt(0, 0, Main.WATER) < 0, 'a new street has no water main in it');
-  const laid = mains.lay(net, -400, 0, 400, 0, Main.WATER, true);
-  console.log(`  dragged 800 m of water  ${laid} cells`);
-  ok(laid > 40, 'dragging along it lays one', `${laid}`);
-  ok(mains.netAt(0, 0, Main.WATER) >= 0, 'and the street now has water');
-  ok(mains.netAt(0, 0, Main.POWER) < 0, 'but not power: they are separate networks');
+  ok(mains.netAt(0, 0, Main.WATER) < 0, 'open ground has no water main under it');
 
-  // The service band: a house set back from the kerb connects, one behind the
-  // block does not. That band is the whole of "drag along the road and the houses
-  // connect themselves".
+  net.add(-600, 0, 600, 0, 'street', 0);
+  net.rasterise();
+  mains.followRoads(net);
+
+  ok(mains.netAt(0, 0, Main.WATER) >= 0, 'drawing a road puts one in');
+  ok(mains.netAt(0, 0, Main.POWER) >= 0, 'and a power line');
+  ok(mains.netAt(0, 0, Main.SEWAGE) >= 0, 'and a sewer');
+
+  // The band either side: a house set back from the kerb is on it, one behind the
+  // block is not. That band is why nothing has to be drawn to a building.
   const near = mains.netAt(0, 24, Main.WATER);
-  const far = mains.netAt(0, 90, Main.WATER);
+  const far = mains.netAt(0, 120, Main.WATER);
   console.log(`  24 m back from the kerb ${near >= 0 ? 'connected' : 'not'}`);
-  console.log(`  90 m back               ${far >= 0 ? 'connected' : 'not'}`);
-  ok(near >= 0, 'a house set back from the street connects itself');
-  ok(far < 0, 'one across the block does not');
+  console.log(`  120 m back              ${far >= 0 ? 'connected' : 'not'}`);
+  ok(near >= 0, 'a house set back from the street is served');
+  ok(far < 0, 'one across the block is not');
 
-  // Off the road it does not go, however the drag wanders.
-  const before = mains.report.laid[Main.POWER] ?? 0;
-  mains.lay(net, -400, 300, 400, 300, Main.POWER, true);
-  ok((mains.report.laid[Main.POWER] ?? 0) === before,
-    'a drag across open ground lays nothing: a main goes in the street');
-
-  // Two runs with a gap are two networks; closing the gap makes them one.
+  // Two streets that do not touch are two grids; joining them makes one, which is
+  // the whole of why supply is per network.
+  const two = new RoadGraph(grid);
+  two.add(-700, -400, -300, -400, 'street', 0);
+  two.add(300, 400, 700, 400, 'street', 0);
+  two.rasterise();
   const m2 = new Mains(grid);
-  m2.lay(net, -600, 0, -200, 0, Main.POWER, true);
-  m2.lay(net, 200, 0, 600, 0, Main.POWER, true);
+  m2.followRoads(two);
   const split = m2.networksOf(Main.POWER);
-  m2.lay(net, -220, 0, 220, 0, Main.POWER, true);
+  two.add(-300, -400, 300, 400, 'street', 0);
+  two.rasterise();
+  m2.followRoads(two);
   const joined = m2.networksOf(Main.POWER);
-  console.log(`  two runs with a gap     ${split} grids -> ${joined} after joining`);
-  ok(split === 2, 'a gap in the line is two grids', `${split}`);
-  ok(joined === 1, 'and closing it makes one', `${joined}`);
+  console.log(`  two districts           ${split} grids -> ${joined} after joining`);
+  ok(split === 2, 'two unjoined districts are two grids', `${split}`);
+  ok(joined === 1, 'and a street between them makes one', `${joined}`);
 
   // Drawn as one line down the middle of the street, not as a ladder.
   //
-  // A street is three cells wide, so the first version of the mesh -- a segment
-  // between every laid pair of neighbouring cells -- drew two rails and a rung
-  // every eight metres. The test is geometric: every vertex has to sit within a
-  // couple of metres of the road's centreline, which a rung cannot.
+  // A street is three cells wide, so a mesh built from the laid *cells* drew two
+  // rails and a rung every eight metres. The test is geometric: every vertex has
+  // to sit within a couple of metres of the road's centreline.
   {
     const mesh = buildMainsMesh(mains, net, () => 0, Main.WATER);
     let worst = 0;
     for (let i = 0; i < mesh.count; i++) {
-      const at = i * MAIN_VERTEX_FLOATS;
-      // The road under test runs along z = 0, so the offset from it is |z|.
-      worst = Math.max(worst, Math.abs(mesh.vertices[at + 2]));
+      // The road under test runs along z = 0, so the offset from it is |z|. The
+      // corners sit on the centreline; the shader is what widens them.
+      worst = Math.max(worst, Math.abs(mesh.vertices[i * MAIN_VERTEX_FLOATS + 2]));
     }
     console.log(`  drawn line              ${mesh.count / 6} segments, `
       + `worst ${worst.toFixed(2)} m off the centreline`);
@@ -246,17 +245,19 @@ section('pipes are laid, not free with the road');
       `${worst.toFixed(2)} m`);
   }
 
-  // And lifting takes it away again.
-  const lifted = m2.lay(net, -600, 0, 600, 0, Main.POWER, false);
-  ok(lifted > 0 && m2.networksOf(Main.POWER) === 0,
-    'lifting the whole run leaves no grid', `${lifted} cells`);
+  // And bulldozing the road takes them with it. A rule that only ever adds would
+  // leave a grid running down a street that is no longer there.
+  const gone = new RoadGraph(grid);
+  gone.rasterise();
+  mains.followRoads(gone);
+  ok(mains.netAt(0, 0, Main.POWER) < 0, 'bulldozing the road takes the mains away');
 }
 
-section('a city with no pipes has no power');
+section('a district off the grid has nothing');
 {
-  // The same city twice. In one the mains are laid the way the generator leaves
-  // them; in the other they are pulled up. Nothing else differs, so everything
-  // that follows is the pipes.
+  // The same city twice. In one the mains are where the roads are; in the other
+  // they are pulled up, which is what a district cut off from every plant looks
+  // like from the inside. Nothing else differs.
   configureSim({ cityGrid: 160 });
   const run = (piped) => {
     const world = defaultWorld();
@@ -271,7 +272,7 @@ section('a city with no pipes has no power');
     for (let i = 0; i < 12 * TICKS_PER_DAY; i++) sim.step(1);
     return {
       power: sim.utilities.report.served[Util.POWER],
-      water: sim.utilities.report.served[Util.WATER],
+      onMain: sim.utilities.report.onMain[Util.POWER],
       cutOff: sim.utilities.report.cutOff,
       pop: sim.people.population,
       happy: sim.people.happiness,
@@ -279,12 +280,13 @@ section('a city with no pipes has no power');
   };
   const on = run(true);
   const off = run(false);
-  console.log(`  mains laid              ${pct(on.power)} powered, ${pct(on.water)} watered, `
-    + `pop ${on.pop.toLocaleString()}, happy ${pct(on.happy)}`);
-  console.log(`  mains pulled up         ${pct(off.power)} powered, ${pct(off.water)} watered, `
-    + `pop ${off.pop.toLocaleString()}, happy ${pct(off.happy)}`);
-  ok(on.power > 0.5, 'a piped city is powered', pct(on.power));
-  ok(off.power === 0, 'one with the pipes pulled up is not', pct(off.power));
+  console.log(`  on the grid             ${pct(on.onMain)} on a main, `
+    + `${pct(on.power)} powered, pop ${on.pop.toLocaleString()}, happy ${pct(on.happy)}`);
+  console.log(`  cut off from it         ${pct(off.onMain)} on a main, `
+    + `${pct(off.power)} powered, pop ${off.pop.toLocaleString()}, happy ${pct(off.happy)}`);
+  ok(on.onMain > 0.9, 'a city on its roads is on its mains', pct(on.onMain));
+  ok(on.power > 0.5, 'and is powered', pct(on.power));
+  ok(off.power === 0, 'one cut off from them is not', pct(off.power));
   ok(off.cutOff > 0.9, 'and reads as cut off', pct(off.cutOff));
   ok(off.happy < on.happy, 'and the people in it are unhappier',
     `${pct(off.happy)} vs ${pct(on.happy)}`);

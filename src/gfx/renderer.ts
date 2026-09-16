@@ -1319,7 +1319,12 @@ export class Renderer {
     // and a simulation that missed any of the three would be modelling a city
     // that is not on screen.
     this.city = city;
-    this.onCity?.(city, this.world.net, this.world.net.version !== this.notifiedVersion);
+    // The mains follow the roads. A street carries its services, so drawing one
+    // puts them in and demolishing one takes them out, and a building beside a
+    // road is on them without the player doing anything else about it.
+    const roads = this.world.net.version !== this.notifiedVersion;
+    if (roads) this.world.mains.followRoads(this.world.net);
+    this.onCity?.(city, this.world.net, roads);
     this.notifiedVersion = this.world.net.version;
     this.cost.total = performance.now() - clock;
     return {
@@ -2058,6 +2063,7 @@ export class Renderer {
    * with the city for no measurable gain.
    */
   sourceAt(x: number, z: number, kind: number, metres = 90): [number, number] | null {
+
     const city = this.city;
     if (city === null) return null;
     const d = city.data;
@@ -2088,26 +2094,6 @@ export class Renderer {
       if (makes(d[i * INSTANCE_FLOATS + 7] | 0, kind)) n++;
     }
     return n;
-  }
-
-  /**
-   * The source the pointer is hovering, drawn larger so the snap is visible.
-   *
-   * A snap the player cannot see before they press is a snap they find out about
-   * afterwards, which is worse than none.
-   */
-  set hotSource(at: [number, number] | null) {
-    const was = this.hotAt;
-    if ((was === null) === (at === null)
-      && (at === null || (was !== null && was[0] === at[0] && was[1] === at[1]))) return;
-    this.hotAt = at;
-    this.buildDots();
-  }
-  private hotAt: [number, number] | null = null;
-
-  /** Redraws the mains' lines only, for a drag still in progress. */
-  mainsDrawn(): void {
-    this.buildMainsLines();
   }
 
   /** Shows the connection markers for a utility, or hides them with 0. */
@@ -2199,10 +2185,8 @@ export class Renderer {
       const at = n * DOT_FLOATS;
       // Over the roof: at the door is where the connection really is and is also
       // inside the building from every angle but one.
-      const hot = this.hotAt !== null
-        && Math.abs(this.hotAt[0] - x) < 0.5 && Math.abs(this.hotAt[1] - z) < 0.5;
       out[at] = x; out[at + 1] = y + d[base + 6] + 3.5; out[at + 2] = z;
-      out[at + 3] = hot ? 2.6 : 1.6;
+      out[at + 3] = 1.6;
       out[at + 4] = rgb[0]; out[at + 5] = rgb[1]; out[at + 6] = rgb[2];
       out[at + 7] = mains.netAt(x, z, kind) >= 0 ? 1 : 0;
       n++;
@@ -2247,21 +2231,6 @@ export class Renderer {
     }
     res.mainsCount = mesh.count;
   }
-
-  /**
-   * The player laid or lifted a main.
-   *
-   * No city rebuild: a pipe moves no building and no road. The markers are redrawn
-   * and whoever is simulating the city is told, and that is the whole cost.
-   */
-  mainsChanged(): void {
-    this.buildDots();
-    this.buildMainsLines();
-    this.onMains?.();
-  }
-
-  /** Called when the mains change, so the simulation can rewire. */
-  onMains: (() => void) | null = null;
 
   /** Total buildings in the world, drawn or not. */
   get buildingCount(): number {

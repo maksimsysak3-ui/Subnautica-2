@@ -18,12 +18,11 @@ import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
   emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
-  INSTANCE_FLOATS, previewRoad, baseHeightAt, heightAt, placeLot,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt,
 } from './sim';
 import type { Dirty } from './sim';
 import { LiveCity } from './live';
 import { Main } from './sim/mains';
-import { buildMainsMesh } from './gfx/mains-mesh';
 
 export interface ShotRequest {
   width: number;
@@ -922,27 +921,27 @@ export async function probeViews(): Promise<{
 }
 
 /**
- * The mains tool, driven the way a player drives it.
+ * A building placed beside a road is fed, without the player doing anything else.
  *
- * Whether a drag along a street lays a main is not a question a screenshot can
- * answer, and it is not a question the `Mains` unit test answers either: that one
- * calls `lay` directly, and everything between a pointer and `lay` -- picking the
- * cell under the cursor, keeping the trail, reaching `commit` at all -- is exactly
- * where a tool goes wrong.
+ * The one thing this has to prove is the one thing a screenshot cannot: draw a
+ * road, put a house on it, and the house has power, water and a sewer. There is no
+ * pipe tool -- a street carries its services -- so the whole feature is that this
+ * happens by itself, and the whole failure mode is that it silently does not.
+ *
+ * It also checks the other half of "by itself": that demolishing the road takes the
+ * services with it, because a rule that only ever adds is not a rule.
  */
 export async function probeMains(): Promise<{
-  buttons: string[]; onBar: string[]; picked: boolean;
-  laidAlongRoad: number; laidOffRoad: number; lifted: number;
-  connectedBefore: boolean; connectedAfter: boolean;
-  lines: number; from: number[]; to: number[];
-  /** Cells laid after each step of one drag, to show it draws as it goes. */
-  duringDrag: number[];
-  /** Whether a rectangle was marked on the ground while drawing. */
-  marked: boolean;
-  /** Whether pressing near a plant started the line at the plant. */
-  snapped: boolean; snapLaid: number;
-  /** Pixels of each main's colour actually in the frame. */
-  drawn: { blue: number; yellow: number; pixels: number };
+  /** Controls left over from the pipe tool. Must be none. */
+  onBar: string[];
+  /** Whether each utility reaches a house beside a road the player drew. */
+  fed: Record<string, boolean>;
+  /** And whether it reached before the road existed. */
+  fedBefore: Record<string, boolean>;
+  /** Still fed after the road is bulldozed. Must be false. */
+  fedAfter: Record<string, boolean>;
+  /** Pixels of main in the frame, so "drawn" stays a claim about the picture. */
+  drawn: { yellow: number; pixels: number };
   error?: string;
 }> {
   configureSim(LITE);
@@ -957,199 +956,56 @@ export async function probeMains(): Promise<{
   const stats = new Stats(document.createElement('div'));
   const renderer = new Renderer(gpu, camera, stats);
   renderer.clockRunning = false;
-  // Empty land with one long straight road across the middle, so where the road
-  // is on screen is something this can compute rather than hunt for.
+  renderer.timeOfDay = 0.42;
   const world = emptyWorld(renderer.world.grid);
-  const g = world.grid;
-  const half = g / 2;
-  world.net.add(-((half - 6) * 8), 0, (half - 6) * 8, 0, 'avenue');
-  world.net.rasterise();
   renderer.useWorld(world);
   grantAll(renderer.world);
   renderer.build();
 
-  // Straight down over the middle, so a screen point maps to a cell.
   camera.setViewport(800, 450);
   camera.focus[0] = 0; camera.focus[2] = 0;
-  camera.pitch = 1.45;
-  camera.distance = 420;
-  camera.yaw = 0;
+  camera.pitch = 0.9; camera.distance = 380; camera.yaw = 0.2;
   camera.update();
 
   const tools = new BuildTools(canvas, camera, renderer, overlay);
   tools.visible = true;
-
-  const press = (label: string): boolean => {
-    const b = Array.from(overlay.querySelectorAll('button'))
-      .find((el) => (el.title ?? '').startsWith(label));
-    if (b === undefined) return false;
-    b.click();
-    return true;
-  };
-  // Named after the drawer they now live in, so the test notices if they go back
-  // to being three more icons on the bar.
   const onBar = Array.from(overlay.querySelectorAll('button'))
-    .map((b) => b.title ?? '').filter((t) => /drag along a road/i.test(t));
-
-  // Where on screen a world point lands, found by asking the camera what is under
-  // a screen point and bisecting -- rather than multiplying by the view-projection
-  // and hoping the convention matches. The first version of this did the latter,
-  // put every synthetic click off the map, and reported that the tool laid
-  // nothing: a broken probe wearing a bug's clothes.
-  const ground = (sx: number, sy: number): [number, number] | null => {
-    const hit = camera.groundPointAt((sx / 800) * 2 - 1, 1 - (sy / 450) * 2);
-    return hit === null ? null : [hit[0], hit[2]];
-  };
-  const bisect = (want: number, axis: 0 | 1, lo: number, hi: number,
-    other: number): number => {
-    const at = (s: number): [number, number] | null =>
-      (axis === 0 ? ground(s, other) : ground(other, s));
-    const a = at(lo), b = at(hi);
-    if (a === null || b === null) return (lo + hi) / 2;
-    const rising = b[axis] > a[axis];
-    for (let i = 0; i < 40; i++) {
-      const mid = (lo + hi) / 2;
-      const here = at(mid);
-      if (here === null) return (lo + hi) / 2;
-      if ((here[axis] < want) === rising) lo = mid; else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  // Which way world z runs down the screen depends on the camera's yaw, so the
-  // search works it out rather than assuming. Assuming was how every drag ended up
-  // two hundred metres from the road it was supposed to follow.
-  const screenY = (z: number): number => {
-    let lo = 10, hi = 440;
-    const a = ground(400, lo), b = ground(400, hi);
-    if (a === null || b === null) return 225;
-    const rising = b[1] > a[1];
-    for (let i = 0; i < 40; i++) {
-      const mid = (lo + hi) / 2;
-      const at = ground(400, mid);
-      if (at === null) break;
-      if ((at[1] < z) === rising) lo = mid; else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  const screen = (x: number, z: number): [number, number] => {
-    const sy = screenY(z);
-    return [bisect(x, 0, 10, 790, sy), sy];
-  };
-  const frame = async (): Promise<void> => {
-    await new Promise<void>((done) => requestAnimationFrame(() => done()));
-  };
-  const drag = async (a: [number, number], b: [number, number],
-    steps = 24, watch?: () => void): Promise<void> => {
-    const opts = { bubbles: true, button: 0, pointerId: 1 };
-    canvas.dispatchEvent(new PointerEvent('pointerdown',
-      { ...opts, clientX: a[0], clientY: a[1] }));
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      canvas.dispatchEvent(new PointerEvent('pointermove', {
-        ...opts, clientX: a[0] + (b[0] - a[0]) * t, clientY: a[1] + (b[1] - a[1]) * t,
-      }));
-      // The tool defers its move work to the next frame, so each report has to be
-      // given one or the whole drag collapses to its last position -- which is
-      // also true of a real pointer and is why the trail exists at all.
-      await frame();
-      watch?.();
-    }
-    canvas.dispatchEvent(new PointerEvent('pointerup',
-      { ...opts, clientX: b[0], clientY: b[1] }));
-  };
+    .map((b) => b.title ?? '').filter((t) => /drag along a road|main|sewer|power line/i.test(t));
 
   const mains = renderer.world.mains;
-  const laid = (): number => {
-    let n = 0;
-    for (const b of mains.bits) if ((b & Main.WATER) !== 0) n++;
-    return n;
-  };
-
-  // The way a player reaches it: open the water branch, then pick the main.
-  press('Water');
-  // Read while the drawer is open -- picking a tool closes it, so asking
-  // afterwards always answers "no drawer, no tile".
-  const buttons = Array.from(overlay.querySelectorAll('button'))
-    .map((b) => b.title ?? '').filter((t) => /drag along a road/i.test(t));
-  const picked = press('Drag along a road');
-  const connectedBefore = mains.netAt(0, 40, Main.WATER) >= 0;
-  // Where the drag actually landed, so a failure says whether the tool missed the
-  // road or the road missed the tool.
-  const start = ground(...screen(-250, 0));
-  const end = ground(...screen(250, 0));
-
-  // Watched a step at a time: a pencil draws as it moves, and a tool that
-  // commits on the way up looks identical afterwards.
-  const duringDrag: number[] = [];
-  let marked = false;
-  await drag(screen(-250, 0), screen(250, 0), 24, () => {
-    duringDrag.push(laid());
-    if (renderer.mark !== null) marked = true;
+  const reading = (): Record<string, boolean> => ({
+    power: mains.netAt(0, 40, Main.POWER) >= 0,
+    water: mains.netAt(0, 40, Main.WATER) >= 0,
+    sewage: mains.netAt(0, 40, Main.SEWAGE) >= 0,
   });
-  const laidAlongRoad = laid();
-  const connectedAfter = mains.netAt(0, 40, Main.WATER) >= 0;
 
-  // The same drag a long way off the road: a main goes in the street.
-  const before = laid();
-  await drag(screen(-250, 160), screen(250, 160));
-  const laidOffRoad = laid() - before;
+  const fedBefore = reading();
 
-  // And the snap. A power station off the road, a press on it, a drag to the
-  // street: the line has to start at the plant rather than where the pointer was.
-  // Beside the road but off it, which is where a power station goes. Tried at a
-  // few offsets because `placeLot` refuses ground that does not suit, and a test
-  // that silently placed nothing would be testing the snap against no plant.
-  let placed: string | null = 'not tried';
-  for (const [gx, gz] of [[40, 34], [34, 34], [46, 34], [40, 52], [30, 52]]) {
-    placed = placeLot(renderer.world, 'svc.power.gas', gx, gz, 0, baseHeightAt);
-    if (placed === null) break;
-  }
+  // The player draws a road. Nothing else.
+  const g = renderer.world.grid;
+  const half = g / 2;
+  renderer.world.net.addCells(6, half, g - 6, half, 'avenue');
   renderer.rebuild();
-  press('Power');
-  press('Drag along a road');
-  const roof = renderer.sourceAt(0, 0, Main.POWER, 4000);
-  if (roof === null) throw new Error(`no power source to snap to: ${placed}`);
-  let snapped = false;
-  let snapLaid = 0;
-  if (roof !== null) {
-    const before = (): number => {
-      let n = 0;
-      for (const b of mains.bits) if ((b & Main.POWER) !== 0) n++;
-      return n;
-    };
-    const was = before();
-    // Pressed sixty metres off the plant, which is inside the snap and outside
-    // the building: if the snap works the line still starts at the terminal.
-    await drag(screen(roof[0] + 60, roof[1] + 60), screen(roof[0], 0), 20);
-    snapLaid = before() - was;
-    snapped = mains.netAt(roof[0], roof[1], Main.POWER) >= 0;
-  }
+  const fed = reading();
 
-  const mesh = buildMainsMesh(mains, renderer.world.net, heightAt, Main.WATER);
-  const lines = mesh.count / 6;
-
-  // And the part the mesh count cannot answer: whether any of it reaches a pixel.
-  // Counting the mesh proved the geometry existed; it did not prove the frame
-  // drew it, and those are different failures with the same symptom.
-  press('Water');
-  press('Drag along a road');
   camera.update();
   renderer.frameForTools(performance.now());
   await gpu.device.queue.onSubmittedWorkDone();
+  // The mains are drawn while a utility view is up, which is when a player looks
+  // at them; the marker code and the line code share that switch.
+  renderer.showDots(Main.POWER);
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
   const px = await gpu.readPixels();
-  let blue = 0, yellow = 0;
+  let yellow = 0;
   for (let i = 0; i < px.length; i += 4) {
-    const r = px[i], g = px[i + 1], b = px[i + 2];
-    if (b > 90 && b > r + 30 && b > g + 12) blue++;
-    if (r > 120 && g > 90 && b < g - 25) yellow++;
+    if (px[i] > 120 && px[i + 1] > 90 && px[i + 2] < px[i + 1] - 25) yellow++;
   }
-  const drawn = { blue, yellow, pixels: px.length / 4 };
 
-  return {
-    buttons, onBar, picked, laidAlongRoad, laidOffRoad, lifted: 0,
-    connectedBefore, connectedAfter, lines, duringDrag, marked, snapped, snapLaid,
-    drawn,
-    from: start === null ? [NaN, NaN] : start,
-    to: end === null ? [NaN, NaN] : end,
-  };
+  // And the road goes away again.
+  demolish(renderer.world, 0, 0, g, g);
+  renderer.rebuild();
+  const fedAfter = reading();
+
+  return { onBar, fed, fedBefore, fedAfter, drawn: { yellow, pixels: px.length / 4 } };
 }

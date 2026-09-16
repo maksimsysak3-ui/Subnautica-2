@@ -1,33 +1,33 @@
 /**
- * The mains: power lines, water pipes and sewers, laid by hand along the streets.
+ * The mains: the power, water and sewage that come with a road.
  *
- * Until now a road carried every utility the moment it was built, which is one
- * decision fewer for the player and one fewer thing for a city to be wrong about.
- * It is also not how any of this works. A district can have roads and no water; a
- * water plant can be built and left unconnected; the cheap route for a trunk main
- * and the cheap route for a road are not the same route. So each utility now has
- * its own network, the player lays it, and a building is served when a main of that
- * kind reaches it.
+ * A street carries its services. Draw a road and the mains go in with it; build
+ * beside that road and you are on them. There is no pipe tool, and there was one
+ * for exactly as long as it took to find out that laying three lines down every
+ * street you had already drawn is not a decision, it is a chore -- the player has
+ * said where the city goes by drawing the road, and asking them to say it three
+ * more times adds nothing to the game.
  *
- * CELLS, NOT LINKS. A main is stored as a bit per eight-metre cell, in the same
- * grid the roads rasterise themselves into and the zoning works on. The obvious
- * alternative -- remember which road links carry which utility -- breaks the first
- * time somebody draws a road across another one, because the crossing splits a link
- * in two and renumbers everything after it. Cells do not move when the network is
- * edited, which makes them the only stable thing to hang this on.
+ * This still exists, and is still a separate network per utility, for two reasons.
+ * One: the *supply* is what the player manages, and supply is per network -- two
+ * districts joined by road share a grid and a district cut off from the pumps has
+ * no water, which is a real thing for a city to be and needs somewhere to live.
+ * Two: the mains are drawn, one line down each street in its own colour, and a
+ * player looking at the power map wants to see where the grid actually reaches.
  *
- * WHAT A MAIN REACHES. Laying is constrained to road cells: a pipe follows the
- * street, which is both how it is done and what makes the drag tool obvious to use.
- * Buildings do not sit on the street, so each network is then grown outward a few
- * cells into a service band, and a building is connected when its own cell is in
- * one. That band is why "click and drag along the road" is all the player has to do
- * -- the houses either side connect themselves, which is the part of the real job
- * nobody wants to simulate.
+ * CELLS, NOT LINKS. A main is a bit per eight-metre cell, in the same grid the
+ * roads rasterise themselves into. Remembering which road *links* carry which
+ * utility breaks the first time somebody draws a road across another one, because
+ * the crossing splits a link in two and renumbers everything after it. Cells do not
+ * move when the network is edited.
+ *
+ * WHAT A MAIN REACHES. The street, and a band either side of it, so the houses set
+ * back behind a verge are on it and the middle of a block is not.
  *
  * COST. One byte a cell for what is laid, and one network id per cell per utility
  * for what it reaches. Rebuilding is three flood fills and three ring expansions
  * over the grid, which is a couple of milliseconds on the largest map and happens
- * when the player edits something rather than on a tick.
+ * when the roads change rather than on a tick.
  */
 
 import type { RoadGraph } from './roadgraph';
@@ -58,25 +58,12 @@ const CELL = 8;
 /**
  * Cells a main reaches either side of the street it is laid in.
  *
- * Six -- about fifty metres, which is a deep plot. A house behind a verge, a
- * pavement and a front garden connects; the middle of a block does not. Any larger
- * and one pipe down one street would serve the street behind it, which would make
- * the whole business of laying them pointless.
+ * Five, and measured the short way round the corner as well as straight back, so
+ * about forty metres in any direction -- a deep plot. A house behind a verge, a
+ * pavement and a front garden is on the main; the middle of a block is not, which
+ * is what keeps a block's interior worth a road of its own.
  */
-const REACH_CELLS = 6;
-
-/** Cells either side of the drag that get the main, so a wide road fills. */
-const BRUSH = 1;
-
-/**
- * Cells from where a drag begins that may take a main with no road under them.
- *
- * The spur out of a plant. A power station stands off the street with its own
- * forecourt, and the player's move is to start at its terminal and drag to the
- * road -- so the first few cells have to take a line across open ground or that
- * move does nothing at all and the plant stays dark next to a full grid.
- */
-const SPUR_CELLS = 10;
+const REACH_CELLS = 5;
 
 export interface MainsReport {
   /** Cells carrying each kind. */
@@ -101,8 +88,6 @@ export class Mains {
   private readonly queue: Int32Array;
 
   readonly report: MainsReport = { laid: {}, networks: {} };
-  /** Set when bits have changed and the networks have not caught up. */
-  private dirty = false;
 
   constructor(readonly grid: number) {
     const n = grid * grid;
@@ -149,84 +134,31 @@ export class Mains {
   }
 
   /**
-   * Lays or lifts a main along the road between two points.
+   * Puts the mains wherever the roads are, and nowhere else.
    *
-   * Only road cells take it, which is the rule that makes the tool feel like a tool
-   * rather than a paintbrush: the drag can wander off the kerb and the main still
-   * follows the street. Returns how many cells changed, so the caller can tell
-   * whether the drag did anything and charge for it.
+   * Called after every road edit. Assignment rather than a union, so a demolished
+   * street takes its services with it -- a union would leave a grid running down a
+   * road that is no longer there, feeding buildings that have no frontage.
+   *
+   * Returns whether anything moved, so a caller can skip the flood fill on the
+   * edits that changed no road cells at all, which is most zoning.
    */
-  lay(net: RoadGraph, x0: number, z0: number, x1: number, z1: number,
-    kind: number, on: boolean, spur = false, defer = false): number {
-    const half = this.grid / 2;
-    const ax = x0 / CELL + half, az = z0 / CELL + half;
-    const bx = x1 / CELL + half, bz = z1 / CELL + half;
-    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) * 2));
-    let changed = 0;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const cx = Math.floor(ax + (bx - ax) * t);
-      const cz = Math.floor(az + (bz - az) * t);
-      for (let dz = -BRUSH; dz <= BRUSH; dz++) {
-        for (let dx = -BRUSH; dx <= BRUSH; dx++) {
-          const gx = cx + dx, gz = cz + dz;
-          if (gx < 0 || gz < 0 || gx >= this.grid || gz >= this.grid) continue;
-          const at = gz * this.grid + gx;
-          // A pipe goes in the street, except for the spur out of wherever the
-          // drag began. Lifting one is not fussy about either -- a player pulling
-          // up a main after demolishing the road it was under should not be told
-          // there is nothing there.
-          if (on && net.cls[at] === 0) {
-            if (!spur || Math.hypot(gx - ax, gz - az) > SPUR_CELLS) continue;
-          }
-          const was = (this.bits[at] & kind) !== 0;
-          if (was === on) continue;
-          if (on) this.bits[at] |= kind; else this.bits[at] &= ~kind;
-          changed++;
-        }
-      }
+  followRoads(net: RoadGraph): boolean {
+    const all = Main.POWER | Main.WATER | Main.SEWAGE;
+    const n = Math.min(this.bits.length, net.cls.length);
+    let moved = false;
+    for (let at = 0; at < n; at++) {
+      const want = net.cls[at] !== 0 ? all : 0;
+      if (this.bits[at] === want) continue;
+      this.bits[at] = want;
+      moved = true;
     }
-    if (changed > 0) {
-      // Deferred while the pointer is still down. The networks are three flood
-      // fills over the whole grid and the tool lays a cell every frame, so doing
-      // them per frame would turn a drag across a district into a slideshow. The
-      // bits are right immediately, which is what the drawn line reads; the
-      // networks catch up when the button comes up.
-      if (defer) this.dirty = true; else this.rebuild();
-    }
-    return changed;
+    if (moved) this.rebuild();
+    return moved;
   }
 
-  /**
-   * Brings the networks up to date if a deferred edit left them behind.
-   *
-   * Returns whether it had to, so a caller can tell whether anything downstream
-   * needs telling.
-   */
-  settle(): boolean {
-    if (!this.dirty) return false;
-    this.rebuild();
-    return true;
-  }
-
-  /**
-   * Lays a kind on every road cell there is.
-   *
-   * For a city that arrives already built -- the generated demo, and any save from
-   * before mains existed. Those cities were built under the rule that a road
-   * carried everything, and loading one into a game where it does not would cut the
-   * power off in every building at once, which is not a migration, it is a bug
-   * report.
-   */
-  layEverywhere(net: RoadGraph, kinds: number[] = MAIN_KINDS): void {
-    let any = false;
-    for (let at = 0; at < this.bits.length && at < net.cls.length; at++) {
-      if (net.cls[at] === 0) continue;
-      for (const k of kinds) this.bits[at] |= k;
-      any = true;
-    }
-    if (any) this.rebuild();
-  }
+  /** The old name, kept because a loaded save calls it. */
+  layEverywhere(net: RoadGraph): void { this.followRoads(net); }
 
   /** Forgets everything laid. */
   clear(): void {
@@ -244,7 +176,6 @@ export class Mains {
    * form this needs, and costs one pass rather than one search per building.
    */
   rebuild(): void {
-    this.dirty = false;
     const g = this.grid;
     const n = g * g;
     const q = this.queue;
@@ -266,10 +197,19 @@ export class Mains {
           const at = q[head++];
           laid++;
           const x = at % g, z = (at / g) | 0;
-          tail = this.push(at - 1, x > 0, id, kind, reach, q, tail);
-          tail = this.push(at + 1, x + 1 < g, id, kind, reach, q, tail);
-          tail = this.push(at - g, z > 0, id, kind, reach, q, tail);
-          tail = this.push(at + g, z + 1 < g, id, kind, reach, q, tail);
+          const w = x > 0, e = x + 1 < g, n = z > 0, sth = z + 1 < g;
+          tail = this.push(at - 1, w, id, kind, reach, q, tail);
+          tail = this.push(at + 1, e, id, kind, reach, q, tail);
+          tail = this.push(at - g, n, id, kind, reach, q, tail);
+          tail = this.push(at + g, sth, id, kind, reach, q, tail);
+          // And the corners. A road drawn at an angle rasterises as a staircase,
+          // and where one meets a straight street the two can touch only
+          // diagonally -- so a four-connected fill called them separate grids,
+          // and a city joined by a diagonal street had two of everything.
+          tail = this.push(at - g - 1, n && w, id, kind, reach, q, tail);
+          tail = this.push(at - g + 1, n && e, id, kind, reach, q, tail);
+          tail = this.push(at + g - 1, sth && w, id, kind, reach, q, tail);
+          tail = this.push(at + g + 1, sth && e, id, kind, reach, q, tail);
         }
       }
 
@@ -282,10 +222,18 @@ export class Mains {
           const at = q[head++];
           const id = reach[at];
           const x = at % g, z = (at / g) | 0;
-          if (x > 0 && reach[at - 1] < 0) { reach[at - 1] = id; q[tail++] = at - 1; }
-          if (x + 1 < g && reach[at + 1] < 0) { reach[at + 1] = id; q[tail++] = at + 1; }
-          if (z > 0 && reach[at - g] < 0) { reach[at - g] = id; q[tail++] = at - g; }
-          if (z + 1 < g && reach[at + g] < 0) { reach[at + g] = id; q[tail++] = at + g; }
+          const w = x > 0, e = x + 1 < g, n = z > 0, sth = z + 1 < g;
+          // Eight ways out, so the band is a square rather than a diamond and the
+          // house on the corner of a plot is served like the one in the middle of
+          // the frontage.
+          const step = (to: number, ok: boolean): void => {
+            if (!ok || reach[to] >= 0) return;
+            reach[to] = id;
+            q[tail++] = to;
+          };
+          step(at - 1, w); step(at + 1, e); step(at - g, n); step(at + g, sth);
+          step(at - g - 1, n && w); step(at - g + 1, n && e);
+          step(at + g - 1, sth && w); step(at + g + 1, sth && e);
         }
       }
 
