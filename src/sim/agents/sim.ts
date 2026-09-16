@@ -39,6 +39,7 @@ import { Junctions } from './junctions';
 import { Traffic } from './driving';
 import { Utilities } from './utilities';
 import { Services } from './services';
+import { Dispatch } from './dispatch';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 
@@ -155,6 +156,7 @@ export class Simulation {
   traffic: Traffic;
   readonly utilities: Utilities;
   readonly services: Services;
+  readonly dispatch: Dispatch;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -199,12 +201,15 @@ export class Simulation {
     // their proximity fallbacks. Attached after construction because the dependency
     // is genuinely mutual: what people feel depends on the services, and where the
     // services are needed depends on the people.
+    this.dispatch = new Dispatch(this.places, this.people, this.services,
+      this.utilities, this.traffic, this.router, this.lanes, this.clock, seed ^ 0xd15);
     this.people.informedBy(this.services, this.utilities);
     this.migration.informedBy(this.services, this.utilities);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,
       junctions: this.junctions, migration: this.migration, lanes: this.lanes,
+      dispatch: this.dispatch,
       extent: net.grid * 8,
     });
     this.install();
@@ -318,6 +323,28 @@ export class Simulation {
       },
     });
 
+    // Things going wrong. Slow, because a fire every few game seconds is already
+    // far more than a city has and the pass walks a slice of the buildings.
+    s.add({
+      name: 'raise', rate: Rate.SLOW,
+      run: () => { this.dispatch.raise(Rate.SLOW / TICKS_PER_DAY); },
+    });
+
+    // Sending somebody. Between the two, so a call raised this second is on its way
+    // within a couple of ticks rather than waiting out a slow system's period.
+    s.add({
+      name: 'assign', rate: Rate.FAST,
+      run: () => { this.dispatch.assign(); },
+    });
+
+    // Arrivals, work finished and calls that ran out of time. Every tick, and
+    // deliberately after `drive`: the traffic model rebuilds its arrived and stuck
+    // lists on every call, so reading them a tick late would read the wrong tick's.
+    s.add({
+      name: 'respond', rate: Rate.REALTIME,
+      run: () => { this.dispatch.resolve(); },
+    });
+
     // The view the player has open, rebuilt as the numbers behind it move.
     s.add({
       name: 'views', rate: Rate.BRISK,
@@ -380,6 +407,8 @@ export class Simulation {
     this.routine.focusZ = z;
     this.traffic.focusX = x;
     this.traffic.focusZ = z;
+    this.dispatch.focusX = x;
+    this.dispatch.focusZ = z;
   }
 
   /**
@@ -400,6 +429,10 @@ export class Simulation {
     this.utilities.rewire(this.lanes, net.nodes.length);
     this.nodes = net.nodes.length;
     this.junctions = new Junctions(this.lanes, net.nodes.length);
+    // Before the traffic model is rebound: rebinding it drops every vehicle, and
+    // the dispatch machine's routes can only be given back while its vehicles
+    // still exist to be read.
+    this.dispatch.rebind(this.lanes, this.traffic);
     this.traffic.rebind(this.lanes);
     (this.traffic as { junctions: Junctions }).junctions = this.junctions;
     this.traffic.informedBy(this.routine.load, this.router.paths);
@@ -421,6 +454,8 @@ export class Simulation {
     // power, and a demolished one has to come off before its supply is counted.
     if (added > 0 || removed.length > 0) this.utilities.rewire(this.lanes, this.nodes);
     if (removed.length === 0) return;
+    // Anything the machine had open at a building that is no longer there.
+    for (const p of removed) this.dispatch.forget(p);
     const people = this.people;
     const cz = people.citizens;
     const hh = people.households;
@@ -481,6 +516,7 @@ export class Simulation {
       + this.router.bytes() + this.places.bytes()
       + this.people.bytes() + this.migration.bytes() + this.routine.bytes()
       + this.junctions.bytes() + this.traffic.bytes()
-      + this.utilities.bytes() + this.services.bytes() + this.views.bytes();
+      + this.utilities.bytes() + this.services.bytes() + this.views.bytes()
+      + this.dispatch.bytes();
   }
 }

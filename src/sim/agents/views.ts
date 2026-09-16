@@ -33,6 +33,7 @@ import { Routine } from './routine';
 import { Traffic } from './driving';
 import { Junctions, Control } from './junctions';
 import { Migration } from './migration';
+import { Dispatch, Need } from './dispatch';
 import { BRANCHES } from '../../assets/types';
 import type { LaneGraph } from './lanes';
 
@@ -177,6 +178,7 @@ export interface Sources {
   traffic: Traffic;
   junctions: Junctions;
   migration: Migration;
+  dispatch: Dispatch;
   lanes: LaneGraph;
   /** Metres across the whole map. */
   extent: number;
@@ -572,6 +574,27 @@ export class Views {
         ];
         if (std !== undefined) {
           rows.push(line('The catchment', `${std.good} m, nothing past ${std.worst}`));
+        }
+        // What the service actually did, as opposed to where it could have gone.
+        // A city can be fully covered and still miss half its calls, because every
+        // engine was already out -- and those two failures want different fixes.
+        const need = branch === 'fire' ? Need.FIRE
+          : branch === 'police' ? Need.CRIME
+            : branch === 'health' ? Need.MEDICAL : -1;
+        if (need >= 0) {
+          const d = s.dispatch.stats;
+          const answered = s.dispatch.rate(need);
+          rows.push(line('Calls', Math.round(d.raised[need]).toLocaleString()));
+          rows.push(line('Answered in time', pct(answered), answered, answered < 0.85));
+          rows.push(line('Too late', Math.round(d.missed[need]).toLocaleString(), -1,
+            d.missed[need] > 0));
+          rows.push(line('Average response',
+            `${d.meanResponseMinutes.toFixed(1)} min`, -1,
+            d.meanResponseMinutes > 12));
+          rows.push(line('Out right now', `${d.vehicles} vehicles`));
+          if (d.waiting > 0) {
+            rows.push(line('Waiting for anybody', d.waiting.toLocaleString(), -1, true));
+          }
         }
         if (branch === 'education') {
           for (let lv = 1; lv <= 3; lv++) {

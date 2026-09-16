@@ -206,6 +206,24 @@ export class Utilities {
     return perDay <= 0 ? 0 : this.pile[place] / perDay;
   }
 
+  /** Units of rubbish sitting at a place. */
+  pileAt(place: number): number {
+    return place >= 0 && place < this.pile.length ? this.pile[place] : 0;
+  }
+
+  /**
+   * A lorry emptied the bins here.
+   *
+   * The collection *capacity* is still the incinerators and the recycling centres --
+   * a city with nowhere to put its rubbish does not get to keep taking it away. This
+   * is the last few metres of that: the lorry arriving is what moves the pile off
+   * the kerb, and without it the bin views showed a building that had been visited
+   * still overflowing.
+   */
+  collect(place: number): void {
+    if (place >= 0 && place < this.pile.length) this.pile[place] = 0;
+  }
+
   private grow(): void {
     const want = Math.max(16, this.places.count);
     if (this.net.length >= want) return;

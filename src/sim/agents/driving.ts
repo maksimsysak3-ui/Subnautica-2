@@ -198,6 +198,16 @@ const SCHEMA = {
    * was then protecting a movement nobody performed.
    */
   next: Int32Array,
+  /**
+   * The dispatch request this vehicle is answering, as a handle, or -1.
+   *
+   * A handle rather than a row, so a vehicle still driving to a fire that was
+   * closed under it -- the building demolished, the call timed out -- finds nothing
+   * there instead of finding whoever took the row. `owner` could have carried it as
+   * a negative number and that is exactly the sort of encoding that is obvious for
+   * a week and a bug for a year.
+   */
+  job: Int32Array,
 } as const;
 
 /** What the traffic did, for the readout. */
@@ -309,6 +319,7 @@ export class Traffic {
     c.inBox[v] = -1;
     c.cleared[v] = 0;
     c.next[v] = -1;
+    c.job[v] = -1;
     this.link(v, lane);
     this.stats.spawned++;
     return v;

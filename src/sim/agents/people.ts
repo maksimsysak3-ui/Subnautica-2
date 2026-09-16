@@ -338,6 +338,28 @@ export class People {
    * one of the hardest things to notice in a city -- unemployment creeps up over
    * hours of play with no cause visible anywhere.
    */
+  /**
+   * Somebody living at this address dies.
+   *
+   * For a medical call nobody answered. It has to be a real death in the real
+   * population, not a number in a panel: a city with no hospital that reads as
+   * perfectly healthy while a red statistic ticks up somewhere is a city where the
+   * player has no reason to build one. Returns whether anybody was there to die.
+   */
+  killAt(place: number): boolean {
+    const hh = this.households;
+    const cz = this.citizens;
+    for (let id = 0; id < cz.bound; id++) {
+      if (cz.live[id] === 0) continue;
+      const house = cz.col.house[id];
+      if (house === NONE || hh.live[house] === 0) continue;
+      if (hh.col.home[house] !== place) continue;
+      this.removeCitizen(id, true);
+      return true;
+    }
+    return false;
+  }
+
   removeCitizen(id: number, andDied: boolean): void {
     if (this.citizens.live[id] === 0) return;
     const c = this.citizens.col;
