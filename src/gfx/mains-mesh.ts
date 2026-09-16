@@ -22,14 +22,28 @@ import { Main, MAIN_KINDS, MAIN_COLOURS } from '../sim/mains';
 import type { Mains } from '../sim/mains';
 import type { RoadGraph, Along } from '../sim/roadgraph';
 
-/** Floats per vertex: position, then colour. */
-export const MAIN_VERTEX_FLOATS = 6;
-
-/** How wide a main is drawn, in metres. */
-const WIDTH = 1.15;
+/**
+ * Floats per vertex: the point on the centreline, the colour, and which way and
+ * how far out of the line this corner sits.
+ *
+ * The widening happens in the shader rather than here, because a main is a metre
+ * across and a player lays pipes from four hundred metres up, where a metre is
+ * less than a pixel. Baked at its true width it was drawn, correctly, and
+ * invisible -- which is indistinguishable from not being drawn at all, and is what
+ * it was reported as.
+ */
+export const MAIN_VERTEX_FLOATS = 9;
 
 /** How far above the ground, so it sits on the street rather than in it. */
-const LIFT = 0.28;
+const LIFT = 0.35;
+
+/**
+ * The narrowest a main is ever drawn, in metres.
+ *
+ * Stated here and again in mains.wgsl, which is the one place the widening
+ * actually happens. Kept in both because the mesh's bounds have to allow for it.
+ */
+export const MAIN_MIN_WIDTH = 1.15;
 
 /** Sideways offset per utility, in metres, so all three fit in one street. */
 const OFFSET: Record<number, number> = {
@@ -95,9 +109,11 @@ export function buildMainsMesh(mains: Mains, net: RoadGraph,
     ? into : new Float32Array(Math.max(need, 6 * MAIN_VERTEX_FLOATS));
   let at = 0;
 
-  const put = (x: number, y: number, z: number, c: readonly number[]): void => {
+  const put = (x: number, y: number, z: number, c: readonly number[],
+    nx: number, nz: number, side: number): void => {
     out[at++] = x; out[at++] = y; out[at++] = z;
     out[at++] = c[0]; out[at++] = c[1]; out[at++] = c[2];
+    out[at++] = nx; out[at++] = nz; out[at++] = side;
   };
 
   for (const r of runs) {
@@ -112,16 +128,17 @@ export function buildMainsMesh(mains: Mains, net: RoadGraph,
       const bnx = -b.tz, bnz = b.tx;
       const ax = a.x + anx * push, az = a.z + anz * push;
       const bx = b.x + bnx * push, bz = b.z + bnz * push;
-      const ahx = anx * (WIDTH / 2), ahz = anz * (WIDTH / 2);
-      const bhx = bnx * (WIDTH / 2), bhz = bnz * (WIDTH / 2);
+      // The corners sit on the centreline and carry the way out of it. Widening
+      // them is the vertex shader's job, and it needs the height of the *offset*
+      // line rather than of the corner, which is why it is sampled here.
       const ay = heightAt(ax, az) + LIFT;
       const by = heightAt(bx, bz) + LIFT;
-      put(ax - ahx, ay, az - ahz, c);
-      put(ax + ahx, ay, az + ahz, c);
-      put(bx - bhx, by, bz - bhz, c);
-      put(bx - bhx, by, bz - bhz, c);
-      put(ax + ahx, ay, az + ahz, c);
-      put(bx + bhx, by, bz + bhz, c);
+      put(ax, ay, az, c, anx, anz, -1);
+      put(ax, ay, az, c, anx, anz, 1);
+      put(bx, by, bz, c, bnx, bnz, -1);
+      put(bx, by, bz, c, bnx, bnz, -1);
+      put(ax, ay, az, c, anx, anz, 1);
+      put(bx, by, bz, c, bnx, bnz, 1);
     }
   }
 

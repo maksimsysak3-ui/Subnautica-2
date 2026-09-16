@@ -951,8 +951,9 @@ export class Renderer {
         buffers: [{
           arrayStride: MAIN_VERTEX_FLOATS * 4,
           attributes: [
-            { shaderLocation: 0, offset: 0, format: 'float32x3' },
-            { shaderLocation: 1, offset: 12, format: 'float32x3' },
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },   // centreline
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },  // colour
+            { shaderLocation: 2, offset: 24, format: 'float32x3' },  // out, and which side
           ],
         }],
       },
@@ -2075,6 +2076,18 @@ export class Renderer {
   /** Is there one within reach. */
   sourceNear(x: number, z: number, kind: number, metres = 90): boolean {
     return this.sourceAt(x, z, kind, metres) !== null;
+  }
+
+  /** How many plants make this utility, for a tool that wants to say so. */
+  sourceCount(kind: number): number {
+    const city = this.city;
+    if (city === null) return 0;
+    const d = city.data;
+    let n = 0;
+    for (let i = 0; i < city.count; i++) {
+      if (makes(d[i * INSTANCE_FLOATS + 7] | 0, kind)) n++;
+    }
+    return n;
   }
 
   /**

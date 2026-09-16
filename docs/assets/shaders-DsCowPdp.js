@@ -4304,6 +4304,14 @@ fn fs(in: Out) -> @location(0) vec4f {
 // it, and a pipe that took the sun's angle would read as a stripe of paint on the
 // tarmac -- which is exactly what it would look like and exactly not what it is.
 //
+// WIDENED HERE, NOT IN THE MESH. A main is about a metre across and a player lays
+// pipes from four hundred metres up, where a metre is less than a pixel. Baked at
+// its true width it was drawn, correctly, and invisible -- so each corner arrives
+// sitting on the centreline with the way out of it, and is pushed out far enough
+// to hold a steady handful of pixels whatever the zoom. Clamped at both ends: a
+// line that never thinned would swallow the city from altitude, and one that never
+// grew is the bug this replaced.
+//
 // Depth-tested so a building in front hides it, and not depth-writing, so three
 // mains side by side in one street blend at their edges instead of fighting.
 
@@ -4316,21 +4324,36 @@ struct Out {
   @location(1) fade: f32,
 };
 
+/** Metres. The floor matches MAIN_MIN_WIDTH in mains-mesh.ts. */
+const MIN_WIDTH = 1.15;
+const MAX_WIDTH = 7.5;
+/** Roughly the pixels across a main should hold. */
+const WANT_PIXELS = 5.0;
+
 @vertex
-fn vs(@location(0) at: vec3f, @location(1) tint: vec3f) -> Out {
+fn vs(@location(0) at: vec3f, @location(1) tint: vec3f,
+      @location(2) side: vec3f) -> Out {
+  let toEye = length(camera.eye.xyz - at);
+  // \`camera.params.w\` turns a size in metres at a given distance into a size in
+  // pixels, so dividing by it does the reverse. The same number the connection
+  // markers use, which is why a dot and the line into it agree about scale.
+  let want = toEye / max(camera.params.w, 1.0) * WANT_PIXELS;
+  let half = clamp(want, MIN_WIDTH, MAX_WIDTH) * 0.5;
+  let world = at + vec3f(side.x, 0.0, side.y) * (side.z * half);
+
   var out: Out;
-  out.pos = camera.viewProj * vec4f(at, 1.0);
+  out.pos = camera.viewProj * vec4f(world, 1.0);
   out.tint = tint;
-  // Gone in the distance: a metre-wide line four kilometres away is a flickering
-  // thread, and the question it answers is one you ask from above a district.
-  out.fade = 1.0 - smoothstep(1600.0, 2600.0, length(camera.eye.xyz - at));
+  // Gone in the far distance: a line four kilometres away is a flickering thread,
+  // and the question it answers is one you ask from above a district.
+  out.fade = 1.0 - smoothstep(2600.0, 4200.0, toEye);
   return out;
 }
 
 @fragment
 fn fs(in: Out) -> @location(0) vec4f {
   if (in.fade < 0.02) { discard; }
-  return vec4f(tonemap(in.tint), in.fade * 0.92);
+  return vec4f(tonemap(in.tint), in.fade * 0.95);
 }
 `,FU={"common.wgsl":qI,"atmosphere.wgsl":_I,"noise.wgsl":$I,"overlay.wgsl":AU};function FQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,F)=>FU[F]??A)}const dU={asset:FQ(QU),cull:FQ(BU),terrain:FQ(gU),sky:FQ(EU),grass:FQ(wU),road:FQ(CU),water:FQ(DU),rain:FQ(MU),dots:FQ(IU),mains:FQ(UU)};export{oU as A,bE as B,XE as D,AQ as F,UB as G,pg as P,cU as R,dU as S,GQ as T,FB as V,nE as Z,Dg as a,jB as b,CB as c,PI as d,iU as e,NU as f,nU as g,LU as h,eU as i,yB as j,RU as k,uA as l,YU as m,kU as n,GU as o,vI as p,EQ as q,sU as r,aU as s,VU as t,tU as u,pI as v,HU as z};
-//# sourceMappingURL=shaders-hyAePN4f.js.map
+//# sourceMappingURL=shaders-DsCowPdp.js.map

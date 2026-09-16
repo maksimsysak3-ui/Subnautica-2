@@ -102,6 +102,17 @@ if (midway < 10) {
 if (grew < 5) push(`the line grew on ${grew} of ${steps} moves; it is not drawing live`);
 if (r.marked) push('a rectangle was marked on the ground while drawing a line');
 
+console.log(`on screen             ${r.drawn.blue} water pixels, `
+  + `${r.drawn.yellow} power, of ${r.drawn.pixels}`);
+// A real number, not a token one. The line was once drawn at its true width of
+// about a metre, which from four hundred metres up is under a pixel: eight hundred
+// pixels across a five-hundred-metre run, correctly drawn and invisible. Anything
+// under a couple of thousand here is that bug coming back.
+if (r.drawn.blue + r.drawn.yellow < 1600) {
+  push(`only ${r.drawn.blue + r.drawn.yellow} pixels of main are in the frame; `
+    + 'it is drawn too thin to see');
+}
+
 console.log(`snap to the plant     ${r.snapped ? 'yes' : 'no'}, ${r.snapLaid} cells`);
 if (!r.snapped) {
   push('pressing near a plant did not start the line at it, so the plant is not on '

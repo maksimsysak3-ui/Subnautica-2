@@ -515,6 +515,26 @@ export class BuildTools {
     this.showMark();
   };
 
+  /**
+   * What to expect, said once when the pipe is picked up.
+   *
+   * Because a city with no power station has no terminal to snap to, and a snap
+   * that silently does not happen is indistinguishable from one that is broken --
+   * which is how it was reported. If there is nothing to start at, say so.
+   */
+  private sayMains(kind: number): void {
+    const name = kind === Main.WATER ? 'water main'
+      : kind === Main.SEWAGE ? 'sewer' : 'power line';
+    const n = this.renderer.sourceCount(kind);
+    const plant = kind === Main.WATER ? 'pumping station'
+      : kind === Main.SEWAGE ? 'sewage works' : 'power station';
+    this.say(n === 0
+      ? `no ${plant} built yet — drag along a road to lay ${name} anyway, `
+        + `then build one on it`
+      : `drag along a road to lay ${name} — start on one of your `
+        + `${n} ${plant}${n === 1 ? '' : 's'} to run a spur out`);
+  }
+
   /** Lights up the plant the pointer would snap to, before anything is pressed. */
   private hoverSource(cell: [number, number]): void {
     const t = this.tool;
@@ -1118,10 +1138,11 @@ export class BuildTools {
       this.enterLand(tool.kind === 'land');
     }
     this.tool = tool;
-    // The connection markers follow the pipe in hand: pick water and every
-    // building says whether it has water, which is the question you are holding
+    // The connection markers follow the pipe in hand: pick water and every source
+    // of it says whether a main reaches it, which is the question you are holding
     // the tool to answer.
     this.renderer.showDots(tool.kind === 'main' ? tool.main : 0);
+    if (tool.kind === 'main') this.sayMains(tool.main);
     this.from = null;
     this.curveA = null;
     this.curveVia = null;

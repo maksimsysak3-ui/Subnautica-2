@@ -941,6 +941,8 @@ export async function probeMains(): Promise<{
   marked: boolean;
   /** Whether pressing near a plant started the line at the plant. */
   snapped: boolean; snapLaid: number;
+  /** Pixels of each main's colour actually in the frame. */
+  drawn: { blue: number; yellow: number; pixels: number };
   error?: string;
 }> {
   configureSim(LITE);
@@ -1126,9 +1128,27 @@ export async function probeMains(): Promise<{
   const mesh = buildMainsMesh(mains, renderer.world.net, heightAt, Main.WATER);
   const lines = mesh.count / 6;
 
+  // And the part the mesh count cannot answer: whether any of it reaches a pixel.
+  // Counting the mesh proved the geometry existed; it did not prove the frame
+  // drew it, and those are different failures with the same symptom.
+  press('Water');
+  press('Drag along a road');
+  camera.update();
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
+  const px = await gpu.readPixels();
+  let blue = 0, yellow = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    if (b > 90 && b > r + 30 && b > g + 12) blue++;
+    if (r > 120 && g > 90 && b < g - 25) yellow++;
+  }
+  const drawn = { blue, yellow, pixels: px.length / 4 };
+
   return {
     buttons, onBar, picked, laidAlongRoad, laidOffRoad, lifted: 0,
     connectedBefore, connectedAfter, lines, duringDrag, marked, snapped, snapLaid,
+    drawn,
     from: start === null ? [NaN, NaN] : start,
     to: end === null ? [NaN, NaN] : end,
   };
