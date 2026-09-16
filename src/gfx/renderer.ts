@@ -2044,6 +2044,32 @@ export class Renderer {
    * has to be the one the grid was scattered at -- the city grid, not the terrain,
    * which is half again as wide.
    */
+  /**
+   * Is there a plant that produces this utility within `metres` of here.
+   *
+   * What the mains tool asks before letting a drag cross open ground. Without it
+   * the spur out of a power station's forecourt was available everywhere, so any
+   * drag anywhere painted ten cells of pipe across a field -- which is not a spur,
+   * it is a paintbrush with a short handle.
+   *
+   * A walk over the instances rather than an index: it happens once when a drag
+   * ends, and an index of plant positions would be a third thing to keep in step
+   * with the city for no measurable gain.
+   */
+  sourceNear(x: number, z: number, kind: number, metres = 90): boolean {
+    const city = this.city;
+    if (city === null) return false;
+    const d = city.data;
+    const r2 = metres * metres;
+    for (let i = 0; i < city.count; i++) {
+      const base = i * INSTANCE_FLOATS;
+      if (!makes(d[base + 7] | 0, kind)) continue;
+      const dx = d[base] - x, dz = d[base + 1] - z;
+      if (dx * dx + dz * dz <= r2) return true;
+    }
+    return false;
+  }
+
   /** Shows the connection markers for a utility, or hides them with 0. */
   showDots(kind: number): void {
     if (this.dotKind === kind) return;

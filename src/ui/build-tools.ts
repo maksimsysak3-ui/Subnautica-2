@@ -88,6 +88,19 @@ type Tool =
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
 
+/** Which utility each branch's drawer can lay, if any. */
+const MAIN_FOR_BRANCH: Partial<Record<Branch, number>> = {
+  power: Main.POWER, water: Main.WATER, sewage: Main.SEWAGE,
+};
+const MAIN_LABEL: Record<number, string> = {
+  [Main.POWER]: 'Power line', [Main.WATER]: 'Water main', [Main.SEWAGE]: 'Sewer',
+};
+const MAIN_GLYPH: Record<number, string> = {
+  [Main.POWER]: BRANCH_GLYPH.power,
+  [Main.WATER]: BRANCH_GLYPH.water,
+  [Main.SEWAGE]: BRANCH_GLYPH.sewage,
+};
+
 const TOOL_TINT: Record<string, [number, number, number]> = {
   look: [0.6, 0.7, 0.8],
   road: [0.72, 0.76, 0.82],
@@ -990,14 +1003,16 @@ export class BuildTools {
     const trail: Array<[number, number]> = this.path.length > 1
       ? this.path.slice() : [a, b];
     const on = !this.liftMains;
+    // The spur out of a plant, and only out of a plant. The first stretch of a drag
+    // that begins at a source may cross its forecourt to reach the street; a drag
+    // that begins anywhere else may not, or the tool paints pipe across fields.
+    const fromPlant = this.renderer.sourceNear(
+      mid(trail[0][0]), mid(trail[0][1]), kind);
     let changed = 0;
     for (let i = 1; i < trail.length; i++) {
-      // The first stretch of the drag may cross open ground, so a line started at
-      // a power station's terminal reaches the street it is being dragged to.
-      // After that a main goes where a road goes.
       changed += world.mains.lay(world.net,
         mid(trail[i - 1][0]), mid(trail[i - 1][1]),
-        mid(trail[i][0]), mid(trail[i][1]), kind, on, i <= 3);
+        mid(trail[i][0]), mid(trail[i][1]), kind, on, fromPlant && i <= 3);
     }
     if (changed === 0) {
       this.say(on ? 'drag along a road to lay a main' : 'nothing there to lift');
@@ -1300,25 +1315,6 @@ export class BuildTools {
     }
     tools.appendChild(civic);
 
-    // The mains. Three buttons rather than a drawer, because a player laying pipes
-    // switches between them constantly -- power down a street, then water down the
-    // same street -- and a drawer would be two clicks for every one of those.
-    const pipes = group();
-    const mainIcon = (path: string, colour: string): string =>
-      `<span style="${GLYPH}"><svg viewBox="0 0 48 48" width="26" height="26"`
-      + ` aria-hidden="true"><path d="${path}" fill="${colour}"`
-      + ' fill-rule="evenodd"/></svg></span>';
-    add(pipes, { kind: 'main', main: Main.POWER },
-      'Power lines — drag along a road to lay, shift-drag to lift',
-      mainIcon(BRANCH_GLYPH.power, MAIN_COLOURS[Main.POWER]), MAIN_COLOURS[Main.POWER]);
-    add(pipes, { kind: 'main', main: Main.WATER },
-      'Water mains — drag along a road to lay, shift-drag to lift',
-      mainIcon(BRANCH_GLYPH.water, MAIN_COLOURS[Main.WATER]), MAIN_COLOURS[Main.WATER]);
-    add(pipes, { kind: 'main', main: Main.SEWAGE },
-      'Sewers — drag along a road to lay, shift-drag to lift',
-      mainIcon(BRANCH_GLYPH.sewage, MAIN_COLOURS[Main.SEWAGE]), MAIN_COLOURS[Main.SEWAGE]);
-    tools.appendChild(pipes);
-
     const clear = group();
     // "Buy land", not "Land": the landmarks button is two along and starts with
     // the same four letters, and a player scanning tooltips should not have to
@@ -1501,6 +1497,24 @@ export class BuildTools {
   private openDrawer(branch: Branch, list: Proto[], bar: HTMLElement): void {
     const style = BRANCH_STYLE[branch];
     const panel = this.drawerPanel(branch, style.colour);
+
+    // The main goes first, in the drawer of the thing it carries. It was three
+    // more buttons on the bar, in the same bolt, droplet and pipe the branches
+    // already use -- six icons for three subjects, and no way to tell from the
+    // picture which one placed a building and which one drew a line. A branch's
+    // drawer is where everything about that branch belongs.
+    const kind = MAIN_FOR_BRANCH[branch];
+    if (kind !== undefined) {
+      panel.appendChild(this.tile(null, MAIN_LABEL[kind], 'drag along a road', 0,
+        MAIN_COLOURS[kind],
+        `Drag along a road to lay it. Buildings within about fifty metres connect `
+        + `themselves. Start on the plant to run a spur out to the street, and `
+        + `hold shift while dragging to lift one.`,
+        () => this.select({ kind: 'main', main: kind }),
+        `<svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">`
+        + `<path d="${MAIN_GLYPH[kind]}" fill="${MAIN_COLOURS[kind]}"`
+        + ' fill-rule="evenodd"/></svg>', 'free'));
+    }
 
     for (const p of list) {
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,

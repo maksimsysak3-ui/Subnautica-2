@@ -18,10 +18,12 @@ import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
   emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
-  INSTANCE_FLOATS, previewRoad, baseHeightAt,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt, heightAt,
 } from './sim';
 import type { Dirty } from './sim';
 import { LiveCity } from './live';
+import { Main } from './sim/mains';
+import { buildMainsMesh } from './gfx/mains-mesh';
 
 export interface ShotRequest {
   width: number;
@@ -916,5 +918,172 @@ export async function probeViews(): Promise<{
     trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
     closed, closedBack: moved(plainPx, backPx),
     population: live.population, views,
+  };
+}
+
+/**
+ * The mains tool, driven the way a player drives it.
+ *
+ * Whether a drag along a street lays a main is not a question a screenshot can
+ * answer, and it is not a question the `Mains` unit test answers either: that one
+ * calls `lay` directly, and everything between a pointer and `lay` -- picking the
+ * cell under the cursor, keeping the trail, reaching `commit` at all -- is exactly
+ * where a tool goes wrong.
+ */
+export async function probeMains(): Promise<{
+  buttons: string[]; onBar: string[]; picked: boolean;
+  laidAlongRoad: number; laidOffRoad: number; lifted: number;
+  connectedBefore: boolean; connectedAfter: boolean;
+  lines: number; from: number[]; to: number[]; error?: string;
+}> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  // Empty land with one long straight road across the middle, so where the road
+  // is on screen is something this can compute rather than hunt for.
+  const world = emptyWorld(renderer.world.grid);
+  const g = world.grid;
+  const half = g / 2;
+  world.net.add(-((half - 6) * 8), 0, (half - 6) * 8, 0, 'avenue');
+  world.net.rasterise();
+  renderer.useWorld(world);
+  grantAll(renderer.world);
+  renderer.build();
+
+  // Straight down over the middle, so a screen point maps to a cell.
+  camera.setViewport(800, 450);
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.pitch = 1.45;
+  camera.distance = 420;
+  camera.yaw = 0;
+  camera.update();
+
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  tools.visible = true;
+
+  const press = (label: string): boolean => {
+    const b = Array.from(overlay.querySelectorAll('button'))
+      .find((el) => (el.title ?? '').startsWith(label));
+    if (b === undefined) return false;
+    b.click();
+    return true;
+  };
+  // Named after the drawer they now live in, so the test notices if they go back
+  // to being three more icons on the bar.
+  const onBar = Array.from(overlay.querySelectorAll('button'))
+    .map((b) => b.title ?? '').filter((t) => /drag along a road/i.test(t));
+
+  // Where on screen a world point lands, found by asking the camera what is under
+  // a screen point and bisecting -- rather than multiplying by the view-projection
+  // and hoping the convention matches. The first version of this did the latter,
+  // put every synthetic click off the map, and reported that the tool laid
+  // nothing: a broken probe wearing a bug's clothes.
+  const ground = (sx: number, sy: number): [number, number] | null => {
+    const hit = camera.groundPointAt((sx / 800) * 2 - 1, 1 - (sy / 450) * 2);
+    return hit === null ? null : [hit[0], hit[2]];
+  };
+  const bisect = (want: number, axis: 0 | 1, lo: number, hi: number,
+    other: number): number => {
+    const at = (s: number): [number, number] | null =>
+      (axis === 0 ? ground(s, other) : ground(other, s));
+    const a = at(lo), b = at(hi);
+    if (a === null || b === null) return (lo + hi) / 2;
+    const rising = b[axis] > a[axis];
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      const here = at(mid);
+      if (here === null) return (lo + hi) / 2;
+      if ((here[axis] < want) === rising) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  // Which way world z runs down the screen depends on the camera's yaw, so the
+  // search works it out rather than assuming. Assuming was how every drag ended up
+  // two hundred metres from the road it was supposed to follow.
+  const screenY = (z: number): number => {
+    let lo = 10, hi = 440;
+    const a = ground(400, lo), b = ground(400, hi);
+    if (a === null || b === null) return 225;
+    const rising = b[1] > a[1];
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      const at = ground(400, mid);
+      if (at === null) break;
+      if ((at[1] < z) === rising) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  const screen = (x: number, z: number): [number, number] => {
+    const sy = screenY(z);
+    return [bisect(x, 0, 10, 790, sy), sy];
+  };
+  const frame = async (): Promise<void> => {
+    await new Promise<void>((done) => requestAnimationFrame(() => done()));
+  };
+  const drag = async (a: [number, number], b: [number, number],
+    steps = 24): Promise<void> => {
+    const opts = { bubbles: true, button: 0, pointerId: 1 };
+    canvas.dispatchEvent(new PointerEvent('pointerdown',
+      { ...opts, clientX: a[0], clientY: a[1] }));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      canvas.dispatchEvent(new PointerEvent('pointermove', {
+        ...opts, clientX: a[0] + (b[0] - a[0]) * t, clientY: a[1] + (b[1] - a[1]) * t,
+      }));
+      // The tool defers its move work to the next frame, so each report has to be
+      // given one or the whole drag collapses to its last position -- which is
+      // also true of a real pointer and is why the trail exists at all.
+      await frame();
+    }
+    canvas.dispatchEvent(new PointerEvent('pointerup',
+      { ...opts, clientX: b[0], clientY: b[1] }));
+  };
+
+  const mains = renderer.world.mains;
+  const laid = (): number => {
+    let n = 0;
+    for (const b of mains.bits) if ((b & Main.WATER) !== 0) n++;
+    return n;
+  };
+
+  // The way a player reaches it: open the water branch, then pick the main.
+  press('Water');
+  // Read while the drawer is open -- picking a tool closes it, so asking
+  // afterwards always answers "no drawer, no tile".
+  const buttons = Array.from(overlay.querySelectorAll('button'))
+    .map((b) => b.title ?? '').filter((t) => /drag along a road/i.test(t));
+  const picked = press('Drag along a road');
+  const connectedBefore = mains.netAt(0, 40, Main.WATER) >= 0;
+  // Where the drag actually landed, so a failure says whether the tool missed the
+  // road or the road missed the tool.
+  const start = ground(...screen(-250, 0));
+  const end = ground(...screen(250, 0));
+
+  await drag(screen(-250, 0), screen(250, 0));
+  const laidAlongRoad = laid();
+  const connectedAfter = mains.netAt(0, 40, Main.WATER) >= 0;
+
+  // The same drag a long way off the road: a main goes in the street.
+  const before = laid();
+  await drag(screen(-250, 160), screen(250, 160));
+  const laidOffRoad = laid() - before;
+
+  const mesh = buildMainsMesh(mains, renderer.world.net, heightAt, Main.WATER);
+  const lines = mesh.count / 6;
+
+  return {
+    buttons, onBar, picked, laidAlongRoad, laidOffRoad, lifted: 0,
+    connectedBefore, connectedAfter, lines,
+    from: start === null ? [NaN, NaN] : start,
+    to: end === null ? [NaN, NaN] : end,
   };
 }
