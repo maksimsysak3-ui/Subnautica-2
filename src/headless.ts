@@ -18,7 +18,7 @@ import { BuildTools } from './ui/build-tools';
 import {
   configureSim, LITE, simConfig, paint, demolish, zoneCode, defaultWorld, PLOTS,
   emptyWorld, makeCity, clearStanding, clearWild, clearGrading, clearRoadMesh,
-  INSTANCE_FLOATS, previewRoad, baseHeightAt, GRIPE_INFO, Purpose,
+  INSTANCE_FLOATS, previewRoad, baseHeightAt, GRIPE_INFO, Purpose, VIEWS,
 } from './sim';
 import type { Dirty, Simulation } from './sim';
 import { LiveCity } from './live';
@@ -952,6 +952,60 @@ export async function probeViews(): Promise<{
     // A budget is not a place: opening it must leave the map exactly as it was.
     budgetPainted: moved(plainPx, budgetPx),
   };
+}
+
+/**
+ * A frame with an information view open, for looking at.
+ *
+ * Not a test -- a camera. The views are judged by eye and there is no other way
+ * to judge them, so this exists to put one in front of one.
+ */
+export async function probeViewShot(width: number, height: number, view: number):
+Promise<{ pixels: number[]; name: string }> {
+  configureSim(LITE);
+  const ui = document.createElement('div');
+  ui.style.cssText = `position:relative;width:${width}px;height:${height}px`;
+  document.body.appendChild(ui);
+
+  const gpu = await Gpu.headless(width, height);
+  const camera = new Camera();
+  const stats = new Stats(ui);
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.timeOfDay = 0.4;
+  renderer.weather.set(0.04);
+  const live = new LiveCity(renderer, camera, stats, ui);
+  renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
+  renderer.build();
+  live.playing = true;
+  camera.setViewport(width, height);
+  camera.yaw = 0.62; camera.pitch = 0.5; camera.distance = 620;
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.update();
+
+  const sim = (live as unknown as { sim: Simulation }).sim;
+  const pl = sim.places;
+  for (let id = 0; id < pl.count; id++) {
+    if (pl.live[id] === 0) continue;
+    for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+  }
+  for (let i = 0; i < 200; i++) live.update(1 / 20, performance.now() + i * 50);
+
+  const press = (label: string): void => {
+    const b = Array.from(ui.querySelectorAll('button')).find((el) => el.title === label);
+    b?.click();
+  };
+  press('Information views');
+  const info = VIEWS.find((v) => v.id === view);
+  if (info !== undefined) press(info.name);
+  for (let i = 0; i < 12; i++) live.update(1 / 20, performance.now() + 20000 + i * 50);
+
+  camera.update();
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
+  const px = await gpu.readPixels();
+  return { pixels: Array.from(px), name: info?.name ?? 'none' };
 }
 
 /**

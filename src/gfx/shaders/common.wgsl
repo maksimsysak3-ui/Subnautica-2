@@ -107,3 +107,20 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
 fn bury(col: vec3f, k: f32) -> vec3f {
   return mix(col, col * 0.11 + vec3f(0.013, 0.017, 0.024), k);
 }
+
+/**
+ * Drains a colour towards grey while a surface information view is open.
+ *
+ * The other half of making a view readable. The overlay tints the ground, but a
+ * city seen from above is mostly roofs -- brick, tile, render and glass, all of
+ * them coloured -- and a data wash competing with three hundred building colours
+ * is a data wash nobody can read. So the city goes quiet and the data is the
+ * only colour on the screen, which is what a thematic map is.
+ *
+ * Not to grey exactly: a touch of the original hue survives, because a city that
+ * goes completely monochrome stops being the city you were just looking at.
+ */
+fn drain(col: vec3f, k: f32) -> vec3f {
+  let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
+  return mix(col, mix(grey, col, 0.18) * 0.92, k);
+}

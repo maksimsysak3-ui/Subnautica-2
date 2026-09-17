@@ -219,6 +219,8 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   world.net.rasterise();
   decodeZones(file.zones ?? [], world.zones);
+  // The zoning changed under everything that watches it. See `World.painted`.
+  world.painted++;
   if (Array.isArray(file.mains) && file.mains.length > 0) {
     decodeZones(file.mains, world.mains.bits);
     world.mains.rebuild();

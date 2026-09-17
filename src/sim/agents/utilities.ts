@@ -383,9 +383,21 @@ export class Utilities {
       const to = this.netOf[util];
       for (let p = 0; p < this.places.count; p++) {
         if (this.places.live[p] === 0) { to[p] = -1; continue; }
-        to[p] = mains === undefined
-          ? this.roadNetOf(p, g)
-          : mains.netAt(c.x[p], c.z[p], kind);
+        if (mains === undefined) { to[p] = this.roadNetOf(p, g); continue; }
+        // The building's middle first, which is right for almost everything.
+        let net = mains.netAt(c.x[p], c.z[p], kind);
+        // And then the road that serves it, which is right for the rest.
+        //
+        // A place's position is its centre, and the mains run in a band a few
+        // cells either side of a road. A container terminal is nineteen cells
+        // across, so its centre is eighty metres inland of the street it fronts
+        // -- outside the band, and therefore off the grid, while standing on the
+        // road. The bigger the building the more certain it was to fail, which
+        // is why every plant a player builds to fix a shortage read as
+        // unconnected. If the road that serves it carries the main, it is on
+        // the main; that is what being on a road means.
+        if (net < 0) net = this.laneNetOf(p, g, mains, kind);
+        to[p] = net;
       }
       this.netCount[util] = mains === undefined ? roads : mains.networksOf(kind);
     }
@@ -668,6 +680,28 @@ export class Utilities {
       if (level === null && !this.nearRiver(c.x[p], c.z[p])) ok *= GROUNDWATER;
     }
     return ok;
+  }
+
+  /**
+   * The main under the road that serves a building, or -1.
+   *
+   * Sampled along the lane rather than at one end of it: a lane can be hundreds
+   * of metres long, and the end nearest the building is the point that matters.
+   */
+  private laneNetOf(p: number, g: LaneGraph, mains: Mains, kind: number): number {
+    const c = this.places.col;
+    for (const lane of [c.lane[p], c.foot[p]]) {
+      if (lane < 0 || lane >= g.count) continue;
+      const ax = g.ax[lane], az = g.az[lane], bx = g.bx[lane], bz = g.bz[lane];
+      const dx = bx - ax, dz = bz - az;
+      const len = dx * dx + dz * dz;
+      // The closest point on the lane to the building, clamped to the segment.
+      let t = len > 0 ? ((c.x[p] - ax) * dx + (c.z[p] - az) * dz) / len : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const net = mains.netAt(ax + dx * t, az + dz * t, kind);
+      if (net >= 0) return net;
+    }
+    return -1;
   }
 
   /** Whether a point is close enough to water for a pump to draw from it. */

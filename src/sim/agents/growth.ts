@@ -69,6 +69,30 @@ const LOOK_PER_VISIT = 20000;
 const PATCHES_PER_THOUSAND_DAY = 30;
 const PATCHES_PER_DAY_FLOOR = 24;
 
+/**
+ * The founding rush: how much faster the very first plots come up, and for how
+ * long.
+ *
+ * A city builder has to show a player the machine working inside the first
+ * minute. At the ordinary rate the first street took two game days to fill,
+ * which is three real minutes of watching an empty rectangle and wondering
+ * whether the click registered -- and a player who cannot tell whether the game
+ * is running has no way to learn anything else about it.
+ *
+ * It is also true, which is why it is this and not a cheat: the first plots of a
+ * new town go up on speculation, all at once, before there is any demand to
+ * speak of. Nine hundred cells is a block or two. After that the city pays its
+ * own way.
+ */
+const FOUNDING_CELLS = 900;
+const FOUNDING_RUSH = 5;
+/**
+ * And only while the town really is new. A loaded save has released no cells of
+ * its own, so cells alone would hand a hundred-thousand-person city a fivefold
+ * boom the moment it was opened.
+ */
+const FOUNDING_POP = 500;
+
 /** Demand below this grows nothing. Above it, growth scales with how far above. */
 const THRESHOLD = 0.02;
 
@@ -127,6 +151,8 @@ export interface GrowthReport {
   /** Zoned cells still waiting, and zoned cells released. As of the last survey. */
   waiting: number;
   released: number;
+  /** Waiting cells per zone, in `ZONES` order. The budget follows it. */
+  waitingByZone: Int32Array;
   /** Fractional patches carried between visits, so slow growth still happens. */
   owed: number;
 }
@@ -147,9 +173,19 @@ export class Growth {
   private readonly owed = new Float64Array(ZONES.length);
   /** The rectangle released since the last `take`, in cells, or null. */
   private dirty: { gx: number; gz: number; w: number; d: number } | null = null;
+  /**
+   * The `world.painted` counter as of the last survey, or -1 for never.
+   *
+   * The day's growth is shared out only among zones with land waiting, so a
+   * visit has to know what is waiting before it can hand anything out. Freshly
+   * painted ground would otherwise wait for the survey's slow timer while the
+   * day went to zones that are already built out.
+   */
+  private surveyed = -1;
 
   readonly report: GrowthReport = {
     patches: 0, cells: 0, waiting: 0, released: 0, owed: 0,
+    waitingByZone: new Int32Array(ZONES.length),
   };
 
   constructor(
@@ -179,6 +215,7 @@ export class Growth {
     this.cursor = 0;
     this.owed.fill(0);
     this.dirty = null;
+    this.surveyed = -1;
   }
 
   /**
@@ -208,6 +245,7 @@ export class Growth {
       this.report.owed = 0;
       return;
     }
+    if (this.surveyed !== this.world.painted) this.survey();
     const world = this.world;
     const grown = world.grown;
     const zones = world.zones;
@@ -215,8 +253,10 @@ export class Growth {
     const cells = g * g;
 
     const pop = this.population();
+    const rush = this.report.cells < FOUNDING_CELLS && pop < FOUNDING_POP
+      ? FOUNDING_RUSH : 1;
     const rate = Math.max(PATCHES_PER_DAY_FLOOR,
-      (pop / 1000) * PATCHES_PER_THOUSAND_DAY);
+      (pop / 1000) * PATCHES_PER_THOUSAND_DAY) * rush;
     const earned = rate * days;
 
     // The day's growth, shared out by how much the city wants each zone. A zone
@@ -225,8 +265,15 @@ export class Growth {
     // anyway three seconds later.
     const want = this.demand.want;
     const owed = this.owed;
+    // Shared out only among the zones that have land waiting for it. A city
+    // with no industrial land and a full industrial bar used to give industry a
+    // quarter of the week's building, which went nowhere and came out of the
+    // housing that had people queueing for it -- so the first street filled at a
+    // quarter speed because of a demand for warehouses nobody had zoned.
+    const wanting = this.report.waitingByZone;
     let appetite = 0;
     for (let z = 0; z < owed.length; z++) {
+      if (wanting[z] === 0) { owed[z] = 0; continue; }
       const w = z < MARKET_ZONES ? want[z] : PARK_APPETITE;
       appetite += w > THRESHOLD ? w : 0;
     }
@@ -234,7 +281,7 @@ export class Growth {
     let ready = 0;
     for (let z = 0; z < owed.length; z++) {
       const w = z < MARKET_ZONES ? want[z] : PARK_APPETITE;
-      if (w <= THRESHOLD || appetite <= 0) { owed[z] = 0; continue; }
+      if (wanting[z] === 0 || w <= THRESHOLD || appetite <= 0) { owed[z] = 0; continue; }
       owed[z] = Math.min(cap, owed[z] + earned * (w / appetite));
       if (owed[z] >= 1) ready++;
     }
@@ -275,6 +322,7 @@ export class Growth {
       if (got === 0) continue;
       patches++;
       took += got;
+      if (wanting[zi] > got) wanting[zi] -= got; else wanting[zi] = 0;
       owed[zi] -= 1;
       if (owed[zi] < 1) ready--;
       if (x < gx0) gx0 = x;
@@ -336,12 +384,18 @@ export class Growth {
   survey(): void {
     const world = this.world;
     const zones = world.zones, grown = world.grown;
+    const byZone = this.report.waitingByZone;
+    byZone.fill(0);
     let waiting = 0, released = 0;
     for (let at = 0; at < zones.length; at++) {
       if (zones[at] === 0) continue;
-      if (grown[at] !== 0) released++; else waiting++;
+      if (grown[at] !== 0) { released++; continue; }
+      waiting++;
+      const z = zoneIndexOf(zones[at]);
+      if (z >= 0) byZone[z]++;
     }
     this.report.waiting = waiting;
     this.report.released = released;
+    this.surveyed = this.world.painted;
   }
 }

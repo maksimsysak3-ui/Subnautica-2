@@ -1182,6 +1182,14 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
           continue;
         }
 
+        // Land that is zoned and has not come up yet is somebody's plot, not a
+        // verge. Before buildings had to be earned this could not happen -- the
+        // spawner took the cell and the planting pass found it occupied -- and
+        // the moment they did, a freshly zoned district filled with trees while
+        // it waited for its houses. Which is what the player saw: they zoned a
+        // street and got a wood.
+        if (code !== 0 && world.grown[cell] === 0) continue;
+
         const d = value[cell];
         const i = cx % PERIOD, j = cz % PERIOD;
         // "In town" has to mean there is a town.

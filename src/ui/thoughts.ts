@@ -27,6 +27,7 @@ import type { Complaint } from '../sim';
 import { GLYPH, ZONE_STYLE, BRANCH_STYLE } from './zones';
 import { EXTRA_GLYPH } from './info-views';
 import type { Camera } from '../gfx/camera';
+import { SKIN, panel, css } from './skin';
 
 /** How often the bubbles are re-projected, in milliseconds. */
 const REPAINT_MS = 150;
@@ -86,6 +87,7 @@ function style(el: HTMLElement, decls: string[]): void {
 interface Bubble {
   root: HTMLButtonElement;
   icon: HTMLElement;
+  badge: HTMLElement;
   gripe: number;
   place: number;
 }
@@ -111,6 +113,8 @@ export class Thoughts {
   private on = false;
   /** Scratch, reused, so a repaint at six hertz allocates nothing. */
   private readonly found: Placed[] = [];
+  /** How many complaints each shown bubble is standing for. */
+  private readonly counts: number[] = [];
 
   constructor(parent: HTMLElement, private groundAt: (x: number, z: number) => number) {
     this.layer = document.createElement('div');
@@ -122,18 +126,19 @@ export class Thoughts {
 
     this.card = document.createElement('div');
     this.card.dataset.panel = 'thought-card';
-    style(this.card, [
-      'position:absolute', 'display:none', 'max-width:270px', 'padding:10px 12px',
-      'background:rgba(8,12,17,.94)', 'border:1px solid rgba(98,212,255,.22)',
-      'border-radius:6px', 'backdrop-filter:blur(14px)',
-      'font:11px/1.55 var(--mono)', 'color:#8fa3bd', 'pointer-events:auto',
-      'transform:translate(-50%,-100%)', 'z-index:2',
-    ]);
+    style(this.card, [...panel(), 'position:absolute', 'display:none',
+      'max-width:256px', 'padding:11px 13px 12px', 'pointer-events:auto',
+      'transform:translate(-50%,-100%)', 'z-index:2', 'line-height:1.55']);
     this.cardTitle = document.createElement('div');
-    style(this.cardTitle, ['font-size:12px', 'color:#e7f1fb', 'margin-bottom:4px']);
+    style(this.cardTitle, ['font-size:9px', 'letter-spacing:.15em',
+      'text-transform:uppercase', `color:${SKIN.dim}`, 'margin-bottom:5px']);
     this.cardWhat = document.createElement('div');
+    style(this.cardWhat, [`color:${SKIN.bright}`, 'font-size:11.5px']);
     this.cardFix = document.createElement('div');
-    style(this.cardFix, ['margin-top:6px', 'color:#62d4ff']);
+    style(this.cardFix, ['margin-top:7px', 'padding-top:7px',
+      `border-top:1px solid ${SKIN.edge}`, `color:${SKIN.accent}`,
+      'font-size:10.5px']);
+    void css;
     this.card.append(this.cardTitle, this.cardWhat, this.cardFix);
     this.layer.appendChild(this.card);
 
@@ -149,18 +154,29 @@ export class Thoughts {
     root.type = 'button';
     root.dataset.bubble = '';
     style(root, [
-      'position:absolute', 'width:38px', 'height:38px', 'padding:0',
+      'position:absolute', 'width:34px', 'height:34px', 'padding:0',
       'display:none', 'align-items:center', 'justify-content:center',
-      'border-radius:50% 50% 50% 6px', 'border:1px solid rgba(98,212,255,.30)',
-      'background:rgba(10,15,21,.90)', 'backdrop-filter:blur(8px)',
+      // A pin, not a disc: round at the top and drawn to a point at the
+      // bottom-left, so the shape itself says which building it is about.
+      'border-radius:17px 17px 17px 4px',
+      `border:1px solid ${SKIN.edge}`,
+      'background:linear-gradient(180deg,rgba(22,30,41,.95),rgba(10,14,20,.95))',
+      'backdrop-filter:blur(10px)',
       'cursor:pointer', 'pointer-events:auto',
       'transform:translate(-50%,-100%)',
-      'box-shadow:0 3px 12px rgba(0,0,0,.45)',
+      `box-shadow:inset 0 1px 0 ${SKIN.sheen}, 0 6px 18px rgba(0,0,0,.5)`,
     ]);
     const icon = document.createElement('span');
     style(icon, ['display:flex', 'pointer-events:none']);
-    root.appendChild(icon);
-    const b: Bubble = { root, icon, gripe: Gripe.NONE, place: -1 };
+    // The count, when a bubble is standing for more than one building.
+    const badge = document.createElement('span');
+    style(badge, ['position:absolute', 'right:-4px', 'top:-4px', 'display:none',
+      'min-width:15px', 'height:15px', 'padding:0 3px', 'border-radius:8px',
+      `background:${SKIN.panelSolid}`, `border:1px solid ${SKIN.edge}`,
+      `color:${SKIN.bright}`, 'font:9px/13px var(--mono)', 'text-align:center',
+      'pointer-events:none', 'font-variant-numeric:tabular-nums']);
+    root.append(icon, badge);
+    const b: Bubble = { root, icon, badge, gripe: Gripe.NONE, place: -1 };
     root.addEventListener('click', (e) => {
       e.stopPropagation();
       this.show(b);
@@ -239,21 +255,34 @@ export class Thoughts {
     found.sort((a, b) => (b.weight - a.weight) || (a.dist - b.dist));
 
     let shown = 0;
+    const counts = this.counts;
+    counts.length = 0;
     for (let i = 0; i < found.length && shown < MAX_SHOWN; i++) {
       const p = found[i];
-      // Thinned on screen rather than in the world, because that is where the
-      // overlap is: two buildings thirty metres apart are one icon from a
-      // kilometre up and two from the kerb.
-      let clash = false;
+      // CLUSTERED, not merely thinned. Twelve identical icons in a row is what a
+      // district with one problem looks like, and it says twelve times less than
+      // one icon with a twelve on it: the player cannot tell whether they are
+      // looking at twelve problems or one, and the screen is full either way.
+      //
+      // So a bubble swallows every other complaint of the same kind near it and
+      // wears the count. Two *different* problems in one place stay two bubbles,
+      // because that is the case where the second one is news.
+      let clash = -1;
       for (let k = 0; k < shown; k++) {
         const q = this.bubbles[k];
         const qx = parseFloat(q.root.style.left), qy = parseFloat(q.root.style.top);
-        if (Math.abs(qx - p.sx) < APART && Math.abs(qy - p.sy) < APART) { clash = true; break; }
+        if (Math.abs(qx - p.sx) < APART && Math.abs(qy - p.sy) < APART) {
+          clash = q.gripe === p.c.gripe ? k : -2;
+          break;
+        }
       }
-      if (clash) continue;
+      if (clash === -2) continue;                 // a different problem, too close
+      if (clash >= 0) { counts[clash] = (counts[clash] ?? 1) + 1; continue; }
       this.place(this.bubbles[shown], p);
+      counts[shown] = 1;
       shown++;
     }
+    for (let k = 0; k < shown; k++) this.countOn(this.bubbles[k], counts[k] ?? 1);
     for (let i = shown; i < this.bubbles.length; i++) {
       this.bubbles[i].root.style.display = 'none';
       this.bubbles[i].place = -1;
@@ -268,6 +297,13 @@ export class Thoughts {
         this.card.style.top = `${parseFloat(still.root.style.top) - 46}px`;
       }
     }
+  }
+
+  /** Writes the count on a bubble, or takes it off. */
+  private countOn(b: Bubble, n: number): void {
+    const show = n > 1;
+    b.badge.style.display = show ? 'block' : 'none';
+    if (show) b.badge.textContent = n > 99 ? '99+' : String(n);
   }
 
   private place(b: Bubble, p: Placed): void {

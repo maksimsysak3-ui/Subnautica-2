@@ -18,6 +18,7 @@
 
 import { TRANSIT_SPEC, MIN_FLEET, MAX_FLEET, money } from '../sim';
 import type { Transit, TransitNet } from '../sim';
+import { SKIN, label as labelStyle } from './skin';
 
 function style(el: HTMLElement, decls: string[]): void {
   el.style.cssText = decls.join(';');
@@ -43,8 +44,7 @@ export class LinesPanel {
     style(this.root, ['display:flex', 'flex-direction:column', 'gap:5px']);
 
     const head = document.createElement('div');
-    style(head, ['font-size:9px', 'letter-spacing:.14em', 'text-transform:uppercase',
-      'color:#5e7a8f']);
+    style(head, labelStyle());
     head.textContent = 'Lines';
     this.root.appendChild(head);
 
@@ -53,7 +53,7 @@ export class LinesPanel {
     this.root.appendChild(this.list);
 
     this.empty = document.createElement('div');
-    style(this.empty, ['font-size:9px', 'color:#5e7a8f', 'line-height:1.5']);
+    style(this.empty, ['font-size:9.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
     this.empty.textContent = 'No lines yet. Pick the bus or tram tool on the bar '
       + 'and click along the streets to drop stops.';
     this.root.appendChild(this.empty);
@@ -106,10 +106,10 @@ export class LinesPanel {
         b.type = 'button';
         b.textContent = glyph;
         b.title = title;
-        style(b, ['width:16px', 'height:16px', 'padding:0', 'flex:0 0 auto',
-          'border-radius:3px', 'border:1px solid rgba(255,255,255,.12)',
-          'background:rgba(255,255,255,.05)', 'color:#c9d4e3',
-          'cursor:pointer', 'line-height:1', 'font:11px/1 var(--mono)']);
+        style(b, ['width:17px', 'height:17px', 'padding:0', 'flex:0 0 auto',
+          `border-radius:${SKIN.radiusSmall}`, `border:1px solid ${SKIN.edge}`,
+          'background:rgba(255,255,255,.05)', `color:${SKIN.text}`,
+          'cursor:pointer', 'line-height:1', `font:11px/1 ${SKIN.mono}`]);
         b.addEventListener('click', (e) => {
           e.stopPropagation();
           r.transit.setFleet(line.id, line.fleet + delta);
@@ -123,10 +123,10 @@ export class LinesPanel {
       bin.type = 'button';
       bin.textContent = '×';
       bin.title = `Remove ${spec.name.toLowerCase()} line ${line.id}`;
-      style(bin, ['width:16px', 'height:16px', 'padding:0', 'flex:0 0 auto',
-        'border-radius:3px', 'border:1px solid rgba(224,104,90,.35)',
-        'background:rgba(224,104,90,.12)', 'color:#e0685a',
-        'cursor:pointer', 'line-height:1', 'font:12px/1 var(--mono)']);
+      style(bin, ['width:17px', 'height:17px', 'padding:0', 'flex:0 0 auto',
+        `border-radius:${SKIN.radiusSmall}`, 'border:1px solid rgba(224,104,90,.35)',
+        'background:rgba(224,104,90,.12)', `color:${SKIN.bad}`,
+        'cursor:pointer', 'line-height:1', `font:12px/1 ${SKIN.mono}`]);
       bin.addEventListener('click', (e) => {
         e.stopPropagation();
         r.transit.remove(line.id);
@@ -153,7 +153,7 @@ export class LinesPanel {
         : `${line.stops.length / 2} stops · ${line.fleet}× · `
           + `${riders.toLocaleString()}/day · ${money(weekly)}/wk`
           + (skipped > 0 ? ` · ${skipped} off-route` : '');
-      el.style.color = !works ? '#e0685a' : skipped > 0 ? '#e8b454' : '#8fa3bd';
+      el.style.color = !works ? SKIN.bad : skipped > 0 ? SKIN.warn : SKIN.dim;
       void MIN_FLEET; void MAX_FLEET;
     }
   }

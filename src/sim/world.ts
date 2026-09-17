@@ -149,6 +149,16 @@ export interface World {
   transit: Transit;
   /** The treasury: what the city has, and what it charges. */
   budget: Budget;
+  /**
+   * Bumped every time the zoning changes.
+   *
+   * Growth shares the day out only among zones that have land waiting, which it
+   * learns from a whole-map survey on a slow timer. Without this the first
+   * moments after a player paints a district are spent handing the day's growth
+   * to zones that no longer want it, and the new paint sits there -- which reads
+   * as a tool that did nothing. A counter costs a compare.
+   */
+  painted: number;
 }
 
 /** Cells of buildable block between corridors. */
@@ -166,6 +176,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     grown: new Uint8Array(grid * grid).fill(1),
     transit: new Transit(),
     budget: new Budget(),
+    painted: 0,
   };
 }
 
@@ -201,6 +212,7 @@ export function paint(world: World, gx: number, gz: number, w: number, d: number
       if (code === 0) world.grown[z * world.grid + x] = 0;
     }
   }
+  world.painted++;
 }
 
 /**

@@ -22,6 +22,7 @@
 import { VIEWS, View, Look, PANEL_ONLY } from '../sim';
 import type { ViewInfo, Stat } from '../sim';
 import { GLYPH } from './zones';
+import { SKIN, panel, label as labelStyle } from './skin';
 
 /** How often the card's numbers are rewritten, in milliseconds. */
 const REPAINT_MS = 250;
@@ -80,12 +81,6 @@ function style(el: HTMLElement, decls: string[]): void {
   el.style.cssText = decls.join(';');
 }
 
-/** The panel's own chrome, shared with the rest of the interface. */
-const CARD = [
-  'background:rgba(8,12,17,.88)', 'border:1px solid rgba(98,212,255,.16)',
-  'border-radius:5px', 'backdrop-filter:blur(14px)',
-  'font:11px/1.55 var(--mono)', 'color:#8fa3bd',
-];
 
 export class InfoViews {
   private readonly root: HTMLElement;
@@ -93,6 +88,11 @@ export class InfoViews {
   private readonly rail: HTMLElement;
   private readonly card: HTMLElement;
   private readonly title: HTMLElement;
+  private readonly head: HTMLElement;
+  private readonly swatch: HTMLElement;
+  private readonly hero: HTMLElement;
+  private readonly heroValue: HTMLElement;
+  private readonly heroLabel: HTMLElement;
   private readonly legend: HTMLElement;
   private readonly scale: HTMLElement;
   private readonly rows: HTMLElement;
@@ -128,18 +128,43 @@ export class InfoViews {
     // matching on a style string -- which the browser rewrites on assignment,
     // and which therefore silently matches nothing.
     this.card.dataset.panel = 'view-stats';
-    style(this.card, [...CARD,
-      'width:262px', 'padding:10px 12px 11px', 'display:none',
-      'pointer-events:auto', 'letter-spacing:.02em',
-    ]);
+    style(this.card, [...panel(), 'width:276px', 'padding:13px 14px 12px',
+      'display:none', 'pointer-events:auto']);
+
+    // The head: a swatch in the view's own colour, and its name. The swatch is
+    // the same colour the map is about to be tinted in, so the card and the
+    // ground agree about what the subject is before anything is read.
+    const head = document.createElement('div');
+    style(head, ['display:flex', 'align-items:center', 'gap:7px']);
+    this.swatch = document.createElement('span');
+    style(this.swatch, ['width:3px', 'height:13px', 'border-radius:2px',
+      'flex:0 0 auto']);
     this.title = document.createElement('div');
-    style(this.title, ['font:600 13px/1.3 var(--sans, var(--mono))',
-      'color:#dfe9f4', 'letter-spacing:.01em']);
+    style(this.title, [...labelStyle(), 'font-size:10px', `color:${SKIN.text}`,
+      'letter-spacing:.17em']);
+    head.append(this.swatch, this.title);
+    this.head = head;
+
+    // The headline. One number, large, with what it is underneath it -- because
+    // a panel of thirteen equal rows has no answer in it, only data. Every view
+    // has one thing a player opened it to find out, and this is that thing.
+    this.hero = document.createElement('div');
+    style(this.hero, ['display:flex', 'align-items:baseline', 'gap:7px',
+      'margin:9px 0 2px']);
+    this.heroValue = document.createElement('span');
+    style(this.heroValue, [`font:300 25px/1 ${SKIN.mono}`,
+      `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums',
+      'letter-spacing:-.02em']);
+    this.heroLabel = document.createElement('span');
+    style(this.heroLabel, ['font-size:10px', `color:${SKIN.dim}`,
+      'line-height:1.3']);
+    this.hero.append(this.heroValue, this.heroLabel);
+
     this.legend = document.createElement('div');
-    style(this.legend, ['margin:3px 0 8px', 'color:#7b8ea6', 'font-size:10.5px',
-      'line-height:1.45']);
+    style(this.legend, ['margin:2px 0 9px', `color:${SKIN.faint}`,
+      'font-size:10px', 'line-height:1.5']);
     this.scale = document.createElement('div');
-    style(this.scale, ['margin-bottom:9px']);
+    style(this.scale, ['margin-bottom:10px']);
     this.rows = document.createElement('div');
     style(this.rows, ['display:flex', 'flex-direction:column', 'gap:3px',
       'max-height:46vh', 'overflow-y:auto']);
@@ -150,12 +175,13 @@ export class InfoViews {
     this.extra = document.createElement('div');
     style(this.extra, ['display:none', 'margin-top:8px',
       'border-top:1px solid rgba(98,212,255,.14)', 'padding-top:8px']);
-    this.card.append(this.title, this.legend, this.scale, this.rows, this.extra);
+    this.card.append(this.head, this.hero, this.legend, this.scale, this.rows,
+      this.extra);
 
     this.rail = document.createElement('div');
     this.rail.dataset.panel = 'view-rail';
-    style(this.rail, [...CARD,
-      'padding:6px', 'display:none', 'grid-template-columns:repeat(6, 32px)',
+    style(this.rail, [...panel(),
+      'padding:7px', 'display:none', 'grid-template-columns:repeat(7, 32px)',
       'gap:4px', 'pointer-events:auto',
     ]);
     for (const info of VIEWS) this.rail.appendChild(this.button(info));
@@ -164,12 +190,12 @@ export class InfoViews {
     this.launcher.type = 'button';
     this.launcher.title = 'Information views';
     this.launcher.setAttribute('aria-label', 'Information views');
-    style(this.launcher, [...CARD,
-      'width:38px', 'height:38px', 'display:grid', 'place-items:center',
+    style(this.launcher, [...panel(),
+      'width:40px', 'height:40px', 'display:grid', 'place-items:center',
       'cursor:pointer', 'pointer-events:auto', 'padding:0',
       'transition:border-color .12s, background .12s',
     ]);
-    this.launcher.innerHTML = svg(LAUNCHER_GLYPH, '#8fa3bd', 19);
+    this.launcher.innerHTML = svg(LAUNCHER_GLYPH, SKIN.dim, 19);
     this.launcher.addEventListener('click', () => this.toggleRail());
 
     this.root.append(this.card, this.rail, this.launcher);
@@ -189,13 +215,18 @@ export class InfoViews {
     b.setAttribute('aria-label', info.name);
     style(b, [
       'width:32px', 'height:32px', 'display:grid', 'place-items:center',
-      'padding:0', 'cursor:pointer', 'border-radius:3px',
-      'background:rgba(255,255,255,.03)', 'border:1px solid transparent',
-      'transition:background .1s, border-color .1s',
+      'padding:0', 'cursor:pointer', `border-radius:${SKIN.radiusSmall}`,
+      'background:rgba(255,255,255,.025)', 'border:1px solid transparent',
+      'transition:background .12s, border-color .12s',
     ]);
-    // The icon takes the good end of the view's own ramp, so the button and the
-    // map agree about what colour the subject is before anything is clicked.
-    b.innerHTML = svg(glyphFor(info.icon), info.ramp[2], 19);
+    // NEUTRAL UNTIL PICKED. Every icon used to be drawn in the good end of its
+    // own view's ramp, and eight of the thirteen ramps end in green -- so the
+    // rail was a block of near-identical green pictograms that read as one
+    // texture rather than as thirteen things you could choose between. The
+    // colour is information about the *map*, and it belongs on the map and on
+    // the one button that is switched on.
+    b.innerHTML = svg(glyphFor(info.icon), SKIN.dim, 19);
+    b.dataset.icon = info.icon;
     b.addEventListener('click', () => this.pick(info.id));
     this.buttons.set(info.id, b);
     return b;
@@ -253,8 +284,11 @@ export class InfoViews {
     if (id === this.current) return;
     const was = this.buttons.get(this.current);
     if (was !== undefined) {
-      was.style.background = 'rgba(255,255,255,.03)';
+      was.style.background = 'rgba(255,255,255,.025)';
       was.style.borderColor = 'transparent';
+      const icon = was.dataset.icon ?? '';
+      was.innerHTML = svg(glyphFor(icon), SKIN.dim, 19);
+      was.dataset.icon = icon;
     }
     this.current = id;
     const info = VIEWS.find((v) => v.id === id) ?? null;
@@ -266,12 +300,17 @@ export class InfoViews {
     }
     const b = this.buttons.get(id);
     if (b !== undefined) {
-      b.style.background = 'rgba(98,212,255,.14)';
+      b.style.background = 'rgba(255,255,255,.07)';
       b.style.borderColor = info.ramp[2];
+      b.innerHTML = svg(glyphFor(info.icon), info.ramp[2], 19);
+      b.dataset.icon = info.icon;
     }
     this.card.style.display = 'block';
     this.title.textContent = info.name;
-    this.title.style.color = info.ramp[2];
+    this.swatch.style.background = info.ramp[2];
+    this.accent = info.ramp[2];
+    this.heroValue.textContent = '—';
+    this.heroLabel.textContent = '';
     this.legend.textContent = info.legend;
     // A view that paints nothing has no scale to explain. The swatch strip is
     // the legend for a map, and a budget is not one.
@@ -299,15 +338,18 @@ export class InfoViews {
 
   private ramp(info: ViewInfo): string {
     const [lo, mid, hi] = info.ramp;
-    const bar = `background:linear-gradient(90deg,${lo},${mid},${hi})`;
+    const bar = `background:linear-gradient(90deg,${lo},${mid} 50%,${hi})`;
     const buried = info.look === Look.UNDERGROUND
-      ? '<span style="color:#5ad6f0">underground</span>' : '';
-    return `<div style="height:6px;border-radius:3px;${bar}"></div>`
-      + '<div style="display:flex;justify-content:space-between;margin-top:3px;'
-      + `font-size:9.5px;color:#66798f;letter-spacing:.04em">`
-      + `<span>none</span><span>${escapeHtml(info.unit)}</span>`
-      + `<span>all</span></div>${buried
-        ? `<div style="font-size:9.5px;margin-top:2px">${buried}</div>` : ''}`;
+      ? `<span style="color:${SKIN.accent}">· below ground</span>` : '';
+    // Thin, and captioned with the two ends and nothing in the middle: the
+    // middle of a three-stop ramp needs no word, and putting one there is how a
+    // legend ends up with more text on it than the panel it is legending.
+    return `<div style="height:4px;border-radius:2px;${bar};`
+      + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)"></div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:4px;'
+      + `font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${SKIN.faint}">`
+      + `<span>none</span><span>${escapeHtml(info.unit)} ${buried}</span>`
+      + '</div>';
   }
 
   /**
@@ -325,53 +367,76 @@ export class InfoViews {
 
     // Rows are reused rather than rebuilt: replaceChildren on every repaint threw
     // away the scroll position in the card whenever the list was longer than it.
-    while (this.shown < stats.length) {
+    // The headline: whichever row the view nominated, or its first. It is then
+    // left out of the list below, because a number printed twice in one card is
+    // a card that has not decided what it is for.
+    let heroAt = stats.findIndex((s) => s.hero === true);
+    if (heroAt < 0) heroAt = 0;
+    const hero = stats[heroAt];
+    if (hero !== undefined) {
+      this.heroValue.textContent = hero.value;
+      this.heroValue.style.color = hero.warn ? SKIN.bad : SKIN.bright;
+      this.heroLabel.textContent = hero.label.toLowerCase();
+    }
+    const rest = stats.filter((_, i) => i !== heroAt);
+
+    while (this.shown < rest.length) {
       this.rows.appendChild(this.row());
       this.shown++;
     }
-    while (this.shown > stats.length) {
+    while (this.shown > rest.length) {
       this.rows.lastElementChild?.remove();
       this.shown--;
     }
     const children = this.rows.children;
-    for (let i = 0; i < stats.length; i++) {
-      const s = stats[i];
+    const accent = this.accent;
+    for (let i = 0; i < rest.length; i++) {
+      const s = rest[i];
       const el = children[i] as HTMLElement;
       const label = el.firstElementChild as HTMLElement;
       const value = label.nextElementSibling as HTMLElement;
       const track = el.lastElementChild as HTMLElement;
       if (label.textContent !== s.label) label.textContent = s.label;
-      const text = s.value;
-      if (value.textContent !== text) value.textContent = text;
-      value.style.color = s.warn ? '#ff8f6b' : '#dfe9f4';
+      if (value.textContent !== s.value) value.textContent = s.value;
+      value.style.color = s.warn ? SKIN.bad : SKIN.bright;
       if (s.bar < 0) {
         track.style.display = 'none';
       } else {
         track.style.display = 'block';
         const fill = track.firstElementChild as HTMLElement;
         fill.style.width = `${Math.round(Math.max(0, Math.min(1, s.bar)) * 100)}%`;
-        fill.style.background = s.warn ? '#e0604a' : 'rgba(98,212,255,.55)';
+        // The view's own colour, so a card's bars belong to the map it is about
+        // -- and red only where the figure is bad news, which is the one thing a
+        // bar has to be able to say without being read.
+        fill.style.background = s.warn ? SKIN.bad : accent;
       }
     }
   }
+
+  /** The open view's colour, for its bars. */
+  private accent: string = SKIN.accent;
 
   private row(): HTMLElement {
     const el = document.createElement('div');
     el.dataset.stat = '';
     style(el, ['display:grid', 'grid-template-columns:1fr auto',
-      'grid-template-areas:"l v" "t t"', 'column-gap:8px', 'align-items:baseline']);
+      'grid-template-areas:"l v" "t t"', 'column-gap:10px',
+      'align-items:baseline', 'padding:1px 0']);
     const label = document.createElement('span');
-    style(label, ['grid-area:l', 'color:#7b8ea6', 'overflow:hidden',
-      'text-overflow:ellipsis', 'white-space:nowrap']);
+    style(label, ['grid-area:l', `color:${SKIN.dim}`, 'overflow:hidden',
+      'text-overflow:ellipsis', 'white-space:nowrap', 'font-size:10.5px']);
     const value = document.createElement('span');
-    style(value, ['grid-area:v', 'color:#dfe9f4', 'font-variant-numeric:tabular-nums']);
+    style(value, ['grid-area:v', `color:${SKIN.bright}`, 'font-size:10.5px',
+      'font-variant-numeric:tabular-nums']);
     const track = document.createElement('div');
     track.dataset.bar = '';
-    style(track, ['grid-area:t', 'height:3px', 'margin:1px 0 3px',
-      'border-radius:2px', 'background:rgba(255,255,255,.07)', 'display:none']);
+    style(track, ['grid-area:t', 'height:2px', 'margin:2px 0 4px',
+      'border-radius:2px', `background:${SKIN.track}`, 'display:none',
+      'overflow:hidden']);
     const fill = document.createElement('div');
     style(fill, ['height:100%', 'border-radius:2px', 'width:0%',
-      'background:rgba(98,212,255,.55)', 'transition:width .2s']);
+      `background:${SKIN.accent}`,
+      'transition:width .3s cubic-bezier(.2,.7,.3,1)']);
     track.appendChild(fill);
     el.append(label, value, track);
     return el;

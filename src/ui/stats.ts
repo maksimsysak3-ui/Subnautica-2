@@ -6,6 +6,8 @@
  * grows rows as systems land.
  */
 
+import { SKIN, panel, label, css } from './skin';
+
 export class Stats {
   private el: HTMLElement;
   private samples = new Float32Array(120);
@@ -24,14 +26,36 @@ export class Stats {
   private lastPaint = 0;
   private rows = new Map<string, string>();
 
+  /** The headline figures, in the order they are shown. */
+  private readonly headOrder = ['money', 'citizens', 'when'];
+  private head!: HTMLElement;
+  private detail!: HTMLElement;
+
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
-    this.el.style.cssText = [
-      'position:absolute', 'top:10px', 'left:12px', 'padding:8px 11px',
-      'background:rgba(6,9,13,.72)', 'border:1px solid rgba(98,212,255,.16)',
-      'border-radius:3px', 'font:11px/1.6 var(--mono)', 'color:#8fa3bd',
-      'pointer-events:none', 'white-space:pre', 'letter-spacing:.02em',
-    ].join(';');
+    this.el.dataset.panel = 'stats';
+    css(this.el, [...panel(), 'position:absolute', 'top:12px', 'left:12px',
+      'padding:10px 13px 9px', 'pointer-events:none',
+      'display:flex', 'flex-direction:column', 'gap:7px', 'min-width:186px']);
+
+    // The city's own figures, large. What a player checks constantly belongs at
+    // the top of the screen in a size they can read without stopping -- the
+    // panel used to open with the frame rate, which is a number for whoever is
+    // building the game rather than for whoever is playing it.
+    this.head = document.createElement('div');
+    css(this.head, ['display:flex', 'flex-direction:column', 'gap:5px']);
+
+    const rule = document.createElement('div');
+    css(rule, ['height:1px', `background:${SKIN.edge}`]);
+
+    // And the instrumentation, small and dim, under a line. Still there, still
+    // live, and no longer the first thing anybody sees.
+    this.detail = document.createElement('div');
+    css(this.detail, ['display:grid', 'grid-template-columns:auto 1fr',
+      'column-gap:8px', 'row-gap:1px', `color:${SKIN.faint}`, 'font-size:9.5px',
+      'font-variant-numeric:tabular-nums']);
+
+    this.el.append(this.head, rule, this.detail);
     parent.appendChild(this.el);
   }
 
@@ -106,13 +130,68 @@ export class Stats {
     }
     const iavg = seen > 0 ? isum / seen : 0;
 
-    const lines = [
-      `${(seen > 0 ? 1000 / Math.max(iavg, 0.001) : 0).toFixed(0).padStart(4)} fps`,
-      `${iavg.toFixed(1).padStart(5)} ms  frame`,
-      `${imax.toFixed(1).padStart(5)} ms  worst`,
-      `${avg.toFixed(2).padStart(5)} ms  cpu`,
+    // ---- the city ---------------------------------------------------------
+    const want = this.headOrder.filter((k) => this.rows.has(k));
+    while (this.head.children.length < want.length) {
+      const row = document.createElement('div');
+      css(row, ['display:flex', 'align-items:baseline', 'gap:6px']);
+      const v = document.createElement('span');
+      css(v, [`font:300 17px/1 ${SKIN.mono}`, `color:${SKIN.bright}`,
+        'font-variant-numeric:tabular-nums', 'letter-spacing:-.01em']);
+      // A second, smaller figure beside the first, for the ones that have one:
+      // a balance means little without the direction it is heading in, and the
+      // two on one line at one size read as a single unparseable string.
+      const sub = document.createElement('span');
+      css(sub, ['font-size:10px', `color:${SKIN.dim}`,
+        'font-variant-numeric:tabular-nums']);
+      const k = document.createElement('span');
+      css(k, [...label(), 'font-size:8.5px', 'margin-left:auto']);
+      row.append(v, sub, k);
+      this.head.appendChild(row);
+    }
+    while (this.head.children.length > want.length) {
+      this.head.lastElementChild?.remove();
+    }
+    for (let i = 0; i < want.length; i++) {
+      const row = this.head.children[i] as HTMLElement;
+      const v = row.children[0] as HTMLElement;
+      const sub = row.children[1] as HTMLElement;
+      const k = row.children[2] as HTMLElement;
+      // A vertical bar splits the headline from its footnote. A separator
+      // rather than two calls, so every caller stays one `set`.
+      const raw = this.rows.get(want[i]) ?? '';
+      const cut = raw.indexOf('|');
+      const main = cut < 0 ? raw : raw.slice(0, cut);
+      const tail = cut < 0 ? '' : raw.slice(cut + 1);
+      if (v.textContent !== main) v.textContent = main;
+      if (sub.textContent !== tail) sub.textContent = tail;
+      if (k.textContent !== want[i]) k.textContent = want[i];
+    }
+
+    // ---- and the instrumentation ------------------------------------------
+    const lines: Array<[string, string]> = [
+      [`${(seen > 0 ? 1000 / Math.max(iavg, 0.001) : 0).toFixed(0)} fps`,
+        `${iavg.toFixed(1)} ms`],
+      ['worst', `${imax.toFixed(1)} ms`],
+      ['cpu', `${avg.toFixed(2)} ms`],
     ];
-    for (const [k, v] of this.rows) lines.push(`${v.padStart(5)}  ${k}`);
-    this.el.textContent = lines.join('\n');
+    for (const [k, v] of this.rows) {
+      if (this.headOrder.includes(k)) continue;
+      lines.push([k, v]);
+    }
+    while (this.detail.children.length < lines.length * 2) {
+      const cell = document.createElement('span');
+      this.detail.appendChild(cell);
+    }
+    while (this.detail.children.length > lines.length * 2) {
+      this.detail.lastElementChild?.remove();
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const a = this.detail.children[i * 2] as HTMLElement;
+      const b = this.detail.children[i * 2 + 1] as HTMLElement;
+      if (a.textContent !== lines[i][0]) a.textContent = lines[i][0];
+      if (b.textContent !== lines[i][1]) b.textContent = lines[i][1];
+      b.style.textAlign = 'right';
+    }
   }
 }

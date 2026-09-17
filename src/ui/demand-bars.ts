@@ -25,13 +25,14 @@
  */
 
 import { ZONE_STYLE } from './zones';
+import { SKIN, panel, label as labelStyle } from './skin';
 
 /** How often the bars are rewritten, in milliseconds. */
 const REPAINT_MS = 200;
 
 /** Bar geometry, in pixels. Small: this is a gauge, not a chart. */
-const TRACK_W = 96;
-const TRACK_H = 7;
+const TRACK_W = 104;
+const TRACK_H = 6;
 const HALF_W = TRACK_W / 2;
 
 /** The rows, in the order `Demand.want` holds them. */
@@ -81,19 +82,13 @@ export class DemandBars {
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'demand';
-    style(this.root, [
-      'position:absolute', 'right:12px', 'bottom:14px', 'z-index:6',
-      'display:none', 'pointer-events:none',
-      'padding:7px 9px 6px', 'gap:5px',
-      'flex-direction:column', 'align-items:stretch',
-      'background:rgba(8,12,17,.88)', 'border:1px solid rgba(98,212,255,.16)',
-      'border-radius:5px', 'backdrop-filter:blur(14px)',
-      'font:10px/1.4 var(--mono)', 'color:#8fa3bd',
-    ]);
+    style(this.root, [...panel(), 'position:absolute', 'right:12px', 'bottom:14px',
+      'z-index:6', 'display:none', 'pointer-events:none',
+      'padding:10px 12px 9px', 'gap:7px',
+      'flex-direction:column', 'align-items:stretch']);
 
     const head = document.createElement('div');
-    style(head, ['font-size:8px', 'letter-spacing:.16em', 'text-transform:uppercase',
-      'color:#5e7a8f']);
+    style(head, labelStyle());
     head.textContent = 'Demand';
     this.root.appendChild(head);
 
@@ -123,8 +118,8 @@ export class DemandBars {
       // the size, which is the order the question is asked in.
       const track = document.createElement('div');
       style(track, ['position:relative', `width:${TRACK_W}px`, `height:${TRACK_H}px`,
-        'background:rgba(255,255,255,.05)', 'border-radius:2px', 'overflow:hidden',
-        'flex:0 0 auto']);
+        `background:${SKIN.track}`, `border-radius:${TRACK_H}px`,
+        'overflow:hidden', 'flex:0 0 auto']);
 
       const zero = document.createElement('div');
       style(zero, ['position:absolute', 'top:0', 'bottom:0', `left:${HALF_W}px`,
@@ -133,9 +128,9 @@ export class DemandBars {
       const fill = document.createElement('div');
       fill.dataset.fill = col.key;
       style(fill, ['position:absolute', 'top:0', 'bottom:0', `left:${HALF_W}px`,
-        'width:0px', 'border-radius:2px',
+        'width:0px', `border-radius:${TRACK_H}px`,
         'background:' + ZONE_STYLE[col.key].base,
-        'transition:left .25s ease,width .25s ease']);
+        'transition:left .3s cubic-bezier(.2,.7,.3,1),width .3s cubic-bezier(.2,.7,.3,1)']);
 
       track.append(fill, zero);
       cell.append(chip, letter, track);
@@ -147,7 +142,7 @@ export class DemandBars {
 
     this.caption = document.createElement('div');
     this.caption.dataset.stat = 'queue';
-    style(this.caption, ['font-size:8px', 'color:#5e7a8f', 'white-space:nowrap',
+    style(this.caption, ['font-size:9px', `color:${SKIN.faint}`, 'white-space:nowrap',
       'letter-spacing:.04em']);
     this.caption.textContent = '—';
     this.root.appendChild(this.caption);

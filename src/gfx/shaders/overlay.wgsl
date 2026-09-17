@@ -44,6 +44,15 @@ fn surfaceAt(world : vec3f) -> vec4f {
   return textureSampleLevel(surfaceTex, overlaySampler, uv, 0.0);
 }
 
+/**
+ * How much of its colour a perfectly good reading still gets.
+ *
+ * Not zero: a coverage map has to show where the coverage *is* as well as where
+ * it is not, and a district that is entirely fine should read as a district that
+ * has been looked at. A fifth is enough to see and little enough to ignore.
+ */
+const QUIET = 0.20;
+
 // The ramp: bad at nothing, middling in the middle, good at one. Two mixes rather
 // than a gradient texture, because three stops is all a legend can explain and a
 // player reading a map wants to know which of three things they are looking at.
@@ -66,30 +75,48 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // reading towards zero at the boundary of the data, and without this the tint
   // would darken into a fringe round every district instead of fading out.
   let have = s.g;
-  let tint = overlayRamp(s.r / max(have, 0.02));
-
   if (overlay.mode > 1.5) {
+    let deep = overlayRamp(s.r / max(have, 0.02));
     // Underground: the whole world goes to a dim slate and the mains are lit
     // through it, which is what a utility drawing looks like and reads instantly
     // as "below". The darkening is not conditional on there being a reading --
     // that was the bug that made an unconnected district the *brightest* thing
     // on a power map.
     let ground = bury(col, overlay.strength);
-    return ground + tint * (1.9 * overlay.strength * have);
+    return ground + deep * (1.9 * overlay.strength * have);
   }
 
-  // Surface: keep the shading, take the hue. A flat wash loses the landscape and
-  // with it any sense of where on the map you are looking.
+  // Surface.
   //
-  // And the ground *outside* the reading is drained towards grey, which is the
-  // difference between a view and a tint. The traffic ramp is green at its good
-  // end and the countryside is green, so a city with free-flowing roads was
-  // painting green on green: nothing about the picture said a view was open.
-  // Draining the surroundings makes the covered area read as the subject at any
-  // point on any ramp.
+  // THE VIEWS USED TO SHOUT AT THE GOOD NEWS. Every reading got the same wash
+  // whatever it said, so a city with no congestion at all was painted in solid
+  // neon green from edge to edge and a city with a jam looked much the same
+  // except redder in one place. A map that colours everything equally is a map
+  // that says nothing -- the player's eye has nowhere to go, and what they see
+  // is "colours swarming" rather than information.
+  //
+  // So attention is the thing being drawn. A reading at the good end gets a
+  // whisper of its colour, enough to say the data reaches here; a bad one gets
+  // the full wash. The eye lands on the problem without being told where it is.
+  let t = clamp(s.r / max(have, 0.02), 0.0, 1.0);
+  let hue = overlayRamp(t);
+  let attention = 1.0 - t;
+  // Not squared. Squaring made a middling reading nearly invisible, which is
+  // the one a player most needs to see -- a district at a third of what it
+  // should have is the district to go and fix.
+  let weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
+
+  // And the ground outside the reading is drained a little towards grey, which
+  // is the difference between a view and a tint: the traffic ramp is green at
+  // its good end and the countryside is green, so without this a city with
+  // free-flowing roads painted green on green. Gently -- at full strength this
+  // turned the whole landscape a dead sickly colour, which is most of what made
+  // the views unpleasant to have open.
   let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
-  let outside = mix(col, grey * 0.82, overlay.strength * 0.6);
+  let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
   if (have < 0.02) { return outside; }
+  // Keep the shading, take the hue. A flat wash loses the landscape and with it
+  // any sense of where on the map you are looking.
   let lit = clamp(dot(col, vec3f(0.33)) * 1.5 + 0.35, 0.35, 1.5);
-  return mix(outside, tint * lit, overlay.strength * have * 0.86);
+  return mix(outside, hue * lit, overlay.strength * have * weight);
 }

@@ -169,8 +169,16 @@ export const PANEL_ONLY = new Set<number>([View.BUDGET]);
 /** Cells across the overlay grid. */
 export const VIEW_GRID = 192;
 
-/** Cells the value is spread outward from a road, so blocks take its colour. */
-const SPREAD = 4;
+/**
+ * Cells the value is spread outward from a road, so blocks take its colour.
+ *
+ * Seven, which is about a hundred and seventy metres on the overlay grid -- a
+ * block and its street either side. Four was not enough: a coverage view came
+ * out as coloured ribbons tracing the carriageways with the blocks between them
+ * left grey, which reads as a map of the roads rather than a map of the city,
+ * and is most of what made the views feel like noise crawling over the ground.
+ */
+const SPREAD = 7;
 
 /** No reading here. The renderer leaves these untinted. */
 export const NO_DATA = 0;
@@ -183,6 +191,15 @@ export interface Stat {
   bar: number;
   /** True where the number is bad news, so the UI can mark it. */
   warn: boolean;
+  /**
+   * The one figure a player opened this view to find out.
+   *
+   * Drawn large at the top of the card and left out of the list below it. Every
+   * view has one; where none is marked the first row is taken, because the first
+   * row is usually it and a card with no headline is thirteen equal numbers and
+   * no answer.
+   */
+  hero?: boolean;
 }
 
 /** What the views need to look at. Held rather than passed, since it is all of it. */
@@ -478,8 +495,8 @@ export class Views {
   stats(view: number): Stat[] {
     const s = this.src;
     const pct = (x: number): string => `${Math.round(x * 100)}%`;
-    const line = (label: string, value: string, bar = -1, warn = false): Stat =>
-      ({ label, value, bar, warn });
+    const line = (label: string, value: string, bar = -1, warn = false,
+      hero = false): Stat => ({ label, value, bar, warn, hero });
 
     switch (view) {
       case View.BUDGET: {
@@ -501,7 +518,7 @@ export class Views {
         const trade = l.goodsMade - l.goodsWanted;
         const rows: Stat[] = [
           line('In the bank', cash(b.balance), -1, b.balance < 0),
-          line('Net a week', cash(l.net), -1, l.net < 0),
+          line('Net a week', cash(l.net), -1, l.net < 0, true),
         ];
         if (l.net < 0 && Number.isFinite(l.weeksLeft)) {
           rows.push(line('Weeks of this left', l.weeksLeft.toFixed(1), -1,
@@ -549,7 +566,7 @@ export class Views {
         return [
           line('Vehicles on the road', t.driving.toLocaleString()),
           line('Mean speed', `${(t.meanSpeed * 3.6).toFixed(0)} kph`,
-            Math.min(1, t.meanSpeed / 13.9), t.meanSpeed < 4),
+            Math.min(1, t.meanSpeed / 13.9), t.meanSpeed < 4, true),
           line('Stopped right now', `${t.stopped.toLocaleString()}`,
             t.driving > 0 ? t.stopped / t.driving : 0, t.stopped > t.driving * 0.5),
           line('Worst wait at a junction', `${t.worstWaitSeconds.toFixed(0)} s`,
@@ -584,7 +601,7 @@ export class Views {
             pct(on), on, on < 0.95),
           line('Separate networks', nets.toLocaleString(), -1, nets > 3),
           line('Largest network', pct(r.biggest), r.biggest, r.biggest < 0.8),
-          line('Supply against demand', pct(made), Math.min(1, made), made < 1),
+          line('Supply against demand', pct(made), Math.min(1, made), made < 1, true),
           line('Buildings supplied', pct(r.served[util]), r.served[util],
             r.served[util] < 0.9),
           line('Nothing reaches at all', pct(r.cutOff), r.cutOff, r.cutOff > 0.02),
@@ -646,7 +663,8 @@ export class Views {
         const std = s.services.standardOf(branch);
         const rows: Stat[] = [
           line('Buildings', cov.stations.toLocaleString(), -1, cov.stations === 0),
-          line('Well served', pct(cov.wellServed), cov.wellServed, cov.wellServed < 0.6),
+          line('Well served', pct(cov.wellServed), cov.wellServed,
+            cov.wellServed < 0.6, true),
           line('Served at all', pct(cov.served), cov.served, cov.served < 0.9),
           line('Out of reach', pct(cov.unreachable), cov.unreachable,
             cov.unreachable > 0.05),

@@ -49,10 +49,15 @@ const READOUT_MS = 500;
  * Not zero. A brand new city with a road and no inhabitants has nothing for the
  * migration model to work from -- appeal is judged by people who live there --
  * and the player's first ten minutes would be spent waiting to find out whether
- * anything works at all. Eight households is a hamlet, which is what the first
- * junction and the first few houses actually are.
+ * anything works at all.
+ *
+ * Thirty rather than eight, which is the difference between a hamlet and a
+ * hamlet that is visibly alive. Eight households put nobody on the roads and
+ * filled three houses, so the first thing a player saw after zoning a street was
+ * a street of empty buildings; thirty fill the first block, take jobs, and start
+ * commuting -- which is the machine this game is, running, in the first minute.
  */
-const FOUNDING = 8;
+const FOUNDING = 30;
 
 export class LiveCity {
   private sim: Simulation | null = null;
@@ -215,13 +220,14 @@ export class LiveCity {
     if (now - this.readoutAt >= READOUT_MS) {
       this.readoutAt = now;
       this.stats.set('citizens', sim.people.population.toLocaleString());
+      this.stats.set('when', sim.clock.label);
       // Money, always on screen. A city builder where the balance is two clicks
       // away is a city builder where the player finds out they are bankrupt two
       // clicks late.
       const bal = Math.round(sim.budget.balance);
       const net = Math.round(sim.economy.report.net);
       this.stats.set('money', `${bal < 0 ? '−' : ''}${money(Math.abs(bal))}`
-        + `  ${net < 0 ? '−' : '+'}${money(Math.abs(net))}/wk`);
+        + `|${net < 0 ? '−' : '+'}${money(Math.abs(net))} a week`);
       // Milliseconds of simulation per second of real time, summed over the
       // systems. The honest number: a per-tick figure hides that the expensive
       // systems are the ones that run rarely.

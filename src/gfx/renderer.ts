@@ -209,6 +209,16 @@ function hexRgb(s: string): [number, number, number] {
  */
 const OVERLAY_STRENGTH = 0.88;
 
+/**
+ * How far the city is drained while a surface view is open.
+ *
+ * Two thirds rather than all of it: the buildings still have to read as
+ * buildings -- their shapes are how a player knows where they are looking -- and
+ * a city rendered in pure greyscale is a different game rather than the same one
+ * with the data turned up.
+ */
+const DRAIN_STRENGTH = 0.66;
+
 /** Vertical field of view, shared with the camera. */
 const FOV_Y = (50 * Math.PI) / 180;
 
@@ -1378,6 +1388,15 @@ export class Renderer {
 
   /** How far the world is buried for an underground view, 0 to 1. */
   private buried = 0;
+  /**
+   * How far the city is drained towards grey for a surface view, 0 to 1.
+   *
+   * The half of a thematic map that is not the map. A wash of colour over the
+   * ground competing with three hundred building colours is a wash nobody can
+   * read, so while a view is open the city goes quiet and the data is the only
+   * colour on the screen.
+   */
+  private drained = 0;
 
   /** The staging copies for the markers and for the lines. */
   private dotData = new Float32Array(0);
@@ -1718,6 +1737,7 @@ export class Renderer {
     // sky, the river and the grass. One number in two uniforms, because the
     // buildings read the scene's rather than the camera's.
     this.cameraData[108] = this.buried;
+    this.cameraData[109] = this.drained;
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -1735,6 +1755,7 @@ export class Renderer {
     // The weather, so the buildings are standing in the same one as the ground.
     this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
     this.sceneData[64] = this.buried;
+    this.sceneData[65] = this.drained;
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -2146,6 +2167,7 @@ export class Renderer {
     if (!res) return;
     const mode = look === Look.UNDERGROUND ? OverlayMode.UNDERGROUND : OverlayMode.SURFACE;
     this.buried = mode === OverlayMode.UNDERGROUND ? OVERLAY_STRENGTH : 0;
+    this.drained = mode === OverlayMode.SURFACE ? DRAIN_STRENGTH : 0;
     writeOverlay(this.gpu.device, res.overlay, grid, mode,
       this.world.grid * CELL_METRES, OVERLAY_STRENGTH, ramp);
   }
@@ -2155,6 +2177,7 @@ export class Renderer {
     const res = this.res;
     if (!res) return;
     this.buried = 0;
+    this.drained = 0;
     clearOverlay(this.gpu.device, res.overlay);
   }
 

@@ -21,6 +21,7 @@
 import { Tax, TAX_NAMES, TAX_MIN, TAX_MAX, TAX_NEUTRAL } from '../sim';
 import type { Budget } from '../sim';
 import { ZONE_STYLE } from './zones';
+import { SKIN, label as labelStyle } from './skin';
 
 /** Which zone palette each rate takes. `TAX_NAMES` order. */
 const PALETTE = ['residential', 'commercial', 'industrial', 'office'] as const;
@@ -46,8 +47,7 @@ export class TaxPanel {
     style(this.root, ['display:flex', 'flex-direction:column', 'gap:6px']);
 
     const head = document.createElement('div');
-    style(head, ['font-size:9px', 'letter-spacing:.14em', 'text-transform:uppercase',
-      'color:#5e7a8f']);
+    style(head, labelStyle());
     head.textContent = 'Tax rates';
     this.root.appendChild(head);
 
@@ -94,7 +94,7 @@ export class TaxPanel {
     }
 
     const note = document.createElement('div');
-    style(note, ['font-size:9px', 'color:#5e7a8f', 'line-height:1.5']);
+    style(note, ['font-size:9.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
     note.textContent = `${Math.round(TAX_NEUTRAL * 100)}% is what people expect. `
       + 'Above it they grumble, and then they leave. Below it you are poor.';
     this.root.appendChild(note);
@@ -131,8 +131,8 @@ export class TaxPanel {
       // them -- which is exactly the loophole the game wants a player to find.
       const felt = i === Tax.RESIDENTIAL || i === Tax.COMMERCIAL ? 1 : 0.6;
       const over = ((rate - TAX_NEUTRAL) / TAX_NEUTRAL) * felt;
-      this.values[i].style.color = over > 0.75 ? '#e0685a'
-        : over > 0.25 ? '#e8b454' : '#8fa3bd';
+      this.values[i].style.color = over > 0.75 ? SKIN.bad
+        : over > 0.25 ? SKIN.warn : SKIN.text;
     }
   }
 }

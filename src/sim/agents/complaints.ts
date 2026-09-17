@@ -30,7 +30,8 @@
 
 import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
-import { Utilities, Util } from './utilities';
+import { Utilities, Util, supplyOf } from './utilities';
+import { ASSETS } from '../../assets/registry';
 import { Services } from './services';
 import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
@@ -58,8 +59,11 @@ export const Gripe = {
   UNEDUCATED: 11,
   NO_CUSTOMERS: 12,
   NO_TRANSPORT: 13,
+  /** A plant, and the two ways one silently does nothing. */
+  OFFLINE: 14,
+  NO_CREW: 15,
 } as const;
-export const GRIPES = 14;
+export const GRIPES = 16;
 
 export interface GripeInfo {
   /** The word on the card. */
@@ -81,6 +85,18 @@ export interface GripeInfo {
 }
 
 export const GRIPE_INFO: Record<number, GripeInfo> = {
+  [Gripe.OFFLINE]: {
+    title: 'Not connected', icon: 'power', weight: 10,
+    what: 'This plant is not on the network it is supposed to feed.',
+    fix: 'Run a road to it. The mains follow the streets, and nothing else '
+      + 'carries them.',
+  },
+  [Gripe.NO_CREW]: {
+    title: 'No crew', icon: 'workers', weight: 9,
+    what: 'Nobody has turned up to run this, so it is barely producing.',
+    fix: 'The city has nobody spare, or nobody who can get here. Zone housing '
+      + 'nearby, or put a road or a bus between the two.',
+  },
   [Gripe.POWER]: {
     title: 'No power', icon: 'power', weight: 9,
     what: 'Nothing here is switched on.',
@@ -169,6 +185,14 @@ const UNCOVERED = 0.22;
 
 /** Utility satisfaction below this is "off", for the same reason. */
 const UNSUPPLIED = 0.30;
+
+/**
+ * Staffing below which a plant is said to have no crew.
+ *
+ * Not zero and not full: a plant at a third of its shift is limping, which is
+ * worth saying, and one at four fifths has a couple of vacancies, which is not.
+ */
+const UNSTAFFED = 0.4;
 
 /** Days of rubbish on the kerb before it is worth saying so. */
 const RUBBISH_DAYS = 3;
@@ -323,6 +347,22 @@ export class Complaints {
     if (u.at(id, Util.SEWAGE) < UNSUPPLIED) return Gripe.SEWAGE;
     if (u.daysOfRubbish(id) > RUBBISH_DAYS) return Gripe.RUBBISH;
 
+    // ---- a plant that is not doing its job ---------------------------------
+    //
+    // Checked before everything else a service could complain about, because a
+    // power station off the grid is the reason a whole district has no power --
+    // and a bubble over the district saying "no power" is the symptom while the
+    // one over the plant is the cause. A player who can see only the first
+    // spends the evening building more of what they already have.
+    const supply = this.producer(id);
+    if (supply !== 0) {
+      // On the network it feeds? A pump on a road with no main under it is a
+      // pump with nothing to pump into.
+      if (!u.connected(id, supply - 1)) return Gripe.OFFLINE;
+      // And staffed enough to matter.
+      if (jobs > 0 && c.working[id] / jobs < UNSTAFFED) return Gripe.NO_CREW;
+    }
+
     // ---- the building itself ---------------------------------------------
     if (occupied && c.health[id] < DERELICT_AT) return Gripe.DERELICT;
 
@@ -367,6 +407,24 @@ export class Complaints {
       return Gripe.NO_TRANSPORT;
     }
     return Gripe.NONE;
+  }
+
+  /**
+   * Which utility a building produces, as `Util` plus one, or zero.
+   *
+   * Plus one so that zero can mean "not a plant" -- power is utility zero, and a
+   * producer of it is the single most important building in the city to be able
+   * to tell apart from a shed.
+   */
+  private producer(id: number): number {
+    const def = ASSETS[this.places.col.proto[id]];
+    const supply = def === undefined ? undefined : supplyOf(def.id);
+    if (supply === undefined) return 0;
+    if ((supply.power ?? 0) > 0) return Util.POWER + 1;
+    if ((supply.water ?? 0) > 0) return Util.WATER + 1;
+    if ((supply.sewage ?? 0) > 0) return Util.SEWAGE + 1;
+    if ((supply.rubbish ?? 0) > 0) return Util.GARBAGE + 1;
+    return 0;
   }
 
   bytes(): number {

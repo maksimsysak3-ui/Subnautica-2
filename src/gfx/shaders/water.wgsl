@@ -115,5 +115,6 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   col = aerial(col, dist, -toEye, sun);
   col = bury(col, camera.view.x);
+  col = drain(col, camera.view.y);
   return vec4f(tonemap(col), 1.0);
 }

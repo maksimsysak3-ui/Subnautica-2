@@ -85,8 +85,13 @@ const ENQUIRIES_PER_THOUSAND = 45;
  * forty thousand people in one day and a road network that instantly fails -- the
  * city fills up over a week instead, which is both more believable and gives them
  * time to react.
+ *
+ * Thirty rather than twelve, because the flat term is the one that governs the
+ * opening: a founding queue of thirty households took two and a half game days
+ * to move in at twelve a day, and a player watching a street of finished, empty
+ * houses for four real minutes concludes the game is broken rather than slow.
  */
-const PLACEMENTS_PER_DAY = 12;
+const PLACEMENTS_PER_DAY = 30;
 const PLACEMENTS_PER_THOUSAND = 55;
 
 /** Days an applicant will wait before looking somewhere else. */
@@ -625,14 +630,25 @@ export class Migration {
    * and the player has nothing to look at. Seeded rather than waited for.
    */
   found(households: number): void {
+    const day = this.clock.day;
     for (let i = 0; i < households; i++) {
       // One draw, used for both the search and the household: drawing twice
       // found a home for a household that was then created with different means,
       // so founding families were routinely put in houses they could not afford.
       const wealth = this.drawWealth();
+      const size = this.drawSize();
+      const edu = this.drawEdu();
       const home = this.findHome(wealth);
-      if (home === NONE) break;
-      this.moveIn(home, wealth, this.drawSize(), this.drawEdu());
+      // Nowhere to put them *yet*. They queue rather than evaporate, which is
+      // the whole point of founding a city: the first families are the reason
+      // the first houses go up, and they are standing there waiting for them.
+      //
+      // This used to `break`, which meant founding a city on bare ground seeded
+      // nobody at all -- there are no homes on bare ground -- so the opening
+      // minutes of every game were spent waiting for ordinary migration to
+      // notice a town that had no inhabitants to be attractive to.
+      if (home === NONE) { this.queue.push(wealth, size, edu, day); continue; }
+      this.moveIn(home, wealth, size, edu);
     }
   }
 

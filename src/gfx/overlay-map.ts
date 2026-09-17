@@ -191,6 +191,7 @@ export function writeOverlay(device: GPUDevice, map: OverlayMap, grid: Uint8Arra
     data[i * 2] = v;
     data[i * 2 + 1] = v === 0 ? 0 : 255;
   }
+  blur(data, map.size);
   device.queue.writeTexture({ texture: map.texture }, data,
     { bytesPerRow: map.size * 2 }, { width: map.size, height: map.size });
   const u = new Float32Array(UNIFORM_FLOATS);
@@ -200,6 +201,55 @@ export function writeOverlay(device: GPUDevice, map: OverlayMap, grid: Uint8Arra
   u.set([mid[0], mid[1], mid[2], 0], 8);
   u.set([hi[0], hi[1], hi[2], 0], 12);
   device.queue.writeBuffer(map.uniform, 0, u);
+}
+
+/**
+ * Rounds the edges off a view.
+ *
+ * The readings come from a scatter along the lanes and a spread outward from
+ * them, so what arrives here is a lattice of hard-edged cells -- and drawn over
+ * a city at the distance a player watches one from, a lattice of hard-edged
+ * cells is confetti. It was the single loudest thing about the views: not the
+ * colours but the *texture*, thousands of little squares crawling over the
+ * ground as the camera moved.
+ *
+ * A separable box blur over both channels. The coverage channel is blurred with
+ * the value, which is what keeps the normalisation honest -- the shader divides
+ * one by the other, so smearing only the numerator would darken every edge.
+ *
+ * Two passes of a five-tap box, which is a decent Gaussian and is four adds per
+ * texel. Thirty-seven thousand texels, twice, on the frame a view opens.
+ */
+const BLUR_PASSES = 2;
+const BLUR_RADIUS = 3;
+
+function blur(data: Uint8Array<ArrayBuffer>, size: number): void {
+  const n = size * size;
+  let src: Uint8Array<ArrayBuffer> = data;
+  let tmp: Uint8Array<ArrayBuffer> = new Uint8Array(n * 2);
+  for (let pass = 0; pass < BLUR_PASSES * 2; pass++) {
+    // Even passes run along x, odd along z: the same loop with the two strides
+    // swapped, which is what "separable" buys.
+    const along = pass % 2 === 0 ? 1 : size;
+    const across = pass % 2 === 0 ? size : 1;
+    for (let b = 0; b < size; b++) {
+      for (let a = 0; a < size; a++) {
+        let v = 0, h = 0, taps = 0;
+        for (let k = -BLUR_RADIUS; k <= BLUR_RADIUS; k++) {
+          const at = a + k;
+          if (at < 0 || at >= size) continue;
+          const i = (at * along + b * across) * 2;
+          v += src[i]; h += src[i + 1]; taps++;
+        }
+        const o = (a * along + b * across) * 2;
+        tmp[o] = v / taps;
+        tmp[o + 1] = h / taps;
+      }
+    }
+    const swap = src; src = tmp; tmp = swap;
+  }
+  // An odd number of swaps would leave the answer in the scratch buffer.
+  if (src !== data) data.set(src);
 }
 
 /** Turns the overlay off without touching the texture. */

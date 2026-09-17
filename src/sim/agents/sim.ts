@@ -465,9 +465,14 @@ export class Simulation {
         name: 'grow', rate: Rate.STEADY,
         run: () => { growth.grow(Rate.STEADY / TICKS_PER_DAY); },
       });
-      // What is still waiting, for the readout. A whole-map pass, so: rarely.
+      // What is still waiting, and where. A whole-map pass, so it would rather
+      // be rare -- but the growth budget is shared out by it, and a budget
+      // following a map that is twelve seconds out of date spends a quarter of
+      // the city's building on land the player zoned and then bulldozed. Every
+      // three seconds is a third of a millisecond a second, which is what
+      // being right costs.
       s.add({
-        name: 'survey', rate: Rate.SLOW,
+        name: 'survey', rate: Rate.STEADY,
         run: () => { growth.survey(); },
       });
     }
