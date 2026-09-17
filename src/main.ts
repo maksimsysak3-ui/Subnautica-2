@@ -237,6 +237,9 @@ async function boot(): Promise<void> {
   // to put a tool down to look somewhere else.
   tools = new BuildTools(canvas, camera, renderer, overlay);
   controls.buildActive = () => tools?.active ?? false;
+  // Clicking a building asks the simulation what it is. The tools know where
+  // the click landed; only the simulation knows what is standing there.
+  tools.onInspect = (at) => live.tap(at);
   if (loaded !== null) tools.cityName = loaded;
   autosave(renderer, tools);
 

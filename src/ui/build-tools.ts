@@ -192,6 +192,15 @@ export class BuildTools {
   private speedButtons: HTMLElement[] = [];
   /** Republishes the bar's height to the panels that dock above it. */
   private measureFoot: (() => void) | null = null;
+  /**
+   * Asked what is at a point on the map, in metres, when the player taps it
+   * with no tool in hand. Null when the tap landed off the map.
+   *
+   * The tools know where a click landed and nothing else; only the simulation
+   * knows what is standing there. So the click is handed over rather than
+   * answered here.
+   */
+  onInspect: ((at: [number, number] | null) => void) | null = null;
   private speed = 1;
   private lastSpeed = 1;
   private ticked = 0;
@@ -349,7 +358,20 @@ export class BuildTools {
 
   // ---- pointer ---------------------------------------------------------
 
+  /**
+   * Where a click with no tool in hand began, and when.
+   *
+   * With the look tool up the pointer belongs to the camera, so a click on a
+   * building has to be told apart from the start of a pan: same button, same
+   * place, and the only difference is whether it moved. A few pixels and a
+   * third of a second is the threshold every map in the world uses.
+   */
+  private tapAt: [number, number, number] | null = null;
+
   private onDown = (e: PointerEvent): void => {
+    if (this.shown && !this.active && e.button === 0) {
+      this.tapAt = [e.clientX, e.clientY, performance.now()];
+    }
     if (!this.active || e.button !== 0) return;
     // A move recorded before the button went down describes the state before
     // this gesture; letting it land afterwards would push a pre-drag cell into
@@ -465,6 +487,18 @@ export class BuildTools {
   }
 
   private onUp = (e: PointerEvent): void => {
+    // A tap on the map with no tool in hand asks what is there.
+    const tap = this.tapAt;
+    this.tapAt = null;
+    if (tap !== null && this.onInspect !== null && !this.active) {
+      const moved = Math.hypot(e.clientX - tap[0], e.clientY - tap[1]);
+      if (moved < 5 && performance.now() - tap[2] < 400) {
+        const cell = this.pick(e.clientX, e.clientY);
+        const half = this.renderer.world.grid / 2;
+        this.onInspect(cell === null ? null
+          : [(cell[0] - half + 0.5) * CELL, (cell[1] - half + 0.5) * CELL]);
+      }
+    }
     this.flushMove();
     if (this.tool.kind === 'curve' || this.tool.kind === 'place'
       || this.tool.kind === 'land') return;

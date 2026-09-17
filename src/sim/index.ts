@@ -50,6 +50,7 @@ export type { SaveInfo } from './save';
 // One object owns the lot and schedules it; everything under `agents/` is
 // reachable through it, and the pieces are exported too for the readouts.
 export { Simulation } from './agents/sim';
+export type { Inspection } from './agents/sim';
 export type { SimReport } from './agents/sim';
 export { Clock, SECONDS_PER_DAY, TICKS_PER_DAY, YEARS_PER_DAY, SEASON_NAMES } from './agents/calendar';
 export { Scheduler, Rate, TICK_HZ, due, slice } from './agents/tick';

@@ -172,16 +172,21 @@ export function key(el: HTMLElement, accent: string, size = 40): void {
 
 /** Repaints a key for its current state. Call after changing `data-on`. */
 export function paintKey(el: HTMLElement, accent: string, hover: boolean): void {
+  // Selected reads as pressed in rather than as lit up: the light moves to the
+  // bottom edge, the shadow goes inside, and the key sits a pixel low. Nothing
+  // else on a physical panel looks like that, so it is unmistakable at a
+  // glance -- and it is the language the tool bar already speaks.
   const on = el.dataset.on === '1';
-  el.style.transform = on || hover ? 'translateY(-1px)' : 'translateY(0)';
+  el.style.transform = on ? 'translateY(1px)' : hover ? 'translateY(-1px)' : 'translateY(0)';
   el.style.color = on ? accent : hover ? SKIN.bright : SKIN.dim;
   el.style.background = on
-    ? `linear-gradient(177deg,${accent}2e,${accent}12 52%,rgba(0,0,0,.24))`
+    ? `linear-gradient(177deg,${accent}44,${accent}1c 60%,rgba(0,0,0,.28))`
     : 'linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
       + 'rgba(0,0,0,.20))';
   el.style.borderColor = on ? `${accent}66` : 'rgba(255,255,255,.07)';
   el.style.boxShadow = on
-    ? `inset 0 1px 0 rgba(255,255,255,.2), 0 0 0 1px ${accent}33, 0 4px 12px ${accent}26`
+    ? 'inset 0 2px 6px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.14),'
+      + ` 0 0 12px ${accent}40`
     : hover
       ? 'inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.42),'
         + '0 4px 9px rgba(0,0,0,.5)'

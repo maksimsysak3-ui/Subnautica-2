@@ -307,5 +307,39 @@ ok(worstTick < 80, 'and nothing stalls outright', `${worstTick.toFixed(1)} ms`);
 ok(totalMs / ticks < 4, 'the average tick leaves the frame alone',
   `${(totalMs / ticks * 1000).toFixed(0)} us`);
 
+// ---- what one building says about itself -----------------------------------
+//
+// The card the player gets when they click a building is a join across five
+// tables, and a join is exactly the kind of thing that keeps compiling while
+// quietly reading the wrong row. So: pick a real home out of the places table,
+// ask the simulation what is at its coordinates, and check the answer describes
+// that building rather than its neighbour.
+{
+  const col = sim.places.col;
+  let home = -1;
+  for (let id = 0; id < sim.places.count; id++) {
+    if (sim.places.live[id] !== 0 && col.homes[id] > 0) { home = id; break; }
+  }
+  ok(home >= 0, 'the city has somewhere to live', `place ${home}`);
+  const card = sim.inspect(col.x[home], col.z[home]);
+  ok(card !== null, 'clicking it finds a building');
+  ok(card?.place === home, 'and finds that one', `${card?.place} vs ${home}`);
+  ok(card?.homes === col.homes[home], 'with the right number of homes',
+    `${card?.homes} vs ${col.homes[home]}`);
+  ok(card?.residents === col.living[home], 'and the people actually in them',
+    `${card?.residents} vs ${col.living[home]}`);
+  ok((card?.cover.length ?? 0) >= 5, 'and its service coverage',
+    `${card?.cover.length} branches`);
+  ok(card !== null && card.power >= 0 && card.power <= 1,
+    'power reads as a share', `${card?.power}`);
+  // Far out over the water, where the city is not: a click on nothing has to
+  // come back as nothing rather than as the nearest building half a mile away.
+  const far = sim.inspect(GRID * 8, GRID * 8);
+  ok(far === null, 'and clicking open ground finds nothing');
+  console.log(`\ninspect         "${card?.name}" ${card?.residents}/${(card?.homes ?? 0) * 2} `
+    + `residents, power ${Math.round((card?.power ?? 0) * 100)}%, `
+    + `${card?.gripe === '' ? 'no complaint' : card?.gripe}`);
+}
+
 console.log(`\n${failed === 0 ? 'LIFE_OK' : 'LIFE_FAIL'}  ${checks - failed}/${checks} checks`);
 process.exit(failed === 0 ? 0 : 1);

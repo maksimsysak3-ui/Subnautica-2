@@ -37,15 +37,16 @@ import { Migration } from './migration';
 import { Routine } from './routine';
 import { Junctions } from './junctions';
 import { Traffic } from './driving';
-import { Utilities } from './utilities';
+import { Utilities, Util } from './utilities';
 import { Services } from './services';
 import { Dispatch } from './dispatch';
 import { Demand } from './demand';
 import { Growth } from './growth';
-import { Complaints } from './complaints';
+import { Complaints, GRIPE_INFO } from './complaints';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
+import { ASSETS } from '../../assets/registry';
 import { Budget } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
@@ -148,6 +149,42 @@ export interface SimReport {
   perDay: string;
   travelling: number;
   memory: string;
+}
+
+/**
+ * What one building is, for the panel that shows it when it is clicked.
+ *
+ * Flat and already resolved -- names rather than indices, shares rather than
+ * raw bytes -- because the interface should not have to know how the tables are
+ * laid out to draw a card about a house.
+ */
+export interface Inspection {
+  place: number;
+  name: string;
+  zone: string;
+  density: string;
+  branch: string | undefined;
+  x: number;
+  z: number;
+  /** Lot size in 8 m cells, for drawing the selection over it. */
+  footprint: [number, number];
+  residents: number;
+  homes: number;
+  workers: number;
+  jobs: number;
+  /** How much of each utility this building is getting, 0 to 1. */
+  power: number;
+  water: number;
+  sewage: number;
+  /** And whether a main of each reaches it at all. */
+  onMain: [boolean, boolean, boolean];
+  /** Days of uncollected rubbish standing outside. */
+  rubbish: number;
+  /** The building's worst complaint, if it has one. */
+  gripe: string;
+  gripeWhat: string;
+  gripeFix: string;
+  cover: Array<{ name: string; share: number }>;
 }
 
 export class Simulation {
@@ -524,6 +561,84 @@ export class Simulation {
    * scheduler is partway through a tick's systems.
    */
   grew(): Dirty | null { return this.growth?.take() ?? null; }
+
+  /**
+   * What is standing at a point on the map, and how it is doing.
+   *
+   * The one question a city builder has to be able to answer about a building
+   * the player is looking at, and until now the game could not: it could paint
+   * a map of where power was short and float a bubble over an unhappy roof, but
+   * it could not say what *this* is, who is in it, or why it has stopped.
+   * Everything below is already in the tables -- this is the join.
+   *
+   * A linear scan over the places, because a click is not a hot path and a
+   * spatial index maintained for one click a minute is an index that is wrong
+   * the first time a district is rebuilt.
+   */
+  inspect(x: number, z: number, within = 40): Inspection | null {
+    const c = this.places.col;
+    let best = -1, bestD = within * within;
+    for (let id = 0; id < this.places.count; id++) {
+      if (this.places.live[id] === 0) continue;
+      const dx = c.x[id] - x, dz = c.z[id] - z;
+      // Against the building's own footprint rather than a fixed radius: a
+      // click on the corner of a power station is a click on the power station,
+      // and a click forty metres from a terraced house is a click on the street.
+      const def = ASSETS[c.proto[id]];
+      const half = def === undefined ? 8
+        : Math.max(def.footprint[0], def.footprint[1]) * 4;
+      const d = dx * dx + dz * dz;
+      if (d > (half + 10) * (half + 10)) continue;
+      if (d >= bestD) continue;
+      bestD = d;
+      best = id;
+    }
+    if (best < 0) return null;
+    return this.describe(best);
+  }
+
+  /** The report on one building, by place id. */
+  private describe(id: number): Inspection {
+    const c = this.places.col;
+    const def = ASSETS[c.proto[id]];
+    const gripe = this.complaints.at(id);
+    const info = GRIPE_INFO[gripe];
+
+    // Coverage, for the branches a building is actually judged on. The piped
+    // three answer through the utilities instead, and a park's catchment is not
+    // a service a house fails without.
+    const cover: Array<{ name: string; share: number }> = [];
+    for (const branch of ['fire', 'police', 'health', 'education', 'parks']) {
+      const b = BRANCHES.indexOf(branch as never);
+      if (b < 0) continue;
+      cover.push({ name: branch, share: this.services.at(id, b) });
+    }
+
+    return {
+      place: id,
+      name: def?.name ?? 'Building',
+      zone: def?.zone ?? 'nature',
+      density: def?.density ?? 'low',
+      branch: def?.branch,
+      x: c.x[id], z: c.z[id],
+      footprint: def?.footprint ?? [1, 1],
+      residents: c.living[id], homes: c.homes[id],
+      workers: c.working[id], jobs: c.jobs[id],
+      power: this.utilities.at(id, Util.POWER),
+      water: this.utilities.at(id, Util.WATER),
+      sewage: this.utilities.at(id, Util.SEWAGE),
+      onMain: [
+        this.utilities.connected(id, Util.POWER),
+        this.utilities.connected(id, Util.WATER),
+        this.utilities.connected(id, Util.SEWAGE),
+      ],
+      rubbish: this.utilities.daysOfRubbish(id),
+      gripe: info?.title ?? '',
+      gripeWhat: info?.what ?? '',
+      gripeFix: info?.fix ?? '',
+      cover,
+    };
+  }
 
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }

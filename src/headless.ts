@@ -1029,6 +1029,15 @@ Promise<{ pixels: number[] }> {
       + 'Build another plant or a wind farm.',
   } as never);
 
+  // And a building clicked, because the card over the city is half of what the
+  // interface is for.
+  const col = pl.col;
+  let pick = -1;
+  for (let id = 0; id < pl.count; id++) {
+    if (pl.live[id] !== 0 && col.homes[id] > 0) { pick = id; break; }
+  }
+  if (pick >= 0) live.tap([col.x[pick], col.z[pick]]);
+
   camera.update();
   renderer.frameForTools(performance.now());
   await gpu.device.queue.onSubmittedWorkDone();

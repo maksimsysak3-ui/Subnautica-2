@@ -25,7 +25,7 @@
  */
 
 import { ZONE_STYLE } from './zones';
-import { SKIN, panel, label as labelStyle } from './skin';
+import { SKIN, panel, label as labelStyle, tip } from './skin';
 
 /** How often the bars are rewritten, in milliseconds. */
 const REPAINT_MS = 200;
@@ -98,7 +98,7 @@ export class DemandBars {
     for (const col of COLUMNS) {
       const cell = document.createElement('div');
       cell.dataset.bar = col.key;
-      cell.title = `${col.name} demand`;
+      tip(cell, `${col.name} demand \u2014 above the line is a shortage`);
       style(cell, ['display:flex', 'align-items:center', 'gap:5px']);
 
       // The identity colour, always visible. A bar that is empty or overbuilt

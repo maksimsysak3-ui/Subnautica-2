@@ -23,6 +23,7 @@
 
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
+import { Inspect } from './ui/inspect';
 import { Util } from './sim/agents/utilities';
 import { Main } from './sim/mains';
 
@@ -70,6 +71,10 @@ export class LiveCity {
   private readonly lines: LinesPanel;
   /** The notices in the corner, and what the last one was about. */
   private readonly alerts: Alerts;
+  /** The card for whatever building was last clicked. */
+  private readonly inspect: Inspect;
+  /** Where that building is, so the card can be kept in step with the city. */
+  private selected: [number, number] | null = null;
   /** The economy event count as of the last check, so each one is told once. */
   private eventsSeen = 0;
   /** Whether each utility was short the last time it was looked at. */
@@ -103,6 +108,7 @@ export class LiveCity {
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
+    this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
     this.lines = new LinesPanel();
     this.info.mount(View.TRANSPORT, this.lines.root);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
@@ -121,6 +127,37 @@ export class LiveCity {
     this.founded = false;
   }
 
+  /**
+   * A tap on the map with no tool in hand.
+   *
+   * Wired to `BuildTools.onInspect` by whoever owns both. Tapping a building
+   * opens its card; tapping bare ground, or the same building again, closes it.
+   */
+  tap(at: [number, number] | null): void {
+    if (at === null || this.sim === null) { this.closeInspect(); return; }
+    const found = this.sim.inspect(at[0], at[1]);
+    if (found === null) { this.closeInspect(); return; }
+    if (this.inspect.open && this.inspect.place === found.place) {
+      this.closeInspect();
+      return;
+    }
+    this.selected = [at[0], at[1]];
+    this.inspect.show(found);
+    // The selection, on the ground under the building, drawn by the same
+    // mechanism the tools mark what they are about to affect with.
+    const half = Math.max(found.footprint[0], found.footprint[1]) * 4 + 2;
+    this.renderer.mark = {
+      rect: [found.x - half, found.z - half, found.x + half, found.z + half],
+      tint: [0.38, 0.83, 1.0],
+    };
+  }
+
+  private closeInspect(): void {
+    this.selected = null;
+    this.renderer.mark = null;
+    if (this.inspect.open) this.inspect.close();
+  }
+
   /** How many people live in the city, or zero before there is one. */
   get population(): number { return this.sim?.people.population ?? 0; }
 
@@ -131,7 +168,7 @@ export class LiveCity {
     this.bars.visible = on;
     this.thoughts.visible = on;
     this.alerts.visible = on;
-    if (!on) this.alerts.clear();
+    if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
       this.sim.found(FOUNDING);
       this.founded = true;
@@ -251,6 +288,14 @@ export class LiveCity {
       for (const v of sim.scheduler.cost.values()) ms += v;
       this.stats.set('sim', `${ms.toFixed(1)} ms/s`);
       this.announce(sim);
+      // The open card, refreshed on the same beat as everything else: a
+      // building whose power has just come back should say so while the player
+      // is still looking at it.
+      const at = this.selected;
+      if (at !== null) {
+        const again = sim.inspect(at[0], at[1]);
+        if (again === null) this.closeInspect(); else this.inspect.show(again);
+      }
     }
     this.alerts.update(now);
   }
