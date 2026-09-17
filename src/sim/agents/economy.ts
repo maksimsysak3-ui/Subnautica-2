@@ -157,6 +157,14 @@ export interface Ledger {
   /** The last thing that happened, and what it was worth. */
   event: string;
   eventValue: number;
+  /**
+   * How many events have happened.
+   *
+   * The text alone cannot say whether an event is new: the same trade fair comes
+   * to town twice and the string does not change, so anything watching for
+   * something to tell the player about would miss the second one. A count does.
+   */
+  eventSerial: number;
   /** How many weeks of the current deficit the treasury could stand. */
   weeksLeft: number;
 }
@@ -258,7 +266,7 @@ export class Economy {
     services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
     income: 0, spending: 0, net: 0,
     goodsMade: 0, goodsWanted: 0,
-    event: '', eventValue: 0, weeksLeft: Infinity,
+    event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
 
   /** Road metres by class, kept between road edits rather than resummed. */
@@ -449,6 +457,7 @@ export class Economy {
       if (value > 0) this.budget.credit(value); else this.budget.charge(-value);
       this.report.event = h.text;
       this.report.eventValue = value;
+      this.report.eventSerial++;
       return;
     }
   }

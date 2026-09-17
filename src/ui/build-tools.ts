@@ -26,6 +26,7 @@ import { assetById } from '../assets/registry';
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
+import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
 import { OVERDRAFT } from '../sim';
@@ -187,6 +188,12 @@ export class BuildTools {
   private readWeather!: HTMLElement;
   private name = DEFAULT_NAME;
   private readMoney!: HTMLElement;
+  /** The four speed keys, and which one is down. */
+  private speedButtons: HTMLElement[] = [];
+  /** Republishes the bar's height to the panels that dock above it. */
+  private measureFoot: (() => void) | null = null;
+  private speed = 1;
+  private lastSpeed = 1;
   private ticked = 0;
   private raf = 0;
   /** Which zone the zoning drawer is showing. Remembered between openings. */
@@ -213,6 +220,22 @@ export class BuildTools {
     this.foot.appendChild(this.status);
     this.foot.appendChild(this.buildBar());
     parent.appendChild(this.foot);
+    // How tall the bar is, published to the rest of the interface.
+    //
+    // The bar wraps to as many rows as the screen is narrow, so its height is
+    // not a constant anybody can hard-code -- and everything docked to the
+    // bottom corners (the demand bars, the view rail) was sitting on top of it
+    // at every width where it took a second row. One custom property, measured,
+    // and each of those panels reserves it.
+    const measure = (): void => {
+      const h = this.foot.style.display === 'none' ? 0 : this.foot.offsetHeight;
+      document.documentElement.style.setProperty('--hud-foot', `${h + 14}px`);
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(measure).observe(this.foot);
+    }
+    measure();
+    this.measureFoot = measure;
     // Out of sight until the menu lets go. The bar is built at boot so it is
     // ready the instant play starts, and a toolbar sitting behind a main menu
     // is clutter over the one thing the menu is there to show.
@@ -238,6 +261,7 @@ export class BuildTools {
   set visible(on: boolean) {
     this.shown = on;
     this.foot.style.display = on ? 'flex' : 'none';
+    this.measureFoot?.();
     if (on) return;
     this.closeDrawer();
     this.from = null;
@@ -269,8 +293,8 @@ export class BuildTools {
   }
 
   private paintName(): void {
-    this.readName.innerHTML = '<span style="color:#7fd4a8">\u25c6</span>'
-      + `<span style="color:#dbe6f3;letter-spacing:.06em">${escapeText(this.name)}</span>`;
+    fill(this.readName, `<span style="color:${SKIN.good}">\u25c6</span>`
+      + `<span style="letter-spacing:.06em">${escapeText(this.name)}</span>`);
   }
 
   /** Opens the save panel, and takes the name the player types as the city's. */
@@ -461,6 +485,19 @@ export class BuildTools {
   };
 
   private onKey = (e: KeyboardEvent): void => {
+    // Time, from the keyboard. Space is the pause every game uses; the number
+    // row picks a speed outright. Neither fires while something is being typed
+    // into -- the save panel takes a city name, and a space in it is a space.
+    const typing = (e.target as HTMLElement | null)?.tagName === 'INPUT';
+    if (!typing && e.key === ' ' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      this.togglePause();
+      return;
+    }
+    if (!typing && e.key >= '1' && e.key <= '4' && !e.ctrlKey && !e.metaKey) {
+      this.setSpeed(Number(e.key) - 1);
+      return;
+    }
     // Ctrl+S, because that is the key everyone already presses and the browser
     // otherwise answers it by offering to save the page's HTML.
     if ((e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
@@ -1400,7 +1437,7 @@ export class BuildTools {
       const pick = typeof make === 'function' ? make : (): Tool => make;
       const b = document.createElement('button');
       b.dataset.tool = this.key(pick());
-      b.title = label;
+      tip(b, label);
       b.innerHTML = icon;
       chip(b, colour);
       b.addEventListener('click', () => this.select(pick()));
@@ -1420,7 +1457,7 @@ export class BuildTools {
     {
       const b = document.createElement('button');
       b.dataset.branch = 'roads';
-      b.title = 'Roads — eight classes, straight or curved';
+      tip(b, 'Roads \u2014 eight classes, straight or curved');
       chip(b, ZONE_STYLE.road.light);
       const glyph = document.createElement('span');
       glyph.innerHTML = zoneIcon('road', 26);
@@ -1447,7 +1484,7 @@ export class BuildTools {
     {
       const b = document.createElement('button');
       b.dataset.branch = 'zones';
-      b.title = 'Zoning — residential, commercial, industrial, office, parks';
+      tip(b, 'Zoning \u2014 residential, commercial, industrial, office, parks');
       chip(b, ZONE_STYLE.residential.light);
       b.appendChild(zoneSwatch());
       b.appendChild(underline(ZONE_STYLE.residential.base));
@@ -1468,7 +1505,7 @@ export class BuildTools {
     {
       const b = document.createElement('button');
       b.dataset.branch = 'signature';
-      b.title = `Landmarks — ${SIGNATURES.length} one-of-a-kind buildings`;
+      tip(b, `Landmarks \u2014 ${SIGNATURES.length} one-of-a-kind buildings`);
       chip(b, '#ffd166');
       const glyph = document.createElement('span');
       glyph.innerHTML = svgStar();
@@ -1495,7 +1532,7 @@ export class BuildTools {
       const style = BRANCH_STYLE[branch];
       const b = document.createElement('button');
       b.dataset.branch = branch;
-      b.title = `${style.label} — ${list.length} buildings`;
+      tip(b, `${style.label} \u2014 ${list.length} buildings`);
       chip(b, style.colour);
       const glyph = document.createElement('span');
       glyph.innerHTML = zoneIcon(branch, 26);
@@ -1540,7 +1577,7 @@ export class BuildTools {
     const keep = group();
     {
       const b = document.createElement('button');
-      b.title = 'Save this city to this browser';
+      tip(b, 'Save this city to this browser', 'Ctrl+S');
       chip(b, '#8fe0a8');
       const glyph = document.createElement('span');
       glyph.innerHTML = svgSave();
@@ -1567,69 +1604,91 @@ export class BuildTools {
    */
   private buildStatusRow(): HTMLElement {
     const row = document.createElement('div');
-    row.style.cssText = [
-      'display:flex', 'align-items:center', 'gap:0', 'height:36px',
-      'padding:0 6px', `background:${WELL}`,
-      'border-top:1px solid rgba(255,255,255,.05)',
-      'font:600 11px/1 var(--ui, system-ui, sans-serif)', 'color:#93a3b8',
-    ].join(';');
+    css(row, [
+      'display:flex', 'align-items:center', 'gap:0', 'height:44px',
+      'padding:0 8px', `background:${WELL}`,
+      `border-top:1px solid ${SKIN.edge}`,
+      `font:11px/1 ${SKIN.mono}`, `color:${SKIN.text}`,
+    ]);
 
-    const cell = (html: string, wide = false): HTMLElement => {
+    /**
+     * One reading: a dim tracked caption over the figure it belongs to.
+     *
+     * The row used to be a line of equal-weight chips, and a line where the
+     * clock, the temperature and the population all look the same is a line
+     * nobody reads -- the eye has nothing to catch on. A caption above each
+     * value gives every reading a shape, and the values themselves are the only
+     * bright thing on the bar.
+     */
+    const cell = (caption: string, wide = false): HTMLElement => {
       const d = document.createElement('div');
-      d.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:7px', 'padding:0 12px',
-        'height:22px', wide ? 'flex:1' : '', 'white-space:nowrap',
-      ].filter(Boolean).join(';');
-      d.innerHTML = html;
+      css(d, ['display:flex', 'flex-direction:column', 'gap:3px', 'padding:0 13px',
+        'white-space:nowrap', wide ? 'flex:1' : '']);
+      const cap = document.createElement('div');
+      css(cap, ['font-size:8px', 'letter-spacing:.17em', 'text-transform:uppercase',
+        `color:${SKIN.faint}`]);
+      cap.textContent = caption;
+      const val = document.createElement('div');
+      css(val, ['display:flex', 'align-items:center', 'gap:6px', 'font-size:12px',
+        `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums']);
+      d.append(cap, val);
       return d;
     };
     const rule = (): HTMLElement => {
       const r = document.createElement('div');
-      r.style.cssText = 'width:1px;height:16px;background:rgba(255,255,255,.07)';
+      css(r, ['width:1px', 'height:22px', `background:${SKIN.edge}`]);
       return r;
     };
 
-    // Speed. The clock is the renderer's own, so pausing here pauses the sun,
-    // the lit windows and the shadows together -- there is only one clock.
+    // Speed, as four keys of the same family as every other button in the game.
+    // The clock is the renderer's own, so pausing here pauses the sun, the lit
+    // windows and the shadows together -- there is only one clock.
     const speeds = document.createElement('div');
-    speeds.style.cssText = 'display:flex;gap:2px;padding:0 4px';
-    const rates = [0, 1, 3, 10];
-    const marks = ['❚❚', '▶', '▶▶', '▶▶▶'];
-    const pick = (i: number): void => {
-      this.renderer.clockRunning = rates[i] > 0;
-      this.renderer.clockRate = rates[i];
-      for (let k = 0; k < buttons.length; k++) {
-        const on = k === i;
-        buttons[k].style.background = on ? 'rgba(98,212,255,.16)' : 'transparent';
-        buttons[k].style.color = on ? '#8fe3ff' : '#61738a';
+    css(speeds, ['display:flex', 'gap:4px', 'padding:0 6px 0 2px']);
+    // Drawn rather than typed. The pause and play characters render in whatever
+    // the browser has for them, at whatever weight it feels like, and next to
+    // sixteen hand-drawn tool icons that reads as a font error.
+    const play = (n: number): string => {
+      const w = 5, gap = 1.4, total = n * w + (n - 1) * gap;
+      let d = '';
+      for (let i = 0; i < n; i++) {
+        const x = 8 - total / 2 + i * (w + gap);
+        d += `M${x} 4.4L${x + w} 8L${x} 11.6Z`;
       }
+      return `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">`
+        + `<path d="${d}"/></svg>`;
     };
-    const buttons: HTMLElement[] = rates.map((_, i) => {
+    const marks = [
+      '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">'
+        + '<rect x="4.6" y="4.2" width="2.6" height="7.6" rx="1"/>'
+        + '<rect x="8.8" y="4.2" width="2.6" height="7.6" rx="1"/></svg>',
+      play(1), play(2), play(3),
+    ];
+    const names = ['Pause', 'Play', 'Fast', 'Fastest'];
+    const buttons: HTMLElement[] = SPEEDS.map((rate, i) => {
       const b = document.createElement('button');
-      b.textContent = marks[i];
-      b.title = i === 0 ? 'Pause' : `Speed ${i}`;
-      b.style.cssText = [
-        'height:24px', 'min-width:30px', 'padding:0 7px', 'border-radius:7px',
-        'border:0', 'background:transparent', 'color:#61738a', 'cursor:pointer',
-        'font:11px/1 var(--ui, system-ui, sans-serif)',
-      ].join(';');
-      b.addEventListener('click', () => pick(i));
+      b.innerHTML = marks[i];
+      b.dataset.speed = String(i);
+      keyStyle(b, i === 0 ? SKIN.warn : SKIN.accent, 30);
+      b.style.width = `${30 + i * 4}px`;
+      tip(b, i === 0 ? 'Pause the city' : `${names[i]} \u2014 ${rate}\u00d7 time`,
+        i === 0 ? 'Space' : String(i + 1));
+      b.addEventListener('click', () => this.setSpeed(i));
       speeds.appendChild(b);
       return b;
     });
+    this.speedButtons = buttons;
     row.appendChild(speeds);
     row.appendChild(rule());
 
-    this.readClock = cell('<span style="color:#dbe6f3">--:--</span><span>—</span>');
+    this.readClock = cell('time');
     row.appendChild(this.readClock);
-    row.appendChild(rule());
-    this.readSeason = cell('');
+    this.readSeason = cell('season');
     row.appendChild(this.readSeason);
-    row.appendChild(rule());
     // The weather, beside the season and the temperature it belongs with. It
     // changes the light enough that a player who has not noticed the sky needs
     // somewhere to read why the city went grey.
-    this.readWeather = cell('');
+    this.readWeather = cell('sky');
     row.appendChild(this.readWeather);
     row.appendChild(rule());
 
@@ -1637,22 +1696,41 @@ export class BuildTools {
     // the far right beside the money, a whole bar away from the name of the
     // place it belongs to -- which is the one number a player checks against
     // the one word that identifies their city.
-    this.readPeople = cell('');
-    const named = document.createElement('div');
-    named.style.cssText = 'display:flex;align-items:center;gap:0;flex:1';
-    this.readName = cell('');
-    named.appendChild(this.readName);
-    named.appendChild(this.readPeople);
+    this.readName = cell('city');
+    row.appendChild(this.readName);
+    this.readPeople = cell('people', true);
+    row.appendChild(this.readPeople);
     this.paintName();
-    row.appendChild(named);
-    this.readMoney = cell('<span style="color:#7fd4a8">●</span>'
-      + '<span style="color:#dbe6f3">∞</span>');
     row.appendChild(rule());
+    this.readMoney = cell('treasury');
     row.appendChild(this.readMoney);
 
-    pick(1);
+    this.setSpeed(1);
     this.tick();
     return row;
+  }
+
+  /**
+   * Sets the game speed, from the bar or from the keyboard.
+   *
+   * Pausing remembers what it was paused from, so Space toggles back to the
+   * speed the player was actually running at rather than always to one -- a
+   * detail nobody notices until it is missing and every pause costs two clicks.
+   */
+  private setSpeed(i: number): void {
+    const n = Math.max(0, Math.min(SPEEDS.length - 1, i));
+    if (n > 0) this.lastSpeed = n;
+    this.speed = n;
+    this.renderer.clockRunning = SPEEDS[n] > 0;
+    this.renderer.clockRate = SPEEDS[n];
+    for (let k = 0; k < this.speedButtons.length; k++) {
+      setKey(this.speedButtons[k], k === 0 ? SKIN.warn : SKIN.accent, k === n);
+    }
+  }
+
+  /** Space: pause, or go back to the speed that was running. */
+  private togglePause(): void {
+    this.setSpeed(this.speed === 0 ? this.lastSpeed : 0);
   }
 
   /**
@@ -1675,21 +1753,39 @@ export class BuildTools {
       const season = SEASONS[Math.floor(((month + 1) % 12) / 3)];
       const temp = Math.round(season.low + (season.high - season.low)
         * (0.5 - 0.5 * Math.cos(t * Math.PI * 2 - Math.PI)));
-      this.readClock.innerHTML =
-        `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">`
-        + `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}</span>`
-        + `<span>${MONTHS[month]} ${2027 + Math.floor(now / 3600000)}</span>`;
-      this.readSeason.innerHTML = `<span style="color:${season.tint}">${season.glyph}</span>`
-        + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">${temp}°C</span>`
-        + `<span>${season.name}</span>`;
+      fill(this.readClock,
+        `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+        + `<span style="color:${SKIN.dim};font-size:10px">`
+        + `${MONTHS[month]} ${2027 + Math.floor(now / 3600000)}</span>`);
+      fill(this.readSeason, `<span style="color:${season.tint}">${season.glyph}</span>`
+        + `${temp}\u00b0C<span style="color:${SKIN.dim};font-size:10px">`
+        + `${season.name}</span>`);
       const w = this.renderer.weather;
-      this.readWeather.innerHTML = `<span style="color:#a8c8e8">${w.glyph}</span>`
-        + `<span style="color:#dbe6f3">${w.label}</span>`;
+      fill(this.readWeather, `<span style="color:${SKIN.accent}">${w.glyph}</span>`
+        + `<span style="font-size:11px">${w.label}</span>`);
+
+      // People: what the simulation counts once it is running, and the capacity
+      // the standing buildings hold before it is.
       const s = this.renderer.summary;
-      this.readPeople.innerHTML = '<span style="color:#8fb8e8">☗</span>'
-        + `<span style="color:#dbe6f3;font-variant-numeric:tabular-nums">`
-        + `${s.people.toLocaleString()}</span>`
-        + `<span style="opacity:.7">${s.buildings.toLocaleString()} bldg</span>`;
+      const people = s.hasSim ? s.citizens : s.people;
+      fill(this.readPeople, `${people.toLocaleString()}`
+        + `<span style="color:${SKIN.dim};font-size:10px">`
+        + `${s.buildings.toLocaleString()} buildings</span>`);
+
+      // And the money, at the end of the bar the player spends it from. The
+      // weekly line under it is the one that decides whether the city lives:
+      // a balance falling by nine thousand a week is a balance with a date on
+      // it, and the colour says so before the number is read.
+      const bal = Math.round(this.renderer.world.budget.balance);
+      const net = Math.round(s.net);
+      const tone = bal < 0 ? SKIN.bad : net < 0 ? SKIN.warn : SKIN.good;
+      fill(this.readMoney,
+        `<span style="color:${tone}">\u25cf</span>`
+        + `${bal < 0 ? '\u2212' : ''}${money(Math.abs(bal))}`
+        + (s.hasSim
+          ? `<span style="color:${net < 0 ? SKIN.bad : SKIN.dim};font-size:10px">`
+            + `${net < 0 ? '\u2212' : '+'}${money(Math.abs(net))}/wk</span>`
+          : ''));
     }
     this.raf = requestAnimationFrame(this.tick);
   };
@@ -1971,12 +2067,11 @@ export class BuildTools {
   }
 
   private styleStatus(): void {
-    this.status.style.cssText = [
-      'padding:5px 12px', 'border-radius:9px', `background:${PANEL}`,
-      `border:1px solid ${EDGE}`, 'color:#9fb2c9',
-      'font:500 11px/1.4 var(--ui, system-ui, sans-serif)',
-      'pointer-events:none', 'white-space:nowrap', 'backdrop-filter:blur(10px)',
-    ].join(';');
+    css(this.status, ['padding:6px 13px', `border-radius:${SKIN.radius}`,
+      `background:${SKIN.panel}`, `border:1px solid ${SKIN.edge}`,
+      `color:${SKIN.text}`, `font:11px/1.4 ${SKIN.mono}`,
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.4)',
+      'pointer-events:none', 'white-space:nowrap', 'backdrop-filter:blur(12px)']);
     this.say(this.describe(this.tool));
   }
 
@@ -2131,7 +2226,29 @@ function roadGlyph(cls: RoadClass, size = 28): string {
  * lit tile it is the one that sells the whole thing -- without it the icon is
  * printed on the key rather than standing on it.
  */
+/**
+ * The speeds on the bar, as multiples of real time.
+ *
+ * Three and ten rather than two and four: a game day is ninety seconds, so a
+ * player who wants to watch a district fill wants an order of magnitude, not a
+ * nudge. Zero is a pause, and it is first because that is where every game puts
+ * it and where the hand goes.
+ */
+const SPEEDS = [0, 1, 3, 10] as const;
+
 const GLYPH = 'display:flex;filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))';
+
+/**
+ * Writes into a status cell's value row.
+ *
+ * Every cell on the bar is a caption over a value, so everything that updates
+ * one is writing into its second child. One function, because this was four
+ * copies of `children[1] as HTMLElement` and the fifth would have been wrong.
+ */
+function fill(cell: HTMLElement, html: string): void {
+  const row = cell.children[1] as HTMLElement | undefined;
+  if (row !== undefined) row.innerHTML = html;
+}
 
 /**
  * The zoning icon: the four zones as one square, quartered.

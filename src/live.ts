@@ -22,6 +22,8 @@
  */
 
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
+import { Alerts } from './ui/alerts';
+import { Util } from './sim/agents/utilities';
 import { Main } from './sim/mains';
 
 /** Which utility's connection markers each view turns on. */
@@ -66,6 +68,13 @@ export class LiveCity {
   private readonly thoughts: Thoughts;
   private readonly tax: TaxPanel;
   private readonly lines: LinesPanel;
+  /** The notices in the corner, and what the last one was about. */
+  private readonly alerts: Alerts;
+  /** The economy event count as of the last check, so each one is told once. */
+  private eventsSeen = 0;
+  /** Whether each utility was short the last time it was looked at. */
+  private wasShort = [false, false, false];
+  private wasOverdrawn = false;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
   private readoutAt = -1;
@@ -93,6 +102,7 @@ export class LiveCity {
     this.info.mount(View.BUDGET, this.tax.root);
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
+    this.alerts = new Alerts(ui);
     this.lines = new LinesPanel();
     this.info.mount(View.TRANSPORT, this.lines.root);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
@@ -120,6 +130,8 @@ export class LiveCity {
     this.info.visible = on;
     this.bars.visible = on;
     this.thoughts.visible = on;
+    this.alerts.visible = on;
+    if (!on) this.alerts.clear();
     if (on && this.sim !== null && !this.founded) {
       this.sim.found(FOUNDING);
       this.founded = true;
@@ -226,6 +238,10 @@ export class LiveCity {
       // clicks late.
       const bal = Math.round(sim.budget.balance);
       const net = Math.round(sim.economy.report.net);
+      // The bar reads these rather than counting buildings for itself.
+      this.renderer.summary.citizens = sim.people.population;
+      this.renderer.summary.net = net;
+      this.renderer.summary.hasSim = true;
       this.stats.set('money', `${bal < 0 ? '−' : ''}${money(Math.abs(bal))}`
         + `|${net < 0 ? '−' : '+'}${money(Math.abs(net))} a week`);
       // Milliseconds of simulation per second of real time, summed over the
@@ -234,6 +250,73 @@ export class LiveCity {
       let ms = 0;
       for (const v of sim.scheduler.cost.values()) ms += v;
       this.stats.set('sim', `${ms.toFixed(1)} ms/s`);
+      this.announce(sim);
+    }
+    this.alerts.update(now);
+  }
+
+  /**
+   * What the city has to say for itself since the last look.
+   *
+   * Everything here is a change of state rather than a state: a city that is
+   * short of power says so once and then stops, and says so again when it is
+   * fixed. A notice that repeats while nothing has changed is a notice a player
+   * learns to ignore, which costs the mechanism it was meant to explain.
+   */
+  private announce(sim: Simulation): void {
+    const eco = sim.economy.report;
+    if (eco.eventSerial !== this.eventsSeen) {
+      this.eventsSeen = eco.eventSerial;
+      const up = eco.eventValue >= 0;
+      this.alerts.push({
+        title: up ? 'Windfall' : 'Setback',
+        body: eco.event,
+        tone: up ? 'good' : 'warn',
+        figure: `${up ? '+' : '−'}${money(Math.abs(eco.eventValue))}`,
+      });
+    }
+
+    // The utilities, which are the failures a player cannot see from the camera:
+    // a browned-out district looks exactly like a district.
+    const util = sim.utilities.report;
+    const NAMED: Array<{ u: number; name: string; fix: string }> = [
+      { u: Util.POWER, name: 'Power', fix: 'Build another plant or a wind farm.' },
+      { u: Util.WATER, name: 'Water', fix: 'Add a pumping station on the river.' },
+      { u: Util.SEWAGE, name: 'Sewage', fix: 'Add a treatment works downstream.' },
+    ];
+    for (const n of NAMED) {
+      const margin = util.margin[n.u];
+      const short = margin < 0.995;
+      if (short === this.wasShort[n.u]) continue;
+      this.wasShort[n.u] = short;
+      // Nothing to report about a utility the city has not started yet: a town
+      // with no pumps is not a town with a water crisis.
+      if (margin <= 0) continue;
+      this.alerts.push({
+        title: short ? `${n.name} shortfall` : `${n.name} restored`,
+        body: short
+          ? `The network is supplying ${Math.round(margin * 100)}% of what the city `
+            + `is drawing. ${n.fix}`
+          : `Supply is ahead of demand again.`,
+        tone: short ? 'bad' : 'good',
+        tag: `util-${n.u}`,
+        figure: `${Math.round(margin * 100)}%`,
+      });
+    }
+
+    const overdrawn = sim.budget.balance < 0;
+    if (overdrawn !== this.wasOverdrawn) {
+      this.wasOverdrawn = overdrawn;
+      this.alerts.push({
+        title: overdrawn ? 'In the red' : 'Back in the black',
+        body: overdrawn
+          ? 'The city is running on its overdraft. Raise a rate or cut a service '
+            + 'before growth stops.'
+          : 'The treasury is positive again.',
+        tone: overdrawn ? 'bad' : 'good',
+        tag: 'treasury',
+        figure: money(Math.abs(Math.round(sim.budget.balance))),
+      });
     }
   }
 

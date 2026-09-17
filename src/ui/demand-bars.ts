@@ -82,7 +82,7 @@ export class DemandBars {
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'demand';
-    style(this.root, [...panel(), 'position:absolute', 'right:12px', 'bottom:14px',
+    style(this.root, [...panel(), 'position:absolute', 'right:12px', 'bottom:var(--hud-foot, 14px)',
       'z-index:6', 'display:none', 'pointer-events:none',
       'padding:10px 12px 9px', 'gap:7px',
       'flex-direction:column', 'align-items:stretch']);

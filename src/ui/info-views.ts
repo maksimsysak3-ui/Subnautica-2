@@ -22,7 +22,7 @@
 import { VIEWS, View, Look, PANEL_ONLY } from '../sim';
 import type { ViewInfo, Stat } from '../sim';
 import { GLYPH } from './zones';
-import { SKIN, panel, label as labelStyle } from './skin';
+import { SKIN, panel, label as labelStyle, tip } from './skin';
 
 /** How often the card's numbers are rewritten, in milliseconds. */
 const REPAINT_MS = 250;
@@ -118,7 +118,7 @@ export class InfoViews {
     private onView: (view: number, info: ViewInfo | null) => void) {
     this.root = document.createElement('div');
     style(this.root, [
-      'position:absolute', 'left:12px', 'bottom:14px', 'z-index:6',
+      'position:absolute', 'left:12px', 'bottom:var(--hud-foot, 14px)', 'z-index:6',
       'display:flex', 'flex-direction:column', 'align-items:flex-start',
       'gap:8px', 'pointer-events:none',
     ]);
@@ -188,7 +188,7 @@ export class InfoViews {
 
     this.launcher = document.createElement('button');
     this.launcher.type = 'button';
-    this.launcher.title = 'Information views';
+    tip(this.launcher, 'Information views', 'V');
     this.launcher.setAttribute('aria-label', 'Information views');
     style(this.launcher, [...panel(),
       'width:40px', 'height:40px', 'display:grid', 'place-items:center',
@@ -204,14 +204,21 @@ export class InfoViews {
     // Escape closes, which is what every other panel in the game does. On the
     // window rather than the button, because the player's hand is on the map.
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.railOpen) { this.closeAll(); }
+      if (e.key === 'Escape' && this.railOpen) { this.closeAll(); return; }
+      // V for views, which is the one panel a player opens and closes over and
+      // over -- every look at the map is a question, and this is where the
+      // answers are.
+      if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey
+        && (e.target as HTMLElement | null)?.tagName !== 'INPUT') {
+        this.toggleRail();
+      }
     });
   }
 
   private button(info: ViewInfo): HTMLButtonElement {
     const b = document.createElement('button');
     b.type = 'button';
-    b.title = info.name;
+    tip(b, info.name);
     b.setAttribute('aria-label', info.name);
     style(b, [
       'width:32px', 'height:32px', 'display:grid', 'place-items:center',

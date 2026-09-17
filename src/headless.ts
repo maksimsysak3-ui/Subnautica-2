@@ -10,7 +10,19 @@
  * Bundled separately and loaded into a blank page by tools/city-shot.mjs.
  */
 
+/**
+ * What a control is called.
+ *
+ * The interface names its buttons with `aria-label` rather than `title`, so the
+ * game can draw its own tooltip instead of the browser's; the probes here press
+ * buttons by name and have to ask the same question the same way.
+ */
+function named(el: HTMLElement): string {
+  return el.getAttribute('aria-label') ?? el.title;
+}
+
 import { Gpu } from './gfx/device';
+import type { Alerts } from './ui/alerts';
 import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
 import { Stats } from './ui/stats';
@@ -210,7 +222,7 @@ export async function probeTools(): Promise<{
   const press = (label: string): void => {
     const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
       const h = el as HTMLElement;
-      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+      return named(h).startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
     });
     (b as HTMLElement | undefined)?.click();
   };
@@ -505,7 +517,7 @@ export async function probeLand(): Promise<{
   const press = (label: string): void => {
     const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
       const h = el as HTMLElement;
-      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+      return named(h).startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
     });
     (b as HTMLElement | undefined)?.click();
   };
@@ -589,7 +601,7 @@ export async function probeCurve(): Promise<{
   const press = (label: string): void => {
     const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
       const h = el as HTMLElement;
-      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+      return named(h).startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
     });
     (b as HTMLElement | undefined)?.click();
   };
@@ -684,7 +696,7 @@ export async function probeUpgrade(): Promise<{
   const press = (label: string): void => {
     const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
       const h = el as HTMLElement;
-      return h.title.startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+      return named(h).startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
     });
     (b as HTMLElement | undefined)?.click();
   };
@@ -779,12 +791,12 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
     live.playing = true;
     for (let i = 0; i < 120; i++) live.update(1 / 30, performance.now());
     const b = Array.from(host.querySelectorAll('button'))
-      .find((el) => el.title === req.view);
+      .find((el) => named(el) === req.view);
     if (b === undefined) throw new Error(`no such view: ${req.view}`);
     // The launcher first: the rail is hidden until it is pressed, and a click on
     // a hidden button still lands, which would make a typo here look like a pass.
     const launcher = Array.from(host.querySelectorAll('button'))
-      .find((el) => el.title === 'Information views');
+      .find((el) => named(el) === 'Information views');
     launcher?.click();
     b.click();
     live.update(1 / 30, performance.now());
@@ -885,7 +897,7 @@ export async function probeViews(): Promise<{
 
   const press = (label: string): boolean => {
     const b = Array.from(ui.querySelectorAll('button'))
-      .find((el) => el.title === label);
+      .find((el) => named(el) === label);
     if (b === undefined) return false;
     b.click();
     return true;
@@ -898,7 +910,7 @@ export async function probeViews(): Promise<{
   const icons = rail === null ? 0 : rail.querySelectorAll('button').length;
   const railShown = shown('view-rail');
   const views = rail === null ? []
-    : Array.from(rail.querySelectorAll('button')).map((b) => (b as HTMLButtonElement).title);
+    : Array.from(rail.querySelectorAll('button')).map((b) => named(b as HTMLElement));
 
   press('Traffic');
   live.update(1 / 30, performance.now());
@@ -960,6 +972,69 @@ export async function probeViews(): Promise<{
  * Not a test -- a camera. The views are judged by eye and there is no other way
  * to judge them, so this exists to put one in front of one.
  */
+/**
+ * The whole interface over the whole game, for looking at.
+ *
+ * Every other probe here presses something and reports a number. This one
+ * presses nothing: it builds the game the way a player gets it -- the bar, the
+ * readouts, the demand, a notice or two in the corner -- and hands back the
+ * frame so the interface can be judged the only way an interface can be, which
+ * is by looking at it.
+ */
+export async function probeHud(width: number, height: number, hour = 0.36):
+Promise<{ pixels: number[] }> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
+  document.body.appendChild(canvas);
+  const ui = document.createElement('div');
+  ui.style.cssText = `position:relative;width:${width}px;height:${height}px`;
+  document.body.appendChild(ui);
+
+  const gpu = await Gpu.headless(width, height);
+  const camera = new Camera();
+  const stats = new Stats(ui);
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.timeOfDay = hour;
+  renderer.weather.set(0.06);
+  const live = new LiveCity(renderer, camera, stats, ui);
+  renderer.useWorld(defaultWorld(renderer.world.grid));
+  grantAll(renderer.world);
+  renderer.build();
+  const tools = new BuildTools(canvas, camera, renderer, ui);
+  tools.visible = true;
+  live.playing = true;
+  camera.setViewport(width, height);
+  camera.yaw = 0.62; camera.pitch = 0.46; camera.distance = 520;
+  camera.focus[0] = 0; camera.focus[2] = 0;
+  camera.update();
+
+  const sim = (live as unknown as { sim: Simulation }).sim;
+  const pl = sim.places;
+  for (let id = 0; id < pl.count; id++) {
+    if (pl.live[id] === 0) continue;
+    for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+  }
+  for (let i = 0; i < 160; i++) live.update(1 / 20, performance.now() + i * 50);
+
+  const alerts = (live as unknown as { alerts: Alerts }).alerts;
+  alerts.push({
+    title: 'Windfall', tone: 'good', figure: '+18k',
+    text: '', body: 'A trade fair came to town — the exhibitors paid for the pitch.',
+  } as never);
+  alerts.push({
+    title: 'Power shortfall', tone: 'bad', figure: '86%', tag: 'util-0',
+    body: 'The network is supplying 86% of what the city is drawing. '
+      + 'Build another plant or a wind farm.',
+  } as never);
+
+  camera.update();
+  renderer.frameForTools(performance.now());
+  await gpu.device.queue.onSubmittedWorkDone();
+  return { pixels: Array.from(await gpu.readPixels()) };
+}
+
 export async function probeViewShot(width: number, height: number, view: number):
 Promise<{ pixels: number[]; name: string }> {
   configureSim(LITE);
@@ -993,7 +1068,7 @@ Promise<{ pixels: number[]; name: string }> {
   for (let i = 0; i < 200; i++) live.update(1 / 20, performance.now() + i * 50);
 
   const press = (label: string): void => {
-    const b = Array.from(ui.querySelectorAll('button')).find((el) => el.title === label);
+    const b = Array.from(ui.querySelectorAll('button')).find((el) => named(el) === label);
     b?.click();
   };
   press('Information views');
@@ -1172,7 +1247,7 @@ export async function probeMains(): Promise<{
   const tools = new BuildTools(canvas, camera, renderer, overlay);
   tools.visible = true;
   const onBar = Array.from(overlay.querySelectorAll('button'))
-    .map((b) => b.title ?? '').filter((t) => /drag along a road|main|sewer|power line/i.test(t));
+    .map((b) => named(b as HTMLElement)).filter((t) => /drag along a road|main|sewer|power line/i.test(t));
 
   const mains = renderer.world.mains;
   const reading = (): Record<string, boolean> => ({

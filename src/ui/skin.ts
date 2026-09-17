@@ -130,3 +130,138 @@ export function shade(hex: string, towards: string, amount: number): string {
   const m = (i: number): number => Math.round(a[i] + (b[i] - a[i]) * amount);
   return `rgb(${m(0)},${m(1)},${m(2)})`;
 }
+
+// ---- controls --------------------------------------------------------------
+
+/**
+ * The raised key every button in the game is.
+ *
+ * Three cheap tricks stacked make a square read as a physical key: a top-lit
+ * gradient, so the face is brighter where a light above it would catch; a
+ * hairline highlight along the top edge and a dark one along the bottom; and a
+ * shadow under the whole thing. Hovering lifts it a pixel and lengthens the
+ * shadow, pressing sinks it and replaces the shadow with an inset one. That is
+ * the entire vocabulary, and every control that uses it feels like part of the
+ * same machine.
+ *
+ * `accent` is what the key glows with when it is hovered or selected. Selection
+ * is held in `data-on`, so a caller can select a key without knowing any of
+ * this, and a selected key stops responding to hover -- it is already lit.
+ */
+export function key(el: HTMLElement, accent: string, size = 40): void {
+  css(el, [
+    'display:flex', 'align-items:center', 'justify-content:center',
+    `width:${size}px`, `height:${size}px`, 'padding:0',
+    `border-radius:${Math.round(size * 0.26)}px`,
+    'border:1px solid rgba(255,255,255,.07)',
+    'background:linear-gradient(177deg,rgba(255,255,255,.085),'
+      + 'rgba(255,255,255,.012) 46%,rgba(0,0,0,.20))',
+    `color:${SKIN.dim}`, 'cursor:pointer', 'position:relative',
+    `font:600 10px/1 ${SKIN.mono}`,
+    'transition:transform .1s, box-shadow .12s, color .12s, background .12s',
+  ]);
+  paintKey(el, accent, false);
+  el.addEventListener('pointerenter', () => paintKey(el, accent, true));
+  el.addEventListener('pointerleave', () => paintKey(el, accent, false));
+  el.addEventListener('pointerdown', () => {
+    el.style.transform = 'translateY(1px)';
+    el.style.boxShadow = 'inset 0 2px 6px rgba(0,0,0,.55)';
+  });
+  el.addEventListener('pointerup', () => paintKey(el, accent, true));
+}
+
+/** Repaints a key for its current state. Call after changing `data-on`. */
+export function paintKey(el: HTMLElement, accent: string, hover: boolean): void {
+  const on = el.dataset.on === '1';
+  el.style.transform = on || hover ? 'translateY(-1px)' : 'translateY(0)';
+  el.style.color = on ? accent : hover ? SKIN.bright : SKIN.dim;
+  el.style.background = on
+    ? `linear-gradient(177deg,${accent}2e,${accent}12 52%,rgba(0,0,0,.24))`
+    : 'linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
+      + 'rgba(0,0,0,.20))';
+  el.style.borderColor = on ? `${accent}66` : 'rgba(255,255,255,.07)';
+  el.style.boxShadow = on
+    ? `inset 0 1px 0 rgba(255,255,255,.2), 0 0 0 1px ${accent}33, 0 4px 12px ${accent}26`
+    : hover
+      ? 'inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.42),'
+        + '0 4px 9px rgba(0,0,0,.5)'
+      : 'inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.42),'
+        + '0 2px 4px rgba(0,0,0,.42)';
+}
+
+/** Selects or deselects a key painted by `key`. */
+export function setKey(el: HTMLElement, accent: string, on: boolean): void {
+  if (on) el.dataset.on = '1'; else delete el.dataset.on;
+  paintKey(el, accent, false);
+}
+
+let tipEl: HTMLElement | null = null;
+let tipTimer = 0;
+
+/**
+ * The tooltip.
+ *
+ * The browser's own takes a second to appear, cannot be styled, and shows a
+ * different font from everything around it -- which is why every game writes
+ * its own. This one appears after a beat, above the control unless there is no
+ * room, and carries its keyboard shortcut in a chip on the right, because a
+ * player who learns one shortcut from a tooltip stops using the mouse for it.
+ *
+ * The text also lands in `aria-label`, so the control is still named for a
+ * screen reader and still findable by whatever is looking for it.
+ */
+export function tip(el: HTMLElement, text: string, shortcut?: string): void {
+  el.setAttribute('aria-label', text);
+  el.removeAttribute('title');
+  el.dataset.tip = text;
+  if (shortcut !== undefined) el.dataset.key = shortcut;
+
+  const show = (): void => {
+    const box = ensureTip();
+    box.innerHTML = '';
+    const t = document.createElement('span');
+    t.textContent = text;
+    box.appendChild(t);
+    const k = el.dataset.key;
+    if (k !== undefined) {
+      const chip = document.createElement('span');
+      chip.textContent = k;
+      css(chip, ['margin-left:8px', 'padding:1px 5px', `border-radius:${SKIN.radiusSmall}`,
+        `background:${SKIN.track}`, `color:${SKIN.dim}`, 'font-size:9.5px',
+        `border:1px solid ${SKIN.edge}`]);
+      box.appendChild(chip);
+    }
+    box.style.visibility = 'hidden';
+    box.style.display = 'flex';
+    const r = el.getBoundingClientRect();
+    const w = box.offsetWidth, h = box.offsetHeight;
+    const above = r.top > h + 14;
+    box.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+    box.style.top = `${above ? r.top - h - 8 : r.bottom + 8}px`;
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+  };
+  el.addEventListener('pointerenter', () => {
+    clearTimeout(tipTimer);
+    tipTimer = window.setTimeout(show, 260);
+  });
+  const hide = (): void => {
+    clearTimeout(tipTimer);
+    if (tipEl !== null) { tipEl.style.opacity = '0'; tipEl.style.display = 'none'; }
+  };
+  el.addEventListener('pointerleave', hide);
+  el.addEventListener('pointerdown', hide);
+}
+
+function ensureTip(): HTMLElement {
+  if (tipEl !== null) return tipEl;
+  const box = document.createElement('div');
+  box.dataset.panel = 'tip';
+  css(box, [...panel(), 'position:fixed', 'z-index:80', 'display:none',
+    'align-items:center', 'padding:5px 9px', 'pointer-events:none',
+    `color:${SKIN.bright}`, 'font-size:10.5px', 'white-space:nowrap',
+    'opacity:0', 'transition:opacity .12s', 'box-shadow:0 8px 22px rgba(0,0,0,.5)']);
+  document.body.appendChild(box);
+  tipEl = box;
+  return box;
+}

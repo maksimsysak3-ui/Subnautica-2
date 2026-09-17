@@ -21,6 +21,7 @@ import waterSrc from './shaders/water.wgsl?raw';
 import rainSrc from './shaders/rain.wgsl?raw';
 import dotsSrc from './shaders/dots.wgsl?raw';
 import mainsSrc from './shaders/mains.wgsl?raw';
+import postSrc from './shaders/post.wgsl?raw';
 
 /** Files that may be included. Anything with an entry point is not one. */
 const INCLUDES: Record<string, string> = {
@@ -47,4 +48,5 @@ export const SHADERS = {
   rain: resolve(rainSrc),
   dots: resolve(dotsSrc),
   mains: resolve(mainsSrc),
+  post: resolve(postSrc),
 };

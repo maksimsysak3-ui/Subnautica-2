@@ -25,6 +25,18 @@ export class Stats {
   private beat = 0;
   private lastPaint = 0;
   private rows = new Map<string, string>();
+  /**
+   * Whether the panel is wanted at all.
+   *
+   * It is the engine's readout, not the city's: frame times, draw counts, how
+   * many milliseconds a second the simulation is costing. All of that belongs
+   * to whoever is building the game, and none of it belongs in front of
+   * somebody playing it -- the city's own figures live on the bar at the bottom
+   * of the screen, where a city builder puts them. F3 brings this back, which is
+   * the key every game with a debug readout already uses.
+   */
+  private wanted = false;
+  private allowed = false;
 
   /** The headline figures, in the order they are shown. */
   private readonly headOrder = ['money', 'citizens', 'when'];
@@ -57,6 +69,13 @@ export class Stats {
 
     this.el.append(this.head, rule, this.detail);
     parent.appendChild(this.el);
+    this.el.style.display = 'none';
+    addEventListener('keydown', (e) => {
+      if (e.key !== 'F3') return;
+      e.preventDefault();
+      this.wanted = !this.wanted;
+      this.apply();
+    });
   }
 
   /**
@@ -67,7 +86,15 @@ export class Stats {
    * own front door.
    */
   set visible(on: boolean) {
-    this.el.style.display = on ? 'block' : 'none';
+    this.allowed = on;
+    this.apply();
+  }
+
+  /** Whether the readout is on screen. Tools ask; the game does not. */
+  get showing(): boolean { return this.allowed && this.wanted; }
+
+  private apply(): void {
+    this.el.style.display = this.allowed && this.wanted ? 'flex' : 'none';
   }
 
   /** Records the gap since the previous frame, in milliseconds. */
@@ -105,6 +132,8 @@ export class Stats {
 
   paint(now: number): void {
     if (now - this.lastPaint < 250) return;   // 4Hz is plenty; repainting DOM is not free
+    // Nothing to paint into while it is hidden, and it is hidden almost always.
+    if (!this.allowed || !this.wanted) { this.lastPaint = now; return; }
     this.lastPaint = now;
 
     let sum = 0;

@@ -53,6 +53,7 @@ import { terrainChunksRebuilt } from '../sim/terrain';
 import type { Chunk, World, RoadMesh, City, Dirty, TransitShape } from '../sim';
 import type { RoadGraph } from '../sim/roadgraph';
 import { SHADERS } from './shaders';
+import { Post, SCENE_FORMAT, type PostTune } from './post';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
@@ -331,6 +332,10 @@ interface Resources extends WorldRes {
 
 export class Renderer {
   private res: Resources | null = null;
+  /** The bloom, antialiasing and grade the drawn frame goes through. */
+  private post: Post | null = null;
+  /** 0 with the sun up, 1 after dark. Drives the grade and the bloom. */
+  private night = 0;
   private cameraData = new Float32Array(CAMERA_UNIFORM_SIZE / 4);
   private invViewProj = mat4();
   private sunView = mat4();
@@ -464,7 +469,18 @@ export class Renderer {
    * enough to a real average that the figure moves believably as a district
    * fills in.
    */
-  readonly summary = { people: 0, jobs: 0, buildings: 0 };
+  readonly summary = {
+    people: 0, jobs: 0, buildings: 0,
+    /**
+     * And what the simulation says, when there is one.
+     *
+     * The figures above are capacity counted off the buildings that are
+     * standing -- the right number before anybody has moved in, and the wrong
+     * one afterwards. The simulation writes the live ones here so the bar can
+     * show what the city actually is rather than what it could hold.
+     */
+    citizens: 0, net: 0, hasSim: false,
+  };
 
   private summarise(city: { population: Uint32Array }): void {
     let people = 0, jobs = 0, buildings = 0;
@@ -598,7 +614,10 @@ export class Renderer {
   // ---- construction ---------------------------------------------------
 
   build(): void {
-    const { device, format } = this.gpu;
+    const { device } = this.gpu;
+    // Every pass below draws into the float scene target rather than the
+    // swapchain; the post chain is the only thing that writes what is shown.
+    const format = SCENE_FORMAT;
 
     // ---- bind group layouts -------------------------------------------
 
@@ -941,6 +960,9 @@ export class Renderer {
     });
 
     const { depth, depthView } = this.createDepth(this.gpu.viewport);
+    // The chain the frame is shown through. It owns the target everything above
+    // draws into, so it is built before the first frame and outlives a rebuild.
+    this.post = new Post(this.gpu, this.gpu.viewport);
 
     this.profiler ??= new GpuProfiler(device, ['cull', 'draw']);
 
@@ -1481,6 +1503,7 @@ export class Renderer {
     const { depth, depthView } = this.createDepth(v);
     this.res.depth = depth;
     this.res.depthView = depthView;
+    this.post?.resize(v);
   }
 
   // ---- frame loop -----------------------------------------------------
@@ -1645,7 +1668,8 @@ export class Renderer {
 
   private frame(now: number): void {
     const res = this.res;
-    if (!res) return;
+    const post = this.post;
+    if (!res || !post) return;
 
     // Clamped so a backgrounded tab returning does not teleport the camera.
     const dt = Math.min((now - this.lastFrame) / 1000, 0.1);
@@ -1674,6 +1698,11 @@ export class Renderer {
       this.weather.advance(dt * this.clockRate, DAY_SECONDS);
     }
     const sun = sunAt(this.timeOfDay);
+    // Dusk, as one number. The sun crossing the horizon is the interesting part,
+    // so the ramp is centred on it and finishes a little way below: the city's
+    // lights come up while the sky is still blue, which is when a city looks
+    // best and is exactly when it happens.
+    this.night = smooth01((0.06 - sun[1]) / 0.20);
 
     // The sun's view, refitted to what the camera is looking at. One cascade,
     // sized to the zoom: at street level the volume is a couple of hundred
@@ -1815,7 +1844,7 @@ export class Renderer {
     const pass = encoder.beginRenderPass({
       label: 'main',
       colorAttachments: [{
-        view: context.getCurrentTexture().createView(),
+        view: post.target,
         // Cleared only because a load op is required; the sky pass covers
         // every pixel of it before anything else is drawn.
         clearValue: { r: 0, g: 0, b: 0, a: 1 },
@@ -1982,6 +2011,23 @@ export class Renderer {
     }
 
     pass.end();
+
+    // Bloom, antialiasing and the grade, into the swapchain. The strength is
+    // the day itself: at noon almost nothing in the frame is above white and a
+    // strong bloom would be a haze over a clear day, while after dark the
+    // windows, the signs and the headlights are all that is, and the same pass
+    // lights the city up. Rain adds a little of both -- wet tarmac throws every
+    // light it is given back at the camera.
+    const night = this.night;
+    const wet = this.sky.wet;
+    const tune: PostTune = {
+      strength: 0.16 + 0.62 * night + 0.14 * wet,
+      threshold: 1.02 - 0.34 * night,
+      exposure: 1.0 + 0.05 * night,
+      vignette: 0.16 + 0.10 * night,
+      night,
+    };
+    post.encode(encoder, context.getCurrentTexture().createView(), tune);
 
     // The survivor counts, every third frame. They drive the overlay and the
     // warm list, and the warm list has a twelve-frame memory -- so reading
