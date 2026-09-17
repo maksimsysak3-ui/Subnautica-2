@@ -43,6 +43,7 @@ import { Dispatch } from './dispatch';
 import { Demand } from './demand';
 import { Growth } from './growth';
 import { Complaints, GRIPE_INFO } from './complaints';
+import { Movers } from './movers';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
@@ -211,6 +212,8 @@ export class Simulation {
    * world underneath it, and only a game grows.
    */
   readonly growth: Growth | undefined;
+  /** The projection of the traffic and the travellers into drawable rows. */
+  private readonly movers = new Movers();
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
@@ -638,6 +641,25 @@ export class Simulation {
       gripeFix: info?.fix ?? '',
       cover,
     };
+  }
+
+  /**
+   * Writes everything that is moving into `out`, and returns how many rows.
+   *
+   * The renderer hands the same array back every frame and draws whatever is in
+   * it through the machinery every other instance goes through. Nothing here is
+   * invented for the picture: a car in the list is a car the traffic model is
+   * driving, and a figure is a citizen on their way somewhere.
+   */
+  drawMovers(out: Float32Array, cap: number, eyeX: number, eyeZ: number,
+    ground: (x: number, z: number) => number): number {
+    return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
+      this.lanes, this.router.paths, ground, eyeX, eyeZ);
+  }
+
+  /** What the last `drawMovers` drew. */
+  get moverCounts(): { vehicles: number; people: number; dropped: number } {
+    return this.movers.counts;
   }
 
   /** Founds the city with its first households. */

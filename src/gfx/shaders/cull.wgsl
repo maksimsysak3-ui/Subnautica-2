@@ -34,7 +34,7 @@ struct Instance {
   place : vec4f,
   // half extent x, half extent z, height, prototype index
   form  : vec4f,
-  // x = stretch along the prototype's own Z; the rest spare
+  // x = stretch along the prototype's own Z, y = ghost, z = detail bias
   extra : vec4f,
 };
 
@@ -104,9 +104,19 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
   let pixels = inst.form.z * camera.params.w / dist;
   if (pixels < MIN_PIXELS) { return; }
 
+  // The detail bias, for things whose height is a poor measure of how much of
+  // them you can see. The ladder was calibrated on buildings: a tower is fifty
+  // pixels tall before its full mesh is worth fetching, and on that scale a car
+  // -- a metre and a half tall and four metres long, right under the camera --
+  // never earns anything but its impostor. A car is not a small building; it is
+  // a detailed object that happens to be short, and the thing a player is
+  // looking at when they zoom into a street.
+  let bias = select(1.0, inst.extra.z, inst.extra.z > 0.0);
+  let detail = pixels * bias;
+
   var lod = 2u;
-  if (pixels > LOD0_PIXELS) { lod = 0u; }
-  else if (pixels > LOD1_PIXELS) { lod = 1u; }
+  if (detail > LOD0_PIXELS) { lod = 0u; }
+  else if (detail > LOD1_PIXELS) { lod = 1u; }
 
   let bucket = proto * 3u + lod;
   let slot = atomicAdd(&args[bucket].instanceCount, 1u);

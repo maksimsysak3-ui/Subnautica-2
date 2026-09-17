@@ -981,8 +981,8 @@ export async function probeViews(): Promise<{
  * frame so the interface can be judged the only way an interface can be, which
  * is by looking at it.
  */
-export async function probeHud(width: number, height: number, hour = 0.36):
-Promise<{ pixels: number[] }> {
+export async function probeHud(width: number, height: number, hour = 0.36, dist = 520):
+Promise<{ pixels: number[]; movers: string }> {
   configureSim(LITE);
   const canvas = document.createElement('canvas');
   canvas.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
@@ -1006,7 +1006,7 @@ Promise<{ pixels: number[] }> {
   tools.visible = true;
   live.playing = true;
   camera.setViewport(width, height);
-  camera.yaw = 0.62; camera.pitch = 0.46; camera.distance = 520;
+  camera.yaw = 0.62; camera.pitch = 0.46; camera.distance = dist;
   camera.focus[0] = 0; camera.focus[2] = 0;
   camera.update();
 
@@ -1016,7 +1016,19 @@ Promise<{ pixels: number[] }> {
     if (pl.live[id] === 0) continue;
     for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
   }
-  for (let i = 0; i < 160; i++) live.update(1 / 20, performance.now() + i * 50);
+  // A city with people in it: the founding rush alone leaves fifty-odd
+  // citizens in three thousand buildings, and a street with nobody on it
+  // proves nothing about whether the streets have anybody on them.
+  sim.found(900);
+  // A day of simulation without a frame in it, so the citizens have jobs to go
+  // to and are somewhere between home and work when the picture is taken.
+  sim.step(900);
+  // And stopped in the morning rush: at four in the morning a correct city has
+  // nobody on its pavements, and a picture of that proves nothing.
+  for (let i = 0; i < 900 && (sim.clock.minute < 8 * 60 || sim.clock.minute > 9 * 60); i++) {
+    sim.step(1);
+  }
+  for (let i = 0; i < 30; i++) live.update(1 / 20, performance.now() + i * 50);
 
   const alerts = (live as unknown as { alerts: Alerts }).alerts;
   alerts.push({
@@ -1041,7 +1053,15 @@ Promise<{ pixels: number[] }> {
   camera.update();
   renderer.frameForTools(performance.now());
   await gpu.device.queue.onSubmittedWorkDone();
-  return { pixels: Array.from(await gpu.readPixels()) };
+  const m = sim.moverCounts;
+  return {
+    pixels: Array.from(await gpu.readPixels()),
+    movers: `${m.vehicles} vehicles, ${m.people} on foot, ${m.dropped} unseated; `
+      + `traffic ${sim.traffic.count}, moving ${sim.routine.moved}, `
+      + `in flight ${sim.routine.stats.travelling}, `
+      + `by mode ${Array.from(sim.routine.stats.byMode).join('/')}, `
+      + `pop ${sim.people.population}`,
+  };
 }
 
 export async function probeViewShot(width: number, height: number, view: number):

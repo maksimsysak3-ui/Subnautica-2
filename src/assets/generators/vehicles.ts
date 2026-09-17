@@ -367,7 +367,7 @@ function tarmac(m: MeshBuilder, x: number, z: number): void {
  * About three hundred triangles a head, a quarter of what the sculpted one
  * cost, which is why there are twice as many people on the pavement.
  */
-function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
+export function person(m: MeshBuilder, key: number, cx: number, cz: number, facing: number,
   opts: { stride?: number; bag?: boolean; hat?: boolean; scale?: number; lift?: number;
     sit?: boolean } = {}): void {
   const rnd = (n: number): number => {

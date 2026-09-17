@@ -41,10 +41,11 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
 await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
-const r = await page.evaluate(async ([w, h, v]) => {
-  try { return await HEADLESS.probeHud(w, h); }
+const DIST = Number(process.env.DIST || 520);
+const r = await page.evaluate(async ([w, h, d]) => {
+  try { return await HEADLESS.probeHud(w, h, 0.36, d); }
   catch (err) { return { error: String(err && err.stack ? err.stack : err) }; }
-}, [W, H, VIEW]);
+}, [W, H, DIST]);
 if (r.error) { console.log(r.error); await browser.close(); server.close(); process.exit(1); }
 
 // The card, the rail and the bubbles are DOM; the city is a texture. Composite
@@ -64,5 +65,5 @@ await page.evaluate(([w, h, px]) => {
 await page.screenshot({ path: OUT, clip: { x: 0, y: 0, width: W, height: H } });
 await browser.close();
 server.close();
-console.log(`wrote ${OUT}`);
+console.log(`wrote ${OUT}  ${r.movers ?? ''}`);
 void zlib; void fs;

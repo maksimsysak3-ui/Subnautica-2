@@ -38,6 +38,7 @@ import { defaultWorld, zoneOf, zoneIndexOf, BLOCK, PERIOD } from './world';
 import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
+import { MOVER_RESERVE } from '../assets/generators/movers';
 import type { Pad } from './grading';
 import type { Proto } from './inventory';
 import type { Density, Zone } from '../assets/types';
@@ -1350,6 +1351,18 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   }
   joined.set(liveData, keep.data.length);
   for (let i = 0; i < population.length; i++) population[i] += keep.pop[i];
+
+  // Room in the census for everything that will be driving and walking.
+  //
+  // The renderer sizes each prototype's visibility slice from this count, and a
+  // mover is written into the instance buffer every frame rather than at load,
+  // so a mover prototype the census never saw has nowhere to be listed and
+  // vanishes silently. Reserving here rather than in the renderer keeps the one
+  // rule -- a slice is as big as the census says -- true of everything drawn.
+  for (const id of Object.keys(MOVER_RESERVE)) {
+    const p = ASSET_INDEX.get(id);
+    if (p !== undefined) population[p] += MOVER_RESERVE[id];
+  }
 
   return {
     data: joined.subarray(0, total) as Float32Array<ArrayBuffer>,

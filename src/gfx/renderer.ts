@@ -54,6 +54,7 @@ import type { Chunk, World, RoadMesh, City, Dirty, TransitShape } from '../sim';
 import type { RoadGraph } from '../sim/roadgraph';
 import { SHADERS } from './shaders';
 import { Post, SCENE_FORMAT, type PostTune } from './post';
+import { MOVER_BUDGET } from '../assets/generators/movers';
 
 const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
@@ -526,6 +527,29 @@ export class Renderer {
 
   private readonly ghost = new Float32Array(INSTANCE_FLOATS);
   private ghosting = false;
+  /** How many mover instances the last `setMovers` wrote. */
+  private moverCount = 0;
+
+  /**
+   * The traffic and the people, for this frame.
+   *
+   * Written straight into the tail of the instance buffer, past the city and
+   * past the ghost's slot, and counted into the cull's dispatch. A mover is
+   * therefore culled, given a level of detail and drawn by exactly the
+   * machinery a tower block goes through -- there is no second pipeline, no
+   * second buffer and no special case in the draw loop.
+   */
+  setMovers(rows: Float32Array<ArrayBuffer>, count: number): void {
+    const res = this.res;
+    if (res === null) return;
+    this.moverCount = Math.max(0, Math.min(count, MOVER_BUDGET));
+    if (this.moverCount === 0) return;
+    this.gpu.device.queue.writeBuffer(
+      res.instanceBuffer,
+      (res.instanceCount + 1) * INSTANCE_FLOATS * 4,
+      rows, 0, this.moverCount * INSTANCE_FLOATS,
+    );
+  }
   /**
    * The prototype the placement ghost is showing, or -1.
    *
@@ -538,8 +562,14 @@ export class Renderer {
    */
   private ghostProto = -1;
 
-  /** How many instances the cull walks: the city, plus the ghost if there is one. */
+  /**
+   * How many instances the cull walks: the city, the ghost's slot, and whatever
+   * is moving. The ghost's slot is always counted once there are movers behind
+   * it, because the cull walks a contiguous range -- an empty slot in the
+   * middle is one instance with a zero prototype, which the cull drops.
+   */
   private cullCount(res: { instanceCount: number }): number {
+    if (this.moverCount > 0) return res.instanceCount + 1 + this.moverCount;
     return res.instanceCount + (this.ghosting ? 1 : 0);
   }
 
@@ -1279,7 +1309,10 @@ export class Renderer {
     // by exactly the machinery every other building goes through.
     const instanceBuffer = device.createBuffer({
       label: 'city-instances',
-      size: Math.max((city.count + 1) * INSTANCE_FLOATS * 4, INSTANCE_FLOATS * 4),
+      // The city, one slot for the placement ghost, and room for everything
+      // that moves -- which is rewritten every frame rather than at load.
+      size: Math.max((city.count + 1 + MOVER_BUDGET) * INSTANCE_FLOATS * 4,
+        INSTANCE_FLOATS * 4),
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(instanceBuffer, 0, city.data);

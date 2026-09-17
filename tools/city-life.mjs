@@ -27,7 +27,7 @@ const bundle = (await esbuild.build({
       `export * from '${src}sim/agents/places';`,
       `export * from '${src}sim/agents/calendar';`,
       `export { MODE_NAMES, MODES, belongs } from '${src}sim/agents/routine';`,
-      `export { makeCity } from '${src}sim/city';`,
+      `export { makeCity, INSTANCE_FLOATS } from '${src}sim/city';`,
       `export { defaultWorld, startingWorld, paint, ZONES, DENSITIES } from '${src}sim/world';`,
       `export { RoadGraph } from '${src}sim/roadgraph';`,
       `export { configureSim, simConfig } from '${src}sim/config';`,
@@ -41,7 +41,7 @@ const M = await import('data:text/javascript;base64,' + Buffer.from(bundle).toSt
 const {
   Simulation, STAGE_NAMES, EDU_NAMES, DOING_NAMES, Stage, Doing, NONE,
   Purpose, TICKS_PER_DAY, SECONDS_PER_DAY, YEARS_PER_DAY,
-  MODE_NAMES, MODES, makeCity, defaultWorld, configureSim,
+  MODE_NAMES, MODES, makeCity, INSTANCE_FLOATS, defaultWorld, configureSim,
 } = M;
 
 const DAYS = Number(process.argv[2] || 0) || 120;
@@ -306,6 +306,58 @@ ok(hist[6] / ticks < 0.001, 'almost no tick exceeds 16 ms',
 ok(worstTick < 80, 'and nothing stalls outright', `${worstTick.toFixed(1)} ms`);
 ok(totalMs / ticks < 4, 'the average tick leaves the frame alone',
   `${(totalMs / ticks * 1000).toFixed(0)} us`);
+
+// ---- what is on the streets --------------------------------------------
+//
+// The traffic model has driven real cars down real lanes since it was written
+// and the citizens have walked real routes, and for most of that time nothing
+// drew any of it. This is the projection that does: it must produce a row per
+// vehicle the model is actually driving and a row per traveller on foot, at the
+// position the simulation has them at, and it must never write more of a
+// prototype than the census reserved for it -- a slice that overflows lands in
+// the next prototype's list and draws a bus as a block of flats.
+{
+  // Sampled in the morning rush rather than wherever the run above happened to
+  // stop: at four in the morning a correct city has nobody on its pavements,
+  // and a test that samples then proves nothing about the pavements.
+  for (let i = 0; i < 400 && (sim.clock.minute < 8 * 60 || sim.clock.minute > 9 * 60); i++) {
+    sim.step(1);
+  }
+  const cap = 4096;
+  const rows = new Float32Array(cap * INSTANCE_FLOATS);
+  const eye = [0, 0];
+  const n = sim.drawMovers(rows, cap, eye[0], eye[1], () => 0);
+  const counts = sim.moverCounts;
+  ok(n > 0, 'something is on the streets', `${n} instances`);
+  ok(counts.vehicles > 0, 'vehicles are drawn', `${counts.vehicles}`);
+  ok(counts.people > 0, 'and so are the people walking',
+    `${counts.people} of ${sim.routine.moved} moved individually`);
+
+  // Every row has to be a real prototype at a real place, because the culler
+  // takes what it is given: a NaN position is an instance in every frustum.
+  let bad = 0;
+  const seen = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = i * INSTANCE_FLOATS;
+    const proto = rows[k + 7];
+    if (!Number.isFinite(rows[k]) || !Number.isFinite(rows[k + 1])
+      || !Number.isFinite(rows[k + 3]) || !Number.isInteger(proto)) bad++;
+    seen.set(proto, (seen.get(proto) ?? 0) + 1);
+  }
+  ok(bad === 0, 'every row is finite and points at a prototype', `${bad} bad`);
+
+  let over = 0;
+  for (const [proto, count] of seen) {
+    if (count > city.population[proto]) over++;
+  }
+  ok(over === 0, 'and no prototype is drawn more often than the census reserved',
+    `${over} over`);
+  console.log(`\nstreets         ${counts.vehicles} vehicles, ${counts.people} on foot, `
+    + `${seen.size} models, ${counts.dropped} over budget`);
+  console.log(`travellers      ${sim.routine.stats.travelling} in flight, `
+    + `${sim.routine.moved} moved individually, `
+    + `modes ${Array.from(sim.routine.stats.byMode).join('/')} (${MODE_NAMES.join('/')})`);
+}
 
 // ---- what one building says about itself -----------------------------------
 //

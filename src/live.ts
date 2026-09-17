@@ -23,6 +23,8 @@
 
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
+import { MOVER_BUDGET } from './assets/generators/movers';
+import { INSTANCE_FLOATS } from './sim';
 import { Inspect } from './ui/inspect';
 import { Util } from './sim/agents/utilities';
 import { Main } from './sim/mains';
@@ -71,6 +73,15 @@ export class LiveCity {
   private readonly lines: LinesPanel;
   /** The notices in the corner, and what the last one was about. */
   private readonly alerts: Alerts;
+  /**
+   * One frame's worth of moving instances, reused.
+   *
+   * Allocated once at the budget rather than per frame: this is written sixty
+   * times a second and a fresh two-hundred-kilobyte array each time is a
+   * garbage collection every few seconds, which is a stutter you can see.
+   */
+  private readonly moverRows =
+    new Float32Array(MOVER_BUDGET * INSTANCE_FLOATS) as Float32Array<ArrayBuffer>;
   /** The card for whatever building was last clicked. */
   private readonly inspect: Inspect;
   /** Where that building is, so the card can be kept in step with the city. */
@@ -219,6 +230,14 @@ export class LiveCity {
     // places while the systems that had not run yet still held the old ones.
     const grew = sim.grew();
     if (grew !== null) this.renderer.rebuild(grew);
+
+    // Everything that is moving, into the tail of the instance buffer. Every
+    // frame, because a car that is drawn where it was four frames ago is a car
+    // that teleports -- and it is one pass over two tables, which is cheaper
+    // than deciding whether to do it.
+    const eye = this.camera.eye;
+    this.renderer.setMovers(this.moverRows,
+      sim.drawMovers(this.moverRows, MOVER_BUDGET, eye[0], eye[2], heightAt));
 
     const view = this.info.view;
     if (view !== View.NONE && !PANEL_ONLY.has(view)) {
