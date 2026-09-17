@@ -65,6 +65,21 @@ interface Supply {
   /** Units of rubbish dealt with a week. */
   rubbish?: number;
   /**
+   * How much of the output depends on there being staff, 0 to 1.
+   *
+   * The single worst-calibrated number in the game before this, and it was not a
+   * number at all -- every plant was treated identically and ran at six per cent
+   * with nobody in it. Which meant a solar array, the first thing a player can
+   * afford, produced a hundred and forty kilowatts: not enough for one bus
+   * station, in a city that had nobody to staff it because nothing had power.
+   *
+   * A solar array does not need an operator; it needs a technician occasionally.
+   * A nuclear station does not run at all without its shift. So the split is per
+   * plant: output is `1 - crewed` at no staff and full at full staff, and the
+   * kinds of plant that really are passive really are passive.
+   */
+  crewed?: number;
+  /**
    * Draws from surface water, so it does far better standing on the river.
    *
    * Not a requirement any more. A pumping station away from the river sinks a
@@ -94,21 +109,33 @@ interface Supply {
  * in it.
  */
 const SUPPLY: Record<string, Supply> = {
-  'svc.power.wind': { power: 1200 },
-  'svc.power.solar': { power: 2400 },
-  'svc.power.gas': { power: 26000 },
-  'svc.power.station': { power: 52000 },
-  'svc.power.nuclear': { power: 240000 },
-  'svc.power.waste': { power: 16000, rubbish: 900000 },
+  // Passive generation. A turbine and a panel do not need anybody standing next
+  // to them, which is exactly why a city builds them first.
+  'svc.power.wind': { power: 2600, crewed: 0.12 },
+  'svc.power.solar': { power: 4200, crewed: 0.1 },
+  // Thermal plant. These are shifts, plant rooms and control desks, and they do
+  // not run themselves -- but a skeleton crew still keeps a turbine spinning.
+  'svc.power.gas': { power: 34000, crewed: 0.55 },
+  'svc.power.station': { power: 68000, crewed: 0.6 },
+  'svc.power.nuclear': { power: 280000, crewed: 0.75 },
+  // Waste is the one that really does stop without its crew: a tipping hall, a
+  // crane, a grab and a control room, and nothing at all happens in any of them
+  // by itself. An unstaffed incinerator burns almost nothing, which is what
+  // makes staffing one a real requirement rather than a small adjustment.
+  'svc.power.waste': { power: 20000, rubbish: 900000, crewed: 0.97 },
   'svc.power.substation': {},
-  'svc.waste.recycling': { rubbish: 600000 },
-  'svc.water.pump': { water: 90000, needsRiver: true },
+  'svc.waste.recycling': { rubbish: 600000, crewed: 0.97 },
+  // A pump is a pump. It runs.
+  'svc.water.pump': { water: 120000, needsRiver: true, crewed: 0.3 },
   'svc.water.tower': { storeDays: 0.4 },
   'svc.water.reservoir': { storeDays: 2.2 },
   'svc.water.valvehouse': {},
-  'svc.water.sewage': { sewage: 180000 },
-  'svc.water.treatment': { sewage: 60000, water: 20000 },
+  'svc.water.sewage': { sewage: 220000, crewed: 0.7 },
+  'svc.water.treatment': { sewage: 80000, water: 26000, crewed: 0.7 },
 };
+
+/** How much of a plant's output needs staff, where the table does not say. */
+const CREWED_DEFAULT = 0.5;
 
 /** Whether an asset is one of the producers, for the test to check the table. */
 export function producerIds(): string[] {
@@ -449,7 +476,9 @@ export class Utilities {
       // rubbish -- but not electricity, which is what it makes. It also has to be
       // connected to the grid it is feeding: a power station with no line to it
       // lights nothing, which is the whole point of the mains.
-      if (onPower >= 0) made[Util.POWER][onPower] += (supply.power ?? 0) * this.staffed(p);
+      if (onPower >= 0) {
+        made[Util.POWER][onPower] += (supply.power ?? 0) * this.output(p, supply);
+      }
       if (onWater >= 0) store[Util.WATER][onWater] += supply.storeDays ?? 0;
     }
 
@@ -610,15 +639,26 @@ export class Utilities {
   private staffed(p: number): number {
     const c = this.places.col;
     const staff = c.jobs[p] > 0 ? c.working[p] / c.jobs[p] : 1;
-    // Barely staffed is barely running. Not zero, because a city with no power
-    // cannot hire anybody to run the power station that would give it power, and a
-    // deadlock the player cannot see is worse than a plant that ticks over.
-    return Math.min(1, 0.06 + staff * 1.1);
+    return Math.min(1, staff * 1.08);
+  }
+
+  /**
+   * How much of its rating a plant is actually making, 0 to 1.
+   *
+   * Staffing, but weighted by how much this kind of plant needs staff at all --
+   * see `Supply.crewed`. A city's first solar array runs at nine tenths with
+   * nobody in it, which is both what a solar array does and what breaks the
+   * deadlock: there is no way to hire the staff for the power station until
+   * something already has power.
+   */
+  private output(p: number, supply: Supply): number {
+    const crewed = supply.crewed ?? CREWED_DEFAULT;
+    return Math.min(1, (1 - crewed) + crewed * this.staffed(p));
   }
 
   private running(p: number, supply: Supply): number {
     const c = this.places.col;
-    let ok = this.staffed(p);
+    let ok = this.output(p, supply);
     // A plant that is not itself powered cannot run. Its own draw is zero in the
     // library, so the test is the network's, not its own.
     const def = ASSETS[c.proto[p]];

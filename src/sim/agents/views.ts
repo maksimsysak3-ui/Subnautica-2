@@ -34,6 +34,9 @@ import { Traffic } from './driving';
 import { Junctions, Control } from './junctions';
 import { Migration } from './migration';
 import { Dispatch, Need } from './dispatch';
+import { Economy } from './economy';
+import { TransitNet } from './transit';
+import { Budget, Tax, TAX_NEUTRAL } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import type { LaneGraph } from './lanes';
 
@@ -52,6 +55,7 @@ export const View = {
   PARKS: 10,
   TRANSPORT: 11,
   DESIRABILITY: 12,
+  BUDGET: 13,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -147,7 +151,20 @@ export const VIEWS: ViewInfo[] = [
     legend: 'Everything at once: services, utilities, traffic, noise.',
     ramp: ['#8a3040', '#cfb050', '#5fc888'], unit: 'desirable',
   },
+  {
+    // The one view that is not a map. It paints nothing -- a budget is not a
+    // place -- and the panel is the whole of it, with the tax controls mounted
+    // underneath by the interface. It sits in the same rail because that is
+    // where a player looks for the city's numbers, and because the question
+    // "can I afford this" is asked from the same place as "is it covered".
+    id: View.BUDGET, name: 'Budget', icon: 'budget', look: Look.SURFACE,
+    legend: 'Where the money comes from, and where it goes. Weekly.',
+    ramp: ['#c0563f', '#d8b356', '#5fc888'], unit: '',
+  },
 ];
+
+/** Views that paint nothing on the map. The panel is all there is. */
+export const PANEL_ONLY = new Set<number>([View.BUDGET]);
 
 /** Cells across the overlay grid. */
 export const VIEW_GRID = 192;
@@ -179,6 +196,9 @@ export interface Sources {
   junctions: Junctions;
   migration: Migration;
   dispatch: Dispatch;
+  economy: Economy;
+  budget: Budget;
+  transit: TransitNet;
   lanes: LaneGraph;
   /** Metres across the whole map. */
   extent: number;
@@ -231,6 +251,9 @@ export class Views {
       case View.PARKS: this.fromBranch('parks'); break;
       case View.TRANSPORT: this.fromBranch('transport'); break;
       case View.DESIRABILITY: this.fromDesire(); break;
+      // A budget is not a place. Nothing is painted, and the grid is left blank
+      // rather than left over from whatever was open before it.
+      case View.BUDGET: break;
       default: break;
     }
     return this.grid;
@@ -459,6 +482,63 @@ export class Views {
       ({ label, value, bar, warn });
 
     switch (view) {
+      case View.BUDGET: {
+        const l = s.economy.report;
+        const b = s.budget;
+        // Money, always with its sign, because a budget panel where you have to
+        // work out which column a number is in is a budget panel nobody reads.
+        const cash = (n: number): string => {
+          const v = Math.round(n);
+          const a = Math.abs(v);
+          const t = a >= 1000000 ? `${(a / 1000000).toFixed(1)}M`
+            : a >= 10000 ? `${Math.round(a / 1000)}k` : a.toLocaleString();
+          return v < 0 ? `−${t}` : t;
+        };
+        // Each source as a share of the largest, so the bars compare with each
+        // other rather than with a number nobody chose.
+        const top = Math.max(1, l.residential, l.commercial, l.industrial,
+          l.office, l.exports, l.fares, l.services, l.transit, l.roads, l.imports);
+        const trade = l.goodsMade - l.goodsWanted;
+        const rows: Stat[] = [
+          line('In the bank', cash(b.balance), -1, b.balance < 0),
+          line('Net a week', cash(l.net), -1, l.net < 0),
+        ];
+        if (l.net < 0 && Number.isFinite(l.weeksLeft)) {
+          rows.push(line('Weeks of this left', l.weeksLeft.toFixed(1), -1,
+            l.weeksLeft < 6));
+        }
+        rows.push(
+          line('Residential tax', cash(l.residential), l.residential / top),
+          line('Commercial tax', cash(l.commercial), l.commercial / top),
+          line('Industrial tax', cash(l.industrial), l.industrial / top),
+          line('Office tax', cash(l.office), l.office / top),
+          line(trade >= 0 ? 'Export duty' : 'Import bill',
+            cash(trade >= 0 ? l.exports : -l.imports),
+            (trade >= 0 ? l.exports : l.imports) / top, trade < 0),
+          line('Fares', cash(l.fares), l.fares / top),
+          line('Service upkeep', cash(-l.services), l.services / top, true),
+          line('Transit fleets', cash(-l.transit), l.transit / top, l.transit > 0),
+          line('Road upkeep', cash(-l.roads), l.roads / top, l.roads > 0),
+        );
+        if (l.interest > 0) {
+          rows.push(line('Overdraft interest', cash(-l.interest), l.interest / top, true));
+        }
+        rows.push(
+          line('Goods made a week', cash(l.goodsMade)),
+          line('Goods the shops want', cash(l.goodsWanted), -1, trade < 0),
+          line('How people feel about tax',
+            b.felt <= TAX_NEUTRAL ? 'fine' : b.felt < TAX_NEUTRAL * 1.6
+              ? 'grumbling' : b.felt < TAX_NEUTRAL * 2.3 ? 'angry' : 'furious',
+            Math.max(0, Math.min(1, 1 - (b.felt - TAX_NEUTRAL) / TAX_NEUTRAL)),
+            b.felt > TAX_NEUTRAL * 1.6),
+        );
+        if (l.event !== '') {
+          rows.push(line(l.eventValue >= 0 ? 'Windfall' : 'Unbudgeted',
+            `${cash(l.eventValue)} — ${l.event}`, -1, l.eventValue < 0));
+        }
+        void Tax;
+        return rows;
+      }
       case View.TRAFFIC: {
         const t = s.traffic.stats;
         const worst = s.routine.peakLoad;

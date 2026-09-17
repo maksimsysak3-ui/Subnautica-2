@@ -21,12 +21,14 @@ import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { services, signatures, ASSET_INDEX } from '../sim';
+import { assetById } from '../assets/registry';
 
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
+import { OVERDRAFT } from '../sim';
 import type { Dirty } from '../sim';
 import { ALL_THEMES, THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
@@ -478,6 +480,15 @@ export class BuildTools {
     // Enter finishes the line. Clicking the first stop again does the same, and
     // both exist because a loop that closes on itself is the common case and a
     // loop whose first stop is under a building is not clickable.
+    if ((e.key === 'Backspace' || e.key === 'Delete') && this.tool.kind === 'transit'
+      && this.stops.length > 0) {
+      e.preventDefault();
+      this.stops.length -= 2;
+      this.showMark();
+      this.say(this.stops.length === 0 ? 'back to the start'
+        : `${this.stops.length / 2} stops`);
+      return;
+    }
     if (this.lineKey(e)) { e.preventDefault(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && this.tool.kind === 'transit'
       && this.stops.length >= 4) {
@@ -581,13 +592,20 @@ export class BuildTools {
   private closeLine(): void {
     const t = this.tool;
     if (t.kind !== 'transit' || this.stops.length < 4) return;
+    // A line costs its stops: shelters, poles and, for a tram, the rails under
+    // them. The fleet is a standing order rather than a purchase -- it turns up
+    // every week on the budget, which is where a service belongs.
+    const spec = TRANSIT_SPEC[t.line];
+    const cost = (this.stops.length / 2) * (t.line === 0 ? 2600 : 14000);
+    if (!this.afford(cost, `a ${spec.name.toLowerCase()} line`)) return;
     const line = this.renderer.world.transit.add(t.line, this.stops);
     this.stops = [];
     this.renderer.setTransitDraft(null);
     if (line === null) { this.say('a line needs at least two stops'); return; }
-    this.say(`${TRANSIT_SPEC[t.line].name} line ${line.id} — `
-      + `${line.stops.length / 2} stops, ${line.fleet} vehicles. `
-      + 'Click a stop to change the fleet or remove it.');
+    this.say(`${TRANSIT_SPEC[t.line].name} line ${line.id} laid — `
+      + `${line.stops.length / 2} stops, ${line.fleet} vehicles, `
+      + `${money(TRANSIT_SPEC[t.line].weekly * line.fleet)} a week to run. `
+      + 'The transport view lists every line.');
   }
 
   /** Throws away the line being drawn. */
@@ -612,7 +630,8 @@ export class BuildTools {
     this.heldLine = id;
     const spec = TRANSIT_SPEC[line.kind];
     this.say(`${spec.name} line ${id}: ${line.stops.length / 2} stops, `
-      + `${line.fleet} vehicles — [ and ] change the fleet, Delete removes the line`);
+      + `${line.fleet} vehicles — [ and ] change the fleet. `
+      + 'The transport view lists every line, with buttons.');
   }
 
   /** The line the player last clicked a stop of, for the keyboard shortcuts. */
@@ -788,6 +807,7 @@ export class BuildTools {
       return;
     }
     const paid = world.land.price();
+    if (!this.afford(paid, 'that plot')) return;
     world.land.take(plot);
     this.say(`bought for ${money(paid)} — ${world.land.count} plots, `
       + `next ${money(world.land.price())}`);
@@ -800,6 +820,14 @@ export class BuildTools {
     if (t.kind !== 'place') return;
     const world = this.renderer.world;
     const [gx, gz] = this.lotOrigin(cell, t.proto);
+    // Checked before it is paid for, so a refusal about the ground does not take
+    // the money with it.
+    const fit = lotFits(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
+    if (fit.why !== null) {
+      this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${fit.why}`);
+      return;
+    }
+    if (!this.afford(buildingPrice(t.proto.def), t.proto.def.name)) return;
     const why = placeLot(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
     if (why !== null) { this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${why}`); return; }
     // The whole of what it took: its footprint, and the grounds a landmark
@@ -888,6 +916,32 @@ export class BuildTools {
       // Escape included, because Escape's last act is to select the look tool
       // and arrive here.
       this.renderer.setGhost(null);
+      return;
+    }
+    if (this.tool.kind === 'transit') {
+      // The line being drawn, with a rubber band from the last stop to wherever
+      // the pointer is -- snapped to the street it would actually sit on.
+      // Without it the tool was a series of clicks into a void: nothing moved
+      // between them, so there was no way to see where the next stop would land
+      // or whether it had found a road at all.
+      this.renderer.mark = null;
+      this.renderer.setRoadPreview(null);
+      this.renderer.setGhost(null);
+      const on = this.to === null ? null : this.snapToRoad(this.to);
+      const draft = on === null ? this.stops : [...this.stops, on[0], on[1]];
+      this.renderer.setTransitDraft(
+        draft.length >= 2 ? Float32Array.from(draft) : null,
+        TRANSIT_SPEC[this.tool.line].colour);
+      // And what it would cost, so the decision is made before the click.
+      if (this.stops.length >= 2) {
+        const n = draft.length / 2;
+        const each = this.tool.line === 0 ? 2600 : 14000;
+        this.say(`${this.stops.length / 2} stops — `
+          + `${money(n * each)} so far, Enter to close the loop, `
+          + `Backspace to take one back`);
+      } else if (on === null) {
+        this.say('a stop has to be on a road — hover a street');
+      }
       return;
     }
     if (this.tool.kind === 'land') {
@@ -1016,6 +1070,9 @@ export class BuildTools {
     if (via !== null && Math.abs(via[0] - b[0]) <= 1 && Math.abs(via[1] - b[1]) <= 1) {
       via = null;
     }
+    // Priced on the chord plus the bow, which is what the road will actually be.
+    const metres = Math.hypot(bx - ax, bz - az) + Math.abs(bend) * 0.8;
+    if (!this.afford(metres * roadPrice(t.cls), ROAD_SPECS[t.cls].label)) return false;
     this.clearUnder(a, b, via, bend);
     world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via));
     // The chord and the bend both, since a curve leaves the straight line
@@ -1113,7 +1170,22 @@ export class BuildTools {
         this.say('you do not own all of that land — buy it with the land tool');
         return;
       }
-      paint(world, r.gx, r.gz, r.w, r.d, zoneCode(t.zone, t.density, t.theme));
+      // Charged for what the brush will actually take, which is the cells that
+      // are not already this zone, not already a road, and within reach of one.
+      const code = zoneCode(t.zone, t.density, t.theme);
+      let fresh = 0;
+      for (let j = 0; j < r.d; j++) {
+        for (let i = 0; i < r.w; i++) {
+          const gx = r.gx + i, gz = r.gz + j;
+          if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
+          if (world.net.has(gx, gz) || !world.net.nearRoad(gx, gz)) continue;
+          if (world.zones[gz * world.grid + gx] === code) continue;
+          fresh++;
+        }
+      }
+      if (fresh > 0 && !this.afford(fresh * zonePrice(t.zone, t.density),
+        `${fresh} cells of ${t.zone}`)) return;
+      paint(world, r.gx, r.gz, r.w, r.d, code);
     } else if (t.kind === 'clear') {
       // Bulldozing rebuilds the whole city, and that is the right trade.
       //
@@ -1124,7 +1196,19 @@ export class BuildTools {
       // exactly how far that reaches is possible and it saves a fraction of a
       // second on an action a player takes a handful of times an hour, at the
       // cost of being the one path in here that is only approximately right.
+      // A fraction back for what was standing there: scrap and salvage, not a
+      // refund. Enough that a misclick is not punished and far too little to
+      // make demolition a business.
+      let back = 0;
+      for (const lot of world.lots) {
+        if (lot.gx + lot.w <= r.gx || lot.gx >= r.gx + r.w) continue;
+        if (lot.gz + lot.d <= r.gz || lot.gz >= r.gz + r.d) continue;
+        const def = assetById(lot.id);
+        if (def !== undefined) back += buildingPrice(def) * 0.3;
+      }
       demolish(world, r.gx, r.gz, r.w, r.d);
+      this.refund(back);
+      if (back > 0) this.say(`cleared — ${money(Math.round(back))} in salvage`);
       this.rebuild();
       return;
     } else {
@@ -1146,7 +1230,7 @@ export class BuildTools {
     this.renderer.showDots(0);
     if (tool.kind !== 'place') this.renderer.setGhost(null);
     if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
-    this.renderer.wantTransit = tool.kind === 'transit';
+    this.renderer.askTransit('tool', tool.kind === 'transit');
     if (tool.kind !== 'transit') this.renderer.setTransitDraft(null);
     this.from = null;
     this.curveA = null;
@@ -1898,6 +1982,27 @@ export class BuildTools {
 
   private say(text: string): void {
     this.status.textContent = text;
+  }
+
+  /**
+   * Pays for something, or says why not.
+   *
+   * Every tool goes through here, because a price that nothing checks is a
+   * label. The refusal names the figure and the shortfall: "you cannot afford
+   * this" is a dead end, and "24k, and you are 9k short" is a plan.
+   */
+  private afford(cost: number, what: string): boolean {
+    const budget = this.renderer.world.budget;
+    if (budget.spend(cost)) return true;
+    const short = cost - (budget.balance + OVERDRAFT);
+    this.say(`${what} costs ${money(Math.round(cost))} — `
+      + `${money(Math.round(short))} more than the city can borrow`);
+    return false;
+  }
+
+  /** Gives money back, for an edit that undoes a purchase. */
+  private refund(amount: number): void {
+    this.renderer.world.budget.credit(Math.max(0, Math.round(amount)));
   }
 }
 

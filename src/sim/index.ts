@@ -81,10 +81,16 @@ export { Services, UNREACHED, SERVICE_GRID } from './agents/services';
 export { Dispatch, Need, NEED_NAMES } from './agents/dispatch';
 export type { DispatchStats } from './agents/dispatch';
 export type { Cover } from './agents/services';
-export { Views, View, VIEWS, VIEW_GRID, Look, NO_DATA } from './agents/views';
+export { Views, View, VIEWS, VIEW_GRID, Look, NO_DATA, PANEL_ONLY } from './agents/views';
 export type { ViewInfo, Stat } from './agents/views';
 export { Gripe, GRIPE_INFO } from './agents/complaints';
 export { Transit, TransitKind, TRANSIT_KINDS, TRANSIT_SPEC, MIN_FLEET, MAX_FLEET } from './transit';
+export {
+  Budget, Tax, TAX_NAMES, TAXES, TAX_NEUTRAL, TAX_MIN, TAX_MAX,
+  STARTING_FUNDS, OVERDRAFT,
+} from './budget';
+export { Economy } from './agents/economy';
+export type { Ledger } from './agents/economy';
 export type { TransitLine, TransitSpec } from './transit';
 export { TransitNet } from './agents/transit';
 export type { TransitShape, TransitReport } from './agents/transit';

@@ -17,6 +17,7 @@ import type { RoadClass } from './roadgraph';
 import { simConfig } from './config';
 import { Mains } from './mains';
 import { Transit } from './transit';
+import { Budget } from './budget';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
@@ -146,6 +147,8 @@ export interface World {
   grown: Uint8Array;
   /** The bus and tram lines the player has drawn. */
   transit: Transit;
+  /** The treasury: what the city has, and what it charges. */
+  budget: Budget;
 }
 
 /** Cells of buildable block between corridors. */
@@ -162,6 +165,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     // All ones: released. See `World.grown`.
     grown: new Uint8Array(grid * grid).fill(1),
     transit: new Transit(),
+    budget: new Budget(),
   };
 }
 

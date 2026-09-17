@@ -47,7 +47,7 @@ const bundle = (await esbuild.build({
 const M = await import('data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
 const {
   Simulation, Utilities, Util, UTIL_NAMES, supplyOf, producerIds,
-  Services, UNREACHED, Views, View, VIEWS, VIEW_GRID, Look, NO_DATA,
+  Services, UNREACHED, Views, View, VIEWS, VIEW_GRID, Look, NO_DATA, PANEL_ONLY,
   Purpose, Stage, makeCity, INSTANCE_FLOATS, defaultWorld, emptyWorld, RoadGraph,
   Mains, Main, buildMainsMesh, MAIN_VERTEX_FLOATS,
   ASSETS, BRANCHES, TICKS_PER_DAY, configureSim, waterAt,
@@ -474,6 +474,9 @@ section('a necessity, not a bonus');
   let empty = 0, unpainted = 0;
   const cells = VIEW_GRID * VIEW_GRID;
   for (const info of VIEWS) {
+    // A panel-only view paints nothing on purpose -- a budget is not a place --
+    // so it is read for its figures and excused the map.
+    const panelOnly = PANEL_ONLY.has(info.id);
     const grid = lit.views.build(info.id, 0);
     let painted = 0, min = 255, max = 0;
     for (let i = 0; i < cells; i++) {
@@ -485,9 +488,10 @@ section('a necessity, not a bonus');
     const stats = lit.views.stats(info.id);
     console.log(`  ${info.name.padEnd(13)} ${String(Math.round(painted / cells * 100)).padStart(3)}% `
       + `of the map painted, ${min}..${max}, `
-      + `${stats.length} figures, ${info.look === Look.UNDERGROUND ? 'underground' : 'surface'}`);
-    if (painted === 0) empty++;
-    if (painted < cells * 0.02) unpainted++;
+      + `${stats.length} figures, `
+      + (panelOnly ? 'panel only' : info.look === Look.UNDERGROUND ? 'underground' : 'surface'));
+    if (!panelOnly && painted === 0) empty++;
+    if (!panelOnly && painted < cells * 0.02) unpainted++;
     if (stats.length < 4) {
       ok(false, `${info.name} has enough to read`, `${stats.length} lines`);
     }

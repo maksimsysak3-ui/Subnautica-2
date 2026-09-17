@@ -21,7 +21,7 @@
  * simulation arriving in one lump.
  */
 
-import { Simulation, View, heightAt } from './sim';
+import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Main } from './sim/mains';
 
 /** Which utility's connection markers each view turns on. */
@@ -35,6 +35,8 @@ import type { Stats } from './ui/stats';
 import { InfoViews } from './ui/info-views';
 import { DemandBars } from './ui/demand-bars';
 import { Thoughts } from './ui/thoughts';
+import { TaxPanel } from './ui/tax-panel';
+import { LinesPanel } from './ui/lines-panel';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 
@@ -57,6 +59,8 @@ export class LiveCity {
   readonly info: InfoViews;
   private readonly bars: DemandBars;
   private readonly thoughts: Thoughts;
+  private readonly tax: TaxPanel;
+  private readonly lines: LinesPanel;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
   private readoutAt = -1;
@@ -78,6 +82,14 @@ export class LiveCity {
     // The graded height, not the raw terrain: a bubble belongs over the building,
     // and the building stands on ground the city cut flat for it.
     this.thoughts = new Thoughts(ui, heightAt);
+    // The tax controls live inside the budget view's card, which is the only
+    // place a rate and the bill it moves can be looked at together.
+    this.tax = new TaxPanel();
+    this.info.mount(View.BUDGET, this.tax.root);
+    // And the lines, under the transport view -- which is where a player goes to
+    // ask how people get about, and therefore where the answer belongs.
+    this.lines = new LinesPanel();
+    this.info.mount(View.TRANSPORT, this.lines.root);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
   }
 
@@ -113,6 +125,9 @@ export class LiveCity {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
+      this.tax.bind(this.sim.budget);
+      const sim = this.sim;
+      this.lines.bind(() => ({ transit: this.renderer.world.transit, net: sim.transit }));
       this.uploaded = -1;
       if (this.running && !this.founded) {
         this.sim.found(FOUNDING);
@@ -152,7 +167,7 @@ export class LiveCity {
     if (grew !== null) this.renderer.rebuild(grew);
 
     const view = this.info.view;
-    if (view !== View.NONE) {
+    if (view !== View.NONE && !PANEL_ONLY.has(view)) {
       const meta = sim.views.built === view ? this.info.meta(view) : null;
       // Uploaded when the simulation has rebuilt it, which it does on its own
       // schedule -- so an open view is live without the frame asking for one.
@@ -160,6 +175,8 @@ export class LiveCity {
         this.uploaded = sim.views.builtAt;
         this.renderer.setOverlay(sim.viewGrid, meta.look, meta.ramp);
       }
+      this.info.refresh(now, (): Stat[] => sim.viewStats);
+    } else if (view !== View.NONE) {
       this.info.refresh(now, (): Stat[] => sim.viewStats);
     }
 
@@ -190,9 +207,21 @@ export class LiveCity {
     this.thoughts.refresh(now, this.camera, this.camera.width, this.camera.height,
       sim.complaints.list);
 
+    // The sliders follow the budget rather than owning it, so a loaded save shows
+    // the rates it was saved with.
+    if (this.info.view === View.BUDGET) this.tax.refresh();
+    if (this.info.view === View.TRANSPORT) this.lines.refresh();
+
     if (now - this.readoutAt >= READOUT_MS) {
       this.readoutAt = now;
       this.stats.set('citizens', sim.people.population.toLocaleString());
+      // Money, always on screen. A city builder where the balance is two clicks
+      // away is a city builder where the player finds out they are bankrupt two
+      // clicks late.
+      const bal = Math.round(sim.budget.balance);
+      const net = Math.round(sim.economy.report.net);
+      this.stats.set('money', `${bal < 0 ? '−' : ''}${money(Math.abs(bal))}`
+        + `  ${net < 0 ? '−' : '+'}${money(Math.abs(net))}/wk`);
       // Milliseconds of simulation per second of real time, summed over the
       // systems. The honest number: a per-tick figure hides that the expensive
       // systems are the ones that run rarely.
@@ -205,7 +234,15 @@ export class LiveCity {
   private onView(view: number, meta: ViewInfo | null): void {
     this.sim?.show(view);
     this.uploaded = -1;
-    if (meta === null) {
+    // The transport view draws the lines on the map as well as listing them. A
+    // coverage map of stations with the routes invisible answers half the
+    // question a player opened it with.
+    this.renderer.askTransit('view', view === View.TRANSPORT);
+    // A view that is not a map paints nothing. Not even an empty wash: the
+    // surface mode drains the ground towards grey wherever it has no reading,
+    // which is right for a coverage map with gaps in it and wrong for a budget,
+    // where the whole map is a gap.
+    if (meta === null || PANEL_ONLY.has(view)) {
       this.renderer.hideOverlay();
       this.renderer.showDots(0);
       return;

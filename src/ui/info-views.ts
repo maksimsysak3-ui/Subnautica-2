@@ -19,7 +19,7 @@
  * second is faster than a player can read and is what `REPAINT_MS` buys.
  */
 
-import { VIEWS, View, Look } from '../sim';
+import { VIEWS, View, Look, PANEL_ONLY } from '../sim';
 import type { ViewInfo, Stat } from '../sim';
 import { GLYPH } from './zones';
 
@@ -44,6 +44,14 @@ export const EXTRA_GLYPH: Record<string, string> = {
   rubbish: 'M20 5h8v4h-8zM13 10h22v5H13z'
          + 'M14 16h20l-1.7 24.2a3 3 0 0 1-3 2.8H18.7a3 3 0 0 1-3-2.8L14 16z'
          + 'M20 21h2.5v16H20zM25.5 21H28v16h-2.5z',
+  // Coins, stacked, with a note behind them. A budget is money, and every other
+  // way of drawing one -- a ledger, a graph, a percentage -- says something
+  // narrower than "this is about what the city has".
+  budget: 'M8 5h32a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z'
+        + 'M24 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 1 0 0-7z'
+        + 'M5 23h38v3.5H5zM5 29h38v3.5H5z'
+        + 'M14 36a7 7 0 1 0 0 14 7 7 0 1 0 0-14z'
+        + 'M14 39.4a3.6 3.6 0 1 1 0 7.2 3.6 3.6 0 1 1 0-7.2z',
   // A face. Desirability is how the city feels to live in, and every other way of
   // drawing that -- a leaf, a rising bar, a heart -- says something narrower.
   desire: 'M24 4a20 20 0 1 0 0 40 20 20 0 1 0 0-40z'
@@ -88,6 +96,9 @@ export class InfoViews {
   private readonly legend: HTMLElement;
   private readonly scale: HTMLElement;
   private readonly rows: HTMLElement;
+  private readonly extra: HTMLElement;
+  /** Controls a view brings with it, by view id. */
+  private readonly controls = new Map<number, HTMLElement>();
   private readonly buttons = new Map<number, HTMLButtonElement>();
 
   /** Which view is up, or `View.NONE`. */
@@ -132,7 +143,14 @@ export class InfoViews {
     this.rows = document.createElement('div');
     style(this.rows, ['display:flex', 'flex-direction:column', 'gap:3px',
       'max-height:46vh', 'overflow-y:auto']);
-    this.card.append(this.title, this.legend, this.scale, this.rows);
+    // Where a view mounts controls of its own. Empty for all but the budget,
+    // which is the one view that is not only a readout: a tax rate is a thing
+    // the player sets, and setting it two panels away from the number it moves
+    // would be two panels away from the only reason to set it.
+    this.extra = document.createElement('div');
+    style(this.extra, ['display:none', 'margin-top:8px',
+      'border-top:1px solid rgba(98,212,255,.14)', 'padding-top:8px']);
+    this.card.append(this.title, this.legend, this.scale, this.rows, this.extra);
 
     this.rail = document.createElement('div');
     this.rail.dataset.panel = 'view-rail';
@@ -183,6 +201,19 @@ export class InfoViews {
     return b;
   }
 
+  /**
+   * Gives a view controls of its own, shown under its rows.
+   *
+   * The panel still knows nothing about what they are -- it is handed an element
+   * and it shows it when that view is up, which keeps adding one to a view a
+   * matter of one call rather than a special case in here.
+   */
+  mount(view: number, el: HTMLElement): void {
+    this.controls.set(view, el);
+    el.style.display = 'none';
+    this.extra.appendChild(el);
+  }
+
   /** Which view is open, or `View.NONE`. */
   get view(): number { return this.current; }
 
@@ -229,6 +260,7 @@ export class InfoViews {
     const info = VIEWS.find((v) => v.id === id) ?? null;
     if (info === null) {
       this.card.style.display = 'none';
+      this.showControls(View.NONE);
       this.onView(View.NONE, null);
       return;
     }
@@ -241,14 +273,30 @@ export class InfoViews {
     this.title.textContent = info.name;
     this.title.style.color = info.ramp[2];
     this.legend.textContent = info.legend;
-    this.scale.innerHTML = this.ramp(info);
+    // A view that paints nothing has no scale to explain. The swatch strip is
+    // the legend for a map, and a budget is not one.
+    const mapped = !PANEL_ONLY.has(id);
+    this.scale.style.display = mapped ? 'block' : 'none';
+    this.scale.innerHTML = mapped ? this.ramp(info) : '';
     this.rows.replaceChildren();
     this.shown = 0;
     this.paintedAt = -1;
+    this.showControls(id);
     this.onView(id, info);
   }
 
   /** The three-stop bar and what its ends mean. */
+  /** Shows the open view's own controls, and hides everybody else's. */
+  private showControls(id: number): void {
+    let any = false;
+    for (const [view, el] of this.controls) {
+      const on = view === id;
+      el.style.display = on ? 'block' : 'none';
+      if (on) any = true;
+    }
+    this.extra.style.display = any ? 'block' : 'none';
+  }
+
   private ramp(info: ViewInfo): string {
     const [lo, mid, hi] = info.ramp;
     const bar = `background:linear-gradient(90deg,${lo},${mid},${hi})`;

@@ -540,6 +540,7 @@ export class Renderer {
     // buses were not copied across came back with the starting map's, which is
     // none of them.
     this.world.transit = next.transit;
+    this.world.budget = next.budget;
     // A world that arrives whole was not built by the player watching it, so
     // nothing in it rises: every instance in the next rebuild is dated to that
     // moment, and the growth curve treats them all as new. Clearing the ages
@@ -2197,7 +2198,22 @@ export class Renderer {
    * rather than a call because the answer changes when a tool is picked and the
    * shapes change when a road moves, and those are different moments.
    */
-  wantTransit = false;
+  private transitAsked = 0;
+
+  /**
+   * Asks for the lines to be drawn, or stops asking.
+   *
+   * Two things want them -- the line tool while it is in hand, and the transport
+   * view while it is open -- and either may come and go without the other. A
+   * single flag meant putting the tool away closed the view's lines with it, so
+   * each asker holds its own bit.
+   */
+  askTransit(who: 'tool' | 'view', want: boolean): void {
+    const bit = who === 'tool' ? 1 : 2;
+    this.transitAsked = want ? this.transitAsked | bit : this.transitAsked & ~bit;
+  }
+
+  get wantTransit(): boolean { return this.transitAsked !== 0; }
 
   /** The line being drawn right now, as bare stops. Null when none is. */
   private transitDraft: TransitShape | null = null;

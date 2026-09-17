@@ -19,6 +19,7 @@ import { emptyWorld } from './world';
 import type { World, Lot } from './world';
 import { ROAD_IDS } from './roadgraph';
 import type { TransitLine } from './transit';
+import { TAXES } from './budget';
 import type { RoadClass } from './roadgraph';
 
 /**
@@ -76,6 +77,14 @@ interface SaveFile {
    * worked out again on load -- and would be wrong the moment a road moved.
    */
   transit?: TransitLine[];
+  /**
+   * The treasury: the balance, then one tax rate per zone.
+   *
+   * Absent in a save from before there was money, which loads with the starting
+   * funds and the neutral rates -- the only honest answer, since the city it
+   * came from was built for free.
+   */
+  money?: [number, number[]];
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -165,6 +174,7 @@ export function serialise(world: World, name: string, auto = false): string {
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
     grown: encodeZones(world.grown),
+    money: [world.budget.balance, [...world.budget.rates]],
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
     })),
@@ -223,6 +233,10 @@ export function deserialise(text: string): { world: World; name: string; at: num
     decodeZones(file.grown, world.grown);
   }
   if (Array.isArray(file.transit)) world.transit.restore(file.transit);
+  if (Array.isArray(file.money) && Array.isArray(file.money[1])
+    && file.money[1].length === TAXES) {
+    world.budget.restore(file.money[0], file.money[1]);
+  }
   if (Array.isArray(file.land) && file.land.length === 2) {
     world.land.lo = file.land[0] >>> 0;
     world.land.hi = file.land[1] >>> 0;

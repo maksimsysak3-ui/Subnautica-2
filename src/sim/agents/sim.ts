@@ -45,6 +45,8 @@ import { Growth } from './growth';
 import { Complaints } from './complaints';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
+import { Economy } from './economy';
+import { Budget } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 
@@ -176,6 +178,10 @@ export class Simulation {
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
   readonly transit: TransitNet;
+  /** Where the money comes from and where it goes. */
+  readonly economy: Economy;
+  /** The treasury it moves. The world's, when there is one. */
+  readonly budget: Budget;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -242,13 +248,20 @@ export class Simulation {
       this.router, this.lanes, this.index, this.traffic);
     this.routine.servedBy(this.transit);
     this.complaints.servedBy(this.transit);
+    // One budget object, whether it came from a world or was made for a test.
+    // Two would be the same bug the mains had: the panel reading one balance
+    // while the treasury spends another.
+    this.budget = world?.budget ?? new Budget();
+    this.economy = new Economy(this.budget, this.places, this.people,
+      this.migration, this.transit, net, seed ^ 0xec04);
     this.growth = world === undefined ? undefined
       : new Growth(world, this.demand, () => this.people.population);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,
       junctions: this.junctions, migration: this.migration, lanes: this.lanes,
-      dispatch: this.dispatch,
+      dispatch: this.dispatch, economy: this.economy, transit: this.transit,
+      budget: this.budget,
       extent: net.grid * 8,
     });
     this.install();
@@ -398,6 +411,14 @@ export class Simulation {
       run: () => { this.routine.refocus(); },
     });
 
+    // The money. Slow, because a budget is a weekly thing and the pass over the
+    // service buildings is the one walk in it -- and because a treasury that
+    // twitched several times a second would be unreadable while it did.
+    s.add({
+      name: 'money', rate: Rate.SLOW,
+      run: () => { this.economy.settle(Rate.SLOW / TICKS_PER_DAY); },
+    });
+
     // The buses. Keeping the fleets on the road, which is bounded by what the
     // player has paid for, and re-planning only when a line or a road moved.
     s.add({
@@ -543,6 +564,7 @@ export class Simulation {
     // those had to survive long enough for the models above to hand theirs back.
     this.transit.rebind(this.world?.transit ?? new Transit(), this.lanes,
       this.index, this.traffic);
+    this.economy.rebind(this.world?.budget ?? this.budget, net, this.transit);
   }
 
   /**

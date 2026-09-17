@@ -236,6 +236,22 @@ export class Places {
   /** Homes of each purpose -- which is only ever HOME, kept for symmetry. */
   readonly dwellings = new Int32Array(PURPOSES);
 
+  /**
+   * Jobs of each purpose that are actually filled.
+   *
+   * Posts less vacancies, kept as its own array so the economy can ask for it
+   * every settle without subtracting two arrays on the caller's side -- and
+   * because "how many people are at work in shops" is the question, not "how
+   * many shop jobs exist minus how many are empty".
+   */
+  private readonly staffedNow = new Int32Array(PURPOSES);
+  get staffed(): Int32Array {
+    for (let i = 0; i < PURPOSES; i++) {
+      this.staffedNow[i] = Math.max(0, this.posts[i] - Math.max(0, this.vacancies[i]));
+    }
+    return this.staffedNow;
+  }
+
   constructor(capacity = 1 << 16) {
     this.vacantHomes = new Pool(capacity);
     this.homes = new Pool(capacity);

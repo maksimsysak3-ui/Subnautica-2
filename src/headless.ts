@@ -827,6 +827,7 @@ export async function probeViews(): Promise<{
   trafficMoved: number; buriedMoved: number;
   closed: boolean; closedBack: number;
   population: number; views: string[];
+  budgetRows: number; taxSliders: number; rateMoved: boolean; budgetPainted: number;
 }> {
   configureSim(LITE);
   const ui = document.createElement('div');
@@ -920,12 +921,36 @@ export async function probeViews(): Promise<{
   const backPx = await frame();
   const closed = !shown('view-stats');
 
+  // The budget, which is the one view that is not a map: it paints nothing and
+  // it carries controls. Both halves are checked, because a tax slider that does
+  // not move the rate is a slider, and a rate that does not move the panel above
+  // it is a number in a different room.
+  press('Budget');
+  live.update(1 / 30, performance.now());
+  const budgetRows = ui.querySelectorAll('[data-stat]').length;
+  const taxPanel = ui.querySelector('[data-panel="tax"]');
+  const sliders = taxPanel === null ? []
+    : Array.from(taxPanel.querySelectorAll('input[type=range]')) as HTMLInputElement[];
+  const sim = (live as unknown as { sim: Simulation }).sim;
+  const wasRate = sim.budget.rates[0];
+  if (sliders[0] !== undefined) {
+    sliders[0].value = '0.2';
+    sliders[0].dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const nowRate = sim.budget.rates[0];
+  const budgetPx = await frame();
+  press('Budget');
+
   return {
     icons, railHidden, railShown, title, rows, bars,
     plain: mean(plainPx), traffic: mean(trafficPx), buried: mean(buriedPx),
     trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
     closed, closedBack: moved(plainPx, backPx),
     population: live.population, views,
+    budgetRows, taxSliders: sliders.length,
+    rateMoved: Math.abs(nowRate - wasRate) > 0.01,
+    // A budget is not a place: opening it must leave the map exactly as it was.
+    budgetPainted: moved(plainPx, budgetPx),
   };
 }
 

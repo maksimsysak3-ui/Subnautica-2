@@ -72,7 +72,7 @@ if (r.error) {
 }
 
 const EXPECTED = ['Traffic', 'Power', 'Water', 'Sewage', 'Rubbish', 'Fire',
-  'Police', 'Health', 'Schools', 'Parks', 'Transport', 'Desirability'];
+  'Police', 'Health', 'Schools', 'Parks', 'Transport', 'Desirability', 'Budget'];
 
 if (!r.railHidden) push('the rail was already open before anything was clicked');
 if (!r.railShown) push('clicking the launcher did not open the rail');
@@ -82,7 +82,17 @@ if (r.icons !== EXPECTED.length) {
 for (const name of EXPECTED) {
   if (!r.views.includes(name)) push(`no button for the ${name} view`);
 }
+if (r.budgetRows < 8) push(`the budget panel has ${r.budgetRows} rows`);
+if (r.taxSliders !== 4) push(`the budget has ${r.taxSliders} tax sliders, not four`);
+if (!r.rateMoved) push('dragging a tax slider did not change the rate');
+if (r.budgetPainted > 0.01) {
+  push(`opening the budget painted ${(r.budgetPainted * 100).toFixed(1)}% of the map`);
+}
+
 console.log(`rail     ${r.icons} icons: ${r.views.join(', ')}`);
+console.log(`budget   ${r.budgetRows} rows, ${r.taxSliders} sliders, `
+  + `rate ${r.rateMoved ? 'moves' : 'STUCK'}, `
+  + `map untouched (${(r.budgetPainted * 100).toFixed(2)}%)`);
 
 if (r.title !== 'Traffic') push(`the card is headed "${r.title}", not "Traffic"`);
 if (r.rows < 8) push(`the traffic card has ${r.rows} rows, which is not a panel of statistics`);

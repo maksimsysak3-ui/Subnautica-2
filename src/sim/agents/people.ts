@@ -517,6 +517,11 @@ export class People {
       target += this.coverageAt(id, 'police') * 22;
       target += this.coverageAt(id, 'fire') * 14;
       target += this.coverageAt(id, 'transport') * 12;
+      // And the tax. Set by the economy, positive for a rate below neutral and
+      // negative above it -- the same number that decides who moves here, so a
+      // player cannot squeeze the people already here without also putting off
+      // the ones who would replace them.
+      target += this.taxMood;
       const m = c.mood[id];
       this.setMood(id, m + Math.sign(target - m) * Math.min(Math.abs(target - m), 8 * days));
     }
@@ -855,6 +860,16 @@ export class People {
 
   /** Students old enough to be counted as workforce if they were not studying. */
   studentAdults = 0;
+
+  /**
+   * What the tax rate is doing to how people feel, in mood points.
+   *
+   * Set by the economy; zero at the neutral rate, positive below it, negative
+   * above. Held here rather than read from the budget because the mood pass runs
+   * over every citizen in the city and must not take a dependency on anything it
+   * would have to ask twice.
+   */
+  taxMood = 0;
 
   /** Average mood across the city, 0 to 1. */
   get happiness(): number {

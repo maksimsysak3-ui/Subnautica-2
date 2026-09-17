@@ -41,6 +41,7 @@ import { Demand, WANTS } from './demand';
 import type { World } from '../world';
 import { zoneIndexOf, ZONES } from '../world';
 import { Main } from '../mains';
+import { OVERDRAFT } from '../budget';
 
 /** Cells across one released patch. One or two buildings' worth. */
 const PATCH = 5;
@@ -157,6 +158,21 @@ export class Growth {
     private population: () => number,
   ) {}
 
+  /**
+   * Whether the city can pay for what it is about to build.
+   *
+   * A building is a road, a connection and a place in the queue for every
+   * service the city runs, and a treasury scraping the bottom of its overdraft
+   * cannot underwrite any of it. So a bankrupt city stops growing -- which is
+   * the consequence that makes money matter, and is far better than the
+   * alternative of a city that grows itself into a deeper hole while the player
+   * watches.
+   */
+  private solvent(): boolean {
+    const b = this.world.budget;
+    return b.balance > -OVERDRAFT * 0.8;
+  }
+
   /** The world was replaced. */
   rebind(world: World): void {
     this.world = world;
@@ -185,6 +201,13 @@ export class Growth {
    */
   grow(days: number): void {
     if (days <= 0) return;
+    if (!this.solvent()) {
+      // The carry goes with it. A city that spends a fortnight broke should not
+      // build a fortnight's worth of houses the moment it is not.
+      this.owed.fill(0);
+      this.report.owed = 0;
+      return;
+    }
     const world = this.world;
     const grown = world.grown;
     const zones = world.zones;
