@@ -18,6 +18,7 @@
 import { emptyWorld } from './world';
 import type { World, Lot } from './world';
 import { ROAD_IDS } from './roadgraph';
+import type { TransitLine } from './transit';
 import type { RoadClass } from './roadgraph';
 
 /**
@@ -68,6 +69,13 @@ interface SaveFile {
    * Loading one with the mask clear would knock their whole city down.
    */
   grown?: number[];
+  /**
+   * The transit lines, as the player drew them.
+   *
+   * Not the routes the vehicles take, which are derived from the roads and are
+   * worked out again on load -- and would be wrong the moment a road moved.
+   */
+  transit?: TransitLine[];
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -157,6 +165,9 @@ export function serialise(world: World, name: string, auto = false): string {
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
     grown: encodeZones(world.grown),
+    transit: world.transit.lines.map((l) => ({
+      id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
+    })),
     land: [world.land.lo, world.land.hi],
     lots: world.lots.map((l) => (l.grounds === undefined
       ? [l.id, l.gx, l.gz, l.w, l.d, l.yaw] as SaveFile['lots'][number]
@@ -211,6 +222,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
     world.grown.fill(0);
     decodeZones(file.grown, world.grown);
   }
+  if (Array.isArray(file.transit)) world.transit.restore(file.transit);
   if (Array.isArray(file.land) && file.land.length === 2) {
     world.land.lo = file.land[0] >>> 0;
     world.land.hi = file.land[1] >>> 0;

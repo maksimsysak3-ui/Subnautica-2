@@ -60,6 +60,8 @@ export class LiveCity {
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
   private readoutAt = -1;
+  /** The transit plan the renderer is currently drawing, or -1 for none. */
+  private transitAt = -1;
   private founded = false;
   private running = false;
   /** Set when the next city notification is a different world entirely. */
@@ -167,6 +169,19 @@ export class LiveCity {
       waiting: sim.growth?.report.waiting ?? 0,
       released: sim.growth?.report.released ?? 0,
     }));
+
+    // The bus and tram lines, whenever anything is asking to see them and the
+    // simulation has worked them out again. Pushed rather than pulled because
+    // only the simulation can turn a list of stops into the roads between them.
+    if (this.renderer.wantTransit) {
+      if (sim.transit.shapeVersion !== this.transitAt) {
+        this.transitAt = sim.transit.shapeVersion;
+        this.renderer.setTransit(sim.transit.shape());
+      }
+    } else if (this.transitAt !== -1) {
+      this.transitAt = -1;
+      this.renderer.setTransit(null);
+    }
 
     // What the buildings are complaining about, over the buildings. Projected
     // here rather than drawn by the renderer: a dozen icons that have to be

@@ -33,6 +33,7 @@ import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
 import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
 import { BRANCHES } from '../assets/types';
+import { TRANSIT_SPEC, MIN_FLEET, MAX_FLEET } from '../sim';
 import type { Branch, Density, Zone } from '../assets/types';
 import type { IconZone } from './zones';
 
@@ -80,6 +81,7 @@ type Tool =
   | { kind: 'place'; proto: Proto }
   | { kind: 'clear' }
   /** Buying land: an overhead view of the plot grid, one click a plot. */
+  | { kind: 'transit'; line: number }
   | { kind: 'land' };
 
 /** How long after a click its second half still counts as a double-click. */
@@ -159,6 +161,14 @@ export class BuildTools {
   private curveA: [number, number] | null = null;
   private curveVia: [number, number] | null = null;
   private curveStage: 'none' | 'start' | 'via' | 'laid' = 'none';
+
+  /**
+   * The stops of the line being laid, in metres, x and z interleaved.
+   *
+   * Empty between lines. It is the whole state of the transit tool: a line is a
+   * list of stops, and the routes between them are the simulation's business.
+   */
+  private stops: number[] = [];
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
   private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
@@ -324,6 +334,7 @@ export class BuildTools {
     e.stopPropagation();
     if (this.tool.kind === 'land') { this.buyLand(cell); return; }
     if (this.tool.kind === 'curve') { this.curveClick(cell); return; }
+    if (this.tool.kind === 'transit') { this.transitClick(cell); return; }
     if (this.tool.kind === 'place') { this.dropLot(cell); return; }
     this.from = cell;
     this.to = cell;
@@ -464,6 +475,16 @@ export class BuildTools {
       this.say(this.describe(this.tool));
       return;
     }
+    // Enter finishes the line. Clicking the first stop again does the same, and
+    // both exist because a loop that closes on itself is the common case and a
+    // loop whose first stop is under a building is not clickable.
+    if (this.lineKey(e)) { e.preventDefault(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && this.tool.kind === 'transit'
+      && this.stops.length >= 4) {
+      e.preventDefault();
+      this.closeLine();
+      return;
+    }
     if (e.key !== 'Escape') return;
     if (this.drawer !== null) { this.closeDrawer(); return; }
     // A half-drawn road first, then the tool. Escape while dragging one has to
@@ -479,9 +500,146 @@ export class BuildTools {
     // The first Escape drops a half-drawn run, the second puts the tool away.
     // Losing the tool as well would mean re-selecting it after every misclick.
     if (this.curveStage !== 'none') { this.endRun(); return; }
+    if (this.stops.length > 0) { this.dropLine(); return; }
     this.from = null;
     this.select({ kind: 'look' });
   };
+
+  // ---- the transit tool ------------------------------------------------
+
+  /**
+   * One click of a transit line.
+   *
+   * Each click is a stop. The first click on an existing line's stop, with
+   * nothing being drawn, picks that line up instead -- which is how a player
+   * deletes one or puts another bus on it, and is the only thing a click on an
+   * existing stop could sensibly mean.
+   *
+   * Stops snap to the nearest road, because a stop is a place a bus pulls in at
+   * and a bus cannot pull in where there is no road. A click in a field says so
+   * rather than silently placing a stop nothing will ever serve.
+   */
+  private transitClick(cell: [number, number]): void {
+    const t = this.tool;
+    if (t.kind !== 'transit') return;
+    const world = this.renderer.world;
+    const half = world.grid / 2;
+    const x = (cell[0] - half + 0.5) * CELL, z = (cell[1] - half + 0.5) * CELL;
+
+    if (this.stops.length === 0) {
+      const hit = world.transit.nearest(x, z, 70);
+      if (hit !== null) { this.pickLine(hit.line.id); return; }
+    }
+
+    // Closing the loop: clicking the first stop again, near enough.
+    if (this.stops.length >= 4) {
+      const dx = this.stops[0] - x, dz = this.stops[1] - z;
+      if (dx * dx + dz * dz < 60 * 60) { this.closeLine(); return; }
+    }
+
+    const on = this.snapToRoad(cell);
+    if (on === null) {
+      this.say('a stop has to be on a road — click a street');
+      return;
+    }
+    this.stops.push(on[0], on[1]);
+    this.renderer.setTransitDraft(Float32Array.from(this.stops),
+      TRANSIT_SPEC[t.line].colour);
+    const n = this.stops.length / 2;
+    this.say(n < 2
+      ? `${TRANSIT_SPEC[t.line].name} stop 1 — click along the route, Enter to finish`
+      : `${n} stops — Enter to finish the loop, Escape to start again`);
+  }
+
+  /** The centre of the nearest road cell to a click, in metres, or null. */
+  private snapToRoad(cell: [number, number]): [number, number] | null {
+    const world = this.renderer.world;
+    const half = world.grid / 2;
+    // Outwards a ring at a time, so the nearest road wins rather than whichever
+    // the scan reached first.
+    for (let r = 0; r <= 4; r++) {
+      let best: [number, number] | null = null;
+      let bestD = Infinity;
+      for (let j = -r; j <= r; j++) {
+        for (let i = -r; i <= r; i++) {
+          if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+          const gx = cell[0] + i, gz = cell[1] + j;
+          if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
+          if (!world.net.has(gx, gz)) continue;
+          const d = i * i + j * j;
+          if (d < bestD) { bestD = d; best = [gx, gz]; }
+        }
+      }
+      if (best !== null) {
+        return [(best[0] - half + 0.5) * CELL, (best[1] - half + 0.5) * CELL];
+      }
+    }
+    return null;
+  }
+
+  /** Turns the stops being drawn into a line. */
+  private closeLine(): void {
+    const t = this.tool;
+    if (t.kind !== 'transit' || this.stops.length < 4) return;
+    const line = this.renderer.world.transit.add(t.line, this.stops);
+    this.stops = [];
+    this.renderer.setTransitDraft(null);
+    if (line === null) { this.say('a line needs at least two stops'); return; }
+    this.say(`${TRANSIT_SPEC[t.line].name} line ${line.id} — `
+      + `${line.stops.length / 2} stops, ${line.fleet} vehicles. `
+      + 'Click a stop to change the fleet or remove it.');
+  }
+
+  /** Throws away the line being drawn. */
+  private dropLine(): void {
+    this.stops = [];
+    this.renderer.setTransitDraft(null);
+    this.say('line abandoned');
+  }
+
+  /**
+   * A click on an existing line's stop.
+   *
+   * The fleet and the bin, which are the only two things there are to do to a
+   * line once it exists. Driven from the status line rather than from a panel of
+   * its own: the answer is one number and one button, and a modal for that is
+   * more interface than the thing it is about.
+   */
+  private pickLine(id: number): void {
+    const world = this.renderer.world;
+    const line = world.transit.lines.find((l) => l.id === id);
+    if (line === undefined) return;
+    this.heldLine = id;
+    const spec = TRANSIT_SPEC[line.kind];
+    this.say(`${spec.name} line ${id}: ${line.stops.length / 2} stops, `
+      + `${line.fleet} vehicles — [ and ] change the fleet, Delete removes the line`);
+  }
+
+  /** The line the player last clicked a stop of, for the keyboard shortcuts. */
+  private heldLine = -1;
+
+  /** `[`, `]` and Delete, while a line is picked up. */
+  private lineKey(e: KeyboardEvent): boolean {
+    if (this.tool.kind !== 'transit' || this.heldLine < 0) return false;
+    const world = this.renderer.world;
+    const line = world.transit.lines.find((l) => l.id === this.heldLine);
+    if (line === undefined) { this.heldLine = -1; return false; }
+    const spec = TRANSIT_SPEC[line.kind];
+    if (e.key === '[' || e.key === ']') {
+      const want = line.fleet + (e.key === ']' ? 1 : -1);
+      world.transit.setFleet(line.id, want);
+      this.say(`${spec.name} line ${line.id}: ${line.fleet} vehicles `
+        + `(${MIN_FLEET}–${MAX_FLEET})`);
+      return true;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      world.transit.remove(line.id);
+      this.heldLine = -1;
+      this.say(`${spec.name} line ${line.id} removed`);
+      return true;
+    }
+    return false;
+  }
 
   // ---- the curve tool --------------------------------------------------
 
@@ -987,6 +1145,9 @@ export class BuildTools {
     // Anything the last tool was showing goes with it.
     this.renderer.showDots(0);
     if (tool.kind !== 'place') this.renderer.setGhost(null);
+    if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
+    this.renderer.wantTransit = tool.kind === 'transit';
+    if (tool.kind !== 'transit') this.renderer.setTransitDraft(null);
     this.from = null;
     this.curveA = null;
     this.curveVia = null;
@@ -1024,11 +1185,17 @@ export class BuildTools {
     if (t.kind === 'road' || t.kind === 'curve') return `road:${t.cls}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
+    if (t.kind === 'transit') return `transit:${t.line}`;
     return t.kind;
   }
 
   private describe(t: Tool): string {
     if (t.kind === 'look') return 'drag to pan, right-drag to orbit, wheel to zoom';
+    if (t.kind === 'transit') {
+      return `click along the streets to drop ${TRANSIT_SPEC[t.line].name.toLowerCase()} `
+        + 'stops, Enter to close the loop — click an existing stop to change '
+        + 'its line';
+    }
     if (t.kind === 'road') {
       return `drag to lay a ${ROAD_SPECS[t.cls].label} (${money(roadPrice(t.cls))}/m) `
         + '— sweep the drag to curve it; it will cross and join what is there';
@@ -1260,6 +1427,18 @@ export class BuildTools {
       this.buttons.push(b);
     }
     tools.appendChild(civic);
+
+    // Public transport. One button per kind, beside the civic buildings,
+    // because a bus route is a service the city runs rather than a road.
+    const transit = group();
+    for (let k = 0; k < TRANSIT_SPEC.length; k++) {
+      const spec = TRANSIT_SPEC[k];
+      add(transit, { kind: 'transit', line: k },
+        `${spec.name} line — click along the streets to drop stops, `
+        + 'Enter to close the loop',
+        svgTransit(k), spec.colour);
+    }
+    tools.appendChild(transit);
 
     const clear = group();
     // "Buy land", not "Land": the landmarks button is two along and starts with
@@ -1720,6 +1899,31 @@ export class BuildTools {
   private say(text: string): void {
     this.status.textContent = text;
   }
+}
+
+/**
+ * A bus, and a tram on its rails.
+ *
+ * Drawn here rather than taken from the service-branch glyphs because those are
+ * about *buildings* -- the transport branch's icon is a station -- and what this
+ * button does is draw a route. A player scanning the bar for "make a bus route"
+ * is looking for a bus.
+ */
+function svgTransit(kind: number): string {
+  const body = kind === 0
+    // A bus: a boxy body, a windscreen, two windows and two wheels.
+    ? '<rect x="4" y="4.5" width="16" height="12.5" rx="2.4"/>'
+      + '<rect x="6" y="7" width="5" height="4" rx="0.8" fill="currentColor"/>'
+      + '<rect x="13" y="7" width="5" height="4" rx="0.8" fill="currentColor"/>'
+      + '<circle cx="8" cy="18.6" r="1.7"/><circle cx="16" cy="18.6" r="1.7"/>'
+    // A tram: a taller body with a pole, on a rail.
+    : '<rect x="5.5" y="3.5" width="13" height="14" rx="2"/>'
+      + '<path d="M12 3.5V1.5M9 1.5h6"/>'
+      + '<rect x="7.5" y="6" width="9" height="4.5" rx="0.8" fill="currentColor"/>'
+      + '<path d="M4 20.5h16M8 17.5v3M16 17.5v3"/>';
+  return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" `
+    + `stroke="currentColor" stroke-width="1.5" stroke-linecap="round" `
+    + `stroke-linejoin="round">${body}</svg>`;
 }
 
 function svgHand(): string {

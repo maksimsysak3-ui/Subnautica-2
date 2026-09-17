@@ -1,17 +1,18 @@
 /**
- * The demand bars: what the city is short of, as four columns.
+ * The demand bars: what the city is short of, as four rows.
  *
  * A player zoning land is answering one question -- what does this city need more
  * of -- and until now the game gave them no way to ask it. Everything else in the
  * interface reports how the city *is*. This is the only readout that says what it
  * wants, and it is the one that decides what their next click should be.
  *
- * FOUR BARS, NOT THREE. Offices are a zone here, and a city whose graduates are
+ * FOUR, NOT THREE. Offices are a zone here, and a city whose graduates are
  * stacking pallets is short of desks rather than of warehouses -- which is a
  * distinction the simulation already draws and which a merged industrial bar would
  * throw away at exactly the moment it starts to matter.
  *
- * SIGNED. The bars run both ways from a centre line. The negative half is doing
+ * SIGNED. The bars run both ways from a centre line, right for short and left
+ * for overbuilt. The negative half is doing
  * real work: it is the answer to "why is my industrial estate empty", and a bar
  * that could only be empty or full would leave that question with no answer at
  * all. Empty means balanced; below the line means overbuilt.
@@ -28,17 +29,34 @@ import { ZONE_STYLE } from './zones';
 /** How often the bars are rewritten, in milliseconds. */
 const REPAINT_MS = 200;
 
-/** Bar geometry, in pixels. */
-const BAR_W = 17;
-const HALF_H = 33;
+/** Bar geometry, in pixels. Small: this is a gauge, not a chart. */
+const TRACK_W = 96;
+const TRACK_H = 7;
+const HALF_W = TRACK_W / 2;
 
-/** The columns, in the order `Demand.want` holds them. */
+/** The rows, in the order `Demand.want` holds them. */
 const COLUMNS = [
   { key: 'residential', letter: 'R', name: 'Residential' },
   { key: 'commercial', letter: 'C', name: 'Commercial' },
   { key: 'industrial', letter: 'I', name: 'Industrial' },
   { key: 'office', letter: 'O', name: 'Office' },
 ] as const;
+
+/**
+ * The colour a bar is drawn in.
+ *
+ * Always the zone's own -- the same green, blue, gold and violet as the swatch
+ * on the button the player has to press, which is the whole reason those colours
+ * exist. Four bars that all went red when the city was overbuilt were four bars
+ * you could not tell apart at exactly the moment it mattered which one you were
+ * reading.
+ *
+ * So the sign is carried by the *side* and the *shade* instead: short of it
+ * fills right in the zone's bright colour, overbuilt fills left in its muted
+ * one. Direction is the faster read of the two and it is the one the eye gets
+ * first; the shade is what keeps the two readable side by side on a dark track,
+ * which the darkest step of each palette is not.
+ */
 
 function style(el: HTMLElement, decls: string[]): void {
   el.style.cssText = decls.join(';');
@@ -66,65 +84,71 @@ export class DemandBars {
     style(this.root, [
       'position:absolute', 'right:12px', 'bottom:14px', 'z-index:6',
       'display:none', 'pointer-events:none',
-      'padding:9px 11px 7px', 'gap:7px',
+      'padding:7px 9px 6px', 'gap:5px',
       'flex-direction:column', 'align-items:stretch',
       'background:rgba(8,12,17,.88)', 'border:1px solid rgba(98,212,255,.16)',
       'border-radius:5px', 'backdrop-filter:blur(14px)',
-      'font:11px/1.55 var(--mono)', 'color:#8fa3bd',
+      'font:10px/1.4 var(--mono)', 'color:#8fa3bd',
     ]);
 
     const head = document.createElement('div');
-    style(head, ['font-size:9px', 'letter-spacing:.14em', 'text-transform:uppercase',
-      'color:#5e7a8f', 'text-align:center']);
+    style(head, ['font-size:8px', 'letter-spacing:.16em', 'text-transform:uppercase',
+      'color:#5e7a8f']);
     head.textContent = 'Demand';
     this.root.appendChild(head);
 
-    const row = document.createElement('div');
-    style(row, ['display:flex', 'gap:6px', 'align-items:flex-end']);
+    const rows = document.createElement('div');
+    style(rows, ['display:flex', 'flex-direction:column', 'gap:3px']);
 
     for (const col of COLUMNS) {
       const cell = document.createElement('div');
       cell.dataset.bar = col.key;
       cell.title = `${col.name} demand`;
-      style(cell, ['display:flex', 'flex-direction:column', 'align-items:center',
-        'gap:4px']);
+      style(cell, ['display:flex', 'align-items:center', 'gap:5px']);
 
-      // The track. The centre line is where zero is, and the fill grows from it
-      // in whichever direction the number goes -- so a glance reads the sign
-      // before it reads the size, which is the order the question is asked in.
-      const track = document.createElement('div');
-      style(track, ['position:relative', `width:${BAR_W}px`, `height:${HALF_H * 2}px`,
-        'background:rgba(255,255,255,.05)', 'border-radius:2px', 'overflow:hidden']);
+      // The identity colour, always visible. A bar that is empty or overbuilt
+      // is not drawn in its zone's colour, and without this the row would then
+      // have nothing on it saying which zone it is about but a single letter.
+      const chip = document.createElement('span');
+      style(chip, ['width:5px', 'height:5px', 'border-radius:1px',
+        `background:${ZONE_STYLE[col.key].base}`, 'flex:0 0 auto']);
 
-      const zero = document.createElement('div');
-      style(zero, ['position:absolute', 'left:0', 'right:0', `top:${HALF_H}px`,
-        'height:1px', 'background:rgba(255,255,255,.22)']);
-
-      const fill = document.createElement('div');
-      fill.dataset.fill = col.key;
-      style(fill, ['position:absolute', 'left:0', 'right:0', `top:${HALF_H}px`,
-        'height:0px', 'border-radius:2px',
-        'background:' + ZONE_STYLE[col.key].base,
-        'transition:top .25s ease,height .25s ease']);
-
-      track.append(fill, zero);
-
-      const letter = document.createElement('div');
-      style(letter, ['font-size:9px', 'letter-spacing:.06em',
+      const letter = document.createElement('span');
+      style(letter, ['font-size:9px', 'width:7px', 'flex:0 0 auto',
         `color:${ZONE_STYLE[col.key].light}`]);
       letter.textContent = col.letter;
 
-      cell.append(track, letter);
-      row.appendChild(cell);
+      // The track. Zero is the middle, and the fill grows out of it in whichever
+      // direction the number goes -- so a glance reads the sign before it reads
+      // the size, which is the order the question is asked in.
+      const track = document.createElement('div');
+      style(track, ['position:relative', `width:${TRACK_W}px`, `height:${TRACK_H}px`,
+        'background:rgba(255,255,255,.05)', 'border-radius:2px', 'overflow:hidden',
+        'flex:0 0 auto']);
+
+      const zero = document.createElement('div');
+      style(zero, ['position:absolute', 'top:0', 'bottom:0', `left:${HALF_W}px`,
+        'width:1px', 'background:rgba(255,255,255,.22)']);
+
+      const fill = document.createElement('div');
+      fill.dataset.fill = col.key;
+      style(fill, ['position:absolute', 'top:0', 'bottom:0', `left:${HALF_W}px`,
+        'width:0px', 'border-radius:2px',
+        'background:' + ZONE_STYLE[col.key].base,
+        'transition:left .25s ease,width .25s ease']);
+
+      track.append(fill, zero);
+      cell.append(chip, letter, track);
+      rows.appendChild(cell);
       this.fills.push(fill);
       this.cells.push(cell);
     }
-    this.root.appendChild(row);
+    this.root.appendChild(rows);
 
     this.caption = document.createElement('div');
     this.caption.dataset.stat = 'queue';
-    style(this.caption, ['font-size:9px', 'text-align:center', 'color:#5e7a8f',
-      'white-space:nowrap']);
+    style(this.caption, ['font-size:8px', 'color:#5e7a8f', 'white-space:nowrap',
+      'letter-spacing:.04em']);
     this.caption.textContent = '—';
     this.root.appendChild(this.caption);
 
@@ -150,13 +174,12 @@ export class DemandBars {
 
     for (let i = 0; i < this.fills.length; i++) {
       const v = Math.max(-1, Math.min(1, r.want[i] ?? 0));
-      const h = Math.round(Math.abs(v) * HALF_H);
+      const w = Math.round(Math.abs(v) * HALF_W);
       const fill = this.fills[i];
-      fill.style.height = `${h}px`;
-      fill.style.top = `${v >= 0 ? HALF_H - h : HALF_H}px`;
-      // Overbuilt reads as a warning rather than as more of the same colour: a
-      // red stub below the line is the one state a player has to act on.
-      fill.style.background = v >= 0 ? ZONE_STYLE[COLUMNS[i].key].base : '#a8443a';
+      fill.style.width = `${w}px`;
+      fill.style.left = `${v >= 0 ? HALF_W : HALF_W - w}px`;
+      const palette = ZONE_STYLE[COLUMNS[i].key];
+      fill.style.background = v >= 0 ? palette.light : palette.base;
       this.cells[i].title = `${COLUMNS[i].name}: `
         + (v > 0.02 ? `${Math.round(v * 100)}% short`
           : v < -0.02 ? `${Math.round(-v * 100)}% overbuilt` : 'balanced');

@@ -43,6 +43,8 @@ import { Dispatch } from './dispatch';
 import { Demand } from './demand';
 import { Growth } from './growth';
 import { Complaints } from './complaints';
+import { TransitNet } from './transit';
+import { Transit } from '../transit';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 
@@ -172,6 +174,8 @@ export class Simulation {
   readonly growth: Growth | undefined;
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
+  /** The bus and tram network the player has drawn, running. */
+  readonly transit: TransitNet;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -183,6 +187,9 @@ export class Simulation {
 
   /** Nodes in the road graph, kept so a rewire does not need the graph passed in. */
   private nodes = 0;
+
+  /** The last day the fares were counted on. */
+  private lastDay = -1;
 
   /** The state the city is derived from, or undefined for a test with no world. */
   private world: World | undefined;
@@ -228,6 +235,13 @@ export class Simulation {
     this.demand = new Demand(this.places, this.people, this.migration);
     this.complaints = new Complaints(this.places, this.people, this.utilities,
       this.services);
+    // A world with no lines in it still gets a network: the tool adds them while
+    // the game is running, and a null to check at every call site is worse than
+    // an object with nothing in it.
+    this.transit = new TransitNet(world?.transit ?? new Transit(), this.places,
+      this.router, this.lanes, this.index, this.traffic);
+    this.routine.servedBy(this.transit);
+    this.complaints.servedBy(this.transit);
     this.growth = world === undefined ? undefined
       : new Growth(world, this.demand, () => this.people.population);
     this.views = new Views({
@@ -384,6 +398,26 @@ export class Simulation {
       run: () => { this.routine.refocus(); },
     });
 
+    // The buses. Keeping the fleets on the road, which is bounded by what the
+    // player has paid for, and re-planning only when a line or a road moved.
+    s.add({
+      name: 'transit', rate: Rate.FAST,
+      run: () => { this.transit.run(); },
+    });
+
+    // The day's ridership, rolled over on the day rather than smoothed: the
+    // number on the panel says "riders a day" and a running average would
+    // disagree with it.
+    s.add({
+      name: 'fares', rate: Rate.STEADY,
+      run: () => {
+        const day = this.clock.day;
+        if (day === this.lastDay) return;
+        this.lastDay = day;
+        this.transit.endOfDay();
+      },
+    });
+
     // What each building is unhappy about. A slice a visit, like everything else
     // that walks a table, so a city of thirty thousand buildings costs what a
     // village does and gets round them all in a few seconds.
@@ -505,6 +539,10 @@ export class Simulation {
     (this.traffic as { junctions: Junctions }).junctions = this.junctions;
     this.traffic.informedBy(this.routine.load, this.router.paths);
     relinkPlaces(this.lanes, this.index, this.places);
+    // Last, because it drops every route and every vehicle it held and both of
+    // those had to survive long enough for the models above to hand theirs back.
+    this.transit.rebind(this.world?.transit ?? new Transit(), this.lanes,
+      this.index, this.traffic);
   }
 
   /**
@@ -587,6 +625,6 @@ export class Simulation {
       + this.people.bytes() + this.migration.bytes() + this.routine.bytes()
       + this.junctions.bytes() + this.traffic.bytes()
       + this.utilities.bytes() + this.services.bytes() + this.views.bytes()
-      + this.dispatch.bytes() + this.complaints.bytes();
+      + this.dispatch.bytes() + this.complaints.bytes() + this.transit.bytes();
   }
 }

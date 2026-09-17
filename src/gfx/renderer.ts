@@ -31,6 +31,7 @@ import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
 import { buildGroundMap } from './ground-map';
+import { buildTransitMesh } from './transit-mesh';
 import {
   overlayLayout, buildOverlayMap, writeOverlay, writeSurface, clearOverlay, OverlayMode,
 } from './overlay-map';
@@ -49,7 +50,7 @@ import {
 // A live binding: the terrain module updates it on every build, and importing
 // the value rather than the binding would read whatever it was at load.
 import { terrainChunksRebuilt } from '../sim/terrain';
-import type { Chunk, World, RoadMesh, City, Dirty } from '../sim';
+import type { Chunk, World, RoadMesh, City, Dirty, TransitShape } from '../sim';
 import type { RoadGraph } from '../sim/roadgraph';
 import { SHADERS } from './shaders';
 
@@ -535,6 +536,10 @@ export class Renderer {
     // half the map bought came back owning the four plots the starting map does,
     // and nothing outside them would build.
     this.world.land = next.land;
+    // And the lines. Same shape of bug as the two above: a loaded save whose
+    // buses were not copied across came back with the starting map's, which is
+    // none of them.
+    this.world.transit = next.transit;
     // A world that arrives whole was not built by the player watching it, so
     // nothing in it rises: every instance in the next rebuild is dated to that
     // moment, and the growth curve treats them all as new. Clearing the ages
@@ -2160,6 +2165,67 @@ export class Renderer {
    */
   dotKind = 0;
 
+  /**
+   * The transit lines to draw, as the simulation last worked them out.
+   *
+   * Handed in rather than derived here, because the route a bus takes between two
+   * stops is a search over the lane graph and the renderer has no business
+   * knowing what a lane is. Null means draw none.
+   */
+  private transitShapes: readonly TransitShape[] | null = null;
+  private transitData: Float32Array<ArrayBuffer> = new Float32Array(0);
+
+  /**
+   * Shows the lines and their stops, or hides them.
+   *
+   * Every line, every time, rather than only the one in hand: a player laying a
+   * route needs to see the routes already there, and the whole reason the lines
+   * are offset sideways from one another is that they are meant to be looked at
+   * together.
+   */
+  setTransit(shapes: readonly TransitShape[] | null): void {
+    this.transitShapes = shapes;
+    this.buildDots();
+    this.buildMainsLines();
+  }
+
+  /**
+   * Whether anything wants the lines drawn.
+   *
+   * Set by the transit tool and by the transport view, read by whatever owns the
+   * simulation -- which is the only thing that can work the routes out. A flag
+   * rather than a call because the answer changes when a tool is picked and the
+   * shapes change when a road moves, and those are different moments.
+   */
+  wantTransit = false;
+
+  /** The line being drawn right now, as bare stops. Null when none is. */
+  private transitDraft: TransitShape | null = null;
+
+  /**
+   * The line the player is laying, before it is a line.
+   *
+   * Drawn as its stops and the chords between them, which is not the route --
+   * the route does not exist until the line does. It is explicitly a sketch and
+   * it reads as one: what the player is placing is the *stops*, and the chord is
+   * there to say which order they are in.
+   */
+  setTransitDraft(stops: Float32Array | null, colour = '#62d4ff'): void {
+    this.transitDraft = stops === null || stops.length < 2 ? null : {
+      id: -1, kind: 0, colour, points: stops.slice(), stops,
+      served: new Uint8Array(stops.length / 2).fill(1), works: true,
+    };
+    this.buildDots();
+    this.buildMainsLines();
+  }
+
+  /** Everything to draw: the lines that exist, then the one being drawn. */
+  private allTransit(): readonly TransitShape[] {
+    const live = this.transitShapes ?? [];
+    if (this.transitDraft === null) return live;
+    return [...live, this.transitDraft];
+  }
+
   /** A buffer for `n` markers, and the group that binds it. */
   private makeDots(device: GPUDevice, layout: GPUBindGroupLayout, n: number): {
     dotBuffer: GPUBuffer; dotGroup: GPUBindGroup; dotCount: number;
@@ -2194,7 +2260,8 @@ export class Renderer {
     if (!res) return;
     const kind = this.dotKind;
     const city = this.city;
-    if (kind === 0 || city === null || city.count === 0) {
+    if (kind === 0) { this.buildStopDots(); return; }
+    if (city === null || city.count === 0) {
       res.dotCount = 0;
       return;
     }
@@ -2231,6 +2298,49 @@ export class Renderer {
   }
 
   /**
+   * The stops, on the same marker pipeline the mains connections use.
+   *
+   * A stop is a point on a road that answers a question about the line, which is
+   * the same shape of thing a connection marker is, so it is the same draw.
+   */
+  private buildStopDots(): void {
+    const res = this.res;
+    if (!res) return;
+    const shapes = this.allTransit();
+    if (shapes.length === 0) { res.dotCount = 0; return; }
+    let stops = 0;
+    for (const s of shapes) stops += s.stops.length / 2;
+    if (stops === 0) { res.dotCount = 0; return; }
+    if (stops * DOT_FLOATS > this.dotData.length) {
+      this.dotData = new Float32Array(stops * DOT_FLOATS);
+    }
+    const out = this.dotData;
+    let n = 0;
+    for (const shape of shapes) {
+      const c = hexRgb(shape.colour);
+      for (let i = 0; i < shape.stops.length; i += 2) {
+        const x = shape.stops[i], z = shape.stops[i + 1];
+        const at = n * DOT_FLOATS;
+        out[at] = x; out[at + 1] = heightAt(x, z) + 4.5; out[at + 2] = z;
+        out[at + 3] = 2.6;
+        out[at + 4] = c[0]; out[at + 5] = c[1]; out[at + 6] = c[2];
+        // The same channel the connection markers use for "is it connected".
+        // A stop the route cannot reach draws hollow, which is the only warning
+        // a player gets that the buses will drive straight past it.
+        out[at + 7] = shape.works && shape.served[i / 2] !== 0 ? 1 : 0;
+        n++;
+      }
+    }
+    const { device } = this.gpu;
+    if (res.dotBuffer.size < Math.max(1, n) * DOT_FLOATS * 4) {
+      res.dotBuffer.destroy();
+      Object.assign(res, this.makeDots(device, res.layouts.dots, n));
+    }
+    if (n > 0) device.queue.writeBuffer(res.dotBuffer, 0, out, 0, n * DOT_FLOATS);
+    res.dotCount = n;
+  }
+
+  /**
    * Rebuilds the lines the mains are drawn as.
    *
    * Whole rather than patched, for the same reason the markers are: a drag can
@@ -2240,14 +2350,32 @@ export class Renderer {
   private buildMainsLines(): void {
     const res = this.res;
     if (!res) return;
-    if (this.dotKind === 0) { res.mainsCount = 0; return; }
+    if (this.dotKind === 0) {
+      // No utility in hand, so the same buffer draws the transit lines instead.
+      // One pipeline, one buffer, two things that are a coloured ribbon along a
+      // road -- and never both at once, because an underground view and a bus
+      // map are two different questions.
+      const shapes = this.allTransit();
+      if (shapes.length === 0) { res.mainsCount = 0; return; }
+      const line = buildTransitMesh(shapes, heightAt, this.transitData);
+      this.transitData = line.vertices;
+      this.writeMains(line.vertices, line.count);
+      return;
+    }
     // Only the utility in hand. All three at once is what the trench really looks
     // like and is unreadable at the zoom somebody lays pipes from.
     const mesh = buildMainsMesh(this.world.mains, this.world.net, heightAt,
       this.dotKind, this.mainsData);
     this.mainsData = mesh.vertices;
+    this.writeMains(mesh.vertices, mesh.count);
+  }
+
+  /** Uploads a ribbon mesh into the shared line buffer, growing it if it must. */
+  private writeMains(vertices: Float32Array<ArrayBuffer>, count: number): void {
+    const res = this.res;
+    if (!res) return;
     const { device } = this.gpu;
-    const want = Math.max(1, mesh.count) * MAIN_VERTEX_FLOATS * 4;
+    const want = Math.max(1, count) * MAIN_VERTEX_FLOATS * 4;
     if (res.mainsVertices.size < want) {
       res.mainsVertices.destroy();
       res.mainsVertices = device.createBuffer({
@@ -2255,11 +2383,11 @@ export class Renderer {
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
       });
     }
-    if (mesh.count > 0) {
-      device.queue.writeBuffer(res.mainsVertices, 0, mesh.vertices, 0,
-        mesh.count * MAIN_VERTEX_FLOATS);
+    if (count > 0) {
+      device.queue.writeBuffer(res.mainsVertices, 0, vertices, 0,
+        count * MAIN_VERTEX_FLOATS);
     }
-    res.mainsCount = mesh.count;
+    res.mainsCount = count;
   }
 
   /** Total buildings in the world, drawn or not. */

@@ -16,6 +16,7 @@ import { RoadGraph } from './roadgraph';
 import type { RoadClass } from './roadgraph';
 import { simConfig } from './config';
 import { Mains } from './mains';
+import { Transit } from './transit';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
@@ -143,6 +144,8 @@ export interface World {
    * world the player starts on zeroes it, which is what turns the mask on.
    */
   grown: Uint8Array;
+  /** The bus and tram lines the player has drawn. */
+  transit: Transit;
 }
 
 /** Cells of buildable block between corridors. */
@@ -158,6 +161,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     land: startingLand(), mains: new Mains(grid),
     // All ones: released. See `World.grown`.
     grown: new Uint8Array(grid * grid).fill(1),
+    transit: new Transit(),
   };
 }
 

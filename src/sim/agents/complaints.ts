@@ -32,6 +32,7 @@ import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
 import { Utilities, Util } from './utilities';
 import { Services } from './services';
+import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
 
 /**
@@ -221,6 +222,17 @@ export class Complaints {
     private services: Services,
   ) {}
 
+  /**
+   * The bus and tram network, once there is one.
+   *
+   * A stop is not a building, so the coverage model cannot see one -- and
+   * without this a city with a bus down every street is still told that none of
+   * it is reachable, which is the sort of wrong answer that teaches a player to
+   * ignore the bubbles.
+   */
+  private transit: TransitNet | null = null;
+  servedBy(transit: TransitNet): void { this.transit = transit; }
+
   /** The complaints the interface may draw. Do not hold on to the array. */
   get list(): readonly Complaint[] { return this.shown; }
 
@@ -350,7 +362,10 @@ export class Complaints {
     }
 
     // Last, because it is the mildest and the one a player will often leave.
-    if (occupied && s.at(id, BRANCH.transport) < UNCOVERED * 0.5) return Gripe.NO_TRANSPORT;
+    if (occupied && s.at(id, BRANCH.transport) < UNCOVERED * 0.5
+      && !(this.transit?.reaches(c.x[id], c.z[id]) ?? false)) {
+      return Gripe.NO_TRANSPORT;
+    }
     return Gripe.NONE;
   }
 

@@ -33,6 +33,7 @@ import { Clock, TICKS_PER_DAY, TICKS_PER_MINUTE, MINUTES_PER_DAY } from './calen
 import { Places, Purpose, Pool } from './places';
 import { People, Doing, Stage, NONE } from './people';
 import { Layer, profileOf, NO_PATH } from './path';
+import type { TransitNet } from './transit';
 import { Router } from './router';
 import type { Sink } from './router';
 import { Use } from './lanes';
@@ -126,10 +127,7 @@ const CYCLISTS = 0.45;
  */
 const ROAD_SPACE = [0.12, 0.2, 1, 2.5];
 
-/** Minutes a bus is assumed to be away, before any timetable exists. */
-const TRANSIT_WAIT_MINUTES = 7;
-/** Metres a transit stop may be from either end of the trip. */
-const TRANSIT_ACCESS = 500;
+
 
 /**
  * The chance somebody goes out on a given day beyond what their schedule forces.
@@ -294,6 +292,16 @@ export class Routine {
   /** Camera, or wherever the player is looking. Set by the renderer. */
   focusX = 0;
   focusZ = 0;
+
+  /**
+   * The public transport network, once there is one.
+   *
+   * Attached afterwards rather than taken in the constructor because the
+   * dependency is genuinely mutual: what the network is worth depends on who
+   * rides it, and who rides it depends on what the network is worth.
+   */
+  private transit: TransitNet | null = null;
+  servedBy(transit: TransitNet): void { this.transit = transit; }
 
   readonly stats: TripStats = {
     started: 0, arrived: 0, estimated: 0,
@@ -529,7 +537,8 @@ export class Routine {
    * perturbs and takes the minimum, which produces a very similar split for a
    * fraction of the arithmetic and is being asked millions of times.
    */
-  chooseMode(id: number, metres: number): number {
+  chooseMode(id: number, metres: number,
+    ax = 0, az = 0, bx = 0, bz = 0): number {
     const c = this.people.citizens.col;
     const hh = c.house[id];
     const cars = hh === NONE ? 0 : this.people.households.col.cars[hh];
@@ -549,14 +558,24 @@ export class Routine {
         if (stage === Stage.INFANT || stage === Stage.SENIOR) continue;
         if (frac(id + 0x51de) > CYCLISTS) continue;
       }
-      if (m === Mode.TRANSIT && !this.transitReaches(id)) continue;
-
       const speed = profileOf(MODE_LAYER[m]).top;
       let seconds = metres / speed;
       // A car is faster than its top speed suggests it is not: junctions, parking
-      // and the walk at either end. Transit waits.
+      // and the walk at either end.
       if (m === Mode.CAR) seconds = seconds * 1.35 + 180;
-      if (m === Mode.TRANSIT) seconds = metres / 8 + TRANSIT_WAIT_MINUTES * 60;
+      if (m === Mode.TRANSIT) {
+        // The real journey on the real network: the walk to the nearest stop of
+        // a line that also passes the other end, half a headway of waiting, the
+        // ride, and the walk off. Minus one means no line goes there, which is
+        // not an expensive option -- it is not an option.
+        //
+        // This used to be the distance over a guessed speed plus a guessed wait,
+        // which meant a city with one bus stop in it had a bus service and a city
+        // with a hundred had the same one.
+        const real = this.transit === null ? -1 : this.transit.journey(ax, az, bx, bz);
+        if (real < 0) continue;
+        seconds = real;
+      }
 
       const cost = seconds * VALUE_OF_TIME
         + FARE_FIXED[m] + FARE_PER_KM[m] * km
@@ -565,28 +584,6 @@ export class Routine {
       if (perturbed < bestCost) { bestCost = perturbed; bestMode = m; }
     }
     return bestMode;
-  }
-
-  /** Whether public transport gets near enough to both ends to be an option. */
-  private transitReaches(id: number): boolean {
-    const b = BRANCHES.indexOf('transport' as never);
-    if (b < 0) return false;
-    const pool = this.places.byBranch[b];
-    if (pool.size === 0) return false;
-    const c = this.people.citizens.col;
-    const col = this.places.col;
-    const from = c.where[id], to = c.target[id];
-    const check = (p: number): boolean => {
-      if (p === NONE) return false;
-      for (let k = 0; k < 3; k++) {
-        const s = pool.pick(this.rng.next());
-        if (s < 0) return false;
-        const dx = col.x[s] - col.x[p], dz = col.z[s] - col.z[p];
-        if (dx * dx + dz * dz < TRANSIT_ACCESS * TRANSIT_ACCESS) return true;
-      }
-      return false;
-    };
-    return check(from) && check(to);
   }
 
   // ---- running trips -----------------------------------------------------
@@ -601,8 +598,13 @@ export class Routine {
     const metres = Math.hypot(col.x[target] - ax, col.z[target] - az);
 
     c.target[id] = target;
-    const mode = this.chooseMode(id, metres);
+    const bx = col.x[target], bz = col.z[target];
+    const mode = this.chooseMode(id, metres, ax, az, bx, bz);
     c.mode[id] = mode;
+    // A fare taken. Counted here rather than on arrival because what crowds a
+    // line is the people getting on it, and somebody who has decided to catch a
+    // bus is on the platform whether or not they have got there yet.
+    if (mode === Mode.TRANSIT) this.transit?.board(ax, az, bx, bz);
     const layer = MODE_LAYER[mode];
 
     // Which lane each end hangs off depends on how they are travelling: a car
