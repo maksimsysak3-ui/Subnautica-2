@@ -36,7 +36,7 @@ const CELL = 8;
 
 export type RoadClass =
   | 'track' | 'lane' | 'alley' | 'path' | 'pedestrian'
-  | 'street' | 'cycleStreet' | 'oneway' | 'bus' | 'promenade'
+  | 'street' | 'cycleStreet' | 'oneway' | 'onewayWide' | 'bus' | 'promenade'
   | 'avenue' | 'boulevard' | 'tram' | 'tramStreet'
   | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway';
 
@@ -142,6 +142,11 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     oneWay: true, tram: false, lamp: 34, kerbed: true,
     surface: 'tarmac', cycle: 0,
   },
+  onewayWide: {
+    label: 'One-way avenue', half: 6.6, edge: 9.0, lanes: 3, median: 0,
+    oneWay: true, tram: false, lamp: 30, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
   bus: {
     label: 'Bus route', half: 5.2, edge: 7.5, lanes: 2, median: 0,
     oneWay: false, tram: false, lamp: 32, kerbed: true,
@@ -225,6 +230,9 @@ export const ROAD_IDS: RoadClass[] = [
   'lane', 'street', 'oneway', 'bus', 'avenue', 'tram', 'dual', 'motorway',
   'track', 'alley', 'path', 'pedestrian', 'cycleStreet', 'promenade',
   'boulevard', 'tramStreet', 'industrial', 'highway', 'slip',
+  // Appended, never inserted: a save stores the index into this array, so a
+  // class added anywhere but the end renames every road in every old file.
+  'onewayWide',
 ];
 
 /**
@@ -233,7 +241,7 @@ export const ROAD_IDS: RoadClass[] = [
  */
 export const ROAD_ORDER: RoadClass[] = [
   'path', 'track', 'alley', 'pedestrian', 'lane',
-  'street', 'cycleStreet', 'oneway', 'promenade', 'bus',
+  'street', 'cycleStreet', 'oneway', 'onewayWide', 'promenade', 'bus',
   'avenue', 'boulevard', 'tramStreet', 'tram',
   'industrial', 'highway', 'dual', 'slip', 'motorway',
 ];
@@ -974,11 +982,17 @@ export class RoadGraph {
   junctionRadius(node: number): number {
     const arms = this.armsOf(node);
     if (arms.length === 0) return 0;
-    let widest = 0;
-    for (const i of arms) widest = Math.max(widest, ROAD_SPECS[this.links[i].cls].edge);
-    // A junction of two arms is a bend, not a crossing, and needs no more room
-    // than the road itself.
-    return arms.length <= 2 ? widest * 0.35 : widest * 1.15;
+    // Sized on the carriageway rather than on the corridor.
+    //
+    // `edge` is the reserved corridor -- the road plus its verges, its footways
+    // and the room a building must keep off it -- and a junction paved to that
+    // is a plaza: an avenue crossing an avenue became a twenty-two metre square
+    // of tarmac with the roads arriving at the middle of it. What a crossing
+    // actually needs is half the widest carriageway plus a corner radius, which
+    // is what this is.
+    let paved = 0;
+    for (const i of arms) paved = Math.max(paved, ROAD_SPECS[this.links[i].cls].half);
+    return arms.length <= 2 ? paved * 0.55 : paved * 1.25;
   }
 
   /**

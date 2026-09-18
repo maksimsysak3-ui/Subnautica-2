@@ -266,6 +266,41 @@ fn slabRoad(world : vec2f, u : f32, v : f32, mpp : f32) -> vec3f {
  * Returns coverage, so the caller can mix towards the paint colour rather than
  * this having to know what colour the road under it is.
  */
+/**
+ * The arrows down a one-way street.
+ *
+ * A one-way road that is only marked by what it *lacks* -- no centre line -- is
+ * a road a player has to work out. One arrow per lane every twenty metres is
+ * how every city in the world says it, and it is two strokes and a shaft.
+ *
+ * Drawn in the lane's own coordinates, so a three-lane one-way gets three
+ * columns of arrows rather than one down the middle of the road.
+ */
+fn arrows(u : f32, v : f32, half : f32, lanes : f32, mpp : f32) -> f32 {
+  let n = max(lanes, 1.0);
+  let w = 2.0 * half / n;
+  // Which lane this pixel is in, and where it sits across that lane.
+  let lane = floor((u + half) / w);
+  let mid = -half + (lane + 0.5) * w;
+  let du = u - mid;
+  // Repeated along the road. The arrow points towards +v, which is the
+  // direction of travel on a one-way link.
+  let period = 22.0;
+  let f = fract(v / period) * period;
+  var paint = 0.0;
+  // The shaft: three metres of it, behind the head.
+  if (f > 1.6 && f < 4.6) {
+    paint = max(paint, stripe(du, 0.0, 0.16, mpp));
+  }
+  // The head: two strokes opening backwards from the point at f = 1.5.
+  if (f >= 0.0 && f <= 1.6) {
+    let spread = (1.6 - f) * 0.62;
+    paint = max(paint, stripe(abs(du), spread, 0.17, mpp));
+  }
+  // Never over the edge line, and never so wide it reads as a hatch.
+  return paint * step(abs(du), min(1.0, w * 0.42));
+}
+
 fn markings(u : f32, v : f32, half : f32, lanes : f32, flags : u32, mpp : f32) -> f32 {
   var paint = 0.0;
   let oneWay = (flags & 1u) != 0u;
@@ -293,6 +328,7 @@ fn markings(u : f32, v : f32, half : f32, lanes : f32, flags : u32, mpp : f32) -
       paint = max(paint, stripe(u, -half + i * 2.0 * w, 0.11, mpp)
                        * dashed(v + 4.5, 12.0, 3.0, mpp));
     }
+    paint = max(paint, arrows(u, v, half, lanes, mpp));
   }
   return paint;
 }
