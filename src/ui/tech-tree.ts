@@ -15,7 +15,7 @@
  */
 
 import { SKIN, css, panel, label, bar, key as keyStyle, setKey, tip } from './skin';
-import { assetIcon } from './icons';
+import { assetIcon, hasIcon } from './icons';
 import { zoneIcon } from './zones';
 import type { Branch } from '../assets/types';
 import { BRANCH_LABEL, BRANCH_ORDER, TECH, TECH_BY_ID } from '../sim/tech';
@@ -345,18 +345,21 @@ export class TechTree {
         : 'box-shadow:inset 0 1px 0 rgba(255,255,255,.06)',
       'transition:transform .12s, box-shadow .12s']);
 
-    // The branch's own pictogram, in the branch's colour -- the same symbol the
-    // build bar uses for the same department. A photograph of one of the
-    // buildings read as *that building* rather than as the thing being
-    // unlocked, and a node that hands over a fire station cannot be told from
-    // one that hands over a fire house at forty pixels.
-    const glyph = document.createElement('span');
-    glyph.innerHTML = zoneIcon(node.branch as Branch, 38);
-    css(glyph, ['display:flex',
-      `opacity:${bought ? '1' : ready ? '0.85' : '0.32'}`,
-      bought ? `filter:drop-shadow(0 0 7px ${tint}66)`
-        : 'filter:grayscale(.8) brightness(.9)']);
-    circle.appendChild(glyph);
+    // The building itself, from the same photographs the build bar uses. The
+    // rail on the left carries the bar's pictogram for the whole branch; a node
+    // is one specific building, so it shows that building.
+    const shown = node.assets.find((id) => hasIcon(id));
+    if (shown !== undefined) {
+      const icon = assetIcon(shown, 60);
+      icon.style.opacity = bought ? '1' : ready ? '0.8' : '0.3';
+      icon.style.filter = bought ? `drop-shadow(0 0 8px ${tint}44)` : 'grayscale(1)';
+      circle.appendChild(icon);
+    } else {
+      const glyph = document.createElement('span');
+      glyph.innerHTML = zoneIcon(node.branch as Branch, 36);
+      css(glyph, ['display:flex', `opacity:${bought ? '1' : '0.4'}`]);
+      circle.appendChild(glyph);
+    }
 
     // The badge: what it costs, or a tick once it is bought.
     const badge = document.createElement('span');
