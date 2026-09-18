@@ -46,14 +46,6 @@ import { OVERDRAFT } from '../budget';
 /** Cells across one released patch. One or two buildings' worth. */
 const PATCH = 5;
 
-/**
- * Cells the cursor may step over in one visit.
- *
- * Only spent while there is something to build, so on a map with no demand this
- * costs nothing at all. Twenty thousand byte reads is about twenty microseconds,
- * and it gets the cursor round a six hundred cell map in eighteen visits.
- */
-const LOOK_PER_VISIT = 20000;
 
 /**
  * Patches a city of a thousand people releases in a game day at full demand.
@@ -92,6 +84,15 @@ const FOUNDING_RUSH = 5;
  * boom the moment it was opened.
  */
 const FOUNDING_POP = 500;
+
+/**
+ * How many waiting cells the survey writes down at once.
+ *
+ * Sixty-five thousand is a hundred and sixty patches of frontage, which is more
+ * than a city releases in several minutes -- and the rest is picked up by the
+ * next survey. Two hundred and sixty kilobytes, once.
+ */
+const PENDING_CAP = 65536;
 
 /** Demand below this grows nothing. Above it, growth scales with how far above. */
 const THRESHOLD = 0.02;
@@ -158,7 +159,6 @@ export interface GrowthReport {
 }
 
 export class Growth {
-  private cursor = 0;
   /**
    * Fractional patches carried over, per zone, so a tenth of a patch a day is not
    * zero -- and so one zone cannot spend the whole city's growth.
@@ -171,6 +171,17 @@ export class Growth {
    * much the city wants it, and can spend nothing else.
    */
   private readonly owed = new Float64Array(ZONES.length);
+  /**
+   * Where the land that is waiting actually is, from the last survey.
+   *
+   * Capped: a city can have more zoned land waiting than is worth keeping a
+   * list of, and the cap costs nothing -- what is left over is picked up by the
+   * next survey, once the cells in front of it have been released.
+   */
+  private pending = new Int32Array(0);
+  private pendingCount = 0;
+  private pendingAt = 0;
+
   /** The rectangle released since the last `take`, in cells, or null. */
   private dirty: { gx: number; gz: number; w: number; d: number } | null = null;
   /**
@@ -212,7 +223,6 @@ export class Growth {
   /** The world was replaced. */
   rebind(world: World): void {
     this.world = world;
-    this.cursor = 0;
     this.owed.fill(0);
     this.dirty = null;
     this.surveyed = -1;
@@ -294,10 +304,30 @@ export class Growth {
     let gx0 = g, gz0 = g, gx1 = -1, gz1 = -1;
     let patches = 0, took = 0;
 
-    while (ready > 0 && patches < MAX_PER_VISIT && looked < LOOK_PER_VISIT) {
-      const at = this.cursor;
-      this.cursor = this.cursor + 1 < cells ? this.cursor + 1 : 0;
+    // Over the cells that are actually waiting, not over the map.
+    //
+    // This was a cursor walking all four hundred thousand cells of the grid,
+    // twenty thousand a visit, releasing whatever zoned land it happened to
+    // pass. On the small worlds the tests use -- eight thousand cells -- that
+    // sweeps the whole map every visit and looks instantaneous. On the world
+    // the game actually runs, a player who zoned a block had to wait for the
+    // cursor to travel to it: half a sweep on average, which is ten visits and
+    // most of a minute, and a full sweep if they zoned just behind it. That is
+    // the "I zone and nothing happens" this has been chased through three
+    // times, and it never reproduced because every probe ran on a small map.
+    //
+    // The survey already walks the whole grid on a slow timer to count what is
+    // waiting. It now writes down where, so this walks a list of candidates
+    // instead of the map, and a freshly painted street is found on the first
+    // visit after it is painted whatever the map's size.
+    const pending = this.pending;
+    const n = this.pendingCount;
+    if (n === 0) return;
+    while (ready > 0 && patches < MAX_PER_VISIT && looked < n) {
+      const at = pending[this.pendingAt];
+      this.pendingAt = this.pendingAt + 1 < n ? this.pendingAt + 1 : 0;
       looked++;
+      if (at < 0 || at >= cells) continue;
       if (grown[at] !== 0) continue;
       const zi = zoneIndexOf(zones[at]);
       if (zi < 0 || owed[zi] < 1) continue;
@@ -386,14 +416,20 @@ export class Growth {
     const zones = world.zones, grown = world.grown;
     const byZone = this.report.waitingByZone;
     byZone.fill(0);
+    if (this.pending.length === 0) this.pending = new Int32Array(PENDING_CAP);
+    const pending = this.pending;
+    let held = 0;
     let waiting = 0, released = 0;
     for (let at = 0; at < zones.length; at++) {
       if (zones[at] === 0) continue;
       if (grown[at] !== 0) { released++; continue; }
       waiting++;
+      if (held < PENDING_CAP) pending[held++] = at;
       const z = zoneIndexOf(zones[at]);
       if (z >= 0) byZone[z]++;
     }
+    this.pendingCount = held;
+    this.pendingAt = 0;
     this.report.waiting = waiting;
     this.report.released = released;
     this.surveyed = this.world.painted;
