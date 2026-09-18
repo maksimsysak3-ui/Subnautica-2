@@ -1194,7 +1194,11 @@ Promise<{ pixels: number[]; movers: string }> {
   live.playing = true;
   camera.setViewport(width, height);
   camera.yaw = 0.62; camera.pitch = 0.46; camera.distance = dist;
-  camera.focus[0] = 0; camera.focus[2] = 0;
+  // Where to point it. Zero is the middle of the map, which is downtown; a
+  // probe judging suburban ground has to be able to go and look at some.
+  const aim = (globalThis as unknown as { HUD_AIM?: [number, number] }).HUD_AIM;
+  camera.focus[0] = aim ? aim[0] : 0;
+  camera.focus[2] = aim ? aim[1] : 0;
   camera.update();
 
   const sim = (live as unknown as { sim: Simulation }).sim;

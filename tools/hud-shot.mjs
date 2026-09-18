@@ -44,10 +44,12 @@ await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
 const DIST = Number(process.env.DIST || 520);
 const PANEL = process.env.PANEL || '';
 const HOUR = Number(process.env.HOUR ?? 0.36);
-const r = await page.evaluate(async ([w, h, d, p, hr]) => {
+const AIM = (process.env.AIM || '').split(',').map(Number);
+const r = await page.evaluate(async ([w, h, d, p, hr, aim]) => {
+  if (aim && aim.length === 2 && Number.isFinite(aim[0])) globalThis.HUD_AIM = aim;
   try { return await HEADLESS.probeHud(w, h, hr, d, p); }
   catch (err) { return { error: String(err && err.stack ? err.stack : err) }; }
-}, [W, H, DIST, PANEL, HOUR]);
+}, [W, H, DIST, PANEL, HOUR, AIM]);
 if (r.error) { console.log(r.error); await browser.close(); server.close(); process.exit(1); }
 
 // The card, the rail and the bubbles are DOM; the city is a texture. Composite

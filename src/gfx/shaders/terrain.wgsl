@@ -376,11 +376,41 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       yard *= 1.0 + (smoothstep(0.55, 0.75, mend) - 0.25) * 0.30 * fTuft;
     }
 
-    // Garden: the same turf, mown. Tidier and deeper than a field, because
-    // that is what the difference between a lawn and a meadow is -- and the
-    // parcel colouring that makes open country read as farmland is exactly
-    // what a suburb must not have.
-    let garden = mix(turf, vec3f(0.044, 0.099, 0.034), 0.52) * (0.94 + wear * 0.12);
+    // Garden: the same turf, mown, and then cut into plots.
+    //
+    // A residential block is not a lawn with houses standing on it. It is a row
+    // of plots, each with its own grass, its own drive or hard standing, and a
+    // boundary between it and the next -- and without that a suburb from the
+    // air is one continuous green sheet with roofs on it, which is exactly what
+    // this was. The countryside got parcels years ago and the city never did.
+    //
+    // The same decomposition the fields use, at a twelfth of the size: about
+    // twelve metres, which is a house's frontage. Held to the near ground for
+    // the same reason the fields are -- a pattern the eye cannot resolve is
+    // noise -- and skipped entirely past it, so the cost only lands where it is
+    // visible.
+    var garden = mix(turf, vec3f(0.044, 0.099, 0.034), 0.52) * (0.94 + wear * 0.12);
+    let plotFade = 1.0 - smoothstep(420.0, 1100.0, length(camera.eye.xz - in.world.xz));
+    if (plotFade > 0.004) {
+      let plot = cells(in.world.xz * (1.0 / 12.0) + vec2f(soil, wear) * 0.35);
+      // Every garden is kept differently. A shift in hue as well as in value,
+      // so neighbouring plots read apart rather than as a brightness wobble.
+      let keeping = fract(plot.id * 31.7);
+      garden *= 1.0 + (keeping - 0.5) * 0.30 * plotFade;
+      garden = mix(garden, garden * vec3f(1.22, 1.05, 0.72),
+                   smoothstep(0.72, 0.96, keeping) * 0.55 * plotFade);
+      // Roughly one plot in four is more hard standing than grass: a drive, a
+      // parking pad, a yard that was never planted. Placed inside the plot
+      // rather than over the whole of it, so it reads as part of a garden.
+      let hard = smoothstep(0.70, 0.78, fract(plot.id * 7.13));
+      let pad = smoothstep(0.55, 0.22, plot.d1) * hard;
+      garden = mix(garden, paved * 0.92, pad * plotFade);
+      // The boundary: a hedge or a fence line, dark and narrow. This is what
+      // turns a green sheet into a row of gardens, and it is worth more than
+      // everything above it.
+      let edge = 1.0 - smoothstep(0.0, 0.055, plot.d2 - plot.d1);
+      garden = mix(garden, vec3f(0.026, 0.052, 0.028), edge * 0.62 * plotFade);
+    }
     // Park: watered, and striped by the mower at a scale you can see.
     let stripe = 0.5 - abs(fract(dot(in.world.xz, vec2f(0.19, 0.14))) - 0.5);
     let park = mix(turf, vec3f(0.036, 0.112, 0.030), 0.66)
