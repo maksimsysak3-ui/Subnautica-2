@@ -71,6 +71,16 @@ export const Turn = {
 const TURN_SECONDS = [0, 2.5, 6.0, 12.0];
 
 /**
+ * How far outside the paved junction the stop line sits, in metres.
+ *
+ * A car's nose stops about a metre short of the give-way markings and the
+ * markings sit a little outside the paving, which together is about this. Small
+ * enough that a vehicle holding here still reads as being at the junction
+ * rather than parked up the road from it.
+ */
+const STOP_LINE_MARGIN = 1.6;
+
+/**
  * Which side traffic drives on. 1 for the right, -1 for the left.
  *
  * It decides which of a carriageway's lanes is the kerbside one, and so which
@@ -157,6 +167,24 @@ export interface LaneGraph {
   speed: Float32Array;
   /** Seconds to traverse when empty: length / speed, precomputed. */
   free: Float32Array;
+  /**
+   * How far back from the end node the stop line is, in metres.
+   *
+   * A lane runs from node centre to node centre, and a node is the *middle* of
+   * its junction -- so "the end of the lane" is the middle of the crossroads.
+   * Everything that holds a vehicle for a light, a give way or a conflicting
+   * movement held it there, which put every waiting car in the box it was
+   * waiting to enter. From the air that is the single most broken thing traffic
+   * can do, and it is what made a junction read as cars stopping in it, sitting
+   * there, and then sliding out.
+   *
+   * So the model has a stop line: this far short of the node, which is the edge
+   * of the paved junction plus a little. A vehicle waits here, and the metres
+   * between here and the node are the junction it then drives across.
+   */
+  stopBack: Float32Array;
+  /** The same, at the lane's start node: where it leaves that junction. */
+  startBack: Float32Array;
   /** The node this lane starts at and ends at, in the road graph. */
   from: Int32Array;
   to: Int32Array;
@@ -287,6 +315,8 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     from: new Int32Array(count), to: new Int32Array(count),
     ax: new Float32Array(count), az: new Float32Array(count),
     bx: new Float32Array(count), bz: new Float32Array(count),
+    stopBack: new Float32Array(count),
+    startBack: new Float32Array(count),
     itx: new Float32Array(count), itz: new Float32Array(count),
     etx: new Float32Array(count), etz: new Float32Array(count),
     edgeStart: new Int32Array(count), edgeEnd: new Int32Array(count),
@@ -341,6 +371,21 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     if (spec.oneWay) { linkStart[i * 2 + BACKWARD] = at; linkEnd[i * 2 + BACKWARD] = at; }
   }
   g.count = at;
+
+  // The stop lines. Taken from the junction's own size rather than a constant,
+  // because a crossroads of two avenues is twice the box a pair of streets is,
+  // and a fixed set-back would put a car short of one and inside the other.
+  // Capped against the lane's own length so a short link between two big
+  // junctions still has somewhere to stop rather than a stop line behind its
+  // own start.
+  for (let l = 0; l < g.count; l++) {
+    const node = g.to[l];
+    const r = node >= 0 && node < net.nodes.length ? net.junctionRadius(node) : 0;
+    g.stopBack[l] = Math.min(r + STOP_LINE_MARGIN, g.length[l] * 0.35);
+    const start = g.from[l];
+    const sr = start >= 0 && start < net.nodes.length ? net.junctionRadius(start) : 0;
+    g.startBack[l] = Math.min(sr + STOP_LINE_MARGIN, g.length[l] * 0.35);
+  }
 
   // Pass three: the movements.
   //
@@ -435,6 +480,7 @@ export function laneBytes(g: LaneGraph): number {
     + g.from.byteLength + g.to.byteLength
     + g.ax.byteLength + g.az.byteLength + g.bx.byteLength + g.bz.byteLength
     + g.itx.byteLength + g.itz.byteLength + g.etx.byteLength + g.etz.byteLength
+    + g.stopBack.byteLength + g.startBack.byteLength
     + g.edgeStart.byteLength + g.edgeEnd.byteLength
     + g.edgeTo.byteLength + g.edgeTurn.byteLength + g.edgeCost.byteLength
     + g.linkStart.byteLength + g.linkEnd.byteLength;

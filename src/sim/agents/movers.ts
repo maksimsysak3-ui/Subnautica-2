@@ -109,7 +109,7 @@ export class Movers {
    * a turn, rather than a slide.
    */
   private placeOn(lanes: LaneGraph, lane: number, along: number, next: number,
-    paths: PathStore, route: number, step: number): [number, number] {
+    paths: PathStore, route: number, step: number, shift: number): [number, number] {
     let on = lane;
     let at = along;
     // At most two lanes forward: a tenth of a second at any speed a city road
@@ -129,7 +129,7 @@ export class Movers {
     at = Math.max(0, Math.min(at, len));
     const ax = lanes.ax[on], az = lanes.az[on];
     const ux = (lanes.bx[on] - ax) / len, uz = (lanes.bz[on] - az) / len;
-    const off = this.acrossAt(lanes, on, at, len);
+    const off = this.acrossAt(lanes, on, at, len) + shift;
     return [ax + ux * at + uz * off, az + uz * at - ux * off];
   }
 
@@ -140,11 +140,18 @@ export class Movers {
    * the other side of the road comes out negative and the two sides separate.
    * Kerbside is index zero, so it sits furthest from the centre line.
    *
-   * Tapered to nothing at both ends of the lane: a junction is a single node in
-   * the graph, and a vehicle that kept its full offset up to the line would
-   * jump across the road as it changed lanes at the node. Converging into the
-   * middle and fanning out again is what a turn looks like from above, and it
-   * costs one clamp.
+   * Held all the way to the stop line, and converged only across the junction
+   * itself. A lane runs node centre to node centre, so the last few metres of
+   * it are inside the paving of the crossroads -- that, and only that, is where
+   * two lanes have to become one track and fan out again on the far side, which
+   * is what a turn looks like from above.
+   *
+   * It used to converge over a fixed nine metres at each end, which starts well
+   * before the junction on any road: a car queueing at a light drifted into the
+   * middle of the carriageway while it waited, and pulled back out again as it
+   * left. That drift is the slide the junctions read as. Tapering over the
+   * junction's own size instead means a car holds its lane right up to the
+   * line, and only moves across while it is genuinely crossing.
    */
   private acrossAt(lanes: LaneGraph, lane: number, along: number,
     len: number): number {
@@ -153,8 +160,13 @@ export class Movers {
     const to = lanes.linkEnd[link * 2 + dir];
     const n = Math.max(1, to - from);
     const across = (n - 0.5 - lanes.index[lane]) * LANE_METRES * DRIVE_SIDE;
-    const taper = Math.min(1, Math.min(along, len - along) / TAPER_METRES);
-    return across * Math.max(0, taper);
+    const out = Math.max(0.5, lanes.stopBack[lane]);
+    const into = Math.max(0.5, lanes.startBack[lane]);
+    const t = Math.max(0, Math.min(1,
+      Math.min(along / into, (len - along) / out)));
+    // Smoothstepped, so the track leaves and rejoins its lane tangentially
+    // rather than with a corner at the stop line.
+    return across * t * t * (3 - 2 * t);
   }
 
   /** Whether the library actually holds the mover prototypes. */
@@ -216,11 +228,20 @@ export class Movers {
       // same path: the second is what the vehicle is steering towards, so a
       // car turning a corner is drawn turning rather than sliding round it
       // still facing the way it came.
-      const here = this.placeOn(lanes, lane, c.along[v] + c.speed[v] * lead,
-        c.next[v], paths, c.route[v], c.step[v]);
-      const next = this.placeOn(lanes, lane,
-        c.along[v] + c.speed[v] * lead + LOOK_AHEAD,
-        c.next[v], paths, c.route[v], c.step[v]);
+      const at = c.along[v] + c.speed[v] * lead;
+      // What is left of the last lane change, unwound the same way the model
+      // unwinds it -- so the car is drawn pulling across rather than arriving.
+      const shift = c.shift[v];
+      const here = this.placeOn(lanes, lane, at,
+        c.next[v], paths, c.route[v], c.step[v], shift);
+      // The point it is steering towards, a metre or so on. Its share of the
+      // change is what it will have unwound by the time it gets there, which is
+      // what tilts the body into the manoeuvre instead of sliding it sideways.
+      const ahead = shift === 0 ? 0
+        : Math.max(0, Math.abs(shift) - LANE_SHIFT_SPEED
+          * (LOOK_AHEAD / Math.max(2, c.speed[v]))) * Math.sign(shift);
+      const next = this.placeOn(lanes, lane, at + LOOK_AHEAD,
+        c.next[v], paths, c.route[v], c.step[v], ahead);
       const seat = seatOf(c.kind[v], v);
       let yaw = Math.atan2(next[1] - here[1], next[0] - here[0]);
       if (this.flip[seat] === true) yaw += Math.PI;
@@ -395,8 +416,8 @@ const LOOK_AHEAD = 1.2;
 const WALK_SPEED = 1.35;
 /** How wide one lane is, for working out where a road's kerb is. */
 const LANE_METRES = 3.5;
-/** Over how many metres a lane's offset fades into the junction at each end. */
-const TAPER_METRES = 9;
+/** How fast a lane change is drawn sideways. Matches the model's own unwind. */
+const LANE_SHIFT_SPEED = 2.3;
 /** How far beyond the kerbside lane the footway is. */
 const PAVEMENT = 2.6;
 

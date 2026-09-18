@@ -189,6 +189,7 @@ export class BuildTools {
   private readClock!: HTMLElement;
   private readSeason!: HTMLElement;
   private readPeople!: HTMLElement;
+  private readTraffic!: HTMLElement;
   private readName!: HTMLElement;
   private readWeather!: HTMLElement;
   private name = DEFAULT_NAME;
@@ -1828,6 +1829,8 @@ export class BuildTools {
     row.appendChild(this.readName);
     this.readPeople = cell('people', true);
     row.appendChild(this.readPeople);
+    this.readTraffic = cell('traffic');
+    row.appendChild(this.readTraffic);
     this.paintName();
     row.appendChild(rule());
     this.readMoney = cell('treasury');
@@ -1937,6 +1940,21 @@ export class BuildTools {
       fill(this.readPeople, `${people.toLocaleString()}`
         + `<span style="color:${SKIN.dim};font-size:10px">`
         + `${s.buildings.toLocaleString()} buildings</span>`);
+
+      // The roads. Mean speed, and how much of the traffic is moving at all --
+      // the second is the one that matters, because thirty km/h across the
+      // vehicles that are moving says nothing if half of them are not.
+      if (s.hasSim) {
+        const flow = Math.round(s.flowing * 100);
+        const tone = flow >= 70 ? SKIN.good : flow >= 40 ? SKIN.warn : SKIN.bad;
+        fill(this.readTraffic, `<span style="color:${tone}">\u25cf</span>`
+          + `${Math.round(s.kph)} km/h`
+          + `<span style="color:${SKIN.dim};font-size:10px">`
+          + `${flow}% flowing</span>`);
+      } else {
+        fill(this.readTraffic, `<span style="color:${SKIN.dim}">\u2014</span>`
+          + `<span style="color:${SKIN.dim};font-size:10px">no traffic yet</span>`);
+      }
 
       // And the money, at the end of the bar the player spends it from. The
       // weekly line under it is the one that decides whether the city lives:

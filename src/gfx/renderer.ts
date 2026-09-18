@@ -521,6 +521,16 @@ export class Renderer {
      * show what the city actually is rather than what it could hold.
      */
     citizens: 0, net: 0, hasSim: false,
+    /**
+     * How the roads are running: vehicles drawn, mean speed in kilometres an
+     * hour, and the share of them actually moving.
+     *
+     * On the bar because it is the one thing about a city that a player can see
+     * out of the window and could not previously read anywhere -- and because a
+     * figure that falls as a district fills in is the prompt to go and build the
+     * road that fixes it.
+     */
+    driving: 0, kph: 0, flowing: 1,
   };
 
   private summarise(city: { population: Uint32Array }): void {

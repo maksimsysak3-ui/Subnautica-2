@@ -455,6 +455,11 @@ export class LiveCity {
       this.renderer.summary.citizens = sim.people.population;
       this.renderer.summary.net = net;
       this.renderer.summary.hasSim = true;
+      const ts = sim.traffic.stats;
+      this.renderer.summary.driving = ts.driving;
+      this.renderer.summary.kph = ts.meanSpeed * 3.6;
+      this.renderer.summary.flowing = ts.driving > 0
+        ? 1 - ts.stopped / ts.driving : 1;
       this.stats.set('money', `${bal < 0 ? '−' : ''}${money(Math.abs(bal))}`
         + `|${net < 0 ? '−' : '+'}${money(Math.abs(net))} a week`);
       // Milliseconds of simulation per second of real time, summed over the

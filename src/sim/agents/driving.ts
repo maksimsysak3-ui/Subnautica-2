@@ -59,6 +59,7 @@
 import { Table } from './store';
 import { Rng } from './rand';
 import { Junctions, Control, Light } from './junctions';
+import { DRIVE_SIDE } from './lanes';
 import type { LaneGraph } from './lanes';
 import { TICK_HZ } from './tick';
 
@@ -178,6 +179,67 @@ const LANE_CHANGES_PER_TICK = 192;
 const LANE_SLACK = 2;
 
 /**
+ * Metres of daylight past its own length a driver wants beyond a junction
+ * before entering it, when they have only just arrived.
+ */
+const ROOM_CLEARANCE = 1;
+
+/** Ticks of waiting at a line over which that requirement decays to its floor. */
+const NUDGE_TICKS = 120;
+
+/**
+ * The daylight an impatient driver settles for, in metres.
+ *
+ * It shrinks the wanted gap; it never shrinks the room needed to get clear of
+ * the junction, which is physical and is the whole point of the rule.
+ */
+const ROOM_FLOOR = 0.2;
+
+/** Ticks at a blocked exit after which a wandering driver tries another way. */
+const REROUTE_TICKS = 300;
+
+/**
+ * The share of the fleet that may be standing still before the spawner stops
+ * adding to it and starts letting the oldest standing ones go.
+ *
+ * Half. A city with half its visible traffic queueing is a city with a traffic
+ * problem the player can see; a city with nine tenths of it queueing for ever is
+ * a broken model.
+ */
+const JAM_SHARE = 0.5;
+
+/** Ticks a wandering vehicle must have been stationary to be retired. */
+const STALE_TICKS = 600;
+
+/** And how many may go per visit, so a jam drains rather than blinking out. */
+const RETIRE_PER_TICK = 3;
+
+/**
+ * Ticks between a vehicle reporting its journey over and the road taking it
+ * away, if its owner has not.
+ *
+ * Two seconds: long enough that the dispatcher and the transit model, which run
+ * on their own slower beats, always get first refusal on their own vehicles.
+ */
+const RETIRE_GRACE = 20;
+
+/** How close to its stopping point a vehicle counts as having arrived. */
+const ARRIVE_METRES = 2.5;
+
+/**
+ * How wide one lane is, for the width of a change. Matches the drawing's own.
+ */
+const LANE_METRES = 3.5;
+
+/**
+ * How fast a lane change is drawn, in metres a second sideways.
+ *
+ * Three and a half metres in about a second and a half, which is an unhurried
+ * pull across with an indicator on rather than a swerve.
+ */
+const LANE_SHIFT_SPEED = 2.3;
+
+/**
  * How much of the flow model's density is put on the road.
  *
  * `nearbyLoad` is already a count of vehicles -- load times lane length over nine
@@ -227,6 +289,46 @@ const SCHEMA = {
   inBox: Int32Array,
   /** Set when the vehicle has been cleared to cross the junction ahead. */
   cleared: Uint8Array,
+  /**
+   * Metres of lateral offset still to unwind from a lane change, signed.
+   *
+   * A lane change is instant in the model -- the vehicle is on one lane, then
+   * it is on the next -- and that is right: the queues, the gap test and the
+   * conflict rule all want a vehicle to be on exactly one lane. But the picture
+   * does not want it to arrive there instantly, and the picture is what the
+   * player has. A car that changes lane three and a half metres in one frame
+   * reads as a teleport, which is precisely what it looks like, and the more
+   * the carriageway evens itself out the more of them there are.
+   *
+   * So the change carries a debt: the offset the vehicle *had* relative to the
+   * lane it is now on. The drawing adds it, and it unwinds over about a second
+   * and a half -- so what is drawn is a car pulling across while the model has
+   * it firmly in one lane the whole time.
+   */
+  shift: Float32Array,
+  /**
+   * The tick this vehicle reported that its journey was over, or -1.
+   *
+   * Reporting is not removal, and for most of this model's life nothing did the
+   * removing. `arrived` and `stuck` are read by the dispatcher, which reaps its
+   * own engines and bins, and by the transit model, which reaps its buses -- and
+   * by nobody at all for the ordinary car with a citizen in it. So every
+   * commuter's car drove to work, stopped at the end of the lane it had arrived
+   * on, and stayed there for the rest of the game.
+   *
+   * That is the whole of the gridlock. A parked car at the end of a lane is a
+   * car in the last few metres before a junction, which is exactly where the
+   * room to cross it is measured -- so each finished trip permanently shut one
+   * more approach, and the city ratcheted from ninety-five per cent of its
+   * traffic moving to under one per cent over about forty-five game minutes,
+   * with no way back. Everything that looked like bad junction behaviour was
+   * vehicles queueing behind cars that had finished driving hours ago.
+   *
+   * So the road now clears up after itself, on a short grace period: whoever
+   * owns the vehicle gets a moment to reap it their own way, and anything still
+   * sitting there afterwards is taken off.
+   */
+  doneAt: Int32Array,
   /**
    * The lane decided on for the junction ahead, or -1 for undecided.
    *
@@ -361,6 +463,8 @@ export class Traffic {
     const c = this.table.col;
     c.owner[v] = owner;
     c.kind[v] = kind;
+    c.doneAt[v] = -1;
+    c.shift[v] = 0;
     c.driver[v] = driver;
     // Ambient traffic joins the emptiest lane going its way. Nothing is
     // reserved yet and the vehicle is at the mouth of the lane, so this is the
@@ -472,11 +576,21 @@ export class Traffic {
 
     for (let v = 0; v < bound; v++) {
       if (live[v] === 0) continue;
+      // Finished, and nobody came for it. See `doneAt`.
+      if (c.doneAt[v] >= 0 && tick - c.doneAt[v] > RETIRE_GRACE) {
+        this.despawn(v);
+        this.stats.abandoned++;
+        continue;
+      }
       const lane = c.lane[v];
       const style = STYLE[c.driver[v]];
       const v0 = Math.max(2, g.speed[lane] * style.limit);
       const speed = c.speed[v];
       const laneLength = g.length[lane];
+      // Where it started the tick. Nothing below may put it behind this: a
+      // vehicle that moves backwards drives through whoever is behind it, and
+      // the stop line is a place to stop, not a place to be dragged to.
+      const along0 = c.along[v];
       // The carriageway this lane belongs to, read once: the lane-change
       // decision below needs it, and so does the test for whether there is a
       // decision to make at all.
@@ -494,7 +608,17 @@ export class Traffic {
 
       // The junction. Only worth asking about once inside looking distance, which
       // keeps the signal lookup off almost every vehicle on almost every tick.
+      //
+      // Two distances, and keeping them apart is the whole of this. `toEnd` is
+      // to the node, which is the middle of the junction and where the lane
+      // hands over to the next one. `toLine` is to the stop line, which is
+      // outside the paving and is where a vehicle that is not allowed through
+      // actually waits. They used to be the same number, so every car held for a
+      // light or a give way was held at the centre of the crossroads -- which is
+      // what made junctions read as cars stopping inside them, sitting there,
+      // and then sliding out across them.
       const toEnd = laneLength - c.along[v];
+      const toLine = toEnd - g.stopBack[lane];
       // Already cleared: keep the reservation alive. A slow vehicle that lost its
       // slot mid-crossing is how two conflicting movements end up in one junction.
       if (c.cleared[v] === 1 && c.inBox[v] >= 0) {
@@ -507,31 +631,46 @@ export class Traffic {
           // Journey's end: the destination is the far end of this lane, so treat
           // the end as a stopping point and finish when it is reached.
           if (toEnd < gap) { gap = toEnd; closing = speed; }
+          // And it IS reached here, at the stopping point, rather than by
+          // running off the end of the lane. The only place a vehicle was ever
+          // reported as arrived is the hop below, which needs `along` to pass
+          // the lane's length -- and a vehicle whose journey ends is held a
+          // little short of exactly that, so it never passed, was never
+          // reported, and was never taken off the road. Five hundred cars
+          // spawned in a game and not one of them ever finished: they drove to
+          // work and then stood at the kerb for ever, each one holding the last
+          // few metres of a lane, which is precisely the ground the junction
+          // beyond it measures before letting anybody across.
+          if (toLine < ARRIVE_METRES && speed < CRAWL && c.doneAt[v] < 0) {
+            this.arrived.push(v);
+            c.doneAt[v] = tick;
+          }
         } else if (next < 0) {
           // No continuation at all -- the route is void. Stop, and be taken off.
           if (toEnd < gap) { gap = toEnd; closing = speed; }
           this.stuck.push(v);
+          if (c.doneAt[v] < 0) c.doneAt[v] = tick;
         } else {
           // Tell the signals somebody is here. Written before asking about the
           // light, so a junction sees the demand on the same tick it is created --
           // otherwise a lone car at a red light waits a tick longer than it has to,
           // every time, which at a hundred junctions is visible.
-          if (toEnd < WAITING_METRES) this.waiting[lane] = 1;
+          if (toLine < WAITING_METRES) this.waiting[lane] = 1;
           // Only the vehicle at the front of its lane's queue may take a slot in
           // the junction. Anybody behind it cannot reach the line anyway, and a
           // reservation it cannot use is held until the backstop expires -- at
           // which point something conflicting is admitted while it is still
           // sitting there. That was the whole of the conflict problem.
           const atFront = leader < 0;
-          const shut = (toEnd < COMMIT_METRES && atFront)
+          const shut = (toLine < COMMIT_METRES && atFront)
             ? !this.commit(v, lane, node, next, tick, seconds)
             : this.watching(v, lane, node, next, tick, seconds);
           if (shut) {
             // A closed junction is an obstacle at the stop line, fed to the same
             // model as a stopped car. No separate braking law, no transitions.
-            const stop = Math.max(0, toEnd - 1.5);
+            const stop = Math.max(0, toLine);
             if (stop < gap) { gap = stop; closing = speed; }
-          } else if (toEnd < COMMIT_METRES && leader < 0) {
+          } else if (toLine < COMMIT_METRES && leader < 0) {
             c.cleared[v] = 1;
           }
         }
@@ -572,6 +711,35 @@ export class Traffic {
       c.speed[v] = travel < want ? travel / dt : next;
       c.along[v] += travel;
 
+      // Long enough at a blocked exit, and a wandering driver picks another
+      // one. This is the last thing standing between the model and a permanent
+      // ring of blocked junctions: every other rule here is local, and a ring is
+      // not a local property -- A waits on B waits on C waits on A, all three
+      // correct, none of them able to give. A driver who has sat at the mouth of
+      // a jammed side street for half a minute goes a different way, and
+      // `nextLane` already weights its draw against how loaded a lane is, so the
+      // way they go is the way that is moving.
+      //
+      // Only wanderers: a vehicle on a route has somewhere to be, and sending it
+      // down a road its route does not name is how a route goes void.
+      if (c.route[v] < 0 && c.next[v] >= 0 && c.inBox[v] < 0 && c.cleared[v] === 0
+        && c.stopped[v] > REROUTE_TICKS && (v & 7) === (this.tickParity & 7)) {
+        c.next[v] = -1;
+        // Half the wait, so it reconsiders again if the new way is no better but
+        // does not thrash at every tick.
+        c.stopped[v] = (REROUTE_TICKS >> 1) as number;
+      }
+
+      // Unwind whatever of the last lane change is still outstanding. Linear
+      // rather than exponential: a manoeuvre that takes a fixed time and then is
+      // over looks like a car changing lane, and one that decays forever leaves
+      // every vehicle permanently a few centimetres off its own lane.
+      if (c.shift[v] !== 0) {
+        const step = LANE_SHIFT_SPEED * dt;
+        c.shift[v] = c.shift[v] > 0
+          ? Math.max(0, c.shift[v] - step) : Math.min(0, c.shift[v] + step);
+      }
+
       if (c.speed[v] < CRAWL) {
         c.stopped[v] = Math.min(0xffff, c.stopped[v] + 1);
         stoppedNow++;
@@ -586,23 +754,37 @@ export class Traffic {
       // Over the line: on to the next lane, or done.
       if (c.along[v] >= laneLength - 0.01 && c.cleared[v] === 1) {
         const to = c.next[v];
-        if (to < 0) { this.arrived.push(v); continue; }
+        if (to < 0) {
+          this.arrived.push(v);
+          if (c.doneAt[v] < 0) c.doneAt[v] = tick;
+          continue;
+        }
         // The last word on room, checked at the moment of moving rather than at the
         // moment of deciding. Between the two a vehicle can have joined the far lane
         // and left no space, and hopping anyway means two vehicles in one place --
         // which the clamp inside `hop` can only soften, not prevent, because the
         // position it would need is off the back of the lane.
         if (!this.roomBeyond(v, to)) {
-          c.along[v] = laneLength - 0.01;
+          // Blocked on the far side, having already been cleared to cross: it
+          // holds where it is. It must NOT be pushed back to the stop line --
+          // that is a vehicle moving backwards by the width of the junction in
+          // one tick, which is a teleport, and it is the one this used to do
+          // (invisibly, when the set-back was a centimetre).
+          c.along[v] = Math.max(along0, Math.min(c.along[v], laneLength));
           c.speed[v] = 0;
           continue;
         }
         this.hop(v, to, c.along[v] - laneLength);
         continue;
       }
-      if (c.along[v] >= laneLength - 0.01 && c.cleared[v] === 0) {
-        // Arrived at the stop line without clearance: hold exactly there.
-        c.along[v] = laneLength - 0.01;
+      if (c.cleared[v] === 0 && c.along[v] > laneLength - g.stopBack[lane]) {
+        // Arrived at the stop line without clearance: hold there, which is
+        // outside the junction rather than in the middle of it. Never behind
+        // where it already was -- a vehicle already past the line when its
+        // clearance lapsed stays where it is and waits, because hauling it back
+        // to the line is a car reversing into the one behind it.
+        const line = Math.max(0, laneLength - g.stopBack[lane]);
+        c.along[v] = Math.max(along0, line);
         c.speed[v] = 0;
       }
 
@@ -702,16 +884,60 @@ export class Traffic {
   /**
    * Whether there is room on the far side of the junction.
    *
-   * Without this a junction fills with vehicles that cannot leave it and nothing in
-   * the district ever moves again -- the failure that no amount of signal timing
-   * recovers from, because the blockage is inside the junction itself.
+   * Without this a junction fills with vehicles that cannot leave it and nothing
+   * in the district ever moves again -- the failure that no amount of signal
+   * timing recovers from, because the blockage is inside the junction itself.
+   *
+   * WHAT IT ASKS FOR SHRINKS THE LONGER YOU HAVE WAITED, and that is not a
+   * fudge: it is the only thing standing between this model and permanent
+   * gridlock, and its absence was permanent gridlock.
+   *
+   * The rule used to demand the vehicle's length plus the driver's *comfort*
+   * gap -- the standstill distance they like to keep on the open road -- before
+   * anyone could enter a junction. Nobody needs to be comfortable to cross a
+   * crossroads; they need to fit. And because the room can only appear when the
+   * car ahead moves, and that car is in a queue whose own head is asking the
+   * same question of the next junction round the block, the whole thing closes
+   * into a ring of vehicles each waiting on the next. Measured on a city of five
+   * hundred: sixty-one of seventy queue heads stuck, every one of them short by
+   * between one and five metres, some for twenty-five minutes, and not one
+   * journey completed in a minute of simulation. A quarter of every refusal to
+   * cross anywhere in the city was this test.
+   *
+   * Real junctions do not do that, and the reason is impatience: a driver who
+   * has been sitting at a line for half a minute takes a gap they would not have
+   * looked at when they arrived. So the requirement decays from "my length and a
+   * metre" to "most of my length" over about twelve seconds of waiting. Any ring
+   * has some slack somewhere, whoever has the most gives first, and the whole
+   * thing unwinds -- which is exactly how a real one unwinds.
    */
   private roomBeyond(v: number, nextLane: number): boolean {
     const c = this.table.col;
     const waiting = this.laneTail[nextLane];
     if (waiting < 0) return true;
     const room = c.along[waiting] - c.length[waiting];
-    return room >= c.length[v] + STYLE[c.driver[v]].gap;
+    // Room enough to be COMPLETELY out of the junction, not merely to have a
+    // nose on the far side. A lane begins at the node, which is the middle of
+    // the box, so a vehicle is only clear of it once its tail has passed the
+    // far stop line -- and until then it is parked across the crossroads with
+    // its back end in everybody's way.
+    //
+    // Getting this wrong is what seized the city solid, and it seized slowly
+    // enough to look like congestion. A vehicle let into a junction it could not
+    // clear stopped straddling it. The next vehicle behind then measured the
+    // room to that one's tail and got a NEGATIVE number -- the blocker was
+    // behind the start of the lane -- which no amount of waiting can satisfy, so
+    // that junction was shut forever. Each one that happened took an arm out of
+    // the network permanently: ninety-five per cent of vehicles moving at the
+    // first minute, seventy per cent by the third, one per cent by the
+    // forty-fifth, and never a recovery. Every jam a player has ever seen in
+    // this game was this.
+    const clear = this.g.startBack[nextLane] + c.length[v];
+    // On top of that, the daylight a driver wants -- which is the part that is
+    // allowed to shrink as they wait, because a driver at a line for half a
+    // minute takes a gap they would not have looked at when they arrived.
+    const patience = Math.min(1, c.stopped[v] / NUDGE_TICKS);
+    return room >= clear + ROOM_CLEARANCE * (1 - patience) + ROOM_FLOOR * patience;
   }
 
   /** Which way a movement turns. */
@@ -868,6 +1094,11 @@ export class Traffic {
       bestCount = this.laneCount[other];
     }
     if (best < 0) return false;
+    // The lateral distance being covered, carried as a debt the drawing unwinds.
+    // Signed the same way the drawing signs a lane's own offset, so adding it to
+    // the new lane's offset gives exactly the old lane's -- the car is drawn
+    // where it was, and moves across from there.
+    c.shift[v] += (best - lane) * LANE_METRES * DRIVE_SIDE;
     this.unlink(v);
     c.lane[v] = best;
     c.cleared[v] = 0;
@@ -1013,6 +1244,35 @@ export class Traffic {
       if (dx * dx + dz * dz > far) this.despawn(v);
     }
 
+    // How much of the fleet is actually moving. Ambient traffic exists to show
+    // the player the density the model believes in -- and a stationary car shows
+    // them nothing except that the road is full, which one look at the queue
+    // already told them.
+    //
+    // This is also the only way the system can come back DOWN. Everything else
+    // here is a local rule, and local rules cannot undo a jam that has closed
+    // into a ring: measured on this city, the fleet held about three quarters of
+    // itself moving indefinitely at three hundred and seventy vehicles, and
+    // collapsed to under a tenth within an hour once the target pushed it to the
+    // cap of four hundred and ninety. Nothing brought it back, because nothing
+    // could: the spawner kept the number topped up and the model had no way to
+    // let any of them go.
+    const jam = this.stats.driving > 0
+      ? this.stats.stopped / this.stats.driving : 0;
+    if (jam > JAM_SHARE) {
+      // Retire the wanderers that have been standing longest. They are scenery,
+      // not journeys -- nobody is inside one waiting to arrive -- and in the
+      // world they stand for, a driver facing a jam this old went another way an
+      // hour ago. Rate-limited, so a jam drains rather than vanishing.
+      let freed = 0;
+      for (let v = 0; v < this.table.bound && freed < RETIRE_PER_TICK; v++) {
+        if (this.table.live[v] === 0 || c.route[v] >= 0) continue;
+        if (c.stopped[v] < STALE_TICKS) continue;
+        this.despawn(v);
+        freed++;
+      }
+      return;
+    }
     const want = Math.min(this.budget, Math.round(this.nearbyLoad * VEHICLES_PER_LOAD));
     let room = Math.min(perTick, want - this.wandering());
     if (room <= 0) return;
