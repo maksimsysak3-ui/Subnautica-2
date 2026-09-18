@@ -122,6 +122,18 @@ const FOUNDING_WANT = 0.55;
 const FOUNDING_POP = 600;
 
 /**
+ * The floor under every bar at any size.
+ *
+ * Small, permanent, and the difference between a city that can always be
+ * extended and one that locks the player out of their own tools: a bar at
+ * exactly zero means growth earns nothing for that zone, so painting it does
+ * nothing at all and there is no way to tell that from a bug. A city that is
+ * genuinely oversupplied still grows -- slowly, which is what oversupplied
+ * should feel like.
+ */
+const ALWAYS_WANT = 0.12;
+
+/**
  * How much a city with nothing in it still pulls people in.
  *
  * Without this the whole model deadlocks on the first frame, and the deadlock is
@@ -157,7 +169,15 @@ function vacancy(free: number, total: number): number {
 
 export class Demand {
   /** Minus one to one, per `Want`. Smoothed -- see `SMOOTHING`. */
-  readonly want = new Float64Array(WANTS);
+  /**
+   * The bars, seeded at the founding floor rather than at zero.
+   *
+   * The first reading is a tenth of a second away, but growth can be asked for
+   * a patch before it arrives -- and a bar of exactly zero on the first visit
+   * of a brand new game is a player painting a street and watching nothing
+   * happen for no reason they can see.
+   */
+  readonly want = new Float64Array(WANTS).fill(FOUNDING_WANT);
   /** This instant's reading, before smoothing. */
   private readonly raw = new Float64Array(WANTS);
   private settled = false;
@@ -235,11 +255,9 @@ export class Demand {
     // difference between a first ten minutes that works and one that looks
     // broken.
     const small = Math.max(0, 1 - this.people.population / FOUNDING_POP);
-    if (small > 0) {
-      const floor = FOUNDING_WANT * small * small;
-      for (let i = 0; i < WANTS; i++) {
-        this.raw[i] = Math.max(this.raw[i], floor);
-      }
+    const floor = Math.max(ALWAYS_WANT, FOUNDING_WANT * small * small);
+    for (let i = 0; i < WANTS; i++) {
+      this.raw[i] = Math.max(this.raw[i], floor);
     }
 
     // Smoothed, except on the very first reading -- which has nothing to smooth

@@ -124,6 +124,16 @@ function phaseOf(name: string): number {
 export class Scheduler {
   private readonly systems: System[] = [];
   private readonly phase: number[] = [];
+  /**
+   * Seconds accumulated towards the next tick.
+   *
+   * Read by anything that draws what the simulation moves: the model steps ten
+   * times a second and the screen redraws sixty, so a position taken straight
+   * off the table steps six times and then waits, which reads as a stutter on
+   * every vehicle in the city. Handed out so the drawing can carry a vehicle
+   * forward to where it is *now*.
+   */
+  get sinceTick(): number { return this.carry; }
   private carry = 0;
   tick = 0;
   /** Milliseconds spent in each system over the last second, by name. */

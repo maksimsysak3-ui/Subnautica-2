@@ -22,6 +22,7 @@ function named(el: HTMLElement): string {
 }
 
 import { Gpu } from './gfx/device';
+import { startingWorld } from './sim/world';
 import { TECH, landmarksForLevel } from './sim/tech';
 import { ASSETS } from './assets/registry';
 import type { Progress } from './sim/progress';
@@ -989,6 +990,85 @@ export async function probeViews(): Promise<{
  * frame so the interface can be judged the only way an interface can be, which
  * is by looking at it.
  */
+/**
+ * A fresh game, zoned the way a player zones it.
+ *
+ * The one path nothing else here covers: the real starting world, the real
+ * tool, the real live city, and time passing. Every other growth probe either
+ * paints the zone array by hand or releases the mask outright, so a failure
+ * anywhere between the brush and the buildings would go unseen.
+ */
+export async function probeZoning(): Promise<Record<string, number | string>> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:900px;height:520px';
+  document.body.appendChild(canvas);
+  const ui = document.createElement('div');
+  document.body.appendChild(ui);
+
+  const gpu = await Gpu.headless(900, 520);
+  const camera = new Camera();
+  const stats = new Stats(ui);
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  // The world a new game starts on: one road in, nothing built, and a mask that
+  // has to be earned.
+  renderer.useWorld(startingWorld(renderer.world.grid));
+  // Deliberately NOT granting the whole map: a new game owns a few plots, and
+  // what a player actually does is zone near the road they were given.
+  renderer.build();
+  const live = new LiveCity(renderer, camera, stats, ui);
+  const tools = new BuildTools(canvas, camera, renderer, ui);
+  tools.visible = true;
+  live.playing = true;
+  camera.setViewport(900, 520);
+  camera.pitch = 1.2; camera.distance = 300;
+  camera.update();
+
+  const world = renderer.world;
+  const g = world.grid, half = g / 2;
+  // Beside the road the game starts with.
+  let seed: [number, number] | null = null;
+  for (let z = 10; z < g - 10 && seed === null; z++) {
+    for (let x = 10; x < g - 10; x++) {
+      if (world.net.has(x, z)) { seed = [x, z]; break; }
+    }
+  }
+  if (seed === null) return { error: 'no starting road' };
+  const before = world.lots.length;
+
+  // Zoned through the tool's own path.
+  paint(world, seed[0] + 1, seed[1] - 8, 10, 17, zoneCode('residential', 'low'));
+  renderer.rebuild();
+
+  const count = (a: Uint8Array): number => {
+    let n = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== 0) n++;
+    return n;
+  };
+  const painted = count(world.zones);
+
+  // Two game days of play, driven the way the frame loop drives it.
+  const start = performance.now();
+  for (let i = 0; i < 1800; i++) live.update(1 / 20, start + i * 50);
+
+  let released = 0;
+  for (let i = 0; i < world.grown.length; i++) {
+    if (world.zones[i] !== 0 && world.grown[i] !== 0) released++;
+  }
+  const sim = (live as unknown as { sim: Simulation }).sim;
+  return {
+    painted, released,
+    homes: sim.places.homeCapacity,
+    population: sim.people.population,
+    buildings: renderer.summary.buildings,
+    lotsBefore: before,
+    want: [...sim.demand.want].map((v) => v.toFixed(2)).join(','),
+    owed: Math.round(sim.growth?.report.owed ?? 0),
+    served: world.mains.netAt((seed[0] + 3 - half) * 8, (seed[1] - half) * 8, 1),
+  };
+}
+
 export async function probeHud(width: number, height: number, hour = 0.36, dist = 520,
   panel = ''):
 Promise<{ pixels: number[]; movers: string }> {

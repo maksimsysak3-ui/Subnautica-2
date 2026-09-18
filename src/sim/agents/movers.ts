@@ -97,7 +97,7 @@ export class Movers {
   fill(out: Float32Array, cap: number, traffic: Traffic, routine: Routine,
     people: People, lanes: LaneGraph, paths: PathStore, junctions: Junctions,
     ground: (x: number, z: number) => number,
-    eyeX: number, eyeZ: number): number {
+    eyeX: number, eyeZ: number, lead = 0): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.dropped = 0;
@@ -137,13 +137,24 @@ export class Movers {
       const ax = lanes.ax[lane], az = lanes.az[lane];
       const bx = lanes.bx[lane], bz = lanes.bz[lane];
       const len = Math.max(0.001, lanes.length[lane]);
-      const along = Math.min(Math.max(c.along[v], 0), len);
+      // Where it is *now*, not where it was when the model last stepped. The
+      // driving model runs at ten hertz and the screen redraws at sixty, so a
+      // position read straight off the table moves in six-frame steps -- which
+      // is exactly the stutter that makes traffic look like it is dragging.
+      // Carrying it forward at its own speed costs one multiply and is right
+      // to within the acceleration over a tenth of a second.
+      const along = Math.min(Math.max(c.along[v] + c.speed[v] * lead, 0), len);
       const s = along / len;
       const x = ax + (bx - ax) * s;
       const z = az + (bz - az) * s;
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > DRAW_REACH * DRAW_REACH) continue;
-      const yaw = Math.atan2(bz - az, bx - ax);
+      // The imported bodies are modelled with the nose towards -x: the cabin
+      // of every saloon in the pack sits a metre and a bit towards +x, and a
+      // cabin is behind a bonnet. So the heading is the direction of travel
+      // turned half a turn, and without it every car in the city drives
+      // backwards down the road it is on.
+      const yaw = Math.atan2(bz - az, bx - ax) + Math.PI;
       write(seatOf(c.kind[v], v), x, z, yaw, RIDE);
       this.counts.vehicles++;
     }
@@ -160,16 +171,26 @@ export class Movers {
       if (id < 0) continue;
       const mode = pc.mode[id];
       if (mode !== Mode.WALK && mode !== Mode.BIKE) continue;
-      const x = pc.x[id], z = pc.z[id];
+      const lane0 = paths.at(pc.route[id], pc.step[id]);
+      let x = pc.x[id], z = pc.z[id];
+      if (lane0 >= 0 && lane0 < lanes.count) {
+        // The same carry-forward the vehicles get, along the lane they are on.
+        const l = Math.max(0.001, lanes.length[lane0]);
+        const ux = (lanes.bx[lane0] - lanes.ax[lane0]) / l;
+        const uz = (lanes.bz[lane0] - lanes.az[lane0]) / l;
+        const step = WALK_SPEED * lead;
+        x += ux * step;
+        z += uz * step;
+      }
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
       // Heading from where they are going, which the route's own lane says.
       // A person facing the wrong way down the street they are walking along
       // is the one thing that reads as broken from any distance at all.
-      const lane = paths.at(pc.route[id], pc.step[id]);
       let yaw = 0;
-      if (lane >= 0 && lane < lanes.count) {
-        yaw = Math.atan2(lanes.bz[lane] - lanes.az[lane], lanes.bx[lane] - lanes.ax[lane]);
+      if (lane0 >= 0 && lane0 < lanes.count) {
+        yaw = Math.atan2(lanes.bz[lane0] - lanes.az[lane0],
+          lanes.bx[lane0] - lanes.ax[lane0]);
       }
       if (write(mode === Mode.BIKE ? 'cyclist' : 'walker', x, z, yaw, 0)) {
         this.counts.people++;
@@ -218,13 +239,22 @@ export class Movers {
         seat = lanes.rank[lane] === 0 ? 'stop' : 'giveway';
       }
 
-      // At the stop line, on the near side of the road, facing the traffic it
-      // is talking to.
+      // At the stop line, on the kerb, facing the traffic it is talking to.
+      //
+      // A lane ends at the junction's own node, which is the middle of the box
+      // -- so backing off a fixed three metres put every signal head in the
+      // middle of the crossroads. What has to be cleared is half the junction,
+      // and the junction is as wide as the widest road through it: a lane is
+      // about three and a half metres, so the carriageway either side of the
+      // node is that times however many lanes the link carries.
       const ax = lanes.ax[lane], az = lanes.az[lane];
       const len = Math.max(0.001, lanes.length[lane]);
       const ux = (bx - ax) / len, uz = (bz - az) / len;
-      const back = Math.min(len * 0.5, 3.4);
-      const side = 4.2;
+      const link = lanes.link[lane], dir = lanes.dir[lane];
+      const across = lanes.linkEnd[link * 2 + dir] - lanes.linkStart[link * 2 + dir];
+      const halfRoad = Math.max(3.6, across * LANE_METRES);
+      const back = Math.min(len * 0.45, halfRoad + 2.6);
+      const side = halfRoad + 1.4;
       const x = bx - ux * back + uz * side;
       const z = bz - uz * back - ux * side;
       if (write(seat, x, z, Math.atan2(-uz, -ux), 0)) this.counts.signals++;
@@ -240,6 +270,10 @@ const DRAW_REACH = 900;
 const WALK_REACH = 420;
 /** Junction furniture, which only matters where the player can see a junction. */
 const SIGN_REACH = 520;
+/** Metres a second on foot, for carrying a walker between ticks. */
+const WALK_SPEED = 1.35;
+/** How wide one lane is, for working out where a road's kerb is. */
+const LANE_METRES = 3.5;
 
 /** Which seat a vehicle is drawn in. */
 function seatOf(kind: number, v: number): string {

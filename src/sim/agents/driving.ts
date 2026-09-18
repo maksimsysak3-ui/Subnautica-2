@@ -136,6 +136,15 @@ const CRAWL = 0.4;
 /** Ticks of being stopped before a driver looks for another lane. */
 const PATIENCE_TICKS = 12;
 
+/**
+ * How close to what the player is looking at a vehicle may be conjured.
+ *
+ * Far enough that the appearance itself is off the side of the frame at a
+ * normal working zoom, and near enough that the roads in view still fill up
+ * within a few seconds of the camera arriving.
+ */
+const HIDE_SPAWN = 260;
+
 /** Lane changes considered per tick, across the whole city. */
 const LANE_CHANGES_PER_TICK = 64;
 
@@ -295,7 +304,7 @@ export class Traffic {
    * another is the one thing this model must never do.
    */
   spawn(owner: number, kind: number, driver: number,
-    lane: number, route: number, step: number): number {
+    lane: number, route: number, step: number, at = 0): number {
     if (this.table.size >= this.budget) { this.stats.refused++; return -1; }
     if (lane < 0 || lane >= this.g.count) { this.stats.refused++; return -1; }
     const len = LENGTH[kind];
@@ -304,11 +313,17 @@ export class Traffic {
     // appearing at the mouth of a link has reserved nothing and committed to
     // nothing, so this is the one place a lane is simply a choice.
     if (route < 0) lane = this.emptiest(lane);
-    // Room at the back of the lane's queue.
-    const last = this.laneTail[lane];
-    if (last >= 0) {
-      const c = this.table.col;
-      if (c.along[last] - c.length[last] < len + style.gap) {
+    // Where on the lane. A routed vehicle always starts at the mouth, because
+    // its route says so; an ambient one may be dropped anywhere the lane is
+    // clear.
+    const laneLen = this.g.length[lane];
+    const where = Math.max(0, Math.min(at, laneLen - 0.5));
+    // Room where it is going: nothing overlapping it, with a gap at both ends.
+    const c0 = this.table.col;
+    for (let u = this.laneTail[lane]; u >= 0; u = c0.ahead[u]) {
+      const front = c0.along[u], back = front - c0.length[u];
+      if (back > where + style.gap + len) break;
+      if (front > where - len - style.gap && back < where + style.gap) {
         this.stats.refused++;
         return -1;
       }
@@ -322,10 +337,12 @@ export class Traffic {
     // reserved yet and the vehicle is at the mouth of the lane, so this is the
     // one place a lane can simply be chosen.
     c.lane[v] = lane;
-    c.along[v] = 0;
+    c.along[v] = where;
     // Joining at the speed of whatever is already there, up to the limit, so a
     // vehicle does not appear at forty miles an hour inside a stationary queue.
-    c.speed[v] = last >= 0 ? Math.min(c.speed[last], this.g.speed[lane]) : this.g.speed[lane] * 0.4;
+    const ahead = this.leaderAt(lane, where);
+    c.speed[v] = ahead >= 0
+      ? Math.min(c.speed[ahead], this.g.speed[lane]) : this.g.speed[lane] * 0.75;
     c.length[v] = len;
     c.route[v] = route;
     c.step[v] = step;
@@ -334,7 +351,7 @@ export class Traffic {
     c.cleared[v] = 0;
     c.next[v] = -1;
     c.job[v] = -1;
-    this.link(v, lane);
+    this.linkAt(v, lane, where);
     this.stats.spawned++;
     return v;
   }
@@ -350,15 +367,14 @@ export class Traffic {
 
   // ---- the queue ---------------------------------------------------------
 
-  /** Adds a vehicle to the back of a lane's queue. */
-  private link(v: number, lane: number): void {
+  /** Whatever is immediately in front of a position on a lane, or -1. */
+  private leaderAt(lane: number, along: number): number {
     const c = this.table.col;
-    const last = this.laneTail[lane];
-    c.ahead[v] = last;
-    c.behind[v] = -1;
-    if (last >= 0) c.behind[last] = v; else this.laneHead[lane] = v;
-    this.laneTail[lane] = v;
-    this.laneCount[lane]++;
+    let best = -1;
+    for (let u = this.laneTail[lane]; u >= 0; u = c.ahead[u]) {
+      if (c.along[u] > along) { best = u; break; }
+    }
+    return best;
   }
 
   /**
@@ -920,7 +936,20 @@ export class Traffic {
         pick -= (load[l] + IDLE_LOAD) * this.g.length[l] / 9;
         if (pick <= 0) { lane = l; break; }
       }
-      this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0);
+      // Not in the middle of the picture. A vehicle appearing out of nothing at
+      // the start of a road the player is looking at is the single most obvious
+      // thing traffic can do wrong, and it is what "they teleport in and drive
+      // down the road" is: the spawner was choosing the busiest lane near the
+      // camera and putting a car at its mouth. Vehicles now appear at the far
+      // end of what is loaded, where the frame does not reach.
+      const sx = (this.g.ax[lane] + this.g.bx[lane]) * 0.5;
+      const sz = (this.g.az[lane] + this.g.bz[lane]) * 0.5;
+      const dx = sx - this.focusX, dz = sz - this.focusZ;
+      if (dx * dx + dz * dz < HIDE_SPAWN * HIDE_SPAWN) continue;
+      // And along the lane rather than at its start, so a road that comes into
+      // view is already carrying traffic instead of filling up from one end.
+      this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0,
+        this.rng.next() * this.g.length[lane]);
     }
   }
 
