@@ -170,7 +170,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // fields in it. Computing two warp octaves and a cell decomposition for
   // every pixel of far ground and then multiplying the answer by zero is the
   // most expensive way to draw nothing, and the ground is most of the screen.
-  let parcelFade = 1.0 - smoothstep(700.0, 1900.0, length(camera.eye.xz - in.world.xz));
+  let parcelFade = 1.0 - smoothstep(1500.0, 3400.0, length(camera.eye.xz - in.world.xz));
   var parcel = Cell(1.0, 1.0, 0.0);
   var inField = 1.0;
   if (parcelFade > 0.002) {
