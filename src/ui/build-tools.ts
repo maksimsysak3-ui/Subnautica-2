@@ -214,6 +214,8 @@ export class BuildTools {
   onLevels: ((levels: LevelUp[]) => void) | null = null;
   /** Something changed about the city's career: repaint whatever shows it. */
   onProgress: (() => void) | null = null;
+  /** The player's time control, in multiples of real time. 0 is paused. */
+  onSpeed: ((rate: number) => void) | null = null;
   /** The development tree and the settings, which the bar has buttons for. */
   onTech: (() => void) | null = null;
   onSettings: (() => void) | null = null;
@@ -1293,6 +1295,31 @@ export class BuildTools {
       if (fresh > 0 && !this.afford(fresh * zonePrice(t.zone, t.density),
         `${fresh} cells of ${t.zone}`)) return;
       paint(world, r.gx, r.gz, r.w, r.d, code);
+      // What the brush actually did, said out loud.
+      //
+      // Zoning is the one tool that can refuse most of a drag for reasons the
+      // ground does not show: a cell out of reach of a road takes no paint, and
+      // a cell that is already this zone is not charged for. A player who drags
+      // across a field and sees a strip appear needs to be told why -- and a
+      // player who sees nothing appear needs to be told that too, rather than
+      // concluding the game is broken.
+      let offRoad = 0;
+      for (let j = 0; j < r.d; j++) {
+        for (let i = 0; i < r.w; i++) {
+          const gx = r.gx + i, gz = r.gz + j;
+          if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
+          if (world.net.has(gx, gz)) continue;
+          if (!world.net.nearRoad(gx, gz)) offRoad++;
+        }
+      }
+      if (fresh === 0 && offRoad > 0) {
+        this.say('nothing zoned \u2014 every cell there is out of reach of a road. '
+          + 'Zoning has to touch a street.');
+      } else if (fresh > 0) {
+        this.say(`zoned ${fresh} cells of ${t.zone}`
+          + (offRoad > 0 ? `, ${offRoad} skipped for being off a road` : '')
+          + ' \u2014 building starts within a few seconds');
+      }
     } else if (t.kind === 'clear') {
       // Bulldozing rebuilds the whole city, and that is the right trade.
       //
@@ -1857,6 +1884,11 @@ export class BuildTools {
     this.speed = n;
     this.renderer.clockRunning = SPEEDS[n] > 0;
     this.renderer.clockRate = SPEEDS[n];
+    // And the city itself. The bar used to move only the sun: pausing left the
+    // simulation running and ten times speed left it at one, so the clock in
+    // the corner raced while the city did exactly what it had been doing. The
+    // player's time control is one number and everything reads it.
+    this.onSpeed?.(SPEEDS[n]);
     for (let k = 0; k < this.speedButtons.length; k++) {
       setKey(this.speedButtons[k], k === 0 ? SKIN.warn : SKIN.accent, k === n);
     }

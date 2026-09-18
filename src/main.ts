@@ -240,9 +240,14 @@ async function boot(): Promise<void> {
   // Clicking a building asks the simulation what it is. The tools know where
   // the click landed; only the simulation knows what is standing there.
   tools.onInspect = (at) => live.tap(at);
+  // A handle on the running game, for the playtest harness and for anybody
+  // debugging a city in a browser console. Read-only in spirit: nothing in the
+  // game reads it back.
+  (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera };
   // The career: the bar earns it, the panels spend it, and each tells the other.
   tools.onLevels = (levels) => live.celebrate(levels);
   tools.onProgress = () => tools?.paintProgress();
+  tools.onSpeed = (rate) => { live.speed = rate; };
   tools.onTech = () => live.tech.toggle();
   tools.onSettings = () => live.settings.toggle();
   live.onProgress = () => tools?.paintProgress();

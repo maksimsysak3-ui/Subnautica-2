@@ -102,6 +102,17 @@ export class LiveCity {
   readonly cititok: Cititok;
   /** What the city is called, for the feed. Set by whoever owns the bar. */
   cityName = 'the city';
+  /**
+   * The player's time control, in multiples of real time.
+   *
+   * Passed straight to the simulation, so pausing pauses the city rather than
+   * only the sun, and ten times speed is ten times as much city.
+   */
+  set speed(rate: number) {
+    this.rate = rate;
+    if (this.sim !== null) this.sim.speed = rate;
+  }
+  private rate = 1;
   /** What the picture settings were last applied as. */
   private moverShare = 1;
   /** Where that building is, so the card can be kept in step with the city. */
@@ -289,6 +300,7 @@ export class LiveCity {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
+      this.sim.speed = this.rate;
       this.tax.bind(this.sim.budget);
       const sim = this.sim;
       this.lines.bind(() => ({ transit: this.renderer.world.transit, net: sim.transit }));

@@ -1069,6 +1069,104 @@ export async function probeZoning(): Promise<Record<string, number | string>> {
   };
 }
 
+/**
+ * The zone tool, pressed the way a player presses it.
+ *
+ * Reports what the drawer offered, what the tool became, and what the drag did
+ * to the ground -- which is the chain that has to hold for zoning to work at
+ * all, and the one place a change to a button can silently break the game.
+ */
+export async function probeZoneTool(): Promise<Record<string, unknown>> {
+  configureSim(LITE);
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:800px;height:450px';
+  document.body.appendChild(canvas);
+  const overlay = document.createElement('div');
+  document.body.appendChild(overlay);
+
+  const gpu = await Gpu.headless(800, 450);
+  const camera = new Camera();
+  const stats = new Stats(document.createElement('div'));
+  const renderer = new Renderer(gpu, camera, stats);
+  renderer.clockRunning = false;
+  renderer.useWorld(startingWorld(renderer.world.grid));
+  grantAll(renderer.world);
+  renderer.build();
+  const live = new LiveCity(renderer, camera, stats, overlay);
+  const tools = new BuildTools(canvas, camera, renderer, overlay);
+  tools.visible = true;
+  live.playing = true;
+  camera.setViewport(800, 450);
+  camera.pitch = 1.2; camera.distance = 380;
+  // Over the road the game starts with, so the drag lands beside it.
+  const world = renderer.world;
+  const g = world.grid, half = g / 2;
+  let seed: [number, number] | null = null;
+  for (let z = 10; z < g - 10 && seed === null; z++) {
+    for (let x = 10; x < g - 10; x++) if (world.net.has(x, z)) { seed = [x, z]; break; }
+  }
+  if (seed !== null) {
+    camera.focus[0] = (seed[0] - half) * 8 + 4;
+    camera.focus[2] = (seed[1] - half) * 8 + 4;
+  }
+  camera.update();
+
+  const press = (label: string): boolean => {
+    const b = Array.from(overlay.querySelectorAll('button')).find((el) => {
+      const h = el as HTMLElement;
+      return named(h).startsWith(label) || (h.textContent ?? '').trim().startsWith(label);
+    });
+    (b as HTMLElement | undefined)?.click();
+    return b !== undefined;
+  };
+  const kindOf = (): string =>
+    (tools as unknown as { tool: { kind: string } }).tool.kind;
+
+  const openedZones = press('Zoning');
+  const tiles = Array.from(overlay.querySelectorAll('button'))
+    .map((b) => (b.textContent ?? '').trim())
+    .filter((t) => t.length > 0)
+    .slice(0, 40);
+  // The drawer lists the zones as tabs and the themes as tiles, so a player
+  // picks Residential and then a theme -- which is what this does.
+  press('Residential');
+  const pickedTile = press('Whichever');
+  const kindAfterTile = kindOf();
+
+  const count = (a: Uint8Array): number => {
+    let n = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== 0) n++;
+    return n;
+  };
+  const zonedBefore = count(world.zones);
+  const roadBefore = count(world.net.cls);
+
+  const opts = { bubbles: true, clientX: 0, clientY: 0, button: 0, pointerId: 1 };
+  canvas.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: 360, clientY: 200 }));
+  canvas.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: 470, clientY: 280 }));
+  canvas.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: 470, clientY: 280 }));
+
+  const zonedAfter = count(world.zones);
+  const roadAfter = count(world.net.cls);
+
+  // And then time, so the ground it zoned can come up.
+  const start = performance.now();
+  for (let i = 0; i < 1200; i++) live.update(1 / 20, start + i * 50);
+  const sim = (live as unknown as { sim: Simulation | null }).sim;
+  let released = 0;
+  for (let i = 0; i < world.grown.length; i++) {
+    if (world.zones[i] !== 0 && world.grown[i] !== 0) released++;
+  }
+
+  return {
+    openedZones, pickedTile, kindAfterTile, active: tools.active,
+    zonedBefore, zonedAfter, roadBefore, roadAfter, released,
+    homes: sim?.places.homeCapacity ?? -1,
+    population: sim?.people.population ?? -1,
+    tiles: tiles.join(' | '),
+  };
+}
+
 export async function probeHud(width: number, height: number, hour = 0.36, dist = 520,
   panel = ''):
 Promise<{ pixels: number[]; movers: string }> {
