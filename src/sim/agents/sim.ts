@@ -654,13 +654,15 @@ export class Simulation {
   drawMovers(out: Float32Array, cap: number, eyeX: number, eyeZ: number,
     ground: (x: number, z: number) => number): number {
     return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
-      this.lanes, this.router.paths, this.junctions, ground, eyeX, eyeZ,
+      this.lanes, this.router.paths, this.junctions, this.growth?.sites,
+      ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick);
   }
 
   /** What the last `drawMovers` drew. */
-  get moverCounts(): { vehicles: number; people: number; signals: number; dropped: number } {
+  get moverCounts():
+  { vehicles: number; people: number; signals: number; sites: number; dropped: number } {
     return this.movers.counts;
   }
 

@@ -30,6 +30,13 @@
  * spend, so the cost of this is bounded by what the city can afford to build
  * rather than by the size of the map.
  *
+ * NOT AT ONCE. A released patch does not become a building the same instant. It
+ * becomes a *site*: the ground is cleared and hoarded, a crane goes up over it,
+ * and the building arrives when the site is finished -- see `BUILD_DAYS` and
+ * `SiteView`. That is one rebuild per plot, exactly as before, with the wait
+ * moved in front of it instead of behind it, and it is what turns zoning from a
+ * stamp into something the player watches happen.
+ *
  * NOTHING IS CALLED BACK. Releasing a patch means the city has to be built again
  * over it, and doing that from inside the tick would re-enter the simulation
  * through the renderer while the scheduler is halfway through its systems. So the
@@ -45,6 +52,9 @@ import { OVERDRAFT } from '../budget';
 
 /** Cells across one released patch. One or two buildings' worth. */
 const PATCH = 5;
+
+/** Metres across one cell of the zoning grid. */
+const CELL = 8;
 
 
 /**
@@ -93,6 +103,28 @@ const FOUNDING_POP = 500;
  * next survey. Two hundred and sixty kilobytes, once.
  */
 const PENDING_CAP = 65536;
+
+/**
+ * How long a plot spends as a building site, in game days.
+ *
+ * A game day is ninety real seconds, so an eighth of one is about twelve
+ * seconds of hoarding, excavation and crane at normal speed -- long enough to
+ * notice and to watch, short enough that a player painting a district is not
+ * waiting on it. It scales with the game clock like everything else, so the
+ * same plot takes a second and a half at the fastest speed.
+ */
+const BUILD_DAYS = 0.14;
+
+/**
+ * Plots that may be under construction at once.
+ *
+ * A visit releases at most two dozen and a build takes about four visits, so a
+ * city in full flight sits near a hundred. Past the cap a plot is handed over
+ * the moment it is released rather than being made to queue: the alternative is
+ * growth stalling behind a render budget, which is exactly the wrong thing for
+ * a cosmetic stage to do.
+ */
+const MAX_SITES = 128;
 
 /** Demand below this grows nothing. Above it, growth scales with how far above. */
 const THRESHOLD = 0.02;
@@ -145,6 +177,28 @@ if (ZONES[0] !== 'residential' || ZONES[1] !== 'commercial'
   throw new Error('growth: ZONES no longer lines up with Want');
 }
 
+/**
+ * Where the city is currently building, for the frame to draw.
+ *
+ * Flat arrays rather than objects, and the same ones every frame: this is read
+ * once per frame by the renderer and a garbage-collected array of a hundred
+ * little records would be a hundred allocations sixty times a second for
+ * something purely decorative.
+ */
+export interface SiteView {
+  /** How many entries of each array are live. */
+  count: number;
+  /** Centre of the plot, in world metres. */
+  x: Float32Array;
+  z: Float32Array;
+  /** Half the plot's width, in metres. */
+  half: Float32Array;
+  /** 0 just cleared, 1 about to hand over. */
+  progress: Float32Array;
+  /** A stable number per plot, so its crane is slewed the same way each frame. */
+  seed: Int32Array;
+}
+
 export interface GrowthReport {
   /** Patches released since founding, and cells with them. */
   patches: number;
@@ -156,6 +210,8 @@ export interface GrowthReport {
   waitingByZone: Int32Array;
   /** Fractional patches carried between visits, so slow growth still happens. */
   owed: number;
+  /** Plots currently under construction. */
+  building: number;
 }
 
 export class Growth {
@@ -182,6 +238,38 @@ export class Growth {
   private pendingCount = 0;
   private pendingAt = 0;
 
+  /**
+   * Cells a site is standing on: released, but not built yet.
+   *
+   * A separate mask rather than a third value in `world.grown`, because every
+   * reader of that mask in the project tests it against zero -- the spawner, the
+   * save file, the views -- and a cell that said "two" would have a finished
+   * building on it and a crane over it at the same time.
+   */
+  private claimed = new Uint8Array(0);
+
+  /** Game days since this world was bound. The sites' only clock. */
+  private clock = 0;
+
+  // The open sites, densely packed, swap-removed on completion. The parallel
+  // arrays in `sites` carry the same rows in the same order.
+  private readonly siteGx = new Int32Array(MAX_SITES);
+  private readonly siteGz = new Int32Array(MAX_SITES);
+  private readonly siteW = new Int32Array(MAX_SITES);
+  private readonly siteD = new Int32Array(MAX_SITES);
+  private readonly siteFrom = new Float64Array(MAX_SITES);
+  private readonly siteDue = new Float64Array(MAX_SITES);
+
+  /** What is being built right now, for the frame. */
+  readonly sites: SiteView = {
+    count: 0,
+    x: new Float32Array(MAX_SITES),
+    z: new Float32Array(MAX_SITES),
+    half: new Float32Array(MAX_SITES),
+    progress: new Float32Array(MAX_SITES),
+    seed: new Int32Array(MAX_SITES),
+  };
+
   /** The rectangle released since the last `take`, in cells, or null. */
   private dirty: { gx: number; gz: number; w: number; d: number } | null = null;
   /**
@@ -195,7 +283,7 @@ export class Growth {
   private surveyed = -1;
 
   readonly report: GrowthReport = {
-    patches: 0, cells: 0, waiting: 0, released: 0, owed: 0,
+    patches: 0, cells: 0, waiting: 0, released: 0, owed: 0, building: 0,
     waitingByZone: new Int32Array(ZONES.length),
   };
 
@@ -226,6 +314,94 @@ export class Growth {
     this.owed.fill(0);
     this.dirty = null;
     this.surveyed = -1;
+    // The sites belong to the world they were opened on, and the mask is sized
+    // to its grid. Both are rebuilt on demand.
+    this.claimed = new Uint8Array(0);
+    this.sites.count = 0;
+    this.report.building = 0;
+    this.clock = 0;
+  }
+
+  /**
+   * Opens a site on a released patch, or hands it over at once if there is no
+   * room to open one.
+   *
+   * Returns whether the cells still need marking dirty now -- which is only
+   * when the plot skipped the site stage.
+   */
+  private open(gx: number, gz: number, w: number, d: number): boolean {
+    const i = this.sites.count;
+    if (i >= MAX_SITES) {
+      this.finish(gx, gz, w, d);
+      return true;
+    }
+    this.siteGx[i] = gx; this.siteGz[i] = gz;
+    this.siteW[i] = w; this.siteD[i] = d;
+    this.siteFrom[i] = this.clock;
+    this.siteDue[i] = this.clock + BUILD_DAYS;
+    const half = this.world.grid / 2;
+    this.sites.x[i] = (gx + w / 2 - half) * CELL;
+    this.sites.z[i] = (gz + d / 2 - half) * CELL;
+    this.sites.half[i] = (Math.min(w, d) * CELL) / 2;
+    this.sites.progress[i] = 0;
+    // A stable hash of where it is, so the crane over this plot faces the same
+    // way for the whole build and a different way from its neighbour's.
+    this.sites.seed[i] = ((gx * 73856093) ^ (gz * 19349663)) & 0x7fffffff;
+    this.sites.count = i + 1;
+    this.report.building = this.sites.count;
+    return false;
+  }
+
+  /** Hands a patch over to the spawner: the site is done, the building is real. */
+  private finish(gx: number, gz: number, w: number, d: number): void {
+    const world = this.world;
+    const g = world.grid;
+    const grown = world.grown, claimed = this.claimed;
+    for (let j = 0; j < d; j++) {
+      const row = (gz + j) * g;
+      for (let i = 0; i < w; i++) {
+        grown[row + gx + i] = 1;
+        if (claimed.length > 0) claimed[row + gx + i] = 0;
+      }
+    }
+    // Grown by the margin the spawner builds back from a kerb, so the frontage
+    // either side of the new ground is laid out again with it.
+    this.mark(gx - 3, gz - 3, w + 6, d + 6);
+  }
+
+  /**
+   * Advances the open sites and hands over the ones that are finished.
+   *
+   * Called at the top of every visit, before the solvency test: a plot the city
+   * has already dug out gets built whether or not the treasury has since gone
+   * under. Stopping halfway would leave a permanent hoarding on the map with
+   * nothing able to clear it.
+   */
+  private settle(days: number): void {
+    this.clock += days;
+    const sites = this.sites;
+    for (let i = sites.count - 1; i >= 0; i--) {
+      const span = Math.max(1e-6, this.siteDue[i] - this.siteFrom[i]);
+      const at = (this.clock - this.siteFrom[i]) / span;
+      if (at < 1) {
+        sites.progress[i] = at < 0 ? 0 : at;
+        continue;
+      }
+      this.finish(this.siteGx[i], this.siteGz[i], this.siteW[i], this.siteD[i]);
+      // Swap-remove: order does not matter to the renderer, and a splice over a
+      // hundred rows of five arrays every few seconds does not need to exist.
+      const last = sites.count - 1;
+      if (i !== last) {
+        this.siteGx[i] = this.siteGx[last]; this.siteGz[i] = this.siteGz[last];
+        this.siteW[i] = this.siteW[last]; this.siteD[i] = this.siteD[last];
+        this.siteFrom[i] = this.siteFrom[last]; this.siteDue[i] = this.siteDue[last];
+        sites.x[i] = sites.x[last]; sites.z[i] = sites.z[last];
+        sites.half[i] = sites.half[last]; sites.progress[i] = sites.progress[last];
+        sites.seed[i] = sites.seed[last];
+      }
+      sites.count = last;
+    }
+    this.report.building = sites.count;
   }
 
   /**
@@ -248,6 +424,7 @@ export class Growth {
    */
   grow(days: number): void {
     if (days <= 0) return;
+    this.settle(days);
     if (!this.solvent()) {
       // The carry goes with it. A city that spends a fortnight broke should not
       // build a fortnight's worth of houses the moment it is not.
@@ -261,6 +438,8 @@ export class Growth {
     const zones = world.zones;
     const g = world.grid;
     const cells = g * g;
+    if (this.claimed.length !== cells) this.claimed = new Uint8Array(cells);
+    const claimed = this.claimed;
 
     const pop = this.population();
     const rush = this.report.cells < FOUNDING_CELLS && pop < FOUNDING_POP
@@ -301,7 +480,6 @@ export class Growth {
     if (ready === 0) return;
 
     let looked = 0;
-    let gx0 = g, gz0 = g, gx1 = -1, gz1 = -1;
     let patches = 0, took = 0;
 
     // Over the cells that are actually waiting, not over the map.
@@ -328,7 +506,7 @@ export class Growth {
       this.pendingAt = this.pendingAt + 1 < n ? this.pendingAt + 1 : 0;
       looked++;
       if (at < 0 || at >= cells) continue;
-      if (grown[at] !== 0) continue;
+      if (grown[at] !== 0 || claimed[at] !== 0) continue;
       const zi = zoneIndexOf(zones[at]);
       if (zi < 0 || owed[zi] < 1) continue;
 
@@ -344,21 +522,19 @@ export class Growth {
       for (let j = 0; j < pd; j++) {
         const row = (z + j) * g;
         for (let i = 0; i < pw; i++) {
-          if (grown[row + x + i] !== 0) continue;
-          grown[row + x + i] = 1;
+          if (grown[row + x + i] !== 0 || claimed[row + x + i] !== 0) continue;
+          claimed[row + x + i] = 1;
           got++;
         }
       }
       if (got === 0) continue;
+      // The ground is cleared now; the building arrives when the site is done.
+      this.open(x, z, pw, pd);
       patches++;
       took += got;
       if (wanting[zi] > got) wanting[zi] -= got; else wanting[zi] = 0;
       owed[zi] -= 1;
       if (owed[zi] < 1) ready--;
-      if (x < gx0) gx0 = x;
-      if (z < gz0) gz0 = z;
-      if (x + pw > gx1) gx1 = x + pw;
-      if (z + pd > gz1) gz1 = z + pd;
     }
 
     this.report.patches += patches;
@@ -371,13 +547,6 @@ export class Growth {
     // frozen next to the buildings it is counting.
     this.report.released += took;
     this.report.waiting = Math.max(0, this.report.waiting - took);
-    if (patches === 0) return;
-
-    // One rectangle for everything released this visit, grown by the margin the
-    // spawner builds back from a kerb so the frontage either side of the new
-    // ground is laid out again with it. The cursor walks the grid in order, so a
-    // visit's patches are neighbours and the rectangle stays tight.
-    this.mark(gx0 - 3, gz0 - 3, gx1 - gx0 + 6, gz1 - gz0 + 6);
   }
 
   /** Unions a rectangle into the one waiting to be taken. */
@@ -418,12 +587,16 @@ export class Growth {
     byZone.fill(0);
     if (this.pending.length === 0) this.pending = new Int32Array(PENDING_CAP);
     const pending = this.pending;
+    const claimed = this.claimed;
     let held = 0;
     let waiting = 0, released = 0;
     for (let at = 0; at < zones.length; at++) {
       if (zones[at] === 0) continue;
       if (grown[at] !== 0) { released++; continue; }
       waiting++;
+      // Land with a hoarding round it is waiting, but there is nothing left to
+      // offer it -- it has already been handed out once.
+      if (claimed.length > 0 && claimed[at] !== 0) continue;
       if (held < PENDING_CAP) pending[held++] = at;
       const z = zoneIndexOf(zones[at]);
       if (z >= 0) byZone[z]++;

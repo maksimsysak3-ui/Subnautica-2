@@ -17,6 +17,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import { IMPORTED_IDS, drawImported, drawImpostor, importedSize } from '../imported';
 import { person } from './vehicles';
+import { SITE_RESERVE } from './construction';
 import type { AssetDef } from '../types';
 
 /** A mover costs the city nothing: it is what the city's costs look like. */
@@ -354,5 +355,38 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.stop': 200,
 };
 
+/**
+ * Which bodies are modelled nose-towards -x, and so want turning half a turn.
+ *
+ * Measured rather than assumed: the mass of every model above three quarters of
+ * its own height is its cabin or its box, and that sits *behind* the nose on a
+ * car and on a van. The saloons come out at +1.2 metres and want the flip; the
+ * bus, the ambulance, the fire appliance and the refuse lorry come out at zero
+ * or below -- they are cab-forward and already point the way they drive -- and
+ * flipping those is what had the trucks driving backwards while the cars were
+ * right.
+ */
+export const MOVER_FLIP: Record<string, boolean> = {
+  'move.car': true, 'move.car2': true, 'move.car3': true, 'move.car4': true,
+  'move.taxi': true, 'move.police': true,
+  'move.lorry': false, 'move.bus': false, 'move.ambulance': false,
+  'move.fire': false, 'move.refuse': false,
+  'move.walker': false, 'move.cyclist': false,
+};
+
+/**
+ * Everything the frame draws on top of the city, and how many of each.
+ *
+ * Movers and building sites are the same kind of thing as far as the renderer is
+ * concerned -- a prototype whose instances are rewritten every frame from live
+ * simulation state rather than baked at load -- so the census, the visibility
+ * slices and the instance buffer are all sized from one table. Keeping them in
+ * two tables was how the first attempt silently dropped every crane: a
+ * prototype the census never counted has no slice to be listed in.
+ */
+export const FRAME_RESERVE: Record<string, number> = {
+  ...MOVER_RESERVE, ...SITE_RESERVE,
+};
+
 /** Every instance the frame may write, which is what the buffer is sized for. */
-export const MOVER_BUDGET = Object.values(MOVER_RESERVE).reduce((a, b) => a + b, 0);
+export const MOVER_BUDGET = Object.values(FRAME_RESERVE).reduce((a, b) => a + b, 0);

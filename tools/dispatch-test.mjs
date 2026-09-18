@@ -83,11 +83,20 @@ section('a call, answered');
   ok(home >= 0, 'and there is a house near it to catch fire');
 
   const before = { raised: sim.dispatch.stats.raised[Need.FIRE] };
-  // `open` is private; the supported way in is to let the watch find it. Force the
-  // building into the state that guarantees one rather than waiting for a die roll:
-  // health at zero is the highest hazard the model has.
+  // Raise the fire outright rather than waiting for the watch to roll one.
+  //
+  // This used to set the building's health to zero and step four thousand
+  // ticks, which is four and a half game days -- and the base rate is one fire
+  // per building per two thousand six hundred days. The highest hazard the
+  // model has still only lifts that to about a one in four hundred chance over
+  // the whole run, so the check was failing far more often than it passed and
+  // was measuring the die, not the dispatcher. What this section is for is the
+  // response: a call goes out, an engine is sent, it arrives in time. So the
+  // call is made directly, and the rate itself is checked further down over a
+  // city and a fortnight, where the sample is big enough to mean something.
   pc.health[home] = 0;
-  let raisedAny = false;
+  sim.dispatch.open(Need.FIRE, home);
+  let raisedAny = sim.dispatch.stats.raised[Need.FIRE] > before.raised;
   for (let i = 0; i < 4000 && !raisedAny; i++) {
     sim.step(1);
     raisedAny = sim.dispatch.stats.raised[Need.FIRE] > before.raised;
@@ -179,9 +188,15 @@ section('the caps hold');
   // release is invisible until the city has been running for an hour.
   const live = sim.router.paths;
   let held = 0;
+  // A call does not hold a route; the vehicle it sent does. Asking the call
+  // table for a `route` column read undefined and threw, which took the whole
+  // suite down with it after this section.
   const dc = sim.dispatch.table.col;
+  const tc = sim.traffic.table.col;
   for (let r = 0; r < sim.dispatch.table.bound; r++) {
-    if (sim.dispatch.table.live[r] !== 0 && dc.route[r] >= 0) held++;
+    if (sim.dispatch.table.live[r] === 0) continue;
+    const v = dc.vehicle[r];
+    if (v >= 0 && sim.traffic.table.live[v] !== 0 && tc.route[v] >= 0) held++;
   }
   console.log(`  routes held by open calls ${held}`);
   ok(held <= mostLive, 'no call holds more than one route', `${held} for ${mostLive}`);

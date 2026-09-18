@@ -145,8 +145,37 @@ const PATIENCE_TICKS = 12;
  */
 const HIDE_SPAWN = 260;
 
-/** Lane changes considered per tick, across the whole city. */
-const LANE_CHANGES_PER_TICK = 64;
+/**
+ * Lane changes considered per tick, across the whole city.
+ *
+ * This is a backstop, not a throttle, and the difference matters. It used to be
+ * spent on every vehicle that felt like moving over -- including the half of
+ * them on single-lane streets, where there is nowhere to move to, and the fifth
+ * of them inside the last few metres of a lane, where a change is refused
+ * anyway. A city's worth of those exhausted the budget in the first few hundred
+ * rows of the table every tick, and the vehicles after them -- always the same
+ * ones, because the table is walked in order -- never got a turn at all. That is
+ * measurable: on a two-lane arterial carrying nine vehicles in one lane and none
+ * in the other, the budget was gone ninety-six per cent of the times a driver on
+ * it wanted to move over. The lane stayed empty for the whole run.
+ *
+ * The cheap disqualifications now happen before the budget is touched, which
+ * leaves it at roughly a quarter spent on a busy map -- so it bounds the worst
+ * case without deciding the ordinary one.
+ */
+const LANE_CHANGES_PER_TICK = 192;
+
+/**
+ * How many fewer vehicles a lane must hold before a driver moves over for it.
+ *
+ * The lane a routed vehicle is on is the one its route named, and the router
+ * names the same lane of a link every time -- so a dual carriageway carried its
+ * whole flow in one lane while the one beside it ran empty, which is what the
+ * player has been looking at. Drivers now even the carriageway out themselves:
+ * two is enough of a difference to be worth the manoeuvre and not so little
+ * that a pair of vehicles swap lanes with each other for ever.
+ */
+const LANE_SLACK = 2;
 
 /**
  * How much of the flow model's density is put on the road.
@@ -448,6 +477,11 @@ export class Traffic {
       const v0 = Math.max(2, g.speed[lane] * style.limit);
       const speed = c.speed[v];
       const laneLength = g.length[lane];
+      // The carriageway this lane belongs to, read once: the lane-change
+      // decision below needs it, and so does the test for whether there is a
+      // decision to make at all.
+      const laneSlot = g.link[lane] * 2 + g.dir[lane];
+      const laneFrom = g.linkStart[laneSlot], laneEnd = g.linkEnd[laneSlot];
 
       // What is in the way: the vehicle in front on this lane, or the junction at
       // the end of it, or nothing.
@@ -572,15 +606,36 @@ export class Traffic {
         c.speed[v] = 0;
       }
 
-      // Stuck for a while: is the lane beside this one moving? And, far more
-      // often, is it simply emptier -- a driver keeping left on a clear road is
-      // what fills the other lanes of an avenue that is not congested at all.
-      const crowded = this.laneCount[lane] > 1
-        && (v & 31) === (this.tickParity & 31)
-        && c.speed[v] < this.g.speed[lane] * 0.75;
-      if ((c.stopped[v] > PATIENCE_TICKS || crowded) && changesLeft > 0) {
-        changesLeft--;
-        if (this.tryChange(v, lane)) this.stats.changes++;
+      // Is a lane change even on the table? Two comparisons, before anything
+      // is spent: there has to be another lane going this way, and there has to
+      // be enough road left to make the manoeuvre in. Both are refusals
+      // `tryChange` makes anyway -- the point of making them here is that they
+      // happen before the budget is touched.
+      const ways = laneEnd - laneFrom;
+      if (ways > 1 && laneLength - c.along[v] >= 12
+        && c.inBox[v] < 0 && c.cleared[v] === 0) {
+        // Three reasons to move over, in the order they matter. Stuck behind
+        // something for a while. Held below the limit on a lane that has
+        // company. Or -- the common one, and the one that actually fills a
+        // carriageway -- simply being in the busier lane of a road that is not
+        // congested at all. Each is rate-limited on the vehicle's own index
+        // against a rolling counter, so the work is spread over ticks instead
+        // of every driver on the map reconsidering at once.
+        const stuck = c.stopped[v] > PATIENCE_TICKS;
+        const slow = (v & 15) === (this.tickParity & 15)
+          && c.speed[v] < this.g.speed[lane] * 0.75;
+        const lopsided = (v & 7) === (this.tickParity & 7)
+          && this.thinner(lane, laneFrom, laneEnd);
+        if ((stuck || slow || lopsided) && changesLeft > 0) {
+          changesLeft--;
+          // A driver who is stuck or held up will take any lane that is no
+          // fuller than the one they are in. A driver who is merely in the
+          // busier lane of a clear road wants a properly emptier one, or the
+          // two lanes trade vehicles back and forth for ever without either
+          // getting shorter.
+          const slack = stuck || slow ? 0 : LANE_SLACK;
+          if (this.tryChange(v, lane, laneFrom, laneEnd, slack)) this.stats.changes++;
+        }
       }
     }
 
@@ -725,6 +780,24 @@ export class Traffic {
   }
 
   /**
+   * Whether a lane parallel to this one is carrying meaningfully less.
+   *
+   * The cheap half of the lane-change decision: a count comparison over the two
+   * or three lanes of one carriageway, which is what every driver on a
+   * multi-lane road runs through this many times a second. The expensive half
+   * -- can I still make my turn, and is there a gap -- only runs when this says
+   * there is something to move over for.
+   */
+  private thinner(lane: number, from: number, to: number): boolean {
+    const mine = this.laneCount[lane];
+    if (mine === 0) return false;
+    for (let other = from; other < to; other++) {
+      if (other !== lane && this.laneCount[other] + LANE_SLACK <= mine) return true;
+    }
+    return false;
+  }
+
+  /**
    * Tries to move a stopped vehicle into the lane beside it.
    *
    * Three conditions, and the second is the one that keeps the route valid: there
@@ -733,7 +806,8 @@ export class Traffic {
    * here run the whole length of a link and the route names the lane, a change that
    * broke the second condition would put the vehicle on a road it cannot turn off.
    */
-  private tryChange(v: number, lane: number): boolean {
+  private tryChange(v: number, lane: number, from: number, to: number,
+    slack: number): boolean {
     const c = this.table.col;
     const g = this.g;
     // Not once the junction ahead has been asked about. A vehicle that has been
@@ -746,15 +820,30 @@ export class Traffic {
     // Nor within the last few metres, where the decision is about to be made
     // and the queue the vehicle would join has no room to react.
     if (g.length[lane] - c.along[v] < 12) return false;
-    const link = g.link[lane], dir = g.dir[lane];
-    const from = g.linkStart[link * 2 + dir], to = g.linkEnd[link * 2 + dir];
     if (to - from < 2) return false;                   // only one lane this way
-    const next = c.next[v];
+    // The movement that has to survive the change. `c.next` is only filled in
+    // once a vehicle is close enough to the junction to have decided, so a
+    // routed vehicle's next lane is read straight off its route instead --
+    // otherwise a change made early in a link is unchecked, and the vehicle
+    // arrives at the line in a lane with no edge to the lane its route names.
+    // That is a route silently going void, which is a vehicle deleted mid
+    // journey, and it is invisible until the trip counts are compared.
+    let next = c.next[v];
+    if (next === -1 && c.route[v] >= 0) {
+      const want = this.routeLane(v);
+      if (want >= 0) next = want;
+    }
     const along = c.along[v];
     const style = STYLE[c.driver[v]];
 
+    // The emptiest lane that will take it, not the first one that will: moving
+    // into the next lane along when the one past it is empty is how a three
+    // lane road ends up using two.
+    let best = -1;
+    let bestCount = this.laneCount[lane] - slack + 1;
     for (let other = from; other < to; other++) {
       if (other === lane) continue;
+      if (this.laneCount[other] >= bestCount) continue;
       // Must still be able to make the movement the route needs.
       if (next >= 0) {
         let ok = false;
@@ -775,15 +864,17 @@ export class Traffic {
         }
       }
       if (!clear) continue;
-      this.unlink(v);
-      c.lane[v] = other;
-      c.cleared[v] = 0;
-      c.next[v] = -1;
-      c.stopped[v] = 0;
-      this.linkAt(v, other, along);
-      return true;
+      best = other;
+      bestCount = this.laneCount[other];
     }
-    return false;
+    if (best < 0) return false;
+    this.unlink(v);
+    c.lane[v] = best;
+    c.cleared[v] = 0;
+    c.next[v] = -1;
+    c.stopped[v] = 0;
+    this.linkAt(v, best, along);
+    return true;
   }
 
   /**

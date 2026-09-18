@@ -45,6 +45,50 @@ const FRONT_DAYS = 1.2;
 /** Dries in about four in-game hours from soaking to dry. */
 const DRY_RATE = 1 / (4 / 24);
 
+/**
+ * The sky a given front produces.
+ *
+ * Pulled out of the class so a forecast is the same function as the weather:
+ * the phone's outlook samples the noise field a few hours ahead and runs it
+ * through this, so what it promises is exactly what will arrive rather than a
+ * second model that agrees with the first most of the time.
+ */
+export function skyOf(front: number): Sky {
+  const f = Math.min(1, Math.max(0, front));
+  // Cover comes first and comes early: it is overcast well before it rains.
+  const cover = Math.min(1, f * 1.35);
+  // Rain needs the sky to be properly shut. Below that it is just a grey day,
+  // which is most grey days.
+  const rain = Math.max(0, (f - 0.66) / 0.34) ** 1.25;
+  // Fog is the other end of the same scale, not the same end. It sits in still
+  // settled air, so it belongs to the calm side -- and it is cut once the rain
+  // arrives, because rain clears the air rather than thickening it.
+  const still = Math.max(0, 1 - f / 0.34);
+  const fog = Math.min(1, still * 0.55 * (1 - rain));
+  return { cover, fog, rain, wet: rain > 0.05 ? 1 : 0 };
+}
+
+/** What to call a sky. */
+export function labelOf(s: Sky): string {
+  if (s.rain > 0.55) return 'Heavy rain';
+  if (s.rain > 0.12) return 'Rain';
+  if (s.fog > 0.3) return 'Fog';
+  if (s.cover > 0.75) return 'Overcast';
+  if (s.cover > 0.35) return 'Cloudy';
+  if (s.cover > 0.12) return 'Fair';
+  return 'Clear';
+}
+
+/** A glyph for it, so a readout scans at a glance rather than by reading. */
+export function glyphOf(s: Sky): string {
+  if (s.rain > 0.55) return '\u2614';
+  if (s.rain > 0.12) return '\u2602';
+  if (s.fog > 0.3) return '\u2248';
+  if (s.cover > 0.75) return '\u2601';
+  if (s.cover > 0.35) return '\u26c5';
+  return '\u2600';
+}
+
 export class Weather {
   readonly sky: Sky = { cover: 0.12, fog: 0.05, rain: 0, wet: 0 };
 
@@ -83,12 +127,31 @@ export class Weather {
 
   /** The unsettledness right now, 0 fine to 1 stormy. Public for the readout. */
   get front(): number {
+    return this.frontAt(this.phase);
+  }
+
+  /**
+   * The front `days` of game time from now.
+   *
+   * The whole model is a noise field read on a phase, and the phase is a linear
+   * function of the clock -- so the weather an hour from now is not a guess, it
+   * is the same lookup at a different argument. That is what makes a forecast
+   * in this game honest: it is the sky that will actually be there.
+   *
+   * A pinned sky forecasts itself, because that is what pinning means.
+   */
+  ahead(days: number): number {
+    if (this.forced !== null) return this.forced;
+    return this.frontAt(this.phase + days / FRONT_DAYS);
+  }
+
+  private frontAt(phase: number): number {
     if (this.forced !== null) return this.forced;
     // Two octaves at the same scale a day is measured in, offset so it is not
     // symmetric about noon. `fbm` is 0..1 and clusters around the middle, so
     // this is stretched to reach both ends -- otherwise the sky lived
     // permanently in a mild overcast and nothing ever properly cleared.
-    const raw = fbm(this.phase * 1.0, 11.7, 2, 4471);
+    const raw = fbm(phase, 11.7, 2, 4471);
     // Shifted down and stretched, and then measured rather than guessed at.
     // The old window opened at 0.34 with a gain of 2.35 and `fbm` clusters so
     // tightly around its middle that the top of the range -- where rain lives
@@ -119,39 +182,17 @@ export class Weather {
   }
 
   private derive(): void {
-    const f = this.front;
-    // Cover comes first and comes early: it is overcast well before it rains.
-    this.sky.cover = Math.min(1, f * 1.35);
-    // Rain needs the sky to be properly shut. Below that it is just a grey day,
-    // which is most grey days.
-    this.sky.rain = Math.max(0, (f - 0.66) / 0.34) ** 1.25;
-    // Fog is the other end of the same scale, not the same end. It sits in
-    // still settled air, so it belongs to the calm side -- and it is cut once
-    // the rain arrives, because rain clears the air rather than thickening it.
-    const still = Math.max(0, 1 - f / 0.34);
-    this.sky.fog = Math.min(1, still * 0.55 * (1 - this.sky.rain));
+    // The wetness is the one thing that is not a function of the front: it
+    // lags, and `advance` owns it. Everything else is.
+    const next = skyOf(this.front);
+    this.sky.cover = next.cover;
+    this.sky.rain = next.rain;
+    this.sky.fog = next.fog;
   }
 
   /** What to call this, for the bar. */
-  get label(): string {
-    const s = this.sky;
-    if (s.rain > 0.55) return 'Heavy rain';
-    if (s.rain > 0.12) return 'Rain';
-    if (s.fog > 0.3) return 'Fog';
-    if (s.cover > 0.75) return 'Overcast';
-    if (s.cover > 0.35) return 'Cloudy';
-    if (s.cover > 0.12) return 'Fair';
-    return 'Clear';
-  }
+  get label(): string { return labelOf(this.sky); }
 
   /** A glyph for it, so the bar reads at a glance rather than by reading. */
-  get glyph(): string {
-    const s = this.sky;
-    if (s.rain > 0.55) return '☔';
-    if (s.rain > 0.12) return '☂';
-    if (s.fog > 0.3) return '≈';
-    if (s.cover > 0.75) return '☁';
-    if (s.cover > 0.35) return '⛅';
-    return '☀';
-  }
+  get glyph(): string { return glyphOf(this.sky); }
 }

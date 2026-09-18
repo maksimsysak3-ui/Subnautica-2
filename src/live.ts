@@ -24,7 +24,9 @@
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
-import type { CityMood } from './ui/cititok';
+import type { CityMood, WeatherRead } from './ui/cititok';
+import type { Sky } from './sim/weather';
+import { skyOf, labelOf, glyphOf } from './sim/weather';
 import { MOVER_BUDGET } from './assets/generators/movers';
 import { INSTANCE_FLOATS } from './sim';
 import { Inspect } from './ui/inspect';
@@ -159,7 +161,7 @@ export class LiveCity {
       return goal.progress(this.sim, this.renderer.world);
     };
     this.levelCard = new LevelUpCard(ui);
-    this.cititok = new Cititok(ui, () => this.mood());
+    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast());
     this.settings = new Settings(ui, {
       apply: (v) => {
         const q = renderer.quality;
@@ -259,6 +261,49 @@ export class LiveCity {
       riders: sim.transit.report.ridersPerDay,
       city: this.cityName,
       level: this.renderer.world.progress.level,
+    };
+  }
+
+  /**
+   * What the phone's weather app shows.
+   *
+   * The sky, and six game hours of it read ahead. The forecast is not a second
+   * model: `Weather.ahead` samples the same noise field the sky is drawn from
+   * at a later phase, so what the app promises is what arrives.
+   *
+   * Temperature and wind are derived here rather than simulated, because the
+   * model does not hold either and pretending otherwise would be inventing a
+   * number and calling it a reading. They are stated functions of what it does
+   * hold: a daily swing that a lid of cloud flattens and cools, and a wind that
+   * rises with the front. Consistent, legible, and honest about what they are.
+   */
+  private forecast(): WeatherRead | null {
+    const r = this.renderer;
+    if (!this.running) return null;
+    const w = r.weather;
+    const hour = r.timeOfDay * 24;
+    const at = (h: number, sky: Sky): number => {
+      // Coldest before dawn, warmest mid-afternoon; cloud flattens the swing
+      // and takes the top off the day, and rain takes a little more.
+      const swing = 7 * (1 - 0.45 * sky.cover);
+      return 11 + swing * Math.cos(((h - 15) / 24) * Math.PI * 2)
+        - 3.5 * sky.cover - 2 * sky.rain;
+    };
+    const outlook: WeatherRead['outlook'] = [];
+    for (let h = 1; h <= 6; h++) {
+      const sky = skyOf(w.ahead(h / 24));
+      outlook.push({
+        hour: hour + h, sky, label: labelOf(sky), glyph: glyphOf(sky),
+        temp: at(hour + h, sky),
+      });
+    }
+    return {
+      now: w.sky, label: w.label, glyph: w.glyph, hour,
+      temp: at(hour, w.sky),
+      // Still air on a settled day, and a gale at the front of a storm.
+      wind: 5 + w.front * 42,
+      city: this.cityName,
+      outlook,
     };
   }
 

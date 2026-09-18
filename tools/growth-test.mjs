@@ -40,6 +40,9 @@ const bundle = (await esbuild.build({
       `export { PLOTS } from '${src}sim/plots';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
       `export { configureSim } from '${src}sim/config';`,
+      `export { INSTANCE_FLOATS } from '${src}sim/city';`,
+      `export { MOVER_BUDGET } from '${src}assets/generators/movers';`,
+      `export { ASSET_INDEX } from '${src}sim/inventory';`,
     ].join('\n'),
     resolveDir: src, loader: 'ts',
   },
@@ -50,6 +53,7 @@ const M = await import('data:text/javascript;base64,' + Buffer.from(bundle).toSt
 const {
   Simulation, Growth, Want, makeCity, emptyWorld, paint, zoneCode, zoneIndexOf,
   serialise, deserialise, PLOTS, TICKS_PER_DAY, configureSim,
+  INSTANCE_FLOATS, MOVER_BUDGET, ASSET_INDEX,
 } = M;
 
 let failed = 0, checks = 0;
@@ -234,6 +238,62 @@ section('a new city wants residents');
 }
 
 // ---- it survives a save ----------------------------------------------------
+
+section('the ground is a building site first');
+{
+  // The stage between "released" and "built": a hoarded pad, a crane, and a
+  // frame going up. What has to hold is that it is a *stage* and not a state --
+  // every plot that opens one must hand it over, or the map fills with permanent
+  // hoardings and the buildings never arrive.
+  const world = site();
+  zone(world, 'residential', 'low', 40);
+  const sim = new Simulation(makeCity(world), world.net, 0x2c, world);
+  sim.found(6);
+  const growth = sim.growth;
+  ok(growth !== undefined, 'growth is running');
+
+  let peak = 0, firstAt = -1, everCrane = 0, drawn = 0;
+  const rows = new Float32Array(MOVER_BUDGET * INSTANCE_FLOATS);
+  const CHUNK = 8;
+  for (let t = 0; t < TICKS_PER_DAY * 3; t += CHUNK) {
+    sim.step(CHUNK);
+    const grew = sim.grew();
+    if (grew !== null) sim.buildingsChanged(makeCity(world, grew));
+    const open = growth.sites.count;
+    if (open > 0 && firstAt < 0) firstAt = t;
+    if (open > peak) peak = open;
+    if (open > 0 && drawn === 0) {
+      drawn = sim.drawMovers(rows, MOVER_BUDGET,
+        growth.sites.x[0], growth.sites.z[0], () => 0);
+      const want = {
+        pad: ASSET_INDEX.get('site.pad'),
+        crane: ASSET_INDEX.get('site.crane'),
+      };
+      let pads = 0;
+      for (let i = 0; i < drawn; i++) {
+        const proto = rows[i * INSTANCE_FLOATS + 7];
+        if (proto === want.pad) pads++;
+        if (proto === want.crane) everCrane++;
+      }
+      ok(pads > 0, 'a plot that has just been released is drawn as a site',
+        `${pads} pads among ${drawn} rows`);
+    }
+  }
+  ok(firstAt >= 0, 'a site opens as soon as the city releases ground',
+    `tick ${firstAt}`);
+  ok(peak > 0, 'and several run at once', `${peak} at the peak`);
+  // Three days is more than twenty times a plot's build, so nothing opened in
+  // the first day can still be standing.
+  ok(growth.report.cells > 0, 'the ground was handed over to the spawner',
+    `${growth.report.cells} cells`);
+  let released = 0;
+  for (let i = 0; i < world.grown.length; i++) if (world.grown[i] !== 0) released++;
+  ok(released >= growth.report.cells,
+    'every cell a site stood on is now the spawner\'s',
+    `${released} released against ${growth.report.cells} claimed`);
+  ok(sim.places.homeCapacity > 0, 'and there are real buildings on it',
+    `${sim.places.homeCapacity} homes`);
+}
 
 section('a half-grown city saves and loads');
 {

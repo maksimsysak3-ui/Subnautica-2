@@ -788,12 +788,413 @@ type Plan = {
   brand?: string;
 };
 
+
+/**
+ * A public house on a corner: the one building every one of these districts was
+ * missing.
+ *
+ * A low-density high street built from five models repeats a corner shop every
+ * forty metres, and the eye reads that as wallpaper rather than as a street. A
+ * pub is the right thing to add because it is the one commercial building that
+ * is *not* a shop: it sits on a corner, it is taller than its neighbours by
+ * half a storey, it has a garden rather than a service yard, and it carries a
+ * hanging sign instead of a fascia -- so it breaks the rhythm from a distance
+ * as well as up close.
+ */
+function publicHouse(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 15.0, 13.0);
+  const x = w / 2, z = d / 2;
+  const bar = 4.3;                                  // the tall public bar
+  const floors = storeysOf(T, 2);
+  const eaves = bar + T.floorH * (floors - 1);
+
+  // The garden takes a bite out of the plot, so the building is an L and reads
+  // as a corner even when it is not on one.
+  const gx = x - w * 0.34;
+  m.box([-x, 0, -z], [x, bar, z], T.base, { roof: T.cover });
+  m.box([-x, bar, -z], [gx, eaves, z], T.wall, { roof: T.cover });
+  roofOver(m, T, -x, -z, gx, z, eaves, { along: 'z', dormers: medium ? 2 : 0 });
+  // The single-storey back bar, with a flat lead roof and a parapet.
+  parapet(m, gx, -z, x, z, bar, 0.5, 0.16, T.trim);
+
+  if (medium) {
+    band(m, -x, -z, gx, z, bar, 0.44, 0.24, T.trim);
+    if (T.chimney) {
+      m.box([-x + 1.2, eaves - 0.3, -z + 1.6], [-x + 2.6, eaves + 3.2, -z + 3.0], T.base);
+    }
+    // The garden: a low wall, a hard standing, and benches under it.
+    m.box([gx, 0, z], [x, 0.12, z + 4.2], MAT.CONCRETE);
+    m.box([gx - 0.2, 0, z + 4.0], [x, 0.95, z + 4.4], T.base);
+    m.box([x - 0.4, 0, z], [x, 0.95, z + 4.4], T.base);
+    m.painted(TINT.WOOD, () => {
+      for (let b = 0; b < 2; b++) {
+        const bz = z + 1.1 + b * 1.9;
+        m.box([gx + 0.7, 0.72, bz - 0.38], [x - 1.2, 0.80, bz + 0.38], MAT.TRIM);
+        for (const side of [-0.72, 0.72]) {
+          m.box([gx + 0.7, 0.42, bz + side - 0.24], [x - 1.2, 0.50, bz + side + 0.24], MAT.TRIM);
+        }
+        for (const px of [gx + 1.3, x - 1.9]) {
+          m.box([px - 0.07, 0, bz - 0.9], [px + 0.07, 0.78, bz + 0.9], MAT.TRIM);
+        }
+      }
+    });
+  }
+  if (fine) {
+    // Bar windows: tall, small-paned, with a painted stall riser under them.
+    shopfront(m, { axis: 'z', sign: 1, plane: z }, -x + 0.7, gx - 0.7,
+      { bays: 3, doorBay: 1, head: bar - 1.0, sill: 1.05, fascia: 0.7 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 1.1, gx - 1.1,
+      bar - 0.95, bar - 0.25);
+    // The hanging sign on its bracket, which is what a pub is recognised by.
+    bladeSign(m, { axis: 'x', sign: -1, plane: -x }, -z + 3.0, bar - 2.6, bar - 0.6, 1.6);
+    punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 0.8, gx - 0.8,
+      { floors: floors - 1, base: bar + 0.7 });
+    punched(m, T, { axis: 'x', sign: -1, plane: -x }, -z + 0.9, z - 0.9,
+      { floors: floors - 1, base: bar + 0.7 });
+    punched(m, T, { axis: 'x', sign: 1, plane: x }, -z + 0.9, z - 0.9,
+      { floors: 1, base: bar + 0.7, lite: true });
+    doorway(m, T, { axis: 'z', sign: 1, plane: z }, -x + w * 0.16);
+    // The cellar drop, in the pavement, which is how the barrels get in.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([gx - 2.6, 0.02, z + 0.3], [gx - 0.9, 0.16, z + 1.5], MAT.TRIM);
+    });
+    frontage(m, -x, gx, z, seed, { planters: 1, bollards: 3, bin: true });
+  }
+  return m;
+}
+
+/**
+ * A filling station: a kiosk, a canopy, and the forecourt between them.
+ *
+ * Almost all of it is the canopy, which is the point -- it is a horizontal
+ * plane floating five metres up over an open slab, and there is nothing else
+ * shaped like that in the zoned library. A street with one on it immediately
+ * reads as a road out of town rather than as a high street.
+ */
+function filling(lod: number, T: ThemeProfile, _seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 26.0, 19.0);
+  const x = w / 2, z = d / 2;
+  const kioskW = w * 0.34;
+  const CANOPY = 5.2;
+
+  // The forecourt: a concrete slab the whole plot, which is what it is.
+  m.box([-x, 0, -z], [x, 0.14, z], MAT.CONCRETE);
+  // The kiosk, at the back.
+  m.box([-x, 0.14, -z], [-x + kioskW, 4.1, -z + d * 0.42], T.base, { roof: T.cover });
+  if (T.roof !== 'flat') {
+    roofOver(m, T, -x, -z, -x + kioskW, -z + d * 0.42, 4.1, { along: 'x' });
+  } else {
+    parapet(m, -x, -z, -x + kioskW, -z + d * 0.42, 4.1, 0.6, 0.18, T.trim);
+  }
+
+  // The canopy and its columns.
+  const cx0 = -x + kioskW + 1.4, cx1 = x - 1.0;
+  const cz0 = -z + 1.2, cz1 = z - 1.2;
+  m.painted(TINT.BRAND, () => {
+    m.box([cx0, CANOPY, cz0], [cx1, CANOPY + 1.15, cz1], MAT.TRIM);
+  });
+  m.painted(TINT.NONE, () => {
+    // The underside is lit, which is the whole look of one of these at night.
+    m.box([cx0 + 0.25, CANOPY - 0.22, cz0 + 0.25], [cx1 - 0.25, CANOPY, cz1 - 0.25],
+      MAT.TRIM);
+  });
+  m.painted(TINT.METAL_DARK, () => {
+    for (const px of [cx0 + (cx1 - cx0) * 0.22, cx0 + (cx1 - cx0) * 0.78]) {
+      for (const pz of [cz0 + 0.9, cz1 - 0.9]) {
+        m.box([px - 0.33, 0.14, pz - 0.33], [px + 0.33, CANOPY, pz + 0.33], MAT.TRIM);
+      }
+    }
+  });
+
+  if (medium) {
+    // Pump islands under the canopy, two of them, each with a pair of pumps.
+    for (let i = 0; i < 2; i++) {
+      const px = cx0 + (cx1 - cx0) * (i === 0 ? 0.3 : 0.7);
+      m.box([px - 1.5, 0.14, cz0 + 1.6], [px + 1.5, 0.35, cz1 - 1.6], MAT.CONCRETE);
+      for (const pz of [cz0 + 3.0, cz1 - 3.0]) {
+        m.painted(TINT.NONE, () => {
+          m.box([px - 0.55, 0.35, pz - 0.42], [px + 0.55, 1.95, pz + 0.42], MAT.CLADDING);
+        });
+        m.painted(TINT.BRAND, () => {
+          m.box([px - 0.58, 1.95, pz - 0.45], [px + 0.58, 2.25, pz + 0.45], MAT.TRIM);
+        });
+        if (fine) {
+          m.painted(TINT.METAL_DARK, () => {
+            m.box([px - 0.62, 0.9, pz - 0.1], [px - 0.5, 1.6, pz + 0.1], MAT.TRIM);
+            m.box([px + 0.5, 0.9, pz - 0.1], [px + 0.62, 1.6, pz + 0.1], MAT.TRIM);
+          });
+        }
+      }
+    }
+    pylonSign(m, x - 2.2, -z + 2.4, 7.4, 2.6);
+    kerb(m, -x, z - 0.6, x, z);
+  }
+  if (fine) {
+    shopfront(m, { axis: 'z', sign: 1, plane: -z + d * 0.42 }, -x + 0.8,
+      -x + kioskW - 0.8, { bays: 3, doorBay: 1, head: 3.1, fascia: 0.7 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: -z + d * 0.42 }, -x + 1.3,
+      -x + kioskW - 1.3, 3.15, 3.8);
+    // The air line and the vacuum, off in the corner where they always are,
+    // each on its own little plinth with a hose reel on the side.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const ax of [-x + 1.0, -x + 2.2]) {
+        m.box([ax, 0.14, z - 2.4], [ax + 0.5, 1.5, z - 1.9], MAT.TRIM);
+        m.cylinder(ax + 0.25, z - 1.86, 0.22, 0.9, 1.06, 8, MAT.TRIM);
+      }
+      // Gas bottles in a cage against the kiosk gable, which every one has.
+      const gx0 = -x + kioskW + 0.2;
+      for (let i = 0; i < 6; i++) {
+        m.cylinder(gx0 + 0.35, -z + 0.9 + i * 0.52, 0.2, 0.14, 1.05, 6, MAT.METAL);
+      }
+      for (let i = 0; i <= 6; i++) {
+        m.box([gx0 - 0.05, 0.14, -z + 0.62 + i * 0.52],
+          [gx0 + 0.75, 1.5, -z + 0.68 + i * 0.52], MAT.TRIM);
+      }
+      m.box([gx0 - 0.05, 1.44, -z + 0.6], [gx0 + 0.75, 1.5, -z + 4.0], MAT.TRIM);
+    });
+    // Forecourt markings: the hatched no-parking round the islands, which is
+    // most of what tells the eye this is a forecourt and not a car park.
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i < 2; i++) {
+        const px = cx0 + (cx1 - cx0) * (i === 0 ? 0.3 : 0.7);
+        for (let k = 0; k < 7; k++) {
+          const pz = cz0 + 1.7 + k * ((cz1 - cz0 - 3.4) / 6);
+          m.box([px - 2.3, 0.145, pz - 0.09], [px + 2.3, 0.15, pz + 0.09], MAT.TRIM);
+        }
+      }
+      m.box([cx0 + 0.4, 0.145, cz1 - 0.9], [cx1 - 0.4, 0.15, cz1 - 0.78], MAT.TRIM);
+      m.box([cx0 + 0.4, 0.145, cz0 + 0.78], [cx1 - 0.4, 0.15, cz0 + 0.9], MAT.TRIM);
+    });
+    // A rail along the kiosk front, so the pavement reads as a pavement.
+    railing(m, -x + 0.4, -x + kioskW - 0.4, -z + d * 0.42 + 1.3, 0.14, 1.05, 1.0);
+    bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 0.8, 8);
+  }
+  return m;
+}
+
+/**
+ * A café with flats over it, and tables on the pavement.
+ *
+ * The medium band was three buildings that all sit square on their plot with a
+ * flat front. This one gives its ground floor away to the street -- the
+ * building line steps back, the tables and the awnings fill what it gave up --
+ * which is the single most recognisable thing a street can do and was nowhere
+ * in the library.
+ */
+function cafeRow(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 18.0, 15.0);
+  const x = w / 2, z = d / 2;
+  const floors = storeysOf(T, 3);
+  const shop = 4.1;
+  const step = 2.2;                                 // how far the ground floor stands back
+  const top = shop + T.floorH * (floors - 1);
+
+  m.box([-x, 0, -z], [x, shop, z - step], T.base, { roof: T.cover });
+  m.box([-x, shop, -z], [x, top, z], T.wall, { roof: T.cover });
+  roofOver(m, T, -x, -z, x, z, top, { along: 'x', dormers: medium ? 2 : 0 });
+  // The upper floors oversail the setback, carried on columns.
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i <= 3; i++) {
+      const px = -x + 0.7 + ((w - 1.4) * i) / 3;
+      m.box([px - 0.16, 0, z - 0.5], [px + 0.16, shop, z - 0.18], MAT.TRIM);
+    }
+  });
+
+  if (medium) {
+    band(m, -x, -z, x, z, shop, 0.4, 0.22, T.trim);
+    // Tables under the oversail: two rows of round tops on a single leg.
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i < 4; i++) {
+        const px = -x + 2.4 + i * ((w - 4.8) / 3);
+        for (const pz of [z - step + 0.7, z - 0.8]) {
+          m.cylinder(px, pz, 0.11, 0, 0.72, 6, MAT.TRIM);
+          m.cylinder(px, pz, 0.48, 0.72, 0.80, fine ? 10 : 6, MAT.TRIM);
+          m.cylinder(px, pz, 0.34, 0, 0.06, 6, MAT.TRIM);
+        }
+      }
+    });
+  }
+  if (fine) {
+    shopfront(m, { axis: 'z', sign: 1, plane: z - step }, -x + 0.6, x - 0.6,
+      { bays: 4, doorBay: 1, head: shop - 0.85, fascia: 0.85 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z - step }, -x + 1.2, x - 1.2,
+      shop - 0.8, shop - 0.15);
+    awning(m, { axis: 'z', sign: 1, plane: z - step }, -x + 1.0, x - 1.0, shop - 1.0, 1.4);
+    punched(m, T, { axis: 'z', sign: 1, plane: z }, -x + 0.8, x - 0.8,
+      { floors: floors - 1, base: shop + 0.8 });
+    for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
+      punched(m, T, { axis: 'x', sign, plane }, -z + 1.0, z - 1.0,
+        { floors: floors - 1, base: shop + 0.8 });
+    }
+    // The flats get their own door beside the café, which is how these work.
+    doorway(m, T, { axis: 'z', sign: 1, plane: z - step }, x - 1.9);
+    // Chairs, only at full detail: four to a table and they are small.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 4; i++) {
+        const px = -x + 2.4 + i * ((w - 4.8) / 3);
+        for (const pz of [z - step + 0.7, z - 0.8]) {
+          for (const [ox, oz] of [[-0.85, 0], [0.85, 0], [0, -0.8], [0, 0.8]]) {
+            m.box([px + ox - 0.2, 0, pz + oz - 0.2], [px + ox + 0.2, 0.45, pz + oz + 0.2],
+              MAT.TRIM);
+            m.box([px + ox - 0.2, 0.45, pz + oz + 0.12], [px + ox + 0.2, 0.92, pz + oz + 0.2],
+              MAT.TRIM);
+          }
+        }
+      }
+    });
+    frontage(m, -x, x, z, seed, { planters: 2, bollards: 4, bin: false, depth: 1.6 });
+  }
+  return m;
+}
+
+/**
+ * Chambers: professional offices in a house that was never one.
+ *
+ * The low office band was a studio and a campus, both of which are buildings
+ * that were designed as offices. Most small-town professional floorspace is not
+ * -- it is a terrace of houses with brass plates by the doors, a railed area in
+ * front and a car park scraped out of the back garden. It is also the only
+ * thing in the office band that keeps a domestic roof, so it holds a street
+ * together where a studio breaks it.
+ */
+function chambers(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 21.0, 13.5);
+  const x = w / 2, z = d / 2;
+  const floors = storeysOf(T, 3);
+  const ground = 0.75;                              // raised ground floor over the area
+  const top = ground + T.floorH * floors;
+  const bays = 3;
+
+  // Three houses in a row, stepped very slightly so the joints read.
+  for (let b = 0; b < bays; b++) {
+    const a0 = -x + (w * b) / bays, a1 = -x + (w * (b + 1)) / bays;
+    const back = z - (b === 1 ? 0 : 0.35);
+    m.box([a0, 0, -z], [a1, ground, back], T.base);
+    m.box([a0, ground, -z], [a1, top, back], T.wall, { roof: T.cover });
+    roofOver(m, T, a0, -z, a1, back, top, { along: 'x', dormers: medium && b === 1 ? 1 : 0 });
+  }
+
+  if (medium) {
+    band(m, -x, -z, x, z, ground, 0.3, 0.16, T.trim);
+    band(m, -x, -z, x, z, top - 0.55, 0.45, 0.26, T.trim);
+    // The railed area: a sunken light well in front of the basement windows.
+    m.box([-x, 0, z - 0.3], [x, 0.1, z + 1.9], MAT.CONCRETE);
+    railing(m, -x + 0.3, x - 0.3, z + 1.8, 0.1, 1.15, 0.9);
+    if (T.chimney) {
+      for (let b = 1; b < bays; b++) {
+        const px = -x + (w * b) / bays;
+        m.box([px - 0.7, top - 0.2, -z + 1.4], [px + 0.7, top + 2.9, -z + 2.6], T.base);
+      }
+    }
+  }
+  if (fine) {
+    for (let b = 0; b < bays; b++) {
+      const a0 = -x + (w * b) / bays, a1 = -x + (w * (b + 1)) / bays;
+      const back = z - (b === 1 ? 0 : 0.35);
+      punched(m, T, { axis: 'z', sign: 1, plane: back }, a0 + 0.7, a1 - 0.7,
+        { floors, base: ground + 0.55 });
+      doorway(m, T, { axis: 'z', sign: 1, plane: back }, (a0 + a1) / 2 + 1.6, b === 1);
+      // The brass plate by each door, which is the whole tell.
+      m.painted(TINT.SIGN_LIT, () => {
+        m.box([(a0 + a1) / 2 - 0.4, ground + 1.1, back + 0.01],
+          [(a0 + a1) / 2 + 0.4, ground + 1.7, back + 0.07], MAT.TRIM);
+      });
+    }
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 0.7, x - 0.7,
+      { floors, base: ground + 0.55, lite: true });
+    for (const [sign, plane] of [[1, x], [-1, -x]] as const) {
+      punched(m, T, { axis: 'x', sign, plane }, -z + 1.0, z - 1.4,
+        { floors, base: ground + 0.55, lite: true });
+    }
+    bollards(m, { axis: 'z', sign: 1, plane: z + 1.9 }, -x + 0.8, x - 0.8, 0.8, 5);
+    void seed;
+  }
+  return m;
+}
+
+/**
+ * A builders' merchant: a trade counter with a yard of materials behind it.
+ *
+ * The industrial band was five sealed boxes -- a shed is a shed from every
+ * angle. This one is mostly *open*: a covered racking bay with sand and
+ * aggregate bins along one side and stacked goods under a roof with no walls,
+ * so what it is doing is visible from the road. That legibility is what makes
+ * an industrial estate look like it is working rather than like storage.
+ */
+function merchant(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 36.0, 28.0);
+  const x = w / 2, z = d / 2;
+  const counterW = w * 0.32;
+  const BAY = 7.2;
+
+  m.box([-x, 0, -z], [x, 0.16, z], MAT.CONCRETE);
+  // The trade counter: a real building, at the road end.
+  m.box([-x, 0.16, z - d * 0.38], [-x + counterW, 5.0, z], T.base, { roof: T.cover });
+  parapet(m, -x, z - d * 0.38, -x + counterW, z, 5.0, 0.7, 0.2, T.trim);
+
+  // The covered bay: a portal frame with a roof and no walls.
+  const bx0 = -x + counterW + 2.0, bx1 = x - 1.2;
+  const bz0 = -z + 1.2, bz1 = z - 1.2;
+  m.painted(TINT.METAL_DARK, () => {
+    const frames = Math.max(3, Math.round((bx1 - bx0) / 6));
+    for (let i = 0; i <= frames; i++) {
+      const px = bx0 + ((bx1 - bx0) * i) / frames;
+      for (const pz of [bz0 + 0.6, bz1 - 0.6]) {
+        m.box([px - 0.22, 0.16, pz - 0.22], [px + 0.22, BAY, pz + 0.22], MAT.TRIM);
+      }
+      m.box([px - 0.2, BAY, bz0 + 0.4], [px + 0.2, BAY + 0.4, bz1 - 0.4], MAT.TRIM);
+    }
+  });
+  m.box([bx0 - 0.6, BAY + 0.4, bz0], [bx1 + 0.6, BAY + 0.95, bz1], MAT.METAL);
+
+  if (medium) {
+    // Aggregate bins: three-sided concrete bays with the heaps in them.
+    for (let i = 0; i < 3; i++) {
+      const a0 = -x + counterW + 2.0 + i * 5.4, a1 = a0 + 4.6;
+      m.box([a0, 0.16, -z], [a1, 2.3, -z + 0.5], MAT.CONCRETE);
+      m.box([a0, 0.16, -z], [a0 + 0.45, 2.3, -z + 3.6], MAT.CONCRETE);
+      m.box([a1 - 0.45, 0.16, -z], [a1, 2.3, -z + 3.6], MAT.CONCRETE);
+      stockpile(m, (a0 + a1) / 2, -z + 1.9, 3.6, 3.0, 1.7, TINT.NONE);
+    }
+    racking(m, bx0 + 1.4, bx1 - 1.4, bz0 + 2.2, lod < 1 ? 5 : 3, 3, seed);
+    serviceYard(m, -x, -x + counterW, z, seed, { totem: true, flag: false, bins: true });
+  }
+  if (fine) {
+    shopfront(m, { axis: 'z', sign: 1, plane: z }, -x + 0.8, -x + counterW - 0.8,
+      { bays: 3, doorBay: 1, head: 3.4, fascia: 0.9 });
+    fasciaSign(m, { axis: 'z', sign: 1, plane: z }, -x + 1.2, -x + counterW - 1.2,
+      3.5, 4.5);
+    // Stacked goods under the canopy: blocks on pallets, banded timber.
+    for (let i = 0; i < 4; i++) {
+      const px = bx0 + 2.6 + i * ((bx1 - bx0 - 5.2) / 3);
+      pallet(m, px, 0.16, bz1 - 2.6, (i & 1) as 0 | 1);
+      pallet(m, px, 0.31, bz1 - 2.6, (i & 1) as 0 | 1);
+      crate(m, px, 0.16, bz0 + 2.2, 1.6, 1.3, 1.2);
+    }
+    bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 0.7, 6);
+  }
+  return m;
+}
+
 const SHOPS: Plan[] = [
   { key: 'shop', name: 'Corner shop', build: cornerShop, footprint: [2, 2], density: 'low', jobs: 6, brand: 'grocer' },
   { key: 'parade', name: 'Parade', build: parade, footprint: [4, 4], density: 'medium', jobs: 30, brand: 'hardware' },
   { key: 'market', name: 'Market hall', build: market, footprint: [4, 4], density: 'medium', jobs: 44, brand: 'deli' },
   { key: 'store', name: 'Superstore', build: bigBox, footprint: [4, 7], density: 'high', jobs: 90, brand: 'supermarket' },
   { key: 'lodging', name: 'Hotel', build: lodging, footprint: [4, 4], density: 'high', jobs: 52, brand: 'travel' },
+  { key: 'pub', name: 'Public house', build: publicHouse, footprint: [3, 3], density: 'low', jobs: 14, brand: 'deli' },
+  { key: 'filling', name: 'Filling station', build: filling, footprint: [4, 3], density: 'low', jobs: 9 },
+  { key: 'cafe', name: 'Cafe and flats', build: cafeRow, footprint: [3, 3], density: 'medium', jobs: 22, brand: 'deli' },
 ];
 
 const OFFICES: Plan[] = [
@@ -802,6 +1203,7 @@ const OFFICES: Plan[] = [
   { key: 'tower', name: 'Tower', build: tower, footprint: [4, 4], density: 'high', jobs: 520 },
   { key: 'campus', name: 'Campus', build: campus, footprint: [4, 5], density: 'low', jobs: 150 },
   { key: 'conversion', name: 'Conversion', build: conversion, footprint: [3, 3], density: 'medium', jobs: 120 },
+  { key: 'chambers', name: 'Chambers', build: chambers, footprint: [3, 3], density: 'low', jobs: 54 },
 ];
 
 const WORKS: Plan[] = [
@@ -810,6 +1212,7 @@ const WORKS: Plan[] = [
   { key: 'works', name: 'Works', build: works, footprint: [4, 6], density: 'none', jobs: 70 },
   { key: 'yard', name: 'Storage yard', build: yard, footprint: [4, 3], density: 'none', jobs: 18 },
   { key: 'mill', name: 'Mill', build: mill, footprint: [4, 4], density: 'none', jobs: 110 },
+  { key: 'merchant', name: 'Builders merchant', build: merchant, footprint: [5, 5], density: 'none', jobs: 32 },
 ];
 
 function sim(zone: Zone, jobs: number): AssetDef['sim'] {

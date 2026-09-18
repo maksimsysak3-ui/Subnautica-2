@@ -38,7 +38,7 @@ import { defaultWorld, zoneOf, zoneIndexOf, BLOCK, PERIOD } from './world';
 import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
 import { assetById } from '../assets/registry';
-import { MOVER_RESERVE } from '../assets/generators/movers';
+import { FRAME_RESERVE } from '../assets/generators/movers';
 import type { Pad } from './grading';
 import type { Proto } from './inventory';
 import type { Density, Zone } from '../assets/types';
@@ -1359,9 +1359,9 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // so a mover prototype the census never saw has nowhere to be listed and
   // vanishes silently. Reserving here rather than in the renderer keeps the one
   // rule -- a slice is as big as the census says -- true of everything drawn.
-  for (const id of Object.keys(MOVER_RESERVE)) {
+  for (const id of Object.keys(FRAME_RESERVE)) {
     const p = ASSET_INDEX.get(id);
-    if (p !== undefined) population[p] += MOVER_RESERVE[id];
+    if (p !== undefined) population[p] += FRAME_RESERVE[id];
   }
 
   return {

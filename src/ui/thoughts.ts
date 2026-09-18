@@ -45,6 +45,15 @@ const LIFT = 26;
 const FAR = 1400;
 
 /**
+ * How far inside the viewport a bubble's anchor is kept, in pixels.
+ *
+ * A bubble is about forty pixels across and is positioned by its top left, so
+ * this is a little over half of one: enough that the icon and its count are
+ * whole wherever the building is.
+ */
+const EDGE = 24;
+
+/**
  * The pictograms the zoning palette and the service rail between them do not have.
  *
  * Drawn in the same forty-eight unit box and with the same even-odd convention as
@@ -241,10 +250,18 @@ export class Thoughts {
       const nx = (m[0] * c.x + m[4] * y + m[8] * c.z + m[12]) / w;
       const ny = (m[1] * c.x + m[5] * y + m[9] * c.z + m[13]) / w;
       if (nx < -1.05 || nx > 1.05 || ny < -1.05 || ny > 1.05) continue;
+      // The tolerance above lets a building just off the edge of the screen
+      // keep its bubble, which is right -- a problem does not stop mattering
+      // because its roof is half a pixel past the frame. What was wrong was
+      // leaving the bubble where the projection put it: at the edge of that
+      // band it sits a couple of per cent outside the viewport, which is a
+      // bubble the player cannot read and cannot click. So the anchor is
+      // brought back inside by its own half-width. It still points at the
+      // right building; it is now on screen.
       found.push({
         c,
-        sx: (nx * 0.5 + 0.5) * width,
-        sy: (0.5 - ny * 0.5) * height,
+        sx: Math.min(width - EDGE, Math.max(EDGE, (nx * 0.5 + 0.5) * width)),
+        sy: Math.min(height - EDGE, Math.max(EDGE, (0.5 - ny * 0.5) * height)),
         dist,
         weight: GRIPE_INFO[c.gripe]?.weight ?? 1,
       });

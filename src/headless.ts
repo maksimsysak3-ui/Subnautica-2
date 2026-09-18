@@ -1251,6 +1251,43 @@ Promise<{ pixels: number[]; movers: string }> {
   } else if (panel === 'cititok') {
     live.cityName = 'Salford';
     live.cititok.show();
+  } else if (panel === 'sites') {
+    // A district under construction, for photographing the stage between
+    // zoning and buildings. Handing the released mask back means every zoned
+    // cell is waiting again, so the next few seconds of growth open sites all
+    // over the city -- which is exactly what a player who has just painted a
+    // district sees.
+    const world = renderer.world;
+    world.grown.fill(0);
+    world.painted++;
+    sim.growth?.rebind(world);
+    live.tap(null);
+    // Played at the fast speed, because the whole map has just been handed back
+    // and a mature city releases about a patch every three seconds at ordinary
+    // pace -- which over a photographable stretch is four plots scattered over
+    // four hundred thousand cells. `update` is the game's own frame, so the
+    // growth is taken and the city rebuilt exactly as it is in play.
+    live.speed = 8;
+    for (let i = 0; i < 300; i++) live.update(0.1, performance.now() + i * 100);
+    live.speed = 1;
+    // Aimed at a plot that is actually being built, so the shot is of the
+    // thing rather than of the city it happens to be in.
+    const open = sim.growth?.sites;
+    if (open !== undefined && open.count > 0) {
+      let best = 0;
+      for (let i = 1; i < open.count; i++) {
+        if (open.progress[i] > open.progress[best]) best = i;
+      }
+      camera.focus[0] = open.x[best];
+      camera.focus[2] = open.z[best];
+      camera.update();
+      for (let i = 0; i < 10; i++) live.update(1 / 60, performance.now() + i * 16);
+    }
+  } else if (panel === 'weather') {
+    live.cityName = 'Salford';
+    live.cititok.show();
+    // The phone's second app, opened the same way its dock button opens it.
+    live.cititok.showApp('weather');
   } else if (panel === 'level') {
     live.levelCard.push({
       level: 6, name: 'Boom town', cash: 170000, stars: 3,

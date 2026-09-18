@@ -16,11 +16,34 @@
  * inhabited.
  *
  * The phone is a phone: a slab with a notch, a status bar, a feed that scrolls,
- * and posts that arrive while it is open.
+ * and posts that arrive while it is open. It has two apps on it, because one
+ * app on a phone is a mockup of a phone -- the feed, and the weather.
  */
 
 import { SKIN, css, panel, label, tip } from './skin';
 import { click as clickSound, ping } from './sound';
+import type { Sky } from '../sim/weather';
+
+/**
+ * The weather, as the phone's second app reads it.
+ *
+ * The outlook is a real forecast, not a decoration: the model is a noise field
+ * on the clock, so the sky six hours from now is the same lookup at a different
+ * argument -- see `Weather.ahead`. What the app promises is what arrives.
+ */
+export interface WeatherRead {
+  now: Sky;
+  label: string;
+  glyph: string;
+  /** Hour of the game day, 0 to 24. */
+  hour: number;
+  /** Degrees celsius, and the wind in kilometres an hour. Both derived. */
+  temp: number;
+  wind: number;
+  city: string;
+  /** Hours ahead, and what the sky will be doing then. */
+  outlook: Array<{ hour: number; label: string; glyph: string; sky: Sky; temp: number }>;
+}
 
 /** What the feed is built from: a reading, and how to phrase it. */
 export interface CityMood {
@@ -169,11 +192,17 @@ export class Cititok {
   private readonly launcher: HTMLElement;
   private readonly feed: HTMLElement;
   private readonly bar: HTMLElement;
+  /** The two apps, and the dock buttons that switch between them. */
+  private readonly feedPane: HTMLElement;
+  private readonly skyPane: HTMLElement;
+  private readonly tabs: HTMLElement[] = [];
+  private app: 'feed' | 'weather' = 'feed';
   private shown = false;
   private seed = 3;
   private lastAt = 0;
 
-  constructor(parent: HTMLElement, private read: () => CityMood | null) {
+  constructor(parent: HTMLElement, private read: () => CityMood | null,
+    private readWeather: () => WeatherRead | null = () => null) {
     // The button lives on the edge of the screen rather than on the bar: the
     // bar is for building, and this is not a tool.
     this.launcher = document.createElement('button');
@@ -186,7 +215,7 @@ export class Cititok {
       + `stroke="${SKIN.accent}" stroke-width="1.6">`
       + '<rect x="1" y="1" width="15" height="24" rx="3"/>'
       + `<line x1="6.5" y1="3.4" x2="10.5" y2="3.4" stroke="${SKIN.accent}"/></svg>`;
-    tip(this.launcher, 'Cititok — what the city is posting', 'C');
+    tip(this.launcher, 'Cititok — what the city is posting, and the weather', 'C');
     this.launcher.addEventListener('click', () => { clickSound(); this.toggle(); });
     parent.appendChild(this.launcher);
 
@@ -234,7 +263,41 @@ export class Cititok {
     css(this.feed, ['flex:1', 'overflow:auto', 'display:flex',
       'flex-direction:column', 'gap:1px', 'padding:2px 0 10px']);
 
-    screen.append(notch, this.bar, head, this.feed);
+    this.feedPane = document.createElement('div');
+    css(this.feedPane, ['flex:1', 'display:flex', 'flex-direction:column',
+      'min-height:0']);
+    this.feedPane.append(head, this.feed);
+
+    this.skyPane = document.createElement('div');
+    this.skyPane.dataset.pane = 'weather';
+    css(this.skyPane, ['flex:1', 'display:none', 'flex-direction:column',
+      'min-height:0', 'overflow:auto']);
+
+    // The dock. Two apps, so it is two buttons -- and it is at the bottom of
+    // the screen because that is where a phone puts them.
+    const dock = document.createElement('div');
+    css(dock, ['display:flex', 'gap:6px', 'padding:7px 10px 9px',
+      `border-top:1px solid ${SKIN.edge}`, 'background:rgba(0,0,0,.18)']);
+    const addTab = (name: string, glyph: string, app: 'feed' | 'weather'): void => {
+      const b = document.createElement('button');
+      b.dataset.app = app;
+      css(b, ['flex:1', 'display:flex', 'flex-direction:column',
+        'align-items:center', 'gap:2px', 'padding:5px 0 3px', 'cursor:pointer',
+        'border:1px solid transparent', 'border-radius:11px',
+        'background:transparent', `color:${SKIN.dim}`, 'font-size:8.5px',
+        'letter-spacing:.09em', 'text-transform:uppercase', 'font-family:inherit']);
+      b.innerHTML = `<span style="font-size:15px;line-height:1">${glyph}</span>`;
+      const cap = document.createElement('span');
+      cap.textContent = name;
+      b.appendChild(cap);
+      b.addEventListener('click', () => { clickSound(); this.showApp(app); });
+      dock.appendChild(b);
+      this.tabs.push(b);
+    };
+    addTab('Feed', '\u25a4', 'feed');
+    addTab('Weather', '\u26c5', 'weather');
+
+    screen.append(notch, this.bar, this.feedPane, this.skyPane, dock);
     phone.appendChild(screen);
     this.root.appendChild(phone);
     parent.appendChild(this.root);
@@ -243,6 +306,9 @@ export class Cititok {
       const typing = (e.target as HTMLElement | null)?.tagName === 'INPUT';
       if (typing || e.ctrlKey || e.metaKey) return;
       if (e.key === 'c' || e.key === 'C') this.toggle();
+      else if (this.shown && (e.key === 'w' || e.key === 'W')) {
+        this.showApp(this.app === 'weather' ? 'feed' : 'weather');
+      }
       else if (e.key === 'Escape' && this.shown) this.close();
     });
   }
@@ -254,11 +320,26 @@ export class Cititok {
 
   get open(): boolean { return this.shown; }
 
+  /** Switches apps, and paints the one being switched to. */
+  showApp(app: 'feed' | 'weather'): void {
+    this.app = app;
+    this.feedPane.style.display = app === 'feed' ? 'flex' : 'none';
+    this.skyPane.style.display = app === 'weather' ? 'flex' : 'none';
+    for (const b of this.tabs) {
+      const on = b.dataset.app === app;
+      b.style.color = on ? SKIN.bright : SKIN.dim;
+      b.style.borderColor = on ? SKIN.edge : 'transparent';
+      b.style.background = on ? 'rgba(255,255,255,.055)' : 'transparent';
+    }
+    if (app === 'weather') this.paintWeather();
+  }
+
   toggle(): void { if (this.shown) this.close(); else this.show(); }
 
   show(): void {
     this.shown = true;
     this.root.style.display = 'block';
+    this.showApp(this.app);
     this.refresh(true);
     requestAnimationFrame(() => {
       this.root.style.opacity = '1';
@@ -286,21 +367,137 @@ export class Cititok {
     if (mood === null) return;
     this.seed = (this.seed + 1) % 977;
 
-    const clock = new Date();
     this.bar.innerHTML = '';
     const time = document.createElement('span');
-    time.textContent = `${String(clock.getHours()).padStart(2, '0')}:`
-      + `${String(clock.getMinutes()).padStart(2, '0')}`;
+    // The phone is in the city, so it is on the city's clock. A real-world
+    // wall clock here read as a bug the moment the weather app put the game's
+    // own time two lines below it.
+    const w = this.readWeather();
+    const hour = w === null ? 0 : ((w.hour % 24) + 24) % 24;
+    time.textContent = `${String(Math.floor(hour)).padStart(2, '0')}:`
+      + `${String(Math.floor((hour % 1) * 60)).padStart(2, '0')}`;
     const spacer = document.createElement('span');
     css(spacer, ['margin-left:auto']);
     const signal = document.createElement('span');
     signal.textContent = `${mood.city} · ${Math.round(mood.happiness * 100)}% happy`;
     this.bar.append(time, spacer, signal);
 
+    if (this.app === 'weather') this.paintWeather();
     const posts = postsFor(mood, this.seed);
     this.feed.innerHTML = '';
     for (const post of posts) this.feed.appendChild(this.card(post));
-    if (!quiet && posts.length > 0) ping();
+    if (!quiet && posts.length > 0 && this.app === 'feed') ping();
+  }
+
+  /**
+   * The weather app.
+   *
+   * Everything on it is read off the same model the sky over the city is drawn
+   * from, including the six hours of outlook -- so a player who sees rain
+   * coming on the phone sees it arrive out of the window.
+   */
+  private paintWeather(): void {
+    const w = this.readWeather();
+    this.skyPane.innerHTML = '';
+    if (w === null) return;
+    const hh = (h: number): string =>
+      `${String(Math.floor(((h % 24) + 24) % 24)).padStart(2, '0')}:00`;
+
+    // The headline: glyph, temperature, condition, place.
+    const hero = document.createElement('div');
+    css(hero, ['display:flex', 'flex-direction:column', 'align-items:center',
+      'gap:2px', 'padding:18px 14px 14px',
+      `background:linear-gradient(180deg,${skyWash(w.now)},transparent)`]);
+    const place = document.createElement('div');
+    css(place, [...label(), 'font-size:8.5px']);
+    // The city's own clock, to the minute -- the outlook below rounds to the
+    // hour because a forecast does, but the headline is what it is now.
+    const mins = Math.floor((((w.hour % 24) + 24) % 24 % 1) * 60);
+    place.textContent = `${w.city} · `
+      + `${String(Math.floor(((w.hour % 24) + 24) % 24)).padStart(2, '0')}:`
+      + `${String(mins).padStart(2, '0')}`;
+    const glyph = document.createElement('div');
+    css(glyph, ['font-size:52px', 'line-height:1.05']);
+    glyph.textContent = w.glyph;
+    const temp = document.createElement('div');
+    css(temp, [`color:${SKIN.bright}`, 'font-size:34px', 'line-height:1',
+      'font-variant-numeric:tabular-nums']);
+    temp.textContent = `${Math.round(w.temp)}\u00b0`;
+    const cond = document.createElement('div');
+    css(cond, [`color:${SKIN.text}`, 'font-size:12px']);
+    cond.textContent = w.label;
+    hero.append(place, glyph, temp, cond);
+
+    // The outlook, as a strip of hours.
+    const strip = document.createElement('div');
+    css(strip, ['display:flex', 'gap:4px', 'padding:10px 10px 12px',
+      'overflow-x:auto', `border-bottom:1px solid ${SKIN.edge}`,
+      `border-top:1px solid ${SKIN.edge}`]);
+    for (const o of w.outlook) {
+      const cell = document.createElement('div');
+      css(cell, ['flex:1 0 42px', 'display:flex', 'flex-direction:column',
+        'align-items:center', 'gap:3px', 'padding:7px 2px', 'border-radius:10px',
+        `background:${skyWash(o.sky)}`]);
+      const t = document.createElement('div');
+      css(t, [`color:${SKIN.faint}`, 'font-size:8.5px',
+        'font-variant-numeric:tabular-nums']);
+      t.textContent = hh(o.hour);
+      const g = document.createElement('div');
+      css(g, ['font-size:17px', 'line-height:1']);
+      g.textContent = o.glyph;
+      const d = document.createElement('div');
+      css(d, [`color:${SKIN.bright}`, 'font-size:10.5px',
+        'font-variant-numeric:tabular-nums']);
+      d.textContent = `${Math.round(o.temp)}\u00b0`;
+      cell.append(t, g, d);
+      strip.appendChild(cell);
+    }
+
+    // And the numbers behind it, each as the bar it actually is.
+    const rows = document.createElement('div');
+    css(rows, ['display:flex', 'flex-direction:column', 'gap:9px',
+      'padding:13px 15px 16px']);
+    const row = (name: string, value: string, fill: number, tone: string): void => {
+      const el = document.createElement('div');
+      css(el, ['display:flex', 'flex-direction:column', 'gap:4px']);
+      const top = document.createElement('div');
+      css(top, ['display:flex', 'align-items:baseline', 'gap:6px',
+        `color:${SKIN.dim}`, 'font-size:9.5px', 'letter-spacing:.07em',
+        'text-transform:uppercase']);
+      const nm = document.createElement('span');
+      nm.textContent = name;
+      const val = document.createElement('span');
+      css(val, [`color:${SKIN.bright}`, 'margin-left:auto', 'font-size:10.5px',
+        'letter-spacing:0', 'text-transform:none',
+        'font-variant-numeric:tabular-nums']);
+      val.textContent = value;
+      top.append(nm, val);
+      const track = document.createElement('div');
+      css(track, ['height:4px', 'border-radius:4px',
+        'background:rgba(255,255,255,.08)', 'overflow:hidden']);
+      const bar = document.createElement('div');
+      css(bar, ['height:100%', `width:${Math.round(Math.min(1, Math.max(0, fill)) * 100)}%`,
+        `background:${tone}`, 'border-radius:4px']);
+      track.appendChild(bar);
+      el.append(top, track);
+      rows.appendChild(el);
+    };
+    row('Cloud', `${Math.round(w.now.cover * 100)}%`, w.now.cover, SKIN.dim);
+    row('Rain', w.now.rain > 0.01 ? `${Math.round(w.now.rain * 100)}%` : 'none',
+      w.now.rain, SKIN.accent);
+    row('Visibility', w.now.fog > 0.3 ? 'poor' : w.now.fog > 0.1 ? 'moderate' : 'good',
+      1 - w.now.fog, w.now.fog > 0.3 ? SKIN.bad : SKIN.good);
+    row('Ground', w.now.wet > 0.6 ? 'wet' : w.now.wet > 0.2 ? 'damp' : 'dry',
+      w.now.wet, SKIN.dim);
+    row('Wind', `${Math.round(w.wind)} km/h`, w.wind / 60, SKIN.dim);
+
+    const foot = document.createElement('div');
+    css(foot, [`color:${SKIN.faint}`, 'font-size:9px', 'padding:0 15px 15px',
+      'line-height:1.6']);
+    foot.textContent = 'Six hours ahead. The outlook reads the same model the '
+      + 'sky over the city is drawn from, so it is what will actually happen.';
+
+    this.skyPane.append(hero, strip, rows, foot);
   }
 
   private card(post: Post): HTMLElement {
@@ -346,4 +543,24 @@ export class Cititok {
     el.append(face, body);
     return el;
   }
+}
+
+/**
+ * A wash of colour for a sky, so the app reads before it is read.
+ *
+ * Not a palette lookup: the three numbers the model holds are mixed directly,
+ * so a sky halfway between cloudy and raining is drawn halfway between.
+ */
+function skyWash(s: Sky): string {
+  const blue = [0.29, 0.55, 0.82];
+  const grey = [0.42, 0.45, 0.50];
+  const slate = [0.20, 0.24, 0.31];
+  const k = Math.min(1, s.cover);
+  const r = Math.min(1, s.rain * 1.6);
+  const mix = (i: number): number => {
+    const dry = blue[i] * (1 - k) + grey[i] * k;
+    return dry * (1 - r) + slate[i] * r;
+  };
+  const to255 = (v: number): number => Math.round(Math.min(1, Math.max(0, v)) * 255);
+  return `rgba(${to255(mix(0))},${to255(mix(1))},${to255(mix(2))},.22)`;
 }
