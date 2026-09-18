@@ -26,6 +26,7 @@ import { Control, Light } from './junctions';
 import { Mode } from './routine';
 import type { People } from './people';
 import type { LaneGraph } from './lanes';
+import { DRIVE_SIDE } from './lanes';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, MOVER_RESERVE } from '../../assets/generators/movers';
@@ -83,6 +84,30 @@ export class Movers {
       const half = Math.max(1.2, ((def?.footprint[0] ?? 1) * 8) / 2);
       this.box[seat] = [half, half, Math.max(0.9, def?.height ?? 2)];
     }
+  }
+
+  /**
+   * How far across the carriageway a lane's own track is, in metres.
+   *
+   * Signed along the right-hand normal of the direction of travel, so a lane on
+   * the other side of the road comes out negative and the two sides separate.
+   * Kerbside is index zero, so it sits furthest from the centre line.
+   *
+   * Tapered to nothing at both ends of the lane: a junction is a single node in
+   * the graph, and a vehicle that kept its full offset up to the line would
+   * jump across the road as it changed lanes at the node. Converging into the
+   * middle and fanning out again is what a turn looks like from above, and it
+   * costs one clamp.
+   */
+  private acrossAt(lanes: LaneGraph, lane: number, along: number,
+    len: number): number {
+    const link = lanes.link[lane], dir = lanes.dir[lane];
+    const from = lanes.linkStart[link * 2 + dir];
+    const to = lanes.linkEnd[link * 2 + dir];
+    const n = Math.max(1, to - from);
+    const across = (n - 0.5 - lanes.index[lane]) * LANE_METRES * DRIVE_SIDE;
+    const taper = Math.min(1, Math.min(along, len - along) / TAPER_METRES);
+    return across * Math.max(0, taper);
   }
 
   /** Whether the library actually holds the mover prototypes. */
@@ -145,11 +170,18 @@ export class Movers {
       // to within the acceleration over a tenth of a second.
       const along = Math.min(Math.max(c.along[v] + c.speed[v] * lead, 0), len);
       const s = along / len;
-      const x = ax + (bx - ax) * s;
-      const z = az + (bz - az) * s;
+      // Across the carriageway, into this lane's own track. The lane graph
+      // gives every lane of a link the same centreline -- which is all the
+      // routing model ever needed -- so without this, four lanes of an avenue
+      // are four columns of cars in the same track, two of them driving through
+      // the other two the wrong way.
+      const off = this.acrossAt(lanes, lane, along, len);
+      const ux = (bx - ax) / len, uz = (bz - az) / len;
+      const x = ax + (bx - ax) * s + uz * off;
+      const z = az + (bz - az) * s - ux * off;
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > DRAW_REACH * DRAW_REACH) continue;
-      // The imported bodies are modelled with the nose towards -x: the cabin
+      // The heading. The imported bodies are modelled with the nose towards -x: the cabin
       // of every saloon in the pack sits a metre and a bit towards +x, and a
       // cabin is behind a bonnet. So the heading is the direction of travel
       // turned half a turn, and without it every car in the city drives
@@ -174,13 +206,18 @@ export class Movers {
       const lane0 = paths.at(pc.route[id], pc.step[id]);
       let x = pc.x[id], z = pc.z[id];
       if (lane0 >= 0 && lane0 < lanes.count) {
-        // The same carry-forward the vehicles get, along the lane they are on.
+        // The same carry-forward the vehicles get, along the lane they are on,
+        // and out onto the pavement: a citizen walking up the middle of the
+        // carriageway is the one thing worse than not drawing them at all.
         const l = Math.max(0.001, lanes.length[lane0]);
         const ux = (lanes.bx[lane0] - lanes.ax[lane0]) / l;
         const uz = (lanes.bz[lane0] - lanes.az[lane0]) / l;
         const step = WALK_SPEED * lead;
         x += ux * step;
         z += uz * step;
+        const kerb = this.acrossAt(lanes, lane0, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
+        x += uz * kerb;
+        z -= ux * kerb;
       }
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
@@ -254,7 +291,9 @@ export class Movers {
       const across = lanes.linkEnd[link * 2 + dir] - lanes.linkStart[link * 2 + dir];
       const halfRoad = Math.max(3.6, across * LANE_METRES);
       const back = Math.min(len * 0.45, halfRoad + 2.6);
-      const side = halfRoad + 1.4;
+      // On the kerb of the side its own traffic is on, which is the side the
+      // vehicles it is talking to can see it from.
+      const side = (halfRoad + 1.4) * DRIVE_SIDE;
       const x = bx - ux * back + uz * side;
       const z = bz - uz * back - ux * side;
       if (write(seat, x, z, Math.atan2(-uz, -ux), 0)) this.counts.signals++;
@@ -274,6 +313,10 @@ const SIGN_REACH = 520;
 const WALK_SPEED = 1.35;
 /** How wide one lane is, for working out where a road's kerb is. */
 const LANE_METRES = 3.5;
+/** Over how many metres a lane's offset fades into the junction at each end. */
+const TAPER_METRES = 9;
+/** How far beyond the kerbside lane the footway is. */
+const PAVEMENT = 2.6;
 
 /** Which seat a vehicle is drawn in. */
 function seatOf(kind: number, v: number): string {

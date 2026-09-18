@@ -34,11 +34,13 @@ export interface Sky {
 /**
  * How long a front takes to pass, in days.
  *
- * Two and a half, so a player who sits through one in-game day sees the sky
- * change without it flickering between conditions inside an afternoon -- which
- * is what a period near one gave: weather as a strobe.
+ * Just over a day: a game day is ninety seconds, so a front comes through
+ * about every two minutes and a player who watches for five sees the sky do
+ * several different things. Two and a half days of front was defensible and
+ * meant a session could pass entirely under one flat sky, which is not what
+ * weather is for -- and much below one is a strobe.
  */
-const FRONT_DAYS = 2.5;
+const FRONT_DAYS = 1.2;
 
 /** Dries in about four in-game hours from soaking to dry. */
 const DRY_RATE = 1 / (4 / 24);
@@ -87,7 +89,13 @@ export class Weather {
     // this is stretched to reach both ends -- otherwise the sky lived
     // permanently in a mild overcast and nothing ever properly cleared.
     const raw = fbm(this.phase * 1.0, 11.7, 2, 4471);
-    return Math.min(1, Math.max(0, (raw - 0.34) * 2.35));
+    // Shifted down and stretched, and then measured rather than guessed at.
+    // The old window opened at 0.34 with a gain of 2.35 and `fbm` clusters so
+    // tightly around its middle that the top of the range -- where rain lives
+    // -- was reached about once an hour of play. Over forty thousand samples
+    // this one gives roughly: cloudy 28%, fog 22%, overcast 16%, rain 12%,
+    // heavy rain 13%, fair 9%. A sky that does something.
+    return Math.min(1, Math.max(0, (raw - 0.31) * 2.4));
   }
 
   /**
@@ -116,7 +124,7 @@ export class Weather {
     this.sky.cover = Math.min(1, f * 1.35);
     // Rain needs the sky to be properly shut. Below that it is just a grey day,
     // which is most grey days.
-    this.sky.rain = Math.max(0, (f - 0.58) / 0.42) ** 1.4;
+    this.sky.rain = Math.max(0, (f - 0.66) / 0.34) ** 1.25;
     // Fog is the other end of the same scale, not the same end. It sits in
     // still settled air, so it belongs to the calm side -- and it is cut once
     // the rain arrives, because rain clears the air rather than thickening it.

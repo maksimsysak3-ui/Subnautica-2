@@ -73,10 +73,13 @@ const TURN_SECONDS = [0, 2.5, 6.0, 12.0];
 /**
  * Which side traffic drives on. 1 for the right, -1 for the left.
  *
- * It decides only which of a carriageway's lanes is the kerbside one, and so
- * which turn each lane naturally serves. Nothing else in here cares.
+ * It decides which of a carriageway's lanes is the kerbside one, and so which
+ * turn each lane naturally serves -- and, since the movers are drawn, which
+ * side of the centre line a lane's own track is on. Exported so the drawing
+ * cannot disagree with the routing about which way round a road works.
  */
-const DRIVE = 1;
+export const DRIVE_SIDE = 1;
+const DRIVE = DRIVE_SIDE;
 
 /**
  * What it costs to make a turn from a lane that does not serve it.
