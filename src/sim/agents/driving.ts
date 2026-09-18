@@ -195,6 +195,17 @@ const NUDGE_TICKS = 120;
  */
 const ROOM_FLOOR = 0.2;
 
+/**
+ * Ticks a driver settles for after changing lane before considering another.
+ *
+ * Six seconds. A lane change is a manoeuvre, not a continuous optimisation, and
+ * anything much shorter reads from above as a car weaving.
+ */
+const CHANGE_COOLDOWN = 60;
+
+/** How long a lane change takes, for judging the gap it needs. */
+const CHANGE_SECONDS = 1.5;
+
 /** Ticks at a blocked exit after which a wandering driver tries another way. */
 const REROUTE_TICKS = 300;
 
@@ -307,6 +318,16 @@ const SCHEMA = {
    */
   shift: Float32Array,
   /**
+   * The tick of the last lane change, for the cooldown after one.
+   *
+   * Without it a driver reconsiders every eighth of a second for ever, and two
+   * lanes that differ by the slack trade the same vehicle back and forth: it
+   * moves right because the right lane is two shorter, which makes the left two
+   * shorter, so it moves back. On screen that is a car weaving down a straight
+   * road, which is exactly what it looked like.
+   */
+  changedAt: Int32Array,
+  /**
    * The tick this vehicle reported that its journey was over, or -1.
    *
    * Reporting is not removal, and for most of this model's life nothing did the
@@ -385,6 +406,8 @@ export class Traffic {
    * three seconds of real time.
    */
   private tickParity = 0;
+  /** The tick being driven, for the code below `drive` that needs the clock. */
+  private now = 0;
   /** How many vehicles are on each lane, for the readout and for lane changes. */
   private laneCount: Int32Array;
   /**
@@ -465,6 +488,7 @@ export class Traffic {
     c.kind[v] = kind;
     c.doneAt[v] = -1;
     c.shift[v] = 0;
+    c.changedAt[v] = -CHANGE_COOLDOWN;
     c.driver[v] = driver;
     // Ambient traffic joins the emptiest lane going its way. Nothing is
     // reserved yet and the vehicle is at the mouth of the lane, so this is the
@@ -568,6 +592,7 @@ export class Traffic {
     const bound = this.table.bound;
     const g = this.g;
 
+    this.now = tick;
     let moving = 0, speedSum = 0, stoppedNow = 0;
     let changesLeft = LANE_CHANGES_PER_TICK;
     this.waiting.fill(0);
@@ -795,7 +820,10 @@ export class Traffic {
       // happen before the budget is touched.
       const ways = laneEnd - laneFrom;
       if (ways > 1 && laneLength - c.along[v] >= 12
-        && c.inBox[v] < 0 && c.cleared[v] === 0) {
+        && c.inBox[v] < 0 && c.cleared[v] === 0
+        // Not while the last one is still being made, and not straight after
+        // it: a manoeuvre takes time and a driver settles before judging again.
+        && c.shift[v] === 0 && tick - c.changedAt[v] >= CHANGE_COOLDOWN) {
         // Three reasons to move over, in the order they matter. Stuck behind
         // something for a while. Held below the limit on a lane that has
         // company. Or -- the common one, and the one that actually fills a
@@ -1078,22 +1106,27 @@ export class Traffic {
         }
         if (!ok) continue;
       }
-      // A gap at this position: nobody's body overlapping where this vehicle
-      // would be, with room to breathe at both ends.
+      // A gap at this position, judged over the whole manoeuvre rather than at
+      // the instant it starts. A change takes about a second and a half, and a
+      // vehicle coming up the target lane closes on the space in that time --
+      // so the room asked for behind grows with how much faster it is going.
+      // Checking only the instant is how a car ends up being drawn through one
+      // that was a length back when it indicated.
       let clear = true;
+      const nose = along + style.gap;
       for (let u = this.laneTail[other]; u >= 0; u = c.ahead[u]) {
         const front = c.along[u], back = front - c.length[u];
-        if (back > along + style.gap) break;            // sorted: nothing closer
-        if (front > along - c.length[v] - style.gap && back < along + style.gap) {
-          clear = false;
-          break;
-        }
+        if (back > nose) break;                         // sorted: nothing closer
+        const closing = Math.max(0, c.speed[u] - c.speed[v]) * CHANGE_SECONDS;
+        const tailRoom = c.length[v] + style.gap + closing;
+        if (front > along - tailRoom && back < nose) { clear = false; break; }
       }
       if (!clear) continue;
       best = other;
       bestCount = this.laneCount[other];
     }
     if (best < 0) return false;
+    c.changedAt[v] = this.now;
     // The lateral distance being covered, carried as a debt the drawing unwinds.
     // Signed the same way the drawing signs a lane's own offset, so adding it to
     // the new lane's offset gives exactly the old lane's -- the car is drawn

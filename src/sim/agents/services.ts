@@ -37,6 +37,7 @@
 
 import { Places, Purpose } from './places';
 import { BRANCHES } from '../../assets/types';
+import type { Branch } from '../../assets/types';
 import { Use } from './lanes';
 
 /**
@@ -454,3 +455,43 @@ export class Services {
 const CHILD_SHARE = 0.19;
 
 export { Use, BRANCHES };
+
+/**
+ * The population at which the city becomes responsible for each branch.
+ *
+ * A hamlet of forty people does not run a fire brigade, a police station, a
+ * hospital or a school, and it is not failing its residents by not running
+ * them: it uses the next town's. Requiring all of it from the first street was
+ * the thing that made the opening hour read as a list of complaints about
+ * services nowhere that size has -- the player lays one road, six houses
+ * appear, and every one of them immediately wants a hospital.
+ *
+ * What a building genuinely cannot do without is the mains: power, water and
+ * somewhere for the sewage to go. Those are ungated and always have been. These
+ * are the ones that arrive as the city becomes a city, in the order a real one
+ * gets them -- a fire appliance first, because that is the one that burns the
+ * place down; then somewhere to be treated; then policing; then schools.
+ */
+export const EXPECTED_AT: Partial<Record<Branch, number>> = {
+  fire: 400,
+  health: 750,
+  police: 1100,
+  education: 1600,
+  parks: 900,
+  transport: 2200,
+  deathcare: 1400,
+  post: 1800,
+};
+
+/**
+ * Whether the city is big enough to be judged on a branch yet.
+ *
+ * Below the threshold the answer is "not yet", and everything that reads
+ * coverage -- the complaints, the mood, the health model -- treats the branch
+ * as satisfied rather than as missing, because that is the difference between
+ * "you have not built this" and "you do not need this".
+ */
+export function expectedOf(branch: Branch, population: number): boolean {
+  const at = EXPECTED_AT[branch];
+  return at === undefined || population >= at;
+}

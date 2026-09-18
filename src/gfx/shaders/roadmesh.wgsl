@@ -32,6 +32,9 @@ const SURF_SETTS     = 9.0;
 const SURF_CONCRETE  = 10.0;
 const SURF_CYCLE     = 11.0;
 const SURF_SKIRT     = 12.0;
+/** A street lamp's column, and the lantern on the end of its arm. */
+const SURF_LAMP      = 13.0;
+const SURF_LANTERN   = 14.0;
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -401,6 +404,15 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col = concrete(w2, mpp) * 0.96;
   } else if (surf < 6.5) {
     col = verge(w2, mpp);
+  } else if (surf > 12.5 && surf < 13.5) {
+    // A lamp column: galvanised steel, darker down the shaded side, with the
+    // faint vertical banding a spun column has.
+    col = vec3f(0.132, 0.138, 0.148)
+        * (0.86 + 0.28 * vnoise(vec2f(w2.x * 0.4, w2.y * 9.0)));
+  } else if (surf > 13.5) {
+    // The lantern. Its albedo barely matters -- what it is for happens after
+    // the lighting, below, where it becomes the source of the pool on the road.
+    col = vec3f(0.30, 0.29, 0.26);
   } else if (surf > 11.5) {
     // The apron under the ribbon's edge: the cut face of the road bed, seen
     // only where the ground falls away from it. Dark earth, and darker still
@@ -481,16 +493,25 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let ambient = mix(ambientGround(sun), ambientSky(sun), 0.5 + n.y * 0.5);
   col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * lit);
 
-  // Street lighting, as light rather than as lamp posts.
+  // The lantern itself, which is the thing the pool below comes out of. Its own
+  // light source, like a lit sign, so it survives being unlit by the sun and
+  // reads as the brightest point on a night street rather than as a grey box on
+  // a stick.
+  if (surf > 13.5) {
+    let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
+    col = mix(col, vec3f(1.00, 0.80, 0.46) * 1.9, night);
+  }
+
+  // Street lighting: the pool on the road, thrown from the lanterns above.
   //
-  // The road already knows how far apart its columns stand -- the mesh builder
-  // has been working it out and throwing it away since the day it was written.
-  // What a player sees of a lit street from anywhere above walking height is
-  // not the poles, it is the chain of warm pools down the carriageway and the
-  // way they run out into the dark between. A thousand lamp instances draw the
-  // poles and cost a thousand instances; this draws the light, for a fract and
-  // a smoothstep, and it reads from a kilometre up where a five-metre pole is
-  // a third of a pixel.
+  // The road already knows how far apart its columns stand, and now draws them
+  // -- the geometry and this share one spacing, so the light lands under the
+  // lamp that is casting it. It used to land under nothing at all.
+  //
+  // The pool is still shader work rather than a real light: what a player sees
+  // of a lit street from above walking height is the chain of warm pools down
+  // the carriageway and the way they run out into the dark between, and that
+  // is a fract and a smoothstep rather than a thousand lights.
   //
   // Alternating sides, matching the spacing the mesh builder uses, because a
   // real street staggers them and a single row down one side reads as an

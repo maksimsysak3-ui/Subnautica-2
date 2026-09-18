@@ -29,6 +29,7 @@ import { Clock, YEARS_PER_DAY, TICKS_PER_DAY } from './calendar';
 import { Places, Purpose, Teaches, NO_BRANCH } from './places';
 import { BRANCHES } from '../../assets/types';
 import type { Services } from './services';
+import { expectedOf } from './services';
 import type { Utilities } from './utilities';
 
 /** Life stages, in order. */
@@ -470,7 +471,12 @@ export class People {
       // it lands -- a city that dumps it has a sicker, shorter-lived population, and
       // the effect arrives slowly enough that the player has to work out why.
       this.utilitiesAt(id, this.utilScratch);
-      const care = this.coverageAt(id, 'health');
+      // Health cover, once the city is big enough to be running any. Below that
+      // the nearest town's hospital is the one they use, so the model treats it
+      // as covered rather than as a town failing to provide something no town
+      // that size provides. See `EXPECTED_AT`.
+      const care = expectedOf('health', this.population)
+        ? this.coverageAt(id, 'health') : 1;
       const clean = this.utilScratch[1];                    // water
       const sewer = this.utilScratch[2];
       const bins = this.utilScratch[3];
@@ -513,10 +519,15 @@ export class People {
       else if (this.canWork(id)) target -= 60;
       if (c.stage[id] === Stage.SENIOR) target += 20;        // retired, not idle
       target += (c.health[id] - 160) * 0.2;
-      target += this.coverageAt(id, 'parks') * 26;
-      target += this.coverageAt(id, 'police') * 22;
-      target += this.coverageAt(id, 'fire') * 14;
-      target += this.coverageAt(id, 'transport') * 12;
+      // These add rather than subtract, so a village with none of them is not
+      // punished for it -- it simply has none of the lift a city gets. Still
+      // gated, so the bonus starts counting at the size the branch is expected,
+      // and a player is not chasing a mood bonus they cannot earn yet.
+      const pop = this.population;
+      if (expectedOf('parks', pop)) target += this.coverageAt(id, 'parks') * 26;
+      if (expectedOf('police', pop)) target += this.coverageAt(id, 'police') * 22;
+      if (expectedOf('fire', pop)) target += this.coverageAt(id, 'fire') * 14;
+      if (expectedOf('transport', pop)) target += this.coverageAt(id, 'transport') * 12;
       // And the tax. Set by the economy, positive for a rate below neutral and
       // negative above it -- the same number that decides who moves here, so a
       // player cannot squeeze the people already here without also putting off

@@ -75,6 +75,12 @@ export const SURF = {
   CYCLE: 11,
 } as const;
 
+/** How tall a street lamp stands, in metres. */
+const LAMP_HEIGHT = 5.4;
+/** The column, and the lantern on its arm. See the road shader's surfaces. */
+const SURF_LAMP = 13;
+const SURF_LANTERN = 14;
+
 /** Which surface value a class's carriageway uses. */
 const CARRIAGEWAY = {
   tarmac: SURF.ROAD, gravel: SURF.GRAVEL, setts: SURF.SETTS, concrete: SURF.CONCRETE,
@@ -508,18 +514,65 @@ export function buildRoadMesh(graph: RoadGraph,
         }
       }
       // Street lighting, spaced along the arc and alternating sides.
+      //
+      // The column is drawn here, in the road's own mesh, at exactly the place
+      // the road's own shader puts the pool of light -- the two read the same
+      // spacing off the same spec, so they cannot drift apart. They used to:
+      // the light was drawn and the post never was, so a night street was a
+      // chain of glowing ellipses coming from nothing.
+      //
+      // In the road mesh rather than as instances because there is one of these
+      // every twenty-odd metres of every lit road in the city, which is
+      // thousands, and because a lamp is part of a road in the way a kerb is.
+      // The height rides the same `lift` the kerbs use, so a distant road
+      // flattens its lamps away with the rest of its cross-section and what is
+      // left is the pool -- which is all that was ever resolvable out there.
       if (spec.lamp > 0) {
         while (lampAt <= at[k]) {
           if (lampAt >= cut0) {
             const q = walk(dense, lampAt);
             const side: -1 | 1 = ((lampAt / spec.lamp) | 0) % 2 === 0 ? 1 : -1;
-            lamps.push({
-              x: q.x + -q.tz * spec.half * 1.06 * side,
-              y,
-              z: q.z + q.tx * spec.half * 1.06 * side,
-              yaw: Math.atan2(q.tx, q.tz),
-              side,
-            });
+            const px = q.x + -q.tz * spec.half * 1.06 * side;
+            const pz = q.z + q.tx * spec.half * 1.06 * side;
+            lamps.push({ x: px, y, z: pz, yaw: Math.atan2(q.tx, q.tz), side });
+            // Along the road, and across it towards the carriageway.
+            const ax = q.tx, az = q.tz;
+            const cx = -(-q.tz) * side, cz = -(q.tx) * side;
+            const post = (x0: number, y0: number, z0: number,
+              lx: number, ly: number, lz: number, surf: number): void => {
+              // A box built from the road's own axes: `l` is half-extent along
+              // the road, up, and across it.
+              const corner = (sa: number, su: number, sc: number): number => {
+                const x = x0 + ax * lx * sa + cx * lz * sc;
+                const z = z0 + az * lx * sa + cz * lz * sc;
+                const yy = y0 + ly * su;
+                // Normal from whichever face this vertex is being used for is
+                // overkill for something this size; the outward radial normal
+                // reads correctly on a pole and costs nothing.
+                const nlen = Math.hypot(ax * sa + cx * sc, az * sa + cz * sc) || 1;
+                return buf.push(x, yy + LIFT, z,
+                  (ax * sa + cx * sc) / nlen, 0.35, (az * sa + cz * sc) / nlen,
+                  0, at[k], toEnd, surf, spec.half, spec.lanes, flags, yy - y);
+              };
+              const b000 = corner(-1, -1, -1), b100 = corner(1, -1, -1);
+              const b110 = corner(1, -1, 1), b010 = corner(-1, -1, 1);
+              const t000 = corner(-1, 1, -1), t100 = corner(1, 1, -1);
+              const t110 = corner(1, 1, 1), t010 = corner(-1, 1, 1);
+              buf.quad(b000, b100, t100, t000);
+              buf.quad(b100, b110, t110, t100);
+              buf.quad(b110, b010, t010, t110);
+              buf.quad(b010, b000, t000, t010);
+              buf.quad(t000, t100, t110, t010);
+            };
+            const H = LAMP_HEIGHT;
+            post(px, y + H / 2, pz, 0.075, H / 2, 0.075, SURF_LAMP);
+            // The arm, reaching out over the carriageway, and the lantern on
+            // the end of it -- which is the bit that is actually emitting.
+            const reach = Math.min(2.1, spec.half * 0.42);
+            post(px + cx * reach * 0.5, y + H - 0.16, pz + cz * reach * 0.5,
+              0.06, 0.06, reach * 0.5, SURF_LAMP);
+            post(px + cx * reach, y + H - 0.34, pz + cz * reach,
+              0.16, 0.10, 0.34, SURF_LANTERN);
           }
           lampAt += spec.lamp;
         }

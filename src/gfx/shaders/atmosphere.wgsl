@@ -150,8 +150,16 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // Tying it to how high the moon is gives midnight *more* light than the hour
   // after sunset, which is both true and the right way round for a player, who
   // is most likely to still be building at midnight.
+  //
+  // Lifted again, and by a lot. The figures below were still set so that
+  // everything except a lit window fell into the bottom of the tonemap's toe:
+  // a road at eight per cent albedo under the old floor landed around a tenth
+  // of full brightness, which on a screen in a lit room is black. The city read
+  // as a field of lit windows floating over nothing -- you could not see the
+  // street you were building on, which is the one thing a player is doing at
+  // night. Moonlight in a game is a readability budget, not a photometric one.
   let m = moonPhase(sun);
-  let night = vec3f(0.255, 0.292, 0.385) * (0.72 + 0.55 * m.x);
+  let night = vec3f(0.575, 0.635, 0.795) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -168,7 +176,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // Bounce follows the same moon, a little cooler: moonlight off asphalt is
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
-  let night = vec3f(0.168, 0.176, 0.208) * (0.74 + 0.52 * m.x);
+  let night = vec3f(0.385, 0.400, 0.455) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground

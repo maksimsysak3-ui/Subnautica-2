@@ -32,7 +32,7 @@ import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
 import { Utilities, Util, supplyOf } from './utilities';
 import { ASSETS } from '../../assets/registry';
-import { Services } from './services';
+import { Services, expectedOf } from './services';
 import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
 
@@ -367,12 +367,23 @@ export class Complaints {
     if (occupied && c.health[id] < DERELICT_AT) return Gripe.DERELICT;
 
     // ---- what the city is supposed to provide -----------------------------
+    //
+    // Only once it is a city that size. A village does not run its own fire
+    // brigade or its own school, and complaining that it has none is telling
+    // the player to fix something nobody anywhere would build yet -- which was
+    // the whole of the opening hour: one street, six houses, and every one of
+    // them asking for a hospital. See `EXPECTED_AT`. The mains above are not
+    // gated and never will be: those are what a building needs to work at all.
     const s = this.services;
-    if (s.at(id, BRANCH.fire) < UNCOVERED) return Gripe.FIRE;
-    if (occupied && s.at(id, BRANCH.health) < UNCOVERED) return Gripe.SICK;
-    if (occupied && s.at(id, BRANCH.police) < UNCOVERED) return Gripe.CRIME;
+    const pop = this.people.population;
+    if (expectedOf('fire', pop) && s.at(id, BRANCH.fire) < UNCOVERED) return Gripe.FIRE;
+    if (occupied && expectedOf('health', pop)
+      && s.at(id, BRANCH.health) < UNCOVERED) return Gripe.SICK;
+    if (occupied && expectedOf('police', pop)
+      && s.at(id, BRANCH.police) < UNCOVERED) return Gripe.CRIME;
     // Schools are a complaint where people live, not where they work.
-    if (homes > 0 && c.living[id] > 0 && s.at(id, BRANCH.education) < UNCOVERED) {
+    if (homes > 0 && c.living[id] > 0 && expectedOf('education', pop)
+      && s.at(id, BRANCH.education) < UNCOVERED) {
       return Gripe.SCHOOL;
     }
 

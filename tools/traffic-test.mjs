@@ -222,6 +222,16 @@ section('driving');
   const ticks = Math.round(SECONDS * TICK_HZ);
   const queue = [];
   let overlaps = 0, backwards = 0, outOfLane = 0, misordered = 0, conflicts = 0, ringed = 0;
+  // Bodies clipping through each other sideways. The check above is per lane and
+  // catches a vehicle driving into the back of another; this one catches the
+  // other way two cars can end up in the same place, which is one of them moving
+  // across into the other. A lane change is instant in the model and drawn over
+  // about a second and a half, so the gap it asks for has to cover the whole
+  // manoeuvre rather than the instant it starts.
+  let clips = 0;
+  let firstClip = '';
+  /** Two bodies closer than this, side by side, are through each other. */
+  const WIDE = 1.9;
   let firstOverlap = '';
   let peak = 0, sumDriving = 0, samples = 0;
   let worstTick = 0, totalMs = 0;
@@ -269,6 +279,36 @@ section('driving');
       }
     }
 
+    // Two vehicles on neighbouring lanes of one carriageway, overlapping along
+    // it, with one of them part way across: that is a body through a body.
+    for (let a = 0; a < t.bound; a++) {
+      if (t.live[a] === 0) continue;
+      const la = c.lane[a];
+      if (la < 0) continue;
+      if (c.shift[a] === 0) continue;                 // not manoeuvring
+      const key = g.link[la] * 2 + g.dir[la];
+      for (let b = g.linkStart[key]; b < g.linkEnd[key]; b++) {
+        if (b === la || Math.abs(g.index[b] - g.index[la]) !== 1) continue;
+        for (let u = 0; u < t.bound; u++) {
+          if (t.live[u] === 0 || c.lane[u] !== b) continue;
+          const overlap = c.along[a] > c.along[u] - c.length[u]
+            && c.along[a] - c.length[a] < c.along[u];
+          if (!overlap) continue;
+          // Overlapping along the road is only half of it: two vehicles side by
+          // side in neighbouring lanes overlap along the road all day and never
+          // touch. What matters is how far apart their tracks are, which is the
+          // lane spacing less however much of the change has been made.
+          const apart = Math.abs((g.index[b] - g.index[la]) * 3.5 - c.shift[a]);
+          if (apart >= WIDE) continue;
+          clips++;
+          if (!firstClip) {
+            firstClip = `v${a} shifting ${c.shift[a].toFixed(2)}m beside v${u}`
+              + ` on lane ${b}, tracks ${apart.toFixed(2)}m apart`;
+          }
+        }
+      }
+    }
+
     // Nothing in a junction box conflicts with anything else in it.
     for (let n = 0; n < jn.count; n++) {
       const inBox = [];
@@ -310,6 +350,9 @@ section('driving');
 
   ok(st.spawned > 40, 'vehicles got onto the road', `${st.spawned}`);
   ok(peak > 20, 'and there were a useful number of them at once', `${peak}`);
+  console.log(`  side clips    ${clips.toLocaleString()} while changing lane`);
+  ok(clips === 0, 'and nobody changed lane through somebody',
+    `${clips}${firstClip ? ', e.g. ' + firstClip : ''}`);
   ok(overlaps === 0, 'no two vehicles ever occupied the same stretch of road',
     `${overlaps}${firstOverlap ? ', e.g. ' + firstOverlap : ''}`);
   ok(backwards === 0, 'nobody drove backwards', `${backwards}`);

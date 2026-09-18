@@ -1709,7 +1709,12 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // A lamp is its own light source, like a lit sign: it takes no shading at
   // all, or a headlight in shadow is a grey oval.
   if (in.material == MAT_LAMP) {
-    out = clamp(lampColour(in.local, in.tint != 4u) * 1.45, vec3f(0.0), vec3f(1.0));
+    // On after dark, and a dim daytime running light before it. A headlight at
+    // full strength at noon reads as a white sticker; one that is off entirely
+    // loses the car against the road at dusk, which is exactly when a street
+    // needs it most.
+    out = clamp(lampColour(in.local, in.tint != 4u) * mix(0.55, 1.75, night),
+      vec3f(0.0), vec3f(1.0));
   }
 
   // Air in front of the building. Without it a white block a kilometre away is

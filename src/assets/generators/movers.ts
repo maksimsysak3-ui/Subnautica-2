@@ -32,6 +32,15 @@ function idsOfClass(cls: string): string[] {
     && id.replace(/^car\./, '').replace(/[0-9].*$/, '') === cls);
 }
 
+/**
+ * Seats whose model is built nose-towards -x, and so want turning half a turn.
+ *
+ * Declared here rather than beside `MOVER_FLIP` because the lamps need it: a
+ * headlight belongs at the end of the body the vehicle actually drives with,
+ * and for these that is the -x end.
+ */
+const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police']);
+
 /** Models the pack ships at a density no moving vehicle needs. */
 const HEAVY = new Set(['car.fire1', 'car.garbage1', 'car.citybus1', 'car.servicetruck1']);
 
@@ -57,8 +66,54 @@ function lowBox(m: MeshBuilder, id: string): void {
 }
 const LOW_BOUNDS = new Map<string, number[]>();
 
+/**
+ * Headlights and tail lights, on the ends of a body.
+ *
+ * The one thing a moving vehicle in this game was missing, and the reason a
+ * city after dark had lit windows, lit streets and a road full of dark pebbles.
+ * Every part of it was already here -- `MAT.LAMP` shades a banded lens, and the
+ * shader treats a lamp as its own light source so it survives being in shadow
+ * -- and none of it was ever attached to the vehicles that drive, because those
+ * are imported bodies and the pack does not model lamps.
+ *
+ * Front lamps carry the sign tint and rear lamps do not, which is what the
+ * shader reads to decide white or red; the key is set to agree with it, so the
+ * two paths that ask the question cannot disagree.
+ */
+function lamps(m: MeshBuilder, id: string, flipped: boolean, lod: number): void {
+  if (lod >= 2) return;                       // an impostor has no lenses
+  const [hx, hy, hz] = importedSize(id);
+  // The nose end in model space. The body faces +x unless the model is one of
+  // the ones built the other way round.
+  const nose = flipped ? -hx : hx;
+  const tail = -nose;
+  const side = hz * 0.62;
+  // Lamps sit low on a car and high on a lorry, which is just where the body
+  // ends: a share of the height rather than a constant.
+  const lo = hy * (hy > 2.4 ? 0.30 : 0.42);
+  const hi = lo + Math.min(0.34, hy * 0.16);
+  const w = Math.min(0.42, hz * 0.28);
+  const face = (x: number, z: number, out: number): void => {
+    // A shallow box rather than a quad: a lens seen from the side of the road
+    // at a shallow angle is a lens, and a zero-thickness one vanishes.
+    m.box([Math.min(x, x + out), lo, z - w], [Math.max(x, x + out), hi, z + w],
+      MAT.LAMP);
+  };
+  const dir = flipped ? -1 : 1;
+  m.painted(TINT.SIGN_LIT, () => {
+    m.keyed(1, () => {
+      for (const z of [-side, side]) face(nose, z, 0.1 * dir);
+    });
+  });
+  m.painted(TINT.NONE, () => {
+    m.keyed(0, () => {
+      for (const z of [-side, side]) face(tail, z, -0.1 * dir);
+    });
+  });
+}
+
 /** A body with nothing around it, at three levels of detail. */
-function bare(id: string, heavy = false): (lod: number) => MeshBuilder {
+function bare(id: string, heavy = false, flipped = false): (lod: number) => MeshBuilder {
   return (lod: number): MeshBuilder => {
     const m = new MeshBuilder();
     // A fire engine is seventeen thousand triangles in the pack -- more than a
@@ -67,6 +122,7 @@ function bare(id: string, heavy = false): (lod: number) => MeshBuilder {
     // is ever close enough to a passing appliance to tell.
     if (lod >= 2) { if (heavy) lowBox(m, id); else drawImpostor(m, id); }
     else drawImported(m, id, { low: heavy || lod >= 1 });
+    lamps(m, id, flipped, lod);
     return m;
   };
 }
@@ -88,7 +144,7 @@ function moverOf(id: string, name: string, seat: string): AssetDef | null {
     height: hy,
     sim: free,
     note: `On the road: ${(hx * 2).toFixed(1)} m, drawn wherever the traffic model puts it.`,
-    build: bare(id, HEAVY.has(id)),
+    build: bare(id, HEAVY.has(id), FLIPPED.has(seat)),
   };
 }
 
@@ -366,13 +422,9 @@ export const MOVER_RESERVE: Record<string, number> = {
  * flipping those is what had the trucks driving backwards while the cars were
  * right.
  */
-export const MOVER_FLIP: Record<string, boolean> = {
-  'move.car': true, 'move.car2': true, 'move.car3': true, 'move.car4': true,
-  'move.taxi': true, 'move.police': true,
-  'move.lorry': false, 'move.bus': false, 'move.ambulance': false,
-  'move.fire': false, 'move.refuse': false,
-  'move.walker': false, 'move.cyclist': false,
-};
+export const MOVER_FLIP: Record<string, boolean> = Object.fromEntries(
+  Object.keys(MOVER_IDS).map((seat) => [`move.${seat}`, FLIPPED.has(seat)]),
+);
 
 /**
  * Everything the frame draws on top of the city, and how many of each.
