@@ -134,6 +134,12 @@ const INTEREST = 0.008;
 const TAX_MOOD_BITE = 52;
 
 export interface Ledger {
+  /**
+   * The central block grant a settlement too small to fund itself receives.
+   *
+   * Tapers to nothing as the city grows: see `GRANT_WEEKLY`.
+   */
+  grant: number;
   /** Weekly money in, by source. */
   residential: number;
   commercial: number;
@@ -257,11 +263,24 @@ const HAPPENINGS: Happening[] = [
   },
 ];
 
+/**
+ * The block grant a new settlement is funded with, per week, and the population
+ * it has tapered away by.
+ *
+ * Sized against what the opening actually costs: a pump, a small generator and
+ * the road to reach them is a few tens of thousands, and a village's income tax
+ * is a rounding error beside it. This covers the gap and is worth nothing by
+ * the time the city is paying its own way.
+ */
+const GRANT_WEEKLY = 9000;
+const GRANT_UNTIL = 1200;
+
 /** Game days between one thing happening and the next, on average. */
 const DAYS_BETWEEN_EVENTS = 6;
 
 export class Economy {
   readonly report: Ledger = {
+    grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
     services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
     income: 0, spending: 0, net: 0,
@@ -351,7 +370,23 @@ export class Economy {
     r.roads = this.roadUpkeep();
     r.interest = b.balance < 0 ? -b.balance * INTEREST : 0;
 
-    r.income = r.residential + r.commercial + r.industrial + r.office
+    // The block grant, which is what makes the first hour survivable.
+    //
+    // A city of two hundred people cannot pay for a water pump, a power station
+    // and the roads to reach them out of the income tax of two hundred people,
+    // and no real one is asked to: a settlement that size is funded from above
+    // until it has an economy. So the grant is generous when there is nothing
+    // and gone by the time there is something, which is exactly the shape of
+    // the problem -- the player is short of money precisely while they have too
+    // few taxpayers to earn any, and comfortable the moment they do.
+    //
+    // It tapers rather than stopping, so there is no week where the city's
+    // income falls off a cliff it did nothing to deserve.
+    const pop = this.people.population;
+    r.grant = pop >= GRANT_UNTIL ? 0
+      : GRANT_WEEKLY * (1 - pop / GRANT_UNTIL) ** 1.6;
+
+    r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
       + r.exports + r.fares;
     r.spending = r.services + r.transit + r.roads + r.imports + r.interest;
     r.net = r.income - r.spending;

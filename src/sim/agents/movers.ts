@@ -32,6 +32,7 @@ import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
 import { SITE_IDS } from '../../assets/generators/construction';
 import type { SiteView } from './growth';
+import type { Strollers } from './strollers';
 import { ASSET_INDEX } from '../inventory';
 import { ASSETS } from '../../assets/registry';
 
@@ -181,6 +182,7 @@ export class Movers {
   fill(out: Float32Array, cap: number, traffic: Traffic, routine: Routine,
     people: People, lanes: LaneGraph, paths: PathStore, junctions: Junctions,
     sites: SiteView | undefined,
+    strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0): number {
     this.counts.vehicles = 0;
@@ -292,6 +294,28 @@ export class Movers {
       }
     }
 
+    // ---- the people on the pavements ------------------------------------
+    //
+    // Not travellers: see `strollers.ts`. Drawn through the same seat and the
+    // same kerb offset as a real walker, because from the camera there is no
+    // difference between somebody walking to work and somebody walking.
+    if (strollers !== undefined) {
+      for (let i = 0; i < strollers.count; i++) {
+        const lane = strollers.laneOf(i);
+        if (lane < 0 || lane >= lanes.count) continue;
+        const l = Math.max(0.001, lanes.length[lane]);
+        const ax = lanes.ax[lane], az = lanes.az[lane];
+        const ux = (lanes.bx[lane] - ax) / l, uz = (lanes.bz[lane] - az) / l;
+        const at = Math.min(l, strollers.alongOf(i) + WALK_SPEED * lead);
+        const kerb = this.acrossAt(lanes, lane, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
+        const x = ax + ux * at + uz * kerb;
+        const z = az + uz * at - ux * kerb;
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
+        if (write('walker', x, z, Math.atan2(uz, ux), 0)) this.counts.people++;
+      }
+    }
+
     // ---- what the junctions are telling them ----------------------------
     //
     // The model has controlled its junctions since it was written -- signals
@@ -399,7 +423,7 @@ export class Movers {
 /** Metres from the camera within which a vehicle is worth drawing. */
 const DRAW_REACH = 900;
 /** And a person, who is a tenth the size and not worth a pixel beyond this. */
-const WALK_REACH = 420;
+const WALK_REACH = 820;
 /** Junction furniture, which only matters where the player can see a junction. */
 const SIGN_REACH = 520;
 /** A hoarded plot is forty metres across and worth drawing well beyond a car. */

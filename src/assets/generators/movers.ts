@@ -402,7 +402,7 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.ambulance': 40,
   'move.fire': 30,
   'move.refuse': 50,
-  'move.walker': 1600,
+  'move.walker': 2200,
   'move.cyclist': 300,
   'move.signalRed': 240,
   'move.signalAmber': 80,

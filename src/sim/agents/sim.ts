@@ -44,6 +44,7 @@ import { Demand } from './demand';
 import { Growth } from './growth';
 import { Complaints, GRIPE_INFO } from './complaints';
 import { Movers } from './movers';
+import { Strollers } from './strollers';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
@@ -214,6 +215,14 @@ export class Simulation {
   readonly growth: Growth | undefined;
   /** The projection of the traffic and the travellers into drawable rows. */
   private readonly movers = new Movers();
+  /**
+   * The people on the pavements who are not on a trip.
+   *
+   * Scenery, and kept at arm's length from everything that is not: see
+   * `strollers.ts`. It is driven here because it needs the lane graph and the
+   * clock, and for no other reason.
+   */
+  readonly strollers: Strollers;
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
@@ -245,6 +254,7 @@ export class Simulation {
     const mains = world?.mains;
     this.nodes = net.nodes.length;
     this.lanes = buildLaneGraph(net);
+    this.strollers = new Strollers(this.lanes);
     this.index = buildLaneIndex(this.lanes);
     this.places = buildPlaces(city, this.lanes, this.index);
     // The cache is sized to the city, not to a constant. Routes are keyed by where
@@ -342,6 +352,21 @@ export class Simulation {
       run: (tick) => {
         this.junctions.step(tick / TICK_HZ, this.traffic.waiting);
       },
+    });
+
+    // The people on the pavements. Walked every tick, because a figure that
+    // moves in steps at a slower rate reads as a hopping doll; topped up on the
+    // same beat the vehicles are, from how much of the city is within sight.
+    s.add({
+      name: 'strollers', rate: Rate.REALTIME,
+      run: () => { this.strollers.step(TICK_SECONDS); },
+    });
+    // Topped up on a slower beat than it is walked on: how many people a
+    // district holds changes over minutes, and the count is a pass over the
+    // places table, which is the only part of this that costs anything.
+    s.add({
+      name: 'street', rate: Rate.BRISK,
+      run: () => { this.strollers.populate(this.nearbyPeople()); },
     });
 
     // How many vehicles there should be, from the congestion the flow model found.
@@ -655,6 +680,7 @@ export class Simulation {
     ground: (x: number, z: number) => number): number {
     return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
       this.lanes, this.router.paths, this.junctions, this.growth?.sites,
+      this.strollers,
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick);
@@ -669,6 +695,28 @@ export class Simulation {
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }
 
+  /**
+   * How many people live or work within sight of the camera.
+   *
+   * What the pavements are populated from, so a district nobody lives in gets
+   * nobody walking through it. Counted over the places table on the same slow
+   * beat the top-up runs at, which is a few times a second over a few thousand
+   * rows.
+   */
+  private nearbyPeople(): number {
+    const p = this.places;
+    const c = p.col;
+    const r2 = this.strollers.reach * this.strollers.reach;
+    let n = 0;
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0) continue;
+      const dx = c.x[id] - this.strollers.focusX, dz = c.z[id] - this.strollers.focusZ;
+      if (dx * dx + dz * dz > r2) continue;
+      n += c.living[id] + c.working[id];
+    }
+    return n;
+  }
+
   /** Where the player is looking, so the movement budget is spent on it. */
   look(x: number, z: number): void {
     this.routine.focusX = x;
@@ -677,6 +725,8 @@ export class Simulation {
     this.traffic.focusZ = z;
     this.dispatch.focusX = x;
     this.dispatch.focusZ = z;
+    this.strollers.focusX = x;
+    this.strollers.focusZ = z;
   }
 
   /**
@@ -693,6 +743,7 @@ export class Simulation {
     this.index = buildLaneIndex(this.lanes);
     this.router.rebind(this.lanes);
     this.routine.rebind(this.lanes);
+    this.strollers.rebind(this.lanes);
     this.services.resize(net.grid * 8);
     this.views.rebind(this.lanes);
     this.utilities.rewire(this.lanes, net.nodes.length, this.world?.mains);
