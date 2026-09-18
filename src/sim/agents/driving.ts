@@ -238,6 +238,13 @@ export class Traffic {
   /** The queue on each lane: nearest the end, and nearest the start. */
   private laneHead: Int32Array;
   private laneTail: Int32Array;
+  /**
+   * A rolling counter, so the discretionary lane change is spread over the
+   * fleet rather than asked of every vehicle every tick: a thirty-second of
+   * them consider it on any given tick, which is every vehicle about every
+   * three seconds of real time.
+   */
+  private tickParity = 0;
   /** How many vehicles are on each lane, for the readout and for lane changes. */
   private laneCount: Int32Array;
   /**
@@ -293,6 +300,10 @@ export class Traffic {
     if (lane < 0 || lane >= this.g.count) { this.stats.refused++; return -1; }
     const len = LENGTH[kind];
     const style = STYLE[driver];
+    // Ambient traffic joins the emptiest lane going the same way: a vehicle
+    // appearing at the mouth of a link has reserved nothing and committed to
+    // nothing, so this is the one place a lane is simply a choice.
+    if (route < 0) lane = this.emptiest(lane);
     // Room at the back of the lane's queue.
     const last = this.laneTail[lane];
     if (last >= 0) {
@@ -307,6 +318,9 @@ export class Traffic {
     c.owner[v] = owner;
     c.kind[v] = kind;
     c.driver[v] = driver;
+    // Ambient traffic joins the emptiest lane going its way. Nothing is
+    // reserved yet and the vehicle is at the mouth of the lane, so this is the
+    // one place a lane can simply be chosen.
     c.lane[v] = lane;
     c.along[v] = 0;
     // Joining at the speed of whatever is already there, up to the limit, so a
@@ -542,14 +556,20 @@ export class Traffic {
         c.speed[v] = 0;
       }
 
-      // Stuck for a while: is the lane beside this one moving?
-      if (c.stopped[v] > PATIENCE_TICKS && changesLeft > 0) {
+      // Stuck for a while: is the lane beside this one moving? And, far more
+      // often, is it simply emptier -- a driver keeping left on a clear road is
+      // what fills the other lanes of an avenue that is not congested at all.
+      const crowded = this.laneCount[lane] > 1
+        && (v & 31) === (this.tickParity & 31)
+        && c.speed[v] < this.g.speed[lane] * 0.75;
+      if ((c.stopped[v] > PATIENCE_TICKS || crowded) && changesLeft > 0) {
         changesLeft--;
         if (this.tryChange(v, lane)) this.stats.changes++;
       }
     }
 
     const st = this.stats;
+    this.tickParity++;
     st.driving = this.table.size;
     st.stopped = stoppedNow;
     st.meanSpeed = moving > 0 ? speedSum / moving : 0;
@@ -635,6 +655,13 @@ export class Traffic {
   /** Moves a vehicle onto the next lane of its route. */
   private hop(v: number, to: number, overshoot: number): void {
     const c = this.table.col;
+    // Deliberately NOT spread across the parallel lanes here. The vehicle has
+    // just crossed a junction on a reservation for one specific movement, and
+    // arriving on a different lane than the one it was cleared for is exactly
+    // the case the conflict rule exists to prevent -- it showed up immediately
+    // as two conflicting movements in a box at once. Spreading happens on the
+    // open road instead, through the ordinary lane change, which checks both
+    // the route and the gap.
     // Out of the junction, so the slot goes back at once. The ten-second backstop
     // exists only for a vehicle that never gets here.
     if (c.inBox[v] >= 0) { this.junctions.leave(c.inBox[v], v); c.inBox[v] = -1; }
@@ -659,6 +686,29 @@ export class Traffic {
   }
 
   /**
+   * The emptiest lane parallel to `lane`.
+   *
+   * Cheap and deliberately approximate: it counts what is on each lane rather
+   * than looking for a gap, because a vehicle joining at the mouth of a lane has
+   * the whole lane in front of it and the following model sorts out the rest.
+   * Only ambient traffic uses it -- a routed vehicle's lane is part of its route.
+   */
+  private emptiest(lane: number): number {
+    const g = this.g;
+    const link = g.link[lane], dir = g.dir[lane];
+    const from = g.linkStart[link * 2 + dir], to = g.linkEnd[link * 2 + dir];
+    if (to - from < 2) return lane;
+    let best = lane;
+    let bestCount = this.laneCount[lane];
+    for (let other = from; other < to; other++) {
+      if (other === lane || this.laneCount[other] >= bestCount) continue;
+      best = other;
+      bestCount = this.laneCount[other];
+    }
+    return best;
+  }
+
+  /**
    * Tries to move a stopped vehicle into the lane beside it.
    *
    * Three conditions, and the second is the one that keeps the route valid: there
@@ -670,6 +720,16 @@ export class Traffic {
   private tryChange(v: number, lane: number): boolean {
     const c = this.table.col;
     const g = this.g;
+    // Not once the junction ahead has been asked about. A vehicle that has been
+    // cleared, or is already in the box, has a reservation for one specific
+    // movement -- and arriving at the line on a different lane performs a
+    // different one, which is precisely what the conflict rule exists to stop.
+    // It showed up the moment discretionary changes were added: eighty-eight
+    // pairs of conflicting movements in one run.
+    if (c.inBox[v] >= 0 || c.cleared[v] === 1) return false;
+    // Nor within the last few metres, where the decision is about to be made
+    // and the queue the vehicle would join has no room to react.
+    if (g.length[lane] - c.along[v] < 12) return false;
     const link = g.link[lane], dir = g.dir[lane];
     const from = g.linkStart[link * 2 + dir], to = g.linkEnd[link * 2 + dir];
     if (to - from < 2) return false;                   // only one lane this way

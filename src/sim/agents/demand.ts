@@ -113,6 +113,15 @@ function bar(shortage: number): number {
 const SMOOTHING = 0.25;
 
 /**
+ * The floor under every bar while the city is tiny, and the size it fades by.
+ *
+ * Six hundred people: about the point where the first shops have staff, the
+ * first workshops have orders, and vacancy is measuring something real.
+ */
+const FOUNDING_WANT = 0.55;
+const FOUNDING_POP = 600;
+
+/**
  * How much a city with nothing in it still pulls people in.
  *
  * Without this the whole model deadlocks on the first frame, and the deadlock is
@@ -208,6 +217,30 @@ export class Demand {
     this.raw[Want.COMMERCIAL] = bar(TARGET_VACANCY_JOB - shopVacancy + hunger);
     this.raw[Want.INDUSTRIAL] = bar(TARGET_VACANCY_JOB - worksVacancy + hunger);
     this.raw[Want.OFFICE] = bar(TARGET_VACANCY_JOB - officeVacancy + hunger);
+
+    // ---- the founding floor -----------------------------------------------
+    //
+    // A brand new city has no homes, no jobs and nobody in it, so every
+    // occupancy reading above is a division by nothing and the bars settle
+    // wherever the pull term leaves them -- which for commerce, industry and
+    // offices is the bottom. The player then paints a high street and watches
+    // nothing happen, because the model is quite correctly reporting that a
+    // town of forty people does not need a shop yet.
+    //
+    // That is true and it is unplayable. So a small city carries a floor under
+    // all four bars: enough demand that the first of everything gets built,
+    // fading out completely by the time the city is big enough for the real
+    // signal to mean something. It is not a cheat -- a new town genuinely does
+    // build its first shop and its first workshop on spec -- and it is the
+    // difference between a first ten minutes that works and one that looks
+    // broken.
+    const small = Math.max(0, 1 - this.people.population / FOUNDING_POP);
+    if (small > 0) {
+      const floor = FOUNDING_WANT * small * small;
+      for (let i = 0; i < WANTS; i++) {
+        this.raw[i] = Math.max(this.raw[i], floor);
+      }
+    }
 
     // Smoothed, except on the very first reading -- which has nothing to smooth
     // towards, and starting every game with four bars easing up from zero would

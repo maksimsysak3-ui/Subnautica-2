@@ -42,6 +42,8 @@ export interface PostTune {
   vignette: number;
   /** 0 at noon, 1 after dark. Warms the grade and opens the bloom up. */
   night: number;
+  /** Whether to antialias the composite. */
+  antialias: boolean;
 }
 
 export class Post {
@@ -192,6 +194,7 @@ export class Post {
     this.data[6] = tune.exposure;
     this.data[7] = tune.vignette;
     this.data[8] = tune.night;
+    this.data[11] = tune.antialias ? 1 : 0;
     this.device.queue.writeBuffer(this.uniform, 0, this.data);
 
     const draw = (

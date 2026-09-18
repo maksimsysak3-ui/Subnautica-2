@@ -85,6 +85,8 @@ interface SaveFile {
    * came from was built for free.
    */
   money?: [number, number[]];
+  /** Experience, level, stars and unlocks. Absent in saves from before it. */
+  career?: unknown;
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -175,6 +177,7 @@ export function serialise(world: World, name: string, auto = false): string {
     mains: encodeZones(world.mains.bits),
     grown: encodeZones(world.grown),
     money: [world.budget.balance, [...world.budget.rates]],
+    career: world.progress.save(),
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
     })),
@@ -238,6 +241,12 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (Array.isArray(file.money) && Array.isArray(file.money[1])
     && file.money[1].length === TAXES) {
     world.budget.restore(file.money[0], file.money[1]);
+  }
+  if (file.career !== undefined) {
+    // A save from before the city had a career loads with a new one, which is
+    // the right answer: it starts at level one with its three free services and
+    // earns everything else the way a new city does.
+    world.progress.restore(file.career);
   }
   if (Array.isArray(file.land) && file.land.length === 2) {
     world.land.lo = file.land[0] >>> 0;

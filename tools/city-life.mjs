@@ -352,8 +352,48 @@ ok(totalMs / ticks < 4, 'the average tick leaves the frame alone',
   }
   ok(over === 0, 'and no prototype is drawn more often than the census reserved',
     `${over} over`);
+  ok(counts.signals > 0, 'and the junctions show what they are doing',
+    `${counts.signals} heads and signs`);
   console.log(`\nstreets         ${counts.vehicles} vehicles, ${counts.people} on foot, `
-    + `${seen.size} models, ${counts.dropped} over budget`);
+    + `${counts.signals} signals and signs, ${seen.size} models, `
+    + `${counts.dropped} over budget`);
+  // Multi-lane roads have to carry traffic in every lane, not one lane and two
+  // empty ones beside it. Measured as the busiest lane's share of its own
+  // carriageway, over the links that have more than one lane each way.
+  {
+    const g = sim.lanes, tc = sim.traffic.table;
+    const per = new Map();
+    for (let v = 0; v < tc.bound; v++) {
+      if (tc.live[v] === 0) continue;
+      const lane = tc.col.lane[v];
+      if (lane < 0) continue;
+      per.set(lane, (per.get(lane) ?? 0) + 1);
+    }
+    let busiest = 0, total = 0, groups = 0;
+    const seen = new Set();
+    for (const lane of per.keys()) {
+      const link = g.link[lane], dir = g.dir[lane];
+      const key = link * 2 + dir;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const from = g.linkStart[key], to = g.linkEnd[key];
+      if (to - from < 2) continue;
+      let sum = 0, most = 0;
+      for (let l = from; l < to; l++) {
+        const n = per.get(l) ?? 0;
+        sum += n;
+        if (n > most) most = n;
+      }
+      if (sum < 4) continue;
+      busiest += most; total += sum; groups++;
+    }
+    const share = total > 0 ? busiest / total : 0;
+    ok(groups === 0 || share < 0.85, 'multi-lane roads use more than one lane',
+      `${(share * 100).toFixed(0)}% in the busiest lane over ${groups} carriageways`);
+    console.log(`lanes           ${(share * 100).toFixed(0)}% of traffic in the busiest `
+      + `lane across ${groups} multi-lane carriageways`);
+  }
+
   console.log(`travellers      ${sim.routine.stats.travelling} in flight, `
     + `${sim.routine.moved} moved individually, `
     + `modes ${Array.from(sim.routine.stats.byMode).join('/')} (${MODE_NAMES.join('/')})`);

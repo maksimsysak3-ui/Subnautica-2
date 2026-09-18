@@ -21,6 +21,8 @@
 import type { Traffic } from './driving';
 import { Kind } from './driving';
 import type { Routine } from './routine';
+import type { Junctions } from './junctions';
+import { Control, Light } from './junctions';
 import { Mode } from './routine';
 import type { People } from './people';
 import type { LaneGraph } from './lanes';
@@ -45,6 +47,8 @@ const LOD_BIAS = 5;
 export interface MoverCounts {
   vehicles: number;
   people: number;
+  /** Signal heads and signs drawn at junctions. */
+  signals: number;
   /** Movers the budget could not seat. They are still simulated. */
   dropped: number;
 }
@@ -64,7 +68,10 @@ export class Movers {
    */
   private readonly box: Record<string, [number, number, number]> = {};
   private readonly used = new Map<number, number>();
-  readonly counts: MoverCounts = { vehicles: 0, people: 0, dropped: 0 };
+  /** Lanes that end at a controlled junction, and the graph they belong to. */
+  private arms: number[] = [];
+  private armsAt = -1;
+  readonly counts: MoverCounts = { vehicles: 0, people: 0, signals: 0, dropped: 0 };
 
   constructor() {
     for (const [seat, id] of Object.entries(MOVER_IDS)) {
@@ -88,7 +95,7 @@ export class Movers {
    * frame; nothing here allocates.
    */
   fill(out: Float32Array, cap: number, traffic: Traffic, routine: Routine,
-    people: People, lanes: LaneGraph, paths: PathStore,
+    people: People, lanes: LaneGraph, paths: PathStore, junctions: Junctions,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number): number {
     this.counts.vehicles = 0;
@@ -169,6 +176,60 @@ export class Movers {
       }
     }
 
+    // ---- what the junctions are telling them ----------------------------
+    //
+    // The model has controlled its junctions since it was written -- signals
+    // with actuated phases, give way on the minor arms, a stop at the smallest
+    // -- and none of it was visible, so a car braking at an empty crossroads
+    // looked like a car braking for nothing. The furniture is drawn from the
+    // same state the drivers read, so a red light on screen is the red light
+    // the car in front of it is stopping for.
+    this.counts.signals = 0;
+    // The arms worth drawing furniture on, worked out once per road network
+    // rather than per frame. A metropolis has a hundred thousand lanes and a
+    // frame that walks all of them to find the four hundred with a signal on
+    // them is a frame that spends more time looking than drawing.
+    if (this.armsAt !== lanes.count || this.arms.length === 0) {
+      this.arms = [];
+      for (let lane = 0; lane < lanes.count; lane++) {
+        const node = lanes.to[lane];
+        if (node < 0) continue;
+        const control = junctions.control[node];
+        if (control === Control.SIGNALS || control === Control.GIVE_WAY) this.arms.push(lane);
+      }
+      this.armsAt = lanes.count;
+    }
+    for (const lane of this.arms) {
+      const node = lanes.to[lane];
+      const control = junctions.control[node];
+      const bx = lanes.bx[lane], bz = lanes.bz[lane];
+      const dx = eyeX - bx, dz = eyeZ - bz;
+      if (dx * dx + dz * dz > SIGN_REACH * SIGN_REACH) continue;
+
+      let seat: string;
+      if (control === Control.SIGNALS) {
+        const light = junctions.lightFor(lane, node, 0);
+        seat = light === Light.GREEN ? 'signalGreen'
+          : light === Light.AMBER ? 'signalAmber' : 'signalRed';
+      } else {
+        // Only the arms that actually have to give way: the major arms run
+        // through, and a sign on those would be a lie about the model.
+        if (junctions.laneRank[lane] >= junctions.nodeRank[node]) continue;
+        seat = lanes.rank[lane] === 0 ? 'stop' : 'giveway';
+      }
+
+      // At the stop line, on the near side of the road, facing the traffic it
+      // is talking to.
+      const ax = lanes.ax[lane], az = lanes.az[lane];
+      const len = Math.max(0.001, lanes.length[lane]);
+      const ux = (bx - ax) / len, uz = (bz - az) / len;
+      const back = Math.min(len * 0.5, 3.4);
+      const side = 4.2;
+      const x = bx - ux * back + uz * side;
+      const z = bz - uz * back - ux * side;
+      if (write(seat, x, z, Math.atan2(-uz, -ux), 0)) this.counts.signals++;
+    }
+
     return n;
   }
 }
@@ -177,6 +238,8 @@ export class Movers {
 const DRAW_REACH = 900;
 /** And a person, who is a tenth the size and not worth a pixel beyond this. */
 const WALK_REACH = 420;
+/** Junction furniture, which only matters where the player can see a junction. */
+const SIGN_REACH = 520;
 
 /** Which seat a vehicle is drawn in. */
 function seatOf(kind: number, v: number): string {

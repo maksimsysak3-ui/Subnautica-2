@@ -1469,6 +1469,9 @@ fn signLabel(text : vec4u, p : vec2f, count : u32, mpp : f32) -> f32 {
 // ------------------------------------------------------------------ shadows
 
 fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
+  // Shadows switched off in the settings. A uniform branch, so the comparison
+  // sampler below stays in uniform control flow.
+  if (scene.view.z > 0.5) { return 1.0; }
   let lightSpace = scene.sunViewProj * vec4f(world, 1.0);
   let ndc = lightSpace.xyz / lightSpace.w;
   let uv = ndc.xy * vec2f(0.5, -0.5) + 0.5;

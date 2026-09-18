@@ -64,6 +64,10 @@ struct Camera {
  * early return.
  */
 fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
+  // Shadows switched off in the settings: one uniform branch, which is uniform
+  // control flow, so the comparison sampler below is still legal in every path
+  // that reaches it.
+  if (camera.view.z > 0.5) { return 1.0; }
   let lightSpace = camera.sunViewProj * vec4f(world, 1.0);
   let ndc = lightSpace.xyz / lightSpace.w;
   let uv = ndc.xy * vec2f(0.5, -0.5) + 0.5;

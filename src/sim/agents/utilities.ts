@@ -132,6 +132,21 @@ const SUPPLY: Record<string, Supply> = {
   'svc.water.valvehouse': {},
   'svc.water.sewage': { sewage: 220000, crewed: 0.7 },
   'svc.water.treatment': { sewage: 80000, water: 26000, crewed: 0.7 },
+  // Treatment rather than abstraction: a filtration works cleans what the pumps
+  // already drew, so it is worth about a third of a pump on its own and is what
+  // a city builds when it wants more out of the river it has.
+  'svc.water.filtration': { water: 46000, needsRiver: true, crewed: 0.5 },
+  // And desalination is the one that does not need a river at all, which is the
+  // whole reason to pay for it: twice the upkeep of a pump, no river, and it
+  // stops dead without its crew.
+  'svc.water.desal': { water: 150000, crewed: 0.85 },
+  // A borehole is a district's own supply: small, passive, and it runs.
+  'svc.water.borehole': { water: 26000, crewed: 0.15 },
+  // Drainage. A pumping station lifts sewage over a hill -- it moves rather than
+  // treats, so it is capacity on the network and nothing else.
+  'svc.sewage.pump': { sewage: 60000, crewed: 0.35 },
+  // Reed beds polish what the works has already done: slow, cheap, passive.
+  'svc.sewage.lagoon': { sewage: 45000, crewed: 0.1 },
 };
 
 /** How much of a plant's output needs staff, where the table does not say. */

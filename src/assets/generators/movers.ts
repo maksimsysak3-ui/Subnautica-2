@@ -14,7 +14,7 @@
  * load, which is why the census reserves room for them -- see `MOVER_RESERVE`.
  */
 
-import { MAT, MeshBuilder } from '../mesh';
+import { MAT, TINT, MeshBuilder } from '../mesh';
 import { IMPORTED_IDS, drawImported, drawImpostor, importedSize } from '../imported';
 import { person } from './vehicles';
 import type { AssetDef } from '../types';
@@ -181,6 +181,120 @@ built.push({
   build: rider,
 });
 
+/**
+ * A signal head on a pole, with one lens lit.
+ *
+ * Three prototypes rather than one with a parameter: an instance carries a
+ * position, a heading and a prototype, and nothing else -- so the state of a
+ * light is which of three models is drawn at the stop line. It costs three
+ * near-identical meshes in the arena and saves a per-instance colour path
+ * through the culler, the shader and the buffer.
+ */
+function signal(lit: number): (lod: number) => MeshBuilder {
+  return (lod: number): MeshBuilder => {
+    const m = new MeshBuilder();
+    const H = 3.1;
+    // The pole, and the base it is bolted to.
+    m.painted(TINT.METAL_DARK, () => {
+      m.cylinder(0, 0, 0.075, 0, H, lod >= 1 ? 5 : 8, MAT.TRIM);
+      m.cylinder(0, 0, 0.17, 0, 0.16, lod >= 1 ? 5 : 8, MAT.CONCRETE);
+    });
+    // The head: a dark box with three lenses down the face it shows the road.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-0.13, H - 0.92, -0.16], [0.07, H, 0.16], MAT.TRIM);
+    });
+    const LENS = [
+      [0.86, 0.16, 0.12],
+      [0.95, 0.66, 0.10],
+      [0.20, 0.85, 0.32],
+    ];
+    for (let i = 0; i < 3; i++) {
+      const y = H - 0.18 - i * 0.28;
+      const on = i === lit;
+      // The lit lens is drawn as signage, which is the one material in the
+      // library that ignores the light on it -- so a red light reads as a red
+      // light at midnight and in full sun.
+      m.painted(on ? TINT.SIGN_LIT : TINT.NONE, () => {
+        m.box([-0.155, y - 0.11, -0.11], [-0.125, y + 0.11, 0.11],
+          on ? MAT.LAMP : MAT.TRIM);
+      });
+      if (lod < 1) {
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([-0.2, y + 0.1, -0.13], [-0.12, y + 0.14, 0.13], MAT.TRIM);
+        });
+      }
+      void LENS[i];
+    }
+    return m;
+  };
+}
+
+/** A give-way triangle on a post. */
+function giveWay(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  m.painted(TINT.METAL_DARK, () => {
+    m.cylinder(0, 0, 0.05, 0, 2.1, lod >= 1 ? 4 : 6, MAT.TRIM);
+    m.cylinder(0, 0, 0.14, 0, 0.12, lod >= 1 ? 4 : 6, MAT.CONCRETE);
+  });
+  // The blade, pointing down, drawn as signage so it stays legible at dusk.
+  m.painted(TINT.SIGN_LIT, () => {
+    m.tri([-0.06, 2.06, -0.44], [-0.06, 2.06, 0.44], [-0.06, 1.28, 0], MAT.PLATE);
+    m.tri([-0.06, 2.06, 0.44], [-0.06, 2.06, -0.44], [-0.06, 1.28, 0], MAT.PLATE);
+  });
+  return m;
+}
+
+/** A stop sign: the same post, an octagon, and the line painted on the road. */
+function stopSign(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  m.painted(TINT.METAL_DARK, () => {
+    m.cylinder(0, 0, 0.05, 0, 2.1, lod >= 1 ? 4 : 6, MAT.TRIM);
+    m.cylinder(0, 0, 0.14, 0, 0.12, lod >= 1 ? 4 : 6, MAT.CONCRETE);
+  });
+  m.painted(TINT.SIGN_LIT, () => {
+    // An octagon as a fan of triangles about its centre.
+    const r = 0.38, cy = 1.72;
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const a1 = ((i + 1) / 8) * Math.PI * 2 + Math.PI / 8;
+      m.tri(
+        [-0.06, cy, 0],
+        [-0.06, cy + Math.sin(a0) * r, Math.cos(a0) * r],
+        [-0.06, cy + Math.sin(a1) * r, Math.cos(a1) * r],
+        MAT.PLATE,
+      );
+    }
+  });
+  return m;
+}
+
+for (const [seat, name, lit] of [
+  ['signalRed', 'Signal, red', 0],
+  ['signalAmber', 'Signal, amber', 1],
+  ['signalGreen', 'Signal, green', 2],
+] as Array<[string, string, number]>) {
+  built.push({
+    id: `move.${seat}`, name, zone: 'fleet', density: 'none', variant: 'sculpted',
+    footprint: [1, 1], height: 3.1, sim: free,
+    note: 'A signal head at a stop line, showing what the junction is showing.',
+    build: signal(lit),
+  });
+}
+built.push({
+  id: 'move.giveway', name: 'Give way sign', zone: 'fleet', density: 'none',
+  variant: 'sculpted', footprint: [1, 1], height: 2.1, sim: free,
+  note: 'On the minor arm of an uncontrolled junction, where the model makes '
+    + 'vehicles yield.',
+  build: giveWay,
+});
+built.push({
+  id: 'move.stop', name: 'Stop sign', zone: 'fleet', density: 'none',
+  variant: 'sculpted', footprint: [1, 1], height: 2.1, sim: free,
+  note: 'On the minor arm of a small junction, where the model makes vehicles '
+    + 'come to a stop.',
+  build: stopSign,
+});
+
 export const MOVERS: AssetDef[] = built;
 
 /**
@@ -204,6 +318,11 @@ export const MOVER_IDS = {
   refuse: 'move.refuse',
   walker: 'move.walker',
   cyclist: 'move.cyclist',
+  signalRed: 'move.signalRed',
+  signalAmber: 'move.signalAmber',
+  signalGreen: 'move.signalGreen',
+  giveway: 'move.giveway',
+  stop: 'move.stop',
 } as const;
 
 /**
@@ -228,6 +347,11 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.refuse': 50,
   'move.walker': 1600,
   'move.cyclist': 300,
+  'move.signalRed': 240,
+  'move.signalAmber': 80,
+  'move.signalGreen': 160,
+  'move.giveway': 320,
+  'move.stop': 200,
 };
 
 /** Every instance the frame may write, which is what the buffer is sized for. */

@@ -19,7 +19,7 @@ struct Post {
   texel : vec4f,
   /** x = bloom strength, y = threshold, z = exposure, w = vignette. */
   tune  : vec4f,
-  /** x = night, 0 at noon and 1 after dark. y = wet. z = seconds. */
+  /** x = night, 0 at noon and 1 after dark. y = wet. z = seconds. w = antialias. */
   mood  : vec4f,
 };
 
@@ -138,7 +138,10 @@ fn fxaa(uv : vec2f) -> vec3f {
 
 @fragment
 fn composite(in : VertexOut) -> @location(0) vec4f {
-  var col = fxaa(in.uv);
+  // The player's own setting: five taps of it is cheap, but a weak machine
+  // would rather spend them on the frame.
+  var col = select(textureSampleLevel(src, samp, in.uv, 0.0).rgb,
+                   fxaa(in.uv), post.mood.w > 0.5);
   col += textureSampleLevel(bloomTex, samp, in.uv, 0.0).rgb * post.tune.x;
   col *= post.tune.z;
 

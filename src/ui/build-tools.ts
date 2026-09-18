@@ -27,6 +27,11 @@ import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
 import { ZONE_STYLE, zoneIcon } from './zones';
 import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
+import { NODE_OF_ASSET } from '../sim/tech';
+import { landmarksForLevel } from '../sim/tech';
+import type { LevelUp } from '../sim/progress';
+import { levelName } from '../sim/progress';
+import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
 import { OVERDRAFT } from '../sim';
@@ -190,6 +195,10 @@ export class BuildTools {
   private readMoney!: HTMLElement;
   /** The four speed keys, and which one is down. */
   private speedButtons: HTMLElement[] = [];
+  /** The unspent-star count over the development key. */
+  private starChip: HTMLElement | null = null;
+  /** The level cell in the status row. */
+  private readLevel!: HTMLElement;
   /** Republishes the bar's height to the panels that dock above it. */
   private measureFoot: (() => void) | null = null;
   /**
@@ -201,6 +210,13 @@ export class BuildTools {
    * answered here.
    */
   onInspect: ((at: [number, number] | null) => void) | null = null;
+  /** Levels crossed by something the player just built. */
+  onLevels: ((levels: LevelUp[]) => void) | null = null;
+  /** Something changed about the city's career: repaint whatever shows it. */
+  onProgress: (() => void) | null = null;
+  /** The development tree and the settings, which the bar has buttons for. */
+  onTech: (() => void) | null = null;
+  onSettings: (() => void) | null = null;
   private speed = 1;
   private lastSpeed = 1;
   private ticked = 0;
@@ -530,6 +546,16 @@ export class BuildTools {
     }
     if (!typing && e.key >= '1' && e.key <= '4' && !e.ctrlKey && !e.metaKey) {
       this.setSpeed(Number(e.key) - 1);
+      return;
+    }
+    // The two panels that are not tools: what the city can learn, and how the
+    // game is set up.
+    if (!typing && (e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey) {
+      this.onTech?.();
+      return;
+    }
+    if (!typing && (e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey) {
+      this.onSettings?.();
       return;
     }
     // Ctrl+S, because that is the key everyone already presses and the browser
@@ -898,6 +924,12 @@ export class BuildTools {
       this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${fit.why}`);
       return;
     }
+    if (!this.unlocked(t.proto.id)) {
+      denySound();
+      this.say(`the ${t.proto.def.name.toLowerCase()} is not unlocked yet `
+        + '\u2014 open Development');
+      return;
+    }
     if (!this.afford(buildingPrice(t.proto.def), t.proto.def.name)) return;
     const why = placeLot(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
     if (why !== null) { this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${why}`); return; }
@@ -914,6 +946,10 @@ export class BuildTools {
       z1 = Math.max(z1, placed.grounds[1] + placed.grounds[3]);
     }
     this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
+    // What it was worth. A landmark is worth a great deal more than a bus
+    // shelter, which is the whole reason the player is saving up for one.
+    confirmSound();
+    this.earn(buildingPrice(t.proto.def), t.proto.def.signature === true);
     // The real building now stands where the ghost was, and two copies of it in
     // the same place is what "it is stuck there" looks like. The next pointer
     // move puts a fresh ghost up for the next one.
@@ -1620,6 +1656,35 @@ export class BuildTools {
       b.addEventListener('click', () => this.save());
       keep.appendChild(b);
     }
+    {
+      const b = document.createElement('button');
+      chip(b, SKIN.warn);
+      tip(b, 'Development \u2014 spend stars on what the city can build', 'T');
+      const glyph = document.createElement('span');
+      glyph.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" '
+        + 'fill="currentColor"><path d="M12 2.6l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9'
+        + '-5.3 2.9 1.1-6L3.4 8.9l6-.8z"/></svg>';
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.appendChild(this.starBadge());
+      b.addEventListener('click', () => this.onTech?.());
+      keep.appendChild(b);
+    }
+    {
+      const b = document.createElement('button');
+      chip(b, SKIN.dim);
+      tip(b, 'Settings', 'O');
+      const glyph = document.createElement('span');
+      glyph.innerHTML = '<svg width="21" height="21" viewBox="0 0 24 24" '
+        + 'fill="none" stroke="currentColor" stroke-width="1.8">'
+        + '<circle cx="12" cy="12" r="3.2"/>'
+        + '<path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6'
+        + 'M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"/></svg>';
+      glyph.style.cssText = GLYPH;
+      b.appendChild(glyph);
+      b.addEventListener('click', () => this.onSettings?.());
+      keep.appendChild(b);
+    }
     tools.appendChild(keep);
 
     bar.appendChild(tools);
@@ -1730,6 +1795,8 @@ export class BuildTools {
     // the far right beside the money, a whole bar away from the name of the
     // place it belongs to -- which is the one number a player checks against
     // the one word that identifies their city.
+    this.readLevel = cell('level');
+    row.appendChild(this.readLevel);
     this.readName = cell('city');
     row.appendChild(this.readName);
     this.readPeople = cell('people', true);
@@ -1751,6 +1818,39 @@ export class BuildTools {
    * speed the player was actually running at rather than always to one -- a
    * detail nobody notices until it is missing and every pause costs two clicks.
    */
+  /** The little count of unspent stars that rides on the development key. */
+  private starBadge(): HTMLElement {
+    const chip = document.createElement('span');
+    css(chip, ['position:absolute', 'right:-3px', 'top:-4px', 'min-width:15px',
+      'height:15px', 'padding:0 3px', 'border-radius:8px', 'display:grid',
+      'place-items:center', `background:${SKIN.warn}`, 'color:#241a05',
+      `font:700 9px/1 ${SKIN.mono}`, 'pointer-events:none',
+      'box-shadow:0 2px 6px rgba(0,0,0,.5)']);
+    this.starChip = chip;
+    this.paintProgress();
+    return chip;
+  }
+
+  /** Repaints everything that shows the city's career. */
+  paintProgress(): void {
+    const p = this.renderer.world.progress;
+    if (this.starChip !== null) {
+      this.starChip.textContent = `${p.stars}`;
+      this.starChip.style.display = p.stars > 0 ? 'grid' : 'none';
+    }
+    if (this.readLevel !== undefined) {
+      const pct = Math.round(100 * Math.min(1, p.intoLevel / Math.max(1, p.levelSpan)));
+      fill(this.readLevel,
+        `${p.level}<span style="color:${SKIN.dim};font-size:10px">`
+        + `${levelName(p.level)}</span>`
+        + `<span style="display:inline-block;width:46px;height:3px;`
+        + `background:${SKIN.track};border-radius:3px;overflow:hidden;`
+        + `vertical-align:middle;margin-left:2px">`
+        + `<span style="display:block;width:${pct}%;height:100%;`
+        + `background:${SKIN.warn}"></span></span>`);
+    }
+  }
+
   private setSpeed(i: number): void {
     const n = Math.max(0, Math.min(SPEEDS.length - 1, i));
     if (n > 0) this.lastSpeed = n;
@@ -1810,6 +1910,7 @@ export class BuildTools {
       // weekly line under it is the one that decides whether the city lives:
       // a balance falling by nine thousand a week is a balance with a date on
       // it, and the colour says so before the number is read.
+      this.paintProgress();
       const bal = Math.round(this.renderer.world.budget.balance);
       const net = Math.round(s.net);
       const tone = bal < 0 ? SKIN.bad : net < 0 ? SKIN.warn : SKIN.good;
@@ -1914,6 +2015,30 @@ export class BuildTools {
       b.style.borderColor = 'rgba(255,255,255,.06)';
       b.style.background = WELL;
     });
+    // Locked: the tile still shows what it is -- a player has to be able to see
+    // what they are working towards -- but it is drawn as a silhouette with a
+    // padlock on it, and clicking it says where it is unlocked rather than
+    // quietly doing nothing.
+    if (id !== null && id !== '' && !this.unlocked(id)) {
+      b.style.filter = 'grayscale(1)';
+      b.style.opacity = '0.55';
+      b.style.position = 'relative';
+      const lock = document.createElement('span');
+      lock.textContent = '\u{1F512}';
+      lock.style.cssText = [
+        'position:absolute', 'right:6px', 'top:6px', 'font-size:12px',
+        'pointer-events:none', 'filter:grayscale(0)', 'opacity:.9',
+      ].join(';');
+      b.appendChild(lock);
+      const node = NODE_OF_ASSET.get(id);
+      b.addEventListener('click', () => {
+        denySound();
+        this.say(assetById(id)?.signature === true
+          ? `${name} is a landmark \u2014 reach the level that hands it over`
+          : `${name} needs \u2605 ${node?.cost ?? 1} in Development`);
+      });
+      return b;
+    }
     b.addEventListener('click', onPick);
     return b;
   }
@@ -2120,6 +2245,32 @@ export class BuildTools {
    * label. The refusal names the figure and the shortfall: "you cannot afford
    * this" is a dead end, and "24k, and you are 9k short" is a plan.
    */
+  /**
+   * Whether the city has learned to build this.
+   *
+   * Zoning and roads are never gated -- a city builder that will not let you
+   * draw a street is not a city builder -- so this only ever refuses a service
+   * building or a landmark, and it says which panel opens it.
+   */
+  private unlocked(id: string): boolean {
+    const p = this.renderer.world.progress;
+    const def = assetById(id);
+    if (def === undefined) return true;
+    if (def.signature === true) return p.earned.has(id);
+    const node = NODE_OF_ASSET.get(id);
+    if (node === undefined) return true;
+    return node.free || p.has(node.id);
+  }
+
+  /** Books experience for something the player built, and shows any level. */
+  private earn(price: number, signature: boolean): void {
+    const p = this.renderer.world.progress;
+    const levels = p.add(p.forBuilding(price, signature),
+      signature ? 'landmark' : 'build', landmarksForLevel);
+    if (levels.length > 0) this.onLevels?.(levels);
+    this.onProgress?.();
+  }
+
   private afford(cost: number, what: string): boolean {
     const budget = this.renderer.world.budget;
     if (budget.spend(cost)) return true;

@@ -18,6 +18,7 @@ import { simConfig } from './config';
 import { Mains } from './mains';
 import { Transit } from './transit';
 import { Budget } from './budget';
+import { Progress } from './progress';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
 import { signatures, services, signatureById } from './inventory';
@@ -149,6 +150,8 @@ export interface World {
   transit: Transit;
   /** The treasury: what the city has, and what it charges. */
   budget: Budget;
+  /** The city's career: experience, level, stars and what they have unlocked. */
+  progress: Progress;
   /**
    * Bumped every time the zoning changes.
    *
@@ -176,6 +179,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     grown: new Uint8Array(grid * grid).fill(1),
     transit: new Transit(),
     budget: new Budget(),
+    progress: new Progress(),
     painted: 0,
   };
 }

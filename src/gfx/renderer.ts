@@ -252,6 +252,8 @@ interface Layouts {
   proto: GPUBindGroupLayout;
   city: GPUBindGroupLayout;
   cull: GPUBindGroupLayout;
+  /** Kept so the shadow map can be resized and rebound without a rebuild. */
+  scene: GPUBindGroupLayout;
 }
 
 /**
@@ -337,6 +339,44 @@ export class Renderer {
   private post: Post | null = null;
   /** 0 with the sun up, 1 after dark. Drives the grade and the bloom. */
   private night = 0;
+
+  /**
+   * The picture settings, as the player left them.
+   *
+   * Every one of these is read where the frame is built rather than baked into
+   * a pipeline, so changing one takes effect on the next frame and none of them
+   * needs the world rebuilt. The shadow map is the exception -- its size is a
+   * texture -- and it rebuilds two bind groups when it changes, which is three
+   * objects and no stall.
+   */
+  readonly quality = {
+    shadows: true,
+    /** Multiplies the bloom the time of day asks for. 0 turns it off. */
+    bloom: 1,
+    antialias: true,
+    vignette: 1,
+    /** Multiplies the grass field's reach. 0 is a city with no grass in it. */
+    grass: 1,
+    /** Whether the frame-rate governor may drop the render scale by itself. */
+    autoScale: true,
+    /** Cloud, rain and wet roads. Off holds the sky clear. */
+    weather: true,
+  };
+
+  /** Sets the render scale by hand, for the settings panel. */
+  setRenderScale(scale: number): void {
+    this.gpu.setRenderScale(Math.max(0.4, Math.min(1, scale)));
+  }
+
+  /** The shadow map's edge in texels. Rebuilds the map when it changes. */
+  get shadowPixels(): number { return this.shadowSize; }
+  set shadowPixels(px: number) {
+    const want = Math.max(512, Math.min(4096, Math.round(px / 512) * 512));
+    if (want === this.shadowSize) return;
+    this.shadowSize = want;
+    this.remakeShadowMap();
+  }
+  private shadowSize = SHADOW_SIZE;
   private cameraData = new Float32Array(CAMERA_UNIFORM_SIZE / 4);
   private invViewProj = mat4();
   private sunView = mat4();
@@ -956,7 +996,7 @@ export class Renderer {
     });
     const shadowTexture = device.createTexture({
       label: 'shadow-map',
-      size: { width: SHADOW_SIZE, height: SHADOW_SIZE },
+      size: { width: this.shadowSize, height: this.shadowSize },
       format: DEPTH_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
@@ -1055,7 +1095,7 @@ export class Renderer {
 
     const layouts: Layouts = {
       camera: cameraLayout, overlay: overlayBgl, dots: dotsBgl, proto: protoLayout,
-      city: cityLayout, cull: cullLayout, grass: grassLayout,
+      city: cityLayout, cull: cullLayout, grass: grassLayout, scene: sceneLayout,
     };
     // Survives a rebuild -- the grid is a reading about the city, not part of it.
     // The overlay grid is a reading about the city and survives a rebuild. The
@@ -1518,6 +1558,46 @@ export class Renderer {
     this.buildMainsLines();
   }
 
+  /**
+   * Makes the shadow map again at the size the settings ask for.
+   *
+   * Three objects: the texture and the two bind groups that hold a view of it.
+   * Nothing else in the renderer knows the map's size -- the shaders read one
+   * texel's worth of it out of a uniform -- so this is the whole of it.
+   */
+  private remakeShadowMap(): void {
+    const res = this.res;
+    if (res === null) return;
+    const device = this.gpu.device;
+    res.shadowTexture.destroy();
+    const texture = device.createTexture({
+      label: 'shadow-map',
+      size: { width: this.shadowSize, height: this.shadowSize },
+      format: DEPTH_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    const view = texture.createView();
+    const sampler = device.createSampler({ compare: 'less' });
+    res.shadowTexture = texture;
+    res.shadowView = view;
+    res.cameraGroup = device.createBindGroup({
+      label: 'camera-bg', layout: res.layouts.camera,
+      entries: [
+        { binding: 0, resource: { buffer: res.cameraBuffer } },
+        { binding: 1, resource: view },
+        { binding: 2, resource: sampler },
+      ],
+    });
+    res.sceneGroup = device.createBindGroup({
+      label: 'scene-bg', layout: res.layouts.scene,
+      entries: [
+        { binding: 0, resource: { buffer: res.sceneBuffer } },
+        { binding: 1, resource: view },
+        { binding: 2, resource: sampler },
+      ],
+    });
+  }
+
   private createDepth(v: Viewport): { depth: GPUTexture; depthView: GPUTextureView } {
     const depth = this.gpu.device.createTexture({
       label: 'depth',
@@ -1634,7 +1714,7 @@ export class Renderer {
    * hunts is worse than one that settles a step low.
    */
   private govern(now: number, dt: number): void {
-    if (!this.paced) return;
+    if (!this.paced || !this.quality.autoScale) return;
     // Gathered every frame; judged once a second.
     if (dt > 0.0005 && dt < 0.5) {
       this.watchSum += dt * 1000;
@@ -1728,7 +1808,11 @@ export class Renderer {
 
     if (this.clockRunning) {
       this.timeOfDay = (this.timeOfDay + (dt * this.clockRate) / DAY_SECONDS) % 1;
-      this.weather.advance(dt * this.clockRate, DAY_SECONDS);
+      // Weather off means a clear sky held clear, rather than a frozen front:
+      // the setting is for a machine that cannot afford the rain pass, and a
+      // city stuck under permanent overcast is not what anybody asked for.
+      if (this.quality.weather) this.weather.advance(dt * this.clockRate, DAY_SECONDS);
+      else this.weather.set(0.02);
     }
     const sun = sunAt(this.timeOfDay);
     // Dusk, as one number. The sun crossing the horizon is the interesting part,
@@ -1764,7 +1848,7 @@ export class Renderer {
     this.cameraData.set([focus[0], focus[1], focus[2], extent], 56);
     this.cameraData[60] = (now - this.startedAt) / 1000;
     this.cameraData[61] = TERRAIN.size * 0.5;
-    this.cameraData[62] = 1 / SHADOW_SIZE;
+    this.cameraData[62] = 1 / this.shadowSize;
     // Converts metres-at-a-distance into pixels, so the culling pass can drop
     // anything too small to resolve and pick a level of detail for the rest.
     this.cameraData[63] = viewport.height / (2 * Math.tan(FOV_Y / 2));
@@ -1800,6 +1884,7 @@ export class Renderer {
     // buildings read the scene's rather than the camera's.
     this.cameraData[108] = this.buried;
     this.cameraData[109] = this.drained;
+    this.cameraData[110] = this.quality.shadows ? 0 : 1;
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are
@@ -1812,12 +1897,13 @@ export class Renderer {
     this.sceneData.set([sun[0], sun[1], sun[2], 0], 36);
     // x turns aerial perspective on: the city wants it, the viewer does not.
     // w is the clock the growth animation is measured against.
-    this.sceneData.set([1, 1 / SHADOW_SIZE, TERRAIN.size * 0.5,
+    this.sceneData.set([1, 1 / this.shadowSize, TERRAIN.size * 0.5,
       performance.now() / 1000], 40);
     // The weather, so the buildings are standing in the same one as the ground.
     this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
     this.sceneData[64] = this.buried;
     this.sceneData[65] = this.drained;
+    this.sceneData[66] = this.quality.shadows ? 0 : 1;
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -1845,7 +1931,10 @@ export class Renderer {
     // Depth from the sun's point of view, before anything is shaded, because
     // everything shaded reads it. One draw per prototype rather than three:
     // the shadow lists carry only the coarsest mesh.
-    const shadowPass = encoder.beginRenderPass({
+    // The whole pass, skipped when the player has turned shadows off: the
+    // shader already ignores the map, and drawing four hundred prototypes into
+    // a texture nothing reads is the most expensive way to ignore it.
+    const shadowPass = this.quality.shadows ? encoder.beginRenderPass({
       label: 'shadow',
       colorAttachments: [],
       depthStencilAttachment: {
@@ -1854,7 +1943,8 @@ export class Renderer {
         depthLoadOp: 'clear',
         depthStoreOp: 'store',
       },
-    });
+    }) : null;
+    if (shadowPass !== null) {
     shadowPass.setPipeline(res.shadow);
     shadowPass.setBindGroup(0, res.shadowSceneGroup);
     shadowPass.setBindGroup(1, res.protoGroup);
@@ -1873,6 +1963,9 @@ export class Renderer {
     }
     this.encodedCasts = casts;
     shadowPass.end();
+    } else {
+      this.encodedCasts = 0;
+    }
 
     const pass = encoder.beginRenderPass({
       label: 'main',
@@ -1971,7 +2064,7 @@ export class Renderer {
     // towards its own edge, so a shrinking reach reads as the grass fading out
     // rather than as a ring closing in.
     const zoom = 1 - smooth01((cam.distance - GRASS_NEAR) / (GRASS_FAR - GRASS_NEAR));
-    const reach = GRASS_REACH * zoom;
+    const reach = GRASS_REACH * zoom * this.quality.grass;
     if (reach > 1.5) {
       // Rounded up to a multiple of eight so the workgroup-shaped instance
       // count does not wobble by one blade as the camera creeps.
@@ -2053,11 +2146,13 @@ export class Renderer {
     // light it is given back at the camera.
     const night = this.night;
     const wet = this.sky.wet;
+    const q = this.quality;
     const tune: PostTune = {
-      strength: 0.16 + 0.62 * night + 0.14 * wet,
+      strength: (0.16 + 0.62 * night + 0.14 * wet) * q.bloom,
       threshold: 1.02 - 0.34 * night,
       exposure: 1.0 + 0.05 * night,
-      vignette: 0.16 + 0.10 * night,
+      vignette: (0.16 + 0.10 * night) * q.vignette,
+      antialias: q.antialias,
       night,
     };
     post.encode(encoder, context.getCurrentTexture().createView(), tune);

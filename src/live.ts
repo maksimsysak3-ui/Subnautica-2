@@ -23,9 +23,19 @@
 
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
+import type { LevelUp } from './sim/progress';
+import type { CityMood } from './ui/cititok';
 import { MOVER_BUDGET } from './assets/generators/movers';
 import { INSTANCE_FLOATS } from './sim';
 import { Inspect } from './ui/inspect';
+import { TechTree } from './ui/tech-tree';
+import { LevelUpCard } from './ui/levelup';
+import { Settings } from './ui/settings';
+import { Cititok } from './ui/cititok';
+import { GRIPE_INFO } from './sim';
+import { landmarksForLevel } from './sim/tech';
+import { GOALS } from './sim/goals';
+import { ping } from './ui/sound';
 import { Util } from './sim/agents/utilities';
 import { Main } from './sim/mains';
 
@@ -84,6 +94,16 @@ export class LiveCity {
     new Float32Array(MOVER_BUDGET * INSTANCE_FLOATS) as Float32Array<ArrayBuffer>;
   /** The card for whatever building was last clicked. */
   private readonly inspect: Inspect;
+  /** The development tree, the level card and the settings. */
+  readonly tech: TechTree;
+  readonly levelCard: LevelUpCard;
+  readonly settings: Settings;
+  /** The phone the city posts from. */
+  readonly cititok: Cititok;
+  /** What the city is called, for the feed. Set by whoever owns the bar. */
+  cityName = 'the city';
+  /** What the picture settings were last applied as. */
+  private moverShare = 1;
   /** Where that building is, so the card can be kept in step with the city. */
   private selected: [number, number] | null = null;
   /** The economy event count as of the last check, so each one is told once. */
@@ -120,6 +140,32 @@ export class LiveCity {
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
+    this.tech = new TechTree(ui, renderer.world.progress, () => this.onUnlock());
+    // The goals board reads the city rather than a copy of it.
+    this.tech.readGoal = (id) => {
+      const goal = GOALS.find((g) => g.id === id);
+      if (goal === undefined || this.sim === null) return [0, 1];
+      return goal.progress(this.sim, this.renderer.world);
+    };
+    this.levelCard = new LevelUpCard(ui);
+    this.cititok = new Cititok(ui, () => this.mood());
+    this.settings = new Settings(ui, {
+      apply: (v) => {
+        const q = renderer.quality;
+        q.shadows = v.shadows;
+        q.bloom = v.bloom;
+        q.antialias = v.antialias;
+        q.vignette = v.vignette ? 1 : 0;
+        q.grass = v.grass;
+        q.autoScale = v.autoScale;
+        renderer.shadowPixels = v.shadowPixels;
+        if (!v.autoScale) renderer.setRenderScale(v.renderScale);
+        this.moverShare = v.movers;
+        this.thoughts.visible = this.running && v.bubbles;
+        this.alerts.visible = this.running && v.notices;
+        renderer.quality.weather = v.weather;
+      },
+    });
     this.lines = new LinesPanel();
     this.info.mount(View.TRANSPORT, this.lines.root);
     renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
@@ -169,6 +215,58 @@ export class LiveCity {
     if (this.inspect.open) this.inspect.close();
   }
 
+  /**
+   * What the city would post about, as one reading.
+   *
+   * Everything here is already on a panel somewhere. What the feed does is say
+   * it in the voice of somebody it is happening to, which is the register a
+   * city builder never uses.
+   */
+  private mood(): CityMood | null {
+    const sim = this.sim;
+    if (sim === null) return null;
+    // The complaint the most buildings share, which is the one a city would
+    // actually be talking about.
+    let worst = '', count = 0;
+    const tally = sim.complaints.tally;
+    for (let g = 0; g < tally.length; g++) {
+      if (tally[g] <= count) continue;
+      count = tally[g];
+      worst = GRIPE_INFO[g]?.title ?? '';
+    }
+    const u = sim.utilities.report;
+    return {
+      population: sim.people.population,
+      happiness: sim.people.happiness,
+      worstGripe: count > 0 ? worst : '',
+      gripeCount: count,
+      speed: sim.traffic.stats.meanSpeed * 3.6,
+      driving: sim.traffic.stats.driving,
+      net: sim.economy.report.net,
+      power: u.served[Util.POWER],
+      water: u.served[Util.WATER],
+      riders: sim.transit.report.ridersPerDay,
+      city: this.cityName,
+      level: this.renderer.world.progress.level,
+    };
+  }
+
+  /** A development node was bought: the drawers and the bar have to catch up. */
+  private onUnlock(): void {
+    ping();
+    this.onProgress?.();
+  }
+
+  /** Set by whoever owns the bar, so it can repaint its star count. */
+  onProgress: (() => void) | null = null;
+
+  /** Shows the cards for levels the city has just crossed. */
+  celebrate(levels: LevelUp[]): void {
+    for (const l of levels) this.levelCard.push(l);
+    this.tech.refresh();
+    this.onProgress?.();
+  }
+
   /** How many people live in the city, or zero before there is one. */
   get population(): number { return this.sim?.people.population ?? 0; }
 
@@ -179,6 +277,7 @@ export class LiveCity {
     this.bars.visible = on;
     this.thoughts.visible = on;
     this.alerts.visible = on;
+    this.cititok.visible = on;
     if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
       this.sim.found(FOUNDING);
@@ -237,7 +336,8 @@ export class LiveCity {
     // than deciding whether to do it.
     const eye = this.camera.eye;
     this.renderer.setMovers(this.moverRows,
-      sim.drawMovers(this.moverRows, MOVER_BUDGET, eye[0], eye[2], heightAt));
+      sim.drawMovers(this.moverRows, Math.round(MOVER_BUDGET * this.moverShare),
+        eye[0], eye[2], heightAt));
 
     const view = this.info.view;
     if (view !== View.NONE && !PANEL_ONLY.has(view)) {
@@ -306,6 +406,26 @@ export class LiveCity {
       let ms = 0;
       for (const v of sim.scheduler.cost.values()) ms += v;
       this.stats.set('sim', `${ms.toFixed(1)} ms/s`);
+      // The passive drip: experience for everybody who has moved in since the
+      // last look. A working city earns while the player watches it work.
+      const p = this.renderer.world.progress;
+      const earned = p.forCitizens(sim.people.population);
+      if (earned > 0) {
+        this.celebrate(p.add(earned, 'people', landmarksForLevel));
+      }
+      // Goals: a reading off the city rather than a counter kept beside it, so
+      // one cannot drift out of step with what the city actually is.
+      for (const goal of GOALS) {
+        if (p.done.has(goal.id)) continue;
+        const [now2, need] = goal.progress(sim, this.renderer.world);
+        if (now2 < need) continue;
+        p.done.add(goal.id);
+        this.celebrate(p.add(goal.xp, 'objective', landmarksForLevel));
+        this.alerts.push({
+          title: 'Goal met', body: goal.title, tone: 'good',
+          figure: `+${goal.xp} xp`, tag: `goal-${goal.id}`,
+        });
+      }
       this.announce(sim);
       // The open card, refreshed on the same beat as everything else: a
       // building whose power has just come back should say so while the player
@@ -317,6 +437,7 @@ export class LiveCity {
       }
     }
     this.alerts.update(now);
+    this.cititok.update(now);
   }
 
   /**

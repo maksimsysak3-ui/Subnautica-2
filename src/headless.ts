@@ -22,6 +22,9 @@ function named(el: HTMLElement): string {
 }
 
 import { Gpu } from './gfx/device';
+import { TECH, landmarksForLevel } from './sim/tech';
+import { ASSETS } from './assets/registry';
+import type { Progress } from './sim/progress';
 import type { Alerts } from './ui/alerts';
 import { Camera } from './gfx/camera';
 import { Renderer } from './gfx/renderer';
@@ -101,8 +104,13 @@ export interface Shot {
  * map far bigger than the four plots a city starts with. Buying the map up
  * front keeps each test about the one thing it is named for.
  */
-function grantAll(world: { land: { take: (p: number) => void } }): void {
+function grantAll(world: { land: { take: (p: number) => void }; progress?: Progress }): void {
   for (let i = 0; i < PLOTS * PLOTS; i++) world.land.take(i);
+  // And the development tree, which a generated city never played its way
+  // through: a probe photographing a hospital should not be told the city has
+  // not unlocked hospitals.
+  world.progress?.openEverything(TECH.map((n) => n.id),
+    ASSETS.filter((a) => a.signature === true).map((a) => a.id));
 }
 
 export async function probeRebuild(width: number, height: number):
@@ -981,7 +989,8 @@ export async function probeViews(): Promise<{
  * frame so the interface can be judged the only way an interface can be, which
  * is by looking at it.
  */
-export async function probeHud(width: number, height: number, hour = 0.36, dist = 520):
+export async function probeHud(width: number, height: number, hour = 0.36, dist = 520,
+  panel = ''):
 Promise<{ pixels: number[]; movers: string }> {
   configureSim(LITE);
   const canvas = document.createElement('canvas');
@@ -1049,6 +1058,27 @@ Promise<{ pixels: number[]; movers: string }> {
     if (pl.live[id] !== 0 && col.homes[id] > 0) { pick = id; break; }
   }
   if (pick >= 0) live.tap([col.x[pick], col.z[pick]]);
+
+  // A panel, for photographing one: the development tree, the settings, or the
+  // card a city gets when it levels up.
+  // A city that has been played for a day has almost certainly levelled up
+  // while the probe was not looking, and its card would be over whatever this
+  // is photographing.
+  if (panel !== 'level') live.levelCard.dismissAll();
+  if (panel === 'tech') {
+    renderer.world.progress.stars = 6;
+    live.tech.show();
+  } else if (panel === 'settings') {
+    live.settings.show();
+  } else if (panel === 'cititok') {
+    live.cityName = 'Salford';
+    live.cititok.show();
+  } else if (panel === 'level') {
+    live.levelCard.push({
+      level: 6, name: 'Boom town', cash: 170000, stars: 3,
+      unlocked: landmarksForLevel(6),
+    });
+  }
 
   camera.update();
   renderer.frameForTools(performance.now());
