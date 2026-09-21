@@ -76,6 +76,21 @@ export class Movers {
   /** Which seats are modelled facing backwards. See `MOVER_FLIP`. */
   private readonly flip: Record<string, boolean> = {};
   private readonly used = new Map<number, number>();
+  /**
+   * The heading each vehicle was last drawn at, so it can turn rather than snap.
+   *
+   * The heading is read as a finite difference between two points on the path a
+   * metre or so apart, which is right almost everywhere and wrong exactly where
+   * it matters: at the ends of a lane the track is converging into the junction
+   * on a smoothstep, so the two samples can sit on very different parts of that
+   * curve and the angle between them swings. Over a few frames that reads as a
+   * car shivering as it approaches every junction.
+   *
+   * So the drawn heading chases the computed one at a rate a car can actually
+   * turn at. It is one float per row and it is the difference between traffic
+   * that drives and traffic that wobbles.
+   */
+  private yaw = new Float32Array(0);
   /** Lanes that end at a controlled junction, and the graph they belong to. */
   private arms: number[] = [];
   private armsAt = -1;
@@ -170,6 +185,33 @@ export class Movers {
     return across * t * t * (3 - 2 * t);
   }
 
+  /**
+   * Eases a vehicle's drawn heading towards where it is actually pointing.
+   *
+   * Shortest way round, so a car crossing the back of the compass turns the way
+   * it is going rather than the long way about. The rate is a real one: a car
+   * at junction speed takes about a second to swing ninety degrees, and letting
+   * it snap instead is what made every approach look like a flinch.
+   */
+  private turnTowards(v: number, want: number): number {
+    if (this.yaw.length <= v) {
+      const grown = new Float32Array(Math.max(v + 1, this.yaw.length * 2, 256));
+      grown.set(this.yaw);
+      grown.fill(want, this.yaw.length);
+      this.yaw = grown;
+    }
+    const was = this.yaw[v];
+    let d = want - was;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    // A big step is a new vehicle in a recycled row, or one that has just
+    // crossed a junction onto a road going another way: take it whole rather
+    // than sweeping the long arc round to it.
+    const next = Math.abs(d) > TURN_SNAP ? want : was + d * TURN_RATE;
+    this.yaw[v] = next;
+    return next;
+  }
+
   /** Whether the library actually holds the mover prototypes. */
   get ready(): boolean { return this.proto.car !== undefined; }
 
@@ -247,7 +289,7 @@ export class Movers {
       const seat = seatOf(c.kind[v], v);
       let yaw = Math.atan2(next[1] - here[1], next[0] - here[0]);
       if (this.flip[seat] === true) yaw += Math.PI;
-      write(seat, here[0], here[1], yaw, RIDE);
+      write(seat, here[0], here[1], this.turnTowards(v, yaw), RIDE);
       this.counts.vehicles++;
     }
 
@@ -436,6 +478,10 @@ const FRAME_AT = 0.42;
 const CRANE_AT = 0.06;
 /** How far ahead the heading is read from, in metres. */
 const LOOK_AHEAD = 1.2;
+/** Share of the remaining turn a vehicle makes each frame. */
+const TURN_RATE = 0.22;
+/** Beyond this much of a change, it is a different heading, not a turn. */
+const TURN_SNAP = 1.9;
 /** Metres a second on foot, for carrying a walker between ticks. */
 const WALK_SPEED = 1.35;
 /** How wide one lane is, for working out where a road's kerb is. */

@@ -29,7 +29,12 @@ import type { Density, Zone } from '../assets/types';
  */
 export function buildingPrice(def: AssetDef): number {
   const cells = def.footprint[0] * def.footprint[1];
-  const raw = cells * 520 + def.height * 1250 + (def.sim.upkeep ?? 0) * 160;
+  // Eased down about a fifth across all three terms. The ordering between
+  // buildings is what these are for and that is unchanged -- what changes is
+  // how many of them a young city can afford, which was the complaint: the
+  // first services ate most of a starting treasury before the city had any
+  // income to replace it with.
+  const raw = cells * 420 + def.height * 1000 + (def.sim.upkeep ?? 0) * 130;
   const step = raw < 20000 ? 250 : raw < 100000 ? 1000 : 5000;
   return Math.max(step, Math.round(raw / step) * step);
 }

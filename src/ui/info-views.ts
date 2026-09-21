@@ -128,7 +128,7 @@ export class InfoViews {
     // matching on a style string -- which the browser rewrites on assignment,
     // and which therefore silently matches nothing.
     this.card.dataset.panel = 'view-stats';
-    style(this.card, [...panel(), 'width:276px', 'padding:13px 14px 12px',
+    style(this.card, [...panel(), 'width:276px', 'padding:11px 13px 10px',
       'display:none', 'pointer-events:auto']);
 
     // The head: a swatch in the view's own colour, and its name. The swatch is
@@ -166,8 +166,13 @@ export class InfoViews {
     this.scale = document.createElement('div');
     style(this.scale, ['margin-bottom:10px']);
     this.rows = document.createElement('div');
-    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:3px',
-      'max-height:46vh', 'overflow-y:auto']);
+    // Tighter, and capped harder. The budget view has a line for every source
+    // and every cost, and at forty-six per cent of the viewport plus a hero, a
+    // note and a legend the card ran from the top of the screen nearly to the
+    // bar -- a wall of figures over the city it is describing. A third of the
+    // height still shows a dozen lines, and the rest scrolls.
+    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:2px',
+      'max-height:32vh', 'overflow-y:auto']);
     // Where a view mounts controls of its own. Empty for all but the budget,
     // which is the one view that is not only a readout: a tax rate is a thing
     // the player sets, and setting it two panels away from the number it moves
@@ -428,7 +433,7 @@ export class InfoViews {
     el.dataset.stat = '';
     style(el, ['display:grid', 'grid-template-columns:1fr auto',
       'grid-template-areas:"l v" "t t"', 'column-gap:10px',
-      'align-items:baseline', 'padding:1px 0']);
+      'align-items:baseline', 'padding:0']);
     const label = document.createElement('span');
     style(label, ['grid-area:l', `color:${SKIN.dim}`, 'overflow:hidden',
       'text-overflow:ellipsis', 'white-space:nowrap', 'font-size:10.5px']);

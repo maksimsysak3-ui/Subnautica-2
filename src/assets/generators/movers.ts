@@ -41,8 +41,18 @@ function idsOfClass(cls: string): string[] {
  */
 const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police']);
 
-/** Models the pack ships at a density no moving vehicle needs. */
-const HEAVY = new Set(['car.fire1', 'car.garbage1', 'car.citybus1', 'car.servicetruck1']);
+/**
+ * Models the pack ships at a density no moving vehicle needs.
+ *
+ * These are drawn from their own low mesh even at the nearest level, and the
+ * set is now exactly the one model that genuinely has to be: a fire appliance
+ * is seventeen and a half thousand triangles, over the library's ceiling for a
+ * single level on its own. The bus, the refuse lorry and the service truck
+ * were in here too, which is why a bus up close was the same handful of
+ * triangles as a bus half a kilometre away -- and why it had holes in it, since
+ * the pack's low meshes drop faces the full ones carry.
+ */
+const HEAVY = new Set(['car.fire1']);
 
 /**
  * The box a heavy model is drawn as far away, sized to the mesh it replaces.
@@ -82,32 +92,57 @@ const LOW_BOUNDS = new Map<string, number[]>();
  */
 function lamps(m: MeshBuilder, id: string, flipped: boolean, lod: number): void {
   if (lod >= 2) return;                       // an impostor has no lenses
+  // `importedSize` is half-extents across and the full height up.
   const [hx, hy, hz] = importedSize(id);
-  // The nose end in model space. The body faces +x unless the model is one of
-  // the ones built the other way round.
-  const nose = flipped ? -hx : hx;
+  if (hx < 0.4 || hz < 0.2) return;
+  // Set in from the bounding box, not on it. A bounding box's nose is the
+  // furthest point of the bodywork at ANY height -- the tip of a bumper, or a
+  // wing mirror -- so a lens placed there hangs in the air in front of a
+  // sloping bonnet, which is what "floating rectangles" was.
+  const inset = hx * 0.05;
+  const nose = (flipped ? -1 : 1) * (hx - inset);
   const tail = -nose;
-  const side = hz * 0.62;
-  // Lamps sit low on a car and high on a lorry, which is just where the body
-  // ends: a share of the height rather than a constant.
-  const lo = hy * (hy > 2.4 ? 0.30 : 0.42);
-  const hi = lo + Math.min(0.34, hy * 0.16);
-  const w = Math.min(0.42, hz * 0.28);
-  const face = (x: number, z: number, out: number): void => {
-    // A shallow box rather than a quad: a lens seen from the side of the road
-    // at a shallow angle is a lens, and a zero-thickness one vanishes.
-    m.box([Math.min(x, x + out), lo, z - w], [Math.max(x, x + out), hi, z + w],
-      MAT.LAMP);
+  // Where a lamp sits on a body: low and wide on a car, higher and narrower on
+  // something with a cab. Both as a share of the body rather than a constant,
+  // so the same rule works for a hatchback and a fire appliance.
+  const tall = hy > 2.4;
+  const lo = hy * (tall ? 0.34 : 0.30);
+  const hi = lo + Math.min(0.30, hy * (tall ? 0.10 : 0.15));
+  const inner = hz * (tall ? 0.30 : 0.26);
+  const outer = hz * 0.90;
+
+  /**
+   * One lens, as a quad facing out along x.
+   *
+   * `signFace` rather than `box`, and that is the whole of the other half of
+   * the bug: a quad from `box` carries no surface coordinates, so every vertex
+   * arrives at the lens shader with (0, 0) -- which is the corner of the lens,
+   * where the bezel is, where it returns a quarter brightness of a dark band.
+   * A headlight came out as a black rectangle. `signFace` maps 0..1 across the
+   * face, which is exactly what the lens pattern was written to read.
+   */
+  const lens = (x: number, out: 1 | -1, z0: number, z1: number): void => {
+    const p = x + out * 0.02;
+    if (out > 0) {
+      m.signFace([p, lo, z1], [p, lo, z0], [p, hi, z0], [p, hi, z1], MAT.LAMP);
+    } else {
+      m.signFace([p, lo, z0], [p, lo, z1], [p, hi, z1], [p, hi, z0], MAT.LAMP);
+    }
   };
-  const dir = flipped ? -1 : 1;
+  const facing: 1 | -1 = flipped ? -1 : 1;
+  // Front: white, and the shader reads the sign tint to know it. The key is
+  // set to agree, so the two places that ask the question cannot disagree.
   m.painted(TINT.SIGN_LIT, () => {
     m.keyed(1, () => {
-      for (const z of [-side, side]) face(nose, z, 0.1 * dir);
+      lens(nose, facing, inner, outer);
+      lens(nose, facing, -outer, -inner);
     });
   });
+  // Rear: red, and wider, because they are.
   m.painted(TINT.NONE, () => {
     m.keyed(0, () => {
-      for (const z of [-side, side]) face(tail, z, -0.1 * dir);
+      lens(tail, -facing as 1 | -1, inner * 0.8, outer);
+      lens(tail, -facing as 1 | -1, -outer, -inner * 0.8);
     });
   });
 }
@@ -121,6 +156,13 @@ function bare(id: string, heavy = false, flipped = false): (lod: number) => Mesh
     // models start one rung down the ladder, which is free: nothing in the city
     // is ever close enough to a passing appliance to tell.
     if (lod >= 2) { if (heavy) lowBox(m, id); else drawImpostor(m, id); }
+    // The heavy models used to be drawn from their LOW mesh at every level,
+    // including the nearest one -- so a bus parked in front of the camera was
+    // the same handful of triangles as a bus half a kilometre away, and the
+    // pack's low meshes drop faces the full ones have, which is where the
+    // holes came from. They now get their real mesh at the level a player can
+    // actually see them at, and the low one from the next level out, where
+    // there is nothing to tell apart.
     else drawImported(m, id, { low: heavy || lod >= 1 });
     lamps(m, id, flipped, lod);
     return m;
