@@ -146,6 +146,34 @@ export interface World {
    * world the player starts on zeroes it, which is what turns the mask on.
    */
   grown: Uint8Array;
+  /**
+   * How grand a building each cell's land can carry, 0 to `TIERS - 1`.
+   *
+   * The other half of what the spawner needs to know about a cell, and the one
+   * that makes a district change over time rather than being stamped once.
+   * Zoning says what kind of thing goes here; this says how much of it, and it
+   * is written by the land value model as the quarter gets better or worse --
+   * so a street that gains a park and loses its traffic grows into something
+   * taller, and one that a foundry moved in next to does not.
+   *
+   * It is per cell and part of the world for the same reason `grown` is: the
+   * spawner is a pure function of the world, and anything that changes what it
+   * builds has to be *in* the world or the same zoning stops producing the same
+   * city. It is also what makes the change survive a save.
+   */
+  tier: Uint8Array;
+  /**
+   * Cells whose building has been abandoned and cleared, one byte each.
+   *
+   * A building that loses its power, its water and its neighbourhood does not
+   * stand there being unhappy forever -- it empties, it is condemned, and the
+   * plot is cleared. The byte is what keeps it cleared: the spawner builds
+   * nothing on it, the land value model counts it as blight and drags the
+   * street down with it, and it is only lifted when the land is fit again, at
+   * which point the cell goes back to being unreleased and the city has to earn
+   * it a second time.
+   */
+  blight: Uint8Array;
   /** The bus and tram lines the player has drawn. */
   transit: Transit;
   /** The treasury: what the city has, and what it charges. */
@@ -177,6 +205,8 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     land: startingLand(), mains: new Mains(grid),
     // All ones: released. See `World.grown`.
     grown: new Uint8Array(grid * grid).fill(1),
+    tier: new Uint8Array(grid * grid),
+    blight: new Uint8Array(grid * grid),
     transit: new Transit(),
     budget: new Budget(),
     progress: new Progress(),
@@ -214,6 +244,12 @@ export function paint(world: World, gx: number, gz: number, w: number, d: number
       // behind. Only on erase: repainting a grown cell from housing to shops is a
       // conversion, and a conversion happens now.
       if (code === 0) world.grown[z * world.grid + x] = 0;
+      // Repainting is a fresh start for the plot: whatever the last district
+      // grew into, and whatever went wrong with it, belongs to the last
+      // district. Without this, bulldozing a slum and zoning it again rebuilds
+      // the slum.
+      world.tier[z * world.grid + x] = 0;
+      world.blight[z * world.grid + x] = 0;
     }
   }
   world.painted++;

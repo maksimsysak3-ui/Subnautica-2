@@ -1356,6 +1356,10 @@ Promise<{ pixels: number[]; name: string }> {
   }
   for (let i = 0; i < 200; i++) live.update(1 / 20, performance.now() + i * 50);
 
+  // A city played for a few simulated minutes has levelled up at least once,
+  // and the card that celebrates it would be over whatever this is
+  // photographing.
+  live.levelCard.dismissAll();
   const press = (label: string): void => {
     const b = Array.from(ui.querySelectorAll('button')).find((el) => named(el) === label);
     b?.click();
@@ -1364,6 +1368,7 @@ Promise<{ pixels: number[]; name: string }> {
   const info = VIEWS.find((v) => v.id === view);
   if (info !== undefined) press(info.name);
   for (let i = 0; i < 12; i++) live.update(1 / 20, performance.now() + 20000 + i * 50);
+  live.levelCard.dismissAll();
 
   camera.update();
   renderer.frameForTools(performance.now());

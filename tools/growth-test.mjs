@@ -35,7 +35,7 @@ const bundle = (await esbuild.build({
       `export { Growth } from '${src}sim/agents/growth';`,
       `export { Demand, Want } from '${src}sim/agents/demand';`,
       `export { makeCity } from '${src}sim/city';`,
-      `export { emptyWorld, paint, zoneCode, zoneIndexOf } from '${src}sim/world';`,
+      `export { emptyWorld, paint, zoneCode, zoneIndexOf, placeLot } from '${src}sim/world';`,
       `export { serialise, deserialise } from '${src}sim/save';`,
       `export { PLOTS } from '${src}sim/plots';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
@@ -51,7 +51,7 @@ const bundle = (await esbuild.build({
 
 const M = await import('data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
 const {
-  Simulation, Growth, Want, makeCity, emptyWorld, paint, zoneCode, zoneIndexOf,
+  Simulation, Growth, Want, makeCity, emptyWorld, paint, zoneCode, zoneIndexOf, placeLot,
   serialise, deserialise, PLOTS, TICKS_PER_DAY, configureSim,
   INSTANCE_FLOATS, MOVER_BUDGET, ASSET_INDEX,
 } = M;
@@ -83,6 +83,13 @@ function site() {
   }
   world.net.rasterise();
   world.mains.layEverywhere(world.net);
+  // Pipes with nothing in them are not a supply. This used to be enough,
+  // because nothing read whether a building was getting anything -- and then
+  // the lifecycle model started reading it, and a town of houses with mains and
+  // no plants correctly began condemning itself halfway through a test about
+  // growth. A plant and a borehole, on the block the roads leave free.
+  placeLot(world, 'svc.power.gas', GRID / 2 + 21, GRID / 2 + 21, 0);
+  placeLot(world, 'svc.water.borehole', GRID / 2 + 21, GRID / 2 + 33, 0);
   world.grown.fill(0);
   return world;
 }

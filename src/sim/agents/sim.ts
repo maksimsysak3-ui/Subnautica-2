@@ -52,6 +52,8 @@ import { ASSETS } from '../../assets/registry';
 import { Budget } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
+import { Ground } from './ground';
+import { BuildingLife } from './lifecycle';
 
 /** Which service branch a coverage view is about, for bringing it up to date. */
 const VIEW_BRANCH: Record<number, string> = {
@@ -78,6 +80,15 @@ const PERIOD = {
   life: 256,
   /** Household mood, leaving, and children. */
   house: 128,
+  /**
+   * Buildings thriving and buildings failing.
+   *
+   * Slower than lives, because a building's fortunes turn over game days rather
+   * than game hours and because every visit reads four supply figures and a
+   * handful of fields per building. Sixty-four visits of a slice is a whole
+   * pass every six game seconds at the rate this runs on.
+   */
+  fabric: 64,
 } as const;
 
 /**
@@ -187,6 +198,18 @@ export interface Inspection {
   gripeWhat: string;
   gripeFix: string;
   cover: Array<{ name: string; share: number }>;
+  /** What the ground under it is worth, 0 to 1, and what is in the air. */
+  landValue: number;
+  pollution: number;
+  noise: number;
+  /**
+   * The building's own condition, 0 to 1.
+   *
+   * Not a mood and not a rating: it is the number that decides whether this
+   * building grows into something better or is eventually condemned, so it is
+   * the one the player most needs to be able to see falling.
+   */
+  condition: number;
 }
 
 export class Simulation {
@@ -227,6 +250,10 @@ export class Simulation {
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
   readonly transit: TransitNet;
+  /** What the land is worth, what is in the air, and how loud it is. */
+  readonly ground: Ground;
+  /** Buildings getting better and buildings dying. Absent without a world. */
+  readonly life: BuildingLife | undefined;
   /** Where the money comes from and where it goes. */
   readonly economy: Economy;
   /** The treasury it moves. The world's, when there is one. */
@@ -288,6 +315,10 @@ export class Simulation {
       this.utilities, this.traffic, this.router, this.lanes, this.clock, seed ^ 0xd15);
     this.people.informedBy(this.services, this.utilities);
     this.migration.informedBy(this.services, this.utilities);
+    this.ground = new Ground(this.places, net.grid * 8);
+    this.ground.informedBy(this.services, this.utilities, this.lanes, this.routine.load);
+    this.people.breathes(this.ground);
+    this.migration.breathes(this.ground);
     this.demand = new Demand(this.places, this.people, this.migration);
     this.complaints = new Complaints(this.places, this.people, this.utilities,
       this.services);
@@ -303,15 +334,20 @@ export class Simulation {
     // while the treasury spends another.
     this.budget = world?.budget ?? new Budget();
     this.economy = new Economy(this.budget, this.places, this.people,
-      this.migration, this.transit, net, seed ^ 0xec04);
+      this.migration, this.transit, net, this.ground, seed ^ 0xec04);
     this.growth = world === undefined ? undefined
       : new Growth(world, this.demand, () => this.people.population);
+    // Only with a world: the tiers and the blight are per cell of one, and a
+    // test that builds a city out of a bare road graph has nowhere to put them.
+    this.life = world === undefined ? undefined
+      : new BuildingLife(world, this.places, this.ground, this.services,
+        this.utilities, () => this.people.population);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,
       junctions: this.junctions, migration: this.migration, lanes: this.lanes,
       dispatch: this.dispatch, economy: this.economy, transit: this.transit,
-      budget: this.budget,
+      budget: this.budget, ground: this.ground, life: this.life,
       extent: net.grid * 8,
     });
     this.install();
@@ -447,6 +483,33 @@ export class Simulation {
         this.services.refresh(p.population, children, this.places.workers);
       },
     });
+
+    // What the land is worth and what is in the air over it. Slow and whole --
+    // see the note in ground.ts about why this one is not sliced.
+    s.add({
+      name: 'ground', rate: Rate.SLOW,
+      run: () => { this.ground.settle(); },
+    });
+
+    // Buildings thriving and buildings failing, a slice at a time.
+    const life = this.life;
+    if (life !== undefined) {
+      s.add({
+        name: 'fabric', rate: Rate.STEADY,
+        run: (tick) => {
+          const { start, stride } = slice(tick / Rate.STEADY, PERIOD.fabric);
+          life.settle(start, stride,
+            (Rate.STEADY * PERIOD.fabric) / TICKS_PER_DAY);
+        },
+      });
+      // And what that does to the map: tiers up and down, blight lifted. On the
+      // same rate as growth and for the same reason -- every change here is a
+      // rebuild of the rectangle it happened in.
+      s.add({
+        name: 'fabricmap', rate: Rate.STEADY,
+        run: () => { life.survey(Rate.STEADY / TICKS_PER_DAY); },
+      });
+    }
 
     // Things going wrong. Slow, because a fire every few game seconds is already
     // far more than a city has and the pass walks a slice of the buildings.
@@ -596,7 +659,19 @@ export class Simulation {
    * the city calls back into the simulation, which must not happen while the
    * scheduler is partway through a tick's systems.
    */
-  grew(): Dirty | null { return this.growth?.take() ?? null; }
+  grew(): Dirty | null {
+    const grown = this.growth?.take() ?? null;
+    const changed = this.life?.take() ?? null;
+    if (grown === null) return changed;
+    if (changed === null) return grown;
+    // One rebuild rather than two. They are both rectangles of cells whose
+    // buildings are no longer what the world says they should be, and the
+    // rebuild cost is dominated by the pass rather than by the area.
+    const x0 = Math.min(grown.gx, changed.gx), z0 = Math.min(grown.gz, changed.gz);
+    const x1 = Math.max(grown.gx + grown.w, changed.gx + changed.w);
+    const z1 = Math.max(grown.gz + grown.d, changed.gz + changed.d);
+    return { gx: x0, gz: z0, w: x1 - x0, d: z1 - z0 };
+  }
 
   /**
    * What is standing at a point on the map, and how it is doing.
@@ -669,6 +744,10 @@ export class Simulation {
         this.utilities.connected(id, Util.SEWAGE),
       ],
       rubbish: this.utilities.daysOfRubbish(id),
+      landValue: this.ground.valueOf(id),
+      pollution: this.ground.pollutionOf(id),
+      noise: this.ground.noiseOf(id),
+      condition: c.health[id] / 255,
       gripe: info?.title ?? '',
       gripeWhat: info?.what ?? '',
       gripeFix: info?.fix ?? '',
@@ -769,6 +848,17 @@ export class Simulation {
    * every building is re-pointed at whatever road now serves it. Places keep their
    * ids throughout -- a road edit must not make the whole city change jobs.
    */
+  /**
+   * The pipes moved but the roads did not.
+   *
+   * The cheap half of `roadsChanged`: the lane graph, the junctions and the
+   * routes are all still right, and only the networks a building is on have
+   * changed. Separate because the mains tool is separate -- see `Mains.version`.
+   */
+  mainsChanged(): void {
+    this.utilities.rewire(this.lanes, this.nodes, this.world?.mains);
+  }
+
   roadsChanged(net: RoadGraph, world?: World): void {
     if (world !== undefined) this.world = world;
     this.lanes = buildLaneGraph(net);

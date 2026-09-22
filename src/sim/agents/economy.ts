@@ -53,6 +53,7 @@ import { ASSETS } from '../../assets/registry';
 import { ROAD_SPECS } from '../roadgraph';
 import type { RoadGraph } from '../roadgraph';
 import type { TransitNet } from './transit';
+import type { Ground } from './ground';
 import { Rng } from './rand';
 
 /**
@@ -158,6 +159,14 @@ export interface Ledger {
   spending: number;
   net: number;
   /** What the city produces and what it needs, in goods a week. */
+  /**
+   * What the land the city stands on is worth, as a multiplier on every rate.
+   *
+   * On the ledger rather than kept quietly inside the sum, because a player
+   * whose takings went up wants to know whether that was the rate they set or
+   * the park they built.
+   */
+  landValue: number;
   goodsMade: number;
   goodsWanted: number;
   /** The last thing that happened, and what it was worth. */
@@ -284,7 +293,7 @@ export class Economy {
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
     services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
     income: 0, spending: 0, net: 0,
-    goodsMade: 0, goodsWanted: 0,
+    landValue: 1, goodsMade: 0, goodsWanted: 0,
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
 
@@ -302,6 +311,7 @@ export class Economy {
     private migration: Migration,
     private transit: TransitNet | null,
     private net: RoadGraph | null,
+    private ground: Ground,
     seed = 0x5a1e,
   ) {
     this.rng = new Rng(seed);
@@ -344,10 +354,23 @@ export class Economy {
     const output = worksJobs * OUTPUT_PER_WORKS_JOB;
     const billings = officeJobs * VALUE_PER_OFFICE_JOB;
 
-    r.residential = wages * b.rates[Tax.RESIDENTIAL];
-    r.commercial = sales * b.rates[Tax.COMMERCIAL];
-    r.industrial = output * b.rates[Tax.INDUSTRIAL];
-    r.office = billings * b.rates[Tax.OFFICE];
+    // And what the land is worth, as a multiplier on the lot.
+    //
+    // This is the thing that makes looking after a district pay for itself. A
+    // clean, served, well-connected quarter has higher rents, higher wages and
+    // higher takings than a quarter beside a foundry, and until now the
+    // treasury could not tell the two apart -- so parks were a cost with no
+    // return and the only way to earn was to build more. Half again at the top
+    // end and a third off at the bottom, which is roughly what the difference
+    // between a good address and a bad one is worth and is enough for a player
+    // to see it in the weekly figure.
+    const worth = 0.70 + 0.80 * this.ground.meanValue;
+    r.landValue = worth;
+
+    r.residential = wages * b.rates[Tax.RESIDENTIAL] * worth;
+    r.commercial = sales * b.rates[Tax.COMMERCIAL] * worth;
+    r.industrial = output * b.rates[Tax.INDUSTRIAL] * worth;
+    r.office = billings * b.rates[Tax.OFFICE] * worth;
 
     // ---- trade -------------------------------------------------------------
     //

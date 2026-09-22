@@ -131,6 +131,29 @@ export class Inspect {
         what.rubbish > 3 ? SKIN.bad : SKIN.warn));
     }
 
+    // The ground it stands on, and how the building itself is bearing up. These
+    // are the two readings that say whether this plot has a future: condition
+    // is what decides whether it is condemned, and land value is what decides
+    // what replaces it if the street keeps improving.
+    this.body.appendChild(rule());
+    this.body.appendChild(this.meter('Condition', Math.round(what.condition * 100), 100,
+      what.condition < 0.28 ? SKIN.bad : what.condition < 0.55 ? SKIN.warn : SKIN.good,
+      what.condition < 0.28 ? 'failing'
+        : what.condition < 0.55 ? 'wearing' : 'sound'));
+    this.body.appendChild(this.row('Land value',
+      `${Math.round(what.landValue * 100)}%`,
+      what.landValue < 0.3 ? SKIN.bad : what.landValue < 0.55 ? SKIN.warn : SKIN.good));
+    if (what.pollution > 0.06) {
+      this.body.appendChild(this.row('Air',
+        `${Math.round(what.pollution * 100)}% polluted`,
+        what.pollution > 0.4 ? SKIN.bad : SKIN.warn));
+    }
+    if (what.noise > 0.25) {
+      this.body.appendChild(this.row('Noise',
+        `${Math.round(what.noise * 100)}%`,
+        what.noise > 0.6 ? SKIN.bad : SKIN.warn));
+    }
+
     if (what.cover.length > 0) {
       this.body.appendChild(rule());
       const grid = document.createElement('div');

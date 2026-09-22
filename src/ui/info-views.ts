@@ -61,6 +61,20 @@ export const EXTRA_GLYPH: Record<string, string> = {
         + 'M14.6 26.8a1.8 1.8 0 0 0-1.7 2.6C15 34.2 19.2 37.2 24 37.2s9-3 11.1-7.8'
         + 'a1.8 1.8 0 0 0-3.3-1.4C30.2 31.5 27.3 33.6 24 33.6s-6.2-2.1-7.8-5.6'
         + 'a1.8 1.8 0 0 0-1.6-1.2z',
+  // A plot with a price on it: the boundary pegs, the ground between them, and
+  // a rising line over it. Land value is about a piece of ground being worth
+  // more than the piece next to it, and a bare coin would say "money" instead.
+  land: 'M6 34h36v4H6zM8 38h4v6H8zM36 38h4v6h-4z'
+      + 'M10 28h5v4h-5zM18 22h5v10h-5zM26 16h5v16h-5zM34 9h5v23h-5z'
+      + 'M9 12h5.2L24 4l9.8 8H39v3H9z',
+  // A chimney with the plume off it. The plume is the point -- a factory alone
+  // is industry, and the thing this view is about is what industry leaves in
+  // the air over everybody else.
+  smog: 'M14 18h9v26h-9zM12 44h13v3H12z'
+      + 'M16.5 12h4v6h-4z'
+      + 'M28 8a6 6 0 0 0-5.7 4.1 4.6 4.6 0 0 0 .7 9.1h13.4a5.2 5.2 0 0 0 1.1-10.3'
+      + 'A6 6 0 0 0 28 8z'
+      + 'M30 25a3.4 3.4 0 0 0-.6 6.7h8.2A3.4 3.4 0 0 0 38 25h-8z',
 };
 
 /** The little chart on the launcher. */

@@ -29,7 +29,7 @@
 
 import { hash2, fbm } from './hash';
 import { baseHeightAt } from './terrain';
-import { stock, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
+import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
@@ -876,7 +876,8 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // the rule it actually is.
   const reach = net.reach();
 
-  const districtOf = (gx: number, gz: number): { zone: Zone; density: Density; theme: Theme } | null => {
+  const districtOf = (gx: number, gz: number):
+  { zone: Zone; density: Density; theme: Theme; tier: number } | null => {
     if (gx < 0 || gz < 0 || gx >= GRID || gz >= GRID) return null;
     // Nothing grows on land nobody bought. Checked here as well as in the
     // tools, because zoning painted before a plot was sold back, or carried in
@@ -888,11 +889,16 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     // the demand for each zone pays for -- see `agents/growth.ts`. A world that
     // nobody is growing has this mask all ones and never notices it.
     if (world.grown[at(gx, gz)] === 0) return null;
+    // Condemned and cleared. The plot stays empty until the land around it is
+    // fit to build on again -- see `agents/lifecycle.ts`, which is the only
+    // thing that sets this and the only thing that lifts it.
+    if (world.blight[at(gx, gz)] !== 0) return null;
     const code = world.zones[at(gx, gz)];
     const painted = zoneOf(code);
     if (painted === null) return null;
+    const tier = world.tier[at(gx, gz)];
     if (painted.theme !== null) {
-      return { zone: painted.zone, density: painted.density, theme: painted.theme };
+      return { zone: painted.zone, density: painted.density, theme: painted.theme, tier };
     }
     const dx = Math.floor(gx / (PERIOD * DISTRICT)), dz = Math.floor(gz / (PERIOD * DISTRICT));
     const theme = THEME_ORDER[Math.floor(hash2(dx, dz, 211) * THEME_ORDER.length) % THEME_ORDER.length];
@@ -900,9 +906,9 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     // one, so the row theme belongs there and nowhere else.
     if (painted.density === 'low' && painted.zone === 'residential'
       && hash2(dx, dz, 101) < 0.18) {
-      return { zone: painted.zone, density: painted.density, theme: 'row' };
+      return { zone: painted.zone, density: painted.density, theme: 'row', tier };
     }
-    return { zone: painted.zone, density: painted.density, theme };
+    return { zone: painted.zone, density: painted.density, theme, tier };
   };
 
   // ---- pass 1: the lots the world already holds ------------------------
@@ -1007,10 +1013,15 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         district = districtOf(pgx, pgz);
       }
       if (district === null) { s += step; continue; }
-      const list = stock(district.zone, district.density, district.theme);
-      if (list.length === 0) { s += step; continue; }
+      const band = stockAt(district.zone, district.density, district.theme, district.tier);
+      const all = stockAny(district.zone, district.density, district.theme);
+      if (all.length === 0) { s += step; continue; }
 
-      for (let attempt = 0; attempt < 8; attempt++) {
+      // The band first, and the whole pool after it. A tier says what kind of
+      // building the land deserves; it does not get to leave a hole in the
+      // street when the gap that is left is the wrong shape for any of them.
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const list = attempt < 8 ? band : all;
         const p = pick(list, Math.round(s), f.link * 13 + f.side, 601 + attempt);
         if (!p) break;
         const wide = p.w * CELL, back = p.d * CELL;
@@ -1063,7 +1074,9 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       if (hash2(gx, gz, 647) > 0.34) continue;
       const district = districtOf(gx, gz);
       if (district === null) continue;
-      const p = pick(stock(district.zone, district.density, district.theme), gx, gz, 653);
+      const p = pick(stockAt(district.zone, district.density, district.theme, district.tier),
+        gx, gz, 653)
+        ?? pick(stockAny(district.zone, district.density, district.theme), gx, gz, 653);
       if (!p) continue;
       const yaw = Math.floor(hash2(gx, gz, 659) * 4) % 4;
       const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];

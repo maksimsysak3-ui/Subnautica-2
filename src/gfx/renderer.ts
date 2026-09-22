@@ -1469,8 +1469,13 @@ export class Renderer {
     // road is on them without the player doing anything else about it.
     const roads = this.world.net.version !== this.notifiedVersion;
     if (roads) this.world.mains.followRoads(this.world.net);
-    this.onCity?.(city, this.world.net, roads);
+    // The pipes separately from the roads. A road edit moves the mains with it,
+    // but the mains tool moves them on their own -- and until this, pulling one
+    // up changed nothing until the player happened to draw a road afterwards.
+    const pipes = this.world.mains.version !== this.notifiedMains;
+    this.onCity?.(city, this.world.net, roads, pipes);
     this.notifiedVersion = this.world.net.version;
+    this.notifiedMains = this.world.mains.version;
     this.cost.total = performance.now() - clock;
     return {
       groundTexture: ground.texture, grassGroup,
@@ -1523,10 +1528,12 @@ export class Renderer {
    * is the difference between relinking a few places and rebuilding the whole lane
    * graph -- and painting one zoning cell must not cost the latter.
    */
-  onCity: ((city: City, net: RoadGraph, roads: boolean) => void) | null = null;
+  onCity: ((city: City, net: RoadGraph, roads: boolean, pipes: boolean) => void)
+  | null = null;
 
-  /** The road version the last notification carried. */
+  /** The road version the last notification carried, and the mains version. */
   private notifiedVersion = -1;
+  private notifiedMains = -1;
 
   /**
    * How many frames a bucket keeps its place in the draw list after it empties.

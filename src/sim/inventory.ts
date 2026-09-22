@@ -99,6 +99,83 @@ export function stock(zone: Zone, density: Density, theme: Theme): readonly Prot
 }
 
 /**
+ * How many steps of grandeur a plot can climb through.
+ *
+ * Three, because a pool holds five to a dozen prototypes and four bands would
+ * leave one or two choices in each -- which reads as the same building repeated
+ * down the street, which is the thing the pools exist to avoid.
+ */
+export const TIERS = 3;
+
+/**
+ * Each pool, reordered so the prototypes a tier prefers come first.
+ *
+ * Ranked by how much a building holds *per cell of ground it stands on* --
+ * homes plus jobs over footprint. Both halves are declarative, so ranking costs
+ * nothing, and it is the ratio rather than either number that means what a tier
+ * is meant to mean. Capacity alone put a wide low-rise above a narrow tower and
+ * a district that climbed a tier came out holding fewer people than before,
+ * because the bigger buildings were bigger on the ground and fewer of them fit
+ * down the street. Height would say it too, but height is measured off the mesh
+ * and sorting by it would mean generating the whole library to do it.
+ *
+ * Three nested bands, each dropping the sparsest end of the one below. The spawner picks from a
+ * band, and falls back to the pool when nothing in the band fits the gap it has
+ * -- which is a decision the spawner has to make, because it is the only thing
+ * that knows how much frontage is left. An earlier version returned the band
+ * *followed by* the rest of the pool and let that do the biasing, which did
+ * nothing at all: the spawner's pick is a hash over the whole list rather than
+ * a walk down it, so reordering a list it samples uniformly changes nothing.
+ */
+const tiered = new Map<string, Proto[][]>();
+
+function capacityOf(p: Proto): number {
+  const held = (p.def.sim.households ?? 0) + (p.def.sim.jobs ?? 0);
+  return held / Math.max(1, p.w * p.d);
+}
+
+function bandsFor(key: string, list: Proto[]): Proto[][] {
+  const held = tiered.get(key);
+  if (held !== undefined) return held;
+  // Smallest first for the banding, so band 0 is the modest end.
+  const bySize = [...list].sort((a, b) => capacityOf(a) - capacityOf(b));
+  // Nested rather than disjoint: tier 0 is the whole pool, tier 1 drops the
+  // sparsest third, tier 2 keeps only the densest third. Disjoint bands made
+  // tier 0 -- which is what all bare land is -- the *smallest* buildings in the
+  // pool, so painting a suburb produced half the housing it used to and an
+  // upgrade was partly making back ground the tiering had taken away. Nesting
+  // means bare land builds exactly what it always built and a tier is only ever
+  // a gain.
+  const bands: Proto[][] = [];
+  for (let t = 0; t < TIERS; t++) {
+    const from = Math.floor((t * bySize.length) / TIERS);
+    const band = bySize.slice(from);
+    bands.push(band.length > 0 ? band : bySize);
+  }
+  tiered.set(key, bands);
+  return bands;
+}
+
+/**
+ * Zoned stock for a district at a given tier.
+ *
+ * The tier comes from what the land is worth, so the same painted zoning grows
+ * cottages on a street nobody wants and apartments on one everybody does -- and
+ * grows into the second when the street improves. Tier 0 is what bare land
+ * carries.
+ */
+export function stockAt(zone: Zone, density: Density, theme: Theme,
+  tier: number): readonly Proto[] {
+  const list = stock(zone, density, theme);
+  if (list.length < TIERS) return list;
+  const t = tier < 0 ? 0 : tier >= TIERS ? TIERS - 1 : tier | 0;
+  return bandsFor(`${zone}|${density}|${theme}|${list.length}`, list as Proto[])[t];
+}
+
+/** The whole pool, for a plot no band can fill. */
+export { stock as stockAny };
+
+/**
  * Every prototype the spawner could have put where these ones already are.
  *
  * A pool is what a district draws from, so a city holding one member of a pool

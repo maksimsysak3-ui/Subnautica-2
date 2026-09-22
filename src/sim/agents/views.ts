@@ -39,6 +39,9 @@ import { TransitNet } from './transit';
 import { Budget, Tax, TAX_NEUTRAL } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import type { LaneGraph } from './lanes';
+import { GROUND_GRID } from './ground';
+import type { Ground } from './ground';
+import type { BuildingLife } from './lifecycle';
 
 /** Which view is up. */
 export const View = {
@@ -55,7 +58,9 @@ export const View = {
   PARKS: 10,
   TRANSPORT: 11,
   DESIRABILITY: 12,
-  BUDGET: 13,
+  LAND: 13,
+  POLLUTION: 14,
+  BUDGET: 15,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -152,6 +157,16 @@ export const VIEWS: ViewInfo[] = [
     ramp: ['#8a3040', '#cfb050', '#5fc888'], unit: 'desirable',
   },
   {
+    id: View.LAND, name: 'Land value', icon: 'land', look: Look.SURFACE,
+    legend: 'What a plot here is worth. Green land grows the grander buildings.',
+    ramp: ['#7a4a2e', '#c9b45a', '#57c07f'], unit: 'of the best land',
+  },
+  {
+    id: View.POLLUTION, name: 'Pollution', icon: 'smog', look: Look.SURFACE,
+    legend: 'What industry, power and traffic put in the air. Red is unliveable.',
+    ramp: ['#d0503c', '#d8c05a', '#5fc888'], unit: 'polluted',
+  },
+  {
     // The one view that is not a map. It paints nothing -- a budget is not a
     // place -- and the panel is the whole of it, with the tax controls mounted
     // underneath by the interface. It sits in the same rail because that is
@@ -217,6 +232,9 @@ export interface Sources {
   budget: Budget;
   transit: TransitNet;
   lanes: LaneGraph;
+  ground: Ground;
+  /** Buildings thriving and failing. Absent in a test with no world. */
+  life?: BuildingLife | undefined;
   /** Metres across the whole map. */
   extent: number;
 }
@@ -268,6 +286,12 @@ export class Views {
       case View.PARKS: this.fromBranch('parks'); break;
       case View.TRANSPORT: this.fromBranch('transport'); break;
       case View.DESIRABILITY: this.fromDesire(); break;
+      // Straight off the field, which is already a grid of exactly this shape
+      // of number -- no stamping, no spreading. The land value model has done
+      // the blurring, and doing it twice would smear a boundary the player is
+      // meant to be able to see the cause of.
+      case View.LAND: this.fromField(this.src.ground.value, false, 0.20, 0.72); break;
+      case View.POLLUTION: this.fromField(this.src.ground.pollution, true, 0, 0.55); break;
       // A budget is not a place. Nothing is painted, and the grid is left blank
       // rather than left over from whatever was open before it.
       case View.BUDGET: break;
@@ -489,6 +513,44 @@ export class Views {
     this.spread();
   }
 
+  /**
+   * Resamples one of the ground fields onto the view grid.
+   *
+   * `invert` is for the fields where more is worse: the ramps all run bad to
+   * good, so pollution is painted as how clean the air is and labelled the
+   * other way round.
+   */
+  private fromField(field: Float32Array, invert: boolean,
+    lo: number, hi: number): void {
+    const grid = this.grid;
+    const density = this.src.ground.density;
+    const scale = GROUND_GRID / VIEW_GRID;
+    for (let z = 0; z < VIEW_GRID; z++) {
+      const sz = Math.min(GROUND_GRID - 1, (z * scale) | 0);
+      for (let x = 0; x < VIEW_GRID; x++) {
+        const sx = Math.min(GROUND_GRID - 1, (x * scale) | 0);
+        const at = sz * GROUND_GRID + sx;
+        const v = field[at];
+        // Only where there is a city, or where the reading is worth seeing over
+        // open country -- which is the whole point of the pollution map, since
+        // a plume over the fields somebody was about to zone is exactly the
+        // thing to know. Without this the wash covers the entire map to its
+        // corners, and a flat tint over eight square kilometres of hillside
+        // reads as a broken overlay rather than as data.
+        if (density[at] <= 0.4 && v < 0.08) continue;
+        // Stretched over the band the reading actually occupies rather than
+        // over nought to one. Land value lives between about a fifth and three
+        // quarters and pollution rarely passes a half, so the honest full-scale
+        // map is a single flat tint over the whole city with the good and bad
+        // quarters a couple of shades apart -- which is a map that cannot be
+        // read. The ends still clamp, so nothing is invented at either edge.
+        const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+        const shown = invert ? 1 - t : t;
+        grid[z * VIEW_GRID + x] = Math.max(1, Math.min(255, Math.round(shown * 255)));
+      }
+    }
+  }
+
   // ---- the numbers ------------------------------------------------------
 
   /** The statistics panel for a view. */
@@ -525,6 +587,11 @@ export class Views {
             l.weeksLeft < 6));
         }
         rows.push(
+          // First of the sources, because it multiplies all four of them and a
+          // player looking at a tax line wants to know what it is being scaled
+          // by before they reach for the rate.
+          line('Land value', `×${l.landValue.toFixed(2)}`,
+            Math.max(0, Math.min(1, (l.landValue - 0.7) / 0.8)), l.landValue < 0.95),
           line('Residential tax', cash(l.residential), l.residential / top),
           line('Commercial tax', cash(l.commercial), l.commercial / top),
           line('Industrial tax', cash(l.industrial), l.industrial / top),
@@ -556,6 +623,49 @@ export class Views {
         void Tax;
         return rows;
       }
+      case View.LAND: {
+        const g = s.ground;
+        const life = s.life;
+        // What the land is worth, and the three things the player can do about
+        // it. Every row here names something on the toolbar.
+        const rows = [
+          line('Average, where the city is built', pct(g.meanValue),
+            g.meanValue, g.meanValue < 0.3, true),
+          line('Air', pct(1 - g.meanPollution), 1 - g.meanPollution,
+            g.meanPollution > 0.3),
+          line('Quiet streets', pct(1 - g.meanNoise), 1 - g.meanNoise,
+            g.meanNoise > 0.4),
+          line('Parks and services near homes', pct(g.meanAmenity), g.meanAmenity,
+            g.meanAmenity < 0.25),
+        ];
+        if (life !== undefined) {
+          rows.push(line('Plots grown into something grander',
+            life.total.raised.toLocaleString()));
+          rows.push(line('Plots that fell back',
+            life.total.lowered.toLocaleString(), -1, life.total.lowered > 0));
+          rows.push(line('Buildings failing', life.ailing.toLocaleString(),
+            -1, life.ailing > 0));
+          rows.push(line('Plots condemned', life.total.condemned.toLocaleString(),
+            -1, life.total.condemned > 0));
+        }
+        return rows;
+      }
+
+      case View.POLLUTION: {
+        const g = s.ground;
+        return [
+          line('Average over the built-up city', pct(g.meanPollution),
+            g.meanPollution, g.meanPollution > 0.3, true),
+          line('Worst anywhere on the map', pct(g.worstPollution),
+            g.worstPollution, g.worstPollution > 0.7),
+          line('City living under bad air', pct(g.pollutedShare),
+            g.pollutedShare, g.pollutedShare > 0.2),
+          line('Traffic noise', pct(g.meanNoise), g.meanNoise, g.meanNoise > 0.4),
+          line('Industrial jobs',
+            s.places.posts[Purpose.WORKS].toLocaleString()),
+        ];
+      }
+
       case View.TRAFFIC: {
         const t = s.traffic.stats;
         const worst = s.routine.peakLoad;

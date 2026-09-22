@@ -30,6 +30,7 @@ import { Places, Purpose, Teaches, NO_BRANCH } from './places';
 import { BRANCHES } from '../../assets/types';
 import type { Services } from './services';
 import { expectedOf } from './services';
+import type { Ground } from './ground';
 import type { Utilities } from './utilities';
 
 /** Life stages, in order. */
@@ -480,7 +481,12 @@ export class People {
       const clean = this.utilScratch[1];                    // water
       const sewer = this.utilScratch[2];
       const bins = this.utilScratch[3];
-      const want = 70 + care * 110 + clean * 45 + sewer * 25 + bins * 10;
+      // And the air where they live. Twenty-five points of a two-hundred-and-
+      // sixty-point scale is not a rounding error and is not a death sentence
+      // either: living downwind of the works takes years off you, slowly, which
+      // is exactly what it does and exactly how the player should find out.
+      const air = this.airAt(id);
+      const want = 70 + care * 110 + clean * 45 + sewer * 25 + bins * 10 - air * 55;
       const h = c.health[id];
       c.health[id] = h + Math.sign(want - h) * Math.min(Math.abs(want - h), 6 * days);
 
@@ -779,6 +785,18 @@ export class People {
   informedBy(services: Services, utilities: Utilities): void {
     this.services = services;
     this.utilities = utilities;
+  }
+
+  /** The air over the city, which the people in it have to breathe. */
+  private ground: Ground | null = null;
+  breathes(ground: Ground): void { this.ground = ground; }
+
+  /** How dirty the air is where somebody lives, 0 to 1. */
+  private airAt(id: number): number {
+    const g = this.ground;
+    if (g === null) return 0;
+    const home = this.homeOf(id);
+    return home === NONE ? 0 : g.pollutionOf(home);
   }
 
   /**

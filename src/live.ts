@@ -181,7 +181,7 @@ export class LiveCity {
     });
     this.lines = new LinesPanel();
     this.info.mount(View.TRANSPORT, this.lines.root);
-    renderer.onCity = (city, net, roads) => this.reconcile(city, net, roads);
+    renderer.onCity = (city, net, roads, pipes) => this.reconcile(city, net, roads, pipes);
   }
 
   /**
@@ -341,7 +341,7 @@ export class LiveCity {
     }
   }
 
-  private reconcile(city: City, net: RoadGraph, roads: boolean): void {
+  private reconcile(city: City, net: RoadGraph, roads: boolean, pipes: boolean): void {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
@@ -360,6 +360,9 @@ export class LiveCity {
     // Order matters: the lane graph has to exist in its new shape before the
     // places are re-pointed at it, and `roadsChanged` is what rebuilds it.
     if (roads) this.sim.roadsChanged(net, this.renderer.world);
+    // A mains edit that moved no road still has to be wired up, or the supply
+    // the player just cut off is still flowing.
+    else if (pipes) this.sim.mainsChanged();
     this.sim.buildingsChanged(city);
     // The grid named lanes that no longer exist, or buildings that do not.
     this.uploaded = -1;
@@ -549,6 +552,43 @@ export class LiveCity {
         tag: `util-${n.u}`,
         figure: `${Math.round(margin * 100)}%`,
       });
+    }
+
+    // What is happening to the buildings themselves. Three notices, and each of
+    // them is a change the player can go and look at: a quarter starting to
+    // fail, a quarter lost, and a quarter that has grown into something better.
+    // They are the visible half of the lifecycle model -- without them a
+    // district dies quietly off screen, which is the one way a consequence can
+    // be both real and useless.
+    const life = sim.life;
+    if (life !== undefined) {
+      const been = life.drain();
+      if (been.condemned > 0) {
+        this.alerts.push({
+          title: been.condemned === 1 ? 'A plot condemned' : 'Plots condemned',
+          body: 'Buildings that ran out of supply and services have been cleared. '
+            + 'The empty land drags the street down until the city rebuilds on it.',
+          tone: 'bad', tag: 'condemned',
+          figure: String(been.condemned),
+        });
+      } else if (been.failing > 0) {
+        this.alerts.push({
+          title: 'Buildings failing',
+          body: 'Their condition is falling. Open the land value view to see what '
+            + 'the quarter is short of, before they are condemned.',
+          tone: 'warn', tag: 'failing',
+          figure: String(been.failing),
+        });
+      }
+      if (been.raised > 0 && been.condemned === 0) {
+        this.alerts.push({
+          title: 'The district is growing into it',
+          body: 'The land is worth more than it was, so what the city builds there '
+            + 'is worth more too.',
+          tone: 'good', tag: 'raised',
+          figure: `${been.raised} plots`,
+        });
+      }
     }
 
     const overdrawn = sim.budget.balance < 0;

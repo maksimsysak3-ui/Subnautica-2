@@ -44,6 +44,7 @@ import { Places, Purpose } from './places';
 import { People, Wealth, Stage, Edu, NONE, MAX_HOUSEHOLD } from './people';
 import { ASSETS } from '../../assets/registry';
 import { BRANCHES } from '../../assets/types';
+import type { Ground } from './ground';
 import type { Services } from './services';
 import type { Utilities } from './utilities';
 
@@ -372,13 +373,23 @@ export class Migration {
     return Math.max(0, Math.min(1, 1 - (this.taxRate - NEUTRAL_TAX) / NEUTRAL_TAX));
   }
 
+  /** The land value and pollution fields, once there are any. */
+  private ground: Ground | null = null;
+  breathes(ground: Ground): void { this.ground = ground; }
+
   get amenityAppeal(): number {
     const b = BRANCHES.indexOf('parks');
-    if (b < 0) return 0;
-    const parks = this.places.byBranch[b].size;
+    const parks = b < 0 ? 0 : this.places.byBranch[b].size;
     // One park per two thousand people is generous; the curve saturates there.
     const want = Math.max(1, this.people.population / 2000);
-    return Math.max(0, Math.min(1, parks / want));
+    let v = Math.max(0, Math.min(1, parks / want));
+    // What the built-up part of the city is actually like to live in. The park
+    // count says what the player has provided; this says what it is like when
+    // you get there, and a city of parks with a foundry in every street is not
+    // a pleasant city.
+    const g = this.ground;
+    if (g !== null) v = Math.max(0, v * 0.5 + 0.5 * (g.meanValue * 1.4 - g.meanPollution));
+    return Math.max(0, Math.min(1, v));
   }
 
   /** The last appeal worked out, so one run does not compute it three times. */

@@ -11,7 +11,7 @@
     "test:gpu": "node tools/gpu-smoke.mjs",
     "test:deploy": "node tools/deploy-layout-test.mjs",
     "test:frustum": "node tools/frustum-test.mjs",
-    "test": "npm run typecheck && npm run test:assets && npm run test:atlas && npm run test:sim && npm run test:life && npm run test:traffic && npm run test:service && npm run test:dispatch && npm run test:growth && npm run test:economy && npm run test:transit && npm run test:views && npm run test:thoughts && npm run test:mains && npm run test:frustum && npm run test:gpu && npm run test:deploy",
+    "test": "npm run typecheck && npm run test:assets && npm run test:atlas && npm run test:sim && npm run test:life && npm run test:traffic && npm run test:service && npm run test:dispatch && npm run test:growth && npm run test:economy && npm run test:lifecycle && npm run test:transit && npm run test:views && npm run test:thoughts && npm run test:mains && npm run test:frustum && npm run test:gpu && npm run test:deploy",
     "test:assets": "node tools/asset-test.mjs",
     "test:atlas": "node tools/atlas-test.mjs",
     "test:city": "node tools/city-stats.mjs",
@@ -26,7 +26,8 @@
     "test:growth": "node tools/growth-test.mjs",
     "test:thoughts": "node tools/thoughts-test.mjs",
     "test:transit": "node tools/transit-test.mjs",
-    "test:economy": "node tools/economy-test.mjs"
+    "test:economy": "node tools/economy-test.mjs",
+    "test:lifecycle": "node tools/lifecycle-test.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.60",

@@ -70,6 +70,9 @@ interface SaveFile {
    * Loading one with the mask clear would knock their whole city down.
    */
   grown?: number[];
+  /** What each cell has grown into, and what has been condemned on it. */
+  tier?: number[];
+  blight?: number[];
   /**
    * The transit lines, as the player drew them.
    *
@@ -176,6 +179,8 @@ export function serialise(world: World, name: string, auto = false): string {
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
     grown: encodeZones(world.grown),
+    tier: encodeZones(world.tier),
+    blight: encodeZones(world.blight),
     money: [world.budget.balance, [...world.budget.rates]],
     career: world.progress.save(),
     transit: world.transit.lines.map((l) => ({
@@ -236,6 +241,17 @@ export function deserialise(text: string): { world: World; name: string; at: num
     // this would release every cell the file says is still waiting.
     world.grown.fill(0);
     decodeZones(file.grown, world.grown);
+  }
+  // Both default to zero, which is exactly what a save from before they existed
+  // should restore to: a city of first-tier buildings with nothing condemned,
+  // which the land value model then works its way back up from.
+  if (Array.isArray(file.tier) && file.tier.length > 0) {
+    world.tier.fill(0);
+    decodeZones(file.tier, world.tier);
+  }
+  if (Array.isArray(file.blight) && file.blight.length > 0) {
+    world.blight.fill(0);
+    decodeZones(file.blight, world.blight);
   }
   if (Array.isArray(file.transit)) world.transit.restore(file.transit);
   if (Array.isArray(file.money) && Array.isArray(file.money[1])

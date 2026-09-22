@@ -175,7 +175,20 @@ export class Mains {
    * stopped after `REACH_CELLS` rings -- which is a distance transform in the only
    * form this needs, and costs one pass rather than one search per building.
    */
+  /**
+   * Bumped by every rebuild, so the frame can tell the simulation that the pipes
+   * moved.
+   *
+   * The road graph has had one of these all along and the mains did not, which
+   * was a real hole rather than an omission: the utilities are rewired when the
+   * roads change, so a player who bulldozed a water main and nothing else kept
+   * their water until they happened to touch a road. The supply is a property of
+   * the network, and the network is this.
+   */
+  version = 0;
+
   rebuild(): void {
+    this.version++;
     const g = this.grid;
     const n = g * g;
     const q = this.queue;
