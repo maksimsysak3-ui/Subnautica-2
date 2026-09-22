@@ -30,6 +30,7 @@ import {
   parapet, planter, railing, ribbon, ring, roofClutter, shopfront,
 } from '../parts';
 import type { Wall } from '../parts';
+import { terracedTower, twinTowers } from './highrise';
 
 // ------------------------------------------------------------- low density
 
@@ -568,14 +569,19 @@ function point(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   // Asian stands its plant room and water tanks up there, the pitched themes
   // take a roof off the wall head as before.
   const head = topMass(m, T, -x, -z, x, z, wall);
-  const top = crown(m, T, -x, -z, x, z, head, seed);
+  crown(m, T, -x, -z, x, z, head, seed);
 
   if (medium) {
     band(m, -x - 1.4, -z - 1.4, x + 1.4, z + 1.4, podium, 0.4, 0.2, T.trim);
     // Vertical fin at each corner: what stops a tower being a cardboard box.
+    //
+    // Stopped at the wall head, not at the top of the crown. Taken to `top`
+    // the four fins carried on past the roof with nothing between them and
+    // stood around the crown as free posts -- four scaffold legs on the top of
+    // every point block in the city.
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
       m.box([sx > 0 ? x - 0.6 : -x, podium, sz > 0 ? z - 0.6 : -z],
-            [sx > 0 ? x + 0.34 : -x + 0.6, top - 0.5, sz > 0 ? z + 0.34 : -z + 0.6], T.base);
+            [sx > 0 ? x + 0.34 : -x + 0.6, wall + 0.35, sz > 0 ? z + 0.34 : -z + 0.6], T.base);
     }
     if (T.balcony !== 'none') {
       for (const [sign, plane, u0, u1] of [[1, z, -x + 1.4, x - 1.4], [-1, -z, -x + 1.4, x - 1.4]] as const) {
@@ -1053,6 +1059,8 @@ const HIGH: Plan[] = [
   { key: 'cross', name: 'Cruciform tower', build: cross, footprint: [5, 5], households: 90 },
   { key: 'urban', name: 'Street block', build: urban, footprint: [5, 5], households: 120 },
   { key: 'cored', name: 'Cored tower', build: cored, footprint: [5, 4], households: 64 },
+  { key: 'terraced', name: 'Terraced tower', build: terracedTower, footprint: [5, 5], households: 84 },
+  { key: 'twin', name: 'Twin towers', build: twinTowers, footprint: [6, 4], households: 132 },
 ];
 
 const SIM = {

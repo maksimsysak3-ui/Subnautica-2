@@ -31,6 +31,7 @@ import {
 } from '../parts';
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
+import { curtainSlab, galleria, mixedUse, podiumTower, setbackTower } from './highrise';
 import { container, racking, stockpile, drum, crate, pallet } from './freight';
 
 // -------------------------------------------------------------- commercial
@@ -1192,6 +1193,8 @@ const SHOPS: Plan[] = [
   { key: 'market', name: 'Market hall', build: market, footprint: [4, 4], density: 'medium', jobs: 44, brand: 'deli' },
   { key: 'store', name: 'Superstore', build: bigBox, footprint: [4, 7], density: 'high', jobs: 90, brand: 'supermarket' },
   { key: 'lodging', name: 'Hotel', build: lodging, footprint: [4, 4], density: 'high', jobs: 52, brand: 'travel' },
+  { key: 'mixed', name: 'Shops with flats over', build: mixedUse, footprint: [4, 5], density: 'high', jobs: 46, brand: 'deli' },
+  { key: 'galleria', name: 'Shopping galleria', build: galleria, footprint: [6, 6], density: 'high', jobs: 140, brand: 'fashion' },
   { key: 'pub', name: 'Public house', build: publicHouse, footprint: [3, 3], density: 'low', jobs: 14, brand: 'deli' },
   { key: 'filling', name: 'Filling station', build: filling, footprint: [4, 3], density: 'low', jobs: 9 },
   { key: 'cafe', name: 'Cafe and flats', build: cafeRow, footprint: [3, 3], density: 'medium', jobs: 22, brand: 'deli' },
@@ -1201,6 +1204,9 @@ const OFFICES: Plan[] = [
   { key: 'studio', name: 'Studio', build: studio, footprint: [3, 3], density: 'low', jobs: 40 },
   { key: 'midrise', name: 'Mid-rise', build: midrise, footprint: [4, 3], density: 'medium', jobs: 180 },
   { key: 'tower', name: 'Tower', build: tower, footprint: [4, 4], density: 'high', jobs: 520 },
+  { key: 'podium', name: 'Tower on a podium', build: podiumTower, footprint: [5, 4], density: 'high', jobs: 610 },
+  { key: 'setback', name: 'Setback tower', build: setbackTower, footprint: [4, 4], density: 'high', jobs: 540 },
+  { key: 'slab', name: 'Curtain-wall slab', build: curtainSlab, footprint: [6, 3], density: 'high', jobs: 480 },
   { key: 'campus', name: 'Campus', build: campus, footprint: [4, 5], density: 'low', jobs: 150 },
   { key: 'conversion', name: 'Conversion', build: conversion, footprint: [3, 3], density: 'medium', jobs: 120 },
   { key: 'chambers', name: 'Chambers', build: chambers, footprint: [3, 3], density: 'low', jobs: 54 },

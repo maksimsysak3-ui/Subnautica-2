@@ -11,7 +11,7 @@
 import { MAT, TINT, MeshBuilder } from './mesh';
 import { hip, mansard, dormer, brackets } from './themes';
 import type { ThemeProfile } from './themes';
-import { entrance, parapet, railing, ring, roofClutter, windowGrid } from './parts';
+import { entrance, louvres, parapet, railing, ring, roofClutter, windowGrid } from './parts';
 import type { Wall } from './parts';
 
 /** The roof the theme calls for, over a footprint. */
@@ -258,6 +258,18 @@ export function compound(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number
 /** The crown a tall block gets, which differs by theme as much as its base. */
 export function crown(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x1: number, z1: number,
                y: number, seed: number): number {
+  // A crowned roof is a finished roof.
+  //
+  // Every branch below puts something on the top of the building -- a mansard,
+  // a hipped attic, a water tank on a frame, a plant enclosure -- and most of
+  // them call roofClutter for the deck around it as well. The registry then
+  // dressed the same building again, found the *crown's* own lid as the
+  // highest plane, and built a full roof tray on it: a parapet, air handlers,
+  // rooflights and a mansafe line standing on top of a plant room three metres
+  // square. From the game's camera that read as a second little building
+  // hovering over every tower in the city, which is precisely the complaint
+  // high-density stock kept drawing.
+  m.roofDressed = true;
   switch (T.id) {
     case 'european': {
       const h = Math.min(x1 - x0, z1 - z0) * 0.26;
@@ -295,10 +307,25 @@ export function crown(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x
     }
     default: {
       // Modern: a set-back plant enclosure behind a slim parapet.
+      //
+      // Screened in louvred metal rather than clad in a panel colour. A plant
+      // room does have to breathe, so louvres are what is actually up there --
+      // but the reason it matters here is that CLADDING picks a saturated
+      // colour off the building's seed, and the top three metres of a tower is
+      // the part of it the whole city can see. Every modern block in the
+      // skyline was wearing a mustard, teal or burnt-orange hat.
       parapet(m, x0, z0, x1, z1, y, 1.05, 0.12, T.trim);
       const i = Math.min(x1 - x0, z1 - z0) * 0.2;
-      m.box([x0 + i, y, z0 + i], [x1 - i, y + 3.0, z1 - i], MAT.CLADDING, { roof: MAT.ROOF });
-      ring(m, x0 + i, z0 + i, x1 - i, z1 - i, y + 3.0, 0.14, 0.1, T.trim);
+      const px0 = x0 + i, pz0 = z0 + i, px1 = x1 - i, pz1 = z1 - i;
+      m.box([px0, y, pz0], [px1, y + 3.0, pz1], MAT.CONCRETE, { roof: MAT.ROOF });
+      for (const wl of [
+        { axis: 'z', sign: 1, plane: pz1 } as Wall, { axis: 'z', sign: -1, plane: pz0 } as Wall,
+        { axis: 'x', sign: 1, plane: px1 } as Wall, { axis: 'x', sign: -1, plane: px0 } as Wall,
+      ]) {
+        const [u0, u1] = wl.axis === 'x' ? [pz0 + 0.3, pz1 - 0.3] : [px0 + 0.3, px1 - 0.3];
+        if (u1 - u0 > 1.0) louvres(m, wl, u0, u1, y + 0.45, y + 2.6, 0.36);
+      }
+      ring(m, px0, pz0, px1, pz1, y + 3.0, 0.14, 0.1, T.trim);
       roofClutter(m, x0 + 1.4, z0 + 1.4, x1 - 1.4, z1 - 1.4, y, seed, 0.8);
       return y + 3.0;
     }
