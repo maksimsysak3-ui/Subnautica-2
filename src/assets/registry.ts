@@ -28,7 +28,7 @@ import { MORE_UTILITY } from './generators/services-water';
 import { MARINE } from './generators/marine';
 import { SPORT } from './generators/sport';
 import { MeshBuilder } from './mesh';
-import { dressRoof } from './parts';
+import { dressRoof, footing } from './parts';
 import { idSeed } from './types';
 import type { AssetDef, Zone } from './types';
 
@@ -57,6 +57,9 @@ for (const a of ASSETS) {
   // and long enough to look like a hang on a laptop. Almost none of it was
   // needed: a session looks at a handful of assets.
   let plane: ReturnType<MeshBuilder['roofPlane']> | undefined;
+  // The rectangle the building stands on, measured off the same full-detail
+  // build the roof plane is, so the footing is the same size at every level.
+  let base: [number, number, number, number] | undefined;
   a.build = (lod: number): MeshBuilder => {
     MeshBuilder.detail = lod;
     const m = inner(lod);
@@ -67,9 +70,15 @@ for (const a of ASSETS) {
       MeshBuilder.detail = 0;
       const lod0 = lod === 0 ? m : inner(0);
       plane = lod0.roofPlane() ?? lod0.bareRoofPlane();
+      const b = lod0.bounds();
+      base = [b.min[0], b.min[2], b.max[0], b.max[2]];
       MeshBuilder.detail = lod;
     }
     dressRoof(m, lod, seed, { at: plane });
+    if (base !== undefined) {
+      footing(m, lod, base[0], base[1], base[2], base[3],
+        (a.footprint[0] * 8) / 2, (a.footprint[1] * 8) / 2);
+    }
     MeshBuilder.detail = 0;
     return m;
   };

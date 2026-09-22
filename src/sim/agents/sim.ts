@@ -31,7 +31,7 @@ import { Clock, TICKS_PER_DAY } from './calendar';
 import { buildLaneGraph, buildLaneIndex, laneBytes, indexBytes } from './lanes';
 import type { LaneGraph, LaneIndex } from './lanes';
 import { Router } from './router';
-import { Places, buildPlaces, reconcilePlaces, relinkPlaces } from './places';
+import { Places, Purpose, buildPlaces, reconcilePlaces, relinkPlaces } from './places';
 import { People, NONE } from './people';
 import { Migration } from './migration';
 import { Routine } from './routine';
@@ -369,6 +369,14 @@ export class Simulation {
       run: () => { this.strollers.populate(this.nearbyPeople()); },
     });
 
+    // Where the service buildings are, for the traffic that comes out of them.
+    // Slow: a depot is built once and stands, and this is a pass over the
+    // places table.
+    s.add({
+      name: 'depots', rate: Rate.SLOW,
+      run: () => { this.findDepots(); },
+    });
+
     // How many vehicles there should be, from the congestion the flow model found.
     s.add({
       name: 'cars', rate: Rate.FAST,
@@ -694,6 +702,30 @@ export class Simulation {
 
   /** Founds the city with its first households. */
   found(households = 8): void { this.migration.found(households); }
+
+  /** The lanes the city's staffed service buildings front on to. */
+  private depotLanes = new Int32Array(0);
+
+  /**
+   * Collects them for the traffic model.
+   *
+   * Staffed, and fronting a road: a station with nobody in it fields nothing,
+   * and one the road never reached cannot send anything out of its gate.
+   */
+  private findDepots(): void {
+    const p = this.places;
+    const c = p.col;
+    const out: number[] = [];
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0 || c.purpose[id] !== Purpose.SERVICE) continue;
+      if (c.lane[id] < 0 || c.lane[id] >= this.lanes.count) continue;
+      if (c.jobs[id] > 0 && c.working[id] === 0) continue;
+      out.push(c.lane[id]);
+    }
+    if (out.length !== this.depotLanes.length) this.depotLanes = new Int32Array(out.length);
+    this.depotLanes.set(out);
+    this.traffic.depotsAre(this.depotLanes, out.length);
+  }
 
   /**
    * How many people live or work within sight of the camera.

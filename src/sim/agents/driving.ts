@@ -219,6 +219,15 @@ const REROUTE_TICKS = 300;
  */
 const JAM_SHARE = 0.5;
 
+/**
+ * Service vehicles out per depot the city has, and how many may leave at once.
+ *
+ * Under one each: a station has a fleet and most of it is at the station most
+ * of the time, which is why the building has a yard.
+ */
+const DEPOT_SHARE = 0.55;
+const DEPOT_PER_TICK = 2;
+
 /** Ticks a wandering vehicle must have been stationary to be retired. */
 const STALE_TICKS = 600;
 
@@ -1335,6 +1344,60 @@ export class Traffic {
       this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0,
         this.rng.next() * this.g.length[lane]);
     }
+
+    // And some of it out of the depots. Unlike the traffic above this one is
+    // allowed to appear in view, because appearing at the kerb outside a fire
+    // station is not a vehicle materialising on an empty road -- it is a
+    // vehicle leaving a building that owns vehicles, which is what it looks
+    // like and what it is standing for.
+    if (this.serviceCount > 0) {
+      let fleet = Math.min(DEPOT_PER_TICK,
+        Math.round(this.serviceCount * DEPOT_SHARE) - this.serving());
+      while (fleet-- > 0) {
+        const lane = this.serviceLanes[(this.rng.next() * this.serviceCount) | 0];
+        if (lane < 0 || lane >= this.g.count) continue;
+        const r = this.rng.next();
+        const kind = r < 0.42 ? Kind.LORRY : r < 0.78 ? Kind.EMERGENCY : Kind.BUS;
+        this.spawn(-1, kind, this.drawDriver(), lane, -1, 0, 1.5);
+      }
+    }
+  }
+
+  /**
+   * Lanes that a service building fronts on to, for the traffic that comes out
+   * of one.
+   *
+   * A city's service fleet is mostly not answering a call. A bin round, a
+   * patrol, a bus on its layover, a works van going between depots: these are
+   * out all day, and they are most of what makes a city's services look like
+   * they exist rather than like entries in a panel. The dispatcher models the
+   * calls, correctly and rarely -- a fire is one building-day in two thousand
+   * six hundred -- and a city that has built its fire station and its depot
+   * should not have to wait for a disaster to see anything come out of them.
+   *
+   * So a share of the ambient traffic is sourced from the stations rather than
+   * from the road, and wears a service body. It is scenery, exactly as the rest
+   * of the ambient traffic is: it answers nothing, it is counted in nothing,
+   * and a call still sends a real vehicle on a real route.
+   */
+  private serviceLanes: Int32Array = new Int32Array(0);
+  private serviceCount = 0;
+
+  /** Told by the simulation, on a slow beat: where the depots are. */
+  depotsAre(lanes: Int32Array, count: number): void {
+    this.serviceLanes = lanes;
+    this.serviceCount = count;
+  }
+
+  /** Ambient service vehicles currently out, as against ordinary traffic. */
+  private serving(): number {
+    const c = this.table.col;
+    let n = 0;
+    for (let v = 0; v < this.table.bound; v++) {
+      if (this.table.live[v] === 0 || c.route[v] >= 0) continue;
+      if (c.kind[v] !== Kind.CAR) n++;
+    }
+    return n;
   }
 
   /** Wandering vehicles, as against ones on a route. */

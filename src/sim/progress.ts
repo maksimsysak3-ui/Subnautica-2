@@ -205,3 +205,24 @@ export class Progress {
     }
   }
 }
+
+/**
+ * The city level each zoning density becomes available at.
+ *
+ * A village does not build tower blocks. Handing a player every density on the
+ * first minute is handing them the whole game at once: the interesting question
+ * in a city builder is what to do with the tools you have, and there is no such
+ * question when medium and high density are one click away from an empty map.
+ *
+ * Low is always available, because low density is what a town starts as.
+ */
+export const DENSITY_LEVEL: Record<string, number> = {
+  low: 1,
+  medium: 4,
+  high: 8,
+};
+
+/** Whether a density may be painted yet, and the level it needs if not. */
+export function densityUnlocked(density: string, level: number): boolean {
+  return level >= (DENSITY_LEVEL[density] ?? 1);
+}

@@ -852,3 +852,55 @@ export function backyard(m: MeshBuilder, x0: number, z0: number, x1: number, z1:
     }
   });
 }
+
+/**
+ * The footing a building stands on.
+ *
+ * Every generator in the library models a building and stops at the ground
+ * line, which leaves a wall meeting turf at a hairline -- and a hairline is
+ * what makes a good model read as a model sitting on a lawn rather than as a
+ * building standing in a place. Real walls do not meet the ground; they meet a
+ * plinth, a damp course, a kerbed apron or a step, and the shadow that casts is
+ * most of what tells the eye the thing has weight.
+ *
+ * Applied to every zoned building from one place, for the same reason the roof
+ * dressing is: it cannot be left to a hundred and fifty generators to remember,
+ * and the ones that already have a podium of their own simply gain a slightly
+ * deeper one.
+ *
+ * Deliberately small. A wide apron is a forecourt, and the ground already draws
+ * forecourts, yards and gardens from the zoning -- this is the few centimetres
+ * where the building meets them.
+ */
+export function footing(m: MeshBuilder, lod: number,
+  x0: number, z0: number, x1: number, z1: number,
+  lotX: number, lotZ: number): void {
+  if (x1 - x0 < 1.5 || z1 - z0 < 1.5) return;
+  // Never past the lot. A handful of buildings are modelled right out to their
+  // boundary, and a plinth that pushed beyond it would put them over -- which
+  // the library's own audit catches, and which in the city would be two
+  // neighbours' footings overlapping.
+  const room = Math.min(lotX - Math.max(-x0, x1), lotZ - Math.max(-z0, z1));
+  const out = Math.min(0.22, Math.max(0, room));
+  if (out < 0.02) return;
+  const h = lod < 2 ? 0.16 : 0.10;
+  // A ring rather than a slab: the middle is under the building and nobody
+  // will ever see it, and a slab there is a quad per building for nothing.
+  const ring = (a0: number, b0: number, a1: number, b1: number): void => {
+    m.box([a0, 0, b0], [a1, h, b1], MAT.CONCRETE, { skipBottom: true });
+  };
+  ring(x0 - out, z0 - out, x1 + out, z0);
+  ring(x0 - out, z1, x1 + out, z1 + out);
+  ring(x0 - out, z0, x0, z1);
+  ring(x1, z0, x1 + out, z1);
+  if (lod >= 1) return;
+  // And a chamfer on the top outer edge, which is what catches the light and
+  // turns the ring from a step into a plinth.
+  m.painted(TINT.NONE, () => {
+    const t = 0.05;
+    m.box([x0 - out, h, z0 - out], [x1 + out, h + t, z0 - out + t], MAT.TRIM);
+    m.box([x0 - out, h, z1 + out - t], [x1 + out, h + t, z1 + out], MAT.TRIM);
+    m.box([x0 - out, h, z0 - out], [x0 - out + t, h + t, z1 + out], MAT.TRIM);
+    m.box([x1 + out - t, h, z0 - out], [x1 + out, h + t, z1 + out], MAT.TRIM);
+  });
+}

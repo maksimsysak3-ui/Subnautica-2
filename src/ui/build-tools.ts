@@ -30,7 +30,7 @@ import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
 import { NODE_OF_ASSET } from '../sim/tech';
 import { landmarksForLevel } from '../sim/tech';
 import type { LevelUp } from '../sim/progress';
-import { levelName } from '../sim/progress';
+import { levelName, DENSITY_LEVEL } from '../sim/progress';
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
@@ -1276,6 +1276,14 @@ export class BuildTools {
         + ROAD_SPECS[t.cls].label.toLowerCase());
       return;
     } else if (t.kind === 'zone') {
+      // The drawer greys out a density the city has not reached, but the tool
+      // can also be held from before a save was loaded, so the rule lives here
+      // too -- on the action, where it cannot be got round.
+      const needs = DENSITY_LEVEL[t.density] ?? 1;
+      if (world.progress.level < needs) {
+        this.say(`${t.density} density opens at level ${needs}`);
+        return;
+      }
       if (!ownsCells(world.land, world.grid, r.gx, r.gz, r.w, r.d)) {
         this.say('you do not own all of that land — buy it with the land tool');
         return;
@@ -2005,7 +2013,7 @@ export class BuildTools {
    */
   private tile(id: string | null, name: string, size: string, cost: number,
     accent: string, note: string, onPick: () => void,
-    glyph?: string, per = '', badge = ''): HTMLElement {
+    glyph?: string, per = '', badge = '', locked = false): HTMLElement {
     const b = document.createElement('button');
     b.title = note;
     if (badge !== '') b.style.position = 'relative';
@@ -2069,6 +2077,21 @@ export class BuildTools {
     // what they are working towards -- but it is drawn as a silhouette with a
     // padlock on it, and clicking it says where it is unlocked rather than
     // quietly doing nothing.
+    // A tile locked by the city's level rather than by the development tree.
+    // Same treatment -- a player has to be able to see what they are working
+    // towards -- and the click says where it opens.
+    if (locked) {
+      b.style.filter = 'grayscale(1)';
+      b.style.opacity = '0.55';
+      b.style.position = 'relative';
+      const pad = document.createElement('span');
+      pad.textContent = '\u{1F512}';
+      pad.style.cssText = [
+        'position:absolute', 'right:6px', 'top:6px', 'font-size:12px',
+        'pointer-events:none', 'filter:grayscale(0)', 'opacity:.9',
+      ].join(';');
+      b.appendChild(pad);
+    }
     if (id !== null && id !== '' && !this.unlocked(id)) {
       b.style.filter = 'grayscale(1)';
       b.style.opacity = '0.55';
@@ -2229,13 +2252,21 @@ export class BuildTools {
     const themed = zone !== 'nature' && zone !== 'road' && zone !== 'service';
     for (const density of DENSITIES) {
       const price = zonePrice(zone as Zone, density);
+      // Medium and high density arrive with the city. See `DENSITY_LEVEL`.
+      const needs = DENSITY_LEVEL[density] ?? 1;
+      const open = this.renderer.world.progress.level >= needs;
       if (themed) panel.appendChild(this.band(`${density} ${style.label}`));
       panel.appendChild(this.tile(zoneSpecimen(zone, density),
         themed ? 'Whichever' : `${density} ${zone}`, 'per cell', price, accent,
         `${style.blurb} Zoned for ${density} density, in whatever style the`
         + ' district around it is growing in.',
-        () => this.select({ kind: 'zone', zone: zone as Zone, density }),
-        undefined, '', themed ? 'ANY' : ''));
+        open
+          ? () => this.select({ kind: 'zone', zone: zone as Zone, density })
+          : () => {
+            denySound();
+            this.say(`${density} density opens at level ${needs}`);
+          },
+        undefined, '', themed ? 'ANY' : '', !open));
       if (!themed) continue;
       for (const theme of ALL_THEMES) {
         if (!hasSpecimen(zone, density, theme)) continue;
