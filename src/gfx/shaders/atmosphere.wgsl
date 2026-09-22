@@ -62,16 +62,26 @@ fn overcastTint(sun : vec3f) -> vec3f {
 
 // ---- palettes, at the three times of day that have their own colour ------
 
-const DAY_HIGH   = vec3f(0.055, 0.125, 0.340);
-const DAY_LOW    = vec3f(0.500, 0.600, 0.750);
+// Deepened a little with the display transfer: a clear sky is pale at the
+// horizon but it is not white, and these were set against a pipeline that was
+// showing them a stop and a half dark.
+const DAY_HIGH   = vec3f(0.042, 0.108, 0.320);
+const DAY_LOW    = vec3f(0.330, 0.450, 0.660);
 /** Low sun: the zenith holds while the horizon goes to fire. */
 const DUSK_HIGH  = vec3f(0.085, 0.090, 0.180);
 const DUSK_LOW   = vec3f(0.720, 0.330, 0.150);
 const NIGHT_HIGH = vec3f(0.0115, 0.0175, 0.0370);
 const NIGHT_LOW  = vec3f(0.0330, 0.0430, 0.0770);
 
-/** Below the horizon: haze over ground the map does not extend to. */
-const DAY_DOWN   = vec3f(0.300, 0.330, 0.360);
+/**
+ * Below the horizon: haze over ground the map does not extend to.
+ *
+ * Blue, not grey. What is down there is the same air the rest of the sky is
+ * made of, seen against ground rather than against space, so it keeps the
+ * sky's hue and loses its depth -- and a neutral band along the horizon is
+ * the one thing that makes a world read as ending at a wall.
+ */
+const DAY_DOWN   = vec3f(0.255, 0.305, 0.380);
 const NIGHT_DOWN = vec3f(0.026, 0.030, 0.042);
 
 /**
@@ -158,8 +168,14 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // as a field of lit windows floating over nothing -- you could not see the
   // street you were building on, which is the one thing a player is doing at
   // night. Moonlight in a game is a readability budget, not a photometric one.
+  //
+  // Scaled back by a little over half when the display transfer went in. These
+  // figures were chosen by eye against a pipeline that showed linear light
+  // unencoded, so they were compensating for a screen that was crushing them;
+  // with the encode doing that job properly the same numbers made midnight
+  // read as dusk. What is kept is the *displayed* night, which was right.
   let m = moonPhase(sun);
-  let night = vec3f(0.575, 0.635, 0.795) * (0.72 + 0.55 * m.x);
+  let night = vec3f(0.230, 0.254, 0.318) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -176,7 +192,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // Bounce follows the same moon, a little cooler: moonlight off asphalt is
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
-  let night = vec3f(0.385, 0.400, 0.455) * (0.74 + 0.52 * m.x);
+  let night = vec3f(0.154, 0.160, 0.182) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground
@@ -337,11 +353,22 @@ fn hazeAmount(metres : f32) -> f32 {
   // Fog is air brought closer. One scale length instead of two thousand six
   // hundred metres is a thick morning; the same curve, just shorter, so the
   // near and far terms keep their relationship and nothing pops.
-  let scale = mix(2600.0, 420.0, weather.fog);
+  // Pulled back when the display transfer went in. The haze mixes towards the
+  // sky, and the sky is the brightest thing in the frame -- so with the encode
+  // showing it at its real brightness, the same amount of air turned the far
+  // half of the city into a white wall. A city builder is played looking two
+  // or three kilometres down its own avenues and that view has to hold its
+  // colour.
+  let scale = mix(3100.0, 420.0, weather.fog);
   let near = 1.0 - exp(-metres * (1.0 / scale));
-  let far = smoothstep(mix(1600.0, 200.0, weather.fog),
-                       mix(4200.0, 900.0, weather.fog), metres);
-  let air = clamp(near * 0.62 + far * (0.55 + weather.fog * 0.42), 0.0, 1.0);
+  let far = smoothstep(mix(2200.0, 200.0, weather.fog),
+                       mix(4800.0, 900.0, weather.fog), metres);
+  // The far term still has to *reach* one. Air that saturates at ninety per
+  // cent leaves eight kilometres of ground showing faintly through the
+  // horizon, which greys the bottom of the sky and puts a soft edge where the
+  // world ends -- so the near term is what was pulled back, and the far one
+  // carries the rest.
+  let air = clamp(near * 0.52 + far * (0.62 + weather.fog * 0.34), 0.0, 1.0);
   return air * (1.0 - planView * 0.72);
 }
 
@@ -349,7 +376,29 @@ fn aerial(col : vec3f, metres : f32, dir : vec3f, sun : vec3f) -> vec3f {
   return mix(col, skyBody(dir, sun), hazeAmount(metres));
 }
 
-/** The filmic shoulder every surface in the game shares. */
+/**
+ * The filmic shoulder every surface in the game shares, and the transfer
+ * function the display expects, which nothing else in the pipeline applies.
+ *
+ * The swapchain is `rgba8unorm`, not `*-srgb`, so whatever comes out of here
+ * is the number the monitor is handed. That makes the curve here the display
+ * transfer as well as the tonemap, and the exponent it used to carry -- 0.9 --
+ * is very nearly linear light shown on a display expecting a power of about
+ * 2.2. Every material in the game is authored in linear reflectance, which is
+ * correct, and every one of them was then shown a stop and a half too dark.
+ * Asphalt at seven per cent albedo is seven per cent albedo; sent to the
+ * screen unencoded it is black, and a street you cannot see is the loudest
+ * thing wrong with a picture of a city.
+ *
+ * So: Reinhard for the shoulder, then the sRGB transfer proper. Not clamped
+ * first -- the post pass takes its bloom from what is above one, and clamping
+ * here would put the lit signage, the sun off glass and the bright sky all at
+ * exactly white with nothing left to bloom from. The encode is monotonic above
+ * one, so the headroom survives it.
+ */
 fn tonemap(col : vec3f) -> vec3f {
-  return pow(col / (col + vec3f(0.72)) * 1.42, vec3f(0.9));
+  let t = max(col / (col + vec3f(0.72)) * 1.42, vec3f(0.0));
+  let lo = t * 12.92;
+  let hi = pow(t, vec3f(1.0 / 2.4)) * 1.055 - 0.055;
+  return select(lo, hi, t > vec3f(0.0031308));
 }
