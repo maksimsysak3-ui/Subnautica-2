@@ -12,6 +12,7 @@
  */
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
+import type { Material, Tint } from '../mesh';
 import type { AssetDef } from '../types';
 import { THEME_ORDER } from '../themes';
 import type { Theme } from '../themes';
@@ -20,7 +21,7 @@ import {
   pierWall, plan, porteCochere, sawtooth, scaled, shelf,
 } from './signature-parts';
 import {
-  awning, band, bladeSign, entrance, parapet, planter, railing,
+  awning, band, bladeSign, entrance, fireEscape, parapet, planter, railing,
   roofClutter, shopfront,
 } from '../parts';
 import { hedge, bench, tree } from './landscape';
@@ -464,24 +465,58 @@ function pictureHouse(lod: number): MeshBuilder {
 
   forecourt(m, -34, -30, 34, 30, 2707, { trees: 4, lamps: 6, people: 9, benches: 2 });
   // The auditoria: a stepped box, tall at the screen end, low over the foyer.
-  m.box([-hx, 0.1, -hz], [hx, 20.0, hz - 9.0], MAT.CLADDING, { roof: MAT.ROOF });
+  //
+  // Rendered, not clad. A picture palace is faience and render; CLADDING picks
+  // a saturated panel colour off the seed, and on fifty metres of blank flank
+  // that came back as a mustard warehouse with a cinema sign on it.
+  m.box([-hx, 0.1, -hz], [hx, 20.0, hz - 9.0], MAT.PLASTER, { roof: MAT.ROOF });
   m.box([-hx, 0.1, hz - 9.5], [hx, 9.5, hz], MAT.STONE, { roof: MAT.ROOF });
+  // The projection and stage box, standing above the auditorium at the screen
+  // end. This is what a cinema's back actually looks like from the street
+  // behind it, and it is the difference between a building and a shed.
+  m.box([-13.0, 0.1, -hz - 0.1], [13.0, 25.5, -hz + 7.0], MAT.CONCRETE, { roof: MAT.ROOF });
   if (medium) {
-    // The rake of the auditorium expressed on both flanks: three stepped
-    // buttresses, which is the one honest clue to what is inside.
+    // The rake of the auditorium expressed on both flanks: a run of stepped
+    // buttresses down the full depth, which is the one honest clue to what is
+    // inside. Three of them left forty metres of blank wall between.
     for (const s of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        m.box([s * hx - s * 0.1, 0.1, -hz + 2.0 + i * 6.5],
-              [s * hx + s * 1.3, 20.0 - i * 3.6, -hz + 6.0 + i * 6.5], MAT.CONCRETE);
+      for (let i = 0; i < 7; i++) {
+        const z0 = -hz + 1.4 + i * 4.6;
+        m.box([s * hx - s * 0.1, 0.1, z0], [s * hx + s * 1.5, 19.6 - i * 1.9, z0 + 2.2],
+          MAT.CONCRETE);
       }
+      // A plinth and a string course, so the wall between the buttresses has a
+      // scale to be read against.
+      m.box([s * hx - s * 0.1, 0.1, -hz], [s * hx + s * 0.7, 2.4, hz - 9.0], MAT.STONE);
+      m.box([s * hx - s * 0.1, 8.6, -hz], [s * hx + s * 0.5, 9.4, hz - 9.0], MAT.CONCRETE);
     }
+    parapet(m, -13.0, -hz - 0.1, 13.0, -hz + 7.0, 25.5, 1.0, 0.3, MAT.CONCRETE);
     band(m, -hx, -hz, hx, hz - 9.0, 19.0, 1.0, 0.5, MAT.CONCRETE);
     // The foyer, glazed the full width.
     curtain(m, -hx + 1.5, hz - 9.3, hx - 1.5, hz - 0.2, 0.6, 2, 4.2, { mullions: 2.8 });
   }
   if (fine) {
     parapet(m, -hx, -hz, hx, hz - 9.0, 20.0, 1.0, 0.3, MAT.CONCRETE);
-    roofClutter(m, -hx + 3, -hz + 3, hx - 3, hz - 12, 20.0, 37, 0.9);
+    roofClutter(m, -hx + 3, -hz + 10, hx - 3, hz - 12, 20.0, 37, 0.9);
+    // The back of house: the extract cowls over the auditorium, the scene dock
+    // door and a fire escape off each flank. All of it is what is actually
+    // there, and all of it is what stops the rear elevation being a wall.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cx of [-7.0, 0.0, 7.0]) {
+        m.cylinder(cx, -hz + 3.4, 1.15, 25.5, 28.4, 10, MAT.TRIM, false);
+        m.cone(cx, -hz + 3.4, 1.35, 0.5, 28.4, 29.6, 10, MAT.TRIM);
+      }
+      for (const s of [-1, 1] as const) {
+        fireEscape(m, { axis: 'x', sign: s, plane: s * hx + s * 0.1 }, -4.0, 4.6, 3, 4.6, 2.4);
+      }
+    });
+    m.box([-5.0, 0.1, -hz - 0.2], [5.0, 6.4, -hz + 0.3], MAT.METAL);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i <= 8; i++) {
+        const x = -5.0 + (i / 8) * 10.0;
+        m.box([x - 0.08, 0.2, -hz - 0.28], [x + 0.08, 6.3, -hz - 0.22], MAT.TRIM);
+      }
+    });
     // The marquee: a deep lit canopy with a sign band under it and bulbs round
     // the edge.
     m.painted(TINT.BRAND, () => {
@@ -673,18 +708,39 @@ function leisureBox(lod: number): MeshBuilder {
     // The halo. The building is named after it and did not have one: a lit
     // ring twenty metres across standing over the roof on four masts, which
     // is the only part of this that anybody will describe to anybody else.
-    const R = 19.0, SEG = 24, ry = 33.0;
+    // Held up, and visibly. Four pencil-thin masts under a wire-thin hoop
+    // thirty-eight metres across read as a prop floating over the building
+    // rather than as a thing anybody built: so it comes down to seven metres
+    // over the parapet, the ring gets a section deep enough to be a ring, and
+    // it stands on six tapered masts with pad bases and back-stays. A landmark
+    // has to look like it would stay up.
+    const R = 18.0, SEG = 28, ry = 29.0, CZ = -5.0, MASTS = 6;
+    const at = (a: number, r: number): [number, number] =>
+      [Math.cos(a) * r, Math.sin(a) * r + CZ];
     m.painted(TINT.SIGN_LIT, () => {
       for (let i = 0; i < SEG; i++) {
         const a = (i / SEG) * Math.PI * 2, b = ((i + 1) / SEG) * Math.PI * 2;
-        m.pipe([Math.cos(a) * R, ry, Math.sin(a) * R - 5.0],
-               [Math.cos(b) * R, ry, Math.sin(b) * R - 5.0], 0.85, MAT.PLATE, 5);
+        const [ax, az] = at(a, R), [bx, bz] = at(b, R);
+        // A box section rather than a pipe: 1.0 across and 2.4 deep, which is
+        // what carries the ring at three hundred metres.
+        m.quad([ax, ry - 1.2, az], [bx, ry - 1.2, bz], [bx, ry + 1.2, bz], [ax, ry + 1.2, az], MAT.PLATE);
+        const [cx, cz] = at(a, R - 1.0), [dx, dz] = at(b, R - 1.0);
+        m.quad([dx, ry + 1.2, dz], [cx, ry + 1.2, cz], [cx, ry - 1.2, cz], [dx, ry - 1.2, dz], MAT.PLATE);
+        m.quad([ax, ry + 1.2, az], [bx, ry + 1.2, bz], [dx, ry + 1.2, dz], [cx, ry + 1.2, cz], MAT.PLATE);
+        m.quad([cx, ry - 1.2, cz], [dx, ry - 1.2, dz], [bx, ry - 1.2, bz], [ax, ry - 1.2, az], MAT.PLATE);
       }
     });
     m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-        m.cylinder(Math.cos(a) * R, Math.sin(a) * R - 5.0, 0.42, 22.0, ry, 6, MAT.TRIM, false);
+      for (let i = 0; i < MASTS; i++) {
+        const a = (i / MASTS) * Math.PI * 2 + Math.PI / MASTS;
+        const [mx, mz] = at(a, R - 0.5);
+        const [bx, bz] = at(a, R + 2.6);
+        // Pad, mast, and a stay raking out to a second pad.
+        m.box([mx - 1.5, 21.6, mz - 1.5], [mx + 1.5, 22.6, mz + 1.5], MAT.CONCRETE);
+        m.cylinder(mx, mz, 0.72, 22.4, ry - 2.6, 8, MAT.TRIM, false);
+        m.cylinder(mx, mz, 0.44, ry - 2.6, ry + 0.6, 8, MAT.TRIM, false);
+        m.box([bx - 1.1, 21.6, bz - 1.1], [bx + 1.1, 22.4, bz + 1.1], MAT.CONCRETE);
+        m.pipe([bx, 22.2, bz], [mx, ry - 4.0, mz], 0.26, MAT.TRIM, 5);
       }
     });
     // The two flanks, which were forty metres of blank concrete each. A
@@ -772,39 +828,68 @@ function signTower(lod: number): MeshBuilder {
     //
     // A board across the whole of both elevations on every floor, in brand,
     // accent and lit white by turns, is not a sign tower -- it is a barcode.
-    // Eleven of them made the building two colours from a distance and nothing
-    // else, which is exactly what it looked like on the palette: red and yellow
-    // stripes with no building behind them.
+    // Boards of random widths at random offsets are not one either: that is
+    // what this was, and from the street it read as coloured tape stuck to a
+    // beige wall rather than as a building carrying its tenants' names.
     //
-    // What the real thing is: separate boards of different widths, hung with
-    // gaps between them and gaps between floors, most of them lit white with
-    // the house colours as the minority. So the wall reads as a wall, the signs
-    // read as signs, and the tower is recognisable rather than loud.
-    const panels = (f: number, face: 'z' | 'x'): void => {
+    // What makes the real thing read is that the signs are *objects*. They
+    // hang off the wall on brackets, they project far enough to throw their own
+    // shadow, they line up on the columns of the building behind them, and the
+    // ones that matter are vertical banners two and three storeys tall with
+    // horizontal fascias filling in between. So: a four-column grid per
+    // elevation, horizontal boards snapped to it, and six banners hung across
+    // several floors at once.
+    const COLS = 4;
+    /** A board hung off a face, with its bracket and its dark edge. */
+    const board = (face: 'z' | 'x', u0: number, u1: number, y0: number, y1: number,
+                   out: number, t: Tint): void => {
+      const near = face === 'z' ? hz : hx;
+      const put = (a: number, b: number, c: number, d: number, mat: Material): void => {
+        if (face === 'z') m.box([u0 + a, y0 + c, near + b], [u1 - a, y1 - c, near + d], mat);
+        else m.box([near + b, y0 + c, u0 + a], [near + d, y1 - c, u1 - a], mat);
+      };
+      m.painted(TINT.METAL_DARK, () => {
+        // A backing plate a little larger than the board, and a stub bracket
+        // holding it off the wall. Both live *behind* the lit face -- an
+        // earlier version drew a frame box over the whole depth, which simply
+        // buried the sign inside it and turned the tower black.
+        put(-0.14, 0.02, -0.14, 0.16, MAT.TRIM);
+        put((u1 - u0) * 0.34, 0.14, (y1 - y0) * 0.34, out * 0.55, MAT.TRIM);
+      });
+      m.painted(t, () => put(0, 0.14, 0, out, MAT.CLADDING));
+    };
+    const span = (face: 'z' | 'x'): number => (face === 'z' ? hx : hz) - 1.0;
+    const col = (face: 'z' | 'x', i: number): number => -span(face) + (i / COLS) * span(face) * 2;
+    const fascias = (f: number, face: 'z' | 'x'): void => {
       const seed = f * 7 + (face === 'z' ? 0 : 3);
-      const y = 5.6 + f * floorH + 0.9;
-      const h = floorH - 2.9;
-      const span = face === 'z' ? hx - 1.0 : hz - 1.0;
-      // Two or three boards across the face, at widths that do not agree.
-      const cuts = seed % 3 === 0 ? [0.00, 0.46, 0.54, 1.00]
-        : seed % 3 === 1 ? [0.00, 0.30, 0.38, 0.74, 0.82, 1.00]
-          : [0.06, 0.52, 0.60, 0.94];
-      for (let i = 0; i < cuts.length; i += 2) {
-        const roll = (seed * 13 + i * 5) % 9;
+      const y = 5.6 + f * floorH + 0.7;
+      const h = floorH - 1.9;
+      // Two runs across the four columns, at widths that do not agree.
+      const runs = seed % 3 === 0 ? [[0, 2], [2, 4]]
+        : seed % 3 === 1 ? [[0, 1], [1, 4]]
+          : [[0, 3], [3, 4]];
+      for (const [a, b] of runs) {
+        const roll = (seed * 13 + a * 5) % 9;
         if (roll === 0) continue;                     // a gap where a tenant left
-        const t = roll < 6 ? TINT.SIGN_LIT : roll < 8 ? TINT.ACCENT : TINT.BRAND;
-        const u0 = -span + cuts[i] * span * 2, u1 = -span + cuts[i + 1] * span * 2;
-        m.painted(t, () => {
-          if (face === 'z') m.box([u0, y, hz + 0.1], [u1, y + h, hz + 1.3], MAT.CLADDING);
-          else m.box([hx + 0.1, y, u0], [hx + 1.3, y + h, u1], MAT.CLADDING);
-        });
+        const t = roll < 5 ? TINT.SIGN_LIT : roll < 8 ? TINT.ACCENT : TINT.BRAND;
+        board(face, col(face, a) + 0.25, col(face, b) - 0.25, y, y + h, 1.5, t);
       }
     };
     for (let f = 0; f < floors; f++) {
-      panels(f, 'z');
+      fascias(f, 'z');
       // Every other floor on the return elevation, so the two faces are not
       // the same building twice.
-      if (f % 2 === 0) panels(f, 'x');
+      if (f % 2 === 0) fascias(f, 'x');
+    }
+    // The banners: tall, narrow, and standing well clear of the fascias, which
+    // is the whole point of them. Fixed columns and fixed runs of floors --
+    // a banner is a lease, not a scatter.
+    for (const [face, c, f0, f1, t] of [
+      ['z', 0, 1, 4, TINT.BRAND], ['z', 2, 4, 8, TINT.SIGN_LIT], ['z', 3, 0, 3, TINT.ACCENT],
+      ['x', 1, 2, 6, TINT.BRAND], ['x', 3, 6, 9, TINT.ACCENT], ['z', 1, 8, 11, TINT.SIGN_LIT],
+    ] as const) {
+      const u = col(face, c) + 0.9;
+      board(face, u, u + 2.0, 5.6 + f0 * floorH + 0.6, 5.6 + f1 * floorH - 0.5, 2.5, t);
     }
     // A vertical blade on the corner, taller than the building. It carries the
     // brand colour -- one element rather than the whole facade, which is what
