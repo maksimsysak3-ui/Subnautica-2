@@ -1258,7 +1258,22 @@ Promise<{ pixels: number[]; movers: string }> {
   // while the probe was not looking, and its card would be over whatever this
   // is photographing.
   if (panel !== 'level') live.levelCard.dismissAll();
-  if (panel === 'tech') {
+  if (panel === 'decay') {
+    // A quarter nobody is looking after, for photographing what that looks
+    // like. The mains come up -- which is what bulldozing the network amounts
+    // to -- and the city is played on until the buildings have lost condition.
+    // Nothing here reaches past the model: the wear is the wear the lifecycle
+    // model worked out, drawn by the shader that draws everything else.
+    const world = renderer.world;
+    world.mains.bits.fill(0);
+    world.mains.rebuild();
+    sim.mainsChanged();
+    live.speed = 8;
+    for (let i = 0; i < 1400; i++) live.update(0.1, performance.now() + i * 100);
+    live.speed = 1;
+    live.tap(null);
+    live.levelCard.dismissAll();
+  } else if (panel === 'tech') {
     renderer.world.progress.stars = 6;
     live.tech.show();
   } else if (panel === 'settings') {
@@ -1428,6 +1443,21 @@ export async function probeThoughts(width: number, height: number): Promise<{
   // Long enough for the utility pass to settle, the coverage to go round every
   // branch, and the gripe sweep to get round the whole table more than once.
   for (let i = 0; i < 400; i++) live.update(1 / 20, performance.now() + i * 50);
+
+  // And then the supply is cut, by hand, for the first reading.
+  //
+  // The gripes are strictly ordered: a building with no water has one problem
+  // and it is the water. So a city that is short of a utility exercises exactly
+  // one row of the table, and a city that is not exercises a different row --
+  // and which of the two this probe was photographing used to depend on whether
+  // the generated city happened to have been dealt a sewage works out of the
+  // bag it draws its services from. Now it is decided here: cut off first,
+  // supplied after, and the two readings are the two halves of the table by
+  // construction rather than by luck.
+  for (let u = 0; u < 3; u++) sim.utilities.have[u].fill(0);
+  for (const reach of sim.services.reach) reach.fill(0);
+  for (let i = 0; i < 12; i++) sim.complaints.survey();
+  live.update(1 / 20, performance.now() + 30000);
   const list = sim.complaints.list;
   const tally: Record<string, number> = {};
   for (const [g, info] of Object.entries(GRIPE_INFO)) {

@@ -501,6 +501,10 @@ export class LiveCity {
         if (again === null) this.closeInspect(); else this.inspect.show(again);
       }
     }
+    // A building whose condition has moved since it was last drawn. Outside the
+    // tick, like everything else that touches the renderer from here.
+    const wear = this.sim?.takeWear();
+    if (wear !== null && wear !== undefined) this.renderer.refreshCity(wear);
     this.alerts.update(now);
     this.cititok.update(now);
   }

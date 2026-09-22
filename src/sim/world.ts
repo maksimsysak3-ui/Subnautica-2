@@ -382,6 +382,43 @@ function siteLots(world: World, ground: (x: number, z: number) => number): void 
     }
   }
 
+  // The four things a city stops working without, guaranteed rather than drawn.
+  //
+  // Everything below this comes out of a weighted bag, and a bag of eighty-odd
+  // service types handed to a fraction of the blocks is a lottery: a generated
+  // city could easily end up with three museums, two lidos and no sewage works
+  // at all. That did not matter while nothing read whether a building was
+  // getting anything. It matters now -- a showcase city with no drains is a
+  // showcase city quietly condemning itself -- so the essentials are sited
+  // first, spread across the map, and the bag fills in around them.
+  const ESSENTIAL = ['svc.water.treatment', 'svc.sewage.lagoon', 'svc.water.borehole',
+    'svc.power.gas', 'svc.fire.station', 'svc.health.clinic', 'svc.police.post',
+    'svc.edu.primary'];
+  for (let k = 0; k < ESSENTIAL.length; k++) {
+    const p = services.find((q) => q.id === ESSENTIAL[k]);
+    if (p === undefined || p.w > BLOCK || p.d > BLOCK) continue;
+    // Two of each, at opposite ends of the map, so a city that grew outward in
+    // one direction is not served from the other.
+    for (let n = 0; n < 2; n++) {
+      const spread = 0.28 + 0.44 * ((k * 2 + n) / (ESSENTIAL.length * 2));
+      const ang = (k * 2 + n) * 2.399963;
+      const bx = Math.round(blocks * (0.5 + Math.cos(ang) * spread * 0.5));
+      const bz = Math.round(blocks * (0.5 + Math.sin(ang) * spread * 0.5));
+      // Outward from the ideal spot until something takes, so a hillside or a
+      // landmark already standing there costs a nearby block rather than the
+      // whole building.
+      let put = false;
+      for (let r = 0; r < 5 && !put; r++) {
+        for (let j = -r; j <= r && !put; j++) {
+          for (let i = -r; i <= r && !put; i++) {
+            if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+            put = place(p, bx + i, bz + j, 557 + k * 13 + n);
+          }
+        }
+      }
+    }
+  }
+
   // The rest, spread by coverage rather than land value: a city needs a fire
   // station near every district, not fourteen of them downtown. Weighted by
   // footprint and drawn per block, so a clinic has sixteen tickets in the bag

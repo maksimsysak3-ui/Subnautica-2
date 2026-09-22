@@ -576,6 +576,23 @@ export class Renderer {
     this.ghosting = true;
   }
 
+  /**
+   * Re-sends the city's instance rows, for a change that is only how they look.
+   *
+   * A building's condition lives in the twelfth float of its row, and the
+   * simulation writes it into the same array the renderer built the city from.
+   * A whole-region write rather than a scatter of small ones: the rows that
+   * changed are spread all over a failing quarter, and one upload of a
+   * megabyte and a half costs far less than three thousand writes of four
+   * bytes. Called only when something actually moved -- see `Simulation.takeWear`.
+   */
+  refreshCity(data: Float32Array<ArrayBuffer>): void {
+    const res = this.res;
+    if (res === null || res.instanceCount === 0) return;
+    this.gpu.device.queue.writeBuffer(res.instanceBuffer, 0, data, 0,
+      Math.min(data.length, res.instanceCount * INSTANCE_FLOATS));
+  }
+
   private readonly ghost = new Float32Array(INSTANCE_FLOATS);
   private ghosting = false;
   /** How many mover instances the last `setMovers` wrote. */

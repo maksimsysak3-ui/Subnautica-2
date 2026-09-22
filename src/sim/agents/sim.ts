@@ -49,6 +49,7 @@ import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
 import { ASSETS } from '../../assets/registry';
+import { INSTANCE_FLOATS } from '../city';
 import { Budget } from '../budget';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
@@ -267,6 +268,21 @@ export class Simulation {
 
   private readonly displaced: number[] = [];
 
+  /**
+   * The instance data the city on screen is drawn from, and which row each
+   * building is.
+   *
+   * Kept so that what the simulation knows about a building's condition can
+   * reach the picture of it. A failing quarter that looks exactly like a
+   * thriving one is a consequence the player has to read a panel to find, and a
+   * consequence you have to go looking for is not one you will act on.
+   */
+  private cityData: Float32Array<ArrayBuffer> | null = null;
+  private rows = { of: new Int32Array(0) };
+  /** The condition each building was last drawn at, to spot a real change. */
+  private drawnWear = new Uint8Array(0);
+  private wearMoved = false;
+
   /** Nodes in the road graph, kept so a rewire does not need the graph passed in. */
   private nodes = 0;
 
@@ -283,7 +299,18 @@ export class Simulation {
     this.lanes = buildLaneGraph(net);
     this.strollers = new Strollers(this.lanes);
     this.index = buildLaneIndex(this.lanes);
-    this.places = buildPlaces(city, this.lanes, this.index);
+    // Sized up front so the first build fills it, for the same reason a rebuild
+    // does. Without this a simulation that is never rebuilt -- a new game
+    // nobody has edited yet, a loaded save, every headless probe -- has no idea
+    // which instance row draws which building, and nothing it learns about
+    // their condition ever reaches the screen.
+    this.rows.of = new Int32Array(Math.max(4096, city.count * 2));
+    this.drawnWear = new Uint8Array(this.rows.of.length);
+    this.rows.of.fill(-1);
+    this.places = buildPlaces(city, this.lanes, this.index, undefined, this.rows);
+    this.cityData = city.data;
+    this.drawnWear.fill(255);
+    this.wearMoved = true;
     // The cache is sized to the city, not to a constant. Routes are keyed by where
     // they start and end, and a city with thirty thousand buildings has hundreds
     // of thousands of distinct journeys -- a fixed thirty-two thousand entries
@@ -533,6 +560,15 @@ export class Simulation {
       run: () => { this.dispatch.resolve(); },
     });
 
+    // What each building looks like it is in, as opposed to what it is. Written
+    // into the instance data the renderer already holds rather than through a
+    // rebuild: a building going grey is a cosmetic change and must not cost
+    // what drawing a road costs.
+    s.add({
+      name: 'wear', rate: Rate.BRISK,
+      run: () => { this.paintWear(); },
+    });
+
     // The view the player has open, rebuilt as the numbers behind it move.
     s.add({
       name: 'views', rate: Rate.BRISK,
@@ -706,6 +742,68 @@ export class Simulation {
     }
     if (best < 0) return null;
     return this.describe(best);
+  }
+
+  /**
+   * Writes each building's condition into the instance row that draws it.
+   *
+   * Banded to sixteen steps rather than written continuously: the shader fades
+   * between them anyway, and the point of the comparison is to answer "is this
+   * worth re-uploading" without a float compare per building that is true
+   * every time. Nothing is sent when nothing moved, which is almost every
+   * visit in a city that is being looked after.
+   */
+  /**
+   * Points the wear painter at a city's instance data.
+   *
+   * Every rebuild hands over a fresh array with the world's own values in it,
+   * so whatever condition was painted into the last one went with it -- hence
+   * the reset, which is what makes the next visit repaint everything rather
+   * than skipping the rows it thinks it has already done.
+   */
+  private bindCity(city: City): void {
+    const want = this.places.count + city.count;
+    if (this.rows.of.length < want) {
+      this.rows.of = new Int32Array(Math.max(4096, want * 2));
+      this.drawnWear = new Uint8Array(this.rows.of.length);
+    }
+    this.rows.of.fill(-1);
+    this.cityData = city.data;
+    this.drawnWear.fill(255);
+    this.wearMoved = true;
+  }
+
+  private paintWear(): void {
+    const d = this.cityData;
+    if (d === null) return;
+    const c = this.places.col;
+    const of = this.rows.of;
+    const drawn = this.drawnWear;
+    for (let id = 0; id < this.places.count; id++) {
+      if (this.places.live[id] === 0) continue;
+      const row = id < of.length ? of[id] : -1;
+      if (row < 0) continue;
+      const band = c.health[id] >> 4;
+      if (band === drawn[id]) continue;
+      drawn[id] = band;
+      // Never zero. Zero is how a row says it carries no reading at all -- a
+      // tree, a road tile, a vehicle, the placement ghost -- and writing a
+      // condition of nought for a building that has completely failed made the
+      // most derelict buildings in the city the ones that looked perfectly
+      // fine, which is the exact opposite of the point.
+      d[row * INSTANCE_FLOATS + 11] = 0.04 + 0.96 * (c.health[id] / 255);
+      this.wearMoved = true;
+    }
+  }
+
+  /**
+   * The instance data, when a building's condition has changed since it was
+   * last drawn. Null when nothing has.
+   */
+  takeWear(): Float32Array<ArrayBuffer> | null {
+    if (!this.wearMoved) return null;
+    this.wearMoved = false;
+    return this.cityData;
   }
 
   /** The report on one building, by place id. */
@@ -895,8 +993,9 @@ export class Simulation {
    * which is the honest outcome: the player demolished their house.
    */
   buildingsChanged(city: City): void {
+    this.bindCity(city);
     const { removed, added } = reconcilePlaces(city, this.lanes, this.index,
-      this.places, this.displaced);
+      this.places, this.displaced, this.rows);
     // A new building has to be put on a network before anybody asks whether it has
     // power, and a demolished one has to come off before its supply is counted.
     if (added > 0 || removed.length > 0) {

@@ -141,6 +141,15 @@ struct VSOut {
   /** 1 for the building being placed, which is not there yet. */
   @location(13) @interpolate(flat) ghost : f32,
   /**
+   * What condition the building is in, 0 derelict to 1 sound.
+   *
+   * Written into the instance row by the simulation and re-sent when it moves
+   * -- see `Simulation.paintWear`. A quarter that is failing has to *look*
+   * like it is failing from the camera the game is played at, or the only way
+   * to find out is to click each building in turn, and nobody does that.
+   */
+  @location(14) @interpolate(flat) wear : f32,
+  /**
    * Position and normal in the prototype's own frame, before the instance was
    * turned.
    *
@@ -228,6 +237,7 @@ struct Instance {
    * x = stretch along the prototype's own Z
    * y = ghost, when this is a preview rather than a building
    * z = when this building first appeared, in seconds on the renderer's clock
+   * w = condition, 0 derelict to 1 sound. 0 on anything that is not a building.
    */
   extra : vec4f,
 };
@@ -322,6 +332,7 @@ fn vs_city(@location(0) packed : vec4u, @location(1) extra : u32,
 
   var out : VSOut;
   out.ghost = inst.extra.y;
+  out.wear = inst.extra.w;
   out.shade = protoVertex(packed, inst, p);
   out.pnorm = unpackNormal(packed.y >> 16u);
   out.spin = vec2f(c, s);
@@ -1665,6 +1676,26 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // floors rather than a gradient -- and so a lit rectangle never lands beside
   // the window it was meant to be in.
   let night = 1.0 - dayPhase(sun).x;
+  // How far gone this building is. Zero means the row carries no reading at all
+  // -- a tree, a road tile, a vehicle, the placement ghost -- so anything at or
+  // below it is left exactly as it was.
+  // Nought means the row carries no reading; a building that has completely
+  // failed writes a small positive number rather than nought, so the two are
+  // never the same thing. The band below is condition 0.43 down to 0 -- a
+  // building only starts to show it once it is genuinely in trouble, which is
+  // about where the gripe appears over its roof.
+  let failing = select(0.0, clamp((0.45 - in.wear) / 0.41, 0.0, 1.0), in.wear > 0.004);
+  if (failing > 0.001) {
+    // Three things happen to a building nobody is looking after, and all three
+    // are what the eye actually reads at two hundred metres: the colour goes
+    // out of it, it gets darker, and it goes grey-brown rather than any colour
+    // of its own. Not a tint -- a tint over a red brick terrace and a blue
+    // office reads as a filter over the lens rather than as two buildings in
+    // trouble.
+    let grey = dot(out, vec3f(0.299, 0.587, 0.114));
+    let dead = mix(vec3f(grey), vec3f(grey * 0.94, grey * 0.86, grey * 0.74), 0.6);
+    out = mix(out, dead * 0.50, failing);
+  }
   if (night > 0.01) {
     // Modelled glass is all opening; drawn glass reports its own coverage.
     var cover = opening.x;
@@ -1697,8 +1728,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       let warm = mix(vec3f(1.00, 0.79, 0.48), vec3f(0.80, 0.89, 1.00), step(0.86, rf));
       // Blinds, lamps, how deep the room is: a lit floor is not a flat bar of
       // light, and this is what stops one reading as a painted stripe.
-      let strength = 0.40 + rw * 0.62;
-      out = mix(out, warm * strength, on * night * cover * 0.94);
+      // And they go out as the building empties. A derelict block with every
+      // light on is the one thing that would make the decay read as a texture
+      // change rather than as a building nobody lives in any more.
+      let strength = (0.40 + rw * 0.62) * (1.0 - failing);
+      out = mix(out, warm * strength, on * night * cover * 0.94 * (1.0 - failing * 0.9));
 
       // A window that is dark is not black. It takes the night sky, which is
       // what gives an unlit face its shape instead of a silhouette.

@@ -493,7 +493,8 @@ const keyOf = (proto: number, x: number, z: number): string =>
  * that was already known.
  */
 export function reconcilePlaces(city: City, lanes: LaneGraph, index: LaneIndex,
-  places: Places, removed: number[] = []): { added: number; removed: number[] } {
+  places: Places, removed: number[] = [],
+  rows?: { of: Int32Array }): { added: number; removed: number[] } {
   const c = places.col;
   const live = places.live;
   // What is there now, by key.
@@ -505,6 +506,11 @@ export function reconcilePlaces(city: City, lanes: LaneGraph, index: LaneIndex,
 
   const d = city.data;
   const seen = new Set<number>();
+  // Which instance row each place is drawn as, filled as the walk goes. The
+  // caller wants it so that something the simulation knows about a building --
+  // what condition it is in -- can reach the thing on screen without a second
+  // pass over thirty thousand instances to work out which row is which.
+  const of = rows?.of;
   let added = 0;
   for (let i = 0; i < city.count; i++) {
     const o = i * INSTANCE_FLOATS;
@@ -513,10 +519,16 @@ export function reconcilePlaces(city: City, lanes: LaneGraph, index: LaneIndex,
     const x = d[o], z = d[o + 1];
     const key = keyOf(proto, x, z);
     const was = known.get(key);
-    if (was !== undefined) { seen.add(was); continue; }
+    if (was !== undefined) {
+      seen.add(was);
+      if (of !== undefined && was < of.length) of[was] = i;
+      continue;
+    }
     const lane = nearestLane(lanes, index, x, z, Use.CAR, 220);
     const foot = nearestLane(lanes, index, x, z, Use.FOOT, 220);
-    seen.add(places.add(proto, x, z, lane, foot));
+    const id = places.add(proto, x, z, lane, foot);
+    seen.add(id);
+    if (of !== undefined && id < of.length) of[id] = i;
     added++;
   }
 
@@ -545,8 +557,8 @@ export function relinkPlaces(lanes: LaneGraph, index: LaneIndex, places: Places)
 
 /** Builds the table from scratch, for a city that has no simulation yet. */
 export function buildPlaces(city: City, lanes: LaneGraph, index: LaneIndex,
-  into?: Places): Places {
+  into?: Places, rows?: { of: Int32Array }): Places {
   const places = into ?? new Places(Math.max(4096, city.count));
-  reconcilePlaces(city, lanes, index, places);
+  reconcilePlaces(city, lanes, index, places, [], rows);
   return places;
 }
