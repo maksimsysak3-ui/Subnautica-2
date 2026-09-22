@@ -394,6 +394,93 @@ built.push({
   build: stopSign,
 });
 
+/**
+ * A building on fire: flame at the bottom, smoke going up.
+ *
+ * The one event in the game a player can watch happen, and until now it
+ * happened entirely inside a table. A fire was raised, an engine was routed to
+ * it, the call was answered or it was not, the building lost condition -- and
+ * the only trace of any of it on screen was an engine driving somewhere. So a
+ * fire station was a thing you built because a coverage map said to, which is
+ * not the same as a thing you built because you watched a street burn.
+ *
+ * Drawn as one instance rather than a particle system. A plume is a stack of
+ * tapered masses going up and leaning over, and at the distance this game is
+ * played at that is what smoke looks like; a real particle system would be a
+ * second pipeline, a second buffer and a sort, for something the eye reads in a
+ * tenth of a second. The writhing comes from the frame, which spins and lifts
+ * it -- see `Movers.gather`.
+ *
+ * `lod` thins it rather than dropping it: a fire half a kilometre away is
+ * exactly the thing a player wants to be able to see.
+ */
+function blaze(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod === 0;
+  const sides = fine ? 9 : 6;
+
+  // The fire itself. Three tongues rather than one cone, because one cone is a
+  // traffic bollard.
+  m.painted(TINT.SIGN_LIT, () => {
+    m.cone(0, 0, 2.0, 0.85, 0.1, 3.0, sides, MAT.TRIM);
+    m.cone(0, 0, 1.15, 0.08, 2.8, 6.4, sides, MAT.TRIM);
+    if (fine) {
+      m.cone(-1.15, 0.6, 0.95, 0.07, 0.1, 4.4, sides, MAT.TRIM);
+      m.cone(1.05, -0.75, 0.8, 0.06, 0.1, 3.6, sides, MAT.TRIM);
+      m.cone(0.3, 1.2, 0.68, 0.05, 0.1, 3.0, sides, MAT.TRIM);
+    }
+  });
+
+  // And the column over it. Widening, leaning, and darkening as it rises --
+  // the top of a plume is thin enough to see sky through, which a solid mass
+  // cannot show, so it is thin and pale instead.
+  const puffs = fine ? 8 : 4;
+  // The column tops out at the same height whatever the level of detail. A
+  // coarse mesh that reaches higher than the fine one is not just untidy: the
+  // three levels share one quantisation frame in the atlas, so the taller one
+  // decides the frame and the finer one is quantised against a box it does not
+  // fill -- and the asset audit rightly refuses it.
+  const TOP = 18.2;
+  m.painted(TINT.SMOKE, () => {
+    for (let i = 0; i < puffs; i++) {
+      const t = i / (puffs - 1);
+      // Clear of the flame's tips. The first version started the column inside
+      // them and swallowed the whole fire, which left an orange lozenge poking
+      // out of a grey pillar.
+      const y0 = 5.4 + t * 10.6;
+      // Overlapping, not stacked. Sections that meet end to end read as a pile
+      // of traffic cones; ones that run into each other read as one mass.
+      const y1 = Math.min(TOP, y0 + (fine ? 3.4 : 5.4));
+      // A slow lean, so the column is a column and not a chimney.
+      const lean = t * t * 2.8;
+      const wob = Math.sin(i * 2.1) * 0.8;
+      // Barrelled rather than tapered: each section swells to its middle and
+      // comes back in, which is the shape a puff of smoke has.
+      // Wide. A plume that keeps a chimney's width all the way up is a
+      // chimney, and the first version of this read as one: smoke spreads as
+      // it rises and loses its heat, and by the top of the column it is three
+      // or four times the width of the fire that made it.
+      const r0 = 1.6 + t * 3.6;
+      const rm = r0 + 0.8;
+      const mid = (y0 + y1) / 2;
+      m.cone(lean + wob * 0.4, wob, r0, rm, y0, mid, sides, MAT.CONCRETE);
+      m.cone(lean + wob * 0.4, wob, rm, r0 + 0.9, mid, y1, sides, MAT.CONCRETE);
+    }
+  });
+  return m;
+}
+
+built.push({
+  id: 'move.blaze', name: 'Fire', zone: 'fleet', density: 'none',
+  variant: 'sculpted', footprint: [3, 3], height: 18.2, sim: free,
+  brand: {
+    name: '', colour: [1.0, 0.46, 0.10], accent: [1.0, 0.78, 0.30], sign: 'none',
+  },
+  note: 'A building alight: three tongues of flame and the column of smoke '
+    + 'over them, drawn wherever the dispatch model has an open fire.',
+  build: blaze,
+});
+
 export const MOVERS: AssetDef[] = built;
 
 /**
@@ -422,6 +509,7 @@ export const MOVER_IDS = {
   signalGreen: 'move.signalGreen',
   giveway: 'move.giveway',
   stop: 'move.stop',
+  blaze: 'move.blaze',
 } as const;
 
 /**
@@ -451,6 +539,10 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.signalGreen': 160,
   'move.giveway': 320,
   'move.stop': 200,
+  // A city has a handful of fires at once and each is one instance. The cap is
+  // what stops a city that has lost its fire service from filling the frame
+  // with smoke; past it the rest burn unseen, which is the right thing to drop.
+  'move.blaze': 48,
 };
 
 /**

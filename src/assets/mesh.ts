@@ -236,6 +236,16 @@ export const TINT = {
    * navy blue.
    */
   GREEN_DARK: 10,
+  /**
+   * Smoke: pale, flat and unbranded.
+   *
+   * A tint rather than a material because smoke has no pattern to it -- it is a
+   * mass of one colour that the lighting shapes, which is exactly what the
+   * palette path is for. The alternative was painting it with the dark metal
+   * tint, which is very nearly black, and a plume that comes out as a black
+   * obelisk standing on a roof.
+   */
+  SMOKE: 11,
 } as const;
 
 export type Tint = (typeof TINT)[keyof typeof TINT];

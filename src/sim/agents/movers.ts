@@ -32,6 +32,7 @@ import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
 import { SITE_IDS } from '../../assets/generators/construction';
 import type { SiteView } from './growth';
+import type { FireView } from './dispatch';
 import type { Strollers } from './strollers';
 import { ASSET_INDEX } from '../inventory';
 import { ASSETS } from '../../assets/registry';
@@ -224,6 +225,7 @@ export class Movers {
   fill(out: Float32Array, cap: number, traffic: Traffic, routine: Routine,
     people: People, lanes: LaneGraph, paths: PathStore, junctions: Junctions,
     sites: SiteView | undefined,
+    blazes: FireView | undefined,
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0): number {
@@ -458,9 +460,35 @@ export class Movers {
       }
     }
 
+    // What is on fire. One instance a building, spun and lifted by the clock so
+    // the column writhes rather than standing there like a monument -- there is
+    // no particle system behind this and it does not need one.
+    if (blazes !== undefined) {
+      for (let i = 0; i < blazes.count; i++) {
+        const x = blazes.x[i], z = blazes.z[i];
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > FIRE_REACH * FIRE_REACH) continue;
+        const seed = blazes.seed[i];
+        // Two columns a fire, turning at different rates and in different
+        // directions, which is what stops a plume reading as one solid object
+        // rotating. The lift is a slow breath on top of it.
+        const phase = (seed >>> 7 & 1023) / 1023 * Math.PI * 2;
+        const beat = lead + blazes.age[i] * 0.21;
+        const up = blazes.lift[i];
+        write('blaze', x, z, phase + beat * 0.55, up + Math.sin(beat * 1.7) * 0.35);
+        write('blaze', x, z, phase - beat * 0.38 + 2.1,
+          up + 1.2 + Math.sin(beat * 1.1 + 2) * 0.5);
+      }
+    }
+
     return n;
   }
 }
+
+/** Metres from the camera within which a fire is worth drawing. Further than
+ * anything else that moves: a column of smoke is the one thing in this city a
+ * player should be able to see from the other side of it. */
+const FIRE_REACH = 2400;
 
 /** Metres from the camera within which a vehicle is worth drawing. */
 const DRAW_REACH = 900;

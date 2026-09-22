@@ -82,6 +82,31 @@ export const NEEDS_COUNT = NEED_NAMES.length;
  * make emergency response depend on the player's frame rate, which is not a
  * simulation of anything.
  */
+/**
+ * Fires drawn at once, whatever the city has.
+ *
+ * A city that has lost its fire service entirely can have hundreds of open
+ * calls, and a frame full of smoke columns says less than a dozen of them do.
+ */
+const MAX_BLAZES = 48;
+
+/** Where the city is burning, as flat arrays the frame reads once. */
+export interface FireView {
+  count: number;
+  x: Float32Array;
+  z: Float32Array;
+  age: Float32Array;
+  /**
+   * How far up the plume starts, in metres above the ground.
+   *
+   * The roof, not the pavement. A fire drawn at the foot of a forty-metre tower
+   * is a fire nobody can see: eighteen metres of smoke inside the building it
+   * is coming out of.
+   */
+  lift: Float32Array;
+  seed: Int32Array;
+}
+
 const State = {
   /** Raised, nobody assigned. */
   WAITING: 0,
@@ -285,6 +310,56 @@ export interface DispatchStats {
 
 export class Dispatch {
   readonly table = new Table(SCHEMA, 256);
+
+  /**
+   * Where the city is on fire, for the frame to draw.
+   *
+   * The same shape and for the same reason as the building sites' view: read
+   * once per frame by the renderer, so it is flat arrays reused every time
+   * rather than a list of little records allocated sixty times a second for
+   * something the eye reads in a tenth of a second.
+   */
+  readonly blazes: FireView = {
+    count: 0,
+    x: new Float32Array(MAX_BLAZES),
+    z: new Float32Array(MAX_BLAZES),
+    /** How long it has been alight, in ticks, for the flame to build. */
+    age: new Float32Array(MAX_BLAZES),
+    lift: new Float32Array(MAX_BLAZES),
+    seed: new Int32Array(MAX_BLAZES),
+  };
+
+  /**
+   * Refreshes that list from the calls table.
+   *
+   * A walk over the open calls, which is a couple of hundred rows at the
+   * outside -- the table is capped, deliberately, for exactly this kind of
+   * reason.
+   */
+  private lookAtFires(tick: number): void {
+    const c = this.table.col;
+    const b = this.blazes;
+    let n = 0;
+    for (let r = 0; r < this.table.bound && n < MAX_BLAZES; r++) {
+      if (this.table.live[r] === 0) continue;
+      if (c.kind[r] !== Need.FIRE) continue;
+      const p = c.place[r];
+      if (p < 0) continue;
+      b.x[n] = this.places.col.x[p];
+      b.z[n] = this.places.col.z[p];
+      b.age[n] = Math.max(0, tick - c.raised[r]);
+      // At the roof. Two thirds of the way up was the first guess and it is
+      // wrong for anything that is not a plain box: on a domed station or a
+      // stepped tower, two thirds up is inside the building, and the flame --
+      // which is the whole point of the thing -- was hidden by the roof it was
+      // supposed to be coming out of.
+      const def = ASSETS[this.places.col.proto[p]];
+      b.lift[n] = Math.max(1.5, (def?.height ?? 6) * 0.92);
+      b.seed[n] = r * 2654435761;
+      n++;
+    }
+    b.count = n;
+  }
   private readonly rng: Rng;
 
   /** Crews out, per station. Indexed by place id. */
@@ -682,6 +757,9 @@ export class Dispatch {
     this.drain();
     const c = this.table.col;
     const tick = this.clock.tick;
+    // Before the pass that closes them, so a fire that is put out this tick is
+    // still drawn burning for the frame that shows the engine arriving.
+    this.lookAtFires(tick);
     let waiting = 0, driving = 0, worst = 0;
 
     for (let r = 0; r < this.table.bound; r++) {

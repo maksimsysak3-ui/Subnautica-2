@@ -1258,7 +1258,40 @@ Promise<{ pixels: number[]; movers: string }> {
   // while the probe was not looking, and its card would be over whatever this
   // is photographing.
   if (panel !== 'level') live.levelCard.dismissAll();
-  if (panel === 'decay') {
+  if (panel === 'fire') {
+    // Half a dozen buildings alight near the camera, for photographing what a
+    // fire looks like. Raised through the dispatch model's own door rather than
+    // by drawing smoke somewhere: what is on screen is what the model has open,
+    // and an engine is on its way to every one of them.
+    const open = (sim.dispatch as unknown as {
+      open(kind: number, place: number): void }).open.bind(sim.dispatch);
+    let lit = 0;
+    for (let id = 0; id < pl.count && lit < 6; id++) {
+      if (pl.live[id] === 0) continue;
+      if (pl.col.purpose[id] === Purpose.SERVICE) continue;
+      const dx = pl.col.x[id], dz = pl.col.z[id];
+      if (dx * dx + dz * dz > 260 * 260) continue;
+      if ((id % 7) !== 0) continue;
+      open(0, id);
+      if (lit === 0) {
+        // Aimed at the first one, so the picture is of a fire rather than of
+        // the city a fire happens to be somewhere in.
+        camera.focus[0] = dx;
+        camera.focus[2] = dz;
+        camera.update();
+      }
+      lit++;
+    }
+    // A handful of frames and no more. A fire's patience is eleven game
+    // minutes, which is seven ticks -- so a probe that played on for five real
+    // seconds photographed a city where every one of them had already been put
+    // out or run out of time.
+    for (let i = 0; i < 8; i++) live.update(1 / 60, performance.now() + i * 16);
+    live.tap(null);
+    live.levelCard.dismissAll();
+    console.log(`fire: lit ${lit}, blazes ${sim.dispatch.blazes.count}, `
+      + `calls ${sim.dispatch.count}`);
+  } else if (panel === 'decay') {
     // A quarter nobody is looking after, for photographing what that looks
     // like. The mains come up -- which is what bulldozing the network amounts
     // to -- and the city is played on until the buildings have lost condition.

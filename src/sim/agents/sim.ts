@@ -865,7 +865,7 @@ export class Simulation {
     ground: (x: number, z: number) => number): number {
     return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
       this.lanes, this.router.paths, this.junctions, this.growth?.sites,
-      this.strollers,
+      this.dispatch.blazes, this.strollers,
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick);
