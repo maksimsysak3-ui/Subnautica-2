@@ -131,7 +131,19 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
  * bucket. The threshold is relative rather than absolute so that zooming in,
  * which shrinks the volume, brings the small things back into it.
  */
-const SHADOW_MIN_SIZE = 0.006;
+/**
+ * How tall a building has to be, as a fraction of the shadow volume, to bother
+ * casting.
+ *
+ * It is really a statement about the shadow map's texel size: a building
+ * shorter than a couple of texels cannot throw a shadow anybody can make out,
+ * and drawing it into the map costs the same as drawing a tower. Six
+ * thousandths was right when the volume was a few hundred metres and wrong the
+ * moment it was fitted to the whole view -- at fifteen hundred metres it
+ * stopped every house in the city casting anything, which is most of what a
+ * street's shade is.
+ */
+const SHADOW_MIN_SIZE = 0.0018;
 
 /**
  * Under this many pixels tall, a building is not drawn at all.

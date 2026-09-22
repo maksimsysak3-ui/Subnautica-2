@@ -80,9 +80,22 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
   // tan(acos(n)) is sqrt(1 - n*n) / n, which is the same number without two
   // transcendentals -- and this runs on every lit pixel of every surface in
   // the frame, so two is a great many.
+  // Slope-scaled depth bias, stated in metres and converted into the sun's own
+  // clip depth.
+  //
+  // In metres because that is the unit the error is in: a texel of the shadow
+  // map covers a patch of ground, and a sloped surface changes depth across
+  // that patch by the texel's width times the slope. Stating it in clip units
+  // instead -- which is what this did -- ties it to the size of the volume, so
+  // a bias that was right for a street was ninety metres across a city, and
+  // every shadow in the game was biased into nothing.
   let c = clamp(ndl, 0.0, 1.0);
-  let bias = clamp(0.0022 * (sqrt(max(1.0 - c * c, 0.0)) / max(c, 0.02)), 0.0008, 0.010);
+  let slope = sqrt(max(1.0 - c * c, 0.0)) / max(c, 0.06);
   let texel = camera.params.z;
+  // The width of one texel on the ground: half the volume is `focus.w`.
+  let texelWorld = camera.focus.w * 2.0 * texel;
+  let metres = clamp(texelWorld * (0.9 + slope * 1.7), 0.04, texelWorld * 9.0 + 0.5);
+  let bias = metres / max(camera.sunDir.w, 1.0);
 
   // Four taps, not nine.
   //

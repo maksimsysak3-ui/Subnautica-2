@@ -26,7 +26,8 @@ import type { Gpu, Viewport } from './device';
 import type { Camera } from './camera';
 import type { Stats } from '../ui/stats';
 import { Frustum } from './frustum';
-import { invert, mat4, ortho, lookAt, multiply } from '../math/m4';
+import { invert, mat4, ortho, lookAt, multiply, transformPoint } from '../math/m4';
+import type { Vec3 } from '../math/m4';
 import { GpuProfiler } from './profiler';
 import { Atlas, VERTEX_BYTES } from './atlas';
 import { planCity } from './city-draw';
@@ -145,6 +146,19 @@ const GOVERN_RETRY = 60;
  * + six frustum planes (96).
  */
 const CAMERA_UNIFORM_SIZE = 448;
+
+/**
+ * How far from the camera the shadow volume reaches, in metres.
+ *
+ * A limit on resolution rather than on sight: two thousand and forty-eight
+ * texels over twice this is about a metre and a half a texel at the widest,
+ * which is the coarsest a building's shadow can be and still read as one. Past
+ * it the ground is unshadowed, which at over a kilometre out is a difference
+ * nobody can see.
+ */
+const SHADOW_RANGE = 1500;
+/** And the smallest volume, so a close-up does not sharpen into aliasing. */
+const SHADOW_MIN = 90;
 
 /** Edge of the shadow map, in texels. */
 const SHADOW_SIZE = 2048;
@@ -978,9 +992,24 @@ export class Renderer {
       depthStencil,
     });
 
-    // Depth only, from the sun. Front faces culled rather than back: shadow
-    // acne appears on lit surfaces, and casting from the far side of each
-    // object moves the error into geometry the camera cannot see.
+    // Depth only, from the sun, and from every face rather than only the far
+    // ones.
+    //
+    // This used to cull front faces -- the old trick of casting from the back
+    // of each object so that acne lands where the camera cannot see it. It
+    // works for objects floating in space and it cannot work for a city. A
+    // building stands on the ground, so the face the light leaves through is
+    // at ground level, and the depth written for that whole footprint is the
+    // ground's own depth -- which means the ground under a building is never
+    // behind anything and the building never casts a shadow onto its own
+    // street. That is why this city has stood in flat light for its whole
+    // life with a working shadow map behind it.
+    //
+    // Both faces, nearest wins, and the acne is handled where it should be:
+    // by a slope-scaled bias stated in metres -- see `shadowFactor`. Not
+    // back-face culling either, because a good deal of this library is built
+    // from boxes with faces deliberately left off, and half of those would
+    // cast nothing at all.
     const shadow = device.createRenderPipeline({
       label: 'shadow-pipeline',
       layout: device.createPipelineLayout({
@@ -997,7 +1026,7 @@ export class Renderer {
           ],
         }],
       },
-      primitive: { topology: 'triangle-list', cullMode: 'front', frontFace: 'ccw' },
+      primitive: { topology: 'triangle-list', cullMode: 'none', frontFace: 'ccw' },
       depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: true, depthCompare: 'less' },
     });
 
@@ -1562,6 +1591,8 @@ export class Renderer {
    */
   private warm = new Uint8Array(0);
   private castWarm = new Uint8Array(0);
+  /** Instances drawn into the shadow map on the last readback. */
+  private drawnCasters = 0;
   private encodedBuckets = 0;
   private encodedCasts = 0;
 
@@ -1912,6 +1943,98 @@ export class Renderer {
     }
   }
 
+  /**
+   * Fits the sun's shadow volume to the ground the camera can actually see.
+   *
+   * It used to be a box around the focus point, sized from the camera's
+   * distance -- and that is only the right answer looking straight down. The
+   * camera in this game is an orbit rig at a shallow pitch: at four hundred
+   * metres out and twenty degrees above the horizon it can see three
+   * kilometres of city, and a volume four hundred metres wide covered a disc
+   * of ground somewhere below the bottom of the screen. Everything else read
+   * as outside the volume, which the shader correctly treats as unshadowed --
+   * so the entire skyline was lit with no shadows at all and the city looked
+   * like a diagram of itself.
+   *
+   * Now the four corners of the view are traced to the ground, clamped to a
+   * range the map can resolve, and the volume is fitted round them. A bounding
+   * sphere rather than a box, so turning the camera does not change its size
+   * and the shadows do not crawl as it turns; and the centre is snapped to
+   * whole texels, which is what stops them shimmering as it pans.
+   */
+  private fitSun(cam: Camera, sun: Vec3): void {
+    const eyeX = cam.eye[0], eyeZ = cam.eye[2];
+    const planeY = cam.focus[1];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    const take = (x: number, z: number): void => {
+      // Clamped towards the camera, because a corner looking at the horizon
+      // lands kilometres away and fitting the volume to that spends every
+      // texel of the map on ground nobody can make out.
+      const dx = x - eyeX, dz = z - eyeZ;
+      const d = Math.hypot(dx, dz);
+      const k = d > SHADOW_RANGE ? SHADOW_RANGE / d : 1;
+      const px = eyeX + dx * k, pz = eyeZ + dz * k;
+      if (px < minX) minX = px;
+      if (px > maxX) maxX = px;
+      if (pz < minZ) minZ = pz;
+      if (pz > maxZ) maxZ = pz;
+    };
+    const inv = cam.invViewProj;
+    for (let i = 0; i < 4; i++) {
+      const nx = (i & 1) === 0 ? -1 : 1;
+      const ny = (i & 2) === 0 ? -1 : 1;
+      const near = transformPoint(this.sunScratchA, inv, nx, ny, 0);
+      const ax = near[0], ay = near[1], az = near[2];
+      const far = transformPoint(this.sunScratchB, inv, nx, ny, 1);
+      const dy = far[1] - ay;
+      // Where that corner's ray meets the ground, or -- when it is pointed at
+      // the sky -- as far along it as the map is going to reach anyway.
+      let t = Math.abs(dy) < 1e-6 ? 1 : (planeY - ay) / dy;
+      if (!(t > 0)) t = 1;
+      if (t > 1) t = 1;
+      take(ax + (far[0] - ax) * t, az + (far[2] - az) * t);
+    }
+    take(cam.focus[0], cam.focus[2]);
+
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    // The sphere through the box's corners, so the volume is the same size
+    // whichever way the camera is facing.
+    const radius = Math.max(SHADOW_MIN, 0.5 * Math.hypot(maxX - minX, maxZ - minZ));
+    const texel = (radius * 2) / this.shadowSize;
+    const snapX = Math.round(cx / texel) * texel;
+    const snapZ = Math.round(cz / texel) * texel;
+
+    this.sunCentre[0] = snapX;
+    this.sunCentre[1] = planeY;
+    this.sunCentre[2] = snapZ;
+    this.sunRadius = radius;
+
+    const back = radius * 2.6 + 400;
+    lookAt(this.sunView,
+      [snapX + sun[0] * back, planeY + sun[1] * back, snapZ + sun[2] * back],
+      [snapX, planeY, snapZ], [0, 1, 0]);
+    const depth = back * 2 + 900;
+    ortho(this.sunProj, -radius, radius, -radius, radius, 1, depth);
+    multiply(this.sunViewProj, this.sunProj, this.sunView);
+    // How many metres one unit of the sun's clip depth is worth.
+    //
+    // The shaders need it to state the depth bias in metres. Stating it in
+    // clip units, which is what they did, is stating it in a unit that changes
+    // with the size of the volume: a hundredth of the range is nine metres at
+    // street level and ninety over the whole city, so every shadow in the game
+    // was biased away into nothing and the city has never once had a shadow
+    // cast across it.
+    this.sunDepth = depth - 1;
+  }
+
+  private readonly sunScratchA: Vec3 = [0, 0, 0];
+  private readonly sunScratchB: Vec3 = [0, 0, 0];
+  /** Where the sun's volume ended up, for the culling pass to pick casters in. */
+  private readonly sunCentre: Vec3 = [0, 0, 0];
+  private sunRadius = SHADOW_MIN;
+  /** Metres per unit of the sun's clip depth, for the shadow bias. */
+  private sunDepth = 1;
+
   private frame(now: number): void {
     const res = this.res;
     const post = this.post;
@@ -1954,18 +2077,7 @@ export class Renderer {
     // best and is exactly when it happens.
     this.night = smooth01((0.06 - sun[1]) / 0.20);
 
-    // The sun's view, refitted to what the camera is looking at. One cascade,
-    // sized to the zoom: at street level the volume is a couple of hundred
-    // metres and the shadows are sharp, and from the sky it grows to cover
-    // what is on screen and softens, which is the right trade in both places.
-    const extent = Math.min(Math.max(cam.distance * 1.15, 140), 1100);
-    const focus = cam.focus;
-    const back = extent * 2.4;
-    lookAt(this.sunView,
-      [focus[0] + sun[0] * back, focus[1] + sun[1] * back, focus[2] + sun[2] * back],
-      [focus[0], focus[1], focus[2]], [0, 1, 0]);
-    ortho(this.sunProj, -extent, extent, -extent, extent, 1, back * 2 + 900);
-    multiply(this.sunViewProj, this.sunProj, this.sunView);
+    this.fitSun(cam, sun);
 
     this.cameraData.set(cam.viewProjMatrix, 0);
     // The inverse, for unprojecting a screen corner into a view ray. The sky
@@ -1977,8 +2089,13 @@ export class Renderer {
     this.cameraData[49] = cam.eye[1];
     this.cameraData[50] = cam.eye[2];
     this.cameraData[51] = cam.far;
-    this.cameraData.set([sun[0], sun[1], sun[2], 0], 52);
-    this.cameraData.set([focus[0], focus[1], focus[2], extent], 56);
+    this.cameraData.set([sun[0], sun[1], sun[2], this.sunDepth], 52);
+    // The sun's volume, not the camera's focus: the culling pass picks shadow
+    // casters out of a disc around this, and the disc has to be the one the
+    // volume was actually fitted to or half the casters in the frame are
+    // dropped before they are drawn.
+    this.cameraData.set(
+      [this.sunCentre[0], this.sunCentre[1], this.sunCentre[2], this.sunRadius], 56);
     this.cameraData[60] = (now - this.startedAt) / 1000;
     this.cameraData[61] = TERRAIN.size * 0.5;
     this.cameraData[62] = 1 / this.shadowSize;
@@ -2026,8 +2143,8 @@ export class Renderer {
     // viewer and the padding costs nothing.
     this.sceneData.set(cam.viewProjMatrix, 0);
     this.sceneData.set(this.sunViewProj, 16);
-    this.sceneData.set([cam.eye[0], cam.eye[1], cam.eye[2], 0], 32);
-    this.sceneData.set([sun[0], sun[1], sun[2], 0], 36);
+    this.sceneData.set([cam.eye[0], cam.eye[1], cam.eye[2], this.sunRadius], 32);
+    this.sceneData.set([sun[0], sun[1], sun[2], this.sunDepth], 36);
     // x turns aerial perspective on: the city wants it, the viewer does not.
     // w is the clock the growth animation is measured against.
     this.sceneData.set([1, 1 / this.shadowSize, TERRAIN.size * 0.5,
@@ -2330,6 +2447,7 @@ export class Renderer {
     const shown = this.drawnByLod[0] + this.drawnByLod[1] + this.drawnByLod[2];
     this.stats.set('buildings', `${shown.toLocaleString()}/${res.instanceCount.toLocaleString()}`);
     this.stats.set('lod', this.drawnByLod.join('·'));
+    this.stats.set('casters', this.drawnCasters.toLocaleString());
     this.stats.set('tris', `${(this.drawnTris / 1000).toFixed(0)}k`);
     this.stats.set('zoom', `${cam.distance.toFixed(0)}m`);
     this.stats.set('px', `${viewport.width}×${viewport.height}`);
@@ -2383,11 +2501,17 @@ export class Renderer {
         const castAt = res.argsReset.byteLength / 4;
         const cw = this.castWarm.length === res.casts.length
           ? this.castWarm : new Uint8Array(res.casts.length);
+        let cast = 0;
         for (let i = 0; i < res.casts.length; i++) {
           const n = v[castAt + (res.casts[i].argsOffset / 4) + 1];
           cw[i] = n > 0 ? WARM_FRAMES : (cw[i] > 0 ? cw[i] - 1 : 0);
+          cast += n;
         }
         this.castWarm = cw;
+        // What went into the shadow map. Worth a row of its own: an empty map
+        // is indistinguishable from a sunny day, so a city with no shadows in
+        // it looks like a rendering choice rather than a bug.
+        this.drawnCasters = cast;
 
         this.drawnByLod = byLod;
         this.drawnTris = tris;

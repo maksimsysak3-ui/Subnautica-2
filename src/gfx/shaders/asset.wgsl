@@ -1501,9 +1501,22 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
   // bias than one facing it, and a single constant either acnes the flat
   // faces or peters the contact shadows away.
   // tan(acos(n)) is sqrt(1 - n*n) / n: the same number, no transcendentals.
+  // Slope-scaled depth bias, stated in metres and converted into the sun's own
+  // clip depth.
+  //
+  // In metres because that is the unit the error is in: a texel of the shadow
+  // map covers a patch of ground, and a sloped surface changes depth across
+  // that patch by the texel's width times the slope. Stating it in clip units
+  // instead -- which is what this did -- ties it to the size of the volume, so
+  // a bias that was right for a street was ninety metres across a city, and
+  // every shadow in the game was biased into nothing.
   let c = clamp(ndl, 0.0, 1.0);
-  let bias = clamp(0.0016 * (sqrt(max(1.0 - c * c, 0.0)) / max(c, 0.02)), 0.0006, 0.006);
+  let slope = sqrt(max(1.0 - c * c, 0.0)) / max(c, 0.06);
   let texel = scene.params.y;
+  // The width of one texel on the ground: half the volume is `eye.w`.
+  let texelWorld = scene.eye.w * 2.0 * texel;
+  let metres = clamp(texelWorld * (0.9 + slope * 1.7), 0.04, texelWorld * 9.0 + 0.5);
+  let bias = metres / max(scene.sunDir.w, 1.0);
 
   // Four taps, not nine.
   //
@@ -1587,13 +1600,18 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let ndl = dot(n, sun);
   let shadow = shadowFactor(in.world, ndl);
 
-  // Sky above, bounce from the ground below, both modulated by occlusion.
-  let sky = vec3f(0.34, 0.40, 0.50);
-  let bounce = vec3f(0.24, 0.21, 0.18);
-  let ambient = mix(bounce, sky, n.y * 0.5 + 0.5) * in.ao;
-
-  let sunColour = vec3f(1.02, 0.94, 0.80);
-  let direct = sunColour * max(ndl, 0.0) * shadow * 1.15;
+  // Sky above, bounce from the ground below, both modulated by occlusion --
+  // and both from the same atmosphere the ground and the roads are lit by.
+  //
+  // These were three hard-coded constants: the clear-noon values, frozen. So a
+  // building was lit identically at dawn, at noon, at dusk and at midnight,
+  // under a clear sky and under a rainstorm, while the terrain it stood on and
+  // the road in front of it changed with all of them. That is most of why the
+  // city read as a diagram: at sunset the ground went orange and the buildings
+  // standing on it stayed the colour of a grey afternoon.
+  let ambient = mix(ambientGround(sun), ambientSky(sun), n.y * 0.5 + 0.5) * in.ao;
+  let sunColour = sunLight(sun);
+  let direct = sunColour * max(ndl, 0.0) * shadow;
 
   col = col * (ambient + direct);
 
