@@ -190,6 +190,7 @@ if (cst && cst.cost) {
     .sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v.toFixed(0)}`);
   console.log(`cost     rebuild ${cst.cost.total.toFixed(0)}ms  (${parts.join(', ')})`);
   console.log(`edits    ${cst.edits.join(' ')} ms`);
+  console.log(`warm     ${cst.queued} prototypes queued ahead of need, ${cst.warmed} generated`);
   console.log(`meshes   ${cst.meshes.join(' ')} newly baked per edit`);
   console.log(`chunks   ${cst.cost.terrainChunks} terrain chunks rebuilt on the last edit`);
 }

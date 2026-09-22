@@ -1055,25 +1055,144 @@ const STRENGTH = 0.70;
  */
 const ORIGIN_OFFSET = 0.62;
 
-/** Cosine-weighted hemisphere directions, generated once by a spiral. */
-const HEMISPHERE: Vec3[] = (() => {
-  const dirs: Vec3[] = [];
-  const n = 20;
-  for (let i = 0; i < n; i++) {
+/**
+ * Cosine-weighted hemisphere directions, generated once by a spiral.
+ *
+ * Flat, three floats a direction, rather than an array of triples: this is
+ * read twenty times per vertex and half a million times per building, and an
+ * array of arrays costs two loads and a bounds check for every component.
+ */
+const RAYS = 20;
+const HEMISPHERE: Float64Array = (() => {
+  const dirs = new Float64Array(RAYS * 3);
+  for (let i = 0; i < RAYS; i++) {
     // Fibonacci hemisphere: even coverage without clumping, which matters at
     // this few samples -- clumped rays produce blotches, not soft corners.
-    const y = Math.sqrt((i + 0.5) / n);
+    const y = Math.sqrt((i + 0.5) / RAYS);
     const r = Math.sqrt(1 - y * y);
     const phi = (i + 0.5) * Math.PI * (3 - Math.sqrt(5));
-    dirs.push([Math.cos(phi) * r, y, Math.sin(phi) * r]);
+    dirs[i * 3] = Math.cos(phi) * r;
+    dirs[i * 3 + 1] = y;
+    dirs[i * 3 + 2] = Math.sin(phi) * r;
   }
   return dirs;
 })();
 
-function voxelKey(x: number, y: number, z: number): number {
-  // 10 bits per axis around the origin: +/-170 m at this voxel size, far more
-  // than any single building needs.
-  return ((x + 512) | ((y + 512) << 10) | ((z + 512) << 20)) >>> 0;
+
+// The occupancy grid: one dense bitset of voxels, with a second bitset over
+// blocks of four as a cache-resident first answer. Both reused between bakes.
+//
+// This was a `Set<number>`, and that Set was nine tenths of what baking a
+// building cost. A vertex fires twenty rays of nine steps each, so a mesh of
+// twenty thousand vertices probes the grid a few million times, and every one
+// of those probes went through the engine's generic hash of a boxed number.
+//
+// A hash of machine words instead was most of a doubling, and then the wall
+// was memory rather than instructions: hashing scatters neighbouring voxels
+// across megabytes, so a ray walking three metres of straight line missed
+// cache at every step. A dense bitset is both smaller and in order -- a bit
+// per voxel is eighty kilobytes for a house and twelve megabytes for the
+// airport, against the hash's four to sixteen -- and a marching ray reads
+// nearby words. The blocks on top of it answer the commonest question, "is
+// there anything at all out here", out of a table a sixty-fourth the size.
+let fine = new Uint32Array(1 << 12);
+let coarse = new Uint32Array(1 << 8);
+/** Grid extent in voxels, and in blocks of four voxels. */
+let dx = 1, dy = 1, dz = 1, cdx = 1, cdy = 1;
+/** The grid's frame: reciprocal voxel size and the voxel its corner sits in. */
+let vox1 = 1 / VOXEL, ox = 0, oy = 0, oz = 0;
+/**
+ * The last voxel marked. Successive samples along a triangle are a fraction of
+ * a voxel apart, so most of them land where the last one did, and one compare
+ * is cheaper than the read-modify-write it skips.
+ */
+let lastMark = -2;
+
+/** A hundred and thirty million voxels: sixteen megabytes of bits. */
+const MAX_VOXELS = 1 << 27;
+
+/**
+ * Points the grid at one mesh: a corner at the mesh's own minimum, and tables
+ * sized for it.
+ *
+ * Two voxels of margin and no more. An earlier version carried the rays' whole
+ * reach so that no ray could leave the grid, and that was backwards: the
+ * geometry is inside the mesh's own bounds, the bounds are a box, and a
+ * straight ray that leaves a box never comes back. A tight grid turns
+ * "outside" into "nothing left to hit".
+ *
+ * The frame is also measured from the mesh rather than from the world origin.
+ * The first version packed ten bits an axis around the origin, which silently
+ * wrapped the y axis into the z bits for anything over a hundred and seventy
+ * metres tall -- every tower in the library was baking its upper floors
+ * against another column's geometry.
+ */
+function openGrid(lo: Vec3, hi: Vec3): void {
+  let size = VOXEL;
+  for (;;) {
+    vox1 = 1 / size;
+    const pad = 2 * size;
+    dx = Math.ceil((hi[0] - lo[0] + 2 * pad) * vox1) + 1;
+    dy = Math.ceil((hi[1] - lo[1] + 2 * pad) * vox1) + 1;
+    dz = Math.ceil((hi[2] - lo[2] + 2 * pad) * vox1) + 1;
+    if (dx * dy * dz <= MAX_VOXELS) {
+      ox = Math.floor((lo[0] - pad) * vox1);
+      oy = Math.floor((lo[1] - pad) * vox1);
+      oz = Math.floor((lo[2] - pad) * vox1);
+      break;
+    }
+    // Nothing in the library reaches this; it is here so that a mesh that one
+    // day does bakes a little softer rather than running out of memory.
+    size *= 1.3;
+  }
+
+  const words = (((dx * dy * dz) + 31) >> 5) + 1;
+  if (fine.length < words) fine = new Uint32Array(words);
+  else fine.fill(0, 0, words);
+  cdx = (dx + 3) >> 2; cdy = (dy + 3) >> 2;
+  const cwords = ((cdx * cdy * ((dz + 3) >> 2)) + 31 >> 5) + 1;
+  if (coarse.length < cwords) coarse = new Uint32Array(cwords);
+  else coarse.fill(0, 0, cwords);
+  lastMark = -2;
+}
+
+/** Marks the voxel a point falls in, if it is on the grid. */
+function addVoxel(x: number, y: number, z: number): void {
+  const ix = Math.floor(x * vox1) - ox;
+  const iy = Math.floor(y * vox1) - oy;
+  const iz = Math.floor(z * vox1) - oz;
+  if (ix < 0 || ix >= dx || iy < 0 || iy >= dy || iz < 0 || iz >= dz) {
+    lastMark = -2;
+    return;
+  }
+  const i = ix + dx * (iy + dy * iz);
+  if (i === lastMark) return;
+  lastMark = i;
+  fine[i >> 5] |= 1 << (i & 31);
+  const c = (ix >> 2) + cdx * ((iy >> 2) + cdy * (iz >> 2));
+  coarse[c >> 5] |= 1 << (c & 31);
+}
+
+/**
+ * Whether a surface passes through the voxel containing this point: 1 for a
+ * hit, 0 for empty, -1 for outside the grid.
+ *
+ * The third answer is what lets the ray loop stop early, for the reason in
+ * `openGrid`: outside the mesh's own bounds there is nothing left to hit.
+ */
+function occupied(x: number, y: number, z: number): number {
+  const ix = Math.floor(x * vox1) - ox;
+  if (ix < 0 || ix >= dx) return -1;
+  const iy = Math.floor(y * vox1) - oy;
+  if (iy < 0 || iy >= dy) return -1;
+  const iz = Math.floor(z * vox1) - oz;
+  if (iz < 0 || iz >= dz) return -1;
+  // The cheap half: a block with nothing in it cannot contain a surface, and
+  // for anything short of a tower the whole block table is in cache.
+  const c = (ix >> 2) + cdx * ((iy >> 2) + cdy * (iz >> 2));
+  if ((coarse[c >> 5] & (1 << (c & 31))) === 0) return 0;
+  const i = ix + dx * (iy + dy * iz);
+  return (fine[i >> 5] >>> (i & 31)) & 1;
 }
 
 /**
@@ -1081,45 +1200,125 @@ function voxelKey(x: number, y: number, z: number): number {
  * grid finer than the voxels. Surface-only, not solid -- which is what we want:
  * a ray that reaches a wall from outside should stop at the wall.
  */
-function voxelize(vertices: Float32Array, indices: Uint32Array): Set<number> {
-  const grid = new Set<number>();
-  const mark = (x: number, y: number, z: number): void => {
-    grid.add(voxelKey(Math.floor(x / VOXEL), Math.floor(y / VOXEL), Math.floor(z / VOXEL)));
-  };
-
+function voxelize(vertices: Float32Array, indices: Uint32Array): void {
   for (let t = 0; t < indices.length; t += 3) {
     const ia = indices[t] * FLOATS_PER_VERTEX;
     const ib = indices[t + 1] * FLOATS_PER_VERTEX;
     const ic = indices[t + 2] * FLOATS_PER_VERTEX;
-    const ax = vertices[ia], ay = vertices[ia + 1], az = vertices[ia + 2];
-    const bx = vertices[ib], by = vertices[ib + 1], bz = vertices[ib + 2];
-    const cx = vertices[ic], cy = vertices[ic + 1], cz = vertices[ic + 2];
+    let ax = vertices[ia], ay = vertices[ia + 1], az = vertices[ia + 2];
+    let bx = vertices[ib], by = vertices[ib + 1], bz = vertices[ib + 2];
+    let cx = vertices[ic], cy = vertices[ic + 1], cz = vertices[ic + 2];
 
-    // Sample density from the triangle's longest edge, so big faces are not
-    // sampled as coarsely as small ones.
-    const span = Math.max(
-      Math.hypot(bx - ax, by - ay, bz - az),
-      Math.hypot(cx - ax, cy - ay, cz - az),
-      Math.hypot(cx - bx, cy - by, cz - bz),
-    );
-    const n = Math.min(48, Math.max(2, Math.ceil((span / VOXEL) * 1.6)));
-    for (let i = 0; i <= n; i++) {
-      for (let j = 0; j <= n - i; j++) {
-        const u = i / n, v = j / n, w = 1 - u - v;
-        mark(ax * w + bx * u + cx * v, ay * w + by * u + cy * v, az * w + bz * u + cz * v);
+    // The barycentric axes are the two edges leaving A, so which vertex is A
+    // decides how much of the sampling is wasted. Pivot on the one opposite
+    // the longest edge and the axes are the two shortest edges of the three.
+    //
+    // This is what makes the per-axis counts below worth having. A window
+    // mullion is a long thin quad cut into two triangles, and in both of them
+    // one of the edges leaving the given first vertex is the diagonal -- as
+    // long as the strip itself. Sampled on that, the eight-centimetre width
+    // gets the three-metre length's count, forty-eight deep. Those strips are
+    // most of what a building is made of, and they were most of fifty million
+    // marks for a library of a quarter of a million triangles.
+    const ab = Math.hypot(bx - ax, by - ay, bz - az);
+    const ac = Math.hypot(cx - ax, cy - ay, cz - az);
+    const bc = Math.hypot(cx - bx, cy - by, cz - bz);
+    if (bc > ab && bc > ac) {
+      // BC longest: A is already the pivot.
+    } else if (ac > ab) {
+      // AC longest: pivot on B.
+      let t = ax; ax = bx; bx = t;
+      t = ay; ay = by; by = t;
+      t = az; az = bz; bz = t;
+    } else {
+      // AB longest: pivot on C.
+      let t = ax; ax = cx; cx = t;
+      t = ay; ay = cy; cy = t;
+      t = az; az = cz; cz = t;
+    }
+    const nu = Math.min(48, Math.max(1,
+      Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) * vox1 * 1.6)));
+    const nv = Math.min(48, Math.max(1,
+      Math.ceil(Math.hypot(cx - ax, cy - ay, cz - az) * vox1 * 1.6)));
+    const iu = 1 / nu, iv = 1 / nv;
+    for (let i = 0; i <= nu; i++) {
+      const u = i * iu;
+      // The triangle, not its parallelogram: past u the far edge closes in.
+      const top = Math.ceil(nv * (1 - u));
+      for (let j = 0; j <= top; j++) {
+        const v = Math.min(1 - u, j * iv), w = 1 - u - v;
+        addVoxel(ax * w + bx * u + cx * v,
+          ay * w + by * u + cy * v,
+          az * w + bz * u + cz * v);
       }
     }
   }
-  return grid;
+}
+
+/**
+ * Vertices whose position and normal are bit-identical get the same occlusion,
+ * so the second one copies rather than casts.
+ *
+ * The meshes here are unindexed -- three vertices a triangle -- and two
+ * triangles of a quad share two of their six, as do the three faces meeting at
+ * a box's corner. That is a third of the rays saved for the price of one hash
+ * per vertex.
+ */
+let seen = new Uint32Array(1 << 14);
+let seenMask = seen.length - 1;
+
+function openSeen(vertexCount: number): void {
+  let want = 1 << 12;
+  while (want < vertexCount * 2 && want < (1 << 22)) want <<= 1;
+  if (seen.length === want) seen.fill(0);
+  else seen = new Uint32Array(want);
+  seenMask = seen.length - 1;
 }
 
 /** Writes an occlusion factor into the 8th float of every vertex. */
 export function bakeOcclusion(vertices: Float32Array, indices: Uint32Array): void {
   if (indices.length === 0) return;
-  const grid = voxelize(vertices, indices);
+  const count = vertices.length / FLOATS_PER_VERTEX;
+
+  const lo: Vec3 = [Infinity, Infinity, Infinity];
+  const hi: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (let v = 0; v < vertices.length; v += FLOATS_PER_VERTEX) {
+    for (let k = 0; k < 3; k++) {
+      if (vertices[v + k] < lo[k]) lo[k] = vertices[v + k];
+      if (vertices[v + k] > hi[k]) hi[k] = vertices[v + k];
+    }
+  }
+  openGrid(lo, hi);
+  voxelize(vertices, indices);
+  openSeen(count);
+
+  // The float bits, for the exact-duplicate test. Identical geometry has
+  // identical bit patterns, so this needs no tolerance and can never merge two
+  // vertices that would have baked differently.
+  const bits = new Uint32Array(vertices.buffer, vertices.byteOffset, vertices.length);
   const step = RAY_LENGTH / RAY_STEPS;
+  const perStep = 1 / RAY_STEPS;
 
   for (let v = 0; v < vertices.length; v += FLOATS_PER_VERTEX) {
+    let h = 2166136261;
+    for (let k = 0; k < 6; k++) h = Math.imul(h ^ bits[v + k], 16777619);
+    let slot = (h >>> 8) & seenMask;
+    let copied = false;
+    for (;;) {
+      const s = seen[slot];
+      if (s === 0) { seen[slot] = v + 1; break; }
+      const o = s - 1;
+      if (bits[o] === bits[v] && bits[o + 1] === bits[v + 1] && bits[o + 2] === bits[v + 2]
+        && bits[o + 3] === bits[v + 3] && bits[o + 4] === bits[v + 4]
+        && bits[o + 5] === bits[v + 5]) {
+        vertices[v + 7] = vertices[o + 7];
+        copied = true;
+        break;
+      }
+      slot = (slot + 1) & seenMask;
+    }
+    if (copied) continue;
+
     const px = vertices[v], py = vertices[v + 1], pz = vertices[v + 2];
     const nx = vertices[v + 3], ny = vertices[v + 4], nz = vertices[v + 5];
 
@@ -1133,32 +1332,35 @@ export function bakeOcclusion(vertices: Float32Array, indices: Uint32Array): voi
     const by = nz * tx - nx * tz;
     const bz = nx * ty - ny * tx;
 
-    const ox = px + nx * ORIGIN_OFFSET;
-    const oy = py + ny * ORIGIN_OFFSET;
-    const oz = pz + nz * ORIGIN_OFFSET;
+    const rox = px + nx * ORIGIN_OFFSET;
+    const roy = py + ny * ORIGIN_OFFSET;
+    const roz = pz + nz * ORIGIN_OFFSET;
 
     let hits = 0;
-    for (const [dx, dy, dz] of HEMISPHERE) {
+    for (let r = 0; r < RAYS * 3; r += 3) {
+      const dx = HEMISPHERE[r], dy = HEMISPHERE[r + 1], dz = HEMISPHERE[r + 2];
       // dy is along the normal; dx and dz span the surface.
-      const rx = tx * dx + nx * dy + bx * dz;
-      const ry = ty * dx + ny * dy + by * dz;
-      const rz = tz * dx + nz * dy + bz * dz;
+      const rx = (tx * dx + nx * dy + bx * dz) * step;
+      const ry = (ty * dx + ny * dy + by * dz) * step;
+      const rz = (tz * dx + nz * dy + bz * dz) * step;
 
-      for (let s = 1; s <= RAY_STEPS; s++) {
-        const d = s * step;
-        const sx = ox + rx * d, sy = oy + ry * d, sz = oz + rz * d;
+      let sx = rox, sy = roy, sz = roz;
+      for (let s = 0; s < RAY_STEPS; s++) {
+        sx += rx; sy += ry; sz += rz;
         // The ground is solid too: this is what darkens the base of every wall.
-        if (sy < 0) { hits += 1 - (s - 1) / RAY_STEPS; break; }
-        if (grid.has(voxelKey(Math.floor(sx / VOXEL), Math.floor(sy / VOXEL), Math.floor(sz / VOXEL)))) {
+        if (sy < 0) { hits += 1 - s * perStep; break; }
+        const at = occupied(sx, sy, sz);
+        if (at < 0) break;
+        if (at > 0) {
           // Nearer hits occlude more, which is what makes a corner a gradient
           // rather than a hard band.
-          hits += 1 - (s - 1) / RAY_STEPS;
+          hits += 1 - s * perStep;
           break;
         }
       }
     }
 
-    const ao = 1 - STRENGTH * (hits / HEMISPHERE.length);
+    const ao = 1 - STRENGTH * (hits / RAYS);
     vertices[v + 7] = Math.max(0.08, Math.min(1, ao));
   }
 }

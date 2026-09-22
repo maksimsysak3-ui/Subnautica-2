@@ -98,6 +98,38 @@ export function stock(zone: Zone, density: Density, theme: Theme): readonly Prot
   return zoneAll.get(zone) ?? [];
 }
 
+/**
+ * Every prototype the spawner could have put where these ones already are.
+ *
+ * A pool is what a district draws from, so a city holding one member of a pool
+ * will keep asking for the others as it grows -- and the moment it asks for one
+ * nobody has baked yet is a frame that stops dead while a building is
+ * generated. This is the list the renderer warms through while nothing else is
+ * happening, so that the road the player draws next finds its meshes already
+ * made.
+ *
+ * Stock and road tiles only. Services and signature buildings are placed one at
+ * a time from a drawer, and the drawer says which one is about to be placed --
+ * a far better guess than the whole branch.
+ */
+export function poolSiblings(placed: (index: number) => boolean): string[] {
+  const out: string[] = [];
+  const seen = new Set<number>();
+  const take = (list: readonly Proto[]): void => {
+    let hit = false;
+    for (const p of list) if (placed(p.index)) { hit = true; break; }
+    if (!hit) return;
+    for (const p of list) {
+      if (placed(p.index) || seen.has(p.index)) continue;
+      seen.add(p.index);
+      out.push(p.id);
+    }
+  };
+  for (const list of stockBy.values()) take(list);
+  for (const list of roadBy.values()) take(list);
+  return out;
+}
+
 export function signatures(zone: Zone): readonly Proto[] {
   return signatureBy.get(zone) ?? [];
 }

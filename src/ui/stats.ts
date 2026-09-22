@@ -105,6 +105,24 @@ export class Stats {
   }
 
   /**
+   * The mean interval over the last twenty presented frames, in milliseconds.
+   *
+   * For deciding whether this frame has room for optional work. The whole ring
+   * covers two seconds, which answers for the recent past rather than for now;
+   * twenty frames is a third of a second and moves with the camera. Zero means
+   * nothing has been recorded yet.
+   */
+  get frameMs(): number {
+    const n = this.intervals.length;
+    let sum = 0, seen = 0;
+    for (let i = 1; i <= 20; i++) {
+      const s = this.intervals[(this.beat - i + n) % n];
+      if (s > 0) { sum += s; seen++; }
+    }
+    return seen === 0 ? 0 : sum / seen;
+  }
+
+  /**
    * Whether the panel is about to repaint.
    *
    * Callers use it to skip building the row strings on the frames that would

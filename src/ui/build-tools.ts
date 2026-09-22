@@ -20,7 +20,7 @@ import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
-import { services, signatures, ASSET_INDEX } from '../sim';
+import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
 
 import type { RoadClass, Proto } from '../sim';
@@ -1381,6 +1381,18 @@ export class BuildTools {
     this.curveStage = 'none';
     if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'upgrade') {
       this.roadMode = tool.kind;
+    }
+    // Picking a tool is the earliest the game can know what is about to be
+    // built, and generating a building is the most expensive thing it does. So
+    // the renderer starts making them now, a few per second, while the player
+    // is still moving the cursor -- rather than inside the rebuild that follows
+    // the click, which is where it used to stop the frame for a fifth of a
+    // second.
+    if (tool.kind === 'place') {
+      this.renderer.warmAssets([tool.proto.id]);
+    } else if (tool.kind === 'zone') {
+      this.renderer.warmAssets(
+        stock(tool.zone, tool.density, tool.theme ?? 'modern').map((p) => p.id));
     }
     this.closeDrawer();
     this.showMark();

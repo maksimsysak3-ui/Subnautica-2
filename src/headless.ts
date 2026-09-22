@@ -116,7 +116,8 @@ function grantAll(world: { land: { take: (p: number) => void }; progress?: Progr
 
 export async function probeRebuild(width: number, height: number):
 Promise<{ before: Record<string, string>; after: Record<string, string>;
-  cost: Record<string, number>; first: Record<string, number>; edits: number[]; meshes: number[] }> {
+  cost: Record<string, number>; first: Record<string, number>; edits: number[]; meshes: number[];
+  queued: number; warmed: number }> {
   configureSim(LITE);
   const gpu = await Gpu.headless(width, height);
   const camera = new Camera();
@@ -148,6 +149,15 @@ Promise<{ before: Record<string, string>; after: Record<string, string>;
   // What a player actually feels: the wall time of one more edit, several
   // times over. A single sample is dominated by whatever the first one warmed
   // up, and the complaint is about the steady state.
+  // What the warming queue holds after that first rebuild, and how far the
+  // edits below get without generating anything. This is the whole point of the
+  // queue: the spikes in `edits` were a building being generated inside the
+  // rebuild an edit triggers, and a player sits through plenty of frames
+  // between one edit and the next for the queue to be worked through.
+  const queued = renderer.warmList.length;
+  let warmed = 0;
+  while (renderer.warmNext()) warmed++;
+
   const edits: number[] = [];
   const meshes: number[] = [];
   for (let i = 0; i < 12; i++) {
@@ -160,7 +170,8 @@ Promise<{ before: Record<string, string>; after: Record<string, string>;
   // The steady state, not the first one: the first rebuild after a build is
   // still baking prototypes the edit introduced, and what a player feels is
   // the fiftieth road they draw rather than the first.
-  return { before, after: stats.snapshot(), cost: { ...renderer.cost }, first, edits, meshes };
+  return { before, after: stats.snapshot(), cost: { ...renderer.cost }, first, edits, meshes,
+    queued, warmed };
 }
 
 /**
