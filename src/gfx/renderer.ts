@@ -560,7 +560,9 @@ export class Renderer {
       if (n === 0) continue;
       const def = ASSETS[i];
       if (def === undefined || def.zone === 'nature') continue;
-      buildings += n;
+      // Lamps, shelters and parked vans are not buildings, and counting them
+      // put five thousand "buildings" on an empty map.
+      if (def.zone !== 'road' && def.zone !== 'fleet') buildings += n;
       people += n * (def.sim.households ?? 0) * 2.4;
       jobs += n * (def.sim.jobs ?? 0);
     }

@@ -21,6 +21,7 @@
  * simulation arriving in one lump.
  */
 
+import { FirstSteps } from './ui/first-steps';
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
@@ -125,6 +126,13 @@ export class LiveCity {
   private eventsSeen = 0;
   /** Whether each utility was short the last time it was looked at. */
   private wasShort = [false, false, false];
+  /** Consecutive looks each utility has spent on the other side of the line. */
+  private shortRun = [0, 0, 0];
+  /** Whether the player was told about the shortfall now in progress. */
+  private toldShort = [false, false, false];
+  /** Consecutive looks with homes standing and no supply of each at all. */
+  private noneRun = [0, 0, 0];
+  private steps: FirstSteps;
   private wasOverdrawn = false;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
@@ -156,6 +164,7 @@ export class LiveCity {
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
+    this.steps = new FirstSteps(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
     this.tech = new TechTree(ui, renderer.world.progress, () => this.onUnlock());
     // The goals board reads the city rather than a copy of it.
@@ -200,6 +209,10 @@ export class LiveCity {
   reset(): void {
     this.fresh = true;
     this.founded = false;
+    this.steps.reset();
+    this.wasShort = [false, false, false];
+    this.shortRun = [0, 0, 0];
+    this.toldShort = [false, false, false];
   }
 
   /**
@@ -338,6 +351,7 @@ export class LiveCity {
     this.bars.visible = on;
     this.thoughts.visible = on;
     this.alerts.visible = on;
+    this.steps.visible = on;
     this.cititok.visible = on;
     if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
@@ -501,6 +515,7 @@ export class LiveCity {
         });
       }
       this.announce(sim);
+      this.steps.update(sim, now);
       // The open card, refreshed on the same beat as everything else: a
       // building whose power has just come back should say so while the player
       // is still looking at it.
@@ -547,14 +562,47 @@ export class LiveCity {
       { u: Util.WATER, name: 'Water', fix: 'Add a pumping station on the river.' },
       { u: Util.SEWAGE, name: 'Sewage', fix: 'Add a treatment works downstream.' },
     ];
+    const homes = sim.places.homeCapacity;
     for (const n of NAMED) {
       const margin = util.margin[n.u];
+      // No supply at all while people are living here. The line below skips a
+      // utility the city has not started, which is right for an empty map and
+      // wrong the moment there are houses: without this, a new town's homes
+      // were condemned for want of power and water and nothing ever said why.
+      if (margin <= 0 && homes > 0 && !this.toldShort[n.u]) {
+        if (++this.noneRun[n.u] < 4) continue;
+        this.toldShort[n.u] = true;
+        this.wasShort[n.u] = true;
+        this.alerts.push({
+          title: `No ${n.name.toLowerCase()} yet`,
+          body: `The homes here have no ${n.name.toLowerCase()} and will be abandoned `
+            + `within a week without it. ${n.fix}`,
+          tone: 'bad',
+          tag: `util-${n.u}`,
+          figure: '0%',
+        });
+        continue;
+      }
+      this.noneRun[n.u] = 0;
       const short = margin < 0.995;
+      // A state has to hold for a few looks before it is news. Supply wobbles
+      // around the line while a network settles -- on a new city every one of
+      // the three used to announce a shortfall and a restoration inside the
+      // first second -- and a notice about nothing teaches a player to ignore
+      // the one that matters.
+      if (short !== this.wasShort[n.u]) {
+        this.shortRun[n.u]++;
+        if (this.shortRun[n.u] < 4) continue;
+      }
+      this.shortRun[n.u] = 0;
       if (short === this.wasShort[n.u]) continue;
       this.wasShort[n.u] = short;
       // Nothing to report about a utility the city has not started yet: a town
       // with no pumps is not a town with a water crisis.
       if (margin <= 0) continue;
+      // And nothing restored that nobody was told had failed.
+      if (!short && !this.toldShort[n.u]) continue;
+      this.toldShort[n.u] = short;
       this.alerts.push({
         title: short ? `${n.name} shortfall` : `${n.name} restored`,
         body: short

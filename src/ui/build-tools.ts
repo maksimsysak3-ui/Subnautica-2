@@ -15,6 +15,7 @@
  * not a rebuild.
  */
 
+import { log } from '../util/log';
 import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
@@ -33,7 +34,7 @@ import type { LevelUp } from '../sim/progress';
 import { levelName, DENSITY_LEVEL } from '../sim/progress';
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
-import { plotAt, plotSpan, plotBounds, ownsCells, ownsAt } from '../sim';
+import { plotAt, plotSpan, plotBounds, plotCells, PLOTS, ownsAt } from '../sim';
 import { OVERDRAFT } from '../sim';
 import type { Dirty } from '../sim';
 import { ALL_THEMES, THEMES } from '../assets/themes';
@@ -1236,7 +1237,10 @@ export class BuildTools {
   private rebuild(dirty?: Dirty): void {
     const started = performance.now();
     this.renderer.rebuild(dirty);
-    this.say(`rebuilt in ${(performance.now() - started).toFixed(0)} ms`);
+    // To the log, not the status line: said there it overwrote whatever the
+    // edit had just told the player -- "zoned 12 cells, 3 off a road" -- with
+    // a timing only a developer wants.
+    log.info('tools', `rebuilt in ${(performance.now() - started).toFixed(0)} ms`);
   }
 
   /** The cells a rectangle of world metres covers, with a margin. */
@@ -1284,50 +1288,63 @@ export class BuildTools {
         this.say(`${t.density} density opens at level ${needs}`);
         return;
       }
-      if (!ownsCells(world.land, world.grid, r.gx, r.gz, r.w, r.d)) {
-        this.say('you do not own all of that land — buy it with the land tool');
+      // Clipped to the land the city owns, plot by plot, rather than refused
+      // whole. A brush dragged along a street that runs over a plot boundary
+      // used to do nothing at all and say so, which is the kind of refusal a
+      // player reads as the tool being broken.
+      const size = plotCells(world.grid);
+      const parts: Array<[number, number, number, number]> = [];
+      let unowned = 0;
+      const p0x = Math.max(0, Math.floor(r.gx / size));
+      const p1x = Math.min(PLOTS - 1, Math.floor((r.gx + r.w - 1) / size));
+      const p0z = Math.max(0, Math.floor(r.gz / size));
+      const p1z = Math.min(PLOTS - 1, Math.floor((r.gz + r.d - 1) / size));
+      for (let pz = p0z; pz <= p1z; pz++) {
+        for (let px = p0x; px <= p1x; px++) {
+          const x0 = Math.max(r.gx, px * size), x1 = Math.min(r.gx + r.w, (px + 1) * size);
+          const z0 = Math.max(r.gz, pz * size), z1 = Math.min(r.gz + r.d, (pz + 1) * size);
+          if (x1 <= x0 || z1 <= z0) continue;
+          if (world.land.owns(pz * PLOTS + px)) parts.push([x0, z0, x1 - x0, z1 - z0]);
+          else unowned += (x1 - x0) * (z1 - z0);
+        }
+      }
+      if (parts.length === 0) {
+        this.say('you do not own that land \u2014 buy it with the land tool');
         return;
       }
       // Charged for what the brush will actually take, which is the cells that
       // are not already this zone, not already a road, and within reach of one.
       const code = zoneCode(t.zone, t.density, t.theme);
       let fresh = 0;
-      for (let j = 0; j < r.d; j++) {
-        for (let i = 0; i < r.w; i++) {
-          const gx = r.gx + i, gz = r.gz + j;
-          if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
-          if (world.net.has(gx, gz) || !world.net.nearRoad(gx, gz)) continue;
-          if (world.zones[gz * world.grid + gx] === code) continue;
-          fresh++;
+      // Cells out of reach of a road, which take no paint: counted so the
+      // player is told why a drag across a field left only a strip.
+      let offRoad = 0;
+      for (const [px, pz, pw, pd] of parts) {
+        for (let j = 0; j < pd; j++) {
+          for (let i = 0; i < pw; i++) {
+            const gx = px + i, gz = pz + j;
+            if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
+            if (world.net.has(gx, gz)) continue;
+            if (!world.net.nearRoad(gx, gz)) { offRoad++; continue; }
+            if (world.zones[gz * world.grid + gx] === code) continue;
+            fresh++;
+          }
         }
       }
       if (fresh > 0 && !this.afford(fresh * zonePrice(t.zone, t.density),
         `${fresh} cells of ${t.zone}`)) return;
-      paint(world, r.gx, r.gz, r.w, r.d, code);
-      // What the brush actually did, said out loud.
-      //
-      // Zoning is the one tool that can refuse most of a drag for reasons the
-      // ground does not show: a cell out of reach of a road takes no paint, and
-      // a cell that is already this zone is not charged for. A player who drags
-      // across a field and sees a strip appear needs to be told why -- and a
-      // player who sees nothing appear needs to be told that too, rather than
-      // concluding the game is broken.
-      let offRoad = 0;
-      for (let j = 0; j < r.d; j++) {
-        for (let i = 0; i < r.w; i++) {
-          const gx = r.gx + i, gz = r.gz + j;
-          if (gx < 0 || gz < 0 || gx >= world.grid || gz >= world.grid) continue;
-          if (world.net.has(gx, gz)) continue;
-          if (!world.net.nearRoad(gx, gz)) offRoad++;
-        }
-      }
+      for (const [px, pz, pw, pd] of parts) paint(world, px, pz, pw, pd, code);
+      const unownedNote = unowned > 0 ? ', the rest is on land you do not own yet' : '';
       if (fresh === 0 && offRoad > 0) {
         this.say('nothing zoned \u2014 every cell there is out of reach of a road. '
           + 'Zoning has to touch a street.');
       } else if (fresh > 0) {
         this.say(`zoned ${fresh} cells of ${t.zone}`
           + (offRoad > 0 ? `, ${offRoad} skipped for being off a road` : '')
+          + unownedNote
           + ' \u2014 building starts within a few seconds');
+      } else if (unowned > 0) {
+        this.say('you do not own that land \u2014 buy it with the land tool');
       }
     } else if (t.kind === 'clear') {
       // Bulldozing rebuilds the whole city, and that is the right trade.
@@ -1959,7 +1976,7 @@ export class BuildTools {
       const people = s.hasSim ? s.citizens : s.people;
       fill(this.readPeople, `${people.toLocaleString()}`
         + `<span style="color:${SKIN.dim};font-size:10px">`
-        + `${s.buildings.toLocaleString()} buildings</span>`);
+        + `${s.buildings.toLocaleString()} building${s.buildings === 1 ? '' : 's'}</span>`);
 
       // The roads. Mean speed, and how much of the traffic is moving at all --
       // the second is the one that matters, because thirty km/h across the
