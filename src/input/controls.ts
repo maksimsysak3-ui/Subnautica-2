@@ -16,6 +16,7 @@
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { clamp } from '../math/m4';
+import { LIMITS } from '../gfx/camera';
 
 const ORBIT_SPEED = 0.006;         // radians per pixel
 const KEY_PAN_SPEED = 1.4;         // metres per second, per unit of camera distance
@@ -35,7 +36,6 @@ export class Controls {
 
   private grabPoint: Vec3 = [0, 0, 0];
   private a: Vec3 = [0, 0, 0];
-  private b: Vec3 = [0, 0, 0];
   private disposers: Array<() => void> = [];
 
   /**
@@ -47,6 +47,26 @@ export class Controls {
    * more thing to keep in step.
    */
   buildActive: () => boolean = () => false;
+
+  // ---- weight -------------------------------------------------------------
+  //
+  // A camera that moves exactly as far as the input and stops dead is correct
+  // and feels like a spreadsheet. Three things give it weight: the wheel sets a
+  // target the distance eases towards (keeping the point under the cursor
+  // pinned the whole way), a drag that is let go of carries on and slows, and
+  // so does an orbit. None of it changes where anything ends up; only how it
+  // gets there.
+  private zoomTarget: number | null = null;
+  /** What `camera.distance` was last set to here, to notice anyone else moving it. */
+  private zoomSet = 0;
+  private zoomAt: [number, number] = [0, 0];
+  private zoomAnchor: Vec3 = [0, 0, 0];
+  private zoomAnchored = false;
+  /** Pan momentum, metres per second, and orbit momentum, radians per second. */
+  private panVel: [number, number] = [0, 0];
+  private spinVel: [number, number] = [0, 0];
+  private lastMove = 0;
+  private c: Vec3 = [0, 0, 0];
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -85,6 +105,10 @@ export class Controls {
 
   private onPointerDown = (e: PointerEvent): void => {
     this.canvas.setPointerCapture(e.pointerId);
+    this.panVel = [0, 0];
+    this.spinVel = [0, 0];
+    this.zoomTarget = null;
+    this.lastMove = performance.now();
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.canvas.focus();
 
@@ -126,8 +150,11 @@ export class Controls {
     }
 
     if (this.mode === 'orbit') {
-      this.camera.yaw -= (e.clientX - this.lastX) * ORBIT_SPEED;
-      this.camera.pitch += (e.clientY - this.lastY) * ORBIT_SPEED;
+      const dYaw = -(e.clientX - this.lastX) * ORBIT_SPEED;
+      const dPitch = (e.clientY - this.lastY) * ORBIT_SPEED;
+      this.track(this.spinVel, dYaw, dPitch);
+      this.camera.yaw += dYaw;
+      this.camera.pitch += dPitch;
       this.lastX = e.clientX;
       this.lastY = e.clientY;
       this.camera.update();
@@ -141,8 +168,10 @@ export class Controls {
       const [nx, ny] = this.ndc(e.clientX, e.clientY);
       const now = this.camera.groundPointAt(nx, ny, this.a);
       if (!now) return;
-      this.camera.focus[0] += this.grabPoint[0] - now[0];
-      this.camera.focus[2] += this.grabPoint[2] - now[2];
+      const dx = this.grabPoint[0] - now[0], dz = this.grabPoint[2] - now[2];
+      this.track(this.panVel, dx, dz);
+      this.camera.focus[0] += dx;
+      this.camera.focus[2] += dz;
       this.camera.update();
     }
   };
@@ -151,8 +180,26 @@ export class Controls {
     this.pointers.delete(e.pointerId);
     if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     if (this.pointers.size < 2) this.pinchDistance = 0;
-    if (this.pointers.size === 0) this.mode = 'none';
+    if (this.pointers.size === 0) {
+      // A drag that stopped before it was let go of is a placement, not a
+      // fling: only carry on if the pointer was still moving at release.
+      if (performance.now() - this.lastMove > 60) {
+        this.panVel = [0, 0];
+        this.spinVel = [0, 0];
+      }
+      this.mode = 'none';
+    }
   };
+
+  /** Folds one pointer step into a smoothed velocity. */
+  private track(v: [number, number], dx: number, dy: number): void {
+    const now = performance.now();
+    const dt = Math.max(0.004, Math.min(0.1, (now - this.lastMove) / 1000));
+    this.lastMove = now;
+    const k = 0.35;
+    v[0] = v[0] * (1 - k) + (dx / dt) * k;
+    v[1] = v[1] * (1 - k) + (dy / dt) * k;
+  }
 
   private pointerSpread(): number {
     const it = this.pointers.values();
@@ -167,23 +214,16 @@ export class Controls {
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     const [nx, ny] = this.ndc(e.clientX, e.clientY);
-
-    // Line-mode wheels report ~3 lines where pixel-mode reports ~100px.
     const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
-
-    const before = this.camera.groundPointAt(nx, ny, this.a);
-    this.camera.zoomBy(Math.exp(delta * WHEEL_ZOOM));
-    this.camera.update();
-    const after = this.camera.groundPointAt(nx, ny, this.b);
-
-    if (before && after) {
-      this.camera.focus[0] += before[0] - after[0];
-      this.camera.focus[2] += before[2] - after[2];
-      this.camera.update();
-    }
+    const cam = this.camera;
+    const from = this.zoomTarget ?? cam.distance;
+    this.zoomTarget = clamp(from * Math.exp(delta * WHEEL_ZOOM), LIMITS.minDistance, LIMITS.maxDistance);
+    this.zoomSet = cam.distance;
+    this.zoomAt = [nx, ny];
+    // The ground under the cursor now is the ground that stays under it.
+    this.zoomAnchored = cam.groundPointAt(nx, ny, this.zoomAnchor) !== null;
+    this.panVel = [0, 0];
   };
-
-  // ---- keyboard --------------------------------------------------------
 
   private onKeyDown = (e: KeyboardEvent): void => {
     if (e.metaKey || e.ctrlKey) return;
@@ -196,10 +236,11 @@ export class Controls {
 
   /** Applies held keys. Called once per frame with the frame's delta. */
   update(dt: number): boolean {
-    if (this.keys.size === 0) return false;
+    const eased = this.ease(dt);
+    if (this.keys.size === 0) return eased;
     const k = this.keys;
     const cam = this.camera;
-    let moved = false;
+    let moved = eased;
 
     // Pan speed scales with zoom: crossing the screen takes the same time
     // whether you are looking at one block or the whole city.
@@ -220,6 +261,59 @@ export class Controls {
     if (k.has('-') || k.has('_')) { cam.zoomBy(Math.exp(KEY_ZOOM_SPEED * dt)); moved = true; }
 
     if (moved) cam.update();
+    return moved;
+  }
+
+  /** Zoom easing and momentum. Returns whether the camera moved. */
+  private ease(dt: number): boolean {
+    const cam = this.camera;
+    let moved = false;
+    if (this.zoomTarget !== null) {
+      // Someone else moved the camera -- a tool, the menu, a script -- and
+      // they win.
+      if (Math.abs(cam.distance - this.zoomSet) > 1e-3) { this.zoomTarget = null; }
+      else {
+        const k = 1 - Math.exp(-dt * 12);
+        let next = cam.distance + (this.zoomTarget - cam.distance) * k;
+        if (Math.abs(next - this.zoomTarget) < this.zoomTarget * 0.002) {
+          next = this.zoomTarget;
+          this.zoomTarget = null;
+        }
+        cam.distance = next;
+        cam.update();
+        if (this.zoomAnchored) {
+          const after = cam.groundPointAt(this.zoomAt[0], this.zoomAt[1], this.c);
+          if (after) {
+            cam.focus[0] += this.zoomAnchor[0] - after[0];
+            cam.focus[2] += this.zoomAnchor[2] - after[2];
+            cam.update();
+          }
+        }
+        this.zoomSet = cam.distance;
+        moved = true;
+      }
+    }
+    if (this.mode === 'none') {
+      const decay = Math.exp(-dt * 5.5);
+      const [vx, vz] = this.panVel;
+      if (Math.abs(vx) + Math.abs(vz) > cam.distance * 0.01) {
+        cam.focus[0] += vx * dt;
+        cam.focus[2] += vz * dt;
+        this.panVel[0] *= decay;
+        this.panVel[1] *= decay;
+        cam.update();
+        moved = true;
+      } else this.panVel = [0, 0];
+      const [sy, sp] = this.spinVel;
+      if (Math.abs(sy) + Math.abs(sp) > 0.02) {
+        cam.yaw += sy * dt;
+        cam.pitch += sp * dt;
+        this.spinVel[0] *= decay;
+        this.spinVel[1] *= decay;
+        cam.update();
+        moved = true;
+      } else this.spinVel = [0, 0];
+    }
     return moved;
   }
 

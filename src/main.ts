@@ -21,6 +21,7 @@ import { Menu } from './ui/menu';
 import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
+import { Ambience } from './ui/ambience';
 
 const MAX_RECOVERY_ATTEMPTS = 3;
 
@@ -135,6 +136,10 @@ async function boot(): Promise<void> {
   // city is showing you something the game is not; this one is the game,
   // turning slowly, with the panel over the top.
   let cinematic = true;
+  // The soundscape. Started by the menu choice that enters the game, because
+  // a browser keeps audio silent until the player has done something.
+  const ambience = new Ambience();
+  let rate = 1;
   // Declared before the menu because the menu shows and hides it, and built
   // after the world because it reads the grid.
   let tools: BuildTools | null = null;
@@ -142,11 +147,13 @@ async function boot(): Promise<void> {
   let loaded: string | null = null;
   const menu = new Menu(overlay, {
     onNew: () => {
+      ambience.start();
       live.reset();
       renderer.useWorld(startingWorld(renderer.world.grid));
       renderer.rebuild();
     },
     onLoad: (world, name) => {
+      ambience.start();
       live.reset();
       renderer.useWorld(world);
       renderer.rebuild();
@@ -252,7 +259,7 @@ async function boot(): Promise<void> {
   // The career: the bar earns it, the panels spend it, and each tells the other.
   tools.onLevels = (levels) => live.celebrate(levels);
   tools.onProgress = () => tools?.paintProgress();
-  tools.onSpeed = (rate) => { live.speed = rate; };
+  tools.onSpeed = (r) => { live.speed = r; rate = r; };
   tools.onTech = () => live.tech.toggle();
   tools.onSettings = () => live.settings.toggle();
   live.onProgress = () => tools?.paintProgress();
@@ -308,6 +315,14 @@ async function boot(): Promise<void> {
     // After the camera: the simulation spends its movement budget on whatever
     // the player is looking at, and looking at it is what the line above did.
     live.update(dt, performance.now());
+    ambience.update({
+      distance: camera.distance,
+      city: Math.min(1, renderer.summary.buildings / 600),
+      traffic: Math.min(1, renderer.summary.driving / 250),
+      rain: renderer.weather.sky.rain,
+      night: renderer.night,
+      running: !cinematic && rate > 0,
+    }, dt);
     benchmark?.update(dt);
   });
   canvas.focus();

@@ -16,6 +16,7 @@
  */
 
 import { log } from '../util/log';
+import { thud, brush, crunch, deny } from './sound';
 import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
@@ -1192,6 +1193,7 @@ export class BuildTools {
     this.rebuild(this.box(
       Math.min(ax, bx) - swing, Math.min(az, bz) - swing,
       Math.max(ax, bx) + swing, Math.max(az, bz) + swing, 3));
+    thud();
     return true;
   }
 
@@ -1334,6 +1336,7 @@ export class BuildTools {
       if (fresh > 0 && !this.afford(fresh * zonePrice(t.zone, t.density),
         `${fresh} cells of ${t.zone}`)) return;
       for (const [px, pz, pw, pd] of parts) paint(world, px, pz, pw, pd, code);
+      if (fresh > 0) brush();
       const unownedNote = unowned > 0 ? ', the rest is on land you do not own yet' : '';
       if (fresh === 0 && offRoad > 0) {
         this.say('nothing zoned \u2014 every cell there is out of reach of a road. '
@@ -1367,6 +1370,7 @@ export class BuildTools {
         if (def !== undefined) back += buildingPrice(def) * 0.3;
       }
       demolish(world, r.gx, r.gz, r.w, r.d);
+      crunch();
       this.refund(back);
       if (back > 0) this.say(`cleared — ${money(Math.round(back))} in salvage`);
       this.rebuild();
@@ -2384,6 +2388,7 @@ export class BuildTools {
   private afford(cost: number, what: string): boolean {
     const budget = this.renderer.world.budget;
     if (budget.spend(cost)) return true;
+    deny();
     const short = cost - (budget.balance + OVERDRAFT);
     this.say(`${what} costs ${money(Math.round(cost))} — `
       + `${money(Math.round(short))} more than the city can borrow`);

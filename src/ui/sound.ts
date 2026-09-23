@@ -131,3 +131,37 @@ export function fanfare(): void {
 export function ping(): void {
   play([{ from: 880, length: 0.14, type: 'sine', gain: 0.07 }]);
 }
+
+/**
+ * The context and the master gain, for the soundscape to mix into. Created on
+ * first ask; null where the browser has no Web Audio.
+ */
+export function bus(): { ctx: AudioContext; out: GainNode } | null {
+  const c = audio();
+  if (c === null || master === null) return null;
+  return { ctx: c, out: master };
+}
+
+/** A road laid: a low, soft thud, like a roller settling tarmac. */
+export function thud(): void {
+  play([
+    { from: 150, to: 70, length: 0.22, type: 'sine', gain: 0.22 },
+    { from: 420, to: 260, length: 0.07, type: 'triangle', gain: 0.05 },
+  ]);
+}
+
+/** Land zoned: a quick rising brush of two notes. */
+export function brush(): void {
+  play([
+    { from: 660, to: 760, length: 0.09, type: 'sine', gain: 0.07 },
+    { from: 990, to: 1120, length: 0.12, type: 'sine', gain: 0.05, delay: 0.05 },
+  ]);
+}
+
+/** Something knocked down: a short crunch. */
+export function crunch(): void {
+  play([
+    { from: 190, to: 55, length: 0.26, type: 'sawtooth', gain: 0.08 },
+    { from: 95, to: 45, length: 0.32, type: 'square', gain: 0.05, delay: 0.03 },
+  ]);
+}

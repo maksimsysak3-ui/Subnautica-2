@@ -353,7 +353,8 @@ export class Renderer {
   /** The bloom, antialiasing and grade the drawn frame goes through. */
   private post: Post | null = null;
   /** 0 with the sun up, 1 after dark. Drives the grade and the bloom. */
-  private night = 0;
+  /** 0 at noon, 1 after dark. Read by the soundscape as well as the grade. */
+  night = 0;
 
   /**
    * The picture settings, as the player left them.
