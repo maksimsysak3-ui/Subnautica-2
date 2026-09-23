@@ -1228,6 +1228,58 @@ export class Renderer {
    * Stamps each instance with when it first appeared, and forgets the ones
    * that are gone.
    */
+  /**
+   * The tops of the buildings, on the world's own cells, for the camera.
+   *
+   * The camera is an orbit rig with nothing to stop it: pitch low and zoom in
+   * and the eye ends up inside a tower, where back faces are culled and all
+   * that is left of the building is its balcony rails hanging in the air. The
+   * camera reads this to keep itself a few metres over whatever it is above.
+   */
+  private roofs: Float32Array = new Float32Array(0);
+  private roofGrid = 0;
+
+  private surveyRoofs(city: City): void {
+    const g = this.world.grid;
+    if (this.roofs.length !== g * g) this.roofs = new Float32Array(g * g);
+    this.roofs.fill(-Infinity);
+    this.roofGrid = g;
+    const half = g / 2;
+    const d = city.data;
+    for (let i = 0; i < city.count; i++) {
+      const o = i * INSTANCE_FLOATS;
+      const def = ASSETS[Math.round(d[o + 7])];
+      if (def === undefined || def.zone === 'nature' || def.zone === 'fleet') continue;
+      // form.z is the declared height padded for the culler: undo the padding.
+      const top = d[o + 2] + Math.max(0, (d[o + 6] - 3) / 1.2);
+      const hx = d[o + 4], hz = d[o + 5];
+      const x0 = Math.max(0, Math.floor((d[o] - hx) / 8 + half));
+      const x1 = Math.min(g - 1, Math.floor((d[o] + hx) / 8 + half));
+      const z0 = Math.max(0, Math.floor((d[o + 1] - hz) / 8 + half));
+      const z1 = Math.min(g - 1, Math.floor((d[o + 1] + hz) / 8 + half));
+      for (let z = z0; z <= z1; z++) {
+        for (let x = x0; x <= x1; x++) {
+          const k = z * g + x;
+          if (top > this.roofs[k]) this.roofs[k] = top;
+        }
+      }
+    }
+    this.camera.obstacle = (x, z) => {
+      const gg = this.roofGrid;
+      const cx = Math.floor(x / 8 + gg / 2), cz = Math.floor(z / 8 + gg / 2);
+      let top = -Infinity;
+      for (let j = -1; j <= 1; j++) {
+        for (let i = -1; i <= 1; i++) {
+          const xx = cx + i, zz = cz + j;
+          if (xx < 0 || zz < 0 || xx >= gg || zz >= gg) continue;
+          const v = this.roofs[zz * gg + xx];
+          if (v > top) top = v;
+        }
+      }
+      return top;
+    };
+  }
+
   private dateCity(city: City, standing = false): void {
     // Zero means "has always been here", which is what the shader reads as
     // fully grown -- so a loaded city is standing the moment it appears.
@@ -1301,6 +1353,7 @@ export class Renderer {
     // whole city again -- what a new game and a loaded save both want.
     const city = makeCity(this.world, this.dirty);
     lap('makeCity');
+    this.surveyRoofs(city);
     this.dateCity(city, this.settled);
     this.settled = false;
     lap('births');

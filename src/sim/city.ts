@@ -1382,7 +1382,13 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     joinedWild = keep.data.length;
   }
   joined.set(liveData, keep.data.length);
-  for (let i = 0; i < population.length; i++) population[i] += keep.pop[i];
+  // Into a copy. `population` is the live census the next edit carries
+  // forward, and it used to be topped up in place -- so every incremental
+  // edit added the woods and the mover reserve on top of the last edit's
+  // woods and reserve, and the draw slices grew by five thousand entries a
+  // road for as long as the session ran.
+  const census = population.slice();
+  for (let i = 0; i < census.length; i++) census[i] += keep.pop[i];
 
   // Room in the census for everything that will be driving and walking.
   //
@@ -1393,12 +1399,12 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // rule -- a slice is as big as the census says -- true of everything drawn.
   for (const id of Object.keys(FRAME_RESERVE)) {
     const p = ASSET_INDEX.get(id);
-    if (p !== undefined) population[p] += FRAME_RESERVE[id];
+    if (p !== undefined) census[p] += FRAME_RESERVE[id];
   }
 
   return {
     data: joined.subarray(0, total) as Float32Array<ArrayBuffer>,
-    count: total / INSTANCE_FLOATS, population, cover, surface, roads,
+    count: total / INSTANCE_FLOATS, population: census, cover, surface, roads,
   };
 }
 

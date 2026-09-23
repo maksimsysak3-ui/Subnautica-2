@@ -254,7 +254,7 @@ export class Movers {
       out[k + 4] = box[0]; out[k + 5] = box[1]; out[k + 6] = box[2];
       out[k + 7] = proto;
       // No stretch, not a ghost, and a detail bias: see the cull.
-      out[k + 8] = 1; out[k + 9] = 0; out[k + 10] = LOD_BIAS; out[k + 11] = 0;
+      out[k + 8] = 1; out[k + 9] = 0; out[k + 10] = -LOD_BIAS; out[k + 11] = 0;
       n++;
       return true;
     };

@@ -42,6 +42,8 @@ export class Camera {
    * swings the view underground.
    */
   groundHeight: ((x: number, z: number) => number) | null = null;
+  /** The highest roof near a point, or -Infinity. Keeps the eye out of buildings. */
+  obstacle: ((x: number, z: number) => number) | null = null;
 
   /** How far the focus may travel from the origin. Set from the terrain size. */
   extent = LIMITS.extent;
@@ -80,6 +82,19 @@ export class Camera {
     this.focus[2] = clamp(this.focus[2], -this.extent, this.extent);
     this.focus[1] = this.groundHeight ? this.groundHeight(this.focus[0], this.focus[2]) : 0;
 
+    // Out of the buildings: if the eye would be inside or just over a roof,
+    // tilt up until it clears. Pitch rather than distance, so the thing the
+    // player is looking at stays the same size on screen.
+    if (this.obstacle !== null) {
+      const probe = Math.cos(this.pitch) * this.distance;
+      const ex = this.focus[0] + probe * Math.sin(this.yaw);
+      const ez = this.focus[2] + probe * Math.cos(this.yaw);
+      const need = this.obstacle(ex, ez) + 4 - this.focus[1];
+      if (Number.isFinite(need) && need > this.distance * Math.sin(this.pitch)) {
+        const want = Math.asin(Math.min(1, need / this.distance));
+        this.pitch = clamp(Math.max(this.pitch, want), LIMITS.minPitch, LIMITS.maxPitch);
+      }
+    }
     const cosPitch = Math.cos(this.pitch);
     this.eye[0] = this.focus[0] + this.distance * cosPitch * Math.sin(this.yaw);
     this.eye[1] = this.focus[1] + this.distance * Math.sin(this.pitch);

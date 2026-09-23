@@ -34,7 +34,8 @@ struct Instance {
   place : vec4f,
   // half extent x, half extent z, height, prototype index
   form  : vec4f,
-  // x = stretch along the prototype's own Z, y = ghost, z = detail bias
+  // x = stretch along the prototype's own Z, y = ghost, z = born (positive) or
+  // detail bias (negative), w = wear
   extra : vec4f,
 };
 
@@ -111,7 +112,12 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
   // never earns anything but its impostor. A car is not a small building; it is
   // a detailed object that happens to be short, and the thing a player is
   // looking at when they zoom into a street.
-  let bias = select(1.0, inst.extra.z, inst.extra.z > 0.0);
+  // Negative is a detail bias (the movers ask for one); positive is the
+  // second a building was born, which the growth animation reads. They used
+  // to share the sign, so every building that went up during play asked for a
+  // bias of several hundred and was drawn at full detail at any distance --
+  // a mature city was all LOD0.
+  let bias = select(1.0, -inst.extra.z, inst.extra.z < 0.0);
   let detail = pixels * bias;
 
   var lod = 2u;
