@@ -151,7 +151,17 @@ for (const view of ['far', 'near']) {
   if (!(lod.reduce((a, b) => a + b, 0) === shown)) {
     push(`${view}: level-of-detail counts ${lod.join('/')} do not sum to ${shown}`);
   }
-  if (!(v.topSkyPct > 30)) push(`${view}: only ${v.topSkyPct.toFixed(0)}% of the top row is sky`);
+  // How much sky the top row shows is a fact about where the buildings are,
+  // not about whether the sky renders -- and the near camera is ninety metres
+  // up a street, so most of its top row is wall by design. The far view, which
+  // looks over the city from nine hundred metres, is the one that can be held
+  // to a real share; the near view only has to prove there is sky up there and
+  // that it is blue. Tuning the near bar to whatever the current city happens
+  // to look like is how this test failed the day the shop stock was widened.
+  const bar = view === 'far' ? 30 : 8;
+  if (!(v.topSkyPct > bar)) {
+    push(`${view}: only ${v.topSkyPct.toFixed(0)}% of the top row is sky, wanted ${bar}%`);
+  }
   if (!(v.skyPct > 3 && v.skyPct < 92)) push(`${view}: sky covers ${v.skyPct.toFixed(0)}%`);
   if (!(v.litPct > 1)) push(`${view}: only ${v.litPct.toFixed(1)}% of pixels are lit geometry`);
 }

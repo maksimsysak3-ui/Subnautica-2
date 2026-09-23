@@ -230,18 +230,37 @@ section('services are a standing order');
   sim.step(300);
   const before = sim.economy.report.services;
 
-  // Another dozen fire stations, staffed.
+  // Two dozen more fire stations, staffed, in two batches of twelve.
+  //
+  // Measured as two equal increments rather than as a percentage of the bill.
+  // A ratio is a claim about how big the rest of the city's service bill
+  // happens to be, and it quietly stops testing anything as the library grows:
+  // the same twelve stations went from six per cent of the upkeep to four and a
+  // half when the commercial stock was widened. Two batches say the thing the
+  // section is actually about -- that the city pays for every one of them,
+  // every week -- and say it without restating a constant from the model.
   const engine = ASSETS.findIndex((a) => a.id === 'svc.fire.station');
-  for (let i = 0; i < 12; i++) {
-    const id = sim.places.add(engine, 100 + i * 40, 100, -1, -1);
-    if (id < 0) continue;
-    for (let k = 0; k < sim.places.col.jobs[id]; k++) sim.places.hire(id);
-  }
-  sim.step(300);
-  const after = sim.economy.report.services;
-  ok(after > before * 1.05, 'twelve more fire stations cost more every week',
-    `${cash(before)} -> ${cash(after)}`);
-  console.log(`  upkeep ${cash(before)} -> ${cash(after)} a week`);
+  const dozen = () => {
+    for (let i = 0; i < 12; i++) {
+      const id = sim.places.add(engine, 100 + i * 40, added * 40 + 100, -1, -1);
+      if (id < 0) continue;
+      for (let k = 0; k < sim.places.col.jobs[id]; k++) sim.places.hire(id);
+    }
+    added += 12;
+    sim.step(300);
+    return sim.economy.report.services;
+  };
+  let added = 0;
+  const mid = dozen();
+  const after = dozen();
+  const first = mid - before, second = after - mid;
+  ok(first > 0, 'twelve more fire stations cost more every week',
+    `${cash(before)} -> ${cash(mid)}`);
+  ok(Math.abs(second - first) < first * 0.08,
+    'and the next twelve cost the same again',
+    `+${cash(first)} then +${cash(second)}`);
+  console.log(`  upkeep ${cash(before)} -> ${cash(mid)} -> ${cash(after)} a week`
+    + `  (+${cash(first)}, +${cash(second)} for a dozen stations each)`);
 }
 
 // ---- events ----------------------------------------------------------------

@@ -32,6 +32,7 @@ import {
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
 import { curtainSlab, galleria, mixedUse, podiumTower, setbackTower } from './highrise';
+import { bank, garage, gardenCentre, showroom } from './street';
 import { container, racking, stockpile, drum, crate, pallet } from './freight';
 
 // -------------------------------------------------------------- commercial
@@ -1198,6 +1199,10 @@ const SHOPS: Plan[] = [
   { key: 'pub', name: 'Public house', build: publicHouse, footprint: [3, 3], density: 'low', jobs: 14, brand: 'deli' },
   { key: 'filling', name: 'Filling station', build: filling, footprint: [4, 3], density: 'low', jobs: 9 },
   { key: 'cafe', name: 'Cafe and flats', build: cafeRow, footprint: [3, 3], density: 'medium', jobs: 22, brand: 'deli' },
+  { key: 'bank', name: 'Bank', build: bank, footprint: [3, 3], density: 'medium', jobs: 26, brand: 'bank' },
+  { key: 'showroom', name: 'Car showroom', build: showroom, footprint: [4, 4], density: 'medium', jobs: 24, brand: 'motors' },
+  { key: 'garage', name: 'Repair garage', build: garage, footprint: [3, 3], density: 'low', jobs: 11, brand: 'motors' },
+  { key: 'garden', name: 'Garden centre', build: gardenCentre, footprint: [4, 4], density: 'medium', jobs: 28, brand: 'hardware' },
 ];
 
 const OFFICES: Plan[] = [
