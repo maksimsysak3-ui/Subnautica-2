@@ -3509,7 +3509,12 @@ fn cloudField(p : vec2f, t : f32) -> f32 {
  */
 fn clouds(d : vec3f, sun : vec3f, t : f32) -> vec4f {
   if (d.y <= 0.02) { return vec4f(0.0); }
-  let p = d.xz / d.y * 0.55;
+  // 0.36 rather than 0.55: how big one cloud is against the height of the
+  // deck. Bigger clouds, fewer of them. A city builder's camera only ever sees
+  // the sky within twenty degrees or so of the horizon, where a flat deck is
+  // foreshortened into streaks, and small clouds at that angle compress into a
+  // texture rather than resolving as weather.
+  let p = d.xz / d.y * 0.36;
   // Overhead the deck is near; at a grazing angle the same cell of noise is
   // stretched over the whole horizon, so it is faded before it smears.
   // Faded out before the projection smears, and further out under cover so the
@@ -3540,10 +3545,21 @@ fn clouds(d : vec3f, sun : vec3f, t : f32) -> vec4f {
 
   // Warm at dawn and dusk, white at noon, and blue-grey at night when the only
   // light on them is the sky itself.
-  let warm = mix(vec3f(1.02, 0.98, 0.92), vec3f(1.06, 0.62, 0.34), phase.y);
+  //
+  // The spread between the lit top and the shaded base is the whole of what
+  // makes a cloud read as an object rather than as a smudge, and this had
+  // almost none: a thick body came out at 0.58 against a horizon sky at 0.50,
+  // so where the sky is palest -- which is exactly the band a city builder's
+  // camera looks through -- the deck was a slightly different white on white.
+  // The top now goes over one, so a thin edge is brighter than any sky behind
+  // it, and the base comes down far enough that a body is plainly darker.
+  // Neither is a free choice: a cloud top is a near-white Lambertian surface
+  // in full sun, which is brighter than the sky beside it, and a cloud base in
+  // its own shadow is not.
+  let warm = mix(vec3f(1.20, 1.15, 1.07), vec3f(1.22, 0.70, 0.38), phase.y);
   let top = mix(vec3f(0.16, 0.19, 0.26), warm, lit);
-  let base = mix(vec3f(0.09, 0.11, 0.16), mix(vec3f(0.46, 0.52, 0.62), warm * 0.5, phase.y), lit);
-  var col = mix(top, base, thick * 0.78);
+  let base = mix(vec3f(0.07, 0.09, 0.13), mix(vec3f(0.20, 0.23, 0.30), warm * 0.34, phase.y), lit);
+  var col = mix(top, base, thick * 0.82);
   // The silver lining: light through a thin edge, aimed at the sun.
   col += warm * pow(towards, 6.0) * (1.0 - thick) * (0.55 + phase.y * 1.4) * lit;
   // Rain cloud is darker and flatter, and it loses the lining -- there is no
@@ -4901,4 +4917,4 @@ fn composite(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,pc={"common.wgsl":lc,"atmosphere.wgsl":Jc,"noise.wgsl":bc,"overlay.wgsl":Xc};function IQ(U){return U.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,c)=>pc[c]??A)}const oF={asset:IQ(Kc),cull:IQ(fc),terrain:IQ(zc),sky:IQ(yc),grass:IQ(Pc),road:IQ(vc),water:IQ(rc),rain:IQ(xc),dots:IQ(Zc),mains:IQ(Wc),post:IQ(jc)};export{qc as A,nw as B,Oc as C,tw as D,jA as F,nB as G,JU as M,dE as P,uc as R,oF as S,dQ as T,tB as V,Ew as Z,zg as a,ag as b,aB as c,tc as d,wF as e,FF as f,MF as g,CF as h,IF as i,Cg as j,_c as k,AQ as l,mc as m,EF as n,DF as o,Gc as p,cQ as q,BF as r,XU as s,$c as t,AF as u,gF as v,QF as w,cF as x,UF as y,YF as z};
-//# sourceMappingURL=shaders-D0I2qEWd.js.map
+//# sourceMappingURL=shaders-qaVAmm3n.js.map
