@@ -1755,7 +1755,7 @@ export class BuildTools {
       'display:flex', 'align-items:center', 'gap:0', 'height:44px',
       'padding:0 8px', `background:${WELL}`,
       `border-top:1px solid ${SKIN.edge}`,
-      `font:11px/1 ${SKIN.mono}`, `color:${SKIN.text}`,
+      `font:500 12px/1 ${SKIN.mono}`, `color:${SKIN.text}`,
     ]);
 
     /**
@@ -1772,11 +1772,11 @@ export class BuildTools {
       css(d, ['display:flex', 'flex-direction:column', 'gap:3px', 'padding:0 13px',
         'white-space:nowrap', wide ? 'flex:1' : '']);
       const cap = document.createElement('div');
-      css(cap, ['font-size:8px', 'letter-spacing:.17em', 'text-transform:uppercase',
+      css(cap, ['font:600 10px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
         `color:${SKIN.faint}`]);
       cap.textContent = caption;
       const val = document.createElement('div');
-      css(val, ['display:flex', 'align-items:center', 'gap:6px', 'font-size:12px',
+      css(val, ['display:flex', 'align-items:center', 'gap:6px', 'font:600 14px/1 var(--ui)',
         `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums']);
       d.append(cap, val);
       return d;

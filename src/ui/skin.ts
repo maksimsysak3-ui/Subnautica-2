@@ -42,7 +42,7 @@ export const SKIN = {
   dim: '#6d8098',
   faint: '#4c5c70',
   /** The one accent, when nothing else has claimed it. */
-  accent: '#62d4ff',
+  accent: '#6fd3ff',
   /** Good, middling, bad -- for values rather than for maps. */
   good: '#5fc78c',
   warn: '#e8b454',
@@ -73,7 +73,7 @@ export function panel(extra: string[] = []): string[] {
     `border-radius:${SKIN.radius}`,
     `box-shadow:inset 0 1px 0 ${SKIN.sheen}, 0 10px 30px rgba(0,0,0,.42)`,
     'backdrop-filter:blur(16px)',
-    `font:11px/1.5 ${SKIN.mono}`,
+    `font:500 12.5px/1.5 ${SKIN.mono}`,
     `color:${SKIN.text}`,
     ...extra,
   ];
@@ -82,7 +82,7 @@ export function panel(extra: string[] = []): string[] {
 /** A small, tracked, dim label. The caption on everything. */
 export function label(extra: string[] = []): string[] {
   return [
-    'font-size:9px', 'letter-spacing:.15em', 'text-transform:uppercase',
+    'font:600 10.5px/1.3 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
     `color:${SKIN.dim}`, ...extra,
   ];
 }

@@ -1,28 +1,21 @@
 /**
- * The front of the game: a loading screen, then a menu.
+ * The front of the game: a loading screen, then the title.
  *
- * They are deliberately two different things, because they have two different
- * jobs. The loading screen has to hold attention while nothing can be
- * interacted with, so it is a painting -- full bleed, with the lock-up over it
- * and a bar that tells the truth about how far along the build is. The menu
- * has to get out of the way, so it is the game's own terrain at whatever hour
- * the clock has reached, turning slowly, with as little over the top of it as
- * the words will allow.
+ * Two different things with two different jobs. The loading screen holds
+ * attention while nothing can be touched, so it is a painting -- full bleed,
+ * the name over it, a bar that tells the truth about the build, and a tip to
+ * read while it runs. The title has to get out of the way of the world behind
+ * it, so it is the game's own land at whatever hour the clock has reached,
+ * turning slowly, with one column of type down the left.
  *
- * The mark is six glass facets in a hexagon. On the loading screen they light
- * one per build step, so the thing you watch while waiting becomes the logo.
+ * The menu is a list, set large, and it is driven by the keyboard as much as
+ * the pointer: arrows move, Enter chooses, Escape goes back.
  */
 
 import { listSaves, readSave, writeSave, deleteSave, fromCode, toCode } from '../sim';
 import type { SaveInfo, World } from '../sim';
 import { LOADING_ART } from './loading-art';
-
-const INK = '#f2f6fb';
-const DIM = '#a9bcd2';
-const GLASS = 'rgba(12,19,30,.55)';
-const EDGE = 'rgba(160,205,245,.22)';
-const COOL = '#8fd8ff';
-const UI = 'var(--ui, system-ui, -apple-system, "Segoe UI", sans-serif)';
+import { installTheme } from './theme';
 
 export interface MenuHooks {
   /** Start on empty land with the road in from the edge. */
@@ -35,21 +28,42 @@ export interface MenuHooks {
   cinematic: (on: boolean) => void;
 }
 
+/** Read while the land is built. Each one is something the game will not tell you. */
+const TIPS: readonly string[] = [
+  'Buildings only grow on frontage. A road with nothing zoned beside it is a road to nowhere.',
+  'Right-drag orbits and the wheel zooms toward the cursor, so you never have to put a tool down to look around.',
+  'Traffic is real. Every car on the road is somebody going somewhere, and a jam costs the city money.',
+  'Land value rises near parks, schools and quiet streets, and what grows follows the value.',
+  'Pause with Space. The sun, the lit windows and the shadows all stop with the city.',
+  'A city travels as text. Copy yours from the title screen and anyone who pastes it lands on your map.',
+];
+
+interface Entry {
+  label: string;
+  hint: string;
+  key?: string;
+  primary?: boolean;
+  run: () => void;
+  remove?: () => void;
+}
+
 export class Menu {
   private loader: HTMLElement;
   private root: HTMLElement;
-  private facets: HTMLElement[] = [];
   private bar: HTMLElement;
   private step: HTMLElement;
   private body: HTMLElement;
   private note: HTMLElement;
-  private lit = 0;
   private opened = false;
+  private items: HTMLElement[] = [];
+  private active = 0;
+  private back: (() => void) | null = null;
+  private tipTimer = 0;
 
   constructor(host: HTMLElement, private hooks: MenuHooks) {
+    installTheme();
     this.loader = this.buildLoader();
     host.appendChild(this.loader);
-
     this.root = this.buildMenu();
     host.appendChild(this.root);
 
@@ -57,488 +71,234 @@ export class Menu {
     this.step = this.loader.querySelector('[data-step]') as HTMLElement;
     this.body = this.root.querySelector('[data-body]') as HTMLElement;
     this.note = this.root.querySelector('[data-note]') as HTMLElement;
+    addEventListener('keydown', this.onKey);
   }
 
-  // ---- the loading screen ----------------------------------------------
-
-  /**
-   * Full bleed art, with everything else stacked down the middle of it.
-   *
-   * Every size below is a `clamp`, and the stack is capped at the viewport
-   * height with its own gaps proportional to it. That is what makes the thing
-   * fit rather than merely fitting on the screen it was designed on: a title
-   * set in pixels overflows a laptop in landscape, and a stack sized in `vh`
-   * with no ceiling collapses on a phone.
-   */
   private buildLoader(): HTMLElement {
     const el = document.createElement('div');
-    el.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:30', 'pointer-events:auto',
-      'display:grid', 'place-items:center', 'overflow:hidden',
-      'background:#070b12', `color:${INK}`, `font:400 14px/1.5 ${UI}`,
-      'transition:opacity .85s ease',
-    ].join(';');
-
-    // The painting. `cover` so it fills any shape without distorting, and
-    // biased low so the skyline stays in frame when the viewport is short --
-    // the sky is the part that can be cropped without losing the picture.
+    el.className = 'mr-load';
     const art = document.createElement('div');
-    art.style.cssText = [
-      'position:absolute', 'inset:0',
-      `background:url('${LOADING_ART}') center 38% / cover no-repeat`,
-      // A slow drift in, so the first frame is not a static poster. Small
-      // enough that nothing reaches an edge.
-      'animation:citysim-drift 26s ease-out forwards',
-    ].join(';');
-    el.appendChild(art);
-
-    // Two scrims rather than one. A flat wash over a painting kills it; these
-    // darken only where the words are -- the middle band and the very bottom
-    // -- and leave the sun, the water and the far shore untouched.
-    const scrim = document.createElement('div');
-    scrim.style.cssText = [
-      'position:absolute', 'inset:0',
-      'background:radial-gradient(58% 46% at 50% 52%,rgba(3,7,13,.86),rgba(3,7,13,.52) 52%,'
-        + 'rgba(3,7,13,0) 84%),'
-        + 'linear-gradient(180deg,rgba(4,8,14,.46) 0%,rgba(4,8,14,0) 26%,'
-        + 'rgba(4,8,14,0) 64%,rgba(4,8,14,.72) 100%)',
-    ].join(';');
-    el.appendChild(scrim);
-
+    art.className = 'mr-load-art';
+    art.style.backgroundImage = `url('${LOADING_ART}')`;
     const stack = document.createElement('div');
-    stack.style.cssText = [
-      'position:relative', 'display:flex', 'flex-direction:column',
-      'align-items:center', 'gap:clamp(14px,2.4vh,26px)',
-      'width:min(760px,88vw)', 'max-height:92vh', 'text-align:center',
-      'animation:citysim-rise 1.1s cubic-bezier(.16,.84,.28,1) both',
-    ].join(';');
-
-    stack.appendChild(this.buildMark('clamp(84px,12vh,132px)', true));
-
-    const h1 = document.createElement('h1');
-    h1.textContent = 'CITYSIM';
-    h1.style.cssText = [
-      'margin:0', `font:800 clamp(38px,7.4vw,92px)/0.9 ${UI}`,
-      'letter-spacing:clamp(.02em,.6vw,.10em)', `color:${INK}`,
-      'text-shadow:0 2px 12px rgba(0,0,0,.55),0 8px 60px rgba(0,0,0,.5)',
-      // Never wider than the stack, whatever the viewport does.
-      'max-width:100%', 'white-space:nowrap',
-    ].join(';');
-    stack.appendChild(h1);
-
-    const sub = document.createElement('p');
-    sub.textContent = 'every building is a program';
-    sub.style.cssText = [
-      'margin:0', `font:500 clamp(9px,1.25vw,13px)/1.4 ${UI}`,
-      'letter-spacing:clamp(.22em,.62vw,.42em)', 'text-transform:uppercase',
-      `color:${COOL}`, 'text-shadow:0 1px 10px rgba(0,0,0,.7)',
-      // The tracking adds a trailing space; the indent puts it back centre.
-      'text-indent:clamp(.22em,.62vw,.42em)', 'max-width:100%',
-    ].join(';');
-    stack.appendChild(sub);
-
-    // The bar. Thin, wide, and honest: it is driven by the build steps rather
-    // than by a timer pretending to be one.
-    const rail = document.createElement('div');
-    rail.style.cssText = [
-      'position:relative', 'width:min(420px,72vw)', 'height:3px',
-      'border-radius:3px', 'background:rgba(255,255,255,.14)',
-      'overflow:hidden', 'margin-top:clamp(4px,1.2vh,14px)',
-    ].join(';');
-    const fill = document.createElement('div');
-    fill.dataset.bar = '';
-    fill.style.cssText = [
-      'position:absolute', 'inset:0 auto 0 0', 'width:0%', 'border-radius:3px',
-      `background:linear-gradient(90deg,${COOL},#ffd7a1)`,
-      'box-shadow:0 0 14px rgba(143,216,255,.6)',
-      'transition:width .5s cubic-bezier(.3,.8,.4,1)',
-    ].join(';');
-    rail.appendChild(fill);
-    stack.appendChild(rail);
-
-    const step = document.createElement('p');
-    step.dataset.step = '';
-    step.style.cssText = [
-      'margin:0', `font:500 clamp(10px,1.15vw,12px)/1.4 ${UI}`,
-      'letter-spacing:.18em', 'text-transform:uppercase', `color:${DIM}`,
-      'min-height:1.4em', 'text-shadow:0 1px 8px rgba(0,0,0,.8)',
-    ].join(';');
-    stack.appendChild(step);
-
-    el.appendChild(stack);
-
-    // Keyframes, once. Written into the document rather than inline because a
-    // transform cannot be animated from a style attribute.
-    if (!document.getElementById('citysim-menu-css')) {
-      const css = document.createElement('style');
-      css.id = 'citysim-menu-css';
-      css.textContent = `
-@keyframes citysim-drift { from { transform: scale(1.075); } to { transform: scale(1); } }
-@keyframes citysim-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [style*="citysim-drift"], [style*="citysim-rise"] { animation: none !important; }
-}`;
-      document.head.appendChild(css);
-    }
+    stack.className = 'mr-load-stack';
+    stack.innerHTML = '<div class="mr-eyebrow">A city builder</div>'
+      + '<h1 class="mr-title">Meridian</h1>'
+      + '<div class="mr-rail"><div class="mr-fill" data-bar></div></div>'
+      + '<p class="mr-step" data-step></p>'
+      + '<p class="mr-tip" data-tip></p>';
+    el.append(art, stack);
+    let n = Math.floor(Math.random() * TIPS.length);
+    const show = (): void => {
+      const t = el.querySelector('[data-tip]');
+      if (t) t.innerHTML = `<b>Tip</b>${TIPS[n % TIPS.length]}`;
+      n++;
+    };
+    show();
+    this.tipTimer = window.setInterval(show, 5200);
+    // The lock-up waits for its typeface, briefly: a title that arrives in
+    // Arial and then jumps into its own face is the first thing anyone sees.
+    const typed = (): void => el.classList.add('is-typed');
+    setTimeout(typed, 1200);
+    document.fonts?.load('900 64px "Big Shoulders Display"').then(typed, typed);
     return el;
   }
 
-  // ---- the mark ---------------------------------------------------------
-
-  /**
-   * Six facets of glass in a hexagon.
-   *
-   * A facet is the trapezium between one edge of the hexagon and the same edge
-   * shrunk towards the middle: six of them make a ring with a hollow centre.
-   * Each is its own element because `backdrop-filter` frosts what is behind an
-   * element, and one SVG cannot give six pieces six different views.
-   */
-  private buildMark(size: string, solid = false): HTMLElement {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = [
-      'position:relative', `width:${size}`, `aspect-ratio:1`, 'flex:0 0 auto',
-      solid
-        ? 'filter:drop-shadow(0 6px 20px rgba(0,0,0,.7)) drop-shadow(0 0 34px rgba(150,205,255,.45))'
-        : 'filter:drop-shadow(0 14px 42px rgba(0,0,0,.6))',
-    ].join(';');
-
-    const corner = (i: number, r: number): [number, number] => {
-      const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
-      return [50 + Math.cos(a) * r, 50 + Math.sin(a) * r];
-    };
-    const OUT = 48, IN = 21, GAP = 0.055;
-    const lerp = (a: [number, number], b: [number, number], t: number): [number, number] =>
-      [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-
-    for (let i = 0; i < 6; i++) {
-      const o0 = corner(i, OUT), o1 = corner(i + 1, OUT);
-      const i0 = corner(i, IN), i1 = corner(i + 1, IN);
-      // Pulled off both ends, which puts a seam of sky between one facet and
-      // the next -- the detail that makes it read as panels rather than a ring.
-      const p = [lerp(o0, o1, GAP), lerp(o1, o0, GAP), lerp(i1, i0, GAP), lerp(i0, i1, GAP)];
-      const f = document.createElement('div');
-      const tilt = Math.cos((i / 6) * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5;
-      // Two ways of being glass, for two kinds of background.
-      //
-      // Over the live scene, `backdrop-filter` is the right answer: the facets
-      // frost whatever the camera is looking at and change as it moves. Over
-      // the painting it is the wrong one -- frosting a bright sunset sky gives
-      // a bright panel on a bright ground, and the mark vanished. So on the
-      // loading screen the facets are lit from within instead, pale and edged,
-      // which reads at any brightness because it does not depend on what is
-      // underneath.
-      const face = solid
-        ? `background:linear-gradient(${(i * 60 + 150) % 360}deg,`
-            + `rgba(255,255,255,${(0.62 + tilt * 0.30).toFixed(2)}),`
-            + `rgba(206,232,255,${(0.34 + tilt * 0.22).toFixed(2)}) 56%,`
-            + `rgba(150,192,236,${(0.26 + tilt * 0.14).toFixed(2)}));`
-            + 'box-shadow:inset 0 1px 0 rgba(255,255,255,.85)'
-        : `background:linear-gradient(${(i * 60 + 150) % 360}deg,`
-            + `rgba(212,236,255,${(0.20 + tilt * 0.30).toFixed(2)}),`
-            + `rgba(128,182,230,.12) 58%,rgba(46,84,132,.26));`
-            + `backdrop-filter:blur(2px) saturate(${(1.25 + tilt * 0.5).toFixed(2)})`
-            + ` brightness(${(1.10 + tilt * 0.35).toFixed(2)})`;
-      f.style.cssText = [
-        'position:absolute', 'inset:0',
-        `clip-path:polygon(${p.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(',')})`,
-        face,
-        solid ? 'opacity:.16' : 'opacity:.09',
-        'transition:opacity .5s ease, filter .5s ease',
-      ].join(';');
-      this.facets.push(f);
-      wrap.appendChild(f);
-    }
-    return wrap;
-  }
-
-  /** How far along the build is, 0 to 1, with the step named. */
   progress(t: number, label: string): void {
-    const want = Math.min(6, Math.floor(t * 6 + 1e-4));
-    for (; this.lit < want; this.lit++) {
-      const f = this.facets[this.lit];
-      f.style.opacity = '1';
-      f.style.filter = 'brightness(1.55)';
-      setTimeout(() => { f.style.filter = 'none'; }, 260);
-    }
     this.bar.style.width = `${Math.round(Math.min(1, Math.max(0, t)) * 100)}%`;
     this.step.textContent = label;
   }
 
-  // ---- the menu ---------------------------------------------------------
-
-  /**
-   * Clean and quiet, over the live terrain.
-   *
-   * One column on the left, nothing on the right, and a scrim that fades out
-   * before it reaches the middle. The land is the background and the menu is a
-   * caption on it.
-   */
   private buildMenu(): HTMLElement {
     const el = document.createElement('div');
-    el.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:20', 'pointer-events:none',
-      'display:flex', 'align-items:center', 'opacity:0',
-      'background:linear-gradient(97deg,rgba(4,8,15,.70) 0%,rgba(5,10,18,.40) 24%,'
-        + 'rgba(6,11,20,.10) 44%,rgba(6,11,20,0) 60%)',
-      `color:${INK}`, `font:400 14px/1.5 ${UI}`, 'transition:opacity .85s ease',
-    ].join(';');
-
-    const panel = document.createElement('div');
-    panel.style.cssText = [
-      'display:flex', 'flex-direction:column', 'align-items:flex-start',
-      'gap:clamp(16px,2.6vh,26px)', 'padding:0 clamp(26px,5vw,68px)',
-      'width:min(460px,86vw)', 'pointer-events:auto',
-    ].join(';');
-    el.appendChild(panel);
-
-    const head = document.createElement('div');
-    head.style.cssText = 'display:flex;flex-direction:column;gap:5px';
-    const h1 = document.createElement('h1');
-    h1.textContent = 'CITYSIM';
-    h1.style.cssText = [
-      'margin:0', `font:800 clamp(34px,4.4vw,54px)/0.92 ${UI}`,
-      'letter-spacing:-.02em', `color:${INK}`,
-      'text-shadow:0 2px 30px rgba(0,0,0,.65)', 'white-space:nowrap',
-    ].join(';');
-    const sub = document.createElement('p');
-    sub.textContent = 'every building is a program';
-    sub.style.cssText = [
-      'margin:0', `font:500 10px/1 ${UI}`, 'letter-spacing:.32em',
-      'text-indent:.32em', 'text-transform:uppercase', `color:${COOL}`,
-      'opacity:.9', 'text-shadow:0 1px 10px rgba(0,0,0,.6)',
-    ].join(';');
-    head.append(h1, sub);
-    panel.appendChild(head);
-
-    const body = document.createElement('div');
+    el.className = 'mr-menu';
+    const col = document.createElement('div');
+    col.className = 'mr-col';
+    col.innerHTML = '<header><div class="mr-eyebrow">A city builder</div>'
+      + '<h1 class="mr-title">Meridian</h1>'
+      + '<p class="mr-tag">Draw the roads and zone the land. The people who arrive decide the rest.</p>'
+      + '</header>';
+    const body = document.createElement('nav');
     body.dataset.body = '';
-    body.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%';
-    panel.appendChild(body);
-
+    body.setAttribute('aria-label', 'Main menu');
     const note = document.createElement('p');
+    note.className = 'mr-note';
     note.dataset.note = '';
-    note.style.cssText = [
-      'margin:0', 'min-height:2.6em', `color:${DIM}`, 'font-size:12px',
-      'max-width:40ch', 'text-shadow:0 1px 10px rgba(0,0,0,.6)',
-    ].join(';');
-    panel.appendChild(note);
+    col.append(body, note);
+    const foot = document.createElement('footer');
+    foot.className = 'mr-foot';
+    foot.innerHTML = '<span class="mr-live">Live world · WebGPU</span>'
+      + '<span class="mr-keys"><kbd>\u2191</kbd><kbd>\u2193</kbd> choose'
+      + ' &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> back</span>';
+    el.append(col, foot);
     return el;
   }
 
-  /**
-   * Loading is done: put the painting away and show the land.
-   *
-   * Idempotent, because two things can call it -- the build finishing, and the
-   * timer that opens the menu anyway if the build overruns.
-   */
+  /** Called once the world is built: the loader fades out over the title. */
   ready(): void {
     if (this.opened) return;
     this.opened = true;
-    this.progress(1, '');
+    this.progress(1, 'Ready');
+    clearInterval(this.tipTimer);
     this.hooks.cinematic(true);
-    // The art goes first and the menu follows it, so there is a moment of the
-    // terrain on its own between them. That beat is the whole transition.
     this.loader.style.opacity = '0';
-    setTimeout(() => this.loader.remove(), 900);
+    setTimeout(() => this.loader.remove(), 950);
     setTimeout(() => {
       this.show();
       this.root.style.opacity = '1';
     }, 420);
   }
 
+  /** Lays out a list of entries, and whatever Escape should do from here. */
+  private list(entries: Entry[], back: (() => void) | null, scroll = false): void {
+    this.body.replaceChildren();
+    this.back = back;
+    const ul = document.createElement('ul');
+    ul.className = scroll ? 'mr-list mr-scroll' : 'mr-list';
+    this.items = entries.map((e, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.className = 'mr-item' + (e.primary ? ' is-primary' : '');
+      const name = document.createElement('span');
+      name.textContent = e.label;
+      const key = document.createElement('span');
+      key.className = 'mr-key';
+      key.textContent = e.key ?? '';
+      if (e.remove) {
+        key.className = 'mr-x';
+        key.textContent = 'Delete';
+        key.setAttribute('role', 'button');
+        key.title = `Delete ${e.label}`;
+        const remove = e.remove;
+        key.addEventListener('click', (ev) => { ev.stopPropagation(); remove(); });
+      }
+      const hint = document.createElement('span');
+      hint.className = 'mr-hint';
+      hint.textContent = e.hint;
+      b.append(name, key, hint);
+      b.addEventListener('pointerenter', () => this.focus(i));
+      b.addEventListener('focus', () => this.focus(i));
+      b.addEventListener('click', e.run);
+      li.appendChild(b);
+      ul.appendChild(li);
+      return b;
+    });
+    this.body.appendChild(ul);
+    this.focus(0);
+  }
+
+  private focus(i: number): void {
+    if (this.items.length === 0) return;
+    this.active = (i + this.items.length) % this.items.length;
+    this.items.forEach((b, j) => b.classList.toggle('is-active', j === this.active));
+  }
+
+  private readonly onKey = (e: KeyboardEvent): void => {
+    if (!this.opened || this.root.style.pointerEvents === 'none' || !this.root.isConnected) return;
+    if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+      if (e.key === 'Escape' && this.back) { e.preventDefault(); this.back(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); this.focus(this.active + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); this.focus(this.active - 1); }
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.items[this.active]?.click();
+    } else if (e.key === 'Escape' && this.back) { e.preventDefault(); this.back(); }
+  };
+
   private show(): void {
     const saves = listSaves();
-    this.body.replaceChildren();
-    this.body.appendChild(this.button('New city', 'Empty land, and a road in from the edge',
-      true, () => this.close(() => this.hooks.onNew())));
+    const entries: Entry[] = [];
     if (saves.length > 0) {
       const last = saves[0];
-      this.body.appendChild(this.button(`Continue — ${last.name}`,
-        `${slotHint(last)} · ${when(last.at)}`, false, () => this.open(last.key)));
+      entries.push({ label: 'Continue', key: last.name, primary: true,
+        hint: `${last.name} \u2014 ${slotHint(last)}, ${when(last.at)}`,
+        run: () => this.open(last.key) });
     }
-    this.body.appendChild(this.row([
-      ['Load', () => this.showLoad(listSaves())],
-      ['Join a city', () => this.showJoin()],
-    ]));
+    entries.push({ label: 'New city', primary: saves.length === 0,
+      hint: 'Empty land by the river, with one road in from the edge of the map.',
+      run: () => this.close(() => this.hooks.onNew()) });
+    entries.push({ label: 'Load city', key: saves.length > 0 ? `${saves.length} saved` : '',
+      hint: 'Pick up any city saved in this browser.', run: () => this.showLoad() });
+    entries.push({ label: 'Share & join',
+      hint: 'Send your city to a friend as a code, or paste theirs to visit it.',
+      run: () => this.showJoin() });
+    this.list(entries, null);
     this.note.textContent = saves.length > 0
       ? 'Saves live in this browser. Clearing site data clears them.'
-      : 'Draw a road, zone beside it, and buildings grow on the frontage.';
+      : '';
   }
 
-  private showLoad(saves: SaveInfo[]): void {
-    this.body.replaceChildren();
-    if (saves.length === 0) {
-      this.note.textContent = 'Nothing saved yet.';
-    } else {
-      const list = document.createElement('div');
-      list.style.cssText = [
-        'display:flex', 'flex-direction:column', 'gap:6px', 'width:100%',
-        'max-height:min(320px,44vh)', 'overflow-y:auto',
-      ].join(';');
-      for (const s of saves) {
-        const b = this.button(s.name, `${slotHint(s)} · ${when(s.at)}`,
-          false, () => this.open(s.key));
-        const x = document.createElement('span');
-        x.textContent = '✕';
-        x.title = `Delete ${s.name}`;
-        x.style.cssText = [
-          'position:absolute', 'right:12px', 'top:50%', 'transform:translateY(-50%)',
-          `color:${DIM}`, 'font-size:12px', 'padding:6px', 'border-radius:6px',
-        ].join(';');
-        x.addEventListener('click', (e) => {
-          e.stopPropagation();
-          deleteSave(s.key);
-          this.showLoad(listSaves());
-        });
-        b.appendChild(x);
-        list.appendChild(b);
-      }
-      this.body.appendChild(list);
-      this.note.textContent = 'Saves live in this browser. Clearing site data clears them.';
-    }
-    this.body.appendChild(this.row([['Back', () => this.show()]]));
+  private showLoad(): void {
+    const saves = listSaves();
+    const entries: Entry[] = saves.map((s) => ({
+      label: s.name, hint: `${slotHint(s)} \u00b7 ${when(s.at)}`,
+      run: () => this.open(s.key),
+      remove: () => { deleteSave(s.key); this.showLoad(); },
+    }));
+    entries.push({ label: 'Back', hint: 'Return to the title.', run: () => this.show() });
+    this.list(entries, () => this.show(), true);
+    this.note.textContent = saves.length === 0
+      ? 'Nothing saved yet. Cities you save in play, and the autosave, appear here.'
+      : 'Saves live in this browser. Clearing site data clears them.';
   }
 
-  /**
-   * Joining, honestly.
-   *
-   * There is no server behind this, so "join" cannot mean what it means in a
-   * game that has one, and pretending otherwise would be a button that lies.
-   * What it can mean is that a city travels as text: paste someone's code and
-   * you are standing on their map, with their roads and their zoning.
-   */
   private showJoin(): void {
-    this.body.replaceChildren();
     const box = document.createElement('textarea');
-    box.placeholder = 'Paste a city code…';
+    box.className = 'mr-code';
+    box.id = 'mr-city-code';
+    box.placeholder = 'Paste a city code here\u2026';
     box.spellcheck = false;
-    box.style.cssText = [
-      'width:100%', 'height:96px', 'resize:none', 'padding:12px 14px',
-      'border-radius:12px', `border:1px solid ${EDGE}`, `background:${GLASS}`,
-      `color:${INK}`, 'font:400 11px/1.5 ui-monospace,monospace',
-      'backdrop-filter:blur(12px)', 'outline:none',
-    ].join(';');
-    this.body.appendChild(box);
-    this.body.appendChild(this.row([
-      ['Join', () => {
-        void (async (): Promise<void> => {
-          const got = await fromCode(box.value);
-          if (got === null) { this.note.textContent = 'That is not a city code.'; return; }
-          this.close(() => this.hooks.onLoad(got.world, got.name));
-        })();
-      }],
-      ['Copy mine', () => {
-        void (async (): Promise<void> => {
-          const code = await toCode(this.hooks.world(), 'Shared city');
-          box.value = code;
-          box.select();
-          try {
-            await navigator.clipboard.writeText(code);
-            this.note.textContent = 'Copied. Anyone who pastes that lands on your map.';
-          } catch {
-            this.note.textContent = 'Copy it from the box — the clipboard was refused.';
-          }
-        })();
-      }],
-      ['Back', () => this.show()],
-    ]));
-    this.note.textContent = 'A city travels as text. There is no server — this is the whole of it.';
+    box.setAttribute('aria-label', 'City code');
+    this.list([
+      { label: 'Join this city', primary: true, hint: 'Open the city in the code above.',
+        run: () => {
+          void (async (): Promise<void> => {
+            const got = await fromCode(box.value);
+            if (got === null) { this.note.textContent = 'That is not a city code. Check it was copied whole.'; return; }
+            this.close(() => this.hooks.onLoad(got.world, got.name));
+          })();
+        } },
+      { label: 'Copy my city', hint: 'Turn the city on the map into a code you can send.',
+        run: () => {
+          void (async (): Promise<void> => {
+            const code = await toCode(this.hooks.world(), 'Shared city');
+            box.value = code;
+            box.select();
+            try {
+              await navigator.clipboard.writeText(code);
+              this.note.textContent = 'Copied. Anyone who pastes that code lands on your map.';
+            } catch {
+              this.note.textContent = 'The clipboard was refused. The code is selected in the box: copy it from there.';
+            }
+          })();
+        } },
+      { label: 'Back', hint: 'Return to the title.', run: () => this.show() },
+    ], () => this.show());
+    this.body.prepend(box);
+    this.note.textContent = 'A city travels as text. There is no server; the code is the whole city.';
     box.focus();
   }
 
   private open(key: string): void {
     const got = readSave(key);
-    if (got === null) { this.note.textContent = 'That save will not open.'; return; }
+    if (got === null) { this.note.textContent = 'That save will not open. It may be from an older version.'; return; }
     this.close(() => this.hooks.onLoad(got.world, got.name));
   }
 
-  // ---- parts ------------------------------------------------------------
-
-  private button(label: string, hint: string, primary: boolean,
-    onClick: () => void): HTMLElement {
-    const b = document.createElement('button');
-    b.style.cssText = [
-      'position:relative', 'width:100%', 'text-align:left', 'cursor:pointer',
-      'padding:12px 15px', 'border-radius:12px',
-      `border:1px solid ${primary ? 'rgba(143,216,255,.42)' : EDGE}`,
-      primary
-        ? 'background:linear-gradient(160deg,rgba(56,142,196,.32),rgba(26,72,112,.28))'
-        : `background:${GLASS}`,
-      'backdrop-filter:blur(14px) saturate(1.2)', `color:${INK}`,
-      `font:600 14px/1.25 ${UI}`,
-      'box-shadow:0 6px 22px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12)',
-      'transition:transform .12s, border-color .12s',
-    ].join(';');
-    const t = document.createElement('div');
-    t.textContent = label;
-    const h = document.createElement('div');
-    h.textContent = hint;
-    h.style.cssText = `margin-top:3px;font:500 11px/1.35 inherit;color:${DIM}`;
-    b.append(t, h);
-    b.addEventListener('pointerenter', () => {
-      b.style.transform = 'translateY(-1px)';
-      b.style.borderColor = 'rgba(143,216,255,.6)';
-    });
-    b.addEventListener('pointerleave', () => {
-      b.style.transform = 'none';
-      b.style.borderColor = primary ? 'rgba(143,216,255,.42)' : EDGE;
-    });
-    b.addEventListener('click', onClick);
-    return b;
-  }
-
-  private row(items: readonly (readonly [string, () => void])[]): HTMLElement {
-    const r = document.createElement('div');
-    r.style.cssText = 'display:flex;gap:8px;width:100%';
-    for (const [label, fn] of items) {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = [
-        'flex:1', 'padding:10px 14px', 'border-radius:11px', `border:1px solid ${EDGE}`,
-        `background:${GLASS}`, 'backdrop-filter:blur(12px)', `color:${DIM}`,
-        'cursor:pointer', `font:600 12px/1 ${UI}`, 'letter-spacing:.05em',
-        'transition:color .12s, border-color .12s',
-      ].join(';');
-      b.addEventListener('pointerenter', () => {
-        b.style.color = INK; b.style.borderColor = 'rgba(143,216,255,.5)';
-      });
-      b.addEventListener('pointerleave', () => {
-        b.style.color = DIM; b.style.borderColor = EDGE;
-      });
-      b.addEventListener('click', fn);
-      r.appendChild(b);
-    }
-    return r;
-  }
-
-  /** Fades out and hands over. The scene is already running underneath. */
   private close(then: () => void): void {
     this.root.style.opacity = '0';
     this.root.style.pointerEvents = 'none';
+    removeEventListener('keydown', this.onKey);
     this.hooks.cinematic(false);
     setTimeout(() => {
       this.root.remove();
       then();
-    }, 460);
+    }, 520);
   }
 }
 
-/**
- * A save's age, in the words a person would use.
- *
- * A timestamp is a fact; "4 min ago" answers the question actually being
- * asked, which is "is this the one I was just in".
- */
-/**
- * What a slot says about itself under its name.
- *
- * The rolling slot says so. A player who sees two entries for the same city
- * needs to know which one the game wrote and which one they chose, or deleting
- * the wrong one is a coin toss.
- */
 function slotHint(s: SaveInfo): string {
   const body = `${s.roads} roads, ${s.lots} placed`;
   return s.auto ? `${body} · autosaved` : body;

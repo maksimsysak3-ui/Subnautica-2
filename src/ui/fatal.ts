@@ -6,6 +6,9 @@
  * this explains what is missing and what to do about it.
  */
 
+import { installTheme } from './theme';
+import { LOADING_ART } from './loading-art';
+
 export type FatalKind = 'no-webgpu' | 'no-adapter' | 'no-device' | 'device-lost' | 'internal';
 
 const TITLES: Record<FatalKind, string> = {
@@ -66,42 +69,55 @@ function advice(kind: FatalKind): string[] {
 }
 
 export function fatal(kind: FatalKind, detail?: string): void {
+  installTheme();
   const boot = document.getElementById('boot');
   if (boot) boot.classList.remove('done');
+  // Anything the loader or the menu already put up would sit over this.
+  for (const el of Array.from(document.querySelectorAll('.mr-load, .mr-menu'))) el.remove();
 
   const host = boot ?? document.body;
   host.innerHTML = '';
-  host.style.cssText +=
-    ';display:grid;place-content:center;padding:32px;text-align:left;max-width:min(680px,92vw);margin:0 auto;';
+  host.style.cssText += ';display:grid;place-items:end start;place-content:end start;padding:0;text-align:left;gap:0;'
+    + `background:#05080d url('${LOADING_ART}') center 38% / cover no-repeat;`;
 
-  const h = document.createElement('h1');
+  const scrim = document.createElement('div');
+  scrim.style.cssText = 'position:absolute;inset:0;background:linear-gradient(0deg,'
+    + 'rgba(3,5,9,.96) 0%,rgba(3,5,9,.78) 45%,rgba(3,5,9,.35) 100%)';
+  host.appendChild(scrim);
+
+  const col = document.createElement('div');
+  col.style.cssText = 'position:relative;display:flex;flex-direction:column;gap:14px;'
+    + 'padding:0 clamp(24px,6.5vw,104px) clamp(34px,8vh,80px);max-width:min(720px,100%);'
+    + 'box-sizing:border-box;color:#dbe4ee;font:500 15px/1.6 var(--ui)';
+  col.innerHTML = '<div class="mr-eyebrow">A city builder</div>'
+    + '<h1 class="mr-title" style="font-size:clamp(52px,8vw,110px);letter-spacing:.015em;color:var(--ink)">Meridian</h1>';
+
+  const h = document.createElement('h2');
   h.textContent = TITLES[kind];
-  h.style.cssText =
-    'font:500 15px/1.4 var(--mono);letter-spacing:.06em;color:var(--err);text-transform:none;margin-bottom:14px;';
-  host.appendChild(h);
+  h.style.cssText = 'margin:8px 0 0;font:700 22px/1.2 var(--display);letter-spacing:.06em;'
+    + 'text-transform:uppercase;color:#ff9c7a';
+  col.appendChild(h);
 
-  const ul = document.createElement('div');
-  ul.style.cssText = 'color:var(--fg);font-size:13px;line-height:1.75;';
   for (const line of advice(kind)) {
     const p = document.createElement('p');
     p.textContent = line;
-    p.style.cssText = 'margin-bottom:8px;';
-    ul.appendChild(p);
+    p.style.cssText = 'margin:0;max-width:60ch';
+    col.appendChild(p);
   }
-  host.appendChild(ul);
 
   if (detail) {
     const pre = document.createElement('pre');
     pre.textContent = detail;
-    pre.style.cssText =
-      'margin-top:20px;padding:12px 14px;background:rgba(255,107,122,.07);' +
-      'border-left:2px solid var(--err);color:var(--dim);font-size:11px;' +
-      'white-space:pre-wrap;word-break:break-word;max-height:30vh;overflow:auto;';
-    host.appendChild(pre);
+    pre.style.cssText = 'margin:8px 0 0;padding:12px 14px;background:rgba(255,120,100,.08);'
+      + 'border-left:2px solid #ff9c7a;color:#9fb0c4;font:12px/1.5 ui-monospace,Menlo,monospace;'
+      + 'white-space:pre-wrap;word-break:break-word;max-height:26vh;overflow:auto';
+    col.appendChild(pre);
   }
 
   const foot = document.createElement('p');
-  foot.innerHTML = 'Reported at <a href="https://github.com/maksimsysak3-ui/Subnautica-2/issues" style="color:var(--accent)">github.com/maksimsysak3-ui/Subnautica-2</a>';
-  foot.style.cssText = 'margin-top:22px;color:var(--dim);font-size:11px;';
-  host.appendChild(foot);
+  foot.innerHTML = 'Report it at <a href="https://github.com/maksimsysak3-ui/Subnautica-2/issues"'
+    + ' style="color:var(--amber)" target="_blank" rel="noopener">github.com/maksimsysak3-ui/Subnautica-2</a>';
+  foot.style.cssText = 'margin:6px 0 0;color:#7d8fa5;font-size:13px';
+  col.appendChild(foot);
+  host.appendChild(col);
 }
