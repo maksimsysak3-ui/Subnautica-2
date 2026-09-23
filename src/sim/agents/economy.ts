@@ -55,6 +55,8 @@ import type { RoadGraph } from '../roadgraph';
 import type { TransitNet } from './transit';
 import type { Ground } from './ground';
 import { Rng } from './rand';
+import { Policies, NO_POLICIES } from '../policies';
+import type { TrafficStats } from './driving';
 
 /**
  * A week's wages for one filled job, by purpose.
@@ -126,6 +128,16 @@ const ROAD_UPKEEP_PER_EDGE_METRE = 0.35;
 const INTEREST = 0.008;
 
 /**
+ * The mean speed a network with nothing in its way manages, metres a second.
+ *
+ * Not a speed limit: it is the average over a whole city's worth of streets,
+ * avenues and junctions, and a city whose traffic averages this is a city where
+ * nobody is waiting. Thirteen is a shade under fifty an hour, which is what the
+ * readout shows when a small town is running well.
+ */
+const FREE_FLOW_SPEED = 13.0;
+
+/**
  * How hard tax bites at mood, at the top of the scale.
  *
  * Twenty-nine per cent is three times neutral and takes about a fifth off how
@@ -154,6 +166,21 @@ export interface Ledger {
   roads: number;
   imports: number;
   interest: number;
+  /**
+   * What the ordinances cost. Negative when they earn -- parking charges do.
+   *
+   * Its own line rather than folded into the service upkeep, because a bill a
+   * player cannot see is a bill they cannot weigh against what it bought.
+   */
+  policies: number;
+  /**
+   * What the city did not earn because its roads do not move.
+   *
+   * Shops do not get their deliveries and their customers, and works do not get
+   * their goods out: congestion is a tax the city levies on itself, and until
+   * this line existed it was the one consequence of a jam that cost nothing.
+   */
+  congestion: number;
   /** The totals, and the bottom line. */
   income: number;
   spending: number;
@@ -292,6 +319,7 @@ export class Economy {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
     services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
+    policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
     landValue: 1, goodsMade: 0, goodsWanted: 0,
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
@@ -303,6 +331,9 @@ export class Economy {
 
   private readonly rng: Rng;
   private owedEvents = 0;
+  /** The ordinances in force, and what the traffic is doing. */
+  private policies: Policies = NO_POLICIES;
+  private traffic: TrafficStats | null = null;
 
   constructor(
     private budget: Budget,
@@ -316,6 +347,17 @@ export class Economy {
   ) {
     this.rng = new Rng(seed);
   }
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void { this.policies = policies; }
+
+  /**
+   * Points at the traffic readout, so a jam can cost money.
+   *
+   * The stats object is the live one the traffic model writes into every tick,
+   * not a copy -- the same arrangement the views use.
+   */
+  watches(traffic: TrafficStats): void { this.traffic = traffic; }
 
   /** The world was replaced, or the roads were. */
   rebind(budget: Budget, net: RoadGraph | null, transit: TransitNet | null): void {
@@ -367,10 +409,32 @@ export class Economy {
     const worth = 0.70 + 0.80 * this.ground.meanValue;
     r.landValue = worth;
 
-    r.residential = wages * b.rates[Tax.RESIDENTIAL] * worth;
-    r.commercial = sales * b.rates[Tax.COMMERCIAL] * worth;
-    r.industrial = output * b.rates[Tax.INDUSTRIAL] * worth;
-    r.office = billings * b.rates[Tax.OFFICE] * worth;
+    // How well the roads move, 1 free-flowing and 0 gridlocked.
+    //
+    // From the mean speed of everything driving against what the network could
+    // do, which is the same number the readout shows -- so a player watching
+    // the traffic figure fall is watching the reason their takings fell. An
+    // empty city has no traffic and is not congested.
+    const t = this.traffic;
+    const flow = t === null || t.driving < 8 ? 1
+      : Math.max(0, Math.min(1, t.meanSpeed / FREE_FLOW_SPEED));
+
+    const pol = this.policies.effects;
+    // What congestion costs each zone. A shop needs its customers through the
+    // door and its stock off a lorry; a works needs its goods out. An office is
+    // people at desks and a house is a payslip, so both are barely touched.
+    const gum = (bite: number): number => 1 - bite * (1 - flow);
+
+    const rawRes = wages * b.rates[Tax.RESIDENTIAL] * worth * pol.residentialYield;
+    const rawCom = sales * b.rates[Tax.COMMERCIAL] * worth * pol.commercialYield;
+    const rawInd = output * b.rates[Tax.INDUSTRIAL] * worth * pol.industrialYield;
+    const rawOff = billings * b.rates[Tax.OFFICE] * worth * pol.officeYield;
+    r.residential = rawRes * gum(0.06);
+    r.commercial = rawCom * gum(0.30);
+    r.industrial = rawInd * gum(0.26);
+    r.office = rawOff * gum(0.10);
+    r.congestion = (rawRes - r.residential) + (rawCom - r.commercial)
+      + (rawInd - r.industrial) + (rawOff - r.office);
 
     // ---- trade -------------------------------------------------------------
     //
@@ -385,13 +449,15 @@ export class Economy {
 
     // ---- fares -------------------------------------------------------------
     const riders = this.transit?.report.ridersPerDay ?? 0;
-    r.fares = riders * 7 * FARE;
+    r.fares = riders * 7 * FARE * pol.transitFare;
 
     // ---- what the city owes ------------------------------------------------
     r.services = this.serviceUpkeep();
     r.transit = this.transit?.report.weekly ?? 0;
     r.roads = this.roadUpkeep();
     r.interest = b.balance < 0 ? -b.balance * INTEREST : 0;
+    r.policies = this.policies.weekly(this.people.population,
+      shopJobs + officeJobs + worksJobs + serviceJobs, p.count);
 
     // The block grant, which is what makes the first hour survivable.
     //
@@ -411,7 +477,8 @@ export class Economy {
 
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
       + r.exports + r.fares;
-    r.spending = r.services + r.transit + r.roads + r.imports + r.interest;
+    r.spending = r.services + r.transit + r.roads + r.imports + r.interest
+      + r.policies;
     r.net = r.income - r.spending;
     r.weeksLeft = r.net >= 0 ? Infinity
       : Math.max(0, (b.balance + OVERDRAFT) / -r.net);

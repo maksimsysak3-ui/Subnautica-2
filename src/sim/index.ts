@@ -36,6 +36,8 @@ export {
   Land, PLOTS, STARTING, startingLand, plotAt, plotAtWorld, plotBounds, plotCells,
   plotSpan, ownsCells, ownsAt,
 } from './plots';
+export { POLICIES, POLICY_COUNT, Policies } from './policies';
+export type { PolicyDef } from './policies';
 export { Weather } from './weather';
 export type { Sky } from './weather';
 export {

@@ -53,6 +53,7 @@ import { InfoViews } from './ui/info-views';
 import { DemandBars } from './ui/demand-bars';
 import { Thoughts } from './ui/thoughts';
 import { TaxPanel } from './ui/tax-panel';
+import { PolicyPanel } from './ui/policy-panel';
 import { LinesPanel } from './ui/lines-panel';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
@@ -82,6 +83,7 @@ export class LiveCity {
   private readonly bars: DemandBars;
   private readonly thoughts: Thoughts;
   private readonly tax: TaxPanel;
+  private readonly policies: PolicyPanel;
   private readonly lines: LinesPanel;
   /** The notices in the corner, and what the last one was about. */
   private readonly alerts: Alerts;
@@ -149,6 +151,8 @@ export class LiveCity {
     // place a rate and the bill it moves can be looked at together.
     this.tax = new TaxPanel();
     this.info.mount(View.BUDGET, this.tax.root);
+    this.policies = new PolicyPanel();
+    this.info.mount(View.BUDGET, this.policies.root);
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
@@ -347,6 +351,7 @@ export class LiveCity {
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
       this.sim.speed = this.rate;
       this.tax.bind(this.sim.budget);
+      this.policies.bind(this.sim.policies);
       const sim = this.sim;
       this.lines.bind(() => ({ transit: this.renderer.world.transit, net: sim.transit }));
       this.uploaded = -1;
@@ -442,7 +447,10 @@ export class LiveCity {
 
     // The sliders follow the budget rather than owning it, so a loaded save shows
     // the rates it was saved with.
-    if (this.info.view === View.BUDGET) this.tax.refresh();
+    if (this.info.view === View.BUDGET) {
+      this.tax.refresh();
+      this.policies.refresh(this.sim?.economy.report.policies ?? 0);
+    }
     if (this.info.view === View.TRANSPORT) this.lines.refresh();
 
     if (now - this.readoutAt >= READOUT_MS) {

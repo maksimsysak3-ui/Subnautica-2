@@ -1306,6 +1306,26 @@ Promise<{ pixels: number[]; movers: string }> {
     live.speed = 1;
     live.tap(null);
     live.levelCard.dismissAll();
+  } else if (panel === 'policies') {
+    // The budget view with the ordinance list open, which is the one panel in
+    // the game that cannot be photographed by pointing the camera at a city.
+    // Two of them are turned on so the card shows both states of a row and the
+    // bill at the top of the list has a number in it.
+    sim.policies.set(0, true);
+    sim.policies.set(4, true);
+    // Pressed rather than called, so what is photographed is what a player
+    // would get: the launcher, then the budget button on the rail.
+    const press = (name: string): void => {
+      const all = Array.from(document.querySelectorAll('button'));
+      (all.find((b) => b.getAttribute('aria-label') === name) as
+        HTMLButtonElement | undefined)?.click();
+    };
+    press('Information views');
+    press('Budget');
+    for (let i = 0; i < 12; i++) live.update(1 / 20, performance.now() + 20000 + i * 50);
+    (document.querySelector('[data-action="policies-toggle"]') as
+      HTMLElement | null)?.click();
+    live.update(1 / 20, performance.now() + 21000);
   } else if (panel === 'tech') {
     renderer.world.progress.stars = 6;
     live.tech.show();

@@ -48,6 +48,7 @@ import { waterAt } from '../river';
 import type { LaneGraph } from './lanes';
 import { Main } from '../mains';
 import type { Mains } from '../mains';
+import { Policies, NO_POLICIES } from '../policies';
 
 /** The four utilities. */
 export const Util = { POWER: 0, WATER: 1, SEWAGE: 2, GARBAGE: 3 } as const;
@@ -248,6 +249,20 @@ export interface UtilityReport {
 
 export class Utilities {
   /**
+   * The ordinances in force.
+   *
+   * Recycling and metering are policies about what a building *puts out* and
+   * *draws in*, so they belong exactly here, on the two sums below, rather than
+   * as a correction applied to the answer afterwards.
+   */
+  private policies: Policies = NO_POLICIES;
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void {
+    this.policies = policies;
+  }
+
+  /**
    * Which network each place is on, per utility, or -1 for one nothing reaches.
    *
    * Four arrays rather than one, which is the whole of the mains change as far as
@@ -302,7 +317,7 @@ export class Utilities {
   daysOfRubbish(place: number): number {
     if (place < 0 || place >= this.pile.length) return 0;
     const def = ASSETS[this.places.col.proto[place]];
-    const perDay = (def?.sim?.garbagePerWeek ?? 0) / 7;
+    const perDay = ((def?.sim?.garbagePerWeek ?? 0) / 7) * this.policies.effects.garbage;
     return perDay <= 0 ? 0 : this.pile[place] / perDay;
   }
 
@@ -491,11 +506,12 @@ export class Utilities {
       const onWater = this.netOf[Util.WATER][p];
       const onSewer = this.netOf[Util.SEWAGE][p];
       const onBins = this.netOf[Util.GARBAGE][p];
-      if (onPower >= 0) { used[Util.POWER][onPower] += (sim.powerKW ?? 0) * busy; held[Util.POWER][onPower]++; }
-      const water = (sim.waterM3 ?? 0) * busy;
+      const pol = this.policies.effects;
+      if (onPower >= 0) { used[Util.POWER][onPower] += (sim.powerKW ?? 0) * busy * pol.power; held[Util.POWER][onPower]++; }
+      const water = (sim.waterM3 ?? 0) * busy * pol.water;
       if (onWater >= 0) { used[Util.WATER][onWater] += water; held[Util.WATER][onWater]++; }
       if (onSewer >= 0) { used[Util.SEWAGE][onSewer] += water * SEWAGE_PER_WATER; held[Util.SEWAGE][onSewer]++; }
-      if (onBins >= 0) { used[Util.GARBAGE][onBins] += (sim.garbagePerWeek ?? 0) * busy; held[Util.GARBAGE][onBins]++; }
+      if (onBins >= 0) { used[Util.GARBAGE][onBins] += (sim.garbagePerWeek ?? 0) * busy * pol.garbage; held[Util.GARBAGE][onBins]++; }
 
       const supply = SUPPLY[def.id];
       if (supply === undefined) continue;
@@ -574,7 +590,8 @@ export class Utilities {
       // Rubbish is a stock. What the network cannot burn piles up here.
       const onBins = this.netOf[Util.GARBAGE][p];
       if (onBins >= 0) reached[Util.GARBAGE]++;
-      const perDay = ((ASSETS[c.proto[p]]?.sim?.garbagePerWeek ?? 0) / 7) * this.occupancy(p);
+      const perDay = ((ASSETS[c.proto[p]]?.sim?.garbagePerWeek ?? 0) / 7) * this.occupancy(p)
+        * this.policies.effects.garbage;
       const taken = onBins < 0 ? 0 : Math.max(0, Math.min(1, margin[Util.GARBAGE][onBins]));
       this.pile[p] = Math.max(0, this.pile[p] + perDay * (1 - taken) * days);
       const daysHeld = perDay > 0 ? this.pile[p] / perDay : 0;

@@ -39,6 +39,7 @@ import { Places, Purpose } from './places';
 import { BRANCHES } from '../../assets/types';
 import type { Branch } from '../../assets/types';
 import { Use } from './lanes';
+import { Policies, NO_POLICIES } from '../policies';
 
 /**
  * Reported where a building is outside every catchment.
@@ -145,6 +146,12 @@ export class Services {
    * Already includes the covering station's load, so a cell inside a swamped
    * station's catchment reads low -- which is the truth about standing there.
    */
+  /** The ordinances in force: the two that stretch a catchment. */
+  private policies: Policies = NO_POLICIES;
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void { this.policies = policies; }
+
   readonly reach: Float32Array[] = [];
   /** Metres to the nearest station of each branch, per cell. */
   readonly near: Float32Array[] = [];
@@ -298,6 +305,12 @@ export class Services {
     const name = BRANCHES[b];
     const std = STANDARD[name];
     const cov = this.cover[b];
+    // Ordinances that stretch a station's catchment rather than add stations.
+    // A neighbourhood watch does not build a police post; it makes the one that
+    // is there cover more ground, which is exactly a radius.
+    const pol = this.policies.effects;
+    const grow = name === 'police' ? pol.safetyReach
+      : name === 'education' ? pol.learningReach : 1;
     const pool = this.places.byBranch[b];
     const c = this.places.col;
     const reach = this.reach[b];
@@ -324,7 +337,7 @@ export class Services {
       const p = pool.member(i);
       const holds = Math.max(1, c.serves[p]) * std.per;
       capacity += holds;
-      const inside = this.sumDisc(demandGrid, c.x[p], c.z[p], std.worst, std.good);
+      const inside = this.sumDisc(demandGrid, c.x[p], c.z[p], std.worst * grow, std.good * grow);
       const l = inside / holds;
       this.load[i] = l;
       if (l > worst) worst = l;
@@ -346,7 +359,7 @@ export class Services {
       // as well. Not a cliff: an overstretched school is worse, not absent, and a
       // cliff would make the map flicker between two colours as the city grows.
       const able = Math.min(1, 1 / Math.max(1, this.load[i]));
-      spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst, std.good, able);
+      spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst * grow, std.good * grow, able);
       this.cursor++;
       if (spent >= budget) return false;
     }

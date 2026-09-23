@@ -57,7 +57,23 @@ export class Inspect {
   close(): void {
     this.shown = null;
     this.root.style.display = 'none';
+    this.reserve();
     this.onClose();
+  }
+
+  /**
+   * Tells the rest of the left-hand column how much room this card is taking.
+   *
+   * Both this and the information card are anchored to the top left corner, so
+   * a player who clicked a building while a view was open had them on top of
+   * one another. Rather than move one of them somewhere it does not belong, the
+   * card that sits over the other publishes its height and the column
+   * underneath starts below it. Measured from the layout rather than assumed,
+   * because this card's height is whatever the building had to say.
+   */
+  private reserve(): void {
+    const px = this.root.style.display === 'none' ? 0 : this.root.offsetHeight + 8;
+    this.root.parentElement?.style.setProperty('--hud-detail', `${12 + px}px`);
   }
 
   show(what: Inspection): void {
@@ -197,6 +213,7 @@ export class Inspect {
       note.append(t, w, f);
       this.body.appendChild(note);
     }
+    this.reserve();
   }
 
   /** A label, a value, and a bar under both. */

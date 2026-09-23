@@ -131,10 +131,18 @@ export class InfoViews {
   constructor(parent: HTMLElement,
     private onView: (view: number, info: ViewInfo | null) => void) {
     this.root = document.createElement('div');
+    // Anchored top *and* bottom, and packed to the bottom.
+    //
+    // It used to be anchored at the foot alone, so the column grew upward with
+    // nothing to stop it: the budget card with its policy list open ran off the
+    // top of the screen, taking the balance and the weekly net with it. Giving
+    // the column a top as well turns "how tall may the card be" into a number
+    // the browser works out rather than one guessed at here.
     style(this.root, [
-      'position:absolute', 'left:12px', 'bottom:var(--hud-foot, 14px)', 'z-index:6',
+      'position:absolute', 'left:12px', 'top:var(--hud-detail, 12px)',
+      'bottom:var(--hud-foot, 14px)', 'z-index:6',
       'display:flex', 'flex-direction:column', 'align-items:flex-start',
-      'gap:8px', 'pointer-events:none',
+      'justify-content:flex-end', 'gap:8px', 'pointer-events:none',
     ]);
 
     this.card = document.createElement('div');
@@ -142,8 +150,16 @@ export class InfoViews {
     // matching on a style string -- which the browser rewrites on assignment,
     // and which therefore silently matches nothing.
     this.card.dataset.panel = 'view-stats';
+    // Bounded, and scrolling past that.
+    //
+    // The budget card is the tallest of them by a long way -- fifteen rows of
+    // figures, four tax sliders and ten policies -- and with the ordinance list
+    // open it ran off the top of the screen, taking the balance and the weekly
+    // net with it. A card that loses its first line when its last one opens is
+    // a card that has to be scrolled, so it scrolls.
     style(this.card, [...panel(), 'width:276px', 'padding:11px 13px 10px',
-      'display:none', 'pointer-events:auto']);
+      'display:none', 'pointer-events:auto',
+      'min-height:0', 'overflow-y:auto']);
 
     // The head: a swatch in the view's own colour, and its name. The swatch is
     // the same colour the map is about to be tinted in, so the card and the
@@ -185,8 +201,9 @@ export class InfoViews {
     // note and a legend the card ran from the top of the screen nearly to the
     // bar -- a wall of figures over the city it is describing. A third of the
     // height still shows a dozen lines, and the rest scrolls.
-    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:2px',
-      'max-height:32vh', 'overflow-y:auto']);
+    // No scroller of its own: the card is the one that scrolls now, and two
+    // nested ones means the inner list eats the wheel and the outer never moves.
+    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:2px']);
     // Where a view mounts controls of its own. Empty for all but the budget,
     // which is the one view that is not only a readout: a tax rate is a thing
     // the player sets, and setting it two panels away from the number it moves

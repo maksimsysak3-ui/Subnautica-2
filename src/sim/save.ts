@@ -91,6 +91,14 @@ interface SaveFile {
   /** Experience, level, stars and unlocks. Absent in saves from before it. */
   career?: unknown;
   /**
+   * The ordinances in force, by id.
+   *
+   * By id rather than by index so the order of the policy table can change --
+   * and unknown ids are dropped on load rather than guessed at, which is what
+   * lets a policy be removed from the game without breaking every save.
+   */
+  policies?: string[];
+  /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
    *
@@ -183,6 +191,7 @@ export function serialise(world: World, name: string, auto = false): string {
     blight: encodeZones(world.blight),
     money: [world.budget.balance, [...world.budget.rates]],
     career: world.progress.save(),
+    policies: world.policies.saved(),
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
     })),
@@ -257,6 +266,9 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (Array.isArray(file.money) && Array.isArray(file.money[1])
     && file.money[1].length === TAXES) {
     world.budget.restore(file.money[0], file.money[1]);
+  }
+  if (Array.isArray(file.policies)) {
+    world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
   }
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is

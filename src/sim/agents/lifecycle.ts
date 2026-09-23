@@ -56,6 +56,7 @@ import { TIERS } from '../inventory';
 import { BRANCHES } from '../../assets/types';
 import { ASSETS } from '../../assets/registry';
 import { expectedOf } from './services';
+import { Policies, NO_POLICIES } from '../policies';
 
 /**
  * How much the air over a building matters to it, by what the building is.
@@ -149,6 +150,12 @@ export interface Lifecycle {
 }
 
 export class BuildingLife {
+  /** The ordinances in force. Only one of them reaches here: the height limit. */
+  private policies: Policies = NO_POLICIES;
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void { this.policies = policies; }
+
   /** What has happened since the last `drain`, for the alerts. */
   readonly tally: Lifecycle = { failing: 0, condemned: 0, raised: 0, lowered: 0 };
   /**
@@ -392,8 +399,15 @@ export class BuildingLife {
       if (zoneOf(code) === null) continue;
 
       const tier = w.tier[at];
-      const up = tier + 1 < TIERS && value >= TIER_UP[tier + 1];
-      const down = tier > 0 && value < TIER_DOWN[tier];
+      // The height limit, where a lot decides what it is worth building.
+      //
+      // It caps the tier rather than refusing the growth, so a district under
+      // the order fills up with the mid-rise it is allowed instead of standing
+      // empty -- and a lot already above the cap comes down a tier the next
+      // time it is rebuilt, which is how a real one takes effect.
+      const cap = Math.min(TIERS - 1, this.policies.effects.tierCap);
+      const up = tier + 1 <= cap && value >= TIER_UP[tier + 1];
+      const down = tier > 0 && (tier > cap || value < TIER_DOWN[tier]);
       if (!up && !down) { this.patience[at] = 0; continue; }
       this.patience[at] += days;
       if (this.patience[at] < TIER_PATIENCE) continue;

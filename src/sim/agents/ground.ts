@@ -42,6 +42,7 @@ import { Util } from './utilities';
 import type { Utilities } from './utilities';
 import type { LaneGraph } from './lanes';
 import { BRANCHES } from '../../assets/types';
+import { Policies, NO_POLICIES } from '../policies';
 
 /** The field grid. Shared with coverage so the two line up cell for cell. */
 export const GROUND_GRID = SERVICE_GRID;
@@ -116,6 +117,14 @@ function boxCols(src: Float32Array, dst: Float32Array, radius: number): void {
 }
 
 export class Ground {
+  /** The ordinances in force: smoke control, and the planting policy. */
+  private policies: Policies = NO_POLICIES;
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void {
+    this.policies = policies;
+  }
+
   /** Airborne filth, 0 clean to 1 unliveable. */
   readonly pollution = new Float32Array(N);
   /** Engines and plant, 0 quiet to 1 intolerable. */
@@ -259,7 +268,12 @@ export class Ground {
         if (dirt > 0) {
           const jobs = c.jobs[id];
           const busy = jobs > 0 ? Math.max(0.35, c.working[id] / jobs) : 1;
-          pollution[at] += dirt * busy;
+          // Smoke control, where the smoke is made. A works under it burns
+          // cleaner fuel through a filter; a shop or a house was never what
+          // the order was about, so only industry is scaled.
+          const clean = def.zone === 'industrial'
+            ? this.policies.effects.industrialPollution : 1;
+          pollution[at] += dirt * busy * clean;
         }
       }
       density[at] += c.homes[id] + c.jobs[id];
@@ -336,6 +350,7 @@ export class Ground {
     const s = this.services;
     let sumValue = 0, sumDirt = 0, sumDin = 0, sumAmenity = 0;
     let worst = 0, dirty = 0, built = 0;
+    const planted = this.policies.effects.landValue;
     for (let i = 0; i < N; i++) {
       // Saturating, because the difference between a foundry and four foundries
       // is much less than four times.
@@ -358,7 +373,11 @@ export class Ground {
       // detached houses is two or three, and downtown is well over it.
       const centre = Math.min(1, density[i] / 25);
 
-      let v = 0.28
+      // Green corridors and a height limit both move this, and both do it
+      // everywhere at once: a policy is not a park, it does not have a
+      // catchment, and pretending it does would be a lie the player could see
+      // through the moment they opened the land value view.
+      let v = 0.28 + planted
         + 0.34 * amenity
         + 0.22 * centre
         - 0.42 * dirt

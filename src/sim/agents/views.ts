@@ -604,6 +604,20 @@ export class Views {
           line('Transit fleets', cash(-l.transit), l.transit / top, l.transit > 0),
           line('Road upkeep', cash(-l.roads), l.roads / top, l.roads > 0),
         );
+        if (l.policies !== 0) {
+          // Its own line, and above the interest, because it is the one
+          // outgoing the player can turn off in the same card they are reading.
+          rows.push(line(l.policies < 0 ? 'Policies earn' : 'Policies cost',
+            cash(-l.policies), Math.abs(l.policies) / top, l.policies > 0));
+        }
+        if (l.congestion > 1) {
+          // What the city did not take because its roads do not move. Shown as
+          // a loss rather than as a smaller tax line, so a player who fixes a
+          // jam can watch this number fall rather than having to remember what
+          // the tax lines used to say.
+          rows.push(line('Lost to congestion', cash(-l.congestion),
+            l.congestion / top, true));
+        }
         if (l.interest > 0) {
           rows.push(line('Overdraft interest', cash(-l.interest), l.interest / top, true));
         }

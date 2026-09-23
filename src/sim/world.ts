@@ -18,6 +18,7 @@ import { simConfig } from './config';
 import { Mains } from './mains';
 import { Transit } from './transit';
 import { Budget } from './budget';
+import { Policies } from './policies';
 import { Progress } from './progress';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
@@ -178,6 +179,8 @@ export interface World {
   transit: Transit;
   /** The treasury: what the city has, and what it charges. */
   budget: Budget;
+  /** The ordinances in force: what the council has decided, as opposed to built. */
+  policies: Policies;
   /** The city's career: experience, level, stars and what they have unlocked. */
   progress: Progress;
   /**
@@ -209,6 +212,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     blight: new Uint8Array(grid * grid),
     transit: new Transit(),
     budget: new Budget(),
+    policies: new Policies(),
     progress: new Progress(),
     painted: 0,
   };

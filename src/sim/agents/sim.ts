@@ -51,6 +51,7 @@ import { Economy } from './economy';
 import { ASSETS } from '../../assets/registry';
 import { INSTANCE_FLOATS } from '../city';
 import { Budget } from '../budget';
+import { Policies } from '../policies';
 import { BRANCHES } from '../../assets/types';
 import { Views, View } from './views';
 import { Ground } from './ground';
@@ -259,6 +260,8 @@ export class Simulation {
   readonly economy: Economy;
   /** The treasury it moves. The world's, when there is one. */
   readonly budget: Budget;
+  /** The ordinances in force. World state, like the treasury. */
+  readonly policies: Policies;
   readonly views: Views;
   /** The information view the player has open, or View.NONE. */
   openView: number = View.NONE;
@@ -360,8 +363,17 @@ export class Simulation {
     // Two would be the same bug the mains had: the panel reading one balance
     // while the treasury spends another.
     this.budget = world?.budget ?? new Budget();
+    // One policy object too, for the same reason: a panel switching one set
+    // while the simulation reads another is the bug the mains had.
+    this.policies = world?.policies ?? new Policies();
     this.economy = new Economy(this.budget, this.places, this.people,
       this.migration, this.transit, net, this.ground, seed ^ 0xec04);
+    this.economy.governedBy(this.policies);
+    this.economy.watches(this.traffic.stats);
+    this.utilities.governedBy(this.policies);
+    this.services.governedBy(this.policies);
+    this.ground.governedBy(this.policies);
+    this.routine.governedBy(this.policies);
     this.growth = world === undefined ? undefined
       : new Growth(world, this.demand, () => this.people.population);
     // Only with a world: the tiers and the blight are per cell of one, and a
@@ -369,6 +381,7 @@ export class Simulation {
     this.life = world === undefined ? undefined
       : new BuildingLife(world, this.places, this.ground, this.services,
         this.utilities, () => this.people.population);
+    this.life?.governedBy(this.policies);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,

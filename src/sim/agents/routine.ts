@@ -40,6 +40,7 @@ import { Use } from './lanes';
 import type { LaneGraph } from './lanes';
 import { Rng } from './rand';
 import { BRANCHES } from '../../assets/types';
+import { Policies, NO_POLICIES } from '../policies';
 
 /**
  * How many travellers are moved individually.
@@ -274,6 +275,15 @@ export interface TripStats {
  * which of them are moved individually.
  */
 export class Routine {
+  /**
+   * The ordinances in force.
+   *
+   * Free transport and parking charges are both policies about *price*, and
+   * price is already in the mode choice below -- so they go in as prices and
+   * people switch modes for the reason real people do, rather than because a
+   * special case moved them.
+   */
+  private policies: Policies = NO_POLICIES;
   private readonly rng: Rng;
   /** Travellers being integrated forward. */
   private readonly moving: Pool;
@@ -302,6 +312,9 @@ export class Routine {
    */
   private transit: TransitNet | null = null;
   servedBy(transit: TransitNet): void { this.transit = transit; }
+
+  /** Points at the city's policies. Called whenever the world is replaced. */
+  governedBy(policies: Policies): void { this.policies = policies; }
 
   readonly stats: TripStats = {
     started: 0, arrived: 0, estimated: 0,
@@ -547,6 +560,9 @@ export class Routine {
 
     let bestMode: number = Mode.WALK;
     let bestCost = Infinity;
+    // Read once, not once per mode: this is the innermost loop of the busiest
+    // thing in the simulation.
+    const pol = this.policies.effects;
     for (let m = 0; m < MODES; m++) {
       if (metres > MODE_REACH[m]) continue;
       if (m === Mode.CAR) {
@@ -577,9 +593,11 @@ export class Routine {
         seconds = real;
       }
 
-      const cost = seconds * VALUE_OF_TIME
-        + FARE_FIXED[m] + FARE_PER_KM[m] * km
-        + DISCOMFORT_PER_KM[m] * km;
+      const fare = m === Mode.TRANSIT
+        ? (FARE_FIXED[m] + FARE_PER_KM[m] * km) * pol.transitFare
+        : FARE_FIXED[m] + FARE_PER_KM[m] * km
+          + (m === Mode.CAR ? pol.parkingCharge : 0);
+      const cost = seconds * VALUE_OF_TIME + fare + DISCOMFORT_PER_KM[m] * km;
       const perturbed = cost * (0.8 + this.rng.next() * 0.45);
       if (perturbed < bestCost) { bestCost = perturbed; bestMode = m; }
     }
