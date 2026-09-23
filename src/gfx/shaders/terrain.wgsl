@@ -103,6 +103,37 @@ fn ownsPlot(px : i32, pz : i32) -> bool {
   return (word & (1u << u32(i % 32))) != 0u;
 }
 
+/**
+ * Farmland: which field a point is in, and how far it is from the edge of it.
+ *
+ * Fields are laid out the way land is actually enclosed -- in strips along a
+ * prevailing grain, each strip cut into plots of its own length, the rows
+ * staggered -- and then the whole grid is bent by a slow warp so no boundary
+ * is ruler-straight. Voronoi cells, which this replaced, have no grain at all:
+ * every parcel came out a convex polygon of about the same size, and from the
+ * game's camera the countryside read as a crazy-paving pattern.
+ *
+ * Returns x = metres to the nearest boundary, y = the field's own hash.
+ */
+fn fieldAt(p : vec2f) -> vec2f {
+  let w = vec2f(vnoise(p * (1.0 / 420.0)) - 0.5,
+                vnoise(p * (1.0 / 420.0) + vec2f(19.0, 7.0)) - 0.5) * 70.0;
+  let g = 0.38;
+  let q0 = p + w;
+  let q = vec2f(q0.x * cos(g) - q0.y * sin(g), q0.x * sin(g) + q0.y * cos(g));
+  let rowH = 96.0;
+  let ry = floor(q.y / rowH);
+  let rh = lattice(vec2i(i32(ry), 911));
+  // Each strip has its own plot length and its own offset along the grain.
+  let colW = mix(72.0, 210.0, rh);
+  let x = q.x + rh * 977.0;
+  let cx = floor(x / colW);
+  let fx = fract(x / colW) * colW;
+  let fy = fract(q.y / rowH) * rowH;
+  let edge = min(min(fx, colW - fx), min(fy, rowH - fy));
+  return vec2f(edge, lattice(vec2i(i32(cx), i32(ry) * 7 + 3)));
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   // The weather, once, before anything reads the atmosphere.
@@ -174,11 +205,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var parcel = Cell(1.0, 1.0, 0.0);
   var inField = 1.0;
   if (parcelFade > 0.002) {
-    let warp = vec2f(vnoise(in.world.xz * (1.0 / 210.0)) - 0.5,
-                     vnoise(in.world.xz * (1.0 / 210.0) + vec2f(37.0, 11.0)) - 0.5);
-    parcel = cells(in.world.xz * (1.0 / 132.0) + warp * 0.55);
+    let fld = fieldAt(in.world.xz);
+    parcel = Cell(0.0, fld.x, fld.y);
     // How far into the parcel this is: 0 on the boundary, 1 well inside.
-    inField = smoothstep(0.0, 0.055, parcel.d2 - parcel.d1);
+    inField = smoothstep(0.6, max(3.2, mpp * 1.6), parcel.d2);
   }
   // Each parcel's own state, in three bands that do not blend into each other.
   let cut = fract(parcel.id * 7.13);
@@ -228,13 +258,13 @@ fn fs(in : VSOut) -> @location(0) vec4f {
                    + alt * 0.42 - wet * 0.38, 0.0, 1.0);
   let dryness = smoothstep(0.22, 0.82, damp);
   let lush = vec3f(0.040, 0.104, 0.034);
-  let dry  = vec3f(0.136, 0.136, 0.056);
+  let dry  = vec3f(0.098, 0.112, 0.046);
   var turf = mix(lush, dry, dryness);
   // Meadow is taller and yellower; moor is the olive-brown of heath and rough
   // grazing. Two named covers rather than a continuum, because a landscape
   // reads as parcelled land and a continuum reads as a gradient.
-  turf = mix(turf, vec3f(0.158, 0.146, 0.052), meadow * 0.62);
-  turf = mix(turf, vec3f(0.074, 0.070, 0.042), moor * 0.55);
+  turf = mix(turf, vec3f(0.118, 0.122, 0.050), meadow * 0.40);
+  turf = mix(turf, vec3f(0.062, 0.068, 0.040), moor * 0.40);
 
   // The parcel's own colour, applied hard rather than blended, and only inside
   // its boundary -- which is what makes the boundary a boundary.
@@ -243,17 +273,37 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // seed. They are far enough apart to read from a kilometre up, which is where
   // a player spends most of their time, and each is a shift in hue as well as
   // in value so they survive the tonemap.
-  let mown = smoothstep(0.68, 0.74, cut);
-  let rank = smoothstep(0.28, 0.22, cut);
-  turf = mix(turf, mix(turf, vec3f(0.150, 0.139, 0.062), 0.44), mown * inField * parcelFade);
-  turf = mix(turf, mix(turf, vec3f(0.052, 0.094, 0.038), 0.36), rank * inField * parcelFade);
+  // What each parcel is doing this year. Most of open country is pasture in
+  // a few shades of green; a minority of fields are in crop or freshly
+  // turned, and it is those few that make a landscape read as farmed. The
+  // earlier split put half the map in straw-coloured stubble, which from the
+  // game's camera was a yellow and green mosaic rather than countryside.
+  let k = inField * parcelFade;
+  let crop = smoothstep(0.855, 0.875, cut);
+  let plough = smoothstep(0.075, 0.055, cut);
+  let mown = smoothstep(0.60, 0.66, cut) * (1.0 - crop);
+  let rank = smoothstep(0.32, 0.26, cut) * (1.0 - plough);
+  turf = mix(turf, turf * vec3f(1.14, 1.10, 0.92), mown * 0.85 * k);
+  turf = mix(turf, turf * vec3f(0.78, 0.90, 0.78), rank * 0.85 * k);
+  // Drill rows, each field at its own angle, only where they resolve.
+  let ang = fract(parcel.id * 3.71) * 3.14159;
+  let rowDir = vec2f(cos(ang), sin(ang));
+  let rowFade = 1.0 - smoothstep(0.25, 0.9, mpp);
+  let row = 1.0 + sin(dot(in.world.xz, rowDir) * 2.4) * 0.10 * rowFade;
+  let cropCol = mix(vec3f(0.172, 0.136, 0.056), vec3f(0.122, 0.128, 0.050),
+                    fract(parcel.id * 13.1)) * row;
+  let ploughCol = vec3f(0.068, 0.054, 0.034) * row;
+  turf = mix(turf, cropCol, crop * k);
+  turf = mix(turf, ploughCol, plough * k);
   // And a little each way even inside a plain parcel, so no two are identical.
-  turf *= 1.0 + (fract(parcel.id * 19.7) - 0.5) * 0.09 * inField * parcelFade;
-  // The boundary itself: a hedge line, darker and a shade bluer, the width of
-  // a real field margin rather than a drawn line. Faint -- it is a hedge, not
-  // a drawn border, and at full strength the map read as a Voronoi diagram.
+  turf *= 1.0 + (fract(parcel.id * 19.7) - 0.5) * 0.08 * k;
+  // A hedge or a ditch along the boundary: a thin darker line, which is what
+  // a field margin is from the air.
   let margin = (1.0 - inField) * (1.0 - rock);
-  turf = mix(turf, vec3f(0.030, 0.058, 0.030), margin * 0.26 * parcelFade);
+  // Not every boundary is a hedge: some are a fence, a track or nothing but
+  // the change of crop, so the line comes and goes along its length.
+  let hedge = mix(0.2, 1.0, smoothstep(0.38, 0.62, vnoise(in.world.xz * (1.0 / 55.0) + vec2f(4.0, 8.0))));
+  turf = mix(turf, vec3f(0.020, 0.040, 0.019), margin * 0.55 * hedge * parcelFade);
   // A slow hue drift across a field, on top of the dryness ramp. Two greens
   // are not enough for a kilometre of grass: without this the whole map is one
   // colour with the brightness wobbling, which reads as lighting rather than
@@ -396,20 +446,20 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       // Every garden is kept differently. A shift in hue as well as in value,
       // so neighbouring plots read apart rather than as a brightness wobble.
       let keeping = fract(plot.id * 31.7);
-      garden *= 1.0 + (keeping - 0.5) * 0.30 * plotFade;
+      garden *= 1.0 + (keeping - 0.5) * 0.16 * plotFade;
       garden = mix(garden, garden * vec3f(1.22, 1.05, 0.72),
                    smoothstep(0.72, 0.96, keeping) * 0.55 * plotFade);
       // Roughly one plot in four is more hard standing than grass: a drive, a
       // parking pad, a yard that was never planted. Placed inside the plot
       // rather than over the whole of it, so it reads as part of a garden.
-      let hard = smoothstep(0.70, 0.78, fract(plot.id * 7.13));
+      let hard = smoothstep(0.90, 0.95, fract(plot.id * 7.13));
       let pad = smoothstep(0.55, 0.22, plot.d1) * hard;
       garden = mix(garden, paved * 0.92, pad * plotFade);
       // The boundary: a hedge or a fence line, dark and narrow. This is what
       // turns a green sheet into a row of gardens, and it is worth more than
       // everything above it.
       let edge = 1.0 - smoothstep(0.0, 0.055, plot.d2 - plot.d1);
-      garden = mix(garden, vec3f(0.026, 0.052, 0.028), edge * 0.62 * plotFade);
+      garden = mix(garden, vec3f(0.030, 0.058, 0.030), edge * 0.22 * plotFade);
     }
     // Park: watered, and striped by the mower at a scale you can see.
     let stripe = 0.5 - abs(fract(dot(in.world.xz, vec2f(0.19, 0.14))) - 0.5);
@@ -634,5 +684,5 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // And the same filmic shoulder the buildings use, for the same reason: a
   // ground that clipped where they rolled off would read as a different
   // material every time the sun caught it.
-  return vec4f(tonemap(col), 1.0);
+  return vec4f(sceneOut(col), 1.0);
 }

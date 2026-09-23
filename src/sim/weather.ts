@@ -63,8 +63,13 @@ export function skyOf(front: number): Sky {
   // Fog is the other end of the same scale, not the same end. It sits in still
   // settled air, so it belongs to the calm side -- and it is cut once the rain
   // arrives, because rain clears the air rather than thickening it.
-  const still = Math.max(0, 1 - f / 0.34);
-  const fog = Math.min(1, still * 0.55 * (1 - rain));
+  //
+  // A band, not a ramp. The ramp this replaced put the most fog on the
+  // *clearest* front -- 0.55 at a front of zero -- so every fine day in the
+  // game was a hazy one, and the far half of every view dissolved into grey.
+  // Fog is its own weather: settled air just short of cloud, now and then.
+  const still = Math.exp(-(((f - 0.2) / 0.07) ** 2));
+  const fog = Math.min(1, still * 0.6 * (1 - rain));
   return { cover, fog, rain, wet: rain > 0.05 ? 1 : 0 };
 }
 
@@ -99,7 +104,30 @@ export class Weather {
    * every eight minutes and weather that wrapped with it would repeat exactly:
    * the same shower at the same hour, for ever.
    */
-  private phase = 0.37;
+  private phase = Weather.clearStart();
+
+  /**
+   * Where in the weather's cycle a new game begins: the first stretch of it
+   * that stays clear for a day and a half.
+   *
+   * The first minutes of a city builder are spent looking at empty land and
+   * deciding where the first road goes. Opening that under fog -- which the
+   * old fixed starting phase did -- hides the river and the hills the whole
+   * decision is about, and makes a poor first impression of the game besides.
+   * The cycle is deterministic, so this is too.
+   */
+  private static clearStart(): number {
+    const span = 1.5 / FRONT_DAYS;
+    for (let p = 0; p < 40; p += 0.01) {
+      let clear = true;
+      for (let t = 0; t <= span; t += span / 8) {
+        const raw = fbm(p + t, 11.7, 2, 4471);
+        if ((raw - 0.31) * 2.4 > 0.08) { clear = false; break; }
+      }
+      if (clear) return p;
+    }
+    return 0.37;
+  }
 
   /**
    * A condition held fixed, or null to let the cycle run.

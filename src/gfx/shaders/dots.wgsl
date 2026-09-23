@@ -85,5 +85,5 @@ fn fs(in: Out) -> @location(0) vec4f {
   // colour: the colour says which utility, the shape and the hue together say
   // whether it is there.
   let colour = mix(vec3f(0.92, 0.28, 0.22), in.tint.rgb, in.tint.a);
-  return vec4f(tonemap(colour * 1.3), mask * in.fade * 0.95);
+  return vec4f(uiOut(colour * 1.3), mask * in.fade * 0.95);
 }

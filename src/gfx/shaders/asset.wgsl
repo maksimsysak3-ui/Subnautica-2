@@ -602,8 +602,11 @@ fn foliage(world : vec3f, mpp : f32, seed : f32, up : f32) -> vec3f {
   // isotropic enough that the distortion costs nothing.
   let uv = vec2f(world.x * 0.81 + world.z * 0.59, world.y + world.x * 0.14);
   let sunlit = smoothstep(-0.35, 0.75, up);
-  let shade = vec3f(0.034, 0.070, 0.034);
-  let lit   = vec3f(0.140, 0.205, 0.072);
+  // Leaf albedo is low -- five to ten per cent -- and saturated. These were
+  // brighter when the building pipeline showed everything a stop and a half
+  // dark; encoded properly they read as sage.
+  let shade = vec3f(0.020, 0.046, 0.020);
+  let lit   = vec3f(0.074, 0.128, 0.040);
   var col = mix(shade, lit, sunlit);
   // A slow drift, so one side of a crown is not the same green as the other.
   col *= 0.86 + vnoise(uv * (1.0 / 1.4) + seed) * 0.30;
@@ -1673,10 +1676,13 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col = mix(col, vec3f(0.043, 0.055, 0.075), smoothstep(0.45, 1.0, d));
   }
 
-  // Filmic-ish shoulder: keeps sunlit render and glass highlights from
-  // clipping to flat white, which is most of why untonemapped renders look
-  // like plastic.
-  var out = pow(col / (col + vec3f(0.72)) * 1.42, vec3f(0.9));
+  // Linear light from here to the end: the post chain owns exposure, the
+  // filmic curve and the encode. Emissive surfaces below are stated in the
+  // same units -- how much light leaves them -- which is what lets a lit
+  // window at night be brighter than anything the sun is lighting and bloom
+  // for it, instead of being clamped to the same white as a sunlit wall.
+  var out = col;
+  let night = 1.0 - dayPhase(sun).x;
 
   // Lit signage bypasses all of it. Run through the tonemap, a saturated brand
   // colour loses its strongest channel fastest and every sign in the city
@@ -1685,18 +1691,20 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (in.tint == 4u) {
     // Scaled, not mixed towards white. Any lift towards white raises the weak
     // channels and a saturated red becomes salmon -- twice now.
-    out = clamp(look.brand.rgb * 1.35, vec3f(0.0), vec3f(1.0));
+    // Brand colours are picked on a screen, so they are brought into linear
+    // light first; then they glow, a little by day and properly after dark.
+    let glow = mix(1.9, 5.5, night);
+    out = pow(clamp(look.brand.rgb * 1.15, vec3f(0.0), vec3f(1.0)), vec3f(2.2)) * glow;
     // The business name, in the accent colour, on faces that carry sign
     // coordinates. Faces that do not have local = (0,0) and get nothing.
     let label = signLabel(look.signText, in.local, u32(look.signInfo.x + 0.5), localMpp);
-    out = mix(out, clamp(look.accent.rgb * 1.5, vec3f(0.0), vec3f(1.0)), label);
+    out = mix(out, pow(clamp(look.accent.rgb * 1.25, vec3f(0.0), vec3f(1.0)), vec3f(2.2)) * glow * 1.2, label);
   }
   // Windows come on at night, which is most of what a city looks like after
   // dark. Lit exactly where the wall pattern drew an opening, and switched per
   // opening rather than per pixel, so a tower ends up with a scatter of lit
   // floors rather than a gradient -- and so a lit rectangle never lands beside
   // the window it was meant to be in.
-  let night = 1.0 - dayPhase(sun).x;
   // How far gone this building is. Zero means the row carries no reading at all
   // -- a tree, a road tile, a vehicle, the placement ghost -- so anything at or
   // below it is left exactly as it was.
@@ -1746,18 +1754,18 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       // overnight is not the same colour as a lit sitting room. Keyed off the
       // floor rather than the window, because a floor is one tenant with one
       // kind of light fitting.
-      let warm = mix(vec3f(1.00, 0.79, 0.48), vec3f(0.80, 0.89, 1.00), step(0.86, rf));
+      let warm = mix(vec3f(1.00, 0.70, 0.38), vec3f(0.80, 0.89, 1.00), step(0.86, rf));
       // Blinds, lamps, how deep the room is: a lit floor is not a flat bar of
       // light, and this is what stops one reading as a painted stripe.
       // And they go out as the building empties. A derelict block with every
       // light on is the one thing that would make the decay read as a texture
       // change rather than as a building nobody lives in any more.
-      let strength = (0.40 + rw * 0.62) * (1.0 - failing);
-      out = mix(out, warm * strength, on * night * cover * 0.94 * (1.0 - failing * 0.9));
+      let strength = (0.55 + rw * 1.9) * (1.0 - failing);
+      out = mix(out, warm * warm * strength * 1.25, on * night * cover * 0.94 * (1.0 - failing * 0.9));
 
       // A window that is dark is not black. It takes the night sky, which is
       // what gives an unlit face its shape instead of a silhouette.
-      out = mix(out, vec3f(0.045, 0.058, 0.080), (1.0 - on) * night * cover * 0.55);
+      out = mix(out, vec3f(0.0045, 0.0065, 0.0105), (1.0 - on) * night * cover * 0.55);
     }
   }
 
@@ -1768,8 +1776,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // full strength at noon reads as a white sticker; one that is off entirely
     // loses the car against the road at dusk, which is exactly when a street
     // needs it most.
-    out = clamp(lampColour(in.local, in.tint != 4u) * mix(0.55, 1.75, night),
-      vec3f(0.0), vec3f(1.0));
+    out = pow(clamp(lampColour(in.local, in.tint != 4u), vec3f(0.0), vec3f(1.0)), vec3f(2.2))
+        * mix(1.6, 9.0, night);
   }
 
   // Air in front of the building. Without it a white block a kilometre away is
@@ -1785,7 +1793,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // fades into, and a star field and a moon disc are not resolvable through
     // it at any strength. Every lit pixel of every building runs this line.
     let air = skyBody(toEye, sun);
-    let lit = pow(air / (air + vec3f(0.72)) * 1.42, vec3f(0.9));
+    let lit = air;
     let d = length(toEye);
     let amount = clamp((1.0 - exp(-d * (1.0 / 2600.0))) * 0.62
                      + smoothstep(1600.0, 4200.0, d) * 0.55, 0.0, 1.0) * haze;
@@ -1808,10 +1816,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let tone = dot(out, vec3f(0.30, 0.59, 0.11));
     let cold = mix(vec3f(0.10, 0.30, 0.42), vec3f(0.46, 0.82, 0.98),
                    clamp(tone * 2.6, 0.0, 1.0));
-    out = cold * (0.72 + band * 0.42);
+    out = uiOut(cold * (0.72 + band * 0.42));
     // A bright rim, so the silhouette is legible against whatever is behind it.
     let rim = pow(1.0 - abs(dot(normalize(in.normal), normalize(scene.eye.xyz - in.world))), 3.0);
-    out += vec3f(0.30, 0.70, 0.90) * rim * 0.9;
+    out += vec3f(0.30, 0.70, 0.90) * rim * 1.6;
   }
   // Buried while an underground view is open, drained while a surface one is.
   // `bury` and `drain` in common.wgsl by hand; see the note on Scene.view above
@@ -1819,7 +1827,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   out = mix(out, out * 0.11 + vec3f(0.013, 0.017, 0.024), scene.view.x);
   let grey = vec3f(dot(out, vec3f(0.299, 0.587, 0.114)));
   out = mix(out, mix(grey, out, 0.18) * 0.92, scene.view.y);
-  return vec4f(out, 1.0);
+  // The city hands linear light to its post chain; the viewer and the icon
+  // renderer have none, and take the display transform here instead.
+  if (scene.view.w < 0.5) { return vec4f(displayOut(out), 1.0); }
+  return vec4f(sceneOut(out), 1.0);
 }
 
 @fragment

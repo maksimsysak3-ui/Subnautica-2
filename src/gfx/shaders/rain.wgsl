@@ -113,6 +113,6 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Straight up, and only the broad colour: a raindrop is two pixels and it
   // is not going to show anyone a star. This runs over the whole screen for
   // as long as it is raining.
-  let col = tonemap(skyBody(vec3f(0.0, 1.0, 0.0), sun) * 1.9 + vec3f(0.06));
+  let col = sceneOut(skyBody(vec3f(0.0, 1.0, 0.0), sun) * 1.9 + vec3f(0.06));
   return vec4f(col, clamp(v, 0.0, 1.0) * 0.48);
 }

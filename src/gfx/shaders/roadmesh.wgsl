@@ -499,7 +499,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // a stick.
   if (surf > 13.5) {
     let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
-    col = mix(col, vec3f(1.00, 0.80, 0.46) * 1.9, night);
+    col = mix(col, vec3f(1.00, 0.74, 0.40) * 7.0, night);
   }
 
   // Street lighting: the pool on the road, thrown from the lanterns above.
@@ -530,8 +530,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       // the street, not sideways. Two terms -- a bright core under the lantern
       // and a wide spill -- because one Gaussian is a spotlight and a street
       // lamp is not a spotlight.
-      let r = vec2f(d.x / (half * 1.5 + 3.0), d.y / (spacing * 0.62));
-      let fall = exp(-dot(r, r) * 2.6);
+      let r = vec2f(d.x / (half * 1.4 + 3.0), d.y / (spacing * 0.46));
+      let fall = exp(-dot(r, r) * 3.2);
       let core = exp(-dot(vec2f(d.x / 3.4, d.y / 3.4), vec2f(d.x / 3.4, d.y / 3.4)) * 1.4);
       // Sodium, not white. The colour is half of what says street lamp.
       let glow = vec3f(1.00, 0.72, 0.36) * (fall * 0.55 + core * 0.42) * night;
@@ -544,7 +544,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       // bright things in a night frame and has to be treated as one -- most of
       // the term is additive, which is also what a real sodium lamp looks like
       // through the dust and damp over a road.
-      col += col * glow * 3.0 + glow * 0.62;
+      // In linear light now, so the additive haze is a fraction of what it
+      // was: the post curve, not this term, is what makes the pool read.
+      col += col * glow * 4.0 + glow * 0.16;
     }
   }
 
@@ -595,5 +597,5 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // lookup above has to stay in uniform control flow.
   let proposal = mix(vec3f(0.12, 0.34, 0.46), vec3f(0.42, 0.76, 0.92),
                      clamp(col.r * 5.0, 0.0, 1.0));
-  return vec4f(tonemap(select(col, proposal, (flags & 8u) != 0u)), 1.0);
+  return vec4f(sceneOut(select(col, proposal, (flags & 8u) != 0u)), 1.0);
 }

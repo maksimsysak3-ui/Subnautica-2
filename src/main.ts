@@ -168,6 +168,11 @@ async function boot(): Promise<void> {
       // game's own pace on the way in. Sitting on the menu should be worth
       // doing; sitting in the game at that speed would be unplayable.
       renderer.clockRate = on ? 12 : 1;
+      // A clear sky over the title, whatever the weather is doing: the menu is
+      // the game's first picture of itself. The game's own weather resumes
+      // the moment the player goes in.
+      if (on) renderer.weather.set(0.02);
+      else renderer.weather.release();
     },
   });
   document.getElementById('boot')?.classList.add('done');

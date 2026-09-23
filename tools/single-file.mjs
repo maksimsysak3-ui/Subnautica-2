@@ -31,7 +31,7 @@ const out = process.argv[3] ?? `${which}-single.html`;
 const bodyOnly = process.argv.includes('--body-only');
 
 const PAGES = {
-  index: { html: 'index.html', entry: 'src/main.ts', title: 'citysim' },
+  index: { html: 'index.html', entry: 'src/main.ts', title: 'Meridian' },
   asset: { html: 'asset.html', entry: 'src/asset-viewer.ts', title: 'citysim assets' },
 };
 const page = PAGES[which];

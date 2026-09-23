@@ -31,91 +31,71 @@ fn vs(@builtin(vertex_index) i : u32) -> VSOut {
   return out;
 }
 
-/** Four octaves of drifting value noise, the cheapest thing that reads as cloud. */
+/**
+ * The cloud field: five octaves of drifting value noise, domain-warped.
+ *
+ * Plain fBm reads as smoke -- round, isotropic, with no structure. The warp
+ * (the field sampled at a position pushed about by a coarser copy of itself)
+ * is what drags it out into the billows and streets real cumulus forms.
+ */
 fn cloudField(p : vec2f, t : f32) -> f32 {
-  // Each octave drifts at its own speed, which is what stops the whole sky
-  // sliding as one sheet -- the thing that gives a scrolling texture away.
-  var v = vnoise(p * 0.90 + vec2f(t * 0.0060, 0.0)) * 0.52;
-  v += vnoise(p * 2.10 + vec2f(t * 0.0115, t * 0.004)) * 0.26;
-  v += vnoise(p * 4.60 + vec2f(t * 0.0210, -t * 0.008)) * 0.14;
-  v += vnoise(p * 9.70 + vec2f(t * 0.0380, 0.0)) * 0.08;
+  let wind = vec2f(t * 0.0070, t * 0.0022);
+  let warp = vec2f(vnoise(p * 0.55 + wind * 0.6), vnoise(p * 0.55 + vec2f(5.2, 1.3) - wind * 0.4));
+  let q = p + (warp - 0.5) * 1.1 + wind;
+  var v = vnoise(q * 0.90) * 0.50;
+  v += vnoise(q * 2.03 + vec2f(t * 0.004, 0.0)) * 0.25;
+  v += vnoise(q * 4.10 - vec2f(0.0, t * 0.006)) * 0.13;
+  v += vnoise(q * 8.30 + vec2f(t * 0.011, 0.0)) * 0.075;
+  v += vnoise(q * 16.9) * 0.045;
   return v;
 }
 
 /**
  * The cloud deck.
  *
- * A sky without cloud is a gradient, and no gradient has ever looked like
- * weather. This is a single flat layer read where the view ray crosses it:
- * `d.xz / d.y` is that crossing for an eye on the ground, which is exactly
- * right overhead, wrong by a little at forty-five degrees, and unusable at the
- * horizon -- so the deck fades out before it gets there, which is also where a
- * real deck disappears into haze.
+ * A single flat layer read where the view ray crosses it: `d.xz / d.y` is
+ * that crossing for an eye on the ground, right overhead and increasingly
+ * stretched towards the horizon -- so the deck fades out before it gets
+ * there, which is also where a real deck disappears into haze.
  *
- * Lit in three parts, in the order the eye reads them: the sun through thin
- * edges, which is what a cloud edge actually is; the flat top, warm and bright;
- * and the base, which is not grey but the colour of the sky reflected into it.
- * Returns rgb premultiplied by coverage in `a`.
+ * Lit by marching two steps towards the sun through the same field: where
+ * there is more cloud between this point and the sun, it is in its own
+ * shadow. That one extra sample is the difference between a cloud and a
+ * white stain -- tops lit, bellies grey, and the edges facing the sun glowing
+ * because there is almost nothing in the way. Returns rgb with coverage in a.
  */
 fn clouds(d : vec3f, sun : vec3f, t : f32) -> vec4f {
   if (d.y <= 0.02) { return vec4f(0.0); }
-  // 0.36 rather than 0.55: how big one cloud is against the height of the
-  // deck. Bigger clouds, fewer of them. A city builder's camera only ever sees
-  // the sky within twenty degrees or so of the horizon, where a flat deck is
-  // foreshortened into streaks, and small clouds at that angle compress into a
-  // texture rather than resolving as weather.
+  // 0.36: fewer, bigger clouds. A flat deck seen from twenty degrees is
+  // foreshortened into streaks, and small clouds compress into texture.
   let p = d.xz / d.y * 0.36;
-  // Overhead the deck is near; at a grazing angle the same cell of noise is
-  // stretched over the whole horizon, so it is faded before it smears.
-  // Faded out before the projection smears, and further out under cover so the
-  // deck does not stop at a visible line with the flat lid beyond it.
   let reach = 1.0 - smoothstep(0.06, 0.40 + weather.cover * 0.55, length(p) * 0.05);
   if (reach <= 0.001) { return vec4f(0.0); }
-
   let f = cloudField(p, t);
-  // Coverage: a hard-ish edge, because a cloud has one. Softened a little at
-  // the top so the deck thins out rather than stopping.
-  //
-  // The weather moves the threshold rather than the noise. Dropping it fills
-  // the sky from the same field, so a front comes in as the clouds it already
-  // had growing together -- which is what a sky actually does -- instead of a
-  // second layer fading up over the first.
-  let cut = mix(0.62, 0.06, weather.cover);
-  let body = smoothstep(cut, cut + 0.20, f);
-  let edge = smoothstep(cut - 0.06, cut + 0.12, f);
-  let a = edge * reach * mix(0.92, 1.0, weather.cover);
+  let cut = mix(0.60, 0.08, weather.cover);
+  let a = smoothstep(cut - 0.05, cut + 0.16, f) * reach * mix(0.95, 1.0, weather.cover);
   if (a <= 0.002) { return vec4f(0.0); }
+
+  let toSun = normalize(sun.xz + vec2f(1e-4)) * 0.18;
+  let s1 = cloudField(p + toSun, t);
+  let s2 = cloudField(p + toSun * 2.4, t);
+  let shade = clamp((s1 - cut) * 2.2 + (s2 - cut) * 1.3, 0.0, 1.0);
+  let thick = smoothstep(cut, cut + 0.30, f);
 
   let phase = dayPhase(sun);
   let lit = max(phase.x, phase.y * 0.92);
-  // Depth through the cloud, as a proxy for how much light gets through: the
-  // body is thick and the edge is not.
-  let thick = clamp(body * 1.15 + 0.12, 0.0, 1.0);
   let towards = clamp(dot(normalize(d), sun), 0.0, 1.0);
-
-  // Warm at dawn and dusk, white at noon, and blue-grey at night when the only
-  // light on them is the sky itself.
-  //
-  // The spread between the lit top and the shaded base is the whole of what
-  // makes a cloud read as an object rather than as a smudge, and this had
-  // almost none: a thick body came out at 0.58 against a horizon sky at 0.50,
-  // so where the sky is palest -- which is exactly the band a city builder's
-  // camera looks through -- the deck was a slightly different white on white.
-  // The top now goes over one, so a thin edge is brighter than any sky behind
-  // it, and the base comes down far enough that a body is plainly darker.
-  // Neither is a free choice: a cloud top is a near-white Lambertian surface
-  // in full sun, which is brighter than the sky beside it, and a cloud base in
-  // its own shadow is not.
-  let warm = mix(vec3f(1.20, 1.15, 1.07), vec3f(1.22, 0.70, 0.38), phase.y);
-  let top = mix(vec3f(0.16, 0.19, 0.26), warm, lit);
-  let base = mix(vec3f(0.07, 0.09, 0.13), mix(vec3f(0.20, 0.23, 0.30), warm * 0.34, phase.y), lit);
-  var col = mix(top, base, thick * 0.82);
-  // The silver lining: light through a thin edge, aimed at the sun.
-  col += warm * pow(towards, 6.0) * (1.0 - thick) * (0.55 + phase.y * 1.4) * lit;
-  // Rain cloud is darker and flatter, and it loses the lining -- there is no
-  // thin edge left to see the sun through.
+  let sunCol = sunLight(sun);
+  // Lit face: the sun's own light, plus sky from above.
+  let direct = sunCol * (1.0 - shade * 0.82) * 1.05;
+  let skyFill = ambientSky(sun) * 0.85;
+  var col = (direct + skyFill) * mix(0.95, 0.75, thick * shade);
+  // The silver lining: thin cloud between the eye and the sun scatters
+  // forward, strongly.
+  col += sunCol * pow(towards, 8.0) * (1.0 - thick) * (1.2 + phase.y * 2.0);
+  col = mix(col * 0.22, col, lit) + vec3f(0.010, 0.012, 0.018) * (1.0 - lit);
   let heavy = weather.cover * weather.cover;
-  col = mix(col, overcastTint(sun) * mix(0.86, 0.48, thick), heavy);
+  col = mix(col, overcastTint(sun) * mix(1.0, 0.55, thick), heavy);
   return vec4f(col, a);
 }
 
@@ -141,5 +121,5 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
   // The same filmic shoulder the ground and the buildings use, so the horizon
   // meets the terrain without a seam.
-  return vec4f(tonemap(col) + grain, 1.0);
+  return vec4f(sceneOut(col) + grain, 1.0);
 }

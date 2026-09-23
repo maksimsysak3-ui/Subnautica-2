@@ -134,7 +134,7 @@ fn sunLight(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
   let high = vec3f(1.02, 0.96, 0.86);
   let low = vec3f(1.10, 0.52, 0.24);
-  let clear = mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 1.15;
+  let clear = mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 1.38;
   // Cover takes the direct sun out, and with it the shadows. It does not take
   // it all: even under a solid deck there is a brighter half of the sky, and a
   // scene with no directional term at all goes completely flat.
@@ -175,7 +175,7 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // with the encode doing that job properly the same numbers made midnight
   // read as dusk. What is kept is the *displayed* night, which was right.
   let m = moonPhase(sun);
-  let night = vec3f(0.230, 0.254, 0.318) * (0.72 + 0.55 * m.x);
+  let night = vec3f(0.050, 0.062, 0.098) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -192,7 +192,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // Bounce follows the same moon, a little cooler: moonlight off asphalt is
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
-  let night = vec3f(0.154, 0.160, 0.182) * (0.74 + 0.52 * m.x);
+  let night = vec3f(0.028, 0.032, 0.044) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground
@@ -359,7 +359,7 @@ fn hazeAmount(metres : f32) -> f32 {
   // half of the city into a white wall. A city builder is played looking two
   // or three kilometres down its own avenues and that view has to hold its
   // colour.
-  let scale = mix(3100.0, 420.0, weather.fog);
+  let scale = mix(3800.0, 420.0, weather.fog);
   let near = 1.0 - exp(-metres * (1.0 / scale));
   let far = smoothstep(mix(2200.0, 200.0, weather.fog),
                        mix(4800.0, 900.0, weather.fog), metres);
@@ -368,7 +368,7 @@ fn hazeAmount(metres : f32) -> f32 {
   // horizon, which greys the bottom of the sky and puts a soft edge where the
   // world ends -- so the near term is what was pulled back, and the far one
   // carries the rest.
-  let air = clamp(near * 0.52 + far * (0.62 + weather.fog * 0.34), 0.0, 1.0);
+  let air = clamp(near * (0.42 + weather.fog * 0.2) + far * (0.62 + weather.fog * 0.34), 0.0, 1.0);
   return air * (1.0 - planView * 0.72);
 }
 
@@ -377,27 +377,48 @@ fn aerial(col : vec3f, metres : f32, dir : vec3f, sun : vec3f) -> vec3f {
 }
 
 /**
- * The filmic shoulder every surface in the game shares, and the transfer
- * function the display expects, which nothing else in the pipeline applies.
+ * What a scene shader hands the frame: linear light, untouched.
  *
- * The swapchain is `rgba8unorm`, not `*-srgb`, so whatever comes out of here
- * is the number the monitor is handed. That makes the curve here the display
- * transfer as well as the tonemap, and the exponent it used to carry -- 0.9 --
- * is very nearly linear light shown on a display expecting a power of about
- * 2.2. Every material in the game is authored in linear reflectance, which is
- * correct, and every one of them was then shown a stop and a half too dark.
- * Asphalt at seven per cent albedo is seven per cent albedo; sent to the
- * screen unencoded it is black, and a street you cannot see is the loudest
- * thing wrong with a picture of a city.
+ * Every surface used to tonemap and encode its own output, which meant the
+ * post pass was working on a picture rather than on light -- bloom thresholds
+ * in display units, antialiasing on values above white, and no way to share
+ * one exposure or one grade across the frame. The camera is post.wgsl now;
+ * all a surface does is report how much light leaves it towards the eye.
  *
- * So: Reinhard for the shoulder, then the sRGB transfer proper. Not clamped
- * first -- the post pass takes its bloom from what is above one, and clamping
- * here would put the lit signage, the sun off glass and the bright sky all at
- * exactly white with nothing left to bloom from. The encode is monotonic above
- * one, so the headroom survives it.
+ * Clamped only against half-float overflow and NaN-producing garbage.
  */
-fn tonemap(col : vec3f) -> vec3f {
-  let t = max(col / (col + vec3f(0.72)) * 1.42, vec3f(0.0));
+fn sceneOut(col : vec3f) -> vec3f {
+  return clamp(col, vec3f(0.0), vec3f(512.0));
+}
+
+/**
+ * A colour authored for the screen -- an overlay line, a marker -- brought
+ * into the scene's linear light so that after exposure and the filmic curve
+ * it lands roughly where it was drawn.
+ */
+fn uiOut(col : vec3f) -> vec3f {
+  return pow(max(col, vec3f(0.0)), vec3f(2.2)) * 1.6;
+}
+
+/**
+ * The display transform, for the one consumer with no post chain: the asset
+ * viewer and the icon renderer draw straight into an eight-bit target. Same
+ * ACES fit and exposure the city's post pass uses, so an asset looks the same
+ * on the shelf as it does in the street.
+ */
+fn displayOut(col : vec3f) -> vec3f {
+  let i = mat3x3f(
+    vec3f(0.59719, 0.07600, 0.02840),
+    vec3f(0.35458, 0.90834, 0.13383),
+    vec3f(0.04823, 0.01566, 0.83777));
+  let o = mat3x3f(
+    vec3f( 1.60475, -0.10208, -0.00327),
+    vec3f(-0.53108,  1.10813, -0.07276),
+    vec3f(-0.07367, -0.00605,  1.07602));
+  let v = i * (max(col, vec3f(0.0)) * 1.65);
+  let a = v * (v + 0.0245786) - 0.000090537;
+  let b = v * (0.983729 * v + 0.4329510) + 0.238081;
+  let t = clamp(o * (a / b), vec3f(0.0), vec3f(1.0));
   let lo = t * 12.92;
   let hi = pow(t, vec3f(1.0 / 2.4)) * 1.055 - 0.055;
   return select(lo, hi, t > vec3f(0.0031308));

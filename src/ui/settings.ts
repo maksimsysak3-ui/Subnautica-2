@@ -32,6 +32,8 @@ export interface SettingsValues {
   vignette: boolean;
   grass: number;
   autoScale: boolean;
+  /** Screen-space ambient occlusion: contact shade between buildings. */
+  ao: boolean;
   // ---- the living city ----
   movers: number;
   weather: boolean;
@@ -47,7 +49,7 @@ export interface SettingsValues {
 
 export const DEFAULTS: SettingsValues = {
   renderScale: 1, shadows: true, shadowPixels: 2048, bloom: 1, antialias: true,
-  vignette: true, grass: 1, autoScale: true,
+  vignette: true, grass: 1, autoScale: true, ao: true,
   movers: 1, weather: true,
   tooltips: true, bubbles: true, notices: true, uiScale: 1,
   volume: 0.7, muted: false,
@@ -236,8 +238,11 @@ export class Settings {
         + 'screen: lit windows, signage, the sun.',
         [['Off', 0], ['Subtle', 0.6], ['Normal', 1], ['Strong', 1.5]],
         v.bloom, (n) => { v.bloom = n; }));
-      out.push(this.toggle2('Antialiasing', 'Smooths the edges. Five taps in the '
-        + 'final pass.', v.antialias, (on) => { v.antialias = on; }));
+      out.push(this.toggle2('Ambient occlusion', 'Soft contact shade where '
+        + 'buildings meet the street and each other. Three passes at half size.',
+        v.ao, (on) => { v.ao = on; }));
+      out.push(this.toggle2('Antialiasing', 'Smooths the edges, then sharpens '
+        + 'what that softened.', v.antialias, (on) => { v.antialias = on; }));
       out.push(this.toggle2('Vignette', 'Darkens the corners a little.',
         v.vignette, (on) => { v.vignette = on; }));
       out.push(rule());

@@ -54,5 +54,5 @@ fn vs(@location(0) at: vec3f, @location(1) tint: vec3f,
 @fragment
 fn fs(in: Out) -> @location(0) vec4f {
   if (in.fade < 0.02) { discard; }
-  return vec4f(tonemap(in.tint), in.fade * 0.95);
+  return vec4f(uiOut(in.tint), in.fade * 0.95);
 }

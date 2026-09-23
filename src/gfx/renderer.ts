@@ -376,7 +376,12 @@ export class Renderer {
     autoScale: true,
     /** Cloud, rain and wet roads. Off holds the sky clear. */
     weather: true,
+    /** Screen-space ambient occlusion strength. 0 skips the passes. */
+    ao: 1,
   };
+
+  /** Scene exposure, before the filmic curve. Tools photograph with it too. */
+  exposure = 1.65;
 
   /** Sets the render scale by hand, for the settings panel. */
   setRenderScale(scale: number): void {
@@ -1767,7 +1772,8 @@ export class Renderer {
       label: 'depth',
       size: { width: v.width, height: v.height },
       format: DEPTH_FORMAT,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      // Sampled by the post chain's ambient occlusion as well as drawn into.
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     return { depth, depthView: depth.createView() };
   }
@@ -2154,6 +2160,8 @@ export class Renderer {
     this.sceneData[64] = this.buried;
     this.sceneData[65] = this.drained;
     this.sceneData[66] = this.quality.shadows ? 0 : 1;
+    // Linear output: the post chain tonemaps. The viewer leaves this at zero.
+    this.sceneData[67] = 1;
     device.queue.writeBuffer(res.sceneBuffer, 0, this.sceneData);
 
     // Counts back to zero before the culling pass appends to them. The rest of
@@ -2397,15 +2405,28 @@ export class Renderer {
     const night = this.night;
     const wet = this.sky.wet;
     const q = this.quality;
+    // The golden hour, as the post grade sees it: 1 with the sun on the
+    // horizon, gone by the time it is a hand's width up or down.
+    const golden = Math.exp(-(((sun[1] - 0.05) / 0.17) ** 2)) * (1 - this.sky.cover * 0.8);
+    const tanY = Math.tan(FOV_Y / 2);
     const tune: PostTune = {
-      strength: (0.16 + 0.62 * night + 0.14 * wet) * q.bloom,
-      threshold: 1.02 - 0.34 * night,
-      exposure: 1.0 + 0.05 * night,
-      vignette: (0.16 + 0.10 * night) * q.vignette,
+      strength: (0.055 + 0.20 * night + 0.05 * wet) * q.bloom,
+      threshold: 1.25 - 0.55 * night,
+      exposure: this.exposure,
+      vignette: (0.22 + 0.10 * night) * q.vignette,
       antialias: q.antialias,
       night,
+      golden,
+      overcast: this.sky.cover,
+      ao: q.ao,
+      saturation: 1.12 - 0.12 * this.sky.cover,
+      contrast: 1.06,
+      near: cam.near,
+      far: cam.far,
+      tanX: tanY * (viewport.width / Math.max(1, viewport.height)),
+      tanY,
     };
-    post.encode(encoder, context.getCurrentTexture().createView(), tune);
+    post.encode(encoder, context.getCurrentTexture().createView(), res.depthView, tune);
 
     // The survivor counts, every third frame. They drive the overlay and the
     // warm list, and the warm list has a twelve-frame memory -- so reading

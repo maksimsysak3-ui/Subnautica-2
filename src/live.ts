@@ -174,6 +174,7 @@ export class LiveCity {
         q.antialias = v.antialias;
         q.vignette = v.vignette ? 1 : 0;
         q.grass = v.grass;
+        q.ao = v.ao ? 1 : 0;
         q.autoScale = v.autoScale;
         renderer.shadowPixels = v.shadowPixels;
         if (!v.autoScale) renderer.setRenderScale(v.renderScale);
