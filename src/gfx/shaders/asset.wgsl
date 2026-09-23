@@ -553,7 +553,10 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   let floorH = 3.6;
   let mullion = 1.5;
   let glass = glassColour(seed);
-  let spandrel = mix(renderColour(seed), vec3f(0.2), 0.35);
+  // Dark, like the spandrel panels and mullions of a real curtain wall. The
+  // wall render colour this used was fine on a punched facade and made a
+  // glass tower read as a beige box from the street.
+  let spandrel = mix(renderColour(seed) * 0.45, vec3f(0.06, 0.065, 0.07), 0.55);
 
   let band = step(fract(uv.y / floorH), 0.26);
   let cell = vec2f(mullion, floorH);
@@ -566,7 +569,7 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   opening = vec3f(1.0 - band, id);
   let inside = room(vec2f(fract(uv.x / mullion), fract((uv.y - floorH * 0.26) / (floorH * 0.74))),
                     par, r, r > 0.72);
-  var col = mix(mix(glass, inside, 0.62), spandrel, band);
+  var col = mix(mix(glass, inside, 0.38), spandrel, band);
   // Reflection gradient: brighter towards the top of the tower, where more
   // sky is in the mirror. Without it a curtain wall is the same value for
   // forty storeys, which no glass building has ever been.

@@ -9,10 +9,11 @@
  * generated, and no amount of facade detail fixes it, because what the eye
  * sorts a skyline by is silhouette.
  *
- * So these are chosen for *massing* rather than for style: a tower standing on
- * a podium, a wedding-cake of setbacks, a thin glazed slab, a retail base with
- * flats over, a mall under a vault, a stepped terrace block and a pair of
- * linked shafts. Put any two of them side by side and they are different
+ * So these are chosen for *massing* rather than for style: a thin glazed slab,
+ * a retail base with flats over, a mall under a vault and a pair of linked
+ * shafts. (The tower on a podium, the wedding cake of setbacks and the
+ * stepped terrace block that used to be here were box-on-box stacks, and
+ * were replaced by the single-form towers in towers.ts.) Put any two of them side by side and they are different
  * shapes from a kilometre away, which is the whole point.
  *
  * They also draw on the vocabulary the signature buildings use -- `curtain`,
@@ -26,10 +27,10 @@ import type { ThemeProfile } from '../themes';
 import { banded, crown, plotOf, punched, storeysOf } from '../themed-parts';
 import {
   awning, balconies, band, bollards, boxSign, entrance, fasciaSign, frontage, kerb,
-  louvres, parapet, planter, railing, ribbon, roofClutter, shopfront,
+  louvres, parapet, planter, ribbon, roofClutter, shopfront,
 } from '../parts';
 import type { Wall } from '../parts';
-import { barrelVault, crownStack, pierWall } from './signature-parts';
+import { barrelVault, pierWall } from './signature-parts';
 
 /**
  * The four walls of a rectangle, as the wall records the part helpers take.
@@ -103,119 +104,6 @@ function lobby(m: MeshBuilder, x0: number, x1: number, z: number,
 }
 
 // ------------------------------------------------------------------ offices
-
-/**
- * Tower on a podium.
- *
- * The commonest downtown block there is and the one the library had no answer
- * for: three storeys of lettable floor filling the whole lot, and a slimmer
- * tower standing on one end of it. The podium roof is a terrace, which is what
- * makes it read as two buildings stacked rather than as one lump -- and from
- * the game's camera, looking down, that terrace is most of what you see.
- */
-export function podiumTower(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 36.0, 26.0);
-  const x = w / 2, z = d / 2;
-  const base = T.floorH * 1.6;
-  const podFloors = 2;
-  const podium = base + podFloors * T.floorH;
-  // The tower takes the back two thirds of the plot and sits hard against the
-  // far side, so the terrace is on the street elevation where it can be seen.
-  const tx = w * 0.30, tz0 = -z + 1.6, tz1 = z - d * 0.42;
-  const floors = storeysOf(T, 17);
-  const wall = podium + floors * T.floorH;
-
-  m.box([-x, 0, -z], [x, base, z], T.base, { roof: MAT.ROOF });
-  m.box([-x, base, -z], [x, podium, z], T.wall, { roof: MAT.ROOF });
-  shaft(m, T, -tx, tz0, tx, tz1, podium, floors, lod);
-  crown(m, T, -tx, tz0, tx, tz1, wall, seed);
-
-  if (medium) {
-    band(m, -x, -z, x, z, base, 0.5, 0.26, T.trim);
-    parapet(m, -x, -z, x, z, podium, 1.0, 0.2, T.base);
-    // The terrace: a deck, a rail along its open edges and planting on it.
-    m.box([-x + 0.6, podium, tz1], [x - 0.6, podium + 0.16, z - 0.6], T.base);
-    railing(m, -x + 0.8, x - 0.8, z - 0.8, podium + 0.16, 1.05);
-    for (let i = 0; i < 4; i++) {
-      planter(m, -x + 3.0 + (i / 3) * (w - 6.0), (tz1 + z) / 2, 1.5, 0.7);
-    }
-    // Corner piers, only on the tower, so the podium stays horizontal and the
-    // tower vertical: the two parts have to disagree or the stack is invisible.
-    for (const sx of [-1, 1] as const) {
-      m.box([sx > 0 ? tx - 0.7 : -tx, podium, tz0],
-            [sx > 0 ? tx + 0.3 : -tx + 0.7, wall + 0.3, tz0 + 0.9], T.base);
-    }
-  }
-  if (fine) {
-    for (const wl of walls(-x, -z, x, z)) {
-      const [u0, u1] = wl.axis === 'x' ? [-z + 1.0, z - 1.0] : [-x + 1.0, x - 1.0];
-      if (T.ribbon) banded(m, T, wl, u0, u1, podFloors, base);
-      else punched(m, T, wl, u0, u1, { floors: podFloors, base: base + 0.8 });
-    }
-    lobby(m, -x, x, z, base, seed);
-    kerb(m, -x - 1.2, z + 0.9, x + 1.2, z + 1.9);
-  }
-  return m;
-}
-
-/**
- * Setback tower.
- *
- * The wedding cake: a zoning ordinance turned into a shape, and still the most
- * recognisable tall-building silhouette there is. Three masses, each stepped
- * in from the one below, with a stepped lantern on top. This is the plan that
- * puts a varied roofline into a skyline of flat lids.
- */
-export function setbackTower(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 27.0, 26.0);
-  const base = T.floorH * 1.7;
-  // Three stages, each shorter and narrower than the last.
-  const stage = [
-    { hx: w / 2, hz: d / 2, floors: storeysOf(T, 7) },
-    { hx: w * 0.40, hz: d * 0.40, floors: storeysOf(T, 6) },
-    { hx: w * 0.30, hz: d * 0.30, floors: storeysOf(T, 5) },
-  ];
-
-  m.box([-stage[0].hx, 0, -stage[0].hz], [stage[0].hx, base, stage[0].hz], T.base, { roof: MAT.ROOF });
-  let y = base;
-  for (const s of stage) {
-    shaft(m, T, -s.hx, -s.hz, s.hx, s.hz, y, s.floors, lod);
-    y += s.floors * T.floorH;
-    if (medium) parapet(m, -s.hx, -s.hz, s.hx, s.hz, y, 1.1, 0.24, T.base);
-  }
-  // The lantern. Modern themes take a plain plant stack and a mast; the rest
-  // take the stepped crown, which is what the shape is actually for.
-  if (T.ribbon) {
-    crown(m, T, -stage[2].hx, -stage[2].hz, stage[2].hx, stage[2].hz, y, seed);
-  } else {
-    m.roofDressed = true;
-    crownStack(m, stage[2].hx * 0.74, stage[2].hz * 0.74, y, medium ? 3 : 1, T.base,
-      { mast: medium ? 9.0 : 0, lantern: medium });
-    if (medium) roofClutter(m, -stage[2].hx + 1.4, -stage[2].hz + 1.4, stage[2].hx - 1.4, stage[2].hz - 1.4, y, seed, 0.5);
-  }
-
-  if (medium) {
-    band(m, -stage[0].hx, -stage[0].hz, stage[0].hx, stage[0].hz, base, 0.6, 0.3, T.trim);
-    // The terraces the setbacks leave. Without these the steps read as a
-    // stack of boxes rather than as one building giving ground as it rises.
-    let ty = base;
-    for (let i = 0; i < stage.length - 1; i++) {
-      ty += stage[i].floors * T.floorH;
-      m.box([-stage[i].hx + 0.3, ty, -stage[i].hz + 0.3],
-            [stage[i].hx - 0.3, ty + 0.18, stage[i].hz - 0.3], T.base);
-      railing(m, -stage[i].hx + 0.5, stage[i].hx - 0.5, stage[i].hz - 0.6, ty + 0.18, 1.0);
-    }
-  }
-  if (fine) {
-    lobby(m, -stage[0].hx, stage[0].hx, stage[0].hz, base, seed);
-    kerb(m, -stage[0].hx - 1.2, stage[0].hz + 0.9, stage[0].hx + 1.2, stage[0].hz + 1.9);
-  }
-  return m;
-}
 
 /**
  * Curtain-wall slab.
@@ -425,71 +313,6 @@ export function galleria(lod: number, T: ThemeProfile, seed: number): MeshBuilde
 }
 
 // -------------------------------------------------------------- residential
-
-/**
- * Terraced tower.
- *
- * A tower that gives ground as it rises, one step every few floors, each step
- * a planted terrace with the flats behind it. It is the shape modern
- * residential high-rise has actually taken for twenty years, and next to a
- * point block it is unmistakable from any distance -- a stepped profile on one
- * axis and a straight one on the other.
- */
-export function terracedTower(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const [w, d] = plotOf(T, 33.0, 33.0);
-  const x = w / 2;
-  const podium = T.floorH * Math.max(1.2, T.podium);
-  const steps = 4;
-  const per = storeysOf(T, 4);
-
-  m.box([-x - 0.8, 0, -d / 2 - 0.8], [x + 0.8, podium, d / 2 + 0.8], T.base, { roof: MAT.ROOF });
-  let y = podium;
-  let back = d / 2;
-  for (let s = 0; s < steps; s++) {
-    // Each stage keeps its full width and loses depth off the street side, so
-    // the terraces all face one way -- which is what a real one does, and it
-    // gives the block a front and a back.
-    const front = d / 2 - (s * d) / (steps + 2.2);
-    const h = per * T.floorH;
-    m.box([-x, y, -back], [x, y + h, front], T.wall, { roof: T.cover });
-    if (fine) {
-      for (const wl of walls(-x, -back, x, front)) {
-        const [u0, u1] = wl.axis === 'x' ? [-back + 0.9, front - 0.9] : [-x + 0.9, x - 0.9];
-        if (u1 - u0 < 2.0) continue;
-        if (T.ribbon) banded(m, T, wl, u0, u1, per, y);
-        else punched(m, T, wl, u0, u1, { floors: per, base: y + 0.9 });
-      }
-    }
-    if (medium && s < steps - 1) {
-      const next = d / 2 - ((s + 1) * d) / (steps + 2.2);
-      m.box([-x + 0.3, y + h, next], [x - 0.3, y + h + 0.16, front + 0.3], T.base);
-      railing(m, -x + 0.5, x - 0.5, front + 0.1, y + h + 0.16, 1.0);
-      for (let i = 0; i < 3; i++) {
-        planter(m, -x + 2.4 + (i / 2) * (w - 4.8), (next + front) / 2, 1.1, 0.6);
-      }
-    }
-    if (medium && T.balcony !== 'none' && s > 0) {
-      balconies(m, { axis: 'x', sign: 1, plane: x }, -back + 1.2, front - 1.2,
-        { floors: per, floorH: T.floorH, base: y + 0.5, bays: 2, depth: 1.4, solid: T.balcony === 'solid' });
-    }
-    y += h;
-    void back;
-  }
-  const topFront = d / 2 - ((steps - 1) * d) / (steps + 2.2);
-  crown(m, T, -x, -back, x, topFront, y, seed);
-
-  if (medium) {
-    band(m, -x - 0.8, -d / 2 - 0.8, x + 0.8, d / 2 + 0.8, podium, 0.42, 0.22, T.trim);
-    parapet(m, -x - 0.8, -d / 2 - 0.8, x + 0.8, d / 2 + 0.8, podium, 0.9, 0.16, T.base);
-  }
-  if (fine) {
-    lobby(m, -x - 0.8, x + 0.8, d / 2 + 0.8, podium, seed);
-    kerb(m, -x - 1.2, d / 2 + 1.1, x + 1.2, d / 2 + 2.1);
-  }
-  return m;
-}
 
 /**
  * Twin towers on a shared podium.

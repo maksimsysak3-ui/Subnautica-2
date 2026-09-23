@@ -257,7 +257,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let damp = clamp((soil - 0.5) * 2.3 + (wear - 0.5) * 0.5 + 0.5
                    + alt * 0.42 - wet * 0.38, 0.0, 1.0);
   let dryness = smoothstep(0.22, 0.82, damp);
-  let lush = vec3f(0.040, 0.104, 0.034);
+  let lush = vec3f(0.046, 0.092, 0.034);
   let dry  = vec3f(0.098, 0.112, 0.046);
   var turf = mix(lush, dry, dryness);
   // Meadow is taller and yellower; moor is the olive-brown of heath and rough

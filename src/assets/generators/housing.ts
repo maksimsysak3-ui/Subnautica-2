@@ -30,7 +30,8 @@ import {
   parapet, planter, railing, ribbon, ring, roofClutter, shopfront,
 } from '../parts';
 import type { Wall } from '../parts';
-import { terracedTower, twinTowers } from './highrise';
+import { twinTowers } from './highrise';
+import { waveTower } from './towers';
 
 // ------------------------------------------------------------- low density
 
@@ -1059,7 +1060,7 @@ const HIGH: Plan[] = [
   { key: 'cross', name: 'Cruciform tower', build: cross, footprint: [5, 5], households: 90 },
   { key: 'urban', name: 'Street block', build: urban, footprint: [5, 5], households: 120 },
   { key: 'cored', name: 'Cored tower', build: cored, footprint: [5, 4], households: 64 },
-  { key: 'terraced', name: 'Terraced tower', build: terracedTower, footprint: [5, 5], households: 84 },
+  { key: 'terraced', name: 'Wave tower', build: waveTower, footprint: [5, 5], households: 84 },
   { key: 'twin', name: 'Twin towers', build: twinTowers, footprint: [6, 4], households: 132 },
 ];
 

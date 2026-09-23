@@ -91,7 +91,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'flat', pitch: 0, eave: 0.12, floorH: 3.2,
     winW: 2.4, winH: 2.2, rhythm: 2, shutters: false, grille: false,
     chimney: false, veranda: false, ribbon: true, balcony: 'metal',
-    plot: 1.24, storeys: 1.15, setback: 0.22, podium: 1.4, wing: 0.00, attic: false,
+    plot: 1.24, storeys: 1.15, setback: 0.00, podium: 1.4, wing: 0.00, attic: false,
   },
   european: {
     id: 'european', badge: 'EU', label: 'European',
@@ -115,7 +115,7 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     roof: 'hip', pitch: 0.28, eave: 0.75, floorH: 3.0,
     winW: 1.7, winH: 1.7, rhythm: 2, shutters: false, grille: true,
     chimney: false, veranda: false, ribbon: false, balcony: 'recessed',
-    plot: 0.92, storeys: 1.30, setback: 0.10, podium: 2.2, wing: 0.00, attic: false,
+    plot: 0.92, storeys: 1.30, setback: 0.00, podium: 2.2, wing: 0.00, attic: false,
   },
   farming: {
     // Whitewashed stone and timber under a very steep tiled roof, with deep

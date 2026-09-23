@@ -31,7 +31,8 @@ import {
 } from '../parts';
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
-import { curtainSlab, galleria, mixedUse, podiumTower, setbackTower } from './highrise';
+import { curtainSlab, galleria, mixedUse } from './highrise';
+import { landmarkOffice, signatureOffice } from './towers';
 import {
   annexeOffice, bank, courtyardOffice, garage, gardenCentre, showroom, unitTerrace,
 } from './street';
@@ -1211,8 +1212,9 @@ const OFFICES: Plan[] = [
   { key: 'studio', name: 'Studio', build: studio, footprint: [3, 3], density: 'low', jobs: 40 },
   { key: 'midrise', name: 'Mid-rise', build: midrise, footprint: [4, 3], density: 'medium', jobs: 180 },
   { key: 'tower', name: 'Tower', build: tower, footprint: [4, 4], density: 'high', jobs: 520 },
-  { key: 'podium', name: 'Tower on a podium', build: podiumTower, footprint: [5, 4], density: 'high', jobs: 610 },
-  { key: 'setback', name: 'Setback tower', build: setbackTower, footprint: [4, 4], density: 'high', jobs: 540 },
+  // Ids kept from the plans these replaced, so saved cities load onto them.
+  { key: 'podium', name: 'Sculpted tower', build: signatureOffice, footprint: [5, 4], density: 'high', jobs: 610 },
+  { key: 'setback', name: 'Spire tower', build: landmarkOffice, footprint: [4, 4], density: 'high', jobs: 540 },
   { key: 'slab', name: 'Curtain-wall slab', build: curtainSlab, footprint: [6, 3], density: 'high', jobs: 480 },
   { key: 'campus', name: 'Campus', build: campus, footprint: [4, 5], density: 'low', jobs: 150 },
   { key: 'conversion', name: 'Conversion', build: conversion, footprint: [3, 3], density: 'medium', jobs: 120 },

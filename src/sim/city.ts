@@ -28,12 +28,12 @@
  */
 
 import { hash2, fbm } from './hash';
-import { baseHeightAt } from './terrain';
+import { baseHeightAt, heightAt } from './terrain';
 import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
-import { REACH_CELLS } from './roadgraph';
+import { REACH_CELLS, ROAD_SPECS, walk } from './roadgraph';
 import { defaultWorld, zoneOf, zoneIndexOf, BLOCK, PERIOD } from './world';
 import { plotAt, PLOTS, plotCells } from './plots';
 import type { World } from './world';
@@ -1303,6 +1303,64 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     if (roadsChanged) moved = null;
   }
   gradeGround(pads, baseHeightAt, roads.pins, moved);
+
+  // Avenue trees: a row down every footway wide enough to take one, and down
+  // the median of a boulevard.
+  //
+  // The planting pass works in cells, and a cell that is road is never free,
+  // so the streets themselves were the one place in town no tree could stand:
+  // what a player saw was trees in the gardens behind the kerb, and a bare
+  // strip of paving and asphalt between the frontages. These walk the road's
+  // own curve instead, like the lamp columns do, set back from the kerb and
+  // phased between the lamps, on the ground as it stands after grading.
+  // Attributed to the frontage, so an edit that remakes a street replants it.
+  {
+    const avenue = planting().filter((p) => p.w === 2);
+    const pits = planting().filter((p) => p.w <= 1);
+    const wide = avenue.length > 0 ? avenue : planting();
+    if (wide.length > 0) {
+      for (const f of net.frontages()) {
+        const owner = frontageOwner(f.id, f.side);
+        if (zone !== null && !remade.has(owner)) continue;
+        const spec = ROAD_SPECS[f.cls];
+        const footway = spec.edge - spec.half;
+        const median = spec.median >= 2.2 && f.side === 1;
+        if (!spec.kerbed || f.cls === 'highway' || f.cls === 'motorway' || f.cls === 'slip') continue;
+        if (footway < 2.0 && !median) continue;
+        // A narrow footway takes the small species in pits by the kerb.
+        const pool = footway < 2.5 && pits.length > 0 ? pits : wide;
+        out.owner = owner;
+        const pts = net.samples(net.links[f.link]);
+        const pitch = Math.max(9, Math.min(13, spec.lamp > 0 ? spec.lamp / 3 : 11));
+        const place = (s: number, offset: number, salt: number): void => {
+          const q = walk(pts, s);
+          const x = q.x - q.tz * offset, z = q.z + q.tx * offset;
+          const p = pick(pool, Math.round(x * 3), Math.round(z * 3), salt);
+          if (p === null) return;
+          const y = heightAt(x, z) - 0.1;
+          const yaw = hash2(Math.round(x), Math.round(z), salt + 1) * Math.PI * 2;
+          out.add(x, z, y, yaw, p.w * CELL / 2 + 0.8, p.d * CELL / 2 + 0.8, p.height * 1.2 + 3,
+            p.index, 1, 0, 0, 0);
+          population[p.index]++;
+        };
+        if (footway >= 2.0) {
+          const offset = f.side * (spec.half + footway * (footway < 2.5 ? 0.45 : 0.62));
+          for (let s = f.from + pitch * 0.5; s <= f.to - 2; s += pitch) {
+            // Not on top of a lamp column on this side of the road.
+            if (spec.lamp > 0) {
+              const k = Math.round(s / spec.lamp);
+              const lampSide = k % 2 === 0 ? 1 : -1;
+              if (lampSide === f.side && Math.abs(s - k * spec.lamp) < 2.5) continue;
+            }
+            place(s, offset, 829);
+          }
+        }
+        if (median) {
+          for (let s = f.from + 5; s <= f.to - 5; s += 10) place(s, 0, 831);
+        }
+      }
+    }
+  }
 
   // Open ground, for the grass. Thinned by one cell against anything hard, so
   // a blade does not stop dead at a kerb -- real grass runs up to an edge and

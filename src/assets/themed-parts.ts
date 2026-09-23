@@ -279,12 +279,12 @@ export function crown(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x
     case 'asian': {
       // A hipped cap on a set-back attic storey: the Asian residential tower
       // crown, and the reason those skylines are not flat.
-      const i = Math.min(x1 - x0, z1 - z0) * 0.14;
-      m.box([x0 + i, y, z0 + i], [x1 - i, y + 2.6, z1 - i], T.wall, { roof: T.cover });
-      const h = Math.min(x1 - x0, z1 - z0) * 0.2;
-      hip(m, x0 + i - 0.7, z0 + i - 0.7, x1 - i + 0.7, z1 - i + 0.7, y + 2.6, h, T.cover);
-      parapet(m, x0, z0, x1, z1, y, 1.0, 0.14, T.wall);
-      return y + 2.6 + h;
+      // The roof itself, hipped and oversailing, straight off the wall head --
+      // not a smaller storey stood on the roof with a hat on it.
+      const h = Math.min(x1 - x0, z1 - z0) * 0.22;
+      parapet(m, x0, z0, x1, z1, y, 0.8, 0.14, T.wall);
+      hip(m, x0 - 0.9, z0 - 0.9, x1 + 0.9, z1 + 0.9, y + 0.8, h, T.cover);
+      return y + 0.8 + h;
     }
     case 'farming': {
       const h = Math.min(x1 - x0, z1 - z0) * 0.34;
@@ -314,20 +314,20 @@ export function crown(m: MeshBuilder, T: ThemeProfile, x0: number, z0: number, x
       // colour off the building's seed, and the top three metres of a tower is
       // the part of it the whole city can see. Every modern block in the
       // skyline was wearing a mustard, teal or burnt-orange hat.
-      parapet(m, x0, z0, x1, z1, y, 1.05, 0.12, T.trim);
-      const i = Math.min(x1 - x0, z1 - z0) * 0.2;
-      const px0 = x0 + i, pz0 = z0 + i, px1 = x1 - i, pz1 = z1 - i;
-      m.box([px0, y, pz0], [px1, y + 3.0, pz1], MAT.CONCRETE, { roof: MAT.ROOF });
+      // A plant screen flush with the facade, carried up as one surface, so
+      // the building ends in a clean edge rather than with a smaller concrete
+      // box on its roof. The plant is still there, behind it.
+      parapet(m, x0, z0, x1, z1, y, 3.2, 0.16, MAT.DARK_TRIM);
       for (const wl of [
-        { axis: 'z', sign: 1, plane: pz1 } as Wall, { axis: 'z', sign: -1, plane: pz0 } as Wall,
-        { axis: 'x', sign: 1, plane: px1 } as Wall, { axis: 'x', sign: -1, plane: px0 } as Wall,
+        { axis: 'z', sign: 1, plane: z1 } as Wall, { axis: 'z', sign: -1, plane: z0 } as Wall,
+        { axis: 'x', sign: 1, plane: x1 } as Wall, { axis: 'x', sign: -1, plane: x0 } as Wall,
       ]) {
-        const [u0, u1] = wl.axis === 'x' ? [pz0 + 0.3, pz1 - 0.3] : [px0 + 0.3, px1 - 0.3];
-        if (u1 - u0 > 1.0) louvres(m, wl, u0, u1, y + 0.45, y + 2.6, 0.36);
+        const [u0, u1] = wl.axis === 'x' ? [z0 + 0.4, z1 - 0.4] : [x0 + 0.4, x1 - 0.4];
+        if (u1 - u0 > 1.0) louvres(m, wl, u0, u1, y + 0.5, y + 2.9, 0.3);
       }
-      ring(m, px0, pz0, px1, pz1, y + 3.0, 0.14, 0.1, T.trim);
+      ring(m, x0, z0, x1, z1, y + 3.2, 0.2, 0.12, T.trim);
       roofClutter(m, x0 + 1.4, z0 + 1.4, x1 - 1.4, z1 - 1.4, y, seed, 0.8);
-      return y + 3.0;
+      return y + 3.3;
     }
   }
 }
@@ -401,8 +401,6 @@ export function topMass(m: MeshBuilder, T: ThemeProfile,
   if (T.podium >= 2) {
     // A plant room and two water tanks, which is what an East Asian roofline
     // is: the building carries its services on top rather than hiding them.
-    m.box([x0 + w * 0.28, y, z0 + d * 0.30], [x0 + w * 0.62, y + 2.8, z0 + d * 0.70],
-      T.base, { roof: MAT.ROOF });
     for (const f of [0.70, 0.84]) {
       m.cylinder(x0 + w * f, (z0 + z1) / 2, 1.05, y + 0.5, y + 2.7, 8, MAT.METAL);
       m.box([x0 + w * f - 1.05, y, z0 + d * 0.5 - 1.05],

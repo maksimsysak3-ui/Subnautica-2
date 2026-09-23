@@ -2475,7 +2475,7 @@ export class Renderer {
       golden,
       overcast: this.sky.cover,
       ao: q.ao,
-      saturation: 1.12 - 0.12 * this.sky.cover,
+      saturation: 1.06 - 0.10 * this.sky.cover,
       contrast: 1.06,
       near: cam.near,
       far: cam.far,
