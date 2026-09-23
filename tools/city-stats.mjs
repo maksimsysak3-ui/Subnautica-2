@@ -128,3 +128,60 @@ console.log(`signature       ${sig}`);
 
 console.log(`\nnever placed    ${never.length}`);
 if (never.length) console.log('  ' + never.slice(0, 24).map((a) => a.id).join(' '));
+
+// ---- twins -----------------------------------------------------------------
+//
+// How often a building stands next to a copy of itself along a street.
+//
+// The one kind of repetition a player reads as a bug rather than as a style: a
+// matching pair side by side is noticed long before anyone notices that the
+// same building appears twice on the same street. The picker hashes on
+// position, so neighbours draw independently -- and independent draws from a
+// list of N put the same building next to itself one time in N, which was one
+// pair in two along an office street when the medium office stock was two
+// plans. `buildFrontage` now refuses the last one it placed for its first six
+// attempts, and this is what says whether that is still true.
+//
+// Measured on the geometry rather than on the frontage list: nearest other
+// building within forty-six metres facing the same way, which is the pair a
+// player actually sees. It therefore counts pairs across a junction and behind
+// a block as well, so it can never reach zero -- the bar is what the rule
+// leaves, not what a perfect street would.
+{
+  // Eight per cent. Measured rather than guessed: the rule in `buildFrontage`
+  // takes this map from 17.6% to 3.1%, so the bar sits between the two and
+  // catches the rule going away without failing on a quiet reshuffle.
+  const TWIN_MAX = 8;
+  const pts = [];
+  for (let i = 0; i < city.count; i++) {
+    const o = i * INSTANCE_FLOATS;
+    const def = ASSETS[d[o + 7]];
+    if (def === undefined || def.zone === 'nature' || def.zone === 'road'
+      || def.zone === 'fleet') continue;
+    pts.push([d[o], d[o + 1], d[o + 3], d[o + 7]]);
+  }
+  let pairs = 0, twins = 0;
+  for (let i = 0; i < pts.length; i++) {
+    let best = -1, bd = 46 * 46;
+    for (let j = 0; j < pts.length; j++) {
+      if (j === i || Math.abs(pts[j][2] - pts[i][2]) > 0.05) continue;
+      const dx = pts[j][0] - pts[i][0], dz = pts[j][1] - pts[i][1];
+      const q = dx * dx + dz * dz;
+      if (q < bd) { bd = q; best = j; }
+    }
+    if (best < 0) continue;
+    pairs++;
+    if (pts[best][3] === pts[i][3]) twins++;
+  }
+  const pct = pairs > 0 ? (twins / pairs) * 100 : 0;
+  console.log(`\ntwins           ${twins}/${pairs} street neighbours are the same `
+    + `building (${pct.toFixed(1)}%, ceiling ${TWIN_MAX}%)`);
+  if (pct > TWIN_MAX) {
+    console.error(`\nFAIL  ${pct.toFixed(1)}% of street neighbours are twins, `
+      + `over the ${TWIN_MAX}% ceiling`);
+    process.exitCode = 1;
+  } else {
+    console.log('\nPASS  the spawner fills the map, uses its library, and does not '
+      + 'often put a building next to a copy of itself');
+  }
+}

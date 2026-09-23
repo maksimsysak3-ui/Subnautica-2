@@ -991,6 +991,23 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     deep: number): void => {
     out.owner = frontageOwner(f.id, f.side);
     let s = f.from, guard = 0;
+    /**
+     * What went up immediately before this one, on this side of this road.
+     *
+     * The picker hashes on position, so two neighbours draw independently --
+     * and independent draws from a list of N put the same building next to
+     * itself one time in N. That is one pair in two along an office street,
+     * where the medium stock is two plans, and it is the single most visible
+     * kind of repetition there is: a player reads a pair of identical
+     * buildings side by side as a bug long before they notice that the same
+     * building appears twice on the same street.
+     *
+     * So the first few attempts refuse the last one placed. Only the first
+     * few: the later attempts have to stay unconstrained or a frontage whose
+     * remaining gap fits exactly one prototype would be left empty rather than
+     * repeat, and a hole in a street is worse than a twin.
+     */
+    let prev: { index: number } | null = null;
     while (s < f.to && guard++ < 400) {
       let step = 4;
       // Hoisted out of the attempt loop: neither depends on which prototype is
@@ -1024,6 +1041,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         const list = attempt < 8 ? band : all;
         const p = pick(list, Math.round(s), f.link * 13 + f.side, 601 + attempt);
         if (!p) break;
+        if (attempt < 6 && prev !== null && p.index === prev.index && list.length > 1) continue;
         const wide = p.w * CELL, back = p.d * CELL;
         if (s + wide > f.to || back > deep * CELL) continue;
         // The plot's middle: half its depth *out* from the kerb line, along
@@ -1040,6 +1058,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         if (cells[at(mgx, mgz)] !== FREE) continue;
         if (!freeBox(cx, cz, wide / 2, back / 2, mid.yaw, FREE)) continue;
         if (!emitAt(p, cx, cz, mid.yaw)) continue;
+        prev = p;
         step = wide;
         break;
       }

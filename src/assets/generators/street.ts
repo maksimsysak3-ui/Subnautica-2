@@ -1,5 +1,5 @@
 /**
- * The other half of a high street.
+ * The other half of a high street, and the workaday end of an office district.
  *
  * Commercial was the thinnest zone in the library and the one a player builds
  * most of: three low plans and three medium, so a mile of frontage was the
@@ -15,6 +15,12 @@
  * three roller doors and a yard; a garden centre is a glasshouse with an
  * outdoor sales area beside it. Put any two of them next to each other and
  * they are different objects before you have read a sign.
+ *
+ * Three offices too, for the same reason and a worse one: `office|medium` held
+ * two plans, so one pair of buildings in every two along a mid-rise office
+ * street was a matching pair. A courtyard block, an L wrapping a corner and a
+ * terrace of small units are three different *plans* rather than three
+ * elevations of a rectangle, which is what the bucket was short of.
  */
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
@@ -316,3 +322,209 @@ export function gardenCentre(lod: number, T: ThemeProfile, seed: number): MeshBu
   return m;
 }
 
+
+// -------------------------------------------------------------------- office
+
+/**
+ * An office round a courtyard.
+ *
+ * The one office plan that is not a solid block, and from the camera this game
+ * is played at that is the whole difference: a hole in the middle, a planted
+ * court at the bottom of it, and glazing looking both ways. Four ranges rather
+ * than one, so the roofline has corners in it.
+ */
+export function courtyardOffice(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 30.0, 27.0);
+  const x = w / 2, z = d / 2;
+  const floors = storeysOf(T, 4);
+  const base = T.floorH * 1.4;
+  const wall = base + (floors - 1) * T.floorH;
+  const range = Math.min(w, d) * 0.26;        // depth of each range
+  const cx0 = -x + range, cz0 = -z + range, cx1 = x - range, cz1 = z - range;
+
+  // Four ranges, drawn as four boxes rather than as a ring with a hole: the
+  // mesh is additive, so a hole has to be left rather than cut.
+  m.box([-x, 0, -z], [x, wall, cz0], T.wall, { roof: T.cover });
+  m.box([-x, 0, cz1], [x, wall, z], T.wall, { roof: T.cover });
+  m.box([-x, 0, cz0], [cx0, wall, cz1], T.wall, { roof: T.cover });
+  m.box([cx1, 0, cz0], [x, wall, cz1], T.wall, { roof: T.cover });
+  // The court floor, and the way in through the street range.
+  m.box([cx0, 0, cz0], [cx1, 0.12, cz1], MAT.CONCRETE);
+  m.box([-3.0, 0, cz1 - 0.2], [3.0, base, z + 0.1], T.base, { roof: MAT.ROOF });
+
+  if (medium) {
+    band(m, -x, -z, x, z, base, 0.42, 0.26, T.trim);
+    parapet(m, -x, -z, x, z, wall, 0.95, 0.24, T.base);
+    // The inside faces of the court get their own parapet, which is what makes
+    // the hole read as a court rather than as a slot.
+    parapet(m, cx0, cz0, cx1, cz1, wall, 0.7, -0.18, T.base);
+    roofClutter(m, -x + 1.6, -z + 1.6, x - 1.6, cz0 - 1.0, wall, seed, 0.7);
+    for (const [px, pz] of [[cx0 + 2.2, cz0 + 2.2], [cx1 - 2.2, cz0 + 2.2],
+      [cx0 + 2.2, cz1 - 2.2], [cx1 - 2.2, cz1 - 2.2]] as const) {
+      planter(m, px, pz, 1.2, 0.6);
+    }
+    for (const px of [cx0 + 5.4, cx1 - 5.4]) tree(m, px, (cz0 + cz1) / 2, 5.2, 1.9);
+  }
+  if (fine) {
+    // Outside and inside both glazed, which is the point of the plan.
+    for (const wl of [
+      { axis: 'z', sign: 1, plane: z } as Wall, { axis: 'z', sign: -1, plane: -z } as Wall,
+      { axis: 'x', sign: 1, plane: x } as Wall, { axis: 'x', sign: -1, plane: -x } as Wall,
+    ]) {
+      const [u0, u1] = wl.axis === 'x' ? [-z + 1.0, z - 1.0] : [-x + 1.0, x - 1.0];
+      punched(m, T, wl, u0, u1, { floors, base: 0.9 });
+    }
+    for (const wl of [
+      { axis: 'z', sign: -1, plane: cz1 } as Wall, { axis: 'z', sign: 1, plane: cz0 } as Wall,
+      { axis: 'x', sign: -1, plane: cx1 } as Wall, { axis: 'x', sign: 1, plane: cx0 } as Wall,
+    ]) {
+      const [u0, u1] = wl.axis === 'x' ? [cz0 + 1.0, cz1 - 1.0] : [cx0 + 1.0, cx1 - 1.0];
+      ribbon(m, wl, u0, u1, base + 0.7, wall - 1.0, { mullions: 7 });
+    }
+    entrance(m, { axis: 'z', sign: 1, plane: z + 0.1 }, 0,
+      { width: 3.0, height: 3.2, double: true, glazed: true, canopy: 2.0 });
+    frontage(m, -x, x, z + 0.55, seed, { planters: 3, bollards: 8 });
+    kerb(m, -x - 0.8, z + 0.5, x + 0.8, z + 1.4);
+  }
+  return m;
+}
+
+/**
+ * An office on a corner, with a lower wing.
+ *
+ * An L, and the crook of the L is a yard. Two masses of different heights
+ * meeting at a right angle is the cheapest way to make a building read as
+ * having been added to over time, which is what most real offices of this size
+ * look like and what a single extruded rectangle never does.
+ */
+export function annexeOffice(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 30.0, 21.0);
+  const x = w / 2, z = d / 2;
+  const tall = storeysOf(T, 5), low = storeysOf(T, 2);
+  const base = T.floorH * 1.4;
+  const head = base + (tall - 1) * T.floorH;
+  const wingHead = base + (low - 1) * T.floorH;
+  const armX = w * 0.44;                     // where the tall block ends
+
+  m.box([-x, 0, -z], [-x + armX, head, z], T.wall, { roof: T.cover });
+  m.box([-x + armX, 0, -z], [x, wingHead, -z + d * 0.62], T.wall, { roof: T.cover });
+  if (T.roof !== 'flat') {
+    roofOver(m, T, -x, -z, -x + armX, z, head, { along: 'z' });
+    roofOver(m, T, -x + armX, -z, x, -z + d * 0.62, wingHead, { along: 'x' });
+  }
+  // The stair, expressed on the inside corner, taller than both.
+  m.box([-x + armX - 2.6, 0, -z + d * 0.62 - 0.6], [-x + armX + 0.6, head + 2.4, -z + d * 0.62 + 2.6],
+    T.base, { roof: MAT.ROOF });
+
+  if (medium) {
+    band(m, -x, -z, -x + armX, z, base, 0.42, 0.26, T.trim);
+    if (T.roof === 'flat') {
+      parapet(m, -x, -z, -x + armX, z, head, 0.9, 0.22, T.base);
+      parapet(m, -x + armX, -z, x, -z + d * 0.62, wingHead, 0.8, 0.2, T.base);
+    }
+    parapet(m, -x + armX - 2.6, -z + d * 0.62 - 0.6, -x + armX + 0.6, -z + d * 0.62 + 2.6,
+      head + 2.4, 0.7, 0.16, T.base);
+    roofClutter(m, -x + 1.6, -z + 1.6, -x + armX - 1.6, z - 1.6, head, seed, 0.6);
+    // The yard in the crook, with its bays marked and a hedge to the street.
+    m.box([-x + armX + 0.8, 0, -z + d * 0.62 + 0.4], [x - 0.6, 0.12, z - 0.6], MAT.CONCRETE);
+    hedge(m, -x + armX + 0.8, z - 0.9, x - 0.6, z - 0.3, 0.8);
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 4; i++) {
+        const px = -x + armX + 2.4 + i * ((w - armX - 4.0) / 3);
+        m.box([px - 0.06, 0.12, -z + d * 0.62 + 1.2], [px + 0.06, 0.15, z - 1.4], MAT.TRIM);
+      }
+    });
+  }
+  if (fine) {
+    for (const wl of [
+      { axis: 'z', sign: 1, plane: z } as Wall, { axis: 'x', sign: -1, plane: -x } as Wall,
+      { axis: 'z', sign: -1, plane: -z } as Wall,
+    ]) {
+      const [u0, u1] = wl.axis === 'x' ? [-z + 1.0, z - 1.0] : [-x + 1.0, -x + armX - 1.0];
+      punched(m, T, wl, u0, u1, { floors: tall, base: 0.9 });
+    }
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + armX + 1.0, x - 1.0,
+      { floors: low, base: 0.9 });
+    punched(m, T, { axis: 'x', sign: 1, plane: x }, -z + 1.0, -z + d * 0.62 - 1.0,
+      { floors: low, base: 0.9 });
+    ribbon(m, { axis: 'z', sign: 1, plane: -z + d * 0.62 }, -x + armX + 1.2, x - 1.2,
+      1.0, wingHead - 1.0, { mullions: 6 });
+    entrance(m, { axis: 'z', sign: 1, plane: z }, -x + armX * 0.5,
+      { width: 2.8, height: 3.0, double: true, glazed: true, canopy: 1.8 });
+    serviceYard(m, x - 7.0, x - 1.0, -z + d * 0.62 + 0.8, seed,
+      { totem: false, flag: false, cycles: true, bins: true });
+    kerb(m, -x - 0.8, z + 0.5, x + 0.8, z + 1.4);
+  }
+  return m;
+}
+
+/**
+ * A terrace of small business units.
+ *
+ * Six shells with a roller door and a personnel door each, a shallow pitch
+ * over the lot, and a strip of parking in front. The bottom of the office
+ * market, which every real business park is made of, and the thing the library
+ * had nothing between a studio and a campus for.
+ */
+export function unitTerrace(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 30.0, 22.0);
+  const x = w / 2, z = d / 2;
+  const UNITS = 6;
+  const eaves = 5.4;
+  const depth = d * 0.52;
+
+  m.box([-x, 0, -z], [x, 0.1, z], MAT.CONCRETE);
+  m.box([-x, 0.1, -z], [x, eaves, -z + depth], MAT.SHED_WALL, { roof: MAT.ROOF });
+  if (T.roof === 'flat') {
+    parapet(m, -x, -z, x, -z + depth, eaves, 0.6, 0.2, MAT.METAL);
+  } else {
+    roofOver(m, T, -x, -z, x, -z + depth, eaves, { along: 'x' });
+  }
+
+  if (medium) {
+    // The party walls, standing proud, which is what makes six units read as
+    // six units rather than as one long shed.
+    for (let i = 1; i < UNITS; i++) {
+      const px = -x + (i / UNITS) * w;
+      m.box([px - 0.22, 0.1, -z], [px + 0.22, eaves + 0.5, -z + depth + 0.36], T.base);
+    }
+    band(m, -x, -z, x, -z + depth, eaves - 1.4, 0.34, 0.24, MAT.METAL);
+    // The parking strip.
+    m.painted(TINT.NONE, () => {
+      for (let i = 0; i <= UNITS * 2; i++) {
+        const px = -x + 0.8 + (i / (UNITS * 2)) * (w - 1.6);
+        m.box([px - 0.06, 0.1, -z + depth + 1.6], [px + 0.06, 0.13, z - 1.2], MAT.TRIM);
+      }
+    });
+    hedge(m, -x, z - 1.0, x, z - 0.4, 0.7);
+    roofClutter(m, -x + 2.0, -z + 1.6, x - 2.0, -z + depth - 1.6, eaves, seed, 0.4);
+  }
+  if (fine) {
+    for (let i = 0; i < UNITS; i++) {
+      const c = -x + ((i + 0.5) / UNITS) * w;
+      const bay = w / UNITS;
+      m.painted(TINT.METAL_DARK, () => {
+        m.box([c - bay * 0.28, 0.1, -z + depth - 0.06], [c + bay * 0.28, 3.8, -z + depth + 0.14],
+          MAT.METAL);
+        for (let k = 0; k < 9; k++) {
+          m.box([c - bay * 0.28, 0.4 + k * 0.38, -z + depth + 0.14],
+            [c + bay * 0.28, 0.54 + k * 0.38, -z + depth + 0.2], MAT.TRIM);
+        }
+      });
+      entrance(m, { axis: 'z', sign: 1, plane: -z + depth }, c + bay * 0.36,
+        { width: 1.0, height: 2.2, fanlight: false });
+      m.opening({ axis: 'z', sign: 1, plane: -z + depth, u0: c + bay * 0.3, u1: c + bay * 0.42,
+        y0: 3.0, y1: 4.4, glass: MAT.PANE, frame: 0.1, proud: 0.06 });
+    }
+    louvres(m, { axis: 'x', sign: 1, plane: x }, -z + 1.2, -z + 4.0, 3.4, 4.6, 0.3);
+    bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 1.4, 7);
+    kerb(m, -x - 0.8, z + 0.6, x + 0.8, z + 1.6);
+  }
+  return m;
+}

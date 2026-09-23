@@ -32,7 +32,9 @@ import {
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
 import { curtainSlab, galleria, mixedUse, podiumTower, setbackTower } from './highrise';
-import { bank, garage, gardenCentre, showroom } from './street';
+import {
+  annexeOffice, bank, courtyardOffice, garage, gardenCentre, showroom, unitTerrace,
+} from './street';
 import { container, racking, stockpile, drum, crate, pallet } from './freight';
 
 // -------------------------------------------------------------- commercial
@@ -1215,6 +1217,9 @@ const OFFICES: Plan[] = [
   { key: 'campus', name: 'Campus', build: campus, footprint: [4, 5], density: 'low', jobs: 150 },
   { key: 'conversion', name: 'Conversion', build: conversion, footprint: [3, 3], density: 'medium', jobs: 120 },
   { key: 'chambers', name: 'Chambers', build: chambers, footprint: [3, 3], density: 'low', jobs: 54 },
+  { key: 'courtyard', name: 'Courtyard block', build: courtyardOffice, footprint: [4, 4], density: 'medium', jobs: 210 },
+  { key: 'annexe', name: 'Office and annexe', build: annexeOffice, footprint: [4, 3], density: 'medium', jobs: 165 },
+  { key: 'units', name: 'Business units', build: unitTerrace, footprint: [4, 3], density: 'low', jobs: 72 },
 ];
 
 const WORKS: Plan[] = [
