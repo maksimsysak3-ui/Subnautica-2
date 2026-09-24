@@ -167,14 +167,22 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-card.is-picked {
   border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 18px 44px rgba(0,0,0,.5);
 }
-.mr-card-art { position: relative; height: clamp(104px, 17vh, 170px); background-size: cover; }
+.mr-card-art {
+  position: relative; height: clamp(104px, 17vh, 170px); overflow: hidden;
+  background: #0b1018 center / cover no-repeat;
+  transition: transform .6s cubic-bezier(.2,.7,.2,1), filter .4s;
+  filter: saturate(.92) brightness(.92);
+}
+.mr-card:hover .mr-card-art, .mr-card.is-picked .mr-card-art { transform: scale(1.045); filter: none; }
 .mr-card-art::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, transparent 35%, rgba(14,20,29,.96));
+  background: radial-gradient(120% 90% at 50% 30%, transparent 55%, rgba(5,8,13,.55)),
+    linear-gradient(180deg, transparent 38%, rgba(14,20,29,.55) 66%, rgba(14,20,29,.97));
 }
 .mr-card-title {
   position: absolute; left: 16px; bottom: 12px; z-index: 1; color: var(--ink);
   font: 800 26px/1 var(--display); letter-spacing: .1em; text-transform: uppercase;
+  text-shadow: 0 2px 12px rgba(0,0,0,.65);
 }
 .mr-card-body { display: flex; flex-direction: column; gap: 10px; flex: 1; padding: 12px 16px 16px; }
 .mr-card-tag {

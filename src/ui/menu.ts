@@ -19,7 +19,7 @@ import { installTheme } from './theme';
 import { DIFFICULTIES, describe } from '../sim/difficulty';
 import type { DifficultyId } from '../sim/difficulty';
 import { glyph } from './glyphs';
-import { difficultyArt } from './setup-art';
+import { CARD_SHOTS } from './setup-shots';
 
 /** What the player chose before founding a city. */
 export interface Setup {
@@ -359,12 +359,12 @@ export class Menu {
       card.dataset.difficulty = d.id;
       const art = document.createElement('div');
       art.className = 'mr-card-art';
-      art.innerHTML = difficultyArt(d.id);
+      art.style.backgroundImage = `url(${CARD_SHOTS[d.id]})`;
       const name = document.createElement('div');
       name.className = 'mr-card-title';
       name.textContent = d.label;
       const artWrap = document.createElement('div');
-      artWrap.style.position = 'relative';
+      artWrap.style.cssText = 'position:relative;overflow:hidden';
       artWrap.append(art, name);
       const body = document.createElement('div');
       body.className = 'mr-card-body';
