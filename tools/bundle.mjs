@@ -34,6 +34,12 @@ const TMP = path.join(ROOT, 'dist', '_single');
  * is a syntax error inside a module (unlike a classic script).
  */
 function escapeForInlineScript(js) {
+  // The artifact publisher refuses any page containing `const Id=` — it reads
+  // it as part of its code-review page template. The minifier hands out `Id`
+  // as an ordinary short name, so rename it (identifier uses only) to a name
+  // the minifier never emits.
+  if (js.includes('IdBm')) throw new Error('bundle already uses IdBm');
+  js = js.replace(/(?<![.\w$"'`])Id(?![\w$"'`:])/g, 'IdBm');
   return js.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
 }
 
