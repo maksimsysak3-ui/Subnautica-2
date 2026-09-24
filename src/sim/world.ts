@@ -188,6 +188,15 @@ export interface World {
   politics: Politics;
   /** How hard the city was founded to be. See `difficulty.ts`. */
   difficulty: DifficultyId;
+  /**
+   * The simulation's clock, in ticks, and how many people lived here, as of
+   * the last look. Written by the running game, read on load: the clock so
+   * anything dated in days (an election, a term) keeps its date, and the
+   * residents so a loaded city is lived in straight away rather than refilled
+   * from thirty households.
+   */
+  clock: number;
+  residents: number;
   /** The city's career: experience, level, stars and what they have unlocked. */
   progress: Progress;
   /**
@@ -222,6 +231,8 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     policies: new Policies(),
     politics: new Politics(),
     difficulty: RULES.id,
+    clock: 0,
+    residents: 0,
     progress: new Progress(),
     painted: 0,
   };

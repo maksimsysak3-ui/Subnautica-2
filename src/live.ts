@@ -279,6 +279,23 @@ export class LiveCity {
    * it in the voice of somebody it is happening to, which is the register a
    * city builder never uses.
    */
+  /**
+   * Moves the first people in. A new city gets its founding households; a
+   * loaded one is refilled to the population it was saved with, so a city of
+   * twenty thousand is not reloaded as a village of thirty families waiting
+   * for migration to notice it.
+   */
+  private foundCity(sim: Simulation): void {
+    const target = this.renderer.world.residents;
+    if (target <= 0) { sim.found(FOUNDING); return; }
+    for (let guard = 0; guard < 2000 && sim.people.population < target; guard++) {
+      const before = sim.people.population;
+      sim.found(25);
+      // No homes left to put anybody in: the rest arrive by migration.
+      if (sim.people.population === before) break;
+    }
+  }
+
   /** The city's clock for the sky and the calendar, or null with no city running. */
   dayClock(): { fraction: number; day: number } | null {
     if (this.sim === null || !this.running) return null;
@@ -471,7 +488,7 @@ export class LiveCity {
     this.cititok.visible = on;
     if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
-      this.sim.found(FOUNDING);
+      this.foundCity(this.sim);
       this.founded = true;
     }
   }
@@ -482,7 +499,10 @@ export class LiveCity {
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
       // Founded in the morning. The clock counts from midnight, and a new
       // city that opens in the dark is a poor first look at it.
-      this.sim.clock.tick = Math.round((START_HOUR / 24) * TICKS_PER_DAY);
+      // A loaded city carries on from its own date, so anything dated in days
+      // (an election, a term) keeps it.
+      const saved = this.renderer.world.clock;
+      this.sim.clock.tick = saved > 0 ? saved : Math.round((START_HOUR / 24) * TICKS_PER_DAY);
       this.sim.speed = this.rate;
       this.tax.bind(this.sim.budget);
       this.policies.bind(this.sim.policies);
@@ -490,7 +510,7 @@ export class LiveCity {
       this.lines.bind(() => ({ transit: this.renderer.world.transit, net: sim.transit }));
       this.uploaded = -1;
       if (this.running && !this.founded) {
-        this.sim.found(FOUNDING);
+        this.foundCity(this.sim);
         this.founded = true;
       }
       log.info('sim', `simulation built over ${city.count.toLocaleString()} buildings`);
@@ -595,6 +615,9 @@ export class LiveCity {
       // Money, always on screen. A city builder where the balance is two clicks
       // away is a city builder where the player finds out they are bankrupt two
       // clicks late.
+      // What a save needs from the running city. See `World.clock`.
+      this.renderer.world.clock = sim.clock.tick;
+      this.renderer.world.residents = sim.people.population;
       const bal = Math.round(sim.budget.balance);
       const net = Math.round(sim.economy.report.net);
       // The bar reads these rather than counting buildings for itself.

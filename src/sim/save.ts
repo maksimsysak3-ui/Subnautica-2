@@ -32,7 +32,32 @@ import type { RoadClass } from './roadgraph';
  * 3: land is bought a plot at a time, and a file with no record of which plots
  * were bought would load as a city standing on land nobody owns.
  */
-const VERSION = 3;
+const VERSION = 4;
+/** The oldest version `migrate` can bring up to date. See the note above on version 1. */
+const OLDEST = 3;
+
+/**
+ * Brings an older file up to the current version, one step at a time.
+ *
+ * Each step is the whole difference between two versions, so a file from any
+ * supported version walks forward through every change in order. Version 3 to
+ * 4 added the simulation clock and the resident count, both optional: a file
+ * without them loads with a fresh clock and a founding-size population.
+ */
+const MIGRATIONS: Record<number, (f: SaveFile) => SaveFile> = {
+  3: (f) => ({ ...f, v: 4 }),
+};
+
+function migrate(file: SaveFile): SaveFile | null {
+  if (typeof file.v !== 'number' || file.v < OLDEST || file.v > VERSION) return null;
+  let f = file;
+  while (f.v < VERSION) {
+    const step = MIGRATIONS[f.v];
+    if (step === undefined) return null;
+    f = step(f);
+  }
+  return f;
+}
 
 interface SaveFile {
   v: number;
@@ -102,6 +127,9 @@ interface SaveFile {
   politics?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
+  /** The simulation's clock in ticks, and residents at save time (version 4). */
+  clock?: number;
+  residents?: number;
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -197,6 +225,8 @@ export function serialise(world: World, name: string, auto = false): string {
     career: world.progress.save(),
     politics: world.politics.saved(),
     difficulty: world.difficulty,
+    clock: world.clock,
+    residents: world.residents,
     policies: world.policies.saved(),
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
@@ -226,7 +256,10 @@ export function deserialise(text: string): { world: World; name: string; at: num
   } catch {
     return null;
   }
-  if (file === null || typeof file !== 'object' || file.v !== VERSION) return null;
+  if (file === null || typeof file !== 'object') return null;
+  const up = migrate(file);
+  if (up === null) return null;
+  file = up;
   if (!Array.isArray(file.nodes) || !Array.isArray(file.links)) return null;
 
   const world = emptyWorld(file.grid);
@@ -278,6 +311,9 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   if (file.difficulty === 'relaxed' || file.difficulty === 'hard') world.difficulty = file.difficulty;
   else world.difficulty = 'standard';
+  const count2 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+  world.clock = Math.floor(count2(file.clock));
+  world.residents = Math.floor(count2(file.residents));
   if (file.politics !== undefined) {
     world.politics.restore(file.politics);
     world.politics.reapply(world.policies, world.budget);
