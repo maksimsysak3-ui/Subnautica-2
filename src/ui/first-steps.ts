@@ -83,7 +83,10 @@ export class FirstSteps {
   constructor(host: HTMLElement) {
     this.root = document.createElement('div');
     css(this.root, panel([
-      'position:absolute', 'left:12px', 'top:12px', 'width:min(300px,calc(100vw - 24px))',
+      // Top centre: the left edge belongs to the information panels, the
+      // right to the notices, and a card over either hides what it covers.
+      'position:absolute', 'left:50%', 'top:12px', 'width:min(300px,calc(100vw - 24px))',
+      'margin-left:calc(min(300px,calc(100vw - 24px)) / -2)',
       'padding:12px 14px 10px', 'pointer-events:auto', 'display:none',
       'flex-direction:column', 'gap:8px', 'z-index:6',
       'transition:opacity .6s ease, transform .6s ease',

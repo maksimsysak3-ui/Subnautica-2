@@ -270,3 +270,20 @@ function ensureTip(): HTMLElement {
   tipEl = box;
   return box;
 }
+
+/**
+ * A padlock and the level that opens it, in the top corner of a button.
+ *
+ * The level is the useful half: a lock alone says "not yet", a lock with a
+ * number says when.
+ */
+export function lockBadge(level: number): HTMLElement {
+  const el = document.createElement('span');
+  el.dataset.lock = '';
+  el.className = 'mr-badge';
+  el.innerHTML = '<svg width="8" height="9" viewBox="0 0 8 9" fill="none">'
+    + '<rect x="1" y="4" width="6" height="4.6" rx="1" fill="currentColor"/>'
+    + '<path d="M2.3 4V2.8a1.7 1.7 0 0 1 3.4 0V4" stroke="currentColor" stroke-width="1.1"/>'
+    + `</svg>${level}`;
+  return el;
+}

@@ -44,6 +44,7 @@ export class TaxPanel {
   constructor() {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'tax';
+    this.root.dataset.show = 'flex';
     style(this.root, ['display:flex', 'flex-direction:column', 'gap:6px']);
 
     const head = document.createElement('div');

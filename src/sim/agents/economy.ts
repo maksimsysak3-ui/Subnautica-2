@@ -80,11 +80,34 @@ const WAGE = {
 } as const;
 
 /** A week's turnover per filled shop job, and the goods that turnover needs. */
-const SALES_PER_SHOP_JOB = 620;
+const SALES_PER_SHOP_JOB = 700;
 const GOODS_PER_SHOP_JOB = 480;
 
 /** A week's output per filled industrial job, in the same units as goods. */
 const OUTPUT_PER_WORKS_JOB = 660;
+
+/**
+ * What the industrial rate is charged on, per filled job: less than the
+ * goods a job makes, which still count in full for trade.
+ *
+ * An industrial plot packs nearly twice the jobs of a shop plot, so taxing
+ * the whole of its output made industry three to four times the yield of
+ * commerce and five times that of housing -- every player learned to zone
+ * nothing but sheds. Taxed on this, the three zones come out comparable for
+ * the ground they take.
+ */
+const INDUSTRY_TAXABLE_PER_JOB = 440;
+
+/**
+ * What the residential rate is charged on, per resident per week: council
+ * tax on the people living there, plus a share of the wages the city pays.
+ *
+ * It used to be wages alone, so housing paid nothing until somebody built
+ * the jobs -- and a young residential town, which is every town at first,
+ * earned almost nothing from its own houses.
+ */
+const RESIDENT_TAXABLE = 110;
+const WAGE_SHARE = 0.35;
 
 /** A week's billable value per filled office job. */
 const VALUE_PER_OFFICE_JOB = 1000;
@@ -308,8 +331,8 @@ const HAPPENINGS: Happening[] = [
  * is a rounding error beside it. This covers the gap and is worth nothing by
  * the time the city is paying its own way.
  */
-const GRANT_WEEKLY = 9000;
-const GRANT_UNTIL = 1200;
+const GRANT_WEEKLY = 10000;
+const GRANT_UNTIL = 1800;
 
 /** Game days between one thing happening and the next, on average. */
 const DAYS_BETWEEN_EVENTS = 6;
@@ -394,6 +417,8 @@ export class Economy {
       + worksJobs * WAGE[Purpose.WORKS] + serviceJobs * WAGE[Purpose.SERVICE];
     const sales = shopJobs * SALES_PER_SHOP_JOB;
     const output = worksJobs * OUTPUT_PER_WORKS_JOB;
+    const industry = worksJobs * INDUSTRY_TAXABLE_PER_JOB;
+    const residents = this.people.population * RESIDENT_TAXABLE + wages * WAGE_SHARE;
     const billings = officeJobs * VALUE_PER_OFFICE_JOB;
 
     // And what the land is worth, as a multiplier on the lot.
@@ -425,9 +450,9 @@ export class Economy {
     // people at desks and a house is a payslip, so both are barely touched.
     const gum = (bite: number): number => 1 - bite * (1 - flow);
 
-    const rawRes = wages * b.rates[Tax.RESIDENTIAL] * worth * pol.residentialYield;
+    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * worth * pol.residentialYield;
     const rawCom = sales * b.rates[Tax.COMMERCIAL] * worth * pol.commercialYield;
-    const rawInd = output * b.rates[Tax.INDUSTRIAL] * worth * pol.industrialYield;
+    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * worth * pol.industrialYield;
     const rawOff = billings * b.rates[Tax.OFFICE] * worth * pol.officeYield;
     r.residential = rawRes * gum(0.06);
     r.commercial = rawCom * gum(0.30);

@@ -14,11 +14,11 @@
  * silhouette, so the shape of the branch reads before any of the words do.
  */
 
-import { SKIN, css, panel, label, bar, key as keyStyle, setKey, tip } from './skin';
+import { SKIN, css, panel, label, bar, key as keyStyle, setKey, tip, lockBadge } from './skin';
 import { assetIcon, hasIcon } from './icons';
-import { zoneIcon } from './zones';
-import type { Branch } from '../assets/types';
-import { BRANCH_LABEL, BRANCH_ORDER, TECH, TECH_BY_ID } from '../sim/tech';
+import { glyph as pictogram } from './glyphs';
+import { BRANCH_LABEL, BRANCH_ORDER, TECH, TECH_BY_ID, branchLevel } from '../sim/tech';
+import { levelName } from '../sim/progress';
 import { GOALS } from '../sim/goals';
 import type { TechNode } from '../sim/tech';
 import { assetById } from '../assets/registry';
@@ -134,8 +134,9 @@ export class TechTree {
       // The bar's own pictogram for the branch, so the rail here and the row of
       // service buttons down there are unmistakably the same twelve things.
       const glyph = document.createElement('span');
-      glyph.innerHTML = zoneIcon(branch as Branch, 24);
-      css(glyph, ['display:flex', 'filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))']);
+      glyph.innerHTML = pictogram(branch, 24);
+      css(glyph, ['display:flex', `color:${tint}`,
+        'filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))']);
       b.appendChild(glyph);
       tip(b, BRANCH_LABEL[branch] ?? branch);
       b.addEventListener('click', () => {
@@ -173,6 +174,17 @@ export class TechTree {
   // ---- drawing ---------------------------------------------------------
 
   private paint(): void {
+    // The branch rail: a padlock and the level on every branch not open yet.
+    for (const b of Array.from(this.rail.querySelectorAll('[data-branch]')) as HTMLElement[]) {
+      const branch = b.dataset.branch ?? '';
+      const open = this.progress.level >= branchLevel(branch);
+      const glyph = b.firstElementChild as HTMLElement | null;
+      if (glyph !== null) { glyph.style.opacity = open ? '' : '0.35'; glyph.style.filter = open ? 'drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))' : 'grayscale(1)'; }
+      b.style.position = 'relative';
+      const old = b.querySelector('[data-lock]');
+      if (open) old?.remove();
+      else if (old === null) b.appendChild(lockBadge(branchLevel(branch)));
+    }
     const p = this.progress;
     this.stars.innerHTML = '';
     const star = document.createElement('span');
@@ -329,7 +341,11 @@ export class TechTree {
   private bubble(node: TechNode, tint: string): HTMLElement {
     const p = this.progress;
     const bought = node.free || p.has(node.id);
-    const ready = !bought && node.needs.every((id) => p.has(id) || TECH_BY_ID.get(id)?.free);
+    // A branch the city is too small to run cannot be bought into, whatever
+    // the stars say.
+    const levelOk = p.level >= branchLevel(node.branch);
+    const ready = !bought && levelOk
+      && node.needs.every((id) => p.has(id) || TECH_BY_ID.get(id)?.free);
     const afford = ready && p.stars >= node.cost;
 
     const wrap = document.createElement('div');
@@ -356,8 +372,8 @@ export class TechTree {
       circle.appendChild(icon);
     } else {
       const glyph = document.createElement('span');
-      glyph.innerHTML = zoneIcon(node.branch as Branch, 36);
-      css(glyph, ['display:flex', `opacity:${bought ? '1' : '0.4'}`]);
+      glyph.innerHTML = pictogram(node.branch, 36);
+      css(glyph, ['display:flex', `color:${tint}`, `opacity:${bought ? '1' : '0.4'}`]);
       circle.appendChild(glyph);
     }
 
@@ -400,7 +416,9 @@ export class TechTree {
     if (node === null) return;
     const p = this.progress;
     const bought = node.free || p.has(node.id);
-    const ready = node.needs.every((id) => p.has(id) || TECH_BY_ID.get(id)?.free);
+    const opens = branchLevel(node.branch);
+    const levelOk = p.level >= opens;
+    const ready = levelOk && node.needs.every((id) => p.has(id) || TECH_BY_ID.get(id)?.free);
     const afford = p.stars >= node.cost;
 
     const name = document.createElement('div');
@@ -447,6 +465,7 @@ export class TechTree {
       `background:${bought ? 'transparent' : afford && ready ? `${tint}22` : 'transparent'}`,
       `color:${bought ? SKIN.dim : afford && ready ? SKIN.bright : SKIN.faint}`]);
     buy.textContent = bought ? 'Already unlocked'
+      : !levelOk ? `Opens at level ${opens} \u2014 ${levelName(opens).toLowerCase()}`
       : !ready ? 'Unlock what comes before it'
         : afford ? `Unlock for ★ ${node.cost}`
           : `Needs ★ ${node.cost} — you have ${p.stars}`;

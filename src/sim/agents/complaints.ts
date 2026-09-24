@@ -32,7 +32,7 @@ import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
 import { Utilities, Util, supplyOf } from './utilities';
 import { ASSETS } from '../../assets/registry';
-import { Services, expectedOf } from './services';
+import { Services, expectedOf, QUIET_UNTIL } from './services';
 import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
 
@@ -254,6 +254,9 @@ export class Complaints {
    * it is reachable, which is the sort of wrong answer that teaches a player to
    * ignore the bubbles.
    */
+  /** Residents below which only the supply is complained about. */
+  quietUntil = QUIET_UNTIL;
+
   private transit: TransitNet | null = null;
   servedBy(transit: TransitNet): void { this.transit = transit; }
 
@@ -345,7 +348,6 @@ export class Complaints {
     if (u.at(id, Util.POWER) < UNSUPPLIED) return Gripe.POWER;
     if (u.at(id, Util.WATER) < UNSUPPLIED) return Gripe.WATER;
     if (u.at(id, Util.SEWAGE) < UNSUPPLIED) return Gripe.SEWAGE;
-    if (u.daysOfRubbish(id) > RUBBISH_DAYS) return Gripe.RUBBISH;
 
     // ---- a plant that is not doing its job ---------------------------------
     //
@@ -355,13 +357,24 @@ export class Complaints {
     // one over the plant is the cause. A player who can see only the first
     // spends the evening building more of what they already have.
     const supply = this.producer(id);
-    if (supply !== 0) {
+    // Power, water and sewage plants always; the rubbish plants only once the
+    // town is being told about its bins.
+    const quiet = this.people.population < this.quietUntil;
+    if (supply !== 0 && !(quiet && supply - 1 === Util.GARBAGE)) {
       // On the network it feeds? A pump on a road with no main under it is a
       // pump with nothing to pump into.
       if (!u.connected(id, supply - 1)) return Gripe.OFFLINE;
       // And staffed enough to matter.
       if (jobs > 0 && c.working[id] / jobs < UNSTAFFED) return Gripe.NO_CREW;
     }
+
+    // ---- everything else waits until the town is a town --------------------
+    //
+    // A new town hears about its power, its water and its drains, and nothing
+    // else: the bins, the staffing, the customers and the buses all come due
+    // as it grows. See `QUIET_UNTIL`.
+    if (quiet) return Gripe.NONE;
+    if (u.daysOfRubbish(id) > RUBBISH_DAYS) return Gripe.RUBBISH;
 
     // ---- the building itself ---------------------------------------------
     if (occupied && c.health[id] < DERELICT_AT) return Gripe.DERELICT;

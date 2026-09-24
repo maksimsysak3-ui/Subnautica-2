@@ -62,6 +62,32 @@ export const BRANCH_LABEL: Record<string, string> = {
 };
 
 /** The order the branches are shown in: the necessities first. */
+/**
+ * The city level each branch opens at.
+ *
+ * Stars say which buildings of a branch a city has learned; the level says
+ * whether the city is big enough to run that branch at all. Supply first --
+ * a town needs power, water and drains before it needs anything -- then the
+ * services a growing town is judged on in the order it is judged on them,
+ * and last the ones that only a real city runs: its buses and trams, its
+ * government, its post.
+ */
+export const BRANCH_LEVEL: Record<string, number> = {
+  power: 1, water: 1, sewage: 1,
+  fire: 2,
+  health: 3, parks: 3,
+  police: 4,
+  education: 5,
+  deathcare: 6,
+  transport: 8,
+  government: 9, post: 9,
+};
+
+/** The level a branch opens at. */
+export function branchLevel(branch: string): number {
+  return BRANCH_LEVEL[branch] ?? 1;
+}
+
 export const BRANCH_ORDER = [
   'power', 'water', 'sewage', 'fire', 'police', 'health', 'education',
   'transport', 'parks', 'government', 'deathcare', 'post',

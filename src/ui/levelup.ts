@@ -18,6 +18,10 @@ import { assetById } from '../assets/registry';
 import { money } from '../sim';
 import type { LevelUp } from '../sim/progress';
 import { fanfare, click as clickSound } from './sound';
+import { glyph } from './glyphs';
+import { BRANCH_ORDER, branchLevel } from '../sim/tech';
+import { BRANCH_STYLE } from './zones';
+import type { Branch } from '../assets/types';
 
 export class LevelUpCard {
   private readonly root: HTMLElement;
@@ -98,8 +102,8 @@ export class LevelUpCard {
     css(eyebrow, [...label(), 'font-size:9.5px', `color:${SKIN.warn}`]);
     eyebrow.textContent = `Level ${level.level} reached`;
 
-    // A ring with the trophy in it, which is the one piece of pure decoration
-    // in the game and has earned it.
+    // A ring with the level in it: the number is the news, so the number is
+    // the picture.
     const ring = document.createElement('div');
     css(ring, ['width:86px', 'height:86px', 'margin:14px auto 12px',
       'border-radius:86px', 'display:grid', 'place-items:center',
@@ -107,13 +111,15 @@ export class LevelUpCard {
       'background:radial-gradient(circle at 50% 35%, rgba(232,180,84,.28),'
         + ' rgba(8,12,18,.9))',
       'box-shadow:0 0 34px rgba(232,180,84,.28), inset 0 1px 0 rgba(255,255,255,.14)']);
-    const trophy = document.createElement('div');
-    css(trophy, ['font-size:34px', 'line-height:1']);
-    trophy.textContent = '\u{1F3C6}';
-    ring.appendChild(trophy);
+    const numeral = document.createElement('div');
+    css(numeral, ['font:800 44px/1 var(--display)', `color:${SKIN.warn}`,
+      'text-shadow:0 0 18px rgba(232,180,84,.45)', 'margin-top:2px']);
+    numeral.textContent = String(level.level);
+    ring.appendChild(numeral);
 
     const name = document.createElement('div');
-    css(name, [`color:${SKIN.bright}`, 'font-size:22px', 'letter-spacing:.01em']);
+    css(name, [`color:${SKIN.bright}`, 'font:700 26px/1.1 var(--display)',
+      'letter-spacing:.06em', 'text-transform:uppercase']);
     name.textContent = level.name;
 
     const line = document.createElement('div');
@@ -126,12 +132,38 @@ export class LevelUpCard {
     const rewards = document.createElement('div');
     css(rewards, ['display:flex', 'gap:10px', 'padding:14px 18px',
       'justify-content:center']);
-    rewards.appendChild(this.reward('\u{1F4B0}', money(level.cash), 'to the treasury',
+    rewards.appendChild(this.reward(glyph('money', 20), money(level.cash), 'to the treasury',
       SKIN.good));
-    rewards.appendChild(this.reward('★', `${level.stars}`,
+    rewards.appendChild(this.reward(glyph('develop', 20), `${level.stars}`,
       level.stars === 1 ? 'development star' : 'development stars', SKIN.warn));
 
     this.card.append(banner, rewards);
+
+    // ---- the services the city is now big enough to run ----
+    const opened = BRANCH_ORDER.filter((b) => branchLevel(b) === level.level) as Branch[];
+    if (opened.length > 0) {
+      const head = document.createElement('div');
+      css(head, [...label(), 'font-size:9px', 'padding:4px 18px 8px', 'text-align:left']);
+      head.textContent = 'Services now open';
+      const strip = document.createElement('div');
+      css(strip, ['display:flex', 'gap:8px', 'padding:0 18px 14px',
+        'justify-content:center', 'flex-wrap:wrap']);
+      for (const b of opened) {
+        const style = { label: BRANCH_STYLE[b].label, colour: BRANCH_STYLE[b].light };
+        const chip = document.createElement('div');
+        css(chip, ['display:flex', 'align-items:center', 'gap:8px', 'padding:7px 12px 7px 9px',
+          `border-radius:${SKIN.radius}`, `border:1px solid ${style.colour}55`,
+          `background:${style.colour}14`, `color:${style.colour}`,
+          'font:600 12px/1 var(--ui)']);
+        chip.innerHTML = glyph(b, 20);
+        const t = document.createElement('span');
+        css(t, [`color:${SKIN.bright}`]);
+        t.textContent = style.label;
+        chip.appendChild(t);
+        strip.appendChild(chip);
+      }
+      this.card.append(head, strip);
+    }
 
     // ---- and what it opens ----
     if (level.unlocked.length > 0) {
@@ -175,7 +207,7 @@ export class LevelUpCard {
     this.card.appendChild(go);
   }
 
-  private reward(glyph: string, value: string, what: string,
+  private reward(icon: string, value: string, what: string,
     tint: string): HTMLElement {
     const el = document.createElement('div');
     css(el, ['display:flex', 'flex-direction:column', 'align-items:center',
@@ -183,8 +215,8 @@ export class LevelUpCard {
       `border:1px solid ${SKIN.edge}`, 'background:rgba(255,255,255,.03)',
       'min-width:128px']);
     const g = document.createElement('div');
-    css(g, ['font-size:17px', 'line-height:1', `color:${tint}`]);
-    g.textContent = glyph;
+    css(g, ['display:flex', `color:${tint}`]);
+    g.innerHTML = icon;
     const v = document.createElement('div');
     css(v, [`color:${tint}`, 'font-size:15px', 'font-variant-numeric:tabular-nums']);
     v.textContent = value;

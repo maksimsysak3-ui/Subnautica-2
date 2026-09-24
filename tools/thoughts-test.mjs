@@ -158,6 +158,9 @@ if (r.error) {
   ok(false, 'the probe ran', r.error);
   for (const l of logs.slice(0, 8)) console.log(`  ${l}`);
 } else {
+  console.log(`  quiet town: ${r.quietTown}, complaints with supply sorted and no services: ${r.quiet}`);
+  ok(!r.quietTown || r.quiet === 0, 'a small town with its supply sorted complains about nothing else',
+    `${r.quiet} complaints, town ${r.quietTown}`);
   ok(r.complaints > 0, 'the city has something to say', `${r.complaints} complaints`);
   ok(r.shown > 0, 'bubbles are on screen', `${r.shown} shown`);
   ok(r.shown <= 12, 'and never more than a dozen', `${r.shown}`);

@@ -27,9 +27,11 @@ import { assetById } from '../assets/registry';
 
 import type { RoadClass, Proto } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER } from '../sim';
-import { ZONE_STYLE, zoneIcon } from './zones';
+import { ZONE_STYLE } from './zones';
 import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
-import { NODE_OF_ASSET } from '../sim/tech';
+import { NODE_OF_ASSET, branchLevel } from '../sim/tech';
+import { lockBadge } from './skin';
+import { glyph } from './glyphs';
 import { landmarksForLevel } from '../sim/tech';
 import type { LevelUp } from '../sim/progress';
 import { levelName, DENSITY_LEVEL } from '../sim/progress';
@@ -930,9 +932,14 @@ export class BuildTools {
       return;
     }
     if (!this.unlocked(t.proto.id)) {
+      const branch = NODE_OF_ASSET.get(t.proto.id)?.branch;
+      if (branch !== undefined && !this.branchOpen(branch)) {
+        this.sayLocked(`The ${t.proto.def.name.toLowerCase()}`, branch);
+        return;
+      }
       denySound();
       this.say(`the ${t.proto.def.name.toLowerCase()} is not unlocked yet `
-        + '\u2014 open Development');
+        + '\u2014 spend stars on it in Development');
       return;
     }
     if (!this.afford(buildingPrice(t.proto.def), t.proto.def.name)) return;
@@ -1384,6 +1391,11 @@ export class BuildTools {
   // ---- the bar ---------------------------------------------------------
 
   private select(tool: Tool): void {
+    // Transit lines are the transport branch, and open with it.
+    if (tool.kind === 'transit' && !this.branchOpen('transport')) {
+      this.sayLocked('Public transport', 'transport');
+      return;
+    }
     // The land tool owns the camera while it is up, so entering and leaving it
     // is part of selecting it rather than something the caller remembers.
     if ((tool.kind === 'land') !== (this.tool.kind === 'land')) {
@@ -1417,23 +1429,8 @@ export class BuildTools {
     }
     this.closeDrawer();
     this.showMark();
-    // Selected reads as pressed in: the light moves to the bottom, the
-    // shadow goes inside, and the tile sits a pixel low. Nothing else on a
-    // physical panel looks like that, so it is unmistakable at a glance.
     for (const el of this.buttons) {
-      const on = el.dataset.tool === this.key(tool);
-      el.dataset.on = on ? '1' : '';
-      el.style.transform = on ? 'translateY(1px)' : 'translateY(0)';
-      el.style.borderColor = on ? 'rgba(120,214,255,.5)' : 'rgba(255,255,255,.07)';
-      el.style.background = on
-        ? 'linear-gradient(177deg,rgba(60,150,190,.34),rgba(98,212,255,.14))'
-        : 'linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
-          + 'rgba(0,0,0,.20))';
-      el.style.boxShadow = on
-        ? 'inset 0 2px 6px rgba(0,0,0,.55), inset 0 -1px 0 rgba(255,255,255,.14),'
-          + '0 0 12px rgba(98,212,255,.25)'
-        : 'inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.42),'
-          + '0 2px 4px rgba(0,0,0,.42)';
+      el.dataset.on = el.dataset.tool === this.key(tool) ? '1' : '';
     }
     this.canvas.style.cursor = tool.kind === 'look' ? '' : 'crosshair';
     this.say(this.describe(tool));
@@ -1488,6 +1485,32 @@ export class BuildTools {
   }
 
   private buttons: HTMLElement[] = [];
+  /** Bar buttons that open with a branch, so their locks follow the level. */
+  private gated: Array<{ b: HTMLElement; branch: string }> = [];
+
+  /** Whether the city is big enough to run a branch yet. */
+  private branchOpen(branch: string): boolean {
+    return this.renderer.world.progress.level >= branchLevel(branch);
+  }
+
+  /** Says why a branch is shut, with the level and its name. */
+  private sayLocked(what: string, branch: string): void {
+    const at = branchLevel(branch);
+    denySound();
+    this.say(`${what} opens at level ${at} \u2014 ${levelName(at).toLowerCase()}. `
+      + `The city is level ${this.renderer.world.progress.level}.`);
+  }
+
+  /** Greys out and badges every bar button whose branch is not open yet. */
+  private paintLocks(): void {
+    for (const { b, branch } of this.gated) {
+      const open = this.branchOpen(branch);
+      b.classList.toggle('is-locked', !open);
+      const old = b.querySelector('[data-lock]');
+      if (open) { old?.remove(); continue; }
+      if (old === null) b.appendChild(lockBadge(branchLevel(branch)));
+    }
+  }
 
   private buildBar(): HTMLElement {
     // The shell: one dark slab with a tool row above a status row, the way a
@@ -1496,7 +1519,8 @@ export class BuildTools {
     const bar = document.createElement('div');
     bar.style.cssText = [
       'display:flex', 'flex-direction:column', 'gap:0',
-      'width:calc(100vw - 20px)', 'border-radius:14px', 'overflow:hidden',
+      'width:max-content', 'max-width:calc(100vw - 20px)', 'border-radius:16px',
+      'overflow:hidden',
       `background:${PANEL}`, `border:1px solid ${EDGE}`,
       'box-shadow:0 10px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)',
       'backdrop-filter:blur(14px)', 'z-index:5',
@@ -1508,67 +1532,30 @@ export class BuildTools {
     const tools = document.createElement('div');
     tools.style.cssText = [
       'display:flex', 'flex-wrap:wrap', 'align-items:center',
-      'justify-content:center', 'gap:6px', 'padding:7px 9px',
+      'justify-content:center', 'row-gap:4px', 'padding:6px 4px',
     ].join(';');
 
     const group = (): HTMLElement => {
-      // Each group is its own recessed pill, which is what separates roads
-      // from zones from services without a row of hairlines doing it.
       const g = document.createElement('div');
-      g.style.cssText = [
-        'display:flex', 'flex-wrap:wrap', 'justify-content:center', 'gap:3px',
-        'padding:3px', 'border-radius:11px', `background:${WELL}`,
-        'border:1px solid rgba(255,255,255,.045)',
-      ].join(';');
+      g.className = 'mr-group';
       return g;
     };
     /**
      * Every button on the bar is this shape: a square the size of a fingertip,
-     * holding a picture and nothing else.
+     * holding a picture and nothing else, in its category's colour.
      *
-     * Labels were the first attempt and they made the bar four hundred pixels
-     * tall -- twenty-seven buttons each carrying a word wrap onto six rows,
-     * and six rows of toolbar is a menu, not a bar. The name lives in the
-     * tooltip and in the status line under the cursor instead, which is where
-     * every builder puts it.
+     * Labels were tried and they made the bar four hundred pixels tall --
+     * twenty-seven buttons each carrying a word wrap onto six rows, and six
+     * rows of toolbar is a menu, not a bar. The name lives in the tooltip and
+     * in the status line under the cursor instead, which is where every
+     * builder puts it. How it looks at rest, hovered, chosen and locked is in
+     * the stylesheet (theme.ts), so no code here paints a state by hand.
      */
-    const chip = (el: HTMLElement, colour: string): void => {
-      // A key, not a square. The depth is three cheap tricks stacked: a
-      // top-lit gradient so the face is brighter where a light above it would
-      // catch, a hairline highlight along the top edge and a dark one along
-      // the bottom, and a drop shadow under the whole thing. Together those
-      // are what the eye reads as a raised object -- and pressing it moves it
-      // down a pixel and shortens the shadow, which is the other half.
-      el.style.cssText = [
-        'display:flex', 'align-items:center', 'justify-content:center',
-        'width:42px', 'height:42px', 'padding:0', 'border-radius:11px',
-        'border:1px solid rgba(255,255,255,.07)',
-        'background:linear-gradient(177deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 46%,'
-          + 'rgba(0,0,0,.20))',
-        'box-shadow:inset 0 1px 0 rgba(255,255,255,.16),'
-          + 'inset 0 -1px 0 rgba(0,0,0,.42), 0 2px 4px rgba(0,0,0,.42)',
-        `color:${colour}`, 'cursor:pointer', 'position:relative',
-        'font:600 10px/1 var(--ui, system-ui, sans-serif)',
-        'transition:transform .1s, box-shadow .1s, background .12s, border-color .12s',
-      ].join(';');
-      // The glyph sits above the face rather than being printed on it.
-      el.style.setProperty('--lift', '0px');
-      const raise = (on: boolean): void => {
-        if (el.dataset.on) return;
-        el.style.transform = on ? 'translateY(-1px)' : 'translateY(0)';
-        el.style.boxShadow = on
-          ? 'inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.42),'
-            + `0 4px 8px rgba(0,0,0,.5), 0 0 0 1px ${colour}33`
-          : 'inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.42),'
-            + '0 2px 4px rgba(0,0,0,.42)';
-      };
-      el.addEventListener('pointerenter', () => raise(true));
-      el.addEventListener('pointerleave', () => raise(false));
-      el.addEventListener('pointerdown', () => {
-        el.style.transform = 'translateY(1px)';
-        el.style.boxShadow = 'inset 0 2px 5px rgba(0,0,0,.55)';
-      });
-      el.addEventListener('pointerup', () => raise(true));
+    const chip = (el: HTMLElement, colour: string, picture?: string | HTMLElement): void => {
+      el.className = 'mr-tile';
+      el.style.setProperty('--accent', colour);
+      if (typeof picture === 'string') el.innerHTML = picture;
+      else if (picture !== undefined) el.appendChild(picture);
     };
 
     const add = (parent: HTMLElement, make: Tool | (() => Tool), label: string,
@@ -1577,8 +1564,7 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.tool = this.key(pick());
       tip(b, label);
-      b.innerHTML = icon;
-      chip(b, colour);
+      chip(b, colour, icon);
       b.addEventListener('click', () => this.select(pick()));
       parent.appendChild(b);
       this.buttons.push(b);
@@ -1586,7 +1572,7 @@ export class BuildTools {
 
     const look = group();
     add(look, { kind: 'look' }, 'Look around — drag to pan, right-drag to orbit',
-      svgHand(), '#8fa3bd');
+      glyph('look'), '#a9bcd2');
     tools.appendChild(look);
 
     // Roads, zones and signatures each collapse to one icon. Eight road
@@ -1597,12 +1583,7 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = 'roads';
       tip(b, 'Roads \u2014 eight classes, straight or curved');
-      chip(b, ZONE_STYLE.road.light);
-      const glyph = document.createElement('span');
-      glyph.innerHTML = zoneIcon('road', 26);
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
-      b.appendChild(underline(ZONE_STYLE.road.base));
+      chip(b, '#c9d3de', glyph('road'));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === 'roads') { this.closeDrawer(); return; }
@@ -1624,9 +1605,7 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = 'zones';
       tip(b, 'Zoning \u2014 residential, commercial, industrial, office, parks');
-      chip(b, ZONE_STYLE.residential.light);
-      b.appendChild(zoneSwatch());
-      b.appendChild(underline(ZONE_STYLE.residential.base));
+      chip(b, ZONE_STYLE.residential.light, zoneSwatch());
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === 'zones') { this.closeDrawer(); return; }
@@ -1645,12 +1624,7 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = 'signature';
       tip(b, `Landmarks \u2014 ${SIGNATURES.length} one-of-a-kind buildings`);
-      chip(b, '#ffd166');
-      const glyph = document.createElement('span');
-      glyph.innerHTML = svgStar();
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
-      b.appendChild(underline('#ffd166'));
+      chip(b, '#ffd166', glyph('signature'));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === 'signature') { this.closeDrawer(); return; }
@@ -1672,19 +1646,16 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = branch;
       tip(b, `${style.label} \u2014 ${list.length} buildings`);
-      chip(b, style.colour);
-      const glyph = document.createElement('span');
-      glyph.innerHTML = zoneIcon(branch, 26);
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
-      b.appendChild(underline(style.colour));
+      chip(b, style.colour, glyph(branch));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (!this.branchOpen(branch)) { this.sayLocked(style.label, branch); return; }
         if (this.drawer?.dataset.branch === branch) { this.closeDrawer(); return; }
         this.openDrawer(branch, list, bar);
       });
       civic.appendChild(b);
       this.buttons.push(b);
+      this.gated.push({ b, branch });
     }
     tools.appendChild(civic);
 
@@ -1696,7 +1667,10 @@ export class BuildTools {
       add(transit, { kind: 'transit', line: k },
         `${spec.name} line — click along the streets to drop stops, `
         + 'Enter to close the loop',
-        svgTransit(k), spec.colour);
+        glyph(k === 0 ? 'bus' : 'tram'), spec.colour);
+    }
+    for (const b of Array.from(transit.children) as HTMLElement[]) {
+      this.gated.push({ b, branch: 'transport' });
     }
     tools.appendChild(transit);
 
@@ -1706,9 +1680,9 @@ export class BuildTools {
     // read to the dash to tell them apart.
     add(clear, { kind: 'land' },
       'Buy land — lift the camera and buy the ground your city grows onto',
-      svgPlot(), '#8fd4ff');
+      glyph('land'), '#8fd4ff');
     add(clear, { kind: 'clear' }, 'Bulldoze — drag to clear roads and zoning',
-      svgCross(), '#f08a6e');
+      glyph('clear'), '#f0906e');
     tools.appendChild(clear);
 
     // Saving sits on the bar rather than behind a menu, because a city
@@ -1717,40 +1691,22 @@ export class BuildTools {
     {
       const b = document.createElement('button');
       tip(b, 'Save this city to this browser', 'Ctrl+S');
-      chip(b, '#8fe0a8');
-      const glyph = document.createElement('span');
-      glyph.innerHTML = svgSave();
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
+      chip(b, '#8fe0a8', glyph('save'));
       b.addEventListener('click', () => this.save());
       keep.appendChild(b);
     }
     {
       const b = document.createElement('button');
-      chip(b, SKIN.warn);
+      chip(b, SKIN.warn, glyph('develop'));
       tip(b, 'Development \u2014 spend stars on what the city can build', 'T');
-      const glyph = document.createElement('span');
-      glyph.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" '
-        + 'fill="currentColor"><path d="M12 2.6l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9'
-        + '-5.3 2.9 1.1-6L3.4 8.9l6-.8z"/></svg>';
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
       b.appendChild(this.starBadge());
       b.addEventListener('click', () => this.onTech?.());
       keep.appendChild(b);
     }
     {
       const b = document.createElement('button');
-      chip(b, SKIN.dim);
+      chip(b, SKIN.dim, glyph('settings'));
       tip(b, 'Settings', 'O');
-      const glyph = document.createElement('span');
-      glyph.innerHTML = '<svg width="21" height="21" viewBox="0 0 24 24" '
-        + 'fill="none" stroke="currentColor" stroke-width="1.8">'
-        + '<circle cx="12" cy="12" r="3.2"/>'
-        + '<path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6'
-        + 'M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"/></svg>';
-      glyph.style.cssText = GLYPH;
-      b.appendChild(glyph);
       b.addEventListener('click', () => this.onSettings?.());
       keep.appendChild(b);
     }
@@ -1758,6 +1714,7 @@ export class BuildTools {
 
     bar.appendChild(tools);
     bar.appendChild(this.buildStatusRow());
+    this.paintLocks();
     return bar;
   }
 
@@ -1773,8 +1730,8 @@ export class BuildTools {
   private buildStatusRow(): HTMLElement {
     const row = document.createElement('div');
     css(row, [
-      'display:flex', 'align-items:center', 'gap:0', 'height:44px',
-      'padding:0 8px', `background:${WELL}`,
+      'display:flex', 'align-items:center', 'gap:6px', 'height:44px',
+      'padding:0 7px', `background:${WELL}`,
       `border-top:1px solid ${SKIN.edge}`,
       `font:500 12px/1 ${SKIN.mono}`, `color:${SKIN.text}`,
     ]);
@@ -1788,12 +1745,11 @@ export class BuildTools {
      * value gives every reading a shape, and the values themselves are the only
      * bright thing on the bar.
      */
-    const cell = (caption: string, wide = false): HTMLElement => {
+    const cell = (caption: string): HTMLElement => {
       const d = document.createElement('div');
-      css(d, ['display:flex', 'flex-direction:column', 'gap:3px', 'padding:0 13px',
-        'white-space:nowrap', wide ? 'flex:1' : '']);
+      d.className = 'mr-cell';
       const cap = document.createElement('div');
-      css(cap, ['font:600 10px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
+      css(cap, ['font:600 9.5px/1 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
         `color:${SKIN.faint}`]);
       cap.textContent = caption;
       const val = document.createElement('div');
@@ -1802,9 +1758,11 @@ export class BuildTools {
       d.append(cap, val);
       return d;
     };
-    const rule = (): HTMLElement => {
+    // The readings split into what time it is, what the city is, and what
+    // it has, with the slack between the last two.
+    const spacer = (): HTMLElement => {
       const r = document.createElement('div');
-      css(r, ['width:1px', 'height:22px', `background:${SKIN.edge}`]);
+      css(r, ['flex:1', 'min-width:4px']);
       return r;
     };
 
@@ -1847,7 +1805,6 @@ export class BuildTools {
     });
     this.speedButtons = buttons;
     row.appendChild(speeds);
-    row.appendChild(rule());
 
     this.readClock = cell('time');
     row.appendChild(this.readClock);
@@ -1858,7 +1815,6 @@ export class BuildTools {
     // somewhere to read why the city went grey.
     this.readWeather = cell('sky');
     row.appendChild(this.readWeather);
-    row.appendChild(rule());
 
     // The city and what lives in it, together. The population used to sit at
     // the far right beside the money, a whole bar away from the name of the
@@ -1868,12 +1824,12 @@ export class BuildTools {
     row.appendChild(this.readLevel);
     this.readName = cell('city');
     row.appendChild(this.readName);
-    this.readPeople = cell('people', true);
+    this.readPeople = cell('people');
     row.appendChild(this.readPeople);
+    row.appendChild(spacer());
     this.readTraffic = cell('traffic');
     row.appendChild(this.readTraffic);
     this.paintName();
-    row.appendChild(rule());
     this.readMoney = cell('treasury');
     row.appendChild(this.readMoney);
 
@@ -1904,6 +1860,7 @@ export class BuildTools {
 
   /** Repaints everything that shows the city's career. */
   paintProgress(): void {
+    this.paintLocks();
     const p = this.renderer.world.progress;
     if (this.starChip !== null) {
       this.starChip.textContent = `${p.stars}`;
@@ -2035,7 +1992,7 @@ export class BuildTools {
         () => this.select({ kind: 'place', proto: p })));
     }
     void bar;
-    this.mount(panel, branch, style.colour);
+    this.mount(panel, branch);
   }
 
   /**
@@ -2178,7 +2135,7 @@ export class BuildTools {
         () => this.select({ kind: this.roadMode, cls }),
         roadGlyph(cls, 48), 'a metre'));
     }
-    this.mount(panel, 'roads', accent);
+    this.mount(panel, 'roads');
   }
 
   /**
@@ -2202,7 +2159,7 @@ export class BuildTools {
         buildingPrice(p.def), accent, p.def.note,
         () => this.select({ kind: 'place', proto: p })));
     }
-    this.mount(panel, 'signature', accent);
+    this.mount(panel, 'signature');
   }
 
   /** A row of tabs across the top of a drawer. */
@@ -2231,11 +2188,11 @@ export class BuildTools {
   }
 
   /** Puts a finished drawer on screen and lights its category. */
-  private mount(panel: HTMLElement, key: string, accent: string): void {
+  private mount(panel: HTMLElement, key: string): void {
     this.foot.insertBefore(panel, this.foot.firstChild);
     this.drawer = panel;
     for (const el of this.buttons) {
-      if (el.dataset.branch === key) el.style.borderColor = `${accent}aa`;
+      if (el.dataset.branch === key) el.classList.add('is-open');
     }
   }
 
@@ -2311,7 +2268,7 @@ export class BuildTools {
           undefined, '', profile.badge));
       }
     }
-    this.mount(panel, 'zones', accent);
+    this.mount(panel, 'zones');
   }
 
   /** A full-width heading inside a drawer's grid. */
@@ -2333,9 +2290,7 @@ export class BuildTools {
     // Without this, opening a second drawer left the first one still lit and
     // the bar claimed two categories were open at once.
     for (const el of this.buttons) {
-      if (el.dataset.branch !== undefined && !el.dataset.on) {
-        el.style.borderColor = 'rgba(255,255,255,.07)';
-      }
+      el.classList.remove('is-open');
     }
   }
 
@@ -2373,6 +2328,7 @@ export class BuildTools {
     if (def.signature === true) return p.earned.has(id);
     const node = NODE_OF_ASSET.get(id);
     if (node === undefined) return true;
+    if (p.level < branchLevel(node.branch)) return false;
     return node.free || p.has(node.id);
   }
 
@@ -2399,38 +2355,6 @@ export class BuildTools {
   private refund(amount: number): void {
     this.renderer.world.budget.credit(Math.max(0, Math.round(amount)));
   }
-}
-
-/**
- * A bus, and a tram on its rails.
- *
- * Drawn here rather than taken from the service-branch glyphs because those are
- * about *buildings* -- the transport branch's icon is a station -- and what this
- * button does is draw a route. A player scanning the bar for "make a bus route"
- * is looking for a bus.
- */
-function svgTransit(kind: number): string {
-  const body = kind === 0
-    // A bus: a boxy body, a windscreen, two windows and two wheels.
-    ? '<rect x="4" y="4.5" width="16" height="12.5" rx="2.4"/>'
-      + '<rect x="6" y="7" width="5" height="4" rx="0.8" fill="currentColor"/>'
-      + '<rect x="13" y="7" width="5" height="4" rx="0.8" fill="currentColor"/>'
-      + '<circle cx="8" cy="18.6" r="1.7"/><circle cx="16" cy="18.6" r="1.7"/>'
-    // A tram: a taller body with a pole, on a rail.
-    : '<rect x="5.5" y="3.5" width="13" height="14" rx="2"/>'
-      + '<path d="M12 3.5V1.5M9 1.5h6"/>'
-      + '<rect x="7.5" y="6" width="9" height="4.5" rx="0.8" fill="currentColor"/>'
-      + '<path d="M4 20.5h16M8 17.5v3M16 17.5v3"/>';
-  return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" `
-    + `stroke="currentColor" stroke-width="1.5" stroke-linecap="round" `
-    + `stroke-linejoin="round">${body}</svg>`;
-}
-
-function svgHand(): string {
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.6"><path d="M7 12V6.5a1.5 1.5 0 0 1 3 0V11m0-.5V5a1.5 1.5 0 0 1 3 0v6m0-.5'
-    + 'V6.5a1.5 1.5 0 0 1 3 0V13m0-1.5a1.5 1.5 0 0 1 3 0V16a5 5 0 0 1-5 5h-1.5a6 6 0 0 1-5.2-3L7 15"'
-    + '/></svg>';
 }
 
 /**
@@ -2560,11 +2484,11 @@ function fill(cell: HTMLElement, html: string): void {
  */
 function zoneSwatch(): HTMLElement {
   const el = document.createElement('span');
+  el.className = 'mr-swatch';
   const quads: IconZone[] = ['residential', 'commercial', 'industrial', 'office'];
   el.style.cssText = [
     'display:grid', 'grid-template-columns:1fr 1fr', 'grid-template-rows:1fr 1fr',
-    'gap:2px', 'width:24px', 'height:24px',
-    'filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))',
+    'gap:2px', 'width:22px', 'height:22px',
   ].join(';');
   for (const z of quads) {
     const q = document.createElement('i');
@@ -2577,48 +2501,3 @@ function zoneSwatch(): HTMLElement {
   return el;
 }
 
-/**
- * The land tool's glyph: an empty plot.
- *
- * A clear box in dashed outline with one solid corner, because what the tool
- * does is turn a dashed square into a solid one. Nothing else on the bar is an
- * outline, so it reads as "land" rather than as another building.
- */
-function svgPlot(): string {
-  return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"'
-    + ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round">'
-    + '<path d="M4 7.5 L12 3.5 L20 7.5 L12 11.5 Z" stroke-dasharray="2.6 2.2"/>'
-    + '<path d="M4 7.5 L4 15 L12 19 L12 11.5" stroke-dasharray="2.6 2.2"/>'
-    + '<path d="M20 7.5 L20 15 L12 19" stroke-opacity=".95"/>'
-    + '<path d="M12 11.5 L12 19" stroke-opacity=".5"/>'
-    + '</svg>';
-}
-
-function svgStar(): string {
-  return '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">'
-    + '<path d="M12 2.6l2.7 5.9 6.4.7-4.8 4.3 1.3 6.3L12 16.6 6.4 19.8l1.3-6.3L2.9 9.2l6.4-.7z"/>'
-    + '</svg>';
-}
-
-/** The colour bar under a category icon, which is how the bar is read. */
-function underline(colour: string): HTMLElement {
-  const el = document.createElement('span');
-  el.style.cssText = [
-    'position:absolute', 'left:50%', 'bottom:4px', 'transform:translateX(-50%)',
-    'width:18px', 'height:2px', 'border-radius:2px', 'pointer-events:none',
-    `background:${colour}`, `box-shadow:0 0 7px ${colour}aa`,
-  ].join(';');
-  return el;
-}
-
-function svgSave(): string {
-  return '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h10L20 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/>'
-    + '<path d="M8 4v5h7V4"/><path d="M7.5 20v-6h9v6"/></svg>';
-}
-
-function svgCross(): string {
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>';
-}

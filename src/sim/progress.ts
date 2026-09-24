@@ -171,6 +171,8 @@ export class Progress {
    * with -- and for a sandbox, if one is ever offered.
    */
   openEverything(nodes: string[], assets: string[]): void {
+    // And every level's gate: branches and densities open with the level.
+    this.level = Math.max(this.level, LEVEL_NAMES.length);
     for (const id of nodes) this.bought.add(id);
     for (const id of assets) this.earned.add(id);
   }

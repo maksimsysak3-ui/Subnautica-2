@@ -486,15 +486,26 @@ export { Use, BRANCHES };
  * place down; then somewhere to be treated; then policing; then schools.
  */
 export const EXPECTED_AT: Partial<Record<Branch, number>> = {
-  fire: 400,
-  health: 750,
-  police: 1100,
-  education: 1600,
-  parks: 900,
-  transport: 2200,
-  deathcare: 1400,
-  post: 1800,
+  // A town is judged on power, water and drains from the first house, and on
+  // nothing else until it is a real town. These used to start at four hundred
+  // residents -- a hamlet complaining about its fire cover -- which made the
+  // first hour a list of demands the budget could not meet.
+  fire: 2500,
+  health: 3000,
+  police: 3500,
+  education: 4000,
+  parks: 3000,
+  transport: 7000,
+  deathcare: 5000,
+  post: 6000,
 };
+
+/**
+ * Below this many residents, people complain about power, water and sewage
+ * and nothing else: not the bins, not the staffing, not the buses. The rest
+ * of what a city owes its people comes due as it grows.
+ */
+export const QUIET_UNTIL = 2000;
 
 /**
  * Whether the city is big enough to be judged on a branch yet.

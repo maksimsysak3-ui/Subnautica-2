@@ -1460,6 +1460,8 @@ export async function probeThoughts(width: number, height: number): Promise<{
   closed: boolean; tally: Record<string, number>;
   /** What it says once the mains are no longer the answer to everything. */
   next: Record<string, number>; nextShown: number; nextDistinct: string[];
+  /** Complaints in a small, supplied town with no services: should be none. */
+  quiet: number; quietTown: boolean;
 }> {
   configureSim(LITE);
   const ui = document.createElement('div');
@@ -1496,6 +1498,19 @@ export async function probeThoughts(width: number, height: number): Promise<{
   // Long enough for the utility pass to settle, the coverage to go round every
   // branch, and the gripe sweep to get round the whole table more than once.
   for (let i = 0; i < 400; i++) live.update(1 / 20, performance.now() + i * 50);
+
+  // A small town with its supply sorted and not one service built says
+  // nothing: until it is a real town, power, water and drains are all anyone
+  // complains about.
+  for (let u = 0; u < 3; u++) sim.utilities.have[u].fill(255);
+  for (const reach of sim.services.reach) reach.fill(0);
+  for (let i = 0; i < 12; i++) sim.complaints.survey();
+  let quiet = 0;
+  for (let g = 0; g < sim.complaints.tally.length; g++) quiet += sim.complaints.tally[g];
+  const quietTown = sim.people.population < sim.complaints.quietUntil;
+  // The rest is about how complaints are shown, so it runs as a town big
+  // enough to have all of them.
+  sim.complaints.quietUntil = 0;
 
   // And then the supply is cut, by hand, for the first reading.
   //
@@ -1570,7 +1585,7 @@ export async function probeThoughts(width: number, height: number): Promise<{
   return {
     complaints: list.length, shown: bubbles.length, inside,
     distinct: [...distinct], behind, cardOpen, cardTitle, cardFix, closed, tally,
-    next, nextShown: after.length, nextDistinct,
+    next, nextShown: after.length, nextDistinct, quiet, quietTown,
   };
 }
 

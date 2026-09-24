@@ -112,7 +112,7 @@ export class InfoViews {
   private readonly rows: HTMLElement;
   private readonly extra: HTMLElement;
   /** Controls a view brings with it, by view id. */
-  private readonly controls = new Map<number, HTMLElement>();
+  private readonly controls = new Map<number, HTMLElement[]>();
   private readonly buttons = new Map<number, HTMLButtonElement>();
 
   /** Which view is up, or `View.NONE`. */
@@ -283,7 +283,12 @@ export class InfoViews {
    * matter of one call rather than a special case in here.
    */
   mount(view: number, el: HTMLElement): void {
-    this.controls.set(view, el);
+    // A list per view, not one element: the budget mounts the tax sliders
+    // and the ordinances, and a map of one replaced the sliders with the
+    // ordinances -- which is why the tax rates could never be changed.
+    const list = this.controls.get(view) ?? [];
+    list.push(el);
+    this.controls.set(view, list);
     el.style.display = 'none';
     this.extra.appendChild(el);
   }
@@ -371,9 +376,9 @@ export class InfoViews {
   /** Shows the open view's own controls, and hides everybody else's. */
   private showControls(id: number): void {
     let any = false;
-    for (const [view, el] of this.controls) {
+    for (const [view, els] of this.controls) {
       const on = view === id;
-      el.style.display = on ? 'block' : 'none';
+      for (const el of els) el.style.display = on ? (el.dataset.show ?? 'block') : 'none';
       if (on) any = true;
     }
     this.extra.style.display = any ? 'block' : 'none';

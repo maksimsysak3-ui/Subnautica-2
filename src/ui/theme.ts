@@ -49,6 +49,56 @@ html, body { font-family: var(--ui); }
 #overlay ::selection { background: rgba(244,181,74,.35); }
 #overlay :focus-visible { outline: 2px solid ${BRAND.amber}; outline-offset: 2px; }
 
+/* ---- toolbar ---------------------------------------------------------- */
+/* Groups sit side by side, split by a hairline rather than boxed, so the bar
+   reads as one instrument with sections instead of a row of separate trays. */
+.mr-group { position: relative; display: flex; gap: 2px; padding: 0 7px; }
+.mr-group + .mr-group::before {
+  content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px;
+  background: linear-gradient(transparent, rgba(160,190,220,.2), transparent);
+}
+.mr-tile {
+  --accent: ${BRAND.dim};
+  position: relative; display: grid; place-items: center; flex: none;
+  width: 44px; height: 44px; padding: 0; box-sizing: border-box;
+  border: 1px solid transparent; border-radius: 11px; background: transparent;
+  color: var(--accent); cursor: pointer;
+  transition: background .14s ease, border-color .14s ease, transform .1s ease;
+}
+.mr-tile > svg, .mr-tile > .mr-swatch {
+  filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.55)); transition: transform .14s ease;
+}
+.mr-tile:hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.07); }
+.mr-tile:hover > svg, .mr-tile:hover > .mr-swatch { transform: translateY(-1px) scale(1.06); }
+.mr-tile:active { transform: translateY(1px); }
+/* The lit bar under a chosen tool, in the tool's own colour. */
+.mr-tile::after {
+  content: ""; position: absolute; left: 50%; bottom: 3px; width: 0; height: 2px;
+  border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent);
+  transform: translateX(-50%); transition: width .18s ease;
+}
+.mr-tile[data-on="1"], .mr-tile.is-open {
+  background: color-mix(in srgb, var(--accent) 17%, rgba(8,12,18,.5));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 0 1px 6px rgba(0,0,0,.35);
+}
+.mr-tile[data-on="1"]::after, .mr-tile.is-open::after { width: 18px; }
+.mr-tile.is-locked { cursor: not-allowed; }
+.mr-tile.is-locked > svg, .mr-tile.is-locked > .mr-swatch { opacity: .42; filter: grayscale(1); }
+.mr-tile.is-locked:hover > svg { transform: none; }
+.mr-badge {
+  position: absolute; right: -2px; top: -3px; display: flex; align-items: center; gap: 2px;
+  height: 15px; padding: 0 4px 0 3px; border-radius: 8px; pointer-events: none;
+  background: #0d131b; border: 1px solid rgba(244,181,74,.6); color: var(--amber);
+  font: 700 9px/1 var(--label); letter-spacing: .02em; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+/* Status readings as separate recessed cells, each its own dial. */
+.mr-cell {
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px;
+  border-radius: 9px; background: rgba(4,8,13,.5); white-space: nowrap;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04);
+}
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;
