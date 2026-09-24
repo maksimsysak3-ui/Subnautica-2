@@ -19,6 +19,7 @@
  * renderer doesn't show.
  */
 
+import { MAP_IDS, type MapId } from './types';
 import * as THREE from 'three';
 import { surfaceTexture } from './textures';
 import type { System, EngineContext } from '../core/engine';
@@ -41,6 +42,8 @@ import { buildQuay } from './sites/quay';
 import { buildOutskirts } from './sites/outskirts';
 import { buildVillaTown } from './sites/villa-town';
 import { buildPortDistrict } from './sites/quay-port';
+import { buildBarrio } from './sites/barrio';
+import { buildAirstrip } from './sites/airstrip';
 import { BF, type SiteInstance, type SiteBuildResult, type ApproachRoute } from './types';
 import { SURFACE_TABLE } from './surfaces';
 import { moveCharacter, brickGroundAt, climbAt, type CharacterShape, type MoveResult } from './collision';
@@ -73,7 +76,7 @@ const TERRAIN_SEGMENTS = 256;
  * the compound is terrain rather than a parking lot.
  */
 type Rect = { x0: number; z0: number; x1: number; z1: number };
-const SITE_PAD: Record<'villa' | 'quay', Rect[]> = {
+const SITE_PAD: Record<MapId, Rect[]> = {
   villa: [
     // The compound. Perimeter is x -78..78, z -58..74.
     { x0: -88, z0: -70, x1: 88, z1: 96 },
@@ -91,6 +94,10 @@ const SITE_PAD: Record<'villa' | 'quay', Rect[]> = {
     // a hillside — 237 bricks, the worst of them 6.7 m underground.
     { x0: 96, z0: -30, x1: 184, z1: 2 },
   ],
+  // The barrio hill and the road along its foot.
+  barrio: [{ x0: -84, z0: -72, x1: 84, z1: 62 }],
+  // The airstrip valley: runway, apron, lab camp and the river bank.
+  airstrip: [{ x0: -176, z0: -96, x1: 176, z1: 92 }],
 };
 /**
  * Metres over which the pad grades into open ground.
@@ -140,14 +147,14 @@ const MAP_KEY = 'bm.map';
  * Every access is guarded: `localStorage` throws outright in some embeddings
  * rather than merely returning null.
  */
-export function readMapChoice(): 'villa' | 'quay' {
+export function readMapChoice(): MapId {
   if (typeof location !== 'undefined') {
     const q = new URLSearchParams(location.search).get('map');
-    if (q === 'quay' || q === 'villa') return q;
+    if (q && (MAP_IDS as readonly string[]).includes(q)) return q as MapId;
   }
   try {
     const v = localStorage.getItem(MAP_KEY);
-    if (v === 'quay' || v === 'villa') return v;
+    if (v && (MAP_IDS as readonly string[]).includes(v)) return v as MapId;
   } catch {
     // Private browsing, blocked site data, or a thumbnail capture.
   }
@@ -155,7 +162,7 @@ export function readMapChoice(): 'villa' | 'quay' {
 }
 
 /** Remember a map choice for the next load. Safe to call anywhere. */
-export function writeMapChoice(id: 'villa' | 'quay'): void {
+export function writeMapChoice(id: MapId): void {
   try {
     localStorage.setItem(MAP_KEY, id);
   } catch {
@@ -190,7 +197,7 @@ export class WorldSystem implements System, IWorldQuery {
   /**
    * Which map to build. See `readMapChoice`.
    */
-  mapId: 'villa' | 'quay' = readMapChoice();
+  mapId: MapId = readMapChoice();
 
   /** The built site — approaches, landmarks and garrison anchors. */
   site!: SiteInstance;
@@ -228,7 +235,7 @@ export class WorldSystem implements System, IWorldQuery {
    * fails outright — the player gets "couldn't load artifact" instead of a
    * level. So the world tears itself down and builds again in place.
    */
-  buildMap(mapId: 'villa' | 'quay'): void {
+  buildMap(mapId: MapId): void {
     const t0 = performance.now();
     this.mapId = mapId;
 
@@ -245,7 +252,13 @@ export class WorldSystem implements System, IWorldQuery {
     // --- author the site --------------------------------------------------
     const builder = new SiteBuilder(this.yard, this.rng);
     let result: SiteBuildResult;
-    if (this.mapId === 'quay') {
+    if (this.mapId === 'barrio') {
+      result = buildBarrio(builder, this.rng);
+      this.insertions = result.site.approaches.map((a: ApproachRoute) => ({ id: a.id, x: a.x, z: a.z, label: a.name }));
+    } else if (this.mapId === 'airstrip') {
+      result = buildAirstrip(builder, this.rng, this.terrainFn);
+      this.insertions = result.site.approaches.map((a: ApproachRoute) => ({ id: a.id, x: a.x, z: a.z, label: a.name }));
+    } else if (this.mapId === 'quay') {
       result = buildQuay(builder, this.rng, this.terrainFn);
       // The port district outside the wire: the terminal is one berth in a
       // working port, not a fence standing alone on the sand.

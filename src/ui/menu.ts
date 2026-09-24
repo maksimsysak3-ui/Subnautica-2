@@ -25,6 +25,7 @@
  * briefing screen with a live backdrop is worth the frame cost.
  */
 
+import type { MapId } from '../world/types';
 import type { System, EngineContext } from '../core/engine';
 import { bus } from '../core/events';
 import { services } from '../core/contracts';
@@ -33,11 +34,15 @@ import { SKINS } from '../weaponmodels/skins';
 
 export type Screen = 'none' | 'deploy' | 'loadout' | 'controls' | 'settings';
 
-const SITES: Array<{ id: 'villa' | 'quay'; name: string; blurb: string }> = [
+const SITES: Array<{ id: MapId; name: string; blurb: string }> = [
   { id: 'villa', name: 'CASA VERDUGO',
-    blurb: 'Walled cartel estate above the basin. One gate everybody watches, three ways in nobody does.' },
+    blurb: 'A cartel principal\'s hacienda above HIS town. 160 m of high street, a plaza, a belfry that sees everything — and then the wall.' },
   { id: 'quay', name: 'MERIDIAN QUAY',
-    blurb: 'Bonded cargo terminal. Container maze at ground level, catwalks above it, and cold rooms with one way out.' },
+    blurb: 'A bonded terminal inside a working port district. Sheds, a dormitory, a customs house — then a container maze and catwalks.' },
+  { id: 'barrio', name: 'BARRIO SANTA MUERTE',
+    blurb: 'Six terraces of houses on a hillside. The roofs are the streets, every row is overlooked by the next, and the church is at the top.' },
+  { id: 'airstrip', name: 'PISTA LA TRINIDAD',
+    blurb: 'A clandestine strip in a river valley. 300 m of open runway, a hangar with an aircraft in it, and a cook camp under the trees.' },
 ];
 
 /** Weapons offered per slot. Slot 4 is always the sidearm. */
@@ -166,7 +171,7 @@ const CSS = `
 
 export interface MenuHooks {
   /** Build a map and start a mission on it. */
-  deploy(site: 'villa' | 'quay', missionId: string): void;
+  deploy(site: MapId, missionId: string): void;
   /** Give a slot a weapon. */
   setWeapon(slot: number, specId: string): void;
   /** Give a slot a finish. */
@@ -189,7 +194,7 @@ export class Menu implements System {
 
   private root!: HTMLElement;
   private screen: Screen = 'none';
-  private site: 'villa' | 'quay' = 'villa';
+  private site: MapId = 'villa';
   private mission: MissionTemplate = MISSIONS[0];
   private slot = 0;
   private slotWeapon = ['ho-mk4c', 'md-bp5', 'ho-m590', 'aw-p9'];
@@ -271,7 +276,7 @@ export class Menu implements System {
       return;
     }
     if (d.pick === 'site') {
-      this.site = d.value as 'villa' | 'quay';
+      this.site = d.value as MapId;
       const first = MISSIONS.find((m) => m.siteId === this.site);
       if (first) this.mission = first;
     } else if (d.pick === 'mission') {

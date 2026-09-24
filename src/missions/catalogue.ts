@@ -18,6 +18,7 @@
  * worse than no marker.
  */
 
+import type { MapId } from '../world/types';
 import type { ObjectiveKind } from '../core/contracts';
 
 export interface ObjectiveTemplate {
@@ -39,7 +40,7 @@ export interface ObjectiveTemplate {
 
 export interface MissionTemplate {
   id: string;
-  siteId: 'villa' | 'quay';
+  siteId: MapId;
   name: string;
   codename: string;
   difficulty: number;
@@ -317,9 +318,179 @@ export const MISSIONS: MissionTemplate[] = [
     ],
     rewards: { xp: 1200, cash: 14000, reputation: { syndicate: -25 } },
   },
+  // =========================================================================
+  // BARRIO SANTA MUERTE
+  // =========================================================================
+  {
+    id: 'barrio-church',
+    siteId: 'barrio',
+    name: 'Barrio Santa Muerte',
+    codename: 'LAST RITES',
+    difficulty: 6,
+    hour: 16.6,
+    briefing:
+      'The plaza boss runs the hill from the church at the top of it. He has two men '
+      + 'with him in the nave and a lookout in the bell tower who sees every roof below. '
+      + 'Six terraces up, no way to hold any of them. Take the detail, take the ledger '
+      + 'from the sacristy, and get back down.',
+    intel: [
+      'The Stair is the fast way up and the whole hill watches it.',
+      'The Cut on the west edge is covered all the way up, and has almost no way out.',
+      'The one-storey roofs are level with the street above them. Use them.',
+      'A shooter on top of the cistern covers terraces two to four.',
+    ],
+    objectives: [
+      {
+        id: 'detail', kind: 'eliminateHVT', archetype: 'bodyguard',
+        label: 'Neutralise the church detail',
+        description: 'Two men in the nave with the plaza boss.',
+        required: 2,
+      },
+      {
+        id: 'ledger', kind: 'secureIntel',
+        label: 'Take the ledger',
+        description: 'The sacristy, behind the altar at the back of the church.',
+        at: [13, 18.2, 46.5], radius: 4,
+      },
+      {
+        id: 'cistern', kind: 'eliminate', optional: true,
+        label: 'Clear the cistern',
+        description: 'The shooter on top of the water cistern, terrace three.',
+        at: [-30, 18.8, 7.3], radius: 7,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate downhill',
+        description: 'Back to the road at the foot of the hill.',
+        at: [0, 2.2, -60], radius: 10,
+        dependsOn: ['detail', 'ledger'],
+      },
+    ],
+    rewards: { xp: 1700, cash: 22000, reputation: { cartel: -45 } },
+  },
+  {
+    id: 'barrio-cancha',
+    siteId: 'barrio',
+    name: 'Barrio Santa Muerte — the cancha',
+    codename: 'HIGH WATER',
+    difficulty: 4,
+    hour: 22.8,
+    briefing:
+      'A handover is happening at the cancha tonight under the floodlights. We do not '
+      + 'care about the handover. We care about the shooter they have put on top of the '
+      + 'cistern to cover it — take him, take the crew, and leave over the roofs.',
+    intel: [
+      'Night. The cancha is the brightest place on the hill; do not cross it.',
+      'The cistern ladder is on its south face, in full view of terrace two.',
+      'Rooftop exit at the top of the hill, east side.',
+    ],
+    objectives: [
+      {
+        id: 'shooter', kind: 'eliminate',
+        label: 'Take the cistern shooter',
+        description: 'On top of the cistern, terrace three.',
+        at: [-30, 18.8, 7.3], radius: 7,
+      },
+      {
+        id: 'crew', kind: 'eliminate',
+        label: 'Break up the handover',
+        description: 'The crew at the cancha, terrace one.',
+        at: [26, 5.2, -24.5], radius: 16, required: 2,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate over the roofs',
+        description: 'Top of the hill, east end.',
+        at: [40, 18.2, 46], radius: 8,
+        dependsOn: ['shooter', 'crew'],
+      },
+    ],
+    rewards: { xp: 1300, cash: 16000, reputation: { cartel: -25 } },
+  },
+  // =========================================================================
+  // PISTA LA TRINIDAD
+  // =========================================================================
+  {
+    id: 'airstrip-wings',
+    siteId: 'airstrip',
+    name: 'Pista La Trinidad',
+    codename: 'CLIPPED WINGS',
+    difficulty: 5,
+    hour: 5.6,
+    briefing:
+      'The aircraft on the apron leaves at first light with a tonne of product in it. It '
+      + 'does not leave. Put it out of action, take the flight log from the tower so we '
+      + 'know where it was going, and get out along the river before the sun is up.',
+    intel: [
+      'Pre-dawn. The strip lights are on and the camp is asleep — mostly.',
+      'Two men mind the pilot at the aircraft. The hangar mezzanine and the tower cab both see the apron.',
+      'The river bank drops away below the apron. It is the quiet way in and out.',
+    ],
+    objectives: [
+      {
+        id: 'plane', kind: 'sabotage',
+        label: 'Disable the aircraft',
+        description: 'Nose out of the hangar, on the apron.',
+        at: [0, 2.2, 36], radius: 5,
+      },
+      {
+        id: 'log', kind: 'secureIntel',
+        label: 'Take the flight log',
+        description: 'The control tower cab.',
+        at: [50, 11.8, 30], radius: 4,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate by the river',
+        description: 'The boat landing, west along the bank.',
+        at: [-106, 1.2, 84], radius: 8,
+        dependsOn: ['plane'],
+      },
+    ],
+    rewards: { xp: 1500, cash: 20000, reputation: { cartel: -35 } },
+  },
+  {
+    id: 'airstrip-kitchen',
+    siteId: 'airstrip',
+    name: 'Pista La Trinidad — the camp',
+    codename: 'COLD KITCHEN',
+    difficulty: 4,
+    hour: 13.4,
+    briefing:
+      'The lab is under the trees on the south side of the strip, and the people who run '
+      + 'it sleep next to it. Destroy the cook shed, clear the camp, and walk out down the '
+      + 'runway — in daylight, in full view of the tower, which is your problem to solve.',
+    intel: [
+      'Midday. The canopy hides the camp from the tower; it also hides the tower from you.',
+      'Bunkhouses east of the cook shed. Tents west.',
+      'The runway is the only fast way out and it is 300 m of nothing.',
+    ],
+    objectives: [
+      {
+        id: 'lab', kind: 'destroy',
+        label: 'Destroy the cook shed',
+        description: 'The concrete shed at the heart of the camp.',
+        at: [-25, 2.2, -52], radius: 6,
+      },
+      {
+        id: 'camp', kind: 'clear',
+        label: 'Clear the camp',
+        description: 'Nothing hostile left under the trees.',
+        at: [0, 2.2, -52], radius: 38,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate east',
+        description: 'The far end of the runway.',
+        at: [166, 2.2, 0], radius: 10,
+        dependsOn: ['lab'],
+      },
+    ],
+    rewards: { xp: 1200, cash: 15000, reputation: { cartel: -30 } },
+  },
 ];
 
 /** Every mission that can be run on a given site. */
-export function missionsFor(siteId: 'villa' | 'quay'): MissionTemplate[] {
+export function missionsFor(siteId: MapId): MissionTemplate[] {
   return MISSIONS.filter((m) => m.siteId === siteId);
 }

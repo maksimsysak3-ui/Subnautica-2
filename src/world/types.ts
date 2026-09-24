@@ -146,6 +146,10 @@ export interface WorldDoor {
 // Sites
 // ---------------------------------------------------------------------------
 
+/** Every playable site. */
+export type MapId = 'villa' | 'quay' | 'barrio' | 'airstrip';
+export const MAP_IDS: readonly MapId[] = ['villa', 'quay', 'barrio', 'airstrip'];
+
 export type SiteArchetype =
   | 'villa'
   | 'favela'

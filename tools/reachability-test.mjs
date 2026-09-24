@@ -34,6 +34,8 @@ const { buildQuay } = await server.ssrLoadModule('/src/world/sites/quay.ts');
 const { buildOutskirts } = await server.ssrLoadModule('/src/world/sites/outskirts.ts');
 const { buildVillaTown } = await server.ssrLoadModule('/src/world/sites/villa-town.ts');
 const { buildPortDistrict } = await server.ssrLoadModule('/src/world/sites/quay-port.ts');
+const { buildBarrio } = await server.ssrLoadModule('/src/world/sites/barrio.ts');
+const { buildAirstrip } = await server.ssrLoadModule('/src/world/sites/airstrip.ts');
 
 const SHAPE = { radius: 0.36, height: 1.75, stepHeight: 0.42, minGroundNormalY: 0.55 };
 const PAD_HEIGHT = 1.88;
@@ -51,7 +53,7 @@ function run(mapId) {
   const b = new SiteBuilder(yard, rng);
   const terrain = () => PAD_HEIGHT;
 
-  const res = mapId === 'quay'
+  const res = mapId === 'barrio' ? buildBarrio(b, rng) : mapId === 'airstrip' ? buildAirstrip(b, rng, terrain) : mapId === 'quay'
     ? (() => { const r = buildQuay(b, rng, terrain); const t = buildPortDistrict(b, rng); r.rooms.push(...t.rooms); r.site.coreMinZ = -186; r.site.coreMinX = -114; r.site.coreMaxX = 110; return r; })()
     : (() => { const r = buildVilla(b, rng); const t = buildVillaTown(b, rng); r.rooms.push(...t.rooms); r.site.coreMaxZ = 252; buildOutskirts(b, rng, terrain, { town: true }); return r; })();
   b.clearDoorways();
@@ -188,6 +190,8 @@ function run(mapId) {
 console.log('\n— reachability —');
 run('villa');
 run('quay');
+run('barrio');
+run('airstrip');
 
 await server.close();
 const passed = results.filter((r) => r.pass).length;

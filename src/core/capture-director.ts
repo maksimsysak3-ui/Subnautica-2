@@ -670,6 +670,13 @@ export class CaptureDirector {
     quayShot('quay-checkpoint', 'Outer checkpoint', [-24, 4.4, -128], [4, 4, -104]);
     quayShot('port-street', 'Puerto Meridian, Calle del Muelle', [96, 3.8, -99], [14, 4, -101]);
     quayShot('port-aerial', 'Puerto Meridian and the terminal from above', [120, 80, -230], [0, 0, -40]);
+    // The barrio (?map=barrio) and the airstrip (?map=airstrip).
+    quayShot('barrio-street', 'Barrio Alto, the bottom terrace street', [40, 3.8, -45.5], [-40, 4.5, -44]);
+    quayShot('barrio-stair', 'Barrio Alto, up the Stair', [0, 3.8, -60], [0, 14, 20]);
+    quayShot('barrio-aerial', 'Barrio Alto from above the bottom road', [90, 70, -120], [0, 8, 0]);
+    quayShot('airstrip-apron', 'Pista La Trinidad, apron and hangar', [60, 3.6, 8], [0, 5, 58]);
+    quayShot('airstrip-camp', 'Pista La Trinidad, the camp', [14, 3.6, -26], [-24, 3, -50]);
+    quayShot('airstrip-aerial', 'Pista La Trinidad from above', [170, 95, -160], [0, 0, 20]);
     quayShot('quay-rail', 'Rail siding, east flank', [138, 6.0, -34], [96, 5, -6]);
 
     // Look at the garrison. A screenshot of an empty compound proves nothing

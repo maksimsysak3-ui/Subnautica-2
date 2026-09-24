@@ -31,6 +31,8 @@ const { buildQuay } = await server.ssrLoadModule('/src/world/sites/quay.ts');
 const { buildOutskirts } = await server.ssrLoadModule('/src/world/sites/outskirts.ts');
 const { buildVillaTown } = await server.ssrLoadModule('/src/world/sites/villa-town.ts');
 const { buildPortDistrict } = await server.ssrLoadModule('/src/world/sites/quay-port.ts');
+const { buildBarrio } = await server.ssrLoadModule('/src/world/sites/barrio.ts');
+const { buildAirstrip } = await server.ssrLoadModule('/src/world/sites/airstrip.ts');
 
 const census = (name, fn) => {
   const rng = new Rng(`world:${name}`);
@@ -73,6 +75,8 @@ const census = (name, fn) => {
 const rows = [
   census('villa', (b, rng, terrain) => { buildVilla(b, rng); buildVillaTown(b, rng); buildOutskirts(b, rng, terrain, { town: true }); }),
   census('quay', (b, rng, terrain) => { buildQuay(b, rng, terrain); buildPortDistrict(b, rng); }),
+  census('barrio', (b, rng) => buildBarrio(b, rng)),
+  census('airstrip', (b, rng, terrain) => buildAirstrip(b, rng, terrain)),
 ];
 
 console.log('\nsite    bricks   mats   area m2   /100m2    tier3    tier2    tier1');

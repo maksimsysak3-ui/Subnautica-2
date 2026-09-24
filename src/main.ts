@@ -6,6 +6,7 @@
  * System.order so dependency resolution stays obvious.
  */
 
+import type { MapId } from './world/types';
 import { Engine } from './core/engine';
 import { bus } from './core/events';
 import { services } from './core/contracts';
@@ -131,7 +132,7 @@ async function boot(): Promise<void> {
   // actor registry, both of which only exist once their systems are up.
   const world = services.get('world') as unknown as {
     floorAt(x: number, z: number, from: number): number;
-    mapId: 'villa' | 'quay';
+    mapId: MapId;
     site: { name: string };
   };
   const actorReg = engine.get('actors') as unknown as Parameters<typeof garrison>[1];
@@ -145,7 +146,7 @@ async function boot(): Promise<void> {
   // `templateId` is what the deploy screen passes: the player read a briefing
   // and pressed the button under it, so they get that mission. Without one the
   // seed picks, which is what boot and the tests want.
-  const beginMission = (mapId: 'villa' | 'quay', templateId?: string): void => {
+  const beginMission = (mapId: MapId, templateId?: string): void => {
     const def = missions.generate(Date.now() & 0xffff, { region: mapId, templateId });
     void missions.start(def, 'front');
     console.info(`[mission] ${def.codename} — ${def.objectives.length} objectives`);
@@ -197,15 +198,15 @@ async function boot(): Promise<void> {
   // live in the world's collider list and disposing that list first would
   // leave `despawn` unregistering from a list that no longer exists.
   const worldSys = services.get('world') as unknown as {
-    mapId: 'villa' | 'quay';
-    buildMap(id: 'villa' | 'quay'): void;
+    mapId: MapId;
+    buildMap(id: MapId): void;
     teardown(): void;
     floorAt(x: number, z: number, from: number): number;
     site: { name: string };
   };
 
   let switching = false;
-  const switchMap = (id: 'villa' | 'quay', templateId?: string): void => {
+  const switchMap = (id: MapId, templateId?: string): void => {
     if (switching || id === worldSys.mapId) {
       // Same map, different tasking: no rebuild, just re-brief. Tearing the
       // level down to change which objectives are on it would throw away a
@@ -256,7 +257,7 @@ async function boot(): Promise<void> {
   };
 
   for (const btn of Array.from(document.querySelectorAll<HTMLElement>('.mapbtn'))) {
-    const id = btn.dataset.map as 'villa' | 'quay';
+    const id = btn.dataset.map as MapId;
     btn.classList.toggle('on', id === worldSys.mapId);
     btn.addEventListener('click', (e) => {
       // The overlay's own click handler starts the game; a map button must not

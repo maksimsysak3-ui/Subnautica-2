@@ -237,12 +237,16 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
 
     // Front: the door, and a window per storey either side of it.
     const doorAt = w * (rng.next() < 0.5 ? 0.32 : 0.68);
-    const front: WallOpening[] = [doorOp(doorAt, 1.0, `${name} door`, rGround, { locked: rng.next() < 0.12 })];
+    const front: WallOpening[] = [doorOp(doorAt, 1.2, `${name} door`, rGround, { locked: rng.next() < 0.12 })];
     const winAt = doorAt < w / 2 ? w * 0.78 : w * 0.24;
     front.push(winOp(winAt, 1.2, 1.0, 2.2));
     if (storeys > 1) {
-      front.push(winOp(w * 0.28, 1.2, RISE + 1.0, RISE + 2.2));
-      front.push(winOp(w * 0.72, 1.2, RISE + 1.0, RISE + 2.2));
+      // Upper windows sit over the ground-floor window and at the far end —
+      // never over the door: a window's sill is solid from the wall base, so
+      // one above a doorway seals it.
+      front.push(winOp(winAt, 1.2, RISE + 1.0, RISE + 2.2));
+      const far = w * 0.5;
+      if (Math.abs(far - doorAt) > 1.6 && Math.abs(far - winAt) > 1.6) front.push(winOp(far, 1.0, RISE + 1.0, RISE + 2.2));
     }
     b.wall({ x0, z0: zf, x1, z1: zf, y, height: H, thickness: W, mat, openings: front, panel, room: rGround });
     // Sides: one small window each on some houses, which is what makes an
@@ -468,8 +472,10 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
       b.wall({
         x0: ax, z0: az, x1: bx, z1: bz, y, height: 17, thickness: 0.4, mat: M.chalkWhite, room: tower,
         openings: [
-          ...(isFront ? [doorOp(2.0, 1.0, 'Tower door', tower)] : []),
-          { at: 2.0, width: 1.6, y0: 13.4, y1: 16.2, kind: 'arch' as const },
+          // No bell arch over the door: an arch's sill is solid from the
+          // wall base, so one above the doorway bricks it up.
+          ...(isFront ? [doorOp(2.0, 1.1, 'Tower door', tower)]
+            : [{ at: 2.0, width: 1.6, y0: 13.4, y1: 16.2, kind: 'arch' as const }]),
         ],
         panel: cp,
       });
