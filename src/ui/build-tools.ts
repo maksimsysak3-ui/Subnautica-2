@@ -1507,6 +1507,7 @@ export class BuildTools {
     for (const { b, branch } of this.gated) {
       const open = this.branchOpen(branch);
       b.classList.toggle('is-locked', !open);
+      b.setAttribute('aria-disabled', open ? 'false' : 'true');
       const old = b.querySelector('[data-lock]');
       if (open) { old?.remove(); continue; }
       if (old === null) b.appendChild(lockBadge(branchLevel(branch)));

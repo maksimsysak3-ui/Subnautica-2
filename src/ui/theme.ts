@@ -231,6 +231,11 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-incident:hover .mr-incident-label, .mr-incident[data-state="0"] .mr-incident-label { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .mr-incident-ring { animation: none !important; } }
 
+/* ---- reduce motion (setting, or the system preference) ---------------- */
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+  animation: none !important; transition: none !important;
+}
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;

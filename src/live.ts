@@ -21,6 +21,7 @@
  * simulation arriving in one lump.
  */
 
+import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
@@ -640,7 +641,7 @@ export class LiveCity {
       // schedule -- so an open view is live without the frame asking for one.
       if (meta !== null && sim.views.builtAt !== this.uploaded) {
         this.uploaded = sim.views.builtAt;
-        this.renderer.setOverlay(sim.viewGrid, meta.look, meta.ramp);
+        this.renderer.setOverlay(sim.viewGrid, meta.look, rampFor(meta.ramp));
       }
       this.info.refresh(now, (): Stat[] => sim.viewStats);
     } else if (view !== View.NONE) {
@@ -914,7 +915,7 @@ export class LiveCity {
     // a view that takes most of a second to appear reads as a dropped click.
     if (this.sim !== null) {
       this.uploaded = this.sim.views.builtAt;
-      this.renderer.setOverlay(this.sim.viewGrid, meta.look, meta.ramp);
+      this.renderer.setOverlay(this.sim.viewGrid, meta.look, rampFor(meta.ramp));
     }
   }
 }

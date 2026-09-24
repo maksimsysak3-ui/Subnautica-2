@@ -19,6 +19,7 @@
  * second is faster than a player can read and is what `REPAINT_MS` buys.
  */
 
+import { rampFor } from './access';
 import { VIEWS, View, Look, PANEL_ONLY } from '../sim';
 import type { ViewInfo, Stat } from '../sim';
 import { SKIN, panel, tip } from './skin';
@@ -349,17 +350,19 @@ export class InfoViews {
     }
     const b = this.buttons.get(id);
     if (b !== undefined) {
-      b.style.background = `color-mix(in srgb, ${info.ramp[2]} 18%, transparent)`;
-      b.style.borderColor = `color-mix(in srgb, ${info.ramp[2]} 55%, transparent)`;
+      const tone = rampFor(info.ramp)[2];
+      b.style.background = `color-mix(in srgb, ${tone} 18%, transparent)`;
+      b.style.borderColor = `color-mix(in srgb, ${tone} 55%, transparent)`;
       b.style.color = SKIN.bright;
-      (b.firstElementChild as HTMLElement).style.color = info.ramp[2];
+      (b.firstElementChild as HTMLElement).style.color = tone;
     }
     this.card.style.display = 'block';
     this.title.textContent = info.name;
-    this.swatch.style.background = `color-mix(in srgb, ${info.ramp[2]} 20%, transparent)`;
-    this.swatch.style.color = info.ramp[2];
+    const ramp = rampFor(info.ramp);
+    this.swatch.style.background = `color-mix(in srgb, ${ramp[2]} 20%, transparent)`;
+    this.swatch.style.color = ramp[2];
     this.swatch.innerHTML = pictogram(info.icon, 18);
-    this.accent = info.ramp[2];
+    this.accent = ramp[2];
     this.heroValue.textContent = '—';
     this.heroLabel.textContent = '';
     this.legend.textContent = info.legend;
@@ -388,7 +391,7 @@ export class InfoViews {
   }
 
   private ramp(info: ViewInfo): string {
-    const [lo, mid, hi] = info.ramp;
+    const [lo, mid, hi] = rampFor(info.ramp);
     const bar = `background:linear-gradient(90deg,${lo},${mid} 50%,${hi})`;
     const buried = info.look === Look.UNDERGROUND
       ? `<span style="color:${SKIN.accent}">· below ground</span>` : '';

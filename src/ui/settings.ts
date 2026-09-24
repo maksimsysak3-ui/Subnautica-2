@@ -17,6 +17,7 @@
  * once on their machine and it stays that way.
  */
 
+import { applyAccess } from './access';
 import { music } from './music';
 import { SKIN, css, panel, rule, key as keyStyle, setKey } from './skin';
 import { setVolume, setMuted, click as clickSound } from './sound';
@@ -43,6 +44,8 @@ export interface SettingsValues {
   bubbles: boolean;
   notices: boolean;
   uiScale: number;
+  colourBlind: boolean;
+  reduceMotion: boolean;
   // ---- sound ----
   volume: number;
   music: number;
@@ -54,6 +57,7 @@ export const DEFAULTS: SettingsValues = {
   vignette: true, grass: 1, autoScale: true, ao: true,
   movers: 1, weather: true,
   tooltips: true, bubbles: true, notices: true, uiScale: 1,
+  colourBlind: false, reduceMotion: false,
   volume: 0.7, music: 0.5, muted: false,
 };
 
@@ -173,6 +177,7 @@ export class Settings {
     setVolume(this.values.volume);
     setMuted(this.values.muted);
     music.setLevel(this.values.music);
+    applyAccess(this.values.colourBlind, this.values.reduceMotion);
     document.documentElement.style.setProperty('--ui-scale', String(this.values.uiScale));
     this.hooks.apply(this.values);
   }
@@ -270,6 +275,11 @@ export class Settings {
         + 'about, over the buildings.', v.bubbles, (on) => { v.bubbles = on; }));
       out.push(this.toggle2('Notices', 'The cards in the corner when something '
         + 'happens.', v.notices, (on) => { v.notices = on; }));
+      out.push(this.toggle2('Colour-blind friendly', 'Orange against blue instead of '
+        + 'red against green, on bars, readouts and every map view.',
+      v.colourBlind, (on) => { v.colourBlind = on; }));
+      out.push(this.toggle2('Reduce motion', 'No pulsing markers, sliding cards or '
+        + 'camera glide.', v.reduceMotion, (on) => { v.reduceMotion = on; }));
     } else {
       out.push(this.slider('Volume', 'Everything the game plays.',
         v.volume, (n) => { v.volume = n; }));

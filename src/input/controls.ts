@@ -13,6 +13,7 @@
  * feels cheap.
  */
 
+import { ACCESS } from '../ui/access';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { clamp } from '../math/m4';
@@ -294,7 +295,8 @@ export class Controls {
       }
     }
     if (this.mode === 'none') {
-      const decay = Math.exp(-dt * 5.5);
+      // Reduce motion: the camera stops where the hand lets go.
+      const decay = ACCESS.reduceMotion ? 0 : Math.exp(-dt * 5.5);
       const [vx, vz] = this.panVel;
       if (Math.abs(vx) + Math.abs(vz) > cam.distance * 0.01) {
         cam.focus[0] += vx * dt;
