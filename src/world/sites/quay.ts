@@ -1670,9 +1670,10 @@ export function buildQuay(
     approaches: [
       {
         id: 'main-gate', name: 'Main gate', kind: 'front',
-        // At the south end of the port district: the gate is a 100 m walk up
-        // the district's main road, between the sheds and the dormitory.
-        x: 0, y: PAD, z: -182, toX: 0, toZ: PERIM.z0,
+        // South-west of the port district, behind the dormitory. The road
+        // sentry at (2.5, -170) faces straight down the road, and spawning on
+        // it put the player 12 m in front of him.
+        x: -60, y: PAD, z: -196, toX: 0, toZ: PERIM.z0,
         description: 'Up the port road through the district and straight through the vehicle gate. Fast, and the booth sees you the whole way in.',
         stealth: 0.05, speed: 0.95, risk: 0.85,
       },

@@ -799,9 +799,13 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     approaches: [
       {
         id: 'front-gate', name: 'Main gate', kind: 'front',
-        // At the town entrance. The loud approach is now 190 m of high
-        // street, past a checkpoint, under every window in town.
-        x: 0, y: PAD, z: 266, toX: 0, toZ: PERIM.z1,
+        // Outside the town, off the road to the east. The checkpoint
+        // sentries face down the road (+z); dropping in on the road itself
+        // put the player 20 m in front of both of them and the mission was
+        // lost in the first four seconds. From here, 58 m out and 65 degrees
+        // off their line, the loud approach is still 190 m of high street,
+        // past a checkpoint, under every window in town — by choice.
+        x: 60, y: PAD, z: 268, toX: 0, toZ: PERIM.z1,
         description: 'Straight up the access road. Two guns on the gatehouse roof and a clear field of fire down the drive.',
         stealth: 0.05, speed: 0.9, risk: 0.85,
       },
