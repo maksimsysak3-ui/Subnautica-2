@@ -46,7 +46,7 @@ const first = await page.evaluate(() => ({
   marked: document.querySelector('.mapbtn.on')?.dataset.map,
   bricks: window.services.get('world').buildStats.bricks,
 }));
-check('picker is present', first.buttons.length === 2, first.buttons.join(', '));
+check('picker is present', first.buttons.length === 4, first.buttons.join(', '));
 check('default map is the villa', first.map === 'villa', first.site);
 check('current map is marked', first.marked === 'villa', String(first.marked));
 
