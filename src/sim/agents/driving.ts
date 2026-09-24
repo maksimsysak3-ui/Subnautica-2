@@ -378,6 +378,12 @@ const SCHEMA = {
    * a week and a bug for a year.
    */
   job: Int32Array,
+  /**
+   * What a service vehicle was sent for, as the dispatch need plus one; zero
+   * for everything else. The model drawn follows it, so a fire gets an engine
+   * and a burglary a patrol car rather than whichever the row number picked.
+   */
+  role: Uint8Array,
 } as const;
 
 /** What the traffic did, for the readout. */
@@ -517,6 +523,7 @@ export class Traffic {
     c.cleared[v] = 0;
     c.next[v] = -1;
     c.job[v] = -1;
+    c.role[v] = 0;
     this.linkAt(v, lane, where);
     this.stats.spawned++;
     return v;

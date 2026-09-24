@@ -92,6 +92,21 @@ html, body { font-family: var(--ui); }
   background: #0d131b; border: 1px solid rgba(244,181,74,.6); color: var(--amber);
   font: 700 9px/1 var(--label); letter-spacing: .02em; box-shadow: 0 2px 6px rgba(0,0,0,.5);
 }
+/* Narrower windows: smaller tiles before the bar wraps onto a second row,
+   and the status captions go, keeping the readings themselves. */
+@media (max-width: 1240px) {
+  .mr-tile { width: 36px; height: 36px; border-radius: 9px; }
+  .mr-tile > svg { width: 20px; height: 20px; }
+  .mr-tile > .mr-swatch { width: 18px !important; height: 18px !important; }
+  .mr-group { padding: 0 4px; gap: 1px; }
+  .mr-cell { padding: 0 9px; gap: 6px; }
+  .mr-cell > div:first-child { display: none; }
+  .mr-dial-text i { display: none; }
+}
+@media (max-width: 900px) {
+  .mr-tile { width: 32px; height: 32px; }
+  .mr-tile > svg { width: 18px; height: 18px; }
+}
 /* Status readings as separate recessed cells, each its own dial. */
 .mr-cell {
   display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px;
@@ -185,6 +200,36 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   box-shadow: 0 10px 30px rgba(244,181,74,.3); transition: transform .15s, box-shadow .15s;
 }
 .mr-found:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(244,181,74,.42); }
+
+/* ---- incident markers ---------------------------------------------------- */
+.mr-incident {
+  position: absolute; left: 0; top: 0; width: 34px; height: 34px; margin: -40px 0 0 -17px;
+  padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
+  --tone: #ff7a3d;
+}
+.mr-incident-icon {
+  position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%;
+  background: #0d131b; color: var(--tone); border: 2px solid var(--tone);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--tone) 55%, transparent), 0 4px 10px rgba(0,0,0,.5);
+}
+.mr-incident::after {
+  content: ""; position: absolute; left: 50%; top: 100%; width: 2px; height: 8px;
+  margin-left: -1px; background: var(--tone);
+}
+.mr-incident-ring {
+  position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--tone); opacity: 0;
+}
+.mr-incident[data-state="0"] .mr-incident-ring { animation: mr-ping 1.1s ease-out infinite; }
+.mr-incident[data-state="1"] .mr-incident-ring { animation: mr-ping 2.2s ease-out infinite; }
+@keyframes mr-ping { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(2.1); opacity: 0; } }
+.mr-incident-label {
+  position: absolute; left: 50%; top: -24px; transform: translateX(-50%); white-space: nowrap;
+  padding: 3px 8px; border-radius: 6px; background: rgba(8,12,18,.88); color: #f1f4f8;
+  font: 700 11px/1.2 var(--ui); opacity: 0; transition: opacity .15s; pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--tone) 50%, transparent);
+}
+.mr-incident:hover .mr-incident-label, .mr-incident[data-state="0"] .mr-incident-label { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .mr-incident-ring { animation: none !important; } }
 
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {

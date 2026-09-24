@@ -59,6 +59,10 @@ import { LinesPanel } from './ui/lines-panel';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 import { CityHall } from './ui/city-hall';
+import { IncidentMarkers } from './ui/incidents';
+import { Need } from './sim/agents/dispatch';
+import { siren } from './ui/sound';
+import { branchLevel } from './sim/tech';
 import type { Issues, Phase } from './sim/politics';
 import { Gripe } from './sim';
 import { TICKS_PER_DAY, SECONDS_PER_DAY } from './sim/agents/calendar';
@@ -98,6 +102,8 @@ export class LiveCity {
   private readonly alerts: Alerts;
   /** The phone's politics app, and what the voters see when they look at the city. */
   private readonly hall: CityHall;
+  /** Fires, break-ins and medical calls, marked over the map. */
+  private readonly incidents: IncidentMarkers;
   private issues: Issues | null = null;
   private issuesAt = -1e9;
   /**
@@ -173,6 +179,7 @@ export class LiveCity {
     // The graded height, not the raw terrain: a bubble belongs over the building,
     // and the building stands on ground the city cut flat for it.
     this.thoughts = new Thoughts(ui, heightAt);
+    this.incidents = new IncidentMarkers(ui, heightAt, (x, z) => this.lookAt(x, z));
     // The tax controls live inside the budget view's card, which is the only
     // place a rate and the bill it moves can be looked at together.
     this.tax = new TaxPanel();
@@ -300,6 +307,61 @@ export class LiveCity {
   dayClock(): { fraction: number; day: number } | null {
     if (this.sim === null || !this.running) return null;
     return { fraction: this.sim.clock.fraction, day: this.sim.clock.day };
+  }
+
+  /** Brings the camera to a spot on the map, close enough to see what is there. */
+  lookAt(x: number, z: number): void {
+    this.camera.focus[0] = x;
+    this.camera.focus[2] = z;
+    this.camera.distance = Math.min(this.camera.distance, 360);
+  }
+
+  /**
+   * Emergencies: which ones the city is exposed to yet, and what the player
+   * is told about the ones that happen.
+   *
+   * A kind of emergency starts when the service that answers it can be built
+   * (fire at level 2, and so on): a city is not handed a problem it has no
+   * means to answer. A new one near the camera sounds a siren as the crew
+   * leaves; any new one is a card that takes the camera there, and a building
+   * lost for want of an answer is a card that says so.
+   */
+  private emergencies(sim: Simulation): void {
+    const level = this.renderer.world.progress.level;
+    const d = sim.dispatch;
+    d.exposed[Need.FIRE] = level >= branchLevel('fire');
+    d.exposed[Need.CRIME] = level >= branchLevel('police');
+    d.exposed[Need.MEDICAL] = level >= branchLevel('health');
+    const words: Record<number, { raised: string; missed: string; answered: string }> = {
+      [Need.FIRE]: { raised: 'Fire', missed: 'Building lost to fire', answered: 'Fire under control' },
+      [Need.CRIME]: { raised: 'Break-in', missed: 'Burglar got away', answered: 'Suspect arrested' },
+      [Need.MEDICAL]: { raised: 'Medical emergency', missed: 'Patient lost', answered: 'Paramedics arrived' },
+    };
+    const ex = this.camera.focus[0], ez = this.camera.focus[2];
+    for (const h of d.takeHappenings()) {
+      const w = words[h.kind];
+      if (w === undefined) continue;
+      const x = sim.places.col.x[h.place], z = sim.places.col.z[h.place];
+      const where = sim.inspect(x, z, 6)?.name ?? 'the city';
+      const go = (): void => this.lookAt(x, z);
+      if (h.what === 'raised') {
+        const dist = Math.hypot(x - ex, z - ez);
+        siren(Math.max(0, 1 - dist / 1400), Math.max(-1, Math.min(1, (x - ex) / 600)));
+        this.alerts.push({
+          title: w.raised, body: `At ${where}. Click to go there.`,
+          tone: 'warn', tag: `incident-${h.kind}`, go,
+        });
+      } else if (h.what === 'missed') {
+        this.alerts.push({
+          title: w.missed, body: `At ${where} -- nobody got there in time. More `
+            + `${h.kind === Need.FIRE ? 'fire stations' : h.kind === Need.CRIME ? 'police' : 'clinics'} would help.`,
+          tone: 'bad', tag: `incident-miss-${h.kind}`, go,
+        });
+      } else if (h.kind === Need.CRIME) {
+        this.alerts.push({ title: w.answered, body: `At ${where}.`, tone: 'good',
+          tag: `incident-${h.kind}`, go });
+      }
+    }
   }
 
   /** Game days since founding, with the fraction of today. */
@@ -483,6 +545,7 @@ export class LiveCity {
     this.info.visible = on;
     this.bars.visible = on;
     this.thoughts.visible = on;
+    this.incidents.visible = on;
     this.alerts.visible = on;
     this.steps.visible = on;
     this.cititok.visible = on;
@@ -599,6 +662,8 @@ export class LiveCity {
     // the player has to press to fix it.
     this.thoughts.refresh(now, this.camera, this.camera.width, this.camera.height,
       sim.complaints.list);
+    this.incidents.refresh(now, this.camera, this.camera.width, this.camera.height,
+      sim.dispatch.incidents);
 
     // The sliders follow the budget rather than owning it, so a loaded save shows
     // the rates it was saved with.
@@ -658,6 +723,7 @@ export class LiveCity {
         });
       }
       this.announce(sim);
+      this.emergencies(sim);
       this.steps.update(sim, now);
       // The open card, refreshed on the same beat as everything else: a
       // building whose power has just come back should say so while the player

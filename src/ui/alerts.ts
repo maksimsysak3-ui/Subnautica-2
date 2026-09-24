@@ -35,6 +35,8 @@ export interface Alert {
    * told again eleven seconds later.
    */
   tag?: string;
+  /** What clicking the card does before it is dismissed: take the camera there, say. */
+  go?: () => void;
 }
 
 const TONE: Record<Tone, string> = {
@@ -46,7 +48,7 @@ const LIFE = 9000;
 /** And the most that can be on screen at once. */
 const MOST = 4;
 
-interface Live { el: HTMLElement; tag: string; born: number }
+interface Live { el: HTMLElement; tag: string; born: number; go?: (() => void) | undefined }
 
 export class Alerts {
   private readonly host: HTMLElement;
@@ -75,6 +77,7 @@ export class Alerts {
       // Same subject: refresh the card in place and restart its clock, rather
       // than stacking a second copy of a thing that is still true.
       this.live[already].born = performance.now();
+      this.live[already].go = alert.go;
       this.fill(this.live[already].el, alert, tone);
       return;
     }
@@ -88,7 +91,10 @@ export class Alerts {
       'transform:translateX(14px)', 'opacity:0',
       'transition:transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s']);
     this.fill(el, alert, tone);
-    el.addEventListener('click', () => this.drop(el));
+    el.addEventListener('click', () => {
+      this.live.find((l) => l.el === el)?.go?.();
+      this.drop(el);
+    });
     this.host.appendChild(el);
     // One frame later, so the transition has a state to move from.
     requestAnimationFrame(() => {
@@ -96,7 +102,7 @@ export class Alerts {
       el.style.opacity = '1';
     });
 
-    this.live.push({ el, tag, born: performance.now() });
+    this.live.push({ el, tag, born: performance.now(), go: alert.go });
     while (this.live.length > MOST) this.drop(this.live[0].el);
   }
 

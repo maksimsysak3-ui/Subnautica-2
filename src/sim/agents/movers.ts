@@ -32,7 +32,8 @@ import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
 import { SITE_IDS } from '../../assets/generators/construction';
 import type { SiteView } from './growth';
-import type { FireView } from './dispatch';
+import type { FireView, IncidentView } from './dispatch';
+import { Need } from './dispatch';
 import type { Strollers } from './strollers';
 import { ASSET_INDEX } from '../inventory';
 import { ASSETS } from '../../assets/registry';
@@ -228,7 +229,7 @@ export class Movers {
     blazes: FireView | undefined,
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
-    eyeX: number, eyeZ: number, lead = 0): number {
+    eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -288,7 +289,7 @@ export class Movers {
           * (LOOK_AHEAD / Math.max(2, c.speed[v]))) * Math.sign(shift);
       const next = this.placeOn(lanes, lane, at + LOOK_AHEAD,
         c.next[v], paths, c.route[v], c.step[v], ahead);
-      const seat = seatOf(c.kind[v], v);
+      const seat = seatOf(c.kind[v], v, c.role[v]);
       let yaw = Math.atan2(next[1] - here[1], next[0] - here[0]);
       if (this.flip[seat] === true) yaw += Math.PI;
       write(seat, here[0], here[1], this.turnTowards(v, yaw), RIDE);
@@ -460,6 +461,33 @@ export class Movers {
       }
     }
 
+    // The suspect at a break-in: out of the door and away down the pavement
+    // until the police arrive, then standing where they were caught. Drawn
+    // with the pedestrians' own model on their own kerb line, so it is a person
+    // in the street rather than a symbol -- the marker overhead says who.
+    if (incidents !== undefined) {
+      for (let i = 0; i < incidents.count; i++) {
+        if (incidents.kind[i] !== Need.CRIME) continue;
+        const lane = incidents.lane[i];
+        if (lane < 0 || lane >= lanes.count) continue;
+        const l = Math.max(0.001, lanes.length[lane]);
+        const ax = lanes.ax[lane], az = lanes.az[lane];
+        const ux = (lanes.bx[lane] - ax) / l, uz = (lanes.bz[lane] - az) / l;
+        const caught = incidents.state[i] === 2;
+        // A tick is a tenth of a second at speed one: a third of a metre a
+        // tick is a sprint, for as far as the street goes.
+        const at = caught ? l * 0.5 : Math.min(l, l * 0.5 + (incidents.age[i] + lead * 10) * 0.35);
+        const kerb = this.acrossAt(lanes, lane, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
+        const x = ax + ux * at + uz * kerb;
+        const z = az + uz * at - ux * kerb;
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
+        // Caught, they face the road where the patrol car is; running, away.
+        const yaw = caught ? Math.atan2(-ux, uz) : Math.atan2(uz, ux);
+        if (write('walker', x, z, yaw, 0)) this.counts.people++;
+      }
+    }
+
     // What is on fire. One instance a building, spun and lifted by the clock so
     // the column writhes rather than standing there like a monument -- there is
     // no particle system behind this and it does not need one.
@@ -520,10 +548,17 @@ const LANE_SHIFT_SPEED = 2.3;
 const PAVEMENT = 2.6;
 
 /** Which seat a vehicle is drawn in. */
-function seatOf(kind: number, v: number): string {
+function seatOf(kind: number, v: number, role = 0): string {
   if (kind === Kind.BUS) return 'bus';
+  // What it was sent for decides what it is -- on the way out with priority,
+  // and on the way home as ordinary traffic, when its kind is a car's.
+  if (role === Need.FIRE + 1) return 'fire';
+  if (role === Need.CRIME + 1) return 'police';
+  if (role === Need.MEDICAL + 1) return 'ambulance';
+  if (role === Need.RUBBISH + 1) return 'refuse';
   if (kind === Kind.LORRY) return (v & 1) === 0 ? 'lorry' : 'refuse';
   if (kind === Kind.EMERGENCY) {
+    // Ambient emergency traffic, sent by nobody: any of the three.
     const pick = v % 3;
     return pick === 0 ? 'fire' : pick === 1 ? 'ambulance' : 'police';
   }

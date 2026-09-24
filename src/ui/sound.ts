@@ -165,3 +165,37 @@ export function crunch(): void {
     { from: 95, to: 45, length: 0.32, type: 'square', gain: 0.05, delay: 0.03 },
   ]);
 }
+
+/**
+ * A siren, somewhere off to one side: two tones, falling away as it passes.
+ * `level` is 0 to 1 by how close the vehicle is to the camera.
+ */
+export function siren(level: number, pan = 0): void {
+  const b = bus();
+  if (b === null || level <= 0.01) return;
+  const ctx = b.ctx;
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  let dest: AudioNode = b.out;
+  if (typeof ctx.createStereoPanner === 'function') {
+    const p = ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(b.out);
+    dest = p;
+  }
+  out.connect(dest);
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  const t = ctx.currentTime;
+  for (let i = 0; i < 6; i++) {
+    osc.frequency.setValueAtTime(i % 2 === 0 ? 740 : 588, t + i * 0.42);
+  }
+  const peak = 0.05 * level;
+  out.gain.linearRampToValueAtTime(peak, t + 0.3);
+  out.gain.setValueAtTime(peak, t + 1.8);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+  osc.connect(out);
+  osc.start(t);
+  osc.stop(t + 2.7);
+  setTimeout(() => { try { dest.disconnect(); out.disconnect(); } catch { /* gone */ } }, 3200);
+}

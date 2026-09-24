@@ -107,6 +107,38 @@ export interface FireView {
   seed: Int32Array;
 }
 
+/** Incidents listed for the interface at once: fires, crimes and medical calls. */
+const MAX_INCIDENTS = 96;
+
+/**
+ * The emergencies open right now, for the markers over the map.
+ *
+ * Fires, crimes and medical calls only -- bins and bodies are jobs, not
+ * incidents, and a marker over every full bin would bury the ones that matter.
+ */
+export interface IncidentView {
+  count: number;
+  kind: Uint8Array;
+  /** 0 waiting for anybody, 1 somebody on the way, 2 on scene. */
+  state: Uint8Array;
+  place: Int32Array;
+  x: Float32Array;
+  z: Float32Array;
+  /** Metres above the ground to hang the marker: the roof. */
+  lift: Float32Array;
+  /** The lane the building fronts on to, and ticks since it was raised. */
+  lane: Int32Array;
+  age: Float32Array;
+}
+
+/** Something the player should hear about: an emergency opened or ended. */
+export interface Happening {
+  kind: number;
+  place: number;
+  /** 'raised', 'answered' (help arrived in time) or 'missed'. */
+  what: 'raised' | 'answered' | 'missed';
+}
+
 const State = {
   /** Raised, nobody assigned. */
   WAITING: 0,
@@ -231,7 +263,7 @@ const SENDS_PER_VISIT = 6;
  * order of magnitude, tuned so that a city of fifty thousand with no services at
  * all is visibly in trouble within a game week rather than within a game year.
  */
-const FIRE_PER_BUILDING_DAY = 1 / 2600;
+const FIRE_PER_BUILDING_DAY = 1 / 1800;
 const CRIMES_PER_THOUSAND_DAY = 2.4;
 const CALLS_PER_THOUSAND_DAY = 3.1;
 
@@ -288,7 +320,22 @@ const SCHEMA = {
   /** The station that took it, and the vehicle it sent, or -1. */
   station: Int32Array,
   vehicle: Int32Array,
+  /** Set when nobody got there in time: the building was lost, or the patient. */
+  lost: Uint8Array,
 } as const;
+
+/**
+ * Ticks a scene stays on screen after its call closes and the crew is there.
+ *
+ * The outcome runs on the simulation clock, where a tick is ninety-six game
+ * seconds, so a house fire is decided in about a second and a half of real
+ * time -- long before the engine the player is watching has driven there. The
+ * scene lingers for the picture: on the way while the vehicle is still
+ * driving, then on scene for this long (thirty seconds at speed one).
+ */
+const LINGER = 300;
+
+interface Scene { kind: number; place: number; vehicle: number; until: number; lost: boolean; told: boolean }
 
 /** What the machine has been doing, for the readout. */
 export interface DispatchStats {
@@ -310,6 +357,49 @@ export interface DispatchStats {
 
 export class Dispatch {
   readonly table = new Table(SCHEMA, 256);
+
+  /**
+   * Which emergencies the city is exposed to yet, by need. A service opens
+   * with the city's level (see `tech.ts`), and a fire that breaks out before
+   * there is any possibility of a fire station is not a challenge, it is a
+   * building lost for nothing -- so fires start when the fire service can be
+   * built, crime when the police can, and so on. Bins and bodies are always on.
+   * All on by default, for a simulation with no career (the tests); the game
+   * sets them from the level.
+   */
+  readonly exposed = [true, true, true, true, true];
+
+  /** The open emergencies, refreshed with the fires. */
+  readonly incidents: IncidentView = {
+    count: 0,
+    kind: new Uint8Array(MAX_INCIDENTS),
+    state: new Uint8Array(MAX_INCIDENTS),
+    place: new Int32Array(MAX_INCIDENTS),
+    x: new Float32Array(MAX_INCIDENTS),
+    z: new Float32Array(MAX_INCIDENTS),
+    lift: new Float32Array(MAX_INCIDENTS),
+    lane: new Int32Array(MAX_INCIDENTS),
+    age: new Float32Array(MAX_INCIDENTS),
+  };
+
+  /** Closed calls still being shown, until their crew has been and gone. */
+  private scenes: Scene[] = [];
+
+  /** Emergencies opened and closed since the interface last took them. */
+  private happened: Happening[] = [];
+
+  /** Takes what has happened since the last call. */
+  takeHappenings(): Happening[] {
+    const out = this.happened;
+    this.happened = [];
+    return out;
+  }
+
+  private tell(kind: number, place: number, what: Happening['what']): void {
+    if (kind > Need.MEDICAL) return;
+    if (this.happened.length >= 64) this.happened.shift();
+    this.happened.push({ kind, place, what });
+  }
 
   /**
    * Where the city is on fire, for the frame to draw.
@@ -358,7 +448,64 @@ export class Dispatch {
       b.seed[n] = r * 2654435761;
       n++;
     }
+    // Scenes whose call has closed: still smoking while the engine is on its
+    // way and for a while after, a fire that took the building for longer.
+    const live = this.traffic.table.live;
+    const role = this.traffic.col.role;
+    this.scenes = this.scenes.filter((sc) => {
+      if (this.places.live[sc.place] === 0) return false;
+      // Its own vehicle, not a later one that was given the same row.
+      const driving = sc.vehicle >= 0 && live[sc.vehicle] === 1 && role[sc.vehicle] === sc.kind + 1;
+      if (driving) sc.until = Math.max(sc.until, tick + LINGER);
+      else {
+        sc.vehicle = -1;
+        if (!sc.told) { sc.told = true; this.tell(sc.kind, sc.place, 'answered'); }
+      }
+      return tick < sc.until;
+    });
+    for (const sc of this.scenes) {
+      if (sc.kind !== Need.FIRE || n >= MAX_BLAZES) continue;
+      const p = sc.place;
+      b.x[n] = this.places.col.x[p];
+      b.z[n] = this.places.col.z[p];
+      b.age[n] = LINGER;
+      b.lift[n] = Math.max(1.5, (ASSETS[this.places.col.proto[p]]?.height ?? 6) * 0.92);
+      b.seed[n] = p * 2654435761;
+      n++;
+    }
     b.count = n;
+
+    const iv = this.incidents;
+    let m = 0;
+    for (let r = 0; r < this.table.bound && m < MAX_INCIDENTS; r++) {
+      if (this.table.live[r] === 0 || c.kind[r] > Need.MEDICAL) continue;
+      const p = c.place[r];
+      if (p < 0) continue;
+      iv.kind[m] = c.kind[r];
+      iv.state[m] = c.state[r];
+      iv.place[m] = p;
+      iv.x[m] = this.places.col.x[p];
+      iv.z[m] = this.places.col.z[p];
+      iv.lift[m] = Math.max(4, (ASSETS[this.places.col.proto[p]]?.height ?? 6) + 3);
+      iv.lane[m] = this.places.col.lane[p];
+      iv.age[m] = Math.max(0, tick - c.raised[r]);
+      m++;
+    }
+    for (const sc of this.scenes) {
+      if (m >= MAX_INCIDENTS) break;
+      const p = sc.place;
+      iv.kind[m] = sc.kind;
+      // Still on the way, or there.
+      iv.state[m] = sc.vehicle >= 0 ? State.COMING : State.WORKING;
+      iv.place[m] = p;
+      iv.x[m] = this.places.col.x[p];
+      iv.z[m] = this.places.col.z[p];
+      iv.lift[m] = Math.max(4, (ASSETS[this.places.col.proto[p]]?.height ?? 6) + 3);
+      iv.lane[m] = this.places.col.lane[p];
+      iv.age[m] = LINGER * 4;
+      m++;
+    }
+    iv.count = m;
   }
   private readonly rng: Rng;
 
@@ -434,9 +581,9 @@ export class Dispatch {
    */
   raise(days: number): void {
     if (days <= 0) return;
-    this.fires(days);
-    this.crimes(days);
-    this.calls(days);
+    if (this.exposed[Need.FIRE]) this.fires(days);
+    if (this.exposed[Need.CRIME]) this.crimes(days);
+    if (this.exposed[Need.MEDICAL]) this.calls(days);
     this.bins();
     this.bodies();
   }
@@ -611,6 +758,8 @@ export class Dispatch {
     c.due[r] = this.clock.tick + Math.max(1, Math.ceil(NEEDS[kind].patience / 96));
     c.station[r] = -1;
     c.vehicle[r] = -1;
+    c.lost[r] = 0;
+    this.tell(kind, place, 'raised');
   }
 
   // ---- dispatching --------------------------------------------------------
@@ -692,6 +841,7 @@ export class Dispatch {
     const v = this.traffic.spawn(station, spec.vehicle, Driver.PUSHY, from, h, 0);
     if (v < 0) { this.router.release(h); return -1; }
     this.traffic.col.job[v] = this.table.handle(r);
+    this.traffic.col.role[v] = c.kind[r] + 1;
     c.vehicle[r] = v;
     this.vehicles++;
     return seconds > 0 ? seconds : -1;
@@ -902,6 +1052,8 @@ export class Dispatch {
     // the vehicle is its own and gives the route back -- an arrival nobody claims
     // would sit on the road holding a path in the arena forever.
     this.homeward.add(v);
+    // Still a fire engine on the way home, just not in a hurry.
+    this.traffic.col.role[v] = c.kind[r] + 1;
     this.vehicles++;
   }
 
@@ -910,6 +1062,8 @@ export class Dispatch {
     const c = this.table.col;
     const kind = c.kind[r];
     this.stats.missed[kind]++;
+    c.lost[r] = 1;
+    this.tell(kind, c.place[r], 'missed');
     this.hurt(c.place[r], kind);
     // A medical call nobody answered is a death, and it has to be a death in the
     // population rather than a number in a panel -- otherwise a city with no
@@ -948,6 +1102,16 @@ export class Dispatch {
   private close(r: number, answered: boolean): void {
     void answered;
     const c = this.table.col;
+    // The scene outlives the call; see LINGER.
+    if (c.kind[r] <= Need.MEDICAL && this.scenes.length < MAX_INCIDENTS) {
+      this.scenes.push({
+        kind: c.kind[r], place: c.place[r], vehicle: c.vehicle[r],
+        until: this.clock.tick + LINGER, lost: c.lost[r] === 1,
+        // The good news waits for the crew to be seen arriving.
+        told: c.lost[r] === 1 || c.vehicle[r] < 0,
+      });
+      if (c.lost[r] === 0 && c.vehicle[r] < 0 && c.station[r] >= 0) this.tell(c.kind[r], c.place[r], 'answered');
+    }
     this.openKeys.delete(c.place[r] * NEEDS_COUNT + c.kind[r]);
     this.freeStation(r);
     this.table.remove(r);

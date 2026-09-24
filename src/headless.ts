@@ -1311,6 +1311,26 @@ Promise<{ pixels: number[]; movers: string }> {
     live.speed = 1;
     live.tap(null);
     live.levelCard.dismissAll();
+  } else if (panel === 'incidents') {
+    // A fire, a break-in and a medical call at the three buildings nearest
+    // the middle of the view, then a few seconds of play so the crews set off.
+    const pc = sim.places.col;
+    const fx = camera.focus[0], fz = camera.focus[2];
+    const near: number[] = [];
+    for (let p = 0; p < sim.places.count; p++) {
+      if (sim.places.live[p] === 0) continue;
+      near.push(p);
+    }
+    near.sort((a, b) => Math.hypot(pc.x[a] - fx, pc.z[a] - fz) - Math.hypot(pc.x[b] - fx, pc.z[b] - fz));
+    const open = (sim.dispatch as unknown as { open(k: number, p: number): void }).open.bind(sim.dispatch);
+    open(0, near[2]);
+    open(1, near[9]);
+    open(2, near[16]);
+    for (let i = 0; i < 60; i++) live.update(1 / 20, performance.now() + i * 50);
+    const iv = sim.dispatch.incidents;
+    const shown = document.querySelectorAll('.mr-incident').length;
+    console.log(`incidents ${iv.count} kinds ${Array.from(iv.kind.slice(0, iv.count))}`
+      + ` states ${Array.from(iv.state.slice(0, iv.count))} markers ${shown}`);
   } else if (panel === 'policies') {
     // The budget view with the ordinance list open, which is the one panel in
     // the game that cannot be photographed by pointing the camera at a city.
