@@ -1267,16 +1267,11 @@ export class Renderer {
     this.camera.obstacle = (x, z) => {
       const gg = this.roofGrid;
       const cx = Math.floor(x / 8 + gg / 2), cz = Math.floor(z / 8 + gg / 2);
-      let top = -Infinity;
-      for (let j = -1; j <= 1; j++) {
-        for (let i = -1; i <= 1; i++) {
-          const xx = cx + i, zz = cz + j;
-          if (xx < 0 || zz < 0 || xx >= gg || zz >= gg) continue;
-          const v = this.roofs[zz * gg + xx];
-          if (v > top) top = v;
-        }
-      }
-      return top;
+      // The cell the eye is over, not its neighbours: the point is to keep
+      // the eye out of a building, and a wider sample tipped the camera
+      // steeply down whenever it came near a tall one.
+      if (cx < 0 || cz < 0 || cx >= gg || cz >= gg) return -Infinity;
+      return this.roofs[cz * gg + cx];
     };
   }
 

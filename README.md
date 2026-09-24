@@ -1,30 +1,42 @@
-# citysim
+# Meridian
 
-A city-building simulation engine on WebGPU. Written in TypeScript, no
-rendering framework — the renderer is hand-written because a generic scene
-graph is the wrong shape for "half a million static instanced objects".
+A city builder on WebGPU. Draw the roads and zone the land; the people who
+arrive decide the rest. Written in TypeScript with a hand-written renderer,
+because a generic scene graph is the wrong shape for "a hundred thousand
+instanced buildings, culled on the GPU every frame".
 
-**Plan and budgets:** [`planning/CITY-SIM-DESIGN.md`](planning/CITY-SIM-DESIGN.md)
-— performance hard caps, hierarchical pathfinding, agent tiering, the asset
-pack pipeline, and the milestone roadmap.
+**Plan and budgets:** [`planning/CITY-SIM-DESIGN.md`](planning/CITY-SIM-DESIGN.md).
+**Asset viewer:** [`/asset.html`](https://maksimsysak3-ui.github.io/Subnautica-2/asset.html).
 
-**Status: M0 step 4 — the scaling test.** There is no game yet. What exists is
-a 6 km × 6 km heightfield in 576 frustum-culled chunks, **~102,000 buildings**
-placed on it in three passes by footprint size, and a compute shader that culls
-and picks a level of detail for every one of them each frame, feeding two
-indirect draws. The CPU never learns how many survived.
+### What is in it
 
-Add `?bench` to the URL to fly a fixed route and print frame times; `?lite`
-builds a small world for weak GPUs and for CI.
+- **A real simulation.** Citizens with homes, jobs and routines; traffic on a
+  lane graph with junctions; power, water, sewage and rubbish on networks
+  that follow the streets; buildings that grow, level up, fail and get
+  condemned when nobody supplies them; an economy with taxes, ordinances,
+  trade and a block grant that tapers off as the town finds its feet.
+- **A linear HDR renderer.** Every surface writes linear light; one post
+  chain is the camera: screen-space ambient occlusion, a six-level bloom,
+  the ACES filmic curve, a time-of-day grade, FXAA and a light sharpen. Sun
+  shadows fitted to the view, a lit cloud deck, a day and night cycle in
+  which windows, signs, lamps and headlights are real emissive light.
+- **Five hundred and forty assets**, all but the imported vehicles generated rather than
+  modelled, each with three levels of detail and baked occlusion. The tall
+  stock is built from single forms -- tapering glass shafts, a twisting
+  tower, rippling balcony towers, masonry pier towers whose piers rise past
+  the roof -- rather than boxes stacked on boxes.
+- **Streets that look lived in**: kerbs, footways, crossings, lamp columns
+  and avenue trees planted down every footway wide enough to take one,
+  always clear of the carriageway.
+- **Guided start**: a First Steps card walks a new town through housing,
+  power, water, sewage and work, and the city says when homes are going
+  without supply.
+- **Feel**: an eased, cursor-anchored zoom and momentum on the camera, which
+  also keeps itself out of buildings; a synthesised soundscape of wind,
+  town hum, traffic, rain, birds and crickets; sounds for building.
 
-**Asset viewer at [`/asset.html`](https://maksimsysak3-ui.github.io/Subnautica-2/asset.html).**
-Four hundred assets: the zoned density ladder in five regional themes, eleven
-branches of city service, the road and bridge kit, the imported vehicle fleet,
-and a **signature** tab of forty-five landmarks — three residential, two
-commercial, two office and two industrial in each theme, each of them one to a
-city and designed rather than re-skinned.
-
----
+Needs Chrome/Edge 113+, Safari 18+, or Firefox 141+ on Windows. Anything else
+gets an explanation instead of a blank page.
 
 ## Play it
 
@@ -48,7 +60,10 @@ npm run dev        # http://localhost:5173
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | typecheck, then every test below |
 | `npm run test:assets` | asset invariants: lot overflow, budget, LOD ladder |
+| `node tools/single-file.mjs index out.html` | the whole game as one self-contained HTML file |
 | `npm run test:frustum` | culling correctness, no GPU needed |
+| `npm run test:census` | every draw slice holds its instances; edits reserve what a fresh build does |
+| `npm run test:trees` | no street tree stands in, or spreads its crown over, a carriageway |
 | `npm run assets:sheet` | render every asset to one contact sheet |
 | `npm run test:gpu` | headless offscreen render test (needs Playwright + Chromium) |
 | `npm run test:deploy` | boots the built site under both Pages layouts, and from a stale cache |
@@ -57,16 +72,19 @@ npm run dev        # http://localhost:5173
 
 | | |
 |---|---|
-| drag | pan — the ground stays under the cursor |
+| drag | pan -- the ground stays under the cursor, and carries on if you let go moving |
 | right-drag / shift-drag | orbit |
-| wheel / pinch | zoom toward the cursor |
+| wheel / pinch | zoom toward the cursor, eased |
 | W A S D / arrows | pan |
 | Q E | rotate · R F pitch · +/− zoom |
+| Space, 1–4 | pause, and the three speeds |
 | <kbd>`</kbd> | log console |
 
-`?bench` runs the benchmark, `?lite` builds a reduced world.
+On the title screen, the arrow keys move through the menu, Enter chooses and
+Esc goes back.
 
-The overlay top-left is the frame budget readout.
+`?bench` flies a fixed route and prints frame times; `?lite` builds a reduced
+world for weak GPUs and for CI.
 
 ## Publishing
 
@@ -134,79 +152,33 @@ src/
     frustum.ts         plane extraction + AABB test
     profiler.ts        GPU timestamp queries
     renderer.ts        frame loop, compute cull, the single render pass
-    shaders/           common, terrain, box (two LODs), cull (compute)
+    post.ts            the camera: AO, bloom chain, ACES, grade, FXAA
+    shaders/           surfaces write linear light; post.wgsl tonemaps once
   bench.ts             fixed-route benchmark behind ?bench
   assets/
     mesh.ts            boxes, gables, cylinders, windows; bakes vertex AO
     types.ts           asset descriptor: footprint, sim costs, LOD builder
     generators/        residential, commercial, industrial, services, fleet
     generators/signature-*  the landmarks: nine per theme, plus their own kit
+    generators/towers.ts    single-form towers on a lofting kit: taper, twist, wave, piers
   asset-viewer.ts      the /asset.html preview page
-  input/controls.ts    pointer, wheel, touch and keyboard camera control
+  input/controls.ts    pointer, wheel, touch and keyboard; eased zoom, momentum
   math/m4.ts           mat4 / vec3, column-major, allocation-free
   sim/
     config.ts          world size; ?lite shrinks it
     hash.ts            deterministic hash, value noise, fBm
     terrain.ts         heightfield and the chunked mesh built from it
-    city.ts            deterministic placeholder city layout
+    city.ts            the spawner: frontages, lots, planting, avenue trees
+    agents/            the simulation: people, traffic, utilities, economy, growth
   ui/
     stats.ts           frame budget overlay
     fatal.ts           "your browser can't run this" screen
+    theme.ts           typefaces, tokens and the title-screen styles
+    menu.ts            loading screen and title
+    first-steps.ts     the guided start
+    ambience.ts        the synthesised soundscape
   util/log.ts          leveled log + in-page console
 tools/                 headless GPU and deployment tests
 planning/              design docs
 docs/                  built site (committed, served by Pages)
 ```
-
-## Why the first commit looks like this
-
-The triangle is throwaway. The other ~600 lines are not:
-
-- **`caps.ts` asks for raised limits.** WebGPU hands you conservative defaults
-  unless you request more, and requesting more than the adapter has is a hard
-  failure — so it asks for `min(want, have)` on every limit and warns when a
-  machine falls under the design budgets.
-- **`device.ts` recovers from device loss.** Drivers time out, laptops sleep,
-  browsers reset the GPU process under memory pressure. This is a program
-  people leave open for hours; losing the device *will* happen and a permanent
-  black canvas is not an acceptable answer.
-- **Resize uses `device-pixel-content-box`.** The difference between a crisp
-  canvas and a subtly blurry one under fractional display scaling.
-- **Boxes are drawn from a storage buffer indexed by `instance_index`.** That
-  is exactly how buildings get drawn later — one call, N instances. Proving the
-  path now is cheaper than discovering it is broken at 100k.
-- **The grid is procedural, not geometry.** Line width comes from screen-space
-  derivatives, so a line stays one pixel wide from 8 m up to 1200 m. Real line
-  geometry would be thousands of primitives that alias into moiré on zoom-out.
-- **Panning and zooming share one primitive:** where the cursor ray meets the
-  ground. That same unprojection becomes road dragging, zoning, and bulldoze.
-- **Terrain chunks share one vertex buffer and one index buffer.** Chunk
-  topology is identical, so indices are written once and each chunk draws with
-  its own `baseVertex` — the layout that makes multi-draw indirect possible
-  later without reshuffling anything.
-- **The grid fades by screen density.** Correct lines are not enough: at
-  altitude the 8 m cells are individually right and collectively grey mush, so
-  each spacing fades out as its cells approach pixel size.
-- **Culling and LOD run on the GPU.** At 100k instances, culling on the CPU
-  means walking 100k structs in JavaScript every frame and uploading the
-  survivors — megabytes of traffic to save a draw call. A compute pass appends
-  survivors to two lists and writes indirect draw args instead.
-- **Assets are generators, not files.** LOD1 is the same generator with the
-  detail flags off, not a decimated copy — the generator knows which geometry
-  is silhouette and which is trim, where a decimator has to guess.
-- **Occlusion is baked per vertex, by ray marching a voxelisation of the asset
-  itself.** Dark inside corners, dark where a wall meets the ground, dark under
-  eaves and balconies. It is most of the difference between a building and a
-  box, and it costs a few milliseconds once at build time.
-- **Buildings are placed largest-footprint-first.** A 150 m tower on one 8 m
-  cell is a 1:19 needle; on a 3×3 lot it is 1:6, which is what real towers are.
-  Proportion is most of what makes a skyline read as a city.
-- **One `beginRenderPass` per frame, pipelines built once.** The two rules the
-  renderer will be held to forever, established while there is nothing to
-  refactor.
-
-## Next
-
-M1 — roads. Splines, intersections, and the lane graph that pathfinding will
-run on. Per the design doc that is the subsystem most likely to eat the
-schedule, so it gets its own milestone.

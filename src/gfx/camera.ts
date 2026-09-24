@@ -89,7 +89,7 @@ export class Camera {
       const probe = Math.cos(this.pitch) * this.distance;
       const ex = this.focus[0] + probe * Math.sin(this.yaw);
       const ez = this.focus[2] + probe * Math.cos(this.yaw);
-      const need = this.obstacle(ex, ez) + 4 - this.focus[1];
+      const need = this.obstacle(ex, ez) + 2 - this.focus[1];
       if (Number.isFinite(need) && need > this.distance * Math.sin(this.pitch)) {
         const want = Math.asin(Math.min(1, need / this.distance));
         this.pitch = clamp(Math.max(this.pitch, want), LIMITS.minPitch, LIMITS.maxPitch);
