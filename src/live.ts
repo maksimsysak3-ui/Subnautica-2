@@ -544,6 +544,9 @@ export class LiveCity {
 
   /** How many people live in the city, or zero before there is one. */
   get population(): number { return this.sim?.people.population ?? 0; }
+  /** How the city feels, 0 to 1, for the score. */
+  get happiness(): number { return this.sim?.people.happiness ?? 0.6; }
+  get inDebt(): boolean { return this.renderer.world.budget.balance < 0; }
 
   /** Whether the game is being played, as opposed to sitting on the menu. */
   set playing(on: boolean) {

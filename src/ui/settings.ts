@@ -17,6 +17,7 @@
  * once on their machine and it stays that way.
  */
 
+import { music } from './music';
 import { SKIN, css, panel, rule, key as keyStyle, setKey } from './skin';
 import { setVolume, setMuted, click as clickSound } from './sound';
 
@@ -44,6 +45,7 @@ export interface SettingsValues {
   uiScale: number;
   // ---- sound ----
   volume: number;
+  music: number;
   muted: boolean;
 }
 
@@ -52,7 +54,7 @@ export const DEFAULTS: SettingsValues = {
   vignette: true, grass: 1, autoScale: true, ao: true,
   movers: 1, weather: true,
   tooltips: true, bubbles: true, notices: true, uiScale: 1,
-  volume: 0.7, muted: false,
+  volume: 0.7, music: 0.5, muted: false,
 };
 
 /** What the panel changes, and what the game does about each change. */
@@ -170,6 +172,7 @@ export class Settings {
   apply(): void {
     setVolume(this.values.volume);
     setMuted(this.values.muted);
+    music.setLevel(this.values.music);
     document.documentElement.style.setProperty('--ui-scale', String(this.values.uiScale));
     this.hooks.apply(this.values);
   }
@@ -270,6 +273,8 @@ export class Settings {
     } else {
       out.push(this.slider('Volume', 'Everything the game plays.',
         v.volume, (n) => { v.volume = n; }));
+      out.push(this.slider('Music', 'The score, under everything else. Zero turns it off.',
+        v.music, (n) => { v.music = n; }));
       out.push(this.toggle2('Mute', 'Silence, without forgetting the volume.',
         v.muted, (on) => { v.muted = on; }));
     }

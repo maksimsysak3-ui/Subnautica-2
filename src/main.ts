@@ -7,6 +7,7 @@
  * exists to hide a problem in.
  */
 
+import { music } from './ui/music';
 import { useDifficulty } from './sim/difficulty';
 import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
@@ -149,6 +150,7 @@ async function boot(): Promise<void> {
   const menu = new Menu(overlay, {
     onNew: (setup) => {
       ambience.start();
+      music.start();
       // The rules first: the new world's treasury, and the systems the
       // simulation builds next, read them.
       useDifficulty(setup.difficulty);
@@ -159,6 +161,7 @@ async function boot(): Promise<void> {
     },
     onLoad: (world, name) => {
       ambience.start();
+      music.start();
       useDifficulty(world.difficulty);
       live.reset();
       renderer.useWorld(world);
@@ -332,6 +335,12 @@ async function boot(): Promise<void> {
       night: renderer.night,
       running: !cinematic && rate > 0,
     }, dt);
+    music.update({
+      night: renderer.night,
+      happiness: cinematic ? 0.8 : live.happiness,
+      debt: !cinematic && live.inDebt,
+      running: cinematic || rate > 0,
+    });
     benchmark?.update(dt);
   });
   canvas.focus();
