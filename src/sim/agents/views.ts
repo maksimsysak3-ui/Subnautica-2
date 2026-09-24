@@ -619,7 +619,7 @@ export class Views {
         // Each source as a share of the largest, so the bars compare with each
         // other rather than with a number nobody chose.
         const top = Math.max(1, l.residential, l.commercial, l.industrial,
-          l.office, l.exports, l.fares, l.services, l.transit, l.roads, l.imports);
+          l.office, l.exports, l.fares, l.resources, l.services, l.transit, l.roads, l.imports);
         const trade = l.goodsMade - l.goodsWanted;
         const rows: Stat[] = [
           line('In the bank', cash(b.balance), -1, b.balance < 0),
@@ -643,6 +643,12 @@ export class Views {
             cash(trade >= 0 ? l.exports : -l.imports),
             (trade >= 0 ? l.exports : l.imports) / top, trade < 0),
           line('Fares', cash(l.fares), l.fares / top),
+        );
+        if (l.resources > 0 || l.industryUpkeep > 0) {
+          rows.push(line('Natural resources', cash(l.resources), l.resources / top),
+            line('Industry upkeep', cash(-l.industryUpkeep), l.industryUpkeep / top, true));
+        }
+        rows.push(
           line('Service upkeep', cash(-l.services), l.services / top, true),
           line('Transit fleets', cash(-l.transit), l.transit / top, l.transit > 0),
           line('Road upkeep', cash(-l.roads), l.roads / top, l.roads > 0),

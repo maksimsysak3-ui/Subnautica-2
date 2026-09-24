@@ -319,6 +319,12 @@ export class InfoViews {
   /** Which view is open, or `View.NONE`. */
   get view(): number { return this.current; }
 
+  /** Opens a view from outside the rail -- or repaints it if it is open. */
+  open(id: number): void {
+    if (id === this.current) { this.redraw(); return; }
+    this.select(id);
+  }
+
   /** Repaints the open view's card and map, after its table entry changed. */
   redraw(): void {
     const id = this.current;

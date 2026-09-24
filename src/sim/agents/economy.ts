@@ -45,6 +45,7 @@
  * totals somebody else already keeps.
  */
 
+import type { Industry } from '../industry';
 import { RULES } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
 import { Places, Purpose } from './places';
@@ -86,6 +87,8 @@ const GOODS_PER_SHOP_JOB = 480;
 
 /** A week's output per filled industrial job, in the same units as goods. */
 const OUTPUT_PER_WORKS_JOB = 660;
+/** Goods a unit of locally supplied raw material counts as: a tenth of a works job's week. */
+const GOODS_PER_LOCAL_UNIT = 60;
 
 /**
  * What the industrial rate is charged on, per filled job: less than the
@@ -140,7 +143,7 @@ const FARE = 2.4;
  * city's own buildings are the city's bill -- a warehouse's running costs are
  * its owner's, and they are already priced into what it produces.
  */
-const UPKEEP_PER_UNIT = 45;
+export const UPKEEP_PER_UNIT = 45;
 
 /** And the share of that a building costs even with nobody working in it. */
 const UPKEEP_IDLE = 0.45;
@@ -198,8 +201,12 @@ export interface Ledger {
   office: number;
   exports: number;
   fares: number;
+  /** What the industry headquarters sell, shipped out and to the city's own works. */
+  resources: number;
   /** Weekly money out, by kind. */
   services: number;
+  /** Running the industry headquarters. */
+  industryUpkeep: number;
   transit: number;
   roads: number;
   imports: number;
@@ -353,9 +360,12 @@ const GRANT_UNTIL = 1800;
 const DAYS_BETWEEN_EVENTS = 6;
 
 export class Economy {
+  /** The industry headquarters, whose sales and upkeep are lines in the ledger. */
+  industry: Industry | null = null;
   readonly report: Ledger = {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
+    resources: 0, industryUpkeep: 0,
     services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
     policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
@@ -439,7 +449,10 @@ export class Economy {
     const wages = shopJobs * WAGE[Purpose.SHOP] + officeJobs * WAGE[Purpose.OFFICE]
       + worksJobs * WAGE[Purpose.WORKS] + serviceJobs * WAGE[Purpose.SERVICE];
     const sales = shopJobs * SALES_PER_SHOP_JOB;
-    const output = worksJobs * OUTPUT_PER_WORKS_JOB;
+    // Raw materials a headquarters sells to the city's own works count as goods
+    // made here: they are what the works would otherwise have had shipped in.
+    const output = worksJobs * OUTPUT_PER_WORKS_JOB
+      + (this.industry?.localUnits ?? 0) * GOODS_PER_LOCAL_UNIT;
     const industry = worksJobs * INDUSTRY_TAXABLE_PER_JOB;
     const residents = this.people.population * RESIDENT_TAXABLE + wages * WAGE_SHARE;
     const billings = officeJobs * VALUE_PER_OFFICE_JOB;
@@ -526,10 +539,12 @@ export class Economy {
     r.grant = pop >= until ? 0
       : RULES.grantWeekly * (GRANT_WEEKLY / 10000) * (1 - pop / until) ** 1.6;
 
+    r.resources = this.industry?.weekly ?? 0;
+    r.industryUpkeep = this.industry?.upkeep ?? 0;
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
-      + r.exports + r.fares;
+      + r.exports + r.fares + r.resources;
     r.spending = r.services + r.transit + r.roads + r.imports + r.interest
-      + r.policies;
+      + r.policies + r.industryUpkeep;
     r.net = r.income - r.spending;
     r.weeksLeft = r.net >= 0 ? Infinity
       : Math.max(0, (b.balance + OVERDRAFT) / -r.net);

@@ -76,6 +76,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
   // buildings are placed one at a time exactly like services are, so they
   // need a face for the same reason.
   const placeable = all.filter((a) => a.zone === 'service' || a.signature === true
+    || a.id.startsWith('spec.hq.')
     || (a.zone === 'nature' && /oak|pine|birch|maple|plane|willow/.test(a.id)));
 
   // One specimen per zone and density, for the zoning buttons. A zone button
@@ -172,7 +173,7 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
 
   const shadowTex = device.createTexture({ size: [SHADOW, SHADOW], format: 'depth32float',
     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-  const sceneBuf = device.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const sceneBuf = device.createBuffer({ size: 272, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const shadowBg = device.createBindGroup({ layout: shadowLayout,
     entries: [{ binding: 0, resource: { buffer: sceneBuf } }] });
   const bg = device.createBindGroup({ layout, entries: [
@@ -296,7 +297,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     const sunViewProj = mul(ortho(-extent, extent, -extent, extent, 0.5, extent * 6),
       look(sunEye, centre, [0, 1, 0]));
 
-    const scene = new Float32Array(64);   // 256 bytes: the last vec4 is the weather, left at zero for a clear day
+    // 272 bytes: the weather (zero, a clear day), then the view vector -- zero,
+    // which the asset shader reads as "straight to the display", no scene grade.
+    const scene = new Float32Array(68);
     scene.set(viewProj, 0);
     scene.set(sunViewProj, 16);
     scene.set([eye[0], eye[1], eye[2], 0], 32);

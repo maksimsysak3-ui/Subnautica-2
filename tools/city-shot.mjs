@@ -41,6 +41,7 @@ const cfg = {
   edit: !!process.env.EDIT,
   empty: !!process.env.EMPTY,
   map: process.env.MAP || '',
+  industry: process.env.INDUSTRY || '',
   lite: !!process.env.LITE,
   view: process.env.VIEW || '',
 };

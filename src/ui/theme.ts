@@ -170,6 +170,27 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   color: var(--ink); border-color: color-mix(in srgb, var(--tone) 60%, transparent);
   background: color-mix(in srgb, var(--tone) 16%, transparent);
 }
+.mr-ind { --tone: #f4b54a; display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.08); }
+.mr-ind-head { display: flex; align-items: center; gap: 8px; font: 700 11px/1 var(--label);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--tone); }
+.mr-ind-ico { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+  background: color-mix(in srgb, var(--tone) 18%, transparent); }
+.mr-ind-figure { display: flex; align-items: baseline; gap: 8px; }
+.mr-ind-figure b { font: 800 28px/1 var(--display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.mr-ind-figure span { font: 600 12px/1 var(--ui); color: ${BRAND.dim}; }
+.mr-ind-rows { display: flex; flex-direction: column; gap: 4px; }
+.mr-ind-row { display: flex; justify-content: space-between; gap: 10px; font: 500 12px/1.35 var(--ui); color: ${BRAND.dim}; }
+.mr-ind-row b { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.mr-ind-row.is-warn b { color: #ff9a6a; }
+.mr-ind-split { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  font: 600 10.5px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; color: ${BRAND.dim}; }
+.mr-ind-split input { accent-color: var(--tone); width: 100%; }
+.mr-ind-splitsay { font: 500 11.5px/1.4 var(--ui); color: ${BRAND.dim}; }
+.mr-ind-redraw { height: 32px; border-radius: 9px; cursor: pointer; font: 700 12px/1 var(--ui);
+  color: var(--ink); background: color-mix(in srgb, var(--tone) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent); }
+.mr-ind-redraw:hover { background: color-mix(in srgb, var(--tone) 28%, transparent); }
 .mr-section-label {
   font: 700 11px/1 var(--label); letter-spacing: .16em; text-transform: uppercase; color: var(--amber);
   margin-bottom: 8px;

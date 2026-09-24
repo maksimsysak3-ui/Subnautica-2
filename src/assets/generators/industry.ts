@@ -51,21 +51,6 @@ function office(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number, 
   }
 }
 
-/** A hedge: a run of overlapping clumps of uneven height, not a green box. */
-function hedge(m: MeshBuilder, a: Vec3, b: Vec3, seed: number, lite: boolean): void {
-  const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
-  const n = Math.max(2, Math.round(len / (lite ? 4.5 : 2.6)));
-  m.painted(TINT.GREEN_DARK, () => {
-    for (let i = 0; i < n; i++) {
-      const t = (i + 0.5) / n;
-      const x = a[0] + (b[0] - a[0]) * t, z = a[2] + (b[2] - a[2]) * t;
-      const r = 1.1 + (Math.sin(seed + i * 2.7) * 0.5 + 0.5) * 0.7;
-      const h = 1.3 + (Math.sin(seed * 1.7 + i * 1.3) * 0.5 + 0.5) * 1.1;
-      m.cone(x, z, r, r * 0.55, 0.05, h, lite ? 5 : 7, MAT.FOLIAGE);
-    }
-  });
-}
-
 /** Round bales, lying on their sides along a line. */
 function bales(m: MeshBuilder, x: number, z: number, n: number, lite: boolean): void {
   m.painted(TINT.BRAND, () => {
@@ -497,23 +482,34 @@ function fishHq(lod: number): MeshBuilder {
 
 // ------------------------------------------------------------------ props
 
-/** Wheat standing ripe: gold, with tramlines, a headland and a hedge. */
+/**
+ * Wheat standing ripe, edge to edge: tiles of it butt together into a whole
+ * field, so there is no headland or hedge on the tile itself -- those made
+ * every twenty-four metres of a farm read as a separate mat. Tramlines run
+ * across it at the spacing a real sprayer leaves.
+ */
 function wheatProp(lod: number): MeshBuilder {
   const m = new MeshBuilder();
-  const medium = lod < 2, fine = lod < 1;
+  const medium = lod < 2;
   const h = 12;
-  m.painted(TINT.GREEN, () => m.box([-h, 0.0005, -h], [h, 0.06, h], MAT.GROUND));
-  // The crop in three lands between two tramlines, each at its own height so
-  // the light breaks across the field.
   m.painted(TINT.BRAND, () => {
-    const lands: Array<[number, number, number]> = [[-10.5, -4.0, 0.92], [-3.4, 3.4, 0.98], [4.0, 10.5, 0.9]];
-    for (const [z0, z1, top] of lands) m.box([-10.5, 0.06, z0], [10.5, top, z1], MAT.GROUND);
+    if (!medium) { m.box([-h, 0.0005, -h], [h, 0.9, h], MAT.GROUND); return; }
+    const lands: Array<[number, number, number]> = [[-h, -0.4, 0.93], [0.4, h, 0.97]];
+    for (const [z0, z1, top] of lands) m.box([-h, 0.0005, z0], [h, top, z1], MAT.GROUND);
   });
-  if (medium) hedge(m, [-h + 2, 0, h - 2], [h - 2, 0, h - 2], 3.1, !fine);
-  if (fine) {
-    hedge(m, [h - 2, 0, -h + 2], [h - 2, 0, h - 3.5], 5.3, false);
-    tree(m, 8.6, 8.4, 9, 2.8);
-  }
+  if (medium) m.painted(TINT.WOOD, () => m.box([-h, 0.0005, -0.4], [h, 0.08, 0.4], MAT.GROUND));
+  return m;
+}
+
+/** Stubble after the combine: pale, short, with the straw in swaths. */
+function stubbleProp(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2;
+  const h = 12;
+  m.painted(TINT.BRAND, () => {
+    m.box([-h, 0.0005, -h], [h, 0.12, h], MAT.GROUND);
+    if (medium) for (let i = 0; i < 4; i++) m.box([-h, 0.12, -9.5 + i * 6], [h, 0.38, -8.7 + i * 6], MAT.FOLIAGE);
+  });
   return m;
 }
 
@@ -522,17 +518,16 @@ function harvestProp(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const medium = lod < 2, fine = lod < 1;
   const h = 12;
-  m.painted(TINT.GREEN, () => m.box([-h, 0.0005, -h], [h, 0.06, h], MAT.GROUND));
   m.painted(TINT.BRAND, () => {
-    m.box([-10.5, 0.06, -10.5], [10.5, 0.16, -1.5], MAT.GROUND);      // stubble
-    m.box([-10.5, 0.06, 1.8], [10.5, 0.95, 10.5], MAT.GROUND);        // standing
+    m.box([-h, 0.0005, -h], [h, 0.12, -1.5], MAT.GROUND);            // stubble
+    m.box([-h, 0.0005, 1.8], [h, 0.95, h], MAT.GROUND);              // standing
+    m.box([-h, 0.0005, -1.5], [h, 0.1, 1.8], MAT.GROUND);
   });
   if (medium) {
     // Swaths of straw in lines across the stubble.
     m.painted(TINT.BRAND, () => {
-      for (let i = 0; i < 3; i++) m.box([-10, 0.16, -9 + i * 3], [10, 0.4, -8.2 + i * 3], MAT.FOLIAGE);
+      for (let i = 0; i < 3; i++) m.box([-h, 0.12, -9 + i * 3], [h, 0.38, -8.2 + i * 3], MAT.FOLIAGE);
     });
-    hedge(m, [-h + 2, 0, h - 2], [h - 2, 0, h - 2], 7.7, !fine);
   }
   paintedAs(TINT.GREEN_DARK, () => {
     if (medium) combine(m, -2, 0.2, 0, true);
@@ -550,12 +545,12 @@ function rowsProp(lod: number): MeshBuilder {
   const medium = lod < 2, fine = lod < 1;
   const h = 12;
   m.painted(TINT.WOOD, () => m.box([-h, 0.0005, -h], [h, 0.07, h], MAT.GROUND));
-  const rows = medium ? 11 : 5;
+  const rows = medium ? 12 : 5;
   for (let i = 0; i < rows; i++) {
-    const rz = -10.4 + (i + 0.5) * (20.8 / rows);
+    const rz = -h + (i + 0.5) * ((2 * h) / rows);
     const segs = fine ? 3 : 1;
     for (let k = 0; k < segs; k++) {
-      const x0 = -10.5 + (k * 21) / segs, x1 = -10.5 + ((k + 1) * 21) / segs - (fine ? 0.4 : 0);
+      const x0 = -h + (k * 2 * h) / segs, x1 = -h + ((k + 1) * 2 * h) / segs - (fine ? 0.4 : 0);
       m.painted((k + i) % 2 === 0 ? TINT.GREEN : TINT.GREEN_DARK, () => {
         m.box([x0, 0.07, rz - 0.42], [x1, 0.42 + ((i * 7 + k * 3) % 4) * 0.05, rz + 0.42], MAT.FOLIAGE);
       });
@@ -564,13 +559,12 @@ function rowsProp(lod: number): MeshBuilder {
   if (fine) {
     // A linear irrigation boom on A-frame towers.
     m.painted(TINT.METAL_DARK, () => {
-      m.pipe([-11, 3.0, 1.1], [11, 3.0, 1.1], 0.12, MAT.METAL, 5);
+      m.pipe([-12, 3.0, 1.1], [12, 3.0, 1.1], 0.12, MAT.METAL, 5);
       for (const tx of [-10, -3.4, 3.4, 10]) {
         m.pipe([tx, 0.1, 0.1], [tx, 3.0, 1.1], 0.07, MAT.METAL, 4);
         m.pipe([tx, 0.1, 2.1], [tx, 3.0, 1.1], 0.07, MAT.METAL, 4);
       }
     });
-    hedge(m, [-h + 2, 0, -h + 2], [h - 2, 0, -h + 2], 9.1, false);
   }
   return m;
 }
@@ -582,20 +576,13 @@ function ploughProp(lod: number): MeshBuilder {
   const h = 12;
   m.painted(TINT.WOOD, () => {
     m.box([-h, 0.0005, -h], [h, 0.07, h], MAT.GROUND);
-    const n = medium ? 18 : 6;
+    const n = medium ? 20 : 6;
     for (let i = 0; i < n; i++) {
-      const rx = -10.6 + (i + 0.5) * (21.2 / n);
-      m.box([rx - 0.28, 0.07, -10.8], [rx + 0.28, 0.24, 10.8], MAT.GROUND);
+      const rx = -h + (i + 0.5) * ((2 * h) / n);
+      m.box([rx - 0.28, 0.07, -h], [rx + 0.28, 0.24, h], MAT.GROUND);
     }
   });
-  if (medium) {
-    bales(m, -7, 6.5, 4, !fine);
-    hedge(m, [-h + 2, 0, -h + 2], [-h + 2, 0, h - 2], 11.3, !fine);
-  }
-  if (fine) {
-    bales(m, -3, -5, 3, false);
-    tree(m, -8.4, -8.4, 10, 3.1);
-  }
+  if (fine) bales(m, -7, 6.5, 3, false);
   return m;
 }
 
@@ -664,6 +651,43 @@ function mineProp(lod: number): MeshBuilder {
     excavator(m, 7.2, 8.4, 3, true);
   }
   if (fine) haulTruck(m, -7.4, 8.6, 0, true, true);
+  return m;
+}
+
+/** The worked floor of an open-cast mine: ore-stained ground, haul tracks, a small heap. */
+function mineFloorProp(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2, fine = lod < 1;
+  const h = 12;
+  m.painted(TINT.ACCENT, () => m.box([-h, 0.0005, -h], [h, 0.1, h], MAT.GROUND));
+  if (medium) {
+    m.painted(TINT.WOOD, () => {
+      m.box([-h, 0.1, -2.2], [h, 0.16, 2.2], MAT.GROUND);                 // the haul road
+      m.cone(6.5, 7, 3.2, 0.6, 0.1, 2.2, 7, MAT.GROUND);
+    });
+    m.painted(TINT.SMOKE, () => m.cone(-7, -7.5, 2.6, 0.5, 0.1, 1.6, 7, MAT.STONE));
+  }
+  if (fine) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (const s of [-1, 1] as const) m.box([-h, 0.16, s * 1.1 - 0.15], [h, 0.18, s * 1.1 + 0.15], MAT.GROUND);
+    });
+  }
+  return m;
+}
+
+/** A quarry's floor: grey rock, rubble and cut blocks between the faces. */
+function quarryFloorProp(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2, fine = lod < 1;
+  const h = 12;
+  m.painted(TINT.SMOKE, () => m.box([-h, 0.0005, -h], [h, 0.1, h], MAT.GROUND));
+  if (medium) {
+    m.painted(TINT.ACCENT, () => m.box([-h, 0.1, -1.8], [h, 0.15, 1.8], MAT.GROUND));
+    m.cone(-6, 7, 2.4, 0.4, 0.1, 1.9, 7, MAT.STONE);
+  }
+  if (fine) {
+    for (let i = 0; i < 3; i++) m.box([4 + i * 2.4, 0.1, -8], [6 + i * 2.4, 1.1, -6.2], MAT.STONE);
+  }
   return m;
 }
 
@@ -747,35 +771,43 @@ const PROP = (id: string, name: string, build: (lod: number) => MeshBuilder, foo
   brand: brand(name, colour, accent), note, build,
 });
 
-const WHEAT: [number, number, number] = [0.66, 0.46, 0.13];
+// Ground colours are linear, and sit beside the terrain's own: its crops are
+// about 0.17 / 0.14 / 0.06. Brighter than that and a field reads as sand.
+const WHEAT: [number, number, number] = [0.21, 0.15, 0.045];
 const HAUL_YELLOW: [number, number, number] = [0.92, 0.66, 0.12];
-const ORE_EARTH: [number, number, number] = [0.40, 0.22, 0.12];
+const ORE_EARTH: [number, number, number] = [0.15, 0.085, 0.045];
 
 export const INDUSTRY: AssetDef[] = [
-  HQ('fertile', 'Farm headquarters', farmHq, 40, 900, 2, [0.80, 0.66, 0.36], [0.64, 0.16, 0.12],
+  HQ('fertile', 'Farm headquarters', farmHq, 40, 30, 2, [0.80, 0.66, 0.36], [0.64, 0.16, 0.12],
     'A stone farmhouse and barn round a farmyard, a steel Dutch barn full of hay, twin silos with their auger, a tractor, trailer and combine.'),
-  HQ('forest', 'Forestry headquarters', forestHq, 50, 1100, 6, [0.86, 0.56, 0.12], [0.30, 0.22, 0.14],
+  HQ('forest', 'Forestry headquarters', forestHq, 50, 34, 6, [0.86, 0.56, 0.12], [0.30, 0.22, 0.14],
     'A timber-clad sawmill, a kiln, three stacks of logs with a knuckle-boom loader between them, packs of sawn timber, a forwarder and a log lorry.'),
-  HQ('ore', 'Mining headquarters', oreHq, 70, 1500, 18, HAUL_YELLOW, ORE_EARTH,
+  HQ('ore', 'Mining headquarters', oreHq, 70, 45, 18, HAUL_YELLOW, ORE_EARTH,
     'A lattice winding tower with its sheaves and ropes to the winding house, a processing plant, an ore bin over the lorry bay, a spoil tip, a haul truck and an excavator.'),
-  HQ('oil', 'Oil headquarters', oilHq, 60, 1700, 22, [0.86, 0.36, 0.12], [0.94, 0.72, 0.16],
+  HQ('oil', 'Oil headquarters', oilHq, 60, 52, 22, [0.86, 0.36, 0.12], [0.94, 0.72, 0.16],
     'Four white tanks in a bund with stairs and company bands, a pipe rack, a pumping station, a pumpjack, a lit flare stack and two tankers.'),
-  HQ('stone', 'Quarry headquarters', stoneHq, 50, 1100, 14, HAUL_YELLOW, [0.34, 0.34, 0.36],
+  HQ('stone', 'Quarry headquarters', stoneHq, 50, 34, 14, HAUL_YELLOW, [0.34, 0.34, 0.36],
     'A crusher on a gantry with its hopper, conveyors to three graded stockpiles, a screening frame, dressed blocks, a weighbridge, a loader and a tipper.'),
-  HQ('fish', 'Fishing headquarters', fishHq, 45, 1000, 4, [0.12, 0.24, 0.40], [0.72, 0.16, 0.12],
+  HQ('fish', 'Fishing headquarters', fishHq, 45, 32, 4, [0.12, 0.24, 0.40], [0.72, 0.16, 0.12],
     'A quay with its sea wall and bollards, a fish market under a pitched roof, an ice plant, a jib crane, a trawler up on the slip, crates, nets and a reefer lorry.'),
   PROP('fertile', 'Wheat field', wheatProp, 3, WHEAT, [0.64, 0.16, 0.12],
     'Ripe wheat in three lands between tramlines, a headland and a hedge with a tree in it.'),
+  PROP('fertile.stubble', 'Stubble', stubbleProp, 3, WHEAT, [0.64, 0.16, 0.12],
+    'Stubble after the combine, straw lying in swaths.'),
   PROP('fertile.harvest', 'Harvest', harvestProp, 3, WHEAT, [0.64, 0.16, 0.12],
     'Stubble and straw swaths one side, standing wheat the other, a combine at the cut and a tractor and trailer beside it.'),
   PROP('fertile.rows', 'Vegetable rows', rowsProp, 3, [0.24, 0.44, 0.18], [0.64, 0.16, 0.12],
     'Drilled rows of vegetables on brown soil under a linear irrigation boom.'),
-  PROP('fertile.plough', 'Ploughed field', ploughProp, 3, [0.80, 0.70, 0.42], [0.64, 0.16, 0.12],
+  PROP('fertile.plough', 'Ploughed field', ploughProp, 3, [0.26, 0.21, 0.10], [0.64, 0.16, 0.12],
     'Furrows after harvest, round bales waiting to go in, a hedge and a tree.'),
   PROP('forest', 'Felling plot', fellingProp, 3, [0.86, 0.56, 0.12], [0.30, 0.22, 0.14],
     'The standing edge of the forest, stumps and brash windrows, replanting, a log stack and a loaded forwarder.'),
   PROP('ore', 'Mine tip', mineProp, 3, HAUL_YELLOW, ORE_EARTH,
     'Three benches of ore-stained and grey rock with a haul road round them, an excavator on top and a haul truck at the foot.'),
+  PROP('ore.floor', 'Mine floor', mineFloorProp, 3, HAUL_YELLOW, ORE_EARTH,
+    'Ore-stained ground with a haul road and tyre tracks, and heaps of spoil.'),
+  PROP('stone.floor', 'Quarry floor', quarryFloorProp, 3, HAUL_YELLOW, [0.34, 0.34, 0.36],
+    'Grey rock floor between the faces, a track, rubble and cut blocks.'),
   PROP('oil', 'Pumpjack', pumpjackProp, 2, [0.16, 0.26, 0.42], [0.94, 0.72, 0.16],
     'A nodding-donkey pumpjack with its samson post, cranks and counterweights, wellhead and flowline, fenced on a gravel pad.'),
   PROP('stone', 'Quarry face', quarryProp, 3, HAUL_YELLOW, [0.34, 0.34, 0.36],
@@ -784,13 +816,36 @@ export const INDUSTRY: AssetDef[] = [
     'A stern trawler with a lofted hull and red boot-top, a glazed wheelhouse, mast, gantry, net drum and trawl doors.'),
 ];
 
-/** The props a harvest area of each resource is covered in, and how often each appears. */
-export const AREA_PROPS: Record<string, Array<[string, number]>> = {
-  fertile: [['spec.prop.fertile', 4], ['spec.prop.fertile.rows', 3],
-    ['spec.prop.fertile.plough', 2], ['spec.prop.fertile.harvest', 1]],
-  forest: [['spec.prop.forest', 1]],
-  ore: [['spec.prop.ore', 1]],
-  oil: [['spec.prop.oil', 1]],
-  stone: [['spec.prop.stone', 1]],
-  fish: [['spec.prop.fish', 1]],
+/**
+ * How a harvest area of each resource is dressed.
+ *
+ * `tiled` resources cover the whole area edge to edge on the 24 m grid, one
+ * choice per 72 m parcel so neighbouring tiles make one field: the parcel's
+ * crop is drawn from `parcels`, and `feature` stands on one tile in so many
+ * (a harvest parcel's combine, a mine's tip, a quarry's face). The others are
+ * points in a landscape and stand on a share of the area's cells.
+ */
+export interface AreaDress {
+  tiled: boolean;
+  /** For tiled: parcel choices and their weights. For points: the prop and its share. */
+  parcels: Array<[string, number]>;
+  /** Tiled only: a parcel crop that is worked, and what stands on its centre tile. */
+  worked?: { parcel: string; centre: string };
+  /** Tiled only: a feature on a share of tiles, over the parcel's own tile. */
+  feature?: { id: string; share: number };
+  share?: number;
+}
+
+export const AREA_DRESS: Record<string, AreaDress> = {
+  fertile: {
+    tiled: true,
+    parcels: [['spec.prop.fertile', 4], ['spec.prop.fertile.rows', 3],
+      ['spec.prop.fertile.plough', 2], ['spec.prop.fertile.stubble', 1]],
+    worked: { parcel: 'spec.prop.fertile.stubble', centre: 'spec.prop.fertile.harvest' },
+  },
+  ore: { tiled: true, parcels: [['spec.prop.ore.floor', 1]], feature: { id: 'spec.prop.ore', share: 0.16 } },
+  stone: { tiled: true, parcels: [['spec.prop.stone.floor', 1]], feature: { id: 'spec.prop.stone', share: 0.24 } },
+  forest: { tiled: false, parcels: [['spec.prop.forest', 1]], share: 0.4 },
+  oil: { tiled: false, parcels: [['spec.prop.oil', 1]], share: 0.3 },
+  fish: { tiled: false, parcels: [['spec.prop.fish', 1]], share: 0.16 },
 };

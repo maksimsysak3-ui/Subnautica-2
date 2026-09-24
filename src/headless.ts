@@ -21,6 +21,9 @@ function named(el: HTMLElement): string {
   return el.getAttribute('aria-label') ?? el.title;
 }
 
+import { resourceFields, RES_GRID } from './sim/resources';
+import { industryProto } from './sim/inventory';
+import { lotFits, placeLot } from './sim/world';
 import { useMap } from './sim/maps';
 import { CALM } from './sim/politics';
 import { installTheme } from './ui/theme';
@@ -72,6 +75,11 @@ export interface ShotRequest {
   empty?: boolean;
   /** Which starting map to stand the shot on. See sim/maps.ts. */
   map?: string;
+  /**
+   * An industry to photograph: a headquarters on the richest free ground for
+   * this resource, with a harvest area drawn round it, and the camera on it.
+   */
+  industry?: string;
   lite: boolean;
   /** Draw the land grid, as the land tool does. */
   land?: boolean;
@@ -799,11 +807,56 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
     renderer.rebuild();
   }
 
+  let focus: [number, number] = [req.focus[0], req.focus[1]];
+  if (req.industry !== undefined && req.industry !== '') {
+    const kind = req.industry as 'fertile';
+    const w = renderer.world;
+    w.land.lo = 0xffffffff; w.land.hi = 0xffffffff;
+    const f = resourceFields();
+    const half = w.grid / 2, cellM = f.extent / RES_GRID;
+    // The richest ground a headquarters fits beside: score each cell by the
+    // resource in a disc round it, so the area lands on a field, not a speck.
+    let best = -1, bestV = 0;
+    const R = 7;
+    for (let j = R; j < RES_GRID - R; j += 2) {
+      for (let i = R; i < RES_GRID - R; i += 2) {
+        let v = 0;
+        for (let dj = -R; dj <= R; dj += 2) for (let di = -R; di <= R; di += 2) v += f.amount[kind][(j + dj) * RES_GRID + i + di];
+        if (v > bestV) { bestV = v; best = j * RES_GRID + i; }
+      }
+    }
+    const x = -f.extent / 2 + ((best % RES_GRID) + 0.5) * cellM;
+    const z = -f.extent / 2 + (Math.floor(best / RES_GRID) + 0.5) * cellM;
+    const rad = 300;
+    let lot: [number, number] | null = null;
+    for (let r = 0; r < 60 && lot === null; r++) {
+      for (let t = 0; t < 12 && lot === null; t++) {
+        const a = (t / 12) * Math.PI * 2;
+        const gx = Math.round((x + Math.cos(a) * r * 8) / 8 + half) - 3;
+        const gz = Math.round((z + Math.sin(a) * r * 8) / 8 + half) - 2;
+        if (lotFits(w, `spec.hq.${kind}`, gx, gz, 0).why === null) lot = [gx, gz];
+      }
+    }
+    if (lot !== null) {
+      placeLot(w, `spec.hq.${kind}`, lot[0], lot[1], 0);
+      const hq = w.industry.add({ kind, gx: lot[0], gz: lot[1], w: 6, d: 5, area: [], exportShare: 1 });
+      const poly: number[] = [];
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2;
+        const rr = rad * (0.8 + 0.25 * Math.sin(k * 2.1));
+        poly.push(x + Math.cos(a) * rr, z + Math.sin(a) * rr);
+      }
+      w.industry.setArea(hq, poly);
+      renderer.rebuild();
+      focus = [x, z];
+    }
+  }
+
   camera.yaw = req.yaw;
   camera.pitch = req.pitch;
   camera.distance = req.distance;
-  camera.focus[0] = req.focus[0];
-  camera.focus[2] = req.focus[1];
+  camera.focus[0] = focus[0];
+  camera.focus[2] = focus[1];
   camera.update();
 
   // An information view, if one was asked for. Built after the camera so the
@@ -1428,6 +1481,52 @@ Promise<{ pixels: number[]; movers: string }> {
     live.cititok.show();
     // The phone's second app, opened the same way its dock button opens it.
     live.cititok.showApp('weather');
+  } else if (panel === 'industry-drawer') {
+    renderer.world.progress.level = 5;
+    (ui.querySelector('[data-branch="industry"]') as HTMLElement | null)?.click();
+  } else if (panel === 'industry') {
+    // A farm on the richest free farmland near the edge of the built city, its
+    // area drawn round it through the tool's own click path, a few weeks run,
+    // and its card opened.
+    const w = renderer.world;
+    const t = tools as unknown as {
+      select(tool: unknown): void; dropLot(c: [number, number]): void;
+      areaClick(c: [number, number]): void; closeArea(): void;
+    };
+    const f = resourceFields();
+    const g = w.grid, half = g / 2, cellM = f.extent / RES_GRID;
+    let best: [number, number] | null = null, bestV = 0;
+    for (let k = 0; k < f.amount.fertile.length; k++) {
+      const v = f.amount.fertile[k];
+      if (v <= bestV) continue;
+      const x = -f.extent / 2 + ((k % RES_GRID) + 0.5) * cellM;
+      const z = -f.extent / 2 + (Math.floor(k / RES_GRID) + 0.5) * cellM;
+      const gx = Math.round(x / 8 + half), gz = Math.round(z / 8 + half);
+      if (lotFits(w, 'spec.hq.fertile', gx - 3, gz - 2, 0).why !== null) continue;
+      bestV = v; best = [gx, gz];
+    }
+    if (best !== null) {
+      w.budget.credit(500000);
+      const p = industryProto('spec.hq.fertile');
+      t.select({ kind: 'place', proto: p });
+      t.dropLot(best);
+      const R = 22;
+      for (const [dx, dz] of [[-R, -R], [R, -R], [R + 6, R], [0, R + 10], [-R, R]]) {
+        t.areaClick([best[0] + dx, best[1] + dz]);
+      }
+      t.closeArea();
+      for (let id = 0; id < pl.count; id++) {
+        if (pl.live[id] === 0) continue;
+        for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+      }
+      sim.step(600);
+      const x = (best[0] - half) * 8, z = (best[1] - half) * 8;
+      camera.focus[0] = x + 60; camera.focus[2] = z + 40;
+      camera.distance = 560; camera.pitch = 0.62;
+      camera.update();
+      for (let i = 0; i < 10; i++) live.update(1 / 20, performance.now() + i * 50);
+      live.tap([x, z]);
+    }
   } else if (panel === 'level') {
     live.levelCard.push({
       level: 6, name: 'Boom town', cash: 170000, stars: 3,

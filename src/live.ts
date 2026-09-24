@@ -21,6 +21,7 @@
  * simulation arriving in one lump.
  */
 
+import { IndustryCard } from './ui/industry-card';
 import { resourcePicker } from './ui/resource-picker';
 import { resourceById } from './sim/resources';
 import type { ResourceId } from './sim/resources';
@@ -121,6 +122,13 @@ export class LiveCity {
    * times a second and a fresh two-hundred-kilobyte array each time is a
    * garbage collection every few seconds, which is a stutter you can see.
    */
+  /** The industry section of the building card, and which headquarters it shows. */
+  private readonly industryCard = new IndustryCard(() => this.renderer.world.industry,
+    (hq) => { this.closeInspect(); this.onRedrawArea?.(hq); });
+  private cardHq = -1;
+  private cardAt = 0;
+  /** Hands an industry headquarters back to the area tool. Set by main. */
+  onRedrawArea: ((hq: number) => void) | null = null;
   /** Which resource the resources view paints; kept across new cities. */
   private resourcePick: ResourceId = 'fertile';
   /** Smoke and steam over the chimneys, rescanned when the city changes. */
@@ -291,6 +299,21 @@ export class LiveCity {
     }
     this.selected = [at[0], at[1]];
     this.inspect.show(found);
+    // A headquarters carries its industry: what it makes and where it goes.
+    this.cardHq = -1;
+    if (found.asset.startsWith('spec.hq.')) {
+      const ind = this.renderer.world.industry;
+      const grid = this.renderer.world.grid;
+      const hq = ind.hqs.findIndex((h) => {
+        const [cx, cz] = ind.centre(h, grid);
+        return Math.abs(cx - found.x) < 30 && Math.abs(cz - found.z) < 30;
+      });
+      if (hq >= 0) {
+        this.cardHq = hq;
+        this.industryCard.show(hq);
+        this.inspect.attach(this.industryCard.root);
+      }
+    }
     // The selection, on the ground under the building, drawn by the same
     // mechanism the tools mark what they are about to affect with.
     const half = Math.max(found.footprint[0], found.footprint[1]) * 4 + 2;
@@ -298,6 +321,16 @@ export class LiveCity {
       rect: [found.x - half, found.z - half, found.x + half, found.z + half],
       tint: [0.38, 0.83, 1.0],
     };
+  }
+
+  /** Opens the resources view on one resource, as the area tool does. */
+  showResource(id: ResourceId): void {
+    const r = resourceById(id);
+    const entry = VIEWS.find((v) => v.id === View.RESOURCES);
+    if (entry !== undefined) { entry.ramp = [...r.ramp]; entry.legend = r.blurb; }
+    this.resourcePick = id;
+    if (this.sim !== null) this.sim.views.resource = id;
+    this.info.open(View.RESOURCES);
   }
 
   private closeInspect(): void {
@@ -634,6 +667,10 @@ export class LiveCity {
    * @param now `performance.now()`, for the panel's own throttling.
    */
   update(dt: number, now: number): void {
+    if (this.cardHq >= 0 && this.inspect.open && now - this.cardAt > 700) {
+      this.cardAt = now;
+      this.industryCard.paint();
+    }
     const sim = this.sim;
     if (sim === null || !this.running) return;
 

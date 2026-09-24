@@ -275,6 +275,8 @@ async function boot(): Promise<void> {
   tools.onProgress = () => tools?.paintProgress();
   tools.onSpeed = (r) => { live.speed = r; rate = r; };
   tools.onTech = () => live.tech.toggle();
+  tools.onIndustryView = (kind) => live.showResource(kind);
+  live.onRedrawArea = (hq) => tools?.drawArea(hq);
   tools.onSettings = () => live.settings.toggle();
   live.onProgress = () => tools?.paintProgress();
   live.nameSource = () => tools?.cityName ?? 'the city';

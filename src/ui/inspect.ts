@@ -51,6 +51,14 @@ export class Inspect {
   }
 
   get open(): boolean { return this.shown !== null; }
+
+  /**
+   * Puts a section of someone else's at the top of the card's body -- the
+   * industry panel on a headquarters. Cleared by the next `show`.
+   */
+  attach(el: HTMLElement): void {
+    this.body.insertBefore(el, this.body.firstChild);
+  }
   /** Which building is being shown, or -1. */
   get place(): number { return this.shown?.place ?? -1; }
 
@@ -96,9 +104,9 @@ export class Inspect {
     name.textContent = what.name;
     const kind = document.createElement('div');
     css(kind, [...label(), 'font-size:10.5px']);
-    kind.textContent = what.branch !== undefined
-      ? `${what.branch} service`
-      : `${what.density} ${what.zone}`;
+    kind.textContent = what.asset.startsWith('spec.hq.') ? 'industry headquarters'
+      : what.branch !== undefined ? `${what.branch} service`
+        : `${what.density} ${what.zone}`;
     titles.append(name, kind);
 
     const shut = document.createElement('button');

@@ -30,7 +30,10 @@
 import { hash2, fbm } from './hash';
 import { baseHeightAt, heightAt } from './terrain';
 import { drowned } from './land';
-import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
+import { resourceFields, RES_GRID } from './resources';
+import { waterAt } from './river';
+import { AREA_DRESS } from '../assets/generators/industry';
+import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX, industryProto } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
 import type { RoadMesh } from './roadmesh';
@@ -108,6 +111,7 @@ const BEDDED_WILD = 0.25;
  * in as a multiple of this; what changed is that it no longer has to be.
  */
 const QUARTER = Math.PI / 2;
+
 /**
  * Blocks per district, so a neighbourhood shares a theme and a density.
  *
@@ -979,6 +983,124 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     }
   }
 
+  // ---- pass 1b: industry harvest areas ---------------------------------
+  //
+  // Each headquarters' drawn area, dressed as what it is worked for. Fields,
+  // mine floors and quarry floors cover the area edge to edge on the 24 m grid
+  // -- one crop to a 72 m parcel, so tiles make fields rather than a
+  // chequerboard -- with tips and faces standing on some of them. Felling plots,
+  // pumpjacks and trawlers are points in a landscape and stand on a share of
+  // its cells. Only where the ground yields: an area drawn half over barren
+  // ground shows it.
+  {
+    const ind = world.industry;
+    const fields = ind.hqs.length > 0 ? resourceFields() : null;
+    for (let h = 0; fields !== null && h < ind.hqs.length; h++) {
+      const hq = ind.hqs[h];
+      const dress = AREA_DRESS[hq.kind];
+      if (dress === undefined) continue;
+      const amount = fields.amount[hq.kind];
+      const cellM = fields.extent / RES_GRID;
+      const resAt = (x: number, z: number): number => {
+        const i = Math.floor((x / fields.extent + 0.5) * RES_GRID);
+        const j = Math.floor((z / fields.extent + 0.5) * RES_GRID);
+        return i < 0 || j < 0 || i >= RES_GRID || j >= RES_GRID ? -1 : j * RES_GRID + i;
+      };
+      const inArea = new Set(ind.cells(h));
+      const weigh = (list: Array<[string, number]>, roll: number): string => {
+        const total = list.reduce((sum, [, wgt]) => sum + wgt, 0);
+        let r = roll * total;
+        for (const [id, wgt] of list) { if (r < wgt) return id; r -= wgt; }
+        return list[0][0];
+      };
+      /**
+       * Lays one prop. Not through `emit`: a prop claims its ground but does
+       * not pave it (hard = 2 is "worked, bare"), and it is graded to the level
+       * it is given rather than its own mean, so every tile of a parcel sits at
+       * one height and they butt together without the seams that separate pads
+       * made -- terraced where the parcel changes, the way fields and benches are.
+       */
+      const place = (id: string, gx: number, gz: number, q: number, level?: number): void => {
+        const p = industryProto(id);
+        if (p === undefined) return;
+        if (gx < 0 || gz < 0 || gx + p.w > GRID || gz + p.d > GRID) return;
+        if (zone !== null && !inZone(gx, gz, p.w, p.d)) return;
+        if (!free(gx, gz, p.w, p.d, STREET_CELL)) return;
+        const ground = survey(gx, gz, p.w, p.d);
+        const y = level ?? ground.mean;
+        if (Math.abs(ground.mean - y) > 3 || ground.hi - ground.lo > MAX_SLOPE) return;
+        out.owner = ownerOfCell(at(gx, gz));
+        out.took = [gx, gz, p.w, p.d];
+        pads.push({ gx, gz, w: p.w, d: p.d, y });
+        padOwner.push(out.owner);
+        const [hx, hz] = turnedHalf((p.w * CELL) / 2, (p.d * CELL) / 2, q * QUARTER);
+        out.add(wx(gx) + (p.w * CELL) / 2, wx(gz) + (p.d * CELL) / 2, y - BEDDED, q * QUARTER,
+          hx + 0.8, hz + 0.8, p.height * 1.2 + 3, p.index, 1, 0, 0, 0);
+        population[p.index]++;
+        claim(gx, gz, p.w, p.d);
+        for (let j = 0; j < p.d; j++) for (let i = 0; i < p.w; i++) hard[at(gx + i, gz + j)] = 2;
+      };
+      /** One level for a whole 72 m parcel: the mean of its corners. */
+      const parcelLevel = (px: number, pz: number): number => survey(px * 9, pz * 9, 9, 9).mean;
+
+      if (dress.tiled) {
+        // The area's box, in 24 m tiles aligned to the map so neighbouring
+        // areas and rebuilds agree on where a tile is.
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+        for (let k = 0; k + 1 < hq.area.length; k += 2) {
+          x0 = Math.min(x0, hq.area[k]); x1 = Math.max(x1, hq.area[k]);
+          z0 = Math.min(z0, hq.area[k + 1]); z1 = Math.max(z1, hq.area[k + 1]);
+        }
+        const g0 = Math.floor((x0 / CELL + half) / 3) * 3, g1 = Math.ceil((x1 / CELL + half) / 3) * 3;
+        const k0 = Math.floor((z0 / CELL + half) / 3) * 3, k1 = Math.ceil((z1 / CELL + half) / 3) * 3;
+        for (let gz = k0; gz < k1; gz += 3) {
+          for (let gx = g0; gx < g1; gx += 3) {
+            const cx = (gx + 1.5 - half) * CELL, cz = (gz + 1.5 - half) * CELL;
+            const c = resAt(cx, cz);
+            if (c < 0 || !inArea.has(c) || amount[c] < 30) continue;
+            // The parcel: three tiles by three, one crop, one way round.
+            const px = Math.floor(gx / 9), pz = Math.floor(gz / 9);
+            const crop = weigh(dress.parcels, hash2(px, pz, 4211 + h));
+            const q = hash2(px, pz, 4217) < 0.5 ? 0 : 1;
+            let id = crop;
+            const centre = gx % 9 === 3 && gz % 9 === 3;
+            if (dress.worked !== undefined && crop === dress.worked.parcel && centre) id = dress.worked.centre;
+            if (dress.feature !== undefined && hash2(gx, gz, 4229) < dress.feature.share) id = dress.feature.id;
+            place(id, gx, gz, id === crop ? q : Math.floor(hash2(gx, gz, 4231) * 4), parcelLevel(px, pz));
+          }
+        }
+      } else {
+        const every = dress.share ?? 1;
+        for (const c of inArea) {
+          if (amount[c] < 30) continue;
+          const i = c % RES_GRID, j = (c / RES_GRID) | 0;
+          if (hash2(i, j, 4099) > every) continue;
+          const id = weigh(dress.parcels, hash2(i, j, 4111));
+          const p = industryProto(id);
+          if (p === undefined) continue;
+          const x = -fields.extent / 2 + (i + 0.5) * cellM + (hash2(i, j, 4127) - 0.5) * cellM * 0.5;
+          const z = -fields.extent / 2 + (j + 0.5) * cellM + (hash2(i, j, 4133) - 0.5) * cellM * 0.5;
+          const q = Math.floor(hash2(i, j, 4139) * 4);
+          if (hq.kind === 'fish') {
+            // Boats ride the water; nothing to grade and no ground to claim.
+            const level = waterAt(x, z);
+            if (level === null) continue;
+            const gx = Math.max(0, Math.min(GRID - 1, Math.floor(x / CELL + half)));
+            const gz = Math.max(0, Math.min(GRID - 1, Math.floor(z / CELL + half)));
+            if (zone !== null && !inZone(gx, gz)) continue;
+            out.owner = ownerOfCell(at(gx, gz));
+            out.took = NO_CLAIM;
+            out.add(x, z, level - 0.05, q * QUARTER + hash2(i, j, 4153) * 0.6,
+              (p.w * CELL) / 2 + 0.8, (p.d * CELL) / 2 + 0.8, p.height * 1.2 + 3, p.index, 1, 0, 0, 0);
+            population[p.index]++;
+            continue;
+          }
+          place(id, Math.floor(x / CELL + half - p.w / 2), Math.floor(z / CELL + half - p.d / 2), q);
+        }
+      }
+    }
+  }
+
   // ---- pass 2: frontage -----------------------------------------------
   //
   // Buildings attach to roads, not to blocks. A block is what is left over
@@ -1466,8 +1588,10 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
               : zi === 4 ? Surface.PARK
                 : hard[i] === 1 ? Surface.PAVING : Surface.COUNTRY;
       }
+      // Worked ground -- a field, a mine floor -- is countryside with no grass on it.
+      if (hard[i] === 2 && net.cls[i] === 0) kind = Surface.COUNTRY;
       surface[i] = kind;
-      if (hard[i] === 1) { cover[i] = 0; continue; }
+      if (hard[i] !== 0) { cover[i] = 0; continue; }
       // Grass does not grow on tarmac. It does grow in a garden and in a park,
       // which is what those two are.
       if (kind === Surface.PAVING || kind === Surface.YARD) { cover[i] = 0; continue; }

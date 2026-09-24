@@ -15,6 +15,12 @@
  * not a rebuild.
  */
 
+import { RESOURCES, resourceById } from '../sim/resources';
+import type { ResourceId } from '../sim/resources';
+import { HECTARE_COST, MAX_HECTARES, REACH, cellHectares } from '../sim/industry';
+import { MAP } from '../sim/maps';
+import { industryProto } from '../sim/inventory';
+import { RULES } from '../sim/difficulty';
 import { monthOf, yearOf, seasonOfMonth, temperature } from '../sim/weather';
 import { log } from '../util/log';
 import { thud, brush, crunch, deny } from './sound';
@@ -96,10 +102,15 @@ type Tool =
   | { kind: 'clear' }
   /** Buying land: an overhead view of the plot grid, one click a plot. */
   | { kind: 'transit'; line: number }
+  /** Drawing an industry headquarters' harvest area, as a polygon. */
+  | { kind: 'area'; hq: number }
   | { kind: 'land' };
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
+
+/** The level industry opens at: a town with some people to work in it. */
+const INDUSTRY_LEVEL = 3;
 
 const TOOL_TINT: Record<string, [number, number, number]> = {
   look: [0.6, 0.7, 0.8],
@@ -407,6 +418,7 @@ export class BuildTools {
     if (this.tool.kind === 'land') { this.buyLand(cell); return; }
     if (this.tool.kind === 'curve') { this.curveClick(cell); return; }
     if (this.tool.kind === 'transit') { this.transitClick(cell); return; }
+    if (this.tool.kind === 'area') { this.areaClick(cell); return; }
     if (this.tool.kind === 'place') { this.dropLot(cell); return; }
     this.from = cell;
     this.to = cell;
@@ -593,6 +605,26 @@ export class BuildTools {
       this.say(this.stops.length === 0 ? 'back to the start'
         : `${this.stops.length / 2} stops`);
       return;
+    }
+    if (this.tool.kind === 'area') {
+      if ((e.key === 'Backspace' || e.key === 'Delete') && this.areaPts.length > 0) {
+        e.preventDefault();
+        this.areaPts.length -= 2;
+        this.showMark();
+        return;
+      }
+      if (e.key === 'Enter' && this.areaPts.length >= 6) {
+        e.preventDefault();
+        this.closeArea();
+        return;
+      }
+      if (e.key === 'Escape' && this.areaPts.length > 0) {
+        e.preventDefault();
+        this.areaPts = [];
+        this.showMark();
+        this.say('area abandoned — click to start again, or Escape to put the tool away');
+        return;
+      }
     }
     if (this.lineKey(e)) { e.preventDefault(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && this.tool.kind === 'transit'
@@ -781,6 +813,106 @@ export class BuildTools {
    * few metres apart and a visible break, and chaining is what stops that
    * happening by accident.
    */
+  /** Starts drawing a headquarters' area, from its card. */
+  drawArea(hq: number): void {
+    this.visible = true;
+    this.select({ kind: 'area', hq });
+  }
+
+  /** The points of the area being drawn: x, z, x, z ... in metres. */
+  private areaPts: number[] = [];
+
+  private cellMetres(cell: [number, number]): [number, number] {
+    const half = this.renderer.world.grid / 2;
+    return [(cell[0] - half + 0.5) * CELL, (cell[1] - half + 0.5) * CELL];
+  }
+
+  private areaClick(cell: [number, number]): void {
+    const t = this.tool;
+    if (t.kind !== 'area') return;
+    const world = this.renderer.world;
+    const h = world.industry.hqs[t.hq];
+    if (h === undefined) { this.select({ kind: 'look' }); return; }
+    const [x, z] = this.cellMetres(cell);
+    // Closing the shape: a click back on the first point.
+    if (this.areaPts.length >= 6) {
+      const dx = this.areaPts[0] - x, dz = this.areaPts[1] - z;
+      if (dx * dx + dz * dz < 36 * 36) { this.closeArea(); return; }
+    }
+    const [cx, cz] = world.industry.centre(h, world.grid);
+    if (Math.hypot(x - cx, z - cz) > REACH) {
+      denySound();
+      this.say(`too far — an area has to stay within ${REACH} m of its headquarters`);
+      return;
+    }
+    this.areaPts.push(x, z);
+    this.showMark();
+  }
+
+  /** Finishes the area being drawn: checks it, charges for it and hands it over. */
+  private closeArea(): void {
+    const t = this.tool;
+    if (t.kind !== 'area' || this.areaPts.length < 6) return;
+    const world = this.renderer.world;
+    const ind = world.industry;
+    const h = ind.hqs[t.hq];
+    if (h === undefined) return;
+    const ha = ind.raster(this.areaPts, h.kind).length * cellHectares();
+    const what = resourceById(h.kind);
+    if (ha < 0.8) {
+      denySound();
+      this.say(h.kind === 'fish' ? 'a fishing ground has to be drawn over water'
+        : `that area is too small — draw round more ${what.name.toLowerCase()}`);
+      return;
+    }
+    if (ha > MAX_HECTARES) {
+      denySound();
+      this.say(`that area is ${ha.toFixed(0)} ha — the most one headquarters can work is ${MAX_HECTARES} ha`);
+      return;
+    }
+    const cost = Math.round(ha * HECTARE_COST * RULES.build);
+    if (!this.afford(cost, 'the harvest area')) return;
+    const was = h.area;
+    ind.setArea(t.hq, this.areaPts.slice());
+    this.areaPts = [];
+    this.renderer.setTransitDraft(null);
+    // Rebuild what the old area and the new one cover, together.
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const poly of [was, h.area]) {
+      for (let k = 0; k + 1 < poly.length; k += 2) {
+        x0 = Math.min(x0, poly[k]); x1 = Math.max(x1, poly[k]);
+        z0 = Math.min(z0, poly[k + 1]); z1 = Math.max(z1, poly[k + 1]);
+      }
+    }
+    const half = world.grid / 2;
+    const gx = Math.floor(x0 / CELL + half) - 4, gz = Math.floor(z0 / CELL + half) - 4;
+    this.rebuild({ gx, gz, w: Math.ceil((x1 - x0) / CELL) + 8, d: Math.ceil((z1 - z0) / CELL) + 8 });
+    confirmSound();
+    this.select({ kind: 'look' });
+    this.say(`${what.product.toLowerCase()} area drawn — ${ha.toFixed(1)} ha. Staff the headquarters `
+      + 'and it starts to produce; click it to see what it makes and where it goes.');
+    this.onProgress?.();
+  }
+
+  /** The industry drawer: one headquarters per natural resource. */
+  private openIndustryDrawer(): void {
+    const accent = '#e0a24a';
+    const panel = this.drawerPanel('industry', accent);
+    panel.style.gridTemplateColumns = 'repeat(auto-fill,minmax(150px,1fr))';
+    const rich = MAP.richness;
+    for (const r of RESOURCES) {
+      const p = industryProto(`spec.hq.${r.id}`);
+      if (p === undefined) continue;
+      const on = rich[r.id];
+      const here = on >= 1.6 ? 'plentiful here' : on >= 1 ? 'good here' : on > 0.3 ? 'some here' : on > 0 ? 'scarce here' : 'none on this map';
+      panel.appendChild(this.tile(p.id, p.def.name.replace(' headquarters', ''), here,
+        buildingPrice(p.def), r.ramp[2],
+        `${r.product}: ${r.blurb} Place the headquarters, then draw the area it works.`,
+        () => this.select({ kind: 'place', proto: p })));
+    }
+    this.mount(panel, 'industry');
+  }
+
   private curveClick(cell: [number, number]): void {
     this.curveAt = performance.now();
     if (this.curveA === null) {
@@ -959,6 +1091,17 @@ export class BuildTools {
       z1 = Math.max(z1, placed.grounds[1] + placed.grounds[3]);
     }
     this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
+    // An industry headquarters is the start of something: it goes on the
+    // register, and the tool moves straight on to drawing the area it works.
+    if (t.proto.id.startsWith('spec.hq.')) {
+      const kind = t.proto.id.slice('spec.hq.'.length) as ResourceId;
+      const hq = world.industry.add({ kind, gx, gz, w, d, area: [], exportShare: 1 });
+      confirmSound();
+      this.earn(buildingPrice(t.proto.def), false);
+      this.renderer.setGhost(null);
+      this.select({ kind: 'area', hq });
+      return;
+    }
     // What it was worth. A landmark is worth a great deal more than a bus
     // shelter, which is the whole reason the player is saving up for one.
     confirmSound();
@@ -1061,6 +1204,26 @@ export class BuildTools {
           + `Backspace to take one back`);
       } else if (on === null) {
         this.say('a stop has to be on a road — hover a street');
+      }
+      return;
+    }
+    if (this.tool.kind === 'area') {
+      this.renderer.mark = null;
+      this.renderer.setRoadPreview(null);
+      this.renderer.setGhost(null);
+      const h = this.renderer.world.industry.hqs[this.tool.hq];
+      const colour = h === undefined ? '#f4b54a' : resourceById(h.kind).ramp[2];
+      const hover = this.to === null ? [] : this.cellMetres(this.to);
+      const draft = [...this.areaPts, ...hover];
+      // Closed back to the first point once it is a shape, so the outline is
+      // the area it will be rather than a line that stops.
+      if (draft.length >= 6) draft.push(draft[0], draft[1]);
+      this.renderer.setTransitDraft(draft.length >= 4 ? Float32Array.from(draft) : null, colour);
+      if (h !== undefined && draft.length >= 8) {
+        const ha = this.renderer.world.industry.raster(draft, h.kind).length * cellHectares();
+        this.say(`${ha.toFixed(1)} ha — ${money(Math.round(ha * HECTARE_COST * RULES.build))} `
+          + `${ha > MAX_HECTARES ? `(over the ${MAX_HECTARES} ha limit) ` : ''}`
+          + '— Enter to finish, Backspace to take a point back');
       }
       return;
     }
@@ -1408,7 +1571,14 @@ export class BuildTools {
     if (tool.kind !== 'place') this.renderer.setGhost(null);
     if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
     this.renderer.askTransit('tool', tool.kind === 'transit');
-    if (tool.kind !== 'transit') this.renderer.setTransitDraft(null);
+    if (tool.kind !== 'transit' && tool.kind !== 'area') this.renderer.setTransitDraft(null);
+    if (tool.kind !== 'area') this.areaPts = [];
+    // Drawing an area opens the resources view on what it will harvest, so the
+    // player draws over the ground they can see is rich rather than guessing.
+    if (tool.kind === 'area') {
+      const h = this.renderer.world.industry.hqs[tool.hq];
+      if (h !== undefined) this.onIndustryView?.(h.kind);
+    }
     this.from = null;
     this.curveA = null;
     this.curveVia = null;
@@ -1444,6 +1614,7 @@ export class BuildTools {
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     if (t.kind === 'transit') return `transit:${t.line}`;
+    if (t.kind === 'area') return `area:${t.hq}`;
     return t.kind;
   }
 
@@ -1472,6 +1643,12 @@ export class BuildTools {
         + `— ${money(buildingPrice(t.proto.def))}, ${w}\u00d7${d} cells `
         + `(${w * 8}\u00d7${d * 8} m) — R rotates`;
     }
+    if (t.kind === 'area') {
+      const h = this.renderer.world.industry.hqs[t.hq];
+      const what = h === undefined ? 'the' : resourceById(h.kind).name.toLowerCase();
+      return `click round the ${what} to work, Enter or click the first point to finish `
+        + `— within ${REACH} m of the headquarters, Backspace takes a point back`;
+    }
     if (t.kind === 'land') {
       const land = this.renderer.world.land;
       return `click a dashed plot to buy it — ${land.count} owned, `
@@ -1486,6 +1663,8 @@ export class BuildTools {
   }
 
   private buttons: HTMLElement[] = [];
+  /** Told which resource an area is being drawn for, so the map can show it. */
+  onIndustryView: ((kind: ResourceId) => void) | null = null;
   /** Bar buttons that open with a branch, so their locks follow the level. */
   private gated: Array<{ b: HTMLElement; branch: string }> = [];
 
@@ -1636,6 +1815,29 @@ export class BuildTools {
       this.buttons.push(b);
     }
     tools.appendChild(marks);
+
+    // Industry: a headquarters per natural resource, and the area it works.
+    const industry = group();
+    {
+      const b = document.createElement('button');
+      b.dataset.branch = 'industry';
+      tip(b, 'Industry \u2014 farms, forestry, mines, oil, quarries and fishing');
+      chip(b, '#e0a24a', glyph('resources'));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const level = this.renderer.world.progress.level;
+        if (level < INDUSTRY_LEVEL) {
+          denySound();
+          this.say(`industry opens at level ${INDUSTRY_LEVEL} — the city is level ${level}`);
+          return;
+        }
+        if (this.drawer?.dataset.branch === 'industry') { this.closeDrawer(); return; }
+        this.openIndustryDrawer();
+      });
+      industry.appendChild(b);
+      this.buttons.push(b);
+    }
+    tools.appendChild(industry);
 
     // Eleven branches, each a drawer of buildings. A flat list of eighty-nine
     // buttons is not a palette, and the branch is how a player thinks about it

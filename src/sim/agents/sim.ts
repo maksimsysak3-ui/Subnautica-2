@@ -26,6 +26,8 @@
  * is fixed either way; what changes is whether it arrives all at once.
  */
 
+import type { Hq } from '../industry';
+import { UPKEEP_PER_UNIT } from './economy';
 import type { PlumeView } from './plumes';
 import { Scheduler, Rate, slice, TICK_SECONDS, TICK_HZ } from './tick';
 import { Clock, TICKS_PER_DAY } from './calendar';
@@ -50,6 +52,8 @@ import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
 import { ASSETS } from '../../assets/registry';
+import { ASSET_INDEX } from '../inventory';
+import { RULES } from '../difficulty';
 import { INSTANCE_FLOATS } from '../city';
 import { Budget } from '../budget';
 import { Policies } from '../policies';
@@ -176,6 +180,8 @@ export interface SimReport {
  */
 export interface Inspection {
   place: number;
+  /** The asset it is drawn as. */
+  asset: string;
   name: string;
   zone: string;
   density: string;
@@ -616,7 +622,10 @@ export class Simulation {
     // twitched several times a second would be unreadable while it did.
     s.add({
       name: 'money', rate: Rate.SLOW,
-      run: () => { this.economy.settle(Rate.SLOW / TICKS_PER_DAY); },
+      run: () => {
+        this.settleIndustry(Rate.SLOW / TICKS_PER_DAY);
+        this.economy.settle(Rate.SLOW / TICKS_PER_DAY);
+      },
     });
 
     // The buses. Keeping the fleets on the road, which is bounded by what the
@@ -853,6 +862,7 @@ export class Simulation {
 
     return {
       place: id,
+      asset: def?.id ?? '',
       name: def?.name ?? 'Building',
       zone: def?.zone ?? 'nature',
       density: def?.density ?? 'low',
@@ -879,6 +889,39 @@ export class Simulation {
       gripeFix: info?.fix ?? '',
       cover,
     };
+  }
+
+  /**
+   * The industry headquarters' week: drops any whose building has gone, then
+   * produces, sells and depletes, staffed by whoever actually works there.
+   */
+  private settleIndustry(days: number): void {
+    const world = this.world;
+    if (world === undefined) return;
+    const ind = world.industry;
+    this.economy.industry = ind;
+    if (ind.hqs.length === 0) { ind.settle(days, () => 0, () => 0); return; }
+    ind.prune((h) => world.lots.some((l) => l.id === `spec.hq.${h.kind}` && l.gx === h.gx && l.gz === h.gz));
+    // Each headquarters' place: the one of its prototype nearest its lot's centre.
+    const pl = this.places;
+    const c = pl.col;
+    const staffOf = (h: Hq): number => {
+      const proto = ASSET_INDEX.get(`spec.hq.${h.kind}`);
+      if (proto === undefined) return 0;
+      const [x, z] = ind.centre(h, world.grid);
+      for (let id = 0; id < pl.count; id++) {
+        if (pl.live[id] === 0 || c.proto[id] !== proto) continue;
+        if (Math.abs(c.x[id] - x) > 40 || Math.abs(c.z[id] - z) > 40) continue;
+        return c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 0;
+      }
+      return 0;
+    };
+    const upkeepOf = (h: Hq): number => {
+      const units = ASSETS[ASSET_INDEX.get(`spec.hq.${h.kind}`) ?? -1]?.sim.upkeep ?? 0;
+      // The building costs something whether or not it is staffed; the wages move.
+      return units * UPKEEP_PER_UNIT * RULES.upkeep * (0.4 + 0.6 * staffOf(h));
+    };
+    ind.settle(days, staffOf, upkeepOf);
   }
 
   /**
