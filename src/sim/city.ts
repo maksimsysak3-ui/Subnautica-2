@@ -308,6 +308,22 @@ class Instances {
 const EMPTY_F32 = new Float32Array(0);
 const EMPTY_I32 = new Int32Array(0);
 
+/**
+ * How far a tree's crown reaches from its trunk, measured once per species
+ * from its coarse mesh -- which is fitted to the fine one, so this is the
+ * canopy the player sees.
+ */
+const crowns = new Map<number, number>();
+function crownOf(p: Proto): number {
+  let r = crowns.get(p.index);
+  if (r === undefined) {
+    const b = p.def.build(2).bounds();
+    r = Math.max(-b.min[0], b.max[0], -b.min[2], b.max[2]);
+    crowns.set(p.index, r);
+  }
+  return r;
+}
+
 const OWNER_NONE = -1;
 const ownerOfCell = (cell: number): number => -2 - cell;
 const cellOfOwner = (owner: number): number => -2 - owner;
@@ -1315,10 +1331,50 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // phased between the lamps, on the ground as it stands after grading.
   // Attributed to the frontage, so an edit that remakes a street replants it.
   {
-    const avenue = planting().filter((p) => p.w === 2);
-    const pits = planting().filter((p) => p.w <= 1);
-    const wide = avenue.length > 0 ? avenue : planting();
-    if (wide.length > 0) {
+    const species = planting();
+    if (species.length > 0) {
+      // Every road's centreline, bucketed, so a tree can be checked against
+      // every carriageway near it and not only the one it is planted beside:
+      // a row that runs past a side street would otherwise put a tree in it.
+      const B = 32;
+      const buckets = new Map<number, number[]>();
+      const segs: number[] = [];
+      for (const link of net.links) {
+        const spec = ROAD_SPECS[link.cls];
+        const lp = net.samples(link);
+        for (let i = 0; i + 1 < lp.length; i++) {
+          const k = segs.length / 6;
+          segs.push(lp[i].x, lp[i].z, lp[i + 1].x, lp[i + 1].z, spec.half, spec.median);
+          const pad = spec.half + 8;
+          const x0 = Math.floor((Math.min(lp[i].x, lp[i + 1].x) - pad) / B);
+          const x1 = Math.floor((Math.max(lp[i].x, lp[i + 1].x) + pad) / B);
+          const z0 = Math.floor((Math.min(lp[i].z, lp[i + 1].z) - pad) / B);
+          const z1 = Math.floor((Math.max(lp[i].z, lp[i + 1].z) + pad) / B);
+          for (let bx = x0; bx <= x1; bx++) {
+            for (let bz = z0; bz <= z1; bz++) {
+              const key = bx * 65536 + bz;
+              let list = buckets.get(key);
+              if (list === undefined) { list = []; buckets.set(key, list); }
+              list.push(k);
+            }
+          }
+        }
+      }
+      /** True when a crown of radius `r` at (x, z) is over no carriageway. */
+      const clear = (x: number, z: number, r: number): boolean => {
+        const list = buckets.get(Math.floor(x / B) * 65536 + Math.floor(z / B));
+        if (list === undefined) return true;
+        for (const k of list) {
+          const o = k * 6;
+          const ax = segs[o], az = segs[o + 1], dx = segs[o + 2] - ax, dz = segs[o + 3] - az;
+          const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+          const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+          const half = segs[o + 4], med = segs[o + 5];
+          // Wholly inside a central reservation, or wholly behind the kerb.
+          if (!(d + r <= med - 0.05 || d - r >= half + 0.2)) return false;
+        }
+        return true;
+      };
       for (const f of net.frontages()) {
         const owner = frontageOwner(f.id, f.side);
         if (zone !== null && !remade.has(owner)) continue;
@@ -1327,16 +1383,21 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         const median = spec.median >= 2.2 && f.side === 1;
         if (!spec.kerbed || f.cls === 'highway' || f.cls === 'motorway' || f.cls === 'slip') continue;
         if (footway < 2.0 && !median) continue;
-        // A narrow footway takes the small species in pits by the kerb.
-        const pool = footway < 2.5 && pits.length > 0 ? pits : wide;
         out.owner = owner;
         const pts = net.samples(net.links[f.link]);
-        const pitch = Math.max(9, Math.min(13, spec.lamp > 0 ? spec.lamp / 3 : 11));
-        const place = (s: number, offset: number, salt: number): void => {
+        /**
+         * Plants at `offset` from the centreline, choosing only species whose
+         * crown stops short of the kerb by `clear` metres: a canopy spread
+         * over the carriageway reads, from the game's camera, as a tree
+         * standing in the road.
+         */
+        const place = (s: number, offset: number, room: number, salt: number): void => {
+          const fits = species.filter((p) => crownOf(p) <= room);
+          if (fits.length === 0) return;
           const q = walk(pts, s);
           const x = q.x - q.tz * offset, z = q.z + q.tx * offset;
-          const p = pick(pool, Math.round(x * 3), Math.round(z * 3), salt);
-          if (p === null) return;
+          const p = pick(fits, Math.round(x * 3), Math.round(z * 3), 827);
+          if (p === null || !clear(x, z, crownOf(p))) return;
           const y = heightAt(x, z) - 0.1;
           const yaw = hash2(Math.round(x), Math.round(z), salt + 1) * Math.PI * 2;
           out.add(x, z, y, yaw, p.w * CELL / 2 + 0.8, p.d * CELL / 2 + 0.8, p.height * 1.2 + 3,
@@ -1344,19 +1405,24 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
           population[p.index]++;
         };
         if (footway >= 2.0) {
-          const offset = f.side * (spec.half + footway * (footway < 2.5 ? 0.45 : 0.62));
-          for (let s = f.from + pitch * 0.5; s <= f.to - 2; s += pitch) {
+          // Towards the back of the footway, clear of the kerb and the lamps.
+          const back = Math.max(spec.half + 0.9, spec.edge - 0.55);
+          const room = back - spec.half - 0.25;
+          const pitch = room < 2 ? 14 : 13;
+          // Well clear of the ends: at the back of the footway a tree near a
+          // junction is standing in the crossing street, not beside this one.
+          for (let s = f.from + 12; s <= f.to - 12; s += pitch) {
             // Not on top of a lamp column on this side of the road.
             if (spec.lamp > 0) {
               const k = Math.round(s / spec.lamp);
               const lampSide = k % 2 === 0 ? 1 : -1;
               if (lampSide === f.side && Math.abs(s - k * spec.lamp) < 2.5) continue;
             }
-            place(s, offset, 829);
+            place(s, f.side * back, room, 829);
           }
         }
         if (median) {
-          for (let s = f.from + 5; s <= f.to - 5; s += 10) place(s, 0, 831);
+          for (let s = f.from + 14; s <= f.to - 14; s += 12) place(s, 0, spec.median - 0.3, 831);
         }
       }
     }

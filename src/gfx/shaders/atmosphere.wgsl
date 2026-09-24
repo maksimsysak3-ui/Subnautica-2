@@ -66,7 +66,7 @@ fn overcastTint(sun : vec3f) -> vec3f {
 // horizon but it is not white, and these were set against a pipeline that was
 // showing them a stop and a half dark.
 const DAY_HIGH   = vec3f(0.042, 0.108, 0.320);
-const DAY_LOW    = vec3f(0.330, 0.450, 0.660);
+const DAY_LOW    = vec3f(0.300, 0.440, 0.700);
 /** Low sun: the zenith holds while the horizon goes to fire. */
 const DUSK_HIGH  = vec3f(0.085, 0.090, 0.180);
 const DUSK_LOW   = vec3f(0.720, 0.330, 0.150);
@@ -81,7 +81,7 @@ const NIGHT_LOW  = vec3f(0.0330, 0.0430, 0.0770);
  * sky's hue and loses its depth -- and a neutral band along the horizon is
  * the one thing that makes a world read as ending at a wall.
  */
-const DAY_DOWN   = vec3f(0.255, 0.305, 0.380);
+const DAY_DOWN   = vec3f(0.225, 0.290, 0.400);
 const NIGHT_DOWN = vec3f(0.026, 0.030, 0.042);
 
 /**
