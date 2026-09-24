@@ -773,19 +773,28 @@ for (const [pool, fallback] of [[POOL.bus, POOL.truck], [POOL.truck, POOL.van], 
 }
 
 /**
- * A parked vehicle in a yard, forecourt or bay -- currently a no-op.
+ * A parked vehicle in a yard, forecourt or bay.
  *
- * See the body: the static cars are removed on purpose, and every call site is
- * left in place as a marker for where the game's own traffic will stand.
+ * These were switched off once, on the plan that the game's own traffic would
+ * stand in the bays instead. It never did: a car that arrives somewhere leaves
+ * the road and is gone, so every car park, forecourt and driveway in the city
+ * was empty tarmac, which more than anything else made the buildings read as
+ * models. The bays are static again, drawn from the vertex-clustered copy of
+ * the imported fleet so a full car park costs a few hundred triangles a car.
+ *
+ * `key` picks the model and so the colour; `turns` is quarter turns, with 0
+ * facing along +x; `body` overrides the length the kind asks for.
  */
 export function parkedVehicle(m: MeshBuilder, key: number, cx: number, cz: number,
   turns: number, kind: ParkedKind = 'car', body?: number): void {
-  // Deliberately draws nothing. Buildings used to park imported cars in their
-  // yards and forecourts; traffic is going to be placed by the game itself
-  // instead, so the static ones are gone rather than fighting the real cars
-  // for the same bay. The call sites all stay -- they mark where a vehicle
-  // belongs, and are what this will be re-pointed at when that lands.
-  void m; void key; void cx; void cz; void turns; void kind; void body;
+  const pool = POOL[kind];
+  if (pool.ids.length === 0) return;
+  const h = ((key * 2654435761) >>> 0) % pool.ids.length;
+  const id = pool.ids[h];
+  const [hx, , hz] = importedSize(id);
+  const length = body ?? pool.length;
+  const scale = length / (2 * Math.max(hx, hz, 0.01));
+  drawImported(m, id, { cx, cz, turns, scale, low: true });
 }
 
 /**

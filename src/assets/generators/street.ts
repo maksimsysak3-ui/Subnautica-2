@@ -34,6 +34,7 @@ import {
 import type { Wall } from '../parts';
 import { hedge, tree } from './landscape';
 import { barrelVault } from './signature-parts';
+import { parkedVehicle } from './vehicles';
 
 /**
  * A bank on a corner.
@@ -175,6 +176,29 @@ export function showroom(lod: number, T: ThemeProfile, seed: number): MeshBuilde
     }
     serviceYard(m, x - 9.0, x - 1.0, -z + back + 0.6, seed,
       { totem: false, flag: false, cycles: false, bins: true });
+    // The stock: two rows nose-out to the street, one to a bay, the front row
+    // full and the back row with the gaps where the week's sales were -- and
+    // clear of the bin store in the back corner.
+    const bay = (w - 3.2) / 6;
+    const rows = [-z + back + 4.6, z - 4.4];
+    for (let r = 0; r < 2; r++) {
+      for (let i = 0; i < 6; i++) {
+        if (r === 0 && i >= 4) continue;
+        const k = seed * 17 + r * 7 + i;
+        if (r === 0 && ((k * 2654435761) >>> 0) % 100 < 35) continue;
+        parkedVehicle(m, k, -x + 1.6 + (i + 0.5) * bay, rows[r], 1, 'car');
+      }
+    }
+    // Bunting along the front, the one thing every forecourt dealer has.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const px of [-x + 0.6, x - 5.0]) m.pipe([px, 0.12, z - 1.2], [px, 4.2, z - 1.2], 0.07, MAT.TRIM, 6);
+      m.pipe([-x + 0.6, 4.1, z - 1.2], [x - 5.0, 4.1, z - 1.2], 0.02, MAT.TRIM, 3);
+    });
+    m.painted(TINT.BRAND, () => {
+      for (let fx = -x + 1.4; fx < x - 5.4; fx += 1.1) {
+        m.box([fx - 0.22, 3.55, z - 1.23], [fx + 0.22, 4.08, z - 1.17], MAT.TRIM);
+      }
+    });
     kerb(m, -x - 1.0, z + 0.6, x + 1.0, z + 1.6);
   }
   return m;
@@ -244,6 +268,11 @@ export function garage(lod: number, T: ThemeProfile, _seed: number): MeshBuilder
         m.cylinder(cx, z - 2.2, 0.32, 0.12, 1.0, 10, MAT.METAL);
       }
     });
+    // Cars in for work, waiting in front of the doors.
+    for (let i = 0; i < 2; i++) {
+      parkedVehicle(m, _seed * 11 + i, -x + 1.6 + (i * 2 + 1) * ((w - office - 3.2) / 4) - 1.0,
+        z - d * 0.30 + 2.5, 1, i === 1 ? 'van' : 'car');
+    }
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 1.0, 5);
     kerb(m, -x - 1.0, z + 0.6, x + 1.0, z + 1.6);
   }

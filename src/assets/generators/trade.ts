@@ -263,10 +263,14 @@ function bigBox(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       { width: 2.6, height: 3.4, double: true, glazed: true });
     boxSign(m, { axis: 'z', sign: 1, plane: z + 3.4 }, -6.4, 0.4, h - 1.2, h + 1.0);
     pylonSign(m, x - 3.0, far - 1.5, 7.5, 2.8);
-    for (let i = 0; i < 10; i++) {
-      const row = i < 5 ? z + 8.0 : row2;
-      const cx = -x + 7.0 + (i % 5) * 5.2;
-      parkedVehicle(m, seed * 31 + i, cx, row, 0, i === 3 ? 'van' : 'car');
+    // Nose-in, one to a marked bay, with the gaps a real car park has.
+    let n = 0;
+    for (const row of [z + 8.0, row2]) {
+      for (let bx = -x + 1.0; bx + 2.6 <= x - 1.0; bx += 2.6) {
+        const k = seed * 31 + n++;
+        if (((k * 2654435761) >>> 0) % 100 < 45) continue;
+        parkedVehicle(m, k, bx + 1.3, row, 1, n % 9 === 4 ? 'van' : 'car');
+      }
     }
     portal(m, -x + 2.0, -x + 8.0, -z, 4.4, 0);
     serviceYard(m, -x, x - 8.0, -z - 9.0, seed, { bins: true, totem: true });
