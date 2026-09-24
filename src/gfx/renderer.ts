@@ -943,7 +943,8 @@ export class Renderer {
     const waterModule = device.createShaderModule({ label: 'water', code: SHADERS.water });
     const water = device.createRenderPipeline({
       label: 'water-pipeline',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout] }),
+      // The overlay too: a map of fish is a map of the water.
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, overlayBgl] }),
       vertex: {
         module: waterModule,
         entryPoint: 'vs',
@@ -2708,9 +2709,10 @@ export class Renderer {
     ramp: readonly [string, string, string]): void {
     const res = this.res;
     if (!res) return;
-    const mode = look === Look.UNDERGROUND ? OverlayMode.UNDERGROUND : OverlayMode.SURFACE;
+    const mode = look === Look.UNDERGROUND ? OverlayMode.UNDERGROUND
+      : look === Look.ABUNDANCE ? OverlayMode.ABUNDANCE : OverlayMode.SURFACE;
     this.buried = mode === OverlayMode.UNDERGROUND ? OVERLAY_STRENGTH : 0;
-    this.drained = mode === OverlayMode.SURFACE ? DRAIN_STRENGTH : 0;
+    this.drained = mode === OverlayMode.UNDERGROUND ? 0 : DRAIN_STRENGTH;
     writeOverlay(this.gpu.device, res.overlay, grid, mode,
       this.world.grid * CELL_METRES, OVERLAY_STRENGTH, ramp);
   }

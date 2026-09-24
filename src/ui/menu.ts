@@ -21,6 +21,7 @@ import type { DifficultyId } from '../sim/difficulty';
 import { glyph } from './glyphs';
 import { CARD_SHOTS } from './setup-shots';
 import { MAPS } from '../sim/maps';
+import { RESOURCES } from '../sim/resources';
 import type { MapId } from '../sim/maps';
 import { drawMapPreview } from './map-preview';
 
@@ -383,7 +384,18 @@ export class Menu {
       const tg = document.createElement('div');
       tg.className = 'mr-map-tag';
       tg.textContent = mp.tagline;
-      tile.append(pic, nm, tg);
+      // The map's three richest resources, as their icons in their own colours.
+      const res = document.createElement('div');
+      res.className = 'mr-map-res';
+      const best = [...RESOURCES].sort((a, b) => mp.richness[b.id] - mp.richness[a.id]).slice(0, 3);
+      for (const r of best) {
+        const chip = document.createElement('span');
+        chip.style.color = r.ramp[2];
+        chip.title = `${r.name}: ${mp.richness[r.id] >= 1.6 ? 'plentiful' : mp.richness[r.id] >= 1 ? 'good' : 'some'}`;
+        chip.innerHTML = glyph(r.icon, 15);
+        res.appendChild(chip);
+      }
+      tile.append(pic, nm, tg, res);
       tile.addEventListener('click', () => chooseMap(mp.id));
       mapRow.appendChild(tile);
       tiles.push(tile);

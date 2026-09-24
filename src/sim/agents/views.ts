@@ -25,6 +25,8 @@
  * utility map looks like. Everything else is a heatmap over the surface.
  */
 
+import { RESOURCES, resourceById, resourceFields } from '../resources';
+import type { ResourceId } from '../resources';
 import { Places, Purpose } from './places';
 import { Utilities, Util, UTIL_NAMES } from './utilities';
 import { Services, SERVICE_GRID, UNREACHED } from './services';
@@ -61,6 +63,7 @@ export const View = {
   LAND: 13,
   POLLUTION: 14,
   BUDGET: 15,
+  RESOURCES: 16,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -70,6 +73,12 @@ export const Look = {
   SURFACE: 0,
   /** The world darkened and the network lit through it. */
   UNDERGROUND: 1,
+  /**
+   * A wash that strengthens with the reading. The surface look does the
+   * opposite on purpose -- a coverage map shouts about the gaps -- which on a
+   * map of resources would make the richest ground the faintest.
+   */
+  ABUNDANCE: 2,
 } as const;
 
 export interface ViewInfo {
@@ -167,6 +176,13 @@ export const VIEWS: ViewInfo[] = [
     ramp: ['#d0503c', '#d8c05a', '#5fc888'], unit: 'polluted',
   },
   {
+    // Painted in whichever resource the card has picked; the ramp and the
+    // legend are rewritten when the pick changes. See `pickResource`.
+    id: View.RESOURCES, name: 'Resources', icon: 'resources', look: Look.ABUNDANCE,
+    legend: RESOURCES[0].blurb,
+    ramp: [...RESOURCES[0].ramp], unit: 'of the richest ground',
+  },
+  {
     // The one view that is not a map. It paints nothing -- a budget is not a
     // place -- and the panel is the whole of it, with the tax controls mounted
     // underneath by the interface. It sits in the same rail because that is
@@ -249,6 +265,10 @@ export class Views {
   /** Which view the grid currently holds, and when it was built. */
   built: number = View.NONE;
   builtAt = -1;
+  /** Bumped on every build, so a rebuild within one tick is still news. */
+  version = 0;
+  /** Which resource the resources view paints. */
+  resource: ResourceId = 'fertile';
 
   constructor(private src: Sources) {
     this.perLane = new Float32Array(src.lanes.count);
@@ -273,6 +293,7 @@ export class Views {
     this.grid.fill(NO_DATA);
     this.built = view;
     this.builtAt = tick;
+    this.version++;
     switch (view) {
       case View.TRAFFIC: this.fromTraffic(); break;
       case View.POWER: this.fromUtility(Util.POWER); break;
@@ -295,6 +316,13 @@ export class Views {
       // A budget is not a place. Nothing is painted, and the grid is left blank
       // rather than left over from whatever was open before it.
       case View.BUDGET: break;
+      case View.RESOURCES: {
+        // Straight off the field: the grids are the same shape over the same
+        // ground. Nothing is spread -- a seam's edge is where it is.
+        const f = resourceFields().amount[this.resource];
+        for (let k = 0; k < f.length; k++) if (f[k] > 0) this.grid[k] = f[k];
+        break;
+      }
       default: break;
     }
     return this.grid;
@@ -561,6 +589,21 @@ export class Views {
       hero = false): Stat => ({ label, value, bar, warn, hero });
 
     switch (view) {
+      case View.RESOURCES: {
+        // Every resource at once, so the card answers "what is this map good
+        // for" before the player has clicked anything; the picked one leads.
+        const f = resourceFields();
+        const pick = resourceById(this.resource);
+        const rows: Stat[] = [line(`of the land is ${pick.name.toLowerCase()}`,
+          pct(f.cover[pick.id]), -1, false, true)];
+        const grade = (d: number): string => (d > 0.66 ? 'rich' : d > 0.4 ? 'fair' : d > 0 ? 'thin' : 'none');
+        for (const r of RESOURCES) {
+          rows.push(line(r.name, f.cover[r.id] > 0
+            ? `${f.cover[r.id] < 0.01 ? '<1%' : pct(f.cover[r.id])} · ${grade(f.depth[r.id])}` : 'none',
+            Math.min(1, f.cover[r.id] * 1.6)));
+        }
+        return rows;
+      }
       case View.BUDGET: {
         const l = s.economy.report;
         const b = s.budget;

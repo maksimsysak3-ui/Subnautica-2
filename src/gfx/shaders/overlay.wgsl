@@ -75,7 +75,7 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // reading towards zero at the boundary of the data, and without this the tint
   // would darken into a fringe round every district instead of fading out.
   let have = s.g;
-  if (overlay.mode > 1.5) {
+  if (overlay.mode > 1.5 && overlay.mode < 2.5) {
     let deep = overlayRamp(s.r / max(have, 0.02));
     // Underground: the whole world goes to a dim slate and the mains are lit
     // through it, which is what a utility drawing looks like and reads instantly
@@ -104,7 +104,9 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // Not squared. Squaring made a middling reading nearly invisible, which is
   // the one a player most needs to see -- a district at a third of what it
   // should have is the district to go and fix.
-  let weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
+  var weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
+  // Abundance turns that round: the more there is, the stronger the colour.
+  if (overlay.mode > 2.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
 
   // And the ground outside the reading is drained a little towards grey, which
   // is the difference between a view and a tint: the traffic ramp is green at

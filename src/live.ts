@@ -21,10 +21,13 @@
  * simulation arriving in one lump.
  */
 
+import { resourcePicker } from './ui/resource-picker';
+import { resourceById } from './sim/resources';
+import type { ResourceId } from './sim/resources';
 import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
-import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
+import { Simulation, View, VIEWS, heightAt, money, PANEL_ONLY } from './sim';
 import { Alerts } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
 import type { CityMood, WeatherRead } from './ui/cititok';
@@ -118,6 +121,8 @@ export class LiveCity {
    * times a second and a fresh two-hundred-kilobyte array each time is a
    * garbage collection every few seconds, which is a stutter you can see.
    */
+  /** Which resource the resources view paints; kept across new cities. */
+  private resourcePick: ResourceId = 'fertile';
   /** Smoke and steam over the chimneys, rescanned when the city changes. */
   private readonly plumes = new Plumes();
   private readonly moverRows =
@@ -193,6 +198,18 @@ export class LiveCity {
     this.info.mount(View.BUDGET, this.tax.root);
     this.policies = new PolicyPanel();
     this.info.mount(View.BUDGET, this.policies.root);
+    // The resources view's picker: which resource the map is painted in.
+    this.info.mount(View.RESOURCES, resourcePicker((id) => {
+      const r = resourceById(id);
+      const entry = VIEWS.find((v) => v.id === View.RESOURCES);
+      if (entry !== undefined) {
+        entry.ramp = [...r.ramp];
+        entry.legend = r.blurb;
+      }
+      this.resourcePick = id;
+      if (this.sim !== null) this.sim.views.resource = id;
+      this.info.redraw();
+    }));
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
@@ -579,6 +596,7 @@ export class LiveCity {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
+      this.sim.views.resource = this.resourcePick;
       // Founded in the morning. The clock counts from midnight, and a new
       // city that opens in the dark is a poor first look at it.
       // A loaded city carries on from its own date, so anything dated in days
@@ -647,8 +665,8 @@ export class LiveCity {
       const meta = sim.views.built === view ? this.info.meta(view) : null;
       // Uploaded when the simulation has rebuilt it, which it does on its own
       // schedule -- so an open view is live without the frame asking for one.
-      if (meta !== null && sim.views.builtAt !== this.uploaded) {
-        this.uploaded = sim.views.builtAt;
+      if (meta !== null && sim.views.version !== this.uploaded) {
+        this.uploaded = sim.views.version;
         this.renderer.setOverlay(sim.viewGrid, meta.look, rampFor(meta.ramp));
       }
       this.info.refresh(now, (): Stat[] => sim.viewStats);
@@ -922,7 +940,7 @@ export class LiveCity {
     // Shown at once rather than on the next rebuild: `show` built the grid, and
     // a view that takes most of a second to appear reads as a dropped click.
     if (this.sim !== null) {
-      this.uploaded = this.sim.views.builtAt;
+      this.uploaded = this.sim.views.version;
       this.renderer.setOverlay(this.sim.viewGrid, meta.look, rampFor(meta.ramp));
     }
   }

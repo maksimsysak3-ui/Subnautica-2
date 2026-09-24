@@ -156,6 +156,20 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   background: rgba(6,10,17,.82); border: 1px solid rgba(244,181,74,.35); border-radius: 8px; outline: none;
 }
 .mr-name input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,181,74,.15); }
+.mr-res-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 2px 0 10px; }
+.mr-res-chip {
+  --tone: #9fb4d6;
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 9px; cursor: pointer;
+  border-radius: 9px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03);
+  color: ${BRAND.dim}; font: 600 12px/1 var(--ui); text-align: left;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.mr-res-chip:hover { border-color: rgba(255,255,255,.2); color: var(--ink); }
+.mr-res-ico { display: inline-flex; color: var(--tone); }
+.mr-res-chip.is-on {
+  color: var(--ink); border-color: color-mix(in srgb, var(--tone) 60%, transparent);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+}
 .mr-section-label {
   font: 700 11px/1 var(--label); letter-spacing: .16em; text-transform: uppercase; color: var(--amber);
   margin-bottom: 8px;
@@ -175,6 +189,8 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 }
 .mr-map-name { padding: 6px 12px 0; font: 800 15px/1.1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
 .mr-map-tag { padding: 0 12px; font: 500 12px/1.3 var(--ui); color: ${BRAND.dim}; }
+.mr-map-res { display: flex; gap: 8px; padding: 4px 12px 0; }
+.mr-map-res span { display: inline-flex; }
 @media (max-width: 800px) { .mr-map-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .mr-map-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .mr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

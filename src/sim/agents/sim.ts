@@ -896,7 +896,8 @@ export class Simulation {
       this.dispatch.blazes, this.strollers,
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
-      this.scheduler.sinceTick, this.dispatch.incidents, plumes);
+      this.scheduler.sinceTick, this.dispatch.incidents, plumes,
+      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ);
   }
 
   /** What the last `drawMovers` drew. */

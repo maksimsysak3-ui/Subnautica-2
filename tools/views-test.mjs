@@ -73,7 +73,7 @@ if (r.error) {
 
 const EXPECTED = ['Traffic', 'Power', 'Water', 'Sewage', 'Rubbish', 'Fire',
   'Police', 'Health', 'Schools', 'Parks', 'Transport', 'Desirability',
-  'Land value', 'Pollution', 'Budget'];
+  'Land value', 'Pollution', 'Resources', 'Budget'];
 
 if (!r.railHidden) push('the rail was already open before anything was clicked');
 if (!r.railShown) push('clicking the launcher did not open the rail');

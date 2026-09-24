@@ -14,6 +14,7 @@
 #include "common.wgsl"
 #include "atmosphere.wgsl"
 #include "noise.wgsl"
+#include "overlay.wgsl"
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -110,7 +111,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Shallows catch a little more light at the banks.
   col = mix(col, col * 1.25 + vec3f(0.004, 0.006, 0.005), edge * 0.18);
   col = aerial(col, dist, -toEye, sun);
-  col = bury(col, camera.view.x);
-  col = drain(col, camera.view.y);
+  // The information overlay, as the ground takes it -- which also buries and
+  // drains the water with the land when a view is open, so the two never
+  // disagree about what mode the map is in.
+  col = overlayTint(col, in.world);
   return vec4f(sceneOut(col), 1.0);
 }

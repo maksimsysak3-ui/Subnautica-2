@@ -132,7 +132,7 @@ export const MAPS: readonly MapProfile[] = [
     seed: 113, relief: 0.9, scale: 0.9, ridges: 1.5, flat: 0.08,
     river: null, sea: null, lakes: [],
     climate: 0.9,
-    richness: { fertile: 0.3, forest: 0.35, ore: 1.5, oil: 1.9, stone: 1.2, fish: 0 },
+    richness: { fertile: 0.6, forest: 0.35, ore: 1.5, oil: 1.9, stone: 1.2, fish: 0 },
   },
 ];
 

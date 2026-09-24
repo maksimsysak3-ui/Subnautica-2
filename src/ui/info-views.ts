@@ -319,6 +319,14 @@ export class InfoViews {
   /** Which view is open, or `View.NONE`. */
   get view(): number { return this.current; }
 
+  /** Repaints the open view's card and map, after its table entry changed. */
+  redraw(): void {
+    const id = this.current;
+    if (id === View.NONE) return;
+    this.current = View.NONE;
+    this.select(id);
+  }
+
   /** A view's table entry, for whoever is drawing the map. */
   meta(view: number): ViewInfo | null {
     return VIEWS.find((v) => v.id === view) ?? null;

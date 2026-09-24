@@ -231,7 +231,7 @@ export class Movers {
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView,
-    plumes?: PlumeView): number {
+    plumes?: PlumeView, seconds = 0): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -516,7 +516,9 @@ export class Movers {
     // and each breathing on its own phase. The wind itself veers slowly, over
     // minutes, so a player who watches for a while sees the weather move.
     if (plumes !== undefined && plumes.count > 0) {
-      const t = performance.now() / 1000;
+      // The simulation's own seconds, not the wall clock: a paused city holds
+      // its smoke still, and a frame drawn twice without a tick is the same frame.
+      const t = seconds;
       const wind = 0.9 + Math.sin(t / 170) * 0.55;
       const seats = ['smoke', 'steam', 'steamBig'];
       for (let i = 0; i < plumes.count; i++) {

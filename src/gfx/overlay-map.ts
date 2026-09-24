@@ -44,7 +44,7 @@ export const OVERLAY_FORMAT: GPUTextureFormat = 'rg8unorm';
 export const SURFACE_FORMAT: GPUTextureFormat = 'rgba8unorm';
 
 /** How the ground is tinted. Must match `overlayTint` in common.wgsl. */
-export const OverlayMode = { OFF: 0, SURFACE: 1, UNDERGROUND: 2 } as const;
+export const OverlayMode = { OFF: 0, SURFACE: 1, UNDERGROUND: 2, ABUNDANCE: 3 } as const;
 
 export interface OverlayMap {
   texture: GPUTexture;

@@ -988,7 +988,10 @@ export async function probeViews(): Promise<{
     budgetRows, taxSliders: sliders.length,
     rateMoved: Math.abs(nowRate - wasRate) > 0.01,
     // A budget is not a place: opening it must leave the map exactly as it was.
-    budgetPainted: moved(plainPx, budgetPx),
+    // Against the frame just before it opened, not the first one: three updates
+    // of traffic and smoke moving is not the budget painting anything, and
+    // measured from the start it sat on the threshold and failed by chance.
+    budgetPainted: moved(backPx, budgetPx),
   };
 }
 
