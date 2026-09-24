@@ -31,6 +31,18 @@ instanced buildings, culled on the GPU every frame".
 - **Guided start**: a First Steps card walks a new town through housing,
   power, water, sewage and work, and the city says when homes are going
   without supply.
+- **Founding**: name the city and pick Relaxed, Standard or Hard -- each card
+  lists exactly what it changes (treasury, grant, build and upkeep costs, tax
+  income, how long residents only complain about utilities, progression).
+- **One clock**: the sun, sky, weather, date and seasons all follow the
+  simulated day (90 seconds at 1x), and stop when the city is paused.
+- **City Hall** (on the phone, from 5,000 residents): three candidates stand
+  for mayor, one of them yours. Platforms are the real ordinances, voters
+  respond to the city's actual problems, the count is live on election night,
+  and the winner's pledges are pinned as policy for the 56-day term.
+- **Taxes and progression**: industry pays roughly 3-4x commercial and 5x
+  residential; services open with the city's level (fire at 2, transport at 8,
+  civic and post at 9), and locked ones say when they open.
 - **Feel**: an eased, cursor-anchored zoom and momentum on the camera, which
   also keeps itself out of buildings; a synthesised soundscape of wind,
   town hum, traffic, rain, birds and crickets; sounds for building.
@@ -78,6 +90,8 @@ npm run dev        # http://localhost:5173
 | W A S D / arrows | pan |
 | Q E | rotate · R F pitch · +/− zoom |
 | Space, 1–4 | pause, and the three speeds |
+| C | the phone: feed, weather, City Hall |
+| V · T | information views · development tree |
 | <kbd>`</kbd> | log console |
 
 On the title screen, the arrow keys move through the menu, Enter chooses and

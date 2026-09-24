@@ -16,10 +16,26 @@ import { listSaves, readSave, writeSave, deleteSave, fromCode, toCode } from '..
 import type { SaveInfo, World } from '../sim';
 import { LOADING_ART } from './loading-art';
 import { installTheme } from './theme';
+import { DIFFICULTIES, describe } from '../sim/difficulty';
+import type { DifficultyId } from '../sim/difficulty';
+import { glyph } from './glyphs';
+import { difficultyArt } from './setup-art';
+
+/** What the player chose before founding a city. */
+export interface Setup {
+  name: string;
+  difficulty: DifficultyId;
+}
+
+/** Names offered for a new city, rerolled with the dice. */
+const NAMES = ['Ashford', 'Riverside', 'Kingsmere', 'Harrowgate', 'Millbrook', 'Easton Vale',
+  'Northwick', 'Salford', 'Brightwater', 'Oakhollow', 'Fenmarch', 'Stonebridge', 'Larkhill',
+  'Port Averly', 'Wexham', 'Calder Cross'];
+
 
 export interface MenuHooks {
-  /** Start on empty land with the road in from the edge. */
-  onNew: () => void;
+  /** Start on empty land with the road in from the edge, named and set up. */
+  onNew: (setup: Setup) => void;
   /** Put a loaded world on the map. */
   onLoad: (world: World, name: string) => void;
   /** The world as it stands, for saving and for sharing. */
@@ -218,7 +234,7 @@ export class Menu {
     }
     entries.push({ label: 'New city', primary: saves.length === 0,
       hint: 'Empty land by the river, with one road in from the edge of the map.',
-      run: () => this.close(() => this.hooks.onNew()) });
+      run: () => this.showSetup() });
     entries.push({ label: 'Load city', key: saves.length > 0 ? `${saves.length} saved` : '',
       hint: 'Pick up any city saved in this browser.', run: () => this.showLoad() });
     entries.push({ label: 'Share & join',
@@ -279,6 +295,151 @@ export class Menu {
     this.body.prepend(box);
     this.note.textContent = 'A city travels as text. There is no server; the code is the whole city.';
     box.focus();
+  }
+
+  /**
+   * Founding a city: its name and how hard it is to run, chosen together on
+   * one screen before the land is handed over.
+   */
+  private showSetup(): void {
+    let pick: DifficultyId = 'standard';
+    const el = document.createElement('div');
+    el.className = 'mr-setup';
+    el.dataset.panel = 'setup';
+
+    const head = document.createElement('div');
+    head.className = 'mr-setup-head';
+    const back = document.createElement('button');
+    back.className = 'mr-square';
+    back.setAttribute('aria-label', 'Back');
+    back.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+      + ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+    const title = document.createElement('h2');
+    title.textContent = 'Found a city';
+    head.append(back, title);
+
+    const nameBox = document.createElement('div');
+    nameBox.className = 'mr-name';
+    const label = document.createElement('label');
+    label.htmlFor = 'mr-city-name';
+    label.textContent = 'City name';
+    const row = document.createElement('div');
+    row.className = 'mr-name-row';
+    const field = document.createElement('input');
+    field.id = 'mr-city-name';
+    field.maxLength = 32;
+    field.spellcheck = false;
+    field.value = NAMES[Math.floor(Math.random() * NAMES.length)];
+    const dice = document.createElement('button');
+    dice.className = 'mr-square';
+    dice.title = 'Suggest another name';
+    dice.setAttribute('aria-label', 'Suggest another name');
+    dice.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+      + ' stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/>'
+      + '<circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/>'
+      + '<circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>';
+    dice.addEventListener('click', () => {
+      let next = field.value;
+      while (next === field.value) next = NAMES[Math.floor(Math.random() * NAMES.length)];
+      field.value = next;
+    });
+    row.append(field, dice);
+    nameBox.append(label, row);
+
+    const cards = document.createElement('div');
+    cards.className = 'mr-cards';
+    const all: HTMLElement[] = [];
+    const choose = (id: DifficultyId): void => {
+      pick = id;
+      for (const c of all) c.classList.toggle('is-picked', c.dataset.difficulty === id);
+    };
+    for (const d of DIFFICULTIES) {
+      const card = document.createElement('button');
+      card.className = 'mr-card';
+      card.dataset.difficulty = d.id;
+      const art = document.createElement('div');
+      art.className = 'mr-card-art';
+      art.innerHTML = difficultyArt(d.id);
+      const name = document.createElement('div');
+      name.className = 'mr-card-title';
+      name.textContent = d.label;
+      const artWrap = document.createElement('div');
+      artWrap.style.position = 'relative';
+      artWrap.append(art, name);
+      const body = document.createElement('div');
+      body.className = 'mr-card-body';
+      const tag = document.createElement('div');
+      tag.className = 'mr-card-tag';
+      tag.textContent = d.tagline;
+      const blurb = document.createElement('p');
+      blurb.className = 'mr-card-blurb';
+      blurb.textContent = d.blurb;
+      const list = document.createElement('ul');
+      for (const line of describe(d)) {
+        const li = document.createElement('li');
+        li.textContent = line;
+        list.appendChild(li);
+      }
+      const sel = document.createElement('div');
+      sel.className = 'mr-pick';
+      sel.innerHTML = '<span class="mr-pick-on">Selected</span>';
+      body.append(tag, blurb, list, sel);
+      card.append(artWrap, body);
+      card.addEventListener('click', () => choose(d.id));
+      cards.appendChild(card);
+      all.push(card);
+    }
+    const paintPicks = (): void => {
+      for (const c of all) {
+        const s = c.querySelector('.mr-pick');
+        if (s) s.textContent = c.classList.contains('is-picked') ? 'Selected' : 'Select';
+      }
+    };
+    for (const c of all) c.addEventListener('click', paintPicks);
+    choose(pick);
+    paintPicks();
+
+    const foot = document.createElement('div');
+    foot.className = 'mr-setup-foot';
+    const note = document.createElement('p');
+    note.textContent = 'The difficulty is set for the life of this city.';
+    const found = document.createElement('button');
+    found.className = 'mr-found';
+    found.innerHTML = `<span style="display:inline-flex;vertical-align:-4px;margin-right:10px">${glyph('signature', 20)}</span>Found the city`;
+    foot.append(note, found);
+
+    el.append(head, nameBox, cards, foot);
+    this.root.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('is-open'));
+
+    const shut = (): void => {
+      removeEventListener('keydown', keys, true);
+      el.remove();
+    };
+    const go = (): void => {
+      const name = field.value.trim() === '' ? NAMES[0] : field.value.trim();
+      shut();
+      this.close(() => this.hooks.onNew({ name, difficulty: pick }));
+    };
+    const keys = (e: KeyboardEvent): void => {
+      // Captured ahead of the title list's own keys, which are underneath.
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); shut(); return; }
+      if (e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); go(); return; }
+      if (e.target === field) return;
+      const i = DIFFICULTIES.findIndex((d) => d.id === pick);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const n = (i + (e.key === 'ArrowRight' ? 1 : DIFFICULTIES.length - 1)) % DIFFICULTIES.length;
+        choose(DIFFICULTIES[n].id);
+        paintPicks();
+      }
+    };
+    addEventListener('keydown', keys, true);
+    back.addEventListener('click', shut);
+    found.addEventListener('click', go);
+    field.focus();
+    field.select();
   }
 
   private open(key: string): void {

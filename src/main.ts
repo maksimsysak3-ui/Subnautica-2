@@ -7,6 +7,7 @@
  * exists to hide a problem in.
  */
 
+import { useDifficulty } from './sim/difficulty';
 import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
 import { Camera } from './gfx/camera';
@@ -146,18 +147,23 @@ async function boot(): Promise<void> {
   /** The name a loaded save came in under, applied once the tools exist. */
   let loaded: string | null = null;
   const menu = new Menu(overlay, {
-    onNew: () => {
+    onNew: (setup) => {
       ambience.start();
+      // The rules first: the new world's treasury, and the systems the
+      // simulation builds next, read them.
+      useDifficulty(setup.difficulty);
       live.reset();
       renderer.useWorld(startingWorld(renderer.world.grid));
       renderer.rebuild();
+      if (tools !== null) tools.cityName = setup.name; else loaded = setup.name;
     },
     onLoad: (world, name) => {
       ambience.start();
+      useDifficulty(world.difficulty);
       live.reset();
       renderer.useWorld(world);
       renderer.rebuild();
-      loaded = name;
+      if (tools !== null) tools.cityName = name; else loaded = name;
     },
     world: () => renderer.world,
     cinematic: (on) => {
@@ -263,7 +269,10 @@ async function boot(): Promise<void> {
   tools.onTech = () => live.tech.toggle();
   tools.onSettings = () => live.settings.toggle();
   live.onProgress = () => tools?.paintProgress();
-  live.cityName = tools.cityName;
+  live.nameSource = () => tools?.cityName ?? 'the city';
+  // One clock: the sun, the sky, the weather and the calendar follow the
+  // city's day once there is a city, so pausing stops all of it together.
+  renderer.clockSource = () => live.dayClock();
   if (loaded !== null) tools.cityName = loaded;
   autosave(renderer, tools);
 

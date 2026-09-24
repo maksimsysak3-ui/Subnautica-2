@@ -100,6 +100,8 @@ interface SaveFile {
   policies?: string[];
   /** City Hall: the race or the term in progress. Absent in older saves. */
   politics?: unknown;
+  /** The difficulty the city was founded on. Absent in older saves: standard. */
+  difficulty?: string;
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -194,6 +196,7 @@ export function serialise(world: World, name: string, auto = false): string {
     money: [world.budget.balance, [...world.budget.rates]],
     career: world.progress.save(),
     politics: world.politics.saved(),
+    difficulty: world.difficulty,
     policies: world.policies.saved(),
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
@@ -273,6 +276,8 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (Array.isArray(file.policies)) {
     world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
   }
+  if (file.difficulty === 'relaxed' || file.difficulty === 'hard') world.difficulty = file.difficulty;
+  else world.difficulty = 'standard';
   if (file.politics !== undefined) {
     world.politics.restore(file.politics);
     world.politics.reapply(world.policies, world.budget);

@@ -15,6 +15,7 @@
  * not a rebuild.
  */
 
+import { monthOf, yearOf, seasonOfMonth, temperature } from '../sim/weather';
 import { log } from '../util/log';
 import { thud, brush, crunch, deny } from './sound';
 import type { Renderer } from '../gfx/renderer';
@@ -75,12 +76,12 @@ function escapeText(s: string): string {
 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** Season by quarter, with the day's temperature range it swings between. */
+/** How each season is shown on the bar. Its climate is in sim/weather.ts. */
 const SEASONS = [
-  { name: 'Winter', glyph: '❄', tint: '#8fc7ff', low: -1, high: 5 },
-  { name: 'Spring', glyph: '❀', tint: '#8fe0a8', low: 6, high: 15 },
-  { name: 'Summer', glyph: '☀', tint: '#ffd166', low: 14, high: 26 },
-  { name: 'Autumn', glyph: '☂', tint: '#e8a35a', low: 5, high: 14 },
+  { name: 'Winter', glyph: '❄', tint: '#8fc7ff' },
+  { name: 'Spring', glyph: '❀', tint: '#8fe0a8' },
+  { name: 'Summer', glyph: '☀', tint: '#ffd166' },
+  { name: 'Autumn', glyph: '☂', tint: '#e8a35a' },
 ];
 
 type Tool =
@@ -1936,17 +1937,18 @@ export class BuildTools {
       this.ticked = now;
       const t = this.renderer.timeOfDay;
       const hh = Math.floor(t * 24), mm = Math.floor((t * 24 % 1) * 60);
-      // The year turns once per real hour, so a session passes through the
-      // seasons rather than sitting in one.
-      const doy = (now / 3600000) % 1;
-      const month = Math.floor(doy * 12);
-      const season = SEASONS[Math.floor(((month + 1) % 12) / 3)];
-      const temp = Math.round(season.low + (season.high - season.low)
-        * (0.5 - 0.5 * Math.cos(t * Math.PI * 2 - Math.PI)));
+      // The calendar is the city's: a year is four 28-day seasons, starting
+      // in spring (March), so the months, the season and the year all follow
+      // the simulated days -- they stop on pause and race at ten times.
+      const day = this.renderer.calendarDay;
+      const month = monthOf(day);
+      const year = yearOf(day);
+      const season = SEASONS[seasonOfMonth(month)];
+      const temp = Math.round(temperature(day, t * 24, this.renderer.weather.sky));
       fill(this.readClock,
         `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
         + `<span style="color:${SKIN.dim};font-size:10px">`
-        + `${MONTHS[month]} ${2027 + Math.floor(now / 3600000)}</span>`);
+        + `${MONTHS[month]} ${year}</span>`);
       fill(this.readSeason, `<span style="color:${season.tint}">${season.glyph}</span>`
         + `${temp}\u00b0C<span style="color:${SKIN.dim};font-size:10px">`
         + `${season.name}</span>`);

@@ -47,7 +47,10 @@ export class TechTree {
   private chosen: TechNode | null = null;
   private shown = false;
 
-  constructor(parent: HTMLElement, private progress: Progress,
+  /** Read through, not held: a loaded city brings a new career object. */
+  private get progress(): Progress { return this.progressOf(); }
+
+  constructor(parent: HTMLElement, private progressOf: () => Progress,
     private onBuy: (node: TechNode) => void) {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'tech';

@@ -64,6 +64,19 @@ const pressed = await page.evaluate(() => {
   return true;
 });
 note(pressed, 'the menu offers a new city');
+// Founding: a name and a difficulty, on their own screen.
+await page.waitForTimeout(800);
+const founded = await page.evaluate(() => {
+  const field = document.querySelector('#mr-city-name');
+  const hard = document.querySelector('[data-difficulty="relaxed"]');
+  const go = document.querySelector('.mr-found');
+  if (!field || !hard || !go) return false;
+  field.value = 'Playtest Vale';
+  hard.click();
+  go.click();
+  return true;
+});
+note(founded, 'the setup screen names the city and picks a difficulty');
 await page.waitForTimeout(14000);
 
 const started = await page.evaluate(() => (window.citysim !== undefined));

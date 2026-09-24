@@ -27,7 +27,7 @@ import { Alerts } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
 import type { CityMood, WeatherRead } from './ui/cititok';
 import type { Sky } from './sim/weather';
-import { skyOf, labelOf, glyphOf } from './sim/weather';
+import { skyOf, labelOf, glyphOf, temperature } from './sim/weather';
 import { MOVER_BUDGET } from './assets/generators/movers';
 import { INSTANCE_FLOATS } from './sim';
 import { Inspect } from './ui/inspect';
@@ -62,6 +62,9 @@ import { CityHall } from './ui/city-hall';
 import type { Issues, Phase } from './sim/politics';
 import { Gripe } from './sim';
 import { TICKS_PER_DAY } from './sim/agents/calendar';
+
+/** The hour a new city's first day starts at. */
+const START_HOUR = 7;
 
 /** How often the readout's city rows are rewritten, in milliseconds. */
 const READOUT_MS = 500;
@@ -113,8 +116,14 @@ export class LiveCity {
   readonly settings: Settings;
   /** The phone the city posts from. */
   readonly cititok: Cititok;
-  /** What the city is called, for the feed. Set by whoever owns the bar. */
-  cityName = 'the city';
+  /**
+   * Where the city's name is read from. A function, not a copy: the name
+   * changes on founding, on load and when a save renames it, and a copy taken
+   * at boot is how the phone went on saying Salford after all three.
+   */
+  nameSource: () => string = () => 'the city';
+  get cityName(): string { return this.nameSource(); }
+  set cityName(name: string) { this.nameSource = () => name; }
   /**
    * The player's time control, in multiples of real time.
    *
@@ -174,7 +183,7 @@ export class LiveCity {
     this.alerts = new Alerts(ui);
     this.steps = new FirstSteps(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
-    this.tech = new TechTree(ui, renderer.world.progress, () => this.onUnlock());
+    this.tech = new TechTree(ui, () => renderer.world.progress, () => this.onUnlock());
     // The goals board reads the city rather than a copy of it.
     this.tech.readGoal = (id) => {
       const goal = GOALS.find((g) => g.id === id);
@@ -269,6 +278,12 @@ export class LiveCity {
    * it in the voice of somebody it is happening to, which is the register a
    * city builder never uses.
    */
+  /** The city's clock for the sky and the calendar, or null with no city running. */
+  dayClock(): { fraction: number; day: number } | null {
+    if (this.sim === null || !this.running) return null;
+    return { fraction: this.sim.clock.fraction, day: this.sim.clock.day };
+  }
+
   /** Game days since founding, with the fraction of today. */
   private gameDay(): number {
     return this.sim === null ? 0 : this.sim.clock.tick / TICKS_PER_DAY;
@@ -403,13 +418,9 @@ export class LiveCity {
     if (!this.running) return null;
     const w = r.weather;
     const hour = r.timeOfDay * 24;
-    const at = (h: number, sky: Sky): number => {
-      // Coldest before dawn, warmest mid-afternoon; cloud flattens the swing
-      // and takes the top off the day, and rain takes a little more.
-      const swing = 7 * (1 - 0.45 * sky.cover);
-      return 11 + swing * Math.cos(((h - 15) / 24) * Math.PI * 2)
-        - 3.5 * sky.cover - 2 * sky.rain;
-    };
+    // The same temperature the bar shows: one function of the season, the
+    // hour and the sky, in sim/weather.ts.
+    const at = (h: number, sky: Sky): number => temperature(r.calendarDay, h, sky);
     const outlook: WeatherRead['outlook'] = [];
     for (let h = 1; h <= 6; h++) {
       const sky = skyOf(w.ahead(h / 24));
@@ -467,6 +478,9 @@ export class LiveCity {
     if (this.fresh || this.sim === null) {
       this.fresh = false;
       this.sim = new Simulation(city, net, 0x1b0b0, this.renderer.world);
+      // Founded in the morning. The clock counts from midnight, and a new
+      // city that opens in the dark is a poor first look at it.
+      this.sim.clock.tick = Math.round((START_HOUR / 24) * TICKS_PER_DAY);
       this.sim.speed = this.rate;
       this.tax.bind(this.sim.budget);
       this.policies.bind(this.sim.policies);

@@ -55,7 +55,8 @@ import { Main } from '../mains';
 import { TIERS } from '../inventory';
 import { BRANCHES } from '../../assets/types';
 import { ASSETS } from '../../assets/registry';
-import { expectedOf, QUIET_UNTIL } from './services';
+import { expectedOf } from './services';
+import { RULES } from '../difficulty';
 import { Policies, NO_POLICIES } from '../policies';
 
 /**
@@ -266,7 +267,7 @@ export class BuildingLife {
     const drains = u.at(id, Util.SEWAGE);
     // Rubbish is not held against a building until the town is big enough to
     // be told about it: a failing that is never explained is a trap.
-    const bins = pop < QUIET_UNTIL ? 1 : u.at(id, Util.GARBAGE);
+    const bins = pop < RULES.quiet ? 1 : u.at(id, Util.GARBAGE);
     const essentials = Math.min(power, water);
 
     // Everything that is not power and water: whether the drains and the bins

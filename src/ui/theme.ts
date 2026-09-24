@@ -111,6 +111,81 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-dial-text i { font: 600 9.5px/1 var(--label); font-style: normal; letter-spacing: .1em;
   text-transform: uppercase; color: ${BRAND.faint}; }
 
+/* ---- new city setup ---------------------------------------------------- */
+.mr-setup {
+  position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; gap: 20px;
+  padding: clamp(18px, 4vh, 44px) clamp(16px, 5vw, 80px); box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(5,9,15,.74), rgba(5,9,15,.9));
+  backdrop-filter: blur(6px); overflow-y: auto; opacity: 0; transition: opacity .35s ease;
+  pointer-events: auto;
+}
+.mr-setup.is-open { opacity: 1; }
+.mr-setup-head { display: flex; align-items: center; gap: 14px; }
+.mr-setup h2 {
+  margin: 0; font: 800 clamp(26px, 3.4vw, 42px)/1 var(--display); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink);
+}
+.mr-square {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center; cursor: pointer;
+  border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06);
+  color: var(--ink); transition: background .15s, border-color .15s;
+}
+.mr-square:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.3); }
+.mr-name { display: flex; flex-direction: column; gap: 8px; width: min(560px, 100%); }
+.mr-name label {
+  font: 700 11px/1 var(--label); letter-spacing: .2em; text-transform: uppercase; color: var(--amber);
+}
+.mr-name-row { display: flex; gap: 8px; }
+.mr-name input {
+  flex: 1; min-width: 0; padding: 12px 16px; font: 600 20px/1.1 var(--ui); color: var(--ink);
+  background: rgba(6,10,17,.82); border: 1px solid rgba(244,181,74,.35); border-radius: 8px; outline: none;
+}
+.mr-name input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,181,74,.15); }
+.mr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { .mr-cards { grid-template-columns: 1fr; } }
+.mr-card {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer;
+  border-radius: 12px; background: rgba(14,20,29,.94); border: 1px solid rgba(255,255,255,.09);
+  color: inherit; font: inherit; transition: transform .18s ease, border-color .18s, box-shadow .18s;
+}
+.mr-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.22); }
+.mr-card.is-picked {
+  border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 18px 44px rgba(0,0,0,.5);
+}
+.mr-card-art { position: relative; height: clamp(104px, 17vh, 170px); background-size: cover; }
+.mr-card-art::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 35%, rgba(14,20,29,.96));
+}
+.mr-card-title {
+  position: absolute; left: 16px; bottom: 12px; z-index: 1; color: var(--ink);
+  font: 800 26px/1 var(--display); letter-spacing: .1em; text-transform: uppercase;
+}
+.mr-card-body { display: flex; flex-direction: column; gap: 10px; flex: 1; padding: 12px 16px 16px; }
+.mr-card-tag {
+  font: 700 11px/1 var(--label); letter-spacing: .16em; text-transform: uppercase; color: var(--amber);
+}
+.mr-card-blurb { margin: 0; font: 500 13px/1.5 var(--ui); color: ${BRAND.dim}; }
+.mr-card ul {
+  margin: 0; padding: 0 0 0 16px; display: flex; flex-direction: column; gap: 5px;
+  font: 500 12.5px/1.35 var(--ui); color: #cfd9e4;
+}
+.mr-card li::marker { color: var(--amber); }
+.mr-pick {
+  margin-top: auto; padding: 10px; border-radius: 8px; text-align: center;
+  font: 700 12px/1 var(--label); letter-spacing: .18em; text-transform: uppercase;
+  background: rgba(255,255,255,.06); color: ${BRAND.dim}; border: 1px solid rgba(255,255,255,.1);
+}
+.mr-card.is-picked .mr-pick { background: var(--amber); color: #1d1405; border-color: var(--amber); }
+.mr-setup-foot { display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap; }
+.mr-setup-foot p { margin: 0; font: 500 12.5px/1.4 var(--ui); color: ${BRAND.faint}; }
+.mr-found {
+  padding: 15px 30px; border: 0; border-radius: 8px; cursor: pointer; background: var(--amber);
+  color: #1d1405; font: 800 17px/1 var(--display); letter-spacing: .14em; text-transform: uppercase;
+  box-shadow: 0 10px 30px rgba(244,181,74,.3); transition: transform .15s, box-shadow .15s;
+}
+.mr-found:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(244,181,74,.42); }
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;

@@ -28,11 +28,12 @@
  * bubble ends up over a building that stopped complaining ten seconds ago.
  */
 
+import { RULES } from '../difficulty';
 import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
 import { Utilities, Util, supplyOf } from './utilities';
 import { ASSETS } from '../../assets/registry';
-import { Services, expectedOf, QUIET_UNTIL } from './services';
+import { Services, expectedOf } from './services';
 import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
 
@@ -255,7 +256,8 @@ export class Complaints {
    * ignore the bubbles.
    */
   /** Residents below which only the supply is complained about. */
-  quietUntil = QUIET_UNTIL;
+  /** Standard's window is QUIET_UNTIL; the difficulty sets this city's. */
+  quietUntil = RULES.quiet;
 
   private transit: TransitNet | null = null;
   servedBy(transit: TransitNet): void { this.transit = transit; }

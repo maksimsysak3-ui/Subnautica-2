@@ -45,6 +45,7 @@
  * totals somebody else already keeps.
  */
 
+import { RULES } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
 import { Places, Purpose } from './places';
 import { People } from './people';
@@ -450,10 +451,11 @@ export class Economy {
     // people at desks and a house is a payslip, so both are barely touched.
     const gum = (bite: number): number => 1 - bite * (1 - flow);
 
-    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * worth * pol.residentialYield;
-    const rawCom = sales * b.rates[Tax.COMMERCIAL] * worth * pol.commercialYield;
-    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * worth * pol.industrialYield;
-    const rawOff = billings * b.rates[Tax.OFFICE] * worth * pol.officeYield;
+    // The difficulty's income multiplier rides on the land value term.
+    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * (worth * RULES.income) * pol.residentialYield;
+    const rawCom = sales * b.rates[Tax.COMMERCIAL] * (worth * RULES.income) * pol.commercialYield;
+    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * (worth * RULES.income) * pol.industrialYield;
+    const rawOff = billings * b.rates[Tax.OFFICE] * (worth * RULES.income) * pol.officeYield;
     r.residential = rawRes * gum(0.06);
     r.commercial = rawCom * gum(0.30);
     r.industrial = rawInd * gum(0.26);
@@ -497,8 +499,10 @@ export class Economy {
     // It tapers rather than stopping, so there is no week where the city's
     // income falls off a cliff it did nothing to deserve.
     const pop = this.people.population;
-    r.grant = pop >= GRANT_UNTIL ? 0
-      : GRANT_WEEKLY * (1 - pop / GRANT_UNTIL) ** 1.6;
+    // Standard's grant is GRANT_WEEKLY until GRANT_UNTIL; a difficulty moves both.
+    const until = RULES.grantUntil * (GRANT_UNTIL / 1800);
+    r.grant = pop >= until ? 0
+      : RULES.grantWeekly * (GRANT_WEEKLY / 10000) * (1 - pop / until) ** 1.6;
 
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
       + r.exports + r.fares;
@@ -550,7 +554,7 @@ export class Economy {
         total += upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed);
       }
     }
-    return total;
+    return total * RULES.upkeep;
   }
 
   /** Metres of carriageway, resummed only when the network changes. */

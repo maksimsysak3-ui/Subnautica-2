@@ -14,6 +14,7 @@
  * checks.
  */
 
+import { RULES } from './difficulty';
 import type { AssetDef } from '../assets/types';
 import { ROAD_SPECS } from './roadgraph';
 import type { RoadClass } from './roadgraph';
@@ -35,14 +36,15 @@ export function buildingPrice(def: AssetDef): number {
   // first services ate most of a starting treasury before the city had any
   // income to replace it with.
   const raw = cells * 420 + def.height * 1000 + (def.sim.upkeep ?? 0) * 130;
-  const step = raw < 20000 ? 250 : raw < 100000 ? 1000 : 5000;
-  return Math.max(step, Math.round(raw / step) * step);
+  const priced = raw * RULES.build;
+  const step = priced < 20000 ? 250 : priced < 100000 ? 1000 : 5000;
+  return Math.max(step, Math.round(priced / step) * step);
 }
 
 /** Cost per metre of carriageway, by class. Width is most of it. */
 export function roadPrice(cls: RoadClass): number {
   const spec = ROAD_SPECS[cls];
-  return Math.round(spec.edge * 5.5 + (spec.tram ? 42 : 0) + (spec.median ? 8 : 0));
+  return Math.round((spec.edge * 5.5 + (spec.tram ? 42 : 0) + (spec.median ? 8 : 0)) * RULES.build);
 }
 
 /**
@@ -55,7 +57,7 @@ export function roadPrice(cls: RoadClass): number {
 export function zonePrice(zone: Zone, density: Density): number {
   const base = zone === 'nature' ? 22 : zone === 'industrial' ? 30 : 36;
   const tier = density === 'high' ? 2.6 : density === 'medium' ? 1.6 : 1;
-  return Math.round(base * tier);
+  return Math.round(base * tier * RULES.build);
 }
 
 /** A price, as it should read on a button: 1,250 / 24k / 1.2M. */

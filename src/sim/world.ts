@@ -20,6 +20,8 @@ import { Transit } from './transit';
 import { Budget } from './budget';
 import { Policies } from './policies';
 import { Politics } from './politics';
+import { RULES } from './difficulty';
+import type { DifficultyId } from './difficulty';
 import { Progress } from './progress';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
@@ -184,6 +186,8 @@ export interface World {
   policies: Policies;
   /** Elections, the sitting mayor and the mandate they won. */
   politics: Politics;
+  /** How hard the city was founded to be. See `difficulty.ts`. */
+  difficulty: DifficultyId;
   /** The city's career: experience, level, stars and what they have unlocked. */
   progress: Progress;
   /**
@@ -217,6 +221,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     budget: new Budget(),
     policies: new Policies(),
     politics: new Politics(),
+    difficulty: RULES.id,
     progress: new Progress(),
     painted: 0,
   };
@@ -567,6 +572,8 @@ export function placeLot(world: World, id: string, gx: number, gz: number, yaw: 
  */
 export function startingWorld(grid = simConfig.cityGrid): World {
   const world = emptyWorld(grid);
+  // Founded under the rules in force: its treasury is the difficulty's.
+  world.budget.balance = RULES.funds;
   const half = grid / 2;
   const edge = (half - 1) * 8;
 

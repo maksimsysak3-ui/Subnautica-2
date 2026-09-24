@@ -412,6 +412,17 @@ export class Renderer {
   timeOfDay = 0.33;
   /** Whether the clock advances. Off for tools; on in the game. */
   clockRunning = true;
+  /**
+   * The simulation's clock, when there is a city running: the fraction of the
+   * day and whole days since founding. With one, the sun, the sky and the
+   * weather follow the city's own day -- which is the one the people keep --
+   * instead of a separate eight-minute sky day. Null behind the menu, where the
+   * sky runs on its own.
+   */
+  clockSource: (() => { fraction: number; day: number } | null) | null = null;
+  /** Whole game days since founding, for the calendar. 0 with no city. */
+  calendarDay = 0;
+  private onCityClock = false;
   /** How fast, as a multiple of the base day. The bar's speed buttons set it. */
   clockRate = 1;
   /**
@@ -664,29 +675,17 @@ export class Renderer {
   }
 
   useWorld(next: World): void {
-    this.world.net = next.net;
-    this.world.zones = next.zones;
-    this.world.lots = next.lots;
-    // And its mains. Left out on the first pass, so a generated city or a loaded
-    // save kept whatever pipes the *starting* map had -- which is three streets'
-    // worth, and made every building outside them read as unconnected on a map
-    // that had been fully serviced a moment earlier.
-    this.world.mains = next.mains;
-    // Which of its zoned cells have come up. Without this a loaded save keeps the
-    // *starting* map's mask -- which is all zeroes, because the starting map is
-    // the one that grows -- and the city it was saved from comes back as bare
-    // zoning.
-    this.world.grown = next.grown;
-    // And the plots that were bought. Same bug as the mains had and with the same
-    // shape: every check for owned land reads this object, so a loaded city with
-    // half the map bought came back owning the four plots the starting map does,
-    // and nothing outside them would build.
-    this.world.land = next.land;
-    // And the lines. Same shape of bug as the two above: a loaded save whose
-    // buses were not copied across came back with the starting map's, which is
-    // none of them.
-    this.world.transit = next.transit;
-    this.world.budget = next.budget;
+    // Every field, not a list of them. This used to copy the fields one at a
+    // time, and each one left off was a bug found later with the same shape:
+    // the mains, the grown mask, the land, the lines -- and, until this was
+    // made wholesale, the career, the ordinances, the building tiers, the
+    // blight, City Hall and the difficulty, all of which a loaded city
+    // silently reset. The object itself stays the same one, because
+    // everything that draws holds a reference to it; only the grid size is
+    // kept, because the renderer's buffers are built for it.
+    const { grid, ...rest } = next;
+    if (grid !== this.world.grid) log.warn('world', `grid ${grid} handed to a ${this.world.grid} renderer`);
+    Object.assign(this.world, rest);
     // A world that arrives whole was not built by the player watching it, so
     // nothing in it rises: every instance in the next rebuild is dated to that
     // moment, and the growth curve treats them all as new. Clearing the ages
@@ -2119,7 +2118,19 @@ export class Renderer {
     const { device, context, viewport } = this.gpu;
     const cam = this.camera;
 
-    if (this.clockRunning) {
+    const city = this.clockSource?.() ?? null;
+    if (city !== null) {
+      // Advance the weather by however much of the city's day went by.
+      // Not on the frame the city takes over from the menu's sky, which would
+      // count the gap between the two clocks as weather that has passed.
+      const passed = this.onCityClock ? (city.fraction - this.timeOfDay + 1) % 1 : 0;
+      this.onCityClock = true;
+      this.timeOfDay = city.fraction;
+      this.calendarDay = city.day;
+      if (this.quality.weather) this.weather.advance(passed * DAY_SECONDS, DAY_SECONDS);
+      else this.weather.set(0.02);
+    } else if (this.clockRunning) {
+      this.onCityClock = false;
       this.timeOfDay = (this.timeOfDay + (dt * this.clockRate) / DAY_SECONDS) % 1;
       // Weather off means a clear sky held clear, rather than a frozen front:
       // the setting is for a machine that cannot afford the rain pass, and a

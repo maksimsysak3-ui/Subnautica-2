@@ -22,6 +22,8 @@
  * Everything here is state of the city, so it saves and loads with it.
  */
 
+import { RULES } from './difficulty';
+
 /** Experience for one building the player places, per thousand it cost. */
 const XP_PER_THOUSAND = 1.4;
 /** And a flat amount, so a bus stop is still worth putting down. */
@@ -111,6 +113,7 @@ export class Progress {
    */
   add(amount: number, source: XpSource, unlocksAt?: (level: number) => string[]): LevelUp[] {
     if (amount <= 0) return [];
+    amount = Math.round(amount * RULES.xp);
     this.xp += amount;
     this.bySource[source] += amount;
     const levels: LevelUp[] = [];

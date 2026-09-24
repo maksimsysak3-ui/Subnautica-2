@@ -224,3 +224,41 @@ export class Weather {
   /** A glyph for it, so the bar reads at a glance rather than by reading. */
   get glyph(): string { return glyphOf(this.sky); }
 }
+
+/** Days in the city's year: four seasons of 28. It starts in spring, in March. */
+export const DAYS_PER_YEAR = 112;
+
+/** Month of a game day, 0 January to 11 December. Day 0 is the first of March. */
+export function monthOf(day: number): number {
+  const doy = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR;
+  return (2 + Math.floor((doy * 12) / DAYS_PER_YEAR)) % 12;
+}
+
+/** Calendar year of a game day; the city is founded in 2027. */
+export function yearOf(day: number): number {
+  return 2027 + Math.floor((day + (2 * DAYS_PER_YEAR) / 12) / DAYS_PER_YEAR);
+}
+
+/** Season of a month, 0 winter, 1 spring, 2 summer, 3 autumn. */
+export function seasonOfMonth(month: number): number {
+  return Math.floor(((month + 1) % 12) / 3);
+}
+
+/** Each season's typical overnight low and afternoon high, in Celsius. */
+const CLIMATE = [
+  { low: -1, high: 5 }, { low: 6, high: 15 }, { low: 14, high: 26 }, { low: 5, high: 14 },
+];
+
+/**
+ * The temperature, as one function the bar and the phone both read.
+ *
+ * Not simulated -- the model holds no heat -- but a stated function of what it
+ * does hold: the season's range, coldest before dawn and warmest mid-afternoon,
+ * with cloud flattening the swing and cooling the day, and rain a little more.
+ */
+export function temperature(day: number, hour: number, sky: Sky): number {
+  const c = CLIMATE[seasonOfMonth(monthOf(day + Math.floor(hour / 24)))];
+  const mid = (c.low + c.high) / 2;
+  const half = ((c.high - c.low) / 2) * (1 - 0.45 * sky.cover);
+  return mid + half * Math.cos(((hour - 15) / 24) * Math.PI * 2) - 2 * sky.cover - 1.5 * sky.rain;
+}
