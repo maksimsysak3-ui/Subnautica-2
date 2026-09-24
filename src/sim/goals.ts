@@ -62,7 +62,10 @@ export const GOALS: Goal[] = [
     id: 'money.week', title: 'Ten thousand a week in the black',
     note: 'Raise a rate, or cut a service nobody is using.',
     xp: 1200,
-    progress: (sim) => [Math.max(0, sim.economy.report.net), 10000],
+    // Earned, not granted: the founding grant alone put an empty city ten
+    // thousand in the black on its first day, and the goal paid out a level
+    // before anybody lived there.
+    progress: (sim) => [Math.max(0, sim.economy.report.net - sim.economy.report.grant), 10000],
   },
   {
     id: 'power.all', title: 'Everybody has power',

@@ -42,6 +42,8 @@ const browser = await chromium.launch({
     '--disable-gpu-sandbox'],
 });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
+// The software renderer crashes presenting to a real canvas; see the file.
+await page.addInitScript({ path: new URL('./offscreen-canvas.js', import.meta.url).pathname });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e.message)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -91,9 +93,15 @@ if (!started) {
 const aim = await page.evaluate(() => {
   const { renderer, camera } = window.citysim;
   const w = renderer.world, g = w.grid, half = g / 2;
-  let found = null;
-  for (let z = 10; z < g - 10 && found === null; z++) {
-    for (let x = 10; x < g - 10; x++) if (w.net.has(x, z)) { found = [x, z]; break; }
+  // The road nearest the middle, which is on land the city owns -- the first
+  // one from the edge is the motorway coming in, where zoning is refused.
+  let found = null, bestD = Infinity;
+  for (let z = 10; z < g - 10; z++) {
+    for (let x = 10; x < g - 10; x++) {
+      if (!w.net.has(x, z)) continue;
+      const d = (x - half) ** 2 + (z - half) ** 2;
+      if (d < bestD) { bestD = d; found = [x, z]; }
+    }
   }
   if (found === null) return null;
   const wx = (found[0] - half) * 8 + 4, wz = (found[1] - half) * 8 + 4;
@@ -112,9 +120,11 @@ const picked = await page.evaluate(() => {
     .find((el) => named(el).startsWith('Zoning'));
   if (zones === undefined) return 'no zoning button';
   zones.click();
-  const tile = Array.from(document.querySelectorAll('button'))
-    .find((el) => (el.textContent ?? '').toLowerCase().includes('low')
-      || (el.textContent ?? '').toLowerCase().includes('houses'));
+  // The drawer's first zone tile: low-density residential, any style.
+  const drawer = Array.from(document.querySelectorAll('[data-branch="zones"]'))
+    .find((el) => el.tagName !== 'BUTTON');
+  const tile = drawer === undefined ? undefined : Array.from(drawer.querySelectorAll('button'))
+    .find((el) => (el.textContent ?? '').startsWith('Whichever'));
   if (tile === undefined) return 'no tile in the drawer';
   tile.click();
   return window.citysim.tools.active ? 'ok' : 'tool not active';
@@ -129,10 +139,16 @@ const before = await page.evaluate(() => {
   return { zoned, money: w.budget.balance };
 });
 const box = { x: W / 2, y: H / 2 };
-await page.mouse.move(box.x - 60, box.y - 40);
+const under = await page.evaluate(([x, y]) => {
+  const el = document.elementFromPoint(x, y);
+  return el === null ? 'nothing' : `${el.tagName}.${el.className}#${el.id} ${el.dataset?.panel ?? ''}`;
+}, [box.x - 30, box.y - 20]);
+console.log(`  under the brush: ${under}`);
+// A stroke a player would make: a few seconds' worth of houses along the road.
+await page.mouse.move(box.x - 200, box.y - 120);
 await page.mouse.down();
-for (let i = 1; i <= 12; i++) {
-  await page.mouse.move(box.x - 60 + i * 9, box.y - 40 + i * 6);
+for (let i = 1; i <= 24; i++) {
+  await page.mouse.move(box.x - 200 + i * 16, box.y - 120 + i * 10);
   await page.waitForTimeout(16);
 }
 await page.mouse.up();
@@ -144,6 +160,10 @@ const after = await page.evaluate(() => {
   for (let i = 0; i < w.zones.length; i++) if (w.zones[i] !== 0) zoned++;
   return { zoned, money: w.budget.balance, status: document.body.innerText.slice(0, 400) };
 });
+const said = await page.evaluate(() => Array.from(document.querySelectorAll('div'))
+  .filter((d) => /zone|drag|land|afford|road/i.test(d.textContent ?? '') && d.children.length === 0)
+  .map((d) => d.textContent).slice(0, 6));
+console.log('  status:', JSON.stringify(said));
 note(after.zoned > before.zoned, 'dragging the brush zones ground',
   `${before.zoned} -> ${after.zoned}`);
 
