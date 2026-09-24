@@ -15,7 +15,7 @@
  * the current deploy -- reload once through a cache-busting URL to get the
  * real one. Guarded by build id so it can never become a reload loop.
  */
-window.__BUILD__ = 'muf043rg';
+window.__BUILD__ = 'muf0p29v';
 (function () {
   fetch('version.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -128,6 +128,9 @@ window.__BUILD__ = 'muf043rg';
    */
   (function () {
     var el = document.querySelector('script[type=module]');
+    // A page served some other way (a test harness, a bundle) has no module
+    // tag to watch; there is nothing to check.
+    if (!el) return;
     var SRC = el.src;
     var ran = false;
 

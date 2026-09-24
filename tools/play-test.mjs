@@ -46,7 +46,11 @@ const page = await browser.newPage({ viewport: { width: W, height: H } });
 await page.addInitScript({ path: new URL('./offscreen-canvas.js', import.meta.url).pathname });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e.message)));
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+// Fonts come from Google, which a sandboxed run cannot always reach; a missing
+// typeface is not a broken game.
+page.on('console', (m) => {
+  if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+});
 await page.goto(`http://127.0.0.1:${port}/?lite`, { waitUntil: 'load' });
 
 const ok = [];

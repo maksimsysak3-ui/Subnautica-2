@@ -127,6 +127,9 @@ window.__BUILD__ = '__BUILD_ID__';
    */
   (function () {
     var el = document.querySelector('script[type=module]');
+    // A page served some other way (a test harness, a bundle) has no module
+    // tag to watch; there is nothing to check.
+    if (!el) return;
     var SRC = el.src;
     var ran = false;
 
