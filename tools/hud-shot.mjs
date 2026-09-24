@@ -41,6 +41,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
 page.on('console', (m) => { const t = m.text(); if (!t.startsWith('[')) console.log(t); });
+if (process.env.LOTS) await page.addInitScript(() => { window.__lots = true; });
 await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
 const DIST = Number(process.env.DIST || 520);
 const PANEL = process.env.PANEL || '';

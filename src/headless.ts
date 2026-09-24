@@ -1236,6 +1236,14 @@ Promise<{ pixels: number[]; movers: string }> {
     sim.step(1);
   }
   for (let i = 0; i < 30; i++) live.update(1 / 20, performance.now() + i * 50);
+  // For identifying what is in a shot: the lots nearest the camera's focus.
+  if ((window as unknown as { __lots?: boolean }).__lots === true) {
+    const w = renderer.world, g = w.grid / 2;
+    const near = w.lots.map((l) => ({ id: l.id, d: Math.hypot((l.gx + l.w / 2 - g) * 8 - camera.focus[0],
+      (l.gz + l.d / 2 - g) * 8 - camera.focus[2]) }))
+      .sort((a, b) => a.d - b.d).slice(0, 12);
+    console.log('LOTS ' + near.map((n) => `${n.id}@${Math.round(n.d)}`).join(' '));
+  }
 
   const alerts = (live as unknown as { alerts: Alerts }).alerts;
   alerts.push({

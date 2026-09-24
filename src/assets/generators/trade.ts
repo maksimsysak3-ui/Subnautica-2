@@ -31,6 +31,7 @@ import {
 } from '../parts';
 import type { Wall } from '../parts';
 import { parkedVehicle } from './vehicles';
+import { tree } from './landscape';
 import { curtainSlab, galleria, mixedUse } from './highrise';
 import { landmarkOffice, signatureOffice } from './towers';
 import {
@@ -187,48 +188,89 @@ function bigBox(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const [w, d] = plotOf(T, 30.0, 22.0);
   const h = 9.0;
   const x = w / 2, z = d / 2;
+  // The car park runs to the lot's edge and no further, whatever the theme
+  // made of the shed's depth.
+  const far = Math.min(z + 22.0, 28.2);
+  const row2 = Math.min(z + 17.0, far - 3.0);
 
-  m.box([-x, 0, -z], [x, h, z], T.wall, { roof: MAT.ROOF });
-  // The entrance block, brought forward and taller: the only articulation a
-  // box like this ever gets, and without it the thing is a crate.
-  m.box([-8.0, 0, z], [2.0, h + 2.2, z + 3.4], T.base, { roof: MAT.ROOF });
+  // The shed: profiled steel on the flanks and the back, which is what these
+  // are built from, and the theme's own wall only on the front, where the
+  // customers are. A shed rendered all round in the house wall read as a
+  // block of something else with a sign stuck to it.
+  m.box([-x, 0, -z], [x, h, z], MAT.SHED_WALL, { roof: MAT.ROOF });
+  m.box([-x, 0, z - 0.4], [x, h + 1.4, z + 0.2], T.wall, { roof: MAT.ROOF });
+  // The entrance block, brought forward and taller.
+  m.box([-8.0, 0, z], [2.0, h + 2.6, z + 3.4], T.base, { roof: MAT.ROOF });
   parapet(m, -x, -z, x, z, h, 1.2, 0.3, T.base);
-  parapet(m, -8.0, z, 2.0, z + 3.4, h + 2.2, 1.0, 0.24, T.base);
+  parapet(m, -8.0, z, 2.0, z + 3.4, h + 2.6, 1.0, 0.24, T.base);
 
   if (medium) {
     band(m, -x, -z, x, z, 4.6, 0.5, 0.26, T.trim);
     if (T.id === 'asian' || T.id === 'farming' || T.id === 'european') {
-      // A tiled canopy over the front, which is what stops the box reading as
-      // a North American one in the other three themes.
-      roofOver(m, T, -8.4, z, 2.4, z + 3.6, h + 2.2);
+      roofOver(m, T, -8.4, z, 2.4, z + 3.6, h + 2.6);
     }
-    // Trolley bays and lighting columns in the car park.
+    // The canopy: a deep steel roof the length of the frontage on slim
+    // columns, the line every supermarket front is drawn by.
+    m.box([-x + 0.6, 4.2, z + 0.2], [x - 0.6, 4.6, z + 4.2], MAT.METAL);
     m.painted(TINT.METAL_DARK, () => {
-      for (const cx of [-x + 6.0, x - 6.0]) {
-        m.pipe([cx, 0, z + 12.0], [cx, 7.2, z + 12.0], 0.14, MAT.TRIM, 6);
-        m.box([cx - 1.5, 7.0, z + 11.8], [cx + 1.5, 7.3, z + 12.2], MAT.TRIM);
+      for (let cx = -x + 2.0; cx <= x - 1.9; cx += 5.4) {
+        m.pipe([cx, 0.05, z + 3.8], [cx, 4.2, z + 3.8], 0.14, MAT.TRIM, 6);
       }
     });
-    m.box([-x, 0.01, z + 4.0], [x, 0.07, z + 15.0], MAT.GROUND);
+    m.painted(TINT.BRAND, () => m.box([-x + 0.6, 4.6, z + 4.0], [x - 0.6, 5.1, z + 4.25], MAT.TRIM));
+    // Rooflights: rows of glazed strips on the flat roof, which is what the
+    // aisles are lit by and what a shed roof looks like from above.
+    for (let rz = -z + 3.0; rz < z - 3.0; rz += 4.2) {
+      m.box([-x + 3.0, h, rz], [x - 3.0, h + 0.5, rz + 1.2], MAT.GLASS);
+    }
+    // The car park: asphalt, marked bays, islands with trees, lighting.
+    m.painted(TINT.METAL_DARK, () => m.box([-x, 0.01, z + 4.4], [x, 0.06, far], MAT.CONCRETE));
+    m.painted(TINT.SIGN_LIT, () => {
+      for (const rowZ of [z + 8.0, row2]) {
+        for (let bx = -x + 1.0; bx <= x - 1.0; bx += 2.6) {
+          m.box([bx - 0.05, 0.06, rowZ - 2.4], [bx + 0.05, 0.075, rowZ + 2.4], MAT.TRIM);
+        }
+      }
+    });
+    for (const ix of [-x + 0.5, x - 4.5]) {
+      m.painted(TINT.GREEN, () => m.box([ix, 0.06, z + 10.8], [ix + 4.0, 0.24, z + 13.2], MAT.GROUND));
+      kerb(m, ix, z + 10.8, ix + 4.0, z + 13.2);
+      tree(m, ix + 2.0, z + 12.0, 7.0, 2.1);
+    }
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cx of [-x + 8.0, x - 8.0]) {
+        m.pipe([cx, 0, z + 12.5], [cx, 7.2, z + 12.5], 0.14, MAT.TRIM, 6);
+        m.box([cx - 1.5, 7.0, z + 12.3], [cx + 1.5, 7.3, z + 12.7], MAT.TRIM);
+      }
+      // Trolley shelter.
+      m.box([x - 8.0, 2.2, z + 5.0], [x - 3.0, 2.35, z + 6.6], MAT.TRIM);
+      for (const px of [x - 7.8, x - 3.2]) m.pipe([px, 0, z + 5.2], [px, 2.2, z + 5.2], 0.06, MAT.TRIM, 4);
+    });
   }
   if (fine) {
+    // Glazing the length of the frontage under the canopy.
+    for (let i = 0; i < Math.floor((w - 4) / 3.2); i++) {
+      const u0 = -x + 2.0 + i * 3.2;
+      if (u0 + 2.9 > -8.0 && u0 < 2.0) continue;
+      m.opening({ axis: 'z', sign: 1, plane: z + 0.2, u0, u1: u0 + 2.9,
+        y0: 0.2, y1: 3.8, glass: MAT.SHOPFRONT, frame: 0.12, proud: 0.08 });
+    }
     for (let i = 0; i < 3; i++) {
       m.opening({ axis: 'z', sign: 1, plane: z + 3.4, u0: -7.2 + i * 3.0, u1: -5.0 + i * 3.0,
         y0: 0.2, y1: 3.6, glass: MAT.SHOPFRONT, frame: 0.14, proud: 0.09 });
     }
     entrance(m, { axis: 'z', sign: 1, plane: z + 3.4 }, 1.0,
       { width: 2.6, height: 3.4, double: true, glazed: true });
-    boxSign(m, { axis: 'z', sign: 1, plane: z + 3.4 }, -6.4, 0.4, h - 1.6, h + 0.6);
-    pylonSign(m, x - 3.0, z + 13.0, 7.5, 2.8);
-    // Cars in the car park: the thing that makes a retail park read as one.
-    for (let i = 0; i < 8; i++) {
-      const cx = -x + 3.2 + (i % 4) * 7.0;
-      const cz = z + 6.5 + Math.floor(i / 4) * 5.4;
-      parkedVehicle(m, seed * 31 + i, cx, cz, 0, i === 3 ? 'van' : 'car');
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 3.4 }, -6.4, 0.4, h - 1.2, h + 1.0);
+    pylonSign(m, x - 3.0, far - 1.5, 7.5, 2.8);
+    for (let i = 0; i < 10; i++) {
+      const row = i < 5 ? z + 8.0 : row2;
+      const cx = -x + 7.0 + (i % 5) * 5.2;
+      parkedVehicle(m, seed * 31 + i, cx, row, 0, i === 3 ? 'van' : 'car');
     }
     portal(m, -x + 2.0, -x + 8.0, -z, 4.4, 0);
     serviceYard(m, -x, x - 8.0, -z - 9.0, seed, { bins: true, totem: true });
-    roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h, seed, 1.1);
+    roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h + 0.5, seed, 1.1);
   }
   return m;
 }

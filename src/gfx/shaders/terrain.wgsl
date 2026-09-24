@@ -416,6 +416,32 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let joint = gridLine(in.world.xz, 2.0, dxz) * (1.0 - smoothstep(0.05, 0.20, mpp));
     paved *= 1.0 - joint * 0.11;
 
+    // And structure at the scale a forecourt is seen from. Slabs come in
+    // batches that never quite match; header courses of a darker stone run
+    // every eight metres; the stone itself is warmer in some places than
+    // others. Without these a big forecourt from the building camera was one
+    // flat grey sheet -- the single emptiest thing on the map.
+    let batchId = floor(in.world.xz * 0.25);
+    let batch = fract(sin(dot(batchId, vec2f(127.1, 311.7))) * 43758.5453);
+    paved *= 0.94 + batch * 0.12;
+    paved = mix(paved, paved * vec3f(1.10, 1.03, 0.90), vnoise(in.world.xz * (1.0 / 23.0)) * 0.55);
+    let course = gridLine(in.world.xz, 8.0, dxz) * (1.0 - smoothstep(0.35, 1.4, mpp));
+    paved = mix(paved, paved * vec3f(0.74, 0.72, 0.70), course * 0.55);
+    // Planted beds, set into the paving on an eighteen-metre grid where a
+    // forecourt is wide enough to be a square: a lawn with a stone kerb.
+    let bedCell = floor(in.world.xz * (1.0 / 18.0));
+    let bedPick = fract(sin(dot(bedCell, vec2f(269.5, 183.3))) * 43758.5453);
+    let inBed = fract(in.world.xz * (1.0 / 18.0));
+    let bedBox = min(min(inBed.x, 1.0 - inBed.x), min(inBed.y, 1.0 - inBed.y));
+    let bed = step(0.74, bedPick) * smoothstep(0.20, 0.22, bedBox) * smoothstep(0.985, 1.0, surf.r);
+    let kerbRing = step(0.74, bedPick) * smoothstep(0.18, 0.19, bedBox)
+      * (1.0 - smoothstep(0.20, 0.21, bedBox)) * smoothstep(0.985, 1.0, surf.r);
+    // Planting, not a lawn swatch: low shrubs and ground cover, mottled dark.
+    let shrub = vnoise(in.world.xz * (1.0 / 0.9)) * 0.6 + vnoise(in.world.xz * (1.0 / 3.1)) * 0.4;
+    let lawn = mix(vec3f(0.022, 0.050, 0.020), vec3f(0.052, 0.098, 0.036), shrub) * (0.9 + batch * 0.2);
+    paved = mix(paved, lawn, bed);
+    paved = mix(paved, vec3f(0.20, 0.196, 0.186), kerbRing * 0.8);
+
     // Yard: laid asphalt, darker and more worn, with the patching and the oil
     // that every industrial hardstanding has on it.
     var yard = mix(vec3f(0.049, 0.048, 0.047), vec3f(0.081, 0.079, 0.075),

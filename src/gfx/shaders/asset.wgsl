@@ -1615,7 +1615,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // the road in front of it changed with all of them. That is most of why the
   // city read as a diagram: at sunset the ground went orange and the buildings
   // standing on it stayed the colour of a grey afternoon.
-  let ambient = mix(ambientGround(sun), ambientSky(sun), n.y * 0.5 + 0.5) * in.ao;
+  var ambient = mix(ambientGround(sun), ambientSky(sun), n.y * 0.5 + 0.5) * in.ao;
+
+  // Depth, the two cues the eye reads first. The sky is brighter towards the
+  // sun, so a wall turned towards it takes more fill than one turned away --
+  // without that, two faces of a block in shade came out the same value and
+  // the block read as a cut-out. And a wall darkens over its last few metres
+  // where it meets the ground, which is what seats a building on its plot.
+  let vehicle = in.material == MAT_PAINT || in.material == MAT_CAR_GLASS
+    || in.material == MAT_TYRE || in.material == MAT_IMPORTED || in.material == MAT_SKIN
+    || in.material == MAT_FOLIAGE || in.material == MAT_BARK || in.material == MAT_GROUND;
+  let wall = 1.0 - abs(n.y);
+  let toSun = normalize(vec2f(sun.x, sun.z) + vec2f(1e-4, 0.0));
+  let sunward = dot(n.xz, toSun);
+  ambient *= 1.0 + wall * (0.20 * sunward - 0.06);
+  if (!vehicle) {
+    let contact = smoothstep(0.0, 3.2, in.shade.y);
+    ambient *= mix(0.58, 1.0, mix(1.0, contact, wall));
+  }
   let sunColour = sunLight(sun);
   let direct = sunColour * max(ndl, 0.0) * shadow;
 

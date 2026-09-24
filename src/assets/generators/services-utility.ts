@@ -1065,21 +1065,42 @@ function powerStation(lod: number): MeshBuilder {
   const x = 50.0, z = 40.0;
 
   m.box([-x, 0.0005, -z], [x, 0.1, z], MAT.CONCRETE);
-  // Boiler house: tall, blind, clad. The turbine hall runs off its flank,
-  // lower and longer, which is the shape of every station ever built.
-  m.box([-26.0, 0.1, -22.0], [-2.0, 42.0, 4.0], MAT.CLADDING, { roof: MAT.METAL });
+  // Boiler house: tall, blind, clad in profiled steel. It was the smooth
+  // cladding pattern, which at this size read as the white tiles of a block
+  // of flats -- the one thing a boiler house must not look like.
+  m.box([-26.0, 0.1, -22.0], [-2.0, 42.0, 4.0], MAT.SHED_WALL, { roof: MAT.METAL });
   m.box([-2.0, 0.1, -18.0], [26.0, 22.0, 0.0], MAT.SHED_WALL, { roof: MAT.METAL });
   // The chimney, on its own base.
   m.cylinder(36.0, -26.0, 5.4, 0.1, 4.0, 16, MAT.CONCRETE, true);
   m.cylinder(36.0, -26.0, 4.4, 4.0, 74.0, 16, MAT.CONCRETE, false);
   m.cylinder(36.0, -26.0, 4.8, 74.0, 76.0, 16, MAT.CONCRETE, true);
-  // Cooling towers: hyperboloids, faked as two cones back to back.
+  // Cooling towers: real hyperboloids -- a waist two thirds of the way up and
+  // a flare at the lip -- stood on a ring of raking legs. (Steam was tried as
+  // geometry and read as grey stacked lumps; none is better.) Two cones back to back at fourteen sides read as faceted
+  // tiling; the curve and the open base are what say "cooling tower".
   for (const [cx, cz] of [[-32.0, 22.0], [-14.0, 26.0], [8.0, 22.0], [26.0, 26.0]] as const) {
-    m.cone(cx, cz, 9.0, 5.6, 0.1, 22.0, 14, MAT.CONCRETE);
-    m.cone(cx, cz, 5.6, 7.4, 22.0, 34.0, 14, MAT.CONCRETE);
+    coolingTower(m, cx, cz, lod);
   }
 
   if (medium) {
+    // The yard: an asphalt haul road through the site, a painted loading bay,
+    // and grass verges along the fence, so the site reads as a working plant
+    // rather than one hundred metres of bare slab.
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([-x + 3.0, 0.1, 4.0], [x - 3.0, 0.16, 10.0], MAT.CONCRETE);
+      m.box([30.0, 0.1, -z + 3.0], [36.0, 0.16, 4.0], MAT.CONCRETE);
+    });
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 12; i++) {
+        const px = -x + 6.0 + i * 8.0;
+        m.box([px, 0.16, 6.9], [px + 3.0, 0.18, 7.1], MAT.TRIM);
+      }
+    });
+    m.painted(TINT.GREEN, () => {
+      m.box([-x + 0.6, 0.1, -z + 0.6], [x - 0.6, 0.2, -z + 2.6], MAT.GROUND);
+      m.box([-x + 0.6, 0.1, -z + 0.6], [-x + 2.6, 0.2, z - 0.6], MAT.GROUND);
+      m.box([x - 2.6, 0.1, -z + 0.6], [x - 0.6, 0.2, z - 0.6], MAT.GROUND);
+    });
     band(m, -26.0, -22.0, -2.0, 4.0, 30.0, 1.2, 0.4, MAT.METAL);
     band(m, -26.0, -22.0, -2.0, 4.0, 16.0, 1.2, 0.4, MAT.METAL);
     parapet(m, -26.0, -22.0, -2.0, 4.0, 42.0, 1.4, 0.4, MAT.METAL);
@@ -1127,6 +1148,42 @@ function powerStation(lod: number): MeshBuilder {
     kerb(m, -x + 2.0, -z + 0.6, x - 2.0, -z + 1.6);
   }
   return m;
+}
+
+/**
+ * One cooling tower: a hyperboloid shell on raking legs, and a lip.
+ *
+ * The shell is lofted from rings on the true profile, r = a * sqrt(1 + (y-t)^2
+ * / c^2), so the waist and the flare are curves, not two cones meeting at a
+ * crease. The base is open: a ring of legs with the dark interior behind
+ * them, which is the detail that makes it a tower rather than a vase.
+ */
+function coolingTower(m: MeshBuilder, cx: number, cz: number, lod: number): void {
+  const fine = lod < 1, medium = lod < 2;
+  const sides = fine ? 28 : medium ? 20 : 12;
+  const rings = fine ? 9 : medium ? 6 : 3;
+  const H = 34.0, throatY = 25.0, a = 5.6, c = 11.5, legs = 2.4;
+  const r = (y: number): number => a * Math.sqrt(1 + ((y - throatY) / c) ** 2);
+  // The dark interior showing through the legs.
+  m.painted(TINT.METAL_DARK, () => m.cylinder(cx, cz, r(legs) - 0.6, 0.1, legs + 0.6, sides, MAT.CONCRETE, false));
+  if (medium) {
+    const n = fine ? 18 : 12;
+    for (let i = 0; i < n; i++) {
+      const t = (i / n) * Math.PI * 2;
+      const rr = r(legs) - 0.25;
+      const x0 = cx + Math.cos(t) * (rr + 0.5), z0 = cz + Math.sin(t) * (rr + 0.5);
+      const x1 = cx + Math.cos(t + 0.12) * rr, z1 = cz + Math.sin(t + 0.12) * rr;
+      m.pipe([x0, 0.4, z0], [x1, legs + 0.05, z1], 0.28, MAT.CONCRETE, 4);
+    }
+  }
+  for (let k = 0; k < rings; k++) {
+    const y0 = legs + (k / rings) * (H - legs);
+    const y1 = legs + ((k + 1) / rings) * (H - legs);
+    m.cone(cx, cz, r(y0), r(y1), y0, y1, sides, MAT.CONCRETE);
+  }
+  // The lip, and the dark mouth inside it.
+  m.cylinder(cx, cz, r(H) + 0.25, H - 0.6, H + 0.2, sides, MAT.CONCRETE, false);
+  m.painted(TINT.METAL_DARK, () => m.cylinder(cx, cz, r(H) - 0.3, H - 1.0, H + 0.05, sides, MAT.CONCRETE, true));
 }
 
 /**
