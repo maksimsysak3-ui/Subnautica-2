@@ -56,6 +56,13 @@ const roadBy = new Map<number, Proto[]>();
 const zoneAll = new Map<Zone, Proto[]>();
 /** Trees and planting: never zoned, scattered onto whatever is left. */
 const nurseryList: Proto[] = [];
+/** Industry headquarters and harvest-area props, by id. */
+const industryList: Proto[] = [];
+
+/** An industry prototype by id: `spec.hq.<resource>` or `spec.prop.<resource>`. */
+export function industryProto(id: string): Proto | undefined {
+  return industryList.find((p) => p.id === id);
+}
 
 const push = <K,>(m: Map<K, Proto[]>, k: K, p: Proto): void => {
   const list = m.get(k);
@@ -64,6 +71,9 @@ const push = <K,>(m: Map<K, Proto[]>, k: K, p: Proto): void => {
 
 ASSETS.forEach((def, index) => {
   const p = proto(def, index);
+  // Industry headquarters and their area props are placed on purpose -- by the
+  // industry tools and inside a drawn harvest area -- and never grown.
+  if (def.id.startsWith('spec.')) { industryList.push(p); return; }
   if (def.zone === 'service') { serviceList.push(p); return; }
   if (def.zone === 'road') { push(roadBy, p.w, p); return; }
   if (def.zone === 'fleet') return;                   // placed on the road graph, later

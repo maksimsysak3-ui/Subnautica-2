@@ -27,6 +27,7 @@ import { CONSTRUCTION } from './generators/construction';
 import { MORE_UTILITY } from './generators/services-water';
 import { MARINE } from './generators/marine';
 import { SPORT } from './generators/sport';
+import { INDUSTRY } from './generators/industry';
 import { MeshBuilder } from './mesh';
 import { dressRoof, footing } from './parts';
 import { idSeed } from './types';
@@ -35,7 +36,7 @@ import type { AssetDef, Zone } from './types';
 export const ASSETS: AssetDef[] = [
   ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
   ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE, ...SIGNATURE_INDUSTRIAL,
-  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS,
+  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY,
 ];
 
 // Every zoned building gets its roof dressed, whether or not its generator
@@ -47,6 +48,8 @@ export const ASSETS: AssetDef[] = [
 const DRESSED = new Set<Zone>(['residential', 'commercial', 'office', 'industrial', 'service']);
 for (const a of ASSETS) {
   if (!DRESSED.has(a.zone)) continue;
+  // A field or a pumpjack has no roof to dress and stands on no footing.
+  if (a.id.startsWith('spec.prop.')) continue;
   const inner = a.build.bind(a);
   const seed = Math.round(idSeed(a.id));
   // Decided once from the full-detail mesh and reused at every LOD -- but on

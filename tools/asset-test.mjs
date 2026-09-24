@@ -117,6 +117,8 @@ const MIN_TRIS = 1000;
  * the simulation puts on a road, not part of the road.
  */
 const ROAD_MIN = 300;
+/** A harvest-area prop: a field, a pumpjack, a boat -- repeated across an area. */
+const PROP_MAX = 1800;
 
 const src = new URL('../src/assets/', import.meta.url).pathname;
 const bundle = (
@@ -188,8 +190,13 @@ for (const a of ASSETS) {
     : service ? (area >= MEGA_AREA ? MEGA_MAX : landmark ? LANDMARK_MAX : SERVICE_MAX)
       : a.signature ? SIGNATURE_MAX : MAX_TRIS;
   const road = a.zone === 'road';
-  const floor = fleet ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
-  if (tris[0] > ceiling) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${ceiling} ceiling`);
+  // Harvest-area props cover a drawn area a cell at a time, hundreds of them,
+  // so what they need is a low ceiling rather than a floor.
+  const prop = a.id.startsWith('spec.prop.');
+  const floor = fleet || prop ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
+  if (tris[0] > (prop ? PROP_MAX : ceiling)) {
+    note(a.id, `LOD0 is ${tris[0]} triangles, over the ${prop ? PROP_MAX : ceiling} ceiling`);
+  }
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);
   if (tris[1] > tris[0] || tris[2] > tris[1]) note(a.id, `LOD ladder is not decreasing: ${tris.join(' / ')}`);
   if (Math.abs(maxY - a.height) > 0.2) {
