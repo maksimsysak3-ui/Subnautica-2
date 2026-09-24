@@ -106,6 +106,8 @@ export class LiveCity {
   /** Fires, break-ins and medical calls, marked over the map. */
   private readonly incidents: IncidentMarkers;
   private issues: Issues | null = null;
+  /** Whether an information view has been opened, for the guide. */
+  private viewed = false;
   private issuesAt = -1e9;
   /**
    * One frame's worth of moving instances, reused.
@@ -733,7 +735,9 @@ export class LiveCity {
       }
       this.announce(sim);
       this.emergencies(sim);
-      this.steps.update(sim, now);
+      // An information view counts as read once it has been opened.
+      if (this.info.view !== View.NONE) this.viewed = true;
+      this.steps.update(sim, now, { world: this.renderer.world, viewed: this.viewed });
       // The open card, refreshed on the same beat as everything else: a
       // building whose power has just come back should say so while the player
       // is still looking at it.
