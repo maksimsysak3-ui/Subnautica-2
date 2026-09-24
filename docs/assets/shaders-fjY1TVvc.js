@@ -324,7 +324,8 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // with the encode doing that job properly the same numbers made midnight
   // read as dusk. What is kept is the *displayed* night, which was right.
   let m = moonPhase(sun);
-  let night = vec3f(0.050, 0.062, 0.098) * (0.72 + 0.55 * m.x);
+  // Lifted a further third on request: night read as too dark to build in.
+  let night = vec3f(0.068, 0.083, 0.128) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -341,7 +342,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // Bounce follows the same moon, a little cooler: moonlight off asphalt is
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
-  let night = vec3f(0.028, 0.032, 0.044) * (0.74 + 0.52 * m.x);
+  let night = vec3f(0.037, 0.042, 0.057) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground
@@ -3964,7 +3965,9 @@ fn dashed(v : f32, pitch : f32, on : f32, mpp : f32) -> f32 {
  */
 fn asphalt(world : vec2f, u : f32, half : f32, lanes : f32, mpp : f32) -> vec3f {
   let grain = vnoise(world * 5.5) * 0.5 + vnoise(world * 21.0) * 0.5;
-  var col = mix(vec3f(0.052, 0.053, 0.058), vec3f(0.086, 0.086, 0.090), grain);
+  // A shade lighter than fresh blacktop, so the network reads against grass
+  // and roofs from the building camera's height.
+  var col = mix(vec3f(0.066, 0.067, 0.073), vec3f(0.104, 0.104, 0.110), grain);
 
   // Patches: the surface has been dug up and made good more than once.
   let repair = vnoise(world * 0.11);
@@ -4209,7 +4212,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // out as a mess of sparkle. They now go quietly to nothing once the pixel
     // is wider than the paint, which is the point past which they were only
     // ever adding noise.
-    let legible = 1.0 - smoothstep(0.10, 0.34, mpp);
+    let legible = 1.0 - smoothstep(0.14, 0.48, mpp);
     var paint = markings(u, v, half, lanes, flags, mpp) * legible;
     // The stop line, where the carriageway meets a junction. This is most of
     // what makes a junction read as a junction rather than as a hole in the
@@ -5213,4 +5216,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,IF={"common.wgsl":pc,"atmosphere.wgsl":mc,"noise.wgsl":uc,"overlay.wgsl":qc};function IQ(c){return c.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>IF[U]??A)}const hF={asset:IQ(_c),cull:IQ($c),terrain:IQ(AF),sky:IQ(QF),grass:IQ(BF),road:IQ(gF),water:IQ(EF),rain:IQ(wF),dots:IQ(CF),mains:IQ(DF),post:IQ(MF)};export{FF as A,Tw as B,Zc as C,lw as D,WA as F,VB as G,mU as M,JE as P,cF as R,hF as S,HQ as T,dB as V,ow as Z,Zg as a,tg as b,eB as c,Kc as d,eF as e,NF as f,tF as g,nF as h,GF as i,cg as j,YF as k,$A as l,UF as m,kF as n,LF as o,zc as p,cQ as q,aF as r,qU as s,oF as t,RF as u,iF as v,sF as w,dF as x,VF as y,HF as z};
-//# sourceMappingURL=shaders-CBHT0fKU.js.map
+//# sourceMappingURL=shaders-fjY1TVvc.js.map

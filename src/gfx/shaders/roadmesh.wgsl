@@ -130,7 +130,9 @@ fn dashed(v : f32, pitch : f32, on : f32, mpp : f32) -> f32 {
  */
 fn asphalt(world : vec2f, u : f32, half : f32, lanes : f32, mpp : f32) -> vec3f {
   let grain = vnoise(world * 5.5) * 0.5 + vnoise(world * 21.0) * 0.5;
-  var col = mix(vec3f(0.052, 0.053, 0.058), vec3f(0.086, 0.086, 0.090), grain);
+  // A shade lighter than fresh blacktop, so the network reads against grass
+  // and roofs from the building camera's height.
+  var col = mix(vec3f(0.066, 0.067, 0.073), vec3f(0.104, 0.104, 0.110), grain);
 
   // Patches: the surface has been dug up and made good more than once.
   let repair = vnoise(world * 0.11);
@@ -375,7 +377,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // out as a mess of sparkle. They now go quietly to nothing once the pixel
     // is wider than the paint, which is the point past which they were only
     // ever adding noise.
-    let legible = 1.0 - smoothstep(0.10, 0.34, mpp);
+    let legible = 1.0 - smoothstep(0.14, 0.48, mpp);
     var paint = markings(u, v, half, lanes, flags, mpp) * legible;
     // The stop line, where the carriageway meets a junction. This is most of
     // what makes a junction read as a junction rather than as a hole in the

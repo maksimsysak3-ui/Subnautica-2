@@ -175,7 +175,8 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // with the encode doing that job properly the same numbers made midnight
   // read as dusk. What is kept is the *displayed* night, which was right.
   let m = moonPhase(sun);
-  let night = vec3f(0.050, 0.062, 0.098) * (0.72 + 0.55 * m.x);
+  // Lifted a further third on request: night read as too dark to build in.
+  let night = vec3f(0.068, 0.083, 0.128) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
@@ -192,7 +193,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // Bounce follows the same moon, a little cooler: moonlight off asphalt is
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
-  let night = vec3f(0.028, 0.032, 0.044) * (0.74 + 0.52 * m.x);
+  let night = vec3f(0.037, 0.042, 0.057) * (0.74 + 0.52 * m.x);
   let lit = vec3f(0.240, 0.210, 0.180);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground

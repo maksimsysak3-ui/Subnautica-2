@@ -2494,7 +2494,9 @@ export class Renderer {
     const tune: PostTune = {
       strength: (0.055 + 0.20 * night + 0.05 * wet) * q.bloom,
       threshold: 1.25 - 0.55 * night,
-      exposure: this.exposure,
+      // The eye adapts: after dark the exposure opens up, so a night city is
+      // dark and lamp-lit rather than black with lights in it.
+      exposure: this.exposure * (1 + 0.75 * night),
       vignette: (0.22 + 0.10 * night) * q.vignette,
       antialias: q.antialias,
       night,
