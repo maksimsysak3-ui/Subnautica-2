@@ -53,7 +53,7 @@ let s = await evalPage(() => ({
 check('menu opens', s.visible);
 check('opens on the deploy screen', s.deployPaneOn);
 check('four screens available', s.panes.length === 4, s.panes.join(','));
-check('both sites listed', s.sitesListed === 2, `${s.sitesListed}`);
+check('all four sites listed', s.sitesListed === 4, `${s.sitesListed}`);
 check('tasking listed for the site', s.missionsListed >= 2, `${s.missionsListed} missions`);
 check('briefing has real text', s.briefingChars > 120, `${s.briefingChars} chars`);
 check('click-to-play stands down', s.overlayHidden);

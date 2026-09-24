@@ -75,14 +75,14 @@ check('the HUD lists tasks', hud.tasks >= 2, `${hud.tasks} shown`);
 check('objective markers render', hud.markers >= 1, `${hud.markers} markers`);
 
 // --- 3. standing on a position objective completes it -----------------------
-const posObj = a.objectives.find((o) => o.at && o.kind !== 'extract' && o.state === 'active');
+const posObj = a.objectives.find((o) => o.at && ['secureIntel', 'sabotage', 'destroy', 'plant', 'defuse', 'tag'].includes(o.kind) && o.state === 'active');
 if (posObj) {
   await page.evaluate((id) => {
     const s = window.services.get('missions');
     const o = s.objectives.find((x) => x.id === id);
     const p = window.engine.get('player');
     const w = window.services.get('world');
-    const f = w.floorAt(o.position.x, o.position.z, o.position.y + 5);
+    const f = w.floorAt(o.position.x, o.position.z, o.position.y + 1.2);
     p.position.set(o.position.x, f + p.eyeHeight, o.position.z);
     window.__BM.settle(400);
   }, posObj.id);

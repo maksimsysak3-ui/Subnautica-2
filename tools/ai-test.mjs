@@ -67,7 +67,10 @@ check('pathfinder stays in budget', s1.stats.pathsThisFrame <= 2,
   `${s1.stats.pathsThisFrame} paths/frame, avg ${s1.stats.pathMsAvg.toFixed(1)}ms`);
 
 // --- 3. hearing -------------------------------------------------------------
-const beforeAlert = Math.max(...s1.alertness);
+const mean = (xs) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+// The mean, not the max: one guard on a hair trigger already reads 0.99
+// before anything happens, and the max then cannot rise.
+const beforeAlert = mean(s1.alertness);
 await page.evaluate(() => {
   // A gunshot at the motor court. Nobody should be able to ignore it.
   window.bus.emit('weapon:fired', {
@@ -77,9 +80,12 @@ await page.evaluate(() => {
 });
 await page.evaluate(() => window.__BM.settle(1200));
 const s2 = await snap();
-const afterAlert = Math.max(...s2.alertness);
-check('gunfire raises alertness', afterAlert > beforeAlert + 0.2,
-  `${beforeAlert.toFixed(2)} → ${afterAlert.toFixed(2)}`);
+const afterAlert = mean(s2.alertness);
+// Counted per guard: a shot at the motor court is not heard in the town,
+// so the mean over the whole garrison moves less than the guards near it.
+const roused = s2.alertness.filter((v, i) => v > s1.alertness[i] + 0.2).length;
+check('gunfire raises alertness', roused >= 3,
+  `${roused} guards roused, mean ${beforeAlert.toFixed(2)} → ${afterAlert.toFixed(2)}`);
 check('alerted enemies investigate',
   (s2.states.search ?? 0) + (s2.states.alert ?? 0) >= 2, JSON.stringify(s2.states));
 
