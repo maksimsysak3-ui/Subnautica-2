@@ -81,6 +81,13 @@ const WAIT_CAP = 1200;
 const FAFF = 90;
 
 /**
+ * Metres a rider will walk between two lines' stops to change. Changing is
+ * what turns separate lines into a network: without it a bus and a tram that
+ * cross in the middle of town carry nobody from one side to the other.
+ */
+const TRANSFER_WALK = 200;
+
+/**
  * How much over capacity a line has to be before it hurts, and how much.
  *
  * A vehicle at nine-tenths full is a full vehicle as far as anybody standing on
@@ -217,6 +224,54 @@ export class TransitNet {
     this.report.lines = this.runs.length;
     this.report.broken = broken;
     this.buildGrid();
+    this.buildTransfers();
+  }
+
+  /**
+   * Where each pair of lines comes close enough to change between, found once
+   * when the lines change: for a pair, the closest two stops within a short
+   * walk. Lines are few (a city has tens, not thousands), so the pairwise pass
+   * is small, and a journey then asks a map rather than searching.
+   */
+  private transfers = new Map<number, [number, number, number]>();
+  private buildTransfers(): void {
+    this.transfers.clear();
+    for (let a = 0; a < this.runs.length; a++) {
+      const ra = this.runs[a];
+      if (ra.route === NO_PATH) continue;
+      for (let b = 0; b < this.runs.length; b++) {
+        if (a === b) continue;
+        const rb = this.runs[b];
+        if (rb.route === NO_PATH) continue;
+        let best: [number, number, number] | null = null;
+        for (let i = 0; i < ra.served.length; i++) {
+          if (ra.served[i] === 0) continue;
+          for (let j = 0; j < rb.served.length; j++) {
+            if (rb.served[j] === 0) continue;
+            const d = Math.hypot(ra.line.stops[i * 2] - rb.line.stops[j * 2],
+              ra.line.stops[i * 2 + 1] - rb.line.stops[j * 2 + 1]);
+            if (d <= TRANSFER_WALK && (best === null || d < best[2])) best = [i, j, d];
+          }
+        }
+        if (best !== null) this.transfers.set(a * 4096 + b, best);
+      }
+    }
+  }
+
+  /**
+   * Every stop a working line calls at, as x, z and how far people will walk
+   * to it -- for the coverage model, so a street a bus serves counts as served.
+   */
+  stopDiscs(out: number[]): void {
+    out.length = 0;
+    for (const r of this.runs) {
+      if (r.route === NO_PATH) continue;
+      const walk = TRANSIT_SPEC[r.line.kind].walk;
+      for (let i = 0; i < r.served.length; i++) {
+        if (r.served[i] === 0) continue;
+        out.push(r.line.stops[i * 2], r.line.stops[i * 2 + 1], walk);
+      }
+    }
   }
 
   /**
@@ -393,6 +448,25 @@ export class TransitNet {
         const seconds = (from[i + 2] + to[k + 2]) / WALK_SPEED
           + this.waitSeconds(r) + ride + FAFF;
         if (best < 0 || seconds < best) best = seconds;
+      }
+    }
+    // And with one change, where no single line does it faster.
+    if (this.transfers.size > 0) {
+      for (let i = 0; i < from.length; i += 3) {
+        const ra = from[i];
+        for (let k = 0; k < to.length; k += 3) {
+          const rb = to[k];
+          if (rb === ra) continue;
+          const t = this.transfers.get(ra * 4096 + rb);
+          if (t === undefined) continue;
+          const first = this.rideSeconds(this.runs[ra], from[i + 1], t[0]);
+          const second = this.rideSeconds(this.runs[rb], t[1], to[k + 1]);
+          if (first < 0 || second < 0) continue;
+          const seconds = (from[i + 2] + t[2] + to[k + 2]) / WALK_SPEED
+            + this.waitSeconds(this.runs[ra]) + first
+            + this.waitSeconds(this.runs[rb]) + second + FAFF * 1.6;
+          if (best < 0 || seconds < best) best = seconds;
+        }
       }
     }
     return best;

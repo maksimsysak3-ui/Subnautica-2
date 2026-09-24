@@ -60,13 +60,13 @@ function city() {
  * Laid on the corridor centrelines the generator draws its streets down, so the
  * stops land on roads -- which is what the tool's snap does for a player.
  */
-function loopStops(world, half) {
+function loopStops(world, half, ox = 0, oz = 0) {
   const out = [];
   const step = 24 * 8;
-  for (let x = -half; x <= half; x += step) out.push(x, -half);
-  for (let z = -half; z <= half; z += step) out.push(half, z);
-  for (let x = half; x >= -half; x -= step) out.push(x, half);
-  for (let z = half; z >= -half; z -= step) out.push(-half, z);
+  for (let x = -half; x <= half; x += step) out.push(x + ox, -half + oz);
+  for (let z = -half; z <= half; z += step) out.push(half + ox, z + oz);
+  for (let x = half; x >= -half; x -= step) out.push(x + ox, half + oz);
+  for (let z = half; z >= -half; z -= step) out.push(-half + ox, z + oz);
   // Snapped to the nearest road cell, exactly as the tool does it.
   const g = world.grid, gh = g / 2;
   const snapped = [];
@@ -250,6 +250,29 @@ section('it saves and loads');
 }
 
 // ---- cost ------------------------------------------------------------------
+
+section('lines make a network');
+{
+  // Two loops that meet in the middle. From the far side of one to the far
+  // side of the other takes both -- one change -- and the streets a line calls
+  // at count as served by public transport, whatever buildings stand nearby.
+  const world = city();
+  world.transit.add(TransitKind.BUS, loopStops(world, 300, -260, 0), 6);
+  world.transit.add(TransitKind.BUS, loopStops(world, 300, 260, 0), 6);
+  const sim = new Simulation(makeCity(world), world.net, 0x7a5, world);
+  sim.step(20);
+  const across = sim.transit.journey(-540, 0, 540, 0);
+  ok(across > 0, 'a trip across both lines is possible with one change', `${across.toFixed(0)} s`);
+  const nowhere = sim.transit.journey(-540, 0, 2200, 2200);
+  ok(nowhere < 0, 'and a trip neither line goes near is not');
+  // The coverage model, brought up to date for the transport branch.
+  const b = sim.services.cover.findIndex((c) => c.branch === 'transport');
+  for (let i = 0; i < 40; i++) sim.services.refresh(sim.people.population, 0, 0, 1e9);
+  const at = sim.services.coverAt(-560, 0, b);
+  const off = sim.services.coverAt(2200, 2200, b);
+  ok(at > 0.5, 'a street a bus calls at counts as served', at.toFixed(2));
+  ok(off < 0.05, 'and a street no line reaches does not', off.toFixed(2));
+}
 
 section('cost');
 {

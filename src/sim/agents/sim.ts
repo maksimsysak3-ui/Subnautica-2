@@ -385,6 +385,7 @@ export class Simulation {
     this.economy.watches(this.traffic.stats);
     this.utilities.governedBy(this.policies);
     this.services.governedBy(this.policies);
+    this.services.stopsFrom = (out) => this.transit.stopDiscs(out);
     this.ground.governedBy(this.policies);
     this.routine.governedBy(this.policies);
     this.growth = world === undefined ? undefined

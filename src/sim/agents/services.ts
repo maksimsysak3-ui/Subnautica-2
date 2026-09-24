@@ -184,6 +184,15 @@ export class Services {
     }
   }
 
+  /**
+   * Where public transport stops are, as x, z and walking radius, filled by the
+   * transit model. A street a bus line calls at is served by public transport
+   * whether or not there is a station building nearby -- the lines are the
+   * service; the buildings are depots and interchanges.
+   */
+  stopsFrom: ((out: number[]) => void) | null = null;
+  private readonly stopBuf: number[] = [];
+
   /** The map got bigger or smaller. */
   resize(extent: number): void {
     this.extent = extent;
@@ -316,7 +325,12 @@ export class Services {
     const reach = this.reach[b];
     const near = this.near[b];
 
-    if (std === undefined || PIPED.has(name) || pool.size === 0) {
+    let stopCount = 0;
+    if (name === 'transport' && this.stopsFrom !== null) {
+      this.stopsFrom(this.stopBuf);
+      stopCount = this.stopBuf.length / 3;
+    }
+    if (std === undefined || PIPED.has(name) || (pool.size === 0 && stopCount === 0)) {
       reach.fill(0);
       near.fill(UNREACHED);
       cov.stations = pool.size;
@@ -362,6 +376,12 @@ export class Services {
       spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst * grow, std.good * grow, able);
       this.cursor++;
       if (spent >= budget) return false;
+    }
+    // Every stop a line calls at: most of the service within half the walk,
+    // falling off to the edge of it.
+    for (let k = 0; k < stopCount; k++) {
+      const walk = this.stopBuf[k * 3 + 2];
+      this.stampDisc(reach, near, this.stopBuf[k * 3], this.stopBuf[k * 3 + 1], walk, walk * 0.5, 0.85);
     }
 
     this.tally(b, std);
