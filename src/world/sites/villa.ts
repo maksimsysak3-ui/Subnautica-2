@@ -23,6 +23,7 @@ import { SiteBuilder } from '../builder';
 import { Props } from '../props';
 import { M } from '../palette';
 import { BF, type SiteInstance, type WallOpening, type SiteBuildResult } from '../types';
+import { makeKit, meadow, building, Frame } from '../kit';
 
 // --- pad geometry ----------------------------------------------------------
 const PAD = 2.0;              // world Y of the compound ground
@@ -77,6 +78,7 @@ function archOp(at: number, width: number, height = 2.4): WallOpening {
 
 export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
   const p = new Props(b);
+  const extraLights: NonNullable<SiteBuildResult['lights']> = [];
 
   // =========================================================================
   // Ground plane treatments — the single cheapest readability win. Bare
@@ -388,6 +390,92 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
   // =========================================================================
   // Landscaping and courtyard dressing
   // =========================================================================
+  // =========================================================================
+  // The grounds — gardens with a purpose instead of one sheet of lawn
+  // =========================================================================
+  //
+  // The compound's ground was a single 20,592 m2 slab of saturated green that
+  // read as a golf course from every distance, with three dead blocks in it a
+  // player had no reason to cross. The grounds of a hacienda are WORKED: an
+  // orchard, a kitchen garden, drying yards, a greenhouse. Each of those is a
+  // reason to be there and a pattern of cover to move through.
+  {
+    const kit = makeKit(b, rng);
+    // Break the lawn everywhere with dry patches, bare earth and tufts.
+    meadow(kit, PERIM.x0 + 1, PERIM.z0 + 1, PERIM.x1 - 1, PERIM.z1 - 1, PAD, 7);
+
+    // The orchard, north-east of the drive: trees on a grid, gravel rows
+    // between them, an irrigation channel and a tool shed. Rows of trunks
+    // are the best stealth cover a garden can have — they break a sightline
+    // every four metres and stop nothing but the eye.
+    const OX0 = 16, OX1 = 44, OZ0 = 40, OZ1 = 66;
+    for (let x = OX0 + 2; x < OX1; x += 4.2) {
+      b.span(x - 0.6, PAD, OZ0, x + 0.6, PAD + 0.03, OZ1, M.gravelMat,
+        { surface: 'gravel', flags: BF.NO_COVER, tint: b.jitterTint(0.06) });
+      for (let z = OZ0 + 2.1; z < OZ1; z += 4.2) {
+        if (rng.next() < 0.08) continue;
+        p.shadeTree(x + 2.1 + rng.range(-0.3, 0.3), PAD, z + rng.range(-0.3, 0.3), rng.range(3.4, 4.6));
+      }
+    }
+    b.span(OX0, PAD - 0.4, OZ1 - 0.6, OX1, PAD + 0.02, OZ1 + 0.2, M.concreteRaw, { surface: 'concrete' });
+    b.span(OX0 + 0.15, PAD - 0.34, OZ1 - 0.45, OX1 - 0.15, PAD - 0.3, OZ1 + 0.05, M.water,
+      { surface: 'water', flags: BF.SOFT | BF.NO_NAV | BF.NO_COVER });
+    building(kit, { frame: new Frame(OX1 + 1, OZ0, 'west'), w: 5, d: 4, y: PAD, storeys: 1,
+      style: 'shed', name: 'Orchard shed', storeyH: 3.0, mat: M.woodWeathered });
+
+    // The kitchen garden, walled, with a greenhouse: in the old dead strip
+    // behind the house.
+    const KX0 = -34, KX1 = 16, KZ0 = -34, KZ1 = -16;
+    for (const [ax, az, bx, bz] of [[KX0, KZ0, KX1, KZ0], [KX0, KZ1, KX1, KZ1], [KX0, KZ0, KX0, KZ1], [KX1, KZ0, KX1, KZ1]] as const) {
+      b.wall({ x0: ax, z0: az, x1: bx, z1: bz, y: PAD, height: 1.6, thickness: 0.3, mat: M.brickRed,
+        jitter: 0.06, openings: [{ at: Math.hypot(bx - ax, bz - az) / 2, width: 1.4, y0: 0, y1: 1.6, kind: 'hole' }],
+        panel: { every: 3, jitter: 0.1, variants: [M.brickRed, M.brickRed, M.stucco] },
+        coping: { mat: M.stoneTrim, height: 0.08, overhang: 0.05 } });
+    }
+    // Raised beds in rows, dark earth, with crops.
+    for (let x = KX0 + 2; x < KX0 + 30; x += 3.2) {
+      b.span(x, PAD, KZ0 + 2, x + 2.0, PAD + 0.42, KZ1 - 2, M.woodWeathered, { surface: 'wood' });
+      b.span(x + 0.1, PAD + 0.42, KZ0 + 2.1, x + 1.9, PAD + 0.46, KZ1 - 2.1, M.dirtMat,
+        { surface: 'dirt', flags: BF.NO_COVER });
+      for (let z = KZ0 + 2.6; z < KZ1 - 2.4; z += 0.8) {
+        b.box(x + 1.0, PAD + 0.62, z, 0.32, 0.16, 0.26, rng.next() < 0.6 ? M.leafMid : M.leafDark,
+          { surface: 'foliage', flags: BF.SOFT | BF.NO_COVER | BF.NO_NAV | BF.NO_SHADOW });
+      }
+    }
+    // The greenhouse: a glass box on a frame — a room you can see straight
+    // through and shoot straight through, which is exactly its tactical use.
+    const GX0 = KX1 - 16, GX1 = KX1 - 2, GZ0 = KZ0 + 2, GZ1 = KZ1 - 2;
+    b.span(GX0, PAD, GZ0, GX1, PAD + 0.12, GZ1, M.concreteRaw, { surface: 'concrete', flags: BF.NO_COVER });
+    for (const [ax, az, bx, bz] of [[GX0, GZ0, GX1, GZ0], [GX0, GZ1, GX1, GZ1], [GX1, GZ0, GX1, GZ1]] as const) {
+      b.wall({ x0: ax, z0: az, x1: bx, z1: bz, y: PAD + 0.12, height: 2.8, thickness: 0.05, mat: M.glass,
+        surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.THIN });
+    }
+    for (let x = GX0; x <= GX1; x += 2) {
+      for (const z of [GZ0, GZ1]) b.box(x, PAD + 1.9, z, 0.05, 1.8, 0.05, M.chalkWhite, { surface: 'metal', flags: BF.NO_COVER });
+      b.span(x - 0.05, PAD + 3.6, GZ0, x + 0.05, PAD + 3.7, GZ1, M.chalkWhite, { surface: 'metal', flags: BF.NO_COVER | BF.THIN });
+    }
+    b.span(GX0, PAD + 3.66, GZ0, GX1, PAD + 3.7, GZ1, M.glass,
+      { surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.THIN | BF.NO_COVER });
+    for (let i = 0; i < 4; i++) {
+      p.table(GX0 + 2.5 + i * 3.2, PAD + 0.12, (GZ0 + GZ1) / 2, 0, 1.8, 0.8, 0.8, M.woodWeathered);
+      for (let q = 0; q < 4; q++) p.planter(GX0 + 1.9 + i * 3.2 + q * 0.4, PAD + 0.92, (GZ0 + GZ1) / 2, 0.16);
+    }
+    b.room({ name: 'Greenhouse', tag: 'greenhouse', indoors: true, minX: GX0, maxX: GX1, minZ: GZ0, maxZ: GZ1, minY: PAD, maxY: PAD + 3.7 });
+    // Washing lines and a drying yard beside it.
+    for (let i = 0; i < 3; i++) {
+      const lz = KZ1 + 3 + i * 2.2;
+      for (const lx of [KX0 + 2, KX0 + 16]) b.box(lx, PAD + 1.1, lz, 0.05, 1.1, 0.05, M.woodDark, { surface: 'wood', flags: BF.NO_COVER });
+      b.span(KX0 + 2, PAD + 2.1, lz - 0.01, KX0 + 16, PAD + 2.12, lz + 0.01, M.fabricCream,
+        { surface: 'fabric', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_COLLIDE });
+      for (let q = 0; q < 8; q++) {
+        b.box(KX0 + 3 + q * 1.6, PAD + 1.75, lz, 0.35, 0.34, 0.012,
+          [M.plasterWhite, M.fabricRed, M.fabricTeal, M.fabricCream][q % 4],
+          { surface: 'fabric', flags: BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_COLLIDE | BF.NO_SHADOW });
+      }
+    }
+    kit.lights.forEach((l) => extraLights.push(l));
+  }
+
   p.fountain(-6, TER, 30, 2.6);
   for (const [hx0, hz0, hx1, hz1] of [
     [-24, 44, 12, 44], [-24, 56, 12, 56], [-24, 44, -24, 56], [12, 44, 12, 56],
@@ -711,7 +799,9 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     approaches: [
       {
         id: 'front-gate', name: 'Main gate', kind: 'front',
-        x: 0, y: PAD, z: PERIM.z1 + 34, toX: 0, toZ: PERIM.z1,
+        // At the town entrance. The loud approach is now 190 m of high
+        // street, past a checkpoint, under every window in town.
+        x: 0, y: PAD, z: 266, toX: 0, toZ: PERIM.z1,
         description: 'Straight up the access road. Two guns on the gatehouse roof and a clear field of fire down the drive.',
         stealth: 0.05, speed: 0.9, risk: 0.85,
       },
@@ -769,7 +859,7 @@ export function buildVilla(b: SiteBuilder, rng: Rng): SiteBuildResult {
     ],
   };
 
-  return { site, rooms: b.rooms, navLinks: b.navLinks, lights: buildLightPlan(b, p, rng) };
+  return { site, rooms: b.rooms, navLinks: b.navLinks, lights: [...buildLightPlan(b, p, rng), ...extraLights] };
 }
 
 // ===========================================================================

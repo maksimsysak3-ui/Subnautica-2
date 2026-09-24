@@ -49,7 +49,7 @@ export const DEFAULT_BINDINGS: Binding[] = [
   { action: 'slot4',     keys: ['Digit4'],             label: 'Sidearm' },
   { action: 'nextSlot',  keys: ['KeyV'],               label: 'Next weapon' },
   { action: 'torch',     keys: ['KeyT'],               label: 'Weapon light' },
-  { action: 'drone',     keys: ['KeyG'],               label: 'Deploy drone' },
+  { action: 'grenade',   keys: ['KeyG'],               label: 'Throw grenade' },
   { action: 'nvg',       keys: ['KeyN'],               label: 'Night vision' },
   { action: 'map',       keys: ['KeyM', 'Tab'],        label: 'Tactical map' },
   { action: 'pause',     keys: ['Escape'],             label: 'Pause' },
@@ -457,6 +457,9 @@ export class InputSystem implements System {
 
     // The torch is a latch, not a hold: you switch it on and it stays on, and
     // deciding to leave it on is the interesting part.
+    if (this.consumePress('grenade')) {
+      (this.engine?.get('grenades') as { playerThrow(): void } | undefined)?.playerThrow();
+    }
     if (this.consumePress('torch')) {
       (this.engine?.get('weaponLight') as { toggle(): void } | undefined)?.toggle();
     }

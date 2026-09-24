@@ -74,6 +74,11 @@ const CSS = `
   background: rgba(5,7,10,.7); border-left: 2px solid var(--brass, #c8a355);
   opacity: 0; transition: opacity .25s ease; white-space: nowrap; }
 #hud .toast.on { opacity: 1; }
+#hud .barks { position: absolute; left: 50%; bottom: 17%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; }
+#hud .barks div { font-size: 12px; letter-spacing: .06em; color: #f1d9b8; opacity: .95;
+  text-shadow: 0 1px 2px #000, 0 0 6px #000; transition: opacity .4s ease; }
+#hud .barks div b { color: #e0806a; font-weight: 600; margin-right: 6px; letter-spacing: .12em; font-size: 10px; }
 
 /* Damage vignette. Reads as blood in the periphery rather than a health bar —
    you feel how hurt you are instead of reading a number. */
@@ -156,6 +161,7 @@ export class Hud implements System {
   private stanceEl!: HTMLElement;
   private staminaEl!: HTMLElement;
   private toastEl!: HTMLElement;
+  private barksEl!: HTMLElement;
   private toastTimer = 0;
   private weaponEl!: HTMLElement;
   private slotsEl!: HTMLElement;
@@ -238,6 +244,9 @@ export class Hud implements System {
     this.stanceEl = root.querySelector('.stance b')!;
     this.staminaEl = root.querySelector('.stamina > i')!;
     this.toastEl = root.querySelector('.toast')!;
+    this.barksEl = document.createElement('div');
+    this.barksEl.className = 'barks';
+    root.appendChild(this.barksEl);
     this.weaponEl = root.querySelector('.weapon')!;
     this.slotsEl = root.querySelector('.slots')!;
     this.hurtEl = root.querySelector('.hurt')!;
@@ -255,6 +264,25 @@ export class Hud implements System {
     bus.on('actor:damaged', (e) => { if (e.actorId === 0) this.onHurt(e.sourceId); });
 
     bus.on('ui:notify', ({ text }) => this.toast(text));
+    // Enemy voice, as subtitles, when it is close enough to hear. This is how
+    // a player learns the AI is DOING something — that it has called you in,
+    // that it is reloading, that someone is working round to your left — and
+    // it is the information a good player acts on.
+    bus.on('actor:vocalized', (e) => {
+      const actors = services.tryGet('actors');
+      const a = actors?.get(e.actorId);
+      const me = actors?.get(0);
+      if (!a || !me || !this.barksEl) return;
+      const d = a.position.distanceTo(me.position);
+      if (d > (e.category === 'radio' ? 25 : 42)) return;
+      const el = document.createElement('div');
+      const dir = this.bearingWord(a.position.x - me.position.x, a.position.z - me.position.z);
+      el.innerHTML = `<b>${dir} · ${Math.round(d)}M</b>${e.line}`;
+      this.barksEl.appendChild(el);
+      while (this.barksEl.childElementCount > 4) this.barksEl.firstElementChild?.remove();
+      setTimeout(() => { el.style.opacity = '0'; }, 2600);
+      setTimeout(() => el.remove(), 3100);
+    });
     bus.on('weapon:jammed', () => this.toast('WEAPON JAMMED — PULL TRIGGER TO CLEAR'));
     bus.on('door:locked', () => this.toast('LOCKED'));
     bus.on('weapon:reloadStart', ({ tactical }) =>
@@ -424,6 +452,16 @@ export class Hud implements System {
       ['Alarm raised', r.stats.alerts > 0 ? 'YES' : 'no'],
       ['Non-combatants', String(r.stats.civiliansKilled)],
     ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  }
+
+  /** Where a sound came from, relative to where the player is looking. */
+  private bearingWord(dx: number, dz: number): string {
+    const fx = this.player?.forward.x ?? 0, fz = this.player?.forward.z ?? -1;
+    const fl = Math.max(1e-4, Math.hypot(fx, fz));
+    const ux = fx / fl, uz = fz / fl;
+    const f = dx * ux + dz * uz, r = -(dx * uz - dz * ux);
+    if (Math.abs(f) > Math.abs(r) * 1.4) return f > 0 ? 'FRONT' : 'BEHIND';
+    return r > 0 ? 'RIGHT' : 'LEFT';
   }
 
   toast(text: string): void {

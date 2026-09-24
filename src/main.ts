@@ -25,6 +25,7 @@ import { Hud } from './ui/hud';
 import { Menu } from './ui/menu';
 import { InteriorLights } from './lighting/interior-lights';
 import { WeaponLight } from './lighting/weapon-light';
+import { Grenades } from './fx/grenades';
 import { MissionSystem } from './missions/mission-system';
 import { EnemyAi } from './ai/enemy-ai';
 import { garrison } from './ai/garrison';
@@ -104,6 +105,8 @@ async function boot(): Promise<void> {
   progress(0.76, 'switching on the lights');
   engine.add(new InteriorLights());
   engine.add(new WeaponLight());
+  const grenades = new Grenades();
+  engine.add(grenades);
 
   progress(0.77, 'drafting the tasking');
   const missions = new MissionSystem();
@@ -221,6 +224,7 @@ async function boot(): Promise<void> {
       bodies?.clearAll();
       registry.clear();
       ai.reset();
+      grenades.reset();
 
       worldSys.teardown();
       worldSys.buildMap(id);

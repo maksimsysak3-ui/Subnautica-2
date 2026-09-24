@@ -39,6 +39,8 @@ import { Navigation } from './navigation';
 import { buildVilla } from './sites/villa';
 import { buildQuay } from './sites/quay';
 import { buildOutskirts } from './sites/outskirts';
+import { buildVillaTown } from './sites/villa-town';
+import { buildPortDistrict } from './sites/quay-port';
 import { BF, type SiteInstance, type SiteBuildResult, type ApproachRoute } from './types';
 import { SURFACE_TABLE } from './surfaces';
 import { moveCharacter, brickGroundAt, climbAt, type CharacterShape, type MoveResult } from './collision';
@@ -75,19 +77,15 @@ const SITE_PAD: Record<'villa' | 'quay', Rect[]> = {
   villa: [
     // The compound. Perimeter is x -78..78, z -58..74.
     { x0: -88, z0: -70, x1: 88, z1: 96 },
-    // The access road corridor.
-    //
-    // A road is graded, and this one has to be: it is laid as 6 m slabs that
-    // each sample the ground at their own centre, so the moment real terrain
-    // appeared underneath it the road became a staircase with daylight between
-    // the treads. Carrying the pad up the corridor is both the correct answer
-    // visually — roads ARE cut into hillsides — and the one that keeps the
-    // checkpoint, the bus shelter and the culverts sitting flat.
-    { x0: -18, z0: 90, x1: 18, z1: 214 },
+    // The town of San Verdugo, below the gate, and the road out of it.
+    { x0: -84, z0: 70, x1: 84, z1: 262 },
+    { x0: -14, z0: 250, x1: 14, z1: 330 },
   ],
   quay: [
     // Perimeter is x -96..94, z -74..76; the outer checkpoint sits at z -114.
     { x0: -106, z0: -122, x1: 104, z1: 88 },
+    // Puerto Meridian, the port district outside the south fence.
+    { x0: -116, z0: -190, x1: 112, z1: -70 },
     // The rail siding runs to x = 170 and its wagons sit at a fixed height, so
     // without this the last 66 m of track and five parked wagons vanished into
     // a hillside — 237 bricks, the worst of them 6.7 m underground.
@@ -249,16 +247,31 @@ export class WorldSystem implements System, IWorldQuery {
     let result: SiteBuildResult;
     if (this.mapId === 'quay') {
       result = buildQuay(builder, this.rng, this.terrainFn);
+      // The port district outside the wire: the terminal is one berth in a
+      // working port, not a fence standing alone on the sand.
+      const port = buildPortDistrict(builder, this.rng);
+      result.rooms.push(...port.rooms);
+      result.lights = [...(result.lights ?? []), ...port.lights];
+      result.site.coreMinZ = -186;
+      result.site.minZ = Math.min(result.site.minZ, -210);
+      result.site.coreMinX = Math.min(result.site.coreMinX, -114);
+      result.site.coreMaxX = Math.max(result.site.coreMaxX, 110);
       this.insertions = result.site.approaches.map((a: ApproachRoute) => ({
         id: a.id, x: a.x, z: a.z, label: a.name,
       }));
     } else {
       result = buildVilla(builder, this.rng);
-      // The surrounding land: access road, checkpoint, terraces, arroyo and
-      // outbuildings. Without it the compound's flanking approaches have
-      // nowhere to start from, and there is no standoff to scout the place.
-      const outskirts = buildOutskirts(builder, this.rng, this.terrainFn);
-      this.insertions = outskirts.insertions;
+      // The town below the gate. The compound used to sit alone in a desert
+      // reached by one empty road; it now sits at the top of its own town.
+      const town = buildVillaTown(builder, this.rng);
+      result.rooms.push(...town.rooms);
+      result.lights = [...(result.lights ?? []), ...town.lights];
+      result.site.coreMaxZ = 252;
+      result.site.maxZ = Math.max(result.site.maxZ, 300);
+      // The surrounding land: terraces, arroyo and outbuildings. Without it
+      // the compound's flanking approaches have nowhere to start from.
+      const outskirts = buildOutskirts(builder, this.rng, this.terrainFn, { town: true });
+      this.insertions = [...town.insertions, ...outskirts.insertions.filter((i) => i.id !== 'road-south')];
     }
     this.site = result.site;
     // Authored fixtures, handed to the interior lighting system once it is up.
@@ -279,7 +292,7 @@ export class WorldSystem implements System, IWorldQuery {
       // Extend past the compound so patrols can work the checkpoint and the
       // orchard rows rather than stopping dead at the wall.
       minX: site.coreMinX - 30, maxX: site.coreMaxX + 30,
-      minZ: site.coreMinZ - 30, maxZ: site.coreMaxZ + 70,
+      minZ: site.coreMinZ - 30, maxZ: site.coreMaxZ + 24,
       minY: site.minY - 4, maxY: site.maxY,
     });
     grid.build(this.yard, (x, z) => this.sampleTerrain(x, z), result.rooms, result.navLinks);

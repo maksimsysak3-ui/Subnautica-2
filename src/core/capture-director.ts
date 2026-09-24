@@ -563,6 +563,15 @@ export class CaptureDirector {
     this.register({ name: 'site-approach', label: 'Access road toward the compound',
       system: 'world', hour: 7.8, weather: 'clear', quality: 3,
       pos: [4, 6.5, 170], look: [0, 4, 60], fov: 62 });
+    this.register({ name: 'town-street', label: 'San Verdugo, Calle Real toward the compound',
+      system: 'world', hour: 17.2, weather: 'clear', quality: 3,
+      pos: [1.5, 3.7, 205], look: [-1, 3.2, 90], fov: 62 });
+    this.register({ name: 'town-plaza', label: 'San Verdugo, the plaza and the parroquia',
+      system: 'world', hour: 16.0, weather: 'clear', quality: 3,
+      pos: [-12, 4.2, 162], look: [-56, 5, 146], fov: 62 });
+    this.register({ name: 'town-aerial', label: 'San Verdugo and Casa Verdugo from above the town',
+      system: 'world', hour: 15.5, weather: 'clear', quality: 3,
+      pos: [60, 70, 280], look: [-5, 0, 100], fov: 55 });
     this.register({ name: 'env-street-level', label: 'Street level, eye height', system: 'world',
       hour: 16.4, weather: 'clear', quality: 3, pos: [10, 3.6, 34], look: [-6, 2.4, -10] });
     // Weapon presentation. Controls stay enabled so the viewmodel keeps its
@@ -659,6 +668,8 @@ export class CaptureDirector {
     quayShot('quay-apron', 'Quay apron and crane', [40, 6.0, 24], [-30, 12, 60]);
     quayShot('quay-approach', 'Main gate approach', [0, 4.6, -118], [0, 6, -60]);
     quayShot('quay-checkpoint', 'Outer checkpoint', [-24, 4.4, -128], [4, 4, -104]);
+    quayShot('port-street', 'Puerto Meridian, Calle del Muelle', [96, 3.8, -99], [14, 4, -101]);
+    quayShot('port-aerial', 'Puerto Meridian and the terminal from above', [120, 80, -230], [0, 0, -40]);
     quayShot('quay-rail', 'Rail siding, east flank', [138, 6.0, -34], [96, 5, -6]);
 
     // Look at the garrison. A screenshot of an empty compound proves nothing

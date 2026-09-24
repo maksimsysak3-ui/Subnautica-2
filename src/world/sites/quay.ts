@@ -1352,7 +1352,8 @@ export function buildQuay(
     }
   };
   road(0, PERIM.z0 - 2, 0, PERIM.z0 - 62, 9);
-  road(0, PERIM.z0 - 62, 78, PERIM.z0 - 78, 9);
+  // (The dog-leg east to z -152 is gone: the port district's streets are
+  // there now, and the old road ran straight through the customs row.)
   // Stops short of the ditch rather than driving through it. This run used to
   // cross x = -30 at z = -107, burying the tarmac in the dirt and pushing the
   // berms 0.6 m up through the road surface.
@@ -1452,6 +1453,7 @@ export function buildQuay(
     if (Math.abs(x) < 8 && z < PERIM.z0 && z > PERIM.z0 - 66) return false;   // road
     if (x > -37 && x < -24 && z < PERIM.z0 && z > PERIM.z0 - 76) return false; // ditch
     if (x > PERIM.x1 && Math.abs(z + 3) < 9) return false;                     // rail
+    if (z < PERIM.z0 - 2 && z > -188 && ((x > -114 && x < -38) || (x > 8 && x < 110))) return false; // port district
     return true;
   };
   for (let i = 0; i < 900; i++) {
@@ -1634,7 +1636,6 @@ export function buildQuay(
   p.pickup(-6.5, PAD, PERIM.z0 - 20, 0.05);
   p.suv(6.2, PAD, PERIM.z0 - 26, 3.10);
   p.pickup(-13, PAD, cpZ + 8, 1.55);
-  p.sedan(20, PAD, PERIM.z0 - 58, 2.3);
   // A truck at the gate, half unloaded — the reason the gate is open at all.
   b.span(-2.6, PAD, PERIM.z0 - 12, 2.6, PAD + 1.0, PERIM.z0 - 4, M.steelDark, { surface: 'metal' });
   b.span(-2.9, PAD + 1.0, PERIM.z0 - 12, 2.9, PAD + 3.6, PERIM.z0 - 5.6, M.paintGreen,
@@ -1669,8 +1670,10 @@ export function buildQuay(
     approaches: [
       {
         id: 'main-gate', name: 'Main gate', kind: 'front',
-        x: 0, y: PAD, z: PERIM.z0 - 30, toX: 0, toZ: PERIM.z0,
-        description: 'Straight through the vehicle gate. Fast, and the booth sees you the whole way in.',
+        // At the south end of the port district: the gate is a 100 m walk up
+        // the district's main road, between the sheds and the dormitory.
+        x: 0, y: PAD, z: -182, toX: 0, toZ: PERIM.z0,
+        description: 'Up the port road through the district and straight through the vehicle gate. Fast, and the booth sees you the whole way in.',
         stealth: 0.05, speed: 0.95, risk: 0.85,
       },
       {

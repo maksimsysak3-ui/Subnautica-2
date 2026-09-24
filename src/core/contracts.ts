@@ -619,6 +619,15 @@ export interface ServiceMap {
    * to make you easier to see, or switching it on is not a decision.
    */
   weaponLight: IWeaponLight;
+  /** Fragmentation grenades, for both sides. */
+  grenades: IGrenades;
+}
+
+export interface IGrenades {
+  playerCount: number;
+  throw(from: Vector3, velocity: Vector3, owner: number, cooked?: number): boolean;
+  playerThrow(): void;
+  reset(): void;
 }
 
 export interface IWeaponLight {

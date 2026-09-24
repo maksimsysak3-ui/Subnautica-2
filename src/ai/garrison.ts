@@ -73,6 +73,38 @@ const VILLA_POSTS: Post[] = [
   // --- the principal's detail --------------------------------------------
   { at: [-16, 4], watch: [-16, 22], skill: 0.82, archetype: 'bodyguard' },
   { at: [-12, 2], watch: [2, 2], skill: 0.80, archetype: 'bodyguard' },
+
+  // =======================================================================
+  // SAN VERDUGO — the town is the first ring of his security
+  // =======================================================================
+  // The checkpoint where the road comes in: the only place in town anyone is
+  // actually expecting trouble, and they are still facing the wrong way half
+  // the time.
+  { at: [6.8, 243], watch: [6.8, 275], skill: 0.36, archetype: 'sentry' },
+  { at: [-7.5, 249], watch: [-2, 280], skill: 0.34, archetype: 'sentry',
+    route: [[-7.5, 249], [-7.5, 236], [-7.5, 249], [3, 252]] },
+  // Halcones — lookouts on the corners of the Calle Real. Bored, badly
+  // armed, and every one of them can radio the compound.
+  { at: [5.6, 214], watch: [0, 240], skill: 0.30, archetype: 'sentry' },
+  { at: [-5.6, 178], watch: [0, 210], skill: 0.32, archetype: 'sentry' },
+  { at: [5.6, 122], watch: [0, 160], skill: 0.33, archetype: 'sentry' },
+  // Sicarios walking the high street — the patrols that cross it.
+  { at: [-2, 200], watch: [-2, 150], skill: 0.48, archetype: 'guard',
+    route: [[-2, 200], [-2, 128], [30, 120], [-2, 128]] },
+  { at: [2, 140], watch: [2, 190], skill: 0.50, archetype: 'guard',
+    route: [[2, 140], [2, 214], [-40, 216], [2, 214]] },
+  // The plaza: two by the fountain, one on the cantina's door, and a
+  // lookout up in the parroquia's bell tower who sees the whole square.
+  { at: [-24, 144], watch: [-8, 150], skill: 0.46, archetype: 'guard',
+    route: [[-24, 144], [-36, 158], [-24, 164], [-14, 150]] },
+  { at: [-36, 142], watch: [-46, 150], skill: 0.44, archetype: 'guard' },
+  { at: [-46, 141.2], watch: [-46, 160], skill: 0.52, archetype: 'guard' },
+  { at: [-56.5, 155.5], y: 13.62, watch: [-10, 150], skill: 0.58, archetype: 'operator' },
+  // The edge street, facing the compound gate: nobody gets to the wall
+  // without walking past these two.
+  { at: [-12, 81], watch: [0, 72], skill: 0.52, archetype: 'guard',
+    route: [[-12, 81], [-40, 81], [-12, 81], [20, 81]] },
+  { at: [26, 81], watch: [0, 100], skill: 0.50, archetype: 'guard' },
 ];
 
 /**
@@ -117,6 +149,24 @@ const QUAY_POSTS: Post[] = [
   { at: [-6, -32], watch: [-6, -52], skill: 0.60, archetype: 'operator' },
   { at: [0, 58], watch: [0, 74], skill: 0.50, archetype: 'guard',
     route: [[0, 58], [-30, 58], [0, 58], [26, 56]] },
+
+  // =======================================================================
+  // PUERTO MERIDIAN — the district outside the wire
+  // =======================================================================
+  // The syndicate's shooter on the dormitory roof, over the port road.
+  { at: [-46, -172], y: 14.82, watch: [0, -150], skill: 0.66, archetype: 'operator' },
+  // Two in the cantina's doorway — paid, drinking, and armed.
+  { at: [-52, -104.8], watch: [-52, -96], skill: 0.42, archetype: 'guard' },
+  { at: [-47, -104.8], watch: [-30, -100], skill: 0.40, archetype: 'guard' },
+  // Street patrols that cross the port road.
+  { at: [30, -100], watch: [60, -100], skill: 0.46, archetype: 'guard',
+    route: [[30, -100], [90, -100], [64, -110], [64, -160], [30, -144], [2, -144]] },
+  { at: [-80, -144], watch: [-50, -144], skill: 0.44, archetype: 'guard',
+    route: [[-80, -144], [-44, -144], [-80, -144], [-80, -100], [-44, -100]] },
+  // The fuel yard and the customs house.
+  { at: [72, -134], watch: [40, -134], skill: 0.48, archetype: 'guard' },
+  { at: [86, -148.5], watch: [86, -120], skill: 0.52, archetype: 'guard' },
+  { at: [2.5, -170], watch: [2.5, -190], skill: 0.36, archetype: 'sentry' },
 
   // --- the principal ------------------------------------------------------
   { at: [-56, -40], watch: [-40, -40], skill: 0.84, archetype: 'bodyguard' },

@@ -32,6 +32,8 @@ const { Rng, Noise2D } = await server.ssrLoadModule('/src/core/math.ts');
 const { buildVilla } = await server.ssrLoadModule('/src/world/sites/villa.ts');
 const { buildQuay } = await server.ssrLoadModule('/src/world/sites/quay.ts');
 const { buildOutskirts } = await server.ssrLoadModule('/src/world/sites/outskirts.ts');
+const { buildVillaTown } = await server.ssrLoadModule('/src/world/sites/villa-town.ts');
+const { buildPortDistrict } = await server.ssrLoadModule('/src/world/sites/quay-port.ts');
 
 const SHAPE = { radius: 0.36, height: 1.75, stepHeight: 0.42, minGroundNormalY: 0.55 };
 const PAD_HEIGHT = 1.88;
@@ -50,8 +52,8 @@ function run(mapId) {
   const terrain = () => PAD_HEIGHT;
 
   const res = mapId === 'quay'
-    ? buildQuay(b, rng, terrain)
-    : (() => { const r = buildVilla(b, rng); buildOutskirts(b, rng, terrain); return r; })();
+    ? (() => { const r = buildQuay(b, rng, terrain); const t = buildPortDistrict(b, rng); r.rooms.push(...t.rooms); r.site.coreMinZ = -186; r.site.coreMinX = -114; r.site.coreMaxX = 110; return r; })()
+    : (() => { const r = buildVilla(b, rng); const t = buildVillaTown(b, rng); r.rooms.push(...t.rooms); r.site.coreMaxZ = 252; buildOutskirts(b, rng, terrain, { town: true }); return r; })();
   b.clearDoorways();
   yard.finalize();
 

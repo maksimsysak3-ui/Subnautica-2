@@ -223,6 +223,100 @@ export const MISSIONS: MissionTemplate[] = [
     ],
     rewards: { xp: 1100, cash: 15000, reputation: { syndicate: -25 } },
   },
+  // =========================================================================
+  // SAN VERDUGO — the town below the compound
+  // =========================================================================
+  {
+    id: 'villa-halcones',
+    siteId: 'villa',
+    name: 'San Verdugo',
+    codename: 'BLIND CORNER',
+    difficulty: 3,
+    hour: 21.4,
+    briefing:
+      'Before anyone goes near the house, the town has to stop talking. Verdugo keeps '
+      + 'lookouts on the corners of the Calle Real and one up in the parroquia tower, and '
+      + 'every one of them has a radio. Take them quietly, lift the ledger the cantina '
+      + 'keeps behind the bar, and get out the way you came.',
+    intel: [
+      'Three halcones on the Calle Real corners, two at the town checkpoint.',
+      'The tower lookout sees the whole plaza. The ladder is inside the north tower.',
+      'The backyards between the rows are walled but not locked — that is the quiet way in.',
+      'Night. The plaza lamps and the cantina sign are the only real light.',
+    ],
+    objectives: [
+      {
+        id: 'lookouts', kind: 'eliminate',
+        label: 'Silence the halcones',
+        description: 'The corner lookouts on the Calle Real.',
+        at: [0, 2.2, 170], radius: 60, required: 3,
+      },
+      {
+        id: 'tower', kind: 'eliminate', optional: true,
+        label: 'Take the tower',
+        description: 'The lookout in the parroquia bell tower.',
+        at: [-56.5, 13.6, 155.5], radius: 8,
+      },
+      {
+        id: 'ledger', kind: 'secureIntel',
+        label: 'Lift the cantina ledger',
+        description: 'Behind the bar, Cantina El Farol, south-west corner of the plaza.',
+        at: [-46, 2.2, 134], radius: 5,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate south',
+        description: 'Back out past the checkpoint to the road.',
+        at: [0, 2.2, 266], radius: 10,
+        dependsOn: ['lookouts', 'ledger'],
+      },
+    ],
+    rewards: { xp: 1000, cash: 12000, reputation: { cartel: -20 } },
+  },
+  // =========================================================================
+  // PUERTO MERIDIAN — the district outside the wire
+  // =========================================================================
+  {
+    id: 'quay-ancla',
+    siteId: 'quay',
+    name: 'Puerto Meridian',
+    codename: 'DEAD LETTER',
+    difficulty: 4,
+    hour: 19.2,
+    briefing:
+      'The gate crew at the terminal are paid in the cantina on Calle del Muelle, and the '
+      + 'man who pays them keeps a book. Get it before the shift changes, deal with the '
+      + 'shooter the syndicate keeps on the dormitory roof, and walk out through the '
+      + 'district as if you belonged there.',
+    intel: [
+      'The cantina is the first building on the south side of Calle del Muelle.',
+      'Four storeys of dormitory at the south end of the district; someone lives on the roof.',
+      'The customs house overlooks the port road. Assume it is watched.',
+      'The ditch beside the road still runs all the way to the checkpoint.',
+    ],
+    objectives: [
+      {
+        id: 'book', kind: 'secureIntel',
+        label: 'Take the paymaster\'s book',
+        description: 'Cantina La Ancla, Calle del Muelle.',
+        at: [-50, 2.2, -110], radius: 5,
+      },
+      {
+        id: 'roof', kind: 'eliminate',
+        label: 'Clear the dormitory roof',
+        description: 'The shooter over the port road.',
+        at: [-46, 15, -172], radius: 12,
+      },
+      {
+        id: 'exfil', kind: 'extract',
+        label: 'Exfiltrate south',
+        description: 'Down the port road, out of the district.',
+        at: [0, 2.2, -182], radius: 10,
+        dependsOn: ['book', 'roof'],
+      },
+    ],
+    rewards: { xp: 1200, cash: 14000, reputation: { syndicate: -25 } },
+  },
 ];
 
 /** Every mission that can be run on a given site. */

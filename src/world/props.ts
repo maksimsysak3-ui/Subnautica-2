@@ -23,7 +23,11 @@ const F_SOFT = BF.SOFT | BF.NO_SHADOW | BF.NO_NAV;
  * and every one that reaches the cover graph makes the AI dumber, not the map
  * richer.
  */
-const F_THIN = BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW;
+const F_THIN = BF.NO_COVER | BF.NO_NAV | BF.THIN | BF.NO_SHADOW | BF.NO_COLLIDE;
+// ^ NO_COLLIDE as well. A 50 mm conduit or a downpipe adds nothing to a
+// firefight as a solid, and dropped by the services pass across a doorway it
+// sealed the door: a reachability sweep of the town found 54 doors blocked,
+// most of them by a pipe a body could not see was the problem.
 /**
  * Ground decals: all of the above, plus genuinely non-solid.
  *
@@ -793,6 +797,9 @@ export class Props {
       const d = this.rng.range(0.6, len - 0.6);
       const px = x0 + ux * d + nx * stand;
       const pz = z0 + uz * d + nz * stand;
+      // Never across a doorway — a conduit run 4.7 m tall down the middle of
+      // a front door is the most visible way a wall can be "detailed" wrong.
+      if (this.nearDoorway(px, pz, 1.1)) continue;
       const r = this.rng.next();
       if (r < 0.26) this.conduitRun(px, y + 0.4, pz, yaw, this.rng.range(1.2, h - 0.6));
       else if (r < 0.44) this.junctionBox(px, y + this.rng.range(1.1, 1.9), pz, yaw);

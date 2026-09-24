@@ -70,6 +70,7 @@ const CONTROLS: Array<[string, string[][]]> = [
   ['WORLD', [
     ['F', 'Open doors, use things'],
     ['T', 'Weapon light'],
+    ['G', 'Throw a grenade (three per deployment)'],
     ['Mouse', 'Look'],
     ['Esc', 'Menu / release cursor'],
   ]],

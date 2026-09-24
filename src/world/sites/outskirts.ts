@@ -43,6 +43,11 @@ export function buildOutskirts(
   b: SiteBuilder,
   rng: Rng,
   groundAt: (x: number, z: number) => number,
+  /**
+   * Leave the south to the town. The access road, its checkpoint and its
+   * utility poles all ran through the ground the town now occupies.
+   */
+  o: { town?: boolean } = {},
 ): OutskirtsResult {
   const p = new Props(b);
   b.building('Outskirts');
@@ -61,7 +66,7 @@ export function buildOutskirts(
   const roadZ1 = PERIM.z1 + OUTSKIRTS_REACH;
 
   // Laid as segments so the surface follows the ground instead of floating.
-  for (let z = roadZ0; z < roadZ1; z += 6) {
+  for (let z = roadZ0; z < (o.town ? roadZ0 : roadZ1); z += 6) {
     const zc = z + 3;
     // Slight lateral wander keeps it from reading as a ruled line.
     const wander = Math.sin(zc * 0.035) * 3.2;
@@ -91,7 +96,7 @@ export function buildOutskirts(
   }
 
   // Utility poles down the east verge, wired toward the compound.
-  for (let z = roadZ0 + 10; z < roadZ1; z += 26) {
+  for (let z = roadZ0 + 10; z < (o.town ? roadZ0 : roadZ1); z += 26) {
     const x = Math.sin(z * 0.035) * 3.2 + ROAD_W / 2 + 4.5;
     const y = groundAt(x, z);
     b.cyl(x, y + 4.4, z, 0.16, 4.4, M.woodDark, { surface: 'wood' });
@@ -101,7 +106,7 @@ export function buildOutskirts(
   // =========================================================================
   // Roadside checkpoint — the loud approach announces itself
   // =========================================================================
-  {
+  if (!o.town) {
     const cz = PERIM.z1 + 52;
     const cx = Math.sin(cz * 0.035) * 3.2;
     const y = groundAt(cx, cz);
@@ -265,6 +270,7 @@ export function buildOutskirts(
     const x = rng.range(PERIM.x0 - OUTSKIRTS_REACH, PERIM.x1 + OUTSKIRTS_REACH);
     const z = rng.range(PERIM.z0 - OUTSKIRTS_REACH, PERIM.z1 + OUTSKIRTS_REACH);
     if (inCompound(x, z)) continue;
+    if (o.town && x > -84 && x < 84 && z > 74 && z < 290) continue;
     // Keep the road surface clear.
     if (Math.abs(x - Math.sin(z * 0.035) * 3.2) < 6 && z > PERIM.z1) continue;
     const y = groundAt(x, z);

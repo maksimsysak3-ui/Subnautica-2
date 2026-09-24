@@ -31,6 +31,7 @@
  */
 
 import * as THREE from 'three';
+import { Grenades as GrenadeMath } from '../fx/grenades';
 import type { System, EngineContext } from '../core/engine';
 import { bus } from '../core/events';
 import { services, type CoverPoint } from '../core/contracts';
@@ -114,7 +115,28 @@ export interface Brain {
   doorBehind: number;
   /** Seconds until that happens. */
   doorCloseIn: number;
+  /** Rounds left in the magazine. Empty means a reload, and a window. */
+  mag: number;
+  magSize: number;
+  /** Seconds left on a reload in progress. */
+  reloadFor: number;
+  grenades: number;
+  /** Seconds before this actor may consider another grenade. */
+  grenadeCd: number;
+  /** Seconds before this actor may consider another flank. */
+  flankCd: number;
+  /** Seconds before this actor says anything else. */
+  barkCd: number;
 }
+
+// Voice lines. Short, because they are read in a subtitle at the edge of a
+// firefight, and in Spanish, because that is who these people are.
+const CONTACT_LINES = ['¡Contacto!', '¡Ahí está!', '¡Lo tengo, al frente!', '¡Intruso!'] as const;
+const RELOAD_LINES = ['¡Recargando!', '¡Cúbreme, recargo!', '¡Sin balas!'] as const;
+const GRENADE_LINES = ['¡Granada!', '¡Fuego en el hoyo!', '¡Sácalo de ahí!'] as const;
+const FLANK_L_LINES = ['¡Voy por la izquierda!', '¡Flanqueo izquierda!'] as const;
+const FLANK_R_LINES = ['¡Voy por la derecha!', '¡Flanqueo derecha!'] as const;
+const COPY_LINES = ['Copiado, voy para allá.', 'Entendido, en camino.', '¿Dónde? Voy.'] as const;
 
 /** Scratch aim point, so aimed fire and area fire share one code path. */
 const _aimPoint = new THREE.Vector3();
@@ -131,6 +153,8 @@ function newBrain(rng: Rng, route: THREE.Vector3[]): Brain {
     stateAge: 0, dwell: 0, peeking: false,
     speed: 0, speedBias: rng.range(0.88, 1.12), settled: false, suppressFor: 0,
     doorCooldown: 0, peekIn: 0, doorBehind: -1, doorCloseIn: 0,
+    mag: 30, magSize: 30, reloadFor: 0, grenades: rng.next() < 0.55 ? 1 : 0,
+    grenadeCd: rng.range(4, 9), flankCd: rng.range(5, 10), barkCd: 0,
   };
 }
 
@@ -143,6 +167,8 @@ export class EnemyAi implements System {
   private rng = new Rng(0x5eed_a1);
   private actors!: ActorRegistry;
   private pathQueue: number[] = [];
+  /** Radio calls in flight: who hears, where the contact was, and when. */
+  private radioQueue: Array<{ id: number; at: THREE.Vector3; t: number }> = [];
   /** Fractional path-solve credits, accrued at PATHS_PER_SECOND. */
   private pathCredits = PATH_CREDIT_CAP;
   private tmpA = new THREE.Vector3();
@@ -165,6 +191,9 @@ export class EnemyAi implements System {
     // of these is range-checked against where the sound actually happened.
     bus.on('weapon:fired', (e) => {
       this.hear(e.muzzle as Vec3, ALERT_GUNSHOT, 90, e.suppressed ? 0.30 : 1);
+    });
+    bus.on('grenade:detonated', (e) => {
+      this.hear(e.position as Vec3, ALERT_GUNSHOT, 130, 1);
     });
     bus.on('door:opened', (e) => {
       const world = services.tryGet('world') as unknown as
@@ -198,6 +227,7 @@ export class EnemyAi implements System {
    */
   reset(): void {
     this.pathQueue.length = 0;
+    this.radioQueue.length = 0;
     this.pathMs.length = 0;
     this.stats.thinking = 0;
     this.stats.engaging = 0;
@@ -294,6 +324,7 @@ export class EnemyAi implements System {
     this.stats.engaging = 0;
     this.pathQueue.length = 0;
 
+    this.serveRadio(step);
     const player = this.actors.get(0);
     for (const a of this.actors.all) {
       const b = a.brain as Brain | null;
@@ -353,6 +384,13 @@ export class EnemyAi implements System {
     b.fireCooldown = Math.max(0, b.fireCooldown - step);
     b.burstPause = Math.max(0, b.burstPause - step);
     b.doorCooldown = Math.max(0, b.doorCooldown - step);
+    b.grenadeCd = Math.max(0, b.grenadeCd - step);
+    b.flankCd = Math.max(0, b.flankCd - step);
+    b.barkCd = Math.max(0, b.barkCd - step);
+    if (b.reloadFor > 0) {
+      b.reloadFor -= step;
+      if (b.reloadFor <= 0) { b.mag = b.magSize; }
+    }
     b.lostFor += step;
 
     // Shut the door behind you — but only if nothing is happening. Nobody
@@ -508,6 +546,8 @@ export class EnemyAi implements System {
       b.aimError = lerp(0.19, 0.07, a.skill);
       this.setState(b, 'engage');
       bus.emit('ai:spotted', { actorId: a.id, targetId: player.id });
+      this.bark(a, b, CONTACT_LINES, 'contact');
+      this.radio(a, player.position as THREE.Vector3);
     }
   }
 
@@ -587,6 +627,8 @@ export class EnemyAi implements System {
   private doEngage(a: Actor, b: Brain, player: Actor | null, step: number): void {
     if (!player || !player.alive) { this.setState(b, 'patrol'); return; }
     const hasSight = b.lostFor < 0.35;
+
+    if (this.tactics(a, b, player)) return;
 
     if (b.believedPos) {
       const want = Math.atan2(b.believedPos.x - a.position.x, b.believedPos.z - a.position.z);
@@ -756,6 +798,139 @@ export class EnemyAi implements System {
     b.doorCloseIn = 2.4;
   }
 
+  // -----------------------------------------------------------------------
+  // Squad tactics
+  // -----------------------------------------------------------------------
+
+  /**
+   * The decisions a squad makes that a lone gunman does not: flank, and
+   * flush. Returns true if it took the actor's turn.
+   *
+   * Everything here keys off the same rule — the player is holding a piece of
+   * cover and the actor has been trading fire with it for a while. That is
+   * the situation that made every earlier version of this AI beatable by
+   * finding a wall and waiting, and it is exactly when a real squad stops
+   * shooting at the wall and starts working around it.
+   */
+  private tactics(a: Actor, b: Brain, player: Actor): boolean {
+    if (!b.believedPos || b.reloadFor > 0) return false;
+    const d = this.dist(a.position, b.believedPos);
+
+    // --- flush with a grenade --------------------------------------------
+    // The target has gone to ground (lost sight for a couple of seconds, or
+    // is settled in one place), and is in throwing range.
+    if (b.grenades > 0 && b.grenadeCd <= 0 && d > 7 && d < 30 && b.lostFor > 1.6) {
+      b.grenadeCd = this.rng.range(7, 12);
+      if (this.rng.next() < 0.55) {
+        const g = services.tryGet('grenades');
+        if (g) {
+          const from = this.tmpA.set(a.position.x, a.position.y + 1.7, a.position.z).clone();
+          // Aimed at where they THINK you are, with an honest error — a
+          // grenade that always lands at your feet is a punishment, one that
+          // lands near where you were is a reason to move.
+          const at = b.believedPos.clone();
+          at.x += this.rng.gaussian() * lerp(2.6, 0.9, a.skill);
+          at.z += this.rng.gaussian() * lerp(2.6, 0.9, a.skill);
+          const v = GrenadeMath.lob(from, at, new THREE.Vector3());
+          if (g.throw(from, v, a.id, this.rng.range(0, 0.8) * a.skill)) {
+            b.grenades--;
+            this.bark(a, b, GRENADE_LINES, 'grenade', true);
+            b.fireCooldown = 0.9;
+            return true;
+          }
+        }
+      }
+    }
+
+    // --- flank ------------------------------------------------------------
+    // Only if someone else is keeping the target busy: a flank with nobody
+    // pinning the target is just walking into the open.
+    if (b.flankCd <= 0 && a.skill > 0.42 && !b.settled && d > 8 && d < 45) {
+      b.flankCd = this.rng.range(8, 14);
+      let pinning = 0;
+      for (const o of this.actors.all) {
+        if (o === a || !o.alive || o.faction !== a.faction) continue;
+        const ob = o.brain as Brain | null;
+        if (ob && ob.state === 'engage' && this.dist(o.position, a.position) < 40) pinning++;
+      }
+      if (pinning >= 1 && this.rng.next() < 0.5) {
+        const nav = services.tryGet('nav');
+        if (nav) {
+          // Perpendicular to the line from the target to us, out 14 m, on
+          // whichever side has ground to stand on.
+          const tx = a.position.x - b.believedPos.x, tz = a.position.z - b.believedPos.z;
+          const tl = Math.max(0.001, Math.hypot(tx, tz));
+          const side = this.rng.next() < 0.5 ? 1 : -1;
+          const px = -tz / tl * side, pz = tx / tl * side;
+          this.tmpB.set(
+            b.believedPos.x + px * 14 + (tx / tl) * 5, b.believedPos.y,
+            b.believedPos.z + pz * 14 + (tz / tl) * 5,
+          );
+          const goal = nav.nearestNavPoint(this.tmpB, 8) as THREE.Vector3 | null;
+          if (goal) {
+            this.releaseCover(b);
+            b.goal = goal.clone();
+            this.want(a, b, b.goal);
+            this.setState(b, 'reposition');
+            this.bark(a, b, side > 0 ? FLANK_R_LINES : FLANK_L_LINES, 'flank', true);
+            return true;
+          }
+        }
+      }
+    }
+    void player;
+    return false;
+  }
+
+  /**
+   * Radio. The first contact gets passed on.
+   *
+   * Without this, a guard who saw the player was the only one who knew, and
+   * the rest of the site carried on patrolling fifteen metres away while a
+   * firefight went on around the corner. A real guard force has radios, and
+   * the lookouts in town exist to use them. The message takes a moment to
+   * arrive and it says where the contact WAS, which is not where it is now.
+   */
+  private radio(from: Actor, at: THREE.Vector3): void {
+    const range = from.archetype === 'sentry' ? 150 : 70;
+    for (const o of this.actors.all) {
+      if (o === from || !o.alive || o.faction !== from.faction) continue;
+      const ob = o.brain as Brain | null;
+      if (!ob || ob.state === 'engage' || ob.state === 'surrender' || ob.state === 'flee') continue;
+      if (this.dist(o.position, from.position) > range) continue;
+      this.radioQueue.push({ id: o.id, at: at.clone(), t: this.rng.range(1.0, 2.6) });
+    }
+  }
+
+  private serveRadio(step: number): void {
+    for (let i = this.radioQueue.length - 1; i >= 0; i--) {
+      const r = this.radioQueue[i];
+      r.t -= step;
+      if (r.t > 0) continue;
+      this.radioQueue.splice(i, 1);
+      const o = this.actors.get(r.id);
+      const ob = o?.brain as Brain | null;
+      if (!o || !ob || !o.alive || ob.state === 'engage') continue;
+      ob.believedPos = r.at;
+      ob.alertness = Math.max(ob.alertness, 0.75);
+      ob.lostFor = Math.max(ob.lostFor, 2);
+      if (ob.state === 'idle' || ob.state === 'patrol' || ob.state === 'alert') {
+        this.setState(ob, 'search');
+        ob.goal = r.at.clone();
+        this.want(o, ob, ob.goal);
+        this.bark(o, ob, COPY_LINES, 'radio');
+      }
+    }
+  }
+
+  /** Say something, if we have not said something recently. */
+  private bark(a: Actor, b: Brain, lines: readonly string[], category: string, force = false): void {
+    if (!force && b.barkCd > 0) return;
+    b.barkCd = this.rng.range(2.5, 4.5);
+    const line = lines[Math.floor(this.rng.next() * lines.length)];
+    bus.emit('actor:vocalized', { actorId: a.id, line, category });
+  }
+
   /** True when the believed threat position can see this actor's chest. */
   private coverCompromised(a: Actor, b: Brain): boolean {
     const world = services.tryGet('world');
@@ -864,6 +1039,19 @@ export class EnemyAi implements System {
   ): void {
     const world = services.tryGet('world');
     if (!world) return;
+    // Magazines are finite. Infinite ammunition meant there were no lulls in
+    // a firefight at all — no moment to move, no reason to count shots, and
+    // no difference between an enemy who had been shooting for two seconds
+    // and one who had been shooting for two minutes.
+    if (b.reloadFor > 0) return;
+    if (b.mag <= 0) {
+      b.reloadFor = this.rng.range(2.3, 3.4) * lerp(1.25, 0.8, a.skill);
+      this.bark(a, b, RELOAD_LINES, 'reload');
+      // Get down to do it, if there is anything to get down behind.
+      if (b.cover) this.actors.setStance(a, 'crouch');
+      return;
+    }
+    b.mag--;
     if (b.burst <= 0) b.burst = 2 + Math.floor(this.rng.range(0, 3));
 
     // The muzzle sits where THIS actor's shoulder actually is. Firing from a
