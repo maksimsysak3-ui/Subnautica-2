@@ -15,13 +15,25 @@
  */
 
 import type { Simulation } from '../sim/agents/sim';
-import { Util } from '../sim/agents/utilities';
+import type { Network } from '../sim/agents/utilities';
 import { SKIN, css, panel } from './skin';
 
 interface Step {
   title: string;
   how: string;
   done: (sim: Simulation) => boolean;
+}
+
+/**
+ * Whether anything in the city is actually producing a utility.
+ *
+ * Not the supply margin: with nothing drawing on a network the margin reads
+ * as satisfied, so a brand-new city with no plant and no pump ticked power,
+ * water and sewage off before the player had built anything.
+ */
+function made(sim: Simulation, of: (n: Network) => number): boolean {
+  for (const n of sim.utilities.networks) if (of(n) > 0) return true;
+  return false;
 }
 
 const STEPS: readonly Step[] = [
@@ -33,17 +45,17 @@ const STEPS: readonly Step[] = [
   {
     title: 'Switch on the power',
     how: 'Electricity: a wind turbine or a small plant. The mains follow the roads.',
-    done: (sim) => sim.utilities.report.margin[Util.POWER] > 0,
+    done: (sim) => made(sim, (n) => n.powerMade),
   },
   {
     title: 'Pump fresh water',
     how: 'Water & sewage: a pumping station on the river bank.',
-    done: (sim) => sim.utilities.report.margin[Util.WATER] > 0,
+    done: (sim) => made(sim, (n) => n.waterMade),
   },
   {
     title: 'Treat the sewage',
     how: 'Water & sewage: a treatment works, downstream of the pump.',
-    done: (sim) => sim.utilities.report.margin[Util.SEWAGE] > 0,
+    done: (sim) => made(sim, (n) => n.sewageTreated),
   },
   {
     title: 'Give people somewhere to work',
