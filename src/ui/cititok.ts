@@ -430,8 +430,9 @@ export class Cititok {
       + `${String(Math.floor(((w.hour % 24) + 24) % 24)).padStart(2, '0')}:`
       + `${String(mins).padStart(2, '0')}`;
     const glyph = document.createElement('div');
-    css(glyph, ['font-size:52px', 'line-height:1.05']);
-    glyph.textContent = w.glyph;
+    css(glyph, ['display:flex', 'margin:6px 0 4px']);
+    glyph.innerHTML = pictogram(w.glyph, 56);
+    glyph.style.color = SKIN.bright;
     const temp = document.createElement('div');
     css(temp, [`color:${SKIN.bright}`, 'font-size:34px', 'line-height:1',
       'font-variant-numeric:tabular-nums']);
@@ -457,7 +458,8 @@ export class Cititok {
       t.textContent = hh(o.hour);
       const g = document.createElement('div');
       css(g, ['font-size:17px', 'line-height:1']);
-      g.textContent = o.glyph;
+      g.innerHTML = pictogram(o.glyph, 18);
+      g.style.color = SKIN.text;
       const d = document.createElement('div');
       css(d, [`color:${SKIN.bright}`, 'font-size:10.5px',
         'font-variant-numeric:tabular-nums']);
@@ -548,9 +550,15 @@ export class Cititok {
     const tone = post.tone === 'good' ? SKIN.good : post.tone === 'bad' ? SKIN.bad : SKIN.dim;
     const heart = document.createElement('span');
     css(heart, [`color:${tone}`]);
-    heart.textContent = `♥ ${post.likes.toLocaleString()}`;
+    heart.innerHTML = `${pictogram('heart', 12)} ${post.likes.toLocaleString()}`;
+    heart.style.display = 'inline-flex';
+    heart.style.gap = '4px';
+    heart.style.alignItems = 'center';
     const reply = document.createElement('span');
-    reply.textContent = '↺ reply';
+    reply.innerHTML = `${pictogram('reply', 12)} reply`;
+    reply.style.display = 'inline-flex';
+    reply.style.gap = '4px';
+    reply.style.alignItems = 'center';
     foot.append(heart, reply);
     body.append(top, text, foot);
     el.append(face, body);

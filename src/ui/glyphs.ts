@@ -65,6 +65,21 @@ const PATHS: Record<string, string> = {
   chat: 'M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5v-3.5H4'
     + 'A1.5 1.5 0 0 1 2.5 16V7A1.5 1.5 0 0 1 4 5.5zM7 10h10M7 13.5h6',
   cloud: 'M7 18.5a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 9.8a4.4 4.4 0 0 1-.6 8.7z',
+  sun: 'M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2'
+    + 'M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4',
+  partly: 'M8.5 4.5a3.5 3.5 0 0 0-2.9 5.5M8.5 2v1M3 7.5h1M4.5 3.5l.7.7M12.3 5.7l.7-.7'
+    + 'M8 19.5a4 4 0 0 1-.4-8A5.5 5.5 0 0 1 18 12a3.8 3.8 0 0 1-.5 7.5z',
+  rain: 'M7 15a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 6.8a4.2 4.2 0 0 1-.6 8.2zM8 17.5l-1 3M12 17.5l-1 3M16 17.5l-1 3',
+  storm: 'M7 14a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 5.8a4.2 4.2 0 0 1-.6 8.2zM12.5 14l-2.5 4h3l-2 4'
+    + 'M7.5 16.5l-1 2.5M17 16.5l-1 2.5',
+  fog: 'M4 8h16M3 12h18M5 16h14M8 20h8',
+  snow: 'M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6M9.5 4l2.5 2 2.5-2M9.5 20l2.5-2 2.5 2',
+  flower: 'M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM12 9.5c-1.5-3-1-6 0-6.5 1 .5 1.5 3.5 0 6.5z'
+    + 'M14.5 12c3-1.5 6-1 6.5 0-.5 1-3.5 1.5-6.5 0zM12 14.5c1.5 3 1 6 0 6.5-1-.5-1.5-3.5 0-6.5z'
+    + 'M9.5 12c-3 1.5-6 1-6.5 0 .5-1 3.5-1.5 6.5 0z',
+  leaf: 'M5 19C4 11 9 5 20 4c-1 11-7 16-15 15zM5 19l8-8',
+  heart: 'M12 20s-7.5-4.5-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.5-7.5 10-7.5 10z',
+  reply: 'M9.5 7L4.5 12l5 5M5 12h9a5.5 5.5 0 0 1 5.5 5.5V19',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9.5H6z',
 };
 
@@ -77,7 +92,7 @@ export function hasGlyph(name: string): boolean {
  * Pictograms that are only lines: filling them would shade whatever the open
  * strokes happen to enclose.
  */
-const LINE_ONLY = new Set(['look', 'road', 'settings', 'clear', 'views', 'smog']);
+const LINE_ONLY = new Set(['look', 'road', 'settings', 'clear', 'views', 'smog', 'fog', 'snow', 'reply', 'sun']);
 
 /**
  * One pictogram as inline SVG markup, drawn in the element's text colour.

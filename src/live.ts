@@ -61,7 +61,8 @@ import { log } from './util/log';
 import { CityHall } from './ui/city-hall';
 import type { Issues, Phase } from './sim/politics';
 import { Gripe } from './sim';
-import { TICKS_PER_DAY } from './sim/agents/calendar';
+import { TICKS_PER_DAY, SECONDS_PER_DAY } from './sim/agents/calendar';
+import { CITY_DAY_SECONDS } from './gfx/renderer';
 
 /** The hour a new city's first day starts at. */
 const START_HOUR = 7;
@@ -423,7 +424,8 @@ export class LiveCity {
     const at = (h: number, sky: Sky): number => temperature(r.calendarDay, h, sky);
     const outlook: WeatherRead['outlook'] = [];
     for (let h = 1; h <= 6; h++) {
-      const sky = skyOf(w.ahead(h / 24));
+      // An hour of the sun's slow day is several hours of the weather's.
+      const sky = skyOf(w.ahead((h / 24) * (CITY_DAY_SECONDS / SECONDS_PER_DAY)));
       outlook.push({
         hour: hour + h, sky, label: labelOf(sky), glyph: glyphOf(sky),
         temp: at(hour + h, sky),

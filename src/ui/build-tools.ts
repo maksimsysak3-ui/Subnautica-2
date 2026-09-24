@@ -33,6 +33,7 @@ import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
 import { NODE_OF_ASSET, branchLevel } from '../sim/tech';
 import { lockBadge } from './skin';
 import { glyph } from './glyphs';
+import { glyph as pictogram } from './glyphs';
 import { landmarksForLevel } from '../sim/tech';
 import type { LevelUp } from '../sim/progress';
 import { levelName, DENSITY_LEVEL, LEVEL_NAMES } from '../sim/progress';
@@ -78,10 +79,10 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** How each season is shown on the bar. Its climate is in sim/weather.ts. */
 const SEASONS = [
-  { name: 'Winter', glyph: '❄', tint: '#8fc7ff' },
-  { name: 'Spring', glyph: '❀', tint: '#8fe0a8' },
-  { name: 'Summer', glyph: '☀', tint: '#ffd166' },
-  { name: 'Autumn', glyph: '☂', tint: '#e8a35a' },
+  { name: 'Winter', glyph: 'snow', tint: '#8fc7ff' },
+  { name: 'Spring', glyph: 'flower', tint: '#8fe0a8' },
+  { name: 'Summer', glyph: 'sun', tint: '#ffd166' },
+  { name: 'Autumn', glyph: 'leaf', tint: '#e8a35a' },
 ];
 
 type Tool =
@@ -1949,11 +1950,11 @@ export class BuildTools {
         `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
         + `<span style="color:${SKIN.dim};font-size:10px">`
         + `${MONTHS[month]} ${year}</span>`);
-      fill(this.readSeason, `<span style="color:${season.tint}">${season.glyph}</span>`
+      fill(this.readSeason, `<span style="display:flex;color:${season.tint}">${glyph(season.glyph, 15)}</span>`
         + `${temp}\u00b0C<span style="color:${SKIN.dim};font-size:10px">`
         + `${season.name}</span>`);
       const w = this.renderer.weather;
-      fill(this.readWeather, `<span style="color:${SKIN.accent}">${w.glyph}</span>`
+      fill(this.readWeather, `<span style="display:flex;color:${SKIN.accent}">${glyph(w.glyph, 15)}</span>`
         + `<span style="font-size:11px">${w.label}</span>`);
 
       // People: what the simulation counts once it is running, and the capacity
@@ -2085,7 +2086,8 @@ export class BuildTools {
       b.style.opacity = '0.55';
       b.style.position = 'relative';
       const pad = document.createElement('span');
-      pad.textContent = '\u{1F512}';
+      pad.innerHTML = pictogram('lock', 14);
+      pad.style.color = 'var(--amber)';
       pad.style.cssText = [
         'position:absolute', 'right:6px', 'top:6px', 'font-size:12px',
         'pointer-events:none', 'filter:grayscale(0)', 'opacity:.9',
@@ -2097,7 +2099,8 @@ export class BuildTools {
       b.style.opacity = '0.55';
       b.style.position = 'relative';
       const lock = document.createElement('span');
-      lock.textContent = '\u{1F512}';
+      lock.innerHTML = pictogram('lock', 14);
+      lock.style.color = 'var(--amber)';
       lock.style.cssText = [
         'position:absolute', 'right:6px', 'top:6px', 'font-size:12px',
         'pointer-events:none', 'filter:grayscale(0)', 'opacity:.9',

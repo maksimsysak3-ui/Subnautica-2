@@ -84,14 +84,18 @@ export function labelOf(s: Sky): string {
   return 'Clear';
 }
 
-/** A glyph for it, so a readout scans at a glance rather than by reading. */
+/**
+ * The pictogram for it, by name (see ui/glyphs.ts), so a readout scans at a
+ * glance. A name rather than a character: the weather symbols in fonts render
+ * as colour emoji on most systems, in whatever style the platform likes.
+ */
 export function glyphOf(s: Sky): string {
-  if (s.rain > 0.55) return '\u2614';
-  if (s.rain > 0.12) return '\u2602';
-  if (s.fog > 0.3) return '\u2248';
-  if (s.cover > 0.75) return '\u2601';
-  if (s.cover > 0.35) return '\u26c5';
-  return '\u2600';
+  if (s.rain > 0.55) return 'storm';
+  if (s.rain > 0.12) return 'rain';
+  if (s.fog > 0.3) return 'fog';
+  if (s.cover > 0.75) return 'cloud';
+  if (s.cover > 0.35) return 'partly';
+  return 'sun';
 }
 
 export class Weather {
@@ -225,8 +229,13 @@ export class Weather {
   get glyph(): string { return glyphOf(this.sky); }
 }
 
-/** Days in the city's year: four seasons of 28. It starts in spring, in March. */
-export const DAYS_PER_YEAR = 112;
+/**
+ * Days of the sun's calendar in a year: four seasons of seven. The calendar
+ * counts the slow days the sky shows, not the simulation's, so the seasons
+ * turn within a session (about an hour and a half each at speed 1). It starts
+ * in spring, in March.
+ */
+export const DAYS_PER_YEAR = 28;
 
 /** Month of a game day, 0 January to 11 December. Day 0 is the first of March. */
 export function monthOf(day: number): number {

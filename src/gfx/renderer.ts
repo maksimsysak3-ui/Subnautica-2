@@ -170,6 +170,13 @@ const SHADOW_SIZE = 2048;
  * player builds, short enough that anyone who sits with the game sees dusk.
  */
 const DAY_SECONDS = 480;
+/**
+ * Real seconds in the sun's day while a city is running, at speed 1: twelve
+ * minutes, so an afternoon is an afternoon and night arrives slowly.
+ */
+export const CITY_DAY_SECONDS = 720;
+/** Where the sun's day starts when a city is founded or loaded: 07:00. */
+const CITY_DAWN = 7 / 24;
 
 /**
  * Scratch for bitcasting the land mask into the uniform.
@@ -414,15 +421,16 @@ export class Renderer {
   clockRunning = true;
   /**
    * The simulation's clock, when there is a city running: the fraction of the
-   * day and whole days since founding. With one, the sun, the sky and the
-   * weather follow the city's own day -- which is the one the people keep --
-   * instead of a separate eight-minute sky day. Null behind the menu, where the
-   * sky runs on its own.
+   * day and whole days since founding. With one, the weather follows the
+   * city's days and the sun runs a slow day of its own (see CITY_DAY_SECONDS).
+   * Null behind the menu, where the sky runs on its own.
    */
   clockSource: (() => { fraction: number; day: number } | null) | null = null;
-  /** Whole game days since founding, for the calendar. 0 with no city. */
+  /** Whole days of the sun's calendar since founding. 0 with no city. */
   calendarDay = 0;
   private onCityClock = false;
+  /** The simulation's day at the last frame, for advancing the weather. */
+  private cityWeatherAt = 0;
   /** How fast, as a multiple of the base day. The bar's speed buttons set it. */
   clockRate = 1;
   /**
@@ -2120,15 +2128,27 @@ export class Renderer {
 
     const city = this.clockSource?.() ?? null;
     if (city !== null) {
-      // Advance the weather by however much of the city's day went by.
-      // Not on the frame the city takes over from the menu's sky, which would
-      // count the gap between the two clocks as weather that has passed.
-      const passed = this.onCityClock ? (city.fraction - this.timeOfDay + 1) % 1 : 0;
-      this.onCityClock = true;
-      this.timeOfDay = city.fraction;
-      this.calendarDay = city.day;
+      // With a city running there are two clocks, on purpose. The weather
+      // follows the simulation's day, so fronts keep coming through; the sun
+      // follows a slow day of its own, so a day in the city is long enough to
+      // look at and dusk takes its time -- several simulated days can go by
+      // in one of them. Both stop when the city is paused.
+      if (!this.onCityClock) {
+        this.onCityClock = true;
+        this.cityWeatherAt = city.day + city.fraction;
+        this.timeOfDay = CITY_DAWN;
+        this.calendarDay = 0;
+      }
+      const now = city.day + city.fraction;
+      const passed = Math.max(0, now - this.cityWeatherAt);
+      this.cityWeatherAt = now;
       if (this.quality.weather) this.weather.advance(passed * DAY_SECONDS, DAY_SECONDS);
       else this.weather.set(0.02);
+      if (this.clockRunning) {
+        const next = this.timeOfDay + (dt * this.clockRate) / CITY_DAY_SECONDS;
+        if (next >= 1) this.calendarDay++;
+        this.timeOfDay = next % 1;
+      }
     } else if (this.clockRunning) {
       this.onCityClock = false;
       this.timeOfDay = (this.timeOfDay + (dt * this.clockRate) / DAY_SECONDS) % 1;
