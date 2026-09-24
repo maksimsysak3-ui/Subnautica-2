@@ -803,7 +803,7 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // reading towards zero at the boundary of the data, and without this the tint
   // would darken into a fringe round every district instead of fading out.
   let have = s.g;
-  if (overlay.mode > 1.5) {
+  if (overlay.mode > 1.5 && overlay.mode < 2.5) {
     let deep = overlayRamp(s.r / max(have, 0.02));
     // Underground: the whole world goes to a dim slate and the mains are lit
     // through it, which is what a utility drawing looks like and reads instantly
@@ -832,7 +832,9 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // Not squared. Squaring made a middling reading nearly invisible, which is
   // the one a player most needs to see -- a district at a third of what it
   // should have is the district to go and fix.
-  let weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
+  var weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
+  // Abundance turns that round: the more there is, the stronger the colour.
+  if (overlay.mode > 2.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
 
   // And the ground outside the reading is drained a little towards grey, which
   // is the difference between a view and a tint: the traffic ramp is green at
@@ -4555,6 +4557,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 #include "common.wgsl"
 #include "atmosphere.wgsl"
 #include "noise.wgsl"
+#include "overlay.wgsl"
 
 struct VSOut {
   @builtin(position) pos   : vec4f,
@@ -4651,8 +4654,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Shallows catch a little more light at the banks.
   col = mix(col, col * 1.25 + vec3f(0.004, 0.006, 0.005), edge * 0.18);
   col = aerial(col, dist, -toEye, sun);
-  col = bury(col, camera.view.x);
-  col = drain(col, camera.view.y);
+  // The information overlay, as the ground takes it -- which also buries and
+  // drains the water with the land when a view is open, so the two never
+  // disagree about what mode the map is in.
+  col = overlayTint(col, in.world);
   return vec4f(sceneOut(col), 1.0);
 }
 `,oF=`// Rain, as a screen-space pass over the finished frame.
@@ -5319,4 +5324,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,iF={"common.wgsl":gF,"atmosphere.wgsl":EF,"noise.wgsl":wF,"overlay.wgsl":CF};function cQ(c){return c.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>iF[U]??A)}const KF={asset:cQ(DF),cull:cQ(MF),terrain:cQ(IF),sky:cQ(UF),grass:cQ(cF),road:cQ(FF),water:cQ(YF),rain:cQ(oF),dots:cQ(RF),mains:cQ(sF),post:cQ(aF)};export{nF as A,Xw as B,Pc as C,Kw as D,XE as E,jA as F,NB as G,AF as H,Bc as M,KE as P,eF as R,KF as S,hQ as T,HB as V,kw as Z,pg as a,dg as b,LB as c,jc as d,hF as e,fF as f,TF as g,OF as h,lF as i,Yg as j,LF as k,AQ as l,kF as m,HF as n,SF as o,pc as p,FQ as q,dF as r,Ec as s,tF as t,GF as u,NF as v,VF as w,bF as x,JF as y,XF as z};
-//# sourceMappingURL=shaders-1vK2intN.js.map
+//# sourceMappingURL=shaders-bN7amLpc.js.map
