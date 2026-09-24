@@ -600,43 +600,63 @@ function workshop(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 function shed(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const w = 32.0, d = 22.0, h = 11.0;
-  const x = w / 2, z = d / 2;
+  // Big and low, which is the whole of what a distribution shed is. It was
+  // thirty-two by twenty-two under a themed pitched roof, which read as a barn
+  // or a house in four themes out of five.
+  const w = 36.0, d = 26.0, h = 12.0;
+  const x = w / 2, z = d / 2 - 6.0;
+  const dockZ = z;
+  const docks = 8;
 
-  m.box([-x, 0, -z], [x, h, z], MAT.SHED_WALL, { roof: MAT.ROOF });
-  if (T.roof === 'flat') parapet(m, -x, -z, x, z, h, 1.0, 0.24, MAT.METAL);
-  else roofOver(m, T, -x, -z, x, z, h, { along: 'x' });
-  // Office corner in the theme's material, so the shed is placed somewhere.
-  m.box([-x, 0, z - 1.0], [-x + 11.0, 7.4, z + 3.0], T.wall, { roof: MAT.ROOF });
-  parapet(m, -x, z - 1.0, -x + 11.0, z + 3.0, 7.4, 0.8, 0.18, T.base);
+  const back = -d / 2 - 6.0;
+  m.box([-x, 0, back], [x, h, z], MAT.SHED_WALL, { roof: MAT.ROOF });
+  // A shallow steel roof behind a parapet in every theme.
+  parapet(m, -x, back, x, z, h, 1.0, 0.24, MAT.METAL);
+  // Office pod on the corner in the theme's own wall.
+  m.box([-x - 0.4, 0, z - 8.0], [-x + 9.0, 8.4, z + 0.6], T.wall, { roof: MAT.ROOF });
+  parapet(m, -x - 0.4, z - 8.0, -x + 9.0, z + 0.6, 8.4, 0.8, 0.18, T.base);
 
   if (medium) {
-    // Profiled cladding, expressed as ribs: what a shed actually looks like.
-    m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i <= 10; i++) {
-        const px = -x + (i / 10) * w;
-        m.box([px - 0.1, 0, -z - 0.14], [px + 0.1, h, -z], MAT.TRIM);
+    // A colour band round the cladding at the height of the dock doors: the
+    // one piece of branding these buildings ever get.
+    m.painted(TINT.BRAND, () => band(m, -x, back, x, z, 6.2, 1.1, 0.12, MAT.TRIM));
+    // Rooflights in rows.
+    for (let rz = -d / 2 - 3.0; rz < z - 3.0; rz += 5.0) {
+      m.box([-x + 4.0, h, rz], [x - 4.0, h + 0.45, rz + 1.0], MAT.GLASS);
+    }
+    // The dock apron and the lorry yard in front of it.
+    m.painted(TINT.METAL_DARK, () => m.box([-x + 9.0, 0.01, dockZ], [x + 1.0, 0.07, dockZ + 16.0], MAT.CONCRETE));
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i <= docks; i++) {
+        const cx = -x + 10.0 + i * 3.3;
+        m.box([cx - 0.06, 0.07, dockZ + 1.0], [cx + 0.06, 0.085, dockZ + 13.0], MAT.TRIM);
       }
     });
-    band(m, -x, -z, x, z, 4.2, 0.34, 0.16, T.trim);
-    // Dock apron and levellers.
-    m.box([-x + 11.0, 0, z], [x, 1.2, z + 3.4], MAT.CONCRETE);
-    m.box([-x + 8.0, 0.01, z + 3.4], [x + 2.0, 0.07, z + 16.0], MAT.GROUND);
   }
   if (fine) {
-    for (let i = 0; i < 5; i++) {
-      const cx = -x + 13.5 + i * 3.6;
-      m.painted(TINT.METAL_DARK, () => m.opening({ axis: 'z', sign: 1, plane: z, u0: cx - 1.4, u1: cx + 1.4,
-        y0: 1.3, y1: 4.6, glass: MAT.TRIM, frame: 0.14, proud: 0.09 }));
-      m.box([cx - 1.7, 4.6, z], [cx + 1.7, 5.2, z + 1.3], MAT.METAL);
+    for (let i = 0; i < docks; i++) {
+      const cx = -x + 11.65 + i * 3.3;
+      m.painted(TINT.METAL_DARK, () => m.opening({ axis: 'z', sign: 1, plane: dockZ, u0: cx - 1.3, u1: cx + 1.3,
+        y0: 1.2, y1: 4.4, glass: MAT.TRIM, frame: 0.14, proud: 0.09 }));
+      // Dock shelter and leveller.
+      m.painted(TINT.METAL_DARK, () => m.box([cx - 1.55, 1.0, dockZ], [cx + 1.55, 4.8, dockZ + 0.6], MAT.TRIM));
+      m.box([cx - 1.2, 0.05, dockZ], [cx + 1.2, 1.2, dockZ + 1.4], MAT.CONCRETE);
+      // Every other bay has a trailer backed on to it.
+      if ((i + seed) % 2 === 0) {
+        m.box([cx - 1.25, 1.1, dockZ + 1.5], [cx + 1.25, 4.0, dockZ + 14.0], MAT.SHED_WALL, { roof: MAT.METAL });
+        m.painted(TINT.METAL_DARK, () => {
+          m.box([cx - 1.2, 0.05, dockZ + 10.0], [cx + 1.2, 1.1, dockZ + 12.8], MAT.TRIM);
+          m.box([cx - 0.4, 0.05, dockZ + 3.0], [cx + 0.4, 1.1, dockZ + 3.4], MAT.TRIM);
+        });
+      }
     }
-    ribbon(m, { axis: 'z', sign: 1, plane: z + 3.0 }, -x + 0.8, -x + 10.2, 1.2, 3.0, { mullions: 5 });
-    ribbon(m, { axis: 'z', sign: 1, plane: z + 3.0 }, -x + 0.8, -x + 10.2, 4.2, 6.0, { mullions: 5 });
-    entrance(m, { axis: 'z', sign: 1, plane: z + 3.0 }, -x + 5.5, { width: 2.4, height: 3.0, double: true, glazed: true });
-    boxSign(m, { axis: 'z', sign: 1, plane: z + 3.0 }, -x + 1.6, -x + 9.4, 6.4, 7.3);
-    louvres(m, { axis: 'x', sign: -1, plane: -x }, -z + 2.0, z - 6.0, 7.0, 9.4, 8);
-    for (let i = 0; i < 3; i++) parkedVehicle(m, seed * 7 + i, -x + 6.0 + i * 9.0, z + 9.5, 0, 'truck');
-    roofClutter(m, -x + 3, -z + 3, x - 3, z - 3, h, seed, 0.8);
+    ribbon(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 0.4, -x + 8.6, 1.2, 3.0, { mullions: 4 });
+    ribbon(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 0.4, -x + 8.6, 4.6, 6.8, { mullions: 4 });
+    entrance(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 4.5, { width: 2.4, height: 3.0, double: true, glazed: true });
+    boxSign(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 0.8, -x + 8.2, 7.0, 8.0);
+    louvres(m, { axis: 'x', sign: -1, plane: -x }, -d / 2 - 2.0, z - 10.0, 7.0, 9.4, 8);
+    for (let i = 0; i < 4; i++) parkedVehicle(m, seed * 7 + i, -x + 2.5 + i * 3.0, z + 6.0, 1, 'car');
+    roofClutter(m, -x + 3, -d / 2 - 3.0, x - 3, z - 3, h, seed, 0.8);
   }
   return m;
 }
