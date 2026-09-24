@@ -370,7 +370,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     index[a.id] = i;
   }
 
-  return { png: sheet.toDataURL('image/png'), index, zoneRep,
+  // WebP with alpha: a third of the PNG's size for two hundred thumbnails, in a
+  // game that ships as one file with a size ceiling.
+  return { png: sheet.toDataURL('image/webp', 0.9), index, zoneRep,
     count: ASSETS.length, rows, errors, diags };
 }, { shader, registry, TILE, ICON, COLS, SHADOW });
 
@@ -409,7 +411,7 @@ export const ICON_ZONE: Record<string, string> = {
 ${zoneEntries}
 };
 
-export const ICON_SHEET = 'data:image/png;base64,${base64}';
+export const ICON_SHEET = 'data:image/webp;base64,${base64}';
 `);
   const kb = (base64.length * 0.75 / 1024).toFixed(0);
   console.log(`wrote ${OUT}: ${result.count} icons, ${COLS}x${result.rows} sheet, ${kb} KiB`);
