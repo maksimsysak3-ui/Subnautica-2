@@ -1508,6 +1508,52 @@ function stadium(lod: number): MeshBuilder {
     }
   };
   bank(1, 'x'); bank(-1, 'x'); bank(1, 'z'); bank(-1, 'z');
+  // Stair drums on the four corners: the ramps up to the top tier, and what
+  // turns the outside from a twenty-metre box into a stadium silhouette.
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const cx = sx * (bx - 1.5), cz = sz * (bz - 1.5);
+    m.cylinder(cx, cz, 5.5, 0.1, rim + 1.5, medium ? 20 : 10, MAT.CONCRETE, true);
+  }
+
+  if (medium) {
+    // The facade: a glazed concourse over the turnstiles, a clad upper band,
+    // and the raking steel fins that carry the roof, standing proud of the wall.
+    for (const s of [-1, 1] as const) {
+      m.box([-bx + 5.0, 5.0, s * bz - 0.15], [bx - 5.0, 9.5, s * bz + 0.15], MAT.GLASS);
+      m.box([s * bx - 0.15, 5.0, -bz + 5.0], [s * bx + 0.15, 9.5, bz - 5.0], MAT.GLASS);
+    }
+    m.painted(TINT.BRAND, () => {
+      for (const s of [-1, 1] as const) {
+        m.box([-bx + 5.0, rim - 5.0, s * bz - 0.25], [bx - 5.0, rim - 0.5, s * bz + 0.25], MAT.METAL);
+        m.box([s * bx - 0.25, rim - 5.0, -bz + 5.0], [s * bx + 0.25, rim - 0.5, bz - 5.0], MAT.METAL);
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      const fin = (x0: number, z0: number, dx: number, dz: number): void => {
+        // A tapering fin: deep at the roof, a slim foot at the ground.
+        m.box([x0 - (dx ? 0 : 0.35), 0.1, z0 - (dz ? 0 : 0.35)],
+              [x0 + dx * 0.9 + (dx ? 0 : 0.35), rim + 3.0, z0 + dz * 0.9 + (dz ? 0 : 0.35)], MAT.TRIM);
+        m.box([x0 - (dx ? 0 : 0.35), rim - 6.0, z0 - (dz ? 0 : 0.35)],
+              [x0 + dx * 2.2 + (dx ? 0 : 0.35), rim + 3.0, z0 + dz * 2.2 + (dz ? 0 : 0.35)], MAT.TRIM);
+      };
+      const nx = 10, nz = 8;
+      for (let i = 0; i <= nx; i++) {
+        const c = -bx + 6.0 + i * ((2 * bx - 12.0) / nx);
+        fin(c, bz, 0, 1); fin(c, -bz, 0, -1);
+      }
+      for (let i = 0; i <= nz; i++) {
+        const c = -bz + 6.0 + i * ((2 * bz - 12.0) / nz);
+        fin(bx, c, 1, 0); fin(-bx, c, -1, 0);
+      }
+      // Slot windows up the stair drums, following the ramp.
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        const cx = sx * (bx - 1.5), cz = sz * (bz - 1.5);
+        m.cylinder(cx, cz, 5.62, 4.0, 4.6, 20, MAT.TRIM, false);
+        m.cylinder(cx, cz, 5.62, 11.0, 11.6, 20, MAT.TRIM, false);
+        m.cylinder(cx, cz, 5.8, rim + 1.5, rim + 2.1, 20, MAT.TRIM, true);
+      }
+    });
+  }
 
   if (medium) {
     // The roof: a ring cantilevered in over the back rows.

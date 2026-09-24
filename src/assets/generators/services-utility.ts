@@ -1158,11 +1158,11 @@ function powerStation(lod: number): MeshBuilder {
  * crease. The base is open: a ring of legs with the dark interior behind
  * them, which is the detail that makes it a tower rather than a vase.
  */
-function coolingTower(m: MeshBuilder, cx: number, cz: number, lod: number): void {
+export function coolingTower(m: MeshBuilder, cx: number, cz: number, lod: number, k = 1): void {
   const fine = lod < 1, medium = lod < 2;
   const sides = fine ? 28 : medium ? 20 : 12;
   const rings = fine ? 9 : medium ? 6 : 3;
-  const H = 34.0, throatY = 25.0, a = 5.6, c = 11.5, legs = 2.4;
+  const H = 34.0 * k, throatY = 25.0 * k, a = 5.6 * k, c = 11.5 * k, legs = 2.4 * k;
   const r = (y: number): number => a * Math.sqrt(1 + ((y - throatY) / c) ** 2);
   // The dark interior showing through the legs.
   m.painted(TINT.METAL_DARK, () => m.cylinder(cx, cz, r(legs) - 0.6, 0.1, legs + 0.6, sides, MAT.CONCRETE, false));
@@ -1173,7 +1173,7 @@ function coolingTower(m: MeshBuilder, cx: number, cz: number, lod: number): void
       const rr = r(legs) - 0.25;
       const x0 = cx + Math.cos(t) * (rr + 0.5), z0 = cz + Math.sin(t) * (rr + 0.5);
       const x1 = cx + Math.cos(t + 0.12) * rr, z1 = cz + Math.sin(t + 0.12) * rr;
-      m.pipe([x0, 0.4, z0], [x1, legs + 0.05, z1], 0.28, MAT.CONCRETE, 4);
+      m.pipe([x0, 0.12 + 0.28 * k, z0], [x1, legs + 0.05, z1], 0.28 * k, MAT.CONCRETE, 4);
     }
   }
   for (let k = 0; k < rings; k++) {

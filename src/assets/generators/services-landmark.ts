@@ -25,6 +25,7 @@ import {
 } from './signature-parts';
 import { bench, hedge, tree } from './landscape';
 import { figure } from './vehicles';
+import { coolingTower } from './services-utility';
 
 // =================================================================== 1. museum
 
@@ -340,36 +341,9 @@ function nuclearStation(lod: number): MeshBuilder {
   const fine = lod < 1, medium = lod < 2;
 
   m.box([-78, 0.0005, -62], [78, 0.1, 62], MAT.GROUND);
-  // Two hyperboloid cooling towers, as a loft between three rings.
-  for (const cx of [-46.0, 6.0]) {
-    const cz = -34.0;
-    const N = 24;
-    const ring = (r: number): Array<[number, number]> => {
-      const out: Array<[number, number]> = [];
-      for (let i = 0; i < N; i++) {
-        const a = (i / N) * Math.PI * 2;
-        out.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]);
-      }
-      return out;
-    };
-    const foot = ring(20.0), waist = ring(12.0), lip = ring(14.5);
-    m.painted(TINT.NONE, () => {
-      loft(m, foot, waist, 6.0, 52.0, MAT.CONCRETE);
-      loft(m, waist, lip, 52.0, 74.0, MAT.CONCRETE);
-      loft(m, scaled(lip, 0.97, 0.97), scaled(lip, 0.97, 0.97), 70.0, 74.0, MAT.DARK_TRIM);
-    });
-    if (medium) {
-      // The A-frame legs the shell stands on: a real one has forty of them.
-      m.painted(TINT.NONE, () => {
-        for (let i = 0; i < N; i++) {
-          const a = ((i + 0.5) / N) * Math.PI * 2;
-          const px = cx + Math.cos(a) * 21.0, pz = cz + Math.sin(a) * 21.0;
-          m.pipe([px, 0.1, pz], [cx + Math.cos(a) * 20.0, 6.0, cz + Math.sin(a) * 20.0], 0.55, MAT.CONCRETE, 4);
-        }
-      });
-      m.painted(TINT.NONE, () => m.cylinder(cx, cz, 19.0, 0.1, 1.2, N, MAT.CONCRETE, true));
-    }
-  }
+  // Two hyperboloid cooling towers: the same true-profile shell as the coal
+  // station's, at twice the size -- the silhouette that says "nuclear".
+  for (const cx of [-46.0, 6.0]) coolingTower(m, cx, -34.0, lod, 1.9);
   // Two containment buildings: a cylinder with a shallow dome on it.
   for (const cx of [-30.0, 14.0]) {
     m.painted(TINT.NONE, () => {
