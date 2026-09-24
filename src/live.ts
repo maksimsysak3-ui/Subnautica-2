@@ -353,22 +353,23 @@ export class LiveCity {
       const x = sim.places.col.x[h.place], z = sim.places.col.z[h.place];
       const where = sim.inspect(x, z, 6)?.name ?? 'the city';
       const go = (): void => this.lookAt(x, z);
+      const icon = h.kind === Need.FIRE ? 'fire' : h.kind === Need.CRIME ? 'police' : 'health';
       if (h.what === 'raised') {
         const dist = Math.hypot(x - ex, z - ez);
         siren(Math.max(0, 1 - dist / 1400), Math.max(-1, Math.min(1, (x - ex) / 600)));
         this.alerts.push({
-          title: w.raised, body: `At ${where}. Click to go there.`,
-          tone: 'warn', tag: `incident-${h.kind}`, go,
+          title: w.raised, body: `At ${where}.`,
+          tone: 'warn', tag: `incident-${h.kind}`, go, icon,
         });
       } else if (h.what === 'missed') {
         this.alerts.push({
           title: w.missed, body: `At ${where} -- nobody got there in time. More `
             + `${h.kind === Need.FIRE ? 'fire stations' : h.kind === Need.CRIME ? 'police' : 'clinics'} would help.`,
-          tone: 'bad', tag: `incident-miss-${h.kind}`, go,
+          tone: 'bad', tag: `incident-miss-${h.kind}`, go, icon,
         });
       } else if (h.kind === Need.CRIME) {
         this.alerts.push({ title: w.answered, body: `At ${where}.`, tone: 'good',
-          tag: `incident-${h.kind}`, go });
+          tag: `incident-${h.kind}`, go, icon });
       }
     }
   }
@@ -401,11 +402,11 @@ export class LiveCity {
         title: pol.elections === 0 ? 'City Hall is open' : 'Election called',
         body: 'Three candidates are standing for mayor, one of them yours. Open the phone '
           + '(C) to write your platform before polling day.',
-        tone: 'good', tag: 'election',
+        tone: 'good', tag: 'election', icon: 'government',
       });
     } else if (now === 'count') {
       this.alerts.push({ title: 'Polls have closed', body: 'The count is under way. Watch it on the phone.',
-        tone: 'good', tag: 'election' });
+        tone: 'good', tag: 'election', icon: 'government' });
     } else if (now === 'term' && was === 'count' && pol.mayor !== null) {
       const m = pol.mayor;
       if (m.player) {
@@ -418,7 +419,7 @@ export class LiveCity {
         title: m.player ? `${m.name} is mayor` : `${m.name} (${m.party}) wins`,
         body: m.player ? 'Your platform is now city policy for the term.'
           : 'Their pledges are now pinned city policy until the next election.',
-        tone: m.player ? 'good' : 'bad', tag: 'election',
+        tone: m.player ? 'good' : 'bad', tag: 'election', icon: 'government',
         ...(m.player ? { figure: '+1 star' } : {}),
       });
     }
@@ -730,7 +731,7 @@ export class LiveCity {
         p.done.add(goal.id);
         this.celebrate(p.add(goal.xp, 'objective', landmarksForLevel));
         this.alerts.push({
-          title: 'Goal met', body: goal.title, tone: 'good',
+          title: 'Goal met', body: goal.title, tone: 'good', icon: 'develop',
           figure: `+${goal.xp} xp`, tag: `goal-${goal.id}`,
         });
       }

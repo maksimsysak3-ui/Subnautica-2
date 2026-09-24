@@ -1661,16 +1661,34 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // what stops a white cornice reading as paper.
     gloss = 0.16; power = 26.0;
   }
+  // What a pane reflects is the sky as it is now -- blue at noon, amber at
+  // dusk, near black at night -- not a fixed noon blue, which lit every
+  // tower's glass at midnight.
+  let skyRefl = ambientSky(sun) * 1.35 + sunColour * 0.06;
   if (gloss > 0.0) {
     let v = normalize(scene.eye.xyz - in.world);
     let h = normalize(v + sun);
     let spec = pow(max(dot(n, h), 0.0), power) * shadow * in.ao;
-    col += vec3f(0.70, 0.72, 0.76) * spec * gloss;
+    col += sunColour * 0.55 * spec * gloss;
     if (fresnel > 0.0) {
       // Sky reflection at grazing angles: the other half of what glass does.
       let grazing = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
-      col += vec3f(0.32, 0.40, 0.52) * grazing * fresnel * mix(0.5, 1.0, in.ao);
+      col += skyRefl * grazing * fresnel * mix(0.5, 1.0, in.ao);
     }
+  }
+  // Punched windows in a wall pattern are glass too. The patterns mark where
+  // they are (`opening`); without this they were matte dark rectangles that
+  // never caught the sun or the sky, which is most of why a brick or render
+  // facade read as flat at close range. Each pane reflects a little
+  // differently, the way no two panes of old glass sit quite true.
+  if (opening.x > 0.01 && gloss == 0.0 && n.y < 0.5) {
+    let v = normalize(scene.eye.xyz - in.world);
+    let h = normalize(v + sun);
+    let tilt = hash21(opening.yz + seed * 3.1);
+    let spec = pow(max(dot(n, h), 0.0), 140.0 + tilt * 120.0) * shadow;
+    let grazing = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.0);
+    let pane = opening.x * resolvable(0.6, mpp);
+    col += (sunColour * 0.5 * spec + skyRefl * (0.10 + 0.30 * grazing) * (0.7 + 0.6 * tilt)) * pane;
   }
 
   // Ground fades to the background rather than ending at a visible edge.

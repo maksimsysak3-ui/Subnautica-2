@@ -290,6 +290,65 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-switch:disabled { opacity: .75; cursor: not-allowed; }
 .mr-policy.is-pinned .mr-switch:checked { background: var(--amber); }
 
+/* ---- notifications -------------------------------------------------------- */
+.mr-toasts {
+  position: absolute; top: 12px; right: 12px; z-index: 20; display: flex; flex-direction: column;
+  gap: 8px; align-items: flex-end; pointer-events: none; width: min(340px, calc(100vw - 24px));
+}
+.mr-toast {
+  --tone: #6fd3ff; position: relative; display: grid; grid-template-columns: 34px 1fr auto;
+  align-items: start; column-gap: 11px; width: 100%; box-sizing: border-box; padding: 11px 32px 13px 11px;
+  border-radius: 12px; overflow: hidden; cursor: pointer; pointer-events: auto;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 14%, rgba(16,22,31,.96)) 0%, rgba(13,18,26,.96) 55%);
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, rgba(255,255,255,.06));
+  box-shadow: 0 14px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(14px);
+  opacity: 0; transform: translateX(24px) scale(.98);
+  transition: opacity .25s ease, transform .3s cubic-bezier(.2,.9,.3,1.1), border-color .15s;
+}
+.mr-toast.is-in { opacity: 1; transform: none; }
+.mr-toast.is-out { opacity: 0; transform: translateX(24px); }
+.mr-toast:hover { border-color: color-mix(in srgb, var(--tone) 60%, transparent); }
+.mr-toast-badge {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 35%, transparent);
+}
+.mr-toast-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mr-toast-title { font: 700 13.5px/1.25 var(--ui); color: ${BRAND.ink}; letter-spacing: .01em; }
+.mr-toast-body { font: 500 12.5px/1.45 var(--ui); color: ${BRAND.dim}; }
+.mr-toast-go {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px;
+  font: 700 10.5px/1 var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--tone);
+}
+.mr-toast-fig {
+  align-self: center; font: 800 18px/1 var(--display); letter-spacing: .02em; color: var(--tone);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.mr-toast-x {
+  position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 6px; background: none; color: ${BRAND.faint}; cursor: pointer;
+  opacity: 0; transition: opacity .15s, background .15s;
+}
+.mr-toast:hover .mr-toast-x, .mr-toast-x:focus-visible { opacity: 1; }
+.mr-toast-x:hover { background: rgba(255,255,255,.08); color: ${BRAND.ink}; }
+.mr-toast-life {
+  position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--tone); opacity: .7;
+  transform-origin: left; animation: mr-life var(--life) linear forwards;
+}
+.mr-toast.is-held .mr-toast-life { animation-play-state: paused; }
+@keyframes mr-life { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* The hint above the bar: what the tool in hand does. */
+.mr-hint {
+  display: inline-flex; align-items: center; gap: 9px; padding: 7px 15px 7px 12px; border-radius: 999px;
+  background: rgba(12,17,25,.9); border: 1px solid rgba(160,190,220,.16); color: #dfe7f0;
+  font: 600 12.5px/1.3 var(--ui); white-space: nowrap; pointer-events: none;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4); backdrop-filter: blur(12px);
+}
+.mr-hint::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan); }
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;

@@ -2309,11 +2309,7 @@ export class BuildTools {
   }
 
   private styleStatus(): void {
-    css(this.status, ['padding:6px 13px', `border-radius:${SKIN.radius}`,
-      `background:${SKIN.panel}`, `border:1px solid ${SKIN.edge}`,
-      `color:${SKIN.text}`, `font:11px/1.4 ${SKIN.mono}`,
-      'box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.4)',
-      'pointer-events:none', 'white-space:nowrap', 'backdrop-filter:blur(12px)']);
+    this.status.className = 'mr-hint';
     this.say(this.describe(this.tool));
   }
 

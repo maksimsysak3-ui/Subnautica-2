@@ -15,7 +15,8 @@
  * more than four, because a wall of notices is the same as no notices.
  */
 
-import { SKIN, css, panel, label } from './skin';
+import { SKIN } from './skin';
+import { glyph } from './glyphs';
 
 export type Tone = 'good' | 'warn' | 'bad' | 'info';
 
@@ -37,7 +38,11 @@ export interface Alert {
   tag?: string;
   /** What clicking the card does before it is dismissed: take the camera there, say. */
   go?: () => void;
+  /** A pictogram name (see glyphs.ts); the tone's own mark if absent. */
+  icon?: string;
 }
+
+const TONE_ICON: Record<Tone, string> = { good: 'check', warn: 'alert', bad: 'alert', info: 'info' };
 
 const TONE: Record<Tone, string> = {
   good: SKIN.good, warn: SKIN.warn, bad: SKIN.bad, info: SKIN.accent,
@@ -48,7 +53,7 @@ const LIFE = 9000;
 /** And the most that can be on screen at once. */
 const MOST = 4;
 
-interface Live { el: HTMLElement; tag: string; born: number; go?: (() => void) | undefined }
+interface Live { el: HTMLElement; tag: string; born: number; go?: (() => void) | undefined; held?: boolean }
 
 export class Alerts {
   private readonly host: HTMLElement;
@@ -57,9 +62,7 @@ export class Alerts {
   constructor(parent: HTMLElement) {
     this.host = document.createElement('div');
     this.host.dataset.panel = 'alerts';
-    css(this.host, ['position:absolute', 'top:12px', 'right:12px', 'z-index:20',
-      'display:flex', 'flex-direction:column', 'gap:7px', 'align-items:flex-end',
-      'pointer-events:none', 'max-width:320px']);
+    this.host.className = 'mr-toasts';
     parent.appendChild(this.host);
   }
 
@@ -76,31 +79,39 @@ export class Alerts {
     if (already >= 0) {
       // Same subject: refresh the card in place and restart its clock, rather
       // than stacking a second copy of a thing that is still true.
-      this.live[already].born = performance.now();
-      this.live[already].go = alert.go;
-      this.fill(this.live[already].el, alert, tone);
+      const was = this.live[already];
+      was.born = performance.now();
+      was.go = alert.go;
+      this.fill(was.el, alert, tone);
+      // Back to the top, where the newest news goes.
+      this.host.prepend(was.el);
       return;
     }
 
     const el = document.createElement('div');
-    css(el, [...panel(), 'position:relative', 'display:flex', 'gap:9px',
-      'padding:9px 11px 9px 12px', 'pointer-events:auto', 'cursor:pointer',
-      'overflow:hidden', 'min-width:220px',
-      'box-shadow:0 12px 28px rgba(0,0,0,.5)',
-      // Arriving: the card slides in from the edge it belongs to.
-      'transform:translateX(14px)', 'opacity:0',
-      'transition:transform .22s cubic-bezier(.2,.8,.3,1), opacity .22s']);
+    el.className = 'mr-toast';
+    el.setAttribute('role', 'status');
     this.fill(el, alert, tone);
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.mr-toast-x')) { this.drop(el); return; }
       this.live.find((l) => l.el === el)?.go?.();
       this.drop(el);
     });
-    this.host.appendChild(el);
-    // One frame later, so the transition has a state to move from.
-    requestAnimationFrame(() => {
-      el.style.transform = 'translateX(0)';
-      el.style.opacity = '1';
+    // Held while the pointer is on it: nobody should lose a card they are reading.
+    el.addEventListener('pointerenter', () => {
+      const l = this.live.find((x) => x.el === el);
+      if (l) l.held = true;
+      el.classList.add('is-held');
     });
+    el.addEventListener('pointerleave', () => {
+      const l = this.live.find((x) => x.el === el);
+      if (l) { l.held = false; l.born = performance.now(); }
+      el.classList.remove('is-held');
+      this.restartLife(el);
+    });
+    this.host.prepend(el);
+    // One frame later, so the transition has a state to move from.
+    requestAnimationFrame(() => el.classList.add('is-in'));
 
     this.live.push({ el, tag, born: performance.now(), go: alert.go });
     while (this.live.length > MOST) this.drop(this.live[0].el);
@@ -109,7 +120,9 @@ export class Alerts {
   /** Retires anything that has been up long enough. Called from the frame. */
   update(now: number): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
-      if (now - this.live[i].born > LIFE) this.drop(this.live[i].el);
+      const l = this.live[i];
+      if (l.held) { l.born = now; continue; }
+      if (now - l.born > LIFE) this.drop(l.el);
     }
   }
 
@@ -118,40 +131,58 @@ export class Alerts {
   }
 
   private fill(el: HTMLElement, alert: Alert, tone: string): void {
-    el.innerHTML = '';
-    // The stripe down the left edge is the whole colour code: the card stays
-    // the same dark slab as every other panel, and one band says what kind of
-    // news it is. Tinting the whole card would make four of them a rainbow.
-    const stripe = document.createElement('div');
-    css(stripe, ['position:absolute', 'left:0', 'top:0', 'bottom:0', 'width:3px',
-      `background:${tone}`, `box-shadow:0 0 12px ${tone}66`]);
-
+    el.style.setProperty('--tone', tone);
+    el.style.setProperty('--life', `${LIFE}ms`);
+    el.replaceChildren();
+    const badge = document.createElement('span');
+    badge.className = 'mr-toast-badge';
+    badge.innerHTML = glyph(alert.icon ?? TONE_ICON[alert.tone ?? 'info'], 17);
     const text = document.createElement('div');
-    css(text, ['display:flex', 'flex-direction:column', 'gap:3px', 'flex:1']);
+    text.className = 'mr-toast-text';
     const head = document.createElement('div');
-    css(head, [...label(), `color:${tone}`, 'font-size:11px']);
+    head.className = 'mr-toast-title';
     head.textContent = alert.title;
     const body = document.createElement('div');
-    css(body, [`color:${SKIN.text}`, 'font-size:11px', 'line-height:1.45']);
+    body.className = 'mr-toast-body';
     body.textContent = alert.body;
     text.append(head, body);
-    el.append(stripe, text);
-
+    if (alert.go !== undefined) {
+      const go = document.createElement('span');
+      go.className = 'mr-toast-go';
+      go.innerHTML = `Go there ${glyph('arrow', 12)}`;
+      text.appendChild(go);
+    }
+    el.append(badge, text);
     if (alert.figure !== undefined) {
       const fig = document.createElement('div');
-      css(fig, ['font-variant-numeric:tabular-nums', `color:${tone}`,
-        'font-size:13px', 'align-self:center', 'white-space:nowrap']);
+      fig.className = 'mr-toast-fig';
       fig.textContent = alert.figure;
       el.appendChild(fig);
     }
+    const x = document.createElement('button');
+    x.className = 'mr-toast-x';
+    x.setAttribute('aria-label', 'Dismiss');
+    x.innerHTML = glyph('close', 12);
+    const life = document.createElement('span');
+    life.className = 'mr-toast-life';
+    el.append(x, life);
+  }
+
+  /** Starts the lifetime bar over, after the card was held. */
+  private restartLife(el: HTMLElement): void {
+    const life = el.querySelector<HTMLElement>('.mr-toast-life');
+    if (life === null) return;
+    life.style.animation = 'none';
+    void life.offsetWidth;
+    life.style.animation = '';
   }
 
   private drop(el: HTMLElement): void {
     const i = this.live.findIndex((l) => l.el === el);
     if (i < 0) return;
     this.live.splice(i, 1);
-    el.style.transform = 'translateX(18px)';
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 240);
+    el.classList.remove('is-in');
+    el.classList.add('is-out');
+    setTimeout(() => el.remove(), 260);
   }
 }
