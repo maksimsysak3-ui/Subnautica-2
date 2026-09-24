@@ -329,7 +329,16 @@ export class RenderSystem implements System, IRenderContext {
     frame.resetHistory = false;
   }
 
+  /**
+   * Draw only every Nth frame. Automation only: the behaviour tests simulate
+   * thousands of frames, and under a software rasteriser a frame of the big
+   * maps costs a second or two to draw while the sim costs a few ms.
+   */
+  drawEvery = 1;
+  private drawCounter = 0;
+
   lateUpdate(dt: number, _ctx: EngineContext): void {
+    if (this.drawEvery > 1 && (++this.drawCounter % this.drawEvery) !== 0) return;
     const r = this.renderer;
 
     this.beginFrame(dt);

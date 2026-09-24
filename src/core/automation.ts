@@ -14,6 +14,8 @@ export interface AutomationApi {
   setupShot(name: string): ShotMeta | null;
   /** Advance the simulation by `ms` of game time in fixed increments. */
   settle(ms: number): void;
+  /** Tests: simulate without drawing most frames. */
+  fastSim(on: boolean): void;
   perfReport(): { fps: number; frameMs: number; drawCalls: number; triangles: number; systems: Array<{ id: string; avgMs: number }> };
   setQuality(tier: number): void;
   /** Teleport the player (feet position) and face a yaw, for tests. */
@@ -88,6 +90,11 @@ export function installAutomation(engine: Engine, director: CaptureDirector): vo
         t += step;
         engine.frame(t);
       }
+    },
+
+    fastSim(on: boolean): void {
+      const r = engine.get('render') as unknown as { drawEvery: number } | undefined;
+      if (r) r.drawEvery = on ? 60 : 1;
     },
 
     perfReport() {

@@ -37,6 +37,7 @@ await page.addInitScript(() => {
 });
 await page.goto('file://' + tmp, { waitUntil: 'load', timeout: 120000 });
 await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 180000 });
+await page.evaluate(() => window.__BM.fastSim?.(true));
 
 const first = await page.evaluate(() => ({
   map: window.services.get('world').mapId,

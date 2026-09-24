@@ -32,6 +32,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.error('  [pageerror]', e.message));
 await page.goto('file://' + tmp, { waitUntil: 'load', timeout: 120000 });
 await page.waitForFunction(() => window.__BM?.ready === true, { timeout: 180000 });
+await page.evaluate(() => window.__BM.fastSim?.(true));
 
 const results = [];
 const check = (name, pass, detail) => {
