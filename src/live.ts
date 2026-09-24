@@ -21,6 +21,7 @@
  * simulation arriving in one lump.
  */
 
+import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
 import { Simulation, View, heightAt, money, PANEL_ONLY } from './sim';
@@ -117,6 +118,8 @@ export class LiveCity {
    * times a second and a fresh two-hundred-kilobyte array each time is a
    * garbage collection every few seconds, which is a stutter you can see.
    */
+  /** Smoke and steam over the chimneys, rescanned when the city changes. */
+  private readonly plumes = new Plumes();
   private readonly moverRows =
     new Float32Array(MOVER_BUDGET * INSTANCE_FLOATS) as Float32Array<ArrayBuffer>;
   /** The card for whatever building was last clicked. */
@@ -232,7 +235,10 @@ export class LiveCity {
     });
     this.lines = new LinesPanel();
     this.info.mount(View.TRANSPORT, this.lines.root);
-    renderer.onCity = (city, net, roads, pipes) => this.reconcile(city, net, roads, pipes);
+    renderer.onCity = (city, net, roads, pipes) => {
+      this.plumes.use(city);
+      this.reconcile(city, net, roads, pipes);
+    };
   }
 
   /**
@@ -631,9 +637,10 @@ export class LiveCity {
     // that teleports -- and it is one pass over two tables, which is cheaper
     // than deciding whether to do it.
     const eye = this.camera.eye;
+    this.plumes.refresh(now);
     this.renderer.setMovers(this.moverRows,
       sim.drawMovers(this.moverRows, Math.round(MOVER_BUDGET * this.moverShare),
-        eye[0], eye[2], heightAt));
+        eye[0], eye[2], heightAt, this.plumes));
 
     const view = this.info.view;
     if (view !== View.NONE && !PANEL_ONLY.has(view)) {

@@ -12,7 +12,7 @@
  * service asset that uses any of them.
  */
 
-import { MAT, TINT, MeshBuilder } from '../mesh';
+import { MAT, TINT, MeshBuilder, EMIT } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Material } from '../mesh';
 import { parkedVehicle, figure } from './vehicles';
@@ -1074,6 +1074,7 @@ function powerStation(lod: number): MeshBuilder {
   m.cylinder(36.0, -26.0, 5.4, 0.1, 4.0, 16, MAT.CONCRETE, true);
   m.cylinder(36.0, -26.0, 4.4, 4.0, 74.0, 16, MAT.CONCRETE, false);
   m.cylinder(36.0, -26.0, 4.8, 74.0, 76.0, 16, MAT.CONCRETE, true);
+  m.emit(36.0, 76.0, -26.0);
   // Cooling towers: real hyperboloids -- a waist two thirds of the way up and
   // a flare at the lip -- stood on a ring of raking legs. (Steam was tried as
   // geometry and read as grey stacked lumps; none is better.) Two cones back to back at fourteen sides read as faceted
@@ -1184,6 +1185,7 @@ export function coolingTower(m: MeshBuilder, cx: number, cz: number, lod: number
   // The lip, and the dark mouth inside it.
   m.cylinder(cx, cz, r(H) + 0.25, H - 0.6, H + 0.2, sides, MAT.CONCRETE, false);
   m.painted(TINT.METAL_DARK, () => m.cylinder(cx, cz, r(H) - 0.3, H - 1.0, H + 0.05, sides, MAT.CONCRETE, true));
+  m.emit(cx, H, cz, k > 1.5 ? EMIT.STEAM_BIG : EMIT.STEAM);
 }
 
 /**

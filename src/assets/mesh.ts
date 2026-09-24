@@ -246,7 +246,15 @@ export const TINT = {
    * obelisk standing on a roof.
    */
   SMOKE: 11,
+  /** Steam: whiter than smoke, because it is water, lit by the whole sky. */
+  STEAM: 12,
 } as const;
+
+/** What comes out of a chimney. See `MeshBuilder.emit`. */
+export const EMIT = { SMOKE: 0, STEAM: 1, STEAM_BIG: 2 } as const;
+export type EmitKind = (typeof EMIT)[keyof typeof EMIT];
+/** A point on a model something rises from, in the model's own frame. */
+export interface Emitter { x: number; y: number; z: number; kind: EmitKind }
 
 export type Tint = (typeof TINT)[keyof typeof TINT];
 
@@ -280,6 +288,13 @@ export class MeshBuilder {
 
   private verts: number[] = [];
   private idx: number[] = [];
+  /**
+   * Where smoke or steam leaves the model: chimney mouths, cooling tower lips.
+   *
+   * Not geometry. A plume is drawn by the frame, as a mover standing on this
+   * point, so it can drift and turn with the wind; the model only says where.
+   */
+  readonly emitters: Emitter[] = [];
   /** Applied to everything pushed until it is changed again. */
   private tint: number = TINT.NONE;
   /**
@@ -1039,6 +1054,11 @@ export class MeshBuilder {
     }
     if (!Number.isFinite(min[0])) return { min: [0, 0, 0], max: [0, 0, 0] };
     return { min, max };
+  }
+
+  /** Marks a chimney mouth: something of `kind` rises from here. */
+  emit(x: number, y: number, z: number, kind: EmitKind = EMIT.SMOKE): void {
+    this.emitters.push({ x, y, z, kind });
   }
 
   build(opts: { occlusion?: boolean } = {}): { vertices: Float32Array<ArrayBuffer>; indices: Uint32Array<ArrayBuffer> } {

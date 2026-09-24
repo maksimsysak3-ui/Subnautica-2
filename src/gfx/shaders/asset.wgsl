@@ -1063,6 +1063,8 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32, brand : vec3f, accent : v
     // Smoke. Pale and slightly warm, because it is lit by the whole sky rather
     // than by the sun, and because soot is not grey.
     case 11u: { return vec3f(0.520, 0.505, 0.482); }
+    // Steam: condensed water, so white and cool, a shade under paper.
+    case 12u: { return vec3f(0.760, 0.772, 0.785); }
     case 8u: {
       let grain = hash21(vec2f(floor(uv.x * 8.0), floor(uv.y * 1.2)) + seed);
       return vec3f(0.238, 0.170, 0.108) * (0.88 + grain * 0.3);

@@ -26,6 +26,7 @@
  * is fixed either way; what changes is whether it arrives all at once.
  */
 
+import type { PlumeView } from './plumes';
 import { Scheduler, Rate, slice, TICK_SECONDS, TICK_HZ } from './tick';
 import { Clock, TICKS_PER_DAY } from './calendar';
 import { buildLaneGraph, buildLaneIndex, laneBytes, indexBytes } from './lanes';
@@ -889,13 +890,13 @@ export class Simulation {
    * driving, and a figure is a citizen on their way somewhere.
    */
   drawMovers(out: Float32Array, cap: number, eyeX: number, eyeZ: number,
-    ground: (x: number, z: number) => number): number {
+    ground: (x: number, z: number) => number, plumes?: PlumeView): number {
     return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
       this.lanes, this.router.paths, this.junctions, this.growth?.sites,
       this.dispatch.blazes, this.strollers,
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
-      this.scheduler.sinceTick, this.dispatch.incidents);
+      this.scheduler.sinceTick, this.dispatch.incidents, plumes);
   }
 
   /** What the last `drawMovers` drew. */

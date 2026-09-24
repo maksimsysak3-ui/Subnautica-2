@@ -685,6 +685,7 @@ function works(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   // Stack.
   m.cylinder(-x + 3.6, -z + 3.6, 1.15, 0, h + 12.0, 10, T.id === 'farming' ? MAT.BRICK : MAT.CONCRETE);
   m.cylinder(-x + 3.6, -z + 3.6, 1.3, h + 11.0, h + 12.4, 10, MAT.METAL);
+  m.emit(-x + 3.6, h + 12.4, -z + 3.6);
 
   if (medium) {
     m.painted(TINT.METAL_DARK, () => {
@@ -815,6 +816,7 @@ function mill(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
     if (T.id !== 'modern') {
       m.cylinder(-x - 2.6, -z + 3.0, 1.05, 0, wall + 9.0, 10, MAT.BRICK);
       m.cylinder(-x - 2.6, -z + 3.0, 1.2, wall + 8.2, wall + 9.4, 10, MAT.BRICK);
+      m.emit(-x - 2.6, wall + 9.4, -z + 3.0);
     }
     m.painted(TINT.METAL_DARK, () => {
       m.box([-1.2, wall + 5.0, z + 1.0], [1.2, wall + 6.6, z + 2.6], MAT.TRIM);

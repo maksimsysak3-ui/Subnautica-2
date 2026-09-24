@@ -34,6 +34,7 @@
  * fifty distinct prototypes is about sixty megabytes.
  */
 
+import { recordEmitters } from '../assets/emitters';
 import { ASSETS } from '../assets/registry';
 import { DEFAULT_BRAND, idSeed } from '../assets/types';
 import type { AssetDef } from '../assets/types';
@@ -194,7 +195,9 @@ export class Atlas {
     const STRIDE = 13;
     const built = [0, 1, 2].map((level) => {
       this.baked++;
-      return p.def.build(level).build();
+      const mb = p.def.build(level);
+      if (level === 0) recordEmitters(p.index, mb.emitters);
+      return mb.build();
     });
 
     // LOD0's bounds alone are the obvious choice and they are wrong. They hold

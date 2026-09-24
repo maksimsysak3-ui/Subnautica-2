@@ -18,6 +18,7 @@
  * drawn at all. That is what keeps a metropolis at sixty frames.
  */
 
+import type { PlumeView } from './plumes';
 import type { Traffic } from './driving';
 import { Kind } from './driving';
 import type { Routine } from './routine';
@@ -229,7 +230,8 @@ export class Movers {
     blazes: FireView | undefined,
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
-    eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView): number {
+    eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView,
+    plumes?: PlumeView): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -509,9 +511,34 @@ export class Movers {
       }
     }
 
+    // Chimneys. Two columns a stack, both turned to the one wind the whole
+    // city shares -- plumes leaning every which way is the tell of a model --
+    // and each breathing on its own phase. The wind itself veers slowly, over
+    // minutes, so a player who watches for a while sees the weather move.
+    if (plumes !== undefined && plumes.count > 0) {
+      const t = performance.now() / 1000;
+      const wind = 0.9 + Math.sin(t / 170) * 0.55;
+      const seats = ['smoke', 'steam', 'steamBig'];
+      for (let i = 0; i < plumes.count; i++) {
+        const x = plumes.x[i], z = plumes.z[i];
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > PLUME_REACH * PLUME_REACH) continue;
+        const seat = seats[plumes.kind[i]] ?? 'smoke';
+        const ph = plumes.seed[i];
+        const up = plumes.y[i] - ground(x, z);
+        write(seat, x, z, wind + Math.sin(t * 0.37 + ph) * 0.16, up + Math.sin(t * 0.9 + ph) * 0.25);
+        write(seat, x, z, wind + 0.22 + Math.sin(t * 0.23 + ph * 1.7) * 0.2,
+          up + 1.6 + Math.sin(t * 0.6 + ph * 2.3) * 0.6);
+      }
+    }
+
     return n;
   }
 }
+
+/** Metres from the camera within which a chimney plume is worth drawing. A
+ * stack is landmark-sized, and its smoke is how industry is found from afar. */
+const PLUME_REACH = 2600;
 
 /** Metres from the camera within which a fire is worth drawing. Further than
  * anything else that moves: a column of smoke is the one thing in this city a

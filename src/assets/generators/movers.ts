@@ -15,6 +15,7 @@
  */
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
+import type { Tint, Vec3 } from '../mesh';
 import { IMPORTED_IDS, drawImported, drawImpostor, importedSize } from '../imported';
 import { person } from './vehicles';
 import { SITE_RESERVE } from './construction';
@@ -481,6 +482,99 @@ built.push({
   build: blaze,
 });
 
+/**
+ * One puff: a lumpy ellipsoid, the way the tree canopies are built.
+ *
+ * Round, overlapping masses are what smoke is at this distance. The first two
+ * attempts were columns of stacked cones, and both read as lampshades: a flat
+ * rim anywhere on a plume is the thing the eye catches.
+ */
+function puff(m: MeshBuilder, cx: number, cy: number, cz: number, r: number, seed: number,
+  sides: number, rings: number): void {
+  const rnd = (i: number): number => {
+    const v = Math.sin(seed * 127.1 + i * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const grid: Vec3[][] = [];
+  for (let j = 1; j < rings; j++) {
+    const phi = (j / rings) * Math.PI;
+    const row: Vec3[] = [];
+    for (let i = 0; i < sides; i++) {
+      const th = (i / sides) * Math.PI * 2 + seed;
+      const rr = r * (0.84 + rnd(j * 31 + i) * 0.3);
+      row.push([cx + Math.sin(phi) * Math.cos(th) * rr, cy + Math.cos(phi) * rr * 0.86,
+        cz + Math.sin(phi) * Math.sin(th) * rr]);
+    }
+    grid.push(row);
+  }
+  const top: Vec3 = [cx, cy + r * 0.86, cz];
+  const bot: Vec3 = [cx, cy - r * 0.8, cz];
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides;
+    m.tri(top, grid[0][j], grid[0][i], MAT.CONCRETE);
+    for (let k = 0; k + 1 < grid.length; k++) {
+      m.quad(grid[k][i], grid[k][j], grid[k + 1][j], grid[k + 1][i], MAT.CONCRETE);
+    }
+    const last = grid[grid.length - 1];
+    m.tri(bot, last[j], last[i], MAT.CONCRETE);
+  }
+}
+
+/**
+ * What rises from a chimney or a cooling tower: puffs blown downwind.
+ *
+ * Tight at the mouth and spreading, bent over along +x by a wind that has hold
+ * of it from the start, with a second smaller puff beside most of the main
+ * ones so the edge billows instead of running smooth. The frame turns it to
+ * the wind and breathes it -- see `Movers.fill`. It starts at y = 0: the mover
+ * is stood on the chimney mouth, not on the ground.
+ */
+function column(lod: number, o: {
+  tint: Tint; top: number; r0: number; r1: number; lean: number; bend: number; puffs: number;
+}): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod === 0;
+  const sides = fine ? 10 : 6, rings = fine ? 6 : 4;
+  const n = fine ? o.puffs : Math.max(4, Math.ceil(o.puffs * 0.6));
+  m.painted(o.tint, () => {
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const r = o.r0 + (o.r1 - o.r0) * Math.pow(t, 0.8);
+      // Up, and over: the rise slows as the plume loses its heat.
+      const y = r * 1.0 + (o.top - o.r1 * 1.7) * Math.pow(t, 0.75);
+      const x = o.lean * Math.pow(t, o.bend);
+      const side = Math.sin(i * 2.4) * r * 0.25;
+      puff(m, x, y, side, r, i * 1.9 + o.top, sides, rings);
+      if (fine && i > 0 && i % 2 === 1) {
+        puff(m, x - r * 0.5, y + r * 0.35, side - r * 0.55, r * 0.62, i * 3.1 + 7, sides, rings);
+      }
+    }
+  });
+  return m;
+}
+
+const PLUMES: Array<{ id: string; name: string; foot: number; top: number; note: string;
+  shape: Parameters<typeof column>[1] }> = [
+  { id: 'move.smoke', name: 'Chimney smoke', foot: 6, top: 30,
+    note: 'Smoke off an industrial stack, bent over by the wind from the mouth.',
+    shape: { tint: TINT.SMOKE, top: 30, r0: 1.3, r1: 5.4, lean: 16, bend: 1.3, puffs: 9 } },
+  { id: 'move.steam', name: 'Steam', foot: 7, top: 30,
+    note: 'Steam off a cooling tower: white, wide and slow to lean.',
+    shape: { tint: TINT.STEAM, top: 30, r0: 5.8, r1: 8.6, lean: 10, bend: 1.8, puffs: 6 } },
+  { id: 'move.steamBig', name: 'Steam (large)', foot: 9, top: 60,
+    note: 'Steam off a nuclear station\'s towers, at the towers\' own scale.',
+    shape: { tint: TINT.STEAM, top: 60, r0: 11.0, r1: 16.0, lean: 16, bend: 1.8, puffs: 6 } },
+];
+for (const p of PLUMES) {
+  built.push({
+    id: p.id, name: p.name, zone: 'fleet', density: 'none', variant: 'sculpted',
+    footprint: [p.foot, p.foot], height: p.top, sim: free,
+    brand: { name: '', colour: [0.6, 0.6, 0.6], accent: [0.6, 0.6, 0.6], sign: 'none' },
+    note: p.note,
+    build: (lod: number) => column(lod, p.shape),
+  });
+}
+
 export const MOVERS: AssetDef[] = built;
 
 /**
@@ -510,6 +604,9 @@ export const MOVER_IDS = {
   giveway: 'move.giveway',
   stop: 'move.stop',
   blaze: 'move.blaze',
+  smoke: 'move.smoke',
+  steam: 'move.steam',
+  steamBig: 'move.steamBig',
 } as const;
 
 /**
@@ -543,6 +640,11 @@ export const MOVER_RESERVE: Record<string, number> = {
   // what stops a city that has lost its fire service from filling the frame
   // with smoke; past it the rest burn unseen, which is the right thing to drop.
   'move.blaze': 48,
+  // Two a chimney in view. A city has a few dozen stacks, and past these the
+  // furthest go without.
+  'move.smoke': 160,
+  'move.steam': 48,
+  'move.steamBig': 12,
 };
 
 /**

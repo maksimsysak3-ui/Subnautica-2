@@ -14,7 +14,7 @@
  * the only enclosure is what has to be enclosed.
  */
 
-import { MAT, TINT, MeshBuilder } from '../mesh';
+import { MAT, TINT, MeshBuilder, EMIT } from '../mesh';
 import type { AssetDef } from '../types';
 import { THEME_ORDER } from '../themes';
 import type { Theme } from '../themes';
@@ -291,6 +291,7 @@ function spinningMill(lod: number): MeshBuilder {
       m.cylinder(hx + 22.0, -4.0, 3.4, 0.1, 3.0, 14, MAT.BRICK, false);
       m.cone(hx + 22.0, -4.0, 3.4, 1.9, 3.0, 42.0, 14, MAT.BRICK);
       m.cylinder(hx + 22.0, -4.0, 2.2, 42.0, 44.4, 14, MAT.STONE, false);
+      m.emit(hx + 22.0, 44.4, -4.0);
     });
     // The weaving shed: one storey of saw-tooth beside the mill.
     m.box([-hx, 0.1, -hz - 30.0], [hx - 6, 6.4, -hz - 1.0], MAT.BRICK);
@@ -432,6 +433,7 @@ function steelWorks(lod: number): MeshBuilder {
     m.cylinder(fx, fz, 8.6, 26.0, 34.0, 14, MAT.METAL, false);
     m.cone(fx, fz, 8.6, 4.6, 34.0, 44.0, 14, MAT.METAL);
     m.cylinder(fx, fz, 4.6, 44.0, 52.0, 14, MAT.METAL, false);
+    m.emit(fx, 52.0, fz);
   });
   if (medium) {
     m.painted(TINT.ACCENT, () => m.cylinder(fx, fz, 9.4, 22.0, 24.4, 14, MAT.METAL, false));
@@ -538,6 +540,7 @@ function refinery(lod: number): MeshBuilder {
     // The furnace box and its stack.
     m.box([44, 0.1, -8], [60, 14.0, 8], MAT.METAL, { roof: MAT.ROOF });
     m.painted(TINT.NONE, () => m.cylinder(64.0, 0, 2.6, 0.1, 46.0, 12, MAT.METAL, false));
+    m.emit(64.0, 46.0, 0);
     m.painted(TINT.ACCENT, () => m.cylinder(64.0, 0, 2.7, 40.0, 42.4, 12, MAT.TRIM, false));
   }
   if (fine) {
@@ -560,6 +563,7 @@ function refinery(lod: number): MeshBuilder {
       m.cone(-56.0, 34.0, 11.0, 7.4, 0.1, 22.0, 16, MAT.CONCRETE);
       m.cylinder(-56.0, 34.0, 7.4, 22.0, 26.0, 16, MAT.CONCRETE, false);
     });
+    m.emit(-56.0, 26.0, 34.0, EMIT.STEAM);
     m.box([-20, 0.1, 34], [6, 8.0, 48], MAT.CONCRETE, { roof: MAT.ROOF });
     m.box([-19, 2.0, 33.6], [5, 5.6, 34.2], MAT.GLASS);
     m.painted(TINT.NONE, () => {

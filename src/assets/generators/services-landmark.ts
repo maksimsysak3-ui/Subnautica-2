@@ -460,6 +460,7 @@ function energyFromWaste(lod: number): MeshBuilder {
     m.cone(30.0, -6.0, 5.6, 3.4, 0.1, 70.0, 16, MAT.CONCRETE);
     m.cylinder(30.0, -6.0, 3.4, 70.0, 96.0, 16, MAT.CONCRETE, false);
   });
+  m.emit(30.0, 96.0, -6.0);
   if (medium) {
     m.painted(TINT.METAL_DARK, () => {
       for (let k = 1; k < 8; k++) {
