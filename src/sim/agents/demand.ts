@@ -168,6 +168,12 @@ function vacancy(free: number, total: number): number {
 }
 
 export class Demand {
+  /**
+   * Raw materials a week the city's own industry headquarters sell to its works.
+   * Cheap local supply is a reason for works to open here: it lifts industrial
+   * demand a little, up to +0.12 at two thousand units a week.
+   */
+  localSupply = 0;
   /** Minus one to one, per `Want`. Smoothed -- see `SMOOTHING`. */
   /**
    * The bars, seeded at the founding floor rather than at zero.
@@ -235,7 +241,8 @@ export class Demand {
     // staff what it already has.
     const hunger = Math.min(0.06, unemployed * 0.25);
     this.raw[Want.COMMERCIAL] = bar(TARGET_VACANCY_JOB - shopVacancy + hunger);
-    this.raw[Want.INDUSTRIAL] = bar(TARGET_VACANCY_JOB - worksVacancy + hunger);
+    this.raw[Want.INDUSTRIAL] = bar(TARGET_VACANCY_JOB - worksVacancy + hunger
+      + Math.min(0.12, this.localSupply / 2000 * 0.12));
     this.raw[Want.OFFICE] = bar(TARGET_VACANCY_JOB - officeVacancy + hunger);
 
     // ---- the founding floor -----------------------------------------------

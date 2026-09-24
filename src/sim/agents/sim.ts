@@ -900,7 +900,11 @@ export class Simulation {
     if (world === undefined) return;
     const ind = world.industry;
     this.economy.industry = ind;
-    if (ind.hqs.length === 0) { ind.settle(days, () => 0, () => 0); return; }
+    if (ind.hqs.length === 0) {
+      ind.settle(days, () => 0, () => 0);
+      this.demand.localSupply = 0;
+      return;
+    }
     ind.prune((h) => world.lots.some((l) => l.id === `spec.hq.${h.kind}` && l.gx === h.gx && l.gz === h.gz));
     // Each headquarters' place: the one of its prototype nearest its lot's centre.
     const pl = this.places;
@@ -922,6 +926,7 @@ export class Simulation {
       return units * UPKEEP_PER_UNIT * RULES.upkeep * (0.4 + 0.6 * staffOf(h));
     };
     ind.settle(days, staffOf, upkeepOf);
+    this.demand.localSupply = ind.localUnits;
   }
 
   /**
