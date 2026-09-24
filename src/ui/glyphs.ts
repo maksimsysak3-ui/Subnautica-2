@@ -51,6 +51,17 @@ const PATHS: Record<string, string> = {
   money: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM14.8 8.8c-.6-.8-1.6-1.3-2.8-1.3-1.7 0-2.9.9-2.9 2.2'
     + ' 0 3 5.9 1.6 5.9 4.6 0 1.3-1.3 2.2-3 2.2-1.3 0-2.4-.5-3-1.4M12 5.8v1.7M12 16.5v1.7',
   level: 'M3 21h18M5 21v-9h4v9M9 21V6.5L12 4l3 2.5V21M15 21v-7h4v7M11 9h2M11 12h2M11 15h2',
+  traffic: 'M9 2.5h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2zM12 18.5v3'
+    + 'M12 4.8a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM12 9.1a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8z'
+    + 'M12 13.4a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8z',
+  rubbish: 'M4 6.5h16M9.5 6.5V4h5v2.5M6 6.5l1 13a1.5 1.5 0 0 0 1.5 1.4h7a1.5 1.5 0 0 0 1.5-1.4l1-13'
+    + 'M10 10v7M14 10v7',
+  desire: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 14c1 1.6 2.4 2.5 4 2.5s3-.9 4-2.5M9 9v1.5M15 9v1.5',
+  value: 'M3.5 12.5v-8a1 1 0 0 1 1-1h8l8 8a1.5 1.5 0 0 1 0 2.1l-7 7a1.5 1.5 0 0 1-2.1 0z'
+    + 'M8.5 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
+  smog: 'M3 20.5V12l5 3v-3l5 3V9h4v11.5zM2.5 20.5h19M15 6.5c0-1.4 1.1-2.5 2.5-2.5.8 0 1.5.4 2 1'
+    + '.3-.1.6-.2 1-.2',
+  views: 'M4 20V11M9.5 20V4.5M15 20v-7M20.5 20V8M2.5 20.5h19',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9.5H6z',
 };
 
@@ -63,7 +74,7 @@ export function hasGlyph(name: string): boolean {
  * Pictograms that are only lines: filling them would shade whatever the open
  * strokes happen to enclose.
  */
-const LINE_ONLY = new Set(['look', 'road', 'sewage', 'settings', 'clear']);
+const LINE_ONLY = new Set(['look', 'road', 'settings', 'clear', 'views', 'smog']);
 
 /**
  * One pictogram as inline SVG markup, drawn in the element's text colour.

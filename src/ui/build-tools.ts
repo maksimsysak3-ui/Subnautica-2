@@ -193,7 +193,6 @@ export class BuildTools {
   private readClock!: HTMLElement;
   private readSeason!: HTMLElement;
   private readPeople!: HTMLElement;
-  private readTraffic!: HTMLElement;
   private readName!: HTMLElement;
   private readWeather!: HTMLElement;
   private name = DEFAULT_NAME;
@@ -1820,15 +1819,13 @@ export class BuildTools {
     // the far right beside the money, a whole bar away from the name of the
     // place it belongs to -- which is the one number a player checks against
     // the one word that identifies their city.
-    this.readLevel = cell('level');
-    row.appendChild(this.readLevel);
     this.readName = cell('city');
     row.appendChild(this.readName);
     this.readPeople = cell('people');
     row.appendChild(this.readPeople);
     row.appendChild(spacer());
-    this.readTraffic = cell('traffic');
-    row.appendChild(this.readTraffic);
+    this.readLevel = this.levelDial();
+    row.appendChild(this.readLevel);
     this.paintName();
     this.readMoney = cell('treasury');
     row.appendChild(this.readMoney);
@@ -1845,6 +1842,29 @@ export class BuildTools {
    * speed the player was actually running at rather than always to one -- a
    * detail nobody notices until it is missing and every pause costs two clicks.
    */
+  /**
+   * The city's level as a dial: the number inside a ring that fills as the
+   * next level comes closer, and the name beside it. It is a button, because
+   * the level is what the development tree spends, and the one place a player
+   * looks to see how far along the city is should take them to what it buys.
+   */
+  private levelDial(): HTMLElement {
+    const b = document.createElement('button');
+    b.className = 'mr-cell mr-dial';
+    tip(b, 'Development \u2014 what the city can build next', 'T');
+    const r = 12;
+    b.innerHTML = `<span class="mr-dial-ring"><svg width="30" height="30" viewBox="0 0 30 30">`
+      + `<circle cx="15" cy="15" r="${r}" fill="rgba(244,181,74,.10)" stroke="rgba(255,255,255,.1)"`
+      + ` stroke-width="2.6"/>`
+      + `<circle data-arc cx="15" cy="15" r="${r}" fill="none" stroke="${SKIN.warn}"`
+      + ` stroke-width="2.6" stroke-linecap="round" stroke-dasharray="${DIAL}"`
+      + ` stroke-dashoffset="${DIAL}" transform="rotate(-90 15 15)"/></svg>`
+      + `<b data-num>1</b></span>`
+      + `<span class="mr-dial-text"><b data-name></b><i data-next></i></span>`;
+    b.addEventListener('click', () => this.onTech?.());
+    return b;
+  }
+
   /** The little count of unspent stars that rides on the development key. */
   private starBadge(): HTMLElement {
     const chip = document.createElement('span');
@@ -1867,15 +1887,15 @@ export class BuildTools {
       this.starChip.style.display = p.stars > 0 ? 'grid' : 'none';
     }
     if (this.readLevel !== undefined) {
-      const pct = Math.round(100 * Math.min(1, p.intoLevel / Math.max(1, p.levelSpan)));
-      fill(this.readLevel,
-        `${p.level}<span style="color:${SKIN.dim};font-size:10px">`
-        + `${levelName(p.level)}</span>`
-        + `<span style="display:inline-block;width:46px;height:3px;`
-        + `background:${SKIN.track};border-radius:3px;overflow:hidden;`
-        + `vertical-align:middle;margin-left:2px">`
-        + `<span style="display:block;width:${pct}%;height:100%;`
-        + `background:${SKIN.warn}"></span></span>`);
+      const done = Math.min(1, p.intoLevel / Math.max(1, p.levelSpan));
+      const arc = this.readLevel.querySelector<SVGCircleElement>('[data-arc]');
+      arc?.setAttribute('stroke-dashoffset', `${(DIAL * (1 - done)).toFixed(2)}`);
+      const num = this.readLevel.querySelector<HTMLElement>('[data-num]');
+      if (num !== null) num.textContent = `${p.level}`;
+      const name = this.readLevel.querySelector<HTMLElement>('[data-name]');
+      if (name !== null) name.textContent = levelName(p.level);
+      const next = this.readLevel.querySelector<HTMLElement>('[data-next]');
+      if (next !== null) next.textContent = `${Math.round(done * 100)}% to level ${p.level + 1}`;
     }
   }
 
@@ -1938,21 +1958,6 @@ export class BuildTools {
       fill(this.readPeople, `${people.toLocaleString()}`
         + `<span style="color:${SKIN.dim};font-size:10px">`
         + `${s.buildings.toLocaleString()} building${s.buildings === 1 ? '' : 's'}</span>`);
-
-      // The roads. Mean speed, and how much of the traffic is moving at all --
-      // the second is the one that matters, because thirty km/h across the
-      // vehicles that are moving says nothing if half of them are not.
-      if (s.hasSim) {
-        const flow = Math.round(s.flowing * 100);
-        const tone = flow >= 70 ? SKIN.good : flow >= 40 ? SKIN.warn : SKIN.bad;
-        fill(this.readTraffic, `<span style="color:${tone}">\u25cf</span>`
-          + `${Math.round(s.kph)} km/h`
-          + `<span style="color:${SKIN.dim};font-size:10px">`
-          + `${flow}% flowing</span>`);
-      } else {
-        fill(this.readTraffic, `<span style="color:${SKIN.dim}">\u2014</span>`
-          + `<span style="color:${SKIN.dim};font-size:10px">no traffic yet</span>`);
-      }
 
       // And the money, at the end of the bar the player spends it from. The
       // weekly line under it is the one that decides whether the city lives:
@@ -2459,6 +2464,9 @@ function roadGlyph(cls: RoadClass, size = 28): string {
  * it and where the hand goes.
  */
 const SPEEDS = [0, 1, 3, 10] as const;
+
+/** Circumference of the level dial's ring, radius 12. */
+const DIAL = 2 * Math.PI * 12;
 
 const GLYPH = 'display:flex;filter:drop-shadow(0 1.5px 1.5px rgba(0,0,0,.55))';
 

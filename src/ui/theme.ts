@@ -99,6 +99,18 @@ html, body { font-family: var(--ui); }
   box-shadow: inset 0 1px 3px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04);
 }
 
+button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
+.mr-dial { gap: 9px; padding: 0 14px 0 4px; transition: background .14s ease; }
+.mr-dial:hover { background: rgba(244,181,74,.12); }
+.mr-dial-ring { position: relative; display: grid; place-items: center; width: 30px; height: 30px; }
+.mr-dial-ring svg { position: absolute; inset: 0; }
+.mr-dial-ring svg circle[data-arc] { transition: stroke-dashoffset .6s ease; }
+.mr-dial-ring b { position: relative; font: 800 14px/1 var(--display); color: var(--amber); }
+.mr-dial-text { display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.mr-dial-text b { font: 700 12.5px/1 var(--ui); color: ${BRAND.ink}; letter-spacing: .02em; }
+.mr-dial-text i { font: 600 9.5px/1 var(--label); font-style: normal; letter-spacing: .1em;
+  text-transform: uppercase; color: ${BRAND.faint}; }
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;

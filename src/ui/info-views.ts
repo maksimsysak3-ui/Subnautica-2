@@ -21,8 +21,15 @@
 
 import { VIEWS, View, Look, PANEL_ONLY } from '../sim';
 import type { ViewInfo, Stat } from '../sim';
-import { GLYPH } from './zones';
-import { SKIN, panel, label as labelStyle, tip } from './skin';
+import { SKIN, panel, tip } from './skin';
+import { glyph } from './glyphs';
+
+/** The toolbar pictogram for a view, where its icon key names something else. */
+const PICTOGRAM: Record<string, string> = { land: 'value', budget: 'money' };
+
+function pictogram(key: string, size: number): string {
+  return glyph(PICTOGRAM[key] ?? key, size);
+}
 
 /** How often the card's numbers are rewritten, in milliseconds. */
 const REPAINT_MS = 250;
@@ -76,20 +83,6 @@ export const EXTRA_GLYPH: Record<string, string> = {
       + 'A6 6 0 0 0 28 8z'
       + 'M30 25a3.4 3.4 0 0 0-.6 6.7h8.2A3.4 3.4 0 0 0 38 25h-8z',
 };
-
-/** The little chart on the launcher. */
-const LAUNCHER_GLYPH = 'M6 6h4v36H6zM6 38h36v4H6z'
-  + 'M14 28h5v10h-5zM22 19h5v19h-5zM30 24h5v14h-5zM38 11h5v27h-5z';
-
-function glyphFor(key: string): string {
-  return EXTRA_GLYPH[key] ?? (GLYPH as Record<string, string | undefined>)[key]
-    ?? LAUNCHER_GLYPH;
-}
-
-function svg(path: string, colour: string, size: number): string {
-  return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true">`
-    + `<path d="${path}" fill="${colour}" fill-rule="evenodd"/></svg>`;
-}
 
 function style(el: HTMLElement, decls: string[]): void {
   el.style.cssText = decls.join(';');
@@ -157,7 +150,7 @@ export class InfoViews {
     // open it ran off the top of the screen, taking the balance and the weekly
     // net with it. A card that loses its first line when its last one opens is
     // a card that has to be scrolled, so it scrolls.
-    style(this.card, [...panel(), 'width:276px', 'padding:11px 13px 10px',
+    style(this.card, [...panel(), 'width:324px', 'padding:14px 16px 12px',
       'display:none', 'pointer-events:auto',
       'min-height:0', 'overflow-y:auto']);
 
@@ -165,13 +158,13 @@ export class InfoViews {
     // the same colour the map is about to be tinted in, so the card and the
     // ground agree about what the subject is before anything is read.
     const head = document.createElement('div');
-    style(head, ['display:flex', 'align-items:center', 'gap:7px']);
+    style(head, ['display:flex', 'align-items:center', 'gap:9px']);
     this.swatch = document.createElement('span');
-    style(this.swatch, ['width:3px', 'height:13px', 'border-radius:2px',
-      'flex:0 0 auto']);
+    style(this.swatch, ['display:grid', 'place-items:center', 'width:28px', 'height:28px',
+      'border-radius:8px', 'flex:0 0 auto']);
     this.title = document.createElement('div');
-    style(this.title, [...labelStyle(), 'font-size:10px', `color:${SKIN.text}`,
-      'letter-spacing:.17em']);
+    style(this.title, ['font:700 17px/1 var(--display)', `color:${SKIN.bright}`,
+      'letter-spacing:.1em', 'text-transform:uppercase']);
     head.append(this.swatch, this.title);
     this.head = head;
 
@@ -179,22 +172,21 @@ export class InfoViews {
     // a panel of thirteen equal rows has no answer in it, only data. Every view
     // has one thing a player opened it to find out, and this is that thing.
     this.hero = document.createElement('div');
-    style(this.hero, ['display:flex', 'align-items:baseline', 'gap:7px',
-      'margin:9px 0 2px']);
+    style(this.hero, ['display:flex', 'align-items:baseline', 'gap:9px',
+      'margin:14px 0 4px', 'flex-wrap:wrap']);
     this.heroValue = document.createElement('span');
-    style(this.heroValue, [`font:300 25px/1 ${SKIN.mono}`,
+    style(this.heroValue, ['font:800 36px/1 var(--display)',
       `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums',
-      'letter-spacing:-.02em']);
+      'letter-spacing:.01em']);
     this.heroLabel = document.createElement('span');
-    style(this.heroLabel, ['font-size:10px', `color:${SKIN.dim}`,
-      'line-height:1.3']);
+    style(this.heroLabel, ['font:600 12.5px/1.3 var(--ui)', `color:${SKIN.text}`]);
     this.hero.append(this.heroValue, this.heroLabel);
 
     this.legend = document.createElement('div');
-    style(this.legend, ['margin:2px 0 9px', `color:${SKIN.faint}`,
-      'font-size:10px', 'line-height:1.5']);
+    style(this.legend, ['margin:2px 0 12px', `color:${SKIN.dim}`,
+      'font:500 12px/1.45 var(--ui)']);
     this.scale = document.createElement('div');
-    style(this.scale, ['margin-bottom:10px']);
+    style(this.scale, ['margin-bottom:12px']);
     this.rows = document.createElement('div');
     // Tighter, and capped harder. The budget view has a line for every source
     // and every cost, and at forty-six per cent of the viewport plus a hero, a
@@ -203,7 +195,7 @@ export class InfoViews {
     // height still shows a dozen lines, and the rest scrolls.
     // No scroller of its own: the card is the one that scrolls now, and two
     // nested ones means the inner list eats the wheel and the outer never moves.
-    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:2px']);
+    style(this.rows, ['display:flex', 'flex-direction:column', 'gap:0']);
     // Where a view mounts controls of its own. Empty for all but the budget,
     // which is the one view that is not only a readout: a tax rate is a thing
     // the player sets, and setting it two panels away from the number it moves
@@ -217,8 +209,8 @@ export class InfoViews {
     this.rail = document.createElement('div');
     this.rail.dataset.panel = 'view-rail';
     style(this.rail, [...panel(),
-      'padding:7px', 'display:none', 'grid-template-columns:repeat(7, 32px)',
-      'gap:4px', 'pointer-events:auto',
+      'width:324px', 'box-sizing:border-box', 'padding:8px', 'display:none',
+      'grid-template-columns:repeat(3, 1fr)', 'gap:4px', 'pointer-events:auto',
     ]);
     for (const info of VIEWS) this.rail.appendChild(this.button(info));
 
@@ -227,11 +219,12 @@ export class InfoViews {
     tip(this.launcher, 'Information views', 'V');
     this.launcher.setAttribute('aria-label', 'Information views');
     style(this.launcher, [...panel(),
-      'width:40px', 'height:40px', 'display:grid', 'place-items:center',
+      'width:44px', 'height:44px', 'display:grid', 'place-items:center',
       'cursor:pointer', 'pointer-events:auto', 'padding:0',
       'transition:border-color .12s, background .12s',
     ]);
-    this.launcher.innerHTML = svg(LAUNCHER_GLYPH, SKIN.dim, 19);
+    this.launcher.innerHTML = glyph('views', 22);
+    this.launcher.style.color = SKIN.text;
     this.launcher.addEventListener('click', () => this.toggleRail());
 
     this.root.append(this.card, this.rail, this.launcher);
@@ -254,22 +247,31 @@ export class InfoViews {
   private button(info: ViewInfo): HTMLButtonElement {
     const b = document.createElement('button');
     b.type = 'button';
-    tip(b, info.name);
     b.setAttribute('aria-label', info.name);
+    // Named, not only drawn. Fifteen pictograms in a block, told apart by
+    // hovering each for its tooltip, was a puzzle rather than a menu.
     style(b, [
-      'width:32px', 'height:32px', 'display:grid', 'place-items:center',
-      'padding:0', 'cursor:pointer', `border-radius:${SKIN.radiusSmall}`,
-      'background:rgba(255,255,255,.025)', 'border:1px solid transparent',
-      'transition:background .12s, border-color .12s',
+      'display:flex', 'align-items:center', 'gap:7px', 'height:34px', 'padding:0 8px',
+      'cursor:pointer', 'border-radius:8px', 'min-width:0',
+      'background:rgba(255,255,255,.03)', 'border:1px solid transparent',
+      `color:${SKIN.dim}`, 'font:600 11.5px/1 var(--ui)', 'text-align:left',
+      'transition:background .12s, border-color .12s, color .12s',
     ]);
-    // NEUTRAL UNTIL PICKED. Every icon used to be drawn in the good end of its
-    // own view's ramp, and eight of the thirteen ramps end in green -- so the
-    // rail was a block of near-identical green pictograms that read as one
-    // texture rather than as thirteen things you could choose between. The
-    // colour is information about the *map*, and it belongs on the map and on
-    // the one button that is switched on.
-    b.innerHTML = svg(glyphFor(info.icon), SKIN.dim, 19);
-    b.dataset.icon = info.icon;
+    // NEUTRAL UNTIL PICKED. The colour is information about the *map*, and it
+    // belongs on the map and on the one button that is switched on.
+    const icon = document.createElement('span');
+    style(icon, ['display:flex', 'flex:none']);
+    icon.innerHTML = pictogram(info.icon, 17);
+    const name = document.createElement('span');
+    style(name, ['overflow:hidden', 'text-overflow:ellipsis', 'white-space:nowrap']);
+    name.textContent = info.name;
+    b.append(icon, name);
+    b.addEventListener('pointerenter', () => {
+      if (this.current !== info.id) b.style.background = 'rgba(255,255,255,.07)';
+    });
+    b.addEventListener('pointerleave', () => {
+      if (this.current !== info.id) b.style.background = 'rgba(255,255,255,.03)';
+    });
     b.addEventListener('click', () => this.pick(info.id));
     this.buttons.set(info.id, b);
     return b;
@@ -332,11 +334,10 @@ export class InfoViews {
     if (id === this.current) return;
     const was = this.buttons.get(this.current);
     if (was !== undefined) {
-      was.style.background = 'rgba(255,255,255,.025)';
+      was.style.background = 'rgba(255,255,255,.03)';
       was.style.borderColor = 'transparent';
-      const icon = was.dataset.icon ?? '';
-      was.innerHTML = svg(glyphFor(icon), SKIN.dim, 19);
-      was.dataset.icon = icon;
+      was.style.color = SKIN.dim;
+      (was.firstElementChild as HTMLElement).style.color = '';
     }
     this.current = id;
     const info = VIEWS.find((v) => v.id === id) ?? null;
@@ -348,14 +349,16 @@ export class InfoViews {
     }
     const b = this.buttons.get(id);
     if (b !== undefined) {
-      b.style.background = 'rgba(255,255,255,.07)';
-      b.style.borderColor = info.ramp[2];
-      b.innerHTML = svg(glyphFor(info.icon), info.ramp[2], 19);
-      b.dataset.icon = info.icon;
+      b.style.background = `color-mix(in srgb, ${info.ramp[2]} 18%, transparent)`;
+      b.style.borderColor = `color-mix(in srgb, ${info.ramp[2]} 55%, transparent)`;
+      b.style.color = SKIN.bright;
+      (b.firstElementChild as HTMLElement).style.color = info.ramp[2];
     }
     this.card.style.display = 'block';
     this.title.textContent = info.name;
-    this.swatch.style.background = info.ramp[2];
+    this.swatch.style.background = `color-mix(in srgb, ${info.ramp[2]} 20%, transparent)`;
+    this.swatch.style.color = info.ramp[2];
+    this.swatch.innerHTML = pictogram(info.icon, 18);
     this.accent = info.ramp[2];
     this.heroValue.textContent = '—';
     this.heroLabel.textContent = '';
@@ -392,10 +395,11 @@ export class InfoViews {
     // Thin, and captioned with the two ends and nothing in the middle: the
     // middle of a three-stop ramp needs no word, and putting one there is how a
     // legend ends up with more text on it than the panel it is legending.
-    return `<div style="height:4px;border-radius:2px;${bar};`
-      + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)"></div>'
-      + '<div style="display:flex;justify-content:space-between;margin-top:4px;'
-      + `font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${SKIN.faint}">`
+    return `<div style="height:8px;border-radius:4px;${bar};`
+      + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)"></div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:5px;'
+      + `font:600 10.5px/1 var(--label);letter-spacing:.12em;text-transform:uppercase;`
+      + `color:${SKIN.dim}">`
       + `<span>none</span><span>${escapeHtml(info.unit)} ${buried}</span>`
       + '</div>';
   }
@@ -423,7 +427,7 @@ export class InfoViews {
     const hero = stats[heroAt];
     if (hero !== undefined) {
       this.heroValue.textContent = hero.value;
-      this.heroValue.style.color = hero.warn ? SKIN.bad : SKIN.bright;
+      this.heroValue.style.color = hero.warn ? SKIN.bad : this.accent;
       this.heroLabel.textContent = hero.label.toLowerCase();
     }
     const rest = stats.filter((_, i) => i !== heroAt);
@@ -468,21 +472,22 @@ export class InfoViews {
     const el = document.createElement('div');
     el.dataset.stat = '';
     style(el, ['display:grid', 'grid-template-columns:1fr auto',
-      'grid-template-areas:"l v" "t t"', 'column-gap:10px',
-      'align-items:baseline', 'padding:0']);
+      'grid-template-areas:"l v" "t t"', 'column-gap:12px', 'row-gap:4px',
+      'align-items:baseline', 'padding:6px 0',
+      'border-top:1px solid rgba(255,255,255,.055)']);
     const label = document.createElement('span');
-    style(label, ['grid-area:l', `color:${SKIN.dim}`, 'overflow:hidden',
-      'text-overflow:ellipsis', 'white-space:nowrap', 'font-size:10.5px']);
+    style(label, ['grid-area:l', `color:${SKIN.text}`, 'overflow:hidden',
+      'text-overflow:ellipsis', 'white-space:nowrap', 'font:500 12.5px/1.2 var(--ui)']);
     const value = document.createElement('span');
-    style(value, ['grid-area:v', `color:${SKIN.bright}`, 'font-size:10.5px',
+    style(value, ['grid-area:v', `color:${SKIN.bright}`, 'font:700 13px/1.2 var(--ui)',
       'font-variant-numeric:tabular-nums']);
     const track = document.createElement('div');
     track.dataset.bar = '';
-    style(track, ['grid-area:t', 'height:2px', 'margin:2px 0 4px',
-      'border-radius:2px', `background:${SKIN.track}`, 'display:none',
+    style(track, ['grid-area:t', 'height:5px',
+      'border-radius:3px', `background:${SKIN.track}`, 'display:none',
       'overflow:hidden']);
     const fill = document.createElement('div');
-    style(fill, ['height:100%', 'border-radius:2px', 'width:0%',
+    style(fill, ['height:100%', 'border-radius:3px', 'width:0%',
       `background:${SKIN.accent}`,
       'transition:width .3s cubic-bezier(.2,.7,.3,1)']);
     track.appendChild(fill);
