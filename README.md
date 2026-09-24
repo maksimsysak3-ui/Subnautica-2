@@ -43,6 +43,17 @@ instanced buildings, culled on the GPU every frame".
 - **Taxes and progression**: industry pays roughly 3-4x commercial and 5x
   residential; services open with the city's level (fire at 2, transport at 8,
   civic and post at 9), and locked ones say when they open.
+- **Emergencies you can see**: fires, break-ins and medical calls get
+  markers over the map; the right vehicle drives out on real roads (engine,
+  patrol car, ambulance); a suspect runs from a break-in until the police
+  arrive; sirens and alerts take the camera there.
+- **Public transport as a network**: stops count as transport coverage, and
+  riders can change lines once where stops are within 200 m.
+- **A generative score** that follows the time of day and the city's mood,
+  with its own volume; colour-blind and reduced-motion settings.
+- **Tested as a whole**: tools/long-game.mjs plays each difficulty from bare
+  ground for 90 days; tools/save-test.mjs round-trips every field of a city;
+  tools/play-test.mjs drives the real game from menu to houses.
 - **Feel**: an eased, cursor-anchored zoom and momentum on the camera, which
   also keeps itself out of buildings; a synthesised soundscape of wind,
   town hum, traffic, rain, birds and crickets; sounds for building.
