@@ -46,20 +46,28 @@ export const DIFFICULTIES: readonly Rules[] = [
     id: 'standard', label: 'Standard', tagline: 'The city as it was designed',
     blurb: 'Enough to found a town and make its first real decisions. Taxes, '
       + 'services and growth have to be kept in step.',
-    funds: 300000, grantWeekly: 10000, grantUntil: 1800,
+    funds: 300000, grantWeekly: 14000, grantUntil: 2500,
     build: 1, upkeep: 1, income: 1, quiet: 2000, xp: 1,
   },
   {
     id: 'hard', label: 'Hard', tagline: 'Every coin is spoken for',
     blurb: 'A thin treasury, dear construction, a short grant and residents who '
       + 'complain early. For players who like the budget to fight back.',
-    funds: 180000, grantWeekly: 4000, grantUntil: 900,
-    build: 1.2, upkeep: 1.2, income: 0.9, quiet: 1000, xp: 0.85,
+    funds: 260000, grantWeekly: 9500, grantUntil: 1500,
+    build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85,
   },
 ];
 
 const byId = (id: string): Rules =>
   DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];
+
+/*
+ * The numbers above were set against tools/long-game.mjs, a bot that plays each
+ * difficulty from bare ground. Hard at 180k could not afford the power and
+ * water every town needs and still zone a street, so it never had a resident;
+ * Standard took two hours of play to reach a thousand. See that tool's output
+ * for the current curves.
+ */
 
 /** The rules in force. Standard until a city says otherwise. */
 export const RULES: Rules = { ...byId('standard') };

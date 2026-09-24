@@ -37,7 +37,7 @@ import { Migration } from './migration';
 import { Routine } from './routine';
 import { Junctions } from './junctions';
 import { Traffic } from './driving';
-import { Utilities, Util } from './utilities';
+import { Utilities, Util, supplyOf } from './utilities';
 import { Services } from './services';
 import { Dispatch } from './dispatch';
 import { Demand } from './demand';
@@ -369,6 +369,19 @@ export class Simulation {
     this.economy = new Economy(this.budget, this.places, this.people,
       this.migration, this.transit, net, this.ground, seed ^ 0xec04);
     this.economy.governedBy(this.policies);
+    // A plant costs what the city draws from it, above a fixed share.
+    this.economy.meters((id) => {
+      const s = supplyOf(id);
+      if (s === undefined) return null;
+      const m = this.utilities.report.margin;
+      const of = (u: number): number => (m[u] > 0 && Number.isFinite(m[u]) ? Math.min(1, 1 / m[u]) : 0);
+      let load = -1;
+      if ((s.power ?? 0) > 0) load = Math.max(load, of(Util.POWER));
+      if ((s.water ?? 0) > 0) load = Math.max(load, of(Util.WATER));
+      if ((s.sewage ?? 0) > 0) load = Math.max(load, of(Util.SEWAGE));
+      if ((s.rubbish ?? 0) > 0) load = Math.max(load, of(Util.GARBAGE));
+      return load < 0 ? null : load;
+    });
     this.economy.watches(this.traffic.stats);
     this.utilities.governedBy(this.policies);
     this.services.governedBy(this.policies);

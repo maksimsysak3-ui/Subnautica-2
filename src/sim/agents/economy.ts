@@ -145,8 +145,22 @@ const UPKEEP_PER_UNIT = 45;
 /** And the share of that a building costs even with nobody working in it. */
 const UPKEEP_IDLE = 0.45;
 
-/** Weekly maintenance per metre of carriageway, by how wide the road is. */
-const ROAD_UPKEEP_PER_EDGE_METRE = 0.35;
+/**
+ * The share of a plant's running cost that is paid however little of its output
+ * the city uses. The rest follows the load: fuel, chemicals and wear. Without
+ * this a treatment works serving a hamlet of sixty billed like one serving sixty
+ * thousand, and every new town lost fifteen thousand a week before it could
+ * grow -- see tools/long-game.mjs, which is where that was found.
+ */
+const PLANT_FIXED = 0.2;
+
+/**
+ * Weekly maintenance per metre of carriageway, by how wide the road is.
+ *
+ * Lowered from 0.35 after the long-game bot showed a town of a hundred and
+ * fifty spending more on its few streets than it took in residential tax.
+ */
+const ROAD_UPKEEP_PER_EDGE_METRE = 0.22;
 
 /** Weekly interest on an overdraft. */
 const INTEREST = 0.008;
@@ -376,6 +390,14 @@ export class Economy {
   governedBy(policies: Policies): void { this.policies = policies; }
 
   /**
+   * How much of a plant's output the city is using, 0 to 1, by asset id; null
+   * for a building that is not a plant. Set by the simulation, which owns the
+   * utility model.
+   */
+  private loadOf: (id: string) => number | null = () => null;
+  meters(loadOf: (id: string) => number | null): void { this.loadOf = loadOf; }
+
+  /**
    * Points at the traffic readout, so a jam can cost money.
    *
    * The stats object is the live one the traffic model writes into every tick,
@@ -551,7 +573,9 @@ export class Economy {
         // A station with half its watch on costs more than half: the building is
         // there either way and only the wages move.
         const staffed = c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 1;
-        total += upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed);
+        const load = def === undefined ? null : this.loadOf(def.id);
+        const running = load === null ? 1 : PLANT_FIXED + (1 - PLANT_FIXED) * load;
+        total += upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running;
       }
     }
     return total * RULES.upkeep;

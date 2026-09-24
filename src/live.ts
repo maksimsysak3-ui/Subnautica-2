@@ -63,6 +63,7 @@ import { IncidentMarkers } from './ui/incidents';
 import { Need } from './sim/agents/dispatch';
 import { siren } from './ui/sound';
 import { branchLevel } from './sim/tech';
+import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
 import { Gripe } from './sim';
 import { TICKS_PER_DAY, SECONDS_PER_DAY } from './sim/agents/calendar';
@@ -329,9 +330,14 @@ export class LiveCity {
   private emergencies(sim: Simulation): void {
     const level = this.renderer.world.progress.level;
     const d = sim.dispatch;
-    d.exposed[Need.FIRE] = level >= branchLevel('fire');
-    d.exposed[Need.CRIME] = level >= branchLevel('police');
-    d.exposed[Need.MEDICAL] = level >= branchLevel('health');
+    // And not in a hamlet. Half the quiet-complaints population (1,000 on
+    // Standard) is where a town can carry a fire station's running cost; a
+    // house fire in a village of a hundred is a building lost to a service
+    // nobody could yet afford.
+    const town = sim.people.population >= RULES.quiet * 0.5;
+    d.exposed[Need.FIRE] = town && level >= branchLevel('fire');
+    d.exposed[Need.CRIME] = town && level >= branchLevel('police');
+    d.exposed[Need.MEDICAL] = town && level >= branchLevel('health');
     const words: Record<number, { raised: string; missed: string; answered: string }> = {
       [Need.FIRE]: { raised: 'Fire', missed: 'Building lost to fire', answered: 'Fire under control' },
       [Need.CRIME]: { raised: 'Break-in', missed: 'Burglar got away', answered: 'Suspect arrested' },
