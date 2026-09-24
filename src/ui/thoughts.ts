@@ -139,14 +139,14 @@ export class Thoughts {
       'max-width:256px', 'padding:11px 13px 12px', 'pointer-events:auto',
       'transform:translate(-50%,-100%)', 'z-index:2', 'line-height:1.55']);
     this.cardTitle = document.createElement('div');
-    style(this.cardTitle, ['font-size:9px', 'letter-spacing:.15em',
+    style(this.cardTitle, ['font-size:11px', 'letter-spacing:.15em',
       'text-transform:uppercase', `color:${SKIN.dim}`, 'margin-bottom:5px']);
     this.cardWhat = document.createElement('div');
     style(this.cardWhat, [`color:${SKIN.bright}`, 'font-size:11.5px']);
     this.cardFix = document.createElement('div');
     style(this.cardFix, ['margin-top:7px', 'padding-top:7px',
       `border-top:1px solid ${SKIN.edge}`, `color:${SKIN.accent}`,
-      'font-size:10.5px']);
+      'font-size:12px']);
     void css;
     this.card.append(this.cardTitle, this.cardWhat, this.cardFix);
     this.layer.appendChild(this.card);
@@ -182,7 +182,7 @@ export class Thoughts {
     style(badge, ['position:absolute', 'right:-4px', 'top:-4px', 'display:none',
       'min-width:15px', 'height:15px', 'padding:0 3px', 'border-radius:8px',
       `background:${SKIN.panelSolid}`, `border:1px solid ${SKIN.edge}`,
-      `color:${SKIN.bright}`, 'font:9px/13px var(--mono)', 'text-align:center',
+      `color:${SKIN.bright}`, 'font:11px/13px var(--mono)', 'text-align:center',
       'pointer-events:none', 'font-variant-numeric:tabular-nums']);
     root.append(icon, badge);
     const b: Bubble = { root, icon, badge, gripe: Gripe.NONE, place: -1 };

@@ -90,7 +90,7 @@ export class CityHall {
 
   private section(title: string): HTMLElement {
     const el = document.createElement('div');
-    css(el, ['font:700 10px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
+    css(el, ['font:700 12px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
       `color:${SKIN.faint}`, 'padding:14px 14px 7px']);
     el.textContent = title;
     return el;
@@ -100,7 +100,7 @@ export class CityHall {
     const el = document.createElement('span');
     css(el, ['display:inline-flex', 'align-items:center', 'gap:4px', 'padding:3px 7px',
       'border-radius:6px', `background:${colour}1f`, `border:1px solid ${colour}55`,
-      `color:${SKIN.text}`, 'font:600 10.5px/1.2 var(--ui)']);
+      `color:${SKIN.text}`, 'font:600 12px/1.2 var(--ui)']);
     el.innerHTML = locked ? glyph('lock', 11) : '';
     el.append(text);
     return el;
@@ -122,13 +122,13 @@ export class CityHall {
     if (c.player) {
       const you = document.createElement('span');
       css(you, ['margin-left:6px', 'padding:1px 5px', 'border-radius:4px',
-        'background:var(--cyan)', 'color:#06121a', 'font:800 9px/1.3 var(--label)',
+        'background:var(--cyan)', 'color:#06121a', 'font:800 11px/1.3 var(--label)',
         'letter-spacing:.1em', 'vertical-align:2px']);
       you.textContent = 'YOU';
       name.appendChild(you);
     }
     const party = document.createElement('div');
-    css(party, ['font:600 10.5px/1.2 var(--ui)', `color:${c.colour}`]);
+    css(party, ['font:600 12px/1.2 var(--ui)', `color:${c.colour}`]);
     party.textContent = `${c.party} · “${c.slogan}”`;
     const pledges = document.createElement('div');
     css(pledges, ['display:flex', 'flex-wrap:wrap', 'gap:3px', 'grid-column:1/-1']);
@@ -275,7 +275,7 @@ export class CityHall {
       this.pane.appendChild(actions);
       if (!p.canRally(day)) {
         const note = document.createElement('div');
-        css(note, ['font:500 10.5px/1.4 var(--ui)', `color:${SKIN.faint}`, 'padding:6px 14px 0']);
+        css(note, ['font:500 12px/1.4 var(--ui)', `color:${SKIN.faint}`, 'padding:6px 14px 0']);
         note.textContent = 'One rally every two days. The crowd needs to miss you.';
         this.pane.appendChild(note);
       }
@@ -305,7 +305,7 @@ export class CityHall {
         `border:1px solid ${on ? 'rgba(111,211,255,.55)' : 'transparent'}`, 'font:inherit']);
       const text = document.createElement('div');
       text.innerHTML = `<div style="font:700 12px/1.2 var(--ui);color:${SKIN.bright}">${pl.name}</div>`
-        + `<div style="font:500 10.5px/1.3 var(--ui);color:${SKIN.dim}">${pl.pitch}</div>`;
+        + `<div style="font:500 12px/1.3 var(--ui);color:${SKIN.dim}">${pl.pitch}</div>`;
       const heat = issues === null ? 0 : Math.max(0, Math.min(1, pl.appeal(issues) / 0.4));
       const bars = document.createElement('div');
       css(bars, ['display:flex', 'gap:2px', 'align-items:flex-end']);
@@ -383,7 +383,7 @@ export class CityHall {
     const face = document.createElement('div');
     face.innerHTML = portrait(m.face, m.colour, 96);
     const title = document.createElement('div');
-    css(title, ['font:600 10px/1 var(--label)', 'letter-spacing:.2em', 'text-transform:uppercase',
+    css(title, ['font:600 12px/1 var(--label)', 'letter-spacing:.2em', 'text-transform:uppercase',
       `color:${m.colour}`]);
     title.textContent = m.player ? 'Mayor · your candidate' : `Mayor · ${m.party}`;
     const name = document.createElement('div');
@@ -425,11 +425,11 @@ export class CityHall {
         'border-radius:9px', `background:${m.colour}14`, `border:1px solid ${m.colour}44`]);
       row.innerHTML = `<span style="display:flex;color:${m.colour}">${glyph('lock', 15)}</span>`
         + `<div><div style="font:700 12px/1.2 var(--ui);color:${SKIN.bright}">${pl.name}</div>`
-        + `<div style="font:500 10.5px/1.3 var(--ui);color:${SKIN.dim}">${pl.pitch}</div></div>`;
+        + `<div style="font:500 12px/1.3 var(--ui);color:${SKIN.dim}">${pl.pitch}</div></div>`;
       pins.appendChild(row);
     }
     const note = document.createElement('div');
-    css(note, ['font:500 10.5px/1.45 var(--ui)', `color:${SKIN.faint}`, 'padding:8px 14px 0']);
+    css(note, ['font:500 12px/1.45 var(--ui)', `color:${SKIN.faint}`, 'padding:8px 14px 0']);
     note.textContent = `Pinned until the next election. A term is ${TERM_DAYS} days; keep the city `
       + 'happy and solvent, and the mayor keeps the people’s patience.';
     this.pane.appendChild(pins);

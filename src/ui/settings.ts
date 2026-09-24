@@ -118,7 +118,7 @@ export class Settings {
     css(foot, ['display:flex', 'align-items:center', 'gap:10px',
       'padding:11px 16px', `border-top:1px solid ${SKIN.edge}`]);
     const note = document.createElement('div');
-    css(note, [`color:${SKIN.faint}`, 'font-size:10px']);
+    css(note, [`color:${SKIN.faint}`, 'font-size:12px']);
     note.textContent = 'Saved on this machine. F3 shows the frame readout.';
     const reset = document.createElement('button');
     css(reset, ['margin-left:auto', 'padding:6px 12px',
@@ -302,7 +302,7 @@ export class Settings {
     css(t, [`color:${SKIN.bright}`, 'font-size:12px']);
     t.textContent = name;
     const a = document.createElement('div');
-    css(a, [`color:${SKIN.dim}`, 'font-size:10.5px', 'line-height:1.45']);
+    css(a, [`color:${SKIN.dim}`, 'font-size:12px', 'line-height:1.45']);
     a.textContent = about;
     text.append(t, a);
     const control = document.createElement('div');

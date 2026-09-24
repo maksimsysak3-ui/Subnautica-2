@@ -53,7 +53,7 @@ export class LinesPanel {
     this.root.appendChild(this.list);
 
     this.empty = document.createElement('div');
-    style(this.empty, ['font-size:9.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
+    style(this.empty, ['font-size:11.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
     this.empty.textContent = 'No lines yet. Pick the bus or tram tool on the bar '
       + 'and click along the streets to drop stops.';
     this.root.appendChild(this.empty);
@@ -85,7 +85,7 @@ export class LinesPanel {
       const row = document.createElement('div');
       row.dataset.line = String(line.id);
       style(row, ['display:flex', 'align-items:center', 'gap:5px',
-        'font-size:10px', 'pointer-events:auto']);
+        'font-size:12px', 'pointer-events:auto']);
 
       const chip = document.createElement('span');
       style(chip, ['width:5px', 'height:12px', 'border-radius:1px', 'flex:0 0 auto',

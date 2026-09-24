@@ -95,7 +95,7 @@ export class Inspect {
     css(name, [`color:${SKIN.bright}`, 'font-size:13px', 'line-height:1.25']);
     name.textContent = what.name;
     const kind = document.createElement('div');
-    css(kind, [...label(), 'font-size:8.5px']);
+    css(kind, [...label(), 'font-size:10.5px']);
     kind.textContent = what.branch !== undefined
       ? `${what.branch} service`
       : `${what.density} ${what.zone}`;
@@ -202,13 +202,13 @@ export class Inspect {
         'background:rgba(224,104,90,.09)',
         'border:1px solid rgba(224,104,90,.22)']);
       const t = document.createElement('div');
-      css(t, [...label(), `color:${SKIN.bad}`, 'font-size:8.5px']);
+      css(t, [...label(), `color:${SKIN.bad}`, 'font-size:10.5px']);
       t.textContent = what.gripe;
       const w = document.createElement('div');
-      css(w, [`color:${SKIN.text}`, 'font-size:10.5px', 'line-height:1.45']);
+      css(w, [`color:${SKIN.text}`, 'font-size:12px', 'line-height:1.45']);
       w.textContent = what.gripeWhat;
       const f = document.createElement('div');
-      css(f, [`color:${SKIN.dim}`, 'font-size:10px', 'line-height:1.45']);
+      css(f, [`color:${SKIN.dim}`, 'font-size:12px', 'line-height:1.45']);
       f.textContent = what.gripeFix;
       note.append(t, w, f);
       this.body.appendChild(note);
@@ -224,7 +224,7 @@ export class Inspect {
     const top = document.createElement('div');
     css(top, ['display:flex', 'align-items:baseline', 'gap:8px']);
     const l = document.createElement('div');
-    css(l, [...label(), 'font-size:8.5px']);
+    css(l, [...label(), 'font-size:10.5px']);
     l.textContent = name;
     const v = document.createElement('div');
     css(v, [`color:${SKIN.bright}`, 'font-size:11px', 'margin-left:auto',

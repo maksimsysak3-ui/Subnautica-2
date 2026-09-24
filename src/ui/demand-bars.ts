@@ -109,7 +109,7 @@ export class DemandBars {
         `background:${ZONE_STYLE[col.key].base}`, 'flex:0 0 auto']);
 
       const letter = document.createElement('span');
-      style(letter, ['font-size:9px', 'width:7px', 'flex:0 0 auto',
+      style(letter, ['font-size:11px', 'width:7px', 'flex:0 0 auto',
         `color:${ZONE_STYLE[col.key].light}`]);
       letter.textContent = col.letter;
 
@@ -142,7 +142,7 @@ export class DemandBars {
 
     this.caption = document.createElement('div');
     this.caption.dataset.stat = 'queue';
-    style(this.caption, ['font-size:9px', `color:${SKIN.faint}`, 'white-space:nowrap',
+    style(this.caption, ['font-size:11px', `color:${SKIN.faint}`, 'white-space:nowrap',
       'letter-spacing:.04em']);
     this.caption.textContent = '—';
     this.root.appendChild(this.caption);

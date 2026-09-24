@@ -64,7 +64,7 @@ export class Stats {
     // live, and no longer the first thing anybody sees.
     this.detail = document.createElement('div');
     css(this.detail, ['display:grid', 'grid-template-columns:auto 1fr',
-      'column-gap:8px', 'row-gap:1px', `color:${SKIN.faint}`, 'font-size:9.5px',
+      'column-gap:8px', 'row-gap:1px', `color:${SKIN.faint}`, 'font-size:11.5px',
       'font-variant-numeric:tabular-nums']);
 
     this.el.append(this.head, rule, this.detail);
@@ -189,10 +189,10 @@ export class Stats {
       // a balance means little without the direction it is heading in, and the
       // two on one line at one size read as a single unparseable string.
       const sub = document.createElement('span');
-      css(sub, ['font-size:10px', `color:${SKIN.dim}`,
+      css(sub, ['font-size:12px', `color:${SKIN.dim}`,
         'font-variant-numeric:tabular-nums']);
       const k = document.createElement('span');
-      css(k, [...label(), 'font-size:8.5px', 'margin-left:auto']);
+      css(k, [...label(), 'font-size:10.5px', 'margin-left:auto']);
       row.append(v, sub, k);
       this.head.appendChild(row);
     }

@@ -1751,7 +1751,7 @@ export class BuildTools {
       const d = document.createElement('div');
       d.className = 'mr-cell';
       const cap = document.createElement('div');
-      css(cap, ['font:600 9.5px/1 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
+      css(cap, ['font:600 11.5px/1 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
         `color:${SKIN.faint}`]);
       cap.textContent = caption;
       const val = document.createElement('div');
@@ -1874,7 +1874,7 @@ export class BuildTools {
     css(chip, ['position:absolute', 'right:-3px', 'top:-4px', 'min-width:15px',
       'height:15px', 'padding:0 3px', 'border-radius:8px', 'display:grid',
       'place-items:center', `background:${SKIN.warn}`, 'color:#241a05',
-      `font:700 9px/1 ${SKIN.mono}`, 'pointer-events:none',
+      `font:700 11px/1 ${SKIN.mono}`, 'pointer-events:none',
       'box-shadow:0 2px 6px rgba(0,0,0,.5)']);
     this.starChip = chip;
     this.paintProgress();
@@ -1949,10 +1949,10 @@ export class BuildTools {
       const temp = Math.round(temperature(day, t * 24, this.renderer.weather.sky));
       fill(this.readClock,
         `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-        + `<span style="color:${SKIN.dim};font-size:10px">`
+        + `<span style="color:${SKIN.dim};font-size:12px">`
         + `${MONTHS[month]} ${year}</span>`);
       fill(this.readSeason, `<span style="display:flex;color:${season.tint}">${glyph(season.glyph, 15)}</span>`
-        + `${temp}\u00b0C<span style="color:${SKIN.dim};font-size:10px">`
+        + `${temp}\u00b0C<span style="color:${SKIN.dim};font-size:12px">`
         + `${season.name}</span>`);
       const w = this.renderer.weather;
       fill(this.readWeather, `<span style="display:flex;color:${SKIN.accent}">${glyph(w.glyph, 15)}</span>`
@@ -1963,7 +1963,7 @@ export class BuildTools {
       const s = this.renderer.summary;
       const people = s.hasSim ? s.citizens : s.people;
       fill(this.readPeople, `${people.toLocaleString()}`
-        + `<span style="color:${SKIN.dim};font-size:10px">`
+        + `<span style="color:${SKIN.dim};font-size:12px">`
         + `${s.buildings.toLocaleString()} building${s.buildings === 1 ? '' : 's'}</span>`);
 
       // And the money, at the end of the bar the player spends it from. The
@@ -1978,7 +1978,7 @@ export class BuildTools {
         `<span style="color:${tone}">\u25cf</span>`
         + `${bal < 0 ? '\u2212' : ''}${money(Math.abs(bal))}`
         + (s.hasSim
-          ? `<span style="color:${net < 0 ? SKIN.bad : SKIN.dim};font-size:10px">`
+          ? `<span style="color:${net < 0 ? SKIN.bad : SKIN.dim};font-size:12px">`
             + `${net < 0 ? '\u2212' : '+'}${money(Math.abs(net))}/wk</span>`
           : ''));
     }
@@ -2024,7 +2024,7 @@ export class BuildTools {
       'display:flex', 'flex-direction:column', 'align-items:center', 'gap:2px',
       'padding:7px 4px', 'border-radius:10px', ...rest,
       'color:#c8d4e4', 'cursor:pointer',
-      'font:600 10px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
+      'font:600 12px/1.3 var(--ui, system-ui, sans-serif)', 'text-align:center',
     ].join(';');
     if (glyph !== undefined) {
       const g = document.createElement('span');
@@ -2062,7 +2062,7 @@ export class BuildTools {
       tag.style.cssText = [
         'position:absolute', 'left:5px', 'top:5px', 'padding:1px 4px',
         'border-radius:4px', 'background:rgba(0,0,0,.82)', 'color:#e8f0fa',
-        'font:700 8px/1.5 var(--ui, system-ui, sans-serif)', 'letter-spacing:.08em',
+        'font:700 10.5px/1.5 var(--ui, system-ui, sans-serif)', 'letter-spacing:.08em',
         'pointer-events:none',
       ].join(';');
       b.appendChild(tag);
@@ -2291,7 +2291,7 @@ export class BuildTools {
     el.textContent = label;
     el.style.cssText = [
       'grid-column:1/-1', 'padding:8px 2px 2px', 'color:#7f93ab',
-      'font:700 9px/1.2 var(--ui, system-ui, sans-serif)',
+      'font:700 11px/1.2 var(--ui, system-ui, sans-serif)',
       'letter-spacing:.14em', 'text-transform:uppercase',
     ].join(';');
     return el;

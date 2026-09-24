@@ -129,7 +129,7 @@ export class Alerts {
     const text = document.createElement('div');
     css(text, ['display:flex', 'flex-direction:column', 'gap:3px', 'flex:1']);
     const head = document.createElement('div');
-    css(head, [...label(), `color:${tone}`, 'font-size:9px']);
+    css(head, [...label(), `color:${tone}`, 'font-size:11px']);
     head.textContent = alert.title;
     const body = document.createElement('div');
     css(body, [`color:${SKIN.text}`, 'font-size:11px', 'line-height:1.45']);

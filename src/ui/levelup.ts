@@ -99,7 +99,7 @@ export class LevelUpCard {
       `border-bottom:1px solid ${SKIN.edge}`]);
 
     const eyebrow = document.createElement('div');
-    css(eyebrow, [...label(), 'font-size:9.5px', `color:${SKIN.warn}`]);
+    css(eyebrow, [...label(), 'font-size:11.5px', `color:${SKIN.warn}`]);
     eyebrow.textContent = `Level ${level.level} reached`;
 
     // A ring with the level in it: the number is the news, so the number is
@@ -143,7 +143,7 @@ export class LevelUpCard {
     const opened = BRANCH_ORDER.filter((b) => branchLevel(b) === level.level) as Branch[];
     if (opened.length > 0) {
       const head = document.createElement('div');
-      css(head, [...label(), 'font-size:9px', 'padding:4px 18px 8px', 'text-align:left']);
+      css(head, [...label(), 'font-size:11px', 'padding:4px 18px 8px', 'text-align:left']);
       head.textContent = 'Services now open';
       const strip = document.createElement('div');
       css(strip, ['display:flex', 'gap:8px', 'padding:0 18px 14px',
@@ -168,7 +168,7 @@ export class LevelUpCard {
     // ---- and what it opens ----
     if (level.unlocked.length > 0) {
       const head = document.createElement('div');
-      css(head, [...label(), 'font-size:9px', 'padding:4px 18px 8px',
+      css(head, [...label(), 'font-size:11px', 'padding:4px 18px 8px',
         'text-align:left']);
       head.textContent = 'New landmarks';
       const strip = document.createElement('div');
@@ -188,7 +188,7 @@ export class LevelUpCard {
           'box-shadow:inset 0 1px 0 rgba(255,255,255,.08)']);
         if (hasIcon(id)) frame.appendChild(assetIcon(id, 74));
         const t = document.createElement('div');
-        css(t, [`color:${SKIN.text}`, 'font-size:10.5px', 'line-height:1.3',
+        css(t, [`color:${SKIN.text}`, 'font-size:12px', 'line-height:1.3',
           'text-align:center']);
         t.textContent = def.name;
         cell.append(frame, t);
@@ -221,7 +221,7 @@ export class LevelUpCard {
     css(v, [`color:${tint}`, 'font-size:15px', 'font-variant-numeric:tabular-nums']);
     v.textContent = value;
     const w = document.createElement('div');
-    css(w, [`color:${SKIN.dim}`, 'font-size:9.5px']);
+    css(w, [`color:${SKIN.dim}`, 'font-size:11.5px']);
     w.textContent = what;
     el.append(g, v, w);
     return el;

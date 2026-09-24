@@ -236,6 +236,60 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   animation: none !important; transition: none !important;
 }
 
+/* ---- budget: taxes and policies ------------------------------------------ */
+.mr-sec-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; margin: 0 0 2px;
+  background: none; border: 0; text-align: left; color: ${BRAND.ink};
+  font: 700 13px/1.2 var(--display); letter-spacing: .12em; text-transform: uppercase;
+}
+.mr-sec-toggle { cursor: pointer; pointer-events: auto; }
+.mr-sec-sum { font: 600 12px/1 var(--ui); letter-spacing: 0; text-transform: none; color: ${BRAND.dim}; }
+.mr-caret { width: 8px; height: 8px; border-right: 2px solid var(--cyan); border-bottom: 2px solid var(--cyan);
+  transform: rotate(-45deg); transition: transform .15s; margin: 0 2px; }
+.mr-sec-toggle[aria-expanded="true"] .mr-caret { transform: rotate(45deg); }
+.mr-note-small { font: 500 11.5px/1.45 var(--ui); color: ${BRAND.faint}; }
+.mr-tax { display: flex; flex-direction: column; gap: 9px; }
+.mr-tax-row { display: grid; grid-template-columns: 84px 1fr 54px; align-items: center; gap: 10px; }
+.mr-tax-name { font: 600 12.5px/1 var(--ui); color: var(--zone-ink, var(--zone)); }
+.mr-tax-val { font: 700 13px/1 var(--ui); text-align: right; font-variant-numeric: tabular-nums; }
+.mr-tax-track { position: relative; display: block; height: 18px; }
+.mr-tax-track::after {
+  content: ""; position: absolute; left: var(--neutral); top: 2px; width: 2px; height: 14px;
+  margin-left: -1px; background: rgba(255,255,255,.55); border-radius: 1px; pointer-events: none;
+}
+.mr-range { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 0;
+  background: transparent; cursor: pointer; pointer-events: auto; }
+.mr-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--zone) 70%, transparent), rgba(255,255,255,.1)); }
+.mr-range::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); }
+.mr-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px;
+  border-radius: 50%; background: #f1f4f8; border: 3px solid var(--zone); box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+.mr-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #f1f4f8;
+  border: 3px solid var(--zone); }
+.mr-range:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+.mr-policies { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid rgba(160,190,220,.14); }
+.mr-policy-list { flex-direction: column; gap: 6px; }
+.mr-policy { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; padding: 9px 10px;
+  border-radius: 9px; cursor: pointer; pointer-events: auto; background: rgba(255,255,255,.03);
+  border: 1px solid transparent; transition: background .12s, border-color .12s; }
+.mr-policy:hover { background: rgba(255,255,255,.06); }
+.mr-policy.is-on { background: rgba(111,211,255,.09); border-color: rgba(111,211,255,.32); }
+.mr-policy.is-pinned { background: rgba(244,181,74,.10); border-color: rgba(244,181,74,.45); cursor: not-allowed; }
+.mr-policy-body { display: flex; flex-direction: column; gap: 3px; }
+.mr-policy-name { font: 700 13px/1.25 var(--ui); color: ${BRAND.ink}; }
+.mr-policy-blurb { font: 500 12px/1.4 var(--ui); color: ${BRAND.dim}; }
+.mr-policy-says { font: 600 11.5px/1.4 var(--ui); color: #b9c6d4; }
+/* A switch, from a checkbox. */
+.mr-switch { -webkit-appearance: none; appearance: none; position: relative; flex: none; width: 34px; height: 20px;
+  margin: 2px 0 0; border-radius: 10px; background: rgba(255,255,255,.14); cursor: pointer; transition: background .15s; }
+.mr-switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px;
+  border-radius: 50%; background: #dfe7f0; transition: transform .15s; }
+.mr-switch:checked { background: var(--cyan); }
+.mr-switch:checked::after { transform: translateX(14px); background: #06121a; }
+.mr-switch:disabled { opacity: .75; cursor: not-allowed; }
+.mr-policy.is-pinned .mr-switch:checked { background: var(--amber); }
+
 /* ---- title screen ---------------------------------------------------- */
 .mr-menu {
   position: fixed; inset: 0; z-index: 20; pointer-events: none;

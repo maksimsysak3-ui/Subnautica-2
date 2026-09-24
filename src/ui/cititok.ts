@@ -250,7 +250,7 @@ export class Cititok {
 
     this.bar = document.createElement('div');
     css(this.bar, ['display:flex', 'align-items:center', 'gap:8px',
-      'padding:6px 14px 4px', `color:${SKIN.dim}`, 'font-size:9.5px',
+      'padding:6px 14px 4px', `color:${SKIN.dim}`, 'font-size:11.5px',
       'font-variant-numeric:tabular-nums']);
 
     const head = document.createElement('div');
@@ -260,7 +260,7 @@ export class Cititok {
     css(brand, [`color:${SKIN.bright}`, 'font-size:14px', 'letter-spacing:.02em']);
     brand.innerHTML = `Citi<span style="color:${SKIN.accent}">tok</span>`;
     const sub = document.createElement('div');
-    css(sub, [...label(), 'font-size:8px', 'margin-left:auto']);
+    css(sub, [...label(), 'font-size:10.5px', 'margin-left:auto']);
     sub.textContent = 'your city, posting';
     head.append(brand, sub);
 
@@ -289,7 +289,7 @@ export class Cititok {
       css(b, ['flex:1', 'display:flex', 'flex-direction:column',
         'align-items:center', 'gap:2px', 'padding:5px 0 3px', 'cursor:pointer',
         'border:1px solid transparent', 'border-radius:11px',
-        'background:transparent', `color:${SKIN.dim}`, 'font-size:8.5px',
+        'background:transparent', `color:${SKIN.dim}`, 'font-size:10.5px',
         'letter-spacing:.09em', 'text-transform:uppercase', 'font-family:inherit']);
       b.innerHTML = `<span style="display:flex">${pictogram(glyph, 19)}</span>`;
       const cap = document.createElement('span');
@@ -422,7 +422,7 @@ export class Cititok {
       'gap:2px', 'padding:18px 14px 14px',
       `background:linear-gradient(180deg,${skyWash(w.now)},transparent)`]);
     const place = document.createElement('div');
-    css(place, [...label(), 'font-size:8.5px']);
+    css(place, [...label(), 'font-size:10.5px']);
     // The city's own clock, to the minute -- the outlook below rounds to the
     // hour because a forecast does, but the headline is what it is now.
     const mins = Math.floor((((w.hour % 24) + 24) % 24 % 1) * 60);
@@ -453,7 +453,7 @@ export class Cititok {
         'align-items:center', 'gap:3px', 'padding:7px 2px', 'border-radius:10px',
         `background:${skyWash(o.sky)}`]);
       const t = document.createElement('div');
-      css(t, [`color:${SKIN.faint}`, 'font-size:8.5px',
+      css(t, [`color:${SKIN.faint}`, 'font-size:10.5px',
         'font-variant-numeric:tabular-nums']);
       t.textContent = hh(o.hour);
       const g = document.createElement('div');
@@ -461,7 +461,7 @@ export class Cititok {
       g.innerHTML = pictogram(o.glyph, 18);
       g.style.color = SKIN.text;
       const d = document.createElement('div');
-      css(d, [`color:${SKIN.bright}`, 'font-size:10.5px',
+      css(d, [`color:${SKIN.bright}`, 'font-size:12px',
         'font-variant-numeric:tabular-nums']);
       d.textContent = `${Math.round(o.temp)}\u00b0`;
       cell.append(t, g, d);
@@ -477,12 +477,12 @@ export class Cititok {
       css(el, ['display:flex', 'flex-direction:column', 'gap:4px']);
       const top = document.createElement('div');
       css(top, ['display:flex', 'align-items:baseline', 'gap:6px',
-        `color:${SKIN.dim}`, 'font-size:9.5px', 'letter-spacing:.07em',
+        `color:${SKIN.dim}`, 'font-size:11.5px', 'letter-spacing:.07em',
         'text-transform:uppercase']);
       const nm = document.createElement('span');
       nm.textContent = name;
       const val = document.createElement('span');
-      css(val, [`color:${SKIN.bright}`, 'margin-left:auto', 'font-size:10.5px',
+      css(val, [`color:${SKIN.bright}`, 'margin-left:auto', 'font-size:12px',
         'letter-spacing:0', 'text-transform:none',
         'font-variant-numeric:tabular-nums']);
       val.textContent = value;
@@ -507,7 +507,7 @@ export class Cititok {
     row('Wind', `${Math.round(w.wind)} km/h`, w.wind / 60, SKIN.dim);
 
     const foot = document.createElement('div');
-    css(foot, [`color:${SKIN.faint}`, 'font-size:9px', 'padding:0 15px 15px',
+    css(foot, [`color:${SKIN.faint}`, 'font-size:11px', 'padding:0 15px 15px',
       'line-height:1.6']);
     foot.textContent = 'Six hours ahead. The outlook reads the same model the '
       + 'sky over the city is drawn from, so it is what will actually happen.';
@@ -538,7 +538,7 @@ export class Cititok {
     css(name, [`color:${SKIN.bright}`, 'font-size:11px']);
     name.textContent = `@${post.handle}`;
     const when = document.createElement('span');
-    css(when, [`color:${SKIN.faint}`, 'font-size:9.5px']);
+    css(when, [`color:${SKIN.faint}`, 'font-size:11.5px']);
     when.textContent = post.when;
     top.append(name, when);
     const text = document.createElement('div');
@@ -546,7 +546,7 @@ export class Cititok {
     text.textContent = post.text;
     const foot = document.createElement('div');
     css(foot, ['display:flex', 'align-items:center', 'gap:12px',
-      `color:${SKIN.faint}`, 'font-size:9.5px']);
+      `color:${SKIN.faint}`, 'font-size:11.5px']);
     const tone = post.tone === 'good' ? SKIN.good : post.tone === 'bad' ? SKIN.bad : SKIN.dim;
     const heart = document.createElement('span');
     css(heart, [`color:${tone}`]);

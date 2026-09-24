@@ -21,7 +21,7 @@
 import { Tax, TAX_NAMES, TAX_MIN, TAX_MAX, TAX_NEUTRAL } from '../sim';
 import type { Budget } from '../sim';
 import { ZONE_STYLE } from './zones';
-import { SKIN, label as labelStyle } from './skin';
+import { SKIN } from './skin';
 
 /** Which zone palette each rate takes. `TAX_NAMES` order. */
 const PALETTE = ['residential', 'commercial', 'industrial', 'office'] as const;
@@ -47,57 +47,59 @@ export class TaxPanel {
     this.root.dataset.show = 'flex';
     style(this.root, ['display:flex', 'flex-direction:column', 'gap:6px']);
 
+    this.root.className = 'mr-tax';
     const head = document.createElement('div');
-    style(head, labelStyle());
+    head.className = 'mr-sec-head';
     head.textContent = 'Tax rates';
     this.root.appendChild(head);
 
+    // Where the neutral rate sits on every track, as a fraction of its width.
+    const neutral = ((TAX_NEUTRAL - TAX_MIN) / (TAX_MAX - TAX_MIN)) * 100;
     for (let i = 0; i < TAX_NAMES.length; i++) {
       const row = document.createElement('div');
       row.dataset.tax = TAX_NAMES[i];
-      style(row, ['display:flex', 'align-items:center', 'gap:6px']);
-
-      const chip = document.createElement('span');
-      style(chip, ['width:5px', 'height:5px', 'border-radius:1px', 'flex:0 0 auto',
-        `background:${ZONE_STYLE[PALETTE[i]].base}`]);
+      row.className = 'mr-tax-row';
+      row.style.setProperty('--zone', ZONE_STYLE[PALETTE[i]].base);
+      row.style.setProperty('--zone-ink', ZONE_STYLE[PALETTE[i]].light);
+      row.style.setProperty('--neutral', `${neutral.toFixed(1)}%`);
 
       const label = document.createElement('span');
-      style(label, ['font-size:10px', 'width:66px', 'flex:0 0 auto',
-        `color:${ZONE_STYLE[PALETTE[i]].light}`]);
+      label.className = 'mr-tax-name';
       label.textContent = SHORT[i];
 
       // A native range input, deliberately. It already does keyboard, touch,
       // pointer capture and drag-outside-the-track, all of which a hand-rolled
       // one gets wrong, and none of which is the interesting part of this.
+      const track = document.createElement('span');
+      track.className = 'mr-tax-track';
       const slider = document.createElement('input');
       slider.type = 'range';
+      slider.className = 'mr-range';
       slider.min = String(TAX_MIN);
       slider.max = String(TAX_MAX);
       slider.step = String(STEP);
       slider.setAttribute('aria-label', `${SHORT[i]} tax rate`);
-      style(slider, ['flex:1 1 auto', 'min-width:80px', 'height:14px',
-        'pointer-events:auto', 'cursor:pointer',
-        `accent-color:${ZONE_STYLE[PALETTE[i]].base}`]);
       slider.addEventListener('input', () => {
         this.budget?.setRate(i, Number(slider.value));
         this.paint();
       });
+      track.appendChild(slider);
 
       const value = document.createElement('span');
       value.dataset.stat = `tax-${TAX_NAMES[i]}`;
-      style(value, ['font-size:10px', 'width:34px', 'text-align:right',
-        'flex:0 0 auto', 'font-variant-numeric:tabular-nums']);
+      value.className = 'mr-tax-val';
 
-      row.append(chip, label, slider, value);
+      row.append(label, track, value);
       this.root.appendChild(row);
       this.sliders.push(slider);
       this.values.push(value);
     }
 
     const note = document.createElement('div');
-    style(note, ['font-size:9.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
-    note.textContent = `${Math.round(TAX_NEUTRAL * 100)}% is what people expect. `
-      + 'Above it they grumble, and then they leave. Below it you are poor.';
+    note.className = 'mr-note-small';
+    note.textContent = `The tick on each track is ${Math.round(TAX_NEUTRAL * 100)}%, what people `
+      + 'expect. Above it they grumble, then leave; below it the city is poorer. Industry '
+      + 'pays the most per job, and nobody who lives here pays it.';
     this.root.appendChild(note);
   }
 

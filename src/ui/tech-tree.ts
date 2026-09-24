@@ -71,7 +71,7 @@ export class TechTree {
     css(head, ['display:flex', 'align-items:center', 'gap:14px',
       'padding:13px 16px', `border-bottom:1px solid ${SKIN.edge}`]);
     const title = document.createElement('div');
-    css(title, [...label(), 'font-size:10px', `color:${SKIN.dim}`]);
+    css(title, [...label(), 'font-size:12px', `color:${SKIN.dim}`]);
     title.textContent = 'Development';
     this.stars = document.createElement('div');
     css(this.stars, ['margin-left:auto', 'display:flex', 'align-items:center',
@@ -317,17 +317,17 @@ export class TechTree {
       css(t, [`color:${done ? SKIN.good : SKIN.bright}`, 'font-size:12px']);
       t.textContent = goal.title;
       const xp = document.createElement('div');
-      css(xp, [`color:${SKIN.warn}`, 'font-size:10.5px', 'margin-left:auto',
+      css(xp, [`color:${SKIN.warn}`, 'font-size:12px', 'margin-left:auto',
         'font-variant-numeric:tabular-nums']);
       xp.textContent = done ? 'done' : `+${goal.xp} xp`;
       top.append(t, xp);
       const note = document.createElement('div');
-      css(note, [`color:${SKIN.dim}`, 'font-size:10.5px', 'line-height:1.45']);
+      css(note, [`color:${SKIN.dim}`, 'font-size:12px', 'line-height:1.45']);
       note.textContent = goal.note;
       const { track, fill } = bar(done ? SKIN.good : SKIN.accent, 4);
       fill.style.width = `${Math.round(100 * Math.min(1, need > 0 ? now / need : 0))}%`;
       const count = document.createElement('div');
-      css(count, [`color:${SKIN.faint}`, 'font-size:10px',
+      css(count, [`color:${SKIN.faint}`, 'font-size:12px',
         'font-variant-numeric:tabular-nums']);
       count.textContent = done ? '' : `${Math.round(now).toLocaleString()} of `
         + `${need.toLocaleString()}`;
@@ -384,7 +384,7 @@ export class TechTree {
     const badge = document.createElement('span');
     css(badge, ['position:absolute', 'bottom:-6px', 'left:50%',
       'transform:translateX(-50%)', 'padding:2px 8px', 'border-radius:10px',
-      'font-size:10px', 'display:flex', 'align-items:center', 'gap:3px',
+      'font-size:12px', 'display:flex', 'align-items:center', 'gap:3px',
       `border:1px solid ${bought ? tint : SKIN.edge}`,
       `background:${SKIN.panelSolid}`,
       `color:${bought ? tint : afford ? SKIN.warn : SKIN.dim}`]);
@@ -405,7 +405,7 @@ export class TechTree {
     });
 
     const name = document.createElement('div');
-    css(name, [`color:${bought ? SKIN.bright : SKIN.dim}`, 'font-size:10px',
+    css(name, [`color:${bought ? SKIN.bright : SKIN.dim}`, 'font-size:12px',
       'text-align:center', 'line-height:1.3', 'max-width:104px']);
     name.textContent = node.name;
 
@@ -428,7 +428,7 @@ export class TechTree {
     css(name, [`color:${SKIN.bright}`, 'font-size:14px', 'line-height:1.3']);
     name.textContent = node.name;
     const branch = document.createElement('div');
-    css(branch, [...label(), 'font-size:9px', `color:${tint}`]);
+    css(branch, [...label(), 'font-size:11px', `color:${tint}`]);
     branch.textContent = BRANCH_LABEL[node.branch] ?? node.branch;
     const blurb = document.createElement('div');
     css(blurb, [`color:${SKIN.text}`, 'font-size:11px', 'line-height:1.5']);
@@ -452,7 +452,7 @@ export class TechTree {
       css(t, [`color:${SKIN.bright}`, 'font-size:11px']);
       t.textContent = def.name;
       const price = document.createElement('div');
-      css(price, [`color:${SKIN.dim}`, 'font-size:10px']);
+      css(price, [`color:${SKIN.dim}`, 'font-size:12px']);
       price.textContent = `${money(buildingPrice(def))} to build`
         + (def.sim.upkeep > 0 ? ` · ${money(def.sim.upkeep * 45)}/wk` : '');
       text.append(t, price);

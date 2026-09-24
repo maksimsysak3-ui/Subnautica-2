@@ -20,7 +20,7 @@
 
 import { POLICIES } from '../sim';
 import type { Policies } from '../sim';
-import { SKIN, label as labelStyle, css } from './skin';
+import { SKIN, css } from './skin';
 
 /** The money format the rest of the panels use: thousands, no decimals. */
 function money(n: number): string {
@@ -47,30 +47,27 @@ export class PolicyPanel {
     css(this.root, ['display:flex', 'flex-direction:column', 'gap:6px',
       'margin-top:8px', 'border-top:1px solid rgba(98,212,255,.14)', 'padding-top:8px']);
 
+    this.root.className = 'mr-policies';
     const head = document.createElement('button');
     head.type = 'button';
     head.dataset.action = 'policies-toggle';
-    css(head, [...labelStyle(), 'display:flex', 'align-items:center', 'gap:6px',
-      'background:none', 'border:0', 'padding:0', 'cursor:pointer',
-      'pointer-events:auto', 'text-align:left', 'width:100%']);
+    head.className = 'mr-sec-head mr-sec-toggle';
+    head.setAttribute('aria-expanded', 'false');
 
     const caret = document.createElement('span');
-    css(caret, ['font-size:9px', `color:${SKIN.accent}`, 'width:8px']);
-    caret.textContent = '▸';
-
+    caret.className = 'mr-caret';
     const title = document.createElement('span');
     title.textContent = 'Policies';
     css(title, ['flex:1 1 auto']);
 
     this.summary = document.createElement('span');
     this.summary.dataset.stat = 'policy-summary';
-    css(this.summary, ['font-size:9.5px', `color:${SKIN.dim}`,
-      'font-variant-numeric:tabular-nums', 'letter-spacing:0']);
+    this.summary.className = 'mr-sec-sum';
 
     head.append(caret, title, this.summary);
     head.addEventListener('click', () => {
       this.open = !this.open;
-      caret.textContent = this.open ? '▾' : '▸';
+      head.setAttribute('aria-expanded', String(this.open));
       this.list.style.display = this.open ? 'flex' : 'none';
     });
     this.root.appendChild(head);
@@ -78,52 +75,46 @@ export class PolicyPanel {
     this.list = document.createElement('div');
     // No scroller here either: the card it sits in is the one that scrolls,
     // and a list that catches the wheel first is a list you cannot scroll past.
-    css(this.list, ['display:none', 'flex-direction:column', 'gap:3px']);
+    this.list.className = 'mr-policy-list';
+    this.list.style.display = 'none';
     this.root.appendChild(this.list);
 
     for (let i = 0; i < POLICIES.length; i++) {
       const def = POLICIES[i];
       const row = document.createElement('label');
       row.dataset.policy = def.id;
-      css(row, ['display:flex', 'gap:7px', 'align-items:flex-start',
-        'padding:5px 6px', 'border-radius:4px', 'cursor:pointer',
-        'pointer-events:auto', 'background:rgba(255,255,255,.02)',
-        'border:1px solid transparent', 'transition:background .1s, border-color .1s']);
+      row.className = 'mr-policy';
 
       const box = document.createElement('input');
       box.type = 'checkbox';
+      box.className = 'mr-switch';
       box.setAttribute('aria-label', def.name);
-      css(box, ['margin:2px 0 0 0', 'flex:0 0 auto', 'cursor:pointer',
-        `accent-color:${SKIN.accent}`]);
       box.addEventListener('change', () => {
         this.policies?.set(i, box.checked);
         this.paint();
       });
 
       const body = document.createElement('div');
-      css(body, ['display:flex', 'flex-direction:column', 'gap:1px', 'flex:1 1 auto']);
-
+      body.className = 'mr-policy-body';
       const name = document.createElement('span');
-      css(name, ['font-size:10.5px', `color:${SKIN.bright}`]);
+      name.className = 'mr-policy-name';
       name.textContent = def.name;
-
       const blurb = document.createElement('span');
-      css(blurb, ['font-size:9px', `color:${SKIN.dim}`, 'line-height:1.4']);
+      blurb.className = 'mr-policy-blurb';
       blurb.textContent = def.blurb;
-
       const says = document.createElement('span');
-      css(says, ['font-size:9px', `color:${SKIN.faint}`, 'line-height:1.4']);
-      says.textContent = def.says.join(' · ');
+      says.className = 'mr-policy-says';
+      says.textContent = def.says.join(' \u00b7 ');
 
       body.append(name, blurb, says);
-      row.append(box, body);
+      row.append(body, box);
       this.list.appendChild(row);
       this.rows.push(row);
       this.boxes.push(box);
     }
 
     const note = document.createElement('div');
-    css(note, ['font-size:9.5px', `color:${SKIN.faint}`, 'line-height:1.5']);
+    note.className = 'mr-note-small';
     note.textContent = 'Every one of these costs something, in money or in what '
       + 'the city can do. That is the point of them.';
     this.root.appendChild(note);
@@ -167,11 +158,8 @@ export class PolicyPanel {
       const pinned = p.isPinned(i);
       this.boxes[i].disabled = pinned;
       this.rows[i].title = pinned ? 'Pledged by the mayor \u2014 in force until the next election' : '';
-      this.rows[i].style.cursor = pinned ? 'not-allowed' : 'pointer';
-      this.rows[i].style.background = pinned ? 'rgba(244,181,74,.10)'
-        : on ? 'rgba(98,212,255,.08)' : 'rgba(255,255,255,.02)';
-      this.rows[i].style.borderColor = pinned ? 'rgba(244,181,74,.4)'
-        : on ? 'rgba(98,212,255,.28)' : 'transparent';
+      this.rows[i].classList.toggle('is-on', on);
+      this.rows[i].classList.toggle('is-pinned', pinned);
     }
   }
 }

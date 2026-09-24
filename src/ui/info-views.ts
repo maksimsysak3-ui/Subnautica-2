@@ -202,10 +202,14 @@ export class InfoViews {
     // the player sets, and setting it two panels away from the number it moves
     // would be two panels away from the only reason to set it.
     this.extra = document.createElement('div');
-    style(this.extra, ['display:none', 'margin-top:8px',
-      'border-top:1px solid rgba(98,212,255,.14)', 'padding-top:8px']);
-    this.card.append(this.head, this.hero, this.legend, this.scale, this.rows,
-      this.extra);
+    style(this.extra, ['display:none', 'margin:4px 0 10px',
+      'padding:12px 0', 'border-top:1px solid rgba(160,190,220,.14)',
+      'border-bottom:1px solid rgba(160,190,220,.14)']);
+    // The controls first, under the headline: the budget's ledger runs to
+    // fifteen rows, and with the tax sliders beneath it they were off the
+    // bottom of the card -- which is how taxes came to look impossible to set.
+    this.card.append(this.head, this.hero, this.legend, this.scale, this.extra,
+      this.rows);
 
     this.rail = document.createElement('div');
     this.rail.dataset.panel = 'view-rail';
@@ -296,6 +300,22 @@ export class InfoViews {
     this.extra.appendChild(el);
   }
 
+  /**
+   * With a view open, the rail folds to a row of icons, so the card above it
+   * -- the budget's especially, with the tax sliders in it -- gets the height.
+   */
+  private compact(on: boolean): void {
+    this.rail.style.gridTemplateColumns = on ? 'repeat(8, 1fr)' : 'repeat(3, 1fr)';
+    for (const b of this.buttons.values()) {
+      const name = b.lastElementChild as HTMLElement | null;
+      if (name !== null) name.style.display = on ? 'none' : '';
+      b.style.justifyContent = on ? 'center' : '';
+      b.style.padding = on ? '0' : '0 8px';
+      b.style.height = on ? '30px' : '34px';
+      if (on) tip(b, b.getAttribute('aria-label') ?? '');
+    }
+  }
+
   /** Which view is open, or `View.NONE`. */
   get view(): number { return this.current; }
 
@@ -341,6 +361,7 @@ export class InfoViews {
       (was.firstElementChild as HTMLElement).style.color = '';
     }
     this.current = id;
+    this.compact(id !== View.NONE);
     const info = VIEWS.find((v) => v.id === id) ?? null;
     if (info === null) {
       this.card.style.display = 'none';
@@ -401,7 +422,7 @@ export class InfoViews {
     return `<div style="height:8px;border-radius:4px;${bar};`
       + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)"></div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:5px;'
-      + `font:600 10.5px/1 var(--label);letter-spacing:.12em;text-transform:uppercase;`
+      + `font:600 12px/1 var(--label);letter-spacing:.12em;text-transform:uppercase;`
       + `color:${SKIN.dim}">`
       + `<span>none</span><span>${escapeHtml(info.unit)} ${buried}</span>`
       + '</div>';

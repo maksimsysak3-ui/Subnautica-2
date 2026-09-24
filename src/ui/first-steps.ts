@@ -180,7 +180,7 @@ export class FirstSteps {
     close.textContent = 'Hide';
     close.setAttribute('aria-label', 'Hide the guide');
     css(close, ['background:none', 'border:0', 'cursor:pointer', 'padding:2px 4px',
-      'font:600 10px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
+      'font:600 12px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
       `color:${SKIN.dim}`]);
     close.addEventListener('click', () => { this.dismissed = true; this.root.style.display = 'none'; });
     head.append(this.heading, close);
@@ -205,7 +205,7 @@ export class FirstSteps {
       const tick = document.createElement('div');
       css(tick, ['width:14px', 'height:14px', 'margin-top:1px', 'border-radius:50%',
         `border:1.5px solid ${SKIN.faint}`, 'display:grid', 'place-items:center',
-        'font:700 10px/1 var(--ui)', 'color:#0a0e14', 'transition:all .3s ease']);
+        'font:700 12px/1 var(--ui)', 'color:#0a0e14', 'transition:all .3s ease']);
       const text = document.createElement('div');
       const t = document.createElement('div');
       t.textContent = step.title;
