@@ -63,9 +63,23 @@ export class Budget {
   spent = 0;
   earned = 0;
 
+  /**
+   * The highest each rate may be set to. TAX_MAX unless an elected mandate
+   * says otherwise -- see `politics.ts`.
+   */
+  readonly ceiling = new Float64Array(TAXES).fill(TAX_MAX);
+
+  /** Caps one rate, pulling it down if it is over; Infinity lifts the cap. */
+  cap(which: number, max: number): void {
+    if (which < 0 || which >= TAXES) return;
+    this.ceiling[which] = Math.max(TAX_MIN, Math.min(TAX_MAX, max));
+    if (this.rates[which] > this.ceiling[which]) this.rates[which] = this.ceiling[which];
+    this.version++;
+  }
+
   setRate(which: number, rate: number): void {
     if (which < 0 || which >= TAXES) return;
-    const want = Math.max(TAX_MIN, Math.min(TAX_MAX, rate));
+    const want = Math.max(TAX_MIN, Math.min(this.ceiling[which], rate));
     if (Math.abs(want - this.rates[which]) < 1e-6) return;
     this.rates[which] = want;
     this.version++;

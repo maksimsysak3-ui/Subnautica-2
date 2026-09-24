@@ -98,6 +98,8 @@ interface SaveFile {
    * lets a policy be removed from the game without breaking every save.
    */
   policies?: string[];
+  /** City Hall: the race or the term in progress. Absent in older saves. */
+  politics?: unknown;
   /**
    * Per lot: id, cell x, cell z, width, depth, yaw -- then, for a big one, the
    * superblock it reserves as its grounds.
@@ -191,6 +193,7 @@ export function serialise(world: World, name: string, auto = false): string {
     blight: encodeZones(world.blight),
     money: [world.budget.balance, [...world.budget.rates]],
     career: world.progress.save(),
+    politics: world.politics.saved(),
     policies: world.policies.saved(),
     transit: world.transit.lines.map((l) => ({
       id: l.id, kind: l.kind, stops: l.stops.slice(), fleet: l.fleet,
@@ -269,6 +272,10 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   if (Array.isArray(file.policies)) {
     world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
+  }
+  if (file.politics !== undefined) {
+    world.politics.restore(file.politics);
+    world.politics.reapply(world.policies, world.budget);
   }
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is

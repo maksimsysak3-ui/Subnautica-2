@@ -23,6 +23,10 @@
 import { SKIN, css, panel, label, tip } from './skin';
 import { click as clickSound, ping } from './sound';
 import type { Sky } from '../sim/weather';
+import { glyph as pictogram } from './glyphs';
+import type { CityHall } from './city-hall';
+
+type App = 'feed' | 'weather' | 'hall';
 
 /**
  * The weather, as the phone's second app reads it.
@@ -196,13 +200,14 @@ export class Cititok {
   private readonly feedPane: HTMLElement;
   private readonly skyPane: HTMLElement;
   private readonly tabs: HTMLElement[] = [];
-  private app: 'feed' | 'weather' = 'feed';
+  private app: App = 'feed';
   private shown = false;
   private seed = 3;
   private lastAt = 0;
 
   constructor(parent: HTMLElement, private read: () => CityMood | null,
-    private readWeather: () => WeatherRead | null = () => null) {
+    private readWeather: () => WeatherRead | null = () => null,
+    private hall: CityHall | null = null) {
     // The button lives on the edge of the screen rather than on the bar: the
     // bar is for building, and this is not a tool.
     this.launcher = document.createElement('button');
@@ -215,7 +220,7 @@ export class Cititok {
       + `stroke="${SKIN.accent}" stroke-width="1.6">`
       + '<rect x="1" y="1" width="15" height="24" rx="3"/>'
       + `<line x1="6.5" y1="3.4" x2="10.5" y2="3.4" stroke="${SKIN.accent}"/></svg>`;
-    tip(this.launcher, 'Cititok — what the city is posting, and the weather', 'C');
+    tip(this.launcher, 'Phone — the city feed, the weather and City Hall', 'C');
     this.launcher.addEventListener('click', () => { clickSound(); this.toggle(); });
     parent.appendChild(this.launcher);
 
@@ -278,7 +283,7 @@ export class Cititok {
     const dock = document.createElement('div');
     css(dock, ['display:flex', 'gap:6px', 'padding:7px 10px 9px',
       `border-top:1px solid ${SKIN.edge}`, 'background:rgba(0,0,0,.18)']);
-    const addTab = (name: string, glyph: string, app: 'feed' | 'weather'): void => {
+    const addTab = (name: string, glyph: string, app: App): void => {
       const b = document.createElement('button');
       b.dataset.app = app;
       css(b, ['flex:1', 'display:flex', 'flex-direction:column',
@@ -286,7 +291,7 @@ export class Cititok {
         'border:1px solid transparent', 'border-radius:11px',
         'background:transparent', `color:${SKIN.dim}`, 'font-size:8.5px',
         'letter-spacing:.09em', 'text-transform:uppercase', 'font-family:inherit']);
-      b.innerHTML = `<span style="font-size:15px;line-height:1">${glyph}</span>`;
+      b.innerHTML = `<span style="display:flex">${pictogram(glyph, 19)}</span>`;
       const cap = document.createElement('span');
       cap.textContent = name;
       b.appendChild(cap);
@@ -294,10 +299,13 @@ export class Cititok {
       dock.appendChild(b);
       this.tabs.push(b);
     };
-    addTab('Feed', '\u25a4', 'feed');
-    addTab('Weather', '\u26c5', 'weather');
+    addTab('Feed', 'chat', 'feed');
+    addTab('Weather', 'cloud', 'weather');
+    if (this.hall !== null) addTab('City Hall', 'government', 'hall');
 
-    screen.append(notch, this.bar, this.feedPane, this.skyPane, dock);
+    screen.append(notch, this.bar, this.feedPane, this.skyPane);
+    if (this.hall !== null) screen.appendChild(this.hall.pane);
+    screen.appendChild(dock);
     phone.appendChild(screen);
     this.root.appendChild(phone);
     parent.appendChild(this.root);
@@ -321,10 +329,14 @@ export class Cititok {
   get open(): boolean { return this.shown; }
 
   /** Switches apps, and paints the one being switched to. */
-  showApp(app: 'feed' | 'weather'): void {
+  showApp(app: App): void {
     this.app = app;
     this.feedPane.style.display = app === 'feed' ? 'flex' : 'none';
     this.skyPane.style.display = app === 'weather' ? 'flex' : 'none';
+    if (this.hall !== null) {
+      this.hall.pane.style.display = app === 'hall' ? 'flex' : 'none';
+      if (app === 'hall') this.hall.update(true);
+    }
     for (const b of this.tabs) {
       const on = b.dataset.app === app;
       b.style.color = on ? SKIN.bright : SKIN.dim;
@@ -357,6 +369,7 @@ export class Cititok {
   /** Called from the frame. Refreshes on a slow beat while it is open. */
   update(now: number): void {
     if (!this.shown) return;
+    if (this.app === 'hall') this.hall?.update();
     if (now - this.lastAt < 5200) return;
     this.refresh(false);
   }

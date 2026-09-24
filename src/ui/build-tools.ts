@@ -34,7 +34,7 @@ import { lockBadge } from './skin';
 import { glyph } from './glyphs';
 import { landmarksForLevel } from '../sim/tech';
 import type { LevelUp } from '../sim/progress';
-import { levelName, DENSITY_LEVEL } from '../sim/progress';
+import { levelName, DENSITY_LEVEL, LEVEL_NAMES } from '../sim/progress';
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, plotCells, PLOTS, ownsAt } from '../sim';
@@ -1887,7 +1887,8 @@ export class BuildTools {
       this.starChip.style.display = p.stars > 0 ? 'grid' : 'none';
     }
     if (this.readLevel !== undefined) {
-      const done = Math.min(1, p.intoLevel / Math.max(1, p.levelSpan));
+      const top = p.level >= LEVEL_NAMES.length;
+      const done = top ? 1 : Math.max(0, Math.min(1, p.intoLevel / Math.max(1, p.levelSpan)));
       const arc = this.readLevel.querySelector<SVGCircleElement>('[data-arc]');
       arc?.setAttribute('stroke-dashoffset', `${(DIAL * (1 - done)).toFixed(2)}`);
       const num = this.readLevel.querySelector<HTMLElement>('[data-num]');
@@ -1895,7 +1896,9 @@ export class BuildTools {
       const name = this.readLevel.querySelector<HTMLElement>('[data-name]');
       if (name !== null) name.textContent = levelName(p.level);
       const next = this.readLevel.querySelector<HTMLElement>('[data-next]');
-      if (next !== null) next.textContent = `${Math.round(done * 100)}% to level ${p.level + 1}`;
+      if (next !== null) {
+        next.textContent = top ? 'Top level' : `${Math.round(done * 100)}% to level ${p.level + 1}`;
+      }
     }
   }
 

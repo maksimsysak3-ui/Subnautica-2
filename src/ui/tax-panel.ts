@@ -134,6 +134,15 @@ export class TaxPanel {
       const over = ((rate - TAX_NEUTRAL) / TAX_NEUTRAL) * felt;
       this.values[i].style.color = over > 0.75 ? SKIN.bad
         : over > 0.25 ? SKIN.warn : SKIN.text;
+      // An elected mandate can hold a rate down for a term; say so where the
+      // slider stops moving, or it reads as a broken slider.
+      const capped = b.ceiling[i] < TAX_MAX - 1e-9;
+      this.sliders[i].title = capped
+        ? `Held at ${(b.ceiling[i] * 100).toFixed(0)}% or below by the mayor's mandate` : '';
+      if (capped) {
+        this.values[i].textContent += ' \u2022';
+        this.values[i].style.color = SKIN.warn;
+      }
     }
   }
 }

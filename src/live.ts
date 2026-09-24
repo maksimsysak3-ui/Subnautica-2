@@ -58,6 +58,10 @@ import { PolicyPanel } from './ui/policy-panel';
 import { LinesPanel } from './ui/lines-panel';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
+import { CityHall } from './ui/city-hall';
+import type { Issues, Phase } from './sim/politics';
+import { Gripe } from './sim';
+import { TICKS_PER_DAY } from './sim/agents/calendar';
 
 /** How often the readout's city rows are rewritten, in milliseconds. */
 const READOUT_MS = 500;
@@ -88,6 +92,10 @@ export class LiveCity {
   private readonly lines: LinesPanel;
   /** The notices in the corner, and what the last one was about. */
   private readonly alerts: Alerts;
+  /** The phone's politics app, and what the voters see when they look at the city. */
+  private readonly hall: CityHall;
+  private issues: Issues | null = null;
+  private issuesAt = -1e9;
   /**
    * One frame's worth of moving instances, reused.
    *
@@ -174,7 +182,15 @@ export class LiveCity {
       return goal.progress(this.sim, this.renderer.world);
     };
     this.levelCard = new LevelUpCard(ui);
-    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast());
+    this.hall = new CityHall({
+      politics: () => (this.sim === null ? null : this.renderer.world.politics),
+      issues: () => this.issues,
+      population: () => this.sim?.people.population ?? 0,
+      day: () => this.gameDay(),
+      balance: () => this.renderer.world.budget.balance,
+      rally: () => this.rally(),
+    });
+    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast(), this.hall);
     this.settings = new Settings(ui, {
       apply: (v) => {
         const q = renderer.quality;
@@ -253,6 +269,93 @@ export class LiveCity {
    * it in the voice of somebody it is happening to, which is the register a
    * city builder never uses.
    */
+  /** Game days since founding, with the fraction of today. */
+  private gameDay(): number {
+    return this.sim === null ? 0 : this.sim.clock.tick / TICKS_PER_DAY;
+  }
+
+  /**
+   * The election calendar, stepped every frame so the count on election night
+   * runs smoothly; the city is re-read for it once a second.
+   */
+  private politics(sim: Simulation, dt: number, now: number): void {
+    if (this.issues === null || now - this.issuesAt > 1000) {
+      this.issues = this.readIssues(sim);
+      this.issuesAt = now;
+    }
+    const world = this.renderer.world;
+    const pol = world.politics;
+    const was = pol.phase;
+    pol.update(this.gameDay(), dt, this.issues, world.policies, world.budget);
+    if (pol.phase !== was) this.politicsMoved(was, pol.phase);
+  }
+
+  private politicsMoved(was: Phase, now: Phase): void {
+    const pol = this.renderer.world.politics;
+    if (now === 'campaign') {
+      this.alerts.push({
+        title: pol.elections === 0 ? 'City Hall is open' : 'Election called',
+        body: 'Three candidates are standing for mayor, one of them yours. Open the phone '
+          + '(C) to write your platform before polling day.',
+        tone: 'good', tag: 'election',
+      });
+    } else if (now === 'count') {
+      this.alerts.push({ title: 'Polls have closed', body: 'The count is under way. Watch it on the phone.',
+        tone: 'good', tag: 'election' });
+    } else if (now === 'term' && was === 'count' && pol.mayor !== null) {
+      const m = pol.mayor;
+      if (m.player) {
+        // Winning is worth something beyond the mandate: the city's career
+        // moves on, and a star is the currency that buys what comes next.
+        this.renderer.world.progress.stars += 1;
+        this.onProgress?.();
+      }
+      this.alerts.push({
+        title: m.player ? `${m.name} is mayor` : `${m.name} (${m.party}) wins`,
+        body: m.player ? 'Your platform is now city policy for the term.'
+          : 'Their pledges are now pinned city policy until the next election.',
+        tone: m.player ? 'good' : 'bad', tag: 'election',
+        ...(m.player ? { figure: '+1 star' } : {}),
+      });
+    }
+  }
+
+  /** What the voters make of the city. */
+  private readIssues(sim: Simulation): Issues {
+    const t = sim.complaints.tally;
+    let total = 0;
+    for (let g = 0; g < t.length; g++) total += t[g];
+    total = Math.max(1, total);
+    const share = (g: number): number => t[g] / total;
+    const r = sim.economy.report;
+    const taxed = r.residential + r.commercial + r.industrial + r.office;
+    return {
+      population: sim.people.population,
+      happiness: sim.people.happiness,
+      net: r.net,
+      resTax: sim.budget.rates[0],
+      rubbish: share(Gripe.RUBBISH),
+      crime: share(Gripe.CRIME),
+      health: share(Gripe.SICK),
+      schooling: share(Gripe.SCHOOL) + share(Gripe.UNEDUCATED),
+      transport: share(Gripe.NO_TRANSPORT),
+      utilities: share(Gripe.POWER) + share(Gripe.WATER) + share(Gripe.SEWAGE),
+      trade: share(Gripe.NO_CUSTOMERS),
+      industry: taxed > 0 ? r.industrial / taxed : 0,
+      flowing: this.renderer.summary.flowing,
+    };
+  }
+
+  /** The player's candidate holds a rally, paid for out of the treasury. */
+  private rally(): boolean {
+    const world = this.renderer.world;
+    const pol = world.politics;
+    const day = this.gameDay();
+    if (!pol.canRally(day)) return false;
+    if (!world.budget.spend(pol.rallyCost(this.sim?.people.population ?? 0))) return false;
+    return pol.rally(day);
+  }
+
   private mood(): CityMood | null {
     const sim = this.sim;
     if (sim === null) return null;
@@ -402,6 +505,7 @@ export class LiveCity {
     // citizens happen to be first in the table.
     sim.look(this.camera.focus[0], this.camera.focus[2]);
     sim.advance(dt, now);
+    this.politics(sim, dt, now);
 
     // Land the city has just grown into. Taken here rather than called back from
     // inside the tick on purpose: rebuilding re-enters this object through

@@ -163,8 +163,15 @@ export class PolicyPanel {
       : this.bill < 0 ? SKIN.good : SKIN.text;
     for (let i = 0; i < this.rows.length; i++) {
       const on = p.has(i);
-      this.rows[i].style.background = on ? 'rgba(98,212,255,.08)' : 'rgba(255,255,255,.02)';
-      this.rows[i].style.borderColor = on ? 'rgba(98,212,255,.28)' : 'transparent';
+      // A mandate: an elected mayor's pledge, held in place for the term.
+      const pinned = p.isPinned(i);
+      this.boxes[i].disabled = pinned;
+      this.rows[i].title = pinned ? 'Pledged by the mayor \u2014 in force until the next election' : '';
+      this.rows[i].style.cursor = pinned ? 'not-allowed' : 'pointer';
+      this.rows[i].style.background = pinned ? 'rgba(244,181,74,.10)'
+        : on ? 'rgba(98,212,255,.08)' : 'rgba(255,255,255,.02)';
+      this.rows[i].style.borderColor = pinned ? 'rgba(244,181,74,.4)'
+        : on ? 'rgba(98,212,255,.28)' : 'transparent';
     }
   }
 }

@@ -201,6 +201,11 @@ export const POLICY_COUNT = POLICIES.length;
  */
 export class Policies {
   readonly on = new Uint8Array(POLICY_COUNT);
+  /**
+   * Switches an elected mayor's mandate holds in place for the term. Pinned
+   * switches refuse the player; see `politics.ts`.
+   */
+  readonly pinned = new Uint8Array(POLICY_COUNT);
   /** Bumped whenever a switch moves, so readouts know to repaint. */
   version = 0;
   readonly effects: Effects = clear();
@@ -209,8 +214,24 @@ export class Policies {
     return i >= 0 && i < POLICY_COUNT && this.on[i] === 1;
   }
 
+  isPinned(i: number): boolean {
+    return i >= 0 && i < POLICY_COUNT && this.pinned[i] === 1;
+  }
+
+  pin(i: number, on: boolean): void {
+    if (i < 0 || i >= POLICY_COUNT) return;
+    this.pinned[i] = on ? 1 : 0;
+    this.version++;
+  }
+
+  unpinAll(): void {
+    this.pinned.fill(0);
+    this.version++;
+  }
+
   set(i: number, on: boolean): void {
     if (i < 0 || i >= POLICY_COUNT) return;
+    if (this.pinned[i] === 1 && !on) return;
     const want = on ? 1 : 0;
     if (this.on[i] === want) return;
     this.on[i] = want;

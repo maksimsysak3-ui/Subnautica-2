@@ -21,6 +21,8 @@ function named(el: HTMLElement): string {
   return el.getAttribute('aria-label') ?? el.title;
 }
 
+import { CALM } from './sim/politics';
+import { installTheme } from './ui/theme';
 import { Gpu } from './gfx/device';
 import { startingWorld } from './sim/world';
 import { TECH, landmarksForLevel } from './sim/tech';
@@ -1182,6 +1184,9 @@ export async function probeHud(width: number, height: number, hour = 0.36, dist 
   panel = ''):
 Promise<{ pixels: number[]; movers: string }> {
   configureSim(LITE);
+  // The stylesheet the menu installs in the game, so the HUD is photographed
+  // as a player sees it.
+  installTheme();
   const canvas = document.createElement('canvas');
   canvas.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px`;
   document.body.appendChild(canvas);
@@ -1334,6 +1339,23 @@ Promise<{ pixels: number[]; movers: string }> {
   } else if (panel === 'cititok') {
     live.cityName = 'Salford';
     live.cititok.show();
+  } else if (panel.startsWith('hall')) {
+    // City Hall at each stage of the political year, staged directly on the
+    // election model: the LITE city is far too small to hold one of its own.
+    live.cityName = 'Salford';
+    const w = renderer.world;
+    const pol = w.politics;
+    const c = { ...CALM, population: 6200, rubbish: 0.12, resTax: 0.12, crime: 0.05 };
+    pol.update(1, 0.016, c, w.policies, w.budget);
+    pol.setPledges(1, ['recycling', 'taxCut', 'watch']);
+    let d = 2;
+    for (; d < 9; d++) pol.update(d + 0.5, 0.016, c, w.policies, w.budget);
+    if (panel !== 'hall-campaign') {
+      for (; pol.phase === 'campaign' && d < 40; d++) pol.update(d + 0.5, 0.016, c, w.policies, w.budget);
+      pol.update(d, panel === 'hall-count' ? 9 : 99, c, w.policies, w.budget);
+    }
+    live.cititok.show();
+    live.cititok.showApp('hall');
   } else if (panel === 'sites') {
     // A district under construction, for photographing the stage between
     // zoning and buildings. Handing the released mask back means every zoned

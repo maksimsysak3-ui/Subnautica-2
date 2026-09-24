@@ -19,6 +19,7 @@ import { Mains } from './mains';
 import { Transit } from './transit';
 import { Budget } from './budget';
 import { Policies } from './policies';
+import { Politics } from './politics';
 import { Progress } from './progress';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
@@ -181,6 +182,8 @@ export interface World {
   budget: Budget;
   /** The ordinances in force: what the council has decided, as opposed to built. */
   policies: Policies;
+  /** Elections, the sitting mayor and the mandate they won. */
+  politics: Politics;
   /** The city's career: experience, level, stars and what they have unlocked. */
   progress: Progress;
   /**
@@ -213,6 +216,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     transit: new Transit(),
     budget: new Budget(),
     policies: new Policies(),
+    politics: new Politics(),
     progress: new Progress(),
     painted: 0,
   };
