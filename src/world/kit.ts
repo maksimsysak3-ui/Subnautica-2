@@ -153,6 +153,10 @@ export interface HouseOpts {
   gable?: boolean;
   /** No back wall: the building is dug into something behind it. */
   backed?: boolean;
+  /** Sheds only: an open front of this width (and `frontOpenH` height) in
+   *  place of the roller door — a hangar mouth. */
+  frontOpen?: number;
+  frontOpenH?: number;
 }
 
 /**
@@ -196,7 +200,10 @@ export function building(k: KitCtx, o: HouseOpts): number {
   // --- front ---------------------------------------------------------------
   const front: WallOpening[] = [];
   let doorU: number;
-  if (o.style === 'shed') {
+  if (o.style === 'shed' && o.frontOpen) {
+    doorU = w * 0.5;
+    front.push(holeOp(doorU, o.frontOpen, o.frontOpenH ?? SH - 1.2));
+  } else if (o.style === 'shed') {
     // A roller door and a personnel door beside it.
     doorU = w * 0.45;
     front.push(doorOp(doorU, Math.min(5.2, w * 0.5), `${o.name} roller door`, rGround,
@@ -220,7 +227,7 @@ export function building(k: KitCtx, o: HouseOpts): number {
   // upper-floor window directly above the front door therefore filled the
   // doorway below it with 4 m of masonry — 44 front doors in the town were
   // sealed that way before this check.
-  const doorHalf = (o.style === 'shed' ? Math.min(5.2, w * 0.5) : o.style === 'shop' || o.style === 'bar' ? Math.min(3.0, w * 0.45) : 1.0) / 2;
+  const doorHalf = (o.style === 'shed' ? (o.frontOpen ?? Math.min(5.2, w * 0.5)) : o.style === 'shop' || o.style === 'bar' ? Math.min(3.0, w * 0.45) : 1.0) / 2;
   const clearOfDoor = (u: number, half: number): boolean => Math.abs(u - doorU) > doorHalf + half + 0.25;
   for (let s = 1; s < o.storeys; s++) {
     const n = Math.max(1, Math.floor(w / 3.2));

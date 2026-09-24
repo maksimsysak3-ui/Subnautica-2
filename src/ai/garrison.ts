@@ -183,9 +183,9 @@ const QUAY_POSTS: Post[] = [
  */
 const BARRIO_POSTS: Post[] = [
   // --- the bottom street: the insertion edge ------------------------------
-  { at: [-20, -45.7], y: 2.0, watch: [-20, -64], skill: 0.32, archetype: 'sentry' },
-  { at: [24, -45.7], y: 2.0, watch: [24, -64], skill: 0.34, archetype: 'sentry' },
-  { at: [3, -44], y: 2.0, watch: [3, -62], skill: 0.40, archetype: 'guard',
+  { at: [-20, -45.7], y: 2.0, watch: [-50, -45.7], skill: 0.32, archetype: 'sentry' },
+  { at: [24, -45.7], y: 2.0, watch: [50, -45.7], skill: 0.34, archetype: 'sentry' },
+  { at: [3, -44], y: 2.0, watch: [20, -46], skill: 0.40, archetype: 'guard',
     route: [[3, -44], [-40, -45.7], [3, -44], [44, -45.7]] },
   // --- the cancha crew -------------------------------------------------------
   { at: [22, -24], y: 5.25, watch: [30, -24], skill: 0.46, archetype: 'guard' },
@@ -201,6 +201,13 @@ const BARRIO_POSTS: Post[] = [
   { at: [30, 21], y: 14.8, watch: [-10, 21], skill: 0.60, archetype: 'operator',
     route: [[30, 21], [-40, 21], [30, 21]] },
   { at: [-3.2, 18], y: 14.8, watch: [-3.2, -10], skill: 0.62, archetype: 'operator' },
+  // --- the west half, the Cut and the middle terraces ---------------------------
+  { at: [-57.5, 12], y: 11.6, watch: [-57.5, -30], skill: 0.52, archetype: 'guard' },
+  { at: [35, 4.3], y: 11.6, watch: [-10, 4.3], skill: 0.48, archetype: 'guard',
+    route: [[35, 4.3], [-20, 4.3], [35, 4.3]] },
+  { at: [-40, -29], y: 5.2, watch: [0, -29], skill: 0.42, archetype: 'guard',
+    route: [[-40, -29], [-10, -29], [-40, -29]] },
+  { at: [-44, 4.3], y: 11.6, watch: [-44, -20], skill: 0.50, archetype: 'guard' },
   // --- the church: the principal's detail, and a lookout in the tower ----------
   { at: [11, 43], y: 18.1, watch: [11, 36], skill: 0.80, archetype: 'bodyguard' },
   { at: [15, 45], y: 18.1, watch: [15, 36], skill: 0.82, archetype: 'bodyguard' },
@@ -215,22 +222,28 @@ const BARRIO_POSTS: Post[] = [
  */
 const AIRSTRIP_POSTS: Post[] = [
   // Runway patrol, in a pickup's worth of boredom.
-  { at: [80, 14], watch: [150, 0], skill: 0.36, archetype: 'sentry',
+  { at: [80, 14], watch: [80, -40], skill: 0.36, archetype: 'sentry',
     route: [[80, 14], [140, 14], [80, 14], [20, 14]] },
   { at: [-80, -14], watch: [-150, 0], skill: 0.36, archetype: 'sentry',
     route: [[-80, -14], [-140, -14], [-80, -14], [-20, -14]] },
   // The apron and the aircraft: the loading crew and the pilot's minders.
   { at: [6, 26], watch: [0, 0], skill: 0.52, archetype: 'guard' },
   { at: [-8, 40], watch: [0, 20], skill: 0.54, archetype: 'guard',
-    route: [[-8, 40], [-30, 40], [-8, 40], [16, 24]] },
+    route: [[-8, 40], [-26, 37], [-8, 40], [16, 24]] },
   { at: [-4, 32.5], watch: [-4, 20], skill: 0.80, archetype: 'bodyguard' },
-  { at: [4, 32.5], watch: [4, 20], skill: 0.78, archetype: 'bodyguard' },
+  { at: [-12, 20], watch: [-40, 0], skill: 0.78, archetype: 'bodyguard' },
   // Height: the hangar mezzanine, the tower cab, three watchtowers.
   { at: [0, 69], y: 6.2, watch: [0, 30], skill: 0.66, archetype: 'operator' },
   { at: [50, 30], y: 11.8, watch: [0, 0], skill: 0.68, archetype: 'operator' },
   { at: [-96, -30], y: 8.2, watch: [-150, -60], skill: 0.48, archetype: 'guard' },
   { at: [96, 30], y: 8.2, watch: [150, 60], skill: 0.48, archetype: 'guard' },
-  { at: [-30, 84], y: 8.2, watch: [-100, 80], skill: 0.46, archetype: 'guard' },
+  { at: [-40, 72], y: 8.2, watch: [-110, 80], skill: 0.46, archetype: 'guard' },
+  // The river landing, the fuel dump and the empty east half.
+  { at: [-106, 79], watch: [-150, 80], skill: 0.44, archetype: 'sentry' },
+  { at: [-68, 50], watch: [-68, 20], skill: 0.48, archetype: 'guard',
+    route: [[-68, 50], [-86, 58], [-68, 50], [-50, 58]] },
+  { at: [100, -20], watch: [140, -40], skill: 0.40, archetype: 'sentry',
+    route: [[100, -20], [140, -20], [100, -20], [100, -60]] },
   // The camp.
   { at: [-25, -43.5], watch: [-25, -20], skill: 0.55, archetype: 'guard' },
   { at: [18, -35.8], watch: [18, -20], skill: 0.44, archetype: 'guard' },

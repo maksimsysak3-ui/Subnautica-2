@@ -146,12 +146,15 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
   for (let i = 1; i < TERRACES; i++) {
     const z = tz0(i);
     const holes: WallOpening[] = [
-      holeOp(STAIR_X - X0, 5.2, RISE + 1.2),
-      holeOp(CUT_X - X0, 3.4, RISE + 1.2),
-      ...alleyStairs[i - 1].map((x) => holeOp(x - X0, 2.0, RISE + 1.2)),
+      holeOp(STAIR_X - X0, 5.2, RISE),
+      holeOp(CUT_X - X0, 3.4, RISE),
+      ...alleyStairs[i - 1].map((x) => holeOp(x - X0, 2.0, RISE)),
     ];
+    // Flush with the street above: the parapet is built separately, after the
+    // houses, so it can leave the one-storey roofs open to the street — the
+    // roofs ARE the next street's pavement, and that is the map's idea.
     b.wall({
-      x0: X0, z0: z - 0.22, x1: X1, z1: z - 0.22, y: ty(i - 1), height: RISE + 1.0,
+      x0: X0, z0: z - 0.22, x1: X1, z1: z - 0.22, y: ty(i - 1), height: RISE,
       thickness: 0.44, mat: M.stoneTrim, surface: 'concrete', jitter: 0.06,
       openings: holes,
       panel: {
@@ -214,15 +217,19 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
     for (const x of alleyStairs[i] ?? []) r.push([x - 1.4, x + 1.4]);
     if (i === 1) r.push([12, 40]);          // the cancha
     if (i === 3) r.push([-38, -22]);        // the cistern
-    if (i === 5) r.push([5, 21]);           // the church
+    if (i === 5) r.push([5, 21], [36, 44]); // the church; the rooftop drop
     return r;
   };
 
   let houseNo = 0;
+  /** One-storey roof spans per terrace — the parapet above stays open there. */
+  const lowRoofs: Array<Array<[number, number]>> = Array.from({ length: TERRACES }, () => []);
   const house = (x0: number, x1: number, i: number, storeys: number): void => {
     houseNo++;
     const y = ty(i);
-    const zb = tz1(i) - 0.12;                 // back, 12 cm clear of the retaining face
+    // Back, clear of the retaining wall (which occupies tz1 - 0.44 .. tz1).
+    const zb = tz1(i) - 0.5;
+    if (storeys === 1) lowRoofs[i].push([x0, x1]);
     const zf = zb - HOUSE_D;                  // front, onto the street
     const H = RISE * storeys;
     const mat = HOUSE_MATS[Math.floor(rng.next() * HOUSE_MATS.length)];
@@ -244,9 +251,15 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
       // Upper windows sit over the ground-floor window and at the far end —
       // never over the door: a window's sill is solid from the wall base, so
       // one above a doorway seals it.
-      front.push(winOp(winAt, 1.2, RISE + 1.0, RISE + 2.2));
+      // Offset from the ground window too: two windows at the same `at` are
+      // overlapping openings, and the builder bricks both of them up.
+      const clear = (u: number, half: number): boolean =>
+        Math.abs(u - doorAt) > 0.6 + half + 0.2 && Math.abs(u - winAt) > 0.6 + half + 0.2
+        && u - half > 0.4 && u + half < w - 0.4;
+      const up1 = winAt + (winAt < w / 2 ? 1.6 : -1.6);
+      if (clear(up1, 0.6)) front.push(winOp(up1, 1.2, RISE + 1.0, RISE + 2.2));
       const far = w * 0.5;
-      if (Math.abs(far - doorAt) > 1.6 && Math.abs(far - winAt) > 1.6) front.push(winOp(far, 1.0, RISE + 1.0, RISE + 2.2));
+      if (clear(far, 0.5) && Math.abs(far - up1) > 1.5) front.push(winOp(far, 1.0, RISE + 1.0, RISE + 2.2));
     }
     b.wall({ x0, z0: zf, x1, z1: zf, y, height: H, thickness: W, mat, openings: front, panel, room: rGround });
     // Sides: one small window each on some houses, which is what makes an
@@ -320,17 +333,20 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
     // storage on the wall away from the door — and nothing within reach of
     // the doorway, which is the lesson the first two maps taught.
     const iy = y + 0.1;
-    const farSide = doorAt < w / 2 ? 1 : -1;
+    // Two-storey houses have their stair up the x0 wall, so everything big
+    // goes to the x1 side regardless of where the door is.
+    const farSide = storeys > 1 ? 1 : doorAt < w / 2 ? 1 : -1;
     const cx = (x0 + x1) / 2;
     p.bed(cx + farSide * (w / 2 - 1.3), iy, zb - 1.3, 0, 1.4, 1.9);
-    p.table(cx - farSide * 0.8, iy, zf + HOUSE_D * 0.55, rng.range(-0.2, 0.2), 1.3, 0.8, 0.76);
-    p.chair(cx - farSide * 0.8 - 0.9, iy, zf + HOUSE_D * 0.55, Math.PI / 2);
-    p.chair(cx - farSide * 0.8 + 0.9, iy, zf + HOUSE_D * 0.55, -Math.PI / 2);
+    const tx = storeys > 1 ? cx + 0.6 : cx - farSide * 0.8;
+    p.table(tx, iy, zf + HOUSE_D * 0.55, rng.range(-0.2, 0.2), 1.3, 0.8, 0.76);
+    p.chair(tx - 0.9, iy, zf + HOUSE_D * 0.55, Math.PI / 2);
+    p.chair(tx + 0.9, iy, zf + HOUSE_D * 0.55, -Math.PI / 2);
     p.wardrobe(x0 + (farSide > 0 ? w - 0.4 : 0.4), iy, zf + 2.6, farSide > 0 ? -Math.PI / 2 : Math.PI / 2, 1.2, 1.9);
     if (rng.next() < 0.6) p.rug(cx, iy + 0.01, zf + HOUSE_D * 0.55, 0, 2.4, 1.6,
       rng.next() < 0.5 ? M.fabricRed : M.fabricTeal);
-    if (rng.next() < 0.5) p.shelf(cx - farSide * (w / 2 - 0.45), iy, zb - 0.4, Math.PI, 1.1, 1.8);
-    if (rng.next() < 0.4) p.fridge(x0 + 0.5, iy, zb - 3.2, Math.PI / 2);
+    if (storeys === 1 && rng.next() < 0.5) p.shelf(cx - farSide * (w / 2 - 0.45), iy, zb - 0.4, Math.PI, 1.1, 1.8);
+    if (storeys === 1 && rng.next() < 0.4) p.fridge(x0 + 0.5, iy, zb - 3.2, Math.PI / 2);
     light(cx, y + RISE - 0.5, (zf + zb) / 2, 0xffd49a, 7.5, 9);
     if (storeys > 1) {
       p.bed(cx, y + RISE, zb - 1.4, 0, 1.6, 2.0);
@@ -362,6 +378,28 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
       // actually happens at.
       x = x1 + rng.range(1.6, 2.6);
     }
+  }
+
+  // Street-edge parapets, open wherever a one-storey roof below meets the
+  // street (and at every stair). Openings must be disjoint, so the stairs go
+  // in first and a roof span that overlaps one is simply left to it.
+  for (let i = 1; i < TERRACES; i++) {
+    const ops: WallOpening[] = [
+      holeOp(STAIR_X - X0, 5.2, 1.0),
+      holeOp(CUT_X - X0, 3.4, 1.0),
+      ...alleyStairs[i - 1].map((x) => holeOp(x - X0, 2.0, 1.0)),
+    ];
+    for (const [a, c] of lowRoofs[i - 1]) {
+      const op = holeOp((a + c) / 2 - X0, c - a - 0.6, 1.0);
+      if (ops.every((o) => Math.abs(o.at - op.at) > (o.width + op.width) / 2 + 0.15)) ops.push(op);
+    }
+    b.wall({
+      x0: X0 + 0.4, z0: tz0(i) + 0.15, x1: X1 - 0.4, z1: tz0(i) + 0.15, y: ty(i), height: 1.0,
+      thickness: 0.3, mat: M.stucco, jitter: 0.05,
+      openings: ops.map((o) => ({ ...o, at: o.at - 0.4 })),
+      coping: { mat: M.stoneTrim, height: 0.06, overhang: 0.04 },
+      panel: { every: 4, jitter: 0.1, variants: [M.stucco, M.concreteRaw, M.plasterOchre] },
+    });
   }
 
   // ==========================================================================
@@ -427,7 +465,7 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
   // THE CHURCH — terrace 5, the top of the Stair and the natural last stand
   // ==========================================================================
   {
-    const y = ty(5), x0 = 6, x1 = 20, zf = tz0(5) + 3.2, zb = tz1(5) - 0.8;
+    const y = ty(5), x0 = 6, x1 = 20, zf = tz0(5) + 3.2, zb = tz1(5) - 2.6;
     const H = 6.4;
     const nave = room('Church, nave', 'church', true, x0, zf, x1, zb, y, y + H);
     b.slab(x0, zf, x1, zb, y + 0.1, 0.1, M.tileTerra, { room: nave });
@@ -442,7 +480,21 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
         room: nave, openings: [winOp(4.0, 0.8, 2.6, 5.0), winOp(9.0, 0.8, 2.6, 5.0)] });
     }
     b.wall({ x0, z0: zb, x1, z1: zb, y, height: H, thickness: 0.4, mat: M.chalkWhite, panel: cp, room: nave,
-      openings: [doorOp(2.0, 0.9, 'Sacristy door', nave, { locked: true })] });
+      openings: [doorOp(2.0, 0.9, 'Sacristy door', nave)] });
+    // The sacristy, behind the nave, with its own yard door on the west —
+    // the second way into the church, off the lane behind the bell tower.
+    {
+      const sx0 = x0, sx1 = x0 + 5.2, sz0 = zb, sz1 = tz1(5) - 0.6, sh = 3.2;
+      const sac = room('Sacristy', 'church', true, sx0, sz0, sx1, sz1, y, y + sh);
+      b.slab(sx0, sz0, sx1, sz1, y + 0.1, 0.1, M.tileTerra, { room: sac });
+      b.wall({ x0: sx0, z0: sz0, x1: sx0, z1: sz1, y, height: sh, thickness: 0.3, mat: M.chalkWhite, room: sac,
+        openings: [doorOp(1.0, 0.9, 'Sacristy yard door', sac)] });
+      b.wall({ x0: sx1, z0: sz0, x1: sx1, z1: sz1, y, height: sh, thickness: 0.3, mat: M.chalkWhite, room: sac });
+      b.wall({ x0: sx0, z0: sz1, x1: sx1, z1: sz1, y, height: sh, thickness: 0.3, mat: M.chalkWhite, room: sac });
+      b.slab(sx0 - 0.2, sz0, sx1 + 0.2, sz1 + 0.2, y + sh, 0.18, M.terracottaOld, { surface: 'ceramic' });
+      p.table(sx0 + 3.6, y + 0.1, (sz0 + sz1) / 2, 0, 1.2, 0.6, 0.8, M.woodDark);
+      light(sx0 + 2.6, y + sh - 0.4, (sz0 + sz1) / 2, 0xffd49a, 8, 6);
+    }
     b.gableRoof(x0, zf, x1, zb, y + H, 2.4, M.terracottaOld, 0.4);
     // Pews, an altar, candles.
     for (let r = 0; r < 5; r++) {
@@ -468,13 +520,14 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
     for (const [ax, az, bx, bz] of [
       [tx0, tz0t, tx1, tz0t], [tx0, tz1t, tx1, tz1t], [tx0, tz0t, tx0, tz1t], [tx1, tz0t, tx1, tz1t],
     ] as const) {
-      const isFront = az === tz0t && bz === tz0t;
+      // Door on the west wall; bell arches on the other three.
+      const isDoor = ax === tx0 && bx === tx0;
       b.wall({
         x0: ax, z0: az, x1: bx, z1: bz, y, height: 17, thickness: 0.4, mat: M.chalkWhite, room: tower,
         openings: [
           // No bell arch over the door: an arch's sill is solid from the
           // wall base, so one above the doorway bricks it up.
-          ...(isFront ? [doorOp(2.0, 1.1, 'Tower door', tower)]
+          ...(isDoor ? [doorOp(2.0, 1.1, 'Tower door', tower)]
             : [{ at: 2.0, width: 1.6, y0: 13.4, y1: 16.2, kind: 'arch' as const }]),
         ],
         panel: cp,
@@ -485,7 +538,7 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
       const fy = y + 0.1 + f * 3.3;
       const dirZ = f % 2 === 0 ? 1 : -1;
       b.stairs({
-        x: tx0 + (f % 2 === 0 ? 1.0 : 3.0), z: dirZ > 0 ? tz0t + 0.4 : tz1t - 0.4,
+        x: tx0 + (f % 2 === 0 ? 3.0 : 1.0), z: dirZ > 0 ? tz0t + 0.4 : tz1t - 0.4,
         dirX: 0, dirZ, width: 1.2, fromY: fy, toY: fy + 3.3, run: 3.2, mat: M.stoneTrim, room: tower,
       });
       if (f < 3) {
@@ -494,7 +547,7 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
         });
       }
     }
-    b.slab(tx0, tz0t, tx1, tz1t, y + 13.3, 0.2, M.stoneTrim, { room: tower, holes: [[tx0 + 2.3, tz0t, tx1, tz0t + 2.0]] });
+    b.slab(tx0, tz0t, tx1, tz1t, y + 13.3, 0.2, M.stoneTrim, { room: tower, holes: [[tx0, tz0t, tx0 + 1.7, tz0t + 2.0]] });
     b.cyl((tx0 + tx1) / 2, y + 15.4, (tz0t + tz1t) / 2, 0.55, 0.5, M.brass, { surface: 'metal' });
     b.gableRoof(tx0, tz0t, tx1, tz1t, y + 17, 2.2, M.terracottaOld, 0.3);
     b.box((tx0 + tx1) / 2, y + 20.2, (tz0t + tz1t) / 2, 0.06, 0.9, 0.06, M.sootMetal, { surface: 'metal' });
@@ -584,7 +637,7 @@ export function buildBarrio(b: SiteBuilder, rng: Rng): SiteBuildResult {
       description: 'Through the alleys on the east side and up the narrow stairs, row by row.',
       stealth: 0.6, speed: 0.4, risk: 0.5 },
     { id: 'rooftops', name: 'Rooftop drop', kind: 'roof',
-      x: 40, y: ty(5), z: Z1 - 2, toX: 40, toZ: Z1 - 14,
+      x: 40, y: ty(5), z: Z1 - 5, toX: 40, toZ: Z1 - 14,
       description: 'In from above, at the top of the hill. You start with the height and your back to a drop.',
       stealth: 0.55, speed: 0.6, risk: 0.55 },
   ];

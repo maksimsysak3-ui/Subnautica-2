@@ -156,7 +156,8 @@ export type SiteArchetype =
   | 'port'
   | 'outpost'
   | 'research'
-  | 'hydro';
+  | 'hydro'
+  | 'airfield';
 
 export interface ApproachRoute {
   id: string;

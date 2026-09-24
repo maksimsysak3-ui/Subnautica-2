@@ -56,8 +56,14 @@ export function buildAirstrip(
   // ==========================================================================
   // GROUND — a valley floor, not a lawn
   // ==========================================================================
-  b.span(-176, PAD - 0.4, -96, 176, PAD, 92, M.dirtMat, { surface: 'dirt', flags: BF.NO_COVER, tint: b.jitterTint(0.04) });
-  meadow(k, -170, -92, 170, 76, PAD, 5);
+  b.span(-176, PAD - 0.4, -96, 176, PAD, 76, M.dirtMat, { surface: 'dirt', flags: BF.NO_COVER, tint: b.jitterTint(0.04) });
+  // Grass everywhere except the runway and its shoulders, the apron and the
+  // hangar floor.
+  for (const [x0, z0, x1, z1] of [
+    [-170, -92, 170, -16], [-170, -16, -155, 16], [155, -16, 170, 16],
+    [-170, 16, -46, 76], [46, 16, 170, 76],
+    [-46, 46, -24, 76], [24, 46, 46, 76], [-24, 74, 24, 76],
+  ] as const) meadow(k, x0, z0, x1, z1, PAD, 5);
   // Dry grass fields either side of the strip — soft, waist-high, and the
   // only concealment on the open ground.
   for (let i = 0; i < 140; i++) {
@@ -107,8 +113,11 @@ export function buildAirstrip(
 
   // The hangar: one enormous shed, doors open onto the apron.
   const H = { x0: -22, x1: 22, z0: 48, z1: 72 };
-  building(k, { frame: new Frame(H.x1, H.z0, 'north'), w: H.x1 - H.x0, d: H.z1 - H.z0, y: PAD + 0.06,
-    storeys: 1, style: 'shed', name: 'Hangar', storeyH: 9.5, mat: M.corrugated });
+  // Front on the apron (z0), depth running away from it. The mouth is a
+  // 30 m opening, not a roller door: the aircraft's wings span 18 m.
+  building(k, { frame: new Frame(H.x0, H.z0, 'south'), w: H.x1 - H.x0, d: H.z1 - H.z0, y: PAD + 0.06,
+    storeys: 1, style: 'shed', name: 'Hangar', storeyH: 9.5, mat: M.corrugated,
+    frontOpen: 30, frontOpenH: 7.5 });
   // A mezzanine along the back with an office on it — the hangar's high ground.
   const my = PAD + 4.2;
   b.span(H.x0 + 0.3, my - 0.2, H.z1 - 6, H.x1 - 0.3, my, H.z1 - 0.3, M.steelDark, { surface: 'metal' });
@@ -167,21 +176,27 @@ export function buildAirstrip(
   }
 
   // --- the control tower -----------------------------------------------------
-  // Four storeys and a glass cab. It sees the whole strip, both tree lines and
+  // Three storeys and a glass cab. It sees the whole strip, both tree lines and
   // the river — the best position on the map and the most exposed one.
   const TX = 50, TZ = 30;
   building(k, { frame: new Frame(TX - 3, TZ - 3, 'south'), w: 6, d: 6, y: PAD, storeys: 3,
     style: 'house', name: 'Control tower', mat: M.chalkWhite });
   const cabY = PAD + 9.6;
-  for (const [ax, az, bx, bz] of [[TX - 3.4, TZ - 3.4, TX + 3.4, TZ - 3.4], [TX - 3.4, TZ + 3.4, TX + 3.4, TZ + 3.4], [TX - 3.4, TZ - 3.4, TX - 3.4, TZ + 3.4], [TX + 3.4, TZ - 3.4, TX + 3.4, TZ + 3.4]] as const) {
-    b.wall({ x0: ax, z0: az, x1: bx, z1: bz, y: cabY + 0.2, height: 1.0, thickness: 0.2, mat: M.sootMetal });
+  // The ring stands inside the roof edge, clear of the kit's back ladder
+  // (which lands at x = TX + 2.2 on the +z side), with a doorway there.
+  const CR = 2.8;
+  for (const [ax, az, bx, bz] of [[TX - CR, TZ - CR, TX + CR, TZ - CR], [TX - CR, TZ + CR, TX + CR, TZ + CR], [TX - CR, TZ - CR, TX - CR, TZ + CR], [TX + CR, TZ - CR, TX + CR, TZ + CR]] as const) {
+    const back = az === TZ + CR && bz === TZ + CR;
+    const gap = back ? [{ at: 5.0, width: 1.0, y0: 0, y1: 2.4, kind: 'hole' as const }] : [];
+    b.wall({ x0: ax, z0: az, x1: bx, z1: bz, y: cabY + 0.2, height: 1.0, thickness: 0.2, mat: M.sootMetal, openings: gap });
     b.wall({ x0: ax, z0: az, x1: bx, z1: bz, y: cabY + 1.2, height: 1.4, thickness: 0.05, mat: M.glass,
-      surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.THIN });
+      surface: 'glass', flags: BF.SOFT | BF.TRANSPARENT | BF.NO_SHADOW | BF.THIN,
+      openings: back ? [{ at: 5.0, width: 1.0, y0: 0, y1: 1.4, kind: 'hole' as const }] : [] });
   }
   b.span(TX - 3.8, cabY + 2.6, TZ - 3.8, TX + 3.8, cabY + 2.9, TZ + 3.8, M.sootMetal, { surface: 'metal', flags: BF.NO_COVER });
   p.roofAerial(TX + 2, cabY + 2.9, TZ + 2, 4.5);
   p.table(TX, cabY + 0.2, TZ + 1.8, 0, 3.0, 0.8, 0.9, M.sootMetal);
-  room('Tower cab', 'overwatch', true, TX - 3.4, TZ - 3.4, TX + 3.4, TZ + 3.4, cabY, cabY + 2.6);
+  room('Tower cab', 'overwatch', true, TX - CR, TZ - CR, TX + CR, TZ + CR, cabY, cabY + 2.6);
   light(TX, cabY + 2.2, TZ, 0x9fc8ff, 18, 10, true);
 
   // --- fuel dump ---------------------------------------------------------------
@@ -230,8 +245,8 @@ export function buildAirstrip(
   // not the camp, which is the whole reason the camp is here.
   for (let i = 0; i < 46; i++) {
     const x = rng.range(-70, 70), z = rng.range(-86, -28);
-    if (x > -18 && x < 4 && z > -60 && z < -44) continue;       // cook shed
-    if (x > 10 && x < 38 && z > -46 && z < -36) continue;       // bunkhouses
+    if (x > -36 && x < -14 && z > -60 && z < -44) continue;     // cook shed
+    if (x > 0 && x < 28 && z > -47 && z < -36) continue;        // bunkhouses
     p.shadeTree(x, PAD, z, rng.range(8, 12));
   }
 
@@ -255,7 +270,7 @@ export function buildAirstrip(
   };
   watchtower(-96, -30);
   watchtower(96, 30);
-  watchtower(-30, 84);
+  watchtower(-40, 72);
 
   // ==========================================================================
   // THE RIVER — the quiet way in
@@ -293,7 +308,7 @@ export function buildAirstrip(
   const site: SiteInstance = {
     id: 'pista-la-trinidad',
     name: 'Pista La Trinidad',
-    archetype: 'airfield' as SiteInstance['archetype'],
+    archetype: 'airfield',
     x: 0, z: 0, padY: PAD,
     minX: -200, maxX: 200, minZ: -120, maxZ: 120,
     coreMinX: -160, coreMaxX: 160, coreMinZ: -92, coreMaxZ: 84,
@@ -307,7 +322,7 @@ export function buildAirstrip(
         description: 'Straight down 300 m of runway. Nothing to hide behind but the edge lights.',
         stealth: 0.05, speed: 0.8, risk: 0.9 },
       { id: 'river', name: 'The river bank', kind: 'water',
-        x: -150, y: PAD - 1, z: 79, toX: 0, toZ: 60,
+        x: -150, y: PAD, z: 79, toX: 0, toZ: 60,
         description: 'Along the fold of the bank below the apron. Slow, wet and nearly invisible.',
         stealth: 0.85, speed: 0.3, risk: 0.3 },
       { id: 'camp-woods', name: 'Through the camp', kind: 'flank',
@@ -319,7 +334,7 @@ export function buildAirstrip(
       { name: 'Hangar', x: 0, y: PAD + 11, z: 60, prominence: 180 },
       { name: 'Control tower', x: TX, y: cabY + 3, z: TZ, prominence: 140 },
       { name: 'Radio mast', x: 62, y: PAD + 24, z: 40, prominence: 90 },
-      { name: 'Cook shed', x: -7, y: PAD + 4, z: -52, prominence: 40 },
+      { name: 'Cook shed', x: -25, y: PAD + 4, z: -52, prominence: 40 },
     ],
     garrison: [],
   };

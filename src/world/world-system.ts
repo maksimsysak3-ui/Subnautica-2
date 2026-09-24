@@ -717,6 +717,30 @@ export class WorldSystem implements System, IWorldQuery {
 
     if (this.raycastTerrain(from, this.losDir, maxT) >= 0) return false;
 
+    // Foliage is see-through a little, not all the way. A single bush or a
+    // gap in a canopy lets a glance through; 2.5 m of leaves does not. The
+    // chord through each foliage brick is estimated from its smaller
+    // horizontal half-extent, which is exact for a ray crossing it square
+    // and conservative otherwise. Grass stands waist-high, so a crouched or
+    // prone target behind it is hidden and a standing one is not — the
+    // stance rule falls out of the geometry.
+    {
+      const y = this.yard;
+      let t0 = 0, leaves = 0;
+      for (let k = 0; k < 10 && t0 < maxT; k++) {
+        const hit = y.raycast(
+          from.x + this.losDir.x * t0, from.y + this.losDir.y * t0, from.z + this.losDir.z * t0,
+          this.losDir.x, this.losDir.y, this.losDir.z, maxT - t0,
+          (bi) => (y.flags[bi] & BF.SOFT) !== 0 && y.surfaceOf(bi) === 'foliage',
+        );
+        if (hit < 0) break;
+        const chord = Math.min(3, 2 * Math.min(y.hx[hit], y.hz[hit]));
+        leaves += chord;
+        if (leaves > 2.5) return false;
+        t0 += y.lastT + Math.max(0.25, chord);
+      }
+    }
+
     if (this.extraColliders.length) {
       const hit = this.raycastExtras(from, this.losDir, maxT, { ignoreActors });
       if (hit && hit.opaque) return false;

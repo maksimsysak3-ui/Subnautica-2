@@ -349,8 +349,8 @@ export const MISSIONS: MissionTemplate[] = [
       {
         id: 'ledger', kind: 'secureIntel',
         label: 'Take the ledger',
-        description: 'The sacristy, behind the altar at the back of the church.',
-        at: [13, 18.2, 46.5], radius: 4,
+        description: 'The sacristy, behind the altar — or in through its yard door off the lane behind the bell tower.',
+        at: [8.5, 18.2, 48.4], radius: 3,
       },
       {
         id: 'cistern', kind: 'eliminate', optional: true,
@@ -401,7 +401,7 @@ export const MISSIONS: MissionTemplate[] = [
         id: 'exfil', kind: 'extract',
         label: 'Exfiltrate over the roofs',
         description: 'Top of the hill, east end.',
-        at: [40, 18.2, 46], radius: 8,
+        at: [40, 18.2, 45], radius: 6,
         dependsOn: ['shooter', 'crew'],
       },
     ],
