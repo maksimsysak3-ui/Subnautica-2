@@ -21,8 +21,9 @@
  * a valley by construction, and the level along it falls by construction too.
  */
 
-import { naturalHeightAt } from './land';
+import { naturalHeightAt, standingWaterAt, lakeLevel } from './land';
 import { simConfig } from './config';
+import { MAP, SEA_LEVEL } from './maps';
 
 /** Half the water's width at the mouth, in metres. */
 const MOUTH = 58;
@@ -57,6 +58,12 @@ interface River {
 let cached: River | null = null;
 let cachedFor = -1;
 
+/** Drops the routed river, for a change of map. */
+export function forgetRiver(): void {
+  cached = null;
+  cachedFor = -1;
+}
+
 /**
  * Follows the land downhill from a high place on one edge to the far side.
  *
@@ -65,11 +72,16 @@ let cachedFor = -1;
  * too much it drives straight over ridges. Two thirds old direction to one
  * third new is the ratio that reads as a river.
  */
-function route(extent: number): Point[] {
+function route(extent: number, angle: number): Point[] {
+  // Routed in a frame turned by the map's angle, so "in from the west and
+  // across" can be any edge: the land is read through the turn, and the path
+  // is turned back into the world at the end.
+  const ca = Math.cos(angle), sa = Math.sin(angle);
+  const land = (x: number, z: number): number => naturalHeightAt(x * ca - z * sa, x * sa + z * ca);
   const grad = (x: number, z: number): [number, number] => {
     const h = 60;
-    const dx = naturalHeightAt(x + h, z) - naturalHeightAt(x - h, z);
-    const dz = naturalHeightAt(x, z + h) - naturalHeightAt(x, z - h);
+    const dx = land(x + h, z) - land(x - h, z);
+    const dz = land(x, z + h) - land(x, z - h);
     const n = Math.hypot(dx, dz) || 1;
     return [-dx / n, -dz / n];
   };
@@ -82,7 +94,7 @@ function route(extent: number): Point[] {
   const x0 = -extent * 0.95;
   for (let i = 0; i <= 24; i++) {
     const z = -extent * 0.42 + (i / 24) * extent * 0.84;
-    const y = naturalHeightAt(x0, z);
+    const y = land(x0, z);
     if (y > bestY) { bestY = y; bestZ = z; }
   }
 
@@ -133,6 +145,11 @@ function route(extent: number): Point[] {
     }
     if (looped) break;
   }
+  for (const p of path) {
+    const px = p.x, pz = p.z;
+    p.x = px * ca - pz * sa;
+    p.z = px * sa + pz * ca;
+  }
   return path;
 }
 
@@ -144,7 +161,7 @@ function route(extent: number): Point[] {
  * that plus a step. Falls the whole way -- guaranteed rather than hoped for --
  * and stays in the country it crosses.
  */
-function levels(path: Point[]): void {
+function levels(path: Point[], width: number): void {
   const n = path.length;
   const raw = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -176,7 +193,7 @@ function levels(path: Point[]): void {
       sum += out[j]; c++;
     }
     path[i].level = sum / c;
-    path[i].half = SOURCE + (MOUTH - SOURCE) * (i / Math.max(1, n - 1));
+    path[i].half = (SOURCE + (MOUTH - SOURCE) * (i / Math.max(1, n - 1))) * width;
   }
   // Smoothing can undo the fall; restore it, again from the mouth.
   for (let i = n - 2; i >= 0; i--) {
@@ -187,8 +204,9 @@ function levels(path: Point[]): void {
 function river(): River {
   const extent = simConfig.terrainSize * 0.5;
   if (cached !== null && cachedFor === extent) return cached;
-  const path = route(extent);
-  levels(path);
+  const spec = MAP.river;
+  const path = spec === null ? [] : route(extent, spec.angle);
+  if (spec !== null) levels(path, spec.width);
 
   // A coarse grid holding, per cell, the index of the nearest path point. A
   // lookup then searches a handful of points around that index rather than the
@@ -263,8 +281,8 @@ export function valleyAt(x: number, z: number):
 /** The water surface height here, or null where there is no water. */
 export function waterAt(x: number, z: number): number | null {
   const near = nearest(x, z);
-  if (near === null || near.d > near.p.half) return null;
-  return near.p.level;
+  if (near !== null && near.d <= near.p.half) return near.p.level;
+  return standingWaterAt(x, z);
 }
 
 /** Floats per water vertex: position, normal, across and along. */
@@ -304,6 +322,25 @@ export function buildWaterMesh(): {
     if (prev !== null) idx.push(prev, prev + 1, a + 1, prev, a + 1, a);
     prev = a;
   }
+  // Standing water: the sea as one sheet under the whole map, and each lake as
+  // a disc. Flat and far larger than the water itself, because the land is
+  // the shoreline -- wherever the ground stands above the level it hides the
+  // sheet, and the depth test draws the coast exactly where the terrain says.
+  // `across` is pushed far off so the river's bank shading never applies, and
+  // the pair carries the world position so the ripples tile continuously.
+  const sheet = (cx: number, cz: number, rad: number, level: number, sides: number): void => {
+    const c = verts.length / WATER_FLOATS;
+    verts.push(cx, level, cz, 0, 1, 0, cx + 10000, cz);
+    for (let k = 0; k < sides; k++) {
+      const a = (k / sides) * Math.PI * 2;
+      const x = cx + Math.cos(a) * rad, z = cz + Math.sin(a) * rad;
+      verts.push(x, level, z, 0, 1, 0, x + 10000, z);
+    }
+    for (let k = 0; k < sides; k++) idx.push(c, c + 1 + ((k + 1) % sides), c + 1 + k);
+  };
+  if (MAP.sea !== null) sheet(0, 0, r.extent * 2.2, SEA_LEVEL, 8);
+  MAP.lakes.forEach((l, i) => sheet(l.x, l.z, l.r * 1.35, lakeLevel(i), 40));
+
   const vertices = new Float32Array(new ArrayBuffer(verts.length * 4));
   vertices.set(verts);
   const indices = new Uint32Array(new ArrayBuffer(idx.length * 4));

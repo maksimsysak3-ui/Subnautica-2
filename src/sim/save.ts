@@ -15,6 +15,7 @@
  * not a save file, it is an accident.
  */
 
+import { mapById } from './maps';
 import { emptyWorld } from './world';
 import type { World, Lot } from './world';
 import { ROAD_IDS } from './roadgraph';
@@ -127,6 +128,8 @@ interface SaveFile {
   politics?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
+  /** The starting map the city stands on. Absent in older saves: Meridian Vale. */
+  map?: string;
   /** The simulation's clock in ticks, and residents at save time (version 4). */
   clock?: number;
   residents?: number;
@@ -225,6 +228,7 @@ export function serialise(world: World, name: string, auto = false): string {
     career: world.progress.save(),
     politics: world.politics.saved(),
     difficulty: world.difficulty,
+    map: world.map,
     clock: world.clock,
     residents: world.residents,
     policies: world.policies.saved(),
@@ -311,6 +315,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   if (file.difficulty === 'relaxed' || file.difficulty === 'hard') world.difficulty = file.difficulty;
   else world.difficulty = 'standard';
+  world.map = mapById(typeof file.map === 'string' ? file.map : 'vale').id;
   const count2 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
   world.clock = Math.floor(count2(file.clock));
   world.residents = Math.floor(count2(file.residents));

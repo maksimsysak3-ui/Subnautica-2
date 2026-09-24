@@ -9,6 +9,7 @@
 
 import { music } from './ui/music';
 import { useDifficulty } from './sim/difficulty';
+import { useMap } from './sim/maps';
 import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
 import { Camera } from './gfx/camera';
@@ -154,6 +155,9 @@ async function boot(): Promise<void> {
       // The rules first: the new world's treasury, and the systems the
       // simulation builds next, read them.
       useDifficulty(setup.difficulty);
+      // The ground before anything is built on it: every cache made from the
+      // old map's heights goes with it.
+      useMap(setup.map);
       live.reset();
       renderer.useWorld(startingWorld(renderer.world.grid));
       renderer.rebuild();
@@ -163,6 +167,7 @@ async function boot(): Promise<void> {
       ambience.start();
       music.start();
       useDifficulty(world.difficulty);
+      useMap(world.map);
       live.reset();
       renderer.useWorld(world);
       renderer.rebuild();

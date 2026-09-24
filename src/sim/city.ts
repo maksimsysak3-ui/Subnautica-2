@@ -29,6 +29,7 @@
 
 import { hash2, fbm } from './hash';
 import { baseHeightAt, heightAt } from './terrain';
+import { drowned } from './land';
 import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
@@ -761,6 +762,7 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       }
     }
     if (hi - lo > MAX_SLOPE) return false;
+    if (drowned(cx, cz, lo)) return false;
     const level = sum / n;
     // The pad is the lot's own turned footprint, not a square big enough to
     // hold it whichever way it faces. Grading a sixty-metre square under every
@@ -809,6 +811,9 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
     // holding it to a building's slope limit is what kept the oaks off every
     // hillside on the map.
     if (p.def.zone !== 'nature' && ground.hi - ground.lo > MAX_SLOPE) return false;
+    // Nor on the seabed or a lakebed, which are flat enough to pass the slope
+    // test -- trees included.
+    if (drowned((x0 + x1) / 2, (z0 + z1) / 2, ground.lo)) return false;
 
     // The mean, not the minimum. Cutting to the lowest corner digs every site
     // into a pit its neighbours look down into; the mean cuts as much as it

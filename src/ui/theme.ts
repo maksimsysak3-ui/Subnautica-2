@@ -156,6 +156,27 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   background: rgba(6,10,17,.82); border: 1px solid rgba(244,181,74,.35); border-radius: 8px; outline: none;
 }
 .mr-name input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,181,74,.15); }
+.mr-section-label {
+  font: 700 11px/1 var(--label); letter-spacing: .16em; text-transform: uppercase; color: var(--amber);
+  margin-bottom: 8px;
+}
+.mr-map-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1300px) { .mr-map-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.mr-map {
+  display: flex; flex-direction: column; gap: 4px; padding: 0 0 10px; text-align: left; cursor: pointer;
+  background: rgba(14,20,29,.9); border: 1px solid rgba(255,255,255,.1); border-radius: 12px;
+  overflow: hidden; color: var(--ink); transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.mr-map:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.24); }
+.mr-map.is-picked { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 12px 30px rgba(0,0,0,.45); }
+.mr-map-img {
+  display: block; width: 100%; aspect-ratio: 200 / 124; height: auto; background: #1a2430;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.mr-map-name { padding: 6px 12px 0; font: 800 15px/1.1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+.mr-map-tag { padding: 0 12px; font: 500 12px/1.3 var(--ui); color: ${BRAND.dim}; }
+@media (max-width: 800px) { .mr-map-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .mr-map-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .mr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 900px) { .mr-cards { grid-template-columns: 1fr; } }
 .mr-card {

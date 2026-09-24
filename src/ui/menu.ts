@@ -20,11 +20,15 @@ import { DIFFICULTIES, describe } from '../sim/difficulty';
 import type { DifficultyId } from '../sim/difficulty';
 import { glyph } from './glyphs';
 import { CARD_SHOTS } from './setup-shots';
+import { MAPS } from '../sim/maps';
+import type { MapId } from '../sim/maps';
+import { drawMapPreview } from './map-preview';
 
 /** What the player chose before founding a city. */
 export interface Setup {
   name: string;
   difficulty: DifficultyId;
+  map: MapId;
 }
 
 /** Names offered for a new city, rerolled with the dice. */
@@ -346,6 +350,57 @@ export class Menu {
     row.append(field, dice);
     nameBox.append(label, row);
 
+    // The map: five tiles, each a relief map drawn from that map's own ground.
+    let mapPick: MapId = 'vale';
+    const maps = document.createElement('div');
+    maps.className = 'mr-maps';
+    const mapsLabel = document.createElement('div');
+    mapsLabel.className = 'mr-section-label';
+    mapsLabel.textContent = 'Map';
+    const mapRow = document.createElement('div');
+    mapRow.className = 'mr-map-row';
+    const tiles: HTMLElement[] = [];
+    const chooseMap = (id: MapId): void => {
+      mapPick = id;
+      for (const t of tiles) {
+        const on = t.dataset.map === id;
+        t.classList.toggle('is-picked', on);
+        t.setAttribute('aria-pressed', String(on));
+      }
+    };
+    const pending: Array<() => void> = [];
+    for (const mp of MAPS) {
+      const tile = document.createElement('button');
+      tile.className = 'mr-map';
+      tile.dataset.map = mp.id;
+      tile.title = mp.blurb;
+      const pic = document.createElement('canvas');
+      pic.className = 'mr-map-img';
+      pic.width = 200; pic.height = 124;
+      const nm = document.createElement('div');
+      nm.className = 'mr-map-name';
+      nm.textContent = mp.name;
+      const tg = document.createElement('div');
+      tg.className = 'mr-map-tag';
+      tg.textContent = mp.tagline;
+      tile.append(pic, nm, tg);
+      tile.addEventListener('click', () => chooseMap(mp.id));
+      mapRow.appendChild(tile);
+      tiles.push(tile);
+      pending.push(() => drawMapPreview(pic, mp.id));
+    }
+    maps.append(mapsLabel, mapRow);
+    chooseMap(mapPick);
+    // One preview a frame: each is some tens of thousands of height samples,
+    // and five in one go would hold the screen still as it opens.
+    const drawNext = (): void => {
+      const job = pending.shift();
+      if (job === undefined || !maps.isConnected) return;
+      job();
+      requestAnimationFrame(drawNext);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(drawNext));
+
     const cards = document.createElement('div');
     cards.className = 'mr-cards';
     const all: HTMLElement[] = [];
@@ -402,13 +457,13 @@ export class Menu {
     const foot = document.createElement('div');
     foot.className = 'mr-setup-foot';
     const note = document.createElement('p');
-    note.textContent = 'The difficulty is set for the life of this city.';
+    note.textContent = 'The map and the difficulty are set for the life of this city.';
     const found = document.createElement('button');
     found.className = 'mr-found';
     found.innerHTML = `<span style="display:inline-flex;vertical-align:-4px;margin-right:10px">${glyph('signature', 20)}</span>Found the city`;
     foot.append(note, found);
 
-    el.append(head, nameBox, cards, foot);
+    el.append(head, nameBox, maps, cards, foot);
     this.root.appendChild(el);
     requestAnimationFrame(() => el.classList.add('is-open'));
 
@@ -419,7 +474,7 @@ export class Menu {
     const go = (): void => {
       const name = field.value.trim() === '' ? NAMES[0] : field.value.trim();
       shut();
-      this.close(() => this.hooks.onNew({ name, difficulty: pick }));
+      this.close(() => this.hooks.onNew({ name, difficulty: pick, map: mapPick }));
     };
     const keys = (e: KeyboardEvent): void => {
       // Captured ahead of the title list's own keys, which are underneath.

@@ -46,6 +46,7 @@ w.policies.set(M.POLICIES.findIndex((p) => p.id === 'recycling'), true);
 w.progress.xp = 5000; w.progress.level = 4; w.progress.stars = 7;
 w.progress.bought.add('power-1'); w.progress.done.add('first-road');
 w.clock = 123456; w.residents = 7890;
+w.map = 'kestrel';
 const c = { ...M.CALM, population: 6000, rubbish: 0.2 };
 w.politics.update(1, 0.016, c, w.policies, w.budget);
 w.politics.setPledges(1, ['recycling', 'taxCut', 'watch']);
@@ -122,6 +123,9 @@ v3.v = 3; delete v3.clock; delete v3.residents;
 const old = M.deserialise(JSON.stringify(v3));
 check(old !== null && old.world.clock === 0 && old.world.residents === 0,
   'a version 3 save migrates and loads with a fresh clock');
+const nomap = JSON.parse(text); delete nomap.map;
+check(M.deserialise(JSON.stringify(nomap))?.world.map === 'vale',
+  'a save from before the map choice loads onto Meridian Vale');
 const v2 = JSON.parse(text); v2.v = 2;
 check(M.deserialise(JSON.stringify(v2)) === null, 'a version 2 save is refused rather than misread');
 check(M.deserialise('{not json') === null, 'junk is refused');

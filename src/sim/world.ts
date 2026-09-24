@@ -22,6 +22,8 @@ import { Policies } from './policies';
 import { Politics } from './politics';
 import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
+import { MAP } from './maps';
+import type { MapId } from './maps';
 import { Progress } from './progress';
 import { hash2 } from './hash';
 import type { Density, Zone } from '../assets/types';
@@ -188,6 +190,8 @@ export interface World {
   politics: Politics;
   /** How hard the city was founded to be. See `difficulty.ts`. */
   difficulty: DifficultyId;
+  /** Which starting map the city stands on. See `maps.ts`. */
+  map: MapId;
   /**
    * The simulation's clock, in ticks, and how many people lived here, as of
    * the last look. Written by the running game, read on load: the clock so
@@ -231,6 +235,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     policies: new Policies(),
     politics: new Politics(),
     difficulty: RULES.id,
+    map: MAP.id,
     clock: 0,
     residents: 0,
     progress: new Progress(),

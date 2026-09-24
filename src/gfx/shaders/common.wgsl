@@ -50,6 +50,27 @@ struct Camera {
 };
 
 @group(0) @binding(0) var<uniform> camera : Camera;
+
+/**
+ * The map's climate on natural vegetation: camera.view.w, -1 lush to +1 arid.
+ *
+ * One number rather than a palette per map, because what separates a dry basin
+ * from a wet valley at this distance is the grass: straw and khaki against deep
+ * green. Rock, earth, paving and anything planted by the city are left alone.
+ */
+/** Whether the map has a sea: carried as +4 on the climate, which is -1 to 1. */
+fn seaMap() -> bool { return camera.view.w > 2.0; }
+
+fn climate(c : vec3f) -> vec3f {
+  let k = camera.view.w - select(0.0, 4.0, seaMap());
+  let l = dot(c, vec3f(0.30, 0.56, 0.14));
+  if (k > 0.0) {
+    let straw = vec3f(l * 1.30, l * 1.04, l * 0.52);
+    return mix(c, straw, k * 0.85);
+  }
+  let deep = vec3f(c.r * 0.72, c.g * 1.10, c.b * 0.82);
+  return mix(c, deep, -k);
+}
 @group(0) @binding(1) var shadowMap : texture_depth_2d;
 @group(0) @binding(2) var shadowSampler : sampler_comparison;
 

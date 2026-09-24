@@ -265,6 +265,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // reads as parcelled land and a continuum reads as a gradient.
   turf = mix(turf, vec3f(0.118, 0.122, 0.050), meadow * 0.40);
   turf = mix(turf, vec3f(0.062, 0.068, 0.040), moor * 0.40);
+  turf = climate(turf);
 
   // The parcel's own colour, applied hard rather than blended, and only inside
   // its boundary -- which is what makes the boundary a boundary.
@@ -384,6 +385,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   }
 
   var col = turf * grass + dirt * earth + stone * rock;
+
+  // A beach where the land comes down to the sea: pale sand a metre or two
+  // either side of the water line, darker and wetter at the edge. Sea level is
+  // the same on every map that has one (SEA_LEVEL in maps.ts).
+  if (seaMap()) {
+    let sy = in.world.y + 2.5;
+    let sand = (1.0 - smoothstep(0.8, 2.6, sy)) * smoothstep(-4.0, -1.5, sy);
+    let grainS = vnoise(in.world.xz * 0.35);
+    let dryS = vec3f(0.225, 0.196, 0.138) * (0.92 + grainS * 0.16);
+    let wetS = vec3f(0.172, 0.152, 0.110);
+    let sandCol = mix(wetS, dryS, smoothstep(-0.2, 0.35, sy));
+    col = mix(col, sandCol, sand * (1.0 - rock * 0.7));
+  }
 
   // ---- what the city laid over it -------------------------------------
   //

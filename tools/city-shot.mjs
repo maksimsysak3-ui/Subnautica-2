@@ -40,6 +40,7 @@ const cfg = {
   land: !!process.env.LAND,
   edit: !!process.env.EDIT,
   empty: !!process.env.EMPTY,
+  map: process.env.MAP || '',
   lite: !!process.env.LITE,
   view: process.env.VIEW || '',
 };

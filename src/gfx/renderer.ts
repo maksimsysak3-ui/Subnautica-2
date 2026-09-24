@@ -17,6 +17,7 @@
  * "throw that away and call build() again".
  */
 
+import { MAP } from '../sim/maps';
 import { log } from '../util/log';
 import { Weather } from '../sim/weather';
 import type { Sky } from '../sim/weather';
@@ -2223,6 +2224,8 @@ export class Renderer {
     this.cameraData[108] = this.buried;
     this.cameraData[109] = this.drained;
     this.cameraData[110] = this.quality.shadows ? 0 : 1;
+    // The map's climate, for the ground and the grass: -1 lush to +1 arid.
+    this.cameraData[111] = MAP.climate + (MAP.sea !== null ? 4 : 0);
     device.queue.writeBuffer(res.cameraBuffer, 0, this.cameraData);
 
     // The asset shader's own uniform. Its brand, accent and sign fields are

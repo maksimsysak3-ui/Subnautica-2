@@ -21,6 +21,7 @@ function named(el: HTMLElement): string {
   return el.getAttribute('aria-label') ?? el.title;
 }
 
+import { useMap } from './sim/maps';
 import { CALM } from './sim/politics';
 import { installTheme } from './ui/theme';
 import { Gpu } from './gfx/device';
@@ -69,6 +70,8 @@ export interface ShotRequest {
   edit?: boolean;
   /** Photograph the map the game actually opens on, rather than a built city. */
   empty?: boolean;
+  /** Which starting map to stand the shot on. See sim/maps.ts. */
+  map?: string;
   lite: boolean;
   /** Draw the land grid, as the land tool does. */
   land?: boolean;
@@ -742,6 +745,7 @@ export async function probeUpgrade(): Promise<{
 
 export async function shoot(req: ShotRequest): Promise<Shot> {
   if (req.lite) configureSim(LITE);
+  if (req.map !== undefined && req.map !== '') useMap(req.map);
 
   const gpu = await Gpu.headless(req.width, req.height);
   const camera = new Camera();
@@ -756,7 +760,7 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   renderer.weather.set(req.front ?? 0.08);
   // A photograph of empty land is a photograph of nothing, so unless the
   // caller asked for the starting map it gets the generated city.
-  if (req.empty !== true) renderer.useWorld(defaultWorld(renderer.world.grid));
+  renderer.useWorld(req.empty === true ? startingWorld(renderer.world.grid) : defaultWorld(renderer.world.grid));
   // A photograph is of a city, not of a land-buying decision: the shot tools
   // get the whole map so the picture shows what the generator makes of it.
   if (req.empty !== true) grantAll(renderer.world);

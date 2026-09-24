@@ -122,6 +122,10 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
   let across = normalize(vec2f(-sway.y, sway.x) + vec2f(0.001, 0.0));
   let bend = sway * stepUp * stepUp * tall * 0.55;
 
+  // Nothing grows on the beach or under the sea. The seabed near the shore is
+  // shallow enough for a blade to poke up through the water as a dark stub.
+  if (seaMap() && ground.x < -1.4) { return nothing(); }
+
   var out : VSOut;
   let world = vec3f(
     at.x + across.x * width * right * select(1.0, 0.0, seg == BLADE_VERTS - 1u) + bend.x,
@@ -148,6 +152,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let root = vec3f(0.042, 0.080, 0.036);
   let tip = mix(vec3f(0.115, 0.180, 0.062), vec3f(0.165, 0.170, 0.075), in.blade.y);
   var col = mix(root, tip, smoothstep(0.0, 0.75, in.blade.x));
+  col = climate(col);
 
   let n = normalize(in.normal);
   let sun = normalize(camera.sunDir.xyz);
