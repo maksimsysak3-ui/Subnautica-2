@@ -47,16 +47,19 @@ const DIST = Number(process.env.DIST || 520);
 const PANEL = process.env.PANEL || '';
 const HOUR = Number(process.env.HOUR ?? 0.36);
 const AIM = (process.env.AIM || '').split(',').map(Number);
-const r = await page.evaluate(async ([w, h, d, p, hr, aim]) => {
+// YAW and PITCH frame the city from a chosen angle; CLEAN drops the interface.
+const ANGLE = [Number(process.env.YAW ?? 0.62), Number(process.env.PITCH ?? 0.46)];
+const r = await page.evaluate(async ([w, h, d, p, hr, aim, view]) => {
   if (aim && aim.length === 2 && Number.isFinite(aim[0])) globalThis.HUD_AIM = aim;
+  globalThis.HUD_VIEW = view;
   try { return await HEADLESS.probeHud(w, h, hr, d, p); }
   catch (err) { return { error: String(err && err.stack ? err.stack : err) }; }
-}, [W, H, DIST, PANEL, HOUR, AIM]);
+}, [W, H, DIST, PANEL, HOUR, AIM, ANGLE]);
 if (r.error) { console.log(r.error); await browser.close(); server.close(); process.exit(1); }
 
 // The card, the rail and the bubbles are DOM; the city is a texture. Composite
 // by drawing the frame into the page behind the interface and screenshotting.
-await page.evaluate(([w, h, px]) => {
+await page.evaluate(([w, h, px, clean]) => {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   c.style.cssText = 'position:fixed;inset:0;z-index:0';
@@ -67,7 +70,8 @@ await page.evaluate(([w, h, px]) => {
   document.body.insertBefore(c, document.body.firstChild);
   const ui = document.querySelector('div');
   if (ui instanceof HTMLElement) ui.style.zIndex = '1';
-}, [W, H, r.pixels]);
+  if (clean) for (const el of document.body.children) if (el !== c) el.style.display = 'none';
+}, [W, H, r.pixels, !!process.env.CLEAN]);
 await page.screenshot({ path: OUT, clip: { x: 0, y: 0, width: W, height: H } });
 await browser.close();
 server.close();

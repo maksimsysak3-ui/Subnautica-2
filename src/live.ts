@@ -35,6 +35,8 @@ import type { CityMood, WeatherRead } from './ui/cititok';
 import type { Sky } from './sim/weather';
 import { skyOf, labelOf, glyphOf, temperature } from './sim/weather';
 import { MOVER_BUDGET } from './assets/generators/movers';
+import { ASSETS } from './assets/registry';
+import { Use } from './sim/agents/lanes';
 import { INSTANCE_FLOATS } from './sim';
 import { Inspect } from './ui/inspect';
 import { TechTree } from './ui/tech-tree';
@@ -828,6 +830,7 @@ export class LiveCity {
    * learns to ignore, which costs the mechanism it was meant to explain.
    */
   private announce(sim: Simulation): void {
+    this.watchHotspots(sim);
     const eco = sim.economy.report;
     if (eco.eventSerial !== this.eventsSeen) {
       this.eventsSeen = eco.eventSerial;
@@ -950,6 +953,54 @@ export class LiveCity {
         tone: overdrawn ? 'bad' : 'good',
         tag: 'treasury',
         figure: money(Math.abs(Math.round(sim.budget.balance))),
+      });
+    }
+  }
+
+  /** When the jams round each attraction were last looked for, and which are known. */
+  private hotspotAt = 0;
+  private readonly jammedAt = new Set<number>();
+
+  /**
+   * The roads into a place people travel to, once they cannot cope.
+   *
+   * This is the traffic game: a stadium or a cathedral pulls a stream of trips
+   * across the city, the stream converges on the few roads that reach it, and
+   * those back up. The player is told where, and the fix is theirs -- a second
+   * way in, a wider road, a one-way loop, a bus line to the door.
+   */
+  private watchHotspots(sim: Simulation): void {
+    const now = performance.now();
+    if (now - this.hotspotAt < 15000) return;
+    this.hotspotAt = now;
+    const places = sim.places, load = sim.routine.load, g = sim.lanes;
+    for (const p of [...places.appeal.keys()]) {
+      if (places.live[p] === 0) continue;
+      const x = places.col.x[p], z = places.col.z[p];
+      let worst = 0, sum = 0, n = 0;
+      for (let l = 0; l < Math.min(g.count, load.length); l++) {
+        if ((g.use[l] & Use.CAR) === 0) continue;
+        const dx = (g.ax[l] + g.bx[l]) * 0.5 - x, dz = (g.az[l] + g.bz[l]) * 0.5 - z;
+        if (dx * dx + dz * dz > 260 * 260) continue;
+        const v = load[l];
+        if (v > worst) worst = v;
+        sum += v; n++;
+      }
+      const mean = n === 0 ? 0 : sum / n;
+      const jammed = worst > 0.95 && mean > 0.45;
+      const was = this.jammedAt.has(p);
+      if (jammed === was) continue;
+      if (jammed) this.jammedAt.add(p); else this.jammedAt.delete(p);
+      const name = ASSETS[places.col.proto[p]]?.name ?? 'the attraction';
+      this.alerts.push({
+        title: jammed ? `Gridlock at the ${name.toLowerCase()}` : `Traffic moving at the ${name.toLowerCase()}`,
+        body: jammed
+          ? 'Crowds are converging on it and the roads in cannot take them. Add a second '
+            + 'way in, widen the approach, or run a bus line to the door.'
+          : 'The roads into it are coping again.',
+        tone: jammed ? 'bad' : 'good', icon: 'transport', tag: `hotspot-${p}`,
+        figure: `${Math.round(worst * 100)}%`,
+        go: () => this.lookAt(x, z),
       });
     }
   }

@@ -262,12 +262,12 @@ const LANE_SHIFT_SPEED = 2.3;
 /**
  * How much of the flow model's density is put on the road.
  *
- * `nearbyLoad` is already a count of vehicles -- load times lane length over nine
- * metres -- so this is a straight fraction of it, and a fraction rather than all of
- * it because a lane at capacity bumper to bumper is a car park, not traffic. Two
- * thirds reads as a busy street.
+ * `nearbyLoad` is load times lane length over nine metres, and load is measured
+ * against a lane's practical capacity -- a car every twenty-two metres, see
+ * `CAPACITY_METRES` -- so a lane at 100 per cent is drawn with a car every twenty
+ * metres or so, a busy street, and one at two hundred as a queue.
  */
-const VEHICLES_PER_LOAD = 0.66;
+const VEHICLES_PER_LOAD = 0.45;
 
 /**
  * Load every road is treated as having, however empty.
@@ -1280,6 +1280,10 @@ export class Traffic {
       + (this.focusZ - this.gatheredAt[1]) ** 2;
     if (moved > (this.reach * 0.25) ** 2) this.gather();
     if (this.nearby.length === 0) return;
+    // The target follows the load as it changes, not as it was when the camera
+    // last moved: a city growing under a still camera used to keep the traffic
+    // it had the moment the player stopped panning, however big it got.
+    this.nearbyLoad = this.loadNear();
 
     const c = this.table.col;
     // Off the road: anything that has wandered out of view. Done first so its
@@ -1421,6 +1425,17 @@ export class Traffic {
   private drawKind(): number {
     const r = this.rng.next();
     return r < 0.88 ? Kind.CAR : r < 0.96 ? Kind.LORRY : Kind.BUS;
+  }
+
+  /** Vehicles' worth of load on the gathered lanes, right now. */
+  private loadNear(): number {
+    const load = this.load;
+    let total = 0;
+    for (let i = 0; i < this.nearby.length; i++) {
+      const l = this.nearby[i];
+      total += ((load === null ? 0 : load[l]) + IDLE_LOAD) * this.g.length[l] / 9;
+    }
+    return total;
   }
 
   /** Collects the lanes near the focus, and their total load. */

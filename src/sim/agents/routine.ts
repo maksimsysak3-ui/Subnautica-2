@@ -151,6 +151,9 @@ const GOES_OUT_PER_DAY = 0.55;
  */
 const DETOUR = 1.35;
 
+/** Metres of lane per vehicle at a lane's practical capacity. See the constructor. */
+export const CAPACITY_METRES = 22;
+
 /**
  * The longest an estimated journey may be, in game minutes.
  *
@@ -359,9 +362,12 @@ export class Routine {
     this.onLane = new Float32Array(lanes.count);
     this.capacity = new Float32Array(lanes.count);
     for (let l = 0; l < lanes.count; l++) {
-      // What a lane can carry before it slows: roughly one vehicle every nine
-      // metres, which is a jam, scaled down for a lane nobody would queue on.
-      this.capacity[l] = Math.max(2, lanes.length[l] / 9);
+      // What a lane can carry before it slows. Not the jam density -- a car
+      // every nine metres is a car park, and measuring against it meant a road
+      // carrying everything it could still read as a third full, so nothing
+      // ever congested. A lane at its practical capacity carries a car every
+      // twenty-odd metres, and that is what 100 per cent means here.
+      this.capacity[l] = Math.max(1, lanes.length[l] / CAPACITY_METRES);
     }
     this.sink = {
       name: 'citizens',
@@ -485,8 +491,18 @@ export class Routine {
         const hh = c.house[id];
         return hh === NONE ? NONE : this.people.households.col.home[hh];
       }
-      case Doing.SHOPPING: return this.nearbyOfPurpose(id, Purpose.SHOP);
+      case Doing.SHOPPING: {
+        if (this.rng.next() < this.drawShare() * 0.4) {
+          const big = this.attraction(id);
+          if (big !== NONE) return big;
+        }
+        return this.nearbyOfPurpose(id, Purpose.SHOP);
+      }
       case Doing.LEISURE: {
+        if (this.rng.next() < this.drawShare()) {
+          const big = this.attraction(id);
+          if (big !== NONE) return big;
+        }
         const park = this.nearbyBranch(id, 'parks');
         return park !== NONE ? park : this.nearbyOfPurpose(id, Purpose.SHOP);
       }
@@ -502,6 +518,46 @@ export class Routine {
    * them do so produces a city where one corner shop serves ten thousand people
    * and the one next to it serves nobody.
    */
+  /**
+   * The share of days out that go across town to somewhere people travel for.
+   *
+   * Grows with what there is to go to and with how big the city is: a town of
+   * five hundred with a museum sends a few people to it, a city of fifty
+   * thousand with a stadium and a cathedral sends a stream -- and a stream of
+   * trips converging on one place is what fills the roads into it.
+   */
+  drawShare(): number {
+    const total = this.places.appealTotal;
+    if (total <= 0) return 0;
+    const pop = this.people.population;
+    return Math.min(0.55, total / (total + 22)) * Math.min(1, 0.25 + pop / 4000);
+  }
+
+  /**
+   * One of the city's attractions, for this person: the bigger draws more, and
+   * nearer wins over further, but not by much -- people will cross a city for a
+   * match, which is the whole point.
+   */
+  private attraction(id: number): number {
+    const pool = this.places.attractions;
+    if (pool.size === 0) return NONE;
+    const c = this.people.citizens.col;
+    const col = this.places.col;
+    const from = c.where[id];
+    const ax = from === NONE ? c.x[id] : col.x[from];
+    const az = from === NONE ? c.z[id] : col.z[from];
+    let best = NONE, bestScore = 0;
+    for (let k = 0; k < 5; k++) {
+      const p = pool.pick(this.rng.next());
+      if (p < 0) break;
+      if (p === from) continue;
+      const d = Math.hypot(col.x[p] - ax, col.z[p] - az);
+      const score = (this.places.appeal.get(p) ?? 0) * (0.4 + this.rng.next()) / (1 + d / 3500);
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    return best;
+  }
+
   private nearbyOfPurpose(id: number, purpose: number): number {
     const pool = this.places.byPurpose[purpose];
     if (pool.size === 0) return NONE;

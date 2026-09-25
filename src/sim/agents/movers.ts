@@ -27,7 +27,7 @@ import { Control, Light } from './junctions';
 import { Mode } from './routine';
 import type { People } from './people';
 import type { LaneGraph } from './lanes';
-import { DRIVE_SIDE } from './lanes';
+import { DRIVE_SIDE, placeAlong } from './lanes';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
@@ -146,10 +146,42 @@ export class Movers {
     }
     const len = Math.max(0.001, lanes.length[on]);
     at = Math.max(0, Math.min(at, len));
-    const ax = lanes.ax[on], az = lanes.az[on];
-    const ux = (lanes.bx[on] - ax) / len, uz = (lanes.bz[on] - az) / len;
-    const off = this.acrossAt(lanes, on, at, len) + shift;
-    return [ax + ux * at + uz * off, az + uz * at - ux * off];
+    placeAlong(lanes, on, at, this.acrossAt(lanes, on, at, len) + shift, this.pt);
+    return [this.pt[0], this.pt[1]];
+  }
+
+  /** Scratch for `placeAlong`, so the frame loop allocates nothing. */
+  private readonly pt = new Float32Array(4);
+  private readonly pt2 = new Float32Array(4);
+
+  /**
+   * Where a pedestrian is: on the footway, `side` of the lane's direction.
+   *
+   * The last few metres of a lane are its junction, and walking the footway
+   * offset straight through that would put them in the middle of the crossing
+   * and then jump them to the next arm's pavement. Instead, over the junction
+   * they walk from where their footway ends to where the next one starts: round
+   * the corner, or over the crossing -- whichever the turn is.
+   */
+  private footwayAt(lanes: LaneGraph, lane: number, along: number, side: number,
+    next: number): Float32Array {
+    const len = Math.max(0.001, lanes.length[lane]);
+    const off = lanes.footway[lanes.link[lane]] * side;
+    const stop = Math.min(len * 0.5, Math.max(0.5, lanes.stopBack[lane]));
+    if (along <= len - stop || next < 0 || next >= lanes.count) {
+      placeAlong(lanes, lane, Math.min(along, len - stop), off, this.pt);
+      return this.pt;
+    }
+    placeAlong(lanes, lane, len - stop, off, this.pt);
+    const nlen = Math.max(0.001, lanes.length[next]);
+    const start = Math.min(nlen * 0.5, Math.max(0.5, lanes.startBack[next]));
+    placeAlong(lanes, next, start, lanes.footway[lanes.link[next]] * side, this.pt2);
+    const t = Math.min(1, (along - (len - stop)) / stop);
+    const dx = this.pt2[0] - this.pt[0], dz = this.pt2[1] - this.pt[1];
+    const d = Math.hypot(dx, dz);
+    this.pt[0] += dx * t; this.pt[1] += dz * t;
+    if (d > 0.01) { this.pt[2] = dx / d; this.pt[3] = dz / d; }
+    return this.pt;
   }
 
   /**
@@ -312,31 +344,21 @@ export class Movers {
       if (mode !== Mode.WALK && mode !== Mode.BIKE) continue;
       const lane0 = paths.at(pc.route[id], pc.step[id]);
       let x = pc.x[id], z = pc.z[id];
+      let yaw = 0;
       if (lane0 >= 0 && lane0 < lanes.count) {
-        // The same carry-forward the vehicles get, along the lane they are on,
-        // and out onto the pavement: a citizen walking up the middle of the
-        // carriageway is the one thing worse than not drawing them at all.
-        const l = Math.max(0.001, lanes.length[lane0]);
-        const ux = (lanes.bx[lane0] - lanes.ax[lane0]) / l;
-        const uz = (lanes.bz[lane0] - lanes.az[lane0]) / l;
-        const step = WALK_SPEED * lead;
-        x += ux * step;
-        z += uz * step;
-        const kerb = this.acrossAt(lanes, lane0, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
-        x += uz * kerb;
-        z -= ux * kerb;
+        // On the footway on their own side, carried forward the way the
+        // vehicles are, and following the road as drawn: a citizen walking up
+        // the middle of the carriageway is worse than not drawing them at all.
+        const p = this.footwayAt(lanes, lane0, pc.along[id] + WALK_SPEED * lead,
+          DRIVE_SIDE, paths.at(pc.route[id], pc.step[id] + 1));
+        x = p[0]; z = p[1];
+        yaw = Math.atan2(p[3], p[2]);
       }
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
-      // Heading from where they are going, which the route's own lane says.
-      // A person facing the wrong way down the street they are walking along
-      // is the one thing that reads as broken from any distance at all.
-      let yaw = 0;
-      if (lane0 >= 0 && lane0 < lanes.count) {
-        yaw = Math.atan2(lanes.bz[lane0] - lanes.az[lane0],
-          lanes.bx[lane0] - lanes.ax[lane0]);
-      }
-      if (write(mode === Mode.BIKE ? 'cyclist' : 'walker', x, z, yaw, 0)) {
+      const seat = mode === Mode.BIKE ? 'cyclist'
+        : walkSeat(id, pc.along[id] + WALK_SPEED * lead);
+      if (write(seat, x, z, yaw, 0)) {
         this.counts.people++;
       }
     }
@@ -350,16 +372,13 @@ export class Movers {
       for (let i = 0; i < strollers.count; i++) {
         const lane = strollers.laneOf(i);
         if (lane < 0 || lane >= lanes.count) continue;
-        const l = Math.max(0.001, lanes.length[lane]);
-        const ax = lanes.ax[lane], az = lanes.az[lane];
-        const ux = (lanes.bx[lane] - ax) / l, uz = (lanes.bz[lane] - az) / l;
-        const at = Math.min(l, strollers.alongOf(i) + WALK_SPEED * lead);
-        const kerb = this.acrossAt(lanes, lane, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
-        const x = ax + ux * at + uz * kerb;
-        const z = az + uz * at - ux * kerb;
+        const at = strollers.alongOf(i) + WALK_SPEED * lead;
+        const p = this.footwayAt(lanes, lane, at, strollers.sideOf(i) * DRIVE_SIDE,
+          strollers.nextOf(i));
+        const x = p[0], z = p[1];
         const dx = eyeX - x, dz = eyeZ - z;
         if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
-        if (write('walker', x, z, Math.atan2(uz, ux), 0)) this.counts.people++;
+        if (write(walkSeat(i * 7 + 3, at), x, z, Math.atan2(p[3], p[2]), 0)) this.counts.people++;
       }
     }
 
@@ -473,20 +492,17 @@ export class Movers {
         const lane = incidents.lane[i];
         if (lane < 0 || lane >= lanes.count) continue;
         const l = Math.max(0.001, lanes.length[lane]);
-        const ax = lanes.ax[lane], az = lanes.az[lane];
-        const ux = (lanes.bx[lane] - ax) / l, uz = (lanes.bz[lane] - az) / l;
         const caught = incidents.state[i] === 2;
         // A tick is a tenth of a second at speed one: a third of a metre a
         // tick is a sprint, for as far as the street goes.
         const at = caught ? l * 0.5 : Math.min(l, l * 0.5 + (incidents.age[i] + lead * 10) * 0.35);
-        const kerb = this.acrossAt(lanes, lane, l * 0.5, l) + PAVEMENT * DRIVE_SIDE;
-        const x = ax + ux * at + uz * kerb;
-        const z = az + uz * at - ux * kerb;
+        const p = this.footwayAt(lanes, lane, at, DRIVE_SIDE, -1);
+        const x = p[0], z = p[1], ux = p[2], uz = p[3];
         const dx = eyeX - x, dz = eyeZ - z;
         if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
         // Caught, they face the road where the patrol car is; running, away.
         const yaw = caught ? Math.atan2(-ux, uz) : Math.atan2(uz, ux);
-        if (write('walker', x, z, yaw, 0)) this.counts.people++;
+        if (write(caught ? 'walker' : walkSeat(i, at * 1.6), x, z, yaw, 0)) this.counts.people++;
       }
     }
 
@@ -574,7 +590,6 @@ const LANE_METRES = 3.5;
 /** How fast a lane change is drawn sideways. Matches the model's own unwind. */
 const LANE_SHIFT_SPEED = 2.3;
 /** How far beyond the kerbside lane the footway is. */
-const PAVEMENT = 2.6;
 
 /** Which seat a vehicle is drawn in. */
 function seatOf(kind: number, v: number, role = 0): string {
@@ -597,3 +612,16 @@ function seatOf(kind: number, v: number, role = 0): string {
   const liveries = CAR_LIVERIES.length;
   return (v % 7) === 0 ? 'taxi' : CAR_LIVERIES[v % liveries];
 }
+
+/**
+ * Which figure a pedestrian is drawn as: one of the four people, in whichever
+ * half of their stride the distance they have walked puts them. Two poses a
+ * pace apart, changed by the metre rather than by the clock, is a walk cycle
+ * whose feet keep time with how fast the figure is actually going.
+ */
+function walkSeat(who: number, walked: number): string {
+  const v = Math.imul(who, 0x9e3779b1) >>> 30;
+  const pose = Math.floor(walked / 0.78 + v * 0.5) & 1;
+  return WALK_SEATS[v * 2 + pose];
+}
+const WALK_SEATS = ['walker', 'walk0b', 'walk1a', 'walk1b', 'walk2a', 'walk2b', 'walk3a', 'walk3b'];

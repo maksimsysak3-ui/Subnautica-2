@@ -191,6 +191,34 @@ function moverOf(id: string, name: string, seat: string): AssetDef | null {
   };
 }
 
+/**
+ * The four people on the pavements, each in both halves of a stride.
+ *
+ * Keys picked for spread: dark coat, light jacket, a bag, a smaller figure.
+ * Seats for these are chosen per pedestrian and per pace by the frame, which is
+ * what turns a sliding statue into somebody walking.
+ */
+const WALKERS: Array<{ key: number; bag: boolean; scale: number }> = [
+  { key: 91, bag: false, scale: 1.0 },
+  { key: 23, bag: true, scale: 1.02 },
+  { key: 64, bag: false, scale: 0.97 },
+  { key: 147, bag: true, scale: 0.9 },
+];
+
+function walkerPose(who: number, stride: number) {
+  return (lod: number): MeshBuilder => {
+    const w = WALKERS[who];
+    const m = new MeshBuilder();
+    if (lod >= 2) {
+      m.box([-0.17, 0, -0.13], [0.17, 1.42 * w.scale, 0.13], MAT.HOUSING);
+      m.box([-0.12, 1.42 * w.scale, -0.11], [0.12, 1.74 * w.scale, 0.11], MAT.SKIN);
+      return m;
+    }
+    person(m, w.key, 0, 0, Math.PI * 0.5, { stride, scale: w.scale, bag: w.bag });
+    return m;
+  };
+}
+
 /** One person, walking, at the origin. */
 function walker(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -273,6 +301,17 @@ built.push({
   note: 'One person, walking. Drawn wherever a citizen on foot actually is.',
   build: walker,
 });
+for (let who = 0; who < WALKERS.length; who++) {
+  for (const [pose, stride] of [['a', 0.34], ['b', -0.34]] as const) {
+    if (who === 0 && pose === 'a') continue;          // that one is move.walker
+    built.push({
+      id: `move.walk${who}${pose}`, name: 'Pedestrian', zone: 'fleet', density: 'none',
+      variant: 'sculpted', footprint: [1, 1], height: 1.8, sim: free,
+      note: 'One of the pavement figures, in one half of a stride.',
+      build: walkerPose(who, stride),
+    });
+  }
+}
 built.push({
   id: 'move.cyclist', name: 'Cyclist', zone: 'fleet', density: 'none',
   variant: 'sculpted', footprint: [1, 1], height: 1.7,
@@ -597,6 +636,13 @@ export const MOVER_IDS = {
   fire: 'move.fire',
   refuse: 'move.refuse',
   walker: 'move.walker',
+  walk0b: 'move.walk0b',
+  walk1a: 'move.walk1a',
+  walk1b: 'move.walk1b',
+  walk2a: 'move.walk2a',
+  walk2b: 'move.walk2b',
+  walk3a: 'move.walk3a',
+  walk3b: 'move.walk3b',
   cyclist: 'move.cyclist',
   signalRed: 'move.signalRed',
   signalAmber: 'move.signalAmber',
@@ -629,7 +675,14 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.ambulance': 40,
   'move.fire': 30,
   'move.refuse': 50,
-  'move.walker': 2200,
+  'move.walker': 520,
+  'move.walk0b': 420,
+  'move.walk1a': 420,
+  'move.walk1b': 420,
+  'move.walk2a': 420,
+  'move.walk2b': 420,
+  'move.walk3a': 420,
+  'move.walk3b': 420,
   'move.cyclist': 300,
   'move.signalRed': 240,
   'move.signalAmber': 80,

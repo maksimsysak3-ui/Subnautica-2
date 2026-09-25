@@ -1269,7 +1269,8 @@ Promise<{ pixels: number[]; movers: string }> {
   tools.visible = true;
   live.playing = true;
   camera.setViewport(width, height);
-  camera.yaw = 0.62; camera.pitch = 0.46; camera.distance = dist;
+  const view = (globalThis as unknown as { HUD_VIEW?: [number, number] }).HUD_VIEW;
+  camera.yaw = view ? view[0] : 0.62; camera.pitch = view ? view[1] : 0.46; camera.distance = dist;
   // Where to point it. Zero is the middle of the map, which is downtown; a
   // probe judging suburban ground has to be able to go and look at some.
   const aim = (globalThis as unknown as { HUD_AIM?: [number, number] }).HUD_AIM;

@@ -224,6 +224,53 @@ export interface LaneGraph {
    */
   linkStart: Int32Array;
   linkEnd: Int32Array;
+
+  /**
+   * Each link's centreline as it is actually drawn, by [link] -> the
+   * [curveAt[link], curveAt[link + 1]) range of `curveX`/`curveZ`, evenly
+   * spaced by arc length from the link's start node.
+   *
+   * A lane's `ax..bx` is the chord between its nodes, and on a road drawn as a
+   * curve that chord runs straight across the bend -- through the verge, the
+   * footway and whatever is built on the inside of it. Anything drawn on a lane
+   * goes through `placeAlong`, which follows this instead. A straight link
+   * keeps just its two ends.
+   */
+  curveAt: Int32Array;
+  curveX: Float32Array;
+  curveZ: Float32Array;
+  /**
+   * Metres from a link's centreline to the middle of its footway, or of the
+   * verge on a road with no pavement. Where a pedestrian walks.
+   */
+  footway: Float32Array;
+}
+
+/**
+ * A point `along` metres into `lane`, `off` metres to the right of its direction
+ * of travel, on the road as drawn. Writes x, z and the unit heading to `out`.
+ */
+export function placeAlong(g: LaneGraph, lane: number, along: number, off: number,
+  out: Float32Array | number[]): void {
+  const link = g.link[lane];
+  const c0 = g.curveAt[link], c1 = g.curveAt[link + 1];
+  const segs = c1 - c0 - 1;
+  const len = Math.max(0.001, g.length[lane]);
+  const back = g.dir[lane] !== FORWARD;
+  let s = Math.max(0, Math.min(len, along));
+  if (back) s = len - s;
+  const f = Math.min(segs - 1e-6, (s / len) * segs);
+  const i = Math.max(0, Math.floor(f)), t = f - i;
+  const x0 = g.curveX[c0 + i], z0 = g.curveZ[c0 + i];
+  const x1 = g.curveX[c0 + i + 1], z1 = g.curveZ[c0 + i + 1];
+  let tx = x1 - x0, tz = z1 - z0;
+  const n = Math.hypot(tx, tz) || 1;
+  tx /= n; tz /= n;
+  if (back) { tx = -tx; tz = -tz; }
+  out[0] = x0 + (x1 - x0) * t + tz * off;
+  out[1] = z0 + (z1 - z0) * t - tx * off;
+  out[2] = tx;
+  out[3] = tz;
 }
 
 /** What a class admits. */
@@ -323,7 +370,11 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     edgeTo: new Int32Array(0), edgeTurn: new Uint8Array(0),
     edgeCost: new Float32Array(0), edgeCount: 0,
     linkStart, linkEnd,
+    curveAt: new Int32Array(links.length + 1),
+    curveX: new Float32Array(0), curveZ: new Float32Array(0),
+    footway: new Float32Array(links.length),
   };
+  const curveX: number[] = [], curveZ: number[] = [];
 
   // Pass two: make the lanes.
   let at = 0;
@@ -333,6 +384,19 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     const pts = net.samples(link);
     const total = pts[pts.length - 1].s;
     const a = net.nodes[link.a], b = net.nodes[link.b];
+    // The drawn centreline, or just its ends if it never strays half a metre
+    // from the chord: most links are straight and need nothing more.
+    g.curveAt[i] = curveX.length;
+    let bent = false;
+    {
+      const cx = b.x - a.x, cz = b.z - a.z, cl = Math.hypot(cx, cz) || 1;
+      for (const p of pts) {
+        if (Math.abs(((p.x - a.x) * cz - (p.z - a.z) * cx) / cl) > 0.5) { bent = true; break; }
+      }
+    }
+    if (bent) for (const p of pts) { curveX.push(p.x); curveZ.push(p.z); }
+    else { curveX.push(a.x, b.x); curveZ.push(a.z, b.z); }
+    g.footway[i] = spec.kerbed ? (spec.half + 0.32 + spec.edge) / 2 : (spec.half + 0.5 + spec.edge) / 2;
     // The road's own tangent at each end, so a curve's arms meet at the angle
     // they actually meet at. Backward lanes travel the other way, so both
     // components flip.
@@ -371,6 +435,9 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     if (spec.oneWay) { linkStart[i * 2 + BACKWARD] = at; linkEnd[i * 2 + BACKWARD] = at; }
   }
   g.count = at;
+  g.curveAt[links.length] = curveX.length;
+  g.curveX = Float32Array.from(curveX);
+  g.curveZ = Float32Array.from(curveZ);
 
   // The stop lines. Taken from the junction's own size rather than a constant,
   // because a crossroads of two avenues is twice the box a pair of streets is,

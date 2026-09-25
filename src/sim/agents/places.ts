@@ -25,6 +25,7 @@ import { ASSETS } from '../../assets/registry';
 import { INSTANCE_FLOATS } from '../city';
 import type { City } from '../city';
 import { BRANCHES } from '../../assets/types';
+import type { AssetDef } from '../../assets/types';
 
 /** What a building is for. */
 export const Purpose = {
@@ -206,6 +207,13 @@ export class Places {
   readonly byBranch: Pool[] = [];
   /** Every home, for walks that want all of them. */
   readonly homes: Pool;
+  /**
+   * The places people cross the city for: a stadium, a landmark, a big park, a
+   * shopping centre. Their pull is `appeal`; see `appealOf`.
+   */
+  readonly attractions: Pool;
+  readonly appeal = new Map<number, number>();
+  appealTotal = 0;
   /** Schools with room, by what they teach. Index 0 is unused. */
   readonly schools: Pool[] = [];
 
@@ -255,6 +263,7 @@ export class Places {
   constructor(capacity = 1 << 16) {
     this.vacantHomes = new Pool(capacity);
     this.homes = new Pool(capacity);
+    this.attractions = new Pool(capacity);
     for (let i = 0; i < PURPOSES; i++) {
       this.vacantJobs.push(new Pool(capacity));
       this.byPurpose.push(new Pool(capacity));
@@ -330,6 +339,12 @@ export class Places {
     if (c.teaches[id] !== Teaches.NONE && c.serves[id] > 0) {
       this.schools[c.teaches[id]].add(id);
     }
+    const pull = appealOf(def);
+    if (pull > 0) {
+      this.attractions.add(id);
+      this.appeal.set(id, pull);
+      this.appealTotal += pull;
+    }
     return id;
   }
 
@@ -350,6 +365,12 @@ export class Places {
     this.vacantJobs[c.purpose[id]].remove(id);
     this.byPurpose[c.purpose[id]].remove(id);
     if (c.branch[id] !== NO_BRANCH) this.byBranch[c.branch[id]].remove(id);
+    const pull = this.appeal.get(id);
+    if (pull !== undefined) {
+      this.attractions.remove(id);
+      this.appeal.delete(id);
+      this.appealTotal -= pull;
+    }
     this.table.remove(id);
   }
 
@@ -561,4 +582,33 @@ export function buildPlaces(city: City, lanes: LaneGraph, index: LaneIndex,
   const places = into ?? new Places(Math.max(4096, city.count));
   reconcilePlaces(city, lanes, index, places, [], rows);
   return places;
+}
+
+/**
+ * How strongly a building draws people from across the city, 0 for not at all.
+ *
+ * Most trips are local and should be: the corner shop, the nearest park. But a
+ * city has a few places people travel to on purpose, and those are what make
+ * traffic converge -- a stadium, a cathedral, a museum, a big park, a shopping
+ * centre -- and converging traffic is what a road network has to be designed
+ * for. Read from the descriptor, so a new landmark pulls without a table here.
+ */
+const DRAW_WORDS: Array<[RegExp, number]> = [
+  [/stadium|gridiron|soccer|arena|ballpark/, 10],
+  [/museum|gallery|cathedral|zoo|aquarium|theatre|opera|concert hall|castle|expo/, 5],
+];
+/** Branches nobody visits for the day out, whatever the building is called. */
+const WORKADAY = new Set(['water', 'sewage', 'power', 'post', 'fire', 'police', 'health']);
+
+export function appealOf(def: AssetDef | undefined): number {
+  if (def === undefined || (def.sim?.households ?? 0) > 0) return 0;
+  if (def.branch !== undefined && WORKADAY.has(def.branch)) return 0;
+  const text = `${def.id} ${def.name}`.toLowerCase();
+  for (const [re, pull] of DRAW_WORDS) if (re.test(text)) return pull;
+  if (def.zone === 'commercial' && /mall|market|shopping|plaza|cinema/.test(text)) return 2.5;
+  const area = def.footprint[0] * def.footprint[1];
+  if (def.signature === true && (def.zone === 'commercial' || def.zone === 'service')) return 4;
+  if (def.branch === 'parks' && area >= 48) return 1.5 + Math.min(3, area / 60);
+  if (def.zone === 'commercial' && def.density === 'high' && area >= 24) return 1.5;
+  return 0;
 }
