@@ -133,6 +133,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
     { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+    { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+    { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
   ] });
   const protoLayout = device.createBindGroupLayout({ entries: [
     { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
@@ -180,6 +182,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
     { binding: 0, resource: { buffer: sceneBuf } },
     { binding: 1, resource: shadowTex.createView() },
     { binding: 2, resource: device.createSampler({ compare: 'less' }) },
+    { binding: 3, resource: device.createTexture({ size: [1, 1], format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING }).createView() },
+    { binding: 4, resource: device.createSampler() },
   ] });
 
   const colour = device.createTexture({ size: [TILE, TILE], format: 'rgba8unorm',

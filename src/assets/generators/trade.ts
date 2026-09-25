@@ -38,6 +38,8 @@ import {
   annexeOffice, bank, courtyardOffice, garage, gardenCentre, showroom, unitTerrace,
 } from './street';
 import { container, racking, stockpile, drum, crate, pallet } from './freight';
+import { lorry, loader, paintedAs } from './machines';
+import { factory, depot, recycling, foodworks, retailPark, restaurantRow } from './works-more';
 
 // -------------------------------------------------------------- commercial
 
@@ -646,13 +648,8 @@ function shed(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       m.painted(TINT.METAL_DARK, () => m.box([cx - 1.55, 1.0, dockZ], [cx + 1.55, 4.8, dockZ + 0.6], MAT.TRIM));
       m.box([cx - 1.2, 0.05, dockZ], [cx + 1.2, 1.2, dockZ + 1.4], MAT.CONCRETE);
       // Every other bay has a trailer backed on to it.
-      if ((i + seed) % 2 === 0) {
-        m.box([cx - 1.25, 1.1, dockZ + 1.5], [cx + 1.25, 4.0, dockZ + 14.0], MAT.SHED_WALL, { roof: MAT.METAL });
-        m.painted(TINT.METAL_DARK, () => {
-          m.box([cx - 1.2, 0.05, dockZ + 10.0], [cx + 1.2, 1.1, dockZ + 12.8], MAT.TRIM);
-          m.box([cx - 0.4, 0.05, dockZ + 3.0], [cx + 0.4, 1.1, dockZ + 3.4], MAT.TRIM);
-        });
-      }
+      // A real lorry, cab out, rather than the white box that stood for one.
+      if ((i + seed) % 2 === 0) paintedAs(TINT.BRAND, () => lorry(m, cx, dockZ + 4.6, 1, 'box', false));
     }
     ribbon(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 0.4, -x + 8.6, 1.2, 3.0, { mullions: 4 });
     ribbon(m, { axis: 'z', sign: 1, plane: z + 0.6 }, -x + 0.4, -x + 8.6, 4.6, 6.8, { mullions: 4 });
@@ -1255,6 +1252,35 @@ function merchant(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
       crate(m, px, 0.16, bz0 + 2.2, 1.6, 1.3, 1.2);
     }
     bollards(m, { axis: 'z', sign: 1, plane: z }, -x + 1.0, x - 1.0, 0.7, 6);
+    // Timber in banded packs down the middle of the bay, stacked on bearers,
+    // the thing a builders' merchant is full of -- the canopy stood over a
+    // bare floor.
+    m.painted(TINT.WOOD, () => {
+      const span = bx1 - bx0 - 6.0;
+      for (let row = 0; row < 2; row++) {
+        const tz = (bz0 + bz1) / 2 - 1.6 + row * 3.2;
+        for (let k = 0; k < 3; k++) {
+          const top = 0.3 + k * 0.72;
+          m.box([bx0 + 3.0, top, tz - 0.6], [bx0 + 3.0 + span * (0.9 - k * 0.12), top + 0.62, tz + 0.6], MAT.PAINT);
+        }
+      }
+    });
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 5; i++) {
+        const px = bx0 + 3.4 + i * ((bx1 - bx0 - 7.0) / 4);
+        for (const tz of [(bz0 + bz1) / 2 - 1.6, (bz0 + bz1) / 2 + 1.6]) {
+          m.box([px - 0.08, 0.16, tz - 0.66], [px + 0.08, 0.3, tz + 0.66], MAT.TRIM);
+        }
+      }
+    });
+    // Blocks and bricks, shrink-wrapped on pallets, along the back.
+    m.painted(TINT.ACCENT, () => {
+      for (let i = 0; i < 5; i++) {
+        const px = bx0 + 2.0 + i * 2.2;
+        m.box([px - 0.55, 0.3, bz0 + 3.6], [px + 0.55, 1.35, bz0 + 4.7], MAT.PAINT);
+      }
+    });
+    paintedAs(TINT.ACCENT, () => loader(m, bx1 - 5.0, (bz0 + bz1) / 2 + 4.6, 2, false));
   }
   return m;
 }
@@ -1274,6 +1300,8 @@ const SHOPS: Plan[] = [
   { key: 'showroom', name: 'Car showroom', build: showroom, footprint: [4, 4], density: 'medium', jobs: 24, brand: 'motors' },
   { key: 'garage', name: 'Repair garage', build: garage, footprint: [3, 3], density: 'low', jobs: 11, brand: 'motors' },
   { key: 'garden', name: 'Garden centre', build: gardenCentre, footprint: [4, 4], density: 'medium', jobs: 28, brand: 'hardware' },
+  { key: 'retailpark', name: 'Retail park', build: retailPark, footprint: [6, 5], density: 'medium', jobs: 70, brand: 'fashion' },
+  { key: 'restaurants', name: 'Restaurant row', build: restaurantRow, footprint: [3, 3], density: 'low', jobs: 24, brand: 'deli' },
 ];
 
 const OFFICES: Plan[] = [
@@ -1299,6 +1327,10 @@ const WORKS: Plan[] = [
   { key: 'yard', name: 'Storage yard', build: yard, footprint: [4, 3], density: 'none', jobs: 18 },
   { key: 'mill', name: 'Mill', build: mill, footprint: [4, 4], density: 'none', jobs: 110 },
   { key: 'merchant', name: 'Builders merchant', build: merchant, footprint: [5, 5], density: 'none', jobs: 32 },
+  { key: 'factory', name: 'North-light factory', build: factory, footprint: [4, 5], density: 'none', jobs: 85 },
+  { key: 'depot', name: 'Container depot', build: depot, footprint: [5, 5], density: 'none', jobs: 30 },
+  { key: 'recycling', name: 'Recycling yard', build: recycling, footprint: [4, 4], density: 'none', jobs: 26 },
+  { key: 'food', name: 'Food factory', build: foodworks, footprint: [5, 5], density: 'none', jobs: 90 },
 ];
 
 function sim(zone: Zone, jobs: number): AssetDef['sim'] {

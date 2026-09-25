@@ -109,6 +109,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
     { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
     { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+    // The street-light map; the sheet has none, and its extent of nought says so.
+    { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+    { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
   ] });
   // The prototype table. The city binds four hundred rows and indexes them by
   // the instance's prototype; this binds one, because it photographs one asset
@@ -163,6 +166,9 @@ const result = await page.evaluate(async ({ shader, registry, TILE, TILE_H, COLS
     { binding: 0, resource: { buffer: sceneBuf } },
     { binding: 1, resource: shadowTex.createView() },
     { binding: 2, resource: device.createSampler({ compare: 'less' }) },
+    { binding: 3, resource: device.createTexture({ size: [1, 1], format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING }).createView() },
+    { binding: 4, resource: device.createSampler() },
   ] });
 
   const colour = device.createTexture({ size: [TILE, TILE_H], format: 'rgba8unorm',
