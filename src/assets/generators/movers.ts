@@ -214,7 +214,7 @@ function walkerPose(who: number, stride: number) {
       m.box([-0.12, 1.42 * w.scale, -0.11], [0.12, 1.74 * w.scale, 0.11], MAT.SKIN);
       return m;
     }
-    person(m, w.key, 0, 0, Math.PI * 0.5, { stride, scale: w.scale, bag: w.bag });
+    person(m, w.key, 0, 0, 0, { stride, scale: w.scale, bag: w.bag });
     return m;
   };
 }
@@ -230,9 +230,10 @@ function walker(lod: number): MeshBuilder {
     return m;
   }
   // Facing +x, so the instance's heading is the direction of travel with no
-  // correction anywhere: `person` builds looking down +z, so it is turned a
-  // quarter turn here rather than in the frame loop.
-  person(m, 91, 0, 0, Math.PI * 0.5, { stride: 0.34, scale: 1.0, bag: false });
+  // correction anywhere. `person` builds facing +x itself now; the quarter
+  // turn that used to be here was for when it faced +z, and after it changed
+  // every pedestrian in the city walked sideways.
+  person(m, 91, 0, 0, 0, { stride: 0.34, scale: 1.0, bag: false });
   return m;
 }
 
@@ -253,7 +254,7 @@ function rider(lod: number): MeshBuilder {
     m.pipe([-0.5, 0.34, 0], [-0.12, 0.95, 0], 0.035, MAT.TRIM, 5);
     m.box([0.42, 0.95, -0.22], [0.5, 1.0, 0.22], MAT.TRIM);
   });
-  person(m, 57, -0.12, 0, Math.PI * 0.5, { stride: 0.2, scale: 0.96, lift: 0.46 });
+  person(m, 57, -0.12, 0, 0, { stride: 0.2, scale: 0.96, lift: 0.46 });
   return m;
 }
 
