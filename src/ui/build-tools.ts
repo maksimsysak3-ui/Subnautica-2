@@ -30,6 +30,7 @@ import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
+import { PROCESS_CAP, PROCESS_VALUE } from '../sim/industry';
 import type { Lot } from '../sim/world';
 import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
@@ -910,6 +911,25 @@ export class BuildTools {
       panel.appendChild(this.tile(p.id, p.def.name.replace(' headquarters', ''), here,
         buildingPrice(p.def), r.ramp[2],
         `${r.product}: ${r.blurb} Place the headquarters, then draw the area it works.`,
+        () => this.select({ kind: 'place', proto: p })));
+    }
+    // The second link: plants that turn what the headquarters supply the city
+    // into goods worth more than twice as much.
+    const head = document.createElement('div');
+    head.className = 'mr-section-label';
+    head.style.gridColumn = '1 / -1';
+    head.textContent = 'Processing — worth 2.2× the raw material';
+    panel.appendChild(head);
+    const hqs = this.renderer.world.industry.hqs;
+    for (const r of RESOURCES) {
+      const p = industryProto(`spec.plant.${r.id}`);
+      if (p === undefined) continue;
+      const fed = hqs.some((h) => h.kind === r.id);
+      const hq = (industryProto(`spec.hq.${r.id}`)?.def.name ?? r.name).replace(' headquarters', '').toLowerCase();
+      panel.appendChild(this.tile(p.id, p.def.name, fed ? `takes ${r.product.toLowerCase()}` : `needs ${/^[aeiou]/.test(hq) ? 'an' : 'a'} ${hq} HQ`,
+        buildingPrice(p.def), r.ramp[2],
+        `Turns up to ${PROCESS_CAP} units of ${r.product.toLowerCase()} a week into goods worth ${PROCESS_VALUE}× the export price. `
+          + 'It takes what a headquarters of its kind supplies the city, so set that headquarters to supply rather than ship.',
         () => this.select({ kind: 'place', proto: p })));
     }
     this.mount(panel, 'industry');

@@ -48,6 +48,7 @@ export interface StatsRead {
     stopped: number; worstLoad: number; congested: number; lanes: number;
     riders: number; crossTown: number;
   };
+  plants: Array<{ name: string; colour: string; taken: number; capacity: number; income: number; staffing: number }>;
   industry: Array<{ name: string; colour: string; income: number; units: number;
     shipped: number; local: number; staffing: number; hectares: number; remaining: number }>;
 }
@@ -364,6 +365,20 @@ export class StatsApp {
       tile('Imports', money(L.imports), 'a week'),
     );
     this.body.appendChild(tiles);
+    if (r.plants.length > 0) {
+      this.body.appendChild(section('Processing plants'));
+      for (const p of r.plants) {
+        const card = el('div', 'mr-st-zone');
+        card.style.setProperty('--tone', p.colour);
+        const head = el('div', 'mr-st-zone-head');
+        head.append(swatch(p.colour), el('span', 'mr-st-zone-name', p.name), el('span', 'mr-st-zone-rate', money(p.income)));
+        card.append(head,
+          row('Taking a week', `${Math.round(p.taken)} of ${Math.round(p.capacity * p.staffing)} units`,
+            p.taken < p.capacity * p.staffing * 0.5 ? 'warn' : undefined),
+          row('Staffed', pct(p.staffing), p.staffing < 0.6 ? 'warn' : undefined));
+        this.body.appendChild(card);
+      }
+    }
     this.body.appendChild(section('Specialised industry'));
     if (r.industry.length === 0) {
       this.body.appendChild(el('div', 'mr-st-note', 'No industry headquarters yet. They unlock at level 3.'));

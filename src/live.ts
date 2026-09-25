@@ -332,6 +332,8 @@ export class LiveCity {
         this.inspect.attach(this.industryCard.root);
       }
     }
+    // A processing plant says what it is taking and what that is worth.
+    if (found.asset.startsWith('spec.plant.')) this.inspect.attach(this.plantSection(found));
     // A service building can be upgraded: the section says what the next tier
     // buys and what it costs, and builds it.
     if (found.branch !== undefined && !found.asset.startsWith('spec.')) {
@@ -349,6 +351,47 @@ export class LiveCity {
 
   /** Builds a tier onto a lot. Wired by main to the build tools, which pay and rebuild. */
   onUpgrade: ((lot: Lot) => string | null) | null = null;
+
+  private plantSection(found: Inspection): HTMLElement {
+    const world = this.renderer.world;
+    const plants = world.lots.filter((l) => l.id.startsWith('spec.plant.'));
+    const half = world.grid / 2;
+    const i = plants.findIndex((l) => Math.abs((l.gx - half + l.w / 2) * 8 - found.x) < 6
+      && Math.abs((l.gz - half + l.d / 2) * 8 - found.z) < 6);
+    const rep = world.industry.plantReports[i];
+    const kind = found.asset.slice('spec.plant.'.length);
+    const info = RESOURCES.find((r) => r.id === kind);
+    const box = document.createElement('div');
+    box.className = 'mr-upg';
+    const head = document.createElement('div');
+    head.className = 'mr-upg-head';
+    head.textContent = `Processing ${info?.product.toLowerCase() ?? kind}`;
+    box.appendChild(head);
+    const row = (k: string, v: string): void => {
+      const r = document.createElement('div');
+      r.className = 'mr-st-row';
+      const a = document.createElement('span'); a.textContent = k;
+      const b = document.createElement('b'); b.textContent = v;
+      r.append(a, b);
+      box.appendChild(r);
+    };
+    if (rep === undefined) {
+      row('Taking', 'starts next week');
+    } else {
+      row('Taking a week', `${Math.round(rep.taken)} of ${Math.round(rep.capacity * rep.staffing)} units`);
+      row('Adds a week', money(Math.round(rep.income)));
+    }
+    const fed = world.industry.hqs.some((h) => h.kind === kind && h.exportShare < 1);
+    if (!fed) {
+      const note = document.createElement('div');
+      note.className = 'mr-upg-note';
+      note.textContent = world.industry.hqs.some((h) => h.kind === kind)
+        ? 'Its headquarters ships everything out. Move its slider towards supply the city to feed this plant.'
+        : `No ${info?.name.toLowerCase() ?? kind} headquarters supplies it yet.`;
+      box.appendChild(note);
+    }
+    return box;
+  }
 
   /** The placed lot a building on the map stands on. */
   private lotAt(found: Inspection): Lot | undefined {
@@ -675,6 +718,12 @@ export class LiveCity {
         riders: Math.round(sim.transit.report.ridersPerDay ?? 0),
         crossTown: sim.routine.drawShare(),
       },
+      plants: ind.plantReports.map((p) => {
+        const info = RESOURCES.find((r) => r.id === p.kind);
+        const def = assetById(`spec.plant.${p.kind}`);
+        return { name: def?.name ?? p.kind, colour: info?.ramp[1] ?? '#b8841f', taken: p.taken,
+          capacity: p.capacity, income: p.income, staffing: p.staffing };
+      }),
       industry: ind.hqs.map((h, i) => {
         const rep = ind.reports[i];
         const info = RESOURCES.find((r) => r.id === h.kind);

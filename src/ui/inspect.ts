@@ -105,6 +105,8 @@ export class Inspect {
     const kind = document.createElement('div');
     css(kind, [...label(), 'font-size:10.5px']);
     kind.textContent = what.asset.startsWith('spec.hq.') ? 'industry headquarters'
+      : what.asset.startsWith('spec.plant.') ? 'processing plant'
+      : what.asset.startsWith('spec.wing.') ? 'extension'
       : what.branch !== undefined ? `${what.branch} service`
         : `${what.density} ${what.zone}`;
     titles.append(name, kind);

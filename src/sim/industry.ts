@@ -62,6 +62,17 @@ export const PRICE: Record<ResourceId, number> = {
 };
 /** What the city's own industry pays, as a share of the export price. */
 export const LOCAL_PRICE = 0.65;
+/**
+ * A processing plant: what it can take a week at full staff, and what its
+ * product is worth against the raw material's export price.
+ */
+export const PROCESS_CAP = 140;
+export const PROCESS_VALUE = 2.2;
+
+/** One processing plant, as the settle needs it. */
+export interface PlantIn { kind: ResourceId; staff: number; upkeep: number }
+/** And what it did last week. */
+export interface PlantReport { kind: ResourceId; taken: number; capacity: number; income: number; staffing: number }
 /** Finite resources: the share of a cell taken a week at full staffing. */
 const DEPLETE: Partial<Record<ResourceId, number>> = { ore: 0.03, oil: 0.028, stone: 0.02 };
 /**
@@ -105,6 +116,10 @@ export class Industry {
   localUnits = 0;
   /** Upkeep a week, all headquarters together. */
   upkeep = 0;
+  /** Last week's processing plants, in the order they were given. */
+  plantReports: PlantReport[] = [];
+  /** Money a week the plants added on top of what the raw material fetched. */
+  processed = 0;
   /** Bumped on any change a rebuild or a panel should notice. */
   version = 0;
 
@@ -218,7 +233,8 @@ export class Industry {
    * `staffing` says how full each headquarters' jobs are, 0 to 1, and `upkeep`
    * what it costs a week to run.
    */
-  settle(days: number, staffing: (h: Hq) => number, upkeep: (h: Hq) => number): void {
+  settle(days: number, staffing: (h: Hq) => number, upkeep: (h: Hq) => number,
+    plants: PlantIn[] = []): void {
     const share = days / 7;
     const f = resourceFields();
     let weekly = 0, local = 0, cost = 0;
@@ -267,8 +283,26 @@ export class Industry {
         }
       }
     }
-    this.weekly = weekly;
-    this.localUnits = local;
+    // The plants take first from what the headquarters supply the city: a
+    // tonne of ore made into steel here is worth more than the same tonne
+    // sold to a works, which is the whole case for building one.
+    const pool = new Map<ResourceId, number>();
+    this.hqs.forEach((h, i) => pool.set(h.kind, (pool.get(h.kind) ?? 0) + this.reports[i].local));
+    let processed = 0;
+    this.plantReports = plants.map((pl) => {
+      const staff = Math.max(0, Math.min(1, pl.staff));
+      const capacity = PROCESS_CAP * staff;
+      const taken = Math.min(capacity, pool.get(pl.kind) ?? 0);
+      pool.set(pl.kind, (pool.get(pl.kind) ?? 0) - taken);
+      const income = taken * PRICE[pl.kind] * (PROCESS_VALUE - LOCAL_PRICE) * RULES.income;
+      processed += income;
+      local -= taken;
+      cost += pl.upkeep;
+      return { kind: pl.kind, taken, capacity: PROCESS_CAP, income, staffing: staff };
+    });
+    this.processed = processed;
+    this.weekly = weekly + processed;
+    this.localUnits = Math.max(0, local);
     this.upkeep = cost;
   }
 

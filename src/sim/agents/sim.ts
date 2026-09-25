@@ -26,7 +26,8 @@
  * is fixed either way; what changes is whether it arrives all at once.
  */
 
-import type { Hq } from '../industry';
+import type { Hq, PlantIn } from '../industry';
+import type { ResourceId } from '../resources';
 import { UPKEEP_PER_UNIT } from './economy';
 import type { PlumeView } from './plumes';
 import { Scheduler, Rate, slice, TICK_SECONDS, TICK_HZ } from './tick';
@@ -944,32 +945,33 @@ export class Simulation {
     if (world === undefined) return;
     const ind = world.industry;
     this.economy.industry = ind;
-    if (ind.hqs.length === 0) {
-      ind.settle(days, () => 0, () => 0);
-      this.demand.localSupply = 0;
-      return;
-    }
     ind.prune((h) => world.lots.some((l) => l.id === `spec.hq.${h.kind}` && l.gx === h.gx && l.gz === h.gz));
-    // Each headquarters' place: the one of its prototype nearest its lot's centre.
+    // A building's crew, found as the place of its prototype nearest its lot.
     const pl = this.places;
     const c = pl.col;
-    const staffOf = (h: Hq): number => {
-      const proto = ASSET_INDEX.get(`spec.hq.${h.kind}`);
+    const half = world.grid / 2;
+    const staffAt = (id: string, x: number, z: number): number => {
+      const proto = ASSET_INDEX.get(id);
       if (proto === undefined) return 0;
-      const [x, z] = ind.centre(h, world.grid);
-      for (let id = 0; id < pl.count; id++) {
-        if (pl.live[id] === 0 || c.proto[id] !== proto) continue;
-        if (Math.abs(c.x[id] - x) > 40 || Math.abs(c.z[id] - z) > 40) continue;
-        return c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 0;
+      for (let p = 0; p < pl.count; p++) {
+        if (pl.live[p] === 0 || c.proto[p] !== proto) continue;
+        if (Math.abs(c.x[p] - x) > 40 || Math.abs(c.z[p] - z) > 40) continue;
+        return c.jobs[p] > 0 ? c.working[p] / c.jobs[p] : 0;
       }
       return 0;
     };
-    const upkeepOf = (h: Hq): number => {
-      const units = ASSETS[ASSET_INDEX.get(`spec.hq.${h.kind}`) ?? -1]?.sim.upkeep ?? 0;
-      // The building costs something whether or not it is staffed; the wages move.
-      return units * UPKEEP_PER_UNIT * RULES.upkeep * (0.4 + 0.6 * staffOf(h));
+    // The building costs something whether or not it is staffed; the wages move.
+    const running = (id: string, staff: number): number =>
+      (ASSETS[ASSET_INDEX.get(id) ?? -1]?.sim.upkeep ?? 0) * UPKEEP_PER_UNIT * RULES.upkeep * (0.4 + 0.6 * staff);
+    const staffOf = (h: Hq): number => {
+      const [x, z] = ind.centre(h, world.grid);
+      return staffAt(`spec.hq.${h.kind}`, x, z);
     };
-    ind.settle(days, staffOf, upkeepOf);
+    const plants: PlantIn[] = world.lots.filter((l) => l.id.startsWith('spec.plant.')).map((l) => {
+      const staff = staffAt(l.id, (l.gx - half + l.w / 2) * 8, (l.gz - half + l.d / 2) * 8);
+      return { kind: l.id.slice('spec.plant.'.length) as ResourceId, staff, upkeep: running(l.id, staff) };
+    });
+    ind.settle(days, staffOf, (h) => running(`spec.hq.${h.kind}`, staffOf(h)), plants);
     this.demand.localSupply = ind.localUnits;
   }
 
@@ -1023,6 +1025,16 @@ export class Simulation {
     if (out.length !== this.depotLanes.length) this.depotLanes = new Int32Array(out.length);
     this.depotLanes.set(out);
     this.traffic.depotsAre(this.depotLanes, out.length);
+    // And the freight: every working headquarters and processing plant has its
+    // lorries on the road, which is what a supply chain looks like from above.
+    const yards: number[] = [];
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0 || c.working[id] === 0) continue;
+      if (c.lane[id] < 0 || c.lane[id] >= this.lanes.count) continue;
+      const aid = ASSETS[c.proto[id]]?.id ?? '';
+      if (aid.startsWith('spec.hq.') || aid.startsWith('spec.plant.')) yards.push(c.lane[id]);
+    }
+    this.traffic.freightFrom(Int32Array.from(yards));
   }
 
   /**

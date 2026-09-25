@@ -228,6 +228,9 @@ const JAM_SHARE = 0.5;
 const DEPOT_SHARE = 0.55;
 const DEPOT_PER_TICK = 2;
 
+/** Lorries on the road per working industry yard. */
+const FREIGHT_PER_YARD = 3;
+
 /** Ticks a wandering vehicle must have been stationary to be retired. */
 const STALE_TICKS = 600;
 
@@ -1328,7 +1331,7 @@ export class Traffic {
     }
     const want = Math.min(this.budget, Math.round(this.nearbyLoad * VEHICLES_PER_LOAD));
     let room = Math.min(perTick, want - this.wandering());
-    if (room <= 0) return;
+    // No early return when the road is full: the depots and yards below still send theirs.
     const load = this.load;
     while (room-- > 0) {
       // A lane chosen in proportion to how loaded it is, so vehicles appear where
@@ -1372,6 +1375,13 @@ export class Traffic {
         this.spawn(-1, kind, this.drawDriver(), lane, -1, 0, 1.5);
       }
     }
+
+    // Freight out of the yards: a few lorries each, leaving the gate.
+    const yards = this.freightLanes.length;
+    if (yards > 0 && this.lorries() < yards * FREIGHT_PER_YARD) {
+      const lane = this.freightLanes[(this.rng.next() * yards) | 0];
+      if (lane >= 0 && lane < this.g.count) this.spawn(-1, Kind.LORRY, this.drawDriver(), lane, -1, 0, 1.5);
+    }
   }
 
   /**
@@ -1398,6 +1408,22 @@ export class Traffic {
   depotsAre(lanes: Int32Array, count: number): void {
     this.serviceLanes = lanes;
     this.serviceCount = count;
+  }
+
+  /** Industry yards, for the freight lorries that come out of them. */
+  private freightLanes: Int32Array = new Int32Array(0);
+
+  /** Told by the simulation, on a slow beat: where the working industry is. */
+  freightFrom(lanes: Int32Array): void { this.freightLanes = lanes; }
+
+  /** Lorries wandering the network, whoever sent them. */
+  private lorries(): number {
+    const c = this.table.col;
+    let n = 0;
+    for (let v = 0; v < this.table.bound; v++) {
+      if (this.table.live[v] === 1 && c.route[v] < 0 && c.kind[v] === Kind.LORRY) n++;
+    }
+    return n;
   }
 
   /** Ambient service vehicles currently out, as against ordinary traffic. */

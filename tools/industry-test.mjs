@@ -86,6 +86,22 @@ run(1);
 const shipped = w.industry.weekly;
 check(localUnits > 0 && shipped > local, 'supplying the city earns less than shipping, and counts as local supply');
 
+// ---- processing ---------------------------------------------------------------
+// A refinery takes what the headquarters supplies the city and is worth more
+// than shipping it raw -- up to its capacity, and only with a crew.
+w.industry.setExport(hq, 0);
+w.industry.settle(1, () => 1, () => 2000, [{ kind: 'oil', staff: 1, upkeep: 1500 }]);
+const pr = w.industry.plantReports[0];
+check(pr !== undefined && pr.taken > 0, `a plant takes local supply (${Math.round(pr?.taken ?? 0)} units)`);
+check(pr.taken <= pr.capacity + 1e-6, 'no more than its capacity');
+check(w.industry.weekly > shipped, `processing earns more than shipping raw (${Math.round(w.industry.weekly)} vs ${Math.round(shipped)})`);
+check(w.industry.localUnits < localUnits, 'and what it takes is no longer sold to the works');
+w.industry.settle(1, () => 1, () => 2000, [{ kind: 'oil', staff: 0, upkeep: 600 }]);
+check(w.industry.plantReports[0].taken === 0, 'an unstaffed plant takes nothing');
+w.industry.settle(1, () => 1, () => 2000, [{ kind: 'fish', staff: 1, upkeep: 600 }]);
+check(w.industry.plantReports[0].taken === 0, 'a plant with no headquarters of its kind takes nothing');
+w.industry.setExport(hq, 1);
+
 // ---- depletion ---------------------------------------------------------------
 const before = w.industry.reports[hq].remaining;
 run(20);

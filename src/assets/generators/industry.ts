@@ -21,7 +21,7 @@
  * industrial stock's.
  */
 
-import { MAT, TINT, MeshBuilder } from '../mesh';
+import { EMIT, MAT, TINT, MeshBuilder } from '../mesh';
 import type { Vec3 } from '../mesh';
 import type { AssetDef, Brand } from '../types';
 import { band, boxSign, entrance, louvres, parapet, ribbon } from '../parts';
@@ -753,6 +753,213 @@ function boatProp(lod: number): MeshBuilder {
 
 // ------------------------------------------------------------------ table
 
+
+// ------------------------------------------------------------ processing plants
+//
+// The second link in a chain: each takes what its resource's headquarters
+// supplies to the city and turns it into something worth twice as much. Same
+// 6 x 5 lot as a headquarters, and the same rule for their look -- the one
+// silhouette a player would recognise from the road.
+
+/** A yard slab, the plant's shed with its roof, and its office on the front. */
+function works(m: MeshBuilder, fine: boolean, medium: boolean, shed: [number, number, number, number, number]): void {
+  m.box([-24, 0.0005, -20], [24, 0.1, 20], MAT.CONCRETE);
+  const [x0, z0, x1, z1, h] = shed;
+  m.box([x0, 0.1, z0], [x1, h, z1], MAT.SHED_WALL, { roof: MAT.METAL });
+  if (medium) band(m, x0, z0, x1, z1, h - 1.4, 0.7, 0.2, MAT.TRIM);
+  office(m, -22, 11, -11, 18, 6, fine, medium);
+}
+
+function foodPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2, lite = !fine;
+  works(m, fine, medium, [-6, -18, 22, -2, 11]);
+  // A battery of intake silos with the elevator leg that fills them.
+  for (let i = 0; i < 4; i++) silo(m, -19 + (i % 2) * 7, -14 + Math.floor(i / 2) * 7, 3, 0.1, 17, { cone: 2, ribs: medium ? 3 : 0, tint: TINT.STEAM });
+  m.box([-12, 0.1, -17], [-9.6, 24, -14.6], MAT.METAL);
+  if (medium) {
+    conveyor(m, [-10.8, 23, -15.8], [-6, 10, -10]);
+    m.painted(TINT.BRAND, () => m.box([-6.1, 7.5, -18.1], [22.1, 9, -17.9], MAT.CLADDING));
+    // Cooling towers on the process hall roof.
+    for (const x of [4, 10, 16]) m.box([x - 1.6, 11, -14], [x + 1.6, 13.2, -10.8], MAT.METAL);
+  }
+  m.emit(10, 13.4, -12.4, EMIT.STEAM);
+  // Loading bays with reefer lorries backed onto them.
+  m.box([4, 0.1, -2], [22, 1.2, 2], MAT.CONCRETE);
+  if (medium) for (const x of [8, 14, 20]) m.painted(TINT.METAL_DARK, () => m.box([x - 1.6, 1.2, -2.05], [x + 1.6, 4.6, -1.95], MAT.TRIM));
+  if (medium) paintedAs(TINT.BRAND, () => { lorry(m, 8, 6, 1, 'box', lite); lorry(m, 14, 6, 1, 'box', lite); });
+  if (fine) for (let i = 0; i < 2; i++) figure(m, 8101 + i, -4 + i * 1.8, 6, 0, { stride: 0.1 });
+  return m;
+}
+
+function sawmillPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2, lite = !fine;
+  works(m, fine, medium, [-4, -18, 22, -6, 9]);
+  // Log decks: logs stacked on bearers, waiting for the saw line.
+  m.painted(TINT.WOOD, () => {
+    for (let row = 0; row < 3; row++) {
+      const z = -16 + row * 5;
+      for (let k = 0; k < (medium ? 5 : 2); k++) {
+        const y = 0.6 + (k % 3) * 1.0, dz = (k >= 3 ? 0.9 : 0) + (k % 3) * 0.3;
+        m.pipe([-22, y, z + dz], [-9, y, z + dz], 0.5, MAT.TIMBER, lite ? 5 : 8);
+      }
+    }
+  });
+  // The drying kilns: a row of insulated boxes with their fan housings.
+  for (let i = 0; i < 3; i++) {
+    m.box([-2 + i * 8, 0.1, 0], [4 + i * 8, 7, 8], MAT.CLADDING, { roof: MAT.METAL });
+    if (medium) m.box([-0.5 + i * 8, 7, 2.5], [2.5 + i * 8, 8.5, 5.5], MAT.METAL);
+    m.emit(1 + i * 8, 8.6, 4, EMIT.STEAM);
+  }
+  // The sawdust silo and the chip conveyor feeding it.
+  silo(m, 18, -2, 2.4, 6, 16, { cone: 1.4, ribs: medium ? 2 : 0 });
+  if (medium) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (const [x, z] of [[16.5, -3.5], [19.5, -3.5], [16.5, -0.5], [19.5, -0.5]] as const) m.box([x - 0.2, 0.1, z - 0.2], [x + 0.2, 6, z + 0.2], MAT.TRIM);
+    });
+    conveyor(m, [14, 5, -7], [18, 16.5, -2]);
+    // Packs of sawn timber under their wraps.
+    m.painted(TINT.BRAND, () => {
+      for (let i = 0; i < 4; i++) m.box([6 + i * 4, 0.1, 11], [9 + i * 4, 1.8, 14.5], MAT.TIMBER);
+    });
+    loader(m, -6, -3, 1, lite);
+  }
+  if (fine) lorry(m, 12, 17, 0, 'logs', false);
+  return m;
+}
+
+function steelPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2, lite = !fine;
+  works(m, fine, medium, [0, -18, 23, -4, 14]);
+  // The furnace: a brick-lined shell in a braced frame, its downcomer and stoves.
+  m.cylinder(-12, -8, 4.2, 0.1, 22, medium ? 16 : 10, MAT.METAL, true);
+  m.cone(-12, -8, 4.2, 2.2, 22, 26, medium ? 16 : 10, MAT.METAL);
+  if (medium) lattice(m, -12, -8, 6.2, 5.6, 0.1, 27, 6);
+  for (const [x, z] of [[-20, -15], [-20, -9], [-20, -3]] as const) {
+    m.painted(TINT.BRAND, () => m.cylinder(x, z, 2.2, 0.1, 19, medium ? 14 : 8, MAT.PAINT, true));
+    m.cone(x, z, 2.2, 0.4, 19, 21, medium ? 14 : 8, MAT.METAL);
+  }
+  if (medium) m.pipe([-12, 25, -8], [-20, 18, -9], 0.9, MAT.METAL, 8);
+  // Stacks, and what comes out of them.
+  for (const x of [6, 11]) {
+    m.cylinder(x, -1, 1.3, 14, 34, medium ? 12 : 8, MAT.CONCRETE, true);
+    if (medium) m.painted(TINT.SIGN_LIT, () => m.cylinder(x, -1, 1.34, 31, 32, 12, MAT.PAINT, false));
+    m.emit(x, 34.4, -1, EMIT.SMOKE);
+  }
+  // Coils of strip at the end of the line, waiting for the lorries.
+  if (medium) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 6; i++) m.pipe([4 + i * 3, 1.1, 4], [4 + i * 3, 1.1, 5.8], 1.0, MAT.METAL, lite ? 8 : 12);
+    });
+    conveyor(m, [-7, 10, -6], [0, 12, -8]);
+  }
+  if (fine) { lorry(m, 8, 15, 0, 'box', false); for (let i = 0; i < 2; i++) figure(m, 8301 + i, -2 + i * 2, 4, 0, { stride: 0.1 }); }
+  return m;
+}
+
+function refineryPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  m.box([-24, 0.0005, -20], [24, 0.1, 20], MAT.CONCRETE);
+  office(m, -22, 11, -11, 18, 6, fine, medium);
+  // Distillation columns of different heights, the refinery's skyline.
+  const cols: Array<[number, number, number, number]> = [[-16, -12, 2.4, 30], [-10, -12, 1.8, 24], [-4, -12, 1.4, 20], [2, -12, 2.0, 27]];
+  for (const [x, z, r, h] of cols) {
+    m.painted(TINT.STEAM, () => m.cylinder(x, z, r, 0.1, h, medium ? 14 : 8, MAT.PAINT, true));
+    if (medium) {
+      m.painted(TINT.METAL_DARK, () => {
+        for (let y = 5; y < h - 2; y += 5) m.cylinder(x, z, r + 0.5, y, y + 0.18, 14, MAT.TRIM, false);
+      });
+      lattice(m, x, z, r + 0.9, r + 0.7, 0.1, h * 0.8, 4);
+    }
+  }
+  // Spherical storage and the tank farm.
+  for (const [x, z] of [[10, -12], [17, -12]] as const) {
+    m.painted(TINT.STEAM, () => {
+      m.cone(x, z, 0.1, 3.6, 3.2, 6.8, medium ? 12 : 8, MAT.PAINT);
+      m.cone(x, z, 3.6, 0.1, 6.8, 10.4, medium ? 12 : 8, MAT.PAINT);
+    });
+    m.painted(TINT.METAL_DARK, () => { for (const d of [-2, 2]) m.box([x + d - 0.2, 0.1, z - 0.2], [x + d + 0.2, 5, z + 0.2], MAT.TRIM); });
+  }
+  for (const [x, z] of [[6, 4], [14, 4], [20, 4]] as const) {
+    m.painted(TINT.BRAND, () => m.cylinder(x, z, 3, 0.1, 7, medium ? 16 : 10, MAT.PAINT, true));
+  }
+  if (medium) {
+    pipeRack(m, -20, 18, -5.5, 4.4, 5, 8);
+    m.painted(TINT.METAL_DARK, () => { for (const [x, z] of cols) m.pipe([x, 4.4, z], [x, 4.4, -5.5], 0.35, MAT.METAL, 6); });
+  }
+  // The flare.
+  m.painted(TINT.METAL_DARK, () => m.cylinder(21, -17, 0.6, 0.1, 32, 8, MAT.METAL, true));
+  if (medium) lattice(m, 21, -17, 1.4, 0.7, 0.1, 30, 6);
+  m.painted(TINT.SIGN_LIT, () => m.cone(21, -17, 0.8, 0.2, 32, 33.6, 8, MAT.LAMP));
+  m.emit(21, 33.6, -17, EMIT.SMOKE);
+  m.emit(-16, 30.4, -12, EMIT.STEAM);
+  if (fine) { lorry(m, 0, 15, 0, 'tank', false); lorry(m, 8, 15, 0, 'tank', false); }
+  return m;
+}
+
+function cementPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2, lite = !fine;
+  works(m, fine, medium, [8, 2, 23, 10, 8]);
+  // The preheater tower: a tall braced frame of cyclones over the kiln inlet.
+  m.box([-20, 0.1, -18], [-11, 38, -10], MAT.CONCRETE);
+  if (medium) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let y = 6; y < 38; y += 6) m.box([-20.3, y, -18.3], [-10.7, y + 0.4, -9.7], MAT.TRIM);
+    });
+    for (let i = 0; i < 3; i++) m.cone(-15.5, -14, 2.4, 0.6, 30 - i * 9, 24 - i * 9, 10, MAT.METAL);
+  }
+  m.emit(-15.5, 38.6, -14, EMIT.STEAM_BIG);
+  // The rotary kiln: a long drum on piers, sloping down from the tower.
+  m.pipe([-11, 6.5, -14], [18, 3.5, -14], 2.1, MAT.METAL, medium ? 16 : 10);
+  m.painted(TINT.METAL_DARK, () => {
+    for (const x of [-4, 4, 12]) m.box([x - 0.9, 0.1, -16], [x + 0.9, 5.2 - x * 0.1, -12], MAT.TRIM);
+  });
+  // Cement silos, grey and tall, with the company's band.
+  for (let i = 0; i < 3; i++) {
+    silo(m, 4 + i * 6.5, -2.5, 2.8, 0.1, 22, { ribs: medium ? 2 : 0, mat: MAT.CONCRETE });
+    if (medium) m.painted(TINT.BRAND, () => m.cylinder(4 + i * 6.5, -2.5, 2.86, 17, 19, 14, MAT.PAINT, false));
+  }
+  if (medium) {
+    conveyor(m, [-22, 1.2, 4], [-18, 10, -10]);
+    m.painted(TINT.ACCENT, () => heap(m, -18, 8, 5, 4.5, lite ? 7 : 11));
+    loader(m, -12, 6, 2, lite);
+  }
+  if (fine) lorry(m, 12, 16, 0, 'tank', false);
+  return m;
+}
+
+function canneryPlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2, lite = !fine;
+  works(m, fine, medium, [-8, -18, 22, -3, 10]);
+  // Cold store: a windowless insulated block with its refrigeration plant.
+  m.box([-22, 0.1, -18], [-10, 13, -4], MAT.CLADDING, { roof: MAT.METAL });
+  if (medium) {
+    for (const x of [-20, -16, -12]) m.box([x - 1.2, 13, -12.5], [x + 1.2, 14.6, -9.5], MAT.METAL);
+    m.painted(TINT.BRAND, () => m.box([-22.1, 9, -18.1], [-9.9, 11, -17.9], MAT.CLADDING));
+  }
+  m.emit(-16, 14.8, -11, EMIT.STEAM);
+  // The retort house chimney and the can store.
+  m.cylinder(18, -8, 0.9, 10, 20, 10, MAT.BRICK, true);
+  m.emit(18, 20.4, -8, EMIT.STEAM);
+  // Pallets of tins and fish boxes on the apron.
+  if (medium) {
+    m.painted(TINT.BRAND, () => {
+      for (let i = 0; i < 5; i++) m.box([-4 + i * 3, 0.1, 1], [-2 + i * 3, 1.4, 3], MAT.PAINT);
+    });
+    m.painted(TINT.ACCENT, () => {
+      for (let i = 0; i < 4; i++) m.box([12 + (i % 2) * 2.2, 0.1 + Math.floor(i / 2) * 0.6, 3], [14 + (i % 2) * 2.2, 0.7 + Math.floor(i / 2) * 0.6, 5], MAT.PAINT);
+    });
+  }
+  if (medium) paintedAs(TINT.STEAM, () => { lorry(m, 4, 8, 1, 'box', lite); });
+  if (fine) for (let i = 0; i < 2; i++) figure(m, 8601 + i, 8 + i * 2, 7, 0, { stride: 0.1 });
+  return m;
+}
+
 const brand = (name: string, colour: [number, number, number], accent: [number, number, number]):
 Brand => ({ name, colour, accent, sign: 'box' });
 
@@ -760,6 +967,14 @@ const HQ = (id: string, name: string, build: (lod: number) => MeshBuilder, jobs:
   upkeep: number, pollution: number, colour: [number, number, number],
   accent: [number, number, number], note: string): AssetDef => ({
   id: `spec.hq.${id}`, name, zone: 'industrial', density: 'none', variant: 'sculpted',
+  footprint: [6, 5], height: 20, sim: job(jobs, upkeep, pollution),
+  brand: brand(name, colour, accent), note, build,
+});
+
+const PLANT = (id: string, name: string, build: (lod: number) => MeshBuilder, jobs: number,
+  upkeep: number, pollution: number, colour: [number, number, number],
+  accent: [number, number, number], note: string): AssetDef => ({
+  id: `spec.plant.${id}`, name, zone: 'industrial', density: 'none', variant: 'sculpted',
   footprint: [6, 5], height: 20, sim: job(jobs, upkeep, pollution),
   brand: brand(name, colour, accent), note, build,
 });
@@ -778,6 +993,18 @@ const HAUL_YELLOW: [number, number, number] = [0.92, 0.66, 0.12];
 const ORE_EARTH: [number, number, number] = [0.15, 0.085, 0.045];
 
 export const INDUSTRY: AssetDef[] = [
+  PLANT('fertile', 'Food processing plant', foodPlant, 45, 38, 6, [0.80, 0.66, 0.36], [0.64, 0.16, 0.12],
+    'Four intake silos with their elevator leg, a process hall with cooling towers, and reefer lorries at the loading bays.'),
+  PLANT('forest', 'Sawmill and kiln works', sawmillPlant, 50, 40, 8, [0.86, 0.56, 0.12], [0.30, 0.22, 0.14],
+    'Log decks, a saw shed, three drying kilns venting steam, a sawdust silo on its legs, packs of sawn timber and a loader.'),
+  PLANT('ore', 'Steelworks', steelPlant, 80, 60, 30, HAUL_YELLOW, ORE_EARTH,
+    'A blast furnace in its braced frame with three hot-blast stoves, a rolling mill, two smoking stacks and coils of strip waiting for the lorries.'),
+  PLANT('oil', 'Refinery', refineryPlant, 70, 64, 30, [0.86, 0.36, 0.12], [0.94, 0.72, 0.16],
+    'Four distillation columns in their frames, two spheres, a tank farm, a pipe rack and a lit flare stack.'),
+  PLANT('stone', 'Cement works', cementPlant, 55, 44, 22, HAUL_YELLOW, [0.34, 0.34, 0.36],
+    'A preheater tower of cyclones, the rotary kiln sloping down on its piers, three cement silos, a raw-meal heap and a loader.'),
+  PLANT('fish', 'Cannery', canneryPlant, 50, 36, 6, [0.12, 0.24, 0.40], [0.72, 0.16, 0.12],
+    'An insulated cold store with its plant, a retort house chimney, pallets of tins and fish boxes, and a refrigerated lorry.'),
   HQ('fertile', 'Farm headquarters', farmHq, 40, 30, 2, [0.80, 0.66, 0.36], [0.64, 0.16, 0.12],
     'A stone farmhouse and barn round a farmyard, a steel Dutch barn full of hay, twin silos with their auger, a tractor, trailer and combine.'),
   HQ('forest', 'Forestry headquarters', forestHq, 50, 34, 6, [0.86, 0.56, 0.12], [0.30, 0.22, 0.14],

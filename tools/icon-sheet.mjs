@@ -75,8 +75,8 @@ const result = await page.evaluate(async ({ shader, registry, TILE, ICON, COLS, 
   // Services, signature buildings, and one specimen of each tree. Signature
   // buildings are placed one at a time exactly like services are, so they
   // need a face for the same reason.
-  const placeable = all.filter((a) => a.zone === 'service' || a.signature === true
-    || a.id.startsWith('spec.hq.')
+  const placeable = all.filter((a) => ((a.zone === 'service' && !a.id.startsWith('spec.wing.')) || a.signature === true
+    || a.id.startsWith('spec.hq.') || a.id.startsWith('spec.plant.'))
     || (a.zone === 'nature' && /oak|pine|birch|maple|plane|willow/.test(a.id)));
 
   // One specimen per zone and density, for the zoning buttons. A zone button
