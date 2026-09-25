@@ -495,61 +495,63 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let ambient = mix(ambientGround(sun), ambientSky(sun), 0.5 + n.y * 0.5);
   col = col * (ambient + sunLight(sun) * max(ndl, 0.0) * lit);
 
-  // The lantern itself, which is the thing the pool below comes out of. Its own
-  // light source, like a lit sign, so it survives being unlit by the sun and
-  // reads as the brightest point on a night street rather than as a grey box on
-  // a stick.
-  if (surf > 13.5) {
-    let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
-    col = mix(col, vec3f(1.00, 0.74, 0.40) * 7.0, night);
-  }
-
-  // Street lighting: the pool on the road, thrown from the lanterns above.
+  // Street lighting.
   //
-  // The road already knows how far apart its columns stand, and now draws them
-  // -- the geometry and this share one spacing, so the light lands under the
-  // lamp that is casting it. It used to land under nothing at all.
+  // What a lit street looks like is not a chain of orange ellipses. It is a
+  // carriageway lit nearly evenly, brightest under each lantern and dipping
+  // between them, in white or warm-white light -- because a modern luminaire is
+  // a full cut-off LED that throws its light down the road and overlaps the
+  // next one's. The old pool was one smoothstepped ellipse per lamp, mostly
+  // additive, all sodium orange: a painted decal rather than light.
   //
-  // The pool is still shader work rather than a real light: what a player sees
-  // of a lit street from above walking height is the chain of warm pools down
-  // the carriageway and the way they run out into the dark between, and that
-  // is a fract and a smoothstep rather than a thousand lights.
+  // So each point sums the four lamps around it, and each lamp is a point
+  // source at its lantern's height with the falloff a real one has on the
+  // ground: cos^3 of the angle off vertical over the height squared (the
+  // inverse square law and the tilt of the surface together), times a beam
+  // that throws further along the road than across it. The light then
+  // multiplies what it lands on, which is the only way a road reads as lit
+  // rather than as glowing -- markings, setts and kerbs all show through it.
   //
-  // Alternating sides, matching the spacing the mesh builder uses, because a
-  // real street staggers them and a single row down one side reads as an
-  // airport runway.
+  // The colour follows the road. An arterial is the cool white a highway
+  // authority fits; a street is warm white; a lane of gravel or setts keeps
+  // the sodium orange of the lights nobody has got round to replacing.
   let spacing = f32(flags >> 8u);
-  if (spacing > 0.5) {
-    let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
-    if (night > 0.004) {
-      // Which lamp is nearest along the road, and which side it stands on.
-      let idx = floor(v / spacing + 0.5);
+  let night = 1.0 - smoothstep(-0.06, 0.14, sun.y);
+  var lampTint = vec3f(1.00, 0.80, 0.56);
+  if (lanes >= 2.5) { lampTint = vec3f(0.94, 0.94, 1.00); }
+  if (surf > 7.5 && surf < 9.5) { lampTint = vec3f(1.00, 0.62, 0.26); }
+  if (surf > 13.5) {
+    // The lantern: the source, bright enough to bloom but no longer a beacon.
+    col = mix(col, lampTint * 4.2, night);
+  }
+  if (spacing > 0.5 && night > 0.004) {
+    let height = 5.0;
+    let reach = min(2.1, half * 0.42);
+    let first = floor(v / spacing) - 1.0;
+    var light = 0.0;
+    var gloss = 0.0;
+    for (var k = 0; k < 4; k++) {
+      let idx = first + f32(k);
       let along = v - idx * spacing;
       let side = select(-1.0, 1.0, (i32(idx) & 1) == 0);
-      let post = vec2f(side * half * 1.06, 0.0);
-      let d = vec2f(u, along) - post;
-      // An ellipse, longer along the road than across it: a lamp throws down
-      // the street, not sideways. Two terms -- a bright core under the lantern
-      // and a wide spill -- because one Gaussian is a spotlight and a street
-      // lamp is not a spotlight.
-      let r = vec2f(d.x / (half * 1.4 + 3.0), d.y / (spacing * 0.46));
-      let fall = exp(-dot(r, r) * 3.2);
-      let core = exp(-dot(vec2f(d.x / 3.4, d.y / 3.4), vec2f(d.x / 3.4, d.y / 3.4)) * 1.4);
-      // Sodium, not white. The colour is half of what says street lamp.
-      let glow = vec3f(1.00, 0.72, 0.36) * (fall * 0.55 + core * 0.42) * night;
-      // Lands on what is under it, and lands hard.
-      //
-      // The first pass at this multiplied the surface by the light, which is
-      // physically the right shape and visually nothing at all: a night road
-      // reflects about one part in eighty, so lighting it by its own albedo
-      // leaves it as dark as it started. A lamp is one of the few genuinely
-      // bright things in a night frame and has to be treated as one -- most of
-      // the term is additive, which is also what a real sodium lamp looks like
-      // through the dust and damp over a road.
-      // In linear light now, so the additive haze is a fraction of what it
-      // was: the post curve, not this term, is what makes the pool read.
-      col += col * glow * 4.0 + glow * 0.16;
+      let across = u - side * (half * 1.06 - reach);
+      // The beam: wider along the road than across it.
+      let r2 = across * across * 1.45 + along * along * 0.42;
+      let c = height * inverseSqrt(height * height + r2);
+      // Each lamp its own: a few per cent brighter or dimmer, and the odd one
+      // failing. A row of identical lights is what gives a street away as
+      // generated.
+      let rnd = lattice(vec2i(i32(idx), i32(spacing * 13.0 + half * 7.0)));
+      let output = select(0.86 + rnd * 0.28, 0.18, rnd > 0.965);
+      light += c * c * c * c * output;
+      gloss += pow(c, 40.0) * output;
     }
+    let lamplit = lampTint * light * night;
+    // Mostly multiplicative, with a whisper of scatter in the air over it.
+    col += col * lamplit * 9.0 + lamplit * 0.012;
+    // A wet road is a mirror, and the mirror shows the lamp: a hot spot under
+    // each lantern, which is most of what makes a rainy night street.
+    col += lampTint * gloss * night * camera.weather.w * 0.9;
   }
 
   // Wet tarmac.

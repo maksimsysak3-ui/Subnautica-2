@@ -572,7 +572,14 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // which is the difference between a hillside that turns away from the sun
   // and one that has a line drawn across it.
   let wrap = max((ndl + 0.18) / 1.18, 0.0);
-  col = col * (ambient + sunLight(sun) * wrap * lit);
+  // Street light, after dark: the verge, the garden and the forecourt beside a
+  // lit road, which used to be as black as open country with the road lit
+  // down the middle of it. Weaker than the road's own pools: turf reflects
+  // several times what tarmac does, and at the road's strength a verge glowed
+  // brighter than the carriageway it was lit from.
+  let streetNight = 1.0 - smoothstep(-0.06, 0.14, sun.y);
+  let street = streetLightAt(in.world, 0.0) * streetNight * 1.7;
+  col = col * (ambient + sunLight(sun) * wrap * lit + street);
 
   // The sheen. Grass and dry earth both scatter forward, so a field lights up
   // when the sun is low and behind what you are looking at -- and that one

@@ -60,6 +60,29 @@ struct Scene {
 @group(0) @binding(0) var<uniform> scene : Scene;
 @group(0) @binding(1) var shadowMap : texture_depth_2d;
 @group(0) @binding(2) var shadowSampler : sampler_comparison;
+// The street-light map the ground is lit by: see `streetLightAt` in
+// overlay.wgsl, which this repeats because this shader cannot include that
+// file. Its extent rides in scene.signInfo.y; nought, in the viewer, is none.
+@group(0) @binding(3) var lightTex : texture_2d<f32>;
+@group(0) @binding(4) var lightSampler : sampler;
+
+/**
+ * Street light arriving at a building's surface: the map read a few metres in
+ * front of it, where the pavement it faces is, so a wall on the street takes
+ * the pool outside it and the back of the same building does not. Dies away up
+ * the facade, because the lanterns are five metres up and aimed down.
+ */
+fn streetLight(world : vec3f, n : vec3f, height : f32) -> vec3f {
+  let extent = scene.signInfo.y;
+  if (extent <= 0.0) { return vec3f(0.0); }
+  let at = world.xz + n.xz * 3.0;
+  let uv = at / extent + vec2f(0.5);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec3f(0.0); }
+  let e = textureSampleLevel(lightTex, lightSampler, uv, 0.0).rgb;
+  // A wall faces the light sideways-on; a roof or a canopy top barely at all.
+  let facing = mix(0.25, 0.75, 1.0 - abs(n.y)) + max(-n.y, 0.0) * 0.4;
+  return e * e * facing * (1.0 - smoothstep(3.0, 16.0, height));
+}
 
 /**
  * One prototype: everything about an asset that is the same for every copy of
@@ -1638,7 +1661,11 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let sunColour = sunLight(sun);
   let direct = sunColour * max(ndl, 0.0) * shadow;
 
-  col = col * (ambient + direct);
+  // After dark, the street lights: the ground floor of a building on a lit
+  // road is what stands a night street up out of the dark.
+  let lamps = streetLight(in.world, n, in.shade.y)
+            * (1.0 - smoothstep(-0.06, 0.14, sun.y)) * 3.5;
+  col = col * (ambient + direct + lamps * in.ao);
 
   // Specular. Masonry does not shine, so this is per material rather than
   // global: glass and paint get a tight, bright highlight and a Fresnel rim,
@@ -1788,20 +1815,41 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       let rf = hash21(vec2f(11.3, floor(id.y)) * 3.1 + seed);
       let rb = hash21(vec2f(floor(id.x * 0.34), 7.9) * 5.7 + seed);
       let occupancy = rf * 0.46 + rb * 0.30 + rw * 0.24;
-      let on = step(0.615, occupancy);
+      // And they go out as the night goes on: a city at nine in the evening
+      // is lit in most of its sitting rooms, and at three in the morning in
+      // hardly any of them.
+      let late = smoothstep(-0.12, -0.55, sun.y);
+      let on = step(mix(0.585, 0.715, late), occupancy);
 
-      // Tungsten in most, cool fluorescent in a few: an office tower left on
-      // overnight is not the same colour as a lit sitting room. Keyed off the
-      // floor rather than the window, because a floor is one tenant with one
-      // kind of light fitting.
-      let warm = mix(vec3f(1.00, 0.70, 0.38), vec3f(0.80, 0.89, 1.00), step(0.86, rf));
+      // What the light is. A lit city is never one colour: tungsten and warm
+      // LED in the homes, cold fluorescent across a whole office floor, the
+      // odd lampshade, and here and there the blue flicker of a television.
+      // Every window was one squared orange, which is what made a night
+      // skyline read as a pattern rather than as a place people are in.
+      let rc = hash21(id * 0.37 + vec2f(seed * 1.3, 4.1));
+      var light = vec3f(1.00, 0.56, 0.25);
+      if (rf > 0.86) {
+        light = vec3f(0.78, 0.87, 1.00);
+      } else if (rc > 0.70) {
+        light = vec3f(1.00, 0.74, 0.46);
+      } else if (rc < 0.06) {
+        // A television: the room lit by the screen, which changes with the
+        // picture a few times a second.
+        let cut = hash21(vec2f(floor(scene.params.w * 4.0 + rc * 211.0), rc * 97.0));
+        light = vec3f(0.42, 0.58, 1.00) * (0.45 + cut * 0.75);
+      } else if (rc < 0.10) {
+        light = vec3f(1.00, 0.50, 0.26);
+      }
       // Blinds, lamps, how deep the room is: a lit floor is not a flat bar of
       // light, and this is what stops one reading as a painted stripe.
       // And they go out as the building empties. A derelict block with every
       // light on is the one thing that would make the decay read as a texture
       // change rather than as a building nobody lives in any more.
-      let strength = (0.55 + rw * 1.9) * (1.0 - failing);
-      out = mix(out, warm * warm * strength * 1.25, on * night * cover * 0.94 * (1.0 - failing * 0.9));
+      // Dim enough that the colour survives the filmic shoulder. The night
+      // exposure opens nearly threefold, so a window at one comes out as the
+      // same white whatever colour it was lit.
+      let strength = (0.15 + rw * 0.50) * (1.0 - failing);
+      out = mix(out, light * strength * 1.15, on * night * cover * 0.94 * (1.0 - failing * 0.9));
 
       // A window that is dark is not black. It takes the night sky, which is
       // what gives an unlit face its shape instead of a silhouette.

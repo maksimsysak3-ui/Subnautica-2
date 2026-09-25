@@ -107,6 +107,7 @@ export class Post {
       entries: [
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
       ],
     });
 
@@ -206,6 +207,10 @@ export class Post {
       entries: [
         { binding: 1, resource: this.levels[0].view },
         { binding: 2, resource: this.aoA.view },
+        // A deep level of the chain, after the upsample has added everything
+        // below it in: the frame's light at a sixteenth of its size, which is
+        // the glow a lit city throws into the air over it.
+        { binding: 3, resource: this.levels[Math.min(3, this.levels.length - 1)].view },
       ],
     });
     this.depthGroup = null;

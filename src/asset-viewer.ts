@@ -143,6 +143,8 @@ class Viewer {
         { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       ],
     });
     // The prototype table. A city binds four hundred rows and indexes them by
@@ -233,6 +235,13 @@ class Viewer {
         { binding: 0, resource: { buffer: this.sceneBuffer } },
         { binding: 1, resource: this.shadows ? this.shadowView : (this.dummyShadow ?? this.shadowView) },
         { binding: 2, resource: device.createSampler({ compare: 'less' }) },
+        // No street lights in the viewer: a black map it never reads, because
+        // its scene uniform leaves the map's extent at nought.
+        { binding: 3, resource: device.createTexture({
+          size: { width: 1, height: 1 }, format: 'rgba8unorm',
+          usage: GPUTextureUsage.TEXTURE_BINDING,
+        }).createView() },
+        { binding: 4, resource: device.createSampler() },
       ],
     });
   }

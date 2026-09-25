@@ -106,8 +106,12 @@ export interface RoadMesh {
   indices: Uint32Array<ArrayBuffer>;
   /** Corner heights the terrain is cut to, so the ground follows the road. */
   pins: Pin[];
-  /** Where a street light stands, and which way the road runs there. */
-  lamps: Array<{ x: number; y: number; z: number; yaw: number; side: -1 | 1 }>;
+  /**
+   * Where a street light stands, which way the road runs there, and what light
+   * it gives: 0 warm white, 1 cool white (an arterial), 2 sodium (a lane of
+   * gravel or setts). The road shader picks the same colour from the same rule.
+   */
+  lamps: Array<{ x: number; y: number; z: number; yaw: number; side: -1 | 1; tint: 0 | 1 | 2 }>;
 }
 
 /**
@@ -534,7 +538,9 @@ export function buildRoadMesh(graph: RoadGraph,
             const side: -1 | 1 = ((lampAt / spec.lamp) | 0) % 2 === 0 ? 1 : -1;
             const px = q.x + -q.tz * spec.half * 1.06 * side;
             const pz = q.z + q.tx * spec.half * 1.06 * side;
-            lamps.push({ x: px, y, z: pz, yaw: Math.atan2(q.tx, q.tz), side });
+            const tint: 0 | 1 | 2 = spec.surface === 'gravel' || spec.surface === 'setts' ? 2
+              : spec.lanes >= 2.5 ? 1 : 0;
+            lamps.push({ x: px, y, z: pz, yaw: Math.atan2(q.tx, q.tz), side, tint });
             // Along the road, and across it towards the carriageway.
             const ax = q.tx, az = q.tz;
             const cx = -(-q.tz) * side, cz = -(q.tx) * side;

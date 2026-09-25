@@ -36,7 +36,7 @@ import { poolSiblings } from '../sim/inventory';
 import { buildGroundMap } from './ground-map';
 import { buildTransitMesh } from './transit-mesh';
 import {
-  overlayLayout, buildOverlayMap, writeOverlay, writeSurface, clearOverlay, OverlayMode,
+  overlayLayout, buildOverlayMap, writeOverlay, writeSurface, writeLights, clearOverlay, OverlayMode,
 } from './overlay-map';
 import { MAIN_COLOURS, Main as MainKind } from '../sim/mains';
 import { buildMainsMesh, MAIN_VERTEX_FLOATS } from './mains-mesh';
@@ -794,6 +794,9 @@ export class Renderer {
         { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+        // The street-light map, and a filtering sampler for it.
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+        { binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       ],
     });
     // The grass reads the ground map and its own patch uniform.
@@ -1090,12 +1093,25 @@ export class Renderer {
       size: SCENE_UNIFORM_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    // Built here rather than with the other layouts' groups because the scene
+    // group below borrows its street-light map: the buildings are lit by the
+    // same lamps as the ground they stand on.
+    const overlay = buildOverlayMap(device, overlayBgl, VIEW_GRID,
+      this.world.grid, this.world.grid * CELL_METRES);
+    // A new light map starts black, whatever the last one held.
+    this.lightsFor = null;
+    const lightSampler = device.createSampler({
+      label: 'street-light-sampler', magFilter: 'linear', minFilter: 'linear',
+      addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+    });
     const sceneGroup = device.createBindGroup({
       label: 'scene-bg', layout: sceneLayout,
       entries: [
         { binding: 0, resource: { buffer: sceneBuffer } },
         { binding: 1, resource: shadowView },
         { binding: 2, resource: shadowSampler },
+        { binding: 3, resource: overlay.lights.createView() },
+        { binding: 4, resource: lightSampler },
       ],
     });
     const shadowSceneGroup = device.createBindGroup({
@@ -1175,8 +1191,7 @@ export class Renderer {
     // The overlay grid is a reading about the city and survives a rebuild. The
     // surface map that rides with it is one texel per zoning cell, so it is
     // sized to the world rather than to the view.
-    const overlay = buildOverlayMap(device, overlayBgl, VIEW_GRID,
-      this.world.grid, this.world.grid * CELL_METRES);
+
     this.res = {
       layouts,
       grass, grassBuffer: this.grassUniform,
@@ -1823,6 +1838,8 @@ export class Renderer {
         { binding: 0, resource: { buffer: res.sceneBuffer } },
         { binding: 1, resource: view },
         { binding: 2, resource: sampler },
+        { binding: 3, resource: res.overlay.lights.createView() },
+        { binding: 4, resource: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }) },
       ],
     });
   }
@@ -2243,6 +2260,8 @@ export class Renderer {
       performance.now() / 1000], 40);
     // The weather, so the buildings are standing in the same one as the ground.
     this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
+    // signInfo.y: metres across the street-light map, which only the city has.
+    this.sceneData[57] = this.world.grid * CELL_METRES;
     this.sceneData[64] = this.buried;
     this.sceneData[65] = this.drained;
     this.sceneData[66] = this.quality.shadows ? 0 : 1;
@@ -2703,7 +2722,15 @@ export class Renderer {
     const res = this.res;
     if (!res || !this.city) return;
     writeSurface(this.gpu.device, res.overlay, this.city.surface);
+    // The street lights ride with it, re-baked only when the roads changed:
+    // a rebuild for a new house leaves the road mesh the same object.
+    if (this.lightsFor !== this.city.roads) {
+      this.lightsFor = this.city.roads;
+      writeLights(this.gpu.device, res.overlay, this.city.roads.lamps);
+    }
   }
+  /** The road mesh the street-light map was last baked from. */
+  private lightsFor: object | null = null;
 
   setOverlay(grid: Uint8Array, look: number,
     ramp: readonly [string, string, string]): void {

@@ -262,6 +262,7 @@ fn up(in : VertexOut) -> @location(0) vec4f {
 
 @group(1) @binding(1) var bloomTex : texture_2d<f32>;
 @group(1) @binding(2) var aoTex : texture_2d<f32>;
+@group(1) @binding(3) var glowTex : texture_2d<f32>;
 
 /**
  * ACES, as fitted by Stephen Hill: the RRT and ODT with their input and
@@ -326,6 +327,15 @@ fn composite(in : VertexOut) -> @location(0) vec4f {
     hdr *= mix(1.0, occ, post.look.x);
   }
   hdr += textureSampleLevel(bloomTex, samp, in.uv, 0.0).rgb * post.tune.x;
+  // The city's glow in the air. After dark, the lights of a whole district
+  // scatter in the damp and the dust over it -- the orange-white dome anyone
+  // has seen over a town from outside it, and the halo round a lit street seen
+  // from above. The bloom is the lens; this is the air. Wider than any level
+  // of the chain on its own, and only at night: by day the same light is the
+  // sky, and adding it again is a grey veil over everything. Mist and rain
+  // thicken it, because there is more in the air to catch the light.
+  let air = post.mood.x * (0.24 + 0.12 * post.mood.w);
+  hdr += textureSampleLevel(glowTex, samp, in.uv, 0.0).rgb * air;
   hdr *= post.tune.z;
   hdr = grade(hdr);
 
@@ -343,6 +353,12 @@ fn composite(in : VertexOut) -> @location(0) vec4f {
   // Half a code value of noise: the sky is a very long, very shallow
   // gradient and eight bits band it into contour lines without this.
   out += (ign(in.pos.xy + fract(post.mood.z) * 97.0) - 0.5) / 255.0;
+  // Grain in the dark, the way a night exposure has it: fine, moving, and in
+  // the shadows rather than over the lights. It is what makes a dark frame
+  // read as a photograph of the dark rather than as a flat black fill.
+  let shadowW = 1.0 - smoothstep(0.02, 0.35, luma(out));
+  out += (ign(in.pos.xy * 1.37 + fract(post.mood.z * 7.3) * 131.0) - 0.5)
+       * 0.030 * post.mood.x * shadowW;
   return vec4f(out, luma(out));
 }
 

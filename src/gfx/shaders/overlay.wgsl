@@ -36,6 +36,23 @@ struct Overlay {
 // surfaces is a metre or two wide rather than a staircase of eight-metre steps.
 @group(1) @binding(3) var surfaceTex: texture_2d<f32>;
 
+// Street light falling on the ground, baked from every lamp in the city, as the
+// square root of linear light. Spans the same ground as the surface map.
+@group(1) @binding(4) var lightTex: texture_2d<f32>;
+
+/**
+ * Street light arriving at a world position, in linear light, before night is
+ * applied. `height` is metres above the ground: the light that reaches a wall
+ * dies away up it, because the lanterns are five metres up and aimed down.
+ */
+fn streetLightAt(world : vec3f, height : f32) -> vec3f {
+  if (overlay.cells <= 0.0) { return vec3f(0.0); }
+  let uv = world.xz / overlay.cells + vec2f(0.5);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec3f(0.0); }
+  let e = textureSampleLevel(lightTex, overlaySampler, uv, 0.0).rgb;
+  return e * e * (1.0 - smoothstep(4.0, 14.0, height));
+}
+
 /** The surface weights under a world position. Zero everywhere off the map. */
 fn surfaceAt(world : vec3f) -> vec4f {
   if (overlay.cells <= 0.0) { return vec4f(0.0); }

@@ -158,12 +158,18 @@ const SHADOW_MIN_SIZE = 0.0018;
  * *rose* with distance, because at two kilometres a three-pixel threshold
  * still admits every house on the map. Detail culling is worth more than the
  * level-of-detail split on a city, and this is the knob that does it.
+ *
+ * But four and a half had houses winking out at the middle distance a player
+ * actually plays at. Three and a half keeps them to about 1.3 times further
+ * for a sixth more triangles at a working zoom; and since this is measured in
+ * rendered pixels, a machine the governor has dropped a render scale on culls
+ * sooner by itself.
  */
-const MIN_PIXELS = 4.5;
+const MIN_PIXELS = 3.5;
 /**
  * Over this many pixels tall, the full mesh is worth its triangles.
  *
- * Fifty-five, not a hundred and ten. A building a hundred and ten pixels tall
+ * Thirty-six: fifty-five still flattened facades a notch too close. Not a hundred and ten either. A building a hundred and ten pixels tall
  * is a tenth of the screen -- on a 1080-line window that is a house at two
  * hundred metres and a corner shop at eighty, and dropping its window reveals
  * there is far too early: a player pulling back one notch from street level
@@ -171,7 +177,7 @@ const MIN_PIXELS = 4.5;
  * being resolvable, not where it stops being cheap, and the frame budget this
  * spends is a fraction of what the last few rounds bought back.
  */
-const LOD0_PIXELS = 55.0;
+const LOD0_PIXELS = 36.0;
 /**
  * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
  *
@@ -180,4 +186,4 @@ const LOD0_PIXELS = 55.0;
  * twenty pixels and obviously a blob on a stick at thirty-five, so the level
  * that draws one has to start where the eye stops being able to tell.
  */
-const LOD1_PIXELS = 21.0;
+const LOD1_PIXELS = 13.0;

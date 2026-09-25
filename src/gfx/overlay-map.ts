@@ -59,6 +59,9 @@ export interface OverlayMap {
   /** Cells across the surface texture, and metres across the whole of it. */
   surfaceCells: number;
   extent: number;
+  /** Street light falling on the ground, baked from the lamps: see `writeLights`. */
+  lights: GPUTexture;
+  lightCells: number;
   /**
    * The staging copy, written on the CPU and uploaded whole. Typed with its buffer
    * because WebGPU's queue will not take a SharedArrayBuffer view and the bare
@@ -85,6 +88,7 @@ export function overlayLayout(device: GPUDevice): GPUBindGroupLayout {
       { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
       { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
       { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+      { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
     ],
   });
 }
@@ -117,6 +121,18 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
   device.queue.writeTexture({ texture: surface },
     new Uint8Array(surfaceCells * surfaceCells * 4),
     { bytesPerRow: surfaceCells * 4 }, { width: surfaceCells, height: surfaceCells });
+  // A texel every four metres, and a multiple of sixty-four across so each row
+  // is already the 256 bytes writeTexture wants.
+  const lightCells = Math.min(2048, Math.ceil(extent / LIGHT_METRES / 64) * 64);
+  const lights = device.createTexture({
+    label: 'street-light-map',
+    size: { width: lightCells, height: lightCells },
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture: lights },
+    new Uint8Array(lightCells * lightCells * 4),
+    { bytesPerRow: lightCells * 4 }, { width: lightCells, height: lightCells });
   const group = device.createBindGroup({
     label: 'overlay-bg', layout,
     entries: [
@@ -124,6 +140,7 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
       { binding: 1, resource: sampler },
       { binding: 2, resource: { buffer: uniform } },
       { binding: 3, resource: surface.createView() },
+      { binding: 4, resource: lights.createView() },
     ],
   });
   // Two bytes a texel, and writeTexture wants rows padded to 256 bytes -- which a
@@ -136,7 +153,7 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
     { width: size, height: size });
   return {
     texture, view, sampler, uniform, group, size, data,
-    surface, surfaceCells, extent,
+    surface, surfaceCells, extent, lights, lightCells,
   };
 }
 
@@ -162,6 +179,73 @@ export function writeSurface(device: GPUDevice, map: OverlayMap,
   }
   device.queue.writeTexture({ texture: map.surface }, data,
     { bytesPerRow: cells * 4 }, { width: cells, height: cells });
+}
+
+/** Metres per texel of the street-light map. */
+const LIGHT_METRES = 4;
+/** How high a lantern hangs, and how far its light is worth carrying. */
+const LANTERN = 5;
+const LIGHT_REACH = 26;
+/** Warm white, cool white, sodium: the road shader's three, in linear light. */
+const LAMP_TINTS: ReadonlyArray<readonly [number, number, number]> = [
+  [1.00, 0.80, 0.56], [0.94, 0.94, 1.00], [1.00, 0.62, 0.26],
+];
+
+/**
+ * The street lights, as light on the ground: what every lamp in the city
+ * throws, summed and baked into a map the ground and the buildings sample.
+ *
+ * The road ribbon lights itself analytically, lamp by lamp, because it knows
+ * where its own lamps are. Nothing else does -- and a lit street in a black
+ * void is what a night city looked like: the verge, the gardens, the forecourt
+ * and the ground floor of every building beside a road were as dark as open
+ * country. This is the light that reaches them. Baked rather than computed per
+ * pixel because there are tens of thousands of lamps and it changes only when
+ * a road does.
+ *
+ * Irradiance from a point a lantern's height up, cubed cosine rather than the
+ * physical fourth power: the extra spread stands for the light the street
+ * itself bounces, which is most of what lights a wall across the pavement.
+ * Stored as a square root so the dim edge of a pool keeps its precision in
+ * eight bits.
+ */
+export function writeLights(device: GPUDevice, map: OverlayMap,
+  lamps: ReadonlyArray<{ x: number; z: number; tint: number }>): void {
+  const n = map.lightCells;
+  const cell = map.extent / n;
+  const sum = new Float32Array(n * n * 3);
+  const reach = Math.ceil(LIGHT_REACH / cell);
+  const h2 = LANTERN * LANTERN;
+  for (const l of lamps) {
+    const tint = LAMP_TINTS[l.tint] ?? LAMP_TINTS[0];
+    const cx = (l.x + map.extent / 2) / cell - 0.5;
+    const cz = (l.z + map.extent / 2) / cell - 0.5;
+    const x0 = Math.max(0, Math.floor(cx) - reach), x1 = Math.min(n - 1, Math.ceil(cx) + reach);
+    const z0 = Math.max(0, Math.floor(cz) - reach), z1 = Math.min(n - 1, Math.ceil(cz) + reach);
+    for (let z = z0; z <= z1; z++) {
+      for (let x = x0; x <= x1; x++) {
+        const dx = (x - cx) * cell, dz = (z - cz) * cell;
+        const r2 = dx * dx + dz * dz;
+        if (r2 > LIGHT_REACH * LIGHT_REACH) continue;
+        const c = LANTERN / Math.sqrt(h2 + r2);
+        // Faded to nothing at the reach, so a pool has no rim.
+        const e = c * c * c * (1 - r2 / (LIGHT_REACH * LIGHT_REACH));
+        const i = (z * n + x) * 3;
+        sum[i] += e * tint[0];
+        sum[i + 1] += e * tint[1];
+        sum[i + 2] += e * tint[2];
+      }
+    }
+  }
+  const data = new Uint8Array(n * n * 4);
+  for (let i = 0, j = 0; i < sum.length; i += 3, j += 4) {
+    data[j] = Math.min(255, Math.sqrt(sum[i]) * 255);
+    data[j + 1] = Math.min(255, Math.sqrt(sum[i + 1]) * 255);
+    data[j + 2] = Math.min(255, Math.sqrt(sum[i + 2]) * 255);
+    data[j + 3] = 255;
+  }
+  device.queue.writeTexture({ texture: map.lights }, data,
+    { bytesPerRow: n * 4 }, { width: n, height: n });
 }
 
 /** Turns "#rrggbb" into linear-ish floats the shader can mix. */
