@@ -62,6 +62,8 @@ export interface OverlayMap {
   /** Street light falling on the ground, baked from the lamps: see `writeLights`. */
   lights: GPUTexture;
   lightCells: number;
+  /** Worked land, one texel per zoning cell: see `writeWorked`. */
+  worked: GPUTexture;
   /**
    * The staging copy, written on the CPU and uploaded whole. Typed with its buffer
    * because WebGPU's queue will not take a SharedArrayBuffer view and the bare
@@ -89,6 +91,7 @@ export function overlayLayout(device: GPUDevice): GPUBindGroupLayout {
       { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
       { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
       { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+      { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
     ],
   });
 }
@@ -133,6 +136,15 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
   device.queue.writeTexture({ texture: lights },
     new Uint8Array(lightCells * lightCells * 4),
     { bytesPerRow: lightCells * 4 }, { width: lightCells, height: lightCells });
+  const worked = device.createTexture({
+    label: 'worked-land-map',
+    size: { width: surfaceCells, height: surfaceCells },
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture({ texture: worked },
+    new Uint8Array(surfaceCells * surfaceCells * 4),
+    { bytesPerRow: surfaceCells * 4 }, { width: surfaceCells, height: surfaceCells });
   const group = device.createBindGroup({
     label: 'overlay-bg', layout,
     entries: [
@@ -141,6 +153,7 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
       { binding: 2, resource: { buffer: uniform } },
       { binding: 3, resource: surface.createView() },
       { binding: 4, resource: lights.createView() },
+      { binding: 5, resource: worked.createView() },
     ],
   });
   // Two bytes a texel, and writeTexture wants rows padded to 256 bytes -- which a
@@ -153,7 +166,7 @@ export function buildOverlayMap(device: GPUDevice, layout: GPUBindGroupLayout,
     { width: size, height: size });
   return {
     texture, view, sampler, uniform, group, size, data,
-    surface, surfaceCells, extent, lights, lightCells,
+    surface, surfaceCells, extent, lights, lightCells, worked,
   };
 }
 
@@ -178,6 +191,57 @@ export function writeSurface(device: GPUDevice, map: OverlayMap,
     data[i * 4 + (k === 2 ? 0 : k === 3 ? 1 : k === 1 ? 2 : 3)] = 255;
   }
   device.queue.writeTexture({ texture: map.surface }, data,
+    { bytesPerRow: cells * 4 }, { width: cells, height: cells });
+}
+
+/**
+ * Worked land in: kind codes per cell (see worked.ts). Out: r how much of the
+ * texel is worked, filtered so an area's edge is soft rather than stepped;
+ * g the kind, read unfiltered, times thirty-two. `draft` is an area still being
+ * drawn, shown at half strength over whatever is there.
+ */
+export function writeWorked(device: GPUDevice, map: OverlayMap, codes: Uint8Array,
+  draft: Uint8Array | null = null, draftCode = 0): void {
+  const cells = map.surfaceCells;
+  const data = new Uint8Array(cells * cells * 4);
+  const n = Math.min(codes.length, cells * cells);
+  // Weight and kind per cell, the draft over the top of what is built.
+  const weight = new Float32Array(n);
+  const kind = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (draft !== null && draft[i] !== 0) { weight[i] = 0.55; kind[i] = draftCode; }
+    else if (codes[i] !== 0) { weight[i] = 1; kind[i] = codes[i]; }
+  }
+  // An area's edge follows eight-metre cells, and filtered straight from them it
+  // is a staircase. A 3x3 blur on the weight rounds it, and the kind is spread a
+  // cell outward so the blurred rim has a kind to fade in: the edge of a field
+  // softens into the grass beside it rather than stepping.
+  // Rows with nothing worked in or beside them are skipped: most of the map.
+  const rowAny = new Uint8Array(cells);
+  for (let i = 0; i < n; i++) if (kind[i] !== 0) rowAny[(i / cells) | 0] = 1;
+  for (let z = 0; z < cells; z++) {
+    if (rowAny[z] === 0 && (z === 0 || rowAny[z - 1] === 0) && (z === cells - 1 || rowAny[z + 1] === 0)) continue;
+    for (let x = 0; x < cells; x++) {
+      const i = z * cells + x;
+      if (i >= n) continue;
+      let sum = 0, cnt = 0, k = kind[i];
+      for (let dz = -1; dz <= 1; dz++) {
+        const zz = z + dz;
+        if (zz < 0 || zz >= cells) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= cells) continue;
+          const j = zz * cells + xx;
+          sum += weight[j]; cnt++;
+          if (k === 0 && kind[j] !== 0) k = kind[j];
+        }
+      }
+      if (k === 0) continue;
+      data[i * 4] = Math.round((sum / cnt) * 255);
+      data[i * 4 + 1] = k * 32;
+    }
+  }
+  device.queue.writeTexture({ texture: map.worked }, data,
     { bytesPerRow: cells * 4 }, { width: cells, height: cells });
 }
 

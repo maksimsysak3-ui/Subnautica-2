@@ -52,6 +52,7 @@ import { Movers } from './movers';
 import { Strollers } from './strollers';
 import { Shipping } from './shipping';
 import { Flights } from './flights';
+import { AreaWork } from './areawork';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
@@ -263,6 +264,8 @@ export class Simulation {
   readonly shipping = new Shipping();
   /** And the aircraft at its airports. */
   readonly flights = new Flights();
+  /** The machines and people working the industry areas. */
+  readonly areaWork = new AreaWork();
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
@@ -997,13 +1000,19 @@ export class Simulation {
    */
   drawMovers(out: Float32Array, cap: number, eyeX: number, eyeZ: number,
     ground: (x: number, z: number) => number, plumes?: PlumeView): number {
+    // The work on the industry areas follows an area the moment it is drawn.
+    if (this.world !== undefined) {
+      const key = `${this.world.industry.version}:${this.world.industry.hqs.length}`;
+      if (key !== this.workFor) { this.workFor = key; this.areaWork.plan(this.world); }
+    }
     return this.movers.fill(out, cap, this.traffic, this.routine, this.people,
       this.lanes, this.router.paths, this.junctions, this.growth?.sites,
       this.dispatch.blazes, this.strollers,
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick, this.dispatch.incidents, plumes,
-      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ, this.shipping, this.flights, this.transit);
+      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ, this.shipping, this.flights, this.transit,
+      this.areaWork);
   }
 
   /** What the last `drawMovers` drew. */
@@ -1048,8 +1057,11 @@ export class Simulation {
     }
     this.traffic.freightFrom(Int32Array.from(yards));
     this.shipping.plan(p);
-    if (this.world !== undefined) this.flights.plan(this.world);
+    if (this.world !== undefined) {
+      this.flights.plan(this.world);
+    }
   }
+  private workFor = '';
 
   /**
    * How many people live or work within sight of the camera.

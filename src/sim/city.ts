@@ -33,6 +33,7 @@ import { drowned } from './land';
 import { resourceFields, RES_GRID } from './resources';
 import { waterAt } from './river';
 import { AREA_DRESS } from '../assets/generators/industry';
+import { WORKED_KIND, paintPoly } from './worked';
 import { stockAt, stockAny, planting, PROTO_COUNT, ASSET_INDEX, industryProto } from './inventory';
 import { gradeGround, baseAtCorner, baseAtPoint, whenTerrainChanges } from './grading';
 import { buildRoadMesh } from './roadmesh';
@@ -1004,6 +1005,23 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       const hq = ind.hqs[h];
       const dress = AREA_DRESS[hq.kind];
       if (dress === undefined) continue;
+      // Land is not dressed with props any more: the ground shader paints the
+      // whole drawn area as worked land (see worked.ts) and the vehicles on it
+      // are movers. The cells are still taken, bare, so the town does not grow
+      // houses across a wheat field and the grass does not grow through it.
+      if (WORKED_KIND[hq.kind] !== undefined) {
+        const mask = new Uint8Array(GRID * GRID);
+        paintPoly(mask, GRID, hq.area, 1);
+        for (let i = 0; i < mask.length; i++) {
+          if (mask[i] === 0) continue;
+          const gx = i % GRID, gz = (i / GRID) | 0;
+          if (zone !== null && !inZone(gx, gz)) continue;
+          if (!free(gx, gz, 1, 1, STREET_CELL)) continue;
+          claim(gx, gz, 1, 1);
+          hard[i] = 2;
+        }
+        continue;
+      }
       const amount = fields.amount[hq.kind];
       const cellM = fields.extent / RES_GRID;
       const resAt = (x: number, z: number): number => {
@@ -1288,7 +1306,9 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // past a building, a plot is six hundred, so the cached trees are provably
   // standing on ground the edit did not move.
   const live = livePlots(world);
-  const wildKey = `${GRID}:${world.land.lo}:${world.land.hi}`;
+  // And the industry areas: an area drawn out over wild land clears its trees,
+  // which the cache made before it would put straight back.
+  const wildKey = `${GRID}:${world.land.lo}:${world.land.hi}:${world.industry.version}`;
   const cached = wildCache !== null && wildCache.key === wildKey ? wildCache : null;
   const nursery = [...planting()].sort((a, b) => b.w * b.d - a.w * a.d);
   if (nursery.length > 0) {

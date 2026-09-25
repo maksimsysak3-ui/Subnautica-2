@@ -36,7 +36,7 @@ import { poolSiblings } from '../sim/inventory';
 import { buildGroundMap } from './ground-map';
 import { buildTransitMesh } from './transit-mesh';
 import {
-  overlayLayout, buildOverlayMap, writeOverlay, writeSurface, writeLights, clearOverlay, OverlayMode,
+  overlayLayout, buildOverlayMap, writeOverlay, writeSurface, writeLights, writeWorked, clearOverlay, OverlayMode,
 } from './overlay-map';
 import { MAIN_COLOURS, Main as MainKind } from '../sim/mains';
 import { buildMainsMesh, MAIN_VERTEX_FLOATS } from './mains-mesh';
@@ -53,6 +53,7 @@ import {
 // A live binding: the terrain module updates it on every build, and importing
 // the value rather than the binding would read whatever it was at load.
 import { terrainChunksRebuilt } from '../sim/terrain';
+import { workedMap, paintPoly, WORKED_KIND } from '../sim/worked';
 import type { Chunk, World, RoadMesh, City, Dirty, TransitShape } from '../sim';
 import type { RoadGraph } from '../sim/roadgraph';
 import { SHADERS } from './shaders';
@@ -2722,6 +2723,8 @@ export class Renderer {
     const res = this.res;
     if (!res || !this.city) return;
     writeSurface(this.gpu.device, res.overlay, this.city.surface);
+    this.workedCodes = workedMap(this.world);
+    writeWorked(this.gpu.device, res.overlay, this.workedCodes);
     // The street lights ride with it, re-baked only when the roads changed:
     // a rebuild for a new house leaves the road mesh the same object.
     if (this.lightsFor !== this.city.roads) {
@@ -2731,6 +2734,26 @@ export class Renderer {
   }
   /** The road mesh the street-light map was last baked from. */
   private lightsFor: object | null = null;
+  /** The worked land as last uploaded, for drawing a draft over. */
+  private workedCodes: Uint8Array | null = null;
+
+  /**
+   * An industry area still being drawn, shown on the ground as the land it
+   * will become, at half strength: the player sees the field they are about
+   * to make rather than a line round it. Null puts the map back.
+   */
+  setWorkedDraft(poly: readonly number[] | null, kind: string): void {
+    const res = this.res;
+    if (!res || this.workedCodes === null) return;
+    const code = WORKED_KIND[kind] ?? 0;
+    if (poly === null || poly.length < 6 || code === 0) {
+      writeWorked(this.gpu.device, res.overlay, this.workedCodes);
+      return;
+    }
+    const draft = new Uint8Array(this.world.grid * this.world.grid);
+    paintPoly(draft, this.world.grid, poly, 1);
+    writeWorked(this.gpu.device, res.overlay, this.workedCodes, draft, code);
+  }
 
   setOverlay(grid: Uint8Array, look: number,
     ramp: readonly [string, string, string]): void {

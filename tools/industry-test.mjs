@@ -23,7 +23,9 @@ export { useMap } from '${src}sim/maps';
 export { resourceFields, RES_GRID } from '${src}sim/resources';
 export { makeCity, INSTANCE_FLOATS } from '${src}sim/city';
 export { ASSET_INDEX } from '${src}sim/inventory';
-export { useDifficulty } from '${src}sim/difficulty';`,
+export { useDifficulty } from '${src}sim/difficulty';
+export { workedMap, WORKED_KIND } from '${src}sim/worked';
+export { AreaWork } from '${src}sim/agents/areawork';`,
     resolveDir: src, loader: 'ts',
   },
   bundle: true, format: 'esm', write: false, target: 'es2022', loader: { '.wgsl': 'text' },
@@ -108,18 +110,23 @@ run(20);
 const after = w.industry.reports[hq].remaining;
 check(after < before - 0.3, `a worked oil field runs down (${(before * 100).toFixed(0)}% → ${(after * 100).toFixed(0)}%)`);
 
-// ---- the city build lays the props in the area ------------------------------
+// ---- the area is drawn as worked land, and worked ------------------------------
+// Not dressed with props: the ground is painted from the polygon, the cells are
+// taken so nothing else grows there, and machines work it.
 const city = M.makeCity(w);
 const pump = M.ASSET_INDEX.get('spec.prop.oil');
-let inArea = 0, outside = 0;
-for (let i = 0; i < city.count; i++) {
-  const o = i * M.INSTANCE_FLOATS;
-  if ((city.data[o + 7] | 0) !== pump) continue;
-  const x = city.data[o], z = city.data[o + 1];
-  if (Math.abs(x - ox) <= R + 20 && Math.abs(z - oz) <= R + 20) inArea++; else outside++;
-}
-check(inArea > 5, `the city build stands pumpjacks in the area (${inArea})`);
-check(outside === 0, 'and none outside it');
+let props = 0;
+for (let i = 0; i < city.count; i++) if ((city.data[i * M.INSTANCE_FLOATS + 7] | 0) === pump) props++;
+check(props === 0, `the city build stands no props on the area (${props})`);
+const paint = M.workedMap(w);
+let oilCells = 0;
+for (let i = 0; i < paint.length; i++) if (paint[i] === M.WORKED_KIND.oil) oilCells++;
+check(oilCells > 50, `the area is painted as an oil field (${oilCells} cells)`);
+const work = new M.AreaWork();
+work.plan(w);
+let machines = 0, people = 0;
+work.each(12, (seat) => { if (seat === 'walker') people++; else machines++; });
+check(machines >= 2 && people >= 2, `and it is worked: ${machines} vehicles, ${people} on foot`);
 
 // ---- renewables recover -----------------------------------------------------
 M.useMap('lakeland');

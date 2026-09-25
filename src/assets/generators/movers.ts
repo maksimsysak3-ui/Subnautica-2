@@ -18,6 +18,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { Tint, Vec3 } from '../mesh';
 import { IMPORTED_IDS, drawImported, drawImpostor, importedSize } from '../imported';
 import { person } from './vehicles';
+import { tractor, trailer, combine, forwarder, haulTruck } from './machines';
 import { SITE_RESERVE } from './construction';
 import type { AssetDef } from '../types';
 
@@ -639,6 +640,39 @@ for (const p of PLUMES) {
   });
 }
 
+// The machines that work an industry's harvest area: see agents/areawork.ts.
+// Built facing +x from the same parts the headquarters' yards use, in their
+// makers' colours -- a green tractor on a gold field reads from a kilometre.
+const WORK: Array<{ id: string; name: string; foot: [number, number]; height: number;
+  colour: [number, number, number]; accent: [number, number, number]; note: string;
+  make: (m: MeshBuilder, lite: boolean) => void }> = [
+  { id: 'move.tractor', name: 'Tractor and trailer', foot: [2, 1], height: 3, colour: [0.10, 0.36, 0.14],
+    accent: [0.80, 0.14, 0.10], note: 'A tractor towing a grain trailer across the field.',
+    make: (m, lite) => { tractor(m, 2.4, 0, 0, lite); trailer(m, -3.2, 0, 0, 'grain', lite); } },
+  { id: 'move.combine', name: 'Combine harvester', foot: [2, 1], height: 5, colour: [0.10, 0.36, 0.14],
+    accent: [0.86, 0.66, 0.10], note: 'A combine cutting a pass, its header across the crop.',
+    make: (m, lite) => combine(m, 0, 0, 0, lite) },
+  { id: 'move.forwarder', name: 'Forwarder', foot: [1, 1], height: 3.5, colour: [0.92, 0.56, 0.08],
+    accent: [0.20, 0.20, 0.20], note: 'A forwarder carrying cut logs out along a ride.',
+    make: (m, lite) => forwarder(m, 0, 0, 0, true, lite) },
+  { id: 'move.haul', name: 'Haul truck', foot: [1, 1], height: 4, colour: [0.92, 0.66, 0.12],
+    accent: [0.20, 0.20, 0.20], note: 'A dump truck hauling from the face to the crusher.',
+    make: (m, lite) => haulTruck(m, 0, 0, 0, true, lite) },
+];
+for (const w of WORK) {
+  built.push({
+    id: w.id, name: w.name, zone: 'fleet', density: 'none', variant: 'sculpted',
+    footprint: w.foot, height: w.height, sim: free,
+    brand: { name: '', colour: w.colour, accent: w.accent, sign: 'none' },
+    note: w.note,
+    build: (lod: number) => {
+      const m = new MeshBuilder();
+      w.make(m, lod >= 1);
+      return m;
+    },
+  });
+}
+
 export const MOVERS: AssetDef[] = built;
 
 /**
@@ -669,6 +703,10 @@ export const MOVER_IDS = {
   walk3a: 'move.walk3a',
   walk3b: 'move.walk3b',
   cyclist: 'move.cyclist',
+  tractor: 'move.tractor',
+  combine: 'move.combine',
+  forwarder: 'move.forwarder',
+  haul: 'move.haul',
   ship: 'boat.container',
   tug: 'boat.tug',
   trawler: 'boat.trawler',
@@ -715,6 +753,11 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.walk3a': 420,
   'move.walk3b': 420,
   'move.cyclist': 300,
+  // A handful to an area, a handful of areas.
+  'move.tractor': 60,
+  'move.combine': 40,
+  'move.forwarder': 50,
+  'move.haul': 60,
   'boat.container': 24,
   'boat.tug': 12,
   'boat.trawler': 24,

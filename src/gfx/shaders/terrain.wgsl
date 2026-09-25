@@ -134,6 +134,76 @@ fn fieldAt(p : vec2f) -> vec2f {
   return vec2f(edge, lattice(vec2i(i32(cx), i32(ry) * 7 + 3)));
 }
 
+/** A parcel's own random number, 0..1, for a 72 m parcel of worked land. */
+fn parcelRnd(p : vec2f, salt : i32) -> f32 {
+  return lattice(vec2i(floor(p / 72.0)) + vec2i(salt, salt * 7));
+}
+
+/**
+ * The colour of worked land of one kind at a point, in linear light. Built from
+ * the parcel it is in and a few stripes and noises in world space, so it holds
+ * up from the street and from two kilometres.
+ */
+fn workedColour(kind : u32, p : vec2f, y : f32, under : vec3f) -> vec3f {
+  let r = parcelRnd(p, 11);
+  let n = vnoise(p / 9.0);
+  let fine = vnoise(p / 2.2);
+  // Which way this parcel was worked, and how far along its rows a point is.
+  let across = select(p.x, p.y, parcelRnd(p, 23) < 0.5);
+  let along = select(p.y, p.x, parcelRnd(p, 23) < 0.5);
+  let local = fract(p / 72.0);
+  let edge = min(min(local.x, 1.0 - local.x), min(local.y, 1.0 - local.y)) * 72.0;
+  if (kind == 1u) {
+    // A farm. Ripe wheat in most parcels, barley paler, rapeseed a hard
+    // yellow, stubble after the combine, and here and there a green young crop
+    // -- a farm is gold, in patches, which is what a player looks for.
+    var c = vec3f(0.36, 0.25, 0.055);                          // wheat
+    if (r > 0.55) { c = vec3f(0.40, 0.31, 0.10); }             // barley
+    if (r > 0.78) { c = vec3f(0.46, 0.38, 0.02); }             // rapeseed
+    if (r > 0.90) { c = vec3f(0.31, 0.25, 0.13); }             // stubble
+    if (r < 0.08) { c = vec3f(0.11, 0.19, 0.045); }            // young crop
+    c *= 0.90 + 0.14 * n + 0.06 * fine;
+    // Drill rows every metre and a half, tramlines every twenty-four.
+    let row = abs(fract(across / 1.5) - 0.5);
+    c *= 1.0 - 0.10 * (1.0 - smoothstep(0.08, 0.22, row));
+    let tram = abs(fract(across / 24.0) - 0.5) * 24.0;
+    c = mix(c * 0.72, c, smoothstep(0.35, 0.8, abs(tram - 1.0)));
+    // A green headland and hedge line round each parcel.
+    return mix(vec3f(0.05, 0.10, 0.03) * (0.8 + 0.4 * fine), c, smoothstep(1.2, 3.0, edge));
+  }
+  if (kind == 2u) {
+    // A forest: crowns seen from above, dark and mottled, with a ride down
+    // each parcel edge and one parcel in eight clear-felled to brown brash.
+    var c = vec3f(0.028, 0.060, 0.024) * (0.55 + 0.9 * vnoise(p / 4.0)) * (0.8 + 0.4 * n);
+    if (r > 0.875) {
+      c = vec3f(0.10, 0.075, 0.042) * (0.8 + 0.4 * fine);
+      c = mix(c, vec3f(0.06, 0.05, 0.03), 0.5 * (1.0 - smoothstep(0.1, 0.3, abs(fract(across / 5.0) - 0.5))));
+    }
+    return mix(vec3f(0.09, 0.08, 0.05), c, smoothstep(1.0, 2.5, edge));
+  }
+  if (kind == 3u || kind == 4u) {
+    // A mine or a quarry: benches cut at the contours, a haul road, dust.
+    let rock = select(vec3f(0.16, 0.075, 0.036), vec3f(0.21, 0.205, 0.19), kind == 4u);
+    let bench = fract(y / 4.0);
+    var c = rock * (0.78 + 0.3 * n + 0.1 * fine) * mix(0.72, 1.0, smoothstep(0.0, 0.18, bench));
+    let road = abs(fract(along / 60.0) - 0.5) * 60.0;
+    c = mix(vec3f(0.19, 0.17, 0.14), c, smoothstep(2.0, 3.2, road));
+    return c;
+  }
+  if (kind == 5u) {
+    // An oil field: dark worked earth, gravel pads for the wells on a grid,
+    // and the flowlines between them.
+    var c = vec3f(0.075, 0.062, 0.045) * (0.8 + 0.35 * n);
+    let cell = fract(p / 80.0) - 0.5;
+    let pad = max(abs(cell.x), abs(cell.y)) * 80.0;
+    c = mix(vec3f(0.20, 0.19, 0.17) * (0.85 + 0.2 * fine), c, smoothstep(7.0, 8.0, pad));
+    let line = min(abs(cell.x), abs(cell.y)) * 80.0;
+    c = mix(vec3f(0.12, 0.11, 0.10), c, smoothstep(0.4, 0.9, line));
+    return c;
+  }
+  return under;
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   // The weather, once, before anything reads the atmosphere.
@@ -557,6 +627,18 @@ fn fs(in : VSOut) -> @location(0) vec4f {
             * fTuft * (1.0 - built * 0.85);
     let bump = vec3f(-(hx - h0) * amp, e, -(hz - h0) * amp);
     n = normalize(n + normalize(bump) - vec3f(0.0, 1.0, 0.0));
+  }
+
+  // ---- worked land ----------------------------------------------------
+  //
+  // An industry's drawn area, painted as what it is worked for. See
+  // worked.ts: the area is the thing the player drew, so the area is what is
+  // drawn -- gold parcels for a farm, canopy for a forest, benches for a mine
+  // -- and the vehicles working it are movers on top.
+  let work = workedAt(in.world);
+  if (work.x > 0.01) {
+    let wcol = workedColour(u32(work.y + 0.5), in.world.xz, in.world.y, col);
+    col = mix(col, wcol, clamp(work.x * 1.15, 0.0, 1.0));
   }
 
   // ---- light ----------------------------------------------------------

@@ -39,6 +39,21 @@ struct Overlay {
 // Street light falling on the ground, baked from every lamp in the city, as the
 // square root of linear light. Spans the same ground as the surface map.
 @group(1) @binding(4) var lightTex: texture_2d<f32>;
+// Worked land: r how much of the texel is inside an industry's drawn area,
+// filtered; g the kind times 32, read with a load so kinds never blend.
+@group(1) @binding(5) var workedTex: texture_2d<f32>;
+
+/** How much of a point is worked land, and which kind: 1 farm ... 5 oil. */
+fn workedAt(world : vec3f) -> vec2f {
+  if (overlay.cells <= 0.0) { return vec2f(0.0); }
+  let uv = world.xz / overlay.cells + vec2f(0.5);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
+  let w = textureSampleLevel(workedTex, overlaySampler, uv, 0.0).r;
+  let size = vec2f(textureDimensions(workedTex));
+  let texel = vec2i(clamp(uv * size, vec2f(0.0), size - 1.0));
+  let kind = round(textureLoad(workedTex, texel, 0).g * 255.0 / 32.0);
+  return vec2f(w, kind);
+}
 
 /**
  * Street light arriving at a world position, in linear light, before night is

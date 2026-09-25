@@ -30,6 +30,7 @@ import type { LaneGraph } from './lanes';
 import { DRIVE_SIDE, placeAlong, deckAt } from './lanes';
 import type { Shipping } from './shipping';
 import type { Flights } from './flights';
+import type { AreaWork } from './areawork';
 import type { TransitNet } from './transit';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
@@ -267,7 +268,7 @@ export class Movers {
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView,
     plumes?: PlumeView, seconds = 0, shipping?: Shipping, flights?: Flights,
-    transit?: TransitNet): number {
+    transit?: TransitNet, areaWork?: AreaWork): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -541,6 +542,20 @@ export class Movers {
           const yaw = Math.atan2(p[3], p[2]) + (DRIVE_SIDE > 0 ? Math.PI / 2 : -Math.PI / 2);
           if (write(walkSeat(lane * 13 + k, 0.4 * (k & 1)), p[0] - p[3] * 0.4 * (k % 2), p[1] + p[2] * 0.4 * (k % 2), yaw, 0)) this.counts.people++;
         }
+      });
+    }
+
+    // The industry areas: machines working their passes and people among them.
+    if (areaWork !== undefined && areaWork.count > 0) {
+      areaWork.each(seconds, (seat, x, z, yaw, who, walked) => {
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > DRAW_REACH * DRAW_REACH) return;
+        if (seat === 'walker') {
+          if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) return;
+          if (write(walkSeat(who, walked), x, z, yaw, 0)) this.counts.people++;
+          return;
+        }
+        if (write(seat, x, z, yaw, RIDE)) this.counts.vehicles++;
       });
     }
 

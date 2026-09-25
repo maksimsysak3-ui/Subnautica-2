@@ -911,6 +911,7 @@ export class BuildTools {
     const was = h.area;
     ind.setArea(t.hq, this.areaPts.slice());
     this.areaPts = [];
+    this.renderer.setWorkedDraft(null, '');
     this.renderer.setTransitDraft(null);
     // Rebuild what the old area and the new one cover, together.
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -1361,6 +1362,9 @@ export class BuildTools {
       // the area it will be rather than a line that stops.
       if (draft.length >= 6) draft.push(draft[0], draft[1]);
       this.renderer.setTransitDraft(draft.length >= 4 ? Float32Array.from(draft) : null, colour);
+      // And the land it will become, filled in under the outline: the player
+      // sees the field they are drawing rather than a line round nothing.
+      if (h !== undefined) this.renderer.setWorkedDraft(draft.length >= 8 ? draft : null, h.kind);
       if (h !== undefined && draft.length >= 8) {
         const ha = this.renderer.world.industry.raster(draft, h.kind).length * cellHectares();
         this.say(`${ha.toFixed(1)} ha — ${money(Math.round(ha * HECTARE_COST * RULES.build))} `
@@ -1730,7 +1734,10 @@ export class BuildTools {
     if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
     this.renderer.askTransit('tool', tool.kind === 'transit');
     if (tool.kind !== 'transit' && tool.kind !== 'area') this.renderer.setTransitDraft(null);
-    if (tool.kind !== 'area') this.areaPts = [];
+    if (tool.kind !== 'area') {
+      if (this.areaPts.length > 0) this.renderer.setWorkedDraft(null, '');
+      this.areaPts = [];
+    }
     // Drawing an area opens the resources view on what it will harvest, so the
     // player draws over the ground they can see is rich rather than guessing.
     if (tool.kind === 'area') {
