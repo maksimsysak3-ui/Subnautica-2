@@ -411,6 +411,13 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // faint vertical banding a spun column has.
     col = vec3f(0.132, 0.138, 0.148)
         * (0.86 + 0.28 * vnoise(vec2f(w2.x * 0.4, w2.y * 9.0)));
+  } else if (surf > 14.5) {
+    // A viaduct: parapet, fascia, soffit and piers. Board-marked concrete,
+    // paler than the kerbs, with the formwork lifts showing as faint bands
+    // and a stain running down from each deck joint.
+    let lifts = 0.94 + 0.06 * step(0.5, fract(in.world.y / 1.2));
+    let stain = 1.0 - 0.10 * smoothstep(0.6, 1.0, vnoise(vec2f(w2.x * 0.08 + w2.y * 0.08, in.world.y * 0.15)));
+    col = concrete(w2, mpp) * 1.12 * lifts * stain;
   } else if (surf > 13.5) {
     // The lantern. Its albedo barely matters -- what it is for happens after
     // the lighting, below, where it becomes the source of the pool on the road.
@@ -479,7 +486,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // once a pixel genuinely covers more than one strip across the width. A
   // street's footway is two metres and its carriageway seven, so a pixel
   // spanning more than about a metre across is mixing them whatever it does.
-  let coarse = smoothstep(1.20, 3.50, mppU);
+  // Never a viaduct's structure: its faces are not strips of a road surface.
+  let coarse = smoothstep(1.20, 3.50, mppU) * select(1.0, 0.0, surf > 14.5);
   if (coarse > 0.0) {
     let mean = mix(asphalt(w2, 0.0, half, 0.0, mpp), concrete(w2, mpp) * 0.80, 0.28);
     col = mix(col, mean, coarse);
@@ -520,7 +528,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   var lampTint = vec3f(1.00, 0.80, 0.56);
   if (lanes >= 2.5) { lampTint = vec3f(0.94, 0.94, 1.00); }
   if (surf > 7.5 && surf < 9.5) { lampTint = vec3f(1.00, 0.62, 0.26); }
-  if (surf > 13.5) {
+  if (surf > 13.5 && surf < 14.5) {
     // The lantern: the source, bright enough to bloom but no longer a beacon.
     col = mix(col, lampTint * 4.2, night);
   }

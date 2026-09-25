@@ -80,6 +80,13 @@ const LAMP_HEIGHT = 5.4;
 /** The column, and the lantern on its arm. See the road shader's surfaces. */
 const SURF_LAMP = 13;
 const SURF_LANTERN = 14;
+/** Structural concrete: a viaduct's parapet, fascia, soffit and piers. */
+const SURF_DECK = 15;
+/** How deep a viaduct's deck is, and how far apart its piers stand. */
+const DECK_DEPTH = 1.6;
+const PIER_SPACING = 32;
+/** Metres above the ground past which the road stops holding the terrain to it. */
+const OFF_GROUND = 1.2;
 
 /** Which surface value a class's carriageway uses. */
 const CARRIAGEWAY = {
@@ -130,6 +137,12 @@ interface Strip {
   u0: number; y0: number;
   u1: number; y1: number;
   surf: number;
+  /**
+   * Structure rather than surface relief: never flattened at distance. A
+   * kerb is centimetres and can go; a parapet and a deck edge are what a
+   * viaduct is, and flattening them left a road floating on nothing.
+   */
+  hard?: boolean;
 }
 
 /**
@@ -140,7 +153,7 @@ interface Strip {
  * footway fills to the corridor edge, and a reservation is a raised strip down
  * the middle of the same section.
  */
-function section(cls: keyof typeof ROAD_SPECS): Strip[] {
+function section(cls: keyof typeof ROAD_SPECS, deck = false): Strip[] {
   const spec = ROAD_SPECS[cls];
   const half = spec.half, edge = spec.edge;
 
@@ -170,14 +183,26 @@ function section(cls: keyof typeof ROAD_SPECS): Strip[] {
     to(half + 0.5, 0.02, SURF.VERGE);
     to(edge, 0.06, SURF.VERGE);
   }
-  // A skirt below the outer edge, so the ribbon meets the graded ground
-  // without a hairline of terrain showing under it at a grazing angle.
-  to(edge, -0.55, SURF.SKIRT);
+  if (deck) {
+    // A viaduct: a parapet at the edge, the fascia down the outside of the
+    // deck, and the soffit back underneath it to the middle -- a closed box,
+    // so it reads as a structure from below as well as from above.
+    const top = KERB + 1.05;
+    right.push({ u0: u, y0: y, u1: edge, y1: top, surf: SURF_DECK, hard: true });
+    right.push({ u0: edge, y0: top, u1: edge + 0.32, y1: top, surf: SURF_DECK, hard: true });
+    right.push({ u0: edge + 0.32, y0: top, u1: edge + 0.32, y1: -DECK_DEPTH, surf: SURF_DECK, hard: true });
+    right.push({ u0: edge + 0.32, y0: -DECK_DEPTH, u1: 0, y1: -DECK_DEPTH, surf: SURF_DECK, hard: true });
+  } else {
+    // A skirt below the outer edge, so the ribbon meets the graded ground
+    // without a hairline of terrain showing under it at a grazing angle.
+    to(edge, -0.55, SURF.SKIRT);
+  }
 
   // Mirrored. Each strip keeps its own material and slope; only which way it
   // runs across the road changes.
   const left: Strip[] = right.map((t) => ({
     u0: -t.u0, y0: t.y0, u1: -t.u1, y1: t.y1, surf: t.surf,
+    ...(t.hard === true ? { hard: true } : {}),
   }));
   return [...left, ...right];
 }
@@ -228,7 +253,7 @@ function blankPiece(sig: string): Piece {
  * exactly the defect the tiled roads had, and the ramp between two pads that
  * far apart came up through the carriageway.
  */
-function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): number[] {
+export function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): number[] {
   const level = graph.nodes.map((n) => {
     let sum = 0;
     for (const [dx, dz] of [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]]) {
@@ -252,6 +277,10 @@ function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): n
     }
     for (let i = 0; i < level.length; i++) level[i] = next[i];
   }
+  // The viaduct's height on top, after the smoothing: smoothing a raised
+  // junction with its neighbours would pull a flyover down towards the street
+  // it is flying over.
+  for (let i = 0; i < level.length; i++) level[i] += graph.nodes[i].elev ?? 0;
   return level;
 }
 
@@ -267,10 +296,14 @@ function nodeLevels(graph: RoadGraph, base: (x: number, z: number) => number): n
  */
 export function previewRoad(grid: number, ax: number, az: number, bx: number, bz: number,
   cls: RoadClass, bend: number, base: (x: number, z: number) => number,
-  through: [number, number] | null = null): RoadMesh | null {
+  through: [number, number] | null = null, elevA = 0, elevB = 0): RoadMesh | null {
   if (Math.hypot(bx - ax, bz - az) < 12) return null;
   const one = new RoadGraph(grid);
   one.add(ax, az, bx, bz, cls, bend, through);
+  // Each end at the height the real road will take there.
+  for (const n of one.nodes) {
+    n.elev = Math.hypot(n.x - ax, n.z - az) < Math.hypot(n.x - bx, n.z - bz) ? elevA : elevB;
+  }
   if (one.links.length === 0) return null;
   return buildRoadMesh(one, base, false);
 }
@@ -432,7 +465,11 @@ export function buildRoadMesh(graph: RoadGraph,
     order.push(piece);
     freshLinks.set(link.id, piece);
     const spec = ROAD_SPECS[link.cls];
-    const ribs: Strip[] = section(link.cls);
+    // A link with either end off the ground is built as a deck: parapets, a
+    // fascia and a soffit. The low end of a ramp buries its deck in the
+    // ground that is held up to it, which is what an embankment ramp is.
+    const lifted = Math.max(na.elev ?? 0, nb.elev ?? 0) > 0.5;
+    const ribs: Strip[] = section(link.cls, lifted);
     // Bits 0-3 are the road's own switches; bit 3 is added later by the drag
     // preview. Above the low byte rides the lamp spacing in metres, which is
     // what the shader needs to know where the light falls at night -- there is
@@ -494,11 +531,11 @@ export function buildRoadMesh(graph: RoadGraph,
         // at distance -- see the road's vertex shader.
         row.push(buf.push(
           p.x + nx * t.u0, y + t.y0 + LIFT, p.z + nz * t.u0,
-          mx, my, mz, t.u0, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.y0,
+          mx, my, mz, t.u0, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.hard ? 0 : t.y0,
         ));
         row.push(buf.push(
           p.x + nx * t.u1, y + t.y1 + LIFT, p.z + nz * t.u1,
-          mx, my, mz, t.u1, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.y1,
+          mx, my, mz, t.u1, at[k], toEnd, t.surf, spec.half, spec.lanes, flags, t.hard ? 0 : t.y1,
         ));
       }
       if (prevRow !== null) {
@@ -514,7 +551,12 @@ export function buildRoadMesh(graph: RoadGraph,
         for (let q = 0; q <= steps; q++) {
           const s0 = at[k - 1] + (span * q) / steps;
           const a = walk(dense, s0);
-          hold(a.x, a.z, spec.edge + 5, levelAt(s0));
+          // Only where the road is on the ground. Under a viaduct the land
+          // stays the land -- holding it up to the deck built an embankment
+          // twenty metres high under every flyover.
+          const yy = levelAt(s0);
+          if (yy - base(a.x, a.z) > OFF_GROUND) continue;
+          hold(a.x, a.z, spec.edge + 5, yy);
         }
       }
       // Street lighting, spaced along the arc and alternating sides.
@@ -584,6 +626,41 @@ export function buildRoadMesh(graph: RoadGraph,
         }
       }
       prevRow = row;
+    }
+
+    // Piers, under whatever of this link is up in the air: a column down to
+    // the ground at each span, or two under a wide deck, and a crosshead
+    // beam under the soffit that the deck sits on.
+    if (lifted) {
+      for (let sp = cut0 + PIER_SPACING / 2; sp < total - cut1; sp += PIER_SPACING) {
+        const q = walk(dense, sp);
+        const top = levelAt(sp) - DECK_DEPTH;
+        const ground = base(q.x, q.z);
+        if (top - ground < 2.5) continue;
+        const ax = q.tx, az = q.tz, cx = -q.tz, cz = q.tx;
+        const block = (u: number, y0: number, y1: number, along: number, across: number): void => {
+          const ox = q.x + cx * u, oz = q.z + cz * u;
+          const corner = (sa: number, sy: number, sc: number): number => {
+            const x = ox + ax * along * sa + cx * across * sc;
+            const z = oz + az * along * sa + cz * across * sc;
+            const nlen = Math.hypot(ax * sa + cx * sc, az * sa + cz * sc) || 1;
+            return buf.push(x, sy, z, (ax * sa + cx * sc) / nlen, 0.2, (az * sa + cz * sc) / nlen,
+              u, sp, 99, SURF_DECK, spec.half, spec.lanes, flags, 0);
+          };
+          const b000 = corner(-1, y0, -1), b100 = corner(1, y0, -1);
+          const b110 = corner(1, y0, 1), b010 = corner(-1, y0, 1);
+          const t000 = corner(-1, y1, -1), t100 = corner(1, y1, -1);
+          const t110 = corner(1, y1, 1), t010 = corner(-1, y1, 1);
+          buf.quad(b000, b100, t100, t000);
+          buf.quad(b100, b110, t110, t100);
+          buf.quad(b110, b010, t010, t110);
+          buf.quad(b010, b000, t000, t010);
+          buf.quad(b010, b110, b100, b000);
+        };
+        const cols = spec.half > 7 ? [-spec.half * 0.5, spec.half * 0.5] : [0];
+        for (const u of cols) block(u, ground - 1, top - 0.9, 0.8, 0.8);
+        block(0, top - 0.9, top + LIFT, 0.9, spec.edge * 0.82);
+      }
     }
   }
 

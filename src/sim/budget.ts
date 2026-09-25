@@ -1,3 +1,4 @@
+import { CURRENCY } from './difficulty';
 /**
  * The treasury: what the city has, and what it charges.
  *
@@ -50,7 +51,7 @@ export const TAX_MAX = 0.29;
 export const STARTING_FUNDS = 300000;
 
 /** How far into the red the city may go before nothing more can be bought. */
-export const OVERDRAFT = 60000;
+export const OVERDRAFT = 60000 * CURRENCY;
 
 export class Budget {
   balance = STARTING_FUNDS;

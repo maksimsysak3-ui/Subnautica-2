@@ -42,6 +42,7 @@ const bundle = (await esbuild.build({
     contents: [
       `export { Simulation } from '${src}sim/agents/sim';`,
       `export { POLICIES, Policies } from '${src}sim/policies';`,
+      `export { CURRENCY } from '${src}sim/difficulty';`,
       `export { makeCity } from '${src}sim/city';`,
       `export { defaultWorld } from '${src}sim/world';`,
       `export { serialise, deserialise } from '${src}sim/save';`,
@@ -231,7 +232,8 @@ section('the bill is real and its own line');
   const billed = sim.economy.report.policies;
   ok(billed > 0, 'a policy in force costs something', cash(billed));
   const pop = sim.people.population;
-  ok(Math.abs(billed - pop * 1.15) < 1, 'and the bill is what the table says',
+  // The table is in designed units; the treasury is in the currency's.
+  ok(Math.abs(billed - pop * 1.15 * M.CURRENCY) < 1, 'and the bill is what the table says',
     `${cash(billed)} for ${pop} residents`);
 
   world.policies.set(INDEX.parking, true);

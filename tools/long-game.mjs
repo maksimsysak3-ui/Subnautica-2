@@ -258,7 +258,7 @@ function play(difficulty) {
       const e = sim.economy.report;
       const d = sim.dispatch.stats;
       log.push({
-        day, pop, level: p.level, balance: Math.round(world.budget.balance), net: Math.round(e.net),
+        day, pop, level: p.level, balance: Math.round(world.budget.balance), net: Math.round(e.net), gin: Math.round(e.income), gout: Math.round(e.spending),
         happy: Math.round(sim.people.happiness * 100), fires: d.raised[0], crimes: d.raised[1],
         missed: d.missed[0] + d.missed[1] + d.missed[2], stars: p.stars,
         homes: sim.places.homeCapacity, waiting,
@@ -285,10 +285,10 @@ for (const d of WHICH) {
   const r = play(d);
   results.push(r);
   console.log(`\n== ${d.toUpperCase()}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
-  console.log('  day    pop  lvl   balance    net/wk  happy  fires crimes missed');
+  console.log('  day    pop  lvl   balance    net/wk     in/wk    out/wk  happy  fires crimes missed');
   for (const l of r.log) {
     console.log(`  ${String(l.day).padStart(3)} ${String(l.pop).padStart(6)} ${String(l.level).padStart(4)}`
-      + ` ${String(l.balance).padStart(9)} ${String(l.net).padStart(9)} ${String(l.happy).padStart(5)}%`
+      + ` ${String(l.balance).padStart(9)} ${String(l.net).padStart(9)} ${String(l.gin).padStart(9)} ${String(l.gout).padStart(9)} ${String(l.happy).padStart(5)}%`
       + ` ${String(l.fires).padStart(6)} ${String(l.crimes).padStart(6)} ${String(l.missed).padStart(6)}`);
   }
   console.log(`  lowest balance ${Math.round(r.lowest)}; spent roads ${Math.round(r.spent.roads)},`

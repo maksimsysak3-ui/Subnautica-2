@@ -22,7 +22,7 @@
  * Everything here is state of the city, so it saves and loads with it.
  */
 
-import { RULES } from './difficulty';
+import { RULES, CURRENCY } from './difficulty';
 
 /** Experience for one building the player places, per thousand it cost. */
 const XP_PER_THOUSAND = 1.4;
@@ -54,7 +54,7 @@ export function starsForLevel(level: number): number {
 
 /** Money paid out on reaching a level, which scales with what it costs to run. */
 export function cashForLevel(level: number): number {
-  return Math.round((40000 + 26000 * (level - 1)) / 1000) * 1000;
+  return Math.round((40000 + 26000 * (level - 1)) * CURRENCY / 1000) * 1000;
 }
 
 /** The name of each level, which is the only flattery in the game. */
@@ -133,7 +133,9 @@ export class Progress {
   forBuilding(price: number, signature: boolean): number {
     return signature
       ? XP_PER_SIGNATURE + Math.round(price / 1000)
-      : XP_PER_BUILDING + Math.round((price / 1000) * XP_PER_THOUSAND);
+      // Per thousand of the designed price, not the displayed one: experience
+      // must not rise fifty-fold because the currency did.
+      : XP_PER_BUILDING + Math.round((price / CURRENCY / 1000) * XP_PER_THOUSAND);
   }
 
   /**
@@ -226,6 +228,22 @@ export const DENSITY_LEVEL: Record<string, number> = {
   medium: 4,
   high: 8,
 };
+
+/**
+ * Zones that open with the city rather than on the first day.
+ *
+ * Offices want an educated workforce and a town worth having a desk in, and a
+ * hamlet with an office block is the wrong first picture of a place. Level
+ * four is a small town -- about when medium density opens too.
+ */
+export const ZONE_LEVEL: Record<string, number> = {
+  office: 4,
+};
+
+/** The level a zone at a density needs: whichever of the two gates is later. */
+export function zoneNeeds(zone: string, density: string): number {
+  return Math.max(DENSITY_LEVEL[density] ?? 1, ZONE_LEVEL[zone] ?? 1);
+}
 
 /** Whether a density may be painted yet, and the level it needs if not. */
 export function densityUnlocked(density: string, level: number): boolean {

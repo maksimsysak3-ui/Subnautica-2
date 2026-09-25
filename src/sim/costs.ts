@@ -48,16 +48,15 @@ export function roadPrice(cls: RoadClass): number {
 }
 
 /**
- * Cost per zoned cell.
+ * Cost per zoned cell: nothing.
  *
- * Zoning is cheap -- the city is buying a designation, not a building -- but
- * not free, because free zoning means painting the whole map on the first
- * minute and watching it fill.
+ * Zoning is a designation, not a building, and charging for it taxed the one
+ * thing a new city has to do most of before it has any income to do it with.
+ * What stops a player painting the whole map in the first minute is the land:
+ * zoning only takes on plots the city owns, and those are bought.
  */
-export function zonePrice(zone: Zone, density: Density): number {
-  const base = zone === 'nature' ? 22 : zone === 'industrial' ? 30 : 36;
-  const tier = density === 'high' ? 2.6 : density === 'medium' ? 1.6 : 1;
-  return Math.round(base * tier * RULES.build);
+export function zonePrice(_zone: Zone, _density: Density): number {
+  return 0;
 }
 
 /** A price, as it should read on a button: 1,250 / 24k / 1.2M. */

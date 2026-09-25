@@ -17,6 +17,7 @@ const bundle = (await esbuild.build({
       `export { serialise, deserialise } from '${src}sim/save';`,
       `export { configureSim, LITE } from '${src}sim/config';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
+      `export { CURRENCY } from '${src}sim/difficulty';`,
     ].join('\n'),
     resolveDir: src, loader: 'ts',
   },
@@ -53,7 +54,7 @@ ok(after.commercial > before.commercial * 1.2, 'a tourist quarter over the whole
 ok(Math.abs(after.office - before.office) < 1, 'and leaves offices alone');
 const st = sim.economy.districtStats.get(d.id);
 const shops = (() => { let n = 0; const c = sim.places.col; for (let i = 0; i < sim.places.count; i++) if (sim.places.live[i] && c.purpose[i] === 1) n++; return n; })();
-ok(st !== undefined && st.cost === shops * 14, 'its fee is charged on the shops it works on', `${shops} shops, ${st?.cost}`);
+ok(st !== undefined && st.cost === shops * 14 * M.CURRENCY, 'its fee is charged on the shops it works on', `${shops} shops, ${st?.cost}`);
 ok(after.policies >= before.policies + st.cost - 1, 'and lands on the policies line');
 
 D.toggle(d.id, 'tourism');

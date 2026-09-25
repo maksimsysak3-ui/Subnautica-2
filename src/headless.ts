@@ -1018,6 +1018,12 @@ export async function probeViews(): Promise<{
   // it carries controls. Both halves are checked, because a tax slider that does
   // not move the rate is a slider, and a rate that does not move the panel above
   // it is a number in a different room.
+  // The same tick with nothing opened, first: how much of the frame a tick of
+  // traffic moves on its own. A city with more on its roads moves more of it,
+  // and without this the check measured the traffic rather than the panel.
+  live.update(1 / 30, performance.now());
+  const idlePx = await frame();
+  const noise = moved(backPx, idlePx);
   press('Budget');
   live.update(1 / 30, performance.now());
   const budgetRows = ui.querySelectorAll('[data-stat]').length;
@@ -1046,7 +1052,7 @@ export async function probeViews(): Promise<{
     // Against the frame just before it opened, not the first one: three updates
     // of traffic and smoke moving is not the budget painting anything, and
     // measured from the start it sat on the threshold and failed by chance.
-    budgetPainted: moved(backPx, budgetPx),
+    budgetPainted: Math.max(0, moved(idlePx, budgetPx) - noise),
   };
 }
 

@@ -16,6 +16,7 @@
  */
 
 import { simConfig } from './config';
+import { CURRENCY } from './difficulty';
 
 /** Plots across the map, each way. Sixty-four in all. */
 export const PLOTS = 8;
@@ -122,8 +123,8 @@ export class Land {
    */
   price(): number {
     const n = Math.max(0, this.count - STARTING.length);
-    const raw = 24000 * 1.42 ** n;
-    const step = raw < 100000 ? 5000 : 25000;
+    const raw = 24000 * CURRENCY * 1.42 ** n;
+    const step = raw < 5000000 ? 250000 : 1000000;
     return Math.round(raw / step) * step;
   }
 }

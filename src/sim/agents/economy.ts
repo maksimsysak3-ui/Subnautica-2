@@ -47,7 +47,7 @@
 
 import { BRANCHES } from '../../assets/types';
 import type { Industry } from '../industry';
-import { RULES } from '../difficulty';
+import { RULES, CURRENCY, UPKEEP_WEIGHT } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
 import { Places, Purpose, TIER_UPKEEP } from './places';
 import { POLICY_BY_ID } from '../districts';
@@ -85,7 +85,7 @@ const WAGE = {
 } as const;
 
 /** A week's turnover per filled shop job, and the goods that turnover needs. */
-const SALES_PER_SHOP_JOB = 700;
+const SALES_PER_SHOP_JOB = 820;
 const GOODS_PER_SHOP_JOB = 480;
 
 /** A week's output per filled industrial job, in the same units as goods. */
@@ -113,7 +113,12 @@ const INDUSTRY_TAXABLE_PER_JOB = 440;
  * the jobs -- and a young residential town, which is every town at first,
  * earned almost nothing from its own houses.
  */
-const RESIDENT_TAXABLE = 110;
+//
+// And nearly doubled from 110, because a town of a few hundred is almost all
+// housing, and on 110 it cleared about twenty thousand a week: enough to stay
+// solvent, never enough to build the next service. The early city is where a
+// player decides whether the game is worth playing, and it was starving.
+const RESIDENT_TAXABLE = 200;
 const WAGE_SHARE = 0.35;
 
 /** A week's billable value per filled office job. */
@@ -531,20 +536,21 @@ export class Economy {
     r.goodsMade = output;
     r.goodsWanted = wanted;
     const surplus = output - wanted;
-    r.exports = surplus > 0 ? surplus * EXPORT_DUTY * (this.industry?.tradeBoost ?? 1) : 0;
-    r.imports = surplus < 0 ? -surplus * IMPORT_COST : 0;
+    // Goods are units, not money: the currency scale turns them into it.
+    r.exports = surplus > 0 ? surplus * EXPORT_DUTY * (this.industry?.tradeBoost ?? 1) * CURRENCY : 0;
+    r.imports = surplus < 0 ? -surplus * IMPORT_COST * CURRENCY : 0;
 
     // ---- fares -------------------------------------------------------------
     const riders = this.transit?.report.ridersPerDay ?? 0;
-    r.fares = riders * 7 * FARE * pol.transitFare;
+    r.fares = riders * 7 * FARE * pol.transitFare * CURRENCY;
 
     // ---- what the city owes ------------------------------------------------
     r.services = this.serviceUpkeep();
-    r.transit = this.transit?.report.weekly ?? 0;
+    r.transit = (this.transit?.report.weekly ?? 0) * CURRENCY * UPKEEP_WEIGHT;
     r.roads = this.roadUpkeep();
     r.interest = b.balance < 0 ? -b.balance * INTEREST : 0;
     r.policies = this.policies.weekly(this.people.population,
-      shopJobs + officeJobs + worksJobs + serviceJobs, p.count) + dm.cost;
+      shopJobs + officeJobs + worksJobs + serviceJobs, p.count) * CURRENCY + dm.cost;
 
     // The block grant, which is what makes the first hour survivable.
     //
@@ -630,7 +636,7 @@ export class Economy {
           : z === 2 ? pol.yield.industrial : z === 3 ? pol.yield.office : undefined;
         // Charged on the buildings it works on: a tourist quarter's promotion is
         // for the shops in it, not for every house in the street behind them.
-        if (y !== undefined) { m *= y; st.cost += pol.perBuilding; }
+        if (y !== undefined) { m *= y; st.cost += pol.perBuilding * CURRENCY; }
       }
       if (z >= 0) lifted[z] += w * m;
     }
@@ -692,7 +698,7 @@ export class Economy {
       }
       this.roadMetres = metres;
     }
-    return this.roadMetres * ROAD_UPKEEP_PER_EDGE_METRE;
+    return this.roadMetres * ROAD_UPKEEP_PER_EDGE_METRE * CURRENCY * UPKEEP_WEIGHT;
   }
 
   /**

@@ -249,6 +249,12 @@ export const ROAD_ORDER: RoadClass[] = [
 export interface RoadNode {
   x: number;
   z: number;
+  /**
+   * Metres above the ground the road stands here: nought on the ground, more
+   * on a viaduct. A link ramps between its two ends, so tying a raised road
+   * into a street is an on-ramp without any ramp being drawn.
+   */
+  elev: number;
   /** Link indices that end here. Rebuilt whenever the graph changes. */
   arms: number[];
 }
@@ -272,6 +278,16 @@ export interface RoadLink {
   cz: number;
   cls: RoadClass;
 }
+
+/**
+ * Metres between two roads crossing before they pass rather than meet. Under
+ * this, drawing one across the other makes a junction as it always did.
+ */
+export const CLEARANCE = 4;
+/** Metres up at its middle past which a link counts as a viaduct. */
+export const RAISED = 2;
+/** The heights the road tool offers, in metres above the ground. */
+export const ELEVATIONS = [0, 8, 14, 20] as const;
 
 /** Never reused, so a link's name is unique for the life of the page. */
 let nextLinkId = 1;
@@ -519,13 +535,13 @@ export class RoadGraph {
 
   // ---- editing -----------------------------------------------------------
 
-  private addNode(x: number, z: number): number {
-    this.nodes.push({ x, z, arms: [] });
+  private addNode(x: number, z: number, elev = 0): number {
+    this.nodes.push({ x, z, arms: [], elev });
     return this.nodes.length - 1;
   }
 
   /** The node at this point, making or splitting one where there is none. */
-  private nodeAt(x: number, z: number): number {
+  private nodeAt(x: number, z: number, elev = 0): number {
     // How close counts as "the same place" depends on how big the thing is.
     //
     // Fixed radii of nine and eleven metres are fine among streets and wrong
@@ -566,7 +582,7 @@ export class RoadGraph {
       }
     }
     if (hit >= 0 && hitT > 0.04 && hitT < 0.96) return this.splitLink(hit, hitT);
-    return this.addNode(x, z);
+    return this.addNode(x, z, elev);
   }
 
   /**
@@ -584,7 +600,9 @@ export class RoadGraph {
     const m1x = lerp(link.cx, b.x, t), m1z = lerp(link.cz, b.z, t);
     const mx = lerp(m0x, m1x, t), mz = lerp(m0z, m1z, t);
 
-    const mid = this.addNode(mx, mz);
+    // At the height the road stands there: a junction made on a ramp is on
+    // the ramp, not dropped to the ground or lifted to the deck.
+    const mid = this.addNode(mx, mz, this.elevAt(link, t));
     const tail: RoadLink = { id: nextLinkId++, a: mid, b: link.b, cx: m1x, cz: m1z, cls: link.cls };
     link.b = mid;
     link.cx = m0x; link.cz = m0z;
@@ -604,10 +622,13 @@ export class RoadGraph {
    * the same road continuing.
    */
   add(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0,
-    through: [number, number] | null = null): void {
+    through: [number, number] | null = null, elev = 0): void {
     if (Math.hypot(bx - ax, bz - az) < SNAP) return;
-    const a = this.nodeAt(ax, az);
-    const b = this.nodeAt(bx, bz);
+    // An end on something that exists takes that thing's height; only a free
+    // end stands at the height asked for. That is the whole of how a player
+    // makes a ramp: draw a raised road out of a street.
+    const a = this.nodeAt(ax, az, elev);
+    const b = this.nodeAt(bx, bz, elev);
     if (a === b) return;
 
     const na = this.nodes[a], nb = this.nodes[b];
@@ -724,8 +745,48 @@ export class RoadGraph {
    * restoring a graph where all of that already happened. Loading is not
    * drawing -- it is putting back what drawing produced.
    */
-  restoreNode(x: number, z: number): number {
-    return this.addNode(x, z);
+  restoreNode(x: number, z: number, elev = 0): number {
+    return this.addNode(x, z, elev);
+  }
+
+  /**
+   * The height a road end at this point would stand at: an existing junction's
+   * or a road's there, or `free` where there is nothing to join. The same rule
+   * `add` applies, asked without changing anything, for the preview.
+   */
+  elevNear(x: number, z: number, free: number): number {
+    for (const n of this.nodes) {
+      if (Math.abs(n.x - x) < 1e-3 && Math.abs(n.z - z) < 1e-3) return n.elev;
+    }
+    let best = free, bestD = TOUCH;
+    for (const link of this.links) {
+      const b = this.box(link);
+      if (x < b[0] - TOUCH || x > b[2] + TOUCH || z < b[1] - TOUCH || z > b[3] + TOUCH) continue;
+      const pts = this.shape(link);
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const dx = pts[k + 1].x - pts[k].x, dz = pts[k + 1].z - pts[k].z;
+        const len2 = dx * dx + dz * dz || 1;
+        const f = Math.min(1, Math.max(0, ((x - pts[k].x) * dx + (z - pts[k].z) * dz) / len2));
+        const d = Math.hypot(pts[k].x + dx * f - x, pts[k].z + dz * f - z);
+        if (d < bestD) { bestD = d; best = this.elevAt(link, (k + f) / (pts.length - 1)); }
+      }
+    }
+    return best;
+  }
+
+  /** How high a link stands above the ground at `t` along it. */
+  elevAt(link: RoadLink, t: number): number {
+    const ea = this.nodes[link.a]?.elev ?? 0, eb = this.nodes[link.b]?.elev ?? 0;
+    return ea + (eb - ea) * t;
+  }
+
+  /**
+   * Whether a link is off the ground for most of its length: a viaduct, or a
+   * ramp far enough up it. Nothing fronts onto one -- a house does not open
+   * its door onto a flyover -- and nothing can be zoned from it.
+   */
+  raised(link: RoadLink): boolean {
+    return this.elevAt(link, 0.5) > RAISED;
   }
 
   /** The same for a link: its ends and its control point, taken as given. */
@@ -854,6 +915,8 @@ export class RoadGraph {
           const selfT = (i + hit[0]) / (mine.length - 1);
           const otherT = (k + hit[1]) / (theirs.length - 1);
           if (selfT < 0.02 || selfT > 0.98 || otherT < 0.02 || otherT > 0.98) continue;
+          // One over the other is a bridge, not a junction.
+          if (Math.abs(this.elevAt(self, selfT) - this.elevAt(link, otherT)) >= CLEARANCE) continue;
           return { other: j, selfT, otherT };
         }
       }
@@ -944,7 +1007,12 @@ export class RoadGraph {
       // cell wider than the corridor rejected every frontage plot in the city
       // and the map came out with no buildings on any street at all.
       const reach = spec.edge;
-      for (const p of this.samples(link)) {
+      const pts = this.samples(link);
+      const len = pts[pts.length - 1].s || 1;
+      for (const p of pts) {
+        // 1 on the ground, 2 in the air. Both keep buildings off the cells --
+        // a pier stands on them -- but only the ground gives zoning reach.
+        const mark = this.elevAt(link, p.s / len) > RAISED ? 2 : 1;
         const gx0 = Math.max(0, Math.floor((p.x - reach) / CELL + half));
         const gx1 = Math.min(g - 1, Math.floor((p.x + reach) / CELL + half));
         const gz0 = Math.max(0, Math.floor((p.z - reach) / CELL + half));
@@ -952,7 +1020,8 @@ export class RoadGraph {
         for (let gz = gz0; gz <= gz1; gz++) {
           for (let gx = gx0; gx <= gx1; gx++) {
             const [wx, wz] = this.world(gx, gz);
-            if (Math.hypot(wx - p.x, wz - p.z) <= reach) this.cls[gz * g + gx] = 1;
+            const c = gz * g + gx;
+            if (Math.hypot(wx - p.x, wz - p.z) <= reach && this.cls[c] !== 1) this.cls[c] = mark;
           }
         }
       }
@@ -972,7 +1041,8 @@ export class RoadGraph {
       for (let gz = gz0; gz <= gz1; gz++) {
         for (let gx = gx0; gx <= gx1; gx++) {
           const [wx, wz] = this.world(gx, gz);
-          if (Math.hypot(wx - n.x, wz - n.z) <= r) this.cls[gz * g + gx] = 1;
+          const c = gz * g + gx;
+          if (Math.hypot(wx - n.x, wz - n.z) <= r && this.cls[c] !== 1) this.cls[c] = n.elev > RAISED ? 2 : 1;
         }
       }
     }
@@ -1028,6 +1098,8 @@ export class RoadGraph {
       cls: RoadClass }> = [];
     for (let i = 0; i < this.links.length; i++) {
       const link = this.links[i];
+      // Nothing fronts onto a viaduct.
+      if (this.raised(link)) continue;
       const pts = this.samples(link);
       const total = pts[pts.length - 1].s;
       const from = this.junctionRadius(link.a) + 2;
@@ -1161,7 +1233,10 @@ export class RoadGraph {
     const n = g * g;
     const d = this.reachCache ?? new Uint8Array(n);
     const FAR = 255;
-    for (let i = 0; i < n; i++) d[i] = this.cls[i] !== 0 ? 0 : FAR;
+    // Seeded from the roads on the ground only: a viaduct gives no frontage.
+    // Its cells stay unreachable rather than distance nought, so zoning cannot
+    // spread from under one either.
+    for (let i = 0; i < n; i++) d[i] = this.cls[i] === 1 ? 0 : FAR;
 
     // Takes the neighbour's distance plus one when that beats what is here.
     // Written as a comparison rather than a min of a sum so the count cannot

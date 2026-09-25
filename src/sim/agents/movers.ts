@@ -27,7 +27,7 @@ import { Control, Light } from './junctions';
 import { Mode } from './routine';
 import type { People } from './people';
 import type { LaneGraph } from './lanes';
-import { DRIVE_SIDE, placeAlong } from './lanes';
+import { DRIVE_SIDE, placeAlong, deckAt } from './lanes';
 import type { Shipping } from './shipping';
 import type { Flights } from './flights';
 import type { TransitNet } from './transit';
@@ -330,7 +330,10 @@ export class Movers {
       const seat = seatOf(c.kind[v], v, c.role[v]);
       let yaw = Math.atan2(next[1] - here[1], next[0] - here[0]);
       if (this.flip[seat] === true) yaw += Math.PI;
-      write(seat, here[0], here[1], this.turnTowards(v, yaw), RIDE);
+      // On a viaduct, the deck's height rather than the ground's.
+      const deck = deckAt(lanes, lane, at);
+      const lift = Number.isNaN(deck) ? RIDE : deck - ground(here[0], here[1]) + RIDE;
+      write(seat, here[0], here[1], this.turnTowards(v, yaw), lift);
       this.counts.vehicles++;
     }
 
@@ -348,7 +351,7 @@ export class Movers {
       if (mode !== Mode.WALK && mode !== Mode.BIKE) continue;
       const lane0 = paths.at(pc.route[id], pc.step[id]);
       let x = pc.x[id], z = pc.z[id];
-      let yaw = 0;
+      let yaw = 0, up = 0;
       if (lane0 >= 0 && lane0 < lanes.count) {
         // On the footway on their own side, carried forward the way the
         // vehicles are, and following the road as drawn: a citizen walking up
@@ -357,12 +360,14 @@ export class Movers {
           DRIVE_SIDE, paths.at(pc.route[id], pc.step[id] + 1));
         x = p[0]; z = p[1];
         yaw = Math.atan2(p[3], p[2]);
+        const deck = deckAt(lanes, lane0, pc.along[id]);
+        if (!Number.isNaN(deck)) up = deck - ground(x, z);
       }
       const dx = eyeX - x, dz = eyeZ - z;
       if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
       const seat = mode === Mode.BIKE ? 'cyclist'
         : walkSeat(id, pc.along[id] + WALK_SPEED * lead);
-      if (write(seat, x, z, yaw, 0)) {
+      if (write(seat, x, z, yaw, up)) {
         this.counts.people++;
       }
     }
@@ -382,7 +387,9 @@ export class Movers {
         const x = p[0], z = p[1];
         const dx = eyeX - x, dz = eyeZ - z;
         if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) continue;
-        if (write(walkSeat(i * 7 + 3, at), x, z, Math.atan2(p[3], p[2]), 0)) this.counts.people++;
+        const deck = deckAt(lanes, lane, at);
+        const up = Number.isNaN(deck) ? 0 : deck - ground(x, z);
+        if (write(walkSeat(i * 7 + 3, at), x, z, Math.atan2(p[3], p[2]), up)) this.counts.people++;
       }
     }
 

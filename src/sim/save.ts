@@ -21,6 +21,7 @@ import type { World, Lot } from './world';
 import { ROAD_IDS } from './roadgraph';
 import type { TransitLine } from './transit';
 import { TAXES } from './budget';
+import { CURRENCY } from './difficulty';
 import type { RoadClass } from './roadgraph';
 
 /**
@@ -33,7 +34,7 @@ import type { RoadClass } from './roadgraph';
  * 3: land is bought a plot at a time, and a file with no record of which plots
  * were bought would load as a city standing on land nobody owns.
  */
-const VERSION = 4;
+const VERSION = 5;
 /** The oldest version `migrate` can bring up to date. See the note above on version 1. */
 const OLDEST = 3;
 
@@ -47,6 +48,14 @@ const OLDEST = 3;
  */
 const MIGRATIONS: Record<number, (f: SaveFile) => SaveFile> = {
   3: (f) => ({ ...f, v: 4 }),
+  // Version 5 moved money onto the genre's scale -- see CURRENCY -- so an older
+  // treasury is converted with it, or a city would load fifty times poorer
+  // than it was left against prices fifty times higher.
+  4: (f) => {
+    const m = (f as unknown as { money?: unknown }).money;
+    if (!Array.isArray(m) || typeof m[0] !== 'number') return { ...f, v: 5 };
+    return { ...f, money: [m[0] * CURRENCY, ...m.slice(1)], v: 5 } as SaveFile;
+  },
 };
 
 function migrate(file: SaveFile): SaveFile | null {
@@ -71,6 +80,12 @@ interface SaveFile {
   at: number;
   /** Node positions, x and z interleaved. */
   nodes: number[];
+  /**
+   * Per node, metres above the ground: a viaduct's height. Absent, or shorter
+   * than the node list, in a save from before roads could be raised, and a
+   * missing entry is a road on the ground.
+   */
+  elev?: number[];
   /** Per link: node a, node b, control x, control z, class index. */
   links: number[];
   /** Zoning, run-length encoded as [code, run, code, run, ...]. */
@@ -226,6 +241,9 @@ export function serialise(world: World, name: string, auto = false): string {
     name,
     at: Date.now(),
     nodes,
+    // Only written when something is raised, so a flat city's save is no bigger.
+    ...(world.net.nodes.some((n) => n.elev !== 0)
+      ? { elev: world.net.nodes.map((n) => Math.round(n.elev * 10) / 10) } : {}),
     links,
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
@@ -283,7 +301,8 @@ export function deserialise(text: string): { world: World; name: string; at: num
 
   const world = emptyWorld(file.grid);
   for (let i = 0; i + 1 < file.nodes.length; i += 2) {
-    world.net.restoreNode(file.nodes[i], file.nodes[i + 1]);
+    const up = Array.isArray(file.elev) ? Number(file.elev[i / 2]) || 0 : 0;
+    world.net.restoreNode(file.nodes[i], file.nodes[i + 1], Math.max(0, Math.min(40, up)));
   }
   const count = file.nodes.length / 2;
   for (let i = 0; i + 4 < file.links.length; i += 5) {

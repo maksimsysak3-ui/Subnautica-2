@@ -34,7 +34,26 @@ export interface Rules {
   xp: number;
 }
 
-export const DIFFICULTIES: readonly Rules[] = [
+/**
+ * How many of the game's money units one of the balance's units is.
+ *
+ * The economy was designed and balanced in small numbers -- a town of six
+ * hundred grossing fifty thousand a week -- and the balance between income,
+ * upkeep and prices is what matters, not the scale. But a city builder's money
+ * is read at the scale the genre set: millions in and out of the treasury by
+ * the time a town has a few streets. So every figure the player sees and pays
+ * is this many times the designed one: income, prices, grants, the treasury.
+ */
+export const CURRENCY = 50;
+/**
+ * And upkeep a third heavier again than that, so a grown town's running costs
+ * are a real weight against its takings -- about two fifths of them, where
+ * they were under a third -- and a service is a decision, not a formality.
+ */
+export const UPKEEP_WEIGHT = 1.3;
+
+/** The designed rules, before the currency scale. */
+const DESIGNED: readonly Rules[] = [
   {
     id: 'relaxed', label: 'Relaxed', tagline: 'Build first, balance later',
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
@@ -57,6 +76,15 @@ export const DIFFICULTIES: readonly Rules[] = [
     build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85,
   },
 ];
+
+export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
+  ...r,
+  funds: r.funds * CURRENCY,
+  grantWeekly: r.grantWeekly * CURRENCY,
+  build: r.build * CURRENCY,
+  upkeep: r.upkeep * CURRENCY * UPKEEP_WEIGHT,
+  income: r.income * CURRENCY,
+}));
 
 const byId = (id: string): Rules =>
   DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];

@@ -20,7 +20,7 @@ import type { ResourceId } from '../sim/resources';
 import { HECTARE_COST, MAX_HECTARES, REACH, cellHectares } from '../sim/industry';
 import { MAP } from '../sim/maps';
 import { industryProto } from '../sim/inventory';
-import { RULES } from '../sim/difficulty';
+import { RULES, CURRENCY } from '../sim/difficulty';
 import { monthOf, yearOf, seasonOfMonth, temperature } from '../sim/weather';
 import { log } from '../util/log';
 import { thud, brush, crunch, deny } from './sound';
@@ -38,7 +38,7 @@ import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
 
 import type { RoadClass, Proto } from '../sim';
-import { ROAD_SPECS, ROAD_ORDER } from '../sim';
+import { ROAD_SPECS, ROAD_ORDER, ELEVATIONS } from '../sim';
 import { ZONE_STYLE } from './zones';
 import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
 import { NODE_OF_ASSET, branchLevel } from '../sim/tech';
@@ -47,7 +47,7 @@ import { glyph } from './glyphs';
 import { glyph as pictogram } from './glyphs';
 import { landmarksForLevel } from '../sim/tech';
 import type { LevelUp } from '../sim/progress';
-import { levelName, DENSITY_LEVEL, LEVEL_NAMES } from '../sim/progress';
+import { levelName, DENSITY_LEVEL, LEVEL_NAMES, zoneNeeds } from '../sim/progress';
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { plotAt, plotSpan, plotBounds, plotCells, PLOTS, ownsAt } from '../sim';
@@ -64,6 +64,8 @@ import type { IconZone } from './zones';
 
 /** Metres per zoning cell. */
 const CELL = 8;
+/** A viaduct's price against the same road on the ground, per metre. */
+const VIADUCT_PRICE = 2.5;
 
 // The bar's own palette. Cool slate rather than black, because the bar sits
 // over grass and sky all day and a true black panel reads as a hole cut in the
@@ -204,6 +206,17 @@ export class BuildTools {
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
   private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
+  /**
+   * How high new road is laid, as an index into ELEVATIONS: nought on the
+   * ground. Kept across picks of the road tool, the way a height setting in
+   * any builder is -- a player laying a flyover lays several spans of it.
+   */
+  private elevation = 0;
+  /** What a metre of road costs at the height it is being laid. */
+  private roadCost(cls: RoadClass): number {
+    // A viaduct is a structure: piers, a deck and parapets on top of the road.
+    return roadPrice(cls) * (this.elevation > 0 ? VIADUCT_PRICE : 1);
+  }
   /** Quarter turns the next placed building is rotated by. */
   private placeYaw = 0;
   /** The open service drawer, if one is open. */
@@ -634,6 +647,13 @@ export class BuildTools {
       }
     }
     if (this.lineKey(e)) { e.preventDefault(); return; }
+    // Page Up and Page Down raise and lower the road being laid.
+    if ((e.key === 'PageUp' || e.key === 'PageDown')
+      && (this.tool.kind === 'road' || this.tool.kind === 'curve')) {
+      e.preventDefault();
+      this.setElevation(this.elevation + (e.key === 'PageUp' ? 1 : -1));
+      return;
+    }
     if ((e.key === 'Enter' || e.key === ' ') && this.tool.kind === 'transit'
       && this.stops.length >= 4) {
       e.preventDefault();
@@ -740,7 +760,7 @@ export class BuildTools {
     // them. The fleet is a standing order rather than a purchase -- it turns up
     // every week on the budget, which is where a service belongs.
     const spec = TRANSIT_SPEC[t.line];
-    const cost = (this.stops.length / 2) * (t.line === 0 ? 2600 : 14000);
+    const cost = (this.stops.length / 2) * (t.line === 0 ? 2600 : 14000) * RULES.build;
     if (!this.afford(cost, `a ${spec.name.toLowerCase()} line`)) return;
     const line = this.renderer.world.transit.add(t.line, this.stops);
     this.stops = [];
@@ -780,6 +800,15 @@ export class BuildTools {
 
   /** The line the player last clicked a stop of, for the keyboard shortcuts. */
   private heldLine = -1;
+
+  /** Sets the height new road is laid at, and says so. */
+  private setElevation(i: number): void {
+    this.elevation = Math.max(0, Math.min(ELEVATIONS.length - 1, i));
+    const m = ELEVATIONS[this.elevation];
+    this.say(m === 0 ? 'laying road on the ground'
+      : `laying a viaduct ${m} m up — Page Up / Page Down to change. `
+        + 'Start it on a street to ramp up from it; cross a road to pass over it.');
+  }
 
   /** `[`, `]` and Delete, while a line is picked up. */
   private lineKey(e: KeyboardEvent): boolean {
@@ -1012,7 +1041,7 @@ export class BuildTools {
         c.classList.toggle('is-on', on);
         c.setAttribute('aria-pressed', String(on));
         c.textContent = p.name;
-        tip(c, `${p.blurb}${p.perBuilding > 0 ? ` Costs ${money(p.perBuilding)} a week per building.` : ''}`);
+        tip(c, `${p.blurb}${p.perBuilding > 0 ? ` Costs ${money(p.perBuilding * CURRENCY)} a week per building.` : ''}`);
         c.addEventListener('click', () => {
           D.toggle(d.id, p.id);
           this.onDistricts?.(d.id);
@@ -1311,7 +1340,7 @@ export class BuildTools {
       // And what it would cost, so the decision is made before the click.
       if (this.stops.length >= 2) {
         const n = draft.length / 2;
-        const each = this.tool.line === 0 ? 2600 : 14000;
+        const each = (this.tool.line === 0 ? 2600 : 14000) * RULES.build;
         this.say(`${this.stops.length / 2} stops — `
           + `${money(n * each)} so far, Enter to close the loop, `
           + `Backspace to take one back`);
@@ -1435,7 +1464,9 @@ export class BuildTools {
     // and the preview's own one-link graph cannot know about that junction.
     const mid = world.net.midpointOf(ax, az, bx, bz, bend,
       via === null ? null : this.metres(via));
-    return previewRoad(world.grid, ax, az, bx, bz, t.cls, 0, baseHeightAt, mid);
+    const free = ELEVATIONS[this.elevation];
+    return previewRoad(world.grid, ax, az, bx, bz, t.cls, 0, baseHeightAt, mid,
+      world.net.elevNear(ax, az, free), world.net.elevNear(bx, bz, free));
   }
 
   /**
@@ -1472,9 +1503,12 @@ export class BuildTools {
     }
     // Priced on the chord plus the bow, which is what the road will actually be.
     const metres = Math.hypot(bx - ax, bz - az) + Math.abs(bend) * 0.8;
-    if (!this.afford(metres * roadPrice(t.cls), ROAD_SPECS[t.cls].label)) return false;
+    const label = this.elevation > 0
+      ? `${ROAD_SPECS[t.cls].label} viaduct` : ROAD_SPECS[t.cls].label;
+    if (!this.afford(metres * this.roadCost(t.cls), label)) return false;
     this.clearUnder(a, b, via, bend);
-    world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via));
+    world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via),
+      ELEVATIONS[this.elevation]);
     // The chord and the bend both, since a curve leaves the straight line
     // between its ends by as much as the player pulled it.
     const swing = Math.abs(bend) + 8;
@@ -1573,9 +1607,9 @@ export class BuildTools {
       // The drawer greys out a density the city has not reached, but the tool
       // can also be held from before a save was loaded, so the rule lives here
       // too -- on the action, where it cannot be got round.
-      const needs = DENSITY_LEVEL[t.density] ?? 1;
+      const needs = zoneNeeds(t.zone, t.density);
       if (world.progress.level < needs) {
-        this.say(`${t.density} density opens at level ${needs}`);
+        this.say(`${t.zone} ${t.density} opens at level ${needs}, ${levelName(needs)}`);
         return;
       }
       // Clipped to the land the city owns, plot by plot, rather than refused
@@ -1751,8 +1785,11 @@ export class BuildTools {
         + 'its line';
     }
     if (t.kind === 'road') {
-      return `drag to lay a ${ROAD_SPECS[t.cls].label} (${money(roadPrice(t.cls))}/m) `
-        + '— sweep the drag to curve it; it will cross and join what is there';
+      const up = ELEVATIONS[this.elevation];
+      return `drag to lay a ${ROAD_SPECS[t.cls].label}${up > 0 ? ` viaduct ${up} m up` : ''} `
+        + `(${money(this.roadCost(t.cls))}/m) — `
+        + (up > 0 ? 'crosses over roads below; PgUp/PgDn height'
+          : 'sweep the drag to curve it; it will cross and join what is there; PgUp to raise');
     }
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
@@ -1786,7 +1823,7 @@ export class BuildTools {
     if (t.kind === 'zone') {
       const style = t.theme === undefined ? '' : ` in the ${THEMES[t.theme].label} style`;
       return `drag to zone ${t.density} ${t.zone}${style} `
-        + `(${money(zonePrice(t.zone, t.density))} a cell)`;
+        + (zonePrice(t.zone, t.density) > 0 ? `(${money(zonePrice(t.zone, t.density))} a cell)` : '(free)');
     }
     return 'drag to clear roads and zoning';
   }
@@ -2391,8 +2428,8 @@ export class BuildTools {
     // the picture is already right there above it, drawn to scale.
     void size;
     meta.innerHTML = `<span style="color:#8fe0a8;font-variant-numeric:tabular-nums">`
-      + `${money(cost)}</span>`
-      + (per === '' ? '' : `<span style="opacity:.45"> ${per}</span>`);
+      + `${cost === 0 ? 'Free' : money(cost)}</span>`
+      + (per === '' || cost === 0 ? '' : `<span style="opacity:.45"> ${per}</span>`);
     b.append(label, meta);
     // The theme's abbreviation, in a black block on the picture.
     //
@@ -2482,12 +2519,19 @@ export class BuildTools {
       this.roadMode = key as 'road' | 'curve' | 'upgrade';
       this.openRoadDrawer();
     }));
+    if (this.roadMode !== 'upgrade') {
+      // How high it goes. A road drawn out of a street at a height ramps up
+      // from the street; one drawn across another at a height passes over it.
+      panel.appendChild(this.tabs(ELEVATIONS.map((m, i) => ({
+        key: String(i), label: m === 0 ? 'Ground' : `Viaduct ${m} m`, on: i === this.elevation,
+      })), accent, (key) => { this.setElevation(Number(key)); this.openRoadDrawer(); }));
+    }
     for (const cls of ROAD_ORDER) {
       const spec = ROAD_SPECS[cls];
       const lanes = spec.oneWay ? spec.lanes : spec.lanes * 2;
       const up = this.roadMode === 'upgrade';
       panel.appendChild(this.tile(null, spec.label,
-        `${lanes} lane${lanes === 1 ? '' : 's'}`, roadPrice(cls), accent,
+        `${lanes} lane${lanes === 1 ? '' : 's'}`, up ? roadPrice(cls) : this.roadCost(cls), accent,
         up ? `Convert what you drag over to a ${spec.label.toLowerCase()}`
           : `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
         () => this.select({ kind: this.roadMode, cls }),
@@ -2600,8 +2644,9 @@ export class BuildTools {
     const themed = zone !== 'nature' && zone !== 'road' && zone !== 'service';
     for (const density of DENSITIES) {
       const price = zonePrice(zone as Zone, density);
-      // Medium and high density arrive with the city. See `DENSITY_LEVEL`.
-      const needs = DENSITY_LEVEL[density] ?? 1;
+      // Medium and high density arrive with the city, and so do offices. See
+      // `zoneNeeds`.
+      const needs = zoneNeeds(zone, density);
       const open = this.renderer.world.progress.level >= needs;
       if (themed) panel.appendChild(this.band(`${density} ${style.label}`));
       panel.appendChild(this.tile(zoneSpecimen(zone, density),
@@ -2612,7 +2657,9 @@ export class BuildTools {
           ? () => this.select({ kind: 'zone', zone: zone as Zone, density })
           : () => {
             denySound();
-            this.say(`${density} density opens at level ${needs}`);
+            this.say(zone === 'office' && needs > (DENSITY_LEVEL[density] ?? 1)
+              ? `offices open at level ${needs}, ${levelName(needs)}`
+              : `${density} density opens at level ${needs}`);
           },
         undefined, '', themed ? 'ANY' : '', !open));
       if (!themed) continue;
@@ -2622,8 +2669,10 @@ export class BuildTools {
         panel.appendChild(this.tile(zoneSpecimen(zone, density, theme),
           profile.label, 'per cell', price, accent,
           `${style.blurb} Zoned for ${density} density in the ${profile.label} style.`,
-          () => this.select({ kind: 'zone', zone: zone as Zone, density, theme }),
-          undefined, '', profile.badge));
+          open
+            ? () => this.select({ kind: 'zone', zone: zone as Zone, density, theme })
+            : () => { denySound(); this.say(`opens at level ${needs}, ${levelName(needs)}`); },
+          undefined, '', profile.badge, !open));
       }
     }
     this.mount(panel, 'zones');

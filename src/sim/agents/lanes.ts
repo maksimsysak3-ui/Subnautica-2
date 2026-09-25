@@ -28,6 +28,8 @@
  */
 
 import { ROAD_SPECS } from '../roadgraph';
+import { nodeLevels } from '../roadmesh';
+import { baseHeightAt } from '../terrain';
 import type { RoadGraph, RoadClass } from '../roadgraph';
 
 /** Which way a lane runs along its link. */
@@ -185,6 +187,13 @@ export interface LaneGraph {
   stopBack: Float32Array;
   /** The same, at the lane's start node: where it leaves that junction. */
   startBack: Float32Array;
+  /**
+   * The deck's height at the lane's two ends, in metres above sea level, for a
+   * lane on a raised road; NaN on the ground, where the graded terrain is the
+   * road and what stands on it takes its height from there.
+   */
+  ya: Float32Array;
+  yb: Float32Array;
   /** The node this lane starts at and ends at, in the road graph. */
   from: Int32Array;
   to: Int32Array;
@@ -373,6 +382,7 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     curveAt: new Int32Array(links.length + 1),
     curveX: new Float32Array(0), curveZ: new Float32Array(0),
     footway: new Float32Array(links.length),
+    ya: new Float32Array(count).fill(NaN), yb: new Float32Array(count).fill(NaN),
   };
   const curveX: number[] = [], curveZ: number[] = [];
 
@@ -509,7 +519,30 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     g.edgeEnd[l] = e;
   }
   g.edgeCount = e;
+
+  // Deck heights, from the same junction levels the road mesh is built to, so
+  // a car on a flyover drives on the deck that is drawn.
+  if (net.nodes.some((n) => n.elev > 0.5)) {
+    const level = nodeLevels(net, baseHeightAt);
+    for (let l = 0; l < g.count; l++) {
+      const a = net.nodes[g.from[l]], b = net.nodes[g.to[l]];
+      if (Math.max(a.elev, b.elev) <= 0.5) continue;
+      g.ya[l] = level[g.from[l]];
+      g.yb[l] = level[g.to[l]];
+    }
+  }
   return g;
+}
+
+/**
+ * The deck's height at a point along a lane, or NaN for a lane on the ground.
+ * Linear between the two junctions, as the deck is.
+ */
+export function deckAt(g: LaneGraph, lane: number, along: number): number {
+  const a = g.ya[lane];
+  if (Number.isNaN(a)) return NaN;
+  const f = Math.max(0, Math.min(1, along / Math.max(1e-3, g.length[lane])));
+  return a + (g.yb[lane] - a) * f;
 }
 
 /**
