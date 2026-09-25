@@ -20,7 +20,7 @@ instanced buildings, culled on the GPU every frame".
   the ACES filmic curve, a time-of-day grade, FXAA and a light sharpen. Sun
   shadows fitted to the view, a lit cloud deck, a day and night cycle in
   which windows, signs, lamps and headlights are real emissive light.
-- **Five hundred and forty assets**, all but the imported vehicles generated rather than
+- **Six hundred assets**, all but the imported vehicles generated rather than
   modelled, each with three levels of detail and baked occlusion. The tall
   stock is built from single forms -- tapering glass shafts, a twisting
   tower, rippling balcony towers, masonry pier towers whose piers rise past
@@ -51,6 +51,27 @@ instanced buildings, culled on the GPU every frame".
   riders can change lines once where stops are within 200 m.
 - **A generative score** that follows the time of day and the city's mood,
   with its own volume; colour-blind and reduced-motion settings.
+- **Seven starting maps**: river vales, a coast, an island, lakeland,
+  highland and basin, each with its own natural resources.
+- **Industry and production chains**: plant a headquarters on farmland,
+  forest, ore, oil, stone or fishing grounds, draw the area it works, ship its
+  output or supply the city; processing plants (food, sawmill, steel,
+  refinery, cement, cannery) turn local supply into goods worth 2.2x. Freight
+  lorries leave the yards, ships work the harbours, and container terminals
+  and the airport lift export prices.
+- **Districts**: paint named quarters and give them policies -- tourist
+  quarter, tech cluster, industrial park, garden suburb, enterprise zone --
+  each a stated trade of yield against a per-building fee.
+- **Service upgrades**: extension and flagship wings built beside schools,
+  clinics and plants, for more capacity, reach or output.
+- **Traffic that grows and jams**: lane capacity is a road's practical flow;
+  stadiums, landmarks and big parks pull trips across the city as it grows,
+  and gridlock round one raises an alert.
+- **Live streets**: pedestrians on the footways of both sides, on curved
+  roads as drawn; buses and trams dwell at their stops while people board;
+  airliners land at the airport and climb out.
+- **Stats app** on the phone: every income and spending line, taxes by zone,
+  upkeep by building, three years of monthly books, people, travel, industry.
 - **Tested as a whole**: tools/long-game.mjs plays each difficulty from bare
   ground for 90 days; tools/save-test.mjs round-trips every field of a city;
   tools/play-test.mjs drives the real game from menu to houses.
