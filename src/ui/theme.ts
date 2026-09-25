@@ -238,6 +238,22 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-st-tip { position: absolute; z-index: 5; transform: translate(-50%, -100%); pointer-events: none;
   max-width: 240px; padding: 6px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35; color: #e8eef6;
   background: rgba(6,9,14,.96); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
+.mr-upg { display: flex; flex-direction: column; gap: 7px; padding-bottom: 10px; margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255,255,255,.08); }
+.mr-upg-head { display: flex; align-items: center; justify-content: space-between; font: 700 11px/1 var(--label);
+  letter-spacing: .14em; text-transform: uppercase; color: #e8eef6; }
+.mr-upg-pips { display: flex; gap: 4px; }
+.mr-upg-pips i { width: 16px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); }
+.mr-upg-pips i.is-on { background: #f4b54a; box-shadow: 0 0 8px rgba(244,181,74,.5); }
+.mr-upg-perks { display: flex; flex-wrap: wrap; gap: 4px; }
+.mr-upg-perks span { font: 600 11px/1 var(--ui); color: #9fe0b8; background: rgba(95,199,140,.12);
+  border: 1px solid rgba(95,199,140,.28); border-radius: 999px; padding: 4px 8px; }
+.mr-upg-perks span.is-cost { color: #f0c987; background: rgba(232,180,84,.1); border-color: rgba(232,180,84,.28); }
+.mr-upg-btn { font: 700 12px/1 var(--ui); letter-spacing: .02em; color: #1a1206; background: #f4b54a; border: 0;
+  border-radius: 8px; padding: 9px 12px; cursor: pointer; box-shadow: 0 6px 16px rgba(244,181,74,.22); }
+.mr-upg-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.mr-upg-btn:disabled { background: rgba(255,255,255,.08); color: #6d8098; box-shadow: none; cursor: not-allowed; }
+.mr-upg-note { font-size: 11.5px; line-height: 1.4; color: #8093aa; }
 .mr-ind { --tone: #f4b54a; display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px;
   border-bottom: 1px solid rgba(255,255,255,.08); }
 .mr-ind-head { display: flex; align-items: center; gap: 8px; font: 700 11px/1 var(--label);

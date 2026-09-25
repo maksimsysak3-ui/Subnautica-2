@@ -49,7 +49,7 @@ import { BRANCHES } from '../../assets/types';
 import type { Industry } from '../industry';
 import { RULES } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
-import { Places, Purpose } from './places';
+import { Places, Purpose, TIER_UPKEEP } from './places';
 import { People } from './people';
 import { Migration } from './migration';
 import { ASSETS } from '../../assets/registry';
@@ -608,7 +608,8 @@ export class Economy {
         const staffed = c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 1;
         const load = def === undefined ? null : this.loadOf(def.id);
         const running = load === null ? 1 : PLANT_FIXED + (1 - PLANT_FIXED) * load;
-        const cost = upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running;
+        const cost = upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running
+          * (1 + TIER_UPKEEP * c.tier[id]);
         total += cost;
         if (b < this.servicesByBranch.length) this.servicesByBranch[b] += cost * RULES.upkeep;
         const row = this.upkeepByProto.get(c.proto[id]);

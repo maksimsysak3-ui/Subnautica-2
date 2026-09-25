@@ -948,7 +948,12 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
   // for an airport being sited on open country and catastrophic when it runs
   // on ground a player has just laid roads through, where it quietly bulldozed
   // them and left the new district empty.
-  for (const lot of world.lots) {
+  // Extension wings first: a wing stands in its building's grounds, which the
+  // building claims when it is placed, so taken the other way round the wing
+  // finds its ground spoken for and is never built.
+  const ordered = [...world.lots.filter((l) => l.wingOf !== undefined),
+    ...world.lots.filter((l) => l.wingOf === undefined)];
+  for (const lot of ordered) {
     if (zone !== null && !inZone(lot.gx, lot.gz, lot.w, lot.d)) continue;
     const index = ASSET_INDEX.get(lot.id);
     const p = assetById(lot.id);

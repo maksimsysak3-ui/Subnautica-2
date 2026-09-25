@@ -41,7 +41,7 @@
  * the library appears in it.
  */
 
-import { Places, Purpose, NO_BRANCH } from './places';
+import { Places, Purpose, NO_BRANCH, TIER_OUTPUT } from './places';
 import { ASSETS } from '../../assets/registry';
 import { BRANCHES } from '../../assets/types';
 import { waterAt } from '../river';
@@ -697,7 +697,9 @@ export class Utilities {
    */
   private output(p: number, supply: Supply): number {
     const crewed = supply.crewed ?? CREWED_DEFAULT;
-    return Math.min(1, (1 - crewed) + crewed * this.staffed(p));
+    // An upgraded plant has more of it to run: more turbines, more filter beds.
+    const boost = 1 + TIER_OUTPUT * this.places.col.tier[p];
+    return Math.min(1, (1 - crewed) + crewed * this.staffed(p)) * boost;
   }
 
   private running(p: number, supply: Supply): number {

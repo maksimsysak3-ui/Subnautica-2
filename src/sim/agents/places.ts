@@ -165,6 +165,8 @@ const SCHEMA = {
    * makes a degree worth something in the job market.
    */
   teaches: Uint8Array,
+  /** Times the city has upgraded it, 0 to 2: see `setTier`. */
+  tier: Uint8Array,
   /** Demand met, 0..255: what fraction of the people who wanted it got it. */
   met: Uint8Array,
   /** How well the building is doing, 0..255. Drives growth and abandonment. */
@@ -173,6 +175,12 @@ const SCHEMA = {
 
 /** Pupils, patients or borrowers per member of staff. */
 const SERVED_PER_STAFF = 15;
+
+/** What each upgrade tier adds: capacity, reach, plant output, and upkeep. */
+export const TIER_CAPACITY = 0.5;
+export const TIER_REACH = 0.15;
+export const TIER_OUTPUT = 0.4;
+export const TIER_UPKEEP = 0.35;
 
 /** Levels of education a building can offer. */
 export const Teaches = { NONE: 0, SCHOOL: 1, COLLEGE: 2, UNIVERSITY: 3 } as const;
@@ -320,6 +328,7 @@ export class Places {
     c.serves[id] = purpose === Purpose.SERVICE
       ? Math.min(0xffff, jobs * SERVED_PER_STAFF) : 0;
     c.studying[id] = 0;
+    c.tier[id] = 0;
     c.teaches[id] = purpose === Purpose.SERVICE && def.branch === 'education'
       ? teachesOf(def.id) : Teaches.NONE;
 
@@ -346,6 +355,23 @@ export class Places {
       this.appealTotal += pull;
     }
     return id;
+  }
+
+  /**
+   * An upgraded service building looks after half as many again per tier: the
+   * wing is floor space, and floor space is places.
+   */
+  setTier(id: number, tier: number): void {
+    const c = this.table.col;
+    if (this.table.live[id] === 0 || c.tier[id] === tier) return;
+    c.tier[id] = tier;
+    if (c.purpose[id] !== Purpose.SERVICE) return;
+    const base = Math.min(0xffff, c.jobs[id] * SERVED_PER_STAFF);
+    c.serves[id] = Math.min(0xffff, Math.round(base * (1 + TIER_CAPACITY * tier)));
+    if (c.teaches[id] !== Teaches.NONE) {
+      if (c.studying[id] < c.serves[id]) this.schools[c.teaches[id]].add(id);
+      else this.schools[c.teaches[id]].remove(id);
+    }
   }
 
   /** Removes a building. Callers must already have moved anybody out of it. */

@@ -35,7 +35,7 @@
  * whole thing costs microseconds on a city of a hundred thousand.
  */
 
-import { Places, Purpose } from './places';
+import { Places, Purpose, TIER_REACH } from './places';
 import { BRANCHES } from '../../assets/types';
 import type { Branch } from '../../assets/types';
 import { Use } from './lanes';
@@ -351,7 +351,8 @@ export class Services {
       const p = pool.member(i);
       const holds = Math.max(1, c.serves[p]) * std.per;
       capacity += holds;
-      const inside = this.sumDisc(demandGrid, c.x[p], c.z[p], std.worst * grow, std.good * grow);
+      const g = grow * (1 + TIER_REACH * c.tier[p]);
+      const inside = this.sumDisc(demandGrid, c.x[p], c.z[p], std.worst * g, std.good * g);
       const l = inside / holds;
       this.load[i] = l;
       if (l > worst) worst = l;
@@ -373,7 +374,8 @@ export class Services {
       // as well. Not a cliff: an overstretched school is worse, not absent, and a
       // cliff would make the map flicker between two colours as the city grows.
       const able = Math.min(1, 1 / Math.max(1, this.load[i]));
-      spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst * grow, std.good * grow, able);
+      const g = grow * (1 + TIER_REACH * c.tier[p]);
+      spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst * g, std.good * g, able);
       this.cursor++;
       if (spent >= budget) return false;
     }

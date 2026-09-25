@@ -75,6 +75,12 @@ import { STAGE_NAMES, EDU_NAMES } from './sim/agents/people';
 import { MODE_NAMES } from './sim/agents/routine';
 import { RESOURCES } from './sim/resources';
 import { cellHectares } from './sim/industry';
+import { MAX_TIER, TIER_PRICE, nextWing } from './sim/world';
+import type { Lot } from './sim/world';
+import { TIER_CAPACITY, TIER_REACH, TIER_OUTPUT, TIER_UPKEEP } from './sim/agents/places';
+import { assetById } from './assets/registry';
+import type { Inspection } from './sim/agents/sim';
+import { buildingPrice } from './sim/costs';
 import { IncidentMarkers } from './ui/incidents';
 import { Need } from './sim/agents/dispatch';
 import { siren } from './ui/sound';
@@ -326,6 +332,12 @@ export class LiveCity {
         this.inspect.attach(this.industryCard.root);
       }
     }
+    // A service building can be upgraded: the section says what the next tier
+    // buys and what it costs, and builds it.
+    if (found.branch !== undefined && !found.asset.startsWith('spec.')) {
+      const lot = this.lotAt(found);
+      if (lot !== undefined) this.inspect.attach(this.upgradeSection(lot, found));
+    }
     // The selection, on the ground under the building, drawn by the same
     // mechanism the tools mark what they are about to affect with.
     const half = Math.max(found.footprint[0], found.footprint[1]) * 4 + 2;
@@ -333,6 +345,85 @@ export class LiveCity {
       rect: [found.x - half, found.z - half, found.x + half, found.z + half],
       tint: [0.38, 0.83, 1.0],
     };
+  }
+
+  /** Builds a tier onto a lot. Wired by main to the build tools, which pay and rebuild. */
+  onUpgrade: ((lot: Lot) => string | null) | null = null;
+
+  /** The placed lot a building on the map stands on. */
+  private lotAt(found: Inspection): Lot | undefined {
+    const world = this.renderer.world;
+    const half = world.grid / 2;
+    return world.lots.find((l) => l.id === found.asset && l.wingOf === undefined
+      && Math.abs((l.gx - half + l.w / 2) * 8 - found.x) < 6
+      && Math.abs((l.gz - half + l.d / 2) * 8 - found.z) < 6);
+  }
+
+  private upgradeSection(lot: Lot, found: Inspection): HTMLElement {
+    const world = this.renderer.world;
+    const tier = lot.tier ?? 0;
+    const box = document.createElement('div');
+    box.className = 'mr-upg';
+    const head = document.createElement('div');
+    head.className = 'mr-upg-head';
+    const title = document.createElement('span');
+    title.textContent = ['Standard', 'Extended', 'Flagship'][tier];
+    const pips = document.createElement('span');
+    pips.className = 'mr-upg-pips';
+    for (let i = 1; i <= MAX_TIER; i++) {
+      const p = document.createElement('i');
+      if (i <= tier) p.className = 'is-on';
+      pips.appendChild(p);
+    }
+    head.append(title, pips);
+    box.appendChild(head);
+    const def = assetById(lot.id);
+    const utility = found.branch === 'power' || found.branch === 'water' || found.branch === 'sewage';
+    if (tier >= MAX_TIER || def === undefined) {
+      const done = document.createElement('div');
+      done.className = 'mr-upg-note';
+      done.textContent = utility
+        ? `Fully upgraded: ${Math.round(TIER_OUTPUT * MAX_TIER * 100)}% more output than it was built with.`
+        : 'Fully upgraded: twice the capacity it was built with, and further reach.';
+      box.appendChild(done);
+      return box;
+    }
+    const perks = document.createElement('div');
+    perks.className = 'mr-upg-perks';
+    const perk = (text: string, bad = false): void => {
+      const p = document.createElement('span');
+      p.textContent = text;
+      if (bad) p.className = 'is-cost';
+      perks.appendChild(p);
+    };
+    if (utility) perk(`+${Math.round(TIER_OUTPUT * 100)}% output`);
+    else { perk(`+${Math.round(TIER_CAPACITY * 100)}% capacity`); perk(`+${Math.round(TIER_REACH * 100)}% reach`); }
+    perk(`+${Math.round(TIER_UPKEEP * 100)}% upkeep`, true);
+    box.appendChild(perks);
+    const next = nextWing(world, lot);
+    const price = Math.round(buildingPrice(def) * TIER_PRICE[tier + 1]);
+    const btn = document.createElement('button');
+    btn.className = 'mr-upg-btn';
+    btn.textContent = `${tier === 0 ? 'Build an extension wing' : 'Make it a flagship'} · ${money(price)}`;
+    if (next.why !== null) {
+      btn.disabled = true;
+      const why = document.createElement('div');
+      why.className = 'mr-upg-note';
+      why.textContent = `Needs a free strip two cells deep beside it: ${next.why.replace(/^no room beside it: ?/, '')}.`;
+      box.append(btn, why);
+      return box;
+    }
+    btn.addEventListener('click', () => {
+      if (this.onUpgrade?.(lot) !== null) return;
+      this.sim?.applyTiers();
+      const again = this.sim?.inspect(found.x, found.z) ?? null;
+      if (again !== null) {
+        this.inspect.show(again);
+        this.inspect.attach(this.upgradeSection(lot, again));
+      }
+    });
+    box.appendChild(btn);
+    return box;
   }
 
   /** Opens the resources view on one resource, as the area tool does. */

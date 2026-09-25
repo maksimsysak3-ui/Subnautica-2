@@ -21,6 +21,8 @@ function named(el: HTMLElement): string {
   return el.getAttribute('aria-label') ?? el.title;
 }
 
+import { ASSET_INDEX } from './sim/inventory';
+import { nextWing } from './sim/world';
 import { resourceFields, RES_GRID } from './sim/resources';
 import { industryProto } from './sim/inventory';
 import { lotFits, placeLot } from './sim/world';
@@ -1480,6 +1482,57 @@ Promise<{ pixels: number[]; movers: string }> {
       camera.focus[2] = open.z[best];
       camera.update();
       for (let i = 0; i < 10; i++) live.update(1 / 60, performance.now() + i * 16);
+    }
+  } else if (panel.startsWith('upgrade')) {
+    // A service building upgraded through the card's own path, once or twice,
+    // then clicked and framed: the wing, the card, the pips.
+    const world = renderer.world;
+    live.onUpgrade = (lot) => tools.upgrade(lot);
+    world.budget.balance = 5e6;
+    const times = panel.startsWith('upgrade-1') ? 1 : panel.startsWith('upgrade-0') ? 0 : 2;
+    const half = world.grid / 2;
+    let done: typeof world.lots[number] | undefined;
+    for (const lot of world.lots) {
+      if (!lot.id.startsWith('svc.') || lot.w * lot.d > 60) continue;
+      if (nextWing(world, lot).why !== null) continue;
+      let ok = true;
+      for (let i = 0; i < times && ok; i++) ok = tools.upgrade(lot) === null;
+      if (ok) { done = lot; break; }
+    }
+    if (done === undefined) {
+      const why = new Map<string, number>();
+      for (const lot of world.lots) {
+        if (!lot.id.startsWith('svc.')) continue;
+        const r = nextWing(world, lot).why ?? 'ok';
+        why.set(r, (why.get(r) ?? 0) + 1);
+      }
+      console.log(`no upgradable lot: ${JSON.stringify([...why])}`);
+    }
+    // Standing, not rising: a new building grows out of the ground over two
+    // seconds of wall clock, which a probe's synthetic frames never reach.
+    if (done !== undefined) {
+      const r = renderer as unknown as { settled: boolean; settleCity(): void };
+      r.settleCity(); r.settled = true; renderer.rebuild();
+    }
+    if (done !== undefined) {
+      for (let i = 0; i < 40; i++) live.update(1 / 20, performance.now() + i * 50);
+      sim.applyTiers();
+      const x = (done.gx - half + done.w / 2) * 8, z = (done.gz - half + done.d / 2) * 8;
+      camera.focus[0] = x; camera.focus[2] = z; camera.distance = dist; camera.update();
+      live.tap(null);
+      live.tap([x, z]);
+      const wg = world.lots.find((l) => l.wingOf?.[0] === done!.gx && l.wingOf?.[1] === done!.gz);
+      if (wg !== undefined) {
+        const wx = (wg.gx - half + wg.w / 2) * 8, wz = (wg.gz - half + wg.d / 2) * 8;
+        const hit = sim.inspect(wx, wz);
+        const rc = (renderer as unknown as { city: { count: number; data: Float32Array; population: number[] } }).city;
+        const wi = ASSET_INDEX.get(wg.id) ?? -1;
+        let hits = 0, where = '';
+        for (let i = 0; i < rc.count; i++) if ((rc.data[i * 12 + 7] | 0) === wi) { hits++; where = `${rc.data[i * 12].toFixed(0)},${rc.data[i * 12 + 1].toFixed(0)} y${rc.data[i * 12 + 2].toFixed(1)} h${rc.data[i*12+6].toFixed(1)}`; }
+        console.log(`wing proto ${wi} instances ${hits} at ${where}, population ${rc.population[wi]}`);
+        console.log(`at the wing ${wx},${wz}: ${hit?.asset} ${hit?.x},${hit?.z}; works at ${x},${z}`);
+      }
+      console.log(`upgraded ${done.id} ${done.gx},${done.gz} ${done.w}x${done.d} to tier ${done.tier ?? 0}; wing ${wg?.id} at ${wg?.gx},${wg?.gz} ${wg?.w}x${wg?.d} yaw ${wg?.yaw}`);
     }
   } else if (panel.startsWith('stats')) {
     // The accounts after a few months of the LITE city, run on the simulation's

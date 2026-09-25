@@ -134,6 +134,8 @@ interface SaveFile {
   industry?: unknown;
   /** The monthly books. Absent in older saves: an empty record. */
   history?: unknown;
+  /** Upgraded buildings and their wings: parent gx, gz, tier, wing gx, wing gz. */
+  wings?: Array<[number, number, number, number, number]>;
   /** The simulation's clock in ticks, and residents at save time (version 4). */
   clock?: number;
   residents?: number;
@@ -235,6 +237,10 @@ export function serialise(world: World, name: string, auto = false): string {
     map: world.map,
     industry: world.industry.saved(),
     history: world.history.saved(),
+    wings: world.lots.filter((l) => l.wingOf !== undefined).map((l) => {
+      const parent = world.lots.find((p) => p.gx === l.wingOf![0] && p.gz === l.wingOf![1] && p.wingOf === undefined);
+      return [l.wingOf![0], l.wingOf![1], parent?.tier ?? 1, l.gx, l.gz] as [number, number, number, number, number];
+    }),
     clock: world.clock,
     residents: world.residents,
     policies: world.policies.saved(),
@@ -346,6 +352,13 @@ export function deserialise(text: string): { world: World; name: string; at: num
     const g = l[6];
     if (g !== undefined) lot.grounds = [g[0], g[1], g[2], g[3]];
     world.lots.push(lot);
+  }
+  for (const [pgx, pgz, tier, wgx, wgz] of Array.isArray(file.wings) ? file.wings : []) {
+    const parent = world.lots.find((l) => l.gx === pgx && l.gz === pgz);
+    const wing = world.lots.find((l) => l.gx === wgx && l.gz === wgz && l.id.startsWith('spec.wing.'));
+    if (parent === undefined || wing === undefined) continue;
+    parent.tier = Math.max(0, Math.min(2, Number(tier) || 0));
+    wing.wingOf = [pgx, pgz];
   }
   return { world, name: file.name ?? 'City', at: file.at ?? 0 };
 }

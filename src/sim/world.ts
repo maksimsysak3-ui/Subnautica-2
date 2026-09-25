@@ -24,6 +24,7 @@ import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
 import { MAP } from './maps';
 import { Industry } from './industry';
+import { WING_DEPTH, WING_LENGTHS, wingId } from '../assets/generators/upgrades';
 import { CityHistory } from './history';
 import type { MapId } from './maps';
 import { Progress } from './progress';
@@ -121,6 +122,10 @@ export interface Lot {
   yaw: number;
   /** The whole superblock a big one sits in: gx, gz, w, d. Its grounds. */
   grounds?: [number, number, number, number];
+  /** How many times the city has upgraded it: 0, 1 or 2. See `upgradeLot`. */
+  tier?: number;
+  /** On an extension wing, the origin of the building it extends. */
+  wingOf?: [number, number];
 }
 
 export interface World {
@@ -514,6 +519,19 @@ export function demolish(world: World, gx: number, gz: number, w: number, d: num
     if (l.grounds !== undefined) take(l.grounds[0], l.grounds[1], l.grounds[2], l.grounds[3]);
     return false;
   });
+  // A wing goes with the building it extends, and a building that lost its
+  // wing loses the upgrade the wing stood for.
+  const parentOf = (l: Lot): Lot | undefined => (l.wingOf === undefined ? undefined
+    : world.lots.find((p) => p.gx === l.wingOf![0] && p.gz === l.wingOf![1] && p.wingOf === undefined));
+  world.lots = world.lots.filter((l) => {
+    if (l.wingOf === undefined || parentOf(l) !== undefined) return true;
+    take(l.gx, l.gz, l.w, l.d);
+    return false;
+  });
+  for (const l of world.lots) {
+    if ((l.tier ?? 0) > 0 && !world.lots.some((wl) => wl.wingOf !== undefined
+      && wl.wingOf[0] === l.gx && wl.wingOf[1] === l.gz)) l.tier = 0;
+  }
   return { gx: x0, gz: z0, w: x1 - x0, d: z1 - z0 };
 }
 
@@ -565,6 +583,74 @@ export function lotFits(world: World, id: string, gx: number, gz: number, yaw: n
   }
   if (hi - lo > 4.5) return fail(`the ground falls ${(hi - lo).toFixed(1)} m across the lot`);
   return { w, d, why: null };
+}
+
+/** How far a service building can be upgraded. */
+export const MAX_TIER = 2;
+/** What an upgrade costs, as a share of the building's own price, by the tier it buys. */
+export const TIER_PRICE = [0, 0.6, 1.0];
+
+/** The wing that extends `lot`, if it has one. */
+export function wingOfLot(world: World, lot: Lot): Lot | undefined {
+  return world.lots.find((l) => l.wingOf !== undefined && l.wingOf[0] === lot.gx && l.wingOf[1] === lot.gz);
+}
+
+/**
+ * Where the next tier's wing would go, or why it cannot.
+ *
+ * Tier one needs a strip two cells deep along one side, free and owned; the
+ * sides are tried shortest first, because a long wing down a long side is a
+ * lot of building for one upgrade. Tier two rebuilds the tier-one wing where
+ * it stands.
+ */
+export function nextWing(world: World, lot: Lot):
+{ id: string; gx: number; gz: number; yaw: number; why: string | null } {
+  const tier = (lot.tier ?? 0) + 1;
+  const none = (why: string) => ({ id: '', gx: 0, gz: 0, yaw: 0, why });
+  if (lot.wingOf !== undefined) return none('this is already an extension');
+  if (tier > MAX_TIER) return none('fully upgraded');
+  const have = wingOfLot(world, lot);
+  if (have !== undefined) {
+    const cells = Math.max(have.w, have.d);
+    return { id: wingId(tier, cells), gx: have.gx, gz: have.gz, yaw: have.yaw, why: null };
+  }
+  const D = WING_DEPTH;
+  // Along the x sides the wing runs the lot's depth; along the z sides, its width.
+  const sides: Array<{ cells: number; gx: number; gz: number; yaw: number }> = [
+    { cells: lot.d, gx: lot.gx + lot.w, gz: lot.gz, yaw: 0 },
+    { cells: lot.d, gx: lot.gx - D, gz: lot.gz, yaw: 2 },
+    { cells: lot.w, gx: lot.gx, gz: lot.gz + lot.d, yaw: 3 },
+    { cells: lot.w, gx: lot.gx, gz: lot.gz - D, yaw: 1 },
+  ].sort((a, b) => a.cells - b.cells);
+  let why = 'no room beside it';
+  for (const s of sides) {
+    const cells = Math.min(WING_LENGTHS[WING_LENGTHS.length - 1], Math.max(WING_LENGTHS[0], s.cells));
+    if (cells !== s.cells) continue;
+    const id = wingId(tier, cells);
+    const fit = lotFits(world, id, s.gx, s.gz, s.yaw);
+    if (fit.why === null) return { id, gx: s.gx, gz: s.gz, yaw: s.yaw, why: null };
+    why = `no room beside it: ${fit.why}`;
+  }
+  return none(why);
+}
+
+/**
+ * Builds the next tier's wing onto `lot`. Returns null, or why it could not.
+ * The caller pays; this only changes the world.
+ */
+export function upgradeLot(world: World, lot: Lot): string | null {
+  const next = nextWing(world, lot);
+  if (next.why !== null) return next.why;
+  const have = wingOfLot(world, lot);
+  if (have !== undefined) {
+    have.id = next.id;
+  } else {
+    const why = placeLot(world, next.id, next.gx, next.gz, next.yaw);
+    if (why !== null) return why;
+    world.lots[world.lots.length - 1].wingOf = [lot.gx, lot.gz];
+  }
+  lot.tier = (lot.tier ?? 0) + 1;
+  return null;
 }
 
 /**

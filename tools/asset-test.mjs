@@ -119,6 +119,7 @@ const MIN_TRIS = 1000;
 const ROAD_MIN = 300;
 /** A harvest-area prop: a field, a pumpjack, a boat -- repeated across an area. */
 const PROP_MAX = 1800;
+const WING_MAX = 3000;
 
 const src = new URL('../src/assets/', import.meta.url).pathname;
 const bundle = (
@@ -192,11 +193,13 @@ for (const a of ASSETS) {
   const road = a.zone === 'road';
   // Harvest-area props cover a drawn area a cell at a time, hundreds of them,
   // so what they need is a low ceiling rather than a floor.
-  const prop = a.id.startsWith('spec.prop.');
+  // Extension wings are annexes to a building already there: no floor, and a
+  // ceiling of their own because the longest runs a hundred metres.
+  const wing = a.id.startsWith('spec.wing.');
+  const prop = a.id.startsWith('spec.prop.') || wing;
   const floor = fleet || prop ? FLEET_MIN : service ? SERVICE_MIN : road ? ROAD_MIN : MIN_TRIS;
-  if (tris[0] > (prop ? PROP_MAX : ceiling)) {
-    note(a.id, `LOD0 is ${tris[0]} triangles, over the ${prop ? PROP_MAX : ceiling} ceiling`);
-  }
+  const cap = wing ? WING_MAX : prop ? PROP_MAX : ceiling;
+  if (tris[0] > cap) note(a.id, `LOD0 is ${tris[0]} triangles, over the ${cap} ceiling`);
   if (tris[0] < floor) note(a.id, `LOD0 is only ${tris[0]} triangles, under the ${floor} floor`);
   if (tris[1] > tris[0] || tris[2] > tris[1]) note(a.id, `LOD ladder is not decreasing: ${tris.join(' / ')}`);
   if (Math.abs(maxY - a.height) > 0.2) {

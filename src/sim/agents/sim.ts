@@ -625,6 +625,7 @@ export class Simulation {
       name: 'money', rate: Rate.SLOW,
       run: () => {
         this.settleIndustry(Rate.SLOW / TICKS_PER_DAY);
+        this.applyTiers();
         this.economy.settle(Rate.SLOW / TICKS_PER_DAY);
         this.world?.history.accrue(this.economy.report, Rate.SLOW / TICKS_PER_DAY,
           this.clock.day, this.vitals());
@@ -898,6 +899,35 @@ export class Simulation {
    * The industry headquarters' week: drops any whose building has gone, then
    * produces, sells and depletes, staffed by whoever actually works there.
    */
+  /**
+   * Hands each upgraded service building its tier: the lot records it, the
+   * place is what the services, utilities and economy read.
+   */
+  applyTiers(): void {
+    const world = this.world;
+    if (world === undefined) return;
+    const pl = this.places, c = pl.col;
+    const want = new Map<number, number>();
+    const half = world.grid / 2;
+    for (const lot of world.lots) {
+      const t = lot.tier ?? 0;
+      if (t <= 0 || lot.wingOf !== undefined) continue;
+      const proto = ASSET_INDEX.get(lot.id);
+      if (proto === undefined) continue;
+      const x = (lot.gx - half + lot.w / 2) * 8, z = (lot.gz - half + lot.d / 2) * 8;
+      const pool = pl.byPurpose[Purpose.SERVICE];
+      for (let i = 0; i < pool.size; i++) {
+        const id = pool.member(i);
+        if (c.proto[id] === proto && Math.abs(c.x[id] - x) < 6 && Math.abs(c.z[id] - z) < 6) { want.set(id, t); break; }
+      }
+    }
+    const pool = pl.byPurpose[Purpose.SERVICE];
+    for (let i = 0; i < pool.size; i++) {
+      const id = pool.member(i);
+      pl.setTier(id, want.get(id) ?? 0);
+    }
+  }
+
   /** The figures a month is closed with, beside its money. */
   vitals(): Vitals {
     return {

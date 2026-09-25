@@ -1041,6 +1041,14 @@ export class MeshBuilder {
     return edge >= 16;
   }
 
+  /** Moves everything pushed so far across the ground, for a generator built off-centre. */
+  translate(dx: number, dz: number): void {
+    for (let i = 0; i < this.verts.length; i += FLOATS_PER_VERTEX) {
+      this.verts[i] += dx;
+      this.verts[i + 2] += dz;
+    }
+  }
+
   /** World-space bounds of everything pushed so far. Cheap: no AO, no copy. */
   bounds(): { min: Vec3; max: Vec3 } {
     const min: Vec3 = [Infinity, Infinity, Infinity];

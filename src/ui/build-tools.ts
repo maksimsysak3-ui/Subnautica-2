@@ -29,6 +29,8 @@ import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
+import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
+import type { Lot } from '../sim/world';
 import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
 
@@ -2561,6 +2563,31 @@ export class BuildTools {
     this.say(`${what} costs ${money(Math.round(cost))} — `
       + `${money(Math.round(short))} more than the city can borrow`);
     return false;
+  }
+
+  /**
+   * Upgrades a placed service building by one tier: pays, builds the wing,
+   * rebuilds the ground round it. Returns null, or why not -- which has also
+   * been said to the player.
+   */
+  upgrade(lot: Lot): string | null {
+    const world = this.renderer.world;
+    const def = assetById(lot.id);
+    if (def === undefined) return 'no such building';
+    const next = nextWing(world, lot);
+    if (next.why !== null) { deny(); this.say(`cannot upgrade the ${def.name.toLowerCase()}: ${next.why}`); return next.why; }
+    const tier = (lot.tier ?? 0) + 1;
+    if (!this.afford(buildingPrice(def) * TIER_PRICE[tier], `Upgrading the ${def.name.toLowerCase()}`)) return 'cannot afford it';
+    const why = upgradeLot(world, lot);
+    if (why !== null) { this.refund(buildingPrice(def) * TIER_PRICE[tier]); this.say(why); return why; }
+    confirmSound();
+    const wing = wingOfLot(world, lot);
+    const x0 = Math.min(lot.gx, wing?.gx ?? lot.gx), z0 = Math.min(lot.gz, wing?.gz ?? lot.gz);
+    const x1 = Math.max(lot.gx + lot.w, (wing?.gx ?? 0) + (wing?.w ?? 0));
+    const z1 = Math.max(lot.gz + lot.d, (wing?.gz ?? 0) + (wing?.d ?? 0));
+    this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
+    this.say(`the ${def.name.toLowerCase()} is ${tier === 1 ? 'extended' : 'now a flagship'}`);
+    return null;
   }
 
   /** Gives money back, for an edit that undoes a purchase. */
