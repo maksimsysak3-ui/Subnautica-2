@@ -228,6 +228,17 @@ const JAM_SHARE = 0.5;
 const DEPOT_SHARE = 0.55;
 const DEPOT_PER_TICK = 2;
 
+/** Seconds a bus or tram stands at a stop while people get on and off. */
+export const BUS_DWELL = 7;
+
+export interface BusStops {
+  lanes: Int32Array; along: Float32Array;
+  /** The next stop to make, the one being made (or -1), and its dwell. */
+  next: number; at: number; from: number; until: number;
+  /** When this vehicle last left each stop, in seconds. */
+  left: Float64Array;
+}
+
 /** Lorries on the road per working industry yard. */
 const FREIGHT_PER_YARD = 3;
 
@@ -535,6 +546,7 @@ export class Traffic {
   /** Takes a vehicle off the road. */
   despawn(v: number): void {
     if (this.table.live[v] === 0) return;
+    this.busStops.delete(v);
     const c = this.table.col;
     this.unlink(v);
     if (c.inBox[v] >= 0) this.junctions.leave(c.inBox[v], v);
@@ -716,6 +728,35 @@ export class Traffic {
             if (stop < gap) { gap = stop; closing = speed; }
           } else if (toLine < COMMIT_METRES && leader < 0) {
             c.cleared[v] = 1;
+          }
+        }
+      }
+
+      // A bus with stops to make: the next one is an obstacle at the kerb, and
+      // once it is there it stands for the dwell before moving on.
+      const bs = this.busStops.get(v);
+      if (bs !== undefined && bs.lanes.length > 0) {
+        if (bs.until > seconds) {
+          gap = Math.min(gap, 0.05); closing = speed;
+        } else {
+          const k = bs.next;
+          // By road and direction, not by lane: a bus that has changed into the
+          // other lane of the same carriageway still has to make its stop.
+          const sl = bs.lanes[k];
+          if (sl >= 0 && sl < g.count && g.link[sl] === g.link[lane] && g.dir[sl] === g.dir[lane]) {
+            const d = bs.along[k] - c.along[v];
+            if (d < -1) {
+              bs.next = (k + 1) % bs.lanes.length;            // passed it: the next
+            } else {
+              if (d < gap) { gap = Math.max(0, d); closing = speed; }
+              // Within the standing gap the model keeps from any obstacle: a
+              // bus pulled up at its stop is a couple of metres short of it.
+              if (d < style.gap + 1.5 && speed < 1.2) {
+                bs.at = k; bs.from = seconds; bs.until = seconds + BUS_DWELL;
+                bs.left[k] = bs.until;
+                bs.next = (k + 1) % bs.lanes.length;
+              }
+            }
           }
         }
       }
@@ -1408,6 +1449,17 @@ export class Traffic {
   depotsAre(lanes: Int32Array, count: number): void {
     this.serviceLanes = lanes;
     this.serviceCount = count;
+  }
+
+  /**
+   * Transit vehicles' stops, by vehicle: where each is on its route, the next
+   * one to make, and the dwell in progress. See `stopsFor`.
+   */
+  readonly busStops = new Map<number, BusStops>();
+
+  /** Gives a transit vehicle the stops it has to make, in route order. */
+  stopsFor(v: number, lanes: Int32Array, along: Float32Array): void {
+    this.busStops.set(v, { lanes, along, next: 0, at: -1, from: 0, until: 0, left: new Float64Array(lanes.length) });
   }
 
   /** Industry yards, for the freight lorries that come out of them. */

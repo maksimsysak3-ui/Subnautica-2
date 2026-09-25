@@ -301,6 +301,30 @@ built.push({
   note: 'One person, walking. Drawn wherever a citizen on foot actually is.',
   build: walker,
 });
+// Aircraft in flight: the imported airliner and widebody, each turned so its
+// nose is +x like every other mover -- they were modelled facing different ways. Full models rather than the clustered copies,
+// for the reason the airport gives: an aeroplane is the point of looking up.
+for (const [seat, src, turns] of [['plane', 'air.airliner', 3], ['widebody', 'air.widebody', 0]] as const) {
+  const id = IMPORTED_IDS.find((i) => i.startsWith(src));
+  if (id === undefined) continue;
+  // Sized from the model itself, which is the only honest source.
+  const probe = new MeshBuilder();
+  drawImported(probe, id, { turns });
+  const b = probe.bounds();
+  const span = (lo: number, hi: number): number => Math.max(1, Math.ceil((Math.max(Math.abs(lo), Math.abs(hi)) * 2) / 8));
+  built.push({
+    id: `move.${seat}`, name: seat === 'plane' ? 'Airliner in flight' : 'Widebody in flight',
+    zone: 'fleet', density: 'none', variant: 'sculpted',
+    footprint: [span(b.min[0], b.max[0]), span(b.min[2], b.max[2])], height: b.max[1], sim: free,
+    note: 'An aircraft on its approach, its roll-out or its climb.',
+    build: (lod: number) => {
+      const m = new MeshBuilder();
+      drawImported(m, id, { turns, low: lod >= 2 });
+      return m;
+    },
+  });
+}
+
 for (let who = 0; who < WALKERS.length; who++) {
   for (const [pose, stride] of [['a', 0.34], ['b', -0.34]] as const) {
     if (who === 0 && pose === 'a') continue;          // that one is move.walker
@@ -648,6 +672,8 @@ export const MOVER_IDS = {
   tug: 'boat.tug',
   trawler: 'boat.trawler',
   ferryBoat: 'boat.ferry',
+  plane: 'move.plane',
+  widebody: 'move.widebody',
   signalRed: 'move.signalRed',
   signalAmber: 'move.signalAmber',
   signalGreen: 'move.signalGreen',
@@ -692,6 +718,8 @@ export const MOVER_RESERVE: Record<string, number> = {
   'boat.tug': 12,
   'boat.trawler': 24,
   'boat.ferry': 12,
+  'move.plane': 16,
+  'move.widebody': 16,
   'move.signalRed': 240,
   'move.signalAmber': 80,
   'move.signalGreen': 160,

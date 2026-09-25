@@ -51,6 +51,7 @@ import { Complaints, GRIPE_INFO } from './complaints';
 import { Movers } from './movers';
 import { Strollers } from './strollers';
 import { Shipping } from './shipping';
+import { Flights } from './flights';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
@@ -260,6 +261,8 @@ export class Simulation {
   readonly strollers: Strollers;
   /** The vessels at the city's harbours. */
   readonly shipping = new Shipping();
+  /** And the aircraft at its airports. */
+  readonly flights = new Flights();
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
@@ -999,7 +1002,7 @@ export class Simulation {
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick, this.dispatch.incidents, plumes,
-      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ, this.shipping);
+      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ, this.shipping, this.flights, this.transit);
   }
 
   /** What the last `drawMovers` drew. */
@@ -1044,6 +1047,7 @@ export class Simulation {
     }
     this.traffic.freightFrom(Int32Array.from(yards));
     this.shipping.plan(p);
+    if (this.world !== undefined) this.flights.plan(this.world);
   }
 
   /**

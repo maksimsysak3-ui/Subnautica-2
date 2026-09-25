@@ -1534,6 +1534,38 @@ Promise<{ pixels: number[]; movers: string }> {
       }
       console.log(`upgraded ${done.id} ${done.gx},${done.gz} ${done.w}x${done.d} to tier ${done.tier ?? 0}; wing ${wg?.id} at ${wg?.gx},${wg?.gz} ${wg?.w}x${wg?.d} yaw ${wg?.yaw}`);
     }
+  } else if (panel === 'transit') {
+    // A bus line round the middle of the city, run on the game's own clock
+    // until its buses are out and dwelling, and framed on a stop.
+    const world = renderer.world;
+    const nodes = world.net.nodes.filter((n) => Math.hypot(n.x, n.z) > 120 && Math.hypot(n.x, n.z) < 420);
+    const pick: number[] = [];
+    for (let k = 0; k < 5; k++) {
+      const want = (k / 5) * Math.PI * 2;
+      let best = nodes[0], bestD = Infinity;
+      for (const n of nodes) {
+        const d = Math.abs(((Math.atan2(n.z, n.x) - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (d < bestD) { bestD = d; best = n; }
+      }
+      if (best !== undefined) pick.push(best.x, best.z);
+    }
+    world.transit.add(0, pick, 6);
+    live.speed = 1;
+    for (let i = 0; i < 600; i++) live.update(1 / 20, performance.now() + i * 50);
+    camera.focus[0] = pick[0]; camera.focus[2] = pick[1]; camera.update();
+    console.log(`line of ${pick.length / 2} stops; ${sim.transit.report.vehicles} vehicles`);
+  } else if (panel === 'airport') {
+    const world = renderer.world;
+    const half = world.grid / 2;
+    const ap = world.lots.find((l) => l.id === 'svc.transport.airport');
+    console.log(ap === undefined ? 'no airport in this city' : `airport at ${ap.gx},${ap.gz} yaw ${ap.yaw}`);
+    if (ap !== undefined) {
+      for (let i = 0; i < 40; i++) live.update(1 / 20, performance.now() + i * 50);
+      const aim = (globalThis as unknown as { HUD_AIM?: [number, number] }).HUD_AIM;
+      camera.focus[0] = aim?.[0] ?? (ap.gx - half + ap.w / 2) * 8;
+      camera.focus[2] = aim?.[1] ?? (ap.gz - half + ap.d / 2) * 8;
+      camera.update();
+    }
   } else if (panel.startsWith('stats')) {
     // The accounts after a few months of the LITE city, run on the simulation's
     // own clock so the history is what the game records rather than staged.

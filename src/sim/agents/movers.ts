@@ -29,6 +29,8 @@ import type { People } from './people';
 import type { LaneGraph } from './lanes';
 import { DRIVE_SIDE, placeAlong } from './lanes';
 import type { Shipping } from './shipping';
+import type { Flights } from './flights';
+import type { TransitNet } from './transit';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
@@ -264,7 +266,8 @@ export class Movers {
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView,
-    plumes?: PlumeView, seconds = 0, shipping?: Shipping): number {
+    plumes?: PlumeView, seconds = 0, shipping?: Shipping, flights?: Flights,
+    transit?: TransitNet): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -518,6 +521,35 @@ export class Movers {
       }
     }
 
+    // The people waiting at the stops, in a line along the kerb facing the
+    // road, fewer and fewer while a bus stands there and they get on.
+    if (transit !== undefined) {
+      transit.eachStop(seconds, (lane, along, waiting) => {
+        if (lane < 0 || lane >= lanes.count || waiting <= 0) return;
+        for (let k = 0; k < waiting; k++) {
+          const p = this.footwayAt(lanes, lane, along - 2 + k * 0.95, DRIVE_SIDE, -1);
+          const dx = eyeX - p[0], dz = eyeZ - p[1];
+          if (dx * dx + dz * dz > WALK_REACH * WALK_REACH) return;
+          // Facing the road: a quarter turn from the kerb's direction.
+          const yaw = Math.atan2(p[3], p[2]) + (DRIVE_SIDE > 0 ? Math.PI / 2 : -Math.PI / 2);
+          if (write(walkSeat(lane * 13 + k, 0.4 * (k & 1)), p[0] - p[3] * 0.4 * (k % 2), p[1] + p[2] * 0.4 * (k % 2), yaw, 0)) this.counts.people++;
+        }
+      });
+    }
+
+    // Aircraft: on the apron at the airport's own level, in the air above it
+    // -- and never through a hill on the way.
+    if (flights !== undefined && flights.count > 0) {
+      flights.each(seconds, (kind, x, z, yaw, alt, padX, padZ) => {
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > PLANE_REACH * PLANE_REACH) return;
+        const g = ground(x, z);
+        const y = ground(padX, padZ) + alt;
+        const lift = alt > 1 ? Math.max(25, y - g) : y - g;
+        if (write(kind, x, z, yaw, lift)) this.counts.vehicles++;
+      });
+    }
+
     // What is on fire. One instance a building, spun and lifted by the clock so
     // the column writhes rather than standing there like a monument -- there is
     // no particle system behind this and it does not need one.
@@ -581,6 +613,8 @@ const DRAW_REACH = 900;
 const WALK_REACH = 820;
 /** Ships are big and slow; they are worth drawing a long way out. */
 const SHIP_REACH = 3200;
+/** And aircraft further still: they are what the eye goes to in a sky. */
+const PLANE_REACH = 6000;
 /** Junction furniture, which only matters where the player can see a junction. */
 const SIGN_REACH = 520;
 /** A hoarded plot is forty metres across and worth drawing well beyond a car. */

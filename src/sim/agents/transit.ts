@@ -561,6 +561,8 @@ export class TransitNet {
           Driver.AVERAGE, lane, r.route, 0);
         if (v < 0) { this.router.paths.release(r.route); break; }
         r.out.push(v);
+        const [sl, sa] = this.routeStops(r);
+        this.traffic.stopsFor(v, sl, sa);
       }
     }
     this.report.vehicles = vehicles;
@@ -583,6 +585,87 @@ export class TransitNet {
       r.riding = 0;
     }
     this.report.ridersPerDay = total;
+  }
+
+  /**
+   * The stops as the route drives them: each on the lane of its road that the
+   * route actually uses, in the order the route reaches them. A stop's own lane
+   * is only the nearest one, which on a two-way street is as likely to be the
+   * other direction's -- a lane the bus never drives, so a stop it would never
+   * make and a list it would never get past.
+   */
+  private routeStops(r: Running): [Int32Array, Float32Array] {
+    const hit = this.stopCache.get(r);
+    if (hit !== undefined && hit[2] === r.route) return [hit[0], hit[1]];
+    const made = this.routeStopsOf(r);
+    this.stopCache.set(r, [made[0], made[1], r.route]);
+    return made;
+  }
+  private readonly stopCache = new WeakMap<Running, [Int32Array, Float32Array, number]>();
+
+  private routeStopsOf(r: Running): [Int32Array, Float32Array] {
+    const g = this.g, store = this.router.paths;
+    const along = this.stopAlong(r);
+    const n = store.length(r.route);
+    const found: Array<[number, number, number]> = [];       // route step, lane, along
+    for (let i = 0; i < r.stopLane.length; i++) {
+      const own = r.stopLane[i];
+      if (own < 0 || own >= g.count) continue;
+      for (let k = 0; k < n; k++) {
+        const l = store.at(r.route, k);
+        if (l < 0 || g.link[l] !== g.link[own]) continue;
+        const same = g.dir[l] === g.dir[own];
+        found.push([k, l, same ? along[i] : Math.max(3, g.length[l] - along[i])]);
+        break;
+      }
+    }
+    found.sort((a, b) => a[0] - b[0]);
+    return [Int32Array.from(found.map((f) => f[1])), Float32Array.from(found.map((f) => f[2]))];
+  }
+
+  /** How far along its lane each of a line's stops is: the stop projected onto it. */
+  private stopAlong(r: Running): Float32Array {
+    const g = this.g;
+    const out = new Float32Array(r.stopLane.length);
+    for (let i = 0; i < r.stopLane.length; i++) {
+      const l = r.stopLane[i];
+      if (l < 0 || l >= g.count) continue;
+      const len = Math.max(0.001, g.length[l]);
+      const ux = (g.bx[l] - g.ax[l]) / len, uz = (g.bz[l] - g.az[l]) / len;
+      const d = (r.line.stops[i * 2] - g.ax[l]) * ux + (r.line.stops[i * 2 + 1] - g.az[l]) * uz;
+      out[i] = Math.max(3, Math.min(len - 3, d));
+    }
+    return out;
+  }
+
+  /**
+   * Every stop, for the picture: where it is, how many are waiting, and how
+   * far through boarding a vehicle standing there is (-1 for none). People
+   * gather between vehicles in proportion to the line's ridership, and get on
+   * over the dwell.
+   */
+  eachStop(seconds: number, draw: (lane: number, along: number, waiting: number, boarding: number) => void): void {
+    for (const r of this.runs) {
+      if (r.route === NO_PATH) continue;
+      const [lanes, along] = this.routeStops(r);
+      const n = lanes.length;
+      if (n === 0) continue;
+      const per = Math.min(9, 3 + Math.round(r.ridersPerDay / n / 25));
+      const headway = Math.max(30, r.loopSeconds / Math.max(1, r.line.fleet) / 20);
+      for (let i = 0; i < n; i++) {
+        let left = -Infinity, boarding = -1;
+        for (const v of r.out) {
+          const bs = this.traffic.busStops.get(v);
+          if (bs === undefined) continue;
+          if (bs.left[i] > left) left = bs.left[i];
+          if (bs.at === i && bs.until > seconds) boarding = (seconds - bs.from) / (bs.until - bs.from);
+        }
+        const since = Number.isFinite(left) ? seconds - left : headway;
+        const gathered = Math.max(0, Math.min(1, since / headway));
+        const waiting = boarding >= 0 ? Math.round(per * (1 - boarding)) : Math.round(per * gathered);
+        draw(lanes[i], along[i], waiting, boarding);
+      }
+    }
   }
 
   /** Riders a day on one line, for the panel. */
