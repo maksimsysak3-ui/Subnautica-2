@@ -24,6 +24,7 @@ import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
 import { MAP } from './maps';
 import { Industry } from './industry';
+import { CityHistory } from './history';
 import type { MapId } from './maps';
 import { Progress } from './progress';
 import { hash2 } from './hash';
@@ -195,6 +196,8 @@ export interface World {
   map: MapId;
   /** Industry headquarters, their harvest areas, and what has been taken. */
   industry: Industry;
+  /** The books, month by month. See `history.ts`. */
+  history: CityHistory;
   /**
    * The simulation's clock, in ticks, and how many people lived here, as of
    * the last look. Written by the running game, read on load: the clock so
@@ -240,6 +243,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     difficulty: RULES.id,
     map: MAP.id,
     industry: new Industry(),
+    history: new CityHistory(),
     clock: 0,
     residents: 0,
     progress: new Progress(),

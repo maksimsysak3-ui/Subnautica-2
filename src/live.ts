@@ -67,6 +67,14 @@ import { LinesPanel } from './ui/lines-panel';
 import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 import { CityHall } from './ui/city-hall';
+import { StatsApp, type StatsRead } from './ui/stats-app';
+import { BRANCH_STYLE } from './ui/zones';
+import { BRANCHES } from './assets/types';
+import { Purpose } from './sim/agents/places';
+import { STAGE_NAMES, EDU_NAMES } from './sim/agents/people';
+import { MODE_NAMES } from './sim/agents/routine';
+import { RESOURCES } from './sim/resources';
+import { cellHectares } from './sim/industry';
 import { IncidentMarkers } from './ui/incidents';
 import { Need } from './sim/agents/dispatch';
 import { siren } from './ui/sound';
@@ -111,6 +119,7 @@ export class LiveCity {
   private readonly alerts: Alerts;
   /** The phone's politics app, and what the voters see when they look at the city. */
   private readonly hall: CityHall;
+  private readonly statsApp: StatsApp;
   /** Fires, break-ins and medical calls, marked over the map. */
   private readonly incidents: IncidentMarkers;
   private issues: Issues | null = null;
@@ -241,7 +250,8 @@ export class LiveCity {
       balance: () => this.renderer.world.budget.balance,
       rally: () => this.rally(),
     });
-    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast(), this.hall);
+    this.statsApp = new StatsApp(() => this.statsRead());
+    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast(), this.hall, this.statsApp);
     this.settings = new Settings(ui, {
       apply: (v) => {
         const q = renderer.quality;
@@ -517,6 +527,74 @@ export class LiveCity {
     if (!pol.canRally(day)) return false;
     if (!world.budget.spend(pol.rallyCost(this.sim?.people.population ?? 0))) return false;
     return pol.rally(day);
+  }
+
+  /** Everything the Stats app shows, read from the running simulation. */
+  private statsRead(): StatsRead | null {
+    const sim = this.sim;
+    if (sim === null) return null;
+    const world = this.renderer.world;
+    const places = sim.places, people = sim.people;
+    const staffed = places.staffed;
+    const load = sim.routine.load;
+    let congested = 0, worst = 0;
+    for (let l = 0; l < load.length; l++) {
+      if (load[l] > 1) congested++;
+      if (load[l] > worst) worst = load[l];
+    }
+    const ind = world.industry;
+    const ha = cellHectares();
+    const eco = sim.economy;
+    return {
+      city: this.cityName,
+      ledger: eco.report,
+      history: world.history,
+      current: world.history.current(eco.report, sim.vitals()),
+      balance: world.budget.balance,
+      rates: Array.from(world.budget.rates),
+      bases: {
+        residents: people.population, shopJobs: staffed[Purpose.SHOP],
+        worksJobs: staffed[Purpose.WORKS], officeJobs: staffed[Purpose.OFFICE],
+      },
+      branches: BRANCHES.map((b, i) => ({
+        name: BRANCH_STYLE[b].label, colour: BRANCH_STYLE[b].base,
+        upkeep: eco.servicesByBranch[i], count: eco.buildingsByBranch[i],
+      })),
+      buildings: [...eco.upkeepByProto].map(([proto, v]) => {
+        const def = ASSETS[proto];
+        const style = def?.branch !== undefined ? BRANCH_STYLE[def.branch] : undefined;
+        return { name: def?.name ?? 'Building', colour: style?.base ?? '#79879a', count: v.count, total: v.total };
+      }),
+      people: {
+        population: people.population, households: people.households.size,
+        employed: people.employed, students: people.students,
+        unemployment: people.unemployment, happiness: people.happiness,
+        births: people.births, deaths: people.deaths,
+        arrived: sim.migration.arrived, departed: sim.migration.departed,
+        jobs: places.jobCapacity,
+        stages: STAGE_NAMES.map((n, i) => [n, people.byStage[i]] as [string, number]),
+        edu: EDU_NAMES.map((n, i) => [n === 'none' ? 'no schooling' : n, people.byEdu[i]] as [string, number]),
+      },
+      travel: {
+        modes: MODE_NAMES.map((n, i) => [n, sim.routine.stats.byMode[i]] as [string, number]),
+        meanMinutes: sim.routine.stats.meanMinutes,
+        speed: sim.traffic.stats.meanSpeed * 3.6,
+        driving: sim.traffic.stats.driving, stopped: sim.traffic.stats.stopped,
+        worstLoad: worst, congested, lanes: load.length,
+        riders: Math.round(sim.transit.report.ridersPerDay ?? 0),
+        crossTown: sim.routine.drawShare(),
+      },
+      industry: ind.hqs.map((h, i) => {
+        const rep = ind.reports[i];
+        const info = RESOURCES.find((r) => r.id === h.kind);
+        return {
+          name: `${info?.product ?? h.kind}`, colour: info?.ramp[1] ?? '#b8841f',
+          income: rep?.income ?? 0, units: rep?.units ?? 0, shipped: rep?.shipped ?? 0,
+          local: rep?.local ?? 0, staffing: rep?.staffing ?? 0,
+          hectares: (rep?.cells ?? 0) * ha, remaining: rep?.remaining ?? 1,
+        };
+      }),
+    };
   }
 
   private mood(): CityMood | null {

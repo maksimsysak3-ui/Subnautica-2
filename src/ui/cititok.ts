@@ -25,8 +25,9 @@ import { click as clickSound, ping } from './sound';
 import type { Sky } from '../sim/weather';
 import { glyph as pictogram } from './glyphs';
 import type { CityHall } from './city-hall';
+import type { StatsApp } from './stats-app';
 
-type App = 'feed' | 'weather' | 'hall';
+type App = 'feed' | 'weather' | 'hall' | 'stats';
 
 /**
  * The weather, as the phone's second app reads it.
@@ -201,13 +202,15 @@ export class Cititok {
   private readonly skyPane: HTMLElement;
   private readonly tabs: HTMLElement[] = [];
   private app: App = 'feed';
+  private phone!: HTMLElement;
   private shown = false;
   private seed = 3;
   private lastAt = 0;
 
   constructor(parent: HTMLElement, private read: () => CityMood | null,
     private readWeather: () => WeatherRead | null = () => null,
-    private hall: CityHall | null = null) {
+    private hall: CityHall | null = null,
+    private stats: StatsApp | null = null) {
     // The button lives on the edge of the screen rather than on the bar: the
     // bar is for building, and this is not a tool.
     this.launcher = document.createElement('button');
@@ -220,7 +223,7 @@ export class Cititok {
       + `stroke="${SKIN.accent}" stroke-width="1.6">`
       + '<rect x="1" y="1" width="15" height="24" rx="3"/>'
       + `<line x1="6.5" y1="3.4" x2="10.5" y2="3.4" stroke="${SKIN.accent}"/></svg>`;
-    tip(this.launcher, 'Phone — the city feed, the weather and City Hall', 'C');
+    tip(this.launcher, 'Phone — the city feed, the weather, City Hall and the city\'s stats', 'C');
     this.launcher.addEventListener('click', () => { clickSound(); this.toggle(); });
     parent.appendChild(this.launcher);
 
@@ -233,7 +236,8 @@ export class Cititok {
 
     // The phone: a slab with a notch and a screen in it.
     const phone = document.createElement('div');
-    css(phone, ['width:304px', 'height:min(560px, 74vh)', 'border-radius:30px',
+    this.phone = phone;
+    css(phone, ['width:304px', 'transition:width .22s cubic-bezier(.2,.9,.3,1)', 'height:min(560px, 74vh)', 'border-radius:30px',
       'padding:9px', 'background:linear-gradient(160deg,#20262f,#0b0e13)',
       'border:1px solid rgba(255,255,255,.14)', 'display:flex',
       'box-shadow:0 30px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14)']);
@@ -302,9 +306,11 @@ export class Cititok {
     addTab('Feed', 'chat', 'feed');
     addTab('Weather', 'cloud', 'weather');
     if (this.hall !== null) addTab('City Hall', 'government', 'hall');
+    if (this.stats !== null) addTab('Stats', 'views', 'stats');
 
     screen.append(notch, this.bar, this.feedPane, this.skyPane);
     if (this.hall !== null) screen.appendChild(this.hall.pane);
+    if (this.stats !== null) screen.appendChild(this.stats.pane);
     screen.appendChild(dock);
     phone.appendChild(screen);
     this.root.appendChild(phone);
@@ -337,6 +343,12 @@ export class Cititok {
       this.hall.pane.style.display = app === 'hall' ? 'flex' : 'none';
       if (app === 'hall') this.hall.update(true);
     }
+    if (this.stats !== null) {
+      this.stats.pane.style.display = app === 'stats' ? 'flex' : 'none';
+      if (app === 'stats') this.stats.update(true);
+    }
+    // The accounts want room: the phone turns into a small tablet for them.
+    this.phone.style.width = app === 'stats' ? '420px' : '304px';
     for (const b of this.tabs) {
       const on = b.dataset.app === app;
       b.style.color = on ? SKIN.bright : SKIN.dim;
@@ -370,6 +382,7 @@ export class Cititok {
   update(now: number): void {
     if (!this.shown) return;
     if (this.app === 'hall') this.hall?.update();
+    if (this.app === 'stats') this.stats?.update();
     if (now - this.lastAt < 5200) return;
     this.refresh(false);
   }

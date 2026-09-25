@@ -45,6 +45,7 @@
  * totals somebody else already keeps.
  */
 
+import { BRANCHES } from '../../assets/types';
 import type { Industry } from '../industry';
 import { RULES } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
@@ -139,11 +140,16 @@ const FARE = 2.4;
  *
  * What the library's `upkeep` figure is worth in money a week.
  *
+ * Thirty. At forty-five a fire station cost eight thousand a week and a primary
+ * school twelve and a half -- a building's whole price again every six weeks --
+ * so a town of a thousand spent most of its takings keeping the lights on and
+ * a player's first services felt like a punishment for building them.
+ *
  * The asset library states an upkeep for everything, in its own units. Only the
  * city's own buildings are the city's bill -- a warehouse's running costs are
  * its owner's, and they are already priced into what it produces.
  */
-export const UPKEEP_PER_UNIT = 45;
+export const UPKEEP_PER_UNIT = 30;
 
 /** And the share of that a building costs even with nobody working in it. */
 const UPKEEP_IDLE = 0.45;
@@ -373,6 +379,15 @@ export class Economy {
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
 
+  /**
+   * Weekly service upkeep by branch, in `BRANCHES` order, and how many
+   * buildings each has. Filled by the same walk that totals the line.
+   */
+  readonly servicesByBranch = new Float64Array(BRANCHES.length);
+  readonly buildingsByBranch = new Int32Array(BRANCHES.length);
+  /** Weekly upkeep by prototype: how many there are, and what they cost together. */
+  readonly upkeepByProto = new Map<number, { count: number; total: number }>();
+
   /** Road metres by class, kept between road edits rather than resummed. */
   private roadMetres = 0;
   private roadVersion = -1;
@@ -578,8 +593,11 @@ export class Economy {
     const p = this.places;
     const c = p.col;
     let total = 0;
+    this.servicesByBranch.fill(0);
+    this.upkeepByProto.clear();
     for (let b = 0; b < p.byBranch.length; b++) {
       const pool = p.byBranch[b];
+      if (b < this.buildingsByBranch.length) this.buildingsByBranch[b] = pool.size;
       for (let i = 0; i < pool.size; i++) {
         const id = pool.member(i);
         const def = ASSETS[c.proto[id]];
@@ -590,7 +608,12 @@ export class Economy {
         const staffed = c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 1;
         const load = def === undefined ? null : this.loadOf(def.id);
         const running = load === null ? 1 : PLANT_FIXED + (1 - PLANT_FIXED) * load;
-        total += upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running;
+        const cost = upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running;
+        total += cost;
+        if (b < this.servicesByBranch.length) this.servicesByBranch[b] += cost * RULES.upkeep;
+        const row = this.upkeepByProto.get(c.proto[id]);
+        if (row === undefined) this.upkeepByProto.set(c.proto[id], { count: 1, total: cost * RULES.upkeep });
+        else { row.count++; row.total += cost * RULES.upkeep; }
       }
     }
     return total * RULES.upkeep;

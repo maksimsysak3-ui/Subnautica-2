@@ -1280,9 +1280,13 @@ Promise<{ pixels: number[]; movers: string }> {
 
   const sim = (live as unknown as { sim: Simulation }).sim;
   const pl = sim.places;
-  for (let id = 0; id < pl.count; id++) {
-    if (pl.live[id] === 0) continue;
-    for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+  // Staffed for the look of it -- except for the accounts, where phantom staff
+  // would be phantom taxpayers and the figures would be fiction.
+  if (!panel.startsWith('stats')) {
+    for (let id = 0; id < pl.count; id++) {
+      if (pl.live[id] === 0) continue;
+      for (let k = pl.col.working[id]; k < pl.col.jobs[id]; k++) pl.hire(id);
+    }
   }
   // A city with people in it: the founding rush alone leaves fifty-odd
   // citizens in three thousand buildings, and a street with nobody on it
@@ -1476,6 +1480,19 @@ Promise<{ pixels: number[]; movers: string }> {
       camera.focus[2] = open.z[best];
       camera.update();
       for (let i = 0; i < 10; i++) live.update(1 / 60, performance.now() + i * 16);
+    }
+  } else if (panel.startsWith('stats')) {
+    // The accounts after a few months of the LITE city, run on the simulation's
+    // own clock so the history is what the game records rather than staged.
+    live.cityName = 'Salford';
+    for (let i = 0; i < 24; i++) sim.step(900);
+    live.cititok.show();
+    live.cititok.showApp('stats');
+    const tab = panel.split('-')[1] ?? 'overview';
+    (document.querySelector(`.mr-st-tab[data-tab="${tab}"]`) as HTMLElement | null)?.click();
+    if (panel.endsWith('-end')) {
+      const body = document.querySelector('.mr-st-body');
+      if (body !== null) body.scrollTop = body.scrollHeight;
     }
   } else if (panel === 'weather') {
     live.cityName = 'Salford';

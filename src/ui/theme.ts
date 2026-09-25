@@ -170,6 +170,74 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
   color: var(--ink); border-color: color-mix(in srgb, var(--tone) 60%, transparent);
   background: color-mix(in srgb, var(--tone) 16%, transparent);
 }
+/* ---- Stats: the phone's accounts app ---------------------------------- */
+.mr-st { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative;
+  background: #0d1219; font-variant-numeric: tabular-nums; }
+.mr-st-tabs { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px 10px 7px;
+  border-bottom: 1px solid rgba(255,255,255,.07); flex-shrink: 0; }
+.mr-st-tabs::-webkit-scrollbar { display: none; }
+.mr-st-tab { flex-shrink: 0; font: 600 11px/1 var(--label); letter-spacing: .1em; text-transform: uppercase;
+  color: #6d8098; background: transparent; border: 1px solid transparent; border-radius: 999px;
+  padding: 6px 10px; cursor: pointer; }
+.mr-st-tab:hover { color: #a9b8cb; }
+.mr-st-tab.is-on { color: #e8eef6; background: rgba(111,211,255,.12); border-color: rgba(111,211,255,.35); }
+.mr-st-body { flex: 1; overflow: auto; padding: 4px 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.mr-st-body > * { flex-shrink: 0; }
+.mr-st-empty, .mr-st-note { color: #6d8098; font-size: 12px; line-height: 1.45; }
+.mr-st-section { margin-top: 10px; font: 700 10.5px/1 var(--label); letter-spacing: .16em; text-transform: uppercase;
+  color: #6d8098; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.mr-st-hero { display: flex; flex-direction: column; gap: 4px; padding: 10px 0 4px; }
+.mr-st-cap { font: 600 10.5px/1 var(--label); letter-spacing: .14em; text-transform: uppercase; color: #6d8098; }
+.mr-st-big { font: 800 34px/1 var(--display); letter-spacing: .02em; color: #e8eef6; }
+.mr-st-big.is-good { color: #5fc78c; } .mr-st-big.is-bad { color: #e0685a; }
+.mr-st-sub { font-size: 11.5px; color: #8093aa; }
+.mr-st-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mr-st-tile { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border-radius: 10px;
+  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.06); min-width: 0; }
+.mr-st-val { font: 700 17px/1.1 var(--ui); color: #e8eef6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr-st-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: #a9b8cb; padding: 2px 0; }
+.mr-st-row b { font-weight: 600; color: #e8eef6; text-align: right; }
+.mr-st-row b.is-warn { color: #e8b454; } .mr-st-row b.is-bad { color: #e0685a; }
+.mr-st-comp { display: flex; flex-direction: column; gap: 8px; }
+.mr-st-stack { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,.05); }
+.mr-st-seg { min-width: 2px; }
+.mr-st-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 11.5px; color: #a9b8cb; }
+.mr-st-legend-item { display: flex; align-items: center; gap: 6px; }
+.mr-st-legend-item b { margin-left: auto; color: #e8eef6; font-weight: 600; }
+.mr-st-sw { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
+.mr-st-zone { display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border-radius: 10px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  border-left: 3px solid var(--tone); }
+.mr-st-zone-head { display: flex; align-items: center; gap: 7px; padding-bottom: 4px; }
+.mr-st-zone-name { font: 700 12px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: #e8eef6; }
+.mr-st-zone-rate { margin-left: auto; font-weight: 700; color: #e8eef6; font-size: 13px; }
+.mr-st-bar-row { display: grid; grid-template-columns: 112px 1fr auto; align-items: center; gap: 8px;
+  font-size: 12px; color: #a9b8cb; padding: 3px 0; }
+.mr-st-bar-name { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr-st-bar-val { color: #e8eef6; font-weight: 600; min-width: 58px; text-align: right; }
+.mr-st-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
+.mr-st-fill { height: 100%; border-radius: 3px; min-width: 2px; }
+.mr-st-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.mr-st-chip { font: 600 11px/1 var(--ui); color: #8093aa; background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07); border-radius: 999px; padding: 5px 9px; cursor: pointer; }
+.mr-st-chip.is-on { color: #0b1016; background: #6fd3ff; border-color: #6fd3ff; }
+.mr-st-chart-wrap { display: flex; flex-direction: column; gap: 2px; }
+.mr-st-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: #6d8098; }
+.mr-st-chart { width: 100%; height: auto; display: block; }
+.mr-st-axis { stroke: rgba(255,255,255,.18); stroke-width: 1; }
+.mr-st-tick { fill: #6d8098; font: 500 9.5px var(--ui); }
+.mr-st-scroll { overflow-x: auto; }
+.mr-st-table { width: 100%; border-collapse: collapse; font-size: 11.5px; color: #a9b8cb; }
+.mr-st-table th { text-align: right; font: 600 10px/1 var(--label); letter-spacing: .12em; text-transform: uppercase;
+  color: #6d8098; padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.mr-st-table td { text-align: right; padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,.04); white-space: nowrap; }
+.mr-st-table th:first-child, .mr-st-table td:first-child { text-align: left; }
+.mr-st-td-name { display: flex; align-items: center; gap: 6px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.mr-st-total td { color: #e8eef6; font-weight: 700; border-top: 1px solid rgba(255,255,255,.14); }
+.mr-st-table td.is-good { color: #5fc78c; } .mr-st-table td.is-bad { color: #e0685a; }
+.mr-st-tip { position: absolute; z-index: 5; transform: translate(-50%, -100%); pointer-events: none;
+  max-width: 240px; padding: 6px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35; color: #e8eef6;
+  background: rgba(6,9,14,.96); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
 .mr-ind { --tone: #f4b54a; display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px;
   border-bottom: 1px solid rgba(255,255,255,.08); }
 .mr-ind-head { display: flex; align-items: center; gap: 8px; font: 700 11px/1 var(--label);

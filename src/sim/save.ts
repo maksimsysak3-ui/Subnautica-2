@@ -132,6 +132,8 @@ interface SaveFile {
   map?: string;
   /** Industry headquarters and their areas. Absent in older saves: none. */
   industry?: unknown;
+  /** The monthly books. Absent in older saves: an empty record. */
+  history?: unknown;
   /** The simulation's clock in ticks, and residents at save time (version 4). */
   clock?: number;
   residents?: number;
@@ -232,6 +234,7 @@ export function serialise(world: World, name: string, auto = false): string {
     difficulty: world.difficulty,
     map: world.map,
     industry: world.industry.saved(),
+    history: world.history.saved(),
     clock: world.clock,
     residents: world.residents,
     policies: world.policies.saved(),
@@ -320,6 +323,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   else world.difficulty = 'standard';
   world.map = mapById(typeof file.map === 'string' ? file.map : 'vale').id;
   world.industry.restore(file.industry);
+  world.history.restore(file.history ?? null);
   const count2 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
   world.clock = Math.floor(count2(file.clock));
   world.residents = Math.floor(count2(file.residents));

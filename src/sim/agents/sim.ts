@@ -40,6 +40,7 @@ import { Migration } from './migration';
 import { Routine } from './routine';
 import { Junctions } from './junctions';
 import { Traffic } from './driving';
+import type { Vitals } from '../history';
 import { Utilities, Util, supplyOf } from './utilities';
 import { Services } from './services';
 import { Dispatch } from './dispatch';
@@ -625,6 +626,8 @@ export class Simulation {
       run: () => {
         this.settleIndustry(Rate.SLOW / TICKS_PER_DAY);
         this.economy.settle(Rate.SLOW / TICKS_PER_DAY);
+        this.world?.history.accrue(this.economy.report, Rate.SLOW / TICKS_PER_DAY,
+          this.clock.day, this.vitals());
       },
     });
 
@@ -895,6 +898,17 @@ export class Simulation {
    * The industry headquarters' week: drops any whose building has gone, then
    * produces, sells and depletes, staffed by whoever actually works there.
    */
+  /** The figures a month is closed with, beside its money. */
+  vitals(): Vitals {
+    return {
+      population: this.people.population,
+      happiness: this.people.happiness,
+      unemployment: this.people.unemployment,
+      balance: this.budget.balance,
+      speed: this.traffic.stats.meanSpeed * 3.6,
+    };
+  }
+
   private settleIndustry(days: number): void {
     const world = this.world;
     if (world === undefined) return;
