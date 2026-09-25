@@ -621,7 +621,7 @@ export function buildPlaces(city: City, lanes: LaneGraph, index: LaneIndex,
  */
 const DRAW_WORDS: Array<[RegExp, number]> = [
   [/stadium|gridiron|soccer|arena|ballpark/, 10],
-  [/museum|gallery|cathedral|zoo|aquarium|theatre|opera|concert hall|castle|expo/, 5],
+  [/museum|gallery|cathedral|zoo|aquarium|theatre|opera|concert hall|castle|expo|airport/, 5],
 ];
 /** Branches nobody visits for the day out, whatever the building is called. */
 const WORKADAY = new Set(['water', 'sewage', 'power', 'post', 'fire', 'police', 'health']);

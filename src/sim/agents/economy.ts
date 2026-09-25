@@ -521,7 +521,7 @@ export class Economy {
     r.goodsMade = output;
     r.goodsWanted = wanted;
     const surplus = output - wanted;
-    r.exports = surplus > 0 ? surplus * EXPORT_DUTY : 0;
+    r.exports = surplus > 0 ? surplus * EXPORT_DUTY * (this.industry?.tradeBoost ?? 1) : 0;
     r.imports = surplus < 0 ? -surplus * IMPORT_COST : 0;
 
     // ---- fares -------------------------------------------------------------

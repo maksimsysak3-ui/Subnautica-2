@@ -50,6 +50,7 @@ import { Growth } from './growth';
 import { Complaints, GRIPE_INFO } from './complaints';
 import { Movers } from './movers';
 import { Strollers } from './strollers';
+import { Shipping } from './shipping';
 import { TransitNet } from './transit';
 import { Transit } from '../transit';
 import { Economy } from './economy';
@@ -257,6 +258,8 @@ export class Simulation {
    * clock, and for no other reason.
    */
   readonly strollers: Strollers;
+  /** The vessels at the city's harbours. */
+  readonly shipping = new Shipping();
   /** What each building is complaining about, for the bubbles over them. */
   readonly complaints: Complaints;
   /** The bus and tram network the player has drawn, running. */
@@ -967,6 +970,11 @@ export class Simulation {
       const [x, z] = ind.centre(h, world.grid);
       return staffAt(`spec.hq.${h.kind}`, x, z);
     };
+    // Gateways: a container terminal gets goods onto ships, an airport onto
+    // planes. Two terminals are as much as the trade needs.
+    const count = (id: string): number => world.lots.filter((l) => l.id === id).length;
+    ind.tradeBoost = 1 + 0.25 * Math.min(2, count('svc.transport.docks'))
+      + 0.15 * Math.min(1, count('svc.transport.airport'));
     const plants: PlantIn[] = world.lots.filter((l) => l.id.startsWith('spec.plant.')).map((l) => {
       const staff = staffAt(l.id, (l.gx - half + l.w / 2) * 8, (l.gz - half + l.d / 2) * 8);
       return { kind: l.id.slice('spec.plant.'.length) as ResourceId, staff, upkeep: running(l.id, staff) };
@@ -991,7 +999,7 @@ export class Simulation {
       ground, eyeX, eyeZ,
       // Where everything is between one tick and the next.
       this.scheduler.sinceTick, this.dispatch.incidents, plumes,
-      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ);
+      (this.clock.tick + this.scheduler.sinceTick) / TICK_HZ, this.shipping);
   }
 
   /** What the last `drawMovers` drew. */
@@ -1035,6 +1043,7 @@ export class Simulation {
       if (aid.startsWith('spec.hq.') || aid.startsWith('spec.plant.')) yards.push(c.lane[id]);
     }
     this.traffic.freightFrom(Int32Array.from(yards));
+    this.shipping.plan(p);
   }
 
   /**

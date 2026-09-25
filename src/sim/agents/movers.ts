@@ -28,6 +28,7 @@ import { Mode } from './routine';
 import type { People } from './people';
 import type { LaneGraph } from './lanes';
 import { DRIVE_SIDE, placeAlong } from './lanes';
+import type { Shipping } from './shipping';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
 import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
@@ -263,7 +264,7 @@ export class Movers {
     strollers: Strollers | undefined,
     ground: (x: number, z: number) => number,
     eyeX: number, eyeZ: number, lead = 0, incidents?: IncidentView,
-    plumes?: PlumeView, seconds = 0): number {
+    plumes?: PlumeView, seconds = 0, shipping?: Shipping): number {
     this.counts.vehicles = 0;
     this.counts.people = 0;
     this.counts.sites = 0;
@@ -506,6 +507,17 @@ export class Movers {
       }
     }
 
+    // Ships on their lanes, riding the water rather than the ground under it.
+    if (shipping !== undefined) {
+      const at = this.pt;
+      for (const v of shipping.voyages) {
+        if (!shipping.at(v, seconds, at)) continue;
+        const dx = eyeX - at[0], dz = eyeZ - at[1];
+        if (dx * dx + dz * dz > SHIP_REACH * SHIP_REACH) continue;
+        if (write(v.vessel, at[0], at[1], at[2], at[3] - ground(at[0], at[1]))) this.counts.vehicles++;
+      }
+    }
+
     // What is on fire. One instance a building, spun and lifted by the clock so
     // the column writhes rather than standing there like a monument -- there is
     // no particle system behind this and it does not need one.
@@ -567,6 +579,8 @@ const FIRE_REACH = 2400;
 const DRAW_REACH = 900;
 /** And a person, who is a tenth the size and not worth a pixel beyond this. */
 const WALK_REACH = 820;
+/** Ships are big and slow; they are worth drawing a long way out. */
+const SHIP_REACH = 3200;
 /** Junction furniture, which only matters where the player can see a junction. */
 const SIGN_REACH = 520;
 /** A hoarded plot is forty metres across and worth drawing well beyond a car. */

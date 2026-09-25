@@ -118,10 +118,15 @@ function tiersOf(count: number): number[][] {
   return tiers;
 }
 
+const OUTSIDE_TREE = new Set(['svc.waste.landfill']);
+
 function build(): TechNode[] {
   const byBranch = new Map<string, AssetDef[]>();
   for (const a of ASSETS) {
     if (a.zone !== 'service' || a.branch === undefined) continue;
+    // Outside the tree, so adding it renumbered nothing a save had bought:
+    // it is the town's first rubbish answer and open from the start.
+    if (OUTSIDE_TREE.has(a.id)) continue;
     const list = byBranch.get(a.branch) ?? [];
     list.push(a);
     byBranch.set(a.branch, list);

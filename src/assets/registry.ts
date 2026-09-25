@@ -29,6 +29,7 @@ import { MARINE } from './generators/marine';
 import { SPORT } from './generators/sport';
 import { INDUSTRY } from './generators/industry';
 import { WINGS } from './generators/upgrades';
+import { WASTE } from './generators/waste';
 import { MeshBuilder } from './mesh';
 import { dressRoof, footing } from './parts';
 import { idSeed } from './types';
@@ -37,7 +38,7 @@ import type { AssetDef, Zone } from './types';
 export const ASSETS: AssetDef[] = [
   ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
   ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE, ...SIGNATURE_INDUSTRIAL,
-  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY, ...WINGS,
+  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY, ...WINGS, ...WASTE,
 ];
 
 // Every zoned building gets its roof dressed, whether or not its generator

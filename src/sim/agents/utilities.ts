@@ -126,6 +126,9 @@ const SUPPLY: Record<string, Supply> = {
   'svc.power.waste': { power: 20000, rubbish: 900000, crewed: 0.97 },
   'svc.power.substation': {},
   'svc.waste.recycling': { rubbish: 600000, crewed: 0.97 },
+  // A hole in the ground and a compactor: a quarter of an incinerator, and it
+  // barely needs anybody -- which is exactly why a town starts with one.
+  'svc.waste.landfill': { rubbish: 240000, crewed: 0.3 },
   // A pump is a pump. It runs.
   'svc.water.pump': { water: 120000, needsRiver: true, crewed: 0.3 },
   'svc.water.tower': { storeDays: 0.4 },

@@ -120,6 +120,8 @@ export class Industry {
   plantReports: PlantReport[] = [];
   /** Money a week the plants added on top of what the raw material fetched. */
   processed = 0;
+  /** What the city's ports and airport add to anything shipped out, 1 for none. */
+  tradeBoost = 1;
   /** Bumped on any change a rebuild or a panel should notice. */
   version = 0;
 
@@ -263,7 +265,7 @@ export class Industry {
       const units = sum * cellHectares() * YIELD[h.kind] * staff;
       const shipped = units * h.exportShare;
       const sold = units - shipped;
-      const income = (shipped + sold * LOCAL_PRICE) * PRICE[h.kind] * RULES.income;
+      const income = (shipped * this.tradeBoost + sold * LOCAL_PRICE) * PRICE[h.kind] * RULES.income;
       weekly += income;
       local += sold;
       cost += upkeep(h);
