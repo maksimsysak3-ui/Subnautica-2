@@ -151,8 +151,47 @@ export class Menu {
     foot.innerHTML = '<span class="mr-live">Live world · WebGPU</span>'
       + '<span class="mr-keys"><kbd>\u2191</kbd><kbd>\u2193</kbd> choose'
       + ' &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> back</span>';
-    el.append(col, foot);
+    el.append(col, this.news(), foot);
     return el;
+  }
+
+  /**
+   * What changed, on the title screen, for a player coming back to a city: a
+   * returning player's first question is what is different, and a list of
+   * features they would otherwise only find by accident answers it.
+   */
+  private news(): HTMLElement {
+    const card = document.createElement('aside');
+    card.className = 'mr-news';
+    card.setAttribute('aria-label', 'New in this build');
+    const head = document.createElement('div');
+    head.className = 'mr-news-head';
+    head.textContent = 'New in this build';
+    card.appendChild(head);
+    const items: Array<[string, string, string]> = [
+      ['resources', 'Production chains', 'Processing plants turn raw output into goods worth twice as much, with lorries and ships to carry it.'],
+      ['district', 'Districts', 'Paint named quarters and give them policies: tourist quarters, tech clusters, garden suburbs.'],
+      ['views', 'City stats', 'A phone app with every coin: taxes by zone, upkeep by building, three years of monthly books.'],
+      ['develop', 'Service upgrades', 'Extension and flagship wings for schools, clinics and plants: more capacity, more reach.'],
+      ['transport', 'Live transport', 'Buses stop and people board; airliners land at the airport; ships work the harbour.'],
+      ['traffic', 'Crowds and jams', 'Stadiums and landmarks pull traffic across the city. The roads into them are yours to fix.'],
+    ];
+    for (const [icon, title, text] of items) {
+      const row = document.createElement('div');
+      row.className = 'mr-news-row';
+      const ico = document.createElement('span');
+      ico.className = 'mr-news-ico';
+      ico.innerHTML = glyph(icon, 18);
+      const words = document.createElement('div');
+      const t = document.createElement('b');
+      t.textContent = title;
+      const d = document.createElement('span');
+      d.textContent = text;
+      words.append(t, d);
+      row.append(ico, words);
+      card.appendChild(row);
+    }
+    return card;
   }
 
   /** Called once the world is built: the loader fades out over the title. */

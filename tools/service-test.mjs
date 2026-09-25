@@ -34,6 +34,7 @@ const bundle = (await esbuild.build({
       `export * from '${src}sim/mains';`,
       `export { buildMainsMesh, MAIN_VERTEX_FLOATS } from '${src}gfx/mains-mesh';`,
       `export { ASSETS } from '${src}assets/registry';`,
+      `export { Districts } from '${src}sim/districts';`,
       `export { BRANCHES } from '${src}assets/types';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
       `export { configureSim, simConfig } from '${src}sim/config';`,
@@ -473,6 +474,17 @@ section('a necessity, not a bonus');
   section('views');
   let empty = 0, unpainted = 0;
   const cells = VIEW_GRID * VIEW_GRID;
+  // The districts view shows what the player painted, so paint some: two
+  // districts over a third of the map, one with a policy.
+  {
+    const grid = 256;
+    const D = new M.Districts(grid);
+    const a = D.add(); D.paint(0, 0, grid >> 1, grid >> 1, a.id);
+    const b = D.add(); D.paint(grid >> 1, 0, grid >> 2, grid >> 1, b.id);
+    D.toggle(a.id, 'tourism');
+    lit.views.districts = D;
+    lit.views.districtFocus = a.id;
+  }
   for (const info of VIEWS) {
     // A panel-only view paints nothing on purpose -- a budget is not a place --
     // so it is read for its figures and excused the map.
