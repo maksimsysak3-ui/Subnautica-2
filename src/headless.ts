@@ -1013,6 +1013,13 @@ export async function probeViews(): Promise<{
   press('Power');
   const backPx = await frame();
   const closed = !shown('view-stats');
+  // Two ticks passed between the first frame and this one, and the traffic
+  // moved in them. Two more with nothing open measure how much of the frame
+  // that is on its own, so what is left over is the view, not the cars.
+  live.update(1 / 30, performance.now());
+  live.update(1 / 30, performance.now());
+  const settledPx = await frame();
+  const moving = moved(backPx, settledPx);
 
   // The budget, which is the one view that is not a map: it paints nothing and
   // it carries controls. Both halves are checked, because a tax slider that does
@@ -1044,7 +1051,7 @@ export async function probeViews(): Promise<{
     icons, railHidden, railShown, title, rows, bars,
     plain: mean(plainPx), traffic: mean(trafficPx), buried: mean(buriedPx),
     trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
-    closed, closedBack: moved(plainPx, backPx),
+    closed, closedBack: Math.max(0, moved(plainPx, backPx) - moving),
     population: live.population, views,
     budgetRows, taxSliders: sliders.length,
     rateMoved: Math.abs(nowRate - wasRate) > 0.01,
