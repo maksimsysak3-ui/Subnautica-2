@@ -320,8 +320,8 @@ export function communityCentre(lod: number): MeshBuilder {
   const fine = lod < 1, medium = lod < 2;
   const x = 14.0, z = 11.0;
   m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
-  // The hall, brick, with its clerestory lantern.
-  m.box([-12.0, 0.08, -9.0], [4.0, 6.2, 3.0], MAT.BRICK, { roof: MAT.ROOF });
+  // The hall, in stone -- civic rather than domestic -- with its clerestory.
+  m.box([-12.0, 0.08, -9.0], [4.0, 6.2, 3.0], MAT.STONE, { roof: MAT.ROOF });
   m.box([-10.0, 6.2, -7.0], [2.0, 8.0, 1.0], MAT.GLASS, { roof: MAT.ROOF });
   parapet(m, -12.0, -9.0, 4.0, 3.0, 6.2, 0.5, 0.16, MAT.STONE);
   // The foyer and cafe, glazed, lower, at the front corner.
@@ -389,6 +389,29 @@ export function skatePark(lod: number): MeshBuilder {
     fence(m, [x, 0, -z], [x, 0, z], !fine);
   }
   if (fine) {
+    // The bowl proper: a round lip of coping and a stepped curve down into it.
+    for (let k = 0; k < 4; k++) {
+      m.cylinder(-6.0, 6.0, 3.6 - k * 0.7, 0.1, 0.34 - k * 0.05, 36, MAT.CONCRETE);
+    }
+    m.painted(TINT.METAL_DARK, () => m.cylinder(-6.0, 6.0, 3.75, 0.3, 0.4, 36, MAT.METAL));
+    // A pump track of rolling mounds round the hut's side of the yard.
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      m.cone(6.5 + Math.cos(a) * 3.4, -1.0 + Math.sin(a) * 2.2, 1.1, 0.4, 0.1, 0.75, 16, MAT.CONCRETE);
+    }
+    // A bike rack by the club door.
+    m.painted(TINT.METAL_DARK, () => {
+      for (let i = 0; i < 6; i++) {
+        const bx = 3.6 + i * 0.9;
+        m.pipe([bx, 0.1, 11.0], [bx, 0.8, 11.0], 0.03, MAT.METAL, 6);
+        m.pipe([bx, 0.8, 11.0], [bx + 0.6, 0.8, 11.0], 0.03, MAT.METAL, 6);
+        m.pipe([bx + 0.6, 0.8, 11.0], [bx + 0.6, 0.1, 11.0], 0.03, MAT.METAL, 6);
+      }
+    });
+    // A spectator step along the fence, and trees at the gate.
+    m.box([-11.0, 0.1, -1.5], [-2.0, 0.55, 0.0], MAT.CONCRETE);
+    m.box([-11.0, 0.55, -0.9], [-2.0, 1.0, 0.0], MAT.CONCRETE);
+    for (const [tx, tz] of [[-10.5, 11.0], [1.5, 11.0], [10.8, 1.0]] as const) tree(m, tx, tz, 5.5, 1.4);
     // Ledges and a flat rail across the street section.
     m.box([-1.5, 0.1, -1.0], [1.5, 0.55, 0.0], MAT.CONCRETE);
     m.painted(TINT.METAL_DARK, () => {

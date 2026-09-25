@@ -121,7 +121,7 @@ function tiersOf(count: number): number[][] {
 // Services added after saves existed stay outside the tree: a node is named by
 // its place in its branch, so slotting a new building in renumbers every node
 // after it and a saved city would find it had bought something else.
-const OUTSIDE_TREE = new Set(['svc.waste.landfill', 'svc.parks.community', 'svc.parks.skate']);
+const OUTSIDE_TREE = new Set(['svc.waste.landfill', 'svc.parks.community', 'svc.parks.youth']);
 
 function build(): TechNode[] {
   const byBranch = new Map<string, AssetDef[]>();

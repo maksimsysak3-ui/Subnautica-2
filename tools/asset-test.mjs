@@ -137,6 +137,16 @@ const bundle = (
 const { ASSETS, MeshBuilder } = await import('data:text/javascript;base64,' + Buffer.from(bundle).toString('base64'));
 
 const fails = [];
+// Every id once. A second asset under an existing id shadows the first in the
+// registry's index, and a set keyed on ids -- the tech tree's, the icon
+// sheet's -- then silently covers both.
+{
+  const seen = new Set();
+  for (const a of ASSETS) {
+    if (seen.has(a.id)) fails.push(`${a.id}: the id is used twice`);
+    seen.add(a.id);
+  }
+}
 const note = (id, msg) => fails.push(`${id}: ${msg}`);
 
 console.log('asset'.padEnd(22) + 'LOD0 / 1 / 2'.padEnd(22) + 'extent (m)'.padEnd(18) + 'height');
