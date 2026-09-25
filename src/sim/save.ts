@@ -134,6 +134,8 @@ interface SaveFile {
   industry?: unknown;
   /** The monthly books. Absent in older saves: an empty record. */
   history?: unknown;
+  /** Districts and their policies. Absent in older saves: none. */
+  districts?: unknown;
   /** Upgraded buildings and their wings: parent gx, gz, tier, wing gx, wing gz. */
   wings?: Array<[number, number, number, number, number]>;
   /** The simulation's clock in ticks, and residents at save time (version 4). */
@@ -237,6 +239,7 @@ export function serialise(world: World, name: string, auto = false): string {
     map: world.map,
     industry: world.industry.saved(),
     history: world.history.saved(),
+    districts: world.districts.saved(),
     wings: world.lots.filter((l) => l.wingOf !== undefined).map((l) => {
       const parent = world.lots.find((p) => p.gx === l.wingOf![0] && p.gz === l.wingOf![1] && p.wingOf === undefined);
       return [l.wingOf![0], l.wingOf![1], parent?.tier ?? 1, l.gx, l.gz] as [number, number, number, number, number];
@@ -330,6 +333,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   world.map = mapById(typeof file.map === 'string' ? file.map : 'vale').id;
   world.industry.restore(file.industry);
   world.history.restore(file.history ?? null);
+  world.districts.restore(file.districts ?? null);
   const count2 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
   world.clock = Math.floor(count2(file.clock));
   world.residents = Math.floor(count2(file.residents));

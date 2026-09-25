@@ -633,6 +633,7 @@ export class Simulation {
       run: () => {
         this.settleIndustry(Rate.SLOW / TICKS_PER_DAY);
         this.applyTiers();
+        this.economy.districts = this.world?.districts ?? null;
         this.economy.settle(Rate.SLOW / TICKS_PER_DAY);
         this.world?.history.accrue(this.economy.report, Rate.SLOW / TICKS_PER_DAY,
           this.clock.day, this.vitals());

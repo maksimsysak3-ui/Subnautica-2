@@ -50,6 +50,8 @@ import type { Industry } from '../industry';
 import { RULES } from '../difficulty';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
 import { Places, Purpose, TIER_UPKEEP } from './places';
+import { POLICY_BY_ID } from '../districts';
+import type { Districts } from '../districts';
 import { People } from './people';
 import { Migration } from './migration';
 import { ASSETS } from '../../assets/registry';
@@ -192,6 +194,9 @@ const FREE_FLOW_SPEED = 13.0;
  * otherwise only just holding on and not enough to empty one that is good.
  */
 const TAX_MOOD_BITE = 52;
+
+/** One district's week, for its card. */
+export interface DistrictStats { buildings: number; households: number; jobs: number; cost: number }
 
 export interface Ledger {
   /**
@@ -368,6 +373,10 @@ const DAYS_BETWEEN_EVENTS = 6;
 export class Economy {
   /** The industry headquarters, whose sales and upkeep are lines in the ledger. */
   industry: Industry | null = null;
+  /** The city's districts, whose policies move the rates inside them. */
+  districts: Districts | null = null;
+  /** Last settle's figures per district, for its card. */
+  readonly districtStats = new Map<number, DistrictStats>();
   readonly report: Ledger = {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
@@ -496,16 +505,17 @@ export class Economy {
       : Math.max(0, Math.min(1, t.meanSpeed / FREE_FLOW_SPEED));
 
     const pol = this.policies.effects;
+    const dm = this.districtYield();
     // What congestion costs each zone. A shop needs its customers through the
     // door and its stock off a lorry; a works needs its goods out. An office is
     // people at desks and a house is a payslip, so both are barely touched.
     const gum = (bite: number): number => 1 - bite * (1 - flow);
 
     // The difficulty's income multiplier rides on the land value term.
-    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * (worth * RULES.income) * pol.residentialYield;
-    const rawCom = sales * b.rates[Tax.COMMERCIAL] * (worth * RULES.income) * pol.commercialYield;
-    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * (worth * RULES.income) * pol.industrialYield;
-    const rawOff = billings * b.rates[Tax.OFFICE] * (worth * RULES.income) * pol.officeYield;
+    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * (worth * RULES.income) * pol.residentialYield * dm.residential;
+    const rawCom = sales * b.rates[Tax.COMMERCIAL] * (worth * RULES.income) * pol.commercialYield * dm.commercial;
+    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * (worth * RULES.income) * pol.industrialYield * dm.industrial;
+    const rawOff = billings * b.rates[Tax.OFFICE] * (worth * RULES.income) * pol.officeYield * dm.office;
     r.residential = rawRes * gum(0.06);
     r.commercial = rawCom * gum(0.30);
     r.industrial = rawInd * gum(0.26);
@@ -534,7 +544,7 @@ export class Economy {
     r.roads = this.roadUpkeep();
     r.interest = b.balance < 0 ? -b.balance * INTEREST : 0;
     r.policies = this.policies.weekly(this.people.population,
-      shopJobs + officeJobs + worksJobs + serviceJobs, p.count);
+      shopJobs + officeJobs + worksJobs + serviceJobs, p.count) + dm.cost;
 
     // The block grant, which is what makes the first hour survivable.
     //
@@ -579,6 +589,55 @@ export class Economy {
     this.people.taxMood = -((felt - TAX_NEUTRAL) / TAX_NEUTRAL) * TAX_MOOD_BITE;
 
     this.maybeHappen(days);
+  }
+
+  /**
+   * What the district policies do to each zone's takings, and what they cost.
+   *
+   * One walk over the buildings: each one's share of its zone's tax base --
+   * households for residential, filled posts for the rest -- is weighted by the
+   * policies of the district it stands in. A zone's multiplier is then the
+   * base-weighted mean, so a tourist quarter holding a tenth of the city's shop
+   * jobs lifts commercial takings by a tenth of its twenty-five per cent.
+   */
+  private districtYield(): { residential: number; commercial: number; industrial: number; office: number; cost: number } {
+    const out = { residential: 1, commercial: 1, industrial: 1, office: 1, cost: 0 };
+    this.districtStats.clear();
+    const D = this.districts;
+    if (D === null || D.list.length === 0) return out;
+    const p = this.places, c = p.col;
+    const base = [0, 0, 0, 0], lifted = [0, 0, 0, 0];
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0) continue;
+      const purpose = c.purpose[id];
+      const z = purpose === Purpose.HOME ? 0 : purpose === Purpose.SHOP ? 1
+        : purpose === Purpose.WORKS ? 2 : purpose === Purpose.OFFICE ? 3 : -1;
+      const w = z === 0 ? c.living[id] : c.working[id];
+      if (z >= 0) base[z] += w;
+      const did = D.at(c.x[id], c.z[id]);
+      if (did === 0) { if (z >= 0) lifted[z] += w; continue; }
+      const d = D.byId(did);
+      let st = this.districtStats.get(did);
+      if (st === undefined) { st = { buildings: 0, households: 0, jobs: 0, cost: 0 }; this.districtStats.set(did, st); }
+      st.buildings++;
+      st.households += c.living[id];
+      st.jobs += c.working[id];
+      let m = 1;
+      for (const pid of d?.policies ?? []) {
+        const pol = POLICY_BY_ID.get(pid);
+        if (pol === undefined) continue;
+        const y = z === 0 ? pol.yield.residential : z === 1 ? pol.yield.commercial
+          : z === 2 ? pol.yield.industrial : z === 3 ? pol.yield.office : undefined;
+        // Charged on the buildings it works on: a tourist quarter's promotion is
+        // for the shops in it, not for every house in the street behind them.
+        if (y !== undefined) { m *= y; st.cost += pol.perBuilding; }
+      }
+      if (z >= 0) lifted[z] += w * m;
+    }
+    const f = (i: number): number => (base[i] > 0 ? lifted[i] / base[i] : 1);
+    out.residential = f(0); out.commercial = f(1); out.industrial = f(2); out.office = f(3);
+    for (const st of this.districtStats.values()) out.cost += st.cost;
+    return out;
   }
 
   /**

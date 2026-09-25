@@ -68,6 +68,9 @@ import type { DemandReading } from './ui/demand-bars';
 import { log } from './util/log';
 import { CityHall } from './ui/city-hall';
 import { StatsApp, type StatsRead } from './ui/stats-app';
+import { DistrictLabels } from './ui/district-labels';
+import { DISTRICT_COLOURS } from './sim/districts';
+import type { DistrictStats } from './sim/agents/economy';
 import { BRANCH_STYLE } from './ui/zones';
 import { BRANCHES } from './assets/types';
 import { Purpose } from './sim/agents/places';
@@ -126,6 +129,7 @@ export class LiveCity {
   /** The phone's politics app, and what the voters see when they look at the city. */
   private readonly hall: CityHall;
   private readonly statsApp: StatsApp;
+  private readonly districtLabels: DistrictLabels;
   /** Fires, break-ins and medical calls, marked over the map. */
   private readonly incidents: IncidentMarkers;
   private issues: Issues | null = null;
@@ -217,6 +221,7 @@ export class LiveCity {
     // and the building stands on ground the city cut flat for it.
     this.thoughts = new Thoughts(ui, heightAt);
     this.incidents = new IncidentMarkers(ui, heightAt, (x, z) => this.lookAt(x, z));
+    this.districtLabels = new DistrictLabels(ui, heightAt);
     // The tax controls live inside the budget view's card, which is the only
     // place a rate and the bill it moves can be looked at together.
     this.tax = new TaxPanel();
@@ -468,6 +473,34 @@ export class LiveCity {
     box.appendChild(btn);
     return box;
   }
+
+  /**
+   * Shows the districts on the map, the one being edited bright in its own
+   * colour. Called by the district tool on every pick and every stroke.
+   */
+  showDistricts(focus: number): void {
+    const D = this.renderer.world.districts;
+    const d = D.byId(focus);
+    const entry = VIEWS.find((v) => v.id === View.DISTRICTS);
+    if (entry !== undefined) {
+      entry.ramp = ['#2a3340', '#5a6a80', d === undefined ? '#e06a7a' : DISTRICT_COLOURS[d.colour % DISTRICT_COLOURS.length]];
+      entry.legend = d === undefined ? 'Erasing: drag over a district to take the ground out of it.'
+        : `${d.name} is bright; the other districts are dim.`;
+    }
+    if (this.sim !== null) {
+      this.sim.views.districts = D;
+      this.sim.views.districtFocus = focus;
+    }
+    this.info.open(View.DISTRICTS);
+    // Rebuilt now rather than on the view's next beat: a stroke of paint should
+    // show the moment it lands.
+    this.sim?.show(View.DISTRICTS);
+    this.uploaded = -1;
+    this.info.redraw();
+  }
+
+  /** A district's figures from the last settle. */
+  districtStats(id: number): DistrictStats | undefined { return this.sim?.economy.districtStats.get(id); }
 
   /** Opens the resources view on one resource, as the area tool does. */
   showResource(id: ResourceId): void {
@@ -959,6 +992,8 @@ export class LiveCity {
       sim.complaints.list);
     this.incidents.refresh(now, this.camera, this.camera.width, this.camera.height,
       sim.dispatch.incidents);
+    this.districtLabels.refresh(now, this.camera, this.camera.width, this.camera.height,
+      this.renderer.world.districts);
 
     // The sliders follow the budget rather than owning it, so a loaded save shows
     // the rates it was saved with.

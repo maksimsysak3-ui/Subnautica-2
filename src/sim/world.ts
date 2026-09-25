@@ -26,6 +26,7 @@ import { MAP } from './maps';
 import { Industry } from './industry';
 import { WING_DEPTH, WING_LENGTHS, wingId } from '../assets/generators/upgrades';
 import { CityHistory } from './history';
+import { Districts } from './districts';
 import type { MapId } from './maps';
 import { Progress } from './progress';
 import { hash2 } from './hash';
@@ -203,6 +204,8 @@ export interface World {
   industry: Industry;
   /** The books, month by month. See `history.ts`. */
   history: CityHistory;
+  /** Named districts and their policies. See `districts.ts`. */
+  districts: Districts;
   /**
    * The simulation's clock, in ticks, and how many people lived here, as of
    * the last look. Written by the running game, read on load: the clock so
@@ -249,6 +252,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     map: MAP.id,
     industry: new Industry(),
     history: new CityHistory(),
+    districts: new Districts(grid),
     clock: 0,
     residents: 0,
     progress: new Progress(),

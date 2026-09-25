@@ -1534,6 +1534,26 @@ Promise<{ pixels: number[]; movers: string }> {
       }
       console.log(`upgraded ${done.id} ${done.gx},${done.gz} ${done.w}x${done.d} to tier ${done.tier ?? 0}; wing ${wg?.id} at ${wg?.gx},${wg?.gz} ${wg?.w}x${wg?.d} yaw ${wg?.yaw}`);
     }
+  } else if (panel === 'districts') {
+    const world = renderer.world;
+    const D = world.districts;
+    const c = world.grid >> 1;
+    const a = D.add();
+    if (a !== null) D.paint(c - 30, c - 24, 30, 26, a.id);
+    const b = D.add();
+    if (b !== null) D.paint(c + 2, c - 18, 26, 30, b.id);
+    if (a !== null && b !== null) {
+      D.toggle(a.id, 'tourism');
+      D.toggle(b.id, 'tech');
+      D.toggle(b.id, 'garden');
+    }
+    tools.onDistricts = (f) => live.showDistricts(f);
+    tools.districtStats = (id) => live.districtStats(id);
+    for (let i = 0; i < 60; i++) live.update(1 / 20, performance.now() + i * 50);
+    live.tap(null);
+    tools.openDistrictDrawer();
+    live.showDistricts(a?.id ?? 0);
+    live.update(1 / 20, performance.now() + 4000);
   } else if (panel === 'transit') {
     // A bus line round the middle of the city, run on the game's own clock
     // until its buses are out and dwelling, and framed on a stop.

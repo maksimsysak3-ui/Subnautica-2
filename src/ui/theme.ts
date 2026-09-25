@@ -238,6 +238,29 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-st-tip { position: absolute; z-index: 5; transform: translate(-50%, -100%); pointer-events: none;
   max-width: 240px; padding: 6px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35; color: #e8eef6;
   background: rgba(6,9,14,.96); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 20px rgba(0,0,0,.5); }
+.mr-dist-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 2px 2px 6px; }
+.mr-dist-new, .mr-dist-erase, .mr-dist-paint { font: 700 12px/1 var(--ui); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.mr-dist-new { color: #1a1206; background: #f4b54a; border: 0; }
+.mr-dist-erase { color: #e8eef6; background: rgba(224,104,90,.14); border: 1px solid rgba(224,104,90,.4); }
+.mr-dist-note { font-size: 12px; color: #8093aa; }
+.mr-dist { display: flex; flex-direction: column; gap: 7px; padding: 10px; border-radius: 12px;
+  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-left: 3px solid var(--tone); }
+.mr-dist-title { display: flex; align-items: center; gap: 8px; }
+.mr-dist-sw { width: 12px; height: 12px; border-radius: 4px; background: var(--tone); flex-shrink: 0;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--tone) 60%, transparent); }
+.mr-dist-name { flex: 1; min-width: 0; font: 700 14px/1.2 var(--ui); color: #e8eef6; background: transparent;
+  border: 1px solid transparent; border-radius: 6px; padding: 3px 5px; }
+.mr-dist-name:hover, .mr-dist-name:focus { border-color: rgba(255,255,255,.18); outline: none; background: rgba(0,0,0,.2); }
+.mr-dist-paint { padding: 6px 10px; color: #e8eef6; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); }
+.mr-dist-facts { font-size: 11.5px; color: #8093aa; font-variant-numeric: tabular-nums; }
+.mr-dist-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.mr-dist-chip { font: 600 11px/1 var(--ui); color: #9fb0c4; background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 5px 9px; cursor: pointer; }
+.mr-dist-chip.is-on { color: #1a1206; background: var(--tone); border-color: var(--tone); }
+.mr-district-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none;
+  font: 800 13px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; color: #f1f4f8;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9), 0 0 12px rgba(0,0,0,.6); white-space: nowrap; }
+.mr-district-label i { display: block; height: 3px; border-radius: 2px; margin-top: 4px; background: var(--tone); }
 .mr-upg { display: flex; flex-direction: column; gap: 7px; padding-bottom: 10px; margin-bottom: 2px;
   border-bottom: 1px solid rgba(255,255,255,.08); }
 .mr-upg-head { display: flex; align-items: center; justify-content: space-between; font: 700 11px/1 var(--label);

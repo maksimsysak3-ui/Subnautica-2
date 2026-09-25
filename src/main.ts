@@ -278,6 +278,10 @@ async function boot(): Promise<void> {
   tools.onIndustryView = (kind) => live.showResource(kind);
   live.onRedrawArea = (hq) => tools?.drawArea(hq);
   live.onUpgrade = (lot) => tools?.upgrade(lot) ?? 'no tools';
+  if (tools !== null) {
+    tools.onDistricts = (focus) => live.showDistricts(focus);
+    tools.districtStats = (id) => live.districtStats(id);
+  }
   tools.onSettings = () => live.settings.toggle();
   live.onProgress = () => tools?.paintProgress();
   live.nameSource = () => tools?.cityName ?? 'the city';

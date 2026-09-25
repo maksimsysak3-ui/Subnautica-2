@@ -25,6 +25,9 @@
  * utility map looks like. Everything else is a heatmap over the surface.
  */
 
+import { money } from '../costs';
+import type { Districts } from '../districts';
+import { POLICY_BY_ID } from '../districts';
 import { RESOURCES, resourceById, resourceFields } from '../resources';
 import type { ResourceId } from '../resources';
 import { Places, Purpose } from './places';
@@ -64,6 +67,7 @@ export const View = {
   POLLUTION: 14,
   BUDGET: 15,
   RESOURCES: 16,
+  DISTRICTS: 17,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -183,6 +187,14 @@ export const VIEWS: ViewInfo[] = [
     ramp: [...RESOURCES[0].ramp], unit: 'of the richest ground',
   },
   {
+    // The painted districts. The one being edited is bright in its own colour
+    // and the rest dim, the ramp rewritten when the focus changes -- the same
+    // trick the resources view uses, since a view has one ramp.
+    id: View.DISTRICTS, name: 'Districts', icon: 'district', look: Look.ABUNDANCE,
+    legend: 'Named districts. The one you are editing is bright; the others are dim.',
+    ramp: ['#2a3340', '#5a6a80', '#e0a24a'], unit: 'district',
+  },
+  {
     // The one view that is not a map. It paints nothing -- a budget is not a
     // place -- and the panel is the whole of it, with the tax controls mounted
     // underneath by the interface. It sits in the same rail because that is
@@ -269,6 +281,9 @@ export class Views {
   version = 0;
   /** Which resource the resources view paints. */
   resource: ResourceId = 'fertile';
+  /** The city's districts, and the one to show bright. */
+  districts: Districts | null = null;
+  districtFocus = 0;
 
   constructor(private src: Sources) {
     this.perLane = new Float32Array(src.lanes.count);
@@ -321,6 +336,19 @@ export class Views {
         // ground. Nothing is spread -- a seam's edge is where it is.
         const f = resourceFields().amount[this.resource];
         for (let k = 0; k < f.length; k++) if (f[k] > 0) this.grid[k] = f[k];
+        break;
+      }
+      case View.DISTRICTS: {
+        const D = this.districts;
+        if (D === null) break;
+        const { extent } = this.src;
+        const cell = extent / VIEW_GRID;
+        for (let j = 0; j < VIEW_GRID; j++) {
+          for (let i = 0; i < VIEW_GRID; i++) {
+            const id = D.at(-extent / 2 + (i + 0.5) * cell, -extent / 2 + (j + 0.5) * cell);
+            if (id !== 0) this.grid[j * VIEW_GRID + i] = id === this.districtFocus ? 255 : 110;
+          }
+        }
         break;
       }
       default: break;
@@ -589,6 +617,21 @@ export class Views {
       hero = false): Stat => ({ label, value, bar, warn, hero });
 
     switch (view) {
+      case View.DISTRICTS: {
+        const D = this.districts;
+        const list = D?.list ?? [];
+        const rows: Stat[] = [line(list.length === 1 ? 'district' : 'districts', String(list.length), -1, false, true)];
+        let fees = 0;
+        for (const d of list) {
+          const st = s.economy.districtStats.get(d.id);
+          fees += st?.cost ?? 0;
+          const pols = d.policies.map((p) => POLICY_BY_ID.get(p)?.name ?? p).join(', ');
+          rows.push(line(d.name, st === undefined ? 'empty'
+            : `${st.buildings} bldgs${pols === '' ? '' : ` · ${pols}`}`));
+        }
+        if (list.length > 0) rows.push(line('Policy fees a week', money(Math.round(fees)), -1, false));
+        return rows;
+      }
       case View.RESOURCES: {
         // Every resource at once, so the card answers "what is this map good
         // for" before the player has clicked anything; the picked one leads.

@@ -49,6 +49,9 @@ export const EXTRA_GLYPH: Record<string, string> = {
          + 'M24 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z'
          + 'M24 18.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z'
          + 'M24 28.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 1 0 0-7.2z',
+  // A folded map in three panels, the folds cut through it.
+  district: 'M5 11l12-5 14 5 12-5v31l-12 5-14-5-12 5z'
+          + 'M16 7.5h2v29.5h-2zM30 12.5h2v29.5h-2z',
   // A wheeled bin: lid, handle, tapered body, two ribs cut through it.
   rubbish: 'M20 5h8v4h-8zM13 10h22v5H13z'
          + 'M14 16h20l-1.7 24.2a3 3 0 0 1-3 2.8H18.7a3 3 0 0 1-3-2.8L14 16z'

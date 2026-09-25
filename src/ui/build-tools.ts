@@ -31,6 +31,8 @@ import { heightAt, baseHeightAt, previewRoad } from '../sim';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
 import { PROCESS_CAP, PROCESS_VALUE } from '../sim/industry';
+import { DISTRICT_COLOURS, DISTRICT_POLICIES } from '../sim/districts';
+import type { DistrictStats } from '../sim/agents/economy';
 import type { Lot } from '../sim/world';
 import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
@@ -107,6 +109,8 @@ type Tool =
   | { kind: 'transit'; line: number }
   /** Drawing an industry headquarters' harvest area, as a polygon. */
   | { kind: 'area'; hq: number }
+  /** Painting a district, or erasing districts with id 0. */
+  | { kind: 'district'; id: number }
   | { kind: 'land' };
 
 /** How long after a click its second half still counts as a double-click. */
@@ -935,6 +939,93 @@ export class BuildTools {
     this.mount(panel, 'industry');
   }
 
+  /** Told when districts change or one is picked, so the map can show it. */
+  onDistricts: ((focus: number) => void) | null = null;
+  /** Asked for a district's figures from the last settle. */
+  districtStats: ((id: number) => DistrictStats | undefined) | null = null;
+
+  /**
+   * The districts drawer: a new district, an eraser, and a card for each
+   * district with its figures and its policy switches.
+   */
+  openDistrictDrawer(): void {
+    const accent = '#e0a24a';
+    const panel = this.drawerPanel('districts', accent);
+    panel.style.gridTemplateColumns = 'repeat(auto-fill,minmax(250px,1fr))';
+    const D = this.renderer.world.districts;
+    const head = document.createElement('div');
+    head.className = 'mr-dist-head';
+    const make = document.createElement('button');
+    make.className = 'mr-dist-new';
+    make.textContent = 'New district';
+    make.addEventListener('click', () => {
+      const d = D.add();
+      if (d === null) return;
+      this.select({ kind: 'district', id: d.id });
+      this.onDistricts?.(d.id);
+    });
+    const erase = document.createElement('button');
+    erase.className = 'mr-dist-erase';
+    erase.textContent = 'Erase';
+    erase.addEventListener('click', () => this.select({ kind: 'district', id: 0 }));
+    const note = document.createElement('span');
+    note.className = 'mr-dist-note';
+    note.textContent = D.list.length === 0
+      ? 'Paint a district, then give it policies. Each is a trade: better takings for a weekly fee per building.'
+      : `${D.list.length} district${D.list.length === 1 ? '' : 's'} — click one to paint more of it`;
+    head.append(make, erase, note);
+    head.style.gridColumn = '1 / -1';
+    panel.appendChild(head);
+    for (const d of D.list) {
+      const colour = DISTRICT_COLOURS[d.colour % DISTRICT_COLOURS.length];
+      const card = document.createElement('div');
+      card.className = 'mr-dist';
+      card.style.setProperty('--tone', colour);
+      const title = document.createElement('div');
+      title.className = 'mr-dist-title';
+      const sw = document.createElement('span');
+      sw.className = 'mr-dist-sw';
+      const name = document.createElement('input');
+      name.className = 'mr-dist-name';
+      name.value = d.name;
+      name.maxLength = 32;
+      name.setAttribute('aria-label', 'District name');
+      name.addEventListener('change', () => { D.rename(d.id, name.value); this.onDistricts?.(d.id); });
+      name.addEventListener('keydown', (e) => e.stopPropagation());
+      const paint = document.createElement('button');
+      paint.className = 'mr-dist-paint';
+      paint.textContent = 'Paint';
+      paint.addEventListener('click', () => { this.select({ kind: 'district', id: d.id }); this.onDistricts?.(d.id); });
+      title.append(sw, name, paint);
+      const st = this.districtStats?.(d.id);
+      const facts = document.createElement('div');
+      facts.className = 'mr-dist-facts';
+      facts.textContent = st === undefined ? 'Nothing built in it yet'
+        : `${st.buildings} buildings · ${st.households} households · ${st.jobs} jobs`
+          + (st.cost > 0 ? ` · policies ${money(Math.round(st.cost))}/wk` : '');
+      const chips = document.createElement('div');
+      chips.className = 'mr-dist-chips';
+      for (const p of DISTRICT_POLICIES) {
+        const c = document.createElement('button');
+        c.className = 'mr-dist-chip';
+        const on = d.policies.includes(p.id);
+        c.classList.toggle('is-on', on);
+        c.setAttribute('aria-pressed', String(on));
+        c.textContent = p.name;
+        tip(c, `${p.blurb}${p.perBuilding > 0 ? ` Costs ${money(p.perBuilding)} a week per building.` : ''}`);
+        c.addEventListener('click', () => {
+          D.toggle(d.id, p.id);
+          this.onDistricts?.(d.id);
+          this.openDistrictDrawer();
+        });
+        chips.appendChild(c);
+      }
+      card.append(title, facts, chips);
+      panel.appendChild(card);
+    }
+    this.mount(panel, 'districts');
+  }
+
   private curveClick(cell: [number, number]): void {
     this.curveAt = performance.now();
     if (this.curveA === null) {
@@ -1320,6 +1411,10 @@ export class BuildTools {
 
   private tint(): [number, number, number] {
     if (this.tool.kind === 'zone') return hexToRgb(ZONE_STYLE[this.tool.zone as IconZone].base);
+    if (this.tool.kind === 'district') {
+      const d = this.renderer.world.districts.byId(this.tool.id);
+      return d === undefined ? [0.9, 0.45, 0.4] : hexToRgb(DISTRICT_COLOURS[d.colour % DISTRICT_COLOURS.length]);
+    }
     return TOOL_TINT[this.tool.kind] ?? TOOL_TINT.look;
   }
 
@@ -1542,6 +1637,13 @@ export class BuildTools {
       } else if (unowned > 0) {
         this.say('you do not own that land \u2014 buy it with the land tool');
       }
+    } else if (t.kind === 'district') {
+      const D = world.districts;
+      const n = D.paint(r.gx, r.gz, r.w, r.d, t.id);
+      const d = D.byId(t.id);
+      if (n > 0) this.say(d === undefined ? `${n} cells taken out of their districts` : `${d.name}: ${n} cells painted`);
+      this.onDistricts?.(t.id);
+      return;
     } else if (t.kind === 'clear') {
       // Bulldozing rebuilds the whole city, and that is the right trade.
       //
@@ -1637,6 +1739,7 @@ export class BuildTools {
     if (t.kind === 'place') return `place:${t.proto.id}`;
     if (t.kind === 'transit') return `transit:${t.line}`;
     if (t.kind === 'area') return `area:${t.hq}`;
+    if (t.kind === 'district') return 'district';
     return t.kind;
   }
 
@@ -1675,6 +1778,10 @@ export class BuildTools {
       const land = this.renderer.world.land;
       return `click a dashed plot to buy it — ${land.count} owned, `
         + `next ${money(land.price())}`;
+    }
+    if (t.kind === 'district') {
+      const d = this.renderer.world.districts.byId(t.id);
+      return d === undefined ? 'drag to erase districts' : `drag to paint ${d.name} — any shape, one rectangle at a time`;
     }
     if (t.kind === 'zone') {
       const style = t.theme === undefined ? '' : ` in the ${THEMES[t.theme].label} style`;
@@ -1907,6 +2014,19 @@ export class BuildTools {
     add(clear, { kind: 'land' },
       'Buy land — lift the camera and buy the ground your city grows onto',
       glyph('land'), '#8fd4ff');
+    {
+      const b = document.createElement('button');
+      b.dataset.branch = 'districts';
+      tip(b, 'Districts — paint named quarters and give them policies');
+      chip(b, '#e0a24a', glyph('district'));
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (this.drawer?.dataset.branch === 'districts') { this.closeDrawer(); return; }
+        this.openDistrictDrawer();
+      });
+      clear.appendChild(b);
+      this.buttons.push(b);
+    }
     add(clear, { kind: 'clear' }, 'Bulldoze — drag to clear roads and zoning',
       glyph('clear'), '#f0906e');
     tools.appendChild(clear);
