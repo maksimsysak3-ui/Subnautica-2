@@ -39,6 +39,7 @@ const bundle = (await esbuild.build({
       `export { Util } from '${src}sim/agents/utilities';`,
       `export { BRANCHES } from '${src}assets/types';`,
       `export { OVERDRAFT } from '${src}sim/budget';`,
+      `export { useMap } from '${src}sim/maps';`,
     ].join('\n'),
     resolveDir: src, loader: 'ts',
   },
@@ -50,6 +51,8 @@ const DAYS = Number(process.argv[2] ?? 90);
 const WHICH = process.argv.slice(3).length > 0 ? process.argv.slice(3) : ['relaxed', 'standard', 'hard'];
 const GRID = 640;
 M.configureSim({ cityGrid: GRID, terrainSize: 9216 });
+// Any of the starting maps: MAP=saltmere node tools/long-game.mjs ...
+if (process.env.MAP) M.useMap(process.env.MAP);
 
 /** Streets every 120 m, blocks between them. */
 const STEP = 120;

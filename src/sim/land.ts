@@ -8,7 +8,7 @@
  */
 
 import { fbm } from './hash';
-import { simConfig } from './config';
+import { simConfig, FULL } from './config';
 import { MAP, SEA_LEVEL } from './maps';
 import type { Lake, Sea } from './maps';
 
@@ -19,9 +19,16 @@ function rawHeightAt(x: number, z: number): number {
   const hills = (fbm(x * s, z * s, 5, 101 + M.seed) - 0.5) * 2;      // [-1, 1]
   const ridges = (fbm(x * s * 3.7, z * s * 3.7, 3, 233 + M.seed) - 0.5) * 2;
 
-  // Distance from the city centre, 0 at origin and 1 at the map edge.
-  const d = Math.min(Math.hypot(x, z) / (simConfig.terrainSize * 0.5), 1);
-  const relief = Math.pow(Math.max(0, (d - M.flat) / (1 - M.flat)), 1.05);
+  // The buildable core is the same size in metres whatever the world's size:
+  // `flat` is a share of the full map. Read as a share of the small one it
+  // put Highmoor's hills eighty metres from the starting road and the town
+  // had nowhere level to grow. Up to six tenths of a small world, so it
+  // still has hills round its edge.
+  const half = simConfig.terrainSize * 0.5;
+  const core = Math.min(M.flat * FULL.terrainSize * 0.5, half * 0.6);
+  // Past the core, the relief rises to the map edge.
+  const d = Math.min(Math.max(0, Math.hypot(x, z) - core) / (half - core), 1);
+  const relief = Math.pow(d, 1.05);
 
   // Fine undulation everywhere, including under the city. Undamped by the
   // relief ramp on purpose: without it the buildable centre is a dead-flat

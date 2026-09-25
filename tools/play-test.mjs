@@ -51,7 +51,8 @@ page.on('pageerror', (e) => errors.push(String(e.message)));
 page.on('console', (m) => {
   if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
 });
-await page.goto(`http://127.0.0.1:${port}/?lite`, { waitUntil: 'load' });
+// FULL=1 plays the real full-size map rather than the small one the suite uses.
+await page.goto(`http://127.0.0.1:${port}/${process.env.FULL ? '' : '?lite'}`, { waitUntil: 'load' });
 
 const ok = [];
 const bad = [];
@@ -72,7 +73,10 @@ const pressed = await page.evaluate(() => {
 note(pressed, 'the menu offers a new city');
 // Founding: a name and a difficulty, on their own screen.
 await page.waitForTimeout(800);
-const founded = await page.evaluate(() => {
+const MAP = process.env.MAP || '';
+const founded = await page.evaluate((map) => {
+  // Any of the starting maps: MAP=kestrel node tools/play-test.mjs
+  if (map !== '') (document.querySelector(`[data-map="${map}"]`))?.click();
   const field = document.querySelector('#mr-city-name');
   const hard = document.querySelector('[data-difficulty="relaxed"]');
   const go = document.querySelector('.mr-found');
@@ -81,9 +85,9 @@ const founded = await page.evaluate(() => {
   hard.click();
   go.click();
   return true;
-});
+}, MAP);
 note(founded, 'the setup screen names the city and picks a difficulty');
-await page.waitForTimeout(14000);
+await page.waitForTimeout(process.env.FULL ? 40000 : 14000);
 
 const started = await page.evaluate(() => (window.citysim !== undefined));
 note(started, 'the game starts');
@@ -172,7 +176,7 @@ note(after.zoned > before.zoned, 'dragging the brush zones ground',
   `${before.zoned} -> ${after.zoned}`);
 
 // Then time passes, and the ground is supposed to fill.
-await page.waitForTimeout(25000);
+await page.waitForTimeout(process.env.FULL ? 60000 : 25000);
 const grew = await page.evaluate(() => {
   const { renderer, live } = window.citysim;
   const w = renderer.world;
@@ -189,12 +193,24 @@ const grew = await page.evaluate(() => {
     population: sim?.people.population ?? -1,
     want: sim === null ? '' : [...sim.demand.want].map((v) => v.toFixed(2)).join(','),
     owed: sim?.growth?.report.owed ?? -1,
+    driving: sim?.traffic.stats.driving ?? -1,
+    map: w.map,
     buildings: renderer.summary.buildings,
   };
 });
+if (process.env.SHOT) {
+  // Down to the houses at a player's angle, for a picture of what they see.
+  await page.evaluate(() => {
+    const { camera } = window.citysim;
+    camera.pitch = 0.75; camera.distance = 160; camera.update();
+  });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: process.env.SHOT });
+}
 note(grew.released > 0, 'the city releases the land it was given',
   `${grew.released} of ${grew.zoned} cells`);
 note(grew.homes > 0, 'and buildings come up on it', `${grew.homes} homes`);
+note(grew.driving > 0, 'and there is traffic on the roads', `${grew.driving} driving on ${grew.map}`);
 
 console.log(`\nzoned     ${before.zoned} -> ${after.zoned} cells`);
 console.log(`released  ${grew.released} of ${grew.zoned}`);

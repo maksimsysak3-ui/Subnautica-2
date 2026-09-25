@@ -156,12 +156,27 @@ function route(extent: number, angle: number): Point[] {
 /**
  * The water surface along the path.
  *
- * Worked upstream from the mouth: each point takes the land it is in, unless
- * that would put it below the water downstream of it, in which case it takes
- * that plus a step. Falls the whole way -- guaranteed rather than hoped for --
- * and stays in the country it crosses.
+ * It has to fall the whole way, and the land under the path does not: the
+ * route goes downhill as far as it can, but it starts at the map's edge in the
+ * hills and has to cross the plateau to the other edge, which is hills again.
+ * Where the two disagree something gives, and what gives decides whether the
+ * map is playable.
+ *
+ * Taking the land as the level from the mouth upward -- the water has to be
+ * higher than wherever it flows to -- is right for a lake and wrong here: a
+ * mouth in the far hills held everything upstream at least that high, and the
+ * rule that keeps a river's bank above its water raised a causeway up to two
+ * hundred metres tall across the map. Taking it from the source downward is
+ * the mirror image: one deep valley at the rim and the whole river runs sixty
+ * metres down a gorge through the middle of the town site.
+ *
+ * So the level is the falling line nearest the land, fitted -- and fitted
+ * hardest in the middle of the map, where people build, so that is where the
+ * water sits in its own country. The disagreement is settled out in the hills
+ * at either end, as a cut through a ridge or a flooded valley, which is what
+ * rivers do there anyway.
  */
-function levels(path: Point[], width: number): void {
+function levels(path: Point[], width: number, extent: number): void {
   const n = path.length;
   const raw = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -180,9 +195,19 @@ function levels(path: Point[], width: number): void {
   }
   const drop = 1.2;
   const fall = 0.05;
+  // The target, tilted by the fall so that a line that only has to not rise
+  // comes back as one that falls by at least that much a step.
+  const want = new Float64Array(n);
+  const weight = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    want[i] = raw[i] - drop + i * fall;
+    const r = Math.hypot(path[i].x, path[i].z) / extent;
+    const mid = Math.max(0, 1 - r / 0.65);
+    weight[i] = 1 + 60 * mid * mid;
+  }
+  const fitted = fallingFit(want, weight);
   const out = new Float32Array(n);
-  out[n - 1] = raw[n - 1] - drop;
-  for (let i = n - 2; i >= 0; i--) out[i] = Math.max(raw[i] - drop, out[i + 1] + fall);
+  for (let i = 0; i < n; i++) out[i] = fitted[i] - i * fall;
 
   // Smoothed, so the surface is a gradient rather than a staircase.
   const R = 6;
@@ -195,10 +220,37 @@ function levels(path: Point[], width: number): void {
     path[i].level = sum / c;
     path[i].half = (SOURCE + (MOUTH - SOURCE) * (i / Math.max(1, n - 1))) * width;
   }
-  // Smoothing can undo the fall; restore it, again from the mouth.
-  for (let i = n - 2; i >= 0; i--) {
-    path[i].level = Math.max(path[i].level, path[i + 1].level + fall * 0.5);
+  // The average of a falling line falls, except where the window is clamped at
+  // the ends; make sure of it there.
+  for (let i = 1; i < n; i++) {
+    path[i].level = Math.min(path[i].level, path[i - 1].level - fall * 0.5);
   }
+}
+
+/**
+ * The non-rising sequence closest to `y`, in the weighted least-squares sense.
+ * Pool-adjacent-violators: runs that rise are merged into one level at their
+ * weighted mean until nothing rises. Linear in the length of the path.
+ */
+function fallingFit(y: Float64Array, w: Float64Array): Float64Array {
+  const n = y.length;
+  const level: number[] = [], mass: number[] = [], size: number[] = [];
+  for (let i = 0; i < n; i++) {
+    level.push(y[i]); mass.push(w[i]); size.push(1);
+    while (level.length > 1 && level[level.length - 1] > level[level.length - 2]) {
+      const b = level.length - 1, a = b - 1;
+      const m = mass[a] + mass[b];
+      level[a] = (level[a] * mass[a] + level[b] * mass[b]) / m;
+      mass[a] = m; size[a] += size[b];
+      level.pop(); mass.pop(); size.pop();
+    }
+  }
+  const out = new Float64Array(n);
+  let at = 0;
+  for (let k = 0; k < level.length; k++) {
+    for (let j = 0; j < size[k]; j++) out[at++] = level[k];
+  }
+  return out;
 }
 
 function river(): River {
@@ -206,7 +258,7 @@ function river(): River {
   if (cached !== null && cachedFor === extent) return cached;
   const spec = MAP.river;
   const path = spec === null ? [] : route(extent, spec.angle);
-  if (spec !== null) levels(path, spec.width);
+  if (spec !== null) levels(path, spec.width, extent);
 
   // A coarse grid holding, per cell, the index of the nearest path point. A
   // lookup then searches a handful of points around that index rather than the

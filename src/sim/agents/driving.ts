@@ -138,11 +138,11 @@ const CRAWL = 0.4;
 const PATIENCE_TICKS = 12;
 
 /**
- * How close to what the player is looking at a vehicle may be conjured.
+ * Inside this distance of what the player is looking at, a conjured vehicle
+ * starts from rest at the kerb rather than already at speed.
  *
- * Far enough that the appearance itself is off the side of the frame at a
- * normal working zoom, and near enough that the roads in view still fill up
- * within a few seconds of the camera arriving.
+ * Far enough that a car appearing at speed is off the side of the frame at a
+ * normal working zoom.
  */
 const HIDE_SPAWN = 260;
 
@@ -1384,20 +1384,22 @@ export class Traffic {
         pick -= (load[l] + IDLE_LOAD) * this.g.length[l] / 9;
         if (pick <= 0) { lane = l; break; }
       }
-      // Not in the middle of the picture. A vehicle appearing out of nothing at
-      // the start of a road the player is looking at is the single most obvious
-      // thing traffic can do wrong, and it is what "they teleport in and drive
-      // down the road" is: the spawner was choosing the busiest lane near the
-      // camera and putting a car at its mouth. Vehicles now appear at the far
-      // end of what is loaded, where the frame does not reach.
+      // Not at speed in the middle of the picture. A vehicle appearing out of
+      // nothing and already driving down a road the player is looking at is the
+      // most obvious thing traffic can do wrong. So a lane in view gets a car
+      // pulling away from the kerb -- out of a driveway, which is where a new
+      // town's traffic comes from -- and only a lane out of view gets one
+      // already moving. Refusing lanes in view outright left a new town, all of
+      // it in view, with no traffic at all.
       const sx = (this.g.ax[lane] + this.g.bx[lane]) * 0.5;
       const sz = (this.g.az[lane] + this.g.bz[lane]) * 0.5;
       const dx = sx - this.focusX, dz = sz - this.focusZ;
-      if (dx * dx + dz * dz < HIDE_SPAWN * HIDE_SPAWN) continue;
-      // And along the lane rather than at its start, so a road that comes into
-      // view is already carrying traffic instead of filling up from one end.
-      this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0,
+      const inView = dx * dx + dz * dz < HIDE_SPAWN * HIDE_SPAWN;
+      // Along the lane rather than at its start, so a road that comes into view
+      // is already carrying traffic instead of filling up from one end.
+      const v = this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0,
         this.rng.next() * this.g.length[lane]);
+      if (v >= 0 && inView) this.table.col.speed[v] = 0;
     }
 
     // And some of it out of the depots. Unlike the traffic above this one is

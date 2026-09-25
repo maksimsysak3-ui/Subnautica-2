@@ -32,7 +32,7 @@ export interface SimConfig {
  * for after every edit -- costs 836 ms across twenty-six square kilometres,
  * against about a second for the old twelve.
  */
-const FULL: SimConfig = { cityGrid: 640, terrainSize: 9216 };
+export const FULL: SimConfig = { cityGrid: 640, terrainSize: 9216 };
 
 /** Small enough to build and render anywhere, same code, same layout rules. */
 export const LITE: SimConfig = { cityGrid: 90, terrainSize: 1536 };
