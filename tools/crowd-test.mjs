@@ -54,6 +54,9 @@ console.log(`attractions     ${p.attractions.size}: ${names.slice(0, 8).join(', 
 
 sim.found(12);
 // Load round the attractions against the city's, at the busiest moment seen.
+// The strongest draws only: with every landmark in the city counted, a ring
+// round each covers most of the map and "near an attraction" is the average.
+const top = [...p.appeal.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id);
 const measure = () => {
   const load = sim.routine.load, g = sim.lanes;
   let near = 0, nn = 0, all = 0, na = 0;
@@ -62,9 +65,9 @@ const measure = () => {
     const mx = (g.ax[l] + g.bx[l]) / 2, mz = (g.az[l] + g.bz[l]) / 2;
     all += load[l]; na++;
     if (load[l] > worst) worst = load[l];
-    for (const id of p.appeal.keys()) {
+    for (const id of top) {
       const dx = p.col.x[id] - mx, dz = p.col.z[id] - mz;
-      if (dx * dx + dz * dz < 260 * 260) { near += load[l]; nn++; break; }
+      if (dx * dx + dz * dz < 200 * 200) { near += load[l]; nn++; break; }
     }
   }
   if (nn > 0) nearPeak = Math.max(nearPeak, near / nn);
