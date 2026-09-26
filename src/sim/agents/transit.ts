@@ -105,6 +105,12 @@ interface Running {
   line: TransitLine;
   /** The whole loop as one lane path, or NO_PATH if the roads do not join up. */
   route: number;
+  /**
+   * Whether the line runs at all: its roads join up or, for a metro, it has
+   * the stations to run between. Separate from `route` because a metro never
+   * has one -- it is not on the roads.
+   */
+  works: boolean;
   /** Seconds to drive the loop once, free-flow. */
   loopSeconds: number;
   /** Metres round the loop. */
@@ -218,7 +224,7 @@ export class TransitNet {
     let broken = 0;
     for (const line of this.transit.lines) {
       const run = this.build(line, before.get(line.id));
-      if (run.route === NO_PATH) broken++;
+      if (!run.works) broken++;
       this.runs.push(run);
     }
     this.report.lines = this.runs.length;
@@ -238,11 +244,11 @@ export class TransitNet {
     this.transfers.clear();
     for (let a = 0; a < this.runs.length; a++) {
       const ra = this.runs[a];
-      if (ra.route === NO_PATH) continue;
+      if (!ra.works) continue;
       for (let b = 0; b < this.runs.length; b++) {
         if (a === b) continue;
         const rb = this.runs[b];
-        if (rb.route === NO_PATH) continue;
+        if (!rb.works) continue;
         let best: [number, number, number] | null = null;
         for (let i = 0; i < ra.served.length; i++) {
           if (ra.served[i] === 0) continue;
@@ -265,7 +271,7 @@ export class TransitNet {
   stopDiscs(out: number[]): void {
     out.length = 0;
     for (const r of this.runs) {
-      if (r.route === NO_PATH) continue;
+      if (!r.works) continue;
       const walk = TRANSIT_SPEC[r.line.kind].walk;
       for (let i = 0; i < r.served.length; i++) {
         if (r.served[i] === 0) continue;
@@ -292,10 +298,30 @@ export class TransitNet {
         Use.BUS, STOP_REACH);
     }
     const run: Running = {
-      line, route: NO_PATH, loopSeconds: 0, loopMetres: 0,
+      line, route: NO_PATH, works: false, loopSeconds: 0, loopMetres: 0,
       atStop: new Float64Array(stops), served: new Uint8Array(stops), stopLane,
       skipped: 0, out: [], riding: 0, ridersPerDay: was?.ridersPerDay ?? 0,
     };
+
+    // A metro: straight tunnels from station to station and back to the first,
+    // at the line's own speed, whatever is on the roads above.
+    const tunnel = TRANSIT_SPEC[line.kind].tunnel;
+    if (tunnel !== undefined) {
+      const dwellM = TRANSIT_SPEC[line.kind].dwell;
+      let secs = 0, metresM = 0;
+      for (let i = 0; i < stops; i++) {
+        run.served[i] = 1;
+        run.atStop[i] = secs;
+        const j = (i + 1) % stops;
+        const d = Math.hypot(line.stops[j * 2] - line.stops[i * 2], line.stops[j * 2 + 1] - line.stops[i * 2 + 1]);
+        metresM += d;
+        secs += d / tunnel + dwellM;
+      }
+      run.loopSeconds = Math.max(1, secs);
+      run.loopMetres = metresM;
+      run.works = stops >= 2;
+      return run;
+    }
 
     // The first stop a vehicle can actually reach. Everything is relative to it,
     // including the loop that closes back onto it.
@@ -347,6 +373,7 @@ export class TransitNet {
     if (lanes.length < 2) return run;
 
     run.route = this.router.paths.alloc(Int32Array.from(lanes), lanes.length);
+    run.works = true;
     run.loopSeconds = Math.max(1, seconds);
     run.loopMetres = metres;
     return run;
@@ -366,7 +393,7 @@ export class TransitNet {
     this.gx0 = x0; this.gz0 = z0;
     for (let ri = 0; ri < this.runs.length; ri++) {
       const r = this.runs[ri];
-      if (r.route === NO_PATH) continue;
+      if (!r.works) continue;
       for (let i = 0; i < r.line.stops.length; i += 2) {
         if (r.served[i / 2] === 0) continue;
         const key = this.cellKey(r.line.stops[i], r.line.stops[i + 1]);
@@ -487,7 +514,7 @@ export class TransitNet {
 
   /** Seconds between two stops of a line, going the way the vehicles go. */
   private rideSeconds(r: Running, a: number, b: number): number {
-    if (r.route === NO_PATH) return -1;
+    if (!r.works) return -1;
     const d = r.atStop[b] - r.atStop[a];
     return d >= 0 ? d : d + r.loopSeconds;
   }
@@ -546,13 +573,14 @@ export class TransitNet {
       }
       const spec = TRANSIT_SPEC[r.line.kind];
       weekly += spec.weekly * r.line.fleet;
-      if (r.route === NO_PATH) continue;
+      if (!r.works) continue;
       lines++;
-      vehicles += r.out.length;
+      // A metro's trains are underground: counted, never put on the roads.
+      vehicles += spec.tunnel !== undefined ? r.line.fleet : r.out.length;
       const cap = Math.max(1, spec.capacity * r.line.fleet
         * ((24 * 3600) / r.loopSeconds) * 0.35);
       load += r.ridersPerDay / cap;
-      while (r.out.length < r.line.fleet && budget > 0) {
+      while (r.route !== NO_PATH && r.out.length < r.line.fleet && budget > 0) {
         budget--;
         const lane = this.g.count > 0 ? this.router.paths.at(r.route, 0) : -1;
         if (lane < 0) break;
@@ -677,7 +705,7 @@ export class TransitNet {
   /** Whether a line's roads join up, for the panel and for the tool's warning. */
   worksOf(id: number): boolean {
     const r = this.runs.find((q) => q.line.id === id);
-    return r !== undefined && r.route !== NO_PATH;
+    return r !== undefined && r.works;
   }
 
   /**
@@ -693,6 +721,20 @@ export class TransitNet {
     const out: TransitShape[] = [];
     for (const r of this.runs) {
       const spec = TRANSIT_SPEC[r.line.kind];
+      if (r.route === NO_PATH && r.works) {
+        // A metro: the tunnels, station to station and back round to the first.
+        const n = r.line.stops.length / 2;
+        const points = new Float32Array((n + 1) * 2);
+        for (let i = 0; i <= n; i++) {
+          points[i * 2] = r.line.stops[(i % n) * 2];
+          points[i * 2 + 1] = r.line.stops[(i % n) * 2 + 1];
+        }
+        out.push({
+          id: r.line.id, kind: r.line.kind, colour: spec.colour,
+          points, stops: Float32Array.from(r.line.stops), served: r.served.slice(), works: true,
+        });
+        continue;
+      }
       if (r.route === NO_PATH) {
         // A broken line is still drawn, as the stops on their own. A player who
         // has just put one down needs to see where it went, and an empty map is

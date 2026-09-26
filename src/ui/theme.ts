@@ -94,7 +94,7 @@ html, body { font-family: var(--ui); }
 }
 /* Narrower windows: smaller tiles before the bar wraps onto a second row,
    and the status captions go, keeping the readings themselves. */
-@media (max-width: 1240px) {
+@media (max-width: 1400px) {
   .mr-tile { width: 36px; height: 36px; border-radius: 9px; }
   .mr-tile > svg { width: 20px; height: 20px; }
   .mr-tile > .mr-swatch { width: 18px !important; height: 18px !important; }

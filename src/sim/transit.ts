@@ -10,13 +10,12 @@
  * the same reason: what is derived must not be saved, and what a player made
  * must not be re-decided.
  *
- * TWO KINDS, AND NO METRO. Buses and trams both run in the street, which is
- * what makes them buildable with the tool the player already has: click along a
- * road, and the vehicles find their own way between the stops. A metro does
- * not -- it wants tunnels, stations with entrances, and a network of its own --
- * and a metro that quietly ran along the roads while claiming to be underground
- * would be a lie told in the interface. It is a thing to build properly later,
- * not a third entry in this table.
+ * THREE KINDS. Buses and trams run in the street, which is what makes them
+ * buildable with the tool the player already has: click along a road, and the
+ * vehicles find their own way between the stops. A metro does not: its
+ * stations go anywhere and its trains run in straight tunnels between them,
+ * never on the roads -- so it is priced from tunnel lengths rather than
+ * routed, and draws no vehicles in the street. See `TransitSpec.tunnel`.
  *
  * A LOOP, NOT A LINE WITH TWO ENDS. Real bus routes mostly are loops or
  * out-and-back pairs, and a loop needs no turning circle, no layover logic and
@@ -26,8 +25,8 @@
  */
 
 /** The kinds, in the order they appear in the tool. */
-export const TransitKind = { BUS: 0, TRAM: 1 } as const;
-export const TRANSIT_KINDS = ['bus', 'tram'] as const;
+export const TransitKind = { BUS: 0, TRAM: 1, METRO: 2 } as const;
+export const TRANSIT_KINDS = ['bus', 'tram', 'metro'] as const;
 
 export interface TransitSpec {
   name: string;
@@ -41,6 +40,11 @@ export interface TransitSpec {
   walk: number;
   /** What one vehicle costs to run a week, for the budget readout. */
   weekly: number;
+  /**
+   * Underground: runs in its own tunnels between stations, straight, at this
+   * many metres a second, and never on the roads. Absent for street transit.
+   */
+  tunnel?: number;
 }
 
 /**
@@ -53,6 +57,10 @@ export interface TransitSpec {
 export const TRANSIT_SPEC: TransitSpec[] = [
   { name: 'Bus', colour: '#4fa8e8', capacity: 60, dwell: 18, walk: 400, weekly: 2400 },
   { name: 'Tram', colour: '#e8a13f', capacity: 180, dwell: 26, walk: 620, weekly: 7200 },
+  // A metro: stations anywhere, joined by straight tunnels, trains of four
+  // hundred people at twenty metres a second whatever the traffic above. The
+  // most expensive thing a city runs and the only transit that beats a jam.
+  { name: 'Metro', colour: '#b36ae2', capacity: 480, dwell: 30, walk: 750, weekly: 24000, tunnel: 20 },
 ];
 
 /** The fewest and most vehicles a player may put on one line. */

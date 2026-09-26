@@ -718,7 +718,9 @@ export class BuildTools {
       if (dx * dx + dz * dz < 60 * 60) { this.closeLine(); return; }
     }
 
-    const on = this.snapToRoad(cell);
+    // A metro station goes anywhere: the trains are underground. Everything
+    // else stops at a kerb.
+    const on = TRANSIT_SPEC[t.line].tunnel !== undefined ? [x, z] as [number, number] : this.snapToRoad(cell);
     if (on === null) {
       this.say('a stop has to be on a road — click a street');
       return;
@@ -766,7 +768,18 @@ export class BuildTools {
     // them. The fleet is a standing order rather than a purchase -- it turns up
     // every week on the budget, which is where a service belongs.
     const spec = TRANSIT_SPEC[t.line];
-    const cost = (this.stops.length / 2) * (t.line === 0 ? 2600 : 14000) * RULES.build;
+    // A metro is stations and tunnel: a station box dug out at each stop, and
+    // every metre of bore between them, round the loop.
+    let tunnel = 0;
+    if (spec.tunnel !== undefined) {
+      const n = this.stops.length / 2;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        tunnel += Math.hypot(this.stops[j * 2] - this.stops[i * 2], this.stops[j * 2 + 1] - this.stops[i * 2 + 1]);
+      }
+    }
+    const perStop = t.line === 0 ? 2600 : t.line === 1 ? 14000 : 48000;
+    const cost = ((this.stops.length / 2) * perStop + tunnel * 70) * RULES.build;
     if (!this.afford(cost, `a ${spec.name.toLowerCase()} line`)) return;
     const line = this.renderer.world.transit.add(t.line, this.stops);
     this.stops = [];
@@ -2090,9 +2103,12 @@ export class BuildTools {
     for (let k = 0; k < TRANSIT_SPEC.length; k++) {
       const spec = TRANSIT_SPEC[k];
       add(transit, { kind: 'transit', line: k },
-        `${spec.name} line — click along the streets to drop stops, `
-        + 'Enter to close the loop',
-        glyph(k === 0 ? 'bus' : 'tram'), spec.colour);
+        spec.tunnel !== undefined
+          ? `${spec.name} line — click anywhere to place stations, Enter to close the loop. `
+            + 'Trains run in their own tunnels, clear of the traffic'
+          : `${spec.name} line — click along the streets to drop stops, `
+            + 'Enter to close the loop',
+        glyph(k === 0 ? 'bus' : k === 1 ? 'tram' : 'metro'), spec.colour);
     }
     for (const b of Array.from(transit.children) as HTMLElement[]) {
       this.gated.push({ b, branch: 'transport' });

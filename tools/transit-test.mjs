@@ -156,6 +156,28 @@ section('and somebody rides it');
   ok(withOne.sim.transit.ridersOf(withOne.line.id) >= 0, 'the line counts its riders');
 }
 
+// ---- the metro runs in its own tunnels --------------------------------------
+
+section('a metro needs no roads');
+{
+  const world = city();
+  // Stations off the road grid entirely, in a square: nothing a bus could reach.
+  const stations = [-700, -700, 700, -700, 700, 700, -700, 700];
+  const bus = world.transit.add(TransitKind.BUS, loopStops(world, 600), 6);
+  const metro = world.transit.add(TransitKind.METRO, stations, 6);
+  const sim = new Simulation(makeCity(world), world.net, 0x3e7, world);
+  sim.found(30);
+  sim.step(60);
+  ok(sim.transit.worksOf(metro.id), 'a metro line runs between stations the roads do not reach');
+  ok(sim.transit.report.vehicles >= metro.fleet, 'its trains are counted', `${sim.transit.report.vehicles}`);
+  const t = sim.transit.journey(-700, -700, 700, 700);
+  ok(t > 0, 'a journey across it has a time', `${t.toFixed(0)}s`);
+  // Two stations apart on a 5.6 km loop: at 20 m/s and 30 s dwells, well under
+  // what a bus through the streets would take for the same distance.
+  ok(t < 2.83 * 1400 / 8, 'and it is faster than a street journey could be', `${t.toFixed(0)}s`);
+  void bus;
+}
+
 // ---- the timetable comes out of the roads ----------------------------------
 
 section('the timetable is real');
