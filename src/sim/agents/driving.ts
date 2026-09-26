@@ -98,6 +98,10 @@ const MIX = [0.26, 0.56, 0.18];
 /** The hardest anybody brakes, for a light that changed or a car that stopped. */
 const EMERGENCY_BRAKE = 7.0;
 
+/** How far over the limit a vehicle on an emergency call drives, and how much harder it pulls away. */
+const RESPONDER_SPEED = 1.75;
+const RESPONDER_ACCEL = 1.8;
+
 /**
  * Metres before a junction at which a vehicle starts watching it, and the distance
  * at which it commits.
@@ -640,7 +644,13 @@ export class Traffic {
       }
       const lane = c.lane[v];
       const style = STYLE[c.driver[v]];
-      const v0 = Math.max(2, g.speed[lane] * style.limit);
+      // On a call: lights and sirens. Well over the limit, quick off the mark,
+      // and the traffic ahead pulls over rather than holding it up -- an
+      // ambulance that queues behind the rush hour at the speed of everybody
+      // else is a call answered on paper and missed on screen.
+      const responder = c.kind[v] === Kind.EMERGENCY && c.job[v] >= 0;
+      const v0 = Math.max(2, g.speed[lane] * style.limit * (responder ? RESPONDER_SPEED : 1));
+      const pull = style.accel * (responder ? RESPONDER_ACCEL : 1);
       const speed = c.speed[v];
       const laneLength = g.length[lane];
       // Where it started the tick. Nothing below may put it behind this: a
@@ -657,7 +667,8 @@ export class Traffic {
       // the end of it, or nothing.
       let gap = Infinity, closing = 0;
       const leader = c.ahead[v];
-      if (leader >= 0) {
+      // Ordinary traffic makes way for a responder; another responder does not.
+      if (leader >= 0 && !(responder && c.kind[leader] !== Kind.EMERGENCY)) {
         gap = c.along[leader] - c.length[leader] - c.along[v];
         closing = speed - c.speed[leader];
       }
@@ -763,15 +774,15 @@ export class Traffic {
 
       // The intelligent driver model.
       const free = 1 - Math.pow(speed / v0, 4);
-      let accel = style.accel * free;
+      let accel = pull * free;
       if (gap < Infinity) {
         const want = style.gap + Math.max(0,
-          speed * style.headway + (speed * closing) / (2 * Math.sqrt(style.accel * style.brake)));
+          speed * style.headway + (speed * closing) / (2 * Math.sqrt(pull * style.brake)));
         // A gap that has gone negative or tiny means something went wrong upstream;
         // clamping it keeps the term finite instead of producing an infinite brake
         // and a vehicle that teleports backwards.
         const s = Math.max(0.35, gap);
-        accel = style.accel * (free - (want / s) * (want / s));
+        accel = pull * (free - (want / s) * (want / s));
       }
       if (accel < -EMERGENCY_BRAKE) {
         accel = -EMERGENCY_BRAKE;

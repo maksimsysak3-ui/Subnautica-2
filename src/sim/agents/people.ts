@@ -186,6 +186,8 @@ const CITIZEN_SCHEMA = {
 
 /** The service branches whose work needs more than a school leaving certificate. */
 const LEARNED = new Set(['health', 'education', 'government', 'deathcare']);
+/** Of those, the ones that send vehicles out, and so have posts a school leaver can fill. */
+const CREWED = new Set(['health', 'deathcare']);
 
 /** Mood at which a household starts counting the days. */
 export const FED_UP = 90;
@@ -764,7 +766,15 @@ export class People {
       case Purpose.SERVICE: {
         const branch = col.branch[place];
         const name = branch === NO_BRANCH ? '' : BRANCHES[branch];
-        return LEARNED.has(name) ? edu >= Edu.COLLEGE : edu >= Edu.SCHOOL;
+        if (!LEARNED.has(name)) return edu >= Edu.SCHOOL;
+        if (edu >= Edu.COLLEGE) return true;
+        // Crewed services keep half their posts for school leavers: the
+        // paramedics, porters and drivers who put an ambulance on the road.
+        // With every post behind a degree, a new city's clinic stood empty
+        // until a college had graduated somebody -- so medical calls went
+        // unanswered while the police, who hire from school, turned up to
+        // everything.
+        return CREWED.has(name) && edu >= Edu.SCHOOL && col.working[place] * 2 < col.jobs[place];
       }
       default: return true;
     }
