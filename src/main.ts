@@ -229,7 +229,7 @@ async function boot(): Promise<void> {
   }, 45000);
   try {
     for (let i = 0; i < steps.length; i++) {
-      menu.progress(i / steps.length, steps[i][0]);
+      menu.progress(i / steps.length, steps[i][0], (i + 1) / steps.length);
       await breathe();
       steps[i][1]();
     }
