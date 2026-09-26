@@ -1035,6 +1035,7 @@ const LOW: Plan[] = [
   { key: 'cottage', name: 'Cottage', build: cottage, footprint: [3, 3], households: 1 },
   { key: 'bungalow', name: 'Bungalow', build: bungalow, footprint: [3, 3], households: 1 },
   { key: 'villa', name: 'Villa', build: villa, footprint: [3, 3], households: 1 },
+  { key: 'semi', name: 'Semi-detached pair', build: semi, footprint: [2, 3], households: 2 },
 ];
 
 const MID: Plan[] = [
@@ -1044,6 +1045,7 @@ const MID: Plan[] = [
   { key: 'perimeter', name: 'Perimeter block', build: perimeter, footprint: [3, 3], households: 30 },
   { key: 'shoptop', name: 'Flats over shops', build: shoptop, footprint: [3, 3], households: 16 },
   { key: 'maisonette', name: 'Maisonettes', build: maisonette, footprint: [3, 4], households: 16 },
+  { key: 'townhouses', name: 'Townhouses', build: townhouses, footprint: [4, 3], households: 12 },
 ];
 
 /**
@@ -1062,7 +1064,131 @@ const HIGH: Plan[] = [
   { key: 'cored', name: 'Cored tower', build: cored, footprint: [5, 4], households: 64 },
   { key: 'terraced', name: 'Wave tower', build: waveTower, footprint: [5, 5], households: 84 },
   { key: 'twin', name: 'Twin towers', build: twinTowers, footprint: [6, 4], households: 132 },
+  { key: 'podium', name: 'Podium tower', build: podiumTower, footprint: [5, 5], households: 110 },
 ];
+
+// ------------------------------------------------------------ added plans
+
+/**
+ * A semi-detached pair: two houses under one roof, mirrored about the party
+ * wall, each with its own door, bay window and front garden -- the suburban
+ * street's most common building and one the list did not have.
+ */
+function semi(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const [w, d] = plotOf(T, 14.0, 9.0);
+  const floors = storeysOf(T, 2);
+  const x = w / 2, z = d / 2 - 1.5;
+  const wall = homeWall(T, floors);
+  m.box([-x, 0, -z], [x, wall, z], T.wall, { roof: T.cover });
+  m.box([-x - 0.08, 0, -z - 0.08], [x + 0.08, 0.75, z + 0.08], T.base);
+  roofOver(m, T, -x, -z, x, z, wall, { dormers: 0, along: 'x' });
+  if (medium) {
+    // A bay window at each end of the front, mirrored.
+    for (const s of [-1, 1] as const) {
+      const bx0 = s * (x - 4.2), bx1 = s * (x - 1.0);
+      m.box([Math.min(bx0, bx1), 0, z], [Math.max(bx0, bx1), T.floorH - 0.2, z + 1.0], T.wall, { roof: T.cover });
+      m.box([Math.min(bx0, bx1) + 0.3, 0.9, z + 1.0], [Math.max(bx0, bx1) - 0.3, T.floorH - 0.8, z + 1.04], MAT.GLASS);
+    }
+    // The party wall carried up through the roof, and the chimneys on it.
+    if (T.chimney) {
+      m.box([-0.35, wall - 0.2, -0.6], [0.35, wall + 3.0, 0.6], T.base);
+    }
+    // Front gardens with a path to each door and a hedge along the street.
+    m.painted(TINT.GREEN, () => m.box([-x, 0.01, z + 1.0], [x, 0.06, z + 3.4], MAT.GROUND));
+    m.painted(TINT.GREEN_DARK, () => m.box([-x, 0.06, z + 3.0], [x, 0.9, z + 3.4], MAT.FOLIAGE));
+    for (const s of [-1, 1] as const) m.box([s * 1.2 - 0.5, 0.02, z], [s * 1.2 + 0.5, 0.08, z + 3.4], MAT.CONCRETE);
+  }
+  if (fine) {
+    for (const s of [-1, 1] as const) {
+      doorway(m, T, { axis: 'z', sign: 1, plane: z }, s * 1.2);
+      punched(m, T, { axis: 'z', sign: 1, plane: z }, s > 0 ? 0.5 : -x + 0.5, s > 0 ? x - 0.5 : -0.5,
+        { floors: Math.max(1, floors - 1), base: T.floorH + 0.9 });
+      punched(m, T, { axis: 'x', sign: s, plane: s * x }, -z + 1.0, z - 1.0, { floors, base: 1.1 });
+    }
+    punched(m, T, { axis: 'z', sign: -1, plane: -z }, -x + 1.0, x - 1.0, { floors, base: 1.1 });
+    backyard(m, -x, -z - 3.0, x, -z, seed);
+  }
+  return m;
+}
+
+/**
+ * Townhouses: a terrace of four tall narrow houses, three storeys and a roof
+ * terrace each behind glass balustrades, stepped a little so the row has a
+ * rhythm, with bin stores and bikes at the front.
+ */
+function townhouses(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const n = 4, uw = 7.0, x = (n * uw) / 2, z = 6.0;
+  const floors = 3, fh = T.floorH, h = floors * fh;
+  for (let i = 0; i < n; i++) {
+    const x0 = -x + i * uw, x1 = x0 + uw;
+    const step = (i % 2) * 0.6;
+    m.box([x0, 0, -z + step], [x1, h, z + step], T.wall, { roof: MAT.ROOF });
+    m.box([x0 - 0.05, 0, -z + step - 0.05], [x1 + 0.05, 0.6, z + step + 0.05], T.base);
+    // The roof terrace: a pavilion at the back, the rest open behind glass.
+    m.box([x0 + 0.3, h, -z + step + 0.3], [x1 - 0.3, h + 2.8, -z + step + 3.6], T.wall, { roof: MAT.ROOF });
+    if (medium) {
+      m.box([x0 + 0.1, h, z + step - 0.1], [x1 - 0.1, h + 1.1, z + step], MAT.GLASS);
+      m.box([x0, h - 0.2, -z + step], [x0 + 0.2, h + 1.1, z + step], T.trim);
+      m.painted(TINT.GREEN, () => planter(m, x0 + 1.5, z + step - 1.2, 0.5, h + 0.5));
+    }
+    if (fine) {
+      punched(m, T, { axis: 'z', sign: 1, plane: z + step }, x0 + 2.4, x1 - 0.6, { floors, base: 1.1, skipGround: true });
+      punched(m, T, { axis: 'z', sign: 1, plane: z + step }, x0 + 2.4, x1 - 0.6, { floors: 1, base: fh + 1.0 });
+      doorway(m, T, { axis: 'z', sign: 1, plane: z + step }, x0 + 1.4);
+      punched(m, T, { axis: 'z', sign: -1, plane: -z + step }, x0 + 0.8, x1 - 0.8, { floors, base: 1.1 });
+      // A bin store and a bike by each door.
+      m.painted(TINT.WOOD, () => m.box([x0 + 3.0, 0, z + step + 1.0], [x0 + 5.0, 1.3, z + step + 1.8], MAT.PAINT));
+    }
+  }
+  if (medium) m.box([-x, 0.01, z + 0.6], [x, 0.06, z + 3.0], MAT.CONCRETE);
+  if (fine) backyard(m, -x, -z - 3.0, x, -z, seed);
+  return m;
+}
+
+/**
+ * A podium tower: shops across the street front in a two-storey podium with a
+ * planted roof garden on it, and a slender tower of flats rising from one end
+ * with balconies on every floor and a crown at the top.
+ */
+function podiumTower(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 18.0, z = 17.0, ph = 8.0;
+  const floors = 16, fh = 3.1, th = ph + floors * fh;
+  // The podium, across the whole lot.
+  m.box([-x, 0, -z], [x, ph, z - 2.0], T.base, { roof: MAT.ROOF });
+  // The tower on its west half.
+  const tx0 = -x + 2.0, tx1 = -1.0, tz0 = -z + 3.0, tz1 = z - 7.0;
+  m.box([tx0, ph, tz0], [tx1, th, tz1], T.id === 'modern' || T.id === 'asian' ? MAT.GLASS : T.wall, { roof: MAT.ROOF });
+  crown(m, T, tx0, tz0, tx1, tz1, th, seed);
+  if (medium) {
+    // The roof garden on the podium: lawn, planters, trees in tubs.
+    m.painted(TINT.GREEN, () => m.box([1.0, ph, -z + 2.0], [x - 1.0, ph + 0.3, z - 4.0], MAT.GROUND));
+    for (const [px, pz] of [[4.0, -8.0], [12.0, -8.0], [4.0, 4.0], [12.0, 4.0]] as const) planter(m, px, pz, 0.9, ph + 0.9);
+    railing(m, 1.0, x - 1.0, z - 4.0, ph + 0.3);
+    band(m, tx0, tz0, tx1, tz1, ph + 0.2, 0.5, 0.15, T.trim);
+  }
+  if (fine) {
+    // Balconies up both long faces of the tower.
+    balconies(m, { axis: 'z', sign: 1, plane: tz1 }, tx0 + 0.8, tx1 - 0.8,
+      { floors: floors - 1, floorH: fh, base: ph + fh, bays: 4 });
+    balconies(m, { axis: 'x', sign: -1, plane: tx0 }, tz0 + 0.8, tz1 - 0.8,
+      { floors: floors - 1, floorH: fh, base: ph + fh, bays: 5 });
+    punched(m, T, { axis: 'x', sign: 1, plane: tx1 }, tz0 + 1.0, tz1 - 1.0, { floors, base: ph + 0.8 });
+    // Shops along the street front of the podium, with the flats' entrance.
+    shopfront(m, { axis: 'z', sign: 1, plane: z - 2.0 }, -x + 1.0, -3.0, { bays: 4, doorBay: 1, head: 3.6, fascia: 0.8 });
+    shopfront(m, { axis: 'z', sign: 1, plane: z - 2.0 }, 2.0, x - 1.0, { bays: 4, doorBay: 2, head: 3.6, fascia: 0.8 });
+    awning(m, { axis: 'z', sign: 1, plane: z - 2.0 }, 2.5, x - 1.5, 3.8, 1.6);
+    entrance(m, { axis: 'z', sign: 1, plane: z - 2.0 }, -1.0, { width: 2.0, height: 3.0, double: true, glazed: true });
+    bollards(m, { axis: 'z', sign: 1, plane: z - 2.0 }, -x + 1.0, x - 1.0, 1.2, 8);
+    roofClutter(m, tx0 + 1, tz0 + 1, tx1 - 1, tz1 - 1, th, seed, 0.6);
+  }
+  return m;
+}
 
 const SIM = {
   low: (n: number) => ({ households: n, powerKW: 6 * n, waterM3: 1.1 * n, garbagePerWeek: 22 * n, pollution: 0, upkeep: 5 * n }),

@@ -22,7 +22,7 @@ import { levelName } from '../sim/progress';
 import { GOALS } from '../sim/goals';
 import type { TechNode } from '../sim/tech';
 import { assetById } from '../assets/registry';
-import { money, buildingPrice } from '../sim';
+import { money, buildingPrice, serviceUpkeep } from '../sim';
 import type { Progress } from '../sim/progress';
 import { click as clickSound, confirm as confirmSound, deny as denySound } from './sound';
 
@@ -454,7 +454,7 @@ export class TechTree {
       const price = document.createElement('div');
       css(price, [`color:${SKIN.dim}`, 'font-size:12px']);
       price.textContent = `${money(buildingPrice(def))} to build`
-        + (def.sim.upkeep > 0 ? ` · ${money(def.sim.upkeep * 45)}/wk` : '');
+        + (def.sim.upkeep > 0 ? ` · ${money(Math.round(serviceUpkeep(def)))}/wk upkeep` : '');
       text.append(t, price);
       row.append(icon, text);
       list.appendChild(row);

@@ -13,7 +13,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { ThemeProfile } from '../themes';
 import {
-  band, boxSign, entrance, fasciaSign, louvres, parapet, planter, pylonSign,
+  band, bollards, boxSign, entrance, fasciaSign, louvres, parapet, planter, pylonSign, railing,
   ribbon, roofClutter, shopfront, awning, windowGrid,
 } from '../parts';
 import { parkedVehicle } from './vehicles';
@@ -427,6 +427,257 @@ export function skatePark(lod: number): MeshBuilder {
     entrance(m, { axis: 'z', sign: 1, plane: 10.5 }, 7.0, { width: 1.2, height: 2.2 });
     boxSign(m, { axis: 'z', sign: 1, plane: 10.5 }, 4.0, 10.0, 2.5, 3.1);
     for (const px of [-4.0, 0.0]) planter(m, px, 10.8, 0.6, 0.5);
+  }
+  return m;
+}
+
+/**
+ * A GP surgery with its pharmacy: a two-storey practice in pale brick and
+ * render, a glazed waiting room onto the street, the green cross over the
+ * pharmacy counter, an ambulance bay, a ramp and railings, and a planted
+ * forecourt with benches.
+ */
+export function surgery(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 11.0, z = 11.0;
+  m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
+  m.box([-10.0, 0.08, -9.0], [6.0, 7.4, 3.0], MAT.RENDER, { roof: MAT.ROOF });
+  parapet(m, -10.0, -9.0, 6.0, 3.0, 7.4, 0.6, 0.16, MAT.STONE);
+  // The waiting room: single storey, glazed, forward of the block.
+  m.box([-9.0, 0.08, 3.0], [-1.0, 3.6, 7.0], MAT.GLASS, { roof: MAT.ROOF });
+  m.box([-9.3, 3.6, 2.8], [-0.7, 4.0, 7.3], MAT.STONE);
+  // The pharmacy wing.
+  m.box([6.0, 0.08, -5.0], [10.0, 4.2, 5.0], MAT.RENDER, { roof: MAT.ROOF });
+  if (medium) {
+    band(m, -10.0, -9.0, 6.0, 3.0, 3.6, 0.3, 0.12, MAT.STONE);
+    // The green cross on its lit box, over the pharmacy door.
+    m.painted(TINT.SIGN_LIT, () => {
+      m.box([10.0, 2.8, -0.9], [10.3, 3.6, 0.9], MAT.PAINT);
+      m.box([10.0, 2.4, -0.3], [10.3, 4.0, 0.3], MAT.PAINT);
+    });
+    m.painted(TINT.GREEN, () => m.box([-10.5, 0.08, 7.8], [-1.0, 0.16, 10.5], MAT.GROUND));
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: 1, plane: 3.0 }, 0.0, 5.5, { floors: 2, floorH: 3.6, base: 0.9, count: 2, width: 1.6, height: 1.6 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -9.0 }, -9.4, 5.4, { floors: 2, floorH: 3.6, base: 0.9, count: 6, width: 1.6, height: 1.6 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -10.0 }, -8.4, 2.4, { floors: 2, floorH: 3.6, base: 0.9, count: 4, width: 1.4, height: 1.6 });
+    entrance(m, { axis: 'z', sign: 1, plane: 7.0 }, -5.0, { width: 2.0, height: 2.5, double: true, glazed: true });
+    entrance(m, { axis: 'x', sign: 1, plane: 10.0 }, 2.5, { width: 1.4, height: 2.4, glazed: true });
+    boxSign(m, { axis: 'z', sign: 1, plane: 3.0 }, 0.4, 5.6, 5.8, 6.8);
+    // The ramp and its railings, benches, trees and the ambulance bay.
+    m.box([-0.8, 0.08, 7.0], [2.4, 0.4, 9.5], MAT.CONCRETE);
+    railing(m, -0.8, 2.4, 9.5, 0.4, 1.0, 0.8);
+    for (const tx of [-9.0, -4.0]) tree(m, tx, 9.4, 5.0, 1.4);
+    m.painted(TINT.WOOD, () => {
+      for (const bx of [-7.0, -2.6]) m.box([bx - 0.8, 0.4, 8.6], [bx + 0.8, 0.5, 9.0], MAT.PAINT);
+    });
+    m.painted(TINT.SIGN_LIT, () => m.box([4.0, 0.08, 6.0], [9.5, 0.1, 10.0], MAT.PAINT));
+    parkedVehicle(m, 81, 6.8, 8.0, 1, 'van');
+    for (let i = 0; i < 3; i++) parkedVehicle(m, 83 + i, -8.0 + i * 3.0, -10.4, 1, 'car');
+  }
+  return m;
+}
+
+/**
+ * A neighbourhood police post: a small station in brick with its blue lamp,
+ * a front counter behind glass, a secure yard with two patrol cars and a van,
+ * a radio mast on the roof and bollards along the pavement.
+ */
+export function policePost(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 11.0, z = 11.0;
+  m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
+  m.box([-10.0, 0.08, -2.0], [4.0, 7.0, 8.0], MAT.STONE, { roof: MAT.ROOF });
+  parapet(m, -10.0, -2.0, 4.0, 8.0, 7.0, 0.7, 0.16, MAT.CONCRETE);
+  if (medium) {
+    m.painted(TINT.ACCENT, () => band(m, -10.0, -2.0, 4.0, 8.0, 3.2, 0.5, 0.1, MAT.PAINT));
+    // The blue lamp over the door.
+    m.painted(TINT.SIGN_LIT, () => m.box([-3.6, 3.6, 8.0], [-2.4, 4.6, 8.9], MAT.PAINT));
+    // The radio mast.
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([2.0, 7.0, 0.0], [2.0, 17.0, 0.0], 0.12, MAT.METAL, 6);
+      for (const h of [11.0, 14.0, 16.5]) m.box([1.2, h, -0.1], [2.8, h + 0.15, 0.1], MAT.METAL);
+    });
+    fence(m, [4.5, 0, -10.5], [10.5, 0, -10.5], !fine);
+    fence(m, [10.5, 0, -10.5], [10.5, 0, 8.0], !fine);
+    fence(m, [4.5, 0, 8.0], [10.5, 0, 8.0], !fine);
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: 1, plane: 8.0 }, -9.4, -4.4, { floors: 2, floorH: 3.4, base: 0.9, count: 2, width: 1.6, height: 1.6 });
+    windowGrid(m, { axis: 'z', sign: 1, plane: 8.0 }, -1.6, 3.4, { floors: 2, floorH: 3.4, base: 0.9, count: 2, width: 1.6, height: 1.6 });
+    windowGrid(m, { axis: 'x', sign: -1, plane: -10.0 }, -1.4, 7.4, { floors: 2, floorH: 3.4, base: 0.9, count: 3, width: 1.4, height: 1.4 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -2.0 }, -9.4, 3.4, { floors: 2, floorH: 3.4, base: 0.9, count: 4, width: 1.4, height: 1.4 });
+    entrance(m, { axis: 'z', sign: 1, plane: 8.0 }, -3.0, { width: 1.8, height: 2.6, double: true, glazed: true, steps: 2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 8.0 }, -8.8, -4.6, 5.6, 6.4);
+    bollards(m, { axis: 'z', sign: 1, plane: 8.0 }, -9.5, 3.5, 2.0, 7);
+    parkedVehicle(m, 91, 7.5, -6.0, 0, 'car');
+    parkedVehicle(m, 92, 7.5, -1.5, 0, 'car');
+    parkedVehicle(m, 93, 7.5, 3.5, 0, 'van');
+    for (const tx of [-9.0, -5.0]) tree(m, tx, -7.0, 5.0, 1.4);
+    roofClutter(m, -9, -1, 1, 7, 7.0, 95, 0.6);
+  }
+  return m;
+}
+
+/**
+ * A retained fire post: a two-bay appliance house with red doors, a drill tower
+ * with its hose-drying loft, the crew room beside it, a hydrant and a pump on
+ * the apron -- the small station a growing town gets before its first big one.
+ */
+export function firePost(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 11.0, z = 11.0;
+  m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
+  // The appliance house, two bays.
+  m.box([-9.0, 0.08, -6.0], [3.0, 6.4, 4.0], MAT.STONE, { roof: MAT.ROOF });
+  parapet(m, -9.0, -6.0, 3.0, 4.0, 6.4, 0.6, 0.16, MAT.CONCRETE);
+  // The crew room.
+  m.box([3.0, 0.08, -6.0], [9.0, 3.6, 2.0], MAT.RENDER, { roof: MAT.ROOF });
+  // The drill tower.
+  m.box([-10.0, 0.08, -10.5], [-6.0, 16.0, -6.5], MAT.STONE, { roof: MAT.ROOF });
+  if (medium) {
+    m.painted(TINT.BRAND, () => {
+      for (const bx of [-6.0, 0.0]) m.box([bx - 2.4, 0.1, 4.0], [bx + 2.4, 4.6, 4.12], MAT.PAINT);
+      band(m, -9.0, -6.0, 3.0, 4.0, 5.2, 0.5, 0.1, MAT.PAINT);
+    });
+    // The apron in front of the doors, hatched where it must be kept clear.
+    m.painted(TINT.SIGN_LIT, () => {
+      for (let i = 0; i < 6; i++) m.box([-8.5 + i * 2.0, 0.08, 6.0], [-7.7 + i * 2.0, 0.1, 10.0], MAT.PAINT);
+    });
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: 1, plane: 2.0 }, 3.6, 8.4, { floors: 1, floorH: 3.2, base: 0.9, count: 3, width: 1.2, height: 1.3 });
+    windowGrid(m, { axis: 'x', sign: 1, plane: -6.0 }, -10.0, -7.0, { floors: 4, floorH: 3.6, base: 1.0, count: 1, width: 1.0, height: 1.8 });
+    windowGrid(m, { axis: 'z', sign: -1, plane: -6.0 }, -5.0, 2.4, { floors: 1, floorH: 3.2, base: 2.4, count: 3, width: 1.4, height: 1.2 });
+    entrance(m, { axis: 'z', sign: 1, plane: 2.0 }, 7.5, { width: 1.1, height: 2.2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 4.0 }, -8.4, 2.4, 5.0, 5.8);
+    // A hydrant and a light pump out on the apron, and the crew's cars.
+    m.painted(TINT.BRAND, () => m.cylinder(9.5, 8.5, 0.18, 0.08, 0.9, 8, MAT.PAINT));
+    parkedVehicle(m, 101, -3.0, 8.4, 1, 'truck');
+    for (let i = 0; i < 3; i++) parkedVehicle(m, 103 + i, 5.0 + i * 2.6, -9.0, 1, 'car');
+    tree(m, 9.0, -1.0, 5.0, 1.4);
+    roofClutter(m, 3.5, -5.5, 8.5, 1.5, 3.6, 107, 0.6);
+  }
+  return m;
+}
+
+/**
+ * A waste transfer station: a portal-framed tipping hall open to the yard,
+ * push walls inside, bulk trailers backed under the loading chutes, a
+ * weighbridge and office at the gate and the refuse lorries coming in -- the
+ * small town's answer to its rubbish before it has room for a landfill.
+ */
+export function transferStation(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 15.0, z = 15.0;
+  m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
+  // The hall: clad on three sides, a tall open front.
+  const h = 11.0, z0 = -14.0, z1 = 2.0;
+  m.box([-13.0, 0, z0], [13.0, h, z0 + 0.3], MAT.SHED_WALL);
+  for (const s of [-1, 1] as const) m.box([s * 13.0 - 0.15, 0, z0], [s * 13.0 + 0.15, h, z1], MAT.SHED_WALL);
+  m.quad([-13.4, h, z1 + 0.4], [13.4, h, z1 + 0.4], [13.4, h + 1.6, z0], [-13.4, h + 1.6, z0], MAT.ROOF);
+  // The push walls and the heap of what came in today.
+  for (const px of [-6.0, 2.0]) m.box([px - 0.3, 0.08, z0], [px + 0.3, 3.2, z0 + 9.0], MAT.CONCRETE);
+  stockpile(m, -9.5, z0 + 5.0, 5.5, 7.0, 2.4, TINT.METAL_DARK);
+  stockpile(m, -2.0, z0 + 5.0, 6.0, 7.0, 2.0, TINT.WOOD);
+  if (medium) {
+    m.painted(TINT.METAL_DARK, () => {
+      for (let px = -13.0; px <= 13.0; px += 6.5) m.box([px - 0.2, 0, z1 - 0.2], [px + 0.2, h, z1 + 0.2], MAT.TRIM);
+    });
+    m.painted(TINT.BRAND, () => band(m, -13.0, z0, 13.0, z1, h - 1.4, 1.0, 0.1, MAT.PAINT));
+    // Office and weighbridge at the gate.
+    m.box([-14.0, 0.08, 9.0], [-7.0, 3.2, 14.0], MAT.RENDER, { roof: MAT.ROOF });
+    m.painted(TINT.METAL_DARK, () => m.box([-4.0, 0.08, 8.0], [4.0, 0.32, 12.0], MAT.METAL));
+    fence(m, [-x, 0, -z], [-x, 0, z], !fine);
+    fence(m, [x, 0, -z], [x, 0, z], !fine);
+  }
+  if (fine) {
+    // Two bulk trailers backed under the chutes on the side, and the lorries.
+    for (const tz of [-12.0, -6.0]) {
+      m.painted(TINT.BRAND, () => m.box([6.0, 1.2, tz - 1.2], [12.0, 3.8, tz + 1.2], MAT.PAINT));
+      m.painted(TINT.METAL_DARK, () => m.box([6.0, 0.08, tz - 1.0], [12.0, 1.2, tz + 1.0], MAT.TRIM));
+    }
+    paintedAs(TINT.BRAND, () => lorry(m, 0.0, 6.0, 0, 'tipper', false));
+    paintedAs(TINT.ACCENT, () => loader(m, -5.0, -3.0, 2, false));
+    windowGrid(m, { axis: 'z', sign: 1, plane: 14.0 }, -13.4, -7.6, { floors: 1, floorH: 3.0, base: 0.9, count: 3, width: 1.3, height: 1.2 });
+    entrance(m, { axis: 'x', sign: 1, plane: -7.0 }, 11.5, { width: 1.0, height: 2.2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 14.0 }, -13.0, -8.0, 2.4, 3.0);
+    for (let i = 0; i < 5; i++) {
+      m.painted(i % 2 === 0 ? TINT.GREEN : TINT.BRAND, () => m.box([9.0 + (i % 3) * 1.7, 0.08, 6.0 + Math.floor(i / 3) * 2.6], [10.4 + (i % 3) * 1.7, 1.4, 7.6 + Math.floor(i / 3) * 2.6], MAT.PAINT));
+    }
+    tree(m, 12.0, 13.0, 5.5, 1.5);
+  }
+  return m;
+}
+
+/**
+ * A package sewage plant: the compact treatment works a small town starts
+ * with -- two round settling tanks with their scraper bridges turning, an
+ * aeration tank, a control kiosk, a small reed bed for the final polish and a
+ * fence round it all.
+ */
+export function packagePlant(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const x = 12.0, z = 12.0;
+  m.box([-x, 0.0005, -z], [x, 0.08, z], MAT.CONCRETE);
+  // Two clarifiers.
+  for (const cx of [-6.0, 5.0]) {
+    m.cylinder(cx, -5.0, 4.6, 0, 1.6, 32, MAT.CONCRETE);
+    m.cylinder(cx, -5.0, 4.2, 1.2, 1.5, 32, MAT.WATER);
+    m.painted(TINT.METAL_DARK, () => {
+      m.box([cx - 4.4, 1.7, -5.3], [cx + 4.4, 2.0, -4.7], MAT.METAL);
+      m.cylinder(cx, -5.0, 0.5, 1.5, 2.6, 10, MAT.METAL);
+    });
+  }
+  // The aeration tank, rectangular, and the control kiosk.
+  m.box([-10.0, 0.08, 2.0], [0.0, 1.8, 7.0], MAT.CONCRETE);
+  m.box([2.0, 0.08, 3.0], [7.0, 3.2, 7.0], MAT.RENDER, { roof: MAT.ROOF });
+  if (medium) {
+    m.box([-9.6, 1.4, 2.4], [-0.4, 1.7, 6.6], MAT.WATER);
+    m.painted(TINT.METAL_DARK, () => {
+      railing(m, -10.0, 0.0, 7.0, 1.8, 1.0, 1.2);
+      m.pipe([-5.0, 1.0, 1.9], [-6.0, 1.0, -0.6], 0.25, MAT.METAL, 8);
+      m.pipe([0.1, 1.0, 4.5], [2.0, 1.0, 4.5], 0.25, MAT.METAL, 8);
+    });
+    // The reed bed: a planted lagoon in the corner.
+    m.painted(TINT.GREEN_DARK, () => m.box([-11.5, 0.08, 8.5], [-1.0, 0.8, 11.5], MAT.FOLIAGE));
+    fence(m, [-x, 0, -z], [x, 0, -z], !fine);
+    fence(m, [-x, 0, -z], [-x, 0, z], !fine);
+    fence(m, [x, 0, -z], [x, 0, z], !fine);
+  }
+  if (fine) {
+    windowGrid(m, { axis: 'z', sign: 1, plane: 7.0 }, 2.6, 6.4, { floors: 1, floorH: 3.0, base: 0.9, count: 2, width: 1.1, height: 1.0 });
+    entrance(m, { axis: 'x', sign: 1, plane: 7.0 }, 5.0, { width: 1.0, height: 2.2 });
+    boxSign(m, { axis: 'z', sign: 1, plane: 7.0 }, 2.4, 6.6, 2.4, 3.0);
+    // Blowers for the aeration, on a plinth beside the tank.
+    m.painted(TINT.BRAND, () => {
+      for (let i = 0; i < 3; i++) m.box([-9.0 + i * 2.2, 0.08, 7.8], [-7.6 + i * 2.2, 1.4, 8.4], MAT.PAINT);
+    });
+    for (let k = 0; k < 12; k++) {
+      const rx = -11.0 + (k % 6) * 1.8, rz = 9.0 + Math.floor(k / 6) * 1.4;
+      m.painted(TINT.GREEN, () => m.cone(rx, rz, 0.5, 0.05, 0.8, 1.8, 6, MAT.FOLIAGE));
+    }
+    // Each clarifier's scum baffle and centre well, and the sludge they
+    // settle, held in a tall tank by the kiosk until the tanker comes.
+    m.painted(TINT.METAL_DARK, () => {
+      for (const cx of [-6.0, 5.0]) {
+        m.cylinder(cx, -5.0, 3.7, 1.5, 1.75, 32, MAT.METAL);
+        m.cylinder(cx, -5.0, 1.2, 1.4, 1.9, 16, MAT.METAL);
+      }
+    });
+    m.cylinder(10.0, 1.2, 1.5, 0.08, 4.2, 24, MAT.CONCRETE);
+    m.painted(TINT.METAL_DARK, () => {
+      m.cone(10.0, 1.2, 1.55, 0.2, 4.2, 4.8, 24, MAT.METAL);
+      m.box([11.5, 0.08, 1.0], [11.6, 4.8, 1.4], MAT.METAL);
+      m.pipe([8.5, 0.6, 1.2], [7.1, 0.6, 3.5], 0.18, MAT.METAL, 8);
+    });
+    parkedVehicle(m, 111, 9.0, 9.5, 1, 'van');
+    tree(m, 10.0, -10.0, 5.0, 1.4);
   }
   return m;
 }

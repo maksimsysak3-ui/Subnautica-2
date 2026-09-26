@@ -34,7 +34,7 @@ import type { RoadClass } from './roadgraph';
  * 3: land is bought a plot at a time, and a file with no record of which plots
  * were bought would load as a city standing on land nobody owns.
  */
-const VERSION = 5;
+const VERSION = 6;
 /** The oldest version `migrate` can bring up to date. See the note above on version 1. */
 const OLDEST = 3;
 
@@ -48,13 +48,21 @@ const OLDEST = 3;
  */
 const MIGRATIONS: Record<number, (f: SaveFile) => SaveFile> = {
   3: (f) => ({ ...f, v: 4 }),
-  // Version 5 moved money onto the genre's scale -- see CURRENCY -- so an older
+  // Version 5 moved money onto a scale of fifty, so an older
   // treasury is converted with it, or a city would load fifty times poorer
   // than it was left against prices fifty times higher.
   4: (f) => {
     const m = (f as unknown as { money?: unknown }).money;
     if (!Array.isArray(m) || typeof m[0] !== 'number') return { ...f, v: 5 };
-    return { ...f, money: [m[0] * CURRENCY, ...m.slice(1)], v: 5 } as SaveFile;
+    return { ...f, money: [m[0] * 50, ...m.slice(1)], v: 5 } as SaveFile;
+  },
+  // Version 6 brought the scale down from fifty to CURRENCY, so a city lands
+  // as rich against its takings as it was left. (Prices fell further -- see
+  // BUILD_WEIGHT -- which an old city simply enjoys.)
+  5: (f) => {
+    const m = (f as unknown as { money?: unknown }).money;
+    if (!Array.isArray(m) || typeof m[0] !== 'number') return { ...f, v: 6 };
+    return { ...f, money: [Math.round(m[0] * CURRENCY / 50), ...m.slice(1)], v: 6 } as SaveFile;
   },
 };
 

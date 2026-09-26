@@ -48,6 +48,7 @@
 import { BRANCHES } from '../../assets/types';
 import type { Industry } from '../industry';
 import { RULES, CURRENCY, UPKEEP_WEIGHT } from '../difficulty';
+import { serviceUpkeep, roadUpkeepPerMetre } from '../costs';
 import { Budget, Tax, TAX_NEUTRAL, OVERDRAFT } from '../budget';
 import { Places, Purpose, TIER_UPKEEP } from './places';
 import { POLICY_BY_ID } from '../districts';
@@ -55,7 +56,6 @@ import type { Districts } from '../districts';
 import { People } from './people';
 import { Migration } from './migration';
 import { ASSETS } from '../../assets/registry';
-import { ROAD_SPECS } from '../roadgraph';
 import type { RoadGraph } from '../roadgraph';
 import type { TransitNet } from './transit';
 import type { Ground } from './ground';
@@ -145,18 +145,10 @@ const FARE = 2.4;
  * neutral rate. That is the pace at which a player is deciding what to build
  * next rather than waiting to be allowed to.
  *
- * What the library's `upkeep` figure is worth in money a week.
- *
- * Thirty. At forty-five a fire station cost eight thousand a week and a primary
- * school twelve and a half -- a building's whole price again every six weeks --
- * so a town of a thousand spent most of its takings keeping the lights on and
- * a player's first services felt like a punishment for building them.
- *
- * The asset library states an upkeep for everything, in its own units. Only the
- * city's own buildings are the city's bill -- a warehouse's running costs are
- * its owner's, and they are already priced into what it produces.
+ * What a city service costs to keep is `serviceUpkeep` in costs.ts: a share
+ * of its price a week. Only the city's own buildings are the city's bill -- a
+ * warehouse's running costs are its owner's, already priced into what it makes.
  */
-export const UPKEEP_PER_UNIT = 30;
 
 /** And the share of that a building costs even with nobody working in it. */
 const UPKEEP_IDLE = 0.45;
@@ -170,13 +162,6 @@ const UPKEEP_IDLE = 0.45;
  */
 const PLANT_FIXED = 0.2;
 
-/**
- * Weekly maintenance per metre of carriageway, by how wide the road is.
- *
- * Lowered from 0.35 after the long-game bot showed a town of a hundred and
- * fifty spending more on its few streets than it took in residential tax.
- */
-const ROAD_UPKEEP_PER_EDGE_METRE = 0.22;
 
 /** Weekly interest on an overdraft. */
 const INTEREST = 0.008;
@@ -402,8 +387,8 @@ export class Economy {
   /** Weekly upkeep by prototype: how many there are, and what they cost together. */
   readonly upkeepByProto = new Map<number, { count: number; total: number }>();
 
-  /** Road metres by class, kept between road edits rather than resummed. */
-  private roadMetres = 0;
+  /** Weekly road upkeep, kept between road edits rather than resummed. */
+  private roadWeekly = 0;
   private roadVersion = -1;
 
   private readonly rng: Rng;
@@ -666,23 +651,24 @@ export class Economy {
       for (let i = 0; i < pool.size; i++) {
         const id = pool.member(i);
         const def = ASSETS[c.proto[id]];
-        const upkeep = def?.sim?.upkeep ?? 0;
-        if (upkeep <= 0) continue;
+        // Priced, not rated: see `serviceUpkeep` in costs.ts.
+        if (def === undefined || (def.sim?.upkeep ?? 0) <= 0) continue;
+        const upkeep = serviceUpkeep(def);
         // A station with half its watch on costs more than half: the building is
         // there either way and only the wages move.
         const staffed = c.jobs[id] > 0 ? c.working[id] / c.jobs[id] : 1;
         const load = def === undefined ? null : this.loadOf(def.id);
         const running = load === null ? 1 : PLANT_FIXED + (1 - PLANT_FIXED) * load;
-        const cost = upkeep * UPKEEP_PER_UNIT * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running
+        const cost = upkeep * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running
           * (1 + TIER_UPKEEP * c.tier[id]);
         total += cost;
-        if (b < this.servicesByBranch.length) this.servicesByBranch[b] += cost * RULES.upkeep;
+        if (b < this.servicesByBranch.length) this.servicesByBranch[b] += cost;
         const row = this.upkeepByProto.get(c.proto[id]);
-        if (row === undefined) this.upkeepByProto.set(c.proto[id], { count: 1, total: cost * RULES.upkeep });
-        else { row.count++; row.total += cost * RULES.upkeep; }
+        if (row === undefined) this.upkeepByProto.set(c.proto[id], { count: 1, total: cost });
+        else { row.count++; row.total += cost; }
       }
     }
-    return total * RULES.upkeep;
+    return total;
   }
 
   /** Metres of carriageway, resummed only when the network changes. */
@@ -691,15 +677,15 @@ export class Economy {
     if (net === null) return 0;
     if (net.version !== this.roadVersion) {
       this.roadVersion = net.version;
-      let metres = 0;
-      for (const link of net.links) {
-        const spec = ROAD_SPECS[link.cls];
-        metres += net.length(link) * spec.edge;
-      }
-      this.roadMetres = metres;
+      // Each road by its own class's upkeep per metre: a lane costs little to
+      // keep and a motorway a lot, as they did to build.
+      let weekly = 0;
+      for (const link of net.links) weekly += net.length(link) * roadUpkeepPerMetre(link.cls);
+      this.roadWeekly = weekly;
     }
-    return this.roadMetres * ROAD_UPKEEP_PER_EDGE_METRE * CURRENCY * UPKEEP_WEIGHT;
+    return this.roadWeekly;
   }
+
 
   /**
    * Something happens, now and then.

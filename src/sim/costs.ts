@@ -41,10 +41,47 @@ export function buildingPrice(def: AssetDef): number {
   return Math.max(step, Math.round(priced / step) * step);
 }
 
-/** Cost per metre of carriageway, by class. Width is most of it. */
+/**
+ * Weekly upkeep, as a share of what the thing cost to build.
+ *
+ * Upkeep used to be its own table of ratings times a constant, and the two
+ * drifted apart from the prices: a service cost about a seventh of its price
+ * every week, so a clinic ate its own cost in upkeep in seven weeks and a
+ * handful of streets cost more to keep than the town could earn. Tied to the
+ * price, upkeep is whatever was built, in proportion -- a big plant costs a
+ * lot to run because it cost a lot to build, a street costs little because it
+ * cost little -- and the difficulty's upkeep setting still leans on it.
+ */
+export const SERVICE_UPKEEP_RATE = 0.07;
+export const ROAD_UPKEEP_RATE = 0.012;
+
+/** How the difficulty leans on upkeep, against how it leans on building. */
+function upkeepLean(): number {
+  return RULES.upkeep / Math.max(1e-9, RULES.build);
+}
+
+/** A service building's weekly upkeep at full staff. */
+export function serviceUpkeep(def: AssetDef): number {
+  return buildingPrice(def) * SERVICE_UPKEEP_RATE * upkeepLean();
+}
+
+/** A metre of road's weekly upkeep, by class. */
+export function roadUpkeepPerMetre(cls: RoadClass): number {
+  return roadPrice(cls) * ROAD_UPKEEP_RATE * upkeepLean();
+}
+
+/**
+ * Cost per metre of carriageway, by class. Width is most of it.
+ *
+ * About a third of what it was. At 5.5 a metre of corridor a hundred-metre
+ * street cost a quarter of a million, and a town's first grid ate the whole
+ * treasury: a city builder is drawn in roads, and the first ones have to be
+ * cheap enough to draw freely. What stops a player paving the map is upkeep,
+ * a share of the price every week, not the price itself.
+ */
 export function roadPrice(cls: RoadClass): number {
   const spec = ROAD_SPECS[cls];
-  return Math.round((spec.edge * 5.5 + (spec.tram ? 42 : 0) + (spec.median ? 8 : 0)) * RULES.build);
+  return Math.round((spec.edge * 1.9 + (spec.tram ? 16 : 0) + (spec.median ? 3 : 0)) * RULES.build);
 }
 
 /**

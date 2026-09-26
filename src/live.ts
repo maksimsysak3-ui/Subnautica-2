@@ -850,7 +850,10 @@ export class LiveCity {
 
   /** Shows the cards for levels the city has just crossed. */
   celebrate(levels: LevelUp[]): void {
-    for (const l of levels) this.levelCard.push(l);
+    // The card promises the payout "to the treasury", so this is where it goes:
+    // every level crossed, however it was earned, passes through here once.
+    const budget = this.renderer.world.budget;
+    for (const l of levels) { budget.credit(l.cash); this.levelCard.push(l); }
     this.tech.refresh();
     this.onProgress?.();
   }

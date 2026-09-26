@@ -784,7 +784,64 @@ function yard(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
 }
 
 /** A mill: floors of production stacked, the way industry was built. */
+/**
+ * The modern mill: a silo battery, not a block. The theme's mill is a brick
+ * multi-storey with windows on every floor, and in cladding that read as flats
+ * -- a yellow apartment block on an industrial estate. A modern feed or flour
+ * mill is a bank of concrete silos with a headhouse across their tops, an
+ * elevator tower, a conveyor gallery down to the lorry intake and a clad
+ * process shed with its dust extraction.
+ */
+function modernMill(lod: number, seed: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const fine = lod < 1, medium = lod < 2;
+  const sh = 24.0;
+  // Six silos in two rows, touching, the way slipformed silos are built.
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 3; c++) {
+      m.cylinder(-12.0 + c * 5.0, -11.0 + r * 5.0, 2.5, 0, sh, 16, MAT.CONCRETE);
+    }
+  }
+  // The headhouse across their tops, with its strip of glazing.
+  m.box([-14.8, sh, -13.8], [0.2, sh + 4.2, -3.2], MAT.CLADDING, { roof: MAT.ROOF });
+  // The elevator tower, taller again.
+  m.box([1.0, 0, -13.0], [5.0, sh + 9.0, -8.0], MAT.CLADDING, { roof: MAT.ROOF });
+  // The process shed.
+  m.box([-14.0, 0, 1.0], [12.0, 11.0, 12.0], MAT.SHED_WALL, { roof: MAT.ROOF });
+  parapet(m, -14.0, 1.0, 12.0, 12.0, 11.0, 0.8, 0.2, MAT.METAL);
+  // The lorry intake: an open-ended shed with a drive-through pit.
+  m.box([7.0, 0, -6.0], [15.0, 7.0, -0.5], MAT.SHED_WALL, { roof: MAT.ROOF });
+  if (medium) {
+    m.painted(TINT.BRAND, () => {
+      band(m, -14.0, 1.0, 12.0, 12.0, 8.0, 1.2, 0.12, MAT.TRIM);
+      band(m, 1.0, -13.0, 5.0, -8.0, sh + 6.5, 1.0, 0.1, MAT.TRIM);
+    });
+    m.box([-14.6, sh + 1.6, -3.3], [0.0, sh + 2.8, -3.18], MAT.GLASS);
+    // The conveyor gallery from the intake up to the elevator head, and the
+    // spouts down into the silos.
+    m.painted(TINT.METAL_DARK, () => {
+      m.pipe([11.0, 7.0, -3.0], [4.0, sh + 6.0, -9.0], 0.7, MAT.METAL, 6);
+      for (let c = 0; c < 3; c++) m.pipe([-12.0 + c * 5.0, sh + 4.2, -8.5], [-12.0 + c * 5.0, sh, -8.5], 0.15, MAT.METAL, 5);
+      // Dust extraction: a duct over the shed roof to a cyclone.
+      m.pipe([-8.0, 11.0, 6.0], [-8.0, 14.0, 6.0], 0.5, MAT.METAL, 8);
+      m.pipe([-8.0, 14.0, 6.0], [-15.0, 14.0, 6.0], 0.5, MAT.METAL, 8);
+      m.cone(-15.0, 6.0, 1.2, 0.3, 11.0, 14.5, 12, MAT.METAL);
+    });
+    m.box([-15.0, 0.01, 12.0], [15.0, 0.07, 15.5], MAT.CONCRETE);
+  }
+  if (fine) {
+    louvres(m, { axis: 'z', sign: 1, plane: 12.0 }, -12.0, -2.0, 4.0, 7.0, 8);
+    entrance(m, { axis: 'z', sign: 1, plane: 12.0 }, 4.0, { width: 1.6, height: 2.6, double: true, glazed: true });
+    boxSign(m, { axis: 'z', sign: 1, plane: 12.0 }, 1.0, 10.0, 9.0, 10.4);
+    windowGrid(m, { axis: 'z', sign: 1, plane: -8.0 }, 1.5, 4.5, { floors: 6, floorH: 5.0, base: 3.0, count: 1, width: 1.2, height: 1.0 });
+    parkedVehicle(m, seed + 17, 11.0, -3.2, 1, 'truck');
+    for (let i = 0; i < 3; i++) parkedVehicle(m, seed * 3 + i, -12.0 + i * 3.0, 14.0, 1, 'car');
+  }
+  return m;
+}
+
 function mill(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
+  if (T.id === 'modern') return modernMill(lod, seed);
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
   const w = 24.0, d = 14.0;
@@ -793,9 +850,9 @@ function mill(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const floorH = 3.6;
   const wall = floors * floorH + 1.0;
 
-  m.box([-x, 0, -z], [x, wall, z], T.id === 'modern' ? MAT.CLADDING : MAT.BRICK, { roof: MAT.ROOF });
+  m.box([-x, 0, -z], [x, wall, z], MAT.BRICK, { roof: MAT.ROOF });
   // Stair and hoist tower, taller than the block: the mill's landmark.
-  m.box([-2.6, 0, z - 0.4], [2.6, wall + 5.0, z + 3.0], T.id === 'modern' ? MAT.CONCRETE : MAT.BRICK, { roof: MAT.ROOF });
+  m.box([-2.6, 0, z - 0.4], [2.6, wall + 5.0, z + 3.0], MAT.BRICK, { roof: MAT.ROOF });
   parapet(m, -2.6, z - 0.4, 2.6, z + 3.0, wall + 5.0, 0.9, 0.2, T.base);
   if (T.roof === 'flat') parapet(m, -x, -z, x, z, wall, 1.1, 0.24, T.base);
   else roofOver(m, T, -x, -z, x, z, wall, { along: 'x' });
@@ -810,11 +867,9 @@ function mill(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
         m.box([px - 0.35, 0, pz + (s > 0 ? 0 : -0.22)], [px + 0.35, wall - 0.9, pz + (s > 0 ? 0.22 : 0)], T.base);
       }
     }
-    if (T.id !== 'modern') {
-      m.cylinder(-x - 2.6, -z + 3.0, 1.05, 0, wall + 9.0, 10, MAT.BRICK);
-      m.cylinder(-x - 2.6, -z + 3.0, 1.2, wall + 8.2, wall + 9.4, 10, MAT.BRICK);
-      m.emit(-x - 2.6, wall + 9.4, -z + 3.0);
-    }
+    m.cylinder(-x - 2.6, -z + 3.0, 1.05, 0, wall + 9.0, 10, MAT.BRICK);
+    m.cylinder(-x - 2.6, -z + 3.0, 1.2, wall + 8.2, wall + 9.4, 10, MAT.BRICK);
+    m.emit(-x - 2.6, wall + 9.4, -z + 3.0);
     m.painted(TINT.METAL_DARK, () => {
       m.box([-1.2, wall + 5.0, z + 1.0], [1.2, wall + 6.6, z + 2.6], MAT.TRIM);
       m.pipe([0, wall + 6.6, z + 1.8], [0, wall + 6.6, z + 4.4], 0.12, MAT.TRIM, 6);

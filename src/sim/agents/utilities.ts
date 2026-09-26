@@ -129,12 +129,16 @@ const SUPPLY: Record<string, Supply> = {
   // A hole in the ground and a compactor: a quarter of an incinerator, and it
   // barely needs anybody -- which is exactly why a town starts with one.
   'svc.waste.landfill': { rubbish: 240000, crewed: 0.3 },
+  // A shed that bales and ships it on: half a landfill, on a quarter of the ground.
+  'svc.waste.transfer': { rubbish: 120000, crewed: 0.6 },
   // A pump is a pump. It runs.
   'svc.water.pump': { water: 120000, needsRiver: true, crewed: 0.3 },
   'svc.water.tower': { storeDays: 0.4 },
   'svc.water.reservoir': { storeDays: 2.2 },
   'svc.water.valvehouse': {},
   'svc.water.sewage': { sewage: 220000, crewed: 0.7 },
+  // A village's first treatment: small, and it mostly runs itself.
+  'svc.sewage.package': { sewage: 45000, crewed: 0.25 },
   'svc.water.treatment': { sewage: 80000, water: 26000, crewed: 0.7 },
   // Treatment rather than abstraction: a filtration works cleans what the pumps
   // already drew, so it is worth about a third of a pump on its own and is what

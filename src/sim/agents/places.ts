@@ -633,7 +633,12 @@ export function appealOf(def: AssetDef | undefined): number {
   for (const [re, pull] of DRAW_WORDS) if (re.test(text)) return pull;
   if (def.zone === 'commercial' && /mall|market|shopping|plaza|cinema/.test(text)) return 2.5;
   const area = def.footprint[0] * def.footprint[1];
-  if (def.signature === true && (def.zone === 'commercial' || def.zone === 'service')) return 4;
+  // A signature building is somewhere to go by name: the shops and halls
+  // most, but a famous tower or works draws its sightseers too.
+  if (def.signature === true) {
+    if (def.zone === 'commercial' || def.zone === 'service') return 6;
+    if (def.zone !== 'residential') return 2.5;
+  }
   if (def.branch === 'parks' && area >= 48) return 1.5 + Math.min(3, area / 60);
   if (def.zone === 'commercial' && def.density === 'high' && area >= 24) return 1.5;
   return 0;

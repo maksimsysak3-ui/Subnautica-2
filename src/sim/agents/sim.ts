@@ -28,7 +28,7 @@
 
 import type { Hq, PlantIn } from '../industry';
 import type { ResourceId } from '../resources';
-import { UPKEEP_PER_UNIT } from './economy';
+import { serviceUpkeep } from '../costs';
 import type { PlumeView } from './plumes';
 import { Scheduler, Rate, slice, TICK_SECONDS, TICK_HZ } from './tick';
 import { Clock, TICKS_PER_DAY } from './calendar';
@@ -58,7 +58,6 @@ import { Transit } from '../transit';
 import { Economy } from './economy';
 import { ASSETS } from '../../assets/registry';
 import { ASSET_INDEX } from '../inventory';
-import { RULES } from '../difficulty';
 import { INSTANCE_FLOATS } from '../city';
 import { Budget } from '../budget';
 import { Policies } from '../policies';
@@ -972,7 +971,8 @@ export class Simulation {
     };
     // The building costs something whether or not it is staffed; the wages move.
     const running = (id: string, staff: number): number =>
-      (ASSETS[ASSET_INDEX.get(id) ?? -1]?.sim.upkeep ?? 0) * UPKEEP_PER_UNIT * RULES.upkeep * (0.4 + 0.6 * staff);
+      ((): number => { const d = ASSETS[ASSET_INDEX.get(id) ?? -1]; return d === undefined ? 0 : serviceUpkeep(d); })()
+        * (0.4 + 0.6 * staff);
     const staffOf = (h: Hq): number => {
       const [x, z] = ind.centre(h, world.grid);
       return staffAt(`spec.hq.${h.kind}`, x, z);

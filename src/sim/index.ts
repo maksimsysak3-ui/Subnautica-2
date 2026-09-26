@@ -31,7 +31,7 @@ export type { Chunk, TerrainMesh } from './terrain';
 export { hash2, noise2, fbm } from './hash';
 export { simConfig, configureSim, LITE } from './config';
 export type { SimConfig } from './config';
-export { buildingPrice, roadPrice, zonePrice, money } from './costs';
+export { buildingPrice, roadPrice, zonePrice, money, serviceUpkeep, roadUpkeepPerMetre } from './costs';
 export {
   Land, PLOTS, STARTING, startingLand, plotAt, plotAtWorld, plotBounds, plotCells,
   plotSpan, ownsCells, ownsAt,

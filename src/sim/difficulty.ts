@@ -40,17 +40,25 @@ export interface Rules {
  * The economy was designed and balanced in small numbers -- a town of six
  * hundred grossing fifty thousand a week -- and the balance between income,
  * upkeep and prices is what matters, not the scale. But a city builder's money
- * is read at the scale the genre set: millions in and out of the treasury by
- * the time a town has a few streets. So every figure the player sees and pays
+ * is read at the scale the genre set: a treasury of about a million to found a
+ * town on, and a million a week in once it is a couple of thousand people. So every figure the player sees and pays
  * is this many times the designed one: income, prices, grants, the treasury.
  */
-export const CURRENCY = 50;
+export const CURRENCY = 8;
 /**
  * And upkeep a third heavier again than that, so a grown town's running costs
  * are a real weight against its takings -- about two fifths of them, where
  * they were under a third -- and a service is a decision, not a formality.
  */
 export const UPKEEP_WEIGHT = 1.3;
+/**
+ * And building a good deal cheaper than the designed prices against that
+ * income: a city should be limited by what it can run, not by what it can
+ * put down. Upkeep is a share of the designed price, not this one -- see
+ * costs.ts -- so halving what a clinic costs to buy does not halve what it
+ * costs to staff.
+ */
+export const BUILD_WEIGHT = 0.5;
 
 /** The designed rules, before the currency scale. */
 const DESIGNED: readonly Rules[] = [
@@ -58,21 +66,21 @@ const DESIGNED: readonly Rules[] = [
     id: 'relaxed', label: 'Relaxed', tagline: 'Build first, balance later',
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
       + 'For players who want to shape a city without watching the books.',
-    funds: 600000, grantWeekly: 18000, grantUntil: 4000,
+    funds: 190000, grantWeekly: 18000, grantUntil: 4000,
     build: 0.8, upkeep: 0.8, income: 1.1, quiet: 4000, xp: 1.3,
   },
   {
     id: 'standard', label: 'Standard', tagline: 'The city as it was designed',
     blurb: 'Enough to found a town and make its first real decisions. Taxes, '
       + 'services and growth have to be kept in step.',
-    funds: 300000, grantWeekly: 14000, grantUntil: 2500,
+    funds: 125000, grantWeekly: 14000, grantUntil: 2500,
     build: 1, upkeep: 1, income: 1, quiet: 2000, xp: 1,
   },
   {
     id: 'hard', label: 'Hard', tagline: 'Every coin is spoken for',
     blurb: 'A thin treasury, dear construction, a short grant and residents who '
       + 'complain early. For players who like the budget to fight back.',
-    funds: 260000, grantWeekly: 9500, grantUntil: 1500,
+    funds: 100000, grantWeekly: 9500, grantUntil: 1500,
     build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85,
   },
 ];
@@ -81,7 +89,7 @@ export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
   ...r,
   funds: r.funds * CURRENCY,
   grantWeekly: r.grantWeekly * CURRENCY,
-  build: r.build * CURRENCY,
+  build: r.build * CURRENCY * BUILD_WEIGHT,
   upkeep: r.upkeep * CURRENCY * UPKEEP_WEIGHT,
   income: r.income * CURRENCY,
 }));

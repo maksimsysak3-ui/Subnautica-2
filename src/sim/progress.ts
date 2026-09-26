@@ -22,7 +22,7 @@
  * Everything here is state of the city, so it saves and loads with it.
  */
 
-import { RULES, CURRENCY } from './difficulty';
+import { RULES, CURRENCY, BUILD_WEIGHT } from './difficulty';
 
 /** Experience for one building the player places, per thousand it cost. */
 const XP_PER_THOUSAND = 1.4;
@@ -131,11 +131,12 @@ export class Progress {
 
   /** Experience for a building the player paid for. */
   forBuilding(price: number, signature: boolean): number {
+    // Per thousand of the designed price, not the displayed one: experience
+    // must not move because the currency or the price scale did.
+    const designed = price / (CURRENCY * BUILD_WEIGHT);
     return signature
-      ? XP_PER_SIGNATURE + Math.round(price / 1000)
-      // Per thousand of the designed price, not the displayed one: experience
-      // must not rise fifty-fold because the currency did.
-      : XP_PER_BUILDING + Math.round((price / CURRENCY / 1000) * XP_PER_THOUSAND);
+      ? XP_PER_SIGNATURE + Math.round(designed / 20)
+      : XP_PER_BUILDING + Math.round((designed / 1000) * XP_PER_THOUSAND);
   }
 
   /**

@@ -232,7 +232,7 @@ export class BuildTools {
   private readMoney!: HTMLElement;
   /** The four speed keys, and which one is down. */
   private speedButtons: HTMLElement[] = [];
-  /** The unspent-star count over the development key. */
+  /** The unspent-star count on the level dial. */
   private starChip: HTMLElement | null = null;
   /** The level cell in the status row. */
   private readLevel!: HTMLElement;
@@ -1215,7 +1215,7 @@ export class BuildTools {
       }
       denySound();
       this.say(`the ${t.proto.def.name.toLowerCase()} is not unlocked yet `
-        + '\u2014 spend stars on it in Development');
+        + '\u2014 spend stars on it: click the level dial, or press T');
       return;
     }
     if (!this.afford(buildingPrice(t.proto.def), t.proto.def.name)) return;
@@ -1717,6 +1717,17 @@ export class BuildTools {
   // ---- the bar ---------------------------------------------------------
 
   private select(tool: Tool): void {
+    // A zone the city has not reached yet cannot be picked up at all -- not
+    // picked up and then refused on the first drag, which is what a locked
+    // tile that still selected the brush did.
+    if (tool.kind === 'zone') {
+      const needs = zoneNeeds(tool.zone, tool.density);
+      if (this.renderer.world.progress.level < needs) {
+        denySound();
+        this.say(`${tool.density} ${tool.zone} opens at level ${needs}, ${levelName(needs)}`);
+        return;
+      }
+    }
     // Transit lines are the transport branch, and open with it.
     if (tool.kind === 'transit' && !this.branchOpen('transport')) {
       this.sayLocked('Public transport', 'transport');
@@ -2085,14 +2096,8 @@ export class BuildTools {
       b.addEventListener('click', () => this.save());
       keep.appendChild(b);
     }
-    {
-      const b = document.createElement('button');
-      chip(b, SKIN.warn, glyph('develop'));
-      tip(b, 'Development \u2014 spend stars on what the city can build', 'T');
-      b.appendChild(this.starBadge());
-      b.addEventListener('click', () => this.onTech?.());
-      keep.appendChild(b);
-    }
+    // No development key on the bar: the level ring on the status strip opens
+    // the tree, and so does T. A second way in on the toolbar was clutter.
     {
       const b = document.createElement('button');
       chip(b, SKIN.dim, glyph('settings'));
@@ -2253,21 +2258,21 @@ export class BuildTools {
       + `<b data-num>1</b></span>`
       + `<span class="mr-dial-text"><b data-name></b><i data-next></i></span>`;
     b.addEventListener('click', () => this.onTech?.());
+    // The unspent stars, on the dial that opens the tree they are spent in.
+    b.style.position = 'relative';
+    const chip = document.createElement('span');
+    chip.style.cssText = [
+      'position:absolute', 'top:-5px', 'left:22px', 'min-width:17px', 'height:17px',
+      'padding:0 4px', 'border-radius:9px', 'display:none', 'place-items:center',
+      `background:${SKIN.warn}`, 'color:#1a1206', 'font:800 10px/1 var(--ui, system-ui, sans-serif)',
+      'box-shadow:0 0 0 2px rgba(10,15,22,.9)', 'pointer-events:none',
+    ].join(';');
+    b.appendChild(chip);
+    this.starChip = chip;
     return b;
   }
 
-  /** The little count of unspent stars that rides on the development key. */
-  private starBadge(): HTMLElement {
-    const chip = document.createElement('span');
-    css(chip, ['position:absolute', 'right:-3px', 'top:-4px', 'min-width:15px',
-      'height:15px', 'padding:0 3px', 'border-radius:8px', 'display:grid',
-      'place-items:center', `background:${SKIN.warn}`, 'color:#241a05',
-      `font:700 11px/1 ${SKIN.mono}`, 'pointer-events:none',
-      'box-shadow:0 2px 6px rgba(0,0,0,.5)']);
-    this.starChip = chip;
-    this.paintProgress();
-    return chip;
-  }
+
 
   /** Repaints everything that shows the city's career. */
   paintProgress(): void {
@@ -2288,7 +2293,9 @@ export class BuildTools {
       if (name !== null) name.textContent = levelName(p.level);
       const next = this.readLevel.querySelector<HTMLElement>('[data-next]');
       if (next !== null) {
-        next.textContent = top ? 'Top level' : `${Math.round(done * 100)}% to level ${p.level + 1}`;
+        next.textContent = p.stars > 0
+          ? `${p.stars} star${p.stars === 1 ? '' : 's'} to spend`
+          : top ? 'Top level' : `${Math.round(done * 100)}% to level ${p.level + 1}`;
       }
     }
   }
@@ -2565,7 +2572,8 @@ export class BuildTools {
     for (const p of SIGNATURES) {
       if (p.def.zone !== zone) continue;
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
-        buildingPrice(p.def), accent, p.def.note,
+        buildingPrice(p.def), accent,
+        `${p.def.note ?? ''} Landmark: raises land value for about 300 m around it${p.def.zone === 'residential' ? '' : ' and draws visitors'}.`.trim(),
         () => this.select({ kind: 'place', proto: p })));
     }
     this.mount(panel, 'signature');

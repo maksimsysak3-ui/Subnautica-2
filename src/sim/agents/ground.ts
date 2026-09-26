@@ -60,6 +60,18 @@ const SPREAD_POLLUTION = 7;
 const SPREAD_NOISE = 2;
 const SPREAD_DENSITY = 10;
 const SPREAD_BLIGHT = 3;
+/**
+ * How far a signature building's name carries: six cells, about three hundred
+ * metres at full strength, fading to nothing at twice that. An address near
+ * the tower everybody knows is worth more, and it is worth more for streets
+ * around, not only for the lot it stands on.
+ */
+const SPREAD_PRESTIGE = 6;
+/** Two box passes leave a single cell's worth at 1/(2r+1)^2 at the peak; this
+ * puts one landmark back near one at its foot. */
+const PRESTIGE_GAIN = (SPREAD_PRESTIGE * 2 + 1) ** 2 * 0.9;
+/** The most land value prestige can add, however many landmarks share a quarter. */
+const PRESTIGE_VALUE = 0.24;
 /** Two passes of a box is close enough to a Gaussian for a field nobody measures. */
 const PASSES = 2;
 
@@ -137,6 +149,8 @@ export class Ground {
   readonly blight = new Float32Array(N);
   /** Plots with no power or no water, blurred: a whole block off supply. */
   private readonly starved = new Float32Array(N);
+  /** Signature buildings, spread by SPREAD_PRESTIGE, then 0 to 1 once combined. */
+  readonly prestige = new Float32Array(N);
 
   private readonly a = new Float32Array(N);
   private readonly b = new Float32Array(N);
@@ -247,7 +261,8 @@ export class Ground {
    * standing idle is still a plant.
    */
   private emit(): void {
-    const { pollution, density, blight, starved } = this;
+    const { pollution, density, blight, starved, prestige } = this;
+    prestige.fill(0);
     pollution.fill(0);
     density.fill(0);
     blight.fill(0);
@@ -275,6 +290,9 @@ export class Ground {
             ? this.policies.effects.industrialPollution : 1;
           pollution[at] += dirt * busy * clean;
         }
+        // A signature building is the reason people know the street. A tall
+        // one more so: it is seen, and named, from across the city.
+        if (def.signature === true) prestige[at] += 1 + Math.min(1, def.height / 120);
       }
       density[at] += c.homes[id] + c.jobs[id];
       const h = c.health[id];
@@ -334,6 +352,7 @@ export class Ground {
     run(this.density, SPREAD_DENSITY);
     run(this.blight, SPREAD_BLIGHT);
     run(this.starved, SPREAD_BLIGHT);
+    run(this.prestige, SPREAD_PRESTIGE);
   }
 
   /**
@@ -346,7 +365,7 @@ export class Ground {
    * built on either, and without that every map ends up uniformly suburban.
    */
   private combine(): void {
-    const { value, pollution, noise, density, blight, starved } = this;
+    const { value, pollution, noise, density, blight, starved, prestige } = this;
     const s = this.services;
     let sumValue = 0, sumDirt = 0, sumDin = 0, sumAmenity = 0;
     let worst = 0, dirty = 0, built = 0;
@@ -377,7 +396,13 @@ export class Ground {
       // everywhere at once: a policy is not a park, it does not have a
       // catchment, and pretending it does would be a lie the player could see
       // through the moment they opened the land value view.
+      // Saturating like the pollution, so two landmarks on one square are
+      // worth more than one but a skyline is not worth a hundred.
+      const fame = 1 - Math.exp(-prestige[i] * PRESTIGE_GAIN);
+      prestige[i] = fame;
+
       let v = 0.28 + planted
+        + PRESTIGE_VALUE * fame
         + 0.34 * amenity
         + 0.22 * centre
         - 0.42 * dirt
@@ -413,6 +438,6 @@ export class Ground {
   bytes(): number {
     return (this.pollution.byteLength + this.noise.byteLength + this.value.byteLength
       + this.density.byteLength + this.blight.byteLength + this.starved.byteLength
-      + this.a.byteLength + this.b.byteLength);
+      + this.prestige.byteLength + this.a.byteLength + this.b.byteLength);
   }
 }
