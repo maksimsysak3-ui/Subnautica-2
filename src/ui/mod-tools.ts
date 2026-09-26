@@ -21,6 +21,11 @@ const WEATHERS: ReadonlyArray<[string, string, number | null]> = [
   ['Overcast', 'cloud', 0.62], ['Rain', 'rain', 0.82], ['Storm', 'storm', 1],
 ];
 
+/** Seasons Sky Control can hold, as the number seasonLook() gives them. */
+const SEASONS: ReadonlyArray<[string, string, number | null]> = [
+  ['Auto', 'views', null], ['Summer', 'flower', 0], ['Autumn', 'leaf', 1], ['Winter', 'snow', -1],
+];
+
 export class ModTools {
   private readonly root = document.createElement('div');
   private readonly sky = document.createElement('div');
@@ -176,6 +181,22 @@ export class ModTools {
     const label = document.createElement('div');
     label.className = 'mr-skypanel-head';
     label.textContent = 'Weather';
-    this.sky.append(head, range, hold, label, weather);
+    // The season, held the same way: Auto hands it back to the calendar.
+    const seasons = document.createElement('div');
+    seasons.className = 'mr-seg';
+    SEASONS.forEach(([name, icon, look], i) => {
+      const b = document.createElement('button');
+      b.className = `mr-seg-btn${i === 0 ? ' is-on' : ''}`;
+      b.innerHTML = `${glyph(icon, 14)}<span>${name}</span>`;
+      b.addEventListener('click', () => {
+        seasons.querySelectorAll('button').forEach((x) => x.classList.toggle('is-on', x === b));
+        this.renderer.seasonHeld = look;
+      });
+      seasons.appendChild(b);
+    });
+    const seasonLabel = document.createElement('div');
+    seasonLabel.className = 'mr-skypanel-head';
+    seasonLabel.textContent = 'Season';
+    this.sky.append(head, range, hold, label, weather, seasonLabel, seasons);
   }
 }

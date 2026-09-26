@@ -67,6 +67,8 @@ export interface ShotRequest {
    * that differs between runs of the same shot.
    */
   front?: number;
+  /** The season to show, as seasonLook() returns it: + autumn, - snow. */
+  season?: number;
   /**
    * Clear a square of the map, draw a road into the empty land and zone one
    * side of it, then rebuild -- the player's own workflow, so a picture can
@@ -768,6 +770,7 @@ export async function shoot(req: ShotRequest): Promise<Shot> {
   renderer.clockRunning = false;
   renderer.timeOfDay = req.hour;
   renderer.weather.set(req.front ?? 0.08);
+  if (req.season !== undefined) renderer.seasonHeld = req.season;
   // A photograph of empty land is a photograph of nothing, so unless the
   // caller asked for the starting map it gets the generated city.
   renderer.useWorld(req.empty === true ? startingWorld(renderer.world.grid) : defaultWorld(renderer.world.grid));

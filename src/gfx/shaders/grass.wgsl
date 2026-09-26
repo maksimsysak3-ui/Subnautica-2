@@ -96,6 +96,9 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
   let keep = 1.0 - smoothstep(0.18, 1.0, dist / grass.form.z);
   let h3 = lattice(vec2i(i32(at.x * 31.0), i32(at.y * 31.0)));
   if (h3 > keep * open) { return nothing(); }
+  // Under snow the sward is buried: the deeper it lies, the fewer blades
+  // stand clear of it.
+  if (h2 < -season() * 1.1) { return nothing(); }
 
   // Height, and which way the blade leans. Both from the blade's own hash, so
   // a clump is a range of heights rather than a row of identical spikes.
@@ -153,6 +156,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let tip = mix(vec3f(0.115, 0.180, 0.062), vec3f(0.165, 0.170, 0.075), in.blade.y);
   var col = mix(root, tip, smoothstep(0.0, 0.75, in.blade.x));
   col = climate(col);
+  col = autumnTurf(col, max(season(), 0.0));
+  // What pokes through the snow carries some on it.
+  col = mix(col, SNOW * 0.8, max(-season(), 0.0) * in.blade.x * 0.6);
 
   let n = normalize(in.normal);
   let sun = normalize(camera.sunDir.xyz);

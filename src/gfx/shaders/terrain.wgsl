@@ -336,6 +336,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   turf = mix(turf, vec3f(0.118, 0.122, 0.050), meadow * 0.40);
   turf = mix(turf, vec3f(0.062, 0.068, 0.040), moor * 0.40);
   turf = climate(turf);
+  turf = autumnTurf(turf, max(season(), 0.0));
 
   // The parcel's own colour, applied hard rather than blended, and only inside
   // its boundary -- which is what makes the boundary a boundary.
@@ -652,6 +653,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (work.x > 0.01) {
     let wcol = workedColour(u32(work.y + 0.5), in.world.xz, in.world.y, col);
     col = mix(col, wcol, clamp(work.x * 1.15, 0.0, 1.0));
+  }
+
+  // ---- snow -----------------------------------------------------------
+  //
+  // Winter lies on whatever faces the sky: thick on turf, gardens and parks,
+  // thin and trodden on paving and yards, none on a cliff. It comes and goes
+  // through a noise threshold, so the first fall and the thaw are patches
+  // rather than a fade, and the roads -- their own mesh -- stay black.
+  let snowCover = max(-season(), 0.0);
+  if (snowCover > 0.001) {
+    let drift = vnoise(in.world.xz * (1.0 / 23.0)) * 0.55
+              + vnoise(in.world.xz * (1.0 / 4.1) + vec2f(7.3, 1.9)) * 0.30
+              + vnoise(in.world.xz * (1.0 / 0.9)) * 0.15 * fTuft;
+    var lie = smoothstep(drift - 0.12, drift + 0.12, snowCover * 1.15 - 0.08);
+    lie *= smoothstep(0.62, 0.86, n.y);
+    lie *= 1.0 - 0.62 * clamp(surf.r + surf.g, 0.0, 1.0);
+    if (seaMap()) { lie *= smoothstep(0.2, 1.2, in.world.y + 2.5); }
+    col = mix(col, SNOW * (0.94 + wear * 0.10), lie);
   }
 
   // ---- light ----------------------------------------------------------

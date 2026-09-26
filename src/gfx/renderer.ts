@@ -19,7 +19,7 @@
 
 import { MAP } from '../sim/maps';
 import { log } from '../util/log';
-import { Weather } from '../sim/weather';
+import { Weather, seasonLook } from '../sim/weather';
 import type { Sky } from '../sim/weather';
 import { ASSETS } from '../assets/registry';
 import { RENDER_SCALES } from './device';
@@ -435,6 +435,8 @@ export class Renderer {
   clockSource: (() => { fraction: number; day: number } | null) | null = null;
   /** Whole days of the sun's calendar since founding. 0 with no city. */
   calendarDay = 0;
+  /** A season to show whatever the calendar says, or null to follow it. */
+  seasonHeld: number | null = null;
   private onCityClock = false;
   /** The simulation's day at the last frame, for advancing the weather. */
   private cityWeatherAt = 0;
@@ -2251,7 +2253,12 @@ export class Renderer {
     this.cameraData[78] = this.landView;
     this.cameraData[79] = this.hotPlot;
     const origin = -(this.world.grid / 2) * 8;
-    this.cameraData.set([plotSpan(this.world.grid), origin, origin, 0], 80);
+    // plotGrid.w: the season, for the ground, the grass and (below) the
+    // buildings and trees. Only on the city's calendar, and only with weather
+    // on, which is the switch for everything the sky does to the ground.
+    const season = this.seasonHeld ?? (this.onCityClock && this.quality.weather
+      ? seasonLook(this.calendarDay + this.timeOfDay, MAP.climate) : 0);
+    this.cameraData.set([plotSpan(this.world.grid), origin, origin, season], 80);
     this.cameraData.set(this.frustum.planes, 84);
     // How far the world is buried, for the passes that sample no overlay: the
     // sky, the river and the grass. One number in two uniforms, because the
@@ -2279,6 +2286,8 @@ export class Renderer {
     this.sceneData.set([w.cover, w.fog, w.rain, w.wet], 60);
     // signInfo.y: metres across the street-light map, which only the city has.
     this.sceneData[57] = this.world.grid * CELL_METRES;
+    // signInfo.z: the season, as plotGrid.w above.
+    this.sceneData[58] = season;
     this.sceneData[64] = this.buried;
     this.sceneData[65] = this.drained;
     this.sceneData[66] = this.quality.shadows ? 0 : 1;

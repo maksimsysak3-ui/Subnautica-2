@@ -61,6 +61,22 @@ struct Camera {
 /** Whether the map has a sea: carried as +4 on the climate, which is -1 to 1. */
 fn seaMap() -> bool { return camera.view.w > 2.0; }
 
+/**
+ * The season, from plotGrid.w: positive is how far into autumn the trees and
+ * the turf are, negative how deep the snow lies. Nought is spring and summer,
+ * and the icon renderer and the viewer, which never write it.
+ */
+fn season() -> f32 { return camera.plotGrid.w; }
+
+/** Fresh snow, at the albedo scale the rest of the ground is drawn at. */
+const SNOW = vec3f(0.56, 0.58, 0.62);
+
+/** Turf going over in autumn: less green, more straw, a little darker. */
+fn autumnTurf(c : vec3f, k : f32) -> vec3f {
+  let l = dot(c, vec3f(0.30, 0.56, 0.14));
+  return mix(c, vec3f(l * 1.28, l * 1.02, l * 0.46), k * 0.55);
+}
+
 fn climate(c : vec3f) -> vec3f {
   let k = camera.view.w - select(0.0, 4.0, seaMap());
   let l = dot(c, vec3f(0.30, 0.56, 0.14));

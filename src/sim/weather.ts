@@ -271,3 +271,28 @@ export function temperature(day: number, hour: number, sky: Sky): number {
   const half = ((c.high - c.low) / 2) * (1 - 0.45 * sky.cover);
   return mid + half * Math.cos(((hour - 15) / 24) * Math.PI * 2) - 2 * sky.cover - 1.5 * sky.rain;
 }
+
+/**
+ * How the season looks, as one number for the shaders: positive is how far
+ * the autumn colours have come in, negative how deep the snow lies, nought
+ * for spring and summer. `day` may carry a fraction.
+ *
+ * Autumn peaks in mid-October and snow in mid-January; each has a plateau
+ * and then a shoulder, so the leaves turn over a month and the thaw takes a
+ * few weeks rather than a frame. Nothing lies on an arid map.
+ */
+export function seasonLook(day: number, climate = 0): number {
+  // Fraction of the year since 1 January; day 0 is 1 March.
+  const f = (((day / DAYS_PER_YEAR + 2 / 12) % 1) + 1) % 1;
+  const from = (peak: number): number => {
+    const d = Math.abs(f - peak);
+    return Math.min(d, 1 - d);
+  };
+  const ease = (a: number, b: number, x: number): number => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  };
+  const snow = (1 - ease(0.05, 0.13, from(0.04))) * Math.min(1, Math.max(0, 1 - climate));
+  if (snow > 0) return -snow;
+  return 1 - ease(0.04, 0.11, from(0.79));
+}

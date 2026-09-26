@@ -1644,6 +1644,31 @@ fn fs(in : VSOut) -> @location(0) vec4f {
               (1.0 - smoothstep(0.008, 0.022, abs(in.local.y - 0.62))) * 0.75);
   }
 
+  // ---- the season: see season() in common.wgsl, which this mirrors ----
+  //
+  // Positive, the trees turn: most go yellow, orange or red by their own
+  // seed, and one in four is an evergreen that stays as it is. Negative, snow
+  // lies on whatever faces the sky -- roofs, canopies, the tops of crowns --
+  // and not on anything that moves, which would carry it off.
+  let seasonK = scene.signInfo.z;
+  if (seasonK > 0.0 && in.material == MAT_FOLIAGE) {
+    let r = hash11(seed * 3.17 + 0.5);
+    let tone = clamp(dot(col, vec3f(0.30, 0.56, 0.14)) / 0.07, 0.55, 1.6);
+    var turn = vec3f(0.20, 0.13, 0.015);
+    if (r > 0.52) { turn = vec3f(0.21, 0.075, 0.012); }
+    if (r > 0.80) { turn = vec3f(0.15, 0.028, 0.018); }
+    col = mix(col, turn * tone, seasonK * select(0.9, 0.0, r < 0.25));
+  }
+  let moving = in.material == MAT_PAINT || in.material == MAT_CAR_GLASS
+    || in.material == MAT_TYRE || in.material == MAT_SKIN;
+  if (seasonK < 0.0 && !moving) {
+    let drift = vnoise(in.world.xz * (1.0 / 17.0)) * 0.7 + vnoise(in.world.xz * (1.0 / 2.3)) * 0.3;
+    var lie = smoothstep(drift - 0.10, drift + 0.10, -seasonK * 1.15 - 0.08);
+    lie *= smoothstep(0.55, 0.85, n.y);
+    if (in.material == MAT_FOLIAGE) { lie *= 0.7; }
+    col = mix(col, vec3f(0.56, 0.58, 0.62), lie);
+  }
+
   let sun = normalize(scene.sunDir.xyz);
   let ndl = dot(n, sun);
   let shadow = shadowFactor(in.world, ndl);
