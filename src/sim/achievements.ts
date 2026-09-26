@@ -30,7 +30,7 @@ export interface Achievement {
 
 function landmarks(world: World): number {
   let n = 0;
-  for (const lot of world.lots) if (assetById(lot.id)?.signature === true) n++;
+  for (const lot of world.lots) { const d = assetById(lot.id); if (d?.signature === true && d.mod === undefined) n++; }
   return n;
 }
 function services(world: World): number {

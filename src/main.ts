@@ -21,8 +21,8 @@ import {
   configureSim, LITE, startingWorld, warmTerrain, baseHeightAt, writeAutosave,
 } from './sim';
 import { Menu } from './ui/menu';
+import { ModTools } from './ui/mod-tools';
 import { playIntro } from './ui/intro';
-import { applyWorldMods } from './sim/mods';
 import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
@@ -152,6 +152,8 @@ async function boot(): Promise<void> {
   // Declared before the menu because the menu shows and hides it, and built
   // after the world because it reads the grid.
   let tools: BuildTools | null = null;
+  /** The tool mods' dock, when one is on. */
+  let modTools: ModTools | null = null;
   /** The name a loaded save came in under, applied once the tools exist. */
   let loaded: string | null = null;
   const menu = new Menu(overlay, {
@@ -166,7 +168,6 @@ async function boot(): Promise<void> {
       useMap(setup.map);
       live.reset();
       const fresh = startingWorld(renderer.world.grid);
-      applyWorldMods(fresh);
       renderer.useWorld(fresh);
       renderer.rebuild();
       if (tools !== null) tools.cityName = setup.name; else loaded = setup.name;
@@ -177,7 +178,6 @@ async function boot(): Promise<void> {
       useDifficulty(world.difficulty);
       useMap(world.map);
       live.reset();
-      applyWorldMods(world);
       renderer.useWorld(world);
       renderer.rebuild();
       if (tools !== null) tools.cityName = name; else loaded = name;
@@ -189,6 +189,7 @@ async function boot(): Promise<void> {
       // menu. Anything of the game's that stays up behind the title reads as
       // the menu being drawn on top of a half-started session.
       if (tools !== null) tools.visible = !on;
+      if (modTools !== null) modTools.visible = !on;
       stats.visible = !on;
       // Paused behind the menu, and founded the moment the player goes in. A
       // city that aged while its owner read the title screen would be handing
@@ -202,7 +203,7 @@ async function boot(): Promise<void> {
       // the game's first picture of itself. The game's own weather resumes
       // the moment the player goes in.
       if (on) renderer.weather.set(0.02);
-      else renderer.weather.release();
+      else { renderer.weather.release(); modTools?.resume(); }
     },
   });
   document.getElementById('boot')?.classList.add('done');
@@ -272,6 +273,10 @@ async function boot(): Promise<void> {
   // keeps the right button and the wheel throughout, so the player never has
   // to put a tool down to look somewhere else.
   tools = new BuildTools(canvas, camera, renderer, overlay);
+  if (ModTools.wanted()) {
+    modTools = new ModTools(overlay, renderer, camera);
+    modTools.visible = !cinematic;
+  }
   controls.buildActive = () => tools?.active ?? false;
   // Clicking a building asks the simulation what it is. The tools know where
   // the click landed; only the simulation knows what is standing there.
@@ -345,6 +350,7 @@ async function boot(): Promise<void> {
       camera.yaw += dt * 0.022;
       camera.update();
     }
+    modTools?.update(dt);
     controls.update(dt);
     // After the camera: the simulation spends its movement budget on whatever
     // the player is looking at, and looking at it is what the line above did.

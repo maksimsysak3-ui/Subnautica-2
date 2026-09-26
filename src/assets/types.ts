@@ -133,6 +133,15 @@ export interface AssetDef {
    * from a bucket, and these never are.
    */
   signature?: true;
+  /**
+   * The mod that added it, if one did. A mod's buildings are not part of the
+   * career -- they are never handed out by a level or grown by the spawner --
+   * and they are always open to build; they sit in the Mods tab of the
+   * landmarks drawer.
+   */
+  mod?: string;
+  /** A drawn icon, as SVG markup, for an asset the baked icon sheet has never seen. */
+  iconSvg?: string;
   /** Business identity, for anything with a shopfront. */
   brand?: Brand;
   /**

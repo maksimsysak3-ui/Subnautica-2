@@ -1,88 +1,91 @@
 /**
- * Mods: named changes to the rules a city is played under.
+ * Mods: things the game does not have until a mod brings them.
  *
- * A mod is data, never code. It multiplies the numbers the game already
- * balances against -- what things cost to build and to run, what taxes bring
- * in, how fast people arrive, how fast the career climbs, the starting
- * treasury -- and it may open everything from the start. That is enough to
- * make a sandbox, a speedrun or a punishing economy, and it is safe to paste
- * one in from anywhere: a mod file that is anything but these numbers is
- * refused, and every number is clamped to a range the simulation can carry.
+ * Three kinds. A pack adds hand-made buildings the base game has none of --
+ * the Wonders. A buildings mod adds towers drawn in the Blueprint Studio: a
+ * handful of numbers (plan, storeys, taper, twist, facade, crown) that the
+ * blueprint generator turns into a full model, so a mod file is small, safe
+ * to paste in from anywhere and still makes something nobody else has. A tool
+ * adds a way of playing: Photo Mode, Sky Control.
  *
- * Which mods are on is kept in this browser, across cities. They are applied
- * when a city is founded or loaded -- to the rules through `useDifficulty`,
- * and to the world (land and unlocks) through `applyWorldMods` -- so turning
- * one on or off takes effect the next time a city opens.
+ * A mod is data, never code. A blueprint that is anything but its known
+ * fields is cleaned down to them, and every number is clamped to a range the
+ * generator can build.
+ *
+ * Which mods are on is kept in this browser. The buildings join the asset
+ * library as it loads -- the renderer builds its geometry from that list once
+ * -- so switching a building mod on or off takes a reload, which the Mods
+ * screen offers. A city holding a mod building whose mod is off keeps the lot
+ * and draws nothing on it, and draws it again when the mod comes back.
+ *
+ * This module must not import the registry: the registry imports it.
  */
 
-import type { Rules } from './difficulty';
-import { setRulesModifier } from './difficulty';
-import { TECH } from './tech';
-import { ASSETS } from '../assets/registry';
-import { PLOTS } from './plots';
-import type { World } from './world';
+import type { AssetDef } from '../assets/types';
+import { WONDERS } from '../assets/generators/wonders';
+import { blueprintAsset, cleanBlueprint, type Blueprint } from '../assets/generators/blueprint';
 
-/** The multipliers a mod may set. Each defaults to 1. */
-export const MOD_KNOBS = ['funds', 'build', 'upkeep', 'income', 'growth', 'xp'] as const;
-export type ModKnob = typeof MOD_KNOBS[number];
-
-export const KNOB_LABEL: Record<ModKnob, string> = {
-  funds: 'Starting treasury', build: 'Construction costs', upkeep: 'Running costs',
-  income: 'Tax income', growth: 'Arrivals', xp: 'Experience',
-};
-/** How far a mod may push each knob. */
-const KNOB_RANGE: Record<ModKnob, [number, number]> = {
-  funds: [0.1, 100], build: [0.05, 5], upkeep: [0.05, 5], income: [0.1, 5], growth: [0.25, 4], xp: [0.1, 10],
-};
+export type ModKind = 'pack' | 'buildings' | 'tool';
+export type ModTool = 'photo' | 'sky';
 
 export interface ModDef {
   id: string;
   name: string;
   author: string;
   description: string;
-  effects: Partial<Record<ModKnob, number>>;
-  /** Every level, building and landmark open, and all the land bought. */
-  unlockAll?: boolean;
+  kind: ModKind;
   builtin?: boolean;
+  /** A buildings mod's towers. */
+  buildings?: Blueprint[];
+  /** A tool mod's tool. */
+  tool?: ModTool;
 }
 
-export const BUILTIN_MODS: readonly ModDef[] = [
-  { id: 'tycoon', name: 'Tycoon', author: 'Arcus', builtin: true,
-    description: 'Found every city with ten times the treasury.', effects: { funds: 10 } },
-  { id: 'public-works', name: 'Public Works', author: 'Arcus', builtin: true,
-    description: 'Half-price construction for roads, zones, services and landmarks.', effects: { build: 0.5 } },
-  { id: 'lean', name: 'Lean Government', author: 'Arcus', builtin: true,
-    description: 'Services and roads cost 40% less to run.', effects: { upkeep: 0.6 } },
-  { id: 'boom', name: 'Boom Economy', author: 'Arcus', builtin: true,
-    description: 'Taxes bring in half as much again.', effects: { income: 1.5 } },
-  { id: 'boomtown', name: 'Boomtown', author: 'Arcus', builtin: true,
-    description: 'Twice as many people want to move in.', effects: { growth: 2 } },
-  { id: 'fast-track', name: 'Fast Track', author: 'Arcus', builtin: true,
-    description: 'Level up two and a half times as fast.', effects: { xp: 2.5 } },
-  { id: 'master-planner', name: 'Master Planner', author: 'Arcus', builtin: true,
-    description: 'Every level, building and landmark open from the first day, and all the land yours.',
-    effects: {}, unlockAll: true },
-  { id: 'austerity', name: 'Austerity', author: 'Arcus', builtin: true,
-    description: 'A hard economy: taxes down a quarter, running costs up a quarter, 30% more experience for the trouble.',
-    effects: { income: 0.75, upkeep: 1.25, xp: 1.3 } },
-];
-
-/** Mods to try from the Browse tab: added to the player's own list, then theirs to edit. */
-export const PRESET_MODS: readonly ModDef[] = [
-  { id: 'preset-sandbox', name: 'Sandbox', author: 'Arcus', description: 'Money is no object and everything is open. Build for the look of it.',
-    effects: { funds: 100, build: 0.1, upkeep: 0.2 }, unlockAll: true },
-  { id: 'preset-iron-mayor', name: 'Iron Mayor', author: 'Arcus', description: 'Thin taxes, heavy bills, slow arrivals. Every service has to earn its keep.',
-    effects: { income: 0.6, upkeep: 1.5, growth: 0.8, xp: 1.5 } },
-  { id: 'preset-speedrun', name: 'Speedrun', author: 'Arcus', description: 'Levels four times as fast and people arriving in crowds.',
-    effects: { xp: 4, growth: 1.5 } },
-  { id: 'preset-gilded-age', name: 'Gilded Age', author: 'Arcus', description: 'Double the takings and double the bills: big numbers, same knife edge.',
-    effects: { income: 2, upkeep: 2, build: 1.5 } },
-  { id: 'preset-frontier', name: 'Frontier Town', author: 'Arcus', description: 'A shoestring start and cheap land to build on.',
-    effects: { funds: 0.4, build: 0.6, growth: 1.25 } },
-];
-
-const KEY = 'civitas.mods.v1';
+/** Up to this many towers in one mod, and this many mods of the player's own. */
+export const MAX_BUILDINGS = 8;
 const MAX_CUSTOM = 24;
+
+const bp = (b: Partial<Blueprint>): Blueprint => cleanBlueprint(b);
+
+/** The Skyline Kit's towers, and the blueprints the Browse tab offers. */
+const SKYLINE_KIT: Blueprint[] = [
+  bp({ name: 'Helix One', zone: 'office', width: 7, depth: 7, floors: 64, shape: 'rounded', taper: 0.72,
+    twist: 1.2, facade: 'glass', colour: '#5fb8d8', crown: 'raked', podium: 3, bands: 16, lit: true }),
+  bp({ name: 'Brass Needle', zone: 'office', width: 6, depth: 6, floors: 78, shape: 'chamfered', taper: 0.5,
+    twist: 0, facade: 'frame', colour: '#c9a45c', crown: 'spire', podium: 4, bands: 12, lit: true }),
+  bp({ name: 'Garden Terraces', zone: 'residential', width: 8, depth: 7, floors: 32, shape: 'box', taper: 0.85,
+    twist: 0.25, facade: 'concrete', colour: '#7fae6a', crown: 'garden', podium: 2, balconies: true, bands: 8, lit: false }),
+  bp({ name: 'Old Exchange', zone: 'commercial', width: 9, depth: 8, floors: 14, floorHeight: 4.6, shape: 'box',
+    taper: 1, twist: 0, facade: 'stone', colour: '#b58a4a', crown: 'dome', podium: 3, bands: 0, lit: true }),
+  bp({ name: 'Red Row Lofts', zone: 'residential', width: 8, depth: 5, floors: 12, shape: 'box', taper: 1,
+    twist: 0, facade: 'brick', colour: '#3c4a5c', crown: 'stepped', podium: 1, balconies: true, bands: 0, lit: false }),
+  bp({ name: 'Prism Hall', zone: 'commercial', width: 9, depth: 9, floors: 22, shape: 'triangle', taper: 0.8,
+    twist: 0.5, facade: 'glass', colour: '#d86fb5', crown: 'lantern', podium: 3, bands: 6, lit: true }),
+];
+
+export const BUILTIN_MODS: readonly ModDef[] = [
+  { id: 'wonders', name: 'Wonders of the World', author: 'Arcus', builtin: true, kind: 'pack',
+    description: 'An arena of three arcaded tiers, a stepped sun pyramid, a wrought-iron lattice tower and a ninety-metre observation wheel. In the Landmarks drawer under Mods.' },
+  { id: 'skyline-kit', name: 'Skyline Kit', author: 'Arcus', builtin: true, kind: 'buildings', buildings: SKYLINE_KIT,
+    description: 'Six blueprint towers: a twisting glass helix, a brass needle, garden terraces, a domed exchange, brick lofts and a triangular prism hall.' },
+  { id: 'photo-mode', name: 'Photo Mode', author: 'Arcus', builtin: true, kind: 'tool', tool: 'photo',
+    description: 'Hides the interface, frames the city in a letterbox and slowly circles the camera. A button in the corner of the city; Escape to leave.' },
+  { id: 'sky-control', name: 'Sky Control', author: 'Arcus', builtin: true, kind: 'tool', tool: 'sky',
+    description: 'Set the hour and the weather by hand: hold the city at golden hour, or bring in a storm.' },
+];
+
+/** Blueprints to try from the Browse tab: each one becomes a mod of the player's own, theirs to edit. */
+export const PRESET_BLUEPRINTS: readonly Blueprint[] = [
+  ...SKYLINE_KIT,
+  bp({ name: 'Obsidian Spire', zone: 'office', width: 6, depth: 6, floors: 90, shape: 'round', taper: 0.45,
+    twist: 0, facade: 'frame', colour: '#2a2f38', crown: 'spire', podium: 5, bands: 18, lit: true }),
+  bp({ name: 'Coral Twist', zone: 'residential', width: 6, depth: 6, floors: 48, shape: 'round', taper: 0.9,
+    twist: 1.6, facade: 'concrete', colour: '#e07a5f', crown: 'flat', podium: 2, balconies: true, bands: 0, lit: false }),
+  bp({ name: 'Civic Rotunda', zone: 'commercial', width: 10, depth: 10, floors: 8, floorHeight: 5, shape: 'round',
+    taper: 1, twist: 0, facade: 'stone', colour: '#6f8fa8', crown: 'dome', podium: 2, bands: 0, lit: true }),
+];
+
+const KEY = 'civitas.mods.v2';
 
 interface Stored { enabled: string[]; custom: ModDef[] }
 
@@ -106,6 +109,14 @@ function write(s: Stored): void {
 
 let state: Stored = read();
 
+/**
+ * What was switched on when the page loaded: what the asset library actually
+ * holds. The Mods screen compares against it to say a reload is due.
+ */
+const loaded = new Set(state.enabled);
+/** Mods whose buildings were edited since the page loaded. */
+const edited = new Set<string>();
+
 /** Every mod the player has: the built-in ones, then their own. */
 export function allMods(): ModDef[] { return [...BUILTIN_MODS, ...state.custom]; }
 export function isEnabled(id: string): boolean { return state.enabled.includes(id); }
@@ -118,14 +129,26 @@ export function setEnabled(id: string, on: boolean): void {
   write(state);
 }
 
+/** Whether a mod that adds buildings has changed since the page loaded. */
+export function reloadNeeded(): boolean {
+  for (const m of allMods()) {
+    if (m.kind === 'tool') continue;
+    if (isEnabled(m.id) !== loaded.has(m.id)) return true;
+    if (isEnabled(m.id) && edited.has(m.id)) return true;
+  }
+  return false;
+}
+
 /** Adds (or replaces, by id) one of the player's own mods. Returns an error, or null. */
 export function saveCustom(mod: ModDef): string | null {
   const v = validate(mod);
   if (typeof v === 'string') return v;
   if (BUILTIN_MODS.some((b) => b.id === v.id)) return 'That id belongs to a built-in mod.';
   const at = state.custom.findIndex((m) => m.id === v.id);
-  if (at >= 0) state.custom[at] = v;
-  else {
+  if (at >= 0) {
+    state.custom[at] = v;
+    edited.add(v.id);
+  } else {
     if (state.custom.length >= MAX_CUSTOM) return `You can keep up to ${MAX_CUSTOM} mods of your own.`;
     state.custom.push(v);
   }
@@ -139,11 +162,17 @@ export function removeCustom(id: string): void {
   write(state);
 }
 
+/** A free id for a new mod named `name`. */
+export function freshId(name: string): string {
+  const base = slug(name);
+  const taken = new Set(allMods().map((m) => m.id));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
 /** A mod file as text, to copy and share. */
 export function exportMod(m: ModDef): string {
-  const out: Record<string, unknown> = { name: m.name, author: m.author, description: m.description, effects: m.effects };
-  if (m.unlockAll) out.unlockAll = true;
-  return JSON.stringify(out, null, 2);
+  return JSON.stringify({ name: m.name, author: m.author, description: m.description, buildings: m.buildings ?? [] }, null, 2);
 }
 
 /** Reads a mod file. Returns the mod, or what is wrong with it. */
@@ -153,7 +182,7 @@ export function importMod(text: string): ModDef | string {
   if (raw === null || typeof raw !== 'object') return 'A mod file is a JSON object.';
   const o = raw as Record<string, unknown>;
   const name = typeof o.name === 'string' ? o.name : '';
-  return validate({ ...o, id: typeof o.id === 'string' ? o.id : slug(name) } as unknown as ModDef);
+  return validate({ ...o, kind: 'buildings', id: freshId(name) });
 }
 
 function slug(name: string): string {
@@ -161,61 +190,43 @@ function slug(name: string): string {
   return `custom-${s || 'mod'}`;
 }
 
-/** Cleans a mod down to exactly what the game will apply, or says why it cannot. */
+/**
+ * Cleans one of the player's mods down to exactly what the game will build,
+ * or says why it cannot. Only buildings mods can be the player's own: packs
+ * and tools are code, and code does not come in through a text box.
+ */
 function validate(m: unknown): ModDef | string {
   if (m === null || typeof m !== 'object') return 'A mod is an object.';
   const o = m as Record<string, unknown>;
   const name = typeof o.name === 'string' ? o.name.trim().slice(0, 40) : '';
   if (name === '') return 'A mod needs a name.';
-  const id = typeof o.id === 'string' && /^[a-z0-9-]{1,48}$/.test(o.id) ? o.id : slug(name);
-  const effects: Partial<Record<ModKnob, number>> = {};
-  const e = (o.effects ?? {}) as Record<string, unknown>;
-  if (typeof e !== 'object') return 'A mod\'s effects are an object of multipliers.';
-  for (const k of MOD_KNOBS) {
-    const v = e[k];
-    if (v === undefined) continue;
-    if (typeof v !== 'number' || !Number.isFinite(v)) return `The ${k} multiplier must be a number.`;
-    const [lo, hi] = KNOB_RANGE[k];
-    effects[k] = Math.max(lo, Math.min(hi, v));
-  }
-  const unlockAll = o.unlockAll === true;
-  if (Object.keys(effects).length === 0 && !unlockAll) return 'A mod has to change something.';
+  if (!Array.isArray(o.buildings) || o.buildings.length === 0) return 'A mod needs at least one building.';
+  if (o.buildings.some((b) => b === null || typeof b !== 'object')) return 'Each building is a blueprint object.';
+  const buildings = o.buildings.slice(0, MAX_BUILDINGS).map((b) => cleanBlueprint(b));
+  const id = typeof o.id === 'string' && /^custom-[a-z0-9-]{1,48}$/.test(o.id) ? o.id : slug(name);
   return {
-    id, name,
+    id, name, kind: 'buildings', buildings,
     author: typeof o.author === 'string' && o.author.trim() !== '' ? o.author.trim().slice(0, 32) : 'You',
     description: typeof o.description === 'string' ? o.description.trim().slice(0, 200) : '',
-    effects, ...(unlockAll ? { unlockAll: true } : {}),
   };
 }
 
-/** The product of every enabled mod's multiplier for one knob. */
-export function knob(k: ModKnob): number {
-  let v = 1;
-  for (const m of enabledMods()) v *= m.effects[k] ?? 1;
-  const [lo, hi] = KNOB_RANGE[k];
-  return Math.max(lo * lo, Math.min(hi * hi, v));
+/** The buildings every enabled mod adds, for the asset library. */
+export function modAssets(): AssetDef[] {
+  const out: AssetDef[] = [];
+  for (const m of enabledMods()) {
+    if (m.kind === 'pack' && m.id === 'wonders') out.push(...WONDERS);
+    if (m.kind === 'buildings') {
+      (m.buildings ?? []).forEach((b, i) => out.push(blueprintAsset(b, m.id, `b${i}`)));
+    }
+  }
+  return out;
 }
 
-/** Whether any enabled mod opens everything. */
-export function unlockAll(): boolean { return enabledMods().some((m) => m.unlockAll === true); }
-
-/** What the enabled mods do to a world as it opens: the land and the unlocks. */
-export function applyWorldMods(world: World): void {
-  if (!unlockAll()) return;
-  for (let i = 0; i < PLOTS * PLOTS; i++) world.land.take(i);
-  world.progress.openEverything(TECH.map((n) => n.id),
-    ASSETS.filter((a) => a.signature === true).map((a) => a.id));
+/** Whether a tool mod is on. */
+export function toolOn(tool: ModTool): boolean {
+  return enabledMods().some((m) => m.kind === 'tool' && m.tool === tool);
 }
-
-// The rules pass through here whenever a city is founded or loaded.
-setRulesModifier((r: Rules) => {
-  r.funds *= knob('funds');
-  r.build *= knob('build');
-  r.upkeep *= knob('upkeep');
-  r.income *= knob('income');
-  r.growth *= knob('growth');
-  r.xp *= knob('xp');
-});
 
 /** Re-reads the stored mods: for another tab having changed them. */
 export function reloadMods(): void { state = read(); }

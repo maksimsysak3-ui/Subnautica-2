@@ -58,6 +58,8 @@ const zoneAll = new Map<Zone, Proto[]>();
 const nurseryList: Proto[] = [];
 /** Industry headquarters and harvest-area props, by id. */
 const industryList: Proto[] = [];
+/** Buildings a mod added: placed from their own tab, never sited or handed out by a level. */
+const modList: Proto[] = [];
 
 /** An industry prototype by id: `spec.hq.<resource>` or `spec.prop.<resource>`. */
 export function industryProto(id: string): Proto | undefined {
@@ -78,6 +80,7 @@ ASSETS.forEach((def, index) => {
   if (def.zone === 'road') { push(roadBy, p.w, p); return; }
   if (def.zone === 'fleet') return;                   // placed on the road graph, later
   if (def.zone === 'nature') { nurseryList.push(p); return; }
+  if (def.mod !== undefined) { modList.push(p); return; }
   if (def.signature) { push(signatureBy, def.zone, p); return; }
   push(stockBy, `${def.zone}|${def.density}|${def.theme ?? 'modern'}`, p);
   push(zoneAll, def.zone, p);
@@ -227,8 +230,11 @@ export function signatureById(id: string): Proto | undefined {
     const hit = list.find((p) => p.id === id);
     if (hit) return hit;
   }
-  return undefined;
+  return modList.find((p) => p.id === id);
 }
+
+/** Every building the enabled mods added, smallest first. */
+export const modBuildings: readonly Proto[] = [...modList].sort((a, b) => a.w * a.d - b.w * b.d);
 
 export const services: readonly Proto[] = serviceList;
 

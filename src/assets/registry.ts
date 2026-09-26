@@ -31,6 +31,7 @@ import { SPORT } from './generators/sport';
 import { INDUSTRY } from './generators/industry';
 import { WINGS } from './generators/upgrades';
 import { WASTE } from './generators/waste';
+import { modAssets } from '../sim/mods';
 import { MeshBuilder } from './mesh';
 import { dressRoof, footing } from './parts';
 import { idSeed } from './types';
@@ -40,6 +41,8 @@ export const ASSETS: AssetDef[] = [
   ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
   ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE, ...SUPERTALLS, ...SIGNATURE_INDUSTRIAL,
   ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY, ...WINGS, ...WASTE,
+  // Last, so a mod can only add: every base asset keeps its index.
+  ...modAssets(),
 ];
 
 // Every zoned building gets its roof dressed, whether or not its generator

@@ -219,7 +219,7 @@ for (const n of TECH) for (const a of n.assets) NODE_OF_ASSET.set(a, n);
  * and a player who is chasing one knows roughly how far away it is.
  */
 const LANDMARKS: string[] = ASSETS
-  .filter((a) => a.signature === true)
+  .filter((a) => a.signature === true && a.mod === undefined)
   .sort((a, b) => buildingPrice(a) - buildingPrice(b))
   .map((a) => a.id);
 

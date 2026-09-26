@@ -173,11 +173,12 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
-      ['Mods', 'Switch on rule changes, build your own, or add a ready-made one from the Mods screen.'],
+      ['Wonders pack', 'An arena, a sun pyramid, an iron lattice tower and a great wheel, from the Mods screen.'],
+      ['Blueprint Studio', 'Design your own towers in 3D, save them as a mod, and place them in your city.'],
+      ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour and the weather.'],
       ['Achievements', 'Twenty-five of them, kept across every city you run.'],
       ['Loans', 'Borrow from the regional bank for the big projects, and pay it back weekly.'],
       ['Supertalls', 'Twelve landmark skyscrapers, each one a real building type.'],
-      ['Landmark prestige', 'Land near a landmark is worth more, and so are its taxes.'],
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';
@@ -295,7 +296,7 @@ export class Menu {
       run: () => openAchievementsPanel(this.root, () => this.show()) });
     const modsOn = enabledMods().length;
     entries.push({ label: 'Mods', key: modsOn > 0 ? `${modsOn} on` : '',
-      hint: 'Switch on mods that change the rules, make your own, or try ready-made ones.',
+      hint: 'Add the Wonders pack, draw your own towers in the Blueprint Studio, or switch on Photo Mode and Sky Control.',
       run: () => this.showMods() });
     this.list(entries, null);
     this.note.textContent = saves.length > 0

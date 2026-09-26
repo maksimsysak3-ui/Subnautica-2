@@ -30,7 +30,7 @@ type P2 = [number, number];
  * and further off, where there are no panes, bands of the colour every second
  * floor over the curtain-wall pattern keep the tower its colour.
  */
-function skinShaft(m: MeshBuilder, lod: number, ringAt: (t: number) => Ring, y0: number, y1: number,
+export function skinShaft(m: MeshBuilder, lod: number, ringAt: (t: number) => Ring, y0: number, y1: number,
   floors: number, bay: number, skin: Tint): void {
   const fine = lod < 1, medium = lod < 2;
   const steps = fine ? Math.max(1, Math.ceil(floors / 2))
@@ -52,7 +52,7 @@ function skinShaft(m: MeshBuilder, lod: number, ringAt: (t: number) => Ring, y0:
 }
 
 /** A small tree standing on a terrace at height `y`. */
-function terraceTree(m: MeshBuilder, x: number, y: number, z: number, h: number, r: number): void {
+export function terraceTree(m: MeshBuilder, x: number, y: number, z: number, h: number, r: number): void {
   m.painted(TINT.WOOD, () => m.cylinder(x, z, r * 0.16, y, y + h * 0.42, 5, MAT.TIMBER));
   m.painted(TINT.GREEN, () => {
     m.cone(x, z, r, r * 0.72, y + h * 0.3, y + h * 0.74, 7, MAT.TRIM);

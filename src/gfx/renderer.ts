@@ -421,6 +421,8 @@ export class Renderer {
   timeOfDay = 0.33;
   /** Whether the clock advances. Off for tools; on in the game. */
   clockRunning = true;
+  /** An hour the sun is held at, whatever the clock does: Sky Control's. Null to follow the clock. */
+  sunHeld: number | null = null;
   /**
    * The simulation's clock, when there is a city running: the fraction of the
    * day and whole days since founding. With one, the weather follows the
@@ -2178,6 +2180,7 @@ export class Renderer {
       if (this.quality.weather) this.weather.advance(dt * this.clockRate, DAY_SECONDS);
       else this.weather.set(0.02);
     }
+    if (this.sunHeld !== null) this.timeOfDay = this.sunHeld;
     const sun = sunAt(this.timeOfDay);
     // Dusk, as one number. The sun crossing the horizon is the interesting part,
     // so the ramp is centred on it and finishes a little way below: the city's

@@ -19,7 +19,7 @@ import { RESOURCES, resourceById } from '../sim/resources';
 import type { ResourceId } from '../sim/resources';
 import { HECTARE_COST, MAX_HECTARES, REACH, cellHectares } from '../sim/industry';
 import { MAP } from '../sim/maps';
-import { industryProto } from '../sim/inventory';
+import { industryProto, modBuildings } from '../sim/inventory';
 import { RULES, CURRENCY } from '../sim/difficulty';
 import { monthOf, yearOf, seasonOfMonth, temperature } from '../sim/weather';
 import { log } from '../util/log';
@@ -50,6 +50,7 @@ import type { LevelUp } from '../sim/progress';
 import { levelName, DENSITY_LEVEL, LEVEL_NAMES, zoneNeeds } from '../sim/progress';
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
+import { modelIconHtml } from './model-view';
 import { plotAt, plotSpan, plotBounds, plotCells, PLOTS, ownsAt } from '../sim';
 import { OVERDRAFT } from '../sim';
 import type { Dirty } from '../sim';
@@ -154,7 +155,8 @@ const BRANCH_STYLE: Record<Branch, { label: string; colour: string }> = {
 
 /** The zones a landmark can belong to, in the order their tabs read. */
 const SIGNATURE_ZONES = ['residential', 'commercial', 'office', 'industrial'] as const;
-type SignatureZone = (typeof SIGNATURE_ZONES)[number];
+/** A zone's tab, or the tab of buildings the enabled mods added. */
+type SignatureZone = (typeof SIGNATURE_ZONES)[number] | 'mods';
 
 /** Every one-of-a-kind building, smallest first, across all four zones. */
 const SIGNATURES: Proto[] = ZONES
@@ -1248,7 +1250,7 @@ export class BuildTools {
     // What it was worth. A landmark is worth a great deal more than a bus
     // shelter, which is the whole reason the player is saving up for one.
     confirmSound();
-    this.earn(buildingPrice(t.proto.def), t.proto.def.signature === true);
+    this.earn(buildingPrice(t.proto.def), t.proto.def.signature === true && t.proto.def.mod === undefined);
     // The real building now stands where the ghost was, and two copies of it in
     // the same place is what "it is stuck there" looks like. The next pointer
     // move puts a fresh ghost up for the next one.
@@ -2566,9 +2568,18 @@ export class BuildTools {
     this.sigTab = zone;
     const accent = '#ffd166';
     const panel = this.drawerPanel('signature', accent);
-    panel.appendChild(this.tabs(SIGNATURE_ZONES.map((z) => ({
+    const tabs: { key: string; label: string; on: boolean }[] = SIGNATURE_ZONES.map((z) => ({
       key: z, label: ZONE_STYLE[z].label, on: z === zone,
-    })), accent, (key) => this.openSignatureDrawer(key as SignatureZone)));
+    }));
+    if (modBuildings.length > 0) tabs.push({ key: 'mods', label: `Mods \u00b7 ${modBuildings.length}`, on: zone === 'mods' });
+    panel.appendChild(this.tabs(tabs, accent, (key) => this.openSignatureDrawer(key as SignatureZone)));
+    if (zone === 'mods') {
+      for (const p of modBuildings) {
+        panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
+          buildingPrice(p.def), accent, `${p.def.note ?? ''} From a mod: always open, and it raises land value around it.`.trim(),
+          () => this.select({ kind: 'place', proto: p }), modelIconHtml(p.def, 52)));
+      }
+    }
     for (const p of SIGNATURES) {
       if (p.def.zone !== zone) continue;
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
@@ -2743,6 +2754,8 @@ export class BuildTools {
     const p = this.renderer.world.progress;
     const def = assetById(id);
     if (def === undefined) return true;
+    // A mod's buildings are the player's own content: open from the start.
+    if (def.mod !== undefined) return true;
     if (def.signature === true) return p.earned.has(id);
     const node = NODE_OF_ASSET.get(id);
     if (node === undefined) return true;

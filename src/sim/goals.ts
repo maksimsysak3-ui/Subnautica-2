@@ -94,7 +94,7 @@ export const GOALS: Goal[] = [
       // id, and the id is what the library knows.
       let built = 0;
       for (const lot of world.lots) {
-        if (assetById(lot.id)?.signature === true) built++;
+        { const d = assetById(lot.id); if (d?.signature === true && d.mod === undefined) built++; }
       }
       return [built, 1];
     },
