@@ -131,7 +131,12 @@ fn shadowFactor(world : vec3f, ndl : f32) -> f32 {
   sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(o, -o), ndc.z - bias);
   sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(-o, o), ndc.z - bias);
   sum += textureSampleCompare(shadowMap, shadowSampler, safeUV + vec2f(o, o), ndc.z - bias);
-  return mix(sum * 0.25, 1.0, outside);
+  // Faded out over the last stretch of the volume rather than cut: the
+  // volume follows the zoom now, and a hard line where the shadows stop
+  // would sweep across the city as the camera moved.
+  let edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+  let reach = smoothstep(0.0, 0.08, edge);
+  return mix(1.0, sum * 0.25, reach * (1.0 - outside));
 }
 
 /**

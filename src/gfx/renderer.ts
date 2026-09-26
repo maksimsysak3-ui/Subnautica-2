@@ -159,6 +159,9 @@ const CAMERA_UNIFORM_SIZE = 448;
  * nobody can see.
  */
 const SHADOW_RANGE = 1500;
+/** The least the shadow reach shrinks to, and how it grows with the camera's distance. */
+const SHADOW_NEAR = 300;
+const SHADOW_PER_METRE = 4;
 /** And the smallest volume, so a close-up does not sharpen into aliasing. */
 const SHADOW_MIN = 90;
 
@@ -2055,6 +2058,12 @@ export class Renderer {
   private fitSun(cam: Camera, sun: Vec3): void {
     const eyeX = cam.eye[0], eyeZ = cam.eye[2];
     const planeY = cam.focus[1];
+    // The reach follows the zoom. Up close the fixed kilometre and a half put a
+    // metre and a half of ground under every shadow texel, and building shadows
+    // on the street came out as staircases; pulled in to a few times the
+    // camera's distance, a close view gets texels a fifth that size and a far
+    // one keeps the full range.
+    const range = Math.min(SHADOW_RANGE, Math.max(SHADOW_NEAR, cam.distance * SHADOW_PER_METRE));
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     const take = (x: number, z: number): void => {
       // Clamped towards the camera, because a corner looking at the horizon
@@ -2062,7 +2071,7 @@ export class Renderer {
       // texel of the map on ground nobody can make out.
       const dx = x - eyeX, dz = z - eyeZ;
       const d = Math.hypot(dx, dz);
-      const k = d > SHADOW_RANGE ? SHADOW_RANGE / d : 1;
+      const k = d > range ? range / d : 1;
       const px = eyeX + dx * k, pz = eyeZ + dz * k;
       if (px < minX) minX = px;
       if (px > maxX) maxX = px;
@@ -2586,6 +2595,7 @@ export class Renderer {
     this.stats.set('casters', this.drawnCasters.toLocaleString());
     this.stats.set('tris', `${(this.drawnTris / 1000).toFixed(0)}k`);
     this.stats.set('zoom', `${cam.distance.toFixed(0)}m`);
+    this.stats.set('shadow', `${Math.round(this.sunRadius)}m/${(this.sunRadius * 2 / this.shadowSize).toFixed(2)}m`);
     this.stats.set('px', `${viewport.width}×${viewport.height}`);
     this.stats.set('grass', this.grassBlades ? `${(this.grassBlades / 1000).toFixed(0)}k` : '—');
     if (this.stalled > 0) { this.stats.set('paced', String(this.stalled)); this.stalled = 0; }
