@@ -1041,6 +1041,17 @@ export class MeshBuilder {
     return edge >= 16;
   }
 
+  /**
+   * Paints every untinted surface of one material with a palette tint, after
+   * the fact: how a region pack turns a generator's plaster walls into painted
+   * ones without the generator knowing.
+   */
+  retint(material: number, tint: number): void {
+    for (let i = 0; i < this.verts.length; i += FLOATS_PER_VERTEX) {
+      if (this.verts[i + 6] === material && this.verts[i + 8] === 0) this.verts[i + 8] = tint;
+    }
+  }
+
   /** Moves everything pushed so far across the ground, for a generator built off-centre. */
   translate(dx: number, dz: number): void {
     for (let i = 0; i < this.verts.length; i += FLOATS_PER_VERTEX) {

@@ -22,6 +22,7 @@
  */
 
 import type { AssetDef } from '../assets/types';
+import { MAT, TINT } from '../assets/mesh';
 import { WONDERS } from '../assets/generators/wonders';
 import { MONUMENTS } from '../assets/generators/monuments';
 import { housingFor } from '../assets/generators/housing';
@@ -82,6 +83,18 @@ export const BUILTIN_MODS: readonly ModDef[] = [
     description: 'Runs the sky forty times as fast while the city keeps its own pace: dawn to dusk to dawn in under a minute.' },
 ];
 
+/**
+ * The paint a region's plaster walls come in, where it has one. South America
+ * in strong warm colours and the odd blue; the Mediterranean mostly whitewash
+ * with pastels. The other regions build in their own materials.
+ */
+const PAINTED: Partial<Record<RegionTheme, [number, number, number][]>> = {
+  latin: [[0.78, 0.36, 0.26], [0.86, 0.66, 0.24], [0.26, 0.50, 0.64], [0.40, 0.62, 0.40],
+    [0.80, 0.46, 0.52], [0.90, 0.80, 0.52], [0.56, 0.34, 0.56], [0.92, 0.88, 0.80]],
+  mediterranean: [[0.90, 0.89, 0.85], [0.88, 0.85, 0.78], [0.92, 0.82, 0.64], [0.82, 0.86, 0.90],
+    [0.90, 0.89, 0.85], [0.86, 0.74, 0.62]],
+};
+
 /** What each region pack says about itself. */
 const REGION_BLURB: Record<RegionTheme, string> = {
   russian: 'Prefabricated panel blocks with glazed-in balconies, carved-shutter wooden houses under tin roofs, and works to match.',
@@ -111,7 +124,24 @@ export function packAssets(id: string): AssetDef[] {
   if (theme === undefined) return [];
   let hit = regionCache.get(id);
   if (hit === undefined) {
-    hit = [...housingFor(theme), ...tradeFor(theme)].map((d) => ({ ...d, mod: id }));
+    const paints = PAINTED[theme];
+    hit = [...housingFor(theme), ...tradeFor(theme)].map((d, i): AssetDef => {
+      if (paints === undefined || d.brand !== undefined) return { ...d, mod: id };
+      // Painted render: each building its own colour from the region's
+      // palette, on its plaster walls only -- windows, roofs and trim keep
+      // their own materials.
+      const colour = paints[(i * 7 + d.id.length) % paints.length];
+      const build = d.build;
+      return {
+        ...d, mod: id,
+        brand: { name: d.name, colour, accent: [0.92, 0.90, 0.86], sign: 'none' },
+        build: (lod: number) => {
+          const m = build(lod);
+          m.retint(MAT.PLASTER, TINT.BRAND);
+          return m;
+        },
+      };
+    });
     regionCache.set(id, hit);
   }
   return hit;

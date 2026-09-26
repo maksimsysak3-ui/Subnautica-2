@@ -118,6 +118,7 @@ export class TaxPanel {
     BRANCHES.forEach((branch, i) => {
       const pal = BRANCH_STYLE[branch];
       const row = document.createElement('div');
+      row.dataset.fund = branch;
       row.className = 'mr-tax-row';
       row.style.setProperty('--zone', pal.base);
       row.style.setProperty('--zone-ink', pal.light);

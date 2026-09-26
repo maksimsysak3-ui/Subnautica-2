@@ -85,13 +85,14 @@ for (const name of EXPECTED) {
 }
 if (r.budgetRows < 8) push(`the budget panel has ${r.budgetRows} rows`);
 if (r.taxSliders !== 4) push(`the budget has ${r.taxSliders} tax sliders, not four`);
+if (r.fundSliders !== 12) push(`the budget has ${r.fundSliders} service budget sliders, not twelve`);
 if (!r.rateMoved) push('dragging a tax slider did not change the rate');
 if (r.budgetPainted > 0.01) {
   push(`opening the budget painted ${(r.budgetPainted * 100).toFixed(1)}% of the map`);
 }
 
 console.log(`rail     ${r.icons} icons: ${r.views.join(', ')}`);
-console.log(`budget   ${r.budgetRows} rows, ${r.taxSliders} sliders, `
+console.log(`budget   ${r.budgetRows} rows, ${r.taxSliders} tax and ${r.fundSliders} service sliders, `
   + `rate ${r.rateMoved ? 'moves' : 'STUCK'}, `
   + `map untouched (${(r.budgetPainted * 100).toFixed(2)}%)`);
 

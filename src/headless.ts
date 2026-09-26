@@ -920,7 +920,7 @@ export async function probeViews(): Promise<{
   trafficMoved: number; buriedMoved: number;
   closed: boolean; closedBack: number;
   population: number; views: string[];
-  budgetRows: number; taxSliders: number; rateMoved: boolean; budgetPainted: number;
+  budgetRows: number; taxSliders: number; fundSliders: number; rateMoved: boolean; budgetPainted: number;
 }> {
   configureSim(LITE);
   const ui = document.createElement('div');
@@ -1036,7 +1036,8 @@ export async function probeViews(): Promise<{
   const budgetRows = ui.querySelectorAll('[data-stat]').length;
   const taxPanel = ui.querySelector('[data-panel="tax"]');
   const sliders = taxPanel === null ? []
-    : Array.from(taxPanel.querySelectorAll('input[type=range]')) as HTMLInputElement[];
+    : Array.from(taxPanel.querySelectorAll('[data-tax] input[type=range]')) as HTMLInputElement[];
+  const fundSliders = taxPanel === null ? 0 : taxPanel.querySelectorAll('[data-fund] input[type=range]').length;
   const sim = (live as unknown as { sim: Simulation }).sim;
   const wasRate = sim.budget.rates[0];
   if (sliders[0] !== undefined) {
@@ -1053,7 +1054,7 @@ export async function probeViews(): Promise<{
     trafficMoved: moved(plainPx, trafficPx), buriedMoved: moved(plainPx, buriedPx),
     closed, closedBack: Math.max(0, moved(plainPx, backPx) - moving),
     population: live.population, views,
-    budgetRows, taxSliders: sliders.length,
+    budgetRows, taxSliders: sliders.length, fundSliders,
     rateMoved: Math.abs(nowRate - wasRate) > 0.01,
     // A budget is not a place: opening it must leave the map exactly as it was.
     // Against the frame just before it opened, not the first one: three updates
