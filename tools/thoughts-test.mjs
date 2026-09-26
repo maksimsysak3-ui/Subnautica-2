@@ -97,8 +97,12 @@ section('what a building says');
     `${dark} power vs ${lit} other`);
 
   // And back. The gripe has to clear, not merely be outranked.
+  sim.complaints.takeCheers();
   have.fill(255);
   for (let i = 0; i < 80; i++) sim.complaints.survey();
+  const cheered = sim.complaints.takeCheers().filter((c) => c.gripe === Gripe.POWER).length;
+  ok(cheered > 20, 'and the buildings it came back to cheer', `${cheered} cheered`);
+  ok(sim.complaints.takeCheers().length === 0, 'once each');
   let still = 0;
   for (const c of sim.complaints.list) if (c.gripe === Gripe.POWER) still++;
   ok(still === 0, 'restoring it clears them', `${still} still complaining`);
