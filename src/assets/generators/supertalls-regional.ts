@@ -21,7 +21,7 @@ import type { Ring } from './signature-parts';
 import { entrance, kerb } from '../parts';
 import { tree } from './landscape';
 import {
-  grow, litCrown, plantFloor, podium, shaft, shift, shrink, soffit, square,
+  grow, litCrown, plantFloor, podium, shaft, shift, soffit, square,
 } from './supertalls';
 
 type P2 = [number, number];
@@ -33,63 +33,6 @@ function tri2(m: MeshBuilder, a: Vec3, b: Vec3, c: Vec3, mat: Material): void {
 }
 
 // ============================================================== european
-
-/**
- * A bullet of glass on a circular plan, swelling out from the pavement to its
- * widest a third of the way up and drawing in to a glass dome, wrapped in a
- * steel diagrid of two opposed spirals -- the frame is the structure, so there
- * are no columns inside and none needed at the corners it does not have.
- */
-export function lanternTower(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const n = fine ? 36 : medium ? 24 : 12;
-  const R = 13.8, y0 = 0.2, floors = 40, fh = 4.1, top = y0 + floors * fh;
-  const radius = (t: number): number => R * (0.8 + 0.32 * Math.sin(Math.PI * Math.min(1, t * 1.1)));
-  const circle = plan(1, 1, 1, n);
-  const at = (t: number): Ring => scaled(circle, radius(t));
-
-  if (fine) forecourt(m, -35, -31, 35, 31, 8101, { trees: 6, lamps: 8, people: 14, benches: 4 });
-  shaft(m, lod, at, y0, top, floors, 2.6);
-  // The dome: the last rings closing over a glass lantern.
-  const rTop = radius(1);
-  const domeSteps = fine ? 6 : 3;
-  for (let k = 0; k < domeSteps; k++) {
-    const u0 = k / domeSteps, u1 = (k + 1) / domeSteps;
-    const r0 = rTop * Math.cos(u0 * Math.PI * 0.45), r1 = rTop * Math.cos(u1 * Math.PI * 0.45);
-    const ya = top + Math.sin(u0 * Math.PI * 0.45) * 14, yb = top + Math.sin(u1 * Math.PI * 0.45) * 14;
-    loft(m, scaled(circle, r0), scaled(circle, r1), ya, yb, MAT.GLASS);
-  }
-  const lastR = rTop * Math.cos(Math.PI * 0.45);
-  cap(m, scaled(circle, lastR), top + 14, MAT.GLASS);
-  // The diagrid: two sets of spirals, one each way.
-  if (medium) {
-    const helices = fine ? 18 : 12, segs = fine ? 14 : 6, sides = fine ? 4 : 3;
-    m.painted(TINT.NONE, () => {
-      for (const dir of [1, -1]) {
-        for (let h = 0; h < helices; h++) {
-          const a0 = (h / helices) * Math.PI * 2;
-          const p = (t: number): Vec3 => {
-            const a = a0 + dir * t * Math.PI * 1.2, r = radius(t) + 0.3;
-            return [Math.cos(a) * r, y0 + t * (top - y0), Math.sin(a) * r];
-          };
-          for (let s = 0; s < segs; s++) m.pipe(p(s / segs), p((s + 1) / segs), 0.28, MAT.TRIM, sides);
-        }
-      }
-    });
-    // Hoops where the spirals cross, every sixth floor.
-    for (let f = 6; f < floors; f += 6) {
-      const t = f / floors;
-      plantFloor(m, at(t), y0 + t * (top - y0) - 0.25, 0.5);
-    }
-  }
-  if (fine) {
-    entrance(m, { axis: 'z', sign: 1, plane: radius(0) }, 0,
-      { width: 5.0, height: 5.0, double: true, glazed: true, canopy: 3.6 });
-    kerb(m, -35, 31.2, 35, 32.0);
-  }
-  return m;
-}
 
 /**
  * A triangular tower of three office wings round a full-height atrium, with a
@@ -356,71 +299,3 @@ export function bracedTower(lod: number): MeshBuilder {
   return m;
 }
 
-/**
- * A pencil: a twenty-eight metre square carried four hundred metres up, its
- * facade a plain grid of concrete frame and big square windows, and every
- * twelve floors two storeys left open to the wind so it does not sway. A low
- * glazed office building beside it holds the street.
- */
-export function pencilTower(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const hw = 14, fh = 4.4, seg = 12, gap = 2, segments = 7;
-  const cx = 16;
-  const body = square(hw, hw, cx, 0);
-
-  if (fine) forecourt(m, -56, -38.8, 56, 38.8, 8707, { trees: 12, lamps: 12, people: 16, benches: 6 });
-  // The base building, to the west.
-  const base = square(16, 26, -34, 0);
-  shaft(m, lod, () => base, 0.1, 26, 6, 3.2);
-  cap(m, base, 26, MAT.ROOF);
-  if (medium) plantFloor(m, base, 24, 2);
-
-  let y = 0.1;
-  for (let s = 0; s < segments; s++) {
-    const h = seg * fh;
-    // Concrete frame behind the panes, so the grid shows white.
-    loft(m, body, body, y, y + h, fine ? MAT.CONCRETE : MAT.GLASS);
-    if (fine) {
-      // Panes: one big square per bay, set in the frame.
-      for (let f = 0; f < seg; f++) {
-        const fy = y + f * fh;
-        for (let e = 0; e < 4; e++) {
-          const a = body[e], b = body[(e + 1) % 4];
-          const ex = b[0] - a[0], ez = b[1] - a[1], len = Math.hypot(ex, ez);
-          const nx = (ez / len) * 0.05, nz = (-ex / len) * 0.05;
-          const bays = 6;
-          for (let k = 0; k < bays; k++) {
-            const s0 = (k + 0.1) / bays, s1 = (k + 0.9) / bays;
-            const p = (u: number, yy: number): Vec3 => [a[0] + ex * u + nx, yy, a[1] + ez * u + nz];
-            m.quadUV(p(s0, fy + 0.5), p(s0, fy + fh - 0.4), p(s1, fy + fh - 0.4), p(s1, fy + 0.5),
-              [[0, 0], [0, 1], [1, 1], [1, 0]], MAT.PANE);
-          }
-        }
-      }
-    }
-    y += h;
-    if (s === segments - 1) break;
-    // The open floors: the core and the four corner columns, nothing else.
-    cap(m, body, y, MAT.CONCRETE);
-    const core = square(6, 6, cx, 0);
-    loft(m, core, core, y, y + gap * fh, MAT.CONCRETE);
-    for (const [x, z] of body) {
-      const ix = x - Math.sign(x - cx) * 1.2, iz = z - Math.sign(z) * 1.2;
-      m.box([Math.min(x, ix), y, Math.min(z, iz)], [Math.max(x, ix), y + gap * fh, Math.max(z, iz)], MAT.CONCRETE);
-    }
-    soffit(m, body, y + gap * fh, MAT.CONCRETE);
-    y += gap * fh;
-  }
-  cap(m, body, y, MAT.ROOF);
-  if (medium) {
-    // The parapet, open at the top: the frame carried past the roof.
-    loft(m, body, body, y, y + 8, MAT.CONCRETE);
-    loft(m, shrink(body, 0.95), shrink(body, 0.95), y, y + 8, MAT.CONCRETE, true);
-  }
-  if (fine) {
-    entrance(m, { axis: 'z', sign: 1, plane: hw }, cx, { width: 5.0, height: 6.0, double: true, glazed: true, canopy: 3.6 });
-    kerb(m, -56, 39.0, 56, 39.8);
-  }
-  return m;
-}

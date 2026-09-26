@@ -10,7 +10,7 @@ import { HOUSING } from './generators/housing';
 import { SIGNATURE_RESIDENTIAL } from './generators/signature-res';
 import { SIGNATURE_COMMERCIAL } from './generators/signature-com';
 import { SIGNATURE_OFFICE } from './generators/signature-off';
-import { SUPERTALLS } from './generators/supertalls';
+import { SUPERTALLS } from './generators/supertalls-unique';
 import { SIGNATURE_INDUSTRIAL } from './generators/signature-ind';
 import { COMMERCE, WORKPLACES, MAKING } from './generators/trade';
 import { SAFETY } from './generators/services-safety';

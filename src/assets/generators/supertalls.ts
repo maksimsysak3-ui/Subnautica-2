@@ -21,10 +21,9 @@
 
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { Material } from '../mesh';
-import type { AssetDef } from '../types';
 import type { ThemeProfile } from '../themes';
 import { storeysOf } from '../themed-parts';
-import { cap, flags, forecourt, loft, plan, porteCochere, scaled } from './signature-parts';
+import { cap, forecourt, loft, plan, porteCochere, scaled } from './signature-parts';
 import type { Ring } from './signature-parts';
 import { glaze, glassShaft } from './towers';
 import { entrance, kerb } from '../parts';
@@ -148,59 +147,12 @@ export function starPlan(R: number, n: number): Ring {
 // ------------------------------------------------------------- the towers
 
 /**
- * A square tower whose corners are cut back as it rises: every face is a
- * triangle, eight of them, so the base square becomes the same square turned
- * forty-five degrees at the roof and the middle floors are a perfect octagon.
- * On a square podium of stone fins, with a glass parapet and a lit crown.
- */
-function oneMeridian(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const a = 22, b = a * 0.6;
-  const y0 = 22, floors = 90, fh = 4.0, top = y0 + floors * fh;
-  const oct = (t: number): Ring => {
-    const out: Ring = [];
-    const mid = a * (1 - t) + b * Math.SQRT2 * t;       // base edge midpoint -> top corner
-    const corner = a * Math.SQRT2 * (1 - t) + b * t;    // base corner -> top edge midpoint
-    for (let k = 0; k < 8; k++) {
-      const ang = (k * Math.PI) / 4, r = k % 2 === 0 ? mid : corner;
-      out.push([r * Math.cos(ang), r * Math.sin(ang)]);
-    }
-    return out;
-  };
-
-  if (fine) forecourt(m, -44, -44, 44, 44, 7101, { trees: 12, lamps: 10, people: 16, benches: 6 });
-  podium(m, lod, plan(25, 25, 0.04, 32), y0, 25.4);
-  if (medium) {
-    m.painted(TINT.NONE, () => {
-      for (let i = -5; i <= 5; i++) {
-        const u = i * 4.6;
-        m.box([u - 0.25, 9, 25.2], [u + 0.25, y0, 26.6], MAT.STONE);
-        m.box([u - 0.25, 9, -26.6], [u + 0.25, y0, -25.2], MAT.STONE);
-        m.box([25.2, 9, u - 0.25], [26.6, y0, u + 0.25], MAT.STONE);
-        m.box([-26.6, 9, u - 0.25], [-25.2, y0, u + 0.25], MAT.STONE);
-      }
-    });
-  }
-  shaft(m, lod, oct, y0, top, floors, 3.0);
-  if (medium) for (const f of [30, 60]) plantFloor(m, oct(f / floors), y0 + f * fh - 1, 4);
-  // Parapet: the glass carried up past the roof, lit from inside.
-  const last = oct(1);
-  loft(m, last, last, top, top + 8, fine ? MAT.DARK_TRIM : MAT.GLASS);
-  loft(m, shrink(last, 0.96), shrink(last, 0.96), top, top + 8, MAT.DARK_TRIM, true);
-  cap(m, shrink(last, 0.96), top + 1, MAT.ROOF);
-  if (medium) litCrown(m, last, top + 5, 3);
-  if (fine) flags(m, -18, 18, 32, 0.2, 7, 10);
-  return m;
-}
-
-/**
  * Three wings round a hexagonal core in a Y, the plan that lets a tower go
  * higher than any other -- each wing buttresses the other two. The wings step
  * back one at a time, in turn, so the setbacks spiral up the tower, and the
  * core carries on alone above the last of them in three narrowing drums.
  */
-function arcadiaTower(lod: number): MeshBuilder {
+export function arcadiaTower(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
   const n = fine ? 18 : medium ? 12 : 8;
@@ -251,7 +203,7 @@ function arcadiaTower(lod: number): MeshBuilder {
  * floors, each finished by a plant floor, and at the top the glass skin
  * carried on past the roof as an open crown.
  */
-function helionTower(lod: number): MeshBuilder {
+export function helionTower(lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
   const seg = fine ? 8 : medium ? 5 : 3;
@@ -280,100 +232,6 @@ function helionTower(lod: number): MeshBuilder {
   }
   cap(m, at(1), top, MAT.ROOF);
   if (medium) litCrown(m, ext(1), top + crownH - 1.2, 1.2);
-  return m;
-}
-
-/**
- * Twin towers on a star plan, each setting back in five tiers to a stack of
- * drums, joined a hundred and twenty metres up by a two-storey skybridge on
- * raking legs, over a shared podium that is a shopping centre in its own right.
- */
-function castellanTowers(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const n = fine ? 48 : medium ? 32 : 16;
-  const fh = 4.0, y0 = 20, X = 25;
-
-  if (fine) forecourt(m, -56, -38.8, 56, 38.8, 7404, { trees: 10, lamps: 12, people: 18, benches: 6 });
-  podium(m, lod, plan(52, 24, 0.5, 40), y0, 24.2);
-  const tiers: Array<[number, number]> = [[11, 32], [10, 8], [9, 5], [7.8, 4], [6.6, 3]];
-  let bridgeY = 0;
-  for (const side of [-1, 1]) {
-    let y = y0;
-    tiers.forEach(([R, floors], k) => {
-      const ring = shift(starPlan(R, n), side * X, 0);
-      shaft(m, lod, () => ring, y, y + floors * fh, floors, 2.6);
-      cap(m, ring, y + floors * fh, MAT.ROOF);
-      if (medium && k < 3) plantFloor(m, ring, y + floors * fh - 1.0, 1.0);
-      if (k === 0) bridgeY = y + 26 * fh;
-      y += floors * fh;
-    });
-    // The drums and the crown.
-    const segsN = fine ? 20 : 10;
-    for (const [r, h] of [[5.0, 10], [3.6, 8], [2.4, 7]] as const) {
-      m.cylinder(side * X, 0, r, y, y + h, segsN, MAT.GLASS);
-      if (medium) m.painted(TINT.METAL_DARK, () => m.cylinder(side * X, 0, r + 0.3, y + h - 1, y + h, segsN, MAT.METAL));
-      y += h;
-    }
-    if (medium) litCrown(m, shift(plan(2.4, 2.4, 1, segsN), side * X, 0), y - 7, 3);
-  }
-  // The skybridge and its legs.
-  const inner = X - 12.5;
-  m.box([-inner, bridgeY, -3.2], [inner, bridgeY + 8.5, 3.2], MAT.GLASS);
-  m.painted(TINT.METAL_DARK, () => {
-    m.box([-inner, bridgeY - 0.6, -3.4], [inner, bridgeY, 3.4], MAT.METAL);
-    m.box([-inner, bridgeY + 8.5, -3.4], [inner, bridgeY + 9.1, 3.4], MAT.METAL);
-    for (const s of [-1, 1]) {
-      m.pipe([s * inner, bridgeY - 44, 0], [s * 1.5, bridgeY - 0.6, 0], 0.8, MAT.METAL, fine ? 10 : 6);
-    }
-  });
-  if (fine) kerb(m, -56, 39.0, 56, 39.8);
-  return m;
-}
-
-/**
- * Eight glass shards leaning in round a tall irregular plan, each a plane, and
- * none quite meeting the next: at the top they part and stand open to the sky
- * at different heights, which is the whole silhouette.
- */
-function paragonShard(lod: number): MeshBuilder {
-  const m = new MeshBuilder();
-  const fine = lod < 1, medium = lod < 2;
-  const y0 = 14, height = 300, fh = 4.0;
-  const radii = [26, 23, 25, 22, 26, 23, 24, 22];
-  const base: Ring = radii.map((r, k) => {
-    const a = (k / 8) * Math.PI * 2 + 0.2;
-    return [Math.cos(a) * r, Math.sin(a) * r * 0.85] as P2;
-  });
-  const at = (t: number): Ring => scaled(base, 1 - 0.9 * t);
-  const closed = 0.84;
-  const topClosed = y0 + closed * height;
-  const floors = Math.round((topClosed - y0) / fh);
-
-  if (fine) forecourt(m, -44, -40, 44, 40, 7505, { trees: 10, lamps: 10, people: 16, benches: 6 });
-  podium(m, lod, grow(base, 3), y0, 23.8);
-  shaft(m, lod, (t) => at(t * closed), y0, topClosed, floors, 3.0);
-  cap(m, at(closed), topClosed, MAT.ROOF);
-  // The shards above: each face carried on alone to its own height.
-  const lift = [1.0, 0.93, 0.97, 0.9, 0.99, 0.92, 0.95, 0.91];
-  for (let i = 0; i < 8; i++) {
-    const j = (i + 1) % 8;
-    const tEnd = lift[i];
-    const A = at(closed), B = at(tEnd);
-    const ya = topClosed, yb = y0 + tEnd * height;
-    m.quad([A[j][0], ya, A[j][1]], [A[i][0], ya, A[i][1]], [B[i][0], yb, B[i][1]], [B[j][0], yb, B[j][1]], MAT.GLASS);
-    m.quad([B[j][0], yb, B[j][1]], [B[i][0], yb, B[i][1]], [A[i][0], ya, A[i][1]], [A[j][0], ya, A[j][1]], MAT.DARK_TRIM);
-  }
-  // The seams between shards: a dark reveal up every corner.
-  if (medium) {
-    m.painted(TINT.METAL_DARK, () => {
-      for (let i = 0; i < 8; i++) {
-        const p0 = at(0)[i], p1 = at(closed)[i];
-        m.pipe([p0[0], y0, p0[1]], [p1[0], topClosed, p1[1]], 0.35, MAT.METAL, 4);
-      }
-    });
-    litCrown(m, at(closed), topClosed - 3, 1.5);
-  }
   return m;
 }
 
@@ -407,66 +265,3 @@ export function bladeTower(lod: number, T: ThemeProfile, seed: number): MeshBuil
   }
   return m;
 }
-
-// ====================================================================== table
-
-const desks = (jobs: number, upkeep: number, power: number): AssetDef['sim'] => ({
-  jobs, powerKW: power, waterM3: jobs * 0.32, garbagePerWeek: jobs * 7,
-  pollution: 0, upkeep,
-});
-
-interface Row {
-  key: string; name: string; foot: [number, number]; jobs: number;
-  upkeep: number; power: number; colour: [number, number, number];
-  accent: [number, number, number]; note: string;
-  build: (lod: number) => MeshBuilder;
-}
-
-const ROWS: Row[] = [
-  {
-    key: 'meridian', name: 'One Meridian', foot: [11, 11], jobs: 3400, upkeep: 4300, power: 6400,
-    colour: [0.78, 0.84, 0.92], accent: [0.30, 0.36, 0.46],
-    note: 'Ninety storeys on a square whose corners are cut back all the way up: eight triangular glass faces, an octagon at the waist and the base square turned forty-five degrees at the roof, over a podium of stone fins.',
-    build: oneMeridian,
-  },
-  {
-    key: 'arcadia', name: 'Arcadia Tower', foot: [12, 12], jobs: 3600, upkeep: 4500, power: 6800,
-    colour: [0.86, 0.80, 0.66], accent: [0.34, 0.30, 0.26],
-    note: 'Three glass wings round a hexagonal core in a Y, stepping back in turn so the setbacks spiral up eighty-one storeys, then the core alone in three narrowing drums to a glass crown.',
-    build: arcadiaTower,
-  },
-  {
-    key: 'helion', name: 'Helion Tower', foot: [12, 12], jobs: 3500, upkeep: 4400, power: 6600,
-    colour: [0.70, 0.86, 0.90], accent: [0.26, 0.34, 0.40],
-    note: 'A rounded triangle of eighty-four storeys turning a third of a circle as it narrows, in zones divided by louvred plant floors, with its glass skin carried on past the roof as an open crown.',
-    build: helionTower,
-  },
-  {
-    key: 'castellan', name: 'Castellan Towers', foot: [14, 10], jobs: 4200, upkeep: 5200, power: 7800,
-    colour: [0.84, 0.84, 0.86], accent: [0.36, 0.36, 0.40],
-    note: 'Twin towers on an eight-point star plan setting back in five tiers to stacked drums, joined a hundred and twenty metres up by a two-storey skybridge on raking legs, over a shared podium of shops.',
-    build: castellanTowers,
-  },
-  {
-    key: 'shard', name: 'Paragon Shard', foot: [11, 10], jobs: 2800, upkeep: 3600, power: 5400,
-    colour: [0.80, 0.88, 0.94], accent: [0.30, 0.38, 0.46],
-    note: 'Eight glass shards leaning in over three hundred metres, never quite meeting: at the top they part and stand open to the sky at eight different heights.',
-    build: paragonShard,
-  },
-];
-
-export const SUPERTALLS: AssetDef[] = ROWS.map((r): AssetDef => ({
-  id: `sig.off.sky.${r.key}`,
-  name: r.name,
-  zone: 'office',
-  density: 'high',
-  variant: 'sculpted',
-  theme: 'modern',
-  signature: true,
-  footprint: r.foot,
-  height: 0,
-  brand: { name: r.name, colour: r.colour, accent: r.accent, sign: 'box' },
-  sim: desks(r.jobs, r.upkeep, r.power),
-  note: r.note,
-  build: r.build,
-}));

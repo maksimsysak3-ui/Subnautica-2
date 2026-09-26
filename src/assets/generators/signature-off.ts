@@ -21,8 +21,9 @@ import {
 import type { Ring } from './signature-parts';
 import { band, entrance, planter, roofClutter } from '../parts';
 import {
-  bracedTower, bundledTower, lanternTower, moduleTower, pencilTower, prismTower, skyGardenTower,
+  bracedTower, bundledTower, moduleTower, prismTower, skyGardenTower,
 } from './supertalls-regional';
+import { diagridPlaza, slopeTower } from './supertalls-unique';
 
 // ================================================================ 1. modern
 
@@ -349,10 +350,10 @@ const TOWER: Record<Theme, Row> = {
     build: supertall,
   },
   european: {
-    key: 'tower', name: 'The Lantern', foot: [9, 8], jobs: 1500, upkeep: 2200, power: 2800,
+    key: 'tower', name: 'The Slope', foot: [9, 8], jobs: 1500, upkeep: 2200, power: 2800,
     colour: [0.22, 0.24, 0.30], accent: [0.66, 0.58, 0.34],
-    note: 'Forty storeys of glass on a circular plan, swelling to its widest a third of the way up and closing in a glass dome, wrapped in a steel diagrid of opposed spirals.',
-    build: lanternTower,
+    note: 'Forty-six storeys whose front face slopes back all the way up to a blade at the roof, carried on a white megaframe over a seven-storey public plaza, with its core of glass lifts and steel stairs standing outside at the back in yellow.',
+    build: slopeTower,
   },
   american: {
     key: 'tower', name: 'Lakeshore Tower', foot: [9, 8], jobs: 1200, upkeep: 1900, power: 2400,
@@ -404,10 +405,10 @@ const HQ: Record<Theme, Row> = {
     build: prismTower,
   },
   farming: {
-    key: 'hq', name: 'One Linden', foot: [14, 10], jobs: 1600, upkeep: 2300, power: 3600,
+    key: 'hq', name: 'Hearst Plaza', foot: [14, 10], jobs: 1600, upkeep: 2300, power: 3600,
     colour: [0.24, 0.32, 0.24], accent: [0.66, 0.60, 0.36],
-    note: 'A twenty-eight metre square carried four hundred metres up in a plain grid of concrete frame and big square windows, with two storeys left open to the wind every twelve floors, beside a low glass office building.',
-    build: pencilTower,
+    note: 'A six-storey stone block of piers and tall windows, kept whole, with a forty-two storey silver diagrid tower rising out of the middle of it: every face a lattice of triangles, nothing vertical in the frame at all.',
+    build: diagridPlaza,
   },
   row: {
     key: 'hq', name: '', foot: [1, 1], jobs: 0, upkeep: 0, power: 0,
