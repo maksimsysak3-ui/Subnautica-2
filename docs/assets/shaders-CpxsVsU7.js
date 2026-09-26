@@ -3551,13 +3551,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let bedCell = floor(in.world.xz * (1.0 / 18.0));
     let bedPick = fract(sin(dot(bedCell, vec2f(269.5, 183.3))) * 43758.5453);
     let inBed = fract(in.world.xz * (1.0 / 18.0));
-    let bedBox = min(min(inBed.x, 1.0 - inBed.x), min(inBed.y, 1.0 - inBed.y));
-    let bed = step(0.74, bedPick) * smoothstep(0.20, 0.22, bedBox) * smoothstep(0.985, 1.0, surf.r);
-    let kerbRing = step(0.74, bedPick) * smoothstep(0.18, 0.19, bedBox)
-      * (1.0 - smoothstep(0.20, 0.21, bedBox)) * smoothstep(0.985, 1.0, surf.r);
-    // Planting, not a lawn swatch: low shrubs and ground cover, mottled dark.
+    // Rounded rather than square: from the building camera a hard-cornered
+    // dark square on a grid read as a missing tile, not as a planted bed.
+    let q = abs(inBed - vec2f(0.5)) - vec2f(0.22);
+    let bedDist = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - 0.06;
+    let bedBox = -bedDist;
+    let bed = step(0.80, bedPick) * smoothstep(0.0, 0.015, bedBox) * smoothstep(0.985, 1.0, surf.r);
+    let kerbRing = step(0.80, bedPick) * smoothstep(-0.018, -0.008, bedBox)
+      * (1.0 - smoothstep(0.0, 0.01, bedBox)) * smoothstep(0.985, 1.0, surf.r);
+    // Planting, not a lawn swatch: low shrubs and ground cover, mottled --
+    // but in the greens planting actually is. The near-black it was drawn in
+    // made every bed look like a hole in the paving.
     let shrub = vnoise(in.world.xz * (1.0 / 0.9)) * 0.6 + vnoise(in.world.xz * (1.0 / 3.1)) * 0.4;
-    let lawn = mix(vec3f(0.022, 0.050, 0.020), vec3f(0.052, 0.098, 0.036), shrub) * (0.9 + batch * 0.2);
+    let lawn = mix(vec3f(0.040, 0.082, 0.028), vec3f(0.092, 0.150, 0.052), shrub) * (0.9 + batch * 0.2);
     paved = mix(paved, lawn, bed);
     paved = mix(paved, vec3f(0.20, 0.196, 0.186), kerbRing * 0.8);
 
@@ -5560,4 +5566,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,zY={"common.wgsl":GY,"atmosphere.wgsl":dY,"noise.wgsl":VY,"overlay.wgsl":NY};function SQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>zY[U]??A)}const ss={asset:SQ(HY),cull:SQ(hY),terrain:SQ(lY),sky:SQ(OY),grass:SQ(SY),road:SQ(TY),water:SQ(bY),rain:SQ(fY),dots:SQ(JY),mains:SQ(KY),post:SQ(XY)};export{Qs as $,PY as A,sD as B,Es as C,RD as D,jY as E,$A as F,Eg as G,os as H,cs as I,a as J,E as K,Dw as L,CF as M,fE as N,uY as O,Zw as P,As as Q,rY as R,ss as S,_Q as T,$Y as U,Dg as V,R0 as W,r0 as X,$B as Y,wY as Z,_Y as _,Yg as a,mY as a0,qY as a1,BY as a2,z0 as a3,y0 as a4,q0 as a5,u0 as a6,$0 as a7,AY as a8,rC as a9,yC as aa,J0 as ab,K0 as ac,f0 as ad,X0 as ae,P0 as af,mC as ag,qC as ah,yE as ai,Bs as aj,MY as ak,xw as al,tY as am,cE as b,Ag as c,YY as d,Cs as e,Fs as f,Is as g,Ds as h,Us as i,qg as j,xY as k,sQ as l,yY as m,ws as n,Ms as o,sY as p,KC as q,TQ as r,gs as s,pY as t,MF as u,vY as v,a0 as w,ZY as x,WY as y,Ys as z};
-//# sourceMappingURL=shaders-DHpQnGLo.js.map
+//# sourceMappingURL=shaders-CpxsVsU7.js.map
