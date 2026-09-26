@@ -370,6 +370,8 @@ export interface DispatchStats {
 }
 
 export class Dispatch {
+  /** Funding by branch, from the budget; null for full everywhere. */
+  funding: Float64Array | null = null;
   readonly table = new Table(SCHEMA, 256);
 
   /**
@@ -909,7 +911,11 @@ export class Dispatch {
     // one below a crew's worth of staff fields none.
     if (staff < POSTS_PER_CREW) return 0;
     const jobs = Math.max(staff, def.sim?.jobs ?? staff);
-    return Math.max(1, Math.floor(fleetOf(def) * staff / jobs + 0.34));
+    // And funding: a cut budget keeps vehicles in the yard, a generous one
+    // puts a spare on the road.
+    const b = BRANCHES.indexOf(def.branch as never);
+    const funded = b >= 0 ? this.funding?.[b] ?? 1 : 1;
+    return Math.max(1, Math.floor(fleetOf(def) * staff / jobs * funded + 0.34));
   }
 
   private nearCamera(x: number, z: number): boolean {

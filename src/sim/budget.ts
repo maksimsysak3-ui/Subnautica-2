@@ -1,4 +1,5 @@
 import { CURRENCY } from './difficulty';
+import { BRANCHES } from '../assets/types';
 /**
  * The treasury: what the city has, and what it charges.
  *
@@ -19,6 +20,10 @@ import { CURRENCY } from './difficulty';
  * thing that fixes it. So there is a floor, it costs interest, and it is small
  * enough that living in it is not a strategy.
  */
+
+/** How far a service's funding may be cut or raised. */
+export const FUNDING_MIN = 0.5;
+export const FUNDING_MAX = 1.5;
 
 /** The four rates, in the order the panel draws them. */
 export const Tax = {
@@ -97,6 +102,33 @@ export class Budget {
   balance = STARTING_FUNDS;
   /** One rate per `Tax`, as a fraction. */
   readonly rates = new Float64Array(TAXES).fill(TAX_NEUTRAL);
+
+  /**
+   * How well each service branch is funded, 0.5 to 1.5, indexed as BRANCHES.
+   *
+   * The lever a player pulls when the money is short or a service is not
+   * keeping up: under-fund the parks to pay for the fire service, over-fund
+   * the police to cover the city without another station. It scales what the
+   * branch costs, and what it does -- reach, capacity, crews, plant output --
+   * less than proportionally, so cutting is a real saving with a real cost.
+   */
+  readonly funding = new Float64Array(BRANCHES.length).fill(1);
+
+  setFunding(branch: number, v: number): void {
+    if (branch < 0 || branch >= this.funding.length || !Number.isFinite(v)) return;
+    this.funding[branch] = Math.round(Math.max(FUNDING_MIN, Math.min(FUNDING_MAX, v)) * 20) / 20;
+    this.version++;
+  }
+
+  saveFunding(): number[] | undefined {
+    return this.funding.some((v) => v !== 1) ? [...this.funding] : undefined;
+  }
+
+  restoreFunding(raw: unknown): void {
+    this.funding.fill(1);
+    if (!Array.isArray(raw)) return;
+    raw.forEach((v, i) => { if (typeof v === 'number') this.setFunding(i, v); });
+  }
   /** Bumped when a rate changes, so the readouts know to recompute. */
   version = 0;
 

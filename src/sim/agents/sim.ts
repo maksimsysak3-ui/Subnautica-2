@@ -380,6 +380,9 @@ export class Simulation {
     // Two would be the same bug the mains had: the panel reading one balance
     // while the treasury spends another.
     this.budget = world?.budget ?? new Budget();
+    this.services.funding = this.budget.funding;
+    this.dispatch.funding = this.budget.funding;
+    this.utilities.funding = this.budget.funding;
     // One policy object too, for the same reason: a panel switching one set
     // while the simulation reads another is the bug the mains had.
     this.policies = world?.policies ?? new Policies();

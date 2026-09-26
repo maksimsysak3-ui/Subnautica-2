@@ -695,7 +695,7 @@ export class Economy {
         const load = def === undefined ? null : this.loadOf(def.id);
         const running = load === null ? 1 : PLANT_FIXED + (1 - PLANT_FIXED) * load;
         const cost = upkeep * (UPKEEP_IDLE + (1 - UPKEEP_IDLE) * staffed) * running
-          * (1 + TIER_UPKEEP * c.tier[id]);
+          * (1 + TIER_UPKEEP * c.tier[id]) * (this.budget.funding[b] ?? 1);
         total += cost;
         if (b < this.servicesByBranch.length) this.servicesByBranch[b] += cost;
         const row = this.upkeepByProto.get(c.proto[id]);

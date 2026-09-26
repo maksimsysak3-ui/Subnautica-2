@@ -181,6 +181,15 @@ const ok = (cond, what, detail = '') => {
   c.balance = 1e12;
   ok(c.repay(0) && c.loans.length === M.MAX_LOANS - 1, 'and can with it');
 
+  const f = new M.Budget();
+  f.setFunding(0, 9); f.setFunding(1, -3); f.setFunding(2, 0.83);
+  ok(f.funding[0] === 1.5 && f.funding[1] === 0.5 && Math.abs(f.funding[2] - 0.85) < 1e-9,
+    'service funding is clamped to 50-150% in steps of five', [...f.funding.slice(0, 3)].join(','));
+  const fw = M.defaultWorld();
+  fw.budget.setFunding(1, 0.6);
+  const fb = M.deserialise(M.serialise(fw, 'funding'));
+  ok(fb?.world.budget.funding[1] === 0.6 && fb.world.budget.funding[0] === 1, 'a save keeps the service budgets');
+
   const w = M.defaultWorld();
   w.budget.borrow(2);
   const back = M.deserialise(M.serialise(w, 'loans'));

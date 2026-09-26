@@ -140,6 +140,8 @@ export interface Cover {
 }
 
 export class Services {
+  /** Funding by branch, from the budget; null for full everywhere. */
+  funding: Float64Array | null = null;
   /**
    * Coverage per cell, per branch: 0 none, 1 fully served.
    *
@@ -322,6 +324,9 @@ export class Services {
       : name === 'education' ? pol.learningReach : 1;
     const pool = this.places.byBranch[b];
     const c = this.places.col;
+    // Funding: capacity in proportion, reach less so -- a better-funded force
+    // patrols a little further, it does not double its beat.
+    const funded = this.funding?.[b] ?? 1;
     const reach = this.reach[b];
     const near = this.near[b];
 
@@ -349,9 +354,9 @@ export class Services {
     let capacity = 0, worst = 0;
     for (let i = 0; i < pool.size; i++) {
       const p = pool.member(i);
-      const holds = Math.max(1, c.serves[p]) * std.per;
+      const holds = Math.max(1, c.serves[p]) * std.per * funded;
       capacity += holds;
-      const g = grow * (1 + TIER_REACH * c.tier[p]);
+      const g = grow * (1 + TIER_REACH * c.tier[p]) * (0.8 + 0.2 * funded);
       const inside = this.sumDisc(demandGrid, c.x[p], c.z[p], std.worst * g, std.good * g);
       const l = inside / holds;
       this.load[i] = l;
@@ -373,8 +378,12 @@ export class Services {
       // A station at twice its rated load serves everybody in its catchment half
       // as well. Not a cliff: an overstretched school is worse, not absent, and a
       // cliff would make the map flicker between two colours as the city grows.
-      const able = Math.min(1, 1 / Math.max(1, this.load[i]));
-      const g = grow * (1 + TIER_REACH * c.tier[p]);
+      // And a station starved of funds serves worse where it does reach:
+      // fewer patrols, longer waits, older kit. Over-funding buys reach and
+      // capacity above, not a better-than-full service.
+      const quality = funded < 1 ? 0.4 + 0.6 * funded : 1;
+      const able = Math.min(1, 1 / Math.max(1, this.load[i])) * quality;
+      const g = grow * (1 + TIER_REACH * c.tier[p]) * (0.8 + 0.2 * funded);
       spent += this.stampDisc(reach, near, c.x[p], c.z[p], std.worst * g, std.good * g, able);
       this.cursor++;
       if (spent >= budget) return false;

@@ -83,6 +83,8 @@ interface SaveFile {
   auto?: 1;
   /** Loans outstanding: kind, owed, weekly payment, weekly rate, weeks left. */
   loans?: number[][];
+  /** Service funding by branch, when any differs from full. */
+  funding?: number[];
   /** Cells across. A save from a different map size cannot be loaded onto it. */
   grid: number;
   name: string;
@@ -262,6 +264,7 @@ export function serialise(world: World, name: string, auto = false): string {
     blight: encodeZones(world.blight),
     money: [world.budget.balance, [...world.budget.rates]],
     ...(world.budget.loans.length > 0 ? { loans: world.budget.saveLoans() } : {}),
+    ...((f) => (f === undefined ? {} : { funding: f }))(world.budget.saveFunding()),
     career: world.progress.save(),
     politics: world.politics.saved(),
     difficulty: world.difficulty,
@@ -356,6 +359,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
     world.budget.restore(file.money[0], file.money[1]);
   }
   world.budget.restoreLoans(file.loans);
+  world.budget.restoreFunding(file.funding);
   if (Array.isArray(file.policies)) {
     world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
   }

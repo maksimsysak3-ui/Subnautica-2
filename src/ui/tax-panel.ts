@@ -20,7 +20,9 @@
 
 import { Tax, TAX_NAMES, TAX_MIN, TAX_MAX, TAX_NEUTRAL } from '../sim';
 import type { Budget } from '../sim';
-import { ZONE_STYLE } from './zones';
+import { ZONE_STYLE, BRANCH_STYLE } from './zones';
+import { BRANCHES } from '../assets/types';
+import { FUNDING_MIN, FUNDING_MAX } from '../sim/budget';
 import { SKIN } from './skin';
 
 /** Which zone palette each rate takes. `TAX_NAMES` order. */
@@ -38,6 +40,8 @@ export class TaxPanel {
   readonly root: HTMLElement;
   private readonly sliders: HTMLInputElement[] = [];
   private readonly values: HTMLElement[] = [];
+  private readonly fundSliders: HTMLInputElement[] = [];
+  private readonly fundValues: HTMLElement[] = [];
   private budget: Budget | null = null;
   private shownVersion = -1;
 
@@ -101,6 +105,54 @@ export class TaxPanel {
       + 'expect. Above it they grumble, then leave; below it the city is poorer. Industry '
       + 'pays the most per job, and nobody who lives here pays it.';
     this.root.appendChild(note);
+
+    // Service budgets: how well each branch is funded. Cut one to save money
+    // and it covers less, fields fewer vehicles, makes less; fund one above
+    // the line and it reaches further for more than it saves you elsewhere.
+    const fhead = document.createElement('div');
+    fhead.className = 'mr-sec-head';
+    fhead.textContent = 'Service budgets';
+    fhead.style.marginTop = '10px';
+    this.root.appendChild(fhead);
+    const mid = ((1 - FUNDING_MIN) / (FUNDING_MAX - FUNDING_MIN)) * 100;
+    BRANCHES.forEach((branch, i) => {
+      const pal = BRANCH_STYLE[branch];
+      const row = document.createElement('div');
+      row.className = 'mr-tax-row';
+      row.style.setProperty('--zone', pal.base);
+      row.style.setProperty('--zone-ink', pal.light);
+      row.style.setProperty('--neutral', `${mid.toFixed(1)}%`);
+      const label = document.createElement('span');
+      label.className = 'mr-tax-name';
+      // The palette's water label names the whole piped network; here sewage
+      // has its own row, so it is just water.
+      label.textContent = branch === 'water' ? 'Water' : pal.label;
+      const track = document.createElement('span');
+      track.className = 'mr-tax-track';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'mr-range';
+      slider.min = String(FUNDING_MIN);
+      slider.max = String(FUNDING_MAX);
+      slider.step = '0.05';
+      slider.setAttribute('aria-label', `${pal.label} budget`);
+      slider.addEventListener('input', () => {
+        this.budget?.setFunding(i, Number(slider.value));
+        this.paint();
+      });
+      track.appendChild(slider);
+      const value = document.createElement('span');
+      value.className = 'mr-tax-val';
+      row.append(label, track, value);
+      this.root.appendChild(row);
+      this.fundSliders.push(slider);
+      this.fundValues.push(value);
+    });
+    const fnote = document.createElement('div');
+    fnote.className = 'mr-note-small';
+    fnote.textContent = 'Running costs follow the budget. Coverage, crews and output follow it too, '
+      + 'but less than one for one: a cut saves money and costs service.';
+    this.root.appendChild(fnote);
   }
 
   /** Points at the city's treasury. Called whenever the world is replaced. */
@@ -119,6 +171,9 @@ export class TaxPanel {
     for (let i = 0; i < this.sliders.length; i++) {
       this.sliders[i].value = String(b.rates[i]);
     }
+    for (let i = 0; i < this.fundSliders.length; i++) {
+      this.fundSliders[i].value = String(b.funding[i]);
+    }
     this.paint();
   }
 
@@ -126,6 +181,11 @@ export class TaxPanel {
   private paint(): void {
     const b = this.budget;
     if (b === null) return;
+    for (let i = 0; i < this.fundValues.length; i++) {
+      const f = b.funding[i];
+      this.fundValues[i].textContent = `${Math.round(f * 100)}%`;
+      this.fundValues[i].style.color = f < 0.75 ? SKIN.bad : f < 0.95 ? SKIN.warn : SKIN.text;
+    }
     for (let i = 0; i < this.values.length; i++) {
       const rate = b.rates[i];
       this.values[i].textContent = `${(rate * 100).toFixed(1)}%`;

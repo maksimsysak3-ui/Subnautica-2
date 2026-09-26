@@ -255,6 +255,8 @@ export interface UtilityReport {
 }
 
 export class Utilities {
+  /** Funding by branch, from the budget; null for full everywhere. */
+  funding: Float64Array | null = null;
   /**
    * The ordinances in force.
    *
@@ -706,7 +708,11 @@ export class Utilities {
     const crewed = supply.crewed ?? CREWED_DEFAULT;
     // An upgraded plant has more of it to run: more turbines, more filter beds.
     const boost = 1 + TIER_OUTPUT * this.places.col.tier[p];
-    return Math.min(1, (1 - crewed) + crewed * this.staffed(p)) * boost;
+    // Funding: a plant run on a shoestring makes less, one run generously a
+    // little more -- maintenance, overtime, the spare turbine kept turning.
+    const b = this.places.col.branch[p];
+    const funded = this.funding !== null && b < this.funding.length ? 0.6 + 0.4 * this.funding[b] : 1;
+    return Math.min(1, (1 - crewed) + crewed * this.staffed(p)) * boost * funded;
   }
 
   private running(p: number, supply: Supply): number {
