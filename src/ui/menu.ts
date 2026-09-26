@@ -52,11 +52,6 @@ export interface MenuHooks {
 /** Read while the land is built. Each one is something the game will not tell you. */
 const TIPS: readonly string[] = [
   'Buildings only grow on frontage. A road with nothing zoned beside it is a road to nowhere.',
-  'Landmarks are worth more than their jobs: land within about three hundred metres of one rises in value, and so do the taxes on it.',
-  'Upkeep follows what you build. A service costs a share of its price each week, and a road costs by the metre.',
-  'Every level pays into the treasury. Watch the dial at the top of the screen for the next one.',
-  'The supertalls open late. Keep growing and the skyline comes to you.',
-  'Taxes come from people and buildings, not from the clock. An empty city earns nothing, however long it waits.',
   'Right-drag orbits and the wheel zooms toward the cursor, so you never have to put a tool down to look around.',
   'Traffic is real. Every car on the road is somebody going somewhere, and a jam costs the city money.',
   'Land value rises near parks, schools and quiet streets, and what grows follows the value.',
@@ -66,8 +61,6 @@ const TIPS: readonly string[] = [
 
 interface Entry {
   label: string;
-  /** A glyph name, drawn beside the label. */
-  icon?: string;
   hint: string;
   key?: string;
   primary?: boolean;
@@ -108,43 +101,22 @@ export class Menu {
     const art = document.createElement('div');
     art.className = 'mr-load-art';
     art.style.backgroundImage = `url('${LOADING_ART}')`;
-    // A band of low sun drifting across the painting. Transform-only, so the
-    // compositor keeps it moving while the world build holds the main thread.
-    const sweep = document.createElement('div');
-    sweep.className = 'mr-load-sweep';
     const stack = document.createElement('div');
     stack.className = 'mr-load-stack';
     stack.innerHTML = '<div class="mr-eyebrow">A city builder</div>'
       + '<h1 class="mr-title">Meridian</h1>'
-      + '<p class="mr-load-tag">Draw the roads. Zone the land. Raise a skyline.</p>'
-      + '<div class="mr-load-bar"><div class="mr-rail"><div class="mr-fill" data-bar></div>'
-      + '<div class="mr-shine"></div></div><span class="mr-spin" aria-hidden="true"></span></div>'
-      + '<p class="mr-step" data-step aria-live="polite"></p>'
-      + '<ol class="mr-steps" data-steps></ol>';
-    const tipCard = document.createElement('aside');
-    tipCard.className = 'mr-tipcard';
-    tipCard.innerHTML = '<div class="mr-tipcard-head"><span>Tip</span><b data-tipn></b></div>'
+      + '<div class="mr-rail"><div class="mr-fill" data-bar></div></div>'
+      + '<p class="mr-step" data-step></p>'
       + '<p class="mr-tip" data-tip></p>';
-    const corner = document.createElement('div');
-    corner.className = 'mr-load-corner';
-    corner.innerHTML = '<span class="mr-chip">WebGPU</span><span class="mr-chip">Live simulation</span>';
-    el.append(art, sweep, stack, tipCard, corner);
+    el.append(art, stack);
     let n = Math.floor(Math.random() * TIPS.length);
     const show = (): void => {
-      const t = el.querySelector('[data-tip]') as HTMLElement | null;
-      const num = el.querySelector('[data-tipn]');
-      if (!t) return;
-      const k = n % TIPS.length;
-      // Restart the fade: drop the class, force a style read, put it back.
-      t.classList.remove('is-in');
-      void t.offsetWidth;
-      t.textContent = TIPS[k];
-      t.classList.add('is-in');
-      if (num) num.textContent = `${k + 1} / ${TIPS.length}`;
+      const t = el.querySelector('[data-tip]');
+      if (t) t.innerHTML = `<b>Tip</b>${TIPS[n % TIPS.length]}`;
       n++;
     };
     show();
-    this.tipTimer = window.setInterval(show, 6000);
+    this.tipTimer = window.setInterval(show, 5200);
     // The lock-up waits for its typeface, briefly: a title that arrives in
     // Arial and then jumps into its own face is the first thing anyone sees.
     const typed = (): void => el.classList.add('is-typed');
@@ -153,38 +125,9 @@ export class Menu {
     return el;
   }
 
-  /** The steps already named, so the checklist can tick them off. */
-  private seen: string[] = [];
-
-  /**
-   * Where the build has got to, and where it is heading. The bar is a
-   * transform, not a width, sent on towards the next step's mark with a long
-   * ease: the build holds the main thread for seconds at a time, and a width
-   * would freeze with it while a compositor transform keeps creeping, so the
-   * screen never looks hung.
-   */
-  progress(t: number, label: string, next = t): void {
-    const at = Math.min(1, Math.max(0, t));
-    const to = Math.min(1, Math.max(at, next));
-    this.bar.style.transition = 'none';
-    this.bar.style.transform = `scaleX(${at})`;
-    void this.bar.offsetWidth;
-    if (to > at) {
-      this.bar.style.transition = 'transform 8s cubic-bezier(.1,.7,.2,1)';
-      this.bar.style.transform = `scaleX(${at + (to - at) * 0.92})`;
-    }
+  progress(t: number, label: string): void {
+    this.bar.style.width = `${Math.round(Math.min(1, Math.max(0, t)) * 100)}%`;
     this.step.textContent = label;
-    const list = this.loader.querySelector('[data-steps]');
-    if (list === null || label === '') return;
-    if (!this.seen.includes(label)) this.seen.push(label);
-    list.replaceChildren(...this.seen.map((s) => {
-      const li = document.createElement('li');
-      const done = s !== label || at >= 1;
-      li.className = done ? 'is-done' : 'is-now';
-      li.innerHTML = `<i>${done ? glyph('check', 12) : ''}</i>`;
-      li.append(s);
-      return li;
-    }));
   }
 
   private buildMenu(): HTMLElement {
@@ -226,11 +169,12 @@ export class Menu {
     head.textContent = 'New in this build';
     card.appendChild(head);
     const items: Array<[string, string, string]> = [
-      ['signature', 'Supertalls', 'Five new landmark skyscrapers, and seven office landmarks rebuilt as real modern towers.'],
-      ['value', 'Landmark prestige', 'Every landmark lifts land value for three hundred metres around it, and the taxes with it.'],
-      ['money', 'A fairer economy', 'Cheaper building, upkeep that follows what you build, and level rewards paid into the treasury.'],
-      ['education', 'More services', 'A surgery, a police post, a fire post, a transfer station and a package sewage plant.'],
-      ['land', 'More homes', 'Semi-detached houses, townhouse rows and a podium tower in every theme.'],
+      ['resources', 'Production chains', 'Processing plants turn raw output into goods worth twice as much, with lorries and ships to carry it.'],
+      ['district', 'Districts', 'Paint named quarters and give them policies: tourist quarters, tech clusters, garden suburbs.'],
+      ['views', 'City stats', 'A phone app with every coin: taxes by zone, upkeep by building, three years of monthly books.'],
+      ['develop', 'Service upgrades', 'Extension and flagship wings for schools, clinics and plants: more capacity, more reach.'],
+      ['transport', 'Live transport', 'Buses stop and people board; airliners land at the airport; ships work the harbour.'],
+      ['traffic', 'Crowds and jams', 'Stadiums and landmarks pull traffic across the city. The roads into them are yours to fix.'],
     ];
     for (const [icon, title, text] of items) {
       const row = document.createElement('div');
@@ -275,16 +219,8 @@ export class Menu {
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.className = 'mr-item' + (e.primary ? ' is-primary' : '');
-      b.style.setProperty('--i', String(i));
       const name = document.createElement('span');
-      name.className = 'mr-label';
-      if (e.icon) {
-        const ico = document.createElement('i');
-        ico.className = 'mr-ico';
-        ico.innerHTML = glyph(e.icon, 18);
-        name.appendChild(ico);
-      }
-      name.append(e.label);
+      name.textContent = e.label;
       const key = document.createElement('span');
       key.className = 'mr-key';
       key.textContent = e.key ?? '';
@@ -297,7 +233,7 @@ export class Menu {
         key.addEventListener('click', (ev) => { ev.stopPropagation(); remove(); });
       }
       const hint = document.createElement('span');
-      hint.className = 'mr-sub';
+      hint.className = 'mr-hint';
       hint.textContent = e.hint;
       b.append(name, key, hint);
       b.addEventListener('pointerenter', () => this.focus(i));
@@ -336,19 +272,19 @@ export class Menu {
     const entries: Entry[] = [];
     if (saves.length > 0) {
       const last = saves[0];
-      entries.push({ label: 'Continue', key: last.name, primary: true, icon: 'arrow',
+      entries.push({ label: 'Continue', key: last.name, primary: true,
         hint: `${last.name} \u2014 ${slotHint(last)}, ${when(last.at)}`,
         run: () => this.open(last.key) });
     }
-    entries.push({ label: 'New city', primary: saves.length === 0, icon: 'land',
+    entries.push({ label: 'New city', primary: saves.length === 0,
       hint: 'Empty land by the river, with one road in from the edge of the map.',
       run: () => this.showSetup() });
-    entries.push({ label: 'Load city', icon: 'save', key: saves.length > 0 ? `${saves.length} saved` : '',
+    entries.push({ label: 'Load city', key: saves.length > 0 ? `${saves.length} saved` : '',
       hint: 'Pick up any city saved in this browser.', run: () => this.showLoad() });
-    entries.push({ label: 'Share & join', icon: 'chat',
+    entries.push({ label: 'Share & join',
       hint: 'Send your city to a friend as a code, or paste theirs to visit it.',
       run: () => this.showJoin() });
-    entries.push({ label: 'Mods', icon: 'mods', key: 'Soon',
+    entries.push({ label: 'Mods', key: 'Soon',
       hint: 'Make mods and add them to the game: new buildings, rules and maps.',
       run: () => this.showMods() });
     this.list(entries, null);
