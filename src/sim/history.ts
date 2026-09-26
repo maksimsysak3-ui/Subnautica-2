@@ -19,7 +19,7 @@ export const INCOME_LINES = [
   'exports', 'resources', 'fares', 'grant',
 ] as const;
 export const SPENDING_LINES = [
-  'services', 'roads', 'transit', 'industryUpkeep', 'policies', 'imports', 'interest',
+  'services', 'roads', 'transit', 'industryUpkeep', 'policies', 'imports', 'interest', 'loans',
 ] as const;
 export type IncomeLine = typeof INCOME_LINES[number];
 export type SpendingLine = typeof SPENDING_LINES[number];
@@ -30,7 +30,7 @@ export const LINE_LABEL: Record<IncomeLine | SpendingLine | 'congestion', string
   fares: 'Transit fares', grant: 'Regional grant',
   services: 'City services', roads: 'Road upkeep', transit: 'Transit running',
   industryUpkeep: 'Industry upkeep', policies: 'Policies', imports: 'Imported goods',
-  interest: 'Overdraft interest', congestion: 'Lost to congestion',
+  interest: 'Overdraft interest', loans: 'Loan repayments', congestion: 'Lost to congestion',
 };
 
 /** A closed month. Money is what actually moved in it; the rest is at its close. */

@@ -53,7 +53,47 @@ export const STARTING_FUNDS = 300000;
 /** How far into the red the city may go before nothing more can be bought. */
 export const OVERDRAFT = 60000 * CURRENCY;
 
+/**
+ * A loan from the regional bank: borrowed once, paid back weekly on a fixed
+ * schedule, with the interest in the payment.
+ *
+ * The overdraft is for a bad month; a loan is for a plan. A city that wants a
+ * university before its taxes can pay for one can borrow for it and carry the
+ * repayments for two years -- which is a real decision, because a city that
+ * borrows against growth that never comes is paying for a building it cannot
+ * staff.
+ */
+export interface Loan {
+  /** Which offer it was taken on, for its name. */
+  kind: number;
+  /** What is still owed, before interest. */
+  owed: number;
+  /** The fixed weekly payment. */
+  payment: number;
+  /** Weekly interest rate. */
+  rate: number;
+  weeksLeft: number;
+}
+
+export interface LoanOffer { name: string; amount: number; weeks: number; annual: number }
+
+/** What the bank will lend, designed small and scaled like every other price. */
+export const LOAN_OFFERS: readonly LoanOffer[] = [
+  { name: 'Short-term note', amount: 125000 * CURRENCY, weeks: 26, annual: 0.05 },
+  { name: 'Municipal bond', amount: 500000 * CURRENCY, weeks: 52, annual: 0.065 },
+  { name: 'Infrastructure bond', amount: 1250000 * CURRENCY, weeks: 104, annual: 0.08 },
+];
+/** How many loans a city may carry at once. */
+export const MAX_LOANS = 3;
+
+/** The level weekly payment that clears `amount` over `weeks` at a weekly `rate`. */
+export function loanPayment(amount: number, rate: number, weeks: number): number {
+  return rate === 0 ? amount / weeks : (amount * rate) / (1 - Math.pow(1 + rate, -weeks));
+}
+
 export class Budget {
+  /** Loans outstanding. */
+  loans: Loan[] = [];
   balance = STARTING_FUNDS;
   /** One rate per `Tax`, as a fraction. */
   readonly rates = new Float64Array(TAXES).fill(TAX_NEUTRAL);
@@ -120,9 +160,71 @@ export class Budget {
     this.spent += amount;
   }
 
+  /** Takes out a loan on an offer. False if the city is at its limit. */
+  borrow(kind: number): boolean {
+    const o = LOAN_OFFERS[kind];
+    if (o === undefined || this.loans.length >= MAX_LOANS) return false;
+    const rate = o.annual / 52;
+    this.loans.push({ kind, owed: o.amount, payment: loanPayment(o.amount, rate, o.weeks), rate, weeksLeft: o.weeks });
+    this.balance += o.amount;
+    this.version++;
+    return true;
+  }
+
+  /** Pays a loan off early, in full. False if the treasury cannot cover it. */
+  repay(index: number): boolean {
+    const l = this.loans[index];
+    if (l === undefined || this.balance < l.owed) return false;
+    this.balance -= l.owed;
+    this.spent += l.owed;
+    this.loans.splice(index, 1);
+    this.version++;
+    return true;
+  }
+
+  /** What the loans take each week, all together. */
+  get loanWeekly(): number {
+    let w = 0;
+    for (const l of this.loans) w += l.payment;
+    return w;
+  }
+
+  /**
+   * Runs the loans forward by part of a week: the payment has already been
+   * charged with the rest of the spending, so this only moves the schedule --
+   * interest accrues on what is owed, the payment pays it and some principal.
+   */
+  amortise(weeks: number): void {
+    if (this.loans.length === 0 || weeks <= 0) return;
+    for (const l of this.loans) {
+      const interest = l.owed * l.rate * weeks;
+      l.owed = Math.max(0, l.owed + interest - l.payment * weeks);
+      l.weeksLeft -= weeks;
+    }
+    const before = this.loans.length;
+    this.loans = this.loans.filter((l) => l.weeksLeft > 1e-3 && l.owed > 1);
+    if (this.loans.length !== before) this.version++;
+  }
+
   /** The mean rate a resident feels, for the appeal and mood models. */
   get felt(): number {
     return (this.rates[Tax.RESIDENTIAL] * 2 + this.rates[Tax.COMMERCIAL]) / 3;
+  }
+
+  /** The loans as a save carries them. */
+  saveLoans(): number[][] {
+    return this.loans.map((l) => [l.kind, l.owed, l.payment, l.rate, l.weeksLeft]);
+  }
+
+  restoreLoans(raw: unknown): void {
+    this.loans = [];
+    if (!Array.isArray(raw)) return;
+    for (const r of raw.slice(0, MAX_LOANS)) {
+      if (!Array.isArray(r) || r.length < 5 || !r.every((v) => typeof v === 'number' && Number.isFinite(v))) continue;
+      const [kind, owed, payment, rate, weeksLeft] = r as number[];
+      if (LOAN_OFFERS[kind] === undefined || owed <= 0 || weeksLeft <= 0) continue;
+      this.loans.push({ kind, owed, payment, rate, weeksLeft });
+    }
   }
 
   restore(balance: number, rates: readonly number[]): void {

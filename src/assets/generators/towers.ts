@@ -239,7 +239,7 @@ export function taperTower(lod: number, T: ThemeProfile, seed: number): MeshBuil
     const j = (i + 1) % n;
     const yi = top + rake * (0.5 + last[i][0] / (hx * narrow * 2));
     const yj = top + rake * (0.5 + last[j][0] / (hx * narrow * 2));
-    m.tri(peak, [last[j][0], yj, last[j][1]], [last[i][0], yi, last[i][1]], MAT.METAL);
+    m.tri(peak, [last[j][0], yj, last[j][1]], [last[i][0], yi, last[i][1]], MAT.DARK_TRIM);
   }
   void raked;
 
@@ -391,6 +391,8 @@ export interface GlassShaft {
   /** Mast above the crown. */
   mast: number;
   bay: number;
+  /** What the sloping roof is made of; bare metal unless a caller says. */
+  lid?: Material;
 }
 
 /**
@@ -431,7 +433,7 @@ export function glassShaft(m: MeshBuilder, lod: number, o: GlassShaft): number {
       [last[j][0], yAt(last[j][0]), last[j][1]], [last[j][0], top, last[j][1]],
       fine ? MAT.DARK_TRIM : MAT.GLASS);
     m.tri([0, top + o.rake * 0.5, 0], [last[j][0], yAt(last[j][0]), last[j][1]],
-      [last[i][0], yAt(last[i][0]), last[i][1]], MAT.METAL);
+      [last[i][0], yAt(last[i][0]), last[i][1]], o.lid ?? MAT.METAL);
   }
   if (medium && o.mast > 0) spire(m, span * 0.4, 0, yAt(span * 0.4) - 1, 0.9, o.mast, 6, MAT.METAL);
   return top + o.rake + o.mast;

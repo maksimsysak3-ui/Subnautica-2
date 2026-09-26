@@ -22,6 +22,7 @@ import {
 } from './sim';
 import { Menu } from './ui/menu';
 import { playIntro } from './ui/intro';
+import { applyWorldMods } from './sim/mods';
 import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
@@ -164,7 +165,9 @@ async function boot(): Promise<void> {
       // old map's heights goes with it.
       useMap(setup.map);
       live.reset();
-      renderer.useWorld(startingWorld(renderer.world.grid));
+      const fresh = startingWorld(renderer.world.grid);
+      applyWorldMods(fresh);
+      renderer.useWorld(fresh);
       renderer.rebuild();
       if (tools !== null) tools.cityName = setup.name; else loaded = setup.name;
     },
@@ -174,6 +177,7 @@ async function boot(): Promise<void> {
       useDifficulty(world.difficulty);
       useMap(world.map);
       live.reset();
+      applyWorldMods(world);
       renderer.useWorld(world);
       renderer.rebuild();
       if (tools !== null) tools.cityName = name; else loaded = name;

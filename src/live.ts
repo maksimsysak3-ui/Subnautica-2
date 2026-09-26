@@ -29,6 +29,8 @@ import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
 import { Simulation, View, VIEWS, heightAt, money, PANEL_ONLY } from './sim';
+import { LOAN_OFFERS, MAX_LOANS, loanPayment } from './sim/budget';
+import { checkAchievements } from './sim/achievements';
 import { Alerts } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
 import type { CityMood, WeatherRead } from './ui/cititok';
@@ -767,6 +769,25 @@ export class LiveCity {
           hectares: (rep?.cells ?? 0) * ha, remaining: rep?.remaining ?? 1,
         };
       }),
+      loans: world.budget.loans.map((l) => ({
+        name: LOAN_OFFERS[l.kind]?.name ?? 'Loan', owed: l.owed, payment: l.payment, weeksLeft: l.weeksLeft,
+      })),
+      offers: LOAN_OFFERS.map((o) => ({ ...o, payment: loanPayment(o.amount, o.annual / 52, o.weeks) })),
+      maxLoans: MAX_LOANS,
+      borrow: (kind) => {
+        const ok = world.budget.borrow(kind);
+        if (ok) {
+          this.alerts.push({ title: 'Loan taken', body: `${LOAN_OFFERS[kind].name}: ${money(LOAN_OFFERS[kind].amount)} paid into the treasury.`,
+            tone: 'info', icon: 'money', tag: `loan-${Date.now()}` });
+          this.onProgress?.();
+        }
+        return ok;
+      },
+      repay: (i) => {
+        const ok = world.budget.repay(i);
+        if (ok) this.onProgress?.();
+        return ok;
+      },
     };
   }
 
@@ -849,6 +870,9 @@ export class LiveCity {
   onProgress: (() => void) | null = null;
 
   /** Shows the cards for levels the city has just crossed. */
+  /** When achievements were last checked. */
+  private lastAchieve = 0;
+
   celebrate(levels: LevelUp[]): void {
     // The card promises the payout "to the treasury", so this is where it goes:
     // every level crossed, however it was earned, passes through here once.
@@ -1054,6 +1078,16 @@ export class LiveCity {
           title: 'Goal met', body: goal.title, tone: 'good', icon: 'develop',
           figure: `+${goal.xp} xp`, tag: `goal-${goal.id}`,
         });
+      }
+      // Achievements, on a slower beat: some of them walk every lot.
+      if (now - this.lastAchieve > 3000) {
+        this.lastAchieve = now;
+        for (const got of checkAchievements(sim, this.renderer.world)) {
+          this.alerts.push({
+            title: 'Achievement unlocked', body: `${got.title} -- ${got.note}`, tone: 'good', icon: 'signature',
+            figure: got.tier, tag: `ach-${got.id}`,
+          });
+        }
       }
       this.announce(sim);
       this.emergencies(sim);

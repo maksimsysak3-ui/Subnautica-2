@@ -212,6 +212,8 @@ export interface Ledger {
   roads: number;
   imports: number;
   interest: number;
+  /** Repayments on the city's loans. */
+  loans: number;
   /**
    * What the ordinances cost. Negative when they earn -- parking charges do.
    *
@@ -371,7 +373,7 @@ export class Economy {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
     resources: 0, industryUpkeep: 0,
-    services: 0, transit: 0, roads: 0, imports: 0, interest: 0,
+    services: 0, transit: 0, roads: 0, imports: 0, interest: 0, loans: 0,
     policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
     landValue: 1, goodsMade: 0, goodsWanted: 0,
@@ -559,8 +561,9 @@ export class Economy {
     r.industryUpkeep = this.industry?.upkeep ?? 0;
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
       + r.exports + r.fares + r.resources;
+    r.loans = b.loanWeekly;
     r.spending = r.services + r.transit + r.roads + r.imports + r.interest
-      + r.policies + r.industryUpkeep;
+      + r.policies + r.industryUpkeep + r.loans;
     r.net = r.income - r.spending;
     r.weeksLeft = r.net >= 0 ? Infinity
       : Math.max(0, (b.balance + OVERDRAFT) / -r.net);
@@ -569,6 +572,7 @@ export class Economy {
     const share = days / 7;
     if (r.net >= 0) b.credit(r.net * share);
     else b.charge(-r.net * share);
+    b.amortise(share);
 
     // ---- what the rates do to people ---------------------------------------
     //

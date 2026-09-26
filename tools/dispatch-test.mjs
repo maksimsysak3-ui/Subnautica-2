@@ -213,14 +213,21 @@ section('bins, when the plants fall behind');
   sim.found(40);
   sim.look(0, 0);
   const pc = sim.places.col;
-  // Everything staffed except what burns or sorts the rubbish, so the piles grow.
-  // This is the state a player reaches by not building enough incinerators, and it
-  // is the only state in which a bin lorry has anything to do: routine collection
-  // is handled in bulk by the capacity model, and this is what is left over.
+  // Everything staffed except what burns or sorts the rubbish, so the piles
+  // grow. This is the state a player reaches by not building enough of them,
+  // and it is the only state in which a bin lorry has anything to do: routine
+  // collection is handled in bulk by the capacity model, and this is what is
+  // left over.
+  //
+  // The plants that need hardly anyone -- a landfill, a transfer station -- are
+  // taken away rather than left empty: they run at most of their capacity with
+  // nobody on the gate, which is true of them, and left standing they quietly
+  // took everything the test was waiting to see pile up.
   let depots = 0;
   for (let p = 0; p < sim.places.count; p++) {
     if (sim.places.live[p] === 0 || pc.purpose[p] !== Purpose.SERVICE) continue;
     const id = ASSETS[pc.proto[p]]?.id ?? '';
+    if (id.includes('landfill') || id.includes('transfer')) { sim.places.remove(p); continue; }
     if (id.includes('waste') || id.includes('recycling')) { depots++; continue; }
     for (let k = 0; k < pc.jobs[p]; k++) sim.places.hire(p);
   }

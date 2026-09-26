@@ -51,11 +51,17 @@ export interface StatsRead {
   plants: Array<{ name: string; colour: string; taken: number; capacity: number; income: number; staffing: number }>;
   industry: Array<{ name: string; colour: string; income: number; units: number;
     shipped: number; local: number; staffing: number; hectares: number; remaining: number }>;
+  /** Loans held, and what the bank will lend. */
+  loans: Array<{ name: string; owed: number; payment: number; weeksLeft: number }>;
+  offers: Array<{ name: string; amount: number; weeks: number; annual: number; payment: number }>;
+  maxLoans: number;
+  borrow: (kind: number) => boolean;
+  repay: (index: number) => boolean;
 }
 
-type Tab = 'overview' | 'income' | 'spending' | 'history' | 'people' | 'travel' | 'industry';
+type Tab = 'overview' | 'income' | 'spending' | 'loans' | 'history' | 'people' | 'travel' | 'industry';
 const TABS: Array<[Tab, string]> = [
-  ['overview', 'Overview'], ['income', 'Income'], ['spending', 'Spending'],
+  ['overview', 'Overview'], ['income', 'Income'], ['spending', 'Spending'], ['loans', 'Loans'],
   ['history', 'History'], ['people', 'People'], ['travel', 'Travel'], ['industry', 'Industry'],
 ];
 
@@ -132,6 +138,7 @@ export class StatsApp {
       case 'overview': this.overview(r); break;
       case 'income': this.income(r); break;
       case 'spending': this.spending(r); break;
+      case 'loans': this.loansTab(r); break;
       case 'history': this.historyTab(r); break;
       case 'people': this.peopleTab(r); break;
       case 'travel': this.travelTab(r); break;
@@ -183,6 +190,49 @@ export class StatsApp {
       row('Money out', money(sum(m.spending))),
       row('Lost to congestion', money(m.congestion), m.congestion > sum(m.income) * 0.05 ? 'warn' : undefined),
     );
+  }
+
+  private loansTab(r: StatsRead): void {
+    const owed = r.loans.reduce((a, l) => a + l.owed, 0);
+    const weekly = r.loans.reduce((a, l) => a + l.payment, 0);
+    const hero = el('div', 'mr-st-hero');
+    hero.append(el('div', 'mr-st-cap', 'Owed to the bank'),
+      el('div', `mr-st-big${owed > 0 ? ' is-bad' : ''}`, money(owed)),
+      el('div', 'mr-st-sub', r.loans.length === 0 ? 'No loans. The city owes nobody.'
+        : `${money(weekly)} a week in repayments, ${r.loans.length} of ${r.maxLoans} loans`));
+    this.body.appendChild(hero);
+    if (r.loans.length > 0) {
+      this.body.appendChild(section('Held'));
+      r.loans.forEach((l, i) => {
+        const card = el('div', 'mr-st-loan');
+        const words = el('div', 'mr-st-loan-words');
+        words.append(el('b', '', l.name),
+          el('span', '', `${money(l.owed)} owed · ${money(l.payment)}/wk · ${Math.ceil(l.weeksLeft)} weeks left`));
+        const btn = el('button', 'mr-st-btn', 'Pay off');
+        btn.disabled = r.balance < l.owed;
+        btn.title = btn.disabled ? `Needs ${money(l.owed)} in the treasury` : `Clear it for ${money(l.owed)}`;
+        btn.addEventListener('click', () => { clickSound(); if (r.repay(i)) this.paint(); });
+        card.append(words, btn);
+        this.body.appendChild(card);
+      });
+    }
+    this.body.appendChild(section('Borrow'));
+    r.offers.forEach((o, k) => {
+      const card = el('div', 'mr-st-loan');
+      const words = el('div', 'mr-st-loan-words');
+      const total = o.payment * o.weeks;
+      words.append(el('b', '', `${o.name} · ${money(o.amount)}`),
+        el('span', '', `${o.weeks} weeks at ${(o.annual * 100).toFixed(1)}% · ${money(o.payment)}/wk · `
+          + `${money(total - o.amount)} interest in all`));
+      const btn = el('button', 'mr-st-btn is-go', 'Borrow');
+      btn.disabled = r.loans.length >= r.maxLoans;
+      btn.addEventListener('click', () => { clickSound(); if (r.borrow(k)) this.paint(); });
+      card.append(words, btn);
+      this.body.appendChild(card);
+    });
+    this.body.appendChild(el('div', 'mr-st-note',
+      'Repayments come out every week with the rest of the spending. Borrow for something that will pay '
+      + 'its way -- a loan the city cannot carry ends in the overdraft, and the overdraft charges interest too.'));
   }
 
   private income(r: StatsRead): void {

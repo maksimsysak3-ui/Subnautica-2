@@ -81,6 +81,8 @@ interface SaveFile {
   v: number;
   /** Set on the rolling slot the game writes itself. */
   auto?: 1;
+  /** Loans outstanding: kind, owed, weekly payment, weekly rate, weeks left. */
+  loans?: number[][];
   /** Cells across. A save from a different map size cannot be loaded onto it. */
   grid: number;
   name: string;
@@ -259,6 +261,7 @@ export function serialise(world: World, name: string, auto = false): string {
     tier: encodeZones(world.tier),
     blight: encodeZones(world.blight),
     money: [world.budget.balance, [...world.budget.rates]],
+    ...(world.budget.loans.length > 0 ? { loans: world.budget.saveLoans() } : {}),
     career: world.progress.save(),
     politics: world.politics.saved(),
     difficulty: world.difficulty,
@@ -352,6 +355,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
     && file.money[1].length === TAXES) {
     world.budget.restore(file.money[0], file.money[1]);
   }
+  world.budget.restoreLoans(file.loans);
   if (Array.isArray(file.policies)) {
     world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
   }

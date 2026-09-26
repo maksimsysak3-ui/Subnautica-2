@@ -32,6 +32,8 @@ export interface Rules {
   quiet: number;
   /** Multiplier on experience earned. */
   xp: number;
+  /** Multiplier on how many people want to move in. Mods move it; difficulties do not. */
+  growth: number;
 }
 
 /**
@@ -61,7 +63,7 @@ export const UPKEEP_WEIGHT = 1.3;
 export const BUILD_WEIGHT = 0.5;
 
 /** The designed rules, before the currency scale. */
-const DESIGNED: readonly Rules[] = [
+const DESIGNED: ReadonlyArray<Omit<Rules, "growth">> = [
   {
     id: 'relaxed', label: 'Relaxed', tagline: 'Build first, balance later',
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
@@ -87,6 +89,7 @@ const DESIGNED: readonly Rules[] = [
 
 export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
   ...r,
+  growth: 1,
   funds: r.funds * CURRENCY,
   grantWeekly: r.grantWeekly * CURRENCY,
   build: r.build * CURRENCY * BUILD_WEIGHT,
@@ -108,9 +111,14 @@ const byId = (id: string): Rules =>
 /** The rules in force. Standard until a city says otherwise. */
 export const RULES: Rules = { ...byId('standard') };
 
-/** Puts a difficulty in force. Unknown ids fall back to standard. */
+/** What the enabled mods do to the rules; see `mods.ts`. */
+let modifier: ((r: Rules) => void) | null = null;
+export function setRulesModifier(fn: ((r: Rules) => void) | null): void { modifier = fn; }
+
+/** Puts a difficulty in force, with the enabled mods on top. Unknown ids fall back to standard. */
 export function useDifficulty(id: string): Rules {
   Object.assign(RULES, byId(id));
+  modifier?.(RULES);
   return RULES;
 }
 

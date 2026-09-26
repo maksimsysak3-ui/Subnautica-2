@@ -24,6 +24,10 @@ import { MAPS } from '../sim/maps';
 import { RESOURCES } from '../sim/resources';
 import type { MapId } from '../sim/maps';
 import { drawMapPreview } from './map-preview';
+import { openModsPanel } from './mods-panel';
+import { enabledMods } from '../sim/mods';
+import { openAchievementsPanel } from './achievements-panel';
+import { ACHIEVEMENTS, earnedCount } from '../sim/achievements';
 
 /** What the player chose before founding a city. */
 export interface Setup {
@@ -163,34 +167,36 @@ export class Menu {
   private news(): HTMLElement {
     const card = document.createElement('aside');
     card.className = 'mr-news';
-    card.setAttribute('aria-label', 'New in this build');
+    card.setAttribute('aria-label', "What's new");
     const head = document.createElement('div');
     head.className = 'mr-news-head';
-    head.textContent = 'New in this build';
+    head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
-    const items: Array<[string, string, string]> = [
-      ['resources', 'Production chains', 'Processing plants turn raw output into goods worth twice as much, with lorries and ships to carry it.'],
-      ['district', 'Districts', 'Paint named quarters and give them policies: tourist quarters, tech clusters, garden suburbs.'],
-      ['views', 'City stats', 'A phone app with every coin: taxes by zone, upkeep by building, three years of monthly books.'],
-      ['develop', 'Service upgrades', 'Extension and flagship wings for schools, clinics and plants: more capacity, more reach.'],
-      ['transport', 'Live transport', 'Buses stop and people board; airliners land at the airport; ships work the harbour.'],
-      ['traffic', 'Crowds and jams', 'Stadiums and landmarks pull traffic across the city. The roads into them are yours to fix.'],
+    const items: Array<[string, string]> = [
+      ['Mods', 'Switch on rule changes, build your own, or add a ready-made one from the Mods screen.'],
+      ['Achievements', 'Twenty-five of them, kept across every city you run.'],
+      ['Loans', 'Borrow from the regional bank for the big projects, and pay it back weekly.'],
+      ['Supertalls', 'Twelve landmark skyscrapers, each one a real building type.'],
+      ['Landmark prestige', 'Land near a landmark is worth more, and so are its taxes.'],
     ];
-    for (const [icon, title, text] of items) {
-      const row = document.createElement('div');
-      row.className = 'mr-news-row';
-      const ico = document.createElement('span');
-      ico.className = 'mr-news-ico';
-      ico.innerHTML = glyph(icon, 18);
+    const list = document.createElement('ol');
+    list.className = 'mr-news-list';
+    items.forEach(([title, text], i) => {
+      const li = document.createElement('li');
+      li.style.setProperty('--i', String(i));
+      const n = document.createElement('span');
+      n.className = 'mr-news-n';
+      n.textContent = String(i + 1).padStart(2, '0');
       const words = document.createElement('div');
       const t = document.createElement('b');
       t.textContent = title;
       const d = document.createElement('span');
       d.textContent = text;
       words.append(t, d);
-      row.append(ico, words);
-      card.appendChild(row);
-    }
+      li.append(n, words);
+      list.appendChild(li);
+    });
+    card.appendChild(list);
     return card;
   }
 
@@ -284,8 +290,12 @@ export class Menu {
     entries.push({ label: 'Share & join',
       hint: 'Send your city to a friend as a code, or paste theirs to visit it.',
       run: () => this.showJoin() });
-    entries.push({ label: 'Mods', key: 'Soon',
-      hint: 'Make mods and add them to the game: new buildings, rules and maps.',
+    entries.push({ label: 'Achievements', key: `${earnedCount()} / ${ACHIEVEMENTS.length}`,
+      hint: 'What you have done across every city, and what is left to do.',
+      run: () => openAchievementsPanel(this.root, () => this.show()) });
+    const modsOn = enabledMods().length;
+    entries.push({ label: 'Mods', key: modsOn > 0 ? `${modsOn} on` : '',
+      hint: 'Switch on mods that change the rules, make your own, or try ready-made ones.',
       run: () => this.showMods() });
     this.list(entries, null);
     this.note.textContent = saves.length > 0
@@ -551,91 +561,9 @@ export class Menu {
     field.select();
   }
 
-  /**
-   * The mods workshop. Empty for now, and honest about it: the frame, its tabs
-   * and what each will hold are here so the feature has a home, but nothing in
-   * it pretends to work yet.
-   */
+  /** The mods screen: see `mods-panel.ts`. The title's count refreshes on the way out. */
   private showMods(): void {
-    const el = document.createElement('div');
-    el.className = 'mr-setup mr-mods';
-    el.dataset.panel = 'mods';
-    el.setAttribute('role', 'dialog');
-    el.setAttribute('aria-label', 'Mods');
-
-    const head = document.createElement('div');
-    head.className = 'mr-setup-head';
-    const back = document.createElement('button');
-    back.className = 'mr-square';
-    back.setAttribute('aria-label', 'Back');
-    back.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-      + ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
-    const title = document.createElement('h2');
-    title.textContent = 'Mods';
-    const chip = document.createElement('span');
-    chip.className = 'mr-chip is-amber';
-    chip.textContent = 'Coming soon';
-    head.append(back, title, chip);
-
-    const TABS: Array<{ id: string; label: string; icon: string; empty: string; blurb: string }> = [
-      { id: 'installed', label: 'Installed', icon: 'mods', empty: 'No mods installed',
-        blurb: 'Mods you add will be listed here, each with a switch to turn it on or off for a city.' },
-      { id: 'create', label: 'Create', icon: 'develop', empty: 'The workshop is being built',
-        blurb: 'This is where you will make mods: new buildings from the same kit the game uses, new policies and rules, and new maps.' },
-      { id: 'browse', label: 'Browse', icon: 'look', empty: 'Nothing to browse yet',
-        blurb: 'Mods other players share will appear here, ready to add to your game.' },
-    ];
-    let on = 0;
-    const tabs = document.createElement('div');
-    tabs.className = 'mr-mods-tabs';
-    tabs.setAttribute('role', 'tablist');
-    const body = document.createElement('div');
-    body.className = 'mr-mods-body';
-    body.setAttribute('role', 'tabpanel');
-    const paint = (k: number): void => {
-      on = k;
-      tabs.querySelectorAll('button').forEach((b, j) => {
-        b.classList.toggle('is-on', j === k);
-        b.setAttribute('aria-selected', String(j === k));
-      });
-      const t = TABS[k];
-      body.innerHTML = `<div class="mr-mods-empty"><div class="mr-mods-art">${glyph(t.icon, 44)}</div>`
-        + `<h3>${t.empty}</h3><p>${t.blurb}</p>`
-        + '<button class="mr-found" disabled>Not available yet</button></div>';
-    };
-    TABS.forEach((t, k) => {
-      const b = document.createElement('button');
-      b.className = 'mr-mods-tab';
-      b.setAttribute('role', 'tab');
-      b.innerHTML = `<i>${glyph(t.icon, 16)}</i>`;
-      b.append(t.label);
-      b.addEventListener('click', () => paint(k));
-      tabs.appendChild(b);
-    });
-    paint(0);
-
-    el.append(head, tabs, body);
-    this.root.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('is-open'));
-    const shut = (): void => {
-      removeEventListener('keydown', keys, true);
-      el.remove();
-    };
-    const keys = (e: KeyboardEvent): void => {
-      // Captured ahead of the title list's own keys, which are underneath.
-      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); shut(); return; }
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        paint((on + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length);
-        return;
-      }
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.stopImmediatePropagation();
-      }
-    };
-    addEventListener('keydown', keys, true);
-    back.addEventListener('click', shut);
+    openModsPanel(this.root, () => this.show());
   }
 
   private open(key: string): void {

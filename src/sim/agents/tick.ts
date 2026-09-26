@@ -93,6 +93,13 @@ export interface System {
   readonly rate: RateValue;
   /** Runs one tick of this system. `tick` is the global tick count. */
   run(tick: number, dt: number): void;
+  /**
+   * Which tick of its cycle it runs on, where the name's hash would put it
+   * somewhere unlucky. The six systems on every other tick all hashed to the
+   * same one, so that tick carried every one of them and the other nothing:
+   * the spikes the life test counted were that pile-up, not the collector.
+   */
+  readonly phase?: number;
 }
 
 /**
@@ -145,7 +152,7 @@ export class Scheduler {
 
   add(system: System): void {
     this.systems.push(system);
-    this.phase.push(phaseOf(system.name));
+    this.phase.push(system.phase ?? phaseOf(system.name));
     this.acc.set(system.name, 0);
   }
 

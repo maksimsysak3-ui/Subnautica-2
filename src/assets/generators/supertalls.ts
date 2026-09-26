@@ -246,6 +246,13 @@ export function helionTower(lod: number): MeshBuilder {
 export function bladeTower(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
+  // Each theme's tower is its own: how it narrows, which way and how far it
+  // turns, and how it meets the sky -- a raked glass crown, a flat top behind
+  // a louvred plant screen, or a setback storey block.
+  const pick = (k: number): number => { const v = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const crown = Math.floor(pick(1) * 3);
+  const taper = 0.72 + pick(2) * 0.18;
+  const twist = (pick(3) - 0.5) * 0.9;
   const floors = storeysOf(T, 21);
   const lobbyH = Math.max(6, T.floorH * 1.8);
   const hx = 12.6, hz = 11.4;
@@ -253,15 +260,32 @@ export function bladeTower(lod: number, T: ThemeProfile, seed: number): MeshBuil
   const body = plan(hx, hz, 0.7, n);
   const lob = scaled(body, 0.9);
   loft(m, lob, lob, 0.1, lobbyH, fine ? MAT.SHOPFRONT : MAT.GLASS);
+  const main = crown === 2 ? Math.round(floors * 0.84) : floors;
+  const rake = crown === 0 ? 7 + pick(4) * 4 : 0;
   glassShaft(m, lod, {
-    hx, hz, r: 5.0, floors, floorH: T.floorH, y0: lobbyH, taper: 0.8, twist: 0.25, rake: 9, mast: 0, bay: 3.0,
+    hx, hz, r: 5.0, floors: main, floorH: T.floorH, y0: lobbyH, taper, twist, rake, mast: 0, bay: 3.0,
+    lid: MAT.DARK_TRIM,
   });
+  const top = lobbyH + main * T.floorH;
+  // The plan at the top of the shaft, as the shaft draws it.
+  const k = taper;
+  const last = scaled(body, k, k, twist);
+  if (crown === 1) {
+    // Flat roof behind two storeys of louvres.
+    plantFloor(m, last, top, T.floorH * 1.6);
+  } else if (crown === 2) {
+    // A setback block of the last few storeys, turned on with the shaft.
+    const up = scaled(body, k * 0.72, k * 0.72, twist);
+    const extra = floors - main;
+    shaft(m, lod, () => up, top, top + extra * T.floorH, extra, 3.0);
+    cap(m, last, top, MAT.ROOF);
+    plantFloor(m, up, top + extra * T.floorH, T.floorH);
+  }
   soffit(m, grow(body, 0.2), lobbyH, MAT.CONCRETE);
   if (fine) {
     entrance(m, { axis: 'z', sign: 1, plane: hz * 0.9 }, 0,
       { width: 4.4, height: Math.min(lobbyH - 0.8, 4.6), double: true, glazed: true, canopy: 3.4 });
     kerb(m, -hx - 1.0, hz + 1.2, hx + 1.0, hz + 2.0);
-    void seed;
   }
   return m;
 }

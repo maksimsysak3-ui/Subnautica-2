@@ -38,6 +38,7 @@
  * Both are legible. The reverse -- people who cannot leave -- is not.
  */
 
+import { RULES } from '../difficulty';
 import { Rng } from './rand';
 import { Clock, YEARS_PER_DAY } from './calendar';
 import { Places, Purpose } from './places';
@@ -436,7 +437,7 @@ export class Migration {
   private enquire(days: number, day: number): void {
     const pop = this.people.population;
     const appeal = this.appeal;
-    const rate = (ENQUIRIES_PER_DAY + (pop / 1000) * ENQUIRIES_PER_THOUSAND) * appeal;
+    const rate = (ENQUIRIES_PER_DAY + (pop / 1000) * ENQUIRIES_PER_THOUSAND) * appeal * RULES.growth;
     this.owedEnquiries += rate * days;
     const cap = Math.max(QUEUE_CAP_MIN, pop * QUEUE_CAP_RATIO);
     let n = Math.floor(this.owedEnquiries);
@@ -502,7 +503,7 @@ export class Migration {
    */
   private place(days: number, day: number): void {
     const pop = this.people.population;
-    const rate = PLACEMENTS_PER_DAY + (pop / 1000) * PLACEMENTS_PER_THOUSAND;
+    const rate = (PLACEMENTS_PER_DAY + (pop / 1000) * PLACEMENTS_PER_THOUSAND) * RULES.growth;
     this.owedPlacements += rate * days;
     let budget = Math.floor(this.owedPlacements);
     this.owedPlacements -= budget;

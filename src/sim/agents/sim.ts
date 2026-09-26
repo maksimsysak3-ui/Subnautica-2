@@ -486,7 +486,7 @@ export class Simulation {
 
     // How many vehicles there should be, from the congestion the flow model found.
     s.add({
-      name: 'cars', rate: Rate.FAST,
+      name: 'cars', rate: Rate.FAST, phase: 1,
       run: () => { this.traffic.populate(VEHICLES_PER_TICK); },
     });
 
@@ -666,7 +666,7 @@ export class Simulation {
     // that walks a table, so a city of thirty thousand buildings costs what a
     // village does and gets round them all in a few seconds.
     s.add({
-      name: 'gripe', rate: Rate.FAST,
+      name: 'gripe', rate: Rate.FAST, phase: 1,
       run: () => { this.complaints.survey(); },
     });
 
