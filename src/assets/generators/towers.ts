@@ -108,7 +108,7 @@ function cap(m: MeshBuilder, ring: Ring, mat: Material, down = false): void {
  * as its outer edge, its top and its underside, between the outline and an
  * inner ring it stands off.
  */
-function plate(m: MeshBuilder, inner: P2[], outer: P2[], y: number, t: number,
+export function plate(m: MeshBuilder, inner: P2[], outer: P2[], y: number, t: number,
   edge: Material, deck: Material): void {
   loft(m, [{ pts: outer, y }, { pts: outer, y: y + t }], edge);
   const n = outer.length;
@@ -152,7 +152,7 @@ function foot(m: MeshBuilder, hx: number, hz: number, h: number, seed: number, f
  * `ringAt(t)` gives the plan at a fraction of the height, so the panes follow
  * a taper or a twist exactly.
  */
-function glaze(m: MeshBuilder, ringAt: (t: number) => P2[], y0: number, y1: number,
+export function glaze(m: MeshBuilder, ringAt: (t: number) => P2[], y0: number, y1: number,
   floors: number, bay: number): void {
   const fh = (y1 - y0) / floors;
   for (let f = 0; f < floors; f++) {
@@ -254,7 +254,6 @@ export function taperTower(lod: number, T: ThemeProfile, seed: number): MeshBuil
       m.quad([b[0], lobbyH, b[1]], [t[0], top + 2, t[1]],
         [t[0] + ox, top + 2, t[1] + oz], [b[0] + ox, lobbyH, b[1] + oz], MAT.METAL);
     }
-    spire(m, hx * narrow * 0.35, 0, top + rake * 0.85, 0.7, 16, 6, MAT.METAL);
   }
   if (fine) {
     // Every third floor plate stands proud of the glass as a thin bright
@@ -558,14 +557,6 @@ export function pierTower(lod: number, T: ThemeProfile, seed: number): MeshBuild
     kerb(m, -hx - 1.0, hz + 1.2, hx + 1.0, hz + 2.1);
   }
   return m;
-}
-
-/**
- * The office plan for the setback slot: tapered glass where the theme builds
- * in glass, the pier tower where it builds in masonry.
- */
-export function landmarkOffice(lod: number, T: ThemeProfile, seed: number): MeshBuilder {
-  return T.ribbon ? taperTower(lod, T, seed) : pierTower(lod, T, seed);
 }
 
 /** The podium slot: the twist in glass themes, the pier tower's cousin elsewhere. */
