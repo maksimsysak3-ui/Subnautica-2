@@ -173,13 +173,13 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Seasons', 'Leaves turn in autumn and snow lies through the winter, on the ground, the roofs and the trees.'],
       ['Metro', 'Stations anywhere, trains in their own tunnels, clear of the traffic. Opens at level 8.'],
       ['Service budgets', 'Fund each service from 50% to 150%: cut costs, or buy more cover and crews.'],
       ['Wonders pack', 'An arena, a sun pyramid, an iron lattice tower and a great wheel, from the Mods screen.'],
       ['Blueprint Studio', 'Design towers in 3D: twin and triple towers, stacked sections, fins, podiums, twelve crowns.'],
       ['Region packs', 'Russian, South American, Mediterranean, Nordic and Middle Eastern styles for every zone.'],
-      ['Grand Monuments', 'A triumphal arch, a lighthouse, a pagoda, an observatory and a windmill, from the Mods screen.'],
-      ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour and the weather.'],
+      ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour, the weather and the season.'],
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';
