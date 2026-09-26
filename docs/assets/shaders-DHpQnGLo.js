@@ -867,7 +867,7 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // should have is the district to go and fix.
   var weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
   // Abundance turns that round: the more there is, the stronger the colour.
-  if (overlay.mode > 2.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
+  if (overlay.mode > 2.5 && overlay.mode < 3.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
 
   // And the ground outside the reading is drained a little towards grey, which
   // is the difference between a view and a tint: the traffic ramp is green at
@@ -877,11 +877,33 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // the views unpleasant to have open.
   let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
   let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
-  if (have < 0.02) { return outside; }
+  // Roads only: the land is greyed and nothing else; the carriageway takes the
+  // colour, in \`overlayTintRoad\`.
+  if (have < 0.02 || overlay.mode > 3.5) { return outside; }
   // Keep the shading, take the hue. A flat wash loses the landscape and with it
   // any sense of where on the map you are looking.
   let lit = clamp(dot(col, vec3f(0.33)) * 1.5 + 0.35, 0.35, 1.5);
   return mix(outside, hue * lit, overlay.strength * have * weight);
+}
+
+/**
+ * The overlay on a road surface. For every look but the road-only one, the
+ * same as the ground; for that one, the full ramp on the carriageway -- a free
+ * road a clear green, a jam solid red -- over a greyed city, which is what a
+ * traffic map is.
+ */
+fn overlayTintRoad(col: vec3f, world: vec3f) -> vec3f {
+  if (overlay.mode < 3.5) { return overlayTint(col, world); }
+  let uv = world.xz / overlay.extent + vec2f(0.5);
+  let inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+  var s = vec4f(0.0);
+  if (inside) { s = textureSampleLevel(overlayTex, overlaySampler, uv, 0.0); }
+  let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
+  let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
+  if (s.g < 0.02) { return outside; }
+  let t = clamp(s.r / max(s.g, 0.02), 0.0, 1.0);
+  let lit = clamp(dot(col, vec3f(0.33)) * 1.2 + 0.55, 0.55, 1.4);
+  return mix(outside, overlayRamp(t) * lit, clamp(s.g * 1.2, 0.0, 1.0) * 0.9);
 }
 `,HY=`// Facade shading for procedural assets.
 //
@@ -4728,7 +4750,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // The information overlay. On the carriageway rather than only the land
   // beside it, because every reading in the game is measured along the streets
   // -- and a utility main is under this exact surface.
-  col = overlayTint(col, in.world);
+  col = overlayTintRoad(col, in.world);
 
   // A road that has not been built yet: the same geometry, said differently.
   // Tinted rather than outlined, because what a player is judging is where the
@@ -5538,4 +5560,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,zY={"common.wgsl":GY,"atmosphere.wgsl":dY,"noise.wgsl":VY,"overlay.wgsl":NY};function SQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>zY[U]??A)}const ss={asset:SQ(HY),cull:SQ(hY),terrain:SQ(lY),sky:SQ(OY),grass:SQ(SY),road:SQ(TY),water:SQ(bY),rain:SQ(fY),dots:SQ(JY),mains:SQ(KY),post:SQ(XY)};export{Qs as $,PY as A,sD as B,Es as C,RD as D,jY as E,$A as F,Eg as G,os as H,cs as I,a as J,E as K,Dw as L,CF as M,fE as N,uY as O,Zw as P,As as Q,rY as R,ss as S,_Q as T,$Y as U,Dg as V,R0 as W,r0 as X,$B as Y,wY as Z,_Y as _,Yg as a,mY as a0,qY as a1,BY as a2,z0 as a3,y0 as a4,q0 as a5,u0 as a6,$0 as a7,AY as a8,rC as a9,yC as aa,J0 as ab,K0 as ac,f0 as ad,X0 as ae,P0 as af,mC as ag,qC as ah,yE as ai,Bs as aj,MY as ak,xw as al,tY as am,cE as b,Ag as c,YY as d,Cs as e,Fs as f,Is as g,Ds as h,Us as i,qg as j,xY as k,sQ as l,yY as m,ws as n,Ms as o,sY as p,KC as q,TQ as r,gs as s,pY as t,MF as u,vY as v,a0 as w,ZY as x,WY as y,Ys as z};
-//# sourceMappingURL=shaders-CUSrl6Hi.js.map
+//# sourceMappingURL=shaders-DHpQnGLo.js.map
