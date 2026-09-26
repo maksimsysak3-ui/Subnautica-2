@@ -558,24 +558,31 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     var garden = mix(turf, vec3f(0.044, 0.099, 0.034), 0.52) * (0.94 + wear * 0.12);
     let plotFade = 1.0 - smoothstep(420.0, 1100.0, length(camera.eye.xz - in.world.xz));
     if (plotFade > 0.004) {
-      let plot = cells(in.world.xz * (1.0 / 12.0) + vec2f(soil, wear) * 0.35);
-      // Every garden is kept differently. A shift in hue as well as in value,
-      // so neighbouring plots read apart rather than as a brightness wobble.
-      let keeping = fract(plot.id * 31.7);
-      garden *= 1.0 + (keeping - 0.5) * 0.16 * plotFade;
-      garden = mix(garden, garden * vec3f(1.22, 1.05, 0.72),
-                   smoothstep(0.72, 0.96, keeping) * 0.55 * plotFade);
-      // Roughly one plot in four is more hard standing than grass: a drive, a
-      // parking pad, a yard that was never planted. Placed inside the plot
-      // rather than over the whole of it, so it reads as part of a garden.
-      let hard = smoothstep(0.90, 0.95, fract(plot.id * 7.13));
-      let pad = smoothstep(0.55, 0.22, plot.d1) * hard;
-      garden = mix(garden, paved * 0.92, pad * plotFade);
-      // The boundary: a hedge or a fence line, dark and narrow. This is what
-      // turns a green sheet into a row of gardens, and it is worth more than
-      // everything above it.
-      let edge = 1.0 - smoothstep(0.0, 0.055, plot.d2 - plot.d1);
-      garden = mix(garden, vec3f(0.030, 0.058, 0.030), edge * 0.22 * plotFade);
+      // Rectangular plots in rows, each row slid along a little: gardens are
+      // laid out behind houses on a street, not in polygons. The Voronoi cells
+      // this used were right for fields and wrong here -- over a big lawn they
+      // read as crazy paving.
+      let pp = in.world.xz * vec2f(1.0 / 12.0, 1.0 / 16.0);
+      let rowShift = fract(sin(floor(pp.y) * 91.7) * 43758.5453) * 0.6;
+      let q = vec2f(pp.x + rowShift, pp.y);
+      let pid = floor(q);
+      let f = fract(q);
+      let idv = fract(sin(dot(pid, vec2f(12.9898, 78.233))) * 43758.5453);
+      // Every garden is kept a little differently: a gentle shift in value and
+      // warmth, so neighbours read apart without a patchwork.
+      let keeping = idv;
+      garden *= 1.0 + (keeping - 0.5) * 0.10 * plotFade;
+      garden = mix(garden, garden * vec3f(1.15, 1.04, 0.80),
+                   smoothstep(0.78, 0.98, keeping) * 0.40 * plotFade);
+      // One plot in eight has a drive or a pad: a rectangle at the front of it.
+      let hard = step(0.875, fract(idv * 7.13));
+      let inPad = smoothstep(0.14, 0.17, f.x) * (1.0 - smoothstep(0.50, 0.53, f.x))
+                * smoothstep(0.04, 0.07, f.y) * (1.0 - smoothstep(0.36, 0.39, f.y));
+      garden = mix(garden, paved * 0.92, inPad * hard * plotFade);
+      // The boundary: a hedge or fence line, dark and narrow, in metres.
+      let toEdge = min(min(f.x, 1.0 - f.x) * 12.0, min(f.y, 1.0 - f.y) * 16.0);
+      let edge = 1.0 - smoothstep(0.12, 0.45, toEdge);
+      garden = mix(garden, vec3f(0.030, 0.058, 0.030), edge * 0.26 * plotFade);
     }
     // Park: watered, and striped by the mower at a scale you can see.
     let stripe = 0.5 - abs(fract(dot(in.world.xz, vec2f(0.19, 0.14))) - 0.5);
