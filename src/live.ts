@@ -63,6 +63,7 @@ import type { Stats } from './ui/stats';
 import { InfoViews } from './ui/info-views';
 import { DemandBars } from './ui/demand-bars';
 import { Thoughts } from './ui/thoughts';
+import { Cheers } from './ui/cheers';
 import { TaxPanel } from './ui/tax-panel';
 import { PolicyPanel } from './ui/policy-panel';
 import { LinesPanel } from './ui/lines-panel';
@@ -123,6 +124,7 @@ export class LiveCity {
   readonly info: InfoViews;
   private readonly bars: DemandBars;
   private readonly thoughts: Thoughts;
+  private readonly cheers: Cheers;
   private readonly tax: TaxPanel;
   private readonly policies: PolicyPanel;
   private readonly lines: LinesPanel;
@@ -222,6 +224,7 @@ export class LiveCity {
     // The graded height, not the raw terrain: a bubble belongs over the building,
     // and the building stands on ground the city cut flat for it.
     this.thoughts = new Thoughts(ui, heightAt);
+    this.cheers = new Cheers(ui, heightAt);
     this.incidents = new IncidentMarkers(ui, heightAt, (x, z) => this.lookAt(x, z));
     this.districtLabels = new DistrictLabels(ui, heightAt);
     // The tax controls live inside the budget view's card, which is the only
@@ -1017,6 +1020,9 @@ export class LiveCity {
     // the player has to press to fix it.
     this.thoughts.refresh(now, this.camera, this.camera.width, this.camera.height,
       sim.complaints.list);
+    // And the ones just put right: a face over each, and a cheer.
+    this.cheers.add(sim.complaints.takeCheers(), this.camera, now);
+    this.cheers.update(now, this.camera, this.camera.width, this.camera.height);
     this.incidents.refresh(now, this.camera, this.camera.width, this.camera.height,
       sim.dispatch.incidents);
     this.districtLabels.refresh(now, this.camera, this.camera.width, this.camera.height,

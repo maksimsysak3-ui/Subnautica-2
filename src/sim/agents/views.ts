@@ -83,6 +83,8 @@ export const Look = {
    * map of resources would make the richest ground the faintest.
    */
   ABUNDANCE: 2,
+  /** The land greyed out and only the carriageways coloured: traffic. */
+  ROADS: 3,
 } as const;
 
 export interface ViewInfo {
@@ -110,7 +112,7 @@ export interface ViewInfo {
  */
 export const VIEWS: ViewInfo[] = [
   {
-    id: View.TRAFFIC, name: 'Traffic', icon: 'traffic', look: Look.SURFACE,
+    id: View.TRAFFIC, name: 'Traffic', icon: 'traffic', look: Look.ROADS,
     legend: 'How full each road is. Red is at a standstill.',
     ramp: ['#e0483a', '#e8c14a', '#4fbf7a'], unit: 'of capacity',
   },
@@ -440,7 +442,10 @@ export class Views {
       this.perLane[l] = Math.max(0.02, 1 - Math.min(1, load[l]));
     }
     this.scatter();
-    this.spread(3);
+    // Just enough to fill the carriageway between its lanes: the colour is
+    // drawn on the road surface only (see `Look.ROADS`), and spread wider it
+    // would bleed across junctions into the next street's reading.
+    this.spread(1);
   }
 
   private fromUtility(util: number): void {

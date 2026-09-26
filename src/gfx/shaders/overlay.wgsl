@@ -138,7 +138,7 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // should have is the district to go and fix.
   var weight = QUIET + (1.0 - QUIET) * pow(attention, 1.4);
   // Abundance turns that round: the more there is, the stronger the colour.
-  if (overlay.mode > 2.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
+  if (overlay.mode > 2.5 && overlay.mode < 3.5) { weight = 0.3 + 0.7 * pow(t, 0.75); }
 
   // And the ground outside the reading is drained a little towards grey, which
   // is the difference between a view and a tint: the traffic ramp is green at
@@ -148,9 +148,31 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // the views unpleasant to have open.
   let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
   let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
-  if (have < 0.02) { return outside; }
+  // Roads only: the land is greyed and nothing else; the carriageway takes the
+  // colour, in `overlayTintRoad`.
+  if (have < 0.02 || overlay.mode > 3.5) { return outside; }
   // Keep the shading, take the hue. A flat wash loses the landscape and with it
   // any sense of where on the map you are looking.
   let lit = clamp(dot(col, vec3f(0.33)) * 1.5 + 0.35, 0.35, 1.5);
   return mix(outside, hue * lit, overlay.strength * have * weight);
+}
+
+/**
+ * The overlay on a road surface. For every look but the road-only one, the
+ * same as the ground; for that one, the full ramp on the carriageway -- a free
+ * road a clear green, a jam solid red -- over a greyed city, which is what a
+ * traffic map is.
+ */
+fn overlayTintRoad(col: vec3f, world: vec3f) -> vec3f {
+  if (overlay.mode < 3.5) { return overlayTint(col, world); }
+  let uv = world.xz / overlay.extent + vec2f(0.5);
+  let inside = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+  var s = vec4f(0.0);
+  if (inside) { s = textureSampleLevel(overlayTex, overlaySampler, uv, 0.0); }
+  let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
+  let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
+  if (s.g < 0.02) { return outside; }
+  let t = clamp(s.r / max(s.g, 0.02), 0.0, 1.0);
+  let lit = clamp(dot(col, vec3f(0.33)) * 1.2 + 0.55, 0.55, 1.4);
+  return mix(outside, overlayRamp(t) * lit, clamp(s.g * 1.2, 0.0, 1.0) * 0.9);
 }

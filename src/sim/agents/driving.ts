@@ -261,6 +261,10 @@ const RETIRE_PER_TICK = 3;
  */
 const RETIRE_GRACE = 20;
 
+/** Ticks stopped before a driver gives up: at the head of a queue, and anywhere. */
+const GIVE_UP_FRONT = 60 * TICK_HZ;
+const GIVE_UP_ANY = 120 * TICK_HZ;
+
 /** How close to its stopping point a vehicle counts as having arrived. */
 const ARRIVE_METRES = 2.5;
 
@@ -416,6 +420,8 @@ export interface TrafficStats {
   /** Vehicles stopped right now, and the worst wait seen. */
   stopped: number;
   worstWaitSeconds: number;
+  /** Drivers who sat stopped so long they gave up and were taken off: the gridlock breaker. */
+  gaveUp: number;
   /** Lane changes made. */
   changes: number;
   /** Times a vehicle had to brake harder than comfortable. */
@@ -458,7 +464,7 @@ export class Traffic {
   readonly stuck: number[] = [];
 
   readonly stats: TrafficStats = {
-    driving: 0, spawned: 0, finished: 0, refused: 0, stopped: 0,
+    driving: 0, spawned: 0, finished: 0, refused: 0, stopped: 0, gaveUp: 0,
     worstWaitSeconds: 0, changes: 0, hardBrakes: 0, meanSpeed: 0, abandoned: 0,
   };
 
@@ -841,6 +847,18 @@ export class Traffic {
         stoppedNow++;
         const waited = c.stopped[v] / TICK_HZ;
         if (waited > this.stats.worstWaitSeconds) this.stats.worstWaitSeconds = waited;
+        // Gridlock. A ring of junctions each waiting on the next never clears
+        // by any local rule, and a queue behind a vehicle that has wedged
+        // itself freezes a whole district. So a driver who has not moved for
+        // long enough gives up and is taken off: at the head of a queue
+        // sooner, because that is the one holding everybody else, and anywhere
+        // eventually. A bus at its stop is dwelling, not stuck.
+        const limit = leader < 0 ? GIVE_UP_FRONT : GIVE_UP_ANY;
+        if (c.stopped[v] > limit && c.doneAt[v] < 0 && !this.busStops.has(v)) {
+          this.stuck.push(v);
+          c.doneAt[v] = tick;
+          this.stats.gaveUp++;
+        }
       } else {
         c.stopped[v] = 0;
         moving++;

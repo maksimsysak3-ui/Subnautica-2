@@ -121,6 +121,24 @@ const INDUSTRY_TAXABLE_PER_JOB = 440;
 const RESIDENT_TAXABLE = 200;
 const WAGE_SHARE = 0.35;
 
+/** What an unemployed resident pays of the residential base, against a worker's one. */
+const IDLE_SHARE = 0.3;
+
+/**
+ * All four zones' taxes, scaled against everything else in the ledger.
+ *
+ * Measured with tools/long-game.mjs: a sensibly played standard city of five
+ * thousand took in seven times what it spent and banked ten million by day
+ * ninety. A city builder whose money problem ends in the first hour has no
+ * money game at all.
+ */
+const TAX_SCALE = 0.4;
+
+/** Weekly cost of governing one resident, before the currency scale, at a small size. */
+const CIVIC_PER_RESIDENT = 3.2;
+/** The population at which that per-resident cost has doubled. */
+const CIVIC_DOUBLING = 30000;
+
 /** A week's billable value per filled office job. */
 const VALUE_PER_OFFICE_JOB = 1000;
 
@@ -131,7 +149,7 @@ const VALUE_PER_OFFICE_JOB = 1000;
  * difference between selling at a port and buying at one, and it is what makes
  * an industrial city rich and a commercial one expensive to run.
  */
-const EXPORT_DUTY = 0.13;
+const EXPORT_DUTY = 0.05;
 const IMPORT_COST = 0.09;
 
 /** What a rider pays, and what the city keeps of it. */
@@ -210,6 +228,8 @@ export interface Ledger {
   industryUpkeep: number;
   transit: number;
   roads: number;
+  /** Running the city itself: administration, maintenance, the cost of every resident. */
+  civic: number;
   imports: number;
   interest: number;
   /** Repayments on the city's loans. */
@@ -373,7 +393,7 @@ export class Economy {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
     resources: 0, industryUpkeep: 0,
-    services: 0, transit: 0, roads: 0, imports: 0, interest: 0, loans: 0,
+    services: 0, transit: 0, roads: 0, civic: 0, imports: 0, interest: 0, loans: 0,
     policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
     landValue: 1, goodsMade: 0, goodsWanted: 0,
@@ -470,7 +490,13 @@ export class Economy {
     const output = worksJobs * OUTPUT_PER_WORKS_JOB
       + (this.industry?.localUnits ?? 0) * GOODS_PER_LOCAL_UNIT;
     const industry = worksJobs * INDUSTRY_TAXABLE_PER_JOB;
-    const residents = this.people.population * RESIDENT_TAXABLE + wages * WAGE_SHARE;
+    // Working residents pay in full; the unemployed, the retired and children
+    // at a fraction. A town of nothing but tower blocks and no jobs is a town
+    // of benefit claimants, not a gold mine -- which it was, and which is why
+    // zoning high-density housing and nothing else made a player rich.
+    const pop = this.people.population;
+    const working = Math.min(pop, this.people.employed);
+    const residents = (working + IDLE_SHARE * (pop - working)) * RESIDENT_TAXABLE + wages * WAGE_SHARE;
     const billings = officeJobs * VALUE_PER_OFFICE_JOB;
 
     // And what the land is worth, as a multiplier on the lot.
@@ -504,10 +530,11 @@ export class Economy {
     const gum = (bite: number): number => 1 - bite * (1 - flow);
 
     // The difficulty's income multiplier rides on the land value term.
-    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * (worth * RULES.income) * pol.residentialYield * dm.residential;
-    const rawCom = sales * b.rates[Tax.COMMERCIAL] * (worth * RULES.income) * pol.commercialYield * dm.commercial;
-    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * (worth * RULES.income) * pol.industrialYield * dm.industrial;
-    const rawOff = billings * b.rates[Tax.OFFICE] * (worth * RULES.income) * pol.officeYield * dm.office;
+    const take = worth * RULES.income * TAX_SCALE;
+    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * take * pol.residentialYield * dm.residential;
+    const rawCom = sales * b.rates[Tax.COMMERCIAL] * take * pol.commercialYield * dm.commercial;
+    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * take * pol.industrialYield * dm.industrial;
+    const rawOff = billings * b.rates[Tax.OFFICE] * take * pol.officeYield * dm.office;
     r.residential = rawRes * gum(0.06);
     r.commercial = rawCom * gum(0.30);
     r.industrial = rawInd * gum(0.26);
@@ -535,6 +562,11 @@ export class Economy {
     r.services = this.serviceUpkeep();
     r.transit = (this.transit?.report.weekly ?? 0) * CURRENCY * UPKEEP_WEIGHT;
     r.roads = this.roadUpkeep();
+    // Every resident costs something to govern, and more in a big city than a
+    // small one: a village's council is a clerk, a city's is a building full of
+    // departments. Rising with size is what stops a city scaling its way to
+    // riches on housing alone -- the thing Cities: Skylines never lets you do.
+    r.civic = pop * CIVIC_PER_RESIDENT * RULES.upkeep * (1 + pop / CIVIC_DOUBLING);
     r.interest = b.balance < 0 ? -b.balance * INTEREST : 0;
     r.policies = this.policies.weekly(this.people.population,
       shopJobs + officeJobs + worksJobs + serviceJobs, p.count) * CURRENCY + dm.cost;
@@ -551,7 +583,6 @@ export class Economy {
     //
     // It tapers rather than stopping, so there is no week where the city's
     // income falls off a cliff it did nothing to deserve.
-    const pop = this.people.population;
     // Standard's grant is GRANT_WEEKLY until GRANT_UNTIL; a difficulty moves both.
     const until = RULES.grantUntil * (GRANT_UNTIL / 1800);
     r.grant = pop >= until ? 0
@@ -562,7 +593,7 @@ export class Economy {
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
       + r.exports + r.fares + r.resources;
     r.loans = b.loanWeekly;
-    r.spending = r.services + r.transit + r.roads + r.imports + r.interest
+    r.spending = r.services + r.transit + r.roads + r.civic + r.imports + r.interest
       + r.policies + r.industryUpkeep + r.loans;
     r.net = r.income - r.spending;
     r.weeksLeft = r.net >= 0 ? Infinity

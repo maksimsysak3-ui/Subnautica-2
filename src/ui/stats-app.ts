@@ -180,6 +180,7 @@ export class StatsApp {
     this.body.append(
       row('City services', money(L.services)),
       row('Roads', money(L.roads)),
+      row('City administration', money(L.civic)),
       row('Transit', money(L.transit)),
       row('Industry', money(L.industryUpkeep)),
     );

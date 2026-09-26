@@ -127,6 +127,19 @@ export function fanfare(): void {
   ]);
 }
 
+/**
+ * A need met: a quick bright rising pair over a soft third, the sound of a
+ * street cheering up. Short, because it can come in bursts.
+ */
+export function cheer(): void {
+  const root = 659.25;
+  play([
+    { from: root, length: 0.16, type: 'triangle', gain: 0.07 },
+    { from: root * 1.335, length: 0.2, type: 'triangle', gain: 0.07, delay: 0.07 },
+    { from: root * 2, length: 0.28, type: 'sine', gain: 0.06, delay: 0.14 },
+  ]);
+}
+
 /** A notice arriving in the corner. */
 export function ping(): void {
   play([{ from: 880, length: 0.14, type: 'sine', gain: 0.07 }]);

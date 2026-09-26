@@ -66,6 +66,12 @@ export const Gripe = {
 } as const;
 export const GRIPES = 16;
 
+/** The gripes whose clearing is worth a cheer: the ones a player fixes by building. */
+const CHEERED = new Set<number>([Gripe.POWER, Gripe.WATER, Gripe.SEWAGE, Gripe.RUBBISH,
+  Gripe.FIRE, Gripe.CRIME, Gripe.SICK, Gripe.SCHOOL, Gripe.NO_TRANSPORT, Gripe.OFFLINE]);
+/** Cheers held between takes: the interface only shows a handful anyway. */
+const MAX_CHEERS = 96;
+
 export interface GripeInfo {
   /** The word on the card. */
   title: string;
@@ -236,6 +242,21 @@ export class Complaints {
   private filling: Complaint[] = [];
   private cursor = 0;
 
+  /**
+   * Buildings whose need was just met: a gripe that has gone, since the
+   * interface last took them. What the smiley faces are drawn from. Only the
+   * needs a player fixes by building something -- the market gripes come and
+   * go on their own and would cheer at nothing.
+   */
+  private cheers: Complaint[] = [];
+
+  /** Takes the needs met since the last call. */
+  takeCheers(): Complaint[] {
+    const out = this.cheers;
+    this.cheers = [];
+    return out;
+  }
+
   /** How many buildings are complaining, by gripe, as of the last full pass. */
   readonly tally = new Int32Array(GRIPES);
   private counting = new Int32Array(GRIPES);
@@ -315,7 +336,11 @@ export class Complaints {
       }
       if (p.live[id] === 0) { this.gripe[id] = Gripe.NONE; continue; }
       const g = this.worst(id, spare, educated);
+      const was = this.gripe[id];
       this.gripe[id] = g;
+      if (was !== Gripe.NONE && was !== g && CHEERED.has(was) && this.cheers.length < MAX_CHEERS) {
+        this.cheers.push({ place: id, gripe: was, x: p.col.x[id], z: p.col.z[id] });
+      }
       if (g === Gripe.NONE) continue;
       this.counting[g]++;
       if (this.filling.length < MAX_LISTED) {

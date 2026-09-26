@@ -2767,7 +2767,8 @@ export class Renderer {
     const res = this.res;
     if (!res) return;
     const mode = look === Look.UNDERGROUND ? OverlayMode.UNDERGROUND
-      : look === Look.ABUNDANCE ? OverlayMode.ABUNDANCE : OverlayMode.SURFACE;
+      : look === Look.ABUNDANCE ? OverlayMode.ABUNDANCE
+        : look === Look.ROADS ? OverlayMode.ROADS : OverlayMode.SURFACE;
     this.buried = mode === OverlayMode.UNDERGROUND ? OVERLAY_STRENGTH : 0;
     this.drained = mode === OverlayMode.UNDERGROUND ? 0 : DRAIN_STRENGTH;
     writeOverlay(this.gpu.device, res.overlay, grid, mode,

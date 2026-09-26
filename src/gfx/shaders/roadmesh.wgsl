@@ -600,7 +600,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // The information overlay. On the carriageway rather than only the land
   // beside it, because every reading in the game is measured along the streets
   // -- and a utility main is under this exact surface.
-  col = overlayTint(col, in.world);
+  col = overlayTintRoad(col, in.world);
 
   // A road that has not been built yet: the same geometry, said differently.
   // Tinted rather than outlined, because what a player is judging is where the
