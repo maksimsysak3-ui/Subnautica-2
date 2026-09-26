@@ -21,6 +21,7 @@ import {
   configureSim, LITE, startingWorld, warmTerrain, baseHeightAt, writeAutosave,
 } from './sim';
 import { Menu } from './ui/menu';
+import { playIntro } from './ui/intro';
 import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
 import { log, mountConsole } from './util/log';
@@ -71,6 +72,8 @@ async function boot(): Promise<void> {
   }
 
   mountConsole(overlay);
+  // The studio ident, over everything, while the game boots underneath it.
+  void playIntro();
 
   // ?lite builds a small world. Used by the deployment test, and a way out for
   // anyone whose machine cannot hold the full one.
