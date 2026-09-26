@@ -73,7 +73,9 @@ async function boot(): Promise<void> {
 
   mountConsole(overlay);
   // The studio ident, over everything, while the game boots underneath it.
-  void playIntro();
+  // The title waits for it, so the ident always hands over to the loading
+  // screen rather than cutting straight to a menu.
+  const intro = playIntro();
 
   // ?lite builds a small world. Used by the deployment test, and a way out for
   // anyone whose machine cannot hold the full one.
@@ -237,6 +239,7 @@ async function boot(): Promise<void> {
       steps[i][1]();
     }
     clearTimeout(rescue);
+    await intro;
   } catch (err) {
     clearTimeout(rescue);
     // A build that throws used to leave the menu sitting there half-lit with

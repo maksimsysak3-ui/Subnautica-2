@@ -90,7 +90,7 @@ export function fatal(kind: FatalKind, detail?: string): void {
     + 'padding:0 clamp(24px,6.5vw,104px) clamp(34px,8vh,80px);max-width:min(720px,100%);'
     + 'box-sizing:border-box;color:#dbe4ee;font:500 15px/1.6 var(--ui)';
   col.innerHTML = '<div class="mr-eyebrow">A city builder</div>'
-    + '<h1 class="mr-title" style="font-size:clamp(52px,8vw,110px);letter-spacing:.015em;color:var(--ink)">Meridian</h1>';
+    + '<h1 class="mr-title" style="font-size:clamp(52px,8vw,110px);letter-spacing:.015em;color:var(--ink)">Civitas</h1>';
 
   const h = document.createElement('h2');
   h.textContent = TITLES[kind];

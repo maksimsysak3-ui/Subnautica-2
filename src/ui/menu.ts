@@ -104,7 +104,7 @@ export class Menu {
     const stack = document.createElement('div');
     stack.className = 'mr-load-stack';
     stack.innerHTML = '<div class="mr-eyebrow">A city builder</div>'
-      + '<h1 class="mr-title">Meridian</h1>'
+      + '<h1 class="mr-title" data-text="Civitas">Civitas</h1>'
       + '<div class="mr-rail"><div class="mr-fill" data-bar></div></div>'
       + '<p class="mr-step" data-step></p>'
       + '<p class="mr-tip" data-tip></p>';
@@ -136,7 +136,7 @@ export class Menu {
     const col = document.createElement('div');
     col.className = 'mr-col';
     col.innerHTML = '<header><div class="mr-eyebrow">A city builder</div>'
-      + '<h1 class="mr-title">Meridian</h1>'
+      + '<h1 class="mr-title" data-text="Civitas">Civitas</h1>'
       + '<p class="mr-tag">Draw the roads and zone the land. The people who arrive decide the rest.</p>'
       + '</header>';
     const body = document.createElement('nav');

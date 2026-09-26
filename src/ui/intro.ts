@@ -1,18 +1,19 @@
 /**
  * The studio ident, played over a black screen before the game's own title.
  *
- * Keystone: the stone at the crown of an arch that locks every other stone in
- * place. The ident builds one -- nine stones hanging in the dark swing into
- * place and the keystone lowers and locks -- and the arch becomes the mark with
- * the wordmark under it. The scene is `introProgram`; this file mounts it,
- * gives it a Worker where the browser allows so it plays smoothly while the
- * city is built behind it, draws the wordmark, scores it where audio is
- * allowed, and takes it down.
+ * ARCUS: Latin for an arch. The ident builds one -- nine stones hanging in the
+ * dark swing into place and the keystone lowers and locks -- pushes through it
+ * into the light, and comes out on the studio's mark: a gold arch and keystone
+ * over the name in extruded metal. The film is `introProgram`; this file
+ * mounts it, gives it a Worker where the browser allows so it plays smoothly
+ * while the city is built behind it, hands it the letters to extrude, scores
+ * it where audio is allowed, and takes it down onto the loading screen.
  *
- * Any key, click or tap skips it. Automation never sees it.
+ * Space skips it (so do Escape, Enter and a click). Automation never sees it.
  */
 
 import { introProgram } from './intro-program';
+import { installTheme } from './theme';
 
 /** The ident's beats, in seconds from the black. Shared with the scene. */
 const TIMELINE = {
@@ -20,8 +21,9 @@ const TIMELINE = {
   settle: [2.1, 2.72, 3.34, 3.96],
   keyStart: 4.85,
   lock: 6.4,
-  logo: 7.3,
-  end: 11.2,
+  /** The cut from the arch, through the white, to the mark. */
+  cut: 8.35,
+  end: 12.6,
 };
 
 export interface IntroOptions {
@@ -40,13 +42,13 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const shell = document.createElement('div');
   shell.setAttribute('role', 'img');
-  shell.setAttribute('aria-label', 'Keystone');
+  shell.setAttribute('aria-label', 'Arcus');
   shell.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#000;'
     + 'transition:opacity .7s ease;cursor:pointer';
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
   const hint = document.createElement('div');
-  hint.textContent = 'Press any key to skip';
+  hint.innerHTML = 'Press <b style="color:rgba(255,255,255,.7);font-weight:700">Space</b> to skip';
   hint.style.cssText = 'position:absolute;right:28px;bottom:22px;font:600 11px/1 system-ui,sans-serif;'
     + 'letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.34);opacity:0;white-space:nowrap;'
     + 'transition:opacity 1.2s ease;pointer-events:none';
@@ -80,7 +82,10 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     };
     const skip = (e?: Event): void => {
       if (opts.freeze !== undefined) return;
-      if (e instanceof KeyboardEvent) { e.preventDefault(); e.stopPropagation(); }
+      if (e instanceof KeyboardEvent) {
+        if (e.code !== 'Space' && e.key !== 'Escape' && e.key !== 'Enter') return;
+        e.preventDefault(); e.stopPropagation();
+      }
       post({ type: 'skip' });
       stopScore();
       // Belt and braces: if the scene cannot answer, go anyway.
@@ -88,6 +93,11 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     };
     const onResize = (): void => { const [w, h] = size(); post({ type: 'resize', width: w, height: h }); };
     const onMessage = (m: { type: string; error?: string }): void => {
+      if (m.type === 'ready' && opts.freeze === undefined) {
+        // The film is running: whatever happens now, the game is never held
+        // behind it for longer than it lasts.
+        setTimeout(finish, (TIMELINE.end + 3) * 1000);
+      }
       if (m.type === 'done') {
         if (m.error) console.warn('[intro]', m.error);
         finish();
@@ -95,6 +105,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
     };
 
     const [w, h] = size();
+    installTheme();
     const init = { type: 'init', width: w, height: h, timeline: { ...TIMELINE, reduced }, freeze: opts.freeze };
     const offscreen = !opts.mainThread && typeof canvas.transferControlToOffscreen === 'function'
       && typeof Worker !== 'undefined';
@@ -134,36 +145,40 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
 
     void wordmark().then((bitmap) => { if (bitmap && !done) post({ type: 'text', bitmap }, [bitmap]); });
     if (opts.freeze === undefined && !reduced) score();
-    // Whatever happens, the game is never held behind the ident.
-    if (opts.freeze === undefined) setTimeout(finish, (TIMELINE.end + 4) * 1000);
+    // And if the film never starts -- a driver that will not link it -- the
+    // game is not held behind a black screen for long.
+    if (opts.freeze === undefined) setTimeout(finish, 30000);
   });
 }
 
-/** The wordmark, drawn once into a bitmap for the scene to reveal. */
+/**
+ * The name, drawn once as white on clear for the film to turn into a distance
+ * field and extrude. Tracked wide and heavy: at the size it is seen, the
+ * bevels are what make the letters, and thin strokes would have none.
+ */
 async function wordmark(): Promise<ImageBitmap | null> {
   try {
-    const face = '"Big Shoulders Display", "Helvetica Neue", Arial, sans-serif';
+    const face = '"Big Shoulders Display", "Arial Black", Impact, sans-serif';
     await Promise.race([
-      document.fonts?.load(`800 200px ${face}`),
-      new Promise((r) => setTimeout(r, 900)),
+      document.fonts?.load(`900 200px ${face}`),
+      new Promise((r) => setTimeout(r, 3000)),
     ]);
     const c = document.createElement('canvas');
-    c.width = 2048; c.height = 512;
+    c.width = 1024; c.height = 256;
     const g = c.getContext('2d');
     if (!g) return null;
     g.fillStyle = '#fff';
-    g.textBaseline = 'alphabetic';
-    const spaced = (text: string, px: number, weight: number, track: number, y: number): void => {
-      g.font = `${weight} ${px}px ${face}`;
-      const widths = [...text].map((ch) => g.measureText(ch).width);
-      const total = widths.reduce((a, b) => a + b, 0) + track * (text.length - 1);
-      let x = (c.width - total) / 2;
-      [...text].forEach((ch, i) => { g.fillText(ch, x, y); x += widths[i] + track; });
-    };
-    spaced('KEYSTONE', 250, 800, 46, 300);
-    g.globalAlpha = 0.75;
-    g.fillRect(784, 356, 480, 3);
-    spaced('STUDIO', 64, 600, 40, 452);
+    g.textBaseline = 'middle';
+    g.font = `900 176px ${face}`;
+    const text = 'ARCUS';
+    const track = 44;
+    const widths = [...text].map((ch) => g.measureText(ch).width);
+    const total = widths.reduce((a, b) => a + b, 0) + track * (text.length - 1);
+    // Fit the whole word inside the field's margin, whatever face loaded.
+    const fit = Math.min(1, (c.width - 120) / total);
+    g.setTransform(fit, 0, 0, fit, c.width / 2 * (1 - fit), c.height / 2 * (1 - fit));
+    let x = (c.width - total) / 2;
+    [...text].forEach((ch, k) => { g.fillText(ch, x, c.height / 2 + 6); x += widths[k] + track; });
     return await createImageBitmap(c);
   } catch {
     return null;
@@ -251,7 +266,8 @@ function scoreOn(a: AudioContext, late: number): void {
     hiss(TIMELINE.lock, 1.6, 0.35, 2400);
     for (const f of [880, 1318.5, 1760]) tone(f, TIMELINE.lock + 0.02, 3.2, 0.05, 'triangle');
     // The chord under the name.
-    for (const f of [110, 164.8, 220, 277.2, 329.6]) tone(f, TIMELINE.logo, 3.6, 0.08, 'triangle');
+    hiss(TIMELINE.cut - 0.5, 0.9, 0.18, 5000);
+    for (const f of [110, 164.8, 220, 277.2, 329.6]) tone(f, TIMELINE.cut, 4.0, 0.08, 'triangle');
   } catch {
     audio = null;
   }

@@ -562,9 +562,28 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 }
 .mr-eyebrow::before { content: ""; width: 34px; height: 2px; background: var(--amber); }
 .mr-title {
+  position: relative; isolation: isolate;
   margin: 10px 0 0; font: 900 clamp(64px, 10.5vw, 150px)/.8 var(--display);
-  letter-spacing: .015em; text-transform: uppercase; color: var(--ink);
-  text-shadow: 0 4px 40px rgba(0,0,0,.55);
+  letter-spacing: .04em; text-transform: uppercase; color: var(--ink);
+}
+/* The title in relief: a gilded face over a stepped extrusion, lit from the
+   top left, with its shadow thrown down behind it. */
+.mr-title[data-text] { color: transparent; }
+.mr-title[data-text]::before, .mr-title[data-text]::after {
+  content: attr(data-text); position: absolute; inset: 0; pointer-events: none;
+}
+.mr-title[data-text]::before {
+  color: #4a3210;
+  text-shadow:
+    1px 1px 0 #9a6c28, 2px 2px 0 #8c6124, 3px 3px 0 #7e5720, 4px 4px 0 #704c1b,
+    5px 5px 0 #624217, 6px 6px 0 #543812, 7px 7px 0 #462e0e, 8px 8px 0 #38240a,
+    10px 14px 18px rgba(0, 0, 0, .7), 0 24px 60px rgba(0, 0, 0, .55);
+}
+.mr-title[data-text]::after {
+  color: transparent;
+  background: linear-gradient(180deg, #fffaf0 0%, #f7e7c0 34%, #d7a750 50%, #b07c2c 56%, #f0d493 76%, #fff4d8 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-stroke: 1px rgba(255, 244, 214, .3);
 }
 .mr-tag {
   margin: 14px 0 0; max-width: 34ch; font: 500 clamp(15px, 1.35vw, 18px)/1.45 var(--ui);
