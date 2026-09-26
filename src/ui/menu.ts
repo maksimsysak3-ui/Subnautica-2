@@ -180,7 +180,6 @@ export class Menu {
       ['Region packs', 'Russian, South American, Mediterranean, Nordic and Middle Eastern styles for every zone.'],
       ['Grand Monuments', 'A triumphal arch, a lighthouse, a pagoda, an observatory and a windmill, from the Mods screen.'],
       ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour and the weather.'],
-
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';
