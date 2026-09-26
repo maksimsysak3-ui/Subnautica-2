@@ -704,6 +704,12 @@ export class BuildTools {
     const t = this.tool;
     if (t.kind !== 'transit') return;
     const world = this.renderer.world;
+    const opens = TRANSIT_SPEC[t.line].level ?? 0;
+    if (world.progress.level < opens) {
+      denySound();
+      this.say(`the ${TRANSIT_SPEC[t.line].name.toLowerCase()} opens at level ${opens}, ${levelName(opens)}`);
+      return;
+    }
     const half = world.grid / 2;
     const x = (cell[0] - half + 0.5) * CELL, z = (cell[1] - half + 0.5) * CELL;
 

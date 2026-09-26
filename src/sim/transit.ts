@@ -45,6 +45,8 @@ export interface TransitSpec {
    * many metres a second, and never on the roads. Absent for street transit.
    */
   tunnel?: number;
+  /** The city level it opens at, where it is gated beyond its branch. */
+  level?: number;
 }
 
 /**
@@ -60,7 +62,7 @@ export const TRANSIT_SPEC: TransitSpec[] = [
   // A metro: stations anywhere, joined by straight tunnels, trains of four
   // hundred people at twenty metres a second whatever the traffic above. The
   // most expensive thing a city runs and the only transit that beats a jam.
-  { name: 'Metro', colour: '#b36ae2', capacity: 480, dwell: 30, walk: 750, weekly: 24000, tunnel: 20 },
+  { name: 'Metro', colour: '#b36ae2', capacity: 480, dwell: 30, walk: 750, weekly: 7000, tunnel: 20, level: 8 },
 ];
 
 /** The fewest and most vehicles a player may put on one line. */

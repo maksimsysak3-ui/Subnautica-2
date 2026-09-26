@@ -696,6 +696,15 @@ export class TransitNet {
     }
   }
 
+  /** Every station of a working metro line, as x and z pairs, for the frame to draw. */
+  stations(out: number[]): void {
+    out.length = 0;
+    for (const r of this.runs) {
+      if (!r.works || TRANSIT_SPEC[r.line.kind].tunnel === undefined) continue;
+      for (let i = 0; i < r.line.stops.length; i += 2) out.push(r.line.stops[i], r.line.stops[i + 1]);
+    }
+  }
+
   /** Riders a day on one line, for the panel. */
   ridersOf(id: number): number {
     const r = this.runs.find((q) => q.line.id === id);

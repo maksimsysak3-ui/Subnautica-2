@@ -409,6 +409,34 @@ function giveWay(lod: number): MeshBuilder {
   return m;
 }
 
+/**
+ * A metro entrance: a stairwell going down under a glass canopy, a low stone
+ * surround, and the lit totem with the line's M on it that a passer-by looks
+ * for. Drawn by the frame at every station of a working line.
+ */
+function metroEntrance(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2;
+  // The surround and the dark mouth of the stair.
+  m.box([-2.2, 0, -3.2], [2.2, 0.9, -2.8], MAT.STONE);
+  m.box([-2.2, 0, 2.8], [2.2, 0.9, 3.2], MAT.STONE);
+  m.box([2.2, 0, -3.2], [2.6, 0.9, 3.2], MAT.STONE);
+  m.box([-2.0, 0.02, -2.8], [2.0, 0.06, 2.8], MAT.DARK_TRIM);
+  if (medium) {
+    for (let k = 0; k < 6; k++) m.box([-2.0 + k * 0.62, -0.001 + 0.03, -2.7], [-1.9 + k * 0.62, 0.07, 2.7], MAT.CONCRETE);
+  }
+  // The canopy: glass on four slim posts.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const [x, z] of [[-2.1, -3.0], [2.4, -3.0], [-2.1, 3.0], [2.4, 3.0]]) m.cylinder(x, z, 0.07, 0.9, 3.2, 6, MAT.METAL);
+    m.box([-2.3, 3.2, -3.3], [2.7, 3.35, 3.3], MAT.METAL);
+  });
+  m.box([-2.25, 3.35, -3.25], [2.65, 3.42, 3.25], MAT.GLASS);
+  // The totem and its lit M.
+  m.painted(TINT.METAL_DARK, () => m.box([-3.1, 0, -0.18], [-2.8, 4.4, 0.18], MAT.METAL));
+  m.painted(TINT.SIGN_LIT, () => m.box([-3.25, 3.4, -0.55], [-2.65, 4.5, 0.55], MAT.PAINT));
+  return m;
+}
+
 /** A stop sign: the same post, an octagon, and the line painted on the road. */
 function stopSign(lod: number): MeshBuilder {
   const m = new MeshBuilder();
@@ -451,6 +479,13 @@ built.push({
   note: 'On the minor arm of an uncontrolled junction, where the model makes '
     + 'vehicles yield.',
   build: giveWay,
+});
+built.push({
+  id: 'move.metro', name: 'Metro entrance', zone: 'fleet', density: 'none',
+  variant: 'sculpted', footprint: [1, 1], height: 4.5, sim: free,
+  brand: { name: 'Metro', colour: [0.60, 0.34, 0.86], accent: [0.92, 0.92, 0.95], sign: 'none' },
+  note: 'A stair down to the platforms under a glass canopy, and the lit M.',
+  build: metroEntrance,
 });
 built.push({
   id: 'move.stop', name: 'Stop sign', zone: 'fleet', density: 'none',
@@ -718,6 +753,7 @@ export const MOVER_IDS = {
   signalGreen: 'move.signalGreen',
   giveway: 'move.giveway',
   stop: 'move.stop',
+  metro: 'move.metro',
   blaze: 'move.blaze',
   smoke: 'move.smoke',
   steam: 'move.steam',
@@ -769,6 +805,8 @@ export const MOVER_RESERVE: Record<string, number> = {
   'move.signalGreen': 160,
   'move.giveway': 320,
   'move.stop': 200,
+  // Stations of every metro line; more than a city will draw in one view.
+  'move.metro': 96,
   // A city has a handful of fires at once and each is one instance. The cap is
   // what stops a city that has lost its fire service from filling the frame
   // with smoke; past it the rest burn unseen, which is the right thing to drop.

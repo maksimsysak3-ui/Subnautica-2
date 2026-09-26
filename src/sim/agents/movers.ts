@@ -81,6 +81,8 @@ export class Movers {
    */
   private readonly box: Record<string, [number, number, number]> = {};
   /** Which seats are modelled facing backwards. See `MOVER_FLIP`. */
+  /** Scratch for the metro stations, reused every frame. */
+  private readonly stationBuf: number[] = [];
   private readonly flip: Record<string, boolean> = {};
   private readonly used = new Map<number, number>();
   /**
@@ -576,6 +578,17 @@ export class Movers {
     }
 
     // The industry areas: machines working their passes and people among them.
+    // Metro stations: an entrance at each, the only part of a metro above ground.
+    if (transit !== undefined) {
+      transit.stations(this.stationBuf);
+      for (let i = 0; i < this.stationBuf.length; i += 2) {
+        const x = this.stationBuf[i], z = this.stationBuf[i + 1];
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > DRAW_REACH * DRAW_REACH) continue;
+        write('metro', x, z, 0, 0);
+      }
+    }
+
     if (areaWork !== undefined && areaWork.count > 0) {
       areaWork.each(seconds, (seat, x, z, yaw, who, walked) => {
         const dx = eyeX - x, dz = eyeZ - z;
