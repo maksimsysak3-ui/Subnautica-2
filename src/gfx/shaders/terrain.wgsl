@@ -516,13 +516,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let bedCell = floor(in.world.xz * (1.0 / 18.0));
     let bedPick = fract(sin(dot(bedCell, vec2f(269.5, 183.3))) * 43758.5453);
     let inBed = fract(in.world.xz * (1.0 / 18.0));
-    let bedBox = min(min(inBed.x, 1.0 - inBed.x), min(inBed.y, 1.0 - inBed.y));
-    let bed = step(0.74, bedPick) * smoothstep(0.20, 0.22, bedBox) * smoothstep(0.985, 1.0, surf.r);
-    let kerbRing = step(0.74, bedPick) * smoothstep(0.18, 0.19, bedBox)
-      * (1.0 - smoothstep(0.20, 0.21, bedBox)) * smoothstep(0.985, 1.0, surf.r);
-    // Planting, not a lawn swatch: low shrubs and ground cover, mottled dark.
+    // Rounded rather than square: from the building camera a hard-cornered
+    // dark square on a grid read as a missing tile, not as a planted bed.
+    let q = abs(inBed - vec2f(0.5)) - vec2f(0.22);
+    let bedDist = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - 0.06;
+    let bedBox = -bedDist;
+    let bed = step(0.80, bedPick) * smoothstep(0.0, 0.015, bedBox) * smoothstep(0.985, 1.0, surf.r);
+    let kerbRing = step(0.80, bedPick) * smoothstep(-0.018, -0.008, bedBox)
+      * (1.0 - smoothstep(0.0, 0.01, bedBox)) * smoothstep(0.985, 1.0, surf.r);
+    // Planting, not a lawn swatch: low shrubs and ground cover, mottled --
+    // but in the greens planting actually is. The near-black it was drawn in
+    // made every bed look like a hole in the paving.
     let shrub = vnoise(in.world.xz * (1.0 / 0.9)) * 0.6 + vnoise(in.world.xz * (1.0 / 3.1)) * 0.4;
-    let lawn = mix(vec3f(0.022, 0.050, 0.020), vec3f(0.052, 0.098, 0.036), shrub) * (0.9 + batch * 0.2);
+    let lawn = mix(vec3f(0.040, 0.082, 0.028), vec3f(0.092, 0.150, 0.052), shrub) * (0.9 + batch * 0.2);
     paved = mix(paved, lawn, bed);
     paved = mix(paved, vec3f(0.20, 0.196, 0.186), kerbRing * 0.8);
 
