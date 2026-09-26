@@ -67,6 +67,22 @@ struct Camera {
 /** Whether the map has a sea: carried as +4 on the climate, which is -1 to 1. */
 fn seaMap() -> bool { return camera.view.w > 2.0; }
 
+/**
+ * The season, from plotGrid.w: positive is how far into autumn the trees and
+ * the turf are, negative how deep the snow lies. Nought is spring and summer,
+ * and the icon renderer and the viewer, which never write it.
+ */
+fn season() -> f32 { return camera.plotGrid.w; }
+
+/** Fresh snow, at the albedo scale the rest of the ground is drawn at. */
+const SNOW = vec3f(0.56, 0.58, 0.62);
+
+/** Turf going over in autumn: less green, more straw, a little darker. */
+fn autumnTurf(c : vec3f, k : f32) -> vec3f {
+  let l = dot(c, vec3f(0.30, 0.56, 0.14));
+  return mix(c, vec3f(l * 1.28, l * 1.02, l * 0.46), k * 0.55);
+}
+
 fn climate(c : vec3f) -> vec3f {
   let k = camera.view.w - select(0.0, 4.0, seaMap());
   let l = dot(c, vec3f(0.30, 0.56, 0.14));
@@ -2556,6 +2572,31 @@ fn fs(in : VSOut) -> @location(0) vec4f {
               (1.0 - smoothstep(0.008, 0.022, abs(in.local.y - 0.62))) * 0.75);
   }
 
+  // ---- the season: see season() in common.wgsl, which this mirrors ----
+  //
+  // Positive, the trees turn: most go yellow, orange or red by their own
+  // seed, and one in four is an evergreen that stays as it is. Negative, snow
+  // lies on whatever faces the sky -- roofs, canopies, the tops of crowns --
+  // and not on anything that moves, which would carry it off.
+  let seasonK = scene.signInfo.z;
+  if (seasonK > 0.0 && in.material == MAT_FOLIAGE) {
+    let r = hash11(seed * 3.17 + 0.5);
+    let tone = clamp(dot(col, vec3f(0.30, 0.56, 0.14)) / 0.07, 0.55, 1.6);
+    var turn = vec3f(0.20, 0.13, 0.015);
+    if (r > 0.52) { turn = vec3f(0.21, 0.075, 0.012); }
+    if (r > 0.80) { turn = vec3f(0.15, 0.028, 0.018); }
+    col = mix(col, turn * tone, seasonK * select(0.9, 0.0, r < 0.25));
+  }
+  let moving = in.material == MAT_PAINT || in.material == MAT_CAR_GLASS
+    || in.material == MAT_TYRE || in.material == MAT_SKIN;
+  if (seasonK < 0.0 && !moving) {
+    let drift = vnoise(in.world.xz * (1.0 / 17.0)) * 0.7 + vnoise(in.world.xz * (1.0 / 2.3)) * 0.3;
+    var lie = smoothstep(drift - 0.10, drift + 0.10, -seasonK * 1.15 - 0.08);
+    lie *= smoothstep(0.55, 0.85, n.y);
+    if (in.material == MAT_FOLIAGE) { lie *= 0.7; }
+    col = mix(col, vec3f(0.56, 0.58, 0.62), lie);
+  }
+
   let sun = normalize(scene.sunDir.xyz);
   let ndl = dot(n, sun);
   let shadow = shadowFactor(in.world, ndl);
@@ -3381,6 +3422,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   turf = mix(turf, vec3f(0.118, 0.122, 0.050), meadow * 0.40);
   turf = mix(turf, vec3f(0.062, 0.068, 0.040), moor * 0.40);
   turf = climate(turf);
+  turf = autumnTurf(turf, max(season(), 0.0));
 
   // The parcel's own colour, applied hard rather than blended, and only inside
   // its boundary -- which is what makes the boundary a boundary.
@@ -3697,6 +3739,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   if (work.x > 0.01) {
     let wcol = workedColour(u32(work.y + 0.5), in.world.xz, in.world.y, col);
     col = mix(col, wcol, clamp(work.x * 1.15, 0.0, 1.0));
+  }
+
+  // ---- snow -----------------------------------------------------------
+  //
+  // Winter lies on whatever faces the sky: thick on turf, gardens and parks,
+  // thin and trodden on paving and yards, none on a cliff. It comes and goes
+  // through a noise threshold, so the first fall and the thaw are patches
+  // rather than a fade, and the roads -- their own mesh -- stay black.
+  let snowCover = max(-season(), 0.0);
+  if (snowCover > 0.001) {
+    let drift = vnoise(in.world.xz * (1.0 / 23.0)) * 0.55
+              + vnoise(in.world.xz * (1.0 / 4.1) + vec2f(7.3, 1.9)) * 0.30
+              + vnoise(in.world.xz * (1.0 / 0.9)) * 0.15 * fTuft;
+    var lie = smoothstep(drift - 0.12, drift + 0.12, snowCover * 1.15 - 0.08);
+    lie *= smoothstep(0.62, 0.86, n.y);
+    lie *= 1.0 - 0.62 * clamp(surf.r + surf.g, 0.0, 1.0);
+    if (seaMap()) { lie *= smoothstep(0.2, 1.2, in.world.y + 2.5); }
+    col = mix(col, SNOW * (0.94 + wear * 0.10), lie);
   }
 
   // ---- light ----------------------------------------------------------
@@ -4096,6 +4156,9 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
   let keep = 1.0 - smoothstep(0.18, 1.0, dist / grass.form.z);
   let h3 = lattice(vec2i(i32(at.x * 31.0), i32(at.y * 31.0)));
   if (h3 > keep * open) { return nothing(); }
+  // Under snow the sward is buried: the deeper it lies, the fewer blades
+  // stand clear of it.
+  if (h2 < -season() * 1.1) { return nothing(); }
 
   // Height, and which way the blade leans. Both from the blade's own hash, so
   // a clump is a range of heights rather than a row of identical spikes.
@@ -4153,6 +4216,9 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   let tip = mix(vec3f(0.115, 0.180, 0.062), vec3f(0.165, 0.170, 0.075), in.blade.y);
   var col = mix(root, tip, smoothstep(0.0, 0.75, in.blade.x));
   col = climate(col);
+  col = autumnTurf(col, max(season(), 0.0));
+  // What pokes through the snow carries some on it.
+  col = mix(col, SNOW * 0.8, max(-season(), 0.0) * in.blade.x * 0.6);
 
   let n = normalize(in.normal);
   let sun = normalize(camera.sunDir.xyz);
@@ -5583,4 +5649,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,rY={"common.wgsl":VY,"atmosphere.wgsl":NY,"noise.wgsl":HY,"overlay.wgsl":hY};function TQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>rY[U]??A)}const as={asset:TQ(lY),cull:TQ(OY),terrain:TQ(SY),sky:TQ(TY),grass:TQ(bY),road:TQ(fY),water:TQ(JY),rain:TQ(KY),dots:TQ(XY),mains:TQ(zY),post:TQ(yY)};export{gs as $,xY as A,sD as B,Cs as C,RD as D,mY as E,qA as F,Eg as G,Ys as H,Fs as I,a as J,E as K,Dw as L,DF as M,fE as N,_Y as O,Zw as P,Bs as Q,vY as R,as as S,_Q as T,Qs as U,Dg as V,a0 as W,P0 as X,$B as Y,DY as Z,As as _,Yg as a,qY as a0,$Y as a1,EY as a2,y0 as a3,r0 as a4,_0 as a5,q0 as a6,AY as a7,QY as a8,rC as a9,yC as aa,K0 as ab,X0 as ac,J0 as ad,z0 as ae,v0 as af,mC as ag,qC as ah,yE as ai,Es as aj,UY as ak,xw as al,LY as am,cE as b,Ag as c,RY as d,Ms as e,ss as f,cs as g,Is as h,os as i,qg as j,WY as k,sQ as l,PY as m,Ds as n,Us as o,aY as p,KC as q,bQ as r,ws as s,uY as t,IF as u,ZY as v,i0 as w,jY as x,pY as y,Rs as z};
-//# sourceMappingURL=shaders-BUACF6Lm.js.map
+//# sourceMappingURL=shaders-QwWCC-0O.js.map
