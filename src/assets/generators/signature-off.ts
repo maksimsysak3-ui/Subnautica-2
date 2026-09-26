@@ -14,7 +14,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import type { Vec3 } from '../mesh';
 import { THEME_ORDER } from '../themes';
-import type { Theme } from '../themes';
+import type { BaseTheme } from '../themes';
 import {
   cap, flags, forecourt, loft, marquee, plan, porteCochere, scaled, shelf,
 } from './signature-parts';
@@ -342,7 +342,7 @@ interface Row {
   build: (lod: number) => MeshBuilder;
 }
 
-const TOWER: Record<Theme, Row> = {
+const TOWER: Record<BaseTheme, Row> = {
   modern: {
     key: 'tower', name: 'Ardent Tower', foot: [12, 11], jobs: 2600, upkeep: 3400, power: 5200,
     colour: [0.16, 0.26, 0.40], accent: [0.72, 0.62, 0.30],
@@ -379,7 +379,7 @@ const TOWER: Record<Theme, Row> = {
   },
 };
 
-const HQ: Record<Theme, Row> = {
+const HQ: Record<BaseTheme, Row> = {
   modern: {
     key: 'hq', name: 'Vance Group Tower', foot: [14, 11], jobs: 3100, upkeep: 3900, power: 5800,
     colour: [0.18, 0.30, 0.34], accent: [0.70, 0.58, 0.24],

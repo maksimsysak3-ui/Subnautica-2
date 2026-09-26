@@ -27,6 +27,7 @@ const bundle = (await esbuild.build({
       `export * as mods from '${src}sim/mods';`,
       `export * as bp from '${src}assets/generators/blueprint';`,
       `export { WONDERS } from '${src}assets/generators/wonders';`,
+      `export { MONUMENTS } from '${src}assets/generators/monuments';`,
       `export { useDifficulty, RULES, DIFFICULTIES } from '${src}sim/difficulty';`,
       `export { Budget, LOAN_OFFERS, MAX_LOANS } from '${src}sim/budget';`,
       `export { defaultWorld } from '${src}sim/world';`,
@@ -106,13 +107,26 @@ const ok = (cond, what, detail = '') => {
     return { tris, over, low };
   };
   let worst = 0, bad = [];
-  for (const w of M.WONDERS) {
+  for (const w of [...M.WONDERS, ...M.MONUMENTS]) {
     const r = check(w);
     worst = Math.max(worst, r.tris[0]);
     if (r.over > 0.35 || r.low < -0.01 || !(r.tris[0] > r.tris[1] && r.tris[1] > r.tris[2])) bad.push(`${w.id} ${JSON.stringify(r)}`);
   }
-  ok(bad.length === 0, `every Wonder stands on its lot with falling detail (worst ${worst} triangles)`, bad.join('; '));
+  ok(bad.length === 0, `every Wonder and Monument stands on its lot with falling detail (worst ${worst} triangles)`, bad.join('; '));
   ok(worst <= 26000, 'and within the landmark triangle budget');
+
+  // Region packs: a whole zoned library each, under their own theme.
+  bad = []; let count = 0; const zones = new Set();
+  for (const p of M.mods.REGION_PACKS) {
+    for (const d of M.mods.packAssets(p.id)) {
+      count++;
+      zones.add(`${p.id}:${d.zone}`);
+      const r = check(d);
+      if (d.signature || d.mod !== p.id || r.over > 0.8 || r.low < -0.01 || !(r.tris[0] >= r.tris[2])) bad.push(`${d.id} ${JSON.stringify(r)}`);
+    }
+  }
+  ok(zones.size === M.mods.REGION_PACKS.length * 4, 'every region pack builds homes, shops, offices and works', `${zones.size} zone sets`);
+  ok(bad.length === 0, `all ${count} region buildings stand on their lots as stock, not landmarks`, bad.slice(0, 3).join('; '));
 
   // A spread of blueprints, from the presets to the extremes of every control.
   const cases = [...mods.PRESET_BLUEPRINTS];
@@ -120,6 +134,23 @@ const ok = (cond, what, detail = '') => {
     cases.push(bp.cleanBlueprint({ shape, crown, width: 12, depth: 3, floors: 90, twist: 1.6, taper: 0.45, balconies: true, podium: 6, bands: 3 }));
     cases.push(bp.cleanBlueprint({ shape, crown, width: 3, depth: 12, floors: 3, twist: -1.6, taper: 1, podium: 0, bands: 0, lit: false }));
   }
+  // And deep designs at random: two and three towers, stacked sections, fins,
+  // every podium style -- on a fixed seed, so a failure is reproducible.
+  let seed = 12345;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const any = (a) => a[Math.floor(rnd() * a.length)];
+  for (let i = 0; i < 120; i++) {
+    const sections = Array.from({ length: Math.floor(rnd() * 4) }, () => ({
+      floors: 1 + Math.floor(rnd() * 60), shape: any(bp.BP_SHAPES), scale: 0.3 + rnd() * 0.7, taper: 0.45 + rnd() * 0.55,
+      twist: (rnd() - 0.5) * 3.2, facade: any(bp.BP_FACADES), shiftX: rnd() * 2 - 1, shiftZ: rnd() * 2 - 1, balconies: rnd() < 0.5 }));
+    cases.push(bp.cleanBlueprint({ width: 3 + Math.floor(rnd() * 10), depth: 3 + Math.floor(rnd() * 10), layout: any(bp.BP_LAYOUTS),
+      floors: 3 + Math.floor(rnd() * 88), shape: any(bp.BP_SHAPES), taper: 0.45 + rnd() * 0.55, twist: (rnd() - 0.5) * 3.2,
+      facade: any(bp.BP_FACADES), crown: any(bp.BP_CROWNS), podium: Math.floor(rnd() * 7), podiumStyle: any(bp.BP_PODIUMS),
+      balconies: rnd() < 0.5, fins: rnd() < 0.5, bands: Math.floor(rnd() * 31), sections }));
+  }
+  const old = bp.cleanBlueprint({ name: 'Old', floors: 20 });
+  ok(old.layout === 'single' && old.sections.length === 0 && old.podiumStyle === 'glass',
+    'a blueprint saved before layouts and sections reads as one plain tower');
   bad = []; worst = 0;
   for (const [i, b] of cases.entries()) {
     const def = bp.blueprintAsset(b, 'test', `c${i}`);

@@ -17,7 +17,7 @@
 import { MAT, TINT, MeshBuilder, EMIT } from '../mesh';
 import type { AssetDef } from '../types';
 import { THEME_ORDER } from '../themes';
-import type { Theme } from '../themes';
+import type { BaseTheme } from '../themes';
 import {
   conveyor, curtain, flags, lattice, loft, marquee,
   pipeRack, plan, sawtooth, scaled, silo,
@@ -930,7 +930,7 @@ interface Row {
   note: string; build: (lod: number) => MeshBuilder;
 }
 
-const WORKS: Record<Theme, Row> = {
+const WORKS: Record<BaseTheme, Row> = {
   modern: {
     key: 'works', name: 'Northlight Fab', foot: [18, 12], jobs: 900, upkeep: 2600, power: 6800, pollution: 2,
     colour: [0.16, 0.30, 0.42], accent: [0.62, 0.68, 0.72],
@@ -967,7 +967,7 @@ const WORKS: Record<Theme, Row> = {
   },
 };
 
-const YARD: Record<Theme, Row> = {
+const YARD: Record<BaseTheme, Row> = {
   modern: {
     key: 'yard', name: 'Vance Distribution', foot: [19, 15], jobs: 620, upkeep: 1800, power: 2600, pollution: 3,
     colour: [0.16, 0.32, 0.46], accent: [0.74, 0.58, 0.18],

@@ -128,7 +128,7 @@ function draw(g: Gpu, m: Model, w: number, h: number, yaw: number, pitch: number
   const cx = (m.min[0] + m.max[0]) / 2, cy = (m.min[1] + m.max[1]) / 2, cz = (m.min[2] + m.max[2]) / 2;
   const r = Math.hypot(m.max[0] - m.min[0], m.max[1] - m.min[1], m.max[2] - m.min[2]) / 2 || 1;
   const fov = 0.5, aspect = w / h;
-  const dist = r / Math.sin(fov / 2) * (aspect < 1 ? 1 / aspect : 1) * 0.92;
+  const dist = r / Math.sin(fov / 2) * (aspect < 1 ? 1 / aspect : 1) * 1.06;
   const eye = [cx + Math.sin(yaw) * Math.cos(pitch) * dist, cy + Math.sin(pitch) * dist, cz + Math.cos(yaw) * Math.cos(pitch) * dist];
   const f = norm([cx - eye[0], cy - eye[1], cz - eye[2]]);
   const s = norm(cross(f, [0, 1, 0]));

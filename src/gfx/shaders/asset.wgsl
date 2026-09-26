@@ -420,6 +420,16 @@ fn resolvable(feature : f32, mpp : f32) -> f32 {
   return smoothstep(1.2, 4.0, feature / mpp);
 }
 
+/**
+ * The same for windows, which are what a facade is read by: they hold on to
+ * well under two pixels, and then give way to the wall's average -- glass and
+ * all -- rather than to a blank wall. Fading to the bare render colour made
+ * every block go windowless a street or two from the camera.
+ */
+fn windowsResolve(feature : f32, mpp : f32) -> f32 {
+  return smoothstep(0.55, 2.2, feature / mpp);
+}
+
 fn inRect(p : vec2f, centre : vec2f, half : vec2f, mpp : f32) -> f32 {
   let d = abs(p - centre) - half;
   let aa = mpp * 1.1 + 1e-5;
@@ -569,7 +579,8 @@ fn housing(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
   col = mix(col, wall * 1.24, inRect(p, vec2f(bay * 0.5, 0.84), vec2f(0.88, 0.055), mpp));
   // Floor line, faint.
   col = mix(col, wall * 0.88, stripe(uv.y, floorH, 0.03, mpp) * 0.5);
-  return mix(wall, col, resolvable(1.4, mpp));
+  let far = mix(wall * 0.9, glass, 0.24);
+  return mix(far, col, windowsResolve(1.4, mpp));
 }
 
 fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
@@ -604,7 +615,8 @@ fn curtainWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
 
   let bars = max(stripe(uv.x, mullion, 0.035, mpp), stripe(uv.y, floorH, 0.05, mpp));
   col = mix(col, vec3f(0.30, 0.31, 0.33), bars * resolvable(0.8, mpp));
-  return mix(glass, col, resolvable(1.8, mpp));
+  let far = mix(mix(glass, glassColour(seed) * (1.4 + r * 0.6), sky * 0.42), spandrel, 0.3);
+  return mix(far, col, windowsResolve(1.8, mpp));
 }
 
 /**
@@ -832,7 +844,7 @@ fn houseWall(uv : vec2f, mpp : f32, seed : f32, par : vec2f) -> vec3f {
     let door = inRect(p, vec2f(bay * 0.5, 1.05), vec2f(0.44, 1.02), mpp);
     col = mix(col, vec3f(0.20, 0.16, 0.13), door);
   }
-  return mix(brick(uv, mpp, seed), col, resolvable(1.2, mpp));
+  return mix(mix(brick(uv, mpp, seed), vec3f(0.16, 0.19, 0.23), 0.2), col, windowsResolve(1.2, mpp));
 }
 
 /** Corrugated metal with a clerestory band, the way a shed is actually lit. */

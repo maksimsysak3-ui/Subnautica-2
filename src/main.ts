@@ -22,6 +22,7 @@ import {
 } from './sim';
 import { Menu } from './ui/menu';
 import { ModTools } from './ui/mod-tools';
+import { ASSETS } from './assets/registry';
 import { playIntro } from './ui/intro';
 import { LiveCity } from './live';
 import { Benchmark, formatResults } from './bench';
@@ -284,7 +285,7 @@ async function boot(): Promise<void> {
   // A handle on the running game, for the playtest harness and for anybody
   // debugging a city in a browser console. Read-only in spirit: nothing in the
   // game reads it back.
-  (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera };
+  (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera, assetIds: () => ASSETS.map((a) => a.id) };
   // The career: the bar earns it, the panels spend it, and each tells the other.
   tools.onLevels = (levels) => live.celebrate(levels);
   tools.onProgress = () => tools?.paintProgress();

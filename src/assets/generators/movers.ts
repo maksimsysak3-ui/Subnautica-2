@@ -41,7 +41,7 @@ function idsOfClass(cls: string): string[] {
  * headlight belongs at the end of the body the vehicle actually drives with,
  * and for these that is the -x end.
  */
-const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police']);
+const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police', 'lorry']);
 
 /**
  * Models the pack ships at a density no moving vehicle needs.

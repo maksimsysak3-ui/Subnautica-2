@@ -1232,3 +1232,8 @@ export const HOUSING: AssetDef[] = [
   ...defs('row', 'low', [LOW[1], LOW[2], LOW[0]]),
   ...defs('row', 'medium', [MID[0], MID[2], MID[4]]),
 ];
+
+/** Every home a theme builds, low to high: for a region pack bringing a theme of its own. */
+export function housingFor(theme: Theme): AssetDef[] {
+  return [...defs(theme, 'low', LOW), ...defs(theme, 'medium', MID), ...defs(theme, 'high', HIGH)];
+}

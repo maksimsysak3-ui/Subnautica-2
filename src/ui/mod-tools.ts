@@ -25,6 +25,9 @@ export class ModTools {
   private readonly root = document.createElement('div');
   private readonly sky = document.createElement('div');
   private readonly bars = document.createElement('div');
+  private readonly tilt = document.createElement('div');
+  private tiltBtn: HTMLButtonElement | null = null;
+  private lapse = false;
   private photo = false;
   private orbit = true;
   private shown = true;
@@ -36,24 +39,43 @@ export class ModTools {
     this.root.className = 'mr-modtools';
     this.bars.className = 'mr-letterbox';
     this.bars.innerHTML = '<i></i><i></i>';
-    if (toolOn('photo')) this.root.appendChild(this.button('look', 'Photo mode', () => this.setPhoto(!this.photo)));
+    this.tilt.className = 'mr-tiltshift';
+    this.tilt.innerHTML = '<i></i><i></i>';
+    if (toolOn('photo')) {
+      this.root.appendChild(this.button('look', 'Photo mode', () => this.setPhoto(!this.photo)));
+      // Tilt-shift: the top and bottom of the frame thrown out of focus, which
+      // is what makes a city read as a model on a table.
+      this.tiltBtn = this.button('views', 'Tilt-shift (T)', () => this.tilt.classList.toggle('is-on'));
+      this.tiltBtn.hidden = true;
+      this.root.appendChild(this.tiltBtn);
+    }
+    if (toolOn('timelapse')) {
+      const b = this.button('level', 'Time-lapse', () => {
+        this.lapse = !this.lapse;
+        b.classList.toggle('is-on', this.lapse);
+        this.renderer.clockRate = this.lapse ? 40 : 1;
+      });
+      this.root.appendChild(b);
+    }
     if (toolOn('sky')) {
       this.root.appendChild(this.button('sun', 'Sky control', () => { this.sky.hidden = !this.sky.hidden; }));
       this.buildSky();
       this.root.appendChild(this.sky);
     }
-    host.append(this.bars, this.root);
+    host.append(this.tilt, this.bars, this.root);
     addEventListener('keydown', (e) => {
       if (!this.photo) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); this.setPhoto(false); }
-      else if (e.key === ' ' && !(e.target instanceof HTMLInputElement)) {
+      else if ((e.key === 't' || e.key === 'T') && this.tiltBtn !== null) {
+        e.preventDefault(); e.stopImmediatePropagation(); this.tilt.classList.toggle('is-on');
+      } else if (e.key === ' ' && !(e.target instanceof HTMLInputElement)) {
         e.preventDefault(); e.stopImmediatePropagation(); this.orbit = !this.orbit;
       }
     }, true);
   }
 
   /** Whether any tool mod is on, so there is a dock worth building. */
-  static wanted(): boolean { return toolOn('photo') || toolOn('sky'); }
+  static wanted(): boolean { return toolOn('photo') || toolOn('sky') || toolOn('timelapse'); }
 
   /** Hidden behind the menu with the rest of the game's interface. */
   set visible(on: boolean) {
@@ -72,6 +94,7 @@ export class ModTools {
   /** Puts the player's weather back after the menu has had the sky. */
   resume(): void {
     if (this.front !== null) this.renderer.weather.set(this.front);
+    if (this.lapse) this.renderer.clockRate = 40;
   }
 
   /** Per frame: Photo Mode's slow turn. */
@@ -88,6 +111,8 @@ export class ModTools {
     document.body.classList.toggle('is-photo', on);
     this.bars.classList.toggle('is-on', on);
     this.root.classList.toggle('is-photo', on);
+    if (this.tiltBtn !== null) this.tiltBtn.hidden = !on;
+    if (!on) this.tilt.classList.remove('is-on');
     if (on) this.sky.hidden = true;
   }
 

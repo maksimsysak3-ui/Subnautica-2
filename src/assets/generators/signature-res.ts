@@ -23,7 +23,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { AssetDef } from '../types';
 import { THEMES, THEME_ORDER, hip, mansard, dormer } from '../themes';
-import type { Theme, ThemeProfile } from '../themes';
+import type { BaseTheme, ThemeProfile } from '../themes';
 import { roofOver, punched, doorway } from '../themed-parts';
 import {
   balconyStack, cap, flags, forecourt, lid, loft, marquee, plan, scaled, shelf,
@@ -61,7 +61,7 @@ function glazeAll(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number
 }
 
 /** Storeys a signature block of this theme runs to. Housing scale, throughout. */
-const STOREYS: Record<Theme, number> = {
+const STOREYS: Record<BaseTheme, number> = {
   modern: 8, european: 6, american: 7, asian: 9, farming: 3, row: 5,
 };
 
@@ -81,7 +81,7 @@ const STOREYS: Record<Theme, number> = {
 function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const floors = STOREYS[T.id];
+  const floors = STOREYS[T.id as BaseTheme];
   const fh = T.floorH + 0.4;
   const base = 5.0;
   const hx = 30.0, hz = 24.0, depth = 12.5;
@@ -100,11 +100,11 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
     [-hx, hz - depth, hx, hz], [hx - depth, -hz, hx, hz - depth],
   ];
   //: [north wing top, east wing top], as a fraction of the full height.
-  const RUN: Record<Theme, [number, number]> = {
+  const RUN: Record<BaseTheme, [number, number]> = {
     modern: [1.0, 0.62], european: [1.0, 1.0], american: [1.0, 0.78],
     asian: [0.72, 1.0], farming: [1.0, 0.55], row: [1.0, 1.0],
   };
-  const tops = RUN[T.id].map((f) => base + (top - base) * f);
+  const tops = RUN[T.id as BaseTheme].map((f) => base + (top - base) * f);
   wings.forEach(([x0, z0, x1, z1], i) => {
     const h = tops[i];
     m.box([x0, 0.1, z0], [x1, base, z1], T.base, { roof: MAT.ROOF });
@@ -450,7 +450,7 @@ function cornerBlock(T: ThemeProfile, lod: number): MeshBuilder {
 function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
   const m = new MeshBuilder();
   const fine = lod < 1, medium = lod < 2;
-  const floors = Math.max(3, STOREYS[T.id] - 1);
+  const floors = Math.max(3, STOREYS[T.id as BaseTheme] - 1);
   const fh = T.floorH + 0.35;
   const hx = 32.0, hz = 24.0, depth = 11.0;
   const top = 0.6 + floors * fh;
@@ -478,14 +478,14 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
   // opposite; Europe keeps its long ranges tall and its returns lower, the way
   // a courtyard actually gets built; America opens the street side down to a
   // low range between two taller wings.
-  const SIDES: Record<Theme, [number, number, number, number]> = {
+  const SIDES: Record<BaseTheme, [number, number, number, number]> = {
     modern: [1.34, 0.58, 1.0, 0.78], european: [1.0, 1.0, 0.84, 0.84],
     american: [0.42, 1.06, 1.18, 1.18], asian: [0.62, 0.82, 0.82, 1.15],
     farming: [0.0, 0.72, 0.86, 0.0], row: [1.0, 1.0, 1.0, 1.0],
   };
-  const runs = SIDES[T.id].map((f) => 0.6 + (top - 0.6) * f);
+  const runs = SIDES[T.id as BaseTheme].map((f) => 0.6 + (top - 0.6) * f);
   ranges.forEach(([x0, z0, x1, z1], i) => {
-    if (SIDES[T.id][i] === 0) return;
+    if (SIDES[T.id as BaseTheme][i] === 0) return;
     const h = runs[i];
     m.box([x0, 0.1, z0], [x1, 0.6, z1], T.base);
     m.box([x0, 0.6, z0], [x1, h, z1], T.wall, { roof: MAT.ROOF });
@@ -560,7 +560,7 @@ function courtyardBlock(T: ThemeProfile, lod: number): MeshBuilder {
     // range that was never built gets nothing.
     const punchAll = (range: number, axis: 'x' | 'z', sign: 1 | -1,
       plane: number, a: number, b: number): void => {
-      if (SIDES[T.id][range] === 0) return;
+      if (SIDES[T.id as BaseTheme][range] === 0) return;
       const n = Math.max(1, Math.floor((runs[range] - 0.6) / fh));
       punched(m, T, { axis, sign, plane }, a, b, { floors: n, base: 0.6, skipGround: true });
     };
@@ -1199,7 +1199,7 @@ const homes = (n: number, upkeep: number): AssetDef['sim'] => ({
   garbagePerWeek: 17 * n, pollution: 1, upkeep,
 });
 
-const NAMES: Record<Theme, [string, string, string]> = {
+const NAMES: Record<BaseTheme, [string, string, string]> = {
   modern: ['Meridian Corner', 'Lantern Court', 'Solstice Terrace'],
   european: ['Ancelle Corner', 'Cloister Court', 'Ashgrove Crescent'],
   american: ['Kingsbridge Corner', 'Delancey Courts', 'Rowan Street Brownstones'],
@@ -1208,7 +1208,7 @@ const NAMES: Record<Theme, [string, string, string]> = {
   row: ['', '', ''],
 };
 
-const NOTES: Record<Theme, [string, string, string]> = {
+const NOTES: Record<BaseTheme, [string, string, string]> = {
   modern: [
     'Eight storeys in two wings meeting at a glazed drum carried two floors above them under a planted deck, over a run of shopfronts.',
     'A seven-storey perimeter block whose street range is lifted on columns so the courtyard runs under it, with a pergola and a lawn inside.',

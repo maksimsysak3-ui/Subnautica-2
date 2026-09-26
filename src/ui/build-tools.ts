@@ -19,7 +19,7 @@ import { RESOURCES, resourceById } from '../sim/resources';
 import type { ResourceId } from '../sim/resources';
 import { HECTARE_COST, MAX_HECTARES, REACH, cellHectares } from '../sim/industry';
 import { MAP } from '../sim/maps';
-import { industryProto, modBuildings } from '../sim/inventory';
+import { industryProto, modBuildings, exactStock } from '../sim/inventory';
 import { RULES, CURRENCY } from '../sim/difficulty';
 import { monthOf, yearOf, seasonOfMonth, temperature } from '../sim/weather';
 import { log } from '../util/log';
@@ -51,10 +51,11 @@ import { levelName, DENSITY_LEVEL, LEVEL_NAMES, zoneNeeds } from '../sim/progres
 import { confirm as confirmSound, deny as denySound } from './sound';
 import { assetIcon, zoneSpecimen, hasSpecimen } from './icons';
 import { modelIconHtml } from './model-view';
+import { fleetOf } from '../assets/types';
 import { plotAt, plotSpan, plotBounds, plotCells, PLOTS, ownsAt } from '../sim';
 import { OVERDRAFT } from '../sim';
 import type { Dirty } from '../sim';
-import { ALL_THEMES, THEMES } from '../assets/themes';
+import { ALL_THEMES, THEMES, REGION_THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
 import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
@@ -221,6 +222,8 @@ export class BuildTools {
   }
   /** Quarter turns the next placed building is rotated by. */
   private placeYaw = 0;
+  /** Whether the player turned the building by hand; if not, it turns to face the road. */
+  private yawManual = false;
   /** The open service drawer, if one is open. */
   private drawer: HTMLElement | null = null;
   /** The column the drawer, the status line and the bar stack in. */
@@ -612,6 +615,7 @@ export class BuildTools {
     // round, so this is the first thing a player reaches for.
     if ((e.key === 'r' || e.key === 'R') && this.tool.kind === 'place') {
       this.placeYaw = (this.placeYaw + 1) % 4;
+      this.yawManual = true;
       this.showMark();
       this.say(this.describe(this.tool));
       return;
@@ -1259,6 +1263,35 @@ export class BuildTools {
   }
 
   /** The lot's north-west corner for a building centred on `cell`. */
+  /**
+   * The quarter turn that puts a building's front on a road.
+   *
+   * Prototypes are built facing +Z, and yaw turns them anticlockwise: 0 faces
+   * +Z, 1 -X, 2 -Z, 3 +X. For each, count the road cells along the row just
+   * past that front edge and take the turn with the most; with none anywhere,
+   * keep the current one. A fire station set down beside a street with its
+   * doors to the back fence was the placement tool's commonest wrong answer.
+   */
+  private roadYaw(cell: [number, number], p: Proto): number {
+    const net = this.renderer.world.net;
+    let best = this.placeYaw, most = 0;
+    for (let k = 0; k < 4; k++) {
+      const yaw = (this.placeYaw + k) % 4;
+      const [w, d] = yaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
+      const gx = cell[0] - (w >> 1), gz = cell[1] - (d >> 1);
+      let n = 0;
+      // Up to two cells out, for the verge between a lot and the carriageway.
+      for (let out = 0; out < 2; out++) {
+        if (yaw === 0) for (let i = 0; i < w; i++) n += net.has(gx + i, gz + d + out) ? 1 : 0;
+        else if (yaw === 2) for (let i = 0; i < w; i++) n += net.has(gx + i, gz - 1 - out) ? 1 : 0;
+        else if (yaw === 1) for (let j = 0; j < d; j++) n += net.has(gx - 1 - out, gz + j) ? 1 : 0;
+        else for (let j = 0; j < d; j++) n += net.has(gx + w + out, gz + j) ? 1 : 0;
+      }
+      if (n > most) { most = n; best = yaw; }
+    }
+    return best;
+  }
+
   private lotOrigin(cell: [number, number], p: Proto): [number, number] {
     const [w, d] = this.placeYaw % 2 === 0 ? [p.w, p.d] : [p.d, p.w];
     return [cell[0] - (w >> 1), cell[1] - (d >> 1)];
@@ -1391,6 +1424,7 @@ export class BuildTools {
       // neighbours, which way its front faces, whether it suits the gap.
       this.renderer.setRoadPreview(null);
       const p = this.tool.proto;
+      if (!this.yawManual) this.placeYaw = this.roadYaw(this.to, p);
       const [gx, gz] = this.lotOrigin(this.to, p);
       const fit = lotFits(this.renderer.world, p.id, gx, gz, this.placeYaw, baseHeightAt);
       const half = this.renderer.world.grid / 2;
@@ -1741,6 +1775,7 @@ export class BuildTools {
       this.enterLand(tool.kind === 'land');
     }
     this.tool = tool;
+    this.yawManual = false;
     // Anything the last tool was showing goes with it.
     this.renderer.showDots(0);
     if (tool.kind !== 'place') this.renderer.setGhost(null);
@@ -2395,10 +2430,15 @@ export class BuildTools {
     const style = BRANCH_STYLE[branch];
     const panel = this.drawerPanel(branch, style.colour);
 
+    // Stations that send vehicles say how many: the size of the yard is the
+    // size of the fleet, and that is the number a player is comparing.
+    const fleet = branch === 'fire' || branch === 'police' || branch === 'health' || branch === 'deathcare';
     for (const p of list) {
+      const n = fleet ? fleetOf(p.def) : 0;
       panel.appendChild(this.tile(p.id, p.def.name, `${p.w}\u00d7${p.d}`,
-        buildingPrice(p.def), style.colour, p.def.note,
-        () => this.select({ kind: 'place', proto: p })));
+        buildingPrice(p.def), style.colour,
+        fleet ? `${p.def.note ?? ''} Keeps ${n} vehicles, crewed as it is staffed.`.trim() : p.def.note,
+        () => this.select({ kind: 'place', proto: p }), undefined, '', fleet ? `${n} VEH` : ''));
     }
     void bar;
     this.mount(panel, branch);
@@ -2699,6 +2739,19 @@ export class BuildTools {
             ? () => this.select({ kind: 'zone', zone: zone as Zone, density, theme })
             : () => { denySound(); this.say(`opens at level ${needs}, ${levelName(needs)}`); },
           undefined, '', profile.badge, !open));
+      }
+      // Region packs' styles: no baked icon, so their own building, drawn.
+      for (const theme of REGION_THEMES) {
+        const list = exactStock(zone as Zone, density, theme);
+        if (list.length === 0) continue;
+        const profile = THEMES[theme];
+        const sample = list[Math.floor(list.length / 2)];
+        panel.appendChild(this.tile(null, profile.label, 'per cell', price, accent,
+          `${style.blurb} Zoned for ${density} density in the ${profile.label} style, from a region pack.`,
+          open
+            ? () => this.select({ kind: 'zone', zone: zone as Zone, density, theme })
+            : () => { denySound(); this.say(`opens at level ${needs}, ${levelName(needs)}`); },
+          modelIconHtml(sample.def, 52), '', profile.badge, !open));
       }
     }
     this.mount(panel, 'zones');

@@ -174,11 +174,12 @@ export class Menu {
     card.appendChild(head);
     const items: Array<[string, string]> = [
       ['Wonders pack', 'An arena, a sun pyramid, an iron lattice tower and a great wheel, from the Mods screen.'],
-      ['Blueprint Studio', 'Design your own towers in 3D, save them as a mod, and place them in your city.'],
+      ['Blueprint Studio', 'Design towers in 3D: twin and triple towers, stacked sections, fins, podiums, twelve crowns.'],
+      ['Region packs', 'Russian, South American, Mediterranean, Nordic and Middle Eastern styles for every zone.'],
+      ['Grand Monuments', 'A triumphal arch, a lighthouse, a pagoda, an observatory and a windmill, from the Mods screen.'],
       ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour and the weather.'],
       ['Achievements', 'Twenty-five of them, kept across every city you run.'],
       ['Loans', 'Borrow from the regional bank for the big projects, and pay it back weekly.'],
-      ['Supertalls', 'Twelve landmark skyscrapers, each one a real building type.'],
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';

@@ -49,7 +49,7 @@ import { Router } from './router';
 import { Layer, NO_PATH } from './path';
 import { Clock, TICKS_PER_DAY } from './calendar';
 import { Rng } from './rand';
-import { BRANCHES } from '../../assets/types';
+import { BRANCHES, fleetOf } from '../../assets/types';
 import { ASSETS } from '../../assets/registry';
 import type { LaneGraph } from './lanes';
 
@@ -335,7 +335,21 @@ const SCHEMA = {
  */
 const LINGER = 300;
 
-interface Scene { kind: number; place: number; vehicle: number; until: number; lost: boolean; told: boolean }
+interface Scene {
+  kind: number; place: number; vehicle: number; until: number; lost: boolean; told: boolean;
+  /** The station the crew came from, and whether their vehicle got there: it drives back when the scene ends. */
+  station: number; arrived: boolean;
+}
+
+/**
+ * How long a crew stays parked at the scene once their vehicle arrives, in
+ * ticks, before driving away. A fire keeps the appliance for the whole linger;
+ * a patrol car or an ambulance is gone sooner.
+ */
+const PARKED = 140;
+
+/** `vehicle` on a call whose vehicle has reached the scene and is parked there. */
+const ARRIVED = -2;
 
 /** What the machine has been doing, for the readout. */
 export interface DispatchStats {
@@ -458,10 +472,17 @@ export class Dispatch {
       const driving = sc.vehicle >= 0 && live[sc.vehicle] === 1 && role[sc.vehicle] === sc.kind + 1;
       if (driving) sc.until = Math.max(sc.until, tick + LINGER);
       else {
+        if (sc.vehicle >= 0) {
+          // Just pulled up: parked at the kerb for the work, then away.
+          sc.arrived = true;
+          if (sc.kind !== Need.FIRE) sc.until = tick + PARKED;
+        }
         sc.vehicle = -1;
         if (!sc.told) { sc.told = true; this.tell(sc.kind, sc.place, 'answered'); }
       }
-      return tick < sc.until;
+      if (tick < sc.until) return true;
+      if (sc.arrived) this.driveBack(sc.kind, sc.place, sc.station);
+      return false;
     });
     for (const sc of this.scenes) {
       if (sc.kind !== Need.FIRE || n >= MAX_BLAZES) continue;
@@ -482,7 +503,10 @@ export class Dispatch {
       const p = c.place[r];
       if (p < 0) continue;
       iv.kind[m] = c.kind[r];
-      iv.state[m] = c.state[r];
+      // On scene only once the drawn vehicle is: the outcome runs on the model
+      // clock and can be ahead of the picture, and a crew parked at the kerb while
+      // their own vehicle is still three streets away is two of them.
+      iv.state[m] = c.state[r] === State.WORKING && c.vehicle[r] >= 0 ? State.COMING : c.state[r];
       iv.place[m] = p;
       iv.x[m] = this.places.col.x[p];
       iv.z[m] = this.places.col.z[p];
@@ -876,7 +900,16 @@ export class Dispatch {
    * fields none.
    */
   private crews(place: number): number {
-    return Math.floor(this.places.col.working[place] / POSTS_PER_CREW);
+    const pc = this.places.col;
+    const def = ASSETS[pc.proto[place]];
+    const staff = pc.working[place];
+    if (def === undefined) return Math.floor(staff / POSTS_PER_CREW);
+    // The station's own fleet, crewed in proportion to the posts filled: a full
+    // station fields every vehicle it has, a half-staffed one half of them, and
+    // one below a crew's worth of staff fields none.
+    if (staff < POSTS_PER_CREW) return 0;
+    const jobs = Math.max(staff, def.sim?.jobs ?? staff);
+    return Math.max(1, Math.floor(fleetOf(def) * staff / jobs + 0.34));
   }
 
   private nearCamera(x: number, z: number): boolean {
@@ -981,12 +1014,11 @@ export class Dispatch {
     const r = this.rowOf(job);
     if (r < 0) return;                        // the call closed under it
     const c = this.table.col;
-    c.vehicle[r] = -1;
-    // Arriving changes nothing about the outcome -- the clock decided that. What it
-    // changes is that the crew is at the scene rather than on the road, so if the
-    // work is already done they can go home.
-    if (made && c.state[r] === State.WORKING) this.driveHome(r);
-    void made;
+    // Arriving changes nothing about the outcome -- the clock decided that. What
+    // it changes is that the crew is at the scene: parked there, drawn by the
+    // frame, until the call closes and its scene has lingered, and then driven
+    // back (see `scenes`).
+    c.vehicle[r] = made ? ARRIVED : -1;
   }
 
   /** The row a vehicle's job handle points at, or -1 if it has gone. */
@@ -1024,19 +1056,26 @@ export class Dispatch {
    * despawns when it arrives, which is what `drain` does with a dangling handle.
    */
   private finishWork(r: number): void {
-    this.driveHome(r);
+    // A crew with a vehicle at the scene leaves from the scene, after it has
+    // been seen there; `close` hands that to the scenes list.
+    if (this.table.col.vehicle[r] !== ARRIVED) this.driveHome(r);
     this.close(r, false);
   }
 
   /** Sends the vehicle back to its station, for the look of it. */
   private driveHome(r: number): void {
     const c = this.table.col;
+    if (c.vehicle[r] >= 0) return;
+    this.driveBack(c.kind[r], c.place[r], c.station[r]);
+  }
+
+  /** A crew leaving a scene for their station, at ordinary speed. */
+  private driveBack(kind: number, place: number, station: number): void {
     const pc = this.places.col;
-    const station = c.station[r];
-    if (c.vehicle[r] >= 0 || station < 0 || this.places.live[station] === 0) return;
+    if (station < 0 || this.places.live[station] === 0 || this.places.live[place] === 0) return;
     if (this.vehicles >= MAX_VEHICLES) return;
-    const spec = NEEDS[c.kind[r]];
-    const from = pc.lane[c.place[r]];
+    const spec = NEEDS[kind];
+    const from = pc.lane[place];
     const to = pc.lane[station];
     if (from < 0 || to < 0) return;
     const h = this.router.solveNow(spec.layer, from, to);
@@ -1044,8 +1083,8 @@ export class Dispatch {
     // Home at ordinary speed and with no priority: the emergency is over, and a
     // fire engine that runs red lights on the way back is the detail that makes a
     // city builder's traffic look fake.
-    const kind = spec.vehicle === Kind.EMERGENCY ? Kind.CAR : spec.vehicle;
-    const v = this.traffic.spawn(station, kind, Driver.AVERAGE, from, h, 0);
+    const drive = spec.vehicle === Kind.EMERGENCY ? Kind.CAR : spec.vehicle;
+    const v = this.traffic.spawn(station, drive, Driver.AVERAGE, from, h, 0);
     if (v < 0) { this.router.release(h); return; }
     // No job handle: the row is about to close and nothing is waiting on this
     // journey. Remembered here instead, so that when it arrives the machine knows
@@ -1053,7 +1092,7 @@ export class Dispatch {
     // would sit on the road holding a path in the arena forever.
     this.homeward.add(v);
     // Still a fire engine on the way home, just not in a hurry.
-    this.traffic.col.role[v] = c.kind[r] + 1;
+    this.traffic.col.role[v] = kind + 1;
     this.vehicles++;
   }
 
@@ -1105,11 +1144,13 @@ export class Dispatch {
     // The scene outlives the call; see LINGER.
     if (c.kind[r] <= Need.MEDICAL && this.scenes.length < MAX_INCIDENTS) {
       this.scenes.push({
-        kind: c.kind[r], place: c.place[r], vehicle: c.vehicle[r],
+        kind: c.kind[r], place: c.place[r], vehicle: c.vehicle[r] >= 0 ? c.vehicle[r] : -1,
+        station: c.station[r], arrived: c.vehicle[r] === ARRIVED,
         until: this.clock.tick + LINGER, lost: c.lost[r] === 1,
         // The good news waits for the crew to be seen arriving.
         told: c.lost[r] === 1 || c.vehicle[r] < 0,
       });
+      if (c.vehicle[r] === ARRIVED && c.kind[r] !== Need.FIRE) this.scenes[this.scenes.length - 1].until = this.clock.tick + PARKED;
       if (c.lost[r] === 0 && c.vehicle[r] < 0 && c.station[r] >= 0) this.tell(c.kind[r], c.place[r], 'answered');
     }
     this.openKeys.delete(c.place[r] * NEEDS_COUNT + c.kind[r]);

@@ -577,7 +577,11 @@ export class Renderer {
     driving: 0, kph: 0, flowing: 1,
   };
 
+  /** How many of each prototype the city holds, by registry index: for tools and tests. */
+  census: Uint32Array = new Uint32Array(0);
+
   private summarise(city: { population: Uint32Array }): void {
+    this.census = city.population;
     let people = 0, jobs = 0, buildings = 0;
     for (let i = 0; i < city.population.length; i++) {
       const n = city.population[i];

@@ -15,7 +15,7 @@ import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { Material, Tint } from '../mesh';
 import type { AssetDef } from '../types';
 import { THEME_ORDER } from '../themes';
-import type { Theme } from '../themes';
+import type { BaseTheme } from '../themes';
 import {
   barrelVault, campanile, curtain, flags, forecourt, loft, marquee,
   pierWall, plan, porteCochere, sawtooth, scaled, shelf,
@@ -1030,7 +1030,7 @@ interface Row {
   build: (lod: number) => MeshBuilder;
 }
 
-const HALL: Record<Theme, Row> = {
+const HALL: Record<BaseTheme, Row> = {
   modern: {
     key: 'hall', name: 'Northgate Centre', foot: [14, 12], jobs: 420, upkeep: 1280, power: 2200,
     colour: [0.16, 0.34, 0.46], accent: [0.74, 0.58, 0.20],
@@ -1067,7 +1067,7 @@ const HALL: Record<Theme, Row> = {
   },
 };
 
-const ANCHOR: Record<Theme, Row> = {
+const ANCHOR: Record<BaseTheme, Row> = {
   modern: {
     key: 'anchor', name: 'The Halo', foot: [12, 11], jobs: 180, upkeep: 700, power: 1600,
     colour: [0.18, 0.26, 0.40], accent: [0.72, 0.50, 0.16],

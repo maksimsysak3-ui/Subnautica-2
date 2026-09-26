@@ -494,6 +494,36 @@ export class Movers {
       }
     }
 
+    // The crew on scene: the fire appliance, the patrol car or the ambulance
+    // pulled in at the kerb outside, for as long as the work takes. The vehicle
+    // that raced there is taken off the road when it arrives -- the traffic
+    // model has nothing for a parked car to do -- and without this the scene
+    // stood empty until the drive home appeared out of nowhere.
+    if (incidents !== undefined) {
+      for (let i = 0; i < incidents.count; i++) {
+        if (incidents.state[i] !== 2) continue;
+        const k = incidents.kind[i];
+        const seat = k === Need.FIRE ? 'fire' : k === Need.CRIME ? 'police' : k === Need.MEDICAL ? 'ambulance' : '';
+        if (seat === '') continue;
+        const lane = incidents.lane[i];
+        if (lane < 0 || lane >= lanes.count) continue;
+        const l = Math.max(0.001, lanes.length[lane]);
+        const t = 0.5;
+        const mx = lanes.ax[lane] + (lanes.bx[lane] - lanes.ax[lane]) * t;
+        const mz = lanes.az[lane] + (lanes.bz[lane] - lanes.az[lane]) * t;
+        const p = this.footwayAt(lanes, lane, l * t, DRIVE_SIDE, -1);
+        // Most of the way from the lane to the pavement: tucked in at the kerb.
+        const x = mx + (p[0] - mx) * 0.55, z = mz + (p[1] - mz) * 0.55;
+        const dx = eyeX - x, dz = eyeZ - z;
+        if (dx * dx + dz * dz > DRAW_REACH * DRAW_REACH) continue;
+        let yaw = Math.atan2(p[3], p[2]);
+        if (this.flip[seat] === true) yaw += Math.PI;
+        const deck = deckAt(lanes, lane, l * t);
+        const lift = Number.isNaN(deck) ? RIDE : deck - ground(x, z) + RIDE;
+        if (write(seat, x, z, yaw, lift)) this.counts.vehicles++;
+      }
+    }
+
     // The suspect at a break-in: out of the door and away down the pavement
     // until the police arrive, then standing where they were caught. Drawn
     // with the pedestrians' own model on their own kerb line, so it is a person
@@ -555,7 +585,7 @@ export class Movers {
           if (write(walkSeat(who, walked), x, z, yaw, 0)) this.counts.people++;
           return;
         }
-        if (write(seat, x, z, yaw, RIDE)) this.counts.vehicles++;
+        if (write(seat, x, z, this.flip[seat] === true ? yaw + Math.PI : yaw, RIDE)) this.counts.vehicles++;
       });
     }
 

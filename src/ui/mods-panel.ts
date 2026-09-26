@@ -14,13 +14,12 @@
 
 import {
   allMods, isEnabled, setEnabled, saveCustom, removeCustom, exportMod, importMod, freshId,
-  reloadNeeded, PRESET_BLUEPRINTS, MAX_BUILDINGS, type ModDef,
+  reloadNeeded, packAssets, PRESET_BLUEPRINTS, MAX_BUILDINGS, type ModDef,
 } from '../sim/mods';
 import {
-  blueprintSvg, blueprintCapacity, blueprintAsset, cleanBlueprint, DEFAULT_BLUEPRINT,
-  BP_SHAPES, BP_FACADES, BP_CROWNS, BP_ZONES, type Blueprint,
+  blueprintSvg, blueprintCapacity, blueprintAsset, cleanBlueprint, cleanSection, DEFAULT_BLUEPRINT, DEFAULT_SECTION,
+  BP_SHAPES, BP_FACADES, BP_CROWNS, BP_ZONES, BP_LAYOUTS, BP_PODIUMS, MAX_SECTIONS, type Blueprint, type Section,
 } from '../assets/generators/blueprint';
-import { WONDERS } from '../assets/generators/wonders';
 import { glyph } from './glyphs';
 import { ModelView, modelIconHtml } from './model-view';
 
@@ -49,9 +48,12 @@ function sums(bp: Blueprint): string {
 /** The pictures on a mod's card: its buildings, or its tool. */
 function thumbs(m: ModDef): HTMLElement {
   const row = el('div', 'mr-mod-thumbs');
-  const icons: string[] = m.kind === 'pack' && m.id === 'wonders' ? WONDERS.map((w) => modelIconHtml(w, 52))
+  const pack = m.kind === 'pack' ? packAssets(m.id) : [];
+  // A spread of what the pack holds, not the first six of it.
+  const shown = pack.length <= 6 ? pack : Array.from({ length: 6 }, (_, i) => pack[Math.floor((i + 0.5) * pack.length / 6)]);
+  const icons: string[] = m.kind === 'pack' ? shown.map((w) => modelIconHtml(w, 52))
     : m.kind === 'buildings' ? (m.buildings ?? []).map((b) => bpIcon(b, 52))
-      : [glyph(m.tool === 'photo' ? 'look' : 'partly', 30)];
+      : [glyph(m.tool === 'photo' ? 'look' : m.tool === 'timelapse' ? 'level' : 'partly', 30)];
   for (const svg of icons.slice(0, 6)) {
     const t = el('span', m.kind === 'tool' ? 'mr-mod-thumb is-tool' : 'mr-mod-thumb');
     t.innerHTML = svg;
@@ -61,7 +63,7 @@ function thumbs(m: ModDef): HTMLElement {
 }
 
 function kindChip(m: ModDef): HTMLElement {
-  const n = m.kind === 'pack' && m.id === 'wonders' ? WONDERS.length : m.buildings?.length ?? 0;
+  const n = m.kind === 'pack' ? packAssets(m.id).length : m.buildings?.length ?? 0;
   return el('span', 'mr-mod-chip', m.kind === 'tool' ? 'Tool' : `${n} building${n === 1 ? '' : 's'}`);
 }
 
@@ -179,7 +181,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       else pic.innerHTML = blueprintSvg(bp, 240);
       const c = blueprintCapacity(bp);
       stats.replaceChildren(
-        ...[[`${Math.round(c.height)} m`, 'tall'], [`${bp.floors}`, 'storeys'],
+        ...[[`${Math.round(c.height)} m`, 'tall'], [`${bp.floors + bp.sections.reduce((n, x) => n + x.floors, 0)}`, 'storeys'],
           [c.homes > 0 ? `${c.homes}` : `${c.jobs}`, c.homes > 0 ? 'homes' : 'jobs'],
           [`${bp.width}×${bp.depth}`, 'cells']].map(([v, k]) => {
           const s = el('div', 'mr-studio-stat');
@@ -210,48 +212,99 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       towers[at] = { ...towers[at], [k]: v };
       refresh();
     };
+    let tab = 0;
 
-    const range = (label: string, k: 'width' | 'depth' | 'floors' | 'floorHeight' | 'taper' | 'twist' | 'podium' | 'bands',
+    /** A slider over any number, read and written through `get` and `put`. */
+    const slider = (label: string, get: () => number, put: (v: number) => void,
       min: number, max: number, step: number, show: (v: number) => string): HTMLElement => {
       const row = el('label', 'mr-studio-row');
       const input = el('input');
       input.type = 'range';
       input.min = String(min); input.max = String(max); input.step = String(step);
-      input.value = String(towers[at][k]);
-      const read = el('b', '', show(towers[at][k]));
+      input.value = String(get());
+      const read = el('b', '', show(get()));
       input.addEventListener('input', () => {
         const v = Number(input.value);
         read.textContent = show(v);
-        set(k, v);
+        put(v);
       });
       row.append(el('span', '', label), input, read);
       return row;
     };
-
-    const pick = <K extends 'zone' | 'shape' | 'facade' | 'crown'>(label: string, k: K,
-      options: readonly Blueprint[K][]): HTMLElement => {
+    /** A row of choices. */
+    const choose = <T extends string>(label: string, get: () => T, put: (v: T) => void, options: readonly T[]): HTMLElement => {
       const row = el('div', 'mr-studio-row is-pick');
       const seg = el('div', 'mr-seg');
       for (const o of options) {
-        const b = el('button', `mr-seg-btn${towers[at][k] === o ? ' is-on' : ''}`, title(String(o)));
+        const b = el('button', `mr-seg-btn${get() === o ? ' is-on' : ''}`, title(o));
         b.addEventListener('click', () => {
           seg.querySelectorAll('button').forEach((x) => x.classList.toggle('is-on', x === b));
-          set(k, o);
+          put(o);
         });
         seg.appendChild(b);
       }
       row.append(el('span', '', label), seg);
       return row;
     };
-
-    const tick = (label: string, k: 'balconies' | 'lit'): HTMLElement => {
+    const check = (label: string, get: () => boolean, put: (v: boolean) => void): HTMLElement => {
       const row = el('label', 'mr-mod-check');
       const box = el('input');
       box.type = 'checkbox';
-      box.checked = towers[at][k];
-      box.addEventListener('change', () => set(k, box.checked));
+      box.checked = get();
+      box.addEventListener('change', () => put(box.checked));
       row.append(box, document.createTextNode(` ${label}`));
       return row;
+    };
+    const cur = (): Blueprint => cleanBlueprint(towers[at]);
+    const range = (label: string, k: 'width' | 'depth' | 'floors' | 'floorHeight' | 'taper' | 'twist' | 'podium' | 'bands',
+      min: number, max: number, step: number, show: (v: number) => string): HTMLElement =>
+      slider(label, () => cur()[k], (v) => set(k, v), min, max, step, show);
+    const pick = <K extends 'zone' | 'shape' | 'facade' | 'crown' | 'layout' | 'podiumStyle'>(label: string, k: K,
+      options: readonly Blueprint[K][]): HTMLElement =>
+      choose(label, () => cur()[k] as string, (v) => set(k, v as Blueprint[K]), options as readonly string[]);
+    const tick = (label: string, k: 'balconies' | 'lit' | 'fins'): HTMLElement =>
+      check(label, () => cur()[k], (v) => set(k, v));
+    const colourIn = (k: 'colour' | 'accent', tip: string): HTMLInputElement => {
+      const c = el('input', 'mr-studio-colour');
+      c.type = 'color';
+      c.title = tip;
+      c.value = cur()[k];
+      c.addEventListener('input', () => set(k, c.value));
+      return c;
+    };
+    const pct = (v: number): string => `${Math.round(v * 100)}%`;
+    const deg = (v: number): string => `${Math.round(v * 180 / Math.PI)}°`;
+    const taperShow = (v: number): string => v >= 0.995 ? 'None' : `${Math.round((1 - v) * 100)}%`;
+
+    /** One stacked section's controls. */
+    const sectionCard = (i: number): HTMLElement => {
+      const card = el('div', 'mr-studio-section');
+      const sec = (): Section => cleanSection(cur().sections[i]);
+      const put = <K extends keyof Section>(k: K, v: Section[K]): void => {
+        const list = cur().sections.slice();
+        list[i] = { ...list[i], [k]: v };
+        set('sections', list);
+      };
+      const head = el('div', 'mr-studio-section-head');
+      head.appendChild(el('b', '', `Section ${i + 2}`));
+      const drop = el('button', 'mr-mod-act is-bad', 'Remove');
+      drop.addEventListener('click', () => {
+        set('sections', cur().sections.filter((_, j) => j !== i));
+        build();
+      });
+      head.appendChild(drop);
+      card.append(head,
+        choose('Plan', () => sec().shape, (v) => put('shape', v), BP_SHAPES),
+        choose('Facade', () => sec().facade, (v) => put('facade', v), BP_FACADES),
+        slider('Storeys', () => sec().floors, (v) => put('floors', v), 1, 60, 1, (v) => `${v}`),
+        slider('Size', () => sec().scale, (v) => put('scale', v), 0.3, 1, 0.01, pct),
+        slider('Taper', () => sec().taper, (v) => put('taper', v), 0.45, 1, 0.01, taperShow),
+        slider('Twist', () => sec().twist, (v) => put('twist', v), -1.6, 1.6, 0.02, deg),
+        slider('Shift across', () => sec().shiftX, (v) => put('shiftX', v), -1, 1, 0.05, (v) => v === 0 ? 'Centre' : pct(v)),
+        slider('Shift back', () => sec().shiftZ, (v) => put('shiftZ', v), -1, 1, 0.05, (v) => v === 0 ? 'Centre' : pct(v)),
+        check('Balconies', () => sec().balconies, (v) => put('balconies', v)),
+      );
+      return card;
     };
 
     const build = (): void => {
@@ -261,12 +314,60 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       bpName.value = towers[at].name;
       bpName.placeholder = 'Building name';
       bpName.addEventListener('input', () => set('name', bpName.value));
-      const colour = el('input', 'mr-studio-colour');
-      colour.type = 'color';
-      colour.value = cleanBlueprint(towers[at]).colour;
-      colour.addEventListener('input', () => set('colour', colour.value));
       const nameRow = el('div', 'mr-studio-name');
-      nameRow.append(bpName, colour);
+      nameRow.append(bpName, colourIn('colour', 'Brand colour: frame, lit crown'), colourIn('accent', 'Accent: domes, fins, halos'));
+
+      const tabs = el('div', 'mr-seg mr-studio-tabs');
+      const names = ['Mass', 'Skin', `Sections · ${cur().sections.length}`, 'Top & base'];
+      names.forEach((n, i) => {
+        const b = el('button', `mr-seg-btn${i === tab ? ' is-on' : ''}`, n);
+        b.addEventListener('click', () => { tab = i; build(); });
+        tabs.appendChild(b);
+      });
+
+      const page = el('div', 'mr-studio-page');
+      if (tab === 0) {
+        page.append(
+          pick('Use', 'zone', BP_ZONES),
+          pick('Layout', 'layout', BP_LAYOUTS),
+          pick('Plan', 'shape', BP_SHAPES),
+          range('Width', 'width', 3, 12, 1, (v) => `${v * 8} m`),
+          range('Depth', 'depth', 3, 12, 1, (v) => `${v * 8} m`),
+          range('Storeys', 'floors', 3, 90, 1, (v) => `${v}`),
+          range('Storey height', 'floorHeight', 3, 5, 0.1, (v) => `${v.toFixed(1)} m`),
+          range('Taper', 'taper', 0.45, 1, 0.01, taperShow),
+          range('Twist', 'twist', -1.6, 1.6, 0.02, deg),
+        );
+      } else if (tab === 1) {
+        page.append(
+          pick('Facade', 'facade', BP_FACADES),
+          range('Plant floors', 'bands', 0, 30, 1, (v) => v === 0 ? 'None' : `every ${v}`),
+          tick('Balconies on every storey', 'balconies'),
+          tick('Vertical fins in the accent colour', 'fins'),
+          tick('Lit crown and bridges in the brand colour', 'lit'),
+        );
+      } else if (tab === 2) {
+        page.appendChild(el('p', 'mr-mods-note',
+          'Sections stack on top of the tower, each on the one below: setbacks, turned boxes, a slimmer shaft, a glass top.'));
+        cur().sections.forEach((_, i) => page.appendChild(sectionCard(i)));
+        if (cur().sections.length < MAX_SECTIONS) {
+          const add = el('button', 'mr-st-btn', 'Add a section');
+          add.addEventListener('click', () => {
+            const list = cur().sections.slice();
+            const prev = list[list.length - 1];
+            list.push({ ...DEFAULT_SECTION, facade: prev?.facade ?? cur().facade, scale: prev ? 0.75 : 0.7 });
+            set('sections', list);
+            build();
+          });
+          page.appendChild(add);
+        }
+      } else {
+        page.append(
+          pick('Crown', 'crown', BP_CROWNS),
+          range('Podium', 'podium', 0, 6, 1, (v) => v === 0 ? 'None' : `${v} storeys`),
+          pick('Podium style', 'podiumStyle', BP_PODIUMS),
+        );
+      }
 
       const acts = el('div', 'mr-mod-acts');
       const dice = el('button', 'mr-mod-act', 'Surprise me');
@@ -281,24 +382,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
         acts.appendChild(drop);
       }
 
-      controls.append(
-        el('div', 'mr-mod-label', `Building ${at + 1} of ${towers.length}`), nameRow,
-        pick('Use', 'zone', BP_ZONES),
-        pick('Plan', 'shape', BP_SHAPES),
-        range('Width', 'width', 3, 12, 1, (v) => `${v * 8} m`),
-        range('Depth', 'depth', 3, 12, 1, (v) => `${v * 8} m`),
-        range('Storeys', 'floors', 3, 90, 1, (v) => `${v}`),
-        range('Storey height', 'floorHeight', 3, 5, 0.1, (v) => `${v.toFixed(1)} m`),
-        range('Taper', 'taper', 0.45, 1, 0.01, (v) => v >= 0.995 ? 'None' : `${Math.round((1 - v) * 100)}%`),
-        range('Twist', 'twist', -1.6, 1.6, 0.02, (v) => `${Math.round(v * 180 / Math.PI)}°`),
-        pick('Facade', 'facade', BP_FACADES),
-        pick('Crown', 'crown', BP_CROWNS),
-        range('Podium', 'podium', 0, 6, 1, (v) => v === 0 ? 'None' : `${v} storeys`),
-        range('Plant floors', 'bands', 0, 30, 1, (v) => v === 0 ? 'None' : `every ${v}`),
-        tick('Balconies on every storey', 'balconies'),
-        tick('Lit crown in the brand colour', 'lit'),
-        acts,
-      );
+      controls.append(el('div', 'mr-mod-label', `Building ${at + 1} of ${towers.length}`), nameRow, tabs, page, acts);
       refresh();
     };
 
@@ -425,15 +509,22 @@ function randomBlueprint(name: string): Blueprint {
   const any = <T,>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)];
   const tall = r() < 0.6;
   const hue = Math.floor(r() * 360);
+  const sections = Array.from({ length: tall && r() < 0.55 ? 1 + Math.floor(r() * 3) : 0 }, () => ({
+    floors: 4 + Math.floor(r() * 18), shape: any(BP_SHAPES), scale: 0.55 + r() * 0.35, taper: 0.7 + r() * 0.3,
+    twist: r() < 0.6 ? 0 : (r() - 0.5) * 1.6, facade: any(BP_FACADES),
+    shiftX: r() < 0.6 ? 0 : r() * 2 - 1, shiftZ: r() < 0.6 ? 0 : r() * 2 - 1, balconies: r() < 0.2,
+  }));
   return cleanBlueprint({
     name, zone: any(BP_ZONES), shape: any(BP_SHAPES), facade: any(BP_FACADES), crown: any(BP_CROWNS),
+    layout: r() < 0.7 ? 'single' : r() < 0.7 ? 'twin' : 'trio', podiumStyle: any(BP_PODIUMS), fins: r() < 0.3,
     width: tall ? 5 + Math.floor(r() * 4) : 7 + Math.floor(r() * 5),
     depth: tall ? 5 + Math.floor(r() * 4) : 6 + Math.floor(r() * 5),
-    floors: tall ? 40 + Math.floor(r() * 50) : 8 + Math.floor(r() * 24),
+    floors: tall ? 30 + Math.floor(r() * 50) : 8 + Math.floor(r() * 24),
     floorHeight: 3.4 + r() * 1.2, taper: tall ? 0.5 + r() * 0.45 : 0.85 + r() * 0.15,
     twist: r() < 0.5 ? 0 : (r() - 0.5) * 2.4, podium: Math.floor(r() * 5), balconies: r() < 0.3,
     bands: r() < 0.4 ? 0 : 6 + Math.floor(r() * 12), lit: r() < 0.7,
-    colour: hsl(hue, 0.55, 0.55),
+    colour: hsl(hue, 0.55, 0.55), accent: hsl((hue + 150 + Math.floor(r() * 60)) % 360, 0.35, 0.72),
+    sections,
   });
 }
 

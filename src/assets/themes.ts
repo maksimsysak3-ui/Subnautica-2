@@ -20,7 +20,16 @@
 import { MAT, TINT, MeshBuilder } from './mesh';
 import type { Material } from './mesh';
 
-export type Theme = 'modern' | 'european' | 'american' | 'asian' | 'farming' | 'row';
+/** The themes the base game builds everything in. */
+export type BaseTheme = 'modern' | 'european' | 'american' | 'asian' | 'farming' | 'row';
+/**
+ * Regional themes, which only a region pack mod builds stock for. Their
+ * profiles live here with the rest so a saved district keeps its theme id
+ * whether or not the pack is on; with it off, the district grows in whatever
+ * the fallback finds (see `stockAt`).
+ */
+export type RegionTheme = 'russian' | 'latin' | 'mediterranean' | 'nordic' | 'arabian';
+export type Theme = BaseTheme | RegionTheme;
 
 export interface ThemeProfile {
   id: Theme;
@@ -138,6 +147,57 @@ export const THEMES: Record<Theme, ThemeProfile> = {
     chimney: true, veranda: false, ribbon: false, balcony: 'metal',
     plot: 0.62, storeys: 0.95, setback: 0.00, podium: 0.0, wing: 0.28, attic: true,
   },
+  russian: {
+    // Panel blocks and timber: prefabricated concrete slabs stacked high with
+    // glazed-in balconies, and at the low end the carved-shutter wooden house
+    // under a steep tin roof.
+    id: 'russian', badge: 'RU', label: 'Russian',
+    wall: MAT.CONCRETE, base: MAT.CONCRETE, cover: MAT.METAL, trim: MAT.TIMBER,
+    roof: 'gable', pitch: 0.52, eave: 0.36, floorH: 2.8,
+    winW: 1.3, winH: 1.5, rhythm: 3, shutters: true, grille: false,
+    chimney: true, veranda: false, ribbon: false, balcony: 'solid',
+    plot: 1.2, storeys: 1.5, setback: 0.00, podium: 0.0, wing: 0.12, attic: false,
+  },
+  latin: {
+    // South American: painted render, flat roofs used as terraces, tall
+    // windows behind iron grilles, and a shop at the foot of everything.
+    id: 'latin', badge: 'SA', label: 'South American',
+    wall: MAT.PLASTER, base: MAT.TILE, cover: MAT.ROOF, trim: MAT.TRIM,
+    roof: 'flat', pitch: 0, eave: 0.22, floorH: 3.1,
+    winW: 1.2, winH: 2.0, rhythm: 3, shutters: false, grille: true,
+    chimney: false, veranda: true, ribbon: false, balcony: 'metal',
+    plot: 0.82, storeys: 1.1, setback: 0.00, podium: 1.0, wing: 0.24, attic: false,
+  },
+  mediterranean: {
+    // Whitewash and terracotta: low-pitched hipped tile roofs, green shutters,
+    // iron balconies over narrow streets.
+    id: 'mediterranean', badge: 'MED', label: 'Mediterranean',
+    wall: MAT.PLASTER, base: MAT.STONE, cover: MAT.ROOF_TILE, trim: MAT.TRIM,
+    roof: 'hip', pitch: 0.22, eave: 0.34, floorH: 3.0,
+    winW: 1.0, winH: 1.8, rhythm: 3, shutters: true, grille: false,
+    chimney: false, veranda: false, ribbon: false, balcony: 'metal',
+    plot: 0.78, storeys: 0.95, setback: 0.00, podium: 0.0, wing: 0.30, attic: false,
+  },
+  nordic: {
+    // Timber boarding on a stone footing, very steep dark roofs, big plain
+    // windows and loggias cut into the blocks.
+    id: 'nordic', badge: 'NOR', label: 'Nordic',
+    wall: MAT.TIMBER, base: MAT.STONE, cover: MAT.ROOF, trim: MAT.TRIM,
+    roof: 'gable', pitch: 0.72, eave: 0.28, floorH: 2.9,
+    winW: 1.6, winH: 1.6, rhythm: 2, shutters: false, grille: false,
+    chimney: true, veranda: false, ribbon: false, balcony: 'recessed',
+    plot: 1.05, storeys: 0.9, setback: 0.00, podium: 0.0, wing: 0.36, attic: true,
+  },
+  arabian: {
+    // Sand-coloured render and stone, flat roofs behind parapets, screened
+    // windows and deep recessed balconies against the sun.
+    id: 'arabian', badge: 'ME', label: 'Middle Eastern',
+    wall: MAT.RENDER, base: MAT.STONE, cover: MAT.ROOF, trim: MAT.STONE,
+    roof: 'flat', pitch: 0, eave: 0.10, floorH: 3.2,
+    winW: 1.1, winH: 1.7, rhythm: 2, shutters: false, grille: true,
+    chimney: false, veranda: false, ribbon: false, balcony: 'recessed',
+    plot: 1.0, storeys: 1.05, setback: 0.08, podium: 1.0, wing: 0.18, attic: false,
+  },
 };
 
 /**
@@ -146,14 +206,22 @@ export const THEMES: Record<Theme, ThemeProfile> = {
  * `row` is deliberately not among them: it is a two-density supplement rather
  * than a vocabulary a whole district can be built from.
  */
-export const THEME_ORDER: Theme[] = ['modern', 'european', 'american', 'asian', 'farming'];
+export const THEME_ORDER: BaseTheme[] = ['modern', 'european', 'american', 'asian', 'farming'];
 
 /** Every theme, including the supplements, in list order. */
-export const ALL_THEMES: Theme[] = [...THEME_ORDER, 'row'];
+export const REGION_THEMES: RegionTheme[] = ['russian', 'latin', 'mediterranean', 'nordic', 'arabian'];
+
+/**
+ * Every theme, including the supplements, in list order. The regional ones
+ * come last and stay in the list whether their pack is on or not: a painted
+ * zone stores its theme as a place in this list, so nothing may move.
+ */
+export const ALL_THEMES: Theme[] = [...THEME_ORDER, 'row', ...REGION_THEMES];
 
 /** Short key used in asset ids: res.eu.low.terrace. */
 export const THEME_KEY: Record<Theme, string> = {
   modern: 'mod', european: 'eu', american: 'na', asian: 'as', farming: 'farm', row: 'row',
+  russian: 'ru', latin: 'sa', mediterranean: 'med', nordic: 'nor', arabian: 'me',
 };
 
 // ------------------------------------------------------------------ roofing

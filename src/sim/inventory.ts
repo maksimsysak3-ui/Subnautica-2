@@ -80,7 +80,8 @@ ASSETS.forEach((def, index) => {
   if (def.zone === 'road') { push(roadBy, p.w, p); return; }
   if (def.zone === 'fleet') return;                   // placed on the road graph, later
   if (def.zone === 'nature') { nurseryList.push(p); return; }
-  if (def.mod !== undefined) { modList.push(p); return; }
+  // A mod's landmarks get their own tab; a region pack's stock grows like any other.
+  if (def.mod !== undefined && def.signature === true) { modList.push(p); return; }
   if (def.signature) { push(signatureBy, def.zone, p); return; }
   push(stockBy, `${def.zone}|${def.density}|${def.theme ?? 'modern'}`, p);
   push(zoneAll, def.zone, p);
@@ -259,3 +260,8 @@ export const PROTO_COUNT = ASSETS.length;
  * format and the atlas both key on.
  */
 export const ASSET_INDEX = new Map<string, number>(ASSETS.map((a, i) => [a.id, i]));
+
+/** Exactly the stock of one zone, density and theme, with no fallback: empty if there is none. */
+export function exactStock(zone: Zone, density: Density, theme: Theme): readonly Proto[] {
+  return stockBy.get(`${zone}|${density}|${theme}`) ?? [];
+}

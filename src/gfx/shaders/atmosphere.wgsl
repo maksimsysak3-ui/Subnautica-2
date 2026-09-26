@@ -176,7 +176,8 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // read as dusk. What is kept is the *displayed* night, which was right.
   let m = moonPhase(sun);
   // Lifted a further third on request: night read as too dark to build in.
-  let night = vec3f(0.068, 0.083, 0.128) * (0.72 + 0.55 * m.x);
+  // And a fifth again, on request: still a touch dark to zone by.
+  let night = vec3f(0.082, 0.099, 0.150) * (0.72 + 0.55 * m.x);
   let dawn = vec3f(0.240, 0.230, 0.290);
   let noon = vec3f(0.340, 0.400, 0.500);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);

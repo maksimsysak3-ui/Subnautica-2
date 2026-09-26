@@ -1426,3 +1426,8 @@ function defs(zone: Zone, prefix: string, theme: Theme, plans: Plan[]): AssetDef
 export const COMMERCE: AssetDef[] = THEME_ORDER.flatMap((t) => defs('commercial', 'com', t, SHOPS));
 export const WORKPLACES: AssetDef[] = THEME_ORDER.flatMap((t) => defs('office', 'off', t, OFFICES));
 export const MAKING: AssetDef[] = THEME_ORDER.flatMap((t) => defs('industrial', 'ind', t, WORKS));
+
+/** Every shop, office and works a theme builds: for a region pack bringing a theme of its own. */
+export function tradeFor(theme: Theme): AssetDef[] {
+  return [...defs('commercial', 'com', theme, SHOPS), ...defs('office', 'off', theme, OFFICES), ...defs('industrial', 'ind', theme, WORKS)];
+}

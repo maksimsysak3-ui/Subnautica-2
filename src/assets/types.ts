@@ -153,3 +153,16 @@ export interface AssetDef {
 
 /** Metres per zoning cell. Matches sim/city.ts. */
 export const CELL = 8;
+
+/**
+ * How many vehicles a service building keeps, by how big it is.
+ *
+ * A two-bay fire post runs two appliances and a headquarters runs six; the
+ * yard is what holds them, so it goes with the footprint: a vehicle for every
+ * five cells, at least two and at most twelve. Staffing then decides how many
+ * of them can actually be crewed (see `Dispatch.crews`).
+ */
+export function fleetOf(def: AssetDef): number {
+  const cells = def.footprint[0] * def.footprint[1];
+  return Math.max(2, Math.min(12, Math.round(cells / 5)));
+}
