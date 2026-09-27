@@ -199,7 +199,7 @@ NEEDS[Need.CRIME] = {
 };
 NEEDS[Need.MEDICAL] = {
   branch: 'health', vehicle: Kind.EMERGENCY, layer: Layer.EMERGENCY,
-  onScene: 14 * 60, patience: 9 * 60, urgent: true,
+  onScene: 14 * 60, patience: 12 * 60, urgent: true,
 };
 NEEDS[Need.RUBBISH] = {
   branch: 'power', vehicle: Kind.LORRY, layer: Layer.CARGO,
@@ -909,7 +909,11 @@ export class Dispatch {
     // The station's own fleet, crewed in proportion to the posts filled: a full
     // station fields every vehicle it has, a half-staffed one half of them, and
     // one below a crew's worth of staff fields none.
-    if (staff < POSTS_PER_CREW) return 0;
+    // Half a crew's worth of staff still puts one vehicle on the road: a
+    // clinic or a police post still hiring was answering nothing at all, which
+    // is the one thing a player who has just built one cannot understand.
+    if (staff < POSTS_PER_CREW / 2) return 0;
+    if (staff < POSTS_PER_CREW) return 1;
     const jobs = Math.max(staff, def.sim?.jobs ?? staff);
     // And funding: a cut budget keeps vehicles in the yard, a generous one
     // puts a spare on the road.

@@ -265,6 +265,14 @@ function play(difficulty) {
         missed: d.missed[0] + d.missed[1] + d.missed[2], stars: p.stars,
         homes: sim.places.homeCapacity, waiting,
         employed: sim.people.employed, staffed: Array.from(sim.places.staffed).join('/'),
+        calls: [0, 1, 2].map((k) => `${d.raised[k]}/${d.missed[k]}`).join(' '),
+        stations: ['fire', 'police', 'health'].map((b) => {
+          const pool = sim.places.byBranch[M.BRANCHES.indexOf(b)];
+          const out = [];
+          for (let i = 0; i < pool.size; i++) { const p = pool.member(i); out.push(`${sim.places.col.working[p]}/${sim.places.col.jobs[p]}`); }
+          return `${b}:${out.join(',')}`;
+        }).join(' '),
+        response: d.meanResponseMinutes?.toFixed?.(1),
         want: Array.from(sim.demand.want).map((x) => x.toFixed(2)).join('/'),
         served: [0, 1, 2].map((k) => Math.round(u.served[k] * 100)).join('/'),
         income: Math.round(e.income), spend: Math.round(e.spending), svc: Math.round(e.services),
