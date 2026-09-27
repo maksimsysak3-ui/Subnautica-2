@@ -79,7 +79,7 @@ export class Settings {
 
     this.root = document.createElement('div');
     this.root.dataset.panel = 'settings';
-    css(this.root, ['position:absolute', 'inset:0', 'z-index:40', 'display:none',
+    css(this.root, ['position:absolute', 'inset:0', 'z-index:46', 'display:none',
       'align-items:center', 'justify-content:center', 'pointer-events:auto',
       'background:rgba(4,7,11,.55)', 'backdrop-filter:blur(3px)']);
     this.root.addEventListener('click', (e) => {

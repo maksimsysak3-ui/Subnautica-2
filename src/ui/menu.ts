@@ -51,6 +51,8 @@ export interface MenuHooks {
   world: () => World;
   /** Let the menu drive the camera and the clock while it is up. */
   cinematic: (on: boolean) => void;
+  /** Opens the settings panel over the menu. */
+  settings?: () => void;
 }
 
 /** Read while the land is built. Each one is something the game will not tell you. */
@@ -299,6 +301,12 @@ export class Menu {
     entries.push({ label: 'Mods', key: modsOn > 0 ? `${modsOn} on` : '',
       hint: 'Add the Wonders pack, draw your own towers in the Blueprint Studio, or switch on Photo Mode and Sky Control.',
       run: () => this.showMods() });
+    const settings = this.hooks.settings;
+    if (settings !== undefined) {
+      entries.push({ label: 'Settings',
+        hint: 'Graphics quality, sound and music, controls and accessibility.',
+        run: settings });
+    }
     this.list(entries, null);
     this.note.textContent = saves.length > 0
       ? 'Saves live in this browser. Clearing site data clears them.'

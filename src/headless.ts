@@ -1702,7 +1702,10 @@ Promise<{ pixels: number[]; movers: string }> {
       + `traffic ${sim.traffic.count}, moving ${sim.routine.moved}, `
       + `in flight ${sim.routine.stats.travelling}, `
       + `by mode ${Array.from(sim.routine.stats.byMode).join('/')}, `
-      + `pop ${sim.people.population}`,
+      + `pop ${sim.people.population}`
+      + (panel === 'ledger' ? `\nledger ${JSON.stringify(Object.fromEntries(Object.entries(sim.economy.report)
+        .filter(([, v]) => typeof v === 'number').map(([k, v]) => [k, Math.round(v as number)])))}`
+        + ` employed ${sim.people.employed} staffed ${Array.from(sim.places.staffed).join('/')}` : ''),
   };
 }
 

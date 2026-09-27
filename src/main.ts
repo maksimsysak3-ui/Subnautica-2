@@ -184,6 +184,7 @@ async function boot(): Promise<void> {
       if (tools !== null) tools.cityName = name; else loaded = name;
     },
     world: () => renderer.world,
+    settings: () => live.settings.show(),
     cinematic: (on) => {
       cinematic = on;
       // The toolbar and the budget readout belong to the game, not to the

@@ -264,6 +264,7 @@ function play(difficulty) {
         happy: Math.round(sim.people.happiness * 100), fires: d.raised[0], crimes: d.raised[1],
         missed: d.missed[0] + d.missed[1] + d.missed[2], stars: p.stars,
         homes: sim.places.homeCapacity, waiting,
+        employed: sim.people.employed, staffed: Array.from(sim.places.staffed).join('/'),
         want: Array.from(sim.demand.want).map((x) => x.toFixed(2)).join('/'),
         served: [0, 1, 2].map((k) => Math.round(u.served[k] * 100)).join('/'),
         income: Math.round(e.income), spend: Math.round(e.spending), svc: Math.round(e.services),
