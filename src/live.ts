@@ -917,7 +917,7 @@ export class LiveCity {
       buildings: [...eco.upkeepByProto].map(([proto, v]) => {
         const def = ASSETS[proto];
         const style = def?.branch !== undefined ? BRANCH_STYLE[def.branch] : undefined;
-        return { name: def?.name ?? 'Building', colour: style?.base ?? '#79879a', count: v.count, total: v.total };
+        return { name: def?.name ?? 'Building', colour: style?.base ?? '#8a8a8f', count: v.count, total: v.total };
       }),
       people: {
         population: people.population, households: people.households.size,

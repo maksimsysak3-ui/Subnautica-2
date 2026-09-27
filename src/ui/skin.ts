@@ -31,18 +31,18 @@
 /** The palette. Everything else here is made of these. */
 export const SKIN = {
   /** Panel ground, and the hairline round it. */
-  panel: 'rgba(10,14,20,.90)',
-  panelSolid: '#0a0e14',
+  panel: 'rgba(22,23,25,.90)',
+  panelSolid: '#161719',
   edge: 'rgba(255,255,255,.09)',
   /** The light along the top edge, which is what makes a slab a slab. */
   sheen: 'rgba(255,255,255,.07)',
   /** Text, from brightest to faintest. */
-  bright: '#e8eef6',
-  text: '#a9b8cb',
-  dim: '#6d8098',
-  faint: '#4c5c70',
+  bright: '#ececee',
+  text: '#b7b7bb',
+  dim: '#85858a',
+  faint: '#5c5c61',
   /** The one accent, when nothing else has claimed it. */
-  accent: '#6fd3ff',
+  accent: '#6aaee8',
   /** Good, middling, bad -- for values rather than for maps. */
   good: '#5fc78c',
   warn: '#e8b454',
@@ -68,7 +68,7 @@ export function css(el: HTMLElement, decls: string[]): void {
  */
 export function panel(extra: string[] = []): string[] {
   return [
-    `background:linear-gradient(180deg,rgba(18,24,33,.93),${SKIN.panel})`,
+    `background:linear-gradient(180deg,rgba(32,33,36,.93),${SKIN.panel})`,
     `border:1px solid ${SKIN.edge}`,
     `border-radius:${SKIN.radius}`,
     `box-shadow:inset 0 1px 0 ${SKIN.sheen}, 0 10px 30px rgba(0,0,0,.42)`,

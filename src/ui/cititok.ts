@@ -237,24 +237,25 @@ export class Cititok {
     // The phone: a slab with a notch and a screen in it.
     const phone = document.createElement('div');
     this.phone = phone;
-    css(phone, ['width:304px', 'transition:width .22s cubic-bezier(.2,.9,.3,1)', 'height:min(560px, 74vh)', 'border-radius:30px',
-      'padding:9px', 'background:linear-gradient(160deg,#20262f,#0b0e13)',
-      'border:1px solid rgba(255,255,255,.14)', 'display:flex',
+    css(phone, ['width:304px', 'transition:width .22s cubic-bezier(.2,.9,.3,1)', 'height:min(560px, 74vh)', 'border-radius:44px',
+      'padding:10px', 'background:linear-gradient(160deg,#4a4a4e,#1f1f22 38%,#2c2c30)',
+      'border:1px solid rgba(255,255,255,.22)', 'display:flex',
       'box-shadow:0 30px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14)']);
 
     const screen = document.createElement('div');
-    css(screen, ['flex:1', 'border-radius:22px', 'overflow:hidden',
+    css(screen, ['flex:1', 'border-radius:34px', 'overflow:hidden',
       'display:flex', 'flex-direction:column', `background:${SKIN.panelSolid}`,
       'position:relative']);
 
     const notch = document.createElement('div');
-    css(notch, ['position:absolute', 'left:50%', 'top:0',
-      'transform:translateX(-50%)', 'width:96px', 'height:18px',
-      'background:#0b0e13', 'border-radius:0 0 12px 12px', 'z-index:3']);
+    // The camera cut-out: a pill floating in the top of the screen.
+    css(notch, ['position:absolute', 'left:50%', 'top:7px',
+      'transform:translateX(-50%)', 'width:88px', 'height:24px',
+      'background:#000', 'border-radius:14px', 'z-index:3']);
 
     this.bar = document.createElement('div');
     css(this.bar, ['display:flex', 'align-items:center', 'gap:8px',
-      'padding:6px 14px 4px', `color:${SKIN.dim}`, 'font-size:11.5px',
+      'padding:12px 26px 8px', 'font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif', 'font-weight:600', `color:${SKIN.dim}`, 'font-size:11.5px',
       'font-variant-numeric:tabular-nums']);
 
     const head = document.createElement('div');
@@ -405,7 +406,7 @@ export class Cititok {
     const spacer = document.createElement('span');
     css(spacer, ['margin-left:auto']);
     const signal = document.createElement('span');
-    signal.textContent = `${mood.city} · ${Math.round(mood.happiness * 100)}% happy`;
+    signal.textContent = `${Math.round(mood.happiness * 100)}% happy`;
     this.bar.append(time, spacer, signal);
 
     if (this.app === 'weather') this.paintWeather();

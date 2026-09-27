@@ -41,7 +41,7 @@ export class CityHall {
     this.pane = document.createElement('div');
     this.pane.dataset.pane = 'hall';
     css(this.pane, ['flex:1', 'display:none', 'flex-direction:column', 'min-height:0',
-      'overflow:auto', 'background:#10151c']);
+      'overflow:auto', 'background:#1b1c1f']);
   }
 
   /** Repaints if anything changed. Cheap to call every frame. */
@@ -301,8 +301,8 @@ export class CityHall {
       const row = document.createElement('button');
       css(row, ['display:grid', 'grid-template-columns:1fr auto', 'gap:8px', 'align-items:center',
         'padding:7px 9px', 'border-radius:9px', 'cursor:pointer', 'text-align:left',
-        `background:${on ? 'rgba(111,211,255,.14)' : 'rgba(255,255,255,.03)'}`,
-        `border:1px solid ${on ? 'rgba(111,211,255,.55)' : 'transparent'}`, 'font:inherit']);
+        `background:${on ? 'rgba(106,174,232,.14)' : 'rgba(255,255,255,.03)'}`,
+        `border:1px solid ${on ? 'rgba(106,174,232,.55)' : 'transparent'}`, 'font:inherit']);
       const text = document.createElement('div');
       text.innerHTML = `<div style="font:700 12px/1.2 var(--ui);color:${SKIN.bright}">${pl.name}</div>`
         + `<div style="font:500 12px/1.3 var(--ui);color:${SKIN.dim}">${pl.pitch}</div>`;

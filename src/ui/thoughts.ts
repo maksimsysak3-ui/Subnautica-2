@@ -169,7 +169,7 @@ export class Thoughts {
       // bottom-left, so the shape itself says which building it is about.
       'border-radius:17px 17px 17px 4px',
       `border:1px solid ${SKIN.edge}`,
-      'background:linear-gradient(180deg,rgba(22,30,41,.95),rgba(10,14,20,.95))',
+      'background:linear-gradient(180deg,rgba(22,30,41,.95),rgba(22,23,25,.95))',
       'backdrop-filter:blur(10px)',
       'cursor:pointer', 'pointer-events:auto',
       'transform:translate(-50%,-100%)',

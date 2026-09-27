@@ -223,7 +223,7 @@ export class FirstSteps {
       const tick = document.createElement('div');
       css(tick, ['width:14px', 'height:14px', 'margin-top:1px', 'border-radius:50%',
         `border:1.5px solid ${SKIN.faint}`, 'display:grid', 'place-items:center',
-        'font:700 12px/1 var(--ui)', 'color:#0a0e14', 'transition:all .3s ease']);
+        'font:700 12px/1 var(--ui)', 'color:#161719', 'transition:all .3s ease']);
       const text = document.createElement('div');
       const t = document.createElement('div');
       t.textContent = step.title;

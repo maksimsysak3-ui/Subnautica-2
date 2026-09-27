@@ -634,7 +634,7 @@ export function saveFromGame(world: World, suggested: string,
   card.style.cssText = [
     'display:flex', 'flex-direction:column', 'gap:12px', 'width:min(400px,90vw)',
     'padding:20px', 'border-radius:14px', 'background:rgba(17,25,37,.96)',
-    'border:1px solid rgba(160,205,245,.22)', 'color:#f2f6fb',
+    'border:1px solid rgba(160,205,245,.22)', 'color:#f4f4f5',
     'box-shadow:0 24px 60px rgba(0,0,0,.6)',
   ].join(';');
 
@@ -647,7 +647,7 @@ export function saveFromGame(world: World, suggested: string,
   field.style.cssText = [
     'width:100%', 'padding:11px 13px', 'border-radius:10px',
     'border:1px solid rgba(160,205,245,.28)', 'background:rgba(8,13,21,.85)',
-    'color:#f2f6fb', 'font:500 14px/1.2 inherit', 'outline:none',
+    'color:#f4f4f5', 'font:500 14px/1.2 inherit', 'outline:none',
   ].join(';');
 
   const row = document.createElement('div');
@@ -660,7 +660,7 @@ export function saveFromGame(world: World, suggested: string,
       'flex:1', 'padding:10px 14px', 'border-radius:10px', 'cursor:pointer',
       `border:1px solid ${primary ? 'rgba(143,216,255,.45)' : 'rgba(160,205,245,.20)'}`,
       primary ? 'background:rgba(56,142,196,.32)' : 'background:rgba(12,19,30,.7)',
-      `color:${primary ? '#f2f6fb' : '#a9bcd2'}`, 'font:600 12px/1 inherit',
+      `color:${primary ? '#f4f4f5' : '#b6b6ba'}`, 'font:600 12px/1 inherit',
     ].join(';');
     b.addEventListener('click', fn);
     return b;

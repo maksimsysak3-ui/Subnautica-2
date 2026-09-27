@@ -2002,7 +2002,7 @@ export class BuildTools {
 
     const look = group();
     add(look, { kind: 'look' }, 'Look around — drag to pan, right-drag to orbit',
-      glyph('look'), '#a9bcd2');
+      glyph('look'), '#b6b6ba');
     tools.appendChild(look);
 
     // Roads, zones and signatures each collapse to one icon. Eight road
@@ -2013,7 +2013,7 @@ export class BuildTools {
       const b = document.createElement('button');
       b.dataset.branch = 'roads';
       tip(b, 'Roads \u2014 eight classes, straight or curved');
-      chip(b, '#c9d3de', glyph('road'));
+      chip(b, '#d2d2d5', glyph('road'));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         if (this.drawer?.dataset.branch === 'roads') { this.closeDrawer(); return; }
@@ -2677,7 +2677,7 @@ export class BuildTools {
         'height:28px', 'padding:0 12px', 'border-radius:8px', 'cursor:pointer',
         `border:1px solid ${it.on ? accent + '99' : 'rgba(255,255,255,.07)'}`,
         `background:${it.on ? accent + '26' : 'rgba(255,255,255,.03)'}`,
-        `color:${it.on ? '#eef4fb' : '#9fb2c9'}`,
+        `color:${it.on ? '#eef4fb' : '#aaaaae'}`,
         'font:600 11px/1 var(--ui, system-ui, sans-serif)',
       ].join(';');
       t.addEventListener('click', (e) => { e.stopPropagation(); onPick(it.key); });
@@ -2932,7 +2932,7 @@ function roadGlyph(cls: RoadClass, size = 28): string {
     for (let y = 5.5; y < 24; y += 2.6) {
       parts.push(`<line x1="${x0.toFixed(2)}" y1="${y.toFixed(1)}"`
         + ` x2="${(x0 + w).toFixed(2)}" y2="${y.toFixed(1)}"`
-        + ' stroke="#9fb0c6" stroke-opacity=".28" stroke-width=".7"/>');
+        + ' stroke="#a9a9ad" stroke-opacity=".28" stroke-width=".7"/>');
     }
   } else if (spec.surface === 'gravel') {
     for (let i = 0; i < 14; i++) {
@@ -2944,7 +2944,7 @@ function roadGlyph(cls: RoadClass, size = 28): string {
   } else if (spec.surface === 'concrete') {
     for (let y = 8; y < 24; y += 6) {
       parts.push(`<line x1="${x0.toFixed(2)}" y1="${y}" x2="${(x0 + w).toFixed(2)}" y2="${y}"`
-        + ' stroke="#9fb0c6" stroke-opacity=".34" stroke-width=".9"/>');
+        + ' stroke="#a9a9ad" stroke-opacity=".34" stroke-width=".9"/>');
     }
   }
   // Cycle tracks, in the colour a real one is surfaced.
@@ -2961,13 +2961,13 @@ function roadGlyph(cls: RoadClass, size = 28): string {
     const mid = !spec.oneWay && i === spec.lanes;
     if (mid && spec.median) continue;
     const x = (x0 + i * each).toFixed(2);
-    parts.push(`<line x1="${x}" y1="4.5" x2="${x}" y2="23.5" stroke="#e8eef6"`
+    parts.push(`<line x1="${x}" y1="4.5" x2="${x}" y2="23.5" stroke="#ececee"`
       + ` stroke-opacity="${mid ? '.95' : '.62'}" stroke-width="${mid ? 1.2 : 1}"`
       + ` ${mid ? '' : 'stroke-dasharray="2.6 2.6"'}/>`);
   }
   // The reservation, and the arrow that says a street runs one way.
   if (spec.median) {
-    parts.push('<rect x="13" y="4" width="2" height="20" rx="1" fill="#8fe3ff" fill-opacity=".85"/>');
+    parts.push('<rect x="13" y="4" width="2" height="20" rx="1" fill="#9ccaf0" fill-opacity=".85"/>');
   }
   if (spec.oneWay) {
     parts.push('<path d="M14 20 L14 8 M11.4 10.6 L14 8 L16.6 10.6" stroke="#ffd166"'
@@ -2976,7 +2976,7 @@ function roadGlyph(cls: RoadClass, size = 28): string {
   if (spec.tram) {
     for (const x of [14 - w / 5, 14 + w / 5]) {
       parts.push(`<line x1="${x.toFixed(2)}" y1="4" x2="${x.toFixed(2)}" y2="24"`
-        + ' stroke="#8fe3ff" stroke-opacity=".95" stroke-width="1.5"/>');
+        + ' stroke="#9ccaf0" stroke-opacity=".95" stroke-width="1.5"/>');
     }
   }
   return `<svg width="${size}" height="${size}" viewBox="0 0 28 28" fill="none">`

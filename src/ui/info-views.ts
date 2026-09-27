@@ -206,8 +206,8 @@ export class InfoViews {
     // would be two panels away from the only reason to set it.
     this.extra = document.createElement('div');
     style(this.extra, ['display:none', 'margin:4px 0 10px',
-      'padding:12px 0', 'border-top:1px solid rgba(160,190,220,.14)',
-      'border-bottom:1px solid rgba(160,190,220,.14)']);
+      'padding:12px 0', 'border-top:1px solid rgba(190,190,196,.14)',
+      'border-bottom:1px solid rgba(190,190,196,.14)']);
     // The controls first, under the headline: the budget's ledger runs to
     // fifteen rows, and with the tax sliders beneath it they were off the
     // bottom of the card -- which is how taxes came to look impossible to set.

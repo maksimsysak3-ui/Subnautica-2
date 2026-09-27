@@ -95,7 +95,7 @@ export class LevelUpCard {
     const banner = document.createElement('div');
     css(banner, ['position:relative', 'padding:26px 20px 20px',
       'background:radial-gradient(ellipse at 50% 0%, rgba(232,180,84,.22),'
-        + ' rgba(10,14,20,0) 70%)',
+        + ' rgba(22,23,25,0) 70%)',
       `border-bottom:1px solid ${SKIN.edge}`]);
 
     const eyebrow = document.createElement('div');

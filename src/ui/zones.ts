@@ -70,7 +70,7 @@ export const ZONE_STYLE: Record<IconZone, Palette> = {
   },
   service: {
     label: 'Services',
-    deep: '#3c4450', base: '#79879a', light: '#b3bfcd', wash: '#dde3ea',
+    deep: '#3c4450', base: '#8a8a8f', light: '#b3bfcd', wash: '#dde3ea',
     blurb: 'What the city provides for itself, and pays for every week.',
   },
   nature: {

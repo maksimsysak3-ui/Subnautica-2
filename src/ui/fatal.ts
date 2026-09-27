@@ -109,7 +109,7 @@ export function fatal(kind: FatalKind, detail?: string): void {
     const pre = document.createElement('pre');
     pre.textContent = detail;
     pre.style.cssText = 'margin:8px 0 0;padding:12px 14px;background:rgba(255,120,100,.08);'
-      + 'border-left:2px solid #ff9c7a;color:#9fb0c4;font:12px/1.5 ui-monospace,Menlo,monospace;'
+      + 'border-left:2px solid #ff9c7a;color:#a9a9ad;font:12px/1.5 ui-monospace,Menlo,monospace;'
       + 'white-space:pre-wrap;word-break:break-word;max-height:26vh;overflow:auto';
     col.appendChild(pre);
   }

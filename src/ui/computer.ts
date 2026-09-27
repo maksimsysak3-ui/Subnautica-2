@@ -75,8 +75,11 @@ const DESKS: ReadonlyArray<[NewsDesk | 'all', string]> = [
   ['safety', 'Safety'], ['transport', 'Transport'], ['people', 'People'],
 ];
 const DESK_COLOUR: Record<NewsDesk, string> = {
-  politics: '#c98bdb', economy: '#f4b54a', city: '#6fd3ff', safety: '#e0685a', transport: '#5fc78c', people: '#9fb4c9',
+  politics: '#c98bdb', economy: '#f4b54a', city: '#6aaee8', safety: '#e0685a', transport: '#5fc78c', people: '#9fb4c9',
 };
+
+/** Dock icon colours, one per program, like a real dock's. */
+const DOCK_TINT = ['#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#0ea5e9', '#f59e0b', '#10b981', '#64748b', '#22c55e'];
 
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
@@ -92,9 +95,12 @@ export class Computer {
   private readonly badge: HTMLElement;
   private readonly scrim: HTMLElement;
   private readonly body: HTMLElement;
-  private readonly title: HTMLElement;
-  private readonly meta: HTMLElement;
+  private title!: HTMLElement;
+  private meta!: HTMLElement;
   private readonly appButtons = new Map<DeskApp, HTMLButtonElement>();
+  private readonly dockButtons = new Map<DeskApp, HTMLButtonElement>();
+  private barTitle!: HTMLElement;
+  private menuMeta!: HTMLElement;
   private app: DeskApp = 'home';
   private shown = false;
   private painted = '';
@@ -122,17 +128,42 @@ export class Computer {
     const pc = el('div', 'mr-pc');
     pc.setAttribute('role', 'dialog');
     pc.setAttribute('aria-label', 'City Hall computer');
+    // A monitor, a desktop on it, and one window: the machine on the mayor's
+    // desk, drawn as a real one rather than as a game panel.
     const screen = el('div', 'mr-pc-screen');
 
+    const bar = el('div', 'mr-pc-menubar');
+    const barApp = el('b', undefined, 'City Hall');
+    this.barTitle = el('span');
+    this.menuMeta = el('div', 'mr-pc-menubar-right');
+    bar.append(el('span', 'mr-pc-menubar-mark'), barApp, this.barTitle, this.menuMeta);
+    bar.querySelector('.mr-pc-menubar-mark')!.innerHTML = glyph('government', 13);
+
+    const desk = el('div', 'mr-pc-desk');
+    const win = el('div', 'mr-pc-win');
+    const top = el('div', 'mr-pc-titlebar');
+    const lights = el('div', 'mr-pc-lights');
+    const light = (cls: string, label: string, run: () => void): void => {
+      const b = el('button', `mr-pc-light ${cls}`);
+      b.setAttribute('aria-label', label);
+      b.title = label;
+      b.addEventListener('click', (e) => { e.stopPropagation(); clickSound(); run(); });
+      lights.appendChild(b);
+    };
+    light('is-close', 'Close', () => this.close());
+    light('is-min', 'Minimise', () => this.close());
+    light('is-zoom', 'Zoom', () => win.classList.toggle('is-zoomed'));
+    this.title = el('div', 'mr-pc-title');
+    this.meta = el('div', 'mr-pc-meta');
+    top.append(lights, this.title, this.meta);
+    top.addEventListener('dblclick', () => win.classList.toggle('is-zoomed'));
+
     const side = el('nav', 'mr-pc-side');
-    const brand = el('div', 'mr-pc-brand');
-    brand.innerHTML = `<span style="display:flex;color:var(--amber)">${glyph('government', 26)}</span>`
-      + '<div><b>City Hall</b><small>Civic OS</small></div>';
-    side.appendChild(brand);
+    side.appendChild(el('div', 'mr-pc-side-head', 'City Hall'));
     for (const [id, name, icon] of APPS) {
       const b = el('button', 'mr-pc-app');
       b.dataset.app = id;
-      b.innerHTML = `${glyph(icon, 17)}<span>${name}</span>`;
+      b.innerHTML = `${glyph(icon, 16)}<span>${name}</span>`;
       b.setAttribute('aria-label', name);
       b.addEventListener('click', () => { clickSound(); this.showApp(id); });
       side.appendChild(b);
@@ -141,17 +172,28 @@ export class Computer {
     side.appendChild(el('div', 'mr-pc-side-foot', 'Office of the Mayor'));
 
     const main = el('div', 'mr-pc-main');
-    const top = el('div', 'mr-pc-top');
-    this.title = el('div', 'mr-pc-title');
-    this.meta = el('div', 'mr-pc-meta');
-    const x = el('button', 'mr-pc-x');
-    x.innerHTML = glyph('close', 15);
-    x.setAttribute('aria-label', 'Close');
-    x.addEventListener('click', () => { clickSound(); this.close(); });
-    top.append(this.title, this.meta, x);
     this.body = el('div', 'mr-pc-body');
-    main.append(top, this.body);
-    screen.append(side, main);
+    main.append(this.body);
+    const inner = el('div', 'mr-pc-wininner');
+    inner.append(side, main);
+    win.append(top, inner);
+    desk.appendChild(win);
+
+    // The dock: every program as an icon, with a dot under the open one.
+    const dock = el('div', 'mr-pc-dock');
+    APPS.forEach(([id, name, icon], i) => {
+      const b = el('button', 'mr-pc-dockicon');
+      b.dataset.app = id;
+      b.style.setProperty('--tint', DOCK_TINT[i % DOCK_TINT.length]);
+      b.innerHTML = glyph(icon, 22);
+      b.setAttribute('aria-label', name);
+      b.title = name;
+      b.addEventListener('click', () => { clickSound(); this.showApp(id); });
+      dock.appendChild(b);
+      this.dockButtons.set(id, b);
+    });
+
+    screen.append(bar, desk, dock);
     pc.appendChild(screen);
     this.scrim.appendChild(pc);
     parent.appendChild(this.scrim);
@@ -191,7 +233,9 @@ export class Computer {
   showApp(app: DeskApp): void {
     this.app = app;
     for (const [id, b] of this.appButtons) b.classList.toggle('is-on', id === app);
+    for (const [id, b] of this.dockButtons) b.classList.toggle('is-on', id === app);
     this.title.textContent = APPS.find((a) => a[0] === app)?.[1] ?? '';
+    this.barTitle.textContent = this.title.textContent;
     this.painted = '';
     this.paint();
   }
@@ -230,17 +274,15 @@ export class Computer {
     if (!this.shown) return;
     const w = this.host.world();
     const day = this.host.day();
-    this.meta.innerHTML = '';
+    this.menuMeta.innerHTML = '';
     const m = (k: string, v: string): void => {
-      const s = el('span', undefined, k);
-      const b = el('b', undefined, v);
-      s.appendChild(b);
-      this.meta.appendChild(s);
+      const span = el('span', undefined, k === '' ? '' : `${k} `);
+      span.appendChild(el('b', undefined, v));
+      this.menuMeta.appendChild(span);
     };
-    m('', `${MONTHS[monthOf(Math.floor(day))]} ${yearOf(Math.floor(day))}`);
     m('Treasury', money(Math.round(w.budget.balance)));
     if (w.council.open) m('Capital', String(Math.floor(w.council.capital)));
-
+    m('', `${MONTHS[monthOf(Math.floor(day))].slice(0, 3)} ${yearOf(Math.floor(day))}`);
     const sig = this.signature();
     if (sig === this.painted) return;
     this.painted = sig;
@@ -550,8 +592,8 @@ export class Computer {
     const t = document.createElementNS(ns, 'text');
     t.setAttribute('x', '110'); t.setAttribute('y', '108');
     t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('fill', '#e8eef6');
-    t.setAttribute('style', 'font: 800 26px var(--display)');
+    t.setAttribute('fill', '#ececee');
+    t.setAttribute('style', 'font: 600 24px var(--pc-font)');
     t.textContent = `${c.seats[0]}/${n}`;
     svg.appendChild(t);
     return svg;
@@ -636,7 +678,7 @@ export class Computer {
       row.style.margin = '6px 0';
       const name = el('span', undefined, def.name);
       name.style.flex = '1';
-      name.style.color = '#e8eef6';
+      name.style.color = '#ececee';
       row.appendChild(name);
       if (law.until !== undefined) row.appendChild(el('span', 'mr-pc-note', `${Math.max(0, Math.ceil(law.until - day))} days left`));
       const why = c.blocked(law.id, true, pop);
@@ -773,7 +815,7 @@ export class Computer {
       card.querySelector('h3')!.style.color = bloc.colour;
       const big = el('div', 'mr-pc-row');
       const v = el('strong', undefined, pct(c.approval[b]));
-      v.style.cssText = `font: 800 30px/1 var(--display); color:${tone(c.approval[b])}`;
+      v.style.cssText = `font: 700 30px/1 var(--display); color:${tone(c.approval[b])}`;
       big.appendChild(v);
       big.appendChild(el('span', 'mr-pc-note', 'approve'));
       if (c.protesting[b] === 1) {
@@ -849,7 +891,7 @@ export class Computer {
       const head = el('tr');
       for (const h of ['Resource', 'HQs', 'Produced', 'Exported', 'Used here', 'Processed', 'Earns / wk', 'Field left']) {
         const th = el('th', undefined, h);
-        th.style.cssText = 'text-align:right;padding:6px 8px;font:600 10.5px/1 var(--label);letter-spacing:.1em;text-transform:uppercase;color:#6d8098;border-bottom:1px solid rgba(255,255,255,.08)';
+        th.style.cssText = 'text-align:right;padding:6px 8px;font:600 10.5px/1 var(--label);letter-spacing:.1em;text-transform:uppercase;color:#85858a;border-bottom:1px solid rgba(255,255,255,.08)';
         head.appendChild(th);
       }
       (head.firstChild as HTMLElement).style.textAlign = 'left';
@@ -878,7 +920,7 @@ export class Computer {
         cells.forEach((v, k) => {
           const td = el('td', undefined, v);
           td.style.cssText = `padding:8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:${k === 0 ? 'left' : 'right'};`
-            + (k === 0 ? `color:${res.ramp[2]};font-weight:600` : 'color:#c6d2e0');
+            + (k === 0 ? `color:${res.ramp[2]};font-weight:600` : 'color:#d0d0d4');
           tr.appendChild(td);
         });
         table.appendChild(tr);
@@ -943,7 +985,7 @@ export class Computer {
       };
       const top = Math.max(l.goodsMade, need);
       row('Made here', l.goodsMade, top, '#e8b454', '');
-      row('Needed by shops', l.goodsWanted, top, '#6fd3ff', '');
+      row('Needed by shops', l.goodsWanted, top, '#6aaee8', '');
       const surplus = l.goodsMade - l.goodsWanted;
       goods.appendChild(el('div', 'mr-pc-note', surplus >= 0
         ? `A surplus of ${units(surplus)} units is exported, earning ${money(Math.round(l.exports))} a week in duty. The outside market takes less and less of each extra lot.`
