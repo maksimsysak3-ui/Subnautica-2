@@ -805,39 +805,47 @@ export function buildingSvg(p: BuildingPlan, width: number, depth: number, size:
   const X = (x: number): number => 50 + x * s, Y = (y: number): number => 94 - y * s;
   const fill = WALL_FILL[p.walls] || p.wallColour;
   const out: string[] = [`<line x1="4" y1="94" x2="96" y2="94" stroke="#85858a" stroke-width="1"/>`];
-  out.push(`<rect x="${X(x0)}" y="${Y(H)}" width="${W * s}" height="${H * s}" fill="${fill}"/>`);
+  // The front as the street sees it: each setback a narrower band above the last.
+  const steps = tiers(p, [x0, 0, x1, 1e3]);
+  for (const t of steps) {
+    out.push(`<rect x="${X(t.r[0])}" y="${Y(t.f1 * p.floorHeight)}" width="${(t.r[2] - t.r[0]) * s}" height="${(t.f1 - t.f0) * p.floorHeight * s}" fill="${fill}"/>`);
+  }
+  const [rx0, , rx1] = steps[steps.length - 1].r;
+  const RW = rx1 - rx0;
   const rc = p.roofColour;
   switch (p.roof) {
     case 'gable': case 'gambrel': case 'hip':
-      out.push(`<polygon points="${X(x0 - 0.4)},${Y(H)} ${X(x1 + 0.4)},${Y(H)} ${X(p.roof === 'hip' ? x1 - Math.min(W / 2, rise) : (x0 + x1) / 2)},${Y(H + rise)} ${X(p.roof === 'hip' ? x0 + Math.min(W / 2, rise) : (x0 + x1) / 2)},${Y(H + rise)}" fill="${rc}"/>`);
+      out.push(`<polygon points="${X(rx0 - 0.4)},${Y(H)} ${X(rx1 + 0.4)},${Y(H)} ${X(p.roof === 'hip' ? rx1 - Math.min(RW / 2, rise) : (rx0 + rx1) / 2)},${Y(H + rise)} ${X(p.roof === 'hip' ? rx0 + Math.min(RW / 2, rise) : (rx0 + rx1) / 2)},${Y(H + rise)}" fill="${rc}"/>`);
       break;
     case 'mansard':
-      out.push(`<polygon points="${X(x0)},${Y(H)} ${X(x1)},${Y(H)} ${X(x1 - 1.4)},${Y(H + Math.min(4, rise))} ${X(x0 + 1.4)},${Y(H + Math.min(4, rise))}" fill="${rc}"/>`);
+      out.push(`<polygon points="${X(rx0)},${Y(H)} ${X(rx1)},${Y(H)} ${X(rx1 - 1.4)},${Y(H + Math.min(4, rise))} ${X(rx0 + 1.4)},${Y(H + Math.min(4, rise))}" fill="${rc}"/>`);
       break;
     case 'shed':
-      out.push(`<polygon points="${X(x0)},${Y(H)} ${X(x1)},${Y(H)} ${X(x1)},${Y(H + rise)}" fill="${rc}"/>`);
+      out.push(`<polygon points="${X(rx0)},${Y(H)} ${X(rx1)},${Y(H)} ${X(rx1)},${Y(H + rise)}" fill="${rc}"/>`);
       break;
     case 'sawtooth': {
-      const n = Math.max(2, Math.round(W / 7));
+      const n = Math.max(2, Math.round(RW / 7));
       for (let i = 0; i < n; i++) {
-        const a = x0 + (i / n) * W, b = x0 + ((i + 1) / n) * W;
+        const a = rx0 + (i / n) * RW, b = rx0 + ((i + 1) / n) * RW;
         out.push(`<polygon points="${X(a)},${Y(H)} ${X(b)},${Y(H)} ${X(b)},${Y(H + rise)}" fill="${rc}"/>`);
       }
       break;
     }
-    default: out.push(`<rect x="${X(x0)}" y="${Y(H + 1)}" width="${W * s}" height="${s}" fill="#6a6a6e"/>`);
+    default: out.push(`<rect x="${X(rx0)}" y="${Y(H + 1)}" width="${RW * s}" height="${s}" fill="#6a6a6e"/>`);
   }
   if (p.type === 'factory') out.push(`<rect x="${X(x1 - 3.5)}" y="${Y(total)}" width="${2.6 * s}" height="${(total - H) * s}" fill="#8b4a38"/>`);
   if (p.walls !== 'glass') {
     for (let f = 0; f < p.storeys; f++) {
       const y = f * p.floorHeight + p.floorHeight * 0.35;
+      const band: Rect = steps.find((t) => f >= t.f0 && f < t.f1)?.r ?? [x0, 0, x1, 0];
+      const bx = band[0], bw = band[2] - band[0];
       if (p.windows === 'ribbon') {
-        out.push(`<rect x="${X(x0 + 0.8)}" y="${Y(y + 1.2)}" width="${(W - 1.6) * s}" height="${1.2 * s}" fill="#2c3b4a"/>`);
+        out.push(`<rect x="${X(bx + 0.8)}" y="${Y(y + 1.2)}" width="${(bw - 1.6) * s}" height="${1.2 * s}" fill="#2c3b4a"/>`);
         continue;
       }
-      const n = Math.max(1, Math.floor(W / 2.8));
+      const n = Math.max(1, Math.floor(bw / 2.8));
       for (let i = 0; i < n; i++) {
-        const c = x0 + (i + 0.5) * (W / n);
+        const c = bx + (i + 0.5) * (bw / n);
         out.push(`<rect x="${X(c - 0.5)}" y="${Y(y + 1.5)}" width="${s}" height="${1.5 * s}" fill="#2c3b4a"/>`);
       }
     }
