@@ -763,6 +763,7 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-studio-row { display: grid; grid-template-columns: 110px 1fr 76px; align-items: center; gap: 10px;
   font: 600 12.5px/1.2 var(--ui); color: #d0d0d4; }
 .mr-studio-row.is-pick { grid-template-columns: 110px 1fr; }
+.mr-studio-colour:disabled { opacity: .35; cursor: not-allowed; }
 .mr-studio-select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.04); color: #e6e6e8; font: 600 13px/1.2 var(--ui); }
 .mr-studio-select:focus-visible { outline: 2px solid #f4b54a; outline-offset: 1px; }

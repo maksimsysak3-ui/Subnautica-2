@@ -319,7 +319,11 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       refresh();
     };
     const bpick = <K extends 'type' | 'plan' | 'roof' | 'walls' | 'windows'>(label: string, k: K, options: readonly BuildingPlan[K][]): HTMLElement =>
-      choose(label, () => bcur()[k] as string, (v) => bset(k, v as BuildingPlan[K]), options as readonly string[]);
+      choose(label, () => bcur()[k] as string, (v) => {
+        bset(k, v as BuildingPlan[K]);
+        // The wall colour picker depends on the material: redraw it.
+        if (k === 'walls') build();
+      }, options as readonly string[]);
     const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden'): HTMLElement =>
       check(label, () => bcur()[k], (v) => bset(k, v));
     const bcolour = (k: 'wallColour' | 'roofColour', tip: string): HTMLInputElement => {
@@ -328,8 +332,15 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       c.title = tip;
       c.value = bcur()[k];
       c.addEventListener('input', () => bset(k, c.value));
+      // Brick, stone, concrete and glass are their own colour: a picker that
+      // did nothing to them read as broken.
+      if (k === 'wallColour' && !PAINTED_WALLS.includes(bcur().walls)) {
+        c.disabled = true;
+        c.title = `${title(bcur().walls)} walls keep their own colour: pick render, timber or metal to paint them`;
+      }
       return c;
     };
+    const PAINTED_WALLS: readonly string[] = ['render', 'timber', 'metal'];
     let styleSeed = 1;
     // A name the studio gave keeps up with the design; one the player typed is left alone.
     const autoName = (name: string, p: BuildingPlan): string => {
