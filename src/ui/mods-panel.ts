@@ -324,7 +324,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
         // The wall colour picker depends on the material: redraw it.
         if (k === 'walls') build();
       }, options as readonly string[]);
-    const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden' | 'bays'): HTMLElement =>
+    const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden' | 'bays' | 'groundStone' | 'cupola'): HTMLElement =>
       check(label, () => bcur()[k], (v) => bset(k, v));
     const bcolour = (k: 'wallColour' | 'roofColour', tip: string): HTMLInputElement => {
       const c = el('input', 'mr-studio-colour');
@@ -429,6 +429,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
           bpick('Windows', 'windows', BB_WINDOWS),
           btick('Shutters beside the windows', 'shutters'),
           btick('Bay windows on the street front', 'bays'),
+          btick('Stone ground storey', 'groundStone'),
           btick('Balconies', 'balconies'),
           btick('Cornice and storey bands', 'cornice'),
         );
@@ -445,6 +446,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
           btick('Awning over the shopfront', 'awning'),
           btick('Loading docks (warehouses and works)', 'docks'),
           btick('Front garden with a hedge', 'garden'),
+          btick('Cupola on the roof', 'cupola'),
         );
       }
       const acts = el('div', 'mr-mod-acts');

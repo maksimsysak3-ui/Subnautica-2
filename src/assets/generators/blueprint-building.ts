@@ -66,6 +66,10 @@ export interface BuildingPlan {
   setbacks: number;
   /** Two-storey bay windows on the street front. */
   bays: boolean;
+  /** The ground storey faced in stone, whatever the walls above. */
+  groundStone: boolean;
+  /** A cupola on the ridge: a civic hall's, or a grand house's. */
+  cupola: boolean;
   /** Only a label: which style it was drawn in, for the studio's picker. */
   theme: BuildingTheme | 'custom';
 }
@@ -74,7 +78,7 @@ export const DEFAULT_BUILDING: BuildingPlan = {
   type: 'townhouses', plan: 'rect', storeys: 3, floorHeight: 3.2, roof: 'gable', pitch: 0.5,
   walls: 'brick', windows: 'sash', wallColour: '#e9dcc4', roofColour: '#4f5560',
   dormers: true, chimneys: 2, porch: true, shutters: false, balconies: false, awning: false,
-  docks: false, cornice: true, garden: false, setbacks: 0, bays: false, theme: 'victorian',
+  docks: false, cornice: true, garden: false, setbacks: 0, bays: false, groundStone: false, cupola: false, theme: 'victorian',
 };
 
 const clampN = (v: unknown, lo: number, hi: number, d: number): number =>
@@ -109,6 +113,8 @@ export function cleanBuilding(raw: unknown): BuildingPlan {
     garden: o.garden === true,
     setbacks: Math.round(clampN(o.setbacks, 0, 3, 0)),
     bays: o.bays === true,
+    groundStone: o.groundStone === true,
+    cupola: o.cupola === true,
     theme: oneOf(o.theme, [...BB_THEMES, 'custom'] as const, 'custom'),
   };
 }
@@ -134,21 +140,25 @@ interface ThemeSpec {
   setbacks?: [number, number];
   /** Chance of bay windows on a house, terrace or block. */
   bays?: number;
+  /** Chance of a stone ground storey. */
+  groundStone?: number;
+  /** Chance of a cupola on a civic hall (a quarter of it on anything else). */
+  cupola?: number;
 }
 
 export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   victorian: { label: 'Victorian', types: ['house', 'townhouses', 'shop'], plans: ['rect', 'L', 'T'], storeys: [2, 4], floorHeight: 3.3,
     roofs: ['gable', 'hip'], pitch: [0.55, 0.85], walls: ['brick', 'brick', 'render'], windows: ['sash', 'arched'],
     wallColours: ['#e8dcc6', '#d9c7a4', '#c9b79a'], roofColours: ['#4a4f58', '#5b4a44', '#3f454d'],
-    dormers: 0.5, chimneys: 0.95, porch: 0.7, shutters: 0.1, balconies: 0.1, awning: 0.3, docks: 0, cornice: 0.5, garden: 0.6, bays: 0.7 },
+    dormers: 0.5, chimneys: 0.95, porch: 0.7, shutters: 0.1, balconies: 0.1, awning: 0.3, docks: 0, cornice: 0.5, garden: 0.6, bays: 0.7, groundStone: 0.2, cupola: 0.4 },
   georgian: { label: 'Georgian', types: ['townhouses', 'house', 'civic'], plans: ['rect', 'U'], storeys: [3, 4], floorHeight: 3.4,
     roofs: ['hip', 'flat'], pitch: [0.3, 0.45], walls: ['brick', 'render', 'stone'], windows: ['sash'],
     wallColours: ['#efe6d4', '#e6dcc8', '#f2ede2'], roofColours: ['#4a4f58', '#3f454d'],
-    dormers: 0.4, chimneys: 0.9, porch: 0.6, shutters: 0, balconies: 0.1, awning: 0, docks: 0, cornice: 0.9, garden: 0.4 },
+    dormers: 0.4, chimneys: 0.9, porch: 0.6, shutters: 0, balconies: 0.1, awning: 0, docks: 0, cornice: 0.9, garden: 0.4, groundStone: 0.5, cupola: 0.8 },
   parisian: { label: 'Parisian', types: ['apartments', 'shop'], plans: ['rect', 'courtyard', 'L'], storeys: [5, 7], floorHeight: 3.3,
     roofs: ['mansard'], pitch: [0.5, 0.7], walls: ['stone'], windows: ['arched', 'sash'],
     wallColours: ['#e9dfc9', '#efe7d6'], roofColours: ['#5b636e', '#4a525c'],
-    dormers: 0.95, chimneys: 0.7, porch: 0, shutters: 0.2, balconies: 0.95, awning: 0.6, docks: 0, cornice: 1, garden: 0 },
+    dormers: 0.95, chimneys: 0.7, porch: 0, shutters: 0.2, balconies: 0.95, awning: 0.6, docks: 0, cornice: 1, garden: 0, groundStone: 0.9 },
   dutch: { label: 'Dutch', types: ['townhouses', 'shop'], plans: ['rect'], storeys: [3, 5], floorHeight: 3.1,
     roofs: ['gable'], pitch: [0.8, 0.9], walls: ['brick'], windows: ['sash'],
     wallColours: ['#ffffff', '#f3efe6'], roofColours: ['#5e3a2e', '#3d3f44'],
@@ -156,7 +166,7 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   artdeco: { label: 'Art Deco', types: ['apartments', 'civic', 'shop'], plans: ['rect', 'U', 'T'], storeys: [4, 9], floorHeight: 3.4,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render', 'stone'], windows: ['ribbon', 'sash'],
     wallColours: ['#efe3c7', '#e6d8b5', '#dcd3c2'], roofColours: ['#b8913f', '#2f5e5a', '#8a4b3a'],
-    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0.3, awning: 0.3, docks: 0, cornice: 0.95, garden: 0, setbacks: [1, 3] },
+    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0.3, awning: 0.3, docks: 0, cornice: 0.95, garden: 0, setbacks: [1, 3], groundStone: 0.5 },
   brutalist: { label: 'Brutalist', types: ['apartments', 'civic'], plans: ['rect', 'L', 'U', 'courtyard'], storeys: [5, 12], floorHeight: 3.2,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['concrete'], windows: ['ribbon', 'industrial'],
     wallColours: ['#b5b1a8'], roofColours: ['#6f6c66'],
@@ -184,7 +194,7 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   colonial: { label: 'Colonial', types: ['house', 'civic'], plans: ['rect', 'T'], storeys: [2, 3], floorHeight: 3.1,
     roofs: ['gable', 'gambrel', 'hip'], pitch: [0.5, 0.7], walls: ['timber', 'brick'], windows: ['sash'],
     wallColours: ['#f5f3ec', '#e8e3d6', '#c8d3d6'], roofColours: ['#3b3f45', '#4a3a33'],
-    dormers: 0.7, chimneys: 0.9, porch: 0.8, shutters: 0.9, balconies: 0, awning: 0, docks: 0, cornice: 0.4, garden: 0.8 },
+    dormers: 0.7, chimneys: 0.9, porch: 0.8, shutters: 0.9, balconies: 0, awning: 0, docks: 0, cornice: 0.4, garden: 0.8, cupola: 0.9 },
   japanese: { label: 'Japanese', types: ['house', 'shop', 'civic'], plans: ['rect', 'L', 'courtyard'], storeys: [1, 2], floorHeight: 3.0,
     roofs: ['hip', 'gable'], pitch: [0.45, 0.6], walls: ['timber', 'render'], windows: ['casement'],
     wallColours: ['#5b4636', '#efe9dc', '#3e3a36'], roofColours: ['#2e3033', '#3b4a52'],
@@ -205,11 +215,11 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   brownstone: { label: 'Brownstone', types: ['townhouses', 'apartments', 'shop'], plans: ['rect'], storeys: [3, 5], floorHeight: 3.4,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render'], windows: ['sash', 'arched'],
     wallColours: ['#6b4232', '#5e3a2c', '#76503c'], roofColours: ['#3a3533', '#2f3a3a'],
-    dormers: 0, chimneys: 0.4, porch: 0.9, shutters: 0, balconies: 0, awning: 0.3, docks: 0, cornice: 1, garden: 0.3, bays: 0.5 },
+    dormers: 0, chimneys: 0.4, porch: 0.9, shutters: 0, balconies: 0, awning: 0.3, docks: 0, cornice: 1, garden: 0.3, bays: 0.5, groundStone: 0.5 },
   chicago: { label: 'Chicago school', types: ['apartments', 'civic', 'shop'], plans: ['rect', 'L', 'U'], storeys: [8, 14], floorHeight: 3.6,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['brick', 'stone'], windows: ['sash', 'industrial'],
     wallColours: ['#a4644a', '#b88a6a', '#d8cbb2', '#8e5140'], roofColours: ['#3c3a38', '#5a4a3a'],
-    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0, awning: 0.4, docks: 0, cornice: 1, garden: 0, setbacks: [0, 2] },
+    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0, awning: 0.4, docks: 0, cornice: 1, garden: 0, setbacks: [0, 2], groundStone: 0.8 },
   ranch: { label: 'Ranch', types: ['house'], plans: ['rect', 'L'], storeys: [1, 1], floorHeight: 2.9,
     roofs: ['hip', 'gable'], pitch: [0.2, 0.32], walls: ['brick', 'timber'], windows: ['casement', 'sash'],
     wallColours: ['#d9cdb8', '#b9c4c9', '#e6dcc9', '#a9b39a'], roofColours: ['#4b4a48', '#5d4d40', '#3e4247'],
@@ -267,6 +277,8 @@ export function generateBuilding(seed: number, theme?: BuildingTheme, type?: Bui
     cornice: chance(t.cornice), garden: kind === 'house' || kind === 'townhouses' ? chance(t.garden) : false,
     setbacks: t.setbacks !== undefined && storeys >= 6 ? t.setbacks[0] + Math.floor(r() * (t.setbacks[1] - t.setbacks[0] + 1)) : 0,
     bays: (kind === 'house' || kind === 'townhouses' || kind === 'apartments') && chance(t.bays ?? 0),
+    groundStone: !industrial && chance(t.groundStone ?? 0),
+    cupola: !industrial && chance((t.cupola ?? 0) * (kind === 'civic' ? 1 : 0.25)),
     theme: th,
   });
   // A lot the type fits: a house is small, a works is big.
@@ -554,6 +566,10 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
       const [a0, b0, a1, b1] = t.r;
       const y0 = t.f0 === 0 ? 0.45 : t.f0 * fh, y1 = t.f1 * fh;
       walls(() => m.box([a0, y0, b0], [a1, y1, b1], wallMat, { roof: MAT.ROOF }));
+      // A stone ground storey, laid a little proud of the walls above it.
+      if (t.f0 === 0 && p.groundStone && p.walls !== 'stone' && p.walls !== 'glass') {
+        m.box([a0 - 0.04, 0.45, b0 - 0.04], [a1 + 0.04, Math.min(y1, fh), b1 + 0.04], MAT.STONE);
+      }
       const last = k === ts.length - 1;
       if (!last) {
         m.box([a0, y1, b0], [a1, y1 + 0.15, b1], MAT.ROOF);
@@ -605,6 +621,17 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
         const z = alongX ? cz + (z1 - z0) * 0.18 : cz + t * (z1 - z0);
         chimneyStack(m, x, z, H, Math.max(H + 1.5, got.top + 1.2), p.type === 'factory' ? 1.6 : 1.0);
       }
+    }
+    if (p.cupola && medium && wi === 0) {
+      // Square base, a glazed lantern, a lead cap and a finial.
+      const cy = got.top - 0.4;
+      m.box([cx - 1.4, cy, cz - 1.4], [cx + 1.4, cy + 1.8, cz + 1.4], MAT.TRIM);
+      m.box([cx - 1.0, cy + 1.8, cz - 1.0], [cx + 1.0, cy + 3.4, cz + 1.0], fine ? MAT.PANE : MAT.TRIM);
+      if (fine) for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+        m.box([cx + dx * 1.0 - 0.15, cy + 1.8, cz + dz * 1.0 - 0.15], [cx + dx * 1.0 + 0.15, cy + 3.4, cz + dz * 1.0 + 0.15], MAT.TRIM);
+      }
+      m.painted(TINT.ACCENT, () => m.cone(cx, cz, 1.5, 0.05, cy + 3.4, cy + 5.4, fine ? 12 : 6, MAT.PAINT));
+      if (fine) m.cylinder(cx, cz, 0.06, cy + 5.4, cy + 6.6, 4, MAT.METAL);
     }
     if (p.type === 'factory' && medium && wi === 0) {
       // A works chimney: tall, round, brick, at the back corner.
