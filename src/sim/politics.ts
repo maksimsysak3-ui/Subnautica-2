@@ -61,6 +61,11 @@ export interface Issues {
   industry: number;
   /** Share of traffic that is moving. */
   flowing: number;
+  /**
+   * What the voting blocs think of the administration, 0 to 1, once the
+   * council sits. The mayor's approval leans on it as well as on the mood.
+   */
+  approval?: number;
 }
 
 export const CALM: Issues = {
@@ -110,7 +115,7 @@ export function pledgeById(id: string): Pledge | undefined {
   return PLEDGES.find((p) => p.id === id);
 }
 
-interface Party {
+export interface Party {
   name: string;
   colour: string;
   /** Pledges this party reaches for first. */
@@ -118,7 +123,7 @@ interface Party {
   slogan: string;
 }
 
-const PARTIES: readonly Party[] = [
+export const PARTIES: readonly Party[] = [
   { name: 'Green Streets', colour: '#5cc98a', leans: ['greenCorridors', 'smokeControl', 'freeTransit', 'recycling'],
     slogan: 'A city you can breathe in' },
   { name: 'Prosper', colour: '#f2b544', leans: ['taxCut', 'businessRelief', 'parking', 'metering'],
@@ -132,7 +137,7 @@ const PARTIES: readonly Party[] = [
 ];
 
 /** The player's own ticket. */
-const PLAYER_PARTY: Party = {
+export const PLAYER_PARTY: Party = {
   name: 'Your ticket', colour: '#6fd3ff', leans: [], slogan: 'Built by the people who built it',
 };
 
@@ -426,7 +431,8 @@ export class Politics {
 
   private termDay(day: number, city: Issues): void {
     // Approval follows the city's mood, slowly, and a budget in the red drags.
-    const target = clamp(city.happiness * 0.9 + (city.net < 0 ? -0.08 : 0.04), 0, 1);
+    const mood = city.happiness * 0.9 + (city.net < 0 ? -0.08 : 0.04);
+    const target = clamp(city.approval === undefined ? mood : mood * 0.5 + city.approval * 0.5, 0, 1);
     this.approval += (target - this.approval) * 0.18;
     this.lowDays = this.approval < RECALL_APPROVAL ? this.lowDays + 1 : 0;
     if (this.lowDays === 3) this.say(day, 'A recall petition is circulating. It needs a week.', 'bad');

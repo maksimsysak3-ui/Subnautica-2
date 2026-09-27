@@ -32,6 +32,7 @@ import { Simulation, View, VIEWS, heightAt, money, PANEL_ONLY } from './sim';
 import { LOAN_OFFERS, MAX_LOANS, loanPayment } from './sim/budget';
 import { checkAchievements } from './sim/achievements';
 import { Alerts } from './ui/alerts';
+import type { Alert } from './ui/alerts';
 import type { LevelUp } from './sim/progress';
 import type { CityMood, WeatherRead } from './ui/cititok';
 import type { Sky } from './sim/weather';
@@ -45,6 +46,7 @@ import { TechTree } from './ui/tech-tree';
 import { LevelUpCard } from './ui/levelup';
 import { Settings } from './ui/settings';
 import { Cititok } from './ui/cititok';
+import { Computer } from './ui/computer';
 import { GRIPE_INFO } from './sim';
 import { landmarksForLevel } from './sim/tech';
 import { GOALS } from './sim/goals';
@@ -93,6 +95,8 @@ import { siren } from './ui/sound';
 import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
+import type { CouncilCity } from './sim/council';
+import type { NewsDesk, NewsTone } from './sim/news';
 import { Gripe } from './sim';
 import { TICKS_PER_DAY, SECONDS_PER_DAY } from './sim/agents/calendar';
 import { CITY_DAY_SECONDS } from './gfx/renderer';
@@ -168,6 +172,8 @@ export class LiveCity {
   readonly settings: Settings;
   /** The phone the city posts from. */
   readonly cititok: Cititok;
+  /** The City Hall computer: council, paper, voters, petitions, stats, elections. */
+  readonly computer: Computer;
   /**
    * Where the city's name is read from. A function, not a copy: the name
    * changes on founding, on load and when a save renames it, and a copy taken
@@ -248,6 +254,7 @@ export class LiveCity {
     // And the lines, under the transport view -- which is where a player goes to
     // ask how people get about, and therefore where the answer belongs.
     this.alerts = new Alerts(ui);
+    this.alerts.onPush = (a) => this.toPaper(a);
     this.steps = new FirstSteps(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
     this.tech = new TechTree(ui, () => renderer.world.progress, () => this.onUnlock());
@@ -267,7 +274,16 @@ export class LiveCity {
       rally: () => this.rally(),
     });
     this.statsApp = new StatsApp(() => this.statsRead());
-    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast(), this.hall, this.statsApp);
+    this.cititok = new Cititok(ui, () => this.mood(), () => this.forecast());
+    this.computer = new Computer(ui, {
+      world: () => this.renderer.world,
+      live: () => this.running && this.sim !== null,
+      cityName: () => this.cityName,
+      day: () => this.gameDay(),
+      population: () => this.sim?.people.population ?? 0,
+      happiness: () => this.sim?.people.happiness ?? 0,
+      net: () => this.sim?.economy.report.net ?? 0,
+    }, this.hall, this.statsApp);
     this.settings = new Settings(ui, {
       apply: (v) => {
         const q = renderer.quality;
@@ -626,6 +642,7 @@ export class LiveCity {
   private politics(sim: Simulation, dt: number, now: number): void {
     if (this.issues === null || now - this.issuesAt > 1000) {
       this.issues = this.readIssues(sim);
+      this.council = this.readCouncil(sim, this.issues);
       this.issuesAt = now;
     }
     const world = this.renderer.world;
@@ -633,6 +650,74 @@ export class LiveCity {
     const was = pol.phase;
     pol.update(this.gameDay(), dt, this.issues, world.policies, world.budget);
     if (pol.phase !== was) this.politicsMoved(was, pol.phase);
+    if (this.council !== null) {
+      world.council.update(this.gameDay(), this.council, world.policies, world.budget, world.news);
+      sim.people.civicMood = world.council.mood;
+      this.columnist(this.council);
+    }
+  }
+
+  /** What the council reads of the city, refreshed with the voters' issues. */
+  private council: CouncilCity | null = null;
+  /** The day the paper last ran a column of its own. */
+  private columnDay = -1;
+
+  /**
+   * The paper's own column, every few days: the thing the city is talking
+   * about, which is whichever of its problems is worst -- or, when nothing is
+   * wrong, what is going right.
+   */
+  private columnist(c: CouncilCity): void {
+    const day = Math.floor(this.gameDay());
+    if (c.population < 150 || day - this.columnDay < 3) return;
+    this.columnDay = day;
+    const news = this.renderer.world.news;
+    const pct = (x: number): string => `${Math.round(x * 100)}%`;
+    const worries: Array<[number, NewsDesk, string, string]> = [
+      [c.unemployment * 3, 'people', 'Jobless queues lengthen',
+        `${pct(c.unemployment)} of those who can work cannot find it. Zone for jobs, or train people for the ones there are.`],
+      [(1 - c.flowing) * 1.2, 'transport', 'Commuters fume as traffic crawls',
+        `Only ${pct(c.flowing)} of the city's traffic is moving freely. Readers ask for buses, trams and a second way across town.`],
+      [c.crime * 8, 'safety', 'Crime worries grow',
+        'Residents in several streets say they no longer feel safe after dark. Police cover is thin.'],
+      [c.health * 8, 'people', 'Waiting rooms overflow',
+        'Clinics are turning patients away. Families ask where the next hospital is.'],
+      [c.schooling * 7, 'people', 'Parents demand more school places',
+        'Classrooms are full and some children travel across the city to find a desk.'],
+      [c.rubbish * 8, 'city', 'Bins go uncollected',
+        'Rubbish is piling up on the pavements. More trucks, or a landfill closer in, say residents.'],
+      [c.utilities * 10, 'city', 'Taps and sockets run dry',
+        'Parts of the city are short of power or water. Businesses say they cannot plan.'],
+      [c.net < 0 ? 0.5 : 0, 'economy', 'City spends more than it earns',
+        `The treasury is losing ${money(Math.round(-c.net))} a week. Economists warn of cuts or rate rises to come.`],
+    ];
+    worries.sort((a, b) => b[0] - a[0]);
+    const [w, desk, head, body] = worries[0];
+    if (w > 0.12) news.print(day, desk, 'bad', head, body, `column-${head}`, 9);
+    else if (c.happiness > 0.7) {
+      news.print(day, 'people', 'good', 'A city in good spirits',
+        `${pct(c.happiness)} of residents say they are happy here. Newcomers keep arriving.`, 'column-happy', 12);
+    } else if (c.net > 0) {
+      news.print(day, 'economy', 'good', 'Treasury in the black',
+        `The city is taking in ${money(Math.round(c.net))} a week more than it spends.`, 'column-net', 12);
+    }
+  }
+
+  /** A notice that is news goes in the paper too. */
+  private toPaper(a: Alert): void {
+    const tag = a.tag ?? '';
+    const tone: NewsTone = a.tone === 'good' ? 'good' : a.tone === 'bad' || a.tone === 'warn' ? 'bad' : 'flat';
+    let desk: NewsDesk | null = null;
+    let key: string | undefined;
+    let quiet = 7;
+    if (tag.startsWith('util-') || tag === 'condemned' || tag === 'failing' || tag === 'raised') desk = 'city';
+    else if (tag === 'treasury' || tag.startsWith('loan-')) desk = 'economy';
+    else if (tag.startsWith('hotspot-')) desk = 'transport';
+    else if (tag === 'election') desk = 'politics';
+    else if (tag.startsWith('incident-miss-')) { desk = 'safety'; key = tag; quiet = 2; }
+    else if (tag === '' && (a.title === 'Windfall' || a.title === 'Setback')) desk = 'economy';
+    if (desk === null) return;
+    this.renderer.world.news.print(this.gameDay(), desk, tone, a.title, a.body, key, quiet);
   }
 
   private politicsMoved(was: Phase, now: Phase): void {
@@ -640,12 +725,12 @@ export class LiveCity {
     if (now === 'campaign') {
       this.alerts.push({
         title: pol.elections === 0 ? 'City Hall is open' : 'Election called',
-        body: 'Three candidates are standing for mayor, one of them yours. Open the phone '
-          + '(C) to write your platform before polling day.',
+        body: 'Three candidates are standing for mayor, one of them yours. Open the City Hall '
+          + 'computer (P) to write your platform before polling day.',
         tone: 'good', tag: 'election', icon: 'government',
       });
     } else if (now === 'count') {
-      this.alerts.push({ title: 'Polls have closed', body: 'The count is under way. Watch it on the phone.',
+      this.alerts.push({ title: 'Polls have closed', body: 'The count is under way. Watch it on the City Hall computer (P).',
         tone: 'good', tag: 'election', icon: 'government' });
     } else if (now === 'term' && was === 'count' && pol.mayor !== null) {
       const m = pol.mayor;
@@ -688,6 +773,24 @@ export class LiveCity {
       trade: share(Gripe.NO_CUSTOMERS),
       industry: taxed > 0 ? r.industrial / taxed : 0,
       flowing: this.renderer.summary.flowing,
+      ...(this.renderer.world.council.open ? { approval: this.renderer.world.council.overall } : {}),
+    };
+  }
+
+  /** The issues, and what else the council's blocs are sized and swayed by. */
+  private readCouncil(sim: Simulation, issues: Issues): CouncilCity {
+    const people = sim.people, pop = Math.max(1, people.population);
+    const staffed = sim.places.staffed;
+    const jobs = Math.max(1, staffed[Purpose.SHOP] + staffed[Purpose.OFFICE] + staffed[Purpose.WORKS] + staffed[Purpose.SERVICE]);
+    const senior = STAGE_NAMES.findIndex((n) => /senior|retire/i.test(n));
+    return {
+      ...issues,
+      unemployment: people.unemployment,
+      seniors: senior >= 0 ? people.byStage[senior] / pop : 0.12,
+      students: people.students / pop,
+      offices: staffed[Purpose.OFFICE] / jobs,
+      comTax: sim.budget.rates[1],
+      indTax: sim.budget.rates[2],
     };
   }
 
@@ -880,7 +983,12 @@ export class LiveCity {
     // The card promises the payout "to the treasury", so this is where it goes:
     // every level crossed, however it was earned, passes through here once.
     const budget = this.renderer.world.budget;
-    for (const l of levels) { budget.credit(l.cash); this.levelCard.push(l); }
+    for (const l of levels) {
+      budget.credit(l.cash);
+      this.levelCard.push(l);
+      this.renderer.world.news.print(this.gameDay(), 'city', 'good', `${this.cityName} is now a ${l.name.toLowerCase()}`,
+        `The city has reached level ${l.level}. The regional office sent ${money(l.cash)} to mark it.`);
+    }
     this.tech.refresh();
     this.onProgress?.();
   }
@@ -901,6 +1009,7 @@ export class LiveCity {
     this.alerts.visible = on;
     this.steps.visible = on;
     this.cititok.visible = on;
+    this.computer.visible = on;
     if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
       this.foundCity(this.sim);
@@ -1115,6 +1224,7 @@ export class LiveCity {
     if (wear !== null && wear !== undefined) this.renderer.refreshCity(wear);
     this.alerts.update(now);
     this.cititok.update(now);
+    this.computer.update(now);
   }
 
   /**

@@ -1,5 +1,5 @@
 /**
- * Stats: the phone's city-accounts app.
+ * Stats: the City Hall computer's city-accounts program.
  *
  * The budget card answers "what does a week cost". This answers everything
  * behind it: where every coin comes from and goes, which zone's tax is carrying

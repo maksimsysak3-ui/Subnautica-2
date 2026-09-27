@@ -1466,8 +1466,7 @@ Promise<{ pixels: number[]; movers: string }> {
       for (; pol.phase === 'campaign' && d < 40; d++) pol.update(d + 0.5, 0.016, c, w.policies, w.budget);
       pol.update(d, panel === 'hall-count' ? 9 : 99, c, w.policies, w.budget);
     }
-    live.cititok.show();
-    live.cititok.showApp('hall');
+    live.computer.show('hall');
   } else if (panel === 'sites') {
     // A district under construction, for photographing the stage between
     // zoning and buildings. Handing the released mask back means every zoned
@@ -1608,14 +1607,33 @@ Promise<{ pixels: number[]; movers: string }> {
     // own clock so the history is what the game records rather than staged.
     live.cityName = 'Salford';
     for (let i = 0; i < 24; i++) sim.step(900);
-    live.cititok.show();
-    live.cititok.showApp('stats');
+    live.computer.show('stats');
     const tab = panel.split('-')[1] ?? 'overview';
     (document.querySelector(`.mr-st-tab[data-tab="${tab}"]`) as HTMLElement | null)?.click();
     if (panel.endsWith('-end')) {
       const body = document.querySelector('.mr-st-body');
       if (body !== null) body.scrollTop = body.scrollHeight;
     }
+  } else if (panel.startsWith('desk')) {
+    // The City Hall computer in a council-era city, staged on the council's own
+    // model: the LITE city is far too small to have one.
+    live.cityName = 'Salford';
+    const w = renderer.world;
+    const city = { ...CALM, population: 6200, happiness: 0.63, net: 42000, crime: 0.06, rubbish: 0.04,
+      industry: 0.35, flowing: 0.72, unemployment: 0.09, seniors: 0.13, students: 0.1, offices: 0.12,
+      comTax: 0.09, indTax: 0.1 };
+    w.budget.balance = 2.4e6;
+    for (let d = -40; d <= 0; d++) {
+      w.council.update(d, city, w.policies, w.budget, w.news);
+      if (d === -30) { w.council.capital = 100; w.council.table('publicSafety', false, d, 6200); }
+      if (d === -12) { w.council.capital = 100; w.council.table('tourism', false, d, 6200); }
+    }
+    w.news.print(-2, 'economy', 'good', 'Windfall', 'A regional development grant came through.');
+    w.news.print(-1, 'transport', 'bad', 'Gridlock at the stadium', 'Crowds are converging on it and the roads in cannot take them.');
+    w.council.capital = 58;
+    w.council.table('education', false, 0, 6200);
+    w.council.inbox = [{ id: 'developer', day: -1 }, { id: 'busPay', day: -3 }];
+    live.computer.show((panel.split('-')[1] ?? 'home') as never);
   } else if (panel === 'weather') {
     live.cityName = 'Salford';
     live.cititok.show();

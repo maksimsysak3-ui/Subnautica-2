@@ -71,7 +71,11 @@ export class Alerts {
   /** How many cards are up. Tools read this; the game does not. */
   get count(): number { return this.live.length; }
 
+  /** Told of every notice, for the paper. */
+  onPush: ((alert: Alert) => void) | null = null;
+
   push(alert: Alert): void {
+    this.onPush?.(alert);
     const tone = TONE[alert.tone ?? 'info'];
     const tag = alert.tag ?? `${alert.title}|${alert.body}`;
 

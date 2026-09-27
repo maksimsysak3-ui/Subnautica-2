@@ -541,6 +541,8 @@ export class People {
       // player cannot squeeze the people already here without also putting off
       // the ones who would replace them.
       target += this.taxMood;
+      // And the council: laws, answered petitions, a protest in the street.
+      target += this.civicMood;
       const m = c.mood[id];
       this.setMood(id, m + Math.sign(target - m) * Math.min(Math.abs(target - m), 8 * days));
     }
@@ -909,6 +911,9 @@ export class People {
    * would have to ask twice.
    */
   taxMood = 0;
+
+  /** What the council's laws and the city's politics are doing to mood, in points. */
+  civicMood = 0;
 
   /** Average mood across the city, 0 to 1. */
   get happiness(): number {

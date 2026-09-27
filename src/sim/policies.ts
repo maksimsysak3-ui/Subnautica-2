@@ -80,6 +80,12 @@ export interface Price {
   perBuilding?: number;
 }
 
+/** A measure from outside the ordinance list: what it does and what it costs. */
+export interface Extra {
+  apply?: ((e: Effects) => void) | undefined;
+  price?: Price | undefined;
+}
+
 export interface PolicyDef {
   id: string;
   name: string;
@@ -209,6 +215,18 @@ export class Policies {
   /** Bumped whenever a switch moves, so readouts know to repaint. */
   version = 0;
   readonly effects: Effects = clear();
+  /**
+   * Measures in force that are not ordinances: the council's laws and the
+   * temporary answers to petitions. Set by `Council` through `setExtras`, so
+   * everything that reads the effects reads them too, and their weekly bills
+   * land on the same line of the ledger.
+   */
+  private extras: readonly Extra[] = [];
+
+  setExtras(extras: readonly Extra[]): void {
+    this.extras = extras;
+    this.recompute();
+  }
 
   has(i: number): boolean {
     return i >= 0 && i < POLICY_COUNT && this.on[i] === 1;
@@ -267,6 +285,12 @@ export class Policies {
         + (p.perJob ?? 0) * jobs
         + (p.perBuilding ?? 0) * buildings;
     }
+    for (const x of this.extras) {
+      const p = x.price;
+      if (p === undefined) continue;
+      total += (p.flat ?? 0) + (p.perResident ?? 0) * residents
+        + (p.perJob ?? 0) * jobs + (p.perBuilding ?? 0) * buildings;
+    }
     return total;
   }
 
@@ -292,6 +316,7 @@ export class Policies {
     for (let i = 0; i < POLICY_COUNT; i++) {
       if (this.on[i] === 1) POLICIES[i].apply(this.effects);
     }
+    for (const x of this.extras) x.apply?.(this.effects);
     this.version++;
   }
 }

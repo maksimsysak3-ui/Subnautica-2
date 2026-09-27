@@ -223,7 +223,7 @@ export class Cititok {
       + `stroke="${SKIN.accent}" stroke-width="1.6">`
       + '<rect x="1" y="1" width="15" height="24" rx="3"/>'
       + `<line x1="6.5" y1="3.4" x2="10.5" y2="3.4" stroke="${SKIN.accent}"/></svg>`;
-    tip(this.launcher, 'Phone — the city feed, the weather, City Hall and the city\'s stats', 'C');
+    tip(this.launcher, 'Phone — the city feed and the weather', 'C');
     this.launcher.addEventListener('click', () => { clickSound(); this.toggle(); });
     parent.appendChild(this.launcher);
 

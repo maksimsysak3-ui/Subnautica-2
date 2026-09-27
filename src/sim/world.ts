@@ -20,6 +20,8 @@ import { Transit } from './transit';
 import { Budget } from './budget';
 import { Policies } from './policies';
 import { Politics } from './politics';
+import { Council } from './council';
+import { Newsroom } from './news';
 import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
 import { MAP } from './maps';
@@ -196,6 +198,10 @@ export interface World {
   policies: Policies;
   /** Elections, the sitting mayor and the mandate they won. */
   politics: Politics;
+  /** The council: voting blocs, seats, bills, petitions. See `council.ts`. */
+  council: Council;
+  /** What the city's paper has printed. See `news.ts`. */
+  news: Newsroom;
   /** How hard the city was founded to be. See `difficulty.ts`. */
   difficulty: DifficultyId;
   /** Which starting map the city stands on. See `maps.ts`. */
@@ -248,6 +254,8 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     budget: new Budget(),
     policies: new Policies(),
     politics: new Politics(),
+    council: new Council(),
+    news: new Newsroom(),
     difficulty: RULES.id,
     map: MAP.id,
     industry: new Industry(),

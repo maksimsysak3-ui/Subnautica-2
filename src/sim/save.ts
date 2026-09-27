@@ -153,6 +153,9 @@ interface SaveFile {
   policies?: string[];
   /** City Hall: the race or the term in progress. Absent in older saves. */
   politics?: unknown;
+  /** The council and the paper. Absent in older saves: a town yet to elect one. */
+  council?: unknown;
+  news?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
   /** The starting map the city stands on. Absent in older saves: Meridian Vale. */
@@ -267,6 +270,8 @@ export function serialise(world: World, name: string, auto = false): string {
     ...((f) => (f === undefined ? {} : { funding: f }))(world.budget.saveFunding()),
     career: world.progress.save(),
     politics: world.politics.saved(),
+    council: world.council.saved(),
+    news: world.news.saved(),
     difficulty: world.difficulty,
     map: world.map,
     industry: world.industry.saved(),
@@ -376,6 +381,8 @@ export function deserialise(text: string): { world: World; name: string; at: num
     world.politics.restore(file.politics);
     world.politics.reapply(world.policies, world.budget);
   }
+  if (file.news !== undefined) world.news.restore(file.news);
+  if (file.council !== undefined) world.council.restore(file.council, world.policies);
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is
     // the right answer: it starts at level one with its three free services and

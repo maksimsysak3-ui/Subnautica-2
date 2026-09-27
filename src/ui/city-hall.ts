@@ -1,5 +1,5 @@
 /**
- * City Hall: the phone's politics app.
+ * City Hall: the elections program on the City Hall computer.
  *
  * Three screens, one per phase of the political year -- the race, the count
  * and the term -- plus the locked door before the town is big enough to hold
