@@ -240,7 +240,17 @@ export class Menu {
         key.setAttribute('role', 'button');
         key.title = `Delete ${e.label}`;
         const remove = e.remove;
-        key.addEventListener('click', (ev) => { ev.stopPropagation(); remove(); });
+        // Two clicks: the first arms it, the second deletes. A save is a
+        // city somebody spent hours on.
+        let armed = false;
+        key.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (armed) { remove(); return; }
+          armed = true;
+          key.textContent = 'Confirm delete';
+          key.classList.add('is-armed');
+          setTimeout(() => { armed = false; key.textContent = 'Delete'; key.classList.remove('is-armed'); }, 3000);
+        });
       }
       const hint = document.createElement('span');
       hint.className = 'mr-hint';
@@ -616,74 +626,115 @@ function when(at: number): string {
  */
 export function saveFromGame(world: World, suggested: string,
   say: (text: string) => void, named: (name: string) => void = () => {}): void {
-  // A panel, not `window.prompt`.
+  // A panel, not `window.prompt`: `prompt` is refused outright in a sandboxed
+  // iframe, which is where this game is played most of the time.
   //
-  // `prompt` is refused outright in a sandboxed iframe -- which is exactly
-  // where this game is played most of the time -- and a refused prompt returns
-  // null, which is indistinguishable from the player pressing cancel. So
-  // saving looked like it worked and quietly did nothing, every time, with no
-  // way to tell. This asks for the name itself.
+  // Save slots: every save in this browser is listed, and can be overwritten
+  // with this city or deleted (a second click confirms); a new slot takes the
+  // name typed, numbered if that name is already taken.
   const back = document.createElement('div');
-  back.style.cssText = [
-    'position:fixed', 'inset:0', 'z-index:40', 'display:grid', 'place-items:center',
-    'background:rgba(4,8,14,.62)', 'backdrop-filter:blur(3px)',
-    'font:400 14px/1.5 var(--ui, system-ui, sans-serif)',
-  ].join(';');
-
+  back.className = 'mr-savepanel';
   const card = document.createElement('div');
-  card.style.cssText = [
-    'display:flex', 'flex-direction:column', 'gap:12px', 'width:min(400px,90vw)',
-    'padding:20px', 'border-radius:14px', 'background:rgba(17,25,37,.96)',
-    'border:1px solid rgba(160,205,245,.22)', 'color:#f4f4f5',
-    'box-shadow:0 24px 60px rgba(0,0,0,.6)',
-  ].join(';');
+  card.className = 'mr-savecard';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-label', 'Save city');
+  const head = document.createElement('div');
+  head.className = 'mr-savehead';
+  head.innerHTML = '<b>Save city</b><span>Slots live in this browser.</span>';
 
-  const h = document.createElement('div');
-  h.textContent = 'Name this city';
-  h.style.cssText = 'font:600 15px/1.2 inherit';
-  const field = document.createElement('input');
-  field.value = suggested;
-  field.spellcheck = false;
-  field.style.cssText = [
-    'width:100%', 'padding:11px 13px', 'border-radius:10px',
-    'border:1px solid rgba(160,205,245,.28)', 'background:rgba(8,13,21,.85)',
-    'color:#f4f4f5', 'font:500 14px/1.2 inherit', 'outline:none',
-  ].join(';');
-
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:8px';
+  const list = document.createElement('div');
+  list.className = 'mr-saveslots';
   const shut = (): void => { back.remove(); document.removeEventListener('keydown', key); };
-  const make = (label: string, primary: boolean, fn: () => void): HTMLElement => {
+  const button = (label: string, cls: string, fn: () => void): HTMLButtonElement => {
     const b = document.createElement('button');
+    b.className = `mr-savebtn ${cls}`;
     b.textContent = label;
-    b.style.cssText = [
-      'flex:1', 'padding:10px 14px', 'border-radius:10px', 'cursor:pointer',
-      `border:1px solid ${primary ? 'rgba(143,216,255,.45)' : 'rgba(160,205,245,.20)'}`,
-      primary ? 'background:rgba(56,142,196,.32)' : 'background:rgba(12,19,30,.7)',
-      `color:${primary ? '#f4f4f5' : '#b6b6ba'}`, 'font:600 12px/1 inherit',
-    ].join(';');
-    b.addEventListener('click', fn);
+    b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     return b;
   };
+  const paint = (): void => {
+    list.replaceChildren();
+    const slots = listSaves().filter((x) => !x.auto);
+    if (slots.length === 0) {
+      const none = document.createElement('div');
+      none.className = 'mr-saveempty';
+      none.textContent = 'No saved slots yet.';
+      list.appendChild(none);
+    }
+    for (const slot of slots) {
+      const row = document.createElement('div');
+      row.className = 'mr-saveslot';
+      const words = document.createElement('div');
+      const nm = document.createElement('b');
+      nm.textContent = slot.name;
+      const sub = document.createElement('span');
+      sub.textContent = `${slotHint(slot)} · ${when(slot.at)}`;
+      words.append(nm, sub);
+      const over = button('Overwrite', 'is-quiet', () => {
+        const why = writeSave(world, slot.name);
+        shut();
+        if (why !== null) { say(`could not save: ${why}`); return; }
+        named(slot.name);
+        say(`saved over “${slot.name}”`);
+      });
+      let armed = false;
+      let timer = 0;
+      const del = button('Delete', 'is-danger', () => {
+        if (!armed) {
+          armed = true;
+          del.textContent = 'Confirm';
+          del.classList.add('is-armed');
+          timer = window.setTimeout(() => { armed = false; del.textContent = 'Delete'; del.classList.remove('is-armed'); }, 3000);
+          return;
+        }
+        window.clearTimeout(timer);
+        deleteSave(slot.key);
+        say(`deleted “${slot.name}”`);
+        paint();
+      });
+      row.append(words, over, del);
+      list.appendChild(row);
+    }
+  };
+  paint();
+
+  const newRow = document.createElement('div');
+  newRow.className = 'mr-savenew';
+  const field = document.createElement('input');
+  field.className = 'mr-savefield';
+  field.value = suggested;
+  field.spellcheck = false;
+  field.setAttribute('aria-label', 'Name for a new save slot');
   const commit = (): void => {
-    const name = field.value.trim();
+    let name = field.value.trim();
     if (name === '') { say('a city needs a name'); return; }
+    // A new slot never overwrites: a name already taken is numbered.
+    const taken = new Set(listSaves().filter((x) => !x.auto).map((x) => x.name.toLowerCase()));
+    if (taken.has(name.toLowerCase())) {
+      let n = 2;
+      while (taken.has(`${name} ${n}`.toLowerCase())) n++;
+      name = `${name} ${n}`;
+    }
     const why = writeSave(world, name);
     shut();
     if (why !== null) { say(`could not save: ${why}`); return; }
-    // Naming the save names the city. They were separate, which meant the two
-    // could disagree and the one on screen was always the wrong one.
+    // Naming the save names the city.
     named(name);
-    say(`saved as \u201c${name}\u201d`);
+    say(`saved as “${name}”`);
   };
+  newRow.append(field, button('Save as new slot', 'is-primary', commit));
+  const foot = document.createElement('div');
+  foot.className = 'mr-savefoot';
+  foot.appendChild(button('Cancel', 'is-quiet', () => { shut(); say('not saved'); }));
+
   const key = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') { shut(); say('not saved'); }
-    if (e.key === 'Enter') commit();
+    if (e.key === 'Enter' && document.activeElement === field) commit();
   };
   document.addEventListener('keydown', key);
+  back.addEventListener('pointerdown', (e) => { if (e.target === back) { shut(); say('not saved'); } });
 
-  row.append(make('Save', true, commit), make('Cancel', false, () => { shut(); say('not saved'); }));
-  card.append(h, field, row);
+  card.append(head, list, newRow, foot);
   back.appendChild(card);
   document.body.appendChild(back);
   field.focus();

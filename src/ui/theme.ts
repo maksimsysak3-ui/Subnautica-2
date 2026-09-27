@@ -1026,6 +1026,35 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
   .mr-pc-bill .mr-pc-side-col { grid-row: auto; grid-column: 1; align-items: flex-start; }
 }
 
+/* ---- save slots -------------------------------------------------------- */
+.mr-savepanel { position: fixed; inset: 0; z-index: 48; display: grid; place-items: center;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(3px); font: 400 14px/1.45 var(--ui); }
+.mr-savecard { width: min(520px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 48px)); display: flex; flex-direction: column;
+  gap: 14px; padding: 20px; border-radius: 14px; background: #1f2023; border: 1px solid rgba(255,255,255,.12);
+  color: #f2f2f3; box-shadow: 0 30px 70px rgba(0,0,0,.6); }
+.mr-savehead { display: flex; align-items: baseline; gap: 10px; }
+.mr-savehead b { font: 600 17px/1.2 var(--ui); }
+.mr-savehead span { margin-left: auto; font-size: 12px; color: #919196; }
+.mr-saveslots { display: flex; flex-direction: column; gap: 6px; overflow: auto; min-height: 0; }
+.mr-saveslot { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 9px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); }
+.mr-saveslot > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mr-saveslot b { font: 600 14px/1.25 var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-saveslot span { font-size: 12px; color: #919196; }
+.mr-saveempty { padding: 14px; text-align: center; color: #919196; font-size: 13px; }
+.mr-savenew { display: flex; gap: 8px; }
+.mr-savefield { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 9px; border: 1px solid rgba(255,255,255,.16);
+  background: #141517; color: #f2f2f3; font: 500 14px/1.2 var(--ui); outline: none; }
+.mr-savefield:focus { border-color: #6aaee8; }
+.mr-savefoot { display: flex; justify-content: flex-end; }
+.mr-savebtn { padding: 8px 13px; border-radius: 8px; cursor: pointer; font: 600 12.5px/1 var(--ui); border: 1px solid transparent; white-space: nowrap; }
+.mr-savebtn.is-primary { background: #3d7fc0; color: #fff; }
+.mr-savebtn.is-primary:hover { background: #4a8ed2; }
+.mr-savebtn.is-quiet { background: rgba(255,255,255,.07); color: #e4e4e6; border-color: rgba(255,255,255,.1); }
+.mr-savebtn.is-quiet:hover { background: rgba(255,255,255,.12); }
+.mr-savebtn.is-danger { background: transparent; color: #e0685a; border-color: rgba(224,104,90,.35); }
+.mr-savebtn.is-danger.is-armed, .mr-x.is-armed { background: #c9463a; color: #fff; border-color: #c9463a; }
+
 `;
 
 let installed = false;
