@@ -92,7 +92,9 @@ import type { Inspection } from './sim/agents/sim';
 import { buildingPrice } from './sim/costs';
 import { IncidentMarkers } from './ui/incidents';
 import { Need } from './sim/agents/dispatch';
-import { siren } from './ui/sound';
+import { siren, rumble } from './ui/sound';
+import { valleyAt } from './sim';
+import type { DisasterCity, Strike, Warning } from './sim/disasters';
 import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
@@ -586,6 +588,79 @@ export class LiveCity {
   dayClock(): { fraction: number; day: number } | null {
     if (this.sim === null || !this.running) return null;
     return { fraction: this.sim.clock.fraction, day: this.sim.clock.day };
+  }
+
+  /** The camera shake still owed by an earthquake, in seconds, and the offset last applied. */
+  private shakeLeft = 0;
+  private shakeAt: [number, number] = [0, 0];
+
+  /** What a disaster reads off the city: the building table, fire cover and the river. */
+  private disasterCity(sim: Simulation): DisasterCity {
+    const p = sim.places, c = p.col;
+    const fire = BRANCHES.indexOf('fire');
+    return {
+      population: sim.people.population,
+      count: p.count,
+      live: (i) => p.live[i] !== 0,
+      service: (i) => c.purpose[i] === Purpose.SERVICE,
+      x: (i) => c.x[i], z: (i) => c.z[i],
+      health: c.health,
+      cover: (i) => (fire < 0 ? 0 : sim.services.at(i, fire)),
+      riverside: (x, z) => { const v = valleyAt(x, z); return v !== null && !v.bed; },
+      ignite: (i) => sim.dispatch.ignite(i),
+    };
+  }
+
+  /** Sets one off now: for the tests, and for a player who wants to see what the defences are worth. */
+  forceDisaster(kind: 'storm' | 'flood' | 'quake'): boolean {
+    const sim = this.sim;
+    if (sim === null) return false;
+    const world = this.renderer.world;
+    const s = world.disasters.force(kind, this.gameDay(), this.disasterCity(sim), world.policies.effects, world.budget, world.news);
+    if (s !== null) this.disasterStruck(s);
+    return s !== null;
+  }
+
+  /** Storms, floods and earthquakes: forecast, strike, and what the player is told. */
+  private disasters(sim: Simulation, dt: number): void {
+    const world = this.renderer.world;
+    const got = world.disasters.update(this.gameDay(), this.disasterCity(sim), world.policies.effects, world.budget, world.news);
+    if (got?.warned !== undefined) this.disasterWarned(got.warned);
+    if (got?.struck !== undefined) this.disasterStruck(got.struck);
+    // The shake: an offset on the camera's focus, taken back off before the
+    // next one goes on, so the camera ends where it started.
+    if (this.shakeLeft > 0 || this.shakeAt[0] !== 0 || this.shakeAt[1] !== 0) {
+      this.camera.focus[0] -= this.shakeAt[0];
+      this.camera.focus[2] -= this.shakeAt[1];
+      this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+      const amp = Math.min(1, this.shakeLeft / 1.5) * Math.min(6, this.camera.distance * 0.012);
+      this.shakeAt = this.shakeLeft > 0 ? [(Math.random() - 0.5) * 2 * amp, (Math.random() - 0.5) * 2 * amp] : [0, 0];
+      this.camera.focus[0] += this.shakeAt[0];
+      this.camera.focus[2] += this.shakeAt[1];
+    }
+  }
+
+  private disasterWarned(w: Warning): void {
+    const flood = w.kind === 'flood';
+    this.alerts.push({
+      title: flood ? 'Flood warning' : 'Storm warning', tone: 'warn', tag: `disaster-warn-${w.kind}`,
+      body: flood
+        ? 'The river will break its banks within a day. Buildings on the banks will be damaged; flood defences (a council project) would stop most of it.'
+        : 'A severe storm crosses the city within a day. Fire cover limits the damage; an emergency plan (a council project) limits it more.',
+      go: () => this.lookAt(w.x, w.z),
+    });
+  }
+
+  private disasterStruck(s: Strike): void {
+    const what = s.kind === 'quake' ? `Earthquake, magnitude ${s.magnitude}` : s.kind === 'flood' ? 'Flood' : 'Storm damage';
+    this.alerts.push({
+      title: what, tone: 'bad', tag: `disaster-${s.kind}-${s.day}`,
+      body: s.hit === 0 ? 'No serious damage.'
+        : `${s.hit} building${s.hit === 1 ? '' : 's'} damaged${s.ruined > 0 ? `, ${s.ruined} lost` : ''}. Well-served streets recover in days; neglected ones are cleared.`,
+      ...(s.bill > 0 ? { figure: `−${money(s.bill)}` } : {}),
+      go: () => this.lookAt(s.x, s.z),
+    });
+    if (s.kind === 'quake') { this.shakeLeft = 2.6; rumble(); }
   }
 
   /** Brings the camera to a spot on the map, close enough to see what is there. */
@@ -1184,6 +1259,7 @@ export class LiveCity {
     sim.look(this.camera.focus[0], this.camera.focus[2]);
     sim.advance(dt, now);
     this.politics(sim, dt, now);
+    this.disasters(sim, dt);
 
     // Land the city has just grown into. Taken here rather than called back from
     // inside the tick on purpose: rebuilding re-enters this object through

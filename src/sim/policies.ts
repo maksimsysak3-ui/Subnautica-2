@@ -55,6 +55,10 @@ export interface Effects {
   parkingCharge: number;
   /** The highest tier a lot may be built up to, 0 to 2. */
   tierCap: number;
+  /** Multipliers on what each kind of disaster does to a building. */
+  floodDamage: number;
+  quakeDamage: number;
+  stormDamage: number;
 }
 
 function clear(): Effects {
@@ -67,6 +71,7 @@ function clear(): Effects {
     safetyReach: 1, learningReach: 1,
     transitFare: 1, parkingCharge: 0,
     tierCap: 2,
+    floodDamage: 1, quakeDamage: 1, stormDamage: 1,
   };
 }
 

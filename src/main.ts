@@ -169,6 +169,7 @@ async function boot(): Promise<void> {
       useMap(setup.map);
       live.reset();
       const fresh = startingWorld(renderer.world.grid);
+      fresh.disasters.level = setup.disasters;
       renderer.useWorld(fresh);
       renderer.rebuild();
       if (tools !== null) tools.cityName = setup.name; else loaded = setup.name;

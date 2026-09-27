@@ -163,6 +163,15 @@ export function thud(): void {
   ]);
 }
 
+/** The ground moving: a long low rumble with a shudder in it. */
+export function rumble(): void {
+  play([
+    { from: 55, to: 38, length: 2.4, type: 'sawtooth', gain: 0.10 },
+    { from: 80, to: 44, length: 1.8, type: 'triangle', gain: 0.12, delay: 0.1 },
+    { from: 140, to: 60, length: 0.5, type: 'sine', gain: 0.08, delay: 0.3 },
+  ]);
+}
+
 /** Land zoned: a quick rising brush of two notes. */
 export function brush(): void {
   play([

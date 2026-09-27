@@ -605,6 +605,11 @@ export class Dispatch {
    *
    * @param days game days since the last visit.
    */
+  /** Sets a building alight from outside: a quake's fires, a lightning strike. */
+  ignite(p: number): void {
+    if (p >= 0 && p < this.places.count && this.places.live[p] !== 0 && !this.hasOpen(Need.FIRE, p)) this.open(Need.FIRE, p);
+  }
+
   raise(days: number): void {
     if (days <= 0) return;
     if (this.exposed[Need.FIRE]) this.fires(days);

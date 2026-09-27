@@ -155,6 +155,8 @@ interface SaveFile {
   politics?: unknown;
   /** The council and the paper. Absent in older saves: a town yet to elect one. */
   council?: unknown;
+  /** Disasters: the frequency chosen at founding, a forecast, the record. Absent in older saves. */
+  disasters?: unknown;
   news?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
@@ -271,6 +273,7 @@ export function serialise(world: World, name: string, auto = false): string {
     career: world.progress.save(),
     politics: world.politics.saved(),
     council: world.council.saved(),
+    disasters: world.disasters.saved(),
     news: world.news.saved(),
     difficulty: world.difficulty,
     map: world.map,
@@ -383,6 +386,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   }
   if (file.news !== undefined) world.news.restore(file.news);
   if (file.council !== undefined) world.council.restore(file.council, world.policies);
+  if (file.disasters !== undefined) world.disasters.restore(file.disasters);
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is
     // the right answer: it starts at level one with its three free services and

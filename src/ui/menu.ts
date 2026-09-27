@@ -18,6 +18,7 @@ import { LOADING_ART } from './loading-art';
 import { installTheme } from './theme';
 import { DIFFICULTIES, describe } from '../sim/difficulty';
 import type { DifficultyId } from '../sim/difficulty';
+import { DISASTER_LEVELS, type DisasterLevel } from '../sim/disasters';
 import { glyph } from './glyphs';
 import { CARD_SHOTS } from './setup-shots';
 import { MAPS } from '../sim/maps';
@@ -34,6 +35,8 @@ export interface Setup {
   name: string;
   difficulty: DifficultyId;
   map: MapId;
+  /** How often storms, floods and earthquakes strike. */
+  disasters: DisasterLevel;
 }
 
 /** Names offered for a new city, rerolled with the dice. */
@@ -175,13 +178,13 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Natural disasters', 'Storms, floods and earthquakes, forecast where they can be. Fire cover, flood defences and a seismic code decide what they cost.'],
       ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 22 styles, generate a whole street, and let the city grow them in your zones.'],
       ['Device wheel', 'Hold Tab: your phone and the City Hall computer, in 3D. Point and let go.'],
       ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
       ['Save slots', 'Keep several saves of a city, overwrite or delete them from one list.'],
       ['City Hall computer', 'Press P: the council, the Herald, your voters, petitions, stats and elections on one desk.'],
       ['Real politics', 'Six voting blocs, a council elected by D\'Hondt, bills that need votes, lobbying, protests and strikes.'],
-      ['Seasons', 'Leaves turn in autumn and snow lies through the winter, on the ground, the roofs and the trees.'],
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';
@@ -540,12 +543,43 @@ export class Menu {
 
     const foot = document.createElement('div');
     foot.className = 'mr-setup-foot';
+    // Disasters: how often the city is tested by something nobody chose.
+    let hazard: DisasterLevel = 'rare';
+    const hazards = document.createElement('div');
+    hazards.className = 'mr-setup-hazards';
+    const hl = document.createElement('span');
+    hl.textContent = 'Natural disasters';
+    const seg = document.createElement('div');
+    seg.className = 'mr-seg';
+    seg.setAttribute('role', 'radiogroup');
+    seg.setAttribute('aria-label', 'Natural disasters');
+    const HAZARD_TIP: Record<DisasterLevel, string> = {
+      off: 'None, ever', rare: 'About once in five years', normal: 'About once in two years', often: 'Most years',
+    };
+    for (const lv of DISASTER_LEVELS) {
+      const b = document.createElement('button');
+      b.className = `mr-seg-btn${lv === hazard ? ' is-on' : ''}`;
+      b.dataset.hazard = lv;
+      b.textContent = lv.charAt(0).toUpperCase() + lv.slice(1);
+      b.title = `${HAZARD_TIP[lv]}. Storms, floods and earthquakes, from 1,500 residents; storms and floods are forecast a day ahead.`;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(lv === hazard));
+      b.addEventListener('click', () => {
+        hazard = lv;
+        seg.querySelectorAll('button').forEach((x) => {
+          x.classList.toggle('is-on', x === b);
+          x.setAttribute('aria-checked', String(x === b));
+        });
+      });
+      seg.appendChild(b);
+    }
+    hazards.append(hl, seg);
     const note = document.createElement('p');
-    note.textContent = 'The map and the difficulty are set for the life of this city.';
+    note.textContent = 'The map, the difficulty and disasters are set for the life of this city.';
     const found = document.createElement('button');
     found.className = 'mr-found';
     found.innerHTML = `<span style="display:inline-flex;vertical-align:-4px;margin-right:10px">${glyph('signature', 20)}</span>Found the city`;
-    foot.append(note, found);
+    foot.append(hazards, note, found);
 
     el.append(head, nameBox, maps, cards, foot);
     this.root.appendChild(el);
@@ -558,7 +592,7 @@ export class Menu {
     const go = (): void => {
       const name = field.value.trim() === '' ? NAMES[0] : field.value.trim();
       shut();
-      this.close(() => this.hooks.onNew({ name, difficulty: pick, map: mapPick }));
+      this.close(() => this.hooks.onNew({ name, difficulty: pick, map: mapPick, disasters: hazard }));
     };
     const keys = (e: KeyboardEvent): void => {
       // Captured ahead of the title list's own keys, which are underneath.

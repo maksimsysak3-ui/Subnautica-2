@@ -21,6 +21,7 @@ import { Budget } from './budget';
 import { Policies } from './policies';
 import { Politics } from './politics';
 import { Council } from './council';
+import { Disasters } from './disasters';
 import { Newsroom } from './news';
 import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
@@ -200,6 +201,8 @@ export interface World {
   politics: Politics;
   /** The council: voting blocs, seats, bills, petitions. See `council.ts`. */
   council: Council;
+  /** Storms, floods and earthquakes: how often, what is forecast, what has struck. */
+  disasters: Disasters;
   /** What the city's paper has printed. See `news.ts`. */
   news: Newsroom;
   /** How hard the city was founded to be. See `difficulty.ts`. */
@@ -255,6 +258,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     policies: new Policies(),
     politics: new Politics(),
     council: new Council(),
+    disasters: new Disasters(),
     news: new Newsroom(),
     difficulty: RULES.id,
     map: MAP.id,

@@ -477,6 +477,26 @@ export class Computer {
           row.appendChild(box);
         });
       em.appendChild(row);
+      // Disasters: what is forecast, what last struck, and what the city has in hand against them.
+      const dz = this.host.world().disasters;
+      const fx = this.host.world().policies.effects;
+      const kindName = { storm: 'Storm', flood: 'Flood', quake: 'Earthquake' } as const;
+      const line = el('div', 'mr-pc-row');
+      line.style.cssText = 'margin-top:12px;gap:10px;flex-wrap:wrap;align-items:baseline';
+      const head = el('b', undefined, 'Disasters');
+      const said: string[] = [];
+      if (dz.level === 'off') said.push('switched off for this city');
+      else {
+        if (dz.warning !== null) said.push(`${kindName[dz.warning.kind]} forecast within a day`);
+        const last = dz.history[0];
+        said.push(last === undefined ? 'none yet' : `last: ${kindName[last.kind].toLowerCase()} on day ${Math.floor(last.day)}, ${last.hit} damaged, ${last.ruined} lost`);
+        const guard = [fx.floodDamage < 1 ? 'flood defences' : '', fx.quakeDamage < 1 ? 'seismic code' : '', fx.stormDamage < 1 ? 'emergency plan' : ''].filter((x) => x !== '');
+        said.push(guard.length > 0 ? `protected by ${guard.join(', ')}` : 'no protection yet: see Projects');
+      }
+      const words = el('span', 'mr-pc-note', said.join(' · '));
+      if (dz.warning !== null) words.style.color = tone(0.2);
+      line.append(head, words);
+      em.appendChild(line);
     }
     g.appendChild(em);
     this.body.appendChild(g);
