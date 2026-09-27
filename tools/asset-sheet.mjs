@@ -63,8 +63,23 @@ const shader = fs.readFileSync(shaderDir + 'asset.wgsl', 'utf8')
   .replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,
     (whole, name) => (fs.existsSync(shaderDir + name)
       ? fs.readFileSync(shaderDir + name, 'utf8') : whole));
+// STUDIO=1: instead of the registry, one generated blueprint building per
+// style and use, as the Blueprint Studio would make them.
+const srcDir = new URL('../src/', import.meta.url).pathname;
 const registry = (
-  await esbuild.build({
+  await esbuild.build(process.env.STUDIO ? {
+    stdin: {
+      contents: `import { blueprintAsset, cleanBlueprint } from '${srcDir}assets/generators/blueprint';
+import { generateBuilding, BB_THEMES, THEMES } from '${srcDir}assets/generators/blueprint-building';
+export const ASSETS = [];
+for (const th of BB_THEMES) for (const ty of THEMES[th].types) {
+  const g = generateBuilding(${Number(process.env.STUDIO) || 1} * 7919 + th.length * 131 + ty.length, th, ty);
+  ASSETS.push(blueprintAsset(cleanBlueprint({ name: THEMES[th].label + ' ' + ty, kind: 'building', building: g.plan, width: g.width, depth: g.depth }), 'sheet', th + '-' + ty));
+}`,
+      resolveDir: srcDir, loader: 'js',
+    },
+    bundle: true, format: 'iife', globalName: 'REG', write: false, target: 'es2022',
+  } : {
     entryPoints: [new URL('../src/assets/registry.ts', import.meta.url).pathname],
     bundle: true, format: 'iife', globalName: 'REG', write: false, target: 'es2022',
   })

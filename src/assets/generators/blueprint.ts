@@ -24,6 +24,8 @@ import { glaze, plate } from './towers';
 import { centroid, grow, litCrown, plantFloor, shaft, shrink, soffit, square, triPlan } from './supertalls';
 import { skinShaft, terraceTree } from './supertalls-unique';
 import { entrance } from '../parts';
+import { buildingCapacity, buildingMesh, buildingSvg, cleanBuilding, zoneOf, DEFAULT_BUILDING } from './blueprint-building';
+import type { BuildingPlan } from './blueprint-building';
 
 export const BP_SHAPES = ['box', 'rounded', 'round', 'triangle', 'chamfered', 'hex', 'cross'] as const;
 export const BP_FACADES = ['glass', 'frame', 'stone', 'brick', 'concrete'] as const;
@@ -55,6 +57,10 @@ export interface Section {
 
 export interface Blueprint {
   name: string;
+  /** A tower (the fields below), or a building from `blueprint-building.ts`. Absent: a tower. */
+  kind?: 'tower' | 'building';
+  /** The building's design, when `kind` is 'building'. */
+  building?: BuildingPlan;
   zone: typeof BP_ZONES[number];
   /** Footprint in cells, 8 m each. */
   width: number;
@@ -126,8 +132,8 @@ export function cleanBlueprint(raw: unknown): Blueprint {
   return {
     name: typeof o.name === 'string' && o.name.trim() !== '' ? o.name.trim().slice(0, 40) : d.name,
     zone: oneOf(o.zone, BP_ZONES, d.zone),
-    width: Math.round(clampN(o.width, 3, 12, d.width)),
-    depth: Math.round(clampN(o.depth, 3, 12, d.depth)),
+    width: Math.round(clampN(o.width, o.kind === 'building' ? 2 : 3, 12, d.width)),
+    depth: Math.round(clampN(o.depth, o.kind === 'building' ? 2 : 3, 12, d.depth)),
     layout: oneOf(o.layout, BP_LAYOUTS, 'single'),
     floors: Math.round(clampN(o.floors, 3, 90, d.floors)),
     floorHeight: clampN(o.floorHeight, 3, 5, d.floorHeight),
@@ -145,7 +151,13 @@ export function cleanBlueprint(raw: unknown): Blueprint {
     bands: Math.round(clampN(o.bands, 0, 30, d.bands)),
     lit: o.lit !== false,
     sections: Array.isArray(o.sections) ? o.sections.slice(0, MAX_SECTIONS).map(cleanSection) : [],
+    ...(o.kind === 'building' ? { kind: 'building' as const, building: cleanBuilding(o.building ?? DEFAULT_BUILDING) } : {}),
   };
+}
+
+/** A building blueprint's lot is smaller than a tower's can be: two cells up. */
+function isBuilding(bp: Blueprint): bp is Blueprint & { kind: 'building'; building: BuildingPlan } {
+  return bp.kind === 'building' && bp.building !== undefined;
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -311,6 +323,12 @@ const BUDGET = 24000;
  */
 export function blueprintMesh(raw: Blueprint, lod: number): MeshBuilder {
   const bp = cleanBlueprint(raw);
+  if (isBuilding(bp)) {
+    // Built at the detail asked for, and a notch coarser if that is over budget.
+    let mb = buildingMesh(bp.building, bp.width, bp.depth, lod);
+    if (lod < 1 && mb.build({ occlusion: false }).indices.length / 3 > BUDGET) mb = buildingMesh(bp.building, bp.width, bp.depth, 1);
+    return mb;
+  }
   // First, the fit: fins, balconies and crowns stand proud of the plan, and a
   // turned plan swings its corners about, so the towers are drawn in until the
   // whole of the building is on its lot.
@@ -681,6 +699,10 @@ function crown(m: MeshBuilder, bp: Blueprint, lod: number, at: (t: number) => Ri
 
 /** What a blueprint holds, for the tile and the stats line. */
 export function blueprintCapacity(raw: Blueprint): { homes: number; jobs: number; height: number } {
+  if (raw.kind === 'building') {
+    const b = cleanBlueprint(raw);
+    if (isBuilding(b)) return buildingCapacity(b.building, b.width, b.depth);
+  }
   const bp = cleanBlueprint(raw);
   const { pieces: towers } = layout(bp, 2);
   let floorArea = bp.podium > 0 ? bp.width * 8 * bp.depth * 8 * bp.podium * 0.8 : 0;
@@ -702,6 +724,28 @@ export function blueprintAsset(raw: Blueprint, mod: string, key: string): AssetD
   const colour = rgb(bp.colour);
   const accent = rgb(bp.accent);
   const people = cap.homes + cap.jobs;
+  if (isBuilding(bp)) {
+    const b = bp.building;
+    const zone = zoneOf(b.type);
+    return {
+      id: `mod.${mod}.${key}`, name: bp.name, zone,
+      density: b.storeys >= 5 ? 'high' : b.storeys >= 3 ? 'medium' : 'low',
+      variant: 'sculpted', theme: 'modern', signature: true, mod,
+      footprint: [bp.width, bp.depth], height: 0,
+      // The walls ride the brand colour and the roof the accent: the same two
+      // tints the renderer already carries for every building.
+      brand: { name: bp.name, colour: rgb(b.wallColour), accent: rgb(b.roofColour), sign: 'box' },
+      sim: {
+        ...(cap.homes > 0 ? { households: cap.homes } : { jobs: cap.jobs }),
+        powerKW: people * (zone === 'industrial' ? 6 : 2.6), waterM3: people * 0.3, garbagePerWeek: people * 5,
+        pollution: b.type === 'factory' ? 0.6 : b.type === 'warehouse' ? 0.2 : 0, upkeep: Math.round(people * 0.7),
+      },
+      note: `A ${b.storeys}-storey ${b.type === 'townhouses' ? 'terrace' : b.type}, ${Math.round(cap.height)} m, `
+        + `${cap.homes > 0 ? `${cap.homes} home${cap.homes === 1 ? '' : 's'}` : `${cap.jobs} jobs`}. A blueprint from a mod.`,
+      iconSvg: blueprintSvg(bp, 52),
+      build: (lod: number) => blueprintMesh(bp, lod),
+    };
+  }
   const storeys = bp.floors + bp.sections.reduce((s, x) => s + x.floors, 0);
   const towers = bp.layout === 'single' ? '' : bp.layout === 'twin' ? 'Twin towers, ' : 'Three towers, ';
   return {
@@ -737,6 +781,7 @@ const FACADE_FILL: Record<Blueprint['facade'], string> = {
  */
 export function blueprintSvg(raw: Blueprint, size: number): string {
   const bp = cleanBlueprint(raw);
+  if (isBuilding(bp)) return buildingSvg(bp.building, bp.width, bp.depth, size);
   const { hx, lotX } = extents(bp);
   const podH = bp.podium * bp.floorHeight;
   const floors = bp.crown === 'stepped' ? Math.round(bp.floors * 0.8) : bp.floors;

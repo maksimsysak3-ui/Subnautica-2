@@ -1130,6 +1130,9 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
 .mr-dev-neck .mr-dev-face, .mr-dev-foot .mr-dev-face { background: linear-gradient(160deg,#d6d7da,#8c8d92); }
 .mr-dev-foot { position: absolute !important; left: 57px; top: 162px; transform: translateZ(-4px); }
 
+.mr-studio-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin: 8px 0 12px; }
+.mr-studio-themes .mr-seg-btn { justify-content: center; padding: 9px 6px; }
+
 `;
 
 let installed = false;

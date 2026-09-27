@@ -20,6 +20,10 @@ import {
   blueprintSvg, blueprintCapacity, blueprintAsset, cleanBlueprint, cleanSection, DEFAULT_BLUEPRINT, DEFAULT_SECTION,
   BP_SHAPES, BP_FACADES, BP_CROWNS, BP_ZONES, BP_LAYOUTS, BP_PODIUMS, MAX_SECTIONS, type Blueprint, type Section,
 } from '../assets/generators/blueprint';
+import {
+  BB_TYPES, BB_PLANS, BB_ROOFS, BB_WALLS, BB_WINDOWS, BB_THEMES, THEMES, DEFAULT_BUILDING, cleanBuilding,
+  generateBuilding, type BuildingPlan, type BuildingTheme,
+} from '../assets/generators/blueprint-building';
 import { glyph } from './glyphs';
 import { ModelView, modelIconHtml } from './model-view';
 
@@ -181,7 +185,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       else pic.innerHTML = blueprintSvg(bp, 240);
       const c = blueprintCapacity(bp);
       stats.replaceChildren(
-        ...[[`${Math.round(c.height)} m`, 'tall'], [`${bp.floors + bp.sections.reduce((n, x) => n + x.floors, 0)}`, 'storeys'],
+        ...[[`${Math.round(c.height)} m`, 'tall'], [`${bp.kind === 'building' && bp.building !== undefined ? bp.building.storeys : bp.floors + bp.sections.reduce((n, x) => n + x.floors, 0)}`, 'storeys'],
           [c.homes > 0 ? `${c.homes}` : `${c.jobs}`, c.homes > 0 ? 'homes' : 'jobs'],
           [`${bp.width}×${bp.depth}`, 'cells']].map(([v, k]) => {
           const s = el('div', 'mr-studio-stat');
@@ -307,6 +311,116 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       return card;
     };
 
+    /** The building studio: style, form, walls and windows, roof, details. */
+    const bcur = (): BuildingPlan => cleanBuilding(cur().building ?? DEFAULT_BUILDING);
+    const bset = <K extends keyof BuildingPlan>(k: K, v: BuildingPlan[K]): void => {
+      towers[at] = { ...towers[at], kind: 'building', building: { ...bcur(), [k]: v, ...(k === 'theme' ? {} : { theme: 'custom' as const }) } };
+      refresh();
+    };
+    const bpick = <K extends 'type' | 'plan' | 'roof' | 'walls' | 'windows'>(label: string, k: K, options: readonly BuildingPlan[K][]): HTMLElement =>
+      choose(label, () => bcur()[k] as string, (v) => bset(k, v as BuildingPlan[K]), options as readonly string[]);
+    const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden'): HTMLElement =>
+      check(label, () => bcur()[k], (v) => bset(k, v));
+    const bcolour = (k: 'wallColour' | 'roofColour', tip: string): HTMLInputElement => {
+      const c = el('input', 'mr-studio-colour');
+      c.type = 'color';
+      c.title = tip;
+      c.value = bcur()[k];
+      c.addEventListener('input', () => bset(k, c.value));
+      return c;
+    };
+    let styleSeed = 1;
+    // A name the studio gave keeps up with the design; one the player typed is left alone.
+    const autoName = (name: string, p: BuildingPlan): string => {
+      const given = name === 'My Tower' || name === 'My Building' || name === ''
+        || BB_THEMES.some((th) => name.startsWith(`${THEMES[th].label} `));
+      return given && p.theme !== 'custom' ? `${THEMES[p.theme].label} ${p.type}` : name;
+    };
+    const generate = (theme?: BuildingTheme): void => {
+      const g = generateBuilding((Date.now() ^ (styleSeed++ * 7919)) >>> 0, theme,
+        theme !== undefined && THEMES[theme].types.includes(bcur().type) ? bcur().type : undefined);
+      towers[at] = { ...towers[at], name: autoName(towers[at].name, g.plan),
+        kind: 'building', building: g.plan, width: g.width, depth: g.depth };
+    };
+    const buildingBench = (nameRow: HTMLElement, kindRow: HTMLElement): void => {
+      nameRow.querySelectorAll('.mr-studio-colour').forEach((x) => x.remove());
+      nameRow.append(bcolour('wallColour', 'Wall colour (render, timber and metal walls)'), bcolour('roofColour', 'Roof colour, doors, shutters and awnings'));
+      const tabs = el('div', 'mr-seg mr-studio-tabs');
+      ['Style', 'Form', 'Walls & windows', 'Roof', 'Details'].forEach((n, i) => {
+        const b = el('button', `mr-seg-btn${i === tab ? ' is-on' : ''}`, n);
+        b.addEventListener('click', () => { tab = i; build(); });
+        tabs.appendChild(b);
+      });
+      const page = el('div', 'mr-studio-page');
+      const b = bcur();
+      if (tab === 0) {
+        page.appendChild(el('p', 'mr-mods-note',
+          'Pick a style and the whole building is drawn in it: plan, storeys, walls, windows, roof and details. Press again for another; then change anything by hand.'));
+        const grid = el('div', 'mr-studio-themes');
+        for (const th of BB_THEMES) {
+          const btn = el('button', `mr-seg-btn${b.theme === th ? ' is-on' : ''}`, THEMES[th].label);
+          btn.title = `${THEMES[th].label}: ${THEMES[th].types.join(', ')}`;
+          btn.addEventListener('click', () => { generate(th); build(); });
+          grid.appendChild(btn);
+        }
+        page.appendChild(grid);
+        const street = el('button', 'mr-st-btn', 'Generate a street in this style');
+        street.title = 'Fills the mod with up to eight buildings in the current style';
+        street.addEventListener('click', () => {
+          const theme = b.theme === 'custom' ? undefined : b.theme;
+          while (towers.length < MAX_BUILDINGS) {
+            const g = generateBuilding((Date.now() ^ (styleSeed++ * 104729)) >>> 0, theme);
+            towers.push({ ...cleanBlueprint(towers[at]), name: `${theme !== undefined ? THEMES[theme].label : 'Street'} ${towers.length + 1}`,
+              kind: 'building', building: g.plan, width: g.width, depth: g.depth });
+          }
+          build();
+        });
+        page.appendChild(street);
+      } else if (tab === 1) {
+        page.append(
+          bpick('Use', 'type', BB_TYPES),
+          bpick('Plan', 'plan', BB_PLANS),
+          range('Width', 'width', 2, 12, 1, (v) => `${v * 8} m`),
+          range('Depth', 'depth', 2, 12, 1, (v) => `${v * 8} m`),
+          slider('Storeys', () => bcur().storeys, (v) => bset('storeys', v), 1, 14, 1, (v) => `${v}`),
+          slider('Storey height', () => bcur().floorHeight, (v) => bset('floorHeight', v), 2.8, 6, 0.1, (v) => `${v.toFixed(1)} m`),
+        );
+      } else if (tab === 2) {
+        page.append(
+          bpick('Walls', 'walls', BB_WALLS),
+          bpick('Windows', 'windows', BB_WINDOWS),
+          btick('Shutters beside the windows', 'shutters'),
+          btick('Balconies', 'balconies'),
+          btick('Cornice and storey bands', 'cornice'),
+        );
+      } else if (tab === 3) {
+        page.append(
+          bpick('Roof', 'roof', BB_ROOFS),
+          slider('Pitch', () => bcur().pitch, (v) => bset('pitch', v), 0.15, 0.9, 0.01, (v) => `${Math.round(Math.atan(v) * 180 / Math.PI)}°`),
+          btick('Dormer windows', 'dormers'),
+          slider('Chimneys', () => bcur().chimneys, (v) => bset('chimneys', v), 0, 4, 1, (v) => (v === 0 ? 'None' : `${v}`)),
+        );
+      } else {
+        page.append(
+          btick('Porch over the front door', 'porch'),
+          btick('Awning over the shopfront', 'awning'),
+          btick('Loading docks (warehouses and works)', 'docks'),
+          btick('Front garden with a hedge', 'garden'),
+        );
+      }
+      const acts = el('div', 'mr-mod-acts');
+      const dice = el('button', 'mr-mod-act', 'Surprise me');
+      dice.addEventListener('click', () => { generate(); build(); });
+      acts.appendChild(dice);
+      if (towers.length > 1) {
+        const drop = el('button', 'mr-mod-act is-bad', 'Remove building');
+        drop.addEventListener('click', () => { towers.splice(at, 1); at = Math.max(0, at - 1); build(); });
+        acts.appendChild(drop);
+      }
+      controls.append(el('div', 'mr-mod-label', `Building ${at + 1} of ${towers.length}`), nameRow, kindRow, tabs, page, acts);
+      refresh();
+    };
+
     const build = (): void => {
       controls.replaceChildren();
       const bpName = el('input', 'mr-mod-input');
@@ -316,6 +430,24 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       bpName.addEventListener('input', () => set('name', bpName.value));
       const nameRow = el('div', 'mr-studio-name');
       nameRow.append(bpName, colourIn('colour', 'Brand colour: frame, lit crown'), colourIn('accent', 'Accent: domes, fins, halos'));
+
+      // Tower or building: two different studios on one bench.
+      const kindRow = choose('Kind', () => (cur().kind === 'building' ? 'building' : 'tower'), (v) => {
+        const t = towers[at];
+        if (v === 'building') {
+          const g = t.building !== undefined ? null : generateBuilding(Date.now() & 0xffff, 'victorian', 'townhouses');
+          towers[at] = { ...t, name: t.name === 'My Tower' ? 'My Building' : t.name, kind: 'building', building: t.building ?? g!.plan,
+            width: g !== null ? g.width : t.width, depth: g !== null ? g.depth : t.depth };
+        } else {
+          towers[at] = { ...t, kind: 'tower', width: Math.max(3, t.width), depth: Math.max(3, t.depth) };
+        }
+        tab = 0;
+        build();
+      }, ['tower', 'building'] as const);
+      if (cur().kind === 'building') {
+        buildingBench(nameRow, kindRow);
+        return;
+      }
 
       const tabs = el('div', 'mr-seg mr-studio-tabs');
       const names = ['Mass', 'Skin', `Sections · ${cur().sections.length}`, 'Top & base'];
@@ -382,7 +514,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
         acts.appendChild(drop);
       }
 
-      controls.append(el('div', 'mr-mod-label', `Building ${at + 1} of ${towers.length}`), nameRow, tabs, page, acts);
+      controls.append(el('div', 'mr-mod-label', `Building ${at + 1} of ${towers.length}`), nameRow, kindRow, tabs, page, acts);
       refresh();
     };
 
