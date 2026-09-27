@@ -275,6 +275,8 @@ async function boot(): Promise<void> {
   // keeps the right button and the wheel throughout, so the player never has
   // to put a tool down to look somewhere else.
   tools = new BuildTools(canvas, camera, renderer, overlay);
+  live.onSave = () => tools?.save();
+  tools.onService = (x, z) => live.serviceCheer(x, z);
   if (ModTools.wanted()) {
     modTools = new ModTools(overlay, renderer, camera);
     modTools.visible = !cinematic;

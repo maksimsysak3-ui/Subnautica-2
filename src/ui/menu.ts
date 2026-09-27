@@ -175,13 +175,13 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Device wheel', 'Hold Tab: your phone and the City Hall computer, in 3D. Point and let go.'],
+      ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
+      ['Save slots', 'Keep several saves of a city, overwrite or delete them from one list.'],
       ['City Hall computer', 'Press P: the council, the Herald, your voters, petitions, stats and elections on one desk.'],
       ['Real politics', 'Six voting blocs, a council elected by D\'Hondt, bills that need votes, lobbying, protests and strikes.'],
-      ['Tougher economy', 'Towers pay less tax per head, exports saturate, and level-ups no longer hand out millions.'],
       ['Seasons', 'Leaves turn in autumn and snow lies through the winter, on the ground, the roofs and the trees.'],
       ['Metro', 'Stations anywhere, trains in their own tunnels, clear of the traffic. Opens at level 8.'],
-      ['Service budgets', 'Fund each service from 50% to 150%: cut costs, or buy more cover and crews.'],
-      ['Photo Mode & Sky Control', 'Tool mods: frame the city in a letterbox, and set the hour, the weather and the season.'],
     ];
     const list = document.createElement('ol');
     list.className = 'mr-news-list';

@@ -329,7 +329,8 @@ export class Cititok {
   }
 
   set visible(on: boolean) {
-    this.launcher.style.display = on ? 'grid' : 'none';
+    // Reached through the device wheel (and its own key) rather than a button of its own.
+    this.launcher.style.display = 'none';
     if (!on) this.close();
   }
 

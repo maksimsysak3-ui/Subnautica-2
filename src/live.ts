@@ -47,6 +47,7 @@ import { LevelUpCard } from './ui/levelup';
 import { Settings } from './ui/settings';
 import { Cititok } from './ui/cititok';
 import { Computer } from './ui/computer';
+import { TechWheel } from './ui/tech-wheel';
 import { GRIPE_INFO } from './sim';
 import { landmarksForLevel } from './sim/tech';
 import { GOALS } from './sim/goals';
@@ -176,6 +177,10 @@ export class LiveCity {
   readonly cititok: Cititok;
   /** The City Hall computer: council, paper, voters, petitions, stats, elections. */
   readonly computer: Computer;
+  /** Hold Tab: every device and desk, a flick away. */
+  readonly wheel: TechWheel;
+  /** Saving, which the build tools own; set by the page. */
+  onSave: (() => void) | null = null;
   /**
    * Where the city's name is read from. A function, not a copy: the name
    * changes on founding, on load and when a save renames it, and a copy taken
@@ -288,6 +293,10 @@ export class LiveCity {
       ledger: () => this.sim?.economy.report ?? null,
       dispatch: () => this.sim?.dispatch.stats ?? null,
     }, this.hall, this.statsApp);
+    this.wheel = new TechWheel(ui, [
+      { label: 'Phone', device: 'phone', hint: 'The city feed and the weather', run: () => this.cititok.show() },
+      { label: 'Computer', device: 'computer', hint: 'City Hall: council, news, industry, stats', run: () => this.computer.show() },
+    ]);
     this.settings = new Settings(ui, {
       apply: (v) => {
         const q = renderer.quality;
@@ -782,6 +791,30 @@ export class LiveCity {
     }
   }
 
+  /**
+   * A service just placed: the homes round it cheer. The complaint-driven
+   * faces only rise from buildings that were already unhappy about that
+   * service, so a school opened before anyone asked for one went unmarked --
+   * and opening a school is a thing a city is glad of either way.
+   */
+  serviceCheer(x: number, z: number): void {
+    const sim = this.sim;
+    if (sim === null) return;
+    const homes = sim.places.byPurpose[Purpose.HOME];
+    const c = sim.places.col;
+    const near: Array<{ x: number; z: number }> = [];
+    const R = 520;
+    for (let i = 0; i < homes.size; i++) {
+      const p = homes.member(i);
+      if (sim.places.live[p] === 0 || c.living[p] === 0) continue;
+      const dx = c.x[p] - x, dz = c.z[p] - z;
+      if (dx * dx + dz * dz < R * R) near.push({ x: c.x[p], z: c.z[p] });
+    }
+    // Nearest first, so the ripple spreads out from the new building.
+    near.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+    this.cheers.add(near.slice(0, 40), this.camera, performance.now());
+  }
+
   /** A notice that is news goes in the paper too. */
   private toPaper(a: Alert): void {
     const tag = a.tag ?? '';
@@ -1089,6 +1122,7 @@ export class LiveCity {
     this.steps.visible = on;
     this.cititok.visible = on;
     this.computer.visible = on;
+    this.wheel.visible = on;
     if (!on) { this.alerts.clear(); this.closeInspect(); }
     if (on && this.sim !== null && !this.founded) {
       this.foundCity(this.sim);
@@ -1304,6 +1338,7 @@ export class LiveCity {
     this.alerts.update(now);
     this.cititok.update(now);
     this.computer.update(now);
+    this.wheel.badge(this.renderer.world.council.inbox.length);
   }
 
   /**

@@ -44,7 +44,7 @@ export class Cheers {
   }
 
   /** New met needs, from the simulation. Only those near enough to see are shown. */
-  add(list: readonly Complaint[], camera: Camera, now: number): void {
+  add(list: readonly Pick<Complaint, 'x' | 'z'>[], camera: Camera, now: number): void {
     if (list.length === 0) return;
     const ex = camera.eye[0], ez = camera.eye[2];
     const near = list.filter((c) => Math.hypot(c.x - ex, c.z - ez) < FAR);

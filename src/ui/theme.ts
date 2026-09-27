@@ -119,11 +119,11 @@ html, body { font-family: var(--ui); }
 
 button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-dial { gap: 9px; padding: 0 14px 0 4px; transition: background .14s ease; }
-.mr-dial:hover { background: rgba(244,181,74,.12); }
+.mr-dial:hover { background: rgba(255,255,255,.06); }
 .mr-dial-ring { position: relative; display: grid; place-items: center; width: 30px; height: 30px; }
 .mr-dial-ring svg { position: absolute; inset: 0; }
 .mr-dial-ring svg circle[data-arc] { transition: stroke-dashoffset .6s ease; }
-.mr-dial-ring b { position: relative; font: 700 14px/1 var(--display); color: var(--amber); }
+.mr-dial-ring b { position: relative; font: 600 12.5px/1 var(--ui); color: #e4e4e6; }
 .mr-dial-text { display: flex; flex-direction: column; gap: 3px; text-align: left; }
 .mr-dial-text b { font: 700 12.5px/1 var(--ui); color: ${BRAND.ink}; letter-spacing: .02em; }
 .mr-dial-text i { font: 600 9.5px/1 var(--label); font-style: normal; letter-spacing: .1em;
@@ -1054,6 +1054,81 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
 .mr-savebtn.is-quiet:hover { background: rgba(255,255,255,.12); }
 .mr-savebtn.is-danger { background: transparent; color: #e0685a; border-color: rgba(224,104,90,.35); }
 .mr-savebtn.is-danger.is-armed, .mr-x.is-armed { background: #c9463a; color: #fff; border-color: #c9463a; }
+
+/* ---- the device wheel ---------------------------------------------------- */
+/* Two devices on a ring, drawn in 3D: the phone on the left, the computer on
+   the right. They turn slowly at rest; the one pointed at turns to face you. */
+.mr-wheel-launch { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; display: grid;
+  place-items: center; cursor: pointer; padding: 0; pointer-events: auto; z-index: 24; color: #e9e9ec;
+  background: linear-gradient(180deg,rgba(40,42,46,.94),rgba(24,25,28,.94)); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.mr-wheel-launch:hover { border-color: rgba(255,255,255,.3); }
+.mr-wheel-launch .mr-pc-dot { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px;
+  background: #ff3b30; color: #fff; font: 600 11px/18px var(--ui); text-align: center; padding: 0 4px; box-shadow: 0 0 0 2px #1c1c1e; }
+.mr-wheel { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%) scale(.9); z-index: 38;
+  pointer-events: auto; opacity: 0; transition: opacity .16s ease, transform .2s cubic-bezier(.2,.9,.3,1.2);
+  border-radius: 50%; background: radial-gradient(circle, rgba(34,35,38,.94) 0%, rgba(22,23,25,.94) 70%);
+  border: 1px solid rgba(255,255,255,.1); box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
+  display: flex; overflow: visible; }
+.mr-wheel[hidden] { display: none; }
+.mr-wheel.is-open { opacity: 1; transform: translate(-50%,-50%); }
+.mr-wheel::after { content: ""; position: absolute; left: 50%; top: 8%; bottom: 8%; width: 1px; background: rgba(255,255,255,.08); }
+.mr-wheel-side { flex: 1; position: relative; border: 0; background: transparent; cursor: pointer; padding: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; transition: background .15s ease; }
+.mr-wheel-side.is-hot .mr-dev-stage { filter: drop-shadow(0 0 18px rgba(106,174,232,.45)); }
+.mr-wheel-name { font: 600 13px/1 var(--ui); color: #a9a9ad; transition: color .15s ease; }
+.mr-wheel-side.is-hot .mr-wheel-name { color: #fff; }
+.mr-wheel-side.is-left { padding-left: 34px; }
+.mr-wheel-side.is-right { padding-right: 40px; }
+.mr-wheel-middle { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); display: flex; flex-direction: column;
+  align-items: center; gap: 3px; text-align: center; cursor: pointer; color: #f2f2f3; pointer-events: auto; width: 200px; }
+.mr-wheel-middle b { font: 700 15px/1.1 var(--ui); }
+.mr-wheel-middle span { font: 500 11px/1.3 var(--ui); color: #98989d; }
+.mr-dev-stage { width: 180px; height: 200px; perspective: 700px; display: grid; place-items: center; }
+.mr-dev { position: relative; transform-style: preserve-3d; animation: mr-dev-idle 6s ease-in-out infinite alternate;
+  transition: transform .35s cubic-bezier(.2,.9,.3,1.1); }
+.mr-wheel-side.is-hot .mr-dev { animation: none; transform: rotateX(8deg) rotateY(0deg) scale(1.12); }
+.mr-wheel-side.is-right .mr-dev { animation-delay: -3s; }
+.mr-wheel-side.is-right .mr-dev-stage { transform: scale(.64); }
+.mr-wheel-side.is-left .mr-dev-stage { transform: scale(.9); }
+@keyframes mr-dev-idle { from { transform: rotateX(10deg) rotateY(-28deg); } to { transform: rotateX(10deg) rotateY(28deg); } }
+.mr-dev-box { position: relative; transform-style: preserve-3d; }
+.mr-dev-face { position: absolute; backface-visibility: hidden; }
+/* The phone. */
+.mr-dev.is-phone { width: 84px; height: 170px; }
+.mr-dev-phone .mr-dev-face { background: linear-gradient(160deg,#6b6b70,#3a3a3e); }
+.mr-dev-phone .mr-dev-face.is-front { border-radius: 14px; background: #0b0b0c; box-shadow: inset 0 0 0 3px #4a4a4e; overflow: hidden; }
+.mr-dev-phone .mr-dev-face.is-back { border-radius: 14px; background: linear-gradient(160deg,#5b5b60,#2e2e32); }
+.mr-dev-phone .mr-dev-face.is-side, .mr-dev-phone .mr-dev-face.is-cap { border-radius: 4px; }
+.mr-dev-pill { position: absolute; top: 7px; left: 50%; width: 26px; height: 7px; margin-left: -13px; border-radius: 4px; background: #000; z-index: 2; }
+.mr-dev-apps { position: absolute; inset: 22px 10px 16px; border-radius: 6px; display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 7px; align-content: start; padding-top: 6px;
+  background: linear-gradient(170deg,#3f5a8a,#243553 60%,#18233a); }
+.mr-dev-apps i { aspect-ratio: 1; border-radius: 5px; background: linear-gradient(160deg,#fff4,#fff1); }
+.mr-dev-apps i:nth-child(3n+1) { background: #3b82f6; } .mr-dev-apps i:nth-child(4n+2) { background: #22c55e; }
+.mr-dev-apps i:nth-child(5n+3) { background: #f59e0b; } .mr-dev-apps i:nth-child(7n) { background: #ef4444; }
+.mr-dev-lens { position: absolute; top: 10px; left: 10px; width: 24px; height: 24px; border-radius: 7px; background: #1b1b1d;
+  box-shadow: inset 0 0 0 2px #444, 3px 3px 0 -1px #111; }
+/* The computer. */
+.mr-dev.is-computer { width: 190px; height: 172px; }
+.mr-dev-monitor .mr-dev-face { background: linear-gradient(160deg,#cfd0d4,#8e8f94); }
+.mr-dev-monitor .mr-dev-face.is-front { border-radius: 7px; background: #0d0d0f; padding: 6px; box-sizing: border-box; }
+.mr-dev-monitor .mr-dev-face.is-back { border-radius: 7px; background: linear-gradient(160deg,#e3e4e7,#a4a5aa); }
+.mr-dev-desk { position: relative; width: 100%; height: 100%; border-radius: 3px; overflow: hidden;
+  background: radial-gradient(120% 90% at 20% 10%, #4a5b80, #26304a 45%, #151a2b); }
+.mr-dev-bar { height: 6px; background: rgba(30,30,32,.8); }
+.mr-dev-win { position: absolute; left: 14%; right: 14%; top: 16%; bottom: 26%; border-radius: 4px; background: #1e1e1e;
+  box-shadow: 0 4px 10px rgba(0,0,0,.5); display: flex; gap: 3px; padding: 4px; }
+.mr-dev-win span { width: 5px; height: 5px; border-radius: 50%; background: #ff5f57; }
+.mr-dev-win span:nth-child(2) { background: #febc2e; } .mr-dev-win span:nth-child(3) { background: #28c840; }
+.mr-dev-dock { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; padding: 3px;
+  border-radius: 5px; background: rgba(255,255,255,.18); }
+.mr-dev-dock i { width: 9px; height: 9px; border-radius: 2px; background: #3b82f6; }
+.mr-dev-dock i:nth-child(2) { background: #ef4444; } .mr-dev-dock i:nth-child(3) { background: #8b5cf6; }
+.mr-dev-dock i:nth-child(4) { background: #f59e0b; } .mr-dev-dock i:nth-child(5) { background: #22c55e; }
+.mr-dev-neck { position: absolute !important; left: 82px; top: 118px; transform: translateZ(-6px); }
+.mr-dev-neck .mr-dev-face, .mr-dev-foot .mr-dev-face { background: linear-gradient(160deg,#d6d7da,#8c8d92); }
+.mr-dev-foot { position: absolute !important; left: 57px; top: 162px; transform: translateZ(-4px); }
 
 `;
 

@@ -256,6 +256,8 @@ export class BuildTools {
   onLevels: ((levels: LevelUp[]) => void) | null = null;
   /** Something changed about the city's career: repaint whatever shows it. */
   onProgress: (() => void) | null = null;
+  /** A city service was placed, centred at x, z in metres: the city cheers it. */
+  onService: ((x: number, z: number) => void) | null = null;
   /** The player's time control, in multiples of real time. 0 is paused. */
   onSpeed: ((rate: number) => void) | null = null;
   /** The development tree and the settings, which the bar has buttons for. */
@@ -1281,6 +1283,10 @@ export class BuildTools {
     // shelter, which is the whole reason the player is saving up for one.
     confirmSound();
     this.earn(buildingPrice(t.proto.def), t.proto.def.signature === true && t.proto.def.mod === undefined);
+    if (t.proto.def.zone === 'service') {
+      const half = world.grid / 2;
+      this.onService?.((gx + w / 2 - half) * CELL, (gz + d / 2 - half) * CELL);
+    }
     // The real building now stands where the ghost was, and two copies of it in
     // the same place is what "it is stuck there" looks like. The next pointer
     // move puts a fresh ghost up for the next one.
@@ -2318,10 +2324,10 @@ export class BuildTools {
     tip(b, 'Development \u2014 what the city can build next', 'T');
     const r = 12;
     b.innerHTML = `<span class="mr-dial-ring"><svg width="30" height="30" viewBox="0 0 30 30">`
-      + `<circle cx="15" cy="15" r="${r}" fill="rgba(244,181,74,.10)" stroke="rgba(255,255,255,.1)"`
-      + ` stroke-width="2.6"/>`
-      + `<circle data-arc cx="15" cy="15" r="${r}" fill="none" stroke="${SKIN.warn}"`
-      + ` stroke-width="2.6" stroke-linecap="round" stroke-dasharray="${DIAL}"`
+      + `<circle cx="15" cy="15" r="${r}" fill="none" stroke="rgba(255,255,255,.12)"`
+      + ` stroke-width="1.6"/>`
+      + `<circle data-arc cx="15" cy="15" r="${r}" fill="none" stroke="rgba(236,236,238,.75)"`
+      + ` stroke-width="1.6" stroke-linecap="round" stroke-dasharray="${DIAL}"`
       + ` stroke-dashoffset="${DIAL}" transform="rotate(-90 15 15)"/></svg>`
       + `<b data-num>1</b></span>`
       + `<span class="mr-dial-text"><b data-name></b><i data-next></i></span>`;
@@ -2330,10 +2336,10 @@ export class BuildTools {
     b.style.position = 'relative';
     const chip = document.createElement('span');
     chip.style.cssText = [
-      'position:absolute', 'top:-5px', 'left:22px', 'min-width:17px', 'height:17px',
-      'padding:0 4px', 'border-radius:9px', 'display:none', 'place-items:center',
-      `background:${SKIN.warn}`, 'color:#1a1206', 'font:800 10px/1 var(--ui, system-ui, sans-serif)',
-      'box-shadow:0 0 0 2px rgba(10,15,22,.9)', 'pointer-events:none',
+      'position:absolute', 'top:-3px', 'left:24px', 'min-width:14px', 'height:14px',
+      'padding:0 3px', 'border-radius:7px', 'display:none', 'place-items:center',
+      'background:#4a4b50', 'color:#f2f2f3', 'font:600 9px/1 var(--ui, system-ui, sans-serif)',
+      'box-shadow:0 0 0 1.5px rgba(22,23,25,.95)', 'pointer-events:none',
     ].join(';');
     b.appendChild(chip);
     this.starChip = chip;
