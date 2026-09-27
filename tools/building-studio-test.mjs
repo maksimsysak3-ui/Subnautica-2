@@ -70,6 +70,24 @@ if (seenPlans.size < 4) fail(`only ${[...seenPlans].join(', ')} plans came up`);
 checks++;
 const tower = M.cleanBlueprint({ name: 'Old', floors: 30 });
 if (tower.kind === 'building') fail('a blueprint without a kind became a building');
+// Grown in a zoning style: stock in that theme, not a landmark; kept through a mod file.
+checks++;
+{
+  const g = M.generateBuilding(4242, 'dutch', 'townhouses');
+  const bp = M.cleanBlueprint({ name: 'Grown', kind: 'building', building: g.plan, width: g.width, depth: g.depth, grow: 'european' });
+  const a = M.blueprintAsset(bp, 'test', 'grown');
+  if (bp.grow !== 'european' || a.signature === true || a.theme !== 'european' || a.zone !== 'residential') {
+    fail(`a grown building is not European residential stock (grow ${bp.grow}, theme ${a.theme}, signature ${a.signature})`);
+  }
+  const again = M.cleanBlueprint(JSON.parse(JSON.stringify(bp)));
+  if (again.grow !== 'european') fail('grow does not survive a mod file');
+  const placed = M.blueprintAsset(M.cleanBlueprint({ ...bp, grow: undefined }), 'test', 'placed');
+  if (placed.signature !== true) fail('a building with no style to grow in is not a landmark');
+  const bogus = M.cleanBlueprint({ ...bp, grow: 'atlantis' });
+  if (bogus.grow !== undefined) fail('a made-up style was kept');
+  const tower = M.cleanBlueprint({ name: 'T', floors: 20, grow: 'european' });
+  if (tower.grow !== undefined || M.blueprintAsset(tower, 'test', 't').signature !== true) fail('a tower grows');
+}
 console.log(`${checks} checks; ${M.BB_THEMES.length} styles; roofs ${[...seenRoofs].join('/')}; plans ${[...seenPlans].join('/')}; heaviest ${worstTris} triangles`);
 console.log(failed === 0 ? 'BUILDING_STUDIO_OK' : `BUILDING_STUDIO: ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

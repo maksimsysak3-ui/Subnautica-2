@@ -18,6 +18,7 @@
 import { MAT, TINT, MeshBuilder } from '../mesh';
 import type { Material } from '../mesh';
 import type { AssetDef } from '../types';
+import { ALL_THEMES, type Theme } from '../themes';
 import { cap, loft, plan, scaled } from './signature-parts';
 import type { Ring } from './signature-parts';
 import { glaze, plate } from './towers';
@@ -61,6 +62,11 @@ export interface Blueprint {
   kind?: 'tower' | 'building';
   /** The building's design, when `kind` is 'building'. */
   building?: BuildingPlan;
+  /**
+   * The zoning style a building grows in, like the game's own stock, wherever
+   * the player zones that style. Absent: a landmark, placed by hand.
+   */
+  grow?: Theme;
   zone: typeof BP_ZONES[number];
   /** Footprint in cells, 8 m each. */
   width: number;
@@ -152,6 +158,7 @@ export function cleanBlueprint(raw: unknown): Blueprint {
     lit: o.lit !== false,
     sections: Array.isArray(o.sections) ? o.sections.slice(0, MAX_SECTIONS).map(cleanSection) : [],
     ...(o.kind === 'building' ? { kind: 'building' as const, building: cleanBuilding(o.building ?? DEFAULT_BUILDING) } : {}),
+    ...(o.kind === 'building' && (ALL_THEMES as readonly unknown[]).includes(o.grow) ? { grow: o.grow as Theme } : {}),
   };
 }
 
@@ -730,7 +737,10 @@ export function blueprintAsset(raw: Blueprint, mod: string, key: string): AssetD
     return {
       id: `mod.${mod}.${key}`, name: bp.name, zone,
       density: b.storeys >= 5 ? 'high' : b.storeys >= 3 ? 'medium' : 'low',
-      variant: 'sculpted', theme: 'modern', signature: true, mod,
+      variant: 'sculpted', mod,
+      // Grown: stock in the style it was given, picked by the city like any
+      // other. Otherwise a landmark in the mod's own tab.
+      ...(bp.grow !== undefined ? { theme: bp.grow } : { theme: 'modern' as const, signature: true as const }),
       footprint: [bp.width, bp.depth], height: 0,
       // The walls ride the brand colour and the roof the accent: the same two
       // tints the renderer already carries for every building.

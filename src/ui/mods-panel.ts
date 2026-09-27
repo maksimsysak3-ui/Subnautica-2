@@ -22,9 +22,10 @@ import {
 } from '../assets/generators/blueprint';
 import {
   BB_TYPES, BB_PLANS, BB_ROOFS, BB_WALLS, BB_WINDOWS, BB_THEMES, THEMES, DEFAULT_BUILDING, cleanBuilding,
-  generateBuilding, type BuildingPlan, type BuildingTheme,
+  generateBuilding, zoneOf, type BuildingPlan, type BuildingTheme,
 } from '../assets/generators/blueprint-building';
 import { glyph } from './glyphs';
+import { ALL_THEMES, THEMES as THEME_PROFILES, type Theme } from '../assets/themes';
 import { ModelView, modelIconHtml } from './model-view';
 
 /** A blueprint's 3D still, keyed by the blueprint itself so an edit renders afresh. */
@@ -376,6 +377,30 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
           build();
         });
         page.appendChild(street);
+        // Grown or placed: the same design is a landmark in its own tab, or
+        // stock the city builds wherever that style is zoned.
+        const growRow = el('div', 'mr-studio-row is-pick');
+        const sel = el('select', 'mr-studio-select');
+        sel.setAttribute('aria-label', 'Where this building comes from');
+        const opt = (value: string, label: string): void => {
+          const o = el('option', '', label);
+          o.value = value;
+          o.selected = (towers[at].grow ?? '') === value;
+          sel.appendChild(o);
+        };
+        opt('', 'Placed by hand, as a landmark');
+        for (const t of ALL_THEMES) opt(t, `Grows in ${THEME_PROFILES[t].label} zoning`);
+        sel.addEventListener('change', () => {
+          const v = sel.value;
+          const { grow: _was, ...rest } = towers[at];
+          towers[at] = v === '' ? rest : { ...rest, grow: v as Theme };
+          build();
+        });
+        growRow.append(el('span', '', 'In the city'), sel);
+        page.append(growRow, el('p', 'mr-mods-note', towers[at].grow === undefined
+          ? 'Placed one at a time from the Mods tab of the Landmarks drawer.'
+          : `The city builds it among its own ${THEME_PROFILES[towers[at].grow!].label} buildings wherever you zone `
+            + `${zoneOf(b.type)} in that style, once the mod is on.`));
       } else if (tab === 1) {
         page.append(
           bpick('Use', 'type', BB_TYPES),
