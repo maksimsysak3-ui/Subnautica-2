@@ -9,6 +9,7 @@
 
 import { music } from './ui/music';
 import { useDifficulty } from './sim/difficulty';
+import { scenarioById, startScenario } from './sim/scenarios';
 import { useMap } from './sim/maps';
 import { Gpu, GpuInitError } from './gfx/device';
 import { Renderer } from './gfx/renderer';
@@ -170,6 +171,12 @@ async function boot(): Promise<void> {
       live.reset();
       const fresh = startingWorld(renderer.world.grid);
       fresh.disasters.level = setup.disasters;
+      const challenge = scenarioById(setup.scenario);
+      if (challenge !== undefined) {
+        fresh.scenario = startScenario(challenge, 0);
+        if (challenge.funds !== undefined) fresh.budget.balance = Math.round(fresh.budget.balance * challenge.funds);
+        if (challenge.disasters !== undefined) fresh.disasters.level = challenge.disasters;
+      }
       renderer.useWorld(fresh);
       renderer.rebuild();
       if (tools !== null) tools.cityName = setup.name; else loaded = setup.name;

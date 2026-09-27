@@ -28,6 +28,9 @@ import type { ResourceId } from './sim/resources';
 import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
+import { ScenarioCard } from './ui/scenario-card';
+import { checkScenario, scenarioById } from './sim/scenarios';
+import { fanfare } from './ui/sound';
 import { Simulation, View, VIEWS, surfaceAt, money, PANEL_ONLY } from './sim';
 import { LOAN_OFFERS, MAX_LOANS, loanPayment } from './sim/budget';
 import { checkAchievements } from './sim/achievements';
@@ -217,6 +220,7 @@ export class LiveCity {
   /** Consecutive looks with homes standing and no supply of each at all. */
   private noneRun = [0, 0, 0];
   private steps: FirstSteps;
+  private challenge: ScenarioCard;
   private wasOverdrawn = false;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
   private uploaded = -1;
@@ -265,6 +269,7 @@ export class LiveCity {
     this.alerts = new Alerts(ui);
     this.alerts.onPush = (a) => this.toPaper(a);
     this.steps = new FirstSteps(ui);
+    this.challenge = new ScenarioCard(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
     this.tech = new TechTree(ui, () => renderer.world.progress, () => this.onUnlock());
     // The goals board reads the city rather than a copy of it.
@@ -610,6 +615,34 @@ export class LiveCity {
       riverside: (x, z) => { const v = valleyAt(x, z); return v !== null && !v.bed; },
       ignite: (i) => sim.dispatch.ignite(i),
     };
+  }
+
+  /** The challenge, if the city was founded with one: ticks, and the end of it. */
+  private scenario(sim: Simulation): void {
+    const world = this.renderer.world;
+    const st = world.scenario;
+    const day = this.gameDay();
+    this.challenge.update(sim, world, day);
+    if (st === null) return;
+    const got = checkScenario(st, sim, world, day);
+    if (got === null) return;
+    const def = scenarioById(st.id);
+    const name = def?.name ?? 'Challenge';
+    for (const title of got.met) {
+      if (got.ended === 'won') break;
+      this.alerts.push({ title: `${name}: ${title}`, body: 'One objective met. Keep it while you finish the rest.', tone: 'good', tag: `scenario-met-${title}` });
+    }
+    if (got.ended === 'won') {
+      fanfare();
+      const took = Math.max(1, Math.round((day - st.from) / 28 * 12));
+      this.alerts.push({ title: `${name} complete`, tone: 'good', tag: 'scenario-end',
+        body: `Every objective met, in ${took} month${took === 1 ? '' : 's'}. The city is yours to carry on with.` });
+      world.news.print(day, 'city', 'good', `${this.cityName} meets its challenge`, `${def?.blurb ?? ''} Done, with time to spare.`);
+    } else if (got.ended === 'lost') {
+      this.alerts.push({ title: `${name}: time is up`, tone: 'bad', tag: 'scenario-end',
+        body: 'The deadline passed with objectives still open. Carry on in free play, or found a new city to try again.' });
+      world.news.print(day, 'city', 'bad', `${this.cityName} misses its deadline`, `${def?.blurb ?? ''} The time ran out.`);
+    }
   }
 
   /** Sets one off now: for the tests, and for a player who wants to see what the defences are worth. */
@@ -1196,6 +1229,7 @@ export class LiveCity {
     this.incidents.visible = on;
     this.alerts.visible = on;
     this.steps.visible = on;
+    this.challenge.visible = on;
     this.cititok.visible = on;
     this.computer.visible = on;
     this.wheel.visible = on;
@@ -1399,6 +1433,7 @@ export class LiveCity {
       // An information view counts as read once it has been opened.
       if (this.info.view !== View.NONE) this.viewed = true;
       this.steps.update(sim, now, { world: this.renderer.world, viewed: this.viewed });
+      this.scenario(sim);
       // The open card, refreshed on the same beat as everything else: a
       // building whose power has just come back should say so while the player
       // is still looking at it.

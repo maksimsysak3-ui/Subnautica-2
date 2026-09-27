@@ -772,6 +772,10 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-studio-kind-card.is-on { border-color: #f4b54a; background: rgba(244,181,74,.10); }
 .mr-studio-kind-card.is-on b { color: #f4b54a; }
 .mr-studio-kind-card:focus-visible { outline: 2px solid #f4b54a; outline-offset: 2px; }
+.mr-setup-scen { display: grid; gap: 8px; }
+.mr-setup-scen-head { font: 700 11px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: #9a9aa0; }
+.mr-setup-scen-list { flex-wrap: wrap; }
+.mr-setup-scen-blurb { margin: 0; max-width: 72ch; font: 500 13px/1.5 var(--ui); color: #b9b9be; }
 .mr-setup-hazards { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .mr-setup-hazards > span { font: 700 11px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: #9a9aa0; }
 .mr-studio-select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.12);

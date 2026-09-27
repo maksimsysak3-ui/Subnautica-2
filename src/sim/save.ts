@@ -15,6 +15,7 @@
  * not a save file, it is an accident.
  */
 
+import { restoreScenario } from './scenarios';
 import { mapById } from './maps';
 import { emptyWorld } from './world';
 import type { World, Lot } from './world';
@@ -157,6 +158,8 @@ interface SaveFile {
   council?: unknown;
   /** Disasters: the frequency chosen at founding, a forecast, the record. Absent in older saves. */
   disasters?: unknown;
+  /** The scenario, if the city was founded with one. */
+  scenario?: unknown;
   news?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
@@ -274,6 +277,7 @@ export function serialise(world: World, name: string, auto = false): string {
     politics: world.politics.saved(),
     council: world.council.saved(),
     disasters: world.disasters.saved(),
+    ...(world.scenario !== null ? { scenario: world.scenario } : {}),
     news: world.news.saved(),
     difficulty: world.difficulty,
     map: world.map,
@@ -387,6 +391,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (file.news !== undefined) world.news.restore(file.news);
   if (file.council !== undefined) world.council.restore(file.council, world.policies);
   if (file.disasters !== undefined) world.disasters.restore(file.disasters);
+  world.scenario = restoreScenario(file.scenario);
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is
     // the right answer: it starts at level one with its three free services and

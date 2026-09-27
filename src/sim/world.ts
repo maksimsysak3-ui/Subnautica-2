@@ -22,6 +22,7 @@ import { Policies } from './policies';
 import { Politics } from './politics';
 import { Council } from './council';
 import { Disasters } from './disasters';
+import type { ScenarioState } from './scenarios';
 import { Newsroom } from './news';
 import { RULES } from './difficulty';
 import type { DifficultyId } from './difficulty';
@@ -203,6 +204,8 @@ export interface World {
   council: Council;
   /** Storms, floods and earthquakes: how often, what is forecast, what has struck. */
   disasters: Disasters;
+  /** The job the city was founded to do, or null in free play. */
+  scenario: ScenarioState | null;
   /** What the city's paper has printed. See `news.ts`. */
   news: Newsroom;
   /** How hard the city was founded to be. See `difficulty.ts`. */
@@ -259,6 +262,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     politics: new Politics(),
     council: new Council(),
     disasters: new Disasters(),
+    scenario: null,
     news: new Newsroom(),
     difficulty: RULES.id,
     map: MAP.id,

@@ -19,6 +19,8 @@ import { installTheme } from './theme';
 import { DIFFICULTIES, describe } from '../sim/difficulty';
 import type { DifficultyId } from '../sim/difficulty';
 import { DISASTER_LEVELS, type DisasterLevel } from '../sim/disasters';
+import { SCENARIOS, scenarioById } from '../sim/scenarios';
+import { DAYS_PER_YEAR } from '../sim/weather';
 import { glyph } from './glyphs';
 import { CARD_SHOTS } from './setup-shots';
 import { MAPS } from '../sim/maps';
@@ -37,6 +39,8 @@ export interface Setup {
   map: MapId;
   /** How often storms, floods and earthquakes strike. */
   disasters: DisasterLevel;
+  /** A scenario's id, or '' for free play. */
+  scenario: string;
 }
 
 /** Names offered for a new city, rerolled with the dice. */
@@ -178,11 +182,11 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Challenges', 'Found a city with a job to do: Boomtown, Tourist Trap, Floodplain, Shoestring, Green City or Metropolis, each against the clock.'],
       ['Tourism', 'Museums, zoos, stadiums and wonders draw visitors; hotels keep them the night; an airport brings the world. See Visitors on the computer.'],
       ['Natural disasters', 'Storms, floods and earthquakes, forecast where they can be. Fire cover, flood defences and a seismic code decide what they cost.'],
       ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 22 styles, generate a whole street, and let the city grow them in your zones.'],
       ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
-      ['Save slots', 'Keep several saves of a city, overwrite or delete them from one list.'],
       ['City Hall computer', 'Press P: the council, the Herald, your voters, petitions, stats and elections on one desk.'],
       ['Real politics', 'Six voting blocs, a council elected by D\'Hondt, bills that need votes, lobbying, protests and strikes.'],
     ];
@@ -574,6 +578,61 @@ export class Menu {
       seg.appendChild(b);
     }
     hazards.append(hl, seg);
+    const setHazard = (lv: DisasterLevel): void => {
+      hazard = lv;
+      seg.querySelectorAll('button').forEach((x) => {
+        const on = (x as HTMLElement).dataset.hazard === lv;
+        x.classList.toggle('is-on', on);
+        x.setAttribute('aria-checked', String(on));
+      });
+    };
+
+    // A scenario: free play, or a city founded with a job to do by a deadline.
+    let scenario = '';
+    const scen = document.createElement('section');
+    scen.className = 'mr-setup-scen';
+    const sh = document.createElement('div');
+    sh.className = 'mr-setup-scen-head';
+    sh.textContent = 'Challenge';
+    const sseg = document.createElement('div');
+    sseg.className = 'mr-seg mr-setup-scen-list';
+    sseg.setAttribute('role', 'radiogroup');
+    sseg.setAttribute('aria-label', 'Challenge');
+    const sblurb = document.createElement('p');
+    sblurb.className = 'mr-setup-scen-blurb';
+    const describeScenario = (): void => {
+      const def = scenarioById(scenario);
+      if (def === undefined) {
+        sblurb.textContent = 'Free play: no deadline and nothing asked of you. Build the city you want.';
+        return;
+      }
+      const years = def.days / DAYS_PER_YEAR;
+      const extras = [`${years} year${years === 1 ? '' : 's'}`, ...def.objectives.map((o) => o.title)];
+      if (def.funds !== undefined) extras.push(`${Math.round(def.funds * 100)}% of the usual treasury`);
+      if (def.disasters !== undefined) extras.push(`disasters ${def.disasters}`);
+      sblurb.textContent = `${def.blurb} (${extras.join(' · ')})`;
+    };
+    for (const [id, label] of [['', 'Free play'], ...SCENARIOS.map((s) => [s.id, s.name])] as Array<[string, string]>) {
+      const b = document.createElement('button');
+      b.className = `mr-seg-btn${id === scenario ? ' is-on' : ''}`;
+      b.textContent = label;
+      b.dataset.scenario = id;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(id === scenario));
+      b.addEventListener('click', () => {
+        scenario = id;
+        sseg.querySelectorAll('button').forEach((x) => {
+          x.classList.toggle('is-on', x === b);
+          x.setAttribute('aria-checked', String(x === b));
+        });
+        const d = scenarioById(id);
+        if (d?.disasters !== undefined) setHazard(d.disasters);
+        describeScenario();
+      });
+      sseg.appendChild(b);
+    }
+    describeScenario();
+    scen.append(sh, sseg, sblurb);
     const note = document.createElement('p');
     note.textContent = 'The map, the difficulty and disasters are set for the life of this city.';
     const found = document.createElement('button');
@@ -581,7 +640,7 @@ export class Menu {
     found.innerHTML = `<span style="display:inline-flex;vertical-align:-4px;margin-right:10px">${glyph('signature', 20)}</span>Found the city`;
     foot.append(hazards, note, found);
 
-    el.append(head, nameBox, maps, cards, foot);
+    el.append(head, nameBox, maps, cards, scen, foot);
     this.root.appendChild(el);
     requestAnimationFrame(() => el.classList.add('is-open'));
 
@@ -592,7 +651,7 @@ export class Menu {
     const go = (): void => {
       const name = field.value.trim() === '' ? NAMES[0] : field.value.trim();
       shut();
-      this.close(() => this.hooks.onNew({ name, difficulty: pick, map: mapPick, disasters: hazard }));
+      this.close(() => this.hooks.onNew({ name, difficulty: pick, map: mapPick, disasters: hazard, scenario }));
     };
     const keys = (e: KeyboardEvent): void => {
       // Captured ahead of the title list's own keys, which are underneath.
