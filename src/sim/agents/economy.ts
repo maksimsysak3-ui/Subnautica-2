@@ -137,7 +137,7 @@ const TAX_SCALE = 0.4;
 /** Weekly cost of governing one resident, before the currency scale, at a small size. */
 const CIVIC_PER_RESIDENT = 3.2;
 /** The population at which that per-resident cost has doubled. */
-const CIVIC_DOUBLING = 30000;
+const CIVIC_DOUBLING = 20000;
 
 /** A week's billable value per filled office job. */
 const VALUE_PER_OFFICE_JOB = 1000;
@@ -151,6 +151,8 @@ const VALUE_PER_OFFICE_JOB = 1000;
  */
 const EXPORT_DUTY = 0.05;
 const IMPORT_COST = 0.09;
+/** Goods a week the outside world will take before the price falls away. */
+const EXPORT_MARKET = 240000;
 
 /** What a rider pays, and what the city keeps of it. */
 const FARE = 2.4;
@@ -262,6 +264,8 @@ export interface Ledger {
    * the park they built.
    */
   landValue: number;
+  /** What a household pays against the base, by the size of its block. */
+  homeYield: number;
   goodsMade: number;
   goodsWanted: number;
   /** The last thing that happened, and what it was worth. */
@@ -396,7 +400,7 @@ export class Economy {
     services: 0, transit: 0, roads: 0, civic: 0, imports: 0, interest: 0, loans: 0,
     policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
-    landValue: 1, goodsMade: 0, goodsWanted: 0,
+    landValue: 1, homeYield: 1, goodsMade: 0, goodsWanted: 0,
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
 
@@ -496,7 +500,8 @@ export class Economy {
     // zoning high-density housing and nothing else made a player rich.
     const pop = this.people.population;
     const working = Math.min(pop, this.people.employed);
-    const residents = (working + IDLE_SHARE * (pop - working)) * RESIDENT_TAXABLE + wages * WAGE_SHARE;
+    const residents = (working + IDLE_SHARE * (pop - working)) * RESIDENT_TAXABLE * this.homeYield()
+      + wages * WAGE_SHARE;
     const billings = officeJobs * VALUE_PER_OFFICE_JOB;
 
     // And what the land is worth, as a multiplier on the lot.
@@ -551,7 +556,16 @@ export class Economy {
     r.goodsWanted = wanted;
     const surplus = output - wanted;
     // Goods are units, not money: the currency scale turns them into it.
-    r.exports = surplus > 0 ? surplus * EXPORT_DUTY * (this.industry?.tradeBoost ?? 1) * CURRENCY : 0;
+    // The outside world buys only so much: the first goods out of the city
+    // sell at the full duty and each lot after sells for less, flattening at
+    // what the market will take. A harbour or a freight line widens it. It
+    // used to take any quantity at one price, so exports were the largest
+    // line in the ledger of any city with a big workforce -- more than all four
+    // tax rates -- and grew without limit with the number of sheds.
+    const boost = this.industry?.tradeBoost ?? 1;
+    const market = EXPORT_MARKET * boost;
+    const sold = surplus > 0 ? market * (1 - Math.exp(-surplus / market)) : 0;
+    r.exports = sold * EXPORT_DUTY * CURRENCY;
     r.imports = surplus < 0 ? -surplus * IMPORT_COST * CURRENCY : 0;
 
     // ---- fares -------------------------------------------------------------
@@ -615,6 +629,32 @@ export class Economy {
     this.people.taxMood = -((felt - TAX_NEUTRAL) / TAX_NEUTRAL) * TAX_MOOD_BITE;
 
     this.maybeHappen(days);
+  }
+
+  /**
+   * What a household is worth to the residential rate, on average, by the
+   * size of the block it lives in: a detached house pays a little over the
+   * base, a flat in a tower a good deal under it.
+   *
+   * Property tax follows property value, and a two-room flat is worth a
+   * fraction of a house. Without this, every resident paid the same whatever
+   * they lived in, a tower block housed sixteen times as many people on the
+   * same ground, and five blocks of towers took a new town from a few hundred
+   * thousand to a couple of million -- a city built by spamming towers.
+   */
+  private homeYield(): number {
+    const p = this.places, c = p.col;
+    let sum = 0, n = 0;
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0 || c.purpose[id] !== Purpose.HOME) continue;
+      const living = c.living[id];
+      if (living === 0) continue;
+      sum += living * Math.max(0.55, 1.12 - 0.3 * Math.log10(Math.max(1, c.homes[id])));
+      n += living;
+    }
+    const y = n === 0 ? 1 : sum / n;
+    this.report.homeYield = y;
+    return y;
   }
 
   /**

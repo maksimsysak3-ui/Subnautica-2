@@ -152,10 +152,12 @@ function play(difficulty) {
     const b = nextBlock(kind);
     if (b === null) return false;
     const [gx, gz, w, d] = inner(b);
-    const cost = w * d * M.zonePrice(kind, 'low');
+    // DENSITY=high zones housing dense, which is how a player spams towers.
+    const density = kind === 'residential' && process.env.DENSITY ? process.env.DENSITY : 'low';
+    const cost = w * d * M.zonePrice(kind, density);
     if (!spend(cost)) { b.use = null; return false; }
     spentOnZoning += cost;
-    M.paint(world, gx, gz, w, d, M.zoneCode(kind, 'low'));
+    M.paint(world, gx, gz, w, d, M.zoneCode(kind, density));
     world.painted++;
     return true;
   }

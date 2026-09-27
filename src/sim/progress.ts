@@ -53,8 +53,12 @@ export function starsForLevel(level: number): number {
 }
 
 /** Money paid out on reaching a level, which scales with what it costs to run. */
+//
+// A boost, not a salary: a level used to pay three to five weeks of a city's
+// whole takings, so a town that reached several at once -- which a few blocks
+// of towers did -- was handed millions it had not earned.
 export function cashForLevel(level: number): number {
-  return Math.round((40000 + 26000 * (level - 1)) * CURRENCY / 1000) * 1000;
+  return Math.round((12000 + 5000 * (level - 1)) * CURRENCY / 1000) * 1000;
 }
 
 /** The name of each level, which is the only flattery in the game. */
@@ -147,12 +151,11 @@ export class Progress {
    * time somebody looks at it.
    */
   forCitizens(population: number): number {
-    if (population <= this.paidCitizens) {
-      // A city that shrinks does not refund, but it does re-earn what it
-      // regains: the mark moves down with it.
-      this.paidCitizens = population;
-      return 0;
-    }
+    // Paid on the city's high-water mark. The mark used to follow the city
+    // down, so the few dozen who move out and back every day were paid for
+    // again every day -- a steady trickle of levels, and of their cash, for
+    // standing still.
+    if (population <= this.paidCitizens) return 0;
     const gained = population - this.paidCitizens;
     this.paidCitizens = population;
     return gained * XP_PER_CITIZEN;
