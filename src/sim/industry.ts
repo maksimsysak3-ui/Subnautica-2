@@ -57,8 +57,12 @@ const YIELD: Record<ResourceId, number> = {
   fertile: 12.7, forest: 11.2, ore: 14.1, oil: 16.9, stone: 12.7, fish: 11.2,
 };
 /** Money a unit fetches shipped out. */
+//
+// Doubled when the fields became deposits: a headquarters now has to be put on
+// a field to earn anything at all, and one that is earns like the industry
+// that built half the world's cities.
 export const PRICE: Record<ResourceId, number> = {
-  fertile: 50, forest: 58, ore: 84, oil: 100, stone: 52, fish: 60,
+  fertile: 100, forest: 116, ore: 170, oil: 205, stone: 104, fish: 120,
 };
 /** What the city's own industry pays, as a share of the export price. */
 export const LOCAL_PRICE = 0.65;
@@ -67,7 +71,7 @@ export const LOCAL_PRICE = 0.65;
  * product is worth against the raw material's export price.
  */
 export const PROCESS_CAP = 140;
-export const PROCESS_VALUE = 2.2;
+export const PROCESS_VALUE = 2.6;
 
 /** One processing plant, as the settle needs it. */
 export interface PlantIn { kind: ResourceId; staff: number; upkeep: number }
@@ -196,6 +200,29 @@ export class Industry {
       }
     }
     return Int32Array.from(out);
+  }
+
+  /**
+   * What an area would give, for the drawing tool: hectares inside it,
+   * hectares of it actually on the deposit, and the money a week at full
+   * staff and full export. The tool shows it while the player draws, so an
+   * area in the middle of nowhere says it is worth nothing before it is paid for.
+   */
+  estimate(poly: readonly number[], kind: ResourceId): { ha: number; onField: number; weekly: number } {
+    const cells = this.raster(poly, kind);
+    const amount = resourceFields().amount[kind];
+    const used = this.usedOf(kind);
+    let sum = 0, on = 0;
+    for (const c of cells) {
+      if (amount[c] === 0) continue;
+      on++;
+      sum += (amount[c] / 255) * (1 - used[c]);
+    }
+    const cha = cellHectares();
+    return {
+      ha: cells.length * cha, onField: on * cha,
+      weekly: sum * cha * YIELD[kind] * this.tradeBoost * PRICE[kind] * RULES.income,
+    };
   }
 
   // ---- edits -------------------------------------------------------------

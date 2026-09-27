@@ -148,6 +148,21 @@ fn overlayTint(col: vec3f, world: vec3f) -> vec3f {
   // the views unpleasant to have open.
   let grey = vec3f(dot(col, vec3f(0.299, 0.587, 0.114)));
   let outside = mix(col, grey * 0.90, overlay.strength * 0.55);
+
+  // Resources: deposits with a hard edge and an outline, on a map dimmed
+  // round them. The field is a set of fields, not a gradient -- a farm drawn
+  // outside one harvests nothing -- so the picture has to say exactly where
+  // each one ends. The filtered coverage crosses a half at the true edge.
+  if (overlay.mode > 2.5 && overlay.mode < 3.5) {
+    let dim = mix(col, grey * 0.62, overlay.strength * 0.75);
+    let fill = smoothstep(0.42, 0.58, have);
+    let rim = smoothstep(0.22, 0.42, have) * (1.0 - smoothstep(0.62, 0.86, have));
+    let rich = overlayRamp(t);
+    let lit = clamp(dot(col, vec3f(0.33)) * 1.1 + 0.55, 0.55, 1.4);
+    var c = mix(dim, rich * lit, overlay.strength * fill * (0.72 + 0.28 * t));
+    c = mix(c, overlayRamp(1.0) * 1.35, overlay.strength * rim * 0.85);
+    return c;
+  }
   // Roads only: the land is greyed and nothing else; the carriageway takes the
   // colour, in `overlayTintRoad`.
   if (have < 0.02 || overlay.mode > 3.5) { return outside; }

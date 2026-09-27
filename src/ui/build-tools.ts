@@ -17,7 +17,7 @@
 
 import { RESOURCES, resourceById } from '../sim/resources';
 import type { ResourceId } from '../sim/resources';
-import { HECTARE_COST, MAX_HECTARES, REACH, cellHectares } from '../sim/industry';
+import { HECTARE_COST, MAX_HECTARES, REACH } from '../sim/industry';
 import { MAP } from '../sim/maps';
 import { industryProto, modBuildings, exactStock } from '../sim/inventory';
 import { RULES, CURRENCY } from '../sim/difficulty';
@@ -918,8 +918,15 @@ export class BuildTools {
     const ind = world.industry;
     const h = ind.hqs[t.hq];
     if (h === undefined) return;
-    const ha = ind.raster(this.areaPts, h.kind).length * cellHectares();
+    const est = ind.estimate(this.areaPts, h.kind);
+    const ha = est.ha;
     const what = resourceById(h.kind);
+    if (ha >= 0.8 && est.onField < 0.5) {
+      denySound();
+      this.say(`there is no ${what.name.toLowerCase()} under that area — draw it over the coloured `
+        + 'deposits in the Natural resources view');
+      return;
+    }
     if (ha < 0.8) {
       denySound();
       this.say(h.kind === 'fish' ? 'a fishing ground has to be drawn over water'
@@ -977,7 +984,7 @@ export class BuildTools {
     const head = document.createElement('div');
     head.className = 'mr-section-label';
     head.style.gridColumn = '1 / -1';
-    head.textContent = 'Processing — worth 2.2× the raw material';
+    head.textContent = `Processing — worth ${PROCESS_VALUE}× the raw material`;
     panel.appendChild(head);
     const hqs = this.renderer.world.industry.hqs;
     for (const r of RESOURCES) {
@@ -1420,10 +1427,12 @@ export class BuildTools {
       // sees the field they are drawing rather than a line round nothing.
       if (h !== undefined) this.renderer.setWorkedDraft(draft.length >= 8 ? draft : null, h.kind);
       if (h !== undefined && draft.length >= 8) {
-        const ha = this.renderer.world.industry.raster(draft, h.kind).length * cellHectares();
-        this.say(`${ha.toFixed(1)} ha — ${money(Math.round(ha * HECTARE_COST * RULES.build))} `
-          + `${ha > MAX_HECTARES ? `(over the ${MAX_HECTARES} ha limit) ` : ''}`
-          + '— Enter to finish, Backspace to take a point back');
+        const est = this.renderer.world.industry.estimate(draft, h.kind);
+        const ha = est.ha;
+        const yieldNote = est.onField < 0.5 ? 'no deposit under it — it would produce nothing'
+          : `${est.onField.toFixed(1)} ha on the deposit, about ${money(Math.round(est.weekly))} a week`;
+        this.say(`${ha.toFixed(1)} ha for ${money(Math.round(ha * HECTARE_COST * RULES.build))} — ${yieldNote}`
+          + `${ha > MAX_HECTARES ? ` (over the ${MAX_HECTARES} ha limit)` : ''} — Enter to finish`);
       }
       return;
     }

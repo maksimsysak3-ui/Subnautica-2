@@ -82,10 +82,44 @@ export interface ResourceFields {
 
 let cached: ResourceFields | null = null;
 
+/**
+ * Share of the land (of the water, for fish) each resource covers on a map
+ * of ordinary richness for it; a map's richness scales it. Deposits, not
+ * backgrounds: a tenth of the land is farmland worth farming, a twentieth
+ * holds ore.
+ */
+const COVER: Record<ResourceId, number> = {
+  fertile: 0.12, forest: 0.13, ore: 0.05, oil: 0.045, stone: 0.055, fish: 0.3,
+};
+
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
+
+/** Cells a deposit needs to count as one: smaller fragments are dropped. */
+const MIN_DEPOSIT = 10;
+
+/** Clears every 4-connected patch of fewer than `min` cells. */
+function despeckle(a: Uint8Array, n: number, min: number): void {
+  const seen = new Uint8Array(n * n);
+  const stack: number[] = [];
+  const patch: number[] = [];
+  for (let k = 0; k < n * n; k++) {
+    if (a[k] === 0 || seen[k] === 1) continue;
+    stack.push(k); seen[k] = 1; patch.length = 0;
+    while (stack.length > 0) {
+      const c = stack.pop()!;
+      patch.push(c);
+      const i = c % n, j = (c - i) / n;
+      if (i > 0 && a[c - 1] !== 0 && seen[c - 1] === 0) { seen[c - 1] = 1; stack.push(c - 1); }
+      if (i < n - 1 && a[c + 1] !== 0 && seen[c + 1] === 0) { seen[c + 1] = 1; stack.push(c + 1); }
+      if (j > 0 && a[c - n] !== 0 && seen[c - n] === 0) { seen[c - n] = 1; stack.push(c - n); }
+      if (j < n - 1 && a[c + n] !== 0 && seen[c + n] === 0) { seen[c + n] = 1; stack.push(c + n); }
+    }
+    if (patch.length < min) for (const c of patch) a[c] = 0;
+  }
+}
 
 /** The fields for the map in force, building them the first time they are asked for. */
 export function resourceFields(): ResourceFields {
@@ -134,11 +168,19 @@ export function resourceFields(): ResourceFields {
   }
 
   const amount = {} as Record<ResourceId, Uint8Array>;
-  for (const r of RESOURCES) amount[r.id] = new Uint8Array(N * N);
+  const raw = {} as Record<ResourceId, Float32Array>;
+  for (const r of RESOURCES) {
+    amount[r.id] = new Uint8Array(N * N);
+    raw[r.id] = new Float32Array(N * N);
+  }
   const dry = Math.max(0, M.climate), lush = Math.max(0, -M.climate);
   const patch = (x: number, z: number, scale: number, salt: number): number =>
-    fbm(x / scale, z / scale, 3, salt + seed);
+    fbm(x / scale, z / scale, 2, salt + seed);
 
+  // First the suitability of every cell for every resource, 0 to 1 -- where
+  // the ground is right for it. Scales are a few hundred metres, so a map
+  // holds a few dozen separate deposits of each rather than a handful of
+  // regions the size of a district.
   for (let j = 0; j < N; j++) {
     for (let i = 0; i < N; i++) {
       const k = j * N + i;
@@ -148,42 +190,56 @@ export function resourceFields(): ResourceFields {
       const jd = Math.max(0, j - 1), ju = Math.min(N - 1, j + 1);
       const slope = Math.hypot(h[j * N + ir] - h[j * N + il], h[ju * N + i] - h[jd * N + i])
         / (2 * cell);
-      const put = (id: ResourceId, v: number): void => {
-        const rich = M.richness[id];
-        const out = Math.min(1, v * rich);
-        amount[id][k] = out < 0.1 ? 0 : Math.round(out * 255);
-      };
 
       if (wet[k] === 1) {
-        // Fish: the sea and the lakes carry them, the river a little.
-        const stock = 0.45 + 0.55 * smooth(0.35, 0.7, patch(x, z, 420, 751));
-        put('fish', stock * (river[k] === 1 ? 0.45 : 1));
+        // Fish: shoals in the sea and the lakes, a little in the river.
+        const stock = patch(x, z, 300, 751);
+        raw.fish[k] = stock * (river[k] === 1 ? 0.6 : 1);
         continue;
       }
-      const moist = 0.5 + 0.5 * Math.exp(-far[k] / 14);
-      const flat = 1 - smooth(0.03, 0.11, slope);
-      const low = 1 - smooth(35, 130, e);
-      const soil = smooth(0.44, 0.62, patch(x, z, 640, 601));
-      put('fertile', flat * low * moist * soil * (1 - dry * 0.45) * 1.25);
+      const moist = 0.55 + 0.45 * Math.exp(-far[k] / 14);
+      const flat = 1 - smooth(0.04, 0.12, slope);
+      const low = 1 - smooth(40, 140, e);
+      raw.fertile[k] = patch(x, z, 340, 601) * flat * low * moist * (1 - dry * 0.3);
 
-      const wood = smooth(0.46, 0.63, patch(x, z, 520, 631));
-      const treeLine = 1 - smooth(150, 260, e);
-      const rolling = 0.55 + 0.45 * smooth(0.02, 0.1, slope);
-      put('forest', wood * treeLine * rolling * (1 - dry * 0.7) * (1 + lush * 0.35));
+      const treeLine = 1 - smooth(160, 270, e);
+      raw.forest[k] = patch(x, z, 300, 631) * treeLine * (1 - dry * 0.4) * (1 + lush * 0.2);
 
-      const seam = smooth(0.64, 0.78, patch(x, z, 380, 661));
-      const hills = 0.55 + 0.45 * smooth(8, 70, e);
-      put('ore', seam * hills * 1.35);
+      const hills = 0.6 + 0.4 * smooth(8, 70, e);
+      const seam = patch(x, z, 210, 661);
+      raw.ore[k] = seam * hills;
 
-      // Oil where the ore is not: the same kind of noise, a different salt, and
-      // pushed away from the seams so the two industries compete for nothing.
-      const pool = smooth(0.66, 0.8, patch(x, z, 620, 691)) * (1 - seam * 0.8);
-      put('oil', pool * (1 - smooth(50, 150, e)));
+      // Oil where the ore is not, under low ground.
+      raw.oil[k] = patch(x, z, 280, 691) * (1 - smooth(0.6, 0.75, seam) * 0.8) * (1 - smooth(60, 160, e));
 
-      const crag = smooth(0.1, 0.24, slope);
-      const outcrop = smooth(0.7, 0.84, patch(x, z, 300, 721));
-      put('stone', Math.max(crag * 0.9, outcrop * 0.75));
+      // Stone on the outcrops, and a little more where the ground is steep.
+      raw.stone[k] = patch(x, z, 190, 721) * (0.8 + 0.2 * smooth(0.08, 0.24, slope));
     }
+  }
+
+  // Then the deposits: the best cells for each, up to a share of the land set
+  // by the map's richness for it, and nothing anywhere else. A deposit is at
+  // least half rich at its edge and full at its heart, so the view shows a
+  // field with a hard edge and a farm drawn outside it harvests nothing.
+  const land = wet.reduce((a, b) => a + (b === 0 ? 1 : 0), 0);
+  const water = N * N - land;
+  for (const r of RESOURCES) {
+    const base = COVER[r.id];
+    const pool = r.id === 'fish' ? water : land;
+    const want = Math.round(pool * Math.min(0.32, base * M.richness[r.id]));
+    const v = raw[r.id];
+    if (want <= 0) continue;
+    const sorted = Float32Array.from(v).sort();
+    const cut = sorted[Math.max(0, sorted.length - want)];
+    const top = sorted[sorted.length - 1];
+    if (!(top > cut) || cut <= 0) continue;
+    const out = amount[r.id];
+    for (let k = 0; k < N * N; k++) {
+      if (v[k] < cut || v[k] <= 0) continue;
+      const t = (v[k] - cut) / (top - cut);
+      out[k] = Math.round((0.5 + 0.5 * smooth(0, 0.6, t)) * 255);
+    }
+    despeckle(out, N, MIN_DEPOSIT);
   }
 
   const cover = {} as Record<ResourceId, number>;

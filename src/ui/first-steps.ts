@@ -130,7 +130,7 @@ const CHAPTERS: readonly Chapter[] = [
         how: 'Click round the ground it should work. Richer ground, more output; the card says what it earns.',
         done: (_s, c) => c.world.industry.hqs.some((h) => h.area.length >= 6) },
       { title: 'Build a processing plant',
-        how: 'In the industry drawer. Set the headquarters to supply the city and the plant makes it worth 2.2 times as much.',
+        how: 'In the industry drawer. Set the headquarters to supply the city and the plant makes it worth 2.6 times as much.',
         done: (_s, c) => c.world.lots.some((l) => l.id.startsWith('spec.plant.')) },
       { title: 'Pass a policy',
         how: 'In the Budget view, open Policies and switch one on. Each has a cost and a catch.',

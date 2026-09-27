@@ -103,7 +103,7 @@ const GOODS_PER_LOCAL_UNIT = 60;
  * nothing but sheds. Taxed on this, the three zones come out comparable for
  * the ground they take.
  */
-const INDUSTRY_TAXABLE_PER_JOB = 440;
+const INDUSTRY_TAXABLE_PER_JOB = 520;
 
 /**
  * What the residential rate is charged on, per resident per week: council
@@ -152,7 +152,7 @@ const VALUE_PER_OFFICE_JOB = 1000;
 const EXPORT_DUTY = 0.05;
 const IMPORT_COST = 0.09;
 /** Goods a week the outside world will take before the price falls away. */
-const EXPORT_MARKET = 240000;
+const EXPORT_MARKET = 360000;
 
 /** What a rider pays, and what the city keeps of it. */
 const FARE = 2.4;
