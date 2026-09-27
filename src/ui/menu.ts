@@ -175,7 +175,7 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
-      ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 14 styles, or generate a whole street.'],
+      ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 22 styles, generate a whole street, and let the city grow them in your zones.'],
       ['Device wheel', 'Hold Tab: your phone and the City Hall computer, in 3D. Point and let go.'],
       ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
       ['Save slots', 'Keep several saves of a city, overwrite or delete them from one list.'],

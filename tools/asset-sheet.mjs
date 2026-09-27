@@ -64,7 +64,8 @@ const shader = fs.readFileSync(shaderDir + 'asset.wgsl', 'utf8')
     (whole, name) => (fs.existsSync(shaderDir + name)
       ? fs.readFileSync(shaderDir + name, 'utf8') : whole));
 // STUDIO=1: instead of the registry, one generated blueprint building per
-// style and use, as the Blueprint Studio would make them.
+// style and use, as the Blueprint Studio would make them. STYLES=tudor,ranch
+// narrows it to those styles.
 const srcDir = new URL('../src/', import.meta.url).pathname;
 const registry = (
   await esbuild.build(process.env.STUDIO ? {
@@ -72,7 +73,9 @@ const registry = (
       contents: `import { blueprintAsset, cleanBlueprint } from '${srcDir}assets/generators/blueprint';
 import { generateBuilding, BB_THEMES, THEMES } from '${srcDir}assets/generators/blueprint-building';
 export const ASSETS = [];
+const only = ${JSON.stringify((process.env.STYLES || '').split(',').filter(Boolean))};
 for (const th of BB_THEMES) for (const ty of THEMES[th].types) {
+  if (only.length > 0 && !only.includes(th)) continue;
   const g = generateBuilding(${Number(process.env.STUDIO) || 1} * 7919 + th.length * 131 + ty.length, th, ty);
   ASSETS.push(blueprintAsset(cleanBlueprint({ name: THEMES[th].label + ' ' + ty, kind: 'building', building: g.plan, width: g.width, depth: g.depth }), 'sheet', th + '-' + ty));
 }`,

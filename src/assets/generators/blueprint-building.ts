@@ -33,7 +33,8 @@ export const BB_ROOFS = ['gable', 'hip', 'mansard', 'gambrel', 'shed', 'sawtooth
 export const BB_WALLS = ['brick', 'render', 'stone', 'timber', 'concrete', 'metal', 'glass'] as const;
 export const BB_WINDOWS = ['sash', 'casement', 'arched', 'ribbon', 'industrial', 'shopfront'] as const;
 export const BB_THEMES = ['victorian', 'georgian', 'parisian', 'dutch', 'artdeco', 'brutalist', 'soviet',
-  'modernist', 'mediterranean', 'scandinavian', 'craftsman', 'colonial', 'japanese', 'industrial'] as const;
+  'modernist', 'mediterranean', 'scandinavian', 'craftsman', 'colonial', 'japanese', 'industrial',
+  'tudor', 'cottage', 'brownstone', 'chicago', 'ranch', 'alpine', 'adobe', 'suburban'] as const;
 
 export type BuildingType = typeof BB_TYPES[number];
 export type BuildingTheme = typeof BB_THEMES[number];
@@ -182,6 +183,39 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
     roofs: ['sawtooth', 'gable', 'flat'], pitch: [0.2, 0.35], walls: ['brick', 'metal', 'concrete'], windows: ['industrial'],
     wallColours: ['#8b4a38', '#7a8a96', '#a8a49a', '#4c6b5e'], roofColours: ['#5d646c', '#43484f'],
     dormers: 0, chimneys: 0.4, porch: 0, shutters: 0, balconies: 0, awning: 0, docks: 0.9, cornice: 0.2, garden: 0 },
+  // Everyday styles: the streets most towns are actually made of.
+  tudor: { label: 'Tudor', types: ['house', 'shop', 'townhouses'], plans: ['rect', 'L', 'T'], storeys: [2, 3], floorHeight: 3.0,
+    roofs: ['gable'], pitch: [0.8, 0.95], walls: ['render', 'brick'], windows: ['casement'],
+    wallColours: ['#f1ead8', '#e9dfc4', '#efe4cc'], roofColours: ['#4a3b33', '#5a463a', '#3d3a38'],
+    dormers: 0.5, chimneys: 1, porch: 0.5, shutters: 0, balconies: 0, awning: 0.2, docks: 0, cornice: 0, garden: 0.8 },
+  cottage: { label: 'English cottage', types: ['house'], plans: ['rect', 'L'], storeys: [1, 2], floorHeight: 2.9,
+    roofs: ['gable', 'hip'], pitch: [0.75, 0.95], walls: ['stone', 'render'], windows: ['casement'],
+    wallColours: ['#f3eee2', '#e8e0cc', '#dfe3da'], roofColours: ['#5c5347', '#4a4f58', '#7a5a3e'],
+    dormers: 0.6, chimneys: 1, porch: 0.6, shutters: 0.2, balconies: 0, awning: 0, docks: 0, cornice: 0, garden: 1 },
+  brownstone: { label: 'Brownstone', types: ['townhouses', 'apartments', 'shop'], plans: ['rect'], storeys: [3, 5], floorHeight: 3.4,
+    roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render'], windows: ['sash', 'arched'],
+    wallColours: ['#6b4232', '#5e3a2c', '#76503c'], roofColours: ['#3a3533', '#2f3a3a'],
+    dormers: 0, chimneys: 0.4, porch: 0.9, shutters: 0, balconies: 0, awning: 0.3, docks: 0, cornice: 1, garden: 0.3 },
+  chicago: { label: 'Chicago school', types: ['apartments', 'civic', 'shop'], plans: ['rect', 'L', 'U'], storeys: [8, 14], floorHeight: 3.6,
+    roofs: ['flat'], pitch: [0.2, 0.3], walls: ['brick', 'stone'], windows: ['sash', 'industrial'],
+    wallColours: ['#a4644a', '#b88a6a', '#d8cbb2', '#8e5140'], roofColours: ['#3c3a38', '#5a4a3a'],
+    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0, awning: 0.4, docks: 0, cornice: 1, garden: 0 },
+  ranch: { label: 'Ranch', types: ['house'], plans: ['rect', 'L'], storeys: [1, 1], floorHeight: 2.9,
+    roofs: ['hip', 'gable'], pitch: [0.2, 0.32], walls: ['brick', 'timber'], windows: ['casement', 'sash'],
+    wallColours: ['#d9cdb8', '#b9c4c9', '#e6dcc9', '#a9b39a'], roofColours: ['#4b4a48', '#5d4d40', '#3e4247'],
+    dormers: 0, chimneys: 0.6, porch: 0.5, shutters: 0.5, balconies: 0, awning: 0, docks: 0, cornice: 0, garden: 1 },
+  alpine: { label: 'Alpine chalet', types: ['house', 'shop', 'apartments'], plans: ['rect', 'L'], storeys: [2, 4], floorHeight: 3.0,
+    roofs: ['gable'], pitch: [0.35, 0.5], walls: ['timber', 'render'], windows: ['casement'],
+    wallColours: ['#6b4a32', '#7d5638', '#f3eee4'], roofColours: ['#3b3632', '#4a3d34'],
+    dormers: 0, chimneys: 0.6, porch: 0.3, shutters: 0.7, balconies: 0.95, awning: 0.1, docks: 0, cornice: 0, garden: 0.6 },
+  adobe: { label: 'Adobe', types: ['house', 'shop', 'civic'], plans: ['rect', 'L', 'U', 'courtyard'], storeys: [1, 2], floorHeight: 3.0,
+    roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render'], windows: ['casement', 'arched'],
+    wallColours: ['#c98f5e', '#d7a878', '#bf7f55', '#e0b98e'], roofColours: ['#6b4a36', '#2f5e5a', '#7a3f2e'],
+    dormers: 0, chimneys: 0.2, porch: 0.6, shutters: 0.2, balconies: 0.2, awning: 0.3, docks: 0, cornice: 0.3, garden: 0.5 },
+  suburban: { label: 'Suburban', types: ['house', 'townhouses'], plans: ['rect', 'L'], storeys: [2, 2], floorHeight: 2.9,
+    roofs: ['gable', 'hip'], pitch: [0.38, 0.55], walls: ['timber', 'brick'], windows: ['sash', 'casement'],
+    wallColours: ['#e8e4da', '#c9d6dc', '#d8d0bc', '#b8c7b0', '#efe3c4'], roofColours: ['#46484b', '#57504a', '#3b4047'],
+    dormers: 0.3, chimneys: 0.4, porch: 0.6, shutters: 0.6, balconies: 0, awning: 0, docks: 0, cornice: 0, garden: 1 },
 };
 
 /** A seeded generator, so the same seed gives the same building. */
