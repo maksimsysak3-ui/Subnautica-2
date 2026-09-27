@@ -96,6 +96,8 @@ import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
 import type { CouncilCity } from './sim/council';
+import { BLOCS, billById, petitionById } from './sim/council';
+import type { DeskApp } from './ui/computer';
 import type { NewsDesk, NewsTone } from './sim/news';
 import { Gripe } from './sim';
 import { TICKS_PER_DAY, SECONDS_PER_DAY } from './sim/agents/calendar';
@@ -321,6 +323,11 @@ export class LiveCity {
   reset(): void {
     this.fresh = true;
     this.founded = false;
+    this.seenPetitions.clear();
+    this.seenDivision = '';
+    this.seenProtest = 0;
+    this.columnDay = -1;
+    this.council = null;
     this.steps.reset();
     this.wasShort = [false, false, false];
     this.shortRun = [0, 0, 0];
@@ -651,10 +658,70 @@ export class LiveCity {
     pol.update(this.gameDay(), dt, this.issues, world.policies, world.budget);
     if (pol.phase !== was) this.politicsMoved(was, pol.phase);
     if (this.council !== null) {
-      world.council.update(this.gameDay(), this.council, world.policies, world.budget, world.news);
+      const wasOpen = world.council.open;
+      if (world.council.update(this.gameDay(), this.council, world.policies, world.budget, world.news)) {
+        this.councilNotices(wasOpen);
+      }
       sim.people.civicMood = world.council.mood;
       this.columnist(this.council);
     }
+  }
+
+  /** What the council has done since the last look, as far as it needs saying. */
+  private seenPetitions = new Set<string>();
+  private seenDivision = '';
+  private seenProtest = 0;
+
+  private councilNotices(wasOpen: boolean): void {
+    const c = this.renderer.world.council;
+    const open = (app: DeskApp) => () => this.computer.show(app);
+    if (!wasOpen && c.open) {
+      this.alerts.push({
+        title: 'The town council sits', icon: 'government', tone: 'good', tag: 'council-open',
+        body: `${c.seatCount} councillors, ${c.seats[0]} of them yours. Bills, voters and petitions are on the City Hall computer (P).`,
+        go: open('council'),
+      });
+    }
+    for (const p of c.inbox) {
+      const key = `${p.id}@${p.day}`;
+      if (this.seenPetitions.has(key)) continue;
+      this.seenPetitions.add(key);
+      const def = petitionById(p.id);
+      if (def === undefined) continue;
+      this.alerts.push({
+        title: `Petition: ${def.title}`, icon: 'post', tone: 'info', tag: `petition-${p.id}`,
+        body: `From ${BLOCS.find((b) => b.id === def.from)?.name ?? 'residents'}. Answer it within six days (P, Inbox).`,
+        go: open('inbox'),
+      });
+    }
+    const d = c.record[0];
+    const key = d === undefined ? '' : `${d.id}@${d.day}`;
+    // The first division ever alerts; one already on the record when a save
+    // loads does not.
+    if (d !== undefined && key !== this.seenDivision && (this.seenDivision !== '' || c.record.length === 1)) {
+      const name = billById(d.id)?.name ?? d.id;
+      this.alerts.push({
+        title: d.passed ? (d.repeal ? 'Law repealed' : 'Bill passed') : 'Bill defeated',
+        body: `${d.repeal ? 'Repeal of the ' : 'The '}${name}.`, icon: 'government',
+        tone: d.passed ? 'good' : 'bad', tag: 'division', figure: `${d.ayes}–${d.noes}`,
+        go: open('council'),
+      });
+    }
+    this.seenDivision = key;
+    let mask = 0;
+    for (let b = 0; b < c.protesting.length; b++) if (c.protesting[b] === 1) mask |= 1 << b;
+    const started = mask & ~this.seenProtest;
+    for (let b = 0; b < c.protesting.length; b++) {
+      if ((started & (1 << b)) === 0) continue;
+      const strike = BLOCS[b].id === 'workers';
+      this.alerts.push({
+        title: strike ? 'General strike' : `${BLOCS[b].name} protest`, icon: 'alert', tone: 'bad', tag: `protest-${b}`,
+        body: strike ? 'Works and shops are short-handed until the workers are won back. See Voters (P).'
+          : `Their approval has collapsed. See what they care about in Voters (P).`,
+        go: open('voters'),
+      });
+    }
+    this.seenProtest = mask;
   }
 
   /** What the council reads of the city, refreshed with the voters' issues. */
