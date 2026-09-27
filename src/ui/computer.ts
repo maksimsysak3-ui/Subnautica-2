@@ -34,6 +34,7 @@ import type { Price } from '../sim/policies';
 import type { Ledger } from '../sim/agents/economy';
 import type { DispatchStats } from '../sim/agents/dispatch';
 import { RESOURCES, resourceById } from '../sim/resources';
+import type { TourismReport } from '../sim/tourism';
 import type { ResourceId } from '../sim/resources';
 import type { CityHall } from './city-hall';
 import type { StatsApp } from './stats-app';
@@ -54,6 +55,8 @@ export interface DeskHost {
   ledger(): Ledger | null;
   /** The emergency services' record since founding. */
   dispatch(): DispatchStats | null;
+  /** Who visits and why, or null before a city runs. */
+  tourism(): TourismReport | null;
 }
 
 const APPS: ReadonlyArray<[DeskApp, string, string]> = [
@@ -499,6 +502,38 @@ export class Computer {
       em.appendChild(line);
     }
     g.appendChild(em);
+
+    // Visitors: who comes, where they sleep, what they bring, and what would bring more.
+    const tv = this.host.tourism();
+    const lg = this.host.ledger();
+    if (tv !== null) {
+      const vc = this.card('Visitors', 12, lg !== null && lg.tourism > 0 ? `${money(lg.tourism)} a week in tourist spending` : undefined);
+      const vr = el('div', 'mr-pc-row');
+      vr.style.cssText = 'gap:22px;flex-wrap:wrap';
+      const fig = (label: string, value: string): HTMLElement => {
+        const b = el('div');
+        b.append(el('div', 'mr-pc-note', label), el('b', undefined, value));
+        return b;
+      };
+      vr.append(
+        fig('A day', tv.visitors.toLocaleString()),
+        fig('Staying the night', tv.overnight.toLocaleString()),
+        fig('Hotel beds', tv.beds.toLocaleString()),
+        fig('Draw', tv.attraction.toLocaleString()),
+        fig('Reputation', pct(Math.min(1, tv.appeal))),
+      );
+      vc.appendChild(vr);
+      const tips: string[] = [];
+      if (tv.attraction === 0) tips.push('Nothing here draws visitors yet: a museum, a zoo, a stadium or a landmark would.');
+      else {
+        if (tv.top !== '') tips.push(`Most come for ${tv.top}, and arrive by ${tv.via}.`);
+        if (tv.beds < tv.visitors * 0.5) tips.push('Too few hotel beds: most visitors leave the same day and spend a third as much. Dense commercial zoning grows hotels.');
+        if (tv.via === 'the roads' || tv.via === 'the coach station') tips.push('A railway or an airport would bring far more.');
+        if (tv.appeal < 0.6) tips.push('The city is not well spoken of: happier residents and better streets would help.');
+      }
+      vc.appendChild(el('p', 'mr-pc-note', tips.join(' ')));
+      g.appendChild(vc);
+    }
     this.body.appendChild(g);
   }
 

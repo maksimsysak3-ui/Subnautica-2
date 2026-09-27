@@ -178,9 +178,9 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Tourism', 'Museums, zoos, stadiums and wonders draw visitors; hotels keep them the night; an airport brings the world. See Visitors on the computer.'],
       ['Natural disasters', 'Storms, floods and earthquakes, forecast where they can be. Fire cover, flood defences and a seismic code decide what they cost.'],
       ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 22 styles, generate a whole street, and let the city grow them in your zones.'],
-      ['Device wheel', 'Hold Tab: your phone and the City Hall computer, in 3D. Point and let go.'],
       ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
       ['Save slots', 'Keep several saves of a city, overwrite or delete them from one list.'],
       ['City Hall computer', 'Press P: the council, the Herald, your voters, petitions, stats and elections on one desk.'],

@@ -59,6 +59,8 @@ export interface Effects {
   floodDamage: number;
   quakeDamage: number;
   stormDamage: number;
+  /** Multiplier on how many visitors come. */
+  tourism: number;
 }
 
 function clear(): Effects {
@@ -71,7 +73,7 @@ function clear(): Effects {
     safetyReach: 1, learningReach: 1,
     transitFare: 1, parkingCharge: 0,
     tierCap: 2,
-    floodDamage: 1, quakeDamage: 1, stormDamage: 1,
+    floodDamage: 1, quakeDamage: 1, stormDamage: 1, tourism: 1,
   };
 }
 

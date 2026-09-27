@@ -61,6 +61,7 @@ import type { TransitNet } from './transit';
 import type { Ground } from './ground';
 import { Rng } from './rand';
 import { Policies, NO_POLICIES } from '../policies';
+import { attractionOf, bedsOf, gatewayOf, visitors, appealOf, type TourismReport } from '../tourism';
 import type { TrafficStats } from './driving';
 
 /**
@@ -86,6 +87,11 @@ const WAGE = {
 
 /** A week's turnover per filled shop job, and the goods that turnover needs. */
 const SALES_PER_SHOP_JOB = 820;
+/**
+ * What a visitor spends in a day, in the same units as a shop job's week of
+ * sales: a night in a hotel, meals and the shops, before the day-trip discount.
+ */
+const TOURIST_SPEND = 80;
 const GOODS_PER_SHOP_JOB = 480;
 
 /** A week's output per filled industrial job, in the same units as goods. */
@@ -224,6 +230,8 @@ export interface Ledger {
   fares: number;
   /** What the industry headquarters sell, shipped out and to the city's own works. */
   resources: number;
+  /** What visitors spend in the shops, taxed at the commercial rate. */
+  tourism: number;
   /** Weekly money out, by kind. */
   services: number;
   /** Running the industry headquarters. */
@@ -396,13 +404,47 @@ export class Economy {
   readonly report: Ledger = {
     grant: 0,
     residential: 0, commercial: 0, industrial: 0, office: 0, exports: 0, fares: 0,
-    resources: 0, industryUpkeep: 0,
+    resources: 0, tourism: 0, industryUpkeep: 0,
     services: 0, transit: 0, roads: 0, civic: 0, imports: 0, interest: 0, loans: 0,
     policies: 0, congestion: 0,
     income: 0, spending: 0, net: 0,
     landValue: 1, homeYield: 1, goodsMade: 0, goodsWanted: 0,
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
+
+  /** Who visits and why, as of the last settle. */
+  readonly tourism: TourismReport = { attraction: 0, beds: 0, visitors: 0, overnight: 0, appeal: 0, via: 'the roads', top: '' };
+
+  /**
+   * The draw, the beds and the way in, from the buildings standing, and who
+   * comes because of them. One walk over the table, on the money's own slow
+   * rate: a building's draw is declared on its asset, so this is a lookup and
+   * an add per building.
+   */
+  private readTourism(landValue: number): TourismReport {
+    const p = this.places, c = p.col;
+    let attraction = 0, beds = 0, topDraw = 0, top = '';
+    const ids = new Set<string>();
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0) continue;
+      const def = ASSETS[c.proto[id]];
+      if (def === undefined) continue;
+      if (def.id.startsWith('svc.transport.')) ids.add(def.id);
+      const a = attractionOf(def);
+      if (a.draw > 0) {
+        attraction += a.draw;
+        if (a.draw > topDraw) { topDraw = a.draw; top = a.what; }
+      }
+      beds += bedsOf(def);
+    }
+    const way = gatewayOf(ids);
+    const appeal = appealOf(this.people.happiness, landValue - 0.7 > 0 ? (landValue - 0.7) / 0.8 : 0);
+    const v = visitors(attraction, beds, way.reach * this.policies.effects.tourism, appeal, this.people.population);
+    const t = this.tourism;
+    t.attraction = Math.round(attraction); t.beds = beds; t.visitors = v.visitors; t.overnight = v.overnight;
+    t.appeal = appeal; t.via = way.via; t.top = top;
+    return t;
+  }
 
   /**
    * Weekly service upkeep by branch, in `BRANCHES` order, and how many
@@ -604,8 +646,15 @@ export class Economy {
 
     r.resources = this.industry?.weekly ?? 0;
     r.industryUpkeep = this.industry?.upkeep ?? 0;
+
+    // ---- visitors ------------------------------------------------------------
+    const tr = this.readTourism(worth);
+    // A night in town is a hotel, dinner and the shops; a day trip is lunch.
+    const spend = (tr.overnight + 0.35 * (tr.visitors - tr.overnight)) * 7 * TOURIST_SPEND;
+    r.tourism = spend * b.rates[Tax.COMMERCIAL] * take * gum(0.2);
+
     r.income = r.grant + r.residential + r.commercial + r.industrial + r.office
-      + r.exports + r.fares + r.resources;
+      + r.exports + r.fares + r.resources + r.tourism;
     r.loans = b.loanWeekly;
     r.spending = r.services + r.transit + r.roads + r.civic + r.imports + r.interest
       + r.policies + r.industryUpkeep + r.loans;

@@ -17,6 +17,8 @@ import type { Ledger } from './agents/economy';
 export const INCOME_LINES = [
   'residential', 'commercial', 'industrial', 'office',
   'exports', 'resources', 'fares', 'grant',
+  // Appended, never inserted: a month keeps its lines by position.
+  'tourism',
 ] as const;
 export const SPENDING_LINES = [
   'services', 'roads', 'transit', 'industryUpkeep', 'policies', 'imports', 'interest', 'loans',
@@ -27,7 +29,7 @@ export type SpendingLine = typeof SPENDING_LINES[number];
 export const LINE_LABEL: Record<IncomeLine | SpendingLine | 'congestion', string> = {
   residential: 'Residential tax', commercial: 'Commercial tax', industrial: 'Industrial tax',
   office: 'Office tax', exports: 'Export duty', resources: 'Natural resources',
-  fares: 'Transit fares', grant: 'Regional grant',
+  fares: 'Transit fares', grant: 'Regional grant', tourism: 'Tourism',
   services: 'City services', roads: 'Road upkeep', transit: 'Transit running',
   industryUpkeep: 'Industry upkeep', policies: 'Policies', imports: 'Imported goods',
   interest: 'Overdraft interest', loans: 'Loan repayments', congestion: 'Lost to congestion',

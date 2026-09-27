@@ -1636,6 +1636,11 @@ Promise<{ pixels: number[]; movers: string }> {
     w.council.table('education', false, 0, 6200);
     w.council.inbox = [{ id: 'developer', day: -1 }, { id: 'busPay', day: -3 }];
     live.computer.show((panel.split('-')[1] ?? 'home') as never);
+    // desk-home-end: the bottom of the program, for the cards below the fold.
+    if (panel.endsWith('-end')) {
+      const body = document.querySelector('.mr-pc-body');
+      if (body !== null) body.scrollTop = body.scrollHeight;
+    }
   } else if (panel === 'weather') {
     live.cityName = 'Salford';
     live.cititok.show();

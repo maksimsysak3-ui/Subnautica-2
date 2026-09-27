@@ -294,6 +294,7 @@ export class LiveCity {
       net: () => this.sim?.economy.report.net ?? 0,
       ledger: () => this.sim?.economy.report ?? null,
       dispatch: () => this.sim?.dispatch.stats ?? null,
+      tourism: () => this.sim?.economy.tourism ?? null,
     }, this.hall, this.statsApp);
     this.wheel = new TechWheel(ui, [
       { label: 'Phone', device: 'phone', hint: 'The city feed and the weather', run: () => this.cititok.show() },

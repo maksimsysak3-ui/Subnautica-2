@@ -457,6 +457,7 @@ export class StatsApp {
     const L = r.ledger;
     const parts: Array<[string, number, string]> = [
       ...[L.residential, L.commercial, L.industrial, L.office].map((v, z) => [ZONE_NAME[z], v, ZONE[z]] as [string, number, string]),
+      ['Tourism', L.tourism, '#e0a458'],
       ['Other', L.exports + L.resources + L.fares + L.grant, OTHER],
     ];
     const total = Math.max(1, sum(parts.map((p) => p[1])));

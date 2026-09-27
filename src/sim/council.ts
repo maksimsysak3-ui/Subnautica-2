@@ -223,9 +223,9 @@ export const BILLS: readonly BillDef[] = [
   {
     id: 'tourism', name: 'Visit the City Campaign',
     summary: 'Posters in every station from here to the coast.',
-    says: ['Shops earn 7% more', 'Costs a flat 3,000 a week'],
+    says: ['A third more visitors', 'Shops earn 4% more', 'Costs a flat 3,000 a week'],
     capital: 12, price: { flat: 3000 },
-    apply: (e) => { e.commercialYield *= 1.07; },
+    apply: (e) => { e.tourism *= 1.33; e.commercialYield *= 1.04; },
     blocs: { business: 0.8, workers: 0.2, retirees: -0.2, greens: -0.2 },
     parties: [-0.1, 0.8, 0.2, 0.3, 0],
   },
