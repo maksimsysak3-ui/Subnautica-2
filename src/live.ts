@@ -1366,12 +1366,16 @@ export class LiveCity {
     // The utilities, which are the failures a player cannot see from the camera:
     // a browned-out district looks exactly like a district.
     const util = sim.utilities.report;
-    const NAMED: Array<{ u: number; name: string; fix: string }> = [
-      { u: Util.POWER, name: 'Power', fix: 'Build another plant or a wind farm.' },
-      { u: Util.WATER, name: 'Water', fix: 'Add a pumping station on the river.' },
-      { u: Util.SEWAGE, name: 'Sewage', fix: 'Add a treatment works downstream.' },
+    const NAMED: Array<{ u: number; name: string; fix: string; first: string }> = [
+      { u: Util.POWER, name: 'Power', fix: 'Build another plant or a wind farm.', first: 'a wind turbine or a small plant' },
+      { u: Util.WATER, name: 'Water', fix: 'Add a pumping station on the river.', first: 'a pumping station on the river' },
+      { u: Util.SEWAGE, name: 'Sewage', fix: 'Add a treatment works downstream.', first: 'a treatment works downstream' },
     ];
     const homes = sim.places.homeCapacity;
+    // A new town usually has none of the three, and three red cards for one
+    // situation buried the checklist that already says what to build. So the
+    // ones found missing on the same look share a card.
+    const missing: typeof NAMED = [];
     for (const n of NAMED) {
       const margin = util.margin[n.u];
       // No supply at all while people are living here. The line below skips a
@@ -1382,14 +1386,7 @@ export class LiveCity {
         if (++this.noneRun[n.u] < 4) continue;
         this.toldShort[n.u] = true;
         this.wasShort[n.u] = true;
-        this.alerts.push({
-          title: `No ${n.name.toLowerCase()} yet`,
-          body: `The homes here have no ${n.name.toLowerCase()} and will be abandoned `
-            + `within a week without it. ${n.fix}`,
-          tone: 'bad',
-          tag: `util-${n.u}`,
-          figure: '0%',
-        });
+        missing.push(n);
         continue;
       }
       this.noneRun[n.u] = 0;
@@ -1421,6 +1418,19 @@ export class LiveCity {
         tone: short ? 'bad' : 'good',
         tag: `util-${n.u}`,
         figure: `${Math.round(margin * 100)}%`,
+      });
+    }
+    if (missing.length > 0) {
+      const names = missing.map((n) => n.name.toLowerCase());
+      const list = names.length === 1 ? names[0]
+        : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+      this.alerts.push({
+        title: `No ${list} yet`,
+        body: `The homes here will be abandoned within a week without `
+          + `${names.length === 1 ? 'it' : 'them'}. Build ${missing.map((n) => n.first).join('; ')}.`,
+        tone: 'bad',
+        tag: missing.length === 1 ? `util-${missing[0].u}` : 'util-none',
+        figure: '0%',
       });
     }
 
