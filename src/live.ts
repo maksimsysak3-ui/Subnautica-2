@@ -96,7 +96,7 @@ import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
 import type { CouncilCity } from './sim/council';
-import { BLOCS, billById, petitionById } from './sim/council';
+import { BLOCS, billById, petitionById, projectById } from './sim/council';
 import type { DeskApp } from './ui/computer';
 import type { NewsDesk, NewsTone } from './sim/news';
 import { Gripe } from './sim';
@@ -326,6 +326,7 @@ export class LiveCity {
     this.seenPetitions.clear();
     this.seenDivision = '';
     this.seenProtest = 0;
+    this.seenProjects = -1;
     this.columnDay = -1;
     this.council = null;
     this.steps.reset();
@@ -722,7 +723,16 @@ export class LiveCity {
       });
     }
     this.seenProtest = mask;
+    if (c.finished.length > this.seenProjects && this.seenProjects >= 0) {
+      const def = projectById(c.finished[c.finished.length - 1]);
+      if (def !== undefined) {
+        this.alerts.push({ title: `${def.name} completed`, body: def.says.join('. ') + '.', icon: 'develop',
+          tone: 'good', tag: 'project', go: open('projects') });
+      }
+    }
+    this.seenProjects = c.finished.length;
   }
+  private seenProjects = -1;
 
   /** What the council reads of the city, refreshed with the voters' issues. */
   private council: CouncilCity | null = null;

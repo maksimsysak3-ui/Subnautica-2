@@ -452,6 +452,108 @@ export function petitionById(id: string): PetitionDef | undefined {
   return PETITIONS.find((p) => p.id === id);
 }
 
+// ---- city projects --------------------------------------------------------------
+
+/**
+ * A programme the city runs for weeks and keeps the result of for good.
+ *
+ * Where a bill is a switch and a petition is an answer, a project is an
+ * investment: a weekly bill for a couple of months, and then a permanent
+ * change to the city. Started from the projects office with political
+ * capital, because a council has to be persuaded to commit to one; one at a
+ * time, because a city's engineers are only so many.
+ */
+export interface ProjectDef {
+  id: string;
+  name: string;
+  summary: string;
+  /** What it leaves behind. */
+  says: readonly string[];
+  weeks: number;
+  /** What it costs each week while it runs, as the ordinances price themselves. */
+  price: Price;
+  capital: number;
+  minPop: number;
+  apply?: (e: Effects) => void;
+  mood?: number;
+  /** How each bloc takes it when it is finished. */
+  blocs: Partial<Record<BlocId, number>>;
+}
+
+export const PROJECTS: readonly ProjectDef[] = [
+  {
+    id: 'fibre', name: 'Fibre to Every Door', minPop: 2000, weeks: 8, capital: 14,
+    summary: 'Gigabit broadband dug into every street in the city.',
+    says: ['Offices earn 8% more', 'Shops earn 3% more'],
+    price: { perResident: 1.4 },
+    apply: (e) => { e.officeYield *= 1.08; e.commercialYield *= 1.03; },
+    blocs: { business: 0.08, students: 0.08, workers: 0.03 },
+  },
+  {
+    id: 'cleanRiver', name: 'Clean River Programme', minPop: 1500, weeks: 8, capital: 12,
+    summary: 'Interceptor sewers, reed beds and a new outfall. The river runs clear.',
+    says: ['Industrial pollution down 15%', 'Land worth more everywhere'],
+    price: { perResident: 1.1 },
+    apply: (e) => { e.industrialPollution *= 0.85; e.landValue += 0.02; },
+    blocs: { greens: 0.12, families: 0.05, retirees: 0.03 },
+  },
+  {
+    id: 'renewables', name: 'Renewable Grid', minPop: 3000, weeks: 10, capital: 16,
+    summary: 'Smart meters, rooftop solar and a grid that wastes less.',
+    says: ['Power demand down 15%'],
+    price: { perResident: 1.3 },
+    apply: (e) => { e.power *= 0.85; },
+    blocs: { greens: 0.12, students: 0.04 },
+  },
+  {
+    id: 'waterReuse', name: 'Water Recycling Works', minPop: 2500, weeks: 6, capital: 10,
+    summary: 'Grey water treated and piped back to parks, works and toilets.',
+    says: ['Water demand down 15%'],
+    price: { perResident: 1.0 },
+    apply: (e) => { e.water *= 0.85; },
+    blocs: { greens: 0.06, business: 0.03 },
+  },
+  {
+    id: 'zeroWaste', name: 'Zero Waste City', minPop: 3000, weeks: 8, capital: 12,
+    summary: 'Repair shops, deposit returns and a compost collection for every street.',
+    says: ['Rubbish down 20%'],
+    price: { perResident: 0.9 },
+    apply: (e) => { e.garbage *= 0.8; },
+    blocs: { greens: 0.1, families: 0.03 },
+  },
+  {
+    id: 'civicPride', name: 'Civic Pride Campaign', minPop: 1200, weeks: 4, capital: 8,
+    summary: 'Murals, festivals, restored squares and a city that likes itself.',
+    says: ['Everybody a little happier, for good'],
+    price: { perResident: 0.8 },
+    mood: 3,
+    blocs: { families: 0.04, retirees: 0.04, workers: 0.03, students: 0.04 },
+  },
+  {
+    id: 'emergencyNet', name: 'Emergency Radio Network', minPop: 4000, weeks: 6, capital: 12,
+    summary: 'One radio net for fire, police and ambulances, and a control room to run it.',
+    says: ['Police and fire reach 12% further'],
+    price: { perResident: 1.0 },
+    apply: (e) => { e.safetyReach *= 1.12; },
+    blocs: { retirees: 0.06, families: 0.06 },
+  },
+  {
+    id: 'games', name: 'Host the Regional Games', minPop: 15000, weeks: 12, capital: 30,
+    summary: 'A fortnight of sport, a village for the athletes and the eyes of the region on the city.',
+    says: ['Shops earn 8% more, for good', 'Land worth more everywhere', 'Everybody happier'],
+    price: { flat: 22000 },
+    mood: 3,
+    apply: (e) => { e.commercialYield *= 1.08; e.landValue += 0.03; },
+    blocs: { business: 0.12, students: 0.08, workers: 0.05, families: 0.05, retirees: -0.03 },
+  },
+];
+
+export function projectById(id: string): ProjectDef | undefined {
+  return PROJECTS.find((p) => p.id === id);
+}
+
+export interface Running { id: string; started: number; until: number }
+
 export interface OpenPetition { id: string; day: number }
 
 /** A temporary measure, from an answered petition or a strike. */
@@ -517,6 +619,9 @@ export class Council {
   inbox: OpenPetition[] = [];
   nextPetition = 3;
   private temps: Temp[] = [];
+  /** The project under way, if any, and those finished. */
+  project: Running | null = null;
+  finished: string[] = [];
   private scandals: { day: number; text: string }[] = [];
   /** Last whole day stepped; null before the first. */
   private stepped: number | null = null;
@@ -642,6 +747,18 @@ export class Council {
       this.nextPetition = day + 3 + Math.floor(this.rand() * 4);
     }
 
+    // The project, if one is done.
+    if (this.project !== null && day >= this.project.until) {
+      const def = projectById(this.project.id);
+      this.project = null;
+      if (def !== undefined) {
+        this.finished.push(def.id);
+        for (let b = 0; b < BLOC_COUNT; b++) this.memory[b] += def.blocs[BLOCS[b].id] ?? 0;
+        news.print(day, 'city', 'good', `${def.name} completed`, `${def.summary} ${def.says.join('. ')}.`);
+      }
+      changed = true;
+    }
+
     // Scandals come out when they come out.
     for (const s of this.scandals.filter((x) => day >= x.day)) {
       for (let b = 0; b < BLOC_COUNT; b++) this.memory[b] -= 0.06;
@@ -697,6 +814,7 @@ export class Council {
     let m = 0;
     for (const l of this.laws) m += billById(l.id)?.mood ?? 0;
     for (const t of this.temps) m += t.mood;
+    for (const id of this.finished) m += projectById(id)?.mood ?? 0;
     for (let b = 0; b < BLOC_COUNT; b++) if (this.protesting[b] === 1) m -= 3 + this.share[b] * 12;
     return m;
   }
@@ -710,6 +828,8 @@ export class Council {
       extras.push({ apply: def.apply, price: l.flat !== undefined ? { flat: l.flat } : def.price });
     }
     for (const t of this.temps) extras.push({ apply: t.apply, price: t.price });
+    for (const id of this.finished) extras.push({ apply: projectById(id)?.apply });
+    if (this.project !== null) extras.push({ price: projectById(this.project.id)?.price });
     if (this.protesting[BI.workers] === 1) {
       extras.push({ apply: (e) => { e.industrialYield *= 0.9; e.commercialYield *= 0.96; } });
     }
@@ -934,6 +1054,46 @@ export class Council {
     }
   }
 
+  // ---- projects --------------------------------------------------------------
+
+  /** Why a project cannot start now, or null if it can. */
+  projectBlocked(id: string, population: number): string | null {
+    const def = projectById(id);
+    if (def === undefined) return 'No such project';
+    if (!this.open) return 'The council has not sat yet';
+    if (this.finished.includes(id)) return 'Completed';
+    if (this.project !== null) return 'Another project is under way';
+    if (population < def.minPop) return `Needs ${def.minPop.toLocaleString()} residents`;
+    if (this.capital < def.capital) return 'Not enough political capital';
+    return null;
+  }
+
+  startProject(id: string, day: number, population: number, policies: Policies, news: Newsroom): boolean {
+    const def = projectById(id);
+    if (def === undefined || this.projectBlocked(id, population) !== null) return false;
+    this.capital -= def.capital;
+    this.project = { id, started: day, until: day + def.weeks * 7 };
+    news.print(day, 'city', 'flat', `Work begins on the ${def.name}`,
+      `${def.summary} Due in ${def.weeks} weeks.`);
+    this.refreshExtras(policies);
+    this.version++;
+    return true;
+  }
+
+  /** Abandons the project under way. What was spent is gone. */
+  cancelProject(day: number, policies: Policies, news: Newsroom): boolean {
+    const p = this.project;
+    if (p === null) return false;
+    const def = projectById(p.id);
+    this.project = null;
+    for (let b = 0; b < BLOC_COUNT; b++) this.memory[b] -= 0.02;
+    news.print(day, 'city', 'bad', `${def?.name ?? 'Project'} abandoned`,
+      'The money already spent is gone, and the voters noticed.');
+    this.refreshExtras(policies);
+    this.version++;
+    return true;
+  }
+
   // ---- saving ----------------------------------------------------------------
 
   saved(): unknown {
@@ -945,6 +1105,7 @@ export class Council {
       inbox: this.inbox, nextPetition: this.nextPetition, stepped: this.stepped,
       temps: this.temps.map((t) => ({ until: t.until, src: t.src, option: t.option })),
       scandals: this.scandals, seed: this.seed,
+      project: this.project, finished: this.finished,
     };
   }
 
@@ -990,6 +1151,11 @@ export class Council {
     }
     this.scandals = Array.isArray(r.scandals) ? (r.scandals as { day: number; text: string }[]) : [];
     this.seed = num(r.seed, 0xc0417);
+    const pr = r.project as Running | null | undefined;
+    this.project = pr && typeof pr.id === 'string' && projectById(pr.id) !== undefined
+      && typeof pr.until === 'number' ? pr : null;
+    this.finished = Array.isArray(r.finished)
+      ? (r.finished as unknown[]).filter((x): x is string => typeof x === 'string' && projectById(x) !== undefined) : [];
     // Re-seeded from where the save stood, so the inbox after a load goes on as it would have.
     this.rand = mulberry(this.seed + Math.max(0, this.stepped ?? 0) * 7919);
     this.refreshExtras(policies);

@@ -104,13 +104,25 @@ const n0 = c.inbox.length;
 check(c.answer(p.id, 0, 180, 3000, budget, policies, news), 'a petition can be answered');
 check(c.inbox.length === n0 - 1, 'and leaves the inbox');
 
+// A project runs for weeks, costs weekly, and leaves its effect for good.
+c.capital = 100;
+const pw0 = policies.weekly(3000, 1000, 100);
+check(c.startProject('cleanRiver', 181, 3000, policies, news), 'a project can be started');
+check(c.projectBlocked('fibre', 3000) !== null, 'only one project at a time');
+check(policies.weekly(3000, 1000, 100) > pw0, 'and it costs while it runs');
+check(policies.effects.industrialPollution >= 1 || c.has('carbonLevy'), 'but does nothing until it is done');
+for (let d = 182; d < 181 + 8 * 7 + 2; d++) c.update(d, city(), policies, budget, news);
+check(c.project === null && c.finished.includes('cleanRiver'), 'it completes on time');
+check(policies.effects.landValue > 0, 'and its effect stays');
+
 // A save round trip keeps everything that matters.
 const saved = JSON.parse(JSON.stringify(c.saved()));
 const d2 = new M.Council();
 const pol2 = new M.Policies();
 d2.restore(saved, pol2);
 check(d2.open && d2.seatCount === c.seatCount && d2.laws.length === c.laws.length
-  && Math.abs(d2.capital - c.capital) < 1e-9 && d2.inbox.length === c.inbox.length, 'a save restores the council');
+  && Math.abs(d2.capital - c.capital) < 1e-9 && d2.inbox.length === c.inbox.length
+  && d2.finished.length === c.finished.length, 'a save restores the council');
 check(Math.abs(pol2.effects.learningReach - policies.effects.learningReach) < 1e-9,
   'and the laws take effect again on load');
 

@@ -1627,6 +1627,8 @@ Promise<{ pixels: number[]; movers: string }> {
       w.council.update(d, city, w.policies, w.budget, w.news);
       if (d === -30) { w.council.capital = 100; w.council.table('publicSafety', false, d, 6200); }
       if (d === -12) { w.council.capital = 100; w.council.table('tourism', false, d, 6200); }
+      if (d === -38) { w.council.capital = 100; w.council.startProject('civicPride', d, 6200, w.policies, w.news); }
+      if (d === -9) { w.council.capital = 100; w.council.startProject('fibre', d, 6200, w.policies, w.news); }
     }
     w.news.print(-2, 'economy', 'good', 'Windfall', 'A regional development grant came through.');
     w.news.print(-1, 'transport', 'bad', 'Gridlock at the stadium', 'Crowds are converging on it and the roads in cannot take them.');

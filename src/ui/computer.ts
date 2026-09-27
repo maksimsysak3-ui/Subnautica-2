@@ -23,16 +23,18 @@ import { tip } from './skin';
 import { money } from '../sim';
 import type { World } from '../sim/world';
 import {
-  BILLS, BLOCS, COUNCIL_PARTIES, COUNCIL_POPULATION, COMMITTEE_DAYS, LOBBY_COST, LOBBY_MAX,
+  BILLS, BLOCS, PROJECTS, projectById, COUNCIL_PARTIES, COUNCIL_POPULATION, COMMITTEE_DAYS, LOBBY_COST, LOBBY_MAX,
   PROTEST_BELOW, billById, petitionById, Council,
 } from '../sim/council';
 import type { BillDef } from '../sim/council';
 import type { NewsDesk, Story } from '../sim/news';
 import { monthOf, yearOf } from '../sim/weather';
+import { CURRENCY } from '../sim/difficulty';
+import type { Price } from '../sim/policies';
 import type { CityHall } from './city-hall';
 import type { StatsApp } from './stats-app';
 
-export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'stats' | 'hall';
+export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'projects' | 'stats' | 'hall';
 
 export interface DeskHost {
   world(): World;
@@ -52,6 +54,7 @@ const APPS: ReadonlyArray<[DeskApp, string, string]> = [
   ['council', 'Council', 'government'],
   ['voters', 'Voters', 'heart'],
   ['inbox', 'Inbox', 'post'],
+  ['projects', 'Projects', 'develop'],
   ['stats', 'Stats', 'money'],
   ['hall', 'Elections', 'check'],
 ];
@@ -241,6 +244,7 @@ export class Computer {
       case 'council': this.paintCouncil(); break;
       case 'voters': this.paintVoters(); break;
       case 'inbox': this.paintInbox(); break;
+      case 'projects': this.paintProjects(); break;
       case 'stats':
         if (this.stats !== null) {
           this.stats.pane.style.display = 'flex';
@@ -755,6 +759,90 @@ export class Computer {
       g.appendChild(card);
     }
     this.body.appendChild(g);
+  }
+
+  // ---- Projects ------------------------------------------------------------------------
+
+  private paintProjects(): void {
+    const w = this.host.world();
+    const c = w.council;
+    if (!c.open) { this.body.appendChild(this.closedNote()); return; }
+    const day = this.host.day();
+    const pop = this.host.population();
+    const g = el('div', 'mr-pc-grid');
+
+    const now = this.card('Under way', 12, `${c.finished.length} of ${PROJECTS.length} completed`);
+    const run = c.project;
+    if (run === null) now.appendChild(el('div', 'mr-pc-note', 'Nothing under way. Start one below: it costs capital to begin and money every week until it is done, then its effect is permanent.'));
+    else {
+      const def = projectById(run.id)!;
+      const box = el('div', 'mr-pc-bill');
+      box.appendChild(el('h4', undefined, def.name));
+      box.appendChild(el('p', undefined, def.summary));
+      const t = Math.max(0, Math.min(1, (day - run.started) / Math.max(1, run.until - run.started)));
+      const bar = this.bar(t, '#f4b54a');
+      bar.style.margin = '6px 0 2px';
+      box.appendChild(bar);
+      box.appendChild(el('p', undefined, `${Math.round(t * 100)}% · ${Math.max(0, Math.ceil(run.until - day))} days to go`));
+      const side = el('div', 'mr-pc-side-col');
+      const weekly = this.weekly(def.price, pop);
+      side.appendChild(el('span', 'mr-pc-verdict', `${money(Math.round(weekly))} a week`));
+      const x = el('button', 'mr-pc-btn is-quiet', 'Abandon');
+      x.title = 'What has been spent is lost, and the voters notice';
+      x.addEventListener('click', () => {
+        if (c.cancelProject(day, w.policies, w.news)) { clickSound(); this.painted = ''; this.paint(); }
+      });
+      side.appendChild(x);
+      box.appendChild(side);
+      now.appendChild(box);
+    }
+    g.appendChild(now);
+
+    const list = this.card('Projects', 12, 'one at a time');
+    const ul = el('div', 'mr-pc-list');
+    for (const def of PROJECTS) {
+      const box = el('article', 'mr-pc-bill');
+      box.dataset.project = def.id;
+      const done = c.finished.includes(def.id);
+      box.appendChild(el('h4', undefined, def.name));
+      box.appendChild(el('p', undefined, def.summary));
+      const li = el('ul');
+      for (const s of def.says) li.appendChild(el('li', undefined, s));
+      box.appendChild(li);
+      const side = el('div', 'mr-pc-side-col');
+      if (done || c.project?.id === def.id) {
+        const d = el('span', 'mr-pc-verdict', done ? 'Completed' : 'Under way');
+        d.style.color = done ? '#5fc78c' : '#f4b54a';
+        side.appendChild(d);
+      } else {
+        side.appendChild(el('span', 'mr-pc-note',
+          `${def.weeks} weeks · ${money(Math.round(this.weekly(def.price, pop)))} a week`));
+        const why = c.projectBlocked(def.id, pop);
+        const b = el('button', 'mr-pc-btn', `Start · ${def.capital} capital`);
+        b.disabled = why !== null;
+        b.addEventListener('click', () => {
+          if (c.startProject(def.id, day, pop, w.policies, w.news)) { clickSound(); this.painted = ''; this.paint(); }
+          else deny();
+        });
+        side.appendChild(b);
+        if (why !== null && why !== 'Another project is under way') {
+          const n = el('span', 'mr-pc-note', why);
+          n.style.textAlign = 'right';
+          side.appendChild(n);
+        }
+      }
+      box.appendChild(side);
+      ul.appendChild(box);
+    }
+    list.appendChild(ul);
+    g.appendChild(list);
+    this.body.appendChild(g);
+  }
+
+  /** A weekly price in the game's money, for this city. */
+  private weekly(p: Price, pop: number): number {
+    const jobs = pop * 0.5;
+    return ((p.flat ?? 0) + (p.perResident ?? 0) * pop + (p.perJob ?? 0) * jobs) * CURRENCY;
   }
 
   // ---- Inbox ---------------------------------------------------------------------------
