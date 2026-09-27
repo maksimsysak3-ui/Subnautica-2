@@ -31,10 +31,14 @@ import type { NewsDesk, Story } from '../sim/news';
 import { monthOf, yearOf } from '../sim/weather';
 import { CURRENCY } from '../sim/difficulty';
 import type { Price } from '../sim/policies';
+import type { Ledger } from '../sim/agents/economy';
+import type { DispatchStats } from '../sim/agents/dispatch';
+import { RESOURCES, resourceById } from '../sim/resources';
+import type { ResourceId } from '../sim/resources';
 import type { CityHall } from './city-hall';
 import type { StatsApp } from './stats-app';
 
-export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'projects' | 'stats' | 'hall';
+export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'projects' | 'industry' | 'stats' | 'hall';
 
 export interface DeskHost {
   world(): World;
@@ -46,6 +50,10 @@ export interface DeskHost {
   population(): number;
   happiness(): number;
   net(): number;
+  /** The week's books, or null before a city runs. */
+  ledger(): Ledger | null;
+  /** The emergency services' record since founding. */
+  dispatch(): DispatchStats | null;
 }
 
 const APPS: ReadonlyArray<[DeskApp, string, string]> = [
@@ -55,6 +63,7 @@ const APPS: ReadonlyArray<[DeskApp, string, string]> = [
   ['voters', 'Voters', 'heart'],
   ['inbox', 'Inbox', 'post'],
   ['projects', 'Projects', 'develop'],
+  ['industry', 'Industry', 'resources'],
   ['stats', 'Stats', 'money'],
   ['hall', 'Elections', 'check'],
 ];
@@ -213,7 +222,7 @@ export class Computer {
   private signature(): string {
     const w = this.host.world();
     const day = Math.floor(this.host.day());
-    return [this.app, this.desk, w.council.version, w.news.version, w.politics.version, day,
+    return [this.app, this.desk, w.council.version, w.news.version, w.politics.version, w.industry.version, day,
       Math.round(this.host.population() / 25), Math.round(w.budget.balance / 1000)].join('|');
   }
 
@@ -245,6 +254,7 @@ export class Computer {
       case 'voters': this.paintVoters(); break;
       case 'inbox': this.paintInbox(); break;
       case 'projects': this.paintProjects(); break;
+      case 'industry': this.paintIndustry(); break;
       case 'stats':
         if (this.stats !== null) {
           this.stats.pane.style.display = 'flex';
@@ -392,6 +402,40 @@ export class Computer {
       ib.appendChild(go);
     }
     g.appendChild(ib);
+
+    // Emergencies: how each service is doing, since founding.
+    const d = this.host.dispatch();
+    const em = this.card('Emergencies', 12, d !== null && d.meanResponseMinutes > 0
+      ? `mean response ${d.meanResponseMinutes.toFixed(1)} min` : undefined);
+    if (d === null) em.appendChild(el('div', 'mr-pc-note', 'No city running.'));
+    else {
+      const row = el('div', 'mr-pc-row');
+      row.style.gap = '18px';
+      row.style.flexWrap = 'wrap';
+      ([['Fire', 0, '#ff7a3d'], ['Police', 1, '#6fa8ff'], ['Medical', 2, '#ff5d6c']] as Array<[string, number, string]>)
+        .forEach(([name, k, colour]) => {
+          const raised = d.raised[k], missed = d.missed[k];
+          const rate = raised > 0 ? 1 - missed / raised : 1;
+          const box = el('div');
+          box.style.cssText = 'flex:1;min-width:180px';
+          const top = el('div', 'mr-pc-row');
+          const n = el('b', undefined, name);
+          n.style.color = colour;
+          top.append(n, el('span', 'mr-pc-note', `${Math.round(raised)} calls`));
+          const v = el('b', undefined, raised > 0 ? pct(rate) : '—');
+          v.style.marginLeft = 'auto';
+          v.style.color = tone(rate > 0.9 ? 0.7 : rate > 0.75 ? 0.45 : 0.2);
+          top.appendChild(v);
+          const bar = this.bar(rate, tone(rate > 0.9 ? 0.7 : rate > 0.75 ? 0.45 : 0.2));
+          bar.style.margin = '6px 0';
+          box.append(top, bar, el('span', 'mr-pc-note', missed > 0
+            ? `${Math.round(missed)} missed — ${k === 0 ? 'more fire stations' : k === 1 ? 'more police' : 'more clinics'} nearer the calls would help`
+            : 'every call answered in time'));
+          row.appendChild(box);
+        });
+      em.appendChild(row);
+    }
+    g.appendChild(em);
     this.body.appendChild(g);
   }
 
@@ -758,6 +802,156 @@ export class Computer {
       }
       g.appendChild(card);
     }
+    this.body.appendChild(g);
+  }
+
+  // ---- Industry ------------------------------------------------------------------------
+
+  /**
+   * The whole resource economy on one page: what each headquarters produces,
+   * where it goes -- shipped out, sold to the city, turned into goods by a
+   * plant -- what it earns, and how much of the field is left; then the
+   * city's own goods, made against needed, and what the difference is worth.
+   */
+  private paintIndustry(): void {
+    const w = this.host.world();
+    const ind = w.industry;
+    const l = this.host.ledger();
+    const g = el('div', 'mr-pc-grid');
+    const units = (n: number): string => Math.round(n).toLocaleString();
+
+    // Totals.
+    let made = 0, shipped = 0, local = 0;
+    for (const r of ind.reports) { made += r.units; shipped += r.shipped; local += r.local; }
+    const processed = ind.plantReports.reduce((a, p) => a + p.taken, 0);
+    const tile = (label: string, value: string, note: string, colour?: string): void => {
+      const t = el('section', 'mr-pc-card mr-pc-tile');
+      t.style.gridColumn = 'span 3';
+      const v = el('strong', undefined, value);
+      if (colour !== undefined) v.style.color = colour;
+      t.append(el('small', undefined, label), v, el('i', undefined, note));
+      g.appendChild(t);
+    };
+    tile('Raw output', `${units(made)} u`, 'a week, every headquarters');
+    tile('Exported', `${units(shipped)} u`, 'shipped out at full price');
+    tile('Used here', `${units(local + processed)} u`, `${units(processed)} of it processed`);
+    tile('Income', `+${money(Math.round(ind.weekly))}`, `upkeep ${money(Math.round(ind.upkeep))} a week`,
+      ind.weekly >= ind.upkeep ? '#5fc78c' : '#e0685a');
+
+    // Per resource.
+    const card = this.card('By resource', 12, `${ind.hqs.length} headquarters`);
+    if (ind.hqs.length === 0) {
+      card.appendChild(el('div', 'mr-pc-note',
+        'No industry yet. Open the Natural resources view to find a deposit, place a headquarters for it from the industry drawer, and draw its harvest area over the coloured ground: only land inside a deposit produces anything.'));
+    } else {
+      const table = el('table');
+      table.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums';
+      const head = el('tr');
+      for (const h of ['Resource', 'HQs', 'Produced', 'Exported', 'Used here', 'Processed', 'Earns / wk', 'Field left']) {
+        const th = el('th', undefined, h);
+        th.style.cssText = 'text-align:right;padding:6px 8px;font:600 10.5px/1 var(--label);letter-spacing:.1em;text-transform:uppercase;color:#6d8098;border-bottom:1px solid rgba(255,255,255,.08)';
+        head.appendChild(th);
+      }
+      (head.firstChild as HTMLElement).style.textAlign = 'left';
+      table.appendChild(head);
+      const by = new Map<ResourceId, { n: number; u: number; s: number; lo: number; inc: number; rem: number; cells: number }>();
+      ind.hqs.forEach((h, i) => {
+        const r = ind.reports[i];
+        const e = by.get(h.kind) ?? { n: 0, u: 0, s: 0, lo: 0, inc: 0, rem: 0, cells: 0 };
+        e.n++;
+        if (r !== undefined) {
+          e.u += r.units; e.s += r.shipped; e.lo += r.local; e.inc += r.income;
+          e.rem += r.remaining * r.cells; e.cells += r.cells;
+        }
+        by.set(h.kind, e);
+      });
+      for (const res of RESOURCES) {
+        const e = by.get(res.id);
+        if (e === undefined) continue;
+        const pr = ind.plantReports.filter((p) => p.kind === res.id);
+        const took = pr.reduce((a, p) => a + p.taken, 0);
+        const plantInc = pr.reduce((a, p) => a + p.income, 0);
+        const tr = el('tr');
+        const cells = [res.name, String(e.n), `${units(e.u)} u`, `${units(e.s)} u`, `${units(Math.max(0, e.lo - took))} u`,
+          pr.length > 0 ? `${units(took)} u` : '—', money(Math.round(e.inc + plantInc)),
+          res.renewable ? (e.cells > 0 ? pct(e.rem / e.cells) : '—') + ' ↻' : (e.cells > 0 ? pct(e.rem / e.cells) : '—')];
+        cells.forEach((v, k) => {
+          const td = el('td', undefined, v);
+          td.style.cssText = `padding:8px;border-bottom:1px solid rgba(255,255,255,.05);text-align:${k === 0 ? 'left' : 'right'};`
+            + (k === 0 ? `color:${res.ramp[2]};font-weight:600` : 'color:#c6d2e0');
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      }
+      const wrap = el('div');
+      wrap.style.overflowX = 'auto';
+      wrap.appendChild(table);
+      card.appendChild(wrap);
+      card.appendChild(el('div', 'mr-pc-note',
+        'Exported raw material sells at the full price; what the city keeps supplies its works at a discount and counts as local goods; a processing plant turns it into goods worth 2.6 times as much. Ore, oil and stone run out; forest and fish grow back if not overworked (↻).'));
+    }
+    g.appendChild(card);
+
+    // The headquarters, one by one.
+    if (ind.hqs.length > 0) {
+      const each = this.card('Headquarters', 12);
+      const list = el('div', 'mr-pc-list');
+      ind.hqs.forEach((h, i) => {
+        const r = ind.reports[i];
+        const res = resourceById(h.kind);
+        const row = el('div', 'mr-pc-row');
+        row.style.cssText = 'padding:8px 10px;border:1px solid rgba(255,255,255,.06);border-radius:8px;flex-wrap:wrap;gap:14px';
+        const name = el('b', undefined, `${res.product} HQ ${i + 1}`);
+        name.style.color = res.ramp[2];
+        name.style.minWidth = '120px';
+        row.appendChild(name);
+        if (h.area.length < 6) row.appendChild(el('span', 'mr-pc-note', 'No harvest area drawn — it produces nothing'));
+        else if (r !== undefined) {
+          row.appendChild(el('span', undefined, `${units(r.units)} u / wk`));
+          row.appendChild(el('span', 'mr-pc-note', `staffed ${pct(r.staffing)}`));
+          row.appendChild(el('span', 'mr-pc-note', `export ${pct(h.exportShare)}`));
+          row.appendChild(el('span', 'mr-pc-note', `field ${pct(r.remaining)} left`));
+          const inc = el('b', undefined, `+${money(Math.round(r.income))} / wk`);
+          inc.style.marginLeft = 'auto';
+          inc.style.color = '#5fc78c';
+          row.appendChild(inc);
+          if (r.units < 1) row.appendChild(el('span', 'mr-pc-chip', 'Not on a deposit'));
+        }
+        list.appendChild(row);
+      });
+      each.appendChild(list);
+      g.appendChild(each);
+    }
+
+    // The city's goods.
+    const goods = this.card('City goods', 12, 'works and shops');
+    if (l === null) goods.appendChild(el('div', 'mr-pc-note', 'No city running.'));
+    else {
+      const need = Math.max(1, l.goodsWanted);
+      const row = (label: string, v: number, max: number, colour: string, note: string): void => {
+        const r = el('div', 'mr-pc-row');
+        r.style.margin = '6px 0';
+        const n = el('span', undefined, label);
+        n.style.width = '150px';
+        const b = this.bar(v / max, colour);
+        b.style.flex = '1';
+        const t = el('b', undefined, `${units(v)} u`);
+        t.style.width = '90px';
+        t.style.textAlign = 'right';
+        r.append(n, b, t, el('span', 'mr-pc-note', note));
+        goods.appendChild(r);
+      };
+      const top = Math.max(l.goodsMade, need);
+      row('Made here', l.goodsMade, top, '#e8b454', '');
+      row('Needed by shops', l.goodsWanted, top, '#6fd3ff', '');
+      const surplus = l.goodsMade - l.goodsWanted;
+      goods.appendChild(el('div', 'mr-pc-note', surplus >= 0
+        ? `A surplus of ${units(surplus)} units is exported, earning ${money(Math.round(l.exports))} a week in duty. The outside market takes less and less of each extra lot.`
+        : `A shortfall of ${units(-surplus)} units is imported, costing ${money(Math.round(l.imports))} a week. More industry, or a headquarters supplying the city, closes it.`));
+      goods.appendChild(el('div', 'mr-pc-note',
+        `Industrial tax brings in ${money(Math.round(l.industrial))} a week.`));
+    }
+    g.appendChild(goods);
     this.body.appendChild(g);
   }
 

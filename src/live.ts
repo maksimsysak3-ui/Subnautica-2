@@ -285,6 +285,8 @@ export class LiveCity {
       population: () => this.sim?.people.population ?? 0,
       happiness: () => this.sim?.people.happiness ?? 0,
       net: () => this.sim?.economy.report.net ?? 0,
+      ledger: () => this.sim?.economy.report ?? null,
+      dispatch: () => this.sim?.dispatch.stats ?? null,
     }, this.hall, this.statsApp);
     this.settings = new Settings(ui, {
       apply: (v) => {
