@@ -88,6 +88,28 @@ checks++;
   const tower = M.cleanBlueprint({ name: 'T', floors: 20, grow: 'european' });
   if (tower.grow !== undefined || M.blueprintAsset(tower, 'test', 't').signature !== true) fail('a tower grows');
 }
+// And in the game: an enabled mod's grown building is in the city's stock for
+// that style, beside the game's own, and not in the landmarks.
+checks++;
+{
+  const g = M.generateBuilding(777, 'victorian', 'house');
+  const store = new Map([['civitas.mods.v2', JSON.stringify({
+    enabled: ['custom-grown-test'],
+    custom: [{ id: 'custom-grown-test', name: 'Grown test', kind: 'buildings',
+      buildings: [{ name: 'Grown villa', kind: 'building', building: g.plan, width: g.width, depth: g.depth, grow: 'american' }] }],
+  })]]);
+  globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+  const game = (await esbuild.build({
+    stdin: { contents: `export { stock, signatures } from '${src}sim/inventory';`, resolveDir: src, loader: 'ts' },
+    bundle: true, format: 'esm', write: false, target: 'es2022', loader: { '.wgsl': 'text' },
+  })).outputFiles[0].text;
+  const G = await import('data:text/javascript;base64,' + Buffer.from(game).toString('base64'));
+  const density = g.plan.storeys >= 5 ? 'high' : g.plan.storeys >= 3 ? 'medium' : 'low';
+  const pool = G.stock('residential', density, 'american').map((p) => p.id);
+  if (!pool.includes('mod.custom-grown-test.b0')) fail(`the grown villa is not in American ${density} housing (${pool.length} there)`);
+  else if (pool.length < 2) fail('the grown villa pushed the game\'s own American housing out');
+  if (G.signatures('residential').some((p) => p.id === 'mod.custom-grown-test.b0')) fail('the grown villa is also a landmark');
+}
 console.log(`${checks} checks; ${M.BB_THEMES.length} styles; roofs ${[...seenRoofs].join('/')}; plans ${[...seenPlans].join('/')}; heaviest ${worstTris} triangles`);
 console.log(failed === 0 ? 'BUILDING_STUDIO_OK' : `BUILDING_STUDIO: ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
