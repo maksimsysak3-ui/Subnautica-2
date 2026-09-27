@@ -32,6 +32,12 @@ export interface Rules {
   quiet: number;
   /** Multiplier on experience earned. */
   xp: number;
+  /**
+   * Multiplier on how many households want to move in. Money alone did not
+   * make Hard grow slower: a bot that skipped the clinic grew as fast as one
+   * that built it, because the queue of newcomers never ran dry.
+   */
+  appeal: number;
 }
 
 /**
@@ -67,21 +73,21 @@ const DESIGNED: readonly Rules[] = [
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
       + 'For players who want to shape a city without watching the books.',
     funds: 190000, grantWeekly: 18000, grantUntil: 4000,
-    build: 0.8, upkeep: 0.8, income: 1.1, quiet: 4000, xp: 1.3,
+    build: 0.8, upkeep: 0.8, income: 1.1, quiet: 4000, xp: 1.3, appeal: 1.05,
   },
   {
     id: 'standard', label: 'Standard', tagline: 'The city as it was designed',
     blurb: 'Enough to found a town and make its first real decisions. Taxes, '
       + 'services and growth have to be kept in step.',
     funds: 125000, grantWeekly: 14000, grantUntil: 2500,
-    build: 1, upkeep: 1, income: 1, quiet: 2000, xp: 1,
+    build: 1, upkeep: 1, income: 1, quiet: 2000, xp: 1, appeal: 1,
   },
   {
     id: 'hard', label: 'Hard', tagline: 'Every coin is spoken for',
     blurb: 'A thin treasury, dear construction, a short grant and residents who '
       + 'complain early. For players who like the budget to fight back.',
     funds: 100000, grantWeekly: 9500, grantUntil: 1500,
-    build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85,
+    build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85, appeal: 0.8,
   },
 ];
 

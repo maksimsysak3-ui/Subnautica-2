@@ -47,6 +47,7 @@ import { BRANCHES } from '../../assets/types';
 import type { Ground } from './ground';
 import type { Services } from './services';
 import type { Utilities } from './utilities';
+import { RULES } from '../difficulty';
 
 // ---- the rates ------------------------------------------------------------
 
@@ -404,7 +405,7 @@ export class Migration {
       + WEIGHT.word * this.wordOfMouth
       + WEIGHT.tax * this.taxAppeal
       + WEIGHT.amenity * this.amenityAppeal;
-    return sum * this.jobsGate;
+    return Math.min(1, sum * this.jobsGate * RULES.appeal);
   }
 
   /**
