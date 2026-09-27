@@ -14,7 +14,7 @@
  */
 
 import { simConfig } from './config';
-import { gradingAt, baseAtCorner, CELL } from './grading';
+import { gradingAt, baseAtCorner, baseAtPoint, CELL } from './grading';
 import { valleyAt } from './river';
 import { naturalHeightAt } from './land';
 
@@ -131,6 +131,22 @@ export function baseHeightAt(x: number, z: number): number {
  */
 export function heightAt(x: number, z: number): number {
   return baseHeightAt(x, z) + gradingAt(x, z);
+}
+
+/**
+ * The ground exactly as the terrain mesh draws it, graded.
+ *
+ * `heightAt` is the ground as a function -- noise, river, grading -- and the
+ * mesh is that function sampled every eight metres and drawn flat between. On
+ * rough ground the two part by a metre or more, and anything placed with the
+ * first on ground drawn with the second floats over it or sinks into it:
+ * that was cars dipping under the carriageway on every hill. This reads the
+ * mesh's own triangles instead, from the cached corner heights, so it is also
+ * a fraction of the cost of the noise -- which matters for something asked
+ * once per moving thing per frame.
+ */
+export function surfaceAt(x: number, z: number): number {
+  return baseAtPoint(x, z, baseHeightAt) + gradingAt(x, z);
 }
 
 /**

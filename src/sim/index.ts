@@ -18,7 +18,7 @@ export type { RoadClass, RoadSpec, Site } from './roadgraph';
 export { buildRoadMesh, previewRoad, clearRoadMesh, ROAD_FLOATS, ROAD_FLAGS, SURF } from './roadmesh';
 export type { RoadMesh } from './roadmesh';
 export {
-  buildTerrain, heightAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,
+  buildTerrain, heightAt, surfaceAt, baseHeightAt, forgetTerrain, TERRAIN, FLOATS_PER_VERTEX,
   INDICES_PER_CHUNK,
 } from './terrain';
 export { terrainChunksRebuilt, TERRAIN_LOD_SPANS, TERRAIN_LOD_METRES } from './terrain';

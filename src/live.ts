@@ -28,7 +28,7 @@ import type { ResourceId } from './sim/resources';
 import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
-import { Simulation, View, VIEWS, heightAt, money, PANEL_ONLY } from './sim';
+import { Simulation, View, VIEWS, surfaceAt, money, PANEL_ONLY } from './sim';
 import { LOAN_OFFERS, MAX_LOANS, loanPayment } from './sim/budget';
 import { checkAchievements } from './sim/achievements';
 import { Alerts } from './ui/alerts';
@@ -236,10 +236,10 @@ export class LiveCity {
     this.bars = new DemandBars(ui);
     // The graded height, not the raw terrain: a bubble belongs over the building,
     // and the building stands on ground the city cut flat for it.
-    this.thoughts = new Thoughts(ui, heightAt);
-    this.cheers = new Cheers(ui, heightAt);
-    this.incidents = new IncidentMarkers(ui, heightAt, (x, z) => this.lookAt(x, z));
-    this.districtLabels = new DistrictLabels(ui, heightAt);
+    this.thoughts = new Thoughts(ui, surfaceAt);
+    this.cheers = new Cheers(ui, surfaceAt);
+    this.incidents = new IncidentMarkers(ui, surfaceAt, (x, z) => this.lookAt(x, z));
+    this.districtLabels = new DistrictLabels(ui, surfaceAt);
     // The tax controls live inside the budget view's card, which is the only
     // place a rate and the bill it moves can be looked at together.
     this.tax = new TaxPanel();
@@ -1200,7 +1200,7 @@ export class LiveCity {
     this.plumes.refresh(now);
     this.renderer.setMovers(this.moverRows,
       sim.drawMovers(this.moverRows, Math.round(MOVER_BUDGET * this.moverShare),
-        eye[0], eye[2], heightAt, this.plumes));
+        eye[0], eye[2], surfaceAt, this.plumes));
 
     const view = this.info.view;
     if (view !== View.NONE && !PANEL_ONLY.has(view)) {

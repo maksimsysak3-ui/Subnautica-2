@@ -25,6 +25,7 @@
 import { ROAD_SPECS, RoadGraph, walk } from './roadgraph';
 import type { RoadLink, RoadClass } from './roadgraph';
 import type { Pin } from './grading';
+import { waterAt } from './river';
 
 /**
  * Floats per vertex: position, normal, road coordinate, and what the road is.
@@ -241,6 +242,100 @@ class Buf {
 
 function blankPiece(sig: string): Piece {
   return { sig, v: [], i: [], lamps: [], pk: [], pd: [], py: [] };
+}
+
+/** Metres between rows of a road on the ground, so its surface can follow the land. */
+const PROFILE_STEP = 8;
+/** Metres a dropped row may sit off the straight line between the rows kept either side. */
+const PROFILE_TOLERANCE = 0.2;
+
+/**
+ * The height along a ground road: rows every PROFILE_STEP metres over the
+ * drawn run, each at the land under it, smoothed, bridged over water, and
+ * corrected at both ends to the junction levels. Returns the row positions
+ * (keeping the shape's own points, which carry the curve) and a lookup.
+ */
+function groundProfile(dense: ReturnType<RoadGraph['samples']>, shapeAt: readonly number[],
+  s0: number, s1: number, la: number, lb: number, base: (x: number, z: number) => number):
+  { s: number[]; at: (s: number) => number } | null {
+  const span = s1 - s0;
+  if (span <= 0) return null;
+  const rows = new Set<number>(shapeAt);
+  const n = Math.max(1, Math.ceil(span / PROFILE_STEP));
+  for (let i = 0; i <= n; i++) rows.add(s0 + (span * i) / n);
+  const ss = [...rows].filter((v) => v >= s0 - 1e-6 && v <= s1 + 1e-6).sort((a, b) => a - b);
+  const h = new Float64Array(ss.length);
+  const wet = new Uint8Array(ss.length);
+  for (let i = 0; i < ss.length; i++) {
+    const p = walk(dense, ss[i]);
+    const w = waterAt(p.x, p.z);
+    if (w !== null) { wet[i] = 1; h[i] = w; } else h[i] = base(p.x, p.z);
+  }
+  // Water: a straight deck from the last dry row to the next, never below
+  // the water plus a clearance.
+  for (let i = 0; i < ss.length; i++) {
+    if (wet[i] === 0) continue;
+    let j = i;
+    while (j < ss.length && wet[j] === 1) j++;
+    const from = i > 0 ? h[i - 1] : la, to = j < ss.length ? h[j] : lb;
+    const s0w = i > 0 ? ss[i - 1] : ss[i], s1w = j < ss.length ? ss[j] : ss[j - 1];
+    for (let k = i; k < j; k++) {
+      const t = s1w > s0w ? (ss[k] - s0w) / (s1w - s0w) : 0;
+      h[k] = Math.max(h[k] + 1.5, from + (to - from) * t);
+    }
+    i = j;
+  }
+  // Smoothed along the road: a few passes of a three-row average, which
+  // rounds a crest or a hollow over forty-odd metres the way a real road is
+  // graded, without drifting from the land by more than the bumps it evens.
+  for (let pass = 0; pass < 3; pass++) {
+    const next = h.slice();
+    for (let i = 1; i + 1 < h.length; i++) next[i] = (h[i - 1] + h[i] * 2 + h[i + 1]) / 4;
+    h.set(next);
+  }
+  // Bent to meet the junctions exactly: the difference at each end, blended
+  // out along the run.
+  const da = la - h[0], db = lb - h[h.length - 1];
+  for (let i = 0; i < h.length; i++) {
+    const t = (ss[i] - s0) / span;
+    h[i] += da * (1 - t) + db * t;
+  }
+  // Only the rows the land needs: a row whose height the straight line
+  // between its kept neighbours already gives, to within a hand's breadth, is
+  // dropped (Douglas-Peucker). The shape's own points stay, since they carry
+  // the curve. On flat ground that leaves the road as light as it ever was;
+  // on a hill, a row wherever the grade actually changes.
+  const keep = new Uint8Array(ss.length);
+  keep[0] = 1; keep[ss.length - 1] = 1;
+  const shape = new Set(shapeAt);
+  for (let i = 0; i < ss.length; i++) if (shape.has(ss[i])) keep[i] = 1;
+  const stack: Array<[number, number]> = [[0, ss.length - 1]];
+  while (stack.length > 0) {
+    const [i0, i1] = stack.pop()!;
+    if (i1 - i0 < 2) continue;
+    let worst = -1, far = 0;
+    for (let i = i0 + 1; i < i1; i++) {
+      const t = (ss[i] - ss[i0]) / Math.max(1e-9, ss[i1] - ss[i0]);
+      const d = Math.abs(h[i] - (h[i0] + (h[i1] - h[i0]) * t));
+      if (d > far) { far = d; worst = i; }
+    }
+    if (far > PROFILE_TOLERANCE && worst > 0) {
+      keep[worst] = 1;
+      stack.push([i0, worst], [worst, i1]);
+    }
+  }
+  // Kept shape points split the run too: simplify between each pair of kept rows.
+  const ks: number[] = [], kh: number[] = [];
+  for (let i = 0; i < ss.length; i++) if (keep[i] === 1) { ks.push(ss[i]); kh.push(h[i]); }
+  const at = (s: number): number => {
+    if (s <= ks[0]) return kh[0];
+    if (s >= ks[ks.length - 1]) return kh[kh.length - 1];
+    let lo = 0, hi = ks.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ks[m] <= s) lo = m; else hi = m; }
+    const t = (s - ks[lo]) / Math.max(1e-9, ks[hi] - ks[lo]);
+    return kh[lo] + (kh[hi] - kh[lo]) * t;
+  };
+  return { s: ks, at };
 }
 
 /**
@@ -505,8 +600,19 @@ export function buildRoadMesh(graph: RoadGraph,
      * band of bare ground visible through it on every approach in the city.
      */
     const drawn = Math.max(1e-6, total - cut1 - cut0);
-    const levelAt = (s: number): number =>
+    const straight = (s: number): number =>
       level[link.a] + (level[link.b] - level[link.a]) * ((s - cut0) / drawn);
+    // A road on the ground follows the ground. It used to run straight from
+    // one junction's level to the next, which across a dip left it floating
+    // metres over the land -- the grading below will not raise ground under a
+    // road that far up, taking it for a viaduct -- while the traffic drove on
+    // the land underneath it. So a ground road gets a row every few metres and
+    // a profile of its own: the land along it, smoothed so it rides rather than
+    // copies every bump, bent to meet each junction exactly, and carried level
+    // across water from bank to bank as a bridge.
+    const profile = lifted ? null : groundProfile(dense, at, cut0, total - cut1, level[link.a], level[link.b], base);
+    if (profile !== null) { at.length = 0; at.push(...profile.s); }
+    const levelAt = profile === null ? straight : (s: number): number => profile.at(s);
 
     let prevRow: number[] | null = null;
     let lampAt = 0;
@@ -555,7 +661,10 @@ export function buildRoadMesh(graph: RoadGraph,
           // stays the land -- holding it up to the deck built an embankment
           // twenty metres high under every flyover.
           const yy = levelAt(s0);
-          if (yy - base(a.x, a.z) > OFF_GROUND) continue;
+          // A ground road holds the ground to itself everywhere -- cut or
+          // embankment -- except over water, where it is a bridge. A raised
+          // one leaves the land alone once it is clear of it.
+          if (lifted ? yy - base(a.x, a.z) > OFF_GROUND : waterAt(a.x, a.z) !== null) continue;
           hold(a.x, a.z, spec.edge + 5, yy);
         }
       }
