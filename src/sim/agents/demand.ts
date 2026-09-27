@@ -161,6 +161,8 @@ const OUTSIDE_PULL = 0.13;
  * stop moving somewhere; an eighth is a Tuesday.
  */
 const PULL_DIES_AT = 0.32;
+/** And where it dies in an established city, of three thousand and more. */
+const PULL_DIES_AT_CITY = 0.16;
 
 /** Vacancy as a share. Nothing built counts as nothing empty, which is the point. */
 function vacancy(free: number, total: number): number {
@@ -219,7 +221,11 @@ export class Demand {
     // And the reason anybody would come. Work going begging pulls people towards
     // the city; so, at a lower weight, does the place itself. Both die as the city
     // runs out of work for the people already in it.
-    const alive = Math.max(0, 1 - unemployed / PULL_DIES_AT);
+    // Tighter as the town becomes a city: a hamlet waiting for its first
+    // workshop can carry a third of its people out of work, a city cannot.
+    const grown = Math.min(1, Math.max(0, (this.people.population - 800) / 2200));
+    const diesAt = PULL_DIES_AT - (PULL_DIES_AT - PULL_DIES_AT_CITY) * grown;
+    const alive = Math.max(0, 1 - unemployed / diesAt);
     const jobsFree = Math.max(0, p.jobCapacity - p.workers);
     const pull = (OUTSIDE_PULL + Math.min(0.25, jobsFree / Math.max(60, force) * 0.2))
       * alive * (0.35 + 0.65 * appeal);

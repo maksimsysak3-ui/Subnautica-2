@@ -399,11 +399,31 @@ export class Migration {
 
   /** Works appeal out afresh. Called once at the top of each run. */
   private measureAppeal(): number {
-    return WEIGHT.work * this.workAppeal
+    const sum = WEIGHT.work * this.workAppeal
       + WEIGHT.services * this.serviceAppeal
       + WEIGHT.word * this.wordOfMouth
       + WEIGHT.tax * this.taxAppeal
       + WEIGHT.amenity * this.amenityAppeal;
+    return sum * this.jobsGate;
+  }
+
+  /**
+   * Whether a working city is somewhere people move to, as a multiplier.
+   *
+   * Work was one term in five, so a town of tower blocks with no jobs in it
+   * still read as half as appealing as a thriving one -- the parks and the
+   * clinics carried it -- and filled every flat it built with people who then
+   * had nothing to do. Nobody moves to a city where one in five is out of
+   * work. Past eight per cent the pull falls away, to a quarter at a third
+   * out of work; a new town, which has not built its jobs yet, is spared.
+   */
+  get jobsGate(): number {
+    const pop = this.people.population;
+    if (pop < 800) return 1;
+    const gate = Math.max(0.25, Math.min(1, 1 - (this.people.unemployment - 0.08) / 0.25 * 0.75));
+    // Eased in over the next thousand residents, so there is no step.
+    const t = Math.min(1, (pop - 800) / 1000);
+    return 1 - t * (1 - gate);
   }
 
   // ---- the flow ----------------------------------------------------------
