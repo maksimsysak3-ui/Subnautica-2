@@ -62,6 +62,10 @@ export interface BuildingPlan {
   docks: boolean;
   cornice: boolean;
   garden: boolean;
+  /** Upper tiers stepping in from the street, 0 to 3: a wedding cake. Six storeys up only. */
+  setbacks: number;
+  /** Two-storey bay windows on the street front. */
+  bays: boolean;
   /** Only a label: which style it was drawn in, for the studio's picker. */
   theme: BuildingTheme | 'custom';
 }
@@ -70,7 +74,7 @@ export const DEFAULT_BUILDING: BuildingPlan = {
   type: 'townhouses', plan: 'rect', storeys: 3, floorHeight: 3.2, roof: 'gable', pitch: 0.5,
   walls: 'brick', windows: 'sash', wallColour: '#e9dcc4', roofColour: '#4f5560',
   dormers: true, chimneys: 2, porch: true, shutters: false, balconies: false, awning: false,
-  docks: false, cornice: true, garden: false, theme: 'victorian',
+  docks: false, cornice: true, garden: false, setbacks: 0, bays: false, theme: 'victorian',
 };
 
 const clampN = (v: unknown, lo: number, hi: number, d: number): number =>
@@ -103,6 +107,8 @@ export function cleanBuilding(raw: unknown): BuildingPlan {
     docks: o.docks === true,
     cornice: o.cornice === true,
     garden: o.garden === true,
+    setbacks: Math.round(clampN(o.setbacks, 0, 3, 0)),
+    bays: o.bays === true,
     theme: oneOf(o.theme, [...BB_THEMES, 'custom'] as const, 'custom'),
   };
 }
@@ -124,13 +130,17 @@ interface ThemeSpec {
   /** Chance of each detail, 0 to 1. */
   dormers: number; chimneys: number; porch: number; shutters: number; balconies: number;
   awning: number; docks: number; cornice: number; garden: number;
+  /** Setbacks drawn from this range, for tall buildings; absent, none. */
+  setbacks?: [number, number];
+  /** Chance of bay windows on a house, terrace or block. */
+  bays?: number;
 }
 
 export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   victorian: { label: 'Victorian', types: ['house', 'townhouses', 'shop'], plans: ['rect', 'L', 'T'], storeys: [2, 4], floorHeight: 3.3,
     roofs: ['gable', 'hip'], pitch: [0.55, 0.85], walls: ['brick', 'brick', 'render'], windows: ['sash', 'arched'],
     wallColours: ['#e8dcc6', '#d9c7a4', '#c9b79a'], roofColours: ['#4a4f58', '#5b4a44', '#3f454d'],
-    dormers: 0.5, chimneys: 0.95, porch: 0.7, shutters: 0.1, balconies: 0.1, awning: 0.3, docks: 0, cornice: 0.5, garden: 0.6 },
+    dormers: 0.5, chimneys: 0.95, porch: 0.7, shutters: 0.1, balconies: 0.1, awning: 0.3, docks: 0, cornice: 0.5, garden: 0.6, bays: 0.7 },
   georgian: { label: 'Georgian', types: ['townhouses', 'house', 'civic'], plans: ['rect', 'U'], storeys: [3, 4], floorHeight: 3.4,
     roofs: ['hip', 'flat'], pitch: [0.3, 0.45], walls: ['brick', 'render', 'stone'], windows: ['sash'],
     wallColours: ['#efe6d4', '#e6dcc8', '#f2ede2'], roofColours: ['#4a4f58', '#3f454d'],
@@ -146,11 +156,11 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   artdeco: { label: 'Art Deco', types: ['apartments', 'civic', 'shop'], plans: ['rect', 'U', 'T'], storeys: [4, 9], floorHeight: 3.4,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render', 'stone'], windows: ['ribbon', 'sash'],
     wallColours: ['#efe3c7', '#e6d8b5', '#dcd3c2'], roofColours: ['#b8913f', '#2f5e5a', '#8a4b3a'],
-    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0.3, awning: 0.3, docks: 0, cornice: 0.95, garden: 0 },
+    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0.3, awning: 0.3, docks: 0, cornice: 0.95, garden: 0, setbacks: [1, 3] },
   brutalist: { label: 'Brutalist', types: ['apartments', 'civic'], plans: ['rect', 'L', 'U', 'courtyard'], storeys: [5, 12], floorHeight: 3.2,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['concrete'], windows: ['ribbon', 'industrial'],
     wallColours: ['#b5b1a8'], roofColours: ['#6f6c66'],
-    dormers: 0, chimneys: 0, porch: 0, shutters: 0, balconies: 0.6, awning: 0, docks: 0, cornice: 0.2, garden: 0 },
+    dormers: 0, chimneys: 0, porch: 0, shutters: 0, balconies: 0.6, awning: 0, docks: 0, cornice: 0.2, garden: 0, setbacks: [0, 1] },
   soviet: { label: 'Soviet', types: ['apartments'], plans: ['rect', 'L'], storeys: [5, 9], floorHeight: 2.8,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['concrete', 'render'], windows: ['casement'],
     wallColours: ['#d8d2c4', '#cfd3d8', '#e3d9c6'], roofColours: ['#6a6660'],
@@ -187,7 +197,7 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   tudor: { label: 'Tudor', types: ['house', 'shop', 'townhouses'], plans: ['rect', 'L', 'T'], storeys: [2, 3], floorHeight: 3.0,
     roofs: ['gable'], pitch: [0.8, 0.95], walls: ['render', 'brick'], windows: ['casement'],
     wallColours: ['#f1ead8', '#e9dfc4', '#efe4cc'], roofColours: ['#4a3b33', '#5a463a', '#3d3a38'],
-    dormers: 0.5, chimneys: 1, porch: 0.5, shutters: 0, balconies: 0, awning: 0.2, docks: 0, cornice: 0, garden: 0.8 },
+    dormers: 0.5, chimneys: 1, porch: 0.5, shutters: 0, balconies: 0, awning: 0.2, docks: 0, cornice: 0, garden: 0.8, bays: 0.4 },
   cottage: { label: 'English cottage', types: ['house'], plans: ['rect', 'L'], storeys: [1, 2], floorHeight: 2.9,
     roofs: ['gable', 'hip'], pitch: [0.75, 0.95], walls: ['stone', 'render'], windows: ['casement'],
     wallColours: ['#f3eee2', '#e8e0cc', '#dfe3da'], roofColours: ['#5c5347', '#4a4f58', '#7a5a3e'],
@@ -195,11 +205,11 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   brownstone: { label: 'Brownstone', types: ['townhouses', 'apartments', 'shop'], plans: ['rect'], storeys: [3, 5], floorHeight: 3.4,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['render'], windows: ['sash', 'arched'],
     wallColours: ['#6b4232', '#5e3a2c', '#76503c'], roofColours: ['#3a3533', '#2f3a3a'],
-    dormers: 0, chimneys: 0.4, porch: 0.9, shutters: 0, balconies: 0, awning: 0.3, docks: 0, cornice: 1, garden: 0.3 },
+    dormers: 0, chimneys: 0.4, porch: 0.9, shutters: 0, balconies: 0, awning: 0.3, docks: 0, cornice: 1, garden: 0.3, bays: 0.5 },
   chicago: { label: 'Chicago school', types: ['apartments', 'civic', 'shop'], plans: ['rect', 'L', 'U'], storeys: [8, 14], floorHeight: 3.6,
     roofs: ['flat'], pitch: [0.2, 0.3], walls: ['brick', 'stone'], windows: ['sash', 'industrial'],
     wallColours: ['#a4644a', '#b88a6a', '#d8cbb2', '#8e5140'], roofColours: ['#3c3a38', '#5a4a3a'],
-    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0, awning: 0.4, docks: 0, cornice: 1, garden: 0 },
+    dormers: 0, chimneys: 0, porch: 0.3, shutters: 0, balconies: 0, awning: 0.4, docks: 0, cornice: 1, garden: 0, setbacks: [0, 2] },
   ranch: { label: 'Ranch', types: ['house'], plans: ['rect', 'L'], storeys: [1, 1], floorHeight: 2.9,
     roofs: ['hip', 'gable'], pitch: [0.2, 0.32], walls: ['brick', 'timber'], windows: ['casement', 'sash'],
     wallColours: ['#d9cdb8', '#b9c4c9', '#e6dcc9', '#a9b39a'], roofColours: ['#4b4a48', '#5d4d40', '#3e4247'],
@@ -215,7 +225,7 @@ export const THEMES: Record<BuildingTheme, ThemeSpec> = {
   suburban: { label: 'Suburban', types: ['house', 'townhouses'], plans: ['rect', 'L'], storeys: [2, 2], floorHeight: 2.9,
     roofs: ['gable', 'hip'], pitch: [0.38, 0.55], walls: ['timber', 'brick'], windows: ['sash', 'casement'],
     wallColours: ['#e8e4da', '#c9d6dc', '#d8d0bc', '#b8c7b0', '#efe3c4'], roofColours: ['#46484b', '#57504a', '#3b4047'],
-    dormers: 0.3, chimneys: 0.4, porch: 0.6, shutters: 0.6, balconies: 0, awning: 0, docks: 0, cornice: 0, garden: 1 },
+    dormers: 0.3, chimneys: 0.4, porch: 0.6, shutters: 0.6, balconies: 0, awning: 0, docks: 0, cornice: 0, garden: 1, bays: 0.3 },
 };
 
 /** A seeded generator, so the same seed gives the same building. */
@@ -255,6 +265,8 @@ export function generateBuilding(seed: number, theme?: BuildingTheme, type?: Bui
     porch: chance(t.porch), shutters: chance(t.shutters), balconies: chance(t.balconies),
     awning: kind === 'shop' ? chance(0.7) : chance(t.awning), docks: industrial && chance(Math.max(0.6, t.docks)),
     cornice: chance(t.cornice), garden: kind === 'house' || kind === 'townhouses' ? chance(t.garden) : false,
+    setbacks: t.setbacks !== undefined && storeys >= 6 ? t.setbacks[0] + Math.floor(r() * (t.setbacks[1] - t.setbacks[0] + 1)) : 0,
+    bays: (kind === 'house' || kind === 'townhouses' || kind === 'apartments') && chance(t.bays ?? 0),
     theme: th,
   });
   // A lot the type fits: a house is small, a works is big.
@@ -290,7 +302,7 @@ export function wings(p: BuildingPlan, width: number, depth: number): Rect[] {
   // docks, an awning, a porch -- and round the sides for balconies, so the
   // whole of the building stays on its lot.
   const reachOut = p.type === 'civic' ? 3.4 : (p.type === 'warehouse' || p.type === 'factory') && p.docks ? 2.8
-    : p.type === 'shop' || p.windows === 'shopfront' ? 2.2 : p.porch ? 2.8 : p.balconies ? 1.4 : 0;
+    : p.type === 'shop' || p.windows === 'shopfront' ? 2.2 : p.porch ? 2.8 : p.balconies ? 1.4 : p.bays ? 1.1 : 0;
   const front = Math.max(p.type === 'house' ? 3.5 : p.garden ? 2.5 : 1.2, 0.4 + reachOut);
   const side = p.balconies ? 2.4 : 1.2;
   const ax = lx - side, z0 = -lz + side, z1 = lz - front;
@@ -324,9 +336,35 @@ export function wings(p: BuildingPlan, width: number, depth: number): Rect[] {
 
 function areaOf(r: Rect): number { return (r[2] - r[0]) * (r[3] - r[1]); }
 
+/** How far each setback steps in, all round. */
+const SETBACK = 2.2;
+
+/**
+ * A wing in tiers, bottom up: the base to about half the height, then each
+ * setback a storey band further in. A tier that would come out narrower than
+ * a room stops the stepping, and its floors go to the tier below.
+ */
+export function tiers(p: BuildingPlan, r: Rect): Array<{ r: Rect; f0: number; f1: number }> {
+  const n = p.storeys >= 6 ? p.setbacks : 0;
+  if (n === 0) return [{ r, f0: 0, f1: p.storeys }];
+  const base = Math.ceil(p.storeys * 0.55);
+  const out = [{ r, f0: 0, f1: base }];
+  const rest = p.storeys - base;
+  for (let k = 1; k <= n; k++) {
+    const f0 = base + Math.round(((k - 1) / n) * rest), f1 = base + Math.round((k / n) * rest);
+    const d = SETBACK * k;
+    const t: Rect = [r[0] + d, r[1] + d, r[2] - d, r[3] - d];
+    if (f1 <= f0) continue;
+    if (t[2] - t[0] < 6 || t[3] - t[1] < 6) { out[out.length - 1].f1 = p.storeys; break; }
+    out.push({ r: t, f0, f1 });
+  }
+  out[out.length - 1].f1 = p.storeys;
+  return out;
+}
+
 export function buildingCapacity(p: BuildingPlan, width: number, depth: number): { homes: number; jobs: number; height: number } {
-  const plan = wings(p, width, depth).reduce((a, r) => a + areaOf(r), 0);
-  const floor = plan * p.storeys;
+  const rs = wings(p, width, depth);
+  const floor = rs.reduce((a, r) => a + tiers(p, r).reduce((b, t) => b + areaOf(t.r) * (t.f1 - t.f0), 0), 0);
   const height = p.storeys * p.floorHeight + roofRise(p, Math.min(...wings(p, width, depth).map((r) => Math.min(r[2] - r[0], r[3] - r[1]))));
   switch (p.type) {
     case 'house': return { homes: 1, jobs: 0, height };
@@ -506,20 +544,33 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
   const lz = depth * 4;
   const walls = (body: () => void): void => { if (painted) m.painted(TINT.BRAND, body); else body(); };
 
-  // A plinth, the walls, and the storey bands.
-  for (const [x0, z0, x1, z1] of rs) {
+  // A plinth, the walls tier by tier, and the storey bands. Every tier but
+  // the top one ends in a terrace: a roof slab and a parapet round it.
+  const tiered = rs.map((r) => tiers(p, r));
+  for (const ts of tiered) {
+    const [x0, z0, x1, z1] = ts[0].r;
     m.box([x0 - 0.12, 0, z0 - 0.12], [x1 + 0.12, 0.45, z1 + 0.12], p.walls === 'metal' ? MAT.CONCRETE : MAT.STONE);
-    walls(() => m.box([x0, 0.45, z0], [x1, H, z1], wallMat, { roof: MAT.ROOF }));
-    if (p.cornice && medium) {
-      m.box([x0 - 0.3, H - 0.35, z0 - 0.3], [x1 + 0.3, H, z1 + 0.3], MAT.TRIM);
-      if (p.storeys > 2 && fine) m.box([x0 - 0.12, fh - 0.15, z0 - 0.12], [x1 + 0.12, fh + 0.05, z1 + 0.12], MAT.TRIM);
-    }
+    ts.forEach((t, k) => {
+      const [a0, b0, a1, b1] = t.r;
+      const y0 = t.f0 === 0 ? 0.45 : t.f0 * fh, y1 = t.f1 * fh;
+      walls(() => m.box([a0, y0, b0], [a1, y1, b1], wallMat, { roof: MAT.ROOF }));
+      const last = k === ts.length - 1;
+      if (!last) {
+        m.box([a0, y1, b0], [a1, y1 + 0.15, b1], MAT.ROOF);
+        if (medium) parapet(m, a0, b0, a1, b1, y1 + 0.15, 0.9, 0.2, p.walls === 'concrete' ? MAT.CONCRETE : MAT.TRIM);
+      } else if (p.cornice && medium) {
+        m.box([a0 - 0.3, y1 - 0.35, b0 - 0.3], [a1 + 0.3, y1, b1 + 0.3], MAT.TRIM);
+      }
+    });
+    if (p.cornice && medium && p.storeys > 2 && fine) m.box([x0 - 0.12, fh - 0.15, z0 - 0.12], [x1 + 0.12, fh + 0.05, z1 + 0.12], MAT.TRIM);
   }
 
   // Windows, doors and what hangs off the walls, face by face.
   if (medium) {
-    for (const r of rs) {
-      const [x0, z0, x1, z1] = r;
+    for (let wi = 0; wi < rs.length; wi++) for (const t of tiered[wi]) {
+      const [x0, z0, x1, z1] = t.r;
+      // Faces are hidden by another wing at the same height: its tier holding these floors.
+      const beside = tiered.map((ts) => (ts.find((u) => u.f0 <= t.f0 && u.f1 > t.f0) ?? ts[ts.length - 1]).r);
       const facesOf: Array<{ w: Wall; u0: number; u1: number; front: boolean; mid: [number, number] }> = [
         // `axis` is the way a wall faces (see parts.ts), and u runs along it.
         { w: { axis: 'z', sign: 1, plane: z1 }, u0: x0, u1: x1, front: true, mid: [(x0 + x1) / 2, z1 + 0.5] },
@@ -528,16 +579,18 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
         { w: { axis: 'x', sign: -1, plane: x0 }, u0: z0, u1: z1, front: false, mid: [x0 - 0.5, (z0 + z1) / 2] },
       ];
       for (const f of facesOf) {
-        if (covered(rs, f.mid[0], f.mid[1])) continue;
-        dressFace(m, p, f.w, f.u0 + 0.8, f.u1 - 0.8, f.front && f.w.plane >= lz - 6, fine);
+        if (covered(beside, f.mid[0], f.mid[1])) continue;
+        dressFace(m, p, f.w, f.u0 + 0.8, f.u1 - 0.8, t.f0 === 0 && f.front && f.w.plane >= lz - 6, fine, t.f0, t.f1);
       }
     }
   }
 
   // The roofs, and what stands on them.
   let ridge = H;
-  for (const r of rs) {
-    const got = roof(m, p, r, H, lod, painted ? wallMat : wallMat);
+  for (let wi = 0; wi < rs.length; wi++) {
+    // The roof, dormers and chimneys stand on the top tier.
+    const r = tiered[wi][tiered[wi].length - 1].r;
+    const got = roof(m, p, r, H, lod, wallMat);
     ridge = Math.max(ridge, got.ridge);
     const [x0, z0, x1, z1] = r;
     const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -553,7 +606,7 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
         chimneyStack(m, x, z, H, Math.max(H + 1.5, got.top + 1.2), p.type === 'factory' ? 1.6 : 1.0);
       }
     }
-    if (p.type === 'factory' && medium && r === rs[0]) {
+    if (p.type === 'factory' && medium && wi === 0) {
       // A works chimney: tall, round, brick, at the back corner.
       m.cylinder(x1 - 2.2, z0 + 2.2, 1.3, 0, Math.max(H + 14, ridge + 10), fine ? 12 : 8, MAT.BRICK);
       m.cylinder(x1 - 2.2, z0 + 2.2, 1.5, Math.max(H + 14, ridge + 10) - 0.8, Math.max(H + 14, ridge + 10), fine ? 12 : 8, MAT.TRIM);
@@ -574,7 +627,8 @@ export function buildingMesh(p: BuildingPlan, width: number, depth: number, lod:
 }
 
 /** Windows, a door and whatever the style hangs on one outside face. */
-function dressFace(m: MeshBuilder, p: BuildingPlan, w: Wall, u0: number, u1: number, street: boolean, fine: boolean): void {
+function dressFace(m: MeshBuilder, p: BuildingPlan, w: Wall, u0: number, u1: number, street: boolean, fine: boolean,
+  fromFloor = 0, toFloor = p.storeys): void {
   const len = u1 - u0;
   if (len < 2) return;
   const fh = p.floorHeight;
@@ -628,8 +682,27 @@ function dressFace(m: MeshBuilder, p: BuildingPlan, w: Wall, u0: number, u1: num
     sash: [0.95, 1.6, 2.6], casement: [1.2, 1.3, 2.8], arched: [1.05, 1.9, 3.0], ribbon: [0, 1.2, 0], industrial: [2.4, 2.1, 4.4],
   };
   const [ww, wh, pitch] = dims[style];
-  const first = shopFloor || (street && industrial && p.docks) ? 1 : 0;
-  for (let f = first; f < p.storeys; f++) {
+  const first = Math.max(fromFloor, shopFloor || (street && industrial && p.docks) ? 1 : 0);
+  // Bay windows: two storeys of glass stood out from the street front, one
+  // each side of the door on a wide front, one on a narrow one.
+  const bays: number[] = [];
+  if (street && p.bays && !shopFloor && !industrial && len >= 5) {
+    const c = (u0 + u1) / 2;
+    if (len >= 9) bays.push(c - len * 0.28, c + len * 0.28); else bays.push(c + Math.min(2.4, len * 0.3));
+    const top = Math.min(2, p.storeys) * fh;
+    for (const b of bays) {
+      // In the walls' own material, so it reads as part of the house.
+      const { mat, painted } = wallMaterial(p);
+      if (painted) m.painted(TINT.BRAND, () => place(m, w, b - 1.3, b + 1.3, 0.45, top, 0, 0.9, mat));
+      else place(m, w, b - 1.3, b + 1.3, 0.45, top, 0, 0.9, mat);
+      for (let f = 0; f < Math.min(2, p.storeys); f++) {
+        const y0 = f * fh + 0.45 + 0.6;
+        place(m, w, b - 1.0, b + 1.0, y0, y0 + Math.min(1.8, fh - 1.2), 0.9, 0.96, MAT.PANE);
+      }
+      m.painted(TINT.ACCENT, () => place(m, w, b - 1.45, b + 1.45, top, top + 0.25, 0, 1.05, MAT.PAINT));
+    }
+  }
+  for (let f = first; f < toFloor; f++) {
     const y0 = f * fh + 0.45 + Math.max(0.6, (fh - wh) * 0.45);
     if (style === 'ribbon') {
       place(m, w, u0, u1, y0, y0 + wh, -0.02, 0.06, MAT.PANE);
@@ -641,6 +714,7 @@ function dressFace(m: MeshBuilder, p: BuildingPlan, w: Wall, u0: number, u1: num
     for (let i = 0; i < count; i++) {
       const c = u0 + (i + 0.5) * gap;
       if (street && f === 0 && !industrial && Math.abs(c - (u0 + u1) / 2) < 1.4) continue;
+      if (f < 2 && bays.some((b) => Math.abs(c - b) < 1.5)) continue;
       place(m, w, c - ww / 2, c + ww / 2, y0, y0 + wh, -0.02, 0.06, MAT.PANE);
       if (fine) {
         place(m, w, c - ww / 2 - 0.1, c + ww / 2 + 0.1, y0 - 0.14, y0, 0, 0.14, MAT.TRIM);

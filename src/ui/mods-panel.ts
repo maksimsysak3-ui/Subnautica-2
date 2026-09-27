@@ -324,7 +324,7 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
         // The wall colour picker depends on the material: redraw it.
         if (k === 'walls') build();
       }, options as readonly string[]);
-    const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden'): HTMLElement =>
+    const btick = (label: string, k: 'dormers' | 'porch' | 'shutters' | 'balconies' | 'awning' | 'docks' | 'cornice' | 'garden' | 'bays'): HTMLElement =>
       check(label, () => bcur()[k], (v) => bset(k, v));
     const bcolour = (k: 'wallColour' | 'roofColour', tip: string): HTMLInputElement => {
       const c = el('input', 'mr-studio-colour');
@@ -420,12 +420,15 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
           range('Depth', 'depth', 2, 12, 1, (v) => `${v * 8} m`),
           slider('Storeys', () => bcur().storeys, (v) => bset('storeys', v), 1, 14, 1, (v) => `${v}`),
           slider('Storey height', () => bcur().floorHeight, (v) => bset('floorHeight', v), 2.8, 6, 0.1, (v) => `${v.toFixed(1)} m`),
+          slider('Setbacks', () => bcur().setbacks, (v) => bset('setbacks', v), 0, 3, 1,
+            (v) => (v === 0 ? 'None' : bcur().storeys < 6 ? 'from 6 storeys' : `${v} tier${v === 1 ? '' : 's'}`)),
         );
       } else if (tab === 2) {
         page.append(
           bpick('Walls', 'walls', BB_WALLS),
           bpick('Windows', 'windows', BB_WINDOWS),
           btick('Shutters beside the windows', 'shutters'),
+          btick('Bay windows on the street front', 'bays'),
           btick('Balconies', 'balconies'),
           btick('Cornice and storey bands', 'cornice'),
         );
