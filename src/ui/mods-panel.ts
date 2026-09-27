@@ -164,7 +164,13 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
 
   /** The Blueprint Studio: one mod, up to eight towers, one of them on the bench. */
   const studio = (editing: ModDef | null): void => {
-    const towers: Blueprint[] = editing?.buildings?.map((b) => ({ ...b })) ?? [{ ...DEFAULT_BLUEPRINT }];
+    // A new mod starts on a building in a style, with the styles showing:
+    // starting on a tower hid all of them behind a switch nobody noticed.
+    const starter = (): Blueprint => {
+      const g = generateBuilding((Date.now() & 0xffff) >>> 0, 'victorian', 'townhouses');
+      return { ...DEFAULT_BLUEPRINT, name: 'Victorian townhouses', kind: 'building', building: g.plan, width: g.width, depth: g.depth };
+    };
+    const towers: Blueprint[] = editing?.buildings?.map((b) => ({ ...b })) ?? [starter()];
     let at = 0;
 
     const wrap = el('div', 'mr-studio');
@@ -472,8 +478,9 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
       const nameRow = el('div', 'mr-studio-name');
       nameRow.append(bpName, colourIn('colour', 'Brand colour: frame, lit crown'), colourIn('accent', 'Accent: domes, fins, halos'));
 
-      // Tower or building: two different studios on one bench.
-      const kindRow = choose('Kind', () => (cur().kind === 'building' ? 'building' : 'tower'), (v) => {
+      // Tower or building: two different studios on one bench, chosen from
+      // two cards that say what each one makes.
+      const setKind = (v: 'tower' | 'building'): void => {
         const t = towers[at];
         if (v === 'building') {
           const g = t.building !== undefined ? null : generateBuilding(Date.now() & 0xffff, 'victorian', 'townhouses');
@@ -484,7 +491,20 @@ export function openModsPanel(host: HTMLElement, onClose: () => void): void {
         }
         tab = 0;
         build();
-      }, ['tower', 'building'] as const);
+      };
+      const kindRow = el('div', 'mr-studio-kind');
+      const kinds: Array<['building' | 'tower', string, string]> = [
+        ['building', 'Building', '22 styles: houses, terraces, flats, shops, works, halls'],
+        ['tower', 'Skyscraper', 'Glass and stone towers, twisted, tapered, stacked'],
+      ];
+      for (const [k, head, sub] of kinds) {
+        const on = (cur().kind === 'building' ? 'building' : 'tower') === k;
+        const card = el('button', `mr-studio-kind-card${on ? ' is-on' : ''}`);
+        card.setAttribute('aria-pressed', String(on));
+        card.append(el('b', '', head), el('span', '', sub));
+        card.addEventListener('click', () => { if (!on) setKind(k); });
+        kindRow.appendChild(card);
+      }
       if (cur().kind === 'building') {
         buildingBench(nameRow, kindRow);
         return;
