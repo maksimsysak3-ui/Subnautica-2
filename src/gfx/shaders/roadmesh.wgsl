@@ -610,12 +610,30 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col += skyBody(mirror, sun) * w * fr * 0.8;
     col += sunLight(sun) * gloss * lit * w * 2.6;
 
+    // Splashes. Every drop that lands on a wet road throws up a tiny crown
+    // and a ring, gone in a moment -- thousands of them at once is what makes
+    // a road read as being rained on rather than merely wet. Only near the
+    // camera, where a splash is bigger than a pixel, and never in snow.
+    let pour = camera.weather.z;
+    if (pour > 0.02 && season() > -0.01 && mpp < 0.08) {
+      let sc = floor(in.world.xz * 3.2);
+      let sh = lattice(vec2i(sc) + vec2i(91, 17));
+      let life = fract(camera.params.x * (1.6 + sh) + sh * 5.1);
+      let spot = (sc + vec2f(0.25 + 0.5 * fract(sh * 3.7), 0.25 + 0.5 * fract(sh * 9.1))) / 3.2;
+      let dd = length(in.world.xz - spot);
+      // A bright crown for the first instant, then an opening ring.
+      let crown = (1.0 - smoothstep(0.0, 0.018, dd)) * (1.0 - smoothstep(0.0, 0.12, life));
+      let ring = exp(-pow((dd - life * 0.09) / 0.008, 2.0)) * (1.0 - life) * step(life, 0.5);
+      let splash = (crown + ring * 0.6) * step(0.35, sh) * pour * (1.0 - smoothstep(0.03, 0.08, mpp));
+      col += (skyBody(vec3f(0.0, 1.0, 0.0), sun) * 1.4 + lampShine * 0.8 + vec3f(0.04)) * splash;
+    }
+
     // Puddles. Standing water in the dips of the carriageway: they appear as
     // the road soaks, spread as the rain goes on, and are the last thing to go
     // when it stops. A puddle is a mirror -- the sky, the lamps -- with the
     // road dark and flooded round its edge, and while it is still raining
     // every drop rings its surface.
-    if (porosity > 0.8) {
+    if (porosity > 0.8 && season() > -0.01) {
       let dip = vnoise(in.world.xz * (1.0 / 6.5) + vec2f(13.0, 2.0)) * 0.62
               + vnoise(in.world.xz * (1.0 / 2.1) + vec2f(5.0, 17.0)) * 0.38;
       // More of them, and bigger, the wetter the road.

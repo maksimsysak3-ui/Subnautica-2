@@ -437,6 +437,8 @@ export class Renderer {
   calendarDay = 0;
   /** A season to show whatever the calendar says, or null to follow it. */
   seasonHeld: number | null = null;
+  /** How much of winter's snow is lying, 0-1: it settles while it snows. Starts deep, so a winter load is white. */
+  private snowpack = 0.7;
   private onCityClock = false;
   /** The simulation's day at the last frame, for advancing the weather. */
   private cityWeatherAt = 0;
@@ -2281,8 +2283,20 @@ export class Renderer {
     // plotGrid.w: the season, for the ground, the grass and (below) the
     // buildings and trees. Only on the city's calendar, and only with weather
     // on, which is the switch for everything the sky does to the ground.
-    const season = this.seasonHeld ?? (this.onCityClock && this.quality.weather
-      ? seasonLook(this.calendarDay + this.timeOfDay, MAP.climate) : 0);
+    const calendar = this.onCityClock && this.quality.weather
+      ? seasonLook(this.calendarDay + this.timeOfDay, MAP.climate) : 0;
+    // Snow builds up: in winter the white is not painted on by the calendar,
+    // it settles while it snows and thins in the dry spells between, down to
+    // a frost. The flakes key off any negative season, so they fall on bare
+    // ground and lie on it.
+    if (calendar < 0) {
+      const days = this.clockRunning ? (dt * this.clockRate) / CITY_DAY_SECONDS : 0;
+      const falling = smooth01((this.sky.rain - 0.08) / 0.35);
+      this.snowpack = Math.min(1, Math.max(0.12, this.snowpack + days * (falling * 3.2 - (1 - falling) * 0.35)));
+    } else {
+      this.snowpack = 0.12;
+    }
+    const season = this.seasonHeld ?? (calendar < 0 ? Math.min(-0.02, calendar * this.snowpack) : calendar);
     this.cameraData.set([plotSpan(this.world.grid), origin, origin, season], 80);
     this.cameraData.set(this.frustum.planes, 84);
     // How far the world is buried, for the passes that sample no overlay: the

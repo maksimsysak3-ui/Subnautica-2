@@ -77,6 +77,29 @@ fn sheet(uv : vec2f, t : f32, scale : f32, speed : f32, slant : f32, seed : f32)
   return along * across * (0.45 + r * 0.55);
 }
 
+/**
+ * One sheet of snow.
+ *
+ * Flakes, not streaks: round, soft, slow, and each one swaying on its own
+ * rhythm as it falls, which is the whole difference between snow and rain on
+ * the screen. Square cells, because a flake is not stretched by its speed.
+ */
+fn flakes(uv : vec2f, t : f32, scale : f32, speed : f32, drift : f32, seed : f32) -> f32 {
+  var q = uv * scale;
+  q.y -= t * speed;
+  q.x += t * drift;
+  let cell = floor(q);
+  let f = fract(q);
+  let r = hash21(cell + seed);
+  if (r > 0.55) { return 0.0; }
+  // Its place in the cell, swaying.
+  let sway = sin(t * (1.1 + r * 1.7) + r * 40.0) * 0.22;
+  let centre = vec2f(0.5 + (r - 0.5) * 0.5 + sway, fract(r * 13.7));
+  let d = length(f - centre);
+  let size = 0.05 + r * 0.07;
+  return (1.0 - smoothstep(size * 0.35, size, d)) * (0.5 + r * 0.5);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   let rain = camera.weather.z;
@@ -98,6 +121,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // angle -- a fixed slant is the tell that this is a texture.
   let gust = sin(t * 0.21) * 0.5 + sin(t * 0.07 + 1.7) * 0.5;
   let slant = (0.55 + gust * 0.45) * (0.3 + rain * 0.7);
+
+  // Winter: it snows. Three depths of flakes, slow and drifting, bright white
+  // lit by the sky -- the ground and the roofs already lie white under it.
+  if (season() < -0.01) {
+    let wind = gust * 0.25;
+    var s = flakes(uv, t, 26.0, 0.30, wind * 0.6, 3.0) * 0.55;
+    s += flakes(uv, t, 14.0, 0.48, wind * 0.9, 29.0) * 0.8;
+    s += flakes(uv, t, 7.0, 0.75, wind * 1.3, 71.0);
+    s *= smoothstep(0.0, 0.30, rain) * (0.55 + rain * 0.6);
+    if (s <= 0.002) { discard; }
+    let snowCol = sceneOut(ambientSky(sun) * 2.6 + vec3f(0.12));
+    return vec4f(snowCol, clamp(s, 0.0, 1.0) * 0.85);
+  }
 
   // Three depths. The far sheet is dense, small and slow; the near one is
   // sparse, long and fast, and it is what sells the speed.
