@@ -340,6 +340,10 @@ export class LiveCity {
    * building that is not theirs.
    */
   reset(): void {
+    if (this.stormHeld && this.renderer.weather.pinned === LiveCity.STORM_SKY) this.renderer.weather.release();
+    this.stormHeld = false;
+    this.shakeLeft = 0;
+    this.shakeAt = [0, 0];
     this.fresh = true;
     this.founded = false;
     this.seenPetitions.clear();
@@ -596,6 +600,10 @@ export class LiveCity {
     return { fraction: this.sim.clock.fraction, day: this.sim.clock.day };
   }
 
+  /** Whether the sky is being held stormy for a disaster, by this and nothing else. */
+  private stormHeld = false;
+  private static readonly STORM_SKY = 0.97;
+
   /** The camera shake still owed by an earthquake, in seconds, and the offset last applied. */
   private shakeLeft = 0;
   private shakeAt: [number, number] = [0, 0];
@@ -661,6 +669,19 @@ export class LiveCity {
     const got = world.disasters.update(this.gameDay(), this.disasterCity(sim), world.policies.effects, world.budget, world.news);
     if (got?.warned !== undefined) this.disasterWarned(got.warned);
     if (got?.struck !== undefined) this.disasterStruck(got.struck);
+    // The sky, for a storm or a flood: black and pouring from a few hours
+    // before it arrives until a few after, so the forecast can be seen coming.
+    // Never over a sky the player has pinned themselves.
+    const day = this.gameDay();
+    const w = world.disasters.warning, last = world.disasters.history[0];
+    const stormy = (w !== null && w.kind !== 'quake' && day >= w.at - 0.3)
+      || (last !== undefined && last.kind !== 'quake' && day - last.day < 0.35 && day >= last.day);
+    const sky = this.renderer.weather;
+    if (stormy && !this.stormHeld && sky.pinned === null) { sky.set(LiveCity.STORM_SKY); this.stormHeld = true; }
+    else if (!stormy && this.stormHeld) {
+      if (sky.pinned === LiveCity.STORM_SKY) sky.release();
+      this.stormHeld = false;
+    }
     // The shake: an offset on the camera's focus, taken back off before the
     // next one goes on, so the camera ends where it started.
     if (this.shakeLeft > 0 || this.shakeAt[0] !== 0 || this.shakeAt[1] !== 0) {

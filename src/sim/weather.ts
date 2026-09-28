@@ -152,6 +152,9 @@ export class Weather {
     this.sky.wet = this.sky.rain > 0.05 ? 1 : 0;
   }
 
+  /** The condition held, or null while the cycle runs. */
+  get pinned(): number | null { return this.forced; }
+
   /** Hands the sky back to the cycle. */
   release(): void {
     this.forced = null;
