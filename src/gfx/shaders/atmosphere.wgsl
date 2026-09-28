@@ -132,9 +132,13 @@ fn moonPhase(sun : vec3f) -> vec2f {
 /** The sun's own colour, reddened as it drops. Zero once it has set. */
 fn sunLight(sun : vec3f) -> vec3f {
   let p = dayPhase(sun);
-  let high = vec3f(1.02, 0.96, 0.86);
-  let low = vec3f(1.10, 0.52, 0.24);
-  let clear = mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 1.38;
+  let high = vec3f(1.04, 0.95, 0.82);
+  let low = vec3f(1.12, 0.50, 0.22);
+  // The sun against the sky: about six to one on a clear day, which is what
+  // gives a sunlit wall its punch and a shadow its depth. At three to one --
+  // what this was -- every face came out within a stop of every other and the
+  // city read grey and flat under a sky that was plainly clear.
+  let clear = mix(high, low, p.y * 0.92) * smoothstep(-0.045, 0.09, sun.y) * 2.05;
   // Cover takes the direct sun out, and with it the shadows. It does not take
   // it all: even under a solid deck there is a brighter half of the sky, and a
   // scene with no directional term at all goes completely flat.
@@ -178,8 +182,10 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // Lifted a further third on request: night read as too dark to build in.
   // And a fifth again, on request: still a touch dark to zone by.
   let night = vec3f(0.082, 0.099, 0.150) * (0.72 + 0.55 * m.x);
-  let dawn = vec3f(0.240, 0.230, 0.290);
-  let noon = vec3f(0.340, 0.400, 0.500);
+  // Bluer and a little lower than before, now the sun carries more: shade is
+  // lit by the blue dome, and a shadow that is not blue reads as grey paint.
+  let dawn = vec3f(0.215, 0.205, 0.275);
+  let noon = vec3f(0.250, 0.325, 0.470);
   let clear = mix(night, mix(noon, dawn, p.y * 0.75), p.x);
   // Under cover the sky becomes the light. The whole dome is the source, so
   // the ambient goes up as the sun goes out -- which is why an overcast day is
@@ -195,7 +201,7 @@ fn ambientGround(sun : vec3f) -> vec3f {
   // grey, not the warm fill daylight gives.
   let m = moonPhase(sun);
   let night = vec3f(0.037, 0.042, 0.057) * (0.74 + 0.52 * m.x);
-  let lit = vec3f(0.240, 0.210, 0.180);
+  let lit = vec3f(0.205, 0.175, 0.140);
   let clear = mix(night, mix(lit, vec3f(0.230, 0.150, 0.110), p.y * 0.6), p.x);
   // The ground bounces less when there is less on it to bounce, and wet ground
   // bounces less still.

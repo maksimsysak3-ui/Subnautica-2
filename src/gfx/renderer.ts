@@ -2540,6 +2540,18 @@ export class Renderer {
     // horizon, gone by the time it is a hand's width up or down.
     const golden = Math.exp(-(((sun[1] - 0.05) / 0.17) ** 2)) * (1 - this.sky.cover * 0.8);
     const tanY = Math.tan(FOV_Y / 2);
+    // Where the sun is on screen, for the shafts. A point far along the sun's
+    // direction from the eye, through the camera's own matrix; behind the
+    // camera, or below the horizon, there are none.
+    const m = cam.viewProjMatrix, e = cam.eye, far = 20000;
+    const px = e[0] + sun[0] * far, py = e[1] + sun[1] * far, pz = e[2] + sun[2] * far;
+    const cx = m[0] * px + m[4] * py + m[8] * pz + m[12];
+    const cy = m[1] * px + m[5] * py + m[9] * pz + m[13];
+    const cw = m[3] * px + m[7] * py + m[11] * pz + m[15];
+    const sunU = cw > 1e-3 ? (cx / cw) * 0.5 + 0.5 : 0.5;
+    const sunV = cw > 1e-3 ? 0.5 - (cy / cw) * 0.5 : 0.5;
+    const upSun = Math.max(0, Math.min(1, (sun[1] + 0.02) / 0.08));
+    const shafts = cw > 1e-3 ? (0.12 + 0.95 * golden) * upSun * (1 - this.sky.cover * 0.85) * q.bloom : 0;
     const tune: PostTune = {
       strength: (0.055 + 0.20 * night + 0.05 * wet) * q.bloom,
       threshold: 1.25 - 0.55 * night,
@@ -2552,12 +2564,13 @@ export class Renderer {
       golden,
       overcast: this.sky.cover,
       ao: q.ao,
-      saturation: 1.06 - 0.10 * this.sky.cover,
-      contrast: 1.06,
+      saturation: 1.10 - 0.12 * this.sky.cover,
+      contrast: 1.09,
       near: cam.near,
       far: cam.far,
       tanX: tanY * (viewport.width / Math.max(1, viewport.height)),
       tanY,
+      sunU, sunV, shafts,
     };
     post.encode(encoder, context.getCurrentTexture().createView(), res.depthView, tune);
 

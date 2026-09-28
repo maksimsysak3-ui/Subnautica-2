@@ -1759,9 +1759,24 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let spec = pow(max(dot(n, h), 0.0), power) * shadow * in.ao;
     col += sunColour * 0.55 * spec * gloss;
     if (fresnel > 0.0) {
-      // Sky reflection at grazing angles: the other half of what glass does.
-      let grazing = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 4.0);
-      col += skyRefl * grazing * fresnel * mix(0.5, 1.0, in.ao);
+      // What the surface actually reflects: the sky in the mirror direction --
+      // deep blue overhead, pale at the horizon, the haze of the ground below
+      // it -- weighted by Schlick's Fresnel. A curtain wall is a mirror of the
+      // sky, graded from its top to its foot, and that gradient is most of what
+      // makes a glass tower read as glass rather than as a dark grey slab.
+      let r = reflect(-v, n);
+      let env = skyBody(r, sun);
+      let cosT = clamp(dot(n, v), 0.0, 1.0);
+      let schlick = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
+      // Glass passes most of what reaches it and reflects the rest: the sky in
+      // a pane is a stop or so darker than the sky itself, and it deepens
+      // towards the foot of a tower, where what the pane sees is the street.
+      let reach = mix(0.35, 1.0, in.ao) * 0.78;
+      col = mix(col, env * reach, clamp(schlick * fresnel * 1.5 + fresnel * 0.16, 0.0, 0.88));
+      // And the sun in it: a hot, tight glint where the mirror direction meets
+      // the disc, which is the flash off a tower that says "glass" at a glance.
+      let glint = pow(max(dot(r, sun), 0.0), 900.0) * shadow;
+      col += sunColour * glint * 6.0 * fresnel;
     }
   }
   // Punched windows in a wall pattern are glass too. The patterns mark where
@@ -1923,11 +1938,12 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // fades into, and a star field and a moon disc are not resolvable through
     // it at any strength. Every lit pixel of every building runs this line.
     let air = skyBody(toEye, sun);
-    let lit = air;
-    let d = length(toEye);
-    let amount = clamp((1.0 - exp(-d * (1.0 / 2600.0))) * 0.62
-                     + smoothstep(1600.0, 4200.0, d) * 0.55, 0.0, 1.0) * haze;
-    out = mix(out, lit, amount);
+    // The same air the ground and the roads are seen through: one curve, so a
+    // building a kilometre off is exactly as far away as the street under it.
+    // It had its own, heavier one, which greyed the middle distance of the
+    // city twice as fast as the land it stood on.
+    let amount = hazeAmount(length(toEye)) * haze;
+    out = mix(out, air, amount);
   }
 
   // The building being placed, which is not there yet.

@@ -39,6 +39,8 @@ struct Post {
   proj  : vec4f,
   /** x = ao strength (0 = off), y = ao radius scale, z = saturation, w = contrast. */
   look  : vec4f,
+  /** xy = the sun on screen (uv), z = shaft strength (0 = off). */
+  shafts : vec4f,
 };
 
 @group(0) @binding(0) var samp : sampler;
@@ -327,6 +329,31 @@ fn composite(in : VertexOut) -> @location(0) vec4f {
     hdr *= mix(1.0, occ, post.look.x);
   }
   hdr += textureSampleLevel(bloomTex, samp, in.uv, 0.0).rgb * post.tune.x;
+  // Light shafts: the bright end of the frame -- the sun, and the sky round it
+  // -- smeared back along the line to the sun and decaying as it goes. Towers
+  // are dark in that buffer, so what comes out is beams of low sun between
+  // them and shadow cast down through the haze behind each one: the thing a
+  // golden hour over a city is remembered for. Gathered from the bloom chain,
+  // which is already the bright part of the frame at a quarter of the cost.
+  if (post.shafts.z > 0.001) {
+    const STEPS = 28;
+    let toSun = post.shafts.xy - in.uv;
+    let stepUv = toSun * (0.92 / f32(STEPS));
+    var at = in.uv + stepUv * ign(in.pos.xy);
+    var decay = 1.0;
+    var beams = vec3f(0.0);
+    for (var i = 0; i < STEPS; i++) {
+      at += stepUv;
+      let inside = step(0.0, at.x) * step(at.x, 1.0) * step(0.0, at.y) * step(at.y, 1.0);
+      beams += textureSampleLevel(bloomTex, samp, at, 0.0).rgb * decay * inside;
+      decay *= 0.93;
+    }
+    // Strongest looking towards the sun, and nothing looking away from it.
+    let aspect = post.texel.y / max(post.texel.x, 1e-6);
+    let off = length(vec2f(toSun.x / max(aspect, 1e-3), toSun.y));
+    let facing = 1.0 - smoothstep(0.35, 1.1, off);
+    hdr += beams * (post.shafts.z / f32(STEPS)) * facing;
+  }
   // The city's glow in the air. After dark, the lights of a whole district
   // scatter in the damp and the dust over it -- the orange-white dome anyone
   // has seen over a town from outside it, and the halo round a lit street seen

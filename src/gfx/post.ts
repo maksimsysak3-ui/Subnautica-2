@@ -13,8 +13,8 @@ import { SHADERS } from './shaders';
 /** What the scene is drawn into. Float, because the whole point is >1. */
 export const SCENE_FORMAT: GPUTextureFormat = 'rgba16float';
 
-/** Floats in the post uniform: texel, tune, mood, proj, look. */
-const POST_FLOATS = 20;
+/** Floats in the post uniform: texel, tune, mood, proj, look, shafts. */
+const POST_FLOATS = 24;
 
 /** Levels in the bloom chain, from half resolution down. */
 const BLOOM_LEVELS = 6;
@@ -43,6 +43,10 @@ export interface PostTune {
   far: number;
   tanX: number;
   tanY: number;
+  /** The sun on screen, 0 to 1 across and down, and how strong its shafts are (0 = none). */
+  sunU: number;
+  sunV: number;
+  shafts: number;
 }
 
 interface Level {
@@ -246,6 +250,10 @@ export class Post {
     d[17] = 1;
     d[18] = tune.saturation;
     d[19] = tune.contrast;
+    d[20] = tune.sunU;
+    d[21] = tune.sunV;
+    d[22] = tune.shafts;
+    d[23] = 0;
     this.device.queue.writeBuffer(this.uniform, 0, d);
 
     if (this.depthFor !== depth || this.depthGroup === null) {
