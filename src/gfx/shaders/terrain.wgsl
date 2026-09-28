@@ -740,9 +740,14 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     let porous = clamp(earth * 0.85 + rock * 0.70 + grass * 0.30 + built * 0.55,
                        0.0, 1.0);
     let w = soak * porous;
-    col *= mix(1.0, 0.58, w);
+    col *= mix(1.0, 0.50, w);
     let gloss = pow(max(dot(n, normalize(toEye + sun)), 0.0), 64.0);
-    col += (ambientSky(sun) * 0.55 + sunLight(sun) * gloss * lit * 1.6) * w * 0.42;
+    // The film of water is a mirror at a glance and clear looking straight
+    // down: Fresnel, not a flat wash. The wash lifted every wet forecourt to
+    // a pale grey under an overcast sky -- rain read as fog on the ground.
+    let rv = reflect(-toEye, n);
+    let fr = 0.03 + 0.97 * pow(1.0 - clamp(dot(n, toEye), 0.0, 1.0), 5.0);
+    col += (skyBody(rv, sun) * fr * 0.9 + sunLight(sun) * gloss * lit * 0.7) * w;
   }
 
   // And the same filmic shoulder, for the same reason: a ground that clipped

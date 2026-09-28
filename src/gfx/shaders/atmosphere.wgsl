@@ -191,7 +191,9 @@ fn ambientSky(sun : vec3f) -> vec3f {
   // the ambient goes up as the sun goes out -- which is why an overcast day is
   // shadowless rather than dark, and why a photograph taken under one needs
   // less exposure than the sky suggests.
-  return mix(clear, overcastTint(sun) * 1.22, weather.cover);
+  // A little under the lid's own brightness: a rainy day is lower-key than a
+  // bright one, and lifting it to match turned every storm into a pale haze.
+  return mix(clear, overcastTint(sun) * 1.02, weather.cover);
 }
 
 /** Bounce from the ground: warmer, weaker, and what fills the undersides. */

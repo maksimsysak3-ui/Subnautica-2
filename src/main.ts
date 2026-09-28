@@ -7,6 +7,7 @@
  * exists to hide a problem in.
  */
 
+import { thunder } from './ui/sound';
 import { music } from './ui/music';
 import { useDifficulty } from './sim/difficulty';
 import { scenarioById, startScenario } from './sim/scenarios';
@@ -133,6 +134,9 @@ async function boot(): Promise<void> {
   // harmless: it exposes the view, not the simulation.
   window.__citysim = { camera };
   const renderer = new Renderer(gpu, camera, stats);
+  // Thunder after the flash: sound is slow, so the further the strike the
+  // longer the count -- a second a third of a kilometre off, several far away.
+  renderer.onLightning = (distance) => { setTimeout(() => thunder(distance), 250 + distance * 3800); };
 
   // The simulation, before the world is built rather than after: it is created
   // from the city the renderer makes, and the notification that carries it fires

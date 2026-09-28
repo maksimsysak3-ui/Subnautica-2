@@ -130,9 +130,19 @@ fn dashed(v : f32, pitch : f32, on : f32, mpp : f32) -> f32 {
  */
 fn asphalt(world : vec2f, u : f32, half : f32, lanes : f32, mpp : f32) -> vec3f {
   let grain = vnoise(world * 5.5) * 0.5 + vnoise(world * 21.0) * 0.5;
-  // A shade lighter than fresh blacktop, so the network reads against grass
-  // and roofs from the building camera's height.
-  var col = mix(vec3f(0.066, 0.067, 0.073), vec3f(0.104, 0.104, 0.110), grain);
+  // Asphalt is dark: fresh blacktop at about four per cent, a worn road nearer
+  // seven. It was drawn a shade lighter so the network read from the air, and
+  // under a proper sun that made every street a pale grey slab. The markings,
+  // the kerbs and the pavements are what the network reads by; the tarmac
+  // itself should be the darkest thing in the street.
+  var col = mix(vec3f(0.036, 0.037, 0.041), vec3f(0.066, 0.066, 0.071), grain);
+  // Aggregate: pale stones in the black, sparse and sharp, the way a road
+  // surface actually glitters at walking distance.
+  let chip = vnoise(world * 38.0);
+  col += vec3f(0.030, 0.029, 0.027) * smoothstep(0.80, 0.96, chip) * smoothstep(0.08, 0.02, mpp);
+  // Oil and tyre rubber down the middle of each lane, and old tar seams.
+  let seam = vnoise(world * vec2f(0.6, 3.1));
+  col *= 1.0 - smoothstep(0.62, 0.70, seam) * 0.18;
 
   // Patches: the surface has been dug up and made good more than once.
   let repair = vnoise(world * 0.11);
@@ -489,7 +499,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // Never a viaduct's structure: its faces are not strips of a road surface.
   let coarse = smoothstep(1.20, 3.50, mppU) * select(1.0, 0.0, surf > 14.5);
   if (coarse > 0.0) {
-    let mean = mix(asphalt(w2, 0.0, half, 0.0, mpp), concrete(w2, mpp) * 0.80, 0.28);
+    let mean = mix(asphalt(w2, 0.0, half, 0.0, mpp), concrete(w2, mpp) * 0.80, 0.18);
     col = mix(col, mean, coarse);
   }
 
@@ -532,6 +542,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // The lantern: the source, bright enough to bloom but no longer a beacon.
     col = mix(col, lampTint * 4.2, night);
   }
+  // What the lamps put on the road's surface, kept for the puddles below.
+  var lampShine = vec3f(0.0);
   if (spacing > 0.5 && night > 0.004) {
     let height = 5.0;
     let reach = min(2.1, half * 0.42);
@@ -563,6 +575,7 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     // A wet road is a mirror, and the mirror shows the lamp: a hot spot under
     // each lantern, which is most of what makes a rainy night street.
     col += lampTint * gloss * night * camera.weather.w * 0.9;
+    lampShine = lampTint * (gloss * 1.6 + light * 0.10) * night;
   }
 
   // Wet tarmac.
@@ -586,15 +599,60 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     else if (surf == SURF_CONCRETE) { porosity = 0.62; }
     else if (surf == SURF_GRAVEL) { porosity = 0.12; }
     let w = soak * porosity;
-    col *= mix(1.0, 0.52, w);
+    col *= mix(1.0, 0.55, w);
     let toSun = normalize(camera.eye.xyz - in.world);
     let gloss = pow(max(dot(n, normalize(toSun + sun)), 0.0), 180.0);
-    // The sky in the mirror direction, which is what a wet road actually shows.
+    // The sky in the mirror direction, which is what a wet road actually shows
+    // -- by Fresnel: black looking down into it, a sheet of sky down the length
+    // of the street. A flat wash turned every wet road pale grey.
     let mirror = reflect(-toSun, n);
-    // Wet road only, and a wet road means the sky is a grey lid, so the
-    // detail the full sky adds is not in the reflection to begin with.
-    col += skyBody(mirror, sun) * w * 0.34;
+    let fr = 0.02 + 0.98 * pow(1.0 - clamp(dot(n, toSun), 0.0, 1.0), 5.0);
+    col += skyBody(mirror, sun) * w * fr * 0.8;
     col += sunLight(sun) * gloss * lit * w * 2.6;
+
+    // Puddles. Standing water in the dips of the carriageway: they appear as
+    // the road soaks, spread as the rain goes on, and are the last thing to go
+    // when it stops. A puddle is a mirror -- the sky, the lamps -- with the
+    // road dark and flooded round its edge, and while it is still raining
+    // every drop rings its surface.
+    if (porosity > 0.8) {
+      let dip = vnoise(in.world.xz * (1.0 / 6.5) + vec2f(13.0, 2.0)) * 0.62
+              + vnoise(in.world.xz * (1.0 / 2.1) + vec2f(5.0, 17.0)) * 0.38;
+      // More of them, and bigger, the wetter the road.
+      let fillAt = 0.84 - soak * 0.20;
+      // Faded out where a puddle is a few pixels across: from altitude the
+      // mirror is noise, and the road simply reads as wet.
+      let puddle = smoothstep(fillAt, fillAt + 0.035, dip) * smoothstep(0.08, 0.35, soak)
+                 * (1.0 - smoothstep(0.12, 0.60, mpp));
+      let rim = smoothstep(fillAt - 0.06, fillAt, dip) * (1.0 - puddle) * soak;
+      col *= 1.0 - rim * 0.25;
+      if (puddle > 0.001) {
+        // Rain on the water: each cell of the surface gets a drop at its own
+        // moment, which spreads as a ring and fades. Tilting the mirror along
+        // the ring is what makes the reflection shiver.
+        var pn = n;
+        let rain = camera.weather.z;
+        if (rain > 0.02) {
+          let cellP = floor(in.world.xz * 2.2);
+          let h = lattice(vec2i(cellP) + vec2i(31, 7));
+          let phase = fract(camera.params.x * 0.9 + h);
+          let centre = (cellP + vec2f(0.3 + 0.4 * fract(h * 7.3), 0.3 + 0.4 * fract(h * 13.1))) / 2.2;
+          let off = in.world.xz - centre;
+          let d = length(off);
+          let ring = exp(-pow((d - phase * 0.22) / 0.018, 2.0)) * (1.0 - phase) * rain;
+          let dir = off / max(d, 1e-4);
+          pn = normalize(n + vec3f(dir.x, 0.0, dir.y) * ring * 0.6);
+        }
+        let m = reflect(-toSun, pn);
+        let cosT = clamp(dot(pn, toSun), 0.0, 1.0);
+        let fres = 0.12 + 0.88 * pow(1.0 - cosT, 4.0);
+        // Dark water: a puddle on asphalt reflects well at a glance and shows
+        // the black road through it straight down.
+        let mirrorCol = skyBody(m, sun) * 0.48 + lampShine * 1.3
+                      + sunLight(sun) * pow(max(dot(m, sun), 0.0), 600.0) * lit * 4.0;
+        col = mix(col, mix(col * 0.35, mirrorCol, fres), puddle * 0.92);
+      }
+    }
   }
 
   let toEye = in.world - camera.eye.xyz;

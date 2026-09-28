@@ -163,6 +163,41 @@ export function thud(): void {
   ]);
 }
 
+/**
+ * Thunder. Close, a sharp crack and then the roll; far off, only the roll,
+ * lower and softer. Filtered noise, because thunder is noise.
+ */
+export function thunder(distance: number): void {
+  const b = bus();
+  if (b === null) return;
+  const { ctx, out } = b;
+  const len = 2.6 + distance * 2.0;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * len), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  let smooth = 0;
+  for (let i = 0; i < data.length; i++) {
+    // Brown noise: a random walk, which is the low rumble white noise is not.
+    smooth = (smooth + (Math.random() * 2 - 1) * 0.08) * 0.995;
+    data[i] = smooth * 3.2;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 900 - distance * 650;
+  const gain = ctx.createGain();
+  const now = ctx.currentTime;
+  const peak = 0.55 * (1 - distance * 0.6);
+  gain.gain.setValueAtTime(0.0001, now);
+  // Near: a crack. Far: a slow swell.
+  gain.gain.exponentialRampToValueAtTime(peak, now + (distance < 0.3 ? 0.02 : 0.35 + distance * 0.4));
+  gain.gain.exponentialRampToValueAtTime(peak * 0.45, now + len * 0.35);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + len);
+  src.connect(filter).connect(gain).connect(out);
+  src.start(now);
+  src.stop(now + len);
+}
+
 /** The ground moving: a long low rumble with a shudder in it. */
 export function rumble(): void {
   play([

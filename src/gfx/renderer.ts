@@ -1666,6 +1666,15 @@ export class Renderer {
    * is the difference between relinking a few places and rebuilding the whole lane
    * graph -- and painting one zoning cell must not cost the latter.
    */
+  /**
+   * A lightning strike, for the thunder: `distance` 0 overhead to 1 far off,
+   * which is what sets the delay and the voice of the clap that follows.
+   */
+  onLightning: ((distance: number) => void) | null = null;
+  /** The flash in the air right now, 0 to about 2. */
+  private lightning = 0;
+  private flashes: number[] = [];
+  private flashPower = 1;
   onCity: ((city: City, net: RoadGraph, roads: boolean, pipes: boolean) => void)
   | null = null;
 
@@ -2196,6 +2205,22 @@ export class Renderer {
       else this.weather.set(0.02);
     }
     if (this.sunHeld !== null) this.timeOfDay = this.sunHeld;
+    // Lightning, in a proper storm: heavy rain under a full deck. A strike is
+    // two or three flickers a fraction of a second apart, which is what a
+    // real flash is -- a single pulse reads as a camera flash, not weather.
+    const t = now / 1000;
+    const storm = this.quality.weather && this.sky.rain > 0.5 && this.sky.cover > 0.72;
+    if (storm && this.clockRunning && Math.random() < dt / (5 + 9 * (1 - this.sky.rain))) {
+      const second = t + 0.07 + Math.random() * 0.08;
+      this.flashes = Math.random() < 0.6 ? [t, second, second + 0.14 + Math.random() * 0.2] : [t, second];
+      const distance = Math.random();
+      this.flashPower = 0.55 + 0.9 * (1 - distance);
+      this.onLightning?.(distance);
+    }
+    let flash = 0;
+    for (const f of this.flashes) if (t >= f) flash += Math.exp(-(t - f) * 16);
+    if (this.flashes.length > 0 && t - this.flashes[this.flashes.length - 1] > 1) this.flashes = [];
+    this.lightning = flash * this.flashPower;
     const sun = sunAt(this.timeOfDay);
     // Dusk, as one number. The sun crossing the horizon is the interesting part,
     // so the ramp is centred on it and finishes a little way below: the city's
@@ -2571,6 +2596,7 @@ export class Renderer {
       tanX: tanY * (viewport.width / Math.max(1, viewport.height)),
       tanY,
       sunU, sunV, shafts,
+      flash: this.lightning,
     };
     post.encode(encoder, context.getCurrentTexture().createView(), res.depthView, tune);
 

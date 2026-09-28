@@ -47,6 +47,8 @@ export interface PostTune {
   sunU: number;
   sunV: number;
   shafts: number;
+  /** Lightning in the air, 0 for none. */
+  flash: number;
 }
 
 interface Level {
@@ -253,7 +255,7 @@ export class Post {
     d[20] = tune.sunU;
     d[21] = tune.sunV;
     d[22] = tune.shafts;
-    d[23] = 0;
+    d[23] = tune.flash;
     this.device.queue.writeBuffer(this.uniform, 0, d);
 
     if (this.depthFor !== depth || this.depthGroup === null) {

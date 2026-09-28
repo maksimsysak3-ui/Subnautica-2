@@ -39,7 +39,7 @@ struct Post {
   proj  : vec4f,
   /** x = ao strength (0 = off), y = ao radius scale, z = saturation, w = contrast. */
   look  : vec4f,
-  /** xy = the sun on screen (uv), z = shaft strength (0 = off). */
+  /** xy = the sun on screen (uv), z = shaft strength (0 = off), w = lightning. */
   shafts : vec4f,
 };
 
@@ -363,6 +363,13 @@ fn composite(in : VertexOut) -> @location(0) vec4f {
   // thicken it, because there is more in the air to catch the light.
   let air = post.mood.x * (0.24 + 0.12 * post.mood.w);
   hdr += textureSampleLevel(glowTex, samp, in.uv, 0.0).rgb * air;
+  // Lightning: the whole city lit for an instant in cold white, the sky
+  // brightest of all, and the lit windows washed out by it -- then gone.
+  let flash = post.shafts.w;
+  if (flash > 0.001) {
+    let sky = smoothstep(0.35, 0.0, in.uv.y) * 0.6 + 0.4;
+    hdr = hdr * (1.0 + flash * 1.6 * sky) + vec3f(0.55, 0.62, 0.80) * flash * 0.10 * sky;
+  }
   hdr *= post.tune.z;
   hdr = grade(hdr);
 
