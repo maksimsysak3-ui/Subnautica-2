@@ -222,6 +222,11 @@ export class Places {
   readonly attractions: Pool;
   readonly appeal = new Map<number, number>();
   appealTotal = 0;
+  /**
+   * An event on today: the venue, and the share of days out that go to it.
+   * Set from outside, by the city's events; null most days.
+   */
+  event: { venue: number; share: number; pull: number } | null = null;
   /** Schools with room, by what they teach. Index 0 is unused. */
   readonly schools: Pool[] = [];
 

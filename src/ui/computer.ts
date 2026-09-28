@@ -35,11 +35,12 @@ import type { Ledger } from '../sim/agents/economy';
 import type { DispatchStats } from '../sim/agents/dispatch';
 import { RESOURCES, resourceById } from '../sim/resources';
 import type { TourismReport } from '../sim/tourism';
+import { EVENTS, eventById, type EventCity } from '../sim/events';
 import type { ResourceId } from '../sim/resources';
 import type { CityHall } from './city-hall';
 import type { StatsApp } from './stats-app';
 
-export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'projects' | 'industry' | 'stats' | 'hall';
+export type DeskApp = 'home' | 'news' | 'council' | 'voters' | 'inbox' | 'projects' | 'events' | 'industry' | 'stats' | 'hall';
 
 export interface DeskHost {
   world(): World;
@@ -57,6 +58,10 @@ export interface DeskHost {
   dispatch(): DispatchStats | null;
   /** Who visits and why, or null before a city runs. */
   tourism(): TourismReport | null;
+  /** What booking an event reads off the city, or null before one runs. */
+  eventCity(): EventCity | null;
+  /** Books one; why not, or null. */
+  bookEvent(id: string): string | null;
 }
 
 const APPS: ReadonlyArray<[DeskApp, string, string]> = [
@@ -66,6 +71,7 @@ const APPS: ReadonlyArray<[DeskApp, string, string]> = [
   ['voters', 'Voters', 'heart'],
   ['inbox', 'Inbox', 'post'],
   ['projects', 'Projects', 'develop'],
+  ['events', 'Events', 'flower'],
   ['industry', 'Industry', 'resources'],
   ['stats', 'Stats', 'money'],
   ['hall', 'Elections', 'check'],
@@ -82,7 +88,7 @@ const DESK_COLOUR: Record<NewsDesk, string> = {
 };
 
 /** Dock icon colours, one per program, like a real dock's. */
-const DOCK_TINT = ['#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#0ea5e9', '#f59e0b', '#10b981', '#64748b', '#22c55e'];
+const DOCK_TINT = ['#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#0ea5e9', '#f59e0b', '#f97316', '#10b981', '#64748b', '#22c55e'];
 
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
@@ -271,7 +277,8 @@ export class Computer {
     const w = this.host.world();
     const day = Math.floor(this.host.day());
     return [this.app, this.desk, w.council.version, w.news.version, w.politics.version, w.industry.version, day,
-      Math.round(this.host.population() / 25), Math.round(w.budget.balance / 1000)].join('|');
+      Math.round(this.host.population() / 25), Math.round(w.budget.balance / 1000),
+      w.events.booked?.id ?? '', w.events.history.length, this.app === 'events' ? Math.floor(this.host.day() * 10) : 0].join('|');
   }
 
   private paint(): void {
@@ -300,6 +307,7 @@ export class Computer {
       case 'voters': this.paintVoters(); break;
       case 'inbox': this.paintInbox(); break;
       case 'projects': this.paintProjects(); break;
+      case 'events': this.paintEvents(); break;
       case 'industry': this.paintIndustry(); break;
       case 'stats':
         if (this.stats !== null) {
@@ -1054,6 +1062,77 @@ export class Computer {
   }
 
   // ---- Projects ------------------------------------------------------------------------
+
+  /** Events: what is on, what can be booked, and what has been held. */
+  private paintEvents(): void {
+    const w = this.host.world();
+    const ev = w.events;
+    const day = this.host.day();
+    const city = this.host.eventCity();
+    const g = el('div', 'mr-pc-grid');
+
+    const now = this.card('On the calendar', 12, `${ev.history.length} held`);
+    const b = ev.booked;
+    if (b === null) now.appendChild(el('div', 'mr-pc-note', 'Nothing booked. An event is paid for up front, held the next day at a venue the city has built, and pays back at the gate, in visitors, and in a happier city for days after.'));
+    else {
+      const def = eventById(b.id);
+      const box = el('div', 'mr-pc-bill');
+      box.appendChild(el('h4', undefined, def?.name ?? b.id));
+      const live = day >= b.from;
+      box.appendChild(el('p', undefined, `${live ? 'On now' : 'Tomorrow'} ${b.venue === -1 ? 'across the city' : `at ${b.where}`} · ${b.crowd.toLocaleString()} expected`));
+      const bar = this.bar(Math.max(0, Math.min(1, (day - b.from) / Math.max(0.01, b.until - b.from))), '#f97316');
+      bar.style.margin = '6px 0 2px';
+      box.appendChild(bar);
+      now.appendChild(box);
+    }
+    g.appendChild(now);
+
+    const list = this.card('Book an event', 12, 'one at a time');
+    const ul = el('div', 'mr-pc-list');
+    for (const def of EVENTS) {
+      const box = el('article', 'mr-pc-bill');
+      box.dataset.event = def.id;
+      box.appendChild(el('h4', undefined, def.name));
+      box.appendChild(el('p', undefined, def.blurb));
+      const why = city === null ? 'No city running' : ev.refuse(def, day, city, w.budget);
+      const crowd = city === null ? 0 : ev.crowdFor(def, city);
+      const facts = el('ul');
+      for (const line of [
+        `Costs ${money(def.cost)} · the gate takes about ${money(Math.round(crowd * def.ticket))}`,
+        `About ${crowd.toLocaleString()} expected · everybody happier for ${def.moodDays} days`,
+        def.venue === null ? 'Held across the city' : `Held at ${def.needs}`,
+      ]) facts.appendChild(el('li', undefined, line));
+      box.appendChild(facts);
+      const side = el('div', 'mr-pc-side-col');
+      if (why !== null) side.appendChild(el('span', 'mr-pc-verdict', why));
+      else {
+        const go = el('button', 'mr-pc-btn', 'Book for tomorrow');
+        go.addEventListener('click', () => {
+          const err = this.host.bookEvent(def.id);
+          if (err === null) { clickSound(); this.painted = ''; this.paint(); }
+          else go.textContent = err;
+        });
+        side.appendChild(go);
+      }
+      box.appendChild(side);
+      ul.appendChild(box);
+    }
+    list.appendChild(ul);
+    g.appendChild(list);
+
+    if (ev.history.length > 0) {
+      const past = this.card('Held', 12);
+      for (const h of ev.history.slice(0, 6)) {
+        const row = el('div', 'mr-pc-row');
+        row.append(el('b', undefined, eventById(h.id)?.name ?? h.id),
+          el('span', 'mr-pc-note', `day ${Math.floor(h.day)} · ${h.crowd.toLocaleString()} came · the gate took ${money(h.takings)}`));
+        row.style.gap = '10px';
+        past.appendChild(row);
+      }
+      g.appendChild(past);
+    }
+    this.body.appendChild(g);
+  }
 
   private paintProjects(): void {
     const w = this.host.world();

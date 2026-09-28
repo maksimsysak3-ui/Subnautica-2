@@ -182,11 +182,11 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['City events', 'Book match days, concerts, festivals, exhibitions and a marathon from the computer. Real crowds, a gate, and a happier city.'],
       ['Challenges', 'Found a city with a job to do: Boomtown, Tourist Trap, Floodplain, Shoestring, Green City or Metropolis, each against the clock.'],
       ['Tourism', 'Museums, zoos, stadiums and wonders draw visitors; hotels keep them the night; an airport brings the world. See Visitors on the computer.'],
       ['Natural disasters', 'Storms, floods and earthquakes, forecast where they can be. Fire cover, flood defences and a seismic code decide what they cost.'],
       ['Building Studio', 'Design houses, terraces, flats, shops, works and halls in 22 styles, generate a whole street, and let the city grow them in your zones.'],
-      ['Real resources', 'Deposits you can see, harvest only on them, and industry that pays properly.'],
       ['City Hall computer', 'Press P: the council, the Herald, your voters, petitions, stats and elections on one desk.'],
       ['Real politics', 'Six voting blocs, a council elected by D\'Hondt, bills that need votes, lobbying, protests and strikes.'],
     ];

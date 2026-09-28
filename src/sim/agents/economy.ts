@@ -412,6 +412,9 @@ export class Economy {
     event: '', eventValue: 0, eventSerial: 0, weeksLeft: Infinity,
   };
 
+  /** Visitors an event brings on the day, set from outside. */
+  eventVisitors = 0;
+
   /** Who visits and why, as of the last settle. */
   readonly tourism: TourismReport = { attraction: 0, beds: 0, visitors: 0, overnight: 0, appeal: 0, via: 'the roads', top: '' };
 
@@ -441,7 +444,7 @@ export class Economy {
     const appeal = appealOf(this.people.happiness, landValue - 0.7 > 0 ? (landValue - 0.7) / 0.8 : 0);
     const v = visitors(attraction, beds, way.reach * this.policies.effects.tourism, appeal, this.people.population);
     const t = this.tourism;
-    t.attraction = Math.round(attraction); t.beds = beds; t.visitors = v.visitors; t.overnight = v.overnight;
+    t.attraction = Math.round(attraction); t.beds = beds; t.visitors = v.visitors + this.eventVisitors; t.overnight = v.overnight;
     t.appeal = appeal; t.via = way.via; t.top = top;
     return t;
   }

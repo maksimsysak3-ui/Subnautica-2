@@ -98,6 +98,8 @@ import { Need } from './sim/agents/dispatch';
 import { siren, rumble } from './ui/sound';
 import { valleyAt } from './sim';
 import type { DisasterCity, Strike, Warning } from './sim/disasters';
+import type { EventCity, Venue } from './sim/events';
+import { eventById } from './sim/events';
 import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
@@ -300,6 +302,8 @@ export class LiveCity {
       ledger: () => this.sim?.economy.report ?? null,
       dispatch: () => this.sim?.dispatch.stats ?? null,
       tourism: () => this.sim?.economy.tourism ?? null,
+      eventCity: () => (this.sim === null ? null : this.eventCity(this.sim)),
+      bookEvent: (id) => this.bookEvent(id),
     }, this.hall, this.statsApp);
     this.wheel = new TechWheel(ui, [
       { label: 'Phone', device: 'phone', hint: 'The city feed and the weather', run: () => this.cititok.show() },
@@ -623,6 +627,64 @@ export class LiveCity {
       riverside: (x, z) => { const v = valleyAt(x, z); return v !== null && !v.bed; },
       ignite: (i) => sim.dispatch.ignite(i),
     };
+  }
+
+  /** What an event reads off the city: its size, its visitors and its venues. */
+  eventCity(sim: Simulation): EventCity {
+    const p = sim.places, c = p.col;
+    return {
+      population: sim.people.population,
+      // The city's own draw, without today's event -- which the economy only
+      // counts in at its next settle, so the two may briefly disagree.
+      visitors: Math.max(0, sim.economy.tourism.visitors - sim.economy.eventVisitors),
+      venues: (re) => {
+        const out: Venue[] = [];
+        for (let id = 0; id < p.count; id++) {
+          if (p.live[id] === 0 || c.purpose[id] !== Purpose.SERVICE) continue;
+          const def = ASSETS[c.proto[id]];
+          if (def !== undefined && re.test(def.id)) out.push({ id, x: c.x[id], z: c.z[id], name: def.name });
+        }
+        return out;
+      },
+    };
+  }
+
+  /** The event on the calendar: the crowds it sends, the visitors, the mood, and the gate. */
+  private eventOn = '';
+  private cityEvents(sim: Simulation): void {
+    const world = this.renderer.world;
+    const ev = world.events;
+    const day = this.gameDay();
+    if (ev.booked?.venue === -2) ev.relink(this.eventCity(sim));
+    const got = ev.update(day, world.budget, world.news);
+    if (got?.finished !== undefined) {
+      const def = eventById(got.finished.id);
+      this.alerts.push({ title: `${def?.name ?? 'Event'}: ${got.finished.crowd.toLocaleString()} came`, tone: 'good', tag: 'event-done',
+        body: 'A day the city will talk about for a while: everybody a little happier for a few days.',
+        figure: `+${money(got.finished.takings)}` });
+    }
+    const on = ev.live(day);
+    sim.places.event = on !== null && on.venue >= 0 ? { venue: on.venue, share: 0.6, pull: 30 } : null;
+    sim.economy.eventVisitors = ev.visitors(day);
+    sim.people.civicMood = world.council.mood + ev.mood(day) + (on !== null ? 2 : 0);
+    const key = on === null ? '' : `${on.id}@${on.from}`;
+    if (key !== this.eventOn) {
+      this.eventOn = key;
+      if (on !== null) {
+        const def = eventById(on.id);
+        this.alerts.push({ title: `${def?.name ?? 'Event'} today`, tone: 'good', tag: 'event-on',
+          body: `${on.crowd.toLocaleString()} expected ${on.venue < 0 ? 'across the city' : `at ${on.where}`}. Expect the roads in to be busy.`,
+          ...(on.venue >= 0 ? { go: () => this.lookAt(on.x, on.z) } : {}) });
+      }
+    }
+  }
+
+  /** Books an event from the computer. Why not, or null. */
+  bookEvent(id: string): string | null {
+    const sim = this.sim;
+    if (sim === null) return 'No city running';
+    const world = this.renderer.world;
+    return world.events.book(id, this.gameDay(), this.eventCity(sim), world.budget, world.news);
   }
 
   /** The challenge, if the city was founded with one: ticks, and the end of it. */
@@ -1316,6 +1378,7 @@ export class LiveCity {
     sim.advance(dt, now);
     this.politics(sim, dt, now);
     this.disasters(sim, dt);
+    this.cityEvents(sim);
 
     // Land the city has just grown into. Taken here rather than called back from
     // inside the tick on purpose: rebuilding re-enters this object through

@@ -527,7 +527,8 @@ export class Routine {
    * trips converging on one place is what fills the roads into it.
    */
   drawShare(): number {
-    const total = this.places.appealTotal;
+    // An event is somewhere to go that was not there yesterday.
+    const total = this.places.appealTotal + (this.places.event?.pull ?? 0);
     if (total <= 0) return 0;
     const pop = this.people.population;
     return Math.min(0.55, total / (total + 22)) * Math.min(1, 0.25 + pop / 4000);
@@ -540,10 +541,14 @@ export class Routine {
    */
   private attraction(id: number): number {
     const pool = this.places.attractions;
-    if (pool.size === 0) return NONE;
     const c = this.people.citizens.col;
     const col = this.places.col;
     const from = c.where[id];
+    // Match day: much of the city is going to the same place.
+    const ev = this.places.event;
+    if (ev !== null && ev.venue >= 0 && ev.venue !== from && this.places.live[ev.venue] !== 0
+      && this.rng.next() < ev.share) return ev.venue;
+    if (pool.size === 0) return NONE;
     const ax = from === NONE ? c.x[id] : col.x[from];
     const az = from === NONE ? c.z[id] : col.z[from];
     let best = NONE, bestScore = 0;

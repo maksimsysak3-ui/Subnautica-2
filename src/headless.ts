@@ -45,6 +45,7 @@ import {
   INSTANCE_FLOATS, previewRoad, baseHeightAt, GRIPE_INFO, Purpose, VIEWS,
 } from './sim';
 import type { Dirty, Simulation } from './sim';
+import { TICKS_PER_DAY } from './sim';
 import { LiveCity } from './live';
 import { Main } from './sim/mains';
 
@@ -1635,6 +1636,18 @@ Promise<{ pixels: number[]; movers: string }> {
     w.council.capital = 58;
     w.council.table('education', false, 0, 6200);
     w.council.inbox = [{ id: 'developer', day: -1 }, { id: 'busPay', day: -3 }];
+    if (panel.startsWith('desk-events')) {
+      // A festival on now at the first park that can hold one, and one held last week.
+      const sim = (live as unknown as { sim: Simulation }).sim;
+      const v = live.eventCity(sim).venues(/^svc\.parks\./)[0];
+      const day = sim.clock.tick / TICKS_PER_DAY;
+      if (v !== undefined) {
+        w.events.booked = { id: 'festival', venue: v.id, x: v.x, z: v.z, where: v.name, from: day - 0.2, until: day + 0.8, crowd: 2400 };
+        w.events.history = [{ id: 'match', day: day - 6, crowd: 11800, takings: 354000 }];
+      }
+      live.update(0.016, performance.now());
+      console.log(`EVENTS venue ${v?.name ?? 'none'} · pull ${JSON.stringify(sim.places.event)} · visitors ${sim.economy.eventVisitors} · draw ${sim.routine.drawShare().toFixed(3)}`);
+    }
     live.computer.show((panel.split('-')[1] ?? 'home') as never);
     // desk-home-end: the bottom of the program, for the cards below the fold.
     if (panel.endsWith('-end')) {

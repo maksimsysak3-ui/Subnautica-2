@@ -106,6 +106,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     progress: (_s, w) => [w.disasters.history.length, 1] },
   { id: 'disaster.ready', title: 'Ready for Anything', tier: 'silver', note: 'Flood defences, a seismic code and an emergency plan, all in one city.',
     progress: (_s, w) => [['floodDefences', 'seismicCode', 'emergencyPlan'].filter((id) => w.council.finished.includes(id)).length, 3] },
+  { id: 'events.first', title: 'Showtime', tier: 'bronze', note: 'Hold a city event.',
+    progress: (_s, w) => [w.events.history.length, 1] },
   { id: 'scenario.won', title: 'Mission Accomplished', tier: 'silver', note: 'Win a challenge.',
     progress: (_s, w) => flag(w.scenario?.status === 'won') },
   { id: 'scenario.metropolis', title: 'The Big One', tier: 'gold', note: 'Win the Metropolis challenge.',
