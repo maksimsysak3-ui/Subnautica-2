@@ -47,6 +47,7 @@ import type { LaneGraph } from './lanes';
 import { GROUND_GRID } from './ground';
 import type { Ground } from './ground';
 import type { BuildingLife } from './lifecycle';
+import { valleyAt } from '../river';
 
 /** Which view is up. */
 export const View = {
@@ -68,6 +69,7 @@ export const View = {
   BUDGET: 15,
   RESOURCES: 16,
   DISTRICTS: 17,
+  FLOOD: 18,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -180,6 +182,13 @@ export const VIEWS: ViewInfo[] = [
     id: View.POLLUTION, name: 'Pollution', icon: 'smog', look: Look.SURFACE,
     legend: 'What industry, power and traffic put in the air. Red is unliveable.',
     ramp: ['#d0503c', '#d8c05a', '#5fc888'], unit: 'polluted',
+  },
+  {
+    // Where a flood goes: the river's banks, deepest nearest the water. The
+    // one thing a player can do about it that costs nothing is not build there.
+    id: View.FLOOD, name: 'Flood risk', icon: 'flood', look: Look.ABUNDANCE,
+    legend: 'Land a flood reaches: the river banks. Brighter is lower and floods worse.',
+    ramp: ['#1b2a3d', '#3d78b8', '#8fd0ff'], unit: 'flood risk',
   },
   {
     // Painted in whichever resource the card has picked; the ramp and the
@@ -338,6 +347,24 @@ export class Views {
         // ground. Nothing is spread -- a seam's edge is where it is.
         const f = resourceFields().amount[this.resource];
         for (let k = 0; k < f.length; k++) if (f[k] > 0) this.grid[k] = f[k];
+        break;
+      }
+      case View.FLOOD: {
+        // The river does not move during a game, so neither does this.
+        if (this.floodCache === null || this.floodCache.extent !== this.src.extent) {
+          const { extent } = this.src;
+          const cell = extent / VIEW_GRID;
+          const g = new Uint8Array(VIEW_GRID * VIEW_GRID);
+          for (let j = 0; j < VIEW_GRID; j++) {
+            for (let i = 0; i < VIEW_GRID; i++) {
+              const v = valleyAt(-extent / 2 + (i + 0.5) * cell, -extent / 2 + (j + 0.5) * cell);
+              if (v !== null && !v.bed) g[j * VIEW_GRID + i] = Math.round(255 * Math.max(0.3, v.w));
+            }
+          }
+          this.floodCache = { extent, grid: g };
+        }
+        const g = this.floodCache.grid;
+        for (let k = 0; k < g.length; k++) if (g[k] > 0) this.grid[k] = g[k];
         break;
       }
       case View.DISTRICTS: {
@@ -615,6 +642,9 @@ export class Views {
   // ---- the numbers ------------------------------------------------------
 
   /** The statistics panel for a view. */
+  /** The flood map, worked out once per map: the river is where it is. */
+  private floodCache: { extent: number; grid: Uint8Array } | null = null;
+
   stats(view: number): Stat[] {
     const s = this.src;
     const pct = (x: number): string => `${Math.round(x * 100)}%`;
@@ -622,6 +652,23 @@ export class Views {
       hero = false): Stat => ({ label, value, bar, warn, hero });
 
     switch (view) {
+      case View.FLOOD: {
+        const p = s.places, c = p.col;
+        let homes = 0, others = 0;
+        for (let id = 0; id < p.count; id++) {
+          if (p.live[id] === 0 || c.purpose[id] === Purpose.SERVICE) continue;
+          const v = valleyAt(c.x[id], c.z[id]);
+          if (v === null || v.bed) continue;
+          if (c.purpose[id] === Purpose.HOME) homes++; else others++;
+        }
+        const guard = s.economy.effects.floodDamage;
+        return [
+          line('buildings on the banks', String(homes + others), -1, homes + others > 0, true),
+          line('Homes', String(homes)),
+          line('Shops, offices and works', String(others)),
+          line('Flood defences', guard < 0.5 ? 'built' : guard < 1 ? 'partial' : 'none', guard < 1 ? 1 - guard : 0, guard >= 1 && homes + others > 0),
+        ];
+      }
       case View.DISTRICTS: {
         const D = this.districts;
         const list = D?.list ?? [];

@@ -481,6 +481,9 @@ export class Economy {
   /** Points at the city's policies. Called whenever the world is replaced. */
   governedBy(policies: Policies): void { this.policies = policies; }
 
+  /** The measures in force, for the panels that report on them. */
+  get effects(): Policies['effects'] { return this.policies.effects; }
+
   /**
    * How much of a plant's output the city is using, 0 to 1, by asset id; null
    * for a building that is not a plant. Set by the simulation, which owns the

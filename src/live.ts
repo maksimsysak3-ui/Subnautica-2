@@ -700,7 +700,7 @@ export class LiveCity {
     this.alerts.push({
       title: flood ? 'Flood warning' : 'Storm warning', tone: 'warn', tag: `disaster-warn-${w.kind}`,
       body: flood
-        ? 'The river will break its banks within a day. Buildings on the banks will be damaged; flood defences (a council project) would stop most of it.'
+        ? 'The river will break its banks within a day. Buildings on the banks will be damaged: the Flood risk view shows which. Flood defences (a council project) stop most of it.'
         : 'A severe storm crosses the city within a day. Fire cover limits the damage; an emergency plan (a council project) limits it more.',
       go: () => this.lookAt(w.x, w.z),
     });
