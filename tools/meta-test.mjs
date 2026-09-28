@@ -203,7 +203,7 @@ const ok = (cond, what, detail = '') => {
   const sim = {
     people: { population: 300, happiness: 0.6, byStage: [] },
     places: { staffed: [0, 0] },
-    economy: { report: { net: 0 } },
+    economy: { report: { net: 0 }, tourism: { visitors: 0 } },
     utilities: { report: { served: [0, 0, 0, 0] } },
     transit: { report: { ridersPerDay: 0 } },
     traffic: { stats: { driving: 0, meanSpeed: 0 } },

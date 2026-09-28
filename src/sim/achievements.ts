@@ -98,6 +98,18 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     progress: (_s, w) => [w.industry.hqs.length, 3] },
   { id: 'mods.on', title: 'Tinkerer', tier: 'bronze', note: 'Play a city with a mod switched on.',
     progress: (s) => flag(s.people.population > 0 && enabledMods().length > 0) },
+  { id: 'tourism.500', title: 'On the Map', tier: 'bronze', note: '500 visitors a day.',
+    progress: (s) => [s.economy.tourism.visitors, 500] },
+  { id: 'tourism.3000', title: 'Destination', tier: 'gold', note: '3,000 visitors a day.',
+    progress: (s) => [s.economy.tourism.visitors, 3000] },
+  { id: 'disaster.survived', title: 'Weathered It', tier: 'bronze', note: 'Come through a storm, flood or earthquake.',
+    progress: (_s, w) => [w.disasters.history.length, 1] },
+  { id: 'disaster.ready', title: 'Ready for Anything', tier: 'silver', note: 'Flood defences, a seismic code and an emergency plan, all in one city.',
+    progress: (_s, w) => [['floodDefences', 'seismicCode', 'emergencyPlan'].filter((id) => w.council.finished.includes(id)).length, 3] },
+  { id: 'scenario.won', title: 'Mission Accomplished', tier: 'silver', note: 'Win a challenge.',
+    progress: (_s, w) => flag(w.scenario?.status === 'won') },
+  { id: 'scenario.metropolis', title: 'The Big One', tier: 'gold', note: 'Win the Metropolis challenge.',
+    progress: (_s, w) => flag(w.scenario?.id === 'metropolis' && w.scenario.status === 'won') },
 ];
 
 const KEY = 'civitas.achievements.v1';
