@@ -455,12 +455,13 @@ export class Junctions {
   /**
    * Whether a vehicle may enter the junction, and takes its slot if so.
    *
-   * `priority` is for emergency vehicles: they take a slot whatever is in the box,
-   * because the alternative is an ambulance in a queue, and everything else in the
-   * box is expected to be stopping for them anyway.
+   * `priority` is for emergency vehicles. They ignore the lights and the give-way
+   * order (see `closedTo`), but not a car already crossing their path: taking a
+   * slot whatever was in the box drew fire engines through the traffic, and the
+   * wait for a box to clear is a second or two.
    */
   enter(node: number, who: number, inAngle: number, outAngle: number,
-    rank: number, tick: number, holdTicks: number, priority = false): boolean {
+    rank: number, tick: number, holdTicks: number, _priority = false): boolean {
     if (node < 0 || node >= this.count) return true;
     this.sweep(node, tick);
     const base = node * BOX;
@@ -468,10 +469,9 @@ export class Junctions {
     for (let i = 0; i < BOX; i++) {
       const at = base + i;
       if (this.boxWho[at] < 0) { if (free < 0) free = at; continue; }
-      if (priority) continue;
       if (crosses(inAngle, outAngle, this.boxIn[at], this.boxOut[at])) return false;
     }
-    if (free < 0) return priority;             // full: only priority forces through
+    if (free < 0) return false;
     this.boxWho[free] = who;
     this.boxIn[free] = inAngle;
     this.boxOut[free] = outAngle;
@@ -496,12 +496,11 @@ export class Junctions {
     rank: number, turn: number, tick: number, seconds: number,
     priority = false): boolean {
     if (node < 0 || node >= this.count) return false;
-    if (priority) return false;
-    if (this.control[node] === Control.SIGNALS
+    if (!priority && this.control[node] === Control.SIGNALS
       && this.lightFor(lane, node, seconds) === Light.RED) return true;
     this.sweep(node, tick);
     if (this.boxUsed[node] === 0) return false;
-    const yielding = this.mustYield(lane, node, turn);
+    const yielding = !priority && this.mustYield(lane, node, turn);
     const base = node * BOX;
     for (let i = 0; i < BOX; i++) {
       const at = base + i;

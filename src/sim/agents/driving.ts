@@ -98,6 +98,9 @@ const MIX = [0.26, 0.56, 0.18];
 /** The hardest anybody brakes, for a light that changed or a car that stopped. */
 const EMERGENCY_BRAKE = 7.0;
 
+/** Metres behind a car at which a responder on a call makes it move over. */
+const YIELD_METRES = 45;
+
 /** How far over the limit a vehicle on an emergency call drives, and how much harder it pulls away. */
 const RESPONDER_SPEED = 1.75;
 const RESPONDER_ACCEL = 1.8;
@@ -673,8 +676,11 @@ export class Traffic {
       // the end of it, or nothing.
       let gap = Infinity, closing = 0;
       const leader = c.ahead[v];
-      // Ordinary traffic makes way for a responder; another responder does not.
-      if (leader >= 0 && !(responder && c.kind[leader] !== Kind.EMERGENCY)) {
+      // A responder follows like anybody else: it used to treat the car ahead
+      // as not there, on the promise that traffic pulls over -- and nothing
+      // made it, so fire engines drove straight through cars. The traffic
+      // ahead makes way below, by moving over.
+      if (leader >= 0) {
         gap = c.along[leader] - c.length[leader] - c.along[v];
         closing = speed - c.speed[leader];
       }
@@ -921,11 +927,19 @@ export class Traffic {
         // against a rolling counter, so the work is spread over ticks instead
         // of every driver on the map reconsidering at once.
         const stuck = c.stopped[v] > PATIENCE_TICKS;
+        // Blue lights close behind: move over, into any lane at all. And the
+        // responder itself takes any lane that gets it past.
+        const back = c.behind[v];
+        const siren = back >= 0 && c.kind[back] === Kind.EMERGENCY && c.job[back] >= 0
+          && c.kind[v] !== Kind.EMERGENCY && c.along[v] - c.along[back] < YIELD_METRES;
+        const blocked = responder && leader >= 0 && gap < YIELD_METRES;
         const slow = (v & 15) === (this.tickParity & 15)
           && c.speed[v] < this.g.speed[lane] * 0.75;
         const lopsided = (v & 7) === (this.tickParity & 7)
           && this.thinner(lane, laneFrom, laneEnd);
-        if ((stuck || slow || lopsided) && changesLeft > 0) {
+        if (siren || blocked) {
+          if (this.tryChange(v, lane, laneFrom, laneEnd, -1000)) this.stats.changes++;
+        } else if ((stuck || slow || lopsided) && changesLeft > 0) {
           changesLeft--;
           // A driver who is stuck or held up will take any lane that is no
           // fuller than the one they are in. A driver who is merely in the

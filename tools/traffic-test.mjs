@@ -185,10 +185,13 @@ section('junctions');
   jn.closedTo(cross, 8, W, E, 2, 0, 400, 0);
   ok(jn.occupancy(cross, 400) === before, 'asking whether a junction is shut takes nothing',
     `${jn.occupancy(cross, 400)} vs ${before}`);
-  // An emergency vehicle forces through whatever is in there.
+  // An emergency vehicle runs the lights, but not through a car already
+  // crossing its path: it waits the second or two for the box to clear.
   ok(jn.enter(cross, 5, W, E, 2, 500, 20), 'somebody is crossing');
   ok(!jn.enter(cross, 6, N, S, 2, 500, 20, false), 'an ordinary vehicle waits');
-  ok(jn.enter(cross, 7, N, S, 2, 500, 20, true), 'an ambulance does not');
+  ok(!jn.enter(cross, 7, N, S, 2, 500, 20, true), 'and so does an ambulance, rather than driving through them');
+  jn.leave(cross, 5);
+  ok(!jn.closedTo(cross, 8, N, S, 2, 0, 520, 0, true), 'but with the box clear, no light or give-way holds it');
   // Giving way waits for a better road even where the paths would not cross.
   const side = new Junctions(g, net.nodes.length);
   const give = (() => {
