@@ -264,7 +264,9 @@ section('a necessity, not a bonus');
     const pc = sim.places.col;
     const b = BRANCHES.indexOf('fire');
     const built = [];
-    for (const [x, z] of [[-300, -300], [300, -300], [-300, 300], [300, 300]]) {
+    // Built or not: an empty station now recruits its crew from the town,
+    // so leaving one unstaffed is no longer the same as not having one.
+    for (const [x, z] of withFire ? [[-300, -300], [300, -300], [-300, 300], [300, 300]] : []) {
       const p = sim.places.add(engine, x, z, -1, -1);
       if (p >= 0) built.push(p);
     }
@@ -275,7 +277,7 @@ section('a necessity, not a bonus');
       // The one difference between the two runs: whether the fire service has
       // anybody in it. Nothing else is touched, so anything that follows is the
       // fire service and nothing else.
-      if (!withFire && pc.branch[p] === b) continue;
+      if (!withFire && pc.branch[p] === b) { sim.places.remove(p); continue; }
       for (let k = 0; k < pc.jobs[p]; k++) sim.places.hire(p);
     }
     void built;

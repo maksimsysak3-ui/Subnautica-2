@@ -508,6 +508,19 @@ export class People {
           }
         } else {
           c.idleDays[id] = 0;
+          // And from the employed: a station short of crew recruits from the
+          // shops and works, a few a day, so a new station in a town where
+          // everybody already has a job is not left empty until the next
+          // school year.
+          const job = c.work[id];
+          if (this.places.vacantCrews.size > 0 && this.places.col.purpose[job] !== Purpose.SERVICE
+            && rng.chance(Math.min(1, days * 0.08))) {
+            const crew = this.places.vacantCrews.pick(rng.next());
+            if (crew >= 0 && this.qualified(c.edu[id], crew) && this.places.hire(crew)) {
+              this.places.fire(job);
+              c.work[id] = crew;
+            }
+          }
         }
       }
 
@@ -729,7 +742,16 @@ export class People {
     const hz = home === NONE ? c.z[id] : col.z[home];
     const edu = c.edu[id];
     let best = NONE, bestScore = Infinity;
-    for (let k = 0; k < 5; k++) {
+    // A station short of crew is the first door anybody knocks on: the city
+    // advertises for its firefighters, police and paramedics, and a station
+    // that waited its turn behind every shop stood empty while calls went
+    // unanswered. Anywhere in the city: people commute for those jobs. Half
+    // the time, so the shops still get their share of a small town.
+    if (this.places.vacantCrews.size > 0 && this.rng.next() < 0.5) {
+      const crew = this.places.vacantCrews.pick(this.rng.next());
+      if (crew >= 0 && this.qualified(edu, crew)) best = crew;
+    }
+    for (let k = 0; k < 5 && best === NONE; k++) {
       const p = this.places.pickJob(this.rng.next());
       if (p < 0) break;
       if (!this.qualified(edu, p)) continue;

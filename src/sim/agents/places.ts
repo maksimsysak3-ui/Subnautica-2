@@ -211,11 +211,26 @@ function teachesOf(id: string): number {
   }
 }
 
+/** Branch indices whose stations send crews to calls. */
+/**
+ * Staff a station hires ahead of everybody else: two crews on the road. Past
+ * that it waits its turn like any employer, or the stations would empty a
+ * small town's shops.
+ */
+const CREW_PRIORITY = 12;
+const EMERGENCY_BRANCHES = new Set(['fire', 'police', 'health'].map((b) => BRANCHES.indexOf(b as never)).filter((i) => i >= 0));
+
 export class Places {
   readonly table = new Table(SCHEMA, 4096);
   /** Buildings with room in them, one pool per purpose. */
   readonly vacantHomes: Pool;
   readonly vacantJobs: Pool[] = [];
+  /**
+   * Fire, police and ambulance stations still short of their first crews. Job seekers look here
+   * first: a station with no crew answers nothing, and it used to wait behind
+   * every shop and factory in the city for its share of applicants.
+   */
+  readonly vacantCrews: Pool;
   /**
    * Every building of each purpose, whether it has vacancies or not.
    *
@@ -292,6 +307,7 @@ export class Places {
     this.vacantHomes = new Pool(capacity);
     this.homes = new Pool(capacity);
     this.attractions = new Pool(capacity);
+    this.vacantCrews = new Pool(capacity);
     for (let i = 0; i < PURPOSES; i++) {
       this.vacantJobs.push(new Pool(capacity));
       this.byPurpose.push(new Pool(capacity));
@@ -363,6 +379,7 @@ export class Places {
     }
     if (jobs > 0) {
       this.vacantJobs[purpose].add(id);
+      if (EMERGENCY_BRANCHES.has(branch)) this.vacantCrews.add(id);
       this.jobCapacity += jobs;
       this.vacancies[purpose] += jobs;
       this.posts[purpose] += jobs;
@@ -412,6 +429,7 @@ export class Places {
     this.vacantHomes.remove(id);
     if (c.teaches[id] !== Teaches.NONE) this.schools[c.teaches[id]].remove(id);
     this.vacantJobs[c.purpose[id]].remove(id);
+    this.vacantCrews.remove(id);
     this.byPurpose[c.purpose[id]].remove(id);
     if (c.branch[id] !== NO_BRANCH) this.byBranch[c.branch[id]].remove(id);
     const pull = this.appeal.get(id);
@@ -445,6 +463,7 @@ export class Places {
     const c = this.table.col;
     if (this.table.live[id] === 0 || c.working[id] >= c.jobs[id]) return false;
     if (++c.working[id] >= c.jobs[id]) this.vacantJobs[c.purpose[id]].remove(id);
+    if (c.working[id] >= CREW_PRIORITY) this.vacantCrews.remove(id);
     this.vacancies[c.purpose[id]]--;
     this.workers++;
     return true;
@@ -456,7 +475,10 @@ export class Places {
     c.working[id]--;
     this.workers--;
     this.vacancies[c.purpose[id]]++;
-    if (c.working[id] < c.jobs[id]) this.vacantJobs[c.purpose[id]].add(id);
+    if (c.working[id] < c.jobs[id]) {
+      this.vacantJobs[c.purpose[id]].add(id);
+    }
+    if (c.working[id] < Math.min(c.jobs[id], CREW_PRIORITY) && EMERGENCY_BRANCHES.has(c.branch[id])) this.vacantCrews.add(id);
   }
 
   /** Takes a place at a school. False if it filled up first. */
@@ -516,7 +538,7 @@ export class Places {
   }
 
   bytes(): number {
-    let n = this.table.bytes() + this.vacantHomes.bytes() + this.homes.bytes();
+    let n = this.table.bytes() + this.vacantHomes.bytes() + this.homes.bytes() + this.vacantCrews.bytes();
     for (const p of this.vacantJobs) n += p.bytes();
     for (const p of this.byBranch) n += p.bytes();
     for (const p of this.schools) n += p.bytes();
