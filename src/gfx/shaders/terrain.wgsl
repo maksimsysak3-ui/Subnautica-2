@@ -350,7 +350,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // turned, and it is those few that make a landscape read as farmed. The
   // earlier split put half the map in straw-coloured stubble, which from the
   // game's camera was a yellow and green mosaic rather than countryside.
-  let k = inField * parcelFade;
+  // Inside the city there are no fields. The parcels are countryside, and
+  // where they ran on between the roads and the forecourts the verges came out
+  // as strips of straw-coloured crop: the yellow smears along every street.
+  // Anything within a plot or two of built land is urban ground, and urban
+  // grass is kept -- verges, lawns, the strip by the kerb.
+  var nearBuilt = 0.0;
+  for (var q = 0; q < 4; q++) {
+    let a = f32(q) * 1.5707963;
+    let s4 = surfaceAt(in.world + vec3f(cos(a) * 22.0, 0.0, sin(a) * 22.0));
+    nearBuilt = max(nearBuilt, s4.r + s4.g + s4.b + s4.a);
+  }
+  let urban = smoothstep(0.05, 0.45, nearBuilt);
+  let k = inField * parcelFade * (1.0 - urban);
   let crop = smoothstep(0.855, 0.875, cut);
   let plough = smoothstep(0.075, 0.055, cut);
   let mown = smoothstep(0.60, 0.66, cut) * (1.0 - crop);
@@ -376,6 +388,8 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // the change of crop, so the line comes and goes along its length.
   let hedge = mix(0.2, 1.0, smoothstep(0.38, 0.62, vnoise(in.world.xz * (1.0 / 55.0) + vec2f(4.0, 8.0))));
   turf = mix(turf, vec3f(0.020, 0.040, 0.019), margin * 0.55 * hedge * parcelFade);
+  // Kept grass: greener than open country, mown, watered.
+  turf = mix(turf, mix(lush, dry, 0.30) * vec3f(1.0, 1.03, 0.98), urban * 0.62);
   // A slow hue drift across a field, on top of the dryness ramp. Two greens
   // are not enough for a kilometre of grass: without this the whole map is one
   // colour with the brightness wobbling, which reads as lighting rather than
@@ -483,9 +497,15 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // and paving that does not answer to the light and the weather stops being
   // ground. The weights arrive filtered, so a garden meets a yard over a metre
   // or two the way a real boundary does.
-  let surf = surfaceAt(in.world);
+  // The weights come off a coarse map through a bilinear sampler, so on their
+  // own they blend paving into turf over half a cell -- metres of mush where a
+  // real forecourt meets its lawn at a kerb. Sharpened to a clean boundary,
+  // with its line jittered a little so it reads as a laid edge, not a grid.
+  let surfRaw = surfaceAt(in.world);
+  let edgeJit = (vnoise(in.world.xz * (1.0 / 5.0) + vec2f(4.1, 9.3)) - 0.5) * 0.30;
+  let surf = smoothstep(vec4f(0.22 + edgeJit), vec4f(0.58 + edgeJit), surfRaw);
   let built = surf.r + surf.g;
-  if (surf.r + surf.g + surf.b + surf.a > 0.002) {
+  if (surfRaw.r + surfRaw.g + surfRaw.b + surfRaw.a > 0.002) {
     // Paving: precast slabs. The joints are the whole of it -- concrete
     // without them is a grey plane, and at two metres they are the scale the
     // eye actually reads a forecourt at.
