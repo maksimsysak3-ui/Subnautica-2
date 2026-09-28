@@ -88,6 +88,26 @@ const WAGE = {
 /** A week's turnover per filled shop job, and the goods that turnover needs. */
 const SALES_PER_SHOP_JOB = 820;
 /**
+ * What each prototype means to a visitor, worked out once: the walk over the
+ * buildings runs on every settle, and a dozen pattern tests per building per
+ * settle was real time in a big city. Null for the great majority that mean
+ * nothing -- houses, works, roads.
+ */
+const tourismCache: Array<{ draw: number; what: string; beds: number; gateway: boolean } | null | undefined> = [];
+function tourismOf(proto: number): { draw: number; what: string; beds: number; gateway: boolean } | null {
+  const hit = tourismCache[proto];
+  if (hit !== undefined) return hit;
+  const def = ASSETS[proto];
+  let out: { draw: number; what: string; beds: number; gateway: boolean } | null = null;
+  if (def !== undefined) {
+    const a = attractionOf(def), beds = bedsOf(def), gateway = def.id.startsWith('svc.transport.');
+    if (a.draw > 0 || beds > 0 || gateway) out = { draw: a.draw, what: a.what, beds, gateway };
+  }
+  tourismCache[proto] = out;
+  return out;
+}
+
+/**
  * What a visitor spends in a day, in the same units as a shop job's week of
  * sales: a night in a hotel, meals and the shops, before the day-trip discount.
  */
@@ -430,15 +450,15 @@ export class Economy {
     const ids = new Set<string>();
     for (let id = 0; id < p.count; id++) {
       if (p.live[id] === 0) continue;
-      const def = ASSETS[c.proto[id]];
-      if (def === undefined) continue;
-      if (def.id.startsWith('svc.transport.')) ids.add(def.id);
-      const a = attractionOf(def);
-      if (a.draw > 0) {
-        attraction += a.draw;
-        if (a.draw > topDraw) { topDraw = a.draw; top = a.what; }
+      const proto = c.proto[id];
+      const t = tourismOf(proto);
+      if (t === null) continue;
+      if (t.gateway) ids.add(ASSETS[proto].id);
+      if (t.draw > 0) {
+        attraction += t.draw;
+        if (t.draw > topDraw) { topDraw = t.draw; top = t.what; }
       }
-      beds += bedsOf(def);
+      beds += t.beds;
     }
     const way = gatewayOf(ids);
     const appeal = appealOf(this.people.happiness, landValue - 0.7 > 0 ? (landValue - 0.7) / 0.8 : 0);
