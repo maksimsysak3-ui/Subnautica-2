@@ -79,7 +79,7 @@ const MODE_LAYER = [Layer.FOOT, Layer.BIKE, Layer.CAR, Layer.BUS];
  * drove anywhere. That is the failure to watch for here, and it is easy to miss,
  * because a city where everyone cycles still works.
  */
-const VALUE_OF_TIME = 8 / 3600;
+const VALUE_OF_TIME = 12 / 3600;
 
 /**
  * What a trip costs in money, per kilometre and once.
@@ -90,8 +90,8 @@ const VALUE_OF_TIME = 8 / 3600;
  * it, the fastest mode wins at every distance and a city has people driving two
  * hundred metres to the shop.
  */
-const FARE_PER_KM = [0, 0, 0.22, 0.05];
-const FARE_FIXED = [0, 0.7, 1.6, 1.4];
+const FARE_PER_KM = [0, 0, 0.14, 0.05];
+const FARE_FIXED = [0, 0.7, 0.75, 1.4];
 
 /**
  * How unpleasant each mode is per kilometre.
@@ -100,7 +100,7 @@ const FARE_FIXED = [0, 0.7, 1.6, 1.4];
  * which a per-kilometre penalty captures exactly, and it is why nobody walks
  * across the city without anybody having to forbid it.
  */
-const DISCOMFORT_PER_KM = [0.9, 0.35, 0.05, 0.3];
+const DISCOMFORT_PER_KM = [1.4, 0.55, 0.05, 0.3];
 
 /** Reach of each mode in metres. Beyond it, not considered at all. */
 const MODE_REACH = [2500, 7000, Infinity, Infinity];
@@ -114,7 +114,7 @@ const MODE_REACH = [2500, 7000, Infinity, Infinity];
  * kilometres where it should be full of them. Taken from a hash of the person, so
  * the same people always cycle.
  */
-const CYCLISTS = 0.45;
+const CYCLISTS = 0.25;
 
 /**
  * How much room each mode takes up, in cars.
@@ -140,7 +140,7 @@ const ROAD_SPACE = [0.12, 0.2, 1, 2.5];
  * generates. Hashing the day in as well costs nothing and gives each person a
  * different mix of days.
  */
-const GOES_OUT_PER_DAY = 0.55;
+const GOES_OUT_PER_DAY = 0.65;
 
 /**
  * How much longer a real journey is than the straight line between its ends.
@@ -151,8 +151,14 @@ const GOES_OUT_PER_DAY = 0.55;
  */
 const DETOUR = 1.35;
 
-/** Metres of lane per vehicle at a lane's practical capacity. See the constructor. */
-export const CAPACITY_METRES = 22;
+/**
+ * Metres of lane per vehicle at a lane's practical capacity. See the constructor.
+ *
+ * Thirty: a busy town's main street fills at rush hour and goes red, which
+ * is the problem the road tools exist to solve. At twenty-two a town of a few
+ * thousand never came near it, and nothing ever needed fixing.
+ */
+export const CAPACITY_METRES = 30;
 
 /**
  * The longest an estimated journey may be, in game minutes.
@@ -365,8 +371,7 @@ export class Routine {
       // What a lane can carry before it slows. Not the jam density -- a car
       // every nine metres is a car park, and measuring against it meant a road
       // carrying everything it could still read as a third full, so nothing
-      // ever congested. A lane at its practical capacity carries a car every
-      // twenty-odd metres, and that is what 100 per cent means here.
+      // ever congested. What 100 per cent means is `CAPACITY_METRES`.
       this.capacity[l] = Math.max(1, lanes.length[l] / CAPACITY_METRES);
     }
     this.sink = {

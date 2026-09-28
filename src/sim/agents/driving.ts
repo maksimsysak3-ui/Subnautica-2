@@ -288,11 +288,11 @@ const LANE_SHIFT_SPEED = 2.3;
  * How much of the flow model's density is put on the road.
  *
  * `nearbyLoad` is load times lane length over nine metres, and load is measured
- * against a lane's practical capacity -- a car every twenty-two metres, see
- * `CAPACITY_METRES` -- so a lane at 100 per cent is drawn with a car every twenty
- * metres or so, a busy street, and one at two hundred as a queue.
+ * against a lane's practical capacity -- see `CAPACITY_METRES` -- so a lane at
+ * 100 per cent, a red road, is drawn with a car every seventeen metres or so,
+ * nose to tail at speed, and one at two hundred as a queue.
  */
-const VEHICLES_PER_LOAD = 0.45;
+const VEHICLES_PER_LOAD = 0.52;
 
 /**
  * Load every road is treated as having, however empty.
@@ -302,7 +302,14 @@ const VEHICLES_PER_LOAD = 0.45;
  * floor puts a believable trickle everywhere and leaves the *differences* between
  * roads intact, which is what the density is for.
  */
-const IDLE_LOAD = 0.06;
+const IDLE_LOAD = 0.07;
+
+/**
+ * Ambient vehicles at most, whatever the load says. A big city's jammed
+ * centre wants more than this, and past it every extra car is simulation time
+ * a tick cannot spare; the traffic view still shows the jam in full.
+ */
+const AMBIENT_CAP = 1300;
 
 const SCHEMA = {
   /** The citizen this is carrying, or -1 for a vehicle the city owns. */
@@ -1413,7 +1420,7 @@ export class Traffic {
       }
       return;
     }
-    const want = Math.min(this.budget, Math.round(this.nearbyLoad * VEHICLES_PER_LOAD));
+    const want = Math.min(this.budget, AMBIENT_CAP, Math.round(this.nearbyLoad * VEHICLES_PER_LOAD));
     let room = Math.min(perTick, want - this.wandering());
     // No early return when the road is full: the depots and yards below still send theirs.
     const load = this.load;
