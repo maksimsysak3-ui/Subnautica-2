@@ -87,9 +87,16 @@ const DESIGNED: readonly Rules[] = [
     blurb: 'A thin treasury, dear construction, a short grant and residents who '
       + 'complain early. For players who like the budget to fight back.',
     funds: 100000, grantWeekly: 9500, grantUntil: 1500,
-    build: 1.15, upkeep: 1.15, income: 0.95, quiet: 1000, xp: 0.85, appeal: 0.8,
+    build: 1.15, upkeep: 1.15, income: 0.88, quiet: 1000, xp: 0.85, appeal: 0.8,
   },
 ];
+
+/**
+ * Taxes on every difficulty, a fifth above the first tuning: with levels
+ * slower to come, and paying less along the way, a sensible city was
+ * spending weeks near the overdraft with nothing to build.
+ */
+const INCOME_WEIGHT = 1.2;
 
 export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
   ...r,
@@ -97,7 +104,7 @@ export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
   grantWeekly: r.grantWeekly * CURRENCY,
   build: r.build * CURRENCY * BUILD_WEIGHT,
   upkeep: r.upkeep * CURRENCY * UPKEEP_WEIGHT,
-  income: r.income * CURRENCY,
+  income: r.income * CURRENCY * INCOME_WEIGHT,
 }));
 
 const byId = (id: string): Rules =>

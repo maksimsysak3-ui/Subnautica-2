@@ -41,6 +41,7 @@ import {
 import { MAIN_COLOURS, Main as MainKind } from '../sim/mains';
 import { buildMainsMesh, MAIN_VERTEX_FLOATS } from './mains-mesh';
 import { supplyOf } from '../sim/agents/utilities';
+import { postsFor } from '../sim/agents/places';
 import type { OverlayMap } from './overlay-map';
 import type { Bucket, CastBucket as CityDrawCast } from './city-draw';
 import {
@@ -599,7 +600,7 @@ export class Renderer {
       // put five thousand "buildings" on an empty map.
       if (def.zone !== 'road' && def.zone !== 'fleet') buildings += n;
       people += n * (def.sim.households ?? 0) * 2.4;
-      jobs += n * (def.sim.jobs ?? 0);
+      jobs += n * (def.zone === 'service' || def.signature === true ? postsFor(def.sim.jobs ?? 0) : def.sim.jobs ?? 0);
     }
     this.summary.people = Math.round(people);
     this.summary.jobs = Math.round(jobs);

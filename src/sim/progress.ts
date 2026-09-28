@@ -60,7 +60,7 @@ export function starsForLevel(level: number): number {
 // whole takings, so a town that reached several at once -- which a few blocks
 // of towers did -- was handed millions it had not earned.
 export function cashForLevel(level: number): number {
-  return Math.round((12000 + 5000 * (level - 1)) * CURRENCY / 1000) * 1000;
+  return Math.round((16000 + 7000 * (level - 1)) * CURRENCY / 1000) * 1000;
 }
 
 /** The name of each level, which is the only flattery in the game. */

@@ -919,7 +919,7 @@ export class Dispatch {
     // is the one thing a player who has just built one cannot understand.
     if (staff < POSTS_PER_CREW / 2) return 0;
     if (staff < POSTS_PER_CREW) return 1;
-    const jobs = Math.max(staff, def.sim?.jobs ?? staff);
+    const jobs = Math.max(staff, pc.jobs[place]);
     // And funding: a cut budget keeps vehicles in the yard, a generous one
     // puts a spare on the road.
     const b = BRANCHES.indexOf(def.branch as never);

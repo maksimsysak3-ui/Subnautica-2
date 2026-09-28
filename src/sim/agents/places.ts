@@ -173,8 +173,23 @@ const SCHEMA = {
   health: Uint8Array,
 } as const;
 
-/** Pupils, patients or borrowers per member of staff. */
+/** Pupils, patients or borrowers per member of staff, on the declared staff. */
 const SERVED_PER_STAFF = 15;
+
+/**
+ * Posts a building actually advertises, from the jobs its descriptor declares.
+ *
+ * For placed buildings: small ones keep every job; big ones are compressed. The declared
+ * numbers are real-world headcounts -- a college of 420, an office tower of
+ * fourteen hundred -- and the city's households are not on that scale, so a
+ * town of a few hundred that put down a hospital and a college saw its
+ * openings leap past its whole workforce. A service still looks after as many
+ * as its declared staff would (see `serves`): what it needs is fewer hands.
+ */
+export function postsFor(declared: number): number {
+  return declared <= POSTS_KNEE ? declared : Math.round(POSTS_KNEE + (declared - POSTS_KNEE) ** 0.82);
+}
+const POSTS_KNEE = 36;
 
 /** What each upgrade tier adds: capacity, reach, plant output, and upkeep. */
 export const TIER_CAPACITY = 0.5;
@@ -306,7 +321,10 @@ export class Places {
     c.met[id] = 0; c.health[id] = 200;
 
     const homes = def.sim?.households ?? 0;
-    const jobs = def.sim?.jobs ?? 0;
+    const declared = def.sim?.jobs ?? 0;
+    // Only what the player places by hand: a service or a landmark. Zoned
+    // buildings grow into the demand that asked for them, a few posts at a time.
+    const jobs = def.zone === 'service' || def.signature === true ? postsFor(declared) : declared;
     c.homes[id] = homes;
     c.jobs[id] = jobs;
 
@@ -331,7 +349,7 @@ export class Places {
     c.purpose[id] = purpose;
     c.branch[id] = branch;
     c.serves[id] = purpose === Purpose.SERVICE
-      ? Math.min(0xffff, jobs * SERVED_PER_STAFF) : 0;
+      ? Math.min(0xffff, declared * SERVED_PER_STAFF) : 0;
     c.studying[id] = 0;
     c.tier[id] = 0;
     c.teaches[id] = purpose === Purpose.SERVICE && def.branch === 'education'
@@ -371,7 +389,7 @@ export class Places {
     if (this.table.live[id] === 0 || c.tier[id] === tier) return;
     c.tier[id] = tier;
     if (c.purpose[id] !== Purpose.SERVICE) return;
-    const base = Math.min(0xffff, c.jobs[id] * SERVED_PER_STAFF);
+    const base = Math.min(0xffff, (ASSETS[c.proto[id]]?.sim?.jobs ?? c.jobs[id]) * SERVED_PER_STAFF);
     c.serves[id] = Math.min(0xffff, Math.round(base * (1 + TIER_CAPACITY * tier)));
     if (c.teaches[id] !== Teaches.NONE) {
       if (c.studying[id] < c.serves[id]) this.schools[c.teaches[id]].add(id);
