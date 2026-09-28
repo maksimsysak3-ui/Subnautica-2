@@ -4928,12 +4928,30 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     col += skyBody(mirror, sun) * w * fr * 0.8;
     col += sunLight(sun) * gloss * lit * w * 2.6;
 
+    // Splashes. Every drop that lands on a wet road throws up a tiny crown
+    // and a ring, gone in a moment -- thousands of them at once is what makes
+    // a road read as being rained on rather than merely wet. Only near the
+    // camera, where a splash is bigger than a pixel, and never in snow.
+    let pour = camera.weather.z;
+    if (pour > 0.02 && season() > -0.01 && mpp < 0.08) {
+      let sc = floor(in.world.xz * 3.2);
+      let sh = lattice(vec2i(sc) + vec2i(91, 17));
+      let life = fract(camera.params.x * (1.6 + sh) + sh * 5.1);
+      let spot = (sc + vec2f(0.25 + 0.5 * fract(sh * 3.7), 0.25 + 0.5 * fract(sh * 9.1))) / 3.2;
+      let dd = length(in.world.xz - spot);
+      // A bright crown for the first instant, then an opening ring.
+      let crown = (1.0 - smoothstep(0.0, 0.018, dd)) * (1.0 - smoothstep(0.0, 0.12, life));
+      let ring = exp(-pow((dd - life * 0.09) / 0.008, 2.0)) * (1.0 - life) * step(life, 0.5);
+      let splash = (crown + ring * 0.6) * step(0.35, sh) * pour * (1.0 - smoothstep(0.03, 0.08, mpp));
+      col += (skyBody(vec3f(0.0, 1.0, 0.0), sun) * 1.4 + lampShine * 0.8 + vec3f(0.04)) * splash;
+    }
+
     // Puddles. Standing water in the dips of the carriageway: they appear as
     // the road soaks, spread as the rain goes on, and are the last thing to go
     // when it stops. A puddle is a mirror -- the sky, the lamps -- with the
     // road dark and flooded round its edge, and while it is still raining
     // every drop rings its surface.
-    if (porosity > 0.8) {
+    if (porosity > 0.8 && season() > -0.01) {
       let dip = vnoise(in.world.xz * (1.0 / 6.5) + vec2f(13.0, 2.0)) * 0.62
               + vnoise(in.world.xz * (1.0 / 2.1) + vec2f(5.0, 17.0)) * 0.38;
       // More of them, and bigger, the wetter the road.
@@ -5188,6 +5206,29 @@ fn sheet(uv : vec2f, t : f32, scale : f32, speed : f32, slant : f32, seed : f32)
   return along * across * (0.45 + r * 0.55);
 }
 
+/**
+ * One sheet of snow.
+ *
+ * Flakes, not streaks: round, soft, slow, and each one swaying on its own
+ * rhythm as it falls, which is the whole difference between snow and rain on
+ * the screen. Square cells, because a flake is not stretched by its speed.
+ */
+fn flakes(uv : vec2f, t : f32, scale : f32, speed : f32, drift : f32, seed : f32) -> f32 {
+  var q = uv * scale;
+  q.y -= t * speed;
+  q.x += t * drift;
+  let cell = floor(q);
+  let f = fract(q);
+  let r = hash21(cell + seed);
+  if (r > 0.55) { return 0.0; }
+  // Its place in the cell, swaying.
+  let sway = sin(t * (1.1 + r * 1.7) + r * 40.0) * 0.22;
+  let centre = vec2f(0.5 + (r - 0.5) * 0.5 + sway, fract(r * 13.7));
+  let d = length(f - centre);
+  let size = 0.05 + r * 0.07;
+  return (1.0 - smoothstep(size * 0.35, size, d)) * (0.5 + r * 0.5);
+}
+
 @fragment
 fn fs(in : VSOut) -> @location(0) vec4f {
   let rain = camera.weather.z;
@@ -5209,6 +5250,19 @@ fn fs(in : VSOut) -> @location(0) vec4f {
   // angle -- a fixed slant is the tell that this is a texture.
   let gust = sin(t * 0.21) * 0.5 + sin(t * 0.07 + 1.7) * 0.5;
   let slant = (0.55 + gust * 0.45) * (0.3 + rain * 0.7);
+
+  // Winter: it snows. Three depths of flakes, slow and drifting, bright white
+  // lit by the sky -- the ground and the roofs already lie white under it.
+  if (season() < -0.01) {
+    let wind = gust * 0.25;
+    var s = flakes(uv, t, 26.0, 0.30, wind * 0.6, 3.0) * 0.55;
+    s += flakes(uv, t, 14.0, 0.48, wind * 0.9, 29.0) * 0.8;
+    s += flakes(uv, t, 7.0, 0.75, wind * 1.3, 71.0);
+    s *= smoothstep(0.0, 0.30, rain) * (0.55 + rain * 0.6);
+    if (s <= 0.002) { discard; }
+    let snowCol = sceneOut(ambientSky(sun) * 2.6 + vec3f(0.12));
+    return vec4f(snowCol, clamp(s, 0.0, 1.0) * 0.85);
+  }
 
   // Three depths. The far sheet is dense, small and slow; the near one is
   // sparse, long and fast, and it is what sells the speed.
@@ -5823,4 +5877,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,ts={"common.wgsl":Cs,"atmosphere.wgsl":Ds,"noise.wgsl":Ms,"overlay.wgsl":Is};function JQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>ts[U]??A)}const qs={asset:JQ(Us),cull:JQ(cs),terrain:JQ(os),sky:JQ(Fs),grass:JQ(Ys),road:JQ(ss),water:JQ(as),rain:JQ(Rs),dots:JQ(es),mains:JQ(is),post:JQ(ns)};export{Os as $,OD as A,TD as B,rs as C,fD as D,hs as E,$A as F,Ig as G,ps as H,js as I,R as J,E as K,ew as L,V0 as M,xE as N,Ss as O,EC as P,Js as Q,Ls as R,qs as S,QB as T,bs as U,og as V,JF as W,hB as X,yY as Y,fs as Z,Ks as _,ig as a,Ts as a0,XY as a1,ls as a2,GY as a3,kY as a4,LY as a5,TY as a6,SY as a7,$C as a8,CY as a9,bY as aa,MY as ab,QC as ac,QD as ad,AD as ae,ED as af,gD as ag,QY as ah,BY as ai,EY as aj,wY as ak,gY as al,iY as am,nY as an,eY as ao,tY as ap,dY as aq,oD as ar,YD as as,mE as at,Xs as au,xY as av,gC as aw,gs as ax,iE as b,Eg as c,uY as d,Ps as e,ms as f,Zs as g,vs as h,Ws as i,EE as j,ds as k,RQ as l,ks as m,ys as n,xs as o,qY as p,KQ as q,uC as r,zs as s,Hs as t,h0 as u,Gs as v,KF as w,Vs as x,Ns as y,us as z};
-//# sourceMappingURL=shaders-CYlmDF2p.js.map
+//# sourceMappingURL=shaders-B2NGNu8p.js.map
