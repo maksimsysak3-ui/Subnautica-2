@@ -43,7 +43,9 @@ const XP_PER_CITIZEN = 6;
 export function xpForLevel(level: number): number {
   if (level <= 1) return 0;
   const n = level - 1;
-  return Math.round(600 * n + 210 * n * n);
+  // About a third steeper than it was: a town took a level every few days,
+  // which made each one feel like a routine notice rather than a milestone.
+  return Math.round(780 * n + 280 * n * n);
 }
 
 /** Stars paid out on reaching a level. */
