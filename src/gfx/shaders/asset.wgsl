@@ -1876,7 +1876,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
       // is lit in most of its sitting rooms, and at three in the morning in
       // hardly any of them.
       let late = smoothstep(-0.12, -0.55, sun.y);
-      let on = step(mix(0.585, 0.715, late), occupancy);
+      // Offices burn later than homes into the evening: glazed floors light
+      // more readily, which is what makes a downtown read as a night skyline.
+      let office = select(0.0, 0.06, in.material == MAT_GLASS || in.material == MAT_PANE);
+      let on = step(mix(0.585, 0.715, late) - office, occupancy);
 
       // What the light is. A lit city is never one colour: tungsten and warm
       // LED in the homes, cold fluorescent across a whole office floor, the
@@ -1910,7 +1913,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
 
       // A window that is dark is not black. It takes the night sky, which is
       // what gives an unlit face its shape instead of a silhouette.
-      out = mix(out, vec3f(0.0045, 0.0065, 0.0105), (1.0 - on) * night * cover * 0.55);
+      // Glass keeps what it reflects -- the glow of the city in it -- so a dark
+      // curtain wall is a dark mirror, not a black slab.
+      let darkPane = select(0.55, 0.22, in.material == MAT_GLASS || in.material == MAT_PANE);
+      out = mix(out, vec3f(0.0045, 0.0065, 0.0105), (1.0 - on) * night * cover * darkPane);
     }
   }
 

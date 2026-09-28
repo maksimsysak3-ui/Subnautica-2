@@ -281,7 +281,16 @@ fn skyBody(dir : vec3f, sun : vec3f) -> vec3f {
   // two read completely differently. Kept here rather than in the full sky
   // because haze under a solid deck has to be grey as well.
   let lid = overcastTint(sun) * mix(0.90, 1.04, 1.0 - abs(up));
-  return mix(col, lid, weather.cover * smoothstep(-0.30, 0.10, up));
+  col = mix(col, lid, weather.cover * smoothstep(-0.30, 0.10, up));
+  // The city's own light in the air after dark: a warm sodium-and-LED dome
+  // over the horizon, which is what a real city's night sky is -- never the
+  // clean navy of open country. Stronger under cloud, which catches the light
+  // and throws it back down. Everything distance fades into takes it, so the
+  // far districts glow instead of sinking into blue.
+  let dark = 1.0 - lit;
+  col += vec3f(0.058, 0.034, 0.016) * dark * (1.0 + weather.cover * 0.9)
+       * (1.0 - smoothstep(-0.08, 0.45, up));
+  return col;
 }
 
 /**

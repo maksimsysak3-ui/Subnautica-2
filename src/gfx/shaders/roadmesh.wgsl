@@ -556,7 +556,10 @@ fn fs(in : VSOut) -> @location(0) vec4f {
     }
     let lamplit = lampTint * light * night;
     // Mostly multiplicative, with a whisper of scatter in the air over it.
-    col += col * lamplit * 9.0 + lamplit * 0.012;
+    col += col * lamplit * 13.0 + lamplit * 0.020;
+    // Even dry asphalt has a sheen under a lamp at a low angle: the soft hot
+    // spot that runs down a lit street and says the surface is real.
+    col += lampTint * gloss * night * 0.12;
     // A wet road is a mirror, and the mirror shows the lamp: a hot spot under
     // each lantern, which is most of what makes a rainy night street.
     col += lampTint * gloss * night * camera.weather.w * 0.9;
