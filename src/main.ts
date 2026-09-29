@@ -308,6 +308,7 @@ async function boot(): Promise<void> {
   tools.onSpeed = (r) => { live.speed = r; rate = r; };
   tools.onTech = () => live.tech.toggle();
   tools.onIndustryView = (kind) => live.showResource(kind);
+  tools.onPlaceView = (def) => live.previewCoverage(def);
   live.onRedrawArea = (hq) => tools?.drawArea(hq);
   live.onUpgrade = (lot) => tools?.upgrade(lot) ?? 'no tools';
   if (tools !== null) {

@@ -665,6 +665,11 @@ export class Renderer {
 
   private readonly ghost = new Float32Array(INSTANCE_FLOATS);
   private ghosting = false;
+
+  /** Where the placement ghost stands, or null when there is none. */
+  get ghostAt(): readonly [number, number] | null {
+    return this.ghosting ? [this.ghost[0], this.ghost[1]] : null;
+  }
   /** How many mover instances the last `setMovers` wrote. */
   private moverCount = 0;
 

@@ -58,10 +58,12 @@ import type { Dirty } from '../sim';
 import { ALL_THEMES, THEMES, REGION_THEMES } from '../assets/themes';
 import type { Theme } from '../assets/themes';
 import { saveFromGame } from './menu';
-import { buildingPrice, roadPrice, zonePrice, money } from '../sim';
+import { buildingPrice, roadPrice, zonePrice, money, serviceUpkeep } from '../sim';
+import { catchmentOf } from '../sim/agents/services';
+import { postsFor } from '../sim/agents/places';
 import { BRANCHES } from '../assets/types';
 import { TRANSIT_SPEC, MIN_FLEET, MAX_FLEET } from '../sim';
-import type { Branch, Density, Zone } from '../assets/types';
+import type { AssetDef, Branch, Density, Zone } from '../assets/types';
 import type { IconZone } from './zones';
 
 /** Metres per zoning cell. */
@@ -1817,6 +1819,7 @@ export class BuildTools {
     // ghost is there on the first pointer move rather than after the first
     // one is placed.
     this.renderer.prepareGhost(tool.kind === 'place' ? ASSET_INDEX.get(tool.proto.id) ?? -1 : -1);
+    this.onPlaceView?.(tool.kind === 'place' ? tool.proto.def : null);
     if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
     this.renderer.askTransit('tool', tool.kind === 'transit');
     if (tool.kind !== 'transit' && tool.kind !== 'area') this.renderer.setTransitDraft(null);
@@ -1894,9 +1897,20 @@ export class BuildTools {
     }
     if (t.kind === 'place') {
       const [w, d] = this.placeYaw % 2 === 0 ? [t.proto.w, t.proto.d] : [t.proto.d, t.proto.w];
-      return `click to place the ${t.proto.def.name.toLowerCase()} `
-        + `— ${money(buildingPrice(t.proto.def))}, ${w}\u00d7${d} cells `
-        + `(${w * 8}\u00d7${d * 8} m) — R rotates`;
+      const def = t.proto.def;
+      // What a service will cost to run and what it does, beside what it
+      // costs to build: the price is the smaller number over its life.
+      const running: string[] = [];
+      if (def.zone === 'service') {
+        running.push(`${money(serviceUpkeep(def))}/wk to run`);
+        const staff = postsFor(def.sim?.jobs ?? 0);
+        if (staff > 0) running.push(`${staff} staff`);
+        const reach = def.branch === undefined ? undefined : catchmentOf(def.branch);
+        if (reach !== undefined && reach.good > 0) running.push(`serves within ${reach.good} m`);
+      }
+      return `click to place the ${def.name.toLowerCase()} `
+        + `— ${money(buildingPrice(def))}${running.length > 0 ? `, ${running.join(', ')}` : ''}, `
+        + `${w}\u00d7${d} cells (${w * 8}\u00d7${d * 8} m) — R rotates`;
     }
     if (t.kind === 'area') {
       const h = this.renderer.world.industry.hqs[t.hq];
@@ -1924,6 +1938,8 @@ export class BuildTools {
   private buttons: HTMLElement[] = [];
   /** Told which resource an area is being drawn for, so the map can show it. */
   onIndustryView: ((kind: ResourceId) => void) | null = null;
+  /** The building in hand, or null: the coverage map for a service follows it. */
+  onPlaceView: ((def: AssetDef | null) => void) | null = null;
   /** Bar buttons that open with a branch, so their locks follow the level. */
   private gated: Array<{ b: HTMLElement; branch: string }> = [];
 

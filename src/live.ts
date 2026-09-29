@@ -31,7 +31,8 @@ import { FirstSteps } from './ui/first-steps';
 import { ScenarioCard } from './ui/scenario-card';
 import { checkScenario, scenarioById } from './sim/scenarios';
 import { fanfare } from './ui/sound';
-import { Simulation, View, VIEWS, surfaceAt, money, PANEL_ONLY } from './sim';
+import { Simulation, View, VIEWS, VIEW_GRID, surfaceAt, money, PANEL_ONLY } from './sim';
+import { catchmentOf } from './sim/agents/services';
 import { LOAN_OFFERS, MAX_LOANS, loanPayment } from './sim/budget';
 import { checkAchievements } from './sim/achievements';
 import { Alerts } from './ui/alerts';
@@ -82,6 +83,25 @@ import { DISTRICT_COLOURS } from './sim/districts';
 import type { DistrictStats } from './sim/agents/economy';
 import { BRANCH_STYLE } from './ui/zones';
 import { BRANCHES } from './assets/types';
+import type { AssetDef } from './assets/types';
+
+/** The coverage map a service building is judged on, or none. */
+function coverageView(def: AssetDef): number {
+  if (def.zone !== 'service') return View.NONE;
+  if (def.id.startsWith('svc.waste.')) return View.RUBBISH;
+  switch (def.branch) {
+    case 'power': return View.POWER;
+    case 'water': return View.WATER;
+    case 'sewage': return View.SEWAGE;
+    case 'fire': return View.FIRE;
+    case 'police': return View.POLICE;
+    case 'health': return View.HEALTH;
+    case 'education': return View.EDUCATION;
+    case 'parks': return View.PARKS;
+    case 'transport': return View.TRANSPORT;
+    default: return View.NONE;
+  }
+}
 import { Purpose } from './sim/agents/places';
 import { STAGE_NAMES, EDU_NAMES } from './sim/agents/people';
 import { MODE_NAMES } from './sim/agents/routine';
@@ -557,6 +577,69 @@ export class LiveCity {
 
   /** A district's figures from the last settle. */
   districtStats(id: number): DistrictStats | undefined { return this.sim?.economy.districtStats.get(id); }
+
+  /** The view the placement tool opened, so it is the only one it closes. */
+  private autoView: number = View.NONE;
+  /** The catchment of the service in hand, painted round its ghost. */
+  private previewReach: { good: number; worst: number } | null = null;
+  /** Where the catchment was last painted, so it is repainted only when it moves. */
+  private previewKey = '';
+  private previewGrid: Uint8Array | null = null;
+
+  /**
+   * The coverage map for a service while it is in hand, as every city builder
+   * shows it: where the city's fire cover already reaches is where a new
+   * station is wasted. Opened for a service with a map, closed again when the
+   * tool is put down -- but never over a view the player opened themselves.
+   */
+  previewCoverage(def: AssetDef | null): void {
+    const view = def === null ? View.NONE : coverageView(def);
+    const ours = this.autoView !== View.NONE && this.info.view === this.autoView;
+    if (view === View.NONE) {
+      if (ours) this.info.open(View.NONE);
+      this.autoView = View.NONE;
+      return;
+    }
+    if (this.info.view !== View.NONE && !ours) return;
+    this.autoView = view;
+    const reach = def?.branch === undefined ? undefined : catchmentOf(def.branch);
+    this.previewReach = reach !== undefined && reach.worst > 0 ? reach : null;
+    this.previewKey = '';
+    this.info.open(view);
+  }
+
+  /**
+   * A coverage grid with one more catchment on it, centred on a point: full
+   * within \`good\` metres, fading to nothing at \`worst\`, as the service
+   * model stamps them. Painted over open ground too -- the disc is what shows
+   * how far the thing reaches.
+   */
+  private withCatchment(src: Uint8Array, at: readonly [number, number],
+    reach: { good: number; worst: number }): Uint8Array {
+    const n = VIEW_GRID;
+    if (this.previewGrid === null || this.previewGrid.length !== src.length) this.previewGrid = new Uint8Array(src.length);
+    const out = this.previewGrid;
+    out.set(src);
+    // Eight-metre cells: the extent the overlay is drawn over.
+    const extent = this.renderer.world.grid * 8;
+    const cell = extent / n;
+    const i0 = Math.max(0, Math.floor((at[0] - reach.worst + extent / 2) / cell));
+    const i1 = Math.min(n - 1, Math.ceil((at[0] + reach.worst + extent / 2) / cell));
+    const j0 = Math.max(0, Math.floor((at[1] - reach.worst + extent / 2) / cell));
+    const j1 = Math.min(n - 1, Math.ceil((at[1] + reach.worst + extent / 2) / cell));
+    for (let j = j0; j <= j1; j++) {
+      const z = -extent / 2 + (j + 0.5) * cell;
+      for (let i = i0; i <= i1; i++) {
+        const x = -extent / 2 + (i + 0.5) * cell;
+        const d = Math.hypot(x - at[0], z - at[1]);
+        if (d >= reach.worst) continue;
+        const t = d <= reach.good ? 1 : 1 - (d - reach.good) / (reach.worst - reach.good);
+        const k = j * n + i;
+        out[k] = Math.max(out[k], Math.max(1, Math.round(255 * t)));
+      }
+    }
+    return out;
+  }
 
   /** Opens the resources view on one resource, as the area tool does. */
   showResource(id: ResourceId): void {
@@ -1402,9 +1485,16 @@ export class LiveCity {
       const meta = sim.views.built === view ? this.info.meta(view) : null;
       // Uploaded when the simulation has rebuilt it, which it does on its own
       // schedule -- so an open view is live without the frame asking for one.
-      if (meta !== null && sim.views.version !== this.uploaded) {
+      // The service in hand, painted where it would reach: the map says what
+      // the city has, and this says what the click would add to it.
+      const at = view === this.autoView && this.previewReach !== null ? this.renderer.ghostAt : null;
+      const key = at === null ? '' : `${Math.round(at[0] / 8)},${Math.round(at[1] / 8)}`;
+      if (meta !== null && (sim.views.version !== this.uploaded || key !== this.previewKey)) {
         this.uploaded = sim.views.version;
-        this.renderer.setOverlay(sim.viewGrid, meta.look, rampFor(meta.ramp));
+        this.previewKey = key;
+        const grid = at === null || this.previewReach === null ? sim.viewGrid
+          : this.withCatchment(sim.viewGrid, at, this.previewReach);
+        this.renderer.setOverlay(grid, meta.look, rampFor(meta.ramp));
       }
       this.info.refresh(now, (): Stat[] => sim.viewStats);
     } else if (view !== View.NONE) {
