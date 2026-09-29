@@ -309,6 +309,8 @@ async function boot(): Promise<void> {
   tools.onTech = () => live.tech.toggle();
   tools.onIndustryView = (kind) => live.showResource(kind);
   tools.onPlaceView = (def) => live.previewCoverage(def);
+  tools.onJunction = (node, want) => live.setJunction(node, want);
+  tools.junctionAt = (node) => live.junctionAt(node);
   live.onRedrawArea = (hq) => tools?.drawArea(hq);
   live.onUpgrade = (lot) => tools?.upgrade(lot) ?? 'no tools';
   if (tools !== null) {

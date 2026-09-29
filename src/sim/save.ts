@@ -99,6 +99,8 @@ interface SaveFile {
    * missing entry is a road on the ground.
    */
   elev?: number[];
+  /** How the player chose to run each junction, where any was chosen. See RoadNode.ctl. */
+  ctl?: number[];
   /** Per link: node a, node b, control x, control z, class index. */
   links: number[];
   /** Zoning, run-length encoded as [code, run, code, run, ...]. */
@@ -266,6 +268,8 @@ export function serialise(world: World, name: string, auto = false): string {
     // Only written when something is raised, so a flat city's save is no bigger.
     ...(world.net.nodes.some((n) => n.elev !== 0)
       ? { elev: world.net.nodes.map((n) => Math.round(n.elev * 10) / 10) } : {}),
+    ...(world.net.nodes.some((n) => (n.ctl ?? 0) !== 0)
+      ? { ctl: world.net.nodes.map((n) => n.ctl ?? 0) } : {}),
     links,
     zones: encodeZones(world.zones),
     mains: encodeZones(world.mains.bits),
@@ -331,7 +335,9 @@ export function deserialise(text: string): { world: World; name: string; at: num
   const world = emptyWorld(file.grid);
   for (let i = 0; i + 1 < file.nodes.length; i += 2) {
     const up = Array.isArray(file.elev) ? Number(file.elev[i / 2]) || 0 : 0;
-    world.net.restoreNode(file.nodes[i], file.nodes[i + 1], Math.max(0, Math.min(40, up)));
+    const node = world.net.restoreNode(file.nodes[i], file.nodes[i + 1], Math.max(0, Math.min(40, up)));
+    const ctl = Array.isArray(file.ctl) ? Number(file.ctl[i / 2]) | 0 : 0;
+    if (ctl > 0 && ctl <= 3) world.net.nodes[node].ctl = ctl;
   }
   const count = file.nodes.length / 2;
   for (let i = 0; i + 4 < file.links.length; i += 5) {

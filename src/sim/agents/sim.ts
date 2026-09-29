@@ -348,7 +348,8 @@ export class Simulation {
     this.migration = new Migration(this.people, this.places, this.clock, seed ^ 0x5eed);
     this.routine = new Routine(this.people, this.places, this.router, this.lanes,
       this.clock, seed ^ 0x707e);
-    this.junctions = new Junctions(this.lanes, net.nodes.length);
+    this.junctions = new Junctions(this.lanes, net.nodes.length, net.nodes.map((n) => n.ctl ?? 0));
+    this.routine.junctionsChanged(this.junctions);
     this.traffic = new Traffic(this.lanes, this.junctions, VEHICLE_BUDGET, seed ^ 0xca25);
     this.traffic.informedBy(this.routine.load, this.router.paths);
     this.utilities = new Utilities(this.places);
@@ -1119,6 +1120,21 @@ export class Simulation {
     this.utilities.rewire(this.lanes, this.nodes, this.world?.mains);
   }
 
+  /**
+   * Runs one junction the way the player chose -- signals, give way,
+   * roundabout rules -- or back under the rules with 0. Kept on the road
+   * graph's node so it survives rebuilds and saves. Returns what the junction
+   * now is.
+   */
+  setJunction(net: RoadGraph, node: number, want: number): number {
+    const n = net.nodes[node];
+    if (n === undefined) return 0;
+    n.ctl = want;
+    const now = this.junctions.override(node, want);
+    this.routine.junctionsChanged(this.junctions);
+    return now;
+  }
+
   roadsChanged(net: RoadGraph, world?: World): void {
     if (world !== undefined) this.world = world;
     this.lanes = buildLaneGraph(net);
@@ -1130,7 +1146,8 @@ export class Simulation {
     this.views.rebind(this.lanes);
     this.utilities.rewire(this.lanes, net.nodes.length, this.world?.mains);
     this.nodes = net.nodes.length;
-    this.junctions = new Junctions(this.lanes, net.nodes.length);
+    this.junctions = new Junctions(this.lanes, net.nodes.length, net.nodes.map((n) => n.ctl ?? 0));
+    this.routine.junctionsChanged(this.junctions);
     // Before the traffic model is rebound: rebinding it drops every vehicle, and
     // the dispatch machine's routes can only be given back while its vehicles
     // still exist to be read.

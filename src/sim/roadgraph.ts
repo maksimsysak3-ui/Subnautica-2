@@ -263,6 +263,11 @@ export interface RoadNode {
    * first, from the same place.
    */
   dead?: boolean;
+  /**
+   * How the player chose to run this junction: a \`Control\` value, or 0 or
+   * absent to leave it to the rules. See \`Junctions.override\`.
+   */
+  ctl?: number;
 }
 
 export interface RoadLink {

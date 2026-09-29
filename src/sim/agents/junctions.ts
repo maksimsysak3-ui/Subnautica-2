@@ -179,9 +179,18 @@ export class Junctions {
 
   /** Counts, for the readout. */
   readonly byControl = new Int32Array(4);
+  /**
+   * What the player asked each junction to be, or 0 to leave it to the rules:
+   * a Control value otherwise. Only a junction of three arms or more takes it.
+   */
+  private readonly wanted: Uint8Array;
 
-  constructor(readonly g: LaneGraph, nodeCount: number) {
+  constructor(readonly g: LaneGraph, nodeCount: number, overrides?: ArrayLike<number>) {
     this.count = nodeCount;
+    this.wanted = new Uint8Array(nodeCount);
+    if (overrides !== undefined) {
+      for (let i = 0; i < nodeCount && i < overrides.length; i++) this.wanted[i] = overrides[i] | 0;
+    }
     const n = nodeCount;
     this.control = new Uint8Array(n);
     this.arms = new Uint8Array(n);
@@ -277,6 +286,49 @@ export class Junctions {
         continue;
       }
       this.control[n] = Control.GIVE_WAY;
+    }
+    for (let n = 0; n < this.count; n++) {
+      const w = this.wanted[n];
+      if (w > Control.FREE && w <= Control.ROUNDABOUT && this.arms[n] >= 3) this.control[n] = w;
+    }
+  }
+
+  /**
+   * Sets how one junction is run, or 0 for the rules to choose, and re-plans
+   * the signals. Returns what it is now -- a junction of two arms stays free.
+   */
+  override(node: number, want: number): number {
+    if (node < 0 || node >= this.count) return Control.FREE;
+    this.wanted[node] = want;
+    this.assignControl();
+    this.assignPhases();
+    this.byControl.fill(0);
+    for (let i = 0; i < this.count; i++) this.byControl[this.control[i]]++;
+    return this.control[node];
+  }
+
+  /** Arms at a node: 3 or more is a junction the player can control. */
+  armsAt(node: number): number { return node >= 0 && node < this.count ? this.arms[node] : 0; }
+
+  /**
+   * How much of its capacity a lane keeps for the junction at its end.
+   *
+   * A road's capacity is not what its lanes can hold but what the junction at
+   * the end lets through. Signals give each approach its share of the cycle;
+   * at a give-way the main road hardly notices and the side road waits for a
+   * gap; roundabout rules cost everybody a little and nobody a lot. Read by
+   * the flow model, so a junction run the wrong way is where the roads go red
+   * -- and running it right is how a player clears them.
+   */
+  approach(lane: number): number {
+    const node = this.g.to[lane];
+    if (node < 0 || node >= this.count) return 1;
+    const major = this.laneRank[lane] >= this.nodeRank[node];
+    switch (this.control[node]) {
+      case Control.SIGNALS: return major ? 0.68 : 0.52;
+      case Control.GIVE_WAY: return major ? 0.96 : 0.5;
+      case Control.ROUNDABOUT: return major ? 0.8 : 0.74;
+      default: return 1;
     }
   }
 

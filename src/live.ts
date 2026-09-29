@@ -641,6 +641,21 @@ export class LiveCity {
     return out;
   }
 
+  /**
+   * Runs a junction the player's way; see \`Simulation.setJunction\`. Null with
+   * no city running.
+   */
+  setJunction(node: number, want: number): number | null {
+    return this.sim === null ? null : this.sim.setJunction(this.renderer.world.net, node, want);
+  }
+
+  /** How a junction is run now and how many arms it has, or null. */
+  junctionAt(node: number): { control: number; arms: number } | null {
+    const j = this.sim?.junctions;
+    if (j === undefined || node < 0 || node >= j.count) return null;
+    return { control: j.control[node], arms: j.armsAt(node) };
+  }
+
   /** Opens the resources view on one resource, as the area tool does. */
   showResource(id: ResourceId): void {
     const r = resourceById(id);

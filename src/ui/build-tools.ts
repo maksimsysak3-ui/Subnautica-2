@@ -110,6 +110,8 @@ type Tool =
   | { kind: 'curve'; cls: RoadClass }
   /** A rectangle of streets, a block apart: drag out as big a grid as you like. */
   | { kind: 'grid'; cls: RoadClass }
+  /** How a junction is run: 0 by the rules, else signals, give way or roundabout rules. */
+  | { kind: 'junction'; ctl: number }
   | { kind: 'upgrade'; cls: RoadClass }
   /** `theme` undefined means whatever the district around it grows. */
   | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
@@ -123,6 +125,20 @@ type Tool =
   | { kind: 'district'; id: number }
   | { kind: 'land' };
 
+/** Metres from a junction's centre a click still picks it. */
+const JUNCTION_REACH = 16;
+
+/**
+ * The ways a junction can be run, indexed by Control: what the player picks,
+ * and what the work costs. Signals are the dear one; paint and a sign are not.
+ */
+const JUNCTION_MODES: ReadonlyArray<{ label: string; verb: string; cost: number; blurb: string }> = [
+  { label: 'Automatic', verb: 'by the rules', cost: 0, blurb: 'The city chooses from the roads that meet: signals where two main roads cross, give way elsewhere.' },
+  { label: 'Give way', verb: 'with give-way signs', cost: 2500, blurb: 'The bigger road flows freely; the side road waits for a gap. Best where one road carries most of the traffic.' },
+  { label: 'Traffic lights', verb: 'on traffic lights', cost: 18000, blurb: 'Every approach gets its turn. Fair and orderly, but everyone waits some of the time.' },
+  { label: 'Roundabout rules', verb: 'as a roundabout', cost: 32000, blurb: 'Everyone yields to traffic already in the junction. Keeps a busy, balanced crossing moving.' },
+];
+
 /** Cells from a placed building's edge a road may be and still serve it. */
 const FRONTAGE = 2;
 
@@ -135,7 +151,7 @@ const UNDO_DEPTH = 40;
 /** How the city stood before one building action. */
 interface Checkpoint {
   label: string;
-  /** x, z, elevation per road node. */
+  /** x, z, elevation, junction control per road node. */
   nodes: number[];
   /** a, b, control x, control z, class index per road. */
   links: Array<[number, number, number, number, number]>;
@@ -256,7 +272,7 @@ export class BuildTools {
   private stops: number[] = [];
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
-  private roadMode: 'road' | 'curve' | 'grid' | 'upgrade' = 'road';
+  private roadMode: 'road' | 'curve' | 'grid' | 'upgrade' | 'junction' = 'road';
   /** Building actions that can be taken back, oldest first. */
   private readonly undoStack: Checkpoint[] = [];
   /**
@@ -496,6 +512,11 @@ export class BuildTools {
     if (this.tool.kind === 'curve') { this.recorded('the road', () => this.curveClick(cell)); return; }
     if (this.tool.kind === 'transit') { this.transitClick(cell); return; }
     if (this.tool.kind === 'area') { this.areaClick(cell); return; }
+    if (this.tool.kind === 'junction') {
+      const want = this.tool.ctl;
+      this.recorded('the junction change', () => this.setJunctionAt(cell, want));
+      return;
+    }
     if (this.tool.kind === 'place') {
       const p = this.tool.proto;
       this.recorded(`the ${p.def.name.toLowerCase()}`, () => this.dropLot(cell));
@@ -1516,6 +1537,25 @@ export class BuildTools {
       this.renderer.setGhost(null);
       return;
     }
+    if (this.tool.kind === 'junction') {
+      // The junction under the pointer, boxed, and how it is run now.
+      this.renderer.setRoadPreview(null);
+      this.renderer.setGhost(null);
+      const node = this.to === null ? -1 : this.junctionNear(this.to);
+      if (node < 0) { this.renderer.mark = null; return; }
+      const n = this.renderer.world.net.nodes[node];
+      const r = 14;
+      const info = this.junctionAt?.(node);
+      const now = info === null || info === undefined ? 0 : info.control;
+      const want = this.tool.ctl;
+      this.renderer.mark = {
+        rect: [n.x - r, n.z - r, n.x + r, n.z + r],
+        tint: now === want && want !== 0 ? [0.55, 0.62, 0.7] : [0.98, 0.78, 0.3],
+      };
+      this.say(`junction of ${info?.arms ?? '?'} roads — now ${JUNCTION_MODES[now]?.verb ?? 'free-flowing'}`
+        + (now === want && want !== 0 ? '' : `; click to run it ${JUNCTION_MODES[want].verb}`));
+      return;
+    }
     if (this.tool.kind === 'transit') {
       // The line being drawn, with a rubber band from the last stop to wherever
       // the pointer is -- snapped to the street it would actually sit on.
@@ -1733,6 +1773,38 @@ export class BuildTools {
       Math.max(ax, bx) + swing, Math.max(az, bz) + swing, 3));
     thud();
     return true;
+  }
+
+  /** The junction nearest a cell, within reach of a click, with three arms or more; or -1. */
+  private junctionNear(cell: [number, number]): number {
+    const net = this.renderer.world.net;
+    const [x, z] = this.metres(cell);
+    let best = -1, bestD = JUNCTION_REACH;
+    for (let i = 0; i < net.nodes.length; i++) {
+      const n = net.nodes[i];
+      if (n.dead === true) continue;
+      const d = Math.hypot(n.x - x, n.z - z);
+      if (d >= bestD) continue;
+      const arms = net.links.reduce((k, l) => k + (l.a === i ? 1 : 0) + (l.b === i ? 1 : 0), 0);
+      if (arms < 3) continue;
+      bestD = d; best = i;
+    }
+    return best;
+  }
+
+  /** Sets how the junction under a cell is run, and charges for the work. */
+  private setJunctionAt(cell: [number, number], want: number): void {
+    const node = this.junctionNear(cell);
+    if (node < 0) { this.say('click on a junction where three or more roads meet'); return; }
+    const was = this.junctionAt?.(node)?.control ?? 0;
+    const mode = JUNCTION_MODES[want];
+    if (want !== 0 && was === want) { this.say(`that junction already runs ${mode.verb}`); return; }
+    if (!this.afford(mode.cost, mode.label.toLowerCase())) return;
+    const now = this.onJunction?.(node, want);
+    if (now === null || now === undefined) { this.refund(mode.cost); this.say('the junction cannot be changed right now'); return; }
+    thud();
+    this.say(`junction now runs ${JUNCTION_MODES[now]?.verb ?? 'freely'}`
+      + (want === 0 ? ' — the rules chose' : ''));
   }
 
   /**
@@ -2096,7 +2168,8 @@ export class BuildTools {
     this.curveA = null;
     this.curveVia = null;
     this.curveStage = 'none';
-    if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'grid' || tool.kind === 'upgrade') {
+    if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'grid' || tool.kind === 'upgrade'
+      || tool.kind === 'junction') {
       this.roadMode = tool.kind;
     }
     // Picking a tool is the earliest the game can know what is about to be
@@ -2124,6 +2197,7 @@ export class BuildTools {
     // Both road tools answer to the same class button; which of the two it
     // selects is the mode button beside them.
     if (t.kind === 'road' || t.kind === 'curve' || t.kind === 'grid') return `road:${t.cls}`;
+    if (t.kind === 'junction') return `junction:${t.ctl}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     if (t.kind === 'transit') return `transit:${t.line}`;
@@ -2153,6 +2227,10 @@ export class BuildTools {
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
         + 'click where it ends — double-click to finish the run';
+    }
+    if (t.kind === 'junction') {
+      return `click a junction to run it ${JUNCTION_MODES[t.ctl].verb} `
+        + `(${JUNCTION_MODES[t.ctl].cost > 0 ? money(JUNCTION_MODES[t.ctl].cost) : 'free'}) — hover one to see how it runs now`;
     }
     if (t.kind === 'upgrade') {
       return `drag over roads to convert them to a ${ROAD_SPECS[t.cls].label.toLowerCase()} `
@@ -2203,6 +2281,10 @@ export class BuildTools {
   onIndustryView: ((kind: ResourceId) => void) | null = null;
   /** The building in hand, or null: the coverage map for a service follows it. */
   onPlaceView: ((def: AssetDef | null) => void) | null = null;
+  /** Sets how a junction is run; returns what it now is, or null with no city. */
+  onJunction: ((node: number, want: number) => number | null) | null = null;
+  /** How a junction is run now, for the hover readout. */
+  junctionAt: ((node: number) => { control: number; arms: number } | null) | null = null;
   /** Bar buttons that open with a branch, so their locks follow the level. */
   private gated: Array<{ b: HTMLElement; branch: string }> = [];
 
@@ -2898,11 +2980,21 @@ export class BuildTools {
       { key: 'road', label: 'Straight & dragged', on: this.roadMode === 'road' },
       { key: 'curve', label: 'Curved', on: this.roadMode === 'curve' },
       { key: 'grid', label: 'Grid', on: this.roadMode === 'grid' },
+      { key: 'junction', label: 'Junctions', on: this.roadMode === 'junction' },
       { key: 'upgrade', label: 'Upgrade', on: this.roadMode === 'upgrade' },
     ], accent, (key) => {
-      this.roadMode = key as 'road' | 'curve' | 'grid' | 'upgrade';
+      this.roadMode = key as 'road' | 'curve' | 'grid' | 'upgrade' | 'junction';
       this.openRoadDrawer();
     }));
+    if (this.roadMode === 'junction') {
+      // How a junction is run: the traffic-management half of the road tools.
+      JUNCTION_MODES.forEach((m, ctl) => {
+        panel.appendChild(this.tile(null, m.label, m.cost > 0 ? money(m.cost) : 'free', m.cost, accent,
+          m.blurb, () => this.select({ kind: 'junction', ctl }), glyph(ctl === 2 ? 'traffic' : 'road', 40), 'a junction'));
+      });
+      this.mount(panel, 'roads');
+      return;
+    }
     if (this.roadMode !== 'upgrade') {
       // How high it goes. A road drawn out of a street at a height ramps up
       // from the street; one drawn across another at a height passes over it.
@@ -2918,7 +3010,7 @@ export class BuildTools {
         `${lanes} lane${lanes === 1 ? '' : 's'}`, up ? roadPrice(cls) : this.roadCost(cls), accent,
         up ? `Convert what you drag over to a ${spec.label.toLowerCase()}`
           : `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
-        () => this.select({ kind: this.roadMode, cls }),
+        () => this.select({ kind: this.roadMode as 'road' | 'curve' | 'grid' | 'upgrade', cls }),
         roadGlyph(cls, 48), 'a metre'));
     }
     this.mount(panel, 'roads');
@@ -3210,7 +3302,7 @@ export class BuildTools {
       return;
     }
     const changed = w.budget.spent !== before.spent || w.lots.length !== before.lots.length
-      || w.net.links.length !== before.links.length || w.net.nodes.length !== before.nodes.length / 3
+      || w.net.links.length !== before.links.length || w.net.nodes.length !== before.nodes.length / 4
       || w.land.lo !== before.land[0] || w.land.hi !== before.land[1]
       || w.net.links.some((l, i) => before.links[i] === undefined || before.links[i][4] !== ROAD_IDS.indexOf(l.cls))
       || !sameBytes(w.zones, before.zones);
@@ -3222,7 +3314,7 @@ export class BuildTools {
   private checkpoint(label: string): Checkpoint {
     const w = this.renderer.world;
     const nodes: number[] = [];
-    for (const n of w.net.nodes) nodes.push(n.x, n.z, n.elev);
+    for (const n of w.net.nodes) nodes.push(n.x, n.z, n.elev, n.ctl ?? 0);
     return {
       label,
       nodes,
@@ -3245,7 +3337,10 @@ export class BuildTools {
     if (c === undefined) { deny(); this.say('nothing to undo'); return; }
     const w = this.renderer.world;
     const net = new RoadGraph(w.grid);
-    for (let i = 0; i < c.nodes.length; i += 3) net.restoreNode(c.nodes[i], c.nodes[i + 1], c.nodes[i + 2]);
+    for (let i = 0; i < c.nodes.length; i += 4) {
+      const node = net.restoreNode(c.nodes[i], c.nodes[i + 1], c.nodes[i + 2]);
+      if (c.nodes[i + 3] > 0) net.nodes[node].ctl = c.nodes[i + 3];
+    }
     for (const [a, b, cx, cz, cls] of c.links) net.restoreLink(a, b, cx, cz, ROAD_IDS[cls] ?? 'street');
     net.buryOrphans();
     net.version = w.net.version + 1;

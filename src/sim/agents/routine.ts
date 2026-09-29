@@ -949,6 +949,19 @@ export class Routine {
   }
 
   /** Rewrites every lane's load after the sample weight changed. */
+  /**
+   * Scales each lane's capacity by the junction it runs into -- see
+   * \`Junctions.approach\`. Called whenever the junctions are built or one of
+   * them is changed; the loads are rewritten against the new capacities.
+   */
+  junctionsChanged(j: { approach(lane: number): number }): void {
+    const lanes = this.lanes;
+    for (let l = 0; l < lanes.count && l < this.capacity.length; l++) {
+      this.capacity[l] = Math.max(1, (lanes.length[l] / CAPACITY_METRES) * j.approach(l));
+    }
+    this.publish();
+  }
+
   private publish(): void {
     const n = this.load.length;
     for (let l = 0; l < n; l++) {
