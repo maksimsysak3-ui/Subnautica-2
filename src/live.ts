@@ -610,7 +610,7 @@ export class LiveCity {
 
   /**
    * A coverage grid with one more catchment on it, centred on a point: full
-   * within \`good\` metres, fading to nothing at \`worst\`, as the service
+   * within `good` metres, fading to nothing at `worst`, as the service
    * model stamps them. Painted over open ground too -- the disc is what shows
    * how far the thing reaches.
    */
@@ -642,7 +642,7 @@ export class LiveCity {
   }
 
   /**
-   * Runs a junction the player's way; see \`Simulation.setJunction\`. Null with
+   * Runs a junction the player's way; see `Simulation.setJunction`. Null with
    * no city running.
    */
   setJunction(node: number, want: number): number | null {

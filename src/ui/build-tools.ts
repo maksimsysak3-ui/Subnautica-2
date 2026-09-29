@@ -125,6 +125,9 @@ type Tool =
   | { kind: 'district'; id: number }
   | { kind: 'land' };
 
+/** Marker colour per Control: free, give way, signals, roundabout. */
+const JUNCTION_COLOURS = ['#9aa4b0', '#ffc24a', '#ff5a4e', '#5ab4ff'];
+
 /** Metres from a junction's centre a click still picks it. */
 const JUNCTION_REACH = 16;
 
@@ -1662,7 +1665,20 @@ export class BuildTools {
       // and was half a cell off from where the road actually lands.
       this.renderer.mark = null;
       if (this.from === null) { this.renderer.setRoadPreview(null); return; }
-      this.renderer.setRoadPreview(this.preview(a, this.straightEnd(a, this.to), null, 0));
+      const end = this.straightEnd(a, this.to);
+      this.renderer.setRoadPreview(this.preview(a, end, null, 0));
+      // How long and how dear, while it is still a drag: a road is priced by
+      // the metre, and the decision is made before the release, not after.
+      if (this.tool.kind === 'road') {
+        const [ax, az] = this.metres(a), [bx, bz] = this.metres(end);
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len >= 12) {
+          const deg = Math.round(((Math.atan2(bz - az, bx - ax) * 180) / Math.PI + 360) % 180);
+          this.say(`${Math.round(len)} m of ${ROAD_SPECS[this.tool.cls].label.toLowerCase()} — `
+            + `${money(len * this.roadCost(this.tool.cls))}`
+            + (deg % 45 === 0 ? ', square to the grid' : `, ${deg}°`));
+        }
+      }
       return;
     }
     if (this.tool.kind === 'grid') {
@@ -1792,6 +1808,25 @@ export class BuildTools {
     return best;
   }
 
+  /**
+   * A marker over every junction in the city, coloured by how it is run:
+   * red for lights, amber for give way, blue for roundabout rules. A player
+   * choosing how to run one junction needs to see how the rest are run.
+   */
+  private paintJunctions(): void {
+    const net = this.renderer.world.net;
+    const arms = new Uint16Array(net.nodes.length);
+    for (const l of net.links) { arms[l.a]++; arms[l.b]++; }
+    const out: Array<{ x: number; z: number; colour: string }> = [];
+    for (let i = 0; i < net.nodes.length; i++) {
+      const n = net.nodes[i];
+      if (n.dead === true || arms[i] < 3) continue;
+      const c = this.junctionAt?.(i)?.control ?? 1;
+      out.push({ x: n.x, z: n.z, colour: JUNCTION_COLOURS[c] ?? '#ffffff' });
+    }
+    this.renderer.showMarkers(out);
+  }
+
   /** Sets how the junction under a cell is run, and charges for the work. */
   private setJunctionAt(cell: [number, number], want: number): void {
     const node = this.junctionNear(cell);
@@ -1803,6 +1838,7 @@ export class BuildTools {
     const now = this.onJunction?.(node, want);
     if (now === null || now === undefined) { this.refund(mode.cost); this.say('the junction cannot be changed right now'); return; }
     thud();
+    this.paintJunctions();
     this.say(`junction now runs ${JUNCTION_MODES[now]?.verb ?? 'freely'}`
       + (want === 0 ? ' — the rules chose' : ''));
   }
@@ -2145,6 +2181,7 @@ export class BuildTools {
     this.yawManual = false;
     // Anything the last tool was showing goes with it.
     this.renderer.showDots(0);
+    if (tool.kind === 'junction') this.paintJunctions();
     if (tool.kind !== 'place') this.renderer.setGhost(null);
     // A building the city has none of yet is baked and planned now, so its
     // ghost is there on the first pointer move rather than after the first
@@ -2230,7 +2267,8 @@ export class BuildTools {
     }
     if (t.kind === 'junction') {
       return `click a junction to run it ${JUNCTION_MODES[t.ctl].verb} `
-        + `(${JUNCTION_MODES[t.ctl].cost > 0 ? money(JUNCTION_MODES[t.ctl].cost) : 'free'}) — hover one to see how it runs now`;
+        + `(${JUNCTION_MODES[t.ctl].cost > 0 ? money(JUNCTION_MODES[t.ctl].cost) : 'free'}) — `
+        + 'markers: red lights, amber give way, blue roundabout';
     }
     if (t.kind === 'upgrade') {
       return `drag over roads to convert them to a ${ROAD_SPECS[t.cls].label.toLowerCase()} `

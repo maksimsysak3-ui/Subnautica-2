@@ -264,8 +264,8 @@ export interface RoadNode {
    */
   dead?: boolean;
   /**
-   * How the player chose to run this junction: a \`Control\` value, or 0 or
-   * absent to leave it to the rules. See \`Junctions.override\`.
+   * How the player chose to run this junction: a `Control` value, or 0 or
+   * absent to leave it to the rules. See `Junctions.override`.
    */
   ctl?: number;
 }
@@ -1012,8 +1012,8 @@ export class RoadGraph {
   }
 
   /**
-   * Folds \`b\` into \`a\`, so a crossing is one junction rather than two. \`keep\`
-   * leaves \`a\` where it is -- a T's junction belongs on the through road.
+   * Folds `b` into `a`, so a crossing is one junction rather than two. `keep`
+   * leaves `a` where it is -- a T's junction belongs on the through road.
    */
   private mergeNodes(a: number, b: number, keep = false): void {
     if (a === b) return;
@@ -1051,7 +1051,7 @@ export class RoadGraph {
     return true;
   }
 
-  /** Whether a point is within \`within\` metres of any road's centre line. */
+  /** Whether a point is within `within` metres of any road's centre line. */
   private onRoad(x: number, z: number, within: number): boolean {
     for (const link of this.links) {
       const b = this.box(link);

@@ -203,6 +203,9 @@ const SCENE_UNIFORM_SIZE = 272;
 /** Metres a zoning cell, which is what the overlay grid is scattered over. */
 const CELL_METRES = 8;
 
+/** `dotKind` while the markers are a caller's own; see `showMarkers`. */
+const CUSTOM_DOTS = -2;
+
 /** Floats per connection marker: position and radius, then colour and whether. */
 const DOT_FLOATS = 8;
 
@@ -626,7 +629,7 @@ export class Renderer {
     if (g === null) {
       if (!this.ghosting) return;
       // Emptied, not just forgotten: once anything is moving, the cull walks
-      // this slot whatever \`ghosting\` says, so a slot left holding the last
+      // this slot whatever `ghosting` says, so a slot left holding the last
       // preview drew it on the map until the next placement overwrote it. A
       // zero-height row is one the cull drops.
       this.ghost.fill(0);
@@ -2857,6 +2860,40 @@ export class Renderer {
     return n;
   }
 
+  /**
+   * Shows a set of markers of the caller's own -- x, z and a colour each --
+   * in place of the connection markers; null takes them away. The junction
+   * tool uses it to show how every junction in the city is run.
+   */
+  showMarkers(points: ReadonlyArray<{ x: number; z: number; colour: string }> | null): void {
+    const res = this.res;
+    if (!res) return;
+    if (points === null) {
+      if (this.dotKind === CUSTOM_DOTS) { this.dotKind = -99; this.showDots(0); }
+      return;
+    }
+    this.dotKind = CUSTOM_DOTS;
+    if (points.length * DOT_FLOATS > this.dotData.length) this.dotData = new Float32Array(points.length * DOT_FLOATS);
+    const out = this.dotData;
+    let n = 0;
+    for (const p of points) {
+      const c = hexRgb(p.colour);
+      const at = n * DOT_FLOATS;
+      out[at] = p.x; out[at + 1] = heightAt(p.x, p.z) + 5; out[at + 2] = p.z;
+      out[at + 3] = 3;
+      out[at + 4] = c[0]; out[at + 5] = c[1]; out[at + 6] = c[2];
+      out[at + 7] = 1;
+      n++;
+    }
+    const { device } = this.gpu;
+    if (res.dotBuffer.size < Math.max(1, n) * DOT_FLOATS * 4) {
+      res.dotBuffer.destroy();
+      Object.assign(res, this.makeDots(device, res.layouts.dots, n));
+    }
+    if (n > 0) device.queue.writeBuffer(res.dotBuffer, 0, out, 0, n * DOT_FLOATS);
+    res.dotCount = n;
+  }
+
   /** Shows the connection markers for a utility, or hides them with 0. */
   showDots(kind: number): void {
     if (this.dotKind === kind) return;
@@ -3046,6 +3083,8 @@ export class Renderer {
     const res = this.res;
     if (!res) return;
     const kind = this.dotKind;
+    // Someone else's markers: kept as they were set, not rebuilt from the city.
+    if (kind === CUSTOM_DOTS) return;
     const city = this.city;
     if (kind === 0) { this.buildStopDots(); return; }
     if (city === null || city.count === 0) {

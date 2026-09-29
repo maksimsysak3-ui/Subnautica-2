@@ -53,7 +53,7 @@ import { Policies, NO_POLICIES } from '../policies';
  */
 export const UNREACHED = 1e6;
 
-/** A branch's catchment: well served within \`good\` metres, not at all past \`worst\`. */
+/** A branch's catchment: well served within `good` metres, not at all past `worst`. */
 export function catchmentOf(branch: string): { good: number; worst: number } | undefined {
   return STANDARD[branch];
 }

@@ -521,7 +521,7 @@ export function buildRoadMesh(graph: RoadGraph,
   /** Which entry of the current piece holds a corner, while it is being made. */
   let mark: Array<number | undefined> = [];
   /**
-   * \`tx, tz\` and \`grade\` carry the road's heading and slope at the sample,
+   * `tx, tz` and `grade` carry the road's heading and slope at the sample,
    * so a corner a few metres along from it takes the road's height where the
    * corner actually is. With the sample's own height, a corner between two
    * samples five metres apart on a ten per cent grade stood half a metre off

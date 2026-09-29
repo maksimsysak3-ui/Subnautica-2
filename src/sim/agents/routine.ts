@@ -951,7 +951,7 @@ export class Routine {
   /** Rewrites every lane's load after the sample weight changed. */
   /**
    * Scales each lane's capacity by the junction it runs into -- see
-   * \`Junctions.approach\`. Called whenever the junctions are built or one of
+   * `Junctions.approach`. Called whenever the junctions are built or one of
    * them is changed; the loads are rewritten against the new capacities.
    */
   junctionsChanged(j: { approach(lane: number): number }): void {
