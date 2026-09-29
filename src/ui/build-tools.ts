@@ -28,6 +28,7 @@ import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad } from '../sim';
+import { previewRoads } from '../sim/roadmesh';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
 import { PROCESS_CAP, PROCESS_VALUE } from '../sim/industry';
@@ -106,6 +107,8 @@ type Tool =
   | { kind: 'look' }
   | { kind: 'road'; cls: RoadClass }
   | { kind: 'curve'; cls: RoadClass }
+  /** A rectangle of streets, a block apart: drag out as big a grid as you like. */
+  | { kind: 'grid'; cls: RoadClass }
   | { kind: 'upgrade'; cls: RoadClass }
   /** `theme` undefined means whatever the district around it grows. */
   | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
@@ -121,6 +124,15 @@ type Tool =
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
+
+/**
+ * Cells between the streets of a dragged grid: twelve, because zoning reaches
+ * six cells from a road, so a block this deep is zoned right through.
+ */
+const GRID_BLOCK = 12;
+
+/** How close to square or diagonal a straight drag has to be to snap onto it: about 7 degrees. */
+const SNAP_RADIANS = 0.12;
 
 /** The level industry opens at: a town with some people to work in it. */
 const INDUSTRY_LEVEL = 3;
@@ -210,7 +222,7 @@ export class BuildTools {
   private stops: number[] = [];
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
-  private roadMode: 'road' | 'curve' | 'upgrade' = 'road';
+  private roadMode: 'road' | 'curve' | 'grid' | 'upgrade' = 'road';
   /**
    * How high new road is laid, as an index into ELEVATIONS: nought on the
    * ground. Kept across picks of the road tool, the way a height setting in
@@ -521,34 +533,48 @@ export class BuildTools {
   };
 
   /**
-   * How far the drag bowed away from a straight line, in metres.
+   * Where a dragged road ends: straight from where it started, and snapped
+   * onto the grid's axes or diagonals when the drag is within a few degrees
+   * of one.
    *
-   * This is the whole of the curve tool. A player who wants a straight road
-   * drags in a straight line and gets one; a player who sweeps the pointer
-   * round a corner gets a road that follows the sweep. There is no mode to
-   * enter and no modifier to hold, and the shape you drew is the shape you
-   * get -- which is the only part of a curve tool anyone actually wants.
-   *
-   * The measure is the signed area between the drag's path and its chord,
-   * divided by the chord: the mean offset, which is exactly what a quadratic's
-   * control point wants scaled by two.
+   * The straight tool used to read any wobble in the drag as a bend, so a
+   * hand-dragged street almost never came out straight. Curves are the curve
+   * tool's job; this one lays a straight, and the nearly-square drag a player
+   * meant as square comes out square.
    */
-  private bend(): number {
-    if (this.path.length < 3 || this.from === null) return 0;
-    const a = this.path[0], b = this.path[this.path.length - 1];
+  private straightEnd(a: [number, number], b: [number, number]): [number, number] {
     const dx = b[0] - a[0], dz = b[1] - a[1];
-    const len = Math.hypot(dx, dz);
-    if (len < 2) return 0;
-    // Left of the direction of travel is positive, matching RoadGraph.add.
-    const nx = -dz / len, nz = dx / len;
-    let sum = 0;
-    for (const p of this.path) sum += (p[0] - a[0]) * nx + (p[1] - a[1]) * nz;
-    const mean = sum / this.path.length;
-    // Twice the mean offset puts the control point where the curve passes
-    // through the path; below a cell of bow it is a straight, because nobody
-    // drags in a perfectly straight line and a road that wobbles is worse
-    // than one that does not curve.
-    return Math.abs(mean) < 0.9 ? 0 : mean * 2 * CELL;
+    if (Math.hypot(dx, dz) < 1) return b;
+    const step = Math.PI / 4;
+    const angle = Math.atan2(dz, dx);
+    const snapped = Math.round(angle / step) * step;
+    if (Math.abs(angle - snapped) > SNAP_RADIANS) return b;
+    const ux = Math.round(Math.cos(snapped)), uz = Math.round(Math.sin(snapped));
+    const n = ux !== 0 && uz !== 0 ? Math.round((Math.abs(dx) + Math.abs(dz)) / 2)
+      : Math.round(ux !== 0 ? Math.abs(dx) : Math.abs(dz));
+    return [a[0] + ux * n, a[1] + uz * n];
+  }
+
+  /**
+   * The streets of a grid dragged from one corner to the other, in cells: one
+   * a block apart each way, the far edges included, so every block is closed.
+   * A drag narrower than a block in one direction is a single street.
+   */
+  private gridLines(a: [number, number], b: [number, number]):
+    Array<[[number, number], [number, number]]> {
+    const stops = (p: number, q: number): number[] => {
+      const lo = Math.min(p, q), hi = Math.max(p, q);
+      const s = [lo];
+      for (let v = lo + GRID_BLOCK; v <= hi; v += GRID_BLOCK) s.push(v);
+      if (hi - s[s.length - 1] >= GRID_BLOCK / 2) s.push(hi);
+      return s;
+    };
+    const xs = stops(a[0], b[0]), zs = stops(a[1], b[1]);
+    const x0 = xs[0], x1 = xs[xs.length - 1], z0 = zs[0], z1 = zs[zs.length - 1];
+    const out: Array<[[number, number], [number, number]]> = [];
+    if (x1 > x0) for (const z of zs) out.push([[x0, z], [x1, z]]);
+    if (z1 > z0) for (const x of xs) out.push([[x, z0], [x, z1]]);
+    return out;
   }
 
   private onUp = (e: PointerEvent): void => {
@@ -1367,7 +1393,7 @@ export class BuildTools {
   }
 
   private roadWidth(): number {
-    return this.tool.kind === 'road' || this.tool.kind === 'curve'
+    return this.tool.kind === 'road' || this.tool.kind === 'curve' || this.tool.kind === 'grid'
       ? Math.max(2, Math.round((ROAD_SPECS[this.tool.cls].edge * 2) / CELL))
       : 3;
   }
@@ -1499,7 +1525,20 @@ export class BuildTools {
       // and was half a cell off from where the road actually lands.
       this.renderer.mark = null;
       if (this.from === null) { this.renderer.setRoadPreview(null); return; }
-      this.renderer.setRoadPreview(this.preview(a, this.to, null, this.bend()));
+      this.renderer.setRoadPreview(this.preview(a, this.straightEnd(a, this.to), null, 0));
+      return;
+    }
+    if (this.tool.kind === 'grid') {
+      this.renderer.mark = null;
+      if (this.from === null) { this.renderer.setRoadPreview(null); return; }
+      const lines = this.gridLines(a, this.to);
+      const world = this.renderer.world;
+      this.renderer.setRoadPreview(previewRoads(world.grid,
+        lines.map(([p, q]) => [...this.metres(p), ...this.metres(q)] as [number, number, number, number]),
+        this.tool.cls, baseHeightAt));
+      const metres = lines.reduce((s, [p, q]) => s + Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL, 0);
+      this.say(`${lines.length} streets, ${(metres / 1000).toFixed(1)} km — `
+        + `${money(metres * this.roadCost(this.tool.cls))}`);
       return;
     }
     this.renderer.setRoadPreview(null);
@@ -1596,6 +1635,37 @@ export class BuildTools {
   }
 
   /**
+   * Lays a grid of streets in one go: priced as a whole, refused as a whole,
+   * and rebuilt once. Every corner of it has to be on land the city owns.
+   */
+  private layGrid(a: [number, number], b: [number, number]): void {
+    const t = this.tool;
+    if (t.kind !== 'grid') return;
+    const world = this.renderer.world;
+    const lines = this.gridLines(a, b).filter(([p, q]) => Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL >= 12);
+    if (lines.length === 0) { this.say('drag further to lay a grid'); return; }
+    for (const [p, q] of lines) {
+      if (!ownsAt(world.land, world.grid, ...this.metres(p)) || !ownsAt(world.land, world.grid, ...this.metres(q))) {
+        this.say('the grid runs onto land you do not own — buy it with the land tool, or drag a smaller grid');
+        return;
+      }
+    }
+    const metres = lines.reduce((s, [p, q]) => s + Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL, 0);
+    if (!this.afford(metres * this.roadCost(t.cls), `a grid of ${lines.length} ${ROAD_SPECS[t.cls].label.toLowerCase()}s`)) return;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [p, q] of lines) {
+      this.clearUnder(p, q, null, 0);
+      const [ax, az] = this.metres(p), [bx, bz] = this.metres(q);
+      world.net.add(ax, az, bx, bz, t.cls, 0, null, 0);
+      x0 = Math.min(x0, ax, bx); z0 = Math.min(z0, az, bz);
+      x1 = Math.max(x1, ax, bx); z1 = Math.max(z1, az, bz);
+    }
+    this.rebuild(this.box(x0 - 8, z0 - 8, x1 + 8, z1 + 8, 3));
+    thud();
+    this.say(`laid ${lines.length} streets, ${(metres / 1000).toFixed(1)} km`);
+  }
+
+  /**
    * Clears the zoning under a road, following the road.
    *
    * A straight is a rectangle, but a curve is not, and clearing a curve's
@@ -1660,7 +1730,10 @@ export class BuildTools {
     const t = this.tool;
     const r = this.area(a, b);
     if (t.kind === 'road') {
-      this.lay(a, b, null, this.bend());
+      this.lay(a, this.straightEnd(a, b), null, 0);
+      return;
+    } else if (t.kind === 'grid') {
+      this.layGrid(a, b);
       return;
     } else if (t.kind === 'upgrade') {
       // Converting rather than building. The rectangle the drag swept, in
@@ -1837,7 +1910,7 @@ export class BuildTools {
     this.curveA = null;
     this.curveVia = null;
     this.curveStage = 'none';
-    if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'upgrade') {
+    if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'grid' || tool.kind === 'upgrade') {
       this.roadMode = tool.kind;
     }
     // Picking a tool is the earliest the game can know what is about to be
@@ -1864,7 +1937,7 @@ export class BuildTools {
   private key(t: Tool): string {
     // Both road tools answer to the same class button; which of the two it
     // selects is the mode button beside them.
-    if (t.kind === 'road' || t.kind === 'curve') return `road:${t.cls}`;
+    if (t.kind === 'road' || t.kind === 'curve' || t.kind === 'grid') return `road:${t.cls}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     if (t.kind === 'transit') return `transit:${t.line}`;
@@ -1885,7 +1958,11 @@ export class BuildTools {
       return `drag to lay a ${ROAD_SPECS[t.cls].label}${up > 0 ? ` viaduct ${up} m up` : ''} `
         + `(${money(this.roadCost(t.cls))}/m) — `
         + (up > 0 ? 'crosses over roads below; PgUp/PgDn height'
-          : 'sweep the drag to curve it; it will cross and join what is there; PgUp to raise');
+          : 'drag for a straight road, snapped square near the axes; it crosses and joins what is there; the curve tool bends');
+    }
+    if (t.kind === 'grid') {
+      return `drag out a grid of ${ROAD_SPECS[t.cls].label.toLowerCase()}s, a block (${GRID_BLOCK * CELL} m) apart `
+        + `(${money(this.roadCost(t.cls))}/m) — the bigger the drag, the bigger the grid`;
     }
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
@@ -2038,7 +2115,7 @@ export class BuildTools {
     {
       const b = document.createElement('button');
       b.dataset.branch = 'roads';
-      tip(b, 'Roads \u2014 eight classes, straight or curved');
+      tip(b, 'Roads \u2014 eight classes, straight, curved or a whole grid');
       chip(b, '#d2d2d5', glyph('road'));
       b.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2627,9 +2704,10 @@ export class BuildTools {
     panel.appendChild(this.tabs([
       { key: 'road', label: 'Straight & dragged', on: this.roadMode === 'road' },
       { key: 'curve', label: 'Curved', on: this.roadMode === 'curve' },
+      { key: 'grid', label: 'Grid', on: this.roadMode === 'grid' },
       { key: 'upgrade', label: 'Upgrade', on: this.roadMode === 'upgrade' },
     ], accent, (key) => {
-      this.roadMode = key as 'road' | 'curve' | 'upgrade';
+      this.roadMode = key as 'road' | 'curve' | 'grid' | 'upgrade';
       this.openRoadDrawer();
     }));
     if (this.roadMode !== 'upgrade') {

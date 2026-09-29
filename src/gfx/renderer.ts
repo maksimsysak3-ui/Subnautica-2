@@ -338,6 +338,7 @@ interface Resources extends WorldRes {
   shadowSceneGroup: GPUBindGroup;
   terrain: GPURenderPipeline;
   road: GPURenderPipeline;
+  roadPreview: GPURenderPipeline;
   water: GPURenderPipeline;
   city: GPURenderPipeline;
   cull: GPUComputePipeline;
@@ -991,6 +992,31 @@ export class Renderer {
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil,
     });
+    // The drag preview: the same road, drawn over whatever it crosses. On the
+    // city's depth test a proposal across ungraded ground dipped under every
+    // hump the finished road would have levelled, and a dragged grid showed as
+    // broken pieces of itself.
+    const roadPreview = device.createRenderPipeline({
+      label: 'road-preview-pipeline',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [cameraLayout, overlayBgl] }),
+      vertex: {
+        module: roadModule,
+        entryPoint: 'vs',
+        buffers: [{
+          arrayStride: ROAD_FLOATS * 4,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: 'float32x3' },
+            { shaderLocation: 1, offset: 12, format: 'float32x3' },
+            { shaderLocation: 2, offset: 24, format: 'float32x3' },
+            { shaderLocation: 3, offset: 36, format: 'float32x4' },
+            { shaderLocation: 4, offset: 52, format: 'float32' },
+          ],
+        }],
+      },
+      fragment: { module: roadModule, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: DEPTH_FORMAT, depthWriteEnabled: false, depthCompare: 'always' },
+    });
 
     // The river surface. Opaque: it computes its own transmission from depth
     // rather than blending, which keeps it out of the sorting problem entirely
@@ -1248,7 +1274,7 @@ export class Renderer {
       layouts,
       grass, grassBuffer: this.grassUniform,
       sky, rain, shadow, shadowView, shadowTexture, shadowSceneGroup,
-      terrain, road, water, city: cityPipeline, cull,
+      terrain, road, roadPreview, water, city: cityPipeline, cull,
       cameraBuffer, cameraGroup, sceneBuffer, sceneGroup,
       depth, depthView, overlay, dots,
       mainsPipeline, mainsVertices, mainsCount: 0,
@@ -1984,7 +2010,8 @@ export class Renderer {
   setRoadPreview(mesh: RoadMesh | null): void {
     const { device } = this.gpu;
     if (mesh === null || mesh.indices.length === 0) { this.previewCount = 0; return; }
-    const maxVerts = 24576, maxIndices = 49152;
+    // Room for a dragged grid of streets, not just one road.
+    const maxVerts = 131072, maxIndices = 262144;
     if (mesh.vertices.length / ROAD_FLOATS > maxVerts || mesh.indices.length > maxIndices) {
       this.previewCount = 0;
       return;
@@ -2524,7 +2551,7 @@ export class Renderer {
 
     // And the road being dragged, over the top of everything it crosses.
     if (this.previewCount > 0 && this.previewVerts !== null && this.previewIndices !== null) {
-      pass.setPipeline(res.road);
+      pass.setPipeline(res.roadPreview);
       pass.setVertexBuffer(0, this.previewVerts);
       pass.setIndexBuffer(this.previewIndices, 'uint32');
       pass.drawIndexed(this.previewCount);

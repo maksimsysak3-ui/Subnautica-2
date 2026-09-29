@@ -403,6 +403,24 @@ export function previewRoad(grid: number, ax: number, az: number, bx: number, bz
   return buildRoadMesh(one, base, false);
 }
 
+/**
+ * Several straight roads previewed as one network, junctions and all: what
+ * the grid tool shows while it is being dragged out. Segments are in metres.
+ */
+export function previewRoads(grid: number, segs: ReadonlyArray<readonly [number, number, number, number]>,
+  cls: RoadClass, base: (x: number, z: number) => number): RoadMesh | null {
+  const net = new RoadGraph(grid);
+  for (const [ax, az, bx, bz] of segs) {
+    if (Math.hypot(bx - ax, bz - az) >= 12) net.add(ax, az, bx, bz, cls, 0, null);
+  }
+  if (net.links.length === 0) return null;
+  // Its own junctions worked out first -- a single-road preview has none, a
+  // grid has one at every crossing -- but built as a throwaway, clear of the
+  // city's mesh caches.
+  net.rasterise();
+  return buildRoadMesh(net, base, false);
+}
+
 /** Builds the whole network's geometry. */
 /**
  * The road mesh as it was last made, and for which state of the graph.
