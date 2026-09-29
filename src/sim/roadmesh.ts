@@ -428,6 +428,13 @@ export function previewRoads(grid: number, segs: ReadonlyArray<readonly [number,
   return buildRoadMesh(net, base, false);
 }
 
+/** A throwaway network's geometry, for previewing something laid into it. */
+export function previewNet(net: RoadGraph, base: (x: number, z: number) => number): RoadMesh | null {
+  if (net.links.length === 0) return null;
+  net.rasterise();
+  return buildRoadMesh(net, base, false);
+}
+
 /** Builds the whole network's geometry. */
 /**
  * The road mesh as it was last made, and for which state of the graph.

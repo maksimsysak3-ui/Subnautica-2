@@ -17,6 +17,7 @@ import { Renderer } from './gfx/renderer';
 import { Camera } from './gfx/camera';
 import { Controls } from './input/controls';
 import { BuildTools } from './ui/build-tools';
+import { interchangeById } from './sim/interchanges';
 import { KeysHelp } from './ui/keys-help';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
@@ -305,7 +306,7 @@ async function boot(): Promise<void> {
   // debugging a city in a browser console. Read-only in spirit: nothing in the
   // game reads it back.
   (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera, assetIds: () => ASSETS.map((a) => a.id),
-    asset: (id: string) => ASSETS.find((a) => a.id === id) };
+    asset: (id: string) => ASSETS.find((a) => a.id === id), interchange: interchangeById };
   // The career: the bar earns it, the panels spend it, and each tells the other.
   tools.onLevels = (levels) => live.celebrate(levels);
   tools.onProgress = () => tools?.paintProgress();

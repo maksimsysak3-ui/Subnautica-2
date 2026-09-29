@@ -15,6 +15,8 @@
  * not a rebuild.
  */
 
+import { INTERCHANGES, interchangeById, layInterchange, footprint, lengths, place } from '../sim/interchanges';
+import type { Interchange } from '../sim/interchanges';
 import { RESOURCES, resourceById } from '../sim/resources';
 import type { ResourceId } from '../sim/resources';
 import { HECTARE_COST, MAX_HECTARES, REACH } from '../sim/industry';
@@ -28,7 +30,7 @@ import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
 import { heightAt, baseHeightAt, previewRoad, waterAt } from '../sim';
-import { previewRoads } from '../sim/roadmesh';
+import { previewRoads, previewNet } from '../sim/roadmesh';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
 import { PROCESS_CAP, PROCESS_VALUE } from '../sim/industry';
@@ -112,6 +114,7 @@ type Tool =
   | { kind: 'grid'; cls: RoadClass }
   /** How a junction is run: 0 by the rules, else signals, give way or roundabout rules. */
   | { kind: 'junction'; ctl: number }
+  | { kind: 'interchange'; id: string }
   | { kind: 'upgrade'; cls: RoadClass }
   /** `theme` undefined means whatever the district around it grows. */
   | { kind: 'zone'; zone: Zone; density: Density; theme?: Theme }
@@ -135,6 +138,9 @@ const JUNCTION_REACH = 16;
  * The ways a junction can be run, indexed by Control: what the player picks,
  * and what the work costs. Signals are the dear one; paint and a sign are not.
  */
+/** The tabs of the road drawer. */
+type RoadMode = 'road' | 'curve' | 'grid' | 'upgrade' | 'junction' | 'interchange';
+
 const JUNCTION_MODES: ReadonlyArray<{ label: string; verb: string; cost: number; blurb: string }> = [
   { label: 'Automatic', verb: 'by the rules', cost: 0, blurb: 'The city chooses from the roads that meet: signals where two main roads cross, give way elsewhere.' },
   { label: 'Give way', verb: 'with give-way signs', cost: 2500, blurb: 'The bigger road flows freely; the side road waits for a gap. Best where one road carries most of the traffic.' },
@@ -275,7 +281,7 @@ export class BuildTools {
   private stops: number[] = [];
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
-  private roadMode: 'road' | 'curve' | 'grid' | 'upgrade' | 'junction' = 'road';
+  private roadMode: RoadMode = 'road';
   /** Building actions that can be taken back, oldest first. */
   private readonly undoStack: Checkpoint[] = [];
   /**
@@ -520,6 +526,11 @@ export class BuildTools {
       this.recorded('the junction change', () => this.setJunctionAt(cell, want));
       return;
     }
+    if (this.tool.kind === 'interchange') {
+      const t = interchangeById(this.tool.id);
+      if (t !== undefined) this.recorded(`the ${t.name.toLowerCase()}`, () => this.dropInterchange(cell, t));
+      return;
+    }
     if (this.tool.kind === 'place') {
       const p = this.tool.proto;
       this.recorded(`the ${p.def.name.toLowerCase()}`, () => this.dropLot(cell));
@@ -741,6 +752,12 @@ export class BuildTools {
     // Rotate what is about to be placed. A footprint is rarely square and the
     // whole reason a lot refuses to fit is usually that it is the wrong way
     // round, so this is the first thing a player reaches for.
+    if ((e.key === 'r' || e.key === 'R') && this.tool.kind === 'interchange') {
+      this.placeYaw = (this.placeYaw + 1) % 4;
+      this.icKey = '';
+      this.showMark();
+      return;
+    }
     if ((e.key === 'r' || e.key === 'R') && this.tool.kind === 'place') {
       this.placeYaw = (this.placeYaw + 1) % 4;
       this.yawManual = true;
@@ -1520,6 +1537,12 @@ export class BuildTools {
   }
 
   /** A cell's centre, in metres. */
+  /** The cell a point in world metres falls in. */
+  private cellOf(p: readonly [number, number]): [number, number] {
+    const half = this.renderer.world.grid / 2;
+    return [Math.floor(p[0] / CELL + half), Math.floor(p[1] / CELL + half)];
+  }
+
   private metres(c: [number, number]): [number, number] {
     const half = this.renderer.world.grid / 2;
     return [(c[0] - half + 0.5) * CELL, (c[1] - half + 0.5) * CELL];
@@ -1538,6 +1561,25 @@ export class BuildTools {
       // Escape included, because Escape's last act is to select the look tool
       // and arrive here.
       this.renderer.setGhost(null);
+      return;
+    }
+    if (this.tool.kind === 'interchange') {
+      // The whole interchange as it would be built, where it would go.
+      this.renderer.setGhost(null);
+      this.renderer.mark = null;
+      const t = interchangeById(this.tool.id);
+      if (t === undefined || this.to === null) { this.renderer.setRoadPreview(null); return; }
+      const [x, z] = this.metres(this.to);
+      const key = `${t.id}:${x}:${z}:${this.placeYaw}`;
+      if (key !== this.icKey) {
+        this.icKey = key;
+        const net = new RoadGraph(this.renderer.world.grid);
+        layInterchange(net, t, x, z, this.placeYaw);
+        this.renderer.setRoadPreview(previewNet(net, baseHeightAt));
+        const why = this.interchangeProblem(t, x, z);
+        this.say(why ?? `${t.name}: ${money(this.interchangePrice(t))} — click to build, R to turn it, `
+          + 'then draw roads onto its loose ends');
+      }
       return;
     }
     if (this.tool.kind === 'junction') {
@@ -1825,6 +1867,52 @@ export class BuildTools {
       out.push({ x: n.x, z: n.z, colour: JUNCTION_COLOURS[c] ?? '#ffffff' });
     }
     this.renderer.showMarkers(out);
+  }
+
+  /** The last interchange preview built, so a still pointer does not rebuild it. */
+  private icKey = '';
+
+  /** What an interchange costs: its roads at their price, and its junction controls. */
+  private interchangePrice(t: Interchange): number {
+    let total = 0;
+    for (const [cls, m] of lengths(t)) total += m * this.roadCost(cls);
+    for (const c of t.controls ?? []) total += JUNCTION_MODES[c.ctl]?.cost ?? 0;
+    // A deck costs what a viaduct costs over what the road would on the ground.
+    const decks = t.pieces.filter((p) => (p.elev ?? 0) > 0);
+    for (const p of decks) total += Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]) * this.roadCost(p.cls) * 1.5;
+    return Math.round(total / 100) * 100;
+  }
+
+  /** Why an interchange cannot go here, or null if it can. */
+  private interchangeProblem(t: Interchange, x: number, z: number): string | null {
+    const world = this.renderer.world;
+    if (world.progress.level < t.level) return `${t.name} opens at level ${t.level}, ${levelName(t.level)}`;
+    for (const [px, pz] of footprint(t, x, z, this.placeYaw)) {
+      if (!ownsAt(world.land, world.grid, px, pz)) return `the ${t.name.toLowerCase()} runs onto land you do not own`;
+      if (waterAt(px, pz) !== null) return `the ${t.name.toLowerCase()} runs into water — turn it (R) or move it`;
+    }
+    return null;
+  }
+
+  /** Builds an interchange centred on a cell. */
+  private dropInterchange(cell: [number, number], t: Interchange): void {
+    const world = this.renderer.world;
+    const [x, z] = this.metres(cell);
+    const why = this.interchangeProblem(t, x, z);
+    if (why !== null) { this.say(why); return; }
+    if (!this.afford(this.interchangePrice(t), t.name.toLowerCase())) return;
+    for (const p of t.pieces) {
+      const a = place(p.a, x, z, this.placeYaw), b = place(p.b, x, z, this.placeYaw);
+      this.clearUnder(this.cellOf(a), this.cellOf(b), null, p.bend ?? 0);
+    }
+    const controls = layInterchange(world.net, t, x, z, this.placeYaw);
+    for (const c of controls) world.net.nodes[c.node].ctl = c.ctl;
+    let r = 0;
+    for (const [px, pz] of footprint(t, 0, 0, 0)) r = Math.max(r, Math.hypot(px, pz));
+    this.rebuild(this.box(x - r - 24, z - r - 24, x + r + 24, z + r + 24, 3));
+    this.icKey = '';
+    thud();
+    this.say(`${t.name.toLowerCase()} built — draw roads onto its loose ends to connect it`);
   }
 
   /** Sets how the junction under a cell is run, and charges for the work. */
@@ -2206,9 +2294,10 @@ export class BuildTools {
     this.curveVia = null;
     this.curveStage = 'none';
     if (tool.kind === 'road' || tool.kind === 'curve' || tool.kind === 'grid' || tool.kind === 'upgrade'
-      || tool.kind === 'junction') {
+      || tool.kind === 'junction' || tool.kind === 'interchange') {
       this.roadMode = tool.kind;
     }
+    this.icKey = '';
     // Picking a tool is the earliest the game can know what is about to be
     // built, and generating a building is the most expensive thing it does. So
     // the renderer starts making them now, a few per second, while the player
@@ -2235,6 +2324,7 @@ export class BuildTools {
     // selects is the mode button beside them.
     if (t.kind === 'road' || t.kind === 'curve' || t.kind === 'grid') return `road:${t.cls}`;
     if (t.kind === 'junction') return `junction:${t.ctl}`;
+    if (t.kind === 'interchange') return `interchange:${t.id}`;
     if (t.kind === 'zone') return `zone:${t.zone}:${t.density}:${t.theme ?? 'any'}`;
     if (t.kind === 'place') return `place:${t.proto.id}`;
     if (t.kind === 'transit') return `transit:${t.line}`;
@@ -2264,6 +2354,11 @@ export class BuildTools {
     if (t.kind === 'curve') {
       return `click to start a ${ROAD_SPECS[t.cls].label}, click where it bends, `
         + 'click where it ends — double-click to finish the run';
+    }
+    if (t.kind === 'interchange') {
+      const ic = interchangeById(t.id);
+      return `${ic?.name ?? 'interchange'}: click to build it, R to turn it, `
+        + 'then draw roads onto its loose ends';
     }
     if (t.kind === 'junction') {
       return `click a junction to run it ${JUNCTION_MODES[t.ctl].verb} `
@@ -3018,12 +3113,27 @@ export class BuildTools {
       { key: 'road', label: 'Straight & dragged', on: this.roadMode === 'road' },
       { key: 'curve', label: 'Curved', on: this.roadMode === 'curve' },
       { key: 'grid', label: 'Grid', on: this.roadMode === 'grid' },
+      { key: 'interchange', label: 'Interchanges', on: this.roadMode === 'interchange' },
       { key: 'junction', label: 'Junctions', on: this.roadMode === 'junction' },
       { key: 'upgrade', label: 'Upgrade', on: this.roadMode === 'upgrade' },
     ], accent, (key) => {
-      this.roadMode = key as 'road' | 'curve' | 'grid' | 'upgrade' | 'junction';
+      this.roadMode = key as RoadMode;
       this.openRoadDrawer();
     }));
+    if (this.roadMode === 'interchange') {
+      // Ready-made: dropped whole, with loose ends to draw roads onto.
+      const level = this.renderer.world.progress.level;
+      for (const t of INTERCHANGES) {
+        const price = this.interchangePrice(t);
+        const locked = level < t.level;
+        panel.appendChild(this.tile(null, t.name, money(price), price, accent,
+          t.blurb, () => this.select({ kind: 'interchange', id: t.id }),
+          glyph(t.id === 'roundabout' || t.id === 'crossroads' ? 'traffic' : 'road', 40), 'an interchange',
+          '', locked));
+      }
+      this.mount(panel, 'roads');
+      return;
+    }
     if (this.roadMode === 'junction') {
       // How a junction is run: the traffic-management half of the road tools.
       JUNCTION_MODES.forEach((m, ctl) => {
