@@ -83,7 +83,13 @@ export interface CityDraw {
  * the point of procedural assets, and is why this takes the census rather than
  * the library.
  */
-export function planCity(city: City, atlas: Atlas): CityDraw {
+/**
+ * `also` is a prototype to give a bucket to even if the city has none of it:
+ * the placement ghost's. Without one the ghost of a building the city does
+ * not have yet has nowhere to be drawn, and the preview was the bare
+ * footprint until the first copy was placed.
+ */
+export function planCity(city: City, atlas: Atlas, also = -1): CityDraw {
   const protoCount = atlas.prototypes.length;
   const bases = new Uint32Array(protoCount * 3);
   const args = new Uint32Array(protoCount * 3 * ARGS_WORDS);
@@ -97,7 +103,7 @@ export function planCity(city: City, atlas: Atlas): CityDraw {
   let sliceBytes = 0;
 
   for (let p = 0; p < protoCount; p++) {
-    const pop = city.population[p] ?? 0;
+    const pop = (city.population[p] ?? 0) + (p === also ? 1 : 0);
     if (pop === 0) continue;
     const proto = atlas.prototypes[p];
     // Rounded up so every slice starts on a dynamic-offset boundary. The

@@ -300,7 +300,8 @@ async function boot(): Promise<void> {
   // A handle on the running game, for the playtest harness and for anybody
   // debugging a city in a browser console. Read-only in spirit: nothing in the
   // game reads it back.
-  (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera, assetIds: () => ASSETS.map((a) => a.id) };
+  (window as unknown as { citysim?: unknown }).citysim = { renderer, live, tools, camera, assetIds: () => ASSETS.map((a) => a.id),
+    asset: (id: string) => ASSETS.find((a) => a.id === id) };
   // The career: the bar earns it, the panels spend it, and each tells the other.
   tools.onLevels = (levels) => live.celebrate(levels);
   tools.onProgress = () => tools?.paintProgress();

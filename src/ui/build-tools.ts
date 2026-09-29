@@ -1813,6 +1813,10 @@ export class BuildTools {
     // Anything the last tool was showing goes with it.
     this.renderer.showDots(0);
     if (tool.kind !== 'place') this.renderer.setGhost(null);
+    // A building the city has none of yet is baked and planned now, so its
+    // ghost is there on the first pointer move rather than after the first
+    // one is placed.
+    this.renderer.prepareGhost(tool.kind === 'place' ? ASSET_INDEX.get(tool.proto.id) ?? -1 : -1);
     if (tool.kind !== 'transit' && this.stops.length > 0) this.dropLine();
     this.renderer.askTransit('tool', tool.kind === 'transit');
     if (tool.kind !== 'transit' && tool.kind !== 'area') this.renderer.setTransitDraft(null);

@@ -622,7 +622,20 @@ export class Renderer {
     halfX: number; halfZ: number; height: number } | null): void {
     const res = this.res;
     if (res === null) return;
-    if (g === null) { this.ghosting = false; this.ghostProto = -1; return; }
+    if (g === null) {
+      if (!this.ghosting) return;
+      // Emptied, not just forgotten: once anything is moving, the cull walks
+      // this slot whatever \`ghosting\` says, so a slot left holding the last
+      // preview drew it on the map until the next placement overwrote it. A
+      // zero-height row is one the cull drops.
+      this.ghost.fill(0);
+      this.gpu.device.queue.writeBuffer(res.instanceBuffer,
+        res.instanceCount * INSTANCE_FLOATS * 4, this.ghost);
+      this.ghosting = false;
+      this.ghostProto = -1;
+      return;
+    }
+    if (g.proto !== this.ghostWant) this.prepareGhost(g.proto);
     this.ghostProto = g.proto;
     this.ghost[0] = g.x; this.ghost[1] = g.z; this.ghost[2] = g.y; this.ghost[3] = g.yaw;
     this.ghost[4] = g.halfX; this.ghost[5] = g.halfZ;
@@ -686,6 +699,25 @@ export class Renderer {
    * That is the whole of "the preview does not show until it is placed".
    */
   private ghostProto = -1;
+  /** The prototype the placement tool has in hand, planned a bucket ahead of need. */
+  private ghostWant = -1;
+  /** Prototypes the current plan can draw. */
+  private readonly drawable = new Set<number>();
+
+  /**
+   * The prototype the placement tool is holding, so its ghost can be drawn
+   * from the first pointer move. A prototype the city has none of has no draw
+   * bucket and no mesh, so it gets a quick one-cell rebuild, which bakes it
+   * and plans it a bucket -- before the pointer reaches the map rather than
+   * after the first copy is placed.
+   */
+  prepareGhost(proto: number): void {
+    this.ghostWant = proto;
+    if (proto < 0 || this.res === null || this.drawable.has(proto)) return;
+    // One cell in the corner of the map: nothing there changes, and the
+    // rebuild is the small incremental one every edit already makes.
+    this.rebuild({ gx: 0, gz: 0, w: 1, d: 1 });
+  }
 
   /**
    * How many instances the cull walks: the city, the ghost's slot, and whatever
@@ -1393,7 +1425,9 @@ export class Renderer {
     lap('births');
     this.summarise(city);
     const wasBaked = this.atlas.baked;
-    const plan = planCity(city, this.atlas);
+    const plan = planCity(city, this.atlas, this.ghostWant);
+    this.drawable.clear();
+    for (const b of plan.buckets) this.drawable.add(b.proto);
     lap('planCity');
     this.cost.newMeshes = this.atlas.baked - wasBaked;
 
@@ -1822,6 +1856,12 @@ export class Renderer {
     res.groundTexture.destroy();
     Object.assign(res, this.loadWorld(res.layouts, res));
     this.dirty = undefined;
+    // The instance buffer is a new one, and its ghost slot is empty: put the
+    // preview back rather than leave it missing until the pointer next moves.
+    if (this.ghosting) {
+      this.gpu.device.queue.writeBuffer(res.instanceBuffer,
+        res.instanceCount * INSTANCE_FLOATS * 4, this.ghost);
+    }
     this.buildDots();
     this.buildMainsLines();
   }
