@@ -17,6 +17,7 @@ import { Renderer } from './gfx/renderer';
 import { Camera } from './gfx/camera';
 import { Controls } from './input/controls';
 import { BuildTools } from './ui/build-tools';
+import { KeysHelp } from './ui/keys-help';
 import { Stats } from './ui/stats';
 import { fatal } from './ui/fatal';
 import {
@@ -123,6 +124,7 @@ async function boot(): Promise<void> {
   // from the first frame, and an empty bordered box in the corner of a loading
   // screen is the game's plumbing on show.
   stats.visible = false;
+  const keysHelp = new KeysHelp(overlay);
 
   const camera = new Camera();
   const controls = new Controls(canvas, camera);
@@ -205,6 +207,8 @@ async function boot(): Promise<void> {
       if (tools !== null) tools.visible = !on;
       if (modTools !== null) modTools.visible = !on;
       stats.visible = !on;
+      keysHelp.allowed = !on;
+      if (on) keysHelp.toggle(false);
       // Paused behind the menu, and founded the moment the player goes in. A
       // city that aged while its owner read the title screen would be handing
       // them somebody else's mistakes.

@@ -2244,7 +2244,7 @@ export class BuildTools {
   }
 
   private describe(t: Tool): string {
-    if (t.kind === 'look') return 'drag to pan, right-drag to orbit, wheel to zoom';
+    if (t.kind === 'look') return 'drag to pan, right-drag to orbit, wheel to zoom, ? for keys';
     if (t.kind === 'transit') {
       return `click along the streets to drop ${TRANSIT_SPEC[t.line].name.toLowerCase()} `
         + 'stops, Enter to close the loop — click an existing stop to change '
