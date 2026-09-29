@@ -179,9 +179,14 @@ export class Menu {
     card.setAttribute('aria-label', "What's new");
     const head = document.createElement('div');
     head.className = 'mr-news-head';
-    head.innerHTML = "<span>What's new</span><em>Autumn update</em>";
+    head.innerHTML = "<span>What's new</span><em>Builder's update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Traffic management', 'Roads draw Junctions: run any junction on lights, give way or roundabout rules. It changes the flow, and the Traffic view names the worst junction and what to try.'],
+      ['Grids and straight roads', 'Drag out a whole grid of blocks in one go. Straight roads stay straight and snap square; junctions and T-junctions join cleanly.'],
+      ['Undo', 'Ctrl+Z, or the arrow on the bar, takes back the last thing you built and refunds it.'],
+      ['Zone a block in one click', 'Click inside a block with a zoning tool to fill it, road to road.'],
+      ['See before you build', 'A service shows its coverage map and its reach round the cursor, with running cost and staff.'],
       ['City events', 'Book match days, concerts, festivals, exhibitions and a marathon from the computer. Real crowds, a gate, and a happier city.'],
       ['Challenges', 'Found a city with a job to do: Boomtown, Tourist Trap, Floodplain, Shoestring, Green City or Metropolis, each against the clock.'],
       ['Tourism', 'Museums, zoos, stadiums and wonders draw visitors; hotels keep them the night; an airport brings the world. See Visitors on the computer.'],

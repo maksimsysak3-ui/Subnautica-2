@@ -560,7 +560,8 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-news-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .mr-news-head span { font: 700 22px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
 .mr-news-head em { font: 600 10.5px/1 var(--label); font-style: normal; letter-spacing: .24em; text-transform: uppercase; color: var(--amber); }
-.mr-news-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+.mr-news-list { list-style: none; margin: 0; padding: 0 6px 0 0; display: flex; flex-direction: column; gap: 13px;
+  max-height: min(56vh, 520px); overflow-y: auto; scrollbar-width: thin; }
 .mr-news-list li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: baseline;
   animation: mr-news-in .7s calc(.8s + .08s * var(--i, 0)) cubic-bezier(.2,.9,.3,1) both; }
 .mr-news-n { font: 700 11px/1 var(--label); letter-spacing: .1em; color: var(--amber); font-variant-numeric: tabular-nums; }
