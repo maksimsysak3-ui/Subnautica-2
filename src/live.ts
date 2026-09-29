@@ -153,6 +153,11 @@ const READOUT_MS = 500;
  */
 const FOUNDING = 30;
 
+/** How close to a road a click has to land to pick it for the route view. */
+const ROUTE_PICK_METRES = 7;
+/** The route view's colours: faint violet for a few, near white for most. */
+const ROUTE_RAMP: [string, string, string] = ['#5a3a9a', '#b070f0', '#f4dcff'];
+
 export class LiveCity {
   private sim: Simulation | null = null;
   readonly info: InfoViews;
@@ -390,6 +395,19 @@ export class LiveCity {
    */
   tap(at: [number, number] | null): void {
     if (at === null || this.sim === null) { this.closeInspect(); return; }
+    // With the traffic view open, a click on a road asks where the people on
+    // it are going, and a click anywhere else goes back to the whole city.
+    if (this.info.view === View.TRAFFIC) {
+      const views = this.sim.views;
+      if (this.showRoutes(at[0], at[1])) return;
+      if (views.routing) {
+        views.clearRoute();
+        this.sim.show(View.TRAFFIC);
+        this.uploaded = -1;
+        this.renderer.mark = null;
+        this.info.routing(false, ROUTE_RAMP);
+      }
+    }
     const found = this.sim.inspect(at[0], at[1]);
     if (found === null) { this.closeInspect(); return; }
     if (this.inspect.open && this.inspect.place === found.place) {
@@ -428,6 +446,23 @@ export class LiveCity {
       rect: [found.x - half, found.z - half, found.x + half, found.z + half],
       tint: [0.38, 0.83, 1.0],
     };
+  }
+
+  /**
+   * Opens the traffic view on the road nearest (`x`, `z`), showing where
+   * the people on it are going. Returns whether there was a road to pick.
+   */
+  showRoutes(x: number, z: number): boolean {
+    const sim = this.sim;
+    if (sim === null) return false;
+    if (this.info.view !== View.TRAFFIC) this.info.open(View.TRAFFIC);
+    if (!sim.views.pickRoute(x, z, ROUTE_PICK_METRES)) return false;
+    this.closeInspect();
+    sim.show(View.TRAFFIC);
+    this.uploaded = -1;
+    this.renderer.mark = { rect: [x - 5, z - 5, x + 5, z + 5], tint: [0.85, 0.55, 1.0] };
+    this.info.routing(true, ROUTE_RAMP);
+    return true;
   }
 
   /** Builds a tier onto a lot. Wired by main to the build tools, which pay and rebuild. */
@@ -1509,7 +1544,8 @@ export class LiveCity {
         this.previewKey = key;
         const grid = at === null || this.previewReach === null ? sim.viewGrid
           : this.withCatchment(sim.viewGrid, at, this.previewReach);
-        this.renderer.setOverlay(grid, meta.look, rampFor(meta.ramp));
+        this.renderer.setOverlay(grid, meta.look,
+          view === View.TRAFFIC && sim.views.routing ? ROUTE_RAMP : rampFor(meta.ramp));
       }
       this.info.refresh(now, (): Stat[] => sim.viewStats);
     } else if (view !== View.NONE) {
@@ -1813,13 +1849,13 @@ export class LiveCity {
     for (const p of [...places.appeal.keys()]) {
       if (places.live[p] === 0) continue;
       const x = places.col.x[p], z = places.col.z[p];
-      let worst = 0, sum = 0, n = 0;
+      let worst = 0, sum = 0, n = 0, wx = x, wz = z;
       for (let l = 0; l < Math.min(g.count, load.length); l++) {
         if ((g.use[l] & Use.CAR) === 0) continue;
         const dx = (g.ax[l] + g.bx[l]) * 0.5 - x, dz = (g.az[l] + g.bz[l]) * 0.5 - z;
         if (dx * dx + dz * dz > 260 * 260) continue;
         const v = load[l];
-        if (v > worst) worst = v;
+        if (v > worst) { worst = v; wx = x + dx; wz = z + dz; }
         sum += v; n++;
       }
       const mean = n === 0 ? 0 : sum / n;
@@ -1836,12 +1872,19 @@ export class LiveCity {
           : 'The roads into it are coping again.',
         tone: jammed ? 'bad' : 'good', icon: 'transport', tag: `hotspot-${p}`,
         figure: `${Math.round(worst * 100)}%`,
-        go: () => this.lookAt(x, z),
+        // Straight to the jammed road with its routes showing: who is on it is
+        // the first thing a player needs to know to fix it.
+        go: jammed ? () => { this.lookAt(wx, wz); this.showRoutes(wx, wz); } : () => this.lookAt(x, z),
       });
     }
   }
 
   private onView(view: number, meta: ViewInfo | null): void {
+    // A picked road belongs to the traffic view it was picked in.
+    if (view !== View.TRAFFIC && this.sim?.views.routing === true) {
+      this.sim.views.clearRoute();
+      this.renderer.mark = null;
+    }
     this.sim?.show(view);
     this.uploaded = -1;
     // The transport view draws the lines on the map as well as listing them. A

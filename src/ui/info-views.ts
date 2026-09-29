@@ -337,6 +337,22 @@ export class InfoViews {
   }
 
   /** A view's table entry, for whoever is drawing the map. */
+  /**
+   * Swaps the traffic card's legend and scale for the route view's, or back.
+   * The map changes meaning when a road is picked, so the key to it has to.
+   */
+  routing(on: boolean, ramp: [string, string, string]): void {
+    const info = this.meta(this.current);
+    if (info === null) return;
+    const shown: ViewInfo = on ? {
+      ...info, ramp, unit: 'of its drivers',
+      legend: 'Every road the people on the picked road use. Brighter is more of them. '
+        + 'Click empty ground for the whole city again.',
+    } : info;
+    this.legend.textContent = shown.legend;
+    this.scale.innerHTML = this.ramp(shown);
+  }
+
   meta(view: number): ViewInfo | null {
     return VIEWS.find((v) => v.id === view) ?? null;
   }

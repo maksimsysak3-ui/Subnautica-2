@@ -531,10 +531,12 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-hint {
   display: inline-flex; align-items: center; gap: 9px; padding: 7px 15px 7px 12px; border-radius: 999px;
   background: rgba(12,17,25,.9); border: 1px solid rgba(190,190,196,.16); color: #e4e4e6;
-  font: 600 12.5px/1.3 var(--ui); white-space: nowrap; pointer-events: none;
+  font: 600 12.5px/1.3 var(--ui); pointer-events: none;
   box-shadow: 0 8px 22px rgba(0,0,0,.4); backdrop-filter: blur(12px);
+  /* A long message wraps inside the screen rather than running off both edges. */
+  max-width: min(760px, calc(100vw - 32px)); box-sizing: border-box; text-wrap: balance;
 }
-.mr-hint::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan);
+.mr-hint::before { flex: none; content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan);
   box-shadow: 0 0 8px var(--cyan); }
 
 /* ---- title screen ---------------------------------------------------- */

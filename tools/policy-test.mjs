@@ -333,6 +333,11 @@ section('the fare changes how people travel');
   const [c, d] = compare('parking', 10, (sim) => sim.routine.stats.byMode[Mode.CAR]);
   ok(d < c, 'a charge on driving means less driving', `${c} -> ${d}`);
   console.log(`  car trips under parking charges ${c} -> ${d}`);
+
+  const [e, f] = compare('cycleNetwork', 10, (sim) => ({
+    bike: sim.routine.stats.byMode[Mode.BIKE], car: sim.routine.stats.byMode[Mode.CAR] }));
+  ok(f.bike > e.bike * 1.3, 'a cycle network puts people on bikes', `${e.bike} -> ${f.bike}`);
+  ok(f.car < e.car, 'and takes cars off the road', `${e.car} -> ${f.car}`);
 }
 
 section('water metering is felt at the mains');

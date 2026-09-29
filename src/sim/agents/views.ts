@@ -33,8 +33,10 @@ import type { ResourceId } from '../resources';
 import { Places, Purpose } from './places';
 import { Utilities, Util, UTIL_NAMES } from './utilities';
 import { Services, SERVICE_GRID, UNREACHED } from './services';
-import { People, Stage } from './people';
-import { Routine } from './routine';
+import { People, Stage, Doing } from './people';
+import { Routine, Mode } from './routine';
+import type { RouteReading } from './routine';
+import { Use } from './lanes';
 import { Traffic } from './driving';
 import { Junctions, Control } from './junctions';
 import { Migration } from './migration';
@@ -220,6 +222,9 @@ export const VIEWS: ViewInfo[] = [
 /** Views that paint nothing on the map. The panel is all there is. */
 export const PANEL_ONLY = new Set<number>([View.BUDGET]);
 
+/** Within this of the picked road, a trip counts as local to it. */
+const LOCAL_METRES = 260;
+
 /** Cells across the overlay grid. */
 export const VIEW_GRID = 192;
 
@@ -296,15 +301,66 @@ export class Views {
   districts: Districts | null = null;
   districtFocus = 0;
 
+  /**
+   * The road picked for the route view, as a mask over the lanes, and where it
+   * was clicked. While one is picked the traffic view shows where the people
+   * on it are going instead of how full everything is.
+   */
+  private routeMask: Uint8Array | null = null;
+  private routeAt: [number, number] = [0, 0];
+  /** What the route view found last time it was built. */
+  route: RouteReading | null = null;
+
   constructor(private src: Sources) {
     this.perLane = new Float32Array(src.lanes.count);
   }
+
+  /**
+   * Picks the road nearest (`x`, `z`) for the route view, or clears it.
+   * Returns whether a road was close enough to pick.
+   */
+  pickRoute(x: number, z: number, within = 14): boolean {
+    const g = this.src.lanes;
+    let best = -1, bestD = within * within;
+    for (let l = 0; l < g.count; l++) {
+      if ((g.use[l] & Use.CAR) === 0) continue;
+      const ax = g.ax[l], az = g.az[l], dx = g.bx[l] - ax, dz = g.bz[l] - az;
+      const len2 = dx * dx + dz * dz;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)) : 0;
+      const d = (ax + dx * t - x) ** 2 + (az + dz * t - z) ** 2;
+      if (d < bestD) { bestD = d; best = l; }
+    }
+    if (best < 0) { this.clearRoute(); return false; }
+    const link = g.link[best];
+    const mask = new Uint8Array(g.count);
+    for (let dir = 0; dir < 2; dir++) {
+      for (let l = g.linkStart[link * 2 + dir]; l < g.linkEnd[link * 2 + dir]; l++) {
+        if ((g.use[l] & Use.CAR) !== 0) mask[l] = 1;
+      }
+    }
+    this.routeMask = mask;
+    this.routeAt = [x, z];
+    this.built = View.NONE;
+    return true;
+  }
+
+  clearRoute(): void {
+    this.routeMask = null;
+    this.route = null;
+    this.built = View.NONE;
+  }
+
+  /** Whether the traffic view is showing one road's routes. */
+  get routing(): boolean { return this.routeMask !== null; }
 
   /** The roads changed, so the per-lane scratch is the wrong size. */
   rebind(lanes: LaneGraph): void {
     this.src.lanes = lanes;
     this.perLane = new Float32Array(lanes.count);
     this.built = View.NONE;
+    // Lane numbers mean nothing across a rebuild, so the pick is made again
+    // against the new roads, and dropped if its road has gone.
+    if (this.routeMask !== null) this.pickRoute(this.routeAt[0], this.routeAt[1]);
   }
 
   /**
@@ -321,7 +377,7 @@ export class Views {
     this.builtAt = tick;
     this.version++;
     switch (view) {
-      case View.TRAFFIC: this.fromTraffic(); break;
+      case View.TRAFFIC: if (this.routeMask !== null) this.fromRoutes(); else this.fromTraffic(); break;
       case View.POWER: this.fromUtility(Util.POWER); break;
       case View.WATER: this.fromUtility(Util.WATER); break;
       case View.SEWAGE: this.fromUtility(Util.SEWAGE); break;
@@ -388,7 +444,7 @@ export class Views {
   // ---- the two shapes ----------------------------------------------------
 
   /** Stamps a value into every cell a lane passes through. */
-  private scatter(): void {
+  private scatter(most = false): void {
     const { lanes, extent } = this.src;
     const half = extent / 2;
     const scale = VIEW_GRID / extent;
@@ -407,7 +463,8 @@ export class Views {
         const at = gz * VIEW_GRID + gx;
         // The worst reading wins where two roads share a cell, because a player
         // looking for trouble wants to see it rather than have it averaged away.
-        if (grid[at] === NO_DATA || byte < grid[at]) grid[at] = byte;
+        // The route view is the other way round: the busier route wins.
+        if (grid[at] === NO_DATA || (most ? byte > grid[at] : byte < grid[at])) grid[at] = byte;
       }
     }
   }
@@ -472,6 +529,31 @@ export class Views {
     // Just enough to fill the carriageway between its lanes: the colour is
     // drawn on the road surface only (see `Look.ROADS`), and spread wider it
     // would bleed across junctions into the next street's reading.
+    this.spread(1);
+  }
+
+  /**
+   * Every road the people on the picked road use, brighter the more of them.
+   *
+   * The question behind every red road: who are these people and where are
+   * they going? Through traffic wants another way round; traffic that starts
+   * or ends here wants a bus, or the shops closer to the homes.
+   */
+  private fromRoutes(): void {
+    const mask = this.routeMask;
+    if (mask === null || mask.length !== this.perLane.length) { this.clearRoute(); this.fromTraffic(); return; }
+    const [x, z] = this.routeAt;
+    this.route = this.src.routine.through(mask, this.perLane, x, z, LOCAL_METRES);
+    let top = 0;
+    for (let l = 0; l < this.perLane.length; l++) top = Math.max(top, this.perLane[l]);
+    for (let l = 0; l < this.perLane.length; l++) {
+      // A floor, so a road one person takes is still visibly on the map.
+      this.perLane[l] = this.perLane[l] <= 0 ? 0 : 0.15 + 0.85 * Math.sqrt(this.perLane[l] / top);
+    }
+    // The picked road itself at full strength, so it reads as the one chosen
+    // even when nobody is on it this minute.
+    for (let l = 0; l < mask.length; l++) if (mask[l] === 1) this.perLane[l] = 1;
+    this.scatter(true);
     this.spread(1);
   }
 
@@ -695,6 +777,44 @@ export class Views {
   /** The flood map, worked out once per map: the river is where it is. */
   private floodCache: { extent: number; grid: Uint8Array } | null = null;
 
+  /** The route view's card: who is on the picked road, and what would help. */
+  private routeStats(): Stat[] {
+    const r = this.route;
+    const line = (label: string, value: string, bar = -1, warn = false,
+      hero = false): Stat => ({ label, value, bar, warn, hero });
+    if (r === null || r.travellers < 0.5) {
+      return [
+        line('on this road right now', '0', -1, false, true),
+        line('Quiet now', 'try at rush hour'),
+        line('Empty ground', 'back to the city'),
+      ];
+    }
+    const n = r.travellers;
+    const share = (x: number): number => x / n;
+    const pct = (x: number): string => `${Math.round(share(x) * 100)}%`;
+    const through = n - r.local;
+    const d = r.byDoing, m = r.byMode;
+    const rows: Stat[] = [
+      line('travelling along this road', Math.round(n).toLocaleString(), -1, false, true),
+      line('Passing through', pct(through), share(through), share(through) > 0.6),
+      line('Starting or stopping nearby', pct(r.local), share(r.local)),
+      line('Going to work', pct(d[Doing.WORK]), share(d[Doing.WORK])),
+      line('Going home', pct(d[Doing.HOME]), share(d[Doing.HOME])),
+      line('Shopping', pct(d[Doing.SHOPPING]), share(d[Doing.SHOPPING])),
+      line('Out for leisure', pct(d[Doing.LEISURE]), share(d[Doing.LEISURE])),
+      line('To school', pct(d[Doing.SCHOOL]), share(d[Doing.SCHOOL])),
+      line('By car', pct(m[Mode.CAR]), share(m[Mode.CAR])),
+      line('By bus or tram', pct(m[Mode.TRANSIT]), share(m[Mode.TRANSIT])),
+    ];
+    const tip = share(through) > 0.6
+      ? 'mostly through traffic: give it another way round, or a bigger road'
+      : share(d[Doing.WORK]) > 0.45
+        ? 'mostly commuters: a bus or tram line along here would take cars off'
+        : 'mostly local: a cycle network, or shops and jobs nearer the homes';
+    rows.push(line('Try', tip));
+    return rows;
+  }
+
   stats(view: number): Stat[] {
     const s = this.src;
     const pct = (x: number): string => `${Math.round(x * 100)}%`;
@@ -875,6 +995,7 @@ export class Views {
       }
 
       case View.TRAFFIC: {
+        if (this.routeMask !== null) return this.routeStats();
         const t = s.traffic.stats;
         const worst = s.routine.peakLoad;
         let signals = 0, giveWay = 0, roundabouts = 0;
@@ -900,6 +1021,7 @@ export class Views {
           line('Give way', giveWay.toLocaleString()),
           line('Roundabouts', roundabouts.toLocaleString()),
           line('Lane changes', s.traffic.stats.changes.toLocaleString()),
+          line('Click a road', 'to see where its drivers go'),
         ];
       }
 

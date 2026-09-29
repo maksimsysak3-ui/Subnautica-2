@@ -53,6 +53,8 @@ export interface Effects {
   transitFare: number;
   /** Added to the cost of driving, in the same money as the fare. */
   parkingCharge: number;
+  /** Multiplier on how many people would cycle at all, and on how far. */
+  cycling: number;
   /** The highest tier a lot may be built up to, 0 to 2. */
   tierCap: number;
   /** Multipliers on what each kind of disaster does to a building. */
@@ -71,7 +73,7 @@ function clear(): Effects {
     serviceUpkeep: 1,
     landValue: 0,
     safetyReach: 1, learningReach: 1,
-    transitFare: 1, parkingCharge: 0,
+    transitFare: 1, parkingCharge: 0, cycling: 1,
     tierCap: 2,
     floodDamage: 1, quakeDamage: 1, stormDamage: 1, tourism: 1,
   };
@@ -159,6 +161,15 @@ export const POLICIES: readonly PolicyDef[] = [
     apply: (e) => { e.parkingCharge += 0.34; e.commercialYield *= 0.95; },
     says: ['Driving costs more, so fewer drive', 'Shops take 5% less',
       'Earns 0.85 a job a week'],
+  },
+  {
+    id: 'cycleNetwork',
+    name: 'Cycle network',
+    blurb: 'Painted lanes, racks at every shop and showers at work. More people ride.',
+    price: { perResident: 0.75 },
+    apply: (e) => { e.cycling = 1.8; },
+    says: ['Nearly twice as many people will cycle', 'Rides go further before a car wins',
+      'Costs 0.75 a resident a week'],
   },
   {
     id: 'businessRelief',

@@ -154,11 +154,12 @@ const DETOUR = 1.35;
 /**
  * Metres of lane per vehicle at a lane's practical capacity. See the constructor.
  *
- * Thirty: a busy town's main street fills at rush hour and goes red, which
- * is the problem the road tools exist to solve. At twenty-two a town of a few
- * thousand never came near it, and nothing ever needed fixing.
+ * Eighteen: a busy town's main street fills at rush hour and goes red, which
+ * is the problem the road tools exist to solve. (It was thirty while arrivals
+ * released their road space twice, which hid most of the load; with the load
+ * counted once, thirty put half the network over capacity.)
  */
-export const CAPACITY_METRES = 30;
+export const CAPACITY_METRES = 18;
 
 /**
  * The longest an estimated journey may be, in game minutes.
@@ -283,6 +284,18 @@ export interface TripStats {
  * Owns the trips in flight, the lane load they cause, and the budget that decides
  * which of them are moved individually.
  */
+/** What `Routine.through` found on a stretch of road. */
+export interface RouteReading {
+  /** Travellers on routes using the road, scaled to the whole city. */
+  travellers: number;
+  /** Of those, how many start or stop close to it. */
+  local: number;
+  /** By what they are travelling for, indexed by `Doing`. */
+  byDoing: number[];
+  /** By how, indexed by `Mode`. */
+  byMode: number[];
+}
+
 export class Routine {
   /**
    * The ordinances in force.
@@ -630,7 +643,7 @@ export class Routine {
     // thing in the simulation.
     const pol = this.policies.effects;
     for (let m = 0; m < MODES; m++) {
-      if (metres > MODE_REACH[m]) continue;
+      if (metres > (m === Mode.BIKE ? MODE_REACH[m] * pol.cycling : MODE_REACH[m])) continue;
       if (m === Mode.CAR) {
         // A child cannot drive and a household without a car has none to use.
         if (cars === 0) continue;
@@ -638,7 +651,7 @@ export class Routine {
       }
       if (m === Mode.BIKE) {
         if (stage === Stage.INFANT || stage === Stage.SENIOR) continue;
-        if (frac(id + 0x51de) > CYCLISTS) continue;
+        if (frac(id + 0x51de) > Math.min(0.6, CYCLISTS * pol.cycling)) continue;
       }
       const speed = profileOf(MODE_LAYER[m]).top;
       let seconds = metres / speed;
@@ -663,7 +676,9 @@ export class Routine {
         ? (FARE_FIXED[m] + FARE_PER_KM[m] * km) * pol.transitFare
         : FARE_FIXED[m] + FARE_PER_KM[m] * km
           + (m === Mode.CAR ? pol.parkingCharge : 0);
-      const cost = seconds * VALUE_OF_TIME + fare + DISCOMFORT_PER_KM[m] * km;
+      // A proper cycle network is most of what makes a ride pleasant.
+      const discomfort = m === Mode.BIKE ? DISCOMFORT_PER_KM[m] / pol.cycling : DISCOMFORT_PER_KM[m];
+      const cost = seconds * VALUE_OF_TIME + fare + discomfort * km;
       const perturbed = cost * (0.8 + this.rng.next() * 0.45);
       if (perturbed < bestCost) { bestCost = perturbed; bestMode = m; }
     }
@@ -839,7 +854,9 @@ export class Routine {
       c.along[id] = along;
 
       if (step >= n) {
-        this.claim(route, -ROAD_SPACE[c.mode[id]] * this.sampleWeight);
+        // The road space goes back in `drop`, against the route it was claimed
+        // on. Releasing it here as well took it off twice, and the clamp at
+        // zero hid that by emptying lanes other travellers were still on.
         this.settle(id, c.target[id], this.doingFor(id));
         continue;
       }
@@ -946,6 +963,51 @@ export class Routine {
       this.onLane[lane] = now < 0.0001 ? 0 : now;
       this.load[lane] = this.onLane[lane] * this.sampleWeight / this.capacity[lane];
     }
+  }
+
+  /**
+   * Who is on a stretch of road right now, and where else they are going.
+   *
+   * The route view: every routed traveller whose route uses one of the lanes
+   * in `mask` adds their road space to every lane of their whole route in
+   * `perLane`, and is tallied by what they are travelling for and whether
+   * they started or will stop within `localMetres` of (`x`, `z`). Only
+   * the routed sample is seen, and it is scaled up the same way the loads are.
+   */
+  through(mask: Uint8Array, perLane: Float32Array, x: number, z: number,
+    localMetres: number): RouteReading {
+    const c = this.people.citizens.col;
+    const col = this.places.col;
+    const store = this.router.paths;
+    const out: RouteReading = { travellers: 0, local: 0, byDoing: [0, 0, 0, 0, 0, 0, 0], byMode: [0, 0, 0, 0] };
+    perLane.fill(0);
+    const near = localMetres * localMetres;
+    const w = this.sampleWeight;
+    for (let i = 0; i < this.inFlight.size; i++) {
+      const id = this.inFlight.member(i);
+      const route = c.held[id];
+      if (route === NO_PATH) continue;
+      const n = store.length(route);
+      let hit = false;
+      for (let k = 0; k < n; k++) {
+        const lane = store.at(route, k);
+        if (lane >= 0 && lane < mask.length && mask[lane] === 1) { hit = true; break; }
+      }
+      if (!hit) continue;
+      const space = ROAD_SPACE[c.mode[id]];
+      for (let k = 0; k < n; k++) {
+        const lane = store.at(route, k);
+        if (lane >= 0 && lane < perLane.length) perLane[lane] += space * w;
+      }
+      out.travellers += w;
+      out.byMode[c.mode[id]] += w;
+      out.byDoing[this.doingFor(id)] += w;
+      const from = c.where[id], to = c.target[id];
+      const fromNear = from !== NONE && (col.x[from] - x) ** 2 + (col.z[from] - z) ** 2 < near;
+      const toNear = to !== NONE && (col.x[to] - x) ** 2 + (col.z[to] - z) ** 2 < near;
+      if (fromNear || toNear) out.local += w;
+    }
+    return out;
   }
 
   /** Rewrites every lane's load after the sample weight changed. */

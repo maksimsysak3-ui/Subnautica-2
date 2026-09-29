@@ -97,6 +97,8 @@ export const PLEDGES: readonly Pledge[] = [
     appeal: (c) => 0.04 + c.industry * 0.55 },
   { id: 'freeTransit', name: 'Free buses', pitch: 'No fare on any line',
     appeal: (c) => 0.06 + c.transport * 2.5 + (1 - c.flowing) * 0.35 },
+  { id: 'cycleNetwork', name: 'Cycle lanes', pitch: 'A safe ride to every school and job',
+    appeal: (c) => 0.04 + (1 - c.flowing) * 0.2 },
   { id: 'parking', name: 'Parking charges', pitch: 'Make drivers pay their way',
     appeal: (c) => (1 - c.flowing) * 0.3 - 0.12 },
   { id: 'businessRelief', name: 'High street relief', pitch: 'Rates relief for shops',
@@ -124,7 +126,7 @@ export interface Party {
 }
 
 export const PARTIES: readonly Party[] = [
-  { name: 'Green Streets', colour: '#5cc98a', leans: ['greenCorridors', 'smokeControl', 'freeTransit', 'recycling'],
+  { name: 'Green Streets', colour: '#5cc98a', leans: ['greenCorridors', 'smokeControl', 'cycleNetwork', 'freeTransit', 'recycling'],
     slogan: 'A city you can breathe in' },
   { name: 'Prosper', colour: '#f2b544', leans: ['taxCut', 'businessRelief', 'parking', 'metering'],
     slogan: 'Keep more of what you earn' },
