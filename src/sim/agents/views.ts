@@ -569,6 +569,56 @@ export class Views {
   }
 
   /**
+   * The junction the traffic is worst at, and what to try there.
+   *
+   * The map says where the red is; this says which junction it is queuing for
+   * and how that junction is run, which is the thing the junction tool
+   * changes. The advice follows the flow model: lights starve the main road,
+   * a give-way starves the side road, and roundabout rules suit a busy,
+   * balanced crossing -- past that, the answer is more road.
+   */
+  private worstJunction(): Stat[] {
+    const s = this.src;
+    const pct = (x: number): string => `${Math.round(x * 100)}%`;
+    const line = (label: string, value: string, bar = -1, warn = false): Stat => ({ label, value, bar, warn, hero: false });
+    const g = s.lanes, j = s.junctions, load = s.routine.load;
+    const n = j.count;
+    const sum = new Float32Array(n), cnt = new Uint16Array(n);
+    const top = new Uint8Array(n);
+    for (let l = 0; l < g.count; l++) {
+      const to = g.to[l];
+      if (to >= 0 && to < n && g.rank[l] > top[to]) top[to] = g.rank[l];
+    }
+    const major = new Float32Array(n), minor = new Float32Array(n);
+    for (let l = 0; l < g.count; l++) {
+      const to = g.to[l];
+      if (to < 0 || to >= n) continue;
+      sum[to] += load[l]; cnt[to]++;
+      if (g.rank[l] >= top[to]) major[to] = Math.max(major[to], load[l]);
+      else minor[to] = Math.max(minor[to], load[l]);
+    }
+    let worst = -1, worstLoad = 0;
+    for (let i = 0; i < n; i++) {
+      if (j.armsAt(i) < 3 || cnt[i] === 0) continue;
+      const m = Math.max(major[i], minor[i]);
+      if (m > worstLoad) { worstLoad = m; worst = i; }
+    }
+    if (worst < 0 || worstLoad < 0.35) return [line('Most jammed junction', 'none worth fixing')];
+    const c = j.control[worst];
+    const how = c === Control.SIGNALS ? 'lights' : c === Control.ROUNDABOUT ? 'roundabout rules' : 'give way';
+    let tip: string;
+    if (c === Control.GIVE_WAY && minor[worst] > major[worst]) tip = 'side road waits: try traffic lights';
+    else if (c === Control.SIGNALS && major[worst] >= minor[worst] && minor[worst] < 0.5) tip = 'main road held at red: try give way';
+    else if (c === Control.SIGNALS) tip = 'try roundabout rules';
+    else if (worstLoad > 1) tip = 'needs a bigger road or a way round';
+    else tip = 'watch it as the city grows';
+    return [
+      line('Most jammed junction', `${pct(worstLoad)}, ${how}`, Math.min(1, worstLoad), worstLoad > 1),
+      line('Try there', tip),
+    ];
+  }
+
+  /**
    * Desirability: the one view that answers "why will nobody move here".
    *
    * Everything a household would notice, weighted the way the migration model
@@ -845,6 +895,7 @@ export class Views {
           line('Trips a day', Math.round(s.routine.stats.started
             / Math.max(1, s.people.population)).toLocaleString() + ' a person'),
           line('Average journey', `${s.routine.stats.meanMinutes.toFixed(0)} min`),
+          ...this.worstJunction(),
           line('Signals', signals.toLocaleString()),
           line('Give way', giveWay.toLocaleString()),
           line('Roundabouts', roundabouts.toLocaleString()),

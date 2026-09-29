@@ -23,6 +23,7 @@ const bundle = (await esbuild.build({
       `export { configureSim } from '${src}sim/config';`,
       `export { TICKS_PER_DAY } from '${src}sim/agents/calendar';`,
       `export { Control } from '${src}sim/agents/junctions';`,
+      `export { View } from '${src}sim/agents/views';`,
       `export { serialise, deserialise } from '${src}sim/save';`,
     ].join('\n'),
     resolveDir: src, loader: 'ts',
@@ -84,6 +85,13 @@ ok(round.cap > lights.cap, 'roundabout rules let more through than lights', `${l
 sim.setJunction(world.net, node, 0);
 ok(j.control[node] === M.Control.GIVE_WAY && Math.abs(approaches(node).cap - before.cap) < 1e-3,
   'and handed back to the rules it is what it was');
+
+// The traffic view names the worst junction and what to try there.
+sim.show(M.View.TRAFFIC);
+const rows = sim.viewStats;
+const worst = rows.find((r) => r.label === 'Most jammed junction');
+const tip = rows.find((r) => r.label === 'Try there');
+ok(worst !== undefined, 'the traffic view names the most jammed junction', worst ? `${worst.value}; ${tip?.value ?? ''}` : '');
 
 // Two arms: nothing to control.
 let two = -1;
