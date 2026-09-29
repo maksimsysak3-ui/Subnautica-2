@@ -258,7 +258,7 @@ export class LiveCity {
     private renderer: Renderer,
     private camera: Camera,
     private stats: Stats,
-    ui: HTMLElement,
+    private readonly ui: HTMLElement,
   ) {
     this.info = new InfoViews(ui, (view, meta) => this.onView(view, meta));
     this.bars = new DemandBars(ui);
@@ -1525,15 +1525,20 @@ export class LiveCity {
     // here rather than drawn by the renderer: a dozen icons that have to be
     // clickable are interface, and the artwork is the same artwork as the button
     // the player has to press to fix it.
-    this.thoughts.refresh(now, this.camera, this.camera.width, this.camera.height,
-      sim.complaints.list);
+    //
+    // In CSS pixels, which is what the markers are laid out in -- not the
+    // camera's viewport, which is the canvas in device pixels at whatever
+    // resolution the frame-rate governor has chosen. On a high-density screen,
+    // or once the governor turned the resolution down, every marker was
+    // scaled towards the top-left corner, away from the building it was for.
+    const cw = this.ui.clientWidth || window.innerWidth;
+    const ch = this.ui.clientHeight || window.innerHeight;
+    this.thoughts.refresh(now, this.camera, cw, ch, sim.complaints.list);
     // And the ones just put right: a face over each, and a cheer.
     this.cheers.add(sim.complaints.takeCheers(), this.camera, now);
-    this.cheers.update(now, this.camera, this.camera.width, this.camera.height);
-    this.incidents.refresh(now, this.camera, this.camera.width, this.camera.height,
-      sim.dispatch.incidents);
-    this.districtLabels.refresh(now, this.camera, this.camera.width, this.camera.height,
-      this.renderer.world.districts);
+    this.cheers.update(now, this.camera, cw, ch);
+    this.incidents.refresh(now, this.camera, cw, ch, sim.dispatch.incidents);
+    this.districtLabels.refresh(now, this.camera, cw, ch, this.renderer.world.districts);
 
     // The sliders follow the budget rather than owning it, so a loaded save shows
     // the rates it was saved with.
