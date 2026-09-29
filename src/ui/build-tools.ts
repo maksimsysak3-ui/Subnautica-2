@@ -123,6 +123,9 @@ type Tool =
   | { kind: 'district'; id: number }
   | { kind: 'land' };
 
+/** Most cells one fill will zone: a big city block several times over. */
+const FILL_CAP = 1600;
+
 /** Building actions Ctrl+Z can take back. */
 const UNDO_DEPTH = 40;
 
@@ -1707,6 +1710,54 @@ export class BuildTools {
   }
 
   /**
+   * Zones a whole block from one click: every unzoned cell the click can reach
+   * without crossing a road, within zoning reach of one, on land the city owns.
+   * Other zoning is left as it is. A block that is not closed by roads is
+   * filled along its streets up to a cap, and the player is told.
+   */
+  private fillZone(start: [number, number], code: number, zone: Zone, density: Density): void {
+    const world = this.renderer.world;
+    const g = world.grid;
+    const [sx, sz] = start;
+    if (world.net.has(sx, sz)) { this.say('click inside a block, not on the road'); return; }
+    if (!world.net.nearRoad(sx, sz)) { this.say('that ground is out of reach of any road — zoning has to touch a street'); return; }
+    const size = plotCells(g);
+    const owned = (x: number, z: number): boolean =>
+      world.land.owns(Math.floor(z / size) * PLOTS + Math.floor(x / size));
+    const seen = new Uint8Array(g * g);
+    const queue: number[] = [sz * g + sx];
+    seen[sz * g + sx] = 1;
+    const cells: number[] = [];
+    let capped = false, unowned = 0;
+    while (queue.length > 0) {
+      const k = queue.pop() as number;
+      const x = k % g, z = (k / g) | 0;
+      if (!owned(x, z)) { unowned++; continue; }
+      if (world.zones[k] === 0) cells.push(k);
+      if (cells.length >= FILL_CAP) { capped = true; break; }
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, nz = z + dz;
+        if (nx < 0 || nz < 0 || nx >= g || nz >= g) continue;
+        const nk = nz * g + nx;
+        if (seen[nk] !== 0) continue;
+        seen[nk] = 1;
+        if (world.net.has(nx, nz) || !world.net.nearRoad(nx, nz)) continue;
+        queue.push(nk);
+      }
+    }
+    if (cells.length === 0) {
+      this.say(unowned > 0 ? 'you do not own that land — buy it with the land tool' : 'that block is already zoned');
+      return;
+    }
+    if (!this.afford(cells.length * zonePrice(zone, density), `${cells.length} cells of ${zone}`)) return;
+    for (const k of cells) paint(world, k % g, (k / g) | 0, 1, 1, code);
+    brush();
+    this.say(`filled ${cells.length} cells of ${density} ${zone}`
+      + (capped ? ' — that block is open, so the fill stopped at a sensible size; close it with roads to fill the rest' : '')
+      + ' — building starts within a few seconds');
+  }
+
+  /**
    * Lays a grid of streets in one go: priced as a whole, refused as a whole,
    * and rebuilt once. Every corner of it has to be on land the city owns.
    */
@@ -1868,6 +1919,8 @@ export class BuildTools {
         this.say(`${t.zone} ${t.density} opens at level ${needs}, ${levelName(needs)}`);
         return;
       }
+      // A click rather than a drag fills the block it lands in.
+      if (a[0] === b[0] && a[1] === b[1]) { this.fillZone(a, zoneCode(t.zone, t.density, t.theme), t.zone, t.density); return; }
       // Clipped to the land the city owns, plot by plot, rather than refused
       // whole. A brush dragged along a street that runs over a plot boundary
       // used to do nothing at all and say so, which is the kind of refusal a
@@ -2113,7 +2166,7 @@ export class BuildTools {
     }
     if (t.kind === 'zone') {
       const style = t.theme === undefined ? '' : ` in the ${THEMES[t.theme].label} style`;
-      return `drag to zone ${t.density} ${t.zone}${style} `
+      return `drag to zone ${t.density} ${t.zone}${style}, or click inside a block to fill it `
         + (zonePrice(t.zone, t.density) > 0 ? `(${money(zonePrice(t.zone, t.density))} a cell)` : '(free)');
     }
     return 'drag to clear roads and zoning';
