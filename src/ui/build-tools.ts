@@ -123,6 +123,9 @@ type Tool =
   | { kind: 'district'; id: number }
   | { kind: 'land' };
 
+/** Cells from a placed building's edge a road may be and still serve it. */
+const FRONTAGE = 2;
+
 /** Most cells one fill will zone: a big city block several times over. */
 const FILL_CAP = 1600;
 
@@ -1328,6 +1331,29 @@ export class BuildTools {
     this.rebuild(this.box(bx0, bz0, bx1, bz1, 0));
   }
 
+  /**
+   * Whether a lot fits, and whether it has a road to front onto.
+   *
+   * A building with no street beside it gets no staff, no customers and no
+   * connection to the mains -- a power station placed in a field was paid for
+   * and did nothing, with nothing on screen to say why. So a road within two
+   * cells of its edge is a condition of placing it, and the preview says so.
+   */
+  private fitWithRoad(id: string, gx: number, gz: number): { w: number; d: number; why: string | null } {
+    const world = this.renderer.world;
+    const fit = lotFits(world, id, gx, gz, this.placeYaw, baseHeightAt);
+    if (fit.why !== null) return fit;
+    const g = world.grid;
+    for (let j = -FRONTAGE; j < fit.d + FRONTAGE; j++) {
+      for (let i = -FRONTAGE; i < fit.w + FRONTAGE; i++) {
+        if (i >= 0 && i < fit.w && j >= 0 && j < fit.d) continue;
+        const x = gx + i, z = gz + j;
+        if (x >= 0 && z >= 0 && x < g && z < g && world.net.has(x, z)) return fit;
+      }
+    }
+    return { ...fit, why: 'it needs a road beside it — build one first, or move it next to a street' };
+  }
+
   private dropLot(cell: [number, number]): void {
     const t = this.tool;
     if (t.kind !== 'place') return;
@@ -1335,7 +1361,7 @@ export class BuildTools {
     const [gx, gz] = this.lotOrigin(cell, t.proto);
     // Checked before it is paid for, so a refusal about the ground does not take
     // the money with it.
-    const fit = lotFits(world, t.proto.id, gx, gz, this.placeYaw, baseHeightAt);
+    const fit = this.fitWithRoad(t.proto.id, gx, gz);
     if (fit.why !== null) {
       this.say(`cannot place the ${t.proto.def.name.toLowerCase()}: ${fit.why}`);
       return;
@@ -1559,7 +1585,7 @@ export class BuildTools {
       const p = this.tool.proto;
       if (!this.yawManual) this.placeYaw = this.roadYaw(this.to, p);
       const [gx, gz] = this.lotOrigin(this.to, p);
-      const fit = lotFits(this.renderer.world, p.id, gx, gz, this.placeYaw, baseHeightAt);
+      const fit = this.fitWithRoad(p.id, gx, gz);
       const half = this.renderer.world.grid / 2;
       const x0 = (gx - half) * CELL, z0 = (gz - half) * CELL;
       const x1 = x0 + fit.w * CELL, z1 = z0 + fit.d * CELL;
