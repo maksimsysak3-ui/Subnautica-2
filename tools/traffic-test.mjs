@@ -342,7 +342,7 @@ section('driving');
   console.log(`  vehicles      ${st.driving.toLocaleString()} on the road now, `
     + `peak ${peak.toLocaleString()}, mean ${(sumDriving / samples).toFixed(0)}`);
   console.log(`  spawned       ${st.spawned.toLocaleString()}, `
-    + `refused ${st.refused.toLocaleString()} (no room or over budget)`);
+    + `parked at their destination ${st.parked}, abandoned ${st.abandoned}, refused ${st.refused.toLocaleString()} (no room or over budget)`);
   console.log(`  speed         ${st.meanSpeed.toFixed(1)} m/s mean `
     + `(${(st.meanSpeed * 3.6).toFixed(0)} kph), ${st.stopped} stopped right now`);
   console.log(`  waiting       worst ${st.worstWaitSeconds.toFixed(0)} s at a junction`);
@@ -366,6 +366,8 @@ section('driving');
   ok(conflicts === 0, 'no two conflicting movements were in a junction at once',
     `${conflicts}`);
   ok(st.meanSpeed > 2, 'traffic actually moves', `${st.meanSpeed.toFixed(2)} m/s`);
+  ok(st.parked > 0, 'and ambient cars get where they are going and park',
+    `${st.parked} parked of ${st.spawned} spawned`);
   ok(st.worstWaitSeconds < 240, 'nobody waited forever at a junction',
     `${st.worstWaitSeconds.toFixed(0)} s`);
   ok(st.stopped < st.driving * 0.8 || st.driving < 10,

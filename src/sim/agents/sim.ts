@@ -1060,6 +1060,15 @@ export class Simulation {
       if (aid.startsWith('spec.hq.') || aid.startsWith('spec.plant.')) yards.push(c.lane[id]);
     }
     this.traffic.freightFrom(Int32Array.from(yards));
+    // And everywhere else: every building on a road is somewhere a car on the
+    // screen can be going.
+    const dest: number[] = [];
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0) continue;
+      if (c.lane[id] < 0 || c.lane[id] >= this.lanes.count) continue;
+      dest.push(c.lane[id]);
+    }
+    this.traffic.destinationsAre(Int32Array.from(dest));
     this.shipping.plan(p);
     if (this.world !== undefined) {
       this.flights.plan(this.world);

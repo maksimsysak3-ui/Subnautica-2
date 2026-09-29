@@ -264,6 +264,15 @@ const RETIRE_PER_TICK = 3;
  */
 const RETIRE_GRACE = 20;
 
+/** Ticks an ambient vehicle stands at its destination before it has parked. */
+const PARK_TICKS = 6;
+
+/** Junctions a driver will pass looking for its destination before choosing another. */
+const LOST_HOPS = 40;
+
+/** Tries at finding a destination within reach of the camera before any will do. */
+const GOAL_TRIES = 8;
+
 /** Ticks stopped before a driver gives up: at the head of a queue, and anywhere. */
 const GIVE_UP_FRONT = 60 * TICK_HZ;
 const GIVE_UP_ANY = 120 * TICK_HZ;
@@ -332,6 +341,14 @@ const SCHEMA = {
    */
   route: Int32Array,
   step: Uint16Array,
+  /**
+   * Where an unrouted vehicle is heading: the link a building it is going to
+   * fronts, or -1. Steered for at every junction and taken off the road on
+   * arrival, so the traffic on screen is going somewhere rather than circling.
+   */
+  goal: Int32Array,
+  /** Junctions passed since the goal was set; a driver who is lost picks again. */
+  hops: Uint8Array,
   /** The queue on this lane: towards the front, and towards the back. */
   ahead: Int32Array,
   behind: Int32Array,
@@ -440,6 +457,8 @@ export interface TrafficStats {
   meanSpeed: number;
   /** Vehicles removed because they could go no further. */
   abandoned: number;
+  /** Ambient vehicles that reached where they were going and parked. */
+  parked: number;
 }
 
 export class Traffic {
@@ -475,7 +494,7 @@ export class Traffic {
 
   readonly stats: TrafficStats = {
     driving: 0, spawned: 0, finished: 0, refused: 0, stopped: 0, gaveUp: 0,
-    worstWaitSeconds: 0, changes: 0, hardBrakes: 0, meanSpeed: 0, abandoned: 0,
+    worstWaitSeconds: 0, changes: 0, hardBrakes: 0, meanSpeed: 0, abandoned: 0, parked: 0,
   };
 
   constructor(readonly g: LaneGraph, readonly junctions: Junctions,
@@ -552,6 +571,8 @@ export class Traffic {
     c.length[v] = len;
     c.route[v] = route;
     c.step[v] = step;
+    c.goal[v] = -1;
+    c.hops[v] = 0;
     c.stopped[v] = 0;
     c.inBox[v] = -1;
     c.cleared[v] = 0;
@@ -653,6 +674,13 @@ export class Traffic {
     for (let v = 0; v < bound; v++) {
       if (live[v] === 0) continue;
       // Finished, and nobody came for it. See `doneAt`.
+      if (c.doneAt[v] >= 0 && c.goal[v] >= 0 && c.route[v] < 0 && c.job[v] < 0
+        && tick - c.doneAt[v] > PARK_TICKS) {
+        // Pulled in where it was going.
+        this.despawn(v);
+        this.stats.parked++;
+        continue;
+      }
       if (c.doneAt[v] >= 0 && tick - c.doneAt[v] > RETIRE_GRACE) {
         this.despawn(v);
         this.stats.abandoned++;
@@ -1284,15 +1312,36 @@ export class Traffic {
       return want;
     }
     const start = g.edgeStart[lane], end = g.edgeEnd[lane];
-    if (end <= start) return -2;
     const link = g.link[lane];
+    // Heading somewhere: arrived when on the road the building is on, and
+    // otherwise each way on is weighed by whether it brings the goal closer.
+    let goal = c.goal[v];
+    if (goal >= 0 && goal * 2 >= g.linkStart.length) { goal = -1; c.goal[v] = -1; }
+    if (goal >= 0) {
+      if (link === goal) return -1;
+      if (++c.hops[v] > LOST_HOPS) { c.goal[v] = this.pickGoal(link); c.hops[v] = 0; goal = c.goal[v]; }
+    }
+    if (end <= start) return -2;
+    let gx = 0, gz = 0, dNow = 0;
+    if (goal >= 0) {
+      const gl = g.linkStart[goal * 2] < g.linkEnd[goal * 2] ? g.linkStart[goal * 2] : g.linkStart[goal * 2 + 1];
+      gx = (g.ax[gl] + g.bx[gl]) * 0.5; gz = (g.az[gl] + g.bz[gl]) * 0.5;
+      dNow = Math.hypot(g.bx[lane] - gx, g.bz[lane] - gz);
+    }
+    const weigh = (o: number): number => {
+      const a = this.appeal(o);
+      if (goal < 0) return a;
+      if (g.link[o] === goal) return a * 1000;
+      const d = Math.hypot(g.bx[o] - gx, g.bz[o] - gz);
+      return a * (d < dNow - 1 ? 8 : d < dNow + 25 ? 1 : 0.12);
+    };
     let total = 0;
     let candidates = 0;
     for (let e = start; e < end; e++) {
       const o = g.edgeTo[e];
       if ((g.use[o] & this.use) === 0) continue;
       if (g.link[o] === link) continue;                 // no turning back
-      total += this.appeal(o);
+      total += weigh(o);
       candidates++;
     }
     if (candidates === 0) {
@@ -1308,11 +1357,39 @@ export class Traffic {
       const o = g.edgeTo[e];
       if ((g.use[o] & this.use) === 0) continue;
       if (g.link[o] === link) continue;
-      pick -= this.appeal(o);
+      pick -= weigh(o);
       if (pick <= 0) return o;
     }
     return -2;
   }
+
+  /**
+   * A building's road to drive to, near where the player is looking: a link
+   * index, or -1 when the city has no buildings on its roads yet.
+   */
+  private pickGoal(notLink: number): number {
+    const n = this.destinations.length;
+    if (n === 0) return -1;
+    const g = this.g;
+    const far = (this.reach * 0.9) ** 2;
+    let fallback = -1;
+    for (let t = 0; t < GOAL_TRIES; t++) {
+      const lane = this.destinations[(this.rng.next() * n) | 0];
+      if (lane < 0 || lane >= g.count) continue;
+      const link = g.link[lane];
+      if (link === notLink) continue;
+      fallback = link;
+      const dx = g.ax[lane] - this.focusX, dz = g.az[lane] - this.focusZ;
+      if (dx * dx + dz * dz < far) return link;
+    }
+    return fallback;
+  }
+
+  /** Every building's road, for the ambient traffic to be going to. */
+  private destinations: Int32Array = new Int32Array(0);
+
+  /** Told by the simulation, on a slow beat: where the buildings are. */
+  destinationsAre(lanes: Int32Array): void { this.destinations = lanes; }
 
   /** How attractive a lane is to a wandering driver. */
   private appeal(lane: number): number {
@@ -1449,6 +1526,7 @@ export class Traffic {
       // is already carrying traffic instead of filling up from one end.
       const v = this.spawn(-1, this.drawKind(), this.drawDriver(), lane, -1, 0,
         this.rng.next() * this.g.length[lane]);
+      if (v >= 0) this.table.col.goal[v] = this.pickGoal(this.g.link[this.table.col.lane[v]]);
       if (v >= 0 && inView) this.table.col.speed[v] = 0;
     }
 
@@ -1465,7 +1543,8 @@ export class Traffic {
         if (lane < 0 || lane >= this.g.count) continue;
         const r = this.rng.next();
         const kind = r < 0.42 ? Kind.LORRY : r < 0.78 ? Kind.EMERGENCY : Kind.BUS;
-        this.spawn(-1, kind, this.drawDriver(), lane, -1, 0, 1.5);
+        const v = this.spawn(-1, kind, this.drawDriver(), lane, -1, 0, 1.5);
+        if (v >= 0) this.table.col.goal[v] = this.pickGoal(this.g.link[lane]);
       }
     }
 
@@ -1473,7 +1552,10 @@ export class Traffic {
     const yards = this.freightLanes.length;
     if (yards > 0 && this.lorries() < yards * FREIGHT_PER_YARD) {
       const lane = this.freightLanes[(this.rng.next() * yards) | 0];
-      if (lane >= 0 && lane < this.g.count) this.spawn(-1, Kind.LORRY, this.drawDriver(), lane, -1, 0, 1.5);
+      if (lane >= 0 && lane < this.g.count) {
+        const v = this.spawn(-1, Kind.LORRY, this.drawDriver(), lane, -1, 0, 1.5);
+        if (v >= 0) this.table.col.goal[v] = this.pickGoal(this.g.link[lane]);
+      }
     }
   }
 
