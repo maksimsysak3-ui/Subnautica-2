@@ -4195,6 +4195,24 @@ fn nothing() -> VSOut {
   return out;
 }
 
+/** The ground map at a texel, clamped to the map. */
+fn groundAt(t : vec2i) -> vec4f {
+  let n = i32(grass.field.w);
+  return textureLoad(groundMap, clamp(t, vec2i(0), vec2i(n - 1)), 0);
+}
+
+/** The ground's height at a point in texels, bilinear between cell centres. */
+fn groundHeight(p : vec2f) -> f32 {
+  let q = p - vec2f(0.5);
+  let t = vec2i(floor(q));
+  let f = q - floor(q);
+  let a = groundAt(t).x;
+  let b = groundAt(t + vec2i(1, 0)).x;
+  let c = groundAt(t + vec2i(0, 1)).x;
+  let d = groundAt(t + vec2i(1, 1)).x;
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 @vertex
 fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSOut {
   let side = u32(grass.form.w + 0.5);
@@ -4229,6 +4247,19 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
   let ground = textureLoad(groundMap, texel, 0);
   let open = ground.y;
   if (open < 0.25) { return nothing(); }
+  // A clean verge: no blade in the half of a cell that borders a road or a
+  // pavement. Per whole cell, grass grew right up to -- and, where a road
+  // only clips a cell, onto -- the carriageway's edge.
+  let inCell = uv * grass.field.w - vec2f(texel);
+  if ((inCell.x < 0.5 && groundAt(texel + vec2i(-1, 0)).y < 0.25)
+    || (inCell.x > 0.5 && groundAt(texel + vec2i(1, 0)).y < 0.25)
+    || (inCell.y < 0.5 && groundAt(texel + vec2i(0, -1)).y < 0.25)
+    || (inCell.y > 0.5 && groundAt(texel + vec2i(0, 1)).y < 0.25)) { return nothing(); }
+  // Rooted on the ground as it slopes, between the cell centres the map was
+  // sampled at, rather than at one height for the whole eight metres: on a
+  // hillside or a graded verge the flat root stood blades in the air on one
+  // side of a cell and buried the road's edge in them on the other.
+  let root = groundHeight(uv * grass.field.w);
 
   // Thinned with distance rather than cut off: the far half of the field keeps
   // a fraction of its blades, which is what stops the edge being a line.
@@ -4266,12 +4297,12 @@ fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSO
 
   // Nothing grows on the beach or under the sea. The seabed near the shore is
   // shallow enough for a blade to poke up through the water as a dark stub.
-  if (seaMap() && ground.x < -1.4) { return nothing(); }
+  if (seaMap() && root < -1.4) { return nothing(); }
 
   var out : VSOut;
   let world = vec3f(
     at.x + across.x * width * right * select(1.0, 0.0, seg == BLADE_VERTS - 1u) + bend.x,
-    ground.x + stepUp * tall,
+    root + stepUp * tall,
     at.y + across.y * width * right * select(1.0, 0.0, seg == BLADE_VERTS - 1u) + bend.y,
   );
   out.world = world;
@@ -5877,4 +5908,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,ts={"common.wgsl":Cs,"atmosphere.wgsl":Ds,"noise.wgsl":Ms,"overlay.wgsl":Is};function JQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>ts[U]??A)}const qs={asset:JQ(Us),cull:JQ(cs),terrain:JQ(os),sky:JQ(Fs),grass:JQ(Ys),road:JQ(ss),water:JQ(as),rain:JQ(Rs),dots:JQ(es),mains:JQ(is),post:JQ(ns)};export{Os as $,OD as A,TD as B,rs as C,fD as D,hs as E,$A as F,Ig as G,ps as H,js as I,R as J,E as K,ew as L,V0 as M,xE as N,Ss as O,EC as P,Js as Q,Ls as R,qs as S,QB as T,bs as U,og as V,JF as W,hB as X,yY as Y,fs as Z,Ks as _,ig as a,Ts as a0,XY as a1,ls as a2,GY as a3,kY as a4,LY as a5,TY as a6,SY as a7,$C as a8,CY as a9,bY as aa,MY as ab,QC as ac,QD as ad,AD as ae,ED as af,gD as ag,QY as ah,BY as ai,EY as aj,wY as ak,gY as al,iY as am,nY as an,eY as ao,tY as ap,dY as aq,oD as ar,YD as as,mE as at,Xs as au,xY as av,gC as aw,gs as ax,iE as b,Eg as c,uY as d,Ps as e,ms as f,Zs as g,vs as h,Ws as i,EE as j,ds as k,RQ as l,ks as m,ys as n,xs as o,qY as p,KQ as q,uC as r,zs as s,Hs as t,h0 as u,Gs as v,KF as w,Vs as x,Ns as y,us as z};
-//# sourceMappingURL=shaders-B2NGNu8p.js.map
+//# sourceMappingURL=shaders-vz87JTe1.js.map
