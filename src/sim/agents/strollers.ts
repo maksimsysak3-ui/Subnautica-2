@@ -25,6 +25,8 @@
 import type { LaneGraph } from './lanes';
 import { DRIVE_SIDE, Turn, Use } from './lanes';
 import { Rng } from './rand';
+import { LanePlanner, doorAlong } from './ambient-path';
+import type { Search } from './ambient-path';
 
 /** Metres a second on foot. The same figure the real walkers use. */
 const SPEED = 1.35;
@@ -44,6 +46,15 @@ const MAX_STROLLERS = 1600;
 /** How many may be created or retired in one visit, so a crowd fades in. */
 const CHURN = 24;
 
+/** How far people walk to somewhere, at most, in a straight line. */
+const WALK_RANGE = 520;
+
+/** Route searches a visit may make; past it the rest go for a stroll. */
+const WALK_PLANS = 6;
+
+/** Tries at finding a door to walk to before settling for a stroll. */
+const DOOR_TRIES = 10;
+
 export class Strollers {
   /** Where each one is: a lane, and how far along it. */
   private readonly lane: Int32Array;
@@ -60,7 +71,25 @@ export class Strollers {
    * the drawing can walk them across the corner instead of snapping them there.
    */
   private readonly next: Int32Array;
+  /**
+   * The footways to the door they are walking to, and how far along the last
+   * one the door is; null for somebody out for a stroll.
+   */
+  private readonly plan: Array<Int32Array | null> = [];
+  private readonly step_: Int32Array;
+  private readonly stopAt: Float32Array;
   private live = 0;
+  private planner: LanePlanner;
+  private readonly walk: Search = {
+    use: Use.FOOT, top: SPEED, turns: false,
+    cost: (lane: number): number => this.g.length[lane] / SPEED,
+  };
+  /** Every building's footway and door. */
+  private doors: Int32Array = new Int32Array(0);
+  private doorX: Float32Array = new Float32Array(0);
+  private doorZ: Float32Array = new Float32Array(0);
+  /** People who reached the door they set out for, for the tests. */
+  arrived = 0;
 
   /** Where the player is looking, and how far out a figure is worth having. */
   focusX = 0;
@@ -78,15 +107,33 @@ export class Strollers {
     this.pace = new Float32Array(MAX_STROLLERS);
     this.side = new Int8Array(MAX_STROLLERS);
     this.next = new Int32Array(MAX_STROLLERS).fill(-1);
+    this.step_ = new Int32Array(MAX_STROLLERS);
+    this.stopAt = new Float32Array(MAX_STROLLERS);
+    for (let i = 0; i < MAX_STROLLERS; i++) this.plan.push(null);
+    this.planner = new LanePlanner(g);
   }
 
   /** The road network was rebuilt: everything on it is invalid. */
   rebind(g: LaneGraph): void {
     this.g = g;
+    this.planner.rebind(g);
+    this.plan.fill(null);
     this.live = 0;
     this.lane.fill(-1);
     this.nearCount = 0;
     this.gatheredAt = [Infinity, Infinity];
+  }
+
+  /** Told by the simulation, on a slow beat: every building's footway and door. */
+  doorsAre(lanes: Int32Array, x: Float32Array, z: Float32Array): void {
+    this.doors = lanes; this.doorX = x; this.doorZ = z;
+  }
+
+  /** How many are walking a planned route to a door, for the tests. */
+  get headed(): number {
+    let n = 0;
+    for (let i = 0; i < this.live; i++) if (this.plan[i] !== null) n++;
+    return n;
   }
 
   get count(): number { return this.live; }
@@ -109,6 +156,13 @@ export class Strollers {
       if (lane < 0 || lane >= g.count) { this.retire(i--); continue; }
       this.along[i] += SPEED * this.pace[i] * dt;
       const len = g.length[lane];
+      const plan = this.plan[i];
+      // At the door: in, and gone.
+      if (plan !== null && this.step_[i] >= plan.length - 1 && this.along[i] >= this.stopAt[i]) {
+        this.arrived++;
+        this.retire(i--);
+        continue;
+      }
       if (this.along[i] < len) continue;
       // Off the end: on to the arm chosen when they arrived, and pick the one
       // after it. The corner between the two was walked in the last metres of
@@ -117,7 +171,14 @@ export class Strollers {
       if (next < 0 || next >= g.count) { this.retire(i--); continue; }
       this.lane[i] = next;
       this.along[i] = Math.min(g.length[next] * 0.5, Math.max(0.5, g.startBack[next]));
-      this.next[i] = this.pick(next, this.side[i]);
+      if (plan !== null) {
+        const k = ++this.step_[i];
+        this.next[i] = k + 1 < plan.length ? plan[k + 1] : -1;
+        // Crossing to the other footway where the route turns across the road.
+        if (k + 1 < plan.length) this.side[i] = this.sideFor(next, plan[k + 1], this.side[i]);
+      } else {
+        this.next[i] = this.pick(next, this.side[i]);
+      }
     }
   }
 
@@ -156,7 +217,11 @@ export class Strollers {
       this.pace[i] = this.pace[last];
       this.side[i] = this.side[last];
       this.next[i] = this.next[last];
+      this.plan[i] = this.plan[last];
+      this.step_[i] = this.step_[last];
+      this.stopAt[i] = this.stopAt[last];
     }
+    this.plan[last] = null;
     this.lane[last] = -1;
     this.live = last;
   }
@@ -187,9 +252,12 @@ export class Strollers {
 
     const want = Math.min(MAX_STROLLERS, Math.round(nearby / PER_STROLLER));
     let room = Math.min(CHURN, want - this.live);
+    let searches = WALK_PLANS;
     while (room-- > 0 && this.live < MAX_STROLLERS) {
+      if (searches-- > 0 && this.headOut()) continue;
       const lane = this.lanesNear[(this.rng.next() * this.nearCount) | 0];
       const i = this.live++;
+      this.plan[i] = null;
       this.lane[i] = lane;
       this.along[i] = this.rng.next() * g.length[lane];
       // Nobody walks at exactly the same speed as the person in front.
@@ -197,6 +265,65 @@ export class Strollers {
       this.side[i] = this.rng.next() < 0.5 ? 1 : -1;
       this.next[i] = this.pick(lane, this.side[i]);
     }
+  }
+
+  /**
+   * Somebody leaving a building near the camera for another within walking
+   * distance, on the shortest way along the footways. False if there was
+   * nowhere to go, so the caller can send out a stroller instead.
+   */
+  private headOut(): boolean {
+    const n = this.doors.length, g = this.g;
+    if (n < 2) return false;
+    const r2 = this.reach * this.reach;
+    let from = -1;
+    for (let t = 0; t < DOOR_TRIES && from < 0; t++) {
+      const k = (this.rng.next() * n) | 0;
+      const l = this.doors[k];
+      if (l < 0 || l >= g.count) continue;
+      if ((this.doorX[k] - this.focusX) ** 2 + (this.doorZ[k] - this.focusZ) ** 2 < r2) from = k;
+    }
+    if (from < 0) return false;
+    let to = -1;
+    for (let t = 0; t < DOOR_TRIES && to < 0; t++) {
+      const k = (this.rng.next() * n) | 0;
+      const l = this.doors[k];
+      if (k === from || l < 0 || l >= g.count || g.link[l] === g.link[this.doors[from]]) continue;
+      if ((this.doorX[k] - this.doorX[from]) ** 2 + (this.doorZ[k] - this.doorZ[from]) ** 2 < WALK_RANGE ** 2) to = k;
+    }
+    if (to < 0) return false;
+    const start = this.doors[from];
+    const route = this.planner.plan(start, g.link[this.doors[to]], this.walk);
+    if (route === null || route.length === 0) return false;
+    const i = this.live++;
+    const end = route[route.length - 1];
+    this.lane[i] = start;
+    this.along[i] = doorAlong(g, start, this.doorX[from], this.doorZ[from]);
+    this.pace[i] = 0.78 + this.rng.next() * 0.44;
+    this.side[i] = 1;
+    this.plan[i] = route;
+    this.step_[i] = 0;
+    this.stopAt[i] = route.length === 1 ? Math.max(this.along[i] + 4, doorAlong(g, end, this.doorX[to], this.doorZ[to]))
+      : doorAlong(g, end, this.doorX[to], this.doorZ[to]);
+    this.next[i] = route.length > 1 ? route[1] : -1;
+    if (route.length > 1) this.side[i] = this.sideFor(start, route[1], 1);
+    return true;
+  }
+
+  /**
+   * Which footway to be on for a movement: stay on this side when the turn is
+   * towards it or straight on, and cross when it is away from it.
+   */
+  private sideFor(lane: number, to: number, side: number): number {
+    const g = this.g;
+    for (let e = g.edgeStart[lane]; e < g.edgeEnd[lane]; e++) {
+      if (g.edgeTo[e] !== to) continue;
+      const turn = g.edgeTurn[e];
+      if (turn === Turn.RIGHT) return DRIVE_SIDE;
+      if (turn === Turn.LEFT) return -DRIVE_SIDE;
+      return side;
+    }
+    return side;
   }
 
   /** The lanes people could be walking on, near the focus. */

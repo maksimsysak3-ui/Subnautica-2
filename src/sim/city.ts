@@ -1533,7 +1533,8 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
         const spec = ROAD_SPECS[f.cls];
         const footway = spec.edge - spec.half;
         const median = spec.median >= 2.2 && f.side === 1;
-        if (!spec.kerbed || f.cls === 'highway' || f.cls === 'motorway' || f.cls === 'slip') continue;
+        if (!spec.kerbed || f.cls === 'highway' || f.cls === 'motorway' || f.cls === 'slip'
+          || f.cls === 'expressway' || f.cls === 'superhighway') continue;
         if (footway < 2.0 && !median) continue;
         out.owner = owner;
         const pts = net.samples(net.links[f.link]);

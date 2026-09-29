@@ -1062,13 +1062,19 @@ export class Simulation {
     this.traffic.freightFrom(Int32Array.from(yards));
     // And everywhere else: every building on a road is somewhere a car on the
     // screen can be going.
-    const dest: number[] = [];
+    const dest: number[] = [], dx: number[] = [], dz: number[] = [];
+    const feet: number[] = [], fx: number[] = [], fz: number[] = [];
     for (let id = 0; id < p.count; id++) {
       if (p.live[id] === 0) continue;
-      if (c.lane[id] < 0 || c.lane[id] >= this.lanes.count) continue;
-      dest.push(c.lane[id]);
+      if (c.lane[id] >= 0 && c.lane[id] < this.lanes.count) {
+        dest.push(c.lane[id]); dx.push(c.x[id]); dz.push(c.z[id]);
+      }
+      if (c.foot[id] >= 0 && c.foot[id] < this.lanes.count) {
+        feet.push(c.foot[id]); fx.push(c.x[id]); fz.push(c.z[id]);
+      }
     }
-    this.traffic.destinationsAre(Int32Array.from(dest));
+    this.traffic.destinationsAre(Int32Array.from(dest), Float32Array.from(dx), Float32Array.from(dz));
+    this.strollers.doorsAre(Int32Array.from(feet), Float32Array.from(fx), Float32Array.from(fz));
     this.shipping.plan(p);
     if (this.world !== undefined) {
       this.flights.plan(this.world);

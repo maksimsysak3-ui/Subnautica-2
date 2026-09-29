@@ -140,8 +140,8 @@ const JUNCTION_REACH = 16;
  * and what the work costs. Signals are the dear one; paint and a sign are not.
  */
 /** Roads a motorway will take at a junction: its own kind, and the ones that feed it. */
-const MOTORWAY_ACCESS: ReadonlySet<RoadClass> = new Set<RoadClass>(['motorway', 'slip', 'highway', 'dual']);
-const MOTORWAYS: ReadonlySet<RoadClass> = new Set<RoadClass>(['motorway']);
+const MOTORWAYS: ReadonlySet<RoadClass> = new Set<RoadClass>(['motorway', 'expressway', 'superhighway']);
+const MOTORWAY_ACCESS: ReadonlySet<RoadClass> = new Set<RoadClass>([...MOTORWAYS, 'slip', 'highway', 'dual']);
 
 /** The tabs of the road drawer. */
 type RoadMode = 'road' | 'curve' | 'grid' | 'upgrade' | 'junction' | 'interchange';
@@ -2367,7 +2367,7 @@ export class BuildTools {
       return `drag to lay a ${spec.label}${up > 0 ? ` viaduct ${up} m up` : ''} `
         + `(${money(this.roadCost(t.cls))}/m, ${limitKph(t.cls)} km/h, `
         + `${spec.lanes} lane${spec.lanes === 1 ? '' : 's'}${spec.oneWay ? ' one way' : ' each way'}) — `
-        + (t.cls === 'motorway' ? 'joined only by slip roads or interchanges; ' : '')
+        + (MOTORWAYS.has(t.cls) ? 'joined only by slip roads or interchanges; ' : '')
         + (up > 0 ? 'crosses over roads below; PgUp/PgDn height'
           : 'drag for a straight road, snapped square near the axes; it crosses and joins what is there; the curve tool bends');
     }
@@ -3179,7 +3179,7 @@ export class BuildTools {
       const lanes = spec.oneWay ? spec.lanes : spec.lanes * 2;
       const up = this.roadMode === 'upgrade';
       panel.appendChild(this.tile(null, spec.label,
-        `${lanes} lane${lanes === 1 ? '' : 's'}`, up ? roadPrice(cls) : this.roadCost(cls), accent,
+        `${lanes} lane${lanes === 1 ? '' : 's'} · ${limitKph(cls)} km/h`, up ? roadPrice(cls) : this.roadCost(cls), accent,
         up ? `Convert what you drag over to a ${spec.label.toLowerCase()}`
           : `${spec.label} — ${Math.round(spec.edge * 2)} m of corridor`,
         () => this.select({ kind: this.roadMode as 'road' | 'curve' | 'grid' | 'upgrade', cls }),

@@ -183,8 +183,8 @@ export class Menu {
     card.appendChild(head);
     const items: Array<[string, string]> = [
       ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
-      ['Motorway rules', 'Motorways are joined only by slip roads, bridges or interchanges. Every road shows its speed limit and lanes.'],
-      ['Traffic that goes somewhere', 'Cars, vans and lorries drive to real buildings and park when they arrive.'],
+      ['Highways', 'New Expressway (2 lanes each way, 100 km/h) and Superhighway (4 lanes, 120 km/h). Every painted lane now carries traffic, and cars use them all. Motorways are joined only by slip roads, bridges or interchanges.'],
+      ['Traffic that goes somewhere', 'Cars and people on the street find the shortest way to a real building and disappear inside when they arrive.'],
       ['Route view', 'With Traffic open, click a road: every road its drivers use lights up, and the card says who they are and what would help.'],
       ['Cycle network', 'A new policy that puts people on bikes and takes cars off the road.'],
       ['Traffic management', 'Roads draw Junctions: run any junction on lights, give way or roundabout rules. It changes the flow, and the Traffic view names the worst junction and what to try.'],

@@ -38,7 +38,7 @@ export type RoadClass =
   | 'track' | 'lane' | 'alley' | 'path' | 'pedestrian'
   | 'street' | 'cycleStreet' | 'oneway' | 'onewayWide' | 'bus' | 'promenade'
   | 'avenue' | 'boulevard' | 'tram' | 'tramStreet'
-  | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway';
+  | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway' | 'expressway' | 'superhighway';
 
 /**
  * What the carriageway is made of.
@@ -202,6 +202,17 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     oneWay: false, tram: false, lamp: 42, kerbed: false,
     surface: 'tarmac', cycle: 0,
   },
+  // Access-controlled, like the motorway: joined only by slip roads.
+  expressway: {
+    label: 'Expressway', half: 8.6, edge: 13.0, lanes: 2, median: 1.6,
+    oneWay: false, tram: false, lamp: 42, kerbed: false,
+    surface: 'tarmac', cycle: 0,
+  },
+  superhighway: {
+    label: 'Superhighway', half: 16.4, edge: 22.0, lanes: 4, median: 2.4,
+    oneWay: false, tram: false, lamp: 44, kerbed: false,
+    surface: 'tarmac', cycle: 0,
+  },
 };
 
 /**
@@ -232,7 +243,7 @@ export const ROAD_IDS: RoadClass[] = [
   'boulevard', 'tramStreet', 'industrial', 'highway', 'slip',
   // Appended, never inserted: a save stores the index into this array, so a
   // class added anywhere but the end renames every road in every old file.
-  'onewayWide',
+  'onewayWide', 'expressway', 'superhighway',
 ];
 
 /**
@@ -243,7 +254,7 @@ export const ROAD_ORDER: RoadClass[] = [
   'path', 'track', 'alley', 'pedestrian', 'lane',
   'street', 'cycleStreet', 'oneway', 'onewayWide', 'promenade', 'bus',
   'avenue', 'boulevard', 'tramStreet', 'tram',
-  'industrial', 'highway', 'dual', 'slip', 'motorway',
+  'industrial', 'highway', 'dual', 'slip', 'expressway', 'motorway', 'superhighway',
 ];
 
 export interface RoadNode {

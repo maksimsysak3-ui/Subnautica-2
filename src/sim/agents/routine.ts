@@ -385,7 +385,7 @@ export class Routine {
       // every nine metres is a car park, and measuring against it meant a road
       // carrying everything it could still read as a third full, so nothing
       // ever congested. What 100 per cent means is `CAPACITY_METRES`.
-      this.capacity[l] = Math.max(1, lanes.length[l] / CAPACITY_METRES);
+      this.capacity[l] = Math.max(1, (lanes.length[l] / CAPACITY_METRES) * lanes.wide[l]);
     }
     this.sink = {
       name: 'citizens',
@@ -1019,7 +1019,7 @@ export class Routine {
   junctionsChanged(j: { approach(lane: number): number }): void {
     const lanes = this.lanes;
     for (let l = 0; l < lanes.count && l < this.capacity.length; l++) {
-      this.capacity[l] = Math.max(1, (lanes.length[l] / CAPACITY_METRES) * j.approach(l));
+      this.capacity[l] = Math.max(1, (lanes.length[l] / CAPACITY_METRES) * lanes.wide[l] * j.approach(l));
     }
     this.publish();
   }

@@ -163,6 +163,13 @@ export interface LaneGraph {
    * which is both how people actually drive and how the search stays small.
    */
   rank: Uint8Array;
+  /**
+   * Painted lanes this routing lane stands for. The router distinguishes at
+   * most two per direction (see `routeLanes`); a four-lane carriageway's two
+   * routing lanes each carry two lanes' worth of traffic, and are drawn
+   * spread across them.
+   */
+  wide: Float32Array;
   /** Metres. */
   length: Float32Array;
   /** Metres a second. */
@@ -287,7 +294,7 @@ function admits(cls: RoadClass): number {
   const spec = ROAD_SPECS[cls];
   if (cls === 'path') return Use.BIKE | Use.FOOT;
   if (cls === 'pedestrian' || cls === 'promenade') return Use.FOOT | Use.BIKE | Use.EMERGENCY;
-  if (cls === 'motorway' || cls === 'slip') return ROAD_USE;   // no pedestrians
+  if (cls === 'motorway' || cls === 'slip' || cls === 'expressway' || cls === 'superhighway') return ROAD_USE;   // no pedestrians
   let use = ROAD_USE | Use.BIKE | Use.FOOT;
   if (spec.tram) use |= Use.TRAM;
   return use;
@@ -302,7 +309,8 @@ function admits(cls: RoadClass): number {
  */
 function rankOf(cls: RoadClass): number {
   switch (cls) {
-    case 'motorway': case 'dual': case 'highway': case 'slip': return 3;
+    case 'motorway': case 'dual': case 'highway': case 'slip':
+    case 'expressway': case 'superhighway': return 3;
     case 'avenue': case 'boulevard': case 'industrial': case 'tram': case 'bus': return 2;
     case 'street': case 'oneway': case 'cycleStreet': case 'tramStreet': case 'promenade':
       return 1;
@@ -322,6 +330,7 @@ function speedOf(cls: RoadClass): number {
     lane: 60, street: 50, cycleStreet: 30, oneway: 50, bus: 50,
     avenue: 60, boulevard: 60, tram: 50, tramStreet: 40,
     industrial: 50, highway: 90, dual: 90, slip: 70, motorway: 110,
+    expressway: 100, superhighway: 120,
   };
   return (kph[cls] ?? 50) / 3.6;
 }
@@ -370,7 +379,7 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
     count: 0,
     link: new Int32Array(count), dir: new Uint8Array(count),
     index: new Uint8Array(count), use: new Uint8Array(count),
-    rank: new Uint8Array(count),
+    rank: new Uint8Array(count), wide: new Float32Array(count),
     length: new Float32Array(count), speed: new Float32Array(count),
     free: new Float32Array(count),
     from: new Int32Array(count), to: new Int32Array(count),
@@ -427,6 +436,7 @@ export function buildLaneGraph(net: RoadGraph): LaneGraph {
       for (let k = 0; k < n; k++) {
         g.link[at] = i; g.dir[at] = d; g.index[at] = k; g.use[at] = use;
         g.rank[at] = rk;
+        g.wide[at] = Math.max(1, spec.lanes / n);
         g.length[at] = Math.max(total, 1);
         g.speed[at] = v;
         g.free[at] = Math.max(total, 1) / v;

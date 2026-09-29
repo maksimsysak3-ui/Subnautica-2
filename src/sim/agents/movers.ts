@@ -156,6 +156,12 @@ export class Movers {
     return [this.pt[0], this.pt[1]];
   }
 
+  /**
+   * Which of the painted lanes a routing lane stands for the vehicle being
+   * placed rides in, as a fraction: fixed per vehicle, so it keeps its lane.
+   */
+  private sub = 0;
+
   /** Scratch for `placeAlong`, so the frame loop allocates nothing. */
   private readonly pt = new Float32Array(4);
   private readonly pt2 = new Float32Array(4);
@@ -216,7 +222,13 @@ export class Movers {
     const from = lanes.linkStart[link * 2 + dir];
     const to = lanes.linkEnd[link * 2 + dir];
     const n = Math.max(1, to - from);
-    const across = (n - 0.5 - lanes.index[lane]) * LANE_METRES * DRIVE_SIDE;
+    // A wide carriageway's routing lanes each stand for several painted ones;
+    // the vehicle rides in the one its number picks, so traffic fills the road.
+    const painted = Math.max(n, Math.round(n * lanes.wide[lane]));
+    const k = lanes.index[lane];
+    const lo = Math.floor((k * painted) / n), hi = Math.floor(((k + 1) * painted) / n);
+    const p = lo + Math.min(hi - lo - 1, Math.floor(this.sub * (hi - lo)));
+    const across = (painted - 0.5 - p) * LANE_METRES * DRIVE_SIDE;
     const out = Math.max(0.5, lanes.stopBack[lane]);
     const into = Math.max(0.5, lanes.startBack[lane]);
     const t = Math.max(0, Math.min(1,
@@ -320,6 +332,7 @@ export class Movers {
       // What is left of the last lane change, unwound the same way the model
       // unwinds it -- so the car is drawn pulling across rather than arriving.
       const shift = c.shift[v];
+      this.sub = ((Math.imul(v + 1, 0x9e3779b1) >>> 0) % 1024) / 1024;
       const here = this.placeOn(lanes, lane, at,
         c.next[v], paths, c.route[v], c.step[v], shift);
       // The point it is steering towards, a metre or so on. Its share of the
