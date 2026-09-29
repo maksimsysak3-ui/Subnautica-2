@@ -39,6 +39,7 @@ import { services, signatures, ASSET_INDEX, stock } from '../sim';
 import { assetById } from '../assets/registry';
 
 import type { RoadClass, Proto } from '../sim';
+import { RoadGraph, ROAD_ORDER as ROAD_IDS } from '../sim';
 import { ROAD_SPECS, ROAD_ORDER, ELEVATIONS } from '../sim';
 import { ZONE_STYLE } from './zones';
 import { SKIN, css, key as keyStyle, setKey, tip } from './skin';
@@ -121,6 +122,33 @@ type Tool =
   /** Painting a district, or erasing districts with id 0. */
   | { kind: 'district'; id: number }
   | { kind: 'land' };
+
+/** Building actions Ctrl+Z can take back. */
+const UNDO_DEPTH = 40;
+
+/** How the city stood before one building action. */
+interface Checkpoint {
+  label: string;
+  /** x, z, elevation per road node. */
+  nodes: number[];
+  /** a, b, control x, control z, class index per road. */
+  links: Array<[number, number, number, number, number]>;
+  zones: Uint8Array;
+  lots: Lot[];
+  land: [number, number];
+  mains: Uint8Array;
+  spent: number;
+  xp: number;
+  by: Record<string, number>;
+  level: number;
+  hqs: number;
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 
 /** How long after a click its second half still counts as a double-click. */
 const DOUBLE = 450;
@@ -223,6 +251,8 @@ export class BuildTools {
   private curveAt = 0;
   /** Which of the two road tools the class buttons select. */
   private roadMode: 'road' | 'curve' | 'grid' | 'upgrade' = 'road';
+  /** Building actions that can be taken back, oldest first. */
+  private readonly undoStack: Checkpoint[] = [];
   /**
    * How high new road is laid, as an index into ELEVATIONS: nought on the
    * ground. Kept across picks of the road tool, the way a height setting in
@@ -456,11 +486,15 @@ export class BuildTools {
     const cell = this.pick(e.clientX, e.clientY);
     if (!cell) return;
     e.stopPropagation();
-    if (this.tool.kind === 'land') { this.buyLand(cell); return; }
-    if (this.tool.kind === 'curve') { this.curveClick(cell); return; }
+    if (this.tool.kind === 'land') { this.recorded('the land purchase', () => this.buyLand(cell)); return; }
+    if (this.tool.kind === 'curve') { this.recorded('the road', () => this.curveClick(cell)); return; }
     if (this.tool.kind === 'transit') { this.transitClick(cell); return; }
     if (this.tool.kind === 'area') { this.areaClick(cell); return; }
-    if (this.tool.kind === 'place') { this.dropLot(cell); return; }
+    if (this.tool.kind === 'place') {
+      const p = this.tool.proto;
+      this.recorded(`the ${p.def.name.toLowerCase()}`, () => this.dropLot(cell));
+      return;
+    }
     this.from = cell;
     this.to = cell;
     this.path = [cell];
@@ -625,7 +659,9 @@ export class BuildTools {
     const from = this.from;
     this.from = null;
     this.renderer.setRoadPreview(null);
-    this.commit(from, this.to);
+    const what = this.tool.kind === 'zone' ? 'the zoning' : this.tool.kind === 'clear' ? 'the bulldozing'
+      : this.tool.kind === 'grid' ? 'the grid' : this.tool.kind === 'upgrade' ? 'the road upgrade' : 'the road';
+    this.recorded(what, () => this.commit(from, this.to));
     this.showMark();
   };
 
@@ -641,6 +677,11 @@ export class BuildTools {
     // row picks a speed outright. Neither fires while something is being typed
     // into -- the save panel takes a city name, and a space in it is a space.
     const typing = (e.target as HTMLElement | null)?.tagName === 'INPUT';
+    if (!typing && (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      this.undo();
+      return;
+    }
     if (!typing && e.key === ' ' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       this.togglePause();
@@ -2328,6 +2369,13 @@ export class BuildTools {
     const keep = group();
     {
       const b = document.createElement('button');
+      tip(b, 'Undo the last thing you built, and get its money back', 'Ctrl+Z');
+      chip(b, '#9fc4ff', glyph('undo'));
+      b.addEventListener('click', () => this.undo());
+      keep.appendChild(b);
+    }
+    {
+      const b = document.createElement('button');
       tip(b, 'Save this city to this browser', 'Ctrl+S');
       chip(b, '#8fe0a8', glyph('save'));
       b.addEventListener('click', () => this.save());
@@ -3059,6 +3107,91 @@ export class BuildTools {
     this.rebuild({ gx: x0 - 2, gz: z0 - 2, w: x1 - x0 + 4, d: z1 - z0 + 4 });
     this.say(`the ${def.name.toLowerCase()} is ${tier === 1 ? 'extended' : 'now a flagship'}`);
     return null;
+  }
+
+  /**
+   * Runs a building action and, if it changed the city, remembers how the
+   * city stood before it so Ctrl+Z can put it back. What is remembered is
+   * everything a tool can touch: the roads, the zoning, the placed buildings,
+   * the land, the pipes, what was spent and the experience it earned.
+   */
+  private recorded(label: string, act: () => void): void {
+    const before = this.checkpoint(label);
+    act();
+    const w = this.renderer.world;
+    // A new industry is more than a building -- it has a harvest area and a
+    // supply chain hung off it -- so placing one is not undone this way.
+    if (w.industry.hqs.length !== before.hqs) return;
+    const p = w.progress;
+    if (p.level !== before.level) {
+      // Its cash and stars are already in the city's hands. Nothing before a
+      // level can be undone, or a landmark placed and taken back would pay out
+      // the same level twice.
+      this.undoStack.length = 0;
+      return;
+    }
+    const changed = w.budget.spent !== before.spent || w.lots.length !== before.lots.length
+      || w.net.links.length !== before.links.length || w.net.nodes.length !== before.nodes.length / 3
+      || w.land.lo !== before.land[0] || w.land.hi !== before.land[1]
+      || w.net.links.some((l, i) => before.links[i] === undefined || before.links[i][4] !== ROAD_IDS.indexOf(l.cls))
+      || !sameBytes(w.zones, before.zones);
+    if (!changed) return;
+    this.undoStack.push(before);
+    if (this.undoStack.length > UNDO_DEPTH) this.undoStack.shift();
+  }
+
+  private checkpoint(label: string): Checkpoint {
+    const w = this.renderer.world;
+    const nodes: number[] = [];
+    for (const n of w.net.nodes) nodes.push(n.x, n.z, n.elev);
+    return {
+      label,
+      nodes,
+      links: w.net.links.map((l) => [l.a, l.b, l.cx, l.cz, ROAD_IDS.indexOf(l.cls)] as [number, number, number, number, number]),
+      zones: w.zones.slice(),
+      lots: w.lots.slice(),
+      land: [w.land.lo, w.land.hi],
+      mains: w.mains.bits.slice(),
+      spent: w.budget.spent,
+      xp: w.progress.xp,
+      by: { ...w.progress.bySource },
+      level: w.progress.level,
+      hqs: w.industry.hqs.length,
+    };
+  }
+
+  /** Puts the city back as it was before the last building action, and refunds it. */
+  undo(): void {
+    const c = this.undoStack.pop();
+    if (c === undefined) { deny(); this.say('nothing to undo'); return; }
+    const w = this.renderer.world;
+    const net = new RoadGraph(w.grid);
+    for (let i = 0; i < c.nodes.length; i += 3) net.restoreNode(c.nodes[i], c.nodes[i + 1], c.nodes[i + 2]);
+    for (const [a, b, cx, cz, cls] of c.links) net.restoreLink(a, b, cx, cz, ROAD_IDS[cls] ?? 'street');
+    net.buryOrphans();
+    net.version = w.net.version + 1;
+    net.rasterise();
+    w.net = net;
+    w.zones.set(c.zones);
+    w.painted++;
+    w.lots.length = 0;
+    w.lots.push(...c.lots);
+    w.land.lo = c.land[0]; w.land.hi = c.land[1];
+    if (!sameBytes(w.mains.bits, c.mains)) { w.mains.bits.set(c.mains); w.mains.rebuild(); }
+    // The money back as though it had never been spent, not as income.
+    const cost = Math.max(0, w.budget.spent - c.spent);
+    w.budget.balance += cost;
+    w.budget.spent -= cost;
+    const p = w.progress;
+    p.xp = Math.min(p.xp, c.xp);
+    Object.assign(p.bySource, c.by);
+    this.from = null;
+    this.renderer.setRoadPreview(null);
+    this.renderer.rebuild();
+    this.onProgress?.();
+    crunch();
+    this.say(`undid ${c.label}${cost > 0 ? ` — ${money(Math.round(cost))} back` : ''}`
+      + (this.undoStack.length > 0 ? ` (${this.undoStack.length} more to undo)` : ''));
   }
 
   /** Gives money back, for an edit that undoes a purchase. */

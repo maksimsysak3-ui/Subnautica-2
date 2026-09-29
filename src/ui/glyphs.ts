@@ -60,6 +60,7 @@ const PATHS: Record<string, string> = {
     + 'M5.5 20.5a1.5 1.5 0 1 0 0-.01M12 20.5a1.5 1.5 0 1 0 0-.01M5.5 19h6.5',
   save: 'M5.5 3.5h10.2l4.8 4.8v10.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2z'
     + 'M8 3.5v5h7v-5M7.5 20.5v-6h9v6',
+  undo: 'M9 7.5H4.5V3M4.8 7.2A8 8 0 1 1 4 12.5',
   develop: 'M12 2.8l2.7 5.7 6.2.8-4.5 4.3 1.1 6.2L12 16.8l-5.5 3 1.1-6.2-4.5-4.3 6.2-.8z',
   mods: 'M4 8h4.2a2 2 0 1 1 3.6 0H16v4.2a2 2 0 1 1 0 3.6V20H4v-4.2a2 2 0 1 0 0-3.6z',
   settings: 'M4 7h9M17.5 7H20M4 17h2.5M11 17h9M15.3 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'
@@ -115,7 +116,7 @@ export function hasGlyph(name: string): boolean {
  * Pictograms that are only lines: filling them would shade whatever the open
  * strokes happen to enclose.
  */
-const LINE_ONLY = new Set(['check', 'close', 'arrow', 'look', 'road', 'settings', 'clear', 'views', 'smog', 'fog', 'snow', 'reply', 'sun']);
+const LINE_ONLY = new Set(['undo', 'check', 'close', 'arrow', 'look', 'road', 'settings', 'clear', 'views', 'smog', 'fog', 'snow', 'reply', 'sun']);
 
 /**
  * One pictogram as inline SVG markup, drawn in the element's text colour.
