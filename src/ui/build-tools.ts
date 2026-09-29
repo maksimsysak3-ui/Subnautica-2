@@ -27,7 +27,7 @@ import { thud, brush, crunch, deny } from './sound';
 import type { Renderer } from '../gfx/renderer';
 import type { Camera } from '../gfx/camera';
 import type { Vec3 } from '../math/m4';
-import { heightAt, baseHeightAt, previewRoad } from '../sim';
+import { heightAt, baseHeightAt, previewRoad, waterAt } from '../sim';
 import { previewRoads } from '../sim/roadmesh';
 import { paint, demolish, zoneCode, lotFits, placeLot, ZONES, DENSITIES } from '../sim';
 import { nextWing, upgradeLot, wingOfLot, TIER_PRICE } from '../sim/world';
@@ -562,19 +562,46 @@ export class BuildTools {
    */
   private gridLines(a: [number, number], b: [number, number]):
     Array<[[number, number], [number, number]]> {
-    const stops = (p: number, q: number): number[] => {
-      const lo = Math.min(p, q), hi = Math.max(p, q);
-      const s = [lo];
-      for (let v = lo + GRID_BLOCK; v <= hi; v += GRID_BLOCK) s.push(v);
-      if (hi - s[s.length - 1] >= GRID_BLOCK / 2) s.push(hi);
-      return s;
-    };
-    const xs = stops(a[0], b[0]), zs = stops(a[1], b[1]);
+    const xs = this.gridStops(a[0], b[0]), zs = this.gridStops(a[1], b[1]);
     const x0 = xs[0], x1 = xs[xs.length - 1], z0 = zs[0], z1 = zs[zs.length - 1];
     const out: Array<[[number, number], [number, number]]> = [];
     if (x1 > x0) for (const z of zs) out.push([[x0, z], [x1, z]]);
     if (z1 > z0) for (const x of xs) out.push([[x, z0], [x, z1]]);
     return out;
+  }
+
+  /**
+   * The same grid as its block edges, lattice point to lattice point.
+   *
+   * Laid this way every junction is a shared end the graph snaps to exactly,
+   * rather than a crossing it has to find -- which it missed near a long
+   * road's ends, leaving streets lying across each other with no junction.
+   */
+  private gridEdges(a: [number, number], b: [number, number]):
+    Array<[[number, number], [number, number]]> {
+    const out: Array<[[number, number], [number, number]]> = [];
+    for (const [p, q] of this.gridLines(a, b)) {
+      const horizontal = p[1] === q[1];
+      const stops = horizontal ? this.gridStops(p[0], q[0]) : this.gridStops(p[1], q[1]);
+      for (let k = 0; k + 1 < stops.length; k++) {
+        out.push(horizontal ? [[stops[k], p[1]], [stops[k + 1], p[1]]] : [[p[0], stops[k]], [p[0], stops[k + 1]]]);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Where the streets fall along one side of a dragged grid: a block apart
+   * from the corner the drag started at, the far edge always a street, and a
+   * short last block folded into the one before rather than left as a sliver.
+   */
+  private gridStops(p: number, q: number): number[] {
+    const lo = Math.min(p, q), hi = Math.max(p, q);
+    const s = [lo];
+    for (let v = lo + GRID_BLOCK; v <= hi; v += GRID_BLOCK) s.push(v);
+    if (hi - s[s.length - 1] >= GRID_BLOCK / 2) s.push(hi);
+    else if (s.length > 1) s[s.length - 1] = hi;
+    return s;
   }
 
   private onUp = (e: PointerEvent): void => {
@@ -1531,14 +1558,16 @@ export class BuildTools {
     if (this.tool.kind === 'grid') {
       this.renderer.mark = null;
       if (this.from === null) { this.renderer.setRoadPreview(null); return; }
-      const lines = this.gridLines(a, this.to);
+      const plan = this.planGrid(a, this.to);
       const world = this.renderer.world;
       this.renderer.setRoadPreview(previewRoads(world.grid,
-        lines.map(([p, q]) => [...this.metres(p), ...this.metres(q)] as [number, number, number, number]),
+        plan.edges.map(([p, q]) => [...this.metres(p), ...this.metres(q)] as [number, number, number, number]),
         this.tool.cls, baseHeightAt));
-      const metres = lines.reduce((s, [p, q]) => s + Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL, 0);
-      this.say(`${lines.length} streets, ${(metres / 1000).toFixed(1)} km — `
-        + `${money(metres * this.roadCost(this.tool.cls))}`);
+      this.say(plan.edges.length === 0 ? 'drag further to lay a grid'
+        : `${plan.blocks} block${plan.blocks === 1 ? '' : 's'}, ${(plan.metres / 1000).toFixed(2)} km of new street — `
+        + `${money(plan.metres * this.roadCost(this.tool.cls))}`
+        + (plan.kept > 0 ? `, ${plan.kept} stretch${plan.kept === 1 ? '' : 'es'} already built` : '')
+        + (plan.unowned ? ' — runs onto land you do not own' : ''));
       return;
     }
     this.renderer.setRoadPreview(null);
@@ -1578,7 +1607,7 @@ export class BuildTools {
     // bend the road further than asked to leave a junction along its tangent,
     // and the preview's own one-link graph cannot know about that junction.
     const mid = world.net.midpointOf(ax, az, bx, bz, bend,
-      via === null ? null : this.metres(via));
+      via === null ? null : this.metres(via), t.kind === 'road');
     const free = ELEVATIONS[this.elevation];
     return previewRoad(world.grid, ax, az, bx, bz, t.cls, 0, baseHeightAt, mid,
       world.net.elevNear(ax, az, free), world.net.elevNear(bx, bz, free));
@@ -1622,8 +1651,10 @@ export class BuildTools {
       ? `${ROAD_SPECS[t.cls].label} viaduct` : ROAD_SPECS[t.cls].label;
     if (!this.afford(metres * this.roadCost(t.cls), label)) return false;
     this.clearUnder(a, b, via, bend);
+    // The straight tool lays a straight: it no longer inherits the heading of
+    // a dead end it starts from, which bent every road chained off another.
     world.net.add(ax, az, bx, bz, t.cls, bend, via === null ? null : this.metres(via),
-      ELEVATIONS[this.elevation]);
+      ELEVATIONS[this.elevation], t.kind === 'road');
     // The chord and the bend both, since a curve leaves the straight line
     // between its ends by as much as the player pulled it.
     const swing = Math.abs(bend) + 8;
@@ -1642,27 +1673,62 @@ export class BuildTools {
     const t = this.tool;
     if (t.kind !== 'grid') return;
     const world = this.renderer.world;
-    const lines = this.gridLines(a, b).filter(([p, q]) => Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL >= 12);
-    if (lines.length === 0) { this.say('drag further to lay a grid'); return; }
-    for (const [p, q] of lines) {
-      if (!ownsAt(world.land, world.grid, ...this.metres(p)) || !ownsAt(world.land, world.grid, ...this.metres(q))) {
-        this.say('the grid runs onto land you do not own — buy it with the land tool, or drag a smaller grid');
-        return;
-      }
+    const plan = this.planGrid(a, b);
+    if (plan.edges.length === 0) {
+      this.say(plan.kept > 0 ? 'every street of that grid is already built' : 'drag further to lay a grid');
+      return;
     }
-    const metres = lines.reduce((s, [p, q]) => s + Math.hypot(q[0] - p[0], q[1] - p[1]) * CELL, 0);
-    if (!this.afford(metres * this.roadCost(t.cls), `a grid of ${lines.length} ${ROAD_SPECS[t.cls].label.toLowerCase()}s`)) return;
+    if (plan.unowned) {
+      this.say('the grid runs onto land you do not own — buy it with the land tool, or drag a smaller grid');
+      return;
+    }
+    if (plan.water) {
+      this.say('the grid runs into water — drag it on dry land, or bridge the water with a single road');
+      return;
+    }
+    if (!this.afford(plan.metres * this.roadCost(t.cls),
+      `${plan.blocks} blocks of ${ROAD_SPECS[t.cls].label.toLowerCase()}`)) return;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-    for (const [p, q] of lines) {
+    for (const [p, q] of plan.edges) {
       this.clearUnder(p, q, null, 0);
       const [ax, az] = this.metres(p), [bx, bz] = this.metres(q);
-      world.net.add(ax, az, bx, bz, t.cls, 0, null, 0);
+      world.net.add(ax, az, bx, bz, t.cls, 0, null, 0, true);
       x0 = Math.min(x0, ax, bx); z0 = Math.min(z0, az, bz);
       x1 = Math.max(x1, ax, bx); z1 = Math.max(z1, az, bz);
     }
-    this.rebuild(this.box(x0 - 8, z0 - 8, x1 + 8, z1 + 8, 3));
+    this.rebuild(this.box(x0 - 16, z0 - 16, x1 + 16, z1 + 16, 3));
     thud();
-    this.say(`laid ${lines.length} streets, ${(metres / 1000).toFixed(1)} km`);
+    this.say(`laid ${plan.blocks} block${plan.blocks === 1 ? '' : 's'}, ${(plan.metres / 1000).toFixed(2)} km of street`
+      + (plan.kept > 0 ? `, joined to ${plan.kept} stretch${plan.kept === 1 ? '' : 'es'} already there` : ''));
+  }
+
+  /**
+   * What a dragged grid would build: its block edges less the ones a road
+   * already runs along, their length, how many blocks it closes, and whether
+   * any of it is on land the city does not own or out in the water.
+   */
+  private planGrid(a: [number, number], b: [number, number]): {
+    edges: Array<[[number, number], [number, number]]>; kept: number; metres: number;
+    blocks: number; unowned: boolean; water: boolean;
+  } {
+    const world = this.renderer.world;
+    const edges: Array<[[number, number], [number, number]]> = [];
+    let kept = 0, metres = 0, unowned = false, water = false;
+    for (const [p, q] of this.gridEdges(a, b)) {
+      const [ax, az] = this.metres(p), [bx, bz] = this.metres(q);
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 12) continue;
+      if (world.net.covered(ax, az, bx, bz)) { kept++; continue; }
+      edges.push([p, q]);
+      metres += len;
+      if (!ownsAt(world.land, world.grid, ax, az) || !ownsAt(world.land, world.grid, bx, bz)
+        || !ownsAt(world.land, world.grid, (ax + bx) / 2, (az + bz) / 2)) unowned = true;
+      for (let k = 0; k <= 4 && !water; k++) {
+        if (waterAt(ax + ((bx - ax) * k) / 4, az + ((bz - az) * k) / 4) !== null) water = true;
+      }
+    }
+    const xs = this.gridStops(a[0], b[0]).length - 1, zs = this.gridStops(a[1], b[1]).length - 1;
+    return { edges, kept, metres, blocks: Math.max(0, xs) * Math.max(0, zs), unowned, water };
   }
 
   /**

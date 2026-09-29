@@ -340,6 +340,9 @@ export function deserialise(text: string): { world: World; name: string; at: num
     const cls: RoadClass = ROAD_IDS[file.links[i + 4]] ?? ROAD_IDS[0];
     world.net.restoreLink(a, b, file.links[i + 2], file.links[i + 3], cls);
   }
+  // A junction nothing ends at was folded into another before the save; it
+  // is kept for its index, and must not be joined to again.
+  world.net.buryOrphans();
   world.net.rasterise();
   decodeZones(file.zones ?? [], world.zones);
   // The zoning changed under everything that watches it. See `World.painted`.

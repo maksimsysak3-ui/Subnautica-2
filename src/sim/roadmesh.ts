@@ -108,6 +108,13 @@ const KERB = 0.15;
  */
 const LIFT = 0.08;
 
+/**
+ * Metres past a road's edge the ground is held to the road's height: the
+ * diagonal of an eight-metre cell, so no cell the road crosses keeps a corner
+ * at the natural height for the terrain to rise through the road from.
+ */
+const GRADE_MARGIN = 11.5;
+
 export interface RoadMesh {
   /** Explicitly ArrayBuffer-backed: WebGPU's queue will not take a shared one. */
   vertices: Float32Array<ArrayBuffer>;
@@ -513,7 +520,16 @@ export function buildRoadMesh(graph: RoadGraph,
   const half = graph.grid / 2;
   /** Which entry of the current piece holds a corner, while it is being made. */
   let mark: Array<number | undefined> = [];
-  const hold = (x: number, z: number, reach: number, y: number): void => {
+  /**
+   * \`tx, tz\` and \`grade\` carry the road's heading and slope at the sample,
+   * so a corner a few metres along from it takes the road's height where the
+   * corner actually is. With the sample's own height, a corner between two
+   * samples five metres apart on a ten per cent grade stood half a metre off
+   * the road beside it -- and on the uphill side the ground came up through
+   * the carriageway.
+   */
+  const hold = (x: number, z: number, reach: number, y: number,
+    tx = 0, tz = 0, grade = 0, weight = 1, dryOnly = false): void => {
     // Squared throughout: this runs a few hundred thousand times on a full
     // map and the square roots were most of what the road mesh cost.
     const r2 = reach * reach;
@@ -527,9 +543,16 @@ export function buildRoadMesh(graph: RoadGraph,
       if (cz2 > r2) continue;
       for (let gx = gx0; gx <= gx1; gx++) {
         const cx = (gx - half) * 8 - x;
-        const d = cx * cx + cz2;
-        if (d > r2) continue;
+        const raw = cx * cx + cz2;
+        if (raw > r2) continue;
+        // Distance as the nearest-wins rule sees it: a junction's pad counts
+        // as nearer than the roads coming into it, which are sloping where the
+        // flat pad is not, and a corner by the pad taken by the uphill road
+        // stood above the pad's edge.
+        const d = raw * weight;
+        if (dryOnly && waterAt((gx - half) * 8, (gz - half) * 8) !== null) continue;
         const k = gz * stride + gx;
+        const yc = y + grade * (cx * tx + cz * tz);
         // Recorded on the piece and merged at the end, by the same rule: the
         // nearest road to a corner sets its height, and the first to claim it
         // at a given distance keeps it. Deduplicating within the piece and then
@@ -539,9 +562,9 @@ export function buildRoadMesh(graph: RoadGraph,
         if (seen === undefined || d < piece.pd[seen]) {
           if (seen === undefined) {
             mark[k] = piece.pk.length;
-            piece.pk.push(k); piece.pd.push(d); piece.py.push(y);
+            piece.pk.push(k); piece.pd.push(d); piece.py.push(yc);
           } else {
-            piece.pd[seen] = d; piece.py[seen] = y;
+            piece.pd[seen] = d; piece.py[seen] = yc;
           }
         }
       }
@@ -682,8 +705,20 @@ export function buildRoadMesh(graph: RoadGraph,
           // A ground road holds the ground to itself everywhere -- cut or
           // embankment -- except over water, where it is a bridge. A raised
           // one leaves the land alone once it is clear of it.
-          if (lifted ? yy - base(a.x, a.z) > OFF_GROUND : waterAt(a.x, a.z) !== null) continue;
-          hold(a.x, a.z, spec.edge + 5, yy);
+          if (lifted && yy - base(a.x, a.z) > OFF_GROUND) continue;
+          if (!lifted && waterAt(a.x, a.z) !== null) {
+            // A bridge: the river is left alone, but the banks beside the deck
+            // are held just under it. Unpinned, they were pulled up by the
+            // graded ground round about and came through the deck's edge.
+            hold(a.x, a.z, spec.edge + GRADE_MARGIN, yy - 0.4, 0, 0, 0, 4, true);
+            continue;
+          }
+          // Far enough to take every corner of every cell the road touches:
+          // a cell the road only clips kept its far corner at the natural
+          // height, and on a slope the ground between rose through the kerb.
+          const grade = (levelAt(Math.min(s0 + 1, total - cut1)) - levelAt(Math.max(s0 - 1, cut0)))
+            / Math.max(1e-3, Math.min(s0 + 1, total - cut1) - Math.max(s0 - 1, cut0));
+          hold(a.x, a.z, spec.edge + GRADE_MARGIN, yy, a.tx, a.tz, grade);
         }
       }
       // Street lighting, spaced along the arc and alternating sides.
@@ -988,7 +1023,7 @@ export function buildRoadMesh(graph: RoadGraph,
       buf.quad(ao, bo, bSkirt, aSkirt);
     }
 
-    hold(node.x, node.z, r + 4, y);
+    hold(node.x, node.z, r + GRADE_MARGIN, y, 0, 0, 0, 0.25);
   }
 
   roadPiecesMade = made;

@@ -43,6 +43,14 @@ for (const map of M.MAPS) {
   for (const [ax, az, bx, bz] of [[-300, -300, 400, -150], [400, -150, 500, 450], [-500, 200, 300, 350]]) {
     net.add(ax, az, bx, bz, 'street', 0, null, 0);
   }
+  // And a dragged grid, block edge by block edge, the way the grid tool lays one.
+  const B = 96, gx0 = -900, gz0 = 500;
+  for (let j = 0; j <= 3; j++) for (let i = 0; i < 4; i++) {
+    net.add(gx0 + i * B, gz0 + j * B, gx0 + (i + 1) * B, gz0 + j * B, 'street', 0, null, 0, true);
+  }
+  for (let i = 0; i <= 4; i++) for (let j = 0; j < 3; j++) {
+    net.add(gx0 + i * B, gz0 + j * B, gx0 + i * B, gz0 + (j + 1) * B, 'street', 0, null, 0, true);
+  }
   net.rasterise();
   M.makeCity(world);
   const mesh = M.buildRoadMesh(net, M.baseHeightAt);
@@ -56,7 +64,26 @@ for (const map of M.MAPS) {
     sum += Math.abs(gap); n++;
     if (Math.abs(gap) > 0.5) over++;
   }
-  const ok = n > 0 && worst < 1.0;
+  // Ground through the road: sampled inside every carriageway triangle, not
+  // just at its corners -- the terrain is its own mesh on an eight-metre grid,
+  // and between the road's vertices it can rise through the surface.
+  const I = mesh.indices;
+  let buried = 0, probes = 0, deepest = 0;
+  for (let k = 0; k < I.length; k += 3) {
+    const a = I[k] * F, b = I[k + 1] * F, c = I[k + 2] * F;
+    if (!MEASURED.has(v[a + 9]) || v[a + 13] > 0.5) continue;
+    for (const [wa, wb, wc] of [[1 / 3, 1 / 3, 1 / 3], [0.5, 0.5, 0], [0, 0.5, 0.5], [0.5, 0, 0.5]]) {
+      const x = v[a] * wa + v[b] * wb + v[c] * wc, z = v[a + 2] * wa + v[b + 2] * wb + v[c + 2] * wc;
+      if (M.waterAt(x, z) !== null) continue;
+      const y = v[a + 1] * wa + v[b + 1] * wb + v[c + 1] * wc;
+      const under = M.surfaceAt(x, z) - y;
+      probes++;
+      deepest = Math.max(deepest, under);
+      if (under > 0.05) buried++;
+    }
+  }
+  const ok = n > 0 && worst < 1.0 && buried / Math.max(1, probes) < 0.005;
+  console.log(`      ${map.id.padEnd(11)} ground through the road at ${buried}/${probes} points, deepest ${deepest.toFixed(2)} m`);
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${map.id.padEnd(11)} worst gap ${worst.toFixed(2)} m, `
     + `mean ${(sum / Math.max(1, n)).toFixed(2)} m, ${over}/${n} vertices over 0.5 m`);

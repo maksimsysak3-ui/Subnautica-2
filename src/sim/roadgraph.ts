@@ -257,6 +257,12 @@ export interface RoadNode {
   elev: number;
   /** Link indices that end here. Rebuilt whenever the graph changes. */
   arms: number[];
+  /**
+   * Folded into another junction. Left in the array so indices hold, but never
+   * snapped to again: a road joined to one was a second road lying beside the
+   * first, from the same place.
+   */
+  dead?: boolean;
 }
 
 export interface RoadLink {
@@ -339,6 +345,12 @@ const MAX_JUNCTION = (() => {
 })();
 /** A node this close to a link is on it, and splits it. */
 const TOUCH = 9;
+
+/**
+ * Metres from a road's end inside which crossing another road makes a T
+ * rather than a crossroads with a stub: the end is moved onto the other road.
+ */
+const TEE = 6;
 /** Curve sampling: never coarser than this along the arc. */
 const STEP = 2.4;
 
@@ -555,6 +567,7 @@ export class RoadGraph {
     let best = -1, bestD = 0;
     const far = MAX_JUNCTION * MAX_JUNCTION;
     for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].dead === true) continue;
       const dx = this.nodes[i].x - x, dz = this.nodes[i].z - z;
       const d2 = dx * dx + dz * dz;
       if (d2 > far) continue;            // cannot reach, whatever is built here
@@ -622,7 +635,7 @@ export class RoadGraph {
    * the same road continuing.
    */
   add(ax: number, az: number, bx: number, bz: number, cls: RoadClass, bend = 0,
-    through: [number, number] | null = null, elev = 0): void {
+    through: [number, number] | null = null, elev = 0, straight = false): void {
     if (Math.hypot(bx - ax, bz - az) < SNAP) return;
     // An end on something that exists takes that thing's height; only a free
     // end stands at the height asked for. That is the whole of how a player
@@ -630,14 +643,45 @@ export class RoadGraph {
     const a = this.nodeAt(ax, az, elev);
     const b = this.nodeAt(bx, bz, elev);
     if (a === b) return;
+    // Both ends snapped onto junctions a road already joins: that road is
+    // already here, and a second one would lie on top of it.
+    for (const l of this.links) {
+      if ((l.a === a && l.b === b) || (l.a === b && l.b === a)) return;
+    }
 
     const na = this.nodes[a], nb = this.nodes[b];
-    const [cx, cz] = this.control(na.x, na.z, nb.x, nb.z, bend, through, a, b);
+    const [cx, cz] = straight ? [(na.x + nb.x) / 2, (na.z + nb.z) / 2]
+      : this.control(na.x, na.z, nb.x, nb.z, bend, through, a, b);
 
     const link: RoadLink = { id: nextLinkId++, a, b, cx, cz, cls };
     this.links.push(link);
     this.crossAll(this.links.length - 1);
+    this.tidy();
     this.dirty = true;
+  }
+
+  /**
+   * Drops what joining can leave behind: a link folded to nothing when its two
+   * ends were merged, and a second link between two junctions already joined.
+   * Either would draw as a road lying on another.
+   */
+  private tidy(): void {
+    const seen = new Set<string>();
+    let cut = -1;
+    const keep: RoadLink[] = [];
+    for (let i = 0; i < this.links.length; i++) {
+      const l = this.links[i];
+      const key = l.a < l.b ? `${l.a},${l.b}` : `${l.b},${l.a}`;
+      if (l.a === l.b || seen.has(key)) { if (cut < 0) cut = i; continue; }
+      seen.add(key);
+      keep.push(l);
+    }
+    if (cut < 0) return;
+    this.links.length = 0;
+    this.links.push(...keep);
+    // The raster is kept by count: if anything it had already drawn moved
+    // down the list, it is redrawn rather than trusted.
+    if (cut < this.rastered) this.wiped = true;
   }
 
   /**
@@ -689,9 +733,10 @@ export class RoadGraph {
    * previewed straight and then committed as a curve.
    */
   midpointOf(ax: number, az: number, bx: number, bz: number,
-    bend = 0, through: [number, number] | null = null): [number, number] {
+    bend = 0, through: [number, number] | null = null, straight = false): [number, number] {
     const [sax, saz] = this.snapPoint(ax, az);
     const [sbx, sbz] = this.snapPoint(bx, bz);
+    if (straight) return [(sax + sbx) / 2, (saz + sbz) / 2];
     const [cx, cz] = this.control(sax, saz, sbx, sbz, bend, through,
       this.nodeNear(sax, saz), this.nodeNear(sbx, sbz));
     return [(sax + 2 * cx + sbx) / 4, (saz + 2 * cz + sbz) / 4];
@@ -700,6 +745,7 @@ export class RoadGraph {
   /** The node an exact point is, or -1 if it is not one. */
   private nodeNear(x: number, z: number): number {
     for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].dead === true) continue;
       if (Math.abs(this.nodes[i].x - x) < 1e-6 && Math.abs(this.nodes[i].z - z) < 1e-6) return i;
     }
     return -1;
@@ -715,6 +761,7 @@ export class RoadGraph {
   snapPoint(x: number, z: number): [number, number] {
     let best = -1, bestD = SNAP;
     for (let i = 0; i < this.nodes.length; i++) {
+      if (this.nodes[i].dead === true) continue;
       const d = Math.hypot(this.nodes[i].x - x, this.nodes[i].z - z);
       if (d < bestD) { bestD = d; best = i; }
     }
@@ -747,6 +794,13 @@ export class RoadGraph {
    */
   restoreNode(x: number, z: number, elev = 0): number {
     return this.addNode(x, z, elev);
+  }
+
+  /** Marks every junction no road ends at as folded away. For a loaded graph. */
+  buryOrphans(): void {
+    const used = new Uint8Array(this.nodes.length);
+    for (const l of this.links) { used[l.a] = 1; used[l.b] = 1; }
+    for (let i = 0; i < this.nodes.length; i++) if (used[i] === 0) this.nodes[i].dead = true;
   }
 
   /**
@@ -881,6 +935,19 @@ export class RoadGraph {
       const i = work.pop() as number;
       const cut = this.firstCrossing(i, candidates);
       if (cut === null) continue;
+      if (cut.tee !== undefined) {
+        // One road ends a few metres short of, or past, the other: a T. The
+        // other road is cut where they meet and the near end is moved onto it,
+        // rather than the two overlapping, or leaving a stub of road dangling
+        // across the kerb.
+        const [cutLink, t, end] = cut.tee;
+        const tail = this.links.length;
+        const mid = this.splitLink(cutLink, t);
+        this.mergeNodes(mid, end, true);
+        candidates.push(tail);
+        work.push(i, tail);
+        continue;
+      }
       const otherTail = this.links.length;
       const otherMid = this.splitLink(cut.other, cut.otherT);
       // splitLink pushes the tail, so this is where our own tail will land.
@@ -893,8 +960,9 @@ export class RoadGraph {
   }
 
   private firstCrossing(index: number, candidates: readonly number[]):
-  { other: number; selfT: number; otherT: number } | null {
+  { other: number; selfT: number; otherT: number; tee?: [number, number, number] } | null {
     const self = this.links[index];
+    const selfLen = this.length(self);
     // The shape polyline, not the dense one: it is exact for a straight, which
     // every link in a drawn grid is, and close enough on a curve that the
     // junction lands within a few centimetres of the true crossing.
@@ -914,9 +982,23 @@ export class RoadGraph {
           if (hit === null) continue;
           const selfT = (i + hit[0]) / (mine.length - 1);
           const otherT = (k + hit[1]) / (theirs.length - 1);
-          if (selfT < 0.02 || selfT > 0.98 || otherT < 0.02 || otherT > 0.98) continue;
           // One over the other is a bridge, not a junction.
           if (Math.abs(this.elevAt(self, selfT) - this.elevAt(link, otherT)) >= CLEARANCE) continue;
+          // Judged in metres, not as a share of each road's length: two per
+          // cent of a kilometre-long road is twenty metres, and a road crossing
+          // that close to the other's end used to be left crossing it with no
+          // junction at all.
+          const otherLen = this.length(link);
+          const selfEnd = Math.min(selfT, 1 - selfT) * selfLen;
+          const otherEnd = Math.min(otherT, 1 - otherT) * otherLen;
+          if (selfEnd < 0.5 && otherEnd < 0.5) continue;     // end to end: nodeAt's job
+          if (selfEnd < TEE && otherEnd >= TEE) {
+            return { other: j, selfT, otherT, tee: [j, otherT, selfT < 0.5 ? self.a : self.b] };
+          }
+          if (otherEnd < TEE && selfEnd >= TEE) {
+            return { other: j, selfT, otherT, tee: [index, selfT, otherT < 0.5 ? link.a : link.b] };
+          }
+          if (selfEnd < TEE && otherEnd < TEE) continue;     // two ends almost touching: left alone
           return { other: j, selfT, otherT };
         }
       }
@@ -924,12 +1006,17 @@ export class RoadGraph {
     return null;
   }
 
-  /** Folds `b` into `a`, so a crossing is one junction rather than two. */
-  private mergeNodes(a: number, b: number): void {
+  /**
+   * Folds \`b\` into \`a\`, so a crossing is one junction rather than two. \`keep\`
+   * leaves \`a\` where it is -- a T's junction belongs on the through road.
+   */
+  private mergeNodes(a: number, b: number, keep = false): void {
     if (a === b) return;
     const na = this.nodes[a], nb = this.nodes[b];
-    na.x = (na.x + nb.x) / 2;
-    na.z = (na.z + nb.z) / 2;
+    if (!keep) {
+      na.x = (na.x + nb.x) / 2;
+      na.z = (na.z + nb.z) / 2;
+    }
     for (const link of this.links) {
       if (link.a === b) { link.a = a; this.forget(link); }
       if (link.b === b) { link.b = a; this.forget(link); }
@@ -941,6 +1028,38 @@ export class RoadGraph {
     // The node is left in place rather than spliced out: every link holds an
     // index, and compacting the array would invalidate all of them.
     nb.arms = [];
+    nb.dead = true;
+  }
+
+  /**
+   * Whether a straight from one point to another already has road along all
+   * of it: sampled every few metres against every nearby link. A grid dragged
+   * over a street that is already there must not lay a second road on top.
+   */
+  covered(ax: number, az: number, bx: number, bz: number, within = 2.5): boolean {
+    const len = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(2, Math.ceil(len / 6));
+    for (let q = 0; q <= steps; q++) {
+      const x = ax + ((bx - ax) * q) / steps, z = az + ((bz - az) * q) / steps;
+      if (!this.onRoad(x, z, within)) return false;
+    }
+    return true;
+  }
+
+  /** Whether a point is within \`within\` metres of any road's centre line. */
+  private onRoad(x: number, z: number, within: number): boolean {
+    for (const link of this.links) {
+      const b = this.box(link);
+      if (x < b[0] - within || x > b[2] + within || z < b[1] - within || z > b[3] + within) continue;
+      const pts = this.shape(link);
+      for (let k = 0; k + 1 < pts.length; k++) {
+        const dx = pts[k + 1].x - pts[k].x, dz = pts[k + 1].z - pts[k].z;
+        const len2 = dx * dx + dz * dz || 1;
+        const f = Math.min(1, Math.max(0, ((x - pts[k].x) * dx + (z - pts[k].z) * dz) / len2));
+        if (Math.hypot(pts[k].x + dx * f - x, pts[k].z + dz * f - z) < within) return true;
+      }
+    }
+    return false;
   }
 
   /** Removes every link that enters a rectangle of cells. */
