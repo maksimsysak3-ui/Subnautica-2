@@ -77,6 +77,19 @@ for (const t of M.INTERCHANGES) {
   }
 }
 
+// The motorway rule: a street may not join a motorway at grade, may pass
+// over it, and may carry on from where one ends.
+{
+  const net = new M.RoadGraph(400);
+  net.add(0, -300, 0, 300, 'motorway', 0, null, 0, true);
+  const MW = new Set(['motorway']);
+  ok(net.meetsAtGrade(-200, 0, 200, 0, 0, MW), 'a street across a motorway at grade is caught');
+  ok(net.meetsAtGrade(-200, 0, 0, 0, 0, MW), 'and so is one ended on it');
+  ok(!net.meetsAtGrade(-200, 0, 200, 0, 14, MW), 'one passing over it on a viaduct is not');
+  ok(!net.meetsAtGrade(0, 300, 0, 500, 0, MW), 'nor one carrying on from where it ends');
+  ok(!net.meetsAtGrade(-200, 100, -60, 100, 0, MW), 'nor one that stays clear of it');
+}
+
 console.log(`\n${checks} checks`);
 console.log(failed === 0 ? 'INTERCHANGE_OK' : `INTERCHANGE: ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

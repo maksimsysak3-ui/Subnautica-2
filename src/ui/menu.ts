@@ -179,9 +179,14 @@ export class Menu {
     card.setAttribute('aria-label', "What's new");
     const head = document.createElement('div');
     head.className = 'mr-news-head';
-    head.innerHTML = "<span>What's new</span><em>Builder's update</em>";
+    head.innerHTML = "<span>What's new</span><em>Highways update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
+      ['Motorway rules', 'Motorways are joined only by slip roads, bridges or interchanges. Every road shows its speed limit and lanes.'],
+      ['Traffic that goes somewhere', 'Cars, vans and lorries drive to real buildings and park when they arrive.'],
+      ['Route view', 'With Traffic open, click a road: every road its drivers use lights up, and the card says who they are and what would help.'],
+      ['Cycle network', 'A new policy that puts people on bikes and takes cars off the road.'],
       ['Traffic management', 'Roads draw Junctions: run any junction on lights, give way or roundabout rules. It changes the flow, and the Traffic view names the worst junction and what to try.'],
       ['Grids and straight roads', 'Drag out a whole grid of blocks in one go. Straight roads stay straight and snap square; junctions and T-junctions join cleanly.'],
       ['Undo', 'Ctrl+Z, or the arrow on the bar, takes back the last thing you built and refunds it.'],

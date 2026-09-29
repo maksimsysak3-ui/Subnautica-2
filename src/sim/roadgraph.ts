@@ -1051,6 +1051,43 @@ export class RoadGraph {
     return true;
   }
 
+  /**
+   * Whether a ground-level road from a to b would touch or cross, at grade,
+   * a road of one of `classes`. How the motorway rule is asked: a motorway is
+   * only joined by the roads built to join it.
+   */
+  meetsAtGrade(ax: number, az: number, bx: number, bz: number, elev: number,
+    classes: ReadonlySet<RoadClass>): boolean {
+    const len = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(2, Math.ceil(len / 4));
+    for (const link of this.links) {
+      if (!classes.has(link.cls)) continue;
+      const reach = ROAD_SPECS[link.cls].edge;
+      const b = this.box(link);
+      if (Math.max(ax, bx) < b[0] - reach || Math.min(ax, bx) > b[2] + reach
+        || Math.max(az, bz) < b[1] - reach || Math.min(az, bz) > b[3] + reach) continue;
+      const pts = this.shape(link);
+      for (let q = 0; q <= steps; q++) {
+        const x = ax + ((bx - ax) * q) / steps, z = az + ((bz - az) * q) / steps;
+        for (let k = 0; k + 1 < pts.length; k++) {
+          const dx = pts[k + 1].x - pts[k].x, dz = pts[k + 1].z - pts[k].z;
+          const len2 = dx * dx + dz * dz || 1;
+          const f = Math.min(1, Math.max(0, ((x - pts[k].x) * dx + (z - pts[k].z) * dz) / len2));
+          if (Math.hypot(pts[k].x + dx * f - x, pts[k].z + dz * f - z) >= reach) continue;
+          // Carrying on from where a motorway ends is how one runs into a
+          // town, and is not a junction on it.
+          const t = (k + f) / (pts.length - 1);
+          const endAt = t < 0.5 ? link.a : link.b;
+          const end = this.nodes[endAt];
+          if (this.armsOf(endAt).length <= 1 && Math.hypot(end.x - x, end.z - z) < reach + SNAP) continue;
+          // Close enough to join it -- unless one passes over the other.
+          if (Math.abs(this.elevAt(link, t) - elev) < CLEARANCE) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** Whether a point is within `within` metres of any road's centre line. */
   private onRoad(x: number, z: number, within: number): boolean {
     for (const link of this.links) {

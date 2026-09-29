@@ -15,6 +15,7 @@
  * not a rebuild.
  */
 
+import { limitKph } from '../sim/agents/lanes';
 import { INTERCHANGES, interchangeById, layInterchange, footprint, lengths, place } from '../sim/interchanges';
 import type { Interchange } from '../sim/interchanges';
 import { RESOURCES, resourceById } from '../sim/resources';
@@ -138,6 +139,10 @@ const JUNCTION_REACH = 16;
  * The ways a junction can be run, indexed by Control: what the player picks,
  * and what the work costs. Signals are the dear one; paint and a sign are not.
  */
+/** Roads a motorway will take at a junction: its own kind, and the ones that feed it. */
+const MOTORWAY_ACCESS: ReadonlySet<RoadClass> = new Set<RoadClass>(['motorway', 'slip', 'highway', 'dual']);
+const MOTORWAYS: ReadonlySet<RoadClass> = new Set<RoadClass>(['motorway']);
+
 /** The tabs of the road drawer. */
 type RoadMode = 'road' | 'curve' | 'grid' | 'upgrade' | 'junction' | 'interchange';
 
@@ -1813,6 +1818,15 @@ export class BuildTools {
     if (via !== null && Math.abs(via[0] - b[0]) <= 1 && Math.abs(via[1] - b[1]) <= 1) {
       via = null;
     }
+    // Motorways are joined only by the roads built to join them: a street
+    // ended on one, or run across it at grade, would be a crossroads at
+    // 110 km/h. Passing over it on a viaduct is fine.
+    if (!MOTORWAY_ACCESS.has(t.cls)
+      && world.net.meetsAtGrade(ax, az, bx, bz, ELEVATIONS[this.elevation], MOTORWAYS)) {
+      this.say('a motorway is joined only by slip roads — lay a slip road to it, pass over it on a '
+        + 'viaduct (Page Up), or drop an interchange from the Interchanges tab');
+      return false;
+    }
     // Priced on the chord plus the bow, which is what the road will actually be.
     const metres = Math.hypot(bx - ax, bz - az) + Math.abs(bend) * 0.8;
     const label = this.elevation > 0
@@ -1998,6 +2012,13 @@ export class BuildTools {
     }
     if (plan.water) {
       this.say('the grid runs into water — drag it on dry land, or bridge the water with a single road');
+      return;
+    }
+    if (!MOTORWAY_ACCESS.has(t.cls) && plan.edges.some(([p, q]) => {
+      const [ax, az] = this.metres(p), [bx, bz] = this.metres(q);
+      return world.net.meetsAtGrade(ax, az, bx, bz, 0, MOTORWAYS);
+    })) {
+      this.say('the grid runs across a motorway, which is joined only by slip roads — drag it clear of the motorway');
       return;
     }
     if (!this.afford(plan.metres * this.roadCost(t.cls),
@@ -2342,8 +2363,11 @@ export class BuildTools {
     }
     if (t.kind === 'road') {
       const up = ELEVATIONS[this.elevation];
-      return `drag to lay a ${ROAD_SPECS[t.cls].label}${up > 0 ? ` viaduct ${up} m up` : ''} `
-        + `(${money(this.roadCost(t.cls))}/m) — `
+      const spec = ROAD_SPECS[t.cls];
+      return `drag to lay a ${spec.label}${up > 0 ? ` viaduct ${up} m up` : ''} `
+        + `(${money(this.roadCost(t.cls))}/m, ${limitKph(t.cls)} km/h, `
+        + `${spec.lanes} lane${spec.lanes === 1 ? '' : 's'}${spec.oneWay ? ' one way' : ' each way'}) — `
+        + (t.cls === 'motorway' ? 'joined only by slip roads or interchanges; ' : '')
         + (up > 0 ? 'crosses over roads below; PgUp/PgDn height'
           : 'drag for a straight road, snapped square near the axes; it crosses and joins what is there; the curve tool bends');
     }

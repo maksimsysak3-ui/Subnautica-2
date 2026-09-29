@@ -310,6 +310,11 @@ function rankOf(cls: RoadClass): number {
   }
 }
 
+/** The speed limit on a class of road, in kilometres an hour. */
+export function limitKph(cls: RoadClass): number {
+  return Math.round(speedOf(cls) * 3.6);
+}
+
 /** Free-flow speed in metres a second. */
 function speedOf(cls: RoadClass): number {
   const kph: Record<string, number> = {
