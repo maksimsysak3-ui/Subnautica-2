@@ -90,9 +90,9 @@ interface Style {
 }
 
 const STYLE: Style[] = [];
-STYLE[Driver.CAUTIOUS] = { accel: 1.1, brake: 1.8, headway: 2.4, gap: 2.6, limit: 0.92 };
-STYLE[Driver.AVERAGE] = { accel: 1.6, brake: 2.4, headway: 1.6, gap: 2.1, limit: 1.0 };
-STYLE[Driver.PUSHY] = { accel: 2.4, brake: 3.2, headway: 1.0, gap: 1.5, limit: 1.14 };
+STYLE[Driver.CAUTIOUS] = { accel: 1.7, brake: 2.4, headway: 1.8, gap: 2.6, limit: 0.92 };
+STYLE[Driver.AVERAGE] = { accel: 2.3, brake: 3.0, headway: 1.3, gap: 2.1, limit: 1.0 };
+STYLE[Driver.PUSHY] = { accel: 3.1, brake: 3.8, headway: 0.9, gap: 1.5, limit: 1.14 };
 
 /** How the city's drivers are distributed. */
 const MIX = [0.26, 0.56, 0.18];
@@ -253,6 +253,12 @@ const FREIGHT_PER_YARD = 3;
 
 /** Ticks a wandering vehicle must have been stationary to be retired. */
 const STALE_TICKS = 600;
+
+/**
+ * Ticks an ambient car may stand still on a road the flow model calls clear
+ * before it is taken off: a few seconds at a light, not a queue.
+ */
+const AMBIENT_QUEUE_TICKS = 80;
 
 /** And how many may go per visit, so a jam drains rather than blinking out. */
 const RETIRE_PER_TICK = 3;
@@ -904,6 +910,15 @@ export class Traffic {
 
       if (c.speed[v] < CRAWL) {
         c.stopped[v] = Math.min(0xffff, c.stopped[v] + 1);
+        // Scenery does not queue. A car the flow model never counted, standing
+        // in a line the model says is not there, pulls in somewhere and is
+        // gone -- or the picture shows a jam the traffic view calls clear.
+        if (c.goal[v] >= 0 && c.route[v] < 0 && c.job[v] < 0 && c.stopped[v] > AMBIENT_QUEUE_TICKS
+          && (this.load === null || this.load[lane] < 0.9)) {
+          this.despawn(v);
+          this.stats.parked++;
+          continue;
+        }
         stoppedNow++;
         const waited = c.stopped[v] / TICK_HZ;
         if (waited > this.stats.worstWaitSeconds) this.stats.worstWaitSeconds = waited;
@@ -1474,8 +1489,12 @@ export class Traffic {
   /** What a car's route costs: time, slowed by the traffic on it. */
   private readonly driveSearch: Search = {
     use: 1, top: 120 / 3.6, turns: true,
+    // Slowed by the traffic the model counts, and by the cars already drawn
+    // on it: without the second every car takes the same best road and the
+    // picture queues where the model has nobody.
     cost: (lane: number): number => this.g.free[lane]
-      * (1 + 2 * Math.min(2, this.load === null ? 0 : this.load[lane])),
+      * (1 + 2 * Math.min(2, this.load === null ? 0 : this.load[lane])
+        + Math.min(4, this.laneCount[lane] * 9 / Math.max(9, this.g.length[lane]))),
   };
 
   /** Searches the planner found a route for, and made, for the tests. */

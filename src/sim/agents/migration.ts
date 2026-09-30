@@ -66,7 +66,7 @@ import { RULES } from '../difficulty';
  * town actually being founded, and the compounding term below still does all the
  * work of turning that town into a city.
  */
-const ENQUIRIES_PER_DAY = 18;
+const ENQUIRIES_PER_DAY = 120;
 
 /**
  * Extra households a day per thousand people already living there.
@@ -77,7 +77,10 @@ const ENQUIRIES_PER_DAY = 18;
  * it and the game is a grind; double it and the player never catches up with
  * their own road network.
  */
-const ENQUIRIES_PER_THOUSAND = 45;
+const ENQUIRIES_PER_THOUSAND = 150;
+
+/** The population at which the compounding term has halved. */
+const TAPER_POP = 1500;
 
 /**
  * Households the housing office places in a day, per thousand people.
@@ -93,8 +96,8 @@ const ENQUIRIES_PER_THOUSAND = 45;
  * to move in at twelve a day, and a player watching a street of finished, empty
  * houses for four real minutes concludes the game is broken rather than slow.
  */
-const PLACEMENTS_PER_DAY = 30;
-const PLACEMENTS_PER_THOUSAND = 55;
+const PLACEMENTS_PER_DAY = 200;
+const PLACEMENTS_PER_THOUSAND = 70;
 
 /** Days an applicant will wait before looking somewhere else. */
 const PATIENCE_DAYS = 9;
@@ -102,7 +105,7 @@ const PATIENCE_DAYS = 9;
 /** The queue never grows past this many times the city's population. */
 const QUEUE_CAP_RATIO = 0.4;
 /** Nor below this, or a new city has no queue to speak of. */
-const QUEUE_CAP_MIN = 60;
+const QUEUE_CAP_MIN = 240;
 
 /**
  * Households a day per thousand that leave a thoroughly unappealing city anyway.
@@ -457,7 +460,11 @@ export class Migration {
   private enquire(days: number, day: number): void {
     const pop = this.people.population;
     const appeal = this.appeal;
-    const rate = (ENQUIRIES_PER_DAY + (pop / 1000) * ENQUIRIES_PER_THOUSAND) * appeal;
+    // The compounding term tapers as the city grows: a town doubles in a week,
+    // a city of fifty thousand takes a month to add half again. Ten thousand
+    // is a good evening's play; a hundred thousand is a long campaign.
+    const taper = 1 / (1 + pop / TAPER_POP);
+    const rate = (ENQUIRIES_PER_DAY + (pop / 1000) * ENQUIRIES_PER_THOUSAND * taper) * appeal;
     this.owedEnquiries += rate * days;
     const cap = Math.max(QUEUE_CAP_MIN, pop * QUEUE_CAP_RATIO);
     let n = Math.floor(this.owedEnquiries);
@@ -490,7 +497,7 @@ export class Migration {
     // Mostly one and two, some families. Households grow by having children
     // rather than by arriving large, which is what makes schools matter.
     const r = this.rng.next();
-    return r < 0.34 ? 1 : r < 0.74 ? 2 : r < 0.93 ? 3 : 4;
+    return r < 0.16 ? 1 : r < 0.46 ? 2 : r < 0.72 ? 3 : r < 0.9 ? 4 : 5;
   }
 
   private drawEdu(): number {

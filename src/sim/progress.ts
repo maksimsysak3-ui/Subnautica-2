@@ -31,7 +31,7 @@ const XP_PER_BUILDING = 12;
 /** For a landmark: the big, deliberate, expensive placement. */
 const XP_PER_SIGNATURE = 900;
 /** Per citizen who moves in. The passive drip that rewards a working city. */
-const XP_PER_CITIZEN = 6;
+const XP_PER_CITIZEN = 3;
 
 /**
  * What each level costs, cumulatively.

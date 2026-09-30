@@ -220,6 +220,20 @@ function teachesOf(id: string): number {
 const CREW_PRIORITY = 12;
 const EMERGENCY_BRANCHES = new Set(['fire', 'police', 'health'].map((b) => BRANCHES.indexOf(b as never)).filter((i) => i >= 0));
 
+/**
+ * Households a building holds, from what its model declares.
+ *
+ * The models count flats and houses; a city counts people. A detached house
+ * in a growing town is a family with a lodger, a granny flat over the garage
+ * or two generations under one roof, and a street of forty of them should be
+ * a neighbourhood of a couple of hundred, not eighty. Small buildings get the
+ * most: a block of two hundred flats is already counting its households.
+ */
+export function homesIn(declared: number): number {
+  if (declared <= 0) return 0;
+  return declared <= 6 ? declared * 2 : Math.round(declared * 1.4);
+}
+
 export class Places {
   readonly table = new Table(SCHEMA, 4096);
   /** Buildings with room in them, one pool per purpose. */
@@ -336,7 +350,7 @@ export class Places {
     c.living[id] = 0; c.working[id] = 0;
     c.met[id] = 0; c.health[id] = 200;
 
-    const homes = def.sim?.households ?? 0;
+    const homes = homesIn(def.sim?.households ?? 0);
     const declared = def.sim?.jobs ?? 0;
     // Only what the player places by hand: a service or a landmark. Zoned
     // buildings grow into the demand that asked for them, a few posts at a time.
