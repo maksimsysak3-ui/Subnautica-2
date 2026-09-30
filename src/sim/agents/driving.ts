@@ -868,8 +868,12 @@ export class Traffic {
           // Or right behind a car already crossing on the same movement: a
           // queue at a green light goes through nose to tail, not one car per
           // half-junction. Same approach, same exit, so the two never conflict.
+          // Any movement, and as soon as the one ahead is rolling: whether the
+          // two paths cross is the junction's own question in `commit`, and
+          // requiring the same exit at speed made every turning car behind a
+          // straight one stop dead at the line on a green.
           const atFront = leader < 0 || (c.inBox[leader] === node && c.cleared[leader] === 1
-            && c.next[leader] === next && c.speed[leader] > 1
+            && c.speed[leader] > 0.3
             && c.along[leader] - c.along[v] < PLATOON_METRES
             // Room beyond for both: the one ahead is cleared, so its share of
             // the far lane is already counted as spoken for.
