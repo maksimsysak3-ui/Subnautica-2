@@ -536,7 +536,7 @@ export class Views {
       // light green busy, yellow slowing, orange bad, red at a standstill. The
       // values land on the ramp's red, red-yellow (orange), yellow,
       // yellow-green and green.
-      this.perLane[l] = trafficBand(load[l]);
+      this.perLane[l] = trafficBand(Math.max(load[l], this.src.traffic.occupancy(l)));
     }
     this.scatter();
     // Just enough to fill the carriageway between its lanes: the colour is
@@ -1021,7 +1021,7 @@ export class Views {
         let all = 0;
         for (let l = 0; l < lanes.count && l < load.length; l++) {
           if ((lanes.use[l] & Use.CAR) === 0) continue;
-          const v = load[l], len = lanes.length[l];
+          const v = Math.max(load[l], s.traffic.occupancy(l)), len = lanes.length[l];
           const k = v >= TRAFFIC_BANDS[3] ? 4 : v >= TRAFFIC_BANDS[2] ? 3 : v >= TRAFFIC_BANDS[1] ? 2 : v >= TRAFFIC_BANDS[0] ? 1 : 0;
           inBand[k] += len; all += len;
         }

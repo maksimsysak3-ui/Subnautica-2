@@ -120,6 +120,9 @@ const RESPONDER_ACCEL = 1.8;
  */
 const LOOK_AHEAD = 55;
 const COMMIT_METRES = 9;
+
+/** How close behind a car crossing on the same movement a follower may commit too. */
+const PLATOON_METRES = 22;
 /** Metres from the line at which a vehicle registers as demand at a signal. */
 const WAITING_METRES = 30;
 
@@ -259,6 +262,9 @@ const STALE_TICKS = 600;
  * before it is taken off: a few seconds at a light, not a queue.
  */
 const AMBIENT_QUEUE_TICKS = 80;
+
+/** Ticks stopped before a driver with a route looks for another way. */
+const REPLAN_TICKS = 40;
 
 /** And how many may go per visit, so a jam drains rather than blinking out. */
 const RETIRE_PER_TICK = 3;
@@ -599,6 +605,26 @@ export class Traffic {
     return v;
   }
 
+  /**
+   * How full a lane looks from the cars actually on it: queue density, one
+   * car every seven metres being full, and pushed past full when they are
+   * standing still. The traffic view takes the worse of this and the flow
+   * model, so a queue the player can see is never read as a quiet road.
+   */
+  occupancy(lane: number): number {
+    if (lane < 0 || lane >= this.g.count) return 0;
+    const c = this.table.col;
+    let n = 0, still = 0;
+    for (let u = this.laneTail[lane]; u >= 0; u = c.ahead[u]) {
+      n++;
+      if (c.speed[u] < CRAWL) still++;
+      if (n > 400) break;
+    }
+    if (n < 3) return 0;
+    const dense = (n * 7) / Math.max(20, this.g.length[lane]);
+    return dense * (1 + 0.6 * (still / n));
+  }
+
   /** Takes a vehicle off the road. */
   despawn(v: number): void {
     if (this.table.live[v] === 0) return;
@@ -800,7 +826,12 @@ export class Traffic {
           // reservation it cannot use is held until the backstop expires -- at
           // which point something conflicting is admitted while it is still
           // sitting there. That was the whole of the conflict problem.
-          const atFront = leader < 0;
+          // Or right behind a car already crossing on the same movement: a
+          // queue at a green light goes through nose to tail, not one car per
+          // half-junction. Same approach, same exit, so the two never conflict.
+          const atFront = leader < 0 || (c.inBox[leader] === node && c.cleared[leader] === 1
+            && c.next[leader] === next && c.speed[leader] > 1
+            && c.along[leader] - c.along[v] < PLATOON_METRES);
           const shut = (toLine < COMMIT_METRES && atFront)
             ? !this.commit(v, lane, node, next, tick, seconds)
             : this.watching(v, lane, node, next, tick, seconds);
@@ -913,6 +944,14 @@ export class Traffic {
         // Scenery does not queue. A car the flow model never counted, standing
         // in a line the model says is not there, pulls in somewhere and is
         // gone -- or the picture shows a jam the traffic view calls clear.
+        // Stuck a few seconds with a route in hand: look again, round the jam.
+        if (c.stopped[v] === REPLAN_TICKS && c.route[v] < 0 && c.goal[v] >= 0 && this.searches > 0
+          && c.inBox[v] < 0 && c.cleared[v] === 0
+          && c.goal[v] * 2 < g.linkStart.length && g.link[lane] !== c.goal[v]) {
+          this.searches--;
+          const again = this.planner.plan(lane, c.goal[v], this.driveSearch);
+          if (again !== null) { this.plans.set(v, { lanes: again, i: 0 }); c.next[v] = -1; }
+        }
         if (c.goal[v] >= 0 && c.route[v] < 0 && c.job[v] < 0 && c.stopped[v] > AMBIENT_QUEUE_TICKS
           && (this.load === null || this.load[lane] < 0.9)) {
           this.despawn(v);
