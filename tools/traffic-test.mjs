@@ -247,6 +247,7 @@ section('driving');
   let worstTick = 0, totalMs = 0;
   let boxStill = new Uint16Array(0), boxStalls = 0;
   const reborn = new Set();
+  const entries = {};
   {
     const add = t.table.add.bind(t.table);
     t.table.add = () => { const v = add(); reborn.add(v); return v; };
@@ -265,10 +266,28 @@ section('driving');
     const t0 = performance.now();
     sim.step(1);
     const dt = performance.now() - t0;
+    if (process.env.HEAVY) {
+      const wanted = new Set();
+      for (let v = 0; v < t.bound; v++) {
+        if (t.live[v] && c.cleared[v] === 1 && boxStill[v] > 10 && c.next[v] >= 0) wanted.add(c.next[v]);
+      }
+      for (let v = 0; v < t.bound; v++) {
+        if (!t.live[v] || !wanted.has(c.lane[v]) || c.lane[v] === beforeLane[v] && !reborn.has(v)) continue;
+        const how = reborn.has(v) ? 'spawn' : g.link[beforeLane[v]] === g.link[c.lane[v]] ? 'change' : 'hop';
+        entries[how] = (entries[how] || 0) + 1;
+      }
+    }
     if (boxStill.length < t.bound) { const b = new Uint16Array(t.bound); b.set(boxStill); boxStill = b; }
     for (let v = 0; v < t.bound; v++) {
       if (t.live[v] && c.inBox[v] >= 0 && c.speed[v] < 0.4) {
-        if (++boxStill[v] === 50) boxStalls++;
+        if (++boxStill[v] === 50) {
+          boxStalls++;
+          if (process.env.HEAVY && boxStalls <= 6) {
+            const nx = c.next[v];
+            console.log(`  stall v${v} node ${c.inBox[v]} ctl ${jn.control[c.inBox[v]]} lane ${c.lane[v]} at ${c.along[v].toFixed(1)}/${g.length[c.lane[v]].toFixed(1)} cleared ${c.cleared[v]} next ${nx} ahead ${c.ahead[v]} onNext ${nx >= 0 ? t.onLane(nx) : '-'} nextLen ${nx >= 0 ? g.length[nx].toFixed(0) : '-'}`);
+            if (nx >= 0) for (let u = t.laneTail[nx]; u >= 0; u = c.ahead[u]) console.log(`     on next: v${u} at ${c.along[u].toFixed(1)} speed ${c.speed[u].toFixed(1)} stopped ${c.stopped[u]} done ${c.doneAt[u]} goal ${c.goal[u]} route ${c.route[u]} next ${c.next[u]} cleared ${c.cleared[u]} inBox ${c.inBox[u]}`);
+          }
+        }
       } else boxStill[v] = 0;
     }
     totalMs += dt;
@@ -377,6 +396,7 @@ section('driving');
   console.log(`  speed         ${st.meanSpeed.toFixed(1)} m/s mean `
     + `(${(st.meanSpeed * 3.6).toFixed(0)} kph), ${st.stopped} stopped right now`);
   console.log(`  waiting       worst ${st.worstWaitSeconds.toFixed(0)} s at a junction`);
+  if (process.env.HEAVY) console.log('  entries into awaited lanes', JSON.stringify(entries));
   console.log(`  box stalls    ${boxStalls} held a junction box standing still for 5 s`);
   console.log(`  lane changes  ${st.changes.toLocaleString()}`);
   console.log(`  hard braking  ${st.hardBrakes.toLocaleString()} times`);

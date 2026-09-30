@@ -145,6 +145,8 @@ const BOX_HOLD_TICKS = 10 * TICK_HZ;
  * concerned, and treating it as moving means a queue that never reports itself.
  */
 const CRAWL = 0.4;
+/** Metres of the far lane a cleared vehicle is counted as taking, beyond itself. */
+const INCOMING_GAP = 2;
 
 /** Ticks of being stopped before a driver looks for another lane. */
 const PATIENCE_TICKS = 12;
@@ -509,6 +511,14 @@ export class Traffic {
   /** How many vehicles are on each lane, for the readout and for lane changes. */
   private laneCount: Int32Array;
   /**
+   * Metres of each lane already promised to vehicles cleared across the
+   * junction into it but not yet on it. The room test at the stop line sees
+   * only the lane's own tail; without this, a car waiting in the box for the
+   * far lane to clear was invisible, and every other approach kept being let
+   * into the gap it was waiting for.
+   */
+  private incoming: Float32Array;
+  /**
    * Whether somebody is at the line on each lane, for the signals to read.
    *
    * The demand signal that makes a junction vehicle-actuated, and it costs nothing:
@@ -534,6 +544,7 @@ export class Traffic {
     this.laneHead = new Int32Array(g.count).fill(-1);
     this.laneTail = new Int32Array(g.count).fill(-1);
     this.laneCount = new Int32Array(g.count);
+    this.incoming = new Float32Array(g.count);
     this.waiting = new Uint8Array(g.count);
   }
 
@@ -723,6 +734,14 @@ export class Traffic {
     this.waiting.fill(0);
     this.arrived.length = 0;
     this.stuck.length = 0;
+    // Rebuilt every tick rather than kept in step with every way a vehicle can
+    // stop being cleared (hop, despawn, retirement), so it can never drift.
+    this.incoming.fill(0);
+    for (let v = 0; v < bound; v++) {
+      if (live[v] === 1 && c.cleared[v] === 1 && c.next[v] >= 0 && c.next[v] < g.count) {
+        this.incoming[c.next[v]] += c.length[v] + INCOMING_GAP;
+      }
+    }
 
     for (let v = 0; v < bound; v++) {
       if (live[v] === 0) continue;
@@ -843,9 +862,9 @@ export class Traffic {
           const atFront = leader < 0 || (c.inBox[leader] === node && c.cleared[leader] === 1
             && c.next[leader] === next && c.speed[leader] > 1
             && c.along[leader] - c.along[v] < PLATOON_METRES
-            // Room beyond for both: the one ahead has not reached the far
-            // lane yet, so the room it will take is not there to see.
-            && this.roomBeyond(v, next, c.length[leader] + 2));
+            // Room beyond for both: the one ahead is cleared, so its share of
+            // the far lane is already counted as spoken for.
+            && this.roomBeyond(v, next));
           const committing = toLine < COMMIT_METRES && atFront;
           const shut = committing
             ? !this.commit(v, lane, node, next, tick, seconds)
@@ -856,6 +875,7 @@ export class Traffic {
             const stop = Math.max(0, toLine);
             if (stop < gap) { gap = stop; closing = speed; }
           } else if (committing) {
+            if (next >= 0 && c.cleared[v] === 0) this.incoming[next] += c.length[v] + INCOMING_GAP;
             // Holding a slot is being cleared, for the front car and for one
             // following it through alike. A follower that took a slot but was
             // not marked cleared asked again every tick, could be refused at
@@ -1172,6 +1192,10 @@ export class Traffic {
    */
   private roomBeyond(v: number, nextLane: number, extra = 0): boolean {
     const c = this.table.col;
+    // Asking to be let in: the room others already cleared into it will take
+    // is not free. Already cleared and at the far side: only the lane itself
+    // counts, or two in the box would each wait for the other's share.
+    if (c.cleared[v] === 0) extra += this.incoming[nextLane];
     const waiting = this.laneTail[nextLane];
     if (waiting < 0) return this.g.length[nextLane] >= this.g.startBack[nextLane] + c.length[v] + extra;
     const room = c.along[waiting] - c.length[waiting] - extra;
@@ -1221,6 +1245,7 @@ export class Traffic {
     // Out of the junction, so the slot goes back at once. The ten-second backstop
     // exists only for a vehicle that never gets here.
     if (c.inBox[v] >= 0) { this.junctions.leave(c.inBox[v], v); c.inBox[v] = -1; }
+    if (c.cleared[v] === 1) this.incoming[to] = Math.max(0, this.incoming[to] - c.length[v] - INCOMING_GAP);
     this.unlink(v);
     c.lane[v] = to;
     c.along[v] = Math.min(overshoot, Math.max(0, this.g.length[to] - 0.02));
@@ -1329,6 +1354,10 @@ export class Traffic {
     for (let other = from; other < to; other++) {
       if (other === lane) continue;
       if (this.laneCount[other] >= bestCount) continue;
+      // Not into the mouth of a lane somebody in the junction behind is
+      // waiting to enter: that is the gap they were cleared for, and most of
+      // what kept cars standing in a box was drivers alongside taking it.
+      if (this.incoming[other] > 0 && along < g.startBack[other] + this.incoming[other] + ROOM_CLEARANCE) continue;
       // Must still be able to make the movement the route needs.
       if (next >= 0) {
         let ok = false;
@@ -1903,6 +1932,7 @@ export class Traffic {
     this.laneHead = new Int32Array(g.count).fill(-1);
     this.laneTail = new Int32Array(g.count).fill(-1);
     this.laneCount = new Int32Array(g.count);
+    this.incoming = new Float32Array(g.count);
     (this as { waiting: Uint8Array }).waiting = new Uint8Array(g.count);
   }
 
