@@ -842,7 +842,10 @@ export class Traffic {
           // half-junction. Same approach, same exit, so the two never conflict.
           const atFront = leader < 0 || (c.inBox[leader] === node && c.cleared[leader] === 1
             && c.next[leader] === next && c.speed[leader] > 1
-            && c.along[leader] - c.along[v] < PLATOON_METRES);
+            && c.along[leader] - c.along[v] < PLATOON_METRES
+            // Room beyond for both: the one ahead has not reached the far
+            // lane yet, so the room it will take is not there to see.
+            && this.roomBeyond(v, next, c.length[leader] + 2));
           const shut = (toLine < COMMIT_METRES && atFront)
             ? !this.commit(v, lane, node, next, tick, seconds)
             : this.watching(v, lane, node, next, tick, seconds);
@@ -1161,11 +1164,11 @@ export class Traffic {
    * has some slack somewhere, whoever has the most gives first, and the whole
    * thing unwinds -- which is exactly how a real one unwinds.
    */
-  private roomBeyond(v: number, nextLane: number): boolean {
+  private roomBeyond(v: number, nextLane: number, extra = 0): boolean {
     const c = this.table.col;
     const waiting = this.laneTail[nextLane];
-    if (waiting < 0) return true;
-    const room = c.along[waiting] - c.length[waiting];
+    if (waiting < 0) return this.g.length[nextLane] >= this.g.startBack[nextLane] + c.length[v] + extra;
+    const room = c.along[waiting] - c.length[waiting] - extra;
     // Room enough to be COMPLETELY out of the junction, not merely to have a
     // nose on the far side. A lane begins at the node, which is the middle of
     // the box, so a vehicle is only clear of it once its tail has passed the
