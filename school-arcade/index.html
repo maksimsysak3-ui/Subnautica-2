@@ -130,23 +130,110 @@ footer{text-align:center;color:var(--mut);font-size:13px;padding:10px 20px 40px}
 .opt.good{background:#34d39926;border-color:var(--good)}
 .opt.bad{background:#f43f5e26;border-color:var(--bad)}
 
+/* day trader */
+.a5{background:linear-gradient(135deg,#0f172a,#1e3a5f 55%,#065f46)}
+.game.feat{grid-column:span 2}.game.feat .art{height:150px}
+#stage.wide{max-width:1400px}
+.btn.sm{padding:7px 12px;font-size:13px}
+.up{color:var(--good)}.dn{color:var(--bad)}
+.tr{display:flex;flex-direction:column;gap:12px}
+.trtop{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:5px 12px;min-width:96px}
+.kpi small{display:block;color:var(--mut);font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.kpi b{font:700 15px var(--mono)}
+.trctl{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg{display:flex;background:#0b0d1a;border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;background:transparent;border:0;padding:6px 10px;border-radius:7px;cursor:pointer;color:var(--mut);font-weight:700;font-size:13px}
+.seg button.on{background:var(--acc);color:#fff}
+#tSide button[data-v=buy].on{background:#059669}#tSide button[data-v=sell].on{background:#e11d48}
+#tSide button[data-v=short].on{background:#ea580c}#tSide button[data-v=cover].on{background:#2563eb}
+#tSide button.dis:not(.on){opacity:.4}
+.trmain{display:grid;grid-template-columns:200px minmax(0,1fr) 270px;gap:12px}
+.trbot{display:grid;grid-template-columns:1.15fr .85fr 1.3fr;gap:12px}
+.pnl{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:0}
+.pnl h4{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.wrow{display:grid;grid-template-columns:1fr auto;padding:7px 8px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.wrow:hover{background:#0b0d1a}.wrow.sel{border-color:var(--acc);background:#7c5cff17}
+.wrow b{font:700 14px var(--mono)}.wrow small{grid-column:1;color:var(--mut);font-size:11px}
+.wrow .px{grid-row:span 2;text-align:right;font:600 13px/1.35 var(--mono)}
+.wrow em{font:700 10px var(--mono);font-style:normal;margin-left:6px;padding:1px 5px;border-radius:4px;vertical-align:1px}
+.lg{background:#34d39926;color:var(--good)}.sh{background:#f43f5e26;color:var(--bad)}
+.chead{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
+.chead h3{font:700 20px var(--mono)}
+.chead .qt{font:500 13px var(--mono);color:var(--mut)}.chead .qt b{font-weight:700}
+.ptag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#7c5cff2e;color:#c4b5fd}
+.how{font-size:12px;color:#fde68a;margin:4px 0 8px}
+#tChart canvas{display:block;width:100%}
+.ticket label{display:block;font-size:10px;color:var(--mut);font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:10px 0 4px}
+.tin{width:100%;background:#0b0d1a;border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--txt);font:600 15px var(--mono);outline:none}
+.tin:focus{border-color:var(--acc)}
+.qbtns{display:flex;gap:4px;margin-top:6px}
+.qbtns button{flex:1;background:#0b0d1a;border:1px solid var(--line);border-radius:8px;padding:4px 0;font-size:11px;font-weight:600;cursor:pointer;color:var(--mut)}
+.qbtns button:hover{color:var(--txt);border-color:var(--acc)}
+.est{font-size:12px;color:var(--mut);margin:10px 0;line-height:1.65}.est b{color:var(--txt);font-family:var(--mono)}
+.est .th{margin-top:6px;padding:7px 9px;background:#0b0d1a;border-radius:8px;line-height:1.45}
+.submit{width:100%}.s-buy{background:#059669}.s-sell{background:#e11d48}.s-short{background:#ea580c}.s-cover{background:#2563eb}
+.err{color:#fda4af;font-size:12px;min-height:18px;margin-top:6px;line-height:1.4}
+.pnl table{width:100%;border-collapse:collapse;font:500 12px var(--mono)}
+.pnl th{color:var(--mut);font:700 10px Inter,sans-serif;text-transform:uppercase;letter-spacing:.08em;text-align:right;padding:4px}
+.pnl td{padding:5px 4px;text-align:right;border-top:1px solid var(--line)}
+.pnl th:first-child,.pnl td:first-child{text-align:left}
+.xbtn{background:transparent;border:1px solid var(--line);border-radius:6px;color:var(--mut);cursor:pointer;padding:2px 7px;font:600 11px Inter,sans-serif}
+.xbtn:hover{color:var(--txt);border-color:var(--bad)}
+.sd{font-weight:700;font-size:10px}.sd.buy,.sd.cover{color:var(--good)}.sd.sell,.sd.short{color:var(--bad)}
+.sum{font-size:12px;color:var(--mut);margin-top:8px}.sum b{font-family:var(--mono)}
+.empty{color:var(--mut);font-size:12px;padding:6px 0}
+.cal{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.cal div{font-size:12px;display:flex;justify-content:space-between;gap:8px;padding:5px 8px;border:1px dashed var(--line);border-radius:8px}
+.cal .done{opacity:.5}
+.feed{max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.ni{font-size:13px;line-height:1.4;padding:6px 8px;border-radius:8px;background:#0b0d1a;border-left:3px solid transparent}
+.ni time{font:600 11px var(--mono);color:var(--mut);margin-right:6px}
+.ni .tk{font:700 11px var(--mono);background:#7c5cff33;padding:1px 6px;border-radius:5px;margin-right:6px}
+.ni.fill{border-left-color:var(--acc2)}.ni.big{border-left-color:var(--gold)}.ni.new{animation:rise .35s}
+.modal{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d1acc;backdrop-filter:blur(6px);z-index:30;animation:fade .25s}
+.mcard{background:var(--bg2);border:1px solid var(--line);border-radius:22px;padding:24px 28px;width:min(660px,94vw);max-height:90vh;overflow:auto;animation:rise .3s}
+.mcard .kick{color:var(--acc2);font-weight:700;letter-spacing:.14em;font-size:11px;text-transform:uppercase}
+.mcard h2{font-family:var(--disp);font-weight:400;font-size:26px;margin:4px 0 10px}
+.mcard p,.mcard li{color:#c7cbef;font-size:14.5px;line-height:1.6;margin-bottom:8px}
+.mcard ul{padding-left:20px}.mcard b{color:#fff}.mcard .up{color:var(--good)}.mcard .dn{color:var(--bad)}
+.mh{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:14px 0 6px}
+.ill{background:#0b0d1a;border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;display:flex;justify-content:center;overflow-x:auto}
+.note{background:#fbbf2414;border:1px solid #fbbf2455;border-radius:12px;padding:10px 12px;font-size:13px;color:#fde68a;margin:10px 0;line-height:1.5}
+.tnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}
+.dots{display:flex;gap:6px}.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--acc2)}
+.spr{display:flex;gap:8px;align-items:stretch;text-align:center;font-size:12px}
+.spr div{padding:10px 16px;border-radius:10px;background:var(--card)}.spr b{font:700 20px var(--mono);display:block}
+.spr .gap{background:transparent;color:var(--mut);align-self:center}
+.lay{display:grid;grid-template-columns:1fr 2.4fr 1.2fr;grid-template-rows:70px 46px;gap:6px;width:100%;max-width:440px;font-size:11px;font-weight:700;color:var(--mut)}
+.lay div{background:var(--card);border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;text-align:center}
+.lay .w{grid-column:1/-1;grid-row:2}
+.ttab{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+.ttab td,.ttab th{border-top:1px solid var(--line);padding:6px;text-align:left;vertical-align:top;color:#c7cbef}
+.ttab th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.coachlist{text-align:left;margin:4px 0 14px;padding-left:18px;font-size:13px;color:#c7cbef}.coachlist li{margin-bottom:6px}
+.dline{font-size:12px;color:var(--mut);margin-bottom:10px}.dline b{color:var(--txt);font-family:var(--mono)}
+@media (max-width:1100px){.trmain,.trbot{grid-template-columns:1fr}.trctl{margin-left:0}}
+@media (max-width:560px){.game.feat{grid-column:auto}}
+
 /* results + toasts */
-.results{position:absolute;inset:0;display:grid;place-items:center;background:#0b0d1ab3;backdrop-filter:blur(6px);z-index:5;animation:fade .3s}
+.results{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d1ab3;backdrop-filter:blur(6px);z-index:25;animation:fade .3s}
 @keyframes fade{from{opacity:0}}
-.res-card{background:var(--bg2);border:1px solid var(--line);border-radius:24px;padding:28px 32px;text-align:center;width:min(460px,94%);box-shadow:0 30px 80px -20px #000;animation:rise .35s ease-out}
+.res-card{background:var(--bg2);border:1px solid var(--line);border-radius:24px;padding:28px 32px;text-align:center;width:min(510px,94%);box-shadow:0 30px 80px -20px #000;animation:rise .35s ease-out}
 @keyframes rise{from{transform:translateY(20px);opacity:0}}
 .place{font-family:var(--disp);font-size:56px;line-height:1.1;background:linear-gradient(135deg,#fde68a,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent}
 .place.p2{background-image:linear-gradient(135deg,#f1f5f9,#94a3b8)}.place.p3{background-image:linear-gradient(135deg,#fdba74,#b45309)}.place.p4{background-image:linear-gradient(135deg,#94a3b8,#475569)}
 .res-card h2{font-family:var(--disp);font-weight:400;font-size:20px;color:var(--mut)}
 .res-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}
 .res-stats div{background:var(--card);border-radius:12px;padding:10px 6px}
-.res-stats b{display:block;font-family:var(--disp);font-size:24px}
+.res-stats b{display:block;font-family:var(--disp);font-size:20px;white-space:nowrap}
 .res-stats small{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
 .newbest{color:var(--gold);font-weight:800;margin-bottom:12px}
 .rewards{display:flex;justify-content:center;gap:10px;margin-bottom:20px;font-weight:800}
 .rewards span{background:#0b0d1a;border:1px solid var(--line);padding:6px 14px;border-radius:999px}
 .res-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-#toasts{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:8px;align-items:center}
+#toasts{position:fixed;top:70px;right:18px;z-index:50;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.toast.coach{border-color:var(--gold);max-width:min(460px,90vw);font-weight:600;font-size:14px}
 .toast{background:var(--bg2);border:1px solid var(--acc);padding:12px 18px;border-radius:12px;font-weight:700;box-shadow:0 12px 30px -10px #7c5cffaa;animation:rise .3s}
 
 @media (max-width:760px){
@@ -230,9 +317,10 @@ const BOT_COLORS = ["#f59e0b","#10b981","#6366f1","#ec4899","#94a3b8","#ef4444"]
 
 /* ---------- save state ---------- */
 const KEY = 'recess-arcade-v1';
-const DEF = { name: 'Player', xp: 0, coins: 0, car: '#ff3d6e', owned: ['#ff3d6e'], best: { type: 0, math: 0, siege: 0, caps: 0 }, plays: 0, sound: true };
+const DEF = { name: 'Player', xp: 0, coins: 0, car: '#ff3d6e', owned: ['#ff3d6e'], best: { type: 0, math: 0, siege: 0, caps: 0, trade: 0 }, plays: 0, sound: true,
+  trade: { eq: 10000, days: 0, wins: 0, total: 0, tut: false, coach: true } };
 let S;
-try { const raw = JSON.parse(localStorage.getItem(KEY)) || {}; S = Object.assign(JSON.parse(JSON.stringify(DEF)), raw); S.best = Object.assign({}, DEF.best, raw.best); }
+try { const raw = JSON.parse(localStorage.getItem(KEY)) || {}; S = Object.assign(JSON.parse(JSON.stringify(DEF)), raw); S.best = Object.assign({}, DEF.best, raw.best); S.trade = Object.assign({}, DEF.trade, raw.trade); }
 catch (e) { S = JSON.parse(JSON.stringify(DEF)); }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
@@ -243,7 +331,7 @@ function grant(xp, coins) {
   const after = levelOf(S.xp).l;
   if (after > before) { toast(`⬆ Level up! You're now level ${after}`); beep(523, .12, 'triangle', .06); setTimeout(() => beep(784, .2, 'triangle', .06), 120); }
 }
-function toast(msg) { const t = el('div', 'toast', esc(msg)); $('#toasts').appendChild(t); setTimeout(() => t.remove(), 2600); }
+function toast(msg, ms = 2600, cls = '') { const t = el('div', 'toast ' + cls, esc(msg)); $('#toasts').appendChild(t); setTimeout(() => t.remove(), ms); }
 
 /* ---------- sound ---------- */
 let AC;
@@ -306,6 +394,7 @@ function results(sc, stage, o) {
     ${o.place ? `<div class="place p${o.place}">${['1st', '2nd', '3rd', '4th'][o.place - 1]}</div>` : ''}
     <h2>${esc(o.title)}</h2>
     <div class="res-stats">${o.stats.map(([k, v]) => `<div><b>${v}</b><small>${k}</small></div>`).join('')}</div>
+    ${o.extra || ''}
     ${o.best ? '<div class="newbest">★ New personal best!</div>' : ''}
     <div class="rewards"><span>+${o.xp} XP</span><span class="coin">+${o.coins}</span></div>
     <div class="res-btns"><button class="btn primary" data-a>Play again <kbd>Enter</kbd></button><button class="btn ghost" data-b>Back to arcade</button></div>
@@ -581,11 +670,550 @@ const GAMES = {
   }
 };
 
+/* ---------- Day Trader ---------- */
+function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function money(v, sign) { const s = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (v < -.004 ? '-' : sign && v > .004 ? '+' : '') + '$' + s; }
+const pct = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%';
+const cls = v => v > .004 ? 'up' : v < -.004 ? 'dn' : '';
+const fmtVol = v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.round(v / 1e3) + 'K';
+function clock(t) { const m = 570 + t, h = Math.floor(m / 60); return `${(h + 11) % 12 + 1}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; }
+
+// Fictional stocks. Each has a documented "personality" so skill and reading the market pay off.
+// vol = per-minute volatility, beta = sensitivity to the index, mom = news momentum, rev = pull back to fair value.
+const TSTOCKS = [
+  { sym: 'NOVA', name: 'Nova Systems', sector: 'Tech', type: 'Momentum', p: 142, vol: .0016, beta: 1.3, spread: .0003, mom: 1, rev: 0, bv: 42000, mag: .025, w: 2,
+    how: 'Trends after news. Moves tend to keep going for 30–60 minutes.', play: 'Trade in the direction of fresh news. Don\'t fight a strong trend.' },
+  { sym: 'GRDN', name: 'Garden Utilities', sector: 'Utilities', type: 'Mean-reverting', p: 58, vol: .0009, beta: .4, spread: .0003, mom: 0, rev: .015, bv: 16000, mag: .012, w: 1.5,
+    how: 'Calm. Overreacts to news, then drifts back about halfway toward fair value.', play: 'Fade sharp moves: buy sudden dips, sell sudden spikes, with tight stops.' },
+  { sym: 'SMBK', name: 'Summit Bank', sector: 'Financials', type: 'High beta', p: 47, vol: .0009, beta: 1.8, spread: .0004, mom: .4, rev: .004, bv: 30000, mag: .014, w: 1.2,
+    how: 'Moves about 1.8× the ARC 500 index, and even more on Fed news.', play: 'Watch the index. The 2:00 PM Fed decision is its big moment.' },
+  { sym: 'BRRL', name: 'Barrel Energy', sector: 'Energy', type: 'Event-driven', p: 83, vol: .0011, beta: .7, spread: .0004, mom: .6, rev: .004, bv: 21000, mag: .016, w: 1.2,
+    how: 'Driven by oil. Reacts hard to the 10:30 AM oil inventory report.', play: 'Check the analyst odds. Go small into the report, or trade the reaction after.' },
+  { sym: 'MOON', name: 'Moonshot Media', sector: 'Media', type: 'Meme', p: 12.4, vol: .0042, beta: .8, spread: .0022, mom: .7, rev: 0, bv: 130000, mag: .06, w: 3,
+    how: 'Wild swings, wide spreads, and constant rumors that often get denied.', play: 'Tiny size or skip it. Never chase a rumor without a stop.' }
+];
+const T_EVENTS = [
+  { t: 60, sym: 'BRRL', name: 'Oil inventory report', mag: .028, txt: ['Oil report: bigger-than-expected inventory draw, crude jumps', 'Oil report: surprise inventory build, crude slides'] },
+  { t: 120, sym: 'NOVA', name: 'NOVA Investor Day keynote', mag: .05, txt: ['NOVA Investor Day: new AI chip wows analysts', 'NOVA Investor Day: flagship chip delayed, analysts disappointed'] },
+  { t: 270, sym: '*', name: 'Fed rate decision' }
+];
+const NEWS_T = {
+  up: ['{n} wins a $2B government contract', 'Analyst upgrades {s} to Buy, sees 20% upside', '{n} raises full-year guidance', '{n} announces a surprise share buyback', '{n} unveils new product to rave reviews', '{n} beats delivery estimates'],
+  dn: ['{n} cuts full-year guidance', 'Analyst downgrades {s} to Sell', '{n} CFO resigns unexpectedly', 'Regulators open a probe into {n}', '{n} recalls its flagship product', 'Major customer drops {n}'],
+  rumorUp: ['RUMOR: {n} in buyout talks, sources say', 'RUMOR: {s} trending #1 on social media, retail piling in'],
+  rumorDn: ['RUMOR: {n} facing accounting questions, report says', 'RUMOR: {n} said to be losing a key partner'],
+  deny: ['{n} denies earlier report', '{n} calls rumor "completely false"']
+};
+const fmtNews = (tpl, s) => tpl.replace('{n}', s.name).replace('{s}', s.sym);
+const TYPE_N = { mkt: 'Market', lmt: 'Limit', stp: 'Stop' };
+const SIDE_N = { buy: 'Buy', sell: 'Sell', short: 'Short', cover: 'Cover' };
+const TYPE_HELP = {
+  mkt: { buy: 'Fills right now at the ask. Guaranteed fill, not a guaranteed price.', sell: 'Fills right now at the bid.', short: 'Sells borrowed shares right now at the bid.', cover: 'Buys back shorted shares right now at the ask.' },
+  lmt: { buy: 'Fills only at your price or lower. Use it to buy a dip.', sell: 'Fills only at your price or higher. Use it to take profit.', short: 'Shorts only at your price or higher.', cover: 'Covers only at your price or lower. Use it to take profit on a short.' },
+  stp: { buy: 'Becomes a market buy if the ask rises to your stop. Use it for breakout entries.', sell: 'Becomes a market sell if the bid falls to your stop. This is a <b>stop-loss</b>. It can fill below your stop in fast moves.', short: 'Becomes a market short if the bid falls to your stop (breakdown entry).', cover: 'Becomes a market buy-to-cover if the ask rises to your stop. This is the stop-loss for a short.' }
+};
+const CANDLE_ART = (() => {
+  let s = '<svg viewBox="0 0 200 90" width="230" height="104" aria-hidden="true">', p = 64;
+  [-6, 4, -8, -3, 7, -5, -9, 3, -7, -4, 6, -8, -5].forEach((k, i) => {
+    const c = p + k, x = 10 + i * 14, col = k < 0 ? '#34d399' : '#f43f5e';
+    s += `<line x1="${x + 4}" y1="${Math.min(p, c) - 4}" x2="${x + 4}" y2="${Math.max(p, c) + 4}" stroke="${col}" stroke-width="1.5"/><rect x="${x}" y="${Math.min(p, c)}" width="8" height="${Math.abs(k)}" fill="${col}"/>`; p = c;
+  });
+  return s + '<polyline points="14,62 70,52 126,38 186,22" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="4 3"/></svg>';
+})();
+
+const TUT = [
+  ['Welcome to the trading floor', `<p>You're a <b>day trader</b>. You buy and sell stocks during one trading day (9:30 AM – 4:00 PM, squeezed into about 2 minutes) and try to finish with more money than you started with.</p>
+   <ul><li>You start with <b>$10,000</b>. Your account carries over day to day. That's your career.</li>
+   <li>Every open position is <b>closed automatically at 4:00 PM</b>, because day traders don't hold overnight.</li>
+   <li>You can <b>pause</b> (Space) or speed up time whenever you like. Orders placed while paused fill when trading resumes.</li>
+   <li>Leaving mid-day closes your positions at market and ends the day, so you can't escape a bad day by quitting.</li></ul>
+   <div class="note">Reality check: the mechanics here are real (spreads, order types, short selling, margin), but the stocks are fictional and deliberately <b>easier to read</b> than real ones. Large studies of real retail day traders have found that the big majority lose money. Treat this as practice and learning, not proof you'd beat the real market.</div>`],
+  ['Reading the screen', `<div class="ill"><div class="lay"><div>Watchlist<br>(1–5 keys)</div><div>Chart + quote<br>for the selected stock</div><div>Order<br>ticket</div><div class="w">Positions · Open orders · News &amp; calendar</div></div></div>
+   <ul><li><b>Top bar:</b> the clock, the <b>ARC 500</b> market index, your <b>Equity</b> (cash + positions at market value), <b>Day P&amp;L</b> and <b>Buying power</b>.</li>
+   <li><b>Watchlist:</b> 5 stocks with their price and % change from yesterday's close. L or S badges show your positions.</li>
+   <li><b>Chart:</b> 5-minute candles for the selected stock, with its bid/ask quote and its personality in yellow.</li>
+   <li><b>Order ticket:</b> choose Buy/Sell/Short/Cover, an order type, and the number of shares.</li>
+   <li><b>News:</b> headlines that move prices, plus the scheduled events calendar.</li></ul>`],
+  ['Candlesticks, volume & VWAP', `<div class="ill"><svg viewBox="0 0 330 165" width="330"><g font-family="Inter,sans-serif" font-size="11" fill="#8b90c0">
+   <line x1="80" y1="12" x2="80" y2="138" stroke="#34d399" stroke-width="2"/><rect x="65" y="42" width="30" height="64" rx="2" fill="#34d399"/>
+   <text x="102" y="16">High</text><text x="102" y="46">Close</text><text x="102" y="108">Open</text><text x="102" y="140">Low</text>
+   <line x1="232" y1="12" x2="232" y2="138" stroke="#f43f5e" stroke-width="2"/><rect x="217" y="32" width="30" height="78" rx="2" fill="#f43f5e"/>
+   <text x="254" y="16">High</text><text x="254" y="36">Open</text><text x="254" y="112">Close</text><text x="254" y="140">Low</text>
+   <text x="52" y="160" fill="#34d399">Price rose</text><text x="206" y="160" fill="#f43f5e">Price fell</text></g></svg></div>
+   <ul><li>Each candle shows <b>5 minutes</b>. The body runs from the open to the close price, and the thin wicks show the high and low.</li>
+   <li><b>Volume bars</b> (bottom) show how many shares traded. Big moves on big volume are more trustworthy.</li>
+   <li>The <b style="color:#fb923c">orange line is VWAP</b> (Volume-Weighted Average Price): the average price everyone paid today. Price above VWAP means buyers are in control, and below means sellers are. Professionals watch it closely.</li>
+   <li>The dotted gray line is <b>yesterday's close</b>. The % change is measured from there.</li></ul>`],
+  ['Bid, ask & the spread', `<div class="ill"><div class="spr"><div><span class="dn">BID</span><b>142.20</b>you SELL here</div><div class="gap">← spread $0.06 →</div><div><span class="up">ASK</span><b>142.26</b>you BUY here</div></div></div>
+   <ul><li>There are always two prices. You <b>buy at the ask</b> (higher) and <b>sell at the bid</b> (lower).</li>
+   <li>So every trade starts slightly <b>negative</b>: buy and instantly sell and you lose the spread. That's how market makers get paid.</li>
+   <li>Spreads get <b>wider</b> in the first minutes after the open, right before scheduled events, and on volatile stocks like <b>MOON</b>.</li>
+   <li>The more you trade, the more spread you pay. Your end-of-day report shows exactly how much.</li></ul>`],
+  ['Order types', `<ul><li><b>Market</b>: fills <i>now</i> at the current ask (buying) or bid (selling). It always fills, but the price isn't guaranteed.</li>
+   <li><b>Limit</b>: fills only at <b>your price or better</b>. A buy limit below the current price waits for a dip, and a sell limit above your entry takes profit automatically.</li>
+   <li><b>Stop</b>: sleeps until price reaches your stop, then becomes a market order. A <b>sell stop below your entry is a stop-loss</b>. In a fast drop it can fill <i>worse</i> than your stop (this is called slippage).</li></ul>
+   <div class="note"><b>Example "bracket":</b> Buy 50 NOVA at 142.00 → place a <b>Sell Stop at 140.50</b> (risk $75) and a <b>Sell Limit at 145.00</b> (target +$150). That's a 2:1 reward-to-risk ratio. When one exit fills and your position hits zero, the leftover exit order is cancelled automatically.</div>`],
+  ['Long, short & margin', `<ul><li><b>Long</b> = Buy, then Sell. You profit when the price <b>rises</b>.</li>
+   <li><b>Short</b> = Short, then Cover. You sell borrowed shares and buy them back later. You profit when the price <b>falls</b>. A long can only lose what you paid, but a short's losses have <b>no ceiling</b> if the price keeps rising.</li>
+   <li><b>Margin:</b> your buying power is <b>2× your equity</b> (standard "Reg T" margin). With $10,000 you can hold $20,000 of stock. Leverage doubles your gains <i>and</i> your losses.</li>
+   <li><b>Margin call:</b> if your equity falls below <b>25%</b> of your total position value (the regulatory minimum), everything is liquidated at market. You'll get a warning at 35%.</li></ul>
+   <div class="note">In the US, frequent day trading has long required at least $25,000 in the account (the "Pattern Day Trader" rule, which regulators have been revising). We skip that rule here so you can practice.</div>`],
+  ['Know your stocks', `<p>Each stock has a <b>personality</b>, a tendency that shows up again and again. Learning them is how you get an edge here.</p>
+   <table class="ttab"><tr><th>Stock</th><th>Behavior</th><th>How to trade it</th></tr>${TSTOCKS.map(s => `<tr><td><b>${s.sym}</b><br><small>${s.type}</small></td><td>${s.how}</td><td>${s.play}</td></tr>`).join('')}</table>
+   <p>The <b>ARC 500</b> index moves the whole market. <b>Beta</b> is how much a stock amplifies it: when the index is +1%, SMBK tends to be about +1.8%.</p>
+   <div class="note">Tendencies, not guarantees. Random noise is always there, and any trade can lose.</div>`],
+  ['News, events & the daily rhythm', `<ul><li><b>Headlines</b> move prices over the next few minutes. Act quickly, but don't chase a move that has already happened.</li>
+   <li><b>RUMOR:</b> headlines are unconfirmed. About half get <b>denied</b> later, and the move often reverses.</li>
+   <li>The <b>calendar</b> lists scheduled events with <b>analyst odds</b>. 70% is not certain: a 70% event still fails 3 times out of 10. Holding through an event is a bet, so size it that way.</li>
+   <li><b>Pre-market:</b> one stock usually "gaps" at the open on overnight news. You'll see it before the bell.</li>
+   <li><b>Daily rhythm</b> (this is real): the open is the wildest, with wide spreads. Lunch (about 12:00–1:30) is quiet. The last hour picks up again.</li></ul>
+   <div class="note">In real markets, computers react to news within milliseconds, so no human wins on speed. Here, news plays out over a few minutes so you have time to learn.</div>`],
+  ['Risk management: the real skill', `<ul><li><b>Risk 1–2% of your account per trade.</b> With $10,000 that's $100–200.</li>
+   <li><b>Position size = risk ÷ distance to your stop.</b> Risking $100 with a stop $0.50 away means 200 shares.</li>
+   <li><b>Know your exit before you enter.</b> Put the stop-loss in right after you get filled.</li>
+   <li><b>Cut losers fast, let winners run.</b> You can be wrong more often than right and still profit.</li>
+   <li><b>Don't average down</b> on a losing trade, and don't "revenge trade" after a loss.</li></ul>
+   <p><b>Controls:</b> <kbd>Space</kbd> pause/resume · <kbd>1</kbd>–<kbd>5</kbd> pick a stock · <kbd>Enter</kbd> in the ticket sends the order · speed 1×/2×/4× in the top bar. The 💡 <b>Coach</b> shows tips as things happen. You can reopen this tutorial any time with <b>? Tutorial</b>.</p>`]
+];
+
+GAMES.trade = {
+  name: 'Day Trader', cls: 'a5', tag: 'Stock market sim', feat: 1, wide: 1,
+  desc: 'Build a trading career. Read candlestick charts and breaking news, use market, limit and stop orders, go long or short on margin, and finish the day green. Includes a full tutorial.',
+  art: CANDLE_ART, best: () => `Acct ${money(S.trade.eq)}`,
+  start(stage, again) {
+    const sc = scope(), T = S.trade;
+    let startEq = T.eq, cash = startEq, t = 0, speed = 0, lastSpeed = 1, acc = 0, last = 0, opened = false, ended = false, modal = null;
+    let P = {}, orders = [], oid = 0, closed = [], spreadPaid = 0, marginCalls = 0, warned = false, pendingDeny = [], nextNews = rnd(6, 14);
+    let side = 'buy', type = 'mkt';
+    const coached = new Set();
+    const idx = { v: 5000, open: 5000, drift: (Math.random() - .5) * .00005, imps: [] };
+    const st = TSTOCKS.map(d => { const prev = +(d.p * (1 + (Math.random() - .5) * .16)).toFixed(2); return { ...d, prev, p: prev, fair: prev, drift: 0, imps: [], candles: [], vpv: 0, vv: 0, dayV: 0 }; });
+    const bySym = Object.fromEntries(st.map(s => [s.sym, s]));
+    const events = T_EVENTS.map(e => ({ ...e, odds: rnd(e.sym === '*' ? 60 : 50, e.sym === '*' ? 85 : 80), done: false }));
+    // pre-market gap: one stock opens away from yesterday's close on overnight news
+    const gs = pick(st), gUp = Math.random() < .55, gap = (gUp ? 1 : -1) * gs.mag * (1 + Math.random());
+    const gapText = fmtNews(pick(gUp ? NEWS_T.up : NEWS_T.dn), gs);
+    gs.p = gs.prev * (1 + gap); gs.fair = gs.rev ? gs.prev * (1 + gap * .45) : gs.p; gs.drift = gap * .01 * gs.mom;
+    st.forEach(s => { s.hi = s.lo = s.p; });
+    let sel = st[0];
+
+    stage.innerHTML = `<div class="tr">
+      <div class="trtop">
+        <div class="kpi"><small>Time</small><b id="tClock"></b></div><div class="kpi"><small>ARC 500</small><b id="tIdx"></b></div>
+        <div class="kpi"><small>Equity</small><b id="tEq"></b></div><div class="kpi"><small>Day P&amp;L</small><b id="tPnl"></b></div>
+        <div class="kpi"><small>Buying power</small><b id="tBp"></b></div>
+        <div class="trctl"><div class="seg" id="tSpeed"><button data-s="0" title="Pause (Space)">❚❚</button><button data-s="1">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
+        <button class="btn ghost sm" id="tCoach"></button><button class="btn ghost sm" id="tHelp">? Tutorial</button></div>
+      </div>
+      <div class="trmain">
+        <div class="pnl"><h4>Watchlist <span>1–5</span></h4><div id="tWl"></div></div>
+        <div class="pnl"><div class="chead" id="tHead"></div><div class="how" id="tHow"></div><div id="tChart"><canvas></canvas></div></div>
+        <div class="pnl ticket"><h4>Order ticket</h4>
+          <div class="seg" id="tSide"><button data-v="buy">Buy</button><button data-v="sell">Sell</button><button data-v="short">Short</button><button data-v="cover">Cover</button></div>
+          <label>Order type</label><div class="seg" id="tType"><button data-v="mkt">Market</button><button data-v="lmt">Limit</button><button data-v="stp">Stop</button></div>
+          <label>Shares</label><input class="tin" id="tQty" type="number" min="1" step="1" value="20">
+          <div class="qbtns" id="tQb"><button data-q="10">10</button><button data-q="50">50</button><button data-q="100">100</button><button data-q="half">½ max</button><button data-q="max">Max</button></div>
+          <div id="tPxWrap" hidden><label id="tPxLbl">Price</label><input class="tin" id="tPx" type="number" step="0.01" min="0.01"></div>
+          <div class="est" id="tEst"></div><button class="btn submit" id="tGo"></button><div class="err" id="tErr"></div>
+        </div>
+      </div>
+      <div class="trbot">
+        <div class="pnl"><h4>Positions <button class="xbtn" id="tFlat">Close all</button></h4><div id="tPos"></div></div>
+        <div class="pnl"><h4>Open orders</h4><div id="tOrd"></div></div>
+        <div class="pnl"><h4>News &amp; calendar</h4><div class="cal" id="tCal"></div><div class="feed" id="tFeed"></div></div>
+      </div></div>`;
+    const E = id => document.getElementById(id);
+    const cv = $('#tChart canvas'), g = cv.getContext('2d');
+
+    /* ----- account math ----- */
+    const pos = sym => P[sym] || (P[sym] = { q: 0, avg: 0, t0: 0 });
+    const equity = () => cash + st.reduce((a, s) => a + pos(s.sym).q * s.p, 0);
+    const gross = () => st.reduce((a, s) => a + Math.abs(pos(s.sym).q) * s.p, 0);
+    const bp = () => Math.max(0, 2 * equity() - gross());
+    const dirOf = sd => sd === 'buy' || sd === 'cover' ? 1 : -1;
+    function quote(s) {
+      const hs = s.spread * (1 + 2.5 * Math.exp(-t / 8) + (s.near ? 1.2 : 0));
+      const bid = Math.round(s.p * (1 - hs) * 100) / 100; let ask = Math.round(s.p * (1 + hs) * 100) / 100;
+      if (ask - bid < .01) ask = Math.round((bid + .01) * 100) / 100;
+      return { bid, ask };
+    }
+    function takeImp(o) { let sum = 0; o.imps = o.imps.filter(im => { const part = im.left * .3; sum += part; im.left -= part; return Math.abs(im.left) > 1e-5; }); return sum; }
+
+    /* ----- feed, news, coach ----- */
+    function feed(sym, html, c) {
+      const d = el('div', 'ni new ' + (c || ''), `<time>${clock(Math.min(t, 390))}</time>${sym && sym !== '*' ? `<span class="tk">${sym}</span>` : ''}${html}`);
+      E('tFeed').prepend(d); while (E('tFeed').children.length > 60) E('tFeed').lastChild.remove();
+    }
+    const coach = msg => { if (T.coach) toast('💡 ' + msg, 5500, 'coach'); };
+    function news(s, text, imp, c) {
+      s.imps.push({ left: imp }); if (s.mom) s.drift += imp * .012 * s.mom;
+      feed(s.sym, text, c);
+      if (!coached.has(s.sym)) { coached.add(s.sym); coach(`${s.sym} (${s.type}): ${s.how}`); }
+    }
+    function randomNews() {
+      let r = Math.random() * st.reduce((a, s) => a + s.w, 0), s = st[0];
+      for (const x of st) { if ((r -= x.w) < 0) { s = x; break; } }
+      const up = Math.random() < .52, rumor = Math.random() < (s.type === 'Meme' ? .45 : .12);
+      const imp = (up ? 1 : -1) * s.mag * (.5 + Math.random() * .9) * (rumor ? .8 : 1);
+      news(s, fmtNews(pick(rumor ? (up ? NEWS_T.rumorUp : NEWS_T.rumorDn) : (up ? NEWS_T.up : NEWS_T.dn)), s), imp, Math.abs(imp) > s.mag * 1.1 ? 'big' : '');
+      if (rumor && Math.random() < .55) pendingDeny.push({ t: t + rnd(8, 25), s, imp: -imp * .85 });
+      if (rumor && !coached.has('rumor')) { coached.add('rumor'); coach('Rumors are unconfirmed. About half get denied later, and the move often reverses.'); }
+    }
+    function fireEvent(ev) {
+      ev.done = true;
+      if (ev.sym === '*') {
+        let text, imp;
+        if (Math.random() * 100 < ev.odds) { text = 'Fed holds rates steady, as expected'; imp = .0025; ev.res = '● hold'; }
+        else if (Math.random() < .5) { text = 'SURPRISE: Fed cuts rates by 0.25%'; imp = .011; ev.res = '▲ cut'; }
+        else { text = 'SURPRISE: Fed raises rates by 0.25%'; imp = -.013; ev.res = '▼ hike'; }
+        idx.imps.push({ left: imp }); feed('*', '🏛 ' + text, 'big');
+      } else {
+        const good = Math.random() * 100 < ev.odds; ev.res = good ? '▲' : '▼';
+        news(bySym[ev.sym], ev.txt[good ? 0 : 1], (good ? 1 : -1) * ev.mag * (.7 + Math.random() * .6), 'big');
+      }
+    }
+
+    /* ----- simulation: one step = one market minute ----- */
+    function step() {
+      // intraday volatility "smile": wild open, quiet lunch, busier close
+      const U = 1 + 1.1 * Math.exp(-t / 20) + .5 * Math.exp(-(389 - t) / 25) - .3 * Math.exp(-(((t - 165) / 55) ** 2));
+      for (const ev of events) {
+        if (!ev.done && ev.t === t) fireEvent(ev);
+        else if (!ev.done && ev.t - t === 10) { feed(ev.sym, `⏰ Coming up at ${clock(ev.t)}: ${ev.name}`, ''); coach(`${ev.name} in 10 minutes. Spreads widen and prices get jumpy before scheduled events.`); }
+      }
+      pendingDeny.filter(d => d.t === t).forEach(d => news(d.s, fmtNews(pick(NEWS_T.deny), d.s), d.imp, 'big'));
+      pendingDeny = pendingDeny.filter(d => d.t > t);
+      if (t >= nextNews) { randomNews(); nextNews = t + rnd(10, 24); }
+      const m = gauss() * .00045 * U + idx.drift + takeImp(idx);
+      idx.v *= 1 + m;
+      for (const s of st) {
+        s.near = events.some(e => !e.done && (e.sym === s.sym || e.sym === '*') && e.t > t && e.t - t <= 10);
+        const imp = takeImp(s);
+        let r = s.beta * m + s.drift + s.vol * U * (s.near ? 1.4 : 1) * gauss() + imp;
+        if (s.rev) { r += s.rev * (s.fair - s.p) / s.p; s.fair *= 1 + imp * .45 + gauss() * .0002; }
+        s.drift *= .98;
+        const o = s.p; s.p = Math.max(.5, s.p * (1 + r)); s.hi = Math.max(s.hi, s.p); s.lo = Math.min(s.lo, s.p);
+        const v = Math.round(s.bv * U * (.6 + Math.random() * .8) * (1 + Math.abs(r) * 300));
+        s.vpv += s.p * v; s.vv += v; s.dayV += v;
+        const ci = Math.floor(t / 5); const c = s.candles[ci] || (s.candles[ci] = { o, h: o, l: o, c: o, v: 0 });
+        c.h = Math.max(c.h, s.p); c.l = Math.min(c.l, s.p); c.c = s.p; c.v += v; c.vw = s.vpv / s.vv;
+      }
+      t++;
+      processOrders(); marginCheck();
+    }
+
+    /* ----- orders & fills ----- */
+    function fill(sym, qty, px, verb) {
+      const s = bySym[sym], p = pos(sym); let pnl = null;
+      cash -= qty * px; spreadPaid += Math.abs(qty) * Math.abs(px - s.p);
+      if (!p.q || Math.sign(p.q) === Math.sign(qty)) { if (!p.q) p.t0 = t; p.avg = (p.q * p.avg + qty * px) / (p.q + qty); p.q += qty; }
+      else { const n = Math.min(Math.abs(qty), Math.abs(p.q)); pnl = n * (px - p.avg) * Math.sign(p.q); closed.push({ sym, pnl }); p.q += qty; if (!p.q) p.avg = 0; }
+      feed(sym, `${verb} ${Math.abs(qty)} @ ${px.toFixed(2)}${pnl != null ? ` · <b class="${cls(pnl)}">${money(pnl, 1)}</b>` : ''}`, 'fill');
+      beep(qty > 0 ? 760 : 560, .07, 'triangle', .05);
+    }
+    function execute(sd, sym, qty, px) {
+      const p = pos(sym);
+      if (sd === 'sell') { qty = Math.min(qty, Math.max(0, p.q)); if (!qty) return 'No shares left to sell.'; fill(sym, -qty, px, 'Sold'); }
+      else if (sd === 'cover') { qty = Math.min(qty, Math.max(0, -p.q)); if (!qty) return 'Nothing left to cover.'; fill(sym, qty, px, 'Covered'); }
+      else {
+        if ((sd === 'buy' && p.q < 0) || (sd === 'short' && p.q > 0)) return 'That order conflicts with your current position.';
+        if (qty * px > bp() + .005) return `Not enough buying power (need ${money(qty * px)}).`;
+        fill(sym, sd === 'buy' ? qty : -qty, px, sd === 'buy' ? 'Bought' : 'Shorted');
+      }
+      if (!p.q) { // flat: cancel leftover exit orders (works like a simple one-cancels-other bracket)
+        const n = orders.length; orders = orders.filter(o => !(o.sym === sym && (o.side === 'sell' || o.side === 'cover')));
+        if (orders.length < n) feed(sym, 'Position closed, so the leftover exit orders were cancelled.', 'fill');
+      }
+      return null;
+    }
+    function processOrders() {
+      for (const o of orders.slice()) {
+        if (!orders.includes(o)) continue;
+        const q = quote(bySym[o.sym]), d = dirOf(o.side); let px = null;
+        if (o.type === 'mkt') px = d > 0 ? q.ask : q.bid;
+        else if (o.type === 'lmt') { if (d > 0 && q.ask <= o.px) px = Math.min(o.px, q.ask); if (d < 0 && q.bid >= o.px) px = Math.max(o.px, q.bid); }
+        else { if (d > 0 && q.ask >= o.px) px = q.ask; if (d < 0 && q.bid <= o.px) px = q.bid; }
+        if (px == null) continue;
+        orders = orders.filter(x => x !== o);
+        const err = execute(o.side, o.sym, o.qty, px);
+        if (err) feed(o.sym, `Order cancelled: ${err}`, 'fill');
+      }
+    }
+    function closeAll() {
+      orders = [];
+      for (const s of st) { const p = pos(s.sym); if (p.q) { const q = quote(s); execute(p.q > 0 ? 'sell' : 'cover', s.sym, Math.abs(p.q), p.q > 0 ? q.bid : q.ask); } }
+    }
+    function marginCheck() {
+      const e = equity(), gr = gross();
+      if (gr > 0 && e < .25 * gr) {
+        marginCalls++; closeAll(); feed('*', '⚠ MARGIN CALL: your equity fell below 25% of your position value. Everything was liquidated.', 'big');
+        toast('⚠ Margin call! All positions liquidated', 4000); beep(120, .4, 'sawtooth', .07);
+      } else if (gr > 0 && e < .35 * gr && !warned) { warned = true; toast('Warning: you are close to a margin call. Reduce your positions.', 4000); }
+    }
+    function submit() {
+      const err = m => { E('tErr').textContent = m || ''; if (m) beep(150, .1, 'sawtooth', .03); };
+      err('');
+      if (!opened || ended) return err('The market is closed.');
+      const qty = Math.floor(+E('tQty').value);
+      if (!(qty >= 1)) return err('Enter a whole number of shares.');
+      const q = quote(sel), p = pos(sel.sym), d = dirOf(side); let px = null;
+      if (type !== 'mkt') {
+        px = Math.round(+E('tPx').value * 100) / 100;
+        if (!(px > 0)) return err('Enter a price for this order.');
+        if (type === 'stp' && d < 0 && px >= q.bid) return err(`A ${side} stop must be below the bid (${q.bid.toFixed(2)}). To sell higher, use a Limit.`);
+        if (type === 'stp' && d > 0 && px <= q.ask) return err(`A ${side} stop must be above the ask (${q.ask.toFixed(2)}). To buy lower, use a Limit.`);
+      }
+      if (side === 'buy' && p.q < 0) return err(`You're short ${sel.sym}. Use Cover to buy shares back.`);
+      if (side === 'short' && p.q > 0) return err(`You own ${sel.sym}. Sell your shares before shorting.`);
+      if (side === 'sell' && p.q <= 0) return err(`You don't own any ${sel.sym}.`);
+      if (side === 'cover' && p.q >= 0) return err(`You aren't short ${sel.sym}.`);
+      if ((side === 'sell' && qty > p.q) || (side === 'cover' && qty > -p.q)) return err(`You only have ${Math.abs(p.q)} shares.`);
+      if (side === 'buy' || side === 'short') {
+        const need = qty * (px || (d > 0 ? q.ask : q.bid));
+        if (need > bp() + .005) return err(`Not enough buying power: need ${money(need)}, you have ${money(bp())}.`);
+      }
+      if (type === 'mkt' && speed) { const e = execute(side, sel.sym, qty, d > 0 ? q.ask : q.bid); if (e) return err(e); }
+      else {
+        orders.push({ id: ++oid, side, type, sym: sel.sym, qty, px });
+        if (type === 'mkt') feed(sel.sym, 'Market is paused. Your order fills as soon as trading resumes.', 'fill');
+        beep(700, .05, 'triangle', .04);
+      }
+      render();
+    }
+    function maxQty() {
+      const q = quote(sel), p = pos(sel.sym);
+      if (side === 'sell') return Math.max(0, p.q);
+      if (side === 'cover') return Math.max(0, -p.q);
+      const px = type !== 'mkt' && +E('tPx').value > 0 ? +E('tPx').value : side === 'buy' ? q.ask : q.bid;
+      return Math.max(0, Math.floor(bp() / px));
+    }
+
+    /* ----- rendering ----- */
+    function render() { renderTop(); renderWL(); renderHead(); drawChart(); renderPos(); renderOrd(); renderCal(); renderTicket(); }
+    function renderTop() {
+      const e = equity(), pnl = e - startEq, ic = idx.v / idx.open - 1;
+      E('tClock').textContent = clock(Math.min(t, 390));
+      E('tIdx').innerHTML = `${idx.v.toFixed(0)} <span class="${cls(ic * 100)}">${pct(ic)}</span>`;
+      E('tEq').textContent = money(e); E('tPnl').textContent = money(pnl, 1); E('tPnl').className = cls(pnl); E('tBp').textContent = money(bp());
+      [...E('tSpeed').children].forEach(b => b.classList.toggle('on', +b.dataset.s === speed));
+      E('tCoach').textContent = `💡 Coach ${T.coach ? 'on' : 'off'}`;
+    }
+    function renderWL() {
+      E('tWl').innerHTML = st.map((s, i) => {
+        const ch = s.p / s.prev - 1, p = pos(s.sym);
+        return `<div class="wrow${s === sel ? ' sel' : ''}" data-i="${i}"><b>${s.sym}${p.q ? `<em class="${p.q > 0 ? 'lg' : 'sh'}">${p.q > 0 ? 'L' : 'S'} ${Math.abs(p.q)}</em>` : ''}</b><span class="px">${s.p.toFixed(2)}<br><span class="${cls(ch * 100)}">${pct(ch)}</span></span><small>${s.type}</small></div>`;
+      }).join('');
+    }
+    function renderHead() {
+      const q = quote(sel), ch = sel.p / sel.prev - 1;
+      E('tHead').innerHTML = `<h3>${sel.sym}</h3><span class="ptag">${sel.type}</span><span class="qt">${sel.name} · ${sel.sector}</span>
+        <span class="qt">Bid <b class="dn">${q.bid.toFixed(2)}</b> · Ask <b class="up">${q.ask.toFixed(2)}</b> · spread ${(q.ask - q.bid).toFixed(2)}</span>
+        <span class="qt">Last <b>${sel.p.toFixed(2)}</b> <b class="${cls(ch * 100)}">${pct(ch)}</b></span><span class="qt">Range ${sel.lo.toFixed(2)}–${sel.hi.toFixed(2)} · Vol ${fmtVol(sel.dayV)}</span>`;
+      E('tHow').textContent = '★ ' + sel.how;
+    }
+    function drawChart() {
+      const s = sel, W = E('tChart').clientWidth, H = 340, dpr = window.devicePixelRatio || 1;
+      if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px'; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+      const L = 4, R = W - 62, TOP = 10, PB = H - 92, VT = H - 84, VB = H - 22, cw = (R - L) / 78, cs = s.candles.filter(Boolean);
+      const p = pos(s.sym), myOrd = orders.filter(o => o.sym === s.sym && o.px);
+      let lo = Math.min(s.lo, s.prev), hi = Math.max(s.hi, s.prev);
+      if (p.q) { lo = Math.min(lo, p.avg); hi = Math.max(hi, p.avg); }
+      myOrd.forEach(o => { lo = Math.min(lo, o.px); hi = Math.max(hi, o.px); });
+      const pad = Math.max((hi - lo) * .08, s.p * .004); lo -= pad; hi += pad;
+      const y = v => TOP + (hi - v) / (hi - lo) * (PB - TOP);
+      const hline = (v, col, label, dash) => {
+        g.strokeStyle = col; g.setLineDash(dash || [5, 4]); g.lineWidth = 1; g.beginPath(); g.moveTo(L, y(v)); g.lineTo(R, y(v)); g.stroke(); g.setLineDash([]);
+        if (label) { g.fillStyle = col; g.font = '600 11px Inter, sans-serif'; g.fillText(label, L + 4, y(v) - 4); }
+      };
+      g.font = '11px "JetBrains Mono", monospace'; g.textBaseline = 'middle';
+      for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4; g.strokeStyle = '#ffffff0d'; g.beginPath(); g.moveTo(L, y(v)); g.lineTo(R, y(v)); g.stroke(); g.fillStyle = '#8b90c0'; g.fillText(v.toFixed(2), R + 6, y(v)); }
+      g.textBaseline = 'alphabetic';
+      [[30, '10:00'], [90, '11:00'], [150, '12:00'], [210, '1:00'], [270, '2:00'], [330, '3:00']].forEach(([m, l]) => {
+        const x = L + m / 5 * cw; g.strokeStyle = '#ffffff08'; g.beginPath(); g.moveTo(x, TOP); g.lineTo(x, VB); g.stroke(); g.fillStyle = '#8b90c0'; g.fillText(l, x - 15, H - 6);
+      });
+      events.filter(e => e.sym === s.sym || e.sym === '*').forEach(e => {
+        const x = L + e.t / 5 * cw; g.strokeStyle = '#fbbf2466'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(x, TOP); g.lineTo(x, VB); g.stroke(); g.setLineDash([]);
+        g.fillStyle = '#fbbf24'; g.font = '600 10px Inter, sans-serif'; g.fillText(e.sym === '*' ? 'FED' : 'EVENT', x + 3, TOP + 10);
+      });
+      hline(s.prev, '#8b90c066', 'prev close', [2, 4]);
+      const mv = Math.max(1, ...cs.map(c => c.v));
+      s.candles.forEach((c, i) => {
+        if (!c) return;
+        const x = L + (i + .5) * cw, up = c.c >= c.o, col = up ? '#34d399' : '#f43f5e', bw = Math.max(2, cw * .64);
+        g.fillStyle = up ? '#34d39944' : '#f43f5e44'; const vh = c.v / mv * (VB - VT); g.fillRect(x - bw / 2, VB - vh, bw, vh);
+        g.strokeStyle = col; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y(c.h)); g.lineTo(x, y(c.l)); g.stroke();
+        g.fillStyle = col; g.fillRect(x - bw / 2, y(Math.max(c.o, c.c)), bw, Math.max(1, Math.abs(y(c.o) - y(c.c))));
+      });
+      if (cs.length > 1) { g.strokeStyle = '#fb923c'; g.lineWidth = 1.5; g.beginPath(); s.candles.forEach((c, i) => { if (c) { const x = L + (i + .5) * cw; i ? g.lineTo(x, y(c.vw)) : g.moveTo(x, y(c.vw)); } }); g.stroke(); }
+      if (p.q) hline(p.avg, '#22d3ee', `${p.q > 0 ? 'LONG' : 'SHORT'} ${Math.abs(p.q)} @ ${p.avg.toFixed(2)}`);
+      myOrd.forEach(o => hline(o.px, o.type === 'stp' ? '#fbbf24' : dirOf(o.side) > 0 ? '#34d399' : '#f43f5e', `${SIDE_N[o.side]} ${TYPE_N[o.type]} ${o.qty} @ ${o.px.toFixed(2)}`));
+      const ly = y(s.p), up = s.p >= s.prev;
+      g.fillStyle = up ? '#059669' : '#e11d48'; g.fillRect(R + 1, ly - 9, 60, 18);
+      g.fillStyle = '#fff'; g.font = '700 11px "JetBrains Mono", monospace'; g.textBaseline = 'middle'; g.fillText(s.p.toFixed(2), R + 6, ly); g.textBaseline = 'alphabetic';
+      if (!cs.length) { g.fillStyle = '#8b90c0'; g.font = '600 14px Inter, sans-serif'; g.textAlign = 'center'; g.fillText(opened ? '' : 'Market opens at 9:30 AM', (L + R) / 2, (TOP + PB) / 2); g.textAlign = 'left'; }
+    }
+    function renderPos() {
+      const rows = st.filter(s => pos(s.sym).q).map(s => {
+        const p = pos(s.sym), u = p.q * (s.p - p.avg);
+        return `<tr><td>${s.sym}</td><td class="${p.q > 0 ? 'up' : 'dn'}">${p.q > 0 ? '+' : ''}${p.q}</td><td>${p.avg.toFixed(2)}</td><td>${s.p.toFixed(2)}</td><td class="${cls(u)}">${money(u, 1)}</td><td><button class="xbtn" data-close="${s.sym}">Close</button></td></tr>`;
+      });
+      const real = closed.reduce((a, c) => a + c.pnl, 0), unr = st.reduce((a, s) => a + pos(s.sym).q * (s.p - pos(s.sym).avg), 0);
+      E('tPos').innerHTML = (rows.length ? `<table><tr><th>Sym</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&amp;L</th><th></th></tr>${rows.join('')}</table>`
+        : '<div class="empty">No open positions. Pick a stock and use the order ticket.</div>')
+        + `<div class="sum">Realized <b class="${cls(real)}">${money(real, 1)}</b> · Unrealized <b class="${cls(unr)}">${money(unr, 1)}</b> · Spread paid <b>${money(spreadPaid)}</b></div>`;
+    }
+    function renderOrd() {
+      E('tOrd').innerHTML = orders.length ? `<table><tr><th>Order</th><th>Qty</th><th>Type</th><th>Price</th><th></th></tr>${orders.map(o =>
+        `<tr><td><span class="sd ${o.side}">${o.side.toUpperCase()}</span> ${o.sym}</td><td>${o.qty}</td><td>${TYPE_N[o.type]}</td><td>${o.px ? o.px.toFixed(2) : '—'}</td><td><button class="xbtn" data-cancel="${o.id}">✕</button></td></tr>`).join('')}</table>`
+        : '<div class="empty">No working orders. Limit and stop orders wait here until they trigger.</div>';
+    }
+    const calRows = () => events.map(e => `<div class="${e.done ? 'done' : ''}"><span><b>${clock(e.t)}</b> ${e.name}</span><span>${e.done ? e.res : e.sym === '*' ? `hold expected (${e.odds}%)` : `${e.odds}% odds positive`}</span></div>`).join('');
+    function renderCal() { E('tCal').innerHTML = calRows(); }
+    function renderTicket() {
+      const q = quote(sel), p = pos(sel.sym), qty = Math.max(0, Math.floor(+E('tQty').value || 0)), d = dirOf(side);
+      const px = type === 'mkt' ? (d > 0 ? q.ask : q.bid) : (+E('tPx').value || 0);
+      [...E('tSide').children].forEach(b => {
+        const v = b.dataset.v; b.classList.toggle('on', v === side);
+        b.classList.toggle('dis', (v === 'buy' && p.q < 0) || (v === 'short' && p.q > 0) || (v === 'sell' && p.q <= 0) || (v === 'cover' && p.q >= 0));
+      });
+      [...E('tType').children].forEach(b => b.classList.toggle('on', b.dataset.v === type));
+      E('tPxWrap').hidden = type === 'mkt'; E('tPxLbl').textContent = type === 'lmt' ? 'Limit price' : 'Stop price';
+      const lines = [`Est. ${d > 0 ? 'cost' : 'proceeds'}: <b>${money(qty * px)}</b>`, `Position: <b>${p.q ? `${p.q > 0 ? 'Long' : 'Short'} ${Math.abs(p.q)} @ ${p.avg.toFixed(2)}` : 'none'}</b>`, `Max shares: <b>${maxQty()}</b>`];
+      if (p.q && px && ((side === 'sell' && p.q > 0) || (side === 'cover' && p.q < 0))) { const r = (px - p.avg) * Math.min(qty, Math.abs(p.q)) * Math.sign(p.q); lines.push(`${type === 'stp' ? 'If stopped' : 'If filled'}: <b class="${cls(r)}">${money(r, 1)}</b>`); }
+      E('tEst').innerHTML = lines.join('<br>') + `<div class="th">${TYPE_HELP[type][side]}</div>`;
+      E('tGo').textContent = `${SIDE_N[side]} ${qty || ''} ${sel.sym} ${type === 'mkt' ? 'at market' : `${TYPE_N[type].toLowerCase()} @ ${px ? px.toFixed(2) : '…'}`}`;
+      E('tGo').className = 'btn submit s-' + side;
+    }
+
+    /* ----- modals: pre-market & tutorial ----- */
+    function showModal(html, kind) { closeModal(); modal = el('div', 'modal', `<div class="mcard">${html}</div>`); modal.dataset.kind = kind; $('#play').appendChild(modal); return modal; }
+    function closeModal() { if (modal) modal.remove(); modal = null; }
+    function tutorial(done) {
+      let i = 0;
+      const page = () => {
+        const [h, body] = TUT[i], m = showModal(`<div class="kick">Tutorial · ${i + 1} / ${TUT.length}</div><h2>${h}</h2>${body}
+          <div class="tnav"><button class="btn ghost sm" data-skip>${i === TUT.length - 1 ? 'Close' : 'Skip tutorial'}</button><div class="dots">${TUT.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
+          <div style="display:flex;gap:8px">${i ? '<button class="btn ghost sm" data-prev>← Back</button>' : ''}<button class="btn primary sm" data-next>${i === TUT.length - 1 ? 'Start trading' : 'Next →'}</button></div></div>`, 'tut');
+        const finish = () => { T.tut = true; save(); closeModal(); if (done) done(); };
+        $('[data-skip]', m).onclick = finish;
+        $('[data-next]', m).onclick = () => { if (i < TUT.length - 1) { i++; page(); } else finish(); };
+        if (i) $('[data-prev]', m).onclick = () => { i--; page(); };
+        m.tutNav = k => { if (k === 'ArrowRight') $('[data-next]', m).click(); if (k === 'ArrowLeft' && i) { i--; page(); } if (k === 'Escape') finish(); };
+      };
+      page();
+    }
+    function premarket() {
+      const blown = T.eq < 100;
+      const m = showModal(`<div class="kick">Pre-market · Day ${T.days + 1}</div><h2>Good morning, ${esc(S.name)}</h2>
+        <div class="res-stats"><div><b>${money(T.eq)}</b><small>Account</small></div><div><b class="${cls(T.total)}">${money(T.total, 1)}</b><small>Career P&amp;L</small></div><div><b>${T.days ? Math.round(T.wins / T.days * 100) + '%' : '—'}</b><small>Green days</small></div></div>
+        <div class="mh">Today's calendar</div><div class="cal">${calRows()}</div>
+        <div class="mh">Pre-market mover</div><div class="ni big"><span class="tk">${gs.sym}</span>${gapText} · <b class="${cls(gap * 100)}">${pct(gap)}</b></div>
+        <p class="hint" style="text-align:left">Plan before the bell: which stock fits today's news and events? How much will you risk per trade?</p>
+        ${blown ? '<div class="note">Your account is blown. Reset it to start a new career with $10,000.</div>' : ''}
+        <div class="res-btns"><button class="btn primary" data-open ${blown ? 'disabled style="opacity:.5"' : ''}>🔔 Open the market</button><button class="btn ghost" data-tut>Tutorial</button><button class="btn ghost" data-reset>Reset account</button></div>`, 'pre');
+      $('[data-open]', m).onclick = () => {
+        if (blown) return;
+        closeModal(); opened = true; speed = 1; last = 0;
+        feed('*', '🔔 Opening bell. Spreads are widest in the first few minutes.', 'big'); feed(gs.sym, 'Pre-market: ' + gapText, 'big');
+        render();
+      };
+      $('[data-tut]', m).onclick = () => tutorial(premarket);
+      $('[data-reset]', m).onclick = () => {
+        if (!confirm('Reset your trading career to $10,000? Your career stats will be cleared.')) return;
+        Object.assign(T, { eq: 10000, days: 0, wins: 0, total: 0 }); save(); startEq = cash = 10000; render(); premarket();
+      };
+    }
+
+    /* ----- end of day ----- */
+    function endDay() {
+      ended = true; speed = 0;
+      if (st.some(s => pos(s.sym).q)) feed('*', '🔔 Closing bell: open positions were closed at market.', 'big');
+      closeAll(); render();
+      const e = equity(), pnl = e - startEq, ret = pnl / startEq;
+      T.eq = Math.round(e * 100) / 100; T.days++; if (pnl > 0) T.wins++; T.total += pnl;
+      const best = pnl > S.best.trade; if (best) S.best.trade = Math.round(pnl);
+      const wins = closed.filter(c => c.pnl > 0), losses = closed.filter(c => c.pnl <= 0);
+      const avgW = wins.length ? wins.reduce((a, c) => a + c.pnl, 0) / wins.length : 0, avgL = losses.length ? -losses.reduce((a, c) => a + c.pnl, 0) / losses.length : 0;
+      const worst = closed.reduce((a, c) => !a || c.pnl < a.pnl ? c : a, null), tips = [];
+      if (!closed.length) tips.push("You didn't trade today. Watching is fine, but next time try one small, planned trade with a stop-loss.");
+      else {
+        if (losses.length && avgL > avgW * 1.5) tips.push(`Your average loss (${money(avgL)}) is much bigger than your average win (${money(avgW)}). Cut losers sooner with stop orders and let winners run.`);
+        if (worst && worst.pnl < -.03 * startEq) tips.push(`One ${worst.sym} trade lost ${money(-worst.pnl)}, more than 3% of your account. Size positions so one stop-out costs 1–2%.`);
+        if (closed.length >= 12 && spreadPaid > Math.abs(pnl) * .5) tips.push(`You made ${closed.length} trades and paid ${money(spreadPaid)} in spreads. Overtrading quietly drains accounts, so wait for clearer setups.`);
+        if (marginCalls) tips.push('You got margin-called. Leverage cuts both ways, so use less of your buying power.');
+        if (pnl > 0 && wins.length / closed.length < .45) tips.push('Low win rate but still profitable. That is what "let winners run" looks like.');
+      }
+      if (!tips.length) tips.push(pnl > 0 ? 'Solid, disciplined day. Keep your sizing consistent and repeat the process.' : 'Red days happen to everyone. Review your entries: were they planned, or just reactions?');
+      if (T.eq < 100) tips.unshift('Your account is blown. Reset it from the pre-market screen to start over.');
+      const extra = `<div class="dline">Account <b>${money(T.eq)}</b> · Trades closed <b>${closed.length}</b> · Spread paid <b>${money(spreadPaid)}</b> · Career <b class="${cls(T.total)}">${money(T.total, 1)}</b></div>
+        <div class="mh" style="text-align:left">Coach review</div><ul class="coachlist">${tips.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`;
+      const p100 = ret * 100;
+      results(sc, stage, { title: `Day ${T.days} · closing bell`, best, again, extra,
+        stats: [['Day P&L', `<span class="${cls(pnl)}">${money(pnl, 1)}</span>`], ['Return', pct(ret)], ['Win rate', closed.length ? Math.round(wins.length / closed.length * 100) + '%' : '—']],
+        xp: 20 + Math.max(0, Math.min(150, Math.round(p100 * 25))) + Math.min(20, closed.length * 2), coins: pnl > 0 ? 15 + Math.min(100, Math.round(p100 * 20)) : 5 });
+    }
+
+    /* ----- input wiring ----- */
+    const setSpeed = v => { if (!opened || ended) return; speed = v; if (v) lastSpeed = v; last = 0; renderTop(); };
+    const select = s => { sel = s; if (type !== 'mkt') E('tPx').value = s.p.toFixed(2); E('tErr').textContent = ''; render(); };
+    sc.on(E('tSpeed'), 'click', e => { const b = e.target.closest('button'); if (b) setSpeed(+b.dataset.s); });
+    // pointerdown: these panels re-render every tick, so a click could land on a replaced element
+    sc.on(E('tWl'), 'pointerdown', e => { const r = e.target.closest('.wrow'); if (r) select(st[+r.dataset.i]); });
+    sc.on(E('tPos'), 'pointerdown', e => {
+      const b = e.target.closest('[data-close]'); if (!b || !opened || ended) return;
+      const s = bySym[b.dataset.close], p = pos(s.sym), q = quote(s);
+      if (!speed) { orders.push({ id: ++oid, side: p.q > 0 ? 'sell' : 'cover', type: 'mkt', sym: s.sym, qty: Math.abs(p.q), px: null }); feed(s.sym, 'Close order queued. It fills when trading resumes.', 'fill'); }
+      else execute(p.q > 0 ? 'sell' : 'cover', s.sym, Math.abs(p.q), p.q > 0 ? q.bid : q.ask);
+      render();
+    });
+    sc.on(E('tOrd'), 'pointerdown', e => { const b = e.target.closest('[data-cancel]'); if (b) { orders = orders.filter(o => o.id !== +b.dataset.cancel); render(); } });
+    sc.on(E('tFlat'), 'click', () => { if (!opened || ended) return; if (!speed) { toast('Resume the market to close everything.'); return; } closeAll(); render(); });
+    sc.on(E('tSide'), 'click', e => { const b = e.target.closest('button'); if (b) { side = b.dataset.v; E('tErr').textContent = ''; renderTicket(); } });
+    sc.on(E('tType'), 'click', e => {
+      const b = e.target.closest('button'); if (!b) return; type = b.dataset.v;
+      if (type !== 'mkt') E('tPx').value = sel.p.toFixed(2);
+      E('tErr').textContent = ''; renderTicket(); if (type !== 'mkt') E('tPx').select();
+    });
+    sc.on(E('tQb'), 'click', e => {
+      const b = e.target.closest('button'); if (!b) return; const k = b.dataset.q, mx = maxQty();
+      E('tQty').value = k === 'max' ? mx : k === 'half' ? Math.floor(mx / 2) : k; renderTicket();
+    });
+    ['tQty', 'tPx'].forEach(id => { sc.on(E(id), 'input', renderTicket); sc.on(E(id), 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }); });
+    sc.on(E('tGo'), 'click', submit);
+    sc.on(E('tHelp'), 'click', () => tutorial(opened ? null : premarket));
+    sc.on(E('tCoach'), 'click', () => { T.coach = !T.coach; save(); renderTop(); });
+    sc.on(window, 'resize', drawChart);
+    // capture phase so modal keys run before the arcade's global Esc handler
+    sc.on(document, 'keydown', e => {
+      if (modal) { if (modal.tutNav && ['ArrowRight', 'ArrowLeft', 'Escape'].includes(e.key)) { e.stopPropagation(); e.preventDefault(); modal.tutNav(e.key); } return; }
+      if (!opened || ended || e.target.closest?.('input')) return;
+      if (e.key === ' ') { e.preventDefault(); setSpeed(speed ? 0 : lastSpeed); }
+      else if (/^[1-5]$/.test(e.key)) select(st[+e.key - 1]);
+    }, true);
+
+    sc.raf(ts => {
+      const dt = last ? Math.min(.1, (ts - last) / 1000) : 0; last = ts;
+      if (!opened || ended || modal || !speed) return;
+      acc += dt * speed * 3; let n = 0;
+      while (acc >= 1 && t < 390) { step(); acc--; n++; }
+      if (n) render();
+      if (t >= 390) { endDay(); return false; }
+    });
+
+    hud('');
+    render();
+    if (T.tut) premarket(); else tutorial(premarket);
+    // leaving mid-day settles the day at market so quitting can't erase losses
+    return { stop() { if (opened && !ended) { closeAll(); T.eq = Math.round(equity() * 100) / 100; T.total += T.eq - startEq; T.days++; if (T.eq > startEq) T.wins++; save(); } closeModal(); sc.stop(); } };
+  }
+};
+
 /* ---------- navigation ---------- */
 let cur = null, curId = null;
 function launch(id) {
   if (cur) cur.stop();
-  const st = $('#stage'); st.innerHTML = ''; hud('');
+  const st = $('#stage'); st.innerHTML = ''; st.className = GAMES[id].wide ? 'wide' : ''; hud('');
   curId = id; cur = GAMES[id].start(st, () => launch(id));
 }
 function openGame(id) {
@@ -612,10 +1240,10 @@ function renderHome() {
   renderHeader();
   const nm = $('#name'); if (document.activeElement !== nm) nm.value = S.name; nm.style.width = Math.max(3, nm.value.length + 1) + 'ch';
   $('#showcar').innerHTML = carSVG(S.car);
-  $('#stats').innerHTML = [['Best WPM', S.best.type || '—'], ['Math APM', S.best.math || '—'], ['Siege best', S.best.siege || '—'], ['Games played', S.plays]]
+  $('#stats').innerHTML = [['Best WPM', S.best.type || '—'], ['Math APM', S.best.math || '—'], ['Trading acct', money(S.trade.eq)], ['Games played', S.plays]]
     .map(([k, v]) => `<div class="stat"><b>${v}</b><small>${k}</small></div>`).join('');
   $('#games').innerHTML = Object.entries(GAMES).map(([id, g]) => `
-    <button class="game" data-g="${id}"><div class="art ${g.cls}"><div>${g.art}</div></div>
+    <button class="game${g.feat ? ' feat' : ''}" data-g="${id}"><div class="art ${g.cls}"><div>${g.art}</div></div>
       <div class="gbody"><h3>${g.name}</h3><p>${g.desc}</p>
       <div class="meta"><span class="tag">${g.tag}</span><span class="best">${g.best() ? '★ ' + g.best() : 'Not played yet'}</span></div></div></button>`).join('');
   $('#garage').innerHTML = PAINTS.map(([n, c, price]) => {
