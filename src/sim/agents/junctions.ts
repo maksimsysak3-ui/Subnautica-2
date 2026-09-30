@@ -80,6 +80,8 @@ const MIN_GREEN = 7;
 const MAX_GREEN = 30;
 const AMBER_SECONDS = 3;
 const ALL_RED_SECONDS = 1;
+/** Seconds of green with nobody going through before a waiting arm is given it. */
+const GAP_OUT_SECONDS = 3;
 
 /** The most vehicles that can be inside one junction at once. */
 const BOX = 8;
@@ -171,6 +173,10 @@ export class Junctions {
   /** The phase each signalised node is showing, and when that state began. */
   private readonly phaseNow: Uint8Array;
   private readonly phaseSince: Float32Array;
+  /** Set when somebody takes a slot in the box; read and cleared by `step`. */
+  private readonly entered: Uint8Array;
+  /** When somebody last went through on the current green, in seconds. */
+  private readonly lastFlow: Float32Array;
   /** 0 green, 1 amber, 2 all-red before the next phase. */
   private readonly phaseState: Uint8Array;
   /** Incoming lanes per signalised node, for asking who is waiting. */
@@ -200,6 +206,8 @@ export class Junctions {
     this.signalOffset = new Float32Array(n);
     this.phaseNow = new Uint8Array(n);
     this.phaseSince = new Float32Array(n);
+    this.entered = new Uint8Array(n);
+    this.lastFlow = new Float32Array(n);
     this.phaseState = new Uint8Array(n);
     this.armStart = new Int32Array(n + 1);
     this.armLane = new Int32Array(0);
@@ -446,6 +454,7 @@ export class Junctions {
       if (phases <= 1) continue;
       const held = seconds - this.phaseSince[n];
       const state = this.phaseState[n];
+      if (this.entered[n] !== 0) { this.entered[n] = 0; this.lastFlow[n] = seconds; }
 
       if (state === 1) {                                   // amber
         if (held >= AMBER_SECONDS) { this.phaseState[n] = 2; this.phaseSince[n] = seconds; }
@@ -462,6 +471,7 @@ export class Junctions {
         this.phaseNow[n] = pick >= 0 ? pick : (this.phaseNow[n] + 1) % phases;
         this.phaseState[n] = 0;
         this.phaseSince[n] = seconds;
+        this.lastFlow[n] = seconds;
         continue;
       }
       // Green. Held while it is wanted and nobody else is waiting, up to the cap.
@@ -471,7 +481,11 @@ export class Junctions {
       for (let k = 1; k < phases && !others; k++) {
         others = this.demand(n, (this.phaseNow[n] + k) % phases, waiting);
       }
-      if ((!mine && others) || held >= MAX_GREEN) {
+      // Gapped out: a queue that has not moved on this green for a few
+      // seconds is blocked beyond the junction, and holding the green for it
+      // only starves the arms that could go.
+      const stalled = seconds - this.lastFlow[n] > GAP_OUT_SECONDS;
+      if (((!mine || stalled) && others) || held >= MAX_GREEN) {
         this.phaseState[n] = 1;
         this.phaseSince[n] = seconds;
       }
@@ -524,6 +538,7 @@ export class Junctions {
       if (crosses(inAngle, outAngle, this.boxIn[at], this.boxOut[at])) return false;
     }
     if (free < 0) return false;
+    this.entered[node] = 1;
     this.boxWho[free] = who;
     this.boxIn[free] = inAngle;
     this.boxOut[free] = outAngle;
