@@ -171,7 +171,8 @@ export class TeamPanel {
       ['Record', `${t.w}–${t.d}–${t.l}${def.draws ? '' : ' (W–D–L)'}`], ['League position', ordinal(pos)],
       ['Team strength', Math.round(s.strength()).toString()], ['Following', `${Math.round(t.support * 100)}% of the city`],
       ['Home ground', `${venueName(t.venue)}, ${(VENUE_SEATS[t.venue] ?? 0).toLocaleString()} seats`],
-      ['Wage bill', `${money(s.wages())} a game`], ['Titles', `${t.titles}${t.bestFinish > 0 ? ` · best finish ${ordinal(t.bestFinish)}` : ''}`],
+      ['Wage bill', `${money(s.wages())} a game`],
+      ['Mood in the city', (() => { const m = s.mood(); return m > 0.2 ? `lifted by the form (+${m.toFixed(1)})` : m < -0.2 ? `dampened by the form (${m.toFixed(1)})` : 'no effect yet'; })()], ['Titles', `${t.titles}${t.bestFinish > 0 ? ` · best finish ${ordinal(t.bestFinish)}` : ''}`],
       ['Next game', `${t.round % 2 === 0 ? 'home to' : 'away at'} ${t.rivals[t.round % t.rivals.length]?.name ?? '—'}, day ${t.next}`],
     ];
     const grid = this.el('div', '', ['display:grid', 'grid-template-columns:auto 1fr', 'gap:5px 16px']);

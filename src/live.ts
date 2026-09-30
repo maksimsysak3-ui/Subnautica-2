@@ -869,7 +869,7 @@ export class LiveCity {
     const on = ev.live(day);
     sim.places.event = on !== null && on.venue >= 0 ? { venue: on.venue, share: 0.6, pull: 30 } : null;
     sim.economy.eventVisitors = ev.visitors(day);
-    sim.people.civicMood = world.council.mood + ev.mood(day) + (on !== null ? 2 : 0);
+    sim.people.civicMood = world.council.mood + ev.mood(day) + (on !== null ? 2 : 0) + world.sports.mood();
     const key = on === null ? '' : `${on.id}@${on.from}`;
     if (key !== this.eventOn) {
       this.eventOn = key;

@@ -197,6 +197,20 @@ export class Sports {
     }
   }
 
+  /**
+   * What the club's form does to the city's mood, in the same points the
+   * council and events use: a winning run lifts the whole town a little, a
+   * losing one takes the shine off, a title lingers.
+   */
+  mood(): number {
+    const t = this.team;
+    if (t === null) return 0;
+    const last = t.games.slice(0, 5);
+    if (last.length === 0) return 0;
+    const won = last.filter((g) => g.us > g.them).length, lost = last.filter((g) => g.us < g.them).length;
+    return (won - lost) * 0.5 * (0.5 + t.support) + Math.min(2, t.titles) * 0.5;
+  }
+
   /** What signing a player costs up front. */
   fee(p: Player): number { return Math.max(0, p.rating - 50) * FEE_PER_POINT; }
 
