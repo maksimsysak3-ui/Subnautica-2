@@ -182,6 +182,7 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>City life update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Junctions that flow', 'Cars no longer block a junction on a green: a queue follows through nose to tail, room past the junction is kept for whoever is already crossing, and no car stops inside the box.'],
       ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
       ['Only deaths abandon buildings', 'A building is abandoned only when someone dies there and no cemetery or crematorium collects them. The new Deathcare view shows where that could happen.'],
       ['Traffic with a rhythm', 'About one in twenty residents drive at rush hour, far fewer at night. The Traffic view reads in five colours, from empty green to packed red, and matches the queues you can see.'],
