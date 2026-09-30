@@ -175,6 +175,9 @@ function section(cls: keyof typeof ROAD_SPECS, deck = false): Strip[] {
 
   if (spec.median > 0) {
     y = KERB;
+    // A reservation wide enough to plant is grass with a kerb edge; a narrow
+    // one is paved.
+    if (spec.median >= 3) to(spec.median - 0.45, KERB, SURF.VERGE);
     to(spec.median, KERB, SURF.MEDIAN);          // the reservation
     to(spec.median, 0, SURF.KERB_FACE);          // down onto the carriageway
   }
