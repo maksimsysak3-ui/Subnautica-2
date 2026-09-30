@@ -581,7 +581,16 @@ export class Traffic {
     // its route says so; an ambient one may be dropped anywhere the lane is
     // clear.
     const laneLen = this.g.length[lane];
-    const where = Math.max(0, Math.min(at, laneLen - 0.5));
+    // Never inside the junction box it starts beside: the whole car past the
+    // far stop line, or it appears parked across the crossroads.
+    const floor = Math.min(this.g.startBack[lane] + len, laneLen - 0.5);
+    const where = Math.max(floor, Math.min(at, laneLen - 0.5));
+    // Nor in the stretch a car already in that junction is waiting to take.
+    if (this.incoming[lane] > 0
+      && where - len < this.g.startBack[lane] + this.incoming[lane] + ROOM_CLEARANCE) {
+      this.stats.refused++;
+      return -1;
+    }
     // Room where it is going: nothing overlapping it, with a gap at both ends.
     const c0 = this.table.col;
     for (let u = this.laneTail[lane]; u >= 0; u = c0.ahead[u]) {
