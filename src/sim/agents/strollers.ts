@@ -50,7 +50,7 @@ const CHURN = 24;
 const WALK_RANGE = 520;
 
 /** Route searches a visit may make; past it the rest go for a stroll. */
-const WALK_PLANS = 6;
+const WALK_PLANS = 4;
 
 /** Tries at finding a door to walk to before settling for a stroll. */
 const DOOR_TRIES = 10;

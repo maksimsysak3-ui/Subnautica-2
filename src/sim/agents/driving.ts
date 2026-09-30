@@ -288,7 +288,7 @@ const LOST_HOPS = 40;
 const GOAL_TRIES = 8;
 
 /** Route searches the ambient traffic may make a tick; past it a driver steers by eye. */
-const PLANS_PER_TICK = 12;
+const PLANS_PER_TICK = 8;
 
 /** Ticks stopped before a driver gives up: at the head of a queue, and anywhere. */
 const GIVE_UP_FRONT = 60 * TICK_HZ;

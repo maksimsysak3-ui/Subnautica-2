@@ -25,7 +25,7 @@ export interface Search {
 }
 
 /** Nodes a search may expand before it gives up. */
-const MAX_EXPAND = 1500;
+const MAX_EXPAND = 900;
 
 export class LanePlanner {
   private g: LaneGraph;
