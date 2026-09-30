@@ -446,6 +446,16 @@ export class InfoViews {
 
   private ramp(info: ViewInfo): string {
     const [lo, mid, hi] = rampFor(info.ramp);
+    // Traffic is read in bands, so its key is the bands: five swatches, each
+    // the exact colour the map uses for it.
+    if (info.id === View.TRAFFIC && info.unit === 'of capacity') {
+      const mix = (a: string, b: string): string => `color-mix(in srgb, ${a} 50%, ${b})`;
+      const bands: Array<[string, string]> = [[hi, 'empty'], [mix(mid, hi), 'busy'], [mid, 'slow'], [mix(lo, mid), 'bad'], [lo, 'packed']];
+      return '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px">'
+        + bands.map(([c, t]) => `<div><div style="height:8px;border-radius:3px;background:${c}"></div>`
+          + `<div style="margin-top:4px;font:600 10.5px/1 var(--label);letter-spacing:.08em;text-transform:uppercase;color:${SKIN.dim}">${t}</div></div>`).join('')
+        + '</div>';
+    }
     const bar = `background:linear-gradient(90deg,${lo},${mid} 50%,${hi})`;
     const buried = info.look === Look.UNDERGROUND
       ? `<span style="color:${SKIN.accent}">· below ground</span>` : '';

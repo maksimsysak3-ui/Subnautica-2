@@ -117,7 +117,7 @@ export interface ViewInfo {
 export const VIEWS: ViewInfo[] = [
   {
     id: View.TRAFFIC, name: 'Traffic', icon: 'traffic', look: Look.ROADS,
-    legend: 'How full each road is. Red is at a standstill.',
+    legend: 'Green empty · light green busy · yellow slow · orange bad · red packed solid.',
     ramp: ['#e0483a', '#e8c14a', '#4fbf7a'], unit: 'of capacity',
   },
   {
@@ -221,6 +221,18 @@ export const VIEWS: ViewInfo[] = [
 
 /** Views that paint nothing on the map. The panel is all there is. */
 export const PANEL_ONLY = new Set<number>([View.BUDGET]);
+
+/** Load on a lane at or above which each band starts: light green, yellow, orange, red. */
+export const TRAFFIC_BANDS = [0.15, 0.4, 0.7, 1.0] as const;
+
+/** A lane's load as the traffic view's value: one of five bands. */
+export function trafficBand(load: number): number {
+  if (load >= TRAFFIC_BANDS[3]) return 0.02;
+  if (load >= TRAFFIC_BANDS[2]) return 0.25;
+  if (load >= TRAFFIC_BANDS[1]) return 0.5;
+  if (load >= TRAFFIC_BANDS[0]) return 0.75;
+  return 1;
+}
 
 /** Within this of the picked road, a trip counts as local to it. */
 const LOCAL_METRES = 260;
@@ -520,10 +532,11 @@ export class Views {
   private fromTraffic(): void {
     const load = this.src.routine.load;
     for (let l = 0; l < this.perLane.length; l++) {
-      // Inverted, so that green is good throughout every view: a full road reads
-      // low. One convention across thirteen maps is worth more than each being
-      // individually intuitive.
-      this.perLane[l] = Math.max(0.02, 1 - Math.min(1, load[l]));
+      // Five bands, not a blend, so a colour means one thing: green empty,
+      // light green busy, yellow slowing, orange bad, red at a standstill. The
+      // values land on the ramp's red, red-yellow (orange), yellow,
+      // yellow-green and green.
+      this.perLane[l] = trafficBand(load[l]);
     }
     this.scatter();
     // Just enough to fill the carriageway between its lanes: the colour is
@@ -1002,8 +1015,24 @@ export class Views {
         signals = s.junctions.byControl[Control.SIGNALS];
         giveWay = s.junctions.byControl[Control.GIVE_WAY];
         roundabouts = s.junctions.byControl[Control.ROUNDABOUT];
+        // How much of the network, by length, is in each band.
+        const lanes = s.lanes, load = s.routine.load;
+        const inBand = [0, 0, 0, 0, 0];
+        let all = 0;
+        for (let l = 0; l < lanes.count && l < load.length; l++) {
+          if ((lanes.use[l] & Use.CAR) === 0) continue;
+          const v = load[l], len = lanes.length[l];
+          const k = v >= TRAFFIC_BANDS[3] ? 4 : v >= TRAFFIC_BANDS[2] ? 3 : v >= TRAFFIC_BANDS[1] ? 2 : v >= TRAFFIC_BANDS[0] ? 1 : 0;
+          inBand[k] += len; all += len;
+        }
+        const share = (k: number): number => (all > 0 ? inBand[k] / all : 0);
         return [
           line('Vehicles on the road', t.driving.toLocaleString()),
+          line('Roads packed solid (red)', pct(share(4)), share(4), share(4) > 0.05),
+          line('Bad traffic (orange)', pct(share(3)), share(3), share(3) > 0.15),
+          line('Slow (yellow)', pct(share(2)), share(2)),
+          line('Busy (light green)', pct(share(1)), share(1)),
+          line('Empty (green)', pct(share(0)), share(0)),
           line('Mean speed', `${(t.meanSpeed * 3.6).toFixed(0)} kph`,
             Math.min(1, t.meanSpeed / 13.9), t.meanSpeed < 4, true),
           line('Stopped right now', `${t.stopped.toLocaleString()}`,
