@@ -248,6 +248,8 @@ section('driving');
   let boxStill = new Uint16Array(0), boxStalls = 0;
   const reborn = new Set();
   const entries = {};
+  const lastHop = new Map();
+  let headSum = 0, headN = 0;
   {
     const add = t.table.add.bind(t.table);
     t.table.add = () => { const v = add(); reborn.add(v); return v; };
@@ -267,6 +269,17 @@ section('driving');
     sim.step(1);
     const dt = performance.now() - t0;
     if (process.env.HEAVY) {
+      // Discharge headways at signals: a car leaving a lane within 6 s of the
+      // one before it off the same lane is part of a queue going through.
+      for (let v = 0; v < t.bound; v++) {
+        if (!t.live[v] || reborn.has(v)) continue;
+        const from = beforeLane[v];
+        if (from === c.lane[v] || from < 0 || g.link[from] === g.link[c.lane[v]]) continue;
+        if (jn.control[g.to[from]] !== 2) continue;
+        const last = lastHop.get(from);
+        if (last !== undefined && tick - last < 60) { headSum += tick - last; headN++; }
+        lastHop.set(from, tick);
+      }
       const wanted = new Set();
       for (let v = 0; v < t.bound; v++) {
         if (t.live[v] && c.cleared[v] === 1 && boxStill[v] > 10 && c.next[v] >= 0) wanted.add(c.next[v]);
@@ -396,6 +409,7 @@ section('driving');
   console.log(`  speed         ${st.meanSpeed.toFixed(1)} m/s mean `
     + `(${(st.meanSpeed * 3.6).toFixed(0)} kph), ${st.stopped} stopped right now`);
   console.log(`  waiting       worst ${st.worstWaitSeconds.toFixed(0)} s at a junction`);
+  if (process.env.HEAVY) console.log(`  headway       ${(headSum / Math.max(1, headN) / 10).toFixed(2)} s between queued cars through signals (${headN})`);
   if (process.env.HEAVY) console.log('  entries into awaited lanes', JSON.stringify(entries));
   console.log(`  box stalls    ${boxStalls} held a junction box standing still for 5 s`);
   console.log(`  lane changes  ${st.changes.toLocaleString()}`);
