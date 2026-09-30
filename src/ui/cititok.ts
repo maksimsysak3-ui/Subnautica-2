@@ -295,7 +295,7 @@ export class Cititok {
         'align-items:center', 'gap:2px', 'padding:5px 0 3px', 'cursor:pointer',
         'border:1px solid transparent', 'border-radius:11px',
         'background:transparent', `color:${SKIN.dim}`, 'font-size:10.5px',
-        'letter-spacing:.09em', 'text-transform:uppercase', 'font-family:inherit']);
+        'letter-spacing:.03em', 'text-transform:uppercase', 'font-family:inherit']);
       b.innerHTML = `<span style="display:flex">${pictogram(glyph, 19)}</span>`;
       const cap = document.createElement('span');
       cap.textContent = name;
@@ -492,7 +492,7 @@ export class Cititok {
       css(el, ['display:flex', 'flex-direction:column', 'gap:4px']);
       const top = document.createElement('div');
       css(top, ['display:flex', 'align-items:baseline', 'gap:6px',
-        `color:${SKIN.dim}`, 'font-size:11.5px', 'letter-spacing:.07em',
+        `color:${SKIN.dim}`, 'font-size:11.5px', 'letter-spacing:.02em',
         'text-transform:uppercase']);
       const nm = document.createElement('span');
       nm.textContent = name;

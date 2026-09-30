@@ -110,7 +110,7 @@ export class LevelUpCard {
       'border:2px solid rgba(232,180,84,.55)',
       'background:radial-gradient(circle at 50% 35%, rgba(232,180,84,.28),'
         + ' rgba(8,12,18,.9))',
-      'box-shadow:0 0 34px rgba(232,180,84,.28), inset 0 1px 0 rgba(255,255,255,.14)']);
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.14)']);
     const numeral = document.createElement('div');
     css(numeral, ['font:800 44px/1 var(--display)', `color:${SKIN.warn}`,
       'text-shadow:0 0 18px rgba(232,180,84,.45)', 'margin-top:2px']);

@@ -195,7 +195,7 @@ export class Inspect {
         css(dot, ['width:100%', 'height:3px', `background:${tone}`,
           'border-radius:3px', `opacity:${0.35 + 0.65 * Math.min(1, c.share)}`]);
         const cap = document.createElement('div');
-        css(cap, [...label(), 'font-size:7.5px', 'letter-spacing:.08em']);
+        css(cap, [...label(), 'font-size:7.5px', 'letter-spacing:.03em']);
         cap.textContent = c.name.slice(0, 4);
         cell.append(dot, cap);
         grid.appendChild(cell);

@@ -168,7 +168,7 @@ export class InfoViews {
       'border-radius:8px', 'flex:0 0 auto']);
     this.title = document.createElement('div');
     style(this.title, ['font:700 17px/1 var(--display)', `color:${SKIN.bright}`,
-      'letter-spacing:.1em', 'text-transform:uppercase']);
+      'letter-spacing:.03em', 'text-transform:uppercase']);
     head.append(this.swatch, this.title);
     this.head = head;
 
@@ -453,7 +453,7 @@ export class InfoViews {
       const bands: Array<[string, string]> = [[hi, 'empty'], [mix(mid, hi), 'busy'], [mid, 'slow'], [mix(lo, mid), 'bad'], [lo, 'packed']];
       return '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px">'
         + bands.map(([c, t]) => `<div><div style="height:8px;border-radius:3px;background:${c}"></div>`
-          + `<div style="margin-top:4px;font:600 10.5px/1 var(--label);letter-spacing:.08em;text-transform:uppercase;color:${SKIN.dim}">${t}</div></div>`).join('')
+          + `<div style="margin-top:4px;font:600 10.5px/1 var(--label);letter-spacing:.03em;text-transform:uppercase;color:${SKIN.dim}">${t}</div></div>`).join('')
         + '</div>';
     }
     const bar = `background:linear-gradient(90deg,${lo},${mid} 50%,${hi})`;
@@ -465,7 +465,7 @@ export class InfoViews {
     return `<div style="height:8px;border-radius:4px;${bar};`
       + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)"></div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:5px;'
-      + `font:600 12px/1 var(--label);letter-spacing:.12em;text-transform:uppercase;`
+      + `font:600 12px/1 var(--label);letter-spacing:.04em;text-transform:uppercase;`
       + `color:${SKIN.dim}">`
       + `<span>none</span><span>${escapeHtml(info.unit)} ${buried}</span>`
       + '</div>';

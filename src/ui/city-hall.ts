@@ -77,7 +77,7 @@ export class CityHall {
     const text = document.createElement('div');
     css(text, ['display:flex', 'flex-direction:column', 'gap:3px']);
     const t = document.createElement('div');
-    css(t, ['font:800 15px/1 var(--display)', 'letter-spacing:.1em', 'text-transform:uppercase',
+    css(t, ['font:800 15px/1 var(--display)', 'letter-spacing:.03em', 'text-transform:uppercase',
       `color:${SKIN.bright}`]);
     t.textContent = title;
     const s = document.createElement('div');
@@ -90,7 +90,7 @@ export class CityHall {
 
   private section(title: string): HTMLElement {
     const el = document.createElement('div');
-    css(el, ['font:700 12px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
+    css(el, ['font:700 12px/1 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
       `color:${SKIN.faint}`, 'padding:14px 14px 7px']);
     el.textContent = title;
     return el;
@@ -123,7 +123,7 @@ export class CityHall {
       const you = document.createElement('span');
       css(you, ['margin-left:6px', 'padding:1px 5px', 'border-radius:4px',
         'background:var(--cyan)', 'color:#06121a', 'font:800 11px/1.3 var(--label)',
-        'letter-spacing:.1em', 'vertical-align:2px']);
+        'letter-spacing:.03em', 'vertical-align:2px']);
       you.textContent = 'YOU';
       name.appendChild(you);
     }
@@ -228,7 +228,7 @@ export class CityHall {
       'background:var(--amber)', 'border-radius:4px']);
     track.appendChild(fill);
     const count = document.createElement('div');
-    css(count, ['font:600 11px/1 var(--label)', 'letter-spacing:.12em', `color:${SKIN.dim}`,
+    css(count, ['font:600 11px/1 var(--label)', 'letter-spacing:.04em', `color:${SKIN.dim}`,
       'text-transform:uppercase']);
     count.textContent = `${pop.toLocaleString()} / ${ELECTION_POPULATION.toLocaleString()}`;
     const about = document.createElement('div');
@@ -383,7 +383,7 @@ export class CityHall {
     const face = document.createElement('div');
     face.innerHTML = portrait(m.face, m.colour, 96);
     const title = document.createElement('div');
-    css(title, ['font:600 12px/1 var(--label)', 'letter-spacing:.2em', 'text-transform:uppercase',
+    css(title, ['font:600 12px/1 var(--label)', 'letter-spacing:.07em', 'text-transform:uppercase',
       `color:${m.colour}`]);
     title.textContent = m.player ? 'Mayor · your candidate' : `Mayor · ${m.party}`;
     const name = document.createElement('div');

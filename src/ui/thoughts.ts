@@ -139,7 +139,7 @@ export class Thoughts {
       'max-width:256px', 'padding:11px 13px 12px', 'pointer-events:auto',
       'transform:translate(-50%,-100%)', 'z-index:2', 'line-height:1.55']);
     this.cardTitle = document.createElement('div');
-    style(this.cardTitle, ['font-size:11px', 'letter-spacing:.15em',
+    style(this.cardTitle, ['font-size:11px', 'letter-spacing:.05em',
       'text-transform:uppercase', `color:${SKIN.dim}`, 'margin-bottom:5px']);
     this.cardWhat = document.createElement('div');
     style(this.cardWhat, [`color:${SKIN.bright}`, 'font-size:11.5px']);

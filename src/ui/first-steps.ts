@@ -192,13 +192,13 @@ export class FirstSteps {
     const head = document.createElement('div');
     css(head, ['display:flex', 'align-items:center', 'justify-content:space-between', 'gap:8px']);
     this.heading = document.createElement('div');
-    css(this.heading, ['font:700 16px/1 var(--display)', 'letter-spacing:.12em',
+    css(this.heading, ['font:700 16px/1 var(--display)', 'letter-spacing:.04em',
       'text-transform:uppercase', `color:${SKIN.bright}`]);
     const close = document.createElement('button');
     close.textContent = 'Hide';
     close.setAttribute('aria-label', 'Hide the guide');
     css(close, ['background:none', 'border:0', 'cursor:pointer', 'padding:2px 4px',
-      'font:600 12px/1 var(--label)', 'letter-spacing:.18em', 'text-transform:uppercase',
+      'font:600 12px/1 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
       `color:${SKIN.dim}`]);
     close.addEventListener('click', () => { this.dismissed = true; this.root.style.display = 'none'; });
     head.append(this.heading, close);

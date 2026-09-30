@@ -50,7 +50,7 @@ export function playIntro(opts: IntroOptions = {}): Promise<void> {
   const hint = document.createElement('div');
   hint.innerHTML = 'Press <b style="color:rgba(255,255,255,.7);font-weight:700">Space</b> to skip';
   hint.style.cssText = 'position:absolute;right:28px;bottom:22px;font:600 11px/1 system-ui,sans-serif;'
-    + 'letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.34);opacity:0;white-space:nowrap;'
+    + 'letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.34);opacity:0;white-space:nowrap;'
     + 'transition:opacity 1.2s ease;pointer-events:none';
   shell.append(canvas, hint);
   document.body.appendChild(shell);

@@ -2747,7 +2747,7 @@ export class BuildTools {
       const d = document.createElement('div');
       d.className = 'mr-cell';
       const cap = document.createElement('div');
-      css(cap, ['font:600 11.5px/1 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
+      css(cap, ['font:600 11.5px/1 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
         `color:${SKIN.faint}`]);
       cap.textContent = caption;
       const val = document.createElement('div');
@@ -3065,7 +3065,7 @@ export class BuildTools {
       tag.style.cssText = [
         'position:absolute', 'left:5px', 'top:5px', 'padding:1px 4px',
         'border-radius:4px', 'background:rgba(0,0,0,.82)', 'color:#e8f0fa',
-        'font:700 10.5px/1.5 var(--ui, system-ui, sans-serif)', 'letter-spacing:.08em',
+        'font:700 10.5px/1.5 var(--ui, system-ui, sans-serif)', 'letter-spacing:.03em',
         'pointer-events:none',
       ].join(';');
       b.appendChild(tag);
@@ -3356,7 +3356,7 @@ export class BuildTools {
     el.style.cssText = [
       'grid-column:1/-1', 'padding:8px 2px 2px', 'color:#7f93ab',
       'font:700 11px/1.2 var(--ui, system-ui, sans-serif)',
-      'letter-spacing:.14em', 'text-transform:uppercase',
+      'letter-spacing:.05em', 'text-transform:uppercase',
     ].join(';');
     return el;
   }

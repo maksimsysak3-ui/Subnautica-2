@@ -82,7 +82,7 @@ export function panel(extra: string[] = []): string[] {
 /** A small, tracked, dim label. The caption on everything. */
 export function label(extra: string[] = []): string[] {
   return [
-    'font:600 10.5px/1.3 var(--label)', 'letter-spacing:.16em', 'text-transform:uppercase',
+    'font:600 10.5px/1.3 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
     `color:${SKIN.dim}`, ...extra,
   ];
 }

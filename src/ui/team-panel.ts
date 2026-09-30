@@ -156,7 +156,7 @@ export class TeamPanel {
     const r = this.el('div', '', ['display:grid', `grid-template-columns:${cells.length === 7 ? '30px 1fr 44px 40px 54px 60px 78px' : cells.length === 6 ? '34px 1fr 46px 46px 70px 80px' : `repeat(${cells.length},1fr)`}`,
       'gap:6px', 'align-items:center', 'padding:4px 6px', `border-radius:${SKIN.radiusSmall}`,
       us ? 'background:rgba(106,174,232,.14)' : '', head ? `color:${SKIN.dim}` : `color:${SKIN.text}`,
-      head ? 'font:600 10.5px/1.3 var(--label);letter-spacing:.1em;text-transform:uppercase' : 'font:500 12.5px/1.3 var(--ui)',
+      head ? 'font:600 10.5px/1.3 var(--label);letter-spacing:.03em;text-transform:uppercase' : 'font:500 12.5px/1.3 var(--ui)',
       'font-variant-numeric:tabular-nums']);
     for (const c of cells) r.appendChild(typeof c === 'string' ? this.el('span', c) : c);
     return r;

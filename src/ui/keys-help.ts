@@ -68,7 +68,7 @@ export class KeysHelp {
     css(title, [`color:${SKIN.bright}`, 'font:600 15px/1.2 var(--label)']);
     const hint = document.createElement('div');
     hint.textContent = 'Esc or ? to close';
-    css(hint, label(['letter-spacing:.08em']));
+    css(hint, label(['letter-spacing:.03em']));
     head.append(title, hint);
 
     const grid = document.createElement('div');
