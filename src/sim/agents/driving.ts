@@ -335,7 +335,10 @@ const IDLE_LOAD = 0.07;
  * centre wants more than this, and past it every extra car is simulation time
  * a tick cannot spare; the traffic view still shows the jam in full.
  */
-const AMBIENT_CAP = 1300;
+const AMBIENT_CAP = 1500;
+
+/** Cars on screen per resident, as a floor under what the load asks for. */
+const CARS_PER_PERSON = 0.17;
 
 const SCHEMA = {
   /** The citizen this is carrying, or -1 for a vehicle the city owns. */
@@ -1574,6 +1577,9 @@ export class Traffic {
 
   // ---- how many, and where -----------------------------------------------
 
+  /** The city's population, for the floor on how many cars are about. Set by the simulation. */
+  population = 0;
+
   /** Where the player is looking, and how far out vehicles are worth having. */
   focusX = 0;
   focusZ = 0;
@@ -1648,7 +1654,8 @@ export class Traffic {
       }
       return;
     }
-    const want = Math.min(this.budget, AMBIENT_CAP, Math.round(this.nearbyLoad * VEHICLES_PER_LOAD));
+    const want = Math.min(this.budget, AMBIENT_CAP, Math.max(Math.round(this.nearbyLoad * VEHICLES_PER_LOAD),
+      Math.round(this.population * CARS_PER_PERSON)));
     let room = Math.min(perTick, want - this.wandering());
     // No early return when the road is full: the depots and yards below still send theirs.
     const load = this.load;
