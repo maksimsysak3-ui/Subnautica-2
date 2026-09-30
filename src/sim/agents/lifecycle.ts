@@ -68,8 +68,6 @@ const AIR_MATTERS = [0.30, 0.16, 0.16, 0, 0];
 
 /** A building at or below this is visibly failing, and says so. */
 export const DERELICT_AT = 70;
-/** And at or below this it is past saving. */
-const CONDEMN_AT = 12;
 
 /**
  * How fast health moves, in points of 255 per game day.
@@ -242,7 +240,9 @@ export class BuildingLife {
         this.total.failing++;
       }
       if (c.health[id] < DERELICT_AT) ailing++;
-      if (c.health[id] <= CONDEMN_AT) this.condemn(id);
+      // Low health is wear, a complaint and a warning -- it no longer clears
+      // the plot on its own. What abandons a building is a death nobody came
+      // for: see `abandon`, called when a body is left uncollected.
     }
     // A slice's count, scaled back up: counting only the slice would report a
     // third of the truth on a third of the visits.
@@ -316,6 +316,16 @@ export class BuildingLife {
     // itself, which is neither true nor any use to the player.
     v -= AIR_MATTERS[purpose] * g.pollutionOf(id);
     return v < 0 ? 0 : v > 1 ? 1 : v;
+  }
+
+  /**
+   * Abandons a building outright: somebody died there and nobody came. The
+   * one thing that empties a street overnight, and the one thing a funeral
+   * service prevents.
+   */
+  abandon(id: number): void {
+    if (this.places.live[id] === 0 || this.places.col.purpose[id] === Purpose.SERVICE) return;
+    this.condemn(id);
   }
 
   /** Condemns the plot a building stands on. */

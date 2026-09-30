@@ -418,6 +418,7 @@ export class Simulation {
       : new BuildingLife(world, this.places, this.ground, this.services,
         this.utilities, () => this.people.population);
     this.life?.governedBy(this.policies);
+    this.dispatch.onUnburied = (place) => this.life?.abandon(place);
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,

@@ -126,7 +126,7 @@ export const GRIPE_INFO: Record<number, GripeInfo> = {
   },
   [Gripe.DERELICT]: {
     title: 'Falling down', icon: 'desire', weight: 10,
-    what: 'This building is failing and will be abandoned.',
+    what: 'This building is run down: it earns less and pulls its street down.',
     fix: 'Whatever else it is complaining about is why. Fix that.',
   },
   [Gripe.FIRE]: {

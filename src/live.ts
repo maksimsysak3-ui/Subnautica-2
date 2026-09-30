@@ -1839,7 +1839,7 @@ export class LiveCity {
         : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
       this.alerts.push({
         title: `No ${list} yet`,
-        body: `The homes here will be abandoned within a week without `
+        body: `The homes here are running down and nobody new will move in without `
           + `${names.length === 1 ? 'it' : 'them'}. Build ${missing.map((n) => n.first).join('; ')}.`,
         tone: 'bad',
         tag: missing.length === 1 ? `util-${missing[0].u}` : 'util-none',

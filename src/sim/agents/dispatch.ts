@@ -268,7 +268,7 @@ const CRIMES_PER_THOUSAND_DAY = 2.4;
 const CALLS_PER_THOUSAND_DAY = 3.1;
 
 /** The service that answers each kind of emergency, for the coverage rule in `open`. */
-const COVER_BRANCH: Record<number, string> = { 0: 'fire', 1: 'police', 2: 'health' };
+const COVER_BRANCH: Record<number, string> = { 0: 'fire', 1: 'police', 2: 'health', 4: 'deathcare' };
 /** Coverage from which a call is always dealt with quietly, and below which never. */
 const QUIET_COVER = 0.8;
 const PARTIAL_COVER = 0.5;
@@ -774,6 +774,9 @@ export class Dispatch {
   }
 
   /** Opens a request, or counts it as overflowed. */
+  /** Called with a building where a body went uncollected. Set by the simulation. */
+  onUnburied: ((place: number) => void) | null = null;
+
   /** Lane loads, for whether a call's street is too jammed to reach. Set by the simulation. */
   load: Float32Array | null = null;
 
@@ -801,6 +804,7 @@ export class Dispatch {
       this.stats.overflowed++;
       this.stats.missed[kind]++;
       this.hurt(place, kind);
+      if (kind === Need.BODY) this.onUnburied?.(place);
       return;
     }
     const r = this.table.add();
@@ -1148,6 +1152,8 @@ export class Dispatch {
     // population rather than a number in a panel -- otherwise a city with no
     // hospital reads as perfectly healthy with a red statistic.
     if (kind === Need.MEDICAL) this.people.killAt(c.place[r]);
+    // A body nobody collected empties the building.
+    if (kind === Need.BODY) this.onUnburied?.(c.place[r]);
     // Somebody is still coming: the crew attends whether or not there is anything
     // left to save, so the row goes to WORKING rather than closing. Which also
     // keeps the station's crew booked out for as long as the job really takes,
