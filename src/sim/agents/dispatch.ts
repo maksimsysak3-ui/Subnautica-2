@@ -267,6 +267,12 @@ const FIRE_PER_BUILDING_DAY = 1 / 1800;
 const CRIMES_PER_THOUSAND_DAY = 2.4;
 const CALLS_PER_THOUSAND_DAY = 3.1;
 
+/** The service that answers each kind of emergency, for the coverage rule in `open`. */
+const COVER_BRANCH: Record<number, string> = { 0: 'fire', 1: 'police', 2: 'health' };
+/** Coverage from which a call is always dealt with quietly, and below which never. */
+const QUIET_COVER = 0.8;
+const PARTIAL_COVER = 0.5;
+
 /** How much more likely a fire is, by what the building is for. */
 const FIRE_HAZARD: number[] = [];
 FIRE_HAZARD[Purpose.HOME] = 1;
@@ -768,8 +774,27 @@ export class Dispatch {
   }
 
   /** Opens a request, or counts it as overflowed. */
+  /** Lane loads, for whether a call's street is too jammed to reach. Set by the simulation. */
+  load: Float32Array | null = null;
+
   private open(kind: number, place: number): void {
     this.stats.raised[kind]++;
+    // Where the service is thick on the ground, a call is dealt with before it
+    // is anybody's news: a well-covered street has an ambulance round the
+    // corner, and a player who has built for it should not be told otherwise.
+    // Only a thin service, or roads too jammed to get through, leaves a call
+    // to the full dispatch -- and to the alert when it goes wrong.
+    const branch = COVER_BRANCH[kind];
+    if (branch !== undefined) {
+      const cov = this.services.byName(place, branch);
+      const lane = this.places.col.lane[place];
+      const jammed = this.load !== null && lane >= 0 && lane < this.load.length && this.load[lane] >= 1;
+      const sure = cov >= QUIET_COVER ? 1 : cov <= PARTIAL_COVER ? 0 : (cov - PARTIAL_COVER) / (QUIET_COVER - PARTIAL_COVER);
+      if (!jammed && sure > 0 && this.rng.next() < sure) {
+        this.stats.answered[kind]++;
+        return;
+      }
+    }
     if (this.table.size >= MAX_LIVE) {
       // Nobody is coming and the table will not hold it. It still happened, and it
       // still damages the building -- the cap bounds the bookkeeping, not the city.

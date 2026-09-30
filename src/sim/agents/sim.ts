@@ -361,6 +361,7 @@ export class Simulation {
     // services are needed depends on the people.
     this.dispatch = new Dispatch(this.places, this.people, this.services,
       this.utilities, this.traffic, this.router, this.lanes, this.clock, seed ^ 0xd15);
+    this.dispatch.load = this.routine.load;
     this.people.informedBy(this.services, this.utilities);
     this.migration.informedBy(this.services, this.utilities);
     this.ground = new Ground(this.places, net.grid * 8);
@@ -1169,6 +1170,7 @@ export class Simulation {
     this.dispatch.rebind(this.lanes, this.traffic);
     this.traffic.rebind(this.lanes);
     (this.traffic as { junctions: Junctions }).junctions = this.junctions;
+    this.dispatch.load = this.routine.load;
     this.traffic.informedBy(this.routine.load, this.router.paths);
     relinkPlaces(this.lanes, this.index, this.places);
     // Last, because it drops every route and every vehicle it held and both of
