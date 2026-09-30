@@ -232,6 +232,9 @@ section('a town nobody supplies falls down');
 
   // The lights go out: every main pulled up, which is what bulldozing the
   // network amounts to.
+  const unburied = sim.dispatch.onUnburied;
+  sim.dispatch.onUnburied = null;   // supply alone, deaths aside
+  const condemnedBefore = sim.life.total.condemned;
   world.mains.bits.fill(0);
   world.mains.rebuild();
   sim.mainsChanged();
@@ -239,53 +242,34 @@ section('a town nobody supplies falls down');
 
   play(sim, world, 30);
   const after = health(sim);
-  const condemned = sim.life.total.condemned;
+  const condemned = sim.life.total.condemned - condemnedBefore;
   const ailing = countAiling(sim);
   console.log(`  cut off           mean condition ${pct(after)}, `
     + `${ailing} buildings failing, ${condemned} plots condemned`);
   ok(after < soundBefore - 0.2, 'condition falls when the supply is cut',
     `${pct(soundBefore)} to ${pct(after)}`);
   ok(ailing > 0, 'buildings start complaining', `${ailing}`);
-  ok(condemned > 0, 'plots are eventually condemned', `${condemned}`);
-  const blighted = count(world.blight);
-  ok(blighted > 0, 'and the cells are marked as cleared', `${blighted}`);
-  const lost = built - sim.places.homeCapacity;
-  ok(lost > 0, 'and the homes on them are gone',
-    `${built} homes to ${sim.places.homeCapacity}`);
-
-  // ---- and back -----------------------------------------------------------
+  // Supply alone no longer abandons anything: that takes a death nobody
+  // collects (below).
+  ok(condemned === 0, 'running down is not abandonment: no plot is condemned for want of supply', `${condemned}`);
   world.mains.layEverywhere(world.net);
   sim.mainsChanged();
   sim.buildingsChanged(makeCity(world));
-  // And the money to do it with. A town that has just lost nine tenths of its
-  // buildings has lost nine tenths of its tax base with them and is deep in its
-  // overdraft, and a bankrupt city correctly refuses to build anything -- which
-  // is a real consequence and not one this section is testing. The first run of
-  // this test spent a hundred and twenty game days watching a solvent-looking
-  // recovery that was actually a city two and a half million in the red.
-  world.budget.restore(400000, [...world.budget.rates]);
-  const lowest = sim.places.homeCapacity;
-  play(sim, world, 120, (d, sm) => {
-    if (d % 20) return;
-    let waiting = 0;
-    for (let i = 0; i < world.zones.length; i++) {
-      if (world.zones[i] !== 0 && world.blight[i] === 0 && world.grown[i] === 0) waiting++;
-    }
-    console.log(`    day ${d}: ${count(world.blight)} blighted, ${waiting} waiting,`
-      + ` ${sm.places.homeCapacity} homes, ${sm.people.population} people,`
-      + ` R ${pct(sm.demand.want[0])}, balance ${Math.round(sm.budget.balance)}`);
-  });
+  play(sim, world, 30);
   const back = health(sim);
-  const left = count(world.blight);
-  console.log(`  supplied again    mean condition ${pct(back)}, `
-    + `${left} cells still cleared, ${sim.places.homeCapacity} homes, `
-    + `${sim.people.population} people, demand ${[...sim.demand.want].map((b) => pct(b)).join("/")}`);
-  ok(back > after + 0.1, 'condition recovers when the supply comes back',
-    `${pct(after)} to ${pct(back)}`);
-  ok(left < blighted, 'condemned land is released again',
-    `${blighted} cells to ${left}`);
-  ok(sim.places.homeCapacity > lowest, 'and it is rebuilt on',
-    `${lowest} homes to ${sim.places.homeCapacity}`);
+  ok(back > after + 0.1, 'condition recovers when the supply comes back', `${pct(after)} to ${pct(back)}`);
+
+  // A death nobody collects: the building is abandoned.
+  let victim = -1;
+  for (let id = 0; id < sim.places.count; id++) {
+    if (sim.places.live[id] === 1 && sim.places.col.homes[id] > 0) { victim = id; break; }
+  }
+  const before = sim.life.total.condemned;
+  sim.dispatch.onUnburied = unburied;
+  sim.dispatch.onUnburied?.(victim);
+  ok(victim >= 0 && sim.life.total.condemned > before, 'a death nobody collects abandons the building',
+    `${before} to ${sim.life.total.condemned}`);
+  ok(count(world.blight) > 0, 'and its cells are marked as cleared', `${count(world.blight)}`);
 }
 
 // ---- growing into it -------------------------------------------------------
@@ -303,6 +287,7 @@ section('a good district grows into something grander');
   place(world, 'svc.sewage.lagoon', ...block(3, -3));
 
   const sim = new Simulation(makeCity(world), world.net, 0x9a7d, world);
+  sim.dispatch.onUnburied = null;   // about tiers, not deaths
   sim.found(120);
   play(sim, world, 40);
   const before = {

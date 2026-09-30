@@ -72,6 +72,7 @@ export const View = {
   RESOURCES: 16,
   DISTRICTS: 17,
   FLOOD: 18,
+  DEATHCARE: 19,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -188,6 +189,13 @@ export const VIEWS: ViewInfo[] = [
   {
     // Where a flood goes: the river's banks, deepest nearest the water. The
     // one thing a player can do about it that costs nothing is not build there.
+    // Cemeteries and crematoria: a death nobody collects abandons the
+    // building it happened in, so this is the abandonment map.
+    id: View.DEATHCARE, name: 'Deathcare', icon: 'deathcare', look: Look.SURFACE,
+    legend: 'Cemetery and crematorium reach. Red streets lose buildings when someone dies there.',
+    ramp: ['#c0392b', '#d8b050', '#7fa8c8'], unit: 'covered',
+  },
+  {
     id: View.FLOOD, name: 'Flood risk', icon: 'flood', look: Look.ABUNDANCE,
     legend: 'Land a flood reaches: the river banks. Brighter is lower and floods worse.',
     ramp: ['#1b2a3d', '#3d78b8', '#8fd0ff'], unit: 'flood risk',
@@ -399,13 +407,14 @@ export class Views {
       case View.HEALTH: this.fromBranch('health'); break;
       case View.EDUCATION: this.fromBranch('education'); break;
       case View.PARKS: this.fromBranch('parks'); break;
+      case View.DEATHCARE: this.fromBranch('deathcare'); break;
       case View.TRANSPORT: this.fromBranch('transport'); break;
       case View.DESIRABILITY: this.fromDesire(); break;
       // Straight off the field, which is already a grid of exactly this shape
       // of number -- no stamping, no spreading. The land value model has done
       // the blurring, and doing it twice would smear a boundary the player is
       // meant to be able to see the cause of.
-      case View.LAND: this.fromField(this.src.ground.value, false, 0.20, 0.72); break;
+      case View.LAND: this.fromField(this.src.ground.value, false, 0.05, 0.75); break;
       case View.POLLUTION: this.fromField(this.src.ground.pollution, true, 0, 0.55); break;
       // A budget is not a place. Nothing is painted, and the grid is left blank
       // rather than left over from whatever was open before it.
@@ -1126,7 +1135,8 @@ export class Views {
             : view === View.HEALTH ? 'health'
               : view === View.EDUCATION ? 'education'
                 : view === View.PARKS ? 'parks'
-                  : view === View.TRANSPORT ? 'transport' : '';
+                  : view === View.TRANSPORT ? 'transport'
+                    : view === View.DEATHCARE ? 'deathcare' : '';
         if (branch === '') return this.desireStats();
         const b = BRANCHES.indexOf(branch as never);
         const cov = s.services.cover[b];
@@ -1148,6 +1158,10 @@ export class Views {
           line('Can look after', cov.capacity.toLocaleString()),
           line('Who need it', Math.round(cov.demand).toLocaleString()),
         ];
+        if (branch === 'deathcare') {
+          const lost = s.dispatch.stats.missed[Need.BODY];
+          rows.splice(1, 0, line('Buildings abandoned (deaths nobody collected)', lost.toLocaleString(), -1, lost > 0));
+        }
         if (std !== undefined) {
           rows.push(line('The catchment', `${std.good} m, nothing past ${std.worst}`));
         }

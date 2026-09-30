@@ -70,7 +70,7 @@ import { BuildingLife } from './lifecycle';
 const VIEW_BRANCH: Record<number, string> = {
   [View.FIRE]: 'fire', [View.POLICE]: 'police', [View.HEALTH]: 'health',
   [View.EDUCATION]: 'education', [View.PARKS]: 'parks',
-  [View.TRANSPORT]: 'transport',
+  [View.TRANSPORT]: 'transport', [View.DEATHCARE]: 'deathcare',
 };
 import type { Stat } from './views';
 import { Stage } from './people';

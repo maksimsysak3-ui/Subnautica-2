@@ -117,6 +117,7 @@ function waiting(world) {
  */
 function play(world, days, onDay) {
   const sim = new Simulation(makeCity(world), world.net, 0x6a0b, world);
+  sim.dispatch.onUnburied = null;   // growth alone: deaths without a cemetery are their own test
   sim.found(6);
   const CHUNK = 32;
   for (let d = 0; d < days; d++) {

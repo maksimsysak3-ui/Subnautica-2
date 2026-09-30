@@ -401,12 +401,12 @@ export class Ground {
       const fame = 1 - Math.exp(-prestige[i] * PRESTIGE_GAIN);
       prestige[i] = fame;
 
-      let v = 0.28 + planted
+      let v = 0.38 + planted
         + PRESTIGE_VALUE * fame
         + 0.34 * amenity
         + 0.22 * centre
-        - 0.42 * dirt
-        - 0.16 * din
+        - 0.30 * dirt
+        - 0.10 * din
         - 0.30 * Math.min(1, blight[i])
         - 0.22 * Math.min(1, starved[i]);
       if (v < 0.02) v = 0.02;
