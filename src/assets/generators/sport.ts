@@ -1342,6 +1342,91 @@ function convention(lod: number): MeshBuilder {
   return m;
 }
 
+// =============================================================== club grounds
+
+/**
+ * Where a club trains: two full pitches under floodlights, a clubhouse with a
+ * viewing balcony, a car park and a fence round the lot. No seats -- a
+ * training ground is the one piece of a club nobody pays to watch.
+ */
+function trainingGround(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2;
+  m.box([-62, 0.0005, -46], [62, 0.1, 46], MAT.CONCRETE);
+  for (const cx of [-27, 27]) {
+    const fx = 22, fz = 32;
+    m.painted(TINT.GREEN, () => m.box([cx - fx, 0.1, -fz - 4], [cx + fx, 0.2, fz - 4], MAT.TRIM));
+    mown(m, fx, fz, 0.2, 6);
+    markings(m, cx - fx + 1, -fz - 3, cx + fx - 1, fz - 5, 0.21, 0.2);
+    if (medium) {
+      for (const s of [1, -1]) {
+        const gz = s > 0 ? fz - 5 : -fz - 3;
+        m.box([cx - 3.66, 0.2, gz], [cx + 3.66, 2.44, gz + s * 0.14], MAT.TRIM);
+        m.box([cx - 3.6, 0.2, gz + s * 0.14], [cx + 3.6, 2.3, gz + s * 1.8], MAT.GLASS);
+      }
+    }
+  }
+  // Floodlights on the four outer corners of each pitch.
+  m.painted(TINT.METAL_DARK, () => {
+    for (const x of [-50, -4, 4, 50]) {
+      for (const z of [-37, 29]) {
+        m.box([x - 0.35, 0.1, z - 0.35], [x + 0.35, 18, z + 0.35], MAT.TRIM);
+        m.box([x - 1.6, 18, z - 0.6], [x + 1.6, 19.6, z + 0.6], MAT.TRIM);
+      }
+    }
+  });
+  // The clubhouse along the north side, with a first-floor balcony facing the pitches.
+  m.painted(TINT.BRAND, () => m.box([-18, 0.1, 32], [18, 7.6, 42], MAT.CLADDING, { roof: MAT.ROOF }));
+  m.box([-17, 3.8, 31.7], [17, 6.8, 32.05], MAT.GLASS);
+  m.box([-16, 0.6, 31.7], [16, 2.9, 32.05], MAT.GLASS);
+  m.painted(TINT.METAL_DARK, () => m.box([-17, 3.6, 29.6], [17, 3.8, 32], MAT.TRIM));
+  if (medium) railing(m, -17, 17, 29.7, 3.8, 1.0);
+  m.painted(TINT.ACCENT, () => m.box([-6, 7.6, 36], [6, 9.2, 38], MAT.TRIM));
+  bench(m, -27, -40, 10);
+  bench(m, 27, -40, 10);
+  if (medium) {
+    for (let i = 0; i < 6; i++) parkedVehicle(m, i, 30 + i * 4.5, 38, 1);
+  }
+  return m;
+}
+
+/**
+ * A sports hall: the covered court a basketball or volleyball club plays in.
+ * A long box under a shallow barrel roof in ribs, a glazed foyer at one end,
+ * clerestory glazing down both sides and a forecourt.
+ */
+function sportsHall(lod: number): MeshBuilder {
+  const m = new MeshBuilder();
+  const medium = lod < 2;
+  m.box([-38, 0.0005, -34], [38, 0.1, 34], MAT.CONCRETE);
+  const hx = 30, hz = 22, h = 13;
+  m.painted(TINT.BRAND, () => m.box([-hx, 0.1, -hz], [hx, h, hz], MAT.CLADDING));
+  // Clerestory: a glazed band under the eaves, both long sides.
+  m.box([-hx + 1, h - 3.4, -hz - 0.05], [hx - 1, h - 0.8, -hz + 0.1], MAT.GLASS);
+  m.box([-hx + 1, h - 3.4, hz - 0.1], [hx - 1, h - 0.8, hz + 0.05], MAT.GLASS);
+  // The barrel roof, stepped in ribs across the span.
+  const ribs = medium ? 9 : 5;
+  m.painted(TINT.METAL_DARK, () => {
+    for (let i = 0; i < ribs; i++) {
+      const z0 = -hz + (i / ribs) * hz * 2, z1 = -hz + ((i + 1) / ribs) * hz * 2;
+      const mid = (z0 + z1) / 2 / hz;
+      const rise = 4.2 * (1 - mid * mid);
+      m.box([-hx - 0.4, h, z0], [hx + 0.4, h + rise + 0.4, z1], MAT.ROOF);
+    }
+  });
+  // The foyer: a lower glazed box on the entrance end with a canopy.
+  m.box([hx, 0.1, -12], [hx + 6, 6.5, 12], MAT.GLASS, { roof: MAT.ROOF });
+  m.painted(TINT.ACCENT, () => {
+    m.box([hx + 6, 6.5, -14], [hx + 9, 7.1, 14], MAT.TRIM);
+    m.box([hx - 0.2, h - 5.6, -8], [hx + 0.3, h - 3.6, 8], MAT.TRIM);
+  });
+  if (medium) {
+    roofClutter(m, -hx + 4, -6, -hx + 16, 6, h + 4, 3);
+    for (let i = 0; i < 8; i++) parkedVehicle(m, i + 3, -30 + i * 5, -30, 0);
+  }
+  return m;
+}
+
 // ===================================================================== table
 
 const venue = (jobs: number, upkeep: number, power: number, water: number): AssetDef['sim'] => ({
@@ -1372,6 +1457,22 @@ export const SPORT: AssetDef[] = [
     sim: venue(150, 2600, 1900, 750),
     note: 'A drum with a glazed oculus over the rink: 61 by 28 ice with blue lines, faceoff circles, goals, boards and glass; fifteen terraces of bowl round it; a stone podium under a glazed and finned shell; a hung scoreboard, a cantilevered entrance canopy and a dock yard.',
     build: arena,
+  },
+  {
+    id: 'svc.parks.training', name: 'Training ground', zone: 'service', branch: 'parks',
+    density: 'none', variant: 'sculpted', footprint: [16, 12], height: 19.6,
+    brand: { name: 'Training', colour: [0.18, 0.40, 0.30], accent: [0.80, 0.66, 0.20], sign: 'box' },
+    sim: venue(40, 700, 260, 160),
+    note: 'Two floodlit pitches with goals and nets, a clubhouse with a viewing balcony, dugouts and a car park. Where a club trains; a team with one improves faster.',
+    build: trainingGround,
+  },
+  {
+    id: 'svc.parks.hall', name: 'Sports hall', zone: 'service', branch: 'parks',
+    density: 'none', variant: 'sculpted', footprint: [10, 9], height: 17.8,
+    brand: { name: 'Sports hall', colour: [0.30, 0.34, 0.46], accent: [0.84, 0.44, 0.18], sign: 'box' },
+    sim: venue(60, 1100, 520, 220),
+    note: 'A long court hall under a ribbed barrel roof, clerestory glazing both sides, a glazed foyer with a canopy and a forecourt. Home to a basketball or volleyball club.',
+    build: sportsHall,
   },
   {
     id: 'svc.transport.airport', name: 'Airport terminal', zone: 'service', branch: 'transport',

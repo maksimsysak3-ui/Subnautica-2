@@ -164,6 +164,7 @@ interface SaveFile {
   scenario?: unknown;
   /** Events booked and held. */
   events?: unknown;
+  sports?: unknown;
   news?: unknown;
   /** The difficulty the city was founded on. Absent in older saves: standard. */
   difficulty?: string;
@@ -284,6 +285,7 @@ export function serialise(world: World, name: string, auto = false): string {
     council: world.council.saved(),
     disasters: world.disasters.saved(),
     events: world.events.saved(),
+    sports: world.sports.saved(),
     ...(world.scenario !== null ? { scenario: world.scenario } : {}),
     news: world.news.saved(),
     difficulty: world.difficulty,
@@ -405,6 +407,7 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (file.disasters !== undefined) world.disasters.restore(file.disasters);
   world.scenario = restoreScenario(file.scenario);
   if (file.events !== undefined) world.events.restore(file.events);
+  world.sports.restore(file.sports ?? null);
   if (file.career !== undefined) {
     // A save from before the city had a career loads with a new one, which is
     // the right answer: it starts at level one with its three free services and

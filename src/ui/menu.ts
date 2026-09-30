@@ -183,6 +183,8 @@ export class Menu {
     card.appendChild(head);
     const items: Array<[string, string]> = [
       ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
+      ['Your own sports team', 'Build a stadium or arena, click it and found a club: pick the sport, name and colours, manage the squad and transfers, set ticket prices and chase the league title. Home games fill the ground and pay the city.'],
+      ['More to build', 'New Training ground and Sports hall, and two new roads: the three-lane Arterial and the tree-lined Parkway.'],
       ['Highways', 'New Expressway (2 lanes each way, 100 km/h) and Superhighway (4 lanes, 120 km/h). Every painted lane now carries traffic, and cars use them all. Motorways are joined only by slip roads, bridges or interchanges.'],
       ['Traffic that goes somewhere', 'Cars and people on the street find the shortest way to a real building and disappear inside when they arrive.'],
       ['Route view', 'With Traffic open, click a road: every road its drivers use lights up, and the card says who they are and what would help.'],

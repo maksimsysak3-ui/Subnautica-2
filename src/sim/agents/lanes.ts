@@ -311,7 +311,8 @@ function rankOf(cls: RoadClass): number {
   switch (cls) {
     case 'motorway': case 'dual': case 'highway': case 'slip':
     case 'expressway': case 'superhighway': return 3;
-    case 'avenue': case 'boulevard': case 'industrial': case 'tram': case 'bus': return 2;
+    case 'avenue': case 'boulevard': case 'industrial': case 'tram': case 'bus':
+    case 'arterial': case 'parkway': return 2;
     case 'street': case 'oneway': case 'cycleStreet': case 'tramStreet': case 'promenade':
       return 1;
     default: return 0;
@@ -330,7 +331,7 @@ function speedOf(cls: RoadClass): number {
     lane: 60, street: 50, cycleStreet: 30, oneway: 50, bus: 50,
     avenue: 60, boulevard: 60, tram: 50, tramStreet: 40,
     industrial: 50, highway: 90, dual: 90, slip: 70, motorway: 110,
-    expressway: 100, superhighway: 120,
+    expressway: 100, superhighway: 120, arterial: 70, parkway: 80,
   };
   return (kph[cls] ?? 50) / 3.6;
 }

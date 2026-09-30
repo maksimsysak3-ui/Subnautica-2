@@ -120,6 +120,8 @@ import { valleyAt } from './sim';
 import type { DisasterCity, Strike, Warning } from './sim/disasters';
 import type { EventCity, Venue } from './sim/events';
 import { eventById } from './sim/events';
+import { TEAM_VENUES } from './sim/sports';
+import { TeamPanel } from './ui/team-panel';
 import { branchLevel } from './sim/tech';
 import { RULES } from './sim/difficulty';
 import type { Issues, Phase } from './sim/politics';
@@ -298,6 +300,13 @@ export class LiveCity {
     this.steps = new FirstSteps(ui);
     this.challenge = new ScenarioCard(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
+    this.team = new TeamPanel(ui, {
+      sports: () => this.renderer.world.sports,
+      budget: () => this.renderer.world.budget,
+      news: () => this.renderer.world.news,
+      day: () => this.gameDay(),
+      venues: () => this.teamVenues().map((v) => v.asset),
+    });
     this.tech = new TechTree(ui, () => renderer.world.progress, () => this.onUnlock());
     // The goals board reads the city rather than a copy of it.
     this.tech.readGoal = (id) => {
@@ -438,6 +447,21 @@ export class LiveCity {
     if (found.branch !== undefined && !found.asset.startsWith('spec.')) {
       const lot = this.lotAt(found);
       if (lot !== undefined) this.inspect.attach(this.upgradeSection(lot, found));
+    }
+    // A stadium or an arena is where the city's team is run from.
+    if (TEAM_VENUES.includes(found.asset)) {
+      const box = document.createElement('div');
+      box.style.cssText = 'display:flex;align-items:center;gap:8px;justify-content:space-between';
+      const t = this.renderer.world.sports.team;
+      const say = document.createElement('span');
+      say.textContent = t === null ? 'No club plays here yet.' : `${t.name}: ${t.w}–${t.d}–${t.l}, season ${t.season}`;
+      say.style.cssText = 'font:500 12.5px/1.3 var(--ui);color:#b7b7bb';
+      const b = document.createElement('button');
+      b.textContent = t === null ? 'Found a team' : 'Team menu';
+      b.style.cssText = 'font:600 12px/1 var(--label);padding:7px 11px;border-radius:4px;border:0;cursor:pointer;background:#6aaee8;color:#0b1320';
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.team.show(); });
+      box.append(say, b);
+      this.inspect.attach(box);
     }
     // The selection, on the ground under the building, drawn by the same
     // mechanism the tools mark what they are about to affect with.
@@ -780,6 +804,52 @@ export class LiveCity {
         return out;
       },
     };
+  }
+
+  private readonly team: TeamPanel;
+
+  /** The sports venues the city has built, with where they stand. */
+  private teamVenues(): Array<{ place: number; asset: string }> {
+    const sim = this.sim;
+    if (sim === null) return [];
+    const out: Array<{ place: number; asset: string }> = [];
+    const p = sim.places;
+    for (let id = 0; id < p.count; id++) {
+      if (p.live[id] === 0) continue;
+      const a = ASSETS[p.col.proto[id]]?.id ?? '';
+      if (TEAM_VENUES.includes(a)) out.push({ place: id, asset: a });
+    }
+    return out;
+  }
+
+  /**
+   * The club's calendar: fixtures played as the days pass, the result on the
+   * alerts, and on a home day the crowd sent to the ground.
+   */
+  private sportsDay(sim: Simulation): void {
+    const world = this.renderer.world;
+    const t = world.sports.team;
+    if (t === null) return;
+    const day = this.gameDay();
+    if (world.sports.homeToday(day) && sim.places.event === null) {
+      const v = this.teamVenues().find((x) => x.asset === t.venue);
+      if (v !== undefined) sim.places.event = { venue: v.place, share: 0.35, pull: 22 };
+    }
+    const training = this.teamVenues().length > 0 && (() => {
+      const p = sim.places;
+      for (let id = 0; id < p.count; id++) if (p.live[id] === 1 && ASSETS[p.col.proto[id]]?.id === 'svc.parks.training') return true;
+      return false;
+    })();
+    const g = world.sports.update(day, sim.people.population, training, world.budget, world.news);
+    if (g === null) return;
+    const res = g.us > g.them ? 'win' : g.us < g.them ? 'defeat' : 'draw';
+    this.alerts.push({
+      title: `${t.name} ${g.us}–${g.them} ${g.opponent}`,
+      body: `A ${res} ${g.home ? `at home, ${g.crowd.toLocaleString()} there` : 'away'}${g.star !== '' ? `. ${g.star} stood out` : ''}.`,
+      tone: res === 'win' ? 'good' : res === 'defeat' ? 'bad' : 'good', tag: 'match',
+      ...(g.home ? { figure: `+${money(g.gate)}` } : {}),
+    });
+    this.team.refresh();
   }
 
   /** The event on the calendar: the crowds it sends, the visitors, the mood, and the gate. */
@@ -1512,6 +1582,7 @@ export class LiveCity {
     this.politics(sim, dt, now);
     this.disasters(sim, dt);
     this.cityEvents(sim);
+    this.sportsDay(sim);
 
     // Land the city has just grown into. Taken here rather than called back from
     // inside the tick on purpose: rebuilding re-enters this object through

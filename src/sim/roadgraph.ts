@@ -38,7 +38,7 @@ export type RoadClass =
   | 'track' | 'lane' | 'alley' | 'path' | 'pedestrian'
   | 'street' | 'cycleStreet' | 'oneway' | 'onewayWide' | 'bus' | 'promenade'
   | 'avenue' | 'boulevard' | 'tram' | 'tramStreet'
-  | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway' | 'expressway' | 'superhighway';
+  | 'industrial' | 'highway' | 'dual' | 'slip' | 'motorway' | 'expressway' | 'superhighway' | 'arterial' | 'parkway';
 
 /**
  * What the carriageway is made of.
@@ -208,6 +208,20 @@ export const ROAD_SPECS: Record<RoadClass, RoadSpec> = {
     oneWay: false, tram: false, lamp: 42, kerbed: false,
     surface: 'tarmac', cycle: 0,
   },
+  // A city's main arteries: three lanes each way between kerbs, with a
+  // narrow raised divider and the footways a street has.
+  arterial: {
+    label: 'Arterial', half: 11.4, edge: 14.4, lanes: 3, median: 0.8,
+    oneWay: false, tram: false, lamp: 30, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
+  // Two lanes each way either side of a broad planted strip: quicker than an
+  // avenue and kinder to look at than a highway.
+  parkway: {
+    label: 'Parkway', half: 11.0, edge: 14.0, lanes: 2, median: 4.0,
+    oneWay: false, tram: false, lamp: 36, kerbed: true,
+    surface: 'tarmac', cycle: 0,
+  },
   superhighway: {
     label: 'Superhighway', half: 16.4, edge: 22.0, lanes: 4, median: 2.4,
     oneWay: false, tram: false, lamp: 44, kerbed: false,
@@ -243,7 +257,7 @@ export const ROAD_IDS: RoadClass[] = [
   'boulevard', 'tramStreet', 'industrial', 'highway', 'slip',
   // Appended, never inserted: a save stores the index into this array, so a
   // class added anywhere but the end renames every road in every old file.
-  'onewayWide', 'expressway', 'superhighway',
+  'onewayWide', 'expressway', 'superhighway', 'arterial', 'parkway',
 ];
 
 /**
@@ -253,7 +267,7 @@ export const ROAD_IDS: RoadClass[] = [
 export const ROAD_ORDER: RoadClass[] = [
   'path', 'track', 'alley', 'pedestrian', 'lane',
   'street', 'cycleStreet', 'oneway', 'onewayWide', 'promenade', 'bus',
-  'avenue', 'boulevard', 'tramStreet', 'tram',
+  'avenue', 'boulevard', 'parkway', 'arterial', 'tramStreet', 'tram',
   'industrial', 'highway', 'dual', 'slip', 'expressway', 'motorway', 'superhighway',
 ];
 

@@ -23,6 +23,7 @@ import { Politics } from './politics';
 import { Council } from './council';
 import { Disasters } from './disasters';
 import { CityEvents } from './events';
+import { Sports } from './sports';
 import type { ScenarioState } from './scenarios';
 import { Newsroom } from './news';
 import { RULES } from './difficulty';
@@ -207,6 +208,8 @@ export interface World {
   disasters: Disasters;
   /** Matches, concerts, festivals: what is booked and what has been held. */
   events: CityEvents;
+  /** The city's professional team, if it has one. See `sports.ts`. */
+  sports: Sports;
   /** The job the city was founded to do, or null in free play. */
   scenario: ScenarioState | null;
   /** What the city's paper has printed. See `news.ts`. */
@@ -267,6 +270,7 @@ export function emptyWorld(grid = simConfig.cityGrid): World {
     disasters: new Disasters(),
     scenario: null,
     events: new CityEvents(),
+    sports: new Sports(),
     news: new Newsroom(),
     difficulty: RULES.id,
     map: MAP.id,
