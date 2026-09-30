@@ -846,7 +846,8 @@ export class Traffic {
             // Room beyond for both: the one ahead has not reached the far
             // lane yet, so the room it will take is not there to see.
             && this.roomBeyond(v, next, c.length[leader] + 2));
-          const shut = (toLine < COMMIT_METRES && atFront)
+          const committing = toLine < COMMIT_METRES && atFront;
+          const shut = committing
             ? !this.commit(v, lane, node, next, tick, seconds)
             : this.watching(v, lane, node, next, tick, seconds);
           if (shut) {
@@ -854,7 +855,12 @@ export class Traffic {
             // model as a stopped car. No separate braking law, no transitions.
             const stop = Math.max(0, toLine);
             if (stop < gap) { gap = stop; closing = speed; }
-          } else if (toLine < COMMIT_METRES && leader < 0) {
+          } else if (committing) {
+            // Holding a slot is being cleared, for the front car and for one
+            // following it through alike. A follower that took a slot but was
+            // not marked cleared asked again every tick, could be refused at
+            // the line while still holding it, and sat there until the slot
+            // lapsed -- and then a crossing movement was let in on top of it.
             c.cleared[v] = 1;
           }
         }

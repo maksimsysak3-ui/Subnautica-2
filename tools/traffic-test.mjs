@@ -215,6 +215,13 @@ section('driving');
   sim.found(12);
 
   const t = sim.traffic;
+  // HEAVY=<population> pins the ambient demand at the morning peak for that
+  // many people, to look at the network under load.
+  if (process.env.HEAVY) {
+    const heavy = Number(process.env.HEAVY);
+    Object.defineProperty(t, 'population', { get: () => heavy, set() {} });
+    Object.defineProperty(t, 'hour', { get: () => 8, set() {} });
+  }
   const jn = sim.junctions;
   const g = sim.lanes;
   console.log(`  network       ${world.net.links.length.toLocaleString()} links, `
@@ -238,6 +245,12 @@ section('driving');
   let firstOverlap = '';
   let peak = 0, sumDriving = 0, samples = 0;
   let worstTick = 0, totalMs = 0;
+  let boxStill = new Uint16Array(0), boxStalls = 0;
+  const reborn = new Set();
+  {
+    const add = t.table.add.bind(t.table);
+    t.table.add = () => { const v = add(); reborn.add(v); return v; };
+  }
 
   const c = t.col;
   for (let tick = 0; tick < ticks; tick++) {
@@ -246,17 +259,29 @@ section('driving');
     for (let v = 0; v < t.bound; v++) {
       if (t.live[v]) { before[v] = c.along[v]; beforeLane[v] = c.lane[v]; }
     }
+    // A slot freed and handed to a new vehicle in the same tick is not the
+    // same vehicle going backwards.
+    reborn.clear();
     const t0 = performance.now();
     sim.step(1);
     const dt = performance.now() - t0;
+    if (boxStill.length < t.bound) { const b = new Uint16Array(t.bound); b.set(boxStill); boxStill = b; }
+    for (let v = 0; v < t.bound; v++) {
+      if (t.live[v] && c.inBox[v] >= 0 && c.speed[v] < 0.4) {
+        if (++boxStill[v] === 50) boxStalls++;
+      } else boxStill[v] = 0;
+    }
     totalMs += dt;
     if (dt > worstTick) worstTick = dt;
 
     // Nobody moved backwards along the lane they stayed on.
     for (let v = 0; v < t.bound; v++) {
       if (t.live[v] === 0) continue;
-      if (c.lane[v] !== beforeLane[v]) continue;
-      if (c.along[v] < before[v] - 1e-3) backwards++;
+      if (c.lane[v] !== beforeLane[v] || reborn.has(v)) continue;
+      if (c.along[v] < before[v] - 1e-3) {
+        backwards++;
+        if (process.env.HEAVY) console.log(`  backwards v${v} lane ${c.lane[v]} ${before[v].toFixed(2)} -> ${c.along[v].toFixed(2)} speed ${c.speed[v].toFixed(2)} stopped ${c.stopped[v]} inBox ${c.inBox[v]}`);
+      }
       if (c.along[v] < -0.01 || c.along[v] > g.length[c.lane[v]] + 0.01) outOfLane++;
     }
 
@@ -328,7 +353,13 @@ section('driving');
           const na = c.next[a], nb = c.next[b];
           if (na < 0 || nb < 0) continue;
           if (crosses(jn.laneIn[c.lane[a]], jn.laneOut[na],
-            jn.laneIn[c.lane[b]], jn.laneOut[nb])) conflicts++;
+            jn.laneIn[c.lane[b]], jn.laneOut[nb])) {
+            conflicts++;
+            if (process.env.HEAVY && conflicts <= 4) {
+              const d = (v) => `v${v} lane ${c.lane[v]} (link ${g.link[c.lane[v]]}) at ${c.along[v].toFixed(1)}/${g.length[c.lane[v]].toFixed(1)} next ${c.next[v]} cleared ${c.cleared[v]} speed ${c.speed[v].toFixed(1)}`;
+              console.log(`  conflict node ${n} ctl ${jn.control[n]} tick ${tick}: ${d(a)} | ${d(b)}`);
+            }
+          }
         }
       }
     }
@@ -346,6 +377,7 @@ section('driving');
   console.log(`  speed         ${st.meanSpeed.toFixed(1)} m/s mean `
     + `(${(st.meanSpeed * 3.6).toFixed(0)} kph), ${st.stopped} stopped right now`);
   console.log(`  waiting       worst ${st.worstWaitSeconds.toFixed(0)} s at a junction`);
+  console.log(`  box stalls    ${boxStalls} held a junction box standing still for 5 s`);
   console.log(`  lane changes  ${st.changes.toLocaleString()}`);
   console.log(`  hard braking  ${st.hardBrakes.toLocaleString()} times`);
   console.log(`  cost          ${(totalMs / ticks * 1000).toFixed(0)} us a tick `
