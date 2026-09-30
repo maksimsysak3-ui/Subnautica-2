@@ -414,6 +414,13 @@ const GRANT_UNTIL = 1800;
 /** Game days between one thing happening and the next, on average. */
 const DAYS_BETWEEN_EVENTS = 6;
 
+/**
+ * What each zone's tax brings in, over the base take. Industry is the money
+ * maker -- works and yards pay the most for the ground they stand on -- homes
+ * pay well, shops a little over the base.
+ */
+const ZONE_TAKE = { residential: 1.4, commercial: 1.1, industrial: 1.8, office: 1.4 } as const;
+
 export class Economy {
   /** The industry headquarters, whose sales and upkeep are lines in the ledger. */
   industry: Industry | null = null;
@@ -604,10 +611,10 @@ export class Economy {
 
     // The difficulty's income multiplier rides on the land value term.
     const take = worth * RULES.income * TAX_SCALE;
-    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * take * pol.residentialYield * dm.residential;
-    const rawCom = sales * b.rates[Tax.COMMERCIAL] * take * pol.commercialYield * dm.commercial;
-    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * take * pol.industrialYield * dm.industrial;
-    const rawOff = billings * b.rates[Tax.OFFICE] * take * pol.officeYield * dm.office;
+    const rawRes = residents * b.rates[Tax.RESIDENTIAL] * take * pol.residentialYield * dm.residential * ZONE_TAKE.residential;
+    const rawCom = sales * b.rates[Tax.COMMERCIAL] * take * pol.commercialYield * dm.commercial * ZONE_TAKE.commercial;
+    const rawInd = industry * b.rates[Tax.INDUSTRIAL] * take * pol.industrialYield * dm.industrial * ZONE_TAKE.industrial;
+    const rawOff = billings * b.rates[Tax.OFFICE] * take * pol.officeYield * dm.office * ZONE_TAKE.office;
     r.residential = rawRes * gum(0.06);
     r.commercial = rawCom * gum(0.30);
     r.industrial = rawInd * gum(0.26);

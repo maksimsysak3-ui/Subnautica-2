@@ -108,6 +108,9 @@ export function cellHectares(): number {
 
 const CELL = 8;
 
+/** Specialised industry -- the harvest, the shipping and the plants -- pays half as much again. */
+const SPECIALISATION_TAKE = 1.5;
+
 export class Industry {
   hqs: Hq[] = [];
   /** How much of each resource has been taken, per resource cell, 0 to 1. */
@@ -221,7 +224,7 @@ export class Industry {
     const cha = cellHectares();
     return {
       ha: cells.length * cha, onField: on * cha,
-      weekly: sum * cha * YIELD[kind] * this.tradeBoost * PRICE[kind] * RULES.income,
+      weekly: sum * cha * YIELD[kind] * this.tradeBoost * PRICE[kind] * RULES.income * SPECIALISATION_TAKE,
     };
   }
 
@@ -292,7 +295,7 @@ export class Industry {
       const units = sum * cellHectares() * YIELD[h.kind] * staff;
       const shipped = units * h.exportShare;
       const sold = units - shipped;
-      const income = (shipped * this.tradeBoost + sold * LOCAL_PRICE) * PRICE[h.kind] * RULES.income;
+      const income = (shipped * this.tradeBoost + sold * LOCAL_PRICE) * PRICE[h.kind] * RULES.income * SPECIALISATION_TAKE;
       weekly += income;
       local += sold;
       cost += upkeep(h);
@@ -323,7 +326,7 @@ export class Industry {
       const capacity = PROCESS_CAP * staff;
       const taken = Math.min(capacity, pool.get(pl.kind) ?? 0);
       pool.set(pl.kind, (pool.get(pl.kind) ?? 0) - taken);
-      const income = taken * PRICE[pl.kind] * (PROCESS_VALUE - LOCAL_PRICE) * RULES.income;
+      const income = taken * PRICE[pl.kind] * (PROCESS_VALUE - LOCAL_PRICE) * RULES.income * SPECIALISATION_TAKE;
       processed += income;
       local -= taken;
       cost += pl.upkeep;
