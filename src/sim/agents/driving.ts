@@ -335,10 +335,18 @@ const IDLE_LOAD = 0.07;
  * centre wants more than this, and past it every extra car is simulation time
  * a tick cannot spare; the traffic view still shows the jam in full.
  */
-const AMBIENT_CAP = 1500;
+const AMBIENT_CAP = 2500;
 
-/** Cars on screen per resident, as a floor under what the load asks for. */
-const CARS_PER_PERSON = 0.17;
+/**
+ * Share of the city on the road at once, by hour. Not everybody drives at
+ * the same time: about one in twenty at the peak -- ten thousand cars for
+ * two hundred thousand people -- a steady few per cent through the day, and
+ * almost nobody at three in the morning.
+ */
+const DRIVING_BY_HOUR = [
+  0.010, 0.008, 0.007, 0.007, 0.010, 0.020, 0.040, 0.060, 0.060, 0.045, 0.038, 0.040,
+  0.044, 0.042, 0.040, 0.044, 0.055, 0.060, 0.055, 0.042, 0.032, 0.025, 0.018, 0.013,
+];
 
 const SCHEMA = {
   /** The citizen this is carrying, or -1 for a vehicle the city owns. */
@@ -1579,6 +1587,8 @@ export class Traffic {
 
   /** The city's population, for the floor on how many cars are about. Set by the simulation. */
   population = 0;
+  /** The hour of the day, for how much of the city is driving. Set by the simulation. */
+  hour = 12;
 
   /** Where the player is looking, and how far out vehicles are worth having. */
   focusX = 0;
@@ -1654,8 +1664,13 @@ export class Traffic {
       }
       return;
     }
-    const want = Math.min(this.budget, AMBIENT_CAP, Math.max(Math.round(this.nearbyLoad * VEHICLES_PER_LOAD),
-      Math.round(this.population * CARS_PER_PERSON)));
+    // How many: the share of the city driving at this hour. Where: the
+    // loaded lanes, below. With no population figure (a bare test network)
+    // the load alone decides.
+    const byLoad = Math.round(this.nearbyLoad * VEHICLES_PER_LOAD);
+    const want = Math.min(this.budget, AMBIENT_CAP, this.population > 0
+      ? Math.round(this.population * (DRIVING_BY_HOUR[this.hour % 24] ?? 0.03)) + 20
+      : byLoad);
     let room = Math.min(perTick, want - this.wandering());
     // No early return when the road is full: the depots and yards below still send theirs.
     const load = this.load;
