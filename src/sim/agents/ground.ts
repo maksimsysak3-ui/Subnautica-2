@@ -417,7 +417,10 @@ export class Ground {
       // cell of field, averaged over the two hundred metres around it, is the
       // thinnest suburb; below that it is countryside and averaging it in would
       // say more about how much empty map there is than about the city.
-      if (density[i] > 0.5) {
+      // Anywhere anybody lives or works. At half a person a cell a new town
+      // of a few hundred counted nowhere, and the land view told its player
+      // their land was worth nothing.
+      if (density[i] > 0.05) {
         built++;
         sumValue += v;
         sumDirt += dirt;

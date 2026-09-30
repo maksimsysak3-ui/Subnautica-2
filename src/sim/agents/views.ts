@@ -1160,7 +1160,7 @@ export class Views {
         ];
         if (branch === 'deathcare') {
           const lost = s.dispatch.stats.missed[Need.BODY];
-          rows.splice(1, 0, line('Buildings abandoned (deaths nobody collected)', lost.toLocaleString(), -1, lost > 0));
+          rows.splice(1, 0, line('Abandoned (uncollected deaths)', lost.toLocaleString(), -1, lost > 0));
         }
         if (std !== undefined) {
           rows.push(line('The catchment', `${std.good} m, nothing past ${std.worst}`));
