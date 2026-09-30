@@ -179,10 +179,13 @@ export class Menu {
     card.setAttribute('aria-label', "What's new");
     const head = document.createElement('div');
     head.className = 'mr-news-head';
-    head.innerHTML = "<span>What's new</span><em>Highways update</em>";
+    head.innerHTML = "<span>What's new</span><em>City life update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
       ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
+      ['Only deaths abandon buildings', 'A building is abandoned only when someone dies there and no cemetery or crematorium collects them. The new Deathcare view shows where that could happen.'],
+      ['Traffic with a rhythm', 'About one in twenty residents drive at rush hour, far fewer at night. The Traffic view reads in five colours, from empty green to packed red, and matches the queues you can see.'],
+      ['Calmer emergencies', 'Where a service covers 80% or more, calls are handled without alarms. Money is easier too: industry pays the most, then homes and offices.'],
       ['Your own sports team', 'Build a stadium or arena, click it and found a club: pick the sport, name and colours, manage the squad and transfers, set ticket prices and chase the league title. Home games fill the ground and pay the city.'],
       ['More to build', 'New Training ground and Sports hall, and two new roads: the three-lane Arterial and the tree-lined Parkway.'],
       ['Highways', 'New Expressway (2 lanes each way, 100 km/h) and Superhighway (4 lanes, 120 km/h). Every painted lane now carries traffic, and cars use them all. Motorways are joined only by slip roads, bridges or interchanges.'],
