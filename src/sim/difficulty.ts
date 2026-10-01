@@ -12,7 +12,7 @@
  * city carries its id in the save so a hard city stays hard.
  */
 
-export type DifficultyId = 'relaxed' | 'standard' | 'hard';
+export type DifficultyId = 'sandbox' | 'relaxed' | 'standard' | 'hard' | 'expert';
 
 export interface Rules {
   id: DifficultyId;
@@ -69,6 +69,13 @@ export const BUILD_WEIGHT = 0.5;
 /** The designed rules, before the currency scale. */
 const DESIGNED: readonly Rules[] = [
   {
+    id: 'sandbox', label: 'Sandbox', tagline: 'Build anything, answer to nobody',
+    blurb: 'A treasury that will not run dry, cheap building and quick unlocks. '
+      + 'For designing a city rather than running one.',
+    funds: 4000000, grantWeekly: 60000, grantUntil: 1000000,
+    build: 0.5, upkeep: 0.5, income: 1.3, quiet: 8000, xp: 3, appeal: 1.15,
+  },
+  {
     id: 'relaxed', label: 'Relaxed', tagline: 'Build first, balance later',
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
       + 'For players who want to shape a city without watching the books.',
@@ -88,6 +95,13 @@ const DESIGNED: readonly Rules[] = [
       + 'complain early. For players who like the budget to fight back.',
     funds: 100000, grantWeekly: 0, grantUntil: 0,
     build: 1.15, upkeep: 1.15, income: 0.88, quiet: 1000, xp: 0.85, appeal: 0.8,
+  },
+  {
+    id: 'expert', label: 'Expert', tagline: 'The city that runs you',
+    blurb: 'A small treasury, dear services, lean taxes and newcomers who are hard '
+      + 'to please. Every road and every plant has to earn its place.',
+    funds: 80000, grantWeekly: 0, grantUntil: 0,
+    build: 1.3, upkeep: 1.3, income: 0.8, quiet: 600, xp: 0.75, appeal: 0.7,
   },
 ];
 

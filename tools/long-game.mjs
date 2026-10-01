@@ -316,7 +316,7 @@ const by = Object.fromEntries(results.map((r) => [r.difficulty, r]));
 for (const r of results) {
   check(r.broke === 0, `${r.difficulty}: a sensible player never sits at the overdraft limit`);
   // Hard is meant to be a squeeze, so its bar is lower -- but it has to grow.
-  const bar = r.difficulty === 'hard' ? 300 : 1000;
+  const bar = r.difficulty === 'hard' || r.difficulty === 'expert' ? 300 : 1000;
   check(r.final.pop > bar, `${r.difficulty}: the city grows past ${bar} (${r.final.pop})`);
 }
 if (by.relaxed && by.standard) {

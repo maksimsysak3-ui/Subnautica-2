@@ -389,7 +389,8 @@ export function deserialise(text: string): { world: World; name: string; at: num
   if (Array.isArray(file.policies)) {
     world.policies.restore(file.policies.filter((x): x is string => typeof x === 'string'));
   }
-  if (file.difficulty === 'relaxed' || file.difficulty === 'hard') world.difficulty = file.difficulty;
+  if (file.difficulty === 'relaxed' || file.difficulty === 'hard' || file.difficulty === 'sandbox'
+    || file.difficulty === 'expert') world.difficulty = file.difficulty;
   else world.difficulty = 'standard';
   world.map = mapById(typeof file.map === 'string' ? file.map : 'vale').id;
   world.industry.restore(file.industry);

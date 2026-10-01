@@ -523,7 +523,9 @@ export class Menu {
       card.dataset.difficulty = d.id;
       const art = document.createElement('div');
       art.className = 'mr-card-art';
-      art.style.backgroundImage = `url(${CARD_SHOTS[d.id]})`;
+      // The new tiers borrow the nearest card's picture.
+      const shot = CARD_SHOTS[d.id] ?? CARD_SHOTS[d.id === 'sandbox' ? 'relaxed' : 'hard'];
+      art.style.backgroundImage = `url(${shot})`;
       const name = document.createElement('div');
       name.className = 'mr-card-title';
       name.textContent = d.label;

@@ -336,7 +336,7 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-map-res span { display: inline-flex; }
 @media (max-width: 800px) { .mr-map-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .mr-map-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.mr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.mr-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 @media (max-width: 900px) { .mr-cards { grid-template-columns: 1fr; } }
 .mr-card {
   display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; cursor: pointer;
