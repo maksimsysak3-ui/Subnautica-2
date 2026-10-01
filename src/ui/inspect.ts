@@ -15,8 +15,14 @@
  */
 
 import type { Inspection } from '../sim';
-import { SKIN, css, panel, label, bar, rule } from './skin';
+import { SKIN, css, panel, bar, rule } from './skin';
 import { ZONE_STYLE } from './zones';
+
+/** The services a building is covered by, as a player would name them. */
+const SERVICE_NAME: Record<string, string> = {
+  fire: 'Fire', police: 'Police', health: 'Healthcare', education: 'Schools',
+  parks: 'Parks', deathcare: 'Deathcare',
+};
 
 /** Shares below this read as a failure rather than as a thin margin. */
 const POOR = 0.5;
@@ -31,7 +37,9 @@ export class Inspect {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'inspect';
     css(this.root, [...panel(), 'position:absolute', 'left:12px', 'top:12px',
-      'width:286px', 'padding:0', 'overflow:hidden', 'display:none',
+      'width:300px', 'padding:0', 'display:none',
+      'max-height:calc(100% - 250px)', 'overflow-y:auto', 'overflow-x:hidden',
+      'scrollbar-gutter:stable', 'scrollbar-width:thin', 'box-sizing:border-box',
       'pointer-events:auto', 'z-index:12']);
 
     this.head = document.createElement('div');
@@ -93,29 +101,28 @@ export class Inspect {
     // ---- the head: what it is ------------------------------------------
     this.head.innerHTML = '';
     const swatch = document.createElement('div');
-    css(swatch, ['width:4px', 'height:30px', `background:${accent}`,
-      'border-radius:2px', `box-shadow:0 0 12px ${accent}66`, 'flex:none',
-      'margin-top:2px']);
+    css(swatch, ['width:4px', 'height:34px', `background:${accent}`,
+      'border-radius:2px', 'flex:none', 'margin-top:1px']);
     const titles = document.createElement('div');
     css(titles, ['display:flex', 'flex-direction:column', 'gap:3px', 'flex:1',
       'min-width:0']);
     const name = document.createElement('div');
-    css(name, [`color:${SKIN.bright}`, 'font-size:13px', 'line-height:1.25']);
+    css(name, [`color:${SKIN.bright}`, 'font:600 15px/1.25 var(--ui)']);
     name.textContent = what.name;
     const kind = document.createElement('div');
-    css(kind, [...label(), 'font-size:10.5px']);
+    css(kind, [`color:${SKIN.dim}`, 'font:400 12.5px/1.3 var(--ui)']);
     kind.textContent = what.asset.startsWith('spec.hq.') ? 'industry headquarters'
       : what.asset.startsWith('spec.plant.') ? 'processing plant'
       : what.asset.startsWith('spec.wing.') ? 'extension'
       : what.branch !== undefined ? `${what.branch} service`
-        : `${what.density} ${what.zone}`;
+        : `${what.density[0].toUpperCase()}${what.density.slice(1)}-density ${what.zone}`;
     titles.append(name, kind);
 
     const shut = document.createElement('button');
     css(shut, ['width:22px', 'height:22px', 'flex:none', 'padding:0',
       'border:1px solid transparent', `border-radius:${SKIN.radiusSmall}`,
       'background:transparent', `color:${SKIN.dim}`, 'cursor:pointer',
-      `font:12px/1 ${SKIN.mono}`]);
+      'font:18px/1 var(--ui)']);
     shut.textContent = '×';
     shut.setAttribute('aria-label', 'Close');
     shut.addEventListener('pointerenter', () => { shut.style.color = SKIN.bright; });
@@ -128,6 +135,7 @@ export class Inspect {
     if (what.homes > 0) {
       this.body.appendChild(this.meter('Residents', what.residents, what.homes * 2,
         accent, `${what.residents} in ${what.homes} homes`));
+      this.body.appendChild(this.familyList(what.families));
     }
     if (what.jobs > 0) {
       this.body.appendChild(this.meter(
@@ -182,23 +190,13 @@ export class Inspect {
 
     if (what.cover.length > 0) {
       this.body.appendChild(rule());
+      this.body.appendChild(this.heading('Services in reach'));
       const grid = document.createElement('div');
-      css(grid, ['display:grid', 'grid-template-columns:repeat(5, 1fr)',
-        'gap:6px']);
+      css(grid, ['display:grid', 'grid-template-columns:1fr 1fr', 'gap:5px 14px']);
       for (const c of what.cover) {
-        const cell = document.createElement('div');
-        css(cell, ['display:flex', 'flex-direction:column', 'gap:4px',
-          'align-items:center']);
-        const dot = document.createElement('div');
-        const tone = c.share <= 0.001 ? SKIN.bad
-          : c.share < POOR ? SKIN.warn : SKIN.good;
-        css(dot, ['width:100%', 'height:3px', `background:${tone}`,
-          'border-radius:3px', `opacity:${0.35 + 0.65 * Math.min(1, c.share)}`]);
-        const cap = document.createElement('div');
-        css(cap, [...label(), 'font-size:7.5px', 'letter-spacing:.03em']);
-        cap.textContent = c.name.slice(0, 4);
-        cell.append(dot, cap);
-        grid.appendChild(cell);
+        const tone = c.share <= 0.001 ? SKIN.bad : c.share < POOR ? SKIN.warn : SKIN.good;
+        grid.appendChild(this.row(SERVICE_NAME[c.name] ?? c.name,
+          c.share <= 0.001 ? 'none' : `${Math.round(Math.min(1, c.share) * 100)}%`, tone));
       }
       this.body.appendChild(grid);
     }
@@ -212,13 +210,13 @@ export class Inspect {
         'background:rgba(224,104,90,.09)',
         'border:1px solid rgba(224,104,90,.22)']);
       const t = document.createElement('div');
-      css(t, [...label(), `color:${SKIN.bad}`, 'font-size:10.5px']);
+      css(t, [`color:${SKIN.bad}`, 'font:600 13px/1.3 var(--ui)']);
       t.textContent = what.gripe;
       const w = document.createElement('div');
-      css(w, [`color:${SKIN.text}`, 'font-size:12px', 'line-height:1.45']);
+      css(w, [`color:${SKIN.text}`, 'font:400 12.5px/1.45 var(--ui)']);
       w.textContent = what.gripeWhat;
       const f = document.createElement('div');
-      css(f, [`color:${SKIN.dim}`, 'font-size:12px', 'line-height:1.45']);
+      css(f, [`color:${SKIN.dim}`, 'font:400 12.5px/1.45 var(--ui)']);
       f.textContent = what.gripeFix;
       note.append(t, w, f);
       this.body.appendChild(note);
@@ -234,16 +232,64 @@ export class Inspect {
     const top = document.createElement('div');
     css(top, ['display:flex', 'align-items:baseline', 'gap:8px']);
     const l = document.createElement('div');
-    css(l, [...label(), 'font-size:10.5px']);
+    css(l, [`color:${SKIN.text}`, 'font:600 13px/1.2 var(--ui)']);
     l.textContent = name;
     const v = document.createElement('div');
-    css(v, [`color:${SKIN.bright}`, 'font-size:11px', 'margin-left:auto',
+    css(v, [`color:${SKIN.bright}`, 'font:500 12.5px/1.2 var(--ui)', 'margin-left:auto',
       'font-variant-numeric:tabular-nums']);
     v.textContent = text;
     top.append(l, v);
-    const { track, fill } = bar(colour, 3);
+    const { track, fill } = bar(colour, 4);
     fill.style.width = `${Math.round(100 * Math.min(1, of > 0 ? got / of : 0))}%`;
     wrap.append(top, track);
+    return wrap;
+  }
+
+  /** A small plain heading over a section. */
+  private heading(text: string): HTMLElement {
+    const h = document.createElement('div');
+    css(h, [`color:${SKIN.dim}`, 'font:600 12px/1 var(--ui)']);
+    h.textContent = text;
+    return h;
+  }
+
+  /**
+   * Who lives here: each household by its family name, how many of them, and
+   * a dot for how they feel about the place. The first few, then a count.
+   */
+  private familyList(families: Inspection['families']): HTMLElement {
+    const wrap = document.createElement('div');
+    css(wrap, ['display:flex', 'flex-direction:column', 'gap:4px']);
+    if (families.length === 0) {
+      const none = document.createElement('div');
+      css(none, [`color:${SKIN.dim}`, 'font:400 12.5px/1.3 var(--ui)']);
+      none.textContent = 'Nobody has moved in yet.';
+      wrap.appendChild(none);
+      return wrap;
+    }
+    const SHOW = 8;
+    for (const f of families.slice(0, SHOW)) {
+      const row = document.createElement('div');
+      css(row, ['display:flex', 'align-items:center', 'gap:8px']);
+      const dot = document.createElement('span');
+      const tone = f.mood < 0.35 ? SKIN.bad : f.mood < 0.6 ? SKIN.warn : SKIN.good;
+      css(dot, ['width:7px', 'height:7px', 'border-radius:50%', `background:${tone}`, 'flex:none']);
+      dot.title = f.mood < 0.35 ? 'unhappy' : f.mood < 0.6 ? 'getting by' : 'happy';
+      const n = document.createElement('span');
+      css(n, [`color:${SKIN.text}`, 'font:400 12.5px/1.3 var(--ui)', 'flex:1']);
+      n.textContent = `The ${f.name} family`;
+      const k = document.createElement('span');
+      css(k, [`color:${SKIN.dim}`, 'font:400 12px/1.3 var(--ui)', 'font-variant-numeric:tabular-nums']);
+      k.textContent = f.size === 1 ? '1 person' : `${f.size} people`;
+      row.append(dot, n, k);
+      wrap.appendChild(row);
+    }
+    if (families.length > SHOW) {
+      const more = document.createElement('div');
+      css(more, [`color:${SKIN.dim}`, 'font:400 12px/1.3 var(--ui)', 'padding-left:15px']);
+      more.textContent = `and ${families.length - SHOW} more households`;
+      wrap.appendChild(more);
+    }
     return wrap;
   }
 
@@ -252,10 +298,10 @@ export class Inspect {
     const el = document.createElement('div');
     css(el, ['display:flex', 'align-items:baseline', 'gap:8px']);
     const l = document.createElement('div');
-    css(l, [`color:${SKIN.text}`, 'font-size:11px']);
+    css(l, [`color:${SKIN.text}`, 'font:400 12.5px/1.3 var(--ui)']);
     l.textContent = name;
     const v = document.createElement('div');
-    css(v, [`color:${tone}`, 'font-size:11px', 'margin-left:auto',
+    css(v, [`color:${tone}`, 'font:600 12.5px/1.3 var(--ui)', 'margin-left:auto',
       'font-variant-numeric:tabular-nums']);
     v.textContent = text;
     el.append(l, v);

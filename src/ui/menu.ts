@@ -179,9 +179,13 @@ export class Menu {
     card.setAttribute('aria-label', "What's new");
     const head = document.createElement('div');
     head.className = 'mr-news-head';
-    head.innerHTML = "<span>What's new</span><em>City life update</em>";
+    head.innerHTML = "<span>What's new</span><em>The mayor's update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['A real start', 'Founding grants are small or gone, roads and services cost more to run, and the first weeks drain the treasury before taxes catch up. Levels and unlocks take far longer. A welcome tutorial explains it all (F1 to reopen).'],
+      ['Five difficulties', 'Sandbox and Expert join Relaxed, Standard and Hard.'],
+      ['New info views', 'Unemployment and Education level, and a rewritten views panel: a plain list in four groups, beside the card. Traffic colours now hold for hours instead of flickering.'],
+      ['Who lives here', 'Click a home to see the families living in it and how each one feels. Notifications are smaller, toolbar icons are filled in, and cars and detail are drawn further away.'],
       ['Streets that look lived in', 'Streets are lined with grown street limes instead of saplings, lawns are real grass green, and the interface is calmer: plainer type, no neon glow.'],
       ['Weekends', 'Saturdays and Sundays have no rush hour: a late start and one long busy afternoon. Lights hand over a green nobody is using.'],
       ['Junctions that flow', 'Cars no longer block a junction on a green: a queue follows through nose to tail, room past the junction is kept for whoever is already crossing, and no car stops inside the box.'],

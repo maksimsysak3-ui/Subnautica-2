@@ -77,6 +77,7 @@ import { Stage } from './people';
 import type { RoadGraph } from '../roadgraph';
 import type { City, Dirty } from '../city';
 import type { World } from '../world';
+import { familyName } from './surnames';
 
 /**
  * Ticks to get round the whole population, per system.
@@ -211,6 +212,8 @@ export interface Inspection {
   gripeWhat: string;
   gripeFix: string;
   cover: Array<{ name: string; share: number }>;
+  /** The households living here: family name, how many, and how they feel (0..1). */
+  families: Array<{ name: string; size: number; mood: number; wealth: number }>;
   /** What the ground under it is worth, 0 to 1, and what is in the air. */
   landValue: number;
   pollution: number;
@@ -874,10 +877,23 @@ export class Simulation {
     // three answer through the utilities instead, and a park's catchment is not
     // a service a house fails without.
     const cover: Array<{ name: string; share: number }> = [];
-    for (const branch of ['fire', 'police', 'health', 'education', 'parks']) {
+    for (const branch of ['fire', 'police', 'health', 'education', 'parks', 'deathcare']) {
       const b = BRANCHES.indexOf(branch as never);
       if (b < 0) continue;
       cover.push({ name: branch, share: this.services.at(id, b) });
+    }
+
+    // Who lives here. A walk of the household table, which is fine for one
+    // building on a click.
+    const families: Inspection['families'] = [];
+    if (c.homes[id] > 0) {
+      const hh = this.people.households, hc = hh.col;
+      for (let h = 0; h < hh.bound; h++) {
+        if (hh.live[h] === 0 || hc.home[h] !== id) continue;
+        families.push({ name: familyName(h, hc.arrived[h]), size: hc.size[h],
+          mood: hc.mood[h] / 255, wealth: hc.wealth[h] });
+      }
+      families.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     return {
@@ -908,6 +924,7 @@ export class Simulation {
       gripeWhat: info?.what ?? '',
       gripeFix: info?.fix ?? '',
       cover,
+      families,
     };
   }
 

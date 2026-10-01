@@ -513,40 +513,41 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 /* ---- notifications -------------------------------------------------------- */
 .mr-toasts {
   position: absolute; top: 12px; right: 12px; z-index: 20; display: flex; flex-direction: column;
-  gap: 8px; align-items: flex-end; pointer-events: none; width: min(340px, calc(100vw - 24px));
+  gap: 6px; align-items: flex-end; pointer-events: none; width: min(290px, calc(100vw - 24px));
 }
+/* Compact and plain: a dark card with a thin edge in the notice's colour. */
 .mr-toast {
-  --tone: #6aaee8; position: relative; display: grid; grid-template-columns: 34px 1fr auto;
-  align-items: start; column-gap: 11px; width: 100%; box-sizing: border-box; padding: 11px 32px 13px 11px;
-  border-radius: 12px; overflow: hidden; cursor: pointer; pointer-events: auto;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--tone) 14%, rgba(16,22,31,.96)) 0%, rgba(13,18,26,.96) 55%);
-  border: 1px solid color-mix(in srgb, var(--tone) 30%, rgba(255,255,255,.06));
-  box-shadow: 0 14px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
-  backdrop-filter: blur(14px);
-  opacity: 0; transform: translateX(24px) scale(.98);
-  transition: opacity .25s ease, transform .3s cubic-bezier(.2,.9,.3,1.1), border-color .15s;
+  --tone: #6aaee8; position: relative; display: grid; grid-template-columns: 22px 1fr auto;
+  align-items: start; column-gap: 9px; width: 100%; box-sizing: border-box; padding: 8px 26px 9px 10px;
+  border-radius: 9px; overflow: hidden; cursor: pointer; pointer-events: auto;
+  background: rgba(24,26,30,.94);
+  border: 1px solid rgba(255,255,255,.07); border-left: 3px solid var(--tone);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  opacity: 0; transform: translateX(16px);
+  transition: opacity .2s ease, transform .25s ease, border-color .15s;
 }
 .mr-toast.is-in { opacity: 1; transform: none; }
-.mr-toast.is-out { opacity: 0; transform: translateX(24px); }
-.mr-toast:hover { border-color: color-mix(in srgb, var(--tone) 60%, transparent); }
+.mr-toast.is-out { opacity: 0; transform: translateX(16px); }
+.mr-toast:hover { background: rgba(32,34,39,.97); }
 .mr-toast-badge {
-  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
-  color: var(--tone); background: color-mix(in srgb, var(--tone) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 35%, transparent);
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; margin-top: 1px;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
 }
-.mr-toast-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.mr-toast-title { font: 700 13.5px/1.25 var(--ui); color: ${BRAND.ink}; letter-spacing: .01em; }
-.mr-toast-body { font: 500 12.5px/1.45 var(--ui); color: ${BRAND.dim}; }
+.mr-toast-badge svg { width: 14px; height: 14px; }
+.mr-toast-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mr-toast-title { font: 600 13px/1.25 var(--ui); color: ${BRAND.ink}; }
+.mr-toast-body { font: 400 12px/1.4 var(--ui); color: ${BRAND.dim};
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mr-toast-go {
-  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-top: 4px;
-  font: 700 10.5px/1 var(--label); letter-spacing: .05em; text-transform: uppercase; color: var(--tone);
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 2px;
+  font: 600 11.5px/1 var(--ui); color: var(--tone);
 }
 .mr-toast-fig {
-  align-self: center; font: 700 18px/1 var(--display); letter-spacing: .02em; color: var(--tone);
+  align-self: center; font: 700 14px/1 var(--ui); color: var(--tone);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .mr-toast-x {
-  position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 22px; height: 22px;
+  position: absolute; top: 5px; right: 4px; display: grid; place-items: center; width: 22px; height: 22px;
   padding: 0; border: 0; border-radius: 6px; background: none; color: ${BRAND.faint}; cursor: pointer;
   opacity: 0; transition: opacity .15s, background .15s;
 }
@@ -1112,8 +1113,9 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
 /* ---- the device wheel ---------------------------------------------------- */
 /* Two devices on a ring, drawn in 3D: the phone on the left, the computer on
    the right. They turn slowly at rest; the one pointed at turns to face you. */
-/* On the left, over the mod tools: the right edge is where notifications stack. */
-.mr-wheel-launch { position: absolute; left: 12px; top: calc(50% - 6px); width: 42px; height: 42px; display: grid;
+/* Bottom left, beside the views button: clear of the notifications on the
+   right and of the building and view cards on the left. */
+.mr-wheel-launch { position: absolute; left: 62px; bottom: var(--hud-foot, 14px); width: 44px; height: 44px; display: grid;
   place-items: center; cursor: pointer; padding: 0; pointer-events: auto; z-index: 24; color: #e9e9ec;
   background: linear-gradient(180deg,rgba(40,42,46,.94),rgba(24,25,28,.94)); border: 1px solid rgba(255,255,255,.12);
   border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
