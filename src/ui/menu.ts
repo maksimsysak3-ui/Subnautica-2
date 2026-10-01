@@ -182,6 +182,8 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>City life update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Streets that look lived in', 'Streets are lined with grown street limes instead of saplings, lawns are real grass green, and the interface is calmer: plainer type, no neon glow.'],
+      ['Weekends', 'Saturdays and Sundays have no rush hour: a late start and one long busy afternoon. Lights hand over a green nobody is using.'],
       ['Junctions that flow', 'Cars no longer block a junction on a green: a queue follows through nose to tail, room past the junction is kept for whoever is already crossing, and no car stops inside the box.'],
       ['Interchanges', 'Roads draw Interchanges: drop a roundabout, signalled crossroads, diamond interchange or motorway exit whole, turn it with R, and draw roads onto its loose ends.'],
       ['Only deaths abandon buildings', 'A building is abandoned only when someone dies there and no cemetery or crematorium collects them. The new Deathcare view shows where that could happen.'],
