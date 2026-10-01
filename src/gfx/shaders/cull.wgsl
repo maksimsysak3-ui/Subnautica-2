@@ -103,7 +103,11 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
   // params.w is viewportHeight / (2 * tan(fovY / 2)): height in metres times
   // this over distance gives height in pixels.
   let pixels = inst.form.z * camera.params.w / dist;
-  if (pixels < MIN_PIXELS) { return; }
+  // Movers carry a detail bias (see below): a car is short, so measured by its
+  // height alone it vanished at a distance where the street it was on was
+  // still plainly drawn. Part of the bias counts towards staying visible.
+  let keep = select(1.0, sqrt(-inst.extra.z), inst.extra.z < 0.0);
+  if (pixels * keep < MIN_PIXELS) { return; }
 
   // The detail bias, for things whose height is a poor measure of how much of
   // them you can see. The ladder was calibrated on buildings: a tower is fifty
@@ -165,7 +169,7 @@ const SHADOW_MIN_SIZE = 0.0018;
  * rendered pixels, a machine the governor has dropped a render scale on culls
  * sooner by itself.
  */
-const MIN_PIXELS = 3.5;
+const MIN_PIXELS = 2.6;
 /**
  * Over this many pixels tall, the full mesh is worth its triangles.
  *
@@ -177,7 +181,7 @@ const MIN_PIXELS = 3.5;
  * being resolvable, not where it stops being cheap, and the frame budget this
  * spends is a fraction of what the last few rounds bought back.
  */
-const LOD0_PIXELS = 36.0;
+const LOD0_PIXELS = 30.0;
 /**
  * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
  *
@@ -186,4 +190,4 @@ const LOD0_PIXELS = 36.0;
  * twenty pixels and obviously a blob on a stick at thirty-five, so the level
  * that draws one has to start where the eye stops being able to tell.
  */
-const LOD1_PIXELS = 13.0;
+const LOD1_PIXELS = 10.5;

@@ -1672,7 +1672,7 @@ export class Traffic {
   /** Where the player is looking, and how far out vehicles are worth having. */
   focusX = 0;
   focusZ = 0;
-  reach = 1400;
+  reach = 1900;
   /** Lanes within reach of the focus, and the focus they were gathered for. */
   private nearby: Int32Array = new Int32Array(0);
   private nearbyLoad = 0;
