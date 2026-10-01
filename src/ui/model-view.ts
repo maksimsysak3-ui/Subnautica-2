@@ -83,8 +83,8 @@ function upload(g: Gpu, def: AssetDef, mesh: MeshBuilder): Model {
   const tint: Record<number, [number, number, number]> = {
     [TINT.BRAND]: brand, [TINT.BRAND_DARK]: brand.map((v) => v * 0.6) as [number, number, number],
     [TINT.ACCENT]: accent, [TINT.SIGN_LIT]: brand, [TINT.DOOR]: hex(0x5a4030), [TINT.AWNING]: brand,
-    [TINT.METAL_DARK]: hex(0x2b2f35), [TINT.WOOD]: hex(0x8a6440), [TINT.GREEN]: hex(0x4f8a4a),
-    [TINT.GREEN_DARK]: hex(0x3f7a3c), [TINT.SMOKE]: hex(0xcfcfcf), [TINT.STEAM]: hex(0xf0f0f0),
+    [TINT.METAL_DARK]: hex(0x2b2f35), [TINT.WOOD]: hex(0x8a6440), [TINT.GREEN]: hex(0x5e7f3c),
+    [TINT.GREEN_DARK]: hex(0x4b6b30), [TINT.SMOKE]: hex(0xcfcfcf), [TINT.STEAM]: hex(0xf0f0f0),
   };
   const out = new Float32Array(indices.length * 10);
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];

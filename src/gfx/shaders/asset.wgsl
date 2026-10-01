@@ -1104,13 +1104,18 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32, brand : vec3f, accent : v
       let grain = hash21(vec2f(floor(uv.x * 8.0), floor(uv.y * 1.2)) + seed);
       return vec3f(0.238, 0.170, 0.108) * (0.88 + grain * 0.3);
     }
+    // Grass is olive, not teal: red well above blue. The old greens had the
+    // two equal, and a lawn the size of a block read as painted turf. Two
+    // scales of mottling, coarse patches and fine tufts, so it is not one sheet.
     case 9u: {
-      let leaf = hash21(floor(uv * 5.0) + seed);
-      return vec3f(0.118, 0.212, 0.108) * (0.75 + leaf * 0.6);
+      let clump = hash21(floor(uv * 1.3) + seed);
+      let leaf = hash21(floor(uv * 6.0) + seed * 1.7);
+      return vec3f(0.128, 0.188, 0.066) * (0.78 + clump * 0.22 + leaf * 0.24);
     }
     case 10u: {
-      let blade = hash21(floor(uv * 5.0) + seed);
-      return vec3f(0.072, 0.146, 0.070) * (0.80 + blade * 0.45);
+      let clump = hash21(floor(uv * 1.3) + seed);
+      let blade = hash21(floor(uv * 6.0) + seed * 1.7);
+      return vec3f(0.086, 0.140, 0.048) * (0.82 + clump * 0.18 + blade * 0.2);
     }
     default: { return brand; }
   }
