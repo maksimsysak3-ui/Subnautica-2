@@ -88,6 +88,18 @@ export const EXTRA_GLYPH: Record<string, string> = {
       + 'M30 25a3.4 3.4 0 0 0-.6 6.7h8.2A3.4 3.4 0 0 0 38 25h-8z',
 };
 
+/**
+ * The views in four plain groups, in the order a player reaches for them.
+ * Twenty-odd pictograms in one block was a puzzle; a short labelled list under
+ * a heading is a menu. Anything not named here lands in the last group.
+ */
+const GROUPS: ReadonlyArray<{ name: string; ids: number[] }> = [
+  { name: 'Infrastructure', ids: [View.TRAFFIC, View.TRANSPORT, View.POWER, View.WATER, View.SEWAGE, View.RUBBISH] },
+  { name: 'Services', ids: [View.FIRE, View.POLICE, View.HEALTH, View.EDUCATION, View.PARKS, View.DEATHCARE] },
+  { name: 'People and land', ids: [View.DESIRABILITY, View.LAND, View.POLLUTION, View.JOBLESS, View.SCHOOLING, View.FLOOD] },
+  { name: 'Economy and map', ids: [View.BUDGET, View.RESOURCES, View.DISTRICTS] },
+];
+
 function style(el: HTMLElement, decls: string[]): void {
   el.style.cssText = decls.join(';');
 }
@@ -137,7 +149,7 @@ export class InfoViews {
     // the browser works out rather than one guessed at here.
     style(this.root, [
       'position:absolute', 'left:12px', 'top:var(--hud-detail, 12px)',
-      'bottom:var(--hud-foot, 14px)', 'z-index:6',
+      'bottom:var(--hud-foot, 14px)', 'z-index:21',
       'display:flex', 'flex-direction:column', 'align-items:flex-start',
       'justify-content:flex-end', 'gap:8px', 'pointer-events:none',
     ]);
@@ -154,7 +166,8 @@ export class InfoViews {
     // open it ran off the top of the screen, taking the balance and the weekly
     // net with it. A card that loses its first line when its last one opens is
     // a card that has to be scrolled, so it scrolls.
-    style(this.card, [...panel(), 'width:324px', 'padding:14px 16px 12px',
+    style(this.card, [...panel(), 'width:320px', 'box-sizing:border-box', 'padding:14px 16px 12px',
+      'max-height:100%',
       'display:none', 'pointer-events:auto',
       'min-height:0', 'overflow-y:auto']);
 
@@ -167,8 +180,7 @@ export class InfoViews {
     style(this.swatch, ['display:grid', 'place-items:center', 'width:28px', 'height:28px',
       'border-radius:8px', 'flex:0 0 auto']);
     this.title = document.createElement('div');
-    style(this.title, ['font:700 17px/1 var(--display)', `color:${SKIN.bright}`,
-      'letter-spacing:.03em', 'text-transform:uppercase']);
+    style(this.title, ['font:700 16px/1.2 var(--ui)', `color:${SKIN.bright}`]);
     head.append(this.swatch, this.title);
     this.head = head;
 
@@ -179,16 +191,15 @@ export class InfoViews {
     style(this.hero, ['display:flex', 'align-items:baseline', 'gap:9px',
       'margin:14px 0 4px', 'flex-wrap:wrap']);
     this.heroValue = document.createElement('span');
-    style(this.heroValue, ['font:800 36px/1 var(--display)',
-      `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums',
-      'letter-spacing:.01em']);
+    style(this.heroValue, ['font:700 30px/1 var(--ui)',
+      `color:${SKIN.bright}`, 'font-variant-numeric:tabular-nums']);
     this.heroLabel = document.createElement('span');
-    style(this.heroLabel, ['font:600 12.5px/1.3 var(--ui)', `color:${SKIN.text}`]);
+    style(this.heroLabel, ['font:500 13px/1.3 var(--ui)', `color:${SKIN.text}`]);
     this.hero.append(this.heroValue, this.heroLabel);
 
     this.legend = document.createElement('div');
-    style(this.legend, ['margin:2px 0 12px', `color:${SKIN.dim}`,
-      'font:500 12px/1.45 var(--ui)']);
+    style(this.legend, ['margin:4px 0 12px', `color:${SKIN.text}`,
+      'font:400 13px/1.5 var(--ui)']);
     this.scale = document.createElement('div');
     style(this.scale, ['margin-bottom:12px']);
     this.rows = document.createElement('div');
@@ -217,10 +228,34 @@ export class InfoViews {
     this.rail = document.createElement('div');
     this.rail.dataset.panel = 'view-rail';
     style(this.rail, [...panel(),
-      'width:324px', 'box-sizing:border-box', 'padding:8px', 'display:none',
-      'grid-template-columns:repeat(3, 1fr)', 'gap:4px', 'pointer-events:auto',
+      'width:344px', 'box-sizing:border-box', 'padding:10px', 'display:none',
+      'grid-template-columns:1fr 1fr', 'gap:2px 4px', 'pointer-events:auto',
+      'max-height:100%', 'overflow-y:auto', 'align-content:start',
     ]);
-    for (const info of VIEWS) this.rail.appendChild(this.button(info));
+    const heading = document.createElement('div');
+    heading.textContent = 'Information views';
+    style(heading, ['grid-column:1 / -1', 'font:700 15px/1.2 var(--ui)', `color:${SKIN.bright}`,
+      'padding:2px 4px 4px']);
+    this.rail.appendChild(heading);
+    const placed = new Set<number>();
+    GROUPS.forEach((g, gi) => {
+      const ids = g.ids.filter((id) => VIEWS.some((v) => v.id === id));
+      if (gi === GROUPS.length - 1) {
+        for (const v of VIEWS) if (!GROUPS.some((x) => x.ids.includes(v.id))) ids.push(v.id);
+      }
+      if (ids.length === 0) return;
+      const h = document.createElement('div');
+      h.textContent = g.name;
+      style(h, ['grid-column:1 / -1', 'font:600 12px/1 var(--ui)', `color:${SKIN.dim}`,
+        'padding:10px 4px 4px']);
+      this.rail.appendChild(h);
+      for (const id of ids) {
+        const info = VIEWS.find((v) => v.id === id);
+        if (info === undefined || placed.has(id)) continue;
+        placed.add(id);
+        this.rail.appendChild(this.button(info));
+      }
+    });
 
     this.launcher = document.createElement('button');
     this.launcher.type = 'button';
@@ -235,7 +270,13 @@ export class InfoViews {
     this.launcher.style.color = SKIN.text;
     this.launcher.addEventListener('click', () => this.toggleRail());
 
-    this.root.append(this.card, this.rail, this.launcher);
+    // The list and the card side by side, so the list stays readable -- it
+    // used to fold to a row of bare icons whenever a view was open.
+    const panes = document.createElement('div');
+    style(panes, ['display:flex', 'align-items:flex-end', 'gap:8px', 'min-height:0',
+      'max-height:100%', 'pointer-events:none']);
+    panes.append(this.rail, this.card);
+    this.root.append(panes, this.launcher);
     parent.appendChild(this.root);
 
     // Escape closes, which is what every other panel in the game does. On the
@@ -259,10 +300,10 @@ export class InfoViews {
     // Named, not only drawn. Fifteen pictograms in a block, told apart by
     // hovering each for its tooltip, was a puzzle rather than a menu.
     style(b, [
-      'display:flex', 'align-items:center', 'gap:7px', 'height:34px', 'padding:0 8px',
-      'cursor:pointer', 'border-radius:8px', 'min-width:0',
-      'background:rgba(255,255,255,.03)', 'border:1px solid transparent',
-      `color:${SKIN.dim}`, 'font:600 11.5px/1 var(--ui)', 'text-align:left',
+      'display:flex', 'align-items:center', 'gap:8px', 'height:32px', 'padding:0 8px',
+      'cursor:pointer', 'border-radius:7px', 'min-width:0',
+      'background:transparent', 'border:1px solid transparent',
+      `color:${SKIN.text}`, 'font:500 13px/1 var(--ui)', 'text-align:left',
       'transition:background .12s, border-color .12s, color .12s',
     ]);
     // NEUTRAL UNTIL PICKED. The colour is information about the *map*, and it
@@ -278,7 +319,7 @@ export class InfoViews {
       if (this.current !== info.id) b.style.background = 'rgba(255,255,255,.07)';
     });
     b.addEventListener('pointerleave', () => {
-      if (this.current !== info.id) b.style.background = 'rgba(255,255,255,.03)';
+      if (this.current !== info.id) b.style.background = 'transparent';
     });
     b.addEventListener('click', () => this.pick(info.id));
     this.buttons.set(info.id, b);
@@ -301,22 +342,6 @@ export class InfoViews {
     this.controls.set(view, list);
     el.style.display = 'none';
     this.extra.appendChild(el);
-  }
-
-  /**
-   * With a view open, the rail folds to a row of icons, so the card above it
-   * -- the budget's especially, with the tax sliders in it -- gets the height.
-   */
-  private compact(on: boolean): void {
-    this.rail.style.gridTemplateColumns = on ? 'repeat(8, 1fr)' : 'repeat(3, 1fr)';
-    for (const b of this.buttons.values()) {
-      const name = b.lastElementChild as HTMLElement | null;
-      if (name !== null) name.style.display = on ? 'none' : '';
-      b.style.justifyContent = on ? 'center' : '';
-      b.style.padding = on ? '0' : '0 8px';
-      b.style.height = on ? '30px' : '34px';
-      if (on) tip(b, b.getAttribute('aria-label') ?? '');
-    }
   }
 
   /** Which view is open, or `View.NONE`. */
@@ -388,13 +413,12 @@ export class InfoViews {
     if (id === this.current) return;
     const was = this.buttons.get(this.current);
     if (was !== undefined) {
-      was.style.background = 'rgba(255,255,255,.03)';
+      was.style.background = 'transparent';
       was.style.borderColor = 'transparent';
-      was.style.color = SKIN.dim;
+      was.style.color = SKIN.text;
       (was.firstElementChild as HTMLElement).style.color = '';
     }
     this.current = id;
-    this.compact(id !== View.NONE);
     const info = VIEWS.find((v) => v.id === id) ?? null;
     if (info === null) {
       this.card.style.display = 'none';
@@ -453,7 +477,7 @@ export class InfoViews {
       const bands: Array<[string, string]> = [[hi, 'empty'], [mix(mid, hi), 'busy'], [mid, 'slow'], [mix(lo, mid), 'bad'], [lo, 'packed']];
       return '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px">'
         + bands.map(([c, t]) => `<div><div style="height:8px;border-radius:3px;background:${c}"></div>`
-          + `<div style="margin-top:4px;font:600 10.5px/1 var(--label);letter-spacing:.03em;text-transform:uppercase;color:${SKIN.dim}">${t}</div></div>`).join('')
+          + `<div style="margin-top:4px;font:500 11.5px/1 var(--ui);color:${SKIN.dim}">${t}</div></div>`).join('')
         + '</div>';
     }
     const bar = `background:linear-gradient(90deg,${lo},${mid} 50%,${hi})`;
@@ -465,9 +489,9 @@ export class InfoViews {
     return `<div style="height:8px;border-radius:4px;${bar};`
       + 'box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)"></div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:5px;'
-      + `font:600 12px/1 var(--label);letter-spacing:.04em;text-transform:uppercase;`
+      + `font:500 12px/1.3 var(--ui);`
       + `color:${SKIN.dim}">`
-      + `<span>none</span><span>${escapeHtml(info.unit)} ${buried}</span>`
+      + `<span>Low</span><span>High: ${escapeHtml(info.unit)} ${buried}</span>`
       + '</div>';
   }
 
@@ -516,6 +540,8 @@ export class InfoViews {
       const value = label.nextElementSibling as HTMLElement;
       const track = el.lastElementChild as HTMLElement;
       if (label.textContent !== s.label) label.textContent = s.label;
+      // A row with no figure is advice: let it wrap rather than lose its end.
+      label.style.whiteSpace = s.value === '' ? 'normal' : 'nowrap';
       if (value.textContent !== s.value) value.textContent = s.value;
       value.style.color = s.warn ? SKIN.bad : SKIN.bright;
       if (s.bar < 0) {

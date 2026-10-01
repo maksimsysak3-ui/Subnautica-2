@@ -71,9 +71,10 @@ if (r.error) {
   process.exit(1);
 }
 
-const EXPECTED = ['Traffic', 'Power', 'Water', 'Sewage', 'Rubbish', 'Fire',
-  'Police', 'Health', 'Schools', 'Parks', 'Transport', 'Desirability',
-  'Land value', 'Pollution', 'Deathcare', 'Unemployment', 'Education level', 'Flood risk', 'Resources', 'Districts', 'Budget'];
+const EXPECTED = ['Traffic', 'Transport', 'Power', 'Water', 'Sewage', 'Rubbish',
+  'Fire', 'Police', 'Health', 'Schools', 'Parks', 'Deathcare',
+  'Desirability', 'Land value', 'Pollution', 'Unemployment', 'Education level', 'Flood risk',
+  'Budget', 'Resources', 'Districts'];
 
 if (!r.railHidden) push('the rail was already open before anything was clicked');
 if (!r.railShown) push('clicking the launcher did not open the rail');

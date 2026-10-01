@@ -71,6 +71,12 @@ html, body { font-family: var(--ui); }
 .mr-tile > svg, .mr-tile > .mr-swatch {
   filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.55)); transition: transform .14s ease;
 }
+/* Filled pictograms: the shape solid in the tool's colour, its outline and
+   inner detail drawn in a dark shade of the same colour over it. Outline-only
+   glyphs (one path) stay as lines. */
+.mr-tile > svg path:first-child:not(:only-child) { fill-opacity: .92; }
+.mr-tile > svg path:last-child:not(:only-child) {
+  stroke: color-mix(in srgb, var(--accent) 38%, #0d0e10); stroke-width: 1.5; }
 .mr-tile:hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.07); }
 .mr-tile:hover > svg, .mr-tile:hover > .mr-swatch { transform: translateY(-1px) scale(1.06); }
 .mr-tile:active { transform: translateY(1px); }

@@ -1181,16 +1181,26 @@ export class Views {
 
       case View.JOBLESS: {
         // The labour market in four lines, each one something to build.
-        const pe = s.people, b = pe.byStage;
-        const force = (b[Stage.TEEN] ?? 0) * 0.15 + (b[Stage.YOUNG] ?? 0) + (b[Stage.ADULT] ?? 0);
-        const idle = Math.max(0, force - pe.employed);
+        // Counted the way the map paints it, working-age residents in a job
+        // or a course, so the card and the colours agree.
+        const cit = s.people.citizens, cc = cit.col;
+        let force = 0, working = 0, studying = 0;
+        for (let i = 0; i < cit.bound; i++) {
+          if (cit.live[i] === 0) continue;
+          const st = cc.stage[i];
+          if (st !== Stage.YOUNG && st !== Stage.ADULT) continue;
+          force++;
+          if (cc.work[i] >= 0) working++; else if (cc.study[i] >= 0) studying++;
+        }
+        const idle = force - working - studying;
         const rate = force > 0 ? idle / force : 0;
         const jobs = s.places.jobCapacity;
-        const open = Math.max(0, jobs - pe.employed);
+        const open = Math.max(0, jobs - s.people.employed);
         return [
           line('unemployed', pct(rate), Math.max(0, 1 - rate * 4), rate > 0.08, true),
-          line('Out of work', Math.round(idle).toLocaleString(), -1, rate > 0.08),
-          line('In work', pe.employed.toLocaleString()),
+          line('Out of work', idle.toLocaleString(), -1, rate > 0.08),
+          line('In work', working.toLocaleString()),
+          line('Studying', studying.toLocaleString()),
           line('Jobs in the city', jobs.toLocaleString()),
           line('Jobs nobody has taken', open.toLocaleString(), -1, false),
           line(rate > 0.08 ? 'Zone offices or industry near the red streets'

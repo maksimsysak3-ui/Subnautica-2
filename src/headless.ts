@@ -1000,7 +1000,7 @@ export async function probeViews(): Promise<{
   press('Traffic');
   live.update(1 / 30, performance.now());
   const trafficPx = await frame();
-  const title = (ui.textContent ?? '').slice(0, 7);
+  const title = (ui.querySelector('[data-panel="view-stats"]')?.textContent ?? '').slice(0, 7);
   // A row is a label, a value and a track; a bar is a track that is showing.
   const rows = ui.querySelectorAll('[data-stat]').length;
   let bars = 0;
