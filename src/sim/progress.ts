@@ -27,11 +27,11 @@ import { RULES, CURRENCY, BUILD_WEIGHT } from './difficulty';
 /** Experience for one building the player places, per thousand it cost. */
 const XP_PER_THOUSAND = 1.4;
 /** And a flat amount, so a bus stop is still worth putting down. */
-const XP_PER_BUILDING = 12;
+const XP_PER_BUILDING = 6;
 /** For a landmark: the big, deliberate, expensive placement. */
 const XP_PER_SIGNATURE = 900;
 /** Per citizen who moves in. The passive drip that rewards a working city. */
-const XP_PER_CITIZEN = 3;
+const XP_PER_CITIZEN = 1.5;
 
 /**
  * What each level costs, cumulatively.
@@ -46,7 +46,9 @@ export function xpForLevel(level: number): number {
   // Half again as steep as the first tuning, in two steps: a town took a
   // level every few days, which made each one feel like a routine notice
   // rather than a milestone.
-  return Math.round(920 * n + 330 * n * n);
+  // And doubled again: a level used to come every couple of minutes, which
+  // made unlocking the whole tree a single sitting.
+  return Math.round(1840 * n + 660 * n * n);
 }
 
 /** Stars paid out on reaching a level. */
@@ -61,7 +63,7 @@ export function starsForLevel(level: number): number {
 // whole takings, so a town that reached several at once -- which a few blocks
 // of towers did -- was handed millions it had not earned.
 export function cashForLevel(level: number): number {
-  return Math.round((16000 + 7000 * (level - 1)) * CURRENCY / 1000) * 1000;
+  return Math.round((8000 + 3500 * (level - 1)) * CURRENCY / 1000) * 1000;
 }
 
 /** The name of each level, which is the only flattery in the game. */

@@ -66,7 +66,7 @@ import { RULES } from '../difficulty';
  * town actually being founded, and the compounding term below still does all the
  * work of turning that town into a city.
  */
-const ENQUIRIES_PER_DAY = 120;
+const ENQUIRIES_PER_DAY = 60;
 
 /**
  * Extra households a day per thousand people already living there.
@@ -77,7 +77,7 @@ const ENQUIRIES_PER_DAY = 120;
  * it and the game is a grind; double it and the player never catches up with
  * their own road network.
  */
-const ENQUIRIES_PER_THOUSAND = 150;
+const ENQUIRIES_PER_THOUSAND = 80;
 
 /** The population at which the compounding term has halved. */
 const TAPER_POP = 1500;
@@ -96,8 +96,8 @@ const TAPER_POP = 1500;
  * to move in at twelve a day, and a player watching a street of finished, empty
  * houses for four real minutes concludes the game is broken rather than slow.
  */
-const PLACEMENTS_PER_DAY = 200;
-const PLACEMENTS_PER_THOUSAND = 70;
+const PLACEMENTS_PER_DAY = 100;
+const PLACEMENTS_PER_THOUSAND = 38;
 
 /** Days an applicant will wait before looking somewhere else. */
 const PATIENCE_DAYS = 9;

@@ -51,7 +51,7 @@ export interface TechNode {
 const FREE_ROOTS = new Set(['power', 'water', 'sewage']);
 
 /** What a tier costs in stars, by how far along the branch it is. */
-const TIER_COST = [0, 1, 2, 2, 3, 3, 4, 4, 5];
+const TIER_COST = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 /** Human names for the branches, since the asset data uses lowercase keys. */
 export const BRANCH_LABEL: Record<string, string> = {

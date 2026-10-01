@@ -68,8 +68,8 @@ const CELL = 8;
  * seconds -- fast enough that a player who has just painted their first street
  * watches it fill, slow enough that they watch it rather than miss it.
  */
-const PATCHES_PER_THOUSAND_DAY = 36;
-const PATCHES_PER_DAY_FLOOR = 36;
+const PATCHES_PER_THOUSAND_DAY = 20;
+const PATCHES_PER_DAY_FLOOR = 18;
 
 /**
  * The founding rush: how much faster the very first plots come up, and for how

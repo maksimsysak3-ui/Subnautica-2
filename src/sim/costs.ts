@@ -53,7 +53,7 @@ export function buildingPrice(def: AssetDef): number {
  * cost little -- and the difficulty's upkeep setting still leans on it.
  */
 export const SERVICE_UPKEEP_RATE = 0.07;
-export const ROAD_UPKEEP_RATE = 0.012;
+export const ROAD_UPKEEP_RATE = 0.03;
 
 /** How the difficulty leans on upkeep, against how it leans on building. */
 function upkeepLean(): number {

@@ -56,7 +56,7 @@ export const CURRENCY = 8;
  * are a real weight against its takings -- about two fifths of them, where
  * they were under a third -- and a service is a decision, not a formality.
  */
-export const UPKEEP_WEIGHT = 1.26;
+export const UPKEEP_WEIGHT = 1.7;
 /**
  * And building a good deal cheaper than the designed prices against that
  * income: a city should be limited by what it can run, not by what it can
@@ -72,21 +72,21 @@ const DESIGNED: readonly Rules[] = [
     id: 'relaxed', label: 'Relaxed', tagline: 'Build first, balance later',
     blurb: 'A generous treasury, cheaper building and a founding grant that lasts. '
       + 'For players who want to shape a city without watching the books.',
-    funds: 190000, grantWeekly: 18000, grantUntil: 4000,
+    funds: 190000, grantWeekly: 7000, grantUntil: 1200,
     build: 0.8, upkeep: 0.8, income: 1.1, quiet: 4000, xp: 1.3, appeal: 1.05,
   },
   {
     id: 'standard', label: 'Standard', tagline: 'The city as it was designed',
     blurb: 'Enough to found a town and make its first real decisions. Taxes, '
       + 'services and growth have to be kept in step.',
-    funds: 125000, grantWeekly: 14000, grantUntil: 2500,
+    funds: 125000, grantWeekly: 2500, grantUntil: 500,
     build: 1, upkeep: 1, income: 1, quiet: 2000, xp: 1, appeal: 1,
   },
   {
     id: 'hard', label: 'Hard', tagline: 'Every coin is spoken for',
-    blurb: 'A thin treasury, dear construction, a short grant and residents who '
+    blurb: 'A thin treasury, dear construction, no founding grant and residents who '
       + 'complain early. For players who like the budget to fight back.',
-    funds: 100000, grantWeekly: 9500, grantUntil: 1500,
+    funds: 100000, grantWeekly: 0, grantUntil: 0,
     build: 1.15, upkeep: 1.15, income: 0.88, quiet: 1000, xp: 0.85, appeal: 0.8,
   },
 ];
@@ -96,7 +96,7 @@ const DESIGNED: readonly Rules[] = [
  * slower to come, and paying less along the way, a sensible city was
  * spending weeks near the overdraft with nothing to build.
  */
-const INCOME_WEIGHT = 1.2;
+const INCOME_WEIGHT = 1.0;
 
 export const DIFFICULTIES: readonly Rules[] = DESIGNED.map((r) => ({
   ...r,
@@ -134,7 +134,9 @@ export function describe(r: Rules): string[] {
   const money = (n: number): string => (n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`);
   return [
     `Starting treasury ${money(r.funds)}`,
-    `Founding grant ${money(r.grantWeekly)}/wk, until ${r.grantUntil.toLocaleString()} residents`,
+    r.grantWeekly > 0
+      ? `Founding grant ${money(r.grantWeekly)}/wk, until ${r.grantUntil.toLocaleString()} residents`
+      : 'No founding grant',
     pct(r.build, 'construction costs'),
     pct(r.upkeep, 'service upkeep'),
     pct(r.income, 'tax income'),
