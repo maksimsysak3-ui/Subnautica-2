@@ -3137,7 +3137,7 @@ const MIN_PIXELS = 2.6;
  * being resolvable, not where it stops being cheap, and the frame budget this
  * spends is a fraction of what the last few rounds bought back.
  */
-const LOD0_PIXELS = 30.0;
+const LOD0_PIXELS = 32.5;
 /**
  * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
  *
@@ -3146,7 +3146,7 @@ const LOD0_PIXELS = 30.0;
  * twenty pixels and obviously a blob on a stick at thirty-five, so the level
  * that draws one has to start where the eye stops being able to tell.
  */
-const LOD1_PIXELS = 10.5;
+const LOD1_PIXELS = 11.5;
 `,Ys=`// The ground: grass, earth and rock, computed rather than sampled.
 //
 // No textures anywhere in this project, and the ground is the hardest place to
@@ -5917,4 +5917,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,Ls={"common.wgsl":Ms,"atmosphere.wgsl":Is,"noise.wgsl":Us,"overlay.wgsl":cs};function JQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>Ls[U]??A)}const $s={asset:JQ(os),cull:JQ(Fs),terrain:JQ(Ys),sky:JQ(ss),grass:JQ(as),road:JQ(Rs),water:JQ(es),rain:JQ(is),dots:JQ(ns),mains:JQ(ts),post:JQ(ks)};export{Ts as $,OD as A,TD as B,Ps as C,fD as D,ls as E,$A as F,Ug as G,us as H,ms as I,R as J,E as K,nw as L,V0 as M,xE as N,fs as O,CC as P,Xs as Q,ds as R,$s as S,QB as T,Ks as U,Fg as V,XF as W,HB as X,vY as Y,Js as Z,zs as _,ng as a,bs as a0,rY as a1,Ss as a2,VY as a3,GY as a4,dY as a5,bY as a6,fY as a7,$C as a8,MY as a9,KY as aa,UY as ab,gC as ac,QD as ad,AD as ae,ED as af,gD as ag,gY as ah,EY as ai,CY as aj,DY as ak,wY as al,tY as am,kY as an,nY as ao,LY as ap,NY as aq,oD as ar,YD as as,mE as at,rs as au,WY as av,wC as aw,ws as ax,iE as b,wg as c,_Y as d,xs as e,qs as f,js as g,Zs as h,ps as i,EE as j,Ns as k,RQ as l,Gs as m,vs as n,Ws as o,$Y as p,KQ as q,uC as r,ys as s,Os as t,h0 as u,Vs as v,zF as w,hs as x,Hs as y,_s as z};
-//# sourceMappingURL=shaders-CtIfhH_4.js.map
+//# sourceMappingURL=shaders-BtpygjFo.js.map
