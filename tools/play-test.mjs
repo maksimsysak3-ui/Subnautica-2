@@ -96,6 +96,15 @@ if (!started) {
   await browser.close(); server.close(); process.exit(1);
 }
 
+// A first-time player is welcomed by the tutorial; read it, then skip it.
+const tut = await page.evaluate(() => {
+  const t = document.querySelector('.mr-tut');
+  return t !== null && !t.hidden ? (t.querySelector('.mr-tut-title')?.textContent ?? '') : '';
+});
+note(tut.length > 0, 'a new player is welcomed by the tutorial', tut);
+await page.evaluate(() => document.querySelector('.mr-tut-skip')?.click());
+await page.waitForTimeout(200);
+
 // Look straight down at the road the game starts with, so a screen point maps
 // to a cell without depending on the terrain.
 const aim = await page.evaluate(() => {

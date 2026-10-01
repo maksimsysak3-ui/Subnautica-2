@@ -482,6 +482,28 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 @media (max-width: 1240px) { .mr-cell-opt { display: none !important; } }
 @media (max-width: 1060px) { .mr-cell-opt-2 { display: none !important; } }
 
+/* ---- the welcome tutorial ---------------------------------------------------- */
+.mr-tut { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: rgba(10,12,15,.45); pointer-events: auto; }
+.mr-tut[hidden] { display: none; }
+.mr-tut-card { width: min(520px, calc(100vw - 32px)); box-sizing: border-box; padding: 26px 28px 20px;
+  border-radius: 14px; background: #1c1e22; border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 24px 60px rgba(0,0,0,.55); color: var(--ink); }
+.mr-tut-kicker { font: 600 12px/1 var(--ui); color: var(--amber); margin-bottom: 10px; }
+.mr-tut-title { margin: 0 0 12px; font: 700 24px/1.2 var(--ui); color: #f4f4f5; text-wrap: balance; }
+.mr-tut-body { margin: 0 0 14px; font: 400 15px/1.6 var(--ui); color: #d4d4d8; }
+.mr-tut-tip { margin: 0 0 18px; padding: 10px 12px; border-radius: 8px; font: 500 13px/1.5 var(--ui);
+  color: #e4e4e7; background: rgba(244,181,74,.1); border-left: 3px solid var(--amber); }
+.mr-tut-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+.mr-tut-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.18); cursor: pointer; }
+.mr-tut-dots i.is-on { background: var(--amber); }
+.mr-tut-row { display: flex; align-items: center; gap: 8px; }
+.mr-tut-btn, .mr-tut-skip { font: 600 14px/1 var(--ui); padding: 10px 16px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #e4e4e7; }
+.mr-tut-btn.is-primary { background: var(--amber); border-color: var(--amber); color: #1d1405; }
+.mr-tut-skip { background: none; border-color: transparent; color: #a1a1aa; padding-left: 0; }
+.mr-tut-btn:hover { filter: brightness(1.1); }
+
 /* ---- notifications -------------------------------------------------------- */
 .mr-toasts {
   position: absolute; top: 12px; right: 12px; z-index: 20; display: flex; flex-direction: column;

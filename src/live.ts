@@ -28,6 +28,7 @@ import type { ResourceId } from './sim/resources';
 import { Plumes } from './sim/agents/plumes';
 import { rampFor } from './ui/access';
 import { FirstSteps } from './ui/first-steps';
+import { Tutorial } from './ui/tutorial';
 import { ScenarioCard } from './ui/scenario-card';
 import { checkScenario, scenarioById } from './sim/scenarios';
 import { fanfare } from './ui/sound';
@@ -249,6 +250,8 @@ export class LiveCity {
   /** Consecutive looks with homes standing and no supply of each at all. */
   private noneRun = [0, 0, 0];
   private steps: FirstSteps;
+  /** The welcome walk-through, shown on a player's first new city. */
+  private tutorial: Tutorial;
   private challenge: ScenarioCard;
   private wasOverdrawn = false;
   /** The `builtAt` of the grid currently on the GPU, so it is uploaded once. */
@@ -298,6 +301,11 @@ export class LiveCity {
     this.alerts = new Alerts(ui);
     this.alerts.onPush = (a) => this.toPaper(a);
     this.steps = new FirstSteps(ui);
+    this.tutorial = new Tutorial(ui);
+    // F1 brings it back whenever a player wants it.
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F1') { e.preventDefault(); if (this.tutorial.isOpen) this.tutorial.close(); else this.tutorial.open(); }
+    });
     this.challenge = new ScenarioCard(ui);
     this.inspect = new Inspect(ui, () => { this.selected = null; this.renderer.mark = null; });
     this.team = new TeamPanel(ui, {
@@ -1523,6 +1531,8 @@ export class LiveCity {
     if (on && this.sim !== null && !this.founded) {
       this.foundCity(this.sim);
       this.founded = true;
+      // A brand-new city on day one: the welcome, once per player.
+      if (this.sim.clock.day < 1) this.tutorial.openFirstTime();
     }
   }
 
