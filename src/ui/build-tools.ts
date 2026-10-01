@@ -79,9 +79,9 @@ const VIADUCT_PRICE = 2.5;
 // The bar's own palette. Cool slate rather than black, because the bar sits
 // over grass and sky all day and a true black panel reads as a hole cut in the
 // picture rather than as a thing lying on top of it.
-const PANEL = 'rgba(19,26,36,.90)';
-const WELL = 'rgba(10,15,22,.62)';
-const EDGE = 'rgba(120,160,200,.14)';
+const PANEL = 'rgba(34,33,31,.96)';
+const WELL = 'rgba(18,17,16,.55)';
+const EDGE = 'rgba(255,244,228,.10)';
 
 /** What a city is called before anyone names it. */
 const DEFAULT_NAME = 'Salford';
@@ -2481,7 +2481,7 @@ export class BuildTools {
       'overflow:hidden',
       `background:${PANEL}`, `border:1px solid ${EDGE}`,
       'box-shadow:0 10px 34px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)',
-      'backdrop-filter:blur(14px)', 'z-index:5',
+      'z-index:5',
       // The overlay it lives in is click-through so the camera can be dragged
       // anywhere; the bar itself has to take its own clicks back.
       'pointer-events:auto',
@@ -2747,7 +2747,7 @@ export class BuildTools {
       const d = document.createElement('div');
       d.className = 'mr-cell';
       const cap = document.createElement('div');
-      css(cap, ['font:600 11.5px/1 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
+      css(cap, ['font:600 11.5px/1 var(--label)', 'letter-spacing:.06em',
         `color:${SKIN.faint}`]);
       cap.textContent = caption;
       const val = document.createElement('div');
@@ -3270,7 +3270,7 @@ export class BuildTools {
       'max-height:46vh', 'overflow-y:auto',
       `background:${PANEL}`, `border:1px solid ${accent}55`,
       'box-shadow:0 10px 34px rgba(0,0,0,.5)',
-      'backdrop-filter:blur(14px)', 'z-index:6', 'pointer-events:auto',
+      'z-index:6', 'pointer-events:auto',
     ].join(';');
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     return panel;
@@ -3359,7 +3359,7 @@ export class BuildTools {
     el.style.cssText = [
       'grid-column:1/-1', 'padding:8px 2px 2px', 'color:#7f93ab',
       'font:700 11px/1.2 var(--ui, system-ui, sans-serif)',
-      'letter-spacing:.05em', 'text-transform:uppercase',
+      'letter-spacing:.05em',
     ].join(';');
     return el;
   }

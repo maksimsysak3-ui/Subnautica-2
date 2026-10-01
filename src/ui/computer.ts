@@ -955,7 +955,7 @@ export class Computer {
       const head = el('tr');
       for (const h of ['Resource', 'HQs', 'Produced', 'Exported', 'Used here', 'Processed', 'Earns / wk', 'Field left']) {
         const th = el('th', undefined, h);
-        th.style.cssText = 'text-align:right;padding:6px 8px;font:600 10.5px/1 var(--label);letter-spacing:.03em;text-transform:uppercase;color:#85858a;border-bottom:1px solid rgba(255,255,255,.08)';
+        th.style.cssText = 'text-align:right;padding:6px 8px;font:600 10.5px/1 var(--label);letter-spacing:.03em;color:#85858a;border-bottom:1px solid rgba(255,255,255,.08)';
         head.appendChild(th);
       }
       (head.firstChild as HTMLElement).style.textAlign = 'left';

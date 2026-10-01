@@ -392,7 +392,7 @@ export class InfoViews {
     this.railOpen = !this.railOpen;
     if (this.railOpen) {
       this.rail.style.display = 'grid';
-      this.launcher.style.borderColor = 'rgba(98,212,255,.5)';
+      this.launcher.style.borderColor = 'rgba(150,170,190,.5)';
     } else {
       this.closeAll();
     }
@@ -401,7 +401,7 @@ export class InfoViews {
   private closeAll(): void {
     this.railOpen = false;
     this.rail.style.display = 'none';
-    this.launcher.style.borderColor = 'rgba(98,212,255,.16)';
+    this.launcher.style.borderColor = 'rgba(150,170,190,.16)';
     this.select(View.NONE);
   }
 

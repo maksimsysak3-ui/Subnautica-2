@@ -45,7 +45,7 @@ export class ScenarioCard {
     css(head, ['display:grid', 'grid-template-columns:1fr auto', 'align-items:baseline', 'gap:8px',
       'background:none', 'border:0', 'padding:0', 'cursor:pointer', 'text-align:left', 'color:inherit']);
     this.title = document.createElement('div');
-    css(this.title, ['font:700 13px/1.2 var(--display)', 'letter-spacing:.03em', 'text-transform:uppercase', `color:${SKIN.bright}`]);
+    css(this.title, ['font:700 13px/1.2 var(--display)', 'letter-spacing:.03em', `color:${SKIN.bright}`]);
     this.clock = document.createElement('div');
     css(this.clock, ['font:600 12px/1 var(--ui)', `color:${SKIN.dim}`, 'font-variant-numeric:tabular-nums']);
     head.append(this.title, this.clock);

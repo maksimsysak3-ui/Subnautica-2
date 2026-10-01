@@ -45,7 +45,7 @@ export class PolicyPanel {
     this.root = document.createElement('div');
     this.root.dataset.panel = 'policies';
     css(this.root, ['display:flex', 'flex-direction:column', 'gap:6px',
-      'margin-top:8px', 'border-top:1px solid rgba(98,212,255,.14)', 'padding-top:8px']);
+      'margin-top:8px', 'border-top:1px solid rgba(150,170,190,.14)', 'padding-top:8px']);
 
     this.root.className = 'mr-policies';
     const head = document.createElement('button');

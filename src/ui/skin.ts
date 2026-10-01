@@ -31,24 +31,24 @@
 /** The palette. Everything else here is made of these. */
 export const SKIN = {
   /** Panel ground, and the hairline round it. */
-  panel: 'rgba(22,23,25,.90)',
-  panelSolid: '#161719',
-  edge: 'rgba(255,255,255,.09)',
+  panel: 'rgba(34,33,31,.97)',
+  panelSolid: '#22211f',
+  edge: 'rgba(255,244,228,.09)',
   /** The light along the top edge, which is what makes a slab a slab. */
-  sheen: 'rgba(255,255,255,.07)',
-  /** Text, from brightest to faintest. */
-  bright: '#ececee',
-  text: '#b7b7bb',
-  dim: '#85858a',
-  faint: '#5c5c61',
-  /** The one accent, when nothing else has claimed it. */
-  accent: '#6aaee8',
+  sheen: 'rgba(255,255,255,.04)',
+  /** Text, from brightest to faintest: warm, like print rather than a screen. */
+  bright: '#f2eee7',
+  text: '#cdc7bc',
+  dim: '#9a9388',
+  faint: '#6d675e',
+  /** The one accent, when nothing else has claimed it: a muted slate blue. */
+  accent: '#8eaac4',
   /** Good, middling, bad -- for values rather than for maps. */
   good: '#5fc78c',
   warn: '#e8b454',
   bad: '#e0685a',
   /** Where a bar's track sits. */
-  track: 'rgba(255,255,255,.06)',
+  track: 'rgba(255,244,228,.08)',
   /** Radii and the type stack. */
   radius: '8px',
   radiusSmall: '4px',
@@ -68,12 +68,12 @@ export function css(el: HTMLElement, decls: string[]): void {
  */
 export function panel(extra: string[] = []): string[] {
   return [
-    `background:linear-gradient(180deg,rgba(32,33,36,.93),${SKIN.panel})`,
+    // Flat and solid: a printed card rather than a pane of tinted glass.
+    `background:${SKIN.panel}`,
     `border:1px solid ${SKIN.edge}`,
     `border-radius:${SKIN.radius}`,
-    `box-shadow:inset 0 1px 0 ${SKIN.sheen}, 0 10px 30px rgba(0,0,0,.42)`,
-    'backdrop-filter:blur(16px)',
-    `font:500 12.5px/1.5 ${SKIN.mono}`,
+    'box-shadow:0 4px 14px rgba(0,0,0,.32)',
+    'font:400 13px/1.5 var(--ui)',
     `color:${SKIN.text}`,
     ...extra,
   ];
@@ -82,7 +82,7 @@ export function panel(extra: string[] = []): string[] {
 /** A small, tracked, dim label. The caption on everything. */
 export function label(extra: string[] = []): string[] {
   return [
-    'font:600 10.5px/1.3 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
+    'font:600 12px/1.3 var(--ui)',
     `color:${SKIN.dim}`, ...extra,
   ];
 }

@@ -139,8 +139,7 @@ export class Thoughts {
       'max-width:256px', 'padding:11px 13px 12px', 'pointer-events:auto',
       'transform:translate(-50%,-100%)', 'z-index:2', 'line-height:1.55']);
     this.cardTitle = document.createElement('div');
-    style(this.cardTitle, ['font-size:11px', 'letter-spacing:.05em',
-      'text-transform:uppercase', `color:${SKIN.dim}`, 'margin-bottom:5px']);
+    style(this.cardTitle, ['font-size:11px', 'letter-spacing:.05em', `color:${SKIN.dim}`, 'margin-bottom:5px']);
     this.cardWhat = document.createElement('div');
     style(this.cardWhat, [`color:${SKIN.bright}`, 'font-size:11.5px']);
     this.cardFix = document.createElement('div');
@@ -170,7 +169,6 @@ export class Thoughts {
       'border-radius:17px 17px 17px 4px',
       `border:1px solid ${SKIN.edge}`,
       'background:linear-gradient(180deg,rgba(22,30,41,.95),rgba(22,23,25,.95))',
-      'backdrop-filter:blur(10px)',
       'cursor:pointer', 'pointer-events:auto',
       'transform:translate(-50%,-100%)',
       `box-shadow:inset 0 1px 0 ${SKIN.sheen}, 0 6px 18px rgba(0,0,0,.5)`,

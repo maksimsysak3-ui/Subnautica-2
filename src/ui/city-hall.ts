@@ -77,7 +77,7 @@ export class CityHall {
     const text = document.createElement('div');
     css(text, ['display:flex', 'flex-direction:column', 'gap:3px']);
     const t = document.createElement('div');
-    css(t, ['font:800 15px/1 var(--display)', 'letter-spacing:.03em', 'text-transform:uppercase',
+    css(t, ['font:800 15px/1 var(--display)', 'letter-spacing:.03em',
       `color:${SKIN.bright}`]);
     t.textContent = title;
     const s = document.createElement('div');
@@ -90,7 +90,7 @@ export class CityHall {
 
   private section(title: string): HTMLElement {
     const el = document.createElement('div');
-    css(el, ['font:700 12px/1 var(--label)', 'letter-spacing:.06em', 'text-transform:uppercase',
+    css(el, ['font:700 12px/1 var(--label)', 'letter-spacing:.06em',
       `color:${SKIN.faint}`, 'padding:14px 14px 7px']);
     el.textContent = title;
     return el;
@@ -228,8 +228,7 @@ export class CityHall {
       'background:var(--amber)', 'border-radius:4px']);
     track.appendChild(fill);
     const count = document.createElement('div');
-    css(count, ['font:600 11px/1 var(--label)', 'letter-spacing:.04em', `color:${SKIN.dim}`,
-      'text-transform:uppercase']);
+    css(count, ['font:600 11px/1 var(--label)', 'letter-spacing:.04em', `color:${SKIN.dim}`]);
     count.textContent = `${pop.toLocaleString()} / ${ELECTION_POPULATION.toLocaleString()}`;
     const about = document.createElement('div');
     css(about, ['font:500 12px/1.5 var(--ui)', `color:${SKIN.dim}`]);
@@ -383,7 +382,7 @@ export class CityHall {
     const face = document.createElement('div');
     face.innerHTML = portrait(m.face, m.colour, 96);
     const title = document.createElement('div');
-    css(title, ['font:600 12px/1 var(--label)', 'letter-spacing:.07em', 'text-transform:uppercase',
+    css(title, ['font:600 12px/1 var(--label)', 'letter-spacing:.07em',
       `color:${m.colour}`]);
     title.textContent = m.player ? 'Mayor · your candidate' : `Mayor · ${m.party}`;
     const name = document.createElement('div');

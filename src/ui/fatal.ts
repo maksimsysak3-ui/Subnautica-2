@@ -95,7 +95,7 @@ export function fatal(kind: FatalKind, detail?: string): void {
   const h = document.createElement('h2');
   h.textContent = TITLES[kind];
   h.style.cssText = 'margin:8px 0 0;font:700 22px/1.2 var(--display);letter-spacing:.06em;'
-    + 'text-transform:uppercase;color:#ff9c7a';
+    + 'color:#ff9c7a';
   col.appendChild(h);
 
   for (const line of advice(kind)) {

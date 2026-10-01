@@ -119,7 +119,7 @@ export class LevelUpCard {
 
     const name = document.createElement('div');
     css(name, [`color:${SKIN.bright}`, 'font:700 26px/1.1 var(--display)',
-      'letter-spacing:.06em', 'text-transform:uppercase']);
+      'letter-spacing:.06em']);
     name.textContent = level.name;
 
     const line = document.createElement('div');

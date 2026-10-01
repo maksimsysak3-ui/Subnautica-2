@@ -214,8 +214,8 @@ export class Settings {
     for (const b of Array.from(this.tabs.children) as HTMLElement[]) {
       const on = b.dataset.page === this.page;
       b.style.color = on ? SKIN.bright : SKIN.dim;
-      b.style.background = on ? 'rgba(98,212,255,.12)' : 'transparent';
-      b.style.borderColor = on ? 'rgba(98,212,255,.4)' : SKIN.edge;
+      b.style.background = on ? 'rgba(150,170,190,.12)' : 'transparent';
+      b.style.borderColor = on ? 'rgba(150,170,190,.4)' : SKIN.edge;
     }
     this.body.innerHTML = '';
     const rows = this.rowsFor(this.page);
