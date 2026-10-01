@@ -493,7 +493,7 @@ export class Simulation {
     // How many vehicles there should be, from the congestion the flow model found.
     s.add({
       name: 'cars', rate: Rate.FAST, phase: 1,
-      run: () => { this.traffic.population = this.people.population; this.traffic.hour = this.clock.hour; this.traffic.populate(VEHICLES_PER_TICK); },
+      run: () => { this.traffic.population = this.people.population; this.traffic.hour = this.clock.hour; this.traffic.weekend = this.clock.isWeekend; this.traffic.populate(VEHICLES_PER_TICK); },
     });
 
     // Moving. Every tick, all of it: this is the one system whose whole job is to

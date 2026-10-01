@@ -349,6 +349,15 @@ const DRIVING_BY_HOUR = [
   0.010, 0.008, 0.007, 0.007, 0.010, 0.020, 0.040, 0.060, 0.060, 0.045, 0.038, 0.040,
   0.044, 0.042, 0.040, 0.044, 0.055, 0.060, 0.055, 0.042, 0.032, 0.025, 0.018, 0.013,
 ];
+/**
+ * A Saturday or a Sunday: no commute, so no peaks at eight and five. A late
+ * start, one broad hump from late morning through the afternoon for shopping
+ * and visits, and a little more on the road late in the evening.
+ */
+const DRIVING_BY_HOUR_WEEKEND = [
+  0.014, 0.011, 0.008, 0.007, 0.007, 0.010, 0.016, 0.024, 0.032, 0.040, 0.046, 0.050,
+  0.052, 0.052, 0.050, 0.047, 0.044, 0.040, 0.036, 0.032, 0.028, 0.024, 0.020, 0.016,
+];
 
 const SCHEMA = {
   /** The citizen this is carrying, or -1 for a vehicle the city owns. */
@@ -1640,6 +1649,8 @@ export class Traffic {
   population = 0;
   /** The hour of the day, for how much of the city is driving. Set by the simulation. */
   hour = 12;
+  /** Saturday or Sunday, which has no rush hour. Set by the simulation. */
+  weekend = false;
 
   /** Where the player is looking, and how far out vehicles are worth having. */
   focusX = 0;
@@ -1720,7 +1731,8 @@ export class Traffic {
     // the load alone decides.
     const byLoad = Math.round(this.nearbyLoad * VEHICLES_PER_LOAD);
     const want = Math.min(this.budget, AMBIENT_CAP, this.population > 0
-      ? Math.round(this.population * (DRIVING_BY_HOUR[this.hour % 24] ?? 0.03)) + 20
+      ? Math.round(this.population
+        * ((this.weekend ? DRIVING_BY_HOUR_WEEKEND : DRIVING_BY_HOUR)[this.hour % 24] ?? 0.03)) + 20
       : byLoad);
     let room = Math.min(perTick, want - this.wandering());
     // No early return when the road is full: the depots and yards below still send theirs.
