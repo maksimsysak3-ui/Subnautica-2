@@ -147,6 +147,13 @@ const BOX_HOLD_TICKS = 10 * TICK_HZ;
 const CRAWL = 0.4;
 /** Metres of the far lane a cleared vehicle is counted as taking, beyond itself. */
 const INCOMING_GAP = 2;
+/**
+ * How quickly the remembered congestion follows the roads, per second of sim
+ * time. A game hour is under four seconds, so a jam shows over about two game
+ * hours and clears over about eight.
+ */
+const JAM_RISE = 1 - Math.exp(-1 / 7.5);
+const JAM_FALL = 1 - Math.exp(-1 / 30);
 
 /** Ticks of being stopped before a driver looks for another lane. */
 const PATIENCE_TICKS = 12;
@@ -337,7 +344,9 @@ const IDLE_LOAD = 0.07;
  * centre wants more than this, and past it every extra car is simulation time
  * a tick cannot spare; the traffic view still shows the jam in full.
  */
-const AMBIENT_CAP = 2500;
+const AMBIENT_CAP = 3000;
+/** A little busier than the bare curves: the road should look used. */
+const DRIVING_SHARE = 1.25;
 
 /**
  * Share of the city on the road at once, by hour. Not everybody drives at
@@ -1634,6 +1643,14 @@ export class Traffic {
   /** What the vehicles admit, and the load they steer by. */
   private use = 1;                               // Use.CAR
   private load: Float32Array | null = null;
+  /**
+   * Congestion as the traffic view reports it: the worse of the flow model's
+   * load and the queue standing on the lane, remembered over hours rather
+   * than read off the instant. Quick to show a jam, slow to forget one, so a
+   * road stays the colour it has earned until something actually changes.
+   */
+  private jam = new Float32Array(0);
+  private jamTick = 0;
   private paths: { length(h: number): number; at(h: number, i: number): number } | null = null;
 
   /** Tells the traffic where the congestion is, and where the routes live. */
@@ -1673,7 +1690,25 @@ export class Traffic {
    * Spawning is spread over ticks rather than done all at once, because a hundred
    * vehicles appearing on the same tick is both a visible pop and a spike.
    */
+  /** The remembered congestion on a lane, 0 clear to 1 and over packed. */
+  congestion(lane: number): number {
+    return lane >= 0 && lane < this.jam.length ? this.jam[lane] : 0;
+  }
+
+  /** Folds this second's reading into the remembered congestion. */
+  private remember(): void {
+    const n = this.g.count;
+    if (this.jam.length !== n) this.jam = new Float32Array(n);
+    const load = this.load;
+    for (let l = 0; l < n; l++) {
+      const raw = Math.max(load !== null && l < load.length ? load[l] : 0, this.occupancy(l));
+      const was = this.jam[l];
+      this.jam[l] = was + (raw - was) * (raw > was ? JAM_RISE : JAM_FALL);
+    }
+  }
+
   populate(perTick = 24): void {
+    if (this.now - this.jamTick >= TICK_HZ) { this.jamTick = this.now; this.remember(); }
     this.searches = PLANS_PER_TICK;
     if (this.load === null) return;
     const moved = (this.focusX - this.gatheredAt[0]) ** 2
@@ -1732,7 +1767,7 @@ export class Traffic {
     const byLoad = Math.round(this.nearbyLoad * VEHICLES_PER_LOAD);
     const want = Math.min(this.budget, AMBIENT_CAP, this.population > 0
       ? Math.round(this.population
-        * ((this.weekend ? DRIVING_BY_HOUR_WEEKEND : DRIVING_BY_HOUR)[this.hour % 24] ?? 0.03)) + 20
+        * DRIVING_SHARE * ((this.weekend ? DRIVING_BY_HOUR_WEEKEND : DRIVING_BY_HOUR)[this.hour % 24] ?? 0.03)) + 20
       : byLoad);
     let room = Math.min(perTick, want - this.wandering());
     // No early return when the road is full: the depots and yards below still send theirs.
