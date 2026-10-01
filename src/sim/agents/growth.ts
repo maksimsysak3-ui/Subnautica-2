@@ -107,13 +107,13 @@ const PENDING_CAP = 65536;
 /**
  * How long a plot spends as a building site, in game days.
  *
- * A game day is ninety real seconds, so an eighth of one is about twelve
+ * A game day is ninety real seconds, so a fifth of one is about sixteen
  * seconds of hoarding, excavation and crane at normal speed -- long enough to
  * notice and to watch, short enough that a player painting a district is not
  * waiting on it. It scales with the game clock like everything else, so the
  * same plot takes a second and a half at the fastest speed.
  */
-const BUILD_DAYS = 0.14;
+const BUILD_DAYS = 0.18;
 
 /**
  * Plots that may be under construction at once.
