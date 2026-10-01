@@ -17,6 +17,7 @@ import { SAFETY } from './generators/services-safety';
 import { UTILITY } from './generators/services-utility';
 import { CIVIC } from './generators/services-civic';
 import { EXTRA_SERVICES } from './generators/services-extra';
+import { CIVIC_THREE } from './generators/services-civic3';
 import { DEATH_AND_POST } from './generators/services-civic2';
 import { SERVICE_LANDMARKS } from './generators/services-landmark';
 import { MORE_SERVICES } from './generators/services-more';
@@ -40,7 +41,7 @@ import type { AssetDef, Zone } from './types';
 export const ASSETS: AssetDef[] = [
   ...HOUSING, ...COMMERCE, ...WORKPLACES, ...MAKING,
   ...SIGNATURE_RESIDENTIAL, ...SIGNATURE_COMMERCIAL, ...SIGNATURE_OFFICE, ...SUPERTALLS, ...SIGNATURE_INDUSTRIAL,
-  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY, ...WINGS, ...WASTE,
+  ...SAFETY, ...UTILITY, ...CIVIC, ...EXTRA_SERVICES, ...CIVIC_THREE, ...DEATH_AND_POST, ...SERVICE_LANDMARKS, ...MORE_SERVICES, ...MORE_UTILITY, ...TREES, ...SPORT, ...FLEET, ...MOVERS, ...CONSTRUCTION, ...MARINE, ...ROADS, ...INDUSTRY, ...WINGS, ...WASTE,
   // Last, so a mod can only add: every base asset keeps its index.
   ...modAssets(),
 ];

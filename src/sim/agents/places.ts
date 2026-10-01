@@ -205,7 +205,7 @@ function teachesOf(id: string): number {
   const kind = id.split('.')[2] ?? '';
   switch (kind) {
     case 'nursery': case 'primary': case 'high': case 'school': return Teaches.SCHOOL;
-    case 'college': return Teaches.COLLEGE;
+    case 'college': case 'technical': return Teaches.COLLEGE;
     case 'university': return Teaches.UNIVERSITY;
     default: return Teaches.NONE;          // a library teaches nobody a degree
   }
