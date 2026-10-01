@@ -79,9 +79,9 @@ const VIADUCT_PRICE = 2.5;
 // The bar's own palette. Cool slate rather than black, because the bar sits
 // over grass and sky all day and a true black panel reads as a hole cut in the
 // picture rather than as a thing lying on top of it.
-const PANEL = 'rgba(34,33,31,.96)';
-const WELL = 'rgba(18,17,16,.55)';
-const EDGE = 'rgba(255,244,228,.10)';
+const PANEL = 'rgba(28,30,34,.95)';
+const WELL = 'rgba(0,0,0,.22)';
+const EDGE = 'rgba(255,255,255,.08)';
 
 /** What a city is called before anyone names it. */
 const DEFAULT_NAME = 'Salford';

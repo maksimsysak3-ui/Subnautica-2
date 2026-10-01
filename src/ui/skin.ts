@@ -31,26 +31,26 @@
 /** The palette. Everything else here is made of these. */
 export const SKIN = {
   /** Panel ground, and the hairline round it. */
-  panel: 'rgba(34,33,31,.97)',
-  panelSolid: '#22211f',
-  edge: 'rgba(255,244,228,.09)',
+  panel: 'rgba(28,30,34,.95)',
+  panelSolid: '#1c1e22',
+  edge: 'rgba(255,255,255,.08)',
   /** The light along the top edge, which is what makes a slab a slab. */
   sheen: 'rgba(255,255,255,.04)',
   /** Text, from brightest to faintest: warm, like print rather than a screen. */
-  bright: '#f2eee7',
-  text: '#cdc7bc',
-  dim: '#9a9388',
-  faint: '#6d675e',
+  bright: '#f4f5f7',
+  text: '#c9ccd1',
+  dim: '#8e939b',
+  faint: '#61656c',
   /** The one accent, when nothing else has claimed it: a muted slate blue. */
-  accent: '#8eaac4',
+  accent: '#7fb0e0',
   /** Good, middling, bad -- for values rather than for maps. */
   good: '#5fc78c',
   warn: '#e8b454',
   bad: '#e0685a',
   /** Where a bar's track sits. */
-  track: 'rgba(255,244,228,.08)',
+  track: 'rgba(255,255,255,.08)',
   /** Radii and the type stack. */
-  radius: '8px',
+  radius: '10px',
   radiusSmall: '4px',
   mono: 'var(--mono)',
 } as const;
@@ -72,7 +72,7 @@ export function panel(extra: string[] = []): string[] {
     `background:${SKIN.panel}`,
     `border:1px solid ${SKIN.edge}`,
     `border-radius:${SKIN.radius}`,
-    'box-shadow:0 4px 14px rgba(0,0,0,.32)',
+    'box-shadow:0 8px 24px rgba(0,0,0,.35)',
     'font:400 13px/1.5 var(--ui)',
     `color:${SKIN.text}`,
     ...extra,
