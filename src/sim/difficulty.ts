@@ -56,7 +56,7 @@ export const CURRENCY = 8;
  * are a real weight against its takings -- about two fifths of them, where
  * they were under a third -- and a service is a decision, not a formality.
  */
-export const UPKEEP_WEIGHT = 1.7;
+export const UPKEEP_WEIGHT = 2.0;
 /**
  * And building a good deal cheaper than the designed prices against that
  * income: a city should be limited by what it can run, not by what it can

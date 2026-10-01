@@ -113,7 +113,8 @@ const SUPPLY: Record<string, Supply> = {
   // Passive generation. A turbine and a panel do not need anybody standing next
   // to them, which is exactly why a city builds them first.
   'svc.power.wind': { power: 2600, crewed: 0.12 },
-  'svc.power.solar': { power: 4200, crewed: 0.1 },
+  // A quarter more than first set: an array that size was not worth its land.
+  'svc.power.solar': { power: 5300, crewed: 0.1 },
   // Thermal plant. These are shifts, plant rooms and control desks, and they do
   // not run themselves -- but a skeleton crew still keeps a turbine spinning.
   'svc.power.gas': { power: 34000, crewed: 0.55 },
