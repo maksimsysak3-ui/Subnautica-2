@@ -33,7 +33,7 @@ import type { ResourceId } from '../resources';
 import { Places, Purpose } from './places';
 import { Utilities, Util, UTIL_NAMES } from './utilities';
 import { Services, SERVICE_GRID, UNREACHED } from './services';
-import { People, Stage, Doing } from './people';
+import { People, Stage, Doing, Edu } from './people';
 import { Routine, Mode } from './routine';
 import type { RouteReading } from './routine';
 import { Use } from './lanes';
@@ -73,6 +73,8 @@ export const View = {
   DISTRICTS: 17,
   FLOOD: 18,
   DEATHCARE: 19,
+  JOBLESS: 20,
+  SCHOOLING: 21,
 } as const;
 export type ViewId = typeof View[keyof typeof View];
 
@@ -196,6 +198,20 @@ export const VIEWS: ViewInfo[] = [
     ramp: ['#c0392b', '#d8b050', '#7fa8c8'], unit: 'covered',
   },
   {
+    // Where the people out of work live. A red district wants offices or
+    // industry within reach -- or the schooling those jobs ask for.
+    id: View.JOBLESS, name: 'Unemployment', icon: 'jobs', look: Look.SURFACE,
+    legend: 'Working-age residents in a job or study. Red streets have people out of work.',
+    ramp: ['#c0392b', '#d8b050', '#57c07f'], unit: 'in work or study',
+  },
+  {
+    // How far the people who live here went in school: the workforce an
+    // office or a high-tech plant needs, or does not find.
+    id: View.SCHOOLING, name: 'Education level', icon: 'degree', look: Look.SURFACE,
+    legend: 'How educated the adults living here are, from no schooling to a degree.',
+    ramp: ['#8a5a3c', '#c9b45a', '#6aaee8'], unit: 'of a degree, on average',
+  },
+  {
     id: View.FLOOD, name: 'Flood risk', icon: 'flood', look: Look.ABUNDANCE,
     legend: 'Land a flood reaches: the river banks. Brighter is lower and floods worse.',
     ramp: ['#1b2a3d', '#3d78b8', '#8fd0ff'], unit: 'flood risk',
@@ -310,6 +326,9 @@ export class Views {
   private readonly next = new Uint8Array(VIEW_GRID * VIEW_GRID);
   /** Per-lane value, before it is scattered. */
   private perLane: Float32Array;
+  /** Scratch sums per place for the resident views. */
+  private sumA = new Float32Array(0);
+  private sumB = new Float32Array(0);
   /** Which view the grid currently holds, and when it was built. */
   built: number = View.NONE;
   builtAt = -1;
@@ -410,6 +429,8 @@ export class Views {
       case View.DEATHCARE: this.fromBranch('deathcare'); break;
       case View.TRANSPORT: this.fromBranch('transport'); break;
       case View.DESIRABILITY: this.fromDesire(); break;
+      case View.JOBLESS: this.fromResidents(false); break;
+      case View.SCHOOLING: this.fromResidents(true); break;
       // Straight off the field, which is already a grid of exactly this shape
       // of number -- no stamping, no spreading. The land value model has done
       // the blurring, and doing it twice would smear a boundary the player is
@@ -727,6 +748,36 @@ export class Views {
    * Everything a household would notice, weighted the way the migration model
    * weights it, so the map and the demand figure cannot disagree with each other.
    */
+  /**
+   * Something about the people who live in each home, stamped where it stands:
+   * the share of working-age residents in work or study, or the adults'
+   * average schooling (none 0, a degree 1).
+   */
+  private fromResidents(schooling: boolean): void {
+    const { places, people } = this.src;
+    const n = places.count;
+    if (this.sumA.length < n) { this.sumA = new Float32Array(n * 2); this.sumB = new Float32Array(n * 2); }
+    this.sumA.fill(0, 0, n); this.sumB.fill(0, 0, n);
+    const cit = people.citizens, cc = cit.col, hc = people.households.col;
+    for (let i = 0; i < cit.bound; i++) {
+      if (cit.live[i] === 0) continue;
+      const stage = cc.stage[i];
+      if (stage !== Stage.YOUNG && stage !== Stage.ADULT) continue;
+      const hh = cc.house[i];
+      if (hh < 0) continue;
+      const home = hc.home[hh];
+      if (home < 0 || home >= n) continue;
+      this.sumB[home]++;
+      this.sumA[home] += schooling ? cc.edu[i] / Edu.UNIVERSITY
+        : (cc.work[i] >= 0 || cc.study[i] >= 0 ? 1 : 0);
+    }
+    for (let p = 0; p < n; p++) {
+      if (places.live[p] === 0 || this.sumB[p] === 0) continue;
+      this.stamp(places.col.x[p], places.col.z[p], Math.max(0.02, Math.min(1, this.sumA[p] / this.sumB[p])));
+    }
+    this.spread();
+  }
+
   private fromDesire(): void {
     const { places, services, utilities, routine } = this.src;
     const c = places.col;
@@ -1126,6 +1177,51 @@ export class Views {
             -1, r.smelly > 0));
         }
         return rows;
+      }
+
+      case View.JOBLESS: {
+        // The labour market in four lines, each one something to build.
+        const pe = s.people, b = pe.byStage;
+        const force = (b[Stage.TEEN] ?? 0) * 0.15 + (b[Stage.YOUNG] ?? 0) + (b[Stage.ADULT] ?? 0);
+        const idle = Math.max(0, force - pe.employed);
+        const rate = force > 0 ? idle / force : 0;
+        const jobs = s.places.jobCapacity;
+        const open = Math.max(0, jobs - pe.employed);
+        return [
+          line('unemployed', pct(rate), Math.max(0, 1 - rate * 4), rate > 0.08, true),
+          line('Out of work', Math.round(idle).toLocaleString(), -1, rate > 0.08),
+          line('In work', pe.employed.toLocaleString()),
+          line('Jobs in the city', jobs.toLocaleString()),
+          line('Jobs nobody has taken', open.toLocaleString(), -1, false),
+          line(rate > 0.08 ? 'Zone offices or industry near the red streets'
+            : open > idle * 2 && open > 50 ? 'Jobs going begging: zone housing'
+              : 'Work and workers in step', ''),
+        ];
+      }
+
+      case View.SCHOOLING: {
+        // Adults only: counting the infants as unschooled says nothing.
+        const cit = s.people.citizens, cc = cit.col;
+        const e = [0, 0, 0, 0];
+        for (let i = 0; i < cit.bound; i++) {
+          if (cit.live[i] === 0) continue;
+          const st = cc.stage[i];
+          if (st !== Stage.YOUNG && st !== Stage.ADULT && st !== Stage.SENIOR) continue;
+          e[Math.min(3, cc.edu[i])]++;
+        }
+        const none = e[Edu.NONE], school = e[Edu.SCHOOL],
+          college = e[Edu.COLLEGE], uni = e[Edu.UNIVERSITY];
+        const all = Math.max(1, none + school + college + uni);
+        const higher = (college + uni) / all;
+        return [
+          line('with college or a degree', pct(higher), higher, higher < 0.2, true),
+          line('University degree', pct(uni / all), uni / all),
+          line('College', pct(college / all), college / all),
+          line('School only', pct(school / all), school / all),
+          line('No schooling', pct(none / all), none / all, none / all > 0.3),
+          line(higher < 0.2 ? 'Offices and high-tech want graduates: build colleges'
+            : 'An educated workforce: offices will thrive', ''),
+        ];
       }
 
       default: {

@@ -1085,7 +1085,7 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
 /* Two devices on a ring, drawn in 3D: the phone on the left, the computer on
    the right. They turn slowly at rest; the one pointed at turns to face you. */
 /* On the left, over the mod tools: the right edge is where notifications stack. */
-.mr-wheel-launch { position: fixed; left: 12px; top: calc(50% - 6px); width: 42px; height: 42px; display: grid;
+.mr-wheel-launch { position: absolute; left: 12px; top: calc(50% - 6px); width: 42px; height: 42px; display: grid;
   place-items: center; cursor: pointer; padding: 0; pointer-events: auto; z-index: 24; color: #e9e9ec;
   background: linear-gradient(180deg,rgba(40,42,46,.94),rgba(24,25,28,.94)); border: 1px solid rgba(255,255,255,.12);
   border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
