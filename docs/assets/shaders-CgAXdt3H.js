@@ -2064,13 +2064,18 @@ fn palette(i : u32, uv : vec2f, mpp : f32, seed : f32, brand : vec3f, accent : v
       let grain = hash21(vec2f(floor(uv.x * 8.0), floor(uv.y * 1.2)) + seed);
       return vec3f(0.238, 0.170, 0.108) * (0.88 + grain * 0.3);
     }
+    // Grass is olive, not teal: red well above blue. The old greens had the
+    // two equal, and a lawn the size of a block read as painted turf. Two
+    // scales of mottling, coarse patches and fine tufts, so it is not one sheet.
     case 9u: {
-      let leaf = hash21(floor(uv * 5.0) + seed);
-      return vec3f(0.118, 0.212, 0.108) * (0.75 + leaf * 0.6);
+      let clump = hash21(floor(uv * 1.3) + seed);
+      let leaf = hash21(floor(uv * 6.0) + seed * 1.7);
+      return vec3f(0.128, 0.188, 0.066) * (0.78 + clump * 0.22 + leaf * 0.24);
     }
     case 10u: {
-      let blade = hash21(floor(uv * 5.0) + seed);
-      return vec3f(0.072, 0.146, 0.070) * (0.80 + blade * 0.45);
+      let clump = hash21(floor(uv * 1.3) + seed);
+      let blade = hash21(floor(uv * 6.0) + seed * 1.7);
+      return vec3f(0.086, 0.140, 0.048) * (0.82 + clump * 0.18 + blade * 0.2);
     }
     default: { return brand; }
   }
@@ -5908,4 +5913,4 @@ fn fxaa(in : VertexOut) -> @location(0) vec4f {
   return vec4f(col, 1.0);
 }
 `,Ls={"common.wgsl":Ms,"atmosphere.wgsl":Is,"noise.wgsl":Us,"overlay.wgsl":cs};function JQ(I){return I.replace(/^[ \t]*#include\s+"([\w.-]+)"[ \t]*$/gm,(A,U)=>Ls[U]??A)}const $s={asset:JQ(os),cull:JQ(Fs),terrain:JQ(Ys),sky:JQ(ss),grass:JQ(as),road:JQ(Rs),water:JQ(es),rain:JQ(is),dots:JQ(ns),mains:JQ(ts),post:JQ(ks)};export{Ts as $,OD as A,TD as B,Ps as C,fD as D,ls as E,$A as F,Ug as G,us as H,ms as I,R as J,E as K,nw as L,V0 as M,xE as N,fs as O,CC as P,Xs as Q,ds as R,$s as S,QB as T,Ks as U,Fg as V,XF as W,HB as X,vY as Y,Js as Z,zs as _,ng as a,bs as a0,rY as a1,Ss as a2,VY as a3,GY as a4,dY as a5,bY as a6,fY as a7,$C as a8,MY as a9,KY as aa,UY as ab,gC as ac,QD as ad,AD as ae,ED as af,gD as ag,gY as ah,EY as ai,CY as aj,DY as ak,wY as al,tY as am,kY as an,nY as ao,LY as ap,NY as aq,oD as ar,YD as as,mE as at,rs as au,WY as av,wC as aw,ws as ax,iE as b,wg as c,_Y as d,xs as e,qs as f,js as g,Zs as h,ps as i,EE as j,Ns as k,RQ as l,Gs as m,vs as n,Ws as o,$Y as p,KQ as q,uC as r,ys as s,Os as t,h0 as u,Vs as v,zF as w,hs as x,Hs as y,_s as z};
-//# sourceMappingURL=shaders-7Hgyrcri.js.map
+//# sourceMappingURL=shaders-CgAXdt3H.js.map
