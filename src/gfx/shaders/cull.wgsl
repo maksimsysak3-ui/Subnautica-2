@@ -181,7 +181,7 @@ const MIN_PIXELS = 2.6;
  * being resolvable, not where it stops being cheap, and the frame budget this
  * spends is a fraction of what the last few rounds bought back.
  */
-const LOD0_PIXELS = 30.0;
+const LOD0_PIXELS = 32.5;
 /**
  * Between this and LOD0_PIXELS, the middle mesh. Below it, bare massing.
  *
@@ -190,4 +190,4 @@ const LOD0_PIXELS = 30.0;
  * twenty pixels and obviously a blob on a stick at thirty-five, so the level
  * that draws one has to start where the eye stops being able to tell.
  */
-const LOD1_PIXELS = 10.5;
+const LOD1_PIXELS = 11.5;
