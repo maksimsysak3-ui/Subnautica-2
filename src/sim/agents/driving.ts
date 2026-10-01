@@ -90,9 +90,9 @@ interface Style {
 }
 
 const STYLE: Style[] = [];
-STYLE[Driver.CAUTIOUS] = { accel: 1.7, brake: 2.4, headway: 1.8, gap: 2.6, limit: 0.92 };
-STYLE[Driver.AVERAGE] = { accel: 2.3, brake: 3.0, headway: 1.3, gap: 2.1, limit: 1.0 };
-STYLE[Driver.PUSHY] = { accel: 3.1, brake: 3.8, headway: 0.9, gap: 1.5, limit: 1.14 };
+STYLE[Driver.CAUTIOUS] = { accel: 2.0, brake: 2.4, headway: 1.8, gap: 2.6, limit: 0.92 };
+STYLE[Driver.AVERAGE] = { accel: 2.7, brake: 3.0, headway: 1.3, gap: 2.1, limit: 1.0 };
+STYLE[Driver.PUSHY] = { accel: 3.4, brake: 3.8, headway: 0.9, gap: 1.5, limit: 1.14 };
 
 /** How the city's drivers are distributed. */
 const MIX = [0.26, 0.56, 0.18];

@@ -111,7 +111,14 @@ const TIER_DOWN = [0, 0.40, 0.58];
  * every block rebuilds itself the instant a bus stop appears is a city that is
  * never still. Half a game day is forty-five seconds at normal speed.
  */
-const TIER_PATIENCE = 0.5;
+const TIER_PATIENCE = 4;
+/**
+ * And to fall back. Four days and two and a half: at half a day, a new
+ * building nudging its neighbours' land value had the whole block rebuilding
+ * itself within seconds at the fastest speed, over and over as each new one
+ * went up. A quarter improves over days, not between two building sites.
+ */
+const TIER_PATIENCE_DOWN = 2.5;
 
 /** And how long a condemned plot stays condemned once the land is fit again. */
 const BLIGHT_PATIENCE = 1.0;
@@ -423,7 +430,7 @@ export class BuildingLife {
       const down = tier > 0 && (tier > cap || value < TIER_DOWN[tier]);
       if (!up && !down) { this.patience[at] = 0; continue; }
       this.patience[at] += days;
-      if (this.patience[at] < TIER_PATIENCE) continue;
+      if (this.patience[at] < (up ? TIER_PATIENCE : TIER_PATIENCE_DOWN)) continue;
       this.patience[at] = 0;
       w.tier[at] = up ? tier + 1 : tier - 1;
       if (up) { this.tally.raised++; this.total.raised++; }

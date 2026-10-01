@@ -229,6 +229,17 @@ const EMERGENCY_BRANCHES = new Set(['fire', 'police', 'health'].map((b) => BRANC
  * a neighbourhood of a couple of hundred, not eighty. Small buildings get the
  * most: a block of two hundred flats is already counting its households.
  */
+/**
+ * Of the jobs a zoned building's model declares, how many it really offers.
+ *
+ * The models count desks and shop floors generously: a grown city had over
+ * three jobs for every home and a home supplies about one worker, so most of
+ * its shops and factories stood short-staffed for ever and the player was told
+ * so on every roof. Seven in ten brings work and workers within reach of each
+ * other without starving the migration that follows the jobs.
+ */
+const ZONED_JOBS = 0.7;
+
 export function homesIn(declared: number): number {
   if (declared <= 0) return 0;
   return declared <= 6 ? declared * 2 : Math.round(declared * 1.4);
@@ -354,7 +365,8 @@ export class Places {
     const declared = def.sim?.jobs ?? 0;
     // Only what the player places by hand: a service or a landmark. Zoned
     // buildings grow into the demand that asked for them, a few posts at a time.
-    const jobs = def.zone === 'service' || def.signature === true ? postsFor(declared) : declared;
+    const jobs = def.zone === 'service' || def.signature === true ? postsFor(declared)
+      : declared > 0 ? Math.max(1, Math.round(declared * ZONED_JOBS)) : 0;
     c.homes[id] = homes;
     c.jobs[id] = jobs;
 

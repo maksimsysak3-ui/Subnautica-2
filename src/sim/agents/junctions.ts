@@ -76,12 +76,12 @@ const ROUNDABOUT_ARMS = 4;
  * it is also the cheapest thing to compute, because the question "is anybody
  * waiting" is a flag the driving model sets anyway.
  */
-const MIN_GREEN = 7;
-const MAX_GREEN = 30;
+const MIN_GREEN = 10;
+const MAX_GREEN = 40;
 const AMBER_SECONDS = 3;
 const ALL_RED_SECONDS = 1;
 /** Seconds of green with nobody going through before a waiting arm is given it. */
-const GAP_OUT_SECONDS = 3;
+const GAP_OUT_SECONDS = 4;
 
 /** The most vehicles that can be inside one junction at once. */
 const BOX = 8;
