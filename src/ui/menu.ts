@@ -182,6 +182,7 @@ export class Menu {
     head.innerHTML = "<span>What's new</span><em>The mayor's update</em>";
     card.appendChild(head);
     const items: Array<[string, string]> = [
+      ['Fifteen new buildings', 'Tennis club, dog park, fountain plaza, market hall, basketball courts, picnic meadow and mini golf; a technical college and a village school; a rehabilitation centre and a dental practice; a volunteer fire station, mounted police stables, a post kiosk and a registry office. Parks now unlock in cheap packs of four.'],
       ['A real start', 'Founding grants are small or gone, roads and services cost more to run, and the first weeks drain the treasury before taxes catch up. Levels and unlocks take far longer. A welcome tutorial explains it all (F1 to reopen).'],
       ['Five difficulties', 'Sandbox and Expert join Relaxed, Standard and Hard.'],
       ['New info views', 'Unemployment and Education level, and a rewritten views panel: a plain list in four groups, beside the card. Traffic colours now hold for hours instead of flickering.'],

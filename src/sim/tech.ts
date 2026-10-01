@@ -125,6 +125,27 @@ const OUTSIDE_TREE = new Set(['svc.waste.landfill', 'svc.parks.community', 'svc.
   'svc.health.surgery', 'svc.police.local', 'svc.fire.post',
   'svc.waste.transfer', 'svc.sewage.package']);
 
+/**
+ * Buildings added after saves existed that do sit in the tree: appended after
+ * their branch's original list rather than sorted into it, so every node a
+ * saved city bought keeps naming the same buildings.
+ */
+const LATE = new Set([
+  'svc.parks.tennis', 'svc.parks.dogs', 'svc.parks.fountain', 'svc.parks.market',
+  'svc.edu.technical', 'svc.health.rehab',
+  'svc.fire.volunteer', 'svc.police.mounted', 'svc.health.dental', 'svc.edu.school',
+  'svc.post.kiosk', 'svc.gov.registry', 'svc.parks.basketball', 'svc.parks.picnic',
+  'svc.parks.minigolf',
+]);
+
+/**
+ * Branches whose buildings come in packs rather than one at a time. Parks
+ * have thirty-odd pieces -- a playground, a dog park, a lido -- and a star
+ * each for all of them was a tree spent on benches. A pack of a few, for a
+ * star or two, keeps them a choice without making them a chore.
+ */
+const PACKED: Record<string, number> = { parks: 4 };
+
 function build(): TechNode[] {
   const byBranch = new Map<string, AssetDef[]>();
   for (const a of ASSETS) {
@@ -139,19 +160,26 @@ function build(): TechNode[] {
 
   const nodes: TechNode[] = [];
   for (const branch of BRANCHES) {
-    const list = (byBranch.get(branch) ?? [])
-      .sort((a, b) => buildingPrice(a) - buildingPrice(b));
+    const all = byBranch.get(branch) ?? [];
+    const byPrice = (a: AssetDef, b: AssetDef): number => buildingPrice(a) - buildingPrice(b);
+    const list = [...all.filter((a) => !LATE.has(a.id)).sort(byPrice),
+      ...all.filter((a) => LATE.has(a.id)).sort(byPrice)];
     if (list.length === 0) continue;
+    const pack = PACKED[branch] ?? 1;
+    // One node per pack: the first building names it, the rest ride along.
+    const groups: AssetDef[][] = [];
+    for (let i = 0; i < list.length; i += pack) groups.push(list.slice(i, i + pack));
 
     // A fan rather than a chain: the tiers get wider, and each node hangs off
     // one in the tier before it.
-    const tiers = tiersOf(list.length);
+    const tiers = tiersOf(groups.length);
     let previousIds: string[] = [];
     for (let t = 0; t < tiers.length; t++) {
       const row = tiers[t];
       const ids: string[] = [];
       for (let k = 0; k < row.length; k++) {
-        const def = list[row[k]];
+        const group = groups[row[k]];
+        const def = group[0];
         const id = `${branch}.${t}.${k}`;
         const free = t === 0 && FREE_ROOTS.has(branch);
         // Hung off the parent above it, so a wide tier spreads over the one
@@ -164,16 +192,19 @@ function build(): TechNode[] {
           branch,
           name: t === 0
             ? `Basic ${BRANCH_LABEL[branch]?.toLowerCase() ?? branch} services`
-            : def.name,
+            : group.length > 1 ? `${def.name} and ${group.length - 1} more` : def.name,
+          // Packs are cheap: a star each, two for the last tiers.
           cost: t === 0 ? (free ? 0 : 1)
-            : (TIER_COST[Math.min(t, TIER_COST.length - 1)] ?? 5),
+            : pack > 1 ? (t < 3 ? 1 : 2)
+              : (TIER_COST[Math.min(t, TIER_COST.length - 1)] ?? 5),
           needs: parent,
-          assets: [def.id],
+          assets: group.map((a) => a.id),
           tier: t,
           row: k,
           blurb: t === 0
             ? `Everything a city needs to start ${verbFor(branch)}.`
-            : def.note,
+              + (group.length > 1 ? ` Includes ${group.map((a) => a.name).join(', ')}.` : '')
+            : group.length > 1 ? `Unlocks ${group.map((a) => a.name).join(', ')}.` : def.note,
           free,
         });
         ids.push(id);

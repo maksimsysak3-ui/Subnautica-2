@@ -16,7 +16,7 @@ import { tree, bench, hedge } from './landscape';
 import { parkedVehicle } from './vehicles';
 
 /** A ring of fence posts with a top rail, round a rectangle. */
-function fence(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
+export function fence(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
   h: number, step: number, mat: Material = MAT.METAL): void {
   const run = (ax: number, az: number, bx: number, bz: number): void => {
     const len = Math.hypot(bx - ax, bz - az);
@@ -35,7 +35,7 @@ function fence(m: MeshBuilder, x0: number, z0: number, x1: number, z1: number,
  * The edge of a civic plot at full detail: a row of trees, lamps between them
  * and bollards along the frontage. What separates a model from a diagram.
  */
-function dressing(m: MeshBuilder, X: number, Z: number, trees: number): void {
+export function dressing(m: MeshBuilder, X: number, Z: number, trees: number): void {
   for (let i = 0; i < trees; i++) {
     const x = -X + 2.5 + (i * (2 * X - 5)) / Math.max(1, trees - 1);
     tree(m, x, Z - 1.6, 6.5 + (i % 3) * 0.8, 2.2 + (i % 2) * 0.4);
@@ -47,7 +47,7 @@ function dressing(m: MeshBuilder, X: number, Z: number, trees: number): void {
 }
 
 /** A lamp column. */
-function lamp(m: MeshBuilder, x: number, z: number, h = 4.2): void {
+export function lamp(m: MeshBuilder, x: number, z: number, h = 4.2): void {
   m.painted(TINT.METAL_DARK, () => {
     m.cylinder(x, z, 0.12, 0, 0.5, 10, MAT.METAL);
     m.cylinder(x, z, 0.07, 0.5, h, 10, MAT.METAL);
