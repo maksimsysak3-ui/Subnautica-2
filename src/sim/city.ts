@@ -1623,8 +1623,17 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
       let kind: number = Surface.COUNTRY;
       if (net.cls[i] === 0) {
         const zi = world.grown[i] !== 0 ? zoneIndexOf(world.zones[i]) : -1;
+        // Shops and offices pave their forecourts, not the whole block: a cell
+        // under a building or beside one is paving, the rest is planted. A
+        // block paved edge to edge read as grey slab spilling out from
+        // between the buildings, left over rather than laid.
+        let nearBuilt = hard[i] === 1;
+        if (!nearBuilt && (zi === 1 || zi === 3)) {
+          nearBuilt = (gx > 0 && hard[at(gx - 1, gz)] === 1) || (gx + 1 < GRID && hard[at(gx + 1, gz)] === 1)
+            || (gz > 0 && hard[at(gx, gz - 1)] === 1) || (gz + 1 < GRID && hard[at(gx, gz + 1)] === 1);
+        }
         kind = zi === 0 ? Surface.GARDEN
-          : zi === 1 || zi === 3 ? Surface.PAVING
+          : zi === 1 || zi === 3 ? (nearBuilt ? Surface.PAVING : Surface.GARDEN)
             : zi === 2 ? Surface.YARD
               : zi === 4 ? Surface.PARK
                 : hard[i] === 1 ? Surface.PAVING : Surface.COUNTRY;
