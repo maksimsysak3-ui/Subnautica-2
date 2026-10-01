@@ -2813,6 +2813,9 @@ export class BuildTools {
     // somewhere to read why the city went grey.
     this.readWeather = cell('sky');
     row.appendChild(this.readWeather);
+    // The first to go on a narrow window, so the money at the far end never is.
+    this.readWeather.classList.add('mr-cell-opt');
+    this.readSeason.classList.add('mr-cell-opt-2');
 
     // The city and what lives in it, together. The population used to sit at
     // the far right beside the money, a whole bar away from the name of the

@@ -478,6 +478,10 @@ button.mr-cell { border: 0; cursor: pointer; font: inherit; color: inherit; }
 .mr-switch:disabled { opacity: .75; cursor: not-allowed; }
 .mr-policy.is-pinned .mr-switch:checked { background: var(--amber); }
 
+/* Status bar cells that give way first on a narrow window. */
+@media (max-width: 1240px) { .mr-cell-opt { display: none !important; } }
+@media (max-width: 1060px) { .mr-cell-opt-2 { display: none !important; } }
+
 /* ---- notifications -------------------------------------------------------- */
 .mr-toasts {
   position: absolute; top: 12px; right: 12px; z-index: 20; display: flex; flex-direction: column;
@@ -1080,10 +1084,11 @@ body.is-photo #overlay > *:not(.mr-modtools):not(.mr-letterbox):not(.mr-tiltshif
 /* ---- the device wheel ---------------------------------------------------- */
 /* Two devices on a ring, drawn in 3D: the phone on the left, the computer on
    the right. They turn slowly at rest; the one pointed at turns to face you. */
-.mr-wheel-launch { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; display: grid;
+/* On the left, over the mod tools: the right edge is where notifications stack. */
+.mr-wheel-launch { position: fixed; left: 12px; top: calc(50% - 6px); width: 42px; height: 42px; display: grid;
   place-items: center; cursor: pointer; padding: 0; pointer-events: auto; z-index: 24; color: #e9e9ec;
   background: linear-gradient(180deg,rgba(40,42,46,.94),rgba(24,25,28,.94)); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
 .mr-wheel-launch:hover { border-color: rgba(255,255,255,.3); }
 .mr-wheel-launch .mr-pc-dot { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; border-radius: 9px;
   background: #ff3b30; color: #fff; font: 600 11px/18px var(--ui); text-align: center; padding: 0 4px; box-shadow: 0 0 0 2px #1c1c1e; }
