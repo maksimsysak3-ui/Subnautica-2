@@ -320,6 +320,11 @@ const EMPTY_I32 = new Int32Array(0);
  * canopy the player sees.
  */
 const crowns = new Map<number, number>();
+/** Street trees pruned high enough for their crown to overhang the road. */
+const PRUNED = new Set(['tree.lime']);
+/** Metres a pruned crown may spread past the kerb, over the carriageway. */
+const OVERHANG = 1.6;
+
 function crownOf(p: Proto): number {
   let r = crowns.get(p.index);
   if (r === undefined) {
@@ -1545,12 +1550,22 @@ export function makeCity(world: World = defaultWorld(), dirty?: Dirty): City {
          * standing in the road.
          */
         const place = (s: number, offset: number, room: number, salt: number): void => {
-          const fits = species.filter((p) => crownOf(p) <= room);
+          // A street lime is pruned up past the height of a van, so its crown
+          // may spread over the kerb -- that is what street planting looks
+          // like. Without it only saplings fitted a footway, and a high street
+          // of thirty-metre blocks was lined with sticks.
+          const reach = (p: Proto): number => PRUNED.has(p.def.id)
+            ? Math.max(0, crownOf(p) - OVERHANG) : crownOf(p);
+          const fits = species.filter((p) => reach(p) <= room);
           if (fits.length === 0) return;
           const q = walk(pts, s);
           const x = q.x - q.tz * offset, z = q.z + q.tx * offset;
-          const p = pick(fits, Math.round(x * 3), Math.round(z * 3), 827);
-          if (p === null || !clear(x, z, crownOf(p))) return;
+          // The big pruned trees first where they fit: a mature street tree is
+          // the norm, a sapling the exception.
+          const grown = fits.filter((p) => PRUNED.has(p.def.id));
+          const pool = grown.length > 0 && hash2(Math.round(x), Math.round(z), salt + 7) < 0.75 ? grown : fits;
+          const p = pick(pool, Math.round(x * 3), Math.round(z * 3), 827);
+          if (p === null || !clear(x, z, reach(p))) return;
           const y = heightAt(x, z) - 0.1;
           const yaw = hash2(Math.round(x), Math.round(z), salt + 1) * Math.PI * 2;
           out.add(x, z, y, yaw, p.w * CELL / 2 + 0.8, p.d * CELL / 2 + 0.8, p.height * 1.2 + 3,

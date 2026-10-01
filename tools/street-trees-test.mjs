@@ -42,7 +42,10 @@ for (let i = 0; i < city.count; i++) {
     // Inside the carriageway band: between the median edge and the kerb.
     if (d < half && d > med) { onRoad++; break; }
     const intrude = d >= half ? (half - (d - r)) : (med > 0 && d <= med ? (d + r) - med : 0);
-    if (intrude > 0.01) { over++; worst = Math.max(worst, intrude); break; }
+    // A pruned street lime may spread over the kerb above the traffic, by as
+    // much as the planting allows (OVERHANG in city.ts) and no more.
+    const allowed = def.id === 'tree.lime' && d >= half ? 1.6 : 0;
+    if (intrude > allowed + 0.01) { over++; worst = Math.max(worst, intrude - allowed); break; }
   }
   trees++;
 }
