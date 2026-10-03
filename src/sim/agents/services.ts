@@ -551,7 +551,28 @@ export const QUIET_UNTIL = 2000;
  * as satisfied rather than as missing, because that is the difference between
  * "you have not built this" and "you do not need this".
  */
+/**
+ * Whether the player can build a branch at all -- its first tier unlocked in
+ * the development tree. Set by the simulation; null means everything is open.
+ *
+ * With levels slow to come, a town could reach the size that expects a
+ * crematorium or a bus long before it could build one, and its residents
+ * complained, declined and abandoned their homes over something the player
+ * had no way to give them. Nobody expects what the city cannot yet provide.
+ */
+let branchGate: ((branch: string) => boolean) | null = null;
+
+export function gateExpectations(gate: ((branch: string) => boolean) | null): void {
+  branchGate = gate;
+}
+
+/** Whether a branch can be built yet, by the gate above. */
+export function branchOpen(branch: string): boolean {
+  return branchGate === null || branchGate(branch);
+}
+
 export function expectedOf(branch: Branch, population: number): boolean {
+  if (!branchOpen(branch)) return false;
   const at = EXPECTED_AT[branch];
   return at === undefined || population >= at;
 }

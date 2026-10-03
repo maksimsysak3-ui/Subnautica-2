@@ -43,7 +43,8 @@ import { Junctions } from './junctions';
 import { Traffic } from './driving';
 import type { Vitals } from '../history';
 import { Utilities, Util, supplyOf } from './utilities';
-import { Services } from './services';
+import { Services, gateExpectations, branchOpen } from './services';
+import { TECH } from '../tech';
 import { Dispatch } from './dispatch';
 import { Demand } from './demand';
 import { Growth } from './growth';
@@ -317,6 +318,18 @@ export class Simulation {
 
   constructor(city: City, net: RoadGraph, seed = 0x1b0b0, world?: World) {
     this.world = world;
+    // Needs follow what the player has unlocked. The first tier of each branch
+    // is its door: free roots are always open, the rest once bought.
+    if (world !== undefined) {
+      const roots = new Map<string, { id: string; free: boolean }>();
+      for (const n of TECH) if (n.tier === 0) roots.set(n.branch, { id: n.id, free: n.free === true });
+      gateExpectations((branch) => {
+        const r = roots.get(branch);
+        return r === undefined || r.free || world.progress.has(r.id);
+      });
+    } else {
+      gateExpectations(null);
+    }
     const mains = world?.mains;
     this.nodes = net.nodes.length;
     this.lanes = buildLaneGraph(net);
@@ -421,7 +434,10 @@ export class Simulation {
       : new BuildingLife(world, this.places, this.ground, this.services,
         this.utilities, () => this.people.population);
     this.life?.governedBy(this.policies);
-    this.dispatch.onUnburied = (place) => this.life?.abandon(place);
+    // A death nobody collects abandons the home only once the city could have
+    // collected it: before deathcare is unlocked, families make their own
+    // arrangements.
+    this.dispatch.onUnburied = (place) => { if (branchOpen('deathcare')) this.life?.abandon(place); };
     this.views = new Views({
       places: this.places, utilities: this.utilities, services: this.services,
       people: this.people, routine: this.routine, traffic: this.traffic,

@@ -266,6 +266,9 @@ section('a town nobody supplies falls down');
   }
   const before = sim.life.total.condemned;
   sim.dispatch.onUnburied = unburied;
+  // Deathcare unlocked, so the city could have collected the body: only then
+  // does an uncollected death cost the building.
+  world.progress.bought.add('deathcare.0.0');
   sim.dispatch.onUnburied?.(victim);
   ok(victim >= 0 && sim.life.total.condemned > before, 'a death nobody collects abandons the building',
     `${before} to ${sim.life.total.condemned}`);

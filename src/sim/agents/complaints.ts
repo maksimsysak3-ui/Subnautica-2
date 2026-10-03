@@ -33,7 +33,7 @@ import { Places, Purpose, Teaches } from './places';
 import { People, Edu, Stage } from './people';
 import { Utilities, Util, supplyOf } from './utilities';
 import { ASSETS } from '../../assets/registry';
-import { Services, expectedOf } from './services';
+import { Services, expectedOf, branchOpen } from './services';
 import type { TransitNet } from './transit';
 import { BRANCHES } from '../../assets/types';
 
@@ -453,7 +453,7 @@ export class Complaints {
     }
 
     // Last, because it is the mildest and the one a player will often leave.
-    if (occupied && s.at(id, BRANCH.transport) < UNCOVERED * 0.5
+    if (occupied && branchOpen('transport') && s.at(id, BRANCH.transport) < UNCOVERED * 0.5
       && !(this.transit?.reaches(c.x[id], c.z[id]) ?? false)) {
       return Gripe.NO_TRANSPORT;
     }

@@ -42,7 +42,7 @@
 import { Table } from './store';
 import { Places, Purpose } from './places';
 import { People } from './people';
-import { Services } from './services';
+import { Services, branchOpen } from './services';
 import { Utilities, supplyOf } from './utilities';
 import { Traffic, Kind, Driver } from './driving';
 import { Router } from './router';
@@ -788,6 +788,12 @@ export class Dispatch {
     // Only a thin service, or roads too jammed to get through, leaves a call
     // to the full dispatch -- and to the alert when it goes wrong.
     const branch = COVER_BRANCH[kind];
+    // A service the city cannot build yet is not one it can be blamed for: the
+    // neighbours, a volunteer crew or the family deal with it, quietly.
+    if (branch !== undefined && !branchOpen(branch)) {
+      this.stats.answered[kind]++;
+      return;
+    }
     if (branch !== undefined) {
       const cov = this.services.byName(place, branch);
       const lane = this.places.col.lane[place];
