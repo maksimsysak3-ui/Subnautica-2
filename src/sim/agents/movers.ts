@@ -34,7 +34,7 @@ import type { AreaWork } from './areawork';
 import type { TransitNet } from './transit';
 import type { PathStore } from './router';
 import { INSTANCE_FLOATS } from '../city';
-import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP } from '../../assets/generators/movers';
+import { MOVER_IDS, FRAME_RESERVE, MOVER_FLIP, CAR_DRAW } from '../../assets/generators/movers';
 import { SITE_IDS } from '../../assets/generators/construction';
 import type { SiteView } from './growth';
 import type { FireView, IncidentView } from './dispatch';
@@ -44,7 +44,6 @@ import { ASSET_INDEX } from '../inventory';
 import { ASSETS } from '../../assets/registry';
 
 /** Which prototype draws each vehicle kind, by `Kind`. */
-const CAR_LIVERIES = ['car', 'car2', 'car3', 'car4'] as const;
 
 /** Height above the road surface each mover's origin sits at. */
 const RIDE = 0.05;
@@ -735,8 +734,11 @@ function seatOf(kind: number, v: number, role = 0): string {
   // Ordinary cars take a livery off their row, so a street is not one model
   // repeated -- and the same vehicle keeps the same one for its whole journey
   // because the row is what it is drawn from.
-  const liveries = CAR_LIVERIES.length;
-  return (v % 7) === 0 ? 'taxi' : CAR_LIVERIES[v % liveries];
+  if ((v % 7) === 0) return 'taxi';
+  // Hashed rather than taken modulo the row, so neighbouring rows -- which a
+  // street's cars mostly are -- do not step through the models in order.
+  const h = Math.imul(v ^ (v >>> 13), 0x5bd1e995) >>> 0;
+  return CAR_DRAW[h % CAR_DRAW.length];
 }
 
 /**

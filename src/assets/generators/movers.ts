@@ -41,7 +41,49 @@ function idsOfClass(cls: string): string[] {
  * headlight belongs at the end of the body the vehicle actually drives with,
  * and for these that is the -x end.
  */
-const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police', 'lorry']);
+/** The passenger classes in the imported fleet, which share one orientation. */
+const PASSENGER = ['saloon', 'estate', 'hatchback', 'sports'];
+
+/**
+ * A seat for every passenger car in the fleet beyond the four the core seats
+ * take, so ordinary traffic draws on all of them. There are over forty and the
+ * streets showed four, which is a city where every family bought the same car.
+ */
+export const CAR_SEATS: string[] = [];
+const CAR_SEAT_MODEL = new Map<string, string>();
+{
+  const core = new Set<string>();
+  for (const cls of PASSENGER) {
+    const first = idsOfClass(cls)[0];
+    if (first !== undefined) core.add(first);
+  }
+  let k = 0;
+  for (const cls of PASSENGER) {
+    for (const id of idsOfClass(cls)) {
+      if (core.has(id)) continue;
+      const seat = `carx${k++}`;
+      CAR_SEATS.push(seat);
+      CAR_SEAT_MODEL.set(seat, id);
+    }
+  }
+}
+
+/**
+ * Which car seats ordinary traffic draws from, weighted: the everyday classes
+ * twice, the sports models once -- half the fleet is coupes, and a street of
+ * supercars is not a city.
+ */
+export const CAR_DRAW: string[] = (() => {
+  const out = ['car', 'car', 'car2', 'car2', 'car3', 'car3', 'car4'];
+  for (const seat of CAR_SEATS) {
+    const id = CAR_SEAT_MODEL.get(seat) ?? '';
+    out.push(seat);
+    if (!id.startsWith('car.sports')) out.push(seat);
+  }
+  return out;
+})();
+
+const FLIPPED = new Set(['car', 'car2', 'car3', 'car4', 'taxi', 'police', 'lorry', ...CAR_SEATS]);
 
 /**
  * Models the pack ships at a density no moving vehicle needs.
@@ -292,6 +334,10 @@ const built: AssetDef[] = [];
     if (id === undefined) continue;
     used.add(id);
     const def = moverOf(id, name, seat);
+    if (def !== null) built.push(def);
+  }
+  for (const seat of CAR_SEATS) {
+    const def = moverOf(CAR_SEAT_MODEL.get(seat) ?? '', 'Car', seat);
     if (def !== null) built.push(def);
   }
 }
@@ -758,7 +804,8 @@ export const MOVER_IDS = {
   smoke: 'move.smoke',
   steam: 'move.steam',
   steamBig: 'move.steamBig',
-} as const;
+  ...Object.fromEntries(CAR_SEATS.map((seat) => [seat, `move.${seat}`])),
+} as Record<string, string>;
 
 /**
  * How many of each the census reserves.
@@ -769,10 +816,11 @@ export const MOVER_IDS = {
  * as the simulation has and no more.
  */
 export const MOVER_RESERVE: Record<string, number> = {
-  'move.car': 420,
-  'move.car2': 300,
-  'move.car3': 260,
-  'move.car4': 200,
+  ...Object.fromEntries(CAR_SEATS.map((seat) => [`move.${seat}`, 60])),
+  'move.car': 160,
+  'move.car2': 140,
+  'move.car3': 140,
+  'move.car4': 90,
   'move.lorry': 140,
   'move.bus': 80,
   'move.taxi': 90,
