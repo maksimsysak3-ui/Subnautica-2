@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { mountStadium, INTRO_SECONDS, type Stadium } from '../stadium3d';
 import { app, listSaves, loadLeague, deleteSave, type SaveMeta } from '../store';
 import { Logo, Ovr, Tilt, Face, vivid } from '../components';
 import data from '../../data/league.json';
@@ -30,83 +31,82 @@ const TICKER = ['QB', 'RB', 'WR', 'TE', 'OT', 'EDGE', 'DT', 'LB', 'CB', 'S', 'K'
 
 export function MainMenu() {
   const [saves, setSaves] = useState<SaveMeta[]>([]);
-  // 'intro' plays the cold open; 'quick' is the short entrance on later visits; 'skip' jumps to the end.
-  const [mode, setMode] = useState<'intro' | 'quick' | 'skip'>(introSeen ? 'quick' : 'intro');
-  const [playing, setPlaying] = useState(!introSeen);
-  const skip = () => { introSeen = true; setPlaying(false); setMode('skip'); };
+  // 'intro': the 3D cold open runs and the UI waits; 'reveal': the menu is up.
+  const [phase, setPhase] = useState<'intro' | 'reveal'>(introSeen ? 'reveal' : 'intro');
+  const [flash, setFlash] = useState(false);
+  const [gl, setGl] = useState(true);
   const [sel, setSel] = useState(0);
   const [cover, setCover] = useState(0);
-  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const host = useRef<HTMLDivElement>(null);
+  const stadium = useRef<Stadium | null>(null);
+  const reveal = (withFlash: boolean) => { introSeen = true; setFlash(withFlash); setPhase('reveal'); };
   useEffect(() => { listSaves().then(setSaves); }, []);
-  useEffect(() => { if (!playing) return; const t = setTimeout(() => { introSeen = true; setPlaying(false); }, 2900); return () => clearTimeout(t); }, [playing]);
-  useEffect(() => { const t = setInterval(() => setCover(c => (c + 1) % COVER.length), 5200); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const home = RAW_TEAMS.find(t => t.abbr === COVER[0]?.team);
+    const st = mountStadium(host.current!, { intro: !introSeen, color: home?.colors[0] ?? '#123a7a', onIntroEnd: () => reveal(true) });
+    stadium.current = st;
+    if (!st) { setGl(false); reveal(false); }
+    // Safety net in case the tab was hidden through the intro.
+    const held = new URLSearchParams(location.search).has('introAt');
+    const t = held ? 0 : setTimeout(() => reveal(false), (INTRO_SECONDS + 2) * 1000);
+    return () => { clearTimeout(t); st?.dispose(); stadium.current = null; };
+  }, []);
+  useEffect(() => { const t = setInterval(() => setCover(c => (c + 1) % COVER.length), 6000); return () => clearInterval(t); }, []);
+  const skip = () => { stadium.current?.skip(); reveal(false); };
   const items = useMemo(() => [
-    ...(saves[0] ? [{ k: 'Continue', sub: `${saves[0].team} · ${saves[0].season} · ${saves[0].phase}`, go: async () => { const l = await loadLeague(saves[0].slot); if (l) { migrate(l); app.setLeague(l); app.replace({ id: 'hub' }); } } }] : []),
-    { k: 'New Franchise', sub: 'Pick a team. Real rosters, contracts and cap.', go: async () => app.go({ id: 'new' }) },
+    ...(saves[0] ? [{ k: 'Continue', sub: `${saves[0].team} · ${saves[0].season} ${saves[0].phase}`, go: async () => { const l = await loadLeague(saves[0].slot); if (l) { migrate(l); app.setLeague(l); app.replace({ id: 'hub' }); } } }] : []),
+    { k: 'New Franchise', sub: 'Real rosters, contracts and cap', go: async () => app.go({ id: 'new' }) },
     { k: 'Load Franchise', sub: `${saves.length} saved franchise${saves.length === 1 ? '' : 's'}`, go: async () => app.go({ id: 'load' }) },
   ], [saves]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (playing) { skip(); return; }
+      if (phase === 'intro') { skip(); return; }
       if (e.key === 'ArrowDown') setSel(i => (i + 1) % items.length);
       else if (e.key === 'ArrowUp') setSel(i => (i - 1 + items.length) % items.length);
       else if (e.key === 'Enter') items[sel]?.go();
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
-  }, [items, sel, playing]);
+  }, [items, sel, phase]);
   const c = COVER[cover];
   const ct = RAW_TEAMS.find(t => t.abbr === c?.team);
-  const col = ct?.colors[0] ?? '#1d4ed8', col2 = ct?.colors[2] ?? ct?.colors[1] ?? '#f5c542';
   return (
-    <div className={`title ${mode}`} onClick={() => { if (playing) skip(); }}
-      onMouseMove={e => setMouse({ x: e.clientX / window.innerWidth - 0.5, y: e.clientY / window.innerHeight - 0.5 })}>
-      <div className="t-field" /><div className="t-lines" />
-      <div className="t-beams">{[0, 1, 2, 3].map(i => <i key={i} style={{ left: `${10 + i * 26}%`, animationDelay: `${-i * 1.7}s` }} />)}</div>
-      <div className="t-lights">{[8, 30, 70, 92].map((x, i) => <i key={i} style={{ left: `${x}%`, '--i': i } as React.CSSProperties} />)}</div>
-      <div className="t-dust">{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${-(i * 0.73) % 9}s`, animationDuration: `${7 + (i % 5)}s` }} />)}</div>
-      {/* Logo ring, far behind */}
-      <div className="t-ring" style={{ transform: `translate(${mouse.x * -24}px, ${mouse.y * -14}px)` }}>
-        <div>{RAW_TEAMS.map((t, i) => <img key={t.abbr} src={t.logo} alt="" style={{ transform: `rotateY(${(i / RAW_TEAMS.length) * 360}deg) translateZ(620px)` }} onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />)}</div>
-      </div>
-      <div className="t-vignette" />
-
-      {/* Intro: the ball, the hit, the flash */}
-      <div className="t-ball"><svg viewBox="0 0 120 70"><defs><radialGradient id="tb" cx=".35" cy=".35"><stop offset="0" stopColor="#c46f33" /><stop offset="1" stopColor="#5d2a0c" /></radialGradient></defs><ellipse cx="60" cy="35" rx="56" ry="31" fill="url(#tb)" /><path d="M30 35h60" stroke="#fff" strokeWidth="3" /><path d="M42 29v12M50 29v12M58 29v12M66 29v12M74 29v12" stroke="#fff" strokeWidth="2.4" /><path d="M14 22c10 4 10 22 0 26M106 22c-10 4-10 22 0 26" stroke="#fff" strokeWidth="3" fill="none" /></svg></div>
-      <div className="t-flash" /><div className="t-shock" />
-
-      <div className="t-stage" style={{ transform: `translate(${mouse.x * 10}px, ${mouse.y * 6}px)` }}>
+    <div className={`title ${phase}${gl ? '' : ' nogl'}`} onClick={() => { if (phase === 'intro') skip(); }}>
+      <div className="t-3d" ref={host} />
+      <div className="t-shade" />
+      {flash && <div className="t-flash" />}
+      <div className="t-ui">
         <div className="t-brand">
-          <div className="t-kicker">2026 Season · Real Rosters · Real Contracts</div>
-          <h1 className="t-title"><span>Gridiron</span><span>GM</span></h1>
-          <nav className="t-menu">
+          <div className="t-kicker">2026 Season</div>
+          <h1 className="t-title" aria-label="Gridiron GM">
+            {'GRIDIRON'.split('').map((ch, i) => <span key={i} style={{ '--i': i } as React.CSSProperties}>{ch}</span>)}
+            <em>GM</em>
+          </h1>
+          <nav className="t-menu" style={{ '--sel': sel } as React.CSSProperties}>
+            <i className="t-indicator" />
             {items.map((it, i) => (
               <button key={it.k} className={`t-item${i === sel ? ' on' : ''}`} style={{ '--i': i } as React.CSSProperties} onMouseEnter={() => setSel(i)} onClick={() => it.go()}>
-                <em>{String(i + 1).padStart(2, '0')}</em><b>{it.k}</b><small>{it.sub}</small>
+                <b>{it.k}</b><small>{it.sub}</small>
               </button>
             ))}
           </nav>
-          <div className="t-hint">↑ ↓ to choose · Enter to select</div>
         </div>
         {c && (
-          <div className="t-cover" style={{ '--c1': col, '--c2': col2 } as React.CSSProperties}>
+          <div className="t-cover" style={{ '--c1': ct?.colors[0] ?? '#1d4ed8' } as React.CSSProperties}>
             <div className="t-cover-in" key={c.id}>
-              {ct && <img className="t-cover-logo" src={ct.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = ct.logoAlt; }} />}
-              <div className="t-cover-num">{c.num ?? ''}</div>
-              {/* Helmet silhouette in team colours: shows when the headshot cannot load. */}
-              <svg className="t-cover-helmet" viewBox="0 0 200 170"><path d="M40 120C20 60 60 10 120 12c46 2 72 40 70 84l-4 18H128l-6 20H70l-6-14z" fill="var(--c1)" stroke="rgba(255,255,255,.35)" strokeWidth="3" /><path d="M96 12c6 30 8 70 6 108" stroke="var(--c2)" strokeWidth="9" fill="none" /><path d="M128 114h66M140 114v34M160 114v30M128 130h60" stroke="#ddd" strokeWidth="6" fill="none" /><circle cx="70" cy="86" r="9" fill="rgba(0,0,0,.5)" /></svg>
               {c.hs && <img className="t-cover-hs" src={c.hs} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
               <div className="t-cover-meta">
-                <div className="up">Cover Athlete</div>
-                <div className="t-cover-name"><span>{c.fn}</span>{c.ln}</div>
-                <div className="row" style={{ gap: 10 }}><span className="t-cover-pos">{c.pos} · {ct?.nick}</span><Ovr v={c.ovr} lg /></div>
+                <div className="t-cover-tag">Cover Athlete</div>
+                <div className="t-cover-name">{c.fn} <b>{c.ln}</b></div>
+                <div className="t-cover-sub">{c.pos} · {ct?.name}<Ovr v={c.ovr} /></div>
               </div>
             </div>
             <div className="t-dots">{COVER.map((_, i) => <i key={i} className={i === cover ? 'on' : ''} onClick={() => setCover(i)} />)}</div>
           </div>
         )}
+        <div className="t-ticker"><b>Top Rated</b><div><span>{[...TICKER, ...TICKER].join('   ·   ')}</span></div></div>
+        <div className="t-hint">↑ ↓ Navigate · Enter Select</div>
       </div>
-      <div className="t-ticker"><b>League Leaders</b><div><span>{[...TICKER, ...TICKER].join('     •     ')}</span></div></div>
-      {playing && <div className="t-skip">Click or press any key to skip</div>}
+      {phase === 'intro' && <div className="t-skip">Press any key to skip</div>}
     </div>
   );
 }

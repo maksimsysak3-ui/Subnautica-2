@@ -4,7 +4,7 @@ import { Logo, Ovr, Face, Table, Tabs, DevBadge, Jersey, Tilt, Bar, attrColor, P
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
-import { autoDepth, DEPTH_SLOTS, teamRatings, emptyLine } from '../../core/league';
+import { autoDepth, teamRatings, emptyLine } from '../../core/league';
 import { release } from '../../core/offseason';
 import { NegotiationRoom } from './negotiate';
 import { standings } from '../../core/season';
@@ -244,35 +244,5 @@ function ReleaseModal({ p, close }: { p: Player; close: () => void }) {
       </div>
       <button className="btn ghost" onClick={close}>Cancel</button>
     </Modal>
-  );
-}
-// ---- depth chart ----------------------------------------------------------------------------
-export function DepthScreen() {
-  const L = useApp().league!;
-  const t = L.teams[L.user];
-  const [pos, setPos] = useState<Pos>('QB');
-  const [drag, setDrag] = useState<number | null>(null);
-  const ids = t.depth[pos] ?? [];
-  const move = (from: number, to: number) => { const a = [...ids]; const [x] = a.splice(from, 1); a.splice(to, 0, x); t.depth[pos] = a; app.touch(); };
-  const slots = DEPTH_SLOTS[pos];
-  return (
-    <div className="grid" style={{ gridTemplateColumns: '220px 1fr' }}>
-      <div className="card" style={{ padding: 8 }}>{POS_ORDER.map(p => <button key={p} className={`nav${p === pos ? ' on' : ''}`} onClick={() => setPos(p)}>{p}<span className="small mute" style={{ marginLeft: 'auto' }}>{(t.depth[p] ?? []).length}</span></button>)}</div>
-      <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}><div className="h2">{POS_NAME[pos]}</div><span className="dim small">Drag to reorder · top {slots} see the field</span><div className="spacer" /><button className="btn sm" onClick={() => { autoDepth(L, L.user); app.touch(); app.toast('Depth chart set to best available'); }}>Auto-Set</button></div>
-        {ids.map((id, i) => {
-          const p = L.players[id];
-          if (!p) return null;
-          return (
-            <div key={id} draggable onDragStart={() => setDrag(i)} onDragOver={e => e.preventDefault()} onDrop={() => { if (drag !== null) move(drag, i); setDrag(null); }}
-              className="li" style={{ background: i < slots ? 'rgba(255,255,255,.04)' : undefined, borderRadius: 10, padding: 10, cursor: 'grab', borderLeft: i < slots ? '3px solid var(--team)' : '3px solid transparent' }}>
-              <span className="num" style={{ width: 30, fontSize: 18 }}>{pos}{i + 1}</span><PlayerCell p={p} /><div className="spacer" />
-              <span className="small dim">{p.arch}</span><Ovr v={p.ovr} />
-              <button className="btn sm ghost" disabled={i === 0} onClick={() => move(i, i - 1)}>▲</button><button className="btn sm ghost" disabled={i === ids.length - 1} onClick={() => move(i, i + 1)}>▼</button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

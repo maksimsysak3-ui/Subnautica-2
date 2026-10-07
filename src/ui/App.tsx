@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { app, saveLeague, useApp, type Screen } from './store';
 import { Logo, useTeamTheme, CountUp } from './components';
 import { capSpace, money } from '../core/contracts';
 import { standings, userGame, weekGames, advance, ROUND_NAME } from '../core/season';
 import { MainMenu, NewFranchise, LoadScreen } from './screens/menu';
 import { Hub } from './screens/hub';
-import { RosterScreen, PlayerScreen, DepthScreen, TeamScreen } from './screens/team';
+import { RosterScreen, PlayerScreen, TeamScreen } from './screens/team';
+import { DepthScreen } from './screens/lineup';
 import { ScheduleScreen, StandingsScreen, StatsScreen, NewsScreen, BoxScreen, HistoryScreen, InboxScreen } from './screens/league';
 import { FreeAgencyScreen, ResignScreen, CapScreen, CoachScreen, PlanScreen } from './screens/office';
 import { TradeScreen, TradeBlock, TradeFinder, TradeOffers, TradeHistory, PickChart } from './screens/trades';
@@ -17,7 +18,7 @@ type Id = Screen['id'];
 /** Big tabs across the top; each owns a rail of smaller tabs down the side. */
 export const TABS: { label: string; subs: [Id, string][] }[] = [
   { label: 'Home', subs: [['hub', 'Overview'], ['inbox', 'Inbox'], ['news', 'League News'], ['plan', 'Weekly Strategy']] },
-  { label: 'My Team', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['teamstats', 'Team Stats'], ['progress', 'Progression'], ['coach', 'Coach Abilities'], ['resign', 'Re-sign'], ['cap', 'Salary Cap']] },
+  { label: 'My Team', subs: [['roster', 'Roster'], ['depth', 'Lineup'], ['teamstats', 'Team Stats'], ['progress', 'Progression'], ['coach', 'Coach Abilities'], ['resign', 'Re-sign'], ['cap', 'Salary Cap']] },
   { label: 'Trades', subs: [['trade', 'Trade Builder'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['tradehist', 'Trade History'], ['chart', 'Pick Value Chart']] },
   { label: 'Personnel', subs: [['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
   { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['history', 'History & Awards']] },
@@ -47,16 +48,7 @@ export function App() {
     <>
       <div className="backdrop" />
       <Masthead />
-      <nav className="bigtabs">
-        {TABS.map((t, i) => (
-          <button key={t.label} className={`bigtab${i === tab ? ' on' : ''}`} onClick={() => app.go({ id: t.subs[0][0] } as Screen)}>
-            {t.label}{t.label === 'Home' && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Trades' && offers > 0 && <span className="n">{offers}</span>}
-          </button>
-        ))}
-        <div className="spacer" />
-        <button className="bigtab" style={{ fontSize: 15 }} onClick={async () => { const ok = await saveLeague(L); app.toast(ok ? 'Franchise saved' : 'Save failed'); }}>Save</button>
-        <button className="bigtab" style={{ fontSize: 15 }} onClick={() => app.go({ id: 'menu' })}>Menu</button>
-      </nav>
+      <TabBar tab={tab} unread={unread} offers={offers} onSave={async () => { const ok = await saveLeague(L); app.toast(ok ? 'Franchise saved' : 'Save failed'); }} />
       <div className="workspace">
         <aside className="subtabs">
           {TABS[tab].subs.map(([id, label]) => (
@@ -69,6 +61,29 @@ export function App() {
       </div>
       {overlay}
     </>
+  );
+}
+
+/** Top tabs with an underline that glides to the active tab. */
+function TabBar({ tab, unread, offers, onSave }: { tab: number; unread: number; offers: number; onSave: () => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [bar, setBar] = useState({ x: 0, w: 0 });
+  useLayoutEffect(() => {
+    const measure = () => { const b = refs.current[tab]; if (b) setBar({ x: b.offsetLeft, w: b.offsetWidth }); };
+    measure(); window.addEventListener('resize', measure); return () => window.removeEventListener('resize', measure);
+  }, [tab]);
+  return (
+    <nav className="bigtabs">
+      {TABS.map((t, i) => (
+        <button key={t.label} ref={el => { refs.current[i] = el; }} className={`bigtab${i === tab ? ' on' : ''}`} onClick={() => app.go({ id: t.subs[0][0] } as Screen)}>
+          {t.label}{t.label === 'Home' && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Trades' && offers > 0 && <span className="n">{offers}</span>}
+        </button>
+      ))}
+      <i className="tabbar" style={{ transform: `translateX(${bar.x}px)`, width: bar.w }} />
+      <div className="spacer" />
+      <button className="navbtn" onClick={onSave}>Save</button>
+      <button className="navbtn" onClick={() => app.go({ id: 'menu' })}>Main Menu</button>
+    </nav>
   );
 }
 
