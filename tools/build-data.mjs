@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
+import { seasonCharting } from './charting.mjs';
 
 const SEASON = 2026;
 const PAST = [SEASON - 1, SEASON - 2, SEASON - 3];
@@ -133,17 +134,23 @@ function snapTable(rows) {
     const pct = off ? num(r.offense_pct) : Math.max(num(r.defense_pct), num(r.offense_pct));
     const snaps = off ? num(r.offense_snaps) : num(r.defense_snaps);
     for (const key of [r.pfr_player_id, `${norm(r.player)}|${r.team}`, norm(r.player)]) {
-      const e = acc.get(key) ?? { sum: 0, st: 0, n: 0, tot: 0 };
+      const e = acc.get(key) ?? { sum: 0, st: 0, n: 0, tot: 0, teams: {} };
       e.sum += pct; e.st += num(r.st_pct); e.n++; e.tot += snaps;
+      e.teams[r.team] = (e.teams[r.team] ?? 0) + snaps;
       acc.set(key, e);
     }
   }
   // Share per game played measures role rather than availability.
   const minGames = Math.min(4, weeks);
-  for (const e of acc.values()) { const d = Math.max(e.n, minGames); e.share = e.sum / d; e.stShare = e.st / d; }
+  for (const e of acc.values()) {
+    const d = Math.max(e.n, minGames);
+    e.share = e.sum / d; e.stShare = e.st / d;
+    e.team = Object.entries(e.teams).sort((a, b) => b[1] - a[1])[0]?.[0];
+  }
   return row => (row.pfr_id && acc.get(row.pfr_id)) || acc.get(`${norm(row.full_name)}|${row.team}`) || acc.get(norm(row.full_name));
 }
 const snaps = Object.fromEntries([SEASON, ...PAST].map(y => [y, snapTable(load(`snaps${y}`))]));
+const charting = Object.fromEntries(await Promise.all(PAST.map(async y => [y, await seasonCharting(y)])));
 
 const contracts = {};
 for (const c of await loadParquet('contracts', ['player', 'gsis_id', 'is_active', 'year_signed', 'years', 'apy', 'guaranteed', 'apy_cap_pct', 'position'])) {
@@ -183,6 +190,9 @@ const M = {
     ['Pressure %', 0.04, c => (c.pass && num(c.pass.times_pressured) > 20 ? num(c.pass.pressure_pct) : undefined), true],
     ['Rush yds/g', 0.06, c => per(num(c.s.rushing_yards), num(c.s.games))],
     ['Air yds/att', 0.06, c => (c.ngsP ? num(c.ngsP.avg_intended_air_yards) : undefined)],
+    ['INT-worthy %', 0.08, c => (c.ch?.att > 50 ? c.ch.intWorthy / c.ch.att : undefined), true],
+    ['Catchable %', 0.08, c => (c.ch?.aimed > 50 ? c.ch.catchable / c.ch.aimed : undefined)],
+    ['Own-fault sacks', 0.04, c => (c.ch?.att > 50 ? c.ch.faultSack / (c.ch.att + c.ch.sacks) : undefined), true],
   ],
   RB: [
     ['RYOE/att', 0.22, c => (c.ngsR ? num(c.ngsR.rush_yards_over_expected_per_att) : undefined)],
@@ -205,6 +215,19 @@ const M = {
     ['Drop %', 0.07, c => (c.rec ? num(c.rec.drop_percent) : undefined), true],
     ['Air yds share', 0.05, c => (has(c.s.air_yards_share) ? num(c.s.air_yards_share) : undefined)],
     ['Broken tkl/rec', 0.05, c => (c.rec ? per(num(c.rec.brk_tkl), num(c.rec.rec)) : undefined)],
+    ['Catchable drop %', 0.06, c => (c.ch?.catchableTgt > 15 ? c.ch.drops / c.ch.catchableTgt : undefined), true],
+    ['Contested catch %', 0.06, c => (c.ch?.contested > 6 ? c.ch.contestedRec / c.ch.contested : undefined)],
+    ['Created rec/tgt', 0.04, c => (c.ch?.tgt > 15 ? c.ch.created / c.ch.tgt : undefined)],
+  ],
+  // Linemen have no individual box score: they share their unit's results
+  // (sacks the charting does not pin on the QB, hits, run EPA, stuffs),
+  // plus their own penalty rate.
+  OT: [
+    ['Unit sack %', 0.3, c => (c.unit?.dropbacks > 150 ? c.unit.olSacks / c.unit.dropbacks : undefined), true],
+    ['Unit QB hit %', 0.2, c => (c.unit?.dropbacks > 150 ? c.unit.hits / c.unit.dropbacks : undefined), true],
+    ['Unit run EPA', 0.25, c => (c.unit?.rushes > 100 ? c.unit.rushEpa / c.unit.rushes : undefined)],
+    ['Unit stuff %', 0.1, c => (c.unit?.rushes > 100 ? c.unit.stuffs / c.unit.rushes : undefined), true],
+    ['Penalties/100', 0.15, c => (c.snaps > 150 ? per(num(c.s.penalties), c.snaps, 100) : undefined), true],
   ],
   EDGE: [
     ['Pressures/100', 0.34, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined)],
@@ -252,22 +275,24 @@ const M = {
     ['Touchback %', 0.15, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_touchback), num(c.s.pt_att)) : undefined), true],
   ],
 };
-M.FB = M.RB; M.TE = M.WR; M.DT = M.EDGE;
+M.FB = M.RB; M.TE = M.WR; M.DT = M.EDGE; M.G = M.OT; M.C = M.OT;
 // [volume, volume for full weight, minimum to be scored at all]
 const VOLUME = {
   QB: c => [c.plays, 250, 60], RB: c => [num(c.s.carries) + num(c.s.targets), 120, 25], FB: c => [c.snaps, 250, 60],
   WR: c => [num(c.s.targets), 60, 15], TE: c => [num(c.s.targets), 45, 12],
   EDGE: c => [c.snaps, 350, 100], DT: c => [c.snaps, 350, 100], LB: c => [c.snaps, 350, 100], CB: c => [c.snaps, 350, 100], S: c => [c.snaps, 350, 100],
   K: c => [num(c.s.fg_att), 20, 8], P: c => [num(c.s.pt_att), 40, 15],
+  OT: c => [c.snaps, 800, 200], G: c => [c.snaps, 800, 200], C: c => [c.snaps, 800, 200],
 };
 
 function seasonCtx(row, year) {
-  const s = stats[year](row);
-  if (!s) return null;
   const sn = snaps[year](row);
+  const s = stats[year](row) ?? (sn ? {} : null);
+  if (!s) return null;
   const y = String(year);
+  const team = sn?.team ?? s.recent_team;
   return {
-    s, snaps: sn?.tot ?? 0, plays: num(s.attempts) + num(s.sacks_suffered) + num(s.carries),
+    s, snaps: sn?.tot ?? 0, ch: charting[year].players.get(row.gsis_id), unit: team && charting[year].teams.get(team), plays: num(s.attempts) + num(s.sacks_suffered) + num(s.carries),
     def: advDef(row, y), pass: advPass(row, y), rush: advRush(row, y), rec: advRec(row, y),
     ngsP: ngsPass(row, y), ngsC: ngsRec(row, y), ngsR: ngsRush(row, y),
   };
@@ -344,28 +369,12 @@ for (const [pos, list] of Object.entries(byPos)) {
 // ---- blend into a talent score and place on the curve --------------------------------------
 const W = { // market, production, role
   QB: [0.25, 0.6, 0.15], RB: [0.2, 0.55, 0.25], FB: [0.3, 0.15, 0.55], WR: [0.3, 0.5, 0.2], TE: [0.3, 0.38, 0.32],
-  OT: [0.45, 0, 0.55], G: [0.45, 0, 0.55], C: [0.45, 0, 0.55],
+  OT: [0.38, 0.27, 0.35], G: [0.38, 0.27, 0.35], C: [0.38, 0.27, 0.35],
   EDGE: [0.3, 0.48, 0.22], DT: [0.35, 0.4, 0.25], LB: [0.3, 0.4, 0.3], CB: [0.35, 0.37, 0.28], S: [0.3, 0.4, 0.3],
-  K: [0.2, 0.7, 0.1], P: [0.2, 0.7, 0.1], LS: [0.4, 0, 0.6],
+  K: [0.12, 0.83, 0.05], P: [0.12, 0.83, 0.05], LS: [0.4, 0, 0.6],
 };
-// [top, number of 90+, starters]: rank 0 = top, last 90+ = 90, half the starters ~80,
-// last starter ~72, twice that ~63, deepest reserve 45.
-const CURVE = {
-  QB: [98, 6, 32], RB: [95, 4, 32], FB: [86, 0, 12], WR: [98, 10, 96], TE: [95, 4, 40],
-  OT: [96, 8, 64], G: [94, 5, 64], C: [93, 3, 32], EDGE: [98, 10, 64], DT: [97, 7, 64],
-  LB: [93, 5, 64], CB: [96, 8, 96], S: [94, 6, 64], K: [85, 0, 32], P: [84, 0, 32], LS: [72, 0, 32],
-};
-function curve(pos, rank, n) {
-  const [top, n90, st] = CURVE[pos];
-  const pts = [[0, top]];
-  if (n90 > 1) pts.push([n90 - 1, 90]);
-  pts.push([Math.max(n90, st / 2), n90 ? 80 : top - 8], [st, n90 ? 72 : top - 15], [Math.min(n - 2, st * 2), n90 ? 63 : top - 25], [Math.max(n - 1, st * 2 + 1), 45]);
-  for (let i = 1; i < pts.length; i++) {
-    const [r0, v0] = pts[i - 1], [r1, v1] = pts[i];
-    if (rank <= r1) return v0 + (v1 - v0) * ((rank - r0) / Math.max(1, r1 - r0));
-  }
-  return 45;
-}
+// Highest rating each position can reach.
+const CEILING = { QB: 99, RB: 97, FB: 88, WR: 99, TE: 97, OT: 97, G: 96, C: 95, EDGE: 99, DT: 98, LB: 96, CB: 98, S: 96, K: 85, P: 85, LS: 75 };
 function pctRank(vals) {
   vals = [...vals].sort((a, b) => a - b);
   return v => {
@@ -410,18 +419,20 @@ for (const [pos, list] of Object.entries(byPos)) {
     p._score = score;
   }
   list.sort((a, b) => b._score - a._score);
-  // Rank on the curve, nudged up to 3 points by the margin over the field.
-  const [top, n90, st] = CURVE[pos];
-  const sTop = list[0]._score, sSt = list[Math.min(list.length - 1, st)]._score;
-  const lastStarter = curve(pos, st, list.length);
-  list.forEach((p, r) => {
-    const byRank = curve(pos, r, list.length);
-    const byMargin = lastStarter + (top - lastStarter) * (p._score - sSt) / Math.max(1e-6, sTop - sSt);
-    let ovr = Math.min(top, byRank + Math.max(-3, Math.min(3, (byMargin - byRank) * 0.5)));
-    if (r >= n90) ovr = Math.min(ovr, 89.4); // the 90+ club stays exclusive
+  // Driven by the data, not by rank: the best score at the position maps to its
+  // ceiling and the median rostered player to a backup's 60 (70 for K/P/LS, where
+  // the median player is a starter). Above the median the scale is convex, the
+  // same for every position, so the last points toward 99 are the hardest to earn.
+  const top = CEILING[pos];
+  if (process.env.Q) { const q = f => list[Math.floor(list.length * f)]._score.toFixed(3); console.log(pos.padEnd(5), 'top', list[0]._score.toFixed(3), '#5', list[4]._score.toFixed(3), '#32', list[31]?._score.toFixed(3), 'p50', q(0.5), 'p95', q(0.95)); }
+  const sTop = list[0]._score, sMid = list[Math.floor(list.length * 0.5)]._score;
+  for (const p of list) {
+    const mid = ['K', 'P', 'LS'].includes(pos) ? 70 : 60;
+    const x = (p._score - sMid) / Math.max(1e-6, sTop - sMid);
+    let ovr = mid + (top - mid) * (x > 0 ? Math.pow(x, 1.4) : x);
     if (p.exp === 0) ovr = Math.min(ovr, 76 + 8 * p._snap26); // rookies earn their way up
-    p.ovr = Math.round(Math.max(40, ovr));
-  });
+    p.ovr = Math.round(Math.max(40, Math.min(top, ovr)));
+  }
 }
 
 const debug = new Set((process.env.DEBUG ?? '').split(','));
@@ -432,7 +443,7 @@ for (const p of players) {
 mkdirSync('src/data', { recursive: true });
 writeFileSync('src/data/league.json', JSON.stringify({ season: SEASON, teams, schedule, players }));
 
-for (const pos of Object.keys(CURVE)) console.log(pos.padEnd(5), byPos[pos].slice(0, 10).map(p => `${p.fn} ${p.ln} ${p.ovr}`).join(', '));
+for (const pos of Object.keys(CEILING)) console.log(pos.padEnd(5), byPos[pos].slice(0, 10).map(p => `${p.fn} ${p.ln} ${p.ovr}`).join(', '));
 console.log('QB 11-24 ', byPos.QB.slice(10, 24).map(p => `${p.ln} ${p.ovr}`).join(', '));
 console.log('WR 11-36 ', byPos.WR.slice(10, 36).map(p => `${p.ln} ${p.ovr}`).join(', '));
 console.log(`90+: ${players.filter(p => p.ovr >= 90).length}  80-89: ${players.filter(p => p.ovr >= 80 && p.ovr < 90).length}  ${teams.length} teams, ${players.length} players, ${schedule.length} games`);
