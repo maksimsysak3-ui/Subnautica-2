@@ -392,13 +392,33 @@ export class GameSim {
     if (side.zoneOn.delete(p.id)) this.push({ type: 'timeout', text: `${p.ln} has been knocked out of the zone.`, yards: 0, endYl: this.yl });
   }
 
+  /** Injury frequency setting: Low / Normal / Realistic (NFL rates). */
+  private get injuryMult() { return { Low: 0.45, Normal: 0.85, Realistic: 1.7 }[this.league.injuryLevel ?? 'Normal']; }
+  /** A small extra risk for whoever takes the contact on this play. */
   private maybeInjure(side: Side, p: Player | undefined, risk = 1) {
     if (!p || side.out.has(p.id)) return;
-    // Calibrated to the NFL: about six injuries reported per game, a third of them back
-    // in the same game, two to three per game costing playing time.
-    const base = 0.036 * risk * (1 + (70 - p.attrs.INJ) / 55) * (1 + (100 - p.cond) / 110) * (1 + p.traits.prone / 200);
-    if (!this.rng.chance(base)) return;
-    const weeks = this.rng.weighted([[-1, 0.36], [0, 0.17], [1, 0.16], [2, 0.1], [3, 0.06], [4, 0.05], [6, 0.04], [9, 0.03], [99, 0.03]] as const);
+    const base = 0.0045 * risk * this.injuryMult * (1 + (70 - p.attrs.INJ) / 55) * (1 + (100 - p.cond) / 110) * (1 + p.traits.prone / 200);
+    if (this.rng.chance(base)) this.injure(side, p);
+  }
+  /**
+   * The main source: any of the 22 starters can go down on a contact snap, not just
+   * the ball carrier, so stars are not singled out. Injury-prone and worn-down players
+   * are likelier victims.
+   */
+  private snapInjury() {
+    if (!this.rng.chance(0.03 * this.injuryMult)) return;
+    const side = this.rng.pick(this.sides);
+    const slots: [Pos, number][] = [['QB', 1], ['RB', 1], ['WR', 3], ['TE', 1], ['OT', 2], ['G', 2], ['C', 1], ['EDGE', 2], ['DT', 2], ['LB', 2], ['CB', 3], ['S', 2]];
+    const pool = slots.flatMap(([pos, n]) => this.avail(side, pos, n));
+    if (!pool.length) return;
+    const p = this.rng.weighted(pool.map(q => [q, (1 + (70 - q.attrs.INJ) / 55) * (1 + (100 - q.cond) / 110) * (1 + q.traits.prone / 200)] as const));
+    this.injure(side, p);
+  }
+  private injure(side: Side, p: Player) {
+    if (side.out.has(p.id)) return;
+    // Most knocks are minor: shaken up, or out for the game. Multi-week and
+    // season-ending injuries are the exception.
+    const weeks = this.rng.weighted([[-1, 0.4], [0, 0.18], [1, 0.17], [2, 0.1], [3, 0.05], [4, 0.04], [6, 0.03], [9, 0.015], [99, 0.015]] as const);
     if (weeks < 0) {
       // Shaken up: misses a few snaps, back after the trainers take a look.
       this.push({ type: 'timeout', text: `${p.pos} ${p.fn} ${p.ln} is shaken up and heads to the sideline to be evaluated.`, yards: 0, endYl: this.yl, ids: { ball: p.id } });
@@ -656,7 +676,7 @@ export class GameSim {
     if (gain >= 15) { this.zonePoint(off, qb, 1); this.zonePoint(off, recv, 1); }
     const tackler = gain >= 100 - this.yl ? undefined : (cov && this.rng.chance(0.62) ? cov : this.rng.pick([...d.ss, ...d.lbs, ...d.cbs].filter(Boolean)));
     if (tackler) { this.L(tackler).tkl++; this.hit(recv); }
-    this.maybeInjure(off, recv, 1); this.maybeInjure(def, tackler, 0.6);
+    this.maybeInjure(off, recv, 1); this.maybeInjure(def, tackler, 0.6); this.snapInjury();
     // Fumble after the catch.
     const fum = this.rng.chance(0.006 - (this.r(off, recv, 'CAR') - 70) * 0.00008 + (tackler && this.has(tackler, 'Strip Specialist') ? 0.006 : 0));
     const res = fum ? { td: false, first: false, safety: false } : this.advance(gain);
@@ -696,7 +716,7 @@ export class GameSim {
     this.box[1 - this.poss].sacks++;
     this.box[this.poss].yds -= loss; this.box[this.poss].pyds -= loss;
     this.zonePoint(def, sacker, 1.5); this.knockout(off, o.qb);
-    this.hit(o.qb, 2); this.maybeInjure(off, o.qb, 1.4);
+    this.hit(o.qb, 2); this.maybeInjure(off, o.qb, 1.4); this.snapInjury();
     const strip = this.rng.chance(0.1 + (this.has(sacker, 'Strip Specialist') ? 0.08 : 0));
     this.lastClockRunning = true;
     this.runoff(6);
@@ -744,7 +764,7 @@ export class GameSim {
     const adv = (blockV - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
     const outside = oc.run === 'outside';
     const vision = (this.r(off, carrier, 'BCV') - 75) / 30;
-    let line = outside ? this.rng.normal(2.65 + adv * 0.65 + (this.r(off, carrier, 'SPD') - 86) / 22, 3.1) : this.rng.normal(2.95 + adv * 0.9, 2.3);
+    let line = outside ? this.rng.normal(2.4 + adv * 0.65 + (this.r(off, carrier, 'SPD') - 86) / 22, 3.1) : this.rng.normal(2.7 + adv * 0.9, 2.3);
     if (oc.run === 'qb') line += (this.r(off, carrier, 'SPD') - 80) / 12;
     line += vision * 0.6;
     let y: number;
@@ -771,8 +791,7 @@ export class GameSim {
     const tackler = this.rng.weighted(tacklers.map(p => [p, (p.pos === 'LB' ? 3 : p.pos === 'S' ? 1.6 : p.pos === 'CB' ? (y > 8 ? 2 : 0.8) : 1.4) * (p.attrs.PUR / 70)] as const));
     if (this.yl + y < 100) { const tl = this.L(tackler); tl.tkl++; if (y < 0) { tl.tfl++; this.zonePoint(def, tackler, 1); } }
     if (y >= 12) { this.zonePoint(off, carrier, 1); for (const p of o.ol) if (this.rng.chance(0.3)) this.L(p).pancake++; }
-    this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5);
-    if (this.rng.chance(1 / 45)) this.maybeInjure(off, this.rng.pick(o.ol), 1);
+    this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5); this.snapInjury();
     const fumbleP = clamp(0.0088 - (this.r(off, carrier, 'CAR') - 70) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
     const fum = y > -3 && this.rng.chance(fumbleP);
     const res = fum ? { td: false, first: false, safety: false } : this.advance(y);

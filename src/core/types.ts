@@ -183,6 +183,8 @@ export interface League {
   fired?: boolean;
   records: Record<string, { v: number; pid: string; season: number }>;
   difficulty: 'Rookie' | 'Pro' | 'All-Madden';
+  /** Injury frequency slider (default Normal). */
+  injuryLevel?: 'Low' | 'Normal' | 'Realistic';
   tradeDeadlineWeek: number;
   /** Mean OVR of each position's starters at league creation; the scale is held to it. */
   baseline?: Partial<Record<Pos, number[]>>;

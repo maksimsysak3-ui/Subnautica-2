@@ -40,6 +40,17 @@ export function injuryReport(L: League, team: string): ReportRow[] {
   return rows.sort((a, b) => Number(b.starter) - Number(a.starter) || order[a.status] - order[b.status] || b.p.ovr - a.p.ovr);
 }
 
+const LEVEL_MULT = { Low: 0.45, Normal: 0.85, Realistic: 1.7 } as const;
+const LEVEL_TIP = { Low: 'About a third of the NFL rate', Normal: 'Somewhat below the NFL rate (default)', Realistic: 'NFL injury rates' } as const;
+/** Change the injury slider; lowering it also shortens injuries already on the books. */
+function setLevel(L: League, level: 'Low' | 'Normal' | 'Realistic') {
+  const ratio = LEVEL_MULT[level] / LEVEL_MULT[L.injuryLevel ?? 'Normal'];
+  L.injuryLevel = level;
+  if (ratio < 1) for (const p of Object.values(L.players)) if (p.injury && !p.injury.season) p.injury.weeks = Math.max(1, Math.round(p.injury.weeks * ratio));
+  app.touch();
+  app.toast(`Injury frequency: ${level}${ratio < 1 ? ' · current injuries shortened' : ''}`);
+}
+
 export function InjuryScreen() {
   const L = useApp().league!;
   const [view, setView] = useState<'week' | 'league'>('week');
@@ -58,6 +69,9 @@ export function InjuryScreen() {
     <div className="grid">
       <div className="row"><div className="page-title" style={{ margin: 0 }}>Injury Report</div>
         <span className="small dim">{L.phase === 'regular' || L.phase === 'playoffs' ? `Week ${L.week}` : L.season}</span><div className="spacer" />
+        <span className="small dim" style={{ marginRight: 2 }}>Injuries</span>
+        {(['Low', 'Normal', 'Realistic'] as const).map(l => <span key={l} className={`chip${(L.injuryLevel ?? 'Normal') === l ? ' on' : ''}`} title={LEVEL_TIP[l]} onClick={() => setLevel(L, l)}>{l}</span>)}
+        <span style={{ width: 14 }} />
         <span className={`chip${view === 'week' ? ' on' : ''}`} onClick={() => setView('week')}>This Week</span>
         <span className={`chip${view === 'league' ? ' on' : ''}`} onClick={() => setView('league')}>League</span></div>
       <div className="ir-sum">
