@@ -72,6 +72,13 @@ export function playerFromRaw(r: RawP, season: number, rng: Rng): Player {
     combine: r.forty ? { forty: r.forty, bench: r.bench ?? 0, vert: r.vert ?? 0, broad: r.broad ?? 0, cone: r.cone ?? 0, shuttle: r.shuttle ?? 0 } : undefined,
   };
   p.contract = initialContract(r, p, season);
+  // The roster data is an end-of-2025 snapshot: most players on injured reserve then
+  // have healed over the offseason. Some carry the injury into the new season.
+  if (p.status === 'IR') {
+    const h = hash(p.id + 'ir') % 100;
+    if (h < 15) p.injury = { type: 'Recovering from 2025 injury', weeks: 2 + (h % 7) };
+    else p.status = 'ACT';
+  }
   return p;
 }
 
@@ -159,7 +166,18 @@ export function rosterOf(league: League, team: string, includeInactive = false):
   return Object.values(league.players).filter(p => p.team === team && (includeInactive ? p.status !== 'RET' : p.status === 'ACT'));
 }
 /** Best available player first at every position; injured players go to the bottom. */
+/** Healthy players sitting on injured reserve come back to the active roster. Returns who was activated. */
+export function activateHealthy(league: League, team?: string) {
+  const back: Player[] = [];
+  for (const p of Object.values(league.players)) if (p.status === 'IR' && !p.injury && (!team || p.team === team)) { p.status = 'ACT'; back.push(p); }
+  return back;
+}
 export function autoDepth(league: League, team: string) {
+  if (activateHealthy(league, team).length && team !== league.user && (league.phase === 'regular' || league.phase === 'playoffs')) {
+    // AI teams make room for players back from IR by waiving their lowest-rated depth.
+    const act = Object.values(league.players).filter(p => p.team === team && p.status === 'ACT').sort((a, b) => a.ovr - b.ovr);
+    for (const p of act.slice(0, Math.max(0, act.length - 53))) { p.team = 'FA'; p.status = 'FA'; p.contract = { years: [] }; }
+  }
   const t = league.teams[team];
   const roster = rosterOf(league, team);
   const depth: Team['depth'] = {};

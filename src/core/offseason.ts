@@ -5,7 +5,7 @@
 import type { Game, League, Player, Pos } from './types';
 import { Rng, clamp, hash } from './rng';
 import { OVR_W, overall, archetype, assignAbilities } from './ratings';
-import { autoDepth, emptyLine, makeCoach, rosterOf } from './league';
+import { autoDepth, activateHealthy, emptyLine, makeCoach, rosterOf } from './league';
 import { capFor, capHit, capSpace, deadMoney, franchiseTag, makeContract, marketTerms, minSalary, releaseSavings, restructure, voidedProration, yearsLeft } from './contracts';
 import { playerTradeValue, aiOffseasonTrades } from './trade';
 import { freeAgents } from './freeagency';
@@ -44,6 +44,7 @@ export function startOffseason(league: League) {
   league.scoutPoints += 300;
   if (!Object.values(league.players).some(p => p.status === 'PROSPECT' && p.draft.year === league.season)) for (const p of generateClass(league, league.season)) league.players[p.id] = p;
   for (const p of Object.values(league.players)) { p.cond = 100; if (p.injury && !p.injury.season) p.injury = undefined; else if (p.injury) p.injury.weeks = Math.max(0, p.injury.weeks - 20); if (p.injury && p.injury.weeks <= 0) p.injury = undefined; }
+  activateHealthy(league); // healed over the offseason: off injured reserve
   for (const t of Object.keys(league.teams)) if (t !== league.user) aiCapManagement(league, t, 12_000_000);
   aiResign(league, rng);
   const expiring = expiringFor(league, league.user);

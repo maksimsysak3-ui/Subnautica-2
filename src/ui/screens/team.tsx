@@ -140,7 +140,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
               {mine && !prospect && <>
                 <button className="btn sm" onClick={() => setModal('extend')}>Extend</button>
                 <button className="btn sm" onClick={() => { const saved = restructure(p, L.season); app.toast(saved > 0 ? `Restructured: ${money(saved)} cap space freed this year` : 'Nothing to restructure'); app.touch(); }}>Restructure</button>
-                <button className="btn sm" onClick={() => { p.status = p.status === 'IR' ? 'ACT' : 'IR'; autoDepth(L, L.user); app.touch(); }}>{p.status === 'IR' ? 'Activate from IR' : 'Move to IR'}</button>
+                {(p.status === 'IR' || p.injury) && <button className="btn sm" disabled={p.status === 'IR' && !!p.injury} title={p.status === 'IR' && p.injury ? `Out ${p.injury.weeks} more week(s)` : undefined} onClick={() => { p.status = p.status === 'IR' ? 'ACT' : 'IR'; autoDepth(L, L.user); app.touch(); }}>{p.status === 'IR' ? 'Activate from IR' : 'Move to IR'}</button>}
                 {p.exp <= 3 && <button className="btn sm" onClick={() => { p.status = p.status === 'PS' ? 'ACT' : 'PS'; autoDepth(L, L.user); app.touch(); }}>{p.status === 'PS' ? 'Promote to Active' : 'Practice Squad'}</button>}
                 <button className="btn sm danger" onClick={() => setModal('release')}>Release</button>
               </>}

@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app } from '../store';
 import { Face, Logo } from '../components';
 import type { League, Player, Pos } from '../../core/types';
-import { autoDepth, teamRatings } from '../../core/league';
+import { autoDepth, activateHealthy, teamRatings } from '../../core/league';
 import { overall, POS_NAME } from '../../core/ratings';
 import { schemeFit } from '../../core/offseason';
 
@@ -84,7 +84,7 @@ export function DepthScreen() {
   const starters = slots.filter(s => !s.auto).map(playerAt).filter(Boolean);
   const fits = starters.filter(p => schemeFit(L, p, L.user)).length;
   const scheme = unit === 'Defense' ? t.coach.def : t.coach.off;
-  const generate = () => { autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast('Best lineup set'); };
+  const generate = () => { const back = activateHealthy(L, L.user); autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast(back.length ? `Best lineup set · activated ${back.map(p => p.ln).join(', ')} from IR` : 'Best lineup set'); };
   // Size the cards to the board: widest formation is 6.3 card-widths either side of the ball.
   const rows = Math.max(...slots.map(s => s.r)) + 1;
   const pad = 26;

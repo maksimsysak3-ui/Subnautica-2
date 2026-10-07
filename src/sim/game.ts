@@ -944,7 +944,7 @@ export class GameSim {
   private fgProb(dist: number, k: Player | undefined, side: Side) {
     const kpw = this.r(side, k, 'KPW'), kac = this.r(side, k, 'KAC');
     const reach = 1 + (kpw - 77) / 120;
-    let x = 4.45 - Math.max(0, dist - 22) * 0.134 / reach + (kac - 77) * 0.035;
+    let x = 4.3 - Math.max(0, dist - 22) * 0.134 / reach + (kac - 77) * 0.035;
     if (this.weather.wind > 15) x -= 0.5;
     if (this.weather.precip === 'snow') x -= 0.4;
     const clutch = this.q >= 4 && this.clock < 120 && Math.abs(this.diff()) <= 3;
@@ -993,7 +993,7 @@ export class GameSim {
       else ev = this.push({ type: 'two', text: `Two-point attempt fails.`, yards: 0, endYl: 100 });
     } else {
       const l = this.L(k); l.xpa++;
-      if (this.rng.chance(clamp(this.fgProb(33, k, side) + 0.012, 0, 0.995))) { l.xpm++; this.score[this.poss] += 1; this.addQ(this.poss, 1); ev = this.push({ type: 'xp', text: `${pn(k)} extra point is good.`, yards: 0, endYl: 100, ids: { kicker: k?.id } }); }
+      if (this.rng.chance(clamp(this.fgProb(33, k, side) + 0.03, 0, 0.995))) { l.xpm++; this.score[this.poss] += 1; this.addQ(this.poss, 1); ev = this.push({ type: 'xp', text: `${pn(k)} extra point is good.`, yards: 0, endYl: 100, ids: { kicker: k?.id } }); }
       else ev = this.push({ type: 'xp', text: `${pn(k)} extra point is NO GOOD!`, yards: 0, endYl: 100, ids: { kicker: k?.id } });
     }
     this.poss = (1 - this.poss) as 0 | 1;
