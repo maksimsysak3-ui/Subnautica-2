@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app, saveLeague } from '../store';
 import { Logo, Face, Tabs, CountUp } from '../components';
 import { FieldView } from '../field';
+import { BottomLine, leagueCrawl } from '../ticker';
 import { PlayDiagram } from '../playart';
 import { PlayDesigner, registerPlays, callFor } from '../playdesigner';
 import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
@@ -92,7 +93,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const ev = last;
   const posTeam = sim.poss === 1 ? home : away;
   return (
-    <div style={{ padding: '16px 20px 40px', maxWidth: 1500, margin: '0 auto' }}>
+    <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
       <Scorebug L={L} sim={sim} />
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
@@ -150,6 +151,7 @@ export function GameScreen({ gid }: { gid: string }) {
           <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} /></div>
         </div>
       </div>
+      <BottomLine tag="BottomLine" items={leagueCrawl(L, { away: away.abbr, home: home.abbr, as: sim.score[0], hs: sim.score[1], status: sim.over ? 'Final' : sim.q > 4 ? `OT ${clock(sim.clock)}` : `Q${sim.q} ${clock(sim.clock)}` })} />
     </div>
   );
 }

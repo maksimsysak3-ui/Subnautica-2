@@ -375,10 +375,9 @@ function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Te
     pos.forEach(([x, y], i) => { if (sc.actors[i].team !== sc.actors[carrier].team) { const d = Math.hypot(x - pos[carrier][0], y - pos[carrier][1]); if (d < best) { best = d; tackler = i; } } });
     if (tackler >= 0) pos[tackler] = [lerpN(pos[tackler][0], pos[carrier][0] - Math.sign(pos[carrier][0] - pos[tackler][0] || 1) * 0.9, down), lerpN(pos[tackler][1], pos[carrier][1] + 0.4, down)];
   }
-  for (const [x, y] of pos) { ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.beginPath(); ctx.ellipse(X(x) + 6, Y(y) + 7, 15, 7, 0, 0, Math.PI * 2); ctx.fill(); }
   if (carrier >= 0 && t > 0.02) {
     // Broadcast highlight ring under the ball carrier.
-    ctx.strokeStyle = 'rgba(255,214,10,.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(X(pos[carrier][0]), Y(pos[carrier][1]) + 6, 19, 9, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,214,10,.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(X(pos[carrier][0]), Y(pos[carrier][1]) + 2, 15.5, 0, Math.PI * 2); ctx.stroke();
   }
   // Draw back to front so near players overlap far ones.
   const order = sc.actors.map((_, i) => i).sort((i, j) => pos[i][1] - pos[j][1]);
@@ -398,7 +397,7 @@ function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Te
   }
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(X(bx), Y(by), 7 - Math.min(4, h * 0.1), 3.5 - Math.min(2, h * 0.05), 0, 0, Math.PI * 2); ctx.fill();
   if (carrier >= 0 && h < 3) return; // tucked away by the carrier
-  ctx.save(); ctx.translate(X(bx), Y(by) - h * 6 - 22); ctx.rotate(sc.dirSign > 0 ? -0.3 + t * 6 : 0.3 - t * 6);
+  ctx.save(); ctx.translate(X(bx), Y(by) - h * 6 - 6); ctx.rotate(sc.dirSign > 0 ? -0.3 + t * 6 : 0.3 - t * 6);
   const g = ctx.createLinearGradient(0, -6, 0, 6); g.addColorStop(0, '#a5592a'); g.addColorStop(1, '#5c2a0c');
   ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 10 + h * 0.15, 6, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-3.5, -0.5); ctx.lineTo(3.5, -0.5); ctx.stroke();
@@ -436,39 +435,40 @@ function drawArt(ctx: CanvasRenderingContext2D, sc: Scene, art: Art[], def: bool
 }
 
 /**
- * A player from the broadcast camera: legs that stride with his speed, jersey over
- * pads leaning into the run, helmet with facemask and stripe. `fall` tips him over
- * for the tackle.
+ * A player as a glossy 3D disc in team colours with his number on top, the way
+ * Next Gen Stats draws the field: a darker edge gives it thickness, a highlight
+ * gives it a domed top, the trim colour rings it, and a notch shows which way he
+ * faces. A tackled player's disc tips over (squashes and darkens).
  */
-function drawPlayer(ctx: CanvasRenderingContext2D, px: number, py: number, t: Team, num: number, facing: number, stride = 0, lean = 0, fall = 0) {
-  const body = t.colors[0], trim = t.colors[1] === t.colors[0] || t.colors[1] === '#000000' && luminance(body) < 50 ? '#e9e9e9' : t.colors[1];
+function drawPlayer(ctx: CanvasRenderingContext2D, px: number, py: number, t: Team, num: number, facing: number, _stride = 0, _lean = 0, fall = 0) {
+  const body = t.colors[0];
+  const lumB = luminance(body);
+  const trim = t.colors[1] && t.colors[1] !== body && Math.abs(luminance(t.colors[1]) - lumB) > 40 ? t.colors[1] : lumB < 90 ? '#e9e9e9' : '#111111';
+  const R = 10.2, H = 4 * (1 - fall * 0.6);   // radius and edge thickness in px
   ctx.save();
-  ctx.translate(px, py + 6);
-  if (fall) ctx.rotate(facing * fall * 1.35);
-  ctx.translate(-px, -(py + 6));
-  // Legs / pants: alternate with the stride.
-  const l1 = stride * 4, l2 = -stride * 4;
-  ctx.fillStyle = luminance(body) < 60 ? '#d8d8d8' : shade(body, -0.25);
-  ctx.fillRect(px - 8 + l1, py - 6, 6, 12 - Math.abs(l1) * 0.4); ctx.fillRect(px + 2 + l2, py - 6, 6, 12 - Math.abs(l2) * 0.4);
-  ctx.fillStyle = '#111'; ctx.fillRect(px - 8 + l1 * 1.3, py + 5 - Math.abs(l1) * 0.4, 6, 3); ctx.fillRect(px + 2 + l2 * 1.3, py + 5 - Math.abs(l2) * 0.4, 6, 3);
-  // Torso leans toward where he is running.
-  const lx = facing * lean * 4;
-  ctx.fillStyle = body; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(px - 15 + lx, py - 22); ctx.lineTo(px + 15 + lx, py - 22); ctx.lineTo(px + 11, py - 2); ctx.lineTo(px - 11, py - 2); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // Arms pump opposite the legs.
-  ctx.fillStyle = shade(body, -0.12);
-  ctx.fillRect(px - 17 + lx - l1 * 0.6, py - 20, 4, 11); ctx.fillRect(px + 13 + lx - l2 * 0.6, py - 20, 4, 11);
-  ctx.fillStyle = trim; ctx.fillRect(px - 15 + lx, py - 18, 4, 3); ctx.fillRect(px + 11 + lx, py - 18, 4, 3);
-  ctx.fillStyle = trim; ctx.font = '800 13px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(String(num), px + lx * 0.7, py - 11);
-  // Helmet with a specular highlight.
-  const hx = px + facing * 2 + lx * 1.3, hy = py - 29;
-  const hg = ctx.createRadialGradient(hx - 3, hy - 4, 1, hx, hy, 10);
-  hg.addColorStop(0, shade(body, 0.45)); hg.addColorStop(1, shade(body, -0.05));
-  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = trim; ctx.fillRect(hx - 1.5, hy - 9, 3, 18);
-  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx + facing * 5, hy - 4); ctx.lineTo(hx + facing * 10, hy - 4); ctx.moveTo(hx + facing * 5, hy + 2); ctx.lineTo(hx + facing * 10, hy + 2); ctx.stroke();
+  ctx.translate(px, py);
+  ctx.scale(1, 1 - fall * 0.35);
+  // Contact shadow.
+  ctx.fillStyle = 'rgba(0,0,0,.42)';
+  ctx.beginPath(); ctx.ellipse(3, H + 3, R + 1.5, R * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+  // Edge (thickness), then the domed top.
+  ctx.fillStyle = shade(body, -0.45);
+  ctx.beginPath(); ctx.arc(0, H, R, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(-R, 0, R * 2, H);
+  const g = ctx.createRadialGradient(-R * 0.35, -R * 0.45, R * 0.1, 0, 0, R * 1.05);
+  g.addColorStop(0, shade(body, 0.42)); g.addColorStop(0.55, shade(body, fall ? -0.2 : 0)); g.addColorStop(1, shade(body, -0.28));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+  // Trim ring and the facing notch.
+  ctx.lineWidth = 2.6; ctx.strokeStyle = trim;
+  ctx.beginPath(); ctx.arc(0, 0, R - 1.3, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = trim;
+  ctx.beginPath(); ctx.moveTo(facing * (R + 4.5), 0); ctx.lineTo(facing * (R - 1), -4.2); ctx.lineTo(facing * (R - 1), 4.2); ctx.closePath(); ctx.fill();
+  // Number.
+  ctx.fillStyle = lumB > 170 ? '#111' : '#fff';
+  ctx.font = '800 12.5px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 2;
+  ctx.fillText(String(num), 0, 0.5);
   ctx.restore();
 }
 function luminance(hex: string) { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); }

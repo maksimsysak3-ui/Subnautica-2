@@ -2,8 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { app, saveLeague, useApp, type Screen } from './store';
 import { Logo, useTeamTheme, CountUp } from './components';
 import { capSpace, money } from '../core/contracts';
+import { teamRatings } from '../core/league';
 import { standings, userGame, weekGames, advance, ROUND_NAME } from '../core/season';
-import { MainMenu, NewFranchise, LoadScreen } from './screens/menu';
+import { NewFranchise, LoadScreen } from './screens/menu';
+import { MainMenu } from './screens/title';
+import { BottomLine, leagueCrawl } from './ticker';
 import { Hub } from './screens/hub';
 import { RosterScreen, PlayerScreen, TeamScreen } from './screens/team';
 import { DepthScreen } from './screens/lineup';
@@ -12,6 +15,7 @@ import { FreeAgencyScreen, ResignScreen, CapScreen, CoachScreen, PlanScreen } fr
 import { TradeScreen, TradeBlock, TradeFinder, TradeOffers, TradeHistory, PickChart } from './screens/trades';
 import { TeamStatsScreen, LeagueTeamStats, PowerRankings, ProgressionScreen } from './screens/teamstats';
 import { DraftScreen } from './screens/draft';
+import { AwardsScreen } from './screens/awards';
 import { GameScreen } from './screens/game';
 
 type Id = Screen['id'];
@@ -21,8 +25,10 @@ export const TABS: { label: string; subs: [Id, string][] }[] = [
   { label: 'My Team', subs: [['roster', 'Roster'], ['depth', 'Lineup'], ['teamstats', 'Team Stats'], ['progress', 'Progression'], ['coach', 'Coach Abilities'], ['resign', 'Re-sign'], ['cap', 'Salary Cap']] },
   { label: 'Trades', subs: [['trade', 'Trade Builder'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['tradehist', 'Trade History'], ['chart', 'Pick Value Chart']] },
   { label: 'Personnel', subs: [['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
-  { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['history', 'History & Awards']] },
+  { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['history', 'History']] },
 ];
+/** Screens that take the whole width: the side rail becomes a strip of tabs above them. */
+const FULL = new Set<Id>(['depth', 'trade']);
 const tabOf = (id: Id) => TABS.findIndex(t => t.subs.some(([s]) => s === id));
 
 export function App() {
@@ -47,10 +53,11 @@ export function App() {
   return (
     <>
       <div className="backdrop" />
+      <img className="bg-mark" src={L.teams[L.user].logo} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
       <Masthead />
       <TabBar tab={tab} unread={unread} offers={offers} onSave={async () => { const ok = await saveLeague(L); app.toast(ok ? 'Franchise saved' : 'Save failed'); }} />
-      <div className="workspace">
-        <aside className="subtabs">
+      <div className={`workspace${FULL.has(sc.id) ? ' full' : ''}`}>
+        <aside className={`subtabs${FULL.has(sc.id) ? ' h' : ''}`}>
           {TABS[tab].subs.map(([id, label]) => (
             <button key={id} className={`subtab${sc.id === id ? ' on' : ''}`} onClick={() => app.go({ id } as Screen)}>
               {label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'offers' && offers > 0 && <span className="badge">{offers}</span>}
@@ -59,6 +66,7 @@ export function App() {
         </aside>
         <main className="main fade-in" key={JSON.stringify(sc)}><Route sc={sc} /></main>
       </div>
+      <BottomLine tag="BottomLine" items={leagueCrawl(L)} />
       {overlay}
     </>
   );
@@ -101,6 +109,7 @@ function Route({ sc }: { sc: Screen }) {
     case 'news': return <NewsScreen />;
     case 'inbox': return <InboxScreen />;
     case 'history': return <HistoryScreen />;
+    case 'awards': return <AwardsScreen />;
     case 'box': return <BoxScreen gid={sc.gid} />;
     case 'trade': return <TradeScreen team={sc.team} want={sc.want} />;
     case 'block': return <TradeBlock />;
@@ -139,14 +148,21 @@ function Masthead() {
   if (!L) return null;
   const t = L.teams[L.user];
   const st = standings(L)[L.user];
+  const r = teamRatings(L, L.user);
+  const div = Object.values(standings(L)).filter(x => L.teams[x.abbr].div === t.div && L.teams[x.abbr].conf === t.conf).sort((a, b) => b.pct - a.pct || b.w - a.w).findIndex(x => x.abbr === L.user) + 1;
   return (
-    <header className="masthead">
+    <header className="masthead" style={{ '--tc': t.colors[0] } as React.CSSProperties}>
       <div className="who">
-        <Logo team={t} size={64} />
-        <div><div className="meta">{phaseLabel(L)}</div><div className="name">{t.name}</div><div className="meta" style={{ letterSpacing: '.08em' }}>{st.w}-{st.l}{st.t ? `-${st.t}` : ''} · GM {L.gm} · HC {t.coach.name}</div></div>
+        <div className="mh-logo"><Logo team={t} size={78} /></div>
+        <div><div className="meta">{phaseLabel(L)}</div><div className="name">{t.name}</div><div className="meta sub">GM {L.gm} · HC {t.coach.name}</div></div>
+      </div>
+      <div className="mh-stats">
+        <div><b>{st.w}-{st.l}{st.t ? `-${st.t}` : ''}</b><span>Record</span></div>
+        <div><b>{div ? `${div}${['', 'st', 'nd', 'rd', 'th'][div]}` : '—'}</b><span>{t.conf} {t.div}</span></div>
+        <div><b>{r.ovr}</b><span>Team OVR</span></div>
+        <div><b className={capSpace(L, L.user) < 0 ? 'bad' : ''}><CountUp v={capSpace(L, L.user)} fmt={money} /></b><span>Cap Space</span></div>
       </div>
       <div className="spacer" />
-      <div className="stat" style={{ textAlign: 'right' }}><span className="k">Cap Space</span><span className={`num ${capSpace(L, L.user) < 0 ? 'bad' : ''}`} style={{ fontSize: 24 }}><CountUp v={capSpace(L, L.user)} fmt={money} /></span></div>
       <AdvanceButton />
     </header>
   );

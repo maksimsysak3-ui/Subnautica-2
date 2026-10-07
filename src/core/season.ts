@@ -291,22 +291,46 @@ export function seasonAwards(league: League) {
   if (!a) { a = { season: league.season, allPro: [] }; league.awards.push(a); }
   return a;
 }
-function regularSeasonAwards(league: League) {
-  const st = standings(league);
-  const line = (p: Player) => p.stats[league.season] ?? emptyLine();
-  const wins = (p: Player) => st[p.team]?.w ?? 0;
-  const active = Object.values(league.players).filter(p => p.stats[league.season]?.gp);
-  const offScore = (p: Player) => { const l = line(p); return l.py * 0.025 + l.ptd * 4 - l.pint * 3 + (l.ry + l.recy) * 0.06 + (l.rtd + l.rectd) * 5; };
-  const defScore = (p: Player) => { const l = line(p); return l.dsk * 4 + l.dint * 5 + l.ff * 3 + l.tfl * 1.2 + l.pd * 1 + l.tkl * 0.25 + l.dtd * 4 + l.qbh * 0.5; };
-  const best = (ps: Player[], f: (p: Player) => number) => ps.sort((a, b) => f(b) - f(a))[0];
-  const a = seasonAwards(league);
-  const mvp = best(active.filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.pos)), p => offScore(p) * (p.pos === 'QB' ? 1.15 : 0.8) + wins(p) * 3);
-  const opoy = best(active.filter(p => ['RB', 'WR', 'TE', 'QB'].includes(p.pos) && p.id !== mvp?.id), offScore);
-  const dpoy = best(active.filter(p => ['EDGE', 'DT', 'LB', 'CB', 'S'].includes(p.pos)), defScore);
-  const oroy = best(active.filter(p => p.exp === 0 && ['QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C'].includes(p.pos)), p => offScore(p) + p.ovr * 0.3);
-  const droy = best(active.filter(p => p.exp === 0 && ['EDGE', 'DT', 'LB', 'CB', 'S'].includes(p.pos)), p => defScore(p) + p.ovr * 0.3);
+export type AwardKey = 'mvp' | 'opoy' | 'dpoy' | 'oroy' | 'droy';
+export const AWARD_NAME: Record<AwardKey, string> = { mvp: 'MVP', opoy: 'Offensive Player of the Year', dpoy: 'Defensive Player of the Year', oroy: 'Offensive Rookie of the Year', droy: 'Defensive Rookie of the Year' };
+const offScoreOf = (l: StatLine) => l.py * 0.025 + l.ptd * 4 - l.pint * 3 + (l.ry + l.recy) * 0.06 + (l.rtd + l.rectd) * 5;
+const defScoreOf = (l: StatLine) => l.dsk * 4 + l.dint * 5 + l.ff * 3 + l.tfl * 1.2 + l.pd * 1 + l.tkl * 0.25 + l.dtd * 4 + l.qbh * 0.5;
+/**
+ * The award races as they stand: candidates ranked by the same formula that decides
+ * the awards at the end of the regular season (production, plus wins for MVP).
+ */
+export function awardRace(league: League, season = league.season, n = 5): Record<AwardKey, { p: Player; score: number }[]> {
+  const st = standings(league, season);
+  const line = (p: Player) => p.stats[season] ?? emptyLine();
+  const active = Object.values(league.players).filter(p => p.stats[season]?.gp);
+  const OFF = ['QB', 'RB', 'WR', 'TE'], DEF = ['EDGE', 'DT', 'LB', 'CB', 'S'];
+  const rank = (ps: Player[], f: (p: Player) => number) => ps.map(p => ({ p, score: f(p) })).sort((a, b) => b.score - a.score);
+  const mvp = rank(active.filter(p => OFF.includes(p.pos)), p => offScoreOf(line(p)) * (p.pos === 'QB' ? 1.15 : 0.8) + (st[p.team]?.w ?? 0) * 3);
+  const mvpId = mvp[0]?.p.id;
+  return {
+    mvp: mvp.slice(0, n),
+    opoy: rank(active.filter(p => OFF.includes(p.pos) && p.id !== mvpId), p => offScoreOf(line(p))).slice(0, n),
+    dpoy: rank(active.filter(p => DEF.includes(p.pos)), p => defScoreOf(line(p))).slice(0, n),
+    oroy: rank(active.filter(p => p.exp === 0 && [...OFF, 'OT', 'G', 'C'].includes(p.pos)), p => offScoreOf(line(p)) + p.ovr * 0.3).slice(0, n),
+    droy: rank(active.filter(p => p.exp === 0 && DEF.includes(p.pos)), p => defScoreOf(line(p)) + p.ovr * 0.3).slice(0, n),
+  };
+}
+/** Coach of the Year race: wins against what the roster was expected to win. */
+export function coachRace(league: League, season = league.season) {
+  const st = standings(league, season);
   const expected = Object.keys(league.teams).map(t => [t, teamRatings(league, t).ovr] as const).sort((x, y) => y[1] - x[1]);
-  const coy = Object.keys(league.teams).sort((x, y) => (st[y].w - (17 - expected.findIndex(e => e[0] === y) * 0.4)) - (st[x].w - (17 - expected.findIndex(e => e[0] === x) * 0.4)))[0];
+  const over = (t: string) => st[t].w - (17 - expected.findIndex(e => e[0] === t) * 0.4);
+  return Object.keys(league.teams).sort((x, y) => over(y) - over(x));
+}
+function regularSeasonAwards(league: League) {
+  const line = (p: Player) => p.stats[league.season] ?? emptyLine();
+  const active = Object.values(league.players).filter(p => p.stats[league.season]?.gp);
+  const offScore = (p: Player) => offScoreOf(line(p));
+  const defScore = (p: Player) => defScoreOf(line(p));
+  const a = seasonAwards(league);
+  const race = awardRace(league, league.season, 1);
+  const [mvp, opoy, dpoy, oroy, droy] = (['mvp', 'opoy', 'dpoy', 'oroy', 'droy'] as const).map(k => race[k][0]?.p);
+  const coy = coachRace(league)[0];
   const give = (p: Player | undefined, name: string, key: 'mvp' | 'opoy' | 'dpoy' | 'oroy' | 'droy') => {
     if (!p) return;
     a[key] = p.id;
