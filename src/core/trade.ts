@@ -7,7 +7,8 @@ import type { League, Pick, Player, Pos, TradeOffer } from './types';
 import { Rng, clamp } from './rng';
 import { capHit, capSpace, marketValue, yearsLeft } from './contracts';
 import { teamRatings, autoDepth } from './league';
-import { news, mail } from './season';
+import { news, mail, standings } from './season';
+import { positionNeeds } from './draft';
 
 const CHART: [number, number][] = [[1, 3000], [2, 2600], [3, 2200], [4, 1800], [5, 1700], [6, 1600], [8, 1400], [10, 1300], [12, 1200], [16, 1000], [20, 850], [25, 720], [32, 590], [40, 500], [50, 400], [64, 270], [80, 190], [96, 116], [100, 100], [128, 50], [160, 30], [192, 17], [224, 4], [260, 1]];
 export function pickValue(no: number) {
@@ -19,19 +20,62 @@ export function pickValue(no: number) {
 }
 const POS_MULT: Record<Pos, number> = { QB: 1.7, EDGE: 1.15, OT: 1.05, WR: 1.0, CB: 0.95, DT: 0.9, TE: 0.72, S: 0.7, LB: 0.68, G: 0.68, C: 0.62, RB: 0.55, FB: 0.15, K: 0.12, P: 0.08, LS: 0.03 };
 
-/** Estimated slot for a pick that has not been ordered yet. */
+/** The draft year that comes next (the league year rolls over before the draft). */
+const nextDraft = (league: League) => (['resign', 'freeagency', 'draft'].includes(league.phase) ? league.season : league.season + 1);
+
+/**
+ * Estimated slot for a pick that has not been ordered yet. For the coming draft it
+ * reads the standings (weighted by how much of the season is played) against roster
+ * strength; picks further out regress toward the middle of the round, because nobody
+ * knows how good a team will be two years from now.
+ */
 export function projectedSlot(league: League, pick: Pick) {
   if (pick.no) return pick.no;
-  const strength = Object.keys(league.teams).map(t => [t, teamRatings(league, t).ovr] as const).sort((a, b) => a[1] - b[1]);
-  const idx = strength.findIndex(s => s[0] === pick.orig);
-  return (pick.round - 1) * 32 + (idx < 0 ? 16 : idx + 1);
+  const inSeason = league.phase === 'regular' || league.phase === 'playoffs';
+  const st = inSeason ? standings(league) : undefined;
+  const ratings = Object.keys(league.teams).map(t => [t, teamRatings(league, t).ovr] as const);
+  const lo = Math.min(...ratings.map(r => r[1])), hi = Math.max(...ratings.map(r => r[1]));
+  const score = (t: string, ovr: number) => {
+    const strength = (ovr - lo) / Math.max(1, hi - lo);
+    const s = st?.[t]; const gp = s ? s.w + s.l + s.t : 0;
+    const w = Math.min(1, gp / 17);
+    return s && gp ? s.pct * w + strength * (1 - w) : strength;
+  };
+  const order = ratings.map(([t, o]) => [t, score(t, o)] as const).sort((a, b) => a[1] - b[1]);
+  const idx = order.findIndex(s => s[0] === pick.orig);
+  const projected = idx < 0 ? 16.5 : idx + 1;
+  const yearsOut = Math.max(0, pick.season - nextDraft(league));
+  const within = projected + (16.5 - projected) * Math.min(1, yearsOut * 0.5);
+  return Math.round((pick.round - 1) * 32 + within);
 }
 export function pickTradeValue(league: League, pick: Pick, forTeam?: string) {
-  const years = pick.season - league.season - (league.phase === 'draft' || league.phase === 'camp' || league.phase === 'preseason' || league.phase === 'regular' || league.phase === 'playoffs' ? 0 : 0);
-  let v = pickValue(projectedSlot(league, pick)) * Math.pow(0.85, Math.max(0, years - (league.phase === 'regular' || league.phase === 'playoffs' ? 1 : 0)));
+  // About 15% a year for waiting on a future pick.
+  const yearsOut = Math.max(0, pick.season - nextDraft(league));
+  let v = pickValue(projectedSlot(league, pick)) * Math.pow(0.85, yearsOut);
   if (forTeam && league.teams[forTeam]?.mode === 'rebuild') v *= 1.2;
   if (forTeam && league.teams[forTeam]?.mode === 'contend') v *= 0.85;
   return v;
+}
+
+/**
+ * What a player taken at this slot should be by now: the average of his own draft
+ * classmates picked around him (same class, same years of growth). Falls back to
+ * the class model's curve when there are too few neighbours to compare.
+ */
+const slotCurve = (pick: number) => 79 - 9.5 * Math.log10(1 + (pick - 1) * 0.35);
+const classCache = new WeakMap<League, { key: string; byYear: Map<number, Player[]> }>();
+function expectedOvr(league: League, p: Player) {
+  const key = `${league.season}-${league.phase}-${league.week}`;
+  let c = classCache.get(league);
+  if (!c || c.key !== key) {
+    const byYear = new Map<number, Player[]>();
+    for (const q of Object.values(league.players)) if (q.draft?.pick > 0 && q.status !== 'RET') (byYear.get(q.draft.year) ?? byYear.set(q.draft.year, []).get(q.draft.year)!).push(q);
+    classCache.set(league, (c = { key, byYear }));
+  }
+  const span = Math.max(4, p.draft.pick * 0.25);
+  const peers = (c.byYear.get(p.draft.year) ?? []).filter(q => Math.abs(q.draft.pick - p.draft.pick) <= span);
+  if (peers.length < 4) return slotCurve(p.draft.pick) + Math.min(3, p.exp) * 2;
+  return peers.reduce((a, q) => a + q.ovr, 0) / peers.length;
 }
 
 export function playerTradeValue(league: League, p: Player, forTeam?: string) {
@@ -48,6 +92,19 @@ export function playerTradeValue(league: League, p: Player, forTeam?: string) {
   const hit = capHit(p.contract, league.season) || market;
   const surplus = clamp((market - hit) / Math.max(market, 1_000_000), -1, 1);
   v *= clamp(1 + surplus * 0.45 + (yrs - 1) * 0.06, 0.35, 1.6);
+  // Young players still carry their draft capital, as teams value them: the slot's
+  // chart value, fading over their first three seasons and moved up or down by how
+  // they have played against what that slot usually produces.
+  if (p.draft?.pick && p.exp <= 3) {
+    const keep = [1, 0.8, 0.55, 0.3][p.exp];
+    const weight = [0.75, 0.55, 0.35, 0.15][p.exp];
+    // A rookie who has not played yet is still mostly his draft slot; performance counts once he has.
+    const proof = [0.35, 0.8, 1, 1][p.exp];
+    const perf = clamp(1 + proof * (p.ovr - expectedOvr(league, p)) / 12, 0.4, 1.6);
+    const posAdj = clamp(0.55 + 0.45 * POS_MULT[p.pos], 0.7, 1.15);
+    const capital = pickValue(p.draft.pick) * keep * perf * posAdj;
+    v = Math.max(v, capital * weight + v * (1 - weight));
+  }
   if (p.injury?.season) v *= 0.55;
   if (forTeam) {
     const mode = league.teams[forTeam]?.mode;
@@ -103,7 +160,7 @@ export function pickLabel(league: League, k: Pick) {
 /** Ask the AI what it would want for one of its players: picks first, then players. */
 export function whatWouldItTake(league: League, from: string, to: string, targetId: string): TradeOffer | null {
   const target = league.players[targetId];
-  const need = playerTradeValue(league, target, from) * { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty];
+  const need = playerTradeValue(league, target, to) * { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty];
   const offer: TradeOffer = { from, to, give: { players: [], picks: [] }, get: { players: [targetId], picks: [] } };
   const assets = [
     ...league.picks.filter(k => k.owner === from && k.season >= league.season).map(k => ({ kind: 'pick' as const, id: k.id, v: pickTradeValue(league, k, to) })),
@@ -136,34 +193,110 @@ export function whatWouldItTake(league: League, from: string, to: string, target
   return offer;
 }
 
-/** Around the deadline, AI teams make the odd deal; sometimes they call the user. */
+/** One AI-to-AI deal: `buyer` goes after a player at a need from `seller`. Returns true if it happened. */
+function tryDeal(league: League, buyer: string, seller: string, rng: Rng, minOvr = 74) {
+  const need = positionNeeds(league, buyer);
+  const wants = Object.values(league.players).filter(p => p.team === seller && p.status === 'ACT' && !p.injury && p.ovr >= minOvr && (need[p.pos] ?? 0) >= 0.8 && !(p.pos === 'QB' && p.ovr >= 85 && p.age <= 32))
+    .sort((a, b) => (need[b.pos] ?? 0) * b.ovr - (need[a.pos] ?? 0) * a.ovr);
+  const target = wants[rng.int(0, Math.min(2, wants.length - 1))];
+  if (!target) return false;
+  const offer = whatWouldItTake(league, buyer, seller, target.id);
+  if (!offer) return false;
+  // Over the cap? Send salary back the way real deadline deals do: the buyer's
+  // priciest contracts that are not worth what they cost.
+  let v = evaluateTrade(league, offer);
+  if (!v.accept && v.reason === 'You would be over the cap.') {
+    const filler = Object.values(league.players).filter(p => p.team === buyer && p.status === 'ACT' && !offer.give.players.includes(p.id) && capHit(p.contract, league.season) > 3_000_000)
+      .sort((a, b) => capHit(b.contract, league.season) / playerTradeValue(league, b) - capHit(a.contract, league.season) / playerTradeValue(league, a));
+    for (const f of filler.slice(0, 2)) { offer.give.players.push(f.id); v = evaluateTrade(league, offer); if (v.accept || v.reason !== 'You would be over the cap.') break; }
+  }
+  if (!v.accept) return false;
+  // The buyer will not hand over more than about 30% over what it is getting.
+  const P = (ids: string[]) => ids.map(id => league.players[id]);
+  const K = (ids: string[]) => ids.map(id => league.picks.find(k => k.id === id)!);
+  const giving = packageValue(league, P(offer.give.players), K(offer.give.picks), buyer);
+  if (giving > playerTradeValue(league, target, buyer) * 1.3) return false;
+  executeTrade(league, offer);
+  return true;
+}
+
+/**
+ * AI front offices deal all season: a steady trickle early, a rush in the last two
+ * weeks before the deadline (contenders buying veterans from sellers, everyone
+ * chasing a starter at their thinnest spot), and the occasional call to the user.
+ */
 export function aiTrades(league: League, rng: Rng) {
-  if (league.phase !== 'regular' || league.week > league.tradeDeadlineWeek || league.week < 3) return;
+  if (league.phase !== 'regular' || league.week > league.tradeDeadlineWeek || league.week < 2) return;
   const teams = Object.keys(league.teams).filter(t => t !== league.user);
-  if (rng.chance(0.35)) {
-    const buyer = rng.pick(teams.filter(t => league.teams[t].mode === 'contend'));
-    const seller = rng.pick(teams.filter(t => league.teams[t].mode === 'rebuild' && t !== buyer));
-    if (buyer && seller) {
-      const vet = Object.values(league.players).filter(p => p.team === seller && p.status === 'ACT' && p.ovr >= 78 && p.age >= 27).sort((a, b) => b.ovr - a.ovr)[0];
-      if (vet) {
-        const offer = whatWouldItTake(league, buyer, seller, vet.id);
-        if (offer && evaluateTrade(league, offer).accept) executeTrade(league, offer);
-      }
+  const st = standings(league);
+  const buyers = teams.filter(t => league.teams[t].mode === 'contend' || st[t].pct >= 0.6);
+  const sellers = teams.filter(t => league.teams[t].mode === 'rebuild' || (st[t].w + st[t].l >= 4 && st[t].pct <= 0.3));
+  const rush = league.week >= league.tradeDeadlineWeek - 1;
+  const attempts = rush ? rng.int(6, 8) : rng.int(2, 3);
+  for (let i = 0; i < attempts; i++) {
+    if (rng.chance(0.55) && buyers.length && sellers.length) {
+      const b = rng.pick(buyers), s = rng.pick(sellers.filter(x => x !== b));
+      if (s) tryDeal(league, b, s, rng, 76);
+    } else {
+      const b = rng.pick(teams), s = rng.pick(teams.filter(x => x !== b));
+      tryDeal(league, b, s, rng, 72);
     }
   }
-  // A call to the user's front office.
-  if (rng.chance(0.18)) {
-    const caller = rng.pick(teams);
-    const mine = Object.values(league.players).filter(p => p.team === league.user && p.status === 'ACT' && p.ovr >= 75 && !(p.pos === 'QB' && p.ovr >= 85));
-    const target = mine.length ? rng.pick(mine) : undefined;
-    if (target) {
-      const offer = whatWouldItTake(league, caller, league.user, target.id);
-      if (offer) {
-        const flipped: TradeOffer = { from: caller, to: league.user, give: offer.give, get: offer.get };
-        mail(league, `${league.teams[caller].name} GM`, `Trade offer for ${target.ln}`, `We'd like to acquire ${target.pos} ${target.fn} ${target.ln}. Have a look at what we are offering.`, { kind: 'trade', offer: flipped });
-      }
-    }
+  if (rng.chance(rush ? 0.5 : 0.25)) callUser(league, rng, teams);
+}
+
+/** Another GM calls about one of the user's players. */
+function callUser(league: League, rng: Rng, teams: string[]) {
+  const caller = rng.pick(teams);
+  const need = positionNeeds(league, caller);
+  const mine = Object.values(league.players).filter(p => p.team === league.user && p.status === 'ACT' && p.ovr >= 74 && !(p.pos === 'QB' && p.ovr >= 85) && (need[p.pos] ?? 0) >= 0.5);
+  const target = mine.length ? rng.pick(mine) : undefined;
+  if (!target) return;
+  const offer = whatWouldItTake(league, caller, league.user, target.id);
+  if (!offer) return;
+  const flipped: TradeOffer = { from: caller, to: league.user, give: offer.give, get: offer.get };
+  mail(league, `${league.teams[caller].name} GM`, `Trade offer for ${target.ln}`, `We'd like to acquire ${target.pos} ${target.fn} ${target.ln}. Have a look at what we are offering.`, { kind: 'trade', offer: flipped });
+}
+
+/** Offseason: rebuilding teams cash in veterans, contenders reload, everyone fills holes. */
+export function aiOffseasonTrades(league: League, rng: Rng) {
+  const teams = Object.keys(league.teams).filter(t => t !== league.user);
+  const contenders = teams.filter(t => league.teams[t].mode !== 'rebuild');
+  const rebuilders = teams.filter(t => league.teams[t].mode === 'rebuild');
+  const n = rng.int(3, 5);
+  for (let i = 0; i < n; i++) {
+    if (rebuilders.length && rng.chance(0.6)) tryDeal(league, rng.pick(contenders), rng.pick(rebuilders), rng, 77);
+    else { const b = rng.pick(teams); tryDeal(league, b, rng.pick(teams.filter(x => x !== b)), rng, 73); }
   }
+  if (rng.chance(0.35)) callUser(league, rng, teams);
+}
+
+/**
+ * Draft day: before an AI pick in the first two rounds, a team a few spots back may
+ * move up for a player it covets, paying the chart value (its pick plus extras).
+ * Returns true if the pick changed hands.
+ */
+export function aiDraftDayTrade(league: League, rng: Rng, order: Pick[], cursor: number) {
+  const pick = order[cursor];
+  if (!pick || pick.owner === league.user || pick.round > 2 || !rng.chance(pick.round === 1 ? 0.12 : 0.06)) return false;
+  const later = order.slice(cursor + 2, cursor + 14).filter(k => k.owner !== league.user && k.owner !== pick.owner);
+  if (!later.length) return false;
+  const mover = rng.pick(later);
+  const value = pickValue(pick.no!);
+  const theirs = league.picks.filter(k => k.owner === mover.owner && k.id !== mover.id && (k.season > pick.season || (k.season === pick.season && (k.no ?? 999) > (mover.no ?? 0))))
+    .sort((a, b) => pickTradeValue(league, b) - pickTradeValue(league, a));
+  const give = [mover];
+  let total = pickValue(mover.no!);
+  // Add the smallest extra picks that close the gap (a little over chart value).
+  for (const k of [...theirs].reverse()) { if (total >= value * 1.04) break; if (pickTradeValue(league, k) + total >= value * 1.04) { give.push(k); total += pickTradeValue(league, k); break; } }
+  for (const k of theirs) { if (total >= value * 1.04 || give.length >= 4) break; if (!give.includes(k)) { give.push(k); total += pickTradeValue(league, k); } }
+  if (total < value * 1.04 || total > value * 1.6) return false;
+  const seller = pick.owner;
+  pick.owner = mover.owner;
+  for (const k of give) k.owner = seller;
+  const lbl = (k: Pick) => (k.no && k.season === pick.season ? `No. ${k.no}` : pickLabel(league, k));
+  news(league, 'trade', `DRAFT-DAY TRADE: ${league.teams[mover.owner].nick} move up to No. ${pick.no}, sending ${give.map(lbl).join(', ')} to the ${league.teams[seller].nick}.`, [mover.owner, seller], { big: pick.no! <= 10 });
+  return true;
 }
 
 /** Team mode follows roster strength and age. */

@@ -394,9 +394,16 @@ export class GameSim {
 
   private maybeInjure(side: Side, p: Player | undefined, risk = 1) {
     if (!p || side.out.has(p.id)) return;
-    const base = 0.0021 * risk * (1 + (70 - p.attrs.INJ) / 55) * (1 + (100 - p.cond) / 110) * (1 + p.traits.prone / 200);
+    // Calibrated to the NFL: about six injuries reported per game, a third of them back
+    // in the same game, two to three per game costing playing time.
+    const base = 0.036 * risk * (1 + (70 - p.attrs.INJ) / 55) * (1 + (100 - p.cond) / 110) * (1 + p.traits.prone / 200);
     if (!this.rng.chance(base)) return;
-    const weeks = this.rng.weighted([[0, 0.32], [1, 0.24], [2, 0.14], [3, 0.08], [4, 0.06], [6, 0.06], [9, 0.05], [99, 0.05]] as const);
+    const weeks = this.rng.weighted([[-1, 0.36], [0, 0.17], [1, 0.16], [2, 0.1], [3, 0.06], [4, 0.05], [6, 0.04], [9, 0.03], [99, 0.03]] as const);
+    if (weeks < 0) {
+      // Shaken up: misses a few snaps, back after the trainers take a look.
+      this.push({ type: 'timeout', text: `${p.pos} ${p.fn} ${p.ln} is shaken up and heads to the sideline to be evaluated.`, yards: 0, endYl: this.yl, ids: { ball: p.id } });
+      return;
+    }
     const type = weeks >= 99 ? this.rng.pick(['Torn ACL', 'Torn Achilles', 'Broken Leg', 'Torn Pectoral']) : weeks >= 6 ? this.rng.pick(['High Ankle Sprain', 'Broken Hand', 'MCL Sprain', 'Fractured Rib']) : weeks >= 2 ? this.rng.pick(['Hamstring', 'Ankle Sprain', 'Knee Sprain', 'Shoulder', 'Concussion']) : this.rng.pick(['Cramps', 'Ankle', 'Shoulder Stinger', 'Hip Pointer', 'Knee']);
     side.out.add(p.id);
     if (weeks > 0) this.injuries.push({ pid: p.id, weeks: weeks >= 99 ? 30 : weeks, type, season: weeks >= 99 });

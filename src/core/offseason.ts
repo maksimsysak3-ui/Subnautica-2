@@ -7,7 +7,7 @@ import { Rng, clamp, hash } from './rng';
 import { OVR_W, overall, archetype, assignAbilities } from './ratings';
 import { autoDepth, emptyLine, makeCoach, rosterOf } from './league';
 import { capFor, capHit, capSpace, deadMoney, franchiseTag, makeContract, marketTerms, minSalary, releaseSavings, restructure, voidedProration, yearsLeft } from './contracts';
-import { playerTradeValue } from './trade';
+import { playerTradeValue, aiOffseasonTrades } from './trade';
 import { freeAgents } from './freeagency';
 import { freeNumber } from './draft';
 import { generateClass, startDraft } from './draft';
@@ -354,6 +354,7 @@ export function advanceOffseason(league: League) {
     return;
   }
   if (league.phase === 'freeagency') {
+    if ([1, 4, 7].includes(league.fa?.day ?? 0)) aiOffseasonTrades(league, rng);
     runFreeAgencyDay(league, rng);
     if ((league.fa?.day ?? 0) > 8) startDraft(league);
     return;

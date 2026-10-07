@@ -38,7 +38,7 @@ for (let y = 0; y < years; y++) {
     if (!Object.values(league.players).some(p => p.team === t && p.pos === 'QB' && p.status === 'ACT')) problems.push(`${league.season} ${t}: no QB`);
   }
   const top = Object.keys(league.teams).map(t => [t, teamRatings(league, t).ovr] as const).sort((a, b) => b[1] - a[1]);
-  console.log(season, `champ ${champ}, MVP ${mvp}`, summary(league), `best team ${top[0][0]} ${top[0][1]}, worst ${top[31][0]} ${top[31][1]}`);
+  const tr = league.news.filter(n => n.kind === 'trade' && n.season === season); console.log(season, `trades ${tr.length} (draft-day ${tr.filter(n => n.text.startsWith('DRAFT')).length})`, `champ ${champ}, MVP ${mvp}`, summary(league), `best team ${top[0][0]} ${top[0][1]}, worst ${top[31][0]} ${top[31][1]}`);
 }
 console.log(`${years} seasons in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 if (problems.length) { console.log('PROBLEMS:\n' + [...new Set(problems)].slice(0, 30).join('\n')); process.exitCode = 1; }

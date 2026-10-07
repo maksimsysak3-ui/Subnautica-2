@@ -10,6 +10,7 @@ interface RealProspect { id: string; fn: string; ln: string; pos: Pos; col: stri
 const REAL_PROSPECTS = ((data as unknown as { prospects?: RealProspect[] }).prospects ?? []);
 const SEASON_DATA = (data as unknown as { season: number }).season;
 import { standings, REG_WEEKS, news, mail } from './season';
+import { aiDraftDayTrade } from './trade';
 
 // Positions in a real class (per ~260 draftable prospects).
 const CLASS_MIX: [Pos, number][] = [
@@ -213,8 +214,10 @@ export function makePick(league: League, playerId: string) {
   if (d.cursor >= picksInOrder(league).length) finishDraft(league);
 }
 export function aiPickNow(league: League, rng: Rng) {
-  const pick = picksInOrder(league)[league.draft!.cursor];
+  const order = picksInOrder(league);
+  const pick = order[league.draft!.cursor];
   if (!pick) return;
+  aiDraftDayTrade(league, rng, order, league.draft!.cursor); // may hand the pick to a team moving up
   const p = aiChoose(league, pick.owner, rng);
   if (p) makePick(league, p.id);
 }

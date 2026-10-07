@@ -13,7 +13,7 @@ export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisi
 
 export function news(league: League, kind: League['news'][number]['kind'], text: string, teams: string[] = [], opts: { pid?: string; big?: boolean } = {}) {
   league.news.unshift({ id: league.counter++, season: league.season, week: league.week, kind, text, teams, ...opts });
-  if (league.news.length > 400) league.news.length = 400;
+  if (league.news.length > 700) league.news.length = 700;
 }
 export function mail(league: League, from: string, subject: string, body: string, action?: League['inbox'][number]['action']) {
   league.inbox.unshift({ id: league.counter++, season: league.season, week: league.week, from, subject, body, read: false, action });
@@ -47,8 +47,11 @@ export function applyResult(league: League, g: Game, sim: GameSim) {
   for (const inj of res.injuries) {
     const p = league.players[inj.pid];
     if (!p) continue;
-    p.injury = { type: inj.type, weeks: inj.weeks, season: inj.season };
-    if (p.ovr >= 78 || p.team === league.user) news(league, 'injury', `${p.team} ${p.pos} ${p.fn} ${p.ln} suffered a ${inj.type.toLowerCase()} and is ${inj.season ? 'out for the season' : `expected to miss ${inj.weeks} week${inj.weeks > 1 ? 's' : ''}`}.`, [p.team], { pid: p.id, big: inj.season && p.ovr >= 85 });
+    // The countdown ticks once before the next game, so store one extra week: a player
+    // listed to miss two games really misses two.
+    p.injury = { type: inj.type, weeks: inj.weeks + 1, season: inj.season };
+    const notable = p.team === league.user || (inj.season && p.ovr >= 75) || (p.ovr >= 82 && inj.weeks >= 2);
+    if (notable) news(league, 'injury', `${p.team} ${p.pos} ${p.fn} ${p.ln} suffered a ${inj.type.toLowerCase()} and is ${inj.season ? 'out for the season' : `expected to miss ${inj.weeks} week${inj.weeks > 1 ? 's' : ''}`}.`, [p.team], { pid: p.id, big: inj.season && p.ovr >= 85 });
   }
   const winner = res.hs > res.as ? g.home : res.as > res.hs ? g.away : '';
   const ht = league.teams[g.home], at = league.teams[g.away];
@@ -153,7 +156,7 @@ export function advanceWeek(league: League): boolean {
     p.xp += practice * DEV_MULT[p.dev] * (p.age > 30 ? 0.6 : 1) * coachXpMult(league, p) * (0.6 + p.traits.work / 250);
     const recover = { Light: 30, Normal: 22, Intense: 14 }[plan] + (byeTeams.has(p.team) ? 18 : 0) + (p.team === league.user && league.coachTree.unlocked.includes('Sports Science') ? 6 : 0);
     p.cond = clamp(p.cond + recover, 0, 100);
-    if (plan === 'Intense' && rng.chance(0.004) && !p.injury) { p.injury = { type: 'Practice Strain', weeks: rng.int(1, 2) }; if (p.team === league.user) mail(league, 'Head Trainer', `${p.ln} hurt in practice`, `${p.fn} ${p.ln} strained a muscle in an intense practice and will miss ${p.injury.weeks} week(s).`); }
+    if (plan === 'Intense' && rng.chance(0.004) && !p.injury) { p.injury = { type: 'Practice Strain', weeks: rng.int(2, 3) }; if (p.team === league.user) mail(league, 'Head Trainer', `${p.ln} hurt in practice`, `${p.fn} ${p.ln} strained a muscle in an intense practice and will miss ${p.injury.weeks} week(s).`); }
     if (p.injury) {
       p.injury.weeks--;
       if (p.injury.weeks <= 0) { if (p.team === league.user && p.ovr >= 70) mail(league, 'Head Trainer', `${p.ln} cleared to play`, `${p.fn} ${p.ln} has recovered from his ${p.injury.type.toLowerCase()}.`); p.injury = undefined; if (p.status === 'IR') p.status = 'ACT'; }

@@ -16,6 +16,7 @@ import { TradeScreen, TradeBlock, TradeFinder, TradeOffers, TradeHistory, PickCh
 import { TeamStatsScreen, LeagueTeamStats, PowerRankings, ProgressionScreen } from './screens/teamstats';
 import { DraftScreen } from './screens/draft';
 import { AwardsScreen } from './screens/awards';
+import { InjuryScreen } from './screens/injuries';
 import { GameScreen } from './screens/game';
 
 type Id = Screen['id'];
@@ -25,7 +26,7 @@ export const TABS: { label: string; subs: [Id, string][] }[] = [
   { label: 'My Team', subs: [['roster', 'Roster'], ['depth', 'Lineup'], ['teamstats', 'Team Stats'], ['progress', 'Progression'], ['coach', 'Coach Abilities'], ['resign', 'Re-sign'], ['cap', 'Salary Cap']] },
   { label: 'Trades', subs: [['trade', 'Trade Builder'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['tradehist', 'Trade History'], ['chart', 'Pick Value Chart']] },
   { label: 'Personnel', subs: [['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
-  { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['history', 'History']] },
+  { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['history', 'History']] },
 ];
 /** Screens that take the whole width: the side rail becomes a strip of tabs above them. */
 const FULL = new Set<Id>(['depth', 'trade']);
@@ -110,6 +111,7 @@ function Route({ sc }: { sc: Screen }) {
     case 'inbox': return <InboxScreen />;
     case 'history': return <HistoryScreen />;
     case 'awards': return <AwardsScreen />;
+    case 'injuries': return <InjuryScreen />;
     case 'box': return <BoxScreen gid={sc.gid} />;
     case 'trade': return <TradeScreen team={sc.team} want={sc.want} />;
     case 'block': return <TradeBlock />;
