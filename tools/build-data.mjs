@@ -179,110 +179,124 @@ const combine = Object.fromEntries(load('combine').filter(c => c.pfr_id).map(c =
 const per = (v, d, k = 1) => (d > 0 ? (v / d) * k : undefined);
 const M = {
   QB: [
-    ['EPA/play', 0.26, c => per(num(c.s.passing_epa) + num(c.s.rushing_epa), c.plays)],
-    ['CPOE', 0.12, c => (c.ngsP ? num(c.ngsP.completion_percentage_above_expectation) : has(c.s.passing_cpoe) ? num(c.s.passing_cpoe) : undefined)],
-    ['On-target %', 0.08, c => (c.pass ? num(c.pass.on_tgt_pct) : undefined)],
-    ['Bad throw %', 0.05, c => (c.pass ? num(c.pass.bad_throw_pct) : undefined), true],
-    ['Net yds/att', 0.1, c => per(num(c.s.passing_yards) - num(c.s.sack_yards_lost), num(c.s.attempts) + num(c.s.sacks_suffered))],
-    ['TD %', 0.07, c => per(num(c.s.passing_tds), num(c.s.attempts), 100)],
-    ['INT %', 0.08, c => per(num(c.s.passing_interceptions), num(c.s.attempts), 100), true],
-    ['Sack %', 0.08, c => per(num(c.s.sacks_suffered), num(c.s.attempts) + num(c.s.sacks_suffered), 100), true],
-    ['Pressure %', 0.04, c => (c.pass && num(c.pass.times_pressured) > 20 ? num(c.pass.pressure_pct) : undefined), true],
-    ['Rush yds/g', 0.06, c => per(num(c.s.rushing_yards), num(c.s.games))],
-    ['Air yds/att', 0.06, c => (c.ngsP ? num(c.ngsP.avg_intended_air_yards) : undefined)],
-    ['INT-worthy %', 0.08, c => (c.ch?.att > 50 ? c.ch.intWorthy / c.ch.att : undefined), true],
-    ['Catchable %', 0.08, c => (c.ch?.aimed > 50 ? c.ch.catchable / c.ch.aimed : undefined)],
-    ['Own-fault sacks', 0.04, c => (c.ch?.att > 50 ? c.ch.faultSack / (c.ch.att + c.ch.sacks) : undefined), true],
+    ['EPA/play', 0.416, c => per(num(c.s.passing_epa) + num(c.s.rushing_epa), c.plays), false, 'dec'],
+    ['CPOE', 0.156, c => (c.ngsP ? num(c.ngsP.completion_percentage_above_expectation) : has(c.s.passing_cpoe) ? num(c.s.passing_cpoe) : undefined), false, 'acc'],
+    ['On-target %', 0.08, c => (c.pass ? num(c.pass.on_tgt_pct) : undefined), false, 'acc'],
+    ['Bad throw %', 0.05, c => (c.pass ? num(c.pass.bad_throw_pct) : undefined), true, 'acc'],
+    ['Net yds/att', 0.13, c => per(num(c.s.passing_yards) - num(c.s.sack_yards_lost), num(c.s.attempts) + num(c.s.sacks_suffered)), false, 'arm'],
+    ['TD %', 0.07, c => per(num(c.s.passing_tds), num(c.s.attempts), 100), false, 'dec'],
+    ['INT %', 0.08, c => per(num(c.s.passing_interceptions), num(c.s.attempts), 100), true, 'dec'],
+    ['Sack %', 0.08, c => per(num(c.s.sacks_suffered), num(c.s.attempts) + num(c.s.sacks_suffered), 100), true, 'pocket'],
+    ['Pressure %', 0.04, c => (c.pass && num(c.pass.times_pressured) > 20 ? num(c.pass.pressure_pct) : undefined), true, 'pocket'],
+    ['Rush yds/g', 0.096, c => per(num(c.s.rushing_yards), num(c.s.games)), false, 'run'],
+    ['Air yds/att', 0.06, c => (c.ngsP ? num(c.ngsP.avg_intended_air_yards) : undefined), false, 'arm'],
+    ['INT-worthy %', 0.08, c => (c.ch?.att > 50 ? c.ch.intWorthy / c.ch.att : undefined), true, 'dec'],
+    ['Catchable %', 0.08, c => (c.ch?.aimed > 50 ? c.ch.catchable / c.ch.aimed : undefined), false, 'acc'],
+    ['Pass yds/g', 0.15, c => per(num(c.s.passing_yards), num(c.s.games)), false, 'vol'],
+    ['Total TD/g', 0.08, c => per(num(c.s.passing_tds) + num(c.s.rushing_tds), num(c.s.games)), false, 'vol'],
+    ['Own-fault sacks', 0.04, c => (c.ch?.att > 50 ? c.ch.faultSack / (c.ch.att + c.ch.sacks) : undefined), true, 'pocket'],
   ],
   RB: [
-    ['RYOE/att', 0.22, c => (c.ngsR ? num(c.ngsR.rush_yards_over_expected_per_att) : undefined)],
-    ['Yds after contact', 0.14, c => (c.rush ? num(c.rush.yac_att) : undefined)],
-    ['Broken tkl/att', 0.12, c => (c.rush ? per(num(c.rush.brk_tkl), num(c.rush.att)) : undefined)],
-    ['EPA/touch', 0.14, c => per(num(c.s.rushing_epa) + num(c.s.receiving_epa), num(c.s.carries) + num(c.s.targets))],
-    ['Yds/carry', 0.1, c => per(num(c.s.rushing_yards), num(c.s.carries))],
-    ['Scrim yds/snap', 0.14, c => per(num(c.s.rushing_yards) + num(c.s.receiving_yards), c.snaps)],
-    ['Rec yds/snap', 0.07, c => per(num(c.s.receiving_yards), c.snaps)],
-    ['Fumble rate', 0.07, c => per(num(c.s.rushing_fumbles) + num(c.s.receiving_fumbles), num(c.s.carries) + num(c.s.receptions), 100), true],
+    ['RYOE/att', 0.352, c => (c.ngsR ? num(c.ngsR.rush_yards_over_expected_per_att) : undefined), false, 'vision'],
+    ['Yds after contact', 0.168, c => (c.rush ? num(c.rush.yac_att) : undefined), false, 'power'],
+    ['Broken tkl/att', 0.12, c => (c.rush ? per(num(c.rush.brk_tkl), num(c.rush.att)) : undefined), false, 'elusive'],
+    ['EPA/touch', 0.14, c => per(num(c.s.rushing_epa) + num(c.s.receiving_epa), num(c.s.carries) + num(c.s.targets)), false, 'vision'],
+    ['Yds/carry', 0.1, c => per(num(c.s.rushing_yards), num(c.s.carries)), false, 'vision'],
+    ['Scrim yds/snap', 0.14, c => per(num(c.s.rushing_yards) + num(c.s.receiving_yards), c.snaps), false, 'vision'],
+    ['Rec yds/snap', 0.07, c => per(num(c.s.receiving_yards), c.snaps), false, 'hands'],
+    ['Rush yds/g', 0.256, c => per(num(c.s.rushing_yards), num(c.s.games)), false, 'vol'],
+    ['Scrim TD/g', 0.1, c => per(num(c.s.rushing_tds) + num(c.s.receiving_tds), num(c.s.games)), false, 'vol'],
+    ['Scrim yds/g', 0.1, c => per(num(c.s.rushing_yards) + num(c.s.receiving_yards), num(c.s.games)), false, 'vol'],
+    ['Fumble rate', 0.07, c => per(num(c.s.rushing_fumbles) + num(c.s.receiving_fumbles), num(c.s.carries) + num(c.s.receptions), 100), true, 'security'],
   ],
   WR: [
-    ['Yds/route', 0.24, c => per(num(c.s.receiving_yards), c.snaps)],
-    ['EPA/target', 0.14, c => per(num(c.s.receiving_epa), num(c.s.targets))],
-    ['Target share', 0.12, c => (has(c.s.target_share) ? num(c.s.target_share) : undefined)],
-    ['Separation', 0.08, c => (c.ngsC ? num(c.ngsC.avg_separation) : undefined)],
-    ['YAC over exp', 0.07, c => (c.ngsC ? num(c.ngsC.avg_yac_above_expectation) : undefined)],
-    ['Yds/target', 0.09, c => per(num(c.s.receiving_yards), num(c.s.targets))],
-    ['1st downs/tgt', 0.09, c => per(num(c.s.receiving_first_downs), num(c.s.targets))],
-    ['Drop %', 0.07, c => (c.rec ? num(c.rec.drop_percent) : undefined), true],
-    ['Air yds share', 0.05, c => (has(c.s.air_yards_share) ? num(c.s.air_yards_share) : undefined)],
-    ['Broken tkl/rec', 0.05, c => (c.rec ? per(num(c.rec.brk_tkl), num(c.rec.rec)) : undefined)],
-    ['Catchable drop %', 0.06, c => (c.ch?.catchableTgt > 15 ? c.ch.drops / c.ch.catchableTgt : undefined), true],
-    ['Contested catch %', 0.06, c => (c.ch?.contested > 6 ? c.ch.contestedRec / c.ch.contested : undefined)],
-    ['Created rec/tgt', 0.04, c => (c.ch?.tgt > 15 ? c.ch.created / c.ch.tgt : undefined)],
+    ['Yds/route', 0.384, c => per(num(c.s.receiving_yards), c.snaps), false, 'route'],
+    ['EPA/target', 0.182, c => per(num(c.s.receiving_epa), num(c.s.targets)), false, 'route'],
+    ['Target share', 0.12, c => (has(c.s.target_share) ? num(c.s.target_share) : undefined), false, 'route'],
+    ['Separation', 0.096, c => (c.ngsC ? num(c.ngsC.avg_separation) : undefined), false, 'route'],
+    ['YAC over exp', 0.07, c => (c.ngsC ? num(c.ngsC.avg_yac_above_expectation) : undefined), false, 'yac'],
+    ['Yds/target', 0.09, c => per(num(c.s.receiving_yards), num(c.s.targets)), false, 'deep'],
+    ['1st downs/tgt', 0.09, c => per(num(c.s.receiving_first_downs), num(c.s.targets)), false, 'route'],
+    ['Drop %', 0.07, c => (c.rec ? num(c.rec.drop_percent) : undefined), true, 'hands'],
+    ['Air yds share', 0.05, c => (has(c.s.air_yards_share) ? num(c.s.air_yards_share) : undefined), false, 'deep'],
+    ['Broken tkl/rec', 0.05, c => (c.rec ? per(num(c.rec.brk_tkl), num(c.rec.rec)) : undefined), false, 'yac'],
+    ['Rec yds/g', 0.288, c => per(num(c.s.receiving_yards), num(c.s.games)), false, 'vol'],
+    ['Rec TD/g', 0.07, c => per(num(c.s.receiving_tds), num(c.s.games)), false, 'vol'],
+    ['Rec/g', 0.06, c => per(num(c.s.receptions), num(c.s.games)), false, 'vol'],
+    ['Catchable drop %', 0.06, c => (c.ch?.catchableTgt > 15 ? c.ch.drops / c.ch.catchableTgt : undefined), true, 'hands'],
+    ['Contested catch %', 0.06, c => (c.ch?.contested > 6 ? c.ch.contestedRec / c.ch.contested : undefined), false, 'contested'],
+    ['Created rec/tgt', 0.04, c => (c.ch?.tgt > 15 ? c.ch.created / c.ch.tgt : undefined), false, 'contested'],
   ],
   // Linemen have no individual box score: they share their unit's results
   // (sacks the charting does not pin on the QB, hits, run EPA, stuffs),
   // plus their own penalty rate.
   OT: [
-    ['Unit sack %', 0.3, c => (c.unit?.dropbacks > 150 ? c.unit.olSacks / c.unit.dropbacks : undefined), true],
-    ['Unit QB hit %', 0.2, c => (c.unit?.dropbacks > 150 ? c.unit.hits / c.unit.dropbacks : undefined), true],
-    ['Unit run EPA', 0.25, c => (c.unit?.rushes > 100 ? c.unit.rushEpa / c.unit.rushes : undefined)],
-    ['Unit stuff %', 0.1, c => (c.unit?.rushes > 100 ? c.unit.stuffs / c.unit.rushes : undefined), true],
-    ['Penalties/100', 0.15, c => (c.snaps > 150 ? per(num(c.s.penalties), c.snaps, 100) : undefined), true],
+    ['Unit sack %', 0.39, c => (c.unit?.dropbacks > 150 ? c.unit.olSacks / c.unit.dropbacks : undefined), true, 'pblock'],
+    ['Unit QB hit %', 0.2, c => (c.unit?.dropbacks > 150 ? c.unit.hits / c.unit.dropbacks : undefined), true, 'pblock'],
+    ['Unit run EPA', 0.325, c => (c.unit?.rushes > 100 ? c.unit.rushEpa / c.unit.rushes : undefined), false, 'rblock'],
+    ['Unit stuff %', 0.1, c => (c.unit?.rushes > 100 ? c.unit.stuffs / c.unit.rushes : undefined), true, 'rblock'],
+    ['Penalties/100', 0.15, c => (c.snaps > 150 ? per(num(c.s.penalties), c.snaps, 100) : undefined), true, 'disc'],
   ],
   EDGE: [
-    ['Pressures/100', 0.34, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined)],
-    ['Sacks/100', 0.2, c => per(num(c.s.def_sacks), c.snaps, 100)],
-    ['QB hits/100', 0.1, c => per(num(c.s.def_qb_hits), c.snaps, 100)],
-    ['TFL/100', 0.14, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100)],
-    ['Tackles/100', 0.1, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100)],
-    ['Missed tkl %', 0.06, c => (c.def && num(c.def.comb) >= 10 ? num(c.def.m_tkl_percent) : undefined), true],
-    ['Forced fum/100', 0.06, c => per(num(c.s.def_fumbles_forced), c.snaps, 100)],
+    ['Pressures/100', 0.51, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined), false, 'rush'],
+    ['Sacks/100', 0.26, c => per(num(c.s.def_sacks), c.snaps, 100), false, 'rush'],
+    ['QB hits/100', 0.1, c => per(num(c.s.def_qb_hits), c.snaps, 100), false, 'rush'],
+    ['TFL/100', 0.14, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100), false, 'runD'],
+    ['Tackles/100', 0.1, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100), false, 'tackle'],
+    ['Missed tkl %', 0.06, c => (c.def && num(c.def.comb) >= 10 ? num(c.def.m_tkl_percent) : undefined), true, 'tackle'],
+    ['Sacks/g', 0.18, c => per(num(c.s.def_sacks), num(c.s.games)), false, 'vol'],
+    ['Pressures/g', 0.13, c => (c.def ? per(num(c.def.prss), num(c.def.g)) : undefined), false, 'vol'],
+    ['Forced fum/100', 0.06, c => per(num(c.s.def_fumbles_forced), c.snaps, 100), false, 'hit'],
   ],
   LB: [
-    ['Tackles/100', 0.2, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100)],
-    ['Missed tkl %', 0.14, c => (c.def && num(c.def.comb) >= 15 ? num(c.def.m_tkl_percent) : undefined), true],
-    ['TFL/100', 0.12, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100)],
-    ['Yds/tgt allowed', 0.14, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.yds_tgt) : undefined), true],
-    ['Rating allowed', 0.1, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.rat) : undefined), true],
-    ['Pressures/100', 0.12, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined)],
-    ['Ball plays/100', 0.18, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100)],
+    ['Tackles/100', 0.2, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100), false, 'tackle'],
+    ['Missed tkl %', 0.14, c => (c.def && num(c.def.comb) >= 15 ? num(c.def.m_tkl_percent) : undefined), true, 'tackle'],
+    ['TFL/100', 0.12, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100), false, 'runD'],
+    ['Yds/tgt allowed', 0.196, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.yds_tgt) : undefined), true, 'cover'],
+    ['Rating allowed', 0.15, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.rat) : undefined), true, 'cover'],
+    ['Pressures/100', 0.18, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined), false, 'rush'],
+    ['Ball plays/100', 0.252, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100), false, 'ball'],
+    ['Tackles/g', 0.156, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), num(c.s.games)), false, 'vol'],
+    ['Splash/g', 0.104, c => per(num(c.s.def_tackles_for_loss) + num(c.s.def_sacks) + num(c.s.def_interceptions) + num(c.s.def_pass_defended), num(c.s.games)), false, 'vol'],
   ],
   CB: [
-    ['Rating allowed', 0.24, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.rat) : undefined), true],
-    ['Yds/tgt allowed', 0.18, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.yds_tgt) : undefined), true],
-    ['Cmp % allowed', 0.14, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.cmp_percent) : undefined), true],
-    ['Ball plays/100', 0.22, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100)],
-    ['Missed tkl %', 0.12, c => (c.def && num(c.def.comb) >= 10 ? num(c.def.m_tkl_percent) : undefined), true],
-    ['Tackles/100', 0.1, c => per(num(c.s.def_tackles_solo), c.snaps, 100)],
+    ['Rating allowed', 0.36, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.rat) : undefined), true, 'cover'],
+    ['Yds/tgt allowed', 0.252, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.yds_tgt) : undefined), true, 'cover'],
+    ['Cmp % allowed', 0.14, c => (c.def && num(c.def.tgt) >= 20 ? num(c.def.cmp_percent) : undefined), true, 'cover'],
+    ['Ball plays/100', 0.308, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100), false, 'ball'],
+    ['Missed tkl %', 0.12, c => (c.def && num(c.def.comb) >= 10 ? num(c.def.m_tkl_percent) : undefined), true, 'tackle'],
+    ['Tackles/100', 0.1, c => per(num(c.s.def_tackles_solo), c.snaps, 100), false, 'tackle'],
+    ['Ball plays/g', 0.13, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), num(c.s.games)), false, 'vol'],
   ],
   S: [
-    ['Rating allowed', 0.15, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.rat) : undefined), true],
-    ['Yds/tgt allowed', 0.12, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.yds_tgt) : undefined), true],
-    ['Ball plays/100', 0.22, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100)],
-    ['Tackles/100', 0.15, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100)],
-    ['Missed tkl %', 0.16, c => (c.def && num(c.def.comb) >= 15 ? num(c.def.m_tkl_percent) : undefined), true],
-    ['TFL/100', 0.1, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100)],
-    ['Pressures/100', 0.1, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined)],
+    ['Rating allowed', 0.225, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.rat) : undefined), true, 'cover'],
+    ['Yds/tgt allowed', 0.168, c => (c.def && num(c.def.tgt) >= 15 ? num(c.def.yds_tgt) : undefined), true, 'cover'],
+    ['Ball plays/100', 0.308, c => per(num(c.s.def_pass_defended) + 2 * num(c.s.def_interceptions), c.snaps, 100), false, 'ball'],
+    ['Tackles/100', 0.15, c => per(num(c.s.def_tackles_solo) + 0.5 * num(c.s.def_tackle_assists), c.snaps, 100), false, 'tackle'],
+    ['Missed tkl %', 0.16, c => (c.def && num(c.def.comb) >= 15 ? num(c.def.m_tkl_percent) : undefined), true, 'tackle'],
+    ['TFL/100', 0.1, c => per(num(c.s.def_tackles_for_loss), c.snaps, 100), false, 'runD'],
+    ['Pressures/100', 0.15, c => (c.def ? per(num(c.def.prss), c.snaps, 100) : undefined), false, 'rush'],
+    ['Splash/g', 0.13, c => per(num(c.s.def_interceptions) * 2 + num(c.s.def_pass_defended) + num(c.s.def_tackles_for_loss), num(c.s.games)), false, 'vol'],
   ],
   K: [
-    ['FG %', 0.55, c => (num(c.s.fg_att) >= 8 ? per(num(c.s.fg_made), num(c.s.fg_att)) : undefined)],
-    ['50+ makes', 0.25, c => (num(c.s.fg_att) >= 8 ? num(c.s.fg_made_50_59) + num(c.s.fg_made_60_) : undefined)],
-    ['XP %', 0.2, c => (num(c.s.pat_att) >= 10 ? per(num(c.s.pat_made), num(c.s.pat_att)) : undefined)],
+    ['FG %', 0.715, c => (num(c.s.fg_att) >= 8 ? per(num(c.s.fg_made), num(c.s.fg_att)) : undefined), false, 'kacc'],
+    ['50+ makes', 0.25, c => (num(c.s.fg_att) >= 8 ? num(c.s.fg_made_50_59) + num(c.s.fg_made_60_) : undefined), false, 'kpow'],
+    ['XP %', 0.2, c => (num(c.s.pat_att) >= 10 ? per(num(c.s.pat_made), num(c.s.pat_att)) : undefined), false, 'kacc'],
   ],
   P: [
-    ['Net avg', 0.6, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_net_yards), num(c.s.pt_att)) : undefined)],
-    ['Inside 20 %', 0.25, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_inside_20), num(c.s.pt_att)) : undefined)],
-    ['Touchback %', 0.15, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_touchback), num(c.s.pt_att)) : undefined), true],
+    ['Net avg', 0.78, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_net_yards), num(c.s.pt_att)) : undefined), false, 'kpow'],
+    ['Inside 20 %', 0.25, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_inside_20), num(c.s.pt_att)) : undefined), false, 'kacc'],
+    ['Touchback %', 0.15, c => (num(c.s.pt_att) >= 15 ? per(num(c.s.pt_touchback), num(c.s.pt_att)) : undefined), true, 'kacc'],
   ],
 };
 M.FB = M.RB; M.TE = M.WR; M.DT = M.EDGE; M.G = M.OT; M.C = M.OT;
 // [volume, volume for full weight, minimum to be scored at all]
 const VOLUME = {
-  QB: c => [c.plays, 250, 60], RB: c => [num(c.s.carries) + num(c.s.targets), 120, 25], FB: c => [c.snaps, 250, 60],
-  WR: c => [num(c.s.targets), 60, 15], TE: c => [num(c.s.targets), 45, 12],
-  EDGE: c => [c.snaps, 350, 100], DT: c => [c.snaps, 350, 100], LB: c => [c.snaps, 350, 100], CB: c => [c.snaps, 350, 100], S: c => [c.snaps, 350, 100],
-  K: c => [num(c.s.fg_att), 20, 8], P: c => [num(c.s.pt_att), 40, 15],
-  OT: c => [c.snaps, 800, 200], G: c => [c.snaps, 800, 200], C: c => [c.snaps, 800, 200],
+  QB: c => [c.plays, 480, 60], RB: c => [num(c.s.carries) + num(c.s.targets), 220, 25], FB: c => [c.snaps, 300, 60],
+  WR: c => [num(c.s.targets), 100, 15], TE: c => [num(c.s.targets), 75, 12],
+  EDGE: c => [c.snaps, 650, 100], DT: c => [c.snaps, 600, 100], LB: c => [c.snaps, 750, 100], CB: c => [c.snaps, 800, 100], S: c => [c.snaps, 800, 100],
+  K: c => [num(c.s.fg_att), 28, 8], P: c => [num(c.s.pt_att), 60, 15],
+  OT: c => [c.snaps, 950, 200], G: c => [c.snaps, 950, 200], C: c => [c.snaps, 950, 200],
 };
 
 function seasonCtx(row, year) {
@@ -333,7 +347,7 @@ const byPos = {};
 for (const p of players) (byPos[p.pos] ??= []).push(p);
 for (const [pos, list] of Object.entries(byPos)) {
   const metrics = M[pos];
-  for (const p of list) p._prod = { sum: 0, w: 0 };
+  for (const p of list) { p._prod = { sum: 0, w: 0 }; p._grp = {}; }
   if (!metrics) continue;
   PAST.forEach((year, yi) => {
     const rows = [];
@@ -351,14 +365,18 @@ for (const [pos, list] of Object.entries(byPos)) {
       return { elite, repl: Math.min(v[Math.floor(v.length * 0.8)], elite - 1e-6) };
     });
     for (const { p, rel, vals } of rows) {
+      if (process.env.MET && process.env.MET.split(',').includes(p.ln) && yi === 0) console.log('   ', p.ln, year, 'rel', rel.toFixed(2), metrics.map((m, i) => `${m[0]}=${vals[i] === undefined ? '-' : (scales[i] ? (((m[3] ? -vals[i] : vals[i]) - scales[i].repl) / (scales[i].elite - scales[i].repl)).toFixed(2) : 'x')}`).join(' '));
       let sum = 0, w = 0;
       metrics.forEach((m, i) => {
         const sc = scales[i], v = vals[i];
         if (!sc || v === undefined || !Number.isFinite(v)) return;
-        sum += m[1] * Math.max(-0.4, Math.min(1.15, ((m[3] ? -v : v) - sc.repl) / (sc.elite - sc.repl)));
+        const z = Math.max(-0.4, Math.min(1.15, ((m[3] ? -v : v) - sc.repl) / (sc.elite - sc.repl)));
+        sum += m[1] * z;
         w += m[1];
+        const g = (p._grp[m[4]] ??= { sum: 0, w: 0 });
+        g.sum += z * SEASON_W[yi] * rel; g.w += SEASON_W[yi] * rel;
       });
-      if (w < 0.4) return; // too few metrics to trust this season
+      if (w < 0.4) continue; // too few metrics to trust this season
       const sw = SEASON_W[yi] * rel;
       p._prod.sum += (sum / w) * sw;
       p._prod.w += sw;
@@ -367,11 +385,14 @@ for (const [pos, list] of Object.entries(byPos)) {
 }
 
 // ---- blend into a talent score and place on the curve --------------------------------------
+// Output and skill decide the rating. The contract (what the market thinks) and
+// snap share (who starts) are tie-breakers; they matter more only for linemen,
+// whose numbers are shared with the unit.
 const W = { // market, production, role
-  QB: [0.25, 0.6, 0.15], RB: [0.2, 0.55, 0.25], FB: [0.3, 0.15, 0.55], WR: [0.3, 0.5, 0.2], TE: [0.3, 0.38, 0.32],
-  OT: [0.38, 0.27, 0.35], G: [0.38, 0.27, 0.35], C: [0.38, 0.27, 0.35],
-  EDGE: [0.3, 0.48, 0.22], DT: [0.35, 0.4, 0.25], LB: [0.3, 0.4, 0.3], CB: [0.35, 0.37, 0.28], S: [0.3, 0.4, 0.3],
-  K: [0.12, 0.83, 0.05], P: [0.12, 0.83, 0.05], LS: [0.4, 0, 0.6],
+  QB: [0.1, 0.85, 0.05], RB: [0.1, 0.85, 0.05], FB: [0.25, 0.25, 0.5], WR: [0.1, 0.85, 0.05], TE: [0.1, 0.8, 0.1],
+  OT: [0.3, 0.42, 0.28], G: [0.3, 0.42, 0.28], C: [0.3, 0.42, 0.28],
+  EDGE: [0.1, 0.85, 0.05], DT: [0.12, 0.8, 0.08], LB: [0.1, 0.82, 0.08], CB: [0.1, 0.82, 0.08], S: [0.1, 0.82, 0.08],
+  K: [0.08, 0.9, 0.02], P: [0.08, 0.9, 0.02], LS: [0.4, 0, 0.6],
 };
 // Highest rating each position can reach.
 const CEILING = { QB: 99, RB: 97, FB: 88, WR: 99, TE: 97, OT: 97, G: 96, C: 95, EDGE: 99, DT: 98, LB: 96, CB: 98, S: 96, K: 85, P: 85, LS: 75 };
@@ -391,10 +412,12 @@ for (const [pos, list] of Object.entries(byPos)) {
   const snapRank = pctRank(list.map(p => p._snap));
   const [wc, wp, ws] = W[pos];
   for (const p of list) {
-    const evidence = Math.min(1, p._prod.w / 0.6); // 1 = a full, recent season or more
-    const prodQ = p._prod.w ? p._prod.sum / p._prod.w : 0;
-    // Thin samples regress toward a modest baseline rather than trusting a hot streak.
-    const ps = Math.max(0, Math.min(1.1, evidence * prodQ + (1 - evidence) * 0.3));
+    // Bayesian shrinkage: the data is weighed against a prior of replacement-plus
+    // (0.2) worth three quarters of a full 2025 season, so small samples, however efficient,
+    // cannot outrank sustained production.
+    const evidence = Math.min(1, p._prod.w / 0.6);
+    const PRIOR_W = 0.45;
+    const ps = Math.max(0, Math.min(1.1, p._prod.sum / (p._prod.w + PRIOR_W)));
     const secondDeal = p._cap > 0 && p.exp >= 4;
     const ms = secondDeal ? 0.1 + capRank(p._cap) * 0.9 : undefined;
     const rs = snapRank(p._snap) * 0.4 + p._snap * 0.6;
@@ -403,7 +426,7 @@ for (const [pos, list] of Object.entries(byPos)) {
     PAST.forEach((y, i) => { const g = pffGrade(p._row, y); if (g) { pg += g * SEASON_W[i]; pw += SEASON_W[i]; } });
     let score;
     if (ms !== undefined) score = ms * wc + ps * wp + rs * ws;
-    else if (wp >= 0.35) score = ps * (wp + wc * 0.6) + rs * (ws + wc * 0.4);
+    else if (wp >= 0.35) score = ps * (wp + wc * 0.85) + rs * (ws + wc * 0.15);
     // Linemen: no box score, and a rookie deal tells us nothing, so a full-time
     // starter is treated as holding a league-median deal.
     else score = (0.15 + 0.45 * p._snap) * wc + ps * wp + rs * ws;
@@ -425,7 +448,8 @@ for (const [pos, list] of Object.entries(byPos)) {
   // same for every position, so the last points toward 99 are the hardest to earn.
   const top = CEILING[pos];
   if (process.env.Q) { const q = f => list[Math.floor(list.length * f)]._score.toFixed(3); console.log(pos.padEnd(5), 'top', list[0]._score.toFixed(3), '#5', list[4]._score.toFixed(3), '#32', list[31]?._score.toFixed(3), 'p50', q(0.5), 'p95', q(0.95)); }
-  const sTop = list[0]._score, sMid = list[Math.floor(list.length * 0.5)]._score;
+  // The top three set the ceiling, so one outlier cannot drag the rest down.
+  const sTop = (list[0]._score + list[1]._score + list[2]._score) / 3, sMid = list[Math.floor(list.length * 0.5)]._score;
   for (const p of list) {
     const mid = ['K', 'P', 'LS'].includes(pos) ? 70 : 60;
     const x = (p._score - sMid) / Math.max(1e-6, sTop - sMid);
@@ -438,6 +462,11 @@ for (const [pos, list] of Object.entries(byPos)) {
 const debug = new Set((process.env.DEBUG ?? '').split(','));
 for (const p of players) {
   if (debug.has(p.ln)) console.log(`  ${p.fn} ${p.ln} ${p.pos} exp${p.exp} prod=${(p._prod.sum / (p._prod.w || 1)).toFixed(2)} w=${p._prod.w.toFixed(2)} cap=${p._cap} snap=${p._snap.toFixed(2)} score=${p._score.toFixed(3)} ovr=${p.ovr}`);
+  // Per-attribute signals (0 = replacement, 1 = elite), shrunk toward replacement
+  // for small samples; the game builds Madden-style attributes from these.
+  const sig = {};
+  for (const [g, v] of Object.entries(p._grp ?? {})) sig[g] = Math.round((v.sum / (v.w + 0.3)) * 100) / 100;
+  if (Object.keys(sig).length) p.sig = sig;
   for (const k of Object.keys(p)) if (k.startsWith('_') || (p[k] === 0 && !['num', 'exp', 'ovr', 'pick', 'cy'].includes(k))) delete p[k];
 }
 mkdirSync('src/data', { recursive: true });
