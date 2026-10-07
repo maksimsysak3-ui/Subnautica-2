@@ -109,16 +109,31 @@ export function whatWouldItTake(league: League, from: string, to: string, target
     ...league.picks.filter(k => k.owner === from && k.season >= league.season).map(k => ({ kind: 'pick' as const, id: k.id, v: pickTradeValue(league, k, to) })),
     ...Object.values(league.players).filter(p => p.team === from && p.status === 'ACT' && !(p.pos === 'QB' && p.ovr >= 80)).map(p => ({ kind: 'player' as const, id: p.id, v: playerTradeValue(league, p, to) })),
   ].sort((a, b) => b.v - a.v);
-  let total = 0;
+  // Their front office wants fair value, not a windfall: the cheapest single asset that
+  // covers it, or a package built down from the best piece that fits under it.
+  const decayed = (vs: number[]) => [...vs].sort((x, y) => y - x).reduce((t, v, i) => t + v * Math.pow(0.82, i), 0);
+  const single = [...assets].reverse().find(a => a.v >= need);
+  let pack: typeof assets = [];
   for (const a of assets) {
-    if (total >= need) break;
-    if (a.v > need * 1.6 && total === 0) continue; // do not throw a superstar at a starter
-    const val = a.v * Math.pow(0.82, offer.give.players.length + offer.give.picks.length);
-    (a.kind === 'pick' ? offer.give.picks : offer.give.players).push(a.id);
-    total += val;
-    if (offer.give.players.length + offer.give.picks.length >= 4) break;
+    if (a.v >= need) continue;
+    const vals = [...pack.map(x => x.v), a.v];
+    if (pack.length && decayed(vals) - decayed(pack.map(x => x.v)) < a.v * 0.3) continue;
+    pack.push(a);
+    if (decayed(pack.map(x => x.v)) >= need) {
+      // Swap the last piece for the smallest asset that still closes the gap.
+      const rest = pack.slice(0, -1);
+      const closer = [...assets].reverse().find(x => !rest.includes(x) && x.v < need && decayed([...rest.map(r => r.v), x.v]) >= need);
+      if (closer) pack = [...rest, closer];
+      break;
+    }
+    if (pack.length >= 4) break;
   }
-  return total >= need * 0.95 ? offer : null;
+  const packOk = decayed(pack.map(x => x.v)) >= need * 0.95;
+  const sum = (xs: typeof assets) => xs.reduce((t, x) => t + x.v, 0);
+  const chosen = single && (!packOk || single.v <= sum(pack)) ? [single] : packOk ? pack : null;
+  if (!chosen) return null;
+  for (const a of chosen) (a.kind === 'pick' ? offer.give.picks : offer.give.players).push(a.id);
+  return offer;
 }
 
 /** Around the deadline, AI teams make the odd deal; sometimes they call the user. */

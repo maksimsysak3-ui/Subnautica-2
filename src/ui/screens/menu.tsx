@@ -1,54 +1,112 @@
 import { useEffect, useMemo, useState } from 'react';
 import { app, listSaves, loadLeague, deleteSave, type SaveMeta } from '../store';
 import { Logo, Ovr, Tilt, Face, vivid } from '../components';
+import data from '../../data/league.json';
 import { createLeague, RAW_TEAMS, teamRatings } from '../../core/league';
 import type { League } from '../../core/types';
 import { capSpace, money } from '../../core/contracts';
 
-/** Title screen: a rotating 3D ring of all 32 logos over a receding, lit field. */
+/**
+ * Title screen. Plays a short intro once per visit (stadium lights bang on, a
+ * spiralling football crosses the screen and slams the title in), then a
+ * broadcast-style main menu: big keyboard-driven menu, a rotating cover athlete,
+ * light sweeps over a living field and a ticker of the league's best.
+ */
+let introSeen = false;
+const RAW_PLAYERS = (data as unknown as { players: { id: string; fn: string; ln: string; pos: string; team: string; ovr: number; hs?: string; num?: number }[] }).players;
+// One cover athlete per marquee position, best first.
+const COVER = (() => {
+  const out: typeof RAW_PLAYERS = [];
+  for (const pos of ['QB', 'WR', 'EDGE', 'RB', 'DT', 'TE', 'CB']) {
+    const p = RAW_PLAYERS.filter(q => q.pos === pos && q.team && q.team !== 'FA').sort((a, b) => b.ovr - a.ovr)[0];
+    if (p) out.push(p);
+  }
+  return out.sort((a, b) => b.ovr - a.ovr);
+})();
+const TICKER = ['QB', 'RB', 'WR', 'TE', 'OT', 'EDGE', 'DT', 'LB', 'CB', 'S', 'K'].map(pos => {
+  const p = RAW_PLAYERS.filter(q => q.pos === pos && q.team).sort((a, b) => b.ovr - a.ovr)[0];
+  return p ? `${pos} ${p.fn[0]}. ${p.ln} · ${p.team} · ${p.ovr}` : '';
+}).filter(Boolean);
+
 export function MainMenu() {
   const [saves, setSaves] = useState<SaveMeta[]>([]);
+  // 'intro' plays the cold open; 'quick' is the short entrance on later visits; 'skip' jumps to the end.
+  const [mode, setMode] = useState<'intro' | 'quick' | 'skip'>(introSeen ? 'quick' : 'intro');
+  const [playing, setPlaying] = useState(!introSeen);
+  const skip = () => { introSeen = true; setPlaying(false); setMode('skip'); };
+  const [sel, setSel] = useState(0);
+  const [cover, setCover] = useState(0);
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
   useEffect(() => { listSaves().then(setSaves); }, []);
-  const teams = RAW_TEAMS;
+  useEffect(() => { if (!playing) return; const t = setTimeout(() => { introSeen = true; setPlaying(false); }, 2900); return () => clearTimeout(t); }, [playing]);
+  useEffect(() => { const t = setInterval(() => setCover(c => (c + 1) % COVER.length), 5200); return () => clearInterval(t); }, []);
+  const items = useMemo(() => [
+    ...(saves[0] ? [{ k: 'Continue', sub: `${saves[0].team} · ${saves[0].season} · ${saves[0].phase}`, go: async () => { const l = await loadLeague(saves[0].slot); if (l) { migrate(l); app.setLeague(l); app.replace({ id: 'hub' }); } } }] : []),
+    { k: 'New Franchise', sub: 'Pick a team. Real rosters, contracts and cap.', go: async () => app.go({ id: 'new' }) },
+    { k: 'Load Franchise', sub: `${saves.length} saved franchise${saves.length === 1 ? '' : 's'}`, go: async () => app.go({ id: 'load' }) },
+  ], [saves]);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (playing) { skip(); return; }
+      if (e.key === 'ArrowDown') setSel(i => (i + 1) % items.length);
+      else if (e.key === 'ArrowUp') setSel(i => (i - 1 + items.length) % items.length);
+      else if (e.key === 'Enter') items[sel]?.go();
+    };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, [items, sel, playing]);
+  const c = COVER[cover];
+  const ct = RAW_TEAMS.find(t => t.abbr === c?.team);
+  const col = ct?.colors[0] ?? '#1d4ed8', col2 = ct?.colors[2] ?? ct?.colors[1] ?? '#f5c542';
   return (
-    <div onMouseMove={e => setMouse({ x: e.clientX / window.innerWidth - 0.5, y: e.clientY / window.innerHeight - 0.5 })}
-      style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
-      <style>{`
-        @keyframes ring { from { transform: rotateX(-12deg) rotateY(0deg) } to { transform: rotateX(-12deg) rotateY(-360deg) } }
-        @keyframes turf { from { background-position: 0 0 } to { background-position: 0 160px } }
-        @keyframes flare { 0%,100% { opacity: .55 } 50% { opacity: .95 } }
-        @keyframes titleIn { from { opacity: 0; transform: translateY(30px) scale(.96); letter-spacing: .3em } to { opacity: 1; transform: none; letter-spacing: .04em } }
-        .menu-btn { width: 300px; justify-content: flex-start; padding: 16px 22px; font: 700 20px var(--head); letter-spacing: .12em; text-transform: uppercase; border-radius: 14px; background: linear-gradient(90deg, rgba(30,42,70,.9), rgba(16,22,38,.6)); border: 1px solid rgba(150,180,255,.18); transition: transform .2s, background .2s, border-color .2s; }
-        .menu-btn:hover { transform: translateX(10px); background: linear-gradient(90deg, rgba(59,130,246,.55), rgba(16,22,38,.6)); border-color: rgba(150,180,255,.5); }
-      `}</style>
-      {/* receding turf */}
-      <div style={{ position: 'absolute', left: '-50%', right: '-50%', bottom: '-30%', height: '80%', transform: 'perspective(600px) rotateX(70deg)', background: 'repeating-linear-gradient(0deg, #1f5a2a 0 80px, #23652f 80px 160px)', animation: 'turf 3s linear infinite', boxShadow: 'inset 0 200px 200px #05070d', opacity: .9 }} />
-      <div style={{ position: 'absolute', left: '-50%', right: '-50%', bottom: '-30%', height: '80%', transform: 'perspective(600px) rotateX(70deg)', backgroundImage: 'repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgba(255,255,255,.35) calc(10% - 2px) 10%)' }} />
-      {/* stadium lights */}
-      {[12, 30, 70, 88].map((x, i) => <div key={i} style={{ position: 'absolute', top: '6%', left: `${x}%`, width: 220, height: 220, transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(255,255,240,.9), rgba(255,255,220,.25) 25%, transparent 60%)', animation: `flare ${3 + i}s ease-in-out infinite`, filter: 'blur(2px)' }} />)}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 30%, transparent 30%, rgba(3,5,10,.85) 80%)' }} />
-      {/* 3D ring of logos */}
-      <div style={{ position: 'absolute', top: '16%', left: '50%', width: 0, height: 0, perspective: 1400, transform: `translate(${mouse.x * -30}px, ${mouse.y * -20}px)` }}>
-        <div style={{ transformStyle: 'preserve-3d', animation: 'ring 60s linear infinite' }}>
-          {teams.map((t, i) => (
-            <div key={t.abbr} style={{ position: 'absolute', left: -40, top: -40, width: 80, height: 80, transform: `rotateY(${(i / teams.length) * 360}deg) translateZ(560px)`, backfaceVisibility: 'hidden' }}>
-              <img src={t.logo} width={80} height={80} alt="" style={{ filter: 'drop-shadow(0 8px 16px rgba(0,0,0,.7))' }} onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />
+    <div className={`title ${mode}`} onClick={() => { if (playing) skip(); }}
+      onMouseMove={e => setMouse({ x: e.clientX / window.innerWidth - 0.5, y: e.clientY / window.innerHeight - 0.5 })}>
+      <div className="t-field" /><div className="t-lines" />
+      <div className="t-beams">{[0, 1, 2, 3].map(i => <i key={i} style={{ left: `${10 + i * 26}%`, animationDelay: `${-i * 1.7}s` }} />)}</div>
+      <div className="t-lights">{[8, 30, 70, 92].map((x, i) => <i key={i} style={{ left: `${x}%`, '--i': i } as React.CSSProperties} />)}</div>
+      <div className="t-dust">{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${-(i * 0.73) % 9}s`, animationDuration: `${7 + (i % 5)}s` }} />)}</div>
+      {/* Logo ring, far behind */}
+      <div className="t-ring" style={{ transform: `translate(${mouse.x * -24}px, ${mouse.y * -14}px)` }}>
+        <div>{RAW_TEAMS.map((t, i) => <img key={t.abbr} src={t.logo} alt="" style={{ transform: `rotateY(${(i / RAW_TEAMS.length) * 360}deg) translateZ(620px)` }} onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />)}</div>
+      </div>
+      <div className="t-vignette" />
+
+      {/* Intro: the ball, the hit, the flash */}
+      <div className="t-ball"><svg viewBox="0 0 120 70"><defs><radialGradient id="tb" cx=".35" cy=".35"><stop offset="0" stopColor="#c46f33" /><stop offset="1" stopColor="#5d2a0c" /></radialGradient></defs><ellipse cx="60" cy="35" rx="56" ry="31" fill="url(#tb)" /><path d="M30 35h60" stroke="#fff" strokeWidth="3" /><path d="M42 29v12M50 29v12M58 29v12M66 29v12M74 29v12" stroke="#fff" strokeWidth="2.4" /><path d="M14 22c10 4 10 22 0 26M106 22c-10 4-10 22 0 26" stroke="#fff" strokeWidth="3" fill="none" /></svg></div>
+      <div className="t-flash" /><div className="t-shock" />
+
+      <div className="t-stage" style={{ transform: `translate(${mouse.x * 10}px, ${mouse.y * 6}px)` }}>
+        <div className="t-brand">
+          <div className="t-kicker">2026 Season · Real Rosters · Real Contracts</div>
+          <h1 className="t-title"><span>Gridiron</span><span>GM</span></h1>
+          <nav className="t-menu">
+            {items.map((it, i) => (
+              <button key={it.k} className={`t-item${i === sel ? ' on' : ''}`} style={{ '--i': i } as React.CSSProperties} onMouseEnter={() => setSel(i)} onClick={() => it.go()}>
+                <em>{String(i + 1).padStart(2, '0')}</em><b>{it.k}</b><small>{it.sub}</small>
+              </button>
+            ))}
+          </nav>
+          <div className="t-hint">↑ ↓ to choose · Enter to select</div>
+        </div>
+        {c && (
+          <div className="t-cover" style={{ '--c1': col, '--c2': col2 } as React.CSSProperties}>
+            <div className="t-cover-in" key={c.id}>
+              {ct && <img className="t-cover-logo" src={ct.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = ct.logoAlt; }} />}
+              <div className="t-cover-num">{c.num ?? ''}</div>
+              {/* Helmet silhouette in team colours: shows when the headshot cannot load. */}
+              <svg className="t-cover-helmet" viewBox="0 0 200 170"><path d="M40 120C20 60 60 10 120 12c46 2 72 40 70 84l-4 18H128l-6 20H70l-6-14z" fill="var(--c1)" stroke="rgba(255,255,255,.35)" strokeWidth="3" /><path d="M96 12c6 30 8 70 6 108" stroke="var(--c2)" strokeWidth="9" fill="none" /><path d="M128 114h66M140 114v34M160 114v30M128 130h60" stroke="#ddd" strokeWidth="6" fill="none" /><circle cx="70" cy="86" r="9" fill="rgba(0,0,0,.5)" /></svg>
+              {c.hs && <img className="t-cover-hs" src={c.hs} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+              <div className="t-cover-meta">
+                <div className="up">Cover Athlete</div>
+                <div className="t-cover-name"><span>{c.fn}</span>{c.ln}</div>
+                <div className="row" style={{ gap: 10 }}><span className="t-cover-pos">{c.pos} · {ct?.nick}</span><Ovr v={c.ovr} lg /></div>
+              </div>
             </div>
-          ))}
-        </div>
+            <div className="t-dots">{COVER.map((_, i) => <i key={i} className={i === cover ? 'on' : ''} onClick={() => setCover(i)} />)}</div>
+          </div>
+        )}
       </div>
-      <div style={{ position: 'relative', textAlign: 'center', marginTop: '14vh', transform: `translate(${mouse.x * 14}px, ${mouse.y * 10}px)` }}>
-        <div className="up" style={{ color: 'var(--gold)', letterSpacing: '.4em', marginBottom: 8 }}>2026 Season · Real Rosters</div>
-        <div style={{ font: '900 clamp(54px, 9vw, 120px)/0.9 var(--head)', textTransform: 'uppercase', animation: 'titleIn 1s cubic-bezier(.2,.8,.2,1)', textShadow: '0 10px 40px rgba(0,0,0,.8)', background: 'linear-gradient(180deg, #fff, #b9c7e8)', WebkitBackgroundClip: 'text', color: 'transparent' }}>Gridiron GM</div>
-        <div className="dim" style={{ margin: '10px 0 34px', fontSize: 16 }}>Build a dynasty. Every snap simulated.</div>
-        <div style={{ display: 'grid', gap: 12, justifyItems: 'center' }}>
-          {saves[0] && <button className="btn menu-btn" style={{ borderColor: 'rgba(245,197,66,.5)' }} onClick={async () => { const l = await loadLeague(saves[0].slot); if (l) { migrate(l); app.setLeague(l); app.replace({ id: 'hub' }); } }}>▶ Continue <span className="dim small" style={{ marginLeft: 'auto', letterSpacing: 0, textTransform: 'none', font: '500 12px var(--body)' }}>{saves[0].team} · {saves[0].season}</span></button>}
-          <button className="btn menu-btn" onClick={() => app.go({ id: 'new' })}>✚ New Franchise</button>
-          <button className="btn menu-btn" onClick={() => app.go({ id: 'load' })}>⭱ Load Franchise</button>
-        </div>
-        <div className="mute small" style={{ marginTop: 40 }}>Rosters, contracts and schedule from nflverse public data. Logos load from the ESPN CDN.</div>
-      </div>
+      <div className="t-ticker"><b>League Leaders</b><div><span>{[...TICKER, ...TICKER].join('     •     ')}</span></div></div>
+      {playing && <div className="t-skip">Click or press any key to skip</div>}
     </div>
   );
 }
