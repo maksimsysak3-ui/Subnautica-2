@@ -413,12 +413,14 @@ for (const [pos, list] of Object.entries(byPos)) {
   const snapRank = pctRank(list.map(p => p._snap));
   const [wc, wp, ws] = W[pos];
   for (const p of list) {
-    // Bayesian shrinkage: the data is weighed against a prior of replacement-plus
-    // (0.2) worth three quarters of a full 2025 season, so small samples, however efficient,
-    // cannot outrank sustained production.
-    const evidence = Math.min(1, p._prod.w / 0.6);
-    const PRIOR_W = 0.45;
-    const ps = Math.max(0, Math.min(1.1, p._prod.sum / (p._prod.w + PRIOR_W)));
+    // Shrinkage by how much a player has actually played (all seasons, unweighted),
+    // so an injured year does not erase a strong one. The prior is replacement
+    // level for veterans and draft capital for young players.
+    const q = p._prod.w ? p._prod.sum / p._prod.w : 0;
+    const E = Math.min(2.2, (p._yq ?? []).reduce((a, y) => a + (y?.rel ?? 0), 0));
+    const prior = p.exp <= 3 && p.pick > 0 ? 0.12 + 0.32 * pickPct(p.pick) : 0.2;
+    const K = 0.55;
+    const ps = Math.max(0, Math.min(1.1, (q * E + prior * K) / (E + K)));
     const secondDeal = p._cap > 0 && p.exp >= 4;
     const ms = secondDeal ? 0.1 + capRank(p._cap) * 0.9 : undefined;
     const rs = snapRank(p._snap) * 0.4 + p._snap * 0.6;
@@ -436,8 +438,9 @@ for (const [pos, list] of Object.entries(byPos)) {
       score = wp ? score * 0.7 + pf * 0.3 : score * 0.55 + pf * 0.45; // linemen lean on it most
     }
     // Draft slot fills in only for players without an NFL track record.
-    const draftW = p.exp === 0 ? 0.45 : p.exp === 1 ? 0.3 * (1 - evidence) : 0;
-    score = score * (1 - draftW) + pickPct(p.pick) * 0.8 * draftW;
+    // Pedigree still matters early in a career (as in Madden), then fades out.
+    const draftW = p.exp === 0 ? 0.45 : p.exp === 1 ? 0.25 : p.exp === 2 ? 0.12 : 0;
+    score = score * (1 - draftW) + pickPct(p.pick) * 0.55 * draftW;
     if (p.st === 'PS') score -= 0.04;
     if (p.age > 31) score -= 0.012 * (p.age - 31) * (['QB', 'K', 'P', 'LS'].includes(pos) ? 0.4 : 1);
     p._score = score;
@@ -452,9 +455,9 @@ for (const [pos, list] of Object.entries(byPos)) {
   // The top three set the ceiling, so one outlier cannot drag the rest down.
   const sTop = (list[0]._score + list[1]._score + list[2]._score) / 3, sMid = list[Math.floor(list.length * 0.5)]._score;
   for (const p of list) {
-    const mid = ['K', 'P', 'LS'].includes(pos) ? 70 : 60;
+    const mid = ['K', 'P', 'LS'].includes(pos) ? 72 : 65;
     const x = (p._score - sMid) / Math.max(1e-6, sTop - sMid);
-    let ovr = mid + (top - mid) * (x > 0 ? Math.pow(x, 1.6) : x);
+    let ovr = mid + (top - mid) * (x > 0 ? Math.pow(x, 1.3) : x);
     if (p.exp === 0) ovr = Math.min(ovr, 76 + 8 * p._snap26); // rookies earn their way up
     p.ovr = Math.round(Math.max(40, Math.min(top, ovr)));
   }
