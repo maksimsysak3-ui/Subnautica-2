@@ -1,70 +1,54 @@
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, PlayerCell, DevBadge, Modal, Bar, Tabs, CountUp } from '../components';
-import { ExtendModal } from './team';
+import { Logo, Ovr, Face, Table, PlayerCell, DevBadge, Bar, Tabs, CountUp } from '../components';
+import { NegotiationRoom } from './negotiate';
+import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
 import { capFor, capHit, capSpace, money, teamPayroll, yearsLeft, franchiseTag, marketValue } from '../../core/contracts';
-import { freeAgents, makeOffer, signNow } from '../../core/freeagency';
-import { askingPrice, expiringFor, applyTag, evaluateOffer } from '../../core/offseason';
+import { freeAgents } from '../../core/freeagency';
+import { askingPrice, expiringFor, applyTag } from '../../core/offseason';
 import { teamRatings } from '../../core/league';
 import { userGame, standings } from '../../core/season';
 import { POS_ORDER } from '../../core/ratings';
 
 // ---- free agency ------------------------------------------------------------------------------
+const FA_DAYS = ['Legal Tampering', 'Opening Day', 'Day 3', 'Day 4', 'Second Wave', 'Day 6', 'Bargain Bin', 'Final Day'];
 export function FreeAgencyScreen() {
   const L = useApp().league!;
   const [pos, setPos] = useState<string>('All');
-  const [offerFor, setOfferFor] = useState<Player | null>(null);
-  const rows = freeAgents(L).filter(p => pos === 'All' || p.pos === pos);
+  const [neg, setNeg] = useState<Player | null>(null);
   const open = L.phase === 'freeagency';
+  const all = freeAgents(L).sort((a, b) => b.ovr - a.ovr);
+  const rows = all.filter(p => pos === 'All' || p.pos === pos);
+  const day = L.fa?.day ?? 1;
+  const signings = L.news.filter(n => n.kind === 'sign' && n.season === L.season).slice(0, 8);
   return (
     <div className="grid">
-      <div className="row"><div className="h2">Free Agents</div>{open ? <span className="chip on">Day {L.fa?.day} of 8</span> : <span className="chip">{L.phase === 'regular' ? 'In-season: unsigned players take fair offers immediately' : 'Signings outside free agency are immediate'}</span>}<div className="spacer" /><span className="dim">Cap space <b>{money(capSpace(L, L.user))}</b></span></div>
+      <div className="row"><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
+      {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
+        : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
+      <div className="grid g4">{all.slice(0, 4).map(p => { const m = market(L, p); return (
+        <div key={p.id} className="tile card" style={{ cursor: 'pointer' }} onClick={() => setNeg(p)}>
+          <div className="row" style={{ flexWrap: "nowrap" }}><Face p={p} size={64} /><div style={{ minWidth: 0 }}><div className="up dim">{p.pos} · {Math.floor(p.age)} yrs</div><div className="h3" style={{ margin: 0 }}>{p.fn} {p.ln}</div><div className="small dim">Asking {money(askingPrice(L, p).apy)}/yr</div></div><div className="spacer" /><Ovr v={p.ovr} /></div>
+          <div className="row small" style={{ marginTop: 8 }}><span className="dim">Market</span><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span><div className="spacer" />{m.leader ? <><span className="dim">Leaning</span><Logo team={L.teams[m.leader]} size={22} /></> : <span className="mute">No offers</span>}</div>
+        </div>); })}</div>
       <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}</div>
-      <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => setOfferFor(p)} cols={[
-        { k: 'p', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
-        { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
-        { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} /> },
-        { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
-        { k: 'ask', h: 'Asking / yr', get: p => money(askingPrice(L, p).apy), sort: p => askingPrice(L, p).apy, cls: 'r' },
-        { k: 'yrs', h: 'Yrs', get: p => askingPrice(L, p).years, cls: 'c' },
-        { k: 'mot', h: 'Motivations', get: p => <span className="small dim">{p.motiv.join(' · ')}</span> },
-        { k: 'off', h: 'Offers', get: p => (L.fa?.offers[p.id]?.length ?? 0) || '', sort: p => L.fa?.offers[p.id]?.length ?? 0, cls: 'c' },
-      ]} />
-      {offerFor && <OfferModal p={offerFor} close={() => setOfferFor(null)} />}
-    </div>
-  );
-}
-function OfferModal({ p, close }: { p: Player; close: () => void }) {
-  const L = useApp().league!;
-  const ask = askingPrice(L, p);
-  const [apy, setApy] = useState(ask.apy);
-  const [years, setYears] = useState(ask.years);
-  const [gtd, setGtd] = useState(Math.round(ask.gtd * 100));
-  const interest = evaluateOffer(L, p, { apy, years, gtd: gtd / 100 }, L.user);
-  const rival = (L.fa?.offers[p.id] ?? []).filter(o => o.team !== L.user);
-  const submit = () => {
-    const o = { apy, years, gtd: gtd / 100 };
-    const r = L.phase === 'freeagency' ? makeOffer(L, p, o) : signNow(L, p, o);
-    app.toast(r.msg); app.touch();
-    if (r.ok) close();
-  };
-  return (
-    <Modal onClose={close}>
-      <div className="row"><Face p={p} size={70} /><div><div className="h2">{p.fn} {p.ln}</div><div className="small dim">{p.pos} · {Math.floor(p.age)} yrs · {p.arch} · Motivations: {p.motiv.join(', ')}</div></div><div className="spacer" /><Ovr v={p.ovr} lg /></div>
-      <div className="small dim" style={{ marginTop: 10 }}>Asking {money(ask.apy)}/yr · {ask.years} years · {Math.round(ask.gtd * 100)}% guaranteed{rival.length ? ` · ${rival.length} other offer(s) on the table` : ''}</div>
-      <div style={{ margin: '16px 0' }}>
-        <label className="up">Per year: <b style={{ color: 'var(--text)' }}>{money(apy)}</b></label>
-        <input type="range" min={Math.round(ask.apy * 0.5)} max={Math.round(ask.apy * 1.5)} step={25_000} value={apy} onChange={e => setApy(+e.target.value)} style={{ width: '100%' }} />
-        <label className="up">Years: <b style={{ color: 'var(--text)' }}>{years}</b></label>
-        <input type="range" min={1} max={5} value={years} onChange={e => setYears(+e.target.value)} style={{ width: '100%' }} />
-        <label className="up">Guaranteed: <b style={{ color: 'var(--text)' }}>{gtd}%</b></label>
-        <input type="range" min={0} max={90} value={gtd} onChange={e => setGtd(+e.target.value)} style={{ width: '100%' }} />
+      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 280px', alignItems: 'start' }}>
+        <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => setNeg(p)} cols={[
+          { k: 'p', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
+          { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
+          { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} /> },
+          { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
+          { k: 'ask', h: 'Asking / yr', get: p => money(askingPrice(L, p).apy), sort: p => askingPrice(L, p).apy, cls: 'r' },
+          { k: 'yrs', h: 'Yrs', get: p => askingPrice(L, p).years, cls: 'c' },
+          { k: 'heat', h: 'Market', get: p => <span className="heat"><b style={{ width: `${market(L, p).heat * 100}%` }} /></span>, sort: p => market(L, p).heat },
+          { k: 'lead', h: 'Leaning', get: p => { const m = market(L, p); return m.leader ? <span className="row" style={{ gap: 4 }}><Logo team={L.teams[m.leader]} size={20} />{m.leader === L.user && <b className="good small">YOU</b>}</span> : ''; }, sort: p => market(L, p).offers.length },
+          { k: 'mine', h: 'Your Offer', get: p => (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user) ? <span className="chip on" style={{ padding: '0 6px' }}>On table</span> : L.talks?.[p.id]?.closed ? <span className="bad small">Talks off</span> : '' },
+        ]} />
+        <div className="card"><div className="h3">Signings</div>{signings.length ? signings.map(n => <div key={n.id} className="li small">{n.teams[0] && <Logo team={L.teams[n.teams[0]]} size={22} />}<span>{n.text}</span></div>) : <div className="small dim">No moves yet.</div>}</div>
       </div>
-      <div className="up">His interest</div>
-      <div className="meter" style={{ margin: '8px 0 16px' }}><b style={{ left: `${interest * 100}%` }} /></div>
-      <div className="row"><span className="small dim">Total {money(apy * years)} · Your cap space {money(capSpace(L, L.user))}</span><div className="spacer" /><button className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" onClick={submit}>{L.phase === 'freeagency' ? 'Submit Offer' : 'Sign Now'}</button></div>
-    </Modal>
+      {neg && <NegotiationRoom p={neg} close={() => { setNeg(null); app.touch(); }} />}
+    </div>
   );
 }
 
@@ -86,7 +70,7 @@ export function ResignScreen() {
         { k: 'mv', h: 'Market', get: p => money(marketValue(p, L.season)), cls: 'r' },
         { k: 'act', h: '', get: p => <div className="row" onClick={e => e.stopPropagation()}><button className="btn sm primary" onClick={() => setNeg(p)}>Negotiate</button>{L.phase === 'resign' && !tagged && <button className="btn sm" title={`Tag: ${money(franchiseTag(L, p, L.season))}`} onClick={() => { const amt = applyTag(L, p); app.toast(`Franchise tag: ${money(amt)}`); app.touch(); }}>Tag {money(franchiseTag(L, p, L.season))}</button>}</div> },
       ]} />
-      {neg && <ExtendModal p={neg} close={() => setNeg(null)} />}
+      {neg && <NegotiationRoom p={neg} close={() => { setNeg(null); app.touch(); }} />}
     </div>
   );
 }

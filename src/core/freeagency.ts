@@ -56,7 +56,7 @@ export function runFreeAgencyDay(league: League, rng: Rng) {
       if (want < 0.8 || rng.chance(0.35)) continue;
       const apy = Math.round(ask.apy * discount * rng.range(0.93, 1.08) / 10_000) * 10_000;
       if (apy > space * 0.55) continue;
-      (fa.offers[p.id] ??= []).push({ team: t, apy, years: ask.years, gtd: ask.gtd * rng.range(0.85, 1.1), day });
+      (fa.offers[p.id] ??= []).push({ team: t, apy, years: ask.years, gtd: ask.gtd * rng.range(0.85, 1.1), bonus: rng.range(0.45, 0.75), day });
       space -= apy; bids++;
     }
   }
@@ -68,6 +68,8 @@ export function runFreeAgencyDay(league: League, rng: Rng) {
     let best = offers[0], bv = -1;
     for (const o of offers) { const v = evaluateOffer(league, p, o, o.team) + (o.team === league.user ? 0 : 0); if (v > bv) { bv = v; best = o; } }
     if (bv < bar || capSpace(league, best.team) < best.apy) continue;
+    // Top free agents let the market develop before deciding, unless someone blows them away.
+    if (p.ovr >= 84 && day < 2 && bv < 0.88 && offers.length < 3) continue;
     signPlayer(league, p, best.team, best);
     p.num = freeNumber(league, best.team, p.pos);
     delete fa.offers[p.id];

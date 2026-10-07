@@ -117,6 +117,23 @@ function production(pos, e) {
 }
 
 const PEDIGREE = new Set(JSON.parse(readFileSync('tools/pedigree.json', 'utf8')).names);
+// Scouting board: evaluators' grades for the best-known prospects (see scouting.json).
+const BOARD = JSON.parse(readFileSync('tools/scouting.json', 'utf8')).board;
+const norm = n => n.toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z]/g, '');
+function boardEntry(r) {
+  const n = norm(`${r.first_name} ${r.last_name}`);
+  return BOARD.find(b => norm(b.n) === n && (!b.s || b.s.toLowerCase() === String(r.team).toLowerCase()));
+}
+// Grade -> where he would go in his class (pick number).
+const PICK_FOR = [[98, 1], [94, 3], [92, 5], [88, 12], [85, 24], [80, 50], [75, 85], [70, 130], [60, 220]];
+function pickFor(g) {
+  if (g >= PICK_FOR[0][0]) return 1;
+  for (let i = 1; i < PICK_FOR.length; i++) {
+    const [g1, p1] = PICK_FOR[i - 1], [g2, p2] = PICK_FOR[i];
+    if (g >= g2) return p1 + (p2 - p1) * (g1 - g) / (g1 - g2);
+  }
+  return 260;
+}
 
 export function buildProspects() {
   const roster = csv(get('.cache/cfb/cfb_rosters_2026.csv', `${B}/rosters/csv/cfb_rosters_2026.csv`));
@@ -127,7 +144,8 @@ export function buildProspects() {
   for (const r of roster) {
     const year = num(r.year);
     if (year < 1 || year > 4) continue;
-    const pos = nflPos(r);
+    const b = boardEntry(r);
+    const pos = b?.pos ?? nflPos(r);
     if (!pos || !r.first_name || !r.last_name) continue;
     let prod = 0, pw = 0, conf = '', win = 0.5;
     for (const s of seasons) {
@@ -136,7 +154,7 @@ export function buildProspects() {
       const t = s.teams.get(r.team);
       if (t && !conf) { conf = t.conf; win = t.win; }
     }
-    cands.push({ r, pos, year, prod: pw ? prod / pw : null, pw, conf, win });
+    cands.push({ r, pos, year, prod: pw ? prod / pw : null, pw, conf, win, b });
   }
   // Rank production within position.
   const byPos = new Map();
@@ -166,6 +184,7 @@ export function buildProspects() {
   const byYear = y => cands.filter(c => c.year === y);
   const jr = quant(byYear(3), 0.12), so = quant(byYear(2), 0.015), fr = quant(byYear(1), 0.004);
   for (const c of cands) {
+    if (c.b) { c.dy = c.b.dy ?? (c.year >= 3 ? (c.year === 4 || c.b.g >= 80 ? 2027 : 2028) : c.year === 2 ? 2028 : 2029); continue; }
     c.dy = c.year === 4 ? 2027 : c.year === 3 ? (c.score >= jr ? 2027 : 2028) : c.year === 2 ? (c.score >= so ? 2028 : 2029) : (c.score >= fr ? 2029 : 2030);
   }
   // Each class: the best ~300 with a realistic positional mix.
@@ -173,16 +192,31 @@ export function buildProspects() {
   const out = [];
   for (const dy of [2027, 2028, 2029, 2030]) {
     const pool = cands.filter(c => c.dy === dy).sort((a, b) => b.score - a.score);
+    // Graded prospects go where scouts have them, nudged ±15% by what their stats say;
+    // everyone else fills the board in stat order. Unknowns rarely crash the top ten.
+    const rest = pool.filter(c => !c.b);
+    const pctOf = c => { const i = rest.findIndex(r => r.score < c.score); return i < 0 ? 1 : i / rest.length; };
+    const graded = pool.filter(c => c.b).map(c => ({ c, k: pickFor(c.b.g) * (1 + (pctOf(c) - 0.02) * 0.3) })).sort((x, y) => x.k - y.k);
+    const order = [];
+    for (let gi = 0, ri = 0; gi < graded.length || ri < rest.length;) {
+      // An unknown at stat rank r is treated like pick r*1.15+4: scouts would know him by now.
+      if (gi < graded.length && (graded[gi].k <= (ri + 1) * 1.15 + 4 || ri >= rest.length)) order.push(graded[gi++].c);
+      else order.push(rest[ri++]);
+    }
+    order.forEach((c, i) => (c.score = 2 - i * 0.001));
+    pool.splice(0, pool.length, ...order);
     const take = [];
     for (const [pos, n] of Object.entries(MIX)) take.push(...pool.filter(c => c.pos === pos).slice(0, n));
+    take.push(...pool.filter(c => c.b && !take.includes(c))); // graded prospects always make the class
     take.sort((a, b) => b.score - a.score);
     take.forEach((c, i) => {
       const t = logos.get(c.r.team);
       out.push({
-        id: `C${c.r.athlete_id}`, fn: c.r.first_name, ln: c.r.last_name, pos: c.pos, col: c.r.team, colLogo: t?.logo?.replace('http://', 'https://'),
+        id: `C${c.r.athlete_id}`, fn: c.b?.a ? c.b.a.split(' ')[0] : c.r.first_name, ln: c.b?.a ? c.b.a.split(' ').slice(1).join(' ') : c.r.last_name, pos: c.pos, col: c.r.team, colLogo: t?.logo?.replace('http://', 'https://'),
         colColor: t?.color, hs: c.r.headshot_url || undefined, ht: num(c.r.height), wt: num(c.r.weight), dy, cls: c.year, rank: i + 1,
         // Projected OVR when he reaches the draft, from his rank in the class.
-        ovr: Math.round(Math.max(44, 79 - 9.5 * Math.log10(1 + i * 0.35) - (i > 120 ? (i - 120) * 0.025 : 0))),
+        ovr: Math.round(Math.max(44, 79 - 9.5 * Math.log10(1 + i * 0.35) - (i > 120 ? (i - 120) * 0.025 : 0)) + (c.b ? Math.max(0, c.b.g - 90) * 0.4 : 0)),
+        ...(c.b ? { g: c.b.g } : {}),
         sc: Math.round(c.score * 1000) / 1000,
       });
     });

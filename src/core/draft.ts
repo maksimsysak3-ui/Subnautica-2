@@ -6,7 +6,7 @@ import { emptyLine, rollMotivations } from './league';
 import { rookieContract } from './contracts';
 import data from '../data/league.json';
 
-interface RealProspect { id: string; fn: string; ln: string; pos: Pos; col: string; colLogo?: string; hs?: string; ht: number; wt: number; dy: number; cls: number; rank: number; ovr: number }
+interface RealProspect { id: string; fn: string; ln: string; pos: Pos; col: string; colLogo?: string; hs?: string; ht: number; wt: number; dy: number; cls: number; rank: number; ovr: number; /** Scouting-board grade, when known (tools/scouting.json). */ g?: number }
 const REAL_PROSPECTS = ((data as unknown as { prospects?: RealProspect[] }).prospects ?? []);
 const SEASON_DATA = (data as unknown as { season: number }).season;
 import { standings, REG_WEEKS, news, mail } from './season';
@@ -71,8 +71,12 @@ function realClass(league: League, year: number, real: RealProspect[], rng: Rng)
     const age = 17 + Math.min(4, r.cls) + (year - SEASON_DATA) + rng.int(0, 1);
     const attrs = buildAttrs({ pos: r.pos, ovr: r.ovr, age, ht: r.ht, wt: r.wt }, rng);
     const real = overall(r.pos, attrs);
-    const dev = devTrait(real + rng.normal(3, 3), age, rng);
-    const growth = { Normal: 4, Star: 8, Superstar: 12, 'X-Factor': 15 }[dev];
+    let dev = devTrait(real + rng.normal(3, 3), age, rng);
+    // Blue-chip prospects on the scouting board carry the upside scouts see in them.
+    const floor = !r.g ? null : r.g >= 94 ? 'Superstar' : r.g >= 86 ? 'Star' : null;
+    const RANK = { Normal: 0, Star: 1, Superstar: 2, 'X-Factor': 3 } as const;
+    if (floor && RANK[dev] < RANK[floor]) dev = floor;
+    const growth = { Normal: 4, Star: 8, Superstar: 12, 'X-Factor': 15 }[dev] + (r.g ? Math.max(0, r.g - 84) * 0.35 : 0);
     const { abil, xf } = assignAbilities(r.pos, attrs, dev, rng);
     const p: Player = {
       id: r.id, fn: r.fn, ln: r.ln, pos: r.pos, team: 'FA', status: 'PROSPECT', num: 0, age, born: year - age, ht: r.ht || 72, wt: r.wt || 220,
@@ -86,7 +90,9 @@ function realClass(league: League, year: number, real: RealProspect[], rng: Rng)
     return p;
   });
   // Consensus board: their real-data rank seen through a little media noise.
-  out.sort((a, b) => (a.proj! + rng.normal(0, 4)) - (b.proj! + rng.normal(0, 4))).forEach((p, i) => (p.proj = i + 1));
+  // Boards agree at the top and scatter further down.
+  const noisy = new Map(out.map(p => [p.id, p.proj! + rng.normal(0, 0.6 + p.proj! * 0.04)]));
+  out.sort((a, b) => noisy.get(a.id)! - noisy.get(b.id)!).forEach((p, i) => (p.proj = i + 1));
   return out;
 }
 
@@ -121,9 +127,13 @@ export function scout(league: League, p: Player): boolean {
 /** What the user's scouts believe about a prospect. */
 export function scoutedView(p: Player) {
   const lvl = p.scout ?? 0;
-  const err = [12, 7, 3, 0][lvl];
-  const noise = ((p.face % 1000) / 1000 - 0.5) * 2 * err;
-  const ovr = Math.round(clamp(p.ovr + noise, 35, 90));
+  // Before your own scouts dig in you mostly know what everyone knows (the consensus
+  // board); each level of scouting replaces more of that with your own read.
+  const err = [8, 5, 2, 0][lvl];
+  const consensus = p.proj ? 79 - 9.5 * Math.log10(1 + (p.proj - 1) * 0.35) : p.ovr;
+  const own = p.ovr + ((p.face % 1000) / 1000 - 0.5) * 2 * err;
+  const w = [0.55, 0.3, 0.1, 0][lvl];
+  const ovr = Math.round(clamp(consensus * w + own * (1 - w), 35, 90));
   return { lvl, ovrLo: Math.max(35, ovr - err), ovrHi: Math.min(95, ovr + err), dev: lvl >= 3 ? p.dev : undefined, pot: lvl >= 3 ? p.pot : undefined, attrsExact: lvl >= 3, attrsShown: lvl >= 1 };
 }
 

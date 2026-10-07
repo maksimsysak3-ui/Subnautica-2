@@ -33,12 +33,14 @@ export const guaranteedLeft = (c: Contract, season: number) => c.years.filter(y 
  * as a signing bonus and prorated, the rest guarantees the early base salaries.
  * Base salaries rise each year, the way most real deals are structured.
  */
-export function makeContract(start: number, years: number, totalAPY: number, gtdPct: number, opts: { bonusShare?: number; rookie?: boolean; option?: boolean; exp?: number } = {}): Contract {
+export function makeContract(start: number, years: number, totalAPY: number, gtdPct: number, opts: { bonusShare?: number; rookie?: boolean; option?: boolean; exp?: number; voids?: number } = {}): Contract {
   years = clamp(Math.round(years), 1, 6);
   const total = totalAPY * years;
   const gtd = total * clamp(gtdPct, 0, 1);
-  const bonus = Math.round(gtd * (opts.bonusShare ?? 0.5));
-  const proYears = Math.min(years, MAX_PRORATION);
+  const bonus = Math.round(gtd * clamp(opts.bonusShare ?? 0.5, 0, 1));
+  // Void years stretch the bonus proration (max five years) past the real end of the deal.
+  const voids = clamp(Math.round(opts.voids ?? 0), 0, Math.max(0, MAX_PRORATION - years));
+  const proYears = Math.min(years + voids, MAX_PRORATION);
   const perYearBonus = bonus / proYears;
   const baseTotal = total - bonus;
   const rise = 1.07;
@@ -53,6 +55,7 @@ export function makeContract(start: number, years: number, totalAPY: number, gtd
     gtdBaseLeft -= g;
     ys.push({ s: start + i, base, bonus: i < proYears ? Math.round(perYearBonus) : 0, gtd: Math.round(g) });
   }
+  for (let i = years; i < years + voids; i++) ys.push({ s: start + i, base: 0, bonus: Math.round(perYearBonus), gtd: 0, v: true });
   return { years: ys, rookie: opts.rookie, option: opts.option };
 }
 
@@ -111,12 +114,13 @@ const TOP_APY: Record<Pos, number> = {
 export function marketValue(p: Player, season: number): number {
   const top = TOP_APY[p.pos] * (CAP_FACTOR(season));
   const min = minSalary(p.exp, season);
-  // Exponential in overall: 90+ near the top of market, 75 a mid-level starter.
-  const x = clamp((p.ovr - 58) / 41, 0, 1.05);
-  let v = min + (top - min) * Math.pow(x, 3.1);
+  // S-curve in overall, as the real market pays: the elite near the top of market
+  // (92 ≈ 83%), good starters mid-market (85 ≈ 55%, 80 ≈ 31%), depth near the minimum.
+  const x = 1 / (1 + Math.exp(-(p.ovr - 84) / 5));
+  let v = min + (top - min) * Math.min(1.05, x * 1.06);
   const age = p.age;
-  const peakEnd = p.pos === 'QB' ? 33 : p.pos === 'RB' ? 27 : ['K', 'P', 'LS'].includes(p.pos) ? 36 : 29;
-  if (age > peakEnd) v *= Math.max(0.35, 1 - (age - peakEnd) * 0.12);
+  const peakEnd = p.pos === 'QB' ? 35 : p.pos === 'RB' ? 27 : ['K', 'P', 'LS'].includes(p.pos) ? 36 : 29;
+  if (age > peakEnd) v *= Math.max(0.35, 1 - (age - peakEnd) * (p.pos === 'QB' ? 0.1 : 0.12));
   if (age < 25 && p.pot > p.ovr + 4) v *= 1.08;
   return Math.max(min, Math.round(v / 10_000) * 10_000);
 }

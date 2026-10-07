@@ -249,12 +249,24 @@ export function askingPrice(league: League, p: Player) {
   const cap = league.coachTree.unlocked.includes('Cap Guru') && p.team === league.user ? 0.94 : 1;
   return { ...t, apy: Math.round(t.apy * loyal * mood * cap / 10_000) * 10_000 };
 }
+export interface Offer { apy: number; years: number; gtd: number; bonus?: number; voids?: number }
 /** Will he sign? Offer vs ask on money, guarantees and years. Returns 0..1 interest. */
-export function evaluateOffer(league: League, p: Player, offer: { apy: number; years: number; gtd: number }, team: string) {
+export function evaluateOffer(league: League, p: Player, offer: Offer, team: string) {
+  return clamp((offerScore(league, p, offer, team) - 0.86) / 0.2, 0, 1);
+}
+/**
+ * How good an offer looks to the player, about 1.0 at his asking price. Money per
+ * year leads; guarantees, length and cash up front (signing bonus) shade it, then
+ * whatever motivates him about the team.
+ */
+export function offerScore(league: League, p: Player, offer: Offer, team: string) {
   const ask = askingPrice(league, p);
   let score = offer.apy / ask.apy;
   score += (offer.gtd - ask.gtd) * 0.6;
-  score -= Math.abs(offer.years - ask.years) * 0.03;
+  // Players want security when they are older, the long deal when they are young stars.
+  const short = offer.years - ask.years;
+  score -= Math.abs(short) * (short < 0 && p.age >= 29 ? 0.05 : 0.03);
+  score += ((offer.bonus ?? 0.55) - 0.55) * offer.gtd * 0.08;
   if (p.motiv.includes('Loyalty') && p.team === team) score += 0.06;
   if (p.motiv.includes('Contender')) score += (contenderScore(league, team) - 0.5) * 0.12;
   if (p.motiv.includes('Big Market')) score += (league.teams[team].market - 2) * 0.03;
@@ -262,7 +274,7 @@ export function evaluateOffer(league: League, p: Player, offer: { apy: number; y
   if (p.motiv.includes('Winning Culture')) score += (league.teams[team].tradition - 0.5) * 0.08;
   if (p.motiv.includes('Starting Role')) score += startingChance(league, p, team) * 0.08 - 0.04;
   if (p.motiv.includes('Scheme Fit')) score += schemeFit(league, p, team) * 0.06;
-  return clamp((score - 0.86) / 0.2, 0, 1);
+  return score;
 }
 export function contenderScore(league: League, team: string) {
   const last = league.history[league.history.length - 1]?.standings[team];
@@ -282,8 +294,19 @@ export function schemeFit(league: League, p: Player, team: string) {
   };
   return (fits[t.coach.off] ?? []).includes(p.arch) || (fits[t.coach.def] ?? []).includes(p.arch) ? 1 : 0;
 }
-export function signPlayer(league: League, p: Player, team: string, offer: { apy: number; years: number; gtd: number }) {
-  p.contract = makeContract(league.season, offer.years, offer.apy, offer.gtd, { exp: p.exp, bonusShare: 0.55 });
+export function signPlayer(league: League, p: Player, team: string, offer: Offer, opts: { extend?: boolean } = {}) {
+  const c = makeContract(league.season, offer.years, offer.apy, offer.gtd, { exp: p.exp, bonusShare: offer.bonus ?? 0.55, voids: offer.voids });
+  if (opts.extend) {
+    // An extension keeps this season's deal and adds the new years after it. Proration
+    // already on the books for later years stays there (it does not disappear).
+    const keep = p.contract.years.filter(y => y.s === league.season && !y.v);
+    for (const y of c.years) y.s += keep.length;
+    for (const old of p.contract.years.filter(y => y.s > league.season && y.bonus > 0)) {
+      const into = c.years.find(y => y.s === old.s);
+      if (into) into.bonus += old.bonus; else c.years.push({ s: old.s, base: 0, bonus: old.bonus, gtd: 0, v: true });
+    }
+    p.contract = { years: [...keep, ...c.years].sort((a, b) => a.s - b.s) };
+  } else p.contract = c;
   const moved = p.team !== team;
   p.team = team; p.status = 'ACT';
   if (moved) p.num = p.num || 0;
@@ -411,7 +434,14 @@ export function fillRoster(league: League, team: string) {
     const pick = (pos ? pool.filter(p => p.pos === pos) : pool).sort((a, b) => b.ovr - a.ovr)[0] ?? pool.sort((a, b) => b.ovr - a.ovr)[0];
     if (!pick) break;
     const apy = Math.max(minSalary(pick.exp, league.season), Math.min(marketTerms(pick, league.season).apy * 0.6, capSpace(league, team) * 0.3));
-    if (capSpace(league, team) < apy) break;
+    if (capSpace(league, team) < apy) {
+      // A team cannot field fewer than 53: clear room the way real teams do, then fill at the minimum.
+      aiCapManagement(league, team, minSalary(pick.exp, league.season) * (53 - count('ACT')) + 1_000_000);
+      if (capSpace(league, team) < minSalary(pick.exp, league.season)) break;
+      signPlayer(league, pick, team, { apy: minSalary(pick.exp, league.season), years: 1, gtd: 0 });
+      pick.num = freeNumber(league, team, pick.pos);
+      continue;
+    }
     signPlayer(league, pick, team, { apy, years: 1, gtd: 0 });
     pick.num = freeNumber(league, team, pick.pos);
   }

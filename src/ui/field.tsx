@@ -2,7 +2,7 @@
 // goalposts are real DOM elements standing up out of the tilted plane. Each play
 // is animated from the simulator's own result, with the called play's art drawn
 // over the formation before the snap.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlayEvent } from '../sim/game';
 import type { Team } from '../core/types';
 import { PLAY_ART, DEF_ART, FORMATION, OL_SPOTS, type Art } from './playart';
@@ -29,7 +29,10 @@ function turfTexture() {
 
 export function FieldView({ ev, home, away, logo, playing, onDone }: { ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void }) {
   const cv = useRef<HTMLCanvasElement>(null);
+  const plane = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement | null>(null);
+  const cam = useRef({ x: 50, y: 50, z: 1 });
+  const [banner, setBanner] = useState<{ n: number; text: string; color: string } | null>(null);
   useEffect(() => { if (!logo) return; const i = new Image(); i.crossOrigin = 'anonymous'; i.src = logo; i.onload = () => (img.current = i); }, [logo]);
   useEffect(() => {
     const ctx = cv.current!.getContext('2d')!;
@@ -38,11 +41,25 @@ export function FieldView({ ev, home, away, logo, playing, onDone }: { ev: PlayE
     const start = performance.now();
     const scene = ev ? buildScene(ev) : null;
     const dur = scene?.dur ?? 1;
+    if (playing) setBanner(null);
     const draw = (now: number) => {
       const t = playing && scene ? Math.min(1, (now - start) / (dur * 1000)) : 1;
       drawField(ctx, home, away, img.current);
-      if (scene) drawScene(ctx, scene, t, home, away);
-      if (playing && t < 1) raf = requestAnimationFrame(draw); else if (playing && onDone) onDone();
+      if (scene) drawScene(ctx, scene, t, home, away, dur);
+      // Follow cam: zoom toward the ball during the play, ease back out after.
+      const c = cam.current;
+      const [bx, by] = scene ? scene.ball(t) : [60, 26.65];
+      const live = playing && scene && t < 1;
+      const tx = ((bx + OX) / FW) * 100, ty = ((by + OY) / FH) * 100, tz = live ? 1.42 : 1;
+      c.x += (tx - c.x) * 0.07; c.y += (ty - c.y) * 0.07; c.z += (tz - c.z) * 0.05;
+      if (plane.current) { plane.current.style.transformOrigin = `${c.x}% ${c.y}%`; plane.current.style.transform = `scale(${c.z.toFixed(4)})`; }
+      if (playing && t < 1) raf = requestAnimationFrame(draw);
+      else {
+        if (playing && ev) { const b = bannerFor(ev, home, away); if (b) setBanner({ n: ev.n, ...b }); }
+        if (playing && onDone) onDone();
+        // Let the camera settle back.
+        if (Math.abs(c.z - 1) > 0.003) raf = requestAnimationFrame(draw);
+      }
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
@@ -62,11 +79,27 @@ export function FieldView({ ev, home, away, logo, playing, onDone }: { ev: PlayE
     <div style={{ perspective: 1200, perspectiveOrigin: '50% -25%', overflow: 'hidden', padding: '30px 0 6px', background: 'radial-gradient(ellipse at 50% 0%, #2a3346 0%, #0d1118 60%)', position: 'relative' }}>
       <Crowd />
       <div style={{ position: 'relative', transform: 'rotateX(40deg)', transformOrigin: '50% 100%', transformStyle: 'preserve-3d' }}>
-        <canvas ref={cv} width={W * DPR} height={H * DPR} style={{ width: '100%', display: 'block', boxShadow: '0 50px 90px rgba(0,0,0,.7)' }} />
-        {post(0, away)}{post(1, home)}
+        <div ref={plane} style={{ position: 'relative', transformStyle: 'preserve-3d', willChange: 'transform' }}>
+          <canvas ref={cv} width={W * DPR} height={H * DPR} style={{ width: '100%', display: 'block', boxShadow: '0 50px 90px rgba(0,0,0,.7)' }} />
+          {post(0, away)}{post(1, home)}
+        </div>
       </div>
+      {banner && <div key={banner.n} className="fbanner" style={{ '--bc': banner.color } as React.CSSProperties}><span>{banner.text}</span></div>}
     </div>
   );
+}
+
+/** Broadcast graphic for the moments that deserve one. */
+function bannerFor(ev: PlayEvent, home: Team, away: Team): { text: string; color: string } | null {
+  const t = ev.poss === 1 ? home : away, o = ev.poss === 1 ? away : home;
+  if (ev.td) return { text: 'Touchdown', color: (ev.type === 'punt' ? o : t).colors[0] };
+  if (ev.type === 'fg') return /NO GOOD/.test(ev.text) ? { text: 'No Good', color: '#7a1f2b' } : { text: "It's Good", color: t.colors[0] };
+  if (ev.turnover && ev.type === 'pass') return { text: 'Intercepted', color: o.colors[0] };
+  if (ev.turnover && (ev.type === 'run' || ev.type === 'scramble' || ev.type === 'sack')) return { text: 'Fumble', color: o.colors[0] };
+  if (/BLOCKED/.test(ev.text)) return { text: 'Blocked', color: o.colors[0] };
+  if (ev.type === 'sack') return { text: 'Sack', color: o.colors[0] };
+  if (ev.big) return { text: 'Big Play', color: t.colors[0] };
+  return null;
 }
 
 /** Stands behind the far sideline: rows of fans as a soft dot field. */
@@ -127,7 +160,116 @@ function drawField(ctx: CanvasRenderingContext2D, home: Team, away: Team, logo: 
   if (logo) { ctx.globalAlpha = 0.9; ctx.drawImage(logo, X(60) - 90, Y(26.65) - 90, 180, 180); ctx.globalAlpha = 1; }
 }
 
-interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[] }
+interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; /** Index of the ball carrier, and when the tackle lands (0..1). */ carrier?: (t: number) => number; tackle?: number; kick?: boolean }
+
+interface KickCtx { s: number; toX: (yl: number) => number; mid: number; off: 0 | 1; def: 0 | 1; los: number; first: number; lerp: (a: number, b: number, k: number) => number; seg: (t: number, a: number, b: number) => number; add: (team: 0 | 1, num: number, role: string, path: Path) => void; actors: Actor[] }
+/**
+ * Special teams. Kickoffs use the 2024+ dynamic alignment: kicker at his 35, coverage
+ * set at the receiving 40 and frozen until the ball is caught or lands, blockers in
+ * the setup zone, returners deep. Punts have gunners, a shield and a returner who
+ * fair-catches or brings it back; field goals get a snap, hold and kick.
+ */
+function buildKick(ev: PlayEvent, k: KickCtx): Scene {
+  const { s, toX, mid, off, def, lerp, seg, add, actors } = k;
+  const r = (i: number) => ((ev.n * 7919 + i * 104729) % 1000) / 1000;
+  const weave = (t0: number, t1: number, amp: number) => (t: number) => Math.sin(seg(t, t0, t1) * Math.PI * 1.6) * amp * (1 - seg(t, t0, t1) * 0.6);
+  const run = (from: [number, number], to: [number, number], t0: number, t1: number, w = 0): Path => t => {
+    const q = seg(t, t0, t1);
+    return [lerp(from[0], to[0], q), lerp(from[1], to[1], q) + (w ? weave(t0, t1, w)(t) : 0)];
+  };
+  if (ev.type === 'kickoff') {
+    // ev.poss = receiving team, attacking direction s. Kicking team covers in -s.
+    const tb = /Touchback/.test(ev.text), onside = /[Oo]nside/.test(ev.text);
+    const td = !!ev.td;
+    const tee = toX(65);
+    const land: [number, number] = onside ? [toX(54), mid + 8] : tb ? [toX(-6), mid - 4 + r(1) * 8] : [toX(1 + r(2) * 6), mid - 6 + r(3) * 12];
+    const endX = td ? toX(104) : toX(ev.endYl);
+    const endY = mid + (r(4) - 0.5) * 20;
+    const tCatch = onside ? 0.3 : 0.42, tEnd = td ? 0.97 : 0.88;
+    const carrierPath: Path = tb || onside ? t => land : run(land, [endX, endY], tCatch, tEnd, 5);
+    // Kicking team (team index = def here, since off is the receiver).
+    add(def, 3, 'K', run([toX(71), mid], [toX(60), mid], 0, 0.5));
+    for (let i = 0; i < 10; i++) {
+      const y0 = 3 + i * 5.3 + (i >= 5 ? 1 : 0);
+      const tackler = i === 4 || i === 5;
+      const chase: Path = t => {
+        if (tb) return run([toX(40), y0], [toX(30), y0 + (mid - y0) * 0.2], tCatch, 0.9)(t);
+        if (onside) return run([toX(40), y0], [land[0] + (r(i) - 0.5) * 6, land[1] + (r(i + 9) - 0.5) * 8], 0.08, 0.36)(t);
+        const tgt = carrierPath(Math.min(1, t + (tackler ? 0 : 0.06)));
+        const q = seg(t, tCatch, tEnd);
+        const fin: [number, number] = tackler ? tgt : [tgt[0] + s * (2 + (i % 3) * 2) * (td ? -3 : 1), tgt[1] + (i - 4.5) * 1.8];
+        return [lerp(toX(40), fin[0], q), lerp(y0, fin[1], Math.min(1, q * 1.15))];
+      };
+      add(def, 40 + i, 'ST', chase);
+    }
+    // Receiving team: nine blockers in the setup zone, two returners deep.
+    for (let i = 0; i < 9; i++) {
+      const y0 = 5 + i * 5.4;
+      add(off, 50 + i, 'BL', t => {
+        const meet = lerp(toX(30), carrierPath(Math.min(1, t))[0], 0.25);
+        return run([toX(33 + (i % 2) * 2), y0], [meet + s * (i % 3), y0 + (mid - y0) * 0.35], tCatch - 0.08, 0.8)(t);
+      });
+    }
+    add(off, 22, 'R', carrierPath);
+    add(off, 31, 'R', run([toX(3), land[1] > mid ? mid - 9 : mid + 9], [toX(14), mid + (land[1] > mid ? -2 : 2)], tCatch, 0.7));
+    const carrierIdx = actors.length - 2;
+    const ball: Path = t => (t < 0.06 ? [tee, mid] : t < tCatch ? [lerp(tee, land[0], seg(t, 0.06, tCatch)), lerp(mid, land[1], seg(t, 0.06, tCatch))] : carrierPath(t));
+    const ballH = (t: number) => (t > 0.06 && t < tCatch ? Math.sin(Math.PI * seg(t, 0.06, tCatch)) * (onside ? 4 : 30) + (onside ? 0 : 3 * seg(t, 0.06, tCatch)) : 1.5);
+    return { dur: tb ? 2.8 : onside ? 2.6 : 4.4, pre: 0, los: tee, first: tee, actors, ball, ballH, dirSign: -s, carrier: () => carrierIdx, tackle: tb || td || onside ? undefined : tEnd, kick: true };
+  }
+  if (ev.type === 'punt') {
+    // ev.poss = punting team, kicking in direction s.
+    const los = toX(ev.yl);
+    const blocked = /BLOCKED/.test(ev.text), tb = /Touchback/.test(ev.text), downed = /downed/.test(ev.text), fair = /fair catch/.test(ev.text);
+    const td = !!ev.td;
+    const pX = los - s * 14;
+    const finalAbs = td ? (s > 0 ? 6 : 114) : blocked ? pX - s * 6 : s > 0 ? 110 - ev.endYl : 10 + ev.endYl;
+    const landX = tb ? (s > 0 ? 113 : 7) : downed ? finalAbs - s * 3 : blocked ? pX - s * 3 : toX(ev.yl + ev.yards);
+    const landY = mid + (r(1) - 0.5) * 14;
+    const tKick = 0.13, tLand = 0.5, tEnd = td ? 0.97 : 0.9;
+    const returning = !blocked && !tb && !downed && !fair;
+    const carrierPath: Path = returning ? run([landX, landY], [finalAbs, landY + (r(2) - 0.5) * 16], tLand, tEnd, 4) : t => [landX, landY];
+    // Punt team: line, shield, gunners, punter.
+    add(off, 8, 'P', t => [pX + s * seg(t, 0.08, 0.14) * 1.5, mid]);
+    [-4, -2, 0, 2, 4].forEach((dy, i) => add(off, 60 + i, 'OL', run([los - s * 0.5, mid + dy], [returning ? finalAbs + s * (3 + i) : landX - s * (4 + i), landY + dy * 2], 0.22, 0.95)));
+    [-1.5, 0, 1.5].forEach((dy, i) => add(off, 45 + i, 'PP', run([los - s * 6, mid + dy], [returning ? finalAbs + s * (5 + i * 2) : landX - s * (6 + i), landY + dy * 3], 0.25, 0.97)));
+    [3, 50.3].forEach((y, i) => add(off, 13 + i * 70, 'G', run([los, y], returning ? [finalAbs + s * 1.2, landY + (i ? 1.5 : -1.5)] : [landX - s * 1.5, landY + (i ? 2 : -2)], 0.03, returning ? tEnd : tLand + 0.05)));
+    // Return team: rushers at the line, jammers on the gunners, the returner.
+    // Rushers hit the line, then peel back to form the return wall.
+    [-5, -3, -1, 1, 3, 5].forEach((dy, i) => {
+      const rush = run([los + s * 1, mid + dy], [blocked && i === 2 ? pX : los - s * (2 + (i % 2) * 2), mid + dy], 0.02, 0.2);
+      const wallX = (returning ? lerp(landX, finalAbs, 0.5) : landX) + s * (6 + (i % 3) * 2);
+      add(def, 90 + i, 'DL', t => (t < 0.2 || blocked ? rush(t) : run(rush(0.2), [wallX, landY + dy * 1.6], 0.2, returning ? 0.85 : tLand + 0.15)(t)));
+    });
+    [4.5, 48.8].forEach((y, i) => add(def, 24 + i * 5, 'J', run([los + s * 1.5, y], [landX - s * 4, landY + (i ? 3 : -3)], 0.05, 0.75)));
+    add(def, 26, 'R', blocked ? (t => [pX - s * 3 + s * 8 * seg(t, 0.25, 0.8), mid]) : carrierPath);
+    const carrierIdx = actors.length - 1;
+    const ball: Path = t => {
+      if (t < 0.08) return [lerp(los, pX, t / 0.08), mid];
+      if (t < tKick) return [pX, mid];
+      if (blocked) return [lerp(pX, pX - s * 3, seg(t, tKick, 0.35)), mid + 2 * seg(t, tKick, 0.35)];
+      if (t < tLand) return [lerp(pX, landX, seg(t, tKick, tLand)), lerp(mid, landY, seg(t, tKick, tLand))];
+      if (downed) return [lerp(landX, finalAbs, seg(t, tLand, 0.75)), landY];
+      return carrierPath(t);
+    };
+    const ballH = (t: number) => (t > tKick && t < tLand && !blocked ? Math.sin(Math.PI * seg(t, tKick, tLand)) * 34 : downed && t < 0.75 ? Math.abs(Math.sin(seg(t, tLand, 0.75) * Math.PI * 3)) * 3 * (1 - seg(t, tLand, 0.75)) : 1.5);
+    return { dur: returning ? 4.4 : 3.4, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, carrier: () => carrierIdx, tackle: returning && !td ? tEnd : undefined, kick: true };
+  }
+  // Field goal / extra point: snap, hold, kick through (or past) the uprights.
+  const los = ev.type === 'xp' ? toX(85) : toX(ev.yl);
+  const hold: [number, number] = [los - s * 7, mid];
+  const good = !/NO GOOD/.test(ev.text);
+  const wide = /wide left/.test(ev.text) ? -1 : 1;
+  const postX = s > 0 ? 120 : 0;
+  const tgtY = good ? mid + (r(1) - 0.5) * 3 : mid + wide * s * (4.4 + r(2) * 2);
+  for (let i = 0; i < 9; i++) { const dy = (i - 4) * 1.3; add(off, 60 + i, 'OL', run([los - s * 0.5, mid + dy], [los - s * 1.2, mid + dy * 1.1], 0.04, 0.3)); }
+  add(off, 11, 'H', () => [hold[0] - s * 0.4, hold[1] + 0.8]);
+  add(off, 3, 'K', run([hold[0] - s * 2.5, mid - s * 2], [hold[0] + s * 0.3, mid], 0.06, 0.16));
+  for (let i = 0; i < 9; i++) { const dy = (i - 4) * 1.4; add(def, 90 + i, 'DL', run([los + s * 1, mid + dy], [los - s * (i === 4 ? 3.5 : 1.5), mid + dy * 0.8], 0.05, 0.35)); }
+  const ball: Path = t => (t < 0.08 ? [lerp(los, hold[0], t / 0.08), mid] : t < 0.16 ? hold : [lerp(hold[0], postX, seg(t, 0.16, 0.85)), lerp(mid, tgtY, seg(t, 0.16, 0.85))]);
+  const ballH = (t: number) => (t < 0.16 ? 0.5 : 0.5 + Math.sin(Math.PI * 0.62 * seg(t, 0.16, 0.85)) * 22);
+  return { dur: 2.6, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, kick: true };
+}
 
 function buildScene(ev: PlayEvent): Scene {
   const s = ev.poss === 1 ? 1 : -1;               // offence attacks right when home has the ball
@@ -146,14 +288,7 @@ function buildScene(ev: PlayEvent): Scene {
   const at = (dx: number, dy: number): [number, number] => [los + s * dx, mid + s * dy];
   const actors: Actor[] = [];
   const add = (team: 0 | 1, num: number, role: string, path: Path) => actors.push({ team, num, role, path, facing: team === off ? s : -s });
-  if (kick) {
-    const target = ev.type === 'kickoff' ? toX(ev.endYl) : ev.type === 'punt' ? toX(Math.min(100, ev.yl + ev.yards)) : (s > 0 ? 120 : 0);
-    const from = ev.type === 'kickoff' ? (s > 0 ? 45 : 75) : los - s * (ev.type === 'punt' ? 14 : 7);
-    add(off, 4, 'K', t => [from + s * seg(t, 0, 0.12) * 1.5, mid]);
-    for (let i = 0; i < 10; i++) add(off, 40 + i, 'ST', t => [lerp(from + s * 1, from + s * 30, seg(t, 0.1, 0.9)), 4 + i * 5]);
-    for (let i = 0; i < 6; i++) add(def, 20 + i, 'ST', t => [lerp(target - s * 12, target - s * 2, seg(t, 0.4, 1)), 10 + i * 6]);
-    return { dur: 2.6, pre, los, first, actors, ball: t => [lerp(from, target, seg(t, 0.12, 0.85)), lerp(mid, mid, 0)], ballH: t => Math.sin(Math.PI * seg(t, 0.12, 0.85)) * (ev.type === 'fg' || ev.type === 'xp' ? 14 : 24), dirSign: s };
-  }
+  if (kick) return buildKick(ev, { s, toX, mid, off, def, los, first, lerp, seg, add, actors });
   const art = PLAY_ART[ev.call ?? ''];
   const dart = DEF_ART[ev.dcall ?? ''];
   const pass = ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble';
@@ -206,13 +341,16 @@ function buildScene(ev: PlayEvent): Scene {
     return ev.complete ? [lerp(catchPt[0], end, seg(t, 0.6, 1)), lerp(catchPt[1], mid, seg(t, 0.6, 1) * 0.35)] : [catchPt[0] + s * 2 * seg(t, 0.6, 1), catchPt[1]];
   };
   const ballH = (t: number) => (ev.type === 'pass' && T(t) >= 0.32 && T(t) < 0.6 ? Math.sin(Math.PI * seg(t, 0.32, 0.6)) * (3 + Math.abs(catchDx) * 0.2) : 1);
-  return { dur: ev.type === 'pass' ? 3.6 : 3.0, pre, los, first, actors, ball, ballH, dirSign: s, art, dart };
+  const tackled = !ev.td && !(ev.type === 'pass' && !ev.complete);
+  return { dur: ev.type === 'pass' ? 3.6 : 3.0, pre, los, first, actors, ball, ballH, dirSign: s, art, dart, tackle: tackled ? 0.93 : undefined };
 }
 
-function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Team, away: Team) {
-  // Line of scrimmage (blue) and line to gain (yellow), broadcast style.
-  ctx.fillStyle = 'rgba(60,140,255,.9)'; ctx.fillRect(X(sc.los) - 2.5, Y(0), 5, 53.3 * PX);
-  ctx.fillStyle = 'rgba(255,214,10,.95)'; ctx.fillRect(X(sc.first) - 2.5, Y(0), 5, 53.3 * PX);
+function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Team, away: Team, dur: number) {
+  if (!sc.kick) {
+    // Line of scrimmage (blue) and line to gain (yellow), broadcast style.
+    ctx.fillStyle = 'rgba(60,140,255,.9)'; ctx.fillRect(X(sc.los) - 2.5, Y(0), 5, 53.3 * PX);
+    ctx.fillStyle = 'rgba(255,214,10,.95)'; ctx.fillRect(X(sc.first) - 2.5, Y(0), 5, 53.3 * PX);
+  }
   // Play art before the snap, fading as the play starts.
   if (t < sc.pre + 0.05 && (sc.art || sc.dart)) {
     ctx.globalAlpha = t < sc.pre ? 1 : Math.max(0, 1 - (t - sc.pre) / 0.05);
@@ -221,18 +359,52 @@ function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Te
     ctx.globalAlpha = 1;
   }
   const team = (i: 0 | 1) => (i === 1 ? home : away);
+  const dt = 0.012;
   const pos = sc.actors.map(a => a.path(Math.max(0, t)));
-  for (const [x, y] of pos) { ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.beginPath(); ctx.ellipse(X(x) + 6, Y(y) + 7, 15, 7, 0, 0, Math.PI * 2); ctx.fill(); }
-  sc.actors.forEach((a, i) => drawPlayer(ctx, X(pos[i][0]), Y(pos[i][1]), team(a.team), a.num, a.facing));
+  const prev = sc.actors.map(a => a.path(Math.max(0, t - dt)));
   const [bx, by] = sc.ball(t);
   const h = sc.ballH(t);
-  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(X(bx), Y(by), 7, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.save(); ctx.translate(X(bx), Y(by) - h * 6 - 22); ctx.rotate(sc.dirSign > 0 ? -0.3 : 0.3);
+  // Ball carrier: whoever has the ball on the ground right now.
+  let carrier = -1, cd = 2.2;
+  if (h < 3) pos.forEach(([x, y], i) => { const d = Math.hypot(x - bx, y - by); if (d < cd) { cd = d; carrier = i; } });
+  // The tackle: nearest defender of the other team wraps him up at the end.
+  let tackler = -1;
+  const down = sc.tackle !== undefined && carrier >= 0 ? Math.max(0, Math.min(1, (t - sc.tackle) / (1 - sc.tackle))) : 0;
+  if (down > 0) {
+    let best = 1e9;
+    pos.forEach(([x, y], i) => { if (sc.actors[i].team !== sc.actors[carrier].team) { const d = Math.hypot(x - pos[carrier][0], y - pos[carrier][1]); if (d < best) { best = d; tackler = i; } } });
+    if (tackler >= 0) pos[tackler] = [lerpN(pos[tackler][0], pos[carrier][0] - Math.sign(pos[carrier][0] - pos[tackler][0] || 1) * 0.9, down), lerpN(pos[tackler][1], pos[carrier][1] + 0.4, down)];
+  }
+  for (const [x, y] of pos) { ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.beginPath(); ctx.ellipse(X(x) + 6, Y(y) + 7, 15, 7, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (carrier >= 0 && t > 0.02) {
+    // Broadcast highlight ring under the ball carrier.
+    ctx.strokeStyle = 'rgba(255,214,10,.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(X(pos[carrier][0]), Y(pos[carrier][1]) + 6, 19, 9, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  // Draw back to front so near players overlap far ones.
+  const order = sc.actors.map((_, i) => i).sort((i, j) => pos[i][1] - pos[j][1]);
+  for (const i of order) {
+    const a = sc.actors[i];
+    const vx = pos[i][0] - prev[i][0], vy = pos[i][1] - prev[i][1];
+    const speed = Math.hypot(vx, vy) / dt / dur; // yards per second
+    const facing = Math.abs(vx) > 0.004 ? Math.sign(vx) : a.facing;
+    const stride = speed > 0.6 ? Math.sin(t * dur * Math.min(14, 6 + speed)) : 0;
+    const fall = (i === carrier || i === tackler) ? down : 0;
+    drawPlayer(ctx, X(pos[i][0]), Y(pos[i][1]), team(a.team), a.num, facing, stride, Math.min(1, speed / 8), fall);
+  }
+  // Ball, with a motion trail while it is in the air.
+  if (h > 2) for (let k = 6; k >= 1; k--) {
+    const tt = Math.max(0, t - k * 0.008); const [tx, ty] = sc.ball(tt); const th = sc.ballH(tt);
+    ctx.fillStyle = `rgba(255,255,255,${0.18 - k * 0.025})`; ctx.beginPath(); ctx.arc(X(tx), Y(ty) - th * 6 - 22, 6 - k * 0.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(X(bx), Y(by), 7 - Math.min(4, h * 0.1), 3.5 - Math.min(2, h * 0.05), 0, 0, Math.PI * 2); ctx.fill();
+  if (carrier >= 0 && h < 3) return; // tucked away by the carrier
+  ctx.save(); ctx.translate(X(bx), Y(by) - h * 6 - 22); ctx.rotate(sc.dirSign > 0 ? -0.3 + t * 6 : 0.3 - t * 6);
   const g = ctx.createLinearGradient(0, -6, 0, 6); g.addColorStop(0, '#a5592a'); g.addColorStop(1, '#5c2a0c');
   ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 10 + h * 0.15, 6, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-3.5, -0.5); ctx.lineTo(3.5, -0.5); ctx.stroke();
   ctx.restore();
 }
+const lerpN = (a: number, b: number, k: number) => a + (b - a) * k;
 
 function drawArt(ctx: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolean) {
   const s = sc.dirSign;
@@ -263,25 +435,41 @@ function drawArt(ctx: CanvasRenderingContext2D, sc: Scene, art: Art[], def: bool
   }
 }
 
-/** A player from the broadcast camera: legs, jersey over pads, helmet with facemask and stripe. */
-function drawPlayer(ctx: CanvasRenderingContext2D, px: number, py: number, t: Team, num: number, facing: number) {
+/**
+ * A player from the broadcast camera: legs that stride with his speed, jersey over
+ * pads leaning into the run, helmet with facemask and stripe. `fall` tips him over
+ * for the tackle.
+ */
+function drawPlayer(ctx: CanvasRenderingContext2D, px: number, py: number, t: Team, num: number, facing: number, stride = 0, lean = 0, fall = 0) {
   const body = t.colors[0], trim = t.colors[1] === t.colors[0] || t.colors[1] === '#000000' && luminance(body) < 50 ? '#e9e9e9' : t.colors[1];
-  // Legs / pants.
+  ctx.save();
+  ctx.translate(px, py + 6);
+  if (fall) ctx.rotate(facing * fall * 1.35);
+  ctx.translate(-px, -(py + 6));
+  // Legs / pants: alternate with the stride.
+  const l1 = stride * 4, l2 = -stride * 4;
   ctx.fillStyle = luminance(body) < 60 ? '#d8d8d8' : shade(body, -0.25);
-  ctx.fillRect(px - 8, py - 6, 6, 12); ctx.fillRect(px + 2, py - 6, 6, 12);
-  ctx.fillStyle = '#111'; ctx.fillRect(px - 8, py + 5, 6, 3); ctx.fillRect(px + 2, py + 5, 6, 3);
-  // Jersey over shoulder pads.
+  ctx.fillRect(px - 8 + l1, py - 6, 6, 12 - Math.abs(l1) * 0.4); ctx.fillRect(px + 2 + l2, py - 6, 6, 12 - Math.abs(l2) * 0.4);
+  ctx.fillStyle = '#111'; ctx.fillRect(px - 8 + l1 * 1.3, py + 5 - Math.abs(l1) * 0.4, 6, 3); ctx.fillRect(px + 2 + l2 * 1.3, py + 5 - Math.abs(l2) * 0.4, 6, 3);
+  // Torso leans toward where he is running.
+  const lx = facing * lean * 4;
   ctx.fillStyle = body; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(px - 15, py - 22); ctx.lineTo(px + 15, py - 22); ctx.lineTo(px + 11, py - 2); ctx.lineTo(px - 11, py - 2); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = trim; ctx.fillRect(px - 15, py - 18, 4, 3); ctx.fillRect(px + 11, py - 18, 4, 3);
+  ctx.beginPath(); ctx.moveTo(px - 15 + lx, py - 22); ctx.lineTo(px + 15 + lx, py - 22); ctx.lineTo(px + 11, py - 2); ctx.lineTo(px - 11, py - 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Arms pump opposite the legs.
+  ctx.fillStyle = shade(body, -0.12);
+  ctx.fillRect(px - 17 + lx - l1 * 0.6, py - 20, 4, 11); ctx.fillRect(px + 13 + lx - l2 * 0.6, py - 20, 4, 11);
+  ctx.fillStyle = trim; ctx.fillRect(px - 15 + lx, py - 18, 4, 3); ctx.fillRect(px + 11 + lx, py - 18, 4, 3);
   ctx.fillStyle = trim; ctx.font = '800 13px "Barlow Condensed", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(String(num), px, py - 11);
-  // Helmet.
-  const hx = px + facing * 2, hy = py - 29;
-  ctx.fillStyle = shade(body, 0.08); ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText(String(num), px + lx * 0.7, py - 11);
+  // Helmet with a specular highlight.
+  const hx = px + facing * 2 + lx * 1.3, hy = py - 29;
+  const hg = ctx.createRadialGradient(hx - 3, hy - 4, 1, hx, hy, 10);
+  hg.addColorStop(0, shade(body, 0.45)); hg.addColorStop(1, shade(body, -0.05));
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.fillStyle = trim; ctx.fillRect(hx - 1.5, hy - 9, 3, 18);
   ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(hx + facing * 5, hy - 4); ctx.lineTo(hx + facing * 10, hy - 4); ctx.moveTo(hx + facing * 5, hy + 2); ctx.lineTo(hx + facing * 10, hy + 2); ctx.stroke();
+  ctx.restore();
 }
 function luminance(hex: string) { const n = parseInt(hex.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); }
 function shade(hex: string, k: number) {

@@ -5,7 +5,8 @@ import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
 import { autoDepth, DEPTH_SLOTS, teamRatings, emptyLine } from '../../core/league';
-import { release, askingPrice, evaluateOffer, signPlayer } from '../../core/offseason';
+import { release } from '../../core/offseason';
+import { NegotiationRoom } from './negotiate';
 import { standings } from '../../core/season';
 import { scoutedView, draftGrade } from '../../core/draft';
 
@@ -186,7 +187,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
         </div>
       )}
       {modal === 'release' && <ReleaseModal p={p} close={() => setModal(null)} />}
-      {modal === 'extend' && <ExtendModal p={p} close={() => setModal(null)} />}
+      {modal === 'extend' && <NegotiationRoom p={p} close={() => { setModal(null); app.touch(); }} />}
     </div>
   );
 }
@@ -245,43 +246,6 @@ function ReleaseModal({ p, close }: { p: Player; close: () => void }) {
     </Modal>
   );
 }
-export function ExtendModal({ p, close }: { p: Player; close: () => void }) {
-  const L = useApp().league!;
-  const ask = askingPrice(L, p);
-  const [apy, setApy] = useState(Math.round(ask.apy / 100_000) * 100_000);
-  const [years, setYears] = useState(ask.years);
-  const [gtd, setGtd] = useState(Math.round(ask.gtd * 100));
-  const [patience, setPatience] = useState(3);
-  const interest = evaluateOffer(L, p, { apy, years, gtd: gtd / 100 }, L.user);
-  const submit = () => {
-    if (interest >= 0.62 || (interest >= 0.4 && Math.random() < interest)) {
-      // Extensions add years after the current deal; we simplify to a new deal from this season.
-      signPlayer(L, p, L.user, { apy, years, gtd: gtd / 100 });
-      app.toast(`${p.ln} signed: ${years} yrs, ${money(apy * years)}`); app.touch(); close();
-    } else {
-      setPatience(n => n - 1);
-      p.morale = Math.max(0, p.morale - 4);
-      if (patience <= 1) { app.toast(`${p.ln} has ended talks for now.`); close(); } else app.toast(`${p.ln}'s agent rejected the offer.`);
-    }
-  };
-  return (
-    <Modal onClose={close}>
-      <div className="row"><Face p={p} size={64} /><div><div className="h2">Negotiate: {p.fn} {p.ln}</div><div className="dim small">Asking about {money(ask.apy)}/yr for {ask.years} years, {Math.round(ask.gtd * 100)}% guaranteed · Motivations: {p.motiv.join(', ')}</div></div></div>
-      <div style={{ margin: '18px 0' }}>
-        <label className="up">Average per year: <b style={{ color: 'var(--text)' }}>{money(apy)}</b></label>
-        <input type="range" min={Math.round(ask.apy * 0.6)} max={Math.round(ask.apy * 1.4)} step={50_000} value={apy} onChange={e => setApy(+e.target.value)} style={{ width: '100%' }} />
-        <label className="up">Years: <b style={{ color: 'var(--text)' }}>{years}</b></label>
-        <input type="range" min={1} max={6} value={years} onChange={e => setYears(+e.target.value)} style={{ width: '100%' }} />
-        <label className="up">Guaranteed: <b style={{ color: 'var(--text)' }}>{gtd}% ({money(apy * years * gtd / 100)})</b></label>
-        <input type="range" min={0} max={90} value={gtd} onChange={e => setGtd(+e.target.value)} style={{ width: '100%' }} />
-      </div>
-      <div className="up">Interest</div>
-      <div className="meter" style={{ margin: '8px 0 16px' }}><b style={{ left: `${interest * 100}%` }} /></div>
-      <div className="row"><span className="small dim">Total {money(apy * years)} · Cap space {money(capSpace(L, L.user))} · Patience {'●'.repeat(patience)}{'○'.repeat(3 - patience)}</span><div className="spacer" /><button className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" onClick={submit}>Submit Offer</button></div>
-    </Modal>
-  );
-}
-
 // ---- depth chart ----------------------------------------------------------------------------
 export function DepthScreen() {
   const L = useApp().league!;

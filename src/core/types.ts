@@ -149,7 +149,7 @@ export interface TradeOffer { from: string; to: string; give: { players: string[
 
 export interface SeasonAwards { season: number; mvp?: string; opoy?: string; dpoy?: string; oroy?: string; droy?: string; coy?: string; allPro: string[]; champion?: string; runnerUp?: string; sbMvp?: string }
 
-export interface FaState { day: number; offers: Record<string, { team: string; apy: number; years: number; gtd: number; day: number }[]> }
+export interface FaState { day: number; offers: Record<string, { team: string; apy: number; years: number; gtd: number; bonus?: number; voids?: number; day: number }[]> }
 
 export interface CoachTree { points: number; xp: number; level: number; unlocked: string[] }
 
@@ -172,6 +172,8 @@ export interface League {
   history: { season: number; standings: Record<string, [number, number, number]> }[];
   cap: Record<number, number>;
   fa?: FaState;
+  /** Contract talks in progress, by player id (see negotiate.ts). */
+  talks?: Record<string, import('./negotiate').Talk>;
   draft?: { order: string[]; cursor: number; done: boolean };
   seed: number;
   counter: number;
