@@ -58,6 +58,8 @@
     .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px; margin-top: 18px; font-size: 13px; color: #c9d1de; }
     .keys kbd { display: inline-block; min-width: 54px; padding: 1px 6px; margin-right: 8px; background: #222a38; border: 1px solid #3a4558; border-radius: 3px; font: 700 12px var(--head); text-align: center; }
     #final h1 { font-size: 80px; }
+    .pop { position: fixed; left: 50%; top: 42%; transform: translateX(-50%); font: 900 italic 46px var(--head); text-transform: uppercase; color: #fff; text-shadow: 0 4px 0 rgba(0,0,0,.4), 0 0 30px rgba(255,210,63,.7); pointer-events: none; animation: popUp .9s ease-out forwards; }
+    @keyframes popUp { from { transform: translate(-50%, 20px) scale(1.4); opacity: 0; } 20% { transform: translate(-50%, 0) scale(1); opacity: 1; } to { transform: translate(-50%, -40px); opacity: 0; } }
     #final .sc { display: flex; gap: 40px; justify-content: center; margin: 20px 0; font: 900 64px var(--head); }
   </style>
 </head>
@@ -84,9 +86,9 @@
         <div><kbd>W A S D</kbd> / arrows: move the ball carrier</div>
         <div><kbd>Shift</kbd> sprint (uses stamina)</div>
         <div><kbd>Space</kbd> snap the ball · juke when running</div>
-        <div><kbd>E</kbd> stiff arm</div>
-        <div><kbd>1 – 5</kbd> throw to that receiver</div>
-        <div><kbd>C</kbd> switch camera</div>
+        <div><kbd>E</kbd> stiff arm · <kbd>Q</kbd> spin</div>
+        <div><kbd>1 – 5</kbd> tap: touch pass · hold: bullet</div>
+        <div><kbd>C</kbd> switch camera · <kbd>M</kbd> sound</div>
       </div>
     </div>
   </div>

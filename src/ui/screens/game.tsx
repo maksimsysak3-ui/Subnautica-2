@@ -212,7 +212,7 @@ function LiveBox({ L, sim }: { L: League; sim: GameSim }) {
   return (
     <div className="grid g2">
       <div><div className="up">Passing</div>{rows('pa', l => `${l.pc}/${l.pa}, ${l.py} yds, ${l.ptd} TD, ${l.pint} INT`)}</div>
-      <div><div className="up">Rushing</div>{rows('ra', l => `${l.ra} car, ${l.ry} yds, ${l.rtd} TD`)}</div>
+      <div><div className="up">Rushing</div>{rows('ra', l => `${l.ra} car, ${l.ry} yds (${l.ra ? (l.ry / l.ra).toFixed(1) : '0.0'} avg), ${l.rtd} TD`)}</div>
       <div><div className="up">Receiving</div>{rows('rec', l => `${l.rec} rec, ${l.recy} yds, ${l.rectd} TD`)}</div>
       <div><div className="up">Defense</div>{rows('tkl', l => `${l.tkl} tkl${l.dsk ? `, ${l.dsk} sk` : ''}${l.dint ? `, ${l.dint} INT` : ''}`)}</div>
       <div className="span2"><div className="up">Team</div>{(['away', 'home'] as const).map((s, i) => <div key={s} className="small">{L.teams[i ? sim.game.home : sim.game.away].abbr}: {sim.box[i].yds} yds ({sim.box[i].pyds} pass, {sim.box[i].ryds} rush), {sim.box[i].fd} first downs, {sim.box[i].to} TO, {sim.box[i].pen} pen, 3rd {sim.box[i].third[0]}/{sim.box[i].third[1]}</div>)}</div>

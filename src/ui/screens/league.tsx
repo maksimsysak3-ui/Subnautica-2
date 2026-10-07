@@ -85,6 +85,7 @@ export function StatsScreen() {
         </div>
       ) : (
         <div className="grid g3">
+          <YpcLeaders L={L} season={season} />
           {LEADERS.map(([label, k]) => (
             <div key={k} className="card"><h3>{label}<span className="more" onClick={() => setCat(k)}>Full list ›</span></h3>
               {top(k).map((p, i) => (
@@ -97,6 +98,24 @@ export function StatsScreen() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Yards per carry: qualifiers need 6.25 carries per team game, as the NFL requires. */
+function YpcLeaders({ L, season }: { L: NonNullable<ReturnType<typeof useApp>['league']>; season: number }) {
+  const teamGames = Math.max(1, ...Object.values(L.players).map(p => p.stats[season]?.gp ?? 0));
+  const min = Math.max(10, Math.round(teamGames * 6.25));
+  const list = Object.values(L.players).filter(p => (p.stats[season]?.ra ?? 0) >= min).map(p => ({ p, v: p.stats[season].ry / p.stats[season].ra })).sort((a, b) => b.v - a.v).slice(0, 5);
+  if (!list.length) return null;
+  return (
+    <div className="card"><h3>Yards per Carry<span className="more" style={{ cursor: 'default' }}>min {min} att</span></h3>
+      {list.map(({ p, v }, i) => (
+        <div key={p.id} className="li" onClick={() => app.go({ id: 'player', pid: p.id })}>
+          <span className="num mute" style={{ width: 14 }}>{i + 1}</span>{i === 0 ? <Face p={p} size={40} /> : <Logo team={L.teams[p.team]} size={24} />}
+          <div style={{ flex: 1 }}><b>{p.fn[0]}. {p.ln}</b> <span className="small mute">{p.team} · {p.stats[season].ra} att</span></div><span className="num" style={{ fontSize: i === 0 ? 22 : 16 }}>{v.toFixed(1)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -183,7 +202,7 @@ export function BoxScreen({ gid }: { gid: string }) {
       <div className="grid g2">{teams.map(a => (
         <div key={a} className="card"><h3><Logo team={L.teams[a]} size={22} /> {L.teams[a].nick}</h3>
           {ps(a, 'pa').map(([p, l]) => <div key={p.id} className="small">{p.fn[0]}. {p.ln}: {l.pc}/{l.pa}, {l.py} yds, {l.ptd} TD, {l.pint} INT</div>)}
-          {ps(a, 'ra').slice(0, 3).map(([p, l]) => <div key={p.id} className="small">{p.fn[0]}. {p.ln}: {l.ra} car, {l.ry} yds{l.rtd ? `, ${l.rtd} TD` : ''}</div>)}
+          {ps(a, 'ra').slice(0, 3).map(([p, l]) => <div key={p.id} className="small">{p.fn[0]}. {p.ln}: {l.ra} car, {l.ry} yds ({l.ra ? ((l.ry ?? 0) / l.ra).toFixed(1) : "0.0"} avg){l.rtd ? `, ${l.rtd} TD` : ''}</div>)}
           {ps(a, 'rec').slice(0, 4).map(([p, l]) => <div key={p.id} className="small">{p.fn[0]}. {p.ln}: {l.rec} rec, {l.recy} yds{l.rectd ? `, ${l.rectd} TD` : ''}</div>)}
           {ps(a, 'tkl').slice(0, 4).map(([p, l]) => <div key={p.id} className="small mute">{p.fn[0]}. {p.ln}: {l.tkl} tkl{l.dsk ? `, ${l.dsk} sk` : ''}{l.dint ? `, ${l.dint} INT` : ''}</div>)}
         </div>

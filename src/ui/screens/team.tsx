@@ -197,9 +197,11 @@ function potentialLabel(p: Player) {
   return gap >= 10 ? 'Elite' : gap >= 6 ? 'High' : gap >= 3 ? 'Medium' : 'Low';
 }
 
-const STAT_COLS: Record<string, [keyof StatLine, string][]> = {
-  QB: [['gp', 'GP'], ['pc', 'CMP'], ['pa', 'ATT'], ['py', 'YDS'], ['ptd', 'TD'], ['pint', 'INT'], ['sk', 'SK'], ['ra', 'RUSH'], ['ry', 'RYDS'], ['rtd', 'RTD']],
-  RB: [['gp', 'GP'], ['ra', 'ATT'], ['ry', 'YDS'], ['rtd', 'TD'], ['rlng', 'LNG'], ['rec', 'REC'], ['recy', 'RECYDS'], ['rectd', 'RECTD'], ['fuml', 'FUM']],
+type StatCol = keyof StatLine | 'ypc';
+const ypc = (l: StatLine) => (l.ra ? (l.ry / l.ra).toFixed(1) : '—');
+const STAT_COLS: Record<string, [StatCol, string][]> = {
+  QB: [['gp', 'GP'], ['pc', 'CMP'], ['pa', 'ATT'], ['py', 'YDS'], ['ptd', 'TD'], ['pint', 'INT'], ['sk', 'SK'], ['ra', 'RUSH'], ['ry', 'RYDS'], ['ypc', 'YPC'], ['rtd', 'RTD']],
+  RB: [['gp', 'GP'], ['ra', 'ATT'], ['ry', 'YDS'], ['ypc', 'YPC'], ['rtd', 'TD'], ['rlng', 'LNG'], ['rec', 'REC'], ['recy', 'RECYDS'], ['rectd', 'RECTD'], ['fuml', 'FUM']],
   WR: [['gp', 'GP'], ['tgt', 'TGT'], ['rec', 'REC'], ['recy', 'YDS'], ['rectd', 'TD'], ['reclng', 'LNG'], ['drop', 'DROP']],
   OL: [['gp', 'GP'], ['gs', 'GS'], ['pancake', 'PANCAKES'], ['sacka', 'SACKS ALLOWED']],
   DEF: [['gp', 'GP'], ['tkl', 'TKL'], ['tfl', 'TFL'], ['dsk', 'SACK'], ['qbh', 'QBH'], ['dint', 'INT'], ['pd', 'PD'], ['ff', 'FF'], ['fr', 'FR'], ['dtd', 'TD']],
@@ -211,12 +213,13 @@ function StatsTable({ p }: { p: Player }) {
   const cols = STAT_COLS[statKind(p.pos)];
   const seasons = Object.keys(p.stats).map(Number).sort((a, b) => b - a);
   const career = emptyLine();
-  for (const s of seasons) for (const [k] of cols) (career[k] as number) += p.stats[s][k] as number;
+  for (const s of seasons) for (const k of Object.keys(career) as (keyof StatLine)[]) (career[k] as number) += (p.stats[s][k] as number) ?? 0;
+  const cell = (l: StatLine, k: StatCol) => (k === 'ypc' ? ypc(l) : l[k]);
   if (!seasons.length) return <div className="card empty">No NFL stats in this save yet. Real 2023–25 production fed this player's ratings.</div>;
   return (
     <div className="card"><div className="scroll"><table className="tbl"><thead><tr><th>Season</th>{cols.map(([, h]) => <th key={h} className="r">{h}</th>)}</tr></thead>
-      <tbody>{seasons.map(s => <tr key={s}><td>{s}</td>{cols.map(([k]) => <td key={k} className="r num">{p.stats[s][k]}</td>)}</tr>)}
-        <tr><td><b>Career</b></td>{cols.map(([k]) => <td key={k} className="r num"><b>{career[k]}</b></td>)}</tr></tbody></table></div></div>
+      <tbody>{seasons.map(s => <tr key={s}><td>{s}</td>{cols.map(([k]) => <td key={k} className="r num">{cell(p.stats[s], k)}</td>)}</tr>)}
+        <tr><td><b>Career</b></td>{cols.map(([k]) => <td key={k} className="r num"><b>{cell(career, k)}</b></td>)}</tr></tbody></table></div></div>
   );
 }
 function ContractTable({ p }: { p: Player }) {

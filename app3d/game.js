@@ -121,39 +121,33 @@ const fdLine = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 53.3), new THREE.Mes
 for (const l of [losLine, fdLine]) { l.rotation.x = -Math.PI / 2; l.position.y = 0.03; scene.add(l); }
 
 // ---------- players ------------------------------------------------------------------------
-function numberTex(num, fg, bg) {
-  return canvasTex(128, 128, (g) => { g.fillStyle = bg; g.fillRect(0, 0, 128, 128); g.fillStyle = fg; g.font = '800 92px "Barlow Condensed", Arial Narrow, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(num), 64, 70); });
+function numberTex(num, fg) {
+  return canvasTex(128, 128, (g) => { g.fillStyle = fg; g.font = '900 100px "Barlow Condensed", Arial Narrow, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.25)'; g.strokeText(String(num), 64, 70); g.fillText(String(num), 64, 70); });
 }
 const lum = h => { const n = parseInt(h.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
+/**
+ * A simple, readable player: a pill body (jersey over pants), a glossy helmet with
+ * stripe and facemask, his number front and back, and two little feet that step.
+ * Lean, tilt and squash do the animating.
+ */
 function makeBody(kit, num) {
-  const g = new THREE.Group();
-  const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.55 });
-  const jersey = mat(kit.jersey), pants = mat(kit.pants), helm = new THREE.MeshStandardMaterial({ color: kit.helmet, roughness: 0.25, metalness: 0.35 }), skin = mat(kit.skin), sock = mat(kit.sock);
-  const legs = [];
-  for (const s of [-1, 1]) {
-    const hip = new THREE.Group(); hip.position.set(0, 1.0, s * 0.17);
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.42, 4, 8), pants); thigh.position.y = -0.3;
-    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.4, 4, 8), sock); shin.position.y = -0.75;
-    hip.add(thigh, shin); g.add(hip); legs.push(hip);
-  }
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.42, 4, 10), jersey); torso.position.y = 1.42; torso.scale.z = 1.15;
-  const pads = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.24, 1.0), jersey); pads.position.y = 1.78;
-  const arms = [];
-  for (const s of [-1, 1]) {
-    const sh = new THREE.Group(); sh.position.set(0, 1.74, s * 0.55);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.42, 4, 8), jersey); arm.position.y = -0.28;
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), skin); hand.position.y = -0.58;
-    sh.add(arm, hand); g.add(sh); arms.push(sh);
-  }
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 14), helm); head.position.y = 2.12; head.scale.set(1.05, 1, 0.95);
-  const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 6, 24, Math.PI), new THREE.MeshStandardMaterial({ color: kit.stripe })); stripe.position.y = 2.12; stripe.rotation.y = Math.PI / 2;
-  const mask = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.36), new THREE.MeshStandardMaterial({ color: '#cfd3da', metalness: 0.6, roughness: 0.3 })); mask.position.set(0.3, 2.04, 0);
-  const nt = numberTex(num, kit.number, kit.jersey);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), new THREE.MeshStandardMaterial({ map: nt, roughness: 0.6 })); back.position.set(-0.37, 1.45, 0); back.rotation.y = -Math.PI / 2;
-  const front = back.clone(); front.position.x = 0.37; front.rotation.y = Math.PI / 2;
-  g.add(torso, pads, head, stripe, mask, back, front);
+  const g = new THREE.Group();          // ground-level root (position, facing)
+  const rig = new THREE.Group();        // body that leans and squashes
+  g.add(rig);
+  const std = (c, r = 0.5, m = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+  const pants = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.35, 6, 16), std(kit.pants, 0.6)); pants.position.y = 0.72;
+  const jersey = new THREE.Mesh(new THREE.CapsuleGeometry(0.47, 0.42, 6, 18), std(kit.jersey, 0.55)); jersey.position.y = 1.32; jersey.scale.set(1, 1, 1.12);
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.36, 24, 18), std(kit.helmet, 0.22, 0.35)); helmet.position.y = 2.08;
+  const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.362, 0.04, 8, 32, Math.PI), std(kit.stripe, 0.4)); stripe.position.y = 2.08; stripe.rotation.y = Math.PI / 2;
+  const mask = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 6, 20, Math.PI), std('#d6dae1', 0.3, 0.7)); mask.position.set(0.24, 1.98, 0); mask.rotation.set(0, Math.PI / 2, Math.PI / 2);
+  const nt = numberTex(num, kit.number);
+  const decal = new THREE.MeshStandardMaterial({ map: nt, transparent: true, roughness: 0.6 });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), decal); back.position.set(-0.53, 1.36, 0); back.rotation.y = -Math.PI / 2;
+  const front = back.clone(); front.position.x = 0.53; front.rotation.y = Math.PI / 2;
+  rig.add(pants, jersey, helmet, stripe, mask, back, front);
+  const feet = [-1, 1].map(sd => { const f = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), std('#15171c', 0.7)); f.scale.set(1.5, 0.7, 1); f.position.set(0, 0.1, sd * 0.2); g.add(f); return f; });
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return { g, legs, arms };
+  return { g, rig, feet };
 }
 function kitFor(team, home) {
   const c0 = team.c[0], c1 = team.c[1] || '#ffffff';
@@ -163,14 +157,16 @@ function kitFor(team, home) {
 
 class Player {
   constructor(side, pos, info, kit) {
-    this.side = side; this.pos = pos; this.name = info?.n ?? pos; this.num = info?.num ?? 0; this.ovr = info?.ovr ?? 70;
+    this.side = side; this.pos = pos; this.name = info?.n ?? pos; this.ovr = info?.ovr ?? 70;
+    const typical = { QB: 12, RB: 28, WR: 18, TE: 85, OT: 74, G: 65, C: 60, EDGE: 91, DT: 95, LB: 54, CB: 24, S: 33 };
+    this.num = info?.num || typical[pos] || 0;
     this.maxSpeed = (SPEED[pos] ?? 8) + (this.ovr - 78) * 0.035;
-    const b = makeBody(kit, this.num); this.mesh = b.g; this.legs = b.legs; this.arms = b.arms;
+    const b = makeBody(kit, this.num); this.mesh = b.g; this.rig = b.rig; this.feet = b.feet;
     scene.add(this.mesh);
     this.p = new THREE.Vector2(); this.v = new THREE.Vector2(); this.facing = 0;
     this.phase = Math.random() * 6; this.stun = 0; this.down = 0;
   }
-  place(x, z) { this.p.set(x, z); this.v.set(0, 0); this.stun = 0; this.down = 0; this.blocked = null; this.engaged = null; this.route = null; this.mesh.rotation.set(0, 0, 0); this.facing = this.side === 'O' ? 0 : Math.PI; }
+  place(x, z) { this.p.set(x, z); this.v.set(0, 0); this.stun = 0; this.down = 0; this.blocked = null; this.engaged = null; this.route = null; this.man = null; this.rig.rotation.set(0, 0, 0); this.facing = this.side === 'O' ? 0 : Math.PI; }
   steer(tx, tz, dt, speedMul = 1) {
     if (this.stun > 0 || this.down > 0) { this.v.multiplyScalar(0.85); return; }
     const dx = tx - this.p.x, dz = tz - this.p.y, d = Math.hypot(dx, dz);
@@ -192,17 +188,25 @@ class Player {
     this.stun = Math.max(0, this.stun - dt);
     this.p.addScaledVector(this.v, dt);
     const sp = this.v.length();
-    if (sp > 0.3) this.facing = Math.atan2(this.v.y, this.v.x);
-    this.phase += dt * (4 + sp * 1.2);
-    const swing = Math.min(1, sp / 7) * 0.9;
-    this.legs[0].rotation.z = Math.sin(this.phase) * swing; this.legs[1].rotation.z = -Math.sin(this.phase) * swing;
-    this.arms[0].rotation.z = -Math.sin(this.phase) * swing * 0.8; this.arms[1].rotation.z = Math.sin(this.phase) * swing * 0.8;
-    this.mesh.position.set(this.p.x, Math.abs(Math.sin(this.phase)) * 0.05 * swing, this.p.y);
+    const prev = this.facing;
+    if (sp > 0.3) { const want = Math.atan2(this.v.y, this.v.x); let d = want - this.facing; d = Math.atan2(Math.sin(d), Math.cos(d)); this.facing += d * Math.min(1, dt * 14); }
+    const turn = Math.atan2(Math.sin(this.facing - prev), Math.cos(this.facing - prev)) / Math.max(dt, 1e-3);
+    this.phase += dt * (5 + sp * 1.4);
+    const run = Math.min(1, sp / 7);
+    // Feet step; body bobs, leans forward with speed and banks into cuts.
+    this.feet[0].position.x = Math.sin(this.phase) * 0.32 * run; this.feet[1].position.x = -Math.sin(this.phase) * 0.32 * run;
+    this.feet[0].position.y = 0.1 + Math.max(0, Math.cos(this.phase)) * 0.12 * run; this.feet[1].position.y = 0.1 + Math.max(0, -Math.cos(this.phase)) * 0.12 * run;
+    this.mesh.position.set(this.p.x, 0, this.p.y);
     this.mesh.rotation.y = -this.facing;
-    // Lean into the run; topple when tackled.
-    const lean = Math.min(0.25, sp * 0.025);
-    if (this.down > 0) { this.down = Math.min(1, this.down + dt * 2.6); this.mesh.rotation.z = -this.down * 1.45; this.mesh.position.y = 0.15; }
-    else this.mesh.rotation.z = -lean;
+    this.rig.position.y = Math.abs(Math.sin(this.phase)) * 0.08 * run;
+    if (this.down > 0) {
+      this.down = Math.min(1, this.down + dt * 3);
+      this.rig.rotation.z = -this.down * 1.35; this.rig.position.y = -this.down * 0.35; this.rig.scale.set(1, 1 - this.down * 0.12, 1);
+    } else {
+      this.rig.rotation.z = -run * 0.22;
+      this.rig.rotation.x = clamp(-turn * 0.03, -0.35, 0.35);
+      this.rig.scale.set(1, 1, 1);
+    }
   }
   remove() { scene.remove(this.mesh); }
 }
@@ -216,8 +220,10 @@ const ball = (() => {
 // Ring under the player you control, and receiver icons.
 const ring = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 32), new THREE.MeshBasicMaterial({ color: '#ffd400', transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
 ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; scene.add(ring);
-const ICON_COL = ['#ffd23f', '#3d8bff', '#ff4d5e', '#2fd17b', '#c77dff'];
-const icons = [1, 2, 3, 4, 5].map((n, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(64, 64, (g) => { g.fillStyle = ICON_COL[i]; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#000'; g.font = '900 38px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 32, 34); }), depthTest: false })); s.scale.set(1.1, 1.1, 1); s.visible = false; scene.add(s); return s; });
+// Receiver icons, coloured by how open he is: green open, yellow tight, red covered.
+const OPEN_COL = ['#2fd17b', '#ffd23f', '#ff4d5e'];
+const iconTex = [1, 2, 3, 4, 5].map(n => OPEN_COL.map(c => canvasTex(64, 64, (g) => { g.fillStyle = c; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 4; g.stroke(); g.fillStyle = '#000'; g.font = '900 38px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 32, 34); })));
+const icons = [1, 2, 3, 4, 5].map((n, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: iconTex[i][0], depthTest: false })); s.scale.set(1.15, 1.15, 1); s.visible = false; scene.add(s); return s; });
 
 // ---------- plays ----------------------------------------------------------------------------
 // Routes: points relative to the receiver's start (x downfield, z across, + toward his sideline).
@@ -234,12 +240,13 @@ const KICKS = [{ k: 'punt', name: 'Punt', desc: 'Flip the field', kick: 'punt' }
 
 // ---------- game state ---------------------------------------------------------------------
 const G = { me: null, op: null, score: [0, 0], q: 1, clock: QUARTER, down: 1, togo: 10, los: -25, phase: 'start', cam: 0, playT: 0 };
-let O = {}, D = {}, all = [], carrier = null, play = null, flight = null, result = null, stamina = 1, juke = 0, stiff = 0;
+let O = {}, D = {}, all = [], carrier = null, play = null, flight = null, result = null, stamina = 1, juke = 0, stiff = 0, spin = 0, shake = 0;
+let tape = [], replay = null; const press = {};
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; onKey(e); });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keydown', e => { if (e.repeat) return; keys[e.code] = true; onKey(e); });
+addEventListener('keyup', e => { keys[e.code] = false; onKeyUp(e); });
 
-$('kick').onclick = () => startGame($('teamA').value, $('teamB').value);
+$('kick').onclick = () => { audio.init(); startGame($('teamA').value, $('teamB').value); };
 $('again').onclick = () => { $('final').classList.add('hidden'); $('start').classList.remove('hidden'); };
 
 function startGame(a, b) {
@@ -301,7 +308,7 @@ function choose(p) {
   showIcons(!p.run);
 }
 function snap() {
-  G.phase = 'live'; G.playT = 0; result = null; stamina = Math.min(1, stamina + 0.35);
+  G.phase = 'live'; G.playT = 0; result = null; stamina = Math.min(1, stamina + 0.35); tape = []; audio.whistle();
   carrier = O.QB; // the QB holds it after the snap
   // Defensive assignments: man on the receivers, rush with four, safeties deep.
   D.CB1.man = O.X; D.CB2.man = O.Z; D.NCB.man = O.SL; D.MLB.man = O.TE; D.WLB.man = O.RB;
@@ -313,7 +320,7 @@ function snap() {
     const r = play.routes[k]; const p = O[k]; const side = p.p.y >= 0 ? 1 : -1;
     p.route = r.map(([dx, dz]) => [p.p.x + dx, p.p.y + dz * side]); p.ri = 0;
   }
-  hint(play.run ? '<kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> juke · <kbd>E</kbd> stiff arm' : '<kbd>1</kbd>–<kbd>5</kbd> throw · <kbd>WASD</kbd> move the QB');
+  hint(play.run ? '<kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> juke · <kbd>Q</kbd> spin · <kbd>E</kbd> stiff arm' : 'Tap <kbd>1</kbd>–<kbd>5</kbd> touch pass · hold for a bullet · <kbd>WASD</kbd> move in the pocket');
 }
 function kick(kind) {
   if (kind === 'fg') {
@@ -360,7 +367,11 @@ function endPlay(kind, spotX, text, sub, color) {
   if (G.phase !== 'live') return;
   G.phase = 'dead';
   showIcons(false);
+  record();
+  audio.whistle();
   const gained = Math.round(spotX - G.los);
+  const big = kind === 'td' || kind === 'int' || gained >= 20 || text === 'Sack';
+  if (kind === 'td') audio.roar(1); else if (gained >= 15 || text === 'Sack') audio.roar(0.7);
   const running = ['tackle'].includes(kind);
   G.clock = Math.max(0, G.clock - Math.round(G.playT) - (running ? 24 : 4));
   let next = () => toCall();
@@ -380,8 +391,75 @@ function endPlay(kind, spotX, text, sub, color) {
     else { G.down++; G.togo = Math.max(1, G.togo - gained); banner(text ?? (gained > 0 ? `Gain of ${gained}` : gained < 0 ? `Loss of ${-gained}` : 'No Gain'), sub, color ?? '#20283a'); }
   }
   bug();
-  setTimeout(() => { if (!checkClock()) next(); }, 1700);
+  const go = () => { if (!checkClock()) next(); };
+  setTimeout(() => (big && tape.length > 20 ? startReplay(go) : go()), big ? 1500 : 1700);
 }
+
+// ---------- instant replay ---------------------------------------------------------------------------
+function record() {
+  tape.push({ pl: all.map(p => [p.p.x, p.p.y, p.facing, p.down, p.phase]), b: [ball.position.x, ball.position.y, ball.position.z] });
+}
+/** Big plays get the replay: last six seconds at 60% speed from a low cinematic angle. */
+function startReplay(done) {
+  const frames = tape.slice(-180);
+  G.phase = 'replay';
+  const tag = $('hint'); tag.innerHTML = '<b style="color:#ff4d5e">●</b> REPLAY · <kbd>Space</kbd> skip'; tag.classList.remove('hidden');
+  let i = 0, acc = 0, angle = rand(0, Math.PI * 2);
+  const finish = () => { if (!replay) return; replay = null; tag.classList.add('hidden'); done(); };
+  replay = {
+    skip: finish,
+    step(dt) {
+      acc += dt * 30 * 0.6; // tape was recorded at 30 fps
+      while (acc >= 1 && i < frames.length - 1) { i++; acc -= 1; }
+      const f = frames[i];
+      all.forEach((p, j) => { const [x, z, fa, dn, ph] = f.pl[j]; p.p.set(x, z); p.v.set(0, 0); p.facing = fa; p.down = dn; p.phase = ph; p.update(0); });
+      ball.position.set(f.b[0], f.b[1], f.b[2]);
+      angle += dt * 0.25;
+      const target = new THREE.Vector3(f.b[0], 0.8, f.b[2]);
+      camera.position.lerp(target.clone().add(new THREE.Vector3(Math.cos(angle) * 11, 3.2, Math.sin(angle) * 11)), Math.min(1, dt * 3));
+      camera.lookAt(target);
+      if (i >= frames.length - 1) { acc += dt; if (acc > 1.2) finish(); }
+    },
+  };
+}
+function pop(text) { const el = document.createElement('div'); el.className = 'pop'; el.textContent = text; document.body.appendChild(el); setTimeout(() => el.remove(), 900); }
+
+// ---------- sound: crowd, whistle, hits, all synthesized ----------------------------------------------
+const audio = (() => {
+  let ctx = null, crowdGain = null, on = true, master = null;
+  const noise = (sec) => { const b = ctx.createBuffer(1, ctx.sampleRate * sec, ctx.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; };
+  const burst = (dur, f, q, vol, type = 'bandpass') => {
+    if (!ctx || !on) return;
+    const src = ctx.createBufferSource(); src.buffer = noise(dur);
+    const flt = ctx.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(flt).connect(g).connect(master); src.start();
+  };
+  return {
+    init() {
+      if (ctx) return;
+      try { ctx = new AudioContext(); } catch { return; }
+      master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+      // Crowd bed: looped noise through a voice-band filter, gently swelling.
+      const src = ctx.createBufferSource(); src.buffer = noise(3); src.loop = true;
+      const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 700; f1.Q.value = 0.6;
+      crowdGain = ctx.createGain(); crowdGain.gain.value = 0.05;
+      src.connect(f1).connect(crowdGain).connect(master); src.start();
+    },
+    toggle() { on = !on; if (master) master.gain.value = on ? 0.9 : 0; },
+    roar(level) { if (!ctx) return; const g = crowdGain.gain, t = ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0.05 + level * 0.3, t + 0.25); g.linearRampToValueAtTime(0.05, t + 3.5); },
+    whistle() {
+      if (!ctx || !on) return;
+      const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), t = ctx.currentTime;
+      o.frequency.value = 2900; lfo.frequency.value = 38; lg.gain.value = 140; lfo.connect(lg).connect(o.frequency);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.08, t + 0.02); g.gain.setValueAtTime(0.08, t + 0.3); g.gain.linearRampToValueAtTime(0, t + 0.38);
+      o.connect(g).connect(master); o.start(t); lfo.start(t); o.stop(t + 0.4); lfo.stop(t + 0.4);
+    },
+    hit(v) { burst(0.16, 140, 0.8, 0.5 * v + 0.15, 'lowpass'); burst(0.06, 900, 1, 0.12 * v); },
+    cut() { burst(0.08, 2600, 2, 0.05); },
+    whoosh() { burst(0.3, 1200, 0.7, 0.06); },
+  };
+})();
 function checkClock() {
   if (G.clock > 0) return false;
   if (G.q < 4) { G.q++; G.clock = QUARTER; feed(`End of the ${ord(G.q - 1)} quarter.`); if (G.q === 3) { G.los = -25; G.down = 1; G.togo = 10; } return false; }
@@ -394,30 +472,44 @@ function checkClock() {
 
 // ---------- input -------------------------------------------------------------------------------
 function onKey(e) {
+  if (G.phase === 'replay' && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); replay.skip(); return; }
   if (G.phase === 'call') { const n = +e.key; if (n >= 1 && n <= G.choices.length) choose(G.choices[n - 1]); return; }
   if (e.code === 'KeyC') G.cam = (G.cam + 1) % 3;
+  if (e.code === 'KeyM') audio.toggle();
   if (G.phase === 'presnap' && e.code === 'Space') { e.preventDefault(); snap(); return; }
   if (G.phase !== 'live') return;
-  if (e.code === 'Space') { e.preventDefault(); if (carrier && carrier !== O.QB && juke <= -0.6) juke = 0.35; }
+  if (e.code === 'Space') { e.preventDefault(); if (carrier && carrier !== O.QB && juke <= -0.6) { juke = 0.35; audio.cut(); } }
+  if (e.code === 'KeyQ' && carrier && carrier !== O.QB && spin <= -0.8) { spin = 0.5; audio.cut(); }
   if (e.code === 'KeyE' && stiff <= -0.8) stiff = 0.5;
   const n = +e.key;
-  if (n >= 1 && n <= 5 && carrier === O.QB && play.routes && O.QB.p.x < G.los + 0.5 && !flight) throwTo(['X', 'SL', 'TE', 'Z', 'RB'][n - 1]);
+  if (n >= 1 && n <= 5) press[n] = performance.now(); // throw on release: tap = touch, hold = bullet
 }
-function throwTo(k) {
+function onKeyUp(e) {
+  const n = +e.key;
+  if (!(n >= 1 && n <= 5) || !press[n]) return;
+  const held = (performance.now() - press[n]) / 1000; delete press[n];
+  if (G.phase === 'live' && carrier === O.QB && play.routes && O.QB.p.x < G.los + 0.5 && !flight) throwTo(['X', 'SL', 'TE', 'Z', 'RB'][n - 1], clamp(held / 0.35, 0, 1));
+}
+function throwTo(k, power) {
   const qb = O.QB, r = O[k];
-  const d0 = qb.p.distanceTo(r.p), t = d0 / BALL_SPEED + 0.12;
+  const speed = 16 + power * 10;
+  const d0 = qb.p.distanceTo(r.p), t = d0 / speed + 0.1;
   const lead = r.p.clone().addScaledVector(r.v, t);
-  // Accuracy: the QB's rating, pressure in his face, and throwing on the move.
-  const press = Math.min(...[D.LE, D.RE, D.DT1, D.DT2].map(x => x.p.distanceTo(qb.p)));
-  const sd = 0.45 + (90 - qb.ovr) * 0.03 + (press < 2.5 ? 1.1 : 0) + qb.v.length() * 0.08 + d0 * 0.012;
+  // Accuracy: the QB's rating, pressure in his face, throwing on the move, distance.
+  const pressure = Math.min(...[D.LE, D.RE, D.DT1, D.DT2].map(x => x.p.distanceTo(qb.p)));
+  const sd = 0.4 + (90 - qb.ovr) * 0.03 + (pressure < 2.5 ? 1.1 : 0) + qb.v.length() * 0.08 + d0 * 0.012 + power * 0.25;
   lead.x += gauss() * sd; lead.y += gauss() * sd;
-  flight = { from: new THREE.Vector3(qb.p.x, 2.1, qb.p.y), to: lead, t: 0, T: Math.hypot(lead.x - qb.p.x, lead.y - qb.p.y) / BALL_SPEED + 0.12, target: r, arc: 1.2 + d0 * 0.07 };
-  carrier = null; showIcons(false);
+  const dist = Math.hypot(lead.x - qb.p.x, lead.y - qb.p.y);
+  // Touch passes float over the underneath defenders; bullets are flat and fast.
+  const arc = (1 - power) * (1.4 + dist * 0.13) + power * (0.5 + dist * 0.035);
+  flight = { from: new THREE.Vector3(qb.p.x, 2.1, qb.p.y), to: lead, t: 0, T: dist / speed + 0.1, target: r, arc, tipped: new Set() };
+  carrier = null; showIcons(false); audio.whoosh();
 }
 
 // ---------- the play itself ---------------------------------------------------------------------------
 function simulate(dt) {
-  G.playT += dt; juke -= dt; stiff -= dt;
+  G.playT += dt; juke -= dt; stiff -= dt; spin -= dt;
+  if (G.phase === 'live' && Math.round(G.playT * 60) % 2 === 0) record();
   const run = !!play.run;
   // Hand-off on runs.
   if (run && carrier === O.QB && G.playT > 0.55) carrier = O.RB;
@@ -469,6 +561,8 @@ function simulate(dt) {
     const mul = (sprint ? 1 : 0.86) * (juke > 0 ? 1.15 : 1);
     if (ix || iz) user.push(ix || 0.15, iz, dt, mul); else user.push(1, 0, dt, mul * 0.9);
     if (juke > 0) user.v.y += (iz || (Math.random() < 0.5 ? 1 : -1)) * 26 * dt;
+    user.rig.rotation.y = spin > 0 ? (0.5 - spin) * Math.PI * 4 : 0;
+    if (spin > 0) user.v.multiplyScalar(1 - dt * 0.6);
   }
   // Defense.
   const ballPos = carrier ? carrier.p : flight ? new THREE.Vector2(flight.to.x, flight.to.y) : O.QB.p;
@@ -503,6 +597,18 @@ function simulate(dt) {
     flight.t += dt; const k = Math.min(1, flight.t / flight.T);
     ball.position.set(flight.from.x + (flight.to.x - flight.from.x) * k, 2.1 + Math.sin(Math.PI * k) * flight.arc - k * 0.8, flight.from.z + (flight.to.y - flight.from.z) * k);
     ball.rotation.y = -Math.atan2(flight.to.y - flight.from.z, flight.to.x - flight.from.x); ball.children[0].rotation.x += dt * 30;
+    // Anyone in the lane can get a hand on a low ball.
+    if (flight.t > 0.15 && ball.position.y < 2.7) for (const d of Object.values(D)) {
+      if (flight.tipped.has(d) || d.down > 0) continue;
+      if (Math.hypot(d.p.x - ball.position.x, d.p.y - ball.position.z) < 1.0) {
+        flight.tipped.add(d);
+        if (Math.random() < 0.3 + (d.ovr - 80) * 0.01) {
+          if (Math.random() < 0.4) { flight = null; carrier = null; shake = 0.4; audio.roar(0.9); return endPlay('int', d.p.x, null, `${d.name}`); }
+          const who = d.name; flight = null; ball.position.y = 0.3; audio.hit(0.4);
+          return endPlay('inc', G.los, 'Batted Down', `Tipped by ${who}`, '#2a2f3a');
+        }
+      }
+    }
     if (k >= 1) resolveCatch();
     return;
   }
@@ -520,15 +626,17 @@ function simulate(dt) {
     if (d.down > 0 || d.stun > 0 || (d.blocked && d.blocked.engaged === d)) continue;
     if (d.p.distanceTo(carrier.p) < 1.0) {
       const near = Object.values(D).filter(x => x !== d && x.p.distanceTo(carrier.p) < 2).length;
-      let p = 0.62 + (d.ovr - carrier.ovr) * 0.012 + near * 0.12 + (qbSack ? 0.2 : 0) - (juke > 0 ? 0.4 : 0) - (stiff > 0 ? 0.3 : 0) - (carrier.v.length() > 8 ? 0.08 : 0);
+      let p = 0.62 + (d.ovr - carrier.ovr) * 0.012 + near * 0.12 + (qbSack ? 0.2 : 0) - (juke > 0 ? 0.4 : 0) - (spin > 0 ? 0.35 : 0) - (stiff > 0 ? 0.3 : 0) - (carrier.v.length() > 8 ? 0.08 : 0);
       if (Math.random() < clamp(p, 0.15, 0.97)) {
         carrier.down = 0.01; d.down = 0.01; carrier.v.multiplyScalar(0.2);
+        const force = carrier.v.length() + d.v.length(); shake = Math.min(0.6, force * 0.04); audio.hit(Math.min(1, force / 12));
         const spot = carrier.p.x + Math.max(0, Math.cos(carrier.facing)) * 0.6; // forward progress
         if (qbSack && carrier.p.x < G.los) return endPlay('tackle', spot, 'Sack', `${d.name}`, G.op.c[0]);
         return endPlay('tackle', spot, undefined, `${carrier.name} · tackle ${d.name}`);
       }
       d.stun = 0.7; d.v.multiplyScalar(-0.3); // missed: stumbles
-      if (juke > 0 || stiff > 0) feed(`${carrier.name} ${juke > 0 ? 'jukes' : 'stiff-arms'} ${d.name}!`);
+      pop(juke > 0 ? 'Juke!' : spin > 0 ? 'Spin!' : stiff > 0 ? 'Stiff Arm!' : 'Broken Tackle!'); audio.roar(0.5); shake = 0.25;
+      feed(`${carrier.name} ${juke > 0 ? 'jukes' : spin > 0 ? 'spins away from' : stiff > 0 ? 'stiff-arms' : 'breaks a tackle from'} ${d.name}!`);
     }
   }
 }
@@ -579,6 +687,7 @@ function showIcons(on) {
 // ---------- camera & loop ---------------------------------------------------------------------------
 const camPos = new THREE.Vector3(-40, 12, 0), camLook = new THREE.Vector3();
 function updateCamera(dt) {
+  if (G.phase === 'replay') return;
   const f = flight ? new THREE.Vector3(ball.position.x, 0, ball.position.z) : carrier ? new THREE.Vector3(carrier.p.x, 0, carrier.p.y) : new THREE.Vector3(G.los, 0, 0);
   if (G.phase === 'call' || G.phase === 'presnap') f.set(G.los + 4, 0, 0);
   const off = [new THREE.Vector3(-13, 8.5, 0), new THREE.Vector3(-4, 30, 0.1), new THREE.Vector3(2, 15, 30)][G.cam];
@@ -586,6 +695,7 @@ function updateCamera(dt) {
   camPos.lerp(want, Math.min(1, dt * 3.2));
   camLook.lerp(f.clone().add(new THREE.Vector3(G.cam === 2 ? 0 : 7, 0, 0)), Math.min(1, dt * 4));
   camera.position.copy(camPos); camera.lookAt(camLook);
+  if (shake > 0) { camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; shake = Math.max(0, shake - dt * 1.5); }
   sun.position.set(f.x - 20, 45, f.z + 18); sun.target.position.copy(f);
 }
 const clock = new THREE.Clock();
@@ -593,9 +703,15 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
   if (G.phase === 'live') { const steps = Math.ceil(dt / 0.016); for (let i = 0; i < steps; i++) if (G.phase === 'live') simulate(dt / steps); }
+  else if (G.phase === 'replay' && replay) replay.step(dt);
   else for (const p of all) p.update(dt);
   // Icons over the receivers before the throw; ring under whoever you control.
-  icons.forEach(s => { if (s.visible && O[s.userData.k]) { const p = O[s.userData.k].p; s.position.set(p.x, 3.1, p.y); } });
+  icons.forEach((s, i) => {
+    const r = O[s.userData.k]; if (!s.visible || !r) return;
+    s.position.set(r.p.x, 3.2, r.p.y);
+    const sep = Math.min(...Object.values(D).map(d => d.p.distanceTo(r.p)));
+    const m = s.material; const want = iconTex[i][sep > 3 ? 0 : sep > 1.6 ? 1 : 2]; if (m.map !== want) { m.map = want; m.needsUpdate = true; }
+  });
   const ctl = G.phase === 'live' ? (carrier ?? null) : null;
   ring.visible = !!ctl; if (ctl) ring.position.set(ctl.p.x, 0.05, ctl.p.y);
   $('stam').classList.toggle('hidden', G.phase !== 'live'); $('stam').querySelector('i').style.width = `${stamina * 100}%`;
