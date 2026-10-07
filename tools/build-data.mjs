@@ -453,10 +453,17 @@ for (const [pos, list] of Object.entries(byPos)) {
   for (const p of list) {
     const mid = ['K', 'P', 'LS'].includes(pos) ? 70 : 60;
     const x = (p._score - sMid) / Math.max(1e-6, sTop - sMid);
-    let ovr = mid + (top - mid) * (x > 0 ? Math.pow(x, 1.4) : x);
+    let ovr = mid + (top - mid) * (x > 0 ? Math.pow(x, 1.6) : x);
     if (p.exp === 0) ovr = Math.min(ovr, 76 + 8 * p._snap26); // rookies earn their way up
     p.ovr = Math.round(Math.max(40, Math.min(top, ovr)));
   }
+}
+
+// Ratings adjusters: hand overrides by full name, like Madden's weekly updates.
+const OVERRIDES = JSON.parse(readFileSync('tools/overrides.json', 'utf8'));
+for (const p of players) {
+  const o = OVERRIDES[`${p._row.full_name}`] ?? OVERRIDES[`${p.fn} ${p.ln}`];
+  if (typeof o === 'number') p.ovr = o;
 }
 
 const debug = new Set((process.env.DEBUG ?? '').split(','));
