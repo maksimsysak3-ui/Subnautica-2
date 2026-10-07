@@ -64,14 +64,16 @@ export function FieldView({ ev, home, away, logo, playing, onDone }: { ev: PlayE
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [ev?.n, playing]);
+  // Goalposts at the end lines, to scale (1 yard = 100cqw / FW): a 3.3-yard post, an
+  // 18'6" crossbar across the field and 10-yard uprights, standing up out of the turf.
+  const yd = (n: number) => `${(n / FW) * 100}cqw`;
   const post = (side: 0 | 1, t: Team) => (
-    <div style={{ position: 'absolute', left: `${((side ? 120 + OX + 0.2 : OX - 0.2) / FW) * 100}%`, top: '50%', width: 0, height: 0, transformStyle: 'preserve-3d' }}>
-      {/* Stands out of the tilted field toward the camera: base, post, crossbar, uprights. */}
-      <div style={{ position: 'absolute', left: -3, top: 0, width: 6, height: 92, background: 'linear-gradient(90deg,#b89200,#ffe14d,#b89200)', transformOrigin: 'top center', transform: 'rotateX(90deg)' }}>
-        <div style={{ position: 'absolute', top: 0, left: -3, width: 12, height: 22, background: t.colors[0], border: '1px solid rgba(255,255,255,.4)' }} />
-        <div style={{ position: 'absolute', top: 86, left: -72, width: 150, height: 6, background: '#ffd700' }} />
-        <div style={{ position: 'absolute', top: 86, left: -72, width: 6, height: 140, background: '#ffd700' }} />
-        <div style={{ position: 'absolute', top: 86, left: 72, width: 6, height: 140, background: '#ffd700' }} />
+    <div style={{ position: 'absolute', left: `${((side ? 120 + OX + 0.3 : OX - 0.3) / FW) * 100}%`, top: '50%', width: 0, height: 0, transformStyle: 'preserve-3d' }}>
+      <div style={{ position: 'absolute', left: `calc(${yd(0.22)} / -2)`, top: 0, width: yd(0.22), height: yd(3.3), background: 'linear-gradient(90deg,#b89200,#ffe14d,#b89200)', transformOrigin: 'top center', transform: 'rotateZ(90deg) rotateX(90deg)', transformStyle: 'preserve-3d' }}>
+        <div style={{ position: 'absolute', top: 0, left: `calc(${yd(0.5)} / -2 + 50%)`, width: yd(0.5), height: yd(0.8), background: t.colors[0] }} />
+        <div style={{ position: 'absolute', top: `calc(${yd(3.3)} - ${yd(0.15)})`, left: `calc(${yd(6.2)} / -2 + 50%)`, width: yd(6.2), height: yd(0.15), background: '#ffd700' }} />
+        <div style={{ position: 'absolute', top: yd(3.3), left: `calc(${yd(6.2)} / -2 + 50%)`, width: yd(0.13), height: yd(10), background: '#ffd700' }} />
+        <div style={{ position: 'absolute', top: yd(3.3), left: `calc(${yd(6.2)} / 2 + 50% - ${yd(0.13)})`, width: yd(0.13), height: yd(10), background: '#ffd700' }} />
       </div>
     </div>
   );
@@ -79,7 +81,7 @@ export function FieldView({ ev, home, away, logo, playing, onDone }: { ev: PlayE
     <div style={{ perspective: 1200, perspectiveOrigin: '50% -25%', overflow: 'hidden', padding: '30px 0 6px', background: 'radial-gradient(ellipse at 50% 0%, #2a3346 0%, #0d1118 60%)', position: 'relative' }}>
       <Crowd />
       <div style={{ position: 'relative', transform: 'rotateX(40deg)', transformOrigin: '50% 100%', transformStyle: 'preserve-3d' }}>
-        <div ref={plane} style={{ position: 'relative', transformStyle: 'preserve-3d', willChange: 'transform' }}>
+        <div ref={plane} style={{ position: 'relative', transformStyle: 'preserve-3d', willChange: 'transform', containerType: 'inline-size' }}>
           <canvas ref={cv} width={W * DPR} height={H * DPR} style={{ width: '100%', display: 'block', boxShadow: '0 50px 90px rgba(0,0,0,.7)' }} />
           {post(0, away)}{post(1, home)}
         </div>
@@ -289,60 +291,151 @@ function buildScene(ev: PlayEvent): Scene {
   const actors: Actor[] = [];
   const add = (team: 0 | 1, num: number, role: string, path: Path) => actors.push({ team, num, role, path, facing: team === off ? s : -s });
   if (kick) return buildKick(ev, { s, toX, mid, off, def, los, first, lerp, seg, add, actors });
-  const art = PLAY_ART[ev.call ?? ''];
-  const dart = DEF_ART[ev.dcall ?? ''];
-  const pass = ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble';
-  const catchDx = Math.max(-3, ev.air ?? ev.yards);
-  const targetWho = (ev.dir ?? 0) < 0 ? 'X' : (ev.dir ?? 0) > 0 ? 'Z' : 'S';
-  // Offensive line and defensive front engage.
-  OL_SPOTS.forEach(([dx, dy], i) => add(off, [72, 66, 55, 64, 78][i], 'OL', t => { const [x, y] = at(dx, dy); return [x + s * (ev.type === 'run' ? 1.4 : -1) * seg(t, 0.02, 0.3), y]; }));
-  [-5, -1.7, 1.7, 5].forEach((dy, i) => add(def, [91, 97, 99, 94][i], 'DL', t => { const [x, y] = at(1, dy); return [x - s * (ev.type === 'sack' && i === 1 ? 6 : 1) * seg(t, 0.02, 0.4), y]; }));
-  // QB.
-  const qb0 = at(...FORMATION.QB);
-  const qbPath: Path = t => ev.type === 'scramble' ? [lerp(qb0[0], end, seg(t, 0.35, 0.95)), lerp(qb0[1], mid + s * 7, seg(t, 0.3, 0.9))] : [qb0[0] - s * 2.5 * seg(t, 0.05, 0.3), qb0[1]];
-  add(off, 9, 'QB', qbPath);
-  // Receivers follow their drawn routes; the target breaks to the catch point.
-  const routeOf = (who: 'X' | 'Z' | 'S' | 'TE'): [number, number][] => art?.find(a => a.who === who && a.kind === 'route')?.pts ?? [[10, FORMATION[who][1]]];
-  const catchPt = at(catchDx, (FORMATION[targetWho][1]) * 0.7);
-  (['X', 'Z', 'S', 'TE'] as const).forEach((who, i) => {
-    const start = FORMATION[who];
-    const pts = [start, ...routeOf(who)];
-    const isTarget = pass && ev.type === 'pass' && who === targetWho;
-    add(off, [11, 13, 17, 87][i], who, t => {
-      if (isTarget) {
-        if (T(t) < 0.6) { const k = seg(t, 0.03, 0.6); const [a, b] = at(...start); return [lerp(a, catchPt[0], k), lerp(b, catchPt[1], k)]; }
-        return ev.complete ? [lerp(catchPt[0], end, seg(t, 0.6, 1)), lerp(catchPt[1], mid, seg(t, 0.6, 1) * 0.35)] : catchPt;
-      }
-      const k = seg(t, 0.03, 0.75) * (pts.length - 1);
-      const j = Math.min(pts.length - 2, Math.floor(k)), f = k - j;
-      return at(lerp(pts[j][0], pts[j + 1][0], f), lerp(pts[j][1], pts[j + 1][1], f));
+  return simScrimmage(ev, { s, at, los, first, mid, end, off, def, add, actors });
+}
+
+/**
+ * A scrimmage play, simulated rather than tweened: every player has a top speed and
+ * acceleration, receivers run their drawn routes, linemen engage and the rushers
+ * shed on their own clock, defenders cover and then pursue on angles. The ball's
+ * story (where it is caught, where the carrier goes down) comes from the game
+ * engine's result, so the picture always matches the play-by-play. Plays last as
+ * long as they really would (a stuffed run two seconds, a deep ball five).
+ */
+interface Agent { team: 0 | 1; num: number; role: string; x: number; y: number; vx: number; vy: number; top: number; acc: number; track: [number, number][] }
+function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number) => [number, number]; los: number; first: number; mid: number; end: number; off: 0 | 1; def: 0 | 1; add: (team: 0 | 1, num: number, role: string, path: Path) => void; actors: Actor[] }): Scene {
+  const { s, at, los, first, mid, end, off, def } = k;
+  let seed = (ev.n * 9301 + 49297) % 233280;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const art = PLAY_ART[ev.call ?? ''], dart = DEF_ART[ev.dcall ?? ''];
+  const run = ev.type === 'run', sack = ev.type === 'sack', scramble = ev.type === 'scramble', pass = ev.type === 'pass';
+  const DT = 1 / 60, PRE = art || dart ? 0.6 : 0.25;
+  const ballTrack: [number, number, number][] = [];
+  const agents: Agent[] = [];
+  const mk = (team: 0 | 1, num: number, role: string, [x, y]: [number, number], top: number, acc = 9) => { const a: Agent = { team, num, role, x, y, vx: 0, vy: 0, top, acc, track: [] }; agents.push(a); return a; };
+  const steer = (a: Agent, tx: number, ty: number, mul = 1) => {
+    const dx = tx - a.x, dy = ty - a.y, d = Math.hypot(dx, dy) || 1e-6;
+    const sp = Math.min(a.top * mul, d * 3.2);
+    let ax = (dx / d) * sp - a.vx, ay = (dy / d) * sp - a.vy;
+    const m = Math.hypot(ax, ay), lim = a.acc * DT;
+    if (m > lim) { ax *= lim / m; ay *= lim / m; }
+    a.vx += ax; a.vy += ay;
+  };
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  // --- personnel ---
+  const OL = OL_SPOTS.map(([dx, dy], i) => mk(off, [72, 66, 55, 64, 78][i], 'OL', at(dx, dy), 5.2, 7));
+  const QB = mk(off, 9, 'QB', at(...FORMATION.QB), 7.2);
+  const RB = mk(off, 26, 'RB', at(...FORMATION.RB), 8.4, 10);
+  const WHO = ['X', 'Z', 'S', 'TE'] as const;
+  const REC = WHO.map((w, i) => mk(off, [11, 13, 17, 87][i], w, at(...FORMATION[w]), w === 'TE' ? 7.6 : 8.8, 10));
+  const DL = [-5, -1.7, 1.7, 5].map((dy, i) => mk(def, [91, 97, 99, 94][i], 'DL', at(1, dy), i === 0 || i === 3 ? 7.6 : 6.6, 8));
+  const LB = [-3.5, 3.5].map((dy, i) => mk(def, [54, 52][i], 'LB', at(5, dy), 7.8, 9));
+  const DB = WHO.map((w, i) => mk(def, [21, 24, 31, 42][i], 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : 7), FORMATION[w][1] * 0.95), 8.6, 10));
+  const FS = mk(def, 20, 'S', at(13, 0), 8.4, 9);
+  // --- the story from the engine ---
+  const targetIdx = (ev.dir ?? 0) < 0 ? 0 : (ev.dir ?? 0) > 0 ? 1 : 2;
+  const target = REC[targetIdx];
+  const air = Math.max(-2, ev.air ?? ev.yards);
+  const catchPt = at(air, FORMATION[WHO[targetIdx]][1] * 0.75 + (rnd() - 0.5) * 3);
+  const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
+  const endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
+  const dropT = 1.0 + rnd() * 0.25, throwT = dropT + (Math.abs(air) > 15 ? 0.7 : 0.25) + rnd() * 0.3;
+  const airT = 0.18 + Math.hypot(catchPt[0] - at(-7, 0)[0], catchPt[1] - at(-7, 0)[1]) / 19;
+  const catchT = throwT + airT;
+  const routes = WHO.map(w => [at(...FORMATION[w]), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
+  const ri = WHO.map(() => 1);
+  let carrier: Agent | null = null, thrown = false, caught = false, endT = 0, ballXY: [number, number] = at(0, 0), ballZ = 0;
+  let shed = DL.map(() => 1.4 + rnd() * 1.3);
+  if (sack) shed[1] = 1.3;
+  const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
+  const before = (x: number) => s * (x - end) <= 0; // reached the spot behind
+  const goal = (a: Agent) => { const ahead = Math.min(1, dist(a, carrier ?? QB) / 8); const c = carrier ?? QB; return [c.x + c.vx * ahead, c.y + c.vy * ahead] as const; };
+  const T_MAX = 11;
+  let t = 0;
+  for (; t < T_MAX; t += DT) {
+    // Ball and carrier.
+    if (run) { if (!carrier && t > 0.45) carrier = RB; }
+    else if (scramble) { if (!carrier && t > 1.5) carrier = QB; }
+    else if (sack) carrier = QB;
+    else if (!thrown && t >= throwT) thrown = true;
+    if (pass && thrown && !caught && t >= catchT) { caught = true; if (ev.complete) carrier = target; else if (ev.turnover) carrier = [...DB, FS].sort((a, b) => dist(a, { x: catchPt[0], y: catchPt[1] }) - dist(b, { x: catchPt[0], y: catchPt[1] }))[0]; }
+    // Offense.
+    OL.forEach((o, i) => {
+      const m = DL[Math.min(3, Math.round(i * 0.8))];
+      if (run) steer(o, m.x - s * 0.4, m.y, 0.8);
+      else { const q = carrier ?? QB; const dx = q.x - m.x, dy = q.y - m.y, d = Math.hypot(dx, dy) || 1; steer(o, m.x + (dx / d) * 0.95, m.y + (dy / d) * 0.95, 0.9); }
     });
-    // A defender shadows each receiver.
-    add(def, [21, 24, 31, 42][i], 'DB', t => { const [x, y] = at(start[0] + 6, start[1]); const tgt = isTarget ? (ev.complete ? [end, mid] : catchPt) : at(10 + i * 2, start[1] * 0.9); return [lerp(x, tgt[0], seg(t, 0.1, 0.9)), lerp(y, tgt[1], seg(t, 0.15, 0.9))]; });
-  });
-  // Running back: run path from the art, or a check-down/block.
-  const rbArt = art?.find(a => a.who === 'RB');
-  const rb0 = at(...FORMATION.RB);
-  const runPath: Path = t => {
-    if (T(t) < 0.3) { const k = seg(t, 0.03, 0.3); const p1 = rbArt?.pts[0] ?? [-3, 0]; const [a, b] = at(p1[0], p1[1]); return [lerp(rb0[0], a, k), lerp(rb0[1], b, k)]; }
-    const k = seg(t, 0.3, 1); const lateral = (rbArt?.pts[rbArt.pts.length - 1]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
-    return [lerp(los - s * 1, end, k), mid + s * lateral * Math.min(1, k * 1.5)];
-  };
-  add(off, 26, 'RB', ev.type === 'run' ? runPath : t => { const p = rbArt?.pts[rbArt.pts.length - 1] ?? [-3, -2]; const [a, b] = at(p[0], p[1]); return [lerp(rb0[0], a, seg(t, 0.05, 0.6)), lerp(rb0[1], b, seg(t, 0.05, 0.6))]; });
-  // Linebackers flow to the ball.
-  const ballEnd = ev.type === 'run' ? end : catchPt[0];
-  [-4, 4].forEach((dy, i) => add(def, [54, 52][i], 'LB', t => { const [x, y] = at(5, dy); return [lerp(x, ballEnd, seg(t, 0.25, 1)), lerp(y, ev.type === 'run' ? mid : catchPt[1], seg(t, 0.35, 1) * 0.8)]; }));
-  const ball: Path = t => {
-    if (T(t) < 0) return at(0, 0);
-    if (T(t) < 0.06) { const k = T(t) / 0.06; const [a, b] = at(0, 0); return [lerp(a, qb0[0], k), lerp(b, qb0[1], k)]; }
-    if (ev.type === 'run') return runPath(t);
-    if (ev.type === 'sack' || ev.type === 'scramble' || T(t) < 0.32) return qbPath(t);
-    if (T(t) < 0.6) { const k = seg(t, 0.32, 0.6); const q = qbPath(t); return [lerp(q[0], catchPt[0], k), lerp(q[1], catchPt[1], k)]; }
-    return ev.complete ? [lerp(catchPt[0], end, seg(t, 0.6, 1)), lerp(catchPt[1], mid, seg(t, 0.6, 1) * 0.35)] : [catchPt[0] + s * 2 * seg(t, 0.6, 1), catchPt[1]];
-  };
-  const ballH = (t: number) => (ev.type === 'pass' && T(t) >= 0.32 && T(t) < 0.6 ? Math.sin(Math.PI * seg(t, 0.32, 0.6)) * (3 + Math.abs(catchDx) * 0.2) : 1);
-  const tackled = !ev.td && !(ev.type === 'pass' && !ev.complete);
-  return { dur: ev.type === 'pass' ? 3.6 : 3.0, pre, los, first, actors, ball, ballH, dirSign: s, art, dart, tackle: tackled ? 0.93 : undefined };
+    if (run) {
+      if (carrier !== RB) steer(RB, at(-3.2, lateral * 0.3)[0], at(-3.2, lateral * 0.3)[1]);
+      else if (!endT) { const hole = at(0.8, lateral); steer(RB, s * (RB.x - hole[0]) < -0.5 ? hole[0] : end + s * 2, s * (RB.x - hole[0]) < -0.5 ? hole[1] : endY); }
+      steer(QB, at(-5.5, -2)[0], at(-5.5, -2)[1], 0.5);
+    } else {
+      if (sack) steer(QB, end, mid, 0.55);
+      else if (carrier === QB) { if (!endT) steer(QB, end + s * 2, endY); }
+      else if (!thrown) steer(QB, at(-7, 0)[0], at(-7, 0)[1], 0.7);
+      const rbPts = art?.find(a => a.who === 'RB')?.pts;
+      if (rbPts) { const p = at(...rbPts[rbPts.length - 1]); steer(RB, p[0], p[1], 0.8); } else steer(RB, QB.x + s * 1, QB.y + 1.5, 0.5);
+    }
+    REC.forEach((r, i) => {
+      if (r === carrier) { if (!endT) steer(r, end + s * 2, endY); return; }
+      if (pass && r === target && thrown && !caught) { const left = Math.max(0.05, catchT - t); const d = Math.hypot(catchPt[0] - r.x, catchPt[1] - r.y); r.top = Math.max(8.8, Math.min(10.5, d / left)); steer(r, catchPt[0], catchPt[1]); return; }
+      if (run || (carrier && carrier !== QB)) { const m = [...DB, FS, ...LB].sort((a, b) => dist(a, r) - dist(b, r))[0]; steer(r, m.x, m.y, 0.75); return; }
+      const rt = routes[i]; const p = rt[Math.min(ri[i], rt.length - 1)];
+      steer(r, ri[i] < rt.length ? p[0] : r.x + s * 4, ri[i] < rt.length ? p[1] : r.y, 0.92);
+      if (ri[i] < rt.length && Math.hypot(p[0] - r.x, p[1] - r.y) < 0.8) ri[i]++;
+    });
+    // Defense.
+    DL.forEach((d, i) => {
+      const held = t < shed[i];
+      const [gx, gy] = goal(d);
+      steer(d, gx, gy, held ? (run && carrier ? 0.35 : 0.12) : 1);
+    });
+    LB.forEach((d, i) => {
+      if (d === carrier) { if (!endT) steer(d, d.x - s * 8, d.y); return; }
+      if (carrier && carrier !== QB || run && t > 0.35 || sack) { const [gx, gy] = goal(d); steer(d, gx, gy); }
+      else if (thrown) steer(d, catchPt[0], catchPt[1]);
+      else { const z = at(6, i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7); }
+    });
+    DB.forEach((d, i) => {
+      if (d === carrier) { if (!endT) steer(d, d.x - s * 10, d.y); return; }
+      const r = REC[i];
+      if (carrier && carrier !== QB) { const [gx, gy] = goal(d); steer(d, gx, gy); }
+      else if (run && t > 0.6) { const [gx, gy] = goal(d); steer(d, gx, gy); }
+      else if (thrown) steer(d, catchPt[0] + s * 0.6, catchPt[1], r === target ? 1.02 : 0.95);
+      else steer(d, r.x + s * Math.max(0.8, 3 - t * 1.4), r.y, 0.97); // trail with a cushion that closes
+    });
+    if (FS === carrier) { if (!endT) steer(FS, FS.x - s * 10, FS.y); }
+    else if (carrier && carrier !== QB) { const [gx, gy] = goal(FS); steer(FS, gx, gy); }
+    else if (thrown) steer(FS, catchPt[0], catchPt[1]);
+    else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
+    // Integrate and record.
+    for (const a of agents) { a.x += a.vx * DT; a.y += a.vy * DT; a.track.push([a.x, a.y]); }
+    // Ball.
+    if (pass && thrown && !caught) {
+      const q = Math.min(1, (t - throwT) / airT);
+      const from = at(-7, 0);
+      ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
+      ballZ = Math.sin(Math.PI * q) * (2 + Math.abs(air) * 0.18);
+    } else { const h = carrier ?? (pass && caught && !ev.complete ? null : t < 0.12 ? null : QB); if (h) ballXY = [h.x, h.y]; ballZ = 0; }
+    (ballTrack as [number, number, number][]).push([ballXY[0], ballXY[1], ballZ]);
+    // When does it end?
+    if (!endT) {
+      if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
+      else if (pass && caught && ev.turnover && t > catchT + 0.9) endT = t;
+      else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 2 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble)) endT = t;
+      else if (sack && t > 1.2 && dist(DL[1], QB) < 1.1) endT = t;
+    }
+    if (endT && t > endT + 0.75) break;
+  }
+  if (!endT) endT = t - 0.75;
+  const dur = PRE + t;
+  const sample = (tr: [number, number][]) => (u: number): [number, number] => { const i = Math.max(0, Math.min(tr.length - 1, Math.round((u * dur - PRE) / DT))); return tr[i] ?? tr[0]; };
+  for (const a of agents) { const first = a.track[0] ?? [a.x, a.y]; const tr = a.track; k.add(a.team, a.num, a.role, u => (u * dur < PRE ? first : sample(tr)(u))); }
+  const bt = ballTrack as [number, number, number][];
+  const ball: Path = u => { if (u * dur < PRE) return at(0, 0); const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return [bt[i][0], bt[i][1]]; };
+  const ballH = (u: number) => { const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return u * dur < PRE ? 1 : bt[i][2] + 1; };
+  const tackled = !ev.td && !(pass && !ev.complete);
+  return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined };
 }
 
 function drawScene(ctx: CanvasRenderingContext2D, sc: Scene, t: number, home: Team, away: Team, dur: number) {

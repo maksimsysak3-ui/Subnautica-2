@@ -6,7 +6,7 @@
   "scripts": {
     "data": "node tools/build-data.mjs",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node tools/build-3d-data.mjs && vite build -c vite.3d.config.ts",
     "typecheck": "tsc --noEmit",
     "calibrate": "tsx tools/calibrate.ts",
     "test": "tsc --noEmit && tsx tools/calibrate.ts 2 && tsx tools/franchise-test.ts 2"
@@ -23,6 +23,7 @@
     "hyparquet": "^1.31.2",
     "hyparquet-compressors": "^1.1.2",
     "playwright": "^1.63.0",
+    "three": "^0.170.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",

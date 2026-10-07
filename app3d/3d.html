@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gridiron GM 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,700;1,800;1,900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --a: #0076b6; --b: #97233f; --gold: #ffd23f; --head: 'Barlow Condensed', 'Arial Narrow', sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #05070c; color: #fff; font: 14px/1.4 Inter, system-ui, sans-serif; }
+    #view { position: fixed; inset: 0; }
+    #view canvas { display: block; width: 100%; height: 100%; }
+    .hidden { display: none !important; }
+    /* scorebug */
+    #bug { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; height: 54px; font-family: var(--head); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+    #bug .tm { display: flex; align-items: center; gap: 10px; padding: 0 16px; min-width: 150px; }
+    #bug .tm b { font: 900 italic 22px/1 var(--head); letter-spacing: .02em; } #bug .tm span { font: 900 32px/1 var(--head); margin-left: auto; }
+    #bug .tm.me { background: linear-gradient(90deg, color-mix(in srgb, var(--a) 70%, #000), var(--a)); }
+    #bug .tm.op { background: linear-gradient(90deg, var(--b), color-mix(in srgb, var(--b) 70%, #000)); flex-direction: row-reverse; } #bug .tm.op span { margin: 0 auto 0 0; }
+    #bug .mid { display: grid; place-items: center; min-width: 120px; padding: 0 12px; background: #0b0e14; }
+    #bug .mid b { font: 800 22px/1 var(--head); } #bug .mid em { font: 700 12px var(--head); font-style: normal; letter-spacing: .12em; color: var(--gold); }
+    #bug .pos { display: inline-block; width: 8px; height: 8px; margin: 0 4px; background: var(--gold); transform: rotate(45deg); }
+    /* center banner */
+    #banner { position: fixed; left: 0; right: 0; top: 34%; text-align: center; pointer-events: none; }
+    #banner span { display: inline-block; padding: 8px 46px; font: 900 italic clamp(40px, 6vw, 84px)/1 var(--head); text-transform: uppercase; letter-spacing: .02em; background: linear-gradient(90deg, transparent, var(--bc, #0b0e14) 15%, var(--bc, #0b0e14) 85%, transparent); text-shadow: 0 4px 0 rgba(0,0,0,.35); animation: ban .45s cubic-bezier(.2,1.3,.4,1); }
+    #banner small { display: block; margin-top: 8px; font: 700 18px var(--head); letter-spacing: .14em; text-transform: uppercase; color: #e4e9f2; text-shadow: 0 2px 10px #000; }
+    @keyframes ban { from { transform: scale(1.6) skewX(-8deg); opacity: 0; } }
+    /* play call */
+    #call { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(1100px, 96vw); padding: 14px; background: rgba(6,9,15,.88); backdrop-filter: blur(10px); border-top: 3px solid var(--gold); }
+    #call h3 { margin: 0 0 10px; font: 900 italic 22px var(--head); text-transform: uppercase; display: flex; gap: 12px; align-items: baseline; } #call h3 em { font: 600 13px Inter; font-style: normal; color: #9aa3b5; }
+    #plays { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .pc { position: relative; padding: 10px 12px 10px; background: linear-gradient(180deg, #1b2232, #10151f); border: 1px solid rgba(255,255,255,.08); color: #fff; text-align: left; cursor: pointer; font-family: var(--head); transition: transform .15s, border-color .15s; }
+    .pc:hover, .pc.on { transform: translateY(-3px); border-color: var(--gold); }
+    .pc b { display: block; font: 800 italic 19px/1 var(--head); text-transform: uppercase; } .pc span { font: 600 12px Inter; color: #9aa3b5; }
+    .pc i { position: absolute; top: 6px; right: 8px; font: 800 13px var(--head); font-style: normal; color: var(--gold); }
+    .pc.kick { background: linear-gradient(180deg, #2a2312, #15110a); }
+    /* hints */
+    #hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 8px 16px; background: rgba(6,9,15,.78); font: 700 14px var(--head); letter-spacing: .1em; text-transform: uppercase; color: #dfe6f2; white-space: nowrap; }
+    #hint kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 3px; background: #fff; color: #000; border-radius: 3px; font: 800 13px var(--head); text-align: center; }
+    #stam { position: fixed; left: 24px; bottom: 24px; width: 180px; } #stam span { font: 700 11px var(--head); letter-spacing: .16em; color: #9aa3b5; } #stam div { height: 6px; background: rgba(255,255,255,.1); margin-top: 4px; } #stam i { display: block; height: 100%; background: linear-gradient(90deg, #2fd17b, #9be15d); }
+    #feed { position: fixed; right: 18px; top: 90px; width: 300px; display: grid; gap: 6px; font-size: 12.5px; }
+    #feed div { padding: 7px 10px; background: rgba(6,9,15,.7); border-left: 3px solid var(--gold); animation: ban .3s; }
+    /* menus */
+    .screen { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 20%, rgba(20,40,80,.65), rgba(3,5,10,.92) 70%); }
+    .panel { width: min(860px, 94vw); padding: 30px 34px; background: rgba(8,11,18,.9); border-top: 4px solid var(--gold); box-shadow: 0 40px 90px rgba(0,0,0,.6); }
+    .panel h1 { margin: 0; font: 900 italic 64px/.9 var(--head); text-transform: uppercase; } .panel h1 b { color: var(--gold); }
+    .panel p { color: #aeb7c8; }
+    .pick { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin: 22px 0; }
+    .side { padding: 16px; background: #10151f; border-top: 3px solid var(--c, #333); }
+    .side label { display: block; font: 700 12px var(--head); letter-spacing: .2em; text-transform: uppercase; color: #9aa3b5; margin-bottom: 8px; }
+    .side select { width: 100%; padding: 10px; font: 700 18px var(--head); background: #0a0e16; color: #fff; border: 1px solid #333c4b; }
+    .side .lg { display: flex; align-items: center; gap: 12px; margin-top: 12px; min-height: 64px; } .side .lg img { width: 64px; height: 64px; object-fit: contain; } .side .lg b { font: 900 italic 26px var(--head); text-transform: uppercase; }
+    .vs { font: 900 italic 40px var(--head); color: var(--gold); }
+    .go { display: inline-block; padding: 14px 40px; font: 900 italic 24px var(--head); letter-spacing: .06em; text-transform: uppercase; color: #000; background: var(--gold); border: 0; cursor: pointer; clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%); }
+    .keys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 24px; margin-top: 18px; font-size: 13px; color: #c9d1de; }
+    .keys kbd { display: inline-block; min-width: 54px; padding: 1px 6px; margin-right: 8px; background: #222a38; border: 1px solid #3a4558; border-radius: 3px; font: 700 12px var(--head); text-align: center; }
+    #final h1 { font-size: 80px; }
+    #final .sc { display: flex; gap: 40px; justify-content: center; margin: 20px 0; font: 900 64px var(--head); }
+  </style>
+</head>
+<body>
+  <div id="view"></div>
+  <div id="bug" class="hidden"></div>
+  <div id="banner"></div>
+  <div id="feed"></div>
+  <div id="stam" class="hidden"><span>Stamina</span><div><i></i></div></div>
+  <div id="call" class="hidden"><h3>Play Call <em id="sit"></em></h3><div id="plays"></div></div>
+  <div id="hint" class="hidden"></div>
+
+  <div id="start" class="screen">
+    <div class="panel">
+      <h1>Gridiron GM <b>3D</b></h1>
+      <p>Take the field. You run the offense; the defense is the computer. Score more than the other side before the clock runs out.</p>
+      <div class="pick">
+        <div class="side" id="sideA"><label>Your Team (offense)</label><select id="teamA"></select><div class="lg"></div></div>
+        <div class="vs">VS</div>
+        <div class="side" id="sideB"><label>Opponent</label><select id="teamB"></select><div class="lg"></div></div>
+      </div>
+      <button class="go" id="kick">Kick Off</button>
+      <div class="keys">
+        <div><kbd>W A S D</kbd> / arrows: move the ball carrier</div>
+        <div><kbd>Shift</kbd> sprint (uses stamina)</div>
+        <div><kbd>Space</kbd> snap the ball · juke when running</div>
+        <div><kbd>E</kbd> stiff arm</div>
+        <div><kbd>1 – 5</kbd> throw to that receiver</div>
+        <div><kbd>C</kbd> switch camera</div>
+      </div>
+    </div>
+  </div>
+  <div id="final" class="screen hidden"><div class="panel" style="text-align:center"><h1>Final</h1><div class="sc" id="finalSc"></div><button class="go" id="again">Play Again</button></div></div>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

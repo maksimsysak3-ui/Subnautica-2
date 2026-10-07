@@ -200,7 +200,7 @@ function Ring({ v }: { v: number }) {
     <svg className="lu-ring" viewBox="0 0 36 36">
       <circle cx="18" cy="18" r="15" fill="rgba(5,8,14,.85)" stroke="rgba(255,255,255,.15)" strokeWidth="3" />
       <circle cx="18" cy="18" r="15" fill="none" stroke={v >= 90 ? '#ff5a6e' : v >= 80 ? '#ffd23f' : v >= 70 ? '#d7dee8' : '#e08a3c'} strokeWidth="3" strokeDasharray={`${(v / 99) * c} ${c}`} transform="rotate(-90 18 18)" strokeLinecap="round" />
-      <text x="18" y="22.5" textAnchor="middle" fontSize="12" fontWeight="800" fill="#fff" fontFamily="Barlow Condensed">{v}</text>
+      <text x="18" y="18.5" textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="800" fill="#fff" fontFamily="Barlow Condensed">{v}</text>
     </svg>
   );
 }
