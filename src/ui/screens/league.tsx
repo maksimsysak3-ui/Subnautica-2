@@ -138,7 +138,7 @@ export function InboxScreen() {
     </div>
   );
 }
-function TradeOfferCard({ L, offer, onDone }: { L: League; offer: NonNullable<League['inbox'][number]['action']>['offer']; onDone: () => void }) {
+export function TradeOfferCard({ L, offer, onDone }: { L: League; offer: NonNullable<League['inbox'][number]['action']>['offer']; onDone: () => void }) {
   const side = (players: string[], picks: string[]) => <div className="list">{players.map(id => L.players[id] && <div key={id} className="li" onClick={() => app.go({ id: 'player', pid: id })}><PlayerCell p={L.players[id]} /><div className="spacer" /><Ovr v={L.players[id].ovr} /></div>)}{picks.map(id => { const k = L.picks.find(p => p.id === id); return k && <div key={id} className="li">◆ {pickLabel(L, k)}</div>; })}</div>;
   return (
     <div className="grid g2" style={{ marginTop: 18 }}>

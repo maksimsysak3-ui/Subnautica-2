@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, Tabs, DevBadge, Jersey, Tilt, Bar, attrColor, PlayerCell, Modal, CountUp, vivid } from '../components';
+import { Logo, Ovr, Face, Table, Tabs, DevBadge, Jersey, Tilt, Bar, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
 import { autoDepth, DEPTH_SLOTS, teamRatings, emptyLine } from '../../core/league';
 import { release, askingPrice, evaluateOffer, signPlayer } from '../../core/offseason';
 import { standings } from '../../core/season';
-import { scoutedView } from '../../core/draft';
+import { scoutedView, draftGrade } from '../../core/draft';
 
 const FILTERS = ['All', 'Offense', 'Defense', 'Special', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'] as const;
 const inFilter = (p: Player, f: typeof FILTERS[number]) => {
@@ -109,9 +109,9 @@ export function PlayerScreen({ pid }: { pid: string }) {
               <div style={{ position: 'absolute', right: -10, top: -20, font: '900 190px/1 var(--head)', color: 'rgba(255,255,255,.1)' }}>{p.num || ''}</div>
               <Face p={p} size={230} style={{ borderRadius: 0, background: 'transparent', position: 'absolute', bottom: 40, left: 0 }} />
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '10px 12px', background: 'linear-gradient(0deg, rgba(0,0,0,.85), transparent)' }}>
-                <div className="row" style={{ justifyContent: 'space-between' }}><b className="h3">{p.ln.toUpperCase()}</b>{!prospect && <Ovr v={p.ovr} />}</div>
+                <div className="row" style={{ justifyContent: 'space-between' }}><b className="h3">{p.ln.toUpperCase()}</b>{prospect ? <Grade g={draftGrade(p)} /> : <Ovr v={p.ovr} />}</div>
               </div>
-              {t && <Logo team={t} size={44} style={{ position: 'absolute', left: 10, top: 10 }} />}
+              {t && <Logo team={t} size={44} style={{ position: 'absolute', left: 10, top: 10 }} />}{!t && p.colLogo && <img src={p.colLogo} width={44} height={44} alt="" style={{ position: 'absolute', left: 10, top: 10 }} />}
             </div>
           </Tilt>
           <div style={{ minWidth: 0 }}>
@@ -123,8 +123,8 @@ export function PlayerScreen({ pid }: { pid: string }) {
               {p.injury && <span className="chip" style={{ color: 'var(--bad)' }}>✚ {p.injury.type} ({p.injury.season ? 'season' : `${p.injury.weeks}w`})</span>}
             </div>
             <div className="row" style={{ marginTop: 16, gap: 24 }}>
-              {prospect ? <div className="stat"><span className="k">Scouted OVR</span><span className="v">{sv!.ovrLo}–{sv!.ovrHi}</span></div> : <div className="stat"><span className="k">Overall</span><span className="v"><CountUp v={p.ovr} /></span></div>}
-              <div className="stat"><span className="k">Potential</span><span className="v">{prospect ? (sv!.pot ?? '?') : potentialLabel(p)}</span></div>
+              {prospect ? <div className="stat"><span className="k">Draft Grade</span><span className="v"><Grade g={draftGrade(p)} lg /></span></div> : <div className="stat"><span className="k">Overall</span><span className="v"><CountUp v={p.ovr} /></span></div>}
+              <div className="stat"><span className="k">Potential</span><span className="v">{prospect ? (sv!.pot ? (sv!.pot >= 85 ? 'Elite' : sv!.pot >= 78 ? 'High' : 'Medium') : '?') : potentialLabel(p)}</span></div>
               {!prospect && <div className="stat"><span className="k">Condition</span><span className="v">{Math.round(p.cond)}%</span></div>}
               {!prospect && <div className="stat"><span className="k">Morale</span><span className="v">{Math.round(p.morale)}</span></div>}
               {!prospect && <div className="stat"><span className="k">Cap Hit</span><span className="v" style={{ fontSize: 22 }}>{money(capHit(p.contract, L.season))}</span></div>}

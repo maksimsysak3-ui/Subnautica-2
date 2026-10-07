@@ -198,5 +198,8 @@ export function teamRatings(league: League, team: string) {
   // Madden-style team overall: starters weighted by unit, stretched from 50 so
   // contenders land near 90 and the weakest rosters in the mid 70s.
   const raw = off * 0.52 + def * 0.42 + st * 0.06;
-  return { qb, skill, ol, dl, lb, db, st, off: Math.round(50 + (off - 50) * 1.15), def: Math.round(50 + (def - 50) * 1.15), ovr: Math.round(Math.min(99, 50 + (raw - 50) * 1.13)) };
+  // Unit ratings: offense is QB-driven so it spreads wider than defense and
+  // gets no stretch; both bend past 86 and never exceed 92.
+  const unit = (v: number) => Math.round(Math.min(92, v > 86 ? 86 + (v - 86) * 0.6 : v));
+  return { qb, skill, ol, dl, lb, db, st, off: unit(off), def: unit(50 + (def - 50) * 1.15), ovr: Math.round(Math.min(99, 50 + (raw - 50) * 1.13)) };
 }

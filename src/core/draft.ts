@@ -127,6 +127,15 @@ export function scoutedView(p: Player) {
   return { lvl, ovrLo: Math.max(35, ovr - err), ovrHi: Math.min(95, ovr + err), dev: lvl >= 3 ? p.dev : undefined, pot: lvl >= 3 ? p.pot : undefined, attrsExact: lvl >= 3, attrsShown: lvl >= 1 };
 }
 
+/** Letter grade from what your scouts believe (overall stays hidden until drafted). */
+export function draftGrade(p: Player): string {
+  const v = scoutedView(p);
+  const mid = (v.ovrLo + v.ovrHi) / 2;
+  const val = mid * 0.65 + (v.pot ?? mid + 6) * 0.35;
+  const scale: [number, string][] = [[78, 'A+'], [75, 'A'], [72, 'A-'], [69, 'B+'], [66, 'B'], [63, 'B-'], [60, 'C+'], [57, 'C'], [54, 'C-'], [50, 'D']];
+  return scale.find(([t]) => val >= t)?.[1] ?? 'F';
+}
+
 // ---- order and picking -------------------------------------------------------------------
 /** Non-playoff teams by record (worst first), then playoff teams by round of exit, champion last. */
 export function draftOrder(league: League, season: number): string[] {

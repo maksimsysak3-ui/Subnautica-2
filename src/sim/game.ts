@@ -12,7 +12,7 @@ import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
-export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string }
+export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
 export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string }
 
 export interface PlayEvent {
@@ -558,7 +558,7 @@ export class GameSim {
     // Each receiver's chance grows with how open he looks (blurred by the QB's
     // awareness) and his place in the read; the ball still spreads around.
     const noise = (100 - this.r(off, qb, 'AWR')) / 45;
-    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.5 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0))));
+    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.5 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.9 : 0))));
     let pick = 0;
     { let r = this.rng.next() * util.reduce((a, b) => a + b, 0); for (let i = 0; i < util.length; i++) { r -= util[i]; if (r <= 0) { pick = i; break; } } }
     const tgt = targets[pick];

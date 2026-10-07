@@ -83,6 +83,9 @@ export interface Player {
   retiredSeason?: number;
 }
 
+/** A user-drawn play: routes per skill player in yards (x downfield, y across), one primary read. */
+export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean }[] }
+
 export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number }
 
 export interface Coach {
@@ -181,4 +184,8 @@ export interface League {
   tradeDeadlineWeek: number;
   /** Mean OVR of each position's starters at league creation; the scale is held to it. */
   baseline?: Partial<Record<Pos, number[]>>;
+  /** Players the user has put on the trade block. */
+  block?: string[];
+  /** Plays the user drew in the play designer. */
+  customPlays?: CustomPlay[];
 }

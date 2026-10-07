@@ -2,67 +2,13 @@ import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, Table, PlayerCell, DevBadge, Modal, Bar, Tabs, CountUp } from '../components';
 import { ExtendModal } from './team';
-import type { GamePlan, Player, TradeOffer } from '../../core/types';
+import type { GamePlan, Player } from '../../core/types';
 import { capFor, capHit, capSpace, money, teamPayroll, yearsLeft, franchiseTag, marketValue } from '../../core/contracts';
-import { evaluateTrade, executeTrade, pickLabel, pickTradeValue, playerTradeValue, whatWouldItTake } from '../../core/trade';
 import { freeAgents, makeOffer, signNow } from '../../core/freeagency';
 import { askingPrice, expiringFor, applyTag, evaluateOffer } from '../../core/offseason';
 import { teamRatings } from '../../core/league';
 import { userGame, standings } from '../../core/season';
 import { POS_ORDER } from '../../core/ratings';
-
-// ---- trade center ------------------------------------------------------------------------
-export function TradeScreen({ team, want }: { team?: string; want?: string }) {
-  const L = useApp().league!;
-  const others = Object.keys(L.teams).filter(t => t !== L.user).sort();
-  const [other, setOther] = useState(team && team !== L.user ? team : others[0]);
-  const [give, setGive] = useState<{ players: string[]; picks: string[] }>({ players: [], picks: [] });
-  const [get, setGet] = useState<{ players: string[]; picks: string[] }>({ players: want ? [want] : [], picks: [] });
-  const [msg, setMsg] = useState('');
-  const offer: TradeOffer = { from: L.user, to: other, give, get };
-  const verdict = evaluateTrade(L, offer);
-  const toggle = (side: 'give' | 'get', kind: 'players' | 'picks', id: string) => {
-    const [s, set] = side === 'give' ? [give, setGive] : [get, setGet];
-    set({ ...s, [kind]: s[kind].includes(id) ? s[kind].filter(x => x !== id) : [...s[kind], id] });
-    setMsg('');
-  };
-  const column = (abbr: string, side: 'give' | 'get') => {
-    const sel = side === 'give' ? give : get;
-    const players = Object.values(L.players).filter(p => p.team === abbr && (p.status === 'ACT' || p.status === 'IR')).sort((a, b) => b.ovr - a.ovr);
-    const picks = L.picks.filter(k => k.owner === abbr).sort((a, b) => a.season - b.season || a.round - b.round);
-    return (
-      <div className="card" style={{ minWidth: 0 }}>
-        <h3><Logo team={L.teams[abbr]} size={26} />{L.teams[abbr].name}<span className="more">{money(capSpace(L, abbr))} cap</span></h3>
-        <div className="up" style={{ margin: '6px 0' }}>Draft picks</div>
-        <div className="row" style={{ gap: 6 }}>{picks.map(k => <span key={k.id} className={`chip${sel.picks.includes(k.id) ? ' on' : ''}`} onClick={() => toggle(side, 'picks', k.id)} title={`Value ${Math.round(pickTradeValue(L, k))}`}>{pickLabel(L, k)}</span>)}</div>
-        <div className="up" style={{ margin: '12px 0 6px' }}>Players</div>
-        <div className="scroll" style={{ maxHeight: 460 }}>{players.map(p => (
-          <div key={p.id} className="li" onClick={() => toggle(side, 'players', p.id)} style={{ background: sel.players.includes(p.id) ? 'color-mix(in srgb, var(--team) 25%, transparent)' : undefined, padding: '7px 8px' }}>
-            <input type="checkbox" readOnly checked={sel.players.includes(p.id)} /><PlayerCell p={p} sub={`${p.pos} · ${Math.floor(p.age)} yrs · ${money(capHit(p.contract, L.season))} × ${yearsLeft(p.contract, L.season)}`} /><div className="spacer" /><span className="small mute">{Math.round(playerTradeValue(L, p, side === 'give' ? other : L.user))}</span><Ovr v={p.ovr} />
-          </div>
-        ))}</div>
-      </div>
-    );
-  };
-  const pct = Math.max(0, Math.min(1, verdict.ratio / ({ Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[L.difficulty] * 1.5)));
-  return (
-    <div className="grid">
-      <div className="row"><div className="h2">Trade Center</div><select value={other} onChange={e => { setOther(e.target.value); setGet({ players: [], picks: [] }); setMsg(''); }}>{others.map(t => <option key={t} value={t}>{L.teams[t].name}</option>)}</select>
-        {L.phase === 'regular' && <span className="chip">Deadline: after week {L.tradeDeadlineWeek}</span>}<div className="spacer" /></div>
-      <div className="card" style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-        <div className="row"><div style={{ flex: 1 }}>
-          <div className="row" style={{ justifyContent: 'space-between' }}><span className="up">Their view of the deal</span><span className="small">{Math.round(verdict.give)} in · {Math.round(verdict.get)} out</span></div>
-          <div className="meter" style={{ marginTop: 8 }}><b style={{ left: `${pct * 100}%` }} /></div>
-          <div className="small" style={{ marginTop: 8, color: verdict.accept ? 'var(--good)' : 'var(--warn)' }}>{msg || (give.players.length + give.picks.length + get.players.length + get.picks.length ? verdict.reason : 'Pick players and picks on both sides.')}</div>
-        </div>
-          <button className="btn" onClick={() => { const t = get.players[0]; if (!t) { setMsg('Select one of their players first.'); return; } const o = whatWouldItTake(L, L.user, other, t); if (o) { setGive(o.give); setMsg('Here is what they would want.'); } else setMsg('You do not have enough to get that done.'); }}>What would it take?</button>
-          <button className="btn primary" disabled={!verdict.accept} onClick={() => { executeTrade(L, offer); app.toast('Trade completed!'); setGive({ players: [], picks: [] }); setGet({ players: [], picks: [] }); app.touch(); }}>Propose Trade</button>
-        </div>
-      </div>
-      <div className="grid g2">{column(L.user, 'give')}{column(other, 'get')}</div>
-    </div>
-  );
-}
 
 // ---- free agency ------------------------------------------------------------------------------
 export function FreeAgencyScreen() {

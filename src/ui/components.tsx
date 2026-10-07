@@ -7,6 +7,7 @@ export const tier = (o: number) => (o >= 95 ? 't99' : o >= 90 ? 't90' : o >= 80 
 export function Ovr({ v, lg, style }: { v: number; lg?: boolean; style?: CSSProperties }) {
   return <span className={`ovr ${tier(v)}${lg ? ' lg' : ''}`} style={style}>{v}</span>;
 }
+export function Grade({ g, lg }: { g: string; lg?: boolean }) { return <span className={`grade ${g[0]}${lg ? ' lg' : ''}`}>{g}</span>; }
 export function DevBadge({ d }: { d: Dev }) {
   const icon = { Normal: '', Star: '★', Superstar: '✦', 'X-Factor': '✸' }[d];
   return <span className={`dev ${d}`}>{icon} {d}</span>;

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app, saveLeague } from '../store';
 import { Logo, Face, Tabs, CountUp } from '../components';
 import { FieldView } from '../field';
+import { PlayDiagram } from '../playart';
+import { PlayDesigner, registerPlays, callFor } from '../playdesigner';
 import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
@@ -39,6 +41,8 @@ export function GameScreen({ gid }: { gid: string }) {
   const [pa, setPa] = useState(false);
   const [box, setBox] = useState<'Play-by-Play' | 'Box Score' | 'Drive Chart'>('Play-by-Play');
   const [finished, setFinished] = useState(false);
+  const [designing, setDesigning] = useState(false);
+  useMemo(() => registerPlays(L), [L]);
   const auto = useRef<null | 'drive' | 'quarter' | 'end' | 'watch'>(null);
   const home = L.teams[game.home], away = L.teams[game.away];
   const userSide = game.home === L.user ? 1 : 0;
@@ -103,19 +107,22 @@ export function GameScreen({ gid }: { gid: string }) {
             <div className="card">
               <div className="row" style={{ marginBottom: 10 }}><Logo team={posTeam} size={26} /><b className="h3">{onOffense ? 'Offensive Play Call' : 'Defensive Play Call'}</b><span className="dim small">{down(sim)} · {ylText(sim.yl)}</span><div className="spacer" />
                 {onOffense && <span className={`chip${pa ? ' on' : ''}`} onClick={() => setPa(!pa)}>Play-Action</span>}
+                {onOffense && <button className="btn sm" onClick={() => setDesigning(true)}>✎ Draw a Play</button>}
                 <button className="btn sm" onClick={() => userCall()}>Coordinator Call (AI)</button></div>
-              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(172px,1fr))', gap: 10 }}>
                 {onOffense ? <>
-                  {OFF_PLAYS.filter(p => p.call.run !== 'qb' || (sim.league.players[sim.sides[userSide].team.depth.QB?.[0] ?? '']?.attrs.SPD ?? 0) >= 78).map(p => <PlayCard key={p.name} title={p.name} icon={p.icon} desc={p.desc} onClick={() => userCall(p.call)} />)}
+                  {OFF_PLAYS.filter(p => p.call.run !== 'qb' || (sim.league.players[sim.sides[userSide].team.depth.QB?.[0] ?? '']?.attrs.SPD ?? 0) >= 78).map(p => <PlayCard key={p.name} title={pa && p.call.kind === 'pass' && p.call.depth !== 'screen' ? `PA ${p.name}` : p.name} icon={p.icon} desc={p.desc} art={pa && p.call.kind === 'pass' && p.call.depth !== 'screen' ? `PA ${p.name}` : p.name} onClick={() => userCall(p.call)} />)}
+                  {(L.customPlays ?? []).map(cp => <PlayCard key={`c-${cp.name}`} title={cp.name} icon="✎" desc={`Your ${cp.type} play`} art={cp.name} onClick={() => step(callFor(cp))} />)}
                   {sim.down === 4 && <><PlayCard title="Punt" icon="⤴" desc="Flip the field" onClick={() => step({ kind: 'punt', name: 'Punt' })} /><PlayCard title="Field Goal" icon="⊓" desc={`${100 - sim.yl + 17} yards`} onClick={() => step({ kind: 'fg', name: 'Field Goal' })} /></>}
                   <PlayCard title="Kneel" icon="⤓" desc="Burn the clock" onClick={() => step({ kind: 'kneel', name: 'Kneel' })} />
                   {(sim.q === 2 || sim.q >= 4) && sim.clock < 120 && <PlayCard title="Spike" icon="⏱" desc="Stop the clock" onClick={() => step({ kind: 'spike', name: 'Spike' })} />}
-                </> : DEF_PLAYS.map(p => <PlayCard key={p.name} title={p.name} icon={p.call.blitz ? '⚡' : '▣'} desc={p.desc} onClick={() => userCall(undefined, p.call)} />)}
+                </> : DEF_PLAYS.map(p => <PlayCard key={p.name} title={p.name} icon={p.call.blitz ? '⚡' : '▣'} desc={p.desc} art={p.call.name} def onClick={() => userCall(undefined, p.call)} />)}
               </div>
             </div>
           ) : (
             <div className="card row" style={{ justifyContent: 'center' }}>{anim ? <span className="dim">…</span> : <button className="btn primary" onClick={() => step()}>Next Play ▸</button>}</div>
           )}
+          {designing && <PlayDesigner L={L} close={() => setDesigning(false)} onSaved={cp => { setDesigning(false); app.toast(`${cp.name} added to your playbook`); force(x => x + 1); }} />}
           <div className="card">
             <Tabs tabs={['Play-by-Play', 'Box Score', 'Drive Chart'] as const} on={box} set={setBox} />
             {box === 'Play-by-Play' && <div className="scroll" style={{ maxHeight: 340, border: 0 }}>{[...sim.events].reverse().slice(0, 120).map(e => (
@@ -173,12 +180,12 @@ function Scorebug({ L, sim }: { L: League; sim: GameSim }) {
     </div>
   );
 }
-function PlayCard({ title, icon, desc, onClick }: { title: string; icon: string; desc: string; onClick: () => void }) {
+/** Madden-style play card: the play art on top, name and note below. */
+function PlayCard({ title, icon, desc, onClick, art, def }: { title: string; icon: string; desc: string; onClick: () => void; art?: string; def?: boolean }) {
   return (
-    <button onClick={onClick} className="card" style={{ cursor: 'pointer', textAlign: 'left', padding: 12, boxShadow: 'none', background: 'linear-gradient(160deg, rgba(40,56,92,.9), rgba(14,20,36,.9))', transition: 'transform .12s, border-color .12s' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px) scale(1.02)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--team)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.borderColor = ''; }}>
-      <div style={{ fontSize: 26, lineHeight: 1 }}>{icon}</div><div className="h3" style={{ marginTop: 6, fontSize: 16 }}>{title}</div><div className="small dim">{desc}</div>
+    <button onClick={onClick} className="playcard">
+      {art ? <PlayDiagram name={art} def={def} w={170} h={98} /> : <div style={{ height: 98, display: 'grid', placeItems: 'center', fontSize: 34, background: 'linear-gradient(180deg,#1d4d2a,#163d21)' }}>{icon}</div>}
+      <div style={{ padding: '8px 10px 10px' }}><div className="h3" style={{ fontSize: 17 }}>{title}</div><div className="small dim">{desc}</div></div>
     </button>
   );
 }

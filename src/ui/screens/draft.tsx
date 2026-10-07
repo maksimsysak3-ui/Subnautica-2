@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, Tabs, DevBadge, Modal, Tilt } from '../components';
+import { Logo, Ovr, Face, Table, Tabs, DevBadge, Modal, Tilt, Grade } from '../components';
 import type { Player } from '../../core/types';
-import { aiPickNow, makePick, picksInOrder, prospects, scout, scoutedView, SCOUT_COST, positionNeeds } from '../../core/draft';
+import { aiPickNow, makePick, picksInOrder, prospects, scout, scoutedView, SCOUT_COST, positionNeeds, draftGrade } from '../../core/draft';
 import { POS_ORDER, POS_NAME } from '../../core/ratings';
 import { pickLabel } from '../../core/trade';
 import { Rng } from '../../core/rng';
 import { money } from '../../core/contracts';
 
-export function DraftScreen() {
+export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const L = useApp().league!;
   const live = L.phase === 'draft' && L.draft && !L.draft.done;
-  const [tab, setTab] = useState<'Big Board' | 'My Board' | 'Draft Order' | 'Results'>(live ? 'Big Board' : 'Big Board');
+  const [tab, setTab] = useState<'Big Board' | 'My Board' | 'Draft Order' | 'Results'>(scouting ? 'My Board' : 'Big Board');
   const [pos, setPos] = useState('All');
   const [sel, setSel] = useState<Player | null>(null);
   const [announce, setAnnounce] = useState<{ p: Player; no: number; team: string } | null>(null);
@@ -77,9 +77,9 @@ export function DraftScreen() {
         <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}{p !== 'All' && (needs[p as keyof typeof needs] ?? 0) >= 1.5 ? ' •' : ''}</span>)}</div>
         <Table rows={tab === 'My Board' ? myBoard(L, pool) : pool} rowKey={p => p.id} initial={tab === 'My Board' ? undefined : 'proj'} desc={false} onRow={setSel} cols={[
           { k: 'proj', h: 'Rank', get: p => <span className="num">{p.proj}</span>, sort: p => p.proj ?? 999, cls: 'c' },
-          { k: 'p', h: 'Prospect', get: p => <div className="pcell"><Face p={p} size={36} /><div><b>{p.fn} {p.ln}</b><div className="small mute">{p.col}</div></div></div>, sort: p => p.ln },
+          { k: 'p', h: 'Prospect', get: p => <div className="pcell"><Face p={p} size={38} /><div><b>{p.fn} {p.ln}</b><div className="small mute row" style={{ gap: 6 }}>{p.colLogo && <img src={p.colLogo} width={16} height={16} alt="" />}{p.col}</div></div></div>, sort: p => p.ln },
           { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
-          { k: 'grade', h: 'Scout Grade', get: p => { const v = scoutedView(p); return <span className="num">{v.ovrLo}–{v.ovrHi}</span>; }, sort: p => scoutedView(p).ovrLo, cls: 'c' },
+          { k: 'grade', h: 'Grade', get: p => <Grade g={draftGrade(p)} />, sort: p => -['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'].indexOf(draftGrade(p)), cls: 'c' },
           { k: 'arch', h: 'Archetype', get: p => (p.scout ?? 0) >= 1 ? p.arch : <span className="mute">?</span> },
           { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevBadge d={p.dev} /> : <span className="mute">?</span> },
           { k: 'forty', h: '40', get: p => p.combine?.forty.toFixed(2), sort: p => -(p.combine?.forty ?? 9), cls: 'c' },
@@ -116,11 +116,11 @@ function ProspectModal({ p, close, canDraft, onDraft }: { p: Player; close: () =
       <div className="grid" style={{ gridTemplateColumns: '240px 1fr', gap: 22 }}>
         <Tilt max={14}><div style={{ borderRadius: 18, overflow: 'hidden', background: 'linear-gradient(180deg,#1e2a48,#0b1120)', border: '1px solid var(--line2)', textAlign: 'center', padding: 16 }}>
           <Face p={p} size={190} style={{ margin: '0 auto' }} />
-          <div className="h3" style={{ marginTop: 10 }}>{p.fn} {p.ln}</div><div className="small dim">{POS_NAME[p.pos]} · {p.col}</div>
+          <div className="h3" style={{ marginTop: 10 }}>{p.fn} {p.ln}</div><div className="small dim row" style={{ justifyContent: 'center', gap: 6 }}>{p.colLogo && <img src={p.colLogo} width={20} height={20} alt="" />}{POS_NAME[p.pos]} · {p.col}</div>
           <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}><span className="chip">#{p.proj} overall</span><span className="chip">{projection(p.proj ?? 300)}</span></div>
         </div></Tilt>
         <div>
-          <div className="row"><div className="stat"><span className="k">Scout Grade</span><span className="v">{v.ovrLo}–{v.ovrHi}</span></div><div className="stat"><span className="k">Potential</span><span className="v">{v.pot ?? '?'}</span></div><div className="stat"><span className="k">Dev</span><span className="v" style={{ fontSize: 16 }}>{v.dev ? <DevBadge d={v.dev} /> : '?'}</span></div><div className="spacer" /><ScoutPips lvl={p.scout ?? 0} /></div>
+          <div className="row"><div className="stat"><span className="k">Draft Grade</span><span className="v"><Grade g={draftGrade(p)} lg /></span></div><div className="stat"><span className="k">Ceiling</span><span className="v">{v.pot ? (v.pot >= 85 ? 'Elite' : v.pot >= 78 ? 'High' : v.pot >= 70 ? 'Starter' : 'Depth') : '?'}</span></div><div className="stat"><span className="k">Dev</span><span className="v" style={{ fontSize: 16 }}>{v.dev ? <DevBadge d={v.dev} /> : '?'}</span></div><div className="spacer" /><ScoutPips lvl={p.scout ?? 0} /></div>
           <div className="up" style={{ margin: '14px 0 6px' }}>Combine</div>
           <div className="grid g3" style={{ gap: 8 }}>{p.combine && Object.entries({ '40': p.combine.forty.toFixed(2) + 's', Bench: p.combine.bench + ' reps', Vertical: p.combine.vert + '"', Broad: p.combine.broad + '"', '3-Cone': p.combine.cone + 's', Shuttle: p.combine.shuttle + 's' }).map(([k, val]) => <div key={k} className="card" style={{ padding: 8, boxShadow: 'none' }}><div className="up">{k}</div><b className="num" style={{ fontSize: 18 }}>{val}</b></div>)}</div>
           <div className="up" style={{ margin: '14px 0 6px' }}>{(p.scout ?? 0) >= 1 ? 'Scouting report' : 'Scout him to reveal ratings'}</div>
