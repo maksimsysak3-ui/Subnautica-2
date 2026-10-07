@@ -23,8 +23,8 @@ export const capHit = (c: Contract, season: number) => {
   const y = c.years.find(y => y.s === season);
   return y ? y.base + y.bonus : 0;
 };
-export const yearsLeft = (c: Contract, season: number) => c.years.filter(y => y.s >= season).length;
-export const apy = (c: Contract) => (c.years.length ? c.years.reduce((a, y) => a + y.base + y.bonus, 0) / c.years.length : 0);
+export const yearsLeft = (c: Contract, season: number) => c.years.filter(y => y.s >= season && !y.v).length;
+export const apy = (c: Contract) => { const real = c.years.filter(y => !y.v); return real.length ? c.years.reduce((a, y) => a + y.base + y.bonus, 0) / real.length : 0; };
 export const totalValue = (c: Contract) => c.years.reduce((a, y) => a + y.base + y.bonus, 0);
 export const guaranteedLeft = (c: Contract, season: number) => c.years.filter(y => y.s >= season).reduce((a, y) => a + y.gtd + y.bonus, 0);
 
@@ -73,21 +73,31 @@ export function releaseSavings(c: Contract, season: number, postJune1 = false) {
 
 /**
  * Restructure: convert this year's base salary above the minimum into a signing
- * bonus prorated over the remaining years (max five). Saves cap now, costs later.
+ * bonus prorated over five years, adding void years past the real end of the deal
+ * where needed (as teams do). Saves cap now; what is left on void years becomes
+ * dead money when the contract voids.
  */
-export function restructure(p: Player, season: number): number {
+export function restructure(p: Player, season: number, maxVoid = 3): number {
   const c = p.contract;
   const y = c.years.find(y => y.s === season);
-  if (!y) return 0;
+  if (!y || y.v) return 0;
   const min = minSalary(p.exp, season);
   const convert = y.base - min;
-  const rest = c.years.filter(v => v.s >= season).slice(0, MAX_PRORATION);
-  if (convert <= 0 || rest.length < 2) return 0;
+  if (convert <= 0) return 0;
+  let rest = c.years.filter(v => v.s >= season);
+  const last = Math.max(...c.years.map(v => v.s));
+  for (let s = last + 1; rest.length < MAX_PRORATION && s <= last + maxVoid; s++) { const vy = { s, base: 0, bonus: 0, gtd: 0, v: true }; c.years.push(vy); rest = [...rest, vy]; }
+  rest = rest.slice(0, MAX_PRORATION);
+  if (rest.length < 2) return 0;
   const per = Math.round(convert / rest.length);
   y.base = min;
   y.gtd = Math.min(y.gtd, min);
   for (const r of rest) r.bonus += per;
   return convert - per;
+}
+/** Proration left on void years once the real contract is over (accelerates as dead money). */
+export function voidedProration(c: Contract, season: number) {
+  return c.years.filter(y => y.v && y.s >= season).reduce((a, y) => a + y.bonus, 0);
 }
 
 // ---- market values -------------------------------------------------------------------

@@ -13,7 +13,8 @@ export type Attr =
   | 'KPW' | 'KAC' | 'RET';
 export type Attrs = Record<Attr, number>;
 
-export interface ContractYear { s: number; base: number; bonus: number; gtd: number }
+/** `v` marks a void year: proration only, the player is not under contract. */
+export interface ContractYear { s: number; base: number; bonus: number; gtd: number; v?: boolean }
 export interface Contract {
   years: ContractYear[];
   rookie?: boolean;
@@ -74,6 +75,9 @@ export interface Player {
   combine?: { forty: number; bench: number; vert: number; broad: number; cone: number; shuttle: number };
   proj?: number; // consensus big-board rank
   hof?: boolean;
+  /** Hidden season form: breakout (+) or dud (-) year, in rating points. */
+  sform?: number;
+  trend?: number;
   retiredSeason?: number;
 }
 
@@ -173,4 +177,6 @@ export interface League {
   records: Record<string, { v: number; pid: string; season: number }>;
   difficulty: 'Rookie' | 'Pro' | 'All-Madden';
   tradeDeadlineWeek: number;
+  /** Mean OVR of each position's starters at league creation; the scale is held to it. */
+  baseline?: Partial<Record<Pos, number[]>>;
 }

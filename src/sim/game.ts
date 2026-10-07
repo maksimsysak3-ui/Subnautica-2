@@ -9,7 +9,7 @@
 // weather, injuries, wear, Superstar abilities and X-Factor zones.
 import type { League, Player, Pos, StatLine, Team, Game, BoxScore, TeamBox } from '../core/types';
 import { Rng, clamp, hash } from '../core/rng';
-import { emptyLine, effOvr } from '../core/league';
+import { emptyLine } from '../core/league';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string }
@@ -115,6 +115,7 @@ export class GameSim {
     v += f + this.teamForm[side === this.sides[0] ? 0 : 1];
     if (side === this.sides[1] && !this.game.neutral) v += 0.8;
     if (p.morale < 40) v -= 2;
+    v += p.sform ?? 0; // breakout or dud season
     return v;
   }
   private has(p: Player | undefined, ab: string) { return !!p && p.abil.includes(ab); }
@@ -1074,4 +1075,3 @@ export function simGame(league: League, game: Game, seed?: number) {
   const g = new GameSim(league, game, seed);
   return g.simToEnd();
 }
-export const sideEffOvr = effOvr;

@@ -3,12 +3,13 @@ import data from '../data/league.json';
 import type { Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
 import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, devTrait, overall, potential } from './ratings';
+import { seasonForm, starterMeans } from './offseason';
 import { CAP_2026, capSpace, makeContract, minSalary, restructure, rookieContract } from './contracts';
 
 interface RawP {
   id: string; fn: string; ln: string; pos: Pos; team: string; st: string; num: number; age: number; ht?: number; wt?: number;
   col?: string; exp: number; hs?: string; pick: number; dy?: number; dt?: string; apy?: number; gtd?: number; cy: number; signed?: number;
-  forty?: number; bench?: number; vert?: number; cone?: number; broad?: number; shuttle?: number; ovr: number; sig?: Record<string, number>;
+  forty?: number; bench?: number; vert?: number; cone?: number; broad?: number; shuttle?: number; ovr: number; sig?: Record<string, number>; trend?: number;
 }
 interface RawT { abbr: string; name: string; nick: string; conf: 'AFC' | 'NFC'; div: string; colors: string[]; logo: string; logoAlt: string; wordmark: string; coach: string; stadium: string; roof: string; surface: string }
 const D = data as unknown as { season: number; teams: RawT[]; schedule: { w: number; a: string; h: string; day: string; t: string; n?: string }[]; players: RawP[] };
@@ -62,7 +63,8 @@ export function playerFromRaw(r: RawP, season: number, rng: Rng): Player {
     id: r.id, fn: r.fn, ln: r.ln, pos: r.pos, team: r.team, status: r.st === 'PS' ? 'PS' : r.st === 'IR' ? 'IR' : r.team === 'FA' ? 'FA' : 'ACT',
     num: r.num, age: r.age, born: season - Math.round(r.age), ht: r.ht ?? 72, wt: r.wt ?? 220, col: r.col ?? '', exp: r.exp, hs: r.hs,
     draft: { year: r.dy ?? season - r.exp, round: r.pick ? Math.ceil(r.pick / 32) : 0, pick: r.pick, team: r.dt ?? '' },
-    attrs, ovr, pot: potential(ovr, r.age, dev, rng), dev, arch: archetype(r.pos, attrs), abil, xf,
+    // Potential reads the stat trajectory: rising production means more room left.
+    attrs, ovr, pot: Math.round(clamp(potential(ovr, r.age, dev, rng) + (r.trend ?? 0) * (r.age <= 26 ? 14 : 5), ovr, 99)), dev, arch: archetype(r.pos, attrs), abil, xf,
     contract: { years: [] }, stats: {}, post: {}, cond: 100, morale: 70 + rng.int(-10, 15), xp: 0,
     traits: { work: rng.int(30, 99), cons: rng.int(35, 99), clutch: rng.int(30, 99), ego: rng.int(10, 90), prone: rng.int(5, 70) },
     motiv: [], awards: [], face: hash(r.id),
@@ -143,6 +145,8 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   // Free agents keep an asking price for when they sign.
   for (const p of Object.values(players)) if (p.team === 'FA') p.contract = { years: [] };
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
+  seasonForm(league, rng);
+  league.baseline = starterMeans(league);
   return league;
 }
 

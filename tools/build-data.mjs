@@ -378,6 +378,7 @@ for (const [pos, list] of Object.entries(byPos)) {
       });
       if (w < 0.4) continue; // too few metrics to trust this season
       const sw = SEASON_W[yi] * rel;
+      (p._yq ??= [])[yi] = { q: sum / w, rel };
       p._prod.sum += (sum / w) * sw;
       p._prod.w += sw;
     }
@@ -474,6 +475,9 @@ for (const p of players) {
   const sig = {};
   for (const [g, v] of Object.entries(p._grp ?? {})) sig[g] = Math.round((v.sum / (v.w + 0.3)) * 100) / 100;
   if (Object.keys(sig).length) p.sig = sig;
+  // Trajectory: 2025 production against 2024, when both seasons carry weight.
+  const [y1, y2] = p._yq ?? [];
+  if (y1 && y2 && y1.rel > 0.3 && y2.rel > 0.3) p.trend = Math.round((y1.q - y2.q) * Math.min(y1.rel, y2.rel) * 100) / 100;
   for (const k of Object.keys(p)) if (k.startsWith('_') || (p[k] === 0 && !['num', 'exp', 'ovr', 'pick', 'cy'].includes(k))) delete p[k];
 }
 mkdirSync('src/data', { recursive: true });
