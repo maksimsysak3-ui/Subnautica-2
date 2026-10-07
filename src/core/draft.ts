@@ -188,6 +188,7 @@ function finishDraft(league: League) {
     p.contract = rookieContract(260, league.season);
     p.contract.rookie = true; p.scout = 3;
   }
+  for (const p of generateClass(league, league.season + 1)) league.players[p.id] = p;
   mail(league, 'Director of Player Personnel', 'Draft complete', 'The draft is in the books and undrafted free agents have been signed. Training camp opens next.');
 }
 

@@ -4,6 +4,7 @@ import type { Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, 
 import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, devTrait, overall, potential } from './ratings';
 import { seasonForm, starterMeans } from './offseason';
+import { generateClass } from './draft';
 import { CAP_2026, capSpace, makeContract, minSalary, restructure, rookieContract } from './contracts';
 
 interface RawP {
@@ -147,6 +148,8 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
   league.baseline = starterMeans(league);
+  // Next spring's class exists all season so it can be scouted.
+  for (const p of generateClass(league, season + 1)) league.players[p.id] = p;
   return league;
 }
 

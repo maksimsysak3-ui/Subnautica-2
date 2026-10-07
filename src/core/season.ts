@@ -163,6 +163,7 @@ export function advanceWeek(league: League): boolean {
   }
   aiWeekly(league, rng);
   coachXp(league);
+  if (league.phase === 'regular') league.scoutPoints += 45;
   if (league.phase === 'regular') {
     if (league.week === REG_WEEKS) { regularSeasonAwards(league); startPlayoffs(league); return true; }
     league.week++;

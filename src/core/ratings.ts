@@ -46,7 +46,7 @@ export const OVR_W: Record<Pos, Partial<Record<Attr, number>>> = {
   OT: { PBK: 28, RBK: 20, STR: 14, AWR: 12, IBL: 7, AGI: 6, ACC: 6, TGH: 4 },
   G: { RBK: 26, PBK: 22, STR: 18, AWR: 12, IBL: 8, ACC: 6, AGI: 4 },
   C: { RBK: 24, PBK: 22, AWR: 16, STR: 16, IBL: 8, ACC: 6, AGI: 4 },
-  EDGE: { PRS: 6, FMV: 16, PMV: 14, BSH: 12, ACC: 12, SPD: 10, STR: 9, TAK: 9, PUR: 6, PRC: 6 },
+  EDGE: { FMV: 18, PMV: 15, BSH: 12, ACC: 12, SPD: 10, STR: 9, TAK: 9, PUR: 6, PRC: 6 },
   DT: { BSH: 18, STR: 16, PMV: 15, FMV: 9, TAK: 10, PRC: 9, AWR: 8, ACC: 7, PUR: 5, SPD: 3 },
   LB: { TAK: 14, PRC: 14, PUR: 12, ZCV: 10, BSH: 10, AWR: 10, SPD: 8, HIT: 7, ACC: 6, MCV: 5, PMV: 4 },
   CB: { MCV: 20, ZCV: 17, SPD: 15, PRC: 10, ACC: 8, AGI: 8, AWR: 8, PRS: 6, TAK: 5, JMP: 4, CTH: 3 },
@@ -56,11 +56,14 @@ export const OVR_W: Record<Pos, Partial<Record<Attr, number>>> = {
   LS: { AWR: 40, STR: 30, PBK: 30 },
 };
 
+/**
+ * Madden-style: the weighted mean of the position's attributes, stretched away
+ * from 50 so a 96 overall can carry, say, a 93 throw power and an 88 deep ball
+ * instead of needing every skill at the ceiling.
+ */
+export const OVR_STRETCH = 1.14;
 export function overall(pos: Pos, a: Attrs): number {
-  const w = OVR_W[pos];
-  let s = 0, t = 0;
-  for (const k in w) { const wk = w[k as Attr]!; s += a[k as Attr] * wk; t += wk; }
-  return Math.round(clamp(s / t, 25, 99));
+  return Math.round(clamp(overallRaw(pos, a), 25, 99));
 }
 
 // ---- how stat signals feed attributes -----------------------------------------------
@@ -69,7 +72,7 @@ const SIG_MAP: Partial<Record<Pos, [string, Attr, number][]>> = {
   QB: [['acc', 'SAC', 1], ['acc', 'MAC', 0.9], ['acc', 'DAC', 0.5], ['arm', 'THP', 1], ['arm', 'DAC', 0.7], ['dec', 'AWR', 1], ['pocket', 'TUP', 1], ['run', 'TOR', 0.5], ['run', 'SPD', 0.5], ['run', 'AGI', 0.4], ['vol', 'AWR', 0.3], ['vol', 'MAC', 0.3]],
   RB: [['vision', 'BCV', 1], ['vision', 'AWR', 0.4], ['power', 'TRK', 1], ['power', 'BTK', 0.5], ['power', 'STR', 0.3], ['elusive', 'ELU', 1], ['elusive', 'BTK', 0.6], ['elusive', 'AGI', 0.4], ['hands', 'CTH', 1], ['hands', 'RTE', 0.6], ['security', 'CAR', 1], ['vol', 'BCV', 0.4], ['vol', 'STA', 0.6]],
   WR: [['route', 'RTE', 1], ['route', 'RLS', 0.6], ['route', 'AWR', 0.5], ['yac', 'ELU', 0.8], ['yac', 'BTK', 0.5], ['deep', 'SPC', 0.4], ['deep', 'SPD', 0.3], ['hands', 'CTH', 1], ['contested', 'CIT', 1], ['contested', 'SPC', 0.7], ['vol', 'RTE', 0.3], ['vol', 'AWR', 0.3]],
-  EDGE: [['rush', 'FMV', 1], ['rush', 'PMV', 0.8], ['rush', 'PRS', 0.3], ['runD', 'BSH', 0.9], ['runD', 'PRC', 0.5], ['tackle', 'TAK', 1], ['tackle', 'PUR', 0.4], ['hit', 'HIT', 1], ['vol', 'FMV', 0.3], ['vol', 'PUR', 0.3]],
+  EDGE: [['rush', 'FMV', 1], ['rush', 'PMV', 0.8], ['runD', 'BSH', 0.9], ['runD', 'PRC', 0.5], ['tackle', 'TAK', 1], ['tackle', 'PUR', 0.4], ['hit', 'HIT', 1], ['vol', 'FMV', 0.3], ['vol', 'PUR', 0.3]],
   LB: [['tackle', 'TAK', 1], ['tackle', 'PUR', 0.6], ['runD', 'BSH', 0.7], ['runD', 'PRC', 0.5], ['cover', 'ZCV', 1], ['cover', 'MCV', 0.7], ['rush', 'PMV', 0.6], ['ball', 'CTH', 0.6], ['ball', 'ZCV', 0.4], ['vol', 'PUR', 0.5], ['vol', 'PRC', 0.4]],
   CB: [['cover', 'MCV', 1], ['cover', 'ZCV', 0.9], ['cover', 'PRC', 0.4], ['ball', 'CTH', 0.8], ['ball', 'PRC', 0.5], ['ball', 'ZCV', 0.3], ['tackle', 'TAK', 1], ['vol', 'PRC', 0.3]],
   S: [['cover', 'ZCV', 1], ['cover', 'MCV', 0.6], ['ball', 'CTH', 0.7], ['ball', 'PRC', 0.6], ['tackle', 'TAK', 1], ['tackle', 'PUR', 0.5], ['runD', 'PRC', 0.4], ['runD', 'HIT', 0.4], ['rush', 'PMV', 0.4], ['vol', 'PUR', 0.3]],
@@ -101,10 +104,11 @@ export function buildAttrs(raw: RawPlayer, rng: Rng): Attrs {
   // Better players are, on average, better athletes too, but only partly.
   const tal = (target - 70) * 0.25;
   const ageSlow = raw.age > 27 ? (raw.age - 27) * 1.1 : 0;
-  a.SPD = raw.forty ? 97 - (raw.forty - 4.28) * 58 - ageSlow : spd + tal + rng.normal(0, 3) - ageSlow;
+  // Combine numbers anchor athleticism; production-proven players play faster than they timed.
+  a.SPD = raw.forty ? 97 - (raw.forty - 4.28) * 58 - ageSlow + Math.max(0, tal) * 0.5 : spd + tal + rng.normal(0, 3) - ageSlow;
   a.ACC = raw.forty ? a.SPD * 0.55 + acc * 0.45 : acc + tal + rng.normal(0, 3) - ageSlow * 0.8;
   a.AGI = raw.cone ? 96 - (raw.cone - 6.6) * 30 - ageSlow * 0.8 : agi + tal + rng.normal(0, 3) - ageSlow * 0.8;
-  a.STR = str + (raw.bench ? (raw.bench - 20) * 0.6 : 0) + ((raw.wt ?? 0) && pos !== 'K' && pos !== 'P' ? ((raw.wt! - avgWt(pos)) * 0.18) : 0) + rng.normal(0, 3);
+  a.STR = str + Math.max(0, tal) * 0.4 + (raw.bench ? (raw.bench - 20) * 0.6 : 0) + ((raw.wt ?? 0) && pos !== 'K' && pos !== 'P' ? ((raw.wt! - avgWt(pos)) * 0.18) : 0) + rng.normal(0, 3);
   a.JMP = raw.vert ? 50 + (raw.vert - 26) * 3 : jmp + tal * 0.5 + rng.normal(0, 3);
   a.STA = 80 + rng.normal(0, 5) - (raw.age > 30 ? (raw.age - 30) * 1.5 : 0);
   a.INJ = 84 + rng.normal(0, 6) - (raw.age > 29 ? (raw.age - 29) * 2 : 0);
@@ -112,15 +116,15 @@ export function buildAttrs(raw: RawPlayer, rng: Rng): Attrs {
   // Everything else starts at the target for the position's skills and low elsewhere.
   for (const k of ATTRS) {
     if (a[k] !== undefined) continue;
-    a[k] = w[k] ? target + rng.normal(0, 2.5) : offPositionBase(pos, k, rng);
+    a[k] = w[k] ? 50 + (target - 50) / OVR_STRETCH + rng.normal(0, 3) : offPositionBase(pos, k, rng);
   }
   // Mental skill grows with experience.
-  a.AWR = (w.AWR ? target : 45) + Math.min(6, (raw.age - 24) * 1.2) + rng.normal(0, 2);
+  a.AWR = 50 + (target - 50) / OVR_STRETCH + Math.min(6, (raw.age - 24) * 1.2) + rng.normal(0, 2);
   // Stat signals push individual skills away from the target.
   for (const [grp, attr, s] of SIG_MAP[pos] ?? []) {
     const v = raw.sig?.[grp];
     if (v === undefined) continue;
-    a[attr] += clamp((v - 0.35) * 24 * s, -14, 14);
+    a[attr] += clamp((v - 0.35) * 26 * s, -15, 15);
   }
   // Shift the skill (non-physical) attributes until the formula hits the target.
   const physical = new Set<Attr>(['SPD', 'ACC', 'AGI', 'STR', 'JMP', 'STA', 'INJ', 'TGH']);
@@ -130,7 +134,7 @@ export function buildAttrs(raw: RawPlayer, rng: Rng): Attrs {
     if (Math.abs(diff) < 0.25) break;
     let skillW = 0, total = 0;
     for (const k in w) { total += w[k as Attr]!; if (!physical.has(k as Attr)) skillW += w[k as Attr]!; }
-    const step = diff * total / Math.max(1, skillW);
+    const step = (diff / OVR_STRETCH) * total / Math.max(1, skillW);
     for (const k in w) if (!physical.has(k as Attr)) a[k as Attr] = clamp(a[k as Attr] + step, 15, 99);
   }
   for (const k of ATTRS) a[k] = Math.round(a[k]);
@@ -141,7 +145,7 @@ function overallRaw(pos: Pos, a: Attrs) {
   const w = OVR_W[pos];
   let s = 0, t = 0;
   for (const k in w) { const wk = w[k as Attr]!; s += a[k as Attr] * wk; t += wk; }
-  return s / t;
+  return 50 + (s / t - 50) * OVR_STRETCH;
 }
 function avgWt(pos: Pos) {
   return { QB: 220, RB: 210, FB: 245, WR: 200, TE: 250, OT: 315, G: 315, C: 305, EDGE: 255, DT: 305, LB: 238, CB: 192, S: 205, K: 195, P: 210, LS: 240 }[pos];

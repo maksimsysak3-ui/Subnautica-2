@@ -72,7 +72,7 @@ function Hair({ style, hair, W }: { style: string; hair: string; W: number }) {
     case 'afro': return <ellipse cx="100" cy="46" rx={W + 16} ry="30" fill={hair} />;
     case 'curly': return <g fill={hair}>{Array.from({ length: 11 }, (_, i) => <circle key={i} cx={100 - W + i * (W / 5)} cy={42 + Math.sin(i) * 4} r="10" />)}</g>;
     case 'flow': case 'mullet': return <path d={`${top} L${100 + W + 4} ${style === 'mullet' ? 130 : 108} Q${100 + W - 6} 60 100 52 Q${100 - W + 6} 60 ${100 - W - 4} ${style === 'mullet' ? 130 : 108} Z`} fill={hair} />;
-    case 'twists': case 'locs': case 'braids': return <g>{Array.from({ length: style === 'braids' ? 7 : 12 }, (_, i, a) => { const x = 100 - W + (i / (a.length - 1)) * 2 * W; const len = style === 'locs' ? 80 : style === 'braids' ? 40 : 34; return <path key={i} d={`M${x} 38 Q${x + (x < 100 ? -6 : 6)} ${50 + len / 2} ${x + (x < 100 ? -10 : 10)} ${44 + len}`} stroke={hair} strokeWidth={style === 'braids' ? 5 : 7} strokeLinecap="round" fill="none" />; })}<path d={`${top} Q100 46 ${100 - W - 1} 80 Z`} fill={hair} /></g>;
+    case 'twists': case 'locs': case 'braids': return <g>{Array.from({ length: style === 'braids' ? 7 : 12 }, (_, i) => { const n = style === 'braids' ? 7 : 12; const x = 100 - W + (i / (n - 1)) * 2 * W; const len = style === 'locs' ? 80 : style === 'braids' ? 40 : 34; return <path key={i} d={`M${x} 38 Q${x + (x < 100 ? -6 : 6)} ${50 + len / 2} ${x + (x < 100 ? -10 : 10)} ${44 + len}`} stroke={hair} strokeWidth={style === 'braids' ? 5 : 7} strokeLinecap="round" fill="none" />; })}<path d={`${top} Q100 46 ${100 - W - 1} 80 Z`} fill={hair} /></g>;
     default: return null;
   }
 }

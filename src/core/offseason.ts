@@ -41,8 +41,7 @@ export function startOffseason(league: League) {
   if (!league.picks.some(k => k.season === far)) for (let round = 1; round <= 7; round++) for (const abbr of Object.keys(league.teams)) league.picks.push({ id: `${far}-${round}-${abbr}`, season: far, round, orig: abbr, owner: abbr });
   league.picks = league.picks.filter(k => k.season >= league.season);
   league.scoutPoints += 300;
-  for (const p of Object.values(league.players)) if (p.status === 'PROSPECT') delete league.players[p.id];
-  for (const p of generateClass(league, league.season)) league.players[p.id] = p;
+  if (!Object.values(league.players).some(p => p.status === 'PROSPECT' && p.draft.year === league.season)) for (const p of generateClass(league, league.season)) league.players[p.id] = p;
   for (const p of Object.values(league.players)) { p.cond = 100; if (p.injury && !p.injury.season) p.injury = undefined; else if (p.injury) p.injury.weeks = Math.max(0, p.injury.weeks - 20); if (p.injury && p.injury.weeks <= 0) p.injury = undefined; }
   for (const t of Object.keys(league.teams)) if (t !== league.user) aiCapManagement(league, t, 12_000_000);
   aiResign(league, rng);
