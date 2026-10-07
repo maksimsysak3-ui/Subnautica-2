@@ -16,8 +16,9 @@ import { runFreeAgencyDay, openFreeAgency } from './freeagency';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
-  QB: [27, 33], RB: [23, 26], FB: [25, 29], WR: [24, 28], TE: [25, 29], OT: [25, 31], G: [25, 30], C: [25, 31],
-  EDGE: [24, 28], DT: [25, 29], LB: [24, 28], CB: [23, 27], S: [24, 28], K: [26, 35], P: [26, 36], LS: [25, 36],
+  // Growth until the first age, plateau through the second, decline from 32 on.
+  QB: [27, 31], RB: [24, 31], FB: [25, 31], WR: [24, 31], TE: [25, 31], OT: [25, 31], G: [25, 31], C: [25, 31],
+  EDGE: [24, 31], DT: [25, 31], LB: [24, 31], CB: [23, 31], S: [24, 31], K: [26, 35], P: [26, 36], LS: [25, 36],
 };
 const PHYSICAL = ['SPD', 'ACC', 'AGI', 'JMP', 'STA'] as const;
 
@@ -101,7 +102,7 @@ export function starterMeans(league: League) {
  * player is pulled most of the way toward the Nth-best baseline rating. Who holds
  * each rank still moves with progression; the scale itself does not drift.
  */
-function normalizeScale(league: League, rng: Rng) {
+function normalizeScale(league: League, rng: Rng, start: Map<string, number>) {
   const base = league.baseline;
   if (!base) return;
   for (const pos of Object.keys(base) as Pos[]) {
@@ -109,7 +110,10 @@ function normalizeScale(league: League, rng: Rng) {
     const ps = Object.values(league.players).filter(p => p.pos === pos && p.status !== 'RET' && p.status !== 'PROSPECT').sort((a, b) => b.ovr - a.ovr);
     ps.forEach((p, i) => {
       const t = target[Math.min(i, target.length - 1)];
-      const shift = i < target.length ? Math.round((t - p.ovr) * 0.75) : Math.min(0, Math.round((t - p.ovr) * 0.5));
+      let shift = i < target.length ? Math.round((t - p.ovr) * 0.75) : Math.min(0, Math.round((t - p.ovr) * 0.5));
+      // Respect the five-point yearly cap including this adjustment.
+      const s0 = start.get(p.id) ?? p.ovr;
+      shift = clamp(shift, s0 - 5 - p.ovr, s0 + 5 - p.ovr);
       if (!shift) return;
       const before = p.ovr;
       applyDelta(p, shift, rng);
@@ -121,6 +125,7 @@ function normalizeScale(league: League, rng: Rng) {
 
 function progression(league: League, rng: Rng, season: number) {
   const prodByPos = expectedProduction(league, season);
+  const start = new Map(Object.values(league.players).map(p => [p.id, p.ovr]));
   for (const p of Object.values(league.players)) {
     if (p.status === 'RET' || p.status === 'PROSPECT') continue;
     p.age += 1; p.exp += 1;
@@ -137,9 +142,10 @@ function progression(league: League, rng: Rng, season: number) {
     const perf = performanceIndex(p, season, prodByPos);
     if (perf !== null) delta += clamp(perf * 3.2, -3, 3.5);
     // Breakouts and busts.
-    if (p.age <= 27 && p.pot - p.ovr >= 4 && rng.chance(0.07 + (perf !== null && perf > 0.4 ? 0.08 : 0))) { delta += rng.int(4, 9); label = 'breakout'; }
-    else if (rng.chance(p.age <= 25 ? 0.035 : 0.025)) { delta -= rng.int(3, 7); label = 'regression'; }
-    applyDelta(p, Math.round(delta), rng);
+    if (p.age <= 27 && p.pot - p.ovr >= 4 && rng.chance(0.07 + (perf !== null && perf > 0.4 ? 0.08 : 0))) { delta += rng.int(3, 5); label = 'breakout'; }
+    else if (rng.chance(p.age <= 25 ? 0.035 : 0.025)) { delta -= rng.int(2, 4); label = 'regression'; }
+    // No one moves more than five points in an offseason.
+    applyDelta(p, clamp(Math.round(delta), -5, 5), rng);
     // Athleticism fades with age regardless of skill.
     if (p.age > end - 1) for (const k of PHYSICAL) p.attrs[k] = clamp(p.attrs[k] - rng.int(0, 2) - (p.age > end + 2 ? 1 : 0), 20, 99);
     if (p.age <= start) for (const k of PHYSICAL) if (rng.chance(0.3)) p.attrs[k] = clamp(p.attrs[k] + 1, 20, 99);
@@ -157,7 +163,7 @@ function progression(league: League, rng: Rng, season: number) {
     if (p.team === league.user && Math.abs(change) >= 3 && !label) mail(league, 'Player Development', `${p.ln}: ${change > 0 ? '+' : ''}${change} OVR`, `${p.fn} ${p.ln} is now ${p.ovr} OVR (${p.age} years old).`);
     p.xp = 0; p.morale = clamp(p.morale + rng.int(-5, 5), 20, 100);
   }
-  normalizeScale(league, rng);
+  normalizeScale(league, rng, start);
 }
 /** Distribute an overall change across the position's weighted skill attributes. */
 export function applyDelta(p: Player, delta: number, rng: Rng) {

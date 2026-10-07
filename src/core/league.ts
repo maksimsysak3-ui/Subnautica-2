@@ -192,10 +192,11 @@ export function teamRatings(league: League, team: string) {
   const lb = avg(get('LB', 2), 2);
   const db = avg([...get('CB', 3), ...get('S', 2)], 5);
   const st = avg([...get('K', 1), ...get('P', 1)], 2);
-  const off = qb * 0.42 + skill * 0.33 + ol * 0.25;
+  // Madden leans hard on the quarterback.
+  const off = qb * 0.5 + skill * 0.3 + ol * 0.2;
   const def = dl * 0.38 + lb * 0.22 + db * 0.4;
   // Madden-style team overall: starters weighted by unit, stretched from 50 so
   // contenders land near 90 and the weakest rosters in the mid 70s.
   const raw = off * 0.52 + def * 0.42 + st * 0.06;
-  return { qb, skill, ol, dl, lb, db, st, off: Math.round(50 + (off - 50) * 1.15), def: Math.round(50 + (def - 50) * 1.15), ovr: Math.round(Math.min(99, 50 + (raw - 50) * 1.17)) };
+  return { qb, skill, ol, dl, lb, db, st, off: Math.round(50 + (off - 50) * 1.15), def: Math.round(50 + (def - 50) * 1.15), ovr: Math.round(Math.min(99, 50 + (raw - 50) * 1.13)) };
 }

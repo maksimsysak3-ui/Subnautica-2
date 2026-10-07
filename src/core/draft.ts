@@ -4,6 +4,11 @@ import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, devTrait, overall } from './ratings';
 import { emptyLine, rollMotivations } from './league';
 import { rookieContract } from './contracts';
+import data from '../data/league.json';
+
+interface RealProspect { id: string; fn: string; ln: string; pos: Pos; col: string; colLogo?: string; hs?: string; ht: number; wt: number; dy: number; cls: number; rank: number; ovr: number }
+const REAL_PROSPECTS = ((data as unknown as { prospects?: RealProspect[] }).prospects ?? []);
+const SEASON_DATA = (data as unknown as { season: number }).season;
 import { standings, REG_WEEKS, news, mail } from './season';
 
 // Positions in a real class (per ~260 draftable prospects).
@@ -24,6 +29,8 @@ const WEIGHT: Record<Pos, [number, number]> = { QB: [220, 10], RB: [212, 12], FB
  */
 export function generateClass(league: League, year: number): Player[] {
   const rng = new Rng(hash(`class-${league.seed}-${year}`));
+  const real = REAL_PROSPECTS.filter(r => r.dy === year);
+  if (real.length) return realClass(league, year, real, rng);
   const pool: Pos[] = [];
   for (const [pos, n] of CLASS_MIX) for (let i = 0; i < n + rng.int(-2, 3); i++) pool.push(pos);
   rng.shuffle(pool);
@@ -56,6 +63,33 @@ export function generateClass(league: League, year: number): Player[] {
   prospects.sort((a, b) => value(b) - value(a)).forEach((p, i) => (p.proj = i + 1));
   return prospects;
 }
+/** A class built from real college players (their projected OVR at draft time is hidden). */
+function realClass(league: League, year: number, real: RealProspect[], rng: Rng): Player[] {
+  void league;
+  const out = real.map(r => {
+    // About 18 + class year now, plus the years until his draft.
+    const age = 17 + Math.min(4, r.cls) + (year - SEASON_DATA) + rng.int(0, 1);
+    const attrs = buildAttrs({ pos: r.pos, ovr: r.ovr, age, ht: r.ht, wt: r.wt }, rng);
+    const real = overall(r.pos, attrs);
+    const dev = devTrait(real + rng.normal(3, 3), age, rng);
+    const growth = { Normal: 4, Star: 8, Superstar: 12, 'X-Factor': 15 }[dev];
+    const { abil, xf } = assignAbilities(r.pos, attrs, dev, rng);
+    const p: Player = {
+      id: r.id, fn: r.fn, ln: r.ln, pos: r.pos, team: 'FA', status: 'PROSPECT', num: 0, age, born: year - age, ht: r.ht || 72, wt: r.wt || 220,
+      col: r.col, colLogo: r.colLogo, hs: r.hs, exp: 0, draft: { year, round: 0, pick: 0, team: '' },
+      attrs, ovr: real, pot: Math.round(clamp(real + growth + rng.normal(0, 3), real + 2, 99)), dev, arch: archetype(r.pos, attrs), abil, xf,
+      contract: { years: [] }, stats: {}, post: {}, cond: 100, morale: 75, xp: 0,
+      traits: { work: rng.int(30, 99), cons: rng.int(30, 99), clutch: rng.int(30, 99), ego: rng.int(10, 90), prone: rng.int(5, 70) },
+      motiv: rollMotivations(rng), awards: [], face: hash(r.id), scout: 0, proj: r.rank,
+    };
+    p.combine = combineFor(p, rng);
+    return p;
+  });
+  // Consensus board: their real-data rank seen through a little media noise.
+  out.sort((a, b) => (a.proj! + rng.normal(0, 4)) - (b.proj! + rng.normal(0, 4))).forEach((p, i) => (p.proj = i + 1));
+  return out;
+}
+
 export const POS_PREMIUM: Record<Pos, number> = { QB: 5, EDGE: 3, OT: 2.5, WR: 2, CB: 2, DT: 1.5, S: 0, LB: -0.5, TE: 0, G: -0.5, C: -1, RB: -1, FB: -6, K: -8, P: -9, LS: -12 };
 
 function combineFor(p: Player, rng: Rng) {

@@ -17,6 +17,7 @@ import { gunzipSync } from 'node:zlib';
 import { parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 import { seasonCharting } from './charting.mjs';
+import { buildProspects } from './college.mjs';
 
 const SEASON = 2026;
 const PAST = [SEASON - 1, SEASON - 2, SEASON - 3];
@@ -484,7 +485,9 @@ for (const p of players) {
   for (const k of Object.keys(p)) if (k.startsWith('_') || (p[k] === 0 && !['num', 'exp', 'ovr', 'pick', 'cy'].includes(k))) delete p[k];
 }
 mkdirSync('src/data', { recursive: true });
-writeFileSync('src/data/league.json', JSON.stringify({ season: SEASON, teams, schedule, players }));
+const prospects = buildProspects();
+writeFileSync('src/data/league.json', JSON.stringify({ season: SEASON, teams, schedule, players, prospects }));
+console.log(`${prospects.length} real college prospects in ${new Set(prospects.map(p => p.dy)).size} draft classes`);
 
 for (const pos of Object.keys(CEILING)) console.log(pos.padEnd(5), byPos[pos].slice(0, 10).map(p => `${p.fn} ${p.ln} ${p.ovr}`).join(', '));
 console.log('QB 11-24 ', byPos.QB.slice(10, 24).map(p => `${p.ln} ${p.ovr}`).join(', '));

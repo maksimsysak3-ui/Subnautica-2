@@ -75,6 +75,8 @@ export interface Player {
   combine?: { forty: number; bench: number; vert: number; broad: number; cone: number; shuttle: number };
   proj?: number; // consensus big-board rank
   hof?: boolean;
+  /** College logo URL (real prospects). */
+  colLogo?: string;
   /** Hidden season form: breakout (+) or dud (-) year, in rating points. */
   sform?: number;
   trend?: number;

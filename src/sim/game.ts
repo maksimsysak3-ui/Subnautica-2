@@ -173,10 +173,11 @@ export class GameSim {
     if (this.yl >= 98) pass -= 0.15;
     if (this.q >= 3) {
       if (diff <= -9) pass += 0.18; else if (diff < 0 && tl < 600) pass += 0.15;
-      if (diff >= 8 && this.q === 4) pass -= 0.25; else if (diff > 0 && tl < 300) pass -= 0.3;
-      if (diff >= 17) pass -= 0.15; // salt the game away, rest starters' arms
+      // Protecting a lead: lean on the run, but real offences still throw ~40% of the time.
+      if (diff >= 8 && this.q === 4) pass -= 0.16; else if (diff > 0 && tl < 300) pass -= 0.2;
     }
     if (this.twoMinute() && diff <= 0) pass = 0.88;
+    pass = Math.max(pass, this.q >= 4 && diff > 0 && tl < 240 ? 0.22 : 0.36);
     pass += { 'Balanced': 0, 'Run Heavy': -0.09, 'Pass Heavy': 0.08, 'Vertical': 0.05, 'Ball Control': -0.06 }[plan.off];
     pass += { 'West Coast': 0.02, 'Vertical': 0.04, 'Wide Zone': -0.03, 'Power Run': -0.05, 'Spread': 0.04 }[coach.off];
     const o = this.offense();
@@ -302,9 +303,9 @@ export class GameSim {
   private betweenPlays(): number {
     const diff = this.diff();
     if (this.twoMinute() && diff <= 0) return 13;
-    if (this.q >= 4 && diff > 0) return 39;
+    if (this.q >= 4 && diff > 0) return 40;
     if (this.hurry[this.poss]) return 17;
-    return 31 + this.rng.int(-4, 9);
+    return 36 + this.rng.int(-4, 8);
   }
   private runoff(sec: number) {
     // Two-minute warning stops the clock.
@@ -574,7 +575,7 @@ export class GameSim {
     if (hurried) acc = acc * 0.55 + this.r(off, qb, 'TUP') * 0.45 - (this.has(qb, 'Fearless') || off.zoneOn.has(qb?.id ?? '') ? 1 : 7);
     if (off.zoneOn.has(qb?.id ?? '')) acc += 6;
     const wx = (this.weather.wind > 15 ? (depth === 'deep' ? 0.5 : 0.2) : 0) + (this.weather.precip === 'rain' ? 0.15 : this.weather.precip === 'snow' ? 0.25 : 0);
-    const base = { screen: 1.85, quick: 1.25, short: 0.85, medium: 0.2, deep: -0.75 }[depth];
+    const base = { screen: 1.75, quick: 1.15, short: 0.74, medium: 0.08, deep: -0.88 }[depth];
     const catchV = this.r(off, recv, 'CTH') * 0.6 + this.r(off, recv, s < 0 ? 'CIT' : 'CTH') * 0.4;
     let logit = base + 0.12 + 0.5 * s + (acc - 72) * 0.028 + (catchV - 72) * 0.012 - wx;
     if (s < 0 && this.has(recv, 'Contested Catch')) logit += 0.35;
@@ -589,7 +590,7 @@ export class GameSim {
     const dir = this.rng.pick([-1, 0, 1] as const);
     if (!complete) {
       // Interception? Tight windows, poor decisions and pressure invite them.
-      let pInt = 0.057 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
+      let pInt = 0.068 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
       if (cov && (this.has(cov, 'Ball Hawk') || this.has(cov, 'Lurker'))) pInt += 0.03;
       if (cov && def.zoneOn.has(cov.id)) pInt += 0.05;
       if (dc.shell === 'Prevent' && depth === 'deep') pInt += 0.03;
@@ -765,7 +766,7 @@ export class GameSim {
     if (y >= 12) { this.zonePoint(off, carrier, 1); for (const p of o.ol) if (this.rng.chance(0.3)) this.L(p).pancake++; }
     this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5);
     if (this.rng.chance(1 / 45)) this.maybeInjure(off, this.rng.pick(o.ol), 1);
-    const fumbleP = clamp(0.0075 - (this.r(off, carrier, 'CAR') - 70) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
+    const fumbleP = clamp(0.0088 - (this.r(off, carrier, 'CAR') - 70) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
     const fum = y > -3 && this.rng.chance(fumbleP);
     const res = fum ? { td: false, first: false, safety: false } : this.advance(y);
     const oob = !res.td && outside && this.rng.chance(0.22);
@@ -985,7 +986,7 @@ export class GameSim {
       else ev = this.push({ type: 'two', text: `Two-point attempt fails.`, yards: 0, endYl: 100 });
     } else {
       const l = this.L(k); l.xpa++;
-      if (this.rng.chance(clamp(this.fgProb(33, k, side) + 0.028, 0, 0.995))) { l.xpm++; this.score[this.poss] += 1; this.addQ(this.poss, 1); ev = this.push({ type: 'xp', text: `${pn(k)} extra point is good.`, yards: 0, endYl: 100, ids: { kicker: k?.id } }); }
+      if (this.rng.chance(clamp(this.fgProb(33, k, side) + 0.012, 0, 0.995))) { l.xpm++; this.score[this.poss] += 1; this.addQ(this.poss, 1); ev = this.push({ type: 'xp', text: `${pn(k)} extra point is good.`, yards: 0, endYl: 100, ids: { kicker: k?.id } }); }
       else ev = this.push({ type: 'xp', text: `${pn(k)} extra point is NO GOOD!`, yards: 0, endYl: 100, ids: { kicker: k?.id } });
     }
     this.poss = (1 - this.poss) as 0 | 1;

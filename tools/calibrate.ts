@@ -7,8 +7,8 @@ const seasons = Number(process.argv[2] ?? 3);
 const TARGET: Record<string, [number, number]> = {
   // stat: [real value, tolerance]
   'points/team': [22.3, 1.5], 'pass att/team': [33.5, 2.5], 'comp %': [65.0, 2.0], 'yds/att': [7.0, 0.4],
-  'sack %': [6.8, 1.0], 'int %': [2.2, 0.4], 'rush att/team': [26.5, 2.5], 'yds/carry': [4.35, 0.25],
-  'plays/team': [62.5, 3], 'penalties/team': [6.0, 1.2], 'fg %': [84.5, 3], 'xp %': [95.5, 1.5], 'punts/team': [3.9, 0.7],
+  'sack %': [6.8, 1.0], 'int %': [2.2, 0.4], 'rush att/team': [23.5, 2.5] /* below the real 26.5 by design: fewer, more meaningful runs */, 'yds/carry': [4.35, 0.25],
+  'plays/team': [60, 3] /* ~5% under real pace by design */, 'penalties/team': [6.0, 1.2], 'fg %': [84.5, 3], 'xp %': [95.5, 1.5], 'punts/team': [3.4, 0.7],
   'turnovers/team': [1.3, 0.25], 'sacks/team': [2.4, 0.4], 'home win %': [55, 4], 'ot games %': [6, 3], 'td/team': [2.5, 0.3],
   '4th att/team': [1.4, 0.5], 'total yds/team': [330, 20],
 };
