@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, PlayerCell, DevBadge, Bar, Tabs, CountUp } from '../components';
+import { Logo, Ovr, Face, Portrait, Table, PlayerCell, DevBadge, Bar, Tabs, CountUp } from '../components';
 import { NegotiationRoom } from './negotiate';
-import { PlayerCard } from '../pcard';
 import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
 import { capFor, capHit, capSpace, money, teamPayroll, yearsLeft, franchiseTag, marketValue } from '../../core/contracts';
@@ -28,10 +27,11 @@ export function FreeAgencyScreen() {
       <div className="row"><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
       {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
         : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
-      <div className="cards-row">{all.slice(0, 8).map(p => { const m = market(L, p); return (
-        <div key={p.id} className="fa-card">
-          <PlayerCard p={p} size="md" label={`Asking ${money(askingPrice(L, p).apy)}/yr`} onClick={() => setNeg(p)} />
-          <div className="fa-meta"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span>{m.leader ? <><Logo team={L.teams[m.leader]} size={22} />{m.leader === L.user && <b className="good small">YOU</b>}</> : <span className="mute small">No offers</span>}</div>
+      <div className="fa-top">{all.slice(0, 6).map(p => { const m = market(L, p); return (
+        <div key={p.id} className="fa-tile" onClick={() => setNeg(p)}>
+          <Portrait p={p} />
+          <div className="pn">{p.fn[0]}. {p.ln}</div><div className="ps">{p.pos} · {Math.floor(p.age)} yrs · asks {money(askingPrice(L, p).apy)}</div>
+          <div className="fa-meta"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span>{m.leader ? <><Logo team={L.teams[m.leader]} size={20} />{m.leader === L.user && <b className="good small">YOU</b>}</> : <span className="mute small">No offers</span>}</div>
         </div>); })}</div>
       <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}</div>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 280px', alignItems: 'start' }}>

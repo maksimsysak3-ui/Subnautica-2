@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Table, Tabs, DevBadge, Jersey, Tilt, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
+import { Logo, Ovr, Table, Tabs, DevBadge, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
@@ -10,9 +10,7 @@ import { release } from '../../core/offseason';
 import { NegotiationRoom } from './negotiate';
 import { standings } from '../../core/season';
 import { scoutedView, draftGrade } from '../../core/draft';
-import { PlayerCard } from '../pcard';
-import { Icon } from '../icons';
-import { PosTag } from '../components';
+import { PosTag, Portrait } from '../components';
 
 const FILTERS = ['All', 'Offense', 'Defense', 'Special', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'] as const;
 const inFilter = (p: Player, f: typeof FILTERS[number]) => {
@@ -29,7 +27,6 @@ export function RosterScreen({ team }: { team?: string }) {
   const abbr = team ?? L.user;
   const [f, setF] = useState<typeof FILTERS[number]>('All');
   const [view, setView] = useState<'Active' | 'Practice Squad' | 'Injured Reserve'>('Active');
-  const [cards, setCards] = useState(false);
   const status = { Active: 'ACT', 'Practice Squad': 'PS', 'Injured Reserve': 'IR' }[view];
   const rows = Object.values(L.players).filter(p => p.team === abbr && p.status === status && inFilter(p, f));
   const act = Object.values(L.players).filter(p => p.team === abbr && p.status === 'ACT').length;
@@ -37,9 +34,8 @@ export function RosterScreen({ team }: { team?: string }) {
     <div className="grid">
       <div className="row"><Logo team={L.teams[abbr]} size={46} /><div className="h2">{L.teams[abbr].name} Roster</div><span className={`chip ${act > 53 ? 'on' : ''}`}>{act}/53 active</span><div className="spacer" />
         <Tabs tabs={['Active', 'Practice Squad', 'Injured Reserve'] as const} on={view} set={setView} /></div>
-      <div className="row">{FILTERS.map(x => <span key={x} className={`chip${f === x ? ' on' : ''}`} onClick={() => setF(x)}>{x}</span>)}<div className="spacer" />
-        <div className="seg"><button className={!cards ? 'on' : ''} onClick={() => setCards(false)}><Icon n="menu" size={14} /> List</button><button className={cards ? 'on' : ''} onClick={() => setCards(true)}><Icon n="block" size={14} /> Cards</button></div></div>
-      {cards ? <div className="cards-grid">{rows.sort((a, b) => b.ovr - a.ovr).map(p => <PlayerCard key={p.id} p={p} size="md" />)}</div> : <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
+      <div className="row">{FILTERS.map(x => <span key={x} className={`chip${f === x ? ' on' : ''}`} onClick={() => setF(x)}>{x}</span>)}</div>
+      <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
         { k: 'name', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
         { k: 'pos', h: 'Pos', get: p => <PosTag pos={p.pos} />, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
         { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
@@ -50,7 +46,7 @@ export function RosterScreen({ team }: { team?: string }) {
         { k: 'cond', h: 'Cond', get: p => <span style={{ color: p.cond < 70 ? 'var(--warn)' : undefined }}>{Math.round(p.cond)}%</span>, sort: p => p.cond, cls: 'c' },
         { k: 'cap', h: 'Cap Hit', get: p => money(capHit(p.contract, L.season)), sort: p => capHit(p.contract, L.season), cls: 'r' },
         { k: 'yrs', h: 'Yrs', get: p => yearsLeft(p.contract, L.season), sort: p => yearsLeft(p.contract, L.season), cls: 'c' },
-      ]} />}
+      ]} />
     </div>
   );
 }
@@ -72,7 +68,7 @@ export function TeamScreen({ team }: { team: string }) {
           {team !== L.user && <button className="btn primary" onClick={() => app.go({ id: 'trade', team })}>Propose Trade</button>}
         </div>
       </div>
-      <div className="cards-row">{stars.map(p => <PlayerCard key={p.id} p={p} size="md" />)}</div>
+      <div className="top-players">{stars.map(p => <div key={p.id} className="tp" onClick={() => app.go({ id: 'player', pid: p.id })}><Portrait p={p} /><div className="pn">{p.fn[0]}. {p.ln}</div><div className="ps">{p.pos} · {p.arch}</div></div>)}</div>
       <RosterScreen team={team} />
     </div>
   );
@@ -99,7 +95,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
         <div className="phero-num">{p.num || ''}</div>
         <div className="grid" style={{ gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 24, padding: 24, position: 'relative' }}>
           <div style={{ position: 'relative' }}>
-            <PlayerCard p={p} size="lg" hideOvr={prospect} onClick={() => {}} />
+            <Portrait p={p} size={250} ovr={!prospect} />
             {prospect && <div style={{ position: 'absolute', left: 18, top: 18, zIndex: 4 }}><Grade g={draftGrade(p)} lg /></div>}
           </div>
           <div style={{ minWidth: 0 }}>
@@ -135,7 +131,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
               {p.status === 'FA' && <button className="btn sm primary" onClick={() => app.go({ id: 'fa' })}>Make Offer</button>}
             </div>
           </div>
-          {t && p.num > 0 && <Tilt max={18}><div style={{ transform: 'translateZ(30px)' }}><Jersey team={t} num={p.num} name={p.ln} size={210} /></div></Tilt>}
+          <div />
         </div>
       </div>
       <Tabs tabs={['Ratings', 'Stats', 'Contract', 'Bio'] as const} on={tab} set={setTab} />

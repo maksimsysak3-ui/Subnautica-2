@@ -39,6 +39,25 @@ export function Face({ p, size = 44, team, style }: { p: Player; size?: number; 
   );
 }
 
+/**
+ * The player as Madden presents him outside the lineup: his headshot over his
+ * team's colour with the team mark in the corner. Square, flat, no gimmicks.
+ */
+export function Portrait({ p, size = 120, team, ovr = true, style, onClick }: { p: Player; size?: number; team?: Team; ovr?: boolean; style?: CSSProperties; onClick?: () => void }) {
+  const [bad, setBad] = useState(false);
+  const t = team ?? app.league?.teams[p.team];
+  const url = p.hs && !bad ? p.hs.replace('f_auto,q_auto', `f_auto,q_auto,w_${size > 140 ? 400 : 200}`) : undefined;
+  const c = t ? vivid(t.colors[0]) : '#2a3040';
+  return (
+    <div className={`portrait${onClick ? ' click' : ''}`} style={{ width: size, height: size, '--pc': c, ...style } as CSSProperties} onClick={onClick}>
+      {t && <Logo team={t} size={size * 0.95} style={{ position: 'absolute', right: -size * 0.28, bottom: -size * 0.22, opacity: 0.18 }} />}
+      {url ? <img className="pt-img" src={url} alt="" loading="lazy" onError={() => setBad(true)} /> : <div className="pt-img svg"><FaceArt p={p} team={t} size={size} /></div>}
+      {t && <span className="pt-logo"><Logo team={t} size={Math.max(16, size * 0.2)} /></span>}
+      {ovr && <b className={`pt-ovr ${tier(p.ovr)}`}>{p.ovr}</b>}
+    </div>
+  );
+}
+
 export function PlayerCell({ p, sub }: { p: Player; sub?: ReactNode }) {
   return (
     <div className="pcell">
