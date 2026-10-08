@@ -145,7 +145,7 @@ export function vivid(hex: string) {
 
 // ---- jersey ------------------------------------------------------------------------------
 /** Home jersey per team: body, numbers, outline, sleeve stripes. */
-const UNIFORM: Record<string, { body: string; num: string; trim: string; stripes?: string[] }> = {
+export const UNIFORM: Record<string, { body: string; num: string; trim: string; stripes?: string[] }> = {
   ARI: { body: '#97233F', num: '#FFFFFF', trim: '#000000' }, ATL: { body: '#000000', num: '#FFFFFF', trim: '#A71930' }, BAL: { body: '#241773', num: '#FFFFFF', trim: '#000000', stripes: ['#000000'] },
   BUF: { body: '#00338D', num: '#FFFFFF', trim: '#C60C30', stripes: ['#C60C30', '#FFFFFF'] }, CAR: { body: '#0085CA', num: '#FFFFFF', trim: '#101820' }, CHI: { body: '#0B162A', num: '#FFFFFF', trim: '#C83803', stripes: ['#C83803', '#FFFFFF', '#C83803'] },
   CIN: { body: '#000000', num: '#FFFFFF', trim: '#FB4F14', stripes: ['#FB4F14'] }, CLE: { body: '#311D00', num: '#FF3C00', trim: '#FFFFFF', stripes: ['#FF3C00', '#FFFFFF', '#FF3C00'] }, DAL: { body: '#FFFFFF', num: '#003594', trim: '#869397', stripes: ['#003594'] },

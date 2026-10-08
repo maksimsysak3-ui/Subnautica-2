@@ -13,6 +13,8 @@ import data from '../../data/league.json';
 import { RAW_TEAMS } from '../../core/league';
 import { migrate } from './menu';
 import { BottomLine, preseasonHeadlines } from '../ticker';
+import { PlayerCard } from '../pcard';
+import type { Player, Team } from '../../core/types';
 
 type RawP = { id: string; fn: string; ln: string; pos: string; team: string; ovr: number; hs?: string; num?: number };
 const PLAYERS = (data as unknown as { players: RawP[] }).players;
@@ -158,6 +160,11 @@ function Menu({ entering }: { entering: boolean }) {
       <div className="mm-num" key={'n' + star}>{p.num ?? ''}</div>
       <img className="mm-hero" key={'h' + star} src={big(p.hs)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
       <div className="mm-vignette" />
+      <div className="mm-fan">{STARS.slice(0, 5).map((q, i) => (
+        <div key={q.id} className="mm-fan-c" style={{ '--k': i - 2 } as CSSProperties}>
+          <PlayerCard p={{ ...q, dev: q.ovr >= 97 ? 'X-Factor' : 'Superstar', num: q.num ?? 0 } as unknown as Player} team={TEAM(q.team) as unknown as Team} size="sm" onClick={() => setStar(STARS.indexOf(q))} />
+        </div>
+      ))}</div>
 
       <header className="mm-top">
         <div className="mm-word">GRIDIRON<b>GM</b></div>
