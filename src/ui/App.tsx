@@ -18,6 +18,7 @@ import { DraftScreen } from './screens/draft';
 import { AwardsScreen } from './screens/awards';
 import { InjuryScreen } from './screens/injuries';
 import { GameScreen } from './screens/game';
+import { CrashGuard } from './crash';
 
 type Id = Screen['id'];
 /** Big tabs across the top; each owns a rail of smaller tabs down the side. */
@@ -65,7 +66,7 @@ export function App() {
             </button>
           ))}
         </aside>
-        <main className="main fade-in" key={JSON.stringify(sc)}><Route sc={sc} /></main>
+        <main className="main fade-in" key={JSON.stringify(sc)}><CrashGuard inline><Route sc={sc} /></CrashGuard></main>
       </div>
       <BottomLine tag="BottomLine" items={leagueCrawl(L)} />
       {overlay}
