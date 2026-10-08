@@ -11,26 +11,36 @@ const POS_GROUP: Record<string, string> = { QB: 'qb', RB: 'sk', FB: 'sk', WR: 's
 /** Position label coloured by unit. */
 export function PosTag({ pos }: { pos: string }) { return <span className={`postag ${POS_GROUP[pos] ?? 'st'}`}>{pos}</span>; }
 export function Grade({ g, lg }: { g: string; lg?: boolean }) { return <span className={`grade ${g[0]}${lg ? ' lg' : ''}`}>{g}</span>; }
-/** Development trait emblem: a bevelled hexagon in bronze, gold or red with its mark. */
+/** Development trait emblem: a bevelled metal crest (steel, bronze, gold, crimson) with a shine and its mark. */
 export function DevIcon({ d, size = 22 }: { d: Dev; size?: number }) {
   const id = `dv${d.replace(/\W/g, '')}`;
-  const pal = { Normal: ['#5a606c', '#2a2e36', '#8a909c'], Star: ['#f6cf9c', '#8c4c18', '#ffe1bb'], Superstar: ['#fff2a6', '#b07d06', '#fff8d2'], 'X-Factor': ['#ff6a78', '#6e0410', '#ffc2c8'] }[d];
-  const hex = 'M12 1.5 21.5 7v10L12 22.5 2.5 17V7z', inner = 'M12 4.2 19.2 8.4v7.2L12 19.8 4.8 15.6V8.4z';
+  const pal = { Normal: ['#9aa1ad', '#3b404a', '#d5dae3', '#2a2e36'], Star: ['#f3c48c', '#7a3e10', '#ffe2bf', '#3a1c06'], Superstar: ['#fff1a0', '#a67402', '#fff9d8', '#4a3300'], 'X-Factor': ['#ff5b6c', '#5c0310', '#ffd0d5', '#26000a'] }[d];
+  const hex = 'M12 1 21.8 6.7v10.6L12 23 2.2 17.3V6.7z', inner = 'M12 3.6 19.6 8v8L12 20.4 4.4 16V8z';
   return (
-    <svg className="devicon" width={size} height={size} viewBox="0 0 24 24" aria-label={d}>
-      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={pal[0]} /><stop offset="1" stopColor={pal[1]} /></linearGradient></defs>
-      {d === 'Normal' ? <path d={hex} fill="none" stroke={pal[2]} strokeWidth="1.4" opacity=".6" /> : <>
-        <path d={hex} fill={`url(#${id})`} stroke="rgba(0,0,0,.45)" strokeWidth=".8" />
-        <path d={inner} fill="none" stroke={pal[2]} strokeWidth=".8" opacity=".75" />
-        {d === 'Star' && <path d="m12 7.2 1.5 3.1 3.4.4-2.5 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4-2.5-2.3 3.4-.4z" fill="#fff" />}
-        {d === 'Superstar' && <><path d="m12 6.2 1.8 3.7 4 .5-3 2.8.8 4-3.6-2-3.6 2 .8-4-3-2.8 4-.5z" fill="#fff" /><path d="M12 3.6v1.6M20 8.2l-1.4.8M4 8.2l1.4.8" stroke="#fff" strokeWidth="1" strokeLinecap="round" /></>}
-        {d === 'X-Factor' && <path d="M8 7.5h2.6l1.4 2.6 1.4-2.6H16l-2.7 4.5 2.7 4.5h-2.6L12 13.9l-1.4 2.6H8l2.7-4.5z" fill="#fff" />}
-      </>}
+    <svg className={`devicon dv-${d.replace(/\W/g, '')}`} width={size} height={size} viewBox="0 0 24 24" aria-label={d} role="img">
+      <defs>
+        <linearGradient id={`${id}g`} x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stopColor={pal[0]} /><stop offset=".55" stopColor={pal[1]} /><stop offset="1" stopColor={pal[3]} /></linearGradient>
+        <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={pal[3]} /><stop offset="1" stopColor="#000" /></linearGradient>
+        <clipPath id={`${id}c`}><path d={hex} /></clipPath>
+      </defs>
+      <path d={hex} fill={`url(#${id}g)`} stroke="rgba(0,0,0,.55)" strokeWidth=".7" />
+      <path d={inner} fill={d === 'Normal' ? `url(#${id}f)` : `url(#${id}f)`} stroke={pal[2]} strokeWidth=".7" opacity={d === 'Normal' ? 0.8 : 0.95} />
+      <g clipPath={`url(#${id}c)`}><path d="M-2 9 14 -3h5L3 14z" fill="#fff" opacity=".22" /></g>
+      {d === 'Normal' && <circle cx="12" cy="12" r="2.4" fill={pal[2]} opacity=".85" />}
+      {d === 'Star' && <path d="m12 7.3 1.45 3 3.3.45-2.4 2.25.6 3.3L12 14.75 9.05 16.3l.6-3.3-2.4-2.25 3.3-.45z" fill={pal[2]} />}
+      {d === 'Superstar' && <><path d="m12 6.6 1.65 3.35 3.7.55-2.68 2.6.63 3.68L12 15.05l-3.3 1.73.63-3.68-2.68-2.6 3.7-.55z" fill={pal[2]} /><path d="M12 4.6v1.2M17.6 7.4l-.9.7M6.4 7.4l.9.7" stroke={pal[2]} strokeWidth=".9" strokeLinecap="round" /></>}
+      {d === 'X-Factor' && <><path d="M8.2 7.4h2.5l1.3 2.4 1.3-2.4h2.5l-2.55 4.4 2.55 4.4h-2.5L12 13.8l-1.3 2.4H8.2l2.55-4.4z" fill="#fff" /><circle cx="17.2" cy="6.8" r=".8" fill="#fff" opacity=".9" /></>}
     </svg>
   );
 }
+export const DEV_BLURB: Record<Dev, string> = {
+  Normal: 'Normal: develops slowly, no special abilities.',
+  Star: 'Star: develops at a good pace and earns more from practice and games.',
+  Superstar: 'Superstar: fast development and two Superstar abilities.',
+  'X-Factor': 'X-Factor: elite development, three abilities and an X-Factor zone ability.',
+};
 export function DevBadge({ d, label = true }: { d: Dev; label?: boolean }) {
-  return <span className={`dev ${d}`}><DevIcon d={d} size={18} />{label && d}</span>;
+  return <span className={`dev ${d}`} title={DEV_BLURB[d]}><DevIcon d={d} size={18} />{label && d}</span>;
 }
 
 /** Real team logo from the CDN, with the Wikipedia mark and then a monogram as fallbacks. */

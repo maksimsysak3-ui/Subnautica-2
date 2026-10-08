@@ -13,6 +13,7 @@ import { scoutedView, draftGrade } from '../../core/draft';
 import { PosTag, Portrait, DevIcon } from '../components';
 import { PlayerBanner } from '../banner';
 import { ArchetypeTab } from './archetype';
+import { DevTab } from './devtab';
 import { hasTree } from '../../core/archetypes';
 
 type AttrK = keyof Player['attrs'];
@@ -97,7 +98,7 @@ export function TeamScreen({ team }: { team: string }) {
 export function PlayerScreen({ pid }: { pid: string }) {
   const L = useApp().league!;
   const p = L.players[pid];
-  const [tab, setTab] = useState<'Ratings' | 'Archetype' | 'Stats' | 'Contract' | 'Bio'>('Ratings');
+  const [tab, setTab] = useState<'Ratings' | 'Archetype' | 'Development' | 'Stats' | 'Contract' | 'Bio'>('Ratings');
   const [modal, setModal] = useState<null | 'release' | 'extend'>(null);
   if (!p) return <div className="empty">Player not found.</div>;
   const t = L.teams[p.team];
@@ -152,8 +153,9 @@ export function PlayerScreen({ pid }: { pid: string }) {
           <div />
         </div>
       </div>
-      <Tabs tabs={(hasTree(p.pos) && !prospect ? ['Ratings', 'Archetype', 'Stats', 'Contract', 'Bio'] : ['Ratings', 'Stats', 'Contract', 'Bio']) as ('Ratings' | 'Archetype' | 'Stats' | 'Contract' | 'Bio')[]} on={tab} set={setTab} />
+      <Tabs tabs={(hasTree(p.pos) && !prospect ? ['Ratings', 'Archetype', 'Development', 'Stats', 'Contract', 'Bio'] : prospect ? ['Ratings', 'Stats', 'Contract', 'Bio'] : ['Ratings', 'Development', 'Stats', 'Contract', 'Bio']) as ('Ratings' | 'Archetype' | 'Development' | 'Stats' | 'Contract' | 'Bio')[]} on={tab} set={setTab} />
       {tab === 'Archetype' && <ArchetypeTab p={p} />}
+      {tab === 'Development' && <DevTab p={p} />}
       {tab === 'Ratings' && (
         <div className="grid g4">
           {ATTR_GROUPS.map(([g, keys]) => (

@@ -3,7 +3,7 @@ import data from '../data/league.json';
 import type { Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
 import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, devTrait, overall, potential } from './ratings';
-import { seasonForm, starterMeans } from './offseason';
+import { seasonForm, starterMeans, applyDelta } from './offseason';
 import { generateClass } from './draft';
 import { CAP_2026, capSpace, makeContract, minSalary, restructure, rookieContract } from './contracts';
 
@@ -152,6 +152,7 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   }
   // Free agents keep an asking price for when they sign.
   for (const p of Object.values(players)) if (p.team === 'FA') p.contract = { years: [] };
+  widenRatings(league, rng);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
   league.baseline = starterMeans(league);
@@ -161,6 +162,33 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
 }
 
 // ---- depth charts -----------------------------------------------------------------------
+/** Starters per team at each position (the sim's base personnel). */
+const STARTERS_N: Partial<Record<Pos, number>> = { QB: 1, RB: 1, WR: 3, TE: 1, OT: 2, G: 2, C: 1, EDGE: 2, DT: 2, LB: 2, CB: 3, S: 2, K: 1, P: 1 };
+/**
+ * Spread the bottom half of each position. The source ratings bunch every starter
+ * into the 70s: below the median starter at a position, the gap is stretched by 40%,
+ * so weak starters sit in the 60s and backups below them, while stars are untouched.
+ */
+function widenRatings(league: League, rng: Rng) {
+  for (const [pos, n] of Object.entries(STARTERS_N) as [Pos, number][]) {
+    // Quarterbacks and kickers keep their scale: a 58 QB starting would be unrealistic.
+    if (pos === 'QB' || pos === 'K' || pos === 'P') continue;
+    const ps = Object.values(league.players).filter(p => p.pos === pos && p.status !== 'PROSPECT' && p.status !== 'RET').sort((a, b) => b.ovr - a.ovr);
+    const starters = ps.slice(0, 32 * n);
+    if (!starters.length) continue;
+    const med = starters[Math.floor(starters.length / 2)].ovr;
+    for (const p of ps) {
+      if (p.ovr >= med) continue;
+      const delta = Math.max(-7, Math.round((p.ovr - med) * 0.32));
+      if (!delta) continue;
+      const before = p.ovr;
+      applyDelta(p, delta, rng);
+      p.ovr = overall(p.pos, p.attrs);
+      p.pot = Math.max(p.ovr, p.pot + (p.ovr - before));
+    }
+  }
+}
+
 export const DEPTH_SLOTS: Record<Pos, number> = { QB: 3, RB: 4, FB: 1, WR: 6, TE: 3, OT: 4, G: 4, C: 2, EDGE: 5, DT: 5, LB: 5, CB: 6, S: 4, K: 1, P: 1, LS: 1 };
 export function rosterOf(league: League, team: string, includeInactive = false): Player[] {
   return Object.values(league.players).filter(p => p.team === team && (includeInactive ? p.status !== 'RET' : p.status === 'ACT'));
@@ -223,5 +251,7 @@ export function teamRatings(league: League, team: string) {
   // Unit ratings: offense is QB-driven so it spreads wider than defense and
   // gets no stretch; both bend past 86 and never exceed 92.
   const unit = (v: number) => Math.round(Math.min(92, v > 86 ? 86 + (v - 86) * 0.6 : v));
-  return { qb, skill, ol, dl, lb, db, st, off: unit(off), def: unit(50 + (def - 50) * 1.15), ovr: Math.round(Math.min(99, 50 + (raw - 50) * 1.13)) };
+  // Below the league's middle the team overall is stretched so bad rosters read as bad (high 60s).
+  const t0 = Math.min(99, 50 + (raw - 50) * 1.13), stretched = t0 < 83 ? 83 - (83 - t0) * 1.5 : t0;
+  return { qb, skill, ol, dl, lb, db, st, off: unit(off), def: unit(50 + (def - 50) * 1.15), ovr: Math.round(stretched) };
 }

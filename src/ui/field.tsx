@@ -17,7 +17,7 @@ import { app } from './store';
 
 const MID = 26.65, FW = 53.3;
 const lum = (hex: string) => { const n = parseInt(hex.replace('#', '').slice(0, 6), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
-function kitFor(t: Team, home: boolean): Kit {
+export function kitFor(t: Team, home: boolean): Kit {
   const u = UNIFORM[t.abbr] ?? { body: t.colors[0], num: '#ffffff', trim: t.colors[1] };
   const helmet = t.abbr === 'DAL' ? '#a5acaf' : t.abbr === 'NO' ? '#d3bc8d' : t.abbr === 'PIT' || t.abbr === 'NE' || t.abbr === 'TEN' ? '#c0c4c8' : u.body === '#FFFFFF' ? t.colors[0] : u.body;
   const dark = lum(u.body) < 200 ? u.body : t.colors[0];
