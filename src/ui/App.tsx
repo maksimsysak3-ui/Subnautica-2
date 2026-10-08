@@ -22,6 +22,7 @@ import { MatchupPreview } from './screens/preview';
 import { GamedayScreen, OptionsScreen } from './screens/gameday';
 import { PresserScreen } from './screens/presser';
 import { CoachCreateScreen } from './screens/coachcreate';
+import { Tutorial } from './tutorial';
 import { gmName } from './actions';
 import { CrashGuard } from './crash';
 
@@ -76,6 +77,7 @@ export function App() {
         </aside>
         <main className="main fade-in" key={JSON.stringify(sc)}><CrashGuard inline><Route sc={sc} /></CrashGuard></main>
       </div>
+      {sc.id !== 'coachcreate' && <Tutorial />}
       <BottomLine tag="News Center" items={leagueCrawl(L)} right={<NextGame />} hints={<><span><kbd>Q</kbd><kbd>E</kbd>Tabs</span><span><kbd>Enter</kbd>Select</span><span><kbd>X</kbd>Delegate</span><span><kbd>Esc</kbd>Back</span><span className="spacer" /><span>{gmName(L)} · General Manager</span></>} />
       {overlay}
     </>

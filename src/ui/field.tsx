@@ -6,7 +6,7 @@
 // Extras that make it feel alive: the chain crew and down marker, two officials
 // who run in and signal, pylons, tackle dust, confetti on a score.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PlayEvent } from '../sim/game';
+import type { PlayEvent, Weather } from '../sim/game';
 import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
@@ -92,7 +92,7 @@ function drawPosts(g: CanvasRenderingContext2D, G: Geo, sx: (x: number) => numbe
 
 // ---- the component -----------------------------------------------------------------------
 interface Fx { kind: 'dust' | 'confetti'; x: number; y: number; t0: number; c?: string[] }
-export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone }: { ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void }) {
+export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night }: { ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean }) {
   const lastEv = useRef<PlayEvent | null>(null);
   if (evIn) lastEv.current = evIn;
   const ev = evIn ?? lastEv.current;
@@ -104,6 +104,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone 
   const field = useRef<{ c: HTMLCanvasElement; X0: number; key: string } | null>(null);
   const img = useRef<HTMLImageElement | null>(null);
   const camX = useRef(60);
+  const wxp = useRef<{ x: number; y: number; v: number }[]>([]);
   const size = useRef({ w: 1000, h: 520 });
   const [banner, setBanner] = useState<{ n: number; text: string; color: string; sub?: string; small?: boolean } | null>(null);
   const kits = useMemo(() => [kitFor(away, false), kitFor(home, true)] as const, [home.abbr, away.abbr]);
@@ -151,6 +152,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone 
       }
       drawPosts(g, G, sx, sy);
       drawFx(g, fx, now, sx, sy);
+      drawWeather(g, G, weather, night, wxp.current, dt, now);
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, c.width, c.height);
       ctx.drawImage(lc, 0, 0, G.RW, G.RH, 0, 0, G.RW * G.S, G.RH * G.S);
@@ -160,7 +162,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone 
         if (ev) { const b = bannerFor(ev, home, away, scene); if (b) setBanner({ n: ev.n, ...b }); }
         onDone?.();
       }
-      const busy = (playing && t < 1) || Math.abs(goal - camX.current) > 0.05 || fx.some(f => now - f.t0 < 2600) || (ended && now - endAt < 2600);
+      const busy = (!!weather && weather.precip !== 'none' && !weather.dome) || (playing && t < 1) || Math.abs(goal - camX.current) > 0.05 || fx.some(f => now - f.t0 < 2600) || (ended && now - endAt < 2600);
       if (busy) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -168,6 +170,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone 
   }, [ev?.n, playing]);
   return (
     <div ref={wrap} className="bcast px">
+      {weather && <div className="px-wx">{weather.dome ? 'DOME' : `${weather.precip === 'none' ? (night ? 'NIGHT' : 'CLEAR') : weather.precip.toUpperCase()} ${weather.temp}°${weather.wind >= 8 ? ` · WIND ${weather.wind} MPH` : ''}`}</div>}
       <canvas ref={cv} style={{ width: '100%', display: 'block', imageRendering: 'pixelated' }} />
       {ev && <div className="bc-dd"><b>{ev.type === 'kickoff' ? 'Kickoff' : ev.type === 'punt' ? 'Punt' : ev.type === 'fg' ? 'Field Goal' : ev.type === 'xp' ? 'Extra Point' : `${['1st', '2nd', '3rd', '4th'][ev.down - 1] ?? ''} & ${ev.yl + ev.togo >= 100 ? 'Goal' : ev.togo}`}</b>{ev.call && <span>{ev.call}</span>}{ev.dcall && <em>vs {ev.dcall}</em>}</div>}
       {banner && <div key={banner.n} className={`pxbanner${banner.small ? ' small' : ''}`} style={{ '--bc': banner.color } as React.CSSProperties}><span>{banner.text}</span>{banner.sub && <small>{banner.sub}</small>}</div>}
@@ -290,6 +293,29 @@ function drawArt(g: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolea
     g.strokeStyle = a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'block' ? 'rgba(255,255,255,.5)' : '#fff';
     g.beginPath(); pts.forEach(([dx, dy], j) => { const [x, y] = at(dx, dy); j ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5); }); g.stroke();
     const [ex, ey] = at(...pts[pts.length - 1]); g.fillStyle = g.strokeStyle as string; g.fillRect(ex - 1, ey - 1, 3, 3);
+  }
+}
+
+/** Rain streaks or drifting snow over the field, an overcast tint, and stadium lights at night. */
+function drawWeather(g: CanvasRenderingContext2D, G: { RW: number; RH: number }, w: Weather | undefined, night: boolean | undefined, ps: { x: number; y: number; v: number }[], dt: number, now: number) {
+  const { RW, RH } = G;
+  if (night) {
+    // Darker sky, with the field lit by the stadium banks (brighter in the middle).
+    const grd = g.createRadialGradient(RW / 2, RH * 0.55, RH * 0.2, RW / 2, RH * 0.55, RW * 0.75);
+    grd.addColorStop(0, 'rgba(10,14,30,0)'); grd.addColorStop(1, 'rgba(6,8,22,.45)');
+    g.fillStyle = grd; g.fillRect(0, 0, RW, RH);
+    for (let i = 0; i < 4; i++) { const lx = Math.round(RW * (0.12 + i * 0.25)); g.fillStyle = 'rgba(255,250,225,.9)'; g.fillRect(lx, 1, 6, 2); g.fillStyle = 'rgba(255,250,225,.07)'; g.beginPath(); g.moveTo(lx - 2, 3); g.lineTo(lx + 8, 3); g.lineTo(lx + 40, RH); g.lineTo(lx - 34, RH); g.fill(); }
+  }
+  if (!w || w.dome || w.precip === 'none') return;
+  const snow = w.precip === 'snow', wind = (w.wind / 20) * (snow ? 14 : 26);
+  g.fillStyle = snow ? 'rgba(235,240,250,.10)' : 'rgba(40,50,70,.16)'; g.fillRect(0, 0, RW, RH);
+  const want = snow ? 140 : 170;
+  while (ps.length < want) ps.push({ x: Math.random() * RW, y: Math.random() * RH, v: 0.6 + Math.random() * 0.8 });
+  for (const p of ps) {
+    p.y += (snow ? 14 : 150) * p.v * dt; p.x += (wind + (snow ? Math.sin(now / 600 + p.v * 9) * 6 : 0)) * dt;
+    if (p.y > RH) { p.y = -2; p.x = Math.random() * RW; } if (p.x > RW) p.x -= RW; if (p.x < 0) p.x += RW;
+    if (snow) { g.fillStyle = `rgba(255,255,255,${0.55 + p.v * 0.3})`; g.fillRect(Math.round(p.x), Math.round(p.y), p.v > 1.1 ? 2 : 1, p.v > 1.1 ? 2 : 1); }
+    else { g.fillStyle = 'rgba(190,210,235,.55)'; const len = 3 + Math.round(p.v * 2); for (let k = 0; k < len; k++) g.fillRect(Math.round(p.x - (wind / 150) * k), Math.round(p.y - k), 1, 1); }
   }
 }
 

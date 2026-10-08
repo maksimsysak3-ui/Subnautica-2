@@ -734,3 +734,27 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .arch-tog { display: flex; align-items: center; gap: 6px; font: 600 11px var(--ui); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; cursor: pointer; white-space: nowrap; }
 .arch-tog.on { color: #fff; }
 .arch-tog input { accent-color: var(--ac, #fff); }
+
+/* ---- tutorial -------------------------------------------------------------------- */
+.tut { position: fixed; inset: 0; z-index: 900; }
+.tut-dim { position: absolute; inset: 0; background: rgba(4,6,10,.78); }
+.tut-hole { position: fixed; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(4,6,10,.78), 0 0 0 2px #fff, 0 0 30px rgba(255,255,255,.35); transition: all .25s ease; pointer-events: none; }
+.tut-card { position: fixed; background: #0f1218; border: 1px solid rgba(255,255,255,.14); border-top: 3px solid var(--team2, #fff); padding: 16px 18px 14px; box-shadow: 0 24px 60px rgba(0,0,0,.6); transition: left .25s ease, top .25s ease; animation: tutIn .3s ease both; }
+@keyframes tutIn { from { opacity: 0; transform: translateY(8px); } }
+.tut-card h3 { margin: 2px 0 6px; font: 700 24px/1 var(--head); text-transform: uppercase; letter-spacing: .02em; color: #fff; }
+.tut-card p { margin: 0 0 12px; font: 500 14px/1.5 var(--ui); color: #d9dee8; }
+.tut-step { font: 700 10px Silkscreen, monospace; color: var(--mute); letter-spacing: .08em; }
+.tut-dots { display: flex; gap: 4px; margin-bottom: 12px; }
+.tut-dots i { width: 14px; height: 3px; background: rgba(255,255,255,.18); }
+.tut-dots i.done { background: rgba(255,255,255,.5); } .tut-dots i.on { background: #fff; width: 26px; }
+.px-wx { position: absolute; right: 10px; bottom: 10px; z-index: 4; padding: 3px 8px; background: rgba(8,9,12,.75); font: 700 11px Silkscreen, monospace; letter-spacing: .06em; color: #cfe3ff; pointer-events: none; }
+.og { display: grid; grid-template-columns: 170px repeat(4, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.og-h { display: grid; align-content: center; padding: 10px 14px; background: var(--s1); border: 1px solid var(--hair); border-left: 3px solid var(--team2, #fff); }
+.og-h b { font: 700 26px/1 var(--head); color: #fff; } .og-h em { font: 500 11px var(--ui); font-style: normal; color: var(--mute); margin-top: 2px; }
+.og-g { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--s1); border: 1px solid var(--hair); }
+.og-g i { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border: 2px solid rgba(255,255,255,.25); font-style: normal; font-weight: 800; color: #0b0d11; }
+.og-g.met i { background: #49e08a; border-color: #49e08a; }
+.og-g div { flex: 1; min-width: 0; display: grid; } .og-g b { font: 700 15px var(--head); text-transform: uppercase; letter-spacing: .02em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.og-g span { font: 500 12px var(--ui); color: var(--dim); } .og-g em { font: 700 12px var(--ui); font-style: normal; color: var(--mute); }
+.og-g.met em { color: #49e08a; }
+@media (max-width: 1000px) { .og { grid-template-columns: 1fr 1fr; } .og-h { grid-column: span 2; } }

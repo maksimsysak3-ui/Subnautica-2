@@ -10,6 +10,7 @@ import { teamRatings, rosterOf } from '../../core/league';
 import { money } from '../../core/contracts';
 import type { League, Player } from '../../core/types';
 import { WeeklyCards } from './weekly';
+import { ownerGoals, goalProgress } from '../../core/goals';
 
 export function Hub() {
   const L = useApp().league!;
@@ -22,6 +23,7 @@ export function Hub() {
   return (
     <div className="grid" style={{ gridTemplateColumns: 'repeat(12, minmax(0,1fr))', gap: 16 }}>
       <div style={{ gridColumn: 'span 12', minWidth: 0 }}><WeeklyCards /></div>
+      <OwnerGoalsStrip />
 
       <div className="card" style={{ gridColumn: 'span 4' }}>
         <div className="snap">{([['Overall', r.ovr], ['Offense', r.off], ['Defense', r.def]] as const).map(([k, v]) => <div key={k}><b><CountUp v={v} /></b><span>{k}</span></div>)}</div>
@@ -167,3 +169,20 @@ const blurb = (L: League) => ({
   camp: 'Rookies report and position battles settle. Final cuts come next.', regular: '', playoffs: '',
 }[L.phase]);
 export { money };
+
+/** The owner's four season goals with live progress. */
+function OwnerGoalsStrip() {
+  const L = useApp().league!;
+  const s = ownerGoals(L);
+  if (!s || (L.phase !== 'regular' && L.phase !== 'preseason')) return null;
+  return (
+    <div className="og" style={{ gridColumn: 'span 12' }}>
+      <div className="og-h"><span className="up">Owner's goals</span><b>{L.season}</b><em>Job security {Math.round(L.security)}</em></div>
+      {s.list.map(g => { const p = goalProgress(L, g); return (
+        <div key={g.id} className={`og-g${p.met ? ' met' : ''}`}>
+          <i>{p.met ? '✓' : ''}</i><div><b>{g.label}</b><span>{p.text}</span></div><em>+{g.reward}</em>
+        </div>
+      ); })}
+    </div>
+  );
+}

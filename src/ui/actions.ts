@@ -334,6 +334,129 @@ export function weeklyCards(L: League): ActionCard[] {
       choices: [{ label: 'Trade Center', run: o => o.go('trade') }, { label: 'Trade Block', run: o => o.go('block') }, { label: 'Stand Pat', hint: 'Locker room +1', run: () => { resolve(L, `deadline-${L.season}`); return fx({ locker: 1 }); } }] });
   }
 
+  // ---- the rest of the week: situations that come and go ---------------------------
+  const pool: ActionCard[] = [];
+  const pid = (k: string) => `${k}-${wk}`;
+  const h = (k: string) => hash(`${L.seed}-${wk}-${k}`) >>> 0;
+  const byeWeek = L.phase === 'regular' && !ug;
+
+  // Bye week.
+  if (byeWeek) add({ id: pid('bye'), kind: 'Bye Week', feature: true, headline: `How do you use the bye?`, team: me,
+    body: `No game this week. Bodies are sore, the playbook could use work, and the room could use a breather.`,
+    choices: [
+      { label: 'Full Rest', hint: 'Every player condition +15', run: () => { for (const p of roster) p.cond = Math.min(100, p.cond + 15); resolve(L, pid('bye')); return 'The team is fresh'; } },
+      { label: 'Install New Plays', hint: 'Momentum +0.9 for the next game', run: () => { resolve(L, pid('bye')); return fx({ momentum: 0.9 }); } },
+      { label: 'Team Retreat', hint: 'Locker room +4 · Fans +1', run: () => { resolve(L, pid('bye')); return fx({ locker: 4, fans: 1 }); } },
+    ],
+    delegate: { who: hc, role: 'Head Coach', quote: `Rest first, then a couple of install days.`, run: () => { for (const p of roster) p.cond = Math.min(100, p.cond + 8); resolve(L, pid('bye')); fx({ momentum: 0.4 }); } } });
+
+  // Short week (Thursday / Wednesday game).
+  if (nextG && opp && (nextG.day === 'Thu' || nextG.day === 'Wed')) add({ id: pid('short'), kind: 'Short Week', headline: `Short week: how do you prepare?`, team: opp,
+    body: `${nextG.day === 'Thu' ? 'Thursday' : 'Wednesday'} night against the ${opp.nick}, with three days to recover and prepare. You can't do everything.`,
+    choices: [
+      { label: 'Walkthroughs Only', hint: 'Condition +8 for everyone · Momentum −0.3', run: () => { for (const p of roster) p.cond = Math.min(100, p.cond + 8); resolve(L, pid('short')); return fx({ momentum: -0.3 }); } },
+      { label: 'Full Game Plan', hint: 'Momentum +0.4 · players stay tired', run: () => { resolve(L, pid('short')); return fx({ momentum: 0.4 }); } },
+    ] });
+
+  // Film study: pick a focus that sets this week's defensive plan.
+  if (nextG && opp && L.phase === 'regular') {
+    const ost = standings(L)[opp.abbr]; const gp = ost.w + ost.l + ost.t;
+    pool.push({ id: pid('film'), kind: 'Film Room', headline: `What did the film show on the ${opp.nick}?`, team: opp,
+      body: `Your staff broke down the ${opp.nick} (${gp ? `${(ost.pf / gp).toFixed(1)} points a game` : 'no games yet'}). Where do you put the focus this week?`,
+      choices: [
+        { label: 'Stop the Run', hint: 'Defensive plan: Stop the Run · Momentum +0.3', run: () => { me.plan.def = 'Stop the Run'; resolve(L, pid('film')); return `Plan set: Stop the Run · ${fx({ momentum: 0.3 })}`; } },
+        { label: 'Stop the Pass', hint: 'Defensive plan: Stop the Pass · Momentum +0.3', run: () => { me.plan.def = 'Stop the Pass'; resolve(L, pid('film')); return `Plan set: Stop the Pass · ${fx({ momentum: 0.3 })}`; } },
+        { label: 'Self-Scout', hint: 'Fix your own tells: Momentum +0.5', run: () => { resolve(L, pid('film')); return fx({ momentum: 0.5 }); } },
+      ] });
+  }
+
+  // A veteran offers to mentor a young player at his position.
+  if (inSeason) {
+    const vet = roster.filter(p => p.age >= 30 && p.ovr >= 80 && hasTree(p.pos)).sort((a, b) => b.ovr - a.ovr)[0];
+    const kid = vet && roster.filter(p => p.pos === vet.pos && p.age <= 24 && p.id !== vet.id).sort((a, b) => b.pot - a.pot)[0];
+    if (vet && kid) pool.push({ id: `mentor-${kid.id}-${L.season}`, kind: 'Mentorship', headline: `Will ${vet.ln} take ${kid.ln} under his wing?`, p: kid, team: me,
+      body: `${vet.fn} ${vet.ln} (${vet.age}, ${vet.ovr} OVR) has offered to mentor ${kid.fn} ${kid.ln} (${kid.age}, ${kid.pot} potential). It costs the veteran some of his own prep time.`,
+      choices: [
+        { label: 'Make It Official', hint: `${kid.ln} +2 skill points and faster growth · ${vet.ln} morale +4, condition −5`, run: () => { sp(kid, 2); kid.xp += 400; vet.cond = Math.max(0, vet.cond - 5); resolve(L, `mentor-${kid.id}-${L.season}`); return fx({ players: [{ pid: vet.id, delta: 4 }, { pid: kid.id, delta: 4 }] }); } },
+        { label: 'Not This Year', hint: `${vet.ln} morale −2`, run: () => { resolve(L, `mentor-${kid.id}-${L.season}`); return fx({ players: [{ pid: vet.id, delta: -2 }] }); } },
+      ] });
+  }
+
+  // Social media flap.
+  if (inSeason) {
+    const loud = roster.filter(p => p.traits.ego >= 72 && p.ovr >= 75).sort((a, b) => (h(a.id) % 97) - (h(b.id) % 97))[0];
+    if (loud) pool.push({ id: pid(`post-${loud.id}`), kind: 'Social Media', headline: `What do you do about ${loud.ln}'s post?`, p: loud, team: me,
+      body: `${loud.fn} ${loud.ln} posted a late-night rant about his role and "people upstairs". It has a million views and every reporter wants a reaction.`,
+      choices: [
+        { label: 'Fine Him', hint: `${loud.ln} morale −7 · Owner +2 · Locker room +1`, run: () => { resolve(L, pid(`post-${loud.id}`)); return fx({ players: [{ pid: loud.id, delta: -7 }], owner: 2, locker: 1 }); } },
+        { label: 'Defend Him', hint: `${loud.ln} morale +5 · Fans −2 · Owner −1`, run: () => { resolve(L, pid(`post-${loud.id}`)); return fx({ players: [{ pid: loud.id, delta: 5 }], fans: -2, owner: -1 }); } },
+        { label: 'Handle It In-House', hint: `${loud.ln} morale +1 · nothing public`, run: () => { resolve(L, pid(`post-${loud.id}`)); return fx({ players: [{ pid: loud.id, delta: 1 }] }); } },
+      ] });
+  }
+
+  // Your coordinator is wanted elsewhere (after a hot run).
+  const myStreak = /W(\d+)/.exec(standings(L)[L.user]?.streak ?? '');
+  if (L.phase === 'regular' && myStreak && +myStreak[1] >= 4) add({ id: `poach-${L.season}`, kind: 'Coaching Staff', headline: `Do you let your coordinator interview?`, team: me,
+    body: `${+myStreak[1]} straight wins and other teams have noticed. A rival wants to talk to your offensive coordinator about their head coaching job.`,
+    choices: [
+      { label: 'Block It', hint: 'Keeps the staff together · Owner +1 · Locker room −1', run: () => { resolve(L, `poach-${L.season}`); return fx({ owner: 1, locker: -1 }); } },
+      { label: 'Give Him a Raise', hint: 'Owner −3 · Locker room +2 · Momentum +0.3', run: () => { resolve(L, `poach-${L.season}`); return fx({ owner: -3, locker: 2, momentum: 0.3 }); } },
+      { label: 'Let Him Interview', hint: 'Locker room +1 · Momentum −0.4 (distraction)', run: () => { resolve(L, `poach-${L.season}`); return fx({ locker: 1, momentum: -0.4 }); } },
+    ] });
+
+  // Pro Bowl voting.
+  if (L.phase === 'regular' && L.week >= 13 && L.week <= 15) {
+    const star = roster.slice().sort((a, b) => b.ovr - a.ovr)[0];
+    if (star) add({ id: `probowl-${L.season}`, kind: 'Pro Bowl', headline: `Do you campaign for ${star.ln}?`, p: star, team: me,
+      body: `Pro Bowl voting closes soon. A push from the team could get ${star.fn} ${star.ln} and a couple of teammates in.`,
+      choices: [
+        { label: 'Full Campaign', hint: `${star.ln} morale +6 · Fans +2 · Locker room +1`, run: () => { resolve(L, `probowl-${L.season}`); return fx({ players: [{ pid: star.id, delta: 6 }], fans: 2, locker: 1 }); } },
+        { label: 'Let the Play Speak', hint: 'No change', run: () => { resolve(L, `probowl-${L.season}`); } },
+      ] });
+  }
+
+  // A hot streak: three straight big games.
+  if (L.phase === 'regular' && L.week >= 4) {
+    const big = (p: Player, w: number) => { const g = L.games.find(x => x.season === L.season && x.week === w && (x.home === L.user || x.away === L.user)); const l = g?.result?.box?.players[p.id]; return !!l && ((l.py ?? 0) >= 280 || (l.ry ?? 0) >= 90 || (l.recy ?? 0) >= 90 || (l.dsk ?? 0) >= 2 || (l.dint ?? 0) >= 1); };
+    const hot = roster.find(p => [1, 2, 3].every(k => big(p, L.week - k)));
+    if (hot) add({ id: `hot-${hot.id}-${L.week}`, kind: 'Hot Streak', headline: `Is ${hot.ln} the hottest player in football?`, p: hot, team: me,
+      body: `Three straight huge games for ${hot.fn} ${hot.ln}. Highlights everywhere, national talk shows calling.`,
+      choices: [
+        { label: 'Ride the Hot Hand', hint: `${hot.ln} morale +6 · +1 skill point · Momentum +0.4`, run: () => { sp(hot, 1); resolve(L, `hot-${hot.id}-${L.week}`); return fx({ players: [{ pid: hot.id, delta: 6 }], momentum: 0.4 }); } },
+        { label: 'Keep Him Humble', hint: 'Locker room +2', run: () => { resolve(L, `hot-${hot.id}-${L.week}`); return fx({ locker: 2 }); } },
+      ] });
+  }
+
+  // Scouting trip.
+  if (L.phase === 'regular' && L.week >= 6) pool.push({ id: pid('scout'), kind: 'Scouting', headline: `Where do the scouts go this weekend?`, team: me,
+    body: `A marquee college game is on Saturday, with three first-round prospects on the field. Your pro scouts would rather stay on next week's opponent.`,
+    choices: [
+      { label: 'College Game', hint: '+70 scouting points for the draft', run: () => { L.scoutPoints += 70; resolve(L, pid('scout')); return '+70 scouting points'; } },
+      { label: 'Pro Advance Work', hint: 'Momentum +0.4', run: () => { resolve(L, pid('scout')); return fx({ momentum: 0.4 }); } },
+    ] });
+
+  // Community and charity.
+  if (inSeason) pool.push({ id: pid('charity'), kind: 'Community', headline: `Will the team visit the children's hospital?`, team: me,
+    body: `The players want to spend Tuesday, their day off, at the children's hospital. The trainers would rather they rested.`,
+    choices: [
+      { label: 'Whole Team Goes', hint: 'Fans +3 · Locker room +2 · condition −3', run: () => { for (const p of roster) p.cond = Math.max(0, p.cond - 3); resolve(L, pid('charity')); return fx({ fans: 3, locker: 2 }); } },
+      { label: 'Captains Go', hint: 'Fans +1 · Locker room +1', run: () => { resolve(L, pid('charity')); return fx({ fans: 1, locker: 1 }); } },
+    ] });
+
+  // A practice standout at the bottom of the roster.
+  if (inSeason) {
+    const deep = roster.filter(p => p.age <= 25 && p.pot - p.ovr >= 10 && p.ovr < 70 && hasTree(p.pos)).sort((a, b) => b.pot - a.pot)[0];
+    if (deep) pool.push({ id: `standout-${deep.id}-${L.season}`, kind: 'Practice', headline: `Has ${deep.ln} earned a look?`, p: deep, team: me,
+      body: `${deep.fn} ${deep.ln} (${deep.pos}, ${deep.ovr} OVR, ${deep.pot} potential) has been the best player at practice for two weeks.`,
+      choices: [
+        { label: 'Extra Reps', hint: `${deep.ln} faster growth and +1 skill point · morale +5`, run: () => { deep.xp += 600; sp(deep, 1); resolve(L, `standout-${deep.id}-${L.season}`); return fx({ players: [{ pid: deep.id, delta: 5 }] }); } },
+        { label: 'Stay the Course', hint: `${deep.ln} morale −3`, run: () => { resolve(L, `standout-${deep.id}-${L.season}`); return fx({ players: [{ pid: deep.id, delta: -3 }] }); } },
+      ] });
+  }
+
+  // A couple of the situational cards a week, so the row stays a hand and not a pile.
+  pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).slice(0, 2).forEach(c => out.push(c));
+
   // This week's opponent closes the row.
   const g = inSeason ? userGame(L) : undefined;
   if (g && !g.result) {

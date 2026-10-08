@@ -98,7 +98,7 @@ export function GameScreen({ gid }: { gid: string }) {
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
           <div className="card" style={{ padding: 10, background: 'linear-gradient(180deg,#0b1424,#070b14)' }}>
-            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'penalty' && ev.type !== 'kneel' && ev.type !== 'spike' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} />
+            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'penalty' && ev.type !== 'kneel' && ev.type !== 'spike' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} />
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
               <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={ev?.big ? 'gold' : ''}>{ev?.text ?? 'Kickoff is moments away.'}</div>

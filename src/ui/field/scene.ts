@@ -310,7 +310,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const offTarget = pass && !ev.complete && !picked && !defended && !dropped && !throwAway;
   const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
   const endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
-  const dropT = (Math.abs(air) <= 2 ? 0.55 : 0.95) + rnd() * 0.2;
+  // Quick game for short throws (3-step), a full drop for intermediate and deep ones.
+  const dropT = (air <= 2 ? 0.45 : air <= 9 ? 0.6 : 0.95) + rnd() * 0.15;
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
   let throwT = Infinity, airT = 0, catchT = Infinity;
   const flight = (a: [number, number], b: [number, number]) => 0.22 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 15 ? 21 : 18);
@@ -343,7 +344,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       for (let it = 0; it < 3; it++) { proj = [target.x + target.vx * lead, clampY(target.y + target.vy * lead)]; lead = flight(from, proj); }
       const depth = s * (proj[0] - los);
       if (depth >= air - 0.6 || t >= deadline) {
-        if (depth < air - 0.6) proj = [los + s * air, proj[1]];   // late: he has to get there
+        // The catch is made at the engine's air yards: never deeper (that would show a 9-yard
+        // gain as a 20-yard one), and if he is short of it he has to get there.
+        if (Math.abs(depth - air) > 0.6) proj = [los + s * air, proj[1]];
         thrown = true; throwT = t; throwFrom = from; recvPt = proj;
         catchPt = throwAway ? [QB.x + s * 9, QB.y > mid ? 53.8 : -0.6]
           : picked ? [proj[0] - s * 1.1, clampY(proj[1] + (rnd() - 0.5) * 1.2)]
@@ -361,6 +364,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         if (c && a !== c && a.team !== c.team && dist(a, c) < 2.4) steer(a, c.x, c.y, 0.35);
         else steer(a, a.x + a.vx * 0.12, a.y + a.vy * 0.12, 0.2);
       }
+      // The ball carrier is down where he was tackled.
+      if (carrier) { carrier.vx *= 0.75; carrier.vy *= 0.75; }
     } else {
     // Offense.
     OL.forEach((o, i) => {

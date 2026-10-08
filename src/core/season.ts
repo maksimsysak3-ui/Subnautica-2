@@ -9,6 +9,7 @@ import { GameSim } from '../sim/game';
 import { aiWeekly } from './ai';
 import { startOffseason } from './offseason';
 import { settleMedia } from './media';
+import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
 
 export const REG_WEEKS = 18;
 export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisional', 21: 'Conference Championship', 22: 'Super Bowl' };
@@ -183,9 +184,10 @@ export function advanceWeek(league: League): boolean {
   aiWeekly(league, rng);
   coachXp(league);
   settleMedia(league);
+  if (league.phase === 'regular') { ownerGoals(league); playersOfTheWeek(league); }
   if (league.phase === 'regular') league.scoutPoints += 45;
   if (league.phase === 'regular') {
-    if (league.week === REG_WEEKS) { regularSeasonAwards(league); startPlayoffs(league); return true; }
+    if (league.week === REG_WEEKS) { settleOwnerGoals(league); regularSeasonAwards(league); startPlayoffs(league); return true; }
     league.week++;
     if (league.week === league.tradeDeadlineWeek + 1) news(league, 'league', 'The trade deadline has passed.', []);
   } else if (league.phase === 'playoffs') {

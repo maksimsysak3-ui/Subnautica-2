@@ -3,6 +3,7 @@
 import { useApp, app, saveLeague } from '../store';
 import { userGame } from '../../core/season';
 import { autoSpend, setTeamAuto, hasTree, treeOf } from '../../core/archetypes';
+import { startTutorial } from '../tutorial';
 import { MatchupPreview } from './preview';
 import { GameDay } from './hub';
 
@@ -29,6 +30,7 @@ export function OptionsScreen() {
           <button className="btn" onClick={() => app.go({ id: 'load' })}>Load</button>
           <button className="btn" onClick={() => app.go({ id: 'menu' })}>Main Menu</button>
           <button className="btn" onClick={() => app.go({ id: 'coachcreate' })}>Edit Coach</button>
+          <button className="btn" onClick={() => { app.go({ id: 'hub' }); setTimeout(startTutorial, 50); }}>Replay Tutorial</button>
         </div>
       </div>
       <div className="card">
