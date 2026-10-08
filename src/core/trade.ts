@@ -45,15 +45,15 @@ export function projectedSlot(league: League, pick: Pick) {
   const idx = order.findIndex(s => s[0] === pick.orig);
   const projected = idx < 0 ? 16.5 : idx + 1;
   const yearsOut = Math.max(0, pick.season - nextDraft(league));
-  const within = projected + (16.5 - projected) * Math.min(1, yearsOut * 0.5);
+  const within = projected + (16.5 - projected) * Math.min(1, yearsOut * 0.35);
   return Math.round((pick.round - 1) * 32 + within);
 }
 export function pickTradeValue(league: League, pick: Pick, forTeam?: string) {
-  // About 15% a year for waiting on a future pick.
+  // About 8% a year for waiting on a future pick (teams treat a future first as a first).
   const yearsOut = Math.max(0, pick.season - nextDraft(league));
-  let v = pickValue(projectedSlot(league, pick)) * Math.pow(0.85, yearsOut);
+  let v = pickValue(projectedSlot(league, pick)) * Math.pow(0.92, yearsOut);
   if (forTeam && league.teams[forTeam]?.mode === 'rebuild') v *= 1.2;
-  if (forTeam && league.teams[forTeam]?.mode === 'contend') v *= 0.85;
+  if (forTeam && league.teams[forTeam]?.mode === 'contend') v *= 0.95;
   return v;
 }
 
@@ -91,7 +91,7 @@ export function playerTradeValue(league: League, p: Player, forTeam?: string) {
   const market = marketValue(p, league.season);
   const hit = capHit(p.contract, league.season) || market;
   const surplus = clamp((market - hit) / Math.max(market, 1_000_000), -1, 1);
-  v *= clamp(1 + surplus * 0.45 + (yrs - 1) * 0.06, 0.35, 1.6);
+  v *= clamp(1 + surplus * 0.4 + (yrs - 1) * 0.05, 0.35, 1.45);
   // Young players still carry their draft capital, as teams value them: the slot's
   // chart value, fading over their first three seasons and moved up or down by how
   // they have played against what that slot usually produces.
@@ -105,6 +105,8 @@ export function playerTradeValue(league: League, p: Player, forTeam?: string) {
     const capital = pickValue(p.draft.pick) * keep * perf * posAdj;
     v = Math.max(v, capital * weight + v * (1 - weight));
   }
+  // Even the best non-quarterbacks top out around two first-round picks.
+  if (p.pos !== 'QB' && v > 2400) v = 2400 + (v - 2400) * 0.5;
   if (p.injury?.season) v *= 0.55;
   if (forTeam) {
     const mode = league.teams[forTeam]?.mode;
@@ -117,7 +119,10 @@ export function playerTradeValue(league: League, p: Player, forTeam?: string) {
 /** Value to the receiving team, with diminishing returns for piles of lesser assets. */
 function packageValue(league: League, players: Player[], picks: Pick[], forTeam: string) {
   const vals = [...players.map(p => playerTradeValue(league, p, forTeam)), ...picks.map(k => pickTradeValue(league, k, forTeam))].sort((a, b) => b - a);
-  return vals.reduce((sum, v, i) => sum + v * Math.pow(0.82, i), 0);
+  // Real assets (anything worth at least 40% of the best piece) keep most of their value;
+  // filler is discounted hard so a pile of late picks never buys a star.
+  const top = vals[0] ?? 0;
+  return vals.reduce((sum, v, i) => sum + v * Math.pow(v >= top * 0.4 ? 0.95 : 0.8, i), 0);
 }
 
 export interface TradeVerdict { accept: boolean; give: number; get: number; ratio: number; reason: string }
