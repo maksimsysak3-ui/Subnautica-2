@@ -152,7 +152,7 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   }
   // Free agents keep an asking price for when they sign.
   for (const p of Object.values(players)) if (p.team === 'FA') p.contract = { years: [] };
-  widenRatings(league, rng);
+  liftRatings(league, rng);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
   league.baseline = starterMeans(league);
@@ -165,24 +165,43 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
 /** Starters per team at each position (the sim's base personnel). */
 const STARTERS_N: Partial<Record<Pos, number>> = { QB: 1, RB: 1, WR: 3, TE: 1, OT: 2, G: 2, C: 1, EDGE: 2, DT: 2, LB: 2, CB: 3, S: 2, K: 1, P: 1 };
 /**
- * Spread the bottom half of each position. The source ratings bunch every starter
- * into the 70s: below the median starter at a position, the gap is stretched by 40%,
- * so weak starters sit in the 60s and backups below them, while stars are untouched.
+ * Lift the bottom of each position so every team's starters are real NFL starters:
+ * nobody starting below 70, and 70-72 only for the weakest starters on bad rosters.
+ * Below the median starter the gap is halved (a 66 starter becomes ~73), starters are
+ * floored at 70, and backups get a smaller lift so they stay behind the starters.
+ * Stars are untouched.
  */
-function widenRatings(league: League, rng: Rng) {
+function liftRatings(league: League, rng: Rng) {
+  const lift = (p: Player, target: number) => {
+    const delta = Math.min(14, Math.round(target - p.ovr));
+    if (delta <= 0) return;
+    const before = p.ovr;
+    applyDelta(p, delta, rng);
+    p.ovr = overall(p.pos, p.attrs);
+    p.pot = Math.max(p.ovr, p.pot + (p.ovr - before));
+  };
+  for (const abbr of Object.keys(league.teams)) autoDepth(league, abbr);
   for (const [pos, n] of Object.entries(STARTERS_N) as [Pos, number][]) {
-    // Quarterbacks and kickers keep their scale: a 58 QB starting would be unrealistic.
-    if (pos === 'QB' || pos === 'K' || pos === 'P') continue;
-    const ps = Object.values(league.players).filter(p => p.pos === pos && p.status !== 'PROSPECT' && p.status !== 'RET').sort((a, b) => b.ovr - a.ovr);
-    const starters = ps.slice(0, 32 * n);
+    const starters = Object.keys(league.teams).flatMap(a => (league.teams[a].depth[pos] ?? []).slice(0, n)).map(id => league.players[id]).filter(Boolean);
     if (!starters.length) continue;
-    const med = starters[Math.floor(starters.length / 2)].ovr;
-    for (const p of ps) {
-      if (p.ovr >= med) continue;
-      const delta = Math.max(-7, Math.round((p.ovr - med) * 0.32));
-      if (!delta) continue;
-      const before = p.ovr;
-      applyDelta(p, delta, rng);
+    const ids = new Set(starters.map(p => p.id));
+    const med = starters.map(p => p.ovr).sort((a, b) => a - b)[Math.floor(starters.length / 2)];
+    // Each team's actual starters: gap to the median cut to 40%, never below 70.
+    for (const p of starters) if (p.ovr < med) lift(p, Math.max(70, med - (med - p.ovr) * 0.4));
+    // Everyone else at the position: a smaller lift, so backups stay behind starters.
+    for (const p of Object.values(league.players)) if (p.pos === pos && !ids.has(p.id) && p.status !== 'PROSPECT' && p.status !== 'RET' && p.ovr < med) lift(p, med - (med - p.ovr) * 0.75);
+  }
+}
+
+/** Each preseason: anyone set to start who has slipped below 73 is brought up to the low 70s. */
+export function floorStarters(league: League, rng: Rng) {
+  for (const [pos, n] of Object.entries(STARTERS_N) as [Pos, number][]) for (const abbr of Object.keys(league.teams)) {
+    for (const id of (league.teams[abbr].depth[pos] ?? []).slice(0, n)) {
+      const p = league.players[id];
+      if (!p || p.ovr >= 73) continue;
+      // Lands at 72-74 rather than exactly 70, so 70-72 starters stay rare.
+      const before = p.ovr, target = Math.max(72, 75 - (75 - p.ovr) * 0.4);
+      applyDelta(p, Math.min(14, Math.round(target - p.ovr)), rng);
       p.ovr = overall(p.pos, p.attrs);
       p.pot = Math.max(p.ovr, p.pot + (p.ovr - before));
     }

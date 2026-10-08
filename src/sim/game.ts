@@ -525,7 +525,7 @@ export class GameSim {
     const chip = dc.blitz && o.rb ? o.rb : undefined;
     const blockV = blockers.reduce((a, p) => a + this.r(off, p, 'PBK') * 0.7 + this.r(off, p, 'STR') * 0.15 + this.r(off, p, 'AWR') * 0.15, 0) / Math.max(1, blockers.length) + (chip ? 1.5 : 0);
     const extra = rushers.length - 4 - (chip ? 1 : 0);
-    let tPressure = 3.05 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7);
+    let tPressure = 2.88 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7);
     if (rushers.some(p => this.has(p, 'Edge Threat') || this.has(p, 'Inside Pressure'))) tPressure -= 0.15;
     if (rushers.some(p => def.zoneOn.has(p.id))) tPressure -= 0.6;
     if (blockers.some(p => this.has(p, 'Anchor'))) tPressure += 0.1;

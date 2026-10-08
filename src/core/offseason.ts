@@ -5,7 +5,7 @@
 import type { Game, League, Player, Pos } from './types';
 import { Rng, clamp, hash } from './rng';
 import { OVR_W, overall, archetype, assignAbilities } from './ratings';
-import { autoDepth, activateHealthy, emptyLine, makeCoach, rosterOf } from './league';
+import { autoDepth, activateHealthy, emptyLine, makeCoach, rosterOf, floorStarters } from './league';
 import { capFor, capHit, capSpace, deadMoney, franchiseTag, makeContract, marketTerms, minSalary, releaseSavings, restructure, voidedProration, yearsLeft } from './contracts';
 import { playerTradeValue, aiOffseasonTrades } from './trade';
 import { freeAgents } from './freeagency';
@@ -371,6 +371,7 @@ export function advanceOffseason(league: League) {
     league.games = league.games.filter(g => g.season >= league.season - 1);
     league.games.push(...makeSchedule(league, rng));
     for (const t of Object.keys(league.teams)) autoDepth(league, t);
+    floorStarters(league, rng);
     league.phase = 'preseason'; league.week = 1;
     seasonForm(league, rng);
     return;

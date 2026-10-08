@@ -896,3 +896,34 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .mm-gg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .mm-gg > div { padding: 14px; background: #14171d; border: 1px solid rgba(255,255,255,.08); } .mm-gg span { font: 700 12px Silkscreen, monospace; color: #ffd34d; } .mm-gg b { display: block; margin: 4px 0 6px; font: 700 20px var(--head); text-transform: uppercase; } .mm-gg p { margin: 0; font: 500 13.5px/1.5 var(--ui); color: #c9ced8; }
 @media (max-width: 1100px) { .mm-gg { grid-template-columns: 1fr 1fr; } }
+.pre-call { position: absolute; left: 4%; bottom: 9%; display: flex; align-items: stretch; font-family: Silkscreen, monospace; text-transform: uppercase; animation: cerIn .3s ease both; }
+.pre-call span { padding: 8px 12px; background: #0b0d11; color: #fff; font-size: 14px; } .pre-call b { padding: 8px 12px; background: #ffd34d; color: #111; font-size: 14px; } .pre-call em { padding: 8px 12px; background: rgba(11,13,17,.8); color: #cfd6e2; font-style: normal; font-size: 12px; display: grid; place-items: center; }
+.pre-td { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); padding: 10px 34px 8px; background: var(--tc); color: #fff; font: 700 clamp(40px, 7vw, 96px)/1 Silkscreen, monospace; text-transform: uppercase; letter-spacing: .02em; box-shadow: 8px 8px 0 #000; animation: preTd .35s steps(4, end) both; }
+@keyframes preTd { from { transform: translate(-50%, -50%) scale(2.2); opacity: 0; } }
+
+/* ---- opening: player cuts, broadcast style ---------------------------------------- */
+.op-cut { --d: calc(2.75s + var(--i) * .45s); }
+.op-cut-panel { position: absolute; top: -10%; bottom: -10%; width: 60%; transform: skewX(-18deg) translateX(-160%); z-index: 0; }
+.op-cut-panel.a { left: -10%; background: linear-gradient(90deg, color-mix(in srgb, var(--c2, #fff) 85%, transparent), transparent); opacity: .35; animation: opPanel .42s var(--d) cubic-bezier(.6,0,.2,1) both; }
+.op-cut-panel.b { left: 30%; width: 28%; background: rgba(0,0,0,.35); animation: opPanel .5s calc(var(--d) + .04s) cubic-bezier(.6,0,.2,1) both; }
+@keyframes opPanel { 0% { transform: skewX(-18deg) translateX(-160%); } 100% { transform: skewX(-18deg) translateX(0); } }
+.op-cut-streak { position: absolute; left: -20%; top: 54%; width: 140%; height: 3px; background: linear-gradient(90deg, transparent, #fff 45%, color-mix(in srgb, var(--c2, #fff) 80%, #fff) 55%, transparent); transform: rotate(-8deg) scaleX(0); transform-origin: left; z-index: 3; box-shadow: 0 0 18px rgba(255,255,255,.8); animation: opStreak .38s calc(var(--d) + .02s) ease-out both; }
+@keyframes opStreak { 0% { transform: rotate(-8deg) scaleX(0); opacity: 1; } 70% { opacity: 1; } 100% { transform: rotate(-8deg) scaleX(1); opacity: 0; } }
+.op-cut-num { animation: opNum .9s var(--d) cubic-bezier(.2,.8,.2,1) both; z-index: 1; }
+@keyframes opNum { from { transform: translateX(14vw); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.op-cut-hs { z-index: 2; animation: opHsPro .8s var(--d) cubic-bezier(.16,.84,.24,1) both !important; }
+@keyframes opHsPro { 0% { transform: translateX(8vw) scale(1.18); opacity: 0; filter: brightness(2.2) drop-shadow(0 30px 50px rgba(0,0,0,.55)); } 35% { opacity: 1; } 100% { transform: none; filter: brightness(1) drop-shadow(0 30px 50px rgba(0,0,0,.55)); } }
+.op-cut::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.28) 50%, transparent 60%); transform: translateX(-100%); animation: opSheen .6s calc(var(--d) + .12s) ease-out both; }
+@keyframes opSheen { to { transform: translateX(100%); } }
+.op-cut-name { z-index: 5; animation: none !important; }
+.op-cut-name span { animation: opFirst .45s calc(var(--d) + .05s) cubic-bezier(.2,.8,.2,1) both; }
+@keyframes opFirst { from { transform: translateX(-6vw); opacity: 0; letter-spacing: .4em; } }
+.op-cut-name b { overflow: hidden; } .op-cut-name b i { display: block; font-style: italic; animation: opLast .5s calc(var(--d) + .08s) cubic-bezier(.16,.84,.24,1) both; }
+@keyframes opLast { from { transform: translateY(105%); } }
+.op-cut-name em { position: relative; animation: opTag .4s calc(var(--d) + .2s) ease-out both; border-left: 4px solid var(--c2, #fff); }
+@keyframes opTag { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.op-cut-ovr { position: absolute; left: 6vw; bottom: calc(14vh + clamp(70px, 11vw, 190px) * .85 + clamp(22px, 3vw, 44px) + 34px); z-index: 5; display: grid; justify-items: center; padding: 8px 14px 6px; background: #fff; color: #0b0d11; animation: opOvr .35s calc(var(--d) + .22s) cubic-bezier(.3,1.6,.4,1) both; }
+.op-cut-ovr b { font: 800 clamp(26px, 3vw, 44px)/1 var(--head); } .op-cut-ovr span { font: 700 10px var(--ui); letter-spacing: .2em; }
+@keyframes opOvr { from { transform: scale(0); } }
+.op-cut-name .op-cut-ovr { position: static; display: inline-grid; margin-bottom: 12px; }
+.op-cut-name .op-cut-ovr span { display: block; font: 700 10px var(--ui); letter-spacing: .2em; opacity: 1; animation: none; }

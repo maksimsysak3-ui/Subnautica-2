@@ -110,7 +110,8 @@ function Opening({ onDone }: { onDone: () => void }) {
             <div className="op-cut-num">{p.num ?? ''}</div>
             <img className="op-cut-logo" src={t.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />
             <img className="op-cut-hs" src={big(p.hs)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
-            <div className="op-cut-name"><span>{p.fn}</span><b>{p.ln}</b><em>{POS_NAME[p.pos] ?? p.pos} · {t.name}</em></div>
+            <i className="op-cut-panel a" /><i className="op-cut-panel b" /><i className="op-cut-streak" />
+            <div className="op-cut-name"><div className="op-cut-ovr"><b>{p.ovr}</b><span>OVR</span></div><span>{p.fn}</span><b><i>{p.ln}</i></b><em>{POS_NAME[p.pos] ?? p.pos} · {t.name}</em></div>
           </div>
         );
       })}
