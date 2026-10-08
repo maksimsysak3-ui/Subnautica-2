@@ -730,3 +730,7 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .ps-ot { font: 700 11px Silkscreen, monospace; text-transform: uppercase; letter-spacing: .05em; color: #ffd34d; }
 .ps-ox { font: 500 14.5px/1.35 Barlow, sans-serif; }
 @media (max-width: 760px) { .ps-opts { grid-template-columns: 1fr; } }
+.arch-auto { display: grid; gap: 6px; margin-top: 10px; justify-items: stretch; }
+.arch-tog { display: flex; align-items: center; gap: 6px; font: 600 11px var(--ui); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; cursor: pointer; white-space: nowrap; }
+.arch-tog.on { color: #fff; }
+.arch-tog input { accent-color: var(--ac, #fff); }

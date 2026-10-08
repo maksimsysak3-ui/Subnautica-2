@@ -104,7 +104,7 @@ export function treeFor(a: Arch): Node[] {
 }
 export const BRANCH_NAME = (a: Arch, b: 'A' | 'B') => (b === 'A' ? `${a.attrs[0]} · ${a.attrs[2]} · ${a.attrs[4]}` : `${a.attrs[1]} · ${a.attrs[3]} · ${a.attrs[5]}`);
 
-export interface Tree { arch: string; sp: number; owned: string[]; earned: string[] }
+export interface Tree { arch: string; sp: number; owned: string[]; earned: string[]; /** Spend points automatically as they come in. */ auto?: boolean }
 type PT = Player & { tree?: Tree };
 /** The player's tree state, created on first look with a starting allowance. */
 export function treeOf(p: Player): Tree | undefined {
@@ -148,6 +148,29 @@ export function buy(league: League, p: Player, n: Node): { ovr: number; dev?: De
   return { ovr: p.ovr - before, dev };
 }
 
+/** The order auto-spend buys in: finish Level 1, then Level 2, then both Level 3 trees side by side. */
+function autoOrder(a: Arch): Node[] {
+  const ns = treeFor(a);
+  const l3 = ns.filter(n => n.level === 3).sort((x, y) => x.i - y.i || (x.branch < y.branch ? -1 : 1));
+  return [...ns.filter(n => n.level === 1), ...ns.filter(n => n.level === 2), ...l3];
+}
+/** Spend everything he can afford, in tree order. Returns the nodes bought and any promotion. */
+export function autoSpend(league: League, p: Player): { bought: Node[]; dev?: Dev } {
+  const a = archOf(p), t = treeOf(p);
+  const res: { bought: Node[]; dev?: Dev } = { bought: [] };
+  if (!a || !t) return res;
+  for (let guard = 0; guard < 40; guard++) {
+    const n = autoOrder(a).find(x => canBuy(p, x) === 'ok');
+    if (!n) break;
+    const r = buy(league, p, n); if (!r) break;
+    res.bought.push(n); if (r.dev) res.dev = r.dev;
+  }
+  return res;
+}
+/** Is auto-spend on for this player (his own switch, or the team-wide one)? */
+export const autoOn = (league: League, p: Player) => !!treeOf(p)?.auto || !!(league as League & { autoSkill?: boolean }).autoSkill;
+export function setTeamAuto(league: League, on: boolean) { (league as League & { autoSkill?: boolean }).autoSkill = on; }
+
 /** Goals a player chases this season: season targets in three tiers, plus single-game milestones. */
 export interface Goal { id: string; label: string; cur: number; target: number; sp: number; game?: boolean }
 const S = (s: StatLine | undefined, k: keyof StatLine) => (s?.[k] as number) ?? 0;
@@ -186,6 +209,10 @@ export function awardSkillPoints(league: League, gameBoxes: Record<string, Parti
       if (hit && !t.earned.includes(key)) { t.earned.push(key); t.sp += goal.sp; out.push({ p, sp: goal.sp, why: goal.label }); }
     }
     if (t.earned.length > 300) t.earned.splice(0, t.earned.length - 300);
+    if (t.sp > 0 && autoOn(league, p)) {
+      const spent = autoSpend(league, p);
+      if (spent.bought.length) out.push({ p, sp: 0, why: `auto-spent on ${spent.bought.map(n => `+${n.amt} ${n.attr}`).join(', ')}${spent.dev ? ` (now ${spent.dev})` : ''}` });
+    }
   }
   return out;
 }

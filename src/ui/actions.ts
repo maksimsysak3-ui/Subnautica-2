@@ -5,7 +5,7 @@
 // state, so they appear when the situation exists and go away when it's handled.
 import type { League, Player, Pos, Team } from '../core/types';
 import { yearsLeft, apy, marketValue, money } from '../core/contracts';
-import { autoDepth, rosterOf, teamRatings } from '../core/league';
+import { autoDepth, rosterOf, teamRatings, markDepth, unmarkDepth } from '../core/league';
 import { userGame, standings } from '../core/season';
 import { hash } from '../core/rng';
 import { media, applyEffects, promise, fans, teamMorale, fallout, liveFallout } from '../core/media';
@@ -80,11 +80,11 @@ export function weeklyCards(L: League): ActionCard[] {
       body: `${bench.ln} (${bench.pos} ${bench.ovr}) feels overlooked and is frustrated he is behind ${weakest.ln} (${weakest.ovr}) in the starting lineup.`,
       p: bench, team: me,
       choices: [
-        { label: 'Start Him', run: () => { const d = me.depth[pos]!; const a = d.indexOf(bench.id), b = d.indexOf(weakest.id); if (a >= 0 && b >= 0) [d[a], d[b]] = [d[b], d[a]]; mood(bench, 8); mood(weakest, -6); resolve(L, id); } },
+        { label: 'Start Him', run: () => { const d = me.depth[pos]!; const a = d.indexOf(bench.id), b = d.indexOf(weakest.id); if (a >= 0 && b >= 0) [d[a], d[b]] = [d[b], d[a]]; markDepth(me, pos); mood(bench, 8); mood(weakest, -6); resolve(L, id); } },
         { label: 'Depth Chart', run: o => o.go('depth') },
         { label: 'Keep Him There', run: () => { mood(bench, -8); resolve(L, id); } },
       ],
-      delegate: { who: hc, role: 'Head Coach', quote: `I'll sort the lineup out. Best players play.`, run: () => { autoDepth(L, L.user); resolve(L, id); } },
+      delegate: { who: hc, role: 'Head Coach', quote: `I'll sort the lineup out. Best players play.`, run: () => { unmarkDepth(me); autoDepth(L, L.user); resolve(L, id); } },
     });
     break;
   }
@@ -97,7 +97,7 @@ export function weeklyCards(L: League): ActionCard[] {
       body: `${hurt.fn} ${hurt.ln} (${hurt.pos} ${hurt.ovr}) is out ${hurt.injury!.weeks} weeks with a ${hurt.injury!.type.toLowerCase()}.`,
       p: hurt, team: me,
       choices: [{ label: 'Depth Chart', run: o => o.go('depth') }, { label: 'Free Agents', run: o => o.go('fa') }],
-      delegate: { who: hc, role: 'Head Coach', quote: `Next man up. I'll set the depth chart around it.`, run: () => { autoDepth(L, L.user); resolve(L, `inj-${hurt.id}-${wk}`); } },
+      delegate: { who: hc, role: 'Head Coach', quote: `Next man up. I'll set the depth chart around it.`, run: () => { unmarkDepth(me); autoDepth(L, L.user); resolve(L, `inj-${hurt.id}-${wk}`); } },
     });
   }
 
@@ -307,7 +307,7 @@ export function weeklyCards(L: League): ActionCard[] {
         body: `The rookie ${rook.pos} (${rook.ovr} OVR, ${rook.pot} potential) has been the talk of practice. The coaches think he's close.`,
         choices: [
           { label: 'Mentor Program', hint: '+2 skill points for his archetype tree', run: () => { sp(rook, 2); resolve(L, id); return `${rook.ln} +2 skill points`; } },
-          { label: 'Start Him', hint: `Moves him into the lineup · ${rook.ln} morale +10 · +1 skill point`, run: () => { const d = me.depth[rook.pos]!, n = STARTERS[rook.pos] ?? 1, a = d.indexOf(rook.id); if (a > 0) { d.splice(a, 1); d.splice(n - 1, 0, rook.id); } sp(rook, 1); resolve(L, id); return fx({ players: [{ pid: rook.id, delta: 10 }] }); } },
+          { label: 'Start Him', hint: `Moves him into the lineup · ${rook.ln} morale +10 · +1 skill point`, run: () => { const d = me.depth[rook.pos]!, n = STARTERS[rook.pos] ?? 1, a = d.indexOf(rook.id); if (a > 0) { d.splice(a, 1); d.splice(n - 1, 0, rook.id); markDepth(me, rook.pos); } sp(rook, 1); resolve(L, id); return fx({ players: [{ pid: rook.id, delta: 10 }] }); } },
           { label: 'Not Yet', hint: `${rook.ln} morale −4`, run: () => { resolve(L, id); return fx({ players: [{ pid: rook.id, delta: -4 }] }); } },
         ],
         delegate: { who: hc, role: 'Head Coach', quote: `I'll put him with the veterans. He'll learn.`, run: () => { sp(rook, 1); resolve(L, id); } } });

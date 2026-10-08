@@ -3,7 +3,7 @@
 import { awardSkillPoints } from './archetypes';
 import type { Game, League, Player, Pos, StatLine } from './types';
 import { Rng, clamp, hash } from './rng';
-import { autoDepth, emptyLine, rosterOf, teamRatings } from './league';
+import { autoDepth, emptyLine, teamRatings, manualDepth, effOvr } from './league';
 import { ATTRS, DEV_MULT, OVR_W, overall } from './ratings';
 import { GameSim } from '../sim/game';
 import { aiWeekly } from './ai';
@@ -134,13 +134,23 @@ export function simWeek(league: League, exceptUser = false) {
   }
 }
 export function prepTeam(league: League, abbr: string) {
-  if (abbr !== league.user || league.coachTree.unlocked.includes('Auto Depth') || !league.teams[abbr].depth.QB?.length) autoDepth(league, abbr);
-  else {
-    // Keep the user's order but drop anyone injured or gone.
-    const t = league.teams[abbr];
-    for (const pos of Object.keys(t.depth) as Pos[]) t.depth[pos] = (t.depth[pos] ?? []).filter(id => league.players[id]?.team === abbr && league.players[id]?.status === 'ACT');
-    const fresh = rosterOf(league, abbr);
-    for (const p of fresh) if (!(t.depth[p.pos] ?? []).includes(p.id)) (t.depth[p.pos] ??= []).push(p.id);
+  if (abbr !== league.user || league.coachTree.unlocked.includes('Auto Depth') || !league.teams[abbr].depth.QB?.length) { autoDepth(league, abbr); return; }
+  // The user's team: positions he never touched are sorted like everyone else's every week
+  // (so signings, trades, rookies and players back from IR start when they're best).
+  // Positions he set by hand keep his order; anyone new is slotted in by rating, never
+  // dumped at the bottom.
+  const t = league.teams[abbr];
+  const mine = { ...t.depth }, manual = manualDepth(t);
+  autoDepth(league, abbr);
+  for (const pos of manual) {
+    const best = t.depth[pos] ?? [];
+    const keep = (mine[pos] ?? []).filter(id => league.players[id]?.team === abbr && league.players[id]?.status === 'ACT');
+    for (const id of best) if (!keep.includes(id)) {
+      const v = effOvr(league.players[id]);
+      const at = keep.findIndex(k => effOvr(league.players[k]) < v);
+      keep.splice(at < 0 ? keep.length : at, 0, id);
+    }
+    t.depth[pos] = keep;
   }
 }
 
@@ -150,7 +160,7 @@ export function advanceWeek(league: League): boolean {
   // Archetype skill points for the user's players who hit their goals this week.
   const boxes = weekGames(league).filter(g => g.home === league.user || g.away === league.user).map(g => g.result?.box?.players ?? {});
   const earned = awardSkillPoints(league, boxes);
-  if (earned.length) mail(league, 'Player Development', `${earned.reduce((s, e) => s + e.sp, 0)} skill points earned`, earned.map(e => `${e.p.fn} ${e.p.ln} +${e.sp} SP: ${e.why}`).join('\n'));
+  if (earned.length) mail(league, 'Player Development', `${earned.reduce((s, e) => s + e.sp, 0)} skill points earned`, earned.map(e => e.sp ? `${e.p.fn} ${e.p.ln} +${e.sp} SP: ${e.why}` : `${e.p.fn} ${e.p.ln}: ${e.why}`).join('\n'));
   const rng = new Rng(hash(`${league.seed}-${league.season}-${league.week}`));
   const byeTeams = new Set(Object.keys(league.teams));
   for (const g of weekGames(league)) { byeTeams.delete(g.home); byeTeams.delete(g.away); }

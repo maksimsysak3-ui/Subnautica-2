@@ -296,21 +296,36 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const qbRun = run && !!ev.ids?.ball && ev.ids.ball === idOf(off, 'QB');
   const sackBy = DL.findIndex(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def), si = sackBy >= 0 ? sackBy : 1;
   const target = REC[targetIdx];
+  const cov = [...DB, FS, ...LB].find(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) ?? DB[targetIdx];
   const air = Math.max(-2, ev.air ?? ev.yards);
-  const catchPt = at(air, FORMATION[WHO[targetIdx]][1] * 0.75 + (rnd() - 0.5) * 3);
+  // Where the ball goes is decided at the throw: the QB leads the receiver along his
+  // route to the engine's air yards. Until then this is only an estimate.
+  let catchPt: [number, number] = at(air, FORMATION[WHO[targetIdx]][1] * 0.75);
+  let recvPt: [number, number] = catchPt;          // where the receiver is going
+  let throwFrom: [number, number] = at(-7, 0);     // where the QB let it go
+  const defended = pass && !ev.complete && !ev.turnover && !!ev.ids?.def;
+  const dropped = pass && /DROPPED/.test(ev.text);
+  const throwAway = pass && /throws it away/.test(ev.text);
+  const picked = pass && !!ev.turnover;
+  const offTarget = pass && !ev.complete && !picked && !defended && !dropped && !throwAway;
   const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
   const endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
-  const dropT = 1.0 + rnd() * 0.25, throwT = dropT + (Math.abs(air) > 15 ? 0.7 : 0.25) + rnd() * 0.3;
-  const airT = 0.18 + Math.hypot(catchPt[0] - at(-7, 0)[0], catchPt[1] - at(-7, 0)[1]) / 19;
-  const catchT = throwT + airT;
+  const dropT = (Math.abs(air) <= 2 ? 0.55 : 0.95) + rnd() * 0.2;
+  const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
+  let throwT = Infinity, airT = 0, catchT = Infinity;
+  const flight = (a: [number, number], b: [number, number]) => 0.22 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 15 ? 21 : 18);
+  const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
   const routes = WHO.map(w => [at(...FORMATION[w]), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);
   let carrier: Agent | null = null, thrown = false, caught = false, endT = 0, ballXY: [number, number] = at(0, 0), ballZ = 0;
   const holdTrack: number[] = [];
   let loose: [number, number, number] | null = null;   // velocity of a dead/deflected ball
   let broken = false;                                  // a defender got a hand on it
-  let shed = DL.map(() => 1.4 + rnd() * 1.3);
+  // Linemen are locked up with their blockers; on a run they mostly stay locked up at the line,
+  // and on a stuffed run one of them beats his man into the backfield.
+  let shed = DL.map(() => (run ? 2.2 : 1.4) + rnd() * 1.3);
   if (sack) shed[si] = 1.3;
+  if (run && ev.yards <= 1) shed[Math.floor(rnd() * 4)] = 0.55;
   const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
   const before = (x: number) => s * (x - end) <= 0; // reached the spot behind
   const goal = (a: Agent) => { const ahead = Math.min(1, dist(a, carrier ?? QB) / 8); const c = carrier ?? QB; return [c.x + c.vx * ahead, c.y + c.vy * ahead] as const; };
@@ -321,8 +336,32 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) { if (!carrier && t > (qbRun ? 0.3 : 0.45)) carrier = qbRun ? QB : RB; }
     else if (scramble) { if (!carrier && t > 1.5) carrier = QB; }
     else if (sack) carrier = QB;
-    else if (!thrown && t >= throwT) thrown = true;
+    else if (!thrown && t >= dropT) {
+      // Throw when the receiver will be at the right depth by the time the ball gets there.
+      const from: [number, number] = [QB.x, QB.y];
+      let lead = 0.6, proj: [number, number] = [target.x, target.y];
+      for (let it = 0; it < 3; it++) { proj = [target.x + target.vx * lead, clampY(target.y + target.vy * lead)]; lead = flight(from, proj); }
+      const depth = s * (proj[0] - los);
+      if (depth >= air - 0.6 || t >= deadline) {
+        if (depth < air - 0.6) proj = [los + s * air, proj[1]];   // late: he has to get there
+        thrown = true; throwT = t; throwFrom = from; recvPt = proj;
+        catchPt = throwAway ? [QB.x + s * 9, QB.y > mid ? 53.8 : -0.6]
+          : picked ? [proj[0] - s * 1.1, clampY(proj[1] + (rnd() - 0.5) * 1.2)]
+          : offTarget ? [proj[0] + s * (2 + rnd() * 2.5), clampY(proj[1] + (rnd() < 0.5 ? -1 : 1) * (1.2 + rnd() * 1.8))]
+          : proj;
+        airT = flight(from, catchPt); catchT = t + airT;
+      }
+    }
     if (pass && thrown && !caught && t >= catchT) { caught = true; if (ev.complete) carrier = target; else if (ev.turnover) carrier = [...DB, FS, ...LB].find(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) ?? [...DB, FS].sort((a, b) => dist(a, { x: catchPt[0], y: catchPt[1] }) - dist(b, { x: catchPt[0], y: catchPt[1] }))[0]; }
+    // After the whistle everyone eases up; only the men around the ball keep coming.
+    const whistle = !!endT && t > endT;
+    if (whistle) {
+      for (const a of agents) {
+        const c = carrier;
+        if (c && a !== c && a.team !== c.team && dist(a, c) < 2.4) steer(a, c.x, c.y, 0.35);
+        else steer(a, a.x + a.vx * 0.12, a.y + a.vy * 0.12, 0.2);
+      }
+    } else {
     // Offense.
     OL.forEach((o, i) => {
       const m = DL[Math.min(3, Math.round(i * 0.8))];
@@ -332,47 +371,77 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) {
       const runner = qbRun ? QB : RB, fake = qbRun ? RB : QB;
       if (carrier !== runner) steer(runner, at(-3.2, lateral * 0.3)[0], at(-3.2, lateral * 0.3)[1]);
-      else if (!endT) { const hole = at(0.8, lateral); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY)); }
+      else { const hole = at(0.8, lateral); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY)); }
       if (qbRun) steer(fake, at(1, -lateral * 0.5)[0], at(1, -lateral * 0.5)[1], 0.7); else steer(fake, at(-5.5, -2)[0], at(-5.5, -2)[1], 0.5);
     } else {
       if (sack) steer(QB, end, mid, 0.55);
-      else if (carrier === QB) { if (!endT) steer(QB, end + s * 2, endY); }
+      else if (carrier === QB) steer(QB, end + s * 2, endY);
       else if (!thrown) steer(QB, at(-7, 0)[0], at(-7, 0)[1], 0.7);
+      else steer(QB, QB.x, QB.y, 0.3);
       const rbPts = art?.find(a => a.who === 'RB')?.pts;
       if (rbPts) { const p = at(...rbPts[rbPts.length - 1]); steer(RB, p[0], p[1], 0.8); } else steer(RB, QB.x + s * 1, QB.y + 1.5, 0.5);
     }
     REC.forEach((r, i) => {
-      if (r === carrier) { if (!endT) steer(r, end + s * 2, evade(r, endY)); return; }
-      if (pass && r === target && thrown && !caught) { const left = Math.max(0.05, catchT - t); const d = Math.hypot(catchPt[0] - r.x, catchPt[1] - r.y); r.top = Math.max(8.8, Math.min(10.5, d / left)); steer(r, catchPt[0], catchPt[1]); return; }
-      if (run || (carrier && carrier !== QB)) { const m = [...DB, FS, ...LB].sort((a, b) => dist(a, r) - dist(b, r))[0]; steer(r, m.x, m.y, 0.75); return; }
+      if (r === carrier) { steer(r, end + s * 2, evade(r, endY)); return; }
+      if (pass && r === target && thrown && !caught) { const left = Math.max(0.05, catchT - t); const d = Math.hypot(recvPt[0] - r.x, recvPt[1] - r.y); r.top = Math.max(8.4, Math.min(10.2, d / left)); steer(r, recvPt[0], recvPt[1]); return; }
+      // Blocking: stalk the man across (stay between him and the ball), don't chase.
+      if (run || (carrier && carrier !== QB && carrier.team === off)) {
+        const m = run ? DB[i] : [...DB, FS, ...LB].sort((a, b) => dist(a, r) - dist(b, r))[0];
+        if (dist(m, r) < 9) steer(r, m.x - s * 0.9, m.y, 0.6); else steer(r, r.x + s * 0.5, r.y, 0.35);
+        return;
+      }
+      if (carrier && carrier.team === def) { const [gx, gy] = goal(r); steer(r, gx, gy, 0.85); return; }   // turnover: tackle him
       const rt = routes[i]; const p = rt[Math.min(ri[i], rt.length - 1)];
       steer(r, ri[i] < rt.length ? p[0] : r.x + s * 4, ri[i] < rt.length ? p[1] : r.y, 0.92);
       if (ri[i] < rt.length && Math.hypot(p[0] - r.x, p[1] - r.y) < 0.8) ri[i]++;
     });
-    // Defense.
+    // Defense: everyone has a job until he reads the play, then pursues on an angle.
+    const trig = run ? (qbRun ? 0.3 : 0.45) : scramble ? 1.5 : caught ? catchT : Infinity;
+    const REACT: Record<string, number> = { DL: 0.05, LB: 0.25, DB: 0.5, S: 0.55 };
+    const pursuing = (d: Agent) => !!carrier && carrier !== d && (sack ? d.role !== 'DB' && d.role !== 'S' : t >= trig + REACT[d.role] - (d === cov ? 0.3 : 0));
+    const pursue = (d: Agent) => {
+      const c = carrier!, dd = dist(d, c), lead = Math.max(0.15, Math.min(1.3, dd / 8.5));
+      // Aim at where he is going, and stay on the downfield side of him (leverage).
+      const gx = c.x + c.vx * lead + s * Math.min(2, dd * 0.08), gy = c.y + c.vy * lead;
+      steer(d, gx, gy, dd > 20 ? 0.8 : 1);
+    };
     DL.forEach((d, i) => {
+      if (carrier && carrier.team === def) { if (d === carrier) steer(d, d.x - s * 8, d.y); else steer(d, d.x - s * 1, d.y, 0.4); return; }
       const held = t < shed[i];
+      if (pursuing(d) && !held) { pursue(d); return; }
+      if (held && run) { const o = OL[Math.min(4, Math.round(i * 1.33))]; steer(d, o.x + s * 0.8, o.y, 0.3); return; }   // fighting the block
       const [gx, gy] = goal(d);
-      steer(d, gx, gy, held ? (run && carrier ? 0.35 : 0.12) : 1);
+      steer(d, gx, gy, held ? 0.12 : 1);
     });
     LB.forEach((d, i) => {
-      if (d === carrier) { if (!endT) steer(d, d.x - s * 8, d.y); return; }
-      if (carrier && carrier !== QB || run && t > 0.35 || sack) { const [gx, gy] = goal(d); steer(d, gx, gy); }
-      else if (thrown) steer(d, catchPt[0], catchPt[1]);
-      else { const z = at(6, i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7); }
+      if (d === carrier) { steer(d, d.x - s * 8, d.y); return; }
+      if (pursuing(d)) { pursue(d); return; }
+      if (run && t > 0.3) { const hole = at(1.6, lateral + (i ? 1.5 : -1.5)); steer(d, hole[0], hole[1], 0.75); return; }   // fill the gap
+      if (thrown && d === cov) { const p: [number, number] = picked ? catchPt : [recvPt[0] - s * 1.2, recvPt[1]]; steer(d, p[0], p[1]); return; }
+      const z = at(6 + Math.min(3, t * 1.5), i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7);   // hook zone drop
     });
     DB.forEach((d, i) => {
-      if (d === carrier) { if (!endT) steer(d, d.x - s * 10, d.y); return; }
+      if (d === carrier) { steer(d, d.x - s * 10, d.y); return; }
+      if (pursuing(d)) { pursue(d); return; }
       const r = REC[i];
-      if (carrier && carrier !== QB) { const [gx, gy] = goal(d); steer(d, gx, gy); }
-      else if (run && t > 0.6) { const [gx, gy] = goal(d); steer(d, gx, gy); }
-      else if (thrown) steer(d, catchPt[0] + s * 0.6, catchPt[1], r === target ? 1.02 : 0.95);
-      else steer(d, r.x + s * Math.max(0.8, 3 - t * 1.4), r.y, 0.97); // trail with a cushion that closes
+      if (thrown && !caught && d === cov) {
+        const left = Math.max(0.05, catchT - t);
+        // On a pick he undercuts the route and gets there first; on a break-up he arrives with
+        // the ball; otherwise he is trailing a step or two behind.
+        const p: [number, number] = picked ? catchPt : defended ? [recvPt[0] + s * 0.3, recvPt[1] + 0.6] : [recvPt[0] - s * (offTarget ? 1.1 : 1.7), recvPt[1] + (dropped ? 1.2 : 0.7)];
+        if (picked || defended) d.top = Math.max(8.6, Math.min(10.4, Math.hypot(p[0] - d.x, p[1] - d.y) / Math.max(0.05, left - 0.04)));
+        steer(d, p[0], p[1]); return;
+      }
+      if (run) { steer(d, r.x + s * 2.2, r.y, 0.5); return; }   // read run: keep leverage on the receiver
+      steer(d, r.x + s * Math.max(1.2, 3 - t * 1.2), r.y, 0.95); // cover: a cushion over the top
     });
-    if (FS === carrier) { if (!endT) steer(FS, FS.x - s * 10, FS.y); }
-    else if (carrier && carrier !== QB) { const [gx, gy] = goal(FS); steer(FS, gx, gy); }
-    else if (thrown) steer(FS, catchPt[0], catchPt[1]);
+    if (FS === carrier) steer(FS, FS.x - s * 10, FS.y);
+    else if (pursuing(FS)) pursue(FS);
+    else if (thrown && FS === cov) { const p: [number, number] = picked ? catchPt : [recvPt[0] + s * 0.4, recvPt[1] + 0.5]; steer(FS, p[0], p[1]); }
+    else if (thrown) steer(FS, catchPt[0] + s * 4, catchPt[1], 0.85);   // last line: stay deep of the ball
+    else if (run) steer(FS, at(9, lateral * 0.5)[0], at(9, lateral * 0.5)[1], 0.5);
     else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
+    }
     // Integrate, then keep bodies apart: teammates give each other room, opponents meet
     // at contact distance (that is what a block or a wrap-up looks like), nobody overlaps.
     for (const a of agents) { a.x += a.vx * DT; a.y += a.vy * DT; }
@@ -392,16 +461,18 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     // Ball.
     if (pass && thrown && !caught) {
       const q = Math.min(1, (t - throwT) / airT);
-      const from = at(-7, 0);
+      const from = throwFrom;
       ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
       ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * (0.5 + Math.abs(air) * 0.3);
     } else if (pass && caught && !ev.complete && !ev.turnover) {
       // Incomplete: the ball is knocked away or falls incomplete, then bounces dead. Nobody holds it.
       if (!loose) {
-        const from = at(-7, 0), dx = catchPt[0] - from[0], dy = catchPt[1] - from[1], d = Math.hypot(dx, dy) || 1;
-        const near = [...DB, FS, ...LB].reduce((m, a) => Math.min(m, dist(a, { x: catchPt[0], y: catchPt[1] })), 99);
-        broken = near < 1.8;
-        loose = broken ? [(dx / d) * 2 + (rnd() - 0.5) * 5, (dy / d) * 2 + (rnd() - 0.5) * 5, 3.2] : [(dx / d) * 5, (dy / d) * 5, -1];
+        const from = throwFrom, dx = catchPt[0] - from[0], dy = catchPt[1] - from[1], d = Math.hypot(dx, dy) || 1;
+        // The engine says how it fell incomplete: knocked away, off his hands, or just past him.
+        broken = defended;
+        loose = defended ? [(dx / d) * 2 + (rnd() - 0.5) * 5, (dy / d) * 2 + (rnd() - 0.5) * 5, 3.2]
+          : dropped ? [(dx / d) * 1.2 + (rnd() - 0.5) * 2, (dy / d) * 1.2 + (rnd() - 0.5) * 2, 2.4]
+          : [(dx / d) * 5, (dy / d) * 5, -1];
       }
       ballXY = [ballXY[0] + loose[0] * DT, ballXY[1] + loose[1] * DT];
       ballZ += loose[2] * DT; loose[2] -= 10.7 * DT;

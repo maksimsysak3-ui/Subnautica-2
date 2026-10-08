@@ -7,7 +7,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app } from '../store';
 import { Face, Logo , vivid } from '../components';
 import type { League, Player, Pos } from '../../core/types';
-import { autoDepth, activateHealthy, teamRatings } from '../../core/league';
+import { autoDepth, activateHealthy, teamRatings, markDepth, unmarkDepth } from '../../core/league';
 import { overall, POS_NAME } from '../../core/ratings';
 import { schemeFit } from '../../core/offseason';
 
@@ -85,7 +85,7 @@ export function DepthScreen() {
   const starters = slots.filter(s => !s.auto).map(playerAt).filter(Boolean);
   const fits = starters.filter(p => schemeFit(L, p, L.user)).length;
   const scheme = unit === 'Defense' ? t.coach.def : t.coach.off;
-  const generate = () => { const back = activateHealthy(L, L.user); autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast(back.length ? `Best lineup set · activated ${back.map(p => p.ln).join(', ')} from IR` : 'Best lineup set'); };
+  const generate = () => { const back = activateHealthy(L, L.user); unmarkDepth(L.teams[L.user]); autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast(back.length ? `Best lineup set · activated ${back.map(p => p.ln).join(', ')} from IR` : 'Best lineup set'); };
   // Size the cards to the board: widest formation is 6.3 card-widths either side of the ball.
   const rows = Math.max(...slots.map(s => s.r)) + 1;
   const pad = 26;
@@ -169,9 +169,9 @@ function Drawer({ L, slot, slots, onDone }: { L: League; slot: Slot; slots: Slot
   const put = (id: string) => {
     const a = ids.filter(x => x !== id);
     a.splice(slot.i, 0, id);
-    t.depth[slot.pos] = a; onDone();
+    t.depth[slot.pos] = a; markDepth(t, slot.pos); onDone();
   };
-  const move = (j: number, d: number) => { const a = [...ids]; const k = j + d; if (k < 0 || k >= a.length) return; [a[j], a[k]] = [a[k], a[j]]; t.depth[slot.pos] = a; onDone(); };
+  const move = (j: number, d: number) => { const a = [...ids]; const k = j + d; if (k < 0 || k >= a.length) return; [a[j], a[k]] = [a[k], a[j]]; t.depth[slot.pos] = a; markDepth(t, slot.pos); onDone(); };
   return (
     <div className="lu-drawer">
       <div className="row"><div className="h3" style={{ margin: 0 }}>{slot.label} · {POS_NAME[slot.pos]}</div><div className="spacer" />

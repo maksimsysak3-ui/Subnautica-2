@@ -5,7 +5,7 @@ import { useState, type CSSProperties } from 'react';
 import { app, useApp } from '../store';
 import { DevIcon, vivid } from '../components';
 import type { Player } from '../../core/types';
-import { ARCHETYPES, archOf, treeOf, treeFor, canBuy, buy, fit, goalsFor, levelDone, LEVEL_OVR, BRANCH_NAME, type Node } from '../../core/archetypes';
+import { ARCHETYPES, archOf, treeOf, treeFor, canBuy, buy, fit, goalsFor, levelDone, LEVEL_OVR, BRANCH_NAME, autoSpend, autoOn, setTeamAuto, type Node } from '../../core/archetypes';
 import { ATTR_NAME } from '../../core/ratings';
 
 export function ArchetypeTab({ p }: { p: Player }) {
@@ -25,6 +25,16 @@ export function ArchetypeTab({ p }: { p: Player }) {
     if (r.dev) { setPromo(r.dev); setTimeout(() => setPromo(null), 2600); }
     app.touch();
   };
+  const spendAll = () => {
+    const r = autoSpend(L, p);
+    if (!r.bought.length) { app.toast(t.sp ? 'Nothing affordable he qualifies for yet' : 'No skill points to spend'); return; }
+    const last = r.bought[r.bought.length - 1];
+    setPop({ id: last.id, text: r.bought.map(n => `+${n.amt} ${n.attr}`).join(' '), k: Date.now() });
+    if (r.dev) { setPromo(r.dev); setTimeout(() => setPromo(null), 2600); }
+    app.toast(`${p.ln}: ${r.bought.length} upgrade${r.bought.length > 1 ? 's' : ''} bought`);
+    app.touch();
+  };
+  const teamAuto = !!(L as typeof L & { autoSkill?: boolean }).autoSkill;
   const goals = goalsFor(p, L.season);
   const lvl = (n: 1 | 2 | 3) => { const ns = nodes.filter(x => x.level === n); return ns.filter(x => t.owned.includes(x.id)).length / ns.length; };
   const devs = ['Normal', 'Star', 'Superstar', 'X-Factor'] as const;
@@ -49,7 +59,13 @@ export function ArchetypeTab({ p }: { p: Player }) {
           <p>{a.desc}</p>
           <div className="arch-keys">{a.attrs.map(k => <span key={k} title={ATTR_NAME[k]}>{k} <b>{p.attrs[k]}</b></span>)}</div>
         </div>
-        <div className="arch-sp"><b>{t.sp}</b><span>Skill Points</span></div>
+        <div className="arch-sp"><b>{t.sp}</b><span>Skill Points</span>
+          {mine && <div className="arch-auto">
+            <button className="btn sm" disabled={!t.sp} onClick={spendAll}>Auto-Spend Now</button>
+            <label className={`arch-tog${autoOn(L, p) ? ' on' : ''}`} title="Spend his points automatically as he earns them"><input type="checkbox" checked={!!t.auto} onChange={e => { t.auto = e.target.checked; if (t.auto && t.sp) spendAll(); app.touch(); }} /> Auto for {p.ln}</label>
+            <label className={`arch-tog${teamAuto ? ' on' : ''}`} title="Every player on the roster spends automatically"><input type="checkbox" checked={teamAuto} onChange={e => { setTeamAuto(L, e.target.checked); app.touch(); }} /> Auto for whole team</label>
+          </div>}
+        </div>
       </div>
 
       <div className="arch-ladder">
