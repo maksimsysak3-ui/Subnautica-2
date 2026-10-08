@@ -4,7 +4,7 @@
 // read for tone (praise, blame, accountability, swagger, a guarantee, blaming the
 // refs, ducking the question) and who they name, and that moves the fan base, the
 // locker room, single players' morale, the owner and next week's momentum.
-// This file is the offline reader; presserAi.ts can stand in for it with Claude.
+// The coach picks one of four answers per question (answerOptions); readAnswer scores it.
 import type { Game, League, Player, StatLine } from './types';
 import { Rng, hash } from './rng';
 import { standings, userGame } from './season';
@@ -223,4 +223,87 @@ export function pressOpen(L: League, g: Game | undefined, pressed: string[]): bo
   if (!g?.result || (g.home !== L.user && g.away !== L.user) || pressed.includes(g.id)) return false;
   const last = L.games.filter(x => x.result && (x.home === L.user || x.away === L.user)).sort((a, b) => b.season - a.season || b.week - a.week)[0];
   return last?.id === g.id;
+}
+
+// ---- answer choices ---------------------------------------------------------------------
+/** One of the four answers the coach can give, with the tone it is read as. */
+export interface Answer { text: string; tone: string }
+
+/** Four answers for this question, each a different stance with different consequences. */
+export function answerOptions(L: League, c: PressCtx, q: Question): Answer[] {
+  const p = q.pid ? L.players[q.pid] : undefined, ln = p?.ln ?? 'him';
+  const nxt = c.next ? L.teams[c.next.abbr].nick : 'them';
+  const A = (tone: string, text: string): Answer => ({ tone, text });
+  switch (q.topic) {
+    case 'open': return c.won || c.tied ? [
+      A('Praise', `I'm proud of these guys. The whole roster stepped up today, and the credit goes to them.`),
+      A('Fans', `Our fans were incredible today. This city deserves wins like that.`),
+      A('Swagger', `Honestly? We're the best team in this league and nobody can stop us when we play like that.`),
+      A('Accountable', `We left plays out there. I need to coach better and we have to improve before next week.`),
+    ] : [
+      A('Accountable', `That's on me. I have to coach better, and we will learn from it.`),
+      A('Calls out', `That was unacceptable. Sloppy football from everybody, and it will not continue.`),
+      A('Blames refs', `The refs were terrible today. Some of those calls were a joke.`),
+      A('Respectful', `Credit to them, they're a good team. We'll get back to work tomorrow.`),
+    ];
+    case 'qb': return (c.qb?.l.pint ?? 0) >= 2 || rating(c.qb?.l ?? {}) < 70 ? [
+      A('Praise', `I believe in ${ln}. He's our leader and I trust him completely.`),
+      A('Calls out', `Those turnovers were unacceptable. ${ln} has to be better or we'll look at changes.`),
+      A('Accountable', `That's on me. I put ${ln} in bad spots and I need to coach better.`),
+      A('Evasive', `No comment on that.`),
+    ] : [
+      A('Praise', `${ln} was special today. He's playing at an MVP level right now.`),
+      A('Fans', `You could hear our fans on every throw. This city gives him that energy.`),
+      A('Calls out', `I'm a little disappointed, honestly. ${ln} still left throws out there.`),
+      A('Evasive', `We don't need to talk about one guy. Next question.`),
+    ];
+    case 'star': return [
+      A('Praise', `${ln} is elite. He deserves to be in the MVP conversation, period.`),
+      A('Fans', `Ask our fans, they know. This city loves the way ${ln} plays.`),
+      A('Calls out', `He's talented, but he's not good enough yet. ${ln} has a lot to prove.`),
+      A('Evasive', `Whatever. I don't care about individual stats.`),
+    ];
+    case 'goat': return [
+      A('Protects player', `We'll fix it in practice this week. ${ln} is a good player and he will bounce back from this.`),
+      A('Calls out', `Ball security is everything. What ${ln} did was unacceptable and it cost us.`),
+      A('Accountable', `That's on me. We need to improve how we teach it, and that's my job.`),
+      A('Evasive', `No comment.`),
+    ];
+    case 'injury': return [
+      A('Praise', `We'll miss ${ln}, but next man up. I trust the guys behind him.`),
+      A('Fans', `Our fans should know ${ln} is a warrior. He'll be back, and this city will be loud for him.`),
+      A('Accountable', `We need to improve our depth there, and that's my responsibility.`),
+      A('Evasive', `I'm not talking about injuries.`),
+    ];
+    case 'streak': return [
+      A('Swagger', `We're the best team in this league and nobody can stop us right now.`),
+      A('Accountable', `We haven't done anything yet. We have to keep getting better every week.`),
+      A('Fans', `This one's for our fans. This city deserves a winner.`),
+      c.next ? A('Guarantee', `We're not done. I guarantee we will win next week against the ${nxt} too.`) : A('Respectful', `There are a lot of good teams in this league. We respect all of them.`),
+    ];
+    case 'pressure': return [
+      A('Accountable', `That's my job and I own it. We need to get better, starting with me.`),
+      c.next ? A('Guarantee', `We will win next week. I guarantee it.`) : A('Swagger', `Nobody can coach this team better than me. I promise you that.`),
+      A('Evasive', `I don't know. Ask him.`),
+      A('Calls out', `Some of these players are not good enough right now, and changes are coming.`),
+    ];
+    case 'refs': return [
+      A('Blames refs', `The officials were terrible. Some of those flags were a joke.`),
+      A('Accountable', `That's on us. Discipline is my responsibility and I will fix it.`),
+      A('Evasive', `Whatever. Next question.`),
+      A('Calls out', `Sloppy, selfish football. That was unacceptable from my players.`),
+    ];
+    case 'next': case 'playoff': return [
+      A('Respectful', `Respect to the ${nxt}. They're a well coached, dangerous team.`),
+      A('Guarantee', `We will win, I guarantee it.`),
+      A('Trash talk', `Honestly? The ${nxt} are overrated. Bring it.`),
+      A('Fans', `Our fans will be loud. This city is ready for it.`),
+    ];
+    default: return [
+      A('Praise', `I'm proud of this team. They stepped up.`),
+      A('Accountable', `We have to get better, and that starts with me.`),
+      A('Swagger', `Nobody can stop us when we play our game.`),
+      A('Evasive', `No comment.`),
+    ];
+  }
 }

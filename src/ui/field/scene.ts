@@ -51,7 +51,7 @@ export function slotFor(id: string): Slot | undefined { const p = app.league?.pl
 
 export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; carrier?: (t: number) => number; tackle?: number; kick?: boolean;
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
-  off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number }
+  off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number; tackler?: number; swatter?: number }
 
 interface KickCtx { s: number; toX: (yl: number) => number; mid: number; off: 0 | 1; def: 0 | 1; los: number; first: number; lerp: (a: number, b: number, k: number) => number; seg: (t: number, a: number, b: number) => number; add: (team: 0 | 1, slot: string, role: string, path: Path) => void; actors: Actor[] }
 /**
@@ -187,7 +187,60 @@ export function buildScene(ev: PlayEvent, lineups: [Lineup, Lineup]): Scene {
   };
   const sc = kick ? buildKick(ev, { s, toX, mid, off, def, los, first, lerp, seg, add, actors }) : simScrimmage(ev, { s, at, los, first, mid, end, off, def, add, actors, L: lineups });
   sc.off = off; sc.td = !!ev.td; sc.pass = ev.type === 'pass'; sc.complete = !!ev.complete; sc.int = ev.type === 'pass' && !!ev.turnover;
+  if (!kick) castNamed(sc, ev, off);
   return sc;
+}
+
+/** The defender nearest the ball carrier at the tackle, and nearest the ball when an incompletion arrives. */
+export function contactOf(sc: Scene): { tackler: number; swatter: number } {
+  let tackler = -1, swatter = -1;
+  if (sc.tackle !== undefined && sc.hold) {
+    let c0 = sc.hold(sc.tackle - 0.005); if (c0 < 0) c0 = sc.hold(Math.min(0.999, sc.tackle + 0.005));
+    if (c0 >= 0) { const cp = sc.actors[c0].path(sc.tackle); let best = 1e9; sc.actors.forEach((a, i) => { if (a.team !== sc.actors[c0].team) { const [x, y] = a.path(sc.tackle!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; tackler = i; } } }); }
+  }
+  if (sc.pass && !sc.complete && !sc.int && sc.catchAt !== undefined && sc.broken) {
+    const cp = sc.ball(sc.catchAt); let best = 1e9;
+    sc.actors.forEach((a, i) => { if (a.team !== sc.off) { const [x, y] = a.path(sc.catchAt!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; swatter = i; } } });
+  }
+  return { tackler, swatter };
+}
+
+/**
+ * The engine rotates players (a back spelling the starter, the fourth receiver, the
+ * nickel corner), but the scene is cast from the depth chart. Put the players the
+ * play text names on the bodies that actually carry, catch, throw, tackle, sack,
+ * break up or intercept, so every name tag matches the call.
+ */
+function castNamed(sc: Scene, ev: PlayEvent, off: 0 | 1) {
+  const A = sc.actors;
+  const assign = (idx: number, pid?: string) => {
+    if (idx < 0 || !pid || !A[idx] || A[idx].id === pid) return;
+    const who = slotFor(pid); if (!who) return;
+    const a = A[idx], other = A.findIndex(x => x.team === a.team && x.id === pid);
+    if (other >= 0) { const b = A[other]; [a.num, b.num] = [b.num, a.num]; [a.ln, b.ln] = [b.ln, a.ln]; [a.id, b.id] = [b.id, a.id]; [a.skin, b.skin] = [b.skin, a.skin]; }
+    else { a.num = who.num; a.ln = who.ln; a.id = who.id; a.skin = who.skin; }
+  };
+  const ids = ev.ids ?? {};
+  assign(A.findIndex(a => a.team === off && a.slot === 'QB'), ids.qb);
+  if (ev.type === 'pass' && sc.target !== undefined) assign(sc.target, ids.target);
+  if ((ev.type === 'run' || ev.type === 'scramble') && sc.hold) {
+    const tEnd = (sc.tackle ?? sc.endAt ?? 0.99) - 0.005, h = sc.hold(tEnd);
+    if (h >= 0 && A[h].team === off) assign(h, ids.ball);
+  }
+  if (!ids.def) return;
+  // Text says it was broken up: make sure the scene shows a defender on it.
+  if (ev.type === 'pass' && !ev.complete && !ev.turnover) sc.broken = true;
+  const { tackler, swatter } = contactOf(sc);
+  if (sc.int && sc.hold && sc.catchAt !== undefined) assign(sc.hold(Math.min(0.999, sc.catchAt + 0.02)), ids.def);
+  else if (swatter >= 0) assign(swatter, ids.def);
+  else if (tackler >= 0) assign(tackler, ids.def);
+  else if (ev.type === 'sack') {
+    const qb = A.findIndex(a => a.team === off && a.slot === 'QB'); if (qb < 0) return;
+    const t = sc.endAt ?? 0.9, [qx, qy] = A[qb].path(t); let best = 1e9, bi = -1;
+    A.forEach((a, i) => { if (a.team !== off) { const [x, y] = a.path(t); const d = Math.hypot(x - qx, y - qy); if (d < best) { best = d; bi = i; } } });
+    assign(bi, ids.def);
+  }
+  sc.tackler = tackler; sc.swatter = swatter;
 }
 
 /**
@@ -360,7 +413,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (!endT) {
       if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
       else if (pass && caught && ev.turnover && t > catchT + 0.9) endT = t;
-      else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 2 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble)) endT = t;
+      else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 2 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
       else if (sack && t > 1.2 && dist(DL[si], QB) < 1.1) endT = t;
     }
     if (endT && t > endT + 0.75) break;

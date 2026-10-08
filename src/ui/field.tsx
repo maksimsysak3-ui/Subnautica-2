@@ -207,18 +207,20 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
   const holder = sc.hold ? sc.hold(t) : -1;
   let carrier = holder, tackler = -1, down = 0;
   if (sc.tackle !== undefined && t >= sc.tackle - 0.05 && sc.hold) {
-    const c0 = sc.hold(sc.tackle - 0.005);
+    let c0 = sc.hold(sc.tackle - 0.005); if (c0 < 0) c0 = sc.hold(Math.min(0.999, sc.tackle + 0.005));
     if (c0 >= 0) {
       carrier = c0; down = Math.max(0, Math.min(1, (t - sc.tackle) / Math.max(0.05, 1 - sc.tackle)));
       const cp = sc.actors[c0].path(sc.tackle); let best = 1e9;
-      sc.actors.forEach((a, i) => { if (a.team !== sc.actors[c0].team) { const [x, y] = a.path(sc.tackle!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; tackler = i; } } });
+      if (sc.tackler !== undefined && sc.tackler >= 0) tackler = sc.tackler;
+      else sc.actors.forEach((a, i) => { if (a.team !== sc.actors[c0].team) { const [x, y] = a.path(sc.tackle!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; tackler = i; } } });
       if (tackler >= 0 && down > 0) { const side = Math.sign(pos[c0][0] - pos[tackler][0]) || s; pos[tackler] = [pos[tackler][0] + (pos[c0][0] - side * 0.7 - pos[tackler][0]) * down, pos[tackler][1] + (pos[c0][1] + 0.3 - pos[tackler][1]) * down]; }
     }
   }
   let swatter = -1;
   if (sc.pass && !sc.complete && !sc.int && sc.catchAt !== undefined && sc.broken) {
     const cp = sc.ball(sc.catchAt); let best = 1e9;
-    sc.actors.forEach((a, i) => { if (a.team !== sc.off) { const [x, y] = a.path(sc.catchAt!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; swatter = i; } } });
+    if (sc.swatter !== undefined && sc.swatter >= 0) swatter = sc.swatter;
+    else sc.actors.forEach((a, i) => { if (a.team !== sc.off) { const [x, y] = a.path(sc.catchAt!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; swatter = i; } } });
   }
   const after = sc.endAt !== undefined && t > sc.endAt + 0.01;
   const scorer = sc.td && sc.hold && sc.endAt !== undefined ? sc.hold(sc.endAt - 0.005) : -1;

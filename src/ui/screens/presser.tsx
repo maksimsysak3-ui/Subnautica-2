@@ -1,7 +1,7 @@
 // The post-game press conference. A pixel press room (step-and-repeat backdrop,
 // podium bristling with microphones, a row of photographers) where the coach walks
 // in through the flashes and takes the podium; then the press pool asks about the
-// game and the player types the coach's answers. Each answer is read (offline or by
+// game and the player picks one of four answers, each a different stance. Each answer is read (
 // Claude), the room reacts, and fans, the locker room, players, the owner and next
 // week's momentum move. Headlines go to the News Center.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -10,10 +10,9 @@ import { Logo, vivid } from '../components';
 import { paint, pxText, pxWidth } from '../field/pixel';
 import type { League } from '../../core/types';
 import { news } from '../../core/season';
-import { pressContext, pressQuestions, readAnswer, type Question, type Verdict, type PressCtx } from '../../core/presser';
+import { pressContext, pressQuestions, readAnswer, answerOptions, type Answer, type Question, type Verdict, type PressCtx } from '../../core/presser';
 import { applyEffects, media, promise, fans, teamMorale, fallout, type Applied } from '../../core/media';
 import { yearsLeft } from '../../core/contracts';
-import { aiKey, aiQuestions, aiVerdict } from '../presserAi';
 import { coachSprites, lookOf, type CoachSprites } from '../coachlook';
 
 const RW = 160, RH = 90;
@@ -94,13 +93,9 @@ export function PresserScreen({ gid }: { gid: string }) {
   const [qs, setQs] = useState<Question[]>([]);
   const [i, setI] = useState(0);
   const [typed, setTyped] = useState(0);
-  const [answer, setAnswer] = useState('');
   const [verdict, setVerdict] = useState<(Verdict & { applied: Applied }) | null>(null);
-  const [log, setLog] = useState<{ q: string; a: string }[]>([]);
   const [heads, setHeads] = useState<string[]>([]);
   const [total, setTotal] = useState({ fans: 0, owner: 0, locker: 0, momentum: 0 });
-  const [usingAi, setUsingAi] = useState(!!aiKey());
-  const [note, setNote] = useState('');
   const prior = useRef({ ducks: 0, recentGuarantee: (media(L).lastGuarantee ?? -99) >= L.season * 100 + L.week - 3 });
   const start = useRef(performance.now());
   const flashes = useRef<{ x: number; y: number; t: number }[]>([]);
@@ -175,10 +170,8 @@ export function PresserScreen({ gid }: { gid: string }) {
     const m = media(L);
     if (!m.pressed.includes(gid)) m.pressed.push(gid);
     let live = true;
-    const offline = () => pressQuestions(L, ctx);
-    (usingAi ? aiQuestions(L, ctx).catch(e => { setNote(`Claude unavailable (${String(e?.message ?? e).slice(0, 80)}). Using the offline press room.`); setUsingAi(false); return offline(); }) : Promise.resolve(offline()))
-      .then(q => { if (live) { setQs(q); setI(0); setTyped(0); setPhase('ask'); } });
-    return () => { live = false; };
+    const id = setTimeout(() => { if (live) { setQs(pressQuestions(L, ctx)); setI(0); setTyped(0); setPhase('ask'); } }, 700);
+    return () => { live = false; clearTimeout(id); };
   }, [phase]);
 
   // Typewriter for the question.
@@ -189,13 +182,12 @@ export function PresserScreen({ gid }: { gid: string }) {
     return () => clearTimeout(id);
   }, [phase, typed, q]);
 
-  const submit = async () => {
+  const options = useMemo<Answer[]>(() => (ctx && q ? answerOptions(L, ctx, q) : []), [q]);
+  const submit = (pick: Answer) => {
     if (!ctx || !q || phase !== 'ask') return;
-    const a = answer.trim() || 'No comment.';
-    setPhase('judging'); pointing.current = performance.now() + 2500;
-    let v: Verdict;
-    try { v = usingAi ? await aiVerdict(L, ctx, q, a, log) : readAnswer(L, ctx, q, a, prior.current); }
-    catch (e) { setNote(`Claude unavailable (${String((e as Error)?.message ?? e).slice(0, 80)}). Using the offline press room.`); setUsingAi(false); v = readAnswer(L, ctx, q, a, prior.current); }
+    const a = pick.text;
+    pointing.current = performance.now() + 2500;
+    const v: Verdict = readAnswer(L, ctx, q, a, prior.current);
     const applied = applyEffects(L, v.effects);
     const m = media(L);
     if (v.guarantee && ctx.next) { promise(L, { kind: 'guarantee', gid: ctx.next.gid, stake: 2, text: a.slice(0, 120) }); m.lastGuarantee = L.season * 100 + L.week; prior.current.recentGuarantee = true; }
@@ -215,15 +207,21 @@ export function PresserScreen({ gid }: { gid: string }) {
     if (has(/fans/i) && applied.fans > 0) fallout(L, { kind: 'fans', quote });
     if (has(/call/i) && !applied.players.length) fallout(L, { kind: 'room', quote });
     setTotal(s => ({ fans: s.fans + applied.fans, owner: s.owner + applied.owner, locker: s.locker + applied.locker, momentum: s.momentum + applied.momentum }));
-    setLog(l => [...l, { q: q.text, a }]);
     setVerdict({ ...v, applied });
     // A follow-up jumps the queue.
     if (v.followup) setQs(list => [...list.slice(0, i + 1), { ...q, text: v.followup!, follow: true }, ...list.slice(i + 1)]);
     setPhase('react');
     app.touch();
   };
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (phase === 'ask' && /^[1-4]$/.test(e.key) && options[+e.key - 1]) { e.preventDefault(); submit(options[+e.key - 1]); }
+      else if (phase === 'react' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); }
+    };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  });
   const next = () => {
-    setAnswer(''); setVerdict(null);
+    setVerdict(null);
     if (i + 1 >= qs.length) { setPhase('done'); void saveLeague(L, `${L.id}-auto`); return; }
     setI(i + 1); setTyped(0); setPhase('ask');
   };
@@ -242,7 +240,7 @@ export function PresserScreen({ gid }: { gid: string }) {
       </div>
 
       <div className="ps-panel">
-        {(phase === 'walk' || phase === 'loading') && <div className="ps-wait"><span className="ps-dot" /> {phase === 'walk' ? `${ctx.coach} is heading to the podium…` : usingAi ? 'The press pool is getting ready (Claude)…' : 'The press pool is getting ready…'}</div>}
+        {(phase === 'walk' || phase === 'loading') && <div className="ps-wait"><span className="ps-dot" /> {phase === 'walk' ? `${ctx.coach} is heading to the podium…` : 'The press pool is getting ready…'}</div>}
 
         {(phase === 'ask' || phase === 'judging' || phase === 'react') && q && (
           <>
@@ -252,12 +250,12 @@ export function PresserScreen({ gid }: { gid: string }) {
             </div>
             {phase !== 'react' ? (
               <div className="ps-a">
-                <textarea autoFocus value={answer} disabled={phase === 'judging'} maxLength={600} placeholder="Type your answer… (Enter to answer, Shift+Enter for a new line)"
-                  onChange={e => setAnswer(e.target.value)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit(); } }} />
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <span className="small mute">{usingAi ? 'Claude is reading the room' : 'Offline press room'} · Fans {Math.round(fans(L))} · Locker room {Math.round(teamMorale(L))} · Owner {Math.round(L.security)}</span>
-                  <div className="row"><button className="btn" disabled={phase === 'judging'} onClick={() => { setAnswer('No comment.'); }}>No Comment</button><button className="btn primary" disabled={phase === 'judging'} onClick={() => void submit()}>{phase === 'judging' ? 'The room reacts…' : 'Answer'}</button></div>
-                </div>
+                <div className="ps-opts">{options.map((o, k) => (
+                  <button key={o.text} className="ps-opt" disabled={phase !== 'ask'} onClick={() => submit(o)}>
+                    <kbd>{k + 1}</kbd><span className="ps-ot">{o.tone}</span><span className="ps-ox">“{o.text}”</span>
+                  </button>
+                ))}</div>
+                <div className="small mute" style={{ marginTop: 8 }}>Pick an answer (1–4) · Fans {Math.round(fans(L))} · Locker room {Math.round(teamMorale(L))} · Owner {Math.round(L.security)}</div>
               </div>
             ) : verdict && (
               <div className="ps-r">
@@ -270,7 +268,7 @@ export function PresserScreen({ gid }: { gid: string }) {
                   {verdict.fined && <span className="ps-d dn">Fine coming</span>}
                 </div>
                 {verdict.headline && <div className="ps-head"><b>Headline</b>{verdict.headline}</div>}
-                <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn primary" autoFocus onClick={next}>{i + 1 >= qs.length ? 'Wrap It Up' : 'Next Question'}</button></div>
+                <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn primary" onClick={next}>{i + 1 >= qs.length ? 'Wrap It Up' : 'Next Question'}</button></div>
               </div>
             )}
           </>
@@ -286,7 +284,6 @@ export function PresserScreen({ gid }: { gid: string }) {
             <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn primary" autoFocus onClick={leave}>Leave the Podium</button></div>
           </div>
         )}
-        {note && <div className="small mute" style={{ marginTop: 8 }}>{note}</div>}
       </div>
     </div>
   );
