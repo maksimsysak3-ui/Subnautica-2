@@ -10,6 +10,7 @@
 import type { League, Player, Pos, StatLine, Team, Game, BoxScore, TeamBox } from '../core/types';
 import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
+import { sideEdge, fans } from '../core/media';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
@@ -76,7 +77,7 @@ export class GameSim {
     this.poss = (1 - winner) as 0 | 1;
     this.receivesSecondHalf = winner as 0 | 1;
     this.pregameEdge = 0;
-    this.teamForm = [this.rng.normal(0, 2.3), this.rng.normal(0, 2.3)];
+    this.teamForm = [this.rng.normal(0, 2.3) + sideEdge(league, game.away, game.home), this.rng.normal(0, 2.3) + sideEdge(league, game.home, game.away)];
   }
 
   // ---- personnel -----------------------------------------------------------------
@@ -113,8 +114,8 @@ export class GameSim {
     let f = this.form.get(p.id);
     if (f === undefined) { f = this.rng.normal(0, (100 - p.traits.cons) / 14); this.form.set(p.id, f); }
     v += f + this.teamForm[side === this.sides[0] ? 0 : 1];
-    if (side === this.sides[1] && !this.game.neutral) v += 0.8;
-    if (p.morale < 40) v -= 2;
+    if (side === this.sides[1] && !this.game.neutral) v += side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8;
+    if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
     return v;
   }

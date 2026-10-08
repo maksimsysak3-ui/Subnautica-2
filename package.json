@@ -12,6 +12,7 @@
     "test": "tsc --noEmit && tsx tools/calibrate.ts 2 && tsx tools/franchise-test.ts 2"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

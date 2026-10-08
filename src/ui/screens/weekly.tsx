@@ -16,8 +16,8 @@ export function WeeklyCards() {
   const [focus, setFocus] = useState(0);
   const [neg, setNeg] = useState<Player | null>(null);
   const f = Math.min(focus, Math.max(0, cards.length - 1));
-  const open: Opener = { negotiate: p => setNeg(p), go: id => app.go({ id } as Screen) };
-  const act = (c: ActionCard, i = 0) => { c.choices[i]?.run(open); app.touch(); };
+  const open: Opener = { negotiate: p => setNeg(p), go: (id, extra) => app.go({ id, ...extra } as Screen) };
+  const act = (c: ActionCard, i = 0) => { const r = c.choices[i]?.run(open); if (r) app.toast(r); app.touch(); };
   const delegate = (c: ActionCard) => { if (!c.delegate) return; c.delegate.run(); app.toast(`Delegated to ${c.delegate.who}`); app.touch(); };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -45,16 +45,18 @@ export function WeeklyCards() {
 
 function Card({ c, on, onFocus, onAct, onDelegate }: { c: ActionCard; on: boolean; onFocus: () => void; onAct: (i: number) => void; onDelegate: () => void }) {
   const t = c.team;
-  const big = on && !!c.p && (c.feature || c.matchup);
+  const stakes = on && c.choices.some(x => x.hint);
+  const big = on && !stakes && !!c.p && (c.feature || c.matchup);
   return (
-    <div className={`wc${on ? ' on' : ''}${c.matchup ? ' mu' : ''}`} style={{ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as CSSProperties} onMouseEnter={onFocus} onClick={() => (on ? onAct(0) : onFocus())}>
+    <div className={`wc${on ? ' on' : ''}${c.matchup ? ' mu' : ''}${stakes ? ' st' : ''}${stakes && !c.delegate ? ' nd' : ''}`} style={{ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as CSSProperties} onMouseEnter={onFocus} onClick={() => (on ? onAct(0) : onFocus())}>
       <div className="wc-bg"><i className="wc-paint" /><i className="wc-swoosh" /><Logo team={t} size={360} style={{ position: 'absolute', left: -80, top: -40, opacity: 0.14 }} /></div>
       <span className="wc-kind">{c.kind}</span>
       {c.p && (big ? <Shot p={c.p} t={t} cls="wc-shot" /> : <Shot p={c.p} t={t} cls="wc-face" />)}
       <div className="wc-text">
         <h2 className="wc-h">{c.headline}</h2>
         <p className="wc-b">{c.body}</p>
-        {on && <div className="wc-acts">{c.choices.map((x, i) => <button key={x.label} className={`btn sm${i === 0 ? ' primary' : ''}`} onClick={e => { e.stopPropagation(); onAct(i); }}>{x.label}</button>)}</div>}
+        {on && <div className="wc-acts">{c.choices.map((x, i) => <button key={x.label} title={x.hint} className={`btn sm${i === 0 ? ' primary' : ''}`} onClick={e => { e.stopPropagation(); onAct(i); }}>{x.label}</button>)}</div>}
+        {on && c.choices.some(x => x.hint) && <ul className="wc-stakes">{c.choices.filter(x => x.hint).map(x => <li key={x.label}><b>{x.label}</b>{x.hint}</li>)}</ul>}
       </div>
       {on && c.delegate && (
         <div className="wc-del" onClick={e => { e.stopPropagation(); onDelegate(); }}>

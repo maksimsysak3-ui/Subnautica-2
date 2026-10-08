@@ -8,8 +8,12 @@ import { yearsLeft, apy, marketValue, money } from '../core/contracts';
 import { autoDepth, rosterOf, teamRatings } from '../core/league';
 import { userGame, standings } from '../core/season';
 import { hash } from '../core/rng';
+import { media, applyEffects, promise, fans, teamMorale, fallout, liveFallout } from '../core/media';
+import { pressOpen } from '../core/presser';
+import { treeOf, hasTree } from '../core/archetypes';
 
-export interface Choice { label: string; key?: string; run: (open: Opener) => void }
+/** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
+export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
 export interface Delegate { who: string; role: string; quote: string; run: () => void }
 export interface ActionCard {
   id: string; kind: string; headline: string; body: string;
@@ -121,6 +125,215 @@ export function weeklyCards(L: League): ActionCard[] {
   if (L.phase === 'freeagency') add({ id: `fa-${wk}-${L.fa?.day}`, kind: 'Free Agency', headline: `Day ${L.fa?.day ?? 1}: who do you chase?`, body: `The best players sign early. Offers weigh money, guarantees, a contender and a role.`, team: me, feature: true, choices: [{ label: 'Free Agents', run: o => o.go('fa') }] });
   if (L.phase === 'draft') add({ id: `draft-${L.season}`, kind: 'Draft', headline: `Who is your pick?`, body: `Your scouts have their board. Trade up, trade down, or take the best player available.`, team: me, feature: true, choices: [{ label: 'Draft Room', run: o => o.go('draft') }] });
 
+  // ---- stakes: the locker room, the fans, the owner, rivals and promises -------------
+  const ug = inSeason ? userGame(L) : undefined;
+  const nextG = ug && !ug.result ? ug : undefined;
+  const opp = nextG ? L.teams[nextG.home === L.user ? nextG.away : nextG.home] : undefined;
+  const m = media(L);
+  const fx = (e: Parameters<typeof applyEffects>[1]) => { const a = applyEffects(L, e); const bits = [['Fans', a.fans], ['Owner', a.owner], ['Momentum', a.momentum]].filter(([, v]) => v).map(([k, v]) => `${k} ${(v as number) > 0 ? '+' : ''}${Math.round((v as number) * 10) / 10}`); return [...bits, ...(e.locker ? [`Locker room ${e.locker > 0 ? '+' : ''}${e.locker}`] : []), ...a.players.map(x => `${x.p.ln} morale ${x.delta > 0 ? '+' : ''}${x.delta}`)].join(' · '); };
+  const sp = (p: Player, n: number) => { const t = treeOf(p); if (t) t.sp += n; };
+
+  // The press room after the last game.
+  const lastG = L.games.filter(x => x.result && x.season === L.season && (x.home === L.user || x.away === L.user)).sort((a, b) => b.week - a.week)[0];
+  if (lastG && pressOpen(L, lastG, m.pressed)) {
+    const r = lastG.result!, us = lastG.home === L.user ? r.hs : r.as, them = lastG.home === L.user ? r.as : r.hs;
+    const o = L.teams[lastG.home === L.user ? lastG.away : lastG.home];
+    add({ id: `press-${lastG.id}`, kind: 'Media', feature: us < them, headline: us > them ? `What do you tell the press?` : `Will you face the cameras?`,
+      body: `${us > them ? 'Win' : us < them ? 'Loss' : 'Tie'}, ${us}-${them} against the ${o.nick}. The beat reporters are waiting at the podium, and what you say will be on every screen tonight.`,
+      team: me, choices: [
+        { label: 'Take the Podium', hint: 'Answer in your own words: fans, players, owner and momentum all react', run: og => og.go('presser', { gid: lastG.id }) },
+        { label: 'Skip It', hint: 'Fans −1: the city notices', run: () => { m.pressed.push(lastG.id); return fx({ fans: -1 }); } },
+      ],
+      delegate: { who: me.coach.off, role: 'Off. Coordinator', quote: `I'll handle the cameras. Nothing quotable, I promise.`, run: () => { m.pressed.push(lastG.id); } } });
+  }
+
+  // Fallout from what you said at the podium.
+  for (const f of liveFallout(L)) {
+    const fid = `fo-${f.kind}-${f.pid ?? ''}-${f.key}`;
+    const p = f.pid ? L.players[f.pid] : undefined;
+    if (f.pid && (!p || p.team !== L.user)) continue;
+    const said = f.quote ? `You said: "${f.quote}" ` : '';
+    const done = () => resolve(L, fid);
+    if (f.kind === 'calledout' && p) add({ id: fid, kind: 'Fallout', feature: true, headline: `${p.ln} is in your office`, p, team: me,
+      body: `${said}${p.fn} ${p.ln} heard it, and so did every reporter. He wants to know where he stands.${p.traits.ego >= 70 ? ' He has a big ego and his agent is already making calls.' : ''}`,
+      choices: [
+        { label: 'Apologize Publicly', hint: `${p.ln} morale +9 · Fans −1 · Owner −1 (looks weak)`, run: () => { done(); return fx({ players: [{ pid: p.id, delta: 9 }], fans: -1, owner: -1 }); } },
+        { label: 'Talk It Out Privately', hint: `${p.ln} morale +5`, run: () => { done(); return fx({ players: [{ pid: p.id, delta: 5 }] }); } },
+        { label: 'Stand By It', hint: `${p.ln} morale −5 · Momentum +0.5 · he may ask out`, run: () => { done(); const r = fx({ players: [{ pid: p.id, delta: -5 }], momentum: 0.5 }); if (p.morale < 40 || p.traits.ego >= 75) fallout(L, { kind: 'traderequest', pid: p.id }); return r; } },
+      ],
+      delegate: { who: hc, role: 'Head Coach', quote: `I'll smooth it over with him.`, run: () => { done(); fx({ players: [{ pid: p.id, delta: 3 }] }); } } });
+    else if (f.kind === 'traderequest' && p) add({ id: fid, kind: 'Fallout', feature: true, headline: `${p.ln} wants out`, p, team: me,
+      body: `${p.fn} ${p.ln} (${p.pos} ${p.ovr}) has formally requested a trade. The story is everywhere and the locker room is picking sides.`,
+      choices: [
+        { label: 'Trade Block', hint: 'Shop him · Locker room +1', run: () => { L.block = [...new Set([...(L.block ?? []), p.id])]; done(); return fx({ locker: 1 }); } },
+        { label: 'Refuse', hint: `${p.ln} morale −8 · Locker room −2`, run: () => { done(); return fx({ players: [{ pid: p.id, delta: -8 }], locker: -2 }); } },
+        { label: 'Make Peace', hint: `${p.ln} morale +12 · Owner −2`, run: () => { done(); return fx({ players: [{ pid: p.id, delta: 12 }], owner: -2 }); } },
+      ] });
+    else if (f.kind === 'praised' && p) add({ id: fid, kind: 'Fallout', headline: `${p.ln}'s agent heard you`, p, team: me,
+      body: `${said}${p.fn} ${p.ln}'s agent wants him paid like the player you described, and he'd like to talk now.`,
+      choices: [
+        { label: 'Negotiate', run: o => { done(); o.negotiate(p); } },
+        { label: 'After the Season', hint: `${p.ln} morale −4`, run: () => { done(); return fx({ players: [{ pid: p.id, delta: -4 }] }); } },
+      ],
+      delegate: { who: gm, role: 'GM', quote: `I'll keep his agent warm until the season's over.`, run: () => { done(); fx({ players: [{ pid: p.id, delta: -2 }] }); } } });
+    else if (f.kind === 'fined') {
+      const amt = 50 + (hash(fid) >>> 0) % 4 * 25, win = (hash(fid + 'appeal') >>> 0) % 3 === 0;
+      add({ id: fid, kind: 'League Office', headline: `The league fined you $${amt},000`, team: me,
+        body: `${said}The league office reviewed your comments and issued a fine. The owner has seen the letter.`,
+        choices: [
+          { label: 'Pay Quietly', hint: 'Owner −1', run: () => { done(); return fx({ owner: -1 }); } },
+          { label: 'Appeal', hint: 'One in three appeals win · lose: Owner −3', run: () => { done(); return win ? `Appeal won, fine overturned. ${fx({ owner: 1, fans: 1 })}` : `Appeal denied. ${fx({ owner: -3 })}`; } },
+          { label: 'Double Down', hint: 'Fans +3 · Owner −4 · Momentum +0.5', run: () => { done(); return fx({ fans: 3, owner: -4, momentum: 0.5 }); } },
+        ] });
+    }
+    else if (f.kind === 'media') add({ id: fid, kind: 'Media', headline: `Is the media turning on you?`, team: me,
+      body: `After a stonewalled press conference, columnists are calling you "arrogant" and "out of touch". Talk radio is piling on.`,
+      choices: [
+        { label: 'Sit-Down Interview', hint: 'Fans +4 · Owner +1', run: () => { done(); return fx({ fans: 4, owner: 1 }); } },
+        { label: 'Us Against the World', hint: 'Momentum +0.7 · Locker room +2 · Fans −2', run: () => { done(); return fx({ momentum: 0.7, locker: 2, fans: -2 }); } },
+      ] });
+    else if (f.kind === 'rally') add({ id: fid, kind: 'Locker Room', headline: `The players have your back`, team: me,
+      body: `${said}Your players saw you take the hit for them. The captains want to turn it into something.`,
+      choices: [
+        { label: 'Captains Meeting', hint: 'Locker room +3 · Momentum +0.6', run: () => { done(); return fx({ locker: 3, momentum: 0.6 }); } },
+        { label: 'Extra Film Session', hint: 'Momentum +0.9 · Locker room −1', run: () => { done(); return fx({ momentum: 0.9, locker: -1 }); } },
+      ] });
+    else if (f.kind === 'fans') add({ id: fid, kind: 'Fans', headline: `The fans want to see you`, team: me,
+      body: `${said}The quote went viral. Supporters are organizing a rally outside the facility before the next game.`,
+      choices: [
+        { label: 'Show Up', hint: 'Fans +4 · Momentum +0.4', run: () => { done(); return fx({ fans: 4, momentum: 0.4 }); } },
+        { label: 'Send the Players', hint: 'Fans +2 · Locker room +1', run: () => { done(); return fx({ fans: 2, locker: 1 }); } },
+        { label: 'Stay Focused', hint: 'Nothing', run: () => { done(); } },
+      ] });
+    else if (f.kind === 'room') add({ id: fid, kind: 'Locker Room', feature: true, headline: `The veterans didn't like that`, team: me,
+      body: `${said}Calling out the whole team in public didn't sit well with the leaders in the room. They want a word.`,
+      choices: [
+        { label: 'Hear Them Out', hint: 'Locker room +3 · Owner −1', run: () => { done(); return fx({ locker: 3, owner: -1 }); } },
+        { label: 'My Team, My Rules', hint: 'Locker room −3 · Momentum +0.8 · Owner +1', run: () => { done(); return fx({ locker: -3, momentum: 0.8, owner: 1 }); } },
+      ] });
+  }
+
+  // A guarantee hanging over this week.
+  const guar = nextG && m.promises.find(x => x.kind === 'guarantee' && x.gid === nextG.id);
+  if (guar && opp) add({ id: `guar-${nextG!.id}`, kind: 'Media', feature: true, headline: `Can you back up the guarantee?`, team: opp,
+    body: `"${guar.text}" Your words are on a loop on every sports show. Win and the city is yours; lose against the ${opp.nick} and it gets loud.`,
+    choices: [
+      { label: 'Rally the Team', hint: 'Momentum +0.8', run: () => { resolve(L, `guar-${nextG!.id}`); return fx({ momentum: 0.8 }); } },
+      { label: 'Walk It Back', hint: 'Cancels the guarantee · Fans −3', run: () => { m.promises = m.promises.filter(x => x !== guar); resolve(L, `guar-${nextG!.id}`); return fx({ fans: -3 }); } },
+    ] });
+
+  // Bulletin-board material.
+  if (opp && m.bulletin === opp.abbr) add({ id: `bb-${nextG!.id}`, kind: 'Rivalry', headline: `The ${opp.nick} printed your quote`, team: opp,
+    body: `Your words are taped up in the ${opp.nick} locker room. Their players have been asked about it all week. They will be extra motivated on Sunday.`,
+    choices: [
+      { label: 'Double Down', hint: 'Momentum +0.8 · Fans +2 · they stay fired up', run: () => { resolve(L, `bb-${nextG!.id}`); return fx({ momentum: 0.8, fans: 2 }); } },
+      { label: 'Walk It Back', hint: 'Takes the edge off them · Fans −1', run: () => { m.bulletin = undefined; resolve(L, `bb-${nextG!.id}`); return fx({ fans: -1 }); } },
+    ] });
+
+  // Rivalry week.
+  if (opp && L.phase === 'regular' && opp.conf === me.conf && opp.div === me.div && m.bulletin !== opp.abbr) add({ id: `rival-${nextG!.id}`, kind: 'Rivalry', feature: true, headline: `How do you handle ${opp.nick} week?`, team: opp,
+    body: `Division games count double in the standings race, and this rivalry runs deep. How you set the tone this week matters.`,
+    choices: [
+      { label: 'Fire Up the Room', hint: 'Momentum +1.2 · Fans +2 · gives the ' + opp.nick + ' bulletin-board material', run: () => { m.bulletin = opp.abbr; resolve(L, `rival-${nextG!.id}`); return fx({ momentum: 1.2, fans: 2 }); } },
+      { label: 'Business as Usual', hint: 'Momentum +0.4', run: () => { resolve(L, `rival-${nextG!.id}`); return fx({ momentum: 0.4 }); } },
+    ],
+    delegate: { who: hc, role: 'Head Coach', quote: `Same preparation as any week. We'll be ready.`, run: () => { resolve(L, `rival-${nextG!.id}`); fx({ momentum: 0.4 }); } } });
+
+  // The owner wants a statement.
+  if (nextG && opp && L.security < 50 && !m.promises.some(x => x.kind === 'owner')) add({ id: `owner-${nextG.id}`, kind: 'Owner', feature: true, headline: `Will you promise the owner a win?`, team: me,
+    body: `Job security is down to ${Math.round(L.security)}. The owner wants to hear, in person, that you'll beat the ${opp.nick} on Sunday.`,
+    choices: [
+      { label: 'Promise a Win', hint: 'Owner +2 now · win: +4 · loss: −6', run: () => { promise(L, { kind: 'owner', gid: nextG.id, stake: 4, text: '' }); resolve(L, `owner-${nextG.id}`); return fx({ owner: 2 }); } },
+      { label: 'Ask for Patience', hint: 'Owner −2 · no risk', run: () => { resolve(L, `owner-${nextG.id}`); return fx({ owner: -2 }); } },
+      { label: 'Show the Plan', hint: 'Owner +1 · Locker room −1 (long hours)', run: () => { resolve(L, `owner-${nextG.id}`); return fx({ owner: 1, locker: -1 }); } },
+    ],
+    delegate: { who: gm, role: 'GM', quote: `I'll talk to ownership. No promises.`, run: () => { resolve(L, `owner-${nextG.id}`); fx({ owner: -1 }); } } });
+
+  // The locker room is splitting.
+  const tm = teamMorale(L);
+  if (inSeason && tm < 60) add({ id: `locker-${wk}`, kind: 'Locker Room', feature: tm < 50, headline: `Is the locker room fracturing?`, team: me,
+    body: `Team morale is ${Math.round(tm)}. Players are grumbling in the media and the leaders are worried. Unhappy players play worse and ask for more money.`,
+    choices: [
+      { label: 'Players-Only Meeting', hint: 'Locker room +4 · Momentum +0.5', run: () => { resolve(L, `locker-${wk}`); return fx({ locker: 4, momentum: 0.5 }); } },
+      { label: 'Team Dinner', hint: 'Locker room +3 · Fans +1', run: () => { resolve(L, `locker-${wk}`); return fx({ locker: 3, fans: 1 }); } },
+      { label: 'Crack Down', hint: 'Locker room −2 · Owner +2 · Momentum +0.6', run: () => { resolve(L, `locker-${wk}`); return fx({ locker: -2, owner: 2, momentum: 0.6 }); } },
+    ],
+    delegate: { who: hc, role: 'Head Coach', quote: `I'll get the captains together.`, run: () => { resolve(L, `locker-${wk}`); fx({ locker: 2 }); } } });
+
+  // The fans are turning.
+  const fz = fans(L);
+  if (inSeason && fz < 42) add({ id: `fans-${wk}`, kind: 'Fans', headline: `How do you win the city back?`, team: me,
+    body: `Fan support has fallen to ${Math.round(fz)}. Empty seats hurt home-field advantage, and the owner reads the comments.`,
+    choices: [
+      { label: 'Community Day', hint: 'Fans +5 · players worn down (condition −4)', run: () => { for (const p of roster) p.cond = Math.max(0, p.cond - 4); resolve(L, `fans-${wk}`); return fx({ fans: 5 }); } },
+      { label: 'Discount Tickets', hint: 'Fans +7 · Owner −3', run: () => { resolve(L, `fans-${wk}`); return fx({ fans: 7, owner: -3 }); } },
+      { label: 'Ignore the Noise', hint: 'Nothing changes', run: () => { resolve(L, `fans-${wk}`); } },
+    ] });
+
+  // A star wants the ball.
+  const diva = inSeason && L.phase === 'regular' ? roster.filter(p => ['WR', 'TE', 'RB'].includes(p.pos) && p.ovr >= 82 && p.traits.ego >= 70 && p.morale < 80).sort((a, b) => b.traits.ego - a.traits.ego)[0] : undefined;
+  if (diva) add({ id: `diva-${diva.id}-${L.season}-${Math.floor(L.week / 6)}`, kind: 'Player', headline: `Does ${diva.ln} get more touches?`, p: diva, team: me,
+    body: `${diva.fn} ${diva.ln} (${diva.pos} ${diva.ovr}) told reporters he's "open every play". He wants the offense built around him.`,
+    choices: [
+      { label: 'Feed Him', hint: `${diva.ln} morale +10 · Locker room −1`, run: () => { resolve(L, `diva-${diva.id}-${L.season}-${Math.floor(L.week / 6)}`); return fx({ players: [{ pid: diva.id, delta: 10 }], locker: -1 }); } },
+      { label: 'Talk Privately', hint: `${diva.ln} morale +4`, run: () => { resolve(L, `diva-${diva.id}-${L.season}-${Math.floor(L.week / 6)}`); return fx({ players: [{ pid: diva.id, delta: 4 }] }); } },
+      { label: 'Team Comes First', hint: `${diva.ln} morale −8 · Owner +1 · Locker room +1`, run: () => { resolve(L, `diva-${diva.id}-${L.season}-${Math.floor(L.week / 6)}`); return fx({ players: [{ pid: diva.id, delta: -8 }], owner: 1, locker: 1 }); } },
+    ] });
+
+  // Milestone chase late in the season.
+  if (L.phase === 'regular' && L.week >= 13) {
+    const MS: [keyof Player['stats'][number], number, string, number][] = [['ry', 1000, 'rushing yards', 160], ['recy', 1000, 'receiving yards', 160], ['py', 4000, 'passing yards', 320], ['dsk', 10, 'sacks', 2.5]];
+    for (const p of roster) {
+      const st = p.stats[L.season]; if (!st) continue;
+      const hit = MS.find(([k, t, , w]) => (st[k] as number) < t && t - (st[k] as number) <= w);
+      if (!hit) continue;
+      const [k, t, label] = hit, left = t - (st[k] as number), id = `ms-${p.id}-${k}-${L.season}`;
+      add({ id, kind: 'Milestone', headline: `Does ${p.ln} get his ${t.toLocaleString()}?`, p, team: me,
+        body: `${p.fn} ${p.ln} is ${Math.round(left * 10) / 10} ${label} short of ${t.toLocaleString()} on the season. He knows it, the fans know it.`,
+        choices: [
+          { label: 'Feature Him', hint: `${p.ln} morale +8 · Fans +1 · +1 skill point · offense more predictable (Momentum −0.3)`, run: () => { sp(p, 1); resolve(L, id); return fx({ players: [{ pid: p.id, delta: 8 }], fans: 1, momentum: -0.3 }); } },
+          { label: 'Team First', hint: `Locker room +1 · ${p.ln} morale −3`, run: () => { resolve(L, id); return fx({ locker: 1, players: [{ pid: p.id, delta: -3 }] }); } },
+        ] });
+      break;
+    }
+  }
+
+  // A rookie pushing for snaps.
+  if (inSeason) {
+    const rook = roster.filter(p => p.exp === 0 && p.ovr >= 68 && hasTree(p.pos) && !(me.depth[p.pos] ?? []).slice(0, STARTERS[p.pos] ?? 1).includes(p.id)).sort((a, b) => b.ovr - a.ovr)[0];
+    if (rook) {
+      const id = `rook-${rook.id}-${L.season}`;
+      add({ id, kind: 'Rookie', headline: `Is ${rook.ln} ready for a bigger role?`, p: rook, team: me,
+        body: `The rookie ${rook.pos} (${rook.ovr} OVR, ${rook.pot} potential) has been the talk of practice. The coaches think he's close.`,
+        choices: [
+          { label: 'Mentor Program', hint: '+2 skill points for his archetype tree', run: () => { sp(rook, 2); resolve(L, id); return `${rook.ln} +2 skill points`; } },
+          { label: 'Start Him', hint: `Moves him into the lineup · ${rook.ln} morale +10 · +1 skill point`, run: () => { const d = me.depth[rook.pos]!, n = STARTERS[rook.pos] ?? 1, a = d.indexOf(rook.id); if (a > 0) { d.splice(a, 1); d.splice(n - 1, 0, rook.id); } sp(rook, 1); resolve(L, id); return fx({ players: [{ pid: rook.id, delta: 10 }] }); } },
+          { label: 'Not Yet', hint: `${rook.ln} morale −4`, run: () => { resolve(L, id); return fx({ players: [{ pid: rook.id, delta: -4 }] }); } },
+        ],
+        delegate: { who: hc, role: 'Head Coach', quote: `I'll put him with the veterans. He'll learn.`, run: () => { sp(rook, 1); resolve(L, id); } } });
+    }
+  }
+
+  // A worn-down veteran.
+  if (inSeason && nextG) {
+    const vet = roster.filter(p => p.age >= 30 && p.ovr >= 78 && p.cond < 78 && !p.injury).sort((a, b) => a.cond - b.cond)[0];
+    if (vet) add({ id: `vet-${vet.id}-${wk}`, kind: 'Health', headline: `Do you rest ${vet.ln} this week?`, p: vet, team: me,
+      body: `${vet.fn} ${vet.ln} (${vet.age}) is at ${Math.round(vet.cond)}% condition. Tired legs play slower and get hurt more.`,
+      choices: [
+        { label: 'Light Week', hint: 'Condition +18 · Momentum −0.4 (less practice)', run: () => { vet.cond = Math.min(100, vet.cond + 18); resolve(L, `vet-${vet.id}-${wk}`); return fx({ momentum: -0.4 }); } },
+        { label: 'Play Through It', hint: `${vet.ln} morale +3 · he stays worn`, run: () => { resolve(L, `vet-${vet.id}-${wk}`); return fx({ players: [{ pid: vet.id, delta: 3 }] }); } },
+      ],
+      delegate: { who: 'Head Trainer', role: 'Medical', quote: `We'll manage his reps and keep him fresh.`, run: () => { vet.cond = Math.min(100, vet.cond + 10); resolve(L, `vet-${vet.id}-${wk}`); } } });
+  }
+
+  // Trade deadline.
+  if (L.phase === 'regular' && L.week === L.tradeDeadlineWeek) {
+    const st = standings(L)[L.user];
+    add({ id: `deadline-${L.season}`, kind: 'Trade Deadline', feature: true, headline: st.w >= st.l ? `Do you buy at the deadline?` : `Is it time to sell?`, team: me,
+      body: `This is the last week to make trades. At ${st.w}-${st.l}, ${st.w >= st.l ? 'one more piece could swing a playoff run' : 'veterans on expiring deals could bring back picks'}.`,
+      choices: [{ label: 'Trade Center', run: o => o.go('trade') }, { label: 'Trade Block', run: o => o.go('block') }, { label: 'Stand Pat', hint: 'Locker room +1', run: () => { resolve(L, `deadline-${L.season}`); return fx({ locker: 1 }); } }] });
+  }
+
   // This week's opponent closes the row.
   const g = inSeason ? userGame(L) : undefined;
   if (g && !g.result) {
@@ -131,5 +344,7 @@ export function weeklyCards(L: League): ActionCard[] {
       body: `This week's matchup is against the ${opp.name} (${st.w}-${st.l}${st.t ? `-${st.t}` : ''}, OVR ${teamRatings(L, opp.abbr).ovr}). Their top player is ${star?.pos} ${star?.fn} ${star?.ln} (${star?.ovr}).`,
       choices: [{ label: 'Matchup', run: o => o.go('gameday') }, { label: 'Game Plan', run: o => o.go('plan') }] });
   }
-  return out;
+  // What you said at the podium leads the row; the opponent card closes it.
+  const rank = (c: ActionCard) => (c.matchup ? 9 : ['Fallout', 'League Office'].includes(c.kind) ? 0 : c.kind === 'Media' ? 1 : 5);
+  return out.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(x => x.c);
 }

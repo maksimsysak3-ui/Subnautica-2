@@ -6,6 +6,9 @@ import { vivid } from '../components';
 import { divisionOrder, seeds, standings, ROUND_NAME, REG_WEEKS } from '../../core/season';
 import { evaluateTrade, executeTrade, pickLabel } from '../../core/trade';
 import type { League, Player, StatLine } from '../../core/types';
+import { PressInvite } from './presser';
+import { pressOpen } from '../../core/presser';
+import { media } from '../../core/media';
 
 export function ScheduleScreen() {
   const L = useApp().league!;
@@ -197,6 +200,7 @@ export function BoxScreen({ gid }: { gid: string }) {
         </div>
         <div style={{ textAlign: 'center', position: 'relative' }} className="dim">{g.week > REG_WEEKS ? ROUND_NAME[g.week] : `Week ${g.week}`} · Final{g.result.ot ? ' (OT)' : ''}</div>
       </div>
+      {pressOpen(L, g, media(L).pressed) && <PressInvite gid={g.id} />}
       <div className="grid g2">
         <div className="card"><h3>Scoring by Quarter</h3><table className="tbl"><thead><tr><th>Team</th>{['1', '2', '3', '4', 'OT'].map(q => <th key={q} className="c">{q}</th>)}<th className="c">T</th></tr></thead><tbody>{teams.map((a, i) => <tr key={a}><td><b>{L.teams[a].abbr}</b></td>{b.quarters[i].map((v, j) => <td key={j} className="c">{j === 4 && !g.result!.ot ? '' : v}</td>)}<td className="c"><b>{i ? g.result!.hs : g.result!.as}</b></td></tr>)}</tbody></table>
           <h3 style={{ marginTop: 14 }}>Team Stats</h3>

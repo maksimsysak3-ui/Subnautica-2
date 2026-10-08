@@ -20,6 +20,8 @@ import { InjuryScreen } from './screens/injuries';
 import { GameScreen } from './screens/game';
 import { MatchupPreview } from './screens/preview';
 import { GamedayScreen, OptionsScreen } from './screens/gameday';
+import { PresserScreen } from './screens/presser';
+import { CoachCreateScreen } from './screens/coachcreate';
 import { gmName } from './actions';
 import { CrashGuard } from './crash';
 
@@ -129,6 +131,8 @@ function Route({ sc }: { sc: Screen }) {
     case 'hub': return <Hub />;
     case 'gameday': return <GamedayScreen />;
     case 'options': return <OptionsScreen />;
+    case 'presser': return <PresserScreen gid={sc.gid} />;
+    case 'coachcreate': return <CoachCreateScreen first={sc.first} />;
     case 'roster': return <RosterScreen team={sc.team} />;
     case 'team': return <TeamScreen team={sc.team} />;
     case 'player': return <PlayerScreen pid={sc.pid} />;

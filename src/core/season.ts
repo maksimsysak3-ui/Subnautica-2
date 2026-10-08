@@ -8,6 +8,7 @@ import { ATTRS, DEV_MULT, OVR_W, overall } from './ratings';
 import { GameSim } from '../sim/game';
 import { aiWeekly } from './ai';
 import { startOffseason } from './offseason';
+import { settleMedia } from './media';
 
 export const REG_WEEKS = 18;
 export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisional', 21: 'Conference Championship', 22: 'Super Bowl' };
@@ -171,6 +172,7 @@ export function advanceWeek(league: League): boolean {
   }
   aiWeekly(league, rng);
   coachXp(league);
+  settleMedia(league);
   if (league.phase === 'regular') league.scoutPoints += 45;
   if (league.phase === 'regular') {
     if (league.week === REG_WEEKS) { regularSeasonAwards(league); startPlayoffs(league); return true; }

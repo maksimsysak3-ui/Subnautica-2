@@ -26,7 +26,7 @@ export function NewFranchise() {
   const start = () => app.busy('Building your franchise…', () => {
     const l = createLeague(team, gm || 'You', { difficulty: diff });
     app.setLeague(l);
-    app.replace({ id: 'hub' });
+    app.replace({ id: 'coachcreate', first: true });
   });
   return (
     <div style={{ padding: '28px 32px 60px', maxWidth: 1500, margin: '0 auto' }} className="fade-in">
