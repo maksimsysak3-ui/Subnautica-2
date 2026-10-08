@@ -202,6 +202,7 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
   const dt = 0.006;
   const pos = sc.actors.map(a => a.path(Math.max(0, t)));
   const prev = sc.actors.map(a => a.path(Math.max(0, t - dt)));
+  const back = sc.actors.map(a => a.path(Math.max(0, t - 0.25 / sc.dur)));   // a quarter-second ago: facing follows real direction, not jitter
   const [bx, by] = sc.ball(t), bh = sc.ballH(t);
   const holder = sc.hold ? sc.hold(t) : -1;
   let carrier = holder, tackler = -1, down = 0;
@@ -237,7 +238,8 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
     const vx = (pos[i][0] - prev[i][0]) / (dt * sc.dur), vy = (pos[i][1] - prev[i][1]) / (dt * sc.dur);
     const speed = Math.hypot(vx, vy);
     const isOff = a.team === sc.off;
-    let face = Math.abs(vx) > 0.4 ? Math.sign(vx) : a.facing;
+    const fx0 = pos[i][0] - back[i][0];
+    let face = Math.abs(fx0) > 0.35 ? Math.sign(fx0) : a.facing;
     const big = /^(OL|DL|FG|FB|RU)/.test(a.slot);
     const cyc = Math.floor(secs * (2.4 + speed * 0.75) + i * 0.37) % 4;
     let f: Frame = speed > 0.8 ? (`run${cyc}` as Frame) : 'stand';

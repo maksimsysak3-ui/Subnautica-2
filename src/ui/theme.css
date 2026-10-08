@@ -523,3 +523,60 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .pxbanner.small span { font-size: 26px; padding: 6px 14px 5px; }
 @keyframes pxPop { from { transform: scale(1.6); } }
 @keyframes pxIn { 0%, 92% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ==== coach tree ==== */
+.ct { display: grid; gap: 16px; }
+.ct-head { position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 26px; padding: 22px 28px; border-radius: var(--r); border: 1px solid var(--hair);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 70%, #000) 0%, color-mix(in srgb, var(--tc) 25%, #0f1116) 50%, var(--s1) 85%); }
+.ct-head::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(120deg, rgba(255,255,255,.05) 0 2px, transparent 2px 16px); mask-image: linear-gradient(90deg, #000, transparent 60%); }
+.ct-head > * { position: relative; }
+.ct-lvl { position: relative; width: 104px; height: 104px; display: grid; place-items: center; }
+.ct-lvl svg { position: absolute; inset: 0; }
+.ct-lvl b { font: 700 46px/1 var(--head); margin-top: -8px; }
+.ct-lvl span { position: absolute; bottom: 22px; font: 700 10px var(--ui); letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.75); }
+.ct-meta { display: flex; flex-wrap: wrap; gap: 0; margin-top: 8px; font: 600 12px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.8); }
+.ct-meta span + span::before { content: '·'; margin: 0 10px; color: rgba(255,255,255,.4); }
+.ct-pts { display: grid; justify-items: center; padding: 12px 22px; border-radius: 6px; background: rgba(0,0,0,.35); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.ct-pts b { font: 700 54px/1 var(--head); }
+.ct-pts span { font: 700 10.5px var(--ui); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.ct-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.ct-trees { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ct-tree { border-radius: var(--r); border: 1px solid var(--hair); background: linear-gradient(180deg, color-mix(in srgb, var(--tr) 10%, var(--s1)), var(--s1) 40%); overflow: hidden; }
+.ct-tt { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--hair); font: 700 16px var(--head); letter-spacing: .08em; text-transform: uppercase; color: var(--tr); }
+.ct-tt span { margin-left: auto; font: 600 11px var(--ui); color: var(--dim); }
+.ct-graph { position: relative; height: 380px; }
+.ct-links { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ct-links line { stroke: rgba(255,255,255,.12); stroke-width: 3; }
+.ct-links line.open { stroke: color-mix(in srgb, var(--tr) 60%, transparent); stroke-dasharray: 6 5; }
+.ct-links line.on { stroke: var(--tr); filter: drop-shadow(0 0 4px var(--tr)); }
+.ct-node { position: absolute; transform: translate(-50%, -28px); display: grid; justify-items: center; gap: 4px; width: 112px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer; text-align: center; }
+.ct-node i { display: grid; place-items: center; width: 56px; height: 56px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: #2a2e37; color: #8a909c; transition: transform .15s; }
+.ct-node span { font: 700 13px/1.1 var(--head); letter-spacing: .04em; text-transform: uppercase; }
+.ct-node em { font: 600 10px var(--ui); font-style: normal; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.ct-node.owned i { background: linear-gradient(160deg, color-mix(in srgb, var(--tr) 80%, #fff 20%), color-mix(in srgb, var(--tr) 70%, #000)); color: #0a0b0e; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tr) 60%, transparent)); }
+.ct-node.owned em { color: var(--tr); }
+.ct-node.ready i { background: #14171d; color: var(--tr); box-shadow: inset 0 0 0 2px var(--tr); animation: ctPulse 1.6s ease-in-out infinite; }
+.ct-node.ready em { color: #fff; }
+.ct-node.locked { opacity: .45; }
+.ct-node.sel i { transform: scale(1.12); outline: 3px solid #fff; outline-offset: 3px; }
+.ct-node:hover i { transform: scale(1.08); }
+@keyframes ctPulse { 50% { filter: drop-shadow(0 0 12px var(--tr)); } }
+.ct-detail { position: sticky; top: 90px; display: grid; gap: 10px; padding: 20px; border-radius: var(--r); border: 1px solid var(--hair); border-top: 3px solid var(--tr); background: var(--s1); }
+.ct-detail .ak { font: 700 11px var(--ui); letter-spacing: .16em; text-transform: uppercase; color: var(--tr); }
+.ct-detail p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #e1e4ea; }
+.ct-cost { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); font: 600 12px var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.ct-cost b { color: #fff; }
+.ct-owned { padding: 12px; text-align: center; font: 700 14px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--tr); border: 1px solid var(--tr); }
+@media (max-width: 1100px) { .ct-body { grid-template-columns: 1fr; } .ct-trees { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1700px) { .mh-pill:nth-of-type(1) { display: none; } }
+.pxbanner.small { top: 13%; } .pxbanner.small span { box-shadow: 0 0 0 3px #0a0b0e, 4px 4px 0 3px rgba(0,0,0,.4); }
+
+/* coach tree: dark controls, tree colour as the accent */
+.ct-detail .btn.primary { background: color-mix(in srgb, var(--tr) 22%, #0d0f13) !important; color: #fff !important; box-shadow: inset 0 0 0 1px var(--tr) !important; }
+.ct-detail .btn.primary:hover:not(:disabled) { background: var(--tr) !important; color: #0a0b0e !important; }
+.ct-node.ready i svg { filter: drop-shadow(0 0 4px var(--tr)); }
+/* player art on solid team colour */
+.portrait { background: var(--pc) !important; }
+.pb-art { background: var(--pc) !important; }
+.lu-card .lu-photo { background: var(--tc, #2a3040) !important; }
+.fa-ph { background: var(--pc) !important; }

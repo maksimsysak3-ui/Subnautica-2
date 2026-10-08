@@ -208,7 +208,7 @@ export function AdvanceButton({ big }: { big?: boolean }) {
   switch (L.phase) {
     case 'preseason': {
       const act = Object.values(L.players).filter(p => p.team === L.user && p.status === 'ACT').length;
-      return <button className={cls} onClick={() => run('Kicking off the season', () => advance(L))}>{act > 53 ? `Cut to 53 (${act}) & Start` : 'Start Season'}</button>;
+      return <button className={cls} onClick={() => run('Kicking off the season', () => advance(L))}>{act > 53 ? `Cut ${act - 53} & Start` : 'Start Season'}</button>;
     }
     case 'regular': case 'playoffs': {
       if (ug && !ug.result) return (

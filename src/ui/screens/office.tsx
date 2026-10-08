@@ -119,25 +119,58 @@ export const COACH_ABILITIES: { id: string; tree: string; tier: number; desc: st
   { id: 'Eye for Talent', tree: 'Front Office', tier: 1, desc: 'Scouting costs 25% fewer points.' },
   { id: 'Auto Depth', tree: 'Front Office', tier: 1, desc: 'Your depth chart re-optimises itself every week.' },
 ];
+const TREE_COLOR: Record<string, string> = { Development: '#3fd07f', 'Game Day': '#f2c230', Health: '#4fb6ff', 'Front Office': '#c9a8ff' };
+const TREE_GLYPH: Record<string, string> = { Development: 'M12 3l7 7h-4v8H9v-8H5z', 'Game Day': 'M13 2 4 14h6l-1 8 9-12h-6z', Health: 'M9 3h6v6h6v6h-6v6H9v-6H3V9h6z', 'Front Office': 'M4 7h16v12H4zm5-3h6v3H9z' };
 export function CoachScreen() {
   const L = useApp().league!;
   const c = L.coachTree;
+  const me = L.teams[L.user];
   const trees = [...new Set(COACH_ABILITIES.map(a => a.tree))];
+  const [sel, setSel] = useState<string>(COACH_ABILITIES[0].id);
+  const ab = COACH_ABILITIES.find(a => a.id === sel)!;
+  const state = (a: typeof ab) => c.unlocked.includes(a.id) ? 'owned' : a.needs && !c.unlocked.includes(a.needs) ? 'locked' : c.points >= a.tier ? 'ready' : 'afford';
+  const need = c.level * 450, pct = Math.min(1, c.xp / need);
+  const unlock = (a: typeof ab) => { if (state(a) !== 'ready') return; c.points -= a.tier; c.unlocked.push(a.id); app.toast(`${a.id} unlocked`); app.touch(); };
   return (
-    <div className="grid">
-      <div className="card hero"><div className="row" style={{ position: 'relative' }}><div><div className="up">Head Coach</div><div className="h1">{L.teams[L.user].coach.name}</div><div className="dim">{L.teams[L.user].coach.off} offense · {L.teams[L.user].coach.def} defense · GM {L.gm}</div></div><div className="spacer" />
-        <div className="stat" style={{ textAlign: 'right' }}><span className="k">Level {c.level}</span><span className="v">{c.points} pts</span><div style={{ width: 200 }}><Bar v={c.xp} max={c.level * 450} /></div></div></div></div>
-      <div className="grid g4">{trees.map(t => (
-        <div key={t} className="card"><h3>{t}</h3>{COACH_ABILITIES.filter(a => a.tree === t).sort((a, b) => a.tier - b.tier).map(a => {
-          const owned = c.unlocked.includes(a.id), locked = !!a.needs && !c.unlocked.includes(a.needs);
+    <div className="ct">
+      <div className="ct-head" style={{ '--tc': vivid(me.colors[0]) } as React.CSSProperties}>
+        <div className="ct-lvl">
+          <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="7" /><circle cx="50" cy="50" r="44" fill="none" stroke="#fff" strokeWidth="7" strokeDasharray={`${276 * pct} 276`} transform="rotate(-90 50 50)" strokeLinecap="round" /></svg>
+          <b>{c.level}</b><span>Level</span>
+        </div>
+        <div className="ct-id"><span className="up">Head Coach · {me.name}</span><div className="h1">{me.coach.name}</div><div className="ct-meta"><span>{me.coach.off} Offense</span><span>{me.coach.def} Defense</span><span>{c.xp} / {need} XP</span><span>{c.unlocked.length} of {COACH_ABILITIES.length} abilities</span></div></div>
+        <div className="ct-pts"><b>{c.points}</b><span>Coach Points</span></div>
+      </div>
+      <div className="ct-body">
+        <div className="ct-trees">{trees.map(t => {
+          const nodes = COACH_ABILITIES.filter(a => a.tree === t);
+          const tiers = [1, 2, 3].map(k => nodes.filter(a => a.tier === k));
+          const at = (a: typeof ab) => { const row = tiers[a.tier - 1]; const i = row.indexOf(a); return { x: ((i + 1) / (row.length + 1)) * 100, y: 16 + (a.tier - 1) * 34 + (row.length >= 3 && i % 2 ? 17 : 0) }; };
           return (
-            <div key={a.id} className="card" style={{ padding: 12, margin: '10px 0', marginLeft: (a.tier - 1) * 12, borderColor: owned ? 'var(--good)' : undefined, opacity: locked ? 0.45 : 1, boxShadow: 'none' }}>
-              <div className="row"><b>{a.id}</b><span className="small mute">Tier {a.tier}</span><div className="spacer" />{owned ? <span className="good small">✔ Active</span> : <button className="btn sm primary" disabled={locked || c.points < a.tier} onClick={() => { c.points -= a.tier; c.unlocked.push(a.id); app.toast(`${a.id} unlocked`); app.touch(); }}>{a.tier} pt</button>}</div>
-              <div className="small dim" style={{ marginTop: 4 }}>{a.desc}</div>
+            <div key={t} className="ct-tree" style={{ '--tr': TREE_COLOR[t] } as React.CSSProperties}>
+              <div className="ct-tt"><svg viewBox="0 0 24 24" width="18" height="18"><path d={TREE_GLYPH[t]} fill="currentColor" /></svg>{t}<span>{nodes.filter(a => c.unlocked.includes(a.id)).length}/{nodes.length}</span></div>
+              <div className="ct-graph">
+                <svg className="ct-links" viewBox="0 0 100 100" preserveAspectRatio="none">{nodes.filter(a => a.needs).map(a => { const p = nodes.find(n => n.id === a.needs); if (!p) return null; const A = at(p), B = at(a); return <line key={a.id} x1={A.x} y1={A.y + 12} x2={B.x} y2={B.y - 7} className={c.unlocked.includes(a.id) ? 'on' : c.unlocked.includes(p.id) ? 'open' : ''} vectorEffect="non-scaling-stroke" />; })}</svg>
+                {nodes.map(a => { const p = at(a), st = state(a); return (
+                  <button key={a.id} className={`ct-node ${st}${sel === a.id ? ' sel' : ''}`} style={{ left: `${p.x}%`, top: `${p.y}%` }} onClick={() => setSel(a.id)} onDoubleClick={() => unlock(a)}>
+                    <i><svg viewBox="0 0 24 24" width="22" height="22"><path d={st === 'locked' ? 'M7 10V7a5 5 0 0 1 10 0v3h1v11H6V10zm2 0h6V7a3 3 0 0 0-6 0z' : TREE_GLYPH[t]} fill="currentColor" /></svg></i>
+                    <span>{a.id}</span><em>{st === 'owned' ? 'Active' : `${a.tier} pt${a.tier > 1 ? 's' : ''}`}</em>
+                  </button>
+                ); })}
+              </div>
             </div>
           );
         })}</div>
-      ))}</div>
+        <aside className="ct-detail" style={{ '--tr': TREE_COLOR[ab.tree] } as React.CSSProperties}>
+          <span className="ak">{ab.tree} · Tier {ab.tier}</span>
+          <div className="h2">{ab.id}</div>
+          <p>{ab.desc}</p>
+          {ab.needs && <div className="small dim">Requires <b style={{ color: '#fff' }}>{ab.needs}</b></div>}
+          <div className="ct-cost"><span>Cost</span><b>{ab.tier} coach point{ab.tier > 1 ? 's' : ''}</b></div>
+          {state(ab) === 'owned' ? <div className="ct-owned">Active</div> : <button className="btn primary big" disabled={state(ab) !== 'ready'} onClick={() => unlock(ab)}>{state(ab) === 'locked' ? 'Locked' : state(ab) === 'afford' ? 'Not enough points' : 'Unlock'}</button>}
+          <div className="small mute" style={{ marginTop: 14 }}>Coaches earn XP for every game, more for wins and playoff wins. Each level brings a point.</div>
+        </aside>
+      </div>
     </div>
   );
 }

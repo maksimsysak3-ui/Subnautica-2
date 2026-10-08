@@ -1,10 +1,11 @@
+import type React from 'react';
 // Lineup: the depth chart as a formation on the field. Every starting spot is a
 // card (tier colour by overall, OVR ring, the next two men up, a unit grade against
 // the league's starters at that spot). Pick a card to open its depth drawer, where
 // anyone on the roster can be slotted in and is rated at that position.
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app } from '../store';
-import { Face, Logo } from '../components';
+import { Face, Logo , vivid } from '../components';
 import type { League, Player, Pos } from '../../core/types';
 import { autoDepth, activateHealthy, teamRatings } from '../../core/league';
 import { overall, POS_NAME } from '../../core/ratings';
@@ -120,7 +121,7 @@ export function DepthScreen() {
             const g = s.auto ? '' : slotGrade(L, s, p);
             return (
               <div key={s.label} className={`lu-slot${on ? ' on' : ''}${s.auto ? ' auto' : ''}`} style={{ left: size.w / 2 + s.u * U - cw / 2, top: yOf(s), width: cw, animationDelay: `${k * 0.03}s` }} onClick={() => !s.auto && setSel(on ? null : s)}>
-                <div className={`lu-card ${p ? tierOf(v) : 'empty'}`}>
+                <div className={`lu-card ${p ? tierOf(v) : 'empty'}`} style={{ '--tc': p ? vivid(L.teams[p.team]?.colors[0] ?? '#2a3040') : undefined } as React.CSSProperties}>
                   <div className="lu-photo">
                     {p ? <Face p={p} size={140} style={{ width: '100%', height: '100%', borderRadius: 0, background: 'transparent' }} /> : <div className="lu-silhouette" />}
                     {p && <Ring v={v} />}

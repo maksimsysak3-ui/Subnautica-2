@@ -219,6 +219,14 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     a.vx += ax; a.vy += ay;
   };
   const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  /** A ball carrier's lateral target: cut away from the nearest defender in front of him. */
+  const evade = (c: Agent, baseY: number) => {
+    let near: Agent | null = null, nd = 3.2;
+    for (const a of agents) if (a.team !== c.team) { const ahead = s * (a.x - c.x); if (ahead > -0.5 && ahead < 4) { const d = dist(a, c); if (d < nd) { nd = d; near = a; } } }
+    if (!near) return baseY;
+    const away = Math.sign(c.y - near.y) || (rnd() < 0.5 ? 1 : -1);
+    return Math.max(1.5, Math.min(51.8, c.y + away * (3.2 - nd) * 2.2 + (baseY - c.y) * 0.3));
+  };
   // --- personnel ---
   const OL = OL_SPOTS.map(([dx, dy], i) => mk(off, `OL${i}`, 'OL', at(dx, dy), 5.2, 7));
   const QB = mk(off, 'QB', 'QB', at(...FORMATION.QB), 7.2);
@@ -271,7 +279,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) {
       const runner = qbRun ? QB : RB, fake = qbRun ? RB : QB;
       if (carrier !== runner) steer(runner, at(-3.2, lateral * 0.3)[0], at(-3.2, lateral * 0.3)[1]);
-      else if (!endT) { const hole = at(0.8, lateral); steer(runner, s * (runner.x - hole[0]) < -0.5 ? hole[0] : end + s * 2, s * (runner.x - hole[0]) < -0.5 ? hole[1] : endY); }
+      else if (!endT) { const hole = at(0.8, lateral); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY)); }
       if (qbRun) steer(fake, at(1, -lateral * 0.5)[0], at(1, -lateral * 0.5)[1], 0.7); else steer(fake, at(-5.5, -2)[0], at(-5.5, -2)[1], 0.5);
     } else {
       if (sack) steer(QB, end, mid, 0.55);
@@ -281,7 +289,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (rbPts) { const p = at(...rbPts[rbPts.length - 1]); steer(RB, p[0], p[1], 0.8); } else steer(RB, QB.x + s * 1, QB.y + 1.5, 0.5);
     }
     REC.forEach((r, i) => {
-      if (r === carrier) { if (!endT) steer(r, end + s * 2, endY); return; }
+      if (r === carrier) { if (!endT) steer(r, end + s * 2, evade(r, endY)); return; }
       if (pass && r === target && thrown && !caught) { const left = Math.max(0.05, catchT - t); const d = Math.hypot(catchPt[0] - r.x, catchPt[1] - r.y); r.top = Math.max(8.8, Math.min(10.5, d / left)); steer(r, catchPt[0], catchPt[1]); return; }
       if (run || (carrier && carrier !== QB)) { const m = [...DB, FS, ...LB].sort((a, b) => dist(a, r) - dist(b, r))[0]; steer(r, m.x, m.y, 0.75); return; }
       const rt = routes[i]; const p = rt[Math.min(ri[i], rt.length - 1)];
@@ -312,8 +320,22 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     else if (carrier && carrier !== QB) { const [gx, gy] = goal(FS); steer(FS, gx, gy); }
     else if (thrown) steer(FS, catchPt[0], catchPt[1]);
     else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
-    // Integrate and record.
-    for (const a of agents) { a.x += a.vx * DT; a.y += a.vy * DT; a.track.push([a.x, a.y]); }
+    // Integrate, then keep bodies apart: teammates give each other room, opponents meet
+    // at contact distance (that is what a block or a wrap-up looks like), nobody overlaps.
+    for (const a of agents) { a.x += a.vx * DT; a.y += a.vy * DT; }
+    for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
+      const a = agents[i], b = agents[j];
+      if (endT && (a === carrier || b === carrier)) continue;
+      const min = a.team === b.team ? 1.15 : 0.8;
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+      if (d >= min || d < 1e-4) continue;
+      const push = (min - d) * 0.5, nx = dx / d, ny = dy / d;
+      // The ball carrier is harder to move than the man pushing him; linemen are heaviest.
+      const wa = a === carrier ? 0.25 : a.role === 'OL' || a.role === 'DL' ? 0.6 : 1, wb = b === carrier ? 0.25 : b.role === 'OL' || b.role === 'DL' ? 0.6 : 1;
+      const k = 1 / (wa + wb);
+      a.x -= nx * push * 2 * wa * k; a.y -= ny * push * 2 * wa * k; b.x += nx * push * 2 * wb * k; b.y += ny * push * 2 * wb * k;
+    }
+    for (const a of agents) a.track.push([a.x, a.y]);
     // Ball.
     if (pass && thrown && !caught) {
       const q = Math.min(1, (t - throwT) / airT);
