@@ -79,6 +79,8 @@ export interface Player {
   colLogo?: string;
   /** Hidden season form: breakout (+) or dud (-) year, in rating points. */
   sform?: number;
+  /** Archetype skill tree (user's players). */
+  tree?: { arch: string; sp: number; owned: string[]; earned: string[] };
   trend?: number;
   retiredSeason?: number;
 }

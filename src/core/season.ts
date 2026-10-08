@@ -1,5 +1,6 @@
 // The season loop: results, standings and tiebreakers, playoffs, weekly XP and
 // growth, wear and injuries, awards, records, news, job security, coach XP.
+import { awardSkillPoints } from './archetypes';
 import type { Game, League, Player, Pos, StatLine } from './types';
 import { Rng, clamp, hash } from './rng';
 import { autoDepth, emptyLine, rosterOf, teamRatings } from './league';
@@ -145,6 +146,10 @@ export function prepTeam(league: League, abbr: string) {
 /** Everything that happens between weeks. Returns true if the week advanced. */
 export function advanceWeek(league: League): boolean {
   if (weekGames(league).some(g => !g.result)) return false;
+  // Archetype skill points for the user's players who hit their goals this week.
+  const boxes = weekGames(league).filter(g => g.home === league.user || g.away === league.user).map(g => g.result?.box?.players ?? {});
+  const earned = awardSkillPoints(league, boxes);
+  if (earned.length) mail(league, 'Player Development', `${earned.reduce((s, e) => s + e.sp, 0)} skill points earned`, earned.map(e => `${e.p.fn} ${e.p.ln} +${e.sp} SP: ${e.why}`).join('\n'));
   const rng = new Rng(hash(`${league.seed}-${league.season}-${league.week}`));
   const byeTeams = new Set(Object.keys(league.teams));
   for (const g of weekGames(league)) { byeTeams.delete(g.home); byeTeams.delete(g.away); }
