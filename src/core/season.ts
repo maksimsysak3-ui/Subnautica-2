@@ -9,6 +9,7 @@ import { GameSim } from '../sim/game';
 import { aiWeekly } from './ai';
 import { startOffseason } from './offseason';
 import { settleMedia } from './media';
+import { coachHas, coachXpNeed, POINTS_PER_LEVEL } from './coaching';
 import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
 
 export const REG_WEEKS = 18;
@@ -52,7 +53,8 @@ export function applyResult(league: League, g: Game, sim: GameSim) {
     if (!p) continue;
     // The countdown ticks once before the next game, so store one extra week: a player
     // listed to miss two games really misses two.
-    p.injury = { type: inj.type, weeks: inj.weeks + 1, season: inj.season };
+    const heal = p.team === league.user && coachHas(league, 'Recovery Lab') && !inj.season ? 0.75 : 1;
+    p.injury = { type: inj.type, weeks: Math.max(1, Math.round(inj.weeks * heal)) + 1, season: inj.season };
     const notable = p.team === league.user || (inj.season && p.ovr >= 75) || (p.ovr >= 82 && inj.weeks >= 2);
     if (notable) news(league, 'injury', `${p.team} ${p.pos} ${p.fn} ${p.ln} suffered a ${inj.type.toLowerCase()} and is ${inj.season ? 'out for the season' : `expected to miss ${inj.weeks} week${inj.weeks > 1 ? 's' : ''}`}.`, [p.team], { pid: p.id, big: inj.season && p.ovr >= 85 });
   }
@@ -95,7 +97,7 @@ function gameXp(p: Player, l: StatLine): number {
 function coachXpMult(league: League, p: Player) {
   if (p.team !== league.user) return 1;
   const u = league.coachTree.unlocked;
-  return 1 + (u.includes('Mentor') ? 0.12 : 0) + (u.includes('Player Development II') ? 0.12 : 0) + (p.pos === 'QB' && u.includes('QB Whisperer') ? 0.2 : 0) + (p.exp <= 1 && u.includes('Rookie Camp') ? 0.15 : 0);
+  return 1 + (u.includes('Mentor') ? 0.12 : 0) + (u.includes('Player Development II') ? 0.12 : 0) + (p.pos === 'QB' && u.includes('QB Whisperer') ? 0.2 : 0) + (p.exp <= 1 && u.includes('Rookie Camp') ? 0.15 : 0) + (p.age >= 30 && u.includes('Veteran Care') ? 0.25 : 0);
 }
 function weeklyGameXp(league: League, p: Player, l: StatLine) {
   p.xp += Math.max(0, gameXp(p, l)) * DEV_MULT[p.dev] * coachXpMult(league, p);
@@ -202,10 +204,16 @@ function coachXp(league: League) {
   if (!g?.result) return;
   const won = (g.home === league.user ? g.result.hs > g.result.as : g.result.as > g.result.hs);
   league.coachTree.xp += won ? (g.week > REG_WEEKS ? 260 : 120) : 40;
-  while (league.coachTree.xp >= league.coachTree.level * 450) {
-    league.coachTree.xp -= league.coachTree.level * 450;
-    league.coachTree.level++; league.coachTree.points++;
-    mail(league, 'Front Office', 'Coach level up', `You reached coach level ${league.coachTree.level} and earned a coach ability point. Spend it in Coach Abilities.`);
+  if (won && coachHas(league, "Owner's Trust")) league.security = clamp(league.security + 0.5, 0, 100);
+  levelCoach(league);
+}
+/** Bank coach XP into levels; each level brings coach points. */
+export function levelCoach(league: League) {
+  const c = league.coachTree;
+  while (c.xp >= coachXpNeed(c.level)) {
+    c.xp -= coachXpNeed(c.level);
+    c.level++; c.points += POINTS_PER_LEVEL;
+    mail(league, 'Front Office', 'Coach level up', `You reached coach level ${c.level} and earned ${POINTS_PER_LEVEL} coach points. Spend them in the Coach Tree.`);
   }
 }
 

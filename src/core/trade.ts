@@ -9,6 +9,7 @@ import { capHit, capSpace, marketValue, yearsLeft } from './contracts';
 import { teamRatings, autoDepth } from './league';
 import { news, mail, standings } from './season';
 import { positionNeeds } from './draft';
+import { coachHas } from './coaching';
 
 const CHART: [number, number][] = [[1, 3000], [2, 2600], [3, 2200], [4, 1800], [5, 1700], [6, 1600], [8, 1400], [10, 1300], [12, 1200], [16, 1000], [20, 850], [25, 720], [32, 590], [40, 500], [50, 400], [64, 270], [80, 190], [96, 116], [100, 100], [128, 50], [160, 30], [192, 17], [224, 4], [260, 1]];
 export function pickValue(no: number) {
@@ -134,7 +135,7 @@ export function evaluateTrade(league: League, offer: TradeOffer): TradeVerdict {
   const K = (ids: string[]) => ids.map(id => league.picks.find(p => p.id === id)!).filter(Boolean);
   const receive = packageValue(league, P(offer.give.players), K(offer.give.picks), offer.to);
   const send = packageValue(league, P(offer.get.players), K(offer.get.picks), offer.to);
-  const margin = { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty];
+  const margin = { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty] * (offer.from === league.user && coachHas(league, 'Trade Shark') ? 0.95 : 1);
   const ratio = receive / Math.max(1, send);
   // Cap legality for the AI side after the deal (in season the cap binds now).
   const capIn = P(offer.give.players).reduce((a, p) => a + capHit(p.contract, league.season), 0);
@@ -167,7 +168,7 @@ export function pickLabel(league: League, k: Pick) {
 /** Ask the AI what it would want for one of its players: picks first, then players. */
 export function whatWouldItTake(league: League, from: string, to: string, targetId: string): TradeOffer | null {
   const target = league.players[targetId];
-  const need = playerTradeValue(league, target, to) * { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty];
+  const need = playerTradeValue(league, target, to) * { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty] * (from === league.user && coachHas(league, 'Trade Shark') ? 0.95 : 1);
   const offer: TradeOffer = { from, to, give: { players: [], picks: [] }, get: { players: [targetId], picks: [] } };
   const assets = [
     ...league.picks.filter(k => k.owner === from && k.season >= league.season).map(k => ({ kind: 'pick' as const, id: k.id, v: pickTradeValue(league, k, to) })),

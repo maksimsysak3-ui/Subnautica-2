@@ -11,6 +11,7 @@ import type { League, Player, Pos, StatLine, Team, Game, BoxScore, TeamBox } fro
 import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
 import { sideEdge, fans } from '../core/media';
+import { coachHas } from '../core/coaching';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
@@ -117,7 +118,35 @@ export class GameSim {
     if (side === this.sides[1] && !this.game.neutral) v += side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8;
     if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
+    if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
     return v;
+  }
+  private cu?: Set<string>;
+  /** The user's coach tree on game day: situational bonuses from unlocked abilities. */
+  private coachEdge(side: Side, p: Player, a: keyof Player['attrs']): number {
+    const u = (this.cu ??= new Set(this.league.coachTree.unlocked));
+    if (!u.size) return 0;
+    const onO = side === this.sides[this.poss], home = side === this.sides[1] && !this.game.neutral;
+    let b = 0;
+    if (u.has('Motivator')) b += 0.6;
+    if (u.has('Home Fortress') && home) b += 0.6;
+    if (u.has('Road Warriors') && !home && !this.game.neutral) b += 0.7;
+    if (u.has('Big Game Coach') && this.playoff) b += 1;
+    if (u.has('Clock Manager') && this.q >= 4 && this.clock <= 300 && Math.abs(this.score[0] - this.score[1]) <= 8) b += 1.5;
+    if (onO) {
+      if (u.has('Scheme Expert')) b += 0.5;
+      if (u.has('Air Raid') && (p.pos === 'QB' || p.pos === 'WR' || p.pos === 'TE')) b += 0.6;
+      if (u.has('Ground Game') && (p.pos === 'RB' || p.pos === 'FB' || p.pos === 'OT' || p.pos === 'G' || p.pos === 'C')) b += 0.6;
+      if (u.has('Two-Minute Drill') && this.twoMinute()) b += 1;
+      if (u.has('Red Zone Specialist') && this.yl >= 80) b += 1.2;
+    } else {
+      if (u.has('Defensive Mind')) b += 0.5;
+      if (u.has('Pressure Package') && (a === 'FMV' || a === 'PMV')) b += 1.2;
+      if (u.has('Lockdown Coverage') && (a === 'MCV' || a === 'ZCV')) b += 1;
+      if (u.has('Takeaway Drills') && a === 'CTH') b += 4;
+      if (u.has('Goal Line Stand') && this.yl >= 80) b += 1.2;
+    }
+    return b;
   }
   private has(p: Player | undefined, ab: string) { return !!p && p.abil.includes(ab); }
 
@@ -371,7 +400,7 @@ export class GameSim {
     for (const p of players) {
       if (!p) continue;
       this.snaps.set(p.id, (this.snaps.get(p.id) ?? 0) + 1);
-      side.fatigue.set(p.id, Math.min(1, (side.fatigue.get(p.id) ?? 0) + 0.035));
+      side.fatigue.set(p.id, Math.min(1, (side.fatigue.get(p.id) ?? 0) + (side.abbr === this.league.user && coachHas(this.league, 'Fresh Legs') ? 0.0245 : 0.035)));
     }
     // Players on the sideline recover.
     for (const [id, f] of side.fatigue) if (!players.some(p => p?.id === id)) side.fatigue.set(id, Math.max(0, f - 0.05));
@@ -417,6 +446,7 @@ export class GameSim {
   }
   private injure(side: Side, p: Player) {
     if (side.out.has(p.id)) return;
+    if (side.abbr === this.league.user && coachHas(this.league, 'Iron Program') && this.rng.chance(0.25)) return;
     // Most knocks are minor: shaken up, or out for the game. Multi-week and
     // season-ending injuries are the exception.
     const weeks = this.rng.weighted([[-1, 0.4], [0, 0.18], [1, 0.17], [2, 0.1], [3, 0.05], [4, 0.04], [6, 0.03], [9, 0.015], [99, 0.015]] as const);
@@ -443,11 +473,11 @@ export class GameSim {
     this.snap([...d.dl, ...d.lbs, ...d.cbs, ...d.ss], defS);
     this.box[this.poss].plays++;
     // Pre-snap penalties (crowd noise makes the road offence jump more).
-    const preSnap = 0.046 + (this.poss === 0 && !this.game.neutral ? 0.006 : 0) - ((o.ol.reduce((a, p) => a + p.attrs.AWR, 0) / Math.max(1, o.ol.length)) - 75) * 0.0004;
+    const preSnap = 0.051 + (this.poss === 0 && !this.game.neutral ? 0.006 : 0) - ((o.ol.reduce((a, p) => a + p.attrs.AWR, 0) / Math.max(1, o.ol.length)) - 80) * 0.0004;
     if (this.rng.chance(preSnap)) {
-      const offFoul = this.rng.chance(0.62);
+      const offFoul = this.rng.chance(0.55);
       const culprit = offFoul ? this.rng.pick(o.ol) : this.rng.pick(d.dl);
-      return this.penalty(offFoul, 5, offFoul ? 'False start' : (this.rng.chance(0.5) ? 'Offside' : 'Neutral zone infraction'), culprit, false, true);
+      if (!((offFoul ? off : defS).abbr === this.league.user && coachHas(this.league, 'Disciplinarian') && this.rng.chance(0.4))) return this.penalty(offFoul, 5, offFoul ? 'False start' : (this.rng.chance(0.5) ? 'Offside' : 'Neutral zone infraction'), culprit, false, true);
     }
     let ev: PlayEvent;
     if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
@@ -670,7 +700,7 @@ export class GameSim {
     // Offensive holding wipes out a gain sometimes.
     if (gain > 4 && this.rng.chance(0.03)) return this.penalty(true, 10, 'Offensive holding', this.rng.pick(o.ol), false);
     if (this.rng.chance(0.009)) return this.penalty(false, 15, this.rng.pick(['Roughing the passer', 'Unnecessary roughness', 'Face mask']), this.rng.pick(d.dl), true);
-    if (this.rng.chance(0.022) && !hurried) return this.penalty(false, 5, this.rng.pick(['Defensive holding', 'Illegal contact']), cov ?? d.cbs[0], true);
+    if (this.rng.chance(0.034) && !hurried) return this.penalty(false, 5, this.rng.pick(['Defensive holding', 'Illegal contact']), cov ?? d.cbs[0], true);
     l.pc++; l.py += gain; l.plng = Math.max(l.plng, gain);
     const rl = this.L(recv); rl.rec++; rl.recy += gain; rl.reclng = Math.max(rl.reclng, gain);
     this.box[this.poss].pyds += gain; this.box[this.poss].yds += gain;
@@ -679,7 +709,7 @@ export class GameSim {
     if (tackler) { this.L(tackler).tkl++; this.hit(recv); }
     this.maybeInjure(off, recv, 1); this.maybeInjure(def, tackler, 0.6); this.snapInjury();
     // Fumble after the catch.
-    const fum = this.rng.chance(0.006 - (this.r(off, recv, 'CAR') - 70) * 0.00008 + (tackler && this.has(tackler, 'Strip Specialist') ? 0.006 : 0));
+    const fum = this.rng.chance(0.009 - (this.r(off, recv, 'CAR') - 76) * 0.00008 + (tackler && this.has(tackler, 'Strip Specialist') ? 0.006 : 0));
     const res = fum ? { td: false, first: false, safety: false } : this.advance(gain);
     const oob = !res.td && this.rng.chance(this.twoMinute() ? 0.42 : 0.2);
     this.lastClockRunning = !oob || !(this.twoMinute() || (this.q >= 4 && this.clock <= 300));
@@ -793,7 +823,7 @@ export class GameSim {
     if (this.yl + y < 100) { const tl = this.L(tackler); tl.tkl++; if (y < 0) { tl.tfl++; this.zonePoint(def, tackler, 1); } }
     if (y >= 12) { this.zonePoint(off, carrier, 1); for (const p of o.ol) if (this.rng.chance(0.3)) this.L(p).pancake++; }
     this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5); this.snapInjury();
-    const fumbleP = clamp(0.0088 - (this.r(off, carrier, 'CAR') - 70) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
+    const fumbleP = clamp(0.0135 - (this.r(off, carrier, 'CAR') - 76) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
     const fum = y > -3 && this.rng.chance(fumbleP);
     const res = fum ? { td: false, first: false, safety: false } : this.advance(y);
     const oob = !res.td && outside && this.rng.chance(0.22);

@@ -85,17 +85,26 @@ export function DepthScreen() {
   const [kr, pr] = returners(L);
   const playerAt = (s: Slot) => (s.auto ? (s.label === 'KR' ? kr : pr) : L.players[t.depth[s.pos]?.[s.i] ?? '']);
   const starters = slots.filter(s => !s.auto).map(playerAt).filter(Boolean);
+  const backupsOf = (s: Slot) => { const ids = t.depth[s.pos] ?? [], st = new Set(slots.filter(z => z.pos === s.pos && !z.auto).map(z => z.i)); const b = ids.map((id, j) => ({ id, j })).filter(x => !st.has(x.j)).slice(0, 2).map(x => L.players[x.id]); return [b[0], b[1]]; };
   const fits = starters.filter(p => schemeFit(L, p, L.user)).length;
   const scheme = unit === 'Defense' ? t.coach.def : t.coach.off;
   const generate = () => { const back = activateHealthy(L, L.user); unmarkDepth(L.teams[L.user]); autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast(back.length ? `Best lineup set · activated ${back.map(p => p.ln).join(', ')} from IR` : 'Best lineup set'); };
   // Card size from the board: the widest formation is ~6.4 card widths either side of the ball.
   const rows = Math.max(...slots.map(s => s.r)) + 1;
   const pad = 24;
-  // Wideouts are drawn a little closer in than true splits, so the cards can be bigger.
-  const du = (u: number) => Math.sign(u) * (Math.abs(u) <= 3.1 ? Math.abs(u) : 3.1 + (Math.abs(u) - 3.1) * 0.72);
+  // Wideouts are packed in next to the formation (order kept, a small split from the
+  // core) instead of at true splits, so the cards can be much bigger.
+  const packed = new Map<number, number>();
+  for (const sgn of [-1, 1]) {
+    const side = [...new Set(slots.filter(z => Math.sign(z.u) === sgn).map(z => Math.abs(z.u)))].sort((x, y) => x - y);
+    const core = side.filter(v => v <= 3.1), m = core.length ? core[core.length - 1] : 0;
+    let prev = m;
+    for (const v of side) if (v > 3.1) { prev = Math.max(prev + 1, m + 1.25); packed.set(sgn * v, sgn * prev); }
+  }
+  const du = (u: number) => packed.get(u) ?? u;
   const maxU = Math.max(...slots.map(s => Math.abs(du(s.u))));
-  const cw = Math.max(72, Math.min(140, (size.w / 2 - pad) / (maxU * 1.06 + 0.55), (size.h - pad * 2 - 20) / (rows * 1.42 + 0.3)));
-  const ch = cw * 1.36, U = cw * 1.06;
+  const cw = Math.max(72, Math.min(140, (size.w / 2 - pad) / (maxU * 1.06 + 0.55), (size.h - pad * 2 - 20) / (rows * 1.72 + 0.3)));
+  const ch = cw * 1.62, U = cw * 1.08;
   const offense = unit === 'Offense', defense = unit === 'Defense';
   const groupH = (rows - 1) * (ch + cw * 0.08) + ch;
   const top = Math.max(pad + 16, (size.h - groupH) / 2);
@@ -123,24 +132,24 @@ export function DepthScreen() {
               const on = sel?.label === s.label;
               const g = s.auto ? '' : slotGrade(L, s, p);
               return (
-                <button key={s.label} className={`dc-card${on ? ' on' : ''}${p ? ` ${tierOf(v)}` : ' empty'}${s.auto ? ' auto' : ''}`}
-                  style={{ left: size.w / 2 + du(s.u) * U - cw / 2, top: yOf(s), width: cw, height: ch, animationDelay: `${k * 0.025}s`, '--tc': p ? vivid(L.teams[p.team]?.colors[0] ?? '#2a3040') : '#20242c' } as React.CSSProperties}
-                  onClick={() => !s.auto && setSel(on ? null : s)} title={p ? `${p.fn} ${p.ln} · ${p.pos} ${p.ovr}` : 'Empty'}>
-                  <div className="dc-art">
-                    {p && <Logo team={L.teams[p.team]} size={cw * 0.9} style={{ position: 'absolute', right: -cw * 0.22, top: -cw * 0.1, opacity: 0.16 }} />}
-                    {p ? <Shot p={p} /> : <div className="dc-empty">+</div>}
-                    {p && <b className="dc-ovr">{v}</b>}
-                    <span className="dc-pos">{s.label}</span>
-                    {p && p.dev !== 'Normal' && <span className="dc-dev"><DevIcon d={p.dev} size={Math.round(cw * 0.17)} /></span>}
-                    {p?.injury && <span className="dc-inj" title={p.injury.type}>OUT {p.injury.weeks}W</span>}
-                    {p && !s.auto && p.pos !== s.pos && <span className="dc-oop" title={`Natural ${p.pos}`}>{p.pos}</span>}
-                    {g && <i className={`dc-grade g${g[0]}`} title="Grade against every team's starter at this spot">{g}</i>}
-                  </div>
-                  <div className="dc-plate">
-                    <b>{p ? p.ln : 'Empty'}</b>
-                    <span>{p ? (s.auto ? 'Auto returner' : p.arch) : 'Select to fill'}</span>
-                  </div>
-                </button>
+                <div key={s.label} className={`md-slot${on ? ' on' : ''}`} style={{ left: size.w / 2 + du(s.u) * U - cw / 2, top: yOf(s), width: cw, animationDelay: `${k * 0.025}s` } as React.CSSProperties}>
+                  <button className={`md-card ${p ? tierOf(v) : 'empty'}${s.auto ? ' auto' : ''}`} onClick={() => !s.auto && setSel(on ? null : s)} title={p ? `${p.fn} ${p.ln} · ${p.pos} ${p.ovr}` : 'Empty'}>
+                    <div className="md-art">
+                      {p ? <Shot p={p} /> : <div className="dc-empty">+</div>}
+                      {p && p.dev !== 'Normal' && <span className="md-dev"><DevIcon d={p.dev} size={Math.round(cw * 0.15)} /></span>}
+                      {p && <b className="md-ovr">{v}</b>}
+                      {p?.injury && <span className="md-inj">OUT</span>}
+                      {p && !s.auto && p.pos !== s.pos && <span className="md-oop">{p.pos}</span>}
+                    </div>
+                    <div className="md-depth">
+                      <div className="md-st">{p ? `${p.fn[0]}.${p.ln}` : 'Empty'}</div>
+                      {s.auto ? <div className="md-bk"><span>Auto returner</span></div> : backupsOf(s).map((b, j) => b
+                        ? <div key={b.id} className="md-bk"><span>{b.fn[0]}.{b.ln}</span><b>{ratingAt(b, s.pos)}</b></div>
+                        : <div key={j} className="md-bk"><span>—</span></div>)}
+                    </div>
+                  </button>
+                  <div className="md-label"><b>{s.label}</b>{g && <span>| {g}</span>}</div>
+                </div>
               );
             })}
           </div>

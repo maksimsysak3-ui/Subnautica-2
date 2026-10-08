@@ -6,7 +6,7 @@
 import type { League, Player, StatLine } from './types';
 import { clamp } from './rng';
 import { teamRatings } from './league';
-import { standings, news, mail, weekGames, REG_WEEKS } from './season';
+import { standings, news, mail, weekGames, REG_WEEKS, levelCoach } from './season';
 import { fans } from './media';
 import { treeOf } from './archetypes';
 
@@ -68,6 +68,7 @@ export function settleOwnerGoals(L: League) {
   }
   L.security = clamp(L.security + delta, 0, 100);
   L.coachTree.xp += xp;
+  levelCoach(L);
   const met = s.list.filter(g => goalProgress(L, g).met).length;
   mail(L, 'Owner', `Season goals: ${met} of ${s.list.length} met`, lines.join('\n'));
 }

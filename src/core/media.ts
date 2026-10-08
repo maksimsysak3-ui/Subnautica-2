@@ -5,6 +5,7 @@
 import type { League, Player } from './types';
 import { clamp } from './rng';
 import { news, mail } from './season';
+import { coachHas } from './coaching';
 
 export interface Promise { kind: 'guarantee' | 'owner' | 'bench'; gid: string; stake: number; text: string; pid?: string }
 export interface Media {
@@ -100,7 +101,7 @@ export function settleMedia(L: League) {
     m.momentum *= 0.25;   // a little carries over; most is spent on the game it was built for
     if (m.bulletin === (ug.home === L.user ? ug.away : ug.home)) m.bulletin = undefined;
     const r = ug.result!, won = (ug.home === L.user ? r.hs > r.as : r.as > r.hs);
-    applyEffects(L, { fans: won ? 1.5 : -1.5 });
+    applyEffects(L, { fans: (won ? 1.5 : -1.5) + (coachHas(L, 'Media Darling') ? 0.5 : 0) });
   }
   // Fans mostly follow the record; words and gestures only nudge them.
   const st = Object.values(L.games).filter(g => g.season === L.season && g.result && (g.home === L.user || g.away === L.user));

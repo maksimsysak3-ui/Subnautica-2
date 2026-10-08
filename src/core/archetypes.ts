@@ -10,6 +10,7 @@
 import type { Attrs, Dev, League, Player, Pos, StatLine } from './types';
 import { overall, XFACTORS } from './ratings';
 import { news } from './season';
+import { coachHas } from './coaching';
 
 type A = keyof Attrs;
 export interface Arch { name: string; desc: string; attrs: A[] }
@@ -206,7 +207,7 @@ export function awardSkillPoints(league: League, gameBoxes: Record<string, Parti
         hit = goal.id === '300' ? box.py >= 300 : goal.id === '3td' ? box.ptd >= 3 : goal.id === '100r' ? box.ry >= 100 : goal.id === '100y' ? box.recy >= 100 : goal.id === '80y' ? box.recy >= 80
           : goal.id === '2td' ? box.rtd + box.rectd >= 2 : goal.id === '2sk' ? box.dsk >= 2 : goal.id === 'ff' ? box.ff >= 1 : goal.id === '10t' ? box.tkl >= 10 : goal.id === 'int' ? box.dint >= 1 : goal.id === '2pd' ? box.pd >= 2 : false;
       } else hit = goal.cur >= goal.target;
-      if (hit && !t.earned.includes(key)) { t.earned.push(key); t.sp += goal.sp; out.push({ p, sp: goal.sp, why: goal.label }); }
+      if (hit && !t.earned.includes(key)) { const sp = goal.sp + (p.team === league.user && coachHas(league, 'Archetype Lab') ? 1 : 0); t.earned.push(key); t.sp += sp; out.push({ p, sp, why: goal.label }); }
     }
     if (t.earned.length > 300) t.earned.splice(0, t.earned.length - 300);
     if (t.sp > 0 && autoOn(league, p)) {
