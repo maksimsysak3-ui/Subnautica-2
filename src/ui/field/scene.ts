@@ -51,7 +51,7 @@ export function slotFor(id: string): Slot | undefined { const p = app.league?.pl
 
 export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; carrier?: (t: number) => number; tackle?: number; kick?: boolean;
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
-  off?: 0 | 1; td?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number }
+  off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number }
 
 interface KickCtx { s: number; toX: (yl: number) => number; mid: number; off: 0 | 1; def: 0 | 1; los: number; first: number; lerp: (a: number, b: number, k: number) => number; seg: (t: number, a: number, b: number) => number; add: (team: 0 | 1, slot: string, role: string, path: Path) => void; actors: Actor[] }
 /**
@@ -106,7 +106,7 @@ function buildKick(ev: PlayEvent, k: KickCtx): Scene {
     const carrierIdx = actors.length - 2;
     const ball: Path = t => (t < 0.06 ? [tee, mid] : t < tCatch ? [lerp(tee, land[0], seg(t, 0.06, tCatch)), lerp(mid, land[1], seg(t, 0.06, tCatch))] : carrierPath(t));
     const ballH = (t: number) => (t > 0.06 && t < tCatch ? Math.sin(Math.PI * seg(t, 0.06, tCatch)) * (onside ? 2.5 : 19) + 0.3 : 1.1);
-    return { dur: tb ? 2.8 : onside ? 2.6 : 4.4, pre: 0, los: tee, first: tee, actors, ball, ballH, dirSign: -s, carrier: () => carrierIdx, tackle: tb || td || onside ? undefined : tEnd, kick: true, kicker: actors.findIndex(a => a.slot === 'K'), kickAt: 0.06, catchAt: tCatch, endAt: tEnd };
+    return { dur: tb ? 2.8 : onside ? 2.6 : 4.4, pre: 0, los: tee, first: tee, actors, ball, ballH, dirSign: -s, carrier: () => carrierIdx, hold: (u: number) => (tb ? -1 : u >= tCatch ? carrierIdx : -1), tackle: tb || td || onside ? undefined : tEnd, kick: true, kicker: actors.findIndex(a => a.slot === 'K'), kickAt: 0.06, catchAt: tCatch, endAt: tEnd };
   }
   if (ev.type === 'punt') {
     // ev.poss = punting team, kicking in direction s.
@@ -144,7 +144,7 @@ function buildKick(ev: PlayEvent, k: KickCtx): Scene {
       return carrierPath(t);
     };
     const ballH = (t: number) => (t > tKick && t < tLand && !blocked ? 1.2 + Math.sin(Math.PI * seg(t, tKick, tLand)) * 21 : downed && t < 0.75 ? 0.15 + Math.abs(Math.sin(seg(t, tLand, 0.75) * Math.PI * 3)) * 1.8 * (1 - seg(t, tLand, 0.75)) : 1.1);
-    return { dur: returning ? 4.4 : 3.4, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, carrier: () => carrierIdx, tackle: returning && !td ? tEnd : undefined, kick: true, kicker: actors.findIndex(a => a.slot === 'P'), kickAt: tKick, catchAt: tLand, endAt: tEnd };
+    return { dur: returning ? 4.4 : 3.4, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, carrier: () => carrierIdx, hold: (u: number) => (returning || fair ? (u >= tLand ? carrierIdx : -1) : blocked && u > 0.3 ? carrierIdx : -1), tackle: returning && !td ? tEnd : undefined, kick: true, kicker: actors.findIndex(a => a.slot === 'P'), kickAt: tKick, catchAt: tLand, endAt: tEnd };
   }
   // Field goal / extra point: snap, hold, kick through (or past) the uprights.
   const los = ev.type === 'xp' ? toX(85) : toX(ev.yl);
@@ -159,7 +159,7 @@ function buildKick(ev: PlayEvent, k: KickCtx): Scene {
   for (let i = 0; i < 9; i++) { const dy = (i - 4) * 1.4; add(def, `FB${i}`, 'DL', run([los + s * 1, mid + dy], [los - s * (i === 4 ? 3.5 : 1.5), mid + dy * 0.8], 0.05, 0.35)); }
   const ball: Path = t => (t < 0.08 ? [lerp(los, hold[0], t / 0.08), mid] : t < 0.16 ? hold : [lerp(hold[0], postX, seg(t, 0.16, 0.85)), lerp(mid, tgtY, seg(t, 0.16, 0.85))]);
   const ballH = (t: number) => (t < 0.08 ? 0.6 : t < 0.16 ? 0.25 : 0.25 + Math.sin(Math.PI * 0.62 * seg(t, 0.16, 0.85)) * 13);
-  return { dur: 2.6, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, kick: true, kicker: actors.findIndex(a => a.slot === 'K'), kickAt: 0.16 };
+  return { dur: 2.6, pre: 0, los, first: los, actors, ball, ballH, dirSign: s, kick: true, hold: () => -1, kicker: actors.findIndex(a => a.slot === 'K'), kickAt: 0.16 };
 }
 
 /** Builds the play: who stands where, how everyone moves, where the ball goes. */
@@ -186,7 +186,7 @@ export function buildScene(ev: PlayEvent, lineups: [Lineup, Lineup]): Scene {
     actors.push({ team, slot, role, path, facing: team === off ? s : -s, num: who.num, ln: who.ln, id: who.id, skin: who.skin });
   };
   const sc = kick ? buildKick(ev, { s, toX, mid, off, def, los, first, lerp, seg, add, actors }) : simScrimmage(ev, { s, at, los, first, mid, end, off, def, add, actors, L: lineups });
-  sc.off = off; sc.td = !!ev.td;
+  sc.off = off; sc.td = !!ev.td; sc.pass = ev.type === 'pass'; sc.complete = !!ev.complete; sc.int = ev.type === 'pass' && !!ev.turnover;
   return sc;
 }
 
@@ -245,6 +245,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const routes = WHO.map(w => [at(...FORMATION[w]), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);
   let carrier: Agent | null = null, thrown = false, caught = false, endT = 0, ballXY: [number, number] = at(0, 0), ballZ = 0;
+  const holdTrack: number[] = [];
+  let loose: [number, number, number] | null = null;   // velocity of a dead/deflected ball
+  let broken = false;                                  // a defender got a hand on it
   let shed = DL.map(() => 1.4 + rnd() * 1.3);
   if (sack) shed[si] = 1.3;
   const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
@@ -317,7 +320,19 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       const from = at(-7, 0);
       ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
       ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * (0.5 + Math.abs(air) * 0.3);
-    } else { const h = carrier ?? (pass && caught && !ev.complete ? null : t < 0.12 ? null : QB); if (h) { ballXY = [h.x, h.y]; ballZ = 1.1; } else ballZ = t < 0.12 ? 0.15 : Math.max(0.15, ballZ - 0.12); }
+    } else if (pass && caught && !ev.complete && !ev.turnover) {
+      // Incomplete: the ball is knocked away or falls incomplete, then bounces dead. Nobody holds it.
+      if (!loose) {
+        const from = at(-7, 0), dx = catchPt[0] - from[0], dy = catchPt[1] - from[1], d = Math.hypot(dx, dy) || 1;
+        const near = [...DB, FS, ...LB].reduce((m, a) => Math.min(m, dist(a, { x: catchPt[0], y: catchPt[1] })), 99);
+        broken = near < 1.8;
+        loose = broken ? [(dx / d) * 2 + (rnd() - 0.5) * 5, (dy / d) * 2 + (rnd() - 0.5) * 5, 3.2] : [(dx / d) * 5, (dy / d) * 5, -1];
+      }
+      ballXY = [ballXY[0] + loose[0] * DT, ballXY[1] + loose[1] * DT];
+      ballZ += loose[2] * DT; loose[2] -= 10.7 * DT;
+      if (ballZ < 0.12) { ballZ = 0.12; loose[2] = Math.abs(loose[2]) * 0.38; loose[0] *= 0.55; loose[1] *= 0.55; if (loose[2] < 0.6) loose[2] = 0; }
+    } else { const h = carrier ?? (t < 0.12 ? null : QB); if (h) { ballXY = [h.x, h.y]; ballZ = 1.1; } else ballZ = 0.15; }
+    holdTrack.push(pass && thrown && !caught ? -1 : pass && caught && !ev.complete && !ev.turnover ? -1 : carrier ? agents.indexOf(carrier) : t >= 0.12 ? agents.indexOf(QB) : -1);
     (ballTrack as [number, number, number][]).push([ballXY[0], ballXY[1], ballZ]);
     // When does it end?
     if (!endT) {
@@ -337,6 +352,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const ballH = (u: number) => { const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return u * dur < PRE ? 0.15 : bt[i][2]; };
   const tackled = !ev.td && !(pass && !ev.complete);
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
-    qb: agents.indexOf(QB), target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
+    hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
+    broken, qb: agents.indexOf(QB), target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
 }
 

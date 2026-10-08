@@ -185,7 +185,7 @@ function Masthead({ children }: { children?: React.ReactNode }) {
     <header className="masthead" style={{ '--tc': t.colors[0] } as React.CSSProperties}>
       <div className="who">
         <div className="mh-logo"><Logo team={t} size={44} /></div>
-        <div><div className="name">{t.nick}</div><div className="meta">{phaseLabel(L)}</div></div>
+        <div><div className="name">{t.nick}</div><div className="meta">{L.phase === 'regular' ? `${L.season} · Week ${L.week}` : L.phase === 'playoffs' ? ROUND_NAME[L.week] : phaseLabel(L)}</div></div>
       </div>
       {children}
       <div className="spacer" />
