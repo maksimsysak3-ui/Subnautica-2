@@ -20,7 +20,7 @@ const best = (L: League, t: Team, ...pos: Pos[]) => pos.flatMap(ps => (t.depth[p
 
 interface Duel { title: string; a?: Player; b?: Player; ka: (keyof Attrs)[]; kb: (keyof Attrs)[] }
 
-export function MatchupPreview({ gid }: { gid: string }) {
+export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: boolean }) {
   const L = useApp().league!;
   const g = L.games.find(x => x.id === gid);
   if (!g) return <div className="empty">Game not found.</div>;
@@ -41,10 +41,10 @@ export function MatchupPreview({ gid }: { gid: string }) {
   const play = () => app.replace({ id: 'game', gid });
   const sim = () => app.busy('Simulating the week', async () => { await advance(L); await saveLeague(L, `${L.id}-auto`); app.replace({ id: 'box', gid }); });
   return (
-    <div className="pv" style={{ '--ca': vivid(away.colors[0]), '--ch': vivid(home.colors[0]) } as CSSProperties}>
+    <div className={`pv${embedded ? ' embedded' : ''}`} style={{ '--ca': vivid(away.colors[0]), '--ch': vivid(home.colors[0]) } as CSSProperties}>
       <div className="pv-bg"><i className="a" /><i className="h" /></div>
       <header className="pv-top">
-        <button className="btn ghost sm" onClick={() => app.backTo()}>Back</button>
+        {embedded ? <div /> : <button className="btn ghost sm" onClick={() => app.backTo()}>Back</button>}
         <div className="pv-when"><b>{when}</b><span>{g.day} {g.time} · {g.neutral ?? home.stadium}</span><span>{wx.dome ? 'Indoors' : `${wx.temp}°F · Wind ${wx.wind} mph${wx.precip !== 'none' ? ` · ${wx.precip}` : ''}`}</span></div>
         <div className="row"><button className="btn" onClick={sim}>Sim Game</button><button className="btn primary big" onClick={play}>Play Game</button></div>
       </header>

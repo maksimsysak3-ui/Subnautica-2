@@ -19,16 +19,19 @@ import { AwardsScreen } from './screens/awards';
 import { InjuryScreen } from './screens/injuries';
 import { GameScreen } from './screens/game';
 import { MatchupPreview } from './screens/preview';
+import { GamedayScreen, OptionsScreen } from './screens/gameday';
+import { gmName } from './actions';
 import { CrashGuard } from './crash';
 
 type Id = Screen['id'];
 /** Big tabs across the top; each owns a rail of smaller tabs down the side. */
 export const TABS: { label: string; subs: [Id, string][] }[] = [
-  { label: 'Weekly Hub', subs: [['hub', 'Overview'], ['inbox', 'Inbox'], ['news', 'News Center']] },
-  { label: 'Manage Roster', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['resign', 'Re-sign'], ['cap', 'Salary Cap'], ['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
-  { label: 'Trades', subs: [['trade', 'Trade Center'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['tradehist', 'History'], ['chart', 'Pick Value']] },
-  { label: 'Coach Central', subs: [['plan', 'Game Plan'], ['coach', 'Coach Tree'], ['progress', 'Progression'], ['teamstats', 'Team Stats']] },
-  { label: 'League', subs: [['schedule', 'Schedule'], ['standings', 'Standings'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['history', 'History']] },
+  { label: 'Gameday', subs: [['gameday', 'Matchup'], ['plan', 'Game Plan'], ['schedule', 'Schedule']] },
+  { label: 'Weekly Hub', subs: [['hub', 'Weekly Hub'], ['inbox', 'Inbox'], ['news', 'News Center']] },
+  { label: 'Manage Roster', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['trade', 'Trade Center'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['resign', 'Re-sign'], ['cap', 'Salary Cap'], ['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
+  { label: 'Coach Central', subs: [['coach', 'Coach Tree'], ['progress', 'Progression'], ['teamstats', 'Team Stats']] },
+  { label: 'League', subs: [['standings', 'Standings'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['tradehist', 'Transactions'], ['chart', 'Pick Value'], ['history', 'History']] },
+  { label: 'Options', subs: [['options', 'Options']] },
 ];
 /** Screens that take the whole width: the side rail becomes a strip of tabs above them. */
 const FULL = new Set<Id>(['depth', 'trade']);
@@ -40,7 +43,7 @@ export function App() {
   const L = s.league;
   useTeamTheme(L);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Backspace' && !['INPUT', 'SELECT'].includes((e.target as HTMLElement).tagName)) app.backTo(); };
+    const k = (e: KeyboardEvent) => { if ((e.key === 'Backspace' || e.key === 'Escape') && !['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName) && !document.querySelector('.modal-bg')) app.backTo(); };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, []);
   const sc = s.screen;
@@ -67,16 +70,37 @@ export function App() {
               {label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'offers' && offers > 0 && <span className="badge">{offers}</span>}
             </button>
           ))}
+          <WeekLine />
         </aside>
         <main className="main fade-in" key={JSON.stringify(sc)}><CrashGuard inline><Route sc={sc} /></CrashGuard></main>
       </div>
-      <BottomLine tag="BottomLine" items={leagueCrawl(L)} />
+      <BottomLine tag="News Center" items={leagueCrawl(L)} right={<NextGame />} hints={<><span><kbd>Q</kbd><kbd>E</kbd>Tabs</span><span><kbd>Enter</kbd>Select</span><span><kbd>X</kbd>Delegate</span><span><kbd>Esc</kbd>Back</span><span className="spacer" /><span>{gmName(L)} · General Manager</span></>} />
       {overlay}
     </>
   );
 }
 
 /** Top tabs with an underline that glides to the active tab. */
+/** Under the tabs: where the season is and who is next. */
+function WeekLine() {
+  const L = useApp().league!;
+  const g = (L.phase === 'regular' || L.phase === 'playoffs') ? userGame(L) : undefined;
+  const opp = g ? L.teams[g.home === L.user ? g.away : g.home] : undefined;
+  const st = standings(L);
+  return (
+    <div className="weekline">
+      <span>{L.season} · {L.phase === 'regular' ? `Week ${L.week}` : L.phase === 'playoffs' ? ROUND_NAME[L.week] : phaseLabel(L).replace(`${L.season} `, '')}</span>
+      {opp && <><Logo team={L.teams[L.user]} size={22} /><Logo team={opp} size={22} /><b>{g!.home === L.user ? 'vs' : '@'} {opp.nick} ({st[opp.abbr].w}-{st[opp.abbr].l}-{st[opp.abbr].t})</b></>}
+    </div>
+  );
+}
+function NextGame() {
+  const L = useApp().league!;
+  const g = (L.phase === 'regular' || L.phase === 'playoffs') ? userGame(L) : undefined;
+  if (!g) return <span className="bl-when">{phaseLabel(L)}</span>;
+  return <><Logo team={L.teams[g.away]} size={28} /><span className="bl-when"><b>{g.day ?? 'Sun'}</b>{g.result ? `Final ${g.result.as}-${g.result.hs}` : g.time}</span><Logo team={L.teams[g.home]} size={28} /></>;
+}
+
 /** The five tabs. Q and E cycle them, the way LB/RB do on a controller. */
 function TabBar({ tab, unread, offers }: { tab: number; unread: number; offers: number }) {
   useEffect(() => {
@@ -103,6 +127,8 @@ function TabBar({ tab, unread, offers }: { tab: number; unread: number; offers: 
 function Route({ sc }: { sc: Screen }) {
   switch (sc.id) {
     case 'hub': return <Hub />;
+    case 'gameday': return <GamedayScreen />;
+    case 'options': return <OptionsScreen />;
     case 'roster': return <RosterScreen team={sc.team} />;
     case 'team': return <TeamScreen team={sc.team} />;
     case 'player': return <PlayerScreen pid={sc.pid} />;
@@ -163,10 +189,10 @@ function Masthead({ children }: { children?: React.ReactNode }) {
       </div>
       {children}
       <div className="spacer" />
-      <span className="mh-rec"><b>{st.w}-{st.l}{st.t ? `-${st.t}` : ''}</b>{div ? `${div}${['', 'st', 'nd', 'rd', 'th'][div]} ${t.conf} ${t.div}` : ''}</span>
-      <span className="mh-rec"><b className={capSpace(L, L.user) < 0 ? 'bad' : ''}>{money(capSpace(L, L.user))}</b>Cap</span>
-      <button className="navbtn" onClick={async () => { const ok = await saveLeague(L); app.toast(ok ? 'Franchise saved' : 'Save failed'); }}>Save</button>
-      <button className="navbtn" onClick={() => app.go({ id: 'menu' })}>Menu</button>
+      <span className="mh-pill" title="Coach points">{L.coachTree.points}<i>CP</i></span>
+      <span className="mh-pill" title="Active roster">{Object.values(L.players).filter(p => p.team === L.user && p.status === 'ACT').length}/53</span>
+      <span className="mh-pill" title="Cap space"><b className={capSpace(L, L.user) < 0 ? 'bad' : ''}>{money(capSpace(L, L.user))}</b></span>
+      <span className="mh-coach"><b>{L.coachTree.level}</b><span>{t.coach.name}<i>{st.w}-{st.l}{st.t ? `-${st.t}` : ''} · {div ? `${div}${['', 'st', 'nd', 'rd', 'th'][div]} ${t.conf} ${t.div}` : ''}</i></span></span>
       <AdvanceButton />
     </header>
   );
@@ -187,7 +213,7 @@ export function AdvanceButton({ big }: { big?: boolean }) {
     case 'regular': case 'playoffs': {
       if (ug && !ug.result) return (
         <div className="row" style={{ gap: 6 }}>
-          <button className={cls} onClick={() => app.go({ id: 'preview', gid: ug.id })}>Play {ug.home === L.user ? 'vs' : '@'} {L.teams[ug.home === L.user ? ug.away : ug.home].abbr}</button>
+          <button className={cls} onClick={() => app.go({ id: 'gameday' })}>Play {ug.home === L.user ? 'vs' : '@'} {L.teams[ug.home === L.user ? ug.away : ug.home].abbr}</button>
           <button className="btn" onClick={() => run('Simulating the week', async () => { await advance(L); })}>Sim Week</button>
         </div>
       );

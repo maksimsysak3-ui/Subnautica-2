@@ -11,9 +11,26 @@ const POS_GROUP: Record<string, string> = { QB: 'qb', RB: 'sk', FB: 'sk', WR: 's
 /** Position label coloured by unit. */
 export function PosTag({ pos }: { pos: string }) { return <span className={`postag ${POS_GROUP[pos] ?? 'st'}`}>{pos}</span>; }
 export function Grade({ g, lg }: { g: string; lg?: boolean }) { return <span className={`grade ${g[0]}${lg ? ' lg' : ''}`}>{g}</span>; }
-export function DevBadge({ d }: { d: Dev }) {
-  const icon = { Normal: '', Star: '★', Superstar: '✦', 'X-Factor': '✸' }[d];
-  return <span className={`dev ${d}`}>{icon} {d}</span>;
+/** Development trait emblem: a bevelled hexagon in bronze, gold or red with its mark. */
+export function DevIcon({ d, size = 22 }: { d: Dev; size?: number }) {
+  const id = `dv${d.replace(/\W/g, '')}`;
+  const pal = { Normal: ['#5a606c', '#2a2e36', '#8a909c'], Star: ['#f6cf9c', '#8c4c18', '#ffe1bb'], Superstar: ['#fff2a6', '#b07d06', '#fff8d2'], 'X-Factor': ['#ff6a78', '#6e0410', '#ffc2c8'] }[d];
+  const hex = 'M12 1.5 21.5 7v10L12 22.5 2.5 17V7z', inner = 'M12 4.2 19.2 8.4v7.2L12 19.8 4.8 15.6V8.4z';
+  return (
+    <svg className="devicon" width={size} height={size} viewBox="0 0 24 24" aria-label={d}>
+      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={pal[0]} /><stop offset="1" stopColor={pal[1]} /></linearGradient></defs>
+      {d === 'Normal' ? <path d={hex} fill="none" stroke={pal[2]} strokeWidth="1.4" opacity=".6" /> : <>
+        <path d={hex} fill={`url(#${id})`} stroke="rgba(0,0,0,.45)" strokeWidth=".8" />
+        <path d={inner} fill="none" stroke={pal[2]} strokeWidth=".8" opacity=".75" />
+        {d === 'Star' && <path d="m12 7.2 1.5 3.1 3.4.4-2.5 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4-2.5-2.3 3.4-.4z" fill="#fff" />}
+        {d === 'Superstar' && <><path d="m12 6.2 1.8 3.7 4 .5-3 2.8.8 4-3.6-2-3.6 2 .8-4-3-2.8 4-.5z" fill="#fff" /><path d="M12 3.6v1.6M20 8.2l-1.4.8M4 8.2l1.4.8" stroke="#fff" strokeWidth="1" strokeLinecap="round" /></>}
+        {d === 'X-Factor' && <path d="M8 7.5h2.6l1.4 2.6 1.4-2.6H16l-2.7 4.5 2.7 4.5h-2.6L12 13.9l-1.4 2.6H8l2.7-4.5z" fill="#fff" />}
+      </>}
+    </svg>
+  );
+}
+export function DevBadge({ d, label = true }: { d: Dev; label?: boolean }) {
+  return <span className={`dev ${d}`}><DevIcon d={d} size={18} />{label && d}</span>;
 }
 
 /** Real team logo from the CDN, with the Wikipedia mark and then a monogram as fallbacks. */
@@ -116,10 +133,16 @@ export function Tabs<T extends string>({ tabs, on, set }: { tabs: readonly T[]; 
 }
 
 export interface Col<T> { k: string; h: string; get: (r: T) => ReactNode; sort?: (r: T) => number | string; cls?: string; w?: number }
-/** Sortable table; rows beyond `limit` are paged so 2,000-player lists stay fast. */
-export function Table<T>({ rows, cols, onRow, rowKey, initial, desc = true, mine, limit = 150 }: { rows: T[]; cols: Col<T>[]; onRow?: (r: T) => void; rowKey: (r: T) => string; initial?: string; desc?: boolean; mine?: (r: T) => boolean; limit?: number }) {
+/**
+ * Sortable table; rows beyond `limit` are paged so 2,000-player lists stay fast.
+ * With `header`, it becomes the Madden spreadsheet: the row under the cursor (or
+ * picked with the arrow keys) is highlighted white and shown large above the table.
+ */
+export function Table<T>({ rows, cols, onRow, rowKey, initial, desc = true, mine, limit = 150, header }: { rows: T[]; cols: Col<T>[]; onRow?: (r: T) => void; rowKey: (r: T) => string; initial?: string; desc?: boolean; mine?: (r: T) => boolean; limit?: number; header?: (r: T) => ReactNode }) {
   const [sort, setSort] = useState<{ k?: string; d: boolean }>({ k: initial, d: desc });
   const [page, setPage] = useState(1);
+  const [focus, setFocus] = useState<string | null>(null);
+  const body = useRef<HTMLTableSectionElement>(null);
   const sorted = useMemo(() => {
     const c = cols.find(c => c.k === sort.k);
     if (!c?.sort) return rows;
@@ -127,15 +150,30 @@ export function Table<T>({ rows, cols, onRow, rowKey, initial, desc = true, mine
     return [...rows].sort((a, b) => { const x = f(a), y = f(b); const r = x < y ? -1 : x > y ? 1 : 0; return sort.d ? -r : r; });
   }, [rows, sort, cols]);
   const shown = sorted.slice(0, limit * page);
+  const fi = header ? Math.max(0, shown.findIndex(r => rowKey(r) === focus)) : -1;
+  const cur = header ? shown[fi] : undefined;
+  useEffect(() => {
+    if (!header) return;
+    const k = (e: KeyboardEvent) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName) || document.querySelector('.modal-bg')) return;
+      const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+      if (d) { e.preventDefault(); const n = shown[Math.max(0, Math.min(shown.length - 1, fi + d))]; if (n) { setFocus(rowKey(n)); body.current?.children[Math.max(0, Math.min(shown.length - 1, fi + d))]?.scrollIntoView({ block: 'nearest' }); } }
+      else if (e.key === 'Enter' && cur && onRow) onRow(cur);
+    };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  });
   return (
-    <div className="scroll">
-      <table className="tbl">
-        <thead><tr>{cols.map(c => <th key={c.k} className={c.cls} style={c.w ? { width: c.w } : undefined} onClick={() => c.sort && setSort(s => ({ k: c.k, d: s.k === c.k ? !s.d : true }))}>{c.h}{sort.k === c.k ? (sort.d ? ' ▾' : ' ▴') : ''}</th>)}</tr></thead>
-        <tbody>{shown.map(r => <tr key={rowKey(r)} className={mine?.(r) ? 'me' : undefined} onClick={() => onRow?.(r)}>{cols.map(c => <td key={c.k} className={c.cls}>{c.get(r)}</td>)}</tr>)}</tbody>
-      </table>
-      {sorted.length > shown.length && <div className="empty"><button className="btn sm" onClick={() => setPage(p => p + 1)}>Show more ({sorted.length - shown.length})</button></div>}
-      {!rows.length && <div className="empty">Nothing here.</div>}
-    </div>
+    <>
+      {header && cur && <div className="ft-head">{header(cur)}</div>}
+      <div className={`scroll${header ? ' ft' : ''}`}>
+        <table className="tbl">
+          <thead><tr>{cols.map(c => <th key={c.k} className={c.cls} style={c.w ? { width: c.w } : undefined} onClick={() => c.sort && setSort(s => ({ k: c.k, d: s.k === c.k ? !s.d : true }))}>{c.h}{sort.k === c.k ? (sort.d ? ' ▾' : ' ▴') : ''}</th>)}</tr></thead>
+          <tbody ref={body}>{shown.map((r, i) => <tr key={rowKey(r)} className={`${mine?.(r) ? 'me' : ''}${i === fi ? ' on' : ''}`} onMouseEnter={header ? () => setFocus(rowKey(r)) : undefined} onClick={() => onRow?.(r)}>{cols.map(c => <td key={c.k} className={c.cls}>{c.get(r)}</td>)}</tr>)}</tbody>
+        </table>
+        {sorted.length > shown.length && <div className="empty"><button className="btn sm" onClick={() => setPage(p => p + 1)}>Show more ({sorted.length - shown.length})</button></div>}
+        {!rows.length && <div className="empty">Nothing here.</div>}
+      </div>
+    </>
   );
 }
 

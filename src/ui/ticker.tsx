@@ -97,12 +97,14 @@ function Score({ a, h, as, hs, status, live }: { a: string; h: string; as?: numb
 }
 
 /** The crawl strip itself. Duration scales with length so it reads at a steady speed. */
-export function BottomLine({ tag, items }: { tag: string; items: ReactNode[] }) {
+export function BottomLine({ tag, items, right, hints }: { tag: string; items: ReactNode[]; right?: ReactNode; hints?: ReactNode }) {
   const dur = Math.max(40, items.length * 5.5);
-  return (
-    <div className="bottomline">
+  const bar = (
+    <div className={`bottomline${hints ? ' docked' : ''}`}>
       <b className="bl-tag"><span className="bl-net">GGN</span>{tag}</b>
       <div className="bl-crawl"><span style={{ '--dur': `${dur}s` } as React.CSSProperties}>{items}{items.map((x, i) => <span key={'dup' + i} style={{ display: 'contents' }}>{x}</span>)}</span></div>
+      {right && <div className="bl-next">{right}</div>}
     </div>
   );
+  return hints ? <div className="bl-wrap">{bar}<div className="hints">{hints}</div></div> : bar;
 }

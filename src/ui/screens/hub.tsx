@@ -7,8 +7,9 @@ import { Logo, Bar, Portrait, CountUp } from '../components';
 import { AdvanceButton } from '../App';
 import { divisionOrder, standings, userGame, weekGames } from '../../core/season';
 import { teamRatings, rosterOf } from '../../core/league';
-import { capSpace, money, yearsLeft } from '../../core/contracts';
+import { money } from '../../core/contracts';
 import type { League, Player } from '../../core/types';
+import { WeeklyCards } from './weekly';
 
 export function Hub() {
   const L = useApp().league!;
@@ -20,11 +21,7 @@ export function Hub() {
   const top = roster.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 6);
   return (
     <div className="grid" style={{ gridTemplateColumns: 'repeat(12, minmax(0,1fr))', gap: 16 }}>
-      <div style={{ gridColumn: 'span 8' }}><GameDay L={L} /></div>
-      <div className="card flush" style={{ gridColumn: 'span 4' }}>
-        <h3>Action Items</h3>
-        <Actions L={L} roster={roster} />
-      </div>
+      <div style={{ gridColumn: 'span 12', minWidth: 0 }}><WeeklyCards /></div>
 
       <div className="card" style={{ gridColumn: 'span 4' }}>
         <div className="snap">{([['Overall', r.ovr], ['Offense', r.off], ['Defense', r.def]] as const).map(([k, v]) => <div key={k}><b><CountUp v={v} /></b><span>{k}</span></div>)}</div>
@@ -67,7 +64,7 @@ export function PRow({ p, sub, right }: { p: Player; sub?: ReactNode; right?: Re
   );
 }
 
-function GameDay({ L }: { L: League }) {
+export function GameDay({ L }: { L: League }) {
   const ug = userGame(L);
   const me = L.teams[L.user];
   if (!ug) return (
@@ -109,33 +106,6 @@ function GameDay({ L }: { L: League }) {
         <AdvanceButton />
       </div>
     </div>
-  );
-}
-
-/** Action Cards: only things that need a decision, each with a way to act on it. */
-function Actions({ L, roster }: { L: League; roster: Player[] }) {
-  const cards: { k: string; t: string; d: string; c: string; act: [string, () => void][] }[] = [];
-  const trades = L.inbox.filter(m => m.action?.kind === 'trade' && !m.read);
-  if (trades.length) cards.push({ k: 'Trade Offer', t: trades[0].subject, d: `${trades.length} offer${trades.length > 1 ? 's' : ''} on the table.`, c: '#3fd07f', act: [['Review', () => app.go({ id: 'offers' })]] });
-  if (roster.length > 53) cards.push({ k: 'Roster', t: `Cut ${roster.length - 53} players`, d: 'The active roster has to be at 53 before kickoff.', c: '#ec5560', act: [['Roster', () => app.go({ id: 'roster' })]] });
-  if (capSpace(L, L.user) < 0) cards.push({ k: 'Salary Cap', t: 'Over the cap', d: `You are ${money(-capSpace(L, L.user))} over. Restructure or release to get compliant.`, c: '#ec5560', act: [['Salary Cap', () => app.go({ id: 'cap' })]] });
-  const hurt = roster.filter(p => p.injury && p.ovr >= 78).sort((a, b) => b.ovr - a.ovr);
-  if (hurt.length && (L.phase === 'regular' || L.phase === 'playoffs')) cards.push({ k: 'Injury', t: `${hurt[0].fn[0]}. ${hurt[0].ln} out ${hurt[0].injury!.weeks} wk`, d: `${hurt.length > 1 ? `${hurt.length} starters are hurt. ` : ''}Check the depth chart before the game.`, c: '#f0a43a', act: [['Depth Chart', () => app.go({ id: 'depth' })], ['Report', () => app.go({ id: 'injuries' })]] });
-  if (L.phase === 'resign') { const n = Object.values(L.players).filter(p => p.team === L.user && yearsLeft(p.contract, L.season) === 0).length; cards.push({ k: 'Contracts', t: `${n} expiring contracts`, d: 'Re-sign the core, use the tag, or let them walk.', c: '#f2c230', act: [['Re-sign', () => app.go({ id: 'resign' })]] }); }
-  if (L.phase === 'freeagency') cards.push({ k: 'Free Agency', t: `Day ${L.fa?.day ?? 1} of 8`, d: 'The best players sign early. Get offers in.', c: '#f2c230', act: [['Free Agents', () => app.go({ id: 'fa' })]] });
-  if (L.phase === 'draft') cards.push({ k: 'Draft', t: 'You are on the clock soon', d: 'Your board is ready in the draft room.', c: '#f2c230', act: [['Draft Room', () => app.go({ id: 'draft' })]] });
-  if (L.coachTree.points > 0) cards.push({ k: 'Coach Tree', t: `${L.coachTree.points} point${L.coachTree.points > 1 ? 's' : ''} to spend`, d: 'Unlock a new ability for your staff.', c: '#c9b0ff', act: [['Coach Tree', () => app.go({ id: 'coach' })]] });
-  if (L.phase === 'regular' || L.phase === 'preseason') cards.push({ k: 'Game Plan', t: 'Set this week’s plan', d: 'Offensive and defensive focus, practice intensity.', c: '#ffffff', act: [['Game Plan', () => app.go({ id: 'plan' })]] });
-  const unread = L.inbox.filter(m => !m.read && m.action?.kind !== 'trade').length;
-  if (unread) cards.push({ k: 'Inbox', t: `${unread} unread message${unread > 1 ? 's' : ''}`, d: L.inbox.find(m => !m.read)?.subject ?? '', c: '#a0a6b1', act: [['Inbox', () => app.go({ id: 'inbox' })]] });
-  if (!cards.length) return <div className="empty">Nothing needs a decision right now.</div>;
-  return (
-    <div>{cards.slice(0, 5).map(c => (
-      <div key={c.k + c.t} className="action" style={{ '--ac': c.c } as CSSProperties} onClick={c.act[0][1]}>
-        <span className="ak">{c.k}</span><span className="at">{c.t}</span>{c.d && <span className="ad">{c.d}</span>}
-        <div className="row">{c.act.map(([l, f]) => <button key={l} className="btn sm" onClick={e => { e.stopPropagation(); f(); }}>{l}</button>)}</div>
-      </div>
-    ))}</div>
   );
 }
 

@@ -1,6 +1,7 @@
+import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Portrait, Table, PlayerCell, DevBadge, Bar, Tabs, CountUp } from '../components';
+import { Logo, Ovr, Face, DevIcon, vivid, Table, PlayerCell, Bar, Tabs, CountUp } from '../components';
 import { NegotiationRoom } from './negotiate';
 import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
@@ -17,6 +18,7 @@ export function FreeAgencyScreen() {
   const L = useApp().league!;
   const [pos, setPos] = useState<string>('All');
   const [neg, setNeg] = useState<Player | null>(null);
+  const [shown, setShown] = useState(40);
   const open = L.phase === 'freeagency';
   const all = freeAgents(L).sort((a, b) => b.ovr - a.ovr);
   const rows = all.filter(p => pos === 'All' || p.pos === pos);
@@ -27,28 +29,32 @@ export function FreeAgencyScreen() {
       <div className="row"><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
       {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
         : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
-      <div className="fa-top">{all.slice(0, 6).map(p => { const m = market(L, p); return (
-        <div key={p.id} className="fa-tile" onClick={() => setNeg(p)}>
-          <Portrait p={p} />
-          <div className="pn">{p.fn[0]}. {p.ln}</div><div className="ps">{p.pos} · {Math.floor(p.age)} yrs · asks {money(askingPrice(L, p).apy)}</div>
-          <div className="fa-meta"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span>{m.leader ? <><Logo team={L.teams[m.leader]} size={20} />{m.leader === L.user && <b className="good small">YOU</b>}</> : <span className="mute small">No offers</span>}</div>
-        </div>); })}</div>
-      <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}</div>
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 280px', alignItems: 'start' }}>
-        <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => setNeg(p)} cols={[
-          { k: 'p', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
-          { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
-          { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} /> },
-          { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
-          { k: 'ask', h: 'Asking / yr', get: p => money(askingPrice(L, p).apy), sort: p => askingPrice(L, p).apy, cls: 'r' },
-          { k: 'yrs', h: 'Yrs', get: p => askingPrice(L, p).years, cls: 'c' },
-          { k: 'heat', h: 'Market', get: p => <span className="heat"><b style={{ width: `${market(L, p).heat * 100}%` }} /></span>, sort: p => market(L, p).heat },
-          { k: 'lead', h: 'Leaning', get: p => { const m = market(L, p); return m.leader ? <span className="row" style={{ gap: 4 }}><Logo team={L.teams[m.leader]} size={20} />{m.leader === L.user && <b className="good small">YOU</b>}</span> : ''; }, sort: p => market(L, p).offers.length },
-          { k: 'mine', h: 'Your Offer', get: p => (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user) ? <span className="chip on" style={{ padding: '0 6px' }}>On table</span> : L.talks?.[p.id]?.closed ? <span className="bad small">Talks off</span> : '' },
-        ]} />
+      <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}<div className="spacer" /><span className="small dim">{rows.length} available</span></div>
+      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px', alignItems: 'start' }}>
+        <div className="falist">{rows.slice(0, shown).map(p => <FaRow key={p.id} p={p} onOpen={() => setNeg(p)} />)}
+          {rows.length > shown && <div className="empty"><button className="btn sm" onClick={() => setShown(n => n + 40)}>Show more ({rows.length - shown})</button></div>}
+          {!rows.length && <div className="empty">No free agents at this position.</div>}
+        </div>
         <div className="card"><div className="h3">Signings</div>{signings.length ? signings.map(n => <div key={n.id} className="li small">{n.teams[0] && <Logo team={L.teams[n.teams[0]]} size={22} />}<span>{n.text}</span></div>) : <div className="small dim">No moves yet.</div>}</div>
       </div>
       {neg && <NegotiationRoom p={neg} close={() => { setNeg(null); app.touch(); }} />}
+    </div>
+  );
+}
+
+/** One free agent, the way Madden lists them: big photo, name, the line that matters, and his trait. */
+function FaRow({ p, onOpen }: { p: Player; onOpen: () => void }) {
+  const L = useApp().league!;
+  const m = market(L, p), ask = askingPrice(L, p);
+  const mine = (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user);
+  const was = Object.values(L.teams).find(t => t.abbr === p.draft.team);
+  return (
+    <div className={`farow${mine ? ' mine' : ''}`} onClick={onOpen}>
+      <div className="fa-ph" style={{ '--pc': was ? vivid(was.colors[0]) : '#1d3a7a' } as React.CSSProperties}><Face p={p} size={64} /></div>
+      <div className="fa-id"><b>{p.fn[0]}.{p.ln}</b><span>{p.ovr} OVR <i>|</i> {p.pos} <i>|</i> {p.arch} <i>|</i> {Math.floor(p.age)} YRS</span></div>
+      <div className="fa-ask"><b>{money(ask.apy)}</b><span>{ask.years} yr ask</span></div>
+      <div className="fa-mkt"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span><span>{mine ? 'Your offer is in' : m.leader ? <>Leaning <Logo team={L.teams[m.leader]} size={18} /></> : L.talks?.[p.id]?.closed ? 'Talks off' : 'No offers yet'}</span></div>
+      <DevIcon d={p.dev} size={30} />
     </div>
   );
 }

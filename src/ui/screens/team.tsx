@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Table, Tabs, DevBadge, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
+import { Logo, Table, Tabs, DevBadge, attrColor, Modal, CountUp, vivid, Grade } from '../components';
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
@@ -10,8 +10,23 @@ import { release } from '../../core/offseason';
 import { NegotiationRoom } from './negotiate';
 import { standings } from '../../core/season';
 import { scoutedView, draftGrade } from '../../core/draft';
-import { PosTag, Portrait } from '../components';
+import { PosTag, Portrait, DevIcon } from '../components';
+import { PlayerBanner } from '../banner';
 
+type AttrK = keyof Player['attrs'];
+const SETS: Record<string, AttrK[]> = {
+  All: ['SPD', 'ACC', 'AGI', 'STR', 'AWR'],
+  Offense: ['SPD', 'ACC', 'AGI', 'STR', 'AWR', 'CAR', 'BCV', 'BTK', 'CTH', 'RTE', 'THP', 'PBK', 'RBK'],
+  Defense: ['SPD', 'ACC', 'AGI', 'STR', 'AWR', 'TAK', 'PUR', 'PRC', 'BSH', 'PMV', 'FMV', 'MCV', 'ZCV'],
+  Special: ['KPW', 'KAC', 'AWR', 'RET'],
+};
+const REP: Record<string, Pos> = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', OL: 'OT', DL: 'EDGE', LB: 'LB', DB: 'CB' };
+/** The rating columns for a filter: the group set, or the position's own key ratings. */
+function attrSet(f: string): AttrK[] {
+  if (SETS[f]) return SETS[f];
+  const w = OVR_W[REP[f] ?? 'QB'];
+  return ['SPD', ...(Object.entries(w) as [AttrK, number][]).sort((a, b) => b[1] - a[1]).map(([k]) => k).filter(k => k !== 'SPD')].slice(0, 10) as AttrK[];
+}
 const FILTERS = ['All', 'Offense', 'Defense', 'Special', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'] as const;
 const inFilter = (p: Player, f: typeof FILTERS[number]) => {
   const off = ['QB', 'RB', 'FB', 'WR', 'TE', 'OT', 'G', 'C'].includes(p.pos), sp = ['K', 'P', 'LS'].includes(p.pos);
@@ -35,17 +50,18 @@ export function RosterScreen({ team }: { team?: string }) {
       <div className="row"><Logo team={L.teams[abbr]} size={46} /><div className="h2">{L.teams[abbr].name} Roster</div><span className={`chip ${act > 53 ? 'on' : ''}`}>{act}/53 active</span><div className="spacer" />
         <Tabs tabs={['Active', 'Practice Squad', 'Injured Reserve'] as const} on={view} set={setView} /></div>
       <div className="row">{FILTERS.map(x => <span key={x} className={`chip${f === x ? ' on' : ''}`} onClick={() => setF(x)}>{x}</span>)}</div>
-      <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
-        { k: 'name', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
+      <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} header={p => <PlayerBanner p={p} />} cols={[
+        { k: 'name', h: 'Player', get: p => <span className="tname">{p.fn[0]}. {p.ln}{p.injury && <i className="tinj">{p.injury.weeks}w</i>}</span>, sort: p => p.ln },
         { k: 'pos', h: 'Pos', get: p => <PosTag pos={p.pos} />, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
-        { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
-        { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} />, sort: p => ['Normal', 'Star', 'Superstar', 'X-Factor'].indexOf(p.dev) },
+        { k: 'ovr', h: 'OVR', get: p => <b className="tovr">{p.ovr}</b>, sort: p => p.ovr, cls: 'c' },
+        { k: 'dev', h: 'Dev', get: p => <DevIcon d={p.dev} size={20} />, sort: p => ['Normal', 'Star', 'Superstar', 'X-Factor'].indexOf(p.dev), cls: 'c' },
         { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
-        { k: 'exp', h: 'Exp', get: p => p.exp, sort: p => p.exp, cls: 'c' },
-        { k: 'spd', h: 'SPD', get: p => p.attrs.SPD, sort: p => p.attrs.SPD, cls: 'c' },
-        { k: 'cond', h: 'Cond', get: p => <span style={{ color: p.cond < 70 ? 'var(--warn)' : undefined }}>{Math.round(p.cond)}%</span>, sort: p => p.cond, cls: 'c' },
-        { k: 'cap', h: 'Cap Hit', get: p => money(capHit(p.contract, L.season)), sort: p => capHit(p.contract, L.season), cls: 'r' },
-        { k: 'yrs', h: 'Yrs', get: p => yearsLeft(p.contract, L.season), sort: p => yearsLeft(p.contract, L.season), cls: 'c' },
+        ...attrSet(f).map(k => ({ k, h: k, get: (p: Player) => <span className={p.attrs[k] >= 90 ? 'hi' : ''}>{p.attrs[k]}</span>, sort: (p: Player) => p.attrs[k], cls: 'c' })),
+        ...(f === 'All' ? [
+          { k: 'cond', h: 'Cond', get: (p: Player) => <span style={{ color: p.cond < 70 ? 'var(--warn)' : undefined }}>{Math.round(p.cond)}%</span>, sort: (p: Player) => p.cond, cls: 'c' },
+          { k: 'cap', h: 'Cap Hit', get: (p: Player) => money(capHit(p.contract, L.season)), sort: (p: Player) => capHit(p.contract, L.season), cls: 'r' },
+          { k: 'yrs', h: 'Yrs', get: (p: Player) => yearsLeft(p.contract, L.season), sort: (p: Player) => yearsLeft(p.contract, L.season), cls: 'c' },
+        ] : []),
       ]} />
     </div>
   );

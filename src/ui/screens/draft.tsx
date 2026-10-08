@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, Tabs, DevBadge, Modal, Tilt, Grade } from '../components';
+import { Logo, Ovr, Face, Table, Tabs, DevBadge, DevIcon, Modal, Tilt, Grade } from '../components';
+import { PlayerBanner } from '../banner';
 import type { Player } from '../../core/types';
 import { aiPickNow, makePick, picksInOrder, prospects, scout, scoutedView, SCOUT_COST, positionNeeds, draftGrade } from '../../core/draft';
 import { POS_ORDER, POS_NAME } from '../../core/ratings';
@@ -75,13 +76,14 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       </div>
       {(tab === 'Big Board' || tab === 'My Board') && <>
         <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}{p !== 'All' && (needs[p as keyof typeof needs] ?? 0) >= 1.5 ? ' •' : ''}</span>)}</div>
-        <Table rows={tab === 'My Board' ? myBoard(L, pool) : pool} rowKey={p => p.id} initial={tab === 'My Board' ? undefined : 'proj'} desc={false} onRow={setSel} cols={[
+        <Table rows={tab === 'My Board' ? myBoard(L, pool) : pool} rowKey={p => p.id} initial={tab === 'My Board' ? undefined : 'proj'} desc={false} onRow={setSel} header={p => <PlayerBanner p={p} prospect />} cols={[
           { k: 'proj', h: 'Rank', get: p => <span className="num">{p.proj}</span>, sort: p => p.proj ?? 999, cls: 'c' },
-          { k: 'p', h: 'Prospect', get: p => <div className="pcell"><Face p={p} size={38} /><div><b>{p.fn} {p.ln}</b><div className="small mute row" style={{ gap: 6 }}>{p.colLogo && <img src={p.colLogo} width={16} height={16} alt="" />}{p.col}</div></div></div>, sort: p => p.ln },
+          { k: 'p', h: 'Name', get: p => <span className="tname">{p.fn[0]}. {p.ln}</span>, sort: p => p.ln },
+          { k: 'col', h: 'School', get: p => <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{p.colLogo && <img src={p.colLogo} width={18} height={18} alt="" />}<span className="dim">{p.col}</span></span>, sort: p => p.col },
           { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
           { k: 'grade', h: 'Grade', get: p => <Grade g={draftGrade(p)} />, sort: p => -['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'].indexOf(draftGrade(p)), cls: 'c' },
           { k: 'arch', h: 'Archetype', get: p => (p.scout ?? 0) >= 1 ? p.arch : <span className="mute">?</span> },
-          { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevBadge d={p.dev} /> : <span className="mute">?</span> },
+          { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={p.dev} size={20} /> : <span className="mute">?</span>, cls: 'c' },
           { k: 'forty', h: '40', get: p => p.combine?.forty.toFixed(2), sort: p => -(p.combine?.forty ?? 9), cls: 'c' },
           { k: 'age', h: 'Age', get: p => p.age, cls: 'c' },
           { k: 'proj2', h: 'Projection', get: p => projection(p.proj ?? 300) },
