@@ -53,7 +53,7 @@ export function pickTradeValue(league: League, pick: Pick, forTeam?: string) {
   const yearsOut = Math.max(0, pick.season - nextDraft(league));
   let v = pickValue(projectedSlot(league, pick)) * Math.pow(0.92, yearsOut);
   if (forTeam && league.teams[forTeam]?.mode === 'rebuild') v *= 1.2;
-  if (forTeam && league.teams[forTeam]?.mode === 'contend') v *= 0.95;
+  if (forTeam && league.teams[forTeam]?.mode === 'contend') v *= 1.0;
   return v;
 }
 
@@ -80,27 +80,29 @@ function expectedOvr(league: League, p: Player) {
 
 export function playerTradeValue(league: League, p: Player, forTeam?: string) {
   if (p.status === 'RET') return 0;
-  const x = clamp((p.ovr - 55) / 44, 0, 1.05);
+  // Value starts at 60 OVR: below that a player is roster filler, not a trade chip.
+  const x = clamp((p.ovr - 60) / 39, 0, 1.05);
   let v = 2900 * Math.pow(x, 3.3) * POS_MULT[p.pos];
   const age = p.age;
-  const ageF = p.pos === 'QB' ? (age <= 30 ? 1 : age <= 34 ? 0.85 - (age - 31) * 0.08 : 0.4) : (age <= 25 ? 1.12 : age <= 27 ? 1 : age <= 29 ? 0.82 : age <= 31 ? 0.6 : 0.38);
+  const ageF = p.pos === 'QB' ? (age <= 30 ? 1 : age <= 34 ? 0.85 - (age - 31) * 0.08 : 0.4) : (age <= 25 ? 1.06 : age <= 27 ? 1 : age <= 29 ? 0.82 : age <= 31 ? 0.6 : 0.38);
   v *= ageF;
-  if (p.age <= 25 && p.pot > p.ovr) v *= 1 + (p.pot - p.ovr) * 0.02;
+  if (p.age <= 25 && p.pot > p.ovr) v *= 1 + Math.min(0.15, (p.pot - p.ovr) * 0.015);
   // Contract: cheap control is an asset; an overpay is a liability.
   const yrs = Math.max(1, yearsLeft(p.contract, league.season));
   const market = marketValue(p, league.season);
   const hit = capHit(p.contract, league.season) || market;
   const surplus = clamp((market - hit) / Math.max(market, 1_000_000), -1, 1);
-  v *= clamp(1 + surplus * 0.4 + (yrs - 1) * 0.05, 0.35, 1.45);
+  v *= clamp(1 + surplus * 0.3 + (yrs - 1) * 0.04, 0.4, 1.3);
   // Young players still carry their draft capital, as teams value them: the slot's
   // chart value, fading over their first three seasons and moved up or down by how
   // they have played against what that slot usually produces.
-  if (p.draft?.pick && p.exp <= 3) {
-    const keep = [1, 0.8, 0.55, 0.3][p.exp];
-    const weight = [0.75, 0.55, 0.35, 0.15][p.exp];
-    // A rookie who has not played yet is still mostly his draft slot; performance counts once he has.
-    const proof = [0.35, 0.8, 1, 1][p.exp];
-    const perf = clamp(1 + proof * (p.ovr - expectedOvr(league, p)) / 12, 0.4, 1.6);
+  // Draft capital only lasts through the rookie year, and only if he is living up to it:
+  // after that teams trade for the player he is, not the pick he was.
+  if (p.draft?.pick && p.exp <= 1) {
+    const keep = [0.9, 0.6][p.exp];
+    const weight = [0.55, 0.25][p.exp];
+    const proof = [0.5, 1][p.exp];
+    const perf = clamp(1 + proof * (p.ovr - expectedOvr(league, p)) / 8, 0.25, 1.3);
     const posAdj = clamp(0.55 + 0.45 * POS_MULT[p.pos], 0.7, 1.15);
     const capital = pickValue(p.draft.pick) * keep * perf * posAdj;
     v = Math.max(v, capital * weight + v * (1 - weight));
@@ -111,7 +113,7 @@ export function playerTradeValue(league: League, p: Player, forTeam?: string) {
   if (forTeam) {
     const mode = league.teams[forTeam]?.mode;
     if (mode === 'rebuild') v *= p.age <= 26 ? 1.12 : 0.75;
-    if (mode === 'contend') v *= p.ovr >= 80 ? 1.15 : 0.95;
+    if (mode === 'contend') v *= p.ovr >= 80 ? 1.08 : 0.95;
   }
   return Math.max(1, v);
 }
