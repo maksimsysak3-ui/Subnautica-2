@@ -23,6 +23,7 @@ import { GamedayScreen, OptionsScreen } from './screens/gameday';
 import { PresserScreen } from './screens/presser';
 import { CoachCreateScreen } from './screens/coachcreate';
 import { Tutorial } from './tutorial';
+import { SigningCeremony } from './ceremony';
 import { gmName } from './actions';
 import { CrashGuard } from './crash';
 
@@ -78,6 +79,7 @@ export function App() {
         <main className="main fade-in" key={JSON.stringify(sc)}><CrashGuard inline><Route sc={sc} /></CrashGuard></main>
       </div>
       {sc.id !== 'coachcreate' && <Tutorial />}
+      <SigningCeremony />
       <BottomLine tag="News Center" items={leagueCrawl(L)} right={<NextGame />} hints={<><span><kbd>Q</kbd><kbd>E</kbd>Tabs</span><span><kbd>Enter</kbd>Select</span><span><kbd>X</kbd>Delegate</span><span><kbd>Esc</kbd>Back</span><span className="spacer" /><span>{gmName(L)} · General Manager</span></>} />
       {overlay}
     </>

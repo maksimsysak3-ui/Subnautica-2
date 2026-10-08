@@ -7,6 +7,7 @@
 import type { League, Player, Pos } from './types';
 import { clamp, hash } from './rng';
 import { apy as contractApy, capHit, capSpace, makeContract, marketValue, money, yearsLeft } from './contracts';
+import { queueCeremony } from './freeagency';
 import { askingPrice, offerScore, signPlayer, contenderScore, startingChance, schemeFit, type Offer } from './offseason';
 
 export type AgentStyle = 'Hardball' | 'Balanced' | 'Player-First';
@@ -98,7 +99,9 @@ export function submit(league: League, p: Player, offer: Offer, opts: { extend?:
     t.agreed = true;
     const text = pick(p, t.log.length, [`We have a deal. ${p.fn} is fired up.`, `Done. Send the paperwork over.`, `That works for us. Pleasure doing business.`, `${p.fn} said yes. Congratulations.`]);
     t.log.push({ by: 'agent', text });
+    const newcomer = p.team !== league.user;
     signPlayer(league, p, league.user, offer, opts);
+    if (newcomer) queueCeremony(league, p, offer);
     return { kind: 'accept', text };
   }
   const insult = score < floor - 0.14;

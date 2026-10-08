@@ -1,11 +1,13 @@
 import type React from 'react';
-// Lineup: the depth chart as a formation on the field. Every starting spot is a
-// card (tier colour by overall, OVR ring, the next two men up, a unit grade against
-// the league's starters at that spot). Pick a card to open its depth drawer, where
-// anyone on the roster can be slotted in and is rated at that position.
+// Depth chart: the starters laid out in their real formation on a broadcast-style
+// field, one clean card per spot (player art on team colour, overall, position, name,
+// archetype, a league grade for the spot). Select a card and the side panel becomes
+// that spot's depth list: reorder it, or slot anyone on the roster in, rated at that
+// position. With nothing selected, the panel lists the unit's starters.
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp, app } from '../store';
-import { Face, Logo , vivid } from '../components';
+import { Logo, vivid, DevIcon } from '../components';
+import { FaceArt } from '../face';
 import type { League, Player, Pos } from '../../core/types';
 import { autoDepth, activateHealthy, teamRatings, markDepth, unmarkDepth } from '../../core/league';
 import { overall, POS_NAME } from '../../core/ratings';
@@ -86,79 +88,100 @@ export function DepthScreen() {
   const fits = starters.filter(p => schemeFit(L, p, L.user)).length;
   const scheme = unit === 'Defense' ? t.coach.def : t.coach.off;
   const generate = () => { const back = activateHealthy(L, L.user); unmarkDepth(L.teams[L.user]); autoDepth(L, L.user); setGen(g => g + 1); app.touch(); app.toast(back.length ? `Best lineup set · activated ${back.map(p => p.ln).join(', ')} from IR` : 'Best lineup set'); };
-  // Size the cards to the board: widest formation is 6.3 card-widths either side of the ball.
+  // Card size from the board: the widest formation is ~6.4 card widths either side of the ball.
   const rows = Math.max(...slots.map(s => s.r)) + 1;
-  const pad = 26;
-  const cw = Math.max(64, Math.min(150, (size.w / 2 - pad) / 6.45, (size.h - pad * 2 - 30) / (rows * 1.62 + 0.25)));
-  const ch = cw * 1.62, U = cw * 1.08;
+  const pad = 24;
+  // Wideouts are drawn a little closer in than true splits, so the cards can be bigger.
+  const du = (u: number) => Math.sign(u) * (Math.abs(u) <= 3.1 ? Math.abs(u) : 3.1 + (Math.abs(u) - 3.1) * 0.72);
+  const maxU = Math.max(...slots.map(s => Math.abs(du(s.u))));
+  const cw = Math.max(72, Math.min(140, (size.w / 2 - pad) / (maxU * 1.06 + 0.55), (size.h - pad * 2 - 20) / (rows * 1.42 + 0.3)));
+  const ch = cw * 1.36, U = cw * 1.06;
   const offense = unit === 'Offense', defense = unit === 'Defense';
-  const groupH = (rows - 1) * (cw * 1.62 + cw * 0.12) + cw * 1.62;
-  const top = Math.max(pad + 18, (size.h - groupH) / 2 - (offense ? cw * 0.5 : 0));
-  const yOf = (s: Slot) => top + s.r * (ch + cw * 0.12);
-  const losY = offense ? top - 10 : defense ? yOf({ r: 2.15 } as Slot) + ch + 10 : -100;
-  const yard = ch / 3.2; // one card height ~ 3.2 yards: draws the yard lines to scale
+  const groupH = (rows - 1) * (ch + cw * 0.08) + ch;
+  const top = Math.max(pad + 16, (size.h - groupH) / 2);
+  const yOf = (s: Slot) => top + s.r * (ch + cw * 0.08);
+  const losY = offense ? top - 9 : defense ? yOf({ r: 2.15 } as Slot) + ch + 9 : -100;
+  const yard = ch / 3.2;
+  const unitGrade = (k: Slot[]) => { const gs = k.filter(s => !s.auto).map(s => slotGrade(L, s, playerAt(s))); const pts = gs.map(g => GRADES.findIndex(([, x]) => x === g)).map(i => (i < 0 ? 10 : i)); const avg = pts.reduce((a, b) => a + b, 0) / Math.max(1, pts.length); return GRADES[Math.min(GRADES.length - 1, Math.round(avg))][1]; };
   return (
-    <div className="lineup">
-      <div className="lu-main">
-        <div className="row lu-top">
-          <div className="page-title" style={{ margin: 0 }}>Lineup</div>
-          <div className="lu-tabs">{(['Offense', 'Defense', 'Special Teams'] as Unit[]).map(u => <button key={u} className={u === unit ? 'on' : ''} onClick={() => { setUnit(u); setSel(null); }}>{u}</button>)}</div>
-          {offense && <div className="lu-pers">{(['11', '21'] as Personnel[]).map(x => <span key={x} className={`chip${pers === x ? ' on' : ''}`} onClick={() => { setPers(x); setSel(null); }}>{x === '11' ? '11 Pers · Shotgun' : '21 Pers · Pro Set'}</span>)}</div>}
-          {defense && <div className="lu-pers"><span className="chip on">Nickel 4-2-5</span></div>}
+    <div className="dc">
+      <div className="dc-main">
+        <div className="dc-top">
+          <div className="dc-title"><span className="up">Manage Roster</span><b>Depth Chart</b></div>
+          <div className="dc-units">{(['Offense', 'Defense', 'Special Teams'] as Unit[]).map(u => <button key={u} className={u === unit ? 'on' : ''} onClick={() => { setUnit(u); setSel(null); }}>{u}</button>)}</div>
+          <div className="spacer" />
+          {offense && <div className="dc-seg">{(['11', '21'] as Personnel[]).map(x => <button key={x} className={pers === x ? 'on' : ''} onClick={() => { setPers(x); setSel(null); }}>{x === '11' ? 'Shotgun · 11' : 'Pro Set · 21'}</button>)}</div>}
+          {defense && <div className="dc-seg"><button className="on">Nickel 4-2-5</button></div>}
         </div>
-        <div ref={board} className="lu-stage">
-        <div className="lu-board" key={unit + pers + gen} style={{ '--cw': `${cw}px`, '--yd': `${yard}px`, '--los': `${losY}px` } as React.CSSProperties}>
-          <div className="lu-turf" />
-          <div className="lu-hash l" /><div className="lu-hash r" />
-          {unit !== 'Special Teams' && <div className="lu-los"><span>Line of scrimmage</span></div>}
-          {slots.map((s, k) => {
-            const p = playerAt(s);
-            const ids = t.depth[s.pos] ?? [];
-            const starterIdx = new Set(slots.filter(z => z.pos === s.pos && !z.auto).map(z => z.i));
-            const backups = s.auto ? [] : ids.map((id, j) => ({ id, j })).filter(x => !starterIdx.has(x.j)).slice(0, 2).map(x => L.players[x.id]).filter(Boolean);
-            const v = p ? ratingAt(p, s.pos === 'WR' && s.auto ? p.pos : s.pos) : 0;
-            const on = sel?.label === s.label;
-            const g = s.auto ? '' : slotGrade(L, s, p);
-            return (
-              <div key={s.label} className={`lu-slot${on ? ' on' : ''}${s.auto ? ' auto' : ''}`} style={{ left: size.w / 2 + s.u * U - cw / 2, top: yOf(s), width: cw, animationDelay: `${k * 0.03}s` }} onClick={() => !s.auto && setSel(on ? null : s)}>
-                <div className={`lu-card ${p ? tierOf(v) : 'empty'}`} style={{ '--tc': p ? vivid(L.teams[p.team]?.colors[0] ?? '#2a3040') : undefined } as React.CSSProperties}>
-                  <div className="lu-photo">
-                    {p ? <Face p={p} size={140} style={{ width: '100%', height: '100%', borderRadius: 0, background: 'transparent' }} /> : <div className="lu-silhouette" />}
-                    {p && <Ring v={v} />}
-                    {p && p.dev !== 'Normal' && <span className={`lu-dev ${p.dev.replace(/\W/g, '')}`} title={p.dev}>{p.dev === 'X-Factor' ? '✸' : p.dev === 'Superstar' ? '✦' : '★'}</span>}
-                    {p?.injury && <span className="lu-inj" title={p.injury.type}>✚ {p.injury.weeks}w</span>}
-                    {p && !s.auto && p.pos !== s.pos && <span className="lu-oop" title={`Natural ${p.pos}`}>{p.pos}</span>}
+        <div ref={board} className="dc-stage">
+          <div className="dc-board" key={unit + pers + gen} style={{ '--cw': `${cw}px`, '--yd': `${yard}px`, '--los': `${losY}px` } as React.CSSProperties}>
+            <div className="dc-turf" />
+            {unit !== 'Special Teams' && <div className="dc-los"><span>LOS</span></div>}
+            {slots.map((s, k) => {
+              const p = playerAt(s);
+              const v = p ? ratingAt(p, s.auto ? p.pos : s.pos) : 0;
+              const on = sel?.label === s.label;
+              const g = s.auto ? '' : slotGrade(L, s, p);
+              return (
+                <button key={s.label} className={`dc-card${on ? ' on' : ''}${p ? ` ${tierOf(v)}` : ' empty'}${s.auto ? ' auto' : ''}`}
+                  style={{ left: size.w / 2 + du(s.u) * U - cw / 2, top: yOf(s), width: cw, height: ch, animationDelay: `${k * 0.025}s`, '--tc': p ? vivid(L.teams[p.team]?.colors[0] ?? '#2a3040') : '#20242c' } as React.CSSProperties}
+                  onClick={() => !s.auto && setSel(on ? null : s)} title={p ? `${p.fn} ${p.ln} · ${p.pos} ${p.ovr}` : 'Empty'}>
+                  <div className="dc-art">
+                    {p && <Logo team={L.teams[p.team]} size={cw * 0.9} style={{ position: 'absolute', right: -cw * 0.22, top: -cw * 0.1, opacity: 0.16 }} />}
+                    {p ? <Shot p={p} /> : <div className="dc-empty">+</div>}
+                    {p && <b className="dc-ovr">{v}</b>}
+                    <span className="dc-pos">{s.label}</span>
+                    {p && p.dev !== 'Normal' && <span className="dc-dev"><DevIcon d={p.dev} size={Math.round(cw * 0.17)} /></span>}
+                    {p?.injury && <span className="dc-inj" title={p.injury.type}>OUT {p.injury.weeks}W</span>}
+                    {p && !s.auto && p.pos !== s.pos && <span className="dc-oop" title={`Natural ${p.pos}`}>{p.pos}</span>}
+                    {g && <i className={`dc-grade g${g[0]}`} title="Grade against every team's starter at this spot">{g}</i>}
                   </div>
-                  <div className="lu-name">{p ? `${p.fn[0]}. ${p.ln}` : 'Empty'}</div>
-                  {s.auto ? <div className="lu-back mute"><span>Auto · best returner</span></div> : <>
-                    {backups.map(b => <div key={b.id} className="lu-back"><span>{b.fn[0]}. {b.ln}</span><b>{ratingAt(b, s.pos)}</b></div>)}
-                    {Array.from({ length: 2 - backups.length }, (_, i) => <div key={i} className="lu-back mute"><span>—</span></div>)}
-                  </>}
-                </div>
-                <div className="lu-label">{s.label}{g && <span className={`grade ${g[0]}`}>{g}</span>}</div>
-              </div>
-            );
-          })}
-        </div>
+                  <div className="dc-plate">
+                    <b>{p ? p.ln : 'Empty'}</b>
+                    <span>{p ? (s.auto ? 'Auto returner' : p.arch) : 'Select to fill'}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <aside className="lu-side">
-        <div className="lu-coach"><Logo team={t} size={44} /><div><div className="h3" style={{ margin: 0 }}>{t.coach.name}</div><div className="small dim">Head Coach · {t.nick}</div></div></div>
-        <div className="lu-head">My Lineup · {roster.length}/53</div>
-        <div className="lu-rings"><BigRing v={r.ovr} k="OVR" /><BigRing v={r.off} k="OFF" /><BigRing v={r.def} k="DEF" /></div>
-        <button className="lu-gen" onClick={generate}><span>⟳</span>Generate Best Lineup</button>
-        <div className="lu-head">Scheme</div>
-        <div className="row"><b>{scheme}</b><div className="spacer" />{unit !== 'Special Teams' && <b>{fits}/{starters.length} fit</b>}</div>
-        {unit !== 'Special Teams' && <div className="lu-fit"><b style={{ width: `${(fits / Math.max(1, starters.length)) * 100}%` }} /></div>}
-        {sel ? <Drawer L={L} slot={sel} slots={slots} onDone={() => app.touch()} /> : <div className="lu-hint">Select a player card to change who lines up there.</div>}
+      <aside className="dc-side">
+        <div className="dc-team"><Logo team={t} size={40} /><div><b>{t.name}</b><span>HC {t.coach.name} · {roster.length}/53</span></div></div>
+        <div className="dc-tiles">{([['OVR', r.ovr], ['OFF', r.off], ['DEF', r.def]] as const).map(([k, v]) => <div key={k}><b>{v}</b><span>{k}</span></div>)}</div>
+        <button className="btn primary dc-auto" onClick={generate}>Auto · Best Lineup</button>
+        {unit !== 'Special Teams' && <div className="dc-fit"><div className="row" style={{ justifyContent: 'space-between' }}><span className="up">{scheme}</span><b>{fits}/{starters.length} scheme fits</b></div><div className="dc-bar"><i style={{ width: `${(fits / Math.max(1, starters.length)) * 100}%` }} /></div></div>}
+        {sel ? <Drawer L={L} slot={sel} slots={slots} onDone={() => app.touch()} onClose={() => setSel(null)} /> : (
+          <div className="dc-list">
+            <div className="dc-lh"><span className="up">{unit} starters</span><span className="up">Unit grade <b className={`dc-grade g${unitGrade(slots)[0]}`}>{unitGrade(slots)}</b></span></div>
+            {slots.map(s => { const p = playerAt(s); const g = s.auto ? '' : slotGrade(L, s, p); const v = p ? ratingAt(p, s.auto ? p.pos : s.pos) : 0; return (
+              <div key={s.label} className={`dc-row${s.auto ? ' auto' : ''}`} onClick={() => !s.auto && setSel(s)}>
+                <span className="dc-rl">{s.label}</span>
+                <span className="dc-rn">{p ? `${p.fn[0]}. ${p.ln}` : 'Empty'}{p?.injury && <em> OUT</em>}</span>
+                <b className={`dc-rv ${p ? tierOf(v) : ''}`}>{p ? v : '—'}</b>
+                {g ? <i className={`dc-grade g${g[0]}`}>{g}</i> : <i />}
+              </div>
+            ); })}
+            <div className="small mute" style={{ marginTop: 10 }}>Select a card or a row to edit that spot. Positions you never edit are kept sorted for you every week.</div>
+          </div>
+        )}
       </aside>
     </div>
   );
 }
 
+/** Player art for a card: the real headshot when it loads, the drawn face otherwise. */
+function Shot({ p }: { p: Player }) {
+  const [bad, setBad] = useState(false);
+  const t = app.league?.teams[p.team];
+  return p.hs && !bad
+    ? <img className="dc-img" src={p.hs.replace('f_auto,q_auto', 'f_auto,q_auto,w_200')} alt="" loading="lazy" onError={() => setBad(true)} />
+    : <div className="dc-img svg"><FaceArt p={p} team={t} size={120} /></div>;
+}
+
 /** Depth for the selected spot: reorder the position, or slot anyone in. */
-function Drawer({ L, slot, slots, onDone }: { L: League; slot: Slot; slots: Slot[]; onDone: () => void }) {
+function Drawer({ L, slot, slots, onDone, onClose }: { L: League; slot: Slot; slots: Slot[]; onDone: () => void; onClose: () => void }) {
   const t = L.teams[L.user];
   const [others, setOthers] = useState(false);
   const ids = t.depth[slot.pos] ?? [];
@@ -172,49 +195,25 @@ function Drawer({ L, slot, slots, onDone }: { L: League; slot: Slot; slots: Slot
     t.depth[slot.pos] = a; markDepth(t, slot.pos); onDone();
   };
   const move = (j: number, d: number) => { const a = [...ids]; const k = j + d; if (k < 0 || k >= a.length) return; [a[j], a[k]] = [a[k], a[j]]; t.depth[slot.pos] = a; markDepth(t, slot.pos); onDone(); };
-  return (
-    <div className="lu-drawer">
-      <div className="row"><div className="h3" style={{ margin: 0 }}>{slot.label} · {POS_NAME[slot.pos]}</div><div className="spacer" />
-        <span className={`chip${others ? '' : ' on'}`} onClick={() => setOthers(false)}>Depth</span><span className={`chip${others ? ' on' : ''}`} onClick={() => setOthers(true)}>Any Position</span></div>
-      <div className="lu-list">
-        {!others ? list.map((p, j) => (
-          <div key={p.id} className={`lu-row${j === slot.i ? ' cur' : ''}`}>
-            <span className="lu-rank">{starters.has(j) ? 'ST' : j + 1}</span><Face p={p} size={34} />
-            <div style={{ minWidth: 0, flex: 1 }}><b>{p.fn} {p.ln}</b><div className="small mute">{p.pos} · {p.arch}{p.injury ? ` · ✚ ${p.injury.weeks}w` : ''}</div></div>
-            <span className={`lu-ovr ${tierOf(ratingAt(p, slot.pos))}`}>{ratingAt(p, slot.pos)}</span>
-            <div className="lu-btns"><button onClick={() => move(j, -1)} disabled={j === 0}>▲</button><button onClick={() => move(j, 1)} disabled={j === list.length - 1}>▼</button>{j !== slot.i && <button className="go" onClick={() => put(p.id)}>Start</button>}</div>
-          </div>
-        )) : pool.map(({ p, v }) => (
-          <div key={p.id} className="lu-row">
-            <Face p={p} size={34} /><div style={{ minWidth: 0, flex: 1 }}><b>{p.fn} {p.ln}</b><div className="small mute">Natural {p.pos} ({p.ovr}) · as {slot.pos}</div></div>
-            <span className={`lu-ovr ${tierOf(v)}`}>{v}</span><div className="lu-btns"><button className="go" onClick={() => put(p.id)}>Start</button></div>
-          </div>
-        ))}
-      </div>
+  const row = (p: Player, v: number, rank: string, cur: boolean, ctrl: React.ReactNode, sub: string) => (
+    <div key={p.id} className={`dc-drow${cur ? ' cur' : ''}`}>
+      <span className="dc-rank">{rank}</span>
+      <div className="dc-thumb" style={{ '--tc': vivid(L.teams[p.team]?.colors[0] ?? '#2a3040') } as React.CSSProperties}><Shot p={p} /></div>
+      <div className="dc-dn" title={`${p.fn} ${p.ln}`}><b>{p.fn[0]}. {p.ln}</b><span>{sub}</span></div>
+      <b className={`dc-rv ${tierOf(v)}`}>{v}</b>
+      <div className="dc-ctrl">{ctrl}</div>
     </div>
   );
-}
-
-function Ring({ v }: { v: number }) {
-  const c = 2 * Math.PI * 15;
   return (
-    <svg className="lu-ring" viewBox="0 0 36 36">
-      <circle cx="18" cy="18" r="15" fill="rgba(5,8,14,.85)" stroke="rgba(255,255,255,.15)" strokeWidth="3" />
-      <circle cx="18" cy="18" r="15" fill="none" stroke={v >= 90 ? '#ff5a6e' : v >= 80 ? '#ffd23f' : v >= 70 ? '#d7dee8' : '#e08a3c'} strokeWidth="3" strokeDasharray={`${(v / 99) * c} ${c}`} transform="rotate(-90 18 18)" strokeLinecap="round" />
-      <text x="18" y="18.5" textAnchor="middle" dominantBaseline="central" fontSize="13" fontWeight="800" fill="#fff" fontFamily="Barlow Condensed">{v}</text>
-    </svg>
-  );
-}
-function BigRing({ v, k }: { v: number; k: string }) {
-  const c = 2 * Math.PI * 40;
-  return (
-    <div className="lu-bigring">
-      <svg viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="8" />
-        <circle cx="50" cy="50" r="40" fill="none" stroke="url(#lugr)" strokeWidth="8" strokeDasharray={`${(v / 99) * c} ${c}`} transform="rotate(-90 50 50)" strokeLinecap="round" style={{ transition: 'stroke-dasharray .8s ease' }} />
-        <defs><linearGradient id="lugr"><stop offset="0" stopColor="#ffd23f" /><stop offset="1" stopColor="#ff9f1c" /></linearGradient></defs>
-      </svg>
-      <b>{v}</b><span>{k}</span>
+    <div className="dc-drawer">
+      <div className="dc-dh"><div><span className="up">Depth · {POS_NAME[slot.pos]}</span><b>{slot.label}</b></div><button className="btn sm" onClick={onClose}>Done</button></div>
+      <div className="dc-seg full"><button className={others ? '' : 'on'} onClick={() => setOthers(false)}>{slot.pos} Depth</button><button className={others ? 'on' : ''} onClick={() => setOthers(true)}>Any Position</button></div>
+      <div className="dc-dlist">
+        {!others ? list.map((p, j) => row(p, ratingAt(p, slot.pos), starters.has(j) ? 'ST' : String(j + 1), j === slot.i,
+          <><button onClick={() => move(j, -1)} disabled={j === 0} aria-label="Move up">▲</button><button onClick={() => move(j, 1)} disabled={j === list.length - 1} aria-label="Move down">▼</button>{j !== slot.i && <button className="go" onClick={() => put(p.id)}>Start</button>}</>,
+          p.injury ? `OUT ${p.injury.weeks}w · ${p.injury.type}` : `${p.pos} · ${Math.floor(p.age)} · ${p.arch}`))
+          : pool.map(({ p, v }) => row(p, v, '', false, <button className="go" onClick={() => put(p.id)}>Start</button>, `${p.pos} ${p.ovr} · plays ${slot.pos} at ${v}`))}
+      </div>
     </div>
   );
 }

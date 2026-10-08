@@ -26,6 +26,14 @@ export function makeOffer(league: League, p: Player, offer: { apy: number; years
   return { ok: true, interest, msg: interest > 0.85 ? 'He loves it. Expect him to sign.' : interest > 0.55 ? 'He is interested, but others may top it.' : interest > 0.25 ? 'He is lukewarm on this offer.' : 'He is not interested at this price.' };
 }
 
+/** Signings the user made, waiting for their ceremony on screen. */
+export interface Ceremony { pid: string; years: number; total: number }
+export const ceremonies = (league: League) => ((league as League & { ceremonies?: Ceremony[] }).ceremonies ??= []);
+export function queueCeremony(league: League, p: Player, offer: { apy: number; years: number }) {
+  const q = ceremonies(league); if (!q.some(c => c.pid === p.id)) q.push({ pid: p.id, years: offer.years, total: offer.apy * offer.years });
+  if (q.length > 6) q.splice(0, q.length - 6);
+}
+
 /** During the season and camp, unsigned players take a fair offer on the spot. */
 export function signNow(league: League, p: Player, offer: { apy: number; years: number; gtd: number }) {
   if (offer.apy > capSpace(league, league.user)) return { ok: false, msg: 'Not enough cap space.' };
@@ -34,6 +42,7 @@ export function signNow(league: League, p: Player, offer: { apy: number; years: 
   signPlayer(league, p, league.user, offer);
   p.num = freeNumber(league, league.user, p.pos);
   news(league, 'sign', `${league.teams[league.user].nick} signed ${p.pos} ${p.fn} ${p.ln}.`, [league.user], { pid: p.id });
+  queueCeremony(league, p, offer);
   return { ok: true, msg: `${p.fn} ${p.ln} has signed.` };
 }
 
@@ -74,6 +83,7 @@ export function runFreeAgencyDay(league: League, rng: Rng) {
     p.num = freeNumber(league, best.team, p.pos);
     delete fa.offers[p.id];
     const total = best.apy * best.years;
+    if (best.team === league.user) queueCeremony(league, p, best);
     if (best.team === league.user) mail(league, 'Front Office', `${p.ln} signed!`, `${p.fn} ${p.ln} accepted your offer: ${best.years} years, ${money(total)}.`);
     else if (offers.some(o => o.team === league.user)) mail(league, 'Front Office', `${p.ln} signed elsewhere`, `${p.fn} ${p.ln} chose the ${league.teams[best.team].nick} (${best.years} yrs, ${money(total)}).`);
     if (p.ovr >= 78) news(league, 'sign', `${league.teams[best.team].nick} signed ${p.pos} ${p.fn} ${p.ln}: ${best.years} years, ${money(total)}.`, [best.team], { pid: p.id, big: p.ovr >= 86 });
