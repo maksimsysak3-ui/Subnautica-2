@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, Table, PlayerCell, DevBadge, Bar, Tabs, CountUp } from '../components';
 import { NegotiationRoom } from './negotiate';
+import { PlayerCard } from '../pcard';
 import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
 import { capFor, capHit, capSpace, money, teamPayroll, yearsLeft, franchiseTag, marketValue } from '../../core/contracts';
@@ -27,10 +28,10 @@ export function FreeAgencyScreen() {
       <div className="row"><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
       {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
         : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
-      <div className="grid g4">{all.slice(0, 4).map(p => { const m = market(L, p); return (
-        <div key={p.id} className="tile card" style={{ cursor: 'pointer' }} onClick={() => setNeg(p)}>
-          <div className="row" style={{ flexWrap: "nowrap" }}><Face p={p} size={64} /><div style={{ minWidth: 0 }}><div className="up dim">{p.pos} · {Math.floor(p.age)} yrs</div><div className="h3" style={{ margin: 0 }}>{p.fn} {p.ln}</div><div className="small dim">Asking {money(askingPrice(L, p).apy)}/yr</div></div><div className="spacer" /><Ovr v={p.ovr} /></div>
-          <div className="row small" style={{ marginTop: 8 }}><span className="dim">Market</span><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span><div className="spacer" />{m.leader ? <><span className="dim">Leaning</span><Logo team={L.teams[m.leader]} size={22} /></> : <span className="mute">No offers</span>}</div>
+      <div className="cards-row">{all.slice(0, 8).map(p => { const m = market(L, p); return (
+        <div key={p.id} className="fa-card">
+          <PlayerCard p={p} size="md" label={`Asking ${money(askingPrice(L, p).apy)}/yr`} onClick={() => setNeg(p)} />
+          <div className="fa-meta"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span>{m.leader ? <><Logo team={L.teams[m.leader]} size={22} />{m.leader === L.user && <b className="good small">YOU</b>}</> : <span className="mute small">No offers</span>}</div>
         </div>); })}</div>
       <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}</div>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 280px', alignItems: 'start' }}>

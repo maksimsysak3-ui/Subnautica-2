@@ -3,6 +3,7 @@ import { App } from '../src/ui/App';
 import { CrashGuard } from '../src/ui/crash';
 import { RAW_TEAMS } from '../src/core/league';
 import '../src/ui/styles.css';
+import '../src/ui/theme.css';
 
 const bar = document.getElementById('boot-bar') as HTMLElement | null;
 const msg = document.getElementById('boot-msg') as HTMLElement | null;

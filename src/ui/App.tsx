@@ -19,6 +19,7 @@ import { AwardsScreen } from './screens/awards';
 import { InjuryScreen } from './screens/injuries';
 import { GameScreen } from './screens/game';
 import { CrashGuard } from './crash';
+import { Badge, Icon, type IconName } from './icons';
 
 type Id = Screen['id'];
 /** Big tabs across the top; each owns a rail of smaller tabs down the side. */
@@ -31,6 +32,12 @@ export const TABS: { label: string; subs: [Id, string][] }[] = [
 ];
 /** Screens that take the whole width: the side rail becomes a strip of tabs above them. */
 const FULL = new Set<Id>(['depth', 'trade']);
+const TAB_ICON: IconName[] = ['home', 'helmet', 'trade', 'contract', 'league'];
+const SUB_ICON: Partial<Record<Id, IconName>> = {
+  hub: 'home', inbox: 'inbox', news: 'news', plan: 'strategy', roster: 'roster', depth: 'lineup', teamstats: 'stats', progress: 'progress', coach: 'whistle', resign: 'sign', cap: 'cap',
+  trade: 'trade', block: 'block', finder: 'finder', offers: 'offers', tradehist: 'history', chart: 'chart', fa: 'contract', draft: 'draft', scouting: 'scout',
+  schedule: 'calendar', standings: 'standings', injuries: 'injury', stats: 'stats', lgteamstats: 'chart', power: 'power', awards: 'trophy', history: 'history',
+};
 const tabOf = (id: Id) => TABS.findIndex(t => t.subs.some(([s]) => s === id));
 
 export function App() {
@@ -54,7 +61,7 @@ export function App() {
   const offers = L.inbox.filter(m => m.action?.kind === 'trade').length;
   return (
     <>
-      <div className="backdrop" />
+      <div className="backdrop" /><div className="grain" />
       <img className="bg-mark" src={L.teams[L.user].logo} alt="" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
       <Masthead />
       <TabBar tab={tab} unread={unread} offers={offers} onSave={async () => { const ok = await saveLeague(L); app.toast(ok ? 'Franchise saved' : 'Save failed'); }} />
@@ -62,7 +69,7 @@ export function App() {
         <aside className={`subtabs${FULL.has(sc.id) ? ' h' : ''}`}>
           {TABS[tab].subs.map(([id, label]) => (
             <button key={id} className={`subtab${sc.id === id ? ' on' : ''}`} onClick={() => app.go({ id } as Screen)}>
-              {label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'offers' && offers > 0 && <span className="badge">{offers}</span>}
+              {SUB_ICON[id] && <Icon n={SUB_ICON[id]!} size={16} />}{label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'offers' && offers > 0 && <span className="badge">{offers}</span>}
             </button>
           ))}
         </aside>
@@ -86,13 +93,13 @@ function TabBar({ tab, unread, offers, onSave }: { tab: number; unread: number; 
     <nav className="bigtabs">
       {TABS.map((t, i) => (
         <button key={t.label} ref={el => { refs.current[i] = el; }} className={`bigtab${i === tab ? ' on' : ''}`} onClick={() => app.go({ id: t.subs[0][0] } as Screen)}>
-          {t.label}{t.label === 'Home' && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Trades' && offers > 0 && <span className="n">{offers}</span>}
+          <Badge n={TAB_ICON[i]} size={34} tone={i === tab ? 'team' : 'steel'} />{t.label}{t.label === 'Home' && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Trades' && offers > 0 && <span className="n">{offers}</span>}
         </button>
       ))}
       <i className="tabbar" style={{ transform: `translateX(${bar.x}px)`, width: bar.w }} />
       <div className="spacer" />
-      <button className="navbtn" onClick={onSave}>Save</button>
-      <button className="navbtn" onClick={() => app.go({ id: 'menu' })}>Main Menu</button>
+      <button className="navbtn" onClick={onSave}><Icon n="save" size={15} />Save</button>
+      <button className="navbtn" onClick={() => app.go({ id: 'menu' })}><Icon n="menu" size={15} />Menu</button>
     </nav>
   );
 }

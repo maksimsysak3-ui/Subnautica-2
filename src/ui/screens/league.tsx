@@ -1,6 +1,8 @@
+import type React from 'react';
 import { useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Face, Table, Tabs, Ovr, PlayerCell } from '../components';
+import { vivid } from '../components';
 import { divisionOrder, seeds, standings, ROUND_NAME, REG_WEEKS } from '../../core/season';
 import { evaluateTrade, executeTrade, pickLabel } from '../../core/trade';
 import type { League, Player, StatLine } from '../../core/types';
@@ -13,24 +15,31 @@ export function ScheduleScreen() {
   return (
     <div className="grid">
       <div className="row"><div className="h2">{L.season} Schedule</div><div className="spacer" /><span className={`chip${mine ? ' on' : ''}`} onClick={() => setMine(true)}>My Team</span><span className={`chip${!mine ? ' on' : ''}`} onClick={() => setMine(false)}>League</span></div>
-      {weeks.map(w => (
-        <div key={w} className="card" style={{ padding: 12 }}>
-          <div className="up" style={{ marginBottom: 8 }}>{w > REG_WEEKS ? ROUND_NAME[w] : `Week ${w}`}</div>
-          <div className="grid" style={{ gridTemplateColumns: mine ? '1fr' : 'repeat(auto-fill,minmax(240px,1fr))', gap: 8 }}>
-            {games.filter(g => g.week === w).map(g => {
-              const r = g.result;
-              const userWon = r && ((g.home === L.user && r.hs > r.as) || (g.away === L.user && r.as > r.hs));
-              return (
-                <div key={g.id} className="li" style={{ borderBottom: 0, background: 'rgba(255,255,255,.03)', borderRadius: 10, padding: 10 }} onClick={() => r ? app.go({ id: 'box', gid: g.id }) : (g.home === L.user || g.away === L.user) && w === L.week ? app.go({ id: 'game', gid: g.id }) : undefined}>
-                  <Logo team={L.teams[g.away]} size={30} /><span style={{ fontWeight: 700 }}>{L.teams[g.away].nick}</span><span className="mute">@</span><Logo team={L.teams[g.home]} size={30} /><span style={{ fontWeight: 700 }}>{L.teams[g.home].nick}</span>
-                  <div className="spacer" />
-                  {r ? <span className="num" style={{ fontSize: 18 }}>{r.as}–{r.hs}{r.ot ? ' OT' : ''} {mine && <span className={userWon ? 'good' : 'bad'}>{userWon ? 'W' : r.hs === r.as ? 'T' : 'L'}</span>}</span> : <span className="small dim">{g.day} {g.time}</span>}
-                </div>
-              );
-            })}
+      {mine ? <div className="gcards">{games.map(g => <GameCard key={g.id} g={g} />)}</div>
+        : weeks.map(w => (
+          <div key={w}>
+            <div className="sec-h"><h2 style={{ fontSize: 22 }}>{w > REG_WEEKS ? ROUND_NAME[w] : `Week ${w}`}</h2><div className="line" /></div>
+            <div className="gcards">{games.filter(g => g.week === w).map(g => <GameCard key={g.id} g={g} />)}</div>
           </div>
-        </div>
-      ))}
+        ))}
+    </div>
+  );
+}
+
+function GameCard({ g }: { g: League['games'][number] }) {
+  const L = useApp().league!;
+  const r = g.result, a = L.teams[g.away], h = L.teams[g.home];
+  const mine = g.home === L.user || g.away === L.user;
+  const won = r && ((g.home === L.user && r.hs > r.as) || (g.away === L.user && r.as > r.hs));
+  const now = mine && g.week === L.week && !r && (L.phase === 'regular' || L.phase === 'playoffs');
+  return (
+    <div className={`gcard${now ? ' now' : ''}`} style={{ '--ca': vivid(a.colors[0]), '--ch': vivid(h.colors[0]) } as React.CSSProperties}
+      onClick={() => r ? app.go({ id: 'box', gid: g.id }) : now ? app.go({ id: 'game', gid: g.id }) : app.go({ id: 'team', team: mine ? (g.home === L.user ? g.away : g.home) : g.home })}>
+      <div className="gc-top"><span>{g.week > REG_WEEKS ? ROUND_NAME[g.week] : `Week ${g.week}`}</span>{mine && r && <b className={won ? 'w' : r.hs === r.as ? 't' : 'l'}>{won ? 'W' : r.hs === r.as ? 'T' : 'L'}</b>}{now && <b className="nx">Next</b>}</div>
+      {[a, h].map((t, i) => { const sc = r ? (i ? r.hs : r.as) : undefined; const lose = r && sc! < (i ? r.as : r.hs); return (
+        <div key={t.abbr} className={`gc-team${lose ? ' lose' : ''}`}><Logo team={t} size={38} /><span>{t.nick}</span><b>{sc ?? ''}</b></div>
+      ); })}
+      <div className="gc-foot">{r ? `Final${r.ot ? '/OT' : ''}` : `${g.day ?? ''} ${g.time ?? ''}`}<span>{g.neutral ?? h.stadium}</span></div>
     </div>
   );
 }

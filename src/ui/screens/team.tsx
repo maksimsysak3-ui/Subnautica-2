@@ -1,6 +1,7 @@
+import type React from 'react';
 import { useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, Table, Tabs, DevBadge, Jersey, Tilt, Bar, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
+import { Logo, Ovr, Table, Tabs, DevBadge, Jersey, Tilt, attrColor, PlayerCell, Modal, CountUp, vivid, Grade } from '../components';
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
 import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
@@ -9,6 +10,9 @@ import { release } from '../../core/offseason';
 import { NegotiationRoom } from './negotiate';
 import { standings } from '../../core/season';
 import { scoutedView, draftGrade } from '../../core/draft';
+import { PlayerCard } from '../pcard';
+import { Icon } from '../icons';
+import { PosTag } from '../components';
 
 const FILTERS = ['All', 'Offense', 'Defense', 'Special', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'] as const;
 const inFilter = (p: Player, f: typeof FILTERS[number]) => {
@@ -25,6 +29,7 @@ export function RosterScreen({ team }: { team?: string }) {
   const abbr = team ?? L.user;
   const [f, setF] = useState<typeof FILTERS[number]>('All');
   const [view, setView] = useState<'Active' | 'Practice Squad' | 'Injured Reserve'>('Active');
+  const [cards, setCards] = useState(false);
   const status = { Active: 'ACT', 'Practice Squad': 'PS', 'Injured Reserve': 'IR' }[view];
   const rows = Object.values(L.players).filter(p => p.team === abbr && p.status === status && inFilter(p, f));
   const act = Object.values(L.players).filter(p => p.team === abbr && p.status === 'ACT').length;
@@ -32,10 +37,11 @@ export function RosterScreen({ team }: { team?: string }) {
     <div className="grid">
       <div className="row"><Logo team={L.teams[abbr]} size={46} /><div className="h2">{L.teams[abbr].name} Roster</div><span className={`chip ${act > 53 ? 'on' : ''}`}>{act}/53 active</span><div className="spacer" />
         <Tabs tabs={['Active', 'Practice Squad', 'Injured Reserve'] as const} on={view} set={setView} /></div>
-      <div className="row">{FILTERS.map(x => <span key={x} className={`chip${f === x ? ' on' : ''}`} onClick={() => setF(x)}>{x}</span>)}</div>
-      <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
+      <div className="row">{FILTERS.map(x => <span key={x} className={`chip${f === x ? ' on' : ''}`} onClick={() => setF(x)}>{x}</span>)}<div className="spacer" />
+        <div className="seg"><button className={!cards ? 'on' : ''} onClick={() => setCards(false)}><Icon n="menu" size={14} /> List</button><button className={cards ? 'on' : ''} onClick={() => setCards(true)}><Icon n="block" size={14} /> Cards</button></div></div>
+      {cards ? <div className="cards-grid">{rows.sort((a, b) => b.ovr - a.ovr).map(p => <PlayerCard key={p.id} p={p} size="md" />)}</div> : <Table rows={rows} rowKey={p => p.id} initial="ovr" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
         { k: 'name', h: 'Player', get: p => <PlayerCell p={p} />, sort: p => p.ln },
-        { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
+        { k: 'pos', h: 'Pos', get: p => <PosTag pos={p.pos} />, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
         { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
         { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} />, sort: p => ['Normal', 'Star', 'Superstar', 'X-Factor'].indexOf(p.dev) },
         { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
@@ -44,7 +50,7 @@ export function RosterScreen({ team }: { team?: string }) {
         { k: 'cond', h: 'Cond', get: p => <span style={{ color: p.cond < 70 ? 'var(--warn)' : undefined }}>{Math.round(p.cond)}%</span>, sort: p => p.cond, cls: 'c' },
         { k: 'cap', h: 'Cap Hit', get: p => money(capHit(p.contract, L.season)), sort: p => capHit(p.contract, L.season), cls: 'r' },
         { k: 'yrs', h: 'Yrs', get: p => yearsLeft(p.contract, L.season), sort: p => yearsLeft(p.contract, L.season), cls: 'c' },
-      ]} />
+      ]} />}
     </div>
   );
 }
@@ -66,27 +72,12 @@ export function TeamScreen({ team }: { team: string }) {
           {team !== L.user && <button className="btn primary" onClick={() => app.go({ id: 'trade', team })}>Propose Trade</button>}
         </div>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px,1fr))' }}>
-        {stars.map(p => <PlayerTile key={p.id} p={p} />)}
-      </div>
+      <div className="cards-row">{stars.map(p => <PlayerCard key={p.id} p={p} size="md" />)}</div>
       <RosterScreen team={team} />
     </div>
   );
 }
 
-export function PlayerTile({ p }: { p: Player }) {
-  const L = useApp().league!;
-  const t = L.teams[p.team];
-  return (
-    <Tilt max={12} style={{ cursor: 'pointer' }}>
-      <div className="card" onClick={() => app.go({ id: 'player', pid: p.id })} style={{ padding: 12, background: t ? `linear-gradient(170deg, ${t.colors[0]}dd, #0b1120 75%)` : undefined, textAlign: 'center' }}>
-        <div className="row" style={{ justifyContent: 'space-between' }}><Ovr v={p.ovr} /><span className="small dim">{p.pos} #{p.num}</span></div>
-        <Face p={p} size={96} style={{ margin: '6px auto', border: '2px solid rgba(255,255,255,.15)' }} />
-        <b>{p.fn} {p.ln}</b><div className="small dim">{p.arch}</div>
-      </div>
-    </Tilt>
-  );
-}
 
 // ---- player card ---------------------------------------------------------------------------
 export function PlayerScreen({ pid }: { pid: string }) {
@@ -103,21 +94,17 @@ export function PlayerScreen({ pid }: { pid: string }) {
   const keyAttrs = (Object.entries(OVR_W[p.pos]) as [keyof Player['attrs'], number][]).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k);
   return (
     <div className="grid">
-      <div className="card hero" style={{ background: `linear-gradient(115deg, ${color} 0%, #0b1120 62%)`, padding: 0 }}>
+      <div className="card hero phero" style={{ '--pc': vivid(color), padding: 0 } as React.CSSProperties}>
+        {t && <Logo team={t} size={520} style={{ position: 'absolute', right: '14%', top: -110, opacity: 0.09, transform: 'rotate(-10deg)' }} />}
+        <div className="phero-num">{p.num || ''}</div>
         <div className="grid" style={{ gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 24, padding: 24, position: 'relative' }}>
-          <Tilt max={16}>
-            <div style={{ width: 230, height: 300, borderRadius: 18, overflow: 'hidden', position: 'relative', background: `linear-gradient(180deg, ${vivid(color)}, #0b1120)`, border: '2px solid rgba(255,255,255,.18)', boxShadow: '0 25px 60px rgba(0,0,0,.6)' }}>
-              <div style={{ position: 'absolute', right: -10, top: -20, font: '900 190px/1 var(--head)', color: 'rgba(255,255,255,.1)' }}>{p.num || ''}</div>
-              <Face p={p} size={230} style={{ borderRadius: 0, background: 'transparent', position: 'absolute', bottom: 40, left: 0 }} />
-              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '10px 12px', background: 'linear-gradient(0deg, rgba(0,0,0,.85), transparent)' }}>
-                <div className="row" style={{ justifyContent: 'space-between' }}><b className="h3">{p.ln.toUpperCase()}</b>{prospect ? <Grade g={draftGrade(p)} /> : <Ovr v={p.ovr} />}</div>
-              </div>
-              {t && <Logo team={t} size={44} style={{ position: 'absolute', left: 10, top: 10 }} />}{!t && p.colLogo && <img src={p.colLogo} width={44} height={44} alt="" style={{ position: 'absolute', left: 10, top: 10 }} />}
-            </div>
-          </Tilt>
+          <div style={{ position: 'relative' }}>
+            <PlayerCard p={p} size="lg" hideOvr={prospect} onClick={() => {}} />
+            {prospect && <div style={{ position: 'absolute', left: 18, top: 18, zIndex: 4 }}><Grade g={draftGrade(p)} lg /></div>}
+          </div>
           <div style={{ minWidth: 0 }}>
             <div className="up" style={{ color: 'var(--team2)' }}>{POS_NAME[p.pos]} · {p.arch}{t ? ` · ${t.name}` : p.status === 'FA' ? ' · Free Agent' : prospect ? ` · ${p.col} · Prospect #${p.proj}` : ''}</div>
-            <div className="h1" style={{ margin: '6px 0' }}>{p.fn} {p.ln}</div>
+            <div className="phero-fn">{p.fn}</div><div className="h1 phero-ln">{p.ln}</div>
             <div className="row" style={{ gap: 8 }}>
               {!prospect || sv?.dev ? <DevBadge d={p.dev} /> : <span className="dev Normal">Dev ?</span>}
               <span className="chip">#{p.num}</span><span className="chip">{Math.floor(p.age)} yrs</span><span className="chip">{Math.floor(p.ht / 12)}'{p.ht % 12}" · {p.wt} lb</span><span className="chip">{p.col}</span>
@@ -162,9 +149,9 @@ export function PlayerScreen({ pid }: { pid: string }) {
                 const known = !prospect || (sv!.lvl >= 2 || (sv!.lvl >= 1 && keyAttrs.slice(0, 3).includes(k)));
                 const shown = !known ? '??' : prospect && sv!.lvl < 3 ? `${Math.max(20, v - 4)}-${Math.min(99, v + 4)}` : String(v);
                 return (
-                  <div key={k} style={{ margin: '7px 0', opacity: keyAttrs.includes(k) ? 1 : 0.72 }}>
-                    <div className="row" style={{ justifyContent: 'space-between' }}><span className="small">{ATTR_NAME[k]}{keyAttrs.includes(k) ? ' ★' : ''}</span><b className="num" style={{ color: known ? attrColor(v) : 'var(--mute)' }}>{shown}</b></div>
-                    <Bar v={known ? v : 0} color={attrColor(v)} />
+                  <div key={k} className={`attr-row${keyAttrs.includes(k) ? ' key' : ''}`} style={{ '--ac': known ? attrColor(v) : '#4a5366' } as React.CSSProperties}>
+                    <b className="attr-v">{shown}</b>
+                    <div className="attr-body"><span>{ATTR_NAME[k]}{keyAttrs.includes(k) && <i className="attr-star">KEY</i>}</span><div className="attr-bar"><i style={{ width: `${known ? v : 0}%` }} /></div></div>
                   </div>
                 );
               })}

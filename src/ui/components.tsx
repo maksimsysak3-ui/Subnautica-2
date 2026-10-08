@@ -7,6 +7,9 @@ export const tier = (o: number) => (o >= 95 ? 't99' : o >= 90 ? 't90' : o >= 80 
 export function Ovr({ v, lg, style }: { v: number; lg?: boolean; style?: CSSProperties }) {
   return <span className={`ovr ${tier(v)}${lg ? ' lg' : ''}`} style={style}>{v}</span>;
 }
+const POS_GROUP: Record<string, string> = { QB: 'qb', RB: 'sk', FB: 'sk', WR: 'sk', TE: 'sk', OT: 'ol', G: 'ol', C: 'ol', EDGE: 'dl', DT: 'dl', LB: 'lb', CB: 'db', S: 'db', K: 'st', P: 'st', LS: 'st' };
+/** Position label coloured by unit. */
+export function PosTag({ pos }: { pos: string }) { return <span className={`postag ${POS_GROUP[pos] ?? 'st'}`}>{pos}</span>; }
 export function Grade({ g, lg }: { g: string; lg?: boolean }) { return <span className={`grade ${g[0]}${lg ? ' lg' : ''}`}>{g}</span>; }
 export function DevBadge({ d }: { d: Dev }) {
   const icon = { Normal: '', Star: '★', Superstar: '✦', 'X-Factor': '✸' }[d];

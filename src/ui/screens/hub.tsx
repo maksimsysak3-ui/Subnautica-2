@@ -1,10 +1,12 @@
 import { useApp, app } from '../store';
-import { Logo, Face, CountUp, Bar, Ovr } from '../components';
+import { Logo, Face, CountUp, Bar } from '../components';
 import { AdvanceButton } from '../App';
 import { divisionOrder, standings, userGame, weekGames } from '../../core/season';
 import { teamRatings, rosterOf } from '../../core/league';
 import { capSpace, money, yearsLeft } from '../../core/contracts';
 import type { League, Player } from '../../core/types';
+import { PlayerCard } from '../pcard';
+import { Badge, Icon } from '../icons';
 
 /** Franchise home: big image tiles, the way a console franchise hub reads. */
 export function Hub() {
@@ -17,10 +19,15 @@ export function Hub() {
   const star = roster.slice().sort((a, b) => b.ovr - a.ovr)[0];
   const qb = L.players[me.depth.QB?.[0] ?? ''] ?? star;
   const news = L.news.filter(n => n.pid && L.players[n.pid]).slice(0, 3);
+  const core = roster.slice().sort((a, b) => b.ovr - a.ovr).filter(p => p.id !== qb?.id).slice(0, 8);
   return (
     <div className="grid" style={{ gridTemplateColumns: 'repeat(12, minmax(0,1fr))' }}>
       <div style={{ gridColumn: 'span 8' }}><MatchupTile L={L} /></div>
-      <div style={{ gridColumn: 'span 4' }}>{qb && <PlayerTile p={qb} kicker="Franchise Quarterback" />}</div>
+      <div style={{ gridColumn: 'span 4' }}>{qb && <FranchiseTile p={qb} kicker={qb.pos === 'QB' ? 'Franchise Quarterback' : 'Franchise Player'} />}</div>
+      <div style={{ gridColumn: 'span 12' }}>
+        <div className="sec-h"><Badge n="star" size={30} tone="gold" /><h2>The Core</h2><div className="line" /><span className="more-link" onClick={() => app.go({ id: 'roster' })}>Full roster <Icon n="chevron" size={12} /></span></div>
+        <div className="cards-row">{core.map((p, i) => <PlayerCard key={p.id} p={p} size="md" label={i === 0 ? 'Team MVP' : coreLabel(p)} />)}</div>
+      </div>
 
       <div className="card" style={{ gridColumn: 'span 4' }}>
         <h3>{me.conf} {me.div}<span className="more" onClick={() => app.go({ id: 'standings' })}>Standings</span></h3>
@@ -33,11 +40,11 @@ export function Hub() {
       </div>
       <div className="card" style={{ gridColumn: 'span 4' }}>
         <h3>Team Ratings<span className="more" onClick={() => app.go({ id: 'teamstats' })}>Team Stats</span></h3>
-        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-          {[['OVR', r.ovr], ['OFF', r.off], ['DEF', r.def]].map(([k, v]) => <div key={k as string} className="stat" style={{ alignItems: 'center' }}><span className="k">{k}</span><span className="v" style={{ fontSize: 42 }}><CountUp v={v as number} /></span></div>)}
+        <div className="row" style={{ justifyContent: 'space-around', marginBottom: 10 }}>
+          {([['Overall', r.ovr], ['Offense', r.off], ['Defense', r.def]] as const).map(([k, v], i) => <Ring key={k} v={v} label={k} big={i === 0} />)}
         </div>
         {([['Quarterback', r.qb], ['Skill', r.skill], ['O-Line', r.ol], ['D-Line', r.dl], ['Linebackers', r.lb], ['Secondary', r.db]] as const).map(([k, v]) => (
-          <div key={k} className="row" style={{ gap: 10, margin: '5px 0' }}><span className="small up" style={{ width: 92, fontSize: 10 }}>{k}</span><div style={{ flex: 1 }}><Bar v={v - 50} max={49} /></div><span className="num" style={{ width: 26, textAlign: 'right' }}>{Math.round(v)}</span></div>
+          <div key={k} className="row" style={{ gap: 10, margin: '7px 0' }}><span className="up" style={{ width: 96 }}>{k}</span><div style={{ flex: 1 }}><Bar v={v - 50} max={49} /></div><span className="num" style={{ width: 28, textAlign: 'right', fontSize: 17 }}>{Math.round(v)}</span></div>
         ))}
       </div>
       <div className="card" style={{ gridColumn: 'span 4' }}>
@@ -81,8 +88,9 @@ function MatchupTile({ L }: { L: League }) {
   const away = L.teams[ug.away], home = L.teams[ug.home];
   const st = standings(L);
   return (
-    <div className="tile" style={{ minHeight: 330, cursor: 'default' }}>
+    <div className="tile matchup" style={{ minHeight: 330, cursor: 'default' }}>
       <div className="art" style={{ background: `linear-gradient(115deg, ${away.colors[0]} 0 49.6%, #0b0d11 49.6% 50.4%, ${home.colors[0]} 50.4%)` }}>
+        <div className="lights" /><div className="turf" />
         <Logo team={away} size={250} style={{ position: 'absolute', left: '6%', top: 22 }} />
         <Logo team={home} size={250} style={{ position: 'absolute', right: '6%', top: 22 }} />
         <div style={{ position: 'absolute', left: '50%', top: 92, transform: 'translateX(-50%)', font: '900 italic 64px var(--head)', textShadow: '0 6px 20px rgba(0,0,0,.6)' }}>{ug.result ? `${ug.result.as}-${ug.result.hs}` : 'VS'}</div>
@@ -97,24 +105,41 @@ function MatchupTile({ L }: { L: League }) {
     </div>
   );
 }
-function PlayerTile({ p, kicker }: { p: Player; kicker: string }) {
+function FranchiseTile({ p, kicker }: { p: Player; kicker: string }) {
   const L = useApp().league!;
   const t = L.teams[p.team];
   const line = p.stats[L.season];
   return (
-    <div className="tile" style={{ minHeight: 330 }} onClick={() => app.go({ id: 'player', pid: p.id })}>
-      <div className="art" style={{ background: `linear-gradient(160deg, ${t.colors[0]}, #0b0d11 85%)` }}>
-        <div style={{ position: 'absolute', right: 10, top: -10, font: '900 italic 200px/1 var(--head)', color: 'rgba(255,255,255,.08)' }}>{p.num}</div>
-        <Face p={p} size={280} style={{ position: 'absolute', left: '50%', bottom: 30, transform: 'translateX(-50%)', borderRadius: 0, background: 'transparent' }} />
-      </div>
-      <div className="shade" />
-      <div className="lbl row" style={{ alignItems: 'flex-end' }}>
-        <div><div className="k">{kicker}</div><div className="t">{p.fn} {p.ln}</div><div className="s">{p.arch}{line ? ` · ${line.py ? `${line.py} yds, ${line.ptd} TD` : `${line.ry + line.recy} scrimmage yds`}` : ''}</div></div>
-        <div className="spacer" /><Ovr v={p.ovr} lg />
+    <div className="tile franchise" style={{ minHeight: 330, height: '100%', cursor: 'default', background: `radial-gradient(120% 90% at 30% 0%, ${t.colors[0]}, #05070b 75%)` }}>
+      <div className="fr-rays" />
+      <div className="row" style={{ position: 'relative', height: '100%', flexWrap: 'nowrap', alignItems: 'center', gap: 18, padding: 18 }}>
+        <PlayerCard p={p} size="md" />
+        <div style={{ minWidth: 0 }}>
+          <div className="k" style={{ color: 'var(--team2)' }}>{kicker}</div>
+          <div className="h2" style={{ margin: '4px 0 10px' }}>{p.fn}<br />{p.ln}</div>
+          {line ? <div className="grid" style={{ gap: 8 }}>{(line.py ? [['Pass Yds', line.py], ['TD', line.ptd], ['INT', line.pint]] : line.ry || line.recy ? [['Scrim Yds', line.ry + line.recy], ['TD', line.rtd + line.rectd], ['Rec', line.rec]] : [['Tackles', line.tkl], ['Sacks', line.dsk], ['INT', line.dint]]).map(([k, v]) => <div key={k} className="row" style={{ gap: 8 }}><span className="num" style={{ fontSize: 26, minWidth: 54 }}>{v}</span><span className="up">{k}</span></div>)}</div>
+            : <div className="small dim">{p.arch} · {Math.floor(p.age)} yrs · {p.exp ? `${p.exp} seasons` : 'Rookie'}</div>}
+        </div>
       </div>
     </div>
   );
 }
+/** Radial rating gauge. */
+function Ring({ v, label, big }: { v: number; label: string; big?: boolean }) {
+  const S = big ? 104 : 84, R = S / 2 - 7, C = 2 * Math.PI * R, k = Math.max(0, Math.min(1, (v - 55) / 44));
+  return (
+    <div className="ring" style={{ width: S }}><div style={{ position: 'relative' }}>
+      <svg width={S} height={S} viewBox={`0 0 ${S} ${S}`}>
+        <circle cx={S / 2} cy={S / 2} r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="7" />
+        <circle cx={S / 2} cy={S / 2} r={R} fill="none" stroke="url(#ringG)" strokeWidth="7" strokeLinecap="round" strokeDasharray={`${C * k} ${C}`} transform={`rotate(-90 ${S / 2} ${S / 2})`} style={{ filter: 'drop-shadow(0 0 6px var(--team2))', transition: 'stroke-dasharray .8s' }} />
+        <defs><linearGradient id="ringG" x1="0" x2="1"><stop offset="0" stopColor="var(--team)" /><stop offset="1" stopColor="var(--team2)" /></linearGradient></defs>
+      </svg>
+      <b style={{ fontSize: big ? 40 : 30 }}><CountUp v={v} /></b></div>
+      <span>{label}</span>
+    </div>
+  );
+}
+const coreLabel = (p: Player) => (p.dev === 'X-Factor' ? 'X-Factor' : p.ovr >= 90 ? 'Elite' : p.age <= 24 ? 'Rising' : p.age >= 31 ? 'Veteran' : 'Starter');
 function Leaders({ L }: { L: League }) {
   const mine = Object.values(L.players).filter(p => p.team === L.user);
   const s = (p: Player) => p.stats[L.season];
