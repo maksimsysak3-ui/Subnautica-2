@@ -13,6 +13,7 @@ import { freeNumber } from './draft';
 import { generateClass, startDraft } from './draft';
 import { news, mail, standings, REG_WEEKS, divisionOrder } from './season';
 import { runFreeAgencyDay, openFreeAgency } from './freeagency';
+import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
@@ -35,6 +36,7 @@ export function startOffseason(league: League) {
     t.rollover = Math.max(0, Math.min(30_000_000, capFor(league, prev) - payrollAt(league, t.abbr, prev)));
     delete t.dead[prev - 1];
   }
+  staffOffseason(league, rng);
   league.week = 0;
   league.phase = 'resign';
   // Keep a rolling three years of picks.
@@ -223,8 +225,6 @@ function performanceIndex(p: Player, season: number, fit: Record<string, [number
 }
 
 // ---- coaching carousel ---------------------------------------------------------------------
-const COACH_FIRST = ['Mike', 'Dan', 'Kevin', 'Brian', 'Steve', 'Matt', 'Jim', 'Todd', 'Bill', 'Ron', 'Sean', 'Josh', 'Frank', 'Joe', 'Arthur', 'Aaron', 'Bobby', 'Klint', 'Anthony', 'Chris'];
-const COACH_LAST = ['Johnson', 'Kubiak', 'Slowik', 'Fangio', 'Weaver', 'Grimes', 'Monken', 'Flores', 'Spagnuolo', 'Evero', 'Glenn', 'Joseph', 'Rizzi', 'Hafley', 'Udinski', 'Brady', 'Scheelhaase', 'Kafka', 'Petzing', 'Fassel'];
 function coachingCarousel(league: League, rng: Rng, season: number) {
   const st = standings(league, season);
   for (const t of Object.values(league.teams)) {
@@ -233,7 +233,10 @@ function coachingCarousel(league: League, rng: Rng, season: number) {
     const hot = s.w <= 4 || (s.w <= 6 && rng.chance(0.4)) || (s.w <= 7 && t.coach.age >= 64 && rng.chance(0.3));
     if (!hot) { t.coach.age++; continue; }
     const old = t.coach.name;
-    t.coach = makeCoach(`${rng.pick(COACH_FIRST)} ${rng.pick(COACH_LAST)}`, rng, Math.round(clamp(rng.normal(70, 7), 55, 88)));
+    const promoted = poachHeadCoach(league, rng, t.abbr);
+    t.coach = makeCoach(promoted?.name ?? `${rng.pick(COACH_FIRST)} ${rng.pick(COACH_LAST)}`, rng, promoted?.rating ?? Math.round(clamp(rng.normal(70, 7), 55, 88)));
+    if (promoted?.off) t.coach.off = promoted.off;
+    if (promoted?.def) t.coach.def = promoted.def;
     news(league, 'coach', `The ${t.nick} fired ${old} after a ${s.w}-${s.l} season and hired ${t.coach.name} (${t.coach.off} offense, ${t.coach.def} defense).`, [t.abbr]);
   }
 }

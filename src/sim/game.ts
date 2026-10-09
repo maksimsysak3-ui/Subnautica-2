@@ -12,6 +12,7 @@ import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
 import { sideEdge, fans } from '../core/media';
 import { coachHas } from '../core/coaching';
+import { unitEdge, kickEdge, injuryShield } from '../core/staff';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
@@ -119,7 +120,20 @@ export class GameSim {
     if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
     if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
+    v += this.staffEdge(side, p, a);
     return v;
+  }
+  private se = new Map<string, { off: number; def: number; kick: number; inj: number }>();
+  private staffOf(side: Side) {
+    let e = this.se.get(side.abbr);
+    if (!e) { e = { off: unitEdge(this.league, side.abbr, 'OC'), def: unitEdge(this.league, side.abbr, 'DC'), kick: kickEdge(this.league, side.abbr), inj: injuryShield(this.league, side.abbr) }; this.se.set(side.abbr, e); }
+    return e;
+  }
+  /** Coordinators on game day; the special teams coach for kickers and punters. */
+  private staffEdge(side: Side, p: Player, a: keyof Player['attrs']): number {
+    const e = this.staffOf(side);
+    if (p.pos === 'K' || p.pos === 'P') return a === 'KPW' || a === 'KAC' ? e.kick : 0;
+    return side === this.sides[this.poss] ? e.off : e.def;
   }
   private cu?: Set<string>;
   /** The user's coach tree on game day: situational bonuses from unlocked abilities. */
@@ -155,7 +169,7 @@ export class GameSim {
     const qb = this.avail(s, 'QB', 1)[0];
     // Backfield committee: the RB2 takes a real share, more if he is close in quality.
     const rbPool = this.avail(s, 'RB', 2);
-    const rbs = rbPool.length > 1 && !this.has(rbPool[0], 'Workhorse') && this.rng.chance(clamp(0.4 + (rbPool[1].ovr - rbPool[0].ovr) * 0.006 + (s.fatigue.get(rbPool[0].id) ?? 0) * 0.15, 0.22, 0.5)) ? [rbPool[1]] : rbPool;
+    const rbs = rbPool.length > 1 && !this.has(rbPool[0], 'Workhorse') && this.rng.chance(clamp(0.46 + (rbPool[1].ovr - rbPool[0].ovr) * 0.006 + (s.fatigue.get(rbPool[0].id) ?? 0) * 0.15, 0.3, 0.55)) ? [rbPool[1]] : rbPool;
     const wrs = this.avail(s, 'WR', 4);
     const tes = this.avail(s, 'TE', 2);
     const ots = this.avail(s, 'OT', 2), gs = this.avail(s, 'G', 2), cs = this.avail(s, 'C', 1);
@@ -200,7 +214,7 @@ export class GameSim {
       : this.down === 2 ? (this.togo >= 8 ? 0.6 : this.togo <= 3 ? 0.34 : 0.5)
       : this.togo <= 2 ? 0.42 : this.togo <= 6 ? 0.78 : 0.92;
     if (this.down === 4) pass = this.togo <= 2 ? 0.45 : 0.9;
-    if (this.yl >= 98) pass -= 0.15;
+    if (this.yl >= 98) pass -= 0.15; else if (this.yl >= 90) pass -= 0.07;
     if (this.q >= 3) {
       if (diff <= -9) pass += 0.18; else if (diff < 0 && tl < 600) pass += 0.15;
       // Protecting a lead: lean on the run, but real offences still throw ~40% of the time.
@@ -447,6 +461,8 @@ export class GameSim {
   private injure(side: Side, p: Player) {
     if (side.out.has(p.id)) return;
     if (side.abbr === this.league.user && coachHas(this.league, 'Iron Program') && this.rng.chance(0.25)) return;
+    const shield = this.staffOf(side).inj;
+    if (shield > 0 && this.rng.chance(shield)) return;
     // Most knocks are minor: shaken up, or out for the game. Multi-week and
     // season-ending injuries are the exception.
     const weeks = this.rng.weighted([[-1, 0.4], [0, 0.18], [1, 0.17], [2, 0.1], [3, 0.05], [4, 0.04], [6, 0.03], [9, 0.015], [99, 0.015]] as const);
@@ -566,10 +582,10 @@ export class GameSim {
     const man = dc.shell === 'Cover 0' || dc.shell === 'Cover 1';
     const targets: { p: Player; def?: Player; bias: number; slot: string }[] = [];
     const wr = o.wrs;
-    if (wr[0]) targets.push({ p: wr[0], def: d.cbs[0], bias: 0.4, slot: 'X' });
-    if (wr[1]) targets.push({ p: wr[1], def: d.cbs[1], bias: 0.25, slot: 'Z' });
-    if (wr[2]) targets.push({ p: wr[2], def: d.cbs[2] ?? d.ss[1] ?? d.lbs[1], bias: 0.12, slot: 'SLOT' });
-    if (o.tes[0]) targets.push({ p: o.tes[0], def: man ? (d.ss[1] ?? d.lbs[0]) : (d.lbs[0] ?? d.ss[0]), bias: 0.1, slot: 'TE' });
+    if (wr[0]) targets.push({ p: wr[0], def: d.cbs[0], bias: 0.24, slot: 'X' });
+    if (wr[1]) targets.push({ p: wr[1], def: d.cbs[1], bias: 0.2, slot: 'Z' });
+    if (wr[2]) targets.push({ p: wr[2], def: d.cbs[2] ?? d.ss[1] ?? d.lbs[1], bias: 0.16, slot: 'SLOT' });
+    if (o.tes[0]) targets.push({ p: o.tes[0], def: man ? (d.ss[1] ?? d.lbs[0]) : (d.lbs[0] ?? d.ss[0]), bias: 0.14, slot: 'TE' });
     if (o.rb && !chip) targets.push({ p: o.rb, def: d.lbs[1] ?? d.lbs[0], bias: depth === 'screen' ? 0.9 : -0.35, slot: 'RB' });
     const planDef = def.team.plan.def;
     // Less room to work with near the goal line.
@@ -616,7 +632,7 @@ export class GameSim {
     // Each receiver's chance grows with how open he looks (blurred by the QB's
     // awareness) and his place in the read; the ball still spreads around.
     const noise = (100 - this.r(off, qb, 'AWR')) / 45;
-    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.5 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.9 : 0))));
+    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.47 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.9 : 0) - Math.max(0, (this.lines.get(t.p.id)?.tgt ?? 0) - 7) * 0.08)));
     let pick = 0;
     { let r = this.rng.next() * util.reduce((a, b) => a + b, 0); for (let i = 0; i < util.length; i++) { r -= util[i]; if (r <= 0) { pick = i; break; } } }
     const tgt = targets[pick];
@@ -737,7 +753,7 @@ export class GameSim {
 
   private sack(o: ReturnType<GameSim['offense']>, d: ReturnType<GameSim['defense']>, rushers: Player[], blockers: Player[]): PlayEvent {
     const off = o.s, def = d.s;
-    const w = rushers.map(p => [p, Math.max(p.attrs.FMV, p.attrs.PMV) + (def.zoneOn.has(p.id) ? 15 : 0)] as const);
+    const w = rushers.map(p => [p, 60 + Math.max(p.attrs.FMV, p.attrs.PMV) * 0.6 + (def.zoneOn.has(p.id) ? 15 : 0)] as const);
     const sacker = this.rng.weighted(w.map(([p, v]) => [p, Math.pow(v / 70, 2)] as const));
     const loss = clamp(Math.round(this.rng.normal(7, 2.5)), 1, 15);
     const l = this.L(o.qb); l.sk++; l.sky += loss;
@@ -794,10 +810,10 @@ export class GameSim {
       + (front.some(p => this.has(p, 'Run Stuffer')) ? 1.2 : 0);
     const adv = (blockV - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
     const outside = oc.run === 'outside';
-    const vision = (this.r(off, carrier, 'BCV') - 75) / 30;
-    let line = outside ? this.rng.normal(2.4 + adv * 0.65 + (this.r(off, carrier, 'SPD') - 86) / 22, 3.1) : this.rng.normal(2.7 + adv * 0.9, 2.3);
+    const vision = (this.r(off, carrier, 'BCV') - 82) / 40;
+    let line = outside ? this.rng.normal(2.3 + adv * 0.5 + (this.r(off, carrier, 'SPD') - 88) / 32, 3.1) : this.rng.normal(2.7 + adv * 0.7, 2.3);
     if (oc.run === 'qb') line += (this.r(off, carrier, 'SPD') - 80) / 12;
-    line += vision * 0.6;
+    line += vision * 0.4;
     let y: number;
     if (line < 0) {
       // Hit in the backfield; elusive backs sometimes turn nothing into something.
@@ -806,10 +822,10 @@ export class GameSim {
     } else {
       const power = (this.r(off, carrier, 'BTK') + this.r(off, carrier, 'TRK')) / 2;
       const tackle = front.reduce((a, p) => a + this.r(def, p, 'TAK'), 0) / Math.max(1, front.length);
-      let after = -Math.log(1 - this.rng.next()) * 1.75 * clamp(1 + (power - tackle) / 95, 0.6, 1.45);
+      let after = -Math.log(1 - this.rng.next()) * 1.75 * clamp(1 + (power - tackle) / 140, 0.75, 1.25);
       if (this.has(carrier, 'Bruiser') || off.zoneOn.has(carrier.id)) after *= 1.3;
       y = Math.round(line + after);
-      const breakaway = 0.034 + (this.r(off, carrier, 'SPD') - 86) * 0.0015 + vision * 0.008 + (this.has(carrier, 'Breakaway') ? 0.02 : 0) + (outside ? 0.01 : 0);
+      const breakaway = 0.037 + (this.r(off, carrier, 'SPD') - 88) * 0.0005 + vision * 0.005 + (this.has(carrier, 'Breakaway') ? 0.01 : 0) + (outside ? 0.01 : 0);
       if (this.rng.chance(clamp(breakaway, 0.005, 0.1))) y += Math.round(10 + -Math.log(1 - this.rng.next()) * 16);
     }
     if (this.yl + y > 100) y = 100 - this.yl;

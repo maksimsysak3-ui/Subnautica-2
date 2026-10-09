@@ -19,7 +19,7 @@ const RW = 160, RH = 90;
 const BLACK = 1.3, WALK = 2.6, HOLD = 6.5;   // phase ends (seconds)
 
 /** The player in his signing-day suit: the coach-sprite builder with his own look. */
-function playerLook(p: Player): CoachLook {
+export function playerLook(p: Player): CoachLook {
   const sk = skinOf(p), m = /rgba?\((\d+)\D+(\d+)\D+(\d+)/.exec(sk);
   const rgb = m ? [+m[1], +m[2], +m[3]] : [0, 2, 4].map(i => parseInt(sk.replace('#', '').slice(i, i + 2), 16) || 0);
   const near = SKIN_TONES.map((t, i) => { const c = [1, 3, 5].map(k => parseInt(t.slice(k, k + 2), 16)); return [i, Math.hypot(c[0] - rgb[0], c[1] - rgb[1], c[2] - rgb[2])] as const; }).sort((a, b) => a[1] - b[1])[0][0];
@@ -29,7 +29,7 @@ function playerLook(p: Player): CoachLook {
 }
 
 /** A jersey to hold up: team colour, trim on the sleeves, his number. */
-function jersey(L: League, p: Player): HTMLCanvasElement {
+export function jersey(L: League, p: Player): HTMLCanvasElement {
   const t = L.teams[p.team] ?? L.teams[L.user], c0 = vivid(t.colors[0]), c1 = t.colors[1] ?? '#ffffff';
   const rows = ['..JJJ....JJJ..', '.JJJJJJJJJJJJ.', 'TJJJJJJJJJJJJT', 'TJJJJJJJJJJJJT', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..JJJJJJJJJJ..', '..TTTTTTTTTT..'];
   const c = paint(rows, { J: c0, T: c1 });
@@ -69,7 +69,7 @@ function stadium(L: League): HTMLCanvasElement {
   return c;
 }
 
-const SHOOTER = ['....HHH.....', '...HHHHH....', '..KKHHHHKK..', '..KKJJJJKK..', '.JJJJJJJJJJ.', '.JJJJJJJJJJ.', 'JJJJJJJJJJJJ'];
+export const SHOOTER = ['....HHH.....', '...HHHHH....', '..KKHHHHKK..', '..KKJJJJKK..', '.JJJJJJJJJJ.', '.JJJJJJJJJJ.', 'JJJJJJJJJJJJ'];
 
 export function SigningCeremony() {
   const s = useApp();

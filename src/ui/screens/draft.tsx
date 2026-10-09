@@ -8,6 +8,7 @@ import { POS_ORDER, POS_NAME } from '../../core/ratings';
 import { pickLabel } from '../../core/trade';
 import { Rng } from '../../core/rng';
 import { money } from '../../core/contracts';
+import { DraftDay } from '../theater';
 
 export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const L = useApp().league!;
@@ -17,6 +18,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const [sel, setSel] = useState<Player | null>(null);
   const [announce, setAnnounce] = useState<{ p: Player; no: number; team: string } | null>(null);
   const [auto, setAuto] = useState(false);
+  const [stage, setStage] = useState<{ p: Player; no: number; round: number } | null>(null);
   const pool = prospects(L).filter(p => pos === 'All' || p.pos === pos);
   const order = live ? picksInOrder(L) : [];
   const cursor = L.draft?.cursor ?? 0;
@@ -29,7 +31,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
 
   // Live draft: AI teams pick on a short clock; the user's pick waits.
   useEffect(() => {
-    if (!live || onClock || announce) return;
+    if (!live || onClock || announce || stage) return;
     timer.current = window.setTimeout(() => {
       const before = L.draft!.cursor;
       const pick = picksInOrder(L)[before];
@@ -39,14 +41,14 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       app.touch();
     }, auto ? 120 : cursor < 32 ? 900 : 260);
     return () => clearTimeout(timer.current);
-  }, [live, onClock, cursor, announce, auto]);
+  }, [live, onClock, cursor, announce, auto, stage]);
   useEffect(() => { if (!announce) return; const t = setTimeout(() => setAnnounce(null), auto ? 500 : 2400); return () => clearTimeout(t); }, [announce]);
   useEffect(() => { if (onClock && auto) { const best = myBoard(L, pool)[0]; if (best) draft(best); } }, [onClock, auto]);
 
   const draft = (p: Player) => {
-    const no = current!.no!;
+    const no = current!.no!, round = current!.round;
     makePick(L, p.id);
-    setAnnounce({ p, no, team: L.user });
+    if (auto) setAnnounce({ p, no, team: L.user }); else setStage({ p, no, round });
     setSel(null);
     app.touch();
   };
@@ -92,6 +94,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       </>}
       {tab === 'Draft Order' && <div className="card"><div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 8 }}>{(live ? order : L.picks.filter(k => k.season === year)).slice(0, 64).map(k => <div key={k.id} className="li" style={{ borderBottom: 0, background: k.owner === L.user ? 'color-mix(in srgb, var(--team) 20%, transparent)' : 'rgba(255,255,255,.02)', borderRadius: 8, padding: 8 }}><span className="num mute" style={{ width: 28 }}>{k.no ?? '–'}</span><Logo team={L.teams[k.owner]} size={26} /><span style={{ flex: 1 }}>{L.teams[k.owner].nick}</span><span className="small mute">{k.orig !== k.owner ? `via ${k.orig}` : `R${k.round}`}</span></div>)}</div></div>}
       {tab === 'Results' && <Results />}
+      {stage && <DraftDay L={L} p={stage.p} no={stage.no} round={stage.round} onDone={() => { setStage(null); app.touch(); }} />}
       {sel && <ProspectModal p={sel} close={() => setSel(null)} canDraft={!!onClock} onDraft={() => draft(sel)} />}
       {announce && <Announce {...announce} />}
     </div>

@@ -10,6 +10,7 @@ import { aiWeekly } from './ai';
 import { startOffseason } from './offseason';
 import { settleMedia } from './media';
 import { coachHas, coachXpNeed, POINTS_PER_LEVEL } from './coaching';
+import { staffXpMult, recoveryEdge, moraleBoost, staffWeekly } from './staff';
 import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
 
 export const REG_WEEKS = 18;
@@ -100,7 +101,7 @@ function coachXpMult(league: League, p: Player) {
   return 1 + (u.includes('Mentor') ? 0.12 : 0) + (u.includes('Player Development II') ? 0.12 : 0) + (p.pos === 'QB' && u.includes('QB Whisperer') ? 0.2 : 0) + (p.exp <= 1 && u.includes('Rookie Camp') ? 0.15 : 0) + (p.age >= 30 && u.includes('Veteran Care') ? 0.25 : 0);
 }
 function weeklyGameXp(league: League, p: Player, l: StatLine) {
-  p.xp += Math.max(0, gameXp(p, l)) * DEV_MULT[p.dev] * coachXpMult(league, p);
+  p.xp += Math.max(0, gameXp(p, l)) * DEV_MULT[p.dev] * coachXpMult(league, p) * staffXpMult(league, p);
 }
 export const xpToLevel = (ovr: number) => 420 + Math.max(0, ovr - 50) * 30;
 
@@ -167,14 +168,17 @@ export function advanceWeek(league: League): boolean {
   const rng = new Rng(hash(`${league.seed}-${league.season}-${league.week}`));
   const byeTeams = new Set(Object.keys(league.teams));
   for (const g of weekGames(league)) { byeTeams.delete(g.home); byeTeams.delete(g.away); }
+  const recovery: Record<string, number> = {}, boost: Record<string, number> = {};
+  staffWeekly(league);
   for (const p of Object.values(league.players)) {
     if (p.team === 'FA' || p.status === 'RET' || p.status === 'PROSPECT') continue;
     const plan = league.teams[p.team]?.plan.practice ?? 'Normal';
     // Practice XP and wear recovery.
     const practice = { Light: 18, Normal: 32, Intense: 52 }[plan];
-    p.xp += practice * DEV_MULT[p.dev] * (p.age > 30 ? 0.6 : 1) * coachXpMult(league, p) * (0.6 + p.traits.work / 250);
-    const recover = { Light: 30, Normal: 22, Intense: 14 }[plan] + (byeTeams.has(p.team) ? 18 : 0) + (p.team === league.user && league.coachTree.unlocked.includes('Sports Science') ? 6 : 0);
+    p.xp += practice * DEV_MULT[p.dev] * (p.age > 30 ? 0.6 : 1) * coachXpMult(league, p) * staffXpMult(league, p) * (0.6 + p.traits.work / 250);
+    const recover = { Light: 30, Normal: 22, Intense: 14 }[plan] + (byeTeams.has(p.team) ? 18 : 0) + (p.team === league.user && league.coachTree.unlocked.includes('Sports Science') ? 6 : 0) + (recovery[p.team] ??= recoveryEdge(league, p.team));
     p.cond = clamp(p.cond + recover, 0, 100);
+    if (boost[p.team] ??= moraleBoost(league, p.team)) p.morale = clamp(p.morale + 1, 0, 100);
     if (plan === 'Intense' && rng.chance(0.004) && !p.injury) { p.injury = { type: 'Practice Strain', weeks: rng.int(2, 3) }; if (p.team === league.user) mail(league, 'Head Trainer', `${p.ln} hurt in practice`, `${p.fn} ${p.ln} strained a muscle in an intense practice and will miss ${p.injury.weeks} week(s).`); }
     if (p.injury) {
       p.injury.weeks--;

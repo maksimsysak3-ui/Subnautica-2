@@ -17,6 +17,7 @@ const acc: Record<string, number> = {};
 const add = (k: string, v: number) => { acc[k] = (acc[k] ?? 0) + v; };
 let games = 0, homeWins = 0, ot = 0, ties = 0, oneScore = 0, blowout = 0;
 const season0: Record<string, Record<string, number>> = {};
+const bySeason: Record<string, Record<string, number>>[] = [];
 const wins: Record<string, number> = {};
 const t0 = Date.now();
 for (let s = 0; s < seasons; s++) {
@@ -28,6 +29,7 @@ for (let s = 0; s < seasons; s++) {
     if (res.hs > res.as) homeWins++; else if (res.hs === res.as) ties++;
     if (res.ot) ot++;
     const m = Math.abs(res.hs - res.as); if (m <= 8) oneScore++; if (m >= 21) blowout++;
+    for (const [id, l] of Object.entries(res.box!.players)) { const t = ((bySeason[s] ??= {})[id] ??= {}); for (const [k, v] of Object.entries(l)) t[k] = (t[k] ?? 0) + (v as number); }
     if (s === 0) { wins[g.home] = (wins[g.home] ?? 0) + (res.hs > res.as ? 1 : res.hs === res.as ? 0.5 : 0); wins[g.away] = (wins[g.away] ?? 0) + (res.as > res.hs ? 1 : res.hs === res.as ? 0.5 : 0); for (const [id, l] of Object.entries(res.box!.players)) { const t = (season0[id] ??= {}); for (const [k, v] of Object.entries(l)) t[k] = (t[k] ?? 0) + (v as number); } }
     add('points', res.hs + res.as);
     for (const tb of res.box!.teams) { add('plays', tb.plays); add('pen', tb.pen); add('to', tb.to); add('yds', tb.yds); add('sacks', tb.sacks); }
@@ -40,6 +42,16 @@ for (let s = 0; s < seasons; s++) {
   }
 }
 const tg = games * 2;
+// Single-season leaderboards: the league leader and the 5th-best, averaged over every
+// simulated season, against recent NFL seasons (2021-24).
+const LEAD: Record<string, [number, number]> = { py: [5030, 4350], ptd: [41, 31], ry: [1730, 1250], recy: [1815, 1400], rec: [130, 110], dsk: [19, 14], dint: [8, 5.5] };
+let leadBad = 0;
+for (const [k, [r1, r5]] of Object.entries(LEAD)) {
+  const tops = bySeason.map(se => Object.values(se).map(l => l[k] ?? 0).sort((a, b) => b - a));
+  const t1 = tops.reduce((a, t) => a + t[0], 0) / tops.length, t5 = tops.reduce((a, t) => a + t[4], 0) / tops.length;
+  const ok = Math.abs(t1 / r1 - 1) <= 0.1 && Math.abs(t5 / r5 - 1) <= 0.1; if (!ok) leadBad++;
+  console.log(`${ok ? ' ok ' : 'MISS'}  leader ${k.padEnd(5)} #1 ${t1.toFixed(0).padStart(5)} (real ${r1})   #5 ${t5.toFixed(0).padStart(5)} (real ${r5})`);
+}
 const out: Record<string, number> = {
   'points/team': acc.points / tg, 'pass att/team': acc.pa / tg, 'comp %': (acc.pc / acc.pa) * 100, 'yds/att': acc.py / acc.pa,
   'sack %': (acc.sk / (acc.pa + acc.sk)) * 100, 'int %': (acc.pint / acc.pa) * 100, 'rush att/team': acc.ra / tg, 'yds/carry': acc.ry / acc.ra,
@@ -60,5 +72,5 @@ const names = createLeague('KC', 'Test', { seed: 1000 }).players;
 const extra: Record<string, string> = { py: 'pa', ry: 'ra', recy: 'rec', dsk: 'gp', ptd: 'pint', rec: 'tgt', dint: 'pd', tkl: 'gp' };
 const lead = (k: string) => Object.entries(season0).sort((a, b) => (b[1][k] ?? 0) - (a[1][k] ?? 0)).slice(0, 3).map(([id, l]) => `${names[id]?.ln}(${names[id]?.ovr}) ${l[k]}/${l[extra[k]]}`).join('  ');
 for (const k of ['py', 'ptd', 'ry', 'recy', 'rec', 'dsk', 'dint', 'tkl']) console.log(`  leader ${k.padEnd(5)} ${lead(k)}`);
-console.log(`${games} games in ${((Date.now() - t0) / 1000).toFixed(1)}s, ${ties} ties. ${bad} metric(s) outside tolerance.`);
+console.log(`${games} games in ${((Date.now() - t0) / 1000).toFixed(1)}s, ${ties} ties. ${bad} metric(s) outside tolerance, ${leadBad} leaderboard(s) off.`);
 process.exitCode = bad > 3 ? 1 : 0;

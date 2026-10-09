@@ -11,6 +11,7 @@ import { hash } from '../core/rng';
 import { media, applyEffects, promise, fans, teamMorale, fallout, liveFallout } from '../core/media';
 import { pressOpen } from '../core/presser';
 import { treeOf, hasTree } from '../core/archetypes';
+import { staffOf, staffState } from '../core/staff';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
 export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
@@ -400,8 +401,8 @@ export function weeklyCards(L: League): ActionCard[] {
     body: `${+myStreak[1]} straight wins and other teams have noticed. A rival wants to talk to your offensive coordinator about their head coaching job.`,
     choices: [
       { label: 'Block It', hint: 'Keeps the staff together · Owner +1 · Locker room −1', run: () => { resolve(L, `poach-${L.season}`); return fx({ owner: 1, locker: -1 }); } },
-      { label: 'Give Him a Raise', hint: 'Owner −3 · Locker room +2 · Momentum +0.3', run: () => { resolve(L, `poach-${L.season}`); return fx({ owner: -3, locker: 2, momentum: 0.3 }); } },
-      { label: 'Let Him Interview', hint: 'Locker room +1 · Momentum −0.4 (distraction)', run: () => { resolve(L, `poach-${L.season}`); return fx({ locker: 1, momentum: -0.4 }); } },
+      { label: 'Give Him a Raise', hint: 'Owner −3 · Locker room +2 · Momentum +0.3 · OC +$0.5M, +1 year', run: () => { resolve(L, `poach-${L.season}`); const oc = staffOf(L, L.user).OC; if (oc) { oc.salary += 500_000; oc.years++; } return fx({ owner: -3, locker: 2, momentum: 0.3 }); } },
+      { label: 'Let Him Interview', hint: 'Locker room +1 · Momentum −0.4 · Likely to lose him this offseason', run: () => { resolve(L, `poach-${L.season}`); staffState(L).mayLeave = staffOf(L, L.user).OC?.id; return fx({ locker: 1, momentum: -0.4 }); } },
     ] });
 
   // Pro Bowl voting.
