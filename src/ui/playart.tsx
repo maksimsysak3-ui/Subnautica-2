@@ -4,7 +4,7 @@
 // field from the ball (+ is the offence's right).
 
 export type Who = 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB' | 'OL' | 'DEF';
-export interface Art { who: Who; pts: [number, number][]; kind: 'route' | 'block' | 'run' | 'zone' | 'blitz' | 'man'; primary?: boolean; r?: number }
+export interface Art { who: Who; pts: [number, number][]; kind: 'route' | 'block' | 'run' | 'zone' | 'blitz' | 'man'; primary?: boolean; r?: number; /** Pre-snap motion: the player moves along these points before the snap. */ motion?: [number, number][] }
 export const FORMATION: Record<Exclude<Who, 'OL' | 'DEF'>, [number, number]> = { X: [0, -19], Z: [0, 19], S: [-1, 11], TE: [0, 4.5], RB: [-6, 0], QB: [-4.5, 0] };
 export const OL_SPOTS: [number, number][] = [[-0.6, -4], [-0.6, -2], [-0.6, 0], [-0.6, 2], [-0.6, 4]];
 
@@ -36,6 +36,8 @@ export const DEF_ART: Record<string, Art[]> = {
 };
 DEF_ART['Cover 1 Man'] = DEF_ART['Cover 1'];
 
+/** Where a player is at the snap: his alignment, or the end of his motion. */
+export const snapSpot = (a: Art): [number, number] => a.motion?.length ? a.motion[a.motion.length - 1] : FORMATION[a.who as keyof typeof FORMATION];
 export const startOf = (who: Who, i = 0): [number, number] => (who === 'OL' ? OL_SPOTS[i % 5] : who === 'DEF' ? [0, 0] : FORMATION[who]);
 
 /** SVG play diagram for a play-call card. */
@@ -59,11 +61,13 @@ export function PlayDiagram({ name, def, w = 150, h = 92 }: { name: string; def?
       {OL_SPOTS.map(([x, y], i) => <rect key={i} x={Y(y) - 2.5} y={X(x) - 2.5} width="5" height="5" fill="none" stroke="#fff" strokeWidth="1.2" />)}
       {art.map((a, i) => {
         if (a.kind === 'zone') { const [x, y] = a.pts[0]; return <ellipse key={i} cx={Y(y)} cy={X(x)} rx={(a.r ?? 5) / 46 * w} ry={(a.r ?? 5) / 32 * h * 0.8} fill={x > 12 ? 'rgba(80,160,255,.28)' : 'rgba(255,210,63,.25)'} stroke={x > 12 ? 'rgba(120,190,255,.7)' : 'rgba(255,210,63,.7)'} />; }
-        const start = a.who === 'OL' ? OL_SPOTS[olIdx++ % 5] : a.who === 'DEF' ? a.pts[0] : FORMATION[a.who];
+        const start = a.who === 'OL' ? OL_SPOTS[olIdx++ % 5] : a.who === 'DEF' ? a.pts[0] : snapSpot(a);
         const pts = a.who === 'DEF' ? a.pts : [start, ...a.pts];
+        const mo = a.motion?.length && a.who !== 'OL' && a.who !== 'DEF' ? [FORMATION[a.who], ...a.motion].map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ') : '';
+        if (pts.length < 2) return mo ? <path key={i} d={mo} fill="none" stroke="#7fd4ff" strokeWidth="1.3" strokeDasharray="2 2" /> : null;
         const d = pts.map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ');
         const color = a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'man' ? 'rgba(255,255,255,.7)' : a.kind === 'block' ? 'rgba(255,255,255,.55)' : '#fff';
-        return <path key={i} d={d} fill="none" stroke={color} strokeWidth={a.primary ? 2.2 : 1.5} strokeDasharray={a.kind === 'man' ? '3 3' : a.kind === 'run' && !a.primary ? '2 2' : undefined} markerEnd={a.kind === 'block' ? undefined : `url(#${id}${a.primary ? 'p' : ''})`} />;
+        return <g key={i}>{mo && <path d={mo} fill="none" stroke="#7fd4ff" strokeWidth="1.3" strokeDasharray="2 2" />}<path d={d} fill="none" stroke={color} strokeWidth={a.primary ? 2.2 : 1.5} strokeDasharray={a.kind === 'man' ? '3 3' : a.kind === 'run' && !a.primary ? '2 2' : undefined} markerEnd={a.kind === 'block' ? undefined : `url(#${id}${a.primary ? 'p' : ''})`} /></g>;
       })}
     </svg>
   );

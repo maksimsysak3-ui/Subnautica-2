@@ -86,7 +86,7 @@ export interface Player {
 }
 
 /** A user-drawn play: routes per skill player in yards (x downfield, y across), one primary read. */
-export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean }[] }
+export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean; /** Pre-snap motion path, behind the line; the route starts where it ends. */ motion?: [number, number][] }[] }
 
 export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number }
 

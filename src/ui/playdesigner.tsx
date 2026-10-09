@@ -1,5 +1,5 @@
-// Draw your own plays: pick a player, click to lay down his route, mark the
-// primary read, name it and save it to the playbook. Saved plays get play art,
+// Draw your own plays: pick a player, click to lay down his route, send one man in
+// pre-snap motion, mark the primary read, name it and save it to the playbook. Saved plays get play art,
 // show up in play calling, and the sim runs them (route depth sets the throw;
 // the primary read gets the quarterback's first look).
 import { useRef, useState } from 'react';
@@ -22,21 +22,23 @@ export function toArt(p: CustomPlay): Art[] {
   const out: Art[] = OL_SPOTS.map(() => ({ who: 'OL', pts: [[p.type === 'run' ? 2 : -1.2, 0]] as [number, number][], kind: 'block' as const }));
   // OL arrows are relative points: shift them to each lineman's lane.
   out.forEach((a, i) => (a.pts = [[a.pts[0][0], OL_SPOTS[i][1]]]));
-  for (const r of p.routes) if (r.pts.length) out.push({ who: r.who, pts: r.pts, kind: r.block ? 'block' : (p.type === 'run' && (r.who === 'RB' || r.who === 'QB')) ? 'run' : 'route', primary: r.primary });
+  for (const r of p.routes) if (r.pts.length || r.motion?.length) out.push({ who: r.who, pts: r.pts, kind: r.block ? 'block' : (p.type === 'run' && (r.who === 'RB' || r.who === 'QB')) ? 'run' : 'route', primary: r.primary, motion: r.motion?.length ? r.motion : undefined });
   return out;
 }
 /** How the sim runs a drawn play. */
+const SIM_SLOT = { X: 'X', Z: 'Z', S: 'SLOT', TE: 'TE', RB: 'RB', QB: undefined } as const;
 export function callFor(p: CustomPlay): OffCall {
+  const mover = p.routes.find(r => r.motion?.length);
+  const motion = mover ? SIM_SLOT[mover.who] : undefined;
   if (p.type === 'run') {
     const carrier = p.routes.find(r => r.primary) ?? p.routes.find(r => r.who === 'RB');
     const lat = Math.abs(carrier?.pts[carrier.pts.length - 1]?.[1] ?? 0);
-    return { kind: 'run', run: carrier?.who === 'QB' ? 'qb' : lat > 5 ? 'outside' : 'inside', name: p.name };
+    return { kind: 'run', run: carrier?.who === 'QB' ? 'qb' : lat > 5 ? 'outside' : 'inside', name: p.name, motion };
   }
-  const prim = p.routes.find(r => r.primary) ?? p.routes[0];
-  const deep = Math.max(...(prim?.pts.map(q => q[0]) ?? [8]));
+  const prim = p.routes.find(r => r.primary && r.pts.length) ?? p.routes.find(r => r.pts.length && !r.block) ?? p.routes[0];
+  const deep = prim?.pts.length ? Math.max(...prim.pts.map(q => q[0])) : 8;
   const depth: PassDepth = deep <= 1 ? 'screen' : deep <= 6 ? 'quick' : deep <= 11 ? 'short' : deep <= 19 ? 'medium' : 'deep';
-  const slot = prim ? ({ X: 'X', Z: 'Z', S: 'SLOT', TE: 'TE', RB: 'RB', QB: undefined } as const)[prim.who] : undefined;
-  return { kind: 'pass', depth, name: p.name, primary: slot };
+  return { kind: 'pass', depth, name: p.name, primary: prim ? SIM_SLOT[prim.who] : undefined, motion };
 }
 
 export function PlayDesigner({ L, close, onSaved }: { L: League; close: () => void; onSaved: (p: CustomPlay) => void }) {
@@ -44,22 +46,34 @@ export function PlayDesigner({ L, close, onSaved }: { L: League; close: () => vo
   const [name, setName] = useState('');
   const [sel, setSel] = useState<Who>('X');
   const [routes, setRoutes] = useState<CustomPlay['routes']>([]);
+  const [mode, setMode] = useState<'route' | 'motion'>('route');
   const svg = useRef<SVGSVGElement>(null);
   const route = (w: Who) => routes.find(r => r.who === w);
   const update = (w: Who, f: (r: CustomPlay['routes'][number]) => CustomPlay['routes'][number]) => {
     const cur = route(w) ?? { who: w, pts: [] };
     setRoutes([...routes.filter(r => r.who !== w), f(cur)]);
   };
+  const canMotion = sel !== 'QB';
   const click = (e: React.MouseEvent) => {
     const b = svg.current!.getBoundingClientRect();
     const pt = fromSvg(((e.clientX - b.left) / b.width) * VW, ((e.clientY - b.top) / b.height) * VH);
+    if (mode === 'motion' && canMotion) {
+      // Motion stays behind the line (a man moving forward at the snap is illegal),
+      // and only one player can be in motion: drawing it for him takes it off anyone else.
+      const m: [number, number] = [Math.min(-1, pt[0]), Math.max(-24, Math.min(24, pt[1]))];
+      const cur = route(sel) ?? { who: sel, pts: [] };
+      setRoutes([...routes.filter(r => r.who !== sel).map(r => (r.motion ? { ...r, motion: undefined } : r)), { ...cur, motion: [...(cur.motion ?? []), m].slice(0, 3) }]);
+      return;
+    }
     update(sel, r => ({ ...r, pts: [...r.pts, pt].slice(0, 6) }));
   };
+  const spot = (w: Who): [number, number] => { const m = route(w)?.motion; return m?.length ? m[m.length - 1] : FORMATION[w]; };
+  const mover = routes.find(r => r.motion?.length);
   const save = () => {
     const n = name.trim() || `My Play ${(L.customPlays?.length ?? 0) + 1}`;
-    const play: CustomPlay = { name: n, type, routes: routes.filter(r => r.pts.length) };
-    if (!play.routes.length) return;
-    if (!play.routes.some(r => r.primary)) play.routes[0].primary = true;
+    const play: CustomPlay = { name: n, type, routes: routes.filter(r => r.pts.length || r.motion?.length) };
+    if (!play.routes.some(r => r.pts.length)) return;
+    if (!play.routes.some(r => r.primary)) play.routes.find(r => r.pts.length)!.primary = true;
     L.customPlays = [...(L.customPlays ?? []).filter(p => p.name !== n), play];
     PLAY_ART[n] = toArt(play);
     onSaved(play);
@@ -72,14 +86,23 @@ export function PlayDesigner({ L, close, onSaved }: { L: League; close: () => vo
         <svg ref={svg} viewBox={`0 0 ${VW} ${VH}`} width="100%" onClick={click} style={{ display: 'block', cursor: 'crosshair', background: 'linear-gradient(180deg,#1f5530,#18452a)' }}>
           {[0, 5, 10, 15, 20, 25].map(d => <g key={d}><line x1="0" x2={VW} y1={toY(d)} y2={toY(d)} stroke={d === 0 ? 'rgba(90,160,255,.9)' : 'rgba(255,255,255,.12)'} strokeWidth={d === 0 ? 3 : 1} /><text x="6" y={toY(d) - 4} fill="rgba(255,255,255,.4)" fontSize="11">{d ? `+${d}` : 'LOS'}</text></g>)}
           {OL_SPOTS.map(([x, y], i) => <rect key={i} x={toX(y) - 7} y={toY(x) - 7} width="14" height="14" fill="#0c0f14" stroke="#fff" />)}
-          {routes.map(r => { const st = FORMATION[r.who]; const pts = [st, ...r.pts]; return <polyline key={r.who} points={pts.map(([x, y]) => `${toX(y)},${toY(x)}`).join(' ')} fill="none" stroke={r.primary ? '#ffd23f' : r.block ? 'rgba(255,255,255,.55)' : '#fff'} strokeWidth={r.primary ? 4 : 3} strokeDasharray={r.block ? '6 5' : undefined} />; })}
-          {WHO.map(w => { const [x, y] = FORMATION[w]; const on = sel === w; return <g key={w} onClick={e => { e.stopPropagation(); setSel(w); }} style={{ cursor: 'pointer' }}><circle cx={toX(y)} cy={toY(x)} r={on ? 13 : 10} fill={on ? '#ffd23f' : '#0c0f14'} stroke="#fff" strokeWidth="2" /><text x={toX(y)} y={toY(x) + 4} textAnchor="middle" fontSize="11" fontWeight="800" fill={on ? '#000' : '#fff'}>{w}</text></g>; })}
+          {routes.filter(r => r.motion?.length).map(r => <polyline key={`m-${r.who}`} points={[FORMATION[r.who], ...r.motion!].map(([x, y]) => `${toX(y)},${toY(x)}`).join(' ')} fill="none" stroke="#7fd4ff" strokeWidth="2.5" strokeDasharray="4 4" />)}
+          {routes.filter(r => r.motion?.length).map(r => { const [x, y] = FORMATION[r.who]; return <circle key={`g-${r.who}`} cx={toX(y)} cy={toY(x)} r="9" fill="none" stroke="rgba(255,255,255,.35)" strokeDasharray="3 3" />; })}
+          {routes.filter(r => r.pts.length).map(r => { const st = spot(r.who); const pts = [st, ...r.pts]; return <polyline key={r.who} points={pts.map(([x, y]) => `${toX(y)},${toY(x)}`).join(' ')} fill="none" stroke={r.primary ? '#ffd23f' : r.block ? 'rgba(255,255,255,.55)' : '#fff'} strokeWidth={r.primary ? 4 : 3} strokeDasharray={r.block ? '6 5' : undefined} />; })}
+          {WHO.map(w => { const [x, y] = spot(w); const on = sel === w; return <g key={w} onClick={e => { e.stopPropagation(); setSel(w); }} style={{ cursor: 'pointer' }}><circle cx={toX(y)} cy={toY(x)} r={on ? 13 : 10} fill={on ? '#ffd23f' : '#0c0f14'} stroke="#fff" strokeWidth="2" /><text x={toX(y)} y={toY(x) + 4} textAnchor="middle" fontSize="11" fontWeight="800" fill={on ? '#000' : '#fff'}>{w}</text></g>; })}
         </svg>
         <div className="grid" style={{ gap: 8 }}>
           <div className="up">Selected: {LABEL[sel]}</div>
-          <div className="small dim">Click on the field to add route points (up to six). Click a player to switch.</div>
-          <button className="btn sm" onClick={() => update(sel, r => ({ ...r, pts: r.pts.slice(0, -1) }))}>Undo Point</button>
-          <button className="btn sm" onClick={() => setRoutes(routes.filter(r => r.who !== sel))}>Clear Route</button>
+          <div className="row" style={{ gap: 6 }}>
+            <span className={`chip${mode === 'route' ? ' on' : ''}`} onClick={() => setMode('route')}>Route</span>
+            <span className={`chip${mode === 'motion' ? ' on' : ''}`} style={canMotion ? undefined : { opacity: 0.4, cursor: 'not-allowed' }} onClick={() => canMotion && setMode('motion')}>Motion</span>
+          </div>
+          <div className="small dim">{mode === 'motion'
+            ? canMotion ? 'Click behind the line to set his motion path (up to three points). His route starts where the motion ends. One man in motion at a time.' : 'The quarterback can\'t go in motion.'
+            : 'Click on the field to add route points (up to six). Click a player to switch.'}</div>
+          {mover && <div className="small" style={{ color: '#7fd4ff' }}>In motion: {LABEL[mover.who]}</div>}
+          <button className="btn sm" onClick={() => mode === 'motion' ? update(sel, r => ({ ...r, motion: r.motion?.slice(0, -1) })) : update(sel, r => ({ ...r, pts: r.pts.slice(0, -1) }))}>Undo Point</button>
+          <button className="btn sm" onClick={() => mode === 'motion' ? update(sel, r => ({ ...r, motion: undefined })) : update(sel, r => ({ ...r, pts: [], primary: false }))}>{mode === 'motion' ? 'Clear Motion' : 'Clear Route'}</button>
           <button className="btn sm" onClick={() => setRoutes(routes.map(r => ({ ...r, primary: r.who === sel })))}>{type === 'run' ? 'Make Ball Carrier' : 'Make Primary Read'}</button>
           <button className="btn sm" onClick={() => update(sel, r => ({ ...r, block: !r.block }))}>{route(sel)?.block ? 'Run a Route' : 'Assign to Block'}</button>
           <div className="divider" />

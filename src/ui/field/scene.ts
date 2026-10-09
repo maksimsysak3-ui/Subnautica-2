@@ -4,7 +4,7 @@
 // actor is a real player from the depth chart, so numbers and names are right.
 import type { PlayEvent } from '../../sim/game';
 import type { Pos, Team } from '../../core/types';
-import { PLAY_ART, DEF_ART, FORMATION, OL_SPOTS, type Art } from '../playart';
+import { PLAY_ART, DEF_ART, FORMATION, OL_SPOTS, snapSpot, type Art } from '../playart';
 import { app } from '../store';
 import { skinOf } from '../skin';
 
@@ -251,7 +251,7 @@ function castNamed(sc: Scene, ev: PlayEvent, off: 0 | 1) {
  * engine's result, so the picture always matches the play-by-play. Plays last as
  * long as they really would (a stuffed run two seconds, a deep ball five).
  */
-interface Agent { team: 0 | 1; slot: string; role: string; x: number; y: number; vx: number; vy: number; top: number; acc: number; track: [number, number][] }
+interface Agent { team: 0 | 1; slot: string; role: string; x: number; y: number; vx: number; vy: number; top: number; acc: number; track: [number, number][]; /** Pre-snap motion path (field coords), ending where he is at the snap. */ pre?: [number, number][] }
 function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number) => [number, number]; los: number; first: number; mid: number; end: number; off: 0 | 1; def: 0 | 1; add: (team: 0 | 1, slot: string, role: string, path: Path) => void; actors: Actor[]; L: [Lineup, Lineup] }): Scene {
   const { s, at, los, first, mid, end, off, def } = k;
   const idOf = (team: 0 | 1, slot: string) => k.L[team][slot]?.id;
@@ -259,7 +259,14 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
   const art = PLAY_ART[ev.call ?? ''], dart = DEF_ART[ev.dcall ?? ''];
   const run = ev.type === 'run', sack = ev.type === 'sack', scramble = ev.type === 'scramble', pass = ev.type === 'pass';
-  const DT = 1 / 60, PRE = art || dart ? 0.6 : 0.25;
+  // Pre-snap motion: one man jogs across before the snap, and it ends as the ball is snapped.
+  const mot = art?.find(a => a.motion?.length && a.who !== 'OL' && a.who !== 'DEF');
+  const motPath = mot ? [FORMATION[mot.who as keyof typeof FORMATION], ...mot.motion!] : [];
+  const motLen = motPath.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - motPath[i - 1][0], p[1] - motPath[i - 1][1]) : 0), 0);
+  const MT = mot ? Math.min(2.2, 0.3 + motLen / 7) : 0;
+  const DT = 1 / 60, PRE = (art || dart ? 0.6 : 0.25) + MT;
+  const spotOf = (w: keyof typeof FORMATION): [number, number] => (mot?.who === w ? snapSpot(mot) : FORMATION[w]);
+  const manCov = /Cover [01]/.test(ev.dcall ?? '');
   const ballTrack: [number, number, number][] = [];
   const agents: Agent[] = [];
   const mk = (team: 0 | 1, slot: string, role: string, [x, y]: [number, number], top: number, acc = 9) => { const a: Agent = { team, slot, role, x, y, vx: 0, vy: 0, top, acc, track: [] }; agents.push(a); return a; };
@@ -283,12 +290,19 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   // --- personnel ---
   const OL = OL_SPOTS.map(([dx, dy], i) => mk(off, `OL${i}`, 'OL', at(dx, dy), 5.2, 7));
   const QB = mk(off, 'QB', 'QB', at(...FORMATION.QB), 7.2);
-  const RB = mk(off, 'RB', 'RB', at(...FORMATION.RB), 8.4, 10);
+  const RB = mk(off, 'RB', 'RB', at(...spotOf('RB')), 8.4, 10);
   const WHO = ['X', 'Z', 'S', 'TE'] as const;
-  const REC = WHO.map((w, i) => mk(off, w, w, at(...FORMATION[w]), w === 'TE' ? 7.6 : 8.8, 10));
+  const REC = WHO.map((w, i) => mk(off, w, w, at(...spotOf(w)), w === 'TE' ? 7.6 : 8.8, 10));
   const DL = [-5, -1.7, 1.7, 5].map((dy, i) => mk(def, `DL${i}`, 'DL', at(1, dy), i === 0 || i === 3 ? 7.6 : 6.6, 8));
   const LB = [-3.5, 3.5].map((dy, i) => mk(def, `LB${i}`, 'LB', at(5, dy), 7.8, 9));
-  const DB = WHO.map((w, i) => mk(def, `DB${i}`, 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : 7), FORMATION[w][1] * 0.95), 8.6, 10));
+  // In man coverage the defender travels with the man in motion (the tell); in zone he stays home.
+  const DB = WHO.map((w, i) => mk(def, `DB${i}`, 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : 7), (manCov ? spotOf(w) : FORMATION[w])[1] * 0.95), 8.6, 10));
+  if (mot) {
+    const mover = [RB, ...REC].find(a => a.slot === mot.who);
+    if (mover) mover.pre = motPath.map(p => at(p[0], p[1]));
+    const wi = WHO.indexOf(mot.who as typeof WHO[number]);
+    if (manCov && wi >= 0) DB[wi].pre = motPath.map(p => at(FORMATION[WHO[wi]][0] + (WHO[wi] === 'TE' ? 5 : 7), p[1] * 0.95));
+  }
   const FS = mk(def, 'FS', 'S', at(13, 0), 8.4, 9);
   // --- the story from the engine ---
   const named = WHO.findIndex(w => !!ev.ids?.target && idOf(off, w) === ev.ids.target);
@@ -316,7 +330,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   let throwT = Infinity, airT = 0, catchT = Infinity;
   const flight = (a: [number, number], b: [number, number]) => 0.22 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 15 ? 21 : 18);
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
-  const routes = WHO.map(w => [at(...FORMATION[w]), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
+  const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);
   let carrier: Agent | null = null, thrown = false, caught = false, endT = 0, ballXY: [number, number] = at(0, 0), ballZ = 0;
   const holdTrack: number[] = [];
@@ -497,7 +511,17 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   if (!endT) endT = t - 0.75;
   const dur = PRE + t;
   const sample = (tr: [number, number][]) => (u: number): [number, number] => { const i = Math.max(0, Math.min(tr.length - 1, Math.round((u * dur - PRE) / DT))); return tr[i] ?? tr[0]; };
-  for (const a of agents) { const first = a.track[0] ?? [a.x, a.y]; const tr = a.track; k.add(a.team, a.slot, a.role, u => (u * dur < PRE ? first : sample(tr)(u))); }
+  /** Position along a motion path, `f` of the way (by distance). */
+  const along = (pp: [number, number][], f: number): [number, number] => {
+    const segs = pp.slice(1).map((p, i) => Math.hypot(p[0] - pp[i][0], p[1] - pp[i][1])), tot = segs.reduce((a, b) => a + b, 0) || 1;
+    let d = Math.max(0, Math.min(1, f)) * tot;
+    for (let i = 0; i < segs.length; i++) { if (d <= segs[i] || i === segs.length - 1) { const k2 = segs[i] ? Math.min(1, d / segs[i]) : 1; return [pp[i][0] + (pp[i + 1][0] - pp[i][0]) * k2, pp[i][1] + (pp[i + 1][1] - pp[i][1]) * k2]; } d -= segs[i]; }
+    return pp[pp.length - 1];
+  };
+  for (const a of agents) {
+    const first = a.track[0] ?? [a.x, a.y]; const tr = a.track, pre = a.pre;
+    k.add(a.team, a.slot, a.role, u => (u * dur < PRE ? (pre ? along(pre, (u * dur - (PRE - MT)) / MT) : first) : sample(tr)(u)));
+  }
   const bt = ballTrack as [number, number, number][];
   const ball: Path = u => { if (u * dur < PRE) return at(0, 0); const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return [bt[i][0], bt[i][1]]; };
   const ballH = (u: number) => { const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return u * dur < PRE ? 0.15 : bt[i][2]; };

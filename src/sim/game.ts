@@ -17,7 +17,7 @@ import { heat } from '../core/rivalry';
 import { facilityGameDay, facilityHomeEdge, facilityInjuryShield } from '../core/facilities';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
-export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
+export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
 export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string }
 
 export interface PlayEvent {
@@ -531,6 +531,11 @@ export class GameSim {
       const culprit = offFoul ? this.rng.pick(o.ol) : this.rng.pick(d.dl);
       if (!((offFoul ? off : defS).abbr === this.league.user && coachHas(this.league, 'Disciplinarian') && this.rng.chance(0.4))) return this.penalty(offFoul, 5, offFoul ? 'False start' : (this.rng.chance(0.5) ? 'Offside' : 'Neutral zone infraction'), culprit, false, true);
     }
+    // Motion has to be set before the snap; a man still moving forward is a flag.
+    if (oc.motion && this.rng.chance(0.006)) {
+      const m = ({ X: o.wrs[0], Z: o.wrs[1], SLOT: o.wrs[2], TE: o.tes[0], RB: o.rb } as const)[oc.motion];
+      return this.penalty(true, 5, 'Illegal motion', m, false, true);
+    }
     let ev: PlayEvent;
     if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
     else ev = this.runPlay(oc, dc, o, d);
@@ -640,6 +645,8 @@ export class GameSim {
       if (man && dc.shell === 'Cover 0' && depth === 'deep') s += 0.4;
       if (dc.blitz) s += 0.35;
       if (oc.pa) s += 0.45;
+      // A man in motion gets a running start, and a defender trailing him across the formation.
+      if (oc.motion === t.slot) s += man ? 0.45 : 0.2;
       if (planDef === 'Stop the Run') s += 0.25; else if (planDef === 'Stop the Pass') s -= 0.25;
       if (this.has(t.p, 'Route Technician')) s += 0.35;
       if (depth === 'deep' && this.has(t.p, 'Deep Threat')) s += 0.45;
@@ -667,7 +674,8 @@ export class GameSim {
     // --- read the field: a progression, not a lock-on ---
     // Each receiver's chance grows with how open he looks (blurred by the QB's
     // awareness) and his place in the read; the ball still spreads around.
-    const noise = (100 - this.r(off, qb, 'AWR')) / 45;
+    // Motion tips the coverage (a defender following him means man), so the read is cleaner.
+    const noise = (100 - this.r(off, qb, 'AWR')) / 45 * (oc.motion ? 0.85 : 1);
     const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.47 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.9 : 0) - Math.max(0, (this.lines.get(t.p.id)?.tgt ?? 0) - 7) * 0.08)));
     let pick = 0;
     { let r = this.rng.next() * util.reduce((a, b) => a + b, 0); for (let i = 0; i < util.length; i++) { r -= util[i]; if (r <= 0) { pick = i; break; } } }
@@ -844,12 +852,15 @@ export class GameSim {
     const front = [...d.dl, ...d.lbs.slice(0, Math.max(1, dc.box - 4))];
     const runD = front.reduce((a, p) => a + this.r(def, p, 'BSH') * 0.5 + this.r(def, p, 'STR') * 0.22 + this.r(def, p, 'TAK') * 0.14 + this.r(def, p, 'PRC') * 0.14, 0) / Math.max(1, front.length)
       + (front.some(p => this.has(p, 'Run Stuffer')) ? 1.2 : 0);
+    let line0 = 0;
     const adv = (blockV - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
     const outside = oc.run === 'outside';
+    // Jet or orbit motion pulls the second level a step: worth more on the edge.
+    if (oc.motion) line0 += outside ? 0.35 : 0.12;
     const vision = (this.r(off, carrier, 'BCV') - 82) / 40;
     let line = outside ? this.rng.normal(2.3 + adv * 0.5 + (this.r(off, carrier, 'SPD') - 88) / 32, 3.1) : this.rng.normal(2.7 + adv * 0.7, 2.3);
     if (oc.run === 'qb') line += (this.r(off, carrier, 'SPD') - 80) / 12;
-    line += vision * 0.4;
+    line += vision * 0.4 + line0;
     let y: number;
     if (line < 0) {
       // Hit in the backfield; elusive backs sometimes turn nothing into something.

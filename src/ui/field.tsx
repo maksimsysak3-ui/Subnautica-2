@@ -11,7 +11,7 @@ import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
 import { sprite, type Frame, type Kit } from './field/pixel';
-import { FORMATION, OL_SPOTS, type Art } from './playart';
+import { FORMATION, OL_SPOTS, snapSpot, type Art } from './playart';
 import { warmSkins } from './skin';
 import { app } from './store';
 
@@ -248,7 +248,8 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
     const big = /^(OL|DL|FG|FB|RU)/.test(a.slot);
     const cyc = Math.floor(secs * (2.4 + speed * 0.75) + i * 0.37) % 4;
     let f: Frame = speed > 0.8 ? (`run${cyc}` as Frame) : 'stand';
-    if (!sc.kick && t < sc.pre + 0.01) { f = a.slot.startsWith('OL') || a.slot.startsWith('DL') ? 'three' : 'crouch'; face = isOff ? s : -s; }
+    if (!sc.kick && t < sc.pre + 0.01 && speed > 0.8) { f = `run${cyc}` as Frame; face = Math.abs(vx) > Math.abs(vy) ? Math.sign(vx) : isOff ? s : -s; }   // the man in motion jogs across
+    else if (!sc.kick && t < sc.pre + 0.01) { f = a.slot.startsWith('OL') || a.slot.startsWith('DL') ? 'three' : 'crouch'; face = isOff ? s : -s; }
     else if (i === carrier && down > 0.15) f = 'down';
     else if (i === tackler && down > 0) f = down < 0.45 ? 'dive' : 'down';
     else if (sc.kicker === i && sc.kickAt !== undefined && Math.abs(t - sc.kickAt) * sc.dur < 0.22) f = 'kick';
@@ -288,8 +289,15 @@ function drawArt(g: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolea
   g.lineWidth = 1;
   for (const a of art) {
     if (a.kind === 'zone') { const [x, y] = at(a.pts[0][0], a.pts[0][1]); g.strokeStyle = a.pts[0][0] > 12 ? 'rgba(120,190,255,.8)' : 'rgba(255,210,63,.8)'; g.beginPath(); g.ellipse(x, y, (a.r ?? 5) * 5, (a.r ?? 5) * 2.5, 0, 0, 7); g.stroke(); continue; }
-    const start = def ? a.pts[0] : a.who === 'OL' ? OL_SPOTS[ol++ % 5] : FORMATION[a.who as keyof typeof FORMATION];
+    const start = def ? a.pts[0] : a.who === 'OL' ? OL_SPOTS[ol++ % 5] : snapSpot(a);
     const pts = def ? a.pts : [start, ...a.pts];
+    if (!def && a.motion?.length && a.who !== 'OL') {
+      // Motion: a dashed light-blue line from the alignment to the snap spot.
+      g.strokeStyle = '#7fd4ff'; g.setLineDash([2, 2]); g.beginPath();
+      [FORMATION[a.who as keyof typeof FORMATION], ...a.motion].forEach(([dx, dy], j) => { const [x, y] = at(dx, dy); j ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5); });
+      g.stroke(); g.setLineDash([]);
+    }
+    if (pts.length < 2) continue;
     g.strokeStyle = a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'block' ? 'rgba(255,255,255,.5)' : '#fff';
     g.beginPath(); pts.forEach(([dx, dy], j) => { const [x, y] = at(dx, dy); j ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5); }); g.stroke();
     const [ex, ey] = at(...pts[pts.length - 1]); g.fillStyle = g.strokeStyle as string; g.fillRect(ex - 1, ey - 1, 3, 3);
