@@ -5,6 +5,15 @@ import { archetype, assignAbilities, buildAttrs, devTrait, overall } from './rat
 import { emptyLine, rollMotivations } from './league';
 import { rookieContract } from './contracts';
 import data from '../data/league.json';
+/** Every real name in the data (players and prospects), so a generated prospect never shares one. */
+let REAL_NAMES: Set<string> | undefined;
+const realNames = () => (REAL_NAMES ??= new Set([...(data.players as { fn: string; ln: string }[]), ...((data as { prospects?: { fn: string; ln: string }[] }).prospects ?? [])].map(p => `${p.fn} ${p.ln}`.toLowerCase())));
+/** A fictional name: re-rolled if it matches anyone real (Bo Jackson, Tom Brady...). */
+function fakeName(rng: Rng): { fn: string; ln: string } {
+  for (let k = 0; k < 12; k++) { const fn = rng.pick(FIRST), ln = rng.pick(LAST); if (!realNames().has(`${fn} ${ln}`.toLowerCase()) && !FAMOUS.has(`${fn} ${ln}`)) return { fn, ln }; }
+  return { fn: rng.pick(FIRST), ln: `${rng.pick(LAST)}-${rng.pick(LAST)}` };
+}
+const FAMOUS = new Set(['Bo Jackson', 'Jerry Rice', 'Barry Sanders', 'Deion Sanders', 'Walter Payton', 'Jim Brown', 'Joe Montana', 'Tom Brady', 'Lawrence Taylor', 'Reggie White', 'Ray Lewis', 'Randy Moss', 'Calvin Johnson', 'Josh Allen', 'Cam Newton', 'Michael Vick', 'Marcus Allen', 'Nick Chubb', 'Kenneth Walker', 'Chris Johnson', 'Mike Evans', 'Josh Jacobs', 'Cooper Kupp', 'Austin Ekeler', 'Matt Ryan', 'Ryan Kelly']);
 
 interface RealProspect { id: string; fn: string; ln: string; pos: Pos; col: string; colLogo?: string; hs?: string; ht: number; wt: number; dy: number; cls: number; rank: number; ovr: number; /** Scouting-board grade, when known (tools/scouting.json). */ g?: number }
 const REAL_PROSPECTS = ((data as unknown as { prospects?: RealProspect[] }).prospects ?? []);
@@ -50,7 +59,7 @@ export function generateClass(league: League, year: number): Player[] {
     const pot = Math.round(clamp(real + growth + rng.normal(0, 4), real + 2, 99));
     const { abil, xf } = assignAbilities(pos, attrs, dev, rng);
     const p: Player = {
-      id: `P${year}-${i}`, fn: rng.pick(FIRST), ln: rng.pick(LAST), pos, team: 'FA', status: 'PROSPECT', num: 0, age, born: year - age,
+      id: `P${year}-${i}`, ...fakeName(rng), pos, team: 'FA', status: 'PROSPECT', num: 0, age, born: year - age,
       ht, wt, col: rng.pick(COLLEGES), exp: 0, draft: { year, round: 0, pick: 0, team: '' },
       attrs, ovr: real, pot, dev, arch: archetype(pos, attrs), abil, xf, contract: { years: [] }, stats: {}, post: {}, cond: 100, morale: 75, xp: 0,
       traits: { work: rng.int(30, 99), cons: rng.int(30, 99), clutch: rng.int(30, 99), ego: rng.int(10, 90), prone: rng.int(5, 70) },
