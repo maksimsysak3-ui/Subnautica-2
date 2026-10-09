@@ -11,22 +11,22 @@ const SHIELD = 'M36 22 Q36 6 52 6 L348 6 Q364 6 364 22 L364 246 Q364 332 200 436
 const FACE = 'M54 30 Q54 22 62 22 L338 22 Q346 22 346 30 L346 244 Q346 318 200 412 Q54 318 54 244 Z';
 const HEAD = 'var(--head), "Arial Narrow", Impact, sans-serif';
 
-/** A football: pointed ends, panel seams, laces, a stripe at each end. */
+/** A football: full, rounded body with tips, seams, white stripes and thick laces. */
 const Ball = ({ x, y, s = 1, id }: { x: number; y: number; s?: number; id: string }) => (
-  <g transform={`translate(${x} ${y}) scale(${s}) rotate(-28)`}>
-    <path d="M-34 0 Q0 -24 34 0 Q0 24 -34 0 Z" fill={`url(#${id}-ball)`} stroke="#0b0d12" strokeWidth="2.2" />
-    <path d="M-34 0 Q0 -24 34 0" fill="none" stroke="#fff" strokeOpacity=".5" strokeWidth="1.2" transform="translate(0 2)" />
-    <path d="M-22 -9 Q-24 0 -22 9 M22 -9 Q24 0 22 9" fill="none" stroke="#0b0d12" strokeOpacity=".65" strokeWidth="2.6" />
-    <path d="M-11 0 L11 0" stroke="#0b0d12" strokeWidth="2.4" strokeLinecap="round" />
-    {[-7, -2.3, 2.3, 7].map(v => <path key={v} d={`M${v} -4.5 L${v} 4.5`} stroke="#0b0d12" strokeWidth="2" strokeLinecap="round" />)}
+  <g transform={`translate(${x} ${y}) scale(${s}) rotate(-24)`}>
+    <path d="M-30 0 C-24 -21 24 -21 30 0 C24 21 -24 21 -30 0 Z" fill={`url(#${id}-ball)`} stroke="#0b0d12" strokeWidth="2.6" strokeLinejoin="round" />
+    <path d="M-26 -5 C-18 -17 18 -17 26 -5" fill="none" stroke="#fff" strokeOpacity=".55" strokeWidth="2" />
+    <path d="M-19 -13 C-22 -4 -22 4 -19 13 M19 -13 C22 -4 22 4 19 13" fill="none" stroke="#fff" strokeWidth="3.4" />
+    <path d="M-19 -13 C-22 -4 -22 4 -19 13 M19 -13 C22 -4 22 4 19 13" fill="none" stroke="#0b0d12" strokeOpacity=".35" strokeWidth="1" transform="translate(1.6 0)" />
+    <path d="M-10 0 L10 0" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+    {[-6.5, -2.2, 2.2, 6.5].map(v => <path key={v} d={`M${v} -4.5 L${v} 4.5`} stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />)}
   </g>
 );
-/** GGN network mark with an underline swoosh. */
-const Net = ({ x, y, size = 40, fill, sub }: { x: number; y: number; size?: number; fill: string; sub?: string }) => (
+/** Each show's (fictional) network: NOVA+ streams Thursdays, CROWN has Sundays, BLITZ has Mondays. */
+const Net = ({ name, x, y, size = 40, fill, sub }: { name: string; x: number; y: number; size?: number; fill: string; sub?: string }) => (
   <g>
-    <text x={x} y={y} textAnchor="middle" fontFamily={HEAD} fontWeight={800} fontStyle="italic" fontSize={size} letterSpacing={1} fill={fill} stroke="#0b0d12" strokeWidth={size / 14} paintOrder="stroke" textLength={size * 1.75} lengthAdjust="spacingAndGlyphs">GGN</text>
-    <path d={`M${x - size * 0.9} ${y + size * 0.16} Q${x} ${y + size * 0.42} ${x + size * 0.95} ${y + size * 0.08}`} fill="none" stroke={fill} strokeWidth={size / 16} strokeLinecap="round" />
-    {sub && <text x={x} y={y + size * 0.62} textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight={700} fontSize={size * 0.26} letterSpacing={size * 0.17} fill="#fff" opacity=".85">{sub}</text>}
+    <text x={x} y={y} textAnchor="middle" fontFamily={HEAD} fontWeight={800} fontStyle="italic" fontSize={size} letterSpacing={1} fill={fill} stroke="#0b0d12" strokeWidth={size / 14} paintOrder="stroke" textLength={size * 0.56 * name.length} lengthAdjust="spacingAndGlyphs">{name}</text>
+    {sub && <text x={x} y={y + size * 0.55} textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight={700} fontSize={size * 0.24} letterSpacing={size * 0.16} fill="#fff" opacity=".85">{sub}</text>}
   </g>
 );
 /** The stacked wordmark: chrome face, dark outline, bevel highlight; each word fitted to width. */
@@ -92,8 +92,8 @@ function TNF() {
     <path d="M54 22 L346 22 L346 128 L54 128 Z" fill={`url(#${id}-pin)`} />
     <path d="M146 22 L168 22 L146 128 L124 128 Z" fill={`url(#${id}-chrome)`} />
     <rect x="54" y="128" width="292" height="6" fill={`url(#${id}-chrome)`} /><rect x="54" y="134" width="292" height="2" fill="#000" opacity=".4" />
-    <Ball x={92} y={76} s={0.9} id={id} />
-    <Net x={256} y={84} size={46} fill={`url(#${id}-chrome)`} sub="SPORTS" />
+    <Ball x={92} y={76} s={1.1} id={id} />
+    <Net name="NOVA+" x={256} y={84} size={44} fill={`url(#${id}-chrome)`} sub="STREAMING" />
     <Stack id={id} words={['THURSDAY', 'NIGHT', 'FOOTBALL']} y0={198} size={56} gap={56} max={240} />
   </Badge>;
 }
@@ -110,9 +110,9 @@ function MNF() {
   </>}>
     <defs><linearGradient id={`${id}-banner`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3a5064" /><stop offset=".5" stopColor="#24384a" /><stop offset="1" stopColor="#152330" /></linearGradient></defs>
     <path d="M66 34 L334 34 L334 244 Q334 308 200 392 Q66 308 66 244 Z" fill="none" stroke="#3d556b" strokeWidth="3" />
-    <Net x={200} y={94} size={52} fill={`url(#${id}-chrome)`} />
+    <Net name="BLITZ" x={200} y={94} size={50} fill={`url(#${id}-chrome)`} />
 
-    <Ball x={200} y={318} s={1.15} id={id} />
+    <Ball x={200} y={316} s={1.45} id={id} />
   </Badge>;
 }
 
@@ -125,7 +125,7 @@ function SNF() {
     ))}
     <Stack id={id} words={['SUNDAY', 'NIGHT', 'FOOTBALL']} y0={160} size={60} gap={62} max={246} />
     <rect x="112" y="300" width="176" height="3" fill={`url(#${id}-gold)`} />
-    <Net x={200} y={352} size={42} fill={`url(#${id}-gold)`} />
+    <Net name="CROWN" x={200} y={350} size={40} fill={`url(#${id}-gold)`} />
   </Badge>;
 }
 
