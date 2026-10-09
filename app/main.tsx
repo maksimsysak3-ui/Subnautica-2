@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { App } from '../src/ui/App';
 import { CrashGuard } from '../src/ui/crash';
+import { installUiSounds } from '../src/ui/sfx';
 import { RAW_TEAMS } from '../src/core/league';
 import '../src/ui/styles.css';
 import '../src/ui/theme.css';
@@ -25,6 +26,7 @@ async function preload() {
 }
 preload().then(() => {
   createRoot(document.getElementById('root')!).render(<CrashGuard><App /></CrashGuard>);
+  installUiSounds();
   setTimeout(() => document.getElementById('boot')?.classList.add('done'), 150);
   setTimeout(() => document.getElementById('boot')?.remove(), 900);
 });

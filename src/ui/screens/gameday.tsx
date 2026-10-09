@@ -6,6 +6,7 @@ import { autoSpend, setTeamAuto, hasTree, treeOf } from '../../core/archetypes';
 import { startTutorial } from '../tutorial';
 import { MatchupPreview } from './preview';
 import { GameDay } from './hub';
+import { sfx, sfxOn, setSfx } from '../sfx';
 
 export function GamedayScreen() {
   const L = useApp().league!;
@@ -35,6 +36,8 @@ export function OptionsScreen() {
       </div>
       <div className="card">
         <h3>Settings</h3>
+        <div className="small dim" style={{ marginBottom: 10 }}>Sound effects</div>
+        <div className="row" style={{ marginBottom: 14 }}>{(['On', 'Off'] as const).map(k => <span key={k} className={`chip${(sfxOn() ? 'On' : 'Off') === k ? ' on' : ''}`} onClick={() => { setSfx(k === 'On'); if (k === 'On') sfx.confirm(); app.touch(); }}>{k}</span>)}</div>
         <div className="small dim" style={{ marginBottom: 10 }}>Injury frequency</div>
         <div className="row">{(['Low', 'Normal', 'Realistic'] as const).map(k => <span key={k} className={`chip${(L.injuryLevel ?? 'Normal') === k ? ' on' : ''}`} onClick={() => { L.injuryLevel = k; app.touch(); }}>{k}</span>)}</div>
         <div className="small mute" style={{ marginTop: 8 }}>For the full slider with its effect on current injuries, open League · Injury Report.</div>

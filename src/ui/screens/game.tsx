@@ -13,6 +13,7 @@ import { PrimeIntro, showFor } from '../primetime';
 import { Halftime } from '../halftime';
 import { HighlightReel } from '../reel';
 import { pickHighlights } from '../../sim/highlights';
+import { sfx } from '../sfx';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
   { name: 'Inside Zone', call: { kind: 'run', run: 'inside', name: 'Inside Zone' }, icon: '⬆', desc: 'Downhill between the tackles' },
@@ -43,6 +44,8 @@ export function GameScreen({ gid }: { gid: string }) {
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
   const booth = useRef(newBooth());
+  // Stadium sounds for what just happened.
+  useEffect(() => { if (!last || auto.current && auto.current !== 'watch') return; if (last.td) sfx.crowd(); else if (last.turnover) sfx.groan(); else if (last.type === 'end' || last.type === 'kickoff' && last.n === 0) sfx.whistle(); }, [last?.n]);
   const [intro, setIntro] = useState(() => !!showFor(L, game) && sim.events.length === 0);
   const [anim, setAnim] = useState(false);
   const [coach, setCoach] = useState(true);

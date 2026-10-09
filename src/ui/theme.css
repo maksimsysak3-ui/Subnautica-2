@@ -75,7 +75,7 @@ html, body { background: var(--bg); font-size: 14px; }
 .subtab .badge { border-radius: 2px; margin-left: 4px; }
 .main, .workspace.full .main { max-width: 1680px; margin: 0 auto; padding: 24px 28px 90px !important; }
 .main.fade-in { animation: pageIn .3s var(--ease) both; }
-@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } }
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px) scale(.995); filter: blur(3px); } 60% { filter: none; } }
 
 /* ---- panels ---- */
 .card { background: var(--s1) !important; border: 1px solid var(--hair) !important; border-radius: var(--r); clip-path: none !important; box-shadow: none !important; backdrop-filter: none; padding: 18px; }
