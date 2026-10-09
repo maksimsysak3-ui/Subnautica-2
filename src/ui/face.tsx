@@ -1,7 +1,6 @@
 // Procedural portraits for players without a real headshot (draft prospects,
 // generated players). Seeded by the player, so a face never changes.
 import { GEN_FACES } from '../data/genfaces';
-import { REAL_FACES } from '../data/realfaces';
 import type { Player, Team } from '../core/types';
 import { Rng } from '../core/rng';
 
@@ -39,14 +38,11 @@ const COLLEGE: Record<string, [string, string]> = {
 const collegeKit = (col: string): [string, string] => COLLEGE[col] ?? (() => { let h = 0; for (const c of col) h = (h * 31 + c.charCodeAt(0)) | 0; const pal: [string, string][] = [['#1e3a8a', '#fbbf24'], ['#7f1d1d', '#f5f5f4'], ['#14532d', '#facc15'], ['#4c1d95', '#e5e7eb'], ['#0f172a', '#f97316']]; return pal[Math.abs(h) % pal.length]; })();
 
 /**
- * Real college prospects get their own headshot. Generated prospects (ids like P2031-14:
- * fictional names) get an AI-generated portrait of a
+ * Generated prospects (ids like P2031-14: fictional names) get an AI-generated portrait of a
  * fictional player. Faces are spread so a class rarely repeats one; the player keeps his face
  * after he is drafted. Real players and real prospects never get one.
  */
 export function genFace(p: Player): string | undefined {
-  // Real prospects (2027-2030 classes): their own official college headshot.
-  if (REAL_FACES[p.id]) return REAL_FACES[p.id];
   const m = /^P(\d{4})-(\d+)$/.exec(p.id);
   return m ? GEN_FACES[(+m[2] + +m[1] * 53) % GEN_FACES.length] : undefined;
 }
