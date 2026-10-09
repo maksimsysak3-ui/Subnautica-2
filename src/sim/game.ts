@@ -15,6 +15,7 @@ import { coachHas } from '../core/coaching';
 import { unitEdge, kickEdge, injuryShield } from '../core/staff';
 import { heat } from '../core/rivalry';
 import { facilityGameDay, facilityHomeEdge, facilityInjuryShield } from '../core/facilities';
+import { practiceEdge } from '../core/practice';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
@@ -165,10 +166,10 @@ export class GameSim {
     }
     return v;
   }
-  private se = new Map<string, { off: number; def: number; kick: number; inj: number; film: number; home: number; med: number }>();
+  private se = new Map<string, { off: number; def: number; kick: number; inj: number; film: number; home: number; med: number; pr: ReturnType<typeof practiceEdge> }>();
   private staffOf(side: Side) {
     let e = this.se.get(side.abbr);
-    if (!e) { e = { off: unitEdge(this.league, side.abbr, 'OC'), def: unitEdge(this.league, side.abbr, 'DC'), kick: kickEdge(this.league, side.abbr), inj: injuryShield(this.league, side.abbr), film: facilityGameDay(this.league, side.abbr), home: facilityHomeEdge(this.league, side.abbr), med: facilityInjuryShield(this.league, side.abbr) }; this.se.set(side.abbr, e); }
+    if (!e) { e = { off: unitEdge(this.league, side.abbr, 'OC'), def: unitEdge(this.league, side.abbr, 'DC'), kick: kickEdge(this.league, side.abbr), inj: injuryShield(this.league, side.abbr), film: facilityGameDay(this.league, side.abbr), home: facilityHomeEdge(this.league, side.abbr), med: facilityInjuryShield(this.league, side.abbr), pr: practiceEdge(this.league, side.abbr) }; this.se.set(side.abbr, e); }
     return e;
   }
   /** Coordinators on game day; the special teams coach for kickers and punters. */
@@ -176,7 +177,11 @@ export class GameSim {
     const e = this.staffOf(side);
     const fac = e.film + (side === this.sides[1] && !this.game.neutral ? e.home : 0);
     if (p.pos === 'K' || p.pos === 'P') return fac + (a === 'KPW' || a === 'KAC' ? e.kick : 0);
-    return fac + (side === this.sides[this.poss] ? e.off : e.def);
+    // The week of practice: the unit install, the red zone, the two-minute drill.
+    const onO = side === this.sides[this.poss];
+    const late = (this.q === 2 || this.q >= 4) && this.clock <= 120;
+    const pr = onO ? e.pr.off + (this.yl >= 80 ? e.pr.rz : 0) + (late ? e.pr.late : 0) : e.pr.def + (late ? e.pr.late * 0.5 : 0);
+    return fac + pr + (onO ? e.off : e.def);
   }
   private cu?: Set<string>;
   /** The user's coach tree on game day: situational bonuses from unlocked abilities. */
@@ -207,6 +212,8 @@ export class GameSim {
   }
   /** Ball security after a halftime 'ball control' adjustment by the side with the ball. */
   private secureNow() { return this.q >= 3 && !!this.adj[this.poss]?.secure; }
+  /** Turnover multiplier from the week's ball-security work (1 = ordinary). */
+  private ballCare() { return 1 - this.staffOf(this.sides[this.poss]).pr.ball; }
   private has(p: Player | undefined, ab: string) { return !!p && p.abil.includes(ab); }
 
   private offense() {
@@ -690,7 +697,7 @@ export class GameSim {
     const chip = dc.blitz && o.rb ? o.rb : undefined;
     const blockV = blockers.reduce((a, p) => a + this.r(off, p, 'PBK') * 0.7 + this.r(off, p, 'STR') * 0.15 + this.r(off, p, 'AWR') * 0.15, 0) / Math.max(1, blockers.length) + (chip ? 1.5 : 0);
     const extra = rushers.length - 4 - (chip ? 1 : 0);
-    let tPressure = 2.88 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7);
+    let tPressure = 2.88 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7) - this.staffOf(def).pr.rush;
     if (rushers.some(p => this.has(p, 'Edge Threat') || this.has(p, 'Inside Pressure'))) tPressure -= 0.15;
     if (rushers.some(p => def.zoneOn.has(p.id))) tPressure -= 0.6;
     if (blockers.some(p => this.has(p, 'Anchor'))) tPressure += 0.1;
@@ -792,7 +799,7 @@ export class GameSim {
     const dir = this.rng.pick([-1, 0, 1] as const);
     if (!complete) {
       // Interception? Tight windows, poor decisions and pressure invite them.
-      let pInt = (this.secureNow() ? 0.75 : 1) * 0.068 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
+      let pInt = (this.secureNow() ? 0.75 : 1) * this.ballCare() * 0.068 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
       if (cov && (this.has(cov, 'Ball Hawk') || this.has(cov, 'Lurker'))) pInt += 0.03;
       if (cov && def.zoneOn.has(cov.id)) pInt += 0.05;
       if (dc.shell === 'Prevent' && depth === 'deep') pInt += 0.03;
@@ -958,6 +965,7 @@ export class GameSim {
       const tackle = front.reduce((a, p) => a + this.r(def, p, 'TAK'), 0) / Math.max(1, front.length);
       let after = -Math.log(1 - this.rng.next()) * 1.75 * clamp(1 + (power - tackle) / 140, 0.75, 1.25);
       if (this.has(carrier, 'Bruiser') || off.zoneOn.has(carrier.id)) after *= 1.3;
+      after *= 1 - this.staffOf(def).pr.tackle;   // a week of tackling circuits
       y = Math.round(line + after);
       const breakaway = 0.037 + (this.r(off, carrier, 'SPD') - 88) * 0.0005 + vision * 0.005 + (this.has(carrier, 'Breakaway') ? 0.01 : 0) + (outside ? 0.01 : 0);
       if (this.rng.chance(clamp(breakaway, 0.005, 0.1))) y += Math.round(10 + -Math.log(1 - this.rng.next()) * 16);
@@ -973,7 +981,7 @@ export class GameSim {
     if (this.yl + y < 100) { const tl = this.L(tackler); tl.tkl++; if (y < 0) { tl.tfl++; this.zonePoint(def, tackler, 1); } }
     if (y >= 12) { this.zonePoint(off, carrier, 1); for (const p of o.ol) if (this.rng.chance(0.3)) this.L(p).pancake++; }
     this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5); this.snapInjury();
-    const fumbleP = clamp((this.secureNow() ? 0.7 : 1) * 0.0135 - (this.r(off, carrier, 'CAR') - 76) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
+    const fumbleP = clamp((this.secureNow() ? 0.7 : 1) * this.ballCare() * 0.0135 - (this.r(off, carrier, 'CAR') - 76) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
     const fum = y > -3 && this.rng.chance(fumbleP);
     const res = fum ? { td: false, first: false, safety: false } : this.advance(y);
     const oob = !res.td && outside && this.rng.chance(0.22);

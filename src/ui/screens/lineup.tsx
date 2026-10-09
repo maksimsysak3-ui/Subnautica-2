@@ -55,14 +55,19 @@ function returners(L: League) {
 const tierOf = (v: number) => (v >= 90 ? 'elite' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : 'bronze');
 const GRADES: [number, string][] = [[0.92, 'A+'], [0.84, 'A'], [0.76, 'A-'], [0.66, 'B+'], [0.56, 'B'], [0.46, 'B-'], [0.36, 'C+'], [0.26, 'C'], [0.16, 'C-'], [0.06, 'D']];
 
-/** Where this starter ranks among every team's starter at the same spot. */
+/**
+ * Grade for a starter: mostly what his rating says on its own (a 70s starter is a solid
+ * C to B-, never a D), nudged by where he ranks among every team's starter at the spot.
+ */
 function slotGrade(L: League, s: Slot, p?: Player) {
   if (!p) return 'F';
   const all = Object.values(L.teams).map(t => L.players[t.depth[s.pos]?.[s.i] ?? '']?.ovr ?? 0).sort((a, b) => a - b);
   const below = all.filter(v => v < p.ovr).length + all.filter(v => v === p.ovr).length / 2;
   const pct = below / Math.max(1, all.length);
-  return GRADES.find(([q]) => pct >= q)?.[1] ?? 'F';
+  const abs = clamp01((p.ovr - 62) / 34);            // 62 → 0, 96 → 1
+  return GRADES.find(([q]) => abs * 0.8 + pct * 0.2 >= q)?.[1] ?? 'F';
 }
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 /** His rating if he lines up at `pos` (a guard at tackle, a safety at corner…). */
 const ratingAt = (p: Player, pos: Pos) => (p.pos === pos ? p.ovr : Math.round(overall(pos, p.attrs)));
 
