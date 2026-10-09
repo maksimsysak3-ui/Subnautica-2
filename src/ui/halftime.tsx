@@ -6,7 +6,6 @@ import type { League, Player } from '../core/types';
 import type { GameSim, HalfAdj } from '../sim/game';
 import { Logo, Face, vivid } from './components';
 import { ANALYST } from './booth';
-import { speak, voiceOn } from './voice';
 
 /** Two team colours too close to tell apart on a bar. */
 const clash = (x: string, y: string) => { const n = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) || 0); const [p, q] = [n(x), n(y)]; return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 90; };
@@ -46,7 +45,6 @@ export function Halftime({ L, sim, onPick }: { L: League; sim: GameSim; onPick: 
   const me = (sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1;
   const opts = options(L, sim, me);
   const line = take(sim);
-  useEffect(() => { if (voiceOn()) speak(line); }, []);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (/^[1-4]$/.test(e.key) && opts[+e.key - 1]) { e.preventDefault(); e.stopImmediatePropagation(); onPick(opts[+e.key - 1].adj); } };
     window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true);

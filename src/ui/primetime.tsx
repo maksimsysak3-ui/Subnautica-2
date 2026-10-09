@@ -1,8 +1,8 @@
 // Prime-time cold open. Night games, the playoffs and rivalry weeks start like a network
 // broadcast: the show open with a light sweep across the title, the venue and weather,
 // both teams slamming in, starting lineups introduced one by one ("Joe Burrow, LSU"),
-// and a tale of the tape. The play-by-play voice opens the broadcast (spoken aloud if the
-// commentary voice is on). Any key or click skips ahead; Esc skips the whole open.
+// and a tale of the tape, with the play-by-play man's opening line. Any key or click skips
+// ahead; Esc skips the whole open.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { Game, League, Player, Team } from '../core/types';
@@ -10,7 +10,6 @@ import type { Weather } from '../sim/game';
 import { Logo, Face, vivid } from './components';
 import { standings, ROUND_NAME } from '../core/season';
 import { teamRatings } from '../core/league';
-import { speak, voiceOn } from './voice';
 import { hash } from '../core/rng';
 import { ShowLogo, showMark } from './showlogo';
 import { heat, heatLevel } from '../core/rivalry';
@@ -57,7 +56,6 @@ export function PrimeIntro({ L, g, weather, onDone }: { L: League; g: Game; weat
     `${night ? 'Under the lights' : 'It is a big one'} at ${venue}. ${away.nick} at ${home.nick}, and it's ${show}.`,
     `Hello again, everyone. ${show} brings us ${away.nick} versus ${home.nick}. What a setting.`,
   ][(hash(g.id) >>> 0) % 3];
-  useEffect(() => { if (voiceOn()) speak(opener); }, []);
   // The open runs itself; lineups tick player by player.
   useEffect(() => {
     if (stage === 2 || stage === 3) {
