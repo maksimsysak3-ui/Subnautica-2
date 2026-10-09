@@ -123,7 +123,7 @@ export function DepthScreen() {
           {defense && <div className="dc-seg"><button className="on">Nickel 4-2-5</button></div>}
         </div>
         <div ref={board} className="dc-stage">
-          <div className="dc-board" key={unit + pers + gen} style={{ '--cw': `${cw}px`, '--yd': `${yard}px`, '--los': `${losY}px` } as React.CSSProperties}>
+          <div className="dc-board" key={unit + pers + gen} style={{ '--cw': `${cw}px`, '--yd': `${yard}px`, '--los': `${losY}px`, '--tc': vivid(t.colors[0]), '--t2': vivid(t.colors[1] ?? '#ffffff') } as React.CSSProperties}>
             <div className="dc-turf" />
             {unit !== 'Special Teams' && <div className="dc-los"><span>LOS</span></div>}
             {slots.map((s, k) => {
@@ -135,6 +135,7 @@ export function DepthScreen() {
                 <div key={s.label} className={`md-slot${on ? ' on' : ''}`} style={{ left: size.w / 2 + du(s.u) * U - cw / 2, top: yOf(s), width: cw, animationDelay: `${k * 0.025}s` } as React.CSSProperties}>
                   <button className={`md-card ${p ? tierOf(v) : 'empty'}${s.auto ? ' auto' : ''}`} onClick={() => !s.auto && setSel(on ? null : s)} title={p ? `${p.fn} ${p.ln} · ${p.pos} ${p.ovr}` : 'Empty'}>
                     <div className="md-art">
+                      {p && <i className="md-num">{p.num}</i>}
                       {p ? <Shot p={p} /> : <div className="dc-empty">+</div>}
                       {p && p.dev !== 'Normal' && <span className="md-dev"><DevIcon d={p.dev} size={Math.round(cw * 0.15)} /></span>}
                       {p && <b className="md-ovr">{v}</b>}
@@ -148,7 +149,7 @@ export function DepthScreen() {
                         : <div key={j} className="md-bk"><span>—</span></div>)}
                     </div>
                   </button>
-                  <div className="md-label"><b>{s.label}</b>{g && <span>| {g}</span>}</div>
+                  <div className="md-label"><b>{s.label}</b>{g && <i className={`dc-grade g${g[0]}`}>{g}</i>}</div>
                 </div>
               );
             })}

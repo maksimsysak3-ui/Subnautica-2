@@ -1396,3 +1396,29 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .pb-peek { overflow: hidden; }
 .pb-peek svg { flex: 1 1 0; min-width: 0; width: 100% !important; height: auto !important; }
 .pbk-card svg { width: 100%; height: auto; }
+
+/* ==== depth chart cards v2: team colour, metallic tier rims ==== */
+.md-card { position: relative; border-radius: 6px; overflow: hidden; background: #0b0e15;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 12px 26px rgba(0,0,0,.55); --rim: linear-gradient(90deg, #8d939e, #d9dee6, #8d939e); }
+.md-card.elite { --rim: linear-gradient(90deg, #ff4d8d, #ffd166, #5ee7ff, #b388ff); }
+.md-card.gold { --rim: linear-gradient(90deg, #a87a1d, #ffe08a, #c9971f); }
+.md-card.silver { --rim: linear-gradient(90deg, #7d8591, #eef2f7, #8b939f); }
+.md-card.bronze { --rim: linear-gradient(90deg, #6e3b1c, #d99a5e, #7a4220); }
+.md-card::before { content: ''; position: absolute; inset: 0; z-index: 3; padding: 2px; border-radius: 6px; background: var(--rim); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: .9; }
+.md-card.elite::before { background-size: 300% 100%; animation: mdHolo 5s linear infinite; }
+@keyframes mdHolo { to { background-position: 300% 0; } }
+.md-card .md-art, .md-card.elite .md-art, .md-card.gold .md-art, .md-card.silver .md-art, .md-card.bronze .md-art {
+  background: radial-gradient(120% 85% at 50% 0%, color-mix(in srgb, var(--tc) 80%, #fff 20%), var(--tc) 48%, color-mix(in srgb, var(--tc) 45%, #000) 100%); }
+.md-card.empty .md-art { background: linear-gradient(180deg, #2a303b, #181c24); }
+.md-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.14) 50%, transparent 60%); pointer-events: none; }
+.md-num { position: absolute; right: -2%; bottom: -10%; font: 900 calc(var(--cw) * .72)/1 var(--head); font-style: normal; color: rgba(255,255,255,.13); letter-spacing: -.04em; pointer-events: none; }
+.md-card .md-ovr { left: 4px; right: auto; top: 4px; z-index: 2; min-width: calc(var(--cw) * .26); padding: 2px 4px 1px; border: 0; border-radius: 3px; background: rgba(6,8,12,.78); backdrop-filter: blur(4px); font: 700 calc(var(--cw) * .16)/1.1 var(--head); }
+.md-card.elite .md-ovr { color: #ffd166; } .md-card.gold .md-ovr { color: #ffe08a; } .md-card.silver .md-ovr { color: #eef2f7; } .md-card.bronze .md-ovr { color: #e9ad78; }
+.md-card .md-dev { left: auto; right: 4px; top: 4px; z-index: 2; border-radius: 3px; background: rgba(6,8,12,.7); }
+.md-card .md-st { padding: 4px 6px 3px; background: #0b0e15; color: #fff; font: 700 calc(var(--cw) * .12)/1.2 var(--head); text-transform: uppercase; letter-spacing: .02em; box-shadow: inset 0 2px 0 var(--tc); }
+.md-card .md-bk { padding: 1px 6px; color: #8f98a8; border-top-color: rgba(255,255,255,.05); }
+.md-card .md-bk b { color: #c8cfda; }
+.md-card:not(.empty) .md-depth::after { display: none; }
+.md-label { gap: 6px; align-items: center; }
+.md-label .dc-grade { min-width: 0; padding: 1px 5px; font-size: calc(var(--cw) * .1); border-radius: 2px; }
+.md-card .md-inj { z-index: 2; border-radius: 2px; }
