@@ -4,7 +4,7 @@
 // actor is a real player from the depth chart, so numbers and names are right.
 import type { PlayEvent } from '../../sim/game';
 import type { Pos, Team } from '../../core/types';
-import { PLAY_ART, DEF_ART, FORMATION, OL_SPOTS, snapSpot, type Art } from '../playart';
+import { PLAY_ART, DEF_ART, OL_SPOTS, snapSpot, alignFor, type Art, type Align } from '../playart';
 import { app } from '../store';
 import { skinOf } from '../skin';
 
@@ -49,7 +49,7 @@ export function lineupFor(team: Team): Lineup {
 }
 export function slotFor(id: string): Slot | undefined { const p = app.league?.players[id]; return p ? { num: p.num, ln: p.ln, id, skin: skinOf(p) } : undefined; }
 
-export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; carrier?: (t: number) => number; tackle?: number; kick?: boolean;
+export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean;
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
   off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number; tackler?: number; swatter?: number }
 
@@ -260,12 +260,13 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const art = PLAY_ART[ev.call ?? ''], dart = DEF_ART[ev.dcall ?? ''];
   const run = ev.type === 'run', sack = ev.type === 'sack', scramble = ev.type === 'scramble', pass = ev.type === 'pass';
   // Pre-snap motion: one man jogs across before the snap, and it ends as the ball is snapped.
+  const FORMATION = alignFor(ev.call);
   const mot = art?.find(a => a.motion?.length && a.who !== 'OL' && a.who !== 'DEF');
   const motPath = mot ? [FORMATION[mot.who as keyof typeof FORMATION], ...mot.motion!] : [];
   const motLen = motPath.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - motPath[i - 1][0], p[1] - motPath[i - 1][1]) : 0), 0);
   const MT = mot ? Math.min(2.2, 0.3 + motLen / 7) : 0;
   const DT = 1 / 60, PRE = (art || dart ? 0.6 : 0.25) + MT;
-  const spotOf = (w: keyof typeof FORMATION): [number, number] => (mot?.who === w ? snapSpot(mot) : FORMATION[w]);
+  const spotOf = (w: keyof typeof FORMATION): [number, number] => (mot?.who === w ? snapSpot(mot, FORMATION) : FORMATION[w]);
   const manCov = /Cover [01]/.test(ev.dcall ?? '');
   const ballTrack: [number, number, number][] = [];
   const agents: Agent[] = [];
@@ -526,7 +527,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const ball: Path = u => { if (u * dur < PRE) return at(0, 0); const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return [bt[i][0], bt[i][1]]; };
   const ballH = (u: number) => { const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return u * dur < PRE ? 0.15 : bt[i][2]; };
   const tackled = !ev.td && !(pass && !ev.complete);
-  return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
+  return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
     broken, qb: agents.indexOf(QB), target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
 }

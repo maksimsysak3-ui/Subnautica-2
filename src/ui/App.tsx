@@ -29,6 +29,7 @@ import { BracketScreen } from './screens/bracket';
 import { StaffScreen } from './screens/staff';
 import { CampScreen } from './screens/camp';
 import { FacilitiesScreen } from './screens/facilities';
+import { PlaybookScreen } from './screens/playbook';
 import { gmName } from './actions';
 import { CrashGuard } from './crash';
 
@@ -38,7 +39,7 @@ export const TABS: { label: string; subs: [Id, string][] }[] = [
   { label: 'Gameday', subs: [['gameday', 'Matchup'], ['plan', 'Game Plan'], ['schedule', 'Schedule']] },
   { label: 'Weekly Hub', subs: [['hub', 'Weekly Hub'], ['inbox', 'Inbox'], ['news', 'News Center']] },
   { label: 'Manage Roster', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['camp', 'Training Camp'], ['trade', 'Trade Center'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['resign', 'Re-sign'], ['cap', 'Salary Cap'], ['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
-  { label: 'Coach Central', subs: [['coach', 'Coach Tree'], ['staff', 'Coaching Staff'], ['facilities', 'Facilities'], ['progress', 'Progression'], ['teamstats', 'Team Stats']] },
+  { label: 'Coach Central', subs: [['coach', 'Coach Tree'], ['playbook', 'Playbook'], ['staff', 'Coaching Staff'], ['facilities', 'Facilities'], ['progress', 'Progression'], ['teamstats', 'Team Stats']] },
   { label: 'League', subs: [['standings', 'Standings'], ['bracket', 'Playoff Bracket'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['tradehist', 'Transactions'], ['chart', 'Pick Value'], ['history', 'History']] },
   { label: 'Options', subs: [['options', 'Options']] },
 ];
@@ -154,6 +155,7 @@ function Route({ sc }: { sc: Screen }) {
     case 'staff': return <StaffScreen />;
     case 'camp': return <CampScreen />;
     case 'facilities': return <FacilitiesScreen />;
+    case 'playbook': return <PlaybookScreen />;
     case 'stats': return <StatsScreen />;
     case 'news': return <NewsScreen />;
     case 'inbox': return <InboxScreen />;

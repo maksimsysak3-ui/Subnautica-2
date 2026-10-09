@@ -8,8 +8,8 @@ export interface Art { who: Who; pts: [number, number][]; kind: 'route' | 'block
 export const FORMATION: Record<Exclude<Who, 'OL' | 'DEF'>, [number, number]> = { X: [0, -19], Z: [0, 19], S: [-1, 11], TE: [0, 4.5], RB: [-6, 0], QB: [-4.5, 0] };
 export const OL_SPOTS: [number, number][] = [[-0.6, -4], [-0.6, -2], [-0.6, 0], [-0.6, 2], [-0.6, 4]];
 
-const block = (who: Who, dx = 2, dy = 0): Art => ({ who, pts: [[dx, dy]], kind: 'block' });
-const olPush = (dx: number, dy: number): Art[] => OL_SPOTS.map(([, y]) => ({ who: 'OL', pts: [[dx, y + dy]], kind: 'block' as const }));
+export const block = (who: Who, dx = 2, dy = 0): Art => ({ who, pts: [[dx, dy]], kind: 'block' });
+export const olPush = (dx: number, dy: number): Art[] => OL_SPOTS.map(([, y]) => ({ who: 'OL', pts: [[dx, y + dy]], kind: 'block' as const }));
 
 export const PLAY_ART: Record<string, Art[]> = {
   'Inside Zone': [...olPush(2.5, 0), { who: 'RB', pts: [[-3, 0.5], [3, 1.5], [9, 1]], kind: 'run', primary: true }, block('X', 3), block('Z', 3), block('S', 3, -1), block('TE', 2.5)],
@@ -36,13 +36,19 @@ export const DEF_ART: Record<string, Art[]> = {
 };
 DEF_ART['Cover 1 Man'] = DEF_ART['Cover 1'];
 
+export type Skill = Exclude<Who, 'OL' | 'DEF'>;
+export type Align = Record<Skill, [number, number]>;
+/** Per-play alignment (the play's formation), when it is not the default shotgun. */
+export const PLAY_ALIGN: Record<string, Partial<Align>> = {};
+export const alignFor = (name?: string): Align => ({ ...FORMATION, ...(name ? PLAY_ALIGN[name] ?? PLAY_ALIGN[name.replace(/^PA /, '')] : undefined) });
 /** Where a player is at the snap: his alignment, or the end of his motion. */
-export const snapSpot = (a: Art): [number, number] => a.motion?.length ? a.motion[a.motion.length - 1] : FORMATION[a.who as keyof typeof FORMATION];
+export const snapSpot = (a: Art, al: Align = FORMATION): [number, number] => a.motion?.length ? a.motion[a.motion.length - 1] : al[a.who as Skill];
 export const startOf = (who: Who, i = 0): [number, number] => (who === 'OL' ? OL_SPOTS[i % 5] : who === 'DEF' ? [0, 0] : FORMATION[who]);
 
 /** SVG play diagram for a play-call card. */
 export function PlayDiagram({ name, def, w = 150, h = 92 }: { name: string; def?: boolean; w?: number; h?: number }) {
   const art = (def ? DEF_ART : PLAY_ART)[name] ?? [];
+  const al = alignFor(def ? undefined : name);
   // View: 6 yards behind the line to 26 downfield; 46 yards across.
   const X = (dx: number) => h - ((dx + 6) / 32) * h;
   const Y = (dy: number) => w / 2 + (dy / 46) * w;
@@ -57,13 +63,13 @@ export function PlayDiagram({ name, def, w = 150, h = 92 }: { name: string; def?
       {[5, 10, 15, 20].map(d => <line key={d} x1="0" x2={w} y1={X(d)} y2={X(d)} stroke="rgba(255,255,255,.08)" />)}
       <line x1="0" x2={w} y1={X(0)} y2={X(0)} stroke="rgba(120,180,255,.7)" strokeWidth="1.5" />
       {/* offence dots */}
-      {(['X', 'Z', 'S', 'TE', 'RB', 'QB'] as const).map(k => <circle key={k} cx={Y(FORMATION[k][1])} cy={X(FORMATION[k][0])} r="3" fill="none" stroke="#fff" strokeWidth="1.3" />)}
+      {(['X', 'Z', 'S', 'TE', 'RB', 'QB'] as const).map(k => <circle key={k} cx={Y(al[k][1])} cy={X(al[k][0])} r="3" fill="none" stroke="#fff" strokeWidth="1.3" />)}
       {OL_SPOTS.map(([x, y], i) => <rect key={i} x={Y(y) - 2.5} y={X(x) - 2.5} width="5" height="5" fill="none" stroke="#fff" strokeWidth="1.2" />)}
       {art.map((a, i) => {
         if (a.kind === 'zone') { const [x, y] = a.pts[0]; return <ellipse key={i} cx={Y(y)} cy={X(x)} rx={(a.r ?? 5) / 46 * w} ry={(a.r ?? 5) / 32 * h * 0.8} fill={x > 12 ? 'rgba(80,160,255,.28)' : 'rgba(255,210,63,.25)'} stroke={x > 12 ? 'rgba(120,190,255,.7)' : 'rgba(255,210,63,.7)'} />; }
-        const start = a.who === 'OL' ? OL_SPOTS[olIdx++ % 5] : a.who === 'DEF' ? a.pts[0] : snapSpot(a);
+        const start = a.who === 'OL' ? OL_SPOTS[olIdx++ % 5] : a.who === 'DEF' ? a.pts[0] : snapSpot(a, al);
         const pts = a.who === 'DEF' ? a.pts : [start, ...a.pts];
-        const mo = a.motion?.length && a.who !== 'OL' && a.who !== 'DEF' ? [FORMATION[a.who], ...a.motion].map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ') : '';
+        const mo = a.motion?.length && a.who !== 'OL' && a.who !== 'DEF' ? [al[a.who], ...a.motion].map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ') : '';
         if (pts.length < 2) return mo ? <path key={i} d={mo} fill="none" stroke="#7fd4ff" strokeWidth="1.3" strokeDasharray="2 2" /> : null;
         const d = pts.map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ');
         const color = a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'man' ? 'rgba(255,255,255,.7)' : a.kind === 'block' ? 'rgba(255,255,255,.55)' : '#fff';

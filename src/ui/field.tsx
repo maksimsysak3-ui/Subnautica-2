@@ -289,12 +289,13 @@ function drawArt(g: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolea
   g.lineWidth = 1;
   for (const a of art) {
     if (a.kind === 'zone') { const [x, y] = at(a.pts[0][0], a.pts[0][1]); g.strokeStyle = a.pts[0][0] > 12 ? 'rgba(120,190,255,.8)' : 'rgba(255,210,63,.8)'; g.beginPath(); g.ellipse(x, y, (a.r ?? 5) * 5, (a.r ?? 5) * 2.5, 0, 0, 7); g.stroke(); continue; }
-    const start = def ? a.pts[0] : a.who === 'OL' ? OL_SPOTS[ol++ % 5] : snapSpot(a);
+    const al = sc.align ?? FORMATION;
+    const start = def ? a.pts[0] : a.who === 'OL' ? OL_SPOTS[ol++ % 5] : snapSpot(a, al);
     const pts = def ? a.pts : [start, ...a.pts];
     if (!def && a.motion?.length && a.who !== 'OL') {
       // Motion: a dashed light-blue line from the alignment to the snap spot.
       g.strokeStyle = '#7fd4ff'; g.setLineDash([2, 2]); g.beginPath();
-      [FORMATION[a.who as keyof typeof FORMATION], ...a.motion].forEach(([dx, dy], j) => { const [x, y] = at(dx, dy); j ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5); });
+      [al[a.who as keyof typeof FORMATION], ...a.motion].forEach(([dx, dy], j) => { const [x, y] = at(dx, dy); j ? g.lineTo(x + 0.5, y + 0.5) : g.moveTo(x + 0.5, y + 0.5); });
       g.stroke(); g.setLineDash([]);
     }
     if (pts.length < 2) continue;

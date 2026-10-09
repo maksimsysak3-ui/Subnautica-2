@@ -17,8 +17,12 @@ import { heat } from '../core/rivalry';
 import { facilityGameDay, facilityHomeEdge, facilityInjuryShield } from '../core/facilities';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
-export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
-export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string }
+export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
+  /** Personnel grouping (RBs then TEs): 11 is 1 RB 1 TE 3 WR. */ pers?: Personnel;
+  /** Formation subs: a player for a slot in this play's set. */ subs?: Partial<Record<'X' | 'Z' | 'SLOT' | 'TE' | 'RB', string>> }
+export type Personnel = '10' | '11' | '12' | '13' | '21' | '22';
+export type DefSet = 'Base' | 'Nickel' | 'Dime' | 'Goal Line';
+export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string; set?: DefSet }
 
 export interface PlayEvent {
   n: number; q: number; clock: number; poss: 0 | 1; down: number; togo: number; yl: number;
@@ -29,6 +33,8 @@ export interface PlayEvent {
   dir?: -1 | 0 | 1; call?: string; dcall?: string; wp?: number;
 }
 
+interface Tend { run: number; pass: number; deep: number; heavy: number; spread: number; recent: string[] }
+const newTend = (): Tend => ({ run: 0, pass: 0, deep: 0, heavy: 0, spread: 0, recent: [] });
 const SIG = (x: number) => 1 / (1 + Math.exp(-x));
 
 interface Side {
@@ -69,6 +75,15 @@ export class GameSim {
   /** Game-day form: whole-team swing plus per-player swing scaled by consistency. */
   private teamForm: [number, number];
   heat = 0;
+  /**
+   * What the defense has seen from a play-caller this game (only calls a person made):
+   * run/pass mix, deep shots, personnel, and each play by name. The CPU defense keys on
+   * repeats and leans its box and shells toward the tendencies.
+   */
+  tend: [Tend, Tend] = [newTend(), newTend()];
+  /** The CPU defense's latest adjustment, for the broadcast. */
+  defAdjust: string | null = null;
+  private lastAdj: string | null = null;
   /** Halftime adjustments, per side (0 away, 1 home); they apply from the third quarter. */
   adj: [HalfAdj | null, HalfAdj | null] = [null, null];
   /** When false, the user's halftime call waits for the UI (halfPending). */
@@ -205,13 +220,39 @@ export class GameSim {
     const ots = this.avail(s, 'OT', 2), gs = this.avail(s, 'G', 2), cs = this.avail(s, 'C', 1);
     const ol = [...ots, ...gs, ...cs];
     while (ol.length < 5) { const extra = this.avail(s, 'G', 4, new Set(ol.map(p => p.id))).concat(this.avail(s, 'OT', 4, new Set(ol.map(p => p.id))))[0]; if (!extra) break; ol.push(extra); }
-    return { s, qb, rb: rbs[0], wrs, tes, ol, fb: this.avail(s, 'FB', 1)[0] };
+    return { s, qb, rb: rbs[0], wrs, tes, ol, fb: this.avail(s, 'FB', 1)[0], extra: [] as Player[] };
   }
-  private defense(nickel: boolean) {
+  /**
+   * Put a personnel grouping and the play-caller's subs on the field. The three
+   * receiver slots (X, Z, SLOT) and the TE slot are filled by whoever the grouping
+   * calls for; the extra tight ends and fullback in heavy sets also block on runs.
+   */
+  private personnel(o: ReturnType<GameSim['offense']>, oc: OffCall) {
+    const s = o.s, used = new Set<string>();
+    const ok = (id?: string) => { const p = id ? this.league.players[id] : undefined; return p && p.team === s.abbr && !p.injury && !s.out.has(p.id) && !(p as Player & { holdout?: unknown }).holdout ? p : undefined; };
+    const wr = this.avail(s, 'WR', 5), te = this.avail(s, 'TE', 3);
+    const fb = o.fb ?? this.avail(s, 'RB', 3).find(p => p.id !== o.rb?.id) ?? te[2];
+    let X: Player | undefined = wr[0], Z: Player | undefined = wr[1], SLOT: Player | undefined = wr[2], TE: Player | undefined = te[0];
+    const extra: Player[] = [];
+    switch (oc.pers) {
+      case '10': TE = wr[3] ?? te[0]; break;
+      case '12': SLOT = te[1] ?? wr[2]; if (te[1]) extra.push(te[1]); break;
+      case '13': Z = te[1] ?? wr[1]; SLOT = te[2] ?? wr[2]; extra.push(...[te[1], te[2]].filter((p): p is Player => !!p)); break;
+      case '21': SLOT = fb ?? wr[2]; if (fb) extra.push(fb); break;
+      case '22': Z = te[1] ?? wr[1]; SLOT = fb ?? wr[2]; extra.push(...[te[1], fb].filter((p): p is Player => !!p)); break;
+    }
+    const sub = oc.subs ?? {};
+    const pick = (slot: keyof typeof sub, cur: Player | undefined) => { const p = ok(sub[slot]); return p && !used.has(p.id) ? p : cur; };
+    X = pick('X', X); Z = pick('Z', Z); SLOT = pick('SLOT', SLOT); TE = pick('TE', TE);
+    const rb = pick('RB', o.rb) ?? o.rb;
+    for (const p of [X, Z, SLOT, TE, rb]) if (p) used.add(p.id);
+    return { ...o, rb, wrs: [X, Z, SLOT, ...wr.filter(p => !used.has(p.id))].filter(Boolean) as Player[], tes: [TE, ...te.filter(p => !used.has(p.id))].filter(Boolean) as Player[], extra: extra.filter(p => p && ![X, Z, TE].includes(p)) };
+  }
+  private defense(nickel: boolean, dime = false) {
     const s = this.sides[1 - this.poss];
     const edges = this.rotate(s, 'EDGE', 2, 0.45), dts = this.rotate(s, 'DT', 2, 0.5);
-    const lbs = this.avail(s, 'LB', nickel ? 2 : 3);
-    const cbs = this.avail(s, 'CB', nickel ? 3 : 2);
+    const lbs = this.avail(s, 'LB', dime ? 1 : nickel ? 2 : 3);
+    const cbs = this.avail(s, 'CB', dime ? 4 : nickel ? 3 : 2);
     const ss = this.avail(s, 'S', 2);
     return { s, dl: [...edges, ...dts], edges, dts, lbs, cbs, ss };
   }
@@ -273,8 +314,11 @@ export class GameSim {
     return { kind: 'run', run: qbRun ? 'qb' : outside ? 'outside' : 'inside', name: qbRun ? 'QB Option' : outside ? (coach.off === 'Wide Zone' ? 'Outside Zone' : 'Toss') : (coach.off === 'Power Run' ? 'Power' : 'Inside Zone') };
   }
 
-  aiDefense(): DefCall {
+  aiDefense(pers?: Personnel): DefCall {
     const s = this.sides[1 - this.poss];
+    const t = this.tend[this.poss], seen = t.run + t.pass;
+    const passRate = seen >= 8 ? t.pass / seen : 0.55, deepRate = t.pass >= 6 ? t.deep / t.pass : 0.35;
+    let note: string | null = null;
     const plan = s.team.plan;
     const scheme = s.team.coach.def;
     const longYds = this.togo >= 8 && this.down >= 2;
@@ -298,7 +342,38 @@ export class GameSim {
     if (this.yl >= 95 || (this.togo <= 1 && this.down >= 3)) box = 8;
     if (plan.def === 'Stop the Run' && this.rng.chance(0.5)) box += 1;
     if (plan.def === 'Stop the Pass') box = Math.min(box, 6);
-    return { shell, blitz: isBlitz, box, name: `${shell}${isBlitz ? ' Blitz' : ''}` };
+    // Live adjustments against a play-caller's tendencies (only what a person called).
+    if (seen >= 8) {
+      if (passRate >= 0.68 && box > 6 && this.rng.chance(0.7)) { box = 6; note = 'Defense lightens the box: they expect pass.'; }
+      if (passRate <= 0.4 && box < 8 && this.rng.chance(0.6)) { box++; note = 'Extra man in the box: they are selling out for the run.'; }
+      if (deepRate >= 0.5 && !prevent && !isBlitz && this.rng.chance(0.5)) { shell = this.rng.chance(0.5) ? 'Cover 2' : 'Cover 4'; note = 'Two safeties deep: they are taking away the shots.'; }
+    }
+    if (this.keyed >= 2) note = 'The defense has seen this one. They are sitting on it.';
+    // Only a change of approach is news; the same look again is not.
+    this.defAdjust = note && note !== this.lastAdj ? note : null;
+    this.lastAdj = note;
+    // Substitutions: the defense matches the offense's personnel.
+    let set: DefSet | undefined;
+    if (pers) {
+      if (pers === '22' || pers === '13') { set = this.yl >= 90 || this.togo <= 1 ? 'Goal Line' : 'Base'; box = Math.max(box, set === 'Goal Line' ? 9 : 7); }
+      else if (pers === '12' || pers === '21') { set = 'Base'; box = Math.max(box, 7); }
+      else if (pers === '10') { set = 'Dime'; box = Math.min(box, 6); }
+      else set = 'Nickel';
+    }
+    return { shell, blitz: isBlitz, box, name: `${shell}${isBlitz ? ' Blitz' : ''}`, set };
+  }
+
+  /** How hard the defense is sitting on this call: 0 fresh, up to 3 after a string of repeats. */
+  private keyed = 0;
+  private scout(oc: OffCall): number {
+    const t = this.tend[this.poss];
+    const name = (oc.name ?? '').replace(/^PA /, '');
+    const reps = t.recent.slice(-10).filter(n => n === name).length;
+    t.recent.push(name);
+    if (oc.kind === 'run') t.run++; else { t.pass++; if (oc.depth === 'deep' || oc.depth === 'medium') t.deep++; }
+    if (oc.pers === '12' || oc.pers === '13' || oc.pers === '21' || oc.pers === '22') t.heavy++;
+    if (oc.pers === '10') t.spread++;
+    return Math.min(3, Math.max(0, reps - 1));
   }
 
   private canKneelOut(): boolean {
@@ -361,7 +436,10 @@ export class GameSim {
     if (this.lastClockRunning) this.runoff(this.betweenPlays());
     if (this.clock <= 0) return this.endPeriod();
     const oc = call ?? this.aiOffense();
-    const dc = dcall ?? this.aiDefense();
+    // A play the user called is scouted; the defense reacts to the personnel it sees.
+    this.keyed = 0;
+    if (call && (oc.kind === 'run' || oc.kind === 'pass')) this.keyed = this.scout(oc);
+    const dc = dcall ?? this.aiDefense(call ? oc.pers : undefined);
     this.at = { q: this.q, clock: this.clock, poss: this.poss, down: this.down, togo: this.togo, yl: this.yl };
     switch (oc.kind) {
       case 'kneel': return this.kneel();
@@ -517,9 +595,9 @@ export class GameSim {
   private scrimmage(oc: OffCall, dc: DefCall): PlayEvent {
     const startYl = this.yl, startDown = this.down, startTogo = this.togo;
     const off = this.sides[this.poss], defS = this.sides[1 - this.poss];
-    const o = this.offense();
-    const nickel = dc.box <= 6 || oc.kind === 'pass';
-    const d = this.defense(nickel);
+    const o = oc.pers || oc.subs ? this.personnel(this.offense(), oc) : this.offense();
+    const nickel = dc.set ? dc.set === 'Nickel' || dc.set === 'Dime' : dc.box <= 6 || oc.kind === 'pass';
+    const d = this.defense(nickel, dc.set === 'Dime');
     const onField = [o.qb, o.rb, ...o.wrs.slice(0, 3), o.tes[0], ...o.ol];
     this.snap(onField, off);
     this.snap([...d.dl, ...d.lbs, ...d.cbs, ...d.ss], defS);
@@ -647,6 +725,12 @@ export class GameSim {
       if (oc.pa) s += 0.45;
       // A man in motion gets a running start, and a defender trailing him across the formation.
       if (oc.motion === t.slot) s += man ? 0.45 : 0.2;
+      // A repeated call: the coverage knows where it is going.
+      s -= this.keyed * 0.32;
+      // Mismatches: a tight end in the slot against a dime back, a receiver against a linebacker.
+      if (dc.set === 'Dime' && (t.p.pos === 'TE' || t.p.pos === 'FB')) s -= 0.3;
+      if (dc.set === 'Base' && t.slot === 'SLOT' && t.p.pos === 'WR') s += 0.35;
+      if (dc.set === 'Goal Line' && t.p.pos === 'WR') s += 0.3;
       if (planDef === 'Stop the Run') s += 0.25; else if (planDef === 'Stop the Pass') s -= 0.25;
       if (this.has(t.p, 'Route Technician')) s += 0.35;
       if (depth === 'deep' && this.has(t.p, 'Deep Threat')) s += 0.45;
@@ -852,7 +936,10 @@ export class GameSim {
     const front = [...d.dl, ...d.lbs.slice(0, Math.max(1, dc.box - 4))];
     const runD = front.reduce((a, p) => a + this.r(def, p, 'BSH') * 0.5 + this.r(def, p, 'STR') * 0.22 + this.r(def, p, 'TAK') * 0.14 + this.r(def, p, 'PRC') * 0.14, 0) / Math.max(1, front.length)
       + (front.some(p => this.has(p, 'Run Stuffer')) ? 1.2 : 0);
-    let line0 = 0;
+    // Heavy sets add blockers at the point of attack; spread sets empty the box; a run
+    // the defense has seen over and over gets met at the line.
+    let line0 = (o.extra?.length ?? 0) * 0.32 - this.keyed * 0.45;
+    if (dc.set === 'Dime') line0 += 0.6; else if (dc.set === 'Nickel' && o.extra?.length) line0 += 0.25;
     const adv = (blockV - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
     const outside = oc.run === 'outside';
     // Jet or orbit motion pulls the second level a step: worth more on the edge.

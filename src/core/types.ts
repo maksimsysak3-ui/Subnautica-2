@@ -86,7 +86,10 @@ export interface Player {
 }
 
 /** A user-drawn play: routes per skill player in yards (x downfield, y across), one primary read. */
-export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean; /** Pre-snap motion path, behind the line; the route starts where it ends. */ motion?: [number, number][] }[] }
+export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean; /** Pre-snap motion path, behind the line; the route starts where it ends. */ motion?: [number, number][] }[]; /** Formation (an offensive set name). */ set?: string }
+export interface CustomDefPlay { name: string; set: 'Base' | 'Nickel' | 'Dime' | 'Goal Line'; assigns: { who: 'DL0' | 'DL1' | 'DL2' | 'DL3' | 'LB0' | 'LB1' | 'CB0' | 'CB1' | 'NB' | 'SS' | 'FS'; kind: 'rush' | 'zone' | 'blitz' | 'man'; pts: [number, number][] }[] }
+/** A playbook: folders of plays (one per formation, plus any the user makes). */
+export interface Playbook { id: string; name: string; side: 'off' | 'def'; folders: { name: string; set: string; plays: string[] }[] }
 
 export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number }
 
@@ -196,4 +199,9 @@ export interface League {
   block?: string[];
   /** Plays the user drew in the play designer. */
   customPlays?: CustomPlay[];
+  customDefPlays?: CustomDefPlay[];
+  playbooks?: Playbook[];
+  activeBook?: { off?: string; def?: string };
+  /** Formation subs: who lines up at each slot in a set. */
+  formSubs?: Record<string, Partial<Record<'X' | 'Z' | 'SLOT' | 'TE' | 'RB', string>>>;
 }
