@@ -116,17 +116,37 @@ function MNF() {
   </Badge>;
 }
 
+/** SNF is a wordmark, not a badge: the network's crown above big chrome letters. */
 function SNF() {
   const id = 'sl-snf';
-  return <Badge id={id} rim={['#fff4c4', '#e2b23f', '#7a540d']} face={['#1d4f9e', '#04102a']}>
-    <defs><linearGradient id={`${id}-gold`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff4c4" /><stop offset=".5" stopColor="#e2b23f" /><stop offset="1" stopColor="#a3730f" /></linearGradient></defs>
-    {[110, 155, 200, 245, 290].map((x, i) => (
-      <path key={x} transform={`translate(${x} ${66 - (i === 2 ? 6 : i % 2 ? 2 : 0)}) scale(${i === 2 ? 1.35 : 1})`} d="M0 -12 L3.5 -3.7 L12 -3.7 L5.2 1.6 L7.6 10 L0 5 L-7.6 10 L-5.2 1.6 L-12 -3.7 L-3.5 -3.7 Z" fill={`url(#${id}-gold)`} stroke="#0b0d12" strokeWidth="1.2" />
-    ))}
-    <Stack id={id} words={['SUNDAY', 'NIGHT', 'FOOTBALL']} y0={160} size={60} gap={62} max={246} />
-    <rect x="112" y="300" width="176" height="3" fill={`url(#${id}-gold)`} />
-    <Net name="CROWN" x={200} y={350} size={40} fill={`url(#${id}-gold)`} />
-  </Badge>;
+  const T = (p: Record<string, unknown>) => <text x="200" y="300" textAnchor="middle" fontFamily={HEAD} fontWeight={800} fontStyle="italic" fontSize={176} textLength={300} lengthAdjust="spacingAndGlyphs" {...p}>SNF</text>;
+  return (
+    <svg viewBox="0 0 400 448" width="100%" role="img" aria-label="Sunday Night Football">
+      <defs>
+        <linearGradient id={`${id}-chrome`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset=".5" stopColor="#e8ecf2" /><stop offset=".56" stopColor="#a7b0be" /><stop offset=".8" stopColor="#dfe4eb" /><stop offset="1" stopColor="#ffffff" /></linearGradient>
+        <linearGradient id={`${id}-gold`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff4c4" /><stop offset=".5" stopColor="#e2b23f" /><stop offset="1" stopColor="#a3730f" /></linearGradient>
+        <linearGradient id={`${id}-shine`} x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".5" stopColor="#fff" stopOpacity=".7" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <filter id={`${id}-blur`}><feGaussianBlur stdDeviation="5" /></filter>
+        <filter id={`${id}-drop`} x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="12" floodColor="#000" floodOpacity=".6" /></filter>
+        <clipPath id={`${id}-clip`}>{T({})}</clipPath>
+      </defs>
+      {/* The network's crown. */}
+      <g filter={`url(#${id}-drop)`} transform="translate(200 110)">
+        <path d="M-62 34 L-70 -26 L-34 4 L0 -44 L34 4 L70 -26 L62 34 Z" fill={`url(#${id}-gold)`} stroke="#0b0d12" strokeWidth="3" strokeLinejoin="round" />
+        <path d="M-62 34 L62 34 L60 48 L-60 48 Z" fill={`url(#${id}-gold)`} stroke="#0b0d12" strokeWidth="3" strokeLinejoin="round" />
+        {[-70, 0, 70].map(x => <circle key={x} cx={x} cy={x ? -30 : -48} r="7" fill="#fff4c4" stroke="#0b0d12" strokeWidth="2.5" />)}
+        <path d="M-52 26 L-58 -6 M52 26 L58 -6" stroke="#fff" strokeOpacity=".55" strokeWidth="2" />
+      </g>
+      {/* The letters: soft shadow, dark offset, chrome face with outline and a light sweep. */}
+      {T({ fill: '#000', opacity: 0.55, transform: 'translate(6 10)', filter: `url(#${id}-blur)` })}
+      {T({ fill: '#0b0d12', transform: 'translate(4 6)' })}
+      {T({ fill: `url(#${id}-chrome)`, stroke: '#0b0d12', strokeWidth: 6, paintOrder: 'stroke', strokeLinejoin: 'round' })}
+      {T({ fill: 'none', stroke: '#fff', strokeOpacity: 0.7, strokeWidth: 1.2, transform: 'translate(0 -1.5)' })}
+      <g clipPath={`url(#${id}-clip)`}><rect className="sl-shine" x="-240" y="140" width="110" height="200" fill={`url(#${id}-shine)`} transform="skewX(-18)" /></g>
+      <rect x="90" y="330" width="220" height="2" fill={`url(#${id}-gold)`} />
+      <text x="200" y="356" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight={700} fontSize={14} letterSpacing={6} fill="#e8ecf2">SUNDAY NIGHT FOOTBALL</text>
+    </svg>
+  );
 }
 
 export function ShowLogo({ mark, size = 360, animate = true }: { mark: Mark; size?: number; animate?: boolean }) {
