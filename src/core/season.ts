@@ -15,6 +15,7 @@ import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
 import { holdoutWeekly } from './holdout';
 import { rivalryAfterGame } from './rivalry';
 import { pickHighlights } from '../sim/highlights';
+import { facilityXpMult, facilityRecovery, facilityHeal } from './facilities';
 
 export const REG_WEEKS = 18;
 export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisional', 21: 'Conference Championship', 22: 'Super Bowl' };
@@ -59,7 +60,7 @@ export function applyResult(league: League, g: Game, sim: GameSim) {
     if (!p) continue;
     // The countdown ticks once before the next game, so store one extra week: a player
     // listed to miss two games really misses two.
-    const heal = p.team === league.user && coachHas(league, 'Recovery Lab') && !inj.season ? 0.75 : 1;
+    const heal = (p.team === league.user && coachHas(league, 'Recovery Lab') && !inj.season ? 0.75 : 1) * (inj.season ? 1 : facilityHeal(league, p.team));
     p.injury = { type: inj.type, weeks: Math.max(1, Math.round(inj.weeks * heal)) + 1, season: inj.season };
     const notable = p.team === league.user || (inj.season && p.ovr >= 75) || (p.ovr >= 82 && inj.weeks >= 2);
     if (notable) news(league, 'injury', `${p.team} ${p.pos} ${p.fn} ${p.ln} suffered a ${inj.type.toLowerCase()} and is ${inj.season ? 'out for the season' : `expected to miss ${inj.weeks} week${inj.weeks > 1 ? 's' : ''}`}.`, [p.team], { pid: p.id, big: inj.season && p.ovr >= 85 });
@@ -106,7 +107,7 @@ function coachXpMult(league: League, p: Player) {
   return 1 + (u.includes('Mentor') ? 0.12 : 0) + (u.includes('Player Development II') ? 0.12 : 0) + (p.pos === 'QB' && u.includes('QB Whisperer') ? 0.2 : 0) + (p.exp <= 1 && u.includes('Rookie Camp') ? 0.15 : 0) + (p.age >= 30 && u.includes('Veteran Care') ? 0.25 : 0);
 }
 function weeklyGameXp(league: League, p: Player, l: StatLine) {
-  p.xp += Math.max(0, gameXp(p, l)) * DEV_MULT[p.dev] * coachXpMult(league, p) * staffXpMult(league, p);
+  p.xp += Math.max(0, gameXp(p, l)) * DEV_MULT[p.dev] * coachXpMult(league, p) * staffXpMult(league, p) * facilityXpMult(league, p.team);
 }
 export const xpToLevel = (ovr: number) => 420 + Math.max(0, ovr - 50) * 30;
 
@@ -181,8 +182,8 @@ export function advanceWeek(league: League): boolean {
     const plan = league.teams[p.team]?.plan.practice ?? 'Normal';
     // Practice XP and wear recovery.
     const practice = { Light: 18, Normal: 32, Intense: 52 }[plan];
-    p.xp += practice * DEV_MULT[p.dev] * (p.age > 30 ? 0.6 : 1) * coachXpMult(league, p) * staffXpMult(league, p) * (0.6 + p.traits.work / 250);
-    const recover = { Light: 30, Normal: 22, Intense: 14 }[plan] + (byeTeams.has(p.team) ? 18 : 0) + (p.team === league.user && league.coachTree.unlocked.includes('Sports Science') ? 6 : 0) + (recovery[p.team] ??= recoveryEdge(league, p.team));
+    p.xp += practice * DEV_MULT[p.dev] * (p.age > 30 ? 0.6 : 1) * coachXpMult(league, p) * staffXpMult(league, p) * facilityXpMult(league, p.team) * (0.6 + p.traits.work / 250);
+    const recover = { Light: 30, Normal: 22, Intense: 14 }[plan] + (byeTeams.has(p.team) ? 18 : 0) + (p.team === league.user && league.coachTree.unlocked.includes('Sports Science') ? 6 : 0) + (recovery[p.team] ??= recoveryEdge(league, p.team) + facilityRecovery(league, p.team));
     p.cond = clamp(p.cond + recover, 0, 100);
     if (boost[p.team] ??= moraleBoost(league, p.team)) p.morale = clamp(p.morale + 1, 0, 100);
     if (plan === 'Intense' && rng.chance(0.004) && !p.injury) { p.injury = { type: 'Practice Strain', weeks: rng.int(2, 3) }; if (p.team === league.user) mail(league, 'Head Trainer', `${p.ln} hurt in practice`, `${p.fn} ${p.ln} strained a muscle in an intense practice and will miss ${p.injury.weeks} week(s).`); }

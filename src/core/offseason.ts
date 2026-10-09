@@ -17,6 +17,7 @@ import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff
 import { campHoldouts } from './holdout';
 import { rivalryOffseason } from './rivalry';
 import { openCamp, campState, settleBattle, protectedByUser } from './camp';
+import { facilityScouting, facilitiesOffseason } from './facilities';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
@@ -46,7 +47,8 @@ export function startOffseason(league: League) {
   // Picks and draft classes through 2032 (and always a few years ahead).
   league.picks = league.picks.filter(k => k.season >= league.season);
   ensureFuture(league);
-  league.scoutPoints += 300;
+  league.scoutPoints += 300 + facilityScouting(league);
+  facilitiesOffseason(league, prev);
   if (!Object.values(league.players).some(p => p.status === 'PROSPECT' && p.draft.year === league.season)) for (const p of generateClass(league, league.season)) league.players[p.id] = p;
   for (const p of Object.values(league.players)) { p.cond = 100; if (p.injury && !p.injury.season) p.injury = undefined; else if (p.injury) p.injury.weeks = Math.max(0, p.injury.weeks - 20); if (p.injury && p.injury.weeks <= 0) p.injury = undefined; }
   activateHealthy(league); // healed over the offseason: off injured reserve

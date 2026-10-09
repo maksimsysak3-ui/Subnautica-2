@@ -14,6 +14,7 @@ import { sideEdge, fans } from '../core/media';
 import { coachHas } from '../core/coaching';
 import { unitEdge, kickEdge, injuryShield } from '../core/staff';
 import { heat } from '../core/rivalry';
+import { facilityGameDay, facilityHomeEdge, facilityInjuryShield } from '../core/facilities';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
@@ -149,17 +150,18 @@ export class GameSim {
     }
     return v;
   }
-  private se = new Map<string, { off: number; def: number; kick: number; inj: number }>();
+  private se = new Map<string, { off: number; def: number; kick: number; inj: number; film: number; home: number; med: number }>();
   private staffOf(side: Side) {
     let e = this.se.get(side.abbr);
-    if (!e) { e = { off: unitEdge(this.league, side.abbr, 'OC'), def: unitEdge(this.league, side.abbr, 'DC'), kick: kickEdge(this.league, side.abbr), inj: injuryShield(this.league, side.abbr) }; this.se.set(side.abbr, e); }
+    if (!e) { e = { off: unitEdge(this.league, side.abbr, 'OC'), def: unitEdge(this.league, side.abbr, 'DC'), kick: kickEdge(this.league, side.abbr), inj: injuryShield(this.league, side.abbr), film: facilityGameDay(this.league, side.abbr), home: facilityHomeEdge(this.league, side.abbr), med: facilityInjuryShield(this.league, side.abbr) }; this.se.set(side.abbr, e); }
     return e;
   }
   /** Coordinators on game day; the special teams coach for kickers and punters. */
   private staffEdge(side: Side, p: Player, a: keyof Player['attrs']): number {
     const e = this.staffOf(side);
-    if (p.pos === 'K' || p.pos === 'P') return a === 'KPW' || a === 'KAC' ? e.kick : 0;
-    return side === this.sides[this.poss] ? e.off : e.def;
+    const fac = e.film + (side === this.sides[1] && !this.game.neutral ? e.home : 0);
+    if (p.pos === 'K' || p.pos === 'P') return fac + (a === 'KPW' || a === 'KAC' ? e.kick : 0);
+    return fac + (side === this.sides[this.poss] ? e.off : e.def);
   }
   private cu?: Set<string>;
   /** The user's coach tree on game day: situational bonuses from unlocked abilities. */
@@ -495,7 +497,7 @@ export class GameSim {
   private injure(side: Side, p: Player) {
     if (side.out.has(p.id)) return;
     if (side.abbr === this.league.user && coachHas(this.league, 'Iron Program') && this.rng.chance(0.25)) return;
-    const shield = this.staffOf(side).inj;
+    const shield = this.staffOf(side).inj + this.staffOf(side).med;
     if (shield > 0 && this.rng.chance(shield)) return;
     // Most knocks are minor: shaken up, or out for the game. Multi-week and
     // season-ending injuries are the exception.
