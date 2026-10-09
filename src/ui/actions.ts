@@ -13,6 +13,7 @@ import { pressOpen } from '../core/presser';
 import { treeOf, hasTree } from '../core/archetypes';
 import { staffOf, staffState } from '../core/staff';
 import { holdoutOf, fineHoldout } from '../core/holdout';
+import { storylines } from './storylines';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
 export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
@@ -463,7 +464,9 @@ export function weeklyCards(L: League): ActionCard[] {
   }
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
-  pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).slice(0, 2).forEach(c => out.push(c));
+  pool.push(...storylines({ L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) }));
+  // The curator below decides which of these actually reach the hub this week.
+  pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 
   // This week's opponent closes the row.
   const g = inSeason ? userGame(L) : undefined;
