@@ -13,17 +13,17 @@ import { DEV_MULT } from './ratings';
 export type Drill = 'install-off' | 'install-def' | 'red-zone' | 'two-minute' | 'ball' | 'pass-rush' | 'seven' | 'tackling' | 'walkthrough' | 'position' | 'youth';
 export type Pads = 'Shells' | 'Full Pads';
 export const DRILLS: Record<Drill, { name: string; icon: string; desc: string; unit: 'off' | 'def' | 'team' }> = {
-  'install-off': { name: 'Offensive Install', icon: '📋', desc: 'Game-plan the opponent\'s defense: offense sharper on Sunday.', unit: 'off' },
-  'install-def': { name: 'Defensive Install', icon: '🛡', desc: 'Game-plan their offense: defense sharper on Sunday.', unit: 'def' },
-  'red-zone': { name: 'Red Zone Period', icon: '🎯', desc: 'Tight-window throws and goal-line runs inside the twenty.', unit: 'off' },
-  'two-minute': { name: 'Two-Minute Drill', icon: '⏱', desc: 'Hurry-up operation for the end of halves.', unit: 'off' },
-  ball: { name: 'Ball Security', icon: '🏈', desc: 'Gauntlet and strip drills: fewer fumbles and interceptions.', unit: 'off' },
-  'pass-rush': { name: 'Pass Rush 1-on-1s', icon: '⚡', desc: 'Rushers against blockers: more pressure on Sunday.', unit: 'def' },
-  seven: { name: '7-on-7', icon: '↗', desc: 'Routes against coverage, no linemen: passing game and coverage both improve.', unit: 'team' },
-  tackling: { name: 'Tackling Circuit', icon: '✊', desc: 'Angles and wrap-ups: fewer broken tackles.', unit: 'def' },
-  walkthrough: { name: 'Walkthrough', icon: '🚶', desc: 'Helmets only. Mental reps, legs saved: extra recovery.', unit: 'team' },
-  position: { name: 'Position Drills', icon: '🎓', desc: 'Coaches work one position group: extra development for it.', unit: 'team' },
-  youth: { name: 'Development Reps', icon: '🌱', desc: 'Young players and backups get the reps: extra XP for players 25 and under.', unit: 'team' },
+  'install-off': { name: 'Offensive Install', icon: 'OI', desc: 'Game-plan the opponent\'s defense: offense sharper on Sunday.', unit: 'off' },
+  'install-def': { name: 'Defensive Install', icon: 'DI', desc: 'Game-plan their offense: defense sharper on Sunday.', unit: 'def' },
+  'red-zone': { name: 'Red Zone Period', icon: 'RZ', desc: 'Tight-window throws and goal-line runs inside the twenty.', unit: 'off' },
+  'two-minute': { name: 'Two-Minute Drill', icon: '2M', desc: 'Hurry-up operation for the end of halves.', unit: 'off' },
+  ball: { name: 'Ball Security', icon: 'BS', desc: 'Gauntlet and strip drills: fewer fumbles and interceptions.', unit: 'off' },
+  'pass-rush': { name: 'Pass Rush 1-on-1s', icon: 'PR', desc: 'Rushers against blockers: more pressure on Sunday.', unit: 'def' },
+  seven: { name: '7-on-7', icon: '7v7', desc: 'Routes against coverage, no linemen: passing game and coverage both improve.', unit: 'team' },
+  tackling: { name: 'Tackling Circuit', icon: 'TK', desc: 'Angles and wrap-ups: fewer broken tackles.', unit: 'def' },
+  walkthrough: { name: 'Walkthrough', icon: 'WT', desc: 'Helmets only. Mental reps, legs saved: extra recovery.', unit: 'team' },
+  position: { name: 'Position Drills', icon: 'PD', desc: 'Coaches work one position group: extra development for it.', unit: 'team' },
+  youth: { name: 'Development Reps', icon: 'DV', desc: 'Young players and backups get the reps: extra XP for players 25 and under.', unit: 'team' },
 };
 export const DAYS = ['Wednesday', 'Thursday', 'Friday'] as const;
 export interface Session { drill: Drill; pads: Pads; group?: Pos }

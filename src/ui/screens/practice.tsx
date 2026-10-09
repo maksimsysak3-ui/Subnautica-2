@@ -34,7 +34,7 @@ export function PracticeScreen() {
           <div className="pr-days">{DAYS.map((d, k) => { const s = w.sessions[k], dr = DRILLS[s.drill]; return (
             <button key={d} className={`pr-day${day === k ? ' on' : ''}`} onClick={() => setDay(k)}>
               <span className="pr-dn">{d}</span>
-              <i className="pr-ic">{dr.icon}</i>
+              <i className="pr-mono">{dr.icon}</i>
               <b>{dr.name}{s.drill === 'position' && s.group ? ` · ${s.group}` : ''}</b>
               <em>{dr.desc}</em>
               <div className="pr-pads" onClick={e => e.stopPropagation()}>{(['Shells', 'Full Pads'] as Pads[]).map(p => <span key={p} className={s.pads === p ? 'on' : ''} onClick={() => set(k, { pads: p })}>{p}</span>)}</div>
@@ -44,7 +44,7 @@ export function PracticeScreen() {
             <h3>{DAYS[day]}: choose the period</h3>
             <div className="pr-drills">{(Object.keys(DRILLS) as Drill[]).map(k => (
               <button key={k} className={`pr-drill${w.sessions[day].drill === k ? ' on' : ''}`} onClick={() => set(day, { drill: k, group: k === 'position' ? w.sessions[day].group ?? 'WR' : undefined })}>
-                <i>{DRILLS[k].icon}</i><b>{DRILLS[k].name}</b><span>{DRILLS[k].desc}</span>
+                <i className="pr-mono">{DRILLS[k].icon}</i><b>{DRILLS[k].name}</b><span>{DRILLS[k].desc}</span>
               </button>
             ))}</div>
             {w.sessions[day].drill === 'position' && <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: 'wrap' }}>{GROUPS.map(p => <span key={p} className={`chip${w.sessions[day].group === p ? ' on' : ''}`} title={POS_NAME[p]} onClick={() => set(day, { group: p })}>{p}</span>)}</div>}
@@ -55,7 +55,7 @@ export function PracticeScreen() {
         <div className="pr-report">
           {w.report.map((r, i) => (
             <div key={r.day} className="pr-rcard" style={{ animationDelay: `${i * 0.15}s` }}>
-              <span className="pr-dn">{r.day}</span><b>{DRILLS[r.drill].icon} {DRILLS[r.drill].name}</b>
+              <span className="pr-dn">{r.day}</span><b><i className="pr-mono sm">{DRILLS[r.drill].icon}</i>{DRILLS[r.drill].name}</b>
               <i className={`pr-grade g${r.grade[0]}`} style={{ animationDelay: `${0.3 + i * 0.15}s` }}>{r.grade}</i>
               <p>{r.note}</p>
               {r.star && <div className="pr-star"><span>Practice standout</span>{r.star}</div>}
