@@ -8,6 +8,7 @@ import { PlayDesigner, registerPlays, callFor } from '../playdesigner';
 import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
+import { commentary, newBooth, situationTag, ANALYST } from '../booth';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
   { name: 'Inside Zone', call: { kind: 'run', run: 'inside', name: 'Inside Zone' }, icon: '⬆', desc: 'Downhill between the tackles' },
@@ -37,6 +38,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const sim = simRef.current;
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
+  const booth = useRef(newBooth());
   const [anim, setAnim] = useState(false);
   const [coach, setCoach] = useState(true);
   const [pa, setPa] = useState(false);
@@ -102,7 +104,9 @@ export function GameScreen({ gid }: { gid: string }) {
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
               <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={ev?.big ? 'gold' : ''}>{ev?.text ?? 'Kickoff is moments away.'}</div>
+              {!finished && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
             </div>
+            {(() => { if (ev) commentary(L, sim, ev, booth.current); const recent = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n)); return recent ? <div className="bx-say" key={recent.n}><b>{ANALYST}</b><span>{booth.current.byN.get(recent.n)}</span></div> : null; })()}
           </div>
           {finished ? <FinalCard L={L} sim={sim} onContinue={finish} /> : needsCall ? (
             <div className="card">
@@ -129,7 +133,7 @@ export function GameScreen({ gid }: { gid: string }) {
             {box === 'Play-by-Play' && <div className="scroll" style={{ maxHeight: 340, border: 0 }}>{[...sim.events].reverse().slice(0, 120).map(e => (
               <div key={e.n} className="li" style={{ cursor: 'default', alignItems: 'flex-start' }}>
                 <Logo team={e.poss === 1 ? home : away} size={20} /><span className="small mute" style={{ width: 92, flex: 'none' }}>Q{Math.min(e.q, 5) === 5 ? 'OT' : e.q} {clock(e.clock)} {e.type !== 'kickoff' && e.type !== 'xp' && e.type !== 'two' ? `${['', '1st', '2nd', '3rd', '4th'][e.down] ?? ''}&${e.togo}` : ''}</span>
-                <span style={{ fontWeight: e.td || e.turnover ? 700 : 400, color: e.td ? 'var(--good)' : e.turnover ? 'var(--bad)' : undefined }}>{e.text}</span>
+                <span style={{ fontWeight: e.td || e.turnover ? 700 : 400, color: e.td ? 'var(--good)' : e.turnover ? 'var(--bad)' : undefined }}>{e.text}{booth.current.byN.get(e.n) ? <em className="bx-log">{booth.current.byN.get(e.n)}</em> : null}</span>
               </div>
             ))}</div>}
             {box === 'Box Score' && <LiveBox L={L} sim={sim} />}

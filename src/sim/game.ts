@@ -851,7 +851,7 @@ export class GameSim {
     if (res.td) {
       l.rtd++; this.zonePoint(off, carrier, 1);
       this.touchdown(this.poss, `${pn(carrier)} ${y}-yd run`);
-      return this.push({ type: 'run', text: `${pn(carrier)} runs ${runWord(oc, dir)} for ${y} yards, TOUCHDOWN!`, yards: y, endYl: 100, ids: { ball: carrier.id }, td: true, big: true, dir });
+      return this.push({ type: 'run', text: `${pn(carrier)} ${runWord(oc, dir)} for ${y} yards, TOUCHDOWN!`, yards: y, endYl: 100, ids: { ball: carrier.id }, td: true, big: true, dir });
     }
     return this.push({ type: 'run', text: `${pn(carrier)} ${runWord(oc, dir)} for ${y === 0 ? 'no gain' : y < 0 ? `a loss of ${-y}` : `${y} yard${y === 1 ? '' : 's'}`} (${pn(tackler)})${oob ? ', out of bounds' : ''}.${res.first ? ' First down.' : ''}`, yards: y, endYl: this.yl, ids: { ball: carrier.id, def: tackler.id }, big: y >= 15, dir });
   }
