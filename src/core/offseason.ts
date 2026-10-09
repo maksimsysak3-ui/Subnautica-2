@@ -15,6 +15,7 @@ import { news, mail, standings, REG_WEEKS, divisionOrder } from './season';
 import { runFreeAgencyDay, openFreeAgency } from './freeagency';
 import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff';
 import { campHoldouts } from './holdout';
+import { rivalryOffseason } from './rivalry';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
@@ -28,6 +29,7 @@ export function startOffseason(league: League) {
   const rng = new Rng(hash(`off-${league.seed}-${league.season}`));
   const prev = league.season;
   retirements(league, rng, prev);
+  rivalryOffseason(league);
   progression(league, rng, prev);
   coachingCarousel(league, rng, prev);
   // New league year.

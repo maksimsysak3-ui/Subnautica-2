@@ -1224,3 +1224,15 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 @keyframes slSlash { from { transform: scaleX(0); } }
 .sl.anim .sl-shine { animation: slShine 1.4s 1.2s ease-in-out both; }
 @keyframes slShine { from { transform: skewX(-18deg) translateX(0); } to { transform: skewX(-18deg) translateX(760px); } }
+.pt-heat { display: grid; gap: 6px; padding: 10px 18px; background: rgba(0,0,0,.45); animation: ptRow .5s cubic-bezier(.2,.9,.2,1) both; }
+.pt-heat span { text-align: center; font: 700 12px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: #ff8a5a; }
+.pt-heat i { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+.pt-heat em { display: block; height: 100%; background: linear-gradient(90deg, #ffd34d, #ff6a2a, #d7263d); box-shadow: 0 0 12px #ff6a2a; }
+.rv h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rv-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rv-tile { display: grid; grid-template-columns: auto 1fr 120px auto; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); cursor: pointer; }
+.rv-tile:hover { background: rgba(255,255,255,.06); }
+.rv-tile b { display: block; font: 700 18px var(--head); text-transform: uppercase; } .rv-tile span { font: 700 10.5px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: #ff8a5a; }
+.rv-tile i { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; } .rv-tile em { display: block; width: var(--h); height: 100%; background: linear-gradient(90deg, #ffd34d, #ff6a2a, #d7263d); }
+.rv-tile strong { font: 700 20px var(--head); color: #ff8a5a; }
+@media (max-width: 900px) { .rv-row { grid-template-columns: 1fr; } }

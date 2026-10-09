@@ -11,6 +11,7 @@ import { money } from '../../core/contracts';
 import type { League, Player } from '../../core/types';
 import { WeeklyCards } from './weekly';
 import { ownerGoals, goalProgress } from '../../core/goals';
+import { topRivals, heatLevel } from '../../core/rivalry';
 
 export function Hub() {
   const L = useApp().league!;
@@ -51,6 +52,14 @@ export function Hub() {
         <News L={L} />
       </div>
       <div className="card" style={{ gridColumn: 'span 4' }}><Leaders L={L} /></div>
+      <div className="card rv" style={{ gridColumn: 'span 12' }}>
+        <h3>Rivalries<span className="small mute">Close games, playoff knockouts and trash talk raise the heat</span></h3>
+        <div className="rv-row">{topRivals(L).map(({ t, h }) => (
+          <div key={t} className="rv-tile" style={{ '--h': `${h}%` } as CSSProperties} onClick={() => app.go({ id: 'team', team: t })}>
+            <Logo team={L.teams[t]} size={42} /><div><b>{L.teams[t].nick}</b><span>{heatLevel(h)}</span></div><i><em /></i><strong>{Math.round(h)}</strong>
+          </div>
+        ))}</div>
+      </div>
       <WeekScores L={L} />
     </div>
   );

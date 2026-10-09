@@ -13,6 +13,7 @@ import { teamRatings } from '../core/league';
 import { speak, voiceOn } from './voice';
 import { hash } from '../core/rng';
 import { ShowLogo, showMark } from './showlogo';
+import { heat, heatLevel } from '../core/rivalry';
 
 export const PLAY_BY_PLAY = 'Mike Dalton';
 const SHOW: Record<string, string> = { Thu: 'Thursday Night Football', Mon: 'Monday Night Football', SunN: 'Sunday Night Football', Sat: 'Saturday Showcase' };
@@ -28,6 +29,7 @@ export function showFor(L: League, g: Game): string | undefined {
   if (g.day === 'Sun' && hour < 11) return 'International Series';
   if (g.day === 'Wed' || g.day === 'Fri') return `${g.day === 'Wed' ? 'Wednesday' : 'Friday'} Night Football`;
   if (g.day === 'Sat') return SHOW.Sat;
+  if (heat(L, g.home, g.away) >= 55) return 'Rivalry Game';
   return undefined;
 }
 
@@ -102,6 +104,7 @@ export function PrimeIntro({ L, g, weather, onDone }: { L: League; g: Game; weat
         {([['Record', rec(away), rec(home)], ['Overall', ra.ovr, rh.ovr], ['Offense', Math.round(ra.off), Math.round(rh.off)], ['Defense', Math.round(ra.def), Math.round(rh.def)], ['Points / game', ppg(away), ppg(home)]] as const).map(([lbl, x, y], i) => (
           <div key={lbl} className="pt-row" style={{ animationDelay: `${i * 0.12}s` }}><b className="a">{x}</b><span>{lbl}</span><b className="h">{y}</b></div>
         ))}
+        {heat(L, g.home, g.away) >= 25 && <div className="pt-heat" style={{ animationDelay: '.7s' }}><span>Rivalry · {heatLevel(heat(L, g.home, g.away))}</span><i><em style={{ width: `${heat(L, g.home, g.away)}%` }} /></i></div>}
         <div className="pt-teams"><Logo team={away} size={44} /><span>{away.nick}</span><i /><span>{home.nick}</span><Logo team={home} size={44} /></div>
       </div>}
       <div className="pt-cap"><b>{PLAY_BY_PLAY}</b><span>{opener}</span></div>

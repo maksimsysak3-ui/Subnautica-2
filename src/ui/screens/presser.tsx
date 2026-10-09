@@ -14,6 +14,7 @@ import { pressContext, pressQuestions, readAnswer, answerOptions, type Answer, t
 import { applyEffects, media, promise, fans, teamMorale, fallout, type Applied } from '../../core/media';
 import { yearsLeft } from '../../core/contracts';
 import { coachSprites, lookOf, type CoachSprites } from '../coachlook';
+import { rivalryTrashTalk } from '../../core/rivalry';
 
 const RW = 160, RH = 90;
 const SKINS = ['#f1c7a5', '#e0ac85', '#c68863', '#9a6440', '#6e4428', '#4a2c1a'];
@@ -191,7 +192,7 @@ export function PresserScreen({ gid }: { gid: string }) {
     const applied = applyEffects(L, v.effects);
     const m = media(L);
     if (v.guarantee && ctx.next) { promise(L, { kind: 'guarantee', gid: ctx.next.gid, stake: 2, text: a.slice(0, 120) }); m.lastGuarantee = L.season * 100 + L.week; prior.current.recentGuarantee = true; }
-    if (v.tone.some(t => /trash/i.test(t)) && ctx.next) m.bulletin = ctx.next.abbr;
+    if (v.tone.some(t => /trash/i.test(t)) && ctx.next) { m.bulletin = ctx.next.abbr; rivalryTrashTalk(L, ctx.next.abbr); }
     if (v.fined) news(L, 'coach', `${ctx.coach} fined $${(50 + Math.round(Math.random() * 4) * 25)},000 for his post-game comments.`, [L.user]);
     if (v.headline) { news(L, 'coach', v.headline, [L.user], { big: !!v.guarantee }); setHeads(h => [...h, v.headline!]); }
     // What was said here comes back on the Weekly Hub.

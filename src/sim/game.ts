@@ -13,6 +13,7 @@ import { emptyLine } from '../core/league';
 import { sideEdge, fans } from '../core/media';
 import { coachHas } from '../core/coaching';
 import { unitEdge, kickEdge, injuryShield } from '../core/staff';
+import { heat } from '../core/rivalry';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB' }
@@ -64,6 +65,7 @@ export class GameSim {
   private pregameEdge: number;
   /** Game-day form: whole-team swing plus per-player swing scaled by consistency. */
   private teamForm: [number, number];
+  heat = 0;
   private form = new Map<string, number>();
   firstOtPoss: 0 | 1 | null = null;
 
@@ -79,7 +81,10 @@ export class GameSim {
     this.poss = (1 - winner) as 0 | 1;
     this.receivesSecondHalf = winner as 0 | 1;
     this.pregameEdge = 0;
-    this.teamForm = [this.rng.normal(0, 2.3) + sideEdge(league, game.away, game.home), this.rng.normal(0, 2.3) + sideEdge(league, game.home, game.away)];
+    // Rivalry heat: more volatile games, a louder building, short tempers.
+    this.heat = heat(league, game.home, game.away);
+    const sd = 2.3 * (1 + this.heat / 250);
+    this.teamForm = [this.rng.normal(0, sd) + sideEdge(league, game.away, game.home), this.rng.normal(0, sd) + sideEdge(league, game.home, game.away)];
   }
 
   // ---- personnel -----------------------------------------------------------------
@@ -116,7 +121,7 @@ export class GameSim {
     let f = this.form.get(p.id);
     if (f === undefined) { f = this.rng.normal(0, (100 - p.traits.cons) / 14); this.form.set(p.id, f); }
     v += f + this.teamForm[side === this.sides[0] ? 0 : 1];
-    if (side === this.sides[1] && !this.game.neutral) v += side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8;
+    if (side === this.sides[1] && !this.game.neutral) v += (side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8) + this.heat * 0.008;
     if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
     if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
@@ -715,7 +720,7 @@ export class GameSim {
     if (this.yl + gain > 100) gain = 100 - this.yl;
     // Offensive holding wipes out a gain sometimes.
     if (gain > 4 && this.rng.chance(0.03)) return this.penalty(true, 10, 'Offensive holding', this.rng.pick(o.ol), false);
-    if (this.rng.chance(0.009)) return this.penalty(false, 15, this.rng.pick(['Roughing the passer', 'Unnecessary roughness', 'Face mask']), this.rng.pick(d.dl), true);
+    if (this.rng.chance(0.009 * (1 + this.heat / 80))) return this.penalty(false, 15, this.rng.pick(['Roughing the passer', 'Unnecessary roughness', 'Face mask']), this.rng.pick(d.dl), true);
     if (this.rng.chance(0.034) && !hurried) return this.penalty(false, 5, this.rng.pick(['Defensive holding', 'Illegal contact']), cov ?? d.cbs[0], true);
     l.pc++; l.py += gain; l.plng = Math.max(l.plng, gain);
     const rl = this.L(recv); rl.rec++; rl.recy += gain; rl.reclng = Math.max(rl.reclng, gain);
@@ -831,7 +836,7 @@ export class GameSim {
     if (this.yl + y > 100) y = 100 - this.yl;
     // Holding on a run that gained something.
     if (y > 3 && this.rng.chance(0.034)) return this.penalty(true, 10, 'Offensive holding', this.rng.pick(o.ol), false);
-    if (this.rng.chance(0.006)) return this.penalty(false, 15, this.rng.pick(['Unnecessary roughness', 'Face mask']), this.rng.pick(front), true);
+    if (this.rng.chance(0.006 * (1 + this.heat / 80))) return this.penalty(false, 15, this.rng.pick(['Unnecessary roughness', 'Face mask']), this.rng.pick(front), true);
     const l = this.L(carrier); l.ra++; l.ry += y; l.rlng = Math.max(l.rlng, y);
     this.box[this.poss].ryds += y; this.box[this.poss].yds += y;
     const tacklers = front.concat(d.ss, d.cbs).filter(Boolean);

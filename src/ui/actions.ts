@@ -14,6 +14,7 @@ import { treeOf, hasTree } from '../core/archetypes';
 import { staffOf, staffState } from '../core/staff';
 import { holdoutOf, fineHoldout } from '../core/holdout';
 import { storylines } from './storylines';
+import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
 export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
@@ -241,9 +242,9 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // Rivalry week.
   if (opp && L.phase === 'regular' && opp.conf === me.conf && opp.div === me.div && m.bulletin !== opp.abbr) add({ id: `rival-${nextG!.id}`, kind: 'Rivalry', feature: true, headline: `How do you handle ${opp.nick} week?`, team: opp,
-    body: `Division games count double in the standings race, and this rivalry runs deep. How you set the tone this week matters.`,
+    body: (() => { const h = heat(L, L.user, opp.abbr), last = L.games.filter(x => x.result && ((x.home === L.user && x.away === opp.abbr) || (x.away === L.user && x.home === opp.abbr))).sort((a, b) => b.season - a.season || b.week - a.week)[0]; const us = last ? (last.home === L.user ? last.result!.hs : last.result!.as) : 0, them = last ? (last.home === L.user ? last.result!.as : last.result!.hs) : 0; return `Rivalry heat: ${heatLevel(h)} (${Math.round(h)}). ${last ? `Last meeting: ${us > them ? 'you won' : us < them ? 'they won' : 'a tie'}, ${us}-${them}${last.week > 18 ? ' in the playoffs' : ''}.` : 'Division games count double in the standings race.'} How you set the tone this week matters.`; })(),
     choices: [
-      { label: 'Fire Up the Room', hint: 'Momentum +1.2 · Fans +2 · gives the ' + opp.nick + ' bulletin-board material', run: () => { m.bulletin = opp.abbr; resolve(L, `rival-${nextG!.id}`); return fx({ momentum: 1.2, fans: 2 }); } },
+      { label: 'Fire Up the Room', hint: 'Momentum +1.2 · Fans +2 · gives the ' + opp.nick + ' bulletin-board material', run: () => { m.bulletin = opp.abbr; rivalryTrashTalk(L, opp.abbr); resolve(L, `rival-${nextG!.id}`); return fx({ momentum: 1.2, fans: 2 }); } },
       { label: 'Business as Usual', hint: 'Momentum +0.4', run: () => { resolve(L, `rival-${nextG!.id}`); return fx({ momentum: 0.4 }); } },
     ],
     delegate: { who: hc, role: 'Head Coach', quote: `Same preparation as any week. We'll be ready.`, run: () => { resolve(L, `rival-${nextG!.id}`); fx({ momentum: 0.4 }); } } });
