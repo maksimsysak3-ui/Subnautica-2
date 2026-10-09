@@ -9,6 +9,8 @@ import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
+import { canSpeak, speak } from '../voice';
+import { PrimeIntro, showFor } from '../primetime';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
   { name: 'Inside Zone', call: { kind: 'run', run: 'inside', name: 'Inside Zone' }, icon: '⬆', desc: 'Downhill between the tackles' },
@@ -39,6 +41,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
   const booth = useRef(newBooth());
+  const [intro, setIntro] = useState(() => !!showFor(L, game) && sim.events.length === 0);
   const [anim, setAnim] = useState(false);
   const [coach, setCoach] = useState(true);
   const [pa, setPa] = useState(false);
@@ -66,7 +69,7 @@ export function GameScreen({ gid }: { gid: string }) {
   };
   // Auto-advance for "watch" and sim modes.
   useEffect(() => {
-    if (anim || finished) return;
+    if (intro || anim || finished) return;
     const mode = auto.current;
     if (!mode && (coach && !sim.pending)) return;
     if (!mode && !coach) { const t = setTimeout(() => step(), 350); return () => clearTimeout(t); }
@@ -109,6 +112,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const posTeam = sim.poss === 1 ? home : away;
   return (
     <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
+      {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
       <Scorebug L={L} sim={sim} />
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
@@ -277,25 +281,3 @@ function FinalCard({ L, sim, onContinue }: { L: League; sim: GameSim; onContinue
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 const down = (sim: GameSim) => `${['', '1st', '2nd', '3rd', '4th'][sim.down]} & ${sim.yl + sim.togo >= 100 ? 'Goal' : sim.togo}`;
 
-// ---- commentary voice (browser speech synthesis) ----------------------------------------------
-const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
-let voice: SpeechSynthesisVoice | null | undefined;
-function pickVoice() {
-  if (voice !== undefined) return voice;
-  const vs = speechSynthesis.getVoices();
-  if (!vs.length) return null;
-  const en = vs.filter(v => /^en(-|_)/i.test(v.lang));
-  // A natural-sounding US English voice if there is one, preferring male broadcast-style voices.
-  voice = en.find(v => /natural|neural|premium|enhanced/i.test(v.name) && /en-US/i.test(v.lang)) ?? en.find(v => /(guy|davis|tony|aaron|alex|daniel|fred|male)/i.test(v.name)) ?? en.find(v => /en-US/i.test(v.lang)) ?? en[0] ?? null;
-  return voice;
-}
-function speak(text: string) {
-  if (!canSpeak) return;
-  try {
-    speechSynthesis.cancel();   // never queue up stale lines behind the play
-    const u = new SpeechSynthesisUtterance(text.replace(/([A-Z])\. /g, '$1 '));
-    const v = pickVoice(); if (v) u.voice = v;
-    u.rate = 1.07; u.pitch = 0.92; u.volume = 1;
-    speechSynthesis.speak(u);
-  } catch { /* speech unavailable */ }
-}
