@@ -6,7 +6,7 @@
 import type { League, Player, Pos, Team } from '../core/types';
 import { yearsLeft, apy, marketValue, money } from '../core/contracts';
 import { autoDepth, rosterOf, teamRatings, markDepth, unmarkDepth } from '../core/league';
-import { userGame, standings } from '../core/season';
+import { userGame, standings, mail } from '../core/season';
 import { hash } from '../core/rng';
 import { media, applyEffects, promise, fans, teamMorale, fallout, liveFallout } from '../core/media';
 import { pressOpen } from '../core/presser';
@@ -470,5 +470,51 @@ export function weeklyCards(L: League): ActionCard[] {
   }
   // What you said at the podium leads the row; the opponent card closes it.
   const rank = (c: ActionCard) => (c.matchup ? 9 : ['Fallout', 'League Office'].includes(c.kind) ? 0 : c.kind === 'Media' ? 1 : 5);
-  return out.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(x => x.c);
+  return curate(L, wk, out).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(x => x.c);
+}
+
+// ---- the weekly deck ------------------------------------------------------------------------
+// Every situation above can exist for weeks on end; showing all of them every week made the
+// hub a wall of the same nine questions. The curator picks a short deck instead: the
+// matchup, anything urgent, and at most three other decisions, favouring kinds and players
+// you haven't heard about lately. A card can't come back for a few weeks after it's shown,
+// and one you skip twice is handled by your staff (their default call) so it stops nagging.
+const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline']);
+const DECK_SIZE = 3;
+interface DeckMemory { wk: string; ids: string[]; idx: number; shown: Record<string, number>; seenAt: Record<string, number>; kindAt: Record<string, number>; pidAt: Record<string, number> }
+const deckMem = (L: League) => ((L as League & { actionDeck?: DeckMemory }).actionDeck ??= { wk: '', ids: [], idx: 0, shown: {}, seenAt: {}, kindAt: {}, pidAt: {} });
+
+function curate(L: League, wk: string, out: ActionCard[]): ActionCard[] {
+  const m = deckMem(L);
+  if (m.wk !== wk) {
+    m.wk = wk; m.idx++;
+    // Cards skipped twice: the staff takes them.
+    const handled: string[] = [];
+    for (const c of out) {
+      if (c.matchup || URGENT.has(c.kind) || (m.shown[c.id] ?? 0) < 2) continue;
+      if (c.delegate) { c.delegate.run(); handled.push(`${c.headline} — ${c.delegate.who} (${c.delegate.role}): "${c.delegate.quote}"`); }
+      resolve(L, c.id);
+    }
+    if (handled.length) mail(L, 'Front Office', `Your staff handled ${handled.length} open item${handled.length > 1 ? 's' : ''}`, handled.join('\n'));
+    const live = out.filter(c => !done(L).includes(c.id));
+    const ago = (at: number | undefined) => (at === undefined ? 99 : m.idx - at);
+    const score = (c: ActionCard) => {
+      if (c.kind === 'Coach Tree' && (L.coachTree.points < 3 || ago(m.kindAt[c.kind]) < 4)) return -1;
+      if (ago(m.seenAt[c.id]) < 4) return -1;                 // just saw this exact card
+      if (c.p && ago(m.pidAt[c.p.id]) < 2) return -1;         // his storyline needs a rest
+      const novelty = Math.min(8, ago(m.kindAt[c.kind]));
+      return (c.feature ? 2 : 0) + novelty + ((hash(`${wk}-${c.id}`) >>> 0) % 100) / 40;
+    };
+    const keep = live.filter(c => c.matchup || URGENT.has(c.kind));
+    const kinds = new Set<string>(), pids = new Set<string>();
+    for (const { c } of live.filter(c => !c.matchup && !URGENT.has(c.kind)).map(c => ({ c, v: score(c) })).filter(x => x.v >= 0).sort((a, b) => b.v - a.v)) {
+      if (keep.filter(k => !k.matchup && !URGENT.has(k.kind)).length >= DECK_SIZE) break;
+      if (kinds.has(c.kind) || (c.p && pids.has(c.p.id))) continue;   // one of each kind, one per player
+      keep.push(c); kinds.add(c.kind); if (c.p) pids.add(c.p.id);
+    }
+    m.ids = keep.map(c => c.id);
+    for (const c of keep) { m.shown[c.id] = (m.shown[c.id] ?? 0) + 1; m.seenAt[c.id] = m.idx; m.kindAt[c.kind] = m.idx; if (c.p && !c.matchup) m.pidAt[c.p.id] = m.idx; }
+  }
+  // Within the week the deck is fixed; urgent cards that appear mid-week (press fallout) join it.
+  return out.filter(c => m.ids.includes(c.id) || URGENT.has(c.kind));
 }

@@ -736,7 +736,7 @@ export class GameSim {
       this.zonePoint(off, qb, 1); this.zonePoint(off, recv, 1);
       if (cov) this.knockout(def, cov);
       this.touchdown(this.poss, `${pn(recv)} ${gain}-yd pass from ${pn(qb)}`);
-      return this.push({ type: 'pass', text: `${qbN(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} for ${gain} yards, TOUCHDOWN!`, yards: gain, endYl: 100, ids: { qb: qb?.id, target: recv.id }, air, complete: true, td: true, big: true, dir });
+      return this.push({ type: 'pass', text: `${qbN(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} for ${gain} yard${gain === 1 ? '' : 's'}, TOUCHDOWN!`, yards: gain, endYl: 100, ids: { qb: qb?.id, target: recv.id }, air, complete: true, td: true, big: true, dir });
     }
     return this.push({ type: 'pass', text: `${qbN(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} for ${gain} yard${gain === 1 ? '' : 's'}${tackler ? ` (${pn(tackler)})` : ''}${oob ? ', out of bounds' : ''}.${res.first ? ' First down.' : ''}`, yards: gain, endYl: this.yl, ids: { qb: qb?.id, target: recv.id, def: tackler?.id }, air, complete: true, big: gain >= 20, dir });
   }
@@ -794,7 +794,7 @@ export class GameSim {
     const oob = !res.td && this.rng.chance(0.3);
     this.lastClockRunning = !oob;
     this.runoff(6);
-    if (res.td) { l.rtd++; this.touchdown(this.poss, `${pn(qb)} ${y}-yd run`); return this.push({ type: 'scramble', text: `${pn(qb)} escapes the pocket and scrambles ${y} yards for a TOUCHDOWN!`, yards: y, endYl: 100, ids: { qb: qb.id, ball: qb.id }, td: true, big: true }); }
+    if (res.td) { l.rtd++; this.touchdown(this.poss, `${pn(qb)} ${y}-yd run`); return this.push({ type: 'scramble', text: `${pn(qb)} escapes the pocket and scrambles ${y} yard${y === 1 ? '' : 's'} for a TOUCHDOWN!`, yards: y, endYl: 100, ids: { qb: qb.id, ball: qb.id }, td: true, big: true }); }
     return this.push({ type: 'scramble', text: `${pn(qb)} scrambles for ${y} yards${slide && y > 0 ? ' and slides' : ''}.${res.first ? ' First down.' : ''}`, yards: y, endYl: this.yl, ids: { qb: qb.id, ball: qb.id }, big: y >= 15 });
   }
 
@@ -851,7 +851,7 @@ export class GameSim {
     if (res.td) {
       l.rtd++; this.zonePoint(off, carrier, 1);
       this.touchdown(this.poss, `${pn(carrier)} ${y}-yd run`);
-      return this.push({ type: 'run', text: `${pn(carrier)} ${runWord(oc, dir)} for ${y} yards, TOUCHDOWN!`, yards: y, endYl: 100, ids: { ball: carrier.id }, td: true, big: true, dir });
+      return this.push({ type: 'run', text: `${pn(carrier)} ${runWord(oc, dir)} for ${y} yard${y === 1 ? '' : 's'}, TOUCHDOWN!`, yards: y, endYl: 100, ids: { ball: carrier.id }, td: true, big: true, dir });
     }
     return this.push({ type: 'run', text: `${pn(carrier)} ${runWord(oc, dir)} for ${y === 0 ? 'no gain' : y < 0 ? `a loss of ${-y}` : `${y} yard${y === 1 ? '' : 's'}`} (${pn(tackler)})${oob ? ', out of bounds' : ''}.${res.first ? ' First down.' : ''}`, yards: y, endYl: this.yl, ids: { ball: carrier.id, def: tackler.id }, big: y >= 15, dir });
   }

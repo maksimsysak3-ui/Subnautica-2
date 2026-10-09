@@ -92,6 +92,19 @@ export function GameScreen({ gid }: { gid: string }) {
     app.replace({ id: 'box', gid: game.id });
   });
   const wp = useMemo(() => sim.events.filter(e => e.wp !== undefined).map(e => e.wp!), [sim.events.length]);
+  // The booth: the latest line from the last few snaps, read aloud if the voice is on.
+  if (last) commentary(L, sim, last, booth.current);
+  const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n));
+  const recentSay = recentEv ? { n: recentEv.n, text: booth.current.byN.get(recentEv.n)! } : null;
+  const [voiceOn, setVoiceOn] = useState(() => { try { return localStorage.getItem('gg-voice') === '1'; } catch { return false; } });
+  const spoken = useRef(-1);
+  useEffect(() => {
+    if (!voiceOn || !recentSay || spoken.current === recentSay.n || auto.current && auto.current !== 'watch') return;
+    spoken.current = recentSay.n;
+    speak(recentSay.text);
+  }, [voiceOn, recentSay?.n]);
+  useEffect(() => () => { try { speechSynthesis.cancel(); } catch { /* no speech support */ } }, []);
+  const toggleVoice = () => { const v = !voiceOn; setVoiceOn(v); try { localStorage.setItem('gg-voice', v ? '1' : '0'); } catch { /* storage blocked */ } if (!v) { try { speechSynthesis.cancel(); } catch { /* none */ } } else if (recentSay) { spoken.current = recentSay.n; speak(recentSay.text); } };
   const ev = last;
   const posTeam = sim.poss === 1 ? home : away;
   return (
@@ -104,9 +117,9 @@ export function GameScreen({ gid }: { gid: string }) {
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
               <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={ev?.big ? 'gold' : ''}>{ev?.text ?? 'Kickoff is moments away.'}</div>
-              {!finished && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
+              {!finished && !ev?.td && ev?.type !== 'xp' && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
             </div>
-            {(() => { if (ev) commentary(L, sim, ev, booth.current); const recent = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n)); return recent ? <div className="bx-say" key={recent.n}><b>{ANALYST}</b><span>{booth.current.byN.get(recent.n)}</span></div> : null; })()}
+            {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span>{voiceOn && <i className="bx-mic" title="Voice on">🔊</i>}</div> : null}
           </div>
           {finished ? <FinalCard L={L} sim={sim} onContinue={finish} /> : needsCall ? (
             <div className="card">
@@ -150,6 +163,7 @@ export function GameScreen({ gid }: { gid: string }) {
               <button className="btn" disabled={finished} onClick={() => { auto.current = 'end'; force(x => x + 1); }}>Sim to End</button>
               <button className="btn" onClick={() => app.replace({ id: 'hub' })}>Leave (save later)</button>
             </div>
+            {canSpeak && <button className={`btn sm bx-voice${voiceOn ? ' on' : ''}`} style={{ marginTop: 10, width: '100%' }} onClick={toggleVoice}>{voiceOn ? '🔊 Commentary voice on' : '🔈 Turn on commentary voice'}</button>}
             <div className="small dim" style={{ marginTop: 10 }}>{sim.weather.dome ? 'Indoors' : `${sim.weather.temp}°F · wind ${sim.weather.wind} mph${sim.weather.precip !== 'none' ? ` · ${sim.weather.precip}` : ''}`} · {game.neutral ?? home.stadium}</div>
           </div>
           <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} /></div>
@@ -262,3 +276,26 @@ function FinalCard({ L, sim, onContinue }: { L: League; sim: GameSim; onContinue
 }
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 const down = (sim: GameSim) => `${['', '1st', '2nd', '3rd', '4th'][sim.down]} & ${sim.yl + sim.togo >= 100 ? 'Goal' : sim.togo}`;
+
+// ---- commentary voice (browser speech synthesis) ----------------------------------------------
+const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
+let voice: SpeechSynthesisVoice | null | undefined;
+function pickVoice() {
+  if (voice !== undefined) return voice;
+  const vs = speechSynthesis.getVoices();
+  if (!vs.length) return null;
+  const en = vs.filter(v => /^en(-|_)/i.test(v.lang));
+  // A natural-sounding US English voice if there is one, preferring male broadcast-style voices.
+  voice = en.find(v => /natural|neural|premium|enhanced/i.test(v.name) && /en-US/i.test(v.lang)) ?? en.find(v => /(guy|davis|tony|aaron|alex|daniel|fred|male)/i.test(v.name)) ?? en.find(v => /en-US/i.test(v.lang)) ?? en[0] ?? null;
+  return voice;
+}
+function speak(text: string) {
+  if (!canSpeak) return;
+  try {
+    speechSynthesis.cancel();   // never queue up stale lines behind the play
+    const u = new SpeechSynthesisUtterance(text.replace(/([A-Z])\. /g, '$1 '));
+    const v = pickVoice(); if (v) u.voice = v;
+    u.rate = 1.07; u.pitch = 0.92; u.volume = 1;
+    speechSynthesis.speak(u);
+  } catch { /* speech unavailable */ }
+}

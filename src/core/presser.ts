@@ -10,7 +10,7 @@ import { Rng, hash } from './rng';
 import { standings, userGame } from './season';
 import type { Effects } from './media';
 
-export type Topic = 'open' | 'qb' | 'star' | 'goat' | 'injury' | 'streak' | 'pressure' | 'next' | 'playoff' | 'refs' | 'follow';
+export type Topic = 'open' | 'qb' | 'star' | 'goat' | 'injury' | 'streak' | 'pressure' | 'next' | 'playoff' | 'refs' | 'defense' | 'ground' | 'follow';
 export interface Question { reporter: string; outlet: string; text: string; topic: Topic; pid?: string; follow?: boolean }
 export interface PressCtx {
   gid: string; won: boolean; tied: boolean; us: string; them: string; usPts: number; themPts: number; ot: boolean;
@@ -18,7 +18,7 @@ export interface PressCtx {
   qb?: { p: Player; l: Partial<StatLine> }; stars: { p: Player; l: Partial<StatLine>; why: string }[];
   goat?: { p: Player; l: Partial<StatLine>; why: string }; hurt: Player[];
   next?: { abbr: string; gid: string; division: boolean };
-  coach: string; pens: number; turnovers: number;
+  coach: string; pens: number; turnovers: number; sacks: number; takeaways: number; rushYds: number;
 }
 export interface Verdict { reaction: string; tone: string[]; effects: Effects; headline?: string; followup?: string; guarantee?: boolean; fined?: boolean }
 
@@ -66,6 +66,7 @@ export function pressContext(L: League, g: Game): PressCtx {
     qb: qb && (qb.l.pa ?? 0) >= 10 ? qb : undefined, stars, goat, hurt,
     next: nxt ? { abbr: nxt.home === us ? nxt.away : nxt.home, gid: nxt.id, division: div(us, nxt.home === us ? nxt.away : nxt.home) } : undefined,
     coach: L.teams[us].coach.name, pens: box?.pen ?? 0, turnovers: box?.to ?? 0,
+    sacks: ours.reduce((a, x) => a + (x.l.dsk ?? 0), 0), takeaways: ours.reduce((a, x) => a + (x.l.dint ?? 0) + (x.l.fr ?? 0), 0), rushYds: ours.reduce((a, x) => a + (x.l.ry ?? 0), 0),
   };
 }
 
@@ -86,31 +87,32 @@ export function pressQuestions(L: League, c: PressCtx): Question[] {
       : [`Coach, a ${score} win over the ${T.nick}. What did you like most out there?`])
     : pick(m >= 17 ? [`Coach, ${score}. That's about as ugly as it gets. What happened?`, `A ${m}-point loss to the ${T.nick}. Was your team ready to play today?`]
       : [`Coach, ${score} to the ${T.nick}. What was the difference in the game?`, `Close one slipped away, ${score}. What do you take from that?`]) });
-  // 2. Quarterback.
+  // The rest: whatever this game was about, in a different order each week.
+  const pool: Question[] = [];
   if (c.qb) {
     const l = c.qb.l, rt = rating(l), p = c.qb.p;
-    if ((l.pint ?? 0) >= 2) q.push({ ...who(), topic: 'qb', pid: p.id, text: `${p.ln} threw ${l.pint} interceptions today. Is he still your guy under center?` });
-    else if (rt >= 105 && (l.py ?? 0) >= 220) q.push({ ...who(), topic: 'qb', pid: p.id, text: `${p.fn} ${p.ln} went ${l.pc}-for-${l.pa}, ${l.py} yards and ${l.ptd} touchdown${l.ptd === 1 ? '' : 's'}. Have you ever seen him play better?` });
-    else if (rt < 70) q.push({ ...who(), topic: 'qb', pid: p.id, text: `It was a rough day for ${p.ln}, ${l.pc}-for-${l.pa} for ${l.py} yards. What's going on with your quarterback?` });
+    if ((l.pint ?? 0) >= 2) pool.push({ ...who(), topic: 'qb', pid: p.id, text: pick([`${p.ln} threw ${l.pint} interceptions today. Is he still your guy under center?`, `${l.pint} picks from ${p.ln}. At what point do you consider a change?`, `Coach, what did you say to ${p.ln} after those interceptions?`]) });
+    else if (rt >= 105 && (l.py ?? 0) >= 220) pool.push({ ...who(), topic: 'qb', pid: p.id, text: pick([`${p.fn} ${p.ln} went ${l.pc}-for-${l.pa}, ${l.py} yards and ${l.ptd} touchdown${l.ptd === 1 ? '' : 's'}. Have you ever seen him play better?`, `${l.py} yards and ${l.ptd} scores for ${p.ln}. Is he the best quarterback in the league right now?`, `What's clicking for ${p.ln}? He looked unstoppable out there.`]) });
+    else if (rt < 70) pool.push({ ...who(), topic: 'qb', pid: p.id, text: pick([`It was a rough day for ${p.ln}, ${l.pc}-for-${l.pa} for ${l.py} yards. What's going on with your quarterback?`, `${p.ln} never got comfortable today. Is it him or the protection?`]) });
   }
-  // 3. Star of the game.
   const s = c.stars[0];
-  if (s) q.push({ ...who(), topic: 'star', pid: s.p.id, text: pick([`${s.p.fn} ${s.p.ln} with ${s.why}. Is he getting the national recognition he deserves?`, `Talk about ${s.p.ln}: ${s.why} today. What makes him so hard to stop?`]) });
-  // 4. The goat.
-  if (c.goat) q.push({ ...who(), topic: 'goat', pid: c.goat.p.id, text: `${c.goat.p.ln} had ${c.goat.why}. Will there be consequences this week?` });
-  // 5. Injury.
-  if (c.hurt[0]) q.push({ ...who(), topic: 'injury', pid: c.hurt[0].id, text: `Any update on ${c.hurt[0].fn} ${c.hurt[0].ln}? How do you replace him?` });
-  // 6. The streak, or the hot seat.
+  if (s) pool.push({ ...who(), topic: 'star', pid: s.p.id, text: pick([`${s.p.fn} ${s.p.ln} with ${s.why}. Is he getting the national recognition he deserves?`, `Talk about ${s.p.ln}: ${s.why} today. What makes him so hard to stop?`, `${s.why} for ${s.p.ln}. Did you see that coming this week?`, `Where does ${s.p.ln}'s day rank among the best you've seen from him?`]) });
+  if (c.goat) pool.push({ ...who(), topic: 'goat', pid: c.goat.p.id, text: pick([`${c.goat.p.ln} had ${c.goat.why}. Will there be consequences this week?`, `${c.goat.why} from ${c.goat.p.ln}. Does he keep his job on Sunday?`, `What do you say to ${c.goat.p.ln} after ${c.goat.why}?`]) });
+  if (c.hurt[0]) pool.push({ ...who(), topic: 'injury', pid: c.hurt[0].id, text: pick([`Any update on ${c.hurt[0].fn} ${c.hurt[0].ln}? How do you replace him?`, `How long is ${c.hurt[0].ln} out, and who steps in?`, `Losing ${c.hurt[0].ln} hurts. What changes without him?`]) });
+  if (c.sacks >= 4 || c.takeaways >= 3) pool.push({ ...who(), topic: 'defense', text: pick([`${c.sacks >= 4 ? `${c.sacks} sacks` : `${c.takeaways} takeaways`} today. Is this the best your defense has played?`, `Your defense took over the game. What changed this week?`, `Coach, ${c.takeaways} takeaways and ${c.sacks} sacks. Is this a top-five defense?`]) });
+  if (c.rushYds >= 170) pool.push({ ...who(), topic: 'ground', text: pick([`${c.rushYds} rushing yards. Was the plan to run it down their throats?`, `Your line dominated today: ${c.rushYds} yards on the ground. What did you see in their front?`]) });
   if (!c.playoff) {
-    if (c.streak >= 3) q.push({ ...who(), topic: 'streak', text: `That's ${c.streak} straight. At ${c.record}, is this the team to beat?` });
-    else if (c.streak <= -3) q.push({ ...who(), topic: 'pressure', text: `${-c.streak} losses in a row and the fans are booing. Do you feel your job is in danger?` });
-    else if (L.security < 35) q.push({ ...who(), topic: 'pressure', text: `There are reports ownership is losing patience. Have you spoken to them?` });
+    if (c.streak >= 3) pool.push({ ...who(), topic: 'streak', text: pick([`That's ${c.streak} straight. At ${c.record}, is this the team to beat?`, `${c.streak} wins in a row. Are you starting to think about January?`, `At ${c.record}, people are calling you contenders. Are they right?`]) });
+    else if (c.streak <= -3) pool.push({ ...who(), topic: 'pressure', text: pick([`${-c.streak} losses in a row and the fans are booing. Do you feel your job is in danger?`, `${-c.streak} straight losses. What do you say to the fans who want changes?`, `Is this locker room still with you after ${-c.streak} straight losses?`]) });
+    else if (L.security < 35) pool.push({ ...who(), topic: 'pressure', text: pick([`There are reports ownership is losing patience. Have you spoken to them?`, `Do you have the owner's support right now?`]) });
   }
-  if (c.pens >= 9) q.push({ ...who(), topic: 'refs', text: `${c.pens} penalties today. Is that discipline, or did the officials have a bad day?` });
-  // 7. Next week.
-  if (c.next && !(c.playoff && !c.won)) {
+  if (c.pens >= 9) pool.push({ ...who(), topic: 'refs', text: pick([`${c.pens} penalties today. Is that discipline, or did the officials have a bad day?`, `${c.pens} flags. Are you going to send tape to the league?`]) });
+  rng.shuffle(pool);
+  q.push(...pool.slice(0, 3));
+  // Next week, most weeks.
+  if (c.next && !(c.playoff && !c.won) && (c.playoff || c.next.division || rng.chance(0.65) || q.length < 3)) {
     const N = L.teams[c.next.abbr];
-    q.push({ ...who(), topic: c.playoff ? 'playoff' : 'next', text: c.playoff ? `Next up in the playoffs: the ${N.name}. What's your message to them?` : c.next.division ? `Division rival ${N.nick} next week. Anything you want to say to them?` : `The ${N.name} are next. What concerns you about them?` });
+    q.push({ ...who(), topic: c.playoff ? 'playoff' : 'next', text: c.playoff ? pick([`Next up in the playoffs: the ${N.name}. What's your message to them?`, `The ${N.nick} are next, win or go home. What worries you?`]) : c.next.division ? pick([`Division rival ${N.nick} next week. Anything you want to say to them?`, `It's ${N.nick} week. Does this one mean more?`]) : pick([`The ${N.name} are next. What concerns you about them?`, `What's the key against the ${N.nick} next week?`, `How do you see the ${N.nick} matchup?`]) });
   }
   return q.slice(0, 5);
 }
@@ -232,78 +234,91 @@ export interface Answer { text: string; tone: string }
 /** Four answers for this question, each a different stance with different consequences. */
 export function answerOptions(L: League, c: PressCtx, q: Question): Answer[] {
   const p = q.pid ? L.players[q.pid] : undefined, ln = p?.ln ?? 'him';
-  const nxt = c.next ? L.teams[c.next.abbr].nick : 'them';
-  const A = (tone: string, text: string): Answer => ({ tone, text });
+  const nxt = c.next ? L.teams[c.next.abbr].nick : 'them', opp = L.teams[c.them].nick;
+  // Several wordings per tone; each game picks its own, so the podium never reads the same twice.
+  const A = (tone: string, ...texts: string[]): Answer => ({ tone, text: texts[(hash(`${c.gid}-${q.topic}-${tone}`) >>> 0) % texts.length] });
   switch (q.topic) {
     case 'open': return c.won || c.tied ? [
-      A('Praise', `I'm proud of these guys. The whole roster stepped up today, and the credit goes to them.`),
-      A('Fans', `Our fans were incredible today. This city deserves wins like that.`),
-      A('Swagger', `Honestly? We're the best team in this league and nobody can stop us when we play like that.`),
-      A('Accountable', `We left plays out there. I need to coach better and we have to improve before next week.`),
+      A('Praise', `I'm proud of these guys. The whole roster stepped up today, and the credit goes to them.`, `Credit to the players. They stepped up in every phase and I'm proud of them.`, `That was special. I love how this group competed for sixty minutes.`, `Our leaders stepped up today. I'm proud of every guy in that locker room.`),
+      A('Fans', `Our fans were incredible today. This city deserves wins like that.`, `Thank you to the fans. That crowd gave us a real edge out there.`, `This city showed up today, and the fans carried us in the fourth quarter.`, `I want to thank our fans. The crowd was rocking from the first snap.`),
+      A('Swagger', `Honestly? We're the best team in this league and nobody can stop us when we play like that.`, `When we play like that, nobody can stop us. Simple as that.`, `We're the best team in football. Teams can't stop this offense when it's rolling.`),
+      A('Accountable', `We left plays out there. I need to coach better and we have to improve before next week.`, `We won, but we have to get better. I need to clean up a lot of my own decisions.`, `A win's a win, but we left plays out there. We have to improve, and that's my job.`),
     ] : [
-      A('Accountable', `That's on me. I have to coach better, and we will learn from it.`),
-      A('Calls out', `That was unacceptable. Sloppy football from everybody, and it will not continue.`),
-      A('Blames refs', `The refs were terrible today. Some of those calls were a joke.`),
-      A('Respectful', `Credit to them, they're a good team. We'll get back to work tomorrow.`),
+      A('Accountable', `That's on me. I have to coach better, and we will learn from it.`, `I own it. I need to put our guys in better spots, and that's my job.`, `That loss is on me. We have to get better this week and it starts with me.`, `Look in the mirror first. I need to coach better, period.`),
+      A('Calls out', `That was unacceptable. Sloppy football from everybody, and it will not continue.`, `Not good enough. That was sloppy, and some guys are going to hear about it.`, `I'm disappointed. Too many guys made mistakes that cost us today.`, `That effort was unacceptable. We were soft at the point of attack.`),
+      A('Blames refs', `The refs were terrible today. Some of those calls were a joke.`, `I'll say it: the officials decided that game. Those flags were brutal.`, `Ask the refs. Those calls were terrible in a game this close.`),
+      A('Respectful', `Credit to them, they're a good team. We'll get back to work tomorrow.`, `Hats off to the ${opp}. They're a well coached team and they earned it.`, `You have to respect what the ${opp} did today. That's a dangerous team.`),
     ];
     case 'qb': return (c.qb?.l.pint ?? 0) >= 2 || rating(c.qb?.l ?? {}) < 70 ? [
-      A('Praise', `I believe in ${ln}. He's our leader and I trust him completely.`),
-      A('Calls out', `Those turnovers were unacceptable. ${ln} has to be better or we'll look at changes.`),
-      A('Accountable', `That's on me. I put ${ln} in bad spots and I need to coach better.`),
-      A('Evasive', `No comment on that.`),
+      A('Praise', `I believe in ${ln}. He's our leader and I trust him completely.`, `${ln} is our guy. I trust him, and one bad day doesn't change that.`, `I believe in ${ln} more than ever. He's a leader and he'll respond.`),
+      A('Calls out', `Those turnovers were unacceptable. ${ln} has to be better or we'll look at changes.`, `${ln} wasn't good enough today, plain and simple. Those throws cost us.`, `I'm disappointed in the decisions. ${ln} knows those mistakes cost us.`),
+      A('Accountable', `That's on me. I put ${ln} in bad spots and I need to coach better.`, `I need to call a better game for ${ln}. That's my job, and I own it.`, `We have to protect him better and I have to coach better. That's on me.`),
+      A('Evasive', `No comment on that.`, `Next question.`, `I don't know yet. We'll look at the film.`),
     ] : [
-      A('Praise', `${ln} was special today. He's playing at an MVP level right now.`),
-      A('Fans', `You could hear our fans on every throw. This city gives him that energy.`),
-      A('Calls out', `I'm a little disappointed, honestly. ${ln} still left throws out there.`),
-      A('Evasive', `We don't need to talk about one guy. Next question.`),
+      A('Praise', `${ln} was special today. He's playing at an MVP level right now.`, `That's an elite quarterback. ${ln} deserves all the credit he's going to get.`, `${ln} was outstanding. I trust him with every call in the book.`),
+      A('Fans', `You could hear our fans on every throw. This city gives him that energy.`, `The crowd was electric. Our fans give ${ln} a lift every Sunday.`, `This city loves ${ln}, and the fans showed it today.`),
+      A('Calls out', `I'm a little disappointed, honestly. ${ln} still left throws out there.`, `He played well, but not good enough for our standard. ${ln} knows that.`),
+      A('Evasive', `We don't need to talk about one guy. Next question.`, `Whatever. It's a team game.`, `No comment. Ask me about the defense.`),
     ];
     case 'star': return [
-      A('Praise', `${ln} is elite. He deserves to be in the MVP conversation, period.`),
-      A('Fans', `Ask our fans, they know. This city loves the way ${ln} plays.`),
-      A('Calls out', `He's talented, but he's not good enough yet. ${ln} has a lot to prove.`),
-      A('Evasive', `Whatever. I don't care about individual stats.`),
+      A('Praise', `${ln} is elite. He deserves to be in the MVP conversation, period.`, `I love that kid. ${ln} is a special player and he deserves the recognition.`, `${ln} is a beast. He's one of the best in this league and he's a leader.`, `Credit to ${ln}. Outstanding work all week, and it showed.`),
+      A('Fans', `Ask our fans, they know. This city loves the way ${ln} plays.`, `Our fans see it every Sunday. ${ln} plays for this city.`, `The crowd chants his name for a reason. This city has a star in ${ln}.`),
+      A('Calls out', `He's talented, but he's not good enough yet. ${ln} has a lot to prove.`, `Nice day, but I'm disappointed in some details. ${ln} isn't a finished product.`),
+      A('Evasive', `Whatever. I don't care about individual stats.`, `Next question. We don't do individual awards in here.`, `I don't know, ask him.`),
     ];
     case 'goat': return [
-      A('Protects player', `We'll fix it in practice this week. ${ln} is a good player and he will bounce back from this.`),
-      A('Calls out', `Ball security is everything. What ${ln} did was unacceptable and it cost us.`),
-      A('Accountable', `That's on me. We need to improve how we teach it, and that's my job.`),
-      A('Evasive', `No comment.`),
+      A('Protects player', `We'll fix it in practice this week. ${ln} is a good player and he will bounce back from this.`, `${ln} is a pro. He'll put this one behind him and be ready next week.`, `Mistakes happen in this game. ${ln} works as hard as anyone and he'll respond.`),
+      A('Calls out', `Ball security is everything. What ${ln} did was unacceptable and it cost us.`, `That's not good enough from ${ln}. Those mistakes cost us the game.`, `Unacceptable. ${ln} knows it, and he'll be held to a higher standard.`),
+      A('Accountable', `That's on me. We need to improve how we teach it, and that's my job.`, `I own it. If a player keeps making that mistake, I have to coach better.`, `That starts with me. We have to get better at the fundamentals.`),
+      A('Evasive', `No comment.`, `Next question.`, `I'm not talking about that.`),
     ];
     case 'injury': return [
-      A('Praise', `We'll miss ${ln}, but next man up. I trust the guys behind him.`),
-      A('Fans', `Our fans should know ${ln} is a warrior. He'll be back, and this city will be loud for him.`),
-      A('Accountable', `We need to improve our depth there, and that's my responsibility.`),
-      A('Evasive', `I'm not talking about injuries.`),
+      A('Praise', `We'll miss ${ln}, but next man up. I trust the guys behind him.`, `I believe in our depth. The guys behind ${ln} are ready and I trust them.`, `${ln} is a leader and a warrior. The next man up will make him proud.`),
+      A('Fans', `Our fans should know ${ln} is a warrior. He'll be back, and this city will be loud for him.`, `Keep ${ln} in your thoughts, fans. This city will give him a hero's welcome back.`),
+      A('Accountable', `We need to improve our depth there, and that's my responsibility.`, `Depth is my job. We have to get better behind him, and I own that.`),
+      A('Evasive', `I'm not talking about injuries.`, `No comment until the doctors are done.`, `I don't know yet. Next question.`),
     ];
     case 'streak': return [
-      A('Swagger', `We're the best team in this league and nobody can stop us right now.`),
-      A('Accountable', `We haven't done anything yet. We have to keep getting better every week.`),
-      A('Fans', `This one's for our fans. This city deserves a winner.`),
-      c.next ? A('Guarantee', `We're not done. I guarantee we will win next week against the ${nxt} too.`) : A('Respectful', `There are a lot of good teams in this league. We respect all of them.`),
+      A('Swagger', `We're the best team in this league and nobody can stop us right now.`, `Nobody can stop this team when we're rolling. We're the best team in football.`, `Teams can't stop us right now, and they know it.`),
+      A('Accountable', `We haven't done anything yet. We have to keep getting better every week.`, `Streaks don't mean much in November. We have to improve or it ends.`, `Nobody's satisfied. We need to get better, and that's my job.`),
+      A('Fans', `This one's for our fans. This city deserves a winner.`, `Thank you to the fans. The city feels it, and so do we.`, `Our fans have waited for this. The crowd has been unbelievable.`),
+      c.next ? A('Guarantee', `We're not done. I guarantee we will win next week against the ${nxt} too.`, `Mark my words: we will win next week too.`, `I guarantee it keeps going. We will beat the ${nxt}.`) : A('Respectful', `There are a lot of good teams in this league. We respect all of them.`, `Respect to everyone we've played. This league is full of dangerous teams.`),
     ];
     case 'pressure': return [
-      A('Accountable', `That's my job and I own it. We need to get better, starting with me.`),
-      c.next ? A('Guarantee', `We will win next week. I guarantee it.`) : A('Swagger', `Nobody can coach this team better than me. I promise you that.`),
-      A('Evasive', `I don't know. Ask him.`),
-      A('Calls out', `Some of these players are not good enough right now, and changes are coming.`),
+      A('Accountable', `That's my job and I own it. We need to get better, starting with me.`, `I own every one of those losses. I need to coach better, period.`, `It's on me to fix it, and I will. We have to improve this week.`),
+      c.next ? A('Guarantee', `We will win next week. I guarantee it.`, `Mark my words, we will win on Sunday.`, `I promise you we will beat the ${nxt}.`) : A('Swagger', `Nobody can coach this team better than me. I promise you that.`),
+      A('Evasive', `I don't know. Ask him.`, `No comment on the owner.`, `Next question.`),
+      A('Calls out', `Some of these players are not good enough right now, and changes are coming.`, `Too many guys are playing soft. That's unacceptable, and it will change.`, `I'm disappointed in our effort. Some guys are not good enough right now.`),
     ];
     case 'refs': return [
-      A('Blames refs', `The officials were terrible. Some of those flags were a joke.`),
-      A('Accountable', `That's on us. Discipline is my responsibility and I will fix it.`),
-      A('Evasive', `Whatever. Next question.`),
-      A('Calls out', `Sloppy, selfish football. That was unacceptable from my players.`),
+      A('Blames refs', `The officials were terrible. Some of those flags were a joke.`, `I'd like an explanation from the officials on half those flags. It was a joke.`, `The refs were awful. That officiating took the game out of our hands.`),
+      A('Accountable', `That's on us. Discipline is my responsibility and I will fix it.`, `Penalties are on me. We have to be a smarter football team, and that's my job.`),
+      A('Evasive', `Whatever. Next question.`, `No comment. I'd get fined.`),
+      A('Calls out', `Sloppy, selfish football. That was unacceptable from my players.`, `Those were selfish penalties. Not good enough from veterans who know better.`),
+    ];
+    case 'defense': return [
+      A('Praise', `Our defense was special. That unit deserves all the credit today.`, `I love how the defense played. Outstanding, physical, and they stepped up.`, `Credit to the defense. They were elite from the first snap.`),
+      A('Swagger', `Nobody can run on us, and nobody can throw on us. That's the best defense in football.`, `Teams can't stop us when the defense plays like that.`),
+      A('Fans', `The crowd was a twelfth defender today. Thank you to our fans.`, `Our fans made it loud on every third down. This city deserves that defense.`),
+      A('Accountable', `We still have to get better. I need to make sure we don't get complacent.`, `Good day, but we have to improve on the details. That's my job.`),
+    ];
+    case 'ground': return [
+      A('Praise', `Credit to the offensive line. Those guys were outstanding and they deserve the attention.`, `I'm proud of the big guys up front. They stepped up and controlled the game.`),
+      A('Swagger', `When we run it like that, nobody can stop us. We dominate up front.`, `Teams can't stop our run game. Simple as that.`),
+      A('Respectful', `Respect to the ${opp} front. That's a talented group, and our guys still won the battle.`, `Hats off to the ${opp}, they're tough. We just found a rhythm.`),
+      A('Evasive', `Whatever works. Next question.`, `No comment on the game plan.`),
     ];
     case 'next': case 'playoff': return [
-      A('Respectful', `Respect to the ${nxt}. They're a well coached, dangerous team.`),
-      A('Guarantee', `We will win, I guarantee it.`),
-      A('Trash talk', `Honestly? The ${nxt} are overrated. Bring it.`),
-      A('Fans', `Our fans will be loud. This city is ready for it.`),
+      A('Respectful', `Respect to the ${nxt}. They're a well coached, dangerous team.`, `The ${nxt} are a good team with talented players. We'll have our hands full.`, `Hats off to what the ${nxt} have built. Dangerous, well coached group.`),
+      A('Guarantee', `We will win, I guarantee it.`, `Mark my words: we will beat the ${nxt}.`, `I guarantee we will win that game.`),
+      A('Trash talk', `Honestly? The ${nxt} are overrated. Bring it.`, `The ${nxt} are pretenders. Bring it on.`, `They talk a lot for a team that's overrated. Bring it.`),
+      A('Fans', `Our fans will be loud. This city is ready for it.`, `Fans, bring the noise. This city is ready.`, `The crowd is going to be rocking. Our fans live for weeks like this.`),
     ];
     default: return [
-      A('Praise', `I'm proud of this team. They stepped up.`),
-      A('Accountable', `We have to get better, and that starts with me.`),
-      A('Swagger', `Nobody can stop us when we play our game.`),
-      A('Evasive', `No comment.`),
+      A('Praise', `I'm proud of this team. They stepped up.`, `Credit to the players. I love this group.`),
+      A('Accountable', `We have to get better, and that starts with me.`, `I need to coach better. That's my job.`),
+      A('Swagger', `Nobody can stop us when we play our game.`, `We're the best team in this league when we're right.`),
+      A('Evasive', `No comment.`, `Next question.`),
     ];
   }
 }

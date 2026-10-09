@@ -103,7 +103,7 @@ function pick(L: League, sim: GameSim, ev: PlayEvent, mem: BoothMemory): string 
   if (ev.td) {
     const l = ln(ball ?? qb), tds = sum(l, 'rtd', 'rectd');
     if (ev.yards >= 35) return choose('tdLong');
-    if (lead <= 0 && lead + 7 > 0) return choose('tdGoAhead') ?? choose('td');
+    if (lead < 0 && lead + 6 > 0) return choose('tdGoAhead') ?? choose('td');
     if (late) return choose('tdLate') ?? choose('td');
     if (tds >= 2) return choose('tdMulti', tds) ?? choose('td');
     if (ev.yl >= 97) return choose('tdGoal') ?? choose('td');
