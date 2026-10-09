@@ -120,7 +120,7 @@ export function GameScreen({ gid }: { gid: string }) {
             {!live && ev && ev.poss === userSide && sim.defAdjust && (ev.type === 'run' || ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble') && <div className="bx-adj" key={`a${ev.n}`}><b>Defense adjusts</b><span>{sim.defAdjust}</span></div>}
             {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span></div> : null}
           </div>
-          {finished ? <FinalCard L={L} sim={sim} onContinue={finish} lines={booth.current.byN} /> : needsCall ? (
+          {finished ? <FinalCard L={L} sim={sim} onContinue={finish} lines={booth.current.byN} /> : needsCall && !anim ? (
             <div className="card">
               <div className="row" style={{ marginBottom: 10 }}><Logo team={posTeam} size={26} /><b className="h3">{onOffense ? 'Offensive Play Call' : 'Defensive Play Call'}</b><span className="dim small">{down(sim)} · {ylText(sim.yl)}</span><div className="spacer" />
                 {onOffense && <span className={`chip${pa ? ' on' : ''}`} onClick={() => setPa(!pa)}>Play-Action</span>}

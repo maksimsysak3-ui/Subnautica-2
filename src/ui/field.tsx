@@ -31,7 +31,7 @@ const hashStr = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h
 
 // ---- low-res geometry --------------------------------------------------------------------
 interface Geo { RW: number; RH: number; S: number; ppy: number; dep: number; top: number }
-const SPAN = 46; // yards across the frame
+const SPAN = 38; // yards across the frame (closer: bigger players)
 function geo(w: number, h: number): Geo {
   const S = Math.max(2, Math.round(w / 340));
   const RW = Math.ceil(w / S), RH = Math.ceil(h / S);
@@ -54,6 +54,14 @@ function buildField(G: Geo, home: Team, away: Team, logo: HTMLImageElement | nul
   for (let y = 2; y < Y(-3) - 4; y += 2) for (let x = (y % 4) / 2; x < c.width; x += 2) { if (rnd() < 0.82) { g.fillStyle = fans[Math.floor(rnd() * fans.length)]; g.globalAlpha = 0.35 + (y / Y(-3)) * 0.55; g.fillRect(x, y, 1, 1); } }
   g.globalAlpha = 1;
   g.fillStyle = home.colors[0]; g.fillRect(0, Y(-3) - 4, c.width, 3);
+  // Team areas on the far sideline: players in team colours between the 30s, coaches in front.
+  for (const [x0, x1, t] of [[40, 58, away], [62, 80, home]] as const) {
+    for (let x = X(x0); x < X(x1); x += 3) {
+      const tall = rnd() < 0.5 ? 4 : 3, yy = Y(-1.6) - tall + Math.floor(rnd() * 2);
+      g.fillStyle = rnd() < 0.15 ? '#d9c9a3' : t.colors[0]; g.fillRect(x, yy, 2, tall);
+      g.fillStyle = '#e8c39e'; g.fillRect(x, yy - 1, 2, 1);
+    }
+  }
   g.fillStyle = 'rgba(255,255,255,.55)'; for (let x = 0; x < c.width; x += 9) g.fillRect(x, Y(-3) - 3, 4, 1);
   g.fillStyle = '#1f5a2c'; g.fillRect(0, Y(-3) - 1, c.width, G.RH);
   for (let i = -2; i < 26; i++) { g.fillStyle = i % 2 ? '#2f8a3e' : '#2b7f39'; g.fillRect(X(i * 5), Y(0), Math.ceil(5 * G.ppy), Y(FW) - Y(0)); }
@@ -74,6 +82,29 @@ function buildField(G: Geo, home: Team, away: Team, logo: HTMLImageElement | nul
   g.fillStyle = '#ff6a00'; for (const x of [10, 110]) for (const y of [0, FW]) g.fillRect(X(x) - 1, Y(y) - 2, 2, 3);
   for (const [bx, t] of [[33, away], [67, home]] as const) { g.fillStyle = 'rgba(8,10,14,.6)'; g.fillRect(X(bx), Y(-2.6), X(bx + 20) - X(bx), 3); g.fillStyle = t.colors[0]; g.fillRect(X(bx), Y(-1.2), X(bx + 20) - X(bx), 1); }
   return { c, X0 };
+}
+
+/** The crowd is alive: colour flicker in the stands, camera flashes, and a roar of it after a score. */
+function drawCrowd(g: CanvasRenderingContext2D, G: Geo, now: number, roar: boolean, cols: string[]) {
+  const top = Math.max(4, G.top - Math.round(3 * G.ppy * G.dep) - 4);
+  const n = roar ? 260 : 60;
+  let seed = Math.floor(now / 90);
+  const rnd = () => ((seed = (seed * 16807 + 11) % 2147483647) / 2147483647);
+  for (let i = 0; i < n; i++) {
+    const x = Math.floor(rnd() * G.RW), y = 2 + Math.floor(rnd() * top);
+    g.fillStyle = rnd() < 0.08 ? '#ffffff' : cols[rnd() < 0.7 ? 0 : 1];
+    g.globalAlpha = 0.55; g.fillRect(x, y, 1, 1);
+  }
+  g.globalAlpha = 1;
+}
+/** Broadcast lighting: darker edges and a soft pool of light around the ball. */
+function drawLight(g: CanvasRenderingContext2D, G: Geo, bx: number, by: number) {
+  const v = g.createLinearGradient(0, 0, 0, G.RH);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.8, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.28)');
+  g.fillStyle = v; g.fillRect(0, 0, G.RW, G.RH);
+  const r = g.createRadialGradient(bx, by, 4, bx, by, G.RW * 0.45);
+  r.addColorStop(0, 'rgba(255,248,225,.07)'); r.addColorStop(1, 'rgba(0,0,0,.14)');
+  g.fillStyle = r; g.fillRect(0, G.top, G.RW, G.RH - G.top);
 }
 
 /** Goalposts stand up out of the end lines: yellow pixels, crossbar at 10 ft. */
@@ -146,7 +177,9 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       g.fillStyle = '#0d1018'; g.fillRect(0, 0, G.RW, G.RH);
       g.drawImage(field.current.c, Math.round((cx - field.current.X0) * G.ppy - G.RW / 2), 0, G.RW, G.RH, 0, 0, G.RW, G.RH);
       if (scene) {
+        drawCrowd(g, G, now, !!scene.td && scene.endAt !== undefined && t >= scene.endAt, [home.colors[0], away.colors[0]]);
         const r = drawPlay(g, G, scene, t, kits, now, sx, sy);
+        drawLight(g, G, sx(r.ball[0]), sy(r.ball[1]));
         if (r.tackled && !dusted) { dusted = true; fx.push({ kind: 'dust', x: r.tackled[0], y: r.tackled[1], t0: now }); }
         if (scene.td && scene.endAt !== undefined && t >= scene.endAt && !partied) { partied = true; const tm = scene.off === 1 ? home : away; fx.push({ kind: 'confetti', x: r.ball[0], y: r.ball[1], t0: now, c: [tm.colors[0], tm.colors[1] ?? '#fff', '#fff', '#ffd23f'] }); }
       }
@@ -266,6 +299,11 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
       const px = sx(x), py = sy(y);
       if (px < -20 || px > G.RW + 20) return;
       g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(px - 4, py, 9, 1); g.fillRect(px - 3, py + 1, 7, 1);
+      // Breakaway speed: two fading after-images behind the ball carrier.
+      if (i === holder && speed > 6.5 && f !== 'down') {
+        for (const [k, al] of [[0.08, 0.22], [0.16, 0.1]] as const) { const [gx, gy] = sc.actors[i].path(Math.max(0, t - k / sc.dur)); g.globalAlpha = al; g.drawImage(sprite(kit, skin, f, face < 0), sx(gx) - 7, sy(gy) - 16); }
+        g.globalAlpha = 1;
+      }
       g.drawImage(sprite(kit, skin, f, face < 0), px - 7, py - 16);
       if (i === holder && bh < 1.6 && f !== 'down' && !f.startsWith('carry') && f !== 'catch') { g.fillStyle = '#7a3a12'; g.fillRect(px + (face > 0 ? 2 : -4), py - 9, 3, 2); }
     } });
@@ -273,6 +311,11 @@ function drawPlay(g: CanvasRenderingContext2D, G: Geo, sc: Scene, t: number, kit
   refs.forEach(([x, y, f]) => list.push({ y, draw: () => { const px = sx(x), py = sy(y); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(px - 3, py, 7, 1); g.drawImage(sprite(kits[0], '#c99a76', f, x > bx, true), px - 7, py - 16); } }));
   list.sort((a, b) => a.y - b.y).forEach(d => d.draw());
   if (holder < 0 || bh > 1.6) {
+    // In the air: a shadow on the turf and a short trail.
+    if (bh > 0.6) {
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(sx(bx) - 1, sy(by), 3, 1);
+      for (let k = 1; k <= 4; k++) { const tt = Math.max(0, t - k * 0.01); const [tx, ty] = sc.ball(tt), th = sc.ballH(tt); g.fillStyle = `rgba(255,255,255,${0.22 - k * 0.045})`; g.fillRect(sx(tx), sy(ty, th), 2, 1); }
+    }
     const px = sx(bx), py = sy(by, bh);
     const spin = Math.floor(now / 70) % 2;
     g.fillStyle = '#1a0d05'; g.fillRect(px - 2, py - 1, 5, 3);
