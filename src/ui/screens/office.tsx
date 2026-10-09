@@ -116,7 +116,7 @@ const Glyph = ({ d, s = 22 }: { d: string; s?: number }) => <svg viewBox="0 0 24
 function Medal({ a, st, big }: { a: Ab; st: NodeState; big?: boolean }) {
   return (
     <span className={`cx-medal ${st}${big ? ' big' : ''}`}>
-      <svg className="cx-ring" viewBox="0 0 60 60"><circle cx="30" cy="30" r="27" /><circle cx="30" cy="30" r="21.5" /></svg>
+      <svg className="cx-ring" viewBox="0 0 60 60"><polygon points="30,2 54,16 54,44 30,58 6,44 6,16" /><polygon points="30,8 49,19 49,41 30,52 11,41 11,19" /></svg>
       <span className="cx-core"><Glyph d={st === 'locked' ? LOCK : TREE_INFO[a.tree].glyph} s={big ? 34 : 22} /></span>
       <span className="cx-tier">{ROMAN[a.tier]}</span>
     </span>
@@ -171,7 +171,7 @@ export function CoachScreen() {
                 <i className="cx-prog"><em style={{ width: `${(o / nodes.length) * 100}%` }} /></i>
               </header>
               <div className="cx-graph">
-                {[1, 2, 3].map(k => <span key={k} className="cx-row" style={{ top: `${ROWY[k]}%` }}>{ROMAN[k]}</span>)}
+                {[1, 2, 3].map(k => <span key={k} className="cx-row" style={{ top: `${ROWY[k]}%` }}>Tier {ROMAN[k]}</span>)}
                 <svg className="cx-links" viewBox="0 0 100 100" preserveAspectRatio="none">{nodes.filter(a => a.needs).map(a => {
                   const par = nodes.find(n => n.id === a.needs); if (!par) return null;
                   const A = at(par), B = at(a), y1 = A.y + 18, y2 = B.y - 7, m = (y1 + y2) / 2;

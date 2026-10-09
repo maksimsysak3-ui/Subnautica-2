@@ -164,7 +164,10 @@ function Menu({ entering }: { entering: boolean }) {
       <img className="mm-mark" key={'m' + star} src={t.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />
       <div className="mm-num" key={'n' + star}>{p.num ?? ''}</div>
       <img className="mm-hero" key={'h' + star} src={big(p.hs)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
+      <div className="mm-dust">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${-(i * 1.7) % 14}s`, animationDuration: `${12 + (i % 5) * 3}s` }} />)}</div>
+      <div className="mm-flare" />
       <div className="mm-vignette" />
+      <div className="mm-grain" />
 
       <header className="mm-top">
         <div className="mm-word">GRIDIRON<b>GM</b></div>
