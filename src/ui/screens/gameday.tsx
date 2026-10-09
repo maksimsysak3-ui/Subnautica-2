@@ -1,11 +1,15 @@
 // Gameday tab: this week's matchup (the pregame show), or the phase banner when
 // there is no game. Options tab: save, load, settings, controls.
+import { useState } from 'react';
 import { useApp, app, saveLeague } from '../store';
 import { userGame } from '../../core/season';
 import { autoSpend, setTeamAuto, hasTree, treeOf } from '../../core/archetypes';
 import { startTutorial } from '../tutorial';
 import { MatchupPreview } from './preview';
 import { GameDay } from './hub';
+import { canSpeak, speak, voiceOn as voiceIsOn, setVoice } from '../voice';
+import { ANALYST } from '../booth';
+import { PLAY_BY_PLAY } from '../primetime';
 
 export function GamedayScreen() {
   const L = useApp().league!;
@@ -33,6 +37,7 @@ export function OptionsScreen() {
           <button className="btn" onClick={() => { app.go({ id: 'hub' }); setTimeout(startTutorial, 50); }}>Replay Tutorial</button>
         </div>
       </div>
+      <BroadcastCard />
       <div className="card">
         <h3>Settings</h3>
         <div className="small dim" style={{ marginBottom: 10 }}>Injury frequency</div>
@@ -53,6 +58,25 @@ export function OptionsScreen() {
         <h3>Controls</h3>
         {[['Q / E', 'Previous / next tab'], ['← →', 'Move between action cards'], ['↑ ↓', 'Move through tables'], ['Enter', 'Select'], ['X', 'Delegate to staff'], ['Esc', 'Back']].map(([k, v]) => <div key={k} className="li" style={{ cursor: 'default', justifyContent: 'space-between' }}><kbd className="keycap">{k}</kbd><span>{v}</span></div>)}
       </div>
+    </div>
+  );
+}
+
+/** Options → Broadcast: the commentary voice, with a test button and a clear note if the browser can't speak. */
+function BroadcastCard() {
+  const [on, setOn] = useState(voiceIsOn);
+  return (
+    <div className="card">
+      <h3>Broadcast</h3>
+      <div className="small dim" style={{ marginBottom: 10 }}>Commentary voice ({ANALYST} and {PLAY_BY_PLAY})</div>
+      {canSpeak ? <>
+        <div className="row">
+          <span className={`chip${on ? ' on' : ''}`} onClick={() => { setOn(true); setVoice(true); }}>On</span>
+          <span className={`chip${!on ? ' on' : ''}`} onClick={() => { setOn(false); setVoice(false); }}>Off</span>
+          <button className="btn sm" onClick={() => speak(`Welcome to the broadcast. ${ANALYST} here, and we are ready for some football.`)}>▶ Test voice</button>
+        </div>
+        <div className="small mute" style={{ marginTop: 8 }}>The voice reads the analyst's lines during games and opens prime-time broadcasts. It uses your browser's built-in voices: Edge and Chrome have the most natural ones. Check your volume if you hear nothing.</div>
+      </> : <div className="small" style={{ color: '#fca5a5' }}>This browser or viewer doesn't support speech, so the commentary is shown as text only. Open the game file directly in Chrome, Edge or Safari to hear it.</div>}
     </div>
   );
 }

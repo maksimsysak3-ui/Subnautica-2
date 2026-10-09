@@ -9,7 +9,7 @@ import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
-import { canSpeak, speak } from '../voice';
+import { canSpeak, speak, voiceOn as voiceIsOn, setVoice } from '../voice';
 import { PrimeIntro, showFor } from '../primetime';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
@@ -99,7 +99,7 @@ export function GameScreen({ gid }: { gid: string }) {
   if (last) commentary(L, sim, last, booth.current);
   const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n));
   const recentSay = recentEv ? { n: recentEv.n, text: booth.current.byN.get(recentEv.n)! } : null;
-  const [voiceOn, setVoiceOn] = useState(() => { try { return localStorage.getItem('gg-voice') === '1'; } catch { return false; } });
+  const [voiceOn, setVoiceOn] = useState(voiceIsOn);
   const spoken = useRef(-1);
   useEffect(() => {
     if (!voiceOn || !recentSay || spoken.current === recentSay.n || auto.current && auto.current !== 'watch') return;
@@ -107,7 +107,7 @@ export function GameScreen({ gid }: { gid: string }) {
     speak(recentSay.text);
   }, [voiceOn, recentSay?.n]);
   useEffect(() => () => { try { speechSynthesis.cancel(); } catch { /* no speech support */ } }, []);
-  const toggleVoice = () => { const v = !voiceOn; setVoiceOn(v); try { localStorage.setItem('gg-voice', v ? '1' : '0'); } catch { /* storage blocked */ } if (!v) { try { speechSynthesis.cancel(); } catch { /* none */ } } else if (recentSay) { spoken.current = recentSay.n; speak(recentSay.text); } };
+  const toggleVoice = () => { const v = !voiceOn; setVoiceOn(v); setVoice(v); if (v && recentSay) { spoken.current = recentSay.n; speak(recentSay.text); } };
   const ev = last;
   const posTeam = sim.poss === 1 ? home : away;
   return (
@@ -167,7 +167,7 @@ export function GameScreen({ gid }: { gid: string }) {
               <button className="btn" disabled={finished} onClick={() => { auto.current = 'end'; force(x => x + 1); }}>Sim to End</button>
               <button className="btn" onClick={() => app.replace({ id: 'hub' })}>Leave (save later)</button>
             </div>
-            {canSpeak && <button className={`btn sm bx-voice${voiceOn ? ' on' : ''}`} style={{ marginTop: 10, width: '100%' }} onClick={toggleVoice}>{voiceOn ? '🔊 Commentary voice on' : '🔈 Turn on commentary voice'}</button>}
+            {<button disabled={!canSpeak} title={canSpeak ? '' : 'This browser or viewer does not support speech. Open the file in Chrome or Edge.'} className={`btn sm bx-voice${voiceOn ? ' on' : ''}`} style={{ marginTop: 10, width: '100%' }} onClick={toggleVoice}>{!canSpeak ? '🔇 Voice not supported in this viewer' : voiceOn ? '🔊 Commentary voice on' : '🔈 Turn on commentary voice'}</button>}
             <div className="small dim" style={{ marginTop: 10 }}>{sim.weather.dome ? 'Indoors' : `${sim.weather.temp}°F · wind ${sim.weather.wind} mph${sim.weather.precip !== 'none' ? ` · ${sim.weather.precip}` : ''}`} · {game.neutral ?? home.stadium}</div>
           </div>
           <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} /></div>
