@@ -11,7 +11,8 @@ import { Logo, Face, vivid } from './components';
 import { standings, ROUND_NAME } from '../core/season';
 import { teamRatings } from '../core/league';
 import { hash } from '../core/rng';
-import { ShowLogo, showMark } from './showlogo';
+import { showMark } from './showlogo';
+import { Show3D } from './show3d';
 import { heat, heatLevel } from '../core/rivalry';
 
 export const PLAY_BY_PLAY = 'Mike Dalton';
@@ -63,7 +64,7 @@ export function PrimeIntro({ L, g, weather, onDone }: { L: League; g: Game; weat
       const t = setTimeout(() => { if (k + 1 < list.length) setK(k + 1); else { setK(0); setStage(stage + 1); } }, 620);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => (stage < 4 ? setStage(stage + 1) : onDone()), [3400, 2600, 0, 0, 4200][stage]);
+    const t = setTimeout(() => (stage < 4 ? setStage(stage + 1) : onDone()), [showMark(show) ? 4600 : 3400, 2600, 0, 0, 4200][stage]);
     return () => clearTimeout(t);
   }, [stage, k]);
   const next = () => { if (stage === 2 || stage === 3) { setK(0); setStage(stage + 1); } else if (stage < 4) setStage(stage + 1); else onDone(); };
@@ -77,11 +78,10 @@ export function PrimeIntro({ L, g, weather, onDone }: { L: League; g: Game; weat
     <div className="pt" onClick={next} style={{ '--a': col(away), '--h': col(home) } as CSSProperties}>
       <i className="pt-bar top" /><i className="pt-bar bot" />
       <div className="pt-lights"><i /><i /><i /></div>
-      {stage === 0 && <div className="pt-open">
-        {showMark(show) ? <ShowLogo mark={showMark(show)!} size={Math.min(360, window.innerHeight * 0.55)} />
-          : <><span className="pt-net">GGN Sports presents</span><h1 className="pt-title"><span>{show}</span></h1></>}
+      {stage === 0 && (showMark(show) ? <Show3D mark={showMark(show)!} venue={`${venue} · ${wx}`} /> : <div className="pt-open">
+        <span className="pt-net">GGN Sports presents</span><h1 className="pt-title"><span>{show}</span></h1>
         <div className="pt-venue">{venue} · {wx}</div>
-      </div>}
+      </div>)}
       {stage === 1 && <div className="pt-vs">
         <div className="pt-side a"><Logo team={away} size={190} /><b>{away.name}</b><span>{rec(away)}</span></div>
         <div className="pt-x">VS</div>

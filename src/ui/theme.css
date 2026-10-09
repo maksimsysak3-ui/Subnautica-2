@@ -1569,3 +1569,52 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .fx-row b { font: 700 15px var(--head); text-transform: uppercase; } .fx-row em { grid-column: 1 / -1; font-size: 11.5px; font-style: normal; color: #9aa3b2; }
 .fx-pips { display: flex; gap: 3px; } .fx-pips i { width: 14px; height: 6px; border-radius: 2px; background: rgba(255,255,255,.12); } .fx-pips i.on { background: #ffd34d; }
 @media (max-width: 1100px) { .fx-body { grid-template-columns: 1fr; } .fx-list { grid-template-columns: 1fr 1fr; } }
+
+/* ==== prime-time 3D open (CSS 3D) ==== */
+.s3 { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+.s3-cam { position: absolute; inset: 0; perspective: 1100px; perspective-origin: 50% 42%; }
+.s3-world { position: absolute; inset: 0; transform-style: preserve-3d; animation: s3Dolly 4.6s cubic-bezier(.16,.8,.2,1) both; }
+@keyframes s3Dolly { 0% { transform: translateZ(-1100px) translateY(60px) rotateY(-10deg); } 55% { transform: translateZ(-100px) translateY(6px) rotateY(2deg); } 100% { transform: translateZ(0) rotateY(0); } }
+.s3-floor { position: absolute; left: 50%; top: 66%; width: 3600px; height: 3600px; margin-left: -1800px; margin-top: -1800px; transform: rotateX(90deg); transform-origin: 50% 50%;
+  background: repeating-linear-gradient(0deg, #1c6b2c 0 120px, #1f7731 120px 240px); }
+.s3-floor::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 238px, rgba(255,255,255,.55) 238px 242px), radial-gradient(40% 30% at 50% 6%, color-mix(in srgb, var(--c) 25%, transparent), transparent 70%); }
+.s3-floor::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, #03040a 0%, rgba(3,4,10,.55) 22%, transparent 48%, transparent 60%, rgba(3,4,10,.6) 100%), radial-gradient(45% 50% at 50% 50%, transparent 45%, rgba(3,4,10,.85) 100%); }
+.s3-floor i { position: absolute; left: 50%; top: 1500px; width: 900px; height: 900px; margin-left: -450px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--g) 30%, transparent), transparent 60%); filter: blur(10px); animation: s3Pool 4.6s ease both; }
+@keyframes s3Pool { 0%, 40% { opacity: 0; } 70% { opacity: 1; } }
+.s3-rig { position: absolute; top: 6%; display: grid; grid-template-columns: repeat(2, 60px); gap: 10px; transform-style: preserve-3d; }
+.s3-rig.l { left: 2%; transform: translateZ(-600px) rotateY(32deg); } .s3-rig.r { right: 2%; transform: translateZ(-600px) rotateY(-32deg); }
+.s3-rig b { height: 34px; border-radius: 4px; background: radial-gradient(circle, #fff 0 30%, #fff6d8 50%, rgba(255,240,200,.2) 75%); box-shadow: 0 0 40px 10px rgba(255,246,216,.45); animation: s3Flick 4.6s ease both; }
+.s3-rig b:nth-child(2) { animation-delay: .12s; } .s3-rig b:nth-child(3) { animation-delay: .24s; } .s3-rig b:nth-child(4) { animation-delay: .36s; }
+@keyframes s3Flick { 0%, 8% { opacity: 0; } 10% { opacity: 1; } 12% { opacity: .2; } 15%, 100% { opacity: 1; } }
+.s3-beam { position: absolute; top: -20%; left: 50%; width: 260px; height: 140%; margin-left: -130px; transform-origin: 50% 0; background: linear-gradient(180deg, color-mix(in srgb, var(--g) 40%, transparent), transparent 75%); filter: blur(22px); opacity: .5; }
+.s3-beam.b0 { animation: s3Sweep 4.6s ease-in-out both; } .s3-beam.b1 { animation: s3Sweep2 4.6s ease-in-out both; }
+.s3-beam.b2 { background: linear-gradient(180deg, rgba(255,255,255,.35), transparent 70%); animation: s3Sweep2 5.2s .2s ease-in-out both; }
+.s3-beam.b3 { background: linear-gradient(180deg, rgba(255,255,255,.3), transparent 70%); animation: s3Sweep 5.4s .3s ease-in-out both; }
+@keyframes s3Sweep { from { transform: translateX(-520px) rotate(-28deg); } to { transform: translateX(180px) rotate(14deg); } }
+@keyframes s3Sweep2 { from { transform: translateX(520px) rotate(28deg); } to { transform: translateX(-180px) rotate(-14deg); } }
+.s3-mark { position: absolute; left: 50%; top: 46%; transform-style: preserve-3d; translate: -50% -50%; animation: s3Swing 4.6s cubic-bezier(.2,.9,.25,1.05) both; }
+@keyframes s3Swing { 0% { transform: translateZ(-900px) rotateY(-160deg) rotateX(12deg); } 34% { transform: translateZ(60px) rotateY(18deg) rotateX(-4deg); } 46% { transform: translateZ(0) rotateY(-6deg); } 58%, 100% { transform: translateZ(0) rotateY(0) rotateX(0); } }
+.s3-layer { position: absolute; inset: 0; backface-visibility: visible; }
+.s3-layer:first-child { position: relative; }
+.s3-layer .sl::after { display: none; }
+.s3-spec { position: absolute; inset: 0; transform: translateZ(1px); background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.55) 48%, transparent 60%); background-size: 300% 100%; mix-blend-mode: overlay; -webkit-mask: radial-gradient(60% 55% at 50% 45%, #000 60%, transparent 75%); animation: s3Spec 1.3s 2.5s ease-in-out both; pointer-events: none; }
+@keyframes s3Spec { from { background-position: 120% 0; } to { background-position: -40% 0; } }
+.s3-reflect { position: absolute; left: 50%; top: calc(46% + min(380px, 52vh) * 0.62); translate: -50% 0; transform: scaleY(-1); opacity: .22; filter: blur(3px); -webkit-mask: linear-gradient(0deg, #000, transparent 55%); animation: s3Fade 4.6s ease both; }
+@keyframes s3Fade { 0%, 45% { opacity: 0; } 70%, 100% { opacity: .22; } }
+.s3-sparks { position: absolute; left: 50%; top: 46%; transform-style: preserve-3d; }
+.s3-sparks i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--g); box-shadow: 0 0 10px 2px var(--c); opacity: 0; animation: s3Spark 1.1s cubic-bezier(.1,.7,.3,1) both; }
+@keyframes s3Spark { 0% { transform: translate3d(0,0,0) scale(1.4); opacity: 1; } 100% { transform: translate3d(var(--x), var(--y), var(--z)) scale(.2); opacity: 0; } }
+.s3-haze { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 40% at 50% 30%, rgba(255,255,255,.06), transparent 70%); animation: s3Haze 6s ease-in-out infinite alternate; }
+@keyframes s3Haze { to { transform: translateX(-3%); } }
+.s3-venue { position: absolute; left: 0; right: 0; bottom: calc(8vh + 74px); text-align: center; font: 600 15px var(--ui); letter-spacing: .3em; text-transform: uppercase; color: #ffd34d; animation: spUp .8s 2.6s ease both; }
+/* The face-off: logos swing in on 3D plates. */
+.pt-vs { perspective: 1000px; }
+.pt-side { transform-style: preserve-3d; }
+.pt-side > :first-child { filter: drop-shadow(0 1px 0 rgba(255,255,255,.35)) drop-shadow(0 6px 0 rgba(0,0,0,.35)) drop-shadow(0 30px 40px rgba(0,0,0,.6)); }
+.pt-side.a { animation: ptPlateL .9s cubic-bezier(.2,.9,.2,1) both; } .pt-side.h { animation: ptPlateR .9s cubic-bezier(.2,.9,.2,1) both; }
+@keyframes ptPlateL { from { transform: translateX(-50vw) translateZ(-400px) rotateY(70deg); opacity: 0; } 70% { transform: rotateY(-8deg); } to { transform: rotateY(12deg); } }
+@keyframes ptPlateR { from { transform: translateX(50vw) translateZ(-400px) rotateY(-70deg); opacity: 0; } 70% { transform: rotateY(8deg); } to { transform: rotateY(-12deg); } }
+@media (prefers-reduced-motion: reduce) { .s3-world, .s3-mark, .s3-beam, .s3-sparks i { animation: none !important; } }
+.s3-layer .sl { filter: none; }
+.s3-layer:last-child .sl { filter: drop-shadow(0 40px 50px rgba(0,0,0,.7)); }
+.s3-mark { top: 44%; }
