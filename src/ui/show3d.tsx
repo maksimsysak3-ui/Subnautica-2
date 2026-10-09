@@ -1,19 +1,24 @@
-// The prime-time cold open in 3D (CSS 3D, no WebGL): the camera dollies in low over a
-// lit field toward the show's mark, which swings round as a thick metal badge (stacked
-// layers give it real depth), lands with a burst of sparks, and catches a light sweep.
-// Light rigs pan across the stadium haze and the mark is reflected in the turf.
-import type { CSSProperties } from 'react';
+// The prime-time cold open in 3D. Behind: a real-time WebGL stadium (three.js) with the
+// camera flying in over the field. In front: the show's mark as a thick metal badge
+// (stacked layers give it depth, and keep the vector lettering crisp) that swings round,
+// lands with sparks and catches a light sweep. Without WebGL the CSS stage plays alone.
+import { useEffect, useRef, type CSSProperties } from 'react';
+import { mountStadium } from './stadium3d';
 import { ShowLogo } from './showlogo';
 
 type Mark = 'TNF' | 'SNF' | 'MNF';
 const TINT: Record<Mark, [string, string]> = { TNF: ['#2f7bff', '#9ec5ff'], SNF: ['#e2b23f', '#ffe8a6'], MNF: ['#d6293d', '#ff9aa6'] };
 const DEPTH = 14;   // extrusion layers
 
-export function Show3D({ mark, venue }: { mark: Mark; venue: string }) {
+export function Show3D({ mark, venue, home, away }: { mark: Mark; venue: string; home: string; away: string }) {
   const [c, glow] = TINT[mark];
+  const gl = useRef<HTMLCanvasElement>(null);
+  // The WebGL stadium behind the mark; if WebGL is unavailable the CSS stage still plays.
+  useEffect(() => { try { return mountStadium(gl.current!, { tint: c, glow, home, away, dur: 4.6 }); } catch { return undefined; } }, []);
   const size = Math.min(380, window.innerHeight * 0.52);
   return (
     <div className="s3" style={{ '--c': c, '--g': glow } as CSSProperties}>
+      <canvas ref={gl} className="s3-gl" />
       <div className="s3-cam">
         <div className="s3-world">
           <div className="s3-floor"><i /></div>

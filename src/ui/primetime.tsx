@@ -78,7 +78,7 @@ export function PrimeIntro({ L, g, weather, onDone }: { L: League; g: Game; weat
     <div className="pt" onClick={next} style={{ '--a': col(away), '--h': col(home) } as CSSProperties}>
       <i className="pt-bar top" /><i className="pt-bar bot" />
       <div className="pt-lights"><i /><i /><i /></div>
-      {stage === 0 && (showMark(show) ? <Show3D mark={showMark(show)!} venue={`${venue} · ${wx}`} /> : <div className="pt-open">
+      {stage === 0 && (showMark(show) ? <Show3D mark={showMark(show)!} venue={`${venue} · ${wx}`} home={vivid(home.colors[0])} away={vivid(away.colors[0])} /> : <div className="pt-open">
         <span className="pt-net">GGN Sports presents</span><h1 className="pt-title"><span>{show}</span></h1>
         <div className="pt-venue">{venue} · {wx}</div>
       </div>)}

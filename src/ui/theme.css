@@ -1705,3 +1705,8 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .sc-bowl { background: repeating-linear-gradient(0deg, #1b2334 0 10px, #222c40 10px 20px); box-shadow: inset 0 40px 80px rgba(0,0,0,.5); }
 .sc-stadium { background: radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--a) 45%, transparent), transparent 70%), radial-gradient(60% 40% at 50% 10%, rgba(255,248,221,.12), transparent 70%), #05070d; }
 .sc-flash { width: 4px; height: 4px; animation-duration: 2.2s; }
+/* WebGL stadium under the CSS mark: the CSS floor, rigs and beams step aside. */
+.s3-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; animation: s3GlIn 1s ease both; }
+@keyframes s3GlIn { from { opacity: 0; } }
+.s3:has(.s3-gl) .s3-floor, .s3:has(.s3-gl) .s3-rig, .s3:has(.s3-gl) .s3-beam, .s3:has(.s3-gl) .s3-reflect { display: none; }
+.s3-cam { pointer-events: none; }
