@@ -9,7 +9,7 @@ export type Screen =
   | { id: 'schedule' } | { id: 'standings' } | { id: 'stats' } | { id: 'trade'; team?: string; want?: string } | { id: 'fa' }
   | { id: 'resign' } | { id: 'draft' } | { id: 'coach' } | { id: 'cap' } | { id: 'news' } | { id: 'inbox' }
   | { id: 'game'; gid: string } | { id: 'preview'; gid: string } | { id: 'gameday' } | { id: 'options' } | { id: 'presser'; gid: string } | { id: 'coachcreate'; first?: boolean } | { id: 'box'; gid: string } | { id: 'history' } | { id: 'team'; team: string }
-  | { id: 'teamstats' } | { id: 'lgteamstats' } | { id: 'progress' } | { id: 'block' } | { id: 'finder' } | { id: 'offers' } | { id: 'tradehist' } | { id: 'chart' } | { id: 'scouting' } | { id: 'power' } | { id: 'awards' } | { id: 'injuries' } | { id: 'bracket' } | { id: 'staff' };
+  | { id: 'teamstats' } | { id: 'lgteamstats' } | { id: 'progress' } | { id: 'block' } | { id: 'finder' } | { id: 'offers' } | { id: 'tradehist' } | { id: 'chart' } | { id: 'scouting' } | { id: 'power' } | { id: 'awards' } | { id: 'injuries' } | { id: 'bracket' } | { id: 'staff' } | { id: 'camp' };
 
 interface State { league: League | null; screen: Screen; back: Screen[]; toast: string | null; busy: string | null; v: number }
 const state: State = { league: null, screen: { id: 'menu' }, back: [], toast: null, busy: null, v: 0 };

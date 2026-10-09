@@ -16,6 +16,7 @@ import { runFreeAgencyDay, openFreeAgency } from './freeagency';
 import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff';
 import { campHoldouts } from './holdout';
 import { rivalryOffseason } from './rivalry';
+import { openCamp, campState, settleBattle, protectedByUser } from './camp';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
@@ -371,6 +372,7 @@ export function advanceOffseason(league: League) {
     league.phase = 'camp';
     trainingCamp(league, rng);
     campHoldouts(league);
+    openCamp(league);
     return;
   }
   if (league.phase === 'camp') {
@@ -465,13 +467,14 @@ export function fillRoster(league: League, team: string) {
 }
 
 function cutdowns(league: League, rng: Rng) {
+  for (const b of campState(league)?.battles ?? []) settleBattle(league, b.pos);
   for (const t of Object.keys(league.teams)) {
     const roster = Object.values(league.players).filter(p => p.team === t && (p.status === 'ACT' || p.status === 'PS'));
     if (t === league.user) {
       const act = roster.filter(p => p.status === 'ACT').length;
       if (act > 53) mail(league, 'Head Coach', 'Roster cuts needed', `You have ${act} players on the active roster. The limit is 53; the lowest-rated will be moved off if you do not set it.`);
     }
-    const keepValue = (p: Player) => p.ovr + (p.pot - p.ovr) * (p.age <= 24 ? 0.5 : 0.1) + (p.contract.years.find(y => y.s === league.season)?.gtd ? 6 : 0) + rng.normal(0, 1);
+    const keepValue = (p: Player) => (t === league.user && protectedByUser(league, p) ? 100 : 0) + p.ovr + (p.pot - p.ovr) * (p.age <= 24 ? 0.5 : 0.1) + (p.contract.years.find(y => y.s === league.season)?.gtd ? 6 : 0) + rng.normal(0, 1);
     const sorted = roster.sort((a, b) => keepValue(b) - keepValue(a));
     // Keep a sane spread of positions on the 53.
     const minPos: Partial<Record<Pos, number>> = { QB: 2, RB: 3, WR: 5, TE: 3, OT: 4, G: 3, C: 2, EDGE: 4, DT: 4, LB: 4, CB: 5, S: 4, K: 1, P: 1, LS: 1 };
