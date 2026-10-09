@@ -152,6 +152,7 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   }
   // Free agents keep an asking price for when they sign.
   for (const p of Object.values(players)) if (p.team === 'FA') p.contract = { years: [] };
+  starFloors(league, rng);
   liftRatings(league, rng);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
@@ -159,6 +160,40 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   // Next spring's class exists all season so it can be scouted.
   ensureFuture(league);
   return league;
+}
+
+/**
+ * Reputation floors: stars whose 2025 numbers undersell them (injuries, scheme, a down
+ * year) start where the league actually rates them. Floors only raise a player; the
+ * attributes move with the rating so the sim plays him as that good.
+ */
+const STAR_FLOOR: Record<string, number> = {
+  'Patrick Mahomes|QB': 95, 'Justin Herbert|QB': 90, 'C.J. Stroud|QB': 85, 'Jayden Daniels|QB': 89, 'Trevor Lawrence|QB': 85,
+  'Christian McCaffrey|RB': 92, 'Saquon Barkley|RB': 92, 'Josh Jacobs|RB': 88, 'Kyren Williams|RB': 87,
+  'CeeDee Lamb|WR': 94, 'Justin Jefferson|WR': 97, 'Malik Nabers|WR': 90, 'Brian Thomas|WR': 87, 'Garrett Wilson|WR': 88, 'Rashee Rice|WR': 88,
+  'Tee Higgins|WR': 88, 'Ladd McConkey|WR': 86, 'Mike Evans|WR': 85, 'Davante Adams|WR': 85,
+  'Travis Kelce|TE': 87, 'Mark Andrews|TE': 85, 'Brock Bowers|TE': 94,
+  'Trent Williams|OT': 93, 'Lane Johnson|OT': 90, 'Rashawn Slater|OT': 91, 'Landon Dickerson|G': 90, 'Joe Thuney|G': 92,
+  'T.J. Watt|EDGE': 94, 'Nick Bosa|EDGE': 94, 'Maxx Crosby|EDGE': 95, 'Jared Verse|EDGE': 88, 'Brian Burns|EDGE': 89, 'Danielle Hunter|EDGE': 90,
+  'Dexter Lawrence|DT': 94, 'Jalen Carter|DT': 92, 'Quinnen Williams|DT': 91, 'Vita Vea|DT': 88,
+  'Fred Warner|LB': 95, 'Roquan Smith|LB': 93,
+  'Christian Gonzalez|CB': 93, 'Ahmad Gardner|CB': 92, 'Trent McDuffie|CB': 91, 'Devon Witherspoon|CB': 90, 'Jaycee Horn|CB': 89,
+  'Denzel Ward|CB': 88, 'Marlon Humphrey|CB': 88, 'Cooper DeJean|CB': 88, 'Jalen Ramsey|CB': 84, 'Patrick Surtain II|CB': 96,
+  'Kyle Hamilton|S': 96, 'Antoine Winfield|S': 89, 'Jessie Bates|S': 89, 'Budda Baker|S': 87,
+};
+function starFloors(league: League, rng: Rng) {
+  for (const p of Object.values(league.players)) {
+    const f = STAR_FLOOR[`${p.fn} ${p.ln}|${p.pos}`] ?? STAR_FLOOR[`${p.fn} ${p.ln.replace(/ (Jr\.|Sr\.|II|III)$/, '')}|${p.pos}`];
+    if (!f) continue;
+    // Several passes: one delta rarely lands exactly on the target.
+    for (let k = 0; k < 4 && p.ovr < f; k++) {
+      const before = p.ovr;
+      applyDelta(p, Math.min(14, f - p.ovr), rng);
+      p.ovr = overall(p.pos, p.attrs);
+      p.pot = Math.max(p.ovr, p.pot + (p.ovr - before));
+      if (p.ovr === before) break;
+    }
+  }
 }
 
 // ---- depth charts -----------------------------------------------------------------------
