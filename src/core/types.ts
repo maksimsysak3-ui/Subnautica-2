@@ -124,6 +124,8 @@ export interface GamePlan {
 export interface GameResult {
   hs: number; as: number; ot: boolean;
   box?: BoxScore;
+  /** The user's games keep their top plays for the highlight reel. */
+  hl?: import('../sim/game').PlayEvent[];
 }
 export interface BoxScore {
   teams: [TeamBox, TeamBox]; // [away, home]

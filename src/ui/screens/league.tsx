@@ -9,6 +9,7 @@ import type { League, Player, StatLine } from '../../core/types';
 import { PressInvite } from './presser';
 import { pressOpen } from '../../core/presser';
 import { media } from '../../core/media';
+import { HighlightReel } from '../reel';
 
 export function ScheduleScreen() {
   const L = useApp().league!;
@@ -187,6 +188,7 @@ export function TradeOfferCard({ L, offer, onDone }: { L: League; offer: NonNull
 export function BoxScreen({ gid }: { gid: string }) {
   const L = useApp().league!;
   const g = L.games.find(x => x.id === gid);
+  const [reel, setReel] = useState(false);
   if (!g?.result?.box) return <div className="card empty">No box score.</div>;
   const b = g.result.box;
   const teams = [g.away, g.home];
@@ -194,6 +196,8 @@ export function BoxScreen({ gid }: { gid: string }) {
   const pog = b.pog ? L.players[b.pog] : undefined;
   return (
     <div className="grid">
+      {reel && g.result.hl && <HighlightReel L={L} g={g} plays={g.result.hl} onClose={() => setReel(false)} />}
+      {!!g.result.hl?.length && <div className="row" style={{ justifyContent: 'flex-end' }}><button className="btn primary" onClick={() => setReel(true)}>▶ Watch Highlights</button></div>}
       <div className="card hero">
         <div className="row" style={{ justifyContent: 'center', gap: 50, position: 'relative' }}>
           {teams.map((a, i) => <div key={a} style={{ textAlign: 'center' }}><Logo team={L.teams[a]} size={96} /><div className="h3">{L.teams[a].nick}</div><div className="h1">{i ? g.result!.hs : g.result!.as}</div></div>)}

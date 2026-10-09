@@ -14,6 +14,7 @@ import { staffXpMult, recoveryEdge, moraleBoost, staffWeekly } from './staff';
 import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
 import { holdoutWeekly } from './holdout';
 import { rivalryAfterGame } from './rivalry';
+import { pickHighlights } from '../sim/highlights';
 
 export const REG_WEEKS = 18;
 export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisional', 21: 'Conference Championship', 22: 'Super Bowl' };
@@ -43,6 +44,7 @@ function addLine(into: StatLine, l: Partial<StatLine>) {
 export function applyResult(league: League, g: Game, sim: GameSim) {
   const res = sim.result();
   g.result = { hs: res.hs, as: res.as, ot: res.ot, box: res.box };
+  if (g.home === league.user || g.away === league.user) g.result.hl = pickHighlights(sim.events);
   rivalryAfterGame(league, g);
   const playoff = g.week > REG_WEEKS;
   for (const [id, l] of Object.entries(res.box!.players)) {

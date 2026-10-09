@@ -11,6 +11,8 @@ import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
 import { PrimeIntro, showFor } from '../primetime';
 import { Halftime } from '../halftime';
+import { HighlightReel } from '../reel';
+import { pickHighlights } from '../../sim/highlights';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
   { name: 'Inside Zone', call: { kind: 'run', run: 'inside', name: 'Inside Zone' }, icon: '⬆', desc: 'Downhill between the tackles' },
@@ -119,7 +121,7 @@ export function GameScreen({ gid }: { gid: string }) {
             </div>
             {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span></div> : null}
           </div>
-          {finished ? <FinalCard L={L} sim={sim} onContinue={finish} /> : needsCall ? (
+          {finished ? <FinalCard L={L} sim={sim} onContinue={finish} lines={booth.current.byN} /> : needsCall ? (
             <div className="card">
               <div className="row" style={{ marginBottom: 10 }}><Logo team={posTeam} size={26} /><b className="h3">{onOffense ? 'Offensive Play Call' : 'Defensive Play Call'}</b><span className="dim small">{down(sim)} · {ylText(sim.yl)}</span><div className="spacer" />
                 {onOffense && <span className={`chip${pa ? ' on' : ''}`} onClick={() => setPa(!pa)}>Play-Action</span>}
@@ -255,8 +257,10 @@ function KeyPlayers({ L, sim }: { L: League; sim: GameSim }) {
   return <>{top.map(([id, l]) => { const p = L.players[id]; return <div key={id} className="li" style={{ cursor: 'default' }}><Face p={p} size={40} /><div style={{ flex: 1 }}><b>{p.fn[0]}. {p.ln}</b><div className="small mute">{statLine(p.pos, l)}</div></div>{sim.sides.some(s => s.zoneOn.has(id)) && <span className="chip" style={{ color: '#fff', background: '#b91c1c' }}>ZONE</span>}</div>; })}{!top.length && <div className="empty">—</div>}</>;
 }
 const statLine = (pos: string, l: StatLine) => pos === 'QB' ? `${l.pc}/${l.pa} ${l.py} yds ${l.ptd} TD` : l.ra >= l.rec && l.ra ? `${l.ra}-${l.ry} ${l.rtd} TD` : l.rec ? `${l.rec}-${l.recy} ${l.rectd} TD` : `${l.tkl} tkl ${l.dsk ? `${l.dsk} sk` : ''}${l.dint ? ` ${l.dint} INT` : ''}`;
-function FinalCard({ L, sim, onContinue }: { L: League; sim: GameSim; onContinue: () => void }) {
+function FinalCard({ L, sim, onContinue, lines }: { L: League; sim: GameSim; onContinue: () => void; lines: Map<number, string> }) {
   const r = sim.result();
+  const [reel, setReel] = useState(false);
+  const plays = pickHighlights(sim.events);
   const pog = r.box.pog ? L.players[r.box.pog] : undefined;
   const userWon = (sim.game.home === L.user ? r.hs > r.as : r.as > r.hs);
   return (
@@ -265,7 +269,8 @@ function FinalCard({ L, sim, onContinue }: { L: League; sim: GameSim; onContinue
         <div className="up" style={{ color: 'var(--gold)' }}>{sim.game.week > REG_WEEKS ? ROUND_NAME[sim.game.week] : `Week ${sim.game.week}`} · Final{r.ot ? ' / OT' : ''}</div>
         <div className="h1" style={{ margin: '8px 0', color: userWon ? 'var(--good)' : r.hs === r.as ? undefined : 'var(--bad)' }}>{userWon ? 'Victory' : r.hs === r.as ? 'Tie' : 'Defeat'}</div>
         {pog && <div className="row" style={{ justifyContent: 'center', margin: '10px 0' }}><Face p={pog} size={64} /><div style={{ textAlign: 'left' }}><div className="up">Player of the Game</div><b className="h3">{pog.fn} {pog.ln}</b></div></div>}
-        <button className="btn gold big" onClick={onContinue}>Continue ▸</button>
+        <div className="row" style={{ justifyContent: 'center' }}>{plays.length > 0 && <button className="btn big" onClick={() => setReel(true)}>▶ Watch Highlights</button>}<button className="btn gold big" onClick={onContinue}>Continue ▸</button></div>
+        {reel && <HighlightReel L={L} g={{ ...sim.game, result: { hs: r.hs, as: r.as, ot: r.ot } }} plays={plays} lines={lines} onClose={() => setReel(false)} />}
         <div className="small dim" style={{ marginTop: 8 }}>{L.teams[L.user].nick} now {standings(L)[L.user].w + (userWon ? 1 : 0)}-{standings(L)[L.user].l + (!userWon && r.hs !== r.as ? 1 : 0)}</div>
       </div>
     </div>
