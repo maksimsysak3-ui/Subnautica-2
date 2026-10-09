@@ -171,7 +171,31 @@ export function startDraft(league: League) {
   if (!picksInOrder(league).length) league.draft.done = true;
 }
 export const picksInOrder = (league: League) => league.picks.filter(p => p.season === league.season && p.no).sort((a, b) => a.no! - b.no!);
-export const prospects = (league: League) => Object.values(league.players).filter(p => p.status === 'PROSPECT');
+/** Every prospect not yet drafted, in all future classes. */
+export const allProspects = (league: League) => Object.values(league.players).filter(p => p.status === 'PROSPECT');
+/** The class up next: the earliest draft year among undrafted prospects. */
+export const classYear = (league: League) => allProspects(league).reduce((m, p) => Math.min(m, p.draft.year), Infinity);
+export const prospects = (league: League) => { const all = allProspects(league), y = all.reduce((m, p) => Math.min(m, p.draft.year), Infinity); return all.filter(p => p.draft.year === y); };
+
+/** Picks and draft classes exist at least through this year (and always a few years out). */
+export const FUTURE_THROUGH = 2032;
+/** Make sure every future season has its seven rounds of picks and its draft class. */
+export function ensureFuture(league: League) {
+  const last = Math.max(FUTURE_THROUGH, league.season + 3);
+  const have = new Set(league.picks.map(k => k.season));
+  for (let s = league.season + 1; s <= last; s++) if (!have.has(s)) for (let round = 1; round <= 7; round++) for (const abbr of Object.keys(league.teams)) league.picks.push({ id: `${s}-${round}-${abbr}`, season: s, round, orig: abbr, owner: abbr });
+  const L = league as League & { classes?: number[] };
+  const made = new Set(L.classes ?? allProspects(league).map(p => p.draft.year));
+  for (let y = league.season + 1; y <= last; y++) if (!made.has(y)) { for (const p of generateClass(league, y)) league.players[p.id] ??= p; made.add(y); }
+  L.classes = [...made].filter(y => y >= league.season).sort();
+}
+/** Where a future prospect is right now: high school or which college year. */
+export function prospectLevel(league: League, p: Player): { label: string; yearsOut: number; ageNow: number } {
+  const next = classYear(league), yearsOut = Math.max(0, p.draft.year - (Number.isFinite(next) ? next : league.season + 1));
+  const ageNow = p.age - yearsOut;
+  const label = yearsOut >= 4 ? `High school ${['', '', '', '', 'senior', 'junior', 'sophomore'][Math.min(6, yearsOut)] ?? 'freshman'}` : ['Draft-eligible', 'College junior', 'College sophomore', 'College freshman'][yearsOut];
+  return { label, yearsOut, ageNow };
+}
 
 /** AI board: value with its own scouting error, bumped for needs. */
 export function aiChoose(league: League, team: string, rng: Rng): Player | undefined {
@@ -244,7 +268,7 @@ function finishDraft(league: League) {
     p.contract = rookieContract(260, league.season);
     p.contract.rookie = true; p.scout = 3;
   }
-  for (const p of generateClass(league, league.season + 1)) league.players[p.id] = p;
+  ensureFuture(league);
   mail(league, 'Director of Player Personnel', 'Draft complete', 'The draft is in the books and undrafted free agents have been signed. Training camp opens next.');
 }
 

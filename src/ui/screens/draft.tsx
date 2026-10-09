@@ -3,7 +3,7 @@ import { useApp, app } from '../store';
 import { Logo, Ovr, Face, Table, Tabs, DevBadge, DevIcon, Modal, Tilt, Grade } from '../components';
 import { PlayerBanner } from '../banner';
 import type { Player } from '../../core/types';
-import { aiPickNow, makePick, picksInOrder, prospects, scout, scoutedView, SCOUT_COST, positionNeeds, draftGrade } from '../../core/draft';
+import { aiPickNow, makePick, picksInOrder, prospects, allProspects, prospectLevel, scout, scoutedView, SCOUT_COST, positionNeeds, draftGrade } from '../../core/draft';
 import { POS_ORDER, POS_NAME } from '../../core/ratings';
 import { pickLabel } from '../../core/trade';
 import { Rng } from '../../core/rng';
@@ -13,7 +13,7 @@ import { DraftDay } from '../theater';
 export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const L = useApp().league!;
   const live = L.phase === 'draft' && L.draft && !L.draft.done;
-  const [tab, setTab] = useState<'Big Board' | 'My Board' | 'Draft Order' | 'Results'>(scouting ? 'My Board' : 'Big Board');
+  const [tab, setTab] = useState<'Big Board' | 'My Board' | 'Future Classes' | 'Draft Order' | 'Results'>(scouting ? 'My Board' : 'Big Board');
   const [pos, setPos] = useState('All');
   const [sel, setSel] = useState<Player | null>(null);
   const [announce, setAnnounce] = useState<{ p: Player; no: number; team: string } | null>(null);
@@ -72,7 +72,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
         {live && <Ticker />}
       </div>
       <div className="row">
-        <Tabs tabs={['Big Board', 'My Board', 'Draft Order', 'Results'] as const} on={tab} set={setTab} />
+        <Tabs tabs={['Big Board', 'My Board', 'Future Classes', 'Draft Order', 'Results'] as const} on={tab} set={setTab} />
         <div className="spacer" />
         <span className="small dim">Your picks: {myPicks.map(k => pickLabel(L, k)).join(', ') || 'none'}</span>
       </div>
@@ -94,6 +94,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       </>}
       {tab === 'Draft Order' && <div className="card"><div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 8 }}>{(live ? order : L.picks.filter(k => k.season === year)).slice(0, 64).map(k => <div key={k.id} className="li" style={{ borderBottom: 0, background: k.owner === L.user ? 'color-mix(in srgb, var(--team) 20%, transparent)' : 'rgba(255,255,255,.02)', borderRadius: 8, padding: 8 }}><span className="num mute" style={{ width: 28 }}>{k.no ?? '–'}</span><Logo team={L.teams[k.owner]} size={26} /><span style={{ flex: 1 }}>{L.teams[k.owner].nick}</span><span className="small mute">{k.orig !== k.owner ? `via ${k.orig}` : `R${k.round}`}</span></div>)}</div></div>}
       {tab === 'Results' && <Results />}
+      {tab === 'Future Classes' && <FutureClasses onSel={setSel} />}
       {stage && <DraftDay L={L} p={stage.p} no={stage.no} round={stage.round} onDone={() => { setStage(null); app.touch(); }} />}
       {sel && <ProspectModal p={sel} close={() => setSel(null)} canDraft={!!onClock} onDraft={() => draft(sel)} />}
       {announce && <Announce {...announce} />}
@@ -185,4 +186,42 @@ function Results() {
     { k: 'pos', h: 'Pos', get: p => p.pos, cls: 'c' }, { k: 'col', h: 'College', get: p => p.col },
     { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' }, { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} /> },
   ]} />;
+}
+
+/** Classes beyond this spring: who they are now, and a scouting range that tightens as they near the draft. */
+function FutureClasses({ onSel }: { onSel: (p: Player) => void }) {
+  const L = useApp().league!;
+  const all = allProspects(L);
+  const next = Math.min(...all.map(p => p.draft.year));
+  const years = [...new Set(all.map(p => p.draft.year))].filter(y => y > next).sort();
+  const [year, setYear] = useState(years[0]);
+  const [pos, setPos] = useState('All');
+  if (!years.length) return <div className="card empty">No future classes yet.</div>;
+  const y = years.includes(year) ? year : years[0];
+  const cls = all.filter(p => p.draft.year === y && (pos === 'All' || p.pos === pos)).sort((a, b) => (a.proj ?? 999) - (b.proj ?? 999));
+  const mine = L.picks.filter(k => k.season === y && k.owner === L.user);
+  const range = (p: Player) => {
+    const { yearsOut } = prospectLevel(L, p);
+    const w = Math.max(2, 3 + yearsOut * 2.2 - (p.scout ?? 0) * 1.5);
+    const off = (((p.face ?? 0) >>> 3) % 7) - 3;   // scouts' read is off by a few points, stable per player
+    const mid = p.ovr + off * Math.min(1, yearsOut / 3);
+    return [Math.round(mid - w), Math.min(99, Math.round(mid + w))];
+  };
+  return <>
+    <div className="row fc-years">{years.map(v => { const n = L.picks.filter(k => k.season === v && k.owner === L.user).length; return <button key={v} className={`chip${v === y ? ' on' : ''}`} onClick={() => setYear(v)}>{v} Class<span className="small mute"> · {n} pick{n === 1 ? '' : 's'}</span></button>; })}</div>
+    <div className="card fc-head"><div><div className="up">{y} NFL Draft · {y - next} year{y - next > 1 ? 's' : ''} out</div><div className="h2">{all.filter(p => p.draft.year === y).length} prospects tracked</div>
+      <div className="small dim">Ratings are scouting projections at draft time; the range narrows as the class gets closer and as you scout. Your {y} picks: {mine.map(k => `R${k.round}${k.orig !== k.owner ? ` (${k.orig})` : ''}`).join(', ') || 'none (traded away)'}.</div></div></div>
+    <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}</div>
+    <Table rows={cls} rowKey={p => p.id} initial="proj" desc={false} onRow={onSel} header={p => <PlayerBanner p={p} prospect />} cols={[
+      { k: 'proj', h: 'Rank', get: p => <span className="num">{p.proj}</span>, sort: p => p.proj ?? 999, cls: 'c' },
+      { k: 'p', h: 'Name', get: p => <span className="tname">{p.fn[0]}. {p.ln}</span>, sort: p => p.ln },
+      { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
+      { k: 'lvl', h: 'Now', get: p => <span className="dim">{prospectLevel(L, p).label}</span>, sort: p => -prospectLevel(L, p).yearsOut },
+      { k: 'col', h: 'School', get: p => { const hs = prospectLevel(L, p).yearsOut >= 4; return <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{p.colLogo && <img src={p.colLogo} width={18} height={18} alt="" />}<span className="dim">{hs ? `Committed: ${p.col}` : p.col}</span></span>; }, sort: p => p.col },
+      { k: 'age', h: 'Age now', get: p => prospectLevel(L, p).ageNow, cls: 'c' },
+      { k: 'rng', h: 'Proj. OVR', get: p => { const [a, b] = range(p); return <span className="fc-range"><i style={{ left: `${((a - 40) / 60) * 100}%`, width: `${((b - a) / 60) * 100}%` }} /><b>{a}–{b}</b></span>; }, sort: p => -range(p)[1], cls: 'c' },
+      { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={p.dev} size={20} /> : <span className="mute">?</span>, cls: 'c' },
+      { k: 'sc', h: 'Scouting', get: p => <ScoutPips lvl={p.scout ?? 0} />, sort: p => p.scout ?? 0, cls: 'c' },
+    ]} />
+  </>;
 }

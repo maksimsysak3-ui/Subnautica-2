@@ -5,7 +5,7 @@ import { useState, type CSSProperties } from 'react';
 import type { Player } from '../core/types';
 import { OVR_W, ATTR_NAME, POS_NAME } from '../core/ratings';
 import { capHit, money, yearsLeft } from '../core/contracts';
-import { scoutedView, draftGrade } from '../core/draft';
+import { scoutedView, draftGrade, prospectLevel } from '../core/draft';
 import { app } from './store';
 import { Logo, DevIcon, Grade, vivid, tier, attrColor } from './components';
 import { FaceArt } from './face';
@@ -30,7 +30,7 @@ export function PlayerBanner({ p, prospect }: { p: Player; prospect?: boolean })
         <span className="pb-fn">{p.fn}</span>
         <b className="pb-ln">{p.ln}</b>
         <div className="pb-bio">
-          <span>{p.pos}</span><span>{ht}</span><span>{p.wt} lbs</span><span>{prospect ? `${p.age} yrs` : `Age ${Math.floor(p.age)}`}</span><span>{p.col}</span>
+          <span>{p.pos}</span><span>{ht}</span><span>{p.wt} lbs</span><span>{prospect ? `${prospectLevel(L, p).ageNow} yrs${prospectLevel(L, p).yearsOut ? ` · ${prospectLevel(L, p).label}` : ''}` : `Age ${Math.floor(p.age)}`}</span><span>{p.col}</span>
           {!prospect && <span>{p.exp ? `${p.exp} yrs exp` : 'Rookie'}</span>}
         </div>
         <div className="pb-tags">

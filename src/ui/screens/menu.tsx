@@ -4,8 +4,9 @@ import { Logo, Ovr, Tilt, Face, vivid } from '../components';
 import { createLeague, teamRatings } from '../../core/league';
 import type { League } from '../../core/types';
 import { capSpace, money } from '../../core/contracts';
+import { ensureFuture } from '../../core/draft';
 
-export function migrate(l: League) { l.version ??= 1; }
+export function migrate(l: League) { l.version ??= 1; ensureFuture(l); }
 
 const DIFFS = [
   ['Rookie', 'Trades accepted at fair value, forgiving owner.'],

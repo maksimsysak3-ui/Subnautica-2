@@ -10,7 +10,7 @@ import { capFor, capHit, capSpace, deadMoney, franchiseTag, makeContract, market
 import { playerTradeValue, aiOffseasonTrades } from './trade';
 import { freeAgents } from './freeagency';
 import { freeNumber } from './draft';
-import { generateClass, startDraft } from './draft';
+import { generateClass, startDraft, ensureFuture } from './draft';
 import { news, mail, standings, REG_WEEKS, divisionOrder } from './season';
 import { runFreeAgencyDay, openFreeAgency } from './freeagency';
 import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff';
@@ -39,10 +39,9 @@ export function startOffseason(league: League) {
   staffOffseason(league, rng);
   league.week = 0;
   league.phase = 'resign';
-  // Keep a rolling three years of picks.
-  const far = league.season + 2;
-  if (!league.picks.some(k => k.season === far)) for (let round = 1; round <= 7; round++) for (const abbr of Object.keys(league.teams)) league.picks.push({ id: `${far}-${round}-${abbr}`, season: far, round, orig: abbr, owner: abbr });
+  // Picks and draft classes through 2032 (and always a few years ahead).
   league.picks = league.picks.filter(k => k.season >= league.season);
+  ensureFuture(league);
   league.scoutPoints += 300;
   if (!Object.values(league.players).some(p => p.status === 'PROSPECT' && p.draft.year === league.season)) for (const p of generateClass(league, league.season)) league.players[p.id] = p;
   for (const p of Object.values(league.players)) { p.cond = 100; if (p.injury && !p.injury.season) p.injury = undefined; else if (p.injury) p.injury.weeks = Math.max(0, p.injury.weeks - 20); if (p.injury && p.injury.weeks <= 0) p.injury = undefined; }
