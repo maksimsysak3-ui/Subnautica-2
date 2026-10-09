@@ -136,7 +136,7 @@ function openReport(L: League, w: PracticeWeek, rng: Rng) {
   w.injuries = [];
   for (const t of teams) for (const p of Object.values(L.players)) {
     if (p.team !== t || !p.injury || p.status === 'RET') continue;
-    if (p.injury.weeks >= 2 || p.injury.type === 'Suspended (team)') { w.injuries.push({ pid: p.id, team: t, injury: p.injury.type, part: [], status: 'Out', plays: false }); continue; }
+    if (p.injury.weeks >= 2 || /Suspended|Personal/.test(p.injury.type)) { w.injuries.push({ pid: p.id, team: t, injury: p.injury.type, part: [], status: 'Out', plays: false }); continue; }
     // Due back next week: a chance he is ready early.
     const roll = rng.next();
     w.injuries.push({ pid: p.id, team: t, injury: p.injury.type, part: [], plays: roll < 0.4, status: undefined });

@@ -14,6 +14,7 @@ import { treeOf, hasTree } from '../core/archetypes';
 import { staffOf, staffState } from '../core/staff';
 import { holdoutOf, fineHoldout } from '../core/holdout';
 import { storylines } from './storylines';
+import { storylines2 } from './storylines2';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
@@ -23,6 +24,8 @@ export interface ActionCard {
   id: string; kind: string; headline: string; body: string;
   p?: Player; team: Team; feature?: boolean; matchup?: boolean;
   choices: Choice[]; delegate?: Delegate;
+  /** Where the decision happens (the pop-up's set), and who is calling or texting. */
+  scene?: import('./scenes').SceneKind; caller?: string; texts?: string[];
 }
 /** What a choice can ask the UI to open. */
 export interface Opener { negotiate: (p: Player) => void; go: (id: string, extra?: Record<string, string>) => void }
@@ -465,7 +468,8 @@ export function weeklyCards(L: League): ActionCard[] {
   }
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
-  pool.push(...storylines({ L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) }));
+  const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
+  pool.push(...storylines(kit), ...storylines2(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 

@@ -3,6 +3,9 @@
 // to). Arrow keys move, Enter takes the first choice, X delegates.
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { SceneBg, sceneFor, Device } from '../scenes';
+const defaultCaller = (c: ActionCard) => (c.kind === 'Trade Call' ? `${c.team.name} GM` : c.kind === 'League Office' ? 'League Office' : c.kind === 'Coaching Staff' ? 'Your coordinator' : c.p ? `${c.p.fn} ${c.p.ln}` : c.kind);
+const defaultTexts = (c: ActionCard) => [c.p ? `Coach, it's ${c.p.fn}.` : 'Coach, got a minute?', 'What is going on?', 'We need to talk about this week.'];
 import { useApp, app, type Screen } from '../store';
 import { Logo, vivid } from '../components';
 import { FaceArt } from '../face';
@@ -22,17 +25,19 @@ export function WeeklyCards() {
   // The week's lead story opens as a breaking-news pop-up, once.
   const wkKey = `${L.season}-${L.phase}-${L.week}`;
   const seen = (L as typeof L & { popSeen?: string }).popSeen;
-  const lead = cards.find(c => !c.matchup && c.p && ['Holdout', 'Fallout', 'League Office'].includes(c.kind)) ?? cards.find(c => !c.matchup && c.p && c.feature) ?? cards.find(c => !c.matchup && c.p);
+  const lead = cards.find(c => !c.matchup && ['Holdout', 'Fallout', 'League Office'].includes(c.kind)) ?? cards.find(c => !c.matchup && (c.p || c.scene) && c.feature) ?? cards.find(c => !c.matchup && (c.p || c.scene));
   const [popOpen, setPopOpen] = useState(true);
-  const pop = popOpen && seen !== wkKey && L.phase === 'regular' ? lead : undefined;
-  const closePop = () => { (L as typeof L & { popSeen?: string }).popSeen = wkKey; setPopOpen(false); };
+  // Any card can be opened in its scene; the lead story opens by itself once a week.
+  const [picked, setPicked] = useState<ActionCard | null>(null);
+  const pop = picked ?? (popOpen && seen !== wkKey && L.phase === 'regular' ? lead : undefined);
+  const closePop = () => { (L as typeof L & { popSeen?: string }).popSeen = wkKey; setPopOpen(false); setPicked(null); };
   const delegate = (c: ActionCard) => { if (!c.delegate) return; c.delegate.run(); app.toast(`Delegated to ${c.delegate.who}`); app.touch(); };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (neg || ['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
       if (e.key === 'ArrowRight') setFocus(x => Math.min(cards.length - 1, x + 1));
       else if (e.key === 'ArrowLeft') setFocus(x => Math.max(0, x - 1));
-      else if (e.key === 'Enter' && cards[f]) act(cards[f]);
+      else if (e.key === 'Enter' && cards[f]) { if (cards[f].matchup) act(cards[f]); else setPicked(cards[f]); }
       else if ((e.key === 'x' || e.key === 'X') && cards[f]) delegate(cards[f]);
       else return;
       e.preventDefault();
@@ -43,7 +48,7 @@ export function WeeklyCards() {
   return (
     <>
       <div className="wh-row">
-        {cards.map((c, i) => <Card key={c.id} c={c} on={i === f} onFocus={() => setFocus(i)} onAct={j => act(c, j)} onDelegate={() => delegate(c)} />)}
+        {cards.map((c, i) => <Card key={c.id} c={c} on={i === f} onFocus={() => setFocus(i)} onAct={j => act(c, j)} onOpen={() => (c.matchup ? act(c) : setPicked(c))} onDelegate={() => delegate(c)} />)}
         {!cards.length && <div className="wc empty-card"><h2 className="wc-h">All caught up</h2><p className="wc-b">Nothing in the building needs a decision this week.</p></div>}
       </div>
       {pop && !neg && createPortal(<StoryPop c={pop} onAct={j => { closePop(); act(pop, j); }} onLater={closePop} />, document.body)}
@@ -52,12 +57,12 @@ export function WeeklyCards() {
   );
 }
 
-function Card({ c, on, onFocus, onAct, onDelegate }: { c: ActionCard; on: boolean; onFocus: () => void; onAct: (i: number) => void; onDelegate: () => void }) {
+function Card({ c, on, onFocus, onAct, onOpen, onDelegate }: { c: ActionCard; on: boolean; onFocus: () => void; onAct: (i: number) => void; onOpen: () => void; onDelegate: () => void }) {
   const t = c.team;
   const stakes = on && c.choices.some(x => x.hint);
   const big = on && !stakes && !!c.p && (c.feature || c.matchup);
   return (
-    <div className={`wc${on ? ' on' : ''}${c.matchup ? ' mu' : ''}${stakes ? ' st' : ''}${stakes && !c.delegate ? ' nd' : ''}`} style={{ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as CSSProperties} onMouseEnter={onFocus} onClick={() => (on ? onAct(0) : onFocus())}>
+    <div className={`wc${on ? ' on' : ''}${c.matchup ? ' mu' : ''}${stakes ? ' st' : ''}${stakes && !c.delegate ? ' nd' : ''}`} style={{ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as CSSProperties} onMouseEnter={onFocus} onClick={() => (on ? onOpen() : onFocus())}>
       <div className="wc-bg"><i className="wc-paint" /><i className="wc-swoosh" /><Logo team={t} size={360} style={{ position: 'absolute', left: -80, top: -40, opacity: 0.14 }} /></div>
       <span className="wc-kind">{c.kind}</span>
       {c.p && (big ? <Shot p={c.p} t={t} cls="wc-shot" /> : <Shot p={c.p} t={t} cls="wc-face" />)}
@@ -93,6 +98,7 @@ function accent(t: Team) { const c = t.colors[1] ?? '#ffd23f'; const n = parseIn
 /** Breaking-news pop-up for the week's lead story: letterbox, portrait, typed headline, the decision. */
 function StoryPop({ c, onAct, onLater }: { c: ActionCard; onAct: (i: number) => void; onLater: () => void }) {
   const t = c.team;
+  const scene = sceneFor(c);
   const [n, setN] = useState(0);
   useEffect(() => { const id = setInterval(() => setN(x => (x >= c.headline.length ? x : x + 2)), 22); return () => clearInterval(id); }, [c.headline]);
   useEffect(() => {
@@ -102,9 +108,9 @@ function StoryPop({ c, onAct, onLater }: { c: ActionCard; onAct: (i: number) => 
   return (
     <div className="sp" style={{ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as CSSProperties}>
       <i className="sp-bar top" /><i className="sp-bar bot" />
-      <div className="sp-bg"><Logo team={t} size={720} style={{ position: 'absolute', right: -160, top: -120, opacity: 0.08 }} /></div>
+      <div className="sp-bg"><SceneBg kind={scene} caller={c.caller} texts={c.texts} accent={vivid(t.colors[0])} /><Logo team={t} size={720} style={{ position: 'absolute', right: -160, top: -120, opacity: 0.06 }} /></div>
       <div className="sp-in">
-        {c.p && <Shot p={c.p} t={t} cls="sp-shot" />}
+        {scene === 'phone' || scene === 'texts' ? <div className="sp-devslot"><Device kind={scene} caller={c.caller ?? defaultCaller(c)} texts={c.texts ?? defaultTexts(c)} /></div> : c.p && <Shot p={c.p} t={t} cls="sp-shot" />}
         <div className="sp-text">
           <div className="sp-tags"><span className="sp-live">Breaking</span><span className="sp-kind">{c.kind}</span></div>
           <h1 className="sp-h">{c.headline.slice(0, n)}<i className="sp-caret">▌</i></h1>
@@ -113,7 +119,7 @@ function StoryPop({ c, onAct, onLater }: { c: ActionCard; onAct: (i: number) => 
           <button className="sp-later" onClick={onLater}>Decide later <kbd>Esc</kbd></button>
         </div>
       </div>
-      <div className="sp-ticker"><span>Live from the {t.nick} facility · {c.kind} · Your call</span></div>
+      <div className="sp-ticker"><span>{scene === 'phone' ? `Incoming · ${c.caller ?? c.kind}` : scene === 'tv' ? `GGN Sports · ${c.kind} · Developing` : `Live from the ${t.nick} facility · ${c.kind} · Your call`}</span></div>
     </div>
   );
 }

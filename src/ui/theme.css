@@ -1618,3 +1618,90 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .s3-layer .sl { filter: none; }
 .s3-layer:last-child .sl { filter: drop-shadow(0 40px 50px rgba(0,0,0,.7)); }
 .s3-mark { top: 44%; }
+
+/* ==== story pop-up scenes ==== */
+.sp-bg { overflow: hidden; }
+.sc { position: absolute; inset: 0; overflow: hidden; }
+.sc-sky { position: absolute; left: 0; right: 0; bottom: 30%; height: 45%; }
+.sc-sky i { position: absolute; bottom: 0; background: linear-gradient(180deg, #121a2b, #0a0f1b); }
+.sc-sky b { position: absolute; left: 20%; width: 60%; height: 3px; background: #ffd889; box-shadow: 0 0 6px #ffd889; }
+/* phone and texts */
+.sc-phonebg { background: radial-gradient(80% 60% at 30% 40%, color-mix(in srgb, var(--a) 30%, transparent), transparent 70%), #05070d; }
+.sc-bokeh i { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--a) 40%, #fff 10%), transparent 70%); filter: blur(8px); opacity: .35; animation: scFloat 9s ease-in-out infinite alternate; }
+@keyframes scFloat { to { transform: translate(30px, -24px); opacity: .15; } }
+.sp-devslot { display: grid; place-items: center; }
+.sc-dev { position: relative; width: min(300px, 30vw); aspect-ratio: 9 / 18; border-radius: 40px; padding: 12px; background: linear-gradient(160deg, #3a3f4a, #12151b); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), 0 40px 80px rgba(0,0,0,.6); animation: spUp .6s cubic-bezier(.2,.9,.2,1) both; }
+.sc-dev.ring { animation: spUp .6s cubic-bezier(.2,.9,.2,1) both, scBuzz 1.6s .8s ease-in-out infinite; }
+@keyframes scBuzz { 0%, 70%, 100% { transform: rotate(0); } 74% { transform: rotate(-2.5deg); } 78% { transform: rotate(2.5deg); } 82% { transform: rotate(-2deg); } 86% { transform: rotate(2deg); } }
+.sc-scr { height: 100%; border-radius: 30px; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 50px 16px 22px; gap: 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 55%, #000), #06080d 80%); text-align: center; }
+.sc-inc { font: 600 12px var(--ui); color: rgba(255,255,255,.7); letter-spacing: .06em; }
+.sc-scr > b { font: 600 24px/1.15 var(--ui); color: #fff; } .sc-scr > span:not(.sc-inc) { font-size: 12px; color: rgba(255,255,255,.55); }
+.sc-pulse { position: relative; width: 90px; height: 90px; margin: auto; }
+.sc-pulse i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); animation: scRing 1.8s ease-out infinite; }
+.sc-pulse i:nth-child(2) { animation-delay: .6s; } .sc-pulse i:nth-child(3) { animation-delay: 1.2s; }
+@keyframes scRing { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+.sc-btns { display: flex; justify-content: space-between; width: 80%; }
+.sc-btns em { width: 54px; height: 54px; border-radius: 50%; } .sc-btns .no { background: #ff3b30; } .sc-btns .yes { background: #34c759; animation: scGlow 1.2s ease-in-out infinite alternate; }
+@keyframes scGlow { to { box-shadow: 0 0 22px #34c759; } }
+.sc-scr.chat { align-items: stretch; justify-content: flex-start; gap: 8px; padding-top: 40px; text-align: left; background: #0b0d12; }
+.sc-scr.chat .sc-inc { text-align: center; margin-bottom: 8px; }
+.sc-scr.chat p { max-width: 82%; margin: 0; padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: #262a33; color: #fff; font: 500 13px/1.35 var(--ui); animation: scMsg .35s cubic-bezier(.2,.9,.3,1.2) both; }
+.sc-scr.chat p.me { align-self: flex-end; border-radius: 16px 16px 4px 16px; background: #0a84ff; }
+.sc-scr.chat p.typing { display: flex; gap: 4px; width: 54px; } .sc-scr.chat p.typing i { width: 7px; height: 7px; border-radius: 50%; background: #9aa3b2; animation: scDot 1s ease-in-out infinite; }
+.sc-scr.chat p.typing i:nth-child(2) { animation-delay: .15s; } .sc-scr.chat p.typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes scMsg { from { opacity: 0; transform: translateY(10px) scale(.9); } }
+@keyframes scDot { 50% { transform: translateY(-4px); opacity: .5; } }
+/* TV studio */
+.sc-tv { background: radial-gradient(70% 60% at 70% 30%, color-mix(in srgb, var(--a) 35%, transparent), transparent 70%), linear-gradient(180deg, #0b1020, #05070d); }
+.sc-set .sc-wall { position: absolute; left: 0; right: 0; top: 0; height: 62%; background: repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 120px, transparent 120px 240px); }
+.sc-set b { position: absolute; top: 10%; width: 11%; height: 40%; border-radius: 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 60%, #fff 10%), color-mix(in srgb, var(--a) 25%, #000)); opacity: .5; box-shadow: 0 0 40px color-mix(in srgb, var(--a) 50%, transparent); animation: scScreens 3s ease-in-out infinite alternate; }
+@keyframes scScreens { to { filter: brightness(1.5); } }
+.sc-desk { position: absolute; left: -5%; right: -5%; bottom: 8%; height: 30%; border-radius: 50% 50% 0 0 / 20% 20% 0 0; background: linear-gradient(180deg, #1c2333, #0a0d14); box-shadow: 0 -2px 0 color-mix(in srgb, var(--a) 70%, transparent); }
+.sc-scan { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 2px, transparent 2px 4px); pointer-events: none; }
+.sc-onair { position: absolute; right: 4%; top: calc(8vh + 18px); padding: 4px 10px; border-radius: 3px; background: #d7263d; font: 700 11px var(--ui); letter-spacing: .2em; text-transform: uppercase; color: #fff; animation: fxBlink 1.4s ease-in-out infinite; }
+/* locker room */
+.sc-locker { background: linear-gradient(180deg, #0d1118, #06080c); }
+.sc-lockers { position: absolute; left: 0; right: 0; top: 6%; height: 70%; display: flex; gap: 1%; padding: 0 2%; perspective: 800px; }
+.sc-lockers i { flex: 1; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 35%, #1b2130), #0c1018); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), inset 0 -40px 60px rgba(0,0,0,.5); animation: pbIn .6s ease both; position: relative; }
+.sc-lockers i b { position: absolute; top: 8%; left: 50%; translate: -50% 0; font: 700 22px var(--head); color: rgba(255,255,255,.2); }
+.sc-bench { position: absolute; left: 5%; right: 5%; bottom: 14%; height: 4%; border-radius: 3px; background: linear-gradient(180deg, #7a5a34, #4a3520); }
+.sc-lamp { position: absolute; inset: 0; background: radial-gradient(40% 30% at 50% 0%, rgba(255,240,210,.18), transparent 70%); animation: scFlicker 5s linear infinite; }
+@keyframes scFlicker { 0%, 92%, 96%, 100% { opacity: 1; } 94% { opacity: .5; } }
+/* boardroom */
+.sc-board { background: linear-gradient(180deg, #070b16, #0d1220 60%, #1a1410); }
+.sc-table { position: absolute; left: 12%; right: 12%; bottom: 10%; height: 18%; border-radius: 50%; background: radial-gradient(60% 50% at 50% 40%, #5a3e24, #2a1c10); box-shadow: 0 20px 40px rgba(0,0,0,.6); }
+.sc-chair { position: absolute; bottom: 26%; width: 6%; height: 14%; border-radius: 30% 30% 6px 6px; background: #12161e; }
+/* film room */
+.sc-film { background: #040507; }
+.sc-screen { position: absolute; right: 6%; top: 12%; width: 46%; aspect-ratio: 200 / 110; background: linear-gradient(180deg, #1d5a2c, #143f20); box-shadow: 0 0 60px rgba(120,200,255,.25); animation: scFlicker 3s linear infinite; }
+.sc-screen svg { width: 100%; height: 100%; } .sc-routes path { stroke-dasharray: 200; animation: scDraw 3s ease-in-out infinite; }
+@keyframes scDraw { from { stroke-dashoffset: 200; } 60%, to { stroke-dashoffset: 0; } }
+.sc-beam { position: absolute; left: -10%; top: 0; width: 80%; height: 100%; background: linear-gradient(100deg, rgba(200,230,255,.18), transparent 70%); clip-path: polygon(0 40%, 100% 10%, 100% 75%, 0 50%); }
+.sc-dust { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(255,255,255,.5); animation: scFloat 7s ease-in-out infinite alternate; }
+/* practice field and snow */
+.sc-field { background: linear-gradient(180deg, #121a26, #0b1210 45%); }
+.sc-field.snow { background: linear-gradient(180deg, #4a5566, #2b3340 45%); }
+.sc-turf { position: absolute; left: -20%; right: -20%; bottom: 0; height: 58%; background: repeating-linear-gradient(90deg, #2b7f39 0 6%, #2f8a3e 6% 12%); transform: perspective(600px) rotateX(55deg); transform-origin: 50% 100%; }
+.sc-field.snow .sc-turf { background: repeating-linear-gradient(90deg, #d8dee6 0 6%, #e8edf2 6% 12%); }
+.sc-flake { position: absolute; top: -5%; width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: .85; animation: scSnow linear infinite; }
+@keyframes scSnow { to { transform: translate(-40px, 110vh); } }
+.sc-cone { position: absolute; bottom: 20%; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid #ff7a1a; }
+/* stadium */
+.sc-stadium { background: radial-gradient(70% 50% at 50% 100%, color-mix(in srgb, var(--a) 35%, transparent), transparent 70%), #04060b; }
+.sc-bowl { position: absolute; left: -10%; right: -10%; top: 25%; height: 50%; border-radius: 50% 50% 0 0; background: repeating-linear-gradient(0deg, #0d121c 0 10px, #111827 10px 20px); }
+.sc-flash { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; opacity: 0; animation: scCam 3s ease-out infinite; }
+@keyframes scCam { 0%, 85% { opacity: 0; } 88% { opacity: 1; box-shadow: 0 0 12px 4px #fff; } 100% { opacity: 0; } }
+.sc-lights { position: absolute; top: 8%; left: 0; right: 0; display: flex; justify-content: space-around; }
+.sc-lights b { width: 70px; height: 20px; border-radius: 3px; background: #fff8dd; box-shadow: 0 0 50px 16px rgba(255,248,221,.35); }
+/* office */
+.sc-office { background: linear-gradient(180deg, #060a14, #0c1220 60%, #0a0a0c); }
+.sc-desk2 { position: absolute; left: 0; right: 0; bottom: 0; height: 24%; background: linear-gradient(180deg, #2a1d12, #120c07); }
+.sc-glow { position: absolute; left: 8%; bottom: 18%; width: 30%; height: 40%; background: radial-gradient(circle, rgba(255,214,140,.25), transparent 70%); }
+.sc-dev { height: auto; } .sc-scr { position: absolute; inset: 12px; height: auto; }
+.sc-sky { opacity: .55; bottom: 24%; height: 38%; }
+.sc-sky b { left: 30%; width: 14%; height: 3px; }
+.sc-screen { right: auto; left: 4%; width: 40%; top: 16%; }
+.sc-beam { left: auto; right: -10%; transform: scaleX(-1); }
+.sc-bowl { background: repeating-linear-gradient(0deg, #1b2334 0 10px, #222c40 10px 20px); box-shadow: inset 0 40px 80px rgba(0,0,0,.5); }
+.sc-stadium { background: radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--a) 45%, transparent), transparent 70%), radial-gradient(60% 40% at 50% 10%, rgba(255,248,221,.12), transparent 70%), #05070d; }
+.sc-flash { width: 4px; height: 4px; animation-duration: 2.2s; }
