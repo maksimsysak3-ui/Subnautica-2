@@ -6,7 +6,8 @@ import { standings } from '../../core/season';
 import { TradeOfferCard } from './league';
 import type { Player, TradeOffer } from '../../core/types';
 import { capHit, capSpace, money, yearsLeft } from '../../core/contracts';
-import { evaluateTrade, executeTrade, pickLabel, pickTradeValue, pickValue, playerTradeValue, projectedSlot, whatWouldItTake } from '../../core/trade';
+import { TradeAlert } from '../tradealert';
+import { evaluateTrade, executeTrade, noteRejection, patience, pickLabel, pickTradeValue, pickValue, playerTradeValue, projectedSlot, whatWouldItTake } from '../../core/trade';
 import { positionNeeds } from '../../core/draft';
 import { POS_ORDER } from '../../core/ratings';
 // ---- trade center ------------------------------------------------------------------------
@@ -24,7 +25,8 @@ export function TradeScreen({ team, want }: { team?: string; want?: string }) {
   const [give, setGive] = useState<Side>(EMPTY);
   const [get, setGet] = useState<Side>({ players: want ? [want] : [], picks: [] });
   const [msg, setMsg] = useState('');
-  const [done, setDone] = useState<null | { me: Side; them: Side; other: string }>(null);
+  const [done, setDone] = useState<TradeOffer | null>(null);
+  const [counter, setCounter] = useState<TradeOffer | null>(null);
   const [shake, setShake] = useState(0);
   const offer: TradeOffer = { from: L.user, to: other, give, get };
   const verdict = evaluateTrade(L, offer);
@@ -35,19 +37,31 @@ export function TradeScreen({ team, want }: { team?: string; want?: string }) {
   const toggle = (side: 'give' | 'get', kind: 'players' | 'picks', id: string) => {
     const [cur, set] = side === 'give' ? [give, setGive] : [get, setGet];
     set({ ...cur, [kind]: cur[kind].includes(id) ? cur[kind].filter(x => x !== id) : [...cur[kind], id] });
-    setMsg('');
+    setMsg(''); setCounter(null);
   };
-  const switchTeam = (t: string) => { setOther(t); setGet(EMPTY); setMsg(''); };
+  const switchTeam = (t: string) => { setOther(t); setGet(EMPTY); setMsg(''); setCounter(null); };
   const cycle = (d: number) => switchTeam(others[(others.indexOf(other) + d + others.length) % others.length]);
   const hits = (ids: string[]) => ids.reduce((a, id) => a + capHit(L.players[id].contract, L.season), 0);
   const myCapAfter = capSpace(L, L.user) + hits(give.players) - hits(get.players);
   const theirCapAfter = capSpace(L, other) - hits(give.players) + hits(get.players);
   const propose = () => {
-    if (!verdict.accept) { setShake(n => n + 1); setMsg(verdict.reason); return; }
+    const v = evaluateTrade(L, offer, true);
+    if (!v.accept) {
+      // A real no: the front office remembers, and may come back with a counter.
+      if (!/cap|deadline/.test(v.reason)) noteRejection(L, other);
+      setShake(n => n + 1); setMsg(v.reason); setCounter(v.counter ?? null); app.touch(); return;
+    }
     executeTrade(L, offer);
-    setDone({ me: give, them: get, other });
+    setDone(offer); setCounter(null);
     setGive(EMPTY); setGet(EMPTY); setMsg(''); app.touch();
   };
+  const takeCounter = () => {
+    if (!counter) return;
+    const v = evaluateTrade(L, counter);
+    if (!v.accept) { setMsg(v.reason); setCounter(null); return; }
+    executeTrade(L, counter); setDone(counter); setCounter(null); setGive(EMPTY); setGet(EMPTY); setMsg(''); app.touch();
+  };
+  const mood = patience(L, other);
   const ask = () => {
     const t = get.players[0];
     if (!t) { setMsg('Select one of their players first.'); return; }
@@ -70,6 +84,13 @@ export function TradeScreen({ team, want }: { team?: string; want?: string }) {
             <button className="btn sm" onClick={ask}>What Would It Take?</button>
             <button className="btn sm ghost" disabled={!any} onClick={() => { setGive(EMPTY); setGet(EMPTY); setMsg(''); }}>Clear</button>
           </div>
+          {counter && <div className="tt-counter">
+            <span>Their counter</span>
+            <div><b>You send</b>{describeSide(L, counter.give)}</div>
+            <div><b>You get</b>{describeSide(L, counter.get)}</div>
+            <div className="row" style={{ gap: 6, marginTop: 6 }}><button className="btn sm primary" onClick={takeCounter}>Accept Counter</button><button className="btn sm ghost" onClick={() => { setGive(counter.give); setGet(counter.get); setCounter(null); }}>Load to Table</button></div>
+          </div>}
+          {mood > 0 && <div className={`tt-mood m${Math.min(3, mood)}`}>{mood >= 3 ? 'Their GM is losing patience' : mood === 2 ? 'Their GM is getting annoyed' : 'Their GM said no once this week'}</div>}
           <button className={`btn primary big tt-propose${verdict.accept && any ? ' ready' : ''}`} disabled={!any} onClick={propose}>Propose Trade</button>
           {L.phase === 'regular' && <div className="small mute c">Deadline after week {L.tradeDeadlineWeek}</div>}
         </div>
@@ -90,15 +111,7 @@ export function TradeScreen({ team, want }: { team?: string; want?: string }) {
         <Assets L={L} abbr={other} sel={get} valueFor={L.user} onToggle={(k, id) => toggle('get', k, id)} />
       </div>
 
-      {done && (
-        <div className="tt-done" onClick={() => setDone(null)}>
-          <div className="tt-done-logos"><span className="l"><Logo team={L.teams[L.user]} size={110} /></span><span className="hs">🤝</span><span className="r"><Logo team={L.teams[done.other]} size={110} /></span></div>
-          <div className="tt-done-title">Trade Accepted</div>
-          <div className="dim">{describeSide(L, done.me)} <b>→</b> {L.teams[done.other].nick}</div>
-          <div className="dim">{describeSide(L, done.them)} <b>→</b> {L.teams[L.user].nick}</div>
-          <div className="small mute" style={{ marginTop: 16 }}>Click to continue</div>
-        </div>
-      )}
+      {done && <TradeAlert L={L} offer={done} onClose={() => setDone(null)} />}
     </div>
   );
 }

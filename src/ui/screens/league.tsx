@@ -5,6 +5,7 @@ import { Logo, Face, Table, Tabs, Ovr, PlayerCell } from '../components';
 import { vivid } from '../components';
 import { divisionOrder, seeds, standings, ROUND_NAME, REG_WEEKS } from '../../core/season';
 import { evaluateTrade, executeTrade, pickLabel } from '../../core/trade';
+import { TradeAlert } from '../tradealert';
 import type { League, Player, StatLine } from '../../core/types';
 import { PressInvite } from './presser';
 import { pressOpen } from '../../core/presser';
@@ -171,6 +172,7 @@ export function InboxScreen() {
   );
 }
 export function TradeOfferCard({ L, offer, onDone }: { L: League; offer: NonNullable<League['inbox'][number]['action']>['offer']; onDone: () => void }) {
+  const [alert, setAlert] = useState<typeof offer | null>(null);
   const side = (players: string[], picks: string[]) => <div className="list">{players.map(id => L.players[id] && <div key={id} className="li" onClick={() => app.go({ id: 'player', pid: id })}><PlayerCell p={L.players[id]} /><div className="spacer" /><Ovr v={L.players[id].ovr} /></div>)}{picks.map(id => { const k = L.picks.find(p => p.id === id); return k && <div key={id} className="li">◆ {pickLabel(L, k)}</div>; })}</div>;
   return (
     <div className="grid g2" style={{ marginTop: 18 }}>
@@ -179,8 +181,9 @@ export function TradeOfferCard({ L, offer, onDone }: { L: League; offer: NonNull
       <div className="row span2"><button className="btn primary" onClick={() => {
         const flipped = { from: L.user, to: offer.from, give: offer.get, get: offer.give };
         const v = evaluateTrade(L, flipped);
-        if (!v.reason.includes('cap') && !v.reason.includes('deadline')) { executeTrade(L, flipped); app.toast('Trade completed'); onDone(); } else app.toast(v.reason);
+        if (!v.reason.includes('cap') && !v.reason.includes('deadline')) { executeTrade(L, flipped); setAlert(flipped); } else app.toast(v.reason);
       }}>Accept Trade</button><button className="btn" onClick={() => app.go({ id: 'trade', team: offer.from })}>Counter in Trade Center</button><button className="btn ghost" onClick={onDone}>Decline</button></div>
+      {alert && <TradeAlert L={L} offer={alert} onClose={() => { setAlert(null); onDone(); }} />}
     </div>
   );
 }
