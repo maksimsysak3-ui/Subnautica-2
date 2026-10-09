@@ -10,6 +10,8 @@ import { teamRatings } from '../../core/league';
 import { makeWeather } from '../../sim/game';
 import { Rng, hash } from '../../core/rng';
 import { ATTR_NAME } from '../../core/ratings';
+import { practiceWeek } from '../../core/practice';
+import { InjuryReport } from './practice';
 import type { League, Player, Pos, Team, Attrs } from '../../core/types';
 
 const starter = (L: League, t: Team, pos: Pos, i = 0): Player | undefined => {
@@ -38,7 +40,8 @@ export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: bool
   const out = [me, opp].map(t => Object.values(L.players).filter(p => p.team === t.abbr && p.injury && p.ovr >= 75).sort((a, b) => b.ovr - a.ovr).slice(0, 4));
   const rows: [string, number, number][] = [['Overall', ra.ovr, rh.ovr], ['Offense', ra.off, rh.off], ['Defense', ra.def, rh.def], ['Quarterback', ra.qb, rh.qb], ['O-Line', ra.ol, rh.ol], ['D-Line', ra.dl, rh.dl], ['Secondary', ra.db, rh.db]];
   const when = g.week > 18 ? ROUND_NAME[g.week] : `Week ${g.week}`;
-  const play = () => app.replace({ id: 'game', gid });
+  // The week of practice comes first, day by day, unless it has already been run.
+  const play = () => (practiceWeek(L).done || g.week !== L.week ? app.replace({ id: 'game', gid }) : app.go({ id: 'practice', then: 'play', gid }));
   const sim = () => app.busy('Simulating the week', async () => { await advance(L); await saveLeague(L, `${L.id}-auto`); app.replace({ id: 'box', gid }); });
   return (
     <div className={`pv${embedded ? ' embedded' : ''}`} style={{ '--ca': vivid(away.colors[0]), '--ch': vivid(home.colors[0]) } as CSSProperties}>
@@ -77,7 +80,7 @@ export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: bool
         </div>
         <div className="pv-panel" style={{ '--d': '0.8s' } as CSSProperties}>
           <h4>Injury Report</h4>
-          {[me, opp].map((t, i) => (
+          {practiceWeek(L).done && g.week === L.week ? <InjuryReport L={L} compact /> : [me, opp].map((t, i) => (
             <div key={t.abbr} style={{ marginBottom: 12 }}>
               <div className="row" style={{ gap: 8, marginBottom: 6 }}><Logo team={t} size={22} /><span className="up">{t.nick}</span></div>
               {out[i].length ? out[i].map(p => <div key={p.id} className="pv-out"><span>{p.pos}</span><b>{p.fn[0]}. {p.ln}</b><em>{p.injury!.type} · {p.injury!.weeks} wk</em></div>) : <div className="small mute">No key players out.</div>}

@@ -1,5 +1,6 @@
 // The season loop: results, standings and tiebreakers, playoffs, weekly XP and
 // growth, wear and injuries, awards, records, news, job security, coach XP.
+import { runPractice } from './practice';
 import { awardSkillPoints } from './archetypes';
 import type { Game, League, Player, Pos, StatLine } from './types';
 import { Rng, clamp, hash } from './rng';
@@ -144,6 +145,8 @@ export function simWeek(league: League, exceptUser = false) {
   }
 }
 export function prepTeam(league: League, abbr: string) {
+  // The user's week of practice runs before kickoff if nobody ran it (sets the injury report).
+  if (abbr === league.user && (league.phase === 'regular' || league.phase === 'playoffs')) runPractice(league);
   if (abbr !== league.user || league.coachTree.unlocked.includes('Auto Depth') || !league.teams[abbr].depth.QB?.length) { autoDepth(league, abbr); return; }
   // The user's team: positions he never touched are sorted like everyone else's every week
   // (so signings, trades, rookies and players back from IR start when they're best).

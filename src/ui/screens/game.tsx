@@ -15,6 +15,7 @@ import { Halftime } from '../halftime';
 import { HighlightReel } from '../reel';
 import { pickHighlights } from '../../sim/highlights';
 import { sfx } from '../sfx';
+import { practiceWeek } from '../../core/practice';
 
 export function GameScreen({ gid }: { gid: string }) {
   const L = useApp().league!;
@@ -36,6 +37,13 @@ export function GameScreen({ gid }: { gid: string }) {
   const [designing, setDesigning] = useState(false);
   const [folder, setFolder] = useState<string | null>(null);
   useMemo(() => { registerPlays(L); books(L); }, [L]);
+  // Kickoff: the game-time decisions from the injury report are revealed.
+  useEffect(() => {
+    const w = practiceWeek(L);
+    if (!w.done || sim.events.length) return;
+    const calls = w.injuries.filter(l => l.status === 'Questionable' || l.status === 'Doubtful').map(l => { const p = L.players[l.pid]; return p ? `${L.teams[l.team].abbr} ${p.pos} ${p.ln} (${l.status?.toLowerCase()}) is ${l.plays ? 'ACTIVE' : 'INACTIVE'}` : ''; }).filter(Boolean);
+    if (calls.length) setTimeout(() => app.toast(`Game-time decisions: ${calls.join(' · ')}`), 600);
+  }, []);
   const auto = useRef<null | 'drive' | 'quarter' | 'end' | 'watch'>(null);
   const home = L.teams[game.home], away = L.teams[game.away];
   const userSide = game.home === L.user ? 1 : 0;

@@ -157,7 +157,7 @@ function Route({ sc }: { sc: Screen }) {
     case 'camp': return <CampScreen />;
     case 'facilities': return <FacilitiesScreen />;
     case 'playbook': return <PlaybookScreen />;
-    case 'practice': return <PracticeScreen />;
+    case 'practice': return <PracticeScreen then={sc.then} gid={sc.gid} />;
     case 'stats': return <StatsScreen />;
     case 'news': return <NewsScreen />;
     case 'inbox': return <InboxScreen />;
