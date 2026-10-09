@@ -21,11 +21,28 @@ export function faceSpec(p: Player) {
   };
 }
 
+/** College colours (jersey, trim) for prospects, so a draft class looks like a draft class. */
+const COLLEGE: Record<string, [string, string]> = {
+  Alabama: ['#9e1b32', '#ffffff'], Georgia: ['#ba0c2f', '#000000'], 'Ohio State': ['#bb0000', '#a7b1b7'], Michigan: ['#00274c', '#ffcb05'], LSU: ['#461d7c', '#fdd023'], Texas: ['#bf5700', '#ffffff'],
+  Oregon: ['#154733', '#fee123'], 'Penn State': ['#041e42', '#ffffff'], Clemson: ['#f56600', '#522d80'], 'Notre Dame': ['#0c2340', '#c99700'], USC: ['#990000', '#ffc72c'], Florida: ['#0021a5', '#fa4616'],
+  'Florida State': ['#782f40', '#ceb888'], Miami: ['#f47321', '#005030'], Oklahoma: ['#841617', '#fdf9d8'], Tennessee: ['#ff8200', '#ffffff'], 'Texas A&M': ['#500000', '#ffffff'], Auburn: ['#0c2340', '#e87722'],
+  Washington: ['#4b2e83', '#b7a57a'], Utah: ['#cc0000', '#ffffff'], Iowa: ['#000000', '#ffcd00'], Wisconsin: ['#c5050c', '#ffffff'], 'Ole Miss': ['#14213d', '#ce1126'], Missouri: ['#f1b82d', '#000000'],
+  Kentucky: ['#0033a0', '#ffffff'], 'South Carolina': ['#73000a', '#000000'], 'Arizona State': ['#8c1d40', '#ffc627'], UCLA: ['#2d68c4', '#f2a900'], Colorado: ['#000000', '#cfb87c'], Louisville: ['#ad0000', '#000000'],
+  'NC State': ['#cc0000', '#ffffff'], 'North Carolina': ['#7bafd4', '#13294b'], Duke: ['#003087', '#ffffff'], 'Virginia Tech': ['#630031', '#cf4420'], Pittsburgh: ['#003594', '#ffb81c'], 'Boise State': ['#0033a0', '#d64309'],
+  TCU: ['#4d1979', '#a3a9ac'], Baylor: ['#154734', '#ffb81c'], 'Kansas State': ['#512888', '#ffffff'], 'Iowa State': ['#c8102e', '#f1be48'], Minnesota: ['#7a0019', '#ffcc33'], Nebraska: ['#e41c38', '#ffffff'],
+  Purdue: ['#000000', '#cfb991'], Illinois: ['#13294b', '#e84a27'], Arkansas: ['#9d2235', '#ffffff'], 'Mississippi State': ['#660000', '#ffffff'], 'Texas Tech': ['#cc0000', '#000000'], BYU: ['#002e5d', '#ffffff'],
+  SMU: ['#354ca1', '#cc0035'], Tulane: ['#006747', '#418fde'], Memphis: ['#003087', '#898d8d'], Toledo: ['#15397f', '#ffda00'], 'Western Michigan': ['#6c4023', '#b5a167'], 'App State': ['#222222', '#ffcc00'],
+  'James Madison': ['#450084', '#cbb677'], 'North Dakota State': ['#0a5640', '#ffc82e'], Montana: ['#70263c', '#999999'], 'South Dakota State': ['#0033a0', '#ffd100'], Houston: ['#c8102e', '#ffffff'], Cincinnati: ['#e00122', '#000000'],
+};
+const collegeKit = (col: string): [string, string] => COLLEGE[col] ?? (() => { let h = 0; for (const c of col) h = (h * 31 + c.charCodeAt(0)) | 0; const pal: [string, string][] = [['#1e3a8a', '#fbbf24'], ['#7f1d1d', '#f5f5f4'], ['#14532d', '#facc15'], ['#4c1d95', '#e5e7eb'], ['#0f172a', '#f97316']]; return pal[Math.abs(h) % pal.length]; })();
+
 export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: number }) {
   const f = faceSpec(p);
   const id = `f${p.id.replace(/[^a-z0-9]/gi, '')}`;
   const shade = shadeHex(f.skin, -0.22), light = shadeHex(f.skin, 0.12);
-  const jersey = team?.colors[0] ?? '#334155', trim = team?.colors[1] ?? '#94a3b8';
+  const prospect = !team && p.status === 'PROSPECT';
+  const [cj, ct] = prospect ? collegeKit(p.col) : ['#334155', '#94a3b8'];
+  const jersey = team?.colors[0] ?? cj, trim = team?.colors[1] ?? ct;
   const W = 46 * f.width, J = 58 * f.jaw;
   return (
     <svg viewBox="0 0 200 200" width={size} height={size} style={{ display: 'block' }}>
@@ -36,6 +53,8 @@ export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: numbe
       {/* shoulders and jersey */}
       <path d="M18 200 Q24 152 72 140 L128 140 Q176 152 182 200 Z" fill={`url(#${id}j)`} />
       <path d="M78 140 Q100 162 122 140" fill="none" stroke={trim} strokeWidth="6" />
+      {prospect && <><path d="M28 196 Q34 166 62 152" fill="none" stroke={trim} strokeWidth="5" strokeOpacity=".8" /><path d="M172 196 Q166 166 138 152" fill="none" stroke={trim} strokeWidth="5" strokeOpacity=".8" />
+        <text x="100" y="192" textAnchor="middle" fontFamily="var(--head), Impact, sans-serif" fontWeight={800} fontSize="30" fill={trim} stroke="rgba(0,0,0,.35)" strokeWidth="1">{(Math.abs([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 89) + 1}</text></>}
       {/* neck */}
       <path d={`M${100 - 20} 118 L${100 - 22} 146 Q100 156 ${100 + 22} 146 L${100 + 20} 118 Z`} fill={shade} />
       {/* ears */}
