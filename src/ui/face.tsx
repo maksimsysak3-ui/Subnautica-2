@@ -49,7 +49,8 @@ export function genFace(p: Player): string | undefined {
 
 export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: number }) {
   const photo = genFace(p);
-  if (photo) return <img src={photo} alt="" width={size} height={size} style={{ display: 'block', width: size, height: size, objectFit: 'cover', objectPosition: '50% 18%' }} />;
+  // Pulled back like the real headshots: whole head and shoulders, bottom-anchored.
+  if (photo) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}><img src={photo} alt="" style={{ display: 'block', height: size * 0.86, width: 'auto' }} /></div>;
   const f = faceSpec(p);
   const id = `f${p.id.replace(/[^a-z0-9]/gi, '')}`;
   const shade = shadeHex(f.skin, -0.22), light = shadeHex(f.skin, 0.12);
