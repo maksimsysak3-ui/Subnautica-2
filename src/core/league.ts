@@ -247,7 +247,7 @@ export function autoDepth(league: League, team: string) {
 export const manualDepth = (t: Team) => ((t as Team & { depthSet?: Pos[] }).depthSet ??= []);
 export function markDepth(t: Team, pos: Pos) { const m = manualDepth(t); if (!m.includes(pos)) m.push(pos); }
 export function unmarkDepth(t: Team) { (t as Team & { depthSet?: Pos[] }).depthSet = []; }
-export const effOvr = (p: Player) => (p.injury ? p.ovr - 40 : p.ovr) - (100 - p.cond) * 0.15;
+export const effOvr = (p: Player) => (p.injury || (p as Player & { holdout?: unknown }).holdout ? p.ovr - 40 : p.ovr) - (100 - p.cond) * 0.15;
 
 /** Team strength by unit, used by AI, previews and the sim's pregame line. */
 export function teamRatings(league: League, team: string) {

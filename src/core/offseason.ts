@@ -14,6 +14,7 @@ import { generateClass, startDraft, ensureFuture } from './draft';
 import { news, mail, standings, REG_WEEKS, divisionOrder } from './season';
 import { runFreeAgencyDay, openFreeAgency } from './freeagency';
 import { COACH_FIRST, COACH_LAST, poachHeadCoach, staffOffseason } from './staff';
+import { campHoldouts } from './holdout';
 
 /** Peak window per position: growth before, plateau inside, decline after. */
 export const PEAK: Record<Pos, [number, number]> = {
@@ -311,6 +312,7 @@ export function signPlayer(league: League, p: Player, team: string, offer: Offer
     p.contract = { years: [...keep, ...c.years].sort((a, b) => a.s - b.s) };
   } else p.contract = c;
   const moved = p.team !== team;
+  delete (p as Player & { holdout?: unknown }).holdout;   // a new deal ends any holdout
   p.team = team; p.status = 'ACT';
   if (moved) p.num = p.num || 0;
   p.morale = clamp(p.morale + 8, 0, 100);
@@ -366,6 +368,7 @@ export function advanceOffseason(league: League) {
     if (!league.draft?.done) return;
     league.phase = 'camp';
     trainingCamp(league, rng);
+    campHoldouts(league);
     return;
   }
   if (league.phase === 'camp') {

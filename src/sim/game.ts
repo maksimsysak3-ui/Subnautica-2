@@ -89,7 +89,7 @@ export class GameSim {
     for (const id of ids) {
       if (out.length >= n) break;
       const p = this.league.players[id];
-      if (!p || p.injury || side.out.has(id) || skip.has(id) || p.team !== side.abbr) continue;
+      if (!p || p.injury || (p as Player & { holdout?: unknown }).holdout || side.out.has(id) || skip.has(id) || p.team !== side.abbr) continue;
       out.push(p);
     }
     return out;

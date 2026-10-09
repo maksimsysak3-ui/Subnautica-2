@@ -12,6 +12,7 @@ import { settleMedia } from './media';
 import { coachHas, coachXpNeed, POINTS_PER_LEVEL } from './coaching';
 import { staffXpMult, recoveryEdge, moraleBoost, staffWeekly } from './staff';
 import { ownerGoals, playersOfTheWeek, settleOwnerGoals } from './goals';
+import { holdoutWeekly } from './holdout';
 
 export const REG_WEEKS = 18;
 export const ROUND_NAME: Record<number, string> = { 19: 'Wild Card', 20: 'Divisional', 21: 'Conference Championship', 22: 'Super Bowl' };
@@ -170,6 +171,7 @@ export function advanceWeek(league: League): boolean {
   for (const g of weekGames(league)) { byeTeams.delete(g.home); byeTeams.delete(g.away); }
   const recovery: Record<string, number> = {}, boost: Record<string, number> = {};
   staffWeekly(league);
+  if (league.phase === 'regular') holdoutWeekly(league);
   for (const p of Object.values(league.players)) {
     if (p.team === 'FA' || p.status === 'RET' || p.status === 'PROSPECT') continue;
     const plan = league.teams[p.team]?.plan.practice ?? 'Normal';

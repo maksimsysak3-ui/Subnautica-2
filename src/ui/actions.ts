@@ -12,6 +12,7 @@ import { media, applyEffects, promise, fans, teamMorale, fallout, liveFallout } 
 import { pressOpen } from '../core/presser';
 import { treeOf, hasTree } from '../core/archetypes';
 import { staffOf, staffState } from '../core/staff';
+import { holdoutOf, fineHoldout } from '../core/holdout';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
 export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
@@ -44,22 +45,28 @@ export function weeklyCards(L: League): ActionCard[] {
   const add = (c: ActionCard) => { if (!done(L).includes(c.id)) out.push(c); };
   const inSeason = L.phase === 'regular' || L.phase === 'playoffs' || L.phase === 'preseason';
 
+  // Stars actually holding out: every week he's gone costs you a starter.
+  for (const p of roster.filter(x => holdoutOf(x))) {
+    const h = holdoutOf(p)!;
+    const id = `holdout-${p.id}-${L.season}-${h.weeks}`;
+    add({
+      id, kind: h.weeks <= 1 ? 'Holdout' : 'Contract', headline: h.weeks === 0 ? `${p.ln} didn't report. What now?` : `Week ${h.weeks + 1} of the ${p.ln} holdout`, feature: true,
+      body: `${p.fn} ${p.ln} (${p.pos} ${p.ovr}) is ${h.camp && h.weeks === 0 ? 'skipping training camp' : 'holding out'} for a new deal. He makes ${money(apy(p.contract))} a year; the market says ${money(marketValue(p, L.season))}. He misses every game until it's settled${h.weeks ? ` and has given up ${money(h.lost)} so far` : ''}. Morale ${Math.round(p.morale)}.`,
+      p, team: me,
+      choices: [
+        { label: 'Negotiate', hint: 'A new deal ends the holdout', run: o => o.negotiate(p) },
+        ...(!h.fines ? [{ label: 'Fine Him', hint: 'Weekly fines · likelier to report · morale −6', run: () => { fineHoldout(L, p); resolve(L, id); return `Fines start for ${p.ln}`; } }] : []),
+        { label: 'Trade Block', hint: 'Shop him; a trade ends it', run: () => { L.block = [...new Set([...(L.block ?? []), p.id])]; resolve(L, id); return `${p.ln} is on the trade block`; } },
+        { label: 'Wait Him Out', hint: 'Every week costs him a game check', run: () => { resolve(L, id); return `You're waiting ${p.ln} out`; } },
+      ],
+      delegate: { who: gm, role: 'GM', quote: `We'll stay patient. Every missed game check makes our case for us.`, run: () => resolve(L, id) },
+    });
+  }
   // Contract-year stars who feel underpaid threaten to sit; happy ones want to talk extension.
   const contractYear = roster.filter(p => yearsLeft(p.contract, L.season) === 1 && p.ovr >= 80 && !p.contract.tag).sort((a, b) => b.ovr - a.ovr);
   for (const p of contractYear.slice(0, 2)) {
     const under = apy(p.contract) < marketValue(p, L.season) * 0.7;
-    if (under && p.ovr >= 84 && p.morale < 75 && inSeason) add({
-      id: `holdout-${p.id}-${L.season}`, kind: 'Contract', headline: `Is ${p.ln} willing to miss games?`, feature: true,
-      body: `Frustrated with his current contract, ${p.fn} ${p.ln} (${p.pos} ${p.ovr}) is refusing to participate. He makes ${money(apy(p.contract))} a year; the market says ${money(marketValue(p, L.season))}.`,
-      p, team: me,
-      choices: [
-        { label: 'Negotiate', run: o => o.negotiate(p) },
-        { label: 'Hold Firm', run: () => { mood(p, -10); resolve(L, `holdout-${p.id}-${L.season}`); } },
-        { label: 'Trade Block', run: () => { L.block = [...new Set([...(L.block ?? []), p.id])]; mood(p, -4); resolve(L, `holdout-${p.id}-${L.season}`); } },
-      ],
-      delegate: { who: gm, role: 'GM', quote: `We'll put ${p.ln} on the trade block and see what he brings back.`, run: () => { L.block = [...new Set([...(L.block ?? []), p.id])]; resolve(L, `holdout-${p.id}-${L.season}`); } },
-    });
-    else add({
+    if (!(under && holdoutOf(p))) add({
       id: `extend-${p.id}-${L.season}`, kind: 'Contract', headline: `Will ${city(me)} lock up ${p.ln} long-term?`,
       body: `${p.ln} (${p.pos} ${p.ovr}) is in the last year of his deal and is prepared to negotiate a new one.`,
       p, team: me,
@@ -479,7 +486,7 @@ export function weeklyCards(L: League): ActionCard[] {
 // matchup, anything urgent, and at most three other decisions, favouring kinds and players
 // you haven't heard about lately. A card can't come back for a few weeks after it's shown,
 // and one you skip twice is handled by your staff (their default call) so it stops nagging.
-const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline']);
+const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline', 'Holdout']);
 const DECK_SIZE = 3;
 interface DeckMemory { wk: string; ids: string[]; idx: number; shown: Record<string, number>; seenAt: Record<string, number>; kindAt: Record<string, number>; pidAt: Record<string, number> }
 const deckMem = (L: League) => ((L as League & { actionDeck?: DeckMemory }).actionDeck ??= { wk: '', ids: [], idx: 0, shown: {}, seenAt: {}, kindAt: {}, pidAt: {} });

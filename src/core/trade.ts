@@ -152,8 +152,8 @@ export function evaluateTrade(league: League, offer: TradeOffer): TradeVerdict {
 }
 
 export function executeTrade(league: League, offer: TradeOffer) {
-  for (const id of offer.give.players) { const p = league.players[id]; p.team = offer.to; p.status = 'ACT'; p.morale = clamp(p.morale - 5, 0, 100); }
-  for (const id of offer.get.players) { const p = league.players[id]; p.team = offer.from; p.status = 'ACT'; p.morale = clamp(p.morale - 5, 0, 100); }
+  for (const id of offer.give.players) { const p = league.players[id]; p.team = offer.to; p.status = 'ACT'; p.morale = clamp(p.morale - 5, 0, 100); delete (p as typeof p & { holdout?: unknown }).holdout; }
+  for (const id of offer.get.players) { const p = league.players[id]; p.team = offer.from; p.status = 'ACT'; p.morale = clamp(p.morale - 5, 0, 100); delete (p as typeof p & { holdout?: unknown }).holdout; }
   for (const id of offer.give.picks) { const k = league.picks.find(p => p.id === id); if (k) k.owner = offer.to; }
   for (const id of offer.get.picks) { const k = league.picks.find(p => p.id === id); if (k) k.owner = offer.from; }
   autoDepth(league, offer.from); autoDepth(league, offer.to);
