@@ -11,6 +11,7 @@ import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
 import { canSpeak, speak, voiceOn as voiceIsOn, setVoice } from '../voice';
 import { PrimeIntro, showFor } from '../primetime';
+import { Halftime } from '../halftime';
 
 const OFF_PLAYS: { name: string; call: OffCall; icon: string; desc: string }[] = [
   { name: 'Inside Zone', call: { kind: 'run', run: 'inside', name: 'Inside Zone' }, icon: '⬆', desc: 'Downhill between the tackles' },
@@ -36,7 +37,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const L = useApp().league!;
   const game = L.games.find(g => g.id === gid)!;
   const simRef = useRef<GameSim | null>(null);
-  if (!simRef.current) { prepTeam(L, game.home); prepTeam(L, game.away); simRef.current = new GameSim(L, game); }
+  if (!simRef.current) { prepTeam(L, game.home); prepTeam(L, game.away); simRef.current = new GameSim(L, game); simRef.current.autoHalf = false; }
   const sim = simRef.current;
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
@@ -69,7 +70,7 @@ export function GameScreen({ gid }: { gid: string }) {
   };
   // Auto-advance for "watch" and sim modes.
   useEffect(() => {
-    if (intro || anim || finished) return;
+    if (intro || anim || finished || sim.halfPending) return;
     const mode = auto.current;
     if (!mode && (coach && !sim.pending)) return;
     if (!mode && !coach) { const t = setTimeout(() => step(), 350); return () => clearTimeout(t); }
@@ -77,7 +78,9 @@ export function GameScreen({ gid }: { gid: string }) {
     if (mode) {
       const startPoss = sim.poss, startQ = sim.q;
       let guard = 0;
+      const me = (sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1;
       while (!sim.over && guard++ < 400) {
+        if (sim.halfPending) { if (mode === 'end') sim.setHalf(me, sim.aiHalf(me)); else break; }
         sim.step();
         if (mode === 'drive' && sim.poss !== startPoss) break;
         if (mode === 'quarter' && sim.q !== startQ) break;
@@ -112,6 +115,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const posTeam = sim.poss === 1 ? home : away;
   return (
     <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
+      {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
       {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
       <Scorebug L={L} sim={sim} />
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>

@@ -37,6 +37,8 @@ interface Side {
   zone: Map<string, number>; zoneOn: Set<string>;
 }
 
+/** A halftime adjustment: second-half rating changes, a player to take away, ball security. */
+export interface HalfAdj { name: string; off: number; def: number; target?: string; secure?: boolean }
 export interface Weather { temp: number; wind: number; precip: 'none' | 'rain' | 'snow'; dome: boolean }
 
 export class GameSim {
@@ -66,6 +68,20 @@ export class GameSim {
   /** Game-day form: whole-team swing plus per-player swing scaled by consistency. */
   private teamForm: [number, number];
   heat = 0;
+  /** Halftime adjustments, per side (0 away, 1 home); they apply from the third quarter. */
+  adj: [HalfAdj | null, HalfAdj | null] = [null, null];
+  /** When false, the user's halftime call waits for the UI (halfPending). */
+  autoHalf = true;
+  halfPending = false;
+  /** What an AI staff does at the half: chase points when behind, protect the ball when ahead. */
+  aiHalf(i: 0 | 1): HalfAdj | null {
+    const lead = this.score[i] - this.score[1 - i];
+    if (lead <= -8) return { name: 'Open It Up', off: 2.5, def: -1 };
+    if (lead >= 8) return { name: 'Ball Control', off: -0.5, def: 0.5, secure: true };
+    return null;
+  }
+  /** The user's halftime call. */
+  setHalf(i: 0 | 1, a: HalfAdj | null) { this.adj[i] = a; this.halfPending = false; }
   private form = new Map<string, number>();
   firstOtPoss: 0 | 1 | null = null;
 
@@ -126,6 +142,11 @@ export class GameSim {
     v += p.sform ?? 0; // breakout or dud season
     if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
     v += this.staffEdge(side, p, a);
+    if (this.q >= 3) {
+      const mine = this.adj[side === this.sides[0] ? 0 : 1], theirs = this.adj[side === this.sides[0] ? 1 : 0];
+      if (mine) v += side === this.sides[this.poss] ? mine.off : mine.def;
+      if (theirs?.target === p.id) v -= 4;   // the other side's game plan for their best player
+    }
     return v;
   }
   private se = new Map<string, { off: number; def: number; kick: number; inj: number }>();
@@ -167,6 +188,8 @@ export class GameSim {
     }
     return b;
   }
+  /** Ball security after a halftime 'ball control' adjustment by the side with the ball. */
+  private secureNow() { return this.q >= 3 && !!this.adj[this.poss]?.secure; }
   private has(p: Player | undefined, ab: string) { return !!p && p.abil.includes(ab); }
 
   private offense() {
@@ -375,6 +398,12 @@ export class GameSim {
       this.q = 3; this.clock = 900; this.poss = this.receivesSecondHalf; this.pending = 'kickoff';
       for (const s of this.sides) s.timeouts = 3;
       this.lastClockRunning = false;
+      // Halftime: AI staffs adjust; the user's side waits for a decision when someone is watching.
+      for (const i of [0, 1] as const) {
+        if (this.adj[i]) continue;
+        if (this.sides[i].abbr === this.league.user && !this.autoHalf) this.halfPending = true;
+        else this.adj[i] = this.aiHalf(i);
+      }
       return this.push({ type: 'end', text: 'End of the first half.', yards: 0, endYl: this.yl });
     }
     if (this.q < 4 && !this.ot) {
@@ -669,7 +698,7 @@ export class GameSim {
     const dir = this.rng.pick([-1, 0, 1] as const);
     if (!complete) {
       // Interception? Tight windows, poor decisions and pressure invite them.
-      let pInt = 0.068 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
+      let pInt = (this.secureNow() ? 0.75 : 1) * 0.068 + Math.max(0, -s) * 0.045 + (depth === 'deep' ? 0.03 : depth === 'medium' ? 0.015 : 0) + (hurried ? 0.03 : 0) - (this.r(off, qb, 'AWR') - 72) * 0.0018;
       if (cov && (this.has(cov, 'Ball Hawk') || this.has(cov, 'Lurker'))) pInt += 0.03;
       if (cov && def.zoneOn.has(cov.id)) pInt += 0.05;
       if (dc.shell === 'Prevent' && depth === 'deep') pInt += 0.03;
@@ -844,7 +873,7 @@ export class GameSim {
     if (this.yl + y < 100) { const tl = this.L(tackler); tl.tkl++; if (y < 0) { tl.tfl++; this.zonePoint(def, tackler, 1); } }
     if (y >= 12) { this.zonePoint(off, carrier, 1); for (const p of o.ol) if (this.rng.chance(0.3)) this.L(p).pancake++; }
     this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5); this.snapInjury();
-    const fumbleP = clamp(0.0135 - (this.r(off, carrier, 'CAR') - 76) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
+    const fumbleP = clamp((this.secureNow() ? 0.7 : 1) * 0.0135 - (this.r(off, carrier, 'CAR') - 76) * 0.00012 + (this.weather.precip !== 'none' ? 0.003 : 0) - (this.has(carrier, 'Ball Security') ? 0.003 : 0) + (this.has(tackler, 'Strip Specialist') ? 0.004 : 0), 0.0015, 0.02);
     const fum = y > -3 && this.rng.chance(fumbleP);
     const res = fum ? { td: false, first: false, safety: false } : this.advance(y);
     const oob = !res.td && outside && this.rng.chance(0.22);
