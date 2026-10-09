@@ -1345,3 +1345,7 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
   animation: mmGrain .8s steps(4) infinite; }
 @keyframes mmGrain { 0% { transform: translate(0, 0); } 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -1%); } 100% { transform: translate(0, 0); } }
 @media (prefers-reduced-motion: reduce) { .mm-dust, .mm-grain, .mm-flare { animation: none; display: none; } }
+
+/* Live game: the play text lands after the replay. */
+.reveal { animation: revealIn .45s cubic-bezier(.2,.8,.2,1); }
+@keyframes revealIn { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }

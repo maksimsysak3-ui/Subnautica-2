@@ -44,10 +44,10 @@ export function GameScreen({ gid }: { gid: string }) {
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
   const booth = useRef(newBooth());
-  // Stadium sounds for what just happened.
-  useEffect(() => { if (!last || auto.current && auto.current !== 'watch') return; if (last.td) sfx.crowd(); else if (last.turnover) sfx.groan(); else if (last.type === 'end' || last.type === 'kickoff' && last.n === 0) sfx.whistle(); }, [last?.n]);
   const [intro, setIntro] = useState(() => !!showFor(L, game) && sim.events.length === 0);
   const [anim, setAnim] = useState(false);
+  // Stadium sounds for what just happened.
+  useEffect(() => { if (!last || anim || auto.current && auto.current !== 'watch') return; if (last.td) sfx.crowd(); else if (last.turnover) sfx.groan(); else if (last.type === 'end' || last.type === 'kickoff' && last.n === 0) sfx.whistle(); }, [last?.n, anim]);
   const [coach, setCoach] = useState(true);
   const [pa, setPa] = useState(false);
   const [box, setBox] = useState<'Play-by-Play' | 'Box Score' | 'Drive Chart'>('Play-by-Play');
@@ -104,23 +104,28 @@ export function GameScreen({ gid }: { gid: string }) {
   const wp = useMemo(() => sim.events.filter(e => e.wp !== undefined).map(e => e.wp!), [sim.events.length]);
   // The booth: the latest line from the last few snaps.
   if (last) commentary(L, sim, last, booth.current);
-  const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n));
+  const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n) && !(anim && e.n === last?.n));
   const recentSay = recentEv ? { n: recentEv.n, text: booth.current.byN.get(recentEv.n)! } : null;
   const ev = last;
+  // While a play animates, nothing gives away the result: the scorebug, text, log and booth
+  // all hold the pre-snap picture until the replay finishes.
+  const live = anim && ev && ev.type !== 'end' && ev.type !== 'timeout' ? ev : null;
+  const before = live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) as [number, number] : null;
   const posTeam = sim.poss === 1 ? home : away;
   return (
     <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
       {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
       {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
-      <Scorebug L={L} sim={sim} />
+      <Scorebug L={L} sim={sim} pre={live} score={before} />
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
           <div className="card" style={{ padding: 10, background: 'linear-gradient(180deg,#0b1424,#070b14)' }}>
             <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'penalty' && ev.type !== 'kneel' && ev.type !== 'spike' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} />
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
-              <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={ev?.big ? 'gold' : ''}>{ev?.text ?? 'Kickoff is moments away.'}</div>
-              {!finished && !ev?.td && ev?.type !== 'xp' && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
+              {live ? <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'The ball is snapped…'}</div>
+                : <div key={ev?.n} style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={`${ev?.big ? 'gold' : ''} reveal`}>{ev?.text ?? 'Kickoff is moments away.'}</div>}
+              {!live && !finished && !ev?.td && ev?.type !== 'xp' && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
             </div>
             {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span></div> : null}
           </div>
@@ -146,7 +151,7 @@ export function GameScreen({ gid }: { gid: string }) {
           {designing && <PlayDesigner L={L} close={() => setDesigning(false)} onSaved={cp => { setDesigning(false); app.toast(`${cp.name} added to your playbook`); force(x => x + 1); }} />}
           <div className="card">
             <Tabs tabs={['Play-by-Play', 'Box Score', 'Drive Chart'] as const} on={box} set={setBox} />
-            {box === 'Play-by-Play' && <div className="scroll" style={{ maxHeight: 340, border: 0 }}>{[...sim.events].reverse().slice(0, 120).map(e => (
+            {box === 'Play-by-Play' && <div className="scroll" style={{ maxHeight: 340, border: 0 }}>{[...sim.events].reverse().filter(e => e !== live).slice(0, 120).map(e => (
               <div key={e.n} className="li" style={{ cursor: 'default', alignItems: 'flex-start' }}>
                 <Logo team={e.poss === 1 ? home : away} size={20} /><span className="small mute" style={{ width: 92, flex: 'none' }}>Q{Math.min(e.q, 5) === 5 ? 'OT' : e.q} {clock(e.clock)} {e.type !== 'kickoff' && e.type !== 'xp' && e.type !== 'two' ? `${['', '1st', '2nd', '3rd', '4th'][e.down] ?? ''}&${e.togo}` : ''}</span>
                 <span style={{ fontWeight: e.td || e.turnover ? 700 : 400, color: e.td ? 'var(--good)' : e.turnover ? 'var(--bad)' : undefined }}>{e.text}{booth.current.byN.get(e.n) ? <em className="bx-log">{booth.current.byN.get(e.n)}</em> : null}</span>
@@ -176,7 +181,8 @@ export function GameScreen({ gid }: { gid: string }) {
   );
 }
 
-function Scorebug({ L, sim }: { L: League; sim: GameSim }) {
+function Scorebug({ L, sim, pre, score }: { L: League; sim: GameSim; pre?: PlayEvent | null; score?: [number, number] | null }) {
+  const sc = score ?? sim.score;
   const sides = [L.teams[sim.game.away], L.teams[sim.game.home]];
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden', background: '#060a13' }}>
@@ -184,19 +190,19 @@ function Scorebug({ L, sim }: { L: League; sim: GameSim }) {
         {[0, 1].map(i => {
           const t = sides[i];
           const side = i === 0 ? 'row' : 'row-reverse';
-          const has = sim.poss === i && !sim.over;
+          const has = (pre ? pre.poss : sim.poss) === i && (!!pre || !sim.over);
           return (
             <div key={i} style={{ display: 'flex', flexDirection: side as 'row', alignItems: 'center', gap: 14, padding: '12px 18px', background: `linear-gradient(${i === 0 ? '90deg' : '270deg'}, ${t.colors[0]}, ${t.colors[0]}55 70%, transparent)`, gridColumn: i === 0 ? 1 : 3 }}>
               <Logo team={t} size={60} />
               <div style={{ textAlign: i === 0 ? 'left' : 'right' }}><div className="h3">{t.nick}{has && ' ◂'}</div><div style={{ letterSpacing: 3, color: 'var(--team2)' }}>{'▮'.repeat(sim.sides[i].timeouts)}<span className="mute">{'▯'.repeat(Math.max(0, 3 - sim.sides[i].timeouts))}</span></div></div>
-              <div style={{ font: '900 54px/1 var(--head)', margin: i === 0 ? '0 0 0 auto' : '0 auto 0 0' }}><CountUp v={sim.score[i]} dur={500} /></div>
+              <div style={{ font: '900 54px/1 var(--head)', margin: i === 0 ? '0 0 0 auto' : '0 auto 0 0' }}><CountUp v={sc[i]} dur={500} /></div>
             </div>
           );
         })}
         <div style={{ gridColumn: 2, gridRow: 1, padding: '10px 22px', textAlign: 'center', background: '#0b1222', borderLeft: '1px solid var(--line)', borderRight: '1px solid var(--line)', minWidth: 170 }}>
-          <div className="row" style={{ justifyContent: 'center', gap: 8 }}>{!sim.over && <span className="live-dot" />}<span className="up">{sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</span></div>
-          <div style={{ font: '800 34px/1.1 var(--head)' }}>{sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
-          <div className="small" style={{ color: 'var(--warn)', fontWeight: 700 }}>{sim.over ? '' : sim.pending === 'kickoff' ? 'Kickoff' : sim.pending === 'pat' ? 'Extra point' : `${down(sim)} · ${ylText(sim.yl)}`}</div>
+          <div className="row" style={{ justifyContent: 'center', gap: 8 }}>{(pre || !sim.over) && <span className="live-dot" />}<span className="up">{pre ? (pre.q >= 5 ? 'OT' : `Q${pre.q}`) : sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</span></div>
+          <div style={{ font: '800 34px/1.1 var(--head)' }}>{pre ? clock(pre.clock) : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
+          <div className="small" style={{ color: 'var(--warn)', fontWeight: 700 }}>{pre ? (pre.type === 'kickoff' ? 'Kickoff' : pre.type === 'xp' || pre.type === 'two' ? 'Extra point' : `${down(pre)} · ${ylText(pre.yl)}`) : sim.over ? '' : sim.pending === 'kickoff' ? 'Kickoff' : sim.pending === 'pat' ? 'Extra point' : `${down(sim)} · ${ylText(sim.yl)}`}</div>
         </div>
       </div>
     </div>
@@ -280,5 +286,5 @@ function FinalCard({ L, sim, onContinue, lines }: { L: League; sim: GameSim; onC
   );
 }
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
-const down = (sim: GameSim) => `${['', '1st', '2nd', '3rd', '4th'][sim.down]} & ${sim.yl + sim.togo >= 100 ? 'Goal' : sim.togo}`;
+const down = (sim: { down: number; yl: number; togo: number }) => `${['', '1st', '2nd', '3rd', '4th'][sim.down]} & ${sim.yl + sim.togo >= 100 ? 'Goal' : sim.togo}`;
 

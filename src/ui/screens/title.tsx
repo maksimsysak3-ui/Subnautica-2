@@ -13,7 +13,6 @@ import data from '../../data/league.json';
 import { RAW_TEAMS } from '../../core/league';
 import { migrate } from './menu';
 import { BottomLine, preseasonHeadlines } from '../ticker';
-import { Prelude } from '../prelude';
 
 type RawP = { id: string; fn: string; ln: string; pos: string; team: string; ovr: number; hs?: string; num?: number };
 const PLAYERS = (data as unknown as { players: RawP[] }).players;
@@ -38,13 +37,12 @@ const big = (url?: string) => url?.replace('f_auto,q_auto', 'f_auto,q_auto,w_900
 let openingSeen = false;
 
 export function MainMenu() {
-  const [stage, setStage] = useState<'prelude' | 'opening' | 'menu'>(openingSeen ? 'menu' : 'prelude');
+  const [stage, setStage] = useState<'opening' | 'menu'>(openingSeen ? 'menu' : 'opening');
   const done = () => { openingSeen = true; setStage('menu'); };
   return (
     <>
       <Menu entering={stage === 'menu'} />
       {stage === 'opening' && <Opening onDone={done} />}
-      {stage === 'prelude' && <Prelude onDone={() => setStage('opening')} onSkip={done} />}
     </>
   );
 }
