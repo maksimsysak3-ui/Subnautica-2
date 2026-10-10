@@ -97,11 +97,14 @@ export function GameScreen({ gid }: { gid: string }) {
   const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n) && !(anim && e.n === last?.n));
   const recentSay = recentEv ? { n: recentEv.n, text: booth.current.byN.get(recentEv.n)! } : null;
   const ev = last;
+  const shown = useRef(new Map<string, StatLine>());
   // While a play animates, nothing gives away the result: the scorebug, text, log and booth
   // all hold the pre-snap picture until the replay finishes.
   const live = anim && ev && ev.type !== 'end' && ev.type !== 'timeout' ? ev : null;
   const before = live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) as [number, number] : null;
   const posTeam = sim.poss === 1 ? home : away;
+  // Stat lines freeze at the snap so the sidebar can't spoil the play being animated.
+  if (!live) shown.current = new Map([...sim.lines].map(([k, v]) => [k, { ...v }]));
   return (
     <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
       {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
@@ -142,7 +145,7 @@ export function GameScreen({ gid }: { gid: string }) {
                 <span style={{ fontWeight: e.td || e.turnover ? 700 : 400, color: e.td ? 'var(--good)' : e.turnover ? 'var(--bad)' : undefined }}>{e.text}{booth.current.byN.get(e.n) ? <em className="bx-log">{booth.current.byN.get(e.n)}</em> : null}</span>
               </div>
             ))}</div>}
-            {box === 'Box Score' && <LiveBox L={L} sim={sim} />}
+            {box === 'Box Score' && <LiveBox L={L} sim={sim} lines={shown.current} />}
             {box === 'Drive Chart' && <DriveChart sim={sim} />}
           </div>
         </div>
@@ -158,7 +161,7 @@ export function GameScreen({ gid }: { gid: string }) {
             </div>
             <div className="small dim" style={{ marginTop: 10 }}>{sim.weather.dome ? 'Indoors' : `${sim.weather.temp}°F · wind ${sim.weather.wind} mph${sim.weather.precip !== 'none' ? ` · ${sim.weather.precip}` : ''}`} · {game.neutral ?? home.stadium}</div>
           </div>
-          <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} /></div>
+          <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} lines={shown.current} /></div>
         </div>
       </div>
       <BottomLine tag="BottomLine" items={leagueCrawl(L, { away: away.abbr, home: home.abbr, as: sim.score[0], hs: sim.score[1], status: sim.over ? 'Final' : sim.q > 4 ? `OT ${clock(sim.clock)}` : `Q${sim.q} ${clock(sim.clock)}` })} />
@@ -262,8 +265,8 @@ function WinChart({ wp, home, away }: { wp: number[]; home: { abbr: string; colo
     </div>
   );
 }
-function LiveBox({ L, sim }: { L: League; sim: GameSim }) {
-  const rows = (k: keyof StatLine, fmt: (l: StatLine) => string) => [...sim.lines.entries()].filter(([, l]) => (l[k] as number) > 0).sort((a, b) => (b[1][k] as number) - (a[1][k] as number)).slice(0, 6).map(([id, l]) => { const p = L.players[id]; return <div key={id} className="row small" style={{ margin: '3px 0' }}><Logo team={L.teams[p.team]} size={16} /><b style={{ width: 120 }}>{p.fn[0]}. {p.ln}</b><span className="dim">{fmt(l)}</span></div>; });
+function LiveBox({ L, sim, lines }: { L: League; sim: GameSim; lines: Map<string, StatLine> }) {
+  const rows = (k: keyof StatLine, fmt: (l: StatLine) => string) => [...lines.entries()].filter(([, l]) => (l[k] as number) > 0).sort((a, b) => (b[1][k] as number) - (a[1][k] as number)).slice(0, 6).map(([id, l]) => { const p = L.players[id]; return <div key={id} className="row small" style={{ margin: '3px 0' }}><Logo team={L.teams[p.team]} size={16} /><b style={{ width: 120 }}>{p.fn[0]}. {p.ln}</b><span className="dim">{fmt(l)}</span></div>; });
   return (
     <div className="grid g2">
       <div><div className="up">Passing</div>{rows('pa', l => `${l.pc}/${l.pa}, ${l.py} yds, ${l.ptd} TD, ${l.pint} INT`)}</div>
@@ -289,9 +292,9 @@ function DriveChart({ sim }: { sim: GameSim }) {
       <div style={{ flex: 1, height: 10, background: '#141c30', borderRadius: 6, position: 'relative' }}><div style={{ position: 'absolute', left: `${d.start}%`, width: `${Math.max(1, Math.min(100 - d.start, Math.max(0, d.yds)))}%`, top: 0, bottom: 0, background: t.colors[0], borderRadius: 6 }} /></div>
       <span className="small" style={{ width: 70, textAlign: 'right', color: d.result === 'TD' ? 'var(--good)' : d.result === 'Turnover' ? 'var(--bad)' : undefined }}>{d.result} · {d.plays}p</span></div>); })}</div>;
 }
-function KeyPlayers({ L, sim }: { L: League; sim: GameSim }) {
+function KeyPlayers({ L, sim, lines }: { L: League; sim: GameSim; lines: Map<string, StatLine> }) {
   const score = (l: StatLine) => l.py * 0.04 + l.ptd * 4 + (l.ry + l.recy) * 0.1 + (l.rtd + l.rectd) * 6 + l.dsk * 4 + l.dint * 5 + l.tkl * 0.5;
-  const top = [...sim.lines.entries()].sort((a, b) => score(b[1]) - score(a[1])).slice(0, 4);
+  const top = [...lines.entries()].sort((a, b) => score(b[1]) - score(a[1])).slice(0, 4);
   return <>{top.map(([id, l]) => { const p = L.players[id]; return <div key={id} className="li" style={{ cursor: 'default' }}><Face p={p} size={40} /><div style={{ flex: 1 }}><b>{p.fn[0]}. {p.ln}</b><div className="small mute">{statLine(p.pos, l)}</div></div>{sim.sides.some(s => s.zoneOn.has(id)) && <span className="chip" style={{ color: '#fff', background: '#b91c1c' }}>ZONE</span>}</div>; })}{!top.length && <div className="empty">—</div>}</>;
 }
 const statLine = (pos: string, l: StatLine) => pos === 'QB' ? `${l.pc}/${l.pa} ${l.py} yds ${l.ptd} TD` : l.ra >= l.rec && l.ra ? `${l.ra}-${l.ry} ${l.rtd} TD` : l.rec ? `${l.rec}-${l.recy} ${l.rectd} TD` : `${l.tkl} tkl ${l.dsk ? `${l.dsk} sk` : ''}${l.dint ? ` ${l.dint} INT` : ''}`;
