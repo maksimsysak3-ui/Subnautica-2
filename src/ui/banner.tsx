@@ -8,7 +8,7 @@ import { capHit, money, yearsLeft } from '../core/contracts';
 import { scoutedView, draftGrade, prospectLevel } from '../core/draft';
 import { app } from './store';
 import { Logo, DevIcon, Grade, vivid, tier, attrColor } from './components';
-import { FaceArt } from './face';
+import { FaceArt, collegeLogo } from './face';
 
 export function PlayerBanner({ p, prospect }: { p: Player; prospect?: boolean }) {
   const L = app.league!;
@@ -18,11 +18,12 @@ export function PlayerBanner({ p, prospect }: { p: Player; prospect?: boolean })
   const c = prospect ? vivid(L.teams[L.user].colors[0]) : t ? vivid(t.colors[0]) : '#2a3040';
   const keys = (Object.entries(OVR_W[p.pos]) as [keyof Player['attrs'], number][]).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k);
   const sv = prospect ? scoutedView(p) : null;
+  const colLogo = p.colLogo ?? collegeLogo(L.players, p.col);
   const ht = `${Math.floor(p.ht / 12)}'${p.ht % 12}"`;
   return (
     <div className="pb" style={{ '--pc': c } as CSSProperties}>
       <div className="pb-art">
-        {prospect && p.colLogo ? <img className="pb-mark" src={p.colLogo} alt="" /> : t && <Logo team={t} size={220} style={{ position: 'absolute', left: -30, top: -30, opacity: 0.22 }} />}
+        {prospect && colLogo ? <img className="pb-mark" src={colLogo} alt="" /> : t && <Logo team={t} size={220} style={{ position: 'absolute', left: -30, top: -30, opacity: 0.22 }} />}
         {prospect && <span className="pb-draft">{p.draft.year} Draft</span>}
         <div className="pb-shot">{url ? <img src={url} alt="" onError={() => setBad(p.id)} /> : <FaceArt p={p} team={t} size={170} />}</div>
       </div>

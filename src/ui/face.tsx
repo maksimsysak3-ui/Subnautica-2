@@ -43,6 +43,13 @@ const collegeKit = (col: string): [string, string] => COLLEGE[col] ?? (() => { l
  * fictional player. Faces are spread so a class rarely repeats one; the player keeps his face
  * after he is drafted. Real players and real prospects never get one.
  */
+/** A school's logo, borrowed from any real prospect from that school (AI prospects have none of their own). */
+export function collegeLogo(players: Record<string, Player>, col: string): string | undefined {
+  if (!logoBySchool) { logoBySchool = new Map(); for (const q of Object.values(players)) if (q.colLogo && !logoBySchool.has(q.col)) logoBySchool.set(q.col, q.colLogo); }
+  const u = logoBySchool.get(col); if (!logoBySchool.size) logoBySchool = undefined; return u;
+}
+let logoBySchool: Map<string, string> | undefined;
+
 export function genFace(p: Player): string | undefined {
   const m = /^P(\d{4})-(\d+)$/.exec(p.id);
   return m ? GEN_FACES[(+m[2] + +m[1] * 53) % GEN_FACES.length] : undefined;
@@ -126,7 +133,19 @@ function recolour(src: string, jersey: string, trim: string): Promise<string> {
           }
         }
         g2.putImageData(d2, 0, 0);
-        const url = c2.toDataURL('image/webp', 0.92);
+        // Upscale 2x with high-quality smoothing, then a light unsharp pass for crisper detail.
+        const c3 = document.createElement('canvas'); c3.width = W2 * 2; c3.height = Hc * 2;
+        const g3 = c3.getContext('2d')!; g3.imageSmoothingQuality = 'high'; g3.drawImage(c2, 0, 0, c3.width, c3.height);
+        const d3 = g3.getImageData(0, 0, c3.width, c3.height), a3 = d3.data, src3 = new Uint8ClampedArray(a3), W3 = c3.width;
+        for (let y = 1; y < c3.height - 1; y++) for (let x = 1; x < W3 - 1; x++) {
+          const i = (y * W3 + x) * 4; if (a3[i + 3] < 20) continue;
+          for (let ch = 0; ch < 3; ch++) {
+            const v = src3[i + ch], blur = (src3[i - 4 + ch] + src3[i + 4 + ch] + src3[i - W3 * 4 + ch] + src3[i + W3 * 4 + ch]) / 4;
+            a3[i + ch] = v + (v - blur) * 0.45;
+          }
+        }
+        g3.putImageData(d3, 0, 0);
+        const url = c3.toDataURL('image/webp', 0.95);
         recoloured.set(key, url); res(url);
       } catch { res(src); }
     };
@@ -144,7 +163,7 @@ function GenPhoto({ src, jersey, trim, size, flip }: { src: string; jersey: stri
   // Head and shoulders, bottom-anchored, shoulders running off the frame like the real headshots.
   return (
     <div style={{ width: size, height: size, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-      {url && <img src={url} alt="" style={{ display: 'block', width: size * 1.04, flex: 'none', height: 'auto', filter: 'brightness(1.07) contrast(.96) saturate(1.04)', transform: flip ? 'scaleX(-1)' : undefined }} />}
+      {url && <img src={url} alt="" style={{ display: 'block', width: size * 0.9, flex: 'none', height: 'auto', filter: 'brightness(1.07) contrast(.96) saturate(1.04)', transform: flip ? 'scaleX(-1)' : undefined }} />}
     </div>
   );
 }

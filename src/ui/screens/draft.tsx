@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { collegeLogo } from '../face';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, Table, Tabs, DevBadge, DevIcon, Modal, Tilt, Grade } from '../components';
 import { PlayerBanner } from '../banner';
@@ -9,6 +10,8 @@ import { pickLabel } from '../../core/trade';
 import { Rng } from '../../core/rng';
 import { money } from '../../core/contracts';
 import { DraftDay } from '../theater';
+/** A prospect's school logo; AI prospects borrow it from a real prospect at the same school. */
+const logoOf = (p: { colLogo?: string; col: string }) => p.colLogo ?? collegeLogo(app.league!.players, p.col);
 
 export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const L = useApp().league!;
@@ -81,7 +84,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
         <Table rows={tab === 'My Board' ? myBoard(L, pool) : pool} rowKey={p => p.id} initial={tab === 'My Board' ? undefined : 'proj'} desc={false} onRow={setSel} header={p => <PlayerBanner p={p} prospect />} cols={[
           { k: 'proj', h: 'Rank', get: p => <span className="num">{p.proj}</span>, sort: p => p.proj ?? 999, cls: 'c' },
           { k: 'p', h: 'Name', get: p => <span className="tname">{p.fn[0]}. {p.ln}</span>, sort: p => p.ln },
-          { k: 'col', h: 'School', get: p => <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{p.colLogo && <img src={p.colLogo} width={18} height={18} alt="" />}<span className="dim">{p.col}</span></span>, sort: p => p.col },
+          { k: 'col', h: 'School', get: p => <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{logoOf(p) && <img src={logoOf(p)} width={18} height={18} alt="" />}<span className="dim">{p.col}</span></span>, sort: p => p.col },
           { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
           { k: 'grade', h: 'Grade', get: p => <Grade g={draftGrade(p)} />, sort: p => -['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'].indexOf(draftGrade(p)), cls: 'c' },
           { k: 'arch', h: 'Archetype', get: p => (p.scout ?? 0) >= 1 ? p.arch : <span className="mute">?</span> },
@@ -122,7 +125,7 @@ function ProspectModal({ p, close, canDraft, onDraft }: { p: Player; close: () =
       <div className="grid" style={{ gridTemplateColumns: '240px 1fr', gap: 22 }}>
         <Tilt max={14}><div style={{ borderRadius: 18, overflow: 'hidden', background: 'linear-gradient(180deg,#1e2a48,#0b1120)', border: '1px solid var(--line2)', textAlign: 'center', padding: 16 }}>
           <Face p={p} size={190} style={{ margin: '0 auto' }} />
-          <div className="h3" style={{ marginTop: 10 }}>{p.fn} {p.ln}</div><div className="small dim row" style={{ justifyContent: 'center', gap: 6 }}>{p.colLogo && <img src={p.colLogo} width={20} height={20} alt="" />}{POS_NAME[p.pos]} · {p.col}</div>
+          <div className="h3" style={{ marginTop: 10 }}>{p.fn} {p.ln}</div><div className="small dim row" style={{ justifyContent: 'center', gap: 6 }}>{logoOf(p) && <img src={logoOf(p)} width={20} height={20} alt="" />}{POS_NAME[p.pos]} · {p.col}</div>
           <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}><span className="chip">#{p.proj} overall</span><span className="chip">{projection(p.proj ?? 300)}</span></div>
         </div></Tilt>
         <div>
@@ -217,7 +220,7 @@ function FutureClasses({ onSel }: { onSel: (p: Player) => void }) {
       { k: 'p', h: 'Name', get: p => <span className="tname">{p.fn[0]}. {p.ln}</span>, sort: p => p.ln },
       { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
       { k: 'lvl', h: 'Now', get: p => <span className="dim">{prospectLevel(L, p).label}</span>, sort: p => -prospectLevel(L, p).yearsOut },
-      { k: 'col', h: 'School', get: p => { const hs = prospectLevel(L, p).yearsOut >= 4; return <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{p.colLogo && <img src={p.colLogo} width={18} height={18} alt="" />}<span className="dim">{hs ? `Committed: ${p.col}` : p.col}</span></span>; }, sort: p => p.col },
+      { k: 'col', h: 'School', get: p => { const hs = prospectLevel(L, p).yearsOut >= 4; return <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{logoOf(p) && <img src={logoOf(p)} width={18} height={18} alt="" />}<span className="dim">{hs ? `Committed: ${p.col}` : p.col}</span></span>; }, sort: p => p.col },
       { k: 'age', h: 'Age now', get: p => prospectLevel(L, p).ageNow, cls: 'c' },
       { k: 'rng', h: 'Proj. OVR', get: p => { const [a, b] = range(p); return <span className="fc-range"><i style={{ left: `${((a - 40) / 60) * 100}%`, width: `${((b - a) / 60) * 100}%` }} /><b>{a}–{b}</b></span>; }, sort: p => -range(p)[1], cls: 'c' },
       { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={p.dev} size={20} /> : <span className="mute">?</span>, cls: 'c' },
