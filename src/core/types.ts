@@ -21,6 +21,8 @@ export interface Contract {
   tag?: boolean;
   /** Fifth-year option still open (first-round rookie deals). */
   option?: boolean;
+  /** Season this deal was last restructured. */
+  restr?: number;
 }
 
 export interface StatLine {
@@ -43,6 +45,8 @@ export interface Player {
   fn: string; ln: string;
   pos: Pos;
   team: string; // team abbr or 'FA'
+  /** Where a free agent last played, and whether that team cut him (free agency remembers). */
+  lastTeam?: string; cutBy?: string;
   status: Status;
   num: number;
   age: number;

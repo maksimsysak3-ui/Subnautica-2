@@ -1710,3 +1710,27 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 @keyframes s3GlIn { from { opacity: 0; } }
 .s3:has(.s3-gl) .s3-floor, .s3:has(.s3-gl) .s3-rig, .s3:has(.s3-gl) .s3-beam, .s3:has(.s3-gl) .s3-reflect { display: none; }
 .s3-cam { pointer-events: none; }
+.pr-moment { display: grid; gap: 2px; padding: 8px 10px; border-radius: 6px; background: rgba(120,170,255,.08); box-shadow: inset 2px 0 0 #6ea8ff; font: 500 13px/1.4 var(--ui); color: #d7e2f5; }
+.pr-moment span, .pr-hurt span, .pr-star span { font: 700 10px var(--ui); letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+/* Meeting room */
+.sc-meet { background: radial-gradient(60% 50% at 50% 28%, rgba(255,255,255,.08), transparent 70%), linear-gradient(180deg, #151a24, #0a0d13 70%, #07080b); }
+.sc-wb { position: absolute; left: 22%; right: 22%; top: 9%; height: 40%; border-radius: 4px; background: linear-gradient(180deg, #f4f6f8, #dde2e8); box-shadow: 0 0 0 6px #9aa3ad, 0 20px 50px rgba(0,0,0,.6); }
+.sc-wb svg { width: 100%; height: 100%; }
+.sc-proj { position: absolute; left: 50%; top: 0; width: 60%; height: 55%; transform: translateX(-50%); background: conic-gradient(from 160deg at 50% 0, transparent 0 10deg, rgba(200,220,255,.07) 10deg 30deg, transparent 30deg); pointer-events: none; animation: scFlicker 4s linear infinite; }
+.sc-rows { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; display: grid; gap: 4%; align-content: end; padding-bottom: 2%; }
+.sc-rows > div { display: flex; justify-content: center; gap: 1.6%; }
+.sc-rows i { width: 7%; aspect-ratio: 1.2; border-radius: 40% 40% 8px 8px; background: linear-gradient(180deg, color-mix(in srgb, var(--a) 55%, #222), #0c0f15); box-shadow: inset 0 3px 0 rgba(255,255,255,.08); animation: scSeat 3s ease-in-out infinite alternate; }
+.sc-rows > div:nth-child(2) i { width: 7.8%; } .sc-rows > div:nth-child(3) i { width: 8.6%; }
+@keyframes scSeat { to { transform: translateY(-2px); } }
+/* Sit-down interview */
+.sc-int { background: radial-gradient(50% 60% at 50% 40%, color-mix(in srgb, var(--a) 30%, #111), #050608 75%); }
+.sc-backdrop { position: absolute; inset: 6% 8% 30%; display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; opacity: .5; }
+.sc-backdrop b { border-radius: 3px; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--a) 70%, #fff 15%), transparent 70%); animation: scBok 5s ease-in-out infinite alternate; }
+.sc-backdrop b:nth-child(3n) { animation-delay: -2s; } .sc-backdrop b:nth-child(4n+1) { animation-delay: -3.4s; }
+@keyframes scBok { to { opacity: .35; } }
+.sc-key { position: absolute; top: 0; width: 40%; height: 100%; background: linear-gradient(180deg, rgba(255,240,215,.16), transparent 75%); pointer-events: none; }
+.sc-key.l { left: 0; transform: skewX(12deg); } .sc-key.r { right: 0; transform: skewX(-12deg); }
+.sc-chairs { position: absolute; left: 0; right: 0; bottom: 6%; display: flex; justify-content: center; gap: 26%; }
+.sc-chairs i { width: 13%; aspect-ratio: .9; border-radius: 30% 30% 10% 10%; background: linear-gradient(180deg, #3a2c22, #17110c); box-shadow: 0 14px 30px rgba(0,0,0,.6); }
+.sc-cam { position: absolute; right: 5%; bottom: 10%; width: 11%; aspect-ratio: 1.6; border-radius: 6px; background: linear-gradient(180deg, #2a2f38, #0f1217); box-shadow: -20px 0 0 -12px #1c2027; }
+.sc-cam em { position: absolute; right: 10%; top: 12%; width: 8px; height: 8px; border-radius: 50%; background: #ff2d3a; box-shadow: 0 0 10px #ff2d3a; animation: fxBlink 1.2s ease-in-out infinite; }

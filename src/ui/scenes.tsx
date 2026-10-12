@@ -5,7 +5,7 @@
 import type { CSSProperties } from 'react';
 import type { ActionCard } from './actions';
 
-export type SceneKind = 'phone' | 'texts' | 'tv' | 'locker' | 'boardroom' | 'film' | 'field' | 'snow' | 'stadium' | 'office';
+export type SceneKind = 'phone' | 'texts' | 'tv' | 'locker' | 'boardroom' | 'film' | 'field' | 'snow' | 'stadium' | 'office' | 'meeting' | 'interview';
 
 /** Where a card's decision happens, by its kind when the card doesn't say. */
 export function sceneFor(c: ActionCard): SceneKind {
@@ -73,6 +73,22 @@ export function SceneBg({ kind, caller, texts, accent }: { kind: SceneKind; call
       <div className="sc sc-stadium" style={st}>
         <div className="sc-bowl" />{Array.from({ length: 40 }, (_, i) => <i key={i} className="sc-flash" style={{ left: `${(i * 23) % 100}%`, top: `${30 + (i * 17) % 35}%`, animationDelay: `${(i * 0.37) % 3}s` }} />)}
         <div className="sc-lights"><b /><b /><b /><b /></div>
+      </div>
+    );
+    case 'meeting': return (
+      <div className="sc sc-meet" style={st}>
+        <div className="sc-wb"><svg viewBox="0 0 200 100"><g stroke="#1d3b8a" strokeWidth="2" fill="none" className="sc-routes"><path d="M30 80 L30 40 L60 25" /><path d="M80 80 L95 45 L140 45" /><path d="M160 80 L170 30" /></g><g stroke="#b91c1c" strokeWidth="2">{[[40, 30], [120, 38], [165, 25]].map(([x, y], i) => <g key={i}><path d={`M${x - 5} ${y - 5} L${x + 5} ${y + 5} M${x + 5} ${y - 5} L${x - 5} ${y + 5}`} /></g>)}</g>{[30, 80, 160, 55, 110].map((x, i) => <circle key={i} cx={x} cy={86} r="5" stroke="#1d3b8a" strokeWidth="2" fill="none" />)}</svg></div>
+        <div className="sc-proj" />
+        <div className="sc-rows">{Array.from({ length: 3 }, (_, r) => <div key={r}>{Array.from({ length: 9 - r }, (_, i) => <i key={i} style={{ animationDelay: `${(i + r) * 0.11}s` }} />)}</div>)}</div>
+      </div>
+    );
+    case 'interview': return (
+      <div className="sc sc-int" style={st}>
+        <div className="sc-backdrop">{Array.from({ length: 24 }, (_, i) => <b key={i} />)}</div>
+        <i className="sc-key l" /><i className="sc-key r" />
+        <div className="sc-chairs"><i /><i /></div>
+        <div className="sc-cam"><em /></div>
+        <div className="sc-onair">● Recording</div>
       </div>
     );
     default: return (

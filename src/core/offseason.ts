@@ -283,7 +283,19 @@ export function offerScore(league: League, p: Player, offer: Offer, team: string
   if (p.motiv.includes('Winning Culture')) score += (league.teams[team].tradition - 0.5) * 0.08;
   if (p.motiv.includes('Starting Role')) score += startingChance(league, p, team) * 0.08 - 0.04;
   if (p.motiv.includes('Scheme Fit')) score += schemeFit(league, p, team) * 0.06;
-  return score;
+  return score + relationship(league, p, team);
+}
+/**
+ * The non-money pull of a team for this player: the club he just played for (and his
+ * teammates there), a team that cut him, how he feels about you after talks, and the
+ * plain personal preferences (family, a coach he knows, the city) every player has.
+ */
+export function relationship(league: League, p: Player, team: string) {
+  let v = ((hash(`${p.id}-rel-${team}`) >>> 0) % 1000 / 1000 - 0.5) * 0.1;
+  if (p.lastTeam === team) v += p.motiv.includes('Loyalty') ? 0.09 : 0.04;
+  if (p.cutBy === team) v -= 0.1;
+  if (team === league.user && p.team === 'FA') v += (p.morale - 60) / 400;
+  return v;
 }
 export function contenderScore(league: League, team: string) {
   const last = league.history[league.history.length - 1]?.standings[team];
@@ -357,7 +369,7 @@ export function advanceOffseason(league: League) {
     for (const p of Object.values(league.players)) if (p.team !== 'FA' && p.status !== 'RET' && p.status !== 'PROSPECT' && yearsLeft(p.contract, league.season) === 0) {
       const dead = voidedProration(p.contract, league.season);
       if (dead && league.teams[p.team]) league.teams[p.team].dead[league.season] = (league.teams[p.team].dead[league.season] ?? 0) + dead;
-      p.team = 'FA'; p.status = 'FA'; p.contract = { years: [] };
+      p.lastTeam = p.team; p.cutBy = undefined; p.team = 'FA'; p.status = 'FA'; p.contract = { years: [] };
     }
     openFreeAgency(league);
     league.phase = 'freeagency';
@@ -500,7 +512,7 @@ export function release(league: League, p: Player, postJune1: boolean) {
     t.dead[league.season] = (t.dead[league.season] ?? 0) + dm.now;
     if (dm.next) t.dead[league.season + 1] = (t.dead[league.season + 1] ?? 0) + dm.next;
   }
-  p.team = 'FA'; p.status = 'FA'; p.contract = { years: [] };
+  p.lastTeam = p.team; p.cutBy = p.team; p.team = 'FA'; p.status = 'FA'; p.contract = { years: [] };
 }
 
 // ---- schedule --------------------------------------------------------------------------------

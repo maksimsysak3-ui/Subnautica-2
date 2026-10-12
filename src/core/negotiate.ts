@@ -95,6 +95,16 @@ export function submit(league: League, p: Player, offer: Offer, opts: { extend?:
   t.log.push({ by: 'you', text: describe(offer), offer });
   const score = offerScore(league, p, offer, league.user);
   const floor = walkAway(league, p);
+  if (score >= t.target - 0.004 && league.phase === 'freeagency' && p.team === 'FA' && p.ovr >= 70) {
+    // He likes it, but other teams get their call: the offer stands and he decides tonight.
+    const list = (league.fa!.offers[p.id] ??= []).filter(o => o.team !== league.user);
+    list.push({ team: league.user, ...offer, day: league.fa!.day });
+    league.fa!.offers[p.id] = list;
+    const rivals = list.filter(o => o.team !== league.user).length;
+    const text = pick(p, t.log.length, [`${p.fn} loves it. ${rivals ? `We have ${rivals} other offer${rivals > 1 ? 's' : ''} to hear out tonight, ` : 'He wants to sleep on it, '}but you're in a great spot.`, `That's a real offer. Let me take it to ${p.fn} and the family; we'll know by the end of the day.`]);
+    t.log.push({ by: 'agent', text }, { by: 'note', text: 'Your offer is on the table. Other teams can still top it before he decides at the end of the day.' });
+    return { kind: 'stand', text };
+  }
   if (score >= t.target - 0.004) {
     t.agreed = true;
     const text = pick(p, t.log.length, [`We have a deal. ${p.fn} is fired up.`, `Done. Send the paperwork over.`, `That works for us. Pleasure doing business.`, `${p.fn} said yes. Congratulations.`]);

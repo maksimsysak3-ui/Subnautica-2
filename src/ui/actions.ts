@@ -15,6 +15,7 @@ import { staffOf, staffState } from '../core/staff';
 import { holdoutOf, fineHoldout } from '../core/holdout';
 import { storylines } from './storylines';
 import { storylines2 } from './storylines2';
+import { storylines3 } from './storylines3';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
@@ -469,7 +470,7 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
   const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
-  pool.push(...storylines(kit), ...storylines2(kit));
+  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 

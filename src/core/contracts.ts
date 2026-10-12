@@ -80,6 +80,20 @@ export function releaseSavings(c: Contract, season: number, postJune1 = false) {
  * where needed (as teams do). Saves cap now; what is left on void years becomes
  * dead money when the contract voids.
  */
+/** Teams may restructure this many deals a season; real cap room has to come from somewhere. */
+export const RESTRUCTURES_PER_SEASON = 3;
+/** Why a deal can't be restructured right now, or null when it can. */
+export function restructureBlock(p: Player, season: number): string | null {
+  const c = p.contract;
+  const y = c.years.find(y => y.s === season);
+  if (!y || y.v || c.rookie || c.tag) return 'Rookie, tagged and expiring deals can\'t be restructured';
+  if (c.restr !== undefined && season - c.restr < 2) return 'Already restructured in the last two years';
+  if (c.years.filter(v => v.s > season && !v.v).length < 1) return 'Needs at least one more real year on the deal';
+  if (y.base - minSalary(p.exp, season) < 3_000_000) return 'Base salary is too small to convert';
+  if (p.age >= 33) return 'He won\'t push money into years he may not play';
+  return null;
+}
+/** The conversion itself. The user's limits (restructureBlock, per-season count) are checked by the UI. */
 export function restructure(p: Player, season: number, maxVoid = 3): number {
   const c = p.contract;
   const y = c.years.find(y => y.s === season);
@@ -87,6 +101,7 @@ export function restructure(p: Player, season: number, maxVoid = 3): number {
   const min = minSalary(p.exp, season);
   const convert = y.base - min;
   if (convert <= 0) return 0;
+  c.restr = season;
   let rest = c.years.filter(v => v.s >= season);
   const last = Math.max(...c.years.map(v => v.s));
   for (let s = last + 1; rest.length < MAX_PRORATION && s <= last + maxVoid; s++) { const vy = { s, base: 0, bonus: 0, gtd: 0, v: true }; c.years.push(vy); rest = [...rest, vy]; }

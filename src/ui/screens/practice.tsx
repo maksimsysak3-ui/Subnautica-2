@@ -59,6 +59,8 @@ export function PracticeScreen({ then, gid }: { then?: 'play'; gid?: string }) {
             {w.sessions[day].drill === 'position' && <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: 'wrap' }}>{GROUPS.map(p => <span key={p} className={`chip${w.sessions[day].group === p ? ' on' : ''}`} title={POS_NAME[p]} onClick={() => set(day, { group: p })}>{p}</span>)}</div>}
           </div>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <span className={`chip${w.restVets ? ' on' : ''}`} title="Veterans 30+ sit Wednesday: fresher legs and fewer dings, but they miss a day of work" onClick={() => { w.restVets = !w.restVets; app.touch(); }}>Rest veterans Wednesday</span>
+            <div className="spacer" />
             {then && <button className="btn" onClick={() => { while (!practiceWeek(L).done && runDay(L)) { /* all days */ } kickoff(); }}>Skip to Kickoff</button>}
             <button className="btn primary big" onClick={() => setRunning(true)}>Start the Week ▸</button>
           </div>
@@ -97,6 +99,7 @@ function DayCard({ L, r, i }: { L: League; r: PracticeReport; i: number }) {
         <div key={t.pid} className="pr-top"><Face p={p} size={34} /><div><b>{p.fn[0]}. {p.ln}</b><em>{p.pos}</em></div>
           {t.to > t.from ? <strong className="up1">{t.from} → {t.to}</strong> : t.attr ? <strong className="up1 a">+1 {ATTR_NAME[t.attr as keyof typeof ATTR_NAME] ?? t.attr}</strong> : <small>+{t.xp} XP</small>}</div>
       ) : null; })}</div>
+      {r.moment && <div className="pr-moment"><span>Around practice</span>{r.moment}</div>}
       {r.dinged && <div className="pr-hurt warn"><span>Injury report</span>{r.dinged}</div>}
       {r.hurt && <div className="pr-hurt"><span>Hurt in practice</span>{r.hurt}</div>}
     </div>

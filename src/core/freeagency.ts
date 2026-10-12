@@ -5,13 +5,15 @@ import type { League, Player } from './types';
 import { Rng, clamp } from './rng';
 import { capSpace, marketTerms, money } from './contracts';
 import { positionNeeds, freeNumber } from './draft';
-import { askingPrice, evaluateOffer, signPlayer } from './offseason';
+import { askingPrice, evaluateOffer, offerScore, signPlayer } from './offseason';
 import { news, mail } from './season';
 
 export const freeAgents = (league: League) => Object.values(league.players).filter(p => p.team === 'FA' && p.status === 'FA');
 
 export function openFreeAgency(league: League) {
   league.fa = { day: 1, offers: {} };
+  // The league has been talking to agents for days already: the first bids are in before you call.
+  aiBids(league, new Rng(league.seed + league.season * 7), 1);
   const top = freeAgents(league).sort((a, b) => b.ovr - a.ovr).slice(0, 5);
   news(league, 'league', `Free agency opens. Top of the class: ${top.map(p => `${p.pos} ${p.fn} ${p.ln} (${p.ovr})`).join(', ')}.`, [], { big: true });
 }
@@ -46,46 +48,72 @@ export function signNow(league: League, p: Player, offer: { apy: number; years: 
   return { ok: true, msg: `${p.fn} ${p.ln} has signed.` };
 }
 
+/** AI teams bid by need and room, and fight for the players you're chasing. */
+function aiBids(league: League, rng: Rng, day: number) {
+  const fa = league.fa!;
+  const pool = freeAgents(league).sort((a, b) => b.ovr - a.ovr);
+  for (const t of Object.keys(league.teams)) {
+    if (t === league.user) continue;
+    let space = capSpace(league, t) - 8_000_000 - (fa.offers ? Object.values(fa.offers).flat().filter(o => o.team === t).reduce((a, o) => a + o.apy, 0) : 0);
+    const needs = positionNeeds(league, t);
+    const targets = pool.filter(p => (needs[p.pos] ?? 0) > 0.6 || p.ovr >= 80).slice(0, 40);
+    let bids = 0;
+    for (const p of targets) {
+      if (bids >= 4 || space <= 1_000_000) break;
+      if (fa.offers[p.id]?.some(o => o.team === t)) continue;
+      const ask = askingPrice(league, p);
+      const discount = clamp(1 - (day - 1) * 0.045, 0.62, 1);
+      const want = (needs[p.pos] ?? 0) + (p.ovr - 70) / 10;
+      if (want < 0.7 || rng.chance(0.3)) continue;
+      const apy = Math.round(ask.apy * discount * rng.range(0.95, 1.12) / 10_000) * 10_000;
+      if (apy > space * 0.6) continue;
+      (fa.offers[p.id] ??= []).push({ team: t, apy, years: ask.years, gtd: ask.gtd * rng.range(0.9, 1.15), bonus: rng.range(0.5, 0.8), day });
+      space -= apy; bids++;
+    }
+  }
+  // Bidding wars: when your offer leads for a player a team needs, they try to top it.
+  for (const p of pool) {
+    const offers = fa.offers[p.id]; const mine = offers?.find(o => o.team === league.user);
+    if (!offers || !mine || p.ovr < 70) continue;
+    const myV = offerScore(league, p, mine, league.user);
+    const rivals = Object.keys(league.teams).filter(t => t !== league.user && ((positionNeeds(league, t)[p.pos] ?? 0) > 0.5 || p.ovr >= 82));
+    for (const t of rivals.sort(() => rng.next() - 0.5).slice(0, p.ovr >= 82 ? 3 : 2)) {
+      if (!rng.chance(p.ovr >= 85 ? 0.75 : p.ovr >= 78 ? 0.55 : 0.35)) continue;
+      const base = offers.filter(o => o.team === t)[0] ?? { team: t, ...askingPrice(league, p), bonus: 0.6, day };
+      // Price that beats you on his own scale, within what the rival can afford.
+      let apy = base.apy;
+      for (let k = 0; k < 12 && offerScore(league, p, { ...base, apy }, t) < myV + 0.015; k++) apy *= 1.04;
+      apy = Math.round(apy / 10_000) * 10_000;
+      if (apy > (capSpace(league, t) - 6_000_000) * 0.6 || apy > askingPrice(league, p).apy * 1.3) continue;
+      fa.offers[p.id] = [...offers.filter(o => o.team !== t), { ...base, team: t, apy, gtd: Math.max(base.gtd, mine.gtd), day }];
+      break;
+    }
+  }
+}
+
 export function runFreeAgencyDay(league: League, rng: Rng) {
   const fa = league.fa!;
   const day = fa.day;
   const pool = freeAgents(league).sort((a, b) => b.ovr - a.ovr);
-  // AI bids: each team chases its biggest needs it can afford.
-  for (const t of Object.keys(league.teams)) {
-    if (t === league.user) continue;
-    let space = capSpace(league, t) - 8_000_000; // keep room for the rookie class
-    const needs = positionNeeds(league, t);
-    const targets = pool.filter(p => (needs[p.pos] ?? 0) > 0.8 || p.ovr >= 82).slice(0, 40);
-    let bids = 0;
-    for (const p of targets) {
-      if (bids >= 3 || space <= 1_000_000) break;
-      const ask = askingPrice(league, p);
-      const discount = clamp(1 - (day - 1) * 0.045, 0.62, 1);
-      const want = (needs[p.pos] ?? 0) + (p.ovr - 70) / 10;
-      if (want < 0.8 || rng.chance(0.35)) continue;
-      const apy = Math.round(ask.apy * discount * rng.range(0.93, 1.08) / 10_000) * 10_000;
-      if (apy > space * 0.55) continue;
-      (fa.offers[p.id] ??= []).push({ team: t, apy, years: ask.years, gtd: ask.gtd * rng.range(0.85, 1.1), bonus: rng.range(0.45, 0.75), day });
-      space -= apy; bids++;
-    }
-  }
+  aiBids(league, rng, day);
   // Players decide: the best offer by their own reckoning, if it clears the bar.
   for (const p of pool) {
     const offers = fa.offers[p.id];
     if (!offers?.length) continue;
     const bar = clamp(0.62 - (day - 1) * 0.07, 0.2, 0.62);
     let best = offers[0], bv = -1;
-    for (const o of offers) { const v = evaluateOffer(league, p, o, o.team) + (o.team === league.user ? 0 : 0); if (v > bv) { bv = v; best = o; } }
-    if (bv < bar || capSpace(league, best.team) < best.apy) continue;
+    // Weighed on his own scale: money first, then fit, family, the team he knows, how talks went.
+    for (const o of offers) { if (capSpace(league, o.team) < o.apy) continue; const v = offerScore(league, p, o, o.team); if (v > bv) { bv = v; best = o; } }
+    if (bv < 0 || evaluateOffer(league, p, best, best.team) < bar) continue;
     // Top free agents let the market develop before deciding, unless someone blows them away.
-    if (p.ovr >= 84 && day < 2 && bv < 0.88 && offers.length < 3) continue;
+    if (p.ovr >= 80 && day < 2 && offers.length < 3) continue;
     signPlayer(league, p, best.team, best);
     p.num = freeNumber(league, best.team, p.pos);
     delete fa.offers[p.id];
     const total = best.apy * best.years;
     if (best.team === league.user) queueCeremony(league, p, best);
     if (best.team === league.user) mail(league, 'Front Office', `${p.ln} signed!`, `${p.fn} ${p.ln} accepted your offer: ${best.years} years, ${money(total)}.`);
-    else if (offers.some(o => o.team === league.user)) mail(league, 'Front Office', `${p.ln} signed elsewhere`, `${p.fn} ${p.ln} chose the ${league.teams[best.team].nick} (${best.years} yrs, ${money(total)}).`);
+    else if (offers.some(o => o.team === league.user)) { const mine = offers.find(o => o.team === league.user)!; mail(league, 'Front Office', `${p.ln} signed elsewhere`, `${p.fn} ${p.ln} chose the ${league.teams[best.team].nick} (${best.years} yrs, ${money(total)}) over your ${mine.years}-year, ${money(mine.apy * mine.years)} offer.${best.apy <= mine.apy ? ' It wasn\'t about the money: he liked the fit there better.' : ''}`); }
     if (p.ovr >= 78) news(league, 'sign', `${league.teams[best.team].nick} signed ${p.pos} ${p.fn} ${p.ln}: ${best.years} years, ${money(total)}.`, [best.team], { pid: p.id, big: p.ovr >= 86 });
   }
   // Offers expire after two days.

@@ -1,5 +1,6 @@
 // Procedural portraits for players without a real headshot (draft prospects,
 // generated players). Seeded by the player, so a face never changes.
+import { useEffect, useState } from 'react';
 import { GEN_FACES } from '../data/genfaces';
 import type { Player, Team } from '../core/types';
 import { Rng } from '../core/rng';
@@ -46,11 +47,111 @@ export function genFace(p: Player): string | undefined {
   const m = /^P(\d{4})-(\d+)$/.exec(p.id);
   return m ? GEN_FACES[(+m[2] + +m[1] * 53) % GEN_FACES.length] : undefined;
 }
+/** Half the portraits are mirrored (decided per player), so a reused face reads as someone else. */
+const genFlip = (p: Player) => { const m = /^P(\d{4})-(\d+)$/.exec(p.id); return !!m && Math.floor((+m[2] + +m[1] * 53) / GEN_FACES.length + +m[2] * 7) % 2 === 1; };
+
+// ---- jersey recolour -------------------------------------------------------------------
+// The AI portraits wear assorted jerseys. Each one is redrawn in the player's own colours
+// (his college until he is drafted, then his team): pixels below the chin that aren't skin
+// take the new hue and keep their original shading, so folds, collars and trim still read.
+const hex = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const recoloured = new Map<string, string>();
+const pending = new Map<string, Promise<string>>();
+function recolour(src: string, jersey: string, trim: string): Promise<string> {
+  const key = `${src.length}:${src.slice(-24)}|${jersey}|${trim}`;
+  const done = recoloured.get(key);
+  if (done) return Promise.resolve(done);
+  let p = pending.get(key);
+  if (p) return p;
+  p = new Promise<string>(res => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = img.naturalWidth, H = img.naturalHeight;
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const g = c.getContext('2d')!; g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, W, H), px = d.data;
+        // Skin chromaticity (colour with brightness divided out, so shadowed skin still
+        // matches) sampled from the cheeks and neck.
+        let cr = 0, cg = 0, n = 0;
+        for (const [fx, fy] of [[0.4, 0.42], [0.6, 0.42], [0.5, 0.55], [0.5, 0.66]]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          const i = ((Math.round(fy * H) + dy) * W + Math.round(fx * W) + dx) * 4; if (px[i + 3] < 200) continue;
+          const t = px[i] + px[i + 1] + px[i + 2] + 1; cr += px[i] / t; cg += px[i + 1] / t; n++;
+        }
+        if (!n) return res(src);
+        cr /= n; cg /= n;
+        const [jr, jg, jb] = hex(jersey), [tr, tg, tb] = hex(trim);
+        // The jersey starts where the shoulders widen out.
+        let y0 = Math.round(H * 0.75);
+        for (let y = Math.round(H * 0.5); y < H; y++) { let w = 0; for (let x = 0; x < W; x++) if (px[(y * W + x) * 4 + 3] > 128) w++; if (w > W * 0.7) { y0 = y - 3; break; } }
+        y0 = Math.max(y0, Math.round(H * 0.66));
+        const isJ = new Uint8Array(W * H); let sum = 0, cnt = 0;
+        for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) {
+          const k = y * W + x, i = k * 4; if (px[i + 3] < 40) continue;
+          const t = px[i] + px[i + 1] + px[i + 2], u = t + 1;
+          const cd = Math.hypot(px[i] / u - cr, px[i + 1] / u - cg);
+          if (t < 70) continue;                                       // deep shadow stays as is
+          if (cd < 0.06 && t > 60) continue;                          // skin
+          if (Math.abs(x - W / 2) < W * 0.18 && y - y0 < 30 && (cd < 0.12 || t < 200)) continue;  // shadow under the chin
+          isJ[k] = 1; sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11; cnt++;
+        }
+        const mean = cnt ? sum / cnt : 128;
+        for (let k = y0 * W; k < W * H; k++) if (isJ[k]) {
+          const i = k * 4, rel = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / mean;  // 1 = average fold
+          const accent = rel > 2 && mean < 150;                       // piping, numbers on a dark jersey
+          const [br, bg, bb] = accent ? [tr, tg, tb] : [jr, jg, jb];
+          const f = accent ? 1 : Math.min(1.25, Math.max(0.5, 1 + (rel - 1) * (mean > 150 ? 0.45 : 0.8)));  // light kits carry harsh stripes: soften
+          px[i] = Math.min(255, br * f); px[i + 1] = Math.min(255, bg * f); px[i + 2] = Math.min(255, bb * f);
+        }
+        // Broaden the shoulders: the source crops cut them at the frame edge, so the
+        // jersey is carried outward and down in a shoulder curve, darkening slightly.
+        const ox = Math.round(W * 0.3), W2 = W + 2 * ox, Hc = H - 3;
+        const c2 = document.createElement('canvas'); c2.width = W2; c2.height = Hc;
+        const g2 = c2.getContext('2d')!, d2 = g2.createImageData(W2, Hc), q = d2.data;
+        for (let y = 0; y < Hc; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4, o = (y * W2 + x + ox) * 4; q[o] = px[i]; q[o + 1] = px[i + 1]; q[o + 2] = px[i + 2]; q[o + 3] = px[i + 3]; }
+        for (const side of [0, 1]) {
+          const col = side ? W - 1 : 0;
+          let ys = Hc; for (let y = Math.round(H * 0.5); y < Hc; y++) if (px[(y * W + col) * 4 + 3] > 128) { ys = y; break; }
+          for (let y = ys; y < Hc; y++) {
+            let t = Math.min(1, (y - ys) / Math.max(1, Hc - ys) * 1.6); t = t * (2 - t);
+            const ext = Math.round(ox * t);
+            let r = 0, gg = 0, bb = 0, m = 0;               // average of the jersey near the edge
+            for (let sy = Math.max(0, y - 6); sy <= y; sy++) for (let k = 0; k < 8; k++) { const i = (sy * W + (side ? W - 1 - k : k)) * 4; if (px[i + 3] > 100) { r += px[i]; gg += px[i + 1]; bb += px[i + 2]; m++; } }
+            if (!m) continue;
+            r /= m; gg /= m; bb /= m;
+            for (let k = 1; k <= ext; k++) {
+              const x = side ? ox + W - 1 + k : ox - k, o = (y * W2 + x) * 4, sh = 1 - 0.25 * k / ox;
+              q[o] = r * sh; q[o + 1] = gg * sh; q[o + 2] = bb * sh; q[o + 3] = k < ext - 1 ? 255 : 128;
+            }
+          }
+        }
+        g2.putImageData(d2, 0, 0);
+        const url = c2.toDataURL('image/webp', 0.92);
+        recoloured.set(key, url); res(url);
+      } catch { res(src); }
+    };
+    img.onerror = () => res(src);
+    img.src = src;
+  });
+  pending.set(key, p);
+  return p;
+}
+
+/** An AI portrait in the player's colours, framed like a broadcast headshot. */
+function GenPhoto({ src, jersey, trim, size, flip }: { src: string; jersey: string; trim: string; size: number; flip: boolean }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { let live = true; setUrl(null); recolour(src, jersey, trim).then(u => { if (live) setUrl(u); }); return () => { live = false; }; }, [src, jersey, trim]);
+  // Head and shoulders, bottom-anchored, shoulders running off the frame like the real headshots.
+  return (
+    <div style={{ width: size, height: size, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
+      {url && <img src={url} alt="" style={{ display: 'block', width: size * 1.04, flex: 'none', height: 'auto', filter: 'brightness(1.07) contrast(.96) saturate(1.04)', transform: flip ? 'scaleX(-1)' : undefined }} />}
+    </div>
+  );
+}
 
 export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: number }) {
   const photo = genFace(p);
-  // Pulled back like the real headshots: whole head and shoulders, bottom-anchored.
-  if (photo) return <div style={{ width: size, height: size, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}><img src={photo} alt="" style={{ display: 'block', height: size * 0.86, width: 'auto' }} /></div>;
+  if (photo) { const [j, t] = team?.colors ?? collegeKit(p.col); return <GenPhoto src={photo} jersey={j} trim={t} size={size} flip={genFlip(p)} />; }
   const f = faceSpec(p);
   const id = `f${p.id.replace(/[^a-z0-9]/gi, '')}`;
   const shade = shadeHex(f.skin, -0.22), light = shadeHex(f.skin, 0.12);

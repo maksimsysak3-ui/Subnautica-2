@@ -4,7 +4,7 @@ import { useApp, app } from '../store';
 import { Logo, Table, Tabs, DevBadge, attrColor, Modal, CountUp, vivid, Grade } from '../components';
 import type { Player, Pos, StatLine } from '../../core/types';
 import { ATTR_GROUPS, ATTR_NAME, ABILITIES, XFACTOR_DESC, POS_ORDER, POS_NAME, OVR_W } from '../../core/ratings';
-import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, yearsLeft, marketValue } from '../../core/contracts';
+import { capHit, capSpace, deadMoney, money, releaseSavings, restructure, restructureBlock, RESTRUCTURES_PER_SEASON, yearsLeft, marketValue } from '../../core/contracts';
 import { autoDepth, teamRatings, emptyLine } from '../../core/league';
 import { release } from '../../core/offseason';
 import { NegotiationRoom } from './negotiate';
@@ -141,7 +141,11 @@ export function PlayerScreen({ pid }: { pid: string }) {
             <div className="row" style={{ marginTop: 16 }}>
               {mine && !prospect && <>
                 <button className="btn sm" onClick={() => setModal('extend')}>Extend</button>
-                <button className="btn sm" onClick={() => { const saved = restructure(p, L.season); app.toast(saved > 0 ? `Restructured: ${money(saved)} cap space freed this year` : 'Nothing to restructure'); app.touch(); }}>Restructure</button>
+                <button className="btn sm" title={restructureBlock(p, L.season) ?? `Convert base salary to a prorated bonus (${RESTRUCTURES_PER_SEASON} per season)`} onClick={() => {
+                  const used = Object.values(L.players).filter(q => q.team === L.user && q.contract.restr === L.season).length;
+                  const why = restructureBlock(p, L.season) ?? (used >= RESTRUCTURES_PER_SEASON ? `You've used all ${RESTRUCTURES_PER_SEASON} restructures this season` : null);
+                  if (why) { app.toast(why); return; }
+                  const saved = restructure(p, L.season); app.toast(saved > 0 ? `Restructured: ${money(saved)} freed this year (${RESTRUCTURES_PER_SEASON - used - 1} left) · the rest hits future caps` : 'Nothing to restructure'); app.touch(); }}>Restructure</button>
                 {(p.status === 'IR' || p.injury) && <button className="btn sm" disabled={p.status === 'IR' && !!p.injury} title={p.status === 'IR' && p.injury ? `Out ${p.injury.weeks} more week(s)` : undefined} onClick={() => { p.status = p.status === 'IR' ? 'ACT' : 'IR'; autoDepth(L, L.user); app.touch(); }}>{p.status === 'IR' ? 'Activate from IR' : 'Move to IR'}</button>}
                 {p.exp <= 3 && <button className="btn sm" onClick={() => { p.status = p.status === 'PS' ? 'ACT' : 'PS'; autoDepth(L, L.user); app.touch(); }}>{p.status === 'PS' ? 'Promote to Active' : 'Practice Squad'}</button>}
                 <button className="btn sm danger" onClick={() => setModal('release')}>Release</button>
