@@ -9,7 +9,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SCHOOLS, SEASON, CONFS, TOP25, school, rosterOf, logo, logoDark, headshot, showColor, YR, height, type School } from './data';
 import { CardHost } from './PlayerCard';
-import { Hub } from './Hub';
+import { Hub, nextGame } from './Hub';
+import { open } from './store';
+import { record, rankOf, weekLabel } from './season';
 
 type Screen = { id: 'menu' } | { id: 'select' } | { id: 'hub'; team: number; tab: string };
 const SAVE = 'ggm-college-save';
@@ -85,6 +87,12 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
   const [sel, setSel] = useState(0);
   const [about, setAbout] = useState(false);
   const qs = useMemo(() => TOP25[Math.floor(Math.random() * 10)], []);
+  // The saved dynasty's live state for the Continue tile and the ticker.
+  const dyn = useMemo(() => (saved ? open(saved.id) : undefined), [saved?.id]);
+  const se = dyn?.season;
+  const nxt = saved && se && dyn ? nextGame(saved, se, dyn.week) : null;
+  const poll = se?.polls[se.polls.length - 1]?.slice(0, 25).map(id => school(id)) ?? TOP25;
+  const tilt = (e: React.MouseEvent<HTMLButtonElement>) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--rx', `${((e.clientY - r.top) / r.height - 0.5) * -6}deg`); e.currentTarget.style.setProperty('--ry', `${((e.clientX - r.left) / r.width - 0.5) * 8}deg`); };
   const tiles = [
     ...(saved ? [{ k: 'Continue', sub: `${saved.school} · your dynasty`, art: 'continue', run: () => go({ id: 'hub', team: saved.id, tab: 'Home' }) }] : []),
     { k: 'New Dynasty', sub: `Take over any of ${SCHOOLS.length} FBS programs`, art: 'new', run: () => go({ id: 'select' }) },
@@ -113,19 +121,26 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
         {tiles.map((t, i) => {
           const tc = t.art === 'continue' && saved ? showColor(saved) : t.art === 'quick' ? showColor(qs) : undefined;
           return (
-            <button key={t.k} className={`mn-tile ${t.art}${i === sel ? ' on' : ''}`} style={{ '--i': i, ...(tc ? { '--tc': tc } : {}) } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={t.run}>
+            <button key={t.k} className={`mn-tile ${t.art}${i === sel ? ' on' : ''}`} style={{ '--i': i, ...(tc ? { '--tc': tc } : {}) } as CSSProperties} onMouseEnter={() => setSel(i)} onMouseMove={tilt} onMouseLeave={e => { e.currentTarget.style.removeProperty('--rx'); e.currentTarget.style.removeProperty('--ry'); }} onClick={t.run}>
               <div className="mn-art">
                 {t.art === 'new' && <div className="mn-mosaic">{[...SCHOOLS, ...SCHOOLS].map((x, j) => <Logo key={j} id={x.id} />)}</div>}
                 {(t.art === 'continue' || t.art === 'quick') && <Logo id={(t.art === 'continue' ? saved! : qs).id} className="mn-biglogo" />}
                 {t.art === 'how' && <svg viewBox="0 0 200 140" className="mn-play"><g fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">{[40, 70, 100, 130, 160].map(x => <circle key={x} cx={x} cy="96" r="7" />)}<path d="M40 89 L40 40 L70 30" /><path d="M160 89 L150 34" /><path d="M100 89 L100 60 L136 52" strokeDasharray="6 6" /></g><g stroke="#f5c443" strokeWidth="3" strokeLinecap="round">{[[60, 40], [110, 30], [150, 50]].map(([x, y]) => <path key={x} d={`M${x - 6} ${y - 6} L${x + 6} ${y + 6} M${x + 6} ${y - 6} L${x - 6} ${y + 6}`} />)}</g></svg>}
               </div>
+              {t.art === 'continue' && se && dyn && saved && (
+                <div className="mn-dyn">
+                  <span><em>{weekLabel(dyn.week)}</em><b>{record(saved.id, se).s}</b></span>
+                  {rankOf(saved.id, se) > 0 && <span><em>AP poll</em><b>#{rankOf(saved.id, se)}</b></span>}
+                  {nxt && <span className="nx"><em>Next</em><b>{nxt.home ? 'vs' : '@'} <Logo id={nxt.o.id} size={20} /> {nxt.o.school}</b></span>}
+                </div>
+              )}
               <div className="mn-txt"><b>{t.k}</b><span>{t.sub}</span></div>
             </button>
           );
         })}
       </nav>
-      <div className="cm-ticker"><div className="cm-ticker-k">Preseason Top 25</div><div className="cm-ticker-run"><div>
-        {[...TOP25, ...TOP25].map((t, i) => <span key={i}><em>{(i % 25) + 1}</em><Logo id={t.id} size={18} />{t.school}</span>)}
+      <div className="cm-ticker"><div className="cm-ticker-k">{se && dyn && dyn.week > 0 ? `AP Top 25 · ${weekLabel(dyn.week)}` : 'Preseason Top 25'}</div><div className="cm-ticker-run"><div>
+        {[...poll, ...poll].map((t, i) => <span key={i}><em>{(i % 25) + 1}</em><Logo id={t.id} size={18} />{t.school}</span>)}
       </div></div></div>
       {about && (
         <div className="cm-modal" onClick={() => setAbout(false)}>
