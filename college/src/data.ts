@@ -3,7 +3,7 @@
 import raw from './data.json';
 
 export interface School { id: number; school: string; mascot: string; abbr: string; conf: string; prestige: number; c1: string; c2: string; ovr: number; win: number }
-export interface Player { id: string; fn: string; ln: string; t: number; pos: string; yr: number; ht: number; wt: number; num: number; ovr: number; hs?: 1; home?: string }
+export interface Player { id: string; fn: string; ln: string; t: number; pos: string; yr: number; ht: number; wt: number; num: number; ovr: number; st?: 1; hs?: 1; home?: string }
 
 const D = raw as unknown as { season: number; teams: School[]; players: Player[] };
 export const SEASON = D.season;
@@ -23,10 +23,10 @@ export const height = (h: number) => `${Math.floor(h / 12)}'${h % 12}"`;
 /** A colour that reads on a dark background: the primary, or the secondary when the primary is near-black. */
 const lum = (h: string) => { const n = parseInt(h.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
 export const showColor = (s: School) => {
-  if (lum(s.c1) >= 55) return s.c1;
-  if (lum(s.c2) >= 55 && lum(s.c2) <= 225) return s.c2;
+  if (lum(s.c1) >= 38) return s.c1;
+  if (lum(s.c2) >= 50 && lum(s.c2) <= 225) return s.c2;
   // Both too dark (or the second is white): lift the primary so it still reads as the school.
-  const n = parseInt(s.c1.slice(1), 16), up = (v: number) => Math.round(v + (255 - v) * 0.35);
+  const n = parseInt(s.c1.slice(1), 16), up = (v: number) => Math.round(v + (255 - v) * 0.28);
   return `#${[n >> 16, (n >> 8) & 255, n & 255].map(v => up(v).toString(16).padStart(2, '0')).join('')}`;
 };
 /** Preseason top 25, by roster strength with a nudge for last year's record. */

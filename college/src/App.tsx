@@ -7,21 +7,23 @@
 //               carrying its schools' logos across the screen
 //   wordmark    white flash, then the chrome wordmark with the COLLEGE plate
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { SCHOOLS, SEASON, CONFS, TOP25, school, rosterOf, logo, logoDark, headshot, showColor, YR, YEAR, height, type School } from './data';
+import { SCHOOLS, SEASON, CONFS, TOP25, school, rosterOf, logo, logoDark, headshot, showColor, YR, height, type School } from './data';
+import { Mascot, Field3D, Pennant, Stadium } from './art';
+import { Hub } from './Hub';
 
-type Screen = { id: 'menu' } | { id: 'select' } | { id: 'home'; team: number };
+type Screen = { id: 'menu' } | { id: 'select' } | { id: 'hub'; team: number; tab: string };
 const SAVE = 'ggm-college-save';
 const loadSave = (): { team: number; at: number } | null => { try { return JSON.parse(localStorage.getItem(SAVE) ?? 'null'); } catch { return null; } };
 
 export function App() {
   const [opening, setOpening] = useState(true);
   const [screen, setScreen] = useState<Screen>({ id: 'menu' });
-  const start = (team: number) => { try { localStorage.setItem(SAVE, JSON.stringify({ team, at: Date.now() })); } catch { /* private mode */ } setScreen({ id: 'home', team }); };
+  const start = (team: number) => { try { localStorage.setItem(SAVE, JSON.stringify({ team, at: Date.now() })); } catch { /* private mode */ } setScreen({ id: 'hub', team, tab: 'Home' }); };
   return (
     <>
       {screen.id === 'menu' && <Menu entering={!opening} go={setScreen} />}
       {screen.id === 'select' && <Select back={() => setScreen({ id: 'menu' })} start={start} />}
-      {screen.id === 'home' && <Home team={screen.team} back={() => setScreen({ id: 'menu' })} />}
+      {screen.id === 'hub' && <Hub team={screen.team} tab={screen.tab} setTab={tab => setScreen({ id: 'hub', team: screen.team, tab })} back={() => setScreen({ id: 'menu' })} />}
       {opening && <Opening onDone={() => setOpening(false)} />}
     </>
   );
@@ -75,16 +77,23 @@ function Opening({ onDone }: { onDone: () => void }) {
 }
 
 // ---- main menu -----------------------------------------------------------------------------
+// Game day: a night stadium and a painted field in the featured program's colours, its mascot
+// and logo, pennants strung across the top and confetti falling.
+function Confetti({ c1, c2 }: { c1: string; c2: string }) {
+  const bits = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: (i * 37) % 100, d: (i * 0.53) % 9, t: 7 + (i % 6), r: (i * 47) % 360, w: 6 + (i % 4) * 2, c: i % 3 === 0 ? '#ffffff' : i % 2 ? c1 : c2 })), [c1, c2]);
+  return <div className="conf">{bits.map((b, i) => <i key={i} style={{ left: `${b.x}%`, width: b.w, height: b.w * 0.45, background: b.c, animationDelay: `-${b.d}s`, animationDuration: `${b.t}s`, '--r': `${b.r}deg` } as CSSProperties} />)}</div>;
+}
+const ICON: Record<string, string> = { Continue: '▶', 'New Dynasty': '★', 'Quick Start': '⚡', 'How to Play': '?' };
 function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) {
   const save = loadSave();
   const [feat, setFeat] = useState(0);
   const [sel, setSel] = useState(0);
   const [about, setAbout] = useState(false);
-  useEffect(() => { const t = setInterval(() => setFeat(f => (f + 1) % 8), 6000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => setFeat(f => (f + 1) % 10), 7000); return () => clearInterval(t); }, []);
   const items = [
-    ...(save ? [{ k: 'Continue', sub: school(save.team)?.school ?? 'Your dynasty', run: () => go({ id: 'home', team: save.team }) }] : []),
+    ...(save && school(save.team) ? [{ k: 'Continue', sub: school(save.team).school, run: () => go({ id: 'hub', team: save.team, tab: 'Home' }) }] : []),
     { k: 'New Dynasty', sub: `Take over any of ${SCHOOLS.length} FBS programs`, run: () => go({ id: 'select' }) },
-    { k: 'Quick Start', sub: 'A random program, straight in', run: () => { const s = SCHOOLS[Math.floor(Math.random() * SCHOOLS.length)]; go({ id: 'home', team: s.id }); } },
+    { k: 'Quick Start', sub: 'A random program, straight in', run: () => { const s = SCHOOLS[Math.floor(Math.random() * SCHOOLS.length)]; go({ id: 'hub', team: s.id, tab: 'Home' }); } },
     { k: 'How to Play', sub: 'Recruit, develop, win the natty', run: () => setAbout(true) },
   ];
   useEffect(() => {
@@ -97,11 +106,14 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, [entering, sel, items.length, about]);
-  const s = TOP25[feat], top = rosterOf(s.id).filter(p => p.hs).slice(0, 3);
+  const s = TOP25[feat], top = rosterOf(s.id).filter(p => p.hs).slice(0, 3), c = showColor(s);
   return (
-    <div className={`cm${entering ? ' in' : ''}`} style={{ '--c': showColor(s) } as CSSProperties}>
-      <div className="cm-glow" key={'g' + feat} />
-      <Logo id={s.id} className="cm-mark" key={'m' + feat} />
+    <div className={`cm${entering ? ' in' : ''}`} style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
+      <div className="cm-sky" />
+      <Stadium color={c} />
+      <Field3D s={s} key={'f3' + feat} />
+      <Confetti c1={c} c2={s.c2} key={'cf' + feat} />
+      <div className="cm-pennants">{TOP25.slice(0, 12).map((t, i) => <Pennant key={t.id} s={t} style={{ animationDelay: `${i * 0.12}s` }} />)}</div>
       <header className="cm-head">
         <div className="cm-word">GRIDIRON <b>COLLEGE</b></div>
         <div className="cm-season">{SEASON} Season · {SCHOOLS.length} Programs · Real Rosters</div>
@@ -109,19 +121,22 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
       <nav className="cm-nav">
         {items.map((it, i) => (
           <button key={it.k} className={`cm-item${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}>
-            <b>{it.k}</b><span>{it.sub}</span>
+            <i>{ICON[it.k]}</i><div><b>{it.k}</b><span>{it.sub}</span></div>
           </button>
         ))}
       </nav>
-      <aside className="cm-feature" key={'f' + feat}>
-        <div className="cm-rank">No. {feat + 1}</div>
-        <div className="cm-school">{s.school}</div>
-        <div className="cm-mascot">{s.mascot} · {s.conf}</div>
-        <div className="cm-stats"><div><b>{s.ovr}</b><span>Team OVR</span></div><div><b>{'★'.repeat(Math.round(s.prestige))}</b><span>Prestige</span></div></div>
-        <div className="cm-stars">{top.map(p => (
-          <div key={p.id} className="cm-star"><img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {YR[p.yr]} · {p.ovr}</span></div>
-        ))}</div>
-      </aside>
+      <section className="cm-show" key={'s' + feat}>
+        <div className="cm-mascot"><Mascot s={s} size={360} /><Logo id={s.id} className="cm-badge" /></div>
+        <div className="cm-card">
+          <div className="cm-rank">No. {feat + 1} · Preseason</div>
+          <div className="cm-school">{s.school}</div>
+          <div className="cm-mascot-n">{s.mascot} · {s.conf}</div>
+          <div className="cm-stats"><div><b>{s.ovr}</b><span>Team OVR</span></div><div><b className="gold">{'★'.repeat(Math.max(1, Math.round(s.prestige)))}</b><span>Prestige</span></div></div>
+          <div className="cm-stars">{top.map(p => (
+            <div key={p.id} className="cm-star"><div><img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /></div><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {YR[p.yr]} · {p.ovr}</span></div>
+          ))}</div>
+        </div>
+      </section>
       <div className="cm-ticker"><div className="cm-ticker-k">Preseason Top 25</div><div className="cm-ticker-run"><div>
         {[...TOP25, ...TOP25].map((t, i) => <span key={i}><em>{(i % 25) + 1}</em><Logo id={t.id} size={18} />{t.school}</span>)}
       </div></div></div>
@@ -129,9 +144,8 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
         <div className="cm-modal" onClick={() => setAbout(false)}>
           <div onClick={e => e.stopPropagation()}>
             <h2>How to play</h2>
-            <p>Pick a program and build it into a champion. Every FBS roster is real, with the players' own headshots and ratings built from last season's production.</p>
-            <p>Recruit high-school talent, develop your roster through four-year careers, manage the transfer portal and NIL, and chase a playoff spot through your conference.</p>
-            <p className="dim">Coming next in this build: season simulation, recruiting and the portal.</p>
+            <p>Pick a program and build it into a champion. Every FBS roster is real, with the players' own headshots and ratings built from three seasons of production.</p>
+            <p>Recruit high-school talent, develop four-year careers, work the transfer portal and NIL, and chase a playoff spot through your conference.</p>
             <button className="cbtn primary" onClick={() => setAbout(false)}>Got it</button>
           </div>
         </div>
@@ -194,32 +208,4 @@ function Select({ back, start }: { back: () => void; start: (id: number) => void
   );
 }
 
-// ---- program home (the dynasty itself is the next build) ------------------------------------
-function Home({ team, back }: { team: number; back: () => void }) {
-  const s = school(team), roster = rosterOf(team);
-  const [pos, setPos] = useState('All');
-  const shown = roster.filter(p => pos === 'All' || p.pos === pos);
-  const POS = ['All', 'QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C', 'EDGE', 'DT', 'LB', 'CB', 'S', 'K', 'P'];
-  return (
-    <div className="ch" style={{ '--c': showColor(s) } as CSSProperties}>
-      <header className="ch-band">
-        <Logo id={s.id} className="ch-logo" />
-        <div><div className="ch-k">{SEASON} · {s.conf}</div><div className="ch-name">{s.school} <span>{s.mascot}</span></div></div>
-        <div className="spacer" />
-        <div className="ch-kpi"><b>{s.ovr}</b><span>OVR</span></div>
-        <button className="cbtn ghost" onClick={back}>Main Menu</button>
-      </header>
-      <div className="cs-confs">{POS.map(p => <button key={p} className={pos === p ? 'on' : ''} onClick={() => setPos(p)}>{p}</button>)}</div>
-      <div className="ch-table">
-        <div className="ch-row head"><span /><span>Player</span><span>Pos</span><span>Class</span><span>Ht / Wt</span><span>Hometown</span><span>OVR</span></div>
-        {shown.map(p => (
-          <div key={p.id} className="ch-row">
-            <span className="ch-hs">{headshot(p) ? <img src={headshot(p)} alt="" loading="lazy" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}</span>
-            <span><b>{p.fn} {p.ln}</b> <em>#{p.num}</em></span><span>{p.pos}</span><span>{YEAR[p.yr]}</span><span>{height(p.ht)} / {p.wt}</span><span className="dim">{p.home ?? '—'}</span>
-            <span><i className={`ovr ${p.ovr >= 85 ? 'a' : p.ovr >= 75 ? 'b' : 'c'}`}>{p.ovr}</i></span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+export { Logo };
