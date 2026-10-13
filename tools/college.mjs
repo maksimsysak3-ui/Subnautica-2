@@ -14,11 +14,11 @@ import { execSync } from 'node:child_process';
 
 const B = 'https://raw.githubusercontent.com/sportsdataverse/cfbfastR-data/main';
 const SEASON = 2026;
-function get(path, url) {
+export function get(path, url) {
   if (!existsSync(path)) execSync(`curl -sSfL -o "${path}" "${url}"`, { stdio: 'inherit' });
   return readFileSync(path, 'utf8');
 }
-function csv(text) {
+export function csv(text) {
   const lines = text.split('\n');
   const head = splitLine(lines.shift());
   return lines.filter(Boolean).map(l => { const c = splitLine(l); return Object.fromEntries(head.map((h, i) => [h, c[i] ?? ''])); });
@@ -33,13 +33,13 @@ function splitLine(line) {
   out.push(cell);
   return out;
 }
-const num = v => (v === '' || v === 'NA' ? 0 : Number(v) || 0);
+export const num = v => (v === '' || v === 'NA' ? 0 : Number(v) || 0);
 
 const TIER = { SEC: 1, 'Big Ten': 1, 'Big 12': 0.9, ACC: 0.88, 'FBS Independents': 0.85, 'Pac-12': 0.82, 'American Athletic': 0.72, 'Mountain West': 0.7, 'Sun Belt': 0.7, 'Conference USA': 0.64, 'Mid-American': 0.64 };
-const tierOf = c => TIER[c] ?? 0.48; // FCS and below
+export const tierOf = c => TIER[c] ?? 0.48; // FCS and below
 
 // NFL position from the college label plus size.
-function nflPos(r) {
+export function nflPos(r) {
   const p = r.position, h = num(r.height), w = num(r.weight);
   switch (p) {
     case 'QB': case 'RB': case 'WR': case 'TE': case 'FB': case 'LS': case 'P': case 'CB': case 'S': return p;
@@ -56,7 +56,7 @@ function nflPos(r) {
   }
 }
 const SIZE = { QB: [75, 220], RB: [70.5, 212], FB: [72.5, 245], WR: [72.5, 200], TE: [76.5, 250], OT: [77.5, 315], G: [76, 315], C: [75, 303], EDGE: [76, 256], DT: [75, 305], LB: [73.5, 236], CB: [71.5, 192], S: [72, 204], K: [72, 195], P: [74, 210], LS: [74, 240] };
-function sizeFit(pos, h, w) {
+export function sizeFit(pos, h, w) {
   const [H, W] = SIZE[pos];
   // Bigger than the norm is mostly fine for linemen; undersized hurts everywhere.
   const dh = (h - H) / 2, dw = (w - W) / (W * 0.08);
@@ -64,7 +64,7 @@ function sizeFit(pos, h, w) {
 }
 
 /** Aggregate play-level stats into per-player season lines. */
-function seasonStats(year) {
+export function seasonStats(year) {
   const text = get(`.cache/cfb/player_stats_${year}.csv`, `${B}/player_stats/csv/player_stats_${year}.csv`);
   const rows = csv(text);
   const P = new Map(), T = new Map();
@@ -102,7 +102,7 @@ function seasonStats(year) {
   return { players: P, teams };
 }
 
-function production(pos, e) {
+export function production(pos, e) {
   if (!e) return null;
   const g = Math.max(1, e.games.size);
   switch (pos) {

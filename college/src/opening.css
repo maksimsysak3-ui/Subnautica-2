@@ -1,0 +1,36 @@
+.op { position: fixed; inset: 0; z-index: 300; overflow: hidden; background: #000; cursor: pointer; animation: opOut .45s 6s ease forwards; }
+@keyframes opOut { to { opacity: 0; visibility: hidden; } }
+.op-streak { position: absolute; top: 50%; left: 0; width: 46vw; height: 3px; margin-top: -1px; background: linear-gradient(90deg, transparent, #fff 70%, #ffe7a8); box-shadow: 0 0 18px 4px rgba(255,220,150,.75), 0 0 60px 10px rgba(80,140,255,.4); animation: opStreak .55s .1s cubic-bezier(.6,0,.4,1) both; }
+@keyframes opStreak { from { transform: translateX(-50vw); } to { transform: translateX(110vw); } }
+.op-flare { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: linear-gradient(90deg, transparent, #fff 20%, #fff 80%, transparent); box-shadow: 0 0 30px 6px rgba(130,180,255,.8); transform: scaleX(0); animation: opFlare 1s .35s ease-out both; }
+@keyframes opFlare { 0% { transform: scaleX(0); opacity: 1; } 30% { transform: scaleX(1); height: 2px; } 60% { opacity: 1; } 100% { transform: scaleX(1); height: 2px; opacity: 0; } }
+.op-season { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #fff; animation: opSeason .9s .45s cubic-bezier(.2,.8,.2,1) both; }
+.op-season span { font: 600 clamp(14px, 1.6vw, 22px) var(--head); letter-spacing: .9em; text-transform: uppercase; color: rgba(255,255,255,.8); margin-bottom: 6px; }
+.op-season b { font: 900 italic clamp(60px, 9vw, 150px)/.9 var(--head); text-transform: uppercase; letter-spacing: .08em; }
+@keyframes opSeason { 0% { opacity: 0; letter-spacing: .5em; transform: scale(.94); } 35% { opacity: 1; transform: scale(1); } 80% { opacity: 1; filter: blur(0); } 100% { opacity: 0; transform: scale(1.5); filter: blur(10px); } }
+.op-tunnel-cam { position: absolute; inset: 0; perspective: 800px; overflow: hidden; opacity: 0; animation: opTunnelVis 2.05s .85s linear both; }
+@keyframes opTunnelVis { 0% { opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; } }
+.op-tunnel { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; animation: opFly 2.05s .85s cubic-bezier(.55,.05,.75,.4) both; }
+@keyframes opFly { from { transform: translateZ(-700px) rotateZ(0deg); } to { transform: translateZ(5000px) rotateZ(55deg); } }
+.op-logo { position: absolute; width: 230px; height: 230px; margin: -115px 0 0 -115px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c) 85%, transparent) 0%, color-mix(in srgb, var(--c) 30%, transparent) 45%, transparent 70%); }
+.op-logo img { width: 72%; filter: drop-shadow(0 0 22px rgba(255,255,255,.35)); }
+@keyframes opWipe { to { clip-path: polygon(0 0, 130% 0, 100% 100%, -30% 100%); } }
+@keyframes opHs { from { transform: translateX(10vw) scale(1.12); } }
+@keyframes opName { from { opacity: 0; transform: translateX(-12vw); } }
+.op-white { position: absolute; inset: 0; z-index: 40; background: #fff; opacity: 0; pointer-events: none; animation: opWhite .55s 4.45s ease-out both; }
+@keyframes opWhite { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+.op-mark { position: absolute; inset: 0; z-index: 30; display: grid; place-content: center; justify-items: center; background: radial-gradient(ellipse at 50% 48%, #173468 0%, #08132b 38%, #02040a 75%); opacity: 0; animation: opShow .01s 4.52s both, opShake .45s 4.82s linear; }
+@keyframes opShow { to { opacity: 1; } }
+@keyframes opShake { 20% { transform: translate(-12px, 7px); } 40% { transform: translate(10px, -6px); } 60% { transform: translate(-6px, 4px); } 80% { transform: translate(3px, -2px); } }
+.op-rays { position: absolute; left: 50%; top: 47%; width: 200vmax; height: 200vmax; margin: -100vmax 0 0 -100vmax; background: repeating-conic-gradient(from 0deg, rgba(160,200,255,.12) 0 4deg, transparent 4deg 13deg); mask-image: radial-gradient(circle, #000 0%, transparent 45%); animation: opRays 8s 4.5s linear infinite, opRaysIn .8s 4.5s ease-out both; }
+@keyframes opRays { to { transform: rotate(360deg); } } @keyframes opRaysIn { from { opacity: 0; scale: .4; } }
+.op-word { position: relative; animation: opSlam .45s 4.55s cubic-bezier(.2,1.5,.45,1) both; }
+.op-word span { display: block; font: 900 italic clamp(80px, 15vw, 260px)/.85 var(--head); letter-spacing: .01em; }
+.op-word .ex { position: absolute; left: 0; top: 0; color: #1c2740; text-shadow: 1px 1px 0 #26324f, 2px 2px 0 #222d48, 3px 3px 0 #1e2842, 4px 4px 0 #1a233b, 5px 5px 0 #161e34, 6px 6px 0 #131a2d, 7px 7px 0 #101626, 8px 8px 0 #0d121f, 0 24px 60px rgba(0,0,0,.8), 0 0 90px rgba(90,150,255,.45); }
+.op-word .chrome { position: relative; color: transparent; background: linear-gradient(100deg, #9aa6bd 0%, #f3f6fb 22%, #ffffff 30%, #aeb9cc 38%, #e9eef6 50%, #8e9ab2 62%, #f7f9fc 76%, #b4bfd1 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; animation: opShine 1.2s 5.1s ease-in-out both; }
+@keyframes opSlam { from { opacity: 0; transform: scale(3.4) rotateX(30deg); filter: blur(14px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes opShine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.op-gm { margin-top: 1.4vw; padding: .1em .55em; font: 900 italic clamp(34px, 5vw, 86px)/1 var(--head); letter-spacing: .12em; color: #0b0d11; background: linear-gradient(180deg, #ffe680, #f5b40f 60%, #c98e00); clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%); box-shadow: 0 0 40px rgba(255,200,40,.6); animation: opGm .4s 4.95s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes opGm { from { opacity: 0; transform: translateY(40px) scale(1.8); } }
+.op-sparks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.op-skip { position: absolute; z-index: 60; left: 50%; bottom: 5vh; transform: translateX(-50%); font: 600 12px var(--head); letter-spacing: .32em; text-transform: uppercase; color: rgba(255,255,255,.45); }

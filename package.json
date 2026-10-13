@@ -6,10 +6,12 @@
   "scripts": {
     "data": "node tools/build-data.mjs",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node tools/build-3d-data.mjs && vite build -c vite.3d.config.ts",
+    "build": "tsc --noEmit && vite build && node tools/build-3d-data.mjs && vite build -c vite.3d.config.ts && npm run build:college",
     "typecheck": "tsc --noEmit",
     "calibrate": "tsx tools/calibrate.ts",
-    "test": "tsc --noEmit && tsx tools/calibrate.ts 2 && tsx tools/franchise-test.ts 2"
+    "test": "tsc --noEmit && tsx tools/calibrate.ts 2 && tsx tools/franchise-test.ts 2",
+    "build:college": "vite build -c vite.college.config.ts && cp play-college/index.html play/college.html",
+    "data:college": "node tools/college-dynasty.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",

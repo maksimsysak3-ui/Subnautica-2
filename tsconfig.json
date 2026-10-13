@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "app", "tools/*.ts"]
+  "include": ["src", "app", "college/src", "tools/*.ts"]
 }
