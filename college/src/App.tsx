@@ -106,7 +106,7 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
     <div className={`mn${entering ? ' in' : ''}`} style={{ '--c': cur ? showColor(cur) : '#2f6fdf' } as CSSProperties}>
       <div className="mn-bg" />
       <header className="mn-top">
-        <div className="mn-word">GRIDIRON <b>COLLEGE</b></div>
+        <div className="mn-word">GRIDIRON <b>COLLEGE{__COLLEGE_3D__ ? " 3D" : ""}</b></div>
         <div className="mn-season">{SEASON} Season · {SCHOOLS.length} FBS programs · Real rosters</div>
       </header>
       <nav className="mn-tiles">

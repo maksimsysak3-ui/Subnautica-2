@@ -609,3 +609,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .aa-p.mine { border-color: var(--c); }
 @media (max-width: 900px) { .aw-hero { grid-template-columns: 1fr; } .aw-hero > .aw-face { width: 120px; height: 120px; } .aw-trophy { display: none; } }
 .hb-top { gap: 12px; padding: 12px 18px; } .hb-top .pills { gap: 5px; } .hb-top .pill { padding: 7px 10px; font-size: 12.5px; letter-spacing: .04em; }
+/* ---- 3D game day ---- */
+.g3d { position: relative; border-radius: 12px; overflow: hidden; background: #05070f; }
+.g3d canvas { display: block; width: 100%; }
+.g3d-tags { position: absolute; inset: 0; pointer-events: none; }
+.g3d-tags span { position: absolute; transform: translate(-50%, -100%); padding: 2px 8px; border-radius: 4px; background: rgba(8, 10, 16, .82); border-left: 3px solid var(--tc); color: #fff; font: 800 12px var(--head); letter-spacing: .06em; white-space: nowrap; }
+.g3d-cams { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
+.g3d-cams button { padding: 5px 10px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 999px; background: rgba(8, 10, 16, .7); color: #cfd6e4; font: 700 11.5px var(--head); letter-spacing: .06em; text-transform: uppercase; backdrop-filter: blur(6px); }
+.g3d-cams button.on { background: var(--c, #ff7a1a); color: #fff; border-color: transparent; }
+.g3d-wx { position: absolute; top: 10px; left: 10px; padding: 4px 10px; border-radius: 6px; background: rgba(8, 10, 16, .7); color: #cfd6e4; font: 700 11px var(--head); letter-spacing: .08em; text-transform: uppercase; }
+.g3d-dd { position: absolute; left: 12px; bottom: 12px; display: flex; align-items: stretch; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 20px rgba(0, 0, 0, .45); font-family: var(--head); text-transform: uppercase; }
+.g3d-dd b { padding: 6px 12px; background: #ffd400; color: #111; font-size: 15px; } .g3d-dd span { padding: 6px 12px; background: rgba(10, 12, 18, .9); color: #fff; font-size: 14px; border-left: 4px solid var(--c); } .g3d-dd em { padding: 6px 12px; background: rgba(10, 12, 18, .75); color: #aab3c4; font-style: normal; font-size: 13px; }

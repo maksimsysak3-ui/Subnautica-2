@@ -3,10 +3,12 @@
 // this down, distance and field position), then tag it: play-action, motion, and who the first
 // read is (your real receivers, with ratings). Defense is built, not picked: a front, a coverage,
 // pressure and how many in the box. Live scouting shows what the other sideline has been doing.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { GameSim, type PlayEvent, type OffCall, type DefCall, type DefSet } from '../../src/sim/game';
 import { FieldView } from '../../src/ui/field';
+// The 3D build swaps the pixel field for the stadium renderer; the 2D build drops it entirely.
+const Field = __COLLEGE_3D__ ? lazy(() => import('./Field3D').then(m => ({ default: m.Field3D }))) : FieldView;
 import { OFF_SETS } from '../../src/ui/plays';
 import { bookOf, identity, teamDefBook } from '../../src/ui/teamplays';
 import { Notebook } from './Diagram';
@@ -79,7 +81,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </header>
       <div className="gd-main">
         <div className="gd-field">
-          <FieldView ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} />
+          <Suspense fallback={<div className="g3d" style={{ height: 420 }} />}><Field ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} /></Suspense>
           <div className="gd-text">{live ? <span className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'Snap…'}</span> : <b className={last?.big ? 'gold' : ''}>{last?.text ?? `Welcome to ${H.school}. Kickoff is moments away.`}</b>}</div>
         </div>
         <aside className="gd-side">

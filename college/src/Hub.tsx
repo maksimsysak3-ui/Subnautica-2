@@ -35,7 +35,7 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
   return (
     <div className="hb" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
       <div className="hb-top">
-        <div className="hb-brand">GRIDIRON <b>COLLEGE</b></div>
+        <div className="hb-brand">GRIDIRON <b>COLLEGE{__COLLEGE_3D__ ? " 3D" : ""}</b></div>
         <nav className="pills">{TABS.map(t => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t === 'Weekly' ? 'Weekly' : t === 'Transfer Portal' ? 'Portal' : t}</button>)}</nav>
         <button className="pill ghost" onClick={back}>‹ Main Menu</button>
       </div>
