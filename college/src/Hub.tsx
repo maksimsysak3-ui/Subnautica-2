@@ -13,19 +13,30 @@ import { StaffTab } from './Staff';
 import { showCard } from './PlayerCard';
 import { useDynasty, update } from './store';
 import { endWeek } from './recruiting';
+import { AwardsTab } from './Awards';
+import { playWeek, teamSchedule, postGames, record, rankOf, weekLabel, weekGames, LAST_WEEK, REG_WEEKS, type Season } from './season';
 
-const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Stats', 'Schedule', 'Recruiting', 'Transfer Portal', 'Rankings', 'Conference', 'Staff'];
-const rand = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Stats', 'Schedule', 'Recruiting', 'Transfer Portal', 'Rankings', 'Conference', 'Awards', 'Staff'];
 
 export function Hub({ team, tab, setTab, back }: { team: number; tab: string; setTab: (t: string) => void; back: () => void }) {
-  const s = school(team), c = showColor(s), rank = TOP25.indexOf(s);
+  const s = school(team), c = showColor(s);
   const d = useDynasty(team);
-  const when = d.week === 0 ? 'Preseason' : d.week > 13 ? 'Postseason' : `Week ${d.week}`;
+  const se = d.season!;
+  const rank = rankOf(team, se) - 1;
+  const when = weekLabel(d.week);
+  const [busy, setBusy] = useState(false);
+  const next = nextGame(s, se, d.week);
+  const advance = () => {
+    if (d.week >= LAST_WEEK || busy) return;
+    setBusy(true);
+    // Let the button repaint before the week's games run.
+    setTimeout(() => { update(x => { playWeek(x); endWeek(x); }); setBusy(false); }, 30);
+  };
   return (
     <div className="hb" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
       <div className="hb-top">
         <div className="hb-brand">GRIDIRON <b>COLLEGE</b></div>
-        <nav className="pills">{TABS.map(t => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t === 'Weekly' ? 'Weekly Decisions' : t}</button>)}</nav>
+        <nav className="pills">{TABS.map(t => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t === 'Weekly' ? 'Weekly' : t === 'Transfer Portal' ? 'Portal' : t}</button>)}</nav>
         <button className="pill ghost" onClick={back}>‹ Main Menu</button>
       </div>
       <main className="hb-main">
@@ -38,12 +49,12 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
             <div className="hb-sub">{s.mascot}</div>
           </div>
           <div className="spacer" />
-          <div className="hb-pills"><div><b>0-0</b><span>Record</span></div><div><b>0-0</b><span>Conf</span></div><div><b>{s.ovr}</b><span>OVR</span></div><div><b className="gold">{'★'.repeat(Math.max(1, Math.round(s.prestige)))}</b><span>Prestige</span></div></div>
-          <button className="cbtn primary" onClick={() => update(endWeek)}>Advance week ›</button>
+          <div className="hb-pills"><div><b>{record(s.id, se).s}</b><span>Record</span></div><div><b>{record(s.id, se, true).s}</b><span>Conf</span></div><div><b>{s.ovr}</b><span>OVR</span></div><div><b className="gold">{'★'.repeat(Math.max(1, Math.round(s.prestige)))}</b><span>Prestige</span></div></div>
+          <button className="cbtn primary" onClick={advance} disabled={busy || d.week >= LAST_WEEK}>{busy ? 'Playing the week…' : d.week >= LAST_WEEK ? 'Season complete' : `Advance to ${weekLabel(d.week + 1).toLowerCase()} ›`}</button>
         </header>
         <div className="hb-page" key={tab}>
           {tab === 'Home' && <HomeTab s={s} go={setTab} />}
-          {tab === 'Matchup' && <Matchup s={s} g={opponents(s)[0]} />}
+          {tab === 'Matchup' && (next ? <Matchup s={s} g={next} /> : <Card title="No game this week"><p className="dim">{d.week >= REG_WEEKS ? `${s.school}'s season is over. Follow the rest of the postseason in Rankings and Awards.` : 'Bye week. Rest up.'}</p></Card>)}
           {tab === 'Weekly' && <Weekly s={s} />}
           {tab === 'Roster' && <RosterTab s={s} />}
           {tab === 'Depth Chart' && <DepthTab s={s} />}
@@ -53,6 +64,7 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
           {tab === 'Transfer Portal' && <PortalTab s={s} />}
           {tab === 'Rankings' && <RankTab s={s} />}
           {tab === 'Conference' && <ConfTab s={s} />}
+          {tab === 'Awards' && <AwardsTab s={s} />}
           {tab === 'Staff' && <StaffTab s={s} />}
         </div>
       </main>
@@ -66,15 +78,22 @@ const Card = ({ title, action, children, span }: { title: string; action?: React
 const Hs = ({ p }: { p: ReturnType<typeof rosterOf>[number] }) => <span className="hs">{headshot(p) ? <img src={headshot(p)} alt="" loading="lazy" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}</span>;
 const Ovr = ({ v }: { v: number }) => <i className={`ovr ${v >= 85 ? 'a' : v >= 75 ? 'b' : 'c'}`}>{v}</i>;
 
-export function opponents(s: School) {
-  const r = rand(s.id * 7 + 3);
-  const conf = SCHOOLS.filter(x => x.conf === s.conf && x.id !== s.id).sort(() => r() - 0.5).slice(0, 8);
-  const non = SCHOOLS.filter(x => x.conf !== s.conf).sort(() => r() - 0.5).slice(0, 4);
-  return [...non.slice(0, 3), ...conf.slice(0, 4), non[3], ...conf.slice(4)].slice(0, 12).map((o, i) => ({ o, home: (i + s.id) % 2 === 0, wk: i + 1, conf: o.conf === s.conf }));
+/** This school's remaining regular-season opponents, in order. */
+export function opponents(s: School, se?: Season) {
+  return teamSchedule(s.id, se).filter((g): g is Extract<typeof g, { bye: false }> => !g.bye).map(g => ({ o: g.o, home: g.home, wk: g.wk, conf: g.conf }));
+}
+/** The next game this school plays (regular season, title game or playoff), if any. */
+export function nextGame(s: School, se: Season, week: number) {
+  const w = week + 1;
+  const g = weekGames(se, w).find(x => x[0] === s.id || x[1] === s.id);
+  if (!g || se.results.some(r => r.w === w && (r.h === s.id || r.a === s.id))) return null;
+  const home = g[0] === s.id;
+  return { o: school(home ? g[1] : g[0]), home, wk: w, conf: g[2], tag: g[3] };
 }
 
 function HomeTab({ s, go }: { s: School; go: (t: string) => void }) {
-  const roster = rosterOf(s.id), sched = opponents(s).slice(0, 4), stars = roster.slice(0, 4);
+  const d = useDynasty(s.id), se = d.season!;
+  const roster = rosterOf(s.id), sched = teamSchedule(s.id, se).filter(g => !g.bye && g.wk > d.week - 1).slice(0, 4) as Extract<ReturnType<typeof teamSchedule>[number], { bye: false }>[], stars = roster.slice(0, 4);
   return (
     <div className="hgrid">
       <Card title="Team leaders" span={2} action={<button className="lnk" onClick={() => go('Roster')}>Full roster ›</button>}>
@@ -83,7 +102,7 @@ function HomeTab({ s, go }: { s: School; go: (t: string) => void }) {
         ))}</div>
       </Card>
       <Card title="Up next" action={<button className="lnk" onClick={() => go('Schedule')}>Schedule ›</button>}>
-        <div className="mini-sched">{sched.map(g => <div key={g.wk}><em>Wk {g.wk}</em><span>{g.home ? 'vs' : '@'}</span><Logo id={g.o.id} size={26} /><b>{g.o.school}</b><i>{g.o.ovr}</i></div>)}</div>
+        <div className="mini-sched">{sched.map(g => <div key={g.wk}><em>Wk {g.wk}</em><span>{g.home ? 'vs' : '@'}</span><Logo id={g.o.id} size={26} /><b>{g.o.school}</b>{g.res ? <i className={g.won ? 'w' : 'l'}>{g.won ? 'W' : 'L'} {g.us}-{g.them}</i> : <i>{g.o.ovr}</i>}</div>)}</div>
       </Card>
       <Card title="Program goals">
         <ul className="goals"><li><b>Win the {s.conf}</b><span>Athletic director · priority</span></li><li><b>Top-25 recruiting class</b><span>Recruiting · on track</span></li><li><b>Graduate 90% of seniors</b><span>Academics</span></li></ul>
@@ -117,14 +136,23 @@ function RosterTab({ s }: { s: School }) {
 }
 
 function ScheduleTab({ s }: { s: School }) {
+  const se = useDynasty(s.id).season!;
+  const post = postGames(s.id, se);
   return (
-    <div className="sched">{opponents(s).map(g => (
-      <div key={g.wk} className="sched-row" style={{ '--tc': showColor(g.o) } as CSSProperties}>
+    <div className="sched">{teamSchedule(s.id, se).map(g => g.bye ? (
+      <div key={g.wk} className="sched-row bye"><em>Week {g.wk}</em><b>Bye week</b></div>
+    ) : (
+      <div key={g.wk} className={`sched-row${g.res ? (g.won ? ' won' : ' lost') : ''}`} style={{ '--tc': showColor(g.o) } as CSSProperties}>
         <em>Week {g.wk}</em><span className="ha">{g.home ? 'HOME' : 'AWAY'}</span><Logo id={g.o.id} size={40} />
-        <div><b>{g.o.school}</b><span>{g.o.mascot} · {g.o.conf}{g.conf ? ' · Conference game' : ''}</span></div>
-        <div className="spacer" /><i>OVR {g.o.ovr}</i><span className="tbd">Sat · TBD</span>
+        <div><b>{rankOf(g.o.id, se) ? <u>#{rankOf(g.o.id, se)}</u> : null}{g.o.school}</b><span>{g.o.mascot} · {g.o.conf}{g.conf ? ' · Conference game' : ''}</span></div>
+        <div className="spacer" /><i>OVR {g.o.ovr}</i>{g.res ? <span className={`score ${g.won ? 'w' : 'l'}`}>{g.won ? 'W' : 'L'} {g.us}-{g.them}{g.res.ot ? ' OT' : ''}</span> : <span className="tbd">Sat · TBD</span>}
       </div>
-    ))}</div>
+    ))}
+    {post.map(g => { const home = g.h === s.id, o = school(home ? g.a : g.h), us = home ? g.hs : g.as, them = home ? g.as : g.hs; return (
+      <div key={`p${g.w}`} className={`sched-row post ${us > them ? 'won' : 'lost'}`} style={{ '--tc': showColor(o) } as CSSProperties}>
+        <em>{g.tag ?? weekLabel(g.w)}</em><span className="ha">{home ? 'HOME' : 'NEUTRAL'}</span><Logo id={o.id} size={40} /><div><b>{o.school}</b><span>{weekLabel(g.w)}</span></div><div className="spacer" /><span className={`score ${us > them ? 'w' : 'l'}`}>{us > them ? 'W' : 'L'} {us}-{them}</span>
+      </div>); })}
+    </div>
   );
 }
 
@@ -149,27 +177,34 @@ function PortalTab({ s }: { s: School }) {
 }
 
 function RankTab({ s }: { s: School }) {
+  const d = useDynasty(s.id), se = d.season!;
+  const poll = (se.polls[se.polls.length - 1] ?? []).slice(0, 25), prev = se.polls[se.polls.length - 2];
   return (
-    <Card title="AP Top 25 · Preseason">
-      <div className="rank">{TOP25.map((t, i) => (
-        <div key={t.id} className={t.id === s.id ? 'me' : ''} style={{ '--tc': showColor(t) } as CSSProperties}>
-          <em>{i + 1}</em><Logo id={t.id} size={30} /><b>{t.school}</b><span>{t.conf}</span><div className="spacer" /><i>0-0</i><Ovr v={t.ovr} />
-        </div>
-      ))}</div>
-    </Card>
+    <div className="hgrid">
+      <Card title={`AP Top 25 · ${weekLabel(d.week)}`} span={2}>
+        <div className="rank">{poll.map((id, i) => { const t = school(id), was = prev ? prev.indexOf(id) : i, mv = was - i; return (
+          <div key={id} className={id === s.id ? 'me' : ''} style={{ '--tc': showColor(t) } as CSSProperties}>
+            <em>{i + 1}</em><small className={mv > 0 ? 'up' : mv < 0 ? 'dn' : ''}>{prev ? (mv > 0 ? `▲${mv}` : mv < 0 ? `▼${-mv}` : '–') : ''}</small><Logo id={id} size={30} /><b>{t.school}</b><span>{t.conf}</span><div className="spacer" /><i>{record(id, se).s}</i><Ovr v={t.ovr} />
+          </div>); })}</div>
+      </Card>
+      {se.playoff && <Card title="College Football Playoff">
+        <div className="rank">{se.playoff.map((id, i) => <div key={id} className={id === s.id ? 'me' : ''} style={{ '--tc': showColor(school(id)) } as CSSProperties}><em>{i + 1}</em><Logo id={id} size={26} /><b>{school(id).school}</b><div className="spacer" /><i>{record(id, se).s}</i>{se.title === id && <u className="champ">Champion</u>}</div>)}</div>
+      </Card>}
+    </div>
   );
 }
 
 function ConfTab({ s }: { s: School }) {
-  const members = SCHOOLS.filter(x => x.conf === s.conf).sort((a, b) => b.ovr - a.ovr);
+  const se = useDynasty(s.id).season!;
+  const members = SCHOOLS.filter(x => x.conf === s.conf).sort((a, b) => { const x = record(a.id, se, true), y = record(b.id, se, true); return (y.w - y.l) - (x.w - x.l) || record(b.id, se).w - record(a.id, se).w || b.ovr - a.ovr; });
+  const champ = se.champs?.[s.conf];
   return (
-    <Card title={`${s.conf} standings`}>
+    <Card title={`${s.conf} standings`} action={champ ? <span className="tag">Champion: {school(champ).school}</span> : undefined}>
       <div className="rank">{members.map((t, i) => (
         <div key={t.id} className={t.id === s.id ? 'me' : ''} style={{ '--tc': showColor(t) } as CSSProperties}>
-          <em>{i + 1}</em><Logo id={t.id} size={30} /><b>{t.school}</b><span>{t.mascot}</span><div className="spacer" /><i>0-0 conf</i><i>0-0</i><Ovr v={t.ovr} />
+          <em>{i + 1}</em><Logo id={t.id} size={30} /><b>{rankOf(t.id, se) ? <u>#{rankOf(t.id, se)}</u> : null}{t.school}</b><span>{t.mascot}</span><div className="spacer" /><i>{record(t.id, se, true).s} conf</i><i>{record(t.id, se).s}</i><Ovr v={t.ovr} />
         </div>
       ))}</div>
     </Card>
   );
 }
-

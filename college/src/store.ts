@@ -2,6 +2,7 @@
 // chart order, recruiting progress and the week's decisions. Components subscribe with useDynasty.
 import { useSyncExternalStore } from 'react';
 import { school } from './data';
+import { applyProgress, freshSeason, type Season } from './season';
 
 export interface RecruitState { int: Record<number, number>; scouted: number; offered: boolean; nil: number; committed?: number; hard?: boolean; lostReason?: string; lastTouch?: number; log: string[] }
 export interface Dynasty {
@@ -9,6 +10,7 @@ export interface Dynasty {
   depth: Record<string, string[]>;
   recruits: Record<string, RecruitState>; board: string[]; hours: number; nilBudget: number;
   decisions: Record<string, string>; meters: Record<string, number>;
+  season?: Season;
 }
 const KEY = (team: number) => `ggm-college-dynasty-${team}`;
 const subs = new Set<() => void>();
@@ -19,11 +21,14 @@ export function fresh(team: number): Dynasty {
 export function open(team: number): Dynasty {
   if (cur?.team === team) return cur;
   try { const raw = localStorage.getItem(KEY(team)); cur = raw ? { ...fresh(team), ...JSON.parse(raw) } : fresh(team); } catch { cur = fresh(team); }
+  if (!cur!.season) cur!.season = freshSeason();
+  applyProgress(cur!.season);
   return cur!;
 }
 export function update(fn: (d: Dynasty) => void) {
   if (!cur) return;
   const next: Dynasty = JSON.parse(JSON.stringify(cur)); fn(next); cur = next;
+  applyProgress(cur.season);
   try { localStorage.setItem(KEY(cur.team), JSON.stringify(cur)); } catch { /* private mode: in-memory only */ }
   subs.forEach(f => f());
 }

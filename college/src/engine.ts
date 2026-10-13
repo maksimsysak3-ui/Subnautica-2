@@ -9,6 +9,7 @@ import { profile } from './player';
 import { depthOf, STARTS } from './Team';
 
 const h = (s: string) => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619); return x >>> 0; };
+const engineCache = new Map<string, NflPlayer>();
 const OFF: OffScheme[] = ['Spread', 'West Coast', 'Power Run', 'Wide Zone', 'Vertical'];
 const DEF: DefScheme[] = ['4-3 Over', 'Cover 3', 'Two-High', 'Blitz', '3-4 Two-Gap'];
 
@@ -45,12 +46,15 @@ function toTeam(s: School, abbr: string, depth: Record<string, string[]>): Team 
 }
 
 /** Build the two-team league for a game, register it for the field renderer, and return it. */
-export function gameLeague(home: School, away: School, userTeam: number, userDepth: Record<string, string[]>): { L: League; game: Game } {
+export function gameLeague(home: School, away: School, userTeam: number, userDepth: Record<string, string[]>, show = true): { L: League; game: Game } {
   let ha = home.abbr, aa = away.abbr;
   if (ha === aa) aa = `${aa}2`;
   const players: Record<string, NflPlayer> = {};
-  for (const p of rosterOf(home.id)) players[p.id] = toEngine(p, ha);
-  for (const p of rosterOf(away.id)) players[p.id] = toEngine(p, aa);
+  // Engine players are cached per rating (they change only as players develop); each game gets
+  // fresh copies so in-game condition never leaks between games.
+  const conv = (p: Player, abbr: string) => { const k = `${p.id}:${p.ovr}:${abbr}`; let e = engineCache.get(k); if (!e) engineCache.set(k, e = toEngine(p, abbr)); return { ...e, cond: 100 } as NflPlayer; };
+  for (const p of rosterOf(home.id)) players[p.id] = conv(p, ha);
+  for (const p of rosterOf(away.id)) players[p.id] = conv(p, aa);
   const teams: Record<string, Team> = {
     [ha]: toTeam(home, ha, home.id === userTeam ? userDepth : {}),
     [aa]: toTeam(away, aa, away.id === userTeam ? userDepth : {}),
@@ -62,6 +66,6 @@ export function gameLeague(home: School, away: School, userTeam: number, userDep
   } as unknown as League;
   const game: Game = { id: `cg-${home.id}-${away.id}`, season: 2026, week: 1, home: ha, away: aa };
   L.games.push(game);
-  app.setLeague(L);
+  if (show) app.setLeague(L);
   return { L, game };
 }

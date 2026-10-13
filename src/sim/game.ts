@@ -18,6 +18,8 @@ import { facilityGameDay, facilityHomeEdge, facilityInjuryShield } from '../core
 import { practiceEdge } from '../core/practice';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
+/** Optional hooks the UI installs: the AI's calls drawn from each team's own playbook. */
+export const simHooks: { teamCall?: (t: Team, c: OffCall, r: () => number) => OffCall } = {};
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
   /** Personnel grouping (RBs then TEs): 11 is 1 RB 1 TE 3 WR. */ pers?: Personnel;
   /** Formation subs: a player for a slot in this play's set. */ subs?: Partial<Record<'X' | 'Z' | 'SLOT' | 'TE' | 'RB', string>> }
@@ -102,6 +104,8 @@ export class GameSim {
   private form = new Map<string, number>();
   firstOtPoss: 0 | 1 | null = null;
 
+  /** Huddle-to-snap time multiplier: college offenses play faster and the clock stops on first downs. */
+  pace = 1;
   constructor(public league: League, public game: Game, seed?: number, public playoff = game.week > 18) {
     this.rng = new Rng(seed ?? hash(game.id + league.seed));
     const mk = (abbr: string): Side => ({ team: league.teams[abbr], abbr, timeouts: 3, fatigue: new Map(), out: new Set(), zone: new Map(), zoneOn: new Set() });
@@ -269,8 +273,13 @@ export class GameSim {
   private timeLeft() { return (this.q >= 4 ? 0 : (4 - this.q) * 900) + this.clock; }
   private twoMinute() { return (this.q === 2 || this.q >= 4) && this.clock <= 120; }
 
-  /** Offensive play call for the AI (or a user override). */
+  /** Offensive play call for the AI, dressed as a play from the team's own book when one is installed. */
   aiOffense(): OffCall {
+    const c = this.aiCall();
+    const t = this.sides[this.poss].team;
+    return simHooks.teamCall && (c.kind === 'run' || c.kind === 'pass') ? simHooks.teamCall(t, c, () => this.rng.next()) : c;
+  }
+  private aiCall(): OffCall {
     const s = this.sides[this.poss];
     const plan = s.team.plan;
     const coach = s.team.coach;
@@ -464,7 +473,7 @@ export class GameSim {
     if (this.twoMinute() && diff <= 0) return 13;
     if (this.q >= 4 && diff > 0) return 40;
     if (this.hurry[this.poss]) return 17;
-    return 36 + this.rng.int(-4, 8);
+    return Math.round((36 + this.rng.int(-4, 8)) * this.pace);
   }
   private runoff(sec: number) {
     // Two-minute warning stops the clock.

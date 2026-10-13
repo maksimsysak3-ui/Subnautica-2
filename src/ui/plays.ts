@@ -5,6 +5,7 @@
 // choose who plays which spot in each set (formation subs).
 import type { League, CustomPlay, CustomDefPlay, Playbook } from '../core/types';
 import type { DefCall, DefSet, OffCall, Personnel } from '../sim/game';
+import { bookOf, teamDefBook, TEAM_PLAYS, TEAM_DEFS } from './teamplays';
 import { PLAY_ART, DEF_ART, PLAY_ALIGN, FORMATION, block, olPush, type Art, type Align } from './playart';
 
 // ---- formations ---------------------------------------------------------------------------
@@ -17,6 +18,8 @@ export const OFF_SETS: Record<string, OffSetDef> = {
   'I-Form': { label: 'I-Form Pro', pers: '21', align: A({ QB: [-1, 0], S: [-4, 0], RB: [-7, 0] }), note: '21 personnel · fullback leads the way' },
   Pistol: { label: 'Pistol', pers: '11', align: A({ QB: [-4, 0], RB: [-7, 0] }), note: '11 personnel · back behind the quarterback' },
   Empty: { label: 'Empty Bunch', pers: '10', align: A({ RB: [-1, -12], TE: [-1, 8], S: [-1, 13] }), note: '10 personnel · five out, nobody in the backfield' },
+  'Gun Bunch': { label: 'Gun Bunch', pers: '11', align: A({ Z: [0, 13], S: [-1, 11.5], TE: [-1.5, 14.5] }), note: '11 personnel · three receivers stacked tight' },
+  'Pistol Wing': { label: 'Pistol Wing', pers: '12', align: A({ QB: [-4, 0], RB: [-7, 0], S: [-1, -6], Z: [0, 16] }), note: '12 personnel · wing tight end off the edge' },
   'Goal Line': { label: 'Goal Line', pers: '22', align: A({ QB: [-1, 0], RB: [-7, 0], S: [-4, 0], Z: [0, -4.5], X: [0, -14] }), note: '22 personnel · 2 TE, fullback, heavy' },
 };
 export const DEF_SETS: Record<DefSet, { label: string; note: string }> = {
@@ -100,6 +103,67 @@ export const OFF_LIB: LibOff[] = [
     [r('S', [[2, 13], [3, -6]], true), r('TE', [[3, 8], [3, -12]]), r('RB', [[6, -12], [6, -6]]), r('X', [[14, -19], [18, -12]]), r('Z', [[14, 19], [18, 12]]), ...olPush(-1.6, 0)]),
   off('Empty Verts', 'Empty', '⇈', 'Five vertical routes', { kind: 'pass', depth: 'deep', primary: 'Z' },
     [r('Z', [[28, 19]], true), r('X', [[28, -19]]), r('S', [[26, 9]]), r('TE', [[26, 4]]), r('RB', [[8, -12], [7, -10]]), ...olPush(-2, 0)]),
+  // ---- the deeper install: concepts most teams carry in some form ----
+  off('Snag', 'Shotgun', '⌐', 'Slot sits under a corner route, back to the flat', { kind: 'pass', depth: 'short', primary: 'SLOT' },
+    [r('S', [[5, 11], [5, 8]], true), r('Z', [[10, 19], [16, 22]]), r('TE', [[2, 4.5], [2, 12]]), r('X', [[12, -19], [10, -17]]), r('RB', [[-4, -5], [1, -12]]), ...pass]),
+  off('Y-Option', 'Shotgun', '⊥', 'Tight end wins inside or out on the linebacker', { kind: 'pass', depth: 'short', primary: 'TE' },
+    [r('TE', [[6, 4.5], [6, 1], [6, 7]], true), r('S', [[14, 11], [18, 16]]), r('Z', [[18, 19]]), r('X', [[10, -19], [10, -12]]), block('RB', -1, -1.5), ...pass]),
+  off('Drive', 'Shotgun', '⇶', 'Shallow under a dig: high-low the linebacker', { kind: 'pass', depth: 'short', primary: 'SLOT' },
+    [r('S', [[2, 11], [3, -8]], true), r('X', [[12, -19], [12, -2]]), r('Z', [[18, 19]]), r('TE', [[5, 4.5], [5, 10]]), block('RB', -1, 1.5), ...pass]),
+  off('Sail', 'Shotgun', '◸', 'Three levels to the sideline: flat, out, go', { kind: 'pass', depth: 'medium', primary: 'SLOT' },
+    [r('S', [[12, 11], [12, 19]], true), r('Z', [[24, 19]]), r('RB', [[-4, 4], [1, 16]]), r('X', [[14, -19], [14, -6]]), r('TE', [[6, 4.5], [6, 0]]), ...pass]),
+  off('Mills', 'Shotgun', '⟆', 'Post over a dig, both from the same side', { kind: 'pass', depth: 'deep', primary: 'SLOT' },
+    [r('S', [[12, 11], [24, 2]], true), r('Z', [[14, 19], [14, 8]]), r('X', [[20, -19]]), r('TE', [[5, 4.5], [5, 9]]), block('RB', -1, 1.5), ...olPush(-2, 0)]),
+  off('Tunnel Screen', 'Shotgun', '⤽', 'Receiver comes inside behind a wall of linemen', { kind: 'pass', depth: 'screen', primary: 'X' },
+    [r('X', [[-1, -17], [0, -12], [6, -10]], true), block('S', 2, -6), block('TE', 2, -2), r('Z', [[12, 19]]), ...olPush(2, -6)]),
+  off('Shovel Option', 'Shotgun', '⇣', 'Quarterback flips it inside to the tight end', { kind: 'run', run: 'inside' },
+    [...olPush(2, 2), { who: 'TE', pts: [[-2, 2], [-2, -1], [5, -1]], kind: 'run', primary: true }, { who: 'QB', pts: [[-4, 4]], kind: 'run' }, block('RB', 1, 4), block('X', 3), block('Z', 3), block('S', 3)]),
+  off('Duo', 'Shotgun', '⬆', 'Double teams at the point, back reads the linebacker', { kind: 'run', run: 'inside' },
+    [...olPush(3, 0), run('RB', [[-3, -0.5], [3, -1], [9, -1]]), block('TE', 3, -1), block('S', 3), block('X', 3), block('Z', 3)]),
+  off('Trap', 'Shotgun', '⊢', 'Let the tackle in, kick him out with a pulling guard', { kind: 'run', run: 'inside' },
+    [...olPush(2.5, 0), { who: 'OL', pts: [[-1, 2], [1, -1]], kind: 'block' }, run('RB', [[-3, 0], [4, 0], [9, 0]]), block('TE', 2), block('S', 3), block('X', 3), block('Z', 3)]),
+  // Gun Doubles
+  off('Hank', 'Gun Doubles', '∩', 'Curls outside, a hook in the middle', { kind: 'pass', depth: 'quick', primary: 'X' },
+    [r('X', [[8, -19], [6, -18]], true), r('Z', [[8, 19], [6, 18]]), r('S', [[6, -11], [5, -6]]), r('TE', [[6, 4.5], [5, 1]]), r('RB', [[-4, -5], [1, -10]]), ...pass]),
+  off('Double Post', 'Gun Doubles', '⋀', 'Two posts split the safeties', { kind: 'pass', depth: 'deep', primary: 'X' },
+    [r('X', [[12, -19], [26, -8]], true), r('S', [[14, -11], [26, 2]]), r('Z', [[10, 19], [8, 17]]), r('TE', [[6, 4.5], [6, 9]]), block('RB', -1, 1), ...olPush(-2, 0)]),
+  off('Dagger', 'Gun Doubles', '⟊', 'Slot clears the seam, outside dig behind it', { kind: 'pass', depth: 'medium', primary: 'X' },
+    [r('X', [[15, -19], [15, -4]], true), r('S', [[24, -11]]), r('Z', [[6, 19], [6, 15]]), r('TE', [[8, 4.5], [8, 10]]), block('RB', -1, 1), ...pass]),
+  off('RB Swing', 'Gun Doubles', '⤻', 'Back swings wide with the receivers blocking', { kind: 'pass', depth: 'screen', primary: 'RB' },
+    [r('RB', [[-4, -8], [-2, -14], [5, -17]], true), block('X', 2, 1), block('S', 2, -2), r('Z', [[12, 19]]), r('TE', [[8, 4.5]]), ...pass]),
+  // Gun Bunch
+  off('Bunch Flood', 'Gun Bunch', '◹', 'Corner, out and flat from the bunch', { kind: 'pass', depth: 'medium', primary: 'SLOT' },
+    [r('S', [[10, 11.5], [12, 19]], true), r('Z', [[14, 13], [22, 20]]), r('TE', [[2, 14.5], [3, 20]]), r('X', [[14, -19], [14, -8]]), block('RB', -1, -1.5), ...pass]),
+  off('Bunch Snag', 'Gun Bunch', '⌗', 'Point man sits, the others spring corner and flat', { kind: 'pass', depth: 'quick', primary: 'TE' },
+    [r('TE', [[5, 14.5], [5, 11]], true), r('Z', [[10, 13], [15, 20]]), r('S', [[1, 11.5], [2, 19]]), r('X', [[3, -19], [7, -14]]), block('RB', -1, -1.5), ...pass]),
+  off('Bunch Screen', 'Gun Bunch', '◠', 'Two lead blockers, the third catches it', { kind: 'pass', depth: 'screen', primary: 'SLOT' },
+    [r('S', [[-2, 13], [2, 17]], true), block('Z', 2, 2), block('TE', 2, 3), r('X', [[10, -19]]), block('RB', -1, 1.5), ...olPush(-1, 0)]),
+  off('Bunch Verticals', 'Gun Bunch', '⇈', 'Everyone vertical out of the stack', { kind: 'pass', depth: 'deep', primary: 'Z' },
+    [r('Z', [[26, 18]], true), r('S', [[26, 8]]), r('TE', [[12, 14.5], [14, 4]]), r('X', [[26, -19]]), block('RB', -1, -1), ...olPush(-2, 0)]),
+  // Pistol
+  off('Inverted Veer', 'Pistol', '⇋', 'Back sweeps outside, quarterback keeps inside', { kind: 'run', run: 'qb' },
+    [...olPush(2.5, -1), run('QB', [[-3, 1], [3, 1], [9, 0]]), { who: 'RB', pts: [[-6, 4], [-3, 10]], kind: 'run', primary: false }, block('TE', 2, 2), block('S', 3), block('X', 3), block('Z', 3)]),
+  off('Speed Option', 'Pistol', '⤳', 'Option the end man, pitch on the edge', { kind: 'run', run: 'outside' },
+    [...olPush(2, 3), { who: 'QB', pts: [[-3, 5], [0, 8]], kind: 'run' }, run('RB', [[-6, 6], [-4, 12], [4, 15]]), block('TE', 1.5, 4), block('S', 3, 2), block('X', 3), block('Z', 3, -2)]),
+  off('Bubble RPO', 'Pistol', '◠', 'Read the apex: hand off or throw the bubble', { kind: 'pass', depth: 'screen', primary: 'SLOT' },
+    [r('S', [[-2, 14], [3, 18]], true), { who: 'RB', pts: [[-4, 1], [0, 2]], kind: 'run' }, block('Z', 2, -2), block('TE', 2), r('X', [[3, -19], [7, -14]]), ...olPush(2, 0)]),
+  // Pistol Wing (12)
+  off('Pin Pull Sweep', 'Pistol Wing', '⟿', 'Linemen pull and lead the back to the edge', { kind: 'run', run: 'outside' },
+    [...olPush(1.5, 5), run('RB', [[-6, 5], [-2, 12], [6, 14]]), block('TE', 1.5, 4), block('S', 1, 2), block('Z', 3, -2), block('X', 3)]),
+  off('Wing Counter', 'Pistol Wing', '↶', 'Guard and wing pull back across the formation', { kind: 'run', run: 'inside' },
+    [...olPush(2.5, 1), { who: 'OL', pts: [[-1, -2], [1, 4]], kind: 'block' }, { who: 'S', pts: [[-1, 0], [1, 5]], kind: 'block' }, run('RB', [[-7, -2], [-3, 3], [7, 5]]), block('TE', 2, 1), block('X', 3), block('Z', 3)]),
+  off('Wing Leak', 'Pistol Wing', '↪', 'Boot away, the wing leaks across late', { kind: 'pass', depth: 'medium', primary: 'TE', pa: true },
+    [{ who: 'RB', pts: [[-5, 2], [-3, 5]], kind: 'run' }, r('S', [[2, -6], [8, 6], [16, 14]]), r('TE', [[4, 4.5], [6, -14]], true), r('X', [[18, -19]]), r('Z', [[14, 16], [16, 8]]), ...olPush(1.5, 1)]),
+  // Singleback
+  off('Texas', 'Singleback', '⌒', 'Back runs an angle route inside the linebacker', { kind: 'pass', depth: 'short', primary: 'RB' },
+    [r('RB', [[-4, 4], [3, 2]], true), r('TE', [[14, 4.5], [18, 10]]), r('S', [[10, -4.5], [10, -12]]), r('X', [[16, -19]]), r('Z', [[12, 19], [10, 17]]), ...pass]),
+  off('Scissors', 'Singleback', '✕', 'Post and corner cross over the top', { kind: 'pass', depth: 'deep', primary: 'Z' },
+    [r('Z', [[12, 19], [24, 10]], true), r('TE', [[10, 4.5], [20, 16]]), r('S', [[6, -4.5], [6, -10]]), r('X', [[14, -19], [12, -17]]), block('RB', -2, 1), ...olPush(-2, 0)]),
+  // I-Form
+  off('Yankee', 'I-Form', '⤫', 'Max protect, two deep crossers off a hard fake', { kind: 'pass', depth: 'deep', primary: 'Z', pa: true },
+    [{ who: 'RB', pts: [[-4, 0.5], [-2, 2]], kind: 'run' }, block('S', -1, -1), block('TE', -1, 3), r('Z', [[16, 19], [26, -4]], true), r('X', [[14, -19], [18, 2]]), ...olPush(-1.5, 0)]),
+  off('Lead Draw', 'I-Form', '⬍', 'Fullback leads through the A gap on a delayed handoff', { kind: 'run', run: 'inside' },
+    [...olPush(-1, 0), block('S', 4, -1), run('RB', [[-7, 0], [-2, -1], [7, -1]]), r('X', [[10, -19]], false), r('Z', [[10, 19]], false), block('TE', 2)]),
   // Goal Line (22)
   off('QB Sneak', 'Goal Line', '▲', 'Quarterback behind the center', { kind: 'run', run: 'qb' },
     [...olPush(1.5, 0), run('QB', [[1, 0], [2, 0]]), block('RB', 0, 0), block('S', 0, 0), block('TE', 1), block('Z', 1), block('X', 2)]),
@@ -190,6 +254,22 @@ export function defaultBooks(): Playbook[] {
 }
 export function books(L: League): Playbook[] {
   if (!L.playbooks?.length) { L.playbooks = defaultBooks(); L.activeBook = { off: 'pb-off', def: 'pb-def' }; }
+  // The team's own starting offense: its concepts, in its staff's terminology. Added once and made
+  // active; the generic library book stays as a template.
+  const me = L.teams[L.user];
+  if (me) {
+    const tb = bookOf(me);
+    if (!L.playbooks.some(b => b.id === 'pb-team')) {
+      const sets = [...new Set(tb.map(p => p.set))];
+      L.playbooks.unshift({ id: 'pb-team', name: `${me.name} Offense`, side: 'off', folders: sets.map(set => ({ name: OFF_SETS[set]?.label ?? set, set, plays: tb.filter(p => p.set === set).map(p => p.name) })) });
+      L.activeBook = { ...(L.activeBook ?? { def: 'pb-def' }), off: 'pb-team' } as typeof L.activeBook;
+    }
+    const db = teamDefBook(me);
+    if (!L.playbooks.some(b => b.id === 'pb-team-def')) {
+      L.playbooks.unshift({ id: 'pb-team-def', name: `${me.name} Defense`, side: 'def', folders: (Object.keys(DEF_SETS) as DefSet[]).map(set => ({ name: DEF_SETS[set].label, set, plays: db.filter(p => p.set === set).map(p => p.name) })) });
+      L.activeBook = { ...L.activeBook, def: 'pb-team-def' };
+    }
+  }
   // Drawn plays without a home go into a "My Plays" folder of the active book.
   const act = activeBook(L, 'off');
   const homed = new Set(L.playbooks.flatMap(b => b.folders.flatMap(f => f.plays)));
@@ -203,13 +283,13 @@ export function activeBook(L: League, side: 'off' | 'def'): Playbook | undefined
 }
 /** Look up any play by name: library, then the user's drawn plays. */
 export function offPlay(L: League, name: string): { call: OffCall; desc: string; icon: string; set: string } | undefined {
-  const lib = OFF_LIB.find(p => p.name === name);
+  const lib = OFF_LIB.find(p => p.name === name) ?? TEAM_PLAYS.get(name);
   if (lib) return lib;
   const cp = L.customPlays?.find(p => p.name === name);
   return cp ? { call: { ...customCall(cp), pers: OFF_SETS[cp.set ?? 'Shotgun']?.pers ?? '11' }, desc: `Your ${cp.type} play`, icon: '✎', set: cp.set ?? 'Shotgun' } : undefined;
 }
 export function defPlay(L: League, name: string): { call: DefCall; desc: string; set: DefSet } | undefined {
-  const lib = DEF_LIB.find(p => p.name === name);
+  const lib = DEF_LIB.find(p => p.name === name) ?? TEAM_DEFS.get(name);
   if (lib) return { call: { ...lib.call, box: lib.call.box ?? (lib.call.shell === 'Prevent' ? 6 : lib.call.blitz ? 7 : lib.set === 'Base' ? 7 : 6) }, desc: lib.desc, set: lib.set };
   const cp = L.customDefPlays?.find(p => p.name === name);
   return cp ? { call: defCallFor(cp), desc: defSummary(cp), set: cp.set } : undefined;

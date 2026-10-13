@@ -2,7 +2,7 @@
 // position's full order, which you can change (saved with the dynasty). Stats are last season's
 // leaders by category.
 import { useState, type CSSProperties } from 'react';
-import { rosterOf, headshot, YR, type School, type Player } from './data';
+import { rosterOf, headshot, YR, SEASON, type School, type Player } from './data';
 import { profile } from './player';
 import { useDynasty, update } from './store';
 import { showCard } from './PlayerCard';
@@ -76,18 +76,23 @@ const CATS: { k: string; cols: [string, (p: Player) => number | string][]; sort:
   { k: 'Kicking', when: p => !!p.s?.[17], sort: p => p.s![16], cols: [['FGM', p => p.s![16]], ['FGA', p => p.s![17]], ['PCT', p => ((p.s![16] / p.s![17]) * 100).toFixed(0)]] },
 ];
 export function StatsTab({ s }: { s: School }) {
+  const d = useDynasty(s.id), se = d.season!;
   const [cat, setCat] = useState('Passing');
+  const [yr, setYr] = useState<'now' | 'last'>(Object.keys(se.stats).length ? 'now' : 'last');
   const c = CATS.find(x => x.k === cat)!;
-  const rows = rosterOf(s.id).filter(c.when).sort((a, b) => c.sort(b) - c.sort(a));
+  // The same columns read either this season's running totals or last season's line.
+  const view = (p: Player): Player => (yr === 'now' ? { ...p, s: se.stats[p.id] } : p);
+  const rows = rosterOf(s.id).map(view).filter(c.when).sort((a, b) => c.sort(b) - c.sort(a));
   return (
     <>
-      <div className="pills" style={{ marginBottom: 14 }}>{CATS.map(x => <button key={x.k} className={`pill${cat === x.k ? ' on' : ''}`} onClick={() => setCat(x.k)}>{x.k}</button>)}</div>
+      <div className="pills" style={{ marginBottom: 14 }}>{CATS.map(x => <button key={x.k} className={`pill${cat === x.k ? ' on' : ''}`} onClick={() => setCat(x.k)}>{x.k}</button>)}
+        <span style={{ flex: 1 }} /><button className={`pill${yr === 'now' ? ' on' : ''}`} onClick={() => setYr('now')}>{SEASON} season</button><button className={`pill${yr === 'last' ? ' on' : ''}`} onClick={() => setYr('last')}>{SEASON - 1} season</button></div>
       <section className="hc">
-        <header><h3>{cat} · 2025 season</h3><span className="tag">Returning players</span></header>
+        <header><h3>{cat} · {yr === 'now' ? SEASON : SEASON - 1} season</h3><span className="tag">{yr === 'now' ? `Through ${d.week ? `week ${d.week}` : 'the preseason'}` : 'Returning players'}</span></header>
         <div className="st-tbl" style={{ '--n': c.cols.length } as CSSProperties}>
           <div className="st-r th"><span>Player</span><span>Pos</span><span>GP</span>{c.cols.map(([h]) => <span key={h}>{h}</span>)}</div>
-          {rows.map(p => <div key={p.id} className="st-r"><button className="dc-name" onClick={() => showCard(p)}><b>{p.fn} {p.ln}</b></button><span>{p.pos}</span><span>{p.s![0]}</span>{c.cols.map(([h, f]) => <span key={h}>{f(p)}</span>)}</div>)}
-          {!rows.length && <div className="pc-empty">Nobody on the roster recorded {cat.toLowerCase()} stats last season.</div>}
+          {rows.map(p => <div key={p.id} className="st-r"><button className="dc-name" onClick={() => showCard(rosterOf(s.id).find(x => x.id === p.id)!)}><b>{p.fn} {p.ln}</b></button><span>{p.pos}</span><span>{p.s![0]}</span>{c.cols.map(([h, f]) => <span key={h}>{f(p)}</span>)}</div>)}
+          {!rows.length && <div className="pc-empty">{yr === 'now' ? `No ${cat.toLowerCase()} stats yet this season.` : `Nobody on the roster recorded ${cat.toLowerCase()} stats last season.`}</div>}
         </div>
       </section>
     </>

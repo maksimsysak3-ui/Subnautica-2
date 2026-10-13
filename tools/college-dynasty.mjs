@@ -44,7 +44,11 @@ const cands = [];
 for (const r of roster) {
   const pr = programs.get(r.team); if (!pr) continue;
   const pos = nflPos(r); if (!pos || !r.first_name) continue;
-  cands.push({ r, pr, pos, yr: Math.max(1, Math.min(5, num(r.year) || 1)) });
+  // The roster file lags on class for some players: anyone who played real snaps in 2025 is at
+  // least a sophomore in 2026, and in 2024 too, at least a junior.
+  const g25 = S[2025].players.get(r.athlete_id)?.games.size ?? 0, g24 = S[2024].players.get(r.athlete_id)?.games.size ?? 0;
+  const yr = Math.max(num(r.year) || 1, g25 > 4 ? 2 : 1, g24 > 4 ? (g25 > 4 ? 3 : 2) : 1);
+  cands.push({ r, pr, pos, yr: Math.min(5, yr) });
 }
 const pcts = {};
 for (const y of [2024, 2025, 2026]) {
@@ -89,12 +93,17 @@ for (const c of cands) { const k = `${c.r.team}|${c.pos}`; (groups.get(k) ?? gro
 for (const g of groups.values()) g.sort((a, b) => b.raw - a.raw).forEach((c, i) => { c.starter = i < (STARTERS[c.pos] ?? 1); if (c.starter) c.raw += 0.06; });
 // Rating curve: share of FBS players at or below a raw score -> rating.
 const CURVE = [[0, 44], [0.1, 53], [0.3, 60], [0.55, 66], [0.75, 72], [0.88, 78], [0.95, 83], [0.988, 88], [0.998, 93], [1, 97]];
-const sortedRaw = cands.map(c => c.raw).sort((a, b) => a - b);
-const curve = raw => {
+// Each position is graded against its own position: a stat line says a lot about a receiver and
+// nothing about a guard, so a single curve over everyone would flood the top with skill players.
+const rawByPos = new Map();
+for (const c of cands) (rawByPos.get(c.pos) ?? rawByPos.set(c.pos, []).get(c.pos)).push(c.raw);
+for (const a of rawByPos.values()) a.sort((x, z) => x - z);
+const curve = (raw, pos) => {
+  const sortedRaw = rawByPos.get(pos);
   let lo = 0, hi = sortedRaw.length; while (lo < hi) { const m = (lo + hi) >> 1; sortedRaw[m] < raw ? (lo = m + 1) : (hi = m); }
   const q = lo / sortedRaw.length;
   for (let i = 1; i < CURVE.length; i++) if (q <= CURVE[i][0]) { const [q0, r0] = CURVE[i - 1], [q1, r1] = CURVE[i]; return r0 + (r1 - r0) * (q - q0) / (q1 - q0); }
-  return 98;
+  return 97;
 };
 // Evaluators' board: the best-known players' grades set a floor (draft grade -> college rating).
 const BOARD = JSON.parse(readFileSync('tools/scouting.json', 'utf8')).board;
@@ -102,8 +111,10 @@ const nn = n => n.toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').repla
 const boardFloor = c => { const b = BOARD.find(x => nn(x.n) === nn(`${c.r.first_name} ${c.r.last_name}`) && (x.s ? nn(x.s) === nn(c.r.team) : (PRESTIGE[c.r.team] ?? 0) > 0)); return b ? Math.min(99, 60 + b.g * 0.4) : 0; };
 const players = cands.map(c => {
   // Specialists live on a narrower scale: the best kicker in the country is an 88, not a 98.
-  const base = ['K', 'P', 'LS'].includes(c.pos) ? 50 + (curve(c.raw) - 44) * 0.72 : curve(c.raw);
-  const ovr = Math.round(Math.max(boardFloor(c), Math.min(97, base)));
+  const base = ['K', 'P', 'LS'].includes(c.pos) ? 50 + (curve(c.raw, c.pos) - 44) * 0.72 : curve(c.raw, c.pos);
+  // A recruit with no college snaps yet is graded on promise: even the top freshmen start in the 80s.
+  const floor = c.yr === 1 && !c.prod ? Math.min(84, boardFloor(c)) : boardFloor(c);
+  const ovr = Math.round(Math.min(c.yr === 1 ? 88 : 99, Math.max(floor, Math.min(97, base))));
   const r = c.r;
   const out = { id: r.athlete_id, fn: r.first_name, ln: r.last_name, t: Number(c.pr.t.team_id), pos: c.pos, yr: c.yr, ht: num(r.height), wt: num(r.weight), num: num(r.jersey) || 0, ovr };
   if (c.starter) out.st = 1;

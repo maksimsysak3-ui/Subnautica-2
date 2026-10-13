@@ -3,7 +3,7 @@
 import raw from './data.json';
 
 export interface School { id: number; school: string; mascot: string; abbr: string; conf: string; prestige: number; c1: string; c2: string; ovr: number; win: number }
-export interface Player { id: string; fn: string; ln: string; t: number; pos: string; yr: number; ht: number; wt: number; num: number; ovr: number; st?: 1; hs?: 1; home?: string; s?: number[] }
+export interface Player { id: string; fn: string; ln: string; t: number; pos: string; yr: number; ht: number; wt: number; num: number; ovr: number; /** Rating at the start of the season, once he has developed. */ b?: number; st?: 1; hs?: 1; home?: string; s?: number[] }
 
 const D = raw as unknown as { season: number; teams: School[]; players: Player[] };
 export const SEASON = D.season;

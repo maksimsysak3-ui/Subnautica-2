@@ -48,7 +48,7 @@ function PlayerCard({ p, onClose }: { p: Player; onClose: () => void }) {
           {tab === 'Stats' && (stats.length ? <div className="pc-stats"><h4>2025 season</h4><div>{stats.map(([k, v]) => <div key={k}><b>{v}</b><span>{k}</span></div>)}</div></div> : <div className="pc-empty">No recorded stats last season.</div>)}
           {tab === 'Development' && (
             <div className="pc-dev">
-              <div className="pc-dev-k"><div><b>{p.ovr}</b><span>Now</span></div><div><b>{pr.pot}</b><span>Ceiling</span></div><div><b>{yearsLeft}</b><span>Years of eligibility</span></div><div><b className={`dev ${pr.dev}`}>{pr.dev}</b><span>Development</span></div></div>
+              <div className="pc-dev-k"><div><b>{p.ovr}</b><span>Now</span></div><div><b className={p.ovr > (p.b ?? p.ovr) ? 'up' : p.ovr < (p.b ?? p.ovr) ? 'dn' : ''}>{p.ovr - (p.b ?? p.ovr) > 0 ? '+' : ''}{p.ovr - (p.b ?? p.ovr)}</b><span>This season</span></div><div><b>{pr.pot}</b><span>Ceiling</span></div><div><b>{yearsLeft}</b><span>Years of eligibility</span></div><div><b className={`dev ${pr.dev}`}>{pr.dev}</b><span>Development</span></div></div>
               <svg viewBox="0 0 400 140" className="pc-chart">
                 {[60, 70, 80, 90].map(v => <g key={v}><line x1="30" x2="390" y1={140 - (v - 50) * 2.6} y2={140 - (v - 50) * 2.6} stroke="rgba(255,255,255,.07)" /><text x="4" y={144 - (v - 50) * 2.6} fill="#687284" fontSize="10">{v}</text></g>)}
                 <polyline fill="none" stroke={c} strokeWidth="3" points={path.map((v, i) => `${30 + i * (360 / Math.max(1, path.length - 1))},${140 - (v - 50) * 2.6}`).join(' ')} />

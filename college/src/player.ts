@@ -11,10 +11,10 @@ export const ATTR: Record<string, string> = {
   MCV: 'Man coverage', ZCV: 'Zone coverage', PRS: 'Press', KPW: 'Kick power', KAC: 'Kick accuracy',
 };
 const KEYS: Record<string, string[]> = {
-  QB: ['THP', 'SAC', 'MAC', 'DAC', 'TUP', 'AWR'], RB: ['SPD', 'ACC', 'CAR', 'BTK', 'JKM', 'BCV'], FB: ['RBK', 'IBL', 'STR', 'CAR'],
-  WR: ['SPD', 'CTH', 'SRR', 'DRR', 'RLS', 'CIT'], TE: ['CTH', 'RBK', 'SRR', 'CIT', 'STR'], OT: ['PBK', 'RBK', 'STR', 'AWR', 'IBL'],
-  G: ['RBK', 'PBK', 'STR', 'IBL', 'AWR'], C: ['RBK', 'PBK', 'AWR', 'STR'], EDGE: ['PMV', 'FMV', 'BSH', 'ACC', 'PUR'], DT: ['PMV', 'BSH', 'STR', 'TAK'],
-  LB: ['TAK', 'PUR', 'PRC', 'ZCV', 'BSH'], CB: ['MCV', 'ZCV', 'SPD', 'PRS', 'PRC'], S: ['ZCV', 'TAK', 'SPD', 'PRC', 'POW'], K: ['KPW', 'KAC'], P: ['KPW', 'KAC'], LS: ['AWR', 'STR'],
+  QB: ['THP', 'SAC', 'MAC', 'DAC', 'TUP', 'AWR'], RB: ['CAR', 'BTK', 'JKM', 'BCV'], FB: ['RBK', 'IBL', 'STR', 'CAR'],
+  WR: ['CTH', 'SRR', 'DRR', 'RLS', 'CIT'], TE: ['CTH', 'RBK', 'SRR', 'CIT', 'STR'], OT: ['PBK', 'RBK', 'STR', 'AWR', 'IBL'],
+  G: ['RBK', 'PBK', 'STR', 'IBL', 'AWR'], C: ['RBK', 'PBK', 'AWR', 'STR'], EDGE: ['PMV', 'FMV', 'BSH', 'PUR'], DT: ['PMV', 'BSH', 'STR', 'TAK'],
+  LB: ['TAK', 'PUR', 'PRC', 'ZCV', 'BSH'], CB: ['MCV', 'ZCV', 'PRS', 'PRC'], S: ['ZCV', 'TAK', 'PRC', 'POW'], K: ['KPW', 'KAC'], P: ['KPW', 'KAC'], LS: ['AWR', 'STR'],
 };
 const GROUPS: [string, string[]][] = [
   ['Physical', ['SPD', 'ACC', 'AGI', 'STR', 'STA', 'INJ']], ['Mental', ['AWR', 'PRC']],
@@ -32,12 +32,19 @@ const ARCH: Record<string, string[]> = {
   EDGE: ['Speed Rusher', 'Power Rusher', 'Run Stopper'], DT: ['Power Rusher', 'Run Stopper', 'Speed Rusher'], LB: ['Field General', 'Run Stopper', 'Pass Coverage'],
   CB: ['Man to Man', 'Zone', 'Slot'], S: ['Zone', 'Run Support', 'Hybrid'], K: ['Power', 'Accurate'], P: ['Power', 'Accurate'], LS: ['Long Snapper'],
 };
+// Typical top speed by position. Speed is athletic, not a skill: a backup corner is still fast,
+// so it tracks the position and size, with only a modest lift for the better players.
+const SPEED: Record<string, number> = { QB: 77, RB: 88, FB: 74, WR: 89, TE: 79, OT: 60, G: 58, C: 59, EDGE: 80, DT: 67, LB: 81, CB: 90, S: 87, K: 60, P: 60, LS: 55 };
 const h = (s: string) => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619); return x >>> 0; };
 
 export interface Profile { attrs: Record<string, number>; keys: string[]; groups: [string, string[]][]; arch: string; dev: 'Normal' | 'Impact' | 'Star' | 'Elite'; pot: number; potLabel: string; age: number }
 const cache = new Map<string, Profile>();
+/** The card for a player at his current rating. Potential and development trait come from where
+ *  he started the season (p.b), so in-season growth fills his potential rather than raising it. */
 export function profile(p: Player): Profile {
-  const c = cache.get(p.id); if (c) return c;
+  const ck = `${p.id}:${p.ovr}`;
+  const c = cache.get(ck); if (c) return c;
+  const ovr0 = p.b ?? p.ovr;
   let seed = h(p.id); const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) >>> 0) / 4294967296);
   const keys = KEYS[p.pos] ?? ['AWR'];
   const attrs: Record<string, number> = {};
@@ -48,7 +55,7 @@ export function profile(p: Player): Profile {
   // the ones next to it (a running back's catching, a safety's tackling) sit in between.
   const near = NEAR[p.pos] ?? [];
   for (const a of Object.keys(ATTR)) attrs[a] = Math.round(near.includes(a) ? base - 4 + rnd() * 14 : 28 + rnd() * 26 + (p.ovr - 70) * 0.2);
-  attrs.SPD = Math.round(96 - big * 40 + (rnd() - 0.5) * 8 + (p.ovr - 70) * 0.15);
+  attrs.SPD = Math.round((SPEED[p.pos] ?? 75) - (big - 0.3) * 6 + (rnd() - 0.5) * 9 + (p.ovr - 75) * 0.22);
   attrs.ACC = Math.round(attrs.SPD + (rnd() - 0.4) * 6); attrs.AGI = Math.round(attrs.SPD - 4 + (rnd() - 0.5) * 10);
   attrs.STR = Math.round(52 + big * 40 + (rnd() - 0.5) * 10); attrs.STA = Math.round(70 + rnd() * 22); attrs.INJ = Math.round(68 + rnd() * 28);
   attrs.AWR = Math.round(p.ovr - 12 + p.yr * 3 + (rnd() - 0.5) * 8);
@@ -61,10 +68,10 @@ export function profile(p: Player): Profile {
   const archs = ARCH[p.pos] ?? ['Balanced'];
   const arch = archs[h(p.id + 'a') % archs.length];
   const room = (5 - p.yr) * 4 + (rnd() * 8 - 2);
-  const pot = Math.max(p.ovr, Math.min(99, Math.round(p.ovr + room + (p.ovr >= 80 ? 2 : 0))));
-  const dev = pot >= 93 || (p.ovr >= 90 && rnd() < 0.6) ? 'Elite' : pot >= 86 ? 'Star' : pot >= 78 ? 'Impact' : 'Normal';
+  const pot = Math.max(p.ovr, Math.min(99, Math.round(ovr0 + room + (ovr0 >= 80 ? 2 : 0))));
+  const dev = pot >= 93 || (ovr0 >= 90 && rnd() < 0.6) ? 'Elite' : pot >= 86 ? 'Star' : pot >= 78 ? 'Impact' : 'Normal';
   const out: Profile = { attrs, keys, groups: GROUPS.map(([g, as]) => [g, as.filter(a => a in attrs)] as [string, string[]]).filter(([, as]) => as.length), arch, dev, pot, potLabel: pot >= 90 ? 'A' : pot >= 84 ? 'B+' : pot >= 78 ? 'B' : pot >= 70 ? 'C+' : 'C', age: 17 + p.yr + (rnd() < 0.4 ? 1 : 0) };
-  cache.set(p.id, out);
+  cache.set(ck, out);
   return out;
 }
 

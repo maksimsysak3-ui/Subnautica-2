@@ -3,16 +3,20 @@
 // that decide it (from the real depth charts) and each side's keys to the game.
 import { useState, type CSSProperties } from 'react';
 import { GameDay } from './Game';
-import { rosterOf, headshot, showColor, TOP25, YR, type School, type Player } from './data';
+import { useDynasty } from './store';
+import { rankOf as rankFor, weekLabel } from './season';
+import { rosterOf, headshot, showColor, YR, type School, type Player } from './data';
 import { showCard } from './PlayerCard';
 import { Logo } from './App';
 
 const OFF = ['QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C'], DEF = ['EDGE', 'DT', 'LB', 'CB', 'S'];
 const unit = (id: number, ps: string[]) => { const st = rosterOf(id).filter(p => p.st && ps.includes(p.pos)); return st.length ? Math.round(st.reduce((a, p) => a + p.ovr, 0) / st.length) : 0; };
 const best = (id: number, pos: string, n = 0) => rosterOf(id).filter(p => p.pos === pos)[n];
-const rankOf = (s: School) => { const i = TOP25.indexOf(s); return i >= 0 ? i + 1 : 0; };
 
-export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk: number; conf: boolean } }) {
+
+export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk: number; conf: boolean; tag?: string } }) {
+  const se = useDynasty(s.id).season!;
+  const rankOf = (x: School) => rankFor(x.id, se);
   const o = g.o, home = g.home ? s : o, away = g.home ? o : s;
   const ca = showColor(away), ch = showColor(home);
   // Line and win probability from the rating gap, with three points for home field.
@@ -51,7 +55,7 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
           <div className="mu-name">{away.school}</div>
           <div className="mu-mascot">{away.mascot} · 0-0</div>
         </div>
-        <div className="mu-vs"><span>Week {g.wk}</span><b>VS</b><em>{g.conf ? 'Conference game' : 'Non-conference'}</em></div>
+        <div className="mu-vs"><span>{weekLabel(g.wk)}</span><b>VS</b><em>{g.tag ?? (g.conf ? 'Conference game' : 'Non-conference')}</em></div>
         <div className="mu-team h">
           <Logo id={home.id} className="mu-logo" />
           <div className="mu-rank">{rH ? `No. ${rH}` : home.conf}</div>
@@ -67,7 +71,7 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
         <button className="mu-play" onClick={() => setPlaying(true)}>Play game ›</button>
       </section>
 
-      {playing && <GameDay s={s} opp={o} home={g.home} onClose={() => setPlaying(false)} />}
+      {playing && <GameDay s={s} opp={o} home={g.home} wk={g.wk} conf={g.conf} tag={g.tag} onClose={() => setPlaying(false)} />}
       <div className="mu-grid">
         <section className="hc mu-tape">
           <header><h3>Tale of the tape</h3></header>

@@ -7,11 +7,13 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom';
 import { GameSim, type PlayEvent, type OffCall, type DefCall, type DefSet } from '../../src/sim/game';
 import { FieldView } from '../../src/ui/field';
-import { OFF_LIB, OFF_SETS, DEF_LIB } from '../../src/ui/plays';
+import { OFF_SETS } from '../../src/ui/plays';
+import { bookOf, identity, teamDefBook } from '../../src/ui/teamplays';
 import { Notebook } from './Diagram';
 import { school, showColor, type School } from './data';
 import { gameLeague } from './engine';
-import { useDynasty } from './store';
+import { COLLEGE_PACE, recordGame } from './season';
+import { useDynasty, update } from './store';
 import { Logo } from './App';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -21,13 +23,13 @@ type Group = 'Coach\'s sheet' | 'Run game' | 'Quick & screens' | 'Dropback' | 'S
 const GROUPS: Group[] = ['Coach\'s sheet', 'Run game', 'Quick & screens', 'Dropback', 'Shots', 'Specials'];
 const groupOf = (c: OffCall): Group => (c.kind === 'run' ? 'Run game' : c.depth === 'quick' || c.depth === 'screen' ? 'Quick & screens' : c.depth === 'deep' ? 'Shots' : 'Dropback');
 
-export function GameDay({ s, opp, home, onClose }: { s: School; opp: School; home: boolean; onClose: () => void }) {
+export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; opp: School; home: boolean; wk: number; conf: boolean; tag?: string; onClose: () => void }) {
   const d = useDynasty(s.id);
   const ref = useRef<{ sim: GameSim; L: ReturnType<typeof gameLeague>['L']; hA: string; aA: string } | null>(null);
   if (!ref.current) {
     const H = home ? s : opp, A = home ? opp : s;
     const { L, game } = gameLeague(H, A, s.id, d.depth);
-    const sim = new GameSim(L, game); sim.autoHalf = true;
+    const sim = new GameSim(L, game); sim.autoHalf = true; sim.pace = COLLEGE_PACE;
     ref.current = { sim, L, hA: game.home, aA: game.away };
   }
   const { sim, L, hA, aA } = ref.current;
@@ -54,6 +56,14 @@ export function GameDay({ s, opp, home, onClose }: { s: School; opp: School; hom
       setAuto(null); setLast(sim.events[sim.events.length - 1] ?? null); force(x => x + 1); return;
     }
     if (sim.pending) { const t = setTimeout(() => step(), 500); return () => clearTimeout(t); }
+  });
+  // The final counts: the result and every stat go into the season.
+  const saved = useRef(false);
+  useEffect(() => {
+    if (!sim.over || saved.current) return;
+    saved.current = true;
+    const r = sim.result();
+    update(x => recordGame(x.season!, wk, H.id, A.id, r, conf, new Map(), tag));
   });
   const live = anim && last && !['end', 'timeout'].includes(last.type) ? last : null;
   const score = (live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) : sim.score) as [number, number];
@@ -87,7 +97,7 @@ export function GameDay({ s, opp, home, onClose }: { s: School; opp: School; hom
         ) : onOffense ? (
           <OffenseSheet sim={sim} L={L} me={onOffense ? posTeam : s} abbr={userSide ? hA : aA} onCall={oc => step(oc)} c={showColor(s)} />
         ) : (
-          <DefenseSheet sim={sim} onCall={dc => step(undefined, dc)} c={showColor(s)} />
+          <DefenseSheet sim={sim} team={L.teams[userSide ? hA : aA]} onCall={dc => step(undefined, dc)} c={showColor(s)} />
         )}
         {!sim.over && <div className="gd-sim"><button onClick={() => step()} disabled={!needsCall || anim}>Let the coordinator call it</button><button onClick={() => setAuto('drive')} disabled={anim}>Sim drive</button><button onClick={() => setAuto('end')} disabled={anim}>Sim to end</button></div>}
       </footer>
@@ -138,13 +148,15 @@ function OffenseSheet({ sim, L, abbr, onCall, c }: { sim: GameSim; L: ReturnType
       return v;
     };
   }, [sim.down, sim.togo, sim.yl, sim.q, sim.clock]);
-  const lib = OFF_LIB.filter(p => form === 'All' || p.set === form);
+  const book = useMemo(() => bookOf(t), [t]);
+  const lib = book.filter(p => form === 'All' || p.set === form);
   const list = group === 'Coach\'s sheet' ? [...lib].sort((a, b) => sit(b.call) - sit(a.call)).slice(0, 8) : group === 'Specials' ? [] : lib.filter(p => groupOf(p.call) === group);
   const call = (c: OffCall) => onCall({ ...c, pa: pa && c.kind === 'pass' && c.depth !== 'screen', name: pa && c.kind === 'pass' && c.depth !== 'screen' ? `PA ${c.name}` : c.name, motion: motion ?? c.motion, primary: primary ?? c.primary });
   return (
     <div className="cs-sheet">
       <div className="cs-groups">{GROUPS.map(g => <button key={g} className={group === g ? 'on' : ''} onClick={() => setGroup(g)}>{g}</button>)}
-        <select value={form} onChange={e => setForm(e.target.value)}><option value="All">All formations</option>{Object.entries(OFF_SETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+        <select value={form} onChange={e => setForm(e.target.value)}><option value="All">All formations</option>{[...new Set(book.map(p => p.set))].map(k => <option key={k} value={k}>{OFF_SETS[k]?.label ?? k}</option>)}</select>
+        <span className="cs-id">{identity(`${t.abbr}:${t.name}`, t.coach.off).label} · {book.length} plays installed</span>
       </div>
       <div className="cs-plays">
         {group === 'Specials' ? (
@@ -156,8 +168,8 @@ function OffenseSheet({ sim, L, abbr, onCall, c }: { sim: GameSim; L: ReturnType
           </>
         ) : list.map(p => (
           <button key={p.name} className="cs-play" onClick={() => call(p.call)}>
-            <div className="cs-art"><Notebook name={p.name} c={c} w={176} h={104} /></div>
-            <b>{p.name}</b><span>{OFF_SETS[p.set]?.label ?? p.set} · {p.desc}</span>
+            <div className="cs-art"><Notebook name={p.base} c={c} w={176} h={104} /></div>
+            <b>{p.name}</b><span><i className="cs-con">{p.base}</i> {p.desc}</span>
             {group === 'Coach\'s sheet' && <em className={sit(p.call) >= 2 ? 'hot' : ''}>{sit(p.call) >= 2 ? 'Top call' : sit(p.call) >= 1 ? 'Good look' : 'Situational'}</em>}
           </button>
         ))}
@@ -173,12 +185,16 @@ function OffenseSheet({ sim, L, abbr, onCall, c }: { sim: GameSim; L: ReturnType
 
 const SHELLS: DefCall['shell'][] = ['Cover 0', 'Cover 1', 'Cover 2', 'Cover 3', 'Cover 4', 'Prevent'];
 const FRONTS: DefSet[] = ['Base', 'Nickel', 'Dime', 'Goal Line'];
-function DefenseSheet({ sim, onCall, c }: { sim: GameSim; onCall: (c: DefCall) => void; c: string }) {
+function DefenseSheet({ sim, team, onCall, c }: { sim: GameSim; team: ReturnType<typeof gameLeague>['L']['teams'][string]; onCall: (c: DefCall) => void; c: string }) {
   const [front, setFront] = useState<DefSet>(sim.togo >= 8 ? 'Nickel' : sim.yl <= 5 ? 'Goal Line' : 'Base');
   const [shell, setShell] = useState<DefCall['shell']>('Cover 3');
   const [blitz, setBlitz] = useState(false);
   const [box, setBox] = useState(sim.togo <= 2 ? 8 : 7);
-  const presets = DEF_LIB.slice(0, 10);
+  // The staff's own calls, best fits for the down and distance first.
+  const presets = useMemo(() => {
+    const fit = (p: { set: DefSet; call: { blitz: boolean } }) => (sim.togo >= 8 ? (p.set === 'Nickel' || p.set === 'Dime' ? 2 : 0) : sim.togo <= 2 ? (p.set === 'Base' || p.set === 'Goal Line' ? 2 : 0) : p.set === 'Base' || p.set === 'Nickel' ? 1 : 0) + (sim.yl >= 95 && p.set === 'Goal Line' ? 3 : sim.yl < 90 && p.set === 'Goal Line' ? -3 : 0);
+    return [...teamDefBook(team)].sort((a, b) => fit(b) - fit(a)).slice(0, 10);
+  }, [team, sim.togo, sim.yl, sim.down]);
   return (
     <div className="cs-sheet def">
       <div className="cs-build">
@@ -190,7 +206,7 @@ function DefenseSheet({ sim, onCall, c }: { sim: GameSim; onCall: (c: DefCall) =
       </div>
       <div className="cs-plays">{presets.map(p => (
         <button key={p.name} className="cs-play" onClick={() => onCall({ ...p.call, box: p.call.box ?? (p.call.blitz ? 7 : 6), set: p.set, name: p.name })}>
-          <div className="cs-art"><Notebook name={p.name} def c={c} w={176} h={104} /></div><b>{p.name}</b><span>{p.set} · {p.desc}</span>
+          <div className="cs-art"><Notebook name={p.base} def c={c} w={176} h={104} /></div><b>{p.name}</b><span><i className="cs-con">{p.base}</i> {p.desc}</span>
         </button>
       ))}</div>
     </div>
