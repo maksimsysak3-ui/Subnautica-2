@@ -107,7 +107,11 @@ function recolour(src: string, jersey: string, trim: string): Promise<Shot> {
             if (n < 0 || n >= W * H || skin[n] || Math.abs(nx - x) > 1 || ny < y0 - 12) continue;
             const i = n * 4; if (px[i + 3] < 40) continue;
             const t = px[i] + px[i + 1] + px[i + 2], cd = cdAt(i);
-            if (cd < 0.1 || (t < 180 && t >= 75 && cd < 0.2)) { skin[n] = 1; stack.push(n); }
+            // Skin always carries some colour: white logos and grey or navy kit don't, however close their hue.
+            const sat = Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]);
+            if ((px[i] < px[i + 2] && t >= 150) || (sat < 14 && t > 150)) continue;
+            // Beards and the shadow under the jaw: dark and near-neutral, close to the face.
+            if (cd < 0.09 || (t < 180 && t >= 55 && cd < 0.14 && ny - y0 < 50)) { skin[n] = 1; stack.push(n); }
           }
         }
         const isJ = new Uint8Array(W * H); let sum = 0, cnt = 0;
@@ -116,12 +120,19 @@ function recolour(src: string, jersey: string, trim: string): Promise<Shot> {
           isJ[k] = 1; sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11; cnt++;
         }
         const mean = cnt ? sum / cnt : 128;
+        // Shading comes from a blurred copy of the jersey's lightness: broad folds and shadows
+        // survive, but the old print, logos and stripes don't bleed through into the new colour.
+        const lum = new Float32Array(W * H), wgt = new Float32Array(W * H);
+        for (let k = y0 * W; k < W * H; k++) if (isJ[k]) { const i = k * 4; lum[k] = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / mean; wgt[k] = 1; }
+        const R = 4, bl = new Float32Array(W * H), bw = new Float32Array(W * H), sl = new Float32Array(W * H), sw = new Float32Array(W * H);
+        for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) { let a = 0, c = 0; for (let d = -R; d <= R; d++) { const xx = x + d; if (xx < 0 || xx >= W) continue; const k = y * W + xx; a += lum[k]; c += wgt[k]; } bl[y * W + x] = a; bw[y * W + x] = c; }
+        for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) { let a = 0, c = 0; for (let d = -R; d <= R; d++) { const yy = y + d; if (yy < y0 || yy >= H) continue; const k = yy * W + x; a += bl[k]; c += bw[k]; } sl[y * W + x] = a; sw[y * W + x] = c; }
         for (let k = y0 * W; k < W * H; k++) if (isJ[k]) {
-          const i = k * 4, rel = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / mean;  // 1 = average fold
+          const i = k * 4, raw = lum[k], rel = sw[k] ? sl[k] / sw[k] * 0.8 + raw * 0.2 : raw;
           const x = k % W, neck = Math.abs(x - W / 2) < W * 0.22 && k / W - y0 < 45;
-          const accent = rel > 2 && mean < 150 && !neck;              // piping, numbers on a dark jersey
+          const accent = raw > 2.4 && mean < 110 && !neck;            // bold piping on a dark jersey
           const [br, bg, bb] = accent ? [tr, tg, tb] : [jr, jg, jb];
-          const f = accent ? 1 : Math.min(1.25, Math.max(0.5, 1 + (rel - 1) * (mean > 150 ? 0.45 : 0.8)));  // light kits carry harsh stripes: soften
+          const f = accent ? 1 : Math.min(1.2, Math.max(0.55, 1 + (rel - 1) * (mean > 150 ? 0.5 : 0.8)));
           px[i] = Math.min(255, br * f); px[i + 1] = Math.min(255, bg * f); px[i + 2] = Math.min(255, bb * f);
         }
         // Broaden the shoulders: the source crops cut them at the frame edge, so the
