@@ -4,16 +4,23 @@
 // laid out with sample content until the season systems arrive.
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { SCHOOLS, SEASON, TOP25, school, rosterOf, headshot, showColor, YEAR, YR, height, type School } from './data';
-import { Mascot } from './art';
 import { Logo } from './App';
 import { Matchup } from './Matchup';
 import { Weekly } from './Weekly';
+import { DepthTab, StatsTab } from './Team';
+import { RecruitingTab } from './Recruiting';
+import { StaffTab } from './Staff';
+import { showCard } from './PlayerCard';
+import { useDynasty, update } from './store';
+import { endWeek } from './recruiting';
 
-const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Schedule', 'Recruiting', 'Transfer Portal', 'NIL', 'Rankings', 'Conference', 'Coach'];
+const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Stats', 'Schedule', 'Recruiting', 'Transfer Portal', 'NIL', 'Rankings', 'Conference', 'Staff'];
 const rand = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 export function Hub({ team, tab, setTab, back }: { team: number; tab: string; setTab: (t: string) => void; back: () => void }) {
   const s = school(team), c = showColor(s), rank = TOP25.indexOf(s);
+  const d = useDynasty(team);
+  const when = d.week === 0 ? 'Preseason' : d.week > 13 ? 'Postseason' : `Week ${d.week}`;
   return (
     <div className="hb" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
       <div className="hb-top">
@@ -23,16 +30,16 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
       </div>
       <main className="hb-main">
         <header className="hb-head">
-          <div className="hb-head-art"><Mascot s={s} size={170} /></div>
+          <Logo id={s.id} className="hb-head-art" />
           <Logo id={s.id} className="hb-logo" />
           <div className="hb-id">
-            <div className="hb-k">{SEASON} · Preseason · {s.conf}</div>
+            <div className="hb-k">{SEASON} · {when} · {s.conf}</div>
             <div className="hb-name">{rank >= 0 && <em>#{rank + 1}</em>}{s.school}</div>
             <div className="hb-sub">{s.mascot}</div>
           </div>
           <div className="spacer" />
           <div className="hb-pills"><div><b>0-0</b><span>Record</span></div><div><b>0-0</b><span>Conf</span></div><div><b>{s.ovr}</b><span>OVR</span></div><div><b className="gold">{'★'.repeat(Math.max(1, Math.round(s.prestige)))}</b><span>Prestige</span></div></div>
-          <button className="cbtn primary">Advance ›</button>
+          <button className="cbtn primary" onClick={() => update(endWeek)}>Advance week ›</button>
         </header>
         <div className="hb-page" key={tab}>
           {tab === 'Home' && <HomeTab s={s} go={setTab} />}
@@ -40,13 +47,14 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
           {tab === 'Weekly' && <Weekly s={s} />}
           {tab === 'Roster' && <RosterTab s={s} />}
           {tab === 'Depth Chart' && <DepthTab s={s} />}
+          {tab === 'Stats' && <StatsTab s={s} />}
           {tab === 'Schedule' && <ScheduleTab s={s} />}
-          {tab === 'Recruiting' && <RecruitTab s={s} />}
+          {tab === 'Recruiting' && <RecruitingTab s={s} />}
           {tab === 'Transfer Portal' && <PortalTab s={s} />}
           {tab === 'NIL' && <NilTab s={s} />}
           {tab === 'Rankings' && <RankTab s={s} />}
           {tab === 'Conference' && <ConfTab s={s} />}
-          {tab === 'Coach' && <CoachTab s={s} />}
+          {tab === 'Staff' && <StaffTab s={s} />}
         </div>
       </main>
     </div>
@@ -58,7 +66,6 @@ const Card = ({ title, action, children, span }: { title: string; action?: React
 );
 const Hs = ({ p }: { p: ReturnType<typeof rosterOf>[number] }) => <span className="hs">{headshot(p) ? <img src={headshot(p)} alt="" loading="lazy" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}</span>;
 const Ovr = ({ v }: { v: number }) => <i className={`ovr ${v >= 85 ? 'a' : v >= 75 ? 'b' : 'c'}`}>{v}</i>;
-const Stars = ({ n }: { n: number }) => <span className="gold">{'★'.repeat(n)}<span className="dimstar">{'★'.repeat(5 - n)}</span></span>;
 
 export function opponents(s: School) {
   const r = rand(s.id * 7 + 3);
@@ -68,12 +75,12 @@ export function opponents(s: School) {
 }
 
 function HomeTab({ s, go }: { s: School; go: (t: string) => void }) {
-  const roster = rosterOf(s.id), sched = opponents(s).slice(0, 4), stars = roster.filter(p => p.hs).slice(0, 4);
+  const roster = rosterOf(s.id), sched = opponents(s).slice(0, 4), stars = roster.slice(0, 4);
   return (
     <div className="hgrid">
       <Card title="Team leaders" span={2} action={<button className="lnk" onClick={() => go('Roster')}>Full roster ›</button>}>
         <div className="leaders">{stars.map(p => (
-          <div key={p.id} className="leader"><div className="leader-img"><img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /><span>{p.num}</span></div><b>{p.fn} {p.ln}</b><em>{p.pos} · {YR[p.yr]}</em><Ovr v={p.ovr} /></div>
+          <button key={p.id} className="leader" onClick={() => showCard(p)}><div className="leader-num"><span>{p.pos}</span><b>{p.num}</b></div><b>{p.fn} {p.ln}</b><em>{p.pos} · {YR[p.yr]}</em><Ovr v={p.ovr} /></button>
         ))}</div>
       </Card>
       <Card title="Up next" action={<button className="lnk" onClick={() => go('Schedule')}>Schedule ›</button>}>
@@ -104,23 +111,9 @@ function RosterTab({ s }: { s: School }) {
       <div className="chips">{['All', 'QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C', 'EDGE', 'DT', 'LB', 'CB', 'S', 'K', 'P'].map(p => <button key={p} className={pos === p ? 'on' : ''} onClick={() => setPos(p)}>{p}</button>)}</div>
       <div className="tbl">
         <div className="tr th"><span /><span>Player</span><span>Pos</span><span>Class</span><span>Ht / Wt</span><span>Hometown</span><span>OVR</span></div>
-        {roster.map(p => <div key={p.id} className="tr"><Hs p={p} /><span><b>{p.fn} {p.ln}</b> <em>#{p.num}</em>{p.st ? <u>Starter</u> : null}</span><span>{p.pos}</span><span>{YEAR[p.yr]}</span><span>{height(p.ht)} / {p.wt}</span><span className="dim">{p.home ?? '—'}</span><span><Ovr v={p.ovr} /></span></div>)}
+        {roster.map(p => <div key={p.id} className="tr click" onClick={() => showCard(p)}><Hs p={p} /><span><b>{p.fn} {p.ln}</b> <em>#{p.num}</em>{p.st ? <u>Starter</u> : null}</span><span>{p.pos}</span><span>{YEAR[p.yr]}</span><span>{height(p.ht)} / {p.wt}</span><span className="dim">{p.home ?? '—'}</span><span><Ovr v={p.ovr} /></span></div>)}
       </div>
     </>
-  );
-}
-
-function DepthTab({ s }: { s: School }) {
-  const roster = rosterOf(s.id);
-  const groups: [string, string[]][] = [['Offense', ['QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C']], ['Defense', ['EDGE', 'DT', 'LB', 'CB', 'S']], ['Special teams', ['K', 'P']]];
-  return (
-    <div className="depth">{groups.map(([g, ps]) => (
-      <Card key={g} title={g}>
-        <div className="depth-grid">{ps.map(pos => (
-          <div key={pos} className="depth-col"><h4>{pos}</h4>{roster.filter(p => p.pos === pos).slice(0, 4).map((p, i) => <div key={p.id} className={i === 0 ? 'first' : ''}><Hs p={p} /><span>{p.ln}</span><Ovr v={p.ovr} /></div>)}</div>
-        ))}</div>
-      </Card>
-    ))}</div>
   );
 }
 
@@ -136,48 +129,34 @@ function ScheduleTab({ s }: { s: School }) {
   );
 }
 
-const FN = ['Jaylen', 'Marcus', 'Tre', 'Kendrick', 'Cole', 'Brady', 'Isaiah', 'Dominic', 'Xavier', 'Camden', 'Malik', 'Trey', 'Jordan', 'Elijah', 'Gavin', 'Josiah'];
-const LN = ['Whitfield', 'Okoro', 'Banks', 'Hollins', 'McCray', 'Pruitt', 'Delacroix', 'Sutton', 'Ivory', 'Kincaid', 'Abernathy', 'Rollins', 'Vance', 'Tate', 'Ashby', 'Boykin'];
-const ST = ['TX', 'FL', 'GA', 'CA', 'OH', 'AL', 'LA', 'NC', 'PA', 'MI', 'TN', 'AZ'];
-function recruits(seed: number, n = 14) {
-  const r = rand(seed);
-  return Array.from({ length: n }, (_, i) => ({ id: i, fn: FN[Math.floor(r() * FN.length)], ln: LN[Math.floor(r() * LN.length)], pos: ['QB', 'RB', 'WR', 'TE', 'OT', 'EDGE', 'DT', 'LB', 'CB', 'S'][Math.floor(r() * 10)], st: ST[Math.floor(r() * ST.length)], stars: Math.max(2, 5 - Math.floor(i / 3)), int: Math.round(20 + r() * 75) }));
-}
-function RecruitTab({ s }: { s: School }) {
-  const list = useMemo(() => recruits(s.id), [s.id]);
-  return (
-    <div className="hgrid">
-      <Card title="Recruiting board" span={2} action={<span className="tag">Sample prospects</span>}>
-        <div className="tbl">
-          <div className="tr th rec"><span>Prospect</span><span>Pos</span><span>Home</span><span>Rating</span><span>Interest</span><span /></div>
-          {list.map(p => <div key={p.id} className="tr rec"><span><b>{p.fn} {p.ln}</b></span><span>{p.pos}</span><span>{p.st}</span><span><Stars n={p.stars} /></span><span><div className="bar"><i style={{ width: `${p.int}%` }} /></div></span><span><button className="cbtn sm">Scout</button></span></div>)}
-        </div>
-      </Card>
-      <Card title="Weekly hours"><div className="kpis"><div><b>50</b><span>Hours left</span></div><div><b>0</b><span>Visits</span></div><div><b>0</b><span>Offers</span></div></div></Card>
-    </div>
-  );
-}
-
 function PortalTab({ s }: { s: School }) {
-  const list = useMemo(() => SCHOOLS.filter(x => x.id !== s.id).flatMap(x => rosterOf(x.id).filter(p => p.hs && p.yr >= 2 && p.yr <= 4).slice(3, 4)).sort((a, b) => b.ovr - a.ovr).slice(0, 14), [s.id]);
+  const d = useDynasty(s.id);
+  const open = d.week > 13;
+  const list = useMemo(() => SCHOOLS.filter(x => x.id !== s.id).flatMap(x => rosterOf(x.id).filter(p => p.yr >= 2 && p.yr <= 4).slice(3, 4)).sort((a, b) => b.ovr - a.ovr).slice(0, 20), [s.id]);
+  if (!open) return (
+    <section className="hc portal-closed">
+      <div><span className="tag">Closed</span><h2>The transfer portal is closed</h2><p>The window opens after the regular season, once the conference championships are played. Until then, focus on your roster and the class of 2027.</p>
+      <div className="kpis"><div><b>{Math.max(0, 14 - d.week)}</b><span>Weeks until it opens</span></div><div><b>{rosterOf(s.id).filter(p => p.yr >= 2 && !p.st && p.ovr >= 70).length}</b><span>Backups at risk of leaving</span></div><div><b>0</b><span>Players entered</span></div></div></div>
+    </section>
+  );
   return (
-    <Card title="Transfer portal" action={<span className="tag">Window opens in December</span>}>
+    <Card title="Transfer portal" action={<span className="tag">Open</span>}>
       <div className="tbl">
         <div className="tr th portal"><span /><span>Player</span><span>From</span><span>Pos</span><span>Class</span><span>OVR</span></div>
-        {list.map(p => { const f = school(p.t); return <div key={p.id} className="tr portal"><Hs p={p} /><span><b>{p.fn} {p.ln}</b></span><span className="from"><Logo id={f.id} size={20} />{f.school}</span><span>{p.pos}</span><span>{YR[p.yr]}</span><span><Ovr v={p.ovr} /></span></div>; })}
+        {list.map(p => { const f = school(p.t); return <div key={p.id} className="tr portal click" onClick={() => showCard(p)}><Hs p={p} /><span><b>{p.fn} {p.ln}</b></span><span className="from"><Logo id={f.id} size={20} />{f.school}</span><span>{p.pos}</span><span>{YR[p.yr]}</span><span><Ovr v={p.ovr} /></span></div>; })}
       </div>
     </Card>
   );
 }
 
 function NilTab({ s }: { s: School }) {
-  const top = rosterOf(s.id).filter(p => p.hs).slice(0, 6);
+  const top = rosterOf(s.id).slice(0, 6);
   const pool = Math.round((s.prestige * 3 + s.ovr / 20) * 10) / 10;
   return (
     <div className="hgrid">
       <Card title="Collective"><div className="kpis"><div><b>${pool}M</b><span>Budget</span></div><div><b>${(pool * 0.4).toFixed(1)}M</b><span>Committed</span></div><div><b>{Math.round(s.prestige * 2)}</b><span>Boosters</span></div></div></Card>
       <Card title="Top deals" span={2}>
-        <div className="nil">{top.map((p, i) => <div key={p.id}><Hs p={p} /><b>{p.fn} {p.ln}</b><em>{p.pos}</em><span>${Math.round((pool * 1000 * (0.18 - i * 0.02)))}K / yr</span></div>)}</div>
+        <div className="nil">{top.map((p, i) => <div key={p.id}><b>{p.fn} {p.ln}</b><em>{p.pos}</em><span>${Math.round((pool * 1000 * (0.18 - i * 0.02)))}K / yr</span></div>)}</div>
       </Card>
     </div>
   );
@@ -208,14 +187,3 @@ function ConfTab({ s }: { s: School }) {
   );
 }
 
-function CoachTab({ s }: { s: School }) {
-  return (
-    <div className="hgrid">
-      <Card title="Head coach" span={2}>
-        <div className="coach"><div className="coach-av"><Mascot s={s} size={120} /></div><div><b>You</b><span>Head Coach · {s.school}</span><div className="kpis"><div><b>1</b><span>Season</span></div><div><b>0-0</b><span>Career</span></div><div><b>B</b><span>Job security</span></div></div></div></div>
-      </Card>
-      <Card title="Staff"><ul className="goals"><li><b>Offensive coordinator</b><span>Open</span></li><li><b>Defensive coordinator</b><span>Open</span></li><li><b>Recruiting coordinator</b><span>Open</span></li></ul></Card>
-      <Card title="Skill tree"><div className="tree">{['Recruiter', 'Motivator', 'Tactician', 'Developer'].map(t => <div key={t}><i /><span>{t}</span></div>)}</div></Card>
-    </div>
-  );
-}

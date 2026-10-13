@@ -2,8 +2,8 @@
 // their colours with mascots squaring off, then the tale of the tape, the head-to-head battles
 // that decide it (from the real depth charts) and each side's keys to the game.
 import type { CSSProperties } from 'react';
-import { rosterOf, headshot, showColor, TOP25, YR, type School, type Player } from './data';
-import { Mascot, mascotKind } from './art';
+import { rosterOf, showColor, TOP25, YR, type School, type Player } from './data';
+import { showCard } from './PlayerCard';
 import { Logo } from './App';
 
 const OFF = ['QB', 'RB', 'WR', 'TE', 'OT', 'G', 'C'], DEF = ['EDGE', 'DT', 'LB', 'CB', 'S'];
@@ -40,8 +40,8 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
   return (
     <div className="mu" style={{ '--ca': ca, '--ch': ch } as CSSProperties}>
       <section className="mu-stage">
-        <div className="mu-half a"><Mascot s={away} size={380} /></div>
-        <div className="mu-half h"><Mascot s={home} size={380} style={mascotKind(home.mascot) === 'shield' ? undefined : { transform: 'scaleX(-1)' }} /></div>
+        <div className="mu-half a"><Logo id={away.id} className="mu-bglogo" /></div>
+        <div className="mu-half h"><Logo id={home.id} className="mu-bglogo" /></div>
         <div className="mu-slash" />
         <div className="mu-team a">
           <Logo id={away.id} className="mu-logo" />
@@ -107,10 +107,10 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
 function Duel({ p, side }: { p?: Player; side: 'a' | 'h' }) {
   if (!p) return <div className={`mu-duel ${side}`} />;
   return (
-    <div className={`mu-duel ${side}`}>
-      <div className="mu-duel-img">{headshot(p) ? <img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}</div>
+    <button className={`mu-duel ${side}`} onClick={() => showCard(p)}>
+      <div className="mu-duel-img"><span>{p.pos}</span><b>{p.num}</b></div>
       <div><b>{p.fn} {p.ln}</b><span>{p.pos} · {YR[p.yr]} · #{p.num}</span></div>
       <em>{p.ovr}</em>
-    </div>
+    </button>
   );
 }

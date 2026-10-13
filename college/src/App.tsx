@@ -8,7 +8,7 @@
 //   wordmark    white flash, then the chrome wordmark with the COLLEGE plate
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SCHOOLS, SEASON, CONFS, TOP25, school, rosterOf, logo, logoDark, headshot, showColor, YR, height, type School } from './data';
-import { Mascot, Field3D } from './art';
+import { CardHost } from './PlayerCard';
 import { Hub } from './Hub';
 
 type Screen = { id: 'menu' } | { id: 'select' } | { id: 'hub'; team: number; tab: string };
@@ -25,6 +25,7 @@ export function App() {
       {screen.id === 'select' && <Select back={() => setScreen({ id: 'menu' })} start={start} />}
       {screen.id === 'hub' && <Hub team={screen.team} tab={screen.tab} setTab={tab => setScreen({ id: 'hub', team: screen.team, tab })} back={() => setScreen({ id: 'menu' })} />}
       {opening && <Opening onDone={() => setOpening(false)} />}
+      <CardHost />
     </>
   );
 }
@@ -77,56 +78,52 @@ function Opening({ onDone }: { onDone: () => void }) {
 }
 
 // ---- main menu -----------------------------------------------------------------------------
-// Simple and clean: the featured program's colours, its field, mascot and logo, and four big
-// buttons along the top.
+// Four large tiles, Madden-style: each is its own piece of art (no faces, no mascots).
 function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) {
   const save = loadSave();
-  const [feat, setFeat] = useState(0);
+  const saved = save ? school(save.team) : undefined;
   const [sel, setSel] = useState(0);
   const [about, setAbout] = useState(false);
-  useEffect(() => { const t = setInterval(() => setFeat(f => (f + 1) % 10), 7000); return () => clearInterval(t); }, []);
-  const items = [
-    ...(save && school(save.team) ? [{ k: 'Continue', sub: school(save.team).school, run: () => go({ id: 'hub', team: save.team, tab: 'Home' }) }] : []),
-    { k: 'New Dynasty', sub: `Take over any of ${SCHOOLS.length} FBS programs`, run: () => go({ id: 'select' }) },
-    { k: 'Quick Start', sub: 'A random program, straight in', run: () => { const s = SCHOOLS[Math.floor(Math.random() * SCHOOLS.length)]; go({ id: 'hub', team: s.id, tab: 'Home' }); } },
-    { k: 'How to Play', sub: 'Recruit, develop, win the natty', run: () => setAbout(true) },
+  const qs = useMemo(() => TOP25[Math.floor(Math.random() * 10)], []);
+  const tiles = [
+    ...(saved ? [{ k: 'Continue', sub: `${saved.school} · your dynasty`, art: 'continue', run: () => go({ id: 'hub', team: saved.id, tab: 'Home' }) }] : []),
+    { k: 'New Dynasty', sub: `Take over any of ${SCHOOLS.length} FBS programs`, art: 'new', run: () => go({ id: 'select' }) },
+    { k: 'Quick Start', sub: `Jump in as ${qs.school}`, art: 'quick', run: () => go({ id: 'hub', team: qs.id, tab: 'Home' }) },
+    { k: 'How to Play', sub: 'Recruit, develop, win', art: 'how', run: () => setAbout(true) },
   ];
   useEffect(() => {
     if (!entering) return;
     const k = (e: KeyboardEvent) => {
       if (about) { if (e.key === 'Escape' || e.key === 'Enter') setAbout(false); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setSel(i => (i + 1) % items.length);
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setSel(i => (i - 1 + items.length) % items.length);
-      else if (e.key === 'Enter') items[sel]?.run();
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setSel(i => (i + 1) % tiles.length);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setSel(i => (i - 1 + tiles.length) % tiles.length);
+      else if (e.key === 'Enter') tiles[sel]?.run();
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
-  }, [entering, sel, items.length, about]);
-  const s = TOP25[feat], top = rosterOf(s.id).filter(p => p.hs).slice(0, 3), c = showColor(s);
+  }, [entering, sel, tiles.length, about]);
+  const cur = tiles[sel]?.art === 'continue' && saved ? saved : tiles[sel]?.art === 'quick' ? qs : undefined;
   return (
-    <div className={`cm${entering ? ' in' : ''}`} style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
-      <div className="cm-sky" />
-      <Field3D s={s} key={'f3' + feat} />
-      <header className="cm-head">
-        <div><div className="cm-word">GRIDIRON <b>COLLEGE</b></div><div className="cm-season">{SEASON} Season · {SCHOOLS.length} Programs · Real Rosters</div></div>
-        <nav className="pills">
-          {items.map((it, i) => (
-            <button key={it.k} className={`pill big${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}><b>{it.k}</b><span>{it.sub}</span></button>
-          ))}
-        </nav>
+    <div className={`mn${entering ? ' in' : ''}`} style={{ '--c': cur ? showColor(cur) : '#2f6fdf' } as CSSProperties}>
+      <div className="mn-bg" />
+      <header className="mn-top">
+        <div className="mn-word">GRIDIRON <b>COLLEGE</b></div>
+        <div className="mn-season">{SEASON} Season · {SCHOOLS.length} FBS programs · Real rosters</div>
       </header>
-
-      <section className="cm-show" key={'s' + feat}>
-        <div className="cm-mascot"><Mascot s={s} size={360} /><Logo id={s.id} className="cm-badge" /></div>
-        <div className="cm-card">
-          <div className="cm-rank">No. {feat + 1} · Preseason</div>
-          <div className="cm-school">{s.school}</div>
-          <div className="cm-mascot-n">{s.mascot} · {s.conf}</div>
-          <div className="cm-stats"><div><b>{s.ovr}</b><span>Team OVR</span></div><div><b className="gold">{'★'.repeat(Math.max(1, Math.round(s.prestige)))}</b><span>Prestige</span></div></div>
-          <div className="cm-stars">{top.map(p => (
-            <div key={p.id} className="cm-star"><div><img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /></div><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {YR[p.yr]} · {p.ovr}</span></div>
-          ))}</div>
-        </div>
-      </section>
+      <nav className="mn-tiles">
+        {tiles.map((t, i) => {
+          const tc = t.art === 'continue' && saved ? showColor(saved) : t.art === 'quick' ? showColor(qs) : undefined;
+          return (
+            <button key={t.k} className={`mn-tile ${t.art}${i === sel ? ' on' : ''}`} style={{ '--i': i, ...(tc ? { '--tc': tc } : {}) } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={t.run}>
+              <div className="mn-art">
+                {t.art === 'new' && <div className="mn-mosaic">{[...SCHOOLS, ...SCHOOLS].map((x, j) => <Logo key={j} id={x.id} />)}</div>}
+                {(t.art === 'continue' || t.art === 'quick') && <Logo id={(t.art === 'continue' ? saved! : qs).id} className="mn-biglogo" />}
+                {t.art === 'how' && <svg viewBox="0 0 200 140" className="mn-play"><g fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">{[40, 70, 100, 130, 160].map(x => <circle key={x} cx={x} cy="96" r="7" />)}<path d="M40 89 L40 40 L70 30" /><path d="M160 89 L150 34" /><path d="M100 89 L100 60 L136 52" strokeDasharray="6 6" /></g><g stroke="#f5c443" strokeWidth="3" strokeLinecap="round">{[[60, 40], [110, 30], [150, 50]].map(([x, y]) => <path key={x} d={`M${x - 6} ${y - 6} L${x + 6} ${y + 6} M${x + 6} ${y - 6} L${x - 6} ${y + 6}`} />)}</g></svg>}
+              </div>
+              <div className="mn-txt"><b>{t.k}</b><span>{t.sub}</span></div>
+            </button>
+          );
+        })}
+      </nav>
       <div className="cm-ticker"><div className="cm-ticker-k">Preseason Top 25</div><div className="cm-ticker-run"><div>
         {[...TOP25, ...TOP25].map((t, i) => <span key={i}><em>{(i % 25) + 1}</em><Logo id={t.id} size={18} />{t.school}</span>)}
       </div></div></div>
@@ -134,8 +131,8 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
         <div className="cm-modal" onClick={() => setAbout(false)}>
           <div onClick={e => e.stopPropagation()}>
             <h2>How to play</h2>
-            <p>Pick a program and build it into a champion. Every FBS roster is real, with the players' own headshots and ratings built from three seasons of production.</p>
-            <p>Recruit high-school talent, develop four-year careers, work the transfer portal and NIL, and chase a playoff spot through your conference.</p>
+            <p>Pick a program and build it into a champion. Every FBS roster is real, with ratings built from three seasons of production.</p>
+            <p>Each week: set your depth chart, make the week's decisions, and recruit the class of 2027 against rival programs. Scout prospects to learn what they care about, then sell it.</p>
             <button className="cbtn primary" onClick={() => setAbout(false)}>Got it</button>
           </div>
         </div>

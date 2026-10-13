@@ -107,6 +107,9 @@ const players = cands.map(c => {
   const r = c.r;
   const out = { id: r.athlete_id, fn: r.first_name, ln: r.last_name, t: Number(c.pr.t.team_id), pos: c.pos, yr: c.yr, ht: num(r.height), wt: num(r.weight), num: num(r.jersey) || 0, ovr };
   if (c.starter) out.st = 1;
+  // Last season's line (2025): games, passing, rushing, receiving, defence, kicking.
+  const e = S[2025].players.get(r.athlete_id);
+  if (e && e.games.size) out.s = [e.games.size, e.pc, e.pa, e.py, e.ptd, e.pint, e.ra, e.ry, e.rtd, e.rec, e.recy, e.rectd, Math.round(e.sk * 10) / 10, e.int, e.pbu, e.ff, e.fgm, e.fga];
   if (r.headshot_url) out.hs = 1;
   if (r.home_city) out.home = `${r.home_city}${r.home_state ? `, ${r.home_state}` : ''}`;
   return out;

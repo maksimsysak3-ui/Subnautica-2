@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { rosterOf, showColor, SCHOOLS, type School, type Player } from './data';
+import { useDynasty, update } from './store';
 
 // ---- pixel sprites (12x12; '.' is transparent, c/d are the school's colours) ---------------
 const SPR: Record<string, string[]> = {
@@ -98,32 +99,54 @@ function decisions(s: School): Decision[] {
   ];
 }
 
+const ICON: Record<string, string> = {
+  'Locker Room': 'M4 20V6l8-3 8 3v14M9 20v-6h6v6',
+  Recruiting: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
+  'Campus & Media': 'M9 18V6a3 3 0 0 1 6 0v12M5 11a7 7 0 0 0 14 0M12 18v3',
+  'Boosters & NIL': 'M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6',
+  Academics: 'M2 8l10-5 10 5-10 5zM6 10v6c3 2 9 2 12 0v-6',
+  'Staff Room': 'M8 4h8v4H8zM5 8h14v13H5zM9 13h6M9 17h4',
+};
+const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 export function Weekly({ s }: { s: School }) {
   const c = showColor(s);
+  const d = useDynasty(s.id);
   const all = useMemo(() => decisions(s), [s.id]);
   const [tab, setTab] = useState(TABS[0]);
   const [open, setOpen] = useState<Decision | null>(null);
-  const [done, setDone] = useState<Record<string, string>>({});
-  const [m, setM] = useState<Record<Meter, number>>({ chem: 60, hype: 55, buzz: 50, boost: 50, acad: 65 });
-  const list = all.filter(d => d.tab === tab);
-  const choose = (d: Decision, ch: Choice) => {
-    setM(v => { const n = { ...v }; for (const [k, x] of Object.entries(ch.fx) as [Meter, number][]) n[k] = Math.max(0, Math.min(100, n[k] + x * 3)); return n; });
-    setDone(v => ({ ...v, [d.id]: ch.result }));
-  };
+  const done = d.decisions, m = d.meters as Record<Meter, number>;
+  const list = all.filter(x => x.tab === tab);
+  const choose = (dc: Decision, ch: Choice) => update(x => {
+    for (const [k, v] of Object.entries(ch.fx) as [Meter, number][]) x.meters[k] = Math.max(0, Math.min(100, (x.meters[k] ?? 50) + v * 3));
+    x.decisions[dc.id] = ch.result;
+  });
+  const left = all.filter(x => !done[x.id]).length;
   return (
     <div className="wk" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
-      <div className="wk-meters">{METERS.map(([k, label]) => (
-        <div key={k} className="wk-meter"><span>{label}</span><div className="wk-bar"><i style={{ width: `${m[k]}%` }} /></div><b>{m[k]}</b></div>
-      ))}</div>
+      <section className="wk-head">
+        <div className="wk-title"><span>{d.week === 0 ? 'Preseason' : `Week ${d.week}`} agenda</span><b>{left} decision{left === 1 ? '' : 's'} waiting</b><em>Every call moves the program. Some can't be undone.</em></div>
+        <div className="wk-gauges">{METERS.map(([k, label]) => {
+          const v = m[k] ?? 50, r = 26, cir = 2 * Math.PI * r;
+          return (
+            <div key={k} className="wk-g">
+              <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="6" /><circle cx="32" cy="32" r={r} fill="none" stroke={v >= 70 ? '#4ade80' : v >= 45 ? c : '#f87171'} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(cir * v) / 100} ${cir}`} transform="rotate(-90 32 32)" style={{ transition: 'stroke-dasharray .6s' }} /><text x="32" y="37" textAnchor="middle" fontSize="16" fontWeight="700" fill="#fff">{v}</text></svg>
+              <span>{label}</span>
+            </div>
+          );
+        })}</div>
+      </section>
       <div className="pills wk-tabs">{TABS.map(t => {
-        const left = all.filter(d => d.tab === t && !done[d.id]).length;
-        return <button key={t} className={`pill${t === tab ? ' on' : ''}`} onClick={() => setTab(t)}>{t}{left ? <em>{left}</em> : null}</button>;
+        const n = all.filter(x => x.tab === t && !done[x.id]).length;
+        return <button key={t} className={`pill${t === tab ? ' on' : ''}`} onClick={() => setTab(t)}>{t}{n ? <em>{n}</em> : null}</button>;
       })}</div>
-      <div className="wk-list">{list.map(d => (
-        <button key={d.id} className={`wk-card${done[d.id] ? ' done' : ''}`} onClick={() => setOpen(d)}>
-          <div className="wk-body"><span>{d.who}</span><b>{d.title}</b><p>{done[d.id] ?? d.text}</p></div>
-          <div className="wk-go">{done[d.id] ? 'Decided' : 'Decide ›'}</div>
-        </button>
+      <div className="wk-list">{list.map((x, i) => (
+        <article key={x.id} className={`wk-card${done[x.id] ? ' done' : ''}`}>
+          <header><svg viewBox="0 0 24 24" className="wk-ic"><path d={ICON[x.tab]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg><span>{x.who}</span><em>{DAY[(i + x.id.length) % 5]}</em></header>
+          <b className="wk-t">{x.title}</b>
+          <p>{done[x.id] ?? x.text}</p>
+          {!done[x.id] && <div className="wk-opts">{x.choices.map(ch => <span key={ch.label}>{ch.label}</span>)}</div>}
+          <footer>{done[x.id] ? <span className="wk-stamp">Decided</span> : <button className="cbtn primary sm" onClick={() => setOpen(x)}>Make the call</button>}</footer>
+        </article>
       ))}</div>
       {open && createPortal(<div style={{ '--c': c } as CSSProperties}><Popup d={open} c={c} result={done[open.id]} onChoose={ch => choose(open, ch)} onClose={() => setOpen(null)} /></div>, document.body)}
     </div>
