@@ -63,15 +63,16 @@ const genFlip = (p: Player) => { const m = /^P(\d{4})-(\d+)$/.exec(p.id); return
 // (his college until he is drafted, then his team): pixels below the chin that aren't skin
 // take the new hue and keep their original shading, so folds, collars and trim still read.
 const hex = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const recoloured = new Map<string, string>();
-const pending = new Map<string, Promise<string>>();
-function recolour(src: string, jersey: string, trim: string): Promise<string> {
+interface Shot { url: string; scale: number }
+const recoloured = new Map<string, Shot>();
+const pending = new Map<string, Promise<Shot>>();
+function recolour(src: string, jersey: string, trim: string): Promise<Shot> {
   const key = `${src.length}:${src.slice(-24)}|${jersey}|${trim}`;
   const done = recoloured.get(key);
   if (done) return Promise.resolve(done);
   let p = pending.get(key);
   if (p) return p;
-  p = new Promise<string>(res => {
+  p = new Promise<Shot>(res => {
     const img = new Image();
     img.onload = () => {
       try {
@@ -86,27 +87,39 @@ function recolour(src: string, jersey: string, trim: string): Promise<string> {
           const i = ((Math.round(fy * H) + dy) * W + Math.round(fx * W) + dx) * 4; if (px[i + 3] < 200) continue;
           const t = px[i] + px[i + 1] + px[i + 2] + 1; cr += px[i] / t; cg += px[i + 1] / t; n++;
         }
-        if (!n) return res(src);
+        if (!n) return res({ url: src, scale: 1 });
         cr /= n; cg /= n;
         const [jr, jg, jb] = hex(jersey), [tr, tg, tb] = hex(trim);
         // The jersey starts where the shoulders widen out.
         let y0 = Math.round(H * 0.75);
         for (let y = Math.round(H * 0.5); y < H; y++) { let w = 0; for (let x = 0; x < W; x++) if (px[(y * W + x) * 4 + 3] > 128) w++; if (w > W * 0.7) { y0 = y - 3; break; } }
         y0 = Math.max(y0, Math.round(H * 0.66));
+        // Skin below the chin (neck, beard, the V of the collar) is found by flooding down from
+        // the face: anything connected to it with a skin-like colour, or dark like a beard or the
+        // shadow under the jaw, is skin. The jersey's colour stops the flood.
+        const cdAt = (i: number) => { const u = px[i] + px[i + 1] + px[i + 2] + 1; return Math.hypot(px[i] / u - cr, px[i + 1] / u - cg); };
+        const skin = new Uint8Array(W * H), stack: number[] = [];
+        for (let x = 0; x < W; x++) for (let y = Math.max(0, y0 - 12); y < y0; y++) { const k = y * W + x; if (px[k * 4 + 3] > 100 && cdAt(k * 4) < 0.08) { skin[k] = 1; stack.push(k); } }
+        while (stack.length) {
+          const k = stack.pop()!, x = k % W;
+          for (const n of [k - 1, k + 1, k + W, k - W]) {
+            const nx = n % W, ny = (n - nx) / W;
+            if (n < 0 || n >= W * H || skin[n] || Math.abs(nx - x) > 1 || ny < y0 - 12) continue;
+            const i = n * 4; if (px[i + 3] < 40) continue;
+            const t = px[i] + px[i + 1] + px[i + 2], cd = cdAt(i);
+            if (cd < 0.1 || (t < 180 && t >= 75 && cd < 0.2)) { skin[n] = 1; stack.push(n); }
+          }
+        }
         const isJ = new Uint8Array(W * H); let sum = 0, cnt = 0;
         for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) {
-          const k = y * W + x, i = k * 4; if (px[i + 3] < 40) continue;
-          const t = px[i] + px[i + 1] + px[i + 2], u = t + 1;
-          const cd = Math.hypot(px[i] / u - cr, px[i + 1] / u - cg);
-          if (t < 70) continue;                                       // deep shadow stays as is
-          if (cd < 0.06 && t > 60) continue;                          // skin
-          if (Math.abs(x - W / 2) < W * 0.18 && y - y0 < 30 && (cd < 0.12 || t < 200)) continue;  // shadow under the chin
+          const k = y * W + x, i = k * 4; if (px[i + 3] < 40 || skin[k]) continue;
           isJ[k] = 1; sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11; cnt++;
         }
         const mean = cnt ? sum / cnt : 128;
         for (let k = y0 * W; k < W * H; k++) if (isJ[k]) {
           const i = k * 4, rel = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) / mean;  // 1 = average fold
-          const accent = rel > 2 && mean < 150;                       // piping, numbers on a dark jersey
+          const x = k % W, neck = Math.abs(x - W / 2) < W * 0.22 && k / W - y0 < 45;
+          const accent = rel > 2 && mean < 150 && !neck;              // piping, numbers on a dark jersey
           const [br, bg, bb] = accent ? [tr, tg, tb] : [jr, jg, jb];
           const f = accent ? 1 : Math.min(1.25, Math.max(0.5, 1 + (rel - 1) * (mean > 150 ? 0.45 : 0.8)));  // light kits carry harsh stripes: soften
           px[i] = Math.min(255, br * f); px[i + 1] = Math.min(255, bg * f); px[i + 2] = Math.min(255, bb * f);
@@ -147,10 +160,14 @@ function recolour(src: string, jersey: string, trim: string): Promise<string> {
         }
         g3.putImageData(d3, 0, 0);
         const url = c3.toDataURL('image/webp', 0.95);
-        recoloured.set(key, url); res(url);
-      } catch { res(src); }
+        // Head size varies between source crops: measure the face at cheek height and scale so
+        // every portrait sits at the same distance from the camera.
+        let fw = 0; const yc = Math.round(H * 0.44); for (let x = 0; x < W; x++) if (px[(yc * W + x) * 4 + 3] > 128) fw++;
+        const scale = fw ? Math.min(1.15, Math.max(0.8, (W * 0.54) / fw)) : 1;
+        const shot = { url, scale }; recoloured.set(key, shot); res(shot);
+      } catch { res({ url: src, scale: 1 }); }
     };
-    img.onerror = () => res(src);
+    img.onerror = () => res({ url: src, scale: 1 });
     img.src = src;
   });
   pending.set(key, p);
@@ -159,12 +176,12 @@ function recolour(src: string, jersey: string, trim: string): Promise<string> {
 
 /** An AI portrait in the player's colours, framed like a broadcast headshot. */
 function GenPhoto({ src, jersey, trim, size, flip }: { src: string; jersey: string; trim: string; size: number; flip: boolean }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { let live = true; setUrl(null); recolour(src, jersey, trim).then(u => { if (live) setUrl(u); }); return () => { live = false; }; }, [src, jersey, trim]);
+  const [shot, setShot] = useState<Shot | null>(null);
+  useEffect(() => { let live = true; setShot(null); recolour(src, jersey, trim).then(u => { if (live) setShot(u); }); return () => { live = false; }; }, [src, jersey, trim]);
   // Head and shoulders, bottom-anchored, shoulders running off the frame like the real headshots.
   return (
     <div style={{ width: size, height: size, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-      {url && <img src={url} alt="" style={{ display: 'block', width: size * 0.9, flex: 'none', height: 'auto', filter: 'brightness(1.07) contrast(.96) saturate(1.04)', transform: flip ? 'scaleX(-1)' : undefined }} />}
+      {shot && <img src={shot.url} alt="" style={{ display: 'block', width: size * 0.9 * shot.scale, flex: 'none', height: 'auto', filter: 'brightness(1.07) contrast(.96) saturate(1.04)', transform: flip ? 'scaleX(-1)' : undefined }} />}
     </div>
   );
 }
