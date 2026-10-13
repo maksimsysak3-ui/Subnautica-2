@@ -23,7 +23,7 @@ export const height = (h: number) => `${Math.floor(h / 12)}'${h % 12}"`;
 /** A colour that reads on a dark background: the primary, or the secondary when the primary is near-black. */
 const lum = (h: string) => { const n = parseInt(h.slice(1), 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
 export const showColor = (s: School) => {
-  if (lum(s.c1) >= 38) return s.c1;
+  if (lum(s.c1) >= 28) return s.c1;
   if (lum(s.c2) >= 50 && lum(s.c2) <= 225) return s.c2;
   // Both too dark (or the second is white): lift the primary so it still reads as the school.
   const n = parseInt(s.c1.slice(1), 16), up = (v: number) => Math.round(v + (255 - v) * 0.28);

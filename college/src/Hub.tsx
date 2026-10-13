@@ -14,11 +14,11 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
   const s = school(team), c = showColor(s), rank = TOP25.indexOf(s);
   return (
     <div className="hb" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
-      <aside className="hb-side">
+      <div className="hb-top">
         <div className="hb-brand">GRIDIRON <b>COLLEGE</b></div>
-        <nav>{TABS.map(([t, ic]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}><i>{ic}</i>{t}</button>)}</nav>
-        <button className="hb-exit" onClick={back}>‹ Main Menu</button>
-      </aside>
+        <nav className="pills">{TABS.map(([t, ic]) => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}><i>{ic}</i>{t}</button>)}</nav>
+        <button className="pill ghost" onClick={back}>‹ Main Menu</button>
+      </div>
       <main className="hb-main">
         <header className="hb-head">
           <div className="hb-head-art"><Mascot s={s} size={170} /></div>

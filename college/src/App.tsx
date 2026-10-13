@@ -100,8 +100,8 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
     if (!entering) return;
     const k = (e: KeyboardEvent) => {
       if (about) { if (e.key === 'Escape' || e.key === 'Enter') setAbout(false); return; }
-      if (e.key === 'ArrowDown') setSel(i => (i + 1) % items.length);
-      else if (e.key === 'ArrowUp') setSel(i => (i - 1 + items.length) % items.length);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setSel(i => (i + 1) % items.length);
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setSel(i => (i - 1 + items.length) % items.length);
       else if (e.key === 'Enter') items[sel]?.run();
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
@@ -115,16 +115,14 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
       <Confetti c1={c} c2={s.c2} key={'cf' + feat} />
       <div className="cm-pennants">{TOP25.slice(0, 12).map((t, i) => <Pennant key={t.id} s={t} style={{ animationDelay: `${i * 0.12}s` }} />)}</div>
       <header className="cm-head">
-        <div className="cm-word">GRIDIRON <b>COLLEGE</b></div>
-        <div className="cm-season">{SEASON} Season · {SCHOOLS.length} Programs · Real Rosters</div>
+        <div><div className="cm-word">GRIDIRON <b>COLLEGE</b></div><div className="cm-season">{SEASON} Season · {SCHOOLS.length} Programs · Real Rosters</div></div>
+        <nav className="pills">
+          {items.map((it, i) => (
+            <button key={it.k} className={`pill${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}><i>{ICON[it.k]}</i>{it.k}</button>
+          ))}
+        </nav>
       </header>
-      <nav className="cm-nav">
-        {items.map((it, i) => (
-          <button key={it.k} className={`cm-item${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}>
-            <i>{ICON[it.k]}</i><div><b>{it.k}</b><span>{it.sub}</span></div>
-          </button>
-        ))}
-      </nav>
+      <div className="cm-sub" key={'sub' + sel}>{items[sel]?.sub}</div>
       <section className="cm-show" key={'s' + feat}>
         <div className="cm-mascot"><Mascot s={s} size={360} /><Logo id={s.id} className="cm-badge" /></div>
         <div className="cm-card">
