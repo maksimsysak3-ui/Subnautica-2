@@ -69,7 +69,11 @@ function buildField(G: Geo, home: Team, away: Team, logo: HTMLImageElement | nul
   for (const [ex, t] of [[0, away], [110, home]] as const) {
     g.fillStyle = t.colors[0]; g.fillRect(X(ex), Y(0), X(ex + 10) - X(ex), Y(FW) - Y(0));
     g.save(); g.translate((X(ex) + X(ex + 10)) / 2, (Y(0) + Y(FW)) / 2); g.rotate(ex ? Math.PI / 2 : -Math.PI / 2);
-    g.font = `700 ${Math.round(G.ppy * 4.2)}px Silkscreen, monospace`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    // Shrink long names (college nicknames) to fit the end zone's length.
+    let fs = Math.round(G.ppy * 4.2); g.font = `700 ${fs}px Silkscreen, monospace`;
+    const room = (Y(FW) - Y(0)) * 0.9, wTxt = g.measureText(t.nick.toUpperCase()).width;
+    if (wTxt > room) { fs = Math.max(6, Math.floor(fs * room / wTxt)); g.font = `700 ${fs}px Silkscreen, monospace`; }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = 'rgba(0,0,0,.35)'; g.fillText(t.nick.toUpperCase(), 1, 1); g.fillStyle = '#fff'; g.fillText(t.nick.toUpperCase(), 0, 0); g.restore();
   }
   g.fillStyle = '#f4f4ee';

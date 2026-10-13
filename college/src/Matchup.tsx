@@ -1,8 +1,9 @@
 // This week's matchup, presented like a broadcast open: the two programs split the screen in
 // their colours with mascots squaring off, then the tale of the tape, the head-to-head battles
 // that decide it (from the real depth charts) and each side's keys to the game.
-import type { CSSProperties } from 'react';
-import { rosterOf, showColor, TOP25, YR, type School, type Player } from './data';
+import { useState, type CSSProperties } from 'react';
+import { GameDay } from './Game';
+import { rosterOf, headshot, showColor, TOP25, YR, type School, type Player } from './data';
 import { showCard } from './PlayerCard';
 import { Logo } from './App';
 
@@ -37,6 +38,7 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
     ];
   };
   const rA = rankOf(away), rH = rankOf(home);
+  const [playing, setPlaying] = useState(false);
   return (
     <div className="mu" style={{ '--ca': ca, '--ch': ch } as CSSProperties}>
       <section className="mu-stage">
@@ -62,8 +64,10 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
           <div><span>Line</span><b>{fav.abbr} −{Math.max(1, Math.round(Math.abs(edge) * 2) / 2)}</b></div>
           <div><span>Win probability</span><b>{home.abbr} {wp}% · {away.abbr} {100 - wp}%</b></div>
         </div>
+        <button className="mu-play" onClick={() => setPlaying(true)}>Play game ›</button>
       </section>
 
+      {playing && <GameDay s={s} opp={o} home={g.home} onClose={() => setPlaying(false)} />}
       <div className="mu-grid">
         <section className="hc mu-tape">
           <header><h3>Tale of the tape</h3></header>
@@ -108,7 +112,7 @@ function Duel({ p, side }: { p?: Player; side: 'a' | 'h' }) {
   if (!p) return <div className={`mu-duel ${side}`} />;
   return (
     <button className={`mu-duel ${side}`} onClick={() => showCard(p)}>
-      <div className="mu-duel-img"><span>{p.pos}</span><b>{p.num}</b></div>
+      <div className="mu-duel-img">{headshot(p) ? <img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : <b>{p.num}</b>}</div>
       <div><b>{p.fn} {p.ln}</b><span>{p.pos} · {YR[p.yr]} · #{p.num}</span></div>
       <em>{p.ovr}</em>
     </button>

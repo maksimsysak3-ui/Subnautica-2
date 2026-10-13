@@ -2,7 +2,8 @@
 // position's full order, which you can change (saved with the dynasty). Stats are last season's
 // leaders by category.
 import { useState, type CSSProperties } from 'react';
-import { rosterOf, YR, type School, type Player } from './data';
+import { rosterOf, headshot, YR, type School, type Player } from './data';
+import { profile } from './player';
 import { useDynasty, update } from './store';
 import { showCard } from './PlayerCard';
 
@@ -14,7 +15,7 @@ export function depthOf(s: School, saved: Record<string, string[]>, pos: string)
   const order = saved[pos] ?? [];
   return [...order.map(id => all.find(p => p.id === id)).filter((p): p is Player => !!p), ...all.filter(p => !order.includes(p.id))];
 }
-const Ovr = ({ v }: { v: number }) => <i className={`ovr ${v >= 85 ? 'a' : v >= 75 ? 'b' : 'c'}`}>{v}</i>;
+const tierC = (v: number) => (v >= 90 ? 'te' : v >= 80 ? 'ta' : v >= 70 ? 'tb' : 'tc');
 
 // Where each starter stands on the diagram (percent of width, percent of height). Offense below
 // the line of scrimmage at 50%, defense above it.
@@ -41,8 +42,9 @@ export function DepthTab({ s }: { s: School }) {
           {POSITIONS.flatMap(ps => depthOf(s, d.depth, ps).slice(0, STARTS[ps]).map((p, i) => {
             const [x, y] = SPOTS[ps]?.[i] ?? [50, 50];
             return (
-              <button key={p.id} className={`dc-chip${ps === pos ? ' sel' : ''}${['EDGE', 'DT', 'LB', 'CB', 'S'].includes(ps) ? ' def' : ''}`} style={{ left: `${x}%`, top: `${y}%` } as CSSProperties} onClick={() => setPos(ps)}>
-                <em>{ps}</em><b>{p.ln}</b><i>{p.ovr}</i>
+              <button key={p.id} className={`dc-tok${ps === pos ? ' sel' : ''}${['EDGE', 'DT', 'LB', 'CB', 'S'].includes(ps) ? ' def' : ''}`} style={{ left: `${x}%`, top: `${y}%` } as CSSProperties} onClick={() => setPos(ps)}>
+                <span className="dc-face">{headshot(p) ? <img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : <b>{p.num}</b>}<i className={`dc-o ${tierC(p.ovr)}`}>{p.ovr}</i></span>
+                <em>{ps} · {p.ln}</em>
               </button>
             );
           }))}
@@ -54,8 +56,10 @@ export function DepthTab({ s }: { s: School }) {
         <div className="dc-rows">{list.map((p, i) => (
           <div key={p.id} className={`dc-row${i < STARTS[pos] ? ' starter' : ''}`}>
             <em>{i < STARTS[pos] ? `${pos}${STARTS[pos] > 1 ? i + 1 : ''}` : i + 1}</em>
-            <button className="dc-name" onClick={() => showCard(p)}><b>{p.fn} {p.ln}</b><span>#{p.num} · {YR[p.yr]}</span></button>
-            <Ovr v={p.ovr} />
+            <span className="dc-rface">{headshot(p) ? <img src={headshot(p)} alt="" loading="lazy" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}</span>
+            <button className="dc-name" onClick={() => showCard(p)}><b>{p.fn} {p.ln}</b><span>#{p.num} · {YR[p.yr]} · {profile(p).arch}</span>
+              <div className="dc-keys">{profile(p).keys.slice(0, 4).map(k => <i key={k}><em>{k}</em>{profile(p).attrs[k]}</i>)}</div></button>
+            <div className="dc-ovr"><b className={tierC(p.ovr)}>{p.ovr}</b><span className={`dev ${profile(p).dev}`}>{profile(p).dev}</span></div>
             <div className="dc-move"><button disabled={i === 0} onClick={() => move(i, -1)}>Up</button><button disabled={i === list.length - 1} onClick={() => move(i, 1)}>Down</button></div>
           </div>
         ))}</div>

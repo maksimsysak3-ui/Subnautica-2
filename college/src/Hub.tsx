@@ -14,7 +14,7 @@ import { showCard } from './PlayerCard';
 import { useDynasty, update } from './store';
 import { endWeek } from './recruiting';
 
-const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Stats', 'Schedule', 'Recruiting', 'Transfer Portal', 'NIL', 'Rankings', 'Conference', 'Staff'];
+const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Stats', 'Schedule', 'Recruiting', 'Transfer Portal', 'Rankings', 'Conference', 'Staff'];
 const rand = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 export function Hub({ team, tab, setTab, back }: { team: number; tab: string; setTab: (t: string) => void; back: () => void }) {
@@ -51,7 +51,6 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
           {tab === 'Schedule' && <ScheduleTab s={s} />}
           {tab === 'Recruiting' && <RecruitingTab s={s} />}
           {tab === 'Transfer Portal' && <PortalTab s={s} />}
-          {tab === 'NIL' && <NilTab s={s} />}
           {tab === 'Rankings' && <RankTab s={s} />}
           {tab === 'Conference' && <ConfTab s={s} />}
           {tab === 'Staff' && <StaffTab s={s} />}
@@ -80,7 +79,7 @@ function HomeTab({ s, go }: { s: School; go: (t: string) => void }) {
     <div className="hgrid">
       <Card title="Team leaders" span={2} action={<button className="lnk" onClick={() => go('Roster')}>Full roster ›</button>}>
         <div className="leaders">{stars.map(p => (
-          <button key={p.id} className="leader" onClick={() => showCard(p)}><div className="leader-num"><span>{p.pos}</span><b>{p.num}</b></div><b>{p.fn} {p.ln}</b><em>{p.pos} · {YR[p.yr]}</em><Ovr v={p.ovr} /></button>
+          <button key={p.id} className="leader" onClick={() => showCard(p)}><div className="leader-img">{headshot(p) ? <img src={headshot(p)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} /> : null}<span>{p.num}</span></div><b>{p.fn} {p.ln}</b><em>{p.pos} · {YR[p.yr]}</em><Ovr v={p.ovr} /></button>
         ))}</div>
       </Card>
       <Card title="Up next" action={<button className="lnk" onClick={() => go('Schedule')}>Schedule ›</button>}>
@@ -146,19 +145,6 @@ function PortalTab({ s }: { s: School }) {
         {list.map(p => { const f = school(p.t); return <div key={p.id} className="tr portal click" onClick={() => showCard(p)}><Hs p={p} /><span><b>{p.fn} {p.ln}</b></span><span className="from"><Logo id={f.id} size={20} />{f.school}</span><span>{p.pos}</span><span>{YR[p.yr]}</span><span><Ovr v={p.ovr} /></span></div>; })}
       </div>
     </Card>
-  );
-}
-
-function NilTab({ s }: { s: School }) {
-  const top = rosterOf(s.id).slice(0, 6);
-  const pool = Math.round((s.prestige * 3 + s.ovr / 20) * 10) / 10;
-  return (
-    <div className="hgrid">
-      <Card title="Collective"><div className="kpis"><div><b>${pool}M</b><span>Budget</span></div><div><b>${(pool * 0.4).toFixed(1)}M</b><span>Committed</span></div><div><b>{Math.round(s.prestige * 2)}</b><span>Boosters</span></div></div></Card>
-      <Card title="Top deals" span={2}>
-        <div className="nil">{top.map((p, i) => <div key={p.id}><b>{p.fn} {p.ln}</b><em>{p.pos}</em><span>${Math.round((pool * 1000 * (0.18 - i * 0.02)))}K / yr</span></div>)}</div>
-      </Card>
-    </div>
   );
 }
 

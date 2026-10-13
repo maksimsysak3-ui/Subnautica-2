@@ -3,6 +3,7 @@
 // contract. (Fictional names; seeded by program so a school's staff is the same every visit.)
 import type { CSSProperties } from 'react';
 import { showColor, type School } from './data';
+import { PixelCoach } from './pixelface';
 
 const FN = ['Mike', 'Steve', 'Brian', 'Kevin', 'Tony', 'Chris', 'Greg', 'Darrell', 'Jim', 'Mark', 'Ron', 'Todd', 'Shawn', 'Eric', 'Jason', 'Derek', 'Pat', 'Rob', 'Vic', 'Lou'];
 const LN = ['Holloway', 'Briggs', 'McKinney', 'Sanders', 'Pruett', 'Callahan', 'Dowling', 'Fuller', 'Grady', 'Hatcher', 'Kellerman', 'Lyle', 'Monroe', 'Nash', 'Orr', 'Pace', 'Quinn', 'Ralston', 'Stroud', 'Tillman'];
@@ -35,12 +36,12 @@ export function StaffTab({ s }: { s: School }) {
   return (
     <div className="stf" style={{ '--c': c } as CSSProperties}>
       <section className="hc stf-hc">
-        <div className="stf-me"><div className="stf-av">HC</div><div><span>Head coach</span><b>You</b><em>{s.school} · Year 1</em></div></div>
+        <div className="stf-me"><div className="stf-av px"><PixelCoach seed={`hc-${s.id}`} c1={c} c2={s.c2} size={72} /></div><div><span>Head coach</span><b>You</b><em>{s.school} · Year 1</em></div></div>
         <div className="kpis"><div><b>{avg}</b><span>Staff rating</span></div><div><b>${staff.reduce((a, x) => a + x.pay, 0).toFixed(1)}M</b><span>Staff payroll</span></div><div><b>{staff.filter(x => x.yrs === 1).length}</b><span>Expiring contracts</span></div></div>
       </section>
       <div className="stf-grid">{staff.map(x => (
         <section key={x.role} className="hc stf-card">
-          <header><div className="stf-av sm">{x.name.split(' ').map(w => w[0]).join('')}</div><div><span>{x.role}</span><b>{x.name}</b></div><em className={`ovr ${x.ovr >= 85 ? 'a' : x.ovr >= 75 ? 'b' : 'c'}`}>{x.ovr}</em></header>
+          <header><div className="stf-av px sm"><PixelCoach seed={x.name + s.id} c1={c} c2={s.c2} size={52} /></div><div><span>{x.role}</span><b>{x.name}</b></div><em className={`ovr ${x.ovr >= 85 ? 'a' : x.ovr >= 75 ? 'b' : 'c'}`}>{x.ovr}</em></header>
           <div className="stf-body">
             {x.ratings.map(([k, v]) => <div key={k} className="stf-r"><span>{k}</span><i><em style={{ width: `${v}%` }} /></i><b>{v}</b></div>)}
             <div className="stf-meta"><span>{x.style}</span><span>Age {x.age}</span><span>{x.yrs} yr{x.yrs > 1 ? 's' : ''} · ${x.pay}M</span></div>
