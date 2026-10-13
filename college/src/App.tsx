@@ -8,7 +8,7 @@
 //   wordmark    white flash, then the chrome wordmark with the COLLEGE plate
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SCHOOLS, SEASON, CONFS, TOP25, school, rosterOf, logo, logoDark, headshot, showColor, YR, height, type School } from './data';
-import { Mascot, Field3D, Pennant, Stadium } from './art';
+import { Mascot, Field3D } from './art';
 import { Hub } from './Hub';
 
 type Screen = { id: 'menu' } | { id: 'select' } | { id: 'hub'; team: number; tab: string };
@@ -77,13 +77,8 @@ function Opening({ onDone }: { onDone: () => void }) {
 }
 
 // ---- main menu -----------------------------------------------------------------------------
-// Game day: a night stadium and a painted field in the featured program's colours, its mascot
-// and logo, pennants strung across the top and confetti falling.
-function Confetti({ c1, c2 }: { c1: string; c2: string }) {
-  const bits = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: (i * 37) % 100, d: (i * 0.53) % 9, t: 7 + (i % 6), r: (i * 47) % 360, w: 6 + (i % 4) * 2, c: i % 3 === 0 ? '#ffffff' : i % 2 ? c1 : c2 })), [c1, c2]);
-  return <div className="conf">{bits.map((b, i) => <i key={i} style={{ left: `${b.x}%`, width: b.w, height: b.w * 0.45, background: b.c, animationDelay: `-${b.d}s`, animationDuration: `${b.t}s`, '--r': `${b.r}deg` } as CSSProperties} />)}</div>;
-}
-const ICON: Record<string, string> = { Continue: '▶', 'New Dynasty': '★', 'Quick Start': '⚡', 'How to Play': '?' };
+// Simple and clean: the featured program's colours, its field, mascot and logo, and four big
+// buttons along the top.
 function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) {
   const save = loadSave();
   const [feat, setFeat] = useState(0);
@@ -110,19 +105,16 @@ function Menu({ entering, go }: { entering: boolean; go: (s: Screen) => void }) 
   return (
     <div className={`cm${entering ? ' in' : ''}`} style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
       <div className="cm-sky" />
-      <Stadium color={c} />
       <Field3D s={s} key={'f3' + feat} />
-      <Confetti c1={c} c2={s.c2} key={'cf' + feat} />
-      <div className="cm-pennants">{TOP25.slice(0, 12).map((t, i) => <Pennant key={t.id} s={t} style={{ animationDelay: `${i * 0.12}s` }} />)}</div>
       <header className="cm-head">
         <div><div className="cm-word">GRIDIRON <b>COLLEGE</b></div><div className="cm-season">{SEASON} Season · {SCHOOLS.length} Programs · Real Rosters</div></div>
         <nav className="pills">
           {items.map((it, i) => (
-            <button key={it.k} className={`pill${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}><i>{ICON[it.k]}</i>{it.k}</button>
+            <button key={it.k} className={`pill big${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={it.run}><b>{it.k}</b><span>{it.sub}</span></button>
           ))}
         </nav>
       </header>
-      <div className="cm-sub" key={'sub' + sel}>{items[sel]?.sub}</div>
+
       <section className="cm-show" key={'s' + feat}>
         <div className="cm-mascot"><Mascot s={s} size={360} /><Logo id={s.id} className="cm-badge" /></div>
         <div className="cm-card">

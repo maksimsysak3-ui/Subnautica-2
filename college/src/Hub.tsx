@@ -6,8 +6,10 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { SCHOOLS, SEASON, TOP25, school, rosterOf, headshot, showColor, YEAR, YR, height, type School } from './data';
 import { Mascot } from './art';
 import { Logo } from './App';
+import { Matchup } from './Matchup';
+import { Weekly } from './Weekly';
 
-const TABS: [string, string][] = [['Home', '⌂'], ['Roster', '☰'], ['Depth Chart', '▤'], ['Schedule', '▦'], ['Recruiting', '★'], ['Transfer Portal', '⇄'], ['NIL', '$'], ['Rankings', '#'], ['Conference', '◆'], ['Coach', '◉']];
+const TABS = ['Home', 'Matchup', 'Weekly', 'Roster', 'Depth Chart', 'Schedule', 'Recruiting', 'Transfer Portal', 'NIL', 'Rankings', 'Conference', 'Coach'];
 const rand = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 export function Hub({ team, tab, setTab, back }: { team: number; tab: string; setTab: (t: string) => void; back: () => void }) {
@@ -16,7 +18,7 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
     <div className="hb" style={{ '--c': c, '--c2': s.c2 } as CSSProperties}>
       <div className="hb-top">
         <div className="hb-brand">GRIDIRON <b>COLLEGE</b></div>
-        <nav className="pills">{TABS.map(([t, ic]) => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}><i>{ic}</i>{t}</button>)}</nav>
+        <nav className="pills">{TABS.map(t => <button key={t} className={`pill${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t === 'Weekly' ? 'Weekly Decisions' : t}</button>)}</nav>
         <button className="pill ghost" onClick={back}>‹ Main Menu</button>
       </div>
       <main className="hb-main">
@@ -34,6 +36,8 @@ export function Hub({ team, tab, setTab, back }: { team: number; tab: string; se
         </header>
         <div className="hb-page" key={tab}>
           {tab === 'Home' && <HomeTab s={s} go={setTab} />}
+          {tab === 'Matchup' && <Matchup s={s} g={opponents(s)[0]} />}
+          {tab === 'Weekly' && <Weekly s={s} />}
           {tab === 'Roster' && <RosterTab s={s} />}
           {tab === 'Depth Chart' && <DepthTab s={s} />}
           {tab === 'Schedule' && <ScheduleTab s={s} />}
@@ -56,7 +60,7 @@ const Hs = ({ p }: { p: ReturnType<typeof rosterOf>[number] }) => <span classNam
 const Ovr = ({ v }: { v: number }) => <i className={`ovr ${v >= 85 ? 'a' : v >= 75 ? 'b' : 'c'}`}>{v}</i>;
 const Stars = ({ n }: { n: number }) => <span className="gold">{'★'.repeat(n)}<span className="dimstar">{'★'.repeat(5 - n)}</span></span>;
 
-function opponents(s: School) {
+export function opponents(s: School) {
   const r = rand(s.id * 7 + 3);
   const conf = SCHOOLS.filter(x => x.conf === s.conf && x.id !== s.id).sort(() => r() - 0.5).slice(0, 8);
   const non = SCHOOLS.filter(x => x.conf !== s.conf).sort(() => r() - 0.5).slice(0, 4);
@@ -211,7 +215,7 @@ function CoachTab({ s }: { s: School }) {
         <div className="coach"><div className="coach-av"><Mascot s={s} size={120} /></div><div><b>You</b><span>Head Coach · {s.school}</span><div className="kpis"><div><b>1</b><span>Season</span></div><div><b>0-0</b><span>Career</span></div><div><b>B</b><span>Job security</span></div></div></div></div>
       </Card>
       <Card title="Staff"><ul className="goals"><li><b>Offensive coordinator</b><span>Open</span></li><li><b>Defensive coordinator</b><span>Open</span></li><li><b>Recruiting coordinator</b><span>Open</span></li></ul></Card>
-      <Card title="Skill tree"><div className="tree">{['Recruiter', 'Motivator', 'Tactician', 'Developer'].map(t => <div key={t}><i>◆</i><span>{t}</span></div>)}</div></Card>
+      <Card title="Skill tree"><div className="tree">{['Recruiter', 'Motivator', 'Tactician', 'Developer'].map(t => <div key={t}><i /><span>{t}</span></div>)}</div></Card>
     </div>
   );
 }
