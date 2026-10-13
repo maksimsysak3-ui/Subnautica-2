@@ -684,3 +684,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mn-word b { background: linear-gradient(90deg, var(--c), #ffd27a, var(--c)); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: mnShine 6s ease-in-out infinite; }
 @keyframes mnShine { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
 .rw-id .rstars { display: block; color: #f5c542; font-size: 13px; letter-spacing: 1px; } .rw-id .rstars .dimstar { color: rgba(255,255,255,.15); }
+.rf { position: relative; background: radial-gradient(120% 100% at 50% 20%, color-mix(in srgb, var(--h1, #333) 70%, #fff 8%), var(--h1, #222)); }
+.rf::after { content: ''; position: absolute; inset: auto 0 0 0; height: 18%; background: linear-gradient(transparent, rgba(0,0,0,.25)); pointer-events: none; }
+.rf img { position: absolute; left: 50%; bottom: 0; height: 104%; width: auto; transform: translateX(-50%); }
+.rf i { position: absolute; right: 6px; top: 4px; font: 900 18px var(--head); font-style: normal; color: var(--h2, #fff); opacity: .8; }
+.rw-card { flex: none; } .rw-list .rc-filters { flex: none; }

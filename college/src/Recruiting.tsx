@@ -1,16 +1,19 @@
 // The recruiting office: your board, the national search, your commits, and a dossier for each
 // prospect (scouting report, priorities, the race between schools, and your actions this week).
 import { useMemo, useState, type CSSProperties } from 'react';
-import { RecruitPortrait } from './recruitface';
+import { RECRUIT_FACES } from './recruitfaces';
 import { playWeek, weekLabel } from './season';
 import { school, showColor, type School } from './data';
 import { useDynasty, update } from './store';
 import { recruitClass, stateOf, untouchedCommit, act, endWeek, grade, letter, fit, PRIORITIES, COST, HOURS, SCHOLARSHIPS, type Recruit, type Priority } from './recruiting';
 import { Logo } from './App';
 
-/** A prospect's portrait: the recruiting office's own illustrated look, not the pro game's faces. */
+// High school colours behind each portrait.
+const HS_COL = [['#0b2a5b', '#f2b705'], ['#7a0f1f', '#e9e9e9'], ['#0d4d2a', '#e8e8e8'], ['#3b1a68', '#f5c400'], ['#1b1b1b', '#d42027'], ['#0f5fa8', '#ffffff'], ['#c2410c', '#111111'], ['#4b5563', '#facc15'], ['#14532d', '#fbbf24'], ['#1e3a8a', '#ef4444']];
+/** A prospect's photo: a newly generated set of fictional recruits, separate from the pro game's faces. */
 export function RecruitFace({ x, size }: { x: Recruit; size: number }) {
-  return <div className="rf" style={{ width: size, height: size }}><RecruitPortrait seed={`${x.id}:${x.n}`} size={size} pos={size >= 80 ? x.pos : undefined} /></div>;
+  const hs = HS_COL[(x.n * 7 + x.state.length) % HS_COL.length];
+  return <div className="rf" style={{ width: size, height: size, '--h1': hs[0], '--h2': hs[1] } as CSSProperties}><img src={RECRUIT_FACES[(x.face * 37) % RECRUIT_FACES.length]} alt="" draggable={false} />{size >= 80 && <i>{x.pos}</i>}</div>;
 }
 const Stars = ({ n }: { n: number }) => <span className="gold rstars">{'★'.repeat(n)}<span className="dimstar">{'★'.repeat(5 - n)}</span></span>;
 const ht = (h: number) => `${Math.floor(h / 12)}'${h % 12}"`;
@@ -95,7 +98,7 @@ export function RecruitingTab({ s }: { s: School }) {
           })}
           {view === 'Board' && !board.length && <div className="pc-empty">Your board is empty. Find prospects in Search and contact them to add them.</div>}
         </section>
-        {cur ? <Dossier s={s} x={cur} /> : <section className="hc rc-dossier empty"><div className="rw-pick"><RecruitPortrait seed="placeholder" size={120} /><p className="dim">Select a prospect to open his dossier.</p></div></section>}
+        {cur ? <Dossier s={s} x={cur} /> : <section className="hc rc-dossier empty"><div className="rw-pick"><svg viewBox="0 0 120 120" width="110" height="110"><circle cx="60" cy="44" r="24" fill="rgba(255,255,255,.12)" /><path d="M16 120 C18 88 36 76 60 76 C84 76 102 88 104 120Z" fill="rgba(255,255,255,.12)" /></svg><p className="dim">Select a prospect to open his dossier.</p></div></section>}
       </div>
       )}
     </div>
