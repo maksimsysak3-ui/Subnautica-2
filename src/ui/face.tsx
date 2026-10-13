@@ -52,10 +52,11 @@ let logoBySchool: Map<string, string> | undefined;
 
 export function genFace(p: Player): string | undefined {
   const m = /^P(\d{4})-(\d+)$/.exec(p.id);
-  return m ? GEN_FACES[(+m[2] + +m[1] * 53) % GEN_FACES.length] : undefined;
+  // Each class (~300 players) takes the next block of the pool, so consecutive classes don't share faces.
+  return m ? GEN_FACES[(+m[2] + +m[1] * 307) % GEN_FACES.length] : undefined;
 }
-/** Half the portraits are mirrored (decided per player), so a reused face reads as someone else. */
-const genFlip = (p: Player) => { const m = /^P(\d{4})-(\d+)$/.exec(p.id); return !!m && Math.floor((+m[2] + +m[1] * 53) / GEN_FACES.length + +m[2] * 7) % 2 === 1; };
+/** A face reused on a later pass through the pool is mirrored, so it reads as someone else. */
+const genFlip = (p: Player) => { const m = /^P(\d{4})-(\d+)$/.exec(p.id); return !!m && Math.floor((+m[2] + +m[1] * 307) / GEN_FACES.length) % 2 === 1; };
 
 // ---- jersey recolour -------------------------------------------------------------------
 // The AI portraits wear assorted jerseys. Each one is redrawn in the player's own colours
