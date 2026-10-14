@@ -283,6 +283,28 @@ F['holder'] = whole([           # holder on one knee, ball down
     '..BBKK....BBB...',
 ])
 
+F['fall'] = whole([             # going down forward, ball tucked
+    '..........HHH...',
+    '.........HhhHM..',
+    '......TJJHHHSM..',
+    '.....JJJJJJFFS..',
+    '....PJJNNJJWG...',
+    '...PPJJJJJ......',
+    '..PP..pp........',
+    '.KK....kk.......',
+    'BB......bb......',
+])
+F['fallback'] = whole([         # knocked back, arms flung
+    '..HHH......G....',
+    '.MHhhH....S.....',
+    '.MSHHJTJJS......',
+    '..SJJJJJJ.......',
+    '..GJJNNJJ.......',
+    '....JJJJPP......',
+    '......pp.PP.....',
+    '......kk..KK....',
+    '.....bb....BB...',
+])
 # Validate.
 for k, v in F.items():
     assert len(v) == Hh and all(len(r) == W for r in v), k

@@ -16,6 +16,7 @@ import { holdoutOf, fineHoldout } from '../core/holdout';
 import { storylines } from './storylines';
 import { storylines2 } from './storylines2';
 import { storylines3 } from './storylines3';
+import { storylines4 } from './storylines4';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
@@ -470,7 +471,7 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
   const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
-  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit));
+  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 
@@ -496,7 +497,7 @@ export function weeklyCards(L: League): ActionCard[] {
 // you haven't heard about lately. A card can't come back for a few weeks after it's shown,
 // and one you skip twice is handled by your staff (their default call) so it stops nagging.
 const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline', 'Holdout']);
-const DECK_SIZE = 3;
+const DECK_SIZE = 4;
 interface DeckMemory { wk: string; ids: string[]; idx: number; shown: Record<string, number>; seenAt: Record<string, number>; kindAt: Record<string, number>; pidAt: Record<string, number> }
 const deckMem = (L: League) => ((L as League & { actionDeck?: DeckMemory }).actionDeck ??= { wk: '', ids: [], idx: 0, shown: {}, seenAt: {}, kindAt: {}, pidAt: {} });
 

@@ -328,10 +328,10 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
   const endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
   // Quick game for short throws (3-step), a full drop for intermediate and deep ones.
-  const dropT = (air <= 2 ? 0.45 : air <= 9 ? 0.6 : 0.95) + rnd() * 0.15;
+  const dropT = (air <= 2 ? 0.35 : air <= 9 ? 0.5 : 0.8) + rnd() * 0.12;
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
   let throwT = Infinity, airT = 0, catchT = Infinity, settle = false;
-  const flight = (a: [number, number], b: [number, number]) => 0.22 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 15 ? 21 : 18);
+  const flight = (a: [number, number], b: [number, number]) => 0.1 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 25 ? 23 : 27);
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
   const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);

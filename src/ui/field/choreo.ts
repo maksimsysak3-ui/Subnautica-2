@@ -100,7 +100,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   if (sc.pass && sc.complete && tgt >= 0 && catchC !== undefined) {
     const k = K(catchC), cy = Y[tgt][k], air = ev.air ?? ev.yards, yac = ev.yards - air;
     const r = rnd();
-    const hard = air >= 18 && r < 0.5;
+    const hard = air >= 14 || (air >= 8 && r < 0.3);
     if ((cy < 3.2 || cy > FW - 3.2) && yac <= 1.5 && r < 0.85) catchStyle = 'toetap';
     else if (hard && yac <= 2 && r < 0.4) catchStyle = 'dive';
     else if (hard && r < 0.7) catchStyle = 'high';
@@ -204,7 +204,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   };
   const fallPose = (base: Pose, t0: number, c: number, dir: number, back: boolean, dur = 0.42): Pose => {
     const k = (c - t0) / dur;
-    if (k < 1) return { ...base, rot: dir * (Math.PI / 2) * smooth(k) * (back ? -1 : 1) * base.face, f: back ? 'hit' : base.f };
+    if (k < 0.3) return { ...base, f: back ? 'hit' : base.f };
+    if (k < 1) return { ...base, f: back ? 'fallback' : 'fall', lift: back ? 0 : 0 };
     return { ...base, f: back ? 'downback' : 'down', face: (dir > 0) === !back ? 1 : -1, rot: 0 };
   };
   const scenePose = (i: number, c: number): Pose => {
@@ -240,7 +241,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
         if (c < tackC) return P('wrap', { face: f2 });
         const k2 = clamp((c - tackC) / 0.5, 0, 1);
         const px = lerp(X[i][tk], cx - f2 * 0.6, k2), py = lerp(Y[i][tk], cy + 0.25, k2);
-        return { x: px, y: py, f: k2 < 0.6 ? 'wrap' : 'down', face: f2, rot: k2 < 0.6 ? f2 * k2 * 1.2 : 0, lift: 0 };
+        return { x: px, y: py, f: k2 < 0.3 ? 'wrap' : k2 < 0.7 ? 'fall' : 'down', face: f2, rot: 0, lift: 0 };
       }
       if (i === pile && c >= tackC + 0.05) {
         const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk];
@@ -263,10 +264,10 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (i === qb && scrim) {
       if (throwC !== undefined) {
         const d = c - throwC;
-        if (d > -0.42 && d < -0.12) return P('throw1', { face: s as 1 | -1 });
-        if (d >= -0.12 && d < 0.06) return P('throw2', { face: s as 1 | -1 });
-        if (d >= 0.06 && d < 0.4) return P('throw3', { face: s as 1 | -1 });
-        if (d < -0.42 && holder) {
+        if (d > -0.26 && d < -0.07) return P('throw1', { face: s as 1 | -1 });
+        if (d >= -0.07 && d < 0.05) return P('throw2', { face: s as 1 | -1 });
+        if (d >= 0.05 && d < 0.28) return P('throw3', { face: s as 1 | -1 });
+        if (d < -0.26 && holder) {
           if (sp > 1.4 && VX[i][k] * s < -0.4) return P((Math.floor(PH[i][k] * 4) % 2 ? 'back0' : 'back1'), { face: s as 1 | -1 });   // the drop
           if (sp > 1.4) return P(run6(i, k, true));
           return P('hold', { face: s as 1 | -1 });
@@ -339,13 +340,15 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       if (fwd < -0.6 && !isLine(i)) return P(Math.floor(PH[i][k] * 4) % 2 ? 'back0' : 'back1', { face: -s as 1 | -1 });
       if (Math.abs(VY[i][k]) > Math.abs(VX[i][k]) * 1.4 && sp < 5) return P(Math.floor(PH[i][k] * 4) % 2 ? 'shuf0' : 'shuf1', { face: -s as 1 | -1 });
     }
-    if (sp > 0.9) return P(run6(i, k, false, sp < 3.5));
+    if (sp > 0.45) return P(run6(i, k, false, sp < 3.5));
     return P('stand');
   };
   // After the whistle: get up, celebrate, mob the scorer.
   const postPose = (i: number, p: number): Pose => {
-    const end = scenePose(i, D);
-    const lying = end.f === 'down' || end.f === 'downback' || end.f === 'dive' || end.f === 'wrap';
+    const e0 = scenePose(i, D), kk = N - 1, coast = 0.35 * (1 - Math.exp(-p / 0.35));
+    const moving = SP[i][kk] * Math.exp(-p / 0.35) > 0.5 && !['down', 'downback', 'wrap', 'dive', 'fall', 'fallback', 'kneel'].includes(e0.f) && !e0.rot;
+    const end = moving ? { ...e0, x: e0.x + VX[i][kk] * coast, y: e0.y + VY[i][kk] * coast, f: run6(i, Math.floor((p * 6) % 6), hold(D) === i, true) } : { ...e0, x: e0.x + (e0.rot || e0.f === 'down' ? 0 : VX[i][kk] * coast), y: e0.y + (e0.rot || e0.f === 'down' ? 0 : VY[i][kk] * coast) };
+    const lying = ['down', 'downback', 'dive', 'wrap', 'fall', 'fallback'].includes(end.f);
     const upAt = i === hero ? (td ? 0.35 : 0.5) : 0.7 + (i % 5) * 0.12;
     let base = end;
     if (lying || end.rot) {

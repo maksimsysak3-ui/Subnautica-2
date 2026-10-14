@@ -169,7 +169,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       });
       if (ch && mode === 'live' && !bannerShown && ev && clock > ch.DUR + Math.min(0.6, ch.POST * 0.3)) {
         bannerShown = true; const b = bannerFor(ev, home, away, sc, ch); if (b) setBanner({ n: ev.n, ...b });
-        if (ch.label) setUi(u => ({ ...u, label: ch.label }));
+        
       }
       
       hype += (0.18 - hype) * realDt * 0.25;
@@ -288,8 +288,7 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     const sw = lift > 2 ? 5 : 8;
     g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(px - sw / 2, py, sw + 1, 1); g.fillRect(px - sw / 2 + 1, py + 1, sw - 1, 1);
     const spr = sprite(kit, skin, p.f, p.face < 0, isRef);
-    if (p.rot) { g.save(); g.translate(px, py - lift); g.rotate(p.rot); g.drawImage(spr, -ANCHOR_X, -ANCHOR_Y); g.restore(); }
-    else g.drawImage(spr, px - ANCHOR_X, py - ANCHOR_Y - lift);
+    g.drawImage(spr, px - ANCHOR_X, py - ANCHOR_Y - lift);
     if (!isRef && i === holder && !BALL_FRAMES.has(p.f) && p.f !== 'down' && p.f !== 'downback' && !p.rot) { g.fillStyle = '#7a3a12'; g.fillRect(px + (p.face > 0 ? 2 : -4), py - 11 - lift, 3, 2); }
     // Breath in the cold.
     if (cold && ((now / 1000 + i * 0.37) % 1.6) < 0.45) { const k = ((now / 1000 + i * 0.37) % 1.6) / 0.45; g.fillStyle = `rgba(240,244,250,${0.55 * (1 - k)})`; g.fillRect(px + p.face * (5 + Math.round(k * 3)), py - 17 - lift - Math.round(k * 2), 2, 1); }
