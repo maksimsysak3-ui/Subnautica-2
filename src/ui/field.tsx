@@ -315,23 +315,27 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
   // The ball in flight: a shadow on the turf, a short trail, a spiral (or end over end off a foot).
   if (ball && (ball.free || ball.h > 1.6) && holder < 0 || (ball && ball.h > 1.6)) {
     const px = sx(ball.x), py = sy(ball.y, ball.h);
-    if (ball.h > 0.4) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(sx(ball.x) - 1, sy(ball.y), 3, 1); }
+    if (ball.h > 0.4) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(sx(ball.x) - 2, sy(ball.y), 5, 2); }
     if (ball.h > 1) for (let k = 1; k <= 4; k++) { const b2 = ch.ball(c - k * 0.022); if (!b2) break; g.fillStyle = `rgba(255,255,255,${0.24 - k * 0.05})`; g.fillRect(sx(b2.x), sy(b2.y, b2.h), 2, 1); }
-    if (ball.kick && ball.h > 0.5) {
-      const f = Math.floor(now / 60) % 3;
-      g.fillStyle = '#1a0d05'; f === 0 ? g.fillRect(px - 2, py - 1, 5, 3) : f === 1 ? g.fillRect(px - 1, py - 2, 3, 5) : g.fillRect(px - 1, py - 1, 3, 3);
-      g.fillStyle = '#8a4416'; g.fillRect(px - (f === 0 ? 1 : 0), py - (f === 1 ? 1 : 0), f === 0 ? 3 : 1, f === 1 ? 3 : 1);
-    } else {
-      const spin = Math.floor(now / 50) % 3;
-      g.fillStyle = '#1a0d05'; g.fillRect(px - 2, py - 1, 5, 3);
-      g.fillStyle = '#8a4416'; g.fillRect(px - 1, py, 3, 1); g.fillRect(px - 1 + spin, py - 1, 1, 1);
-      g.fillStyle = '#ffffff'; g.fillRect(px - 1 + ((spin + 1) % 3), py, 1, 1);
-    }
+    // A proper football: dark outline, brown leather, laces, pointed along its flight
+    // (a tight spiral on throws, end over end off the foot).
+    const b2 = ch.ball(c + 0.03), dir = b2 ? Math.atan2(sy(b2.y, b2.h) - py, sx(b2.x) - px) : 0;
+    const ang = ball.kick && ball.h > 0.5 ? (now / 90) % (Math.PI * 2) : dir;
+    drawFootball(g, px, py, ang, Math.floor(now / 45) % 3);
   } else if (ball && ball.free) {
     const px = sx(ball.x), py = sy(ball.y, ball.h);
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(px - 1, sy(ball.y), 3, 1);
-    g.fillStyle = '#1a0d05'; g.fillRect(px - 2, py - 1, 5, 3); g.fillStyle = '#8a4416'; g.fillRect(px - 1, py, 3, 1);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(px - 2, sy(ball.y), 5, 1);
+    drawFootball(g, px, py, 0, 0);
   }
+}
+
+/** The ball, 7x4 pixels: outlined so it reads against grass, crowd and jerseys. */
+function drawFootball(g: CanvasRenderingContext2D, px: number, py: number, ang: number, spin: number) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const P = (u: number, v: number, col: string) => { g.fillStyle = col; g.fillRect(Math.round(px + u * ca - v * sa), Math.round(py + u * sa + v * ca), 1, 1); };
+  for (let u = -4; u <= 4; u++) for (let v = -2; v <= 2; v++) { const e = (u * u) / 16 + (v * v) / 4; if (e <= 1.15 && e > 0.55) P(u, v, '#120803'); }
+  for (let u = -3; u <= 3; u++) for (let v = -1; v <= 1; v++) { const e = (u * u) / 10 + (v * v) / 2.2; if (e <= 1) P(u, v, v < 0 ? '#a0521f' : '#7a3a12'); }
+  P(-1 + spin, 0, '#ffffff'); P(spin, -0, '#ffffff'); P(-3, 0, '#f2f2f2'); P(3, 0, '#f2f2f2');
 }
 
 function drawArt(g: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolean, sx: (x: number) => number, sy: (y: number, z?: number) => number) {

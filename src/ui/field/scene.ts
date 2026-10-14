@@ -332,8 +332,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
   let throwT = Infinity, airT = 0, catchT = Infinity, settle = false;
   const throwKind: 'bullet' | 'touch' | 'deep' = Math.abs(air) >= 25 ? 'deep' : Math.abs(air) <= 3 ? (rnd() < 0.6 ? 'touch' : 'bullet') : rnd() < 0.3 ? 'touch' : 'bullet';
-  const vel = throwKind === 'bullet' ? 28 : throwKind === 'touch' ? 17 : 21;
-  const flight = (a: [number, number], b: [number, number]) => 0.08 + Math.hypot(b[0] - a[0], b[1] - a[1]) / vel;
+  const vel = throwKind === 'bullet' ? 31 : throwKind === 'touch' ? 21 : 25;   // yards a second: ~60 mph bullets, ~50 mph deep balls
+  const flight = (a: [number, number], b: [number, number]) => 0.05 + Math.hypot(b[0] - a[0], b[1] - a[1]) / vel;
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
   const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);
@@ -378,7 +378,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         // The catch is made at the engine's air yards: never deeper (that would show a 9-yard
         // gain as a 20-yard one), and if he is short of it he has to get there.
         if (depth > air + 1.5) proj = [los + s * air, proj[1]];
-        thrown = true; throwT = t; throwFrom = from; recvPt = proj;
+        thrown = true; throwT = t; throwFrom = [from[0] + s * 0.35, from[1]]; recvPt = proj;
         // Comebacks, curls, hitches and finished routes settle and catch it standing; slants,
         // posts, gos and crossers catch it in stride.
         { const rt = routes[targetIdx], a2 = rt[rt.length - 1], a1 = rt[rt.length - 2] ?? rt[0];
