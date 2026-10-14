@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { rosterOf, showColor, SCHOOLS, type School, type Player } from './data';
 import { useDynasty, update } from './store';
-import { DecisionArt } from './weeklyart';
 
 // ---- pixel sprites (12x12; '.' is transparent, c/d are the school's colours) ---------------
 const SPR: Record<string, string[]> = {
@@ -142,7 +141,7 @@ export function Weekly({ s }: { s: School }) {
       })}</div>
       <div className="wk-list">{list.map((x, i) => (
         <article key={x.id} className={`wk-card${done[x.id] ? ' done' : ''}`} onClick={() => !done[x.id] && setOpen(x)}>
-          <div className="wk-pen"><DecisionArt kind={x.sprite} c={c} d={s.c2 || '#ffffff'} id={x.id} /><span className="wk-hex">{TABS.indexOf(x.tab) + 1}</span></div>
+          <div className="wk-pen"><span className="wk-hex">{TABS.indexOf(x.tab) + 1}</span></div>
           <header><svg viewBox="0 0 24 24" className="wk-ic"><path d={ICON[x.tab]} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg><span>{x.who}</span><em>{DAY[(i + x.id.length) % 5]}</em></header>
           <b className="wk-t">{x.title}</b>
           <p>{done[x.id] ?? x.text}</p>

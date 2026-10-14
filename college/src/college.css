@@ -603,3 +603,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .gf-box { display: grid; gap: 4px; font-size: 13px; } .gf-box > div { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
 .gf-tops { display: flex; flex-wrap: wrap; gap: 8px; } .gf-tops > * { padding: 6px 10px; background: rgba(255,255,255,.05); border-radius: 6px; font-size: 13px; }
 @media (max-width: 640px) { .gf-grid { grid-template-columns: 1fr; } }
+.wk-pen { height: auto !important; min-height: 0 !important; background: none !important; padding: 8px 12px 0; } .wk-pen .wk-art { display: none; }
