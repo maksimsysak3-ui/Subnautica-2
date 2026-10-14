@@ -1,23 +1,28 @@
 // Title screen: a broadcast-style opening built from the league's real faces and
-// marks, then a Madden-style main menu with the cover athlete, big image tiles and
-// a live news crawl.
+// marks, then the main menu. The menu has the same bones as the college game's
+// (brand, big expanding tiles with tilt, a live franchise strip on Continue, a crawl
+// along the bottom) dressed as a pro broadcast: a stadium at night, chrome wordmark,
+// cut-corner panels and a rotating featured athlete in his team's colours.
 //
 // Opening (about 6.4s, skippable):
 //   ignition   a light streak tears across black and leaves "THE 2026 SEASON"
 //   tunnel     the camera flies through a tunnel of all 32 team logos
 //   stars      rapid cuts: four of the league's best, each in his team's colours
 //   wordmark   white flash, light rays, the chrome wordmark slams in with sparks
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { app, listSaves, loadLeague, type SaveMeta } from '../store';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { app, listSaves, loadLeague, useApp, type SaveMeta } from '../store';
 import data from '../../data/league.json';
 import { RAW_TEAMS } from '../../core/league';
+import { standings, userGame, ROUND_NAME } from '../../core/season';
+import type { League } from '../../core/types';
 import { migrate } from './menu';
-import { BottomLine, preseasonHeadlines } from '../ticker';
+import { BottomLine, leagueCrawl, preseasonHeadlines } from '../ticker';
+import '../menu.css';
 
 type RawP = { id: string; fn: string; ln: string; pos: string; team: string; ovr: number; hs?: string; num?: number };
 const PLAYERS = (data as unknown as { players: RawP[] }).players;
 const TEAM = (abbr: string) => RAW_TEAMS.find(t => t.abbr === abbr);
-const POS_NAME: Record<string, string> = { QB: 'Quarterback', WR: 'Wide Receiver', EDGE: 'Edge Rusher', RB: 'Running Back', DT: 'Defensive Tackle', TE: 'Tight End', CB: 'Cornerback', S: 'Safety', LB: 'Linebacker', OT: 'Tackle' };
+const POS_NAME: Record<string, string> = { QB: 'Quarterback', WR: 'Wide Receiver', EDGE: 'Edge Rusher', RB: 'Running Back', DT: 'Defensive Tackle', TE: 'Tight End', CB: 'Cornerback', S: 'Safety', LB: 'Linebacker', OT: 'Tackle', G: 'Guard', C: 'Center', K: 'Kicker', P: 'Punter', LS: 'Long Snapper', FB: 'Fullback' };
 /** The league's best at marquee positions, one per team and in clearly different colours. */
 const STARS = (() => {
   const rgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -127,92 +132,188 @@ function Opening({ onDone }: { onDone: () => void }) {
 }
 
 // ---- the main menu ------------------------------------------------------------------------
+type RT = (typeof RAW_TEAMS)[number];
+/** Who stands in the hero spot: a rotating star, or the selected tile's team's best player. */
+type Hero = { fn: string; ln: string; pos: string; ovr: number; num?: number; hs?: string; team: RT };
+const heroOf = (p: RawP): Hero => ({ ...p, team: TEAM(p.team)! });
+const starOf = (abbr: string): Hero | undefined => { const p = PLAYERS.filter(q => q.team === abbr && q.hs).sort((a, b) => b.ovr - a.ovr)[0]; return p ? heroOf(p) : undefined; };
+const ORD = ['', 'st', 'nd', 'rd', 'th'];
+const PHASE: Record<string, string> = { preseason: 'Preseason', regular: 'Regular Season', playoffs: 'Playoffs', resign: 'Re-sign Period', freeagency: 'Free Agency', draft: 'Draft', camp: 'Training Camp' };
+const logoErr = (t: RT) => (e: React.SyntheticEvent<HTMLImageElement>) => { const i = e.currentTarget; if (i.dataset.alt) i.style.visibility = 'hidden'; else { i.dataset.alt = '1'; i.src = t.logoAlt; } };
+const TLogo = ({ t, className, size }: { t: RT; className?: string; size?: number }) => <img className={className} src={t.logo} width={size} height={size} alt="" onError={logoErr(t)} />;
+
+/** Where a franchise stands, for the strip on the Continue tile and the hero. */
+interface Franchise { L: League; team: RT; when: string; rec: string; place: string; next?: { opp: RT; home: boolean }; star?: Hero }
+function franchiseOf(L: League): Franchise | undefined {
+  const team = TEAM(L.user), t = L.teams[L.user];
+  if (!team || !t) return undefined;
+  const st = standings(L), me = st[L.user];
+  const rank = Object.values(st).filter(x => L.teams[x.abbr]?.conf === t.conf && L.teams[x.abbr]?.div === t.div).sort((a, b) => b.pct - a.pct || b.w - a.w).findIndex(x => x.abbr === L.user) + 1;
+  const g = L.phase === 'regular' || L.phase === 'playoffs' ? userGame(L) : undefined;
+  const opp = g && !g.result ? TEAM(g.home === L.user ? g.away : g.home) : undefined;
+  const best = Object.values(L.players).filter(p => p.team === L.user && p.status === 'ACT' && p.hs).sort((a, b) => b.ovr - a.ovr)[0];
+  const when = L.phase === 'regular' ? `Week ${L.week}` : L.phase === 'playoffs' ? ROUND_NAME[L.week] ?? 'Playoffs' : L.phase === 'freeagency' ? `Free Agency · Day ${L.fa?.day ?? 1}` : PHASE[L.phase] ?? L.phase;
+  return {
+    L, team, when: `${L.season} · ${when}`,
+    rec: me ? `${me.w}-${me.l}${me.t ? `-${me.t}` : ''}` : '0-0',
+    place: rank ? `${rank}${ORD[rank]} ${t.conf} ${t.div}` : `${t.conf} ${t.div}`,
+    next: opp && g ? { opp, home: g.home === L.user } : undefined,
+    star: best ? { fn: best.fn, ln: best.ln, pos: best.pos, ovr: best.ovr, num: best.num, hs: best.hs, team } : undefined,
+  };
+}
+const ago = (ms: number) => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 1440)} days ago`; };
+
+interface Tile { k: 'continue' | 'new' | 'quick' | 'load' | 'guide'; title: string; sub: string; team?: RT; go: () => void }
+
 function Menu({ entering }: { entering: boolean }) {
+  const { league: live } = useApp();
   const [saves, setSaves] = useState<SaveMeta[]>([]);
+  const [saved, setSaved] = useState<League | null>(null);
   const [star, setStar] = useState(0);
   const [sel, setSel] = useState(0);
   const [guide, setGuide] = useState(false);
-  const crawl = useMemo(() => preseasonHeadlines().map((h, i) => <em key={i}>{h}</em>), []);
+  const quick = useMemo(() => RAW_TEAMS[Math.floor(Math.random() * RAW_TEAMS.length)], []);
   useEffect(() => { listSaves().then(setSaves); }, []);
-  useEffect(() => { const t = setInterval(() => setStar(s => (s + 1) % STARS.length), 7000); return () => clearInterval(t); }, []);
+  useEffect(() => { if (!entering) return; const t = setTimeout(() => setStar(s => (s + 1) % STARS.length), 7000); return () => clearTimeout(t); }, [entering, star]);
+  // A franchise open in this session resumes as it is; otherwise the newest save is
+  // opened in the background so Continue can show where it stands.
+  const resume = live && !live.fired ? live : null;
   const last = saves[0];
-  const lt = last ? RAW_TEAMS.find(t => t.abbr === last.team || t.name === last.team || t.nick === last.team) : undefined;
-  const tiles = useMemo(() => [
-    ...(last ? [{ k: 'continue', title: 'Continue', sub: `${last.name ?? ''}`.trim() || 'Franchise', meta: `${last.season} · ${last.phase}${last.week ? ` · Week ${last.week}` : ''}`, go: async () => { const l = await loadLeague(last.slot); if (l) { migrate(l); app.setLeague(l); app.replace({ id: 'hub' }); } } }] : []),
-    { k: 'new', title: 'New Franchise', sub: 'Take over any of 32 teams', meta: 'Real 2026 rosters, contracts & cap', go: async () => app.go({ id: 'new' }) },
-    { k: 'quick', title: 'Quick Start', sub: 'A random team, straight to the coach room', meta: 'Pro difficulty', go: async () => quickStart() },
-    { k: 'load', title: 'Load Franchise', sub: `${saves.length} saved franchise${saves.length === 1 ? '' : 's'}`, meta: 'Pick up where you left off', go: async () => app.go({ id: 'load' }) },
-    { k: 'guide', title: 'How to Play', sub: 'The franchise in two minutes', meta: 'Weekly actions, trades, archetypes, the press', go: async () => setGuide(true) },
-  ], [saves, last]);
+  useEffect(() => {
+    if (resume || !last) return;
+    let on = true;
+    loadLeague(last.slot).then(l => { if (on && l) { migrate(l); setSaved(l); } });
+    return () => { on = false; };
+  }, [last?.slot, !!resume]);
+  const fr = useMemo(() => { const L = resume ?? saved; return L ? franchiseOf(L) : undefined; }, [resume, saved, live]);
+  const contTeam = resume ? TEAM(resume.user) : last ? TEAM(last.team) : undefined;
+  const cont = async () => {
+    if (resume) { app.replace({ id: 'hub' }); return; }
+    if (!last) return;
+    const l = saved ?? await app.busy('Loading your franchise…', async () => { const x = await loadLeague(last.slot); if (x) migrate(x); return x; });
+    if (l) { app.setLeague(l); app.replace({ id: 'hub' }); } else app.toast('That save could not be loaded');
+  };
+  const tiles: Tile[] = [
+    ...(contTeam ? [{ k: 'continue' as const, title: 'Continue', sub: `${contTeam.name} · ${resume ? 'pick up where you left off' : `saved ${ago(last!.saved)}`}`, team: contTeam, go: cont }] : []),
+    { k: 'new', title: 'New Franchise', sub: 'Take over any of 32 teams', go: () => app.go({ id: 'new' }) },
+    { k: 'quick', title: 'Quick Start', sub: `Jump in as the ${quick.name}`, team: quick, go: () => quickStart(quick.abbr) },
+    { k: 'load', title: 'Load Franchise', sub: saves.length ? `${saves.length} saved franchise${saves.length === 1 ? '' : 's'}` : 'No saved franchises yet', go: () => app.go({ id: 'load' }) },
+    { k: 'guide', title: 'How to Play', sub: 'The franchise in two minutes', go: () => setGuide(true) },
+  ];
+  const on = Math.min(sel, tiles.length - 1);
+  const cur = tiles[on];
   useEffect(() => {
     if (!entering) return;
     const k = (e: KeyboardEvent) => {
       if (guide) { if (e.key === 'Escape' || e.key === 'Enter') setGuide(false); return; }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') setSel(i => (i + 1) % tiles.length);
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') setSel(i => (i - 1 + tiles.length) % tiles.length);
-      else if (e.key === 'Enter') tiles[sel]?.go();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); setSel(i => (Math.min(i, tiles.length - 1) + 1) % tiles.length); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); setSel(i => (Math.min(i, tiles.length - 1) - 1 + tiles.length) % tiles.length); }
+      else if (e.key === 'Enter') { e.preventDefault(); tiles[on]?.go(); }
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
-  }, [tiles, sel, entering, guide]);
-  const p = STARS[star], t = TEAM(p.team)!;
+  });
+  // The hero: the selected team's best player, or the league's stars in rotation.
+  const teamHero = cur?.k === 'continue' && cur.team ? (fr?.team.abbr === cur.team.abbr ? fr.star : undefined) ?? starOf(cur.team.abbr) : cur?.k === 'quick' ? starOf(quick.abbr) : undefined;
+  const hero = teamHero ?? heroOf(STARS[star]);
+  const ht = hero.team;
+  const kicker = cur?.k === 'continue' ? 'Your Franchise' : cur?.k === 'quick' ? 'Quick Start' : 'Featured Athlete';
+  const crawl = useMemo(() => fr ? leagueCrawl(fr.L) : [<span key="sec" className="sec">2026 Preseason</span>, ...preseasonHeadlines().map((h, i) => <em key={i}>{h}</em>)], [fr?.L]);
+  const tilt = (e: React.MouseEvent<HTMLButtonElement>) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--rx', `${((e.clientY - r.top) / r.height - 0.5) * -7}deg`); e.currentTarget.style.setProperty('--ry', `${((e.clientX - r.left) / r.width - 0.5) * 9}deg`); };
+  const untilt = (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.removeProperty('--rx'); e.currentTarget.style.removeProperty('--ry'); };
+  const heroKey = `${ht.abbr}-${hero.ln}`;
   return (
-    <div className={`mm${entering ? ' in' : ''}`} style={{ '--c1': showColor(t), '--c2': t.colors[1] } as CSSProperties}>
-      <div className="mm-bg" key={'bg' + star} />
-      <div className="mm-beams"><i /><i /><i /></div>
-      <img className="mm-mark" key={'m' + star} src={t.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = t.logoAlt; }} />
-      <div className="mm-num" key={'n' + star}>{p.num ?? ''}</div>
-      <img className="mm-hero" key={'h' + star} src={big(p.hs)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
-      <div className="mm-dust">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${-(i * 1.7) % 14}s`, animationDuration: `${12 + (i % 5) * 3}s` }} />)}</div>
-      <div className="mm-flare" />
-      <div className="mm-vignette" />
-      <div className="mm-grain" />
+    <div className={`pm${entering ? ' in' : ''}`} style={{ '--c': showColor(ht), '--c2': ht.colors[1] ?? '#ffffff' } as CSSProperties}>
+      <Stadium />
+      <div className="pm-hero" key={'h' + heroKey}>
+        <div className="pm-num">{hero.num ?? ''}</div>
+        <TLogo t={ht} className="pm-mark" />
+        {hero.hs && <img className="pm-ath" src={big(hero.hs)} alt="" onError={e => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />}
+      </div>
+      <div className="pm-shade" />
 
-      <header className="mm-top">
-        <div className="mm-word">GRIDIRON<b>GM</b></div>
-        <div className="mm-season">2026 Season · Real Rosters</div>
+      <header className="pm-top">
+        <div className="pm-brand">
+          <div className="pm-word"><span className="pm-chrome" data-t="GRIDIRON">GRIDIRON</span><b className="pm-plate">GM</b></div>
+          <div className="pm-season"><i />2026 Season · 32 Teams · Real Rosters</div>
+        </div>
+        <div className="pm-topr">
+          {resume && <button className="pm-opt" onClick={() => app.go({ id: 'options' })}>Options</button>}
+          <span className="pm-hint"><kbd>↑</kbd><kbd>↓</kbd>Select <kbd>Enter</kbd>Confirm</span>
+        </div>
       </header>
 
-      <div className="mm-cover" key={'c' + star}>
-        <div className="mm-cover-k">Cover Athlete</div>
-        <div className="mm-cover-fn">{p.fn}</div>
-        <div className="mm-cover-ln">{p.ln}</div>
-        <div className="mm-cover-meta"><span>{POS_NAME[p.pos] ?? p.pos}</span><span>{t.name}</span><b>{p.ovr} OVR</b></div>
-        <div className="mm-dots">{STARS.map((_, i) => <i key={i} className={i === star ? 'on' : ''} onClick={() => setStar(i)} />)}</div>
-      </div>
+      <section className="pm-feat" key={'f' + heroKey}>
+        <div className="pm-feat-k"><TLogo t={ht} />{kicker}</div>
+        <div className="pm-feat-fn">{hero.fn}</div>
+        <div className="pm-feat-ln">{hero.ln}</div>
+        <div className="pm-feat-meta"><span>{POS_NAME[hero.pos] ?? hero.pos}</span><span>{ht.name}</span><b>{hero.ovr} OVR</b></div>
+        {!teamHero && <div className="pm-dots">{STARS.map((_, i) => <i key={i} className={i === star ? 'on' : ''} onClick={() => setStar(i)} />)}</div>}
+      </section>
 
-      <nav className="mm-tiles">
-        {tiles.map((x, i) => (
-          <button key={x.k} className={`mm-tile ${x.k}${i === sel ? ' on' : ''}`} style={{ '--i': i } as CSSProperties} onMouseEnter={() => setSel(i)} onClick={() => x.go()}>
-            <div className="mm-tile-art">
-              {x.k === 'continue' && lt && <><div className="mm-tile-team" style={{ background: `linear-gradient(135deg, ${lt.colors[0]}, #05070c 85%)` }} /><img src={lt.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = lt.logoAlt; }} /></>}
-              {x.k === 'new' && <div className="mm-mosaic">{[...RAW_TEAMS, ...RAW_TEAMS].map((tm, j) => <img key={j} src={tm.logo} alt="" onError={e => { (e.target as HTMLImageElement).src = tm.logoAlt; }} />)}</div>}
-              {x.k === 'load' && <div className="mm-stack">{[0, 1, 2].map(j => <i key={j} />)}</div>}
-              {(x.k === 'quick' || x.k === 'guide') && <div className="mm-tile-ico">{ICONS[x.k]}</div>}
-            </div>
-            <div className="mm-tile-txt"><b>{x.title}</b><span>{x.sub}</span><em>{x.meta}</em></div>
+      <nav className="pm-tiles">
+        {tiles.map((t, i) => (
+          <button key={t.k} className={`pm-tile ${t.k}${i === on ? ' on' : ''}`} style={{ '--i': i, ...(t.team ? { '--tc': showColor(t.team), '--tc2': t.team.colors[1] } : {}) } as CSSProperties}
+            onMouseEnter={() => setSel(i)} onFocus={() => setSel(i)} onMouseMove={tilt} onMouseLeave={untilt} onClick={t.go}>
+            <div className="pm-frame"><div className="pm-face">
+              <div className="pm-art"><TileArt t={t} saves={saves} /></div>
+              <div className="pm-idx">{String(i + 1).padStart(2, '0')}</div>
+              {t.k === 'continue' && (fr && fr.team.abbr === t.team?.abbr ? (
+                <div className="pm-strip">
+                  <span><em>{fr.when}</em><b>{fr.rec}</b></span>
+                  <span><em>Division</em><b>{fr.place}</b></span>
+                  {fr.next && <span className="nx"><em>Next</em><b>{fr.next.home ? 'vs' : '@'} <TLogo t={fr.next.opp} size={22} /> {fr.next.opp.nick}</b></span>}
+                </div>
+              ) : last && (
+                <div className="pm-strip"><span><em>{last.season} · {PHASE[last.phase] ?? last.phase}</em><b>{last.phase === 'regular' ? `Week ${last.week}` : 'Saved'}</b></span></div>
+              ))}
+              <div className="pm-txt"><b>{t.title}</b><span>{t.sub}</span></div>
+              <i className="pm-sheen" />
+            </div></div>
           </button>
         ))}
       </nav>
-      {guide && <HowToPlay onClose={() => setGuide(false)} />}
-      <div className="mm-hint">↑ ↓ Select · Enter Confirm</div>
 
-      <BottomLine tag="Around the League" items={[<span key="sec" className="sec">2026 Preseason</span>, ...crawl]} />
+      {guide && <HowToPlay onClose={() => setGuide(false)} />}
+      <BottomLine tag="Around the League" items={crawl} />
     </div>
   );
 }
 
-const ICONS: Record<string, ReactNode> = {
-  continue: <svg viewBox="0 0 24 24"><path d="M7 5v14l11-7z" fill="currentColor" /></svg>,
-  new: <svg viewBox="0 0 24 24"><path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" /></svg>,
-  quick: <svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="currentColor" /></svg>,
-  load: <svg viewBox="0 0 24 24"><path d="M4 6h6l2 2h8v11H4z" fill="none" stroke="currentColor" strokeWidth="2" /></svg>,
-  guide: <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.6V14M12 17v.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" /></svg>,
-};
+/** A stadium at night: light banks, beams, the bowl and a glowing field. */
+function Stadium() {
+  return (
+    <div className="pm-stadium" aria-hidden>
+      <div className="pm-sky" />
+      <div className="pm-beams"><i /><i /><i /><i /></div>
+      <div className="pm-lights l"><i /></div><div className="pm-lights r"><i /></div>
+      <div className="pm-bowl"><div className="pm-flash">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ left: `${(i * 37 + 11) % 100}%`, top: `${(i * 23) % 70 + 10}%`, animationDelay: `${(i * 0.83) % 6}s` }} />)}</div></div>
+      <div className="pm-field"><div className="pm-turf" /></div>
+      <div className="pm-haze" />
+    </div>
+  );
+}
 
-/** Start a franchise with a random team, skipping team select. */
-function quickStart() {
-  const teams = RAW_TEAMS.map(t => t.abbr);
-  const team = teams[Math.floor(Math.random() * teams.length)];
+function TileArt({ t, saves }: { t: Tile; saves: SaveMeta[] }) {
+  switch (t.k) {
+    case 'continue': case 'quick': return <><div className="pm-tteam" /><TLogo t={t.team!} className="pm-biglogo" /></>;
+    case 'new': return <div className="pm-mosaic">{[...RAW_TEAMS, ...RAW_TEAMS].map((x, j) => <TLogo key={j} t={x} />)}</div>;
+    case 'load': {
+      const shown = saves.slice(0, 3);
+      return <div className="pm-stack">{[0, 1, 2].map(j => { const s = shown[2 - j]; const st = s ? TEAM(s.team) : undefined; return <i key={j} style={st ? { '--sc': showColor(st) } as CSSProperties : undefined}>{st && <TLogo t={st} />}{s && <em>{s.season}</em>}</i>; })}</div>;
+    }
+    case 'guide': return (
+      <svg viewBox="0 0 220 140" className="pm-play">
+        <g stroke="rgba(255,255,255,.12)" strokeWidth="1">{[20, 50, 80, 110].map(y => <path key={y} d={`M0 ${y} H220`} />)}</g>
+        <g fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">{[50, 80, 110, 140, 170].map(x => <circle key={x} cx={x} cy="104" r="7" />)}
+          <path d="M50 97 L50 44 L84 30" /><path d="M170 97 L160 36" /><path d="M110 97 L110 66 L148 56" strokeDasharray="6 6" /><path d="M140 97 Q150 70 196 74" /></g>
+        <g stroke="var(--gold, #ffd23f)" strokeWidth="3" strokeLinecap="round">{[[70, 40], [120, 30], [160, 54], [196, 46]].map(([x, y]) => <path key={x} d={`M${x - 6} ${y - 6} L${x + 6} ${y + 6} M${x + 6} ${y - 6} L${x - 6} ${y + 6}`} />)}</g>
+      </svg>
+    );
+  }
+}
+
+/** Start a franchise with the team the Quick Start tile shows, skipping team select. */
+function quickStart(team: string) {
   app.busy('Building your franchise…', async () => {
     const { createLeague } = await import('../../core/league');
     app.setLeague(createLeague(team, 'You', { difficulty: 'Pro' }));
@@ -230,11 +331,12 @@ const GUIDE: [string, string][] = [
 ];
 function HowToPlay({ onClose }: { onClose: () => void }) {
   return (
-    <div className="mm-guide" onClick={onClose}>
-      <div className="mm-gc" onClick={e => e.stopPropagation()}>
-        <div className="mm-gh"><b>How to Play</b><button className="btn" onClick={onClose}>Close</button></div>
-        <div className="mm-gg">{GUIDE.map(([h, b], i) => <div key={h}><span>{String(i + 1).padStart(2, '0')}</span><b>{h}</b><p>{b}</p></div>)}</div>
+    <div className="pm-guide" onClick={onClose}>
+      <div className="pm-gc" onClick={e => e.stopPropagation()}>
+        <div className="pm-gh"><b>How to Play</b><button className="pm-opt" onClick={onClose}>Close</button></div>
+        <div className="pm-gg">{GUIDE.map(([h, b], i) => <div key={h}><span>{String(i + 1).padStart(2, '0')}</span><b>{h}</b><p>{b}</p></div>)}</div>
       </div>
     </div>
   );
 }
+
