@@ -1,0 +1,233 @@
+/* Gridiron GM main menu: a pro broadcast open in a stadium at night. Graphite and
+   black, chrome wordmark, condensed italic type, cut-corner panels, and one accent
+   colour (--c) taken from the featured or selected team. Prefix: pm-. */
+
+@property --c { syntax: '<color>'; inherits: true; initial-value: #2a6fdb; }
+@property --c2 { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+
+.pm {
+  --cut: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
+  --cut-in: polygon(21px 0, 100% 0, 100% calc(100% - 21px), calc(100% - 21px) 100%, 0 100%, 0 21px);
+  position: fixed; inset: 0; z-index: 1; overflow: hidden; color: #fff; background: #030408;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding-bottom: 36px;
+  transition: --c .9s ease, --c2 .9s ease;
+}
+
+/* ---- the stadium ------------------------------------------------------------------------ */
+.pm-stadium { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.pm-sky { position: absolute; inset: 0; background:
+  radial-gradient(90% 55% at 50% 0%, #182238 0%, #0a0f1b 45%, transparent 75%),
+  linear-gradient(180deg, #070a12 0%, #04060b 60%, #020306 100%); }
+/* Light banks high in the corners, each a grid of lamps with a bloom. */
+.pm-lights { position: absolute; top: 14vh; width: 15vw; height: 4.4vw; min-width: 150px; min-height: 44px; transform: perspective(500px) rotateY(18deg) rotate(-5deg);
+  background: radial-gradient(circle, #fff 0 30%, rgba(220,235,255,.65) 38%, transparent 52%) 0 0 / 12.5% 33.4%, linear-gradient(#1a2130, #10141d);
+  box-shadow: 0 0 0 3px #1a2130, 0 0 40px 10px rgba(200,225,255,.35); animation: pmHum 6s ease-in-out infinite; }
+.pm-lights.l { left: 7vw; } .pm-lights.r { right: 7vw; transform: perspective(500px) rotateY(-18deg) rotate(5deg); animation-delay: -3s; }
+.pm-lights::before { content: ''; position: absolute; left: 50%; top: 50%; width: 46vw; height: 46vw; margin: -23vw 0 0 -23vw; background: radial-gradient(circle, rgba(225,238,255,.30) 0%, rgba(160,195,255,.10) 30%, transparent 62%); }
+.pm-lights::after { content: ''; position: absolute; left: 50%; top: 100%; width: 6px; height: 40vh; margin-left: -3px; background: linear-gradient(180deg, #1a2130, transparent); }
+@keyframes pmHum { 50% { filter: brightness(1.12); } }
+/* Light falling from the banks onto the field. */
+.pm-beams i { position: absolute; top: 15vh; width: 26vw; height: 90vh; background: linear-gradient(180deg, rgba(210,228,255,.13), rgba(210,228,255,.02) 75%, transparent); clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); transform-origin: 50% 0; animation: pmBeam 14s ease-in-out infinite alternate; mix-blend-mode: screen; }
+.pm-beams i:nth-child(1) { left: 2vw; transform: rotate(-24deg); } .pm-beams i:nth-child(2) { left: 6vw; transform: rotate(-10deg); animation-delay: -5s; }
+.pm-beams i:nth-child(3) { right: 2vw; transform: rotate(24deg); animation-delay: -2s; } .pm-beams i:nth-child(4) { right: 6vw; transform: rotate(10deg); animation-delay: -8s; }
+@keyframes pmBeam { to { opacity: .55; translate: 0 1vh; } }
+/* The bowl: a curved upper deck full of crowd, tinted by the team colour, with flashes. */
+.pm-bowl { position: absolute; left: -12%; right: -12%; top: 33vh; height: 42vh; border-radius: 50% 50% 0 0 / 26% 26% 0 0; overflow: hidden;
+  background:
+    radial-gradient(circle, rgba(255,255,255,.16) 0 1px, transparent 1.6px) 0 0 / 7px 6px,
+    radial-gradient(circle, color-mix(in srgb, var(--c) 60%, transparent) 0 1px, transparent 1.6px) 3px 3px / 9px 7px,
+    linear-gradient(180deg, #121826 0%, #0a0e17 40%, #05070b 100%);
+  box-shadow: inset 0 3px 0 rgba(255,255,255,.08), inset 0 18px 30px rgba(0,0,0,.6);
+  mask-image: linear-gradient(180deg, #000 30%, transparent 92%); }
+.pm-bowl::before { content: ''; position: absolute; left: 0; right: 0; top: 30%; height: 3px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c) 80%, #fff) 20%, color-mix(in srgb, var(--c) 80%, #fff) 80%, transparent); box-shadow: 0 0 18px 2px color-mix(in srgb, var(--c) 70%, transparent); opacity: .7; }
+.pm-flash i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px 3px rgba(255,255,255,.8); opacity: 0; animation: pmFlash 6s steps(1) infinite; }
+@keyframes pmFlash { 0% { opacity: 1; } 3% { opacity: 0; } }
+/* The field, lit from above, receding from the camera. */
+.pm-field { position: absolute; left: 0; right: 0; bottom: 0; height: 34vh; perspective: 420px; overflow: hidden; mask-image: linear-gradient(180deg, transparent, #000 35%); }
+.pm-turf { position: absolute; left: -60%; right: -60%; top: 0; height: 260%; transform: rotateX(64deg); transform-origin: 50% 0;
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,.34) 0 3px, transparent 3px 90px),
+    repeating-linear-gradient(180deg, #123f20 0 90px, #0e3419 90px 180px);
+  filter: brightness(.55) saturate(.9); animation: pmDolly 16s linear infinite; }
+@keyframes pmDolly { to { background-position: 0 180px, 0 180px; } }
+.pm-haze { position: absolute; inset: 0; background:
+  radial-gradient(42% 55% at 74% 46%, color-mix(in srgb, var(--c) 52%, transparent), transparent 72%),
+  radial-gradient(70% 30% at 50% 78%, rgba(200,225,255,.07), transparent 70%); mix-blend-mode: screen; }
+
+/* ---- hero ------------------------------------------------------------------------------- */
+.pm-hero { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.pm-num { position: absolute; right: 3vw; top: 2vh; font: 900 italic 66vh/1 var(--head); color: transparent; -webkit-text-stroke: 2px color-mix(in srgb, var(--c) 45%, rgba(255,255,255,.18)); opacity: .55; animation: pmFade 1.2s ease both; }
+.pm-mark { position: absolute; right: 22vw; top: 9vh; width: 32vw; max-width: 560px; opacity: .13; filter: saturate(1.2); animation: pmMark 1.2s ease both; }
+.pm-ath { position: absolute; right: 7vw; bottom: 8vh; height: 80vh; max-width: 52vw; object-fit: contain; object-position: bottom;
+  filter: drop-shadow(-16px 0 34px color-mix(in srgb, var(--c) 65%, transparent)) drop-shadow(10px 0 26px color-mix(in srgb, var(--c2) 25%, transparent)) drop-shadow(0 30px 60px rgba(0,0,0,.7));
+  mask-image: linear-gradient(180deg, #000 70%, transparent 98%); animation: pmAth .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pmFade { from { opacity: 0; } }
+@keyframes pmMark { from { opacity: 0; transform: scale(1.1); } }
+@keyframes pmAth { from { opacity: 0; transform: translateX(6vw); } }
+.pm-shade { position: absolute; inset: 0; z-index: 1; pointer-events: none; background:
+  linear-gradient(90deg, rgba(3,4,8,.92) 0%, rgba(3,4,8,.6) 30%, transparent 56%),
+  linear-gradient(0deg, rgba(3,4,8,.96) 0%, rgba(3,4,8,.55) 36%, transparent 60%),
+  repeating-linear-gradient(0deg, rgba(255,255,255,.016) 0 1px, transparent 1px 3px); }
+
+/* ---- header ----------------------------------------------------------------------------- */
+.pm-top { position: relative; z-index: 3; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 3.4vh 4vw 0; }
+.pm-word { display: flex; align-items: center; gap: 12px; font: 900 italic clamp(40px, 4.3vw, 66px)/.9 var(--head); letter-spacing: .01em; }
+.pm-chrome { position: relative; padding: 0 .08em 0 .02em; color: transparent;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f8 36%, #8793a9 50%, #d5dce7 57%, #ffffff 78%, #a4afc2 100%); -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 2px 0 #1d2433) drop-shadow(0 4px 0 #0b0e15) drop-shadow(0 12px 18px rgba(0,0,0,.7)); }
+.pm-chrome::after { content: attr(data-t); position: absolute; inset: 0; padding: inherit; color: transparent;
+  background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,.95) 50%, transparent 58%) 0 0 / 300% 100% no-repeat; -webkit-background-clip: text; background-clip: text; animation: pmSheen 6s ease-in-out infinite; }
+@keyframes pmSheen { 0%, 55% { background-position: 110% 0; } 85%, 100% { background-position: -10% 0; } }
+.pm-plate { padding: .07em .34em .05em; font-size: .6em; color: #0b0d11; background: linear-gradient(180deg, #fff6c4 0%, #ffd23f 46%, #b9850a 54%, #ffdc66 100%); clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%); }
+.pm-season { display: flex; align-items: center; gap: 12px; margin-top: 12px; font: 700 12px var(--head); letter-spacing: .34em; text-transform: uppercase; color: rgba(255,255,255,.62); }
+.pm-season i { width: 34px; height: 4px; background: var(--c); transform: skewX(-24deg); box-shadow: 0 0 12px var(--c); }
+.pm-topr { display: flex; align-items: center; gap: 18px; padding-top: 8px; }
+.pm-hint { display: flex; align-items: center; gap: 6px; font: 700 11px var(--head); letter-spacing: .22em; text-transform: uppercase; color: rgba(255,255,255,.45); }
+.pm-hint kbd { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 5px; font: 800 11px var(--head); letter-spacing: 0; color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-bottom-width: 2px; }
+.pm-hint kbd + kbd { margin-left: -2px; } .pm-hint kbd:not(:first-child):not(kbd + kbd) { margin-left: 10px; }
+.pm-opt { padding: 9px 20px; border: 0; cursor: pointer; font: 800 13px var(--head); letter-spacing: .18em; text-transform: uppercase; color: #fff; background: rgba(255,255,255,.1); clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%); transition: background .15s, color .15s; }
+.pm-opt:hover, .pm-opt:focus-visible { background: #fff; color: #0b0d11; outline: none; }
+
+/* ---- featured athlete ------------------------------------------------------------------- */
+.pm-feat { position: relative; z-index: 2; align-self: center; padding: 0 4vw; max-width: 54vw; animation: pmFeat .7s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pmFeat { from { opacity: 0; transform: translateX(-28px); } }
+.pm-feat-k { display: inline-flex; align-items: center; gap: 10px; padding: 5px 22px 5px 10px; font: 800 12px var(--head); letter-spacing: .3em; text-transform: uppercase;
+  background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 30%, transparent)); clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.pm-feat-k img { width: 22px; height: 22px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.pm-feat-fn { margin-top: 14px; font: 700 italic clamp(22px, 2.3vw, 36px)/1 var(--head); text-transform: uppercase; letter-spacing: .04em; color: rgba(255,255,255,.82); }
+.pm-feat-ln { padding-right: .1em; font: 900 italic clamp(60px, 8vw, 140px)/.86 var(--head); text-transform: uppercase; color: transparent;
+  background: linear-gradient(180deg, #ffffff 50%, #b8c1d2); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 10px 30px rgba(0,0,0,.6)); white-space: nowrap; }
+.pm-feat-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.pm-feat-meta > * { padding: 6px 14px; font: 700 13px var(--head); letter-spacing: .16em; text-transform: uppercase; background: rgba(8,10,16,.72); border-left: 3px solid var(--c); backdrop-filter: blur(6px); clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); padding-right: 20px; }
+.pm-feat-meta b { color: #0b0d11; border: 0; background: linear-gradient(180deg, #fff3b0, #ffd23f 50%, #d9a514); }
+.pm-dots { display: flex; gap: 6px; margin-top: 18px; pointer-events: auto; }
+.pm-dots i { position: relative; width: 28px; height: 4px; overflow: hidden; background: rgba(255,255,255,.2); cursor: pointer; transform: skewX(-24deg); transition: width .3s; }
+.pm-dots i.on { width: 54px; } .pm-dots i.on::after { content: ''; position: absolute; inset: 0; background: var(--c); box-shadow: 0 0 8px var(--c); transform-origin: 0 0; animation: pmDot 7s linear both; }
+@keyframes pmDot { from { transform: scaleX(0); } }
+
+/* ---- tiles ------------------------------------------------------------------------------ */
+.pm-tiles { position: relative; z-index: 3; display: flex; gap: 14px; height: clamp(200px, 36vh, 340px); padding: 0 4vw; margin-bottom: 4vh; }
+.pm-tile { position: relative; flex: 1 1 0; min-width: 0; padding: 0; border: 0; background: none; color: #fff; text-align: left; cursor: pointer; outline: none;
+  filter: drop-shadow(0 18px 26px rgba(0,0,0,.6)); transform: perspective(900px) rotateX(0) rotateY(0); transform-style: preserve-3d;
+  transition: flex-grow .45s cubic-bezier(.2,.8,.2,1), transform .14s ease-out, filter .3s; }
+.pm.in .pm-tile { animation: pmTileIn .6s calc(.12s + var(--i) * .08s) cubic-bezier(.2,.8,.2,1) both; }
+.pm:not(.in) .pm-tile, .pm:not(.in) .pm-top, .pm:not(.in) .pm-feat { opacity: 0; }
+.pm.in .pm-top { animation: pmFade .8s .05s both; }
+@keyframes pmTileIn { from { opacity: 0; translate: 0 50px; } }
+.pm-tile.on { flex-grow: 1.8; transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-10px);
+  filter: drop-shadow(0 26px 36px rgba(0,0,0,.65)) drop-shadow(0 0 20px color-mix(in srgb, var(--tc, var(--c)) 60%, transparent)); }
+.pm-frame { position: absolute; inset: 0; padding: 2px; clip-path: var(--cut); background: linear-gradient(160deg, rgba(255,255,255,.3), rgba(255,255,255,.07) 40%, rgba(255,255,255,.16)); transition: background .3s; }
+.pm-tile.on .pm-frame { background: linear-gradient(160deg, #ffffff, color-mix(in srgb, var(--tc, var(--c)) 70%, #fff) 45%, #ffffff); }
+.pm-face { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; clip-path: var(--cut-in); background: #0a0d14; }
+.pm-art { position: absolute; inset: 0; overflow: hidden; transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+.pm-tile.on .pm-art { transform: scale(1.06); }
+.pm-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(4,5,9,.94) 88%); }
+.pm-tile:not(.on) .pm-art { filter: saturate(.55) brightness(.8); }
+.pm-idx { position: absolute; top: 12px; right: 18px; z-index: 2; font: 900 italic 22px/1 var(--head); color: rgba(255,255,255,.4); }
+.pm-txt { position: relative; z-index: 2; padding: 18px 22px 20px; }
+.pm-txt b { display: block; font: 900 italic clamp(22px, 2.1vw, 34px)/.92 var(--head); text-transform: uppercase; letter-spacing: .01em; color: #dfe4ec; padding-right: .1em; text-wrap: balance; transition: font-size .3s; }
+.pm-txt span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 6px; font: 500 13px/1.3 var(--body); color: rgba(255,255,255,.7); }
+.pm-tile.on .pm-txt b { color: #fff; font-size: clamp(30px, 3.2vw, 52px); white-space: nowrap; }
+.pm-tile.on .pm-txt::before { content: ''; display: block; width: 46px; height: 4px; margin-bottom: 10px; background: var(--tc, var(--c)); transform: skewX(-24deg); box-shadow: 0 0 10px var(--tc, var(--c)); }
+.pm-sheen { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,.22) 50%, transparent 62%); transform: translateX(-120%); }
+.pm-tile.on .pm-sheen { animation: pmSweep .9s ease; }
+@keyframes pmSweep { to { transform: translateX(120%); } }
+.pm-tile:focus-visible .pm-frame { background: #fff; }
+
+/* tile art */
+.pm-tteam { position: absolute; inset: 0; background:
+  repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 2px, transparent 2px 22px),
+  linear-gradient(150deg, color-mix(in srgb, var(--tc) 92%, #fff) 0%, color-mix(in srgb, var(--tc) 60%, #000) 42%, #06080d 92%); }
+.pm-tteam::after { content: ''; position: absolute; left: -10%; top: -30%; width: 46%; height: 160%; background: color-mix(in srgb, var(--tc2, #fff) 30%, transparent); transform: rotate(18deg); mix-blend-mode: overlay; }
+.pm-biglogo { position: absolute; left: 50%; top: 40%; width: 58%; max-width: 230px; aspect-ratio: 1; object-fit: contain; transform: translate(-50%, -50%); filter: drop-shadow(0 16px 26px rgba(0,0,0,.55)); transition: left .45s cubic-bezier(.2,.8,.2,1), width .45s; }
+.pm-tile.on .pm-biglogo { left: 70%; top: 36%; width: 40%; max-width: 230px; }
+.pm-tile.continue.on .pm-biglogo { top: 32%; width: 34%; }
+.pm-tile.new .pm-art { background: radial-gradient(80% 70% at 50% 30%, #1b2640, #080b12); }
+.pm-mosaic { position: absolute; inset: -40% -20%; display: grid; grid-template-columns: repeat(8, 1fr); gap: 14px; transform: rotate(-12deg); opacity: .6; animation: pmMosaic 40s linear infinite; }
+.pm-mosaic img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+@keyframes pmMosaic { to { transform: rotate(-12deg) translateY(-50%); } }
+.pm-tile.load .pm-art { background: linear-gradient(150deg, #20283a, #090c13 80%); }
+.pm-stack i { position: absolute; left: 50%; top: 14%; width: min(52%, 150px); aspect-ratio: 1.3; display: grid; place-items: center; background: linear-gradient(150deg, color-mix(in srgb, var(--sc, #3a4560) 80%, #fff 0%), color-mix(in srgb, var(--sc, #3a4560) 40%, #05070c)); border: 1px solid rgba(255,255,255,.18); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+.pm-stack i img { width: 46%; aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
+.pm-stack i em { position: absolute; left: 8px; bottom: 5px; font: 800 italic 13px var(--head); font-style: italic; color: rgba(255,255,255,.75); }
+.pm-stack i:nth-child(1) { transform: translateX(-50%) translate(-26%, -6%) rotate(-10deg); } .pm-stack i:nth-child(2) { transform: translateX(-50%) translate(-6%, 2%) rotate(-3deg); } .pm-stack i:nth-child(3) { transform: translateX(-50%) translate(14%, 10%) rotate(5deg); }
+.pm-tile.load.on .pm-stack i:nth-child(1) { transform: translateX(-50%) translate(-62%, -2%) rotate(-12deg); } .pm-tile.load.on .pm-stack i:nth-child(3) { transform: translateX(-50%) translate(52%, 8%) rotate(9deg); }
+.pm-tile.guide .pm-art { background: radial-gradient(90% 80% at 50% 20%, #173a26, #06100a 85%); }
+.pm-play { position: absolute; left: 8%; top: 6%; width: 84%; opacity: .9; }
+
+/* the franchise strip on Continue */
+.pm-strip { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 22px; animation: pmStrip .45s .1s cubic-bezier(.2,.8,.2,1) both; }
+.pm-tile:not(.on) .pm-strip { display: none; }
+@keyframes pmStrip { from { opacity: 0; transform: translateY(8px); } }
+.pm-strip > span { padding: 6px 18px 6px 12px; background: rgba(5,7,12,.74); backdrop-filter: blur(6px); border-left: 3px solid var(--tc, var(--c)); clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.pm-strip em { display: block; font: 700 10px var(--head); font-style: normal; letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.6); white-space: nowrap; }
+.pm-strip b { display: flex; align-items: center; gap: 6px; font: 900 italic 19px/1.1 var(--head); text-transform: uppercase; white-space: nowrap; }
+.pm-strip b img { width: 22px; height: 22px; object-fit: contain; }
+
+/* ---- how to play ------------------------------------------------------------------------ */
+.pm-guide { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.72); backdrop-filter: blur(5px); animation: pmFade .2s ease both; }
+.pm-gc { width: min(980px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 24px; background: linear-gradient(160deg, #141923, #090b10 70%); border-top: 3px solid var(--c); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%); animation: pmGuide .35s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pmGuide { from { opacity: 0; transform: translateY(20px) scale(.98); } }
+.pm-gh { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.pm-gh b { font: 900 italic 38px/1 var(--head); text-transform: uppercase; }
+.pm-gg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pm-gg > div { padding: 16px; background: rgba(255,255,255,.04); border-left: 3px solid var(--c); }
+.pm-gg span { font: 900 italic 20px var(--head); color: #ffd23f; }
+.pm-gg b { display: block; margin: 2px 0 6px; font: 800 italic 22px var(--head); text-transform: uppercase; }
+.pm-gg p { margin: 0; font: 500 13.5px/1.5 var(--body); color: #c9ced8; }
+
+/* ---- smaller screens -------------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .pm-gg { grid-template-columns: 1fr 1fr; }
+  .pm-tiles { gap: 10px; }
+  .pm-tile.on { flex-grow: 2.2; }
+  .pm-tile:not(.on) .pm-txt span { display: none; }
+}
+@media (max-width: 760px) {
+  .pm { display: block; overflow-x: hidden; overflow-y: auto; padding-bottom: 56px; }
+  .pm-top { padding: 18px 16px 0; }
+  .pm-hint { display: none; }
+  .pm-topr { padding-top: 2px; }
+  .pm-word { font-size: 40px; }
+  .pm-season { font-size: 10px; letter-spacing: .24em; gap: 8px; }
+  .pm-season i { width: 20px; }
+  .pm-lights { top: 2vh; width: 30vw; height: 8vw; min-width: 0; min-height: 0; }
+  .pm-lights.l { left: -4vw; } .pm-lights.r { right: -4vw; }
+  .pm-bowl { top: 24vh; height: 30vh; }
+  .pm-num { font-size: 40vh; top: 6vh; right: -2vw; }
+  .pm-mark { width: 70vw; right: -10vw; top: 12vh; }
+  .pm-ath { top: 12vh; bottom: auto; right: -14vw; height: 44vh; max-width: 92vw; mask-image: linear-gradient(180deg, #000 60%, transparent 96%); }
+  .pm-shade { position: fixed; background: linear-gradient(90deg, rgba(3,4,8,.85) 0%, rgba(3,4,8,.35) 60%, transparent), linear-gradient(0deg, rgba(3,4,8,.98) 0%, rgba(3,4,8,.85) 45%, transparent 70%); }
+  .pm-stadium, .pm-hero { position: fixed; }
+  .pm-feat { max-width: none; padding: 9vh 16px 0; }
+  .pm-feat-ln { font-size: clamp(48px, 15vw, 72px); }
+  .pm-feat-fn { font-size: 20px; margin-top: 10px; }
+  .pm-feat-meta > * { font-size: 11px; padding: 5px 14px 5px 10px; }
+  .pm-dots { margin-top: 12px; }
+  .pm-tiles { flex-direction: column; height: auto; gap: 8px; padding: 0 16px; margin: 22px 0 16px; }
+  .pm-tile { flex: none; height: 66px; transition: height .4s cubic-bezier(.2,.8,.2,1), filter .3s; }
+  .pm-tile.on { height: 178px; transform: none; }
+  .pm { --cut: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); --cut-in: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px); }
+  .pm-txt { padding: 12px 16px 14px; }
+  .pm-txt b { font-size: 24px; }
+  .pm-tile.on .pm-txt b { font-size: 32px; }
+  .pm-tile:not(.on) .pm-txt { display: flex; align-items: baseline; gap: 10px; }
+  .pm-tile:not(.on) .pm-txt b { white-space: nowrap; flex: none; }
+  .pm-tile:not(.on) .pm-txt span { display: block; min-width: 0; margin: 0; padding-right: 26px; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+  .pm-tile.continue.on .pm-biglogo { left: 84%; top: 28%; width: 26%; }
+  .pm-tile.on .pm-txt::before { width: 32px; margin-bottom: 8px; }
+  .pm-idx { top: 10px; right: 14px; font-size: 16px; }
+  .pm-tile:not(.on) .pm-idx { top: 50%; transform: translateY(-50%); }
+  .pm-tile:not(.on) .pm-biglogo { left: 84%; width: 54px; top: 50%; }
+  .pm-tile.on .pm-biglogo { left: 78%; top: 40%; width: 38%; }
+  .pm-strip { margin: 0 16px; }
+  .pm-strip > span { padding: 4px 14px 4px 10px; }
+  .pm-strip b { font-size: 16px; }
+  .pm-stack i { width: 90px; }
+  .pm-tile:not(.on) .pm-stack, .pm-tile:not(.on) .pm-play { opacity: .35; }
+  .pm-gg { grid-template-columns: 1fr; }
+  .pm-gh b { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm *, .pm *::before, .pm *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; }
+}
