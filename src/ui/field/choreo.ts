@@ -205,7 +205,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     // Before the snap: in the stance (or the man in motion jogging across).
     if (scrim && c < preC) {
       if (sp > 0.8) return P(run6(i, k, false, true), { face: (VX[i][k] >= 0 ? 1 : -1) });
-      return P(stanceOf(i), { face: isOff ? (s as 1 | -1) : (-s as 1 | -1) });
+      return P(isLine(i) && c > preC - 0.45 ? (A[i].slot === 'OL2' ? 'snap' : 'three') : stanceOf(i), { face: isOff ? (s as 1 | -1) : (-s as 1 | -1) });
     }
     // Defenders who whiffed or got stiff-armed: on the turf, then back up and chasing.
     const dn = downed.get(i);
