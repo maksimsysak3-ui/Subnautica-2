@@ -2,3 +2,4 @@ node_modules
 .cache
 play-college/
 play-college3d/
+.claude/worktrees/
