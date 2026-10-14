@@ -178,20 +178,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   // ---- poses -------------------------------------------------------------------------------
   const isLine = (i: number) => /^(OL|DL|FG|FB)/.test(A[i].slot) || (A[i].slot.startsWith('RU') && A[i].role === 'DL');
   const shotgun = (sc.align?.QB?.[0] ?? -5) <= -3;
-  const stanceOf = (i: number): Frame => {
-    const a = A[i];
-    if (a.team === off) {
-      if (a.slot === 'OL2') return 'snap';
-      if (a.slot.startsWith('OL')) return 'three';
-      if (a.slot === 'QB') return shotgun ? 'ready' : 'under';
-      if (a.slot === 'RB') return 'hands';
-      if (a.slot === 'TE') return 'three';
-      return 'crouch';
-    }
-    if (a.slot.startsWith('DL')) return 'three';
-    if (a.slot === 'FS') return 'stand';
-    return a.slot.startsWith('LB') ? 'hands' : 'crouch';
-  };
+  const stanceOf = (i: number): Frame => (A[i].slot === 'QB' && !shotgun ? 'hold' : 'stand');
+
   // Walk-up: offense from the huddle, defense from a loose shell, all set before the snap.
   const huddle = (i: number): [number, number] => {
     const a = A[i];
@@ -394,7 +382,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const set = scenePose(i, 0), [hx, hy] = huddle(i), a = A[i];
     const brk = 0.35, jog = WU - 0.55;      // break, jog to the spot, settle into the stance
     if (!scrim) return set;
-    if (w < brk) return { x: hx, y: hy, f: a.team === off ? 'stand' : 'hands', face: a.team === off ? (MID > hy ? 1 : -1) as 1 | -1 : (-s as 1 | -1), rot: 0, lift: 0 };
+    if (w < brk) return { x: hx, y: hy, f: 'stand', face: a.team === off ? (MID > hy ? 1 : -1) as 1 | -1 : (-s as 1 | -1), rot: 0, lift: 0 };
     const k2 = smooth((w - brk) / (jog - brk));
     if (k2 < 1) { const dx = set.x - hx, f = Math.floor(((w * (2.2 + Math.hypot(dx, set.y - hy) * 0.25)) % 1) * 6); return { x: lerp(hx, set.x, k2), y: lerp(hy, set.y, k2), f: `jog${f}` as Frame, face: (Math.abs(dx) > 0.4 ? (dx > 0 ? 1 : -1) : set.face) as 1 | -1, rot: 0, lift: 0 }; }
     return { ...set, f: w > WU - 0.3 ? set.f : 'stand' };
