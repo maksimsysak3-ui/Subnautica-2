@@ -3,9 +3,8 @@ import { useApp, app, saveLeague } from '../store';
 import { Logo, Face, Tabs, CountUp } from '../components';
 import { FieldView } from '../field';
 import { BottomLine, leagueCrawl } from '../ticker';
-import { PlayDiagram, PLAY_ART } from '../playart';
 import { PlayDesigner, registerPlays } from '../playdesigner';
-import { books, activeBook, offPlay, defPlay, subsFor, OFF_SETS, DEF_SETS } from '../plays';
+import { books, subsFor } from '../plays';
 import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
@@ -17,6 +16,7 @@ import { pickHighlights } from '../../sim/highlights';
 import { sfx } from '../sfx';
 import { PlayerOfGame } from '../potg';
 import { StadiumPulse } from '../pulse';
+import { CallBinder } from '../callbinder';
 import { practiceWeek } from '../../core/practice';
 
 export function GameScreen({ gid }: { gid: string }) {
@@ -38,7 +38,6 @@ export function GameScreen({ gid }: { gid: string }) {
   const [box, setBox] = useState<'Play-by-Play' | 'Box Score' | 'Drive Chart'>('Play-by-Play');
   const [finished, setFinished] = useState(false);
   const [designing, setDesigning] = useState(false);
-  const [folder, setFolder] = useState<string | null>(null);
   useMemo(() => { registerPlays(L); books(L); }, [L]);
   // Kickoff: the game-time decisions from the injury report are revealed.
   useEffect(() => {
@@ -118,8 +117,7 @@ export function GameScreen({ gid }: { gid: string }) {
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
           <div className="card" style={{ padding: 10, background: 'linear-gradient(180deg,#0b1424,#070b14)' }}>
-            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} pulse={shownPulse} />
-            <StadiumPulse sim={sim} value={shownPulse} color={home.colors[0]} />
+            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} pulse={shownPulse} overlay={<StadiumPulse sim={sim} value={shownPulse} color={home.colors[0]} />} />
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
               {live ? <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'The ball is snapped…'}</div>
@@ -136,7 +134,7 @@ export function GameScreen({ gid }: { gid: string }) {
                 {onOffense && <span className={`chip${pa ? ' on' : ''}`} onClick={() => setPa(!pa)}>Play-Action</span>}
                 <button className="btn sm" onClick={() => setDesigning(true)}>✎ Draw a Play</button>
                 <button className="btn sm" onClick={() => userCall()}>Coordinator Call (AI)</button></div>
-              <CallBoard L={L} sim={sim} onOffense={onOffense} pa={pa} folder={folder} setFolder={setFolder}
+              <CallBinder L={L} sim={sim} onOffense={onOffense} pa={pa} color={L.teams[L.user].colors[0]}
                 onOff={(oc, set) => step({ ...oc, pa: oc.kind === 'pass' && oc.depth !== 'screen' ? pa || oc.pa : false, name: pa && oc.kind === 'pass' && oc.depth !== 'screen' && !oc.pa ? `PA ${oc.name}` : oc.name, subs: set ? subsFor(L, set) : undefined })}
                 onDef={dc => step(undefined, dc)} onSpecial={oc => step(oc)} />
             </div>
@@ -201,59 +199,6 @@ function Scorebug({ L, sim, pre, score }: { L: League; sim: GameSim; pre?: PlayE
         </div>
       </div>
     </div>
-  );
-}
-/** Madden-style play card: the play art on top, name and note below. */
-/**
- * Play calling from the active playbook: formation folders first; a folder opens into
- * its plays. Situational calls (punt, field goal, kneel, spike) are always on hand.
- */
-function CallBoard({ L, sim, onOffense, pa, folder, setFolder, onOff, onDef, onSpecial }: { L: League; sim: GameSim; onOffense: boolean; pa: boolean; folder: string | null; setFolder: (f: string | null) => void; onOff: (oc: OffCall, set?: string) => void; onDef: (dc: DefCall) => void; onSpecial: (oc: OffCall) => void }) {
-  const book = activeBook(L, onOffense ? 'off' : 'def');
-  const f = book?.folders.find(x => x.name === folder);
-  const userSide = sim.sides[0].abbr === L.user ? 0 : 1;
-  const qbFast = (L.players[sim.sides[userSide].team.depth.QB?.[0] ?? '']?.attrs.SPD ?? 0) >= 78;
-  const specials = onOffense && <>
-    {sim.down === 4 && <><PlayCard title="Punt" icon="⤴" desc="Flip the field" onClick={() => onSpecial({ kind: 'punt', name: 'Punt' })} /><PlayCard title="Field Goal" icon="⊓" desc={`${100 - sim.yl + 17} yards`} onClick={() => onSpecial({ kind: 'fg', name: 'Field Goal' })} /></>}
-    <PlayCard title="Kneel" icon="⤓" desc="Burn the clock" onClick={() => onSpecial({ kind: 'kneel', name: 'Kneel' })} />
-    {(sim.q === 2 || sim.q >= 4) && sim.clock < 120 && <PlayCard title="Spike" icon="⏱" desc="Stop the clock" onClick={() => onSpecial({ kind: 'spike', name: 'Spike' })} />}
-  </>;
-  if (!book) return null;
-  if (!f) return (
-    <div className="pb-folders">
-      {book.folders.map((x, i) => {
-        const first = x.plays[0];
-        const note = onOffense ? OFF_SETS[x.set]?.note : DEF_SETS[x.set as keyof typeof DEF_SETS]?.note;
-        return (
-          <button key={x.name} className="pb-folder" style={{ animationDelay: `${i * 0.03}s` }} onClick={() => setFolder(x.name)} disabled={!x.plays.length}>
-            <i className="pb-tab">{x.name}</i>
-            <div className="pb-peek">{first && <PlayDiagram name={first} def={!onOffense} w={150} h={70} />}</div>
-            <b>{x.name}</b><span>{x.plays.length} plays{note ? ` · ${note.split(' · ')[0]}` : ''}</span>
-          </button>
-        );
-      })}
-      {specials}
-    </div>
-  );
-  return (
-    <>
-      <div className="pb-open"><button className="btn sm" onClick={() => setFolder(null)}>◂ Formations</button><b>{f.name}</b><span className="dim small">{book.name}</span></div>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(172px,1fr))', gap: 10 }}>
-        {onOffense ? f.plays.map(n => { const p = offPlay(L, n); if (!p || (p.call.run === 'qb' && !qbFast && n !== 'QB Sneak')) return null; const paName = pa && p.call.kind === 'pass' && p.call.depth !== 'screen' && !p.call.pa && PLAY_ART[`PA ${n}`] ? `PA ${n}` : n;
-          return <PlayCard key={n} title={paName} icon={p.icon} desc={p.desc} art={paName} onClick={() => { onOff(p.call, p.set); setFolder(null); }} />; })
-          : f.plays.map(n => { const p = defPlay(L, n); return p ? <PlayCard key={n} title={n} icon={p.call.blitz ? '⚡' : '▣'} desc={p.desc} art={n} def onClick={() => { onDef(p.call); setFolder(null); }} /> : null; })}
-        {specials}
-      </div>
-    </>
-  );
-}
-
-function PlayCard({ title, icon, desc, onClick, art, def }: { title: string; icon: string; desc: string; onClick: () => void; art?: string; def?: boolean }) {
-  return (
-    <button onClick={onClick} className="playcard">
-      {art ? <PlayDiagram name={art} def={def} w={170} h={98} /> : <div style={{ height: 98, display: 'grid', placeItems: 'center', fontSize: 34, background: 'linear-gradient(180deg,#1d4d2a,#163d21)' }}>{icon}</div>}
-      <div style={{ padding: '8px 10px 10px' }}><div className="h3" style={{ fontSize: 17 }}>{title}</div><div className="small dim">{desc}</div></div>
-    </button>
   );
 }
 function WinChart({ wp, home, away }: { wp: number[]; home: { abbr: string; colors: string[] }; away: { abbr: string; colors: string[] } }) {

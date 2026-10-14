@@ -1,0 +1,44 @@
+/* In-game play calling: one playbook, presented like a sideline tablet. */
+.cb { margin-top: 4px; }
+.cb-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.cb-book { padding: 4px 18px 4px 10px; background: var(--tc); color: #fff; font: 800 12px/1.4 var(--head, 'Barlow Condensed'), sans-serif; letter-spacing: .14em; text-transform: uppercase; clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%); }
+.cb-sec { font: 900 22px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; text-transform: uppercase; letter-spacing: .02em; color: #fff; }
+.cb-sec em { font: 500 13px var(--body, Inter), sans-serif; font-style: normal; text-transform: none; color: #8d96a8; letter-spacing: 0; }
+.cb-nav { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 700 12px var(--body, Inter), sans-serif; letter-spacing: .08em; color: #8d96a8; }
+.cb-nav button { width: 36px; height: 36px; border: 1px solid rgba(255,255,255,.16); background: linear-gradient(180deg, #1b2230, #11161f); color: #fff; font: 700 22px/1 var(--head, 'Barlow Condensed'), sans-serif; cursor: pointer; clip-path: polygon(20% 0, 100% 0, 80% 100%, 0 100%); }
+.cb-nav button:hover:not(:disabled) { background: var(--tc); } .cb-nav button:disabled { opacity: .3; cursor: default; }
+.cb-desk { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 0; padding: 12px 0 12px 12px; border-radius: 16px; background: linear-gradient(180deg, #1c2029, #0d1016); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), inset 0 0 0 6px #07090d, 0 14px 32px rgba(0,0,0,.5); }
+.cb-book-body { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; perspective: 1800px; }
+.cb.one .cb-book-body { grid-template-columns: 1fr; }
+.cb-page { position: relative; min-height: 280px; padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 8px;
+  background: radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--tc) 16%, #121722), #0b0e14 75%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.cb-head { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 2px; font: 800 10.5px/1 var(--body, Inter), sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #8d96a8; border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 6px; }
+.cb-head i { font-style: normal; color: #5f687a; }
+.cb-rings { display: none; }
+.cb-cell { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 6px; text-align: left; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.01)); border: 1px solid rgba(255,255,255,.07); border-radius: 8px; cursor: pointer; color: #fff; transition: transform .15s, border-color .15s, background .15s; }
+.cb-cell::after { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--tc); opacity: 0; transition: opacity .15s; }
+.cb-cell:hover, .cb-cell:focus-visible, .cb-cell.hot { transform: translateY(-1px); border-color: rgba(255, 210, 63, .7); background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 22%, transparent), rgba(255,255,255,.02)); outline: none; }
+.cb-cell:hover::after, .cb-cell.hot::after { opacity: 1; }
+.cb-art { border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 3px 8px rgba(0,0,0,.4); }
+.cb-art svg { display: block; }
+.cb-cell.hot .pd-route { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cbDraw .9s cubic-bezier(.4,.1,.3,1) forwards; }
+@keyframes cbDraw { to { stroke-dashoffset: 0; } }
+.cb-sp { width: 210px; height: 120px; display: grid; place-items: center; font-size: 46px; background: linear-gradient(180deg,#14361f,#0f2a18); color: #fff; }
+.cb.one .cb-sp { width: 150px; height: 92px; }
+.cb-txt b { display: block; font: 900 21px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; letter-spacing: .01em; text-transform: uppercase; color: #fff; }
+.cb-txt p { margin: 5px 0 0; font: 500 12px/1.35 var(--body, Inter), sans-serif; color: #9aa3b2; }
+.cb-tag { display: inline-block; margin-top: 5px; padding: 2px 8px; font: 800 9.5px/1.4 var(--body, Inter), sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #0b0f16; background: #7fb4ff; clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%); }
+.cb-tag.t-run { background: #4fd18b; } .cb-tag.t-shot, .cb-tag.t-pressure { background: #ff6b5a; } .cb-tag.t-screen { background: #f2c230; } .cb-tag.t-playaction { background: #b88cff; } .cb-tag.t-man { background: #ffa24d; } .cb-tag.t-specialteams, .cb-tag.t-clock { background: #cfd6e3; }
+.cb-blank { margin: auto; font: 900 40px/1 var(--head, 'Barlow Condensed'), sans-serif; color: rgba(255,255,255,.06); }
+.cb-tabs { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 2px 10px; }
+.cb-tabs button { width: 116px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.08); border-right: 0; border-radius: 8px 0 0 8px; text-align: left; cursor: pointer; background: #141923; color: #9aa3b2;
+  font: 800 11px/1.15 var(--body, Inter), sans-serif; letter-spacing: .08em; text-transform: uppercase; transition: background .15s, color .15s, transform .15s; }
+.cb-tabs button:hover { color: #fff; transform: translateX(-2px); }
+.cb-tabs button.on { background: var(--tc); color: #fff; box-shadow: inset 3px 0 0 #ffd23f; transform: translateX(-4px); }
+.cb-book-body.turn-fwd .cb-page.r, .cb-book-body.turn-fwd .cb-page.l { animation: cbIn .42s cubic-bezier(.2,.8,.2,1) both; }
+.cb-book-body.turn-fwd .cb-page.r { animation-delay: .06s; }
+.cb-book-body.turn-back .cb-page { animation: cbInBack .42s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes cbIn { from { transform: translateX(40px) rotateY(-14deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cbInBack { from { transform: translateX(-40px) rotateY(14deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 860px) { .cb-tabs { flex-direction: row; overflow-x: auto; grid-column: 1 / -1; order: -1; padding: 0 0 8px; } .cb-desk { grid-template-columns: 1fr; padding: 10px; } .cb-tabs button { width: auto; white-space: nowrap; border-radius: 8px; border-right: 1px solid rgba(255,255,255,.08); } .cb-tabs button.on { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cb-page, .cb-cell.hot .pd-route { animation: none !important; } }

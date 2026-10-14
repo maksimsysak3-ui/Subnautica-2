@@ -78,7 +78,7 @@ function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; c: string; life: number; t0: number; size: number }
 type Banner = { n: number; text: string; color: string; sub?: string; small?: boolean; kind?: string };
 
-export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college, pulse }: { pulse?: number; ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
+export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college, pulse, overlay }: { pulse?: number; overlay?: React.ReactNode; ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
   const lastEv = useRef<PlayEvent | null>(null);
   if (evIn) lastEv.current = evIn;
   const ev = evIn ?? lastEv.current;
@@ -243,6 +243,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
   return (
     <div ref={wrap} className={`bcast px bc2${ui.box ? ' boxed' : ''}`} onClick={() => skip.current?.()}>
       {weather && <div className="px-wx">{weather.dome ? 'DOME' : `${weather.precip === 'none' ? (night ? 'NIGHT' : 'CLEAR') : weather.precip.toUpperCase()} ${weather.temp}°${weather.wind >= 8 ? ` · WIND ${weather.wind} MPH` : ''}`}</div>}
+      {overlay}
       <canvas ref={cv} style={{ width: '100%', display: 'block', imageRendering: 'pixelated' }} />
       <i className="bc-lb top" /><i className="bc-lb bot" />
       {ev && ui.phase !== 'replay' && <div className="bc-dd" style={{ '--tc': off.colors[0] } as React.CSSProperties}><b>{ddText}</b>{ev.call && <span>{ev.call}</span>}{ev.dcall && <em>vs {ev.dcall}</em>}</div>}
