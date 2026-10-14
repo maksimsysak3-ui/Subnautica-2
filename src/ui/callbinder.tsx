@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { League } from '../core/types';
 import type { DefCall, GameSim, OffCall } from '../sim/game';
 import { activeBook, offPlay, defPlay, OFF_SETS, DEF_SETS } from './plays';
-import { PLAY_ART, PlayDiagram } from './playart';
+import { PLAY_ART, PlayDiagram, SpecialDiagram } from './playart';
 import './callbinder.css';
 
 interface Cell { kind: 'off' | 'def' | 'sp'; name: string; title: string; desc: string; set?: string; run: () => void; tag: string }
@@ -96,7 +96,7 @@ export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, col
               {pg?.cells.length ? pg.cells.map(c => (
                 <button key={c.name} className={`cb-cell ${c.kind}${hover === c.name ? ' hot' : ''}`} onClick={c.run} onMouseEnter={() => setHover(c.name)} onMouseLeave={() => setHover(h => (h === c.name ? null : h))} onFocus={() => setHover(c.name)}>
                   <div className="cb-art">
-                    {c.kind === 'sp' ? <div className="cb-sp">{c.name === 'Punt' ? '⤴' : c.name === 'Field Goal' ? '⊓' : c.name === 'Kneel' ? '⤓' : '⏱'}</div>
+                    {c.kind === 'sp' ? <SpecialDiagram kind={c.name as 'Punt'} w={single ? 150 : 210} h={single ? 92 : 120} />
                       : <PlayDiagram name={c.name} def={c.kind === 'def'} w={single ? 150 : 210} h={single ? 92 : 120} pro />}
                   </div>
                   <div className="cb-txt"><b>{c.title}</b><span className={`cb-tag t-${c.tag.toLowerCase().replace(/\W/g, '')}`}>{c.tag}</span><p>{c.desc}</p></div>

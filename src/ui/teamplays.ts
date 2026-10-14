@@ -52,6 +52,8 @@ const ALIASES: Record<string, string[]> = {
   'Bubble RPO': ['Bubble Read', 'Zone Bubble', 'Tag Now'], 'Pin Pull Sweep': ['Pin Pull', 'Crack Toss', 'Pull Sweep', 'Buck'], 'Wing Counter': ['Wing Counter', 'Counter Bash', 'Hip Counter'],
   'Wing Leak': ['Leak', 'Throwback', 'Waggle Leak'], Texas: ['Texas', 'Angle', 'Option Back', 'Tex Angle'], Scissors: ['Scissors', 'Switch', 'X Post', 'Post Corner'],
   Yankee: ['Yankee', 'Max Cross', 'Double Cross', 'Shot Cross'], 'Lead Draw': ['Lead Draw', 'Fullback Draw', 'Iso Draw'],
+  'Shallow Cross': ['Shallow', 'Drag', 'X Cross', 'Under Dig'], 'Out and Up': ['Out Up', 'Sluggo Out', 'Hitch Go', 'Double Move'], 'Post Wheel': ['Post Wheel', 'Wheel Post', 'Rail Post', 'Ferris Post'],
+  'Curl Seam': ['Curl Seam', 'Hooks Seams', 'Ohio Seam', 'Bend Curl'], 'Flanker Drive': ['Z Drive', 'Flanker Cross', 'Z Under', 'Drive Z'], 'Trips Slant': ['Trips Slant', 'Bunch Glance', 'Point Slant', 'Stack Slant'],
 };
 // Code-word staffs name plays after things, not concepts.
 const CODES = ['Bandit', 'Cobra', 'Laser', 'Moose', 'Pirate', 'Dakota', 'Camaro', 'Raven', 'Tulsa', 'Comet', 'Viper', 'Hondo', 'Maverick', 'Bingo', 'Atlas', 'Rodeo', 'Gator', 'Saber',
@@ -120,7 +122,7 @@ export function teamBook(key: string, scheme: OffScheme): TeamPlay[] {
   const taste = SET_TASTE[scheme], quota = QUOTA[scheme];
   // Weighted pick within each bucket, favoring the scheme's formations, with a team-specific twist.
   const chosen: LibOff[] = [];
-  const pool = OFF_LIB.filter(p => p.set !== 'Goal Line');
+  const pool = OFF_LIB.filter(p => p.set !== 'Goal Line' && !p.extra);
   for (const b of Object.keys(quota) as Bucket[]) {
     let cands = pool.filter(p => bucketOf(p.call) === b).map(p => ({ p, w: (taste[p.set] ?? 1) * (0.35 + r()) }));
     for (let n = 0; n < quota[b] && cands.length; n++) {
@@ -131,18 +133,30 @@ export function teamBook(key: string, scheme: OffScheme): TeamPlay[] {
   }
   chosen.push(...OFF_LIB.filter(p => p.set === 'Goal Line'));
   const used = new Set<string>();
-  const book = chosen.map(p => {
+  const register = (p: LibOff, r: () => number, extra = false) => {
     let name = nameFor(id, p, r, used, r() < 0.5 ? 'Rt' : 'Lt');
     // Names are global (the field draws art by name), so two teams can't share one for different concepts.
     for (let i = 2; TEAM_PLAYS.has(name) && TEAM_PLAYS.get(name)!.base !== p.name; i++) name = `${name.replace(/ \d+$/, '')} ${i}`;
-    const tp: TeamPlay = { ...p, name, base: p.name, call: { ...p.call, name } };
+    const tp: TeamPlay = { ...p, name, base: p.name, call: { ...p.call, name }, extra };
     TEAM_PLAYS.set(name, tp);
     if (PLAY_ART[p.name]) PLAY_ART[name] = PLAY_ART[p.name];
     if (PLAY_ART[`PA ${p.name}`]) PLAY_ART[`PA ${name}`] = PLAY_ART[`PA ${p.name}`];
     const al = PLAY_ALIGN[p.name] ?? (p.set !== 'Shotgun' ? OFF_SETS[p.set]?.align : undefined);
     if (al) PLAY_ALIGN[name] = al;
     return tp;
-  });
+  };
+  const book = chosen.map(p => register(p, r));
+  // The second install: five more pass concepts from what the book doesn't already carry, picked
+  // by scheme taste with their own seed, so the original book (and its names) stays as it was.
+  const r2 = rng(hash(`${ck}|install2`));
+  const have = new Set(chosen.map(p => p.name));
+  let extra = OFF_LIB.filter(p => p.call.kind === 'pass' && p.set !== 'Goal Line' && !have.has(p.name)).map(p => ({ p, w: (taste[p.set] ?? 1) * (0.35 + r2()) * (p.extra ? 1.6 : 1) }));
+  for (let n = 0; n < 5 && extra.length; n++) {
+    const tot = extra.reduce((s, x) => s + x.w, 0); let t = r2() * tot, i = 0;
+    while (i < extra.length - 1 && (t -= extra[i].w) > 0) i++;
+    book.push(register(extra[i].p, r2, true));
+    extra = extra.filter((_, j) => j !== i);
+  }
   cache.set(ck, book);
   return book;
 }
@@ -171,6 +185,7 @@ const COVER_ALIASES: Record<string, string[]> = {
   Prevent: ['Prevent', 'Deep Wall', 'Umbrella'], 'Tampa 2': ['Tampa', 'Mike Pole', 'Deep Hole'], 'Cover 3 Sky': ['Sky', 'Rolldown', 'Sky Buzz'], 'Mike Blitz': ['Mike Plug', 'A Gap Mug', 'Mike Shoot'],
   'Cover 3 Fire Zone': ['Fire Zone', 'Zone Pressure', 'Sting'], 'Cover 6': ['Quarter Half', 'Six', 'Cover Six'], 'Cover 2 Man': ['Two Man', 'Trail Two', 'Man Under'],
   'Dime Cover 4': ['Dime Quarters', 'Dollar Palms', 'Penny Four'], 'Dime Blitz': ['Nickel Edge', 'Dime Fire', 'Corner Cat'], 'Goal Line 0': ['Goal Zero', 'Stuff', 'Wall Zero'], 'Goal Line Zone': ['Goal Squeeze', 'Red Zone', 'Plaster'],
+  'Double A Gap': ['Double Mug', 'A Gap Fire', 'Twin Plug'], 'Base Fire Zone': ['Will Fire', 'Edge Sting', 'Fire Three'], 'Zero Pressure': ['Cash Six', 'Zero Max', 'Jailbreak'], Overload: ['Overload', 'Strong Fire', 'Flood Blitz'],
 };
 export interface TeamDef extends LibDef { base: string }
 const dcache = new Map<string, TeamDef[]>();
@@ -183,8 +198,9 @@ export function teamDefBook(t: Team): TeamDef[] {
   const fronts: Record<string, string> = {};
   for (const [k, v] of Object.entries(FRONT_NAMES)) fronts[k] = pick(r, v);
   // Blitz-heavy staffs list pressure first, zone staffs their coverages.
-  const order = [...DEF_LIB].sort((a, b) => (t.coach.def === 'Blitz' ? Number(b.call.blitz) - Number(a.call.blitz) : t.coach.def === 'Two-High' || t.coach.def === 'Cover 3' ? Number(a.call.blitz) - Number(b.call.blitz) : 0) || r() - 0.5);
-  const book = order.map(p => {
+  const order = DEF_LIB.filter(p => !p.extra).sort((a, b) => (t.coach.def === 'Blitz' ? Number(b.call.blitz) - Number(a.call.blitz) : t.coach.def === 'Two-High' || t.coach.def === 'Cover 3' ? Number(a.call.blitz) - Number(b.call.blitz) : 0) || r() - 0.5);
+  const r2 = rng(hash(`${key}|install2`));
+  const book = [...order.map(p => [p, r] as const), ...DEF_LIB.filter(p => p.extra).map(p => [p, r2] as const)].map(([p, r]) => {
     const name = `${fronts[p.set] ?? p.set} ${pick(r, COVER_ALIASES[p.name] ?? [p.name])}`;
     if (DEF_ART[p.name]) DEF_ART[name] = DEF_ART[p.name];
     const td: TeamDef = { ...p, name, base: p.name, call: { ...p.call, name } };

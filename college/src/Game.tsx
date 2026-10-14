@@ -17,6 +17,7 @@ import { useDynasty, update } from './store';
 import { Logo } from './App';
 import { PlayerOfGame } from '../../src/ui/potg';
 import { StadiumPulse } from '../../src/ui/pulse';
+import { CoinToss } from '../../src/ui/cointoss';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const ord = (n: number) => ['', '1st', '2nd', '3rd', '4th'][n] ?? `${n}th`;
@@ -53,6 +54,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   const [potgSeen, setPotgSeen] = useState(false);
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
+  const [toss, setToss] = useState(() => sim.events.length === 0);
   const [anim, setAnim] = useState(false);
   const [auto, setAuto] = useState<null | 'drive' | 'end'>(null);
   const onOffense = sim.poss === userSide;
@@ -65,7 +67,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   };
   // Kickoffs and extra points run themselves; sims run to the end of the drive or game.
   useEffect(() => {
-    if (anim || sim.over) return;
+    if (toss || anim || sim.over) return;
     if (auto) {
       const startPoss = sim.poss; let guard = 0;
       while (!sim.over && guard++ < 500) { sim.step(); if (auto === 'drive' && sim.poss !== startPoss) break; }
@@ -96,6 +98,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   const shownPulse = (anim && last ? sim.events[sim.events.indexOf(last) - 1]?.pulse : [...sim.events].reverse().find(e => e.pulse !== undefined)?.pulse) ?? sim.pulseBase * 0.6;
   const posTeam = sim.poss === 1 ? H : A;
   return createPortal(
+    <>{toss && <CoinToss teams={[{ name: A.school, abbr: A.abbr, color: showColor(A) }, { name: H.school, abbr: H.abbr, color: showColor(H) }]} userSide={userSide as 0 | 1} onDone={r => { sim.setToss(r); setToss(false); force(x => x + 1); }} />}
     <div className="gd" style={{ '--ch': showColor(H), '--ca': showColor(A), '--c': showColor(s) } as CSSProperties}>
       <header className="gd-bug">
         <div className="gd-team a"><Logo id={A.id} size={40} /><b>{A.abbr}</b><em>{score[0]}</em>{sim.poss === 0 && <i className="gd-pos" />}</div>
@@ -129,7 +132,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
         )}
         {!sim.over && <div className="gd-sim"><button onClick={() => step()} disabled={!needsCall || anim}>Let the coordinator call it</button><button onClick={() => setAuto('drive')} disabled={anim}>Sim drive</button><button onClick={() => setAuto('end')} disabled={anim}>Sim to end</button></div>}
       </footer>
-    </div>,
+    </div></>,
     document.body,
   );
 }

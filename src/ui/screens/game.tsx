@@ -10,6 +10,7 @@ import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, sta
 import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
 import { PrimeIntro, showFor } from '../primetime';
+import { CoinToss } from '../cointoss';
 import { Halftime } from '../halftime';
 import { HighlightReel } from '../reel';
 import { pickHighlights } from '../../sim/highlights';
@@ -29,6 +30,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const [last, setLast] = useState<PlayEvent | null>(null);
   const booth = useRef(newBooth());
   const [intro, setIntro] = useState(() => !!showFor(L, game) && sim.events.length === 0);
+  const [toss, setToss] = useState(() => sim.events.length === 0);
   const [anim, setAnim] = useState(false);
   const [potgSeen, setPotgSeen] = useState(false);
   // Stadium sounds for what just happened.
@@ -66,7 +68,7 @@ export function GameScreen({ gid }: { gid: string }) {
   };
   // Auto-advance for "watch" and sim modes.
   useEffect(() => {
-    if (intro || anim || finished || sim.halfPending) return;
+    if (intro || toss || anim || finished || sim.halfPending) return;
     const mode = auto.current;
     if (!mode && (coach && !sim.pending)) return;
     if (!mode && !coach) { const t = setTimeout(() => step(), 350); return () => clearTimeout(t); }
@@ -113,6 +115,7 @@ export function GameScreen({ gid }: { gid: string }) {
     <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
       {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
       {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
+      {toss && !intro && <CoinToss teams={[{ name: away.nick, abbr: away.abbr, color: away.colors[0] }, { name: home.nick, abbr: home.abbr, color: home.colors[0] }]} userSide={userSide as 0 | 1} onDone={r => { sim.setToss(r); setToss(false); force(x => x + 1); }} />}
       <Scorebug L={L} sim={sim} pre={live} score={before} />
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>

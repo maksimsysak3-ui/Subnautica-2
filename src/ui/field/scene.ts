@@ -273,8 +273,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const MT = mot ? Math.min(2.2, 0.3 + motLen / 7) : 0;
   const DT = 1 / 60, PRE = (art || dart ? 0.6 : 0.25) + MT;
   const spotOf = (w: keyof typeof FORMATION): [number, number] => (mot?.who === w ? snapSpot(mot, FORMATION) : FORMATION[w]);
-  const manCov = /Cover [01]|Man|Press/i.test(ev.dcall ?? '');
-  const cov2 = /Cover 2|Tampa/i.test(ev.dcall ?? ''), cov4 = /Cover 4|Quarters/i.test(ev.dcall ?? '');
+  // Coverage from the engine's shell when it has one (team books rename every call), else the name.
+  const manCov = /Cover [01]/.test(ev.shell ?? '') || /Cover [01]|Man|Press|Zero/i.test(ev.dcall ?? '');
+  const cov2 = !manCov && (ev.shell === 'Cover 2' || /Cover 2|Tampa/i.test(ev.dcall ?? '')), cov4 = ev.shell === 'Cover 4' || /Cover 4|Quarters/i.test(ev.dcall ?? '');
   const ballTrack: [number, number, number][] = [];
   const agents: Agent[] = [];
   const mk = (team: 0 | 1, slot: string, role: string, [x, y]: [number, number], top: number, acc = 9) => { const a: Agent = { team, slot, role, x, y, vx: 0, vy: 0, top, acc, track: [] }; agents.push(a); return a; };
@@ -303,6 +304,16 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const REC = WHO.map((w, i) => mk(off, w, w, at(...spotOf(w)), w === 'TE' ? 7.6 : 8.8, 10));
   const DL = [-5, -1.7, 1.7, 5].map((dy, i) => mk(def, `DL${i}`, 'DL', at(1, dy), i === 0 || i === 3 ? 7.6 : 6.6, 8));
   const LB = [-3.5, 3.5].map((dy, i) => mk(def, `LB${i}`, 'LB', at(5, dy), 7.8, 9));
+  // Blitz: the extra rushers creep to the line before the snap and shoot their gaps at it. A
+  // sack by a linebacker is his.
+  const lbSack = ev.type === 'sack' ? LB.findIndex(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) : -1;
+  const nBlitz = Math.min(2, ev.blitz ?? 0);
+  const blitzers = new Set(nBlitz >= 2 ? LB : nBlitz === 1 ? [LB[lbSack >= 0 ? lbSack : (ev.n % 2)]] : lbSack >= 0 ? [LB[lbSack]] : []);
+  for (const b of blitzers) { [b.x, b.y] = at(1.9, b === LB[0] ? -2.6 : 2.6); b.top = 8.4; }
+  // A back with no route stays in to pick the blitzer up (and stalls him unless he's the sacker).
+  const rbArt = art?.find(a => a.who === 'RB');
+  const rbBlock = !run && (!rbArt || rbArt.kind === 'block');
+  const pickedUp = (d: Agent) => rbBlock && !(ev.type === 'sack' && lbSack >= 0 && d === LB[lbSack]) && Math.hypot(RB.x - d.x, RB.y - d.y) < 1.2;
   // In man coverage the defender travels with the man in motion (the tell); in zone he stays home.
   const press = manCov && rnd() < 0.6;
   const DB = WHO.map((w, i) => mk(def, `DB${i}`, 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : press && w !== 'S' ? 1.3 : 6), (manCov ? spotOf(w) : FORMATION[w])[1] * 0.95), 8.6, 10));
@@ -318,6 +329,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const targetIdx = named >= 0 ? named : (ev.dir ?? 0) < 0 ? 0 : (ev.dir ?? 0) > 0 ? 1 : 2;
   const qbRun = run && !!ev.ids?.ball && ev.ids.ball === idOf(off, 'QB');
   const sackBy = DL.findIndex(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def), si = sackBy >= 0 ? sackBy : 1;
+  const sacker: Agent = lbSack >= 0 ? LB[lbSack] : DL[si];
   const target = REC[targetIdx];
   const cov = [...DB, FS, ...LB].find(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) ?? DB[targetIdx];
   const air = Math.max(-2, ev.air ?? ev.yards);
@@ -458,7 +470,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       else if (!thrown) steer(QB, at(-7, 0)[0], at(-7, 0)[1], 0.7);
       else steer(QB, QB.x, QB.y, 0.3);
       const rbPts = art?.find(a => a.who === 'RB')?.pts;
-      if (rbPts) { const p = at(...rbPts[rbPts.length - 1]); steer(RB, p[0], p[1], 0.8); } else steer(RB, QB.x + s * 1, QB.y + 1.5, 0.5);
+      const pick = rbBlock && !thrown && blitzers.size ? [...blitzers].sort((a, b) => dist(a, RB) - dist(b, RB))[0] : null;
+      if (pick) steer(RB, pick.x - s * 0.7, (pick.y + QB.y) / 2, 0.95);
+      else if (rbPts) { const p = at(...rbPts[rbPts.length - 1]); steer(RB, p[0], p[1], 0.8); } else steer(RB, QB.x + s * 1, QB.y + 1.5, 0.5);
     }
     REC.forEach((r, i) => {
       if (r === carrier) { steer(r, end + s * 2, evade(r, endY)); return; }
@@ -534,6 +548,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
       if (d === carrier) { steer(d, d.x - s * 8, d.y); return; }
       if (pursuing(d)) { pursue(d); return; }
+      // Blitzing: through the A/B gap at the quarterback (or the ball on a run).
+      if (blitzers.has(d) && !thrown) { const c = carrier ?? QB, gap = at(0.2, i ? 2.4 : -2.4); const thru = s * (d.x - gap[0]) > 0.4; steer(d, thru ? gap[0] : c.x, thru ? gap[1] : c.y, pickedUp(d) ? 0.25 : 1); return; }
       if (run && t > 0.3) { const hole = at(1.6, lateral + (i ? 1.5 : -1.5)); steer(d, hole[0], hole[1], 0.75); return; }   // fill the gap
       if (thrown && d === cov) { const p: [number, number] = picked ? catchPt : [recvPt[0] - s * 1.2, recvPt[1]]; steer(d, p[0], p[1]); return; }
       const z = at(6 + Math.min(3, t * 1.5), i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7);   // hook zone drop
@@ -650,7 +666,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
       else if (pass && caught && ev.turnover && t > catchT + 1.6 + (ev.n % 7) * 0.12) endT = t;   // the return
       else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 0.05 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
-      else if (sack && t > 1.2 && dist(DL[si], QB) < 1.1) endT = t;
+      else if (sack && t > 1.2 && dist(sacker, QB) < 1.1) endT = t;
       else if (wrapper && carrier && (s * (end - carrier.x) <= 0.05 || t - wrapT > 1.2)) endT = t;
     }
     if (endT && t > endT + 0.75) break;

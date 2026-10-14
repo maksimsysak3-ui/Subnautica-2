@@ -86,3 +86,44 @@ export function PlayDiagram({ name, def, w = 150, h = 92, pro }: { name: string;
     </svg>
   );
 }
+
+/** Diagrams for the situational calls, drawn like the plays: the real formation and what happens. */
+export function SpecialDiagram({ kind, w = 150, h = 92 }: { kind: 'Punt' | 'Field Goal' | 'Kneel' | 'Spike'; w?: number; h?: number }) {
+  const back = kind === 'Punt' ? 19 : kind === 'Field Goal' ? 12 : 12, ahead = kind === 'Field Goal' ? 22 : kind === 'Punt' ? 26 : 14;
+  const X = (dx: number) => h - ((dx + back) / (back + ahead)) * h;
+  const Y = (dy: number) => w / 2 + (dy / 46) * w;
+  const id = `sp${kind.replace(/\W/g, '')}`;
+  const ol = OL_SPOTS.map(([x, y]) => [x, y] as [number, number]);
+  // Everyone else, by call: [depth, width, kicker/QB highlight].
+  const men: [number, number, boolean?][] = kind === 'Punt' ? [[-0.5, -4.6], [-0.5, 4.6], [-1.6, -6], [-1.6, 6], [-6, 1.2], [0, -19], [0, 19], [-15, 0, true]]
+    : kind === 'Field Goal' ? [[-0.4, -4.6], [-0.4, 4.6], [-1.2, -5.8], [-1.2, 5.8], [-7, 0.5], [-9.6, -2.4, true]]
+    : kind === 'Kneel' ? [[-1, 0, true], [-3, -1.6], [-3, 1.6], [-0.5, -4.6], [-0.5, 4.6], [-11, 0]]
+    : [[-1, 0, true], [0, -19], [0, 19], [-0.5, 11], [-0.5, 4.6], [-5, 1]];
+  const kick = kind === 'Punt' ? `M${Y(0)},${X(-15)} Q${Y(-4)},${X(14)} ${Y(-6)},${X(ahead + 4)}`
+    : kind === 'Field Goal' ? `M${Y(0.5)},${X(-7)} Q${Y(0)},${X(6)} ${Y(0)},${X(ahead - 3.5)}` : '';
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="pd pro" style={{ display: 'block', background: 'linear-gradient(180deg,#14361f,#0f2a18)' }}>
+      {Array.from({ length: 8 }, (_, k) => <rect key={k} x="0" y={(k * h) / 8} width={w} height={h / 16} fill="rgba(255,255,255,.025)" />)}
+      <defs>
+        <marker id={id} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff" /></marker>
+        <marker id={`${id}p`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ffd23f" /></marker>
+        <filter id={`${id}g`}><feGaussianBlur stdDeviation="1.6" /></filter>
+      </defs>
+      {[5, 10, 15, 20].map(d => <line key={d} x1="0" x2={w} y1={X(d)} y2={X(d)} stroke="rgba(255,255,255,.08)" />)}
+      <line x1="0" x2={w} y1={X(0)} y2={X(0)} stroke="rgba(120,180,255,.7)" strokeWidth="1.5" />
+      {kind === 'Field Goal' && <g stroke="#ffd23f" strokeWidth="2.4" strokeLinecap="round" fill="none">
+        <path d={`M${Y(-3.1)},${X(ahead - 6)} L${Y(-3.1)},${X(ahead - 2.4)} L${Y(3.1)},${X(ahead - 2.4)} L${Y(3.1)},${X(ahead - 6)}`} /><line x1={Y(0)} x2={Y(0)} y1={X(ahead - 2.4)} y2={h} /></g>}
+      {kind === 'Punt' && [-19, 19].map(y => <path key={y} className="pd-route" pathLength={1} d={`M${Y(y)},${X(0)} L${Y(y * 0.92)},${X(14)} L${Y(y * 0.45)},${X(22)}`} fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" markerEnd={`url(#${id})`} />)}
+      {kick && <><path d={kick} fill="none" stroke="#ffd23f" strokeWidth="5" opacity=".35" filter={`url(#${id}g)`} />
+        <path className="pd-route" pathLength={1} d={kick} fill="none" stroke="#ffd23f" strokeWidth="2.4" strokeDasharray={kind === 'Punt' ? '0.03 0.02' : undefined} strokeLinecap="round" markerEnd={`url(#${id}p)`} /></>}
+      {(kind === 'Kneel' || kind === 'Spike') && <circle cx={Y(0)} cy={X(-1)} r={9} fill="none" stroke="#ffd23f" strokeWidth="1.4" opacity=".55" filter={`url(#${id}g)`} />}
+      {(kind === 'Kneel' || kind === 'Spike') && <circle cx={Y(0)} cy={X(-1)} r={8} fill="none" stroke="#ffd23f" strokeWidth="1" strokeDasharray="2 2" />}
+      {kind === 'Spike' && <g>
+        <path d={`M${Y(0) + 4},${X(-1) + 3} Q${Y(4)},${X(-2.2)} ${Y(5.5)},${X(-3.4)}`} fill="none" stroke="#ffd23f" strokeWidth="1.6" strokeDasharray="2 1.6" />
+        <ellipse cx={Y(6.4)} cy={X(-3.6)} rx="3.6" ry="2.2" fill="#9a5a22" stroke="#0b0f16" strokeWidth=".8" transform={`rotate(-20 ${Y(6.4)} ${X(-3.6)})`} />
+        {[-60, -20, 20, 60].map(d => { const r0 = 5, r1 = 8, a = (d - 90) * Math.PI / 180; return <line key={d} x1={Y(6.4) + Math.cos(a) * r0} y1={X(-3.6) + Math.sin(a) * r0} x2={Y(6.4) + Math.cos(a) * r1} y2={X(-3.6) + Math.sin(a) * r1} stroke="#ffd23f" strokeWidth="1.3" strokeLinecap="round" />; })}</g>}
+      {ol.map(([x, y], i) => <rect key={i} x={Y(y) - 3.2} y={X(x) - 3.2} width={6.4} height={6.4} rx={1} fill="#c9d2e0" stroke="#0b0f16" strokeWidth="1.2" />)}
+      {men.map(([x, y, hot], i) => <circle key={i} cx={Y(y)} cy={X(x)} r={3.6} fill={hot ? '#ffd23f' : '#f4f6fa'} stroke="#0b0f16" strokeWidth={1.2} />)}
+    </svg>
+  );
+}

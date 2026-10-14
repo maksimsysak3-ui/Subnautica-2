@@ -93,7 +93,7 @@ export interface Player {
 export interface CustomPlay { name: string; type: 'pass' | 'run'; routes: { who: 'X' | 'Z' | 'S' | 'TE' | 'RB' | 'QB'; pts: [number, number][]; primary?: boolean; block?: boolean; /** Pre-snap motion path, behind the line; the route starts where it ends. */ motion?: [number, number][] }[]; /** Formation (an offensive set name). */ set?: string }
 export interface CustomDefPlay { name: string; set: 'Base' | 'Nickel' | 'Dime' | 'Goal Line'; assigns: { who: 'DL0' | 'DL1' | 'DL2' | 'DL3' | 'LB0' | 'LB1' | 'CB0' | 'CB1' | 'NB' | 'SS' | 'FS'; kind: 'rush' | 'zone' | 'blitz' | 'man'; pts: [number, number][] }[] }
 /** A playbook: folders of plays (one per formation, plus any the user makes). */
-export interface Playbook { id: string; name: string; side: 'off' | 'def'; folders: { name: string; set: string; plays: string[] }[] }
+export interface Playbook { id: string; name: string; side: 'off' | 'def'; folders: { name: string; set: string; plays: string[] }[]; /** Install revision: new concepts are added to old saves once. */ rev?: number }
 
 export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number }
 

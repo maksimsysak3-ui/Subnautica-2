@@ -35,6 +35,8 @@ export interface PlayEvent {
   ids?: { qb?: string; ball?: string; target?: string; def?: string; kicker?: string };
   air?: number; complete?: boolean; td?: boolean; turnover?: boolean; score?: [number, number]; big?: boolean;
   dir?: -1 | 0 | 1; call?: string; dcall?: string; wp?: number;
+  /** The defense's coverage shell and how many extra rushers it sent (0 = four-man rush). */
+  shell?: string; blitz?: number;
   /** The home crowd's pulse (0..100) after this play. */
   pulse?: number;
 }
@@ -443,6 +445,13 @@ export class GameSim {
   private lastClockRunning = false;
 
   /** The user calls a timeout: the clock stops and doesn't run off before the next snap. */
+  /** The opening toss, decided on screen: `receiver` takes the first kickoff and the other side gets the second half. */
+  setToss(receiver: 0 | 1): void {
+    if (this.events.length) return;
+    this.poss = receiver;
+    this.receivesSecondHalf = (1 - receiver) as 0 | 1;
+  }
+
   callTimeout(side: 0 | 1): PlayEvent | null {
     const sd = this.sides[side];
     if (this.over || this.pending || sd.timeouts <= 0) return null;
@@ -667,7 +676,7 @@ export class GameSim {
     let ev: PlayEvent;
     if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
     else ev = this.runPlay(oc, dc, o, d);
-    ev.call = oc.name; ev.dcall = dc.name;
+    ev.call = oc.name; ev.dcall = dc.name; ev.shell = dc.shell; ev.blitz = dc.blitz ? (dc.shell === 'Cover 0' ? 2 : 1) : 0;
     if (startDown === 3 && !ev.turnover) { this.box[ev.poss].third[1]++; if (ev.yards >= startTogo || ev.td) this.box[ev.poss].third[0]++; }
     void startYl;
     return ev;

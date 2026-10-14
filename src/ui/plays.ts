@@ -30,8 +30,8 @@ export const DEF_SETS: Record<DefSet, { label: string; note: string }> = {
 };
 
 // ---- the library ---------------------------------------------------------------------------
-export interface LibOff { name: string; set: string; icon: string; desc: string; call: OffCall }
-export interface LibDef { name: string; set: DefSet; desc: string; call: Omit<DefCall, 'box'> & { box?: number } }
+export interface LibOff { name: string; set: string; icon: string; desc: string; call: OffCall; /** Second install: added on top of each team's original book. */ extra?: boolean }
+export interface LibDef { name: string; set: DefSet; desc: string; call: Omit<DefCall, 'box'> & { box?: number }; extra?: boolean }
 const r = (who: Art['who'], pts: [number, number][], primary?: boolean, motion?: [number, number][]): Art => ({ who, pts, kind: 'route', primary, motion });
 const run = (who: Art['who'], pts: [number, number][], primary = true): Art => ({ who, pts, kind: 'run', primary });
 
@@ -171,6 +171,21 @@ export const OFF_LIB: LibOff[] = [
     [...olPush(2, 1), block('S', 2, 2), run('RB', [[-3, 1], [1, 2.5], [4, 3]]), block('TE', 1.5, 1), block('Z', 1.5, -1), block('X', 2)]),
   off('PA Flat', 'Goal Line', '↗', 'Fake the dive, tight end leaks to the flat', { kind: 'pass', depth: 'quick', primary: 'TE', pa: true },
     [{ who: 'RB', pts: [[-3, 1], [-1, 2]], kind: 'run' }, r('TE', [[1, 6], [3, 12]], true), r('Z', [[4, -4.5], [6, 2]]), block('S', 0, 2), r('X', [[6, -14], [6, -10]]), ...olPush(0.5, 0)]),
+  // ---- second install: pass concepts every team adds on top of its original book ----
+  ...[
+    off('Shallow Cross', 'Shotgun', '⟶', 'Split end drags under the linebackers, dig behind him', { kind: 'pass', depth: 'short', primary: 'X' },
+      [r('X', [[2, -19], [3, 6]], true), r('Z', [[12, 19], [12, 8]]), r('S', [[18, 11]]), r('TE', [[5, 4.5], [5, 2]]), r('RB', [[-4, 5], [1, 14]]), ...pass]),
+    off('Out and Up', 'Shotgun', '⌈', 'Sell the quick out, then go over the top', { kind: 'pass', depth: 'deep', primary: 'Z' },
+      [r('Z', [[7, 19], [7, 21], [24, 21]], true), r('S', [[10, 11], [10, 4]]), r('X', [[6, -19], [5, -17]]), r('TE', [[12, 4.5], [18, 10]]), block('RB', -1, 1.5), ...olPush(-2, 0)]),
+    off('Post Wheel', 'Gun Doubles', '⤒', 'Post clears the corner, slot wheels up the sideline', { kind: 'pass', depth: 'deep', primary: 'SLOT' },
+      [r('S', [[3, -11], [6, -17], [24, -18]], true), r('X', [[12, -19], [24, -8]]), r('Z', [[6, 19], [5, 17]]), r('TE', [[6, 4.5], [6, 9]]), block('RB', -1, 1), ...olPush(-2, 0)]),
+    off('Curl Seam', 'Gun Doubles', '⥾', 'Curls outside, seams split the safeties', { kind: 'pass', depth: 'medium', primary: 'X' },
+      [r('X', [[11, -19], [9, -18]], true), r('S', [[20, -11]]), r('Z', [[11, 19], [9, 18]]), r('TE', [[18, 4.5]]), r('RB', [[-4, -5], [1, -12]]), ...pass]),
+    off('Flanker Drive', 'Singleback', '⇢', 'Flanker drives across at five, tight ends clear it out', { kind: 'pass', depth: 'short', primary: 'Z' },
+      [r('Z', [[3, 19], [5, -2]], true), r('TE', [[11, 4.5], [11, -8]]), r('S', [[16, -4.5], [22, -10]]), r('X', [[16, -19]]), block('RB', -2, 1), ...pass]),
+    off('Trips Slant', 'Gun Bunch', '⟍', 'Point man slants inside, the stack breaks out', { kind: 'pass', depth: 'quick', primary: 'Z' },
+      [r('Z', [[3, 13], [7, 6]], true), r('S', [[2, 11.5], [4, 19]]), r('TE', [[6, 14.5], [10, 18]]), r('X', [[3, -19], [7, -13]]), block('RB', -1, -1.5), ...pass]),
+  ].map(p => ({ ...p, extra: true })),
 ];
 
 // Play-action versions of every dropback pass: the back fakes the run first.
@@ -213,6 +228,17 @@ export const DEF_LIB: LibDef[] = [
     [M(-14), M(4.5), BL([[2, -2], [-2, -1]]), BL([[2, 2], [-2, 1]]), BL([[3, 0], [-2, 0]])]),
   dplay('Goal Line Zone', 'Goal Line', 'Squeeze the end zone, no gaps', { shell: 'Cover 2', blitz: false, box: 8 },
     [Z(6, -10, 5), Z(6, 0, 5), Z(6, 10, 5), Z(9, -6, 4), Z(9, 6, 4)]),
+  // ---- second install: more pressure ----
+  ...[
+    dplay('Double A Gap', 'Nickel', 'Both linebackers walk up and shoot the A gaps', { shell: 'Cover 1', blitz: true },
+      [Z(20, 0, 9), M(-19), M(19), M(11), BL([[2, -2], [-3, -1]]), BL([[2, 2], [-3, 1]])]),
+    dplay('Base Fire Zone', 'Base', 'Will linebacker off the edge, three deep behind it', { shell: 'Cover 3', blitz: true },
+      [Z(18, -16, 7.5), Z(18, 0, 7.5), Z(18, 16, 7.5), Z(6, -6, 5), Z(6, 8, 5), BL([[5, -8], [-3, -5]])]),
+    dplay('Zero Pressure', 'Nickel', 'Six rush, man everywhere, nobody deep', { shell: 'Cover 0', blitz: true },
+      [M(-19), M(19), M(11), M(4.5), BL([[3, -3], [-3, -1]]), BL([[3, 3], [-3, 1]])]),
+    dplay('Overload', 'Base', 'Three rushers to one side: somebody comes free', { shell: 'Cover 1', blitz: true },
+      [Z(20, 0, 9), M(-19), M(19), BL([[5, 5], [-3, 3]]), BL([[6, 9], [-3, 6]])]),
+  ].map(p => ({ ...p, extra: true })),
 ];
 
 // ---- custom plays --------------------------------------------------------------------------
@@ -261,14 +287,27 @@ export function books(L: League): Playbook[] {
     const tb = bookOf(me);
     if (!L.playbooks.some(b => b.id === 'pb-team')) {
       const sets = [...new Set(tb.map(p => p.set))];
-      L.playbooks.unshift({ id: 'pb-team', name: `${me.name} Offense`, side: 'off', folders: sets.map(set => ({ name: OFF_SETS[set]?.label ?? set, set, plays: tb.filter(p => p.set === set).map(p => p.name) })) });
+      L.playbooks.unshift({ id: 'pb-team', rev: 2, name: `${me.name} Offense`, side: 'off', folders: sets.map(set => ({ name: OFF_SETS[set]?.label ?? set, set, plays: tb.filter(p => p.set === set).map(p => p.name) })) });
       L.activeBook = { ...(L.activeBook ?? { def: 'pb-def' }), off: 'pb-team' } as typeof L.activeBook;
     }
     const db = teamDefBook(me);
     if (!L.playbooks.some(b => b.id === 'pb-team-def')) {
-      L.playbooks.unshift({ id: 'pb-team-def', name: `${me.name} Defense`, side: 'def', folders: (Object.keys(DEF_SETS) as DefSet[]).map(set => ({ name: DEF_SETS[set].label, set, plays: db.filter(p => p.set === set).map(p => p.name) })) });
+      L.playbooks.unshift({ id: 'pb-team-def', rev: 2, name: `${me.name} Defense`, side: 'def', folders: (Object.keys(DEF_SETS) as DefSet[]).map(set => ({ name: DEF_SETS[set].label, set, plays: db.filter(p => p.set === set).map(p => p.name) })) });
       L.activeBook = { ...L.activeBook, def: 'pb-team-def' };
     }
+  }
+  // Old saves: the team books get the second install once (new concepts, never re-adding cuts after).
+  if (me) for (const [id, plays] of [['pb-team', bookOf(me)], ['pb-team-def', teamDefBook(me)]] as const) {
+    const b = L.playbooks.find(x => x.id === id);
+    if (!b || (b.rev ?? 0) >= 2) continue;
+    const have = new Set(b.folders.flatMap(f => f.plays));
+    for (const p of plays as { name: string; set: string; extra?: boolean }[]) {
+      if (!p.extra || have.has(p.name)) continue;
+      let f = b.folders.find(x => x.set === p.set);
+      if (!f) b.folders.push(f = { name: (b.side === 'off' ? OFF_SETS[p.set]?.label : DEF_SETS[p.set as DefSet]?.label) ?? p.set, set: p.set, plays: [] });
+      f.plays.push(p.name);
+    }
+    b.rev = 2;
   }
   // Drawn plays without a home go into a "My Plays" folder of the active book.
   const act = activeBook(L, 'off');

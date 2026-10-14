@@ -1,0 +1,37 @@
+/* Opening coin toss overlay. */
+.ct { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; padding: 16px; background: radial-gradient(80% 70% at 50% 45%, rgba(10,30,18,.82), rgba(3,6,10,.94)); animation: ctIn .35s ease both; }
+.ct.out { animation: ctOut .32s ease forwards; }
+@keyframes ctIn { from { opacity: 0; } }
+@keyframes ctOut { to { opacity: 0; } }
+.ct-card { width: min(640px, 100%); padding: 22px 24px 24px; border-radius: 16px; text-align: center; color: #fff;
+  background: linear-gradient(180deg, #131a26, #0a0e15); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 24px 60px rgba(0,0,0,.6); }
+.ct-kick { font: 800 11px/1 var(--body, Inter), sans-serif; letter-spacing: .24em; text-transform: uppercase; color: #ffd23f; }
+.ct-caps { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 18px 0 8px; }
+.ct-cap { display: grid; justify-items: center; gap: 4px; }
+.ct-cap i { width: 46px; height: 6px; border-radius: 3px; background: var(--ca); box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+.ct-cap.h i { background: var(--ch); }
+.ct-cap b { font: 900 34px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; letter-spacing: .02em; }
+.ct-cap span { font: 600 11px/1 var(--body, Inter), sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #8d96a8; }
+.ct-stage { position: relative; width: 160px; height: 180px; }
+.ct-arc { position: absolute; left: 50%; bottom: 30px; margin-left: -56px; width: 112px; height: 112px; }
+.ct-arc.go { animation: ctArc 2s cubic-bezier(.3,.6,.4,1) both; }
+@keyframes ctArc { 0% { transform: translateY(0); } 45% { transform: translateY(-46px) scale(1.12); } 100% { transform: translateY(0); } }
+.ct-coin { position: relative; width: 100%; height: 100%; }
+.ct-face { position: absolute; inset: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.45)); }
+.ct-face svg { display: block; width: 100%; height: 100%; }
+.ct-rim { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(90deg, #6b4705 0 2px, #b8861d 2px 4px); box-shadow: inset 0 0 0 2px #5a3c05; }
+.ct-shadow { position: absolute; left: 50%; bottom: 22px; width: 70px; height: 10px; margin-left: -35px; border-radius: 50%; background: rgba(0,0,0,.5); filter: blur(3px); }
+.ct-arc.go + .ct-shadow { animation: ctShadow 2s cubic-bezier(.3,.6,.4,1) both; }
+@keyframes ctShadow { 45% { transform: scale(.55); opacity: .5; } }
+.ct-ref { min-height: 112px; }
+.ct-ref p { margin: 6px 0; font: 500 15px/1.4 var(--body, Inter), sans-serif; color: #c8cfdb; }
+.ct-ref p b { color: #fff; }
+.ct-res span { font: 900 26px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; text-transform: uppercase; color: #ffd23f; }
+.ct-res b { font-weight: 800; padding: 0 2px; }
+.ct-btns { display: flex; justify-content: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.ct-btns button { min-width: 150px; padding: 12px 20px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; cursor: pointer; color: #fff;
+  background: linear-gradient(180deg, #1d2534, #121823); font: 900 20px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; letter-spacing: .04em; text-transform: uppercase; transition: transform .15s, border-color .15s, background .15s; }
+.ct-btns button small { display: block; margin-top: 5px; font: 500 11px/1.2 var(--body, Inter), sans-serif; font-style: normal; letter-spacing: 0; text-transform: none; color: #9aa3b2; }
+.ct-btns button:hover, .ct-btns button:focus-visible { transform: translateY(-2px); border-color: #ffd23f; background: linear-gradient(180deg, #2a3446, #161d2a); outline: none; }
+@media (max-width: 520px) { .ct-cap b { font-size: 24px; } .ct-stage { width: 110px; } .ct-btns button { min-width: 0; flex: 1; } }
+@media (prefers-reduced-motion: reduce) { .ct, .ct.out { animation: none; } }

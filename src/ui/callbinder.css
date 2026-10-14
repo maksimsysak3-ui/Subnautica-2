@@ -23,8 +23,6 @@
 .cb-art svg { display: block; }
 .cb-cell.hot .pd-route { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cbDraw .9s cubic-bezier(.4,.1,.3,1) forwards; }
 @keyframes cbDraw { to { stroke-dashoffset: 0; } }
-.cb-sp { width: 210px; height: 120px; display: grid; place-items: center; overflow: hidden; font-size: 40px; line-height: 1; background: linear-gradient(180deg,#14361f,#0f2a18); color: #fff; }
-.cb.one .cb-sp { width: 150px; height: 92px; }
 .cb-txt b { display: block; font: 900 21px/1 var(--head, 'Barlow Condensed'), sans-serif; font-style: italic; letter-spacing: .01em; text-transform: uppercase; color: #fff; }
 .cb-txt p { margin: 5px 0 0; font: 500 12px/1.35 var(--body, Inter), sans-serif; color: #9aa3b2; }
 .cb-tag { display: inline-block; margin-top: 5px; padding: 2px 8px; font: 800 9.5px/1.4 var(--body, Inter), sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #0b0f16; background: #7fb4ff; clip-path: polygon(6% 0, 100% 0, 94% 100%, 0 100%); }
