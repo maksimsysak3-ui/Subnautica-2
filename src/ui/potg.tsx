@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GameSim } from '../sim/game';
 import type { League, StatLine, Team } from '../core/types';
-import { sprite } from './field/pixel';
+import { renderRig, POSE, W as RW, H as RH } from './field/rig';
 import { kitFor } from './field';
 import './potg.css';
 
@@ -47,8 +47,8 @@ export function PlayerOfGame({ L, sim, home, away, onClose }: { L: League; sim: 
       for (let i = 0; i < 40; i++) { const x = (i * 97 + t * 6) % c.width, y = (i * 53) % (c.height * 0.5); g.fillStyle = `rgba(255,240,200,${0.08 + (i % 5) * 0.03})`; g.beginPath(); g.arc(x, y, 6 + (i % 4) * 5, 0, 7); g.fill(); }
       const kit = kitFor(team, isHome);
       const bob = Math.round(Math.sin(t * 2) * 2);
-      g.drawImage(sprite(kit, '#a46e4c', step === 0 ? 'secure' : 'stand', true), 300, 40 + bob, 18 * 12, 22 * 12);
-      g.drawImage(sprite({ jersey: '#20242e', num: '#20242e', trim: '#20242e', pants: '#2b2f3a', helmet: '#3a2a20', mask: '#3a2a20', socks: '#2b2f3a' }, '#e6c2a2', 'reach', false), 60, 70, 18 * 11, 22 * 11);
+      g.drawImage(renderRig(step === 0 ? { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 } : POSE.stand(), 'skill', kit, '#a46e4c', p?.num ?? 0, true), 250, -40 + bob, RW * 6.5, RH * 6.5);
+      g.drawImage(renderRig(POSE.reach(9, -2), 'civ', { jersey: '#20242e', num: '#20242e', trim: '#20242e', pants: '#2b2f3a', helmet: '#3a2a20', mask: '#3a2a20', socks: '#2b2f3a' }, '#e6c2a2', -1, false), 20, -20, RW * 6, RH * 6);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);

@@ -12,9 +12,11 @@ export const FW = 53.3, MID = 26.65;
 export interface World { ppy: number; dep: number; top: number; height: number; X0: number; X1: number; ribbon: [number, number]; bowl: [number, number] }
 
 export function makeWorld(RW: number, RH: number): World {
-  const ppy = RW / 38;
+  // A fixed scale (the players are drawn at 16 px a yard) and a broadcast-like depth: the
+  // field is taller than the picture, and the camera follows the ball up and down it.
+  const ppy = 16;
   const fieldTop = Math.round(RH * 0.16);
-  const dep = (RH - fieldTop - 8) / (FW * ppy);
+  const dep = 0.62;
   const stand = Math.round(RH * 0.62);        // extra stands above the base framing, for tilt-ups and close-ups
   const top = stand + fieldTop;
   const ribbon: [number, number] = [Math.round(stand * 0.52), Math.round(stand * 0.52) + 7];
@@ -141,7 +143,7 @@ export function paintStadium(W: World, o: StadiumOpts): HTMLCanvasElement {
   }
   // Midfield logo and the 25-yard-line marks.
   if (o.logo) { const sz = W.ppy * 7.5; g.imageSmoothingEnabled = false; g.globalAlpha = 0.92; g.drawImage(o.logo, X(60) - sz / 2, Y(MID) - (sz * W.dep * 1.15) / 2, sz, sz * W.dep * 1.15); g.globalAlpha = 1; }
-  else { g.globalAlpha = 0.35; g.fillStyle = H0; g.beginPath(); g.ellipse(X(60), Y(MID), W.ppy * 4, W.ppy * 4 * W.dep, 0, 0, 7); g.fill(); g.globalAlpha = 1; }
+  else { /* no logo: plain grass */ }
   // Pylons at the four corners of both end zones.
   g.fillStyle = '#ff6a00'; for (const x of [0, 10, 110, 120]) for (const y of [0, FW]) g.fillRect(X(x) - 1, Y(y) - 3, 2, 4);
   // Below the near sideline: the photographers' strip.

@@ -7,37 +7,13 @@
 // P pants   p pants stripe   K socks     B shoe  G glove   F football     W laces
 // R referee stripe (black)   lower case = far limb (shaded)
 
-import FRAMES from './frames.json';
 
 export interface Kit { jersey: string; num: string; trim: string; pants: string; helmet: string; mask: string; socks: string }
-/** Every pose the players have (tools/sprites.py draws them; 16x20, facing right, feet on the last row). */
-export type Frame = keyof typeof FRAMES;
-export const hasFrame = (f: string): f is Frame => f in FRAMES;
-
 const shade = (hex: string, k: number) => {
   const n = parseInt(hex.replace('#', '').slice(0, 6), 16);
   const f = (c: number) => Math.round(Math.max(0, Math.min(255, k < 0 ? c * (1 + k) : c + (255 - c) * k)));
   return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
 };
-const cache = new Map<string, HTMLCanvasElement>();
-export const SPRITE_W = 16, SPRITE_H = 20;
-/** Where a sprite canvas is pinned to the player's spot: the middle of his feet. */
-export const ANCHOR_X = 9, ANCHOR_Y = 20;
-
-/** A cached sprite canvas for this kit, skin, frame and facing (18x22 with the outline). */
-export function sprite(kit: Kit, skin: string, f: Frame, flip: boolean, ref = false): HTMLCanvasElement {
-  const key = `${kit.jersey}|${kit.num}|${kit.helmet}|${kit.pants}|${skin}|${f}|${flip ? 1 : 0}|${ref ? 1 : 0}`;
-  const hit = cache.get(key); if (hit) return hit;
-  const glove = kit.trim.toLowerCase() === '#ffffff' ? kit.jersey : kit.trim;
-  const col: Record<string, string> = ref
-    ? { H: '#1a1a1a', h: '#1a1a1a', M: '#1a1a1a', S: skin, J: '#f2f2f2', T: '#111', N: '#111', P: '#f2f2f2', p: '#111', K: '#111', B: '#111', G: '#111', F: '#7a3a12', W: '#fff' }
-    : { H: kit.helmet, h: kit.trim, M: kit.mask, S: skin, J: kit.jersey, T: kit.trim, N: kit.num, P: kit.pants, p: kit.trim, K: kit.socks, B: '#141414', G: glove, F: '#7a3a12', W: '#ffffff' };
-  const c = paint(FRAMES[f] as string[], col, flip, ref ? (ch, x0) => (ch === 'J' && x0 % 2 === 0 ? '#111' : undefined) : undefined);
-  cache.set(key, c);
-  if (cache.size > 2500) cache.delete(cache.keys().next().value!);
-  return c;
-}
-
 /** Draw a grid of palette letters into an outlined, top-lit canvas (lower case = shaded far limb). */
 export function paint(rows: string[], col: Record<string, string>, flip = false, override?: (ch: string, x: number) => string | undefined): HTMLCanvasElement {
   const w = Math.max(...rows.map(r => r.length));

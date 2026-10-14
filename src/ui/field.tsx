@@ -16,8 +16,9 @@ import type { PlayEvent, Weather } from '../sim/game';
 import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
-import { sprite, ANCHOR_X, ANCHOR_Y, type Kit } from './field/pixel';
-import { choreograph, BALL_FRAMES, MID, FW, type Choreo, type Pose } from './field/choreo';
+import type { Kit } from './field/pixel';
+import { renderRig, buildOf, POSE, AX, AY } from './field/rig';
+import { choreograph, MID, FW, type Choreo, type Pose } from './field/choreo';
 import { makeWorld, paintStadium, drawCrowd, drawRibbon, drawPosts, wx, wy, type World } from './field/stadium';
 import { FORMATION, OL_SPOTS, snapSpot, type Art } from './playart';
 import { warmSkins } from './skin';
@@ -56,9 +57,9 @@ function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: 
     pose: (i, c) => {
       if (c <= snap) return base.pose(i, c);
       const p = base.pose(i, snap - 0.01), d = c - snap;
-      if (i === qb && special === 'kneel') return { ...p, f: d < 0.25 ? 'secure' : 'kneel' };
-      if (i === qb && special === 'spike') return { ...p, f: d < 0.3 ? 'spike0' : d < 0.6 ? 'spike1' : 'stand' };
-      return { ...p, f: special === 'penalty' && d > 0.5 ? 'stand' : p.f };
+      if (i === qb && special === 'kneel') return { ...p, rig: d < 0.25 ? POSE.hold() : { ...POSE.kneel(), ball: 1 } };
+      if (i === qb && special === 'spike') return { ...p, rig: d < 0.7 ? POSE.spike(d / 0.7) : POSE.stand() };
+      return special === 'penalty' && d > 0.5 ? { ...p, rig: POSE.stand(Math.sin(c * 2 + i)) } : p;
     },
     refs: c => base.refs(Math.min(c, snap)),
     ball: c => {
@@ -174,7 +175,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       
       hype += (0.18 - hype) * realDt * 0.25;
       // --- geometry
-      const S = Math.max(2, Math.round(w / 340));
+      const S = Math.max(1, Math.round(w / 580));
       const RW0 = Math.ceil(w / S), RH0 = Math.ceil(h / S);
       const key = `${RW0}x${RH0}|${home.abbr}|${away.abbr}|${img.current ? 1 : 0}|${night ? 1 : 0}|${college ? 1 : 0}`;
       if (!stadium.current || stadium.current.key !== key) { const W0 = makeWorld(RW0, RH0); stadium.current = { c: paintStadium(W0, { home, away, logo: img.current, night: !!night, college: !!college, snow: weather?.precip === 'snow' && !weather.dome }), key, W: W0, S }; cam.current.y = -1; }
@@ -206,7 +207,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       zoom = 1; C.z = 1;
       const E = S * C.z, VW = Math.ceil(w / E), VH = Math.ceil(h / E);
       const bottom = W.height - VH / 2;
-      const wantY = C.z <= 1.02 ? bottom : clamp(wy(W, fy0) - VH * 0.08, VH / 2, bottom);
+      const wantY = clamp(wy(W, fy0) - VH * 0.12, VH / 2, bottom);
       if (C.y < 0) C.y = wantY; else C.y += (wantY - C.y) * k1;
       const ox = Math.round(wx(W, C.x) - VW / 2), oy = Math.round(Math.min(bottom, C.y) - VH / 2);
       const sx = (x: number) => Math.round(wx(W, x) - ox), sy = (y: number, z = 0) => Math.round(wy(W, y, z) - oy);
@@ -283,13 +284,13 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
   const drawOne = (p: Pose, kit: Kit, skin: string, isRef: boolean, i: number) => {
     const px = sx(p.x), py = sy(p.y);
     if (px < -24 || px > vw + 24) return;
-    const lift = Math.round(p.lift * W.ppy * 0.85);
-    // Shadow (smaller in the air).
-    const sw = lift > 2 ? 5 : 8;
-    g.fillStyle = 'rgba(0,0,0,.32)'; g.fillRect(px - sw / 2, py, sw + 1, 1); g.fillRect(px - sw / 2 + 1, py + 1, sw - 1, 1);
-    const spr = sprite(kit, skin, p.f, p.face < 0, isRef);
-    g.drawImage(spr, px - ANCHOR_X, py - ANCHOR_Y - lift);
-    if (!isRef && i === holder && !BALL_FRAMES.has(p.f) && p.f !== 'down' && p.f !== 'downback' && !p.rot) { g.fillStyle = '#7a3a12'; g.fillRect(px + (p.face > 0 ? 2 : -4), py - 11 - lift, 3, 2); }
+    const lift = p.rig.lift;
+    // Shadow: under the feet, longer when he's on the turf, smaller when he's in the air.
+    const sw = p.lying || Math.abs(p.rig.rot) > 0.8 ? 22 : lift > 3 ? 7 : 11;
+    const sx0 = p.lying || Math.abs(p.rig.rot) > 0.8 ? px + p.face * Math.sign(p.rig.rot || 1) * 8 : px;
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(Math.round(sx0 - sw / 2), py - 1, sw, 2); g.fillRect(Math.round(sx0 - sw / 2) + 2, py + 1, sw - 4, 1);
+    const b = isRef ? 'ref' : buildOf(sc.actors[i]?.slot ?? '', sc.actors[i]?.role ?? '');
+    g.drawImage(renderRig(p.rig, b, kit, skin, isRef ? -1 : sc.actors[i]?.num ?? 0, p.face < 0), px - AX, py - AY);
     // Breath in the cold.
     if (cold && ((now / 1000 + i * 0.37) % 1.6) < 0.45) { const k = ((now / 1000 + i * 0.37) % 1.6) / 0.45; g.fillStyle = `rgba(240,244,250,${0.55 * (1 - k)})`; g.fillRect(px + p.face * (5 + Math.round(k * 3)), py - 17 - lift - Math.round(k * 2), 2, 1); }
   };
@@ -297,7 +298,7 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     const p = poses[i];
     const skin = a.skin ?? SKIN[(a.id ? hashStr(a.id) : a.num) % SKIN.length];
     const kit = kits[a.team];
-    list.push({ y: p.y + (p.f === 'down' || p.f === 'downback' ? -0.3 : 0), draw: () => {
+    list.push({ y: p.y + (p.lying ? -0.3 : 0), draw: () => {
       // Breakaway speed: two fading after-images behind the ball carrier.
       if (false) {
         const q1 = ch.pose(i, c - 0.06), q2 = ch.pose(i, c - 0.12);
@@ -407,7 +408,8 @@ function drawTags(ctx: CanvasRenderingContext2D, sc: Scene, ch: Choreo, c: numbe
   }
   if (who < 0) return;
   const a = sc.actors[who], p = ch.pose(who, c);
-  const px = sx(p.x) * E, py = (sy(p.y) - 25 - p.lift * 8) * E;
+  if (p.lying || Math.abs(p.rig.rot) > 0.5) return;
+  const px = sx(p.x) * E, py = (sy(p.y) - 42 - p.rig.lift) * E;
   ctx.font = `700 ${replay ? 12 : 11}px Silkscreen, monospace`;
   const label = `${a.num} ${(a.ln || a.role).toUpperCase()}`;
   const w = ctx.measureText(label).width + 14;

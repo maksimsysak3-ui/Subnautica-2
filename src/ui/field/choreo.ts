@@ -8,10 +8,10 @@
 // Everything is deterministic for a play (seeded by its number), so replays match.
 import type { PlayEvent } from '../../sim/game';
 import type { Scene } from './scene';
-import type { Frame } from './pixel';
+import { POSE, type RigPose } from './rig';
 
 export const MID = 26.65, FW = 53.3;
-export interface Pose { x: number; y: number; f: Frame; face: 1 | -1; rot: number; lift: number; ref?: boolean }
+export interface Pose { x: number; y: number; face: 1 | -1; rig: RigPose; ref?: boolean; lying?: boolean }
 export interface BallState { x: number; y: number; h: number; free: boolean; kick: boolean }
 export interface Fx { at: number; kind: 'dust' | 'turf' | 'impact' | 'td' | 'first' | 'sack' | 'turnover' | 'catch' | 'whiff' | 'flag'; x: number; y: number; big?: boolean }
 export type Celebration = 'spike' | 'jump' | 'flex' | 'dance' | 'pray' | 'point' | 'none';
@@ -35,8 +35,6 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const smooth = (k: number) => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
 
-/** Frames that already show the ball in the hands. */
-export const BALL_FRAMES = new Set<string>(['carry0', 'carry1', 'carry2', 'carry3', 'carry4', 'carry5', 'hold', 'secure', 'stiff0', 'stiff1', 'plant', 'spike0', 'highball', 'divecatch', 'frontball', 'throw0', 'throw1', 'snap', 'holder']);
 
 export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   const A = sc.actors, n = A.length, s = sc.dirSign, D = sc.dur;
@@ -176,216 +174,223 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   if (turnover && finalCarrier >= 0) fx.push({ at: endC, kind: 'turnover', x: X[finalCarrier][K(endC)], y: Y[finalCarrier][K(endC)] });
 
   // ---- poses -------------------------------------------------------------------------------
+  // Every pose is built from the skeleton library (rig.ts); the decisions below say which
+  // action, how far into it, and where the hands are reaching.
   const isLine = (i: number) => /^(OL|DL|FG|FB)/.test(A[i].slot) || (A[i].slot.startsWith('RU') && A[i].role === 'DL');
   const shotgun = (sc.align?.QB?.[0] ?? -5) <= -3;
-  const stanceOf = (i: number): Frame => (A[i].slot === 'QB' && !shotgun ? 'hold' : 'stand');
-
-  // Walk-up: offense from the huddle, defense from a loose shell, all set before the snap.
+  const RPY = 16;   // rig px per yard
+  const inten = (sp: number) => clamp((sp - 1.2) / 7.4, 0, 1);
+  const accel = (i: number, k: number) => clamp((SP[i][k] - SP[i][Math.max(0, k - 6)]) / 2, -1, 1);
+  const runRig = (i: number, k: number, carry: boolean) => POSE.run(((PH[i][k] % 1) + 1) % 1, inten(SP[i][k]), carry, accel(i, k));
+  const mk = (x: number, y: number, face: number, rig: RigPose, extra: Partial<Pose> = {}): Pose => ({ x, y, face: (face >= 0 ? 1 : -1), rig, ...extra });
+  /** Hands reaching for the ball as it arrives (target relative to the shoulders, rig px). */
+  const reachFor = (i: number, c: number, face: number, jump = 0, carry = false) => {
+    const k = K(c), t = Math.min(c + 0.06, catchC ?? c), u = U(t);
+    const [bx] = sc.ball(u), bh = sc.ballH(u);
+    const fx = clamp((bx - X[i][k]) * face * RPY, -4, 12), fy = clamp(bh * 0.85 * RPY - 22 - jump, -10, 14);
+    return POSE.reach(fx, fy, jump, carry);
+  };
+  const stanceOf = (i: number): RigPose => {
+    const a = A[i];
+    if (a.team === off) {
+      if (a.slot === 'OL2') return POSE.snap();
+      if (a.slot.startsWith('OL')) return POSE.three();
+      if (a.slot === 'QB') return shotgun ? POSE.gun() : POSE.under();
+      if (a.slot === 'RB') return POSE.rb();
+      return POSE.two();
+    }
+    if (a.slot.startsWith('DL')) return POSE.three();
+    return a.slot === 'FS' ? POSE.stand() : POSE.two();
+  };
+  // Walk-up: offense from the huddle, defense from a loose shell; everyone stands at the line,
+  // then gets down into the stance just before the snap.
   const huddle = (i: number): [number, number] => {
     const a = A[i];
-    const k0 = 0, sx = X[i][k0], sy = Y[i][k0];
     if (a.team === off) { const ang = (i * 2.4) % (Math.PI * 2); return [sc.los - s * 7.5 + Math.cos(ang) * 1.6, MID + Math.sin(ang) * 1.9]; }
-    return [sx + s * (1.5 + (i % 3)), sy + ((i % 2) * 2 - 1) * 1.2];
+    return [X[i][0] + s * (1.5 + (i % 3)), Y[i][0] + ((i % 2) * 2 - 1) * 1.2];
   };
-  const run6 = (i: number, k: number, carry: boolean, slow = false): Frame => {
-    const f = Math.floor(((PH[i][k] % 1) + 1) % 1 * 6) as 0 | 1 | 2 | 3 | 4 | 5;
-    return (carry ? `carry${f}` : slow ? `jog${f}` : `run${f}`) as Frame;
-  };
-  const fallPose = (base: Pose, t0: number, c: number, dir: number, back: boolean, dur = 0.42): Pose => {
-    const k = (c - t0) / dur;
-    if (k < 0.3) return { ...base, f: back ? 'hit' : base.f };
-    if (k < 1) return { ...base, f: back ? 'fallback' : 'fall', lift: back ? 0 : 0 };
-    return { ...base, f: back ? 'downback' : 'down', face: (dir > 0) === !back ? 1 : -1, rot: 0 };
-  };
+  const fallAt = (x: number, y: number, face: number, t: number, dir: number, carry: boolean, dur = 0.45): Pose =>
+    t < dur ? mk(x, y, face, POSE.fall(t / dur, dir, carry)) : mk(x, y, face, POSE.lying(dir, carry), { lying: true });
   const scenePose = (i: number, c: number): Pose => {
     const a = A[i], k = K(c), x = X[i][k], y = Y[i][k], sp = SP[i][k];
-    let face = FACE[i][k] as 1 | -1;
+    const face = FACE[i][k];
     const isOff = a.team === off, holder = hold(c) === i;
-    const P = (f: Frame, o: Partial<Pose> = {}): Pose => ({ x, y, f, face, rot: 0, lift: 0, ...o });
-    // Before the snap: in the stance (or the man in motion jogging across).
+    const P = (rig: RigPose, o: Partial<Pose> = {}) => mk(x, y, o.face ?? face, holder && !rig.ball ? { ...rig, ball: 1 } : rig, o);
+    // Before the snap: the man in motion jogs; everyone else is set.
     if (scrim && c < preC) {
-      if (sp > 0.8) return P(run6(i, k, false, true), { face: (VX[i][k] >= 0 ? 1 : -1) });
-      return P(isLine(i) && c > preC - 0.45 ? (A[i].slot === 'OL2' ? 'snap' : 'three') : stanceOf(i), { face: isOff ? (s as 1 | -1) : (-s as 1 | -1) });
+      if (sp > 0.8) return P(runRig(i, k, false), { face: VX[i][k] >= 0 ? 1 : -1 });
+      const set = c > preC - 0.45;
+      return mk(x, y, isOff ? s : -s, set ? stanceOf(i) : (a.slot === 'QB' && !shotgun ? POSE.hold() : POSE.stand()));
     }
-    // Defenders who whiffed or got stiff-armed: on the turf, then back up and chasing.
+    // Beaten defenders: on the turf for a beat, then up and chasing.
     const dn = downed.get(i);
-    if (dn && c >= dn.at - 0.15) {
-      const t = c - dn.at;
-      if (t < 0) return P('dive', { face: (dn.dir > 0 ? 1 : -1) });
-      const base: Pose = { x, y, f: 'dive', face: dn.dir > 0 ? 1 : -1, rot: 0, lift: Math.max(0, 0.35 - t * 1.2) };
-      if (t < 0.25) return base;
-      if (t < dn.up) return { ...base, f: 'down' };
-      if (t < dn.up + 0.3) return { ...base, f: 'kneel' };
+    if (dn && c >= dn.at - 0.12) {
+      const t = c - dn.at + 0.12, f = dn.dir > 0 ? 1 : -1;
+      if (t < dn.up) return fallAt(x, y, f, t, 1, false, 0.3);
+      if (t < dn.up + 0.3) return mk(x, y, f, POSE.kneel());
     }
-    // The tackle: wrap or big hit, then both go down; the pile-on arrives a beat later.
+    // The tackle: wrap or big hit, both go down; the pile-on lands a beat later.
     if (tackC !== undefined && !oob) {
       if (i === finalCarrier && c >= tackC - 0.06) {
-        const base = P(holder ? 'carry0' : 'stand', { x: X[i][K(tackC)], y: Y[i][K(tackC)], face: FACE[i][K(tackC)] as 1 | -1 });
-        if (bigHit) { if (c < tackC + 0.12) return { ...base, f: 'hit' }; return fallPose(base, tackC + 0.12, c, -tackleFrom * base.face, true, 0.35); }
-        return fallPose({ ...base, f: 'carry2' }, tackC + 0.1, c, base.face, false, 0.5);
+        const tk = K(tackC), f = FACE[i][tk], t = c - tackC;
+        if (bigHit) return fallAt(X[i][tk], Y[i][tk], f, Math.max(0, t - 0.05), -1, holder || i === finalCarrier, 0.4);
+        return fallAt(X[i][tk], Y[i][tk], f, Math.max(0, t - 0.08), 1, true, 0.5);
       }
-      if (i === tackler && c >= (sc.wrapAt !== undefined && sc.wrapper === i ? C(sc.wrapAt) : tackC - 0.3)) {
-        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk];
-        const f2 = (cx > x ? 1 : -1) as 1 | -1;
-        if (c < tackC) return P('wrap', { face: f2 });
+      const wrapFrom = sc.wrapAt !== undefined && sc.wrapper === i ? C(sc.wrapAt) : tackC - 0.28;
+      if (i === tackler && c >= wrapFrom) {
+        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk], f = cx > X[i][K(wrapFrom)] ? 1 : -1;
+        if (c < tackC) return mk(x, y, f, POSE.wrap(clamp((c - wrapFrom) / 0.25, 0, 1)));
         const k2 = clamp((c - tackC) / 0.5, 0, 1);
-        const px = lerp(X[i][tk], cx - f2 * 0.6, k2), py = lerp(Y[i][tk], cy + 0.25, k2);
-        return { x: px, y: py, f: k2 < 0.3 ? 'wrap' : k2 < 0.7 ? 'fall' : 'down', face: f2, rot: 0, lift: 0 };
+        return fallAt(lerp(X[i][tk], cx - f * 0.9, k2), lerp(Y[i][tk], cy + 0.3, k2), f, c - tackC, 1, false, 0.5);
       }
       if (i === pile && c >= tackC + 0.05) {
-        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk];
-        const f2 = (cx > X[i][tk] ? 1 : -1) as 1 | -1, k2 = clamp((c - tackC - 0.05) / 0.45, 0, 1);
-        return { x: lerp(X[i][K(tackC + 0.05)], cx + f2 * 0.3, k2), y: lerp(Y[i][K(tackC + 0.05)], cy - 0.3, k2), f: k2 < 0.7 ? 'dive' : 'down', face: f2, rot: 0, lift: Math.sin(k2 * Math.PI) * 0.4 };
+        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk], t0 = tackC + 0.05;
+        const f = cx > X[i][K(t0)] ? 1 : -1, k2 = clamp((c - t0) / 0.45, 0, 1);
+        return mk(lerp(X[i][K(t0)], cx + f * 0.2, k2), lerp(Y[i][K(t0)], cy - 0.35, k2), f, k2 < 0.7 ? POSE.dive(k2, false) : POSE.lying(1, false), { lying: k2 >= 0.7 });
       }
     }
-    // The sack.
-    if (sack && i === qb && c >= endC - 0.25) {
-      const base = P('hold', { x: X[i][K(endC)], y: Y[i][K(endC)] });
-      if (c < endC) return { ...base, f: 'hit' };
-      return fallPose(base, endC, c, -s, bigHit, 0.45);
+    // The sack: the rusher wraps him up and takes him down; the pocket is closing in.
+    if (sack && i === qb && c >= endC - 0.2) {
+      const ek = K(endC), t = c - endC;
+      if (t < 0) return mk(X[i][ek], Y[i][ek], s, { ...POSE.hold(), lean: -0.15 });
+      return fallAt(X[i][ek], Y[i][ek], s, t, bigHit ? -1 : 1, true, 0.5);
     }
     if (sack && i === sacker && c >= endC - 0.3) {
-      const qx = X[qb][K(endC)], f2 = (qx > x ? 1 : -1) as 1 | -1;
-      if (c < endC + 0.25) return P('wrap', { face: f2 });
-      return { ...P('down', { face: f2 }), x: lerp(x, qx + f2 * 0.2, 0.6), y: Y[qb][K(endC)] + 0.3 };
+      const qx = X[qb][K(endC)], f = qx > X[i][K(endC - 0.3)] ? 1 : -1;
+      if (c < endC) return mk(x, y, f, POSE.wrap(clamp((c - endC + 0.3) / 0.3, 0, 1)));
+      return fallAt(lerp(x, qx - f * 0.6, 0.6), Y[qb][K(endC)] + 0.3, f, c - endC, 1, false, 0.5);
     }
-    // The quarterback: under centre, drop, set, wind up, release, follow through.
+    // The quarterback: the drop, the set, the wind-up, release and follow-through.
     if (i === qb && scrim) {
       if (throwC !== undefined) {
         const d = c - throwC;
-        if (d > -0.26 && d < -0.07) return P('throw1', { face: s as 1 | -1 });
-        if (d >= -0.07 && d < 0.05) return P('throw2', { face: s as 1 | -1 });
-        if (d >= 0.05 && d < 0.28) return P('throw3', { face: s as 1 | -1 });
-        if (d < -0.26 && holder) {
-          if (sp > 1.4 && VX[i][k] * s < -0.4) return P((Math.floor(PH[i][k] * 4) % 2 ? 'back0' : 'back1'), { face: s as 1 | -1 });   // the drop
-          if (sp > 1.4) return P(run6(i, k, true));
-          return P('hold', { face: s as 1 | -1 });
+        if (d > -0.22 && d < 0.3) return mk(x, y, s, POSE.throw(d < 0 ? d / 0.22 : d / 0.3));
+        if (d < -0.22 && holder) {
+          if (sp > 1.4 && VX[i][k] * s < -0.4) return mk(x, y, s, { ...POSE.backpedal(PH[i][k] % 1), na: 0.35, ne: 1.9, fa: 0.25, fe: 2.0, ball: 2 });   // the drop
+          if (sp > 1.4) return P(runRig(i, k, true));
+          return mk(x, y, s, POSE.hold());
         }
       }
-      if (handC > 0 && c < handC + 0.15 && c > preC) return P(c < handC ? 'hold' : 'follow', { face: s as 1 | -1 });
-      if (holder && sp < 1.4 && !(ev.type === 'scramble' && c > preC + 1.2)) return P('hold', { face: s as 1 | -1 });
+      if (handC > 0 && c > preC && c < handC + 0.25) return mk(x, y, s, c < handC - 0.15 ? POSE.hold() : { ...POSE.reach(9, -6), ball: c < handC ? 1 : 0 });
+      if (holder && sp < 1.4 && !(ev.type === 'scramble' && c > preC + 1.2)) return mk(x, y, s, POSE.hold());
     }
-    // The catch.
+    // The catch: hands go up only as the ball arrives, the way it's caught depends on the throw.
     if (catchC !== undefined && (i === tgt || (sc.int && holder && c < catchC + 0.4))) {
       const d = c - catchC;
       if (sc.complete && i === tgt) {
-        if (catchStyle === 'dive' && d > -0.18) {
-          const k0 = K(catchC), bx = X[i][k0], by = Y[i][k0];
-          const fly = clamp((d + 0.18) / 0.4, 0, 1);
-          const pos = { x: bx + FACE[i][k0] * fly * 1.6, y: by };
-          if (d < 0.25) return { ...pos, f: 'divecatch', face: FACE[i][k0] as 1 | -1, rot: 0, lift: Math.sin(fly * Math.PI) * 0.55 };
-          if (d < 1.0) return { ...pos, f: 'down', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
-          if (d < 1.35) return { ...pos, f: 'kneel', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
-          return { ...pos, f: 'secure', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
+        const k0 = K(catchC), f0 = FACE[i][k0];
+        if (catchStyle === 'dive' && d > -0.22) {
+          const fly = clamp((d + 0.22) / 0.42, 0, 1), px = X[i][k0] + f0 * fly * 1.6, py = Y[i][k0];
+          if (d < 0.2) return mk(px, py, f0, POSE.dive(fly, d > -0.02));
+          if (d < 1.0) return mk(px, py, f0, POSE.lying(1, true), { lying: true });
+          if (d < 1.3) return mk(px, py, f0, { ...POSE.kneel(), ball: 1 });
+          return mk(px, py, f0, { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
         }
-        if (catchStyle === 'high' && d > -0.2 && d < 0.2) { const jk = clamp((d + 0.2) / 0.4, 0, 1); return P(d < -0.02 ? 'high' : 'highball', { lift: Math.sin(jk * Math.PI) * 0.75 }); }
-        if (catchStyle === 'onehand' && d > -0.14 && d < 0.1) return P('onehand');
-        if (catchStyle === 'toetap' && d > -0.12) {
-          const k0 = K(catchC);
-          if (d < 0.55) return { x: X[i][k0], y: Y[i][k0], f: d < 0.15 ? 'reach' : 'toetap', face: FACE[i][k0] as 1 | -1, rot: 0, lift: d < 0.1 ? 0.15 : 0 };
-          return { x: X[i][k0], y: Y[i][k0], f: 'secure', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
+        if (catchStyle === 'high' && d > -0.24 && d < 0.18) { const jk = clamp((d + 0.24) / 0.42, 0, 1), jump = Math.sin(jk * Math.PI) * 9; return mk(x, y, face, d < 0 ? reachFor(i, c, face, jump) : { ...POSE.reach(2, 10, jump), ball: 2 }); }
+        if (catchStyle === 'onehand' && d > -0.16 && d < 0.08) { const r = reachFor(i, c, face); return mk(x, y, face, d < 0 ? { ...r, fa: -0.6, fe: 0.8 } : { ...r, fa: -0.6, fe: 0.8, ball: 1 }); }
+        if (catchStyle === 'toetap' && d > -0.14) {
+          if (d < 0.6) return mk(X[i][k0], Y[i][k0], f0, d < 0.02 ? reachFor(i, c, f0) : POSE.toetap(clamp(d / 0.6, 0, 1)));
+          return mk(X[i][k0], Y[i][k0], f0, { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
         }
-        if (d > -0.14 && d < 0) return P('reach');
-        if (d >= 0 && d < 0.18) return P('secure');
-      } else if (i === tgt && d > -0.3 && d < 0.5) return P(d < 0 ? 'reach' : 'hit');
-      else if (sc.int && holder && d > -0.3 && d < 0.15) return P('high', { lift: 0.3 });
+        if (d > -0.16 && d < 0) return mk(x, y, face, reachFor(i, c, face, 0));
+        if (d >= 0 && d < 0.2) return mk(x, y, face, { ...POSE.run(PH[i][k] % 1, inten(sp)), na: 0.3, ne: 2.2, fa: 0.4, fe: 2.0, ball: 2 });
+      } else if (i === tgt && d > -0.16 && d < 0.4) return mk(x, y, face, d < 0 ? reachFor(i, c, face) : POSE.fall(Math.min(1, d * 1.2) * 0.25, -1, false));
+      else if (sc.int && holder && d > -0.24 && d < 0.12) return mk(x, y, face, d < 0 ? reachFor(i, c, face, 5) : { ...POSE.reach(2, 9, 3), ball: 2 });
     }
     if (sc.swatter !== undefined && i === sc.swatter && catchC !== undefined && sc.broken) {
       const d = c - catchC;
-      if (d > -0.3 && d < 0.2) return P(ev.n % 3 === 0 ? 'dive' : 'catch', { lift: 0.25 });
+      if (d > -0.22 && d < 0.2) return mk(x, y, face, reachFor(i, Math.min(c, catchC), face, Math.sin(clamp((d + 0.22) / 0.42, 0, 1) * Math.PI) * 6));
     }
-    // Kickers, holders, snappers, punters.
+    // Kickers, holders, snappers, returners.
     if (sc.kicker === i && sc.kickAt !== undefined) {
       const d = c - C(sc.kickAt);
-      if (d > -0.18 && d < 0.25) return P(ev.type === 'punt' ? 'punt' : 'kick', { face: (ev.type === 'kickoff' ? -s : s) as 1 | -1 });
+      if (d > -0.25 && d < 0.3) return mk(x, y, ev.type === 'kickoff' ? -s : s, POSE.kick(clamp(d / 0.25, -1, 1)));
     }
-    if (a.slot === 'H' && (ev.type === 'fg' || ev.type === 'xp')) return P('holder', { face: s as 1 | -1 });
-    if (a.slot === 'R' && sc.kick && catchC !== undefined && Math.abs(c - catchC) < 0.3 && hold(catchC + 0.02) === i) return P('catch');
+    if (a.slot === 'H' && (ev.type === 'fg' || ev.type === 'xp')) return mk(x, y, s, POSE.holder());
+    if (a.slot === 'R' && sc.kick && catchC !== undefined && Math.abs(c - catchC) < 0.3 && hold(catchC + 0.02) === i) return mk(x, y, face, c < catchC ? reachFor(i, c, face) : { ...POSE.hold(), ball: 2 });
     // Ball-carrier moves.
-    for (const m of moves) if (m.i === i && c >= m.at - 0.08 && c < m.at + (m.kind === 'spin' ? 0.32 : m.kind === 'stiff' ? 0.4 : 0.2)) {
-      const d = c - m.at + 0.08;
-      if (m.kind === 'juke') return P('plant', { face: FACE[i][K(m.at - 0.1)] as 1 | -1 });
-      if (m.kind === 'stiff') return P(d < 0.2 ? 'stiff0' : 'stiff1', { face: (X[m.vic][k] > x ? 1 : -1) as 1 | -1 });
-      const q = Math.floor(d / 0.08) % 4; return P((['front', 'back', 'front', 'carry2'] as Frame[])[q], { face: q === 3 ? face : (q % 2 ? -face : face) as 1 | -1 });
+    for (const m of moves) if (m.i === i && c >= m.at - 0.1 && c < m.at + (m.kind === 'spin' ? 0.34 : m.kind === 'stiff' ? 0.4 : 0.18)) {
+      const d = c - m.at + 0.1;
+      if (m.kind === 'juke') return mk(x, y, FACE[i][K(m.at - 0.12)], POSE.plant());
+      if (m.kind === 'stiff') return mk(x, y, X[m.vic][k] > x ? 1 : -1, POSE.stiff(PH[i][k] % 1));
+      return mk(x, y, Math.floor(d / 0.11) % 2 ? -face : face, { ...POSE.run(PH[i][k] % 1, 0.4, true), lean: 0.05 });   // spin
     }
-    // Blocking: linemen engaged, pass pro sitting down, the rush ripping through.
-    if (scrim && c > preC && isLine(i) && sp < 4) {
-      let eng = false;
-      for (let j = 0; j < n; j++) if (A[j].team !== a.team && Math.hypot(X[j][k] - x, Y[j][k] - y) < 1.5) { eng = true; break; }
-      if (eng) {
-        face = (isOff ? s : -s) as 1 | -1;
-        const back = VX[i][k] * face < -0.5;
-        if (isOff && (sc.pass || sack)) return P(back ? 'anchor' : Math.floor(PH[i][k] * 3) % 2 ? 'anchor' : 'push0', { face });
-        if (!isOff && sc.pressured && (i * 7 + Math.floor(c * 3)) % 5 === 0) return P('rip', { face });
-        return P(Math.floor(c * 5 + i) % 2 ? 'push0' : 'push1', { face });
+    // Blocking: run blocks drive, pass pro sits down, the rush works its hands.
+    if (scrim && c > preC && isLine(i) && sp < 4.5) {
+      let eng = -1;
+      for (let j = 0; j < n; j++) if (A[j].team !== a.team && Math.hypot(X[j][k] - x, Y[j][k] - y) < 1.5) { eng = j; break; }
+      if (eng >= 0) {
+        const f = isOff ? s : -s;
+        if (isOff && (sc.pass || sack)) return mk(x, y, f, POSE.passpro(PH[i][k] % 1 + c * 0.8));
+        if (!isOff && sc.pressured && (i * 7 + Math.floor(c * 2.5)) % 6 === 0) return mk(x, y, f, POSE.swim(((c * 2.5) % 1)));
+        return mk(x, y, f, POSE.drive(PH[i][k] % 1 + c * 1.2));
       }
     }
-    // Ball carriers run with it tucked.
-    if (holder && sp > 1.2) return P(run6(i, k, true));
-    if (holder) return P('secure');
-    // Defensive backs backpedal and shuffle while they read.
-    if (scrim && !isOff && sp > 1 && (sc.throwAt === undefined || c < (throwC ?? 0)) && hold(c) >= 0 && A[hold(c)].slot === 'QB') {
-      const fwd = VX[i][k] * -s;
-      if (fwd < -0.6 && !isLine(i)) return P(Math.floor(PH[i][k] * 4) % 2 ? 'back0' : 'back1', { face: -s as 1 | -1 });
-      if (Math.abs(VY[i][k]) > Math.abs(VX[i][k]) * 1.4 && sp < 5) return P(Math.floor(PH[i][k] * 4) % 2 ? 'shuf0' : 'shuf1', { face: -s as 1 | -1 });
+    if (holder && sp > 1.2) return P(runRig(i, k, true));
+    if (holder) return P({ ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
+    // Defensive backs backpedal and shuffle while they read the quarterback.
+    if (scrim && !isOff && sp > 1 && (throwC === undefined || c < throwC) && hold(c) >= 0 && A[hold(c)].slot === 'QB' && !isLine(i)) {
+      if (VX[i][k] * -s < -0.6) return mk(x, y, -s, POSE.backpedal(PH[i][k] % 1));
+      if (Math.abs(VY[i][k]) > Math.abs(VX[i][k]) * 1.4 && sp < 5) return mk(x, y, -s, POSE.shuffle(PH[i][k] % 1));
     }
-    if (sp > 0.45) return P(run6(i, k, false, sp < 3.5));
-    return P('stand');
+    if (sp > 0.45) return P(runRig(i, k, false));
+    return P(POSE.stand(Math.sin(c * 2 + i)));
   };
-  // After the whistle: get up, celebrate, mob the scorer.
+  // After the whistle: coast to a stop, get up, celebrate, mob the scorer.
   const postPose = (i: number, p: number): Pose => {
-    // Out of bounds: he carries it across the sideline and pulls up among the benches.
-    if (i === finalCarrier && scrim && !td && tackC === undefined && sc.complete !== false && (Y[i][N - 1] < 3.2 || Y[i][N - 1] > FW - 3.2)) {
-      const e0 = scenePose(i, D), side = Y[i][N - 1] < MID ? -1 : 1, k2 = smooth(p / 0.7);
-      const tx = e0.x + VX[i][N - 1] * 0.25, ty = side < 0 ? -1.6 : FW + 1.6;
-      return { x: e0.x + (tx - e0.x) * k2, y: e0.y + (ty - e0.y) * k2, f: k2 < 0.95 ? run6(i, Math.floor((p * 8) % 6), true, true) : 'secure', face: e0.face, rot: 0, lift: 0 };
+    const kk = N - 1, e0 = scenePose(i, D);
+    // Out of bounds: he carries it across the sideline and pulls up by the benches.
+    if (i === finalCarrier && scrim && !td && tackC === undefined && sc.complete !== false && (Y[i][kk] < 3.2 || Y[i][kk] > FW - 3.2)) {
+      const side = Y[i][kk] < MID ? -1 : 1, k2 = smooth(p / 0.8), tx = e0.x + VX[i][kk] * 0.3, ty = side < 0 ? -1.6 : FW + 1.6;
+      return mk(e0.x + (tx - e0.x) * k2, e0.y + (ty - e0.y) * k2, e0.face, k2 < 0.95 ? POSE.run((p * 2.2) % 1, 0.35 * (1 - k2), true) : { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
     }
-    const e0 = scenePose(i, D), kk = N - 1, coast = 0.35 * (1 - Math.exp(-p / 0.35));
-    const moving = SP[i][kk] * Math.exp(-p / 0.35) > 0.5 && !['down', 'downback', 'wrap', 'dive', 'fall', 'fallback', 'kneel'].includes(e0.f) && !e0.rot;
-    const end = moving ? { ...e0, x: e0.x + VX[i][kk] * coast, y: e0.y + VY[i][kk] * coast, f: run6(i, Math.floor((p * 6) % 6), hold(D) === i, true) } : { ...e0, x: e0.x + (e0.rot || e0.f === 'down' ? 0 : VX[i][kk] * coast), y: e0.y + (e0.rot || e0.f === 'down' ? 0 : VY[i][kk] * coast) };
-    const lying = ['down', 'downback', 'dive', 'wrap', 'fall', 'fallback'].includes(end.f);
-    const upAt = i === hero ? (td ? 0.35 : 0.5) : 0.7 + (i % 5) * 0.12;
-    let base = end;
-    if (lying || end.rot) {
-      if (p < upAt) return { ...end, rot: end.rot ? end.rot : 0, f: end.rot ? 'down' : end.f === 'wrap' ? 'down' : end.f };
-      if (p < upAt + 0.35) return { ...end, f: 'kneel', rot: 0, lift: 0 };
-      base = { ...end, f: 'stand', rot: 0, lift: 0 };
-    } else if (!['stand', 'secure', 'hold'].includes(end.f) && !end.f.startsWith('run') && !end.f.startsWith('jog') && !end.f.startsWith('carry')) base = { ...end, f: 'stand', lift: 0 };
-    else if (end.f.startsWith('run') || end.f.startsWith('jog') || end.f.startsWith('carry')) base = { ...end, f: p < 0.4 ? end.f : hold(D) === i ? 'secure' : 'stand' };
-    const go = Math.max(0, p - (lying ? upAt + 0.35 : 0.15));
+    const coast = 0.35 * (1 - Math.exp(-p / 0.35));
+    const down = !!e0.lying || e0.rig.rot !== 0;
+    const moving = !down && SP[i][kk] * Math.exp(-p / 0.35) > 0.5;
+    const bx = down ? e0.x : e0.x + VX[i][kk] * coast, by = down ? e0.y : e0.y + VY[i][kk] * coast;
+    const hasBall = hold(D) === i;
+    const upAt = i === hero ? (td ? 0.35 : 0.5) : 0.75 + (i % 5) * 0.13;
+    let base: Pose;
+    if (down) {
+      const dir = e0.rig.rot < 0 ? -1 : 1;
+      if (p < upAt) return mk(bx, by, e0.face, POSE.lying(dir, hasBall, Math.sin(p * 3)), { lying: true });
+      if (p < upAt + 0.4) return mk(bx, by, e0.face, { ...POSE.kneel(), ball: hasBall ? 1 : 0 });
+      base = mk(bx, by, e0.face, hasBall ? { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 } : POSE.stand());
+    } else if (moving) base = mk(bx, by, e0.face, POSE.run((PH[i][kk] + p * 1.6) % 1, inten(SP[i][kk] * Math.exp(-p / 0.35)), hasBall));
+    else base = mk(bx, by, e0.face, hasBall ? { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 } : POSE.stand(Math.sin(p * 2 + i)));
+    const go = Math.max(0, p - (down ? upAt + 0.4 : 0.35));
     if (i === hero) {
-      const t = go, f = (base.face) as 1 | -1;
+      const t = go;
       switch (celebrate) {
-        case 'point': return t < 0.2 ? base : t < 1.35 ? { ...base, f: 'point', face: (s * (A[i].team === off ? 1 : -1)) as 1 | -1 } : { ...base, f: 'secure' };
-        case 'spike': return t < 0.35 ? { ...base, f: 'spike0' } : t < 0.7 ? { ...base, f: 'spike1' } : t < 2.4 ? { ...base, f: Math.floor(t * 4) % 2 ? 'party0' : 'party1' } : { ...base, f: 'stand' };
-        case 'jump': { const ph = (t % 0.7) / 0.7; return t < 2.8 ? { ...base, f: ph < 0.6 ? 'jump0' : 'stand', lift: Math.max(0, Math.sin(ph / 0.6 * Math.PI)) * 0.8 * (ph < 0.6 ? 1 : 0) } : { ...base, f: 'stand' }; }
-        case 'flex': return t < 0.25 ? base : t < 2.4 ? { ...base, f: 'flex', face: f } : { ...base, f: 'stand' };
-        case 'dance': return t < 0.25 ? base : t < 3 ? { ...base, f: Math.floor(t * 4.5) % 2 ? 'dance0' : 'dance1' } : { ...base, f: 'front' };
-        case 'pray': return t < 0.3 ? base : t < 2.8 ? { ...base, f: 'pray' } : { ...base, f: 'stand' };
+        case 'point': return t > 0.1 && t < 1.3 ? { ...base, face: (s * (A[i].team === off ? 1 : -1)) as 1 | -1, rig: POSE.point(hasBall) } : base;
+        case 'spike': return t < 0.9 ? { ...base, rig: POSE.spike(t / 0.9) } : t < 2.4 ? { ...base, rig: POSE.jump(((t - 0.9) % 0.75) / 0.75) } : base;
+        case 'jump': return t < 2.4 ? { ...base, rig: POSE.jump((t % 0.75) / 0.75) } : base;
+        case 'flex': return t > 0.15 && t < 2.2 ? { ...base, rig: POSE.flex(t) } : base;
+        case 'dance': return t > 0.15 && t < 2.6 ? { ...base, rig: POSE.dance(t) } : base;
+        case 'pray': return t > 0.2 && t < 2.4 ? { ...base, rig: POSE.pray() } : base;
       }
       return base;
     }
     const mi = mob.indexOf(i);
     if (mi >= 0 && hero >= 0) {
-      const h = scenePose(hero, D), t = Math.max(0, p - 0.25 - mi * 0.12);
-      const ang = mi * 1.05 + 0.4, tx = h.x + Math.cos(ang) * 1.3, ty = h.y + Math.sin(ang) * 1.1;
-      const d = Math.hypot(tx - base.x, ty - base.y), arrive = d / 7;
-      if (t < arrive) { const k2 = t / arrive; return { x: lerp(base.x, tx, k2), y: lerp(base.y, ty, k2), f: run6(i, Math.floor((t * 9) % 6), false), face: (tx > base.x ? 1 : -1), rot: 0, lift: 0 }; }
-      const q = t - arrive, faceH = (h.x > tx ? 1 : -1) as 1 | -1;
-      if (mi === 0 && celebrate !== 'pray') { const ph = (q % 0.8) / 0.8; return { x: tx, y: ty, f: ph < 0.5 ? 'jump0' : 'stand', face: faceH, rot: 0, lift: ph < 0.5 ? Math.sin(ph * 2 * Math.PI) * 0.5 : 0 }; }
-      return { x: tx, y: ty, f: Math.floor(q * 3.5 + mi) % 2 ? 'party0' : 'party1', face: faceH, rot: 0, lift: 0 };
+      const h = scenePose(hero, D), t = Math.max(0, p - 0.35 - mi * 0.12);
+      const ang = mi * 1.05 + 0.4, tx = h.x + Math.cos(ang) * 1.4, ty = h.y + Math.sin(ang) * 1.2;
+      const d = Math.hypot(tx - base.x, ty - base.y), arrive = d / 6.5;
+      if (t < arrive) { const k2 = t / arrive; return mk(lerp(base.x, tx, k2), lerp(base.y, ty, k2), tx > base.x ? 1 : -1, POSE.run((t * 2.2 + mi * 0.3) % 1, 0.7)); }
+      const q = t - arrive, f = h.x > tx ? 1 : -1;
+      return mk(tx, ty, f, (mi + Math.floor(q / 0.8)) % 2 ? POSE.jump((q % 0.8) / 0.8) : { ...POSE.stand(), na: 2.9, ne: 0.3 });
     }
     return base;
   };
-  // Walk-up from the huddle.
   const wuPose = (i: number, w: number): Pose => {
+    if (!scrim) return scenePose(i, 0);
     const set = scenePose(i, 0), [hx, hy] = huddle(i), a = A[i];
-    const brk = 0.35, jog = WU - 0.55;      // break, jog to the spot, settle into the stance
-    if (!scrim) return set;
-    if (w < brk) return { x: hx, y: hy, f: 'stand', face: a.team === off ? (MID > hy ? 1 : -1) as 1 | -1 : (-s as 1 | -1), rot: 0, lift: 0 };
+    const brk = 0.35, jog = WU - 0.5;
+    if (w < brk) return mk(hx, hy, a.team === off ? (MID > hy ? 1 : -1) : -s, POSE.stand(Math.sin(w * 3 + i)));
     const k2 = smooth((w - brk) / (jog - brk));
-    if (k2 < 1) { const dx = set.x - hx, f = Math.floor(((w * (2.2 + Math.hypot(dx, set.y - hy) * 0.25)) % 1) * 6); return { x: lerp(hx, set.x, k2), y: lerp(hy, set.y, k2), f: `jog${f}` as Frame, face: (Math.abs(dx) > 0.4 ? (dx > 0 ? 1 : -1) : set.face) as 1 | -1, rot: 0, lift: 0 }; }
-    return { ...set, f: w > WU - 0.3 ? set.f : 'stand' };
+    const dx = set.x - hx, dist2 = Math.hypot(dx, set.y - hy);
+    if (k2 < 1) return mk(lerp(hx, set.x, k2), lerp(hy, set.y, k2), Math.abs(dx) > 0.4 ? dx : set.face, POSE.run(((w - brk) * (1.2 + dist2 * 0.06)) % 1, clamp(dist2 / 12, 0.15, 0.45)));
+    return mk(set.x, set.y, a.team === off ? s : -s, a.slot === 'QB' && !shotgun ? POSE.hold() : POSE.stand());
   };
   const pose = (i: number, c: number): Pose => (c < 0 ? wuPose(i, c + WU) : c <= D ? scenePose(i, c) : postPose(i, c - D));
 
@@ -397,21 +402,20 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     : [[sc.los - s * 6, MID + 3, 'R'], [sc.los + s * 8, FW + 0.6, 'H'], [sc.los + s * 8, -0.6, 'L'], [sc.los + s * 40, MID, 'B']];
   const refs = (c: number): Pose[] => OFF0.map(([x0, y0, who], j) => {
     const t = c - whistle, mark = j === 0 || (who === 'H' && Math.abs(spY - FW) < 20) || (who === 'L' && spY < 26);
-    const come = t > 0 ? smooth(t / 1.1) : 0;
+    const come = t > 0 ? smooth(t / 1.2) : 0;
     const tx = mark ? spX - s * (j === 0 ? 2 : 0) : x0 + (spX - x0) * 0.35, ty = mark ? (who === 'H' ? FW - 1 : who === 'L' ? 1 : spY + 2.5) : y0;
     const x = lerp(x0, tx, come), y = lerp(y0, ty, come);
-    const moving = t > 0 && come < 0.98;
-    let f: Frame = moving ? (`jog${Math.floor((t * 8 + j) % 6)}` as Frame) : 'stand';
-    let face: 1 | -1 = (spX > x ? 1 : -1);
+    let face = spX > x ? 1 : -1;
+    let rig: RigPose = t > 0 && come < 0.97 ? POSE.run((t * 1.8 + j * 0.3) % 1, 0.25) : POSE.stand(Math.sin(c * 2 + j));
     const p = c - D;
     if (p > 0.2 && (j === 0 || j === 4 || who === 'H')) {
-      if (td) f = 'tdsig';
-      else if (sc.pass && !sc.complete && !sc.int && j === 0) f = Math.floor(p * 4) % 2 ? 'incomp0' : 'incomp1';
-      else if (firstDown && (who === 'H' || j === 0) && p < 1.6) { f = 'point'; face = s as 1 | -1; }
-      else if ((ev.type === 'fg' || ev.type === 'xp') && !/NO GOOD/.test(ev.text)) f = 'tdsig';
+      if (td) rig = POSE.td();
+      else if (sc.pass && !sc.complete && !sc.int && j === 0) rig = POSE.incomplete(p);
+      else if (firstDown && (who === 'H' || j === 0) && p < 1.6) { rig = POSE.point(false); face = s; }
+      else if ((ev.type === 'fg' || ev.type === 'xp') && !/NO GOOD/.test(ev.text)) rig = POSE.td();
     }
-    if (c < 0 && scrim) f = 'stand';
-    return { x, y, f, face, rot: 0, lift: 0, ref: true };
+    if (c < 0 && scrim) rig = POSE.stand(Math.sin(c * 2 + j));
+    return mk(x, y, face, rig, { ref: true });
   });
 
   // ---- the ball ----------------------------------------------------------------------------
@@ -429,7 +433,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const p = c - D, h = hero >= 0 && hold(D) === hero ? hero : -1;
     if (celebrate === 'spike' && h >= 0) {
       const ps = postPose(hero, p), t = p - (td ? 0.35 : 0.5) - 0.35;
-      if (t > 0.35) { const q = t - 0.35, bounce = Math.abs(Math.sin(Math.min(q, 1.6) * 5)) * 1.6 * Math.exp(-q * 2.2); return { x: ps.x + ps.face * (0.6 + q * 1.2), y: ps.y + 0.2, h: 0.15 + bounce, free: true, kick: false }; }
+      if (t > 0.45) { const q = t - 0.35, bounce = Math.abs(Math.sin(Math.min(q, 1.6) * 5)) * 1.6 * Math.exp(-q * 2.2); return { x: ps.x + ps.face * (0.6 + q * 1.2), y: ps.y + 0.2, h: 0.15 + bounce, free: true, kick: false }; }
     }
     const [x, y] = sc.ball(1);
     return { x, y, h: sc.ballH(1), free: hold(D) < 0, kick: false };

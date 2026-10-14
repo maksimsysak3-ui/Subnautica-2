@@ -534,7 +534,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
       const a = agents[i], b = agents[j];
       if (endT && (a === carrier || b === carrier)) continue;
-      const min = a.team === b.team ? 1.15 : 0.8;
+      const lineman = (x: Agent) => x.role === 'OL' || x.role === 'DL';
+      const min = a.team === b.team ? 1.15 : lineman(a) && lineman(b) ? 1.0 : 0.8;
       const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
       if (d >= min || d < 1e-4) continue;
       const push = (min - d) * 0.5, nx = dx / d, ny = dy / d;
