@@ -4,7 +4,7 @@
 // with the pro game; everything college-specific is converted here.
 import type { League, Player as NflPlayer, Team, Game, Attr, Pos, OffScheme, DefScheme } from '../../src/core/types';
 import { app } from '../../src/ui/store';
-import { rosterOf, logo, logoDark, showColor, type School, type Player } from './data';
+import { SCHOOLS, rosterOf, logo, logoDark, showColor, type School, type Player } from './data';
 import { profile } from './player';
 import { depthOf, STARTS } from './Team';
 
@@ -33,6 +33,15 @@ function toEngine(p: Player, abbr: string): NflPlayer {
   } as unknown as NflPlayer;
 }
 
+// The loudest buildings in college football get a bump on top of program prestige.
+const LOUD_CFB: Record<string, number> = { LSU: 14, 'Texas A&M': 13, 'Penn State': 13, Clemson: 11, Georgia: 12, Alabama: 12, 'Ohio State': 11, Oregon: 13, Tennessee: 13, Oklahoma: 9, Wisconsin: 10, Auburn: 10, Florida: 11, Iowa: 9, Michigan: 9, Texas: 10, 'Kansas State': 8, 'Ole Miss': 8, 'Virginia Tech': 10, 'Washington': 10, 'Florida State': 9, 'Notre Dame': 7, Nebraska: 8, 'South Carolina': 8, Arkansas: 8, 'Mississippi State': 9 };
+const crowdOf = (s: School) => Math.max(40, Math.min(99, Math.round(48 + s.prestige * 6 + (LOUD_CFB[s.school] ?? 0))));
+let RANKS: Map<number, number> | null = null;
+function crowdRankOf(s: School) {
+  if (!RANKS) { RANKS = new Map(); [...SCHOOLS].sort((a, b) => crowdOf(b) - crowdOf(a) || b.prestige - a.prestige).forEach((x, i) => RANKS!.set(x.id, i + 1)); }
+  const rank = RANKS.get(s.id) ?? SCHOOLS.length;
+  return { rank, of: SCHOOLS.length, label: `#${rank} of ${SCHOOLS.length} in college football` };
+}
 function toTeam(s: School, abbr: string, depth: Record<string, string[]>): Team {
   const k = h(s.school);
   const d: Partial<Record<Pos, string[]>> = {};
@@ -41,6 +50,7 @@ function toTeam(s: School, abbr: string, depth: Record<string, string[]>): Team 
     abbr, name: s.school, nick: s.mascot, conf: 'AFC', div: s.conf, colors: [showColor(s), s.c2 || '#ffffff'], logo: logo(s.id), logoAlt: logoDark(s.id), wordmark: '',
     stadium: `${s.school} Stadium`, roof: 'outdoor', surface: 'grass',
     coach: { name: `${s.school} HC`, off: OFF[k % OFF.length], def: DEF[(k >>> 5) % DEF.length], aggr: 0.5 + ((k >>> 9) % 30) / 100, rating: 60 + s.prestige * 6, age: 50 },
+    crowd: crowdOf(s), crowdRank: crowdRankOf(s),
     depth: d, dead: {}, rollover: 0, mode: 'balanced', plan: { off: 'Balanced', def: 'Balanced', practice: 'Normal' }, market: 2, warm: false, tradition: s.prestige / 5,
   } as Team;
 }

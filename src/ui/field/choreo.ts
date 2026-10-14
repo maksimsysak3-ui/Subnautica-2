@@ -192,17 +192,22 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (jump || SP[i][k] < 1.5) return arms;
     return POSE.compose(runRig(i, k, false), { na: arms.na, ne: arms.ne, fa: arms.fa, fe: arms.fe, lean: 0.12, ball: arms.ball });
   };
+  // Each player has his own stance (picked from his id so he always sets up the same way).
+  const pick = (i: number, n: number) => { const id = A[i].id ?? `${A[i].slot}${A[i].num}`; let h = 7; for (let k = 0; k < id.length; k++) h = (h * 31 + id.charCodeAt(k)) >>> 0; return h % n; };
   const stanceOf = (i: number): RigPose => {
-    const a = A[i];
+    const a = A[i], v = pick(i, 10), los = Math.abs(X[i][0] - sc.los);
     if (a.team === off) {
       if (a.slot === 'OL2') return POSE.snap();
-      if (a.slot.startsWith('OL')) return POSE.three();
+      if (a.slot.startsWith('OL')) return shotgun && sc.pass && v < 5 ? POSE.passSet() : v < 2 ? POSE.passSet() : POSE.three();
       if (a.slot === 'QB') return shotgun ? POSE.gun() : POSE.under();
-      if (a.slot === 'RB') return POSE.rb();
-      return POSE.two();
+      if (a.slot === 'RB') return v < 6 ? POSE.rb() : POSE.two();
+      if (a.slot === 'TE') return v < 5 ? POSE.three() : POSE.two();
+      return v < 4 ? POSE.two() : v < 8 ? POSE.twoLow() : POSE.press();
     }
-    if (a.slot.startsWith('DL')) return POSE.three();
-    return a.slot === 'FS' ? POSE.stand() : POSE.two();
+    if (a.slot.startsWith('DL')) return a.slot === 'DL0' || a.slot === 'DL3' ? (v < 4 ? POSE.edge() : POSE.three()) : v < 4 ? POSE.four() : POSE.three();
+    if (a.slot.startsWith('LB')) return v < 6 ? POSE.lb() : POSE.two();
+    if (a.slot === 'FS') return v < 5 ? POSE.lb() : POSE.stand();
+    return los < 2.5 ? POSE.press() : v < 5 ? POSE.dbOff() : POSE.two();
   };
   // Walk-up: offense from the huddle, defense from a loose shell; everyone stands at the line,
   // then gets down into the stance just before the snap.
@@ -318,9 +323,9 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (a.slot === 'H' && (ev.type === 'fg' || ev.type === 'xp')) return mk(x, y, s, POSE.holder());
     if (a.slot === 'R' && sc.kick && catchC !== undefined && Math.abs(c - catchC) < 0.3 && hold(catchC + 0.02) === i) return mk(x, y, face, c < catchC ? reachFor(i, c, face) : { ...POSE.hold(), ball: 2 });
     // Ball-carrier moves.
-    for (const m of moves) if (m.i === i && c >= m.at - 0.1 && c < m.at + (m.kind === 'spin' ? 0.34 : m.kind === 'stiff' ? 0.4 : 0.18)) {
+    for (const m of moves) if (m.i === i && c >= m.at - 0.1 && c < m.at + (m.kind === 'spin' ? 0.34 : m.kind === 'stiff' ? 0.4 : 0.3)) {
       const d = c - m.at + 0.1;
-      if (m.kind === 'juke') return mk(x, y, FACE[i][K(m.at - 0.12)], POSE.plant());
+      if (m.kind === 'juke') return mk(x, y, FACE[i][K(m.at - 0.12)], POSE.juke(clamp(d / 0.4, 0, 1), PH[i][k] % 1));
       if (m.kind === 'stiff') return mk(x, y, X[m.vic][k] > x ? 1 : -1, POSE.stiff(PH[i][k] % 1));
       return mk(x, y, Math.floor(d / 0.11) % 2 ? -face : face, { ...POSE.run(PH[i][k] % 1, 0.4, true), lean: 0.05 });   // spin
     }
@@ -349,19 +354,19 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   const postPose = (i: number, p: number): Pose => {
     const kk = N - 1, e0 = scenePose(i, D);
     // Out of bounds: he carries it across the sideline and pulls up by the benches.
-    if (i === finalCarrier && scrim && !td && tackC === undefined && sc.complete !== false && (Y[i][kk] < 3.2 || Y[i][kk] > FW - 3.2)) {
+    if (i === finalCarrier && scrim && !td && tackC === undefined && (sc.oob || (sc.complete !== false && (Y[i][kk] < 3.2 || Y[i][kk] > FW - 3.2)))) {
       const side = Y[i][kk] < MID ? -1 : 1, k2 = smooth(p / 0.8), tx = e0.x + VX[i][kk] * 0.3, ty = side < 0 ? -1.6 : FW + 1.6;
       return mk(e0.x + (tx - e0.x) * k2, e0.y + (ty - e0.y) * k2, e0.face, k2 < 0.95 ? POSE.run((p * 2.2) % 1, 0.35 * (1 - k2), true) : { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
     }
     const coast = 0.35 * (1 - Math.exp(-p / 0.35));
-    const down = !!e0.lying || e0.rig.rot !== 0;
+    const down = !!e0.lying || e0.rig.hipY < 6;
     const moving = !down && SP[i][kk] * Math.exp(-p / 0.35) > 0.5;
     const bx = down ? e0.x : e0.x + VX[i][kk] * coast, by = down ? e0.y : e0.y + VY[i][kk] * coast;
     const hasBall = hold(D) === i;
     const upAt = i === hero ? (td ? 0.35 : 0.5) : 0.75 + (i % 5) * 0.13;
     let base: Pose;
     if (down) {
-      const dir = e0.rig.rot < 0 ? -1 : 1;
+      const dir = e0.rig.lean < 0 ? -1 : 1;
       if (p < upAt) return mk(bx, by, e0.face, POSE.lying(dir, hasBall, Math.sin(p * 3)), { lying: true });
       if (p < upAt + 0.4) return mk(bx, by, e0.face, { ...POSE.kneel(), ball: hasBall ? 1 : 0 });
       base = mk(bx, by, e0.face, hasBall ? { ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 } : POSE.stand());

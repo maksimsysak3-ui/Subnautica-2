@@ -78,7 +78,7 @@ function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; c: string; life: number; t0: number; size: number }
 type Banner = { n: number; text: string; color: string; sub?: string; small?: boolean; kind?: string };
 
-export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college }: { ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
+export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college, pulse }: { pulse?: number; ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
   const lastEv = useRef<PlayEvent | null>(null);
   if (evIn) lastEv.current = evIn;
   const ev = evIn ?? lastEv.current;
@@ -120,7 +120,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
     let raf = 0, last = performance.now(), ended = false, endAt = 0;
     const parts: Particle[] = [];
     const fired = new Set<number>();
-    let hype = 0.18, ribbonMsg = `${home.nick.toUpperCase()}`, ribbonFlash = 0, bannerShown = false;
+    let hype = 0.18 + Math.max(0, ((pulse ?? 45) - 45) / 100), ribbonMsg = `${home.nick.toUpperCase()}`, ribbonFlash = 0, bannerShown = false;
     const offTeam = sc ? (sc.off === 1 ? home : away) : home, defTeam = sc ? (sc.off === 1 ? away : home) : away;
     const homeOff = sc?.off === 1;
     if (ev && sc && !sc.kick && ev.down === 3 && !homeOff) { ribbonMsg = 'DEFENSE! DEFENSE!'; hype = 0.55; }
@@ -175,7 +175,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
         
       }
       
-      hype += (0.18 - hype) * realDt * 0.25;
+      hype += (0.18 + Math.max(0, ((pulse ?? 45) - 45) / 100) - hype) * realDt * 0.25;
       // --- geometry
       const S = Math.max(1, w / (VIEW_YARDS * 16));   // the camera shows about 46 yards across
       const RW0 = Math.ceil(w / S), RH0 = Math.ceil(h / S);
@@ -288,8 +288,9 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     if (px < -24 || px > vw + 24) return;
     const lift = p.rig.lift;
     // Shadow: under the feet, longer when he's on the turf, smaller when he's in the air.
-    const sw = p.lying || Math.abs(p.rig.rot) > 0.8 ? 22 : lift > 3 ? 7 : 11;
-    const sx0 = p.lying || Math.abs(p.rig.rot) > 0.8 ? px + p.face * Math.sign(p.rig.rot || 1) * 8 : px;
+    const flat = p.lying || p.rig.hipY < 6;
+    const sw = flat ? 24 : lift > 3 ? 7 : 11;
+    const sx0 = flat ? px + p.face * Math.sign(p.rig.lean || 1) * 7 : px;
     g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(Math.round(sx0 - sw / 2), py - 1, sw, 2); g.fillRect(Math.round(sx0 - sw / 2) + 2, py + 1, sw - 4, 1);
     const b = isRef ? 'ref' : buildOf(sc.actors[i]?.slot ?? '', sc.actors[i]?.role ?? '');
     const a0 = sc.actors[i];
@@ -415,7 +416,7 @@ function drawTags(ctx: CanvasRenderingContext2D, sc: Scene, ch: Choreo, c: numbe
   }
   if (who < 0) return;
   const a = sc.actors[who], p = ch.pose(who, c);
-  if (p.lying || Math.abs(p.rig.rot) > 0.5) return;
+  if (p.lying || p.rig.hipY < 8) return;
   const px = sx(p.x) * E, py = (sy(p.y) - 37 - p.rig.lift) * E;
   ctx.font = `700 ${Math.round((replay ? 12 : 11) * DPR)}px Silkscreen, monospace`;
   const label = `${a.num} ${(a.ln || a.role).toUpperCase()}`;

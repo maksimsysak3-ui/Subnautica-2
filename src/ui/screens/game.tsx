@@ -16,6 +16,7 @@ import { HighlightReel } from '../reel';
 import { pickHighlights } from '../../sim/highlights';
 import { sfx } from '../sfx';
 import { PlayerOfGame } from '../potg';
+import { StadiumPulse } from '../pulse';
 import { practiceWeek } from '../../core/practice';
 
 export function GameScreen({ gid }: { gid: string }) {
@@ -105,6 +106,8 @@ export function GameScreen({ gid }: { gid: string }) {
   const live = anim && ev && ev.type !== 'end' && ev.type !== 'timeout' ? ev : null;
   const before = live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) as [number, number] : null;
   const posTeam = sim.poss === 1 ? home : away;
+  // The crowd meter only moves once the play has been shown.
+  const shownPulse = (anim && last ? sim.events[sim.events.indexOf(last) - 1]?.pulse : [...sim.events].reverse().find(e => e.pulse !== undefined)?.pulse) ?? sim.pulseBase * 0.6;
   // Stat lines freeze at the snap so the sidebar can't spoil the play being animated.
   if (!live) shown.current = new Map([...sim.lines].map(([k, v]) => [k, { ...v }]));
   return (
@@ -115,7 +118,8 @@ export function GameScreen({ gid }: { gid: string }) {
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
         <div className="grid" style={{ gap: 12 }}>
           <div className="card" style={{ padding: 10, background: 'linear-gradient(180deg,#0b1424,#070b14)' }}>
-            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} />
+            <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} pulse={shownPulse} />
+            <StadiumPulse sim={sim} value={shownPulse} color={home.colors[0]} />
             <div className="row" style={{ padding: '10px 6px 2px' }}>
               {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
               {live ? <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'The ball is snapped…'}</div>

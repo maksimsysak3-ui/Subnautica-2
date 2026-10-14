@@ -49,7 +49,7 @@ export function lineupFor(team: Team): Lineup {
 }
 export function slotFor(id: string): Slot | undefined { const p = app.league?.players[id]; return p ? { num: p.num, ln: p.ln, id, skin: skinOf(p) } : undefined; }
 
-export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean; pressured?: boolean;
+export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean; pressured?: boolean; oob?: boolean;
   /** Contact on the ball carrier: beaten defenders (and how), and the wrap-up that ends it. */
   moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken'; def: number; until: number }[]; wrapAt?: number; wrapper?: number;
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
@@ -288,7 +288,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     for (const a of agents) if (a.team !== c.team) { const ahead = s * (a.x - c.x); if (ahead > -0.5 && ahead < 4) { const d = dist(a, c); if (d < nd) { nd = d; near = a; } } }
     if (!near) return baseY;
     const away = Math.sign(c.y - near.y) || (rnd() < 0.5 ? 1 : -1);
-    return Math.max(1.5, Math.min(51.8, c.y + away * (3.2 - nd) * 2.2 + (baseY - c.y) * 0.3));
+    return Math.max(-0.8, Math.min(54.1, c.y + away * (3.2 - nd) * 2.2 + (baseY - c.y) * 0.3));
   };
   // --- personnel ---
   const OL = OL_SPOTS.map(([dx, dy], i) => mk(off, `OL${i}`, 'OL', at(dx, dy), 5.2, 7));
@@ -326,7 +326,11 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const picked = pass && !!ev.turnover;
   const offTarget = pass && !ev.complete && !picked && !defended && !dropped && !throwAway;
   const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
-  const endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
+  let endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
+  // Getting out of bounds: catches on outside routes and outside runs often finish at the
+  // sideline (stopping the clock) rather than with a tackle in the middle of the field.
+  const sidelineFinish = !ev.td && !ev.turnover && rnd() < (pass ? 0.55 : (ev.dir ?? 0) !== 0 ? 0.45 : 0.12);
+  if (sidelineFinish && run && (ev.dir ?? 0) !== 0) endY = (s * (ev.dir ?? 0)) > 0 ? 52.6 : 0.7;
   // Quick game for short throws (3-step), a full drop for intermediate and deep ones.
   const dropT = (air <= 2 ? 0.35 : air <= 9 ? 0.5 : 0.8) + rnd() * 0.12;
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
@@ -390,7 +394,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         airT = flight(from, catchPt); catchT = t + airT;
       }
     }
-    if (pass && thrown && !caught && t >= catchT) { caught = true; if (ev.complete) carrier = target; else if (ev.turnover) carrier = [...DB, FS, ...LB].find(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) ?? [...DB, FS].sort((a, b) => dist(a, { x: catchPt[0], y: catchPt[1] }) - dist(b, { x: catchPt[0], y: catchPt[1] }))[0]; }
+    if (pass && thrown && !caught && t >= catchT) { if (sidelineFinish && (catchPt[1] < 14 || catchPt[1] > 53.3 - 14)) endY = catchPt[1] < mid ? 0.5 : 52.8;
+      caught = true; if (ev.complete) carrier = target; else if (ev.turnover) carrier = [...DB, FS, ...LB].find(a => !!ev.ids?.def && idOf(def, a.slot) === ev.ids.def) ?? [...DB, FS].sort((a, b) => dist(a, { x: catchPt[0], y: catchPt[1] }) - dist(b, { x: catchPt[0], y: catchPt[1] }))[0]; }
     // After the whistle everyone eases up; only the men around the ball keep coming.
     const whistle = !!endT && t > endT;
     if (whistle) {
@@ -600,11 +605,11 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const bAt = (u: number, c: number) => { const f = Math.max(0, Math.min(bt.length - 1, (u * dur - PRE) / DT)), i = Math.floor(f), j = Math.min(bt.length - 1, i + 1), w = f - i; return bt[i][c] + (bt[j][c] - bt[i][c]) * w; };
   const ball: Path = u => (u * dur < PRE ? at(0, 0) : [bAt(u, 0), bAt(u, 1)]);
   const ballH = (u: number) => (u * dur < PRE ? 0.15 : bAt(u, 2));
-  const oobRun = !!carrier && !ev.td && (carrier.y < 3 || carrier.y > 50.3) && rnd() < 0.8;
+  const oobRun = !!carrier && !ev.td && !ev.turnover && (carrier.y < 3.5 || carrier.y > 49.8);
   const tackled = !ev.td && !(pass && !ev.complete) && !oobRun;
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
-    broken, pressured, qb: agents.indexOf(QB),
+    broken, pressured, oob: oobRun, qb: agents.indexOf(QB),
     moves: moves.map(m => ({ at: (PRE + m.t) / dur, kind: m.kind, def: agents.indexOf(m.d), until: (PRE + m.until) / dur })),
     wrapAt: wrapper ? (PRE + wrapT) / dur : undefined, wrapper: wrapper ? agents.indexOf(wrapper) : undefined, target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
 }

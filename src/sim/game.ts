@@ -7,6 +7,7 @@
 // Clock rules (stoppages, two-minute warning, timeouts, hurry-up), penalties at
 // real rates, the 2025 kickoff rules, fourth-down and two-point decisions,
 // weather, injuries, wear, Superstar abilities and X-Factor zones.
+import { crowdBase } from './pulse';
 import type { League, Player, Pos, StatLine, Team, Game, BoxScore, TeamBox } from '../core/types';
 import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
@@ -34,6 +35,8 @@ export interface PlayEvent {
   ids?: { qb?: string; ball?: string; target?: string; def?: string; kicker?: string };
   air?: number; complete?: boolean; td?: boolean; turnover?: boolean; score?: [number, number]; big?: boolean;
   dir?: -1 | 0 | 1; call?: string; dcall?: string; wp?: number;
+  /** The home crowd's pulse (0..100) after this play. */
+  pulse?: number;
 }
 
 interface Tend { run: number; pass: number; deep: number; heavy: number; spread: number; recent: string[] }
@@ -123,6 +126,8 @@ export class GameSim {
     // Rivalry heat: more volatile games, a louder building, short tempers.
     this.heat = heat(league, game.home, game.away);
     const sd = 2.3 * (1 + this.heat / 250);
+    this.pulseBase = game.neutral ? 40 : crowdBase(league, game.home);
+    this.pulse = game.neutral ? 30 : this.pulseBase * 0.6;
     this.teamForm = [this.rng.normal(0, sd) + sideEdge(league, game.away, game.home), this.rng.normal(0, sd) + sideEdge(league, game.home, game.away)];
   }
 
@@ -161,6 +166,9 @@ export class GameSim {
     if (f === undefined) { f = this.rng.normal(0, (100 - p.traits.cons) / 14); this.form.set(p.id, f); }
     v += f + this.teamForm[side === this.sides[0] ? 0 : 1];
     if (side === this.sides[1] && !this.game.neutral) v += (side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8) + this.heat * 0.008;
+    // The noise: the road offence plays worse when the building is rocking; the home defence feeds off it.
+    const nz = this.noise();
+    if (nz) { if (side === this.sides[0]) v -= nz * 2.4; else v += nz * 0.8; }
     if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
     if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
@@ -523,6 +531,22 @@ export class GameSim {
   }
 
   /** Situation at the snap, so events describe the play as it started. */
+  /** The home crowd: its baseline and where it is right now. */
+  pulseBase = 70; pulse = 40;
+  private bumpPulse(ev: PlayEvent) {
+    if (this.game.neutral) return;
+    const homeOff = ev.poss === 1, big = !!ev.big, td = !!ev.td, to = !!ev.turnover;
+    let d = 0;
+    if (ev.type === 'kickoff' || ev.type === 'xp' || ev.type === 'timeout' || ev.type === 'end') d = 0;
+    else if (homeOff) d = (td ? 16 : 0) + (big ? 8 : 0) + (to ? -12 : 0) + (ev.type === 'sack' ? -5 : 0) + (ev.type === 'fg' && !/NO GOOD/.test(ev.text) ? 5 : 0) + ((ev.type === 'run' || ev.type === 'pass') && ev.yards >= ev.togo ? 2 : 0);
+    else d = (td ? -18 : 0) + (big ? -8 : 0) + (to ? 16 : 0) + (ev.type === 'sack' ? 12 : 0) + (ev.type === 'fg' && /NO GOOD/.test(ev.text) ? 10 : 0) + (ev.down >= 3 && (ev.type === 'run' || ev.type === 'pass' || ev.type === 'scramble') && ev.yards < ev.togo && !td ? 9 : 0) + (ev.type === 'penalty' && /False start/.test(ev.text) ? 6 : 0);
+    const close = this.q >= 4 && Math.abs(this.score[1] - this.score[0]) <= 8 ? 10 : 0;
+    const rest = this.pulseBase * 0.6 + close + (this.score[1] - this.score[0]) * 0.4;
+    this.pulse = Math.max(5, Math.min(100, this.pulse + d * (0.6 + this.pulseBase / 250) + (rest - this.pulse) * 0.07));
+    ev.pulse = Math.round(this.pulse);
+  }
+  /** How much the noise hurts the road offence right now (0..1). */
+  noise() { return this.game.neutral || this.poss !== 0 ? 0 : Math.max(0, (this.pulse - 50) / 50); }
   private at: { q: number; clock: number; poss: 0 | 1; down: number; togo: number; yl: number } | null = null;
   private note = '';
   private push(e: Omit<PlayEvent, 'n' | 'q' | 'clock' | 'poss' | 'down' | 'togo' | 'yl'> & Partial<PlayEvent>): PlayEvent {
@@ -531,6 +555,7 @@ export class GameSim {
     const ev: PlayEvent = { n: this.n++, ...at, ...e, score: [this.score[0], this.score[1]] };
     if (this.note) { ev.text += ` ${this.note}`; this.note = ''; }
     ev.wp = this.winProb();
+    this.bumpPulse(ev);
     this.events.push(ev);
     return ev;
   }
@@ -621,7 +646,7 @@ export class GameSim {
     this.snap([...d.dl, ...d.lbs, ...d.cbs, ...d.ss], defS);
     this.box[this.poss].plays++;
     // Pre-snap penalties (crowd noise makes the road offence jump more).
-    const preSnap = 0.051 + (this.poss === 0 && !this.game.neutral ? 0.006 : 0) - ((o.ol.reduce((a, p) => a + p.attrs.AWR, 0) / Math.max(1, o.ol.length)) - 80) * 0.0004;
+    const preSnap = 0.051 + (this.poss === 0 && !this.game.neutral ? 0.006 + this.noise() * 0.035 : 0) - ((o.ol.reduce((a, p) => a + p.attrs.AWR, 0) / Math.max(1, o.ol.length)) - 80) * 0.0004;
     if (this.rng.chance(preSnap)) {
       const offFoul = this.rng.chance(0.55);
       const culprit = offFoul ? this.rng.pick(o.ol) : this.rng.pick(d.dl);

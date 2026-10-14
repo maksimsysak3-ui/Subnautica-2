@@ -16,6 +16,7 @@ import { collegeRules, recordGame } from './season';
 import { useDynasty, update } from './store';
 import { Logo } from './App';
 import { PlayerOfGame } from '../../src/ui/potg';
+import { StadiumPulse } from '../../src/ui/pulse';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const ord = (n: number) => ['', '1st', '2nd', '3rd', '4th'][n] ?? `${n}th`;
@@ -92,6 +93,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   const live = anim && last && !['end', 'timeout'].includes(last.type) ? last : null;
   const score = (live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) : sim.score) as [number, number];
   const ev = last && !['end', 'timeout', 'two'].includes(last.type) ? last : null;
+  const shownPulse = (anim && last ? sim.events[sim.events.indexOf(last) - 1]?.pulse : [...sim.events].reverse().find(e => e.pulse !== undefined)?.pulse) ?? sim.pulseBase * 0.6;
   const posTeam = sim.poss === 1 ? H : A;
   return createPortal(
     <div className="gd" style={{ '--ch': showColor(H), '--ca': showColor(A), '--c': showColor(s) } as CSSProperties}>
@@ -103,7 +105,8 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </header>
       <div className="gd-main">
         <div className="gd-field">
-          <FieldView college ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} />
+          <FieldView college ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} pulse={shownPulse} />
+          <StadiumPulse sim={sim} value={shownPulse} color={L.teams[hA].colors[0]} />
           <div className="gd-text">{live ? <span className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'Snap…'}</span> : <b className={last?.big ? 'gold' : ''}>{last?.text ?? `Welcome to ${H.school}. Kickoff is moments away.`}</b>}</div>
         </div>
         <aside className="gd-side">

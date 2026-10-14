@@ -325,19 +325,44 @@ export const POSE = {
     return { ...base(), hipY: 11 - k * 2, lean: 0.9 + k * 0.4, nt: 0.6, nk: 1.2, ft: -0.7 - k * 0.3, fk: 0.5, na: 1.6, ne: 1.5, fa: 1.45, fe: 1.6 };
   },
   stiff(ph: number): RigPose { const r = POSE.run(ph, 0.75); return { ...r, na: 1.62, ne: 0.02, fa: -0.3, fe: 2.5, ball: 0, lean: 0.3 }; },
+  /** More stances, so players don't all set up the same way. */
+  four: (): RigPose => ({ ...base(), hipY: 9.2, hipX: -1, lean: 1.3, nt: 1.25, nk: 2.1, ft: 0.85, fk: 1.7, na: 0.05, ne: 0.1, fa: 0.25, fe: 0.1, look: -0.9 }),
+  edge: (): RigPose => ({ ...base(), hipY: 12.6, lean: 0.55, nt: 0.5, nk: 0.9, ft: -0.15, fk: 0.75, na: 1.0, ne: 0.9, fa: 0.8, fe: 1.1, look: -0.2 }),
+  passSet: (): RigPose => ({ ...base(), hipY: 11.8, hipX: -0.6, lean: 0.45, nt: 0.5, nk: 1.15, ft: -0.2, fk: 0.95, na: 0.75, ne: 0.9, fa: 0.7, fe: 1.0 }),
+  twoLow: (): RigPose => ({ ...base(), hipY: 11.6, lean: 0.75, nt: 0.55, nk: 1.15, ft: -0.1, fk: 0.85, na: 0.35, ne: 1.5, fa: 0.0, fe: 1.4, look: -0.5 }),
+  press: (): RigPose => ({ ...base(), hipY: 12.4, lean: 0.35, nt: 0.4, nk: 0.85, ft: -0.2, fk: 0.75, na: 1.3, ne: 0.9, fa: 1.2, fe: 1.0 }),
+  lb: (): RigPose => ({ ...base(), hipY: 12.2, lean: 0.6, nt: 0.45, nk: 0.95, ft: -0.25, fk: 0.85, na: 0.55, ne: 0.25, fa: 0.5, fe: 0.3, look: -0.2 }),
+  dbOff: (): RigPose => ({ ...base(), hipY: 12.8, lean: 0.4, nt: 0.3, nk: 0.75, ft: -0.25, fk: 0.6, na: 0.45, ne: 1.0, fa: 0.2, fe: 1.1 }),
+  /** The juke, k 0..1: brake and drop the hips, sell the fake with the head and shoulders, explode out. */
+  juke(k: number, ph: number): RigPose {
+    // Gather (feet under him, hips sink), a quick side-hop with the free arm out for balance, then burst.
+    if (k < 0.3) return { ...base(), hipY: 11.8, lean: 0.25, nt: 0.35, nk: 1.1, ft: -0.15, fk: 1.0, na: -0.3, ne: 2.5, fa: 0.4, fe: 1.1, ball: 3 };
+    if (k < 0.55) return { ...base(), hipY: 12.4, lift: 2.5, lean: 0.35, nt: 0.7, nk: 1.6, ft: -0.1, fk: 1.5, na: -0.3, ne: 2.5, fa: -0.9, fe: 0.5, ball: 3, look: 0.3, nf: 0.5, ff: 0.5 };
+    const r = POSE.run(ph, 1, true, 1); return { ...r, hipY: r.hipY - 1, lean: 0.55 };
+  },
+
   plant(): RigPose { return { ...base(), hipY: 11.5, hipX: -1.2, lean: -0.05, nt: 0.95, nk: 0.25, ft: -0.2, fk: 1.3, na: 0.2, ne: 2.3, fa: -0.8, fe: 0.9, ball: 1 }; },
-  /** Going down: forward (dir 1) or knocked back (-1); k 0..1, then lying flat. */
+  /** Going down: forward (dir 1: knees buckle, hips drop, chest to the turf) or knocked back
+   *  (-1: rocked upright, feet go, landing on the backside). No stiff tipping-over. */
   fall(k: number, dir: number, carry: boolean): RigPose {
-    const u = Math.min(1, k), sm = u * u * (3 - 2 * u);
-    const b = dir > 0
-      ? { ...base(), hipY: STAND_HIP - sm * 4, lean: 0.4 + sm * 0.3, nt: 0.4, nk: 0.9 + sm * 0.4, ft: -0.6 - sm * 0.3, fk: 0.4, na: carry ? 0.2 : 1.2 + sm * 0.8, ne: carry ? 2.3 : 0.4, fa: 1.4 + sm * 0.7, fe: 0.3, ball: (carry ? 1 : 0) as 0 | 1 }
-      : { ...base(), hipY: STAND_HIP - sm * 3, lean: -0.3 - sm * 0.3, nt: 0.7, nk: 0.5, ft: 0.4, fk: 0.4, na: 2.4, ne: 0.6, fa: 2.0, fe: 0.8, ball: (carry ? 1 : 0) as 0 | 1, look: 0.5 };
-    return { ...b, rot: dir * sm * 1.35, pivot: 0 };
+    const ball: 0 | 3 = carry ? 3 : 0;
+    const keys: Key[] = dir > 0 ? [
+      [0, { hipY: STAND_HIP - 1, lean: 0.35, nt: 0.4, nk: 0.5, ft: -0.4, fk: 0.4, na: -0.3, ne: 2.5, fa: 0.6, fe: 0.8, ball }],
+      [0.3, { hipY: 11.5, lean: 0.75, nt: 0.55, nk: 1.5, ft: -0.2, fk: 1.4, na: -0.3, ne: 2.5, fa: 1.2, fe: 0.6, ball }],
+      [0.6, { hipY: 7, lean: 1.1, nt: 0.6, nk: 2.2, ft: 0.2, fk: 2.0, na: -0.2, ne: 2.5, fa: 1.7, fe: 0.4, ball, look: -0.3 }],
+      [0.82, { hipY: 4.6, lean: 1.38, nt: -0.6, nk: 1.3, ft: -0.8, fk: 1.2, na: 0.1, ne: 2.5, fa: 2.2, fe: 0.4, ball, look: -0.25 }],
+      [1, { hipY: 3.2, lean: 1.52, nt: -1.3, nk: 0.35, ft: -1.42, fk: 0.55, nf: 0.6, ff: 0.6, na: 0.4, ne: 2.4, fa: 2.5, fe: 0.4, ball, look: -0.2 }],
+    ] : [
+      [0, { hipY: STAND_HIP, lean: -0.15, nt: 0.2, nk: 0.3, ft: -0.3, fk: 0.3, na: 1.9, ne: 0.6, fa: 2.4, fe: 0.5, ball, look: 0.4 }],
+      [0.35, { hipY: 13, lean: -0.5, nt: 0.8, nk: 0.5, ft: 0.4, fk: 0.6, na: 2.6, ne: 0.4, fa: 2.9, fe: 0.4, ball, lift: 1.5, look: 0.6 }],
+      [0.7, { hipY: 5.5, lean: -0.9, nt: 1.35, nk: 0.6, ft: 1.1, fk: 0.9, na: 2.4, ne: 0.6, fa: 2.7, fe: 0.5, ball, look: 0.5 }],
+      [1, { hipY: 3.2, lean: -1.45, nt: 1.45, nk: 0.35, ft: 1.25, fk: 0.7, na: 2.6, ne: 0.4, fa: 2.2, fe: 0.8, ball, look: 0.3 }],
+    ];
+    return keyed(keys, Math.min(1, k));
   },
   lying(dir: number, carry: boolean, breath = 0): RigPose {
-    return dir > 0
-      ? { ...base(), hipY: 11, lean: 0.75, nt: 0.4, nk: 1.3, ft: -0.9, fk: 0.4, na: carry ? 0.2 : 2.2, ne: carry ? 2.3 : 0.4, fa: 2.5, fe: 0.3, rot: 1.42 + breath * 0.02, pivot: 0, lift: 0, ball: carry ? 1 : 0, look: -0.2 }
-      : { ...base(), hipY: 12, lean: -0.6, nt: 0.7, nk: 0.5, ft: 0.4, fk: 0.4, na: 2.5, ne: 0.4, fa: 2.2, fe: 0.6, rot: -1.25, pivot: 0, lift: 0, ball: carry ? 1 : 0, look: 0.5 };
+    const end = POSE.fall(1, dir, carry);
+    return { ...end, hipY: end.hipY + breath * 0.15 };
   },
   kneel: (): RigPose => ({ ...base(), hipY: 8.5, lean: 0.15, nt: 1.45, nk: 1.55, ft: -0.3, fk: 2.2, na: 0.8, ne: 0.6, fa: 0.25, fe: 0.4, ff: -0.6 }),
   // After the whistle.
