@@ -82,7 +82,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   // Tackle.
   let tackler = sc.tackler ?? -1;
   if (tackC !== undefined && finalCarrier >= 0 && tackler < 0) tackler = nearestOpp(finalCarrier, tackC)[0];
-  const bigHit = tackC !== undefined && finalCarrier >= 0 && !oob && (SP[finalCarrier][K(tackC - 0.1)] > 6.2 && rnd() < 0.4 || ev.type === 'sack' && rnd() < 0.3);
+  const bigHit = tackC !== undefined && finalCarrier >= 0 && !oob && (SP[finalCarrier][K(tackC - 0.1)] > 7 && rnd() < 0.15);
   const tackleFrom = tackler >= 0 && tackC !== undefined && finalCarrier >= 0 ? Math.sign(X[tackler][K(tackC)] - X[finalCarrier][K(tackC)]) || 1 : 1;
   // Second man in on the pile.
   let pile = -1;
@@ -100,7 +100,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   if (sc.pass && sc.complete && tgt >= 0 && catchC !== undefined) {
     const k = K(catchC), cy = Y[tgt][k], air = ev.air ?? ev.yards, yac = ev.yards - air;
     const r = rnd();
-    const hard = air >= 12 || ev.big || r < 0.12;
+    const hard = air >= 18 && r < 0.5;
     if ((cy < 3.2 || cy > FW - 3.2) && yac <= 1.5 && r < 0.85) catchStyle = 'toetap';
     else if (hard && yac <= 2 && r < 0.4) catchStyle = 'dive';
     else if (hard && r < 0.7) catchStyle = 'high';
@@ -158,10 +158,10 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   let hero = scorer >= 0 ? scorer : sack ? sacker : turnover ? finalCarrier : firstDown ? finalCarrier : -1;
   let celebrate: Celebration = 'none';
   if (td) celebrate = (['spike', 'jump', 'flex', 'dance', 'pray', 'spike', 'dance'] as const)[Math.floor(rnd() * 7)];
-  else if (sack || turnover) celebrate = rnd() < 0.5 ? 'flex' : 'dance';
+  
   else if (firstDown) celebrate = 'point';
-  else if (bigHit && tackler >= 0) { celebrate = 'flex'; hero = tackler; }
-  const POST = !scrim && !td ? (ev.type === 'kickoff' || ev.type === 'punt' ? 1.1 : 1.3) : td ? 4.2 : sack || turnover ? 2.4 : firstDown ? 2.0 : bigHit ? 2.0 : 1.2;
+  
+  const POST = !scrim && !td ? (ev.type === 'kickoff' || ev.type === 'punt' ? 1.1 : 1.3) : td ? 2.6 : sack || turnover ? 1.6 : firstDown ? 1.3 : 1.0;
   const WU = scrim ? 1.7 : ev.type === 'fg' || ev.type === 'xp' ? 0.6 : 0.4;
   const whistle = Math.min(D, tackC ?? endC);
   // Mobbers: offensive (scoring) teammates who run to the scorer.

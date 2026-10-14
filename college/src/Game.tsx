@@ -15,6 +15,7 @@ import { gameLeague } from './engine';
 import { collegeRules, recordGame } from './season';
 import { useDynasty, update } from './store';
 import { Logo } from './App';
+import { PlayerOfGame } from '../../src/ui/potg';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const ord = (n: number) => ['', '1st', '2nd', '3rd', '4th'][n] ?? `${n}th`;
@@ -48,6 +49,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   const { sim, L, hA, aA } = ref.current;
   const H = school(home ? s.id : opp.id), A = school(home ? opp.id : s.id);
   const userSide = home ? 1 : 0;
+  const [potgSeen, setPotgSeen] = useState(false);
   const [, force] = useState(0);
   const [last, setLast] = useState<PlayEvent | null>(null);
   const [anim, setAnim] = useState(false);
@@ -113,7 +115,8 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </div>
       <footer className="gd-console">
         {sim.over ? (
-          <FinalSummary sim={sim} L={L} H={H} A={A} hA={hA} aA={aA} onClose={onClose} />
+          <>{!potgSeen && <PlayerOfGame L={L as never} sim={sim} home={L.teams[hA]} away={L.teams[aA]} onClose={() => setPotgSeen(true)} />}
+          <FinalSummary sim={sim} L={L} H={H} A={A} hA={hA} aA={aA} onClose={onClose} /></>
         ) : !needsCall || anim ? (
           <div className="gd-wait"><span>{anim ? '' : sim.pending ? 'Special teams…' : ''}</span></div>
         ) : onOffense ? (

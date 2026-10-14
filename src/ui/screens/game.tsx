@@ -15,6 +15,7 @@ import { Halftime } from '../halftime';
 import { HighlightReel } from '../reel';
 import { pickHighlights } from '../../sim/highlights';
 import { sfx } from '../sfx';
+import { PlayerOfGame } from '../potg';
 import { practiceWeek } from '../../core/practice';
 
 export function GameScreen({ gid }: { gid: string }) {
@@ -28,6 +29,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const booth = useRef(newBooth());
   const [intro, setIntro] = useState(() => !!showFor(L, game) && sim.events.length === 0);
   const [anim, setAnim] = useState(false);
+  const [potgSeen, setPotgSeen] = useState(false);
   // Stadium sounds for what just happened.
   useEffect(() => { if (!last || anim || auto.current && auto.current !== 'watch') return; if (last.td) sfx.crowd(); else if (last.turnover) sfx.groan(); else if (last.type === 'end' || last.type === 'kickoff' && last.n === 0) sfx.whistle(); }, [last?.n, anim]);
   const [coach, setCoach] = useState(true);
@@ -123,6 +125,7 @@ export function GameScreen({ gid }: { gid: string }) {
             {!live && ev && ev.poss === userSide && sim.defAdjust && (ev.type === 'run' || ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble') && <div className="bx-adj" key={`a${ev.n}`}><b>Defense adjusts</b><span>{sim.defAdjust}</span></div>}
             {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span></div> : null}
           </div>
+          {finished && !potgSeen && <PlayerOfGame L={L} sim={sim} home={home} away={away} onClose={() => setPotgSeen(true)} />}
           {finished ? <FinalCard L={L} sim={sim} onContinue={finish} lines={booth.current.byN} /> : needsCall && !anim ? (
             <div className="card">
               <div className="row" style={{ marginBottom: 10 }}><Logo team={posTeam} size={26} /><b className="h3">{onOffense ? 'Offensive Play Call' : 'Defensive Play Call'}</b><span className="dim small">{down(sim)} · {ylText(sim.yl)}</span><div className="spacer" />

@@ -1,0 +1,13 @@
+.potg { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; background: rgba(0,0,0,.72); animation: pgIn .3s both; }
+.potg-box { position: relative; width: min(92vw, 640px); background: #0b0e16; border: 1px solid rgba(255,255,255,.12); border-top: 4px solid var(--tc); }
+.potg-box canvas { display: block; width: 100%; image-rendering: pixelated; }
+.potg-tag { position: absolute; left: 0; top: 52%; display: grid; background: rgba(8,10,14,.92); border-left: 6px solid var(--tc); padding: 8px 14px; animation: pgSlide .5s .2s both; }
+.potg-tag b { font: 700 11px Silkscreen, monospace; color: #f2c230; letter-spacing: .1em; text-transform: uppercase; }
+.potg-tag span { font: 800 20px/1.1 'Barlow Condensed', sans-serif; color: #fff; text-transform: uppercase; }
+.potg-tag em { font: 600 13px Barlow, sans-serif; font-style: normal; color: #b9c2d3; }
+.potg-qa { padding: 14px 18px 46px; animation: pgIn .4s both; }
+.potg-qa .q { margin: 0 0 6px; color: #9aa3b2; font: 600 14px Barlow, sans-serif; }
+.potg-qa .a { margin: 0; color: #fff; font: 600 17px/1.35 Barlow, sans-serif; }
+.potg-x { position: absolute; right: 12px; bottom: 12px; padding: 6px 12px; background: var(--tc); color: #fff; border: 0; font: 700 12px Silkscreen, monospace; cursor: pointer; }
+@keyframes pgIn { from { opacity: 0; } }
+@keyframes pgSlide { from { opacity: 0; transform: translateX(-30px); } }

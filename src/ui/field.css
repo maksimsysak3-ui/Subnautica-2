@@ -2,7 +2,7 @@
 .bc2 { cursor: pointer; user-select: none; }
 .bc2 .bc-lb { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 3; transition: height .45s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
 .bc2 .bc-lb.top { top: 0; } .bc2 .bc-lb.bot { bottom: 0; }
-.bc2.boxed .bc-lb { height: 9%; }
+
 .bc2 .bc-dd { transition: opacity .3s, transform .3s; border-left: 4px solid var(--tc, #f2c230); }
 .bc2.boxed .bc-dd { opacity: 0; transform: translateY(-8px); }
 .bc-replay { position: absolute; top: 12%; left: 14px; z-index: 6; display: flex; align-items: stretch; animation: bcIn .35s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
@@ -25,3 +25,5 @@
 @keyframes bcBlink { 50% { opacity: 0; } }
 @media (max-width: 640px) { .bc-rp { display: none; } .pxbanner.bn2 span { padding: 8px 18px 6px; } }
 @media (prefers-reduced-motion: reduce) { .pxbanner.bn2 span, .pxbanner.bn2 span::after, .bc-replay, .bc2 .bc-lb { animation: none; transition: none; } }
+
+.pxbanner.bn2 span { font-size: 30px; padding: 8px 24px 6px; } .pxbanner.bn2.k-td span { font-size: 40px; animation: bnWipe .5s cubic-bezier(.2,.9,.2,1) both; } .pxbanner.bn2 { top: auto; bottom: 14%; }

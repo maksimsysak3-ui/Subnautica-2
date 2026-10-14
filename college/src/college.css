@@ -596,3 +596,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mn-tile:not(.on) .mn-dyn { display: none; }
 .mn-word b { background: linear-gradient(90deg, var(--c), #ffd27a, var(--c)); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: mnShine 6s ease-in-out infinite; }
 @keyframes mnShine { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+/* ---- final summary ---- */
+.gd-final2 { display: grid; gap: 14px; padding: 16px; background: #0b0e16; border: 1px solid var(--line); border-radius: 10px; }
+.gf-score { display: flex; align-items: center; justify-content: center; gap: 22px; font: 800 44px/1 var(--head); }
+.gf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gf-box { display: grid; gap: 4px; font-size: 13px; } .gf-box > div { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.gf-tops { display: flex; flex-wrap: wrap; gap: 8px; } .gf-tops > * { padding: 6px 10px; background: rgba(255,255,255,.05); border-radius: 6px; font-size: 13px; }
+@media (max-width: 640px) { .gf-grid { grid-template-columns: 1fr; } }

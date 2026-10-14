@@ -39,7 +39,7 @@ const SKIN = ['#e8c4a8', '#c99a76', '#a46e4c', '#7b4b31', '#5a3522'];
 const hashStr = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const REPLAY_KEY = 'gg-replays';
-const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) !== '0'; } catch { return true; } };
+const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) === '1'; } catch { return true; } };
 
 /** A play the field can show: the real scene, or a stand-in for kneels, spikes and flags. */
 type Special = 'penalty' | 'kneel' | 'spike' | null;
@@ -130,7 +130,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
     };
     skip.current = playing && ch ? () => {
       if (mode === 'live' && clock < 0) { clock = 0; return; }
-      if (mode === 'live') { if (ch.replay && replayRef.current) { mode = 'replay'; rc = r0; setUi(u => ({ ...u, replay: true, box: true, phase: 'replay' })); } else finish(); return; }
+      if (mode === 'live') { if (ch.replay && replayRef.current) { mode = 'replay'; rc = r0; setUi(u => ({ ...u, replay: true, box: false, phase: 'replay' })); } else finish(); return; }
       finish();
     } : null;
     const burst = (x: number, y: number, n: number, cols: string[], up: number, spread: number, now: number, life = 0.9, size = 1) => {
@@ -142,10 +142,10 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       // --- time: live play (with a beat of hit-stop on big hits), or the replay in slow motion
       if (mode === 'live' && ch) {
         let rate = 1;
-        for (const f of ch.fx) if ((f.kind === 'impact' && f.big) && clock > f.at - 0.02 && clock < f.at + 0.14) rate = 0.3;
+        for (const f of ch.fx) if ((f.kind === 'impact' && f.big) && clock > f.at - 0.02 && clock < f.at + 0.14) rate = 1;
         clock += realDt * rate;
         if (clock >= T1) {
-          if (ch.replay && replayRef.current && !special) { mode = 'replay'; rc = r0; setUi(u => ({ ...u, replay: true, box: true, phase: 'replay' })); }
+          if (ch.replay && replayRef.current && !special) { mode = 'replay'; rc = r0; setUi(u => ({ ...u, replay: true, box: false, phase: 'replay' })); }
           else finish();
         }
       } else if (mode === 'replay') { rc += realDt * 0.5; if (rc >= r1) finish(); }
@@ -162,17 +162,16 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
           const tm = offTeam; hype = 1; ribbonMsg = `TOUCHDOWN ${tm.nick.toUpperCase()}`; ribbonFlash = now + 4200;
           for (let k = 0; k < 120; k++) parts.push({ x: f.x + (Math.random() - 0.5) * 24, y: f.y + (Math.random() - 0.5) * 18, z: 7 + Math.random() * 6, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, vz: -1 - Math.random() * 1.5, c: [tm.colors[0], tm.colors[1] ?? '#fff', '#ffffff', '#ffd23f'][k % 4], life: 3.4, t0: now, size: 1 });
           if (tm === home) { const ex = (sc?.dirSign ?? 1) > 0 ? 121 : -1; for (const yy of [2, FW - 2]) for (let k = 0; k < 26; k++) parts.push({ x: ex, y: yy, z: 0, vx: (Math.random() - 0.5) * 0.6, vy: 0, vz: 5 + Math.random() * 5, c: ['#ffd23f', '#ff7a1a', '#ff3b1a', '#fff3b0'][k % 4], life: 1.1 + Math.random() * 0.6, t0: now + k * 25, size: 2 }); }
-          sfx.crowd(); setUi(u => ({ ...u, box: true }));
-        }
+          sfx.crowd(); }
         if (f.kind === 'first') { ribbonMsg = 'FIRST DOWN'; ribbonFlash = now + 1800; hype = Math.max(hype, 0.55); }
-        if (f.kind === 'turnover') { hype = defTeam === home ? 1 : 0.2; ribbonMsg = defTeam === home ? 'TURNOVER!' : home.nick.toUpperCase(); ribbonFlash = defTeam === home ? now + 2600 : 0; setUi(u => ({ ...u, box: true })); }
+        if (f.kind === 'turnover') { hype = defTeam === home ? 1 : 0.2; ribbonMsg = defTeam === home ? 'TURNOVER!' : home.nick.toUpperCase(); ribbonFlash = defTeam === home ? now + 2600 : 0;  }
         if (f.kind === 'sack') { hype = defTeam === home ? 0.9 : 0.25; if (defTeam === home) { ribbonMsg = 'SACK!'; ribbonFlash = now + 2000; } }
       });
       if (ch && mode === 'live' && !bannerShown && ev && clock > ch.DUR + Math.min(0.6, ch.POST * 0.3)) {
         bannerShown = true; const b = bannerFor(ev, home, away, sc, ch); if (b) setBanner({ n: ev.n, ...b });
         if (ch.label) setUi(u => ({ ...u, label: ch.label }));
       }
-      if (ch && mode === 'live' && clock > ch.DUR + 0.2 && ch.celebrate !== 'none' && ch.celebrate !== 'point' && ch.hero >= 0) setUi(u => (u.box ? u : { ...u, box: true }));
+      
       hype += (0.18 - hype) * realDt * 0.25;
       // --- geometry
       const S = Math.max(2, Math.round(w / 340));
@@ -204,7 +203,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       // Steady during the live play: pan only when the ball leaves a centre box.
       if (live) { const box = 38 / C.z * 0.12, off = fx0 - C.x; if (Math.abs(off) > box) C.x += (off - Math.sign(off) * box) * (1 - Math.exp(-realDt * 4)); }
       else C.x += (fx0 - C.x) * k1;
-      C.z += (zoom - C.z) * (1 - Math.exp(-realDt * 2.6));
+      zoom = 1; C.z = 1;
       const E = S * C.z, VW = Math.ceil(w / E), VH = Math.ceil(h / E);
       const bottom = W.height - VH / 2;
       const wantY = C.z <= 1.02 ? bottom : clamp(wy(W, fy0) - VH * 0.08, VH / 2, bottom);
@@ -301,7 +300,7 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     const kit = kits[a.team];
     list.push({ y: p.y + (p.f === 'down' || p.f === 'downback' ? -0.3 : 0), draw: () => {
       // Breakaway speed: two fading after-images behind the ball carrier.
-      if (i === holder && c > 0 && c < ch.DUR && p.f.startsWith('carry')) {
+      if (false) {
         const q1 = ch.pose(i, c - 0.06), q2 = ch.pose(i, c - 0.12);
         if (Math.hypot(p.x - q2.x, p.y - q2.y) > 0.95) { g.globalAlpha = 0.18; drawOne(q2, kit, skin, false, -1); g.globalAlpha = 0.3; drawOne(q1, kit, skin, false, -1); g.globalAlpha = 1; }
       }
@@ -431,8 +430,8 @@ function bannerFor(ev: PlayEvent, home: Team, away: Team, sc: Scene | null, ch: 
   if (ev.turnover && (ev.type === 'run' || ev.type === 'scramble' || ev.type === 'sack')) return { text: ev.type === 'sack' ? 'Strip Sack!' : 'Fumble!', color: o.colors[0], sub: `${o.nick} ball`, kind: 'to' };
   if (/BLOCKED/.test(ev.text)) return { text: 'Blocked!', color: o.colors[0] };
   if (ev.type === 'sack') return { text: 'Sack!', color: o.colors[0], sub: `Loss of ${Math.abs(ev.yards)}`, kind: 'sack' };
-  if (ev.type === 'pass' && !ev.complete) return { text: sc?.broken ? 'Broken Up' : /DROPPED/.test(ev.text) ? 'Dropped' : 'Incomplete', color: '#2a2f3a', small: true };
-  if (ev.big || (ch?.label && ev.yards >= 8)) return { text: ch?.label ? `${ch.label}!` : 'Big Play!', color: t.colors[0], sub: `+${ev.yards} yards${ev.yards >= ev.togo ? ' · first down' : ''}` };
-  if ((ev.type === 'run' || ev.type === 'pass' || ev.type === 'scramble') && ev.yards >= ev.togo) return { text: 'First Down', color: '#c99a00', small: true, kind: 'first' };
+
+  if (false) return { text: ch?.label ? `${ch?.label}!` : 'Big Play!', color: t.colors[0], sub: `+${ev.yards} yards${ev.yards >= ev.togo ? ' · first down' : ''}` };
+
   return null;
 }
