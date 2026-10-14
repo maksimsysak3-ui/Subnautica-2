@@ -193,10 +193,37 @@ export function ensureFuture(league: League) {
   const last = Math.max(FUTURE_THROUGH, league.season + 3);
   const have = new Set(league.picks.map(k => k.season));
   for (let s = league.season + 1; s <= last; s++) if (!have.has(s)) for (let round = 1; round <= 7; round++) for (const abbr of Object.keys(league.teams)) league.picks.push({ id: `${s}-${round}-${abbr}`, season: s, round, orig: abbr, owner: abbr });
-  const L = league as League & { classes?: number[] };
+  const L = league as League & { classes?: number[]; realSig?: number };
+  syncRealClasses(L);
   const made = new Set(L.classes ?? allProspects(league).map(p => p.draft.year));
   for (let y = league.season + 1; y <= last; y++) if (!made.has(y)) { for (const p of generateClass(league, y)) league.players[p.id] ??= p; made.add(y); }
   L.classes = [...made].filter(y => y >= league.season).sort();
+}
+/** Fingerprint of the real college classes in the data (who is in which year). */
+const REAL_SIG = hash(REAL_PROSPECTS.map(r => `${r.id}${r.dy}`).join());
+/**
+ * A save made with older college data (e.g. before the 2030 class became the real 2026
+ * freshmen) gets its future real classes brought up to date once: players who left a class
+ * go, new ones arrive, and anyone already tracked keeps his ratings and scouting.
+ * Classes already on the clock (this season's draft) are never touched.
+ */
+function syncRealClasses(L: League & { classes?: number[]; realSig?: number }) {
+  if (L.realSig === REAL_SIG) return;
+  const fresh = L.realSig === undefined && !allProspects(L).length;
+  L.realSig = REAL_SIG;
+  if (fresh) return; // a brand-new league: ensureFuture builds every class from scratch
+  const years = [...new Set(REAL_PROSPECTS.map(r => r.dy))].filter(y => y > L.season);
+  for (const y of years) {
+    const target = generateClass(L, y);
+    const ids = new Set(target.map(p => p.id));
+    for (const p of allProspects(L)) if (p.draft.year === y && !ids.has(p.id)) delete L.players[p.id];
+    for (const p of target) {
+      const have = L.players[p.id];
+      if (have?.status === 'PROSPECT' && have.draft.year === y) have.proj = p.proj;
+      else if (!have || have.status === 'PROSPECT') L.players[p.id] = { ...p, scout: have?.scout ?? 0 };
+    }
+    if (L.classes && !L.classes.includes(y)) L.classes.push(y);
+  }
 }
 /** Where a future prospect is right now: high school or which college year. */
 export function prospectLevel(league: League, p: Player): { label: string; yearsOut: number; ageNow: number } {
