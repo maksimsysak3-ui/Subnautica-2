@@ -159,6 +159,7 @@ export function GameScreen({ gid }: { gid: string }) {
           <div className="card"><h3>Game Control</h3>
             <div className="row" style={{ marginBottom: 10 }}><span className={`chip${coach ? ' on' : ''}`} onClick={() => setCoach(true)}>Call Plays</span><span className={`chip${!coach ? ' on' : ''}`} onClick={() => setCoach(false)}>Watch (AI Calls)</span></div>
             <div className="grid g2" style={{ gap: 8 }}>
+              <button className="btn" disabled={finished || anim || sim.sides[userSide].timeouts <= 0} title="Stop the clock" onClick={() => { const e = sim.callTimeout(userSide as 0 | 1); if (e) { setLast(e); force(x => x + 1); app.toast(e.text); } }}>Timeout ({sim.sides[userSide].timeouts})</button>
               <button className="btn" disabled={finished} onClick={() => { auto.current = 'drive'; force(x => x + 1); }}>Sim Drive</button>
               <button className="btn" disabled={finished} onClick={() => { auto.current = 'quarter'; force(x => x + 1); }}>Sim Quarter</button>
               <button className="btn" disabled={finished} onClick={() => { auto.current = 'end'; force(x => x + 1); }}>Sim to End</button>

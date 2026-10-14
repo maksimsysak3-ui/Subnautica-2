@@ -604,3 +604,4 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .gf-tops { display: flex; flex-wrap: wrap; gap: 8px; } .gf-tops > * { padding: 6px 10px; background: rgba(255,255,255,.05); border-radius: 6px; font-size: 13px; }
 @media (max-width: 640px) { .gf-grid { grid-template-columns: 1fr; } }
 .wk-pen { height: auto !important; min-height: 0 !important; background: none !important; padding: 8px 12px 0; } .wk-pen .wk-art { display: none; }
+.gd-to { right: 132px !important; } .gd-to:disabled { opacity: .45; }

@@ -101,6 +101,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
         <div className="gd-team a"><Logo id={A.id} size={40} /><b>{A.abbr}</b><em>{score[0]}</em>{sim.poss === 0 && <i className="gd-pos" />}</div>
         <div className="gd-mid"><b>{sim.over ? 'FINAL' : `Q${Math.min(sim.q, 4)}${sim.q > 4 ? ' OT' : ''} · ${clock(sim.clock)}`}</b><span>{sim.over ? `${H.school} vs ${A.school}` : `${ord(sim.down)} & ${sim.yl >= 90 && sim.togo >= 100 - sim.yl ? 'Goal' : sim.togo} · ${spot(sim.yl)}`}</span></div>
         <div className="gd-team h">{sim.poss === 1 && <i className="gd-pos" />}<em>{score[1]}</em><b>{H.abbr}</b><Logo id={H.id} size={40} /></div>
+        {!sim.over && <button className="gd-x gd-to" disabled={anim || sim.sides[userSide].timeouts <= 0} onClick={() => { const e = sim.callTimeout(userSide as 0 | 1); if (e) { setLast(e); force(x => x + 1); } }} title="Stop the clock">Timeout ({sim.sides[userSide].timeouts})</button>}
         <button className="gd-x" onClick={leave}>{sim.over ? 'Close' : 'Leave game'}</button>
       </header>
       <div className="gd-main">

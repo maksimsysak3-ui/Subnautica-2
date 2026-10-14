@@ -47,12 +47,13 @@ export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, col
     if (onOffense) {
       const sp: Cell[] = [];
       if (sim.down === 4) { sp.push({ kind: 'sp', name: 'Punt', title: 'Punt', desc: 'Flip the field', tag: 'Special teams', run: () => onSpecial({ kind: 'punt', name: 'Punt' }) }); sp.push({ kind: 'sp', name: 'Field Goal', title: 'Field Goal', desc: `${100 - sim.yl + 17}-yard try`, tag: 'Special teams', run: () => onSpecial({ kind: 'fg', name: 'Field Goal' }) }); }
-      sp.push({ kind: 'sp', name: 'Kneel', title: 'Kneel', desc: 'Victory formation · burn the clock', tag: 'Clock', run: () => onSpecial({ kind: 'kneel', name: 'Kneel' }) });
-      if ((sim.q === 2 || sim.q >= 4) && sim.clock < 120) sp.push({ kind: 'sp', name: 'Spike', title: 'Spike', desc: 'Stop the clock', tag: 'Clock', run: () => onSpecial({ kind: 'spike', name: 'Spike' }) });
+      const me = sim.sides[0].abbr === L.user ? 0 : 1, lead = sim.score[me] - sim.score[1 - me];
+      if ((sim.q >= 4 && lead > 0 && sim.clock < 150) || (sim.q === 2 && sim.clock < 40)) sp.push({ kind: 'sp', name: 'Kneel', title: 'Kneel', desc: 'Victory formation · burn the clock', tag: 'Clock', run: () => onSpecial({ kind: 'kneel', name: 'Kneel' }) });
+      if ((sim.q === 2 || sim.q >= 4) && sim.clock < 120 && sim.down < 4) sp.push({ kind: 'sp', name: 'Spike', title: 'Spike', desc: 'Stop the clock', tag: 'Clock', run: () => onSpecial({ kind: 'spike', name: 'Spike' }) });
       add('Situational', sim.down === 4 ? '4th down' : 'Clock', sp);
     }
     return { sections: secs, pages: pgs };
-  }, [book, onOffense, pa, sim.down, sim.yl, sim.q, sim.clock < 120, qbFast]);
+  }, [book, onOffense, pa, sim.down, sim.yl, sim.q, sim.clock < 150, sim.score[0], sim.score[1], qbFast]);
   const single = typeof window !== 'undefined' && window.innerWidth < 860;
   const step = single ? 1 : 2;
   const key = `${side}-${book?.name ?? ''}`;

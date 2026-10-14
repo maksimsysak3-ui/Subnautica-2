@@ -1,19 +1,19 @@
 /* Stadium Pulse: a broadcast-style bug over the field. */
-.spx { position: absolute; top: 10px; right: 10px; z-index: 6; width: 264px; display: grid; grid-template-columns: 64px 1fr; gap: 0 10px; padding: 9px 12px 8px 10px; color: #fff; pointer-events: auto;
+.spx { position: absolute; top: 10px; right: 10px; z-index: 6; width: 206px; display: grid; grid-template-columns: 46px 1fr; gap: 0 8px; padding: 6px 9px 6px 8px; color: #fff; pointer-events: auto;
   background: linear-gradient(115deg, rgba(10,12,20,.92) 0%, rgba(10,12,20,.86) 60%, color-mix(in srgb, var(--tc) 40%, rgba(10,12,20,.9)) 100%);
   border-left: 4px solid var(--tc); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); box-shadow: 0 6px 18px rgba(0,0,0,.45); backdrop-filter: blur(4px); }
-.spx-eq { grid-row: 1 / 3; display: flex; align-items: flex-end; gap: 2px; height: 44px; padding-top: 2px; }
+.spx-eq { grid-row: 1 / 3; display: flex; align-items: flex-end; gap: 1.5px; height: 34px; padding-top: 2px; }
 .spx-eq span { flex: 1; height: 100%; transform-origin: bottom; border-radius: 1px; background: linear-gradient(0deg, var(--tc), #f2c230 60%, #ff4d3d);
   animation: spxEq calc(var(--d) * var(--spd) * 1s) ease-in-out calc(var(--o) * -1s) infinite alternate; transform: scaleY(calc(var(--h) * var(--amp) * .35)); }
-.spx-k { font: 700 9px/1 Silkscreen, monospace; letter-spacing: .16em; text-transform: uppercase; color: #aab3c4; }
+.spx-k { font: 700 8px/1 Silkscreen, monospace; letter-spacing: .16em; text-transform: uppercase; color: #aab3c4; }
 .spx-v { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 1px; }
-.spx-v b { font: 900 30px/1 'Barlow Condensed', sans-serif; font-style: italic; letter-spacing: -.01em; }
-.spx-v em { font: 800 15px/1 'Barlow Condensed', sans-serif; font-style: italic; text-transform: uppercase; letter-spacing: .05em; color: #cfd6e3; }
+.spx-v b { font: 900 22px/1 'Barlow Condensed', sans-serif; font-style: italic; letter-spacing: -.01em; }
+.spx-v em { font: 800 12px/1 'Barlow Condensed', sans-serif; font-style: italic; text-transform: uppercase; letter-spacing: .05em; color: #cfd6e3; }
 .spx.hot .spx-v em { color: #f2c230; } .spx.max .spx-v em { color: #ff5a46; }
 .spx.max .spx-v b { animation: spxThump calc(var(--spd) * .5s) ease-out infinite; }
-.spx-r { font: 600 10.5px/1.2 Barlow, Inter, sans-serif; color: #aab3c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spx-r { font: 600 9.5px/1.2 Barlow, Inter, sans-serif; color: #aab3c4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spx-r i { font-style: normal; font-weight: 800; color: #fff; }
-.spx-fx { grid-column: 1 / -1; margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.1); font: 700 10px/1.2 Barlow, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #8d96a8; }
+.spx-fx { grid-column: 1 / -1; margin-top: 4px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,.1); font: 700 8.5px/1.2 Barlow, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #8d96a8; }
 .spx-fx.on { color: #ff6b5a; }
 @keyframes spxEq { 0% { transform: scaleY(calc(var(--h) * var(--amp) * .25)); } 100% { transform: scaleY(calc(min(1, var(--h) * var(--amp) * 1.25))); } }
 @keyframes spxThump { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }

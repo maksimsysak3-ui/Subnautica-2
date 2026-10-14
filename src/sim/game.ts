@@ -442,6 +442,13 @@ export class GameSim {
   // ---- driving the game ---------------------------------------------------------
   private lastClockRunning = false;
 
+  /** The user calls a timeout: the clock stops and doesn't run off before the next snap. */
+  callTimeout(side: 0 | 1): PlayEvent | null {
+    const sd = this.sides[side];
+    if (this.over || this.pending || sd.timeouts <= 0) return null;
+    sd.timeouts--; this.lastClockRunning = false;
+    return this.push({ type: 'timeout', text: `Timeout, ${sd.team.nick}. ${sd.timeouts} left.`, yards: 0, endYl: this.yl });
+  }
   /** Advance one play. `call` overrides the AI for the offense; `dcall` for the defense. */
   step(call?: OffCall, dcall?: DefCall): PlayEvent | null {
     if (this.over) return null;

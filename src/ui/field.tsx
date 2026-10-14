@@ -17,7 +17,7 @@ import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
 import type { Kit } from './field/pixel';
-import { renderRig, buildOf, gearFor, POSE, AX, AY } from './field/rig';
+import { renderRig, buildOf, gearFor, blend, POSE, AX, AY, type RigPose } from './field/rig';
 import { choreograph, MID, FW, type Choreo, type Pose } from './field/choreo';
 import { makeWorld, paintStadium, drawCrowd, drawRibbon, drawPosts, wx, wy, type World } from './field/stadium';
 import { FORMATION, OL_SPOTS, snapSpot, type Art } from './playart';
@@ -49,14 +49,37 @@ type Special = 'penalty' | 'kneel' | 'spike' | null;
 function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: Scene; ch: Choreo; special: Special } {
   const special: Special = ev.type === 'penalty' || ev.type === 'kneel' || ev.type === 'spike' ? ev.type : null;
   if (!special) { const sc = buildScene(ev, lineups); return { sc, ch: choreograph(sc, ev), special }; }
-  // Everyone lines up; at the snap the quarterback kneels or spikes it, or a flag flies.
+  // Live fouls (holding, interference, roughing) happen during a real-looking play; the flag
+  // flies at the moment of the foul and the play is blown dead after it.
+  const preSnapFoul = /False start|Offside|Neutral zone|Encroach|Illegal motion|Delay/i.test(ev.text);
+  if (special === 'penalty' && !preSnapFoul) {
+    const passy = /interference|Roughing the passer|Defensive holding|Illegal contact/i.test(ev.text) || (/Offensive holding/.test(ev.text) && ev.n % 2 === 0);
+    const fake: PlayEvent = { ...ev, type: passy ? 'pass' : 'run', yards: passy ? 0 : 2 + (ev.n % 4), air: passy ? 9 + (ev.n % 12) : undefined, complete: false, td: false, turnover: false, big: false, ids: { qb: ev.ids?.qb }, dir: 0, call: undefined, dcall: undefined };
+    const sc = buildScene(fake, lineups), base = choreograph(sc, fake);
+    const at = /interference|Defensive holding|Illegal contact/i.test(ev.text) && sc.catchAt !== undefined ? sc.catchAt * sc.dur - 0.05
+      : /Roughing the passer/i.test(ev.text) && sc.throwAt !== undefined ? sc.throwAt * sc.dur + 0.2 : sc.pre * sc.dur + 1.0;
+    const spotI = /interference|Defensive holding|Illegal contact/i.test(ev.text) ? (sc.target ?? -1) : /Roughing/i.test(ev.text) ? (sc.qb ?? -1) : -1;
+    const sp = spotI >= 0 ? sc.actors[spotI].path(Math.min(1, at / sc.dur)) : sc.ball(Math.min(1, at / sc.dur));
+    return { sc, ch: { ...base, fx: [...base.fx.filter(f => f.kind !== 'td' && f.kind !== 'first'), { at, kind: 'flag', x: sp[0], y: sp[1] }], replay: null, hero: -1, celebrate: 'none', first: false, label: undefined }, special };
+  }
+  // Pre-snap fouls are shown live too: a lineman flinches (or a rusher jumps into the neutral
+  // zone) just before the snap, the flag flies and the whistle blows. Kneels and spikes play out.
   const fake: PlayEvent = { ...ev, type: 'run', yards: 0, td: false, turnover: false, big: false, ids: { qb: ev.ids?.qb }, call: undefined, dcall: undefined };
   const sc = buildScene(fake, lineups);
   const base = choreograph(sc, fake), snap = sc.pre * sc.dur, D = snap + (special === 'penalty' ? 1.9 : 1.5);
   const qb = sc.qb ?? -1;
+  const offFoul = /False start|Illegal motion|Delay/i.test(ev.text);
+  const pool = sc.actors.map((a, i) => ({ a, i })).filter(({ a }) => (offFoul ? a.team === sc.off && a.slot.startsWith('OL') : a.team !== sc.off && a.slot.startsWith('DL')));
+  const culprit = special === 'penalty' && pool.length ? pool[ev.n % pool.length].i : -1;
   const ch: Choreo = {
-    ...base, DUR: D, POST: 0.6, replay: null, hero: -1, celebrate: 'none', first: false, label: undefined, fx: special === 'penalty' ? [{ at: snap + 0.2, kind: 'flag', x: sc.los + sc.dirSign * 2, y: MID - 4 }] : [],
+    ...base, DUR: D, POST: 0.6, replay: null, hero: -1, celebrate: 'none', first: false, label: undefined, fx: special === 'penalty' ? [{ at: snap - 0.2, kind: 'flag', x: culprit >= 0 ? sc.actors[culprit].path(0)[0] : sc.los, y: culprit >= 0 ? sc.actors[culprit].path(0)[1] : MID }] : [],
     pose: (i, c) => {
+      if (special === 'penalty' && i === culprit && c > snap - 0.45) {
+        const p = base.pose(i, Math.min(c, snap - 0.46)), d = c - (snap - 0.45), k = Math.min(1, d / 0.3);
+        const fwd = sc.actors[i].team === sc.off ? sc.dirSign : -sc.dirSign;
+        return { ...p, x: p.x + fwd * k * (offFoul ? 0.5 : 1.3), face: (fwd > 0 ? 1 : -1), rig: d < 0.3 ? POSE.run((d * 3) % 1, 0.4) : POSE.stand(Math.sin(c * 2)) };
+      }
+      if (special === 'penalty' && c > snap - 0.45) { const p = base.pose(i, snap - 0.46); return c > snap ? { ...p, rig: POSE.stand(Math.sin(c * 2 + i)) } : p; }
       if (c <= snap) return base.pose(i, c);
       const p = base.pose(i, snap - 0.01), d = c - snap;
       if (i === qb && special === 'kneel') return { ...p, rig: d < 0.25 ? POSE.hold() : { ...POSE.kneel(), ball: 1 } };
@@ -119,6 +142,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
     const r0 = ch?.replay?.[0] ?? 0, r1 = ch?.replay?.[1] ?? 0;
     let raf = 0, last = performance.now(), ended = false, endAt = 0;
     const parts: Particle[] = [];
+    const smooth = new Map<number, RigPose>();   // last drawn pose per player, for blending
     const fired = new Set<number>();
     let hype = 0.18 + Math.max(0, ((pulse ?? 45) - 45) / 100), ribbonMsg = `${home.nick.toUpperCase()}`, ribbonFlash = 0, bannerShown = false;
     const offTeam = sc ? (sc.off === 1 ? home : away) : home, defTeam = sc ? (sc.off === 1 ? away : home) : away;
@@ -145,7 +169,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       // --- time: live play (with a beat of hit-stop on big hits), or the replay in slow motion
       if (mode === 'live' && ch) {
         let rate = 1;
-        for (const f of ch.fx) if ((f.kind === 'impact' && f.big) && clock > f.at - 0.02 && clock < f.at + 0.14) rate = 1;
+        for (const f of ch.fx) if (f.kind === 'catch' && f.big && clock > f.at - 0.28 && clock < f.at + 0.22) rate = 0.4;   // a beat of slow motion on the highlight-reel catch
         clock += realDt * rate;
         if (clock >= T1) {
           if (ch.replay && replayRef.current && !special) { mode = 'replay'; rc = r0; setUi(u => ({ ...u, replay: true, box: false, phase: 'replay' })); }
@@ -222,7 +246,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       g.drawImage(stadium.current.c, ox, oy, VW, VH, 0, 0, VW, VH);
       drawRibbon(g, W, oy, VW, now, ribbonMsg, home.colors[0] === '#000000' ? home.colors[1] ?? '#fff' : home.colors[0], now < ribbonFlash);
       drawCrowd(g, W, ox, oy, VW, now, hype, !!night, [home.colors[0], home.colors[1] ?? '#ffffff']);
-      if (sc && ch) drawPlay(g, W, sc, ch, c2, kits, now, sx, sy, VW, weather, mode === 'replay', special);
+      if (sc && ch) drawPlay(g, W, sc, ch, c2, kits, now, sx, sy, VW, weather, mode === 'replay', special, smooth, realDt);
       drawPosts(g, W, sx, sy, VW, now, weather?.wind ?? 0);
       drawParticles(g, parts, now, sx, sy, realDt);
       drawLight(g, VW, VH, night);
@@ -256,7 +280,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
 }
 
 // ---- drawing the play ----------------------------------------------------------------------
-function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, c: number, kits: readonly [Kit, Kit], now: number, sx: (x: number) => number, sy: (y: number, z?: number) => number, vw: number, weather: Weather | undefined, replay: boolean, special: Special) {
+function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, c: number, kits: readonly [Kit, Kit], now: number, sx: (x: number) => number, sy: (y: number, z?: number) => number, vw: number, weather: Weather | undefined, replay: boolean, special: Special, smooth: Map<number, RigPose>, dt: number) {
   const s = sc.dirSign;
   const yTop = sy(0), yBot = sy(FW);
   if (!sc.kick) {
@@ -278,7 +302,15 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     g.globalAlpha = c < snap ? 0.85 * Math.min(1, (c + 0.9) / 0.4) : Math.max(0, 0.85 - (c - snap) / 0.25);
     drawArt(g, sc, sc.dart ?? [], true, sx, sy); drawArt(g, sc, sc.art ?? [], false, sx, sy); g.globalAlpha = 1;
   }
-  const poses: Pose[] = sc.actors.map((_, i) => ch.pose(i, c));
+  // Every body blends toward its new pose over a few frames, so changes of action (set, snap,
+  // drop, throw; run, plant, cut; hit, fall) flow instead of snapping.
+  const kBlend = 1 - Math.exp(-Math.min(0.05, dt) * 24);
+  const poses: Pose[] = sc.actors.map((_, i) => {
+    const p = ch.pose(i, c), prev = smooth.get(i);
+    const rig = prev && dt > 0 ? { ...blend(prev, p.rig, kBlend), ball: p.rig.ball } : p.rig;
+    smooth.set(i, rig);
+    return { ...p, rig };
+  });
   const refs = ch.refs(c);
   const ball = ch.ball(c);
   const holder = (() => { if (!ball || ball.free) return -1; let b = -1, bd = 1.2; poses.forEach((p, i) => { const d = Math.hypot(p.x - ball.x, p.y - ball.y); if (d < bd) { bd = d; b = i; } }); return b; })();

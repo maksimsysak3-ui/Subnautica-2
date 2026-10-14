@@ -51,7 +51,11 @@ export function slotFor(id: string): Slot | undefined { const p = app.league?.pl
 
 export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean; pressured?: boolean; oob?: boolean;
   /** Contact on the ball carrier: beaten defenders (and how), and the wrap-up that ends it. */
-  moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken'; def: number; until: number }[]; wrapAt?: number; wrapper?: number;
+  moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove'; def: number; until: number; by?: number }[]; wrapAt?: number; wrapper?: number;
+  /** Receivers planting at their breaks (and turning back to the QB on comebacks). */
+  breaks?: { at: number; who: number; back: boolean }[];
+  /** A pass batted down at the line, and by whom. */
+  tipped?: { at: number; by: number };
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
   off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number; tackler?: number; swatter?: number }
 
@@ -269,7 +273,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const MT = mot ? Math.min(2.2, 0.3 + motLen / 7) : 0;
   const DT = 1 / 60, PRE = (art || dart ? 0.6 : 0.25) + MT;
   const spotOf = (w: keyof typeof FORMATION): [number, number] => (mot?.who === w ? snapSpot(mot, FORMATION) : FORMATION[w]);
-  const manCov = /Cover [01]/.test(ev.dcall ?? '');
+  const manCov = /Cover [01]|Man|Press/i.test(ev.dcall ?? '');
+  const cov2 = /Cover 2|Tampa/i.test(ev.dcall ?? ''), cov4 = /Cover 4|Quarters/i.test(ev.dcall ?? '');
   const ballTrack: [number, number, number][] = [];
   const agents: Agent[] = [];
   const mk = (team: 0 | 1, slot: string, role: string, [x, y]: [number, number], top: number, acc = 9) => { const a: Agent = { team, slot, role, x, y, vx: 0, vy: 0, top, acc, track: [] }; agents.push(a); return a; };
@@ -299,7 +304,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const DL = [-5, -1.7, 1.7, 5].map((dy, i) => mk(def, `DL${i}`, 'DL', at(1, dy), i === 0 || i === 3 ? 7.6 : 6.6, 8));
   const LB = [-3.5, 3.5].map((dy, i) => mk(def, `LB${i}`, 'LB', at(5, dy), 7.8, 9));
   // In man coverage the defender travels with the man in motion (the tell); in zone he stays home.
-  const DB = WHO.map((w, i) => mk(def, `DB${i}`, 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : 7), (manCov ? spotOf(w) : FORMATION[w])[1] * 0.95), 8.6, 10));
+  const press = manCov && rnd() < 0.6;
+  const DB = WHO.map((w, i) => mk(def, `DB${i}`, 'DB', at(FORMATION[w][0] + (w === 'TE' ? 5 : press && w !== 'S' ? 1.3 : 6), (manCov ? spotOf(w) : FORMATION[w])[1] * 0.95), 8.6, 10));
   if (mot) {
     const mover = [RB, ...REC].find(a => a.slot === mot.who);
     if (mover) mover.pre = motPath.map(p => at(p[0], p[1]));
@@ -324,7 +330,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const dropped = pass && /DROPPED/.test(ev.text);
   const throwAway = pass && /throws it away/.test(ev.text);
   const picked = pass && !!ev.turnover;
-  const offTarget = pass && !ev.complete && !picked && !defended && !dropped && !throwAway;
+  const tipped = pass && !ev.complete && !picked && !defended && !dropped && !throwAway && Math.abs(ev.air ?? 0) <= 15 && rnd() < 0.3;
+  let tipBy: Agent | null = null;
+  const offTarget = pass && !ev.complete && !picked && !defended && !dropped && !throwAway && !tipped;
   const lateral = (art?.find(a => a.who === 'RB')?.pts.slice(-1)[0]?.[1] ?? 0) * 0.6 + (ev.dir ?? 0) * 3;
   let endY = mid + s * (lateral * 0.7 + (rnd() - 0.5) * 6);
   // Getting out of bounds: catches on outside routes and outside runs often finish at the
@@ -333,13 +341,27 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   if (sidelineFinish && run && (ev.dir ?? 0) !== 0) endY = (s * (ev.dir ?? 0)) > 0 ? 52.6 : 0.7;
   // Quick game for short throws (3-step), a full drop for intermediate and deep ones.
   const dropT = (air <= 2 ? 0.35 : air <= 9 ? 0.5 : 0.8) + rnd() * 0.12;
-  const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
+  let deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
   let throwT = Infinity, airT = 0, catchT = Infinity, settle = false;
+  // Some dropbacks are extended: he hangs in, slides and steps up, or escapes the pocket and
+  // throws on the run when the first read isn't there.
+  const extend = pass && !throwAway && Math.abs(air) >= 5 && rnd() < 0.32 ? 0.6 + rnd() * 1.1 : 0;
+  const escape = extend > 0 && rnd() < 0.4, slideSide = rnd() < 0.5 ? -1 : 1;
   const throwKind: 'bullet' | 'touch' | 'deep' = Math.abs(air) >= 25 ? 'deep' : Math.abs(air) <= 3 ? (rnd() < 0.6 ? 'touch' : 'bullet') : rnd() < 0.3 ? 'touch' : 'bullet';
   const vel = throwKind === 'bullet' ? 31 : throwKind === 'touch' ? 21 : 25;   // yards a second: ~60 mph bullets, ~50 mph deep balls
   const flight = (a: [number, number], b: [number, number]) => 0.05 + Math.hypot(b[0] - a[0], b[1] - a[1]) / vel;
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
-  const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
+  // Zone landmarks for each defensive back by coverage (depth, width), mirrored to his side.
+  const sideOf = (w: typeof WHO[number]) => (FORMATION[w][1] >= 0 ? 1 : -1);
+  const landmark = (i: number): [number, number] => {
+    const w = WHO[i], sd = sideOf(w);
+    if (cov2) return i < 2 ? [5, sd * 19] : i === 2 ? [9, sd * 8] : [17, sd * 12];        // corners squat the flats, two deep halves
+    if (cov4) return i < 2 ? [14, sd * 19] : i === 2 ? [8, sd * 10] : [15, sd * 7];        // quarters
+    return i < 2 ? [15, sd * 18] : [8, sd * 13];                                            // cover 3: deep outside thirds, curl-flat underneath
+  };
+  const routes = WHO.map(w => { const j = (rnd() - 0.5) * 1.6; return [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map((p, k, all) => at(p[0] + (k < all.length - 1 ? j : 0), p[1])))] as [number, number][]; });
+  const breaks: { t: number; who: number; back: boolean }[] = [];
+  const plantUntil = WHO.map(() => 0);
   const ri = WHO.map(() => 1);
   let carrier: Agent | null = null, thrown = false, caught = false, endT = 0, ballXY: [number, number] = at(0, 0), ballZ = 0;
   const holdTrack: number[] = [];
@@ -354,13 +376,19 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   // quarterback (a bull rush on the sacker's side), and on a scramble he escapes it.
   const pressured = sack || scramble || throwAway || (pass && !ev.complete && !picked && rnd() < 0.35);
   const bull = DL.map((_, i) => pressured && (i === si || rnd() < 0.45));
+  // The trenches aren't a stalemate: on good runs a blocker can pancake his man; on passes a
+  // rusher who wins early swims, rips or spins past his blocker, and a pass rush can get
+  // stoned and put on the ground.
+  const pancakeAt = (run && ev.yards >= 4 && rnd() < 0.45) || (pass && !pressured && rnd() < 0.12) ? 0.55 + rnd() * 0.4 : Infinity;
+  const pancakeDL = Math.floor(rnd() * 4);
+  const lineDone = DL.map(() => false);
   const escapeSide = rnd() < 0.5 ? -1 : 1;
   const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
   const before = (x: number) => s * (x - end) <= 0; // reached the spot behind
   // Contact always resolves: a defender who reaches the ball carrier either wraps him up
   // (when he is at or near the spot the engine decided) or gets beaten by a move.
   const beaten = new Map<Agent, number>();             // defender -> on the turf / out of the play until
-  const moves: { t: number; kind: 'juke' | 'spin' | 'stiff' | 'broken'; d: Agent; until: number }[] = [];
+  const moves: { t: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove'; d: Agent; until: number; by?: Agent }[] = [];
   let wrapper: Agent | null = null, wrapT = 0;
   const effort = new Map<Agent, number>();
   const out = (d: Agent) => (beaten.get(d) ?? 0) > t;
@@ -372,7 +400,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) { if (!carrier && t > (qbRun ? 0.3 : 0.45)) carrier = qbRun ? QB : RB; }
     else if (scramble) { if (!carrier && t > 1.5) carrier = QB; }
     else if (sack) carrier = QB;
-    else if (!thrown && t >= dropT + (throwAway ? 0.9 : 0)) {
+    else if (!thrown && t >= dropT + (throwAway ? 0.9 : 0) + extend) {
       // Throw when the receiver will be at the right depth by the time the ball gets there.
       const from: [number, number] = [QB.x, QB.y];
       let lead = 0.6, proj: [number, number] = [target.x, target.y];
@@ -387,7 +415,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         // posts, gos and crossers catch it in stride.
         { const rt = routes[targetIdx], a2 = rt[rt.length - 1], a1 = rt[rt.length - 2] ?? rt[0];
           settle = ri[targetIdx] >= rt.length || s * (a2[0] - a1[0]) < -0.3 || air <= 1; }
-        catchPt = throwAway ? [QB.x + s * 9, QB.y > mid ? 53.8 : -0.6]
+        if (tipped) tipBy = DL.reduce((b, x) => (dist(x, QB) < dist(b, QB) ? x : b), DL[0]);
+        catchPt = tipped ? [QB.x + s * 3.5, clampY(QB.y + (rnd() - 0.5) * 4)] : throwAway ? [QB.x + s * 9, QB.y > mid ? 53.8 : -0.6]
           : picked ? [proj[0] - s * 1.1, clampY(proj[1] + (rnd() - 0.5) * 1.2)]
           : offTarget ? [proj[0] + s * (2 + rnd() * 2.5), clampY(proj[1] + (rnd() < 0.5 ? -1 : 1) * (1.2 + rnd() * 1.8))]
           : proj;
@@ -406,7 +435,12 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     // Offense.
     OL.forEach((o, i) => {
       const m = DL[Math.min(3, Math.round(i * 0.8))];
-      if (run) steer(o, m.x - s * 0.4, m.y, 0.8);
+      if (run) {
+        // The doubled-up blocker climbs to a linebacker; everyone else drives his man off the ball.
+        const climb = (i === 2 && t > 0.45) || (i === 1 && ev.yards >= 5 && t > 0.75);
+        if (climb) { const lb = LB.reduce((b, x) => (dist(x, o) < dist(b, o) ? x : b), LB[0]); steer(o, lb.x - s * 0.6, lb.y, 0.9); }
+        else steer(o, m.x + s * (ev.yards >= 3 ? 0.9 : 0.1), m.y, 0.9);
+      }
       else { const q = carrier ?? QB; const dx = q.x - m.x, dy = q.y - m.y, d = Math.hypot(dx, dy) || 1; steer(o, m.x + (dx / d) * 0.95, m.y + (dy / d) * 0.95, 0.9); }
     });
     if (run) {
@@ -418,6 +452,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (sack) steer(QB, end, mid, 0.55);
       else if (carrier === QB) steer(QB, end + s * 2, endY);
       else if (!thrown && (scramble || throwAway) && t > dropT + 0.25) steer(QB, QB.x + s * 0.6, clampY(mid + escapeSide * 9), 0.75);   // out of the pocket
+      else if (!thrown && extend && escape && t > dropT + 0.2) steer(QB, QB.x + s * 0.3, clampY(mid + slideSide * 10), 0.7);   // escapes and throws on the run
+      else if (!thrown && extend && t > dropT + 0.15) { const ph = (t - dropT) * 2.2; steer(QB, at(-6.2 + Math.min(1.6, (t - dropT) * 1.2), 0)[0], at(0, Math.sin(ph) * 1.4 * slideSide)[1], 0.35); }   // slides and steps up
       else if (!thrown && sack && t > dropT + 0.2) steer(QB, QB.x + s * 0.4, QB.y + escapeSide * 0.6, 0.3);   // steps up, nowhere to go
       else if (!thrown) steer(QB, at(-7, 0)[0], at(-7, 0)[1], 0.7);
       else steer(QB, QB.x, QB.y, 0.3);
@@ -441,8 +477,21 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       }
       if (carrier && carrier.team === def) { const [gx, gy] = goal(r); steer(r, gx, gy, 0.85); return; }   // turnover: tackle him
       const rt = routes[i]; const p = rt[Math.min(ri[i], rt.length - 1)];
-      steer(r, ri[i] < rt.length ? p[0] : r.x + s * 4, ri[i] < rt.length ? p[1] : r.y, 0.92);
-      if (ri[i] < rt.length && Math.hypot(p[0] - r.x, p[1] - r.y) < 0.8) ri[i]++;
+      if (t < plantUntil[i]) { r.vx *= 0.82; r.vy *= 0.82; return; }       // planting the foot at the break
+      if (press && t < 0.45) { const dbi = DB[i]; steer(r, r.x + s * 0.4, r.y + (i % 2 ? 1 : -1) * 0.8, 0.5); if (dist(dbi, r) < 1.4) { r.vx *= 0.7; } return; }   // fighting the jam
+      if (ri[i] < rt.length) {
+        // Stem at full speed toward the break point, no easing off before it.
+        const dx = p[0] - r.x, dy = p[1] - r.y, dd = Math.hypot(dx, dy) || 1;
+        steer(r, r.x + (dx / dd) * 6, r.y + (dy / dd) * 6, 0.94);
+        if (dd < 0.9) {
+          const nx = rt[ri[i] + 1];
+          if (nx) {
+            const a1 = Math.atan2(dy, dx), a2 = Math.atan2(nx[1] - p[1], nx[0] - p[0]); let da = Math.abs(a2 - a1); if (da > Math.PI) da = 2 * Math.PI - da;
+            if (da > 0.85) { plantUntil[i] = t + 0.12 + rnd() * 0.06; breaks.push({ t, who: i, back: s * (nx[0] - p[0]) < -0.3 }); }
+          }
+          ri[i]++;
+        }
+      } else steer(r, r.x + s * 4, r.y, 0.92);
     });
     // Defense: everyone has a job until he reads the play, then pursues on an angle.
     const trig = run ? (qbRun ? 0.3 : 0.45) : scramble ? 1.5 : caught ? catchT : Infinity;
@@ -460,11 +509,24 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       steer(d, gx, gy, dd > 20 ? 0.8 : 1);
     };
     DL.forEach((d, i) => {
+      if (!lineDone[i] && i === pancakeDL && t >= pancakeAt && !carrier?.team) { /* handled below */ }
+      if (!lineDone[i] && i === pancakeDL && t >= pancakeAt) {
+        lineDone[i] = true;
+        const o = OL[Math.min(4, Math.round(i * 1.33))];
+        beaten.set(d, 99); moves.push({ t, kind: 'pancake', d, until: 99, by: o });
+        d.vx = s * 3.2; d.vy *= 0.3;                  // driven back off the ball and onto his back
+      }
+      if (!lineDone[i] && pass && t >= shed[i] && shed[i] < 1.25 && t < 1.6) {
+        lineDone[i] = true;
+        const o = OL.reduce((b, x) => (dist(x, d) < dist(b, d) ? x : b), OL[0]);
+        moves.push({ t, kind: (['swim', 'rip', 'spinmove'] as const)[Math.floor(rnd() * 3)], d: o, until: t + 0.5, by: d });
+        o.vx *= 0.3; o.vy *= 0.3;                      // the blocker lunges and misses
+      }
       if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
       if (carrier && carrier.team === def) { if (d === carrier) steer(d, d.x - s * 8, d.y); else steer(d, d.x - s * 1, d.y, 0.4); return; }
       const held = t < shed[i];
       if (pursuing(d) && !held) { pursue(d); return; }
-      if (held && run) { const o = OL[Math.min(4, Math.round(i * 1.33))]; steer(d, o.x + s * 0.8, o.y, 0.3); return; }   // fighting the block
+      if (held && run) { const o = OL[Math.min(4, Math.round(i * 1.33))]; steer(d, o.x + s * 0.8, o.y, ev.yards >= 5 ? 0.12 : ev.yards <= 1 ? 0.55 : 0.28); return; }   // fighting the block: driven off the ball on good runs, winning on stuffs
       const [gx, gy] = goal(d);
       steer(d, gx, gy, held ? (bull[i] ? 0.42 : 0.12) : 1);
     });
@@ -485,18 +547,28 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         const left = Math.max(0.05, catchT - t);
         // On a pick he undercuts the route and gets there first; on a break-up he arrives with
         // the ball; otherwise he is trailing a step or two behind.
-        const p: [number, number] = picked ? catchPt : defended ? [recvPt[0] + s * 0.3, recvPt[1] + 0.6] : [recvPt[0] - s * (offTarget ? 1.1 : 1.7), recvPt[1] + (dropped ? 1.2 : 0.7)];
+        const yac = ev.complete ? ev.yards - air : 0;
+        const p: [number, number] = picked ? catchPt : defended ? [recvPt[0] + s * 0.3, recvPt[1] + 0.6]
+          : ev.complete && yac < 2.5 ? [recvPt[0] + s * 0.7, recvPt[1] + 0.4]                       // right there: the tackle comes as he catches it
+          : [recvPt[0] - s * (offTarget ? 1.1 : Math.min(4, 1.4 + yac * 0.25)), recvPt[1] + (dropped ? 1.2 : 0.7)];   // beaten: trailing by what he won
+        if (ev.complete && yac < 2.5) d.top = Math.max(8.6, Math.min(10.4, Math.hypot(p[0] - d.x, p[1] - d.y) / Math.max(0.05, left - 0.02)));
         if (picked || defended) d.top = Math.max(8.6, Math.min(10.4, Math.hypot(p[0] - d.x, p[1] - d.y) / Math.max(0.05, left - 0.04)));
         steer(d, p[0], p[1]); return;
       }
       if (run) { steer(d, r.x + s * 2.2, r.y, 0.5); return; }   // read run: keep leverage on the receiver
-      steer(d, r.x + s * Math.max(1.2, 3 - t * 1.2), r.y, 0.95); // cover: a cushion over the top
+      if (thrown && !caught && dist(d, { x: catchPt[0], y: catchPt[1] }) < 12) { steer(d, catchPt[0] + s * 0.8, catchPt[1], 1); return; }   // break on the ball
+      if (manCov) { steer(d, r.x + r.vx * 0.15 + s * (press && t < 0.45 ? 0.5 : 0.8), r.y + r.vy * 0.15, t < 0.45 && press ? 0.6 : 0.97); return; }   // man: mirror him, hip to hip
+      // Zone: backpedal to the landmark, then squeeze whoever comes into it.
+      const [lx, ly] = landmark(i), z = at(lx, ly), inZone = REC.filter(rr => Math.hypot(rr.x - z[0], rr.y - z[1]) < 7).sort((a, b) => dist(a, d) - dist(b, d))[0];
+      if (inZone && t > 0.6) steer(d, inZone.x + s * 1.2, inZone.y, 0.9); else steer(d, z[0], z[1], 0.85);
     });
     if (FS === carrier) steer(FS, FS.x - s * 10, FS.y);
     else if (pursuing(FS)) pursue(FS);
     else if (thrown && FS === cov) { const p: [number, number] = picked ? catchPt : [recvPt[0] + s * 0.4, recvPt[1] + 0.5]; steer(FS, p[0], p[1]); }
     else if (thrown) steer(FS, catchPt[0] + s * 4, catchPt[1], 0.85);   // last line: stay deep of the ball
     else if (run) steer(FS, at(9, lateral * 0.5)[0], at(9, lateral * 0.5)[1], 0.5);
+    else if (cov2) { const z = at(17, -12 * (sideOf('X') || 1)); steer(FS, z[0], z[1], 0.8); }
+    else if (cov4) { const z = at(15, -7 * (sideOf('X') || 1)); steer(FS, z[0], z[1], 0.8); }
     else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
     }
     // Integrate, then keep bodies apart: teammates give each other room, opponents meet
@@ -576,7 +648,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     // When does it end?
     if (!endT) {
       if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
-      else if (pass && caught && ev.turnover && t > catchT + 0.9) endT = t;
+      else if (pass && caught && ev.turnover && t > catchT + 1.6 + (ev.n % 7) * 0.12) endT = t;   // the return
       else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 0.05 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
       else if (sack && t > 1.2 && dist(DL[si], QB) < 1.1) endT = t;
       else if (wrapper && carrier && (s * (end - carrier.x) <= 0.05 || t - wrapT > 1.2)) endT = t;
@@ -606,11 +678,13 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const ball: Path = u => (u * dur < PRE ? at(0, 0) : [bAt(u, 0), bAt(u, 1)]);
   const ballH = (u: number) => (u * dur < PRE ? 0.15 : bAt(u, 2));
   const oobRun = !!carrier && !ev.td && !ev.turnover && (carrier.y < 3.5 || carrier.y > 49.8);
-  const tackled = !ev.td && !(pass && !ev.complete) && !oobRun;
+  const tackled = !ev.td && (!(pass && !ev.complete) || !!ev.turnover) && !oobRun;
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
     broken, pressured, oob: oobRun, qb: agents.indexOf(QB),
-    moves: moves.map(m => ({ at: (PRE + m.t) / dur, kind: m.kind, def: agents.indexOf(m.d), until: (PRE + m.until) / dur })),
+    moves: moves.map(m => ({ at: (PRE + m.t) / dur, kind: m.kind, def: agents.indexOf(m.d), until: (PRE + Math.min(m.until, t)) / dur, by: m.by ? agents.indexOf(m.by) : undefined })),
+    breaks: breaks.map(b => ({ at: (PRE + b.t) / dur, who: agents.indexOf(REC[b.who]), back: b.back })),
+    tipped: tipped && tipBy ? { at: (PRE + throwT + 0.08) / dur, by: agents.indexOf(tipBy) } : undefined,
     wrapAt: wrapper ? (PRE + wrapT) / dur : undefined, wrapper: wrapper ? agents.indexOf(wrapper) : undefined, target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
 }
 
