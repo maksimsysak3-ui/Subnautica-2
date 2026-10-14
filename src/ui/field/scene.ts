@@ -331,7 +331,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const dropT = (air <= 2 ? 0.35 : air <= 9 ? 0.5 : 0.8) + rnd() * 0.12;
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
   let throwT = Infinity, airT = 0, catchT = Infinity, settle = false;
-  const flight = (a: [number, number], b: [number, number]) => 0.1 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 25 ? 23 : 27);
+  const throwKind: 'bullet' | 'touch' | 'deep' = Math.abs(air) >= 25 ? 'deep' : Math.abs(air) <= 3 ? (rnd() < 0.6 ? 'touch' : 'bullet') : rnd() < 0.3 ? 'touch' : 'bullet';
+  const vel = throwKind === 'bullet' ? 28 : throwKind === 'touch' ? 17 : 21;
+  const flight = (a: [number, number], b: [number, number]) => 0.08 + Math.hypot(b[0] - a[0], b[1] - a[1]) / vel;
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
   const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
   const ri = WHO.map(() => 1);
@@ -547,7 +549,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       const q = Math.min(1, (t - throwT) / airT);
       const from = throwFrom;
       ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
-      ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * (0.35 + Math.abs(air) * 0.085 + Math.max(0, Math.abs(air) - 35) * 0.05);
+      const peak = throwKind === 'bullet' ? 0.25 + Math.abs(air) * 0.04 : throwKind === 'touch' ? 1.6 + Math.abs(air) * 0.12 : 2.5 + Math.abs(air) * 0.12;
+      ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * peak;
     } else if (pass && caught && !ev.complete && !ev.turnover) {
       // Incomplete: the ball is knocked away or falls incomplete, then bounces dead. Nobody holds it.
       if (!loose) {
@@ -596,7 +599,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const bAt = (u: number, c: number) => { const f = Math.max(0, Math.min(bt.length - 1, (u * dur - PRE) / DT)), i = Math.floor(f), j = Math.min(bt.length - 1, i + 1), w = f - i; return bt[i][c] + (bt[j][c] - bt[i][c]) * w; };
   const ball: Path = u => (u * dur < PRE ? at(0, 0) : [bAt(u, 0), bAt(u, 1)]);
   const ballH = (u: number) => (u * dur < PRE ? 0.15 : bAt(u, 2));
-  const tackled = !ev.td && !(pass && !ev.complete);
+  const oobRun = !!carrier && !ev.td && (carrier.y < 3 || carrier.y > 50.3) && rnd() < 0.8;
+  const tackled = !ev.td && !(pass && !ev.complete) && !oobRun;
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
     broken, pressured, qb: agents.indexOf(QB),

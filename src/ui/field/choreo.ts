@@ -101,10 +101,11 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const k = K(catchC), cy = Y[tgt][k], air = ev.air ?? ev.yards, yac = ev.yards - air;
     const r = rnd();
     const hard = air >= 14 || (air >= 8 && r < 0.3);
-    if ((cy < 3.2 || cy > FW - 3.2) && yac <= 1.5 && r < 0.85) catchStyle = 'toetap';
-    else if (hard && yac <= 2 && r < 0.4) catchStyle = 'dive';
-    else if (hard && r < 0.7) catchStyle = 'high';
-    else if (hard && r < 0.85) catchStyle = 'onehand';
+    if ((cy < 4.5 || cy > FW - 4.5) && yac <= 2.5 && r < 0.9) catchStyle = 'toetap';
+    else if (air >= 22) catchStyle = r < 0.35 ? 'high' : r < 0.6 ? 'dive' : r < 0.75 ? 'onehand' : 'normal';
+    else if (air >= 10) catchStyle = r < 0.25 ? 'high' : r < 0.4 ? 'onehand' : yac <= 2 && r < 0.55 ? 'dive' : 'normal';
+    else if (r < 0.12) catchStyle = 'onehand';
+    void hard;
     if (catchStyle !== 'normal') { fx.push({ at: catchC, kind: 'catch', x: X[tgt][k], y: Y[tgt][k] }); label = { dive: 'Layout grab', high: 'High-point catch', onehand: 'One-handed catch', toetap: 'Toe-tap on the sideline' }[catchStyle]; }
   }
   // Ball-carrier moves: jukes, spins and stiff-arms against the closest defender in front.
@@ -280,23 +281,23 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (catchC !== undefined && (i === tgt || (sc.int && holder && c < catchC + 0.4))) {
       const d = c - catchC;
       if (sc.complete && i === tgt) {
-        if (catchStyle === 'dive' && d > -0.3) {
+        if (catchStyle === 'dive' && d > -0.18) {
           const k0 = K(catchC), bx = X[i][k0], by = Y[i][k0];
-          const fly = clamp((d + 0.3) / 0.55, 0, 1);
+          const fly = clamp((d + 0.18) / 0.4, 0, 1);
           const pos = { x: bx + FACE[i][k0] * fly * 1.6, y: by };
           if (d < 0.25) return { ...pos, f: 'divecatch', face: FACE[i][k0] as 1 | -1, rot: 0, lift: Math.sin(fly * Math.PI) * 0.55 };
           if (d < 1.0) return { ...pos, f: 'down', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
           if (d < 1.35) return { ...pos, f: 'kneel', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
           return { ...pos, f: 'secure', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
         }
-        if (catchStyle === 'high' && d > -0.32 && d < 0.22) { const jk = clamp((d + 0.32) / 0.54, 0, 1); return P(d < -0.02 ? 'high' : 'highball', { lift: Math.sin(jk * Math.PI) * 0.75 }); }
-        if (catchStyle === 'onehand' && d > -0.28 && d < 0.1) return P('onehand');
-        if (catchStyle === 'toetap' && d > -0.2) {
+        if (catchStyle === 'high' && d > -0.2 && d < 0.2) { const jk = clamp((d + 0.2) / 0.4, 0, 1); return P(d < -0.02 ? 'high' : 'highball', { lift: Math.sin(jk * Math.PI) * 0.75 }); }
+        if (catchStyle === 'onehand' && d > -0.14 && d < 0.1) return P('onehand');
+        if (catchStyle === 'toetap' && d > -0.12) {
           const k0 = K(catchC);
           if (d < 0.55) return { x: X[i][k0], y: Y[i][k0], f: d < 0.15 ? 'reach' : 'toetap', face: FACE[i][k0] as 1 | -1, rot: 0, lift: d < 0.1 ? 0.15 : 0 };
           return { x: X[i][k0], y: Y[i][k0], f: 'secure', face: FACE[i][k0] as 1 | -1, rot: 0, lift: 0 };
         }
-        if (d > -0.3 && d < 0) return P('reach');
+        if (d > -0.14 && d < 0) return P('reach');
         if (d >= 0 && d < 0.18) return P('secure');
       } else if (i === tgt && d > -0.3 && d < 0.5) return P(d < 0 ? 'reach' : 'hit');
       else if (sc.int && holder && d > -0.3 && d < 0.15) return P('high', { lift: 0.3 });
@@ -345,6 +346,12 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   };
   // After the whistle: get up, celebrate, mob the scorer.
   const postPose = (i: number, p: number): Pose => {
+    // Out of bounds: he carries it across the sideline and pulls up among the benches.
+    if (i === finalCarrier && scrim && !td && tackC === undefined && sc.complete !== false && (Y[i][N - 1] < 3.2 || Y[i][N - 1] > FW - 3.2)) {
+      const e0 = scenePose(i, D), side = Y[i][N - 1] < MID ? -1 : 1, k2 = smooth(p / 0.7);
+      const tx = e0.x + VX[i][N - 1] * 0.25, ty = side < 0 ? -1.6 : FW + 1.6;
+      return { x: e0.x + (tx - e0.x) * k2, y: e0.y + (ty - e0.y) * k2, f: k2 < 0.95 ? run6(i, Math.floor((p * 8) % 6), true, true) : 'secure', face: e0.face, rot: 0, lift: 0 };
+    }
     const e0 = scenePose(i, D), kk = N - 1, coast = 0.35 * (1 - Math.exp(-p / 0.35));
     const moving = SP[i][kk] * Math.exp(-p / 0.35) > 0.5 && !['down', 'downback', 'wrap', 'dive', 'fall', 'fallback', 'kneel'].includes(e0.f) && !e0.rot;
     const end = moving ? { ...e0, x: e0.x + VX[i][kk] * coast, y: e0.y + VY[i][kk] * coast, f: run6(i, Math.floor((p * 6) % 6), hold(D) === i, true) } : { ...e0, x: e0.x + (e0.rot || e0.f === 'down' ? 0 : VX[i][kk] * coast), y: e0.y + (e0.rot || e0.f === 'down' ? 0 : VY[i][kk] * coast) };
