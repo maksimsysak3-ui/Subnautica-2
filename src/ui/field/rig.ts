@@ -256,13 +256,19 @@ function gaitLeg(ph: number, s: number): [number, number, number] {
 }
 // The throw: set, ball to the ear, layback, over the top, follow-through with the back leg up.
 type Key = [number, Partial<RigPose>];
+// The pass, keyed so the hand never loops: from the two-hand hold the ball rises straight up to
+// the ear (elbow back at shoulder height, off arm pointing at the target), then the arm comes over
+// the top with the elbow leading, releases high in front and follows through across the body.
+// Elbow angles past 2π keep the forearm's absolute angle continuous between keys, so the
+// interpolation takes the short way round instead of swinging the ball down past the hip.
+const TAU = Math.PI * 2;
 const THROW: Key[] = [
   [-1, { hipY: 14.4, lean: 0.12, nt: 0.15, nk: 0.35, ft: -0.2, fk: 0.35, na: 0.4, ne: 1.95, fa: 0.3, fe: 2.0, ball: 2 }],
-  [-0.55, { hipY: 14.2, lean: -0.02, nt: -0.3, nk: 0.4, ft: 0.35, fk: 0.25, na: -1.55, ne: -1.2, fa: 1.45, fe: 0.4, ball: 1 }],
-  [-0.15, { hipY: 13.8, lean: -0.16, nt: -0.4, nk: 0.45, ft: 0.5, fk: 0.2, na: -2.05, ne: -1.05, fa: 1.25, fe: 0.6, ball: 1 }],
-  [0, { hipY: 13.9, lean: 0.18, nt: -0.45, nk: 0.5, ft: 0.45, fk: 0.25, na: -3.65, ne: 0.15, fa: 0.6, fe: 1.4, ball: 0 }],
-  [0.4, { hipY: 13.4, lean: 0.45, nt: -0.75, nk: 1.25, ft: 0.35, fk: 0.35, na: -5.35, ne: 0.35, fa: 0.1, fe: 1.7, ball: 0 }],
-  [1, { hipY: 13.8, lean: 0.4, nt: -0.35, nk: 0.8, ft: 0.3, fk: 0.35, na: -5.75, ne: 0.5, fa: 0.2, fe: 1.4, ball: 0 }],
+  [-0.6, { hipY: 14.3, lean: 0.04, nt: -0.2, nk: 0.4, ft: 0.25, fk: 0.3, na: -0.55, ne: 3.3, fa: 1.0, fe: 1.1, ball: 1 }],
+  [-0.15, { hipY: 13.9, lean: -0.1, nt: -0.4, nk: 0.45, ft: 0.5, fk: 0.2, na: -1.5, ne: 4.85, fa: 1.4, fe: 0.45, ball: 1 }],
+  [0, { hipY: 13.9, lean: 0.2, nt: -0.45, nk: 0.5, ft: 0.45, fk: 0.25, na: -4.0, ne: 5.9, fa: 0.6, fe: 1.4, ball: 0 }],
+  [0.4, { hipY: 13.5, lean: 0.4, nt: -0.7, nk: 1.15, ft: 0.35, fk: 0.35, na: -5.35, ne: 0.35 + TAU, fa: 0.15, fe: 1.6, ball: 0 }],
+  [1, { hipY: 13.8, lean: 0.3, nt: -0.35, nk: 0.8, ft: 0.3, fk: 0.35, na: -5.75, ne: 0.6 + TAU, fa: 0.25, fe: 1.4, ball: 0 }],
 ];
 function keyed(keys: Key[], k: number): RigPose {
   let i = 0; while (i < keys.length - 2 && keys[i + 1][0] <= k) i++;
@@ -384,9 +390,12 @@ export const POSE = {
 };
 
 /** Blend two poses (for smooth transitions). */
-export function blend(a: RigPose, b: RigPose, w: number): RigPose {
+/** Mix two poses. With `wrap`, arm angles take the shortest way round (for smoothing between
+ *  frames, where one pose may carry a wound-up angle like a throw's follow-through). */
+export function blend(a: RigPose, b: RigPose, w: number, wrap = false): RigPose {
   const l = (x: number, y: number) => x + (y - x) * w;
-  return { hipX: l(a.hipX, b.hipX), hipY: l(a.hipY, b.hipY), lean: l(a.lean, b.lean), nt: l(a.nt, b.nt), nk: l(a.nk, b.nk), ft: l(a.ft, b.ft), fk: l(a.fk, b.fk), na: l(a.na, b.na), ne: l(a.ne, b.ne), fa: l(a.fa, b.fa), fe: l(a.fe, b.fe),
+  const r = wrap ? (x: number, y: number) => { const d = ((((y - x) % TAU) + TAU * 1.5) % TAU) - Math.PI; return x + d * w; } : l;
+  return { hipX: l(a.hipX, b.hipX), hipY: l(a.hipY, b.hipY), lean: l(a.lean, b.lean), nt: l(a.nt, b.nt), nk: l(a.nk, b.nk), ft: l(a.ft, b.ft), fk: l(a.fk, b.fk), na: r(a.na, b.na), ne: r(a.ne, b.ne), fa: r(a.fa, b.fa), fe: r(a.fe, b.fe),
     nf: l(a.nf ?? 0, b.nf ?? 0), ff: l(a.ff ?? 0, b.ff ?? 0), rot: l(a.rot, b.rot), pivot: w < 0.5 ? a.pivot : b.pivot, lift: l(a.lift, b.lift), ball: w < 0.5 ? a.ball : b.ball, look: l(a.look ?? 0, b.look ?? 0) };
 }
 export const buildOf = (slot: string, role: string): Build => /^(OL|DL|FG\d|RU)/.test(slot) && role !== 'J' ? 'line' : slot === 'QB' ? 'qb' : slot === 'K' || slot === 'P' ? 'k' : 'skill';

@@ -307,7 +307,7 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
   const kBlend = 1 - Math.exp(-Math.min(0.05, dt) * 24);
   const poses: Pose[] = sc.actors.map((_, i) => {
     const p = ch.pose(i, c), prev = smooth.get(i);
-    const rig = prev && dt > 0 ? { ...blend(prev, p.rig, kBlend), ball: p.rig.ball } : p.rig;
+    const rig = prev && dt > 0 ? { ...blend(prev, p.rig, kBlend, true), ball: p.rig.ball } : p.rig;
     smooth.set(i, rig);
     return { ...p, rig };
   });
