@@ -17,7 +17,7 @@ import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
 import type { Kit } from './field/pixel';
-import { renderRig, buildOf, POSE, AX, AY } from './field/rig';
+import { renderRig, buildOf, gearFor, POSE, AX, AY } from './field/rig';
 import { choreograph, MID, FW, type Choreo, type Pose } from './field/choreo';
 import { makeWorld, paintStadium, drawCrowd, drawRibbon, drawPosts, wx, wy, type World } from './field/stadium';
 import { FORMATION, OL_SPOTS, snapSpot, type Art } from './playart';
@@ -40,6 +40,8 @@ const SKIN = ['#e8c4a8', '#c99a76', '#a46e4c', '#7b4b31', '#5a3522'];
 const hashStr = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const REPLAY_KEY = 'gg-replays';
+const VIEW_YARDS = 46;
+let DPR = 1;
 const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) === '1'; } catch { return true; } };
 
 /** A play the field can show: the real scene, or a stand-in for kneels, spikes and flags. */
@@ -101,7 +103,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
   useEffect(() => { if (!logo) return; const i = new Image(); i.crossOrigin = 'anonymous'; i.src = logo; i.onload = () => { img.current = i; stadium.current = null; }; }, [logo]);
   useEffect(() => {
     const el = wrap.current!, c = cv.current!;
-    const fit = () => { const w = el.clientWidth, h = Math.round(Math.min(w * 0.52, window.innerHeight * 0.7)); c.width = w; c.height = h; c.style.height = `${h}px`; size.current = { w, h }; stadium.current = null; };
+    const fit = () => { const w = el.clientWidth, h = Math.round(Math.min(w * 0.52, window.innerHeight * 0.7)); DPR = Math.min(3, window.devicePixelRatio || 1); c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); c.style.height = `${h}px`; size.current = { w: c.width, h: c.height }; stadium.current = null; };
     fit(); const ro = new ResizeObserver(fit); ro.observe(el); return () => ro.disconnect();
   }, []);
 
@@ -175,7 +177,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       
       hype += (0.18 - hype) * realDt * 0.25;
       // --- geometry
-      const S = Math.max(1, Math.round(w / 580));
+      const S = Math.max(1, w / (VIEW_YARDS * 16));   // the camera shows about 46 yards across
       const RW0 = Math.ceil(w / S), RH0 = Math.ceil(h / S);
       const key = `${RW0}x${RH0}|${home.abbr}|${away.abbr}|${img.current ? 1 : 0}|${night ? 1 : 0}|${college ? 1 : 0}`;
       if (!stadium.current || stadium.current.key !== key) { const W0 = makeWorld(RW0, RH0); stadium.current = { c: paintStadium(W0, { home, away, logo: img.current, night: !!night, college: !!college, snow: weather?.precip === 'snow' && !weather.dome }), key, W: W0, S }; cam.current.y = -1; }
@@ -290,7 +292,8 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     const sx0 = p.lying || Math.abs(p.rig.rot) > 0.8 ? px + p.face * Math.sign(p.rig.rot || 1) * 8 : px;
     g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(Math.round(sx0 - sw / 2), py - 1, sw, 2); g.fillRect(Math.round(sx0 - sw / 2) + 2, py + 1, sw - 4, 1);
     const b = isRef ? 'ref' : buildOf(sc.actors[i]?.slot ?? '', sc.actors[i]?.role ?? '');
-    g.drawImage(renderRig(p.rig, b, kit, skin, isRef ? -1 : sc.actors[i]?.num ?? 0, p.face < 0), px - AX, py - AY);
+    const a0 = sc.actors[i];
+    g.drawImage(renderRig(p.rig, b, kit, skin, isRef || !a0 ? null : gearFor(a0.id ?? `${a0.team}${a0.slot}${a0.num}`, b), p.face < 0), px - AX, py - AY);
     // Breath in the cold.
     if (cold && ((now / 1000 + i * 0.37) % 1.6) < 0.45) { const k = ((now / 1000 + i * 0.37) % 1.6) / 0.45; g.fillStyle = `rgba(240,244,250,${0.55 * (1 - k)})`; g.fillRect(px + p.face * (5 + Math.round(k * 3)), py - 17 - lift - Math.round(k * 2), 2, 1); }
   };
@@ -409,14 +412,14 @@ function drawTags(ctx: CanvasRenderingContext2D, sc: Scene, ch: Choreo, c: numbe
   if (who < 0) return;
   const a = sc.actors[who], p = ch.pose(who, c);
   if (p.lying || Math.abs(p.rig.rot) > 0.5) return;
-  const px = sx(p.x) * E, py = (sy(p.y) - 42 - p.rig.lift) * E;
-  ctx.font = `700 ${replay ? 12 : 11}px Silkscreen, monospace`;
+  const px = sx(p.x) * E, py = (sy(p.y) - 37 - p.rig.lift) * E;
+  ctx.font = `700 ${Math.round((replay ? 12 : 11) * DPR)}px Silkscreen, monospace`;
   const label = `${a.num} ${(a.ln || a.role).toUpperCase()}`;
-  const w = ctx.measureText(label).width + 14;
+  const w = ctx.measureText(label).width + 14 * DPR, th = 16 * DPR;
   const kit = kits[a.team];
-  ctx.fillStyle = 'rgba(8,10,14,.9)'; ctx.fillRect(Math.round(px - w / 2), Math.round(py - 16), Math.round(w), 16);
-  ctx.fillStyle = kit.jersey === '#f3f3f1' ? kit.num : kit.jersey; ctx.fillRect(Math.round(px - w / 2), Math.round(py - 16), 3, 16);
-  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, Math.round(px + 2), Math.round(py - 7));
+  ctx.fillStyle = 'rgba(8,10,14,.9)'; ctx.fillRect(Math.round(px - w / 2), Math.round(py - th), Math.round(w), Math.round(th));
+  ctx.fillStyle = kit.jersey === '#f3f3f1' ? kit.num : kit.jersey; ctx.fillRect(Math.round(px - w / 2), Math.round(py - th), Math.round(3 * DPR), Math.round(th));
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, Math.round(px + 2), Math.round(py - th / 2));
 }
 
 /** The graphic after the whistle. Incompletions say so; only a real interception says pick. */

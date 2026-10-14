@@ -16,19 +16,19 @@ export interface RigPose {
   nf?: number; ff?: number;          // ankle flex (+ toes down)
   rot: number; pivot: 0 | 1;         // whole-body rotation (+ = tipping forward) about the feet (0) or hips (1)
   lift: number;                      // off the ground (rig px)
-  ball: 0 | 1 | 2;                   // ball in the near hand, or held in both hands at the chest
+  ball: 0 | 1 | 2 | 3;               // ball in the near hand, both hands at the chest, or tucked high and tight
   look?: number;                     // head tilt
 }
 export type Build = 'line' | 'skill' | 'qb' | 'k' | 'ref' | 'civ';
 
 interface Dim { th: number; sh: number; ft: number; to: number; ua: number; fa: number; hr: number; sw: number; ww: number; tr: number; srr: number; ar: number }
 const DIM: Record<Build, Dim> = {
-  skill: { th: 7, sh: 7, ft: 3, to: 10, ua: 5, fa: 5, hr: 3.9, sw: 10, ww: 6.8, tr: 1.8, srr: 1.3, ar: 1.2 },
-  qb: { th: 7, sh: 7, ft: 3, to: 10, ua: 5, fa: 5, hr: 3.9, sw: 9.6, ww: 6.6, tr: 1.7, srr: 1.25, ar: 1.15 },
-  k: { th: 7, sh: 7, ft: 3, to: 9.5, ua: 5, fa: 4.5, hr: 3.8, sw: 8.6, ww: 6.2, tr: 1.6, srr: 1.2, ar: 1.1 },
-  line: { th: 6.5, sh: 6.5, ft: 3, to: 10.5, ua: 5, fa: 5, hr: 4.1, sw: 12, ww: 10.5, tr: 2.3, srr: 1.7, ar: 1.5 },
-  civ: { th: 7, sh: 7, ft: 3, to: 10, ua: 5, fa: 5, hr: 3.1, sw: 8.4, ww: 6.6, tr: 1.6, srr: 1.2, ar: 1.1 },
-  ref: { th: 7, sh: 7, ft: 3, to: 10, ua: 5, fa: 5, hr: 3.1, sw: 8.4, ww: 6.6, tr: 1.6, srr: 1.2, ar: 1.1 },
+  skill: { th: 7, sh: 7, ft: 3, to: 9, ua: 4.8, fa: 4.6, hr: 4.4, sw: 10.5, ww: 7, tr: 1.9, srr: 1.35, ar: 1.25 },
+  qb: { th: 7, sh: 7, ft: 3, to: 9, ua: 4.8, fa: 4.6, hr: 4.4, sw: 10, ww: 6.8, tr: 1.8, srr: 1.3, ar: 1.2 },
+  k: { th: 7, sh: 7, ft: 3, to: 8.5, ua: 4.6, fa: 4.4, hr: 4.2, sw: 9, ww: 6.4, tr: 1.7, srr: 1.25, ar: 1.15 },
+  line: { th: 6.3, sh: 6, ft: 3.2, to: 9.5, ua: 4.8, fa: 4.6, hr: 4.6, sw: 14, ww: 12, tr: 2.8, srr: 2.0, ar: 1.8 },
+  civ: { th: 7, sh: 7, ft: 3, to: 9.5, ua: 5, fa: 5, hr: 3.3, sw: 8.4, ww: 6.6, tr: 1.6, srr: 1.2, ar: 1.1 },
+  ref: { th: 7, sh: 7, ft: 3, to: 9.5, ua: 5, fa: 5, hr: 3.3, sw: 8.4, ww: 6.6, tr: 1.6, srr: 1.2, ar: 1.1 },
 };
 export const STAND_HIP = 15;
 
@@ -38,7 +38,8 @@ export const W = 60, H = 52, AX = 30, AY = 47;   // grid and the feet anchor ins
 const hex = (h: string): [number, number, number] => { const n = parseInt(h.replace('#', '').slice(0, 6), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const shade = (c: [number, number, number], k: number): [number, number, number] => c.map(v => Math.round(Math.max(0, Math.min(255, k < 0 ? v * (1 + k) : v + (255 - v) * k)))) as [number, number, number];
 // Colour slots; each has a far (shaded) twin at +16 and a lit twin at +32.
-const enum C { HELM = 1, STRIPE, MASK, SKIN, JER, TRIM, NUM, PANT, SOCK, SHOE, GLOVE, BALL, LACE, CAP, SHIRT2, DARK }
+const enum C { HELM = 1, STRIPE, MASK, SKIN, JER, TRIM, NUM, PANT, SOCK, SHOE, GLOVE, BALL, LACE, CAP, SHIRT2, DARK, SLEEVE, SLEEVE2, TIGHT, MOUTH, VISOR, TOWEL, BAND, EDGE }
+const FAR = 32;
 
 // ---- geometry ---------------------------------------------------------------------------------
 type P = [number, number];
@@ -49,7 +50,7 @@ function joints(p: RigPose, d: Dim) {
   const up = (l: number, ang: number, from: P): P => [from[0] + l * Math.sin(ang), from[1] + l * Math.cos(ang)];
   const neck = up(d.to, p.lean, hip);
   const shoulder = up(d.to - 2.2, p.lean, hip);
-  const head = up(d.hr * 0.72, p.lean * 0.85 + (p.look ?? 0), neck);
+  const head = up(d.hr * 0.95, p.lean * 0.8 + (p.look ?? 0), neck);
   const leg = (t: number, k: number, fl = 0) => { const knee = add(hip, d.th, t); const ank = add(knee, d.sh, t - k); const toe = add(ank, d.ft, t - k + Math.PI / 2 - fl); return { knee, ank, toe }; };
   const arm = (a: number, e: number) => { const el = add(shoulder, d.ua, a); const hand = add(el, d.fa, a + e); return { el, hand }; };
   return { hip, neck, shoulder, head, nl: leg(p.nt, p.nk, p.nf ?? 0), fl: leg(p.ft, p.fk, p.ff ?? 0), na: arm(p.na, p.ne), fa: arm(p.fa, p.fe) };
@@ -78,86 +79,125 @@ class Grid {
     }
   }
 }
-const DIGIT: Record<string, string> = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001010010', '8': '111101111101111', '9': '111101111001111' };
 
 function rotate(pt: P, piv: P, r: number): P { const x = pt[0] - piv[0], y = pt[1] - piv[1]; return [piv[0] + x * Math.cos(r) + y * Math.sin(r), piv[1] - x * Math.sin(r) + y * Math.cos(r)]; }
 
-function rasterize(p: RigPose, b: Build, num: number): Grid {
+/** What a player wears beyond the uniform: picked per player and kept for good. */
+export interface Gear { sleeve: number; full: boolean; glove: number; tights: number; mouth: number; visor: number; towel: boolean; band: boolean; elbow: boolean; cleat: number }
+const hashS = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+export function gearFor(id: string, b: Build): Gear {
+  const h = hashS(id || 'x'), r = (k: number, n: number) => (Math.floor(h / (k * 7 + 1)) + k * 13) % n;
+  const line = b === 'line', q = b === 'qb', k = b === 'k';
+  return {
+    sleeve: k ? 0 : [0, 0, 1, 1, 2, 3, 1, 0][r(1, 8)],       // none / black / white / team
+    full: r(2, 3) > 0,
+    glove: k ? 1 : [0, 0, 1, 2, 3, 0][r(3, 6)],               // trim / white / black / jersey
+    tights: line ? [0, 0, 1][r(4, 3)] : [0, 0, 0, 1, 2][r(4, 5)],
+    mouth: q || k ? 0 : [0, 0, 1, 2, 3, 4][r(5, 6)],           // none / black / white / team / neon
+    visor: line ? 0 : [0, 0, 0, 1, 2][r(6, 5)],               // none / dark / iridescent
+    towel: !line && !k && r(7, 3) === 0,
+    band: r(8, 3) === 0,
+    elbow: line ? r(9, 2) === 0 : false,
+    cleat: [0, 0, 1, 2][r(10, 4)],                            // black / white / team
+  };
+}
+const NO_GEAR: Gear = { sleeve: 0, full: false, glove: 0, tights: 0, mouth: 0, visor: 0, towel: false, band: false, elbow: false, cleat: 0 };
+
+function rasterize(p: RigPose, b: Build, gear: Gear): Grid {
   const d = DIM[b], g = new Grid();
   const J = joints(p, d);
-  // Whole-body rotation and lift.
   const piv: P = p.pivot ? J.hip : [0, 0];
   const R = (q: P): P => { const r = p.rot ? rotate(q, piv, p.rot) : q; return [r[0], r[1] + p.lift]; };
   const hip = R(J.hip), neck = R(J.neck), sh = R(J.shoulder), head = R(J.head);
   const L = (l: typeof J.nl) => ({ knee: R(l.knee), ank: R(l.ank), toe: R(l.toe) });
   const A = (a: typeof J.na) => ({ el: R(a.el), hand: R(a.hand) });
   const nl = L(J.nl), fl = L(J.fl), na = A(J.na), fa = A(J.fa);
-  const far = 16;
+  const far = FAR;
   const ref = b === 'ref' || b === 'civ';
-  // Far side: arm and leg, shaded.
+  const lerpP = (a: P, c: P, t: number): P => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t];
   const drawLeg = (l: ReturnType<typeof L>, o: number) => {
+    if (!o) { g.line(hip, l.knee, d.tr + 0.55, C.EDGE); g.line(l.knee, l.ank, d.srr + 0.55, C.EDGE); }
     g.line(hip, l.knee, d.tr, C.PANT + o);
-    const mid: P = [l.knee[0] + (l.ank[0] - l.knee[0]) * 0.25, l.knee[1] + (l.ank[1] - l.knee[1]) * 0.25];
-    g.line(l.knee, mid, d.srr, ref ? C.PANT + o : C.PANT + o);
-    g.line(mid, l.ank, d.srr, ref ? C.DARK + o : C.SOCK + o);
-    g.line(l.ank, l.toe, 0.9, C.SHOE + o);
+    const pantEnd = lerpP(l.knee, l.ank, 0.22);
+    g.line(l.knee, pantEnd, d.srr + 0.1, C.PANT + o);
+    if (ref) g.line(pantEnd, l.ank, d.srr, C.DARK + o);
+    else {
+      g.line(pantEnd, l.ank, d.srr, (gear.tights ? C.TIGHT : C.SOCK) + o);
+      if (!gear.tights) g.disk(...lerpP(l.knee, l.ank, 0.42), d.srr, C.TRIM + o);   // sock stripe
+    }
+    g.line(l.ank, l.toe, 1.0, C.SHOE + o);
   };
   const drawArm = (a: ReturnType<typeof A>, o: number) => {
-    const sl: P = [sh[0] + (a.el[0] - sh[0]) * 0.55, sh[1] + (a.el[1] - sh[1]) * 0.55];
-    g.line(sh, sl, d.ar + 0.25, (ref ? C.JER : C.JER) + o);
-    g.disk(sl[0], sl[1], d.ar, (ref ? C.DARK : C.TRIM) + o);
-    g.line(sl, a.el, d.ar, C.SKIN + o);
-    g.line(a.el, a.hand, d.ar - 0.1, C.SKIN + o);
-    g.disk(a.hand[0], a.hand[1], 0.8, (ref ? C.SKIN : C.GLOVE) + o);
+    const sl = lerpP(sh, a.el, 0.42);
+    if (!o) { g.line(sh, a.el, d.ar + 0.9, C.EDGE); g.line(a.el, a.hand, d.ar + 0.5, C.EDGE); g.disk(a.hand[0], a.hand[1], 1.6, C.EDGE); }
+    g.line(sh, sl, d.ar + 0.35, C.JER + o);                     // jersey sleeve over the pads
+    if (!ref) g.disk(sl[0], sl[1], d.ar + 0.1, C.TRIM + o);
+    g.line(sl, a.el, d.ar, (gear.sleeve ? C.SLEEVE : C.SKIN) + o);
+    if (gear.elbow) g.disk(a.el[0], a.el[1], d.ar + 0.3, C.SLEEVE2 + o);
+    g.line(a.el, a.hand, d.ar - 0.1, (gear.sleeve && gear.full ? C.SLEEVE : C.SKIN) + o);
+    if (gear.band) g.disk(...lerpP(a.el, a.hand, 0.8), d.ar, C.BAND + o);
+    g.disk(a.hand[0], a.hand[1], ref ? 0.8 : 1.05, (ref ? C.SKIN : C.GLOVE) + o);
+  };
+  const drawBall = () => {
+    if (!p.ball) return;
+    let bp: P, ang = 0;
+    if (p.ball === 2) bp = [(na.hand[0] + fa.hand[0]) / 2 + 0.4, (na.hand[1] + fa.hand[1]) / 2];
+    else if (p.ball === 3) { const t = lerpP(na.el, na.hand, 0.5); bp = [t[0] + 0.8, t[1] + 0.6]; ang = 0.35; }
+    else bp = [na.hand[0] + 0.5, na.hand[1] + 0.3];
+    const dx = Math.cos(ang) * 1.6, dy = Math.sin(ang) * 1.6;
+    g.line([bp[0] - dx, bp[1] - dy], [bp[0] + dx, bp[1] + dy], 1.2, C.BALL);
+    g.set(bp[0], bp[1] + 0.6, C.LACE); g.set(bp[0] + 1, bp[1] + 0.6, C.LACE);
   };
   drawArm(fa, far); drawLeg(fl, far);
-  // Torso: pants at the hips, the jersey up to padded shoulders.
+  // Torso: pants at the hips, the jersey up to padded shoulders; linemen carry a belly.
   const ang = Math.atan2(neck[0] - hip[0], neck[1] - hip[1]);
-  const px = Math.cos(ang), py = -Math.sin(ang);    // perpendicular (toward the front)
-  const at = (k: number, w: number): [P, P] => { const c: P = [hip[0] + (neck[0] - hip[0]) * k, hip[1] + (neck[1] - hip[1]) * k]; return [[c[0] + px * w / 2, c[1] + py * w / 2], [c[0] - px * w / 2, c[1] - py * w / 2]]; };
-  const [h1, h2] = at(-0.08, d.ww), [b1, b2] = at(0.22, d.ww), [w1, w2] = at(0.3, d.ww + 0.4), [s1, s2] = at(0.88, d.sw), [t1, t2] = at(1.02, d.sw - 1.6);
+  const px = Math.cos(ang), py = -Math.sin(ang);
+  const at = (k: number, wf: number, wb = wf): [P, P] => { const c: P = [hip[0] + (neck[0] - hip[0]) * k, hip[1] + (neck[1] - hip[1]) * k]; return [[c[0] + px * wf / 2, c[1] + py * wf / 2], [c[0] - px * wb / 2, c[1] - py * wb / 2]]; };
+  const belly = b === 'line' ? 1.3 : 0;
+  const [h1, h2] = at(-0.1, d.ww), [b1, b2] = at(0.22, d.ww + belly * 0.6, d.ww), [g1, g2] = at(0.45, d.ww + belly, d.ww + 0.3), [s1, s2] = at(0.86, d.sw), [t1, t2] = at(0.98, d.sw - 2.6);
   g.poly([h1, b1, b2, h2], C.PANT);
-  g.poly([w1, s1, t1, t2, s2, w2], b === 'ref' ? C.SHIRT2 : C.JER);
-  if (b === 'ref') { for (let k = 0; k < 6; k++) { const [a1, a2] = at(0.32 + k * 0.11, d.sw - 0.5); g.line(a1, a2, 0.3, k % 2 ? C.SHIRT2 : C.DARK); } }
-  else g.line(b1, b2, 0.4, C.TRIM);                 // belt / jersey hem
-  // Number on the chest (when upright enough to read).
-  const tilt = Math.abs(ang + (p.rot || 0));
-  if (!ref && tilt < 0.75 && num >= 0 && b === 'line' && false) {
-    const s = String(num % 100), wd = s.length * 4 - 1, c: P = [hip[0] + (neck[0] - hip[0]) * 0.58, hip[1] + (neck[1] - hip[1]) * 0.58];
-    [...s].forEach((ch, i) => { const m = DIGIT[ch]; for (let k = 0; k < 15; k++) if (m[k] === '1') g.set(c[0] - wd / 2 + i * 4 + (k % 3) + 0.5, c[1] + 2 - Math.floor(k / 3), C.NUM); });
+  g.poly([b1, g1, s1, t1, t2, s2, g2, b2], b === 'ref' ? C.SHIRT2 : C.JER);
+  if (b === 'ref') { for (let k = 0; k < 6; k++) { const [a1, a2] = at(0.3 + k * 0.12, d.sw - 0.5); g.line(a1, a2, 0.3, k % 2 ? C.SHIRT2 : C.DARK); } }
+  else {
+    g.line(b1, b2, 0.45, C.TRIM);                      // jersey hem / belt
+    if (gear.towel) { const t0 = lerpP(b1, b2, 0.3); g.line(t0, [t0[0] + 0.3, t0[1] - 3.2], 0.7, C.TOWEL); }
+    const sh0 = lerpP(s1, s2, 0.5); g.line(sh0, lerpP(t1, t2, 0.5), 0.5, C.NUM);   // shoulder number stripe
   }
+  if (p.ball === 3) drawBall();          // tucked: the forearm wraps over it
   drawLeg(nl, 0);
-  // Helmet: shell, stripe, the facemask on the front, a sliver of face.
+  // Helmet: shell, centre stripe, facemask, a sliver of face (or a visor), maybe a mouthguard.
   const hr = d.hr, hx = head[0], hy = head[1];
   if (ref) {
     g.disk(hx, hy, hr, C.SKIN);
     g.line([hx - hr, hy + 1], [hx + hr + 1.2, hy + 1], 0.6, C.CAP); g.disk(hx - 0.3, hy + 1.6, hr * 0.85, C.CAP);
   } else {
-    const fr = (p.rot || 0) + ang * 0.7;    // the face turns with the body
-    const fx = Math.cos(fr), fy = -Math.sin(fr);
+    const fr = (p.rot || 0) + ang * 0.7, fx = Math.cos(fr), fy = Math.sin(fr);
+    const H2 = (u: number, v: number): P => [hx + u * fx + v * fy, hy - u * fy + v * fx];   // helmet frame: u forward, v up
+    g.disk(hx, hy, hr + 0.75, C.EDGE);
     g.disk(hx, hy, hr, C.HELM);
-    // Stripe over the crown, front to back.
-    for (let k = -hr + 0.6; k <= hr - 0.8; k += 0.5) g.set(hx + k * fx + fy * 0, hy + hr - 0.2 + k * fy * 0 - Math.abs(k) * 0.15, C.STRIPE);
-    // Face opening and mask.
-    g.disk(hx + fx * (hr - 0.6) + fy * 0.4, hy - 0.4 + fy * (hr - 0.6) * 0, 0.9, C.SKIN);
-    g.line([hx + fx * (hr + 0.3), hy + 0.6], [hx + fx * (hr + 0.3), hy - hr + 0.6], 0.45, C.MASK);
-    g.line([hx + fx * (hr - 0.4), hy - 0.9], [hx + fx * (hr + 0.6), hy - 0.9], 0.4, C.MASK);
+    for (let u = -hr * 0.55; u <= hr * 0.35; u += 0.5) g.set(...H2(u, hr - 1.3 - Math.abs(u) * 0.15), C.STRIPE);
+    g.disk(...H2(hr - 0.7, -0.4), 1.0, gear.visor ? C.VISOR : C.SKIN);
+    g.line(H2(hr + 0.4, 0.8), H2(hr + 0.4, -hr + 0.5), 0.45, C.MASK);
+    g.line(H2(hr - 0.5, -0.9), H2(hr + 0.7, -0.9), 0.4, C.MASK);
+    g.line(H2(hr - 0.6, -hr + 0.6), H2(hr + 0.6, -hr + 0.6), 0.4, C.MASK);
+    if (gear.mouth) g.line(H2(hr + 0.3, -hr + 0.2), H2(hr + 0.6, -hr - 1.3), 0.45, C.MOUTH);
   }
   drawArm(na, 0);
-  // The ball: tucked or carried in the near hand, or held at the chest in both.
-  if (p.ball) {
-    const bp: P = p.ball === 2 ? [(na.hand[0] + fa.hand[0]) / 2 + 0.6, (na.hand[1] + fa.hand[1]) / 2] : [na.hand[0] + 0.6, na.hand[1] + 0.3];
-    g.line([bp[0] - 1.3, bp[1]], [bp[0] + 1.3, bp[1]], 0.95, C.BALL); g.set(bp[0], bp[1] + 0.5, C.LACE);
-  }
+  if (p.ball !== 3) drawBall();
   return g;
 }
 
 // ---- colour, outline, light ------------------------------------------------------------------
-function paint(g: Grid, kit: Kit, skin: string, ref: boolean, civ = false): HTMLCanvasElement {
+function paint(g: Grid, kit: Kit, skin: string, ref: boolean, civ: boolean, gear: Gear): HTMLCanvasElement {
+  const team = kit.jersey.toLowerCase() === '#f3f3f1' ? kit.num : kit.jersey;
+  const pick = (i: number, opts: string[]) => opts[i] ?? opts[0];
   const base: Record<number, [number, number, number]> = {
     [C.HELM]: hex(kit.helmet), [C.STRIPE]: hex(kit.trim), [C.MASK]: hex(kit.mask), [C.SKIN]: hex(skin), [C.JER]: hex(ref ? '#f2f2f2' : kit.jersey), [C.CAP]: hex(civ ? '#2a1d14' : '#161616'), [C.TRIM]: hex(kit.trim),
-    [C.NUM]: hex(kit.num), [C.PANT]: hex(ref ? '#1c1c1c' : civ ? kit.pants : kit.pants), [C.SOCK]: hex(kit.socks), [C.SHOE]: hex(ref ? '#111111' : '#151515'), [C.GLOVE]: hex(kit.trim.toLowerCase() === '#ffffff' ? '#e8e8e8' : kit.trim),
+    [C.NUM]: hex(kit.num), [C.PANT]: hex(ref ? '#1c1c1c' : kit.pants), [C.SOCK]: hex(kit.socks), [C.SHOE]: hex(ref ? '#111111' : pick(gear.cleat, ['#151515', '#f2f2f2', team])),
+    [C.GLOVE]: hex(pick(gear.glove, [kit.trim.toLowerCase() === '#ffffff' ? '#e8e8e8' : kit.trim, '#f2f2f2', '#1a1a1a', team])),
     [C.BALL]: hex('#7a3a12'), [C.LACE]: hex('#ffffff'), [C.SHIRT2]: hex('#f2f2f2'), [C.DARK]: hex('#141414'),
+    [C.SLEEVE]: hex(pick(gear.sleeve, ['#000000', '#151515', '#f2f2f2', team])), [C.SLEEVE2]: hex('#1a1a1a'), [C.TIGHT]: hex(gear.tights === 2 ? '#f2f2f2' : '#151515'),
+    [C.MOUTH]: hex(pick(gear.mouth, ['#000000', '#141414', '#f2f2f2', kit.trim, '#b6ff2e'])), [C.VISOR]: hex(gear.visor === 2 ? '#62d6ff' : '#1b2030'), [C.TOWEL]: hex('#f4f4f4'), [C.BAND]: hex('#f2f2f2'), [C.EDGE]: hex('#0a0c12'),
   };
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x2 = c.getContext('2d')!, img = x2.createImageData(W, H), px = img.data;
@@ -168,11 +208,11 @@ function paint(g: Grid, kit: Kit, skin: string, ref: boolean, civ = false): HTML
       if (g.get(x - 1, y) || g.get(x + 1, y) || g.get(x, y - 1) || g.get(x, y + 1)) { px[o] = OUT[0]; px[o + 1] = OUT[1]; px[o + 2] = OUT[2]; px[o + 3] = 235; }
       continue;
     }
-    const isFar = v > 16, slot = isFar ? v - 16 : v;
+    const isFar = v > FAR, slot = isFar ? v - FAR : v;
     let col = base[slot] ?? [255, 0, 255];
-    if (isFar) col = shade(col, -0.32);
-    // Top light: a lit rim where nothing is above; a darker edge underneath.
-    else if (!g.get(x, y - 1)) col = shade(col, 0.22);
+    if (slot === C.EDGE) { /* inner outline */ }
+    else if (isFar) col = shade(col, -0.32);
+    else if (!g.get(x, y - 1)) col = slot === C.HELM || slot === C.STRIPE ? col : shade(col, 0.12);
     else if (!g.get(x, y + 1)) col = shade(col, -0.18);
     px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255;
   }
@@ -182,34 +222,68 @@ function paint(g: Grid, kit: Kit, skin: string, ref: boolean, civ = false): HTML
 
 const cache = new Map<string, HTMLCanvasElement>();
 const q = (v: number, s = 0.08) => Math.round(v / s);
-/** A drawn player for this pose, kit and facing (cached by quantized pose). */
-export function renderRig(p: RigPose, b: Build, kit: Kit, skin: string, num: number, flip: boolean): HTMLCanvasElement {
-  const key = `${b}|${kit.jersey}${kit.helmet}${kit.num}${kit.pants}|${skin}|${num}|${flip ? 1 : 0}|${q(p.hipX, 0.5)},${q(p.hipY, 0.5)},${q(p.lean)},${q(p.nt)},${q(p.nk)},${q(p.ft)},${q(p.fk)},${q(p.na)},${q(p.ne)},${q(p.fa)},${q(p.fe)},${q(p.nf ?? 0)},${q(p.ff ?? 0)},${q(p.rot, 0.06)},${p.pivot},${q(p.lift, 0.5)},${p.ball},${q(p.look ?? 0)}`;
+const gkey = (g: Gear) => `${g.sleeve}${g.full ? 1 : 0}${g.glove}${g.tights}${g.mouth}${g.visor}${g.towel ? 1 : 0}${g.band ? 1 : 0}${g.elbow ? 1 : 0}${g.cleat}`;
+/** A drawn player for this pose, kit, gear and facing (cached by quantized pose). */
+export function renderRig(p: RigPose, b: Build, kit: Kit, skin: string, gear: Gear | null, flip: boolean): HTMLCanvasElement {
+  const G = gear ?? NO_GEAR;
+  const key = `${b}|${kit.jersey}${kit.helmet}${kit.num}${kit.pants}|${skin}|${gkey(G)}|${flip ? 1 : 0}|${q(p.hipX, 0.5)},${q(p.hipY, 0.5)},${q(p.lean)},${q(p.nt)},${q(p.nk)},${q(p.ft)},${q(p.fk)},${q(p.na)},${q(p.ne)},${q(p.fa)},${q(p.fe)},${q(p.nf ?? 0)},${q(p.ff ?? 0)},${q(p.rot, 0.06)},${p.pivot},${q(p.lift, 0.5)},${p.ball},${q(p.look ?? 0)}`;
   let c = cache.get(key);
   if (!c) {
-    c = paint(rasterize(p, b, num), kit, skin, b === 'ref', b === 'civ');
+    c = paint(rasterize(p, b, G), kit, skin, b === 'ref', b === 'civ', G);
     if (flip) { const f = document.createElement('canvas'); f.width = W; f.height = H; const fg = f.getContext('2d')!; fg.translate(W, 0); fg.scale(-1, 1); fg.drawImage(c, 0, 0); c = f; }
     cache.set(key, c);
-    if (cache.size > 6000) cache.delete(cache.keys().next().value!);
+    if (cache.size > 8000) cache.delete(cache.keys().next().value!);
   }
   return c;
 }
 
 // ---- pose library ----------------------------------------------------------------------------
-const base = (): RigPose => ({ hipX: 0, hipY: STAND_HIP, lean: 0.05, nt: 0.05, nk: 0.08, ft: -0.05, fk: 0.08, na: 0.12, ne: 0.25, fa: -0.12, fe: 0.25, rot: 0, pivot: 0, lift: 0, ball: 0 });
+const base = (): RigPose => ({ hipX: 0, hipY: STAND_HIP, lean: 0.06, nt: 0.12, nk: 0.1, ft: -0.12, fk: 0.1, na: 0.3, ne: 0.35, fa: -0.3, fe: 0.3, rot: 0, pivot: 0, lift: 0, ball: 0 });
+// The sprint cycle for one leg, keyed from foot strike: [phase, thigh, knee, ankle].
+const GAIT: [number, number, number, number][] = [
+  [0.00, 0.45, 0.2, -0.15], [0.12, 0.1, 0.5, 0.0], [0.26, -0.38, 0.3, 0.35], [0.36, -0.6, 0.55, 0.8],
+  [0.5, -0.35, 1.9, 0.6], [0.63, 0.4, 2.2, 0.25], [0.77, 0.95, 1.3, 0.0], [0.9, 0.75, 0.45, -0.15],
+];
+function cr(a: number, b: number, c: number, d: number, t: number) { return 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t); }
+function gaitLeg(ph: number, s: number): [number, number, number] {
+  ph = ((ph % 1) + 1) % 1;
+  const n = GAIT.length; let i = n - 1;
+  for (let k = 0; k < n; k++) if (GAIT[k][0] <= ph) i = k;
+  const p0 = GAIT[(i - 1 + n) % n], p1 = GAIT[i], p2 = GAIT[(i + 1) % n], p3 = GAIT[(i + 2) % n];
+  const span = ((p2[0] - p1[0]) + 1) % 1 || 1, t = (((ph - p1[0]) + 1) % 1) / span;
+  const amp = 0.5 + s * 0.5, tuck = 0.45 + s * 0.55;
+  return [cr(p0[1], p1[1], p2[1], p3[1], t) * amp, 0.15 + cr(p0[2], p1[2], p2[2], p3[2], t) * tuck, cr(p0[3], p1[3], p2[3], p3[3], t) * amp];
+}
+// The throw: set, ball to the ear, layback, over the top, follow-through with the back leg up.
+type Key = [number, Partial<RigPose>];
+const THROW: Key[] = [
+  [-1, { hipY: 14.4, lean: 0.12, nt: 0.15, nk: 0.35, ft: -0.2, fk: 0.35, na: 0.4, ne: 1.95, fa: 0.3, fe: 2.0, ball: 2 }],
+  [-0.55, { hipY: 14.2, lean: -0.02, nt: -0.3, nk: 0.4, ft: 0.35, fk: 0.25, na: -1.55, ne: -1.2, fa: 1.45, fe: 0.4, ball: 1 }],
+  [-0.15, { hipY: 13.8, lean: -0.16, nt: -0.4, nk: 0.45, ft: 0.5, fk: 0.2, na: -2.05, ne: -1.05, fa: 1.25, fe: 0.6, ball: 1 }],
+  [0, { hipY: 13.9, lean: 0.18, nt: -0.45, nk: 0.5, ft: 0.45, fk: 0.25, na: -3.65, ne: 0.15, fa: 0.6, fe: 1.4, ball: 0 }],
+  [0.4, { hipY: 13.4, lean: 0.45, nt: -0.75, nk: 1.25, ft: 0.35, fk: 0.35, na: -5.35, ne: 0.35, fa: 0.1, fe: 1.7, ball: 0 }],
+  [1, { hipY: 13.8, lean: 0.4, nt: -0.35, nk: 0.8, ft: 0.3, fk: 0.35, na: -5.75, ne: 0.5, fa: 0.2, fe: 1.4, ball: 0 }],
+];
+function keyed(keys: Key[], k: number): RigPose {
+  let i = 0; while (i < keys.length - 2 && keys[i + 1][0] <= k) i++;
+  const [k0, a] = keys[i], [k1, b] = keys[i + 1], t0 = Math.max(0, Math.min(1, (k - k0) / (k1 - k0))), t = t0 * t0 * (3 - 2 * t0);
+  const A = { ...base(), ...a }, B = { ...base(), ...b };
+  return { ...blend(A, B, t), ball: t < 0.5 ? A.ball : B.ball };
+}
+
 export const POSE = {
   stand: (breath = 0): RigPose => ({ ...base(), hipY: STAND_HIP - breath * 0.3 }),
-  /** Run/jog cycle. ph in [0,1), s = intensity 0 (walk) .. 1 (sprint), carry tucks the ball in the near arm. */
+  /** Run/jog cycle. ph in [0,1), s = 0 (jog) .. 1 (sprint); carry tucks the ball high and tight. */
   run(ph: number, s: number, carry = false, accel = 0): RigPose {
-    const w = ph * Math.PI * 2, amp = 0.35 + s * 0.6;
-    const swing = (o: number) => Math.sin(w + o) * amp;
-    const knee = (o: number) => { const c = Math.cos(w + o); return 0.25 + (c > 0 ? c * (0.6 + s * 1.1) : -c * 0.12); };
-    const bob = Math.abs(Math.cos(w)) * (0.6 + s * 0.8);
-    const lean = 0.12 + s * 0.28 + accel * 0.18;
-    const arm = (o: number) => -Math.sin(w + o) * (0.45 + s * 0.75);
-    return { ...base(), hipY: STAND_HIP - 0.8 - s * 0.6 + bob, hipX: 0.4 + s * 0.5, lean, nt: swing(0), nk: knee(0), ft: swing(Math.PI), fk: knee(Math.PI),
-      na: carry ? 0.15 : arm(0), ne: carry ? 2.3 : 1.4, fa: arm(Math.PI), fe: 1.4, nf: 0.2, ff: 0.2, ball: carry ? 1 : 0 };
+    const n = gaitLeg(ph, s), f = gaitLeg(ph + 0.5, s);
+    const bob = Math.cos(4 * Math.PI * (ph - 0.37)) * (0.35 + s * 0.55);
+    const arm = (o: number) => -Math.sin(2 * Math.PI * (ph - 0.06 + o)) * (0.5 + s * 0.6) + 0.15;
+    return { ...base(), hipY: STAND_HIP - 0.7 - s * 0.5 + bob, hipX: 0.3 + s * 0.4, lean: 0.12 + s * 0.24 + accel * 0.2,
+      nt: n[0], nk: n[1], nf: n[2], ft: f[0], fk: f[1], ff: f[2],
+      na: carry ? -0.3 : arm(0), ne: carry ? 2.5 : 1.35 + s * 0.2, fa: arm(0.5), fe: 1.35 + s * 0.2, ball: carry ? 3 : 0 };
   },
+  /** Lower body from one pose (legs, hips) with the upper body (arms, lean, ball) of another. */
+  compose(lower: RigPose, upper: Partial<RigPose>): RigPose { return { ...lower, ...upper, hipX: lower.hipX, hipY: lower.hipY, nt: lower.nt, nk: lower.nk, ft: lower.ft, fk: lower.fk, nf: lower.nf, ff: lower.ff, lift: Math.max(lower.lift, upper.lift ?? 0) }; },
   backpedal(ph: number): RigPose {
     const w = ph * Math.PI * 2;
     return { ...base(), hipY: 12.4 + Math.abs(Math.cos(w)) * 0.5, lean: 0.32, nt: 0.25 + Math.sin(w) * 0.4, nk: 0.8 - Math.cos(w) * 0.3, ft: 0.25 - Math.sin(w) * 0.4, fk: 0.8 + Math.cos(w) * 0.3, na: 0.55 - Math.sin(w) * 0.3, ne: 1.2, fa: 0.55 + Math.sin(w) * 0.3, fe: 1.2 };
@@ -223,13 +297,8 @@ export const POSE = {
   under: (): RigPose => ({ ...base(), hipY: 12.2, lean: 0.75, nt: 0.4, nk: 0.85, ft: 0.1, fk: 0.75, na: 1.1, ne: 0.25, fa: 1.0, fe: 0.3, look: -0.5 }),
   rb: (): RigPose => ({ ...base(), hipY: 12.6, lean: 0.55, nt: 0.4, nk: 0.85, ft: 0.05, fk: 0.7, na: 0.65, ne: 0.6, fa: 0.6, fe: 0.6 }),
   hold: (): RigPose => ({ ...base(), hipY: 14.2, lean: 0.12, nt: 0.25, nk: 0.35, ft: -0.2, fk: 0.35, na: 0.35, ne: 1.9, fa: 0.25, fe: 2.0, ball: 2 }),
-  /** The throw, k from -1 (start of the wind-up) through 0 (release) to 1 (finish). */
-  throw(k: number): RigPose {
-    if (k < 0) { const u = 1 + k;   // wind-up: ball back by the ear, front foot lifting
-      return { ...base(), hipY: 14.4, lean: -0.08 + u * 0.05, nt: 0.15 + u * 0.35, nk: 0.3 + u * 0.4, ft: -0.35, fk: 0.3, na: -0.4 - u * 2.1, ne: 1.4 + u * 0.5, fa: 0.6 + u * 0.7, fe: 0.4, ball: 1 }; }
-    const u = Math.min(1, k);        // release over the top and follow through across the body
-    return { ...base(), hipY: 14.2 - u * 0.8, lean: 0.1 + u * 0.45, nt: 0.5, nk: 0.35, ft: -0.35 - u * 0.4, fk: 0.4 + u * 0.8, na: -2.5 - u * 2.9 + (u > 0.15 ? 0 : 0), ne: 0.4 - u * 0.3, fa: 1.1 - u * 1.3, fe: 0.6, ball: u < 0.08 ? 1 : 0 };
-  },
+  /** The throw, k from -1 (ball at the chest) through 0 (release) to 1 (finish). */
+  throw(k: number): RigPose { return keyed(THROW, k); },
   /** Reaching for the ball at (fx, fy) relative to the shoulders (rig px, + forward/up). */
   reach(fx: number, fy: number, jump = 0, carry = false): RigPose {
     const a = Math.atan2(fx, -fy);     // angle from straight down to the target
@@ -255,7 +324,7 @@ export const POSE = {
   wrap(k: number): RigPose {      // tackler: dropping the hips, head across, arms wrapping
     return { ...base(), hipY: 11 - k * 2, lean: 0.9 + k * 0.4, nt: 0.6, nk: 1.2, ft: -0.7 - k * 0.3, fk: 0.5, na: 1.6, ne: 1.5, fa: 1.45, fe: 1.6 };
   },
-  stiff(ph: number): RigPose { const r = POSE.run(ph, 0.8, true); return { ...r, na: 1.6, ne: 0.05, fa: 0.2, fe: 2.2, ball: 2 }; },
+  stiff(ph: number): RigPose { const r = POSE.run(ph, 0.75); return { ...r, na: 1.62, ne: 0.02, fa: -0.3, fe: 2.5, ball: 0, lean: 0.3 }; },
   plant(): RigPose { return { ...base(), hipY: 11.5, hipX: -1.2, lean: -0.05, nt: 0.95, nk: 0.25, ft: -0.2, fk: 1.3, na: 0.2, ne: 2.3, fa: -0.8, fe: 0.9, ball: 1 }; },
   /** Going down: forward (dir 1) or knocked back (-1); k 0..1, then lying flat. */
   fall(k: number, dir: number, carry: boolean): RigPose {

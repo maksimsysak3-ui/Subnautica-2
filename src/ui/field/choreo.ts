@@ -188,7 +188,9 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const k = K(c), t = Math.min(c + 0.06, catchC ?? c), u = U(t);
     const [bx] = sc.ball(u), bh = sc.ballH(u);
     const fx = clamp((bx - X[i][k]) * face * RPY, -4, 12), fy = clamp(bh * 0.85 * RPY - 22 - jump, -10, 14);
-    return POSE.reach(fx, fy, jump, carry);
+    const arms = POSE.reach(fx, fy, jump, carry);
+    if (jump || SP[i][k] < 1.5) return arms;
+    return POSE.compose(runRig(i, k, false), { na: arms.na, ne: arms.ne, fa: arms.fa, fe: arms.fe, lean: 0.12, ball: arms.ball });
   };
   const stanceOf = (i: number): RigPose => {
     const a = A[i];
@@ -229,24 +231,31 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       if (t < dn.up) return fallAt(x, y, f, t, 1, false, 0.3);
       if (t < dn.up + 0.3) return mk(x, y, f, POSE.kneel());
     }
-    // The tackle: wrap or big hit, both go down; the pile-on lands a beat later.
-    if (tackC !== undefined && !oob) {
-      if (i === finalCarrier && c >= tackC - 0.06) {
-        const tk = K(tackC), f = FACE[i][tk], t = c - tackC;
-        if (bigHit) return fallAt(X[i][tk], Y[i][tk], f, Math.max(0, t - 0.05), -1, holder || i === finalCarrier, 0.4);
-        return fallAt(X[i][tk], Y[i][tk], f, Math.max(0, t - 0.08), 1, true, 0.5);
+    // The tackle, as one action between two bodies: the tackler closes, drops his hips and
+    // wraps the carrier at the waist; the carrier keeps churning for a beat, then they go down
+    // together in the direction the tackler drives him (forward, or backward on a big hit).
+    if (tackC !== undefined && !oob && finalCarrier >= 0 && tackler >= 0) {
+      const wrapFrom = sc.wrapAt !== undefined && sc.wrapper === tackler ? C(sc.wrapAt) : tackC - 0.22;
+      const tk = K(tackC), cf = FACE[finalCarrier][tk];
+      const drive = (X[finalCarrier][tk] - X[tackler][K(wrapFrom)]) >= 0 ? 1 : -1;   // which way the tackler is driving
+      const carrierAt = (t: number): [number, number] => { const kk = K(Math.min(t, tackC)); return [X[finalCarrier][kk], Y[finalCarrier][kk]]; };
+      const slide = (t: number) => Math.min(0.9, Math.max(0, t) * 1.6) * drive;    // momentum carries them a yard
+      if (i === finalCarrier && c >= wrapFrom) {
+        const [cx, cy] = carrierAt(c), t = c - tackC;
+        if (t < 0) return mk(cx, cy, cf, POSE.compose(POSE.run((PH[i][k] % 1), 0.3), { lean: 0.55, na: 0.1, ne: 2.4, fa: 0.4, fe: 2.2, ball: 2 }));
+        const fwd = drive === cf ? 1 : -1;   // driven the way he faces = falls forward
+        return fallAt(cx + slide(t), cy, cf, t, bigHit ? -fwd : fwd, true, bigHit ? 0.38 : 0.5);
       }
-      const wrapFrom = sc.wrapAt !== undefined && sc.wrapper === i ? C(sc.wrapAt) : tackC - 0.28;
-      if (i === tackler && c >= wrapFrom) {
-        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk], f = cx > X[i][K(wrapFrom)] ? 1 : -1;
-        if (c < tackC) return mk(x, y, f, POSE.wrap(clamp((c - wrapFrom) / 0.25, 0, 1)));
-        const k2 = clamp((c - tackC) / 0.5, 0, 1);
-        return fallAt(lerp(X[i][tk], cx - f * 0.9, k2), lerp(Y[i][tk], cy + 0.3, k2), f, c - tackC, 1, false, 0.5);
+      if (i === tackler && c >= wrapFrom - 0.12) {
+        const [cx, cy] = carrierAt(c), t = c - tackC;
+        if (c < wrapFrom) return mk(x, y, drive, POSE.wrap(0));
+        const tx = cx - drive * 0.45, ty = cy + 0.12;            // locked on at the waist, nearer the camera
+        if (t < 0) return mk(lerp(x, tx, clamp((c - wrapFrom) / 0.08, 0, 1)), lerp(y, ty, clamp((c - wrapFrom) / 0.08, 0, 1)), drive, bigHit ? POSE.dive(0.35, false) : POSE.wrap(clamp((c - wrapFrom) / 0.2, 0, 1)));
+        return fallAt(tx + slide(t) + drive * 0.25 * Math.min(1, t * 2), ty, drive, t, 1, false, bigHit ? 0.38 : 0.5);
       }
-      if (i === pile && c >= tackC + 0.05) {
-        const tk = K(tackC), cx = X[finalCarrier][tk], cy = Y[finalCarrier][tk], t0 = tackC + 0.05;
-        const f = cx > X[i][K(t0)] ? 1 : -1, k2 = clamp((c - t0) / 0.45, 0, 1);
-        return mk(lerp(X[i][K(t0)], cx + f * 0.2, k2), lerp(Y[i][K(t0)], cy - 0.35, k2), f, k2 < 0.7 ? POSE.dive(k2, false) : POSE.lying(1, false), { lying: k2 >= 0.7 });
+      if (i === pile && c >= tackC + 0.08) {
+        const [cx, cy] = carrierAt(tackC), t0 = tackC + 0.08, f = cx > X[i][K(t0)] ? 1 : -1, k2 = clamp((c - t0) / 0.4, 0, 1);
+        return mk(lerp(X[i][K(t0)], cx + slide(c - tackC) + f * 0.1, k2), lerp(Y[i][K(t0)], cy - 0.25, k2), f, k2 < 0.75 ? POSE.dive(k2, false) : POSE.lying(1, false), { lying: k2 >= 0.75 });
       }
     }
     // The sack: the rusher wraps him up and takes him down; the pocket is closing in.
