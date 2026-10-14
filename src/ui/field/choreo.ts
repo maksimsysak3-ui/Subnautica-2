@@ -113,7 +113,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   }
   const contester = catchStyle === 'moss' && catchC !== undefined ? nearestOpp(tgt, catchC)[0] : -1;
   // Ball-carrier moves: jukes, spins and stiff-arms against the closest defender in front.
-  interface Move { i: number; at: number; kind: 'juke' | 'spin' | 'stiff'; vic: number }
+  const MOVE_LEN = { juke: 0.42, jumpcut: 0.38, hesi: 0.55, cut: 0.2, spin: 0.4, stiff: 0.4 } as const;
+  interface Move { i: number; at: number; kind: 'juke' | 'spin' | 'stiff' | 'jumpcut' | 'hesi' | 'cut'; vic: number }
   const moves: Move[] = [];
   const downed = new Map<number, { at: number; x: number; y: number; dir: number; up: number; back?: boolean }>();   // whiffed / stiff-armed defenders on the turf
   // The trenches: pancakes (the defender put on his back) and pass rushers beating their man.
@@ -126,11 +127,12 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (m.kind === 'pancake' || m.kind === 'swim' || m.kind === 'rip' || m.kind === 'spinmove') continue;
     const at = C(m.at), k = K(at), c = finalCarrier >= 0 ? finalCarrier : hold(at);
     if (c < 0) continue;
-    if (m.kind === 'juke' || m.kind === 'spin' || m.kind === 'stiff') moves.push({ i: c, at, kind: m.kind, vic: m.def });
-    downed.set(m.def, { at: at + 0.05, x: X[m.def][k], y: Y[m.def][k], dir: Math.sign(VX[m.def][k]) || -FACE[c][k], up: Math.max(0.6, C(m.until) - at - 0.35) });
-    fx.push({ at, kind: m.kind === 'stiff' || m.kind === 'broken' ? 'impact' : 'whiff', x: X[c][k], y: Y[c][k] });
+    if (m.kind !== 'broken') moves.push({ i: c, at, kind: m.kind, vic: m.def });
+    // A cut or a hesitation leaves the defender standing (wrong-footed, overrunning it); the rest put him on the turf.
+    if (m.kind !== 'cut' && m.kind !== 'hesi') downed.set(m.def, { at: at + (m.kind === 'jumpcut' ? 0.2 : 0.05), x: X[m.def][k], y: Y[m.def][k], dir: Math.sign(VX[m.def][k]) || -FACE[c][k], up: Math.max(0.6, C(m.until) - at - 0.35) });
+    if (m.kind !== 'cut' && m.kind !== 'hesi') fx.push({ at, kind: m.kind === 'stiff' || m.kind === 'broken' ? 'impact' : 'whiff', x: X[c][k], y: Y[c][k] });
     fx.push({ at: at + 0.05, kind: 'turf', x: X[c][k], y: Y[c][k] });
-    if (!label) label = ({ juke: 'Juke move', spin: 'Spin move', stiff: 'Stiff-arm', broken: 'Broken tackle' } as Record<string, string>)[m.kind];
+    if (!label) label = ({ juke: 'Juke move', spin: 'Spin move', stiff: 'Stiff-arm', broken: 'Broken tackle', jumpcut: 'Jump cut', hesi: 'Hesitation', cut: 'Cutback' } as Record<string, string>)[m.kind];
   }
   else if (scrim && finalCarrier >= 0 && A[finalCarrier].team === off) {
     const c = finalCarrier;
@@ -145,7 +147,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       const ahead = (X[j][k] - X[c][k]) * FACE[c][k];
       if (ahead < -0.4) continue;
       const roll = rnd();
-      const kind: Move['kind'] = Math.abs(Y[j][k] - Y[c][k]) > 0.9 && roll < 0.4 ? 'stiff' : roll < 0.78 ? 'juke' : 'spin';
+      const kind: 'juke' | 'spin' | 'stiff' = Math.abs(Y[j][k] - Y[c][k]) > 0.9 && roll < 0.4 ? 'stiff' : roll < 0.78 ? 'juke' : 'spin';
       moves.push({ i: c, at: k / HZ, kind, vic: j });
       downed.set(j, { at: k / HZ + (kind === 'stiff' ? 0.2 : 0.12), x: X[j][k], y: Y[j][k], dir: Math.sign(VX[j][k]) || -FACE[c][k], up: 1.25 });
       fx.push({ at: k / HZ, kind: kind === 'stiff' ? 'impact' : 'whiff', x: X[c][k], y: Y[c][k] });
@@ -239,7 +241,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
   const huddle = (i: number): [number, number] => {
     const a = A[i];
     if (a.team === off) { const ang = (i * 2.4) % (Math.PI * 2); return [sc.los - s * 7.5 + Math.cos(ang) * 1.6, MID + Math.sin(ang) * 1.9]; }
-    return [X[i][0] + s * (1.5 + (i % 3)), Y[i][0] + ((i % 2) * 2 - 1) * 1.2];
+    // The defense huddles too, a few yards off the ball on its side, around the signal-caller.
+    const ang = (i * 2.4) % (Math.PI * 2); return [sc.los + s * 6.5 + Math.cos(ang) * 1.7, MID + Math.sin(ang) * 2.0];
   };
   const fallAt = (x: number, y: number, face: number, t: number, dir: number, carry: boolean, dur = 0.45): Pose =>
     t < dur ? mk(x, y, face, POSE.fall(t / dur, dir, carry)) : mk(x, y, face, POSE.lying(dir, carry), { lying: true });
@@ -369,11 +372,17 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (a.slot === 'H' && (ev.type === 'fg' || ev.type === 'xp')) return mk(x, y, s, POSE.holder());
     if (a.slot === 'R' && sc.kick && catchC !== undefined && Math.abs(c - catchC) < 0.3 && hold(catchC + 0.02) === i) return mk(x, y, face, c < catchC ? reachFor(i, c, face) : { ...POSE.hold(), ball: 2 });
     // Ball-carrier moves.
-    for (const m of moves) if (m.i === i && c >= m.at - 0.1 && c < m.at + (m.kind === 'spin' ? 0.34 : m.kind === 'stiff' ? 0.4 : 0.3)) {
-      const d = c - m.at + 0.1;
-      if (m.kind === 'juke') return mk(x, y, FACE[i][K(m.at - 0.12)], POSE.juke(clamp(d / 0.4, 0, 1), PH[i][k] % 1));
+    for (const m of moves) {
+      const len = MOVE_LEN[m.kind], pre = m.kind === 'cut' ? 0.04 : 0.1;
+      if (m.i !== i || c < m.at - pre || c >= m.at + len) continue;
+      const d = c - m.at + pre, u = clamp(d / (len + pre), 0, 1), f0 = FACE[i][K(m.at - 0.12)];
+      if (m.kind === 'juke') return mk(x, y, f0, POSE.juke(u, PH[i][k] % 1));
+      if (m.kind === 'jumpcut') return mk(x, y, f0, POSE.jumpcut(u, PH[i][k] % 1));
+      if (m.kind === 'hesi') return mk(x, y, f0, POSE.hesi(u, PH[i][k] % 1));
+      if (m.kind === 'cut') return mk(x, y, f0, POSE.cut());
       if (m.kind === 'stiff') return mk(x, y, X[m.vic][k] > x ? 1 : -1, POSE.stiff(PH[i][k] % 1));
-      return mk(x, y, Math.floor(d / 0.11) % 2 ? -face : face, { ...POSE.run(PH[i][k] % 1, 0.4, true), lean: 0.05 });   // spin
+      // Spin: plant, whip around with his back to the tackler, come out the other side running.
+      return mk(x, y, u < 0.2 ? f0 : u < 0.65 ? -f0 : f0, u < 0.2 ? POSE.cut() : u < 0.65 ? POSE.spin() : { ...POSE.run(PH[i][k] % 1, 1, true, 1), lean: 0.5 });
     }
     // Route running: a hard plant at each break; on comebacks and curls he snaps around to the QB.
     if (sc.breaks && !holder) for (const b of sc.breaks) if (b.who === i) {

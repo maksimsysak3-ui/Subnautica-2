@@ -51,7 +51,7 @@ export function slotFor(id: string): Slot | undefined { const p = app.league?.pl
 
 export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean; pressured?: boolean; oob?: boolean;
   /** Contact on the ball carrier: beaten defenders (and how), and the wrap-up that ends it. */
-  moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove'; def: number; until: number; by?: number }[]; wrapAt?: number; wrapper?: number;
+  moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove' | 'jumpcut' | 'hesi' | 'cut'; def: number; until: number; by?: number }[]; wrapAt?: number; wrapper?: number;
   /** Receivers planting at their breaks (and turning back to the QB on comebacks). */
   breaks?: { at: number; who: number; back: boolean }[];
   /** A pass batted down at the line, and by whom. */
@@ -400,10 +400,17 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   // Contact always resolves: a defender who reaches the ball carrier either wraps him up
   // (when he is at or near the spot the engine decided) or gets beaten by a move.
   const beaten = new Map<Agent, number>();             // defender -> on the turf / out of the play until
-  const moves: { t: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove'; d: Agent; until: number; by?: Agent }[] = [];
+  const moves: { t: number; kind: 'juke' | 'spin' | 'stiff' | 'broken' | 'pancake' | 'swim' | 'rip' | 'spinmove' | 'jumpcut' | 'hesi' | 'cut'; d: Agent; until: number; by?: Agent }[] = [];
   let wrapper: Agent | null = null, wrapT = 0;
   const effort = new Map<Agent, number>();
   const out = (d: Agent) => (beaten.get(d) ?? 0) > t;
+  // The runner's own moves: reading the hole (cutback or bounce when it's filled), and making
+  // the man in front miss before contact (side-to-side juke, jump cut, hesitation, spin).
+  // Each is a short velocity program on the carrier; the engine's yardage still decides the end.
+  const impulses: { a: Agent; t0: number; t1: number; vy: number; fwd: number; top?: number }[] = [];
+  const tried = new Set<Agent>();
+  let lastMoveT = -9, holeShift = 0, holeRead = false, ownMoves = 0;
+  const crowd = (x: number, y: number, r: number) => agents.reduce((n, a) => n + (a.team === def && !out(a) && Math.hypot(a.x - x, a.y - y) < r ? 1 : 0), 0);
   const goal = (a: Agent) => { const ahead = Math.min(1, dist(a, carrier ?? QB) / 8); const c = carrier ?? QB; return [c.x + c.vx * ahead, c.y + c.vy * ahead] as const; };
   const T_MAX = 11;
   let t = 0;
@@ -458,7 +465,26 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) {
       const runner = qbRun ? QB : RB, fake = qbRun ? RB : QB;
       if (carrier !== runner) steer(runner, at(-3.2, lateral * 0.3)[0], at(-3.2, lateral * 0.3)[1]);
-      else { const hole = at(0.8, lateral); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY)); }
+      else {
+        // Reading the hole: a step from the line, if the designed hole is filled he plants and
+        // takes the cutback or bounces it outside, whichever has fewer defenders.
+        if (!holeRead && s * (runner.x - los) > -2.4) {
+          holeRead = true;
+          const h0 = at(0.8, lateral);
+          if (crowd(h0[0], h0[1], 1.9) >= 2 && rnd() < 0.7) {
+            const dir = Math.sign(lateral) || (rnd() < 0.5 ? 1 : -1);
+            const opts = [lateral - dir * 4.5, lateral + dir * 5].map(l => { const h = at(0.8, l); return { l, n: crowd(h[0], h[1], 2.6) + (Math.abs(h[1] - mid) > 22 ? 9 : 0) }; }).sort((a, b) => a.n - b.n);
+            holeShift = opts[0].l - lateral; endY = clampY(endY + holeShift * 0.8);
+            const by = agents.filter(a => a.team === def && !out(a)).sort((a, b) => dist(a, { x: h0[0], y: h0[1] }) - dist(b, { x: h0[0], y: h0[1] }))[0];
+            if (by) { moves.push({ t, kind: 'cut', d: by, until: t + 0.2 }); ownMoves++; lastMoveT = t; }
+            runner.vx *= 0.45; runner.vy *= 0.45;   // the plant
+          } else if (rnd() < 0.3) {
+            // Patience: press the hole, throttle down, let the blocks set, then hit it.
+            impulses.push({ a: runner, t0: t, t1: t + 0.22, vy: 0, fwd: 0.45 }, { a: runner, t0: t + 0.22, t1: t + 0.6, vy: 0, fwd: 1, top: runner.top * 1.1 });
+          }
+        }
+        const hole = at(0.8, lateral + holeShift); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY));
+      }
       if (qbRun) steer(fake, at(1, -lateral * 0.5)[0], at(1, -lateral * 0.5)[1], 0.7); else steer(fake, at(-5.5, -2)[0], at(-5.5, -2)[1], 0.5);
     } else {
       if (sack) steer(QB, end, mid, 0.55);
@@ -586,6 +612,31 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     else if (cov2) { const z = at(17, -12 * (sideOf('X') || 1)); steer(FS, z[0], z[1], 0.8); }
     else if (cov4) { const z = at(15, -7 * (sideOf('X') || 1)); steer(FS, z[0], z[1], 0.8); }
     else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
+    }
+    // Making the man in front miss, before he gets his hands on him.
+    if (carrier && carrier.team === off && !endT && !wrapper && !sack && (carrier !== QB || run || scramble) && (!pass || caught) && t - lastMoveT > 0.85 && ownMoves < 3 && s * (end - carrier.x) > 3.2) {
+      for (const d of agents) {
+        if (d.team !== def || out(d) || tried.has(d)) continue;
+        const ahead = s * (d.x - carrier.x), dy = d.y - carrier.y;
+        if (ahead < 0.7 || ahead > 2.5 || Math.abs(dy) > 1.6) continue;
+        tried.add(d);
+        if (rnd() > 0.3) continue;
+        const away = -Math.sign(dy) || (rnd() < 0.5 ? 1 : -1), roll = rnd();
+        const kind = roll < 0.32 ? 'juke' : roll < 0.56 ? 'jumpcut' : roll < 0.78 ? 'hesi' : 'spin';
+        const c = carrier;
+        if (kind === 'juke') { impulses.push({ a: c, t0: t, t1: t + 0.15, vy: -away * 3.2, fwd: 0.55 }, { a: c, t0: t + 0.15, t1: t + 0.42, vy: away * 5.4, fwd: 0.7 }); d.vy -= away * 2.4; beaten.set(d, t + 1.1); }   // shows one way, goes the other; he bites
+        else if (kind === 'jumpcut') { impulses.push({ a: c, t0: t, t1: t + 0.32, vy: away * 6.2, fwd: 0.4 }); d.vx *= 0.4; beaten.set(d, t + 1.0); }
+        else if (kind === 'hesi') { impulses.push({ a: c, t0: t, t1: t + 0.26, vy: away * 0.8, fwd: 0.25 }, { a: c, t0: t + 0.26, t1: t + 0.75, vy: away * 1.5, fwd: 1, top: c.top * 1.12 }); beaten.set(d, t + 0.8); }   // stop-start: he overruns it
+        else { impulses.push({ a: c, t0: t, t1: t + 0.36, vy: away * 2.4, fwd: 0.5 }); beaten.set(d, t + 1.1); }
+        moves.push({ t, kind, d, until: beaten.get(d)! }); ownMoves++; lastMoveT = t;
+        break;
+      }
+    }
+    for (const m of impulses) {
+      if (t < m.t0 || t >= m.t1 || m.a !== carrier || wrapper || endT) continue;
+      const top = m.top ?? m.a.top;
+      m.a.vx += (s * top * m.fwd - m.a.vx) * 0.3;
+      m.a.vy += (m.vy - m.a.vy) * 0.35;
     }
     // Integrate, then keep bodies apart: teammates give each other room, opponents meet
     // at contact distance (that is what a block or a wrap-up looks like), nobody overlaps.

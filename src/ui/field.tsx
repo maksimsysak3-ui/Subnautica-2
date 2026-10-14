@@ -46,6 +46,33 @@ const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) === '1';
 
 /** A play the field can show: the real scene, or a stand-in for kneels, spikes and flags. */
 type Special = 'penalty' | 'kneel' | 'spike' | null;
+/** The next snap's spot, for the huddles while a play is being called. */
+export interface HuddleSpot { yl: number; poss: 0 | 1; down: number; togo: number }
+/** Between plays: both teams jog from where the last play ended to their huddles at the next
+ *  spot and wait there. The huddles are the same ones the next play's walk-up breaks from, so
+ *  calling the play flows straight into the break and the set. */
+function huddleStage(spot: HuddleSpot, last: PlayEvent, prev: { sc: Scene; ch: Choreo } | null, lineups: Parameters<typeof buildScene>[1]): { sc: Scene; ch: Choreo; settle: number } {
+  const fake: PlayEvent = { ...last, n: -1 - last.n, type: 'run', yl: spot.yl, poss: spot.poss, down: spot.down, togo: spot.togo, yards: 0, air: undefined, complete: false, td: false, turnover: false, big: false, ids: {}, dir: 0, call: undefined, dcall: undefined, shell: undefined, blitz: 0, text: '' };
+  const sc0 = buildScene(fake, lineups), base = choreograph(sc0, fake);
+  const sc: Scene = { ...sc0, art: undefined, dart: undefined };
+  const H = -base.WU;
+  const pT = prev ? prev.ch.DUR + prev.ch.POST : 0;
+  // Where each man starts: his spot at the end of the last play (matched by team and position).
+  const from = sc.actors.map(a => { const j = prev ? prev.sc.actors.findIndex(b => b.team === a.team && b.slot === a.slot) : -1; return j >= 0 && prev ? prev.ch.pose(j, pT) : null; });
+  const legs = sc.actors.map((_, i) => { const f = from[i], h = base.pose(i, H); return f ? (f.lying ? 0.7 : 0.15) + Math.hypot(h.x - f.x, h.y - f.y) / 5.2 : 0; });
+  const pose = (i: number, c: number): Pose => {
+    const h = base.pose(i, H), f = from[i];
+    if (!f || c >= legs[i]) return h;
+    const up = f.lying ? 0.7 : 0.15;
+    if (c < up) return { ...f, lying: c < 0.35 && f.lying, rig: f.lying ? (c < 0.35 ? f.rig : POSE.kneel()) : POSE.stand() };
+    const k = (c - up) / (legs[i] - up), e = k * k * (3 - 2 * k), dx = h.x - f.x;
+    return { x: f.x + dx * e, y: f.y + (h.y - f.y) * e, face: Math.abs(dx) > 0.3 ? (dx > 0 ? 1 : -1) : h.face, rig: POSE.run(((c - up) * 1.6 + i * 0.13) % 1, 0.3) };
+  };
+  const los = sc.los;
+  const ch: Choreo = { ...base, WU: 0, DUR: 0, POST: 0, pose, refs: () => base.refs(H), ball: () => ({ x: los, y: MID, h: 0.15, free: true, kick: false }), fx: [], focus: () => [los, MID], hero: -1, celebrate: 'none', replay: null, first: false, label: undefined };
+  return { sc, ch, settle: Math.max(0.2, ...legs) };
+}
+
 function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: Scene; ch: Choreo; special: Special } {
   const special: Special = ev.type === 'penalty' || ev.type === 'kneel' || ev.type === 'spike' ? ev.type : null;
   if (!special) { const sc = buildScene(ev, lineups); return { sc, ch: choreograph(sc, ev), special }; }
@@ -101,7 +128,7 @@ function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; c: string; life: number; t0: number; size: number }
 type Banner = { n: number; text: string; color: string; sub?: string; small?: boolean; kind?: string };
 
-export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college, pulse, overlay }: { pulse?: number; overlay?: React.ReactNode; ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
+export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone, weather, night, college, pulse, overlay, huddle }: { pulse?: number; overlay?: React.ReactNode; huddle?: HuddleSpot | null; ev: PlayEvent | null; home: Team; away: Team; logo?: string; playing: boolean; onDone?: () => void; weather?: Weather; night?: boolean; college?: boolean }) {
   const lastEv = useRef<PlayEvent | null>(null);
   if (evIn) lastEv.current = evIn;
   const ev = evIn ?? lastEv.current;
@@ -132,12 +159,15 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
 
   useEffect(() => {
     const c = cv.current!, ctx = c.getContext('2d')!;
-    const staged = ev ? stage(ev, lineups) : null;
+    const played = ev ? stage(ev, lineups) : null;
+    // Waiting on a call: the huddles at the next spot instead of the frozen end of the last play.
+    const hud = !playing && huddle && ev ? huddleStage(huddle, ev, played, lineups) : null;
+    const staged = hud ? { sc: hud.sc, ch: hud.ch, special: null } : played;
     const sc = staged?.sc ?? null, ch = staged?.ch ?? null, special = staged?.special ?? null;
     if (playing) { setBanner(null); setUi({ replay: false, box: false, phase: 'walkup' }); }
     // The clock runs from the walk-up (negative) through the play to the end of the after-play.
     const T0 = ch ? -ch.WU : 0, T1 = ch ? ch.DUR + ch.POST : 0;
-    let clock = playing && ch ? T0 : T1, mode: 'live' | 'replay' | 'done' = playing && ch ? 'live' : 'done';
+    let clock = playing && ch ? T0 : hud ? 0 : T1, mode: 'live' | 'replay' | 'done' | 'idle' = playing && ch ? 'live' : hud ? 'idle' : 'done';
     let rc = 0;
     const r0 = ch?.replay?.[0] ?? 0, r1 = ch?.replay?.[1] ?? 0;
     let raf = 0, last = performance.now(), ended = false, endAt = 0;
@@ -176,6 +206,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
           else finish();
         }
       } else if (mode === 'replay') { rc += realDt * 0.5; if (rc >= r1) finish(); }
+      else if (mode === 'idle') clock = Math.min(hud!.settle, clock + realDt);
       const c2 = mode === 'replay' ? rc : clock;
       // --- story beats: fx, sounds, ribbon, banners, letterbox
       if (ch && mode === 'live') ch.fx.forEach((f, i) => {
@@ -256,12 +287,12 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       ctx.fillStyle = '#0d1018'; ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(lc, 0, 0, VW, VH, 0, 0, VW * E, VH * E);
       if (sc && ch && mode !== 'done' || (sc && ch && !playing)) drawTags(ctx, sc, ch, c2, kits, sx, sy, E, mode === 'replay');
-      const busy = mode !== 'done' || parts.length > 0 || (!!weather && weather.precip !== 'none' && !weather.dome) || Math.abs(fx0 - C.x) > 0.05 || Math.abs(zoom - C.z) > 0.01 || (ended && now - endAt < 3000) || hype > 0.25;
+      const busy = (mode !== 'done' && !(mode === 'idle' && clock >= hud!.settle)) || parts.length > 0 || (!!weather && weather.precip !== 'none' && !weather.dome) || Math.abs(fx0 - C.x) > 0.05 || Math.abs(zoom - C.z) > 0.01 || (ended && now - endAt < 3000) || hype > 0.25;
       raf = busy ? requestAnimationFrame(frame) : 0;
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); skip.current = null; };
-  }, [ev?.n, playing]);
+  }, [ev?.n, playing, huddle ? `${huddle.yl}|${huddle.poss}|${huddle.down}` : '']);
   const ddText = ev ? ev.type === 'kickoff' ? 'Kickoff' : ev.type === 'punt' ? 'Punt' : ev.type === 'fg' ? 'Field Goal' : ev.type === 'xp' ? 'Extra Point' : `${['1st', '2nd', '3rd', '4th'][ev.down - 1] ?? ''} & ${ev.yl + ev.togo >= 100 ? 'Goal' : ev.togo}` : '';
   const off = ev ? (ev.poss === 1 ? home : away) : home;
   return (

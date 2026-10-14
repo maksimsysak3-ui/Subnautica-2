@@ -109,7 +109,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </header>
       <div className="gd-main">
         <div className="gd-field">
-          <FieldView college ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} pulse={shownPulse} overlay={<StadiumPulse sim={sim} value={shownPulse} color={L.teams[hA].colors[0]} />} />
+          <FieldView college ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} huddle={!anim && !sim.over && !sim.pending ? { yl: sim.yl, poss: sim.poss as 0 | 1, down: sim.down, togo: sim.togo } : null} onDone={() => setAnim(false)} weather={sim.weather} pulse={shownPulse} overlay={<StadiumPulse sim={sim} value={shownPulse} color={L.teams[hA].colors[0]} />} />
           <div className="gd-text">{live ? <span className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'Snap…'}</span> : <b className={last?.big ? 'gold' : ''}>{last?.text ?? `Welcome to ${H.school}. Kickoff is moments away.`}</b>}</div>
         </div>
         <aside className="gd-side">

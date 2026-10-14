@@ -339,13 +339,32 @@ export const POSE = {
   press: (): RigPose => ({ ...base(), hipY: 12.4, lean: 0.35, nt: 0.4, nk: 0.85, ft: -0.2, fk: 0.75, na: 1.3, ne: 0.9, fa: 1.2, fe: 1.0 }),
   lb: (): RigPose => ({ ...base(), hipY: 12.2, lean: 0.6, nt: 0.45, nk: 0.95, ft: -0.25, fk: 0.85, na: 0.55, ne: 0.25, fa: 0.5, fe: 0.3, look: -0.2 }),
   dbOff: (): RigPose => ({ ...base(), hipY: 12.8, lean: 0.4, nt: 0.3, nk: 0.75, ft: -0.25, fk: 0.6, na: 0.45, ne: 1.0, fa: 0.2, fe: 1.1 }),
-  /** The juke, k 0..1: brake and drop the hips, sell the fake with the head and shoulders, explode out. */
+  /** The side-to-side juke, k 0..1: gather, plant and hop one way, plant the other foot and hop
+   *  back across, then explode out. The ball stays tucked; the free arm swings for balance. */
   juke(k: number, ph: number): RigPose {
-    // Gather (feet under him, hips sink), a quick side-hop with the free arm out for balance, then burst.
-    if (k < 0.3) return { ...base(), hipY: 11.8, lean: 0.25, nt: 0.35, nk: 1.1, ft: -0.15, fk: 1.0, na: -0.3, ne: 2.5, fa: 0.4, fe: 1.1, ball: 3 };
-    if (k < 0.55) return { ...base(), hipY: 12.4, lift: 2.5, lean: 0.35, nt: 0.7, nk: 1.6, ft: -0.1, fk: 1.5, na: -0.3, ne: 2.5, fa: -0.9, fe: 0.5, ball: 3, look: 0.3, nf: 0.5, ff: 0.5 };
+    if (k < 0.16) return { ...base(), hipY: 11.8, lean: 0.25, nt: 0.35, nk: 1.1, ft: -0.15, fk: 1.0, na: -0.3, ne: 2.5, fa: 0.4, fe: 1.1, ball: 3 };
+    if (k < 0.36) return { ...base(), hipY: 12.2, lift: 2.2, lean: 0.3, nt: 0.7, nk: 1.6, ft: -0.1, fk: 1.5, na: -0.3, ne: 2.5, fa: -0.9, fe: 0.5, ball: 3, look: 0.3, nf: 0.5, ff: 0.5 };
+    if (k < 0.5) return { ...base(), hipY: 11.6, lean: 0.2, nt: -0.15, nk: 1.2, ft: 0.55, fk: 1.3, na: -0.3, ne: 2.5, fa: 0.9, fe: 0.6, ball: 3, look: -0.3 };
+    if (k < 0.66) return { ...base(), hipY: 12.2, lift: 1.8, lean: 0.35, nt: 0.1, nk: 1.5, ft: 0.75, fk: 1.6, na: -0.3, ne: 2.5, fa: 1.2, fe: 0.4, ball: 3, look: 0.1, nf: 0.5, ff: 0.5 };
     const r = POSE.run(ph, 1, true, 1); return { ...r, hipY: r.hipY - 1, lean: 0.55 };
   },
+  /** The jump cut: sink, leap sideways with both feet together, land balanced, go. */
+  jumpcut(k: number, ph: number): RigPose {
+    const crouch: RigPose = { ...base(), hipY: 11.0, lean: 0.35, nt: 0.55, nk: 1.4, ft: 0.1, fk: 1.3, na: -0.3, ne: 2.5, fa: 0.7, fe: 1.0, ball: 3 };
+    if (k < 0.22) return crouch;
+    if (k < 0.7) { const u = (k - 0.22) / 0.48; return { ...crouch, hipY: 12.2, lean: 0.2, lift: Math.sin(u * Math.PI) * 5, nt: 0.7, nk: 1.7, ft: 0.5, fk: 1.6, nf: 0.6, ff: 0.6, fa: -0.8, fe: 0.6 }; }
+    if (k < 0.85) return { ...crouch, hipY: 11.4 };
+    const r = POSE.run(ph, 1, true, 1); return { ...r, hipY: r.hipY - 1, lean: 0.55 };
+  },
+  /** Hesitation: choppy stutter steps with the hips down, then the burst. */
+  hesi(k: number, ph: number): RigPose {
+    if (k < 0.55) { const w = k * Math.PI * 7; return { ...base(), hipY: 12.0 + Math.abs(Math.sin(w)) * 0.5, lean: 0.12, nt: 0.3 + Math.sin(w) * 0.28, nk: 1.0, ft: -0.1 - Math.sin(w) * 0.28, fk: 0.9, na: -0.3, ne: 2.5, fa: 0.5, fe: 1.0, ball: 3, look: 0.25 }; }
+    const r = POSE.run(ph, 1, true, 1); return { ...r, hipY: r.hipY - 1.2, lean: 0.6 };
+  },
+  /** Planting to cut: outside foot dug in, hips low, ball tucked. */
+  cut(): RigPose { return { ...base(), hipY: 11.3, hipX: -1.0, lean: 0.12, nt: 0.95, nk: 0.35, ft: -0.25, fk: 1.35, na: -0.3, ne: 2.5, fa: 0.9, fe: 0.7, ball: 3 }; },
+  /** Mid-spin, back to the defender: low, ball tucked, free arm out for balance. */
+  spin(): RigPose { return { ...base(), hipY: 12.0, lean: -0.05, nt: 0.3, nk: 0.95, ft: -0.2, fk: 0.85, na: -0.3, ne: 2.5, fa: 1.6, fe: 0.3, ball: 3 }; },
 
   plant(): RigPose { return { ...base(), hipY: 11.5, hipX: -1.2, lean: -0.05, nt: 0.95, nk: 0.25, ft: -0.2, fk: 1.3, na: 0.2, ne: 2.3, fa: -0.8, fe: 0.9, ball: 1 }; },
   /** Going down: forward (dir 1: knees buckle, hips drop, chest to the turf) or knocked back
