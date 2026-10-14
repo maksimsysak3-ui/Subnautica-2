@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "calibrate": "tsx tools/calibrate.ts",
     "test": "tsc --noEmit && tsx tools/calibrate.ts 2 && tsx tools/franchise-test.ts 2",
-    "build:college": "vite build -c vite.college.config.ts && cp play-college/index.html play/college.html && vite build -c vite.college3d.config.ts && cp play-college3d/index.html play/college3d.html",
+    "build:college": "vite build -c vite.college.config.ts && cp play-college/index.html play/college.html",
     "data:college": "node tools/college-dynasty.mjs"
   },
   "dependencies": {

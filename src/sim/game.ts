@@ -106,6 +106,8 @@ export class GameSim {
 
   /** Huddle-to-snap time multiplier: college offenses play faster and the clock stops on first downs. */
   pace = 1;
+  /** Where a kickoff touchback is spotted (35 in the pros, 25 in college), and how much more often kicks go for one. */
+  touchback = 35; touchbackBoost = 0;
   constructor(public league: League, public game: Game, seed?: number, public playoff = game.week > 18) {
     this.rng = new Rng(seed ?? hash(game.id + league.seed));
     const mk = (abbr: string): Side => ({ team: league.teams[abbr], abbr, timeouts: 3, fatigue: new Map(), out: new Set(), zone: new Map(), zoneOn: new Set() });
@@ -1091,9 +1093,10 @@ export class GameSim {
       return this.push({ type: 'kickoff', text: `Onside kick is recovered by the ${recvSide.team.nick}.`, yards: 0, endYl: 50, ids: { kicker: k?.id } });
     }
     const tbRate = free ? 0.05 : clamp(0.3 + ((k?.attrs.KPW ?? 75) - 80) * 0.01, 0.1, 0.5);
-    if (this.rng.chance(tbRate)) {
-      this.yl = 35; this.down = 1; this.togo = 10;
-      return this.push({ type: 'kickoff', text: `${pn(k)} kicks off. Touchback, ball at the 35.`, yards: 0, endYl: 35, ids: { kicker: k?.id } });
+    if (this.rng.chance(tbRate + this.touchbackBoost)) {
+      const tb = this.touchback;
+      this.yl = tb; this.down = 1; this.togo = 10;
+      return this.push({ type: 'kickoff', text: `${pn(k)} kicks off. Touchback, ball at the ${tb}.`, yards: 0, endYl: tb, ids: { kicker: k?.id } });
     }
     const ret = this.returner(recvSide, 'kr');
     let start = Math.round(this.rng.normal(free ? 33 : 29, 6) + ((ret?.attrs.RET ?? 60) - 70) / 6);

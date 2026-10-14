@@ -1,8 +1,8 @@
 // This week's matchup, presented like a broadcast open: the two programs split the screen in
 // their colours with mascots squaring off, then the tale of the tape, the head-to-head battles
 // that decide it (from the real depth charts) and each side's keys to the game.
-import { useState, type CSSProperties } from 'react';
-import { GameDay } from './Game';
+import { type CSSProperties } from 'react';
+import { startGame } from './Game';
 import { useDynasty } from './store';
 import { rankOf as rankFor, weekLabel } from './season';
 import { rosterOf, headshot, showColor, YR, type School, type Player } from './data';
@@ -42,7 +42,6 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
     ];
   };
   const rA = rankOf(away), rH = rankOf(home);
-  const [playing, setPlaying] = useState(false);
   return (
     <div className="mu" style={{ '--ca': ca, '--ch': ch } as CSSProperties}>
       <section className="mu-stage">
@@ -68,10 +67,9 @@ export function Matchup({ s, g }: { s: School; g: { o: School; home: boolean; wk
           <div><span>Line</span><b>{fav.abbr} −{Math.max(1, Math.round(Math.abs(edge) * 2) / 2)}</b></div>
           <div><span>Win probability</span><b>{home.abbr} {wp}% · {away.abbr} {100 - wp}%</b></div>
         </div>
-        <button className="mu-play" onClick={() => setPlaying(true)}>Play game ›</button>
+        <button className="mu-play" onClick={() => startGame({ opp: o, home: g.home, wk: g.wk, conf: g.conf, tag: g.tag })}>Play game ›</button>
       </section>
 
-      {playing && <GameDay s={s} opp={o} home={g.home} wk={g.wk} conf={g.conf} tag={g.tag} onClose={() => setPlaying(false)} />}
       <div className="mu-grid">
         <section className="hc mu-tape">
           <header><h3>Tale of the tape</h3></header>

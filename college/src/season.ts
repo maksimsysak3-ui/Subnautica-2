@@ -10,6 +10,9 @@ import type { Dynasty } from './store';
 
 /** College tempo: more snaps per game than the pros (about 70 a side). */
 export const COLLEGE_PACE = 0.74;
+/** College rules on the shared engine: tempo, touchbacks at the 25, and no ties (overtime until
+ *  someone wins). */
+export function collegeRules(sim: GameSim) { sim.pace = COLLEGE_PACE; sim.touchback = 25; sim.touchbackBoost = 0.18; sim.playoff = true; }
 export const REG_WEEKS = 12, CCG_WEEK = 13, PO_WEEKS = [14, 15, 16, 17], LAST_WEEK = 17;
 export const weekLabel = (w: number) => (w === 0 ? 'Preseason' : w <= REG_WEEKS ? `Week ${w}` : w === CCG_WEEK ? 'Championship week' : w === 14 ? 'Playoff: first round' : w === 15 ? 'Playoff: quarterfinals' : w === 16 ? 'Playoff: semifinals' : w === 17 ? 'National championship' : 'Offseason');
 
@@ -22,6 +25,8 @@ export interface Season {
   results: Result[]; stats: Record<string, number[]>; prog: Record<string, number>;
   /** Ranked school ids after each week (index 0 is the preseason poll). */ polls: number[][];
   /** Power rating per school, updated after every game. */ power: Record<number, number>;
+  /** Players out injured: weeks left and the injury. */ injuries?: Record<string, { w: number; type: string; wk?: number }>;
+  /** Bowl games for winning teams outside the playoff, by week-14 pairing. */ bowls?: [number, number, string][];
   playoff?: number[]; champs?: Record<string, number>; title?: number; awards?: Award[]; allAmerica?: { pos: string; id: string; team: number }[];
 }
 
@@ -156,17 +161,19 @@ function updatePower(se: Season, g: Result) {
   se.power[g.h] = ph + k * (res - exp); se.power[g.a] = pa - k * (res - exp);
 }
 /** Record a finished game (yours from the live game, or a simulated one). */
-export function recordGame(se: Season, w: number, h: number, a: number, res: { hs: number; as: number; ot?: boolean; box?: { players: Record<string, Partial<StatLine>> } }, conf: boolean, played: Map<string, StatLine>, tag?: string) {
+export function recordGame(se: Season, w: number, h: number, a: number, res: { hs: number; as: number; ot?: boolean; box?: { players: Record<string, Partial<StatLine>> }; injuries?: { pid: string; weeks: number; type: string }[] }, conf: boolean, played: Map<string, StatLine>, tag?: string) {
   if (se.results.some(x => x.w === w && x.h === h && x.a === a)) return;
   const g: Result = { w, h, a, hs: res.hs, as: res.as, ot: res.ot || undefined, conf: conf || undefined, tag };
   se.results.push(g);
   if (res.box) { addStats(se, res.box.players); for (const [id, l] of Object.entries(res.box.players)) played.set(id, l as StatLine); }
+  // Injuries carry over: anyone hurt for more than this game misses the next weeks.
+  for (const x of (res as { injuries?: { pid: string; weeks: number; type: string }[] }).injuries ?? []) if (x.weeks > 0) (se.injuries ??= {})[x.pid] = { w: x.weeks, type: x.type, wk: w };
   updatePower(se, g);
 }
 /** Play one game with the engine, no animation. */
 export function simGame(h: School, a: School, d: Dynasty, seed: number) {
-  const { L, game } = gameLeague(h, a, d.team, d.depth, false);
-  const sim = new GameSim(L, game, seed); sim.pace = COLLEGE_PACE;
+  const { L, game } = gameLeague(h, a, d.team, d.depth, false, d.season?.injuries);
+  const sim = new GameSim(L, game, seed); collegeRules(sim);
   return sim.simToEnd();
 }
 
@@ -226,6 +233,8 @@ export function playWeek(d: Dynasty) {
     se.champs = {};
     for (const g of se.results.filter(x => x.w === CCG_WEEK)) se.champs[school(g.h).conf] = g.hs > g.as ? g.h : g.a;
   }
+  // A week heals: anyone hurt before this week has now missed one more game.
+  for (const [id, x] of Object.entries(se.injuries ?? {})) { if ((x.wk ?? 0) >= w) continue; x.w -= 1; if (x.w <= 0) delete se.injuries![id]; }
   develop(se, played, d.team, ((d.meters.boost ?? 50) - 50) / 250);
   applyProgress(se);
   se.polls.push(poll(se));

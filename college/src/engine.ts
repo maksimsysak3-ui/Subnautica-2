@@ -46,13 +46,13 @@ function toTeam(s: School, abbr: string, depth: Record<string, string[]>): Team 
 }
 
 /** Build the two-team league for a game, register it for the field renderer, and return it. */
-export function gameLeague(home: School, away: School, userTeam: number, userDepth: Record<string, string[]>, show = true): { L: League; game: Game } {
+export function gameLeague(home: School, away: School, userTeam: number, userDepth: Record<string, string[]>, show = true, injuries: Record<string, { w: number; type: string }> = {}): { L: League; game: Game } {
   let ha = home.abbr, aa = away.abbr;
   if (ha === aa) aa = `${aa}2`;
   const players: Record<string, NflPlayer> = {};
   // Engine players are cached per rating (they change only as players develop); each game gets
   // fresh copies so in-game condition never leaks between games.
-  const conv = (p: Player, abbr: string) => { const k = `${p.id}:${p.ovr}:${abbr}`; let e = engineCache.get(k); if (!e) engineCache.set(k, e = toEngine(p, abbr)); return { ...e, cond: 100 } as NflPlayer; };
+  const conv = (p: Player, abbr: string) => { const k = `${p.id}:${p.ovr}:${abbr}`; let e = engineCache.get(k); if (!e) engineCache.set(k, e = toEngine(p, abbr)); const inj = injuries[p.id]; return { ...e, cond: 100, injury: inj ? { type: inj.type, weeks: inj.w } : undefined } as NflPlayer; };
   for (const p of rosterOf(home.id)) players[p.id] = conv(p, ha);
   for (const p of rosterOf(away.id)) players[p.id] = conv(p, aa);
   const teams: Record<string, Team> = {

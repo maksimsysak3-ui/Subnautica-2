@@ -3,18 +3,16 @@
 // this down, distance and field position), then tag it: play-action, motion, and who the first
 // read is (your real receivers, with ratings). Defense is built, not picked: a front, a coverage,
 // pressure and how many in the box. Live scouting shows what the other sideline has been doing.
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { GameSim, type PlayEvent, type OffCall, type DefCall, type DefSet } from '../../src/sim/game';
 import { FieldView } from '../../src/ui/field';
-// The 3D build swaps the pixel field for the stadium renderer; the 2D build drops it entirely.
-const Field = __COLLEGE_3D__ ? lazy(() => import('./Field3D').then(m => ({ default: m.Field3D }))) : FieldView;
 import { OFF_SETS } from '../../src/ui/plays';
 import { bookOf, identity, teamDefBook } from '../../src/ui/teamplays';
 import { Notebook } from './Diagram';
 import { school, showColor, type School } from './data';
 import { gameLeague } from './engine';
-import { COLLEGE_PACE, recordGame } from './season';
+import { collegeRules, recordGame } from './season';
 import { useDynasty, update } from './store';
 import { Logo } from './App';
 
@@ -25,13 +23,26 @@ type Group = 'Coach\'s sheet' | 'Run game' | 'Quick & screens' | 'Dropback' | 'S
 const GROUPS: Group[] = ['Coach\'s sheet', 'Run game', 'Quick & screens', 'Dropback', 'Shots', 'Specials'];
 const groupOf = (c: OffCall): Group => (c.kind === 'run' ? 'Run game' : c.depth === 'quick' || c.depth === 'screen' ? 'Quick & screens' : c.depth === 'deep' ? 'Shots' : 'Dropback');
 
+// The game in progress lives above the hub tabs, so it stays on screen (for the final and the box
+// score) even after the result moves the schedule on.
+interface GameSpec { opp: School; home: boolean; wk: number; conf: boolean; tag?: string }
+let current: GameSpec | null = null; const subs = new Set<() => void>();
+export function startGame(g: GameSpec) { current = g; subs.forEach(f => f()); }
+export function GameHost({ s }: { s: School }) {
+  const [, force] = useState(0);
+  useEffect(() => { const f = () => force(x => x + 1); subs.add(f); return () => { subs.delete(f); }; }, []);
+  if (!current) return null;
+  const g = current;
+  return <GameDay key={`${g.opp.id}-${g.wk}`} s={s} opp={g.opp} home={g.home} wk={g.wk} conf={g.conf} tag={g.tag} onClose={() => { current = null; subs.forEach(f => f()); }} />;
+}
+
 export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; opp: School; home: boolean; wk: number; conf: boolean; tag?: string; onClose: () => void }) {
   const d = useDynasty(s.id);
   const ref = useRef<{ sim: GameSim; L: ReturnType<typeof gameLeague>['L']; hA: string; aA: string } | null>(null);
   if (!ref.current) {
     const H = home ? s : opp, A = home ? opp : s;
-    const { L, game } = gameLeague(H, A, s.id, d.depth);
-    const sim = new GameSim(L, game); sim.autoHalf = true; sim.pace = COLLEGE_PACE;
+    const { L, game } = gameLeague(H, A, s.id, d.depth, true, d.season?.injuries);
+    const sim = new GameSim(L, game); sim.autoHalf = true; collegeRules(sim);
     ref.current = { sim, L, hA: game.home, aA: game.away };
   }
   const { sim, L, hA, aA } = ref.current;
@@ -61,6 +72,15 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   });
   // The final counts: the result and every stat go into the season.
   const saved = useRef(false);
+  // Leaving early doesn't erase the game: the coordinators finish it and it counts.
+  const leave = () => {
+    if (!sim.over) {
+      if (!window.confirm('Leave the game? Your coordinators will finish it and the result counts.')) return;
+      const r = sim.simToEnd();
+      if (!saved.current) { saved.current = true; update(x => recordGame(x.season!, wk, H.id, A.id, r, conf, new Map(), tag)); }
+    }
+    onClose();
+  };
   useEffect(() => {
     if (!sim.over || saved.current) return;
     saved.current = true;
@@ -77,11 +97,11 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
         <div className="gd-team a"><Logo id={A.id} size={40} /><b>{A.abbr}</b><em>{score[0]}</em>{sim.poss === 0 && <i className="gd-pos" />}</div>
         <div className="gd-mid"><b>{sim.over ? 'FINAL' : `Q${Math.min(sim.q, 4)}${sim.q > 4 ? ' OT' : ''} · ${clock(sim.clock)}`}</b><span>{sim.over ? `${H.school} vs ${A.school}` : `${ord(sim.down)} & ${sim.yl >= 90 && sim.togo >= 100 - sim.yl ? 'Goal' : sim.togo} · ${spot(sim.yl)}`}</span></div>
         <div className="gd-team h">{sim.poss === 1 && <i className="gd-pos" />}<em>{score[1]}</em><b>{H.abbr}</b><Logo id={H.id} size={40} /></div>
-        <button className="gd-x" onClick={onClose}>Leave game</button>
+        <button className="gd-x" onClick={leave}>{sim.over ? 'Close' : 'Leave game'}</button>
       </header>
       <div className="gd-main">
         <div className="gd-field">
-          <Suspense fallback={<div className="g3d" style={{ height: 420 }} />}><Field ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} /></Suspense>
+          <FieldView ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} />
           <div className="gd-text">{live ? <span className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'Snap…'}</span> : <b className={last?.big ? 'gold' : ''}>{last?.text ?? `Welcome to ${H.school}. Kickoff is moments away.`}</b>}</div>
         </div>
         <aside className="gd-side">
@@ -93,7 +113,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </div>
       <footer className="gd-console">
         {sim.over ? (
-          <div className="gd-final"><b>{score[1] > score[0] ? H.school : score[0] > score[1] ? A.school : 'Nobody'} wins {Math.max(...score)}-{Math.min(...score)}</b><button className="cbtn primary" onClick={onClose}>Back to the program</button></div>
+          <FinalSummary sim={sim} L={L} H={H} A={A} hA={hA} aA={aA} onClose={onClose} />
         ) : !needsCall || anim ? (
           <div className="gd-wait"><span>{anim ? '' : sim.pending ? 'Special teams…' : ''}</span></div>
         ) : onOffense ? (
@@ -211,6 +231,29 @@ function DefenseSheet({ sim, team, onCall, c }: { sim: GameSim; team: ReturnType
           <div className="cs-art"><Notebook name={p.base} def c={c} w={176} h={104} /></div><b>{p.name}</b><span><i className="cs-con">{p.base}</i> {p.desc}</span>
         </button>
       ))}</div>
+    </div>
+  );
+}
+
+/** After the final whistle: the score, team stats side by side, and the game's top performers. */
+function FinalSummary({ sim, L, H, A, hA, aA, onClose }: { sim: GameSim; L: ReturnType<typeof gameLeague>['L']; H: School; A: School; hA: string; aA: string; onClose: () => void }) {
+  const [ab, hb] = sim.box;
+  const lines = [...sim.lines.entries()].map(([id, l]) => ({ p: L.players[id], l })).filter(x => x.p);
+  const top = (f: (l: typeof lines[number]['l']) => number) => [...lines].sort((a, b) => f(b.l) - f(a.l))[0];
+  const qb = top(l => l.py), rb = top(l => l.ry), wr = top(l => l.recy), df = top(l => l.tkl + l.dsk * 3 + l.dint * 4);
+  const team = (abbr: string) => (abbr === hA ? H : A);
+  const top4: [string, typeof qb, string][] = [['Passing', qb, `${qb?.l.pc}/${qb?.l.pa}, ${qb?.l.py} yds, ${qb?.l.ptd} TD${qb?.l.pint ? `, ${qb.l.pint} INT` : ''}`], ['Rushing', rb, `${rb?.l.ra} car, ${rb?.l.ry} yds, ${rb?.l.rtd} TD`], ['Receiving', wr, `${wr?.l.rec} rec, ${wr?.l.recy} yds, ${wr?.l.rectd} TD`], ['Defense', df, `${df?.l.tkl} tkl${df?.l.dsk ? `, ${df.l.dsk} sk` : ''}${df?.l.dint ? `, ${df.l.dint} INT` : ''}`]];
+  const rows: [string, (b: typeof hb) => string | number][] = [['Total yards', b => b.yds], ['Passing', b => b.pyds], ['Rushing', b => b.ryds], ['First downs', b => b.fd], ['Third down', b => `${b.third[0]}/${b.third[1]}`], ['Turnovers', b => b.to], ['Penalties', b => `${b.pen}-${b.peny}`], ['Sacks', b => b.sacks], ['Possession', b => `${Math.floor(b.top / 60)}:${String(Math.round(b.top % 60)).padStart(2, '0')}`]];
+  const [as, hs] = sim.score;
+  void aA;
+  return (
+    <div className="gd-final2">
+      <div className="gf-score"><span><Logo id={A.id} size={44} /><b>{A.abbr}</b><em className={as > hs ? 'w' : ''}>{as}</em></span><i>FINAL{sim.ot ? ' / OT' : ''}</i><span><em className={hs > as ? 'w' : ''}>{hs}</em><b>{H.abbr}</b><Logo id={H.id} size={44} /></span></div>
+      <div className="gf-grid">
+        <div className="gf-box">{rows.map(([k, f]) => <div key={k}><b>{f(ab)}</b><span>{k}</span><b>{f(hb)}</b></div>)}</div>
+        <div className="gf-tops">{top4.map(([k, x, line]) => x && <div key={k}><em>{k}</em><b>{x.p.fn} {x.p.ln}</b><span>{team(x.p.team).abbr} · {line}</span></div>)}</div>
+      </div>
+      <button className="cbtn primary" onClick={onClose}>Back to the program</button>
     </div>
   );
 }

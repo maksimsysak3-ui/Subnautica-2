@@ -511,7 +511,11 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   }
   if (!endT) endT = t - 0.75;
   const dur = PRE + t;
-  const sample = (tr: [number, number][]) => (u: number): [number, number] => { const i = Math.max(0, Math.min(tr.length - 1, Math.round((u * dur - PRE) / DT))); return tr[i] ?? tr[0]; };
+  // Interpolated between simulation steps, so motion is smooth at any frame rate and in slow motion.
+  const sample = (tr: [number, number][]) => (u: number): [number, number] => {
+    const f = Math.max(0, Math.min(tr.length - 1, (u * dur - PRE) / DT)), i = Math.floor(f), j = Math.min(tr.length - 1, i + 1), w = f - i;
+    const a = tr[i] ?? tr[0], b = tr[j] ?? a; return [a[0] + (b[0] - a[0]) * w, a[1] + (b[1] - a[1]) * w];
+  };
   /** Position along a motion path, `f` of the way (by distance). */
   const along = (pp: [number, number][], f: number): [number, number] => {
     const segs = pp.slice(1).map((p, i) => Math.hypot(p[0] - pp[i][0], p[1] - pp[i][1])), tot = segs.reduce((a, b) => a + b, 0) || 1;
@@ -524,8 +528,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     k.add(a.team, a.slot, a.role, u => (u * dur < PRE ? (pre ? along(pre, (u * dur - (PRE - MT)) / MT) : first) : sample(tr)(u)));
   }
   const bt = ballTrack as [number, number, number][];
-  const ball: Path = u => { if (u * dur < PRE) return at(0, 0); const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return [bt[i][0], bt[i][1]]; };
-  const ballH = (u: number) => { const i = Math.max(0, Math.min(bt.length - 1, Math.round((u * dur - PRE) / DT))); return u * dur < PRE ? 0.15 : bt[i][2]; };
+  const bAt = (u: number, c: number) => { const f = Math.max(0, Math.min(bt.length - 1, (u * dur - PRE) / DT)), i = Math.floor(f), j = Math.min(bt.length - 1, i + 1), w = f - i; return bt[i][c] + (bt[j][c] - bt[i][c]) * w; };
+  const ball: Path = u => (u * dur < PRE ? at(0, 0) : [bAt(u, 0), bAt(u, 1)]);
+  const ballH = (u: number) => (u * dur < PRE ? 0.15 : bAt(u, 2));
   const tackled = !ev.td && !(pass && !ev.complete);
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
