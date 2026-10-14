@@ -7,9 +7,12 @@
 //   program     - conference tier and team win rate (talent concentrates at winners)
 //   size fit    - height/weight against NFL norms for the position
 //   maturity    - class year (upperclassmen are more finished)
+//   recruiting  - freshmen: their 247 composite rating (they have no college tape yet)
+// Class year and headshots come from ESPN's live 2026 team rosters (see espnRosters).
 // Draft year: seniors 2027; juniors 2027 if elite (declare early) else 2028;
 // sophomores 2028 if elite else 2029; freshmen 2029 if elite else 2030.
-import { readFileSync, existsSync } from 'node:fs';
+// The 2030 class is all 2026 freshmen with an ESPN headshot; 2031 on are generated.
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const B = 'https://raw.githubusercontent.com/sportsdataverse/cfbfastR-data/main';
@@ -34,6 +37,50 @@ function splitLine(line) {
   return out;
 }
 export const num = v => (v === '' || v === 'NA' ? 0 : Number(v) || 0);
+
+// ---- ESPN's own current rosters and 247 recruiting classes (sportsdataverse raw store) ----
+// The CFBD roster above lags on class year (last year's freshmen are often still listed as
+// freshmen) and builds a headshot URL for every athlete whether or not ESPN has a photo.
+// ESPN's live team rosters carry the real class (experience) and a headshot only when one
+// exists, so they decide who is a freshman and whose face scan is real.
+const RAW = 'https://raw.githubusercontent.com/sportsdataverse/cfbfastR-cfb-raw/main/cfb';
+/** Like get(), but a file the store does not have is remembered as missing instead of failing. */
+function tryGet(path, url) {
+  if (existsSync(`${path}.missing`)) return null;
+  if (!existsSync(path)) {
+    try { execSync(`curl -sSfL -o "${path}" "${url}"`, { stdio: 'ignore' }); } catch { writeFileSync(`${path}.missing`, ''); return null; }
+  }
+  return readFileSync(path, 'utf8');
+}
+/** athlete id -> { cls, hs, ht, wt } from ESPN's 2026 FBS + FCS team rosters. */
+export function espnRosters(season = SEASON) {
+  mkdirSync(`.cache/cfb/espn/rosters_${season}`, { recursive: true });
+  const teams = JSON.parse(get(`.cache/cfb/espn/teams_${season}.json`, `${RAW}/teams/json/${season}.json`));
+  const ids = [...new Set([...(teams.divisions['80'] ?? []), ...(teams.divisions['81'] ?? [])])];
+  const out = new Map();
+  for (const id of ids) {
+    const text = tryGet(`.cache/cfb/espn/rosters_${season}/${id}.json`, `${RAW}/team_rosters/json/${season}/${id}.json`);
+    if (!text) continue;
+    for (const a of JSON.parse(text).athletes?.flatMap(g => g.items ?? []) ?? []) {
+      const cls = a.experience?.years;
+      out.set(String(a.id), { cls: cls >= 1 ? Math.min(4, cls) : 0, hs: a.headshot?.href, ht: a.height || 0, wt: a.weight || 0, team: String(id) });
+    }
+  }
+  return out;
+}
+/** 247 composite recruiting rating by normalised name, for one signing class. */
+export function recruitClass(year) {
+  mkdirSync(`.cache/cfb/recruits_${year}`, { recursive: true });
+  const man = tryGet(`.cache/cfb/recruits_${year}/_manifest.json`, `${RAW}/recruits/json/${year}/_manifest.json`);
+  if (!man) return [];
+  const out = [];
+  for (let p = 1; p <= JSON.parse(man).pages; p++) {
+    const text = tryGet(`.cache/cfb/recruits_${year}/page_${String(p).padStart(4, '0')}.json`, `${RAW}/recruits/json/${year}/page_${String(p).padStart(4, '0')}.json`);
+    if (text) for (const r of JSON.parse(text).payload?.players ?? []) out.push({ n: normName(`${r.firstName} ${r.lastName}`), school: normName(r.currentInstitution?.name ?? r.signedInstitution?.name ?? ''), rating: r.compositeRating ?? 0, stars: r.compositeStarRating ?? 0, rank: r.compositeNationalRank ?? 9999, year });
+  }
+  return out;
+}
+const normName = n => String(n).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z]/g, '');
 
 const TIER = { SEC: 1, 'Big Ten': 1, 'Big 12': 0.9, ACC: 0.88, 'FBS Independents': 0.85, 'Pac-12': 0.82, 'American Athletic': 0.72, 'Mountain West': 0.7, 'Sun Belt': 0.7, 'Conference USA': 0.64, 'Mid-American': 0.64 };
 export const tierOf = c => TIER[c] ?? 0.48; // FCS and below
@@ -139,11 +186,28 @@ export function buildProspects() {
   const roster = csv(get('.cache/cfb/cfb_rosters_2026.csv', `${B}/rosters/csv/cfb_rosters_2026.csv`));
   const logos = new Map(csv(get('.cache/cfb/teams.csv', `${B}/teams/teams_colors_logos.csv`)).map(t => [t.school, t]));
   const seasons = [[SEASON, 0.3], [SEASON - 1, 0.5], [SEASON - 2, 0.2]].map(([y, w]) => ({ y, w, ...seasonStats(y) }));
+  const espn = espnRosters();
+  // Freshmen have no college tape yet: their 247 composite (this year's signing class, or
+  // last year's for redshirts) is what evaluators go on.
+  const recruits = new Map();
+  for (const x of [...recruitClass(SEASON - 1), ...recruitClass(SEASON)]) (recruits.get(x.n) ?? recruits.set(x.n, []).get(x.n)).push(x);
+  const recruitOf = r => {
+    const list = recruits.get(normName(`${r.first_name} ${r.last_name}`)) ?? [];
+    const school = normName(r.team);
+    return list.find(x => x.school === school) ?? (list.length === 1 ? list[0] : undefined);
+  };
   // Production per player, blended over seasons.
   const cands = [];
-  for (const r of roster) {
-    const year = num(r.year);
+  for (const raw of roster) {
+    const e = espn.get(raw.athlete_id);
+    // ESPN's class and measurements where it has the player; otherwise the CFBD row, with its
+    // class corrected for anyone who already played real snaps in earlier seasons.
+    const g25 = seasons[1].players.get(raw.athlete_id)?.games.size ?? 0, g24 = seasons[2].players.get(raw.athlete_id)?.games.size ?? 0;
+    const lagged = Math.max(num(raw.year), g25 > 4 ? 2 : 0, g24 > 4 ? (g25 > 4 ? 3 : 2) : 0);
+    const year = e?.cls || lagged;
     if (year < 1 || year > 4) continue;
+    // Headshot: ESPN's own link when it has a photo; never a guessed URL for an ESPN-rostered player.
+    const r = { ...raw, height: e?.ht || raw.height, weight: e?.wt || raw.weight, headshot_url: e ? e.hs ?? '' : raw.headshot_url, _espn: !!e };
     const b = boardEntry(r);
     const pos = b?.pos ?? nflPos(r);
     if (!pos || !r.first_name || !r.last_name) continue;
@@ -154,7 +218,7 @@ export function buildProspects() {
       const t = s.teams.get(r.team);
       if (t && !conf) { conf = t.conf; win = t.win; }
     }
-    cands.push({ r, pos, year, prod: pw ? prod / pw : null, pw, conf, win, b });
+    cands.push({ r, pos, year, prod: pw ? prod / pw : null, pw, conf, win, b, rec: year === 1 ? recruitOf(r) : undefined });
   }
   // Rank production within position.
   const byPos = new Map();
@@ -167,11 +231,15 @@ export function buildProspects() {
     const fit = sizeFit(c.pos, num(c.r.height), num(c.r.weight));
     const mature = [0, 0.35, 0.6, 0.85, 1][c.year];
     const prodPct = c.prod !== null ? pct(c.pos, c.prod) * Math.min(1, 0.4 + c.pw) : null;
-    const noise = (hash(c.r.athlete_id) - 0.5) * 0.12; // what film shows and stats do not
+    // What film shows and stats do not; freshmen are the least known, so the widest.
+    const noise = (hash(c.r.athlete_id) - 0.5) * (c.year === 1 ? 0.16 : 0.12);
     // Linemen and others without box-score stats get a production proxy: starters on
     // strong programs, scaled by experience, but never above a good producer.
     const proxy = 0.22 + 0.4 * program * mature;
-    const p = prodPct ?? proxy;
+    let p = prodPct ?? proxy;
+    // Freshmen: recruiting pedigree (3-star ~0.2, high 4-star ~0.7, 5-star ~0.95) unless
+    // they are already producing; an unranked freshman is a long shot.
+    if (c.year === 1) p = Math.max(prodPct ?? 0, c.rec ? 0.08 + 0.9 * Math.max(0, Math.min(1, (c.rec.rating - 84) / 14.5)) : Math.min(p, 0.12));
     c.score = p * 0.45 * (0.55 + 0.45 * tierOf(c.conf)) + program * 0.3 + fit * 0.13 + mature * 0.06 + noise;
     if (['K', 'P', 'LS'].includes(c.pos)) c.score *= 0.7; // specialists go late
     if (PEDIGREE.has(`${c.r.first_name} ${c.r.last_name}`)) c.score += 0.09;
@@ -191,7 +259,9 @@ export function buildProspects() {
   const MIX = { QB: 16, RB: 24, FB: 3, WR: 42, TE: 18, OT: 24, G: 20, C: 9, EDGE: 33, DT: 26, LB: 25, CB: 36, S: 22, K: 4, P: 4, LS: 2 };
   const out = [];
   for (const dy of [2027, 2028, 2029, 2030]) {
-    const pool = cands.filter(c => c.dy === dy).sort((a, b) => b.score - a.score);
+    // The freshman class (2030) is built only from freshmen ESPN has photographed, so every
+    // one of them shows his real face scan.
+    const pool = cands.filter(c => c.dy === dy && (dy !== 2030 || c.b || (c.r._espn && c.r.headshot_url))).sort((a, b) => b.score - a.score);
     // Graded prospects go where scouts have them, nudged ±15% by what their stats say;
     // everyone else fills the board in stat order. Unknowns rarely crash the top ten.
     const rest = pool.filter(c => !c.b);
@@ -214,8 +284,11 @@ export function buildProspects() {
       out.push({
         id: `C${c.r.athlete_id}`, fn: c.b?.a ? c.b.a.split(' ')[0] : c.r.first_name, ln: c.b?.a ? c.b.a.split(' ').slice(1).join(' ') : c.r.last_name, pos: c.pos, col: c.r.team, colLogo: t?.logo?.replace('http://', 'https://'),
         colColor: t?.color, hs: c.r.headshot_url || undefined, ht: num(c.r.height), wt: num(c.r.weight), dy, cls: c.year, rank: i + 1,
-        // Projected OVR when he reaches the draft, from his rank in the class.
-        ovr: Math.round(Math.max(44, 79 - 9.5 * Math.log10(1 + i * 0.35) - (i > 120 ? (i - 120) * 0.025 : 0)) + (c.b ? Math.max(0, c.b.g - 90) * 0.4 : 0)),
+        // Projected OVR when he reaches the draft, from his rank in the class. Freshmen are four
+        // years from the draft: how they develop is a coin flip, so the outcome spreads around
+        // the board's view (busts and late bloomers) and the top end starts a little lower.
+        ovr: Math.round(Math.max(44, 79 - 9.5 * Math.log10(1 + i * 0.35) - (i > 120 ? (i - 120) * 0.025 : 0)) + (c.b ? Math.max(0, c.b.g - 90) * 0.4 : 0)
+          + (dy === 2030 && !c.b ? (hash(`${c.r.athlete_id}dev`) - 0.5) * 9 - 1 : 0)),
         ...(c.b ? { g: c.b.g } : {}),
         sc: Math.round(c.score * 1000) / 1000,
       });
