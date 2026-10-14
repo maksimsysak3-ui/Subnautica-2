@@ -49,7 +49,9 @@ export function lineupFor(team: Team): Lineup {
 }
 export function slotFor(id: string): Slot | undefined { const p = app.league?.players[id]; return p ? { num: p.num, ln: p.ln, id, skin: skinOf(p) } : undefined; }
 
-export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean;
+export interface Scene { dur: number; pre: number; los: number; first: number; actors: Actor[]; ball: Path; ballH: (t: number) => number; dirSign: number; art?: Art[]; dart?: Art[]; align?: Align; carrier?: (t: number) => number; tackle?: number; kick?: boolean; pressured?: boolean;
+  /** Contact on the ball carrier: beaten defenders (and how), and the wrap-up that ends it. */
+  moves?: { at: number; kind: 'juke' | 'spin' | 'stiff' | 'broken'; def: number; until: number }[]; wrapAt?: number; wrapper?: number;
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
   off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number; tackler?: number; swatter?: number }
 
@@ -193,8 +195,8 @@ export function buildScene(ev: PlayEvent, lineups: [Lineup, Lineup]): Scene {
 
 /** The defender nearest the ball carrier at the tackle, and nearest the ball when an incompletion arrives. */
 export function contactOf(sc: Scene): { tackler: number; swatter: number } {
-  let tackler = -1, swatter = -1;
-  if (sc.tackle !== undefined && sc.hold) {
+  let tackler = sc.wrapper ?? -1, swatter = -1;
+  if (sc.tackle !== undefined && sc.hold && tackler < 0) {
     let c0 = sc.hold(sc.tackle - 0.005); if (c0 < 0) c0 = sc.hold(Math.min(0.999, sc.tackle + 0.005));
     if (c0 >= 0) { const cp = sc.actors[c0].path(sc.tackle); let best = 1e9; sc.actors.forEach((a, i) => { if (a.team !== sc.actors[c0].team) { const [x, y] = a.path(sc.tackle!); const d = Math.hypot(x - cp[0], y - cp[1]); if (d < best) { best = d; tackler = i; } } }); }
   }
@@ -328,7 +330,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   // Quick game for short throws (3-step), a full drop for intermediate and deep ones.
   const dropT = (air <= 2 ? 0.45 : air <= 9 ? 0.6 : 0.95) + rnd() * 0.15;
   const deadline = dropT + (Math.abs(air) > 15 ? 1.1 : Math.abs(air) > 6 ? 0.6 : 0.25) + rnd() * 0.25;
-  let throwT = Infinity, airT = 0, catchT = Infinity;
+  let throwT = Infinity, airT = 0, catchT = Infinity, settle = false;
   const flight = (a: [number, number], b: [number, number]) => 0.22 + Math.hypot(b[0] - a[0], b[1] - a[1]) / (Math.abs(air) > 15 ? 21 : 18);
   const clampY = (y: number) => Math.max(1.5, Math.min(51.8, y));
   const routes = WHO.map(w => [at(...spotOf(w)), ...((art?.find(a => a.who === w && a.kind === 'route')?.pts ?? [[10, FORMATION[w][1]]]).map(p => at(p[0], p[1])))] as [number, number][]);
@@ -342,8 +344,20 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   let shed = DL.map(() => (run ? 2.2 : 1.4) + rnd() * 1.3);
   if (sack) shed[si] = 1.3;
   if (run && ev.yards <= 1) shed[Math.floor(rnd() * 4)] = 0.55;
+  // Pressure: on sacks, scrambles and throw-aways the rush walks the pocket back into the
+  // quarterback (a bull rush on the sacker's side), and on a scramble he escapes it.
+  const pressured = sack || scramble || throwAway || (pass && !ev.complete && !picked && rnd() < 0.35);
+  const bull = DL.map((_, i) => pressured && (i === si || rnd() < 0.45));
+  const escapeSide = rnd() < 0.5 ? -1 : 1;
   const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
   const before = (x: number) => s * (x - end) <= 0; // reached the spot behind
+  // Contact always resolves: a defender who reaches the ball carrier either wraps him up
+  // (when he is at or near the spot the engine decided) or gets beaten by a move.
+  const beaten = new Map<Agent, number>();             // defender -> on the turf / out of the play until
+  const moves: { t: number; kind: 'juke' | 'spin' | 'stiff' | 'broken'; d: Agent; until: number }[] = [];
+  let wrapper: Agent | null = null, wrapT = 0;
+  const effort = new Map<Agent, number>();
+  const out = (d: Agent) => (beaten.get(d) ?? 0) > t;
   const goal = (a: Agent) => { const ahead = Math.min(1, dist(a, carrier ?? QB) / 8); const c = carrier ?? QB; return [c.x + c.vx * ahead, c.y + c.vy * ahead] as const; };
   const T_MAX = 11;
   let t = 0;
@@ -352,7 +366,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (run) { if (!carrier && t > (qbRun ? 0.3 : 0.45)) carrier = qbRun ? QB : RB; }
     else if (scramble) { if (!carrier && t > 1.5) carrier = QB; }
     else if (sack) carrier = QB;
-    else if (!thrown && t >= dropT) {
+    else if (!thrown && t >= dropT + (throwAway ? 0.9 : 0)) {
       // Throw when the receiver will be at the right depth by the time the ball gets there.
       const from: [number, number] = [QB.x, QB.y];
       let lead = 0.6, proj: [number, number] = [target.x, target.y];
@@ -361,8 +375,12 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (depth >= air - 0.6 || t >= deadline) {
         // The catch is made at the engine's air yards: never deeper (that would show a 9-yard
         // gain as a 20-yard one), and if he is short of it he has to get there.
-        if (Math.abs(depth - air) > 0.6) proj = [los + s * air, proj[1]];
+        if (depth > air + 1.5) proj = [los + s * air, proj[1]];
         thrown = true; throwT = t; throwFrom = from; recvPt = proj;
+        // Comebacks, curls, hitches and finished routes settle and catch it standing; slants,
+        // posts, gos and crossers catch it in stride.
+        { const rt = routes[targetIdx], a2 = rt[rt.length - 1], a1 = rt[rt.length - 2] ?? rt[0];
+          settle = ri[targetIdx] >= rt.length || s * (a2[0] - a1[0]) < -0.3 || air <= 1; }
         catchPt = throwAway ? [QB.x + s * 9, QB.y > mid ? 53.8 : -0.6]
           : picked ? [proj[0] - s * 1.1, clampY(proj[1] + (rnd() - 0.5) * 1.2)]
           : offTarget ? [proj[0] + s * (2 + rnd() * 2.5), clampY(proj[1] + (rnd() < 0.5 ? -1 : 1) * (1.2 + rnd() * 1.8))]
@@ -374,11 +392,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     // After the whistle everyone eases up; only the men around the ball keep coming.
     const whistle = !!endT && t > endT;
     if (whistle) {
-      for (const a of agents) {
-        const c = carrier;
-        if (c && a !== c && a.team !== c.team && dist(a, c) < 2.4) steer(a, c.x, c.y, 0.35);
-        else steer(a, a.x + a.vx * 0.12, a.y + a.vy * 0.12, 0.2);
-      }
+      for (const a of agents) { if (a === wrapper && carrier) { a.vx = carrier.vx; a.vy = carrier.vy; } else { a.vx *= 0.9; a.vy *= 0.9; } }
       // The ball carrier is down where he was tackled.
       if (carrier) { carrier.vx *= 0.75; carrier.vy *= 0.75; }
     } else {
@@ -396,6 +410,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     } else {
       if (sack) steer(QB, end, mid, 0.55);
       else if (carrier === QB) steer(QB, end + s * 2, endY);
+      else if (!thrown && (scramble || throwAway) && t > dropT + 0.25) steer(QB, QB.x + s * 0.6, clampY(mid + escapeSide * 9), 0.75);   // out of the pocket
+      else if (!thrown && sack && t > dropT + 0.2) steer(QB, QB.x + s * 0.4, QB.y + escapeSide * 0.6, 0.3);   // steps up, nowhere to go
       else if (!thrown) steer(QB, at(-7, 0)[0], at(-7, 0)[1], 0.7);
       else steer(QB, QB.x, QB.y, 0.3);
       const rbPts = art?.find(a => a.who === 'RB')?.pts;
@@ -403,7 +419,13 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     }
     REC.forEach((r, i) => {
       if (r === carrier) { steer(r, end + s * 2, evade(r, endY)); return; }
-      if (pass && r === target && thrown && !caught) { const left = Math.max(0.05, catchT - t); const d = Math.hypot(recvPt[0] - r.x, recvPt[1] - r.y); r.top = Math.max(8.4, Math.min(10.2, d / left)); steer(r, recvPt[0], recvPt[1]); return; }
+      if (pass && r === target && thrown && !caught) {
+        // Run through the catch point at full speed (never slow down to wait for the ball).
+        const left = Math.max(0.05, catchT - t), dx = recvPt[0] - r.x, dy = recvPt[1] - r.y, d = Math.hypot(dx, dy) || 1;
+        if (settle) { r.top = 8.6; steer(r, recvPt[0], recvPt[1], d < 1.2 ? 0.35 : 0.9); return; }
+        r.top = Math.max(8.4, Math.min(10.2, d / left));
+        steer(r, recvPt[0] + (dx / d) * 4, recvPt[1] + (dy / d) * 4); return;
+      }
       // Blocking: stalk the man across (stay between him and the ball), don't chase.
       if (run || (carrier && carrier !== QB && carrier.team === off)) {
         const m = run ? DB[i] : [...DB, FS, ...LB].sort((a, b) => dist(a, r) - dist(b, r))[0];
@@ -421,19 +443,26 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     const pursuing = (d: Agent) => !!carrier && carrier !== d && (sack ? d.role !== 'DB' && d.role !== 'S' : t >= trig + REACT[d.role] - (d === cov ? 0.3 : 0));
     const pursue = (d: Agent) => {
       const c = carrier!, dd = dist(d, c), lead = Math.max(0.15, Math.min(1.3, dd / 8.5));
+      if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
+      if (wrapper && d !== wrapper) { steer(d, c.x - s * 2.5, c.y + (d.y > c.y ? 2.5 : -2.5), 0.45); return; }   // arrive, don't dogpile
+      let eff = effort.get(d); if (eff === undefined) { eff = 0.8 + rnd() * 0.2; effort.set(d, eff); }
+      const trailing = s * (d.x - c.x) < -2;   // behind the play: chasing, not catching
+      d.top = Math.min(d.top, (d.role === 'DL' ? 7.4 : 9.2) * eff * (trailing ? 0.9 : 1));
       // Aim at where he is going, and stay on the downfield side of him (leverage).
       const gx = c.x + c.vx * lead + s * Math.min(2, dd * 0.08), gy = c.y + c.vy * lead;
       steer(d, gx, gy, dd > 20 ? 0.8 : 1);
     };
     DL.forEach((d, i) => {
+      if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
       if (carrier && carrier.team === def) { if (d === carrier) steer(d, d.x - s * 8, d.y); else steer(d, d.x - s * 1, d.y, 0.4); return; }
       const held = t < shed[i];
       if (pursuing(d) && !held) { pursue(d); return; }
       if (held && run) { const o = OL[Math.min(4, Math.round(i * 1.33))]; steer(d, o.x + s * 0.8, o.y, 0.3); return; }   // fighting the block
       const [gx, gy] = goal(d);
-      steer(d, gx, gy, held ? 0.12 : 1);
+      steer(d, gx, gy, held ? (bull[i] ? 0.42 : 0.12) : 1);
     });
     LB.forEach((d, i) => {
+      if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
       if (d === carrier) { steer(d, d.x - s * 8, d.y); return; }
       if (pursuing(d)) { pursue(d); return; }
       if (run && t > 0.3) { const hole = at(1.6, lateral + (i ? 1.5 : -1.5)); steer(d, hole[0], hole[1], 0.75); return; }   // fill the gap
@@ -441,6 +470,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       const z = at(6 + Math.min(3, t * 1.5), i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7);   // hook zone drop
     });
     DB.forEach((d, i) => {
+      if (out(d)) { d.vx *= 0.92; d.vy *= 0.92; return; }
       if (d === carrier) { steer(d, d.x - s * 10, d.y); return; }
       if (pursuing(d)) { pursue(d); return; }
       const r = REC[i];
@@ -464,7 +494,41 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     }
     // Integrate, then keep bodies apart: teammates give each other room, opponents meet
     // at contact distance (that is what a block or a wrap-up looks like), nobody overlaps.
+    // The carrier: when nobody can reach him before the spot, he throttles down so the
+    // tackler arrives there with him (he's run down rather than tackled from 5 yards away).
+    if (carrier && carrier.team === off && !endT && !ev.td && !wrapper && (carrier !== QB || run || scramble)) {
+      const rem = s * (end - carrier.x);
+      if (rem > 0 && rem < 7) {
+        let nd = 1e9, nt: Agent | null = null;
+        for (const d of agents) if (d.team === def && !out(d)) { const dd = dist(d, carrier); if (dd < nd) { nd = dd; nt = d; } }
+        if (nt && nd > 1.6) {
+          nt.top = Math.max(nt.top, 9.6);
+          const tD = (nd - 1) / nt.top, cap = Math.max(3.2, rem / Math.max(0.2, tD));
+          const v = Math.hypot(carrier.vx, carrier.vy); if (v > cap) { carrier.vx *= cap / v; carrier.vy *= cap / v; }
+        }
+      }
+    }
+    if (wrapper && carrier && !endT) {
+      // Wrapped up: he drives forward for the last yards with the tackler hanging on.
+      const v = Math.hypot(carrier.vx, carrier.vy), cap = 3.4; if (v > cap) { carrier.vx *= cap / v; carrier.vy *= cap / v; }
+      wrapper.vx = carrier.vx; wrapper.vy = carrier.vy; wrapper.x = carrier.x - s * 0.55; wrapper.y = carrier.y + 0.25;
+    }
     for (const a of agents) { a.x += a.vx * DT; a.y += a.vy * DT; }
+    if (carrier && carrier.team === off && !endT && !wrapper && (carrier !== QB || run || scramble) && !sack) {
+      for (const d of agents) {
+        if (d.team !== def || out(d) || dist(d, carrier) > 1.05) continue;
+        const rem = s * (end - carrier.x);
+        if (!ev.td && rem <= 2.6) { wrapper = d; wrapT = t; break; }
+        // Beaten: a move, a missed tackle or a stiff-arm. He's on the turf for a beat.
+        const side = Math.abs(d.y - carrier.y) > 0.55, roll = rnd();
+        const kind = ev.td && rem <= 2.6 ? 'broken' : side && roll < 0.45 ? 'stiff' : roll < 0.62 ? 'juke' : roll < 0.82 ? 'spin' : 'broken';
+        const until = t + 1.15 + rnd() * 0.4;
+        beaten.set(d, until); moves.push({ t, kind, d, until });
+        const away = Math.sign(carrier.y - d.y) || 1;
+        if (kind === 'juke') carrier.vy += away * 3.2;
+        d.vx = d.vx * 0.35 + (kind === 'stiff' ? -s * 1.5 : 0); d.vy = d.vy * 0.35 - away * 1.2;
+      }
+    }
     for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
       const a = agents[i], b = agents[j];
       if (endT && (a === carrier || b === carrier)) continue;
@@ -483,7 +547,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       const q = Math.min(1, (t - throwT) / airT);
       const from = throwFrom;
       ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
-      ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * (0.5 + Math.abs(air) * 0.3);
+      ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * (0.35 + Math.abs(air) * 0.085 + Math.max(0, Math.abs(air) - 35) * 0.05);
     } else if (pass && caught && !ev.complete && !ev.turnover) {
       // Incomplete: the ball is knocked away or falls incomplete, then bounces dead. Nobody holds it.
       if (!loose) {
@@ -504,8 +568,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (!endT) {
       if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
       else if (pass && caught && ev.turnover && t > catchT + 0.9) endT = t;
-      else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 2 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
+      else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 0.05 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
       else if (sack && t > 1.2 && dist(DL[si], QB) < 1.1) endT = t;
+      else if (wrapper && carrier && (s * (end - carrier.x) <= 0.05 || t - wrapT > 1.2)) endT = t;
     }
     if (endT && t > endT + 0.75) break;
   }
@@ -534,6 +599,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const tackled = !ev.td && !(pass && !ev.complete);
   return { dur, pre: PRE / dur, los, first, actors: k.actors, ball, ballH: (u: number) => ballH(u), dirSign: s, art, dart, align: FORMATION, tackle: tackled ? Math.min(0.97, (PRE + endT) / dur) : undefined,
     hold: (u: number) => (u * dur < PRE ? -1 : holdTrack[Math.max(0, Math.min(holdTrack.length - 1, Math.round((u * dur - PRE) / DT)))] ?? -1),
-    broken, qb: agents.indexOf(QB), target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
+    broken, pressured, qb: agents.indexOf(QB),
+    moves: moves.map(m => ({ at: (PRE + m.t) / dur, kind: m.kind, def: agents.indexOf(m.d), until: (PRE + m.until) / dur })),
+    wrapAt: wrapper ? (PRE + wrapT) / dur : undefined, wrapper: wrapper ? agents.indexOf(wrapper) : undefined, target: pass ? agents.indexOf(target) : undefined, throwAt: pass ? (PRE + throwT) / dur : undefined, catchAt: pass ? (PRE + catchT) / dur : undefined, endAt: (PRE + endT) / dur };
 }
 

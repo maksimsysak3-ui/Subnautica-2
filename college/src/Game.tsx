@@ -89,7 +89,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
   });
   const live = anim && last && !['end', 'timeout'].includes(last.type) ? last : null;
   const score = (live ? (sim.events[sim.events.indexOf(live) - 1]?.score ?? [0, 0]) : sim.score) as [number, number];
-  const ev = last && !['end', 'timeout', 'penalty', 'kneel', 'spike', 'two'].includes(last.type) ? last : null;
+  const ev = last && !['end', 'timeout', 'two'].includes(last.type) ? last : null;
   const posTeam = sim.poss === 1 ? H : A;
   return createPortal(
     <div className="gd" style={{ '--ch': showColor(H), '--ca': showColor(A), '--c': showColor(s) } as CSSProperties}>
@@ -101,7 +101,7 @@ export function GameDay({ s, opp, home, wk, conf, tag, onClose }: { s: School; o
       </header>
       <div className="gd-main">
         <div className="gd-field">
-          <FieldView ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} />
+          <FieldView college ev={ev} home={L.teams[hA]} away={L.teams[aA]} logo={L.teams[hA].logo} playing={anim} onDone={() => setAnim(false)} weather={sim.weather} />
           <div className="gd-text">{live ? <span className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'Snap…'}</span> : <b className={last?.big ? 'gold' : ''}>{last?.text ?? `Welcome to ${H.school}. Kickoff is moments away.`}</b>}</div>
         </div>
         <aside className="gd-side">
