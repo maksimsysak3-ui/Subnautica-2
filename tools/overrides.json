@@ -1,7 +1,7 @@
 {
-  "_note": "Ratings-adjuster overrides applied after the data model, by full name. Use sparingly.",
-  "Jordan Love": 88,
-  "Brock Purdy": 92,
-  "Justin Jefferson": 93,
-  "Abdul Carter": 84
+  "_note": "Ratings-adjuster overrides applied after the data model, by 'Full Name|POS' (or bare full name). Use sparingly.",
+  "Jordan Love|QB": 88,
+  "Brock Purdy|QB": 92,
+  "Justin Jefferson|WR": 93,
+  "Abdul Carter|EDGE": 84
 }

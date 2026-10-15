@@ -4,12 +4,13 @@
 // that depends on difficulty, account for their mode (rebuilding teams prefer
 // youth and picks), refuse illegal cap results, and do not pay quantity for quality.
 import type { League, Pick, Player, Pos, TradeOffer } from './types';
-import { Rng, clamp } from './rng';
+import { Rng, clamp, hash } from './rng';
 import { capHit, capSpace, marketValue, yearsLeft } from './contracts';
 import { teamRatings, autoDepth } from './league';
 import { news, mail, standings } from './season';
 import { positionNeeds } from './draft';
 import { coachHas } from './coaching';
+import { gmOf, styleWeight, STYLE_MARGIN, STYLE_TIRE } from './tradetalk';
 
 const CHART: [number, number][] = [[1, 3000], [2, 2600], [3, 2200], [4, 1800], [5, 1700], [6, 1600], [8, 1400], [10, 1300], [12, 1200], [16, 1000], [20, 850], [25, 720], [32, 590], [40, 500], [50, 400], [64, 270], [80, 190], [96, 116], [100, 100], [128, 50], [160, 30], [192, 17], [224, 4], [260, 1]];
 export function pickValue(no: number) {
@@ -23,6 +24,8 @@ const POS_MULT: Record<Pos, number> = { QB: 1.7, EDGE: 1.15, OT: 1.05, WR: 1.0, 
 
 /** The draft year that comes next (the league year rolls over before the draft). */
 const nextDraft = (league: League) => (['resign', 'freeagency', 'draft'].includes(league.phase) ? league.season : league.season + 1);
+/** A pick can be traded until it is spent: the coming draft or later, and not yet used. */
+export const tradable = (league: League, k: Pick) => k.season >= nextDraft(league) && !k.used;
 
 /**
  * Estimated slot for a pick that has not been ordered yet. For the coming draft it
@@ -142,14 +145,17 @@ function fitFactor(league: League, p: Player, team: string, incoming: boolean) {
 
 /** Value to the receiving team, with diminishing returns for piles of lesser assets. */
 function packageValue(league: League, players: Player[], picks: Pick[], forTeam: string, dir?: 'in' | 'out') {
-  const vals = [...players.map(p => playerTradeValue(league, p, forTeam) * (dir ? fitFactor(league, p, forTeam, dir === 'in') : 1)), ...picks.map(k => pickTradeValue(league, k, forTeam))].sort((a, b) => b - a);
+  // The receiving GM's style shades what he takes in: picks, youth, proven starters, veterans.
+  const style = dir === 'in' && forTeam !== league.user ? gmOf(league, forTeam).style : undefined;
+  const sw = (a: { pick?: boolean; age?: number; ovr?: number }) => (style ? styleWeight(style, a, true) : 1);
+  const vals = [...players.map(p => playerTradeValue(league, p, forTeam) * (dir ? fitFactor(league, p, forTeam, dir === 'in') : 1) * sw({ age: p.age, ovr: p.ovr })), ...picks.map(k => pickTradeValue(league, k, forTeam) * sw({ pick: true }))].sort((a, b) => b - a);
   // Real assets (anything worth at least 40% of the best piece) keep most of their value;
   // filler is discounted hard so a pile of late picks never buys a star.
   const top = vals[0] ?? 0;
   return vals.reduce((sum, v, i) => sum + v * Math.pow(v >= top * 0.4 ? 0.95 : 0.8, i), 0);
 }
 
-export interface TradeVerdict { accept: boolean; give: number; get: number; ratio: number; reason: string; counter?: TradeOffer }
+export interface TradeVerdict { accept: boolean; give: number; get: number; ratio: number; reason: string; counter?: TradeOffer; margin?: number }
 /** Talks with each front office this week: lowball them and they want more. */
 type Talks = Record<string, { season: number; week: number; n: number }>;
 const talks = (league: League) => ((league as League & { tradeTalks?: Talks }).tradeTalks ??= {});
@@ -170,7 +176,8 @@ export function evaluateTrade(league: League, offer: TradeOffer, withCounter = f
   const receive = packageValue(league, P(offer.give.players), K(offer.give.picks), offer.to, 'in');
   const send = packageValue(league, P(offer.get.players), K(offer.get.picks), offer.to, 'out');
   const tired = offer.from === league.user ? Math.min(5, patience(league, offer.to)) : 0;
-  const margin = { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty] * (offer.from === league.user && coachHas(league, 'Trade Shark') ? 0.95 : 1) * (1 + tired * 0.03);
+  const gm = gmOf(league, offer.to);
+  const margin = { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty] * (offer.from === league.user && coachHas(league, 'Trade Shark') ? 0.95 : 1) * (offer.from === league.user ? STYLE_MARGIN[gm.style] : 1) * (1 + tired * STYLE_TIRE[gm.style]);
   const ratio = receive / Math.max(1, send);
   // Cap legality for the AI side after the deal (in season the cap binds now).
   const capIn = P(offer.give.players).reduce((a, p) => a + capHit(p.contract, league.season), 0);
@@ -178,15 +185,16 @@ export function evaluateTrade(league: League, offer: TradeOffer, withCounter = f
   if (capSpace(league, offer.to) - capIn + capOut < 0) return { accept: false, give: receive, get: send, ratio, reason: 'That would put us over the cap.' };
   const fromCap = capSpace(league, offer.from) + capIn - capOut;
   if (fromCap < 0) return { accept: false, give: receive, get: send, ratio, reason: 'You would be over the cap.' };
+  if ([...offer.give.picks, ...offer.get.picks].some(id => { const k = league.picks.find(p => p.id === id); return !k || !tradable(league, k); })) return { accept: false, give: receive, get: send, ratio, reason: 'One of those picks has already been used.' };
   if (league.phase === 'regular' && league.week > league.tradeDeadlineWeek) return { accept: false, give: receive, get: send, ratio, reason: 'The trade deadline has passed.' };
   // Franchise QBs are almost untouchable.
   const theirQB = P(offer.get.players).find(p => p.pos === 'QB' && p.ovr >= 85 && p.age <= 32);
-  if (theirQB && ratio < margin * 1.4) return { accept: false, give: receive, get: send, ratio, reason: `${theirQB.ln} is the face of our franchise.` };
-  if (ratio >= margin) return { accept: true, give: receive, get: send, ratio, reason: tired >= 2 ? 'Fine. We have a deal, finally.' : 'We have a deal.' };
+  if (theirQB && ratio < margin * 1.4) return { accept: false, margin: margin * 1.4, give: receive, get: send, ratio, reason: `${theirQB.ln} is the face of our franchise.` };
+  if (ratio >= margin) return { accept: true, margin, give: receive, get: send, ratio, reason: tired >= 2 ? 'Fine. We have a deal, finally.' : 'We have a deal.' };
   const reason = tired >= 3 ? 'You keep calling with the same lowball. Bring a real offer.'
     : ratio > margin * 0.85 ? 'Close. Add a little more and we can talk.' : ratio > 0.6 ? 'That is not enough for us.' : 'Not interested.';
   const counter = withCounter && offer.from === league.user && ratio > 0.55 ? counterOffer(league, offer, margin, send) : undefined;
-  return { accept: false, give: receive, get: send, ratio, reason: counter ? `${reason} Here is what we would do.` : reason, counter };
+  return { accept: false, margin, give: receive, get: send, ratio, reason: counter ? `${reason} Here is what we would do.` : reason, counter };
 }
 
 /**
@@ -199,7 +207,7 @@ function counterOffer(league: League, offer: TradeOffer, margin: number, send: n
   const K = (ids: string[]) => ids.map(id => league.picks.find(p => p.id === id)!).filter(Boolean);
   const value = (o: TradeOffer) => packageValue(league, P(o.give.players), K(o.give.picks), offer.to, 'in') / Math.max(1, packageValue(league, P(o.get.players), K(o.get.picks), offer.to, 'out'));
   const extras = [
-    ...league.picks.filter(k => k.owner === offer.from && k.season >= league.season && !offer.give.picks.includes(k.id)).map(k => ({ kind: 'picks' as const, id: k.id, v: pickTradeValue(league, k, offer.to) })),
+    ...league.picks.filter(k => k.owner === offer.from && tradable(league, k) && !offer.give.picks.includes(k.id)).map(k => ({ kind: 'picks' as const, id: k.id, v: pickTradeValue(league, k, offer.to) })),
     ...Object.values(league.players).filter(p => p.team === offer.from && p.status === 'ACT' && !offer.give.players.includes(p.id) && !(p.pos === 'QB' && p.ovr >= 80) && p.ovr < 85).map(p => ({ kind: 'players' as const, id: p.id, v: playerTradeValue(league, p, offer.to) })),
   ].sort((a, b) => a.v - b.v);
   for (const x of extras) {
@@ -240,7 +248,7 @@ export function whatWouldItTake(league: League, from: string, to: string, target
   const need = playerTradeValue(league, target, to) * { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[league.difficulty] * (from === league.user && coachHas(league, 'Trade Shark') ? 0.95 : 1);
   const offer: TradeOffer = { from, to, give: { players: [], picks: [] }, get: { players: [targetId], picks: [] } };
   const assets = [
-    ...league.picks.filter(k => k.owner === from && k.season >= league.season).map(k => ({ kind: 'pick' as const, id: k.id, v: pickTradeValue(league, k, to) })),
+    ...league.picks.filter(k => k.owner === from && tradable(league, k)).map(k => ({ kind: 'pick' as const, id: k.id, v: pickTradeValue(league, k, to) })),
     ...Object.values(league.players).filter(p => p.team === from && p.status === 'ACT' && !(p.pos === 'QB' && p.ovr >= 80)).map(p => ({ kind: 'player' as const, id: p.id, v: playerTradeValue(league, p, to) })),
   ].sort((a, b) => b.v - a.v);
   // Their front office wants fair value, not a windfall: the cheapest single asset that
@@ -359,21 +367,49 @@ export function aiDraftDayTrade(league: League, rng: Rng, order: Pick[], cursor:
   const later = order.slice(cursor + 2, cursor + 14).filter(k => k.owner !== league.user && k.owner !== pick.owner);
   if (!later.length) return false;
   const mover = rng.pick(later);
-  const value = pickValue(pick.no!);
-  const theirs = league.picks.filter(k => k.owner === mover.owner && k.id !== mover.id && (k.season > pick.season || (k.season === pick.season && (k.no ?? 999) > (mover.no ?? 0))))
-    .sort((a, b) => pickTradeValue(league, b) - pickTradeValue(league, a));
-  const give = [mover];
-  let total = pickValue(mover.no!);
-  // Add the smallest extra picks that close the gap (a little over chart value).
-  for (const k of [...theirs].reverse()) { if (total >= value * 1.04) break; if (pickTradeValue(league, k) + total >= value * 1.04) { give.push(k); total += pickTradeValue(league, k); break; } }
-  for (const k of theirs) { if (total >= value * 1.04 || give.length >= 4) break; if (!give.includes(k)) { give.push(k); total += pickTradeValue(league, k); } }
-  if (total < value * 1.04 || total > value * 1.6) return false;
+  const give = movePackage(league, pick, mover);
+  if (!give) return false;
   const seller = pick.owner;
   pick.owner = mover.owner;
   for (const k of give) k.owner = seller;
   const lbl = (k: Pick) => (k.no && k.season === pick.season ? `No. ${k.no}` : pickLabel(league, k));
   news(league, 'trade', `DRAFT-DAY TRADE: ${league.teams[mover.owner].nick} move up to No. ${pick.no}, sending ${give.map(lbl).join(', ')} to the ${league.teams[seller].nick}.`, [mover.owner, seller], { big: pick.no! <= 10 });
   return true;
+}
+
+/** The picks a team a few spots back would pay to jump to `pick`: its own pick plus the
+ *  smallest extras that clear the chart value (a little over, never a fleecing). */
+function movePackage(league: League, pick: Pick, mover: Pick): Pick[] | null {
+  const value = pickValue(pick.no!);
+  const theirs = league.picks.filter(k => k.owner === mover.owner && k.id !== mover.id && tradable(league, k) && (k.season > pick.season || (k.season === pick.season && (k.no ?? 999) > (mover.no ?? 0))))
+    .sort((a, b) => pickTradeValue(league, b) - pickTradeValue(league, a));
+  const give = [mover];
+  let total = pickValue(mover.no!);
+  for (const k of [...theirs].reverse()) { if (total >= value * 1.04) break; if (pickTradeValue(league, k) + total >= value * 1.04) { give.push(k); total += pickTradeValue(league, k); break; } }
+  for (const k of theirs) { if (total >= value * 1.04 || give.length >= 4) break; if (!give.includes(k)) { give.push(k); total += pickTradeValue(league, k); } }
+  return total < value * 1.04 || total > value * 1.6 ? null : give;
+}
+
+/**
+ * Draft day with you on the clock: teams behind you call to trade up into your slot.
+ * Each offer is from your side (you give the pick, you get their package), ready for
+ * executeTrade. Seeded by the pick, so the same calls come in if you leave and return.
+ */
+export function draftCalls(league: League, order: Pick[], cursor: number): TradeOffer[] {
+  const pick = order[cursor];
+  if (!pick || pick.owner !== league.user || pick.round > 4) return [];
+  const rng = new Rng(hash(`calls-${league.seed}-${pick.id}`));
+  if (!rng.chance(pick.round === 1 ? 0.85 : 0.55)) return [];
+  const later = order.slice(cursor + 2, cursor + 18).filter(k => k.owner !== league.user);
+  const seen = new Set<string>(), out: TradeOffer[] = [];
+  for (const mover of rng.shuffle([...later])) {
+    if (seen.has(mover.owner) || out.length >= (pick.round === 1 ? 3 : 2)) continue;
+    const give = movePackage(league, pick, mover);
+    if (!give) continue;
+    seen.add(mover.owner);
+    out.push({ from: league.user, to: mover.owner, give: { players: [], picks: [pick.id] }, get: { players: [], picks: give.map(k => k.id) } });
+  }
+  return out;
 }
 
 /** Team mode follows roster strength and age. */

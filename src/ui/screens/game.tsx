@@ -58,7 +58,10 @@ export function GameScreen({ gid }: { gid: string }) {
   const step = (oc?: OffCall, dc?: DefCall) => {
     let ev = sim.step(oc, dc);
     // Skip quiet administrative events when animating.
-    while (ev && (ev.type === 'end' || ev.type === 'timeout') && !sim.over && !auto.current) { setLast(ev); ev = sim.step(); }
+    while (ev && (ev.type === 'end' || ev.type === 'timeout') && !sim.over && !auto.current) {
+      if (ev.type === 'end' && /rain|snow|wind|temperature/i.test(ev.text)) app.toast(ev.text.replace(/^End of the [^.]+\. /, ''));   // the weather turned
+      setLast(ev); ev = sim.step();
+    }
     if (ev) { setLast(ev); setAnim(true); }
     force(x => x + 1);
     if (sim.over) setFinished(true);

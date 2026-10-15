@@ -1,5 +1,5 @@
 // The Trades tab: builder, block, finder, incoming offers, history and the pick chart.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Table, PlayerCell, Face } from '../components';
 import { standings } from '../../core/season';
@@ -7,187 +7,239 @@ import { TradeOfferCard } from './league';
 import type { Player, TradeOffer } from '../../core/types';
 import { capHit, capSpace, money, yearsLeft } from '../../core/contracts';
 import { TradeAlert } from '../tradealert';
-import { evaluateTrade, executeTrade, noteRejection, patience, pickLabel, pickTradeValue, pickValue, playerTradeValue, projectedSlot, whatWouldItTake } from '../../core/trade';
+import { evaluateTrade, executeTrade, noteRejection, patience, pickLabel, pickTradeValue, pickValue, projectedSlot, tradable, whatWouldItTake } from '../../core/trade';
+import { gmOf, gmLine, readOf, READ_LABEL, noteFollowup, clearFollowup, dueFollowups, tradeDraft, setTradeDraft, type Read } from '../../core/tradetalk';
+import { hash } from '../../core/rng';
+import './tradecenter.css';
 import { positionNeeds } from '../../core/draft';
 import { POS_ORDER } from '../../core/ratings';
-// ---- trade center ------------------------------------------------------------------------
+// ---- the trade center -------------------------------------------------------------------
 type Side = { players: string[]; picks: string[] };
 const EMPTY: Side = { players: [], picks: [] };
+type LG = NonNullable<ReturnType<typeof useApp>['league']>;
+
+/** The Trade Center: three ways in (find a player, shop your own, sit down at the table),
+ *  what's waiting on you, and the league's GMs to call. */
+export function TradeCenter() {
+  const L = useApp().league!;
+  const offers = L.inbox.filter(m => m.action?.kind === 'trade' && !m.read).length;
+  const calls = dueFollowups(L).length;
+  const deadline = L.phase === 'regular' ? (L.week > L.tradeDeadlineWeek ? 'The deadline has passed' : `Deadline after week ${L.tradeDeadlineWeek}`) : L.phase === 'draft' ? 'Draft day: picks are live' : 'Offseason trading is open';
+  const others = Object.keys(L.teams).filter(t => t !== L.user).sort((a, b) => L.teams[a].name.localeCompare(L.teams[b].name));
+  const tiles: { id: 'finder' | 'block' | 'trade'; t: string; d: string; icon: string }[] = [
+    { id: 'finder', t: 'Trade Finder', d: 'Search every roster in the league and go after the player you want.', icon: '⌕' },
+    { id: 'block', t: 'Trade Block', d: 'Shop your players and see which teams come calling with packages.', icon: '▤' },
+    { id: 'trade', t: 'Make a Trade', d: 'Sit down with any GM and build a deal across the table.', icon: '⇄' },
+  ];
+  return (
+    <div className="tc">
+      <header className="tc-head"><div><div className="tc-kicker">Front office</div><h1>Trade Center</h1></div><span className={`tc-dl${L.phase === 'regular' && L.week > L.tradeDeadlineWeek ? ' closed' : ''}`}>{deadline}</span></header>
+      <div className="tc-tiles">{tiles.map((x, i) => (
+        <button key={x.id} className="tc-tile" style={{ animationDelay: `${i * 0.09}s` }} onClick={() => app.go({ id: x.id } as Parameters<typeof app.go>[0])}>
+          <i className="tc-ic">{x.icon}</i><b>{x.t}</b><span>{x.d}</span><em>Open ▸</em>
+        </button>))}</div>
+      {(offers > 0 || calls > 0) && <button className="tc-alert" onClick={() => app.go({ id: 'offers' })}><b>{offers + calls}</b><span>{offers ? `${offers} offer${offers > 1 ? 's' : ''} waiting on you` : ''}{offers && calls ? ' · ' : ''}{calls ? `${calls} GM call-back${calls > 1 ? 's' : ''} in the weekly hub` : ''}</span><em>Review ▸</em></button>}
+      <h3 className="tc-sub">The league's general managers</h3>
+      <div className="tc-gms">{others.map((t, i) => { const g = gmOf(L, t), tm = L.teams[t]; return (
+        <button key={t} className="tc-gm" style={{ '--tc': tm.colors[0], animationDelay: `${0.2 + i * 0.015}s` } as React.CSSProperties} onClick={() => app.go({ id: 'trade', team: t })}>
+          <Logo team={tm} size={34} /><div><b>{g.name}</b><span>{tm.nick} · {g.label}</span></div>
+        </button>); })}</div>
+    </div>
+  );
+}
+
+/** A draft pick as a card: an original emblem (shield, star, round), the year, and the
+ *  original team's colour. */
+export function PickEmblem({ L, k, size = 46 }: { L: LG; k: { round: number; season: number; orig: string }; size?: number }) {
+  const t = L.teams[k.orig];
+  const c1 = t?.colors[0] ?? '#1d3b8a', c2 = t?.colors[1] ?? '#ffd23f';
+  return (
+    <svg className="pk-em" width={size} height={size * 1.18} viewBox="0 0 100 118" aria-hidden>
+      <defs><linearGradient id={`pk${k.round}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1a2233" /><stop offset="1" stopColor="#0a0e16" /></linearGradient>
+        <linearGradient id="pkgold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff1b8" /><stop offset=".45" stopColor="#f2c230" /><stop offset="1" stopColor="#a87a10" /></linearGradient></defs>
+      <path d="M50 3 L94 18 V60 C94 88 72 106 50 115 C28 106 6 88 6 60 V18 Z" fill={`url(#pk${k.round})`} stroke="url(#pkgold)" strokeWidth="5" />
+      <path d="M14 24 L50 12 L86 24 V30 L50 18 L14 30 Z" fill={c1} opacity=".95" />
+      <path d="M14 30 L50 18 L86 30 V34 L50 22 L14 34 Z" fill={c2} opacity=".9" />
+      <path d="M50 30 l3.5 7 7.7 1.1 -5.6 5.4 1.3 7.6 -6.9 -3.6 -6.9 3.6 1.3 -7.6 -5.6 -5.4 7.7 -1.1 Z" fill="url(#pkgold)" />
+      <text x="50" y="86" textAnchor="middle" fontFamily="var(--head), Impact, sans-serif" fontWeight="900" fontSize="34" fill="url(#pkgold)">{k.round}</text>
+      <text x="50" y="102" textAnchor="middle" fontFamily="var(--ui), sans-serif" fontWeight="800" fontSize="10" letterSpacing="1.5" fill="#cfd6e3">{`'${String(k.season).slice(2)} RD`}</text>
+    </svg>
+  );
+}
+const projText = (n: number) => (n <= 10 ? 'Projected top 10' : n <= 20 ? 'Projected mid round' : 'Projected late round');
+
+type Line = { who: 'you' | 'gm'; text: string; read?: Read; counter?: TradeOffer };
 /**
- * The trade table: both front offices face off across the deal. A tug-of-war gauge
- * shows how their side values it as you build, the tray shows exactly what moves
- * with cap impact for both teams, and each team's assets sit below.
+ * The trade room: you on the left, them on the right, their GM in the middle. You build a
+ * deal and propose it; he answers in his own voice with how close it is (never a number)
+ * and, when he can, a counter. Lowball him and he tires of you; walk away from a close
+ * counter and he may call back next week.
  */
 export function TradeScreen({ team, want }: { team?: string; want?: string }) {
   const L = useApp().league!;
   const others = Object.keys(L.teams).filter(t => t !== L.user).sort((a, b) => L.teams[a].name.localeCompare(L.teams[b].name));
-  const [other, setOther] = useState(team && team !== L.user ? team : others[0]);
-  const [give, setGive] = useState<Side>(EMPTY);
-  const [get, setGet] = useState<Side>({ players: want ? [want] : [], picks: [] });
-  const [msg, setMsg] = useState('');
+  const draft = tradeDraft(L);
+  const [other, setOther] = useState(team && team !== L.user ? team : draft?.to ?? others[0]);
+  const [give, setGive] = useState<Side>(draft && draft.to === other ? draft.give : EMPTY);
+  const [get, setGet] = useState<Side>(draft && draft.to === other ? draft.get : { players: want ? [want] : [], picks: [] });
+  useEffect(() => { if (draft) setTradeDraft(L, undefined); }, []);
+  const [log, setLog] = useState<Line[]>([]);
   const [done, setDone] = useState<TradeOffer | null>(null);
-  const [counter, setCounter] = useState<TradeOffer | null>(null);
   const [shake, setShake] = useState(0);
   const offer: TradeOffer = { from: L.user, to: other, give, get };
-  const verdict = evaluateTrade(L, offer);
   const any = give.players.length + give.picks.length + get.players.length + get.picks.length > 0;
-  const margin = { Rookie: 1.0, Pro: 1.1, 'All-Madden': 1.22 }[L.difficulty];
-  // Gauge: 0 = they laugh, 0.5 = their asking line, 1 = they jump at it.
-  const g = !any ? 0.5 : Math.max(0.02, Math.min(0.98, 0.5 + Math.log(Math.max(0.05, verdict.ratio) / margin) * 0.9));
+  const gm = gmOf(L, other), tired = patience(L, other);
+  const closed = tired >= 4;
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }); }, [log.length]);
   const toggle = (side: 'give' | 'get', kind: 'players' | 'picks', id: string) => {
     const [cur, set] = side === 'give' ? [give, setGive] : [get, setGet];
     set({ ...cur, [kind]: cur[kind].includes(id) ? cur[kind].filter(x => x !== id) : [...cur[kind], id] });
-    setMsg(''); setCounter(null);
   };
-  const switchTeam = (t: string) => { setOther(t); setGet(EMPTY); setMsg(''); setCounter(null); };
-  const cycle = (d: number) => switchTeam(others[(others.indexOf(other) + d + others.length) % others.length]);
+  const switchTeam = (t: string) => { setOther(t); setGive(EMPTY); setGet(EMPTY); setLog([]); };
   const hits = (ids: string[]) => ids.reduce((a, id) => a + capHit(L.players[id].contract, L.season), 0);
   const myCapAfter = capSpace(L, L.user) + hits(give.players) - hits(get.players);
   const theirCapAfter = capSpace(L, other) - hits(give.players) + hits(get.players);
+  const seed = () => (hash(`${other}-${L.week}-${log.length}`) >>> 0);
+  const finish = (o: TradeOffer) => { executeTrade(L, o); clearFollowup(L, o.to); setDone(o); setGive(EMPTY); setGet(EMPTY); app.touch(); };
   const propose = () => {
     const v = evaluateTrade(L, offer, true);
-    if (!v.accept) {
-      // A real no: the front office remembers, and may come back with a counter.
-      if (!/cap|deadline/.test(v.reason)) noteRejection(L, other);
-      setShake(n => n + 1); setMsg(v.reason); setCounter(v.counter ?? null); app.touch(); return;
-    }
-    executeTrade(L, offer);
-    setDone(offer); setCounter(null);
-    setGive(EMPTY); setGet(EMPTY); setMsg(''); app.touch();
+    const you: Line = { who: 'you', text: `${describeSide(L, give)} for ${describeSide(L, get)}.` };
+    if (/cap|deadline/.test(v.reason) && !v.accept) { setLog(l => [...l, you, { who: 'gm', text: v.reason }]); setShake(n => n + 1); return; }
+    const margin = v.margin ?? 1.1;
+    const read = readOf(v.ratio, margin, v.accept);
+    if (v.accept) { setLog(l => [...l, you, { who: 'gm', text: gmLine(gm, 'deal', tired, false, seed()), read }]); setTimeout(() => finish(offer), 900); return; }
+    noteRejection(L, other);
+    if (v.counter) noteFollowup(L, other, v.counter);
+    setLog(l => [...l, you, { who: 'gm', text: gmLine(gm, read, tired + 1, !!v.counter, seed()), read, counter: v.counter }]);
+    setShake(n => n + 1); app.touch();
   };
-  const takeCounter = () => {
-    if (!counter) return;
-    const v = evaluateTrade(L, counter);
-    if (!v.accept) { setMsg(v.reason); setCounter(null); return; }
-    executeTrade(L, counter); setDone(counter); setCounter(null); setGive(EMPTY); setGet(EMPTY); setMsg(''); app.touch();
-  };
-  const mood = patience(L, other);
   const ask = () => {
     const t = get.players[0];
-    if (!t) { setMsg('Select one of their players first.'); return; }
+    if (!t) { setLog(l => [...l, { who: 'gm', text: `Which of my guys are you asking about? Put him on the table.` }]); return; }
     const o = whatWouldItTake(L, L.user, other, t);
-    if (o) { setGive(o.give); setMsg('Their front office came back with this.'); } else setMsg('You do not have the assets to get that done.');
+    if (o) { setGive(o.give); setLog(l => [...l, { who: 'you', text: `What would it take to get ${L.players[t].ln}?` }, { who: 'gm', text: `For ${L.players[t].ln}? I'd want ${describeSide(L, o.give)}.` }]); }
+    else setLog(l => [...l, { who: 'you', text: `What would it take to get ${L.players[t].ln}?` }, { who: 'gm', text: `Honestly? You don't have what it would take.` }]);
   };
+  const takeCounter = (c: TradeOffer) => {
+    const v = evaluateTrade(L, c);
+    if (!v.accept) { setLog(l => [...l, { who: 'gm', text: `That offer's gone. Things changed.` }]); return; }
+    setLog(l => [...l, { who: 'you', text: `We'll take your counter.` }, { who: 'gm', text: gmLine(gm, 'deal', 0, false, seed()), read: 'deal' }]);
+    setTimeout(() => finish(c), 900);
+  };
+  const lastRead = [...log].reverse().find(x => x.read)?.read;
+  const tm = L.teams[other];
   return (
-    <div className="grid trade">
-      {/* ---- face-off header ---- */}
-      <div className="tt-head">
-        <TeamPlate L={L} abbr={L.user} side="left" capAfter={any ? myCapAfter : undefined} />
-        <div className="tt-mid">
-          <div className="tt-vs">VS</div>
-          <div key={shake} className={`tt-gauge${shake ? ' shake' : ''}`}>
-            <div className="tt-track"><i className="tt-line" /><b style={{ left: `${g * 100}%` }} /></div>
-            <div className="row small" style={{ justifyContent: 'space-between' }}><span className="mute">Insulting</span><span className="mute">Fair</span><span className="mute">Steal for them</span></div>
+    <div className="tr2">
+      <header className="tr2-top">
+        <button className="btn ghost sm" onClick={() => app.go({ id: 'tradecenter' })}>◂ Trade Center</button>
+        <h1>Trade Room</h1>
+        <div className="tr2-strip">{others.map(t => <button key={t} className={t === other ? 'on' : ''} onClick={() => switchTeam(t)} title={L.teams[t].name}><Logo team={L.teams[t]} size={26} /></button>)}</div>
+      </header>
+      <div className="tr2-table">
+        <section className="tr2-side me"><TeamHead L={L} abbr={L.user} you capAfter={any ? myCapAfter : undefined} /><Tray L={L} title="You send" side={give} onRemove={(k, id) => toggle('give', k, id)} /></section>
+        <section className="tr2-gm" style={{ '--tc': tm.colors[0], '--tc2': tm.colors[1] ?? '#fff' } as React.CSSProperties}>
+          <div className="tr2-gmh">
+            <div className="tr2-av">{gm.name.split(' ').map(x => x[0]).join('')}</div>
+            <div><b>{gm.name}</b><span>General Manager · {tm.nick}</span><em className={`st-${gm.style}`}>{gm.label}</em></div>
           </div>
-          <div className={`tt-verdict ${!any ? '' : verdict.accept ? 'good' : g > 0.42 ? 'warn' : 'bad'}`}>{msg || (any ? verdict.reason : 'Build a deal from the boards below.')}</div>
-          <div className="row" style={{ justifyContent: 'center', gap: 8 }}>
-            <button className="btn sm" onClick={ask}>What Would It Take?</button>
-            <button className="btn sm ghost" disabled={!any} onClick={() => { setGive(EMPTY); setGet(EMPTY); setMsg(''); }}>Clear</button>
+          <p className="tr2-blurb">{gm.blurb}</p>
+          <div className={`tr2-read r-${lastRead ?? 'none'}`}>
+            <span>His read</span>
+            <div className="tr2-pips">{(['cold', 'listening', 'interested', 'close', 'deal'] as const).map((r, i) => <i key={r} className={lastRead && i <= ['cold', 'listening', 'interested', 'close', 'deal'].indexOf(lastRead) ? 'on' : ''} />)}</div>
+            <b>{lastRead ? READ_LABEL[lastRead] : 'Make him an offer'}</b>
           </div>
-          {counter && <div className="tt-counter">
-            <span>Their counter</span>
-            <div><b>You send</b>{describeSide(L, counter.give)}</div>
-            <div><b>You get</b>{describeSide(L, counter.get)}</div>
-            <div className="row" style={{ gap: 6, marginTop: 6 }}><button className="btn sm primary" onClick={takeCounter}>Accept Counter</button><button className="btn sm ghost" onClick={() => { setGive(counter.give); setGet(counter.get); setCounter(null); }}>Load to Table</button></div>
-          </div>}
-          {mood > 0 && <div className={`tt-mood m${Math.min(3, mood)}`}>{mood >= 3 ? 'Their GM is losing patience' : mood === 2 ? 'Their GM is getting annoyed' : 'Their GM said no once this week'}</div>}
-          <button className={`btn primary big tt-propose${verdict.accept && any ? ' ready' : ''}`} disabled={!any} onClick={propose}>Propose Trade</button>
-          {L.phase === 'regular' && <div className="small mute c">Deadline after week {L.tradeDeadlineWeek}</div>}
-        </div>
-        <TeamPlate L={L} abbr={other} side="right" capAfter={any ? theirCapAfter : undefined} onPrev={() => cycle(-1)} onNext={() => cycle(1)} />
+          <div className="tr2-log" ref={logRef}>
+            {!log.length && <p className="tr2-hint">{tired >= 2 ? `He's already turned you down ${tired} times this week.` : `Put players and picks on the table, then make your pitch.`}</p>}
+            {log.map((x, i) => (
+              <div key={i} className={`tr2-msg ${x.who}`}>
+                <em>{x.who === 'gm' ? gm.name.split(' ')[0] : 'You'}</em><p>{x.text}</p>
+                {x.counter && i === log.length - 1 && <div className="tr2-ctr">
+                  <div><b>You send</b><span>{describeSide(L, x.counter.give)}</span></div>
+                  <div><b>You get</b><span>{describeSide(L, x.counter.get)}</span></div>
+                  <div className="tr2-ctr-b"><button className="btn sm primary" onClick={() => takeCounter(x.counter!)}>Accept</button><button className="btn sm" onClick={() => { setGive(x.counter!.give); setGet(x.counter!.get); }}>Load to table</button></div>
+                </div>}
+              </div>))}
+          </div>
+          <div key={shake} className={`tr2-acts${shake ? ' shake' : ''}`}>
+            <button className="btn primary big" disabled={!any || closed} onClick={propose}>{closed ? 'He\'s not taking your calls' : 'Propose'}</button>
+            <div className="row" style={{ gap: 6, justifyContent: 'center' }}>
+              <button className="btn sm" disabled={closed} onClick={ask}>What would it take?</button>
+              <button className="btn sm ghost" disabled={!any} onClick={() => { setGive(EMPTY); setGet(EMPTY); }}>Clear table</button>
+            </div>
+          </div>
+          {L.phase === 'regular' && <div className="tr2-dl">Deadline after week {L.tradeDeadlineWeek}</div>}
+        </section>
+        <section className="tr2-side them"><TeamHead L={L} abbr={other} capAfter={any ? theirCapAfter : undefined} /><Tray L={L} title="You receive" side={get} onRemove={(k, id) => toggle('get', k, id)} /></section>
       </div>
-      <div className="tt-strip">{others.map(t => <button key={t} className={t === other ? 'on' : ''} onClick={() => switchTeam(t)} title={L.teams[t].name}><Logo team={L.teams[t]} size={28} /></button>)}</div>
-
-      {/* ---- the deal tray ---- */}
-      <div className="tt-tray">
-        <Tray L={L} title="You Send" side={give} forTeam={other} onRemove={(k, id) => toggle('give', k, id)} />
-        <div className="tt-arrows"><span>⇄</span></div>
-        <Tray L={L} title="You Receive" side={get} forTeam={L.user} onRemove={(k, id) => toggle('get', k, id)} />
+      <div className="tr2-boards">
+        <Assets L={L} abbr={L.user} sel={give} onToggle={(k, id) => toggle('give', k, id)} />
+        <Assets L={L} abbr={other} sel={get} onToggle={(k, id) => toggle('get', k, id)} />
       </div>
-
-      {/* ---- asset boards ---- */}
-      <div className="grid g2">
-        <Assets L={L} abbr={L.user} sel={give} valueFor={other} onToggle={(k, id) => toggle('give', k, id)} />
-        <Assets L={L} abbr={other} sel={get} valueFor={L.user} onToggle={(k, id) => toggle('get', k, id)} />
-      </div>
-
       {done && <TradeAlert L={L} offer={done} onClose={() => setDone(null)} />}
     </div>
   );
 }
 
-const describeSide = (L: NonNullable<ReturnType<typeof useApp>['league']>, s: Side) =>
-  [...s.players.map(id => `${L.players[id].pos} ${L.players[id].fn[0]}. ${L.players[id].ln}`), ...s.picks.map(id => pickLabel(L, L.picks.find(k => k.id === id)!))].join(', ') || 'Nothing';
+const describeSide = (L: LG, s: Side) =>
+  [...s.players.map(id => `${L.players[id].pos} ${L.players[id].fn[0]}. ${L.players[id].ln}`), ...s.picks.map(id => pickLabel(L, L.picks.find(k => k.id === id)!))].join(', ') || 'nothing';
 
-function TeamPlate({ L, abbr, side, capAfter, onPrev, onNext }: { L: NonNullable<ReturnType<typeof useApp>['league']>; abbr: string; side: 'left' | 'right'; capAfter?: number; onPrev?: () => void; onNext?: () => void }) {
+function TeamHead({ L, abbr, you, capAfter }: { L: LG; abbr: string; you?: boolean; capAfter?: number }) {
   const t = L.teams[abbr];
   const st = standings(L)[abbr];
   const needs = Object.entries(positionNeeds(L, abbr)).filter(([p]) => !['FB', 'LS', 'K', 'P'].includes(p)).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([p]) => p);
   return (
-    <div className={`tt-plate ${side}`} style={{ '--tc': t.colors[0], '--tc2': t.colors[1] } as React.CSSProperties}>
-      <div className="tt-logo"><Logo team={t} size={92} /></div>
-      <div className="tt-info">
-        <div className="up">{side === 'left' ? 'Your Team' : 'Trade Partner'} · {st.w}-{st.l}{st.t ? `-${st.t}` : ''}</div>
-        <div className="tt-name">{t.name}</div>
-        <div className="row small" style={{ gap: 8, justifyContent: side === 'right' ? 'flex-end' : undefined }}>
-          <span className={`tt-mode ${t.mode}`}>{t.mode === 'contend' ? 'Contending' : t.mode === 'rebuild' ? 'Rebuilding' : 'Balanced'}</span>
-          <span>Needs {needs.join(' · ')}</span>
-        </div>
-        <div className="small" style={{ marginTop: 4 }}>Cap {money(capSpace(L, abbr))}{capAfter !== undefined && <> → <b className={capAfter < 0 ? 'bad' : 'good'}>{money(capAfter)}</b></>}</div>
-      </div>
-      {onPrev && <div className="tt-cycle"><button className="btn sm ghost" onClick={onPrev}>◀</button><button className="btn sm ghost" onClick={onNext}>▶</button></div>}
+    <div className="tr2-th" style={{ '--tc': t.colors[0], '--tc2': t.colors[1] ?? '#fff' } as React.CSSProperties}>
+      <Logo team={t} size={54} />
+      <div><span className="up">{you ? 'Your team' : 'Trade partner'} · {st.w}-{st.l}{st.t ? `-${st.t}` : ''}</span><b>{t.name}</b>
+        <div className="tr2-tags"><i className={`tt-mode ${t.mode}`}>{t.mode === 'contend' ? 'Contending' : t.mode === 'rebuild' ? 'Rebuilding' : 'Balanced'}</i><i>Needs {needs.join(' · ')}</i></div>
+        <span className="tr2-cap">Cap space {money(capSpace(L, abbr))}{capAfter !== undefined && <> → <b className={capAfter < 0 ? 'bad' : 'good'}>{money(capAfter)}</b></>}</span></div>
     </div>
   );
 }
 
-function Tray({ L, title, side, forTeam, onRemove }: { L: NonNullable<ReturnType<typeof useApp>['league']>; title: string; side: Side; forTeam: string; onRemove: (k: 'players' | 'picks', id: string) => void }) {
+function Tray({ L, title, side, onRemove }: { L: LG; title: string; side: Side; onRemove: (k: 'players' | 'picks', id: string) => void }) {
   const players = side.players.map(id => L.players[id]);
   const picks = side.picks.map(id => L.picks.find(k => k.id === id)!).filter(Boolean);
-  const total = players.reduce((a, p) => a + playerTradeValue(L, p, forTeam), 0) + picks.reduce((a, k) => a + pickTradeValue(L, k, forTeam), 0);
   return (
-    <div className="card tt-side">
-      <div className="row"><div className="h3" style={{ margin: 0 }}>{title}</div><div className="spacer" /><span className="small dim">Value <b>{Math.round(total)}</b></span></div>
-      <div className="tt-cards">
-        {!players.length && !picks.length && <div className="tt-empty">Nothing yet</div>}
+    <div className="tr2-tray">
+      <div className="tr2-tt">{title}<span>{players.length + picks.length || ''}</span></div>
+      <div className="tr2-cards">
+        {!players.length && !picks.length && <div className="tr2-empty">Pick from the board below</div>}
         {players.map(p => (
-          <div key={p.id} className="tt-card" onClick={() => onRemove('players', p.id)} title="Remove">
-            <Face p={p} size={58} /><div style={{ minWidth: 0 }}><div className="small dim">{p.pos} · {Math.floor(p.age)} yrs</div><b>{p.fn[0]}. {p.ln}</b><div className="small mute">{money(capHit(p.contract, L.season))} × {yearsLeft(p.contract, L.season)}</div></div><Ovr v={p.ovr} /><i>×</i>
-          </div>
-        ))}
+          <div key={p.id} className="tr2-card" onClick={() => onRemove('players', p.id)} title="Take off the table">
+            <Face p={p} size={52} /><div><span>{p.pos} · {Math.floor(p.age)} yrs</span><b>{p.fn[0]}. {p.ln}</b><em>{money(capHit(p.contract, L.season))} × {yearsLeft(p.contract, L.season)}</em></div><Ovr v={p.ovr} /><i>×</i>
+          </div>))}
         {picks.map(k => (
-          <div key={k.id} className="tt-card pick" onClick={() => onRemove('picks', k.id)} title="Remove">
-            <div className="tt-pick"><span>R{k.round}</span></div><div><b>{pickLabel(L, k)}</b><div className="small mute">Proj. #{projectedSlot(L, k)} · value {Math.round(pickTradeValue(L, k, forTeam))}</div></div><i>×</i>
-          </div>
-        ))}
+          <div key={k.id} className="tr2-card pick" onClick={() => onRemove('picks', k.id)} title="Take off the table">
+            <PickEmblem L={L} k={k} size={40} /><div><span>{k.season} draft</span><b>{pickLabel(L, k)}</b><em>{projText(projectedSlot(L, k))}</em></div><i>×</i>
+          </div>))}
       </div>
     </div>
   );
 }
 
-function Assets({ L, abbr, sel, valueFor, onToggle }: { L: NonNullable<ReturnType<typeof useApp>['league']>; abbr: string; sel: Side; valueFor: string; onToggle: (k: 'players' | 'picks', id: string) => void }) {
+function Assets({ L, abbr, sel, onToggle }: { L: LG; abbr: string; sel: Side; onToggle: (k: 'players' | 'picks', id: string) => void }) {
   const [tab, setTab] = useState<'Players' | 'Picks'>('Players');
   const [pos, setPos] = useState('All');
   const [q, setQ] = useState('');
   const players = Object.values(L.players).filter(p => p.team === abbr && (p.status === 'ACT' || p.status === 'IR') && (pos === 'All' || p.pos === pos) && (!q || `${p.fn} ${p.ln}`.toLowerCase().includes(q.toLowerCase()))).sort((a, b) => b.ovr - a.ovr);
-  const picks = L.picks.filter(k => k.owner === abbr).sort((a, b) => a.season - b.season || a.round - b.round);
-  const maxV = Math.max(1, ...players.map(p => playerTradeValue(L, p, valueFor)));
+  const picks = L.picks.filter(k => k.owner === abbr && tradable(L, k)).sort((a, b) => a.season - b.season || a.round - b.round);
   return (
-    <div className="card" style={{ minWidth: 0 }}>
-      <div className="row"><Logo team={L.teams[abbr]} size={26} /><div className="h3" style={{ margin: 0 }}>{L.teams[abbr].nick}</div><div className="spacer" />
-        {(['Players', 'Picks'] as const).map(t => <span key={t} className={`chip${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>{t}</span>)}</div>
+    <div className="tr2-board">
+      <div className="tr2-bh"><Logo team={L.teams[abbr]} size={24} /><b>{L.teams[abbr].nick}</b><div className="tr2-seg">{(['Players', 'Picks'] as const).map(t => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</div></div>
       {tab === 'Players' ? <>
-        <div className="row" style={{ gap: 4, margin: '10px 0', flexWrap: 'wrap' }}>{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} style={{ padding: '2px 7px' }} onClick={() => setPos(p)}>{p}</span>)}</div>
-        <input placeholder="Search players" value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
-        <div className="scroll" style={{ maxHeight: 420 }}>{players.map(p => { const v = playerTradeValue(L, p, valueFor); const on = sel.players.includes(p.id); return (
-          <div key={p.id} className={`li tt-row${on ? ' on' : ''}`} onClick={() => onToggle('players', p.id)}>
-            <PlayerCell p={p} sub={`${p.pos} · ${Math.floor(p.age)} yrs · ${money(capHit(p.contract, L.season))} × ${yearsLeft(p.contract, L.season)}`} /><div className="spacer" />
-            <span className="tt-val"><b style={{ width: `${(v / maxV) * 100}%` }} /></span><span className="small mute" style={{ width: 34, textAlign: 'right' }}>{Math.round(v)}</span><Ovr v={p.ovr} />
+        <div className="tr2-pos">{['All', ...POS_ORDER].map(p => <button key={p} className={pos === p ? 'on' : ''} onClick={() => setPos(p)}>{p}</button>)}</div>
+        <input className="tr2-q" placeholder="Search players" value={q} onChange={e => setQ(e.target.value)} />
+        <div className="tr2-list">{players.map(p => { const on = sel.players.includes(p.id); return (
+          <div key={p.id} className={`tr2-row${on ? ' on' : ''}`} onClick={() => onToggle('players', p.id)}>
+            <PlayerCell p={p} sub={`${p.pos} · ${Math.floor(p.age)} yrs · ${money(capHit(p.contract, L.season))} × ${yearsLeft(p.contract, L.season)}`} /><div className="spacer" /><Ovr v={p.ovr} /><span className="tr2-add">{on ? '✓' : '+'}</span>
           </div>); })}</div>
       </> : (
-        <div className="tt-picks">{picks.map(k => (
-          <div key={k.id} className={`tt-pickrow${sel.picks.includes(k.id) ? ' on' : ''}`} onClick={() => onToggle('picks', k.id)}>
-            <div className="tt-pick"><span>R{k.round}</span></div><div><b>{pickLabel(L, k)}</b><div className="small mute">Projected #{projectedSlot(L, k)} · {Math.round(pickValue(projectedSlot(L, k)))} chart pts</div></div><div className="spacer" /><b className="num">{Math.round(pickTradeValue(L, k, valueFor))}</b>
-          </div>))}{!picks.length && <div className="small dim">No picks.</div>}</div>
+        <div className="tr2-list">{picks.map(k => { const on = sel.picks.includes(k.id); return (
+          <div key={k.id} className={`tr2-row pick${on ? ' on' : ''}`} onClick={() => onToggle('picks', k.id)}>
+            <PickEmblem L={L} k={k} size={34} /><div><b>{pickLabel(L, k)}</b><div className="small mute">{projText(projectedSlot(L, k))}</div></div><div className="spacer" /><span className="tr2-add">{on ? '✓' : '+'}</span>
+          </div>); })}{!picks.length && <div className="small dim">No picks.</div>}</div>
       )}
     </div>
   );
@@ -209,12 +261,12 @@ export function TradeBlock() {
       {listed.map(p => (
         <div key={p.id} className="card">
           <h3>{p.pos} {p.fn} {p.ln}<span className="more" onClick={() => toggle(p.id)}>Remove</span></h3>
-          <div className="row"><PlayerCell p={p} /><Ovr v={p.ovr} /><span className="small dim">{Math.floor(p.age)} yrs · {money(capHit(p.contract, L.season))} × {yearsLeft(p.contract, L.season)} · value {Math.round(playerTradeValue(L, p))}</span></div>
+          <div className="row"><PlayerCell p={p} /><Ovr v={p.ovr} /><span className="small dim">{Math.floor(p.age)} yrs · {money(capHit(p.contract, L.season))} × {yearsLeft(p.contract, L.season)}</span></div>
           <div className="grid g3" style={{ marginTop: 12 }}>{interest(p).map(({ t, offer }) => (
             <div key={t} className="card flat" style={{ background: 'var(--panel2)' }}>
               <div className="row"><Logo team={L.teams[t]} size={30} /><b className="h3">{L.teams[t].nick}</b></div>
               <div className="small" style={{ margin: '8px 0' }}>{[...offer!.give.players.map(id => `${L.players[id].pos} ${L.players[id].ln} (${L.players[id].ovr})`), ...offer!.give.picks.map(id => pickLabel(L, L.picks.find(k => k.id === id)!))].join(', ')}</div>
-              <button className="btn sm primary" onClick={() => { const o: TradeOffer = { from: L.user, to: t, give: { players: [p.id], picks: [] }, get: offer!.give }; const v = evaluateTrade(L, o); if (v.accept || v.ratio > 0.9) { executeTrade(L, o); L.block = block.filter(x => x !== p.id); app.toast('Trade completed'); app.touch(); } else app.toast(v.reason); }}>Accept Package</button>
+              <button className="btn sm primary" onClick={() => { const o: TradeOffer = { from: L.user, to: t, give: { players: [p.id], picks: [] }, get: offer!.give }; const v = evaluateTrade(L, o); if (v.accept || v.ratio > (v.margin ?? 1.1) * 0.9) { executeTrade(L, o); L.block = block.filter(x => x !== p.id); app.toast('Trade completed'); app.touch(); } else app.toast(v.reason); }}>Accept Package</button>
             </div>
           ))}{!interest(p).length && <div className="small mute">No serious interest right now.</div>}</div>
         </div>
@@ -222,7 +274,7 @@ export function TradeBlock() {
       <div className="card"><h3>Add Players to the Block</h3>
         <Table rows={mine.filter(p => !block.includes(p.id))} rowKey={p => p.id} initial="ovr" onRow={p => toggle(p.id)} cols={[
           { k: 'p', h: 'Player', get: p => <PlayerCell p={p} /> }, { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
-          { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' }, { k: 'v', h: 'Trade Value', get: p => Math.round(playerTradeValue(L, p)), sort: p => playerTradeValue(L, p), cls: 'r' },
+          { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
           { k: 'a', h: '', get: () => <span className="slab">+ Block</span> },
         ]} />
       </div>
@@ -245,7 +297,6 @@ export function TradeFinder() {
         { k: 'p', h: 'Player', get: p => <PlayerCell p={p} /> }, { k: 't', h: 'Team', get: p => <Logo team={L.teams[p.team]} size={24} />, sort: p => p.team },
         { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' }, { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
         { k: 'cap', h: 'Cap Hit', get: p => money(capHit(p.contract, L.season)), sort: p => capHit(p.contract, L.season), cls: 'r' }, { k: 'y', h: 'Yrs', get: p => yearsLeft(p.contract, L.season), cls: 'c' },
-        { k: 'v', h: 'Value', get: p => Math.round(playerTradeValue(L, p, L.user)), sort: p => playerTradeValue(L, p, L.user), cls: 'r' },
         { k: 'm', h: 'Their Mode', get: p => L.teams[p.team].mode },
       ]} />
     </div>
@@ -279,7 +330,7 @@ export function PickChart() {
   const L = useApp().league!;
   const W = 760, H = 240;
   const pts = Array.from({ length: 224 }, (_, i) => `${(i / 223) * W},${H - (pickValue(i + 1) / 3000) * H}`).join(' ');
-  const mine = L.picks.filter(k => k.owner === L.user).sort((a, b) => a.season - b.season || a.round - b.round);
+  const mine = L.picks.filter(k => k.owner === L.user && tradable(L, k)).sort((a, b) => a.season - b.season || a.round - b.round);
   return (
     <div className="grid">
       <div><div className="page-title">Pick Value Chart</div><div className="page-sub">The draft-value scale every trade uses (Jimmy Johnson points). Future picks are discounted and projected from the original team's strength.</div></div>

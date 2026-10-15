@@ -95,7 +95,7 @@ export interface CustomDefPlay { name: string; set: 'Base' | 'Nickel' | 'Dime' |
 /** A playbook: folders of plays (one per formation, plus any the user makes). */
 export interface Playbook { id: string; name: string; side: 'off' | 'def'; folders: { name: string; set: string; plays: string[] }[]; /** Install revision: new concepts are added to old saves once. */ rev?: number }
 
-export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number }
+export interface Pick { id: string; season: number; round: number; orig: string; owner: string; no?: number; /** Already spent on a player. */ used?: boolean }
 
 export interface Coach {
   name: string;

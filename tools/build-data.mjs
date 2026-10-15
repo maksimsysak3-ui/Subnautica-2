@@ -467,7 +467,8 @@ for (const [pos, list] of Object.entries(byPos)) {
 // Ratings adjusters: hand overrides by full name, like Madden's weekly updates.
 const OVERRIDES = JSON.parse(readFileSync('tools/overrides.json', 'utf8'));
 for (const p of players) {
-  const o = OVERRIDES[`${p._row.full_name}`] ?? OVERRIDES[`${p.fn} ${p.ln}`];
+  // "Name|POS" wins over a bare name, so two players who share a name can't both get it.
+  const o = OVERRIDES[`${p._row.full_name}|${p.pos}`] ?? OVERRIDES[`${p.fn} ${p.ln}|${p.pos}`] ?? OVERRIDES[`${p._row.full_name}`] ?? OVERRIDES[`${p.fn} ${p.ln}`];
   if (typeof o === 'number') p.ovr = o;
 }
 

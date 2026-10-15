@@ -12,7 +12,7 @@ import { RosterScreen, PlayerScreen, TeamScreen } from './screens/team';
 import { DepthScreen } from './screens/lineup';
 import { ScheduleScreen, StandingsScreen, StatsScreen, NewsScreen, BoxScreen, HistoryScreen, InboxScreen } from './screens/league';
 import { FreeAgencyScreen, ResignScreen, CapScreen, CoachScreen, PlanScreen } from './screens/office';
-import { TradeScreen, TradeBlock, TradeFinder, TradeOffers, TradeHistory, PickChart } from './screens/trades';
+import { TradeScreen, TradeBlock, TradeFinder, TradeOffers, TradeHistory, PickChart, TradeCenter } from './screens/trades';
 import { TeamStatsScreen, LeagueTeamStats, PowerRankings, ProgressionScreen } from './screens/teamstats';
 import { DraftScreen } from './screens/draft';
 import { AwardsScreen } from './screens/awards';
@@ -39,15 +39,17 @@ type Id = Screen['id'];
 export const TABS: { label: string; subs: [Id, string][] }[] = [
   { label: 'Gameday', subs: [['gameday', 'Matchup'], ['plan', 'Game Plan'], ['schedule', 'Schedule']] },
   { label: 'Weekly Hub', subs: [['hub', 'Weekly Hub'], ['inbox', 'Inbox'], ['news', 'News Center']] },
-  { label: 'Manage Roster', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['camp', 'Training Camp'], ['trade', 'Trade Center'], ['block', 'Trade Block'], ['finder', 'Trade Finder'], ['offers', 'Offers'], ['resign', 'Re-sign'], ['cap', 'Salary Cap'], ['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
+  { label: 'Manage Roster', subs: [['roster', 'Roster'], ['depth', 'Depth Chart'], ['camp', 'Training Camp'], ['tradecenter', 'Trade Center'], ['resign', 'Re-sign'], ['cap', 'Salary Cap'], ['fa', 'Free Agency'], ['draft', 'Draft Room'], ['scouting', 'Scouting']] },
   { label: 'Coach Central', subs: [['coach', 'Coach Tree'], ['practice', 'Practice'], ['playbook', 'Playbook'], ['staff', 'Coaching Staff'], ['facilities', 'Facilities'], ['progress', 'Progression'], ['teamstats', 'Team Stats']] },
-  { label: 'League', subs: [['standings', 'Standings'], ['bracket', 'Playoff Bracket'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['tradehist', 'Transactions'], ['chart', 'Pick Value'], ['history', 'History']] },
+  { label: 'League', subs: [['standings', 'Standings'], ['bracket', 'Playoff Bracket'], ['injuries', 'Injury Report'], ['stats', 'Player Stats'], ['lgteamstats', 'Team Stats'], ['power', 'Power Rankings'], ['awards', 'Awards'], ['tradehist', 'Transactions'], ['history', 'History']] },
   { label: 'Options', subs: [['options', 'Options']] },
 ];
 /** Screens that take the whole width: the side rail becomes a strip of tabs above them. */
 const FULL = new Set<Id>(['depth', 'trade']);
 
-const tabOf = (id: Id) => TABS.findIndex(t => t.subs.some(([s]) => s === id));
+/** The trade screens live under the one Trade Center tab. */
+const TRADE_SCREENS = new Set<Id>(['tradecenter', 'trade', 'block', 'finder', 'offers']);
+const tabOf = (id: Id) => TABS.findIndex(t => t.subs.some(([s]) => s === id || (s === 'tradecenter' && TRADE_SCREENS.has(id))));
 
 export function App() {
   const s = useApp();
@@ -68,7 +70,7 @@ export function App() {
   const ti = tabOf(sc.id);
   const tab = ti >= 0 ? ti : (s.back.map(b => tabOf(b.id)).reverse().find(i => i >= 0) ?? 0);
   const unread = L.inbox.filter(m => !m.read).length;
-  const offers = L.inbox.filter(m => m.action?.kind === 'trade').length;
+  const offers = L.inbox.filter(m => m.action?.kind === 'trade' && !m.read).length;
   return (
     <>
       <div className="backdrop" />
@@ -77,8 +79,8 @@ export function App() {
       <div className={`workspace${FULL.has(sc.id) ? ' full' : ''}`}>
         <aside className={`subtabs${FULL.has(sc.id) ? ' h' : ''}`}>
           {TABS[tab].subs.map(([id, label]) => (
-            <button key={id} className={`subtab${sc.id === id ? ' on' : ''}`} onClick={() => app.go({ id } as Screen)}>
-              {label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'offers' && offers > 0 && <span className="badge">{offers}</span>}
+            <button key={id} className={`subtab${sc.id === id || (id === 'tradecenter' && TRADE_SCREENS.has(sc.id)) ? ' on' : ''}`} onClick={() => app.go({ id } as Screen)}>
+              {label}{id === 'inbox' && unread > 0 && <span className="badge">{unread}</span>}{id === 'tradecenter' && offers > 0 && <span className="badge">{offers}</span>}
             </button>
           ))}
           <WeekLine />
@@ -130,7 +132,7 @@ function TabBar({ tab, unread, offers }: { tab: number; unread: number; offers: 
       <span className="keycap" title="Previous tab">Q</span>
       {TABS.map((t, i) => (
         <button key={t.label} className={`bigtab${i === tab ? ' on' : ''}`} onClick={() => app.go({ id: t.subs[0][0] } as Screen)}>
-          {t.label}{i === 0 && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Trades' && offers > 0 && <span className="n">{offers}</span>}
+          {t.label}{i === 0 && unread > 0 && <span className="n">{unread}</span>}{t.label === 'Manage Roster' && offers > 0 && <span className="n">{offers}</span>}
         </button>
       ))}
       <span className="keycap" title="Next tab">E</span>
@@ -165,6 +167,7 @@ function Route({ sc }: { sc: Screen }) {
     case 'awards': return <AwardsScreen />;
     case 'injuries': return <InjuryScreen />;
     case 'box': return <BoxScreen gid={sc.gid} />;
+    case 'tradecenter': return <TradeCenter />;
     case 'trade': return <TradeScreen team={sc.team} want={sc.want} />;
     case 'block': return <TradeBlock />;
     case 'finder': return <TradeFinder />;

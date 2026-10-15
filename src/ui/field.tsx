@@ -236,7 +236,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       // depth squash is 0.62), pulling back a touch on short screens so wideouts stay in frame.
       const S = Math.max(1, Math.min(w / (VIEW_YARDS * 16), h / (VIEW_ACROSS * 16 * 0.62)));
       const RW0 = Math.ceil(w / S), RH0 = Math.ceil(h / S);
-      const key = `${RW0}x${RH0}|${home.abbr}|${away.abbr}|${img.current ? 1 : 0}|${night ? 1 : 0}|${college ? 1 : 0}`;
+      const key = `${RW0}x${RH0}|${home.abbr}|${away.abbr}|${img.current ? 1 : 0}|${night ? 1 : 0}|${college ? 1 : 0}|${weather?.precip === 'snow' && !weather.dome ? 1 : 0}`;
       if (!stadium.current || stadium.current.key !== key) { const W0 = makeWorld(RW0, RH0); stadium.current = { c: paintStadium(W0, { home, away, logo: img.current, night: !!night, college: !!college, snow: weather?.precip === 'snow' && !weather.dome }), key, W: W0, S }; cam.current.y = -1; }
       const W = stadium.current.W;
       // --- camera: where to look and how tight

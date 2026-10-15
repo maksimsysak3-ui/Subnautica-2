@@ -95,7 +95,11 @@ export function submit(league: League, p: Player, offer: Offer, opts: { extend?:
   t.log.push({ by: 'you', text: describe(offer), offer });
   const score = offerScore(league, p, offer, league.user);
   const floor = walkAway(league, p);
-  if (score >= t.target - 0.004 && league.phase === 'freeagency' && p.team === 'FA' && p.ovr >= 70) {
+  // Agents don't need their full number. Anything past the walk-away line can close the
+  // deal, likelier the nearer it gets to the ask and the longer talks drag on. The roll
+  // is seeded by the offer, so re-sending the same terms gets the same answer.
+  const yes = score >= t.target - 0.004 || (score >= floor && rollAccept(p, a, t, score, floor));
+  if (yes && league.phase === 'freeagency' && p.team === 'FA' && p.ovr >= 70) {
     // He likes it, but other teams get their call: the offer stands and he decides tonight.
     const list = (league.fa!.offers[p.id] ??= []).filter(o => o.team !== league.user);
     list.push({ team: league.user, ...offer, day: league.fa!.day });
@@ -105,7 +109,7 @@ export function submit(league: League, p: Player, offer: Offer, opts: { extend?:
     t.log.push({ by: 'agent', text }, { by: 'note', text: 'Your offer is on the table. Other teams can still top it before he decides at the end of the day.' });
     return { kind: 'stand', text };
   }
-  if (score >= t.target - 0.004) {
+  if (yes) {
     t.agreed = true;
     const text = pick(p, t.log.length, [`We have a deal. ${p.fn} is fired up.`, `Done. Send the paperwork over.`, `That works for us. Pleasure doing business.`, `${p.fn} said yes. Congratulations.`]);
     t.log.push({ by: 'agent', text });
@@ -143,6 +147,18 @@ export function submit(league: League, p: Player, offer: Offer, opts: { extend?:
     return { kind: 'stand', text, counter };
   }
   return { kind: 'counter', text, counter };
+}
+
+/** The read on your last offer, without numbers. */
+export type NegRead = 'insult' | 'far' | 'range' | 'close';
+export function readOffer(score: number, floor: number, target: number): NegRead {
+  return score < floor - 0.14 ? 'insult' : score < floor - 0.04 ? 'far' : score < floor + (target - floor) * 0.5 ? 'range' : 'close';
+}
+function rollAccept(p: Player, a: Agent, t: Talk, score: number, floor: number) {
+  const frac = clamp((score - floor) / Math.max(0.01, t.target - floor), 0, 1);
+  const worn = a.patience - t.patience; // offers he has already sat through
+  const chance = clamp(0.1 + 0.62 * frac ** 1.3 + worn * 0.07 + (a.style === 'Player-First' ? 0.1 : a.style === 'Hardball' ? -0.08 : 0), 0.04, 0.92);
+  return ((hash(`${p.id}-yes-${Math.round(score * 1000)}-${t.key}`) >>> 0) % 1000) / 1000 < chance;
 }
 
 function opener(league: League, p: Player, a: Agent, d: Offer) {

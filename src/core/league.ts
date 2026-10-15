@@ -153,6 +153,7 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   // Free agents keep an asking price for when they sign.
   for (const p of Object.values(players)) if (p.team === 'FA') p.contract = { years: [] };
   starFloors(league, rng);
+  starCaps(league, rng);
   liftRatings(league, rng);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
@@ -181,6 +182,38 @@ const STAR_FLOOR: Record<string, number> = {
   'Denzel Ward|CB': 88, 'Marlon Humphrey|CB': 88, 'Cooper DeJean|CB': 88, 'Jalen Ramsey|CB': 84, 'Patrick Surtain II|CB': 96,
   'Kyle Hamilton|S': 96, 'Antoine Winfield|S': 89, 'Jessie Bates|S': 89, 'Budda Baker|S': 87,
 };
+/**
+ * The other half of the ratings adjuster: players the data model overrates (a career year
+ * on a great unit, a small sample, an age-32 season it can't see coming) are brought down
+ * to where a Madden-style rating would have them. Keeps the 90+ club exclusive.
+ */
+const STAR_CAP: Record<string, number> = {
+  'Jared Goff|QB': 90, 'Joe Burrow|QB': 94, 'Drake Maye|QB': 93,
+  'Derrick Henry|RB': 93, 'Devon Achane|RB': 92, 'James Cook|RB': 91, 'J.K. Dobbins|RB': 82,
+  'Nico Collins|WR': 91,
+  'Dalton Kincaid|TE': 84, 'Colston Loveland|TE': 82,
+  // Linemen: only the clearest outliers. OL ratings face DL ratings head-on in the sim,
+  // so trimming many linemen at once tilts every game toward the defense.
+  'Bernhard Raimann|OT': 90, 'Terence Steele|OT': 86, 'Colton McKivitz|OT': 84, 'Troy Fautanu|OT': 85, 'Patrick Mekari|G': 85, 'Tyler Biadasz|C': 84,
+  'Chris Jones|DT': 94, 'Jeffery Simmons|DT': 93, 'DeForest Buckner|DT': 90, 'Nnamdi Madubuike|DT': 90, 'Leonard Williams|DT': 90,
+  'Nik Bonitto|EDGE': 90,
+  'Tremaine Edmunds|LB': 80, 'Devin Bush|LB': 86, 'Devin Lloyd|LB': 89, 'Justin Jefferson|LB': 78, 'Nakobe Dean|LB': 86, 'Zack Baun|LB': 92, 'Ernest Jones|LB': 87, 'Kaden Elliss|LB': 82, 'Carson Schwesinger|LB': 85,
+  'Derek Stingley|CB': 94, 'Kamari Lassiter|CB': 87, 'Quinyon Mitchell|CB': 89, 'James Pierre|CB': 80,
+  'Brian Branch|S': 91, 'Derwin James|S': 92, 'Nick Emmanwori|S': 82, 'Kerby Joseph|S': 88, 'Julian Love|S': 84, 'Tre\'von Moehrig|S': 86,
+};
+function starCaps(league: League, rng: Rng) {
+  for (const p of Object.values(league.players)) {
+    const c = STAR_CAP[`${p.fn} ${p.ln}|${p.pos}`] ?? STAR_CAP[`${p.fn} ${p.ln.replace(/ (Jr\.|Sr\.|II|III)$/, '')}|${p.pos}`];
+    if (!c) continue;
+    for (let k = 0; k < 4 && p.ovr > c; k++) {
+      const before = p.ovr;
+      applyDelta(p, Math.max(-14, c - p.ovr), rng);
+      p.ovr = overall(p.pos, p.attrs);
+      p.pot = Math.max(p.ovr, p.pot - (before - p.ovr));
+      if (p.ovr === before) break;
+    }
+  }
+}
 function starFloors(league: League, rng: Rng) {
   for (const p of Object.values(league.players)) {
     const f = STAR_FLOOR[`${p.fn} ${p.ln}|${p.pos}`] ?? STAR_FLOOR[`${p.fn} ${p.ln.replace(/ (Jr\.|Sr\.|II|III)$/, '')}|${p.pos}`];

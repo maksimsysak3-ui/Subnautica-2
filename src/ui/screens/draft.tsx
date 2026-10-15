@@ -10,6 +10,7 @@ import { pickLabel } from '../../core/trade';
 import { Rng } from '../../core/rng';
 import { money } from '../../core/contracts';
 import { DraftDay } from '../theater';
+import { DraftCalls, TradeUp } from './draftdeal';
 /** A prospect's school logo; AI prospects borrow it from a real prospect at the same school. */
 const logoOf = (p: { colLogo?: string; col: string }) => p.colLogo ?? collegeLogo(app.league!.players, p.col);
 
@@ -22,6 +23,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
   const [announce, setAnnounce] = useState<{ p: Player; no: number; team: string } | null>(null);
   const [auto, setAuto] = useState(false);
   const [stage, setStage] = useState<{ p: Player; no: number; round: number } | null>(null);
+  const [dealing, setDealing] = useState(false);
   const pool = prospects(L).filter(p => pos === 'All' || p.pos === pos);
   const order = live ? picksInOrder(L) : [];
   const cursor = L.draft?.cursor ?? 0;
@@ -34,7 +36,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
 
   // Live draft: AI teams pick on a short clock; the user's pick waits.
   useEffect(() => {
-    if (!live || onClock || announce || stage) return;
+    if (!live || onClock || announce || stage || dealing) return;
     timer.current = window.setTimeout(() => {
       const before = L.draft!.cursor;
       const pick = picksInOrder(L)[before];
@@ -44,7 +46,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       app.touch();
     }, auto ? 120 : cursor < 32 ? 900 : 260);
     return () => clearTimeout(timer.current);
-  }, [live, onClock, cursor, announce, auto, stage]);
+  }, [live, onClock, cursor, announce, auto, stage, dealing]);
   useEffect(() => { if (!announce) return; const t = setTimeout(() => setAnnounce(null), auto ? 500 : 2400); return () => clearTimeout(t); }, [announce]);
   useEffect(() => { if (onClock && auto) { const best = myBoard(L, pool)[0]; if (best) draft(best); } }, [onClock, auto]);
 
@@ -69,9 +71,11 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
           {live && <>
             <button className="btn" onClick={() => setAuto(a => !a)}>{auto ? '⏸ Stop Auto' : '⏩ Auto Draft'}</button>
             {!onClock && <button className="btn" onClick={() => { clearTimeout(timer.current); let guard = 0; while (!L.draft!.done && picksInOrder(L)[L.draft!.cursor]?.owner !== L.user && guard++ < 300) aiPickNow(L, new Rng(L.seed + L.draft!.cursor)); app.touch(); }}>Sim to My Pick</button>}
-            <button className="btn" onClick={() => app.go({ id: 'trade' })}>Trade Picks</button>
+            {!onClock && current && <button className="btn primary" onClick={() => { clearTimeout(timer.current); setDealing(true); }}>Trade Up</button>}
+            <button className="btn" onClick={() => app.go({ id: 'tradecenter' })}>Trade Center</button>
           </>}
         </div>
+        {live && onClock && !auto && <DraftCalls L={L} order={order} cursor={cursor} />}
         {live && <Ticker />}
       </div>
       <div className="row">
@@ -101,6 +105,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
       {stage && <DraftDay L={L} p={stage.p} no={stage.no} round={stage.round} onDone={() => { setStage(null); app.touch(); }} />}
       {sel && <ProspectModal p={sel} close={() => setSel(null)} canDraft={!!onClock} onDraft={() => draft(sel)} />}
       {announce && <Announce {...announce} />}
+      {dealing && live && current && !onClock && <TradeUp L={L} pick={current} close={() => setDealing(false)} />}
     </div>
   );
 }

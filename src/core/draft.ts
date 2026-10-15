@@ -264,7 +264,7 @@ export function makePick(league: League, playerId: string) {
   const pick = picksInOrder(league)[d.cursor];
   const p = league.players[playerId];
   if (!pick || !p || p.status !== 'PROSPECT') return;
-  p.team = pick.owner; p.status = 'ACT';
+  p.team = pick.owner; p.status = 'ACT'; pick.used = true;
   p.draft = { year: league.season, round: pick.round, pick: pick.no!, team: pick.owner };
   p.contract = rookieContract(pick.no!, league.season);
   p.num = freeNumber(league, pick.owner, p.pos);

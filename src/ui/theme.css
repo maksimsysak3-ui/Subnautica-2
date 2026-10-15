@@ -74,7 +74,7 @@ html, body { background: var(--bg); font-size: 14px; }
 .subtab.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #fff; }
 .subtab .badge { border-radius: 2px; margin-left: 4px; }
 .main, .workspace.full .main { max-width: 1680px; margin: 0 auto; padding: 24px 28px 90px !important; }
-.main.fade-in { animation: pageIn .3s var(--ease) both; }
+.main.fade-in { animation: pageIn .3s var(--ease) backwards; /* backwards: a leftover transform would trap every fixed modal inside the page */ }
 @keyframes pageIn { from { opacity: 0; transform: translateY(10px) scale(.995); filter: blur(3px); } 60% { filter: none; } }
 
 /* ---- panels ---- */
@@ -1699,3 +1699,18 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .pv-key strong { display: block; font: 700 15px var(--head); letter-spacing: .03em; text-transform: uppercase; color: #fff; }
 .pv-key span { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: #aab2c0; }
 @media (max-width: 1100px) { .pv-line { grid-template-columns: 1fr; margin-top: 0; } .pv-form.h { text-align: left; } .pv-form.h .pv-fh, .pv-form.h .pv-l5, .pv-form.h .pv-pp { justify-content: flex-start; } }
+/* mid-width laptops: the header used to run off the right edge below ~1700px */
+@media (max-width: 1700px) { .masthead { gap: 14px; } .bigtabs { margin-left: 6px; } .bigtab { padding: 0 11px !important; } .mh-coach > span { display: none; } .masthead .keycap { display: none; } }
+@media (max-width: 1360px) { .bigtab { font-size: 15px !important; padding: 0 8px !important; } .mh-rec { display: none; } }
+/* ---- menu spice: small, quick motion that makes the menus feel alive ---- */
+.subtab.on::after { background: linear-gradient(90deg, var(--team), #fff); transform-origin: left; animation: tabLine .32s var(--ease) both; }
+.bigtab.on { animation: tabPop .28s var(--ease); }
+@keyframes tabLine { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes tabPop { 0% { transform: scale(.94) !important; } 100% { transform: none; } }
+.card.hero { position: relative; overflow: hidden; }
+.card.hero::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--team), color-mix(in srgb, var(--team) 30%, transparent)); }
+.card.hero::before { display: block !important; content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.045) 50%, transparent 60%); background-size: 250% 100%; animation: heroSheen 7s ease-in-out infinite; }
+@keyframes heroSheen { 0%, 70% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+.farow, .tc-gm, .li { transition: transform .15s var(--ease), background .15s; }
+.farow:hover { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .card.hero::before, .subtab.on::after, .bigtab.on { animation: none !important; } }

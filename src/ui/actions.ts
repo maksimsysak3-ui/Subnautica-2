@@ -4,7 +4,9 @@
 // real choices and a staff member you can hand it to. Cards come from the league
 // state, so they appear when the situation exists and go away when it's handled.
 import type { League, Player, Pos, Team } from '../core/types';
-import { yearsLeft, apy, marketValue, money } from '../core/contracts';
+import { yearsLeft, apy, marketValue, money, capHit, capSpace } from '../core/contracts';
+import { executeTrade, evaluateTrade, pickLabel } from '../core/trade';
+import { gmOf, dueFollowups, clearFollowup, setTradeDraft } from '../core/tradetalk';
 import { autoDepth, rosterOf, teamRatings, markDepth, unmarkDepth } from '../core/league';
 import { userGame, standings, mail } from '../core/season';
 import { hash } from '../core/rng';
@@ -127,17 +129,51 @@ export function weeklyCards(L: League): ActionCard[] {
     });
   }
 
-  // Trade calls.
+  // Trade calls: an offer from another front office, from the GM himself. You can take it
+  // on the spot, take it to the trade room to counter, or pass.
+  const sideText = (ids: string[], picks: string[]) => [...ids.map(id => L.players[id]).filter(Boolean).map(x => `${x.pos} ${x.fn} ${x.ln}`), ...picks.map(id => L.picks.find(k => k.id === id)).filter(Boolean).map(k => pickLabel(L, k!))].join(', ') || 'nothing';
   const call = L.inbox.find(m => m.action?.kind === 'trade' && !m.read);
   if (call?.action) {
     const o = call.action.offer, want = o.get.players.map(id => L.players[id]).filter(Boolean)[0] ?? o.give.players.map(id => L.players[id]).filter(Boolean)[0];
-    const from = L.teams[o.from];
+    const from = L.teams[o.from], g = gmOf(L, o.from);
+    const take = o.get, gets = o.give;   // the caller gives `give` and wants `get`
     add({
-      id: `trade-${call.id}`, kind: 'Trade Call', headline: want ? `Will you move ${want.ln}?` : `${from.nick} are calling`,
+      id: `trade-${call.id}`, kind: 'Trade Call', headline: want ? `${from.nick} want ${want.ln}` : `${from.nick} are calling`, caller: `${g.name} · ${from.nick} GM`, speaker: `${g.name}, ${from.nick} GM`, where: `Phone call · ${g.label}`,
       body: `${from.name} have an offer on the table${want ? ` involving ${want.ln} (${want.pos} ${want.ovr})` : ''}.`,
-      p: want, team: want && want.team === L.user ? me : from,
-      choices: [{ label: 'Review Offer', run: og => og.go('offers') }, { label: 'Decline', run: () => { call.read = true; } }],
+      lines: [`It's ${g.name.split(' ')[0]} in ${from.name.replace(` ${from.nick}`, '')}. I'll keep it short.`, `We'd send you ${sideText(gets.players, gets.picks)} for ${sideText(take.players, take.picks)}.`, g.style === 'Shark' ? `It's a good offer and it won't be there Friday.` : g.style === 'WinNow' ? `We're making a run. I need an answer this week.` : `Think it over. I'm around all week.`],
+      p: want, team: from,
+      choices: [
+        { label: 'Accept the deal', reply: `You've got a deal.`, react: `Pleasure. Paperwork's on its way.`, hint: 'The trade goes through now', run: () => {
+          const hit = (ids: string[]) => ids.reduce((a, id) => a + (L.players[id] ? capHit(L.players[id].contract, L.season) : 0), 0);
+          call.read = true;
+          if (capSpace(L, L.user) + hit(take.players) - hit(gets.players) < 0) return 'You can\'t fit the incoming contracts under the cap.';
+          executeTrade(L, o); return `Trade done with the ${from.nick}`;
+        } },
+        { label: 'Counter in the trade room', reply: `Let me look at it and call you back.`, react: `Don't take too long.`, run: og => { call.read = true; setTradeDraft(L, { from: L.user, to: o.from, give: take, get: gets }); og.go('trade', { team: o.from }); } },
+        { label: 'Pass', reply: `We're going to pass.`, react: `Your call. Good luck this week.`, run: () => { call.read = true; return 'You passed'; } },
+      ],
       delegate: { who: gm, role: 'GM', quote: `I'll tell them we're not interested.`, run: () => { call.read = true; } },
+    });
+  }
+  // Call-backs: a GM you couldn't close with comes back with his number.
+  for (const f of dueFollowups(L).slice(0, 1)) {
+    const t = L.teams[f.team], g = gmOf(L, f.team);
+    if (!t) continue;
+    add({
+      id: f.id, kind: 'Trade Call', headline: `${g.name} called back about your offer`, caller: `${g.name} · ${t.nick} GM`, speaker: `${g.name}, ${t.nick} GM`, where: 'Phone call · a call-back', team: t,
+      p: f.offer.get.players.map(id => L.players[id]).filter(Boolean)[0],
+      body: `The ${t.name} slept on your offer and came back with a counter.`,
+      lines: [`I slept on it. I can't do what you sent, but I can do this.`, `You send ${sideText(f.offer.give.players, f.offer.give.picks)}. You get ${sideText(f.offer.get.players, f.offer.get.picks)}.`, `That's my best.`],
+      choices: [
+        { label: 'Take it', reply: `Done. Let's do it.`, react: `Good. Paperwork's coming.`, hint: 'The trade goes through now', run: () => {
+          clearFollowup(L, f.team);
+          const v = evaluateTrade(L, f.offer);
+          if (!v.accept) return `${g.name}: "Things changed on our end. It's off the table."`;
+          executeTrade(L, f.offer); return `Trade done with the ${t.nick}`;
+        } },
+        { label: 'Keep talking', reply: `We're close. Let me get back in the room.`, react: `I'm here.`, run: og => { clearFollowup(L, f.team); setTradeDraft(L, f.offer); og.go('trade', { team: f.team }); } },
+        { label: 'Walk away', reply: `I'm going to pass.`, react: `Fair enough.`, run: () => { clearFollowup(L, f.team); return 'You walked away'; } },
+      ],
     });
   }
 
@@ -507,7 +543,7 @@ export function weeklyCards(L: League): ActionCard[] {
 // matchup, anything urgent, and at most three other decisions, favouring kinds and players
 // you haven't heard about lately. A card can't come back for a few weeks after it's shown,
 // and one you skip twice is handled by your staff (their default call) so it stops nagging.
-const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline', 'Holdout']);
+const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline', 'Holdout', 'Trade Call']);
 // Situations that aren't front-office decisions (photo ops, viral clips, uniforms, travel and
 // weather logistics, ceremonies): they never reach the hub.
 const CUT = /^(celebrate|endorse|legend|rookieshow|thanks|snow|ad|gm|vg|roh|plane|tb|baby|dinner|rksem|rkint|radio|doc|viral|flyover|sneaker|storm|charity|probowl|hot|fans)-/;

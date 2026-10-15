@@ -2,7 +2,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, DevIcon, vivid, Table, PlayerCell, Bar, Tabs, CountUp } from '../components';
-import { NegotiationRoom } from './negotiate';
+import { NegotiationRoom, FaEmblem } from './negotiate';
 import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
 import { capFor, capHit, capSpace, money, teamPayroll, yearsLeft, franchiseTag, marketValue } from '../../core/contracts';
@@ -27,7 +27,7 @@ export function FreeAgencyScreen() {
   const signings = L.news.filter(n => n.kind === 'sign' && n.season === L.season).slice(0, 8);
   return (
     <div className="grid">
-      <div className="row"><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
+      <div className="row" style={{ gap: 12 }}><FaEmblem size={44} /><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
       {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
         : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
       <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}<div className="spacer" /><span className="small dim">{rows.length} available</span></div>

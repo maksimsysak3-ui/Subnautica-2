@@ -548,6 +548,37 @@ export class GameSim {
     this.box[this.poss].top += used;
   }
 
+  // Weather that moves through the game: some outdoor games get a front (rain or snow rolling
+  // in, a storm clearing, wind building, the temperature falling after dark). It shifts at the
+  // quarter breaks, on its own random stream so it never changes the rest of the simulation.
+  private wxRng?: Rng;
+  private wxPlan?: WxChange[];
+  /** Apply this break's weather change, if any; returns the line for the broadcast. */
+  private shiftWeather(): string {
+    const w = this.weather;
+    if (w.dome) return '';
+    if (!this.wxPlan) {
+      this.wxRng = new Rng(hash(`${this.game.id}-wx-${this.league.seed}`));
+      const r = this.wxRng, plan: WxChange[] = [];
+      if (r.chance(0.24)) {
+        const at = 2 + Math.floor(r.next() * 3);          // the break before Q2, Q3 or Q4
+        if (w.precip === 'none') plan.push({ at, kind: w.temp < 34 ? 'snow' : 'rain' });
+        else plan.push({ at, kind: 'clear' });
+      }
+      if (r.chance(0.16)) plan.push({ at: 3 + Math.floor(r.next() * 2), kind: 'wind' });
+      if (+(this.game.time ?? '13:00').slice(0, 2) >= 19 && r.chance(0.45)) plan.push({ at: 4, kind: 'cold' });
+      this.wxPlan = plan;
+    }
+    const lines: string[] = [];
+    for (const ch of this.wxPlan.filter(x => x.at === this.q)) {
+      if (ch.kind === 'rain' || ch.kind === 'snow') { w.precip = ch.kind === 'snow' || w.temp < 34 ? 'snow' : 'rain'; lines.push(w.precip === 'snow' ? 'Snow has started to fall.' : 'The rain has arrived.'); }
+      else if (ch.kind === 'clear' && w.precip !== 'none') { lines.push(w.precip === 'snow' ? 'The snow has stopped.' : 'The rain has stopped.'); w.precip = 'none'; }
+      else if (ch.kind === 'wind') { w.wind += 7 + Math.floor((this.wxRng!.next()) * 8); lines.push(`The wind is picking up: ${w.wind} mph.`); }
+      else if (ch.kind === 'cold') { w.temp -= 4 + Math.floor(this.wxRng!.next() * 6); if (w.temp < 33 && w.precip === 'rain') w.precip = 'snow'; lines.push(`The temperature is dropping: ${w.temp}°F.`); }
+    }
+    return lines.join(' ');
+  }
+
   private endPeriod(): PlayEvent | null {
     if (this.q === 2) {
       this.q = 3; this.clock = 900; this.poss = this.receivesSecondHalf; this.pending = 'kickoff';
@@ -559,11 +590,13 @@ export class GameSim {
         if (this.sides[i].abbr === this.league.user && !this.autoHalf) this.halfPending = true;
         else this.adj[i] = this.aiHalf(i);
       }
-      return this.push({ type: 'end', text: 'End of the first half.', yards: 0, endYl: this.yl });
+      const wx = this.shiftWeather();
+      return this.push({ type: 'end', text: `End of the first half.${wx ? ` ${wx}` : ''}`, yards: 0, endYl: this.yl });
     }
     if (this.q < 4 && !this.ot) {
       this.q++; this.clock = 900; this.lastClockRunning = false;
-      return this.push({ type: 'end', text: `End of the ${['', '1st', '2nd', '3rd'][this.q - 1]} quarter.`, yards: 0, endYl: this.yl });
+      const wx = this.shiftWeather();
+      return this.push({ type: 'end', text: `End of the ${['', '1st', '2nd', '3rd'][this.q - 1]} quarter.${wx ? ` ${wx}` : ''}`, yards: 0, endYl: this.yl });
     }
     // End of regulation or an overtime period.
     if (this.score[0] !== this.score[1] || (!this.playoff && this.ot)) { this.finish(); return null; }
@@ -1364,6 +1397,7 @@ function passName(depth: PassDepth, pa: boolean) {
   return pa ? `PA ${n}` : n;
 }
 
+type WxChange = { at: number; kind: 'rain' | 'snow' | 'clear' | 'wind' | 'cold' };
 export function makeWeather(home: Team, game: Game, rng: Rng): Weather {
   const dome = home.roof === 'dome' || home.roof === 'closed' || (home.roof === 'retractable' && rng.chance(0.7));
   if (dome && !game.neutral) return { temp: 70, wind: 0, precip: 'none', dome: true };
