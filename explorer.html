@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Explorer Sandbox</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font:13px/1.45 system-ui,sans-serif;color:#cfc6b4}
+  canvas{display:block;width:100%;height:100%;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;left:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:10px 12px;max-width:260px;user-select:none}
+  #hud b{color:#efe6d2}
+  #hud kbd{display:inline-block;min-width:16px;text-align:center;background:#2b241d;border:1px solid #4a3f33;border-radius:4px;padding:0 4px;margin-right:4px;font:11px monospace;color:#efe6d2}
+  #hud .row{margin:1px 0}
+  #state{position:fixed;right:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:6px 10px;font:12px monospace}
+  #toggle{position:fixed;left:12px;bottom:12px;background:#2b241d;color:#efe6d2;border:1px solid #4a3f33;border-radius:6px;padding:4px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="row"><b>Move</b></div>
+  <div class="row"><kbd>WASD</kbd>walk · <kbd>Shift</kbd>run · <kbd>Ctrl</kbd>sneak</div>
+  <div class="row"><kbd>Space</kbd>jump (double) · <kbd>C</kbd>crouch</div>
+  <div class="row"><kbd>Q</kbd>roll/dodge · <kbd>F</kbd>punch combo</div>
+  <div class="row"><b>Emotes</b></div>
+  <div class="row"><kbd>1</kbd>wave <kbd>2</kbd>dance <kbd>3</kbd>sit</div>
+  <div class="row"><kbd>4</kbd>cheer <kbd>5</kbd>look around <kbd>6</kbd>push-ups</div>
+  <div class="row"><kbd>7</kbd>bow <kbd>8</kbd>sleep</div>
+  <div class="row"><b>Camera / misc</b></div>
+  <div class="row">drag / <kbd>←→↑↓</kbd>orbit · wheel zoom</div>
+  <div class="row"><kbd>V</kbd>auto-cam <kbd>T</kbd>slow-mo <kbd>G</kbd>grid <kbd>R</kbd>reset</div>
+  <div class="row"><kbd>B</kbd>backpack on/off</div>
+</div>
+<div id="state"></div>
+<button id="toggle">hide help</button>
+<script>
+"use strict";
+// ---------- tiny mat4 lib (column-major) ----------
+const M = {
+  id: () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  mul(a, b) { const o = new Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++)
+      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+    return o; },
+  t: (x,y,z) => [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1],
+  s: (x,y,z) => [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1],
+  rx(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1];},
+  ry(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1];},
+  rz(a){const c=Math.cos(a),s=Math.sin(a);return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1];},
+  rot(r) { let m = M.ry(r[1]); if (r[0]) m = M.mul(m, M.rx(r[0])); if (r[2]) m = M.mul(m, M.rz(r[2])); return m; },
+  persp(f, asp, n, fa) { const t = 1/Math.tan(f/2);
+    return [t/asp,0,0,0, 0,t,0,0, 0,0,(fa+n)/(n-fa),-1, 0,0,2*fa*n/(n-fa),0]; },
+  look(e, c, u) {
+    let z = norm([e[0]-c[0], e[1]-c[1], e[2]-c[2]]), x = norm(cross(u, z)), y = cross(z, x);
+    return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,e),-dot(y,e),-dot(z,e),1]; }
+};
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];};
+const lerp=(a,b,t)=>a+(b-a)*t, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const angLerp=(a,b,t)=>{let d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;return a+d*t;};
+
+// ---------- WebGL2 setup ----------
+const cv = document.getElementById('c');
+const gl = cv.getContext('webgl2', { antialias: true });
+if (!gl) document.body.innerHTML = '<p style="padding:20px">WebGL2 is not supported in this browser.</p>';
+const VS = `#version 300 es
+in vec3 p; uniform mat4 uVP, uM; out vec3 wp;
+void main(){ vec4 w = uM*vec4(p,1.); wp = w.xyz; gl_Position = uVP*w; }`;
+const FS = `#version 300 es
+precision highp float;
+in vec3 wp; uniform vec3 uCol, uPlayer, uCam; uniform int uFloor; uniform float uGrid; out vec4 o;
+void main(){
+  float dp = length(wp.xz - uPlayer.xz);
+  if (uFloor == 1) {
+    vec2 g = abs(fract(wp.xz) - .5); float l = 1. - smoothstep(.0, .03, .5 - max(g.x, g.y));
+    vec2 g4 = abs(fract(wp.xz/5.) - .5); float l4 = 1. - smoothstep(.0, .012, .5 - max(g4.x, g4.y));
+    float glow = exp(-dp*dp*.02);
+    vec3 c = vec3(.02) + vec3(.09,.08,.07)*(l*.5 + l4)*uGrid*glow + vec3(.05,.045,.04)*glow;
+    float sh = smoothstep(.0, .55, length((wp.xz - uPlayer.xz) * vec2(1.,1.)) / (1. + uPlayer.y*.6));
+    c *= mix(.15, 1., sh + clamp(uPlayer.y*.4,0.,.7));
+    o = vec4(c,1.); return;
+  }
+  vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));
+  vec3 L = normalize(vec3(.5,.9,.6));
+  float d = max(dot(n,L),0.);
+  float rim = pow(1. - max(dot(n, normalize(uCam-wp)),0.), 3.);
+  vec3 amb = mix(vec3(.32,.29,.27), vec3(.6,.6,.64), n.y*.5+.5);
+  vec3 c = uCol*(amb + d*vec3(1.05,1.,.9)) + rim*vec3(.12,.11,.1);
+  o = vec4(pow(c, vec3(1./1.1)),1.);
+}`;
+function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(x);return x;}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const U = {}; for (const n of ['uVP','uM','uCol','uPlayer','uCam','uFloor','uGrid']) U[n] = gl.getUniformLocation(prog, n);
+
+// unit cube centered at origin (36 verts) + floor quad
+const cube = []; {
+  const f = [[0,1,2,0,2,3]], v = [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]];
+  const faces = [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]];
+  for (const q of faces) for (const i of [0,1,2,0,2,3]) cube.push(...v[q[i]].map(c => c*.5));
+}
+const floorV = [-1,0,-1, 1,0,1, 1,0,-1, -1,0,-1, -1,0,1, 1,0,1].map(c => c*200);
+function vao(data){const a=gl.createVertexArray();gl.bindVertexArray(a);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);return a;}
+const cubeVAO = vao(cube), floorVAO = vao(floorV);
+gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
+
+// ---------- character model ----------
+const C = { skin:[.86,.58,.38], hair:[.29,.18,.13], shirt:[.88,.84,.75], shorts:[.29,.21,.16], leather:[.42,.27,.16],
+  green:[.36,.41,.23], dgreen:[.28,.32,.18], metal:[.6,.58,.53], boot:[.42,.28,.19], sole:[.18,.14,.12], sock:[.72,.67,.58],
+  eye:[.08,.06,.05], roll:[.84,.79,.68] };
+// box: [sx,sy,sz, ox,oy,oz, color, rx,ry,rz, tag]
+const B = (s, o, c, r = [0,0,0], tag) => ({ s, o, c, r, tag });
+function node(name, pos, boxes = [], children = []) { return { name, pos, boxes, children, rot: [0,0,0] }; }
+function arm(side) { const x = side; // +1 = left (+x)
+  return node(side > 0 ? 'armL' : 'armR', [.31*x, .39, 0], [
+    B([.17,.2,.18],[0,-.07,0],C.shirt), B([.2,.065,.2],[0,-.17,0],C.shirt, [0,0,.05*x]),
+    B([.12,.07,.12],[0,-.22,0],C.skin)
+  ], [ node(side > 0 ? 'foreL' : 'foreR', [0,-.24,0], [
+      B([.11,.17,.11],[0,-.08,0],C.skin),
+      B([.145,.11,.145],[0,-.19,0],C.leather), B([.15,.025,.15],[0,-.14,0],C.dgreen),
+      B([.13,.08,.12],[0,-.28,.005],C.skin), B([.04,.07,.05],[-.065*x,-.25,.05],C.skin, [0,0,-.4*x])
+    ]) ]);
+}
+function leg(side) { const x = side;
+  return node(side > 0 ? 'legL' : 'legR', [.12*x, -.03, 0], [
+    B([.21,.3,.25],[.005*x,-.14,0],C.shorts), B([.22,.06,.26],[.005*x,-.29,0],C.shorts, [.08,0,0]),
+  ], [ node(side > 0 ? 'shinL' : 'shinR', [0,-.32,0], [
+      B([.1,.2,.1],[0,-.08,0],C.skin), B([.12,.07,.12],[0,-.2,0],C.sock),
+      B([.18,.08,.2],[0,-.26,.0],C.boot), B([.18,.13,.25],[0,-.36,.035],C.boot),
+      B([.185,.03,.12],[0,-.33,.1],C.leather), B([.19,.04,.27],[0,-.43,.04],C.sole)
+    ]) ]);
+}
+const hairSpikes = [];
+for (let i = 0; i < 9; i++) { const a = i/9*Math.PI*2;
+  hairSpikes.push(B([.16,.22,.1],[Math.cos(a)*.15,.49+.03*Math.sin(i*3),Math.sin(a)*.13-.02],C.hair,[Math.sin(a)*.6,-a,-Math.cos(a)*.6])); }
+const head = node('head', [0,.46,0], [
+  B([.46,.44,.42],[0,.23,0],C.skin),
+  B([.07,.12,.02],[.1,.23,.21],C.eye), B([.07,.12,.02],[-.1,.23,.21],C.eye),
+  B([.13,.035,.02],[.1,.33,.212],C.hair,[0,0,.08]), B([.13,.035,.02],[-.1,.33,.212],C.hair,[0,0,-.08]),
+  B([.06,.11,.09],[.245,.22,0],C.skin), B([.06,.11,.09],[-.245,.22,0],C.skin),
+  B([.04,.025,.02],[0,.15,.212],[.75,.48,.31]),
+  // hair
+  B([.5,.17,.46],[0,.46,-.01],C.hair), B([.5,.36,.12],[0,.3,-.19],C.hair),
+  B([.06,.24,.3],[.24,.34,-.03],C.hair), B([.06,.24,.3],[-.24,.34,-.03],C.hair),
+  B([.16,.12,.08],[-.15,.4,.2],C.hair,[0,0,.5]), B([.16,.14,.08],[0,.41,.21],C.hair,[0,0,-.4]),
+  B([.16,.12,.08],[.15,.4,.2],C.hair,[0,0,-.6]), B([.14,.12,.08],[.2,.42,.15],C.hair,[0,.4,-.5]),
+  B([.14,.12,.08],[-.2,.42,.15],C.hair,[0,-.4,.5]), B([.12,.24,.1],[.02,.6,-.04],C.hair,[-.3,0,-.4]),
+  ...hairSpikes
+]);
+const pack = node('pack', [0,0,0], [
+  B([.42,.42,.22],[0,.24,-.27],C.green), B([.43,.2,.06],[0,.33,-.385],C.dgreen),
+  B([.06,.05,.02],[.11,.24,-.42],C.metal), B([.06,.05,.02],[-.11,.24,-.42],C.metal),
+  B([.04,.22,.02],[.11,.33,-.415],C.leather), B([.04,.22,.02],[-.11,.33,-.415],C.leather),
+  B([.15,.14,.06],[0,.12,-.41],C.dgreen),
+  B([.08,.22,.14],[.24,.18,-.27],C.dgreen), B([.08,.22,.14],[-.24,.18,-.27],C.dgreen),
+  B([.58,.16,.16],[0,.53,-.26],C.roll), B([.58,.16,.16],[0,.53,-.26],C.roll,[Math.PI/4,0,0]),
+  B([.04,.17,.17],[.27,.53,-.26],C.leather), B([.04,.17,.17],[-.27,.53,-.26],C.leather),
+  B([.07,.45,.04],[.14,.25,.16],C.leather), B([.07,.45,.04],[-.14,.25,.16],C.leather),
+  B([.07,.04,.36],[.14,.46,0],C.leather), B([.07,.04,.36],[-.14,.46,0],C.leather),
+], []);
+const torso = node('torso', [0,.07,0], [
+  B([.48,.44,.3],[0,.22,0],C.shirt),
+  B([.5,.07,.32],[0,.02,0],C.leather), B([.08,.06,.02],[0,.02,.165],C.metal),
+  B([.12,.12,.08],[.2,-.03,.16],C.leather), B([.12,.12,.08],[-.22,-.03,.12],C.leather,[0,-.4,0]),
+  // scarf
+  B([.44,.1,.34],[0,.43,0],C.green), B([.22,.16,.04],[0,.36,.15],C.green,[0,0,Math.PI/4]),
+  // diagonal satchel strap + buckle
+  B([.06,.6,.03],[0,.22,.16],C.leather,[0,0,.85]), B([.07,.06,.02],[-.07,.27,.175],C.metal,[0,0,.85]),
+], [head, arm(1), arm(-1), pack]);
+const body = node('body', [0,.78,0], [ B([.46,.16,.29],[0,0,0],C.shorts) ], [torso, leg(1), leg(-1)]);
+const root = node('root', [0,0,0], [], [body]);
+const J = {}; (function idx(n){ J[n.name] = n; n.children.forEach(idx); })(root);
+const JOINTS = ['body','torso','head','armL','foreL','armR','foreR','legL','shinL','legR','shinR'];
+
+// ---------- input ----------
+const keys = {}; let pressed = {};
+addEventListener('keydown', e => { if (e.repeat) return; const k = e.key.toLowerCase(); keys[k] = true; pressed[k] = true;
+  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault(); });
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+const cam = { yaw: 0, pitch: .3, dist: 5, auto: true };
+let drag = null;
+cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => { if (!drag) return;
+  cam.yaw -= (e.clientX - drag[0]) * .006; cam.pitch = clamp(cam.pitch + (e.clientY - drag[1]) * .005, -.2, 1.4); drag = [e.clientX, e.clientY]; });
+cv.addEventListener('pointerup', () => drag = null);
+cv.addEventListener('wheel', e => { cam.dist = clamp(cam.dist * Math.exp(e.deltaY * .001), 1.8, 18); e.preventDefault(); }, { passive: false });
+document.getElementById('toggle').onclick = e => { const h = document.getElementById('hud'); const hid = h.style.display === 'none';
+  h.style.display = hid ? '' : 'none'; e.target.textContent = hid ? 'hide help' : 'show help'; };
+
+// ---------- player state ----------
+const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false,
+  phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0 };
+let slow = false, grid = 1, packOn = true;
+const EMOTES = { '1':'wave', '2':'dance', '3':'sit', '4':'cheer', '5':'look', '6':'pushups', '7':'bow', '8':'sleep' };
+const cur = {}; JOINTS.forEach(j => cur[j] = [0,0,0]); let curY = 0, curPitch = 0;
+
+function poseFor(t) {
+  const p = {}; JOINTS.forEach(j => p[j] = [0,0,0]); let y = 0;
+  const s = Math.sin(P.phase), c = Math.cos(P.phase);
+  const breathe = Math.sin(t*2.2)*.03;
+  const sp = P.speed;
+  if (!P.grounded) { // airborne
+    const up = clamp(P.vy/6, -1, 1);
+    p.legL = [-.9 - up*.3,0,.05]; p.shinL = [1.3,0,0]; p.legR = [-.2+up*.3,0,-.05]; p.shinR = [.6,0,0];
+    p.armL = [-.6 - up*1.6,0,.6]; p.armR = [-.6 - up*1.6,0,-.6]; p.foreL = [-.4,0,0]; p.foreR = [-.4,0,0];
+    p.torso = [.15,0,0]; p.head = [-.15*up,0,0];
+    if (P.jumps === 2) { p.legL = [-1.4,0,0]; p.legR = [-1.4,0,0]; p.shinL = p.shinR = [2,0,0]; p.armL = [-1.2,0,.3]; p.armR = [-1.2,0,-.3]; }
+  } else if (P.roll > 0) {
+    p.legL = p.legR = [-1.8,0,0]; p.shinL = p.shinR = [2.3,0,0]; p.armL = [-1.4,0,.2]; p.armR = [-1.4,0,-.2];
+    p.foreL = p.foreR = [-1.6,0,0]; p.torso = [.9,0,0]; p.head = [.6,0,0]; y = -.35;
+  } else if (sp > .2) { // locomotion
+    const run = clamp((sp - 2.2) / 3, 0, 1), cr = P.crouch ? 1 : 0;
+    const amp = lerp(.55, 1.0, run);
+    p.legL = [-s*amp - cr*.7,0,.03]; p.legR = [s*amp - cr*.7,0,-.03];
+    p.shinL = [Math.max(0, c)*amp*1.4 + .1 + cr*1.2,0,0]; p.shinR = [Math.max(0,-c)*amp*1.4 + .1 + cr*1.2,0,0];
+    p.armL = [s*amp*.9,0,.1+run*.1]; p.armR = [-s*amp*.9,0,-.1-run*.1];
+    p.foreL = [-.3 - run*1.1,0,0]; p.foreR = [-.3 - run*1.1,0,0];
+    p.torso = [.05 + run*.3 + cr*.35, s*.12*amp, 0]; p.body = [cr*.2, -s*.1, 0]; p.head = [-run*.2 - cr*.2,-s*.08,0];
+    y = Math.abs(Math.cos(P.phase))*.05*(1+run) - .03 - cr*.25 - run*.04;
+  } else if (P.crouch) {
+    p.legL = [-1.5,0,.15]; p.legR = [-1.5,0,-.15]; p.shinL = p.shinR = [2.2,0,0];
+    p.armL = [-.6,0,.1]; p.armR = [-.6,0,-.1]; p.foreL = p.foreR = [-.6,0,0]; p.torso = [.45+breathe,0,0]; p.head = [-.4,0,0]; y = -.33;
+  } else { // idle + emotes
+    p.torso = [breathe,0,0]; p.armL = [0,0,.08+breathe]; p.armR = [0,0,-.08-breathe]; p.foreL = p.foreR = [-.1,0,0];
+    p.head = [0, Math.sin(t*.4)*.15, 0]; y = breathe*.3;
+    const e = P.emote, et = P.emoteT;
+    if (P.idleT > 8 && !e) { p.head = [.1, Math.sin(t*.9)*.6, 0]; p.armR = [-.3,0,-.2]; p.foreR = [-1.8,0,.3]; } // idle fidget: check wrist
+    if (e === 'wave') { p.armR = [0,0,-2.7]; p.foreR = [0,0,-.4 + Math.sin(et*12)*.5]; p.head = [0,.1,.08]; p.torso = [0,0,.05]; }
+    if (e === 'dance') { const d = et*7;
+      y = Math.abs(Math.sin(d))*.06 - .03; p.body = [0,Math.sin(d*.5)*.3,Math.sin(d)*.12]; p.torso = [0,0,-Math.sin(d)*.18];
+      p.armL = [0,0,1.4+Math.sin(d)*.9]; p.armR = [0,0,-1.4+Math.sin(d)*.9]; p.foreL = [0,0,1.2]; p.foreR = [0,0,-1.2];
+      p.legL = [Math.min(0,Math.sin(d))*.6,0,.1]; p.legR = [Math.min(0,-Math.sin(d))*.6,0,-.1];
+      p.shinL = [-Math.min(0,Math.sin(d))*1,0,0]; p.shinR = [-Math.min(0,-Math.sin(d))*1,0,0]; p.head = [0,0,Math.sin(d)*.2]; }
+    if (e === 'sit') { y = -.43; p.legL = [-1.5,0,.25]; p.legR = [-1.5,0,-.25]; p.shinL = [1.55,0,-.1]; p.shinR = [1.55,0,.1];
+      p.body = [-.1,0,0]; p.torso = [.15+breathe,0,0]; p.armL = [-.9,0,.25]; p.armR = [-.9,0,-.25]; p.foreL = p.foreR = [-.3,0,0]; p.head = [0,Math.sin(t*.5)*.3,0]; }
+    if (e === 'cheer') { const d = et*8; y = Math.max(0, Math.sin(d))*.18;
+      p.armL = [0,0,2.9+Math.sin(d)*.2]; p.armR = [0,0,-2.9-Math.sin(d)*.2]; p.foreL = [0,0,.3]; p.foreR = [0,0,-.3];
+      p.legL = p.legR = [-Math.max(0,-Math.sin(d))*.5,0,0]; p.shinL = p.shinR = [Math.max(0,-Math.sin(d)),0,0]; p.head = [-.3,0,0]; }
+    if (e === 'look') { const d = et*.9; p.head = [-.1, Math.sin(d)*1.0, 0]; p.torso = [0, Math.sin(d)*.35, 0];
+      p.armR = [-2.4,0,-.4]; p.foreR = [-1.6,0,0]; }
+    if (e === 'pushups') { const d = Math.sin(et*4)*.5+.5; y = -.58 + d*.12; p.body = [1.45,0,0];
+      p.torso = [0,0,0]; p.head = [-.9,0,0]; p.legL = p.legR = [0,0,0];
+      p.armL = [-1.5+d*.3,0,.2]; p.armR = [-1.5+d*.3,0,-.2]; p.foreL = p.foreR = [-1.6+d*1.4,0,0]; }
+    if (e === 'bow') { const d = Math.min(1, et*2) * (et > 2 ? Math.max(0, 1-(et-2)*2) : 1);
+      p.torso = [1.1*d,0,0]; p.head = [.3*d,0,0]; p.armL = [0,0,.05]; p.armR = [-1.2*d,0,-.1]; p.foreR = [-1.2*d,0,-.3*d]; }
+    if (e === 'sleep') { const d = Math.sin(t*1.2)*.03; y = -.43; p.legL = [-1.5,0,.3]; p.legR = [-1.5,0,-.3]; p.shinL = [1.5,0,0]; p.shinR = [1.5,0,0];
+      p.torso = [.6+d,0,0]; p.head = [.6+d,0,.3]; p.armL = [-.6,0,.0]; p.armR = [-.6,0,-.0]; p.foreL = [-1.2,0,-.6]; p.foreR = [-1.2,0,.6]; }
+  }
+  // punch overlay (upper body only, works while moving)
+  if (P.punch > 0 && P.roll <= 0) { const k = P.punch, ext = k > .55 ? (1-k)/.45 : Math.min(1, k/.55*1.3);
+    const a = P.punchSide > 0 ? 'armR' : 'armL', f = P.punchSide > 0 ? 'foreR' : 'foreL', o = P.punchSide > 0 ? 'armL' : 'armR', of = P.punchSide > 0 ? 'foreL' : 'foreR';
+    const sg = P.punchSide;
+    if (P.combo === 3) { p[a] = [-2.6*ext,0,-.2*sg]; p[f] = [-.2,0,0]; y += ext*.12; } // uppercut
+    else { p[a] = [-1.55*ext,0,-.15*sg*ext]; p[f] = [-1.4*(1-ext),0,0]; }
+    p[o] = [-1.2,0,.2*sg]; p[of] = [-2,0,0]; p.torso = [.1, -.45*sg*ext, 0]; p.head = [0,.3*sg*ext,0];
+  }
+  if (P.land > 0) { y -= P.land*.15; p.legL[0] -= P.land*.4; p.legR[0] -= P.land*.4; p.shinL[0] += P.land*.8; p.shinR[0] += P.land*.8; }
+  return { p, y };
+}
+
+function update(dt, t) {
+  // camera keys
+  if (keys['arrowleft']) cam.yaw += dt*2; if (keys['arrowright']) cam.yaw -= dt*2;
+  if (keys['arrowup']) cam.pitch = clamp(cam.pitch + dt, -.2, 1.4); if (keys['arrowdown']) cam.pitch = clamp(cam.pitch - dt, -.2, 1.4);
+  if (pressed['t']) slow = !slow; if (pressed['g']) grid = grid ? 0 : 1; if (pressed['v']) cam.auto = !cam.auto;
+  if (pressed['b']) packOn = !packOn;
+  if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0 });
+  if (pressed['c']) P.crouch = !P.crouch;
+  for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; }
+
+  // movement input relative to camera
+  let ix = (keys['d']?1:0) - (keys['a']?1:0), iz = (keys['w']?1:0) - (keys['s']?1:0);
+  const il = Math.hypot(ix, iz); if (il) { ix /= il; iz /= il; }
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw); // camera forward on ground
+  const mx = fx*iz - fz*ix, mz = fz*iz + fx*ix;
+  if (il || P.roll > 0) { P.emote = null; P.idleT = 0; }
+  const sneak = keys['control'], run = keys['shift'] && !P.crouch && !sneak;
+  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) : 0;
+
+  if (P.roll > 0) {
+    P.roll -= dt / .55; const rs = 7.5 * (P.roll > .2 ? 1 : P.roll/.2);
+    P.vx = P.rollDir[0]*rs; P.vz = P.rollDir[1]*rs;
+  } else {
+    const acc = P.grounded ? 14 : 4;
+    P.vx = lerp(P.vx, mx*target, 1 - Math.exp(-acc*dt)); P.vz = lerp(P.vz, mz*target, 1 - Math.exp(-acc*dt));
+    if (il) P.yaw = angLerp(P.yaw, Math.atan2(mx, mz), 1 - Math.exp(-12*dt));
+  }
+  if (pressed['q'] && P.roll <= 0 && P.grounded) {
+    const d = il ? [mx, mz] : [Math.sin(P.yaw), Math.cos(P.yaw)];
+    P.rollDir = d; P.yaw = Math.atan2(d[0], d[1]); P.roll = 1; P.crouch = false; P.emote = null;
+  }
+  if (pressed[' '] && P.roll <= 0) {
+    if (P.grounded) { P.vy = P.crouch ? 7.5 : 6; P.grounded = false; P.jumps = 1; P.crouch = false; P.emote = null; }
+    else if (P.jumps === 1) { P.vy = 6.5; P.jumps = 2; P.flip = 0; }
+  }
+  if (pressed['f'] && P.roll <= 0) {
+    if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
+  }
+  P.punch = Math.max(0, P.punch - dt / (P.combo === 3 ? .5 : .32));
+  if (P.punch === 0 && P.combo && !P.punchQueued) P.combo = P.combo; // combo resets naturally when punch fully ends
+  if (P.punch === 0) P.combo = 0;
+
+  // physics
+  P.vy -= 18*dt; P.y += P.vy*dt; P.x += P.vx*dt; P.z += P.vz*dt;
+  if (P.y <= 0) { if (!P.grounded && P.vy < -4) P.land = 1; P.y = 0; P.vy = 0; P.grounded = true; P.jumps = 0; }
+  P.land = Math.max(0, P.land - dt*4);
+  if (P.jumps === 2) P.flip = (P.flip || 0) + dt*11; else P.flip = 0;
+  P.speed = Math.hypot(P.vx, P.vz);
+  P.phase += dt * (P.speed * 2.6 + .0) / (P.crouch ? .7 : 1);
+  if (P.emote) P.emoteT += dt; else P.idleT += dt;
+  if (P.emote === 'bow' && P.emoteT > 2.6) P.emote = null;
+
+  // animate
+  const { p, y } = poseFor(t);
+  const k = 1 - Math.exp(-(P.roll > 0 || P.punch > 0 ? 25 : 12) * dt);
+  for (const j of JOINTS) for (let i = 0; i < 3; i++) cur[j][i] = lerp(cur[j][i], p[j][i], k);
+  curY = lerp(curY, y, k);
+  for (const j of JOINTS) J[j].rot = cur[j];
+  root.pos = [P.x, P.y, P.z]; root.rot = [0, P.yaw, 0];
+  let pitch = 0;
+  if (P.roll > 0) pitch = (1 - P.roll) * Math.PI * 2;
+  if (P.jumps === 2) pitch = Math.min(P.flip, Math.PI*2);
+  if (P.jumps === 2 && P.flip >= Math.PI*2) pitch = 0;
+  body.pos = [0, .78 + curY, 0];
+  body.rot = [cur.body[0] + pitch, cur.body[1], cur.body[2]];
+  pack.boxes.forEach(b => b.hidden = !packOn);
+
+  // camera follow
+  if (cam.auto && il && !drag) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8 * Math.abs(iz < 0 ? 0 : 1));
+  pressed = {};
+  const st = !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
+    P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 ? 'idle (fidget)' : 'idle');
+  document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.auto ? '' : ' · free cam'}`;
+}
+
+function drawNode(n, parent) {
+  const m = M.mul(M.mul(parent, M.t(...n.pos)), M.rot(n.rot));
+  for (const b of n.boxes) { if (b.hidden) continue;
+    const bm = M.mul(M.mul(M.mul(m, M.t(...b.o)), M.rot(b.r)), M.s(...b.s));
+    gl.uniformMatrix4fv(U.uM, false, bm); gl.uniform3fv(U.uCol, b.c); gl.drawArrays(gl.TRIANGLES, 0, 36); }
+  for (const c of n.children) drawNode(c, m);
+}
+
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(.05, (now - last) / 1000); last = now; if (slow) dt *= .25;
+  update(dt, now / 1000);
+  const w = cv.clientWidth * devicePixelRatio | 0, h = cv.clientHeight * devicePixelRatio | 0;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  gl.viewport(0, 0, w, h); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const tgt = [P.x, P.y*.5 + .9, P.z];
+  const eye = [tgt[0] + Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.dist, tgt[1] + Math.sin(cam.pitch)*cam.dist, tgt[2] + Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.dist];
+  eye[1] = Math.max(.15, eye[1]);
+  gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(.9, w/h, .05, 300), M.look(eye, tgt, [0,1,0])));
+  gl.uniform3fv(U.uPlayer, [P.x, P.y, P.z]); gl.uniform3fv(U.uCam, eye); gl.uniform1f(U.uGrid, grid);
+  gl.uniform1i(U.uFloor, 1); gl.bindVertexArray(floorVAO); gl.uniformMatrix4fv(U.uM, false, M.id()); gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.uniform1i(U.uFloor, 0); gl.bindVertexArray(cubeVAO); drawNode(root, M.id());
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
