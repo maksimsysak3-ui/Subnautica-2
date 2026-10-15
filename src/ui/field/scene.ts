@@ -332,6 +332,9 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   if (front === '3-3-5') { [DL[0].y, DL[1].y, DL[2].y] = [at(1, -3.4)[1], at(1, 0)[1], at(1, 3.4)[1]]; [DL[3].x, DL[3].y] = at(5, 0); dlDrop.add(DL[3]); [LB[0].x, LB[0].y] = at(5, -4.6); [LB[1].x, LB[1].y] = at(5, 4.6); }
   if (front === '4-3' || front === 'Goal Line') { asLB.add(DB[2]); [DB[2].x, DB[2].y] = at(4.8, 0); [LB[0].x, LB[0].y] = at(4.8, -4.2); [LB[1].x, LB[1].y] = at(4.8, 4.2); }
   if (front === '4-1-6') { [LB[0].x, LB[0].y] = at(5.2, 0); [LB[1].x, LB[1].y] = at(8, FORMATION.S[1] * 0.6); }
+  // 46 Bear: the interior is covered (both guards and the center), a fifth man stands up on the edge.
+  const bearEdge = LB[Math.abs(ev.n) % 2];
+  if (front === 'Bear') { [DL[0].y, DL[1].y, DL[2].y, DL[3].y] = [at(1, -4.4)[1], at(1, -1.4)[1], at(1, 1.4)[1], at(1, 4.4)[1]]; [bearEdge.x, bearEdge.y] = at(1.1, (bearEdge === LB[0] ? -1 : 1) * 7.4); asLB.add(DB[2]); [DB[2].x, DB[2].y] = at(4.6, 0); }
   // The rush: from three (a lineman drops into a zone) to everybody. Extras come from the
   // linebackers, then the slot defender off the edge, then the strong safety.
   const rushN = ev.rush ?? 4 + (ev.blitz ?? 0);
@@ -341,6 +344,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   if (sackAgent && sackAgent.role !== 'DL') blitzers.add(sackAgent);
   const rushingNow = () => DL.filter(d => !dlDrop.has(d)).length + blitzers.size;
   if (rushingNow() > rushN) for (const d of [DL[3], DL[0]]) if (rushingNow() > rushN && d !== sackAgent && !dlDrop.has(d)) dlDrop.add(d);
+  // Simulated pressure: an end drops into the flat and the slot defender comes off the edge.
+  if (ev.creep && !sackAgent) { dlDrop.add(DL[ev.n % 2 ? 3 : 0]); blitzers.add(DB[2]); }
   const lb0 = Math.abs(ev.n) % 2;
   for (const d of [...dlDrop, LB[lb0], LB[1 - lb0], DB[2], DB[3]]) {
     if (rushingNow() >= rushN) break;
@@ -349,7 +354,10 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const sackBlitzer = sackAgent && blitzers.has(sackAgent) ? sackAgent : undefined;
   // Blitzers walk up before the snap: linebackers into the A/B gaps, defensive backs to the edge.
   const gapOf = (b: Agent): [number, number] => b.role === 'DB' ? at(0.2, (b.y >= mid ? 1 : -1) * 7.5) : at(0.2, (b.y >= mid ? 1 : -1) * 2.4);
-  for (const b of blitzers) { const g = gapOf(b); [b.x, b.y] = [g[0] + s * 1.7, g[1] + (b.role === 'DB' ? (b.y >= mid ? 1 : -1) * 0.8 : 0)]; b.top = Math.max(b.top, 8.4); }
+  for (const b of blitzers) {
+    if (front === 'Bear' && b === bearEdge) { b.top = Math.max(b.top, 8.4); continue; }   // already on the line
+    const g = gapOf(b); [b.x, b.y] = [g[0] + s * 1.7, g[1] + (b.role === 'DB' ? (b.y >= mid ? 1 : -1) * 0.8 : 0)]; b.top = Math.max(b.top, 8.4);
+  }
   // Shells: two high safeties split the deep halves; one high in the middle with the strong
   // safety rolled down; zero, with the free safety walked down as a robber.
   const twoHigh = ev.shell === 'Cover 2' || ev.shell === 'Cover 4' || ev.shell === 'Prevent' || ((cov2 || cov4) && !ev.shell);
