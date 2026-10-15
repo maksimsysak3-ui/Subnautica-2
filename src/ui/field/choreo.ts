@@ -103,11 +103,15 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const hard = air >= 14 || (air >= 8 && r < 0.3);
     const near = (() => { let b = 1e9; for (let jj = 0; jj < n; jj++) if (A[jj].team !== off) b = Math.min(b, Math.hypot(X[jj][k] - X[tgt][k], Y[jj][k] - cy)); return b; })();
     const side = cy < 4.5 || cy > FW - 4.5;
-    if (side && yac <= 2.5) catchStyle = air >= 8 && air <= 25 && r < 0.3 ? 'back' : 'toetap';
+    // Layouts, falling catches and toe-taps leave him at the catch spot, so they're only for a
+    // catch where the play ends right there; otherwise he'd lie on the turf while the ball runs on.
+    const ke = K(endC), stays = endC - catchC < 0.7 && Math.hypot(X[tgt][ke] - X[tgt][k], Y[tgt][ke] - cy) < 1.6;
+    if (side && yac <= 2.5) catchStyle = air >= 8 && air <= 25 && r < 0.3 ? 'back' : stays ? 'toetap' : 'normal';
     else if (air >= 16 && near < 2.2 && r < 0.55) catchStyle = 'moss';          // a 50/50 ball: up over the defender
     else if (air >= 18) catchStyle = r < 0.3 ? 'high' : r < 0.55 ? 'dive' : r < 0.75 ? 'onehand' : 'normal';
     else if (air >= 8) catchStyle = r < 0.14 ? 'back' : r < 0.28 ? 'onehand' : r < 0.42 ? 'high' : yac <= 1 && r < 0.55 ? 'falling' : yac <= 2 && r < 0.65 ? 'dive' : 'normal';
     else if (r < 0.1) catchStyle = 'onehand'; else if (yac <= 1 && r < 0.2) catchStyle = 'falling';
+    if (!stays && (catchStyle === 'dive' || catchStyle === 'falling')) catchStyle = air >= 8 ? 'high' : 'normal';
     void hard;
     if (catchStyle !== 'normal') { fx.push({ at: catchC, kind: 'catch', x: X[tgt][k], y: Y[tgt][k] }); label = ({ dive: 'Layout grab', high: 'High-point catch', onehand: 'One-handed catch', toetap: 'Toe-tap on the sideline', back: 'Back-shoulder catch', falling: 'Falling catch', moss: 'Mossed him' } as Record<string, string>)[catchStyle]; if (catchStyle === 'onehand' || catchStyle === 'moss' || catchStyle === 'dive') fx.push({ at: catchC, kind: 'catch', x: X[tgt][k], y: Y[tgt][k], big: true }); }
   }
@@ -256,7 +260,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       const ord = pilers.indexOf(i), t0 = fumC + 0.12 + ord * 0.07, k0 = K(t0);
       const sx0 = X[i][k0], sy0 = Y[i][k0], tx = fumSpot[0] + ((ord % 3) - 1) * 0.5, ty = fumSpot[1] + (ord % 2 ? 0.35 : -0.35);
       const dd = Math.hypot(tx - sx0, ty - sy0), arrive = Math.max(0.2, dd / 7.5), t = c - t0, f = tx > sx0 ? 1 : -1;
-      if (t < 0) return mk(sx0, sy0, f, POSE.run(PH[i][k0] % 1, 0.8));
+      if (t < 0) return mk(x, y, f, POSE.run(PH[i][k] % 1, 0.8));      // still on his way: where he really is
       if (t < arrive) { const q = t / arrive; return mk(lerp(sx0, tx, q), lerp(sy0, ty, q), f, q > 0.65 ? POSE.dive((q - 0.65) / 0.35, false) : POSE.run((t * 2.4) % 1, 1)); }
       return mk(tx, ty, f, { ...POSE.lying(1, i === recoverer), ball: i === recoverer ? 2 : 0 }, { lying: true });
     }
@@ -272,19 +276,13 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       }
       return mk(x, y, isOff ? s : -s, set ? stanceOf(i) : (a.slot === 'QB' && !shotgun ? POSE.hold() : POSE.stand()));
     }
-    // Beaten defenders: on the turf for a beat, then up and chasing.
-    const dn = downed.get(i);
-    if (dn && c >= dn.at - 0.12) {
-      const t = c - dn.at + 0.12, f = dn.dir > 0 ? 1 : -1;
-      if (dn.back) return fallAt(x, y, isOff ? s : -s, Math.max(0, t - 0.12), -1, false, 0.45);
-      if (t < dn.up) return fallAt(x, y, f, t, 1, false, 0.3);
-      if (t < dn.up + 0.3) return mk(x, y, f, POSE.kneel());
-    }
     // The tackle, as one action between two bodies: the tackler closes, drops his hips and
     // wraps the carrier at the waist; the carrier keeps churning for a beat, then they go down
     // together in the direction the tackler drives him (forward, or backward on a big hit).
     if (tackC !== undefined && !oob && finalCarrier >= 0 && tackler >= 0) {
       const wrapFrom = sc.wrapAt !== undefined && sc.wrapper === tackler ? C(sc.wrapAt) : tackC - 0.22;
+      // He closes the last gap at a sprint (about 9 yd/s), never a snap across the field.
+      const gap0 = dist(tackler, finalCarrier, wrapFrom), close = clamp(gap0 / 9, 0.08, 0.45);
       const tk = K(tackC), cf = FACE[finalCarrier][tk];
       const drive = (X[finalCarrier][tk] - X[tackler][K(wrapFrom)]) >= 0 ? 1 : -1;   // which way the tackler is driving
       const carrierAt = (t: number): [number, number] => { const kk = K(Math.min(t, tackC)); return [X[finalCarrier][kk], Y[finalCarrier][kk]]; };
@@ -299,13 +297,22 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
         const [cx, cy] = carrierAt(c), t = c - tackC;
         if (c < wrapFrom) return mk(x, y, drive, POSE.wrap(0));
         const tx = cx - drive * 0.45, ty = cy + 0.12;            // locked on at the waist, nearer the camera
-        if (t < 0) return mk(lerp(x, tx, clamp((c - wrapFrom) / 0.08, 0, 1)), lerp(y, ty, clamp((c - wrapFrom) / 0.08, 0, 1)), drive, bigHit ? POSE.dive(0.35, false) : POSE.wrap(clamp((c - wrapFrom) / 0.2, 0, 1)));
+        const q = smooth((c - wrapFrom) / close);
+        if (t < 0 || q < 1) return mk(lerp(x, tx, q), lerp(y, ty, q), drive, bigHit ? POSE.dive(0.35, false) : POSE.wrap(clamp((c - wrapFrom) / 0.2, 0, 1)));
         return fallAt(tx + slide(t) + drive * 0.25 * Math.min(1, t * 2), ty, drive, t, 1, false, bigHit ? 0.38 : 0.5);
       }
       if (i === pile && c >= tackC + 0.08) {
         const [cx, cy] = carrierAt(tackC), t0 = tackC + 0.08, f = cx > X[i][K(t0)] ? 1 : -1, k2 = clamp((c - t0) / 0.4, 0, 1);
         return mk(lerp(X[i][K(t0)], cx + slide(c - tackC) + f * 0.1, k2), lerp(Y[i][K(t0)], cy - 0.25, k2), f, k2 < 0.75 ? POSE.dive(k2, false) : POSE.lying(1, false), { lying: k2 >= 0.75 });
       }
+    }
+    // Beaten defenders: on the turf for a beat, then up and chasing.
+    const dn = downed.get(i);
+    if (dn && c >= dn.at - 0.12) {
+      const t = c - dn.at + 0.12, f = dn.dir > 0 ? 1 : -1;
+      if (dn.back) return fallAt(x, y, isOff ? s : -s, Math.max(0, t - 0.12), -1, false, 0.45);
+      if (t < dn.up) return fallAt(x, y, f, t, 1, false, 0.3);
+      if (t < dn.up + 0.3) return mk(x, y, f, POSE.kneel());
     }
     // The sack: the rusher wraps him up and takes him down; the pocket is closing in.
     if (sack && i === qb && c >= endC - 0.2) {
@@ -417,6 +424,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
         if (!isOff && sc.pressured && (i * 7 + Math.floor(c * 2.5)) % 6 === 0) return mk(x, y, f, POSE.swim(((c * 2.5) % 1)));
         return mk(x, y, f, POSE.drive(PH[i][k] % 1 + c * 1.2));
       }
+      // The kick-slide: a blocker setting back before contact still faces his rusher, never the quarterback.
+      if (isOff && !holder && (sc.pass || sack || VX[i][k] * s < 0)) return mk(x, y, s, POSE.passpro(PH[i][k] % 1 + c * 0.8));
     }
     if (holder && sp > 1.2) return P(runRig(i, k, true));
     if (holder) return P({ ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
