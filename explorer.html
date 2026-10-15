@@ -8,7 +8,7 @@
   html,body{margin:0;height:100%;background:#000;overflow:hidden;font:13px/1.45 system-ui,sans-serif;color:#cfc6b4}
   canvas{display:block;width:100%;height:100%;cursor:grab}
   canvas:active{cursor:grabbing}
-  #hud{position:fixed;left:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:10px 12px;max-width:260px;user-select:none}
+  #hud{position:fixed;left:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:10px 12px;max-width:270px;user-select:none}
   #hud b{color:#efe6d2}
   #hud kbd{display:inline-block;min-width:16px;text-align:center;background:#2b241d;border:1px solid #4a3f33;border-radius:4px;padding:0 4px;margin-right:4px;font:11px monospace;color:#efe6d2}
   #hud .row{margin:1px 0}
@@ -22,24 +22,25 @@
 <div id="hud">
   <div class="row"><b>Move</b></div>
   <div class="row"><kbd>WASD</kbd>walk · <kbd>Shift</kbd>run · <kbd>Ctrl</kbd>sneak</div>
-  <div class="row"><kbd>Space</kbd>jump (double) · <kbd>C</kbd>crouch</div>
-  <div class="row"><kbd>Q</kbd>roll/dodge · <kbd>F</kbd>punch combo</div>
+  <div class="row"><kbd>Space</kbd>jump (double) · <kbd>C</kbd>crouch · <kbd>Q</kbd>roll</div>
+  <div class="row"><b>Axe</b> — chop the palm trees!</div>
+  <div class="row"><kbd>1</kbd>draw / holster axe</div>
+  <div class="row"><kbd>F</kbd>/click attack: chop → sweep → spin</div>
+  <div class="row"><kbd>X</kbd>twirl axe · no axe: <kbd>F</kbd>punch combo</div>
   <div class="row"><b>Emotes</b></div>
-  <div class="row"><kbd>1</kbd>wave <kbd>2</kbd>dance <kbd>3</kbd>sit</div>
-  <div class="row"><kbd>4</kbd>cheer <kbd>5</kbd>look around <kbd>6</kbd>push-ups</div>
-  <div class="row"><kbd>7</kbd>bow <kbd>8</kbd>sleep</div>
+  <div class="row"><kbd>2</kbd>wave <kbd>3</kbd>dance <kbd>4</kbd>sit <kbd>5</kbd>cheer</div>
+  <div class="row"><kbd>6</kbd>look <kbd>7</kbd>push-ups <kbd>8</kbd>bow <kbd>9</kbd>sleep</div>
   <div class="row"><b>Camera / misc</b></div>
-  <div class="row">drag / <kbd>←→↑↓</kbd>orbit · wheel zoom</div>
-  <div class="row"><kbd>V</kbd>auto-cam <kbd>T</kbd>slow-mo <kbd>G</kbd>grid <kbd>R</kbd>reset</div>
-  <div class="row"><kbd>B</kbd>backpack on/off</div>
-  <div class="row"><kbd>P</kbd>first-person (click to lock mouse, <kbd>Esc</kbd> to release)</div>
+  <div class="row"><kbd>P</kbd>first person (click locks mouse, <kbd>Esc</kbd> frees)</div>
+  <div class="row">drag / <kbd>←→↑↓</kbd>orbit · wheel zoom · <kbd>V</kbd>auto-cam</div>
+  <div class="row"><kbd>T</kbd>slow-mo <kbd>G</kbd>grid <kbd>B</kbd>backpack <kbd>R</kbd>reset</div>
 </div>
 <div id="state"></div>
 <div id="cross"></div>
 <button id="toggle">hide help</button>
 <script>
 "use strict";
-// ---------- tiny mat4 lib (column-major) ----------
+// ================= math =================
 const M = {
   id: () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
   mul(a, b) { const o = new Array(16);
@@ -51,6 +52,7 @@ const M = {
   rx(a){const c=Math.cos(a),s=Math.sin(a);return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1];},
   ry(a){const c=Math.cos(a),s=Math.sin(a);return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1];},
   rz(a){const c=Math.cos(a),s=Math.sin(a);return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1];},
+  // euler order: yaw (Y) * pitch (X) * roll (Z)
   rot(r) { let m = M.ry(r[1]); if (r[0]) m = M.mul(m, M.rx(r[0])); if (r[2]) m = M.mul(m, M.rz(r[2])); return m; },
   persp(f, asp, n, fa) { const t = 1/Math.tan(f/2);
     return [t/asp,0,0,0, 0,t,0,0, 0,0,(fa+n)/(n-fa),-1, 0,0,2*fa*n/(n-fa),0]; },
@@ -62,9 +64,11 @@ const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];};
 const lerp=(a,b,t)=>a+(b-a)*t, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const smooth=u=>u*u*(3-2*u), rand=(a,b)=>a+Math.random()*(b-a);
 const angLerp=(a,b,t)=>{let d=((b-a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;return a+d*t;};
+const xform = (m, v) => [0,1,2].map(i => m[i]*v[0] + m[4+i]*v[1] + m[8+i]*v[2] + m[12+i]);
 
-// ---------- WebGL2 setup ----------
+// ================= WebGL2 =================
 const cv = document.getElementById('c');
 const gl = cv.getContext('webgl2', { antialias: true });
 if (!gl) document.body.innerHTML = '<p style="padding:20px">WebGL2 is not supported in this browser.</p>';
@@ -73,19 +77,20 @@ in vec3 p; uniform mat4 uVP, uM; out vec3 wp;
 void main(){ vec4 w = uM*vec4(p,1.); wp = w.xyz; gl_Position = uVP*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 wp; uniform vec3 uCol, uPlayer, uCam; uniform int uFloor; uniform float uGrid; out vec4 o;
+in vec3 wp; uniform vec3 uCol, uPlayer, uCam; uniform int uMode; uniform float uGrid; out vec4 o;
 void main(){
+  if (uMode == 2) { o = vec4(uCol,1.); return; }            // emissive (fireflies, swing trails)
   float dp = length(wp.xz - uPlayer.xz);
-  if (uFloor == 1) {
+  if (uMode == 1) {                                          // floor: black with a soft grid glow around the player
     vec2 g = abs(fract(wp.xz) - .5); float l = 1. - smoothstep(.0, .03, .5 - max(g.x, g.y));
     vec2 g4 = abs(fract(wp.xz/5.) - .5); float l4 = 1. - smoothstep(.0, .012, .5 - max(g4.x, g4.y));
     float glow = exp(-dp*dp*.02);
     vec3 c = vec3(.02) + vec3(.09,.08,.07)*(l*.5 + l4)*uGrid*glow + vec3(.05,.045,.04)*glow;
-    float sh = smoothstep(.0, .55, length((wp.xz - uPlayer.xz) * vec2(1.,1.)) / (1. + uPlayer.y*.6));
+    float sh = smoothstep(.0, .55, dp / (1. + uPlayer.y*.6));
     c *= mix(.15, 1., sh + clamp(uPlayer.y*.4,0.,.7));
     o = vec4(c,1.); return;
   }
-  vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));
+  vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));             // flat low-poly normals
   vec3 L = normalize(vec3(.5,.9,.6));
   float d = max(dot(n,L),0.);
   float rim = pow(1. - max(dot(n, normalize(uCam-wp)),0.), 3.);
@@ -97,34 +102,39 @@ function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShade
 const prog = gl.createProgram();
 gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
 gl.linkProgram(prog); gl.useProgram(prog);
-const U = {}; for (const n of ['uVP','uM','uCol','uPlayer','uCam','uFloor','uGrid']) U[n] = gl.getUniformLocation(prog, n);
+const U = {}; for (const n of ['uVP','uM','uCol','uPlayer','uCam','uMode','uGrid']) U[n] = gl.getUniformLocation(prog, n);
 
-// unit cube centered at origin (36 verts) + floor quad
-const cube = []; {
-  const f = [[0,1,2,0,2,3]], v = [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]];
-  const faces = [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]];
-  for (const q of faces) for (const i of [0,1,2,0,2,3]) cube.push(...v[q[i]].map(c => c*.5));
-}
-const floorV = [-1,0,-1, 1,0,1, 1,0,-1, -1,0,-1, -1,0,1, 1,0,1].map(c => c*200);
 function vao(data){const a=gl.createVertexArray();gl.bindVertexArray(a);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);return a;}
-const cubeVAO = vao(cube), floorVAO = vao(floorV);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);return {a, n: data.length/3};}
+const GEO = {};
+{ // unit cube
+  const v = [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]], c = [];
+  for (const q of [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]]) for (const i of [0,1,2,0,2,3]) c.push(...v[q[i]].map(x => x*.5));
+  GEO.box = vao(c);
+  // unit pyramid: square base at y=-.5, apex at y=+.5 (used for hair spikes)
+  const A=[0,.5,0], a=[-.5,-.5,.5], b=[.5,-.5,.5], d=[.5,-.5,-.5], e=[-.5,-.5,-.5];
+  GEO.pyr = vao([a,b,A, b,d,A, d,e,A, e,a,A, e,d,b, e,b,a].flat());
+  GEO.floor = vao([-1,0,-1, 1,0,1, 1,0,-1, -1,0,-1, -1,0,1, 1,0,1].map(x => x*200));
+}
 gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
 
-// ---------- character model ----------
-const C = { skin:[.86,.58,.38], hair:[.29,.18,.13], shirt:[.88,.84,.75], shorts:[.29,.21,.16], leather:[.42,.27,.16],
-  green:[.36,.41,.23], dgreen:[.28,.32,.18], metal:[.6,.58,.53], boot:[.42,.28,.19], sole:[.18,.14,.12], sock:[.72,.67,.58],
-  eye:[.08,.06,.05], roll:[.84,.79,.68] };
-// box: [sx,sy,sz, ox,oy,oz, color, rx,ry,rz, tag]
-const B = (s, o, c, r = [0,0,0], tag) => ({ s, o, c, r, tag });
+// ================= scene graph =================
+// box: size, offset, color, euler rot, geometry ('box' | 'pyr')
+const B = (s, o, c, r = [0,0,0], g = 'box') => ({ s, o, c, r, g });
 function node(name, pos, boxes = [], children = []) { return { name, pos, boxes, children, rot: [0,0,0] }; }
+// a pyramid spike from base point p pointing along d
+function spike(p, d, len, w, c) { d = norm(d);
+  return B([w, len, w*.9], [p[0]+d[0]*len*.45, p[1]+d[1]*len*.45, p[2]+d[2]*len*.45], c, [Math.acos(d[1]), Math.atan2(d[0], d[2]), 0], 'pyr'); }
+
+const C = { skin:[.86,.58,.38], hair:[.29,.18,.13], hairD:[.22,.13,.09], hairL:[.37,.24,.17], shirt:[.88,.84,.75], shorts:[.29,.21,.16],
+  leather:[.42,.27,.16], green:[.36,.41,.23], dgreen:[.28,.32,.18], metal:[.6,.58,.53], edge:[.86,.85,.8], boot:[.42,.28,.19],
+  sole:[.18,.14,.12], sock:[.72,.67,.58], eye:[.08,.06,.05], roll:[.84,.79,.68], wood:[.66,.47,.29], woodD:[.5,.34,.2] };
+
 function arm(side) { const x = side; // +1 = left (+x)
   return node(side > 0 ? 'armL' : 'armR', [.31*x, .39, 0], [
-    B([.17,.2,.18],[0,-.07,0],C.shirt), B([.2,.065,.2],[0,-.17,0],C.shirt, [0,0,.05*x]),
-    B([.12,.07,.12],[0,-.22,0],C.skin)
+    B([.17,.2,.18],[0,-.07,0],C.shirt), B([.2,.065,.2],[0,-.17,0],C.shirt, [0,0,.05*x]), B([.12,.07,.12],[0,-.22,0],C.skin)
   ], [ node(side > 0 ? 'foreL' : 'foreR', [0,-.24,0], [
-      B([.11,.17,.11],[0,-.08,0],C.skin),
-      B([.145,.11,.145],[0,-.19,0],C.leather), B([.15,.025,.15],[0,-.14,0],C.dgreen),
+      B([.11,.17,.11],[0,-.08,0],C.skin), B([.145,.11,.145],[0,-.19,0],C.leather), B([.15,.025,.15],[0,-.14,0],C.dgreen),
       B([.13,.08,.12],[0,-.28,.005],C.skin), B([.04,.07,.05],[-.065*x,-.25,.05],C.skin, [0,0,-.4*x])
     ]) ]);
 }
@@ -137,26 +147,23 @@ function leg(side) { const x = side;
       B([.185,.03,.12],[0,-.33,.1],C.leather), B([.19,.04,.27],[0,-.43,.04],C.sole)
     ]) ]);
 }
-// Hair: solid cap + chunky swept-back spikes on top, bangs over the forehead, tufts at sides and nape.
-const HD = [.25,.15,.11], HL = [.36,.24,.17]; // darker underside / lighter highlight tones
+
+// ---- hair: solid volume + pyramid spikes (swept up/back on top, pointed bangs, flared sides, nape tips)
 const hair = [
-  B([.5,.15,.47],[0,.46,-.01],C.hair),                       // cap
-  B([.5,.32,.13],[0,.31,-.18],C.hair),                       // back mass
-  B([.065,.2,.34],[.245,.37,-.03],C.hair), B([.065,.2,.34],[-.245,.37,-.03],C.hair), // sides
-  // bangs: pointed chunks hanging over the forehead, alternating angles
-  B([.14,.15,.07],[-.17,.415,.215],HD,[-.15,0,-.35]), B([.14,.17,.07],[-.055,.405,.225],C.hair,[-.2,0,.2]),
-  B([.14,.16,.07],[.06,.41,.222],C.hair,[-.2,0,-.25]), B([.13,.15,.07],[.175,.415,.215],HD,[-.15,0,.4]),
-  // top spikes swept up and back
-  B([.16,.18,.15],[-.13,.53,.07],HL,[-.95,0,.3]), B([.17,.2,.16],[.02,.55,.04],C.hair,[-1,0,-.1]),
-  B([.15,.18,.15],[.15,.53,.05],HL,[-.9,0,-.4]), B([.16,.18,.15],[-.08,.54,-.1],C.hair,[-1.25,0,.2]),
-  B([.15,.17,.15],[.1,.53,-.13],HD,[-1.3,0,-.25]), B([.1,.14,.1],[.06,.6,.12],C.hair,[-.6,0,-.45]),
-  // side tufts flaring out above the ears
-  B([.08,.16,.12],[.26,.45,.04],C.hair,[0,0,-.7]), B([.08,.16,.12],[-.26,.45,.04],C.hair,[0,0,.7]),
-  B([.08,.14,.12],[.27,.44,-.12],HD,[0,0,-.9]), B([.08,.14,.12],[-.27,.44,-.12],HD,[0,0,.9]),
-  // nape spikes pointing down and back
-  B([.13,.16,.08],[-.12,.16,-.21],C.hair,[.45,0,.2]), B([.13,.18,.08],[.0,.14,-.22],HD,[.5,0,0]),
-  B([.13,.16,.08],[.12,.16,-.21],C.hair,[.45,0,-.2]),
+  B([.5,.15,.47],[0,.45,-.01],C.hair), B([.5,.3,.12],[0,.32,-.18],C.hair),
+  B([.065,.18,.34],[.245,.38,-.03],C.hair), B([.065,.18,.34],[-.245,.38,-.03],C.hair),
 ];
+[-.15,0,.15].forEach((x,i) => hair.push(spike([x,.49,.1], [x*1.3,1,-.55], .21, .2, i===1 ? C.hairL : C.hair)));
+[-.1,.1].forEach(x => hair.push(spike([x,.51,-.04], [x*1.6,1,-.95], .25, .21, C.hair)));
+[-.16,0,.16].forEach((x,i) => hair.push(spike([x,.47,-.17], [x*1.6,.65,-1], .23, .2, i===1 ? C.hair : C.hairD)));
+hair.push(spike([.05,.53,.05], [.25,1,.15], .17, .12, C.hairL));                // the signature front tuft
+[-.17,-.06,.06,.17].forEach((x,i) => hair.push(spike([x,.47,.205], [x*.9+(x>0?.08:-.04),-1,.4], .17, .15, i%2 ? C.hair : C.hairD)));
+for (const s of [1,-1]) {
+  hair.push(spike([.24*s,.44,.06], [s,-.5,.3], .15, .14, C.hair), spike([.24*s,.42,-.1], [s,-.35,-.5], .16, .15, C.hairD),
+            spike([.245*s,.34,.07], [.1*s,-1,.05], .1, .07, C.hair));
+}
+[-.13,0,.13].forEach(x => hair.push(spike([x,.22,-.2], [x*.8,-1,-.7], .15, .15, C.hair)));
+
 const head = node('head', [0,.46,0], [
   B([.46,.44,.42],[0,.23,0],C.skin),
   B([.07,.12,.02],[.1,.23,.21],C.eye), B([.07,.12,.02],[-.1,.23,.21],C.eye),
@@ -165,6 +172,19 @@ const head = node('head', [0,.46,0], [
   B([.04,.025,.02],[0,.15,.212],[.75,.48,.31]),
   ...hair
 ]);
+
+// ---- axe: origin = grip, handle runs along +z, blade edge faces -y
+const axe = node('axe', [0,0,0], [
+  B([.05,.05,.76],[0,0,.23],C.wood), B([.045,.045,.2],[0,.004,.5],C.woodD),
+  B([.075,.075,.05],[0,0,-.17],C.leather),                                   // pommel
+  B([.066,.066,.2],[0,0,-.03],C.leather), B([.072,.072,.025],[0,0,-.11],C.sock), B([.072,.072,.025],[0,0,.06],C.sock), // grip wrap
+  B([.07,.13,.15],[0,.02,.52],C.metal), B([.075,.08,.09],[0,.1,.52],[.48,.46,.42]),   // head body + poll
+  B([.045,.15,.2],[0,-.12,.52],C.metal), B([.04,.06,.25],[0,-.215,.52],C.edge),       // blade + honed edge
+  B([.08,.05,.06],[0,.0,.43],C.leather), B([.08,.05,.06],[0,.0,.61],C.leather),       // lashing
+  B([.02,.13,.045],[.045,-.06,.42],C.green,[.3,0,0]), B([.02,.1,.04],[.045,-.08,.39],C.dgreen,[-.25,0,0]), // scarf-cloth ribbon
+]);
+const HOLSTER = { pos: [.2,.05,-.45], rot: [-.93, -Math.PI/2, 0] };
+
 const pack = node('pack', [0,0,0], [
   B([.42,.42,.22],[0,.24,-.27],C.green), B([.43,.2,.06],[0,.33,-.385],C.dgreen),
   B([.06,.05,.02],[.11,.24,-.42],C.metal), B([.06,.05,.02],[-.11,.24,-.42],C.metal),
@@ -175,36 +195,94 @@ const pack = node('pack', [0,0,0], [
   B([.04,.17,.17],[.27,.53,-.26],C.leather), B([.04,.17,.17],[-.27,.53,-.26],C.leather),
   B([.07,.45,.04],[.14,.25,.16],C.leather), B([.07,.45,.04],[-.14,.25,.16],C.leather),
   B([.07,.04,.36],[.14,.46,0],C.leather), B([.07,.04,.36],[-.14,.46,0],C.leather),
-], []);
+], [axe]);
+axe.pos = HOLSTER.pos; axe.rot = HOLSTER.rot;
 const torso = node('torso', [0,.07,0], [
   B([.48,.44,.3],[0,.22,0],C.shirt),
   B([.5,.07,.32],[0,.02,0],C.leather), B([.08,.06,.02],[0,.02,.165],C.metal),
   B([.12,.12,.08],[.2,-.03,.16],C.leather), B([.12,.12,.08],[-.22,-.03,.12],C.leather,[0,-.4,0]),
-  // scarf
   B([.44,.1,.34],[0,.43,0],C.green), B([.22,.16,.04],[0,.36,.15],C.green,[0,0,Math.PI/4]),
-  // diagonal satchel strap + buckle
   B([.06,.6,.03],[0,.22,.16],C.leather,[0,0,.85]), B([.07,.06,.02],[-.07,.27,.175],C.metal,[0,0,.85]),
 ], [head, arm(1), arm(-1), pack]);
 const body = node('body', [0,.78,0], [ B([.46,.16,.29],[0,0,0],C.shorts) ], [torso, leg(1), leg(-1)]);
 const root = node('root', [0,0,0], [], [body]);
 const J = {}; (function idx(n){ J[n.name] = n; n.children.forEach(idx); })(root);
-const JOINTS = ['body','torso','head','armL','foreL','armR','foreR','legL','shinL','legR','shinR'];
+const JOINTS = ['body','torso','head','armL','foreL','armR','foreR','legL','shinL','legR','shinR','axe'];
 
-// ---------- input ----------
+// ================= palm trees =================
+const TC = { bark:[.55,.4,.26], bark2:[.47,.33,.21], ring:[.38,.27,.17], leaf:[.42,.53,.24], leaf2:[.33,.44,.19], rib:[.5,.45,.22], coco:[.38,.25,.14], husk:[.3,.26,.14] };
+function makeTree(x, z, yaw, lean) {
+  const inner = node('inner', [0,0,0]), trunk = node('trunk', [0,0,0], [], [inner]);
+  const tree = node('tree', [x,0,z], [], [trunk]); tree.rot = [0, yaw, 0];
+  const H = 3.4 + Math.random()*.6, N = 9, curve = t => [lean*t*t, H*t];
+  for (let i = 0; i < N; i++) {
+    const p0 = curve(i/N), p1 = curve((i+1)/N), dx = p1[0]-p0[0], dy = p1[1]-p0[1];
+    const ang = Math.atan2(dx, dy), w = .34 - i*.016;
+    inner.boxes.push(B([w, Math.hypot(dx,dy)*1.02, w], [(p0[0]+p1[0])/2, (p0[1]+p1[1])/2, 0], i%2 ? TC.bark : TC.bark2, [0,0,-ang]),
+                     B([w+.06, .07, w+.06], [p0[0], p0[1]+.04, 0], TC.ring, [0,.2*i,-ang]));
+  }
+  for (let i = 0; i < 5; i++) { const a = i/5*Math.PI*2 + .3; // flared roots
+    inner.boxes.push(B([.12,.22,.3], [Math.sin(a)*.18,.06,Math.cos(a)*.18], TC.bark2, [.55,a,0])); }
+  const top = curve(1), crown = node('crown', [top[0], top[1], 0], [
+    B([.3,.24,.3],[0,0,0],TC.husk), B([.22,.2,.22],[0,.12,0],TC.husk,[0,.6,0]),
+    ...[0,1,2].map(i => { const a = i*2.1; return Object.assign(B([.17,.19,.17],[Math.sin(a)*.15,-.15,Math.cos(a)*.15],TC.coco,[.3,a,.2]), { coco: true }); })
+  ]);
+  inner.children.push(crown);
+  const fronds = [], F = 8;
+  for (let f = 0; f < F; f++) {
+    const fr = node('frond', [0,.1,0]); fr.rot = [0, f/F*Math.PI*2 + rand(-.2,.2), 0]; fr.yaw0 = fr.rot[1];
+    let th = rand(.45,.7), y = 0, zz = .08; const W = [.28,.42,.4,.3,.16], L = [.4,.5,.5,.45,.38];
+    for (let s = 0; s < W.length; s++) {
+      const l = L[s], my = y + Math.sin(th)*l/2, mz = zz + Math.cos(th)*l/2, col = (f+s)%2 ? TC.leaf : TC.leaf2;
+      for (const sd of [1,-1]) fr.boxes.push(B([W[s]/2, .025, l], [sd*W[s]/4, my+.01, mz], col, [-th, 0, -sd*.38]));
+      fr.boxes.push(B([.035,.04,l], [0, my+.02, mz], TC.rib, [-th,0,0]));
+      y += Math.sin(th)*l; zz += Math.cos(th)*l; th -= rand(.32,.42);
+    }
+    crown.children.push(fr); fronds.push(fr);
+  }
+  return { node: tree, trunk, inner, crown, fronds, x, z, yaw, hp: 5, shake: 0, state: 'up', fall: 0, fallV: 0, timer: 0, seed: Math.random()*9 };
+}
+const trees = [makeTree(3.2,-3.6,.4,.7), makeTree(-4.6,-2,2.4,.9), makeTree(.8,6.4,4.1,.6), makeTree(-2.6,-8.5,1.3,1.0), makeTree(7.5,3,5.2,.8)];
+
+// ================= particles =================
+const parts = [];
+function spawn(o) { if (parts.length > 600) parts.shift();
+  parts.push(Object.assign({ v:[0,0,0], life:1, max:1, s:.06, c:[1,1,1], g:9, drag:.5, bounce:0, emit:false, flutter:0, rot:[rand(0,6),rand(0,6),0], spin:rand(-8,8) }, o, { max: o.life || 1 })); }
+function updateParts(dt, t) {
+  for (let i = parts.length-1; i >= 0; i--) { const q = parts[i];
+    q.v[1] -= q.g*dt; const k = Math.exp(-q.drag*dt); q.v[0] *= k; q.v[1] *= k; q.v[2] *= k;
+    if (q.flutter) { q.v[0] += Math.sin(t*3 + q.rot[0]*5)*q.flutter*dt; q.v[2] += Math.cos(t*2.6 + q.rot[1]*5)*q.flutter*dt; }
+    for (let a = 0; a < 3; a++) q.p[a] += q.v[a]*dt;
+    const floor = q.s*.5;
+    if (q.p[1] < floor) { q.p[1] = floor;
+      if (q.bounce && Math.abs(q.v[1]) > .6) { q.v[1] = -q.v[1]*q.bounce; q.spin *= .6; } else { q.v[1] = 0; q.spin *= .9; }
+      q.v[0] *= .85; q.v[2] *= .85; }
+    q.rot[0] += q.spin*dt; q.rot[1] += q.spin*.7*dt;
+    if ((q.life -= dt) <= 0) parts.splice(i, 1);
+  }
+}
+const puff = (p, n, col = [.34,.32,.29]) => { for (let i = 0; i < n; i++)
+  spawn({ p:[p[0]+rand(-.15,.15), p[1]+.05, p[2]+rand(-.15,.15)], v:[rand(-1.2,1.2), rand(.3,1), rand(-1.2,1.2)], g:-.4, drag:3, life:rand(.4,.7), s:rand(.05,.1), c:col }); };
+// fireflies drifting around the trees (emissive, keeps the world dark)
+const flies = Array.from({length: 34}, (_, i) => { const t = trees[i % trees.length];
+  return { t, ph: rand(0,100), h: rand(.6,3.2), r: rand(.6,2.4), sp: rand(.15,.4) }; });
+
+// ================= input =================
 const keys = {}; let pressed = {};
 addEventListener('keydown', e => { if (e.repeat) return; const k = e.key.toLowerCase(); keys[k] = true; pressed[k] = true;
   if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault(); });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-const cam = { yaw: 0, pitch: .3, dist: 5, auto: true, fp: false, fpPitch: 0 };
+const cam = { yaw: 0, pitch: .3, dist: 5, auto: true, fp: false, fpPitch: 0, shake: 0 };
 let drag = null;
 const locked = () => document.pointerLockElement === cv;
 function look(dx, dy, k) { cam.yaw -= dx * k;
   if (cam.fp) cam.fpPitch = clamp(cam.fpPitch + dy * k, -1.45, 1.45);
   else cam.pitch = clamp(cam.pitch + dy * .005, -.2, 1.4); }
 cv.addEventListener('pointerdown', e => {
-  if (cam.fp && !locked()) { cv.requestPointerLock?.(); return; }
-  if (!locked()) { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); } });
+  if (locked()) { pressed['f'] = true; return; }               // locked first-person: left click attacks
+  if (cam.fp) { cv.requestPointerLock?.(); return; }
+  drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointermove', e => {
   if (locked()) return look(e.movementX, e.movementY, .0025);
   if (!drag) return; look(e.clientX - drag[0], e.clientY - drag[1], cam.fp ? .004 : .006); drag = [e.clientX, e.clientY]; });
@@ -213,19 +291,43 @@ cv.addEventListener('wheel', e => { if (cam.fp) return; cam.dist = clamp(cam.dis
 document.getElementById('toggle').onclick = e => { const h = document.getElementById('hud'); const hid = h.style.display === 'none';
   h.style.display = hid ? '' : 'none'; e.target.textContent = hid ? 'hide help' : 'show help'; };
 
-// ---------- player state ----------
-const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false,
-  phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0 };
+// ================= player =================
+const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false, flip:0,
+  phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0, dustT:0,
+  hasAxe:false, equip:0, atk:null, atkQueued:false, twirl:0 };
 let slow = false, grid = 1, packOn = true;
-const EMOTES = { '1':'wave', '2':'dance', '3':'sit', '4':'cheer', '5':'look', '6':'pushups', '7':'bow', '8':'sleep' };
-const cur = {}; JOINTS.forEach(j => cur[j] = [0,0,0]); let curY = 0, curPitch = 0;
+const EMOTES = { '2':'wave', '3':'dance', '4':'sit', '5':'cheer', '6':'look', '7':'pushups', '8':'bow', '9':'sleep' };
+const cur = {}; JOINTS.forEach(j => cur[j] = [0,0,0]); let curY = 0;
+
+// axe attacks: keyframes over normalized time; 0 and 1 blend from/to the current hold pose
+const ATTACKS = {
+  chop:  { dur:.62, hit:.5, range:1.5, cone:.5, power:1, next:'sweep', keys:[
+    [.36, { armR:[-2.9,0,-.15], foreR:[-1.1,0,0], axe:[.9,0,0], torso:[-.18,.15,0] }],
+    [.5,  { armR:[-1.25,0,-.05], foreR:[0,0,0], axe:[1.15,0,0], torso:[.38,0,0] }],
+    [.66, { armR:[-1.05,0,-.05], foreR:[-.1,0,0], axe:[1.2,0,0], torso:[.32,0,0] }] ] },
+  sweep: { dur:.6, hit:.48, range:1.6, cone:.1, power:1, next:'spin', keys:[
+    [.32, { armR:[-1.45,-1.3,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.05,-.75,0] }],
+    [.52, { armR:[-1.45,1.0,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.12,.75,0] }],
+    [.7,  { armR:[-1.3,1.15,0], foreR:[-.2,-1.5,0], axe:[1.4,0,0], torso:[.1,.6,0] }] ] },
+  spin:  { dur:.85, hit:.55, range:1.8, cone:-1, power:2, next:'chop', spin:true, keys:[
+    [.2,  { armR:[-1.45,-.4,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.15,-.3,0] }],
+    [.8,  { armR:[-1.45,-.4,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.15,-.3,0] }] ] },
+};
+function kf(k, frames) { let i = 0; while (i < frames.length-2 && k > frames[i+1][0]) i++;
+  const [t0,a] = frames[i], [t1,b] = frames[i+1], u = smooth(clamp((k-t0)/(t1-t0), 0, 1)), o = {};
+  for (const j in a) o[j] = a[j].map((v,n) => lerp(v, b[j][n], u)); return o; }
+
+function setAxeInHand(inHand) {
+  P.hasAxe = inHand;
+  (inHand ? pack : J.foreR).children = (inHand ? pack : J.foreR).children.filter(c => c !== axe);
+  (inHand ? J.foreR : pack).children.push(axe);
+  axe.pos = inHand ? [0,-.28,.01] : HOLSTER.pos; axe.rot = inHand ? [0,0,0] : HOLSTER.rot;
+}
 
 function poseFor(t) {
   const p = {}; JOINTS.forEach(j => p[j] = [0,0,0]); let y = 0;
-  const s = Math.sin(P.phase), c = Math.cos(P.phase);
-  const breathe = Math.sin(t*2.2)*.03;
-  const sp = P.speed;
-  if (!P.grounded) { // airborne
+  const s = Math.sin(P.phase), c = Math.cos(P.phase), breathe = Math.sin(t*2.2)*.03, sp = P.speed;
+  if (!P.grounded) {
     const up = clamp(P.vy/6, -1, 1);
     p.legL = [-.9 - up*.3,0,.05]; p.shinL = [1.3,0,0]; p.legR = [-.2+up*.3,0,-.05]; p.shinR = [.6,0,0];
     p.armL = [-.6 - up*1.6,0,.6]; p.armR = [-.6 - up*1.6,0,-.6]; p.foreL = [-.4,0,0]; p.foreR = [-.4,0,0];
@@ -234,9 +336,8 @@ function poseFor(t) {
   } else if (P.roll > 0) {
     p.legL = p.legR = [-1.8,0,0]; p.shinL = p.shinR = [2.3,0,0]; p.armL = [-1.4,0,.2]; p.armR = [-1.4,0,-.2];
     p.foreL = p.foreR = [-1.6,0,0]; p.torso = [.9,0,0]; p.head = [.6,0,0]; y = -.35;
-  } else if (sp > .2) { // locomotion
-    const run = clamp((sp - 2.2) / 3, 0, 1), cr = P.crouch ? 1 : 0;
-    const amp = lerp(.55, 1.0, run);
+  } else if (sp > .2) {
+    const run = clamp((sp - 2.2) / 3, 0, 1), cr = P.crouch ? 1 : 0, amp = lerp(.55, 1.0, run);
     p.legL = [-s*amp - cr*.7,0,.03]; p.legR = [s*amp - cr*.7,0,-.03];
     p.shinL = [Math.max(0, c)*amp*1.4 + .1 + cr*1.2,0,0]; p.shinR = [Math.max(0,-c)*amp*1.4 + .1 + cr*1.2,0,0];
     p.armL = [s*amp*.9,0,.1+run*.1]; p.armR = [-s*amp*.9,0,-.1-run*.1];
@@ -246,46 +347,102 @@ function poseFor(t) {
   } else if (P.crouch) {
     p.legL = [-1.5,0,.15]; p.legR = [-1.5,0,-.15]; p.shinL = p.shinR = [2.2,0,0];
     p.armL = [-.6,0,.1]; p.armR = [-.6,0,-.1]; p.foreL = p.foreR = [-.6,0,0]; p.torso = [.45+breathe,0,0]; p.head = [-.4,0,0]; y = -.33;
-  } else { // idle + emotes
+  } else {
     p.torso = [breathe,0,0]; p.armL = [0,0,.08+breathe]; p.armR = [0,0,-.08-breathe]; p.foreL = p.foreR = [-.1,0,0];
     p.head = [0, Math.sin(t*.4)*.15, 0]; y = breathe*.3;
     const e = P.emote, et = P.emoteT;
-    if (P.idleT > 8 && !e) { p.head = [.1, Math.sin(t*.9)*.6, 0]; p.armR = [-.3,0,-.2]; p.foreR = [-1.8,0,.3]; } // idle fidget: check wrist
+    if (P.idleT > 8 && !e && !P.hasAxe && !cam.fp) { p.head = [.1, Math.sin(t*.9)*.6, 0]; p.armR = [-.3,0,-.2]; p.foreR = [-1.8,0,.3]; }
     if (e === 'wave') { p.armR = [0,0,-2.7]; p.foreR = [0,0,-.4 + Math.sin(et*12)*.5]; p.head = [0,.1,.08]; p.torso = [0,0,.05]; }
     if (e === 'dance') { const d = et*7;
       y = Math.abs(Math.sin(d))*.06 - .03; p.body = [0,Math.sin(d*.5)*.3,Math.sin(d)*.12]; p.torso = [0,0,-Math.sin(d)*.18];
       p.armL = [0,0,1.4+Math.sin(d)*.9]; p.armR = [0,0,-1.4+Math.sin(d)*.9]; p.foreL = [0,0,1.2]; p.foreR = [0,0,-1.2];
       p.legL = [Math.min(0,Math.sin(d))*.6,0,.1]; p.legR = [Math.min(0,-Math.sin(d))*.6,0,-.1];
-      p.shinL = [-Math.min(0,Math.sin(d))*1,0,0]; p.shinR = [-Math.min(0,-Math.sin(d))*1,0,0]; p.head = [0,0,Math.sin(d)*.2]; }
+      p.shinL = [-Math.min(0,Math.sin(d)),0,0]; p.shinR = [-Math.min(0,-Math.sin(d)),0,0]; p.head = [0,0,Math.sin(d)*.2]; }
     if (e === 'sit') { y = -.43; p.legL = [-1.5,0,.25]; p.legR = [-1.5,0,-.25]; p.shinL = [1.55,0,-.1]; p.shinR = [1.55,0,.1];
       p.body = [-.1,0,0]; p.torso = [.15+breathe,0,0]; p.armL = [-.9,0,.25]; p.armR = [-.9,0,-.25]; p.foreL = p.foreR = [-.3,0,0]; p.head = [0,Math.sin(t*.5)*.3,0]; }
     if (e === 'cheer') { const d = et*8; y = Math.max(0, Math.sin(d))*.18;
       p.armL = [0,0,2.9+Math.sin(d)*.2]; p.armR = [0,0,-2.9-Math.sin(d)*.2]; p.foreL = [0,0,.3]; p.foreR = [0,0,-.3];
       p.legL = p.legR = [-Math.max(0,-Math.sin(d))*.5,0,0]; p.shinL = p.shinR = [Math.max(0,-Math.sin(d)),0,0]; p.head = [-.3,0,0]; }
-    if (e === 'look') { const d = et*.9; p.head = [-.1, Math.sin(d)*1.0, 0]; p.torso = [0, Math.sin(d)*.35, 0];
-      p.armR = [-2.4,0,-.4]; p.foreR = [-1.6,0,0]; }
-    if (e === 'pushups') { const d = Math.sin(et*4)*.5+.5; y = -.58 + d*.12; p.body = [1.45,0,0];
-      p.torso = [0,0,0]; p.head = [-.9,0,0]; p.legL = p.legR = [0,0,0];
+    if (e === 'look') { const d = et*.9; p.head = [-.1, Math.sin(d), 0]; p.torso = [0, Math.sin(d)*.35, 0]; p.armR = [-2.4,0,-.4]; p.foreR = [-1.6,0,0]; }
+    if (e === 'pushups') { const d = Math.sin(et*4)*.5+.5; y = -.58 + d*.12; p.body = [1.45,0,0]; p.head = [-.9,0,0];
       p.armL = [-1.5+d*.3,0,.2]; p.armR = [-1.5+d*.3,0,-.2]; p.foreL = p.foreR = [-1.6+d*1.4,0,0]; }
     if (e === 'bow') { const d = Math.min(1, et*2) * (et > 2 ? Math.max(0, 1-(et-2)*2) : 1);
-      p.torso = [1.1*d,0,0]; p.head = [.3*d,0,0]; p.armL = [0,0,.05]; p.armR = [-1.2*d,0,-.1]; p.foreR = [-1.2*d,0,-.3*d]; }
-    if (e === 'sleep') { const d = Math.sin(t*1.2)*.03; y = -.43; p.legL = [-1.5,0,.3]; p.legR = [-1.5,0,-.3]; p.shinL = [1.5,0,0]; p.shinR = [1.5,0,0];
-      p.torso = [.6+d,0,0]; p.head = [.6+d,0,.3]; p.armL = [-.6,0,.0]; p.armR = [-.6,0,-.0]; p.foreL = [-1.2,0,-.6]; p.foreR = [-1.2,0,.6]; }
+      p.torso = [1.1*d,0,0]; p.head = [.3*d,0,0]; p.armR = [-1.2*d,0,-.1]; p.foreR = [-1.2*d,0,-.3*d]; }
+    if (e === 'sleep') { const d = Math.sin(t*1.2)*.03; y = -.43; p.legL = [-1.5,0,.3]; p.legR = [-1.5,0,-.3]; p.shinL = p.shinR = [1.5,0,0];
+      p.torso = [.6+d,0,0]; p.head = [.6+d,0,.3]; p.armL = p.armR = [-.6,0,0]; p.foreL = [-1.2,0,-.6]; p.foreR = [-1.2,0,.6]; }
   }
-  // punch overlay (upper body only, works while moving)
-  if (P.punch > 0 && P.roll <= 0) { const k = P.punch, ext = k > .55 ? (1-k)/.45 : Math.min(1, k/.55*1.3);
-    const a = P.punchSide > 0 ? 'armR' : 'armL', f = P.punchSide > 0 ? 'foreR' : 'foreL', o = P.punchSide > 0 ? 'armL' : 'armR', of = P.punchSide > 0 ? 'foreL' : 'foreR';
-    const sg = P.punchSide;
-    if (P.combo === 3) { p[a] = [-2.6*ext,0,-.2*sg]; p[f] = [-.2,0,0]; y += ext*.12; } // uppercut
-    else { p[a] = [-1.55*ext,0,-.15*sg*ext]; p[f] = [-1.4*(1-ext),0,0]; }
-    p[o] = [-1.2,0,.2*sg]; p[of] = [-2,0,0]; p.torso = [.1, -.45*sg*ext, 0]; p.head = [0,.3*sg*ext,0];
-  }
+  const free = !P.emote && P.roll <= 0;
+  // first person: hands up in a guard so they're always in view; they follow the look pitch a little
+  if (cam.fp && free) { const pa = cam.fpPitch*.6, bob = Math.sin(P.phase)*.06*Math.min(1, sp/3);
+    p.armL = [-1.45+pa+bob,0,-.2]; p.foreL = [-.6,0,0];
+    p.armR = [-1.45+pa-bob,0,.2];  p.foreR = [-.6,0,0]; }
+  // holding the axe: resting on the shoulder (third person) / raised at the right side (first person)
+  if (P.hasAxe && free) {
+    if (cam.fp) { p.armR = [-1.15+cam.fpPitch*.6,0,.12]; p.foreR = [-.9,0,0]; p.axe = [1.0,0,0]; }
+    else { p.armR = [-.4,0,-.14]; p.foreR = [-1.8,0,0]; p.axe = [1.2,0,0]; } }
+  const hold = { armR:p.armR, foreR:p.foreR, axe:p.axe, torso:p.torso };
+  if (P.atk) Object.assign(p, kf(P.atk.t / ATTACKS[P.atk.name].dur, [[0,hold], ...ATTACKS[P.atk.name].keys, [1,hold]]));
+  if (P.equip > 0) Object.assign(p, kf(1 - P.equip, [[0,hold], [.5,{ armR:[-2.8,0,-.55], foreR:[-1.5,0,0], axe:[0,0,0], torso:[.05,-.3,0] }], [1,hold]]));
+  if (P.punch > 0 && P.roll <= 0) { const k = P.punch, ext = k > .55 ? (1-k)/.45 : Math.min(1, k/.55*1.3), sg = P.punchSide;
+    const a = sg > 0 ? 'armR' : 'armL', f = sg > 0 ? 'foreR' : 'foreL', o = sg > 0 ? 'armL' : 'armR', of = sg > 0 ? 'foreL' : 'foreR';
+    if (P.combo === 3) { p[a] = [-2.6*ext,0,-.2*sg]; p[f] = [-.2,0,0]; y += ext*.12; }
+    else { p[a] = [lerp(p[a][0], -1.55, ext),0,(cam.fp ? .32 : -.15)*sg*ext]; p[f] = [lerp(p[f][0], 0, ext),0,0]; } // fp: aim at the crosshair
+    if (!cam.fp) { p[o] = [-1.2,0,.2*sg]; p[of] = [-2,0,0]; }
+    p.torso = [.1, -.45*sg*ext, 0]; p.head = [0,.3*sg*ext,0]; }
   if (P.land > 0) { y -= P.land*.15; p.legL[0] -= P.land*.4; p.legR[0] -= P.land*.4; p.shinL[0] += P.land*.8; p.shinR[0] += P.land*.8; }
   return { p, y };
 }
 
+// ================= combat =================
+function strike(range, cone, power) {
+  const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw); let hit = false;
+  for (const tr of trees) { if (tr.state !== 'up') continue;
+    const dx = tr.x - P.x, dz = tr.z - P.z, d = Math.hypot(dx, dz) || 1;
+    if (d > range + .3 || (cone > -1 && (dx*fx + dz*fz)/d < cone)) continue;
+    hitTree(tr, power, dx/d, dz/d); hit = true; }
+  return hit;
+}
+function hitTree(tr, power, dx, dz) {
+  tr.shake = 1; cam.shake = Math.max(cam.shake, power ? .12 : .05);
+  const hp = [tr.x - dx*.22, .9 + rand(-.1,.2), tr.z - dz*.22];
+  for (let i = 0; i < (power ? 16 : 4); i++)    // wood chips fly back toward the player
+    spawn({ p:[...hp], v:[-dx*rand(1,3)+rand(-1.5,1.5), rand(1.5,4), -dz*rand(1,3)+rand(-1.5,1.5)], life:rand(1.2,2.2), s:rand(.04,.08), c: Math.random()<.5 ? TC.bark : [.85,.72,.5], bounce:.35 });
+  const cw = tr.crown.world; if (!cw) return;
+  for (let i = 0; i < (power ? 7 : 4); i++)     // leaves shaken loose
+    spawn({ p:[cw[12]+rand(-1,1), cw[13]+rand(-.2,.3), cw[14]+rand(-1,1)], v:[rand(-.5,.5),0,rand(-.5,.5)], g:1.4, drag:2.5, flutter:3, life:rand(3,5), s:.09, c: Math.random()<.5 ? TC.leaf : TC.leaf2, spin:rand(-3,3) });
+  const coco = tr.crown.boxes.find(b => b.coco && !b.hidden);
+  if (coco && Math.random() < .35 + power*.15) { coco.hidden = true;
+    spawn({ p:xform(cw, coco.o), v:[rand(-1,1),0,rand(-1,1)], life:8, s:.17, c:TC.coco, bounce:.45, spin:rand(-4,4) }); }
+  if (power && (tr.hp -= power) <= 0) { tr.state = 'falling'; tr.fallA = Math.atan2(dx, dz) - tr.yaw; tr.fall = 0; tr.fallV = .2; }
+}
+function updateTree(tr, dt, t) {
+  tr.shake = Math.max(0, tr.shake - dt*2.2);
+  const sh = tr.shake*tr.shake, w = Math.sin(t*.7 + tr.seed)*.025;
+  tr.crown.rot = [w + sh*Math.sin(t*26)*.1, 0, Math.cos(t*.6 + tr.seed)*.025 + sh*Math.cos(t*23)*.08];
+  tr.fronds.forEach((f,i) => f.rot = [Math.sin(t*1.6 + i + tr.seed)*.05 + sh*Math.sin(t*30+i)*.18, f.yaw0, 0]);
+  if (tr.state === 'up') { tr.trunk.rot = [sh*Math.sin(t*30)*.025, 0, 0]; tr.inner.rot = [0,0,0]; }
+  if (tr.state === 'falling') {
+    tr.fallV += dt*2.6; tr.fall += tr.fallV*dt;
+    if (tr.fall >= 1.47) { tr.fall = 1.47; tr.state = 'down'; tr.timer = 4; cam.shake = .25;
+      const cw = tr.crown.world; if (cw) { puff([cw[12],0,cw[14]], 18);
+        for (let i = 0; i < 18; i++) spawn({ p:[cw[12]+rand(-1.2,1.2), .3, cw[14]+rand(-1.2,1.2)], v:[rand(-2,2),rand(1,3),rand(-2,2)], g:2, drag:2, flutter:2, life:rand(2,4), s:.09, c: Math.random()<.5 ? TC.leaf : TC.leaf2 }); }
+      for (let i = 0; i < 4; i++) puff([tr.x + Math.sin(tr.fallA+tr.yaw)*i, 0, tr.z + Math.cos(tr.fallA+tr.yaw)*i], 4); }
+    tr.trunk.rot = [tr.fall, tr.fallA, 0]; tr.inner.rot = [0, -tr.fallA, 0];
+  } else if (tr.state === 'down' && (tr.timer -= dt) <= 0) {          // poof, then regrow from the ground
+    const cw = tr.crown.world; if (cw) for (let i = 0; i < 25; i++)
+      spawn({ p:[lerp(tr.x, cw[12], Math.random()), .3, lerp(tr.z, cw[14], Math.random())], v:[rand(-1,1),rand(1,3),rand(-1,1)], g:-.5, drag:3, life:rand(.5,1), s:rand(.06,.12), c:[.4,.37,.33] });
+    tr.state = 'grow'; tr.trunk.rot = [0,0,0]; tr.inner.rot = [0,0,0]; tr.trunk.pos = [0,-4.6,0];
+    tr.crown.boxes.forEach(b => b.hidden = false); tr.hp = 5;
+  } else if (tr.state === 'grow') {
+    tr.trunk.pos[1] = Math.min(0, tr.trunk.pos[1] + dt*2.6);
+    if (Math.random() < .5) puff([tr.x, 0, tr.z], 1);
+    if (tr.trunk.pos[1] === 0) tr.state = 'up';
+  }
+}
+
+// ================= update =================
+function startAttack(name) { P.atk = { name, t: 0, hit: false }; P.atkQueued = false; P.emote = null; }
 function update(dt, t) {
-  // camera keys
   if (keys['arrowleft']) cam.yaw += dt*2; if (keys['arrowright']) cam.yaw -= dt*2;
   const lv = (keys['arrowup'] ? 1 : 0) - (keys['arrowdown'] ? 1 : 0);
   if (cam.fp) cam.fpPitch = clamp(cam.fpPitch - lv*dt*1.5, -1.45, 1.45); else cam.pitch = clamp(cam.pitch + lv*dt, -.2, 1.4);
@@ -294,18 +451,20 @@ function update(dt, t) {
     document.getElementById('cross').style.display = cam.fp ? 'block' : 'none'; }
   if (pressed['t']) slow = !slow; if (pressed['g']) grid = grid ? 0 : 1; if (pressed['v']) cam.auto = !cam.auto;
   if (pressed['b']) packOn = !packOn;
-  if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0 });
+  if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0, atk:null });
   if (pressed['c']) P.crouch = !P.crouch;
-  for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; }
+  for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; P.atk = null; }
+  if (pressed['1'] && P.equip <= 0 && !P.atk) { P.equip = 1; P.equipTo = !P.hasAxe; P.emote = null; P.punch = 0; }
+  if (pressed['x'] && P.hasAxe && !P.atk && P.twirl <= 0) P.twirl = 1;
 
-  // movement input relative to camera
+  // movement relative to camera
   let ix = (keys['d']?1:0) - (keys['a']?1:0), iz = (keys['w']?1:0) - (keys['s']?1:0);
   const il = Math.hypot(ix, iz); if (il) { ix /= il; iz /= il; }
-  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw); // camera forward on ground
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
   const mx = fx*iz - fz*ix, mz = fz*iz + fx*ix;
   if (il || P.roll > 0) { P.emote = null; P.idleT = 0; }
   const sneak = keys['control'], run = keys['shift'] && !P.crouch && !sneak;
-  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) : 0;
+  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) * (P.atk ? .45 : 1) : 0;
 
   if (P.roll > 0) {
     P.roll -= dt / .55; const rs = 7.5 * (P.roll > .2 ? 1 : P.roll/.2);
@@ -313,82 +472,97 @@ function update(dt, t) {
   } else {
     const acc = P.grounded ? 14 : 4;
     P.vx = lerp(P.vx, mx*target, 1 - Math.exp(-acc*dt)); P.vz = lerp(P.vz, mz*target, 1 - Math.exp(-acc*dt));
-    if (il) P.yaw = angLerp(P.yaw, Math.atan2(mx, mz), 1 - Math.exp(-12*dt));
+    if (il && !P.atk) P.yaw = angLerp(P.yaw, Math.atan2(mx, mz), 1 - Math.exp(-12*dt));
   }
   if (pressed['q'] && P.roll <= 0 && P.grounded) {
     const d = il ? [mx, mz] : [Math.sin(P.yaw), Math.cos(P.yaw)];
-    P.rollDir = d; P.yaw = Math.atan2(d[0], d[1]); P.roll = 1; P.crouch = false; P.emote = null;
+    P.rollDir = d; P.yaw = Math.atan2(d[0], d[1]); P.roll = 1; P.crouch = false; P.emote = null; P.atk = null; puff([P.x,0,P.z], 6);
   }
   if (pressed[' '] && P.roll <= 0) {
-    if (P.grounded) { P.vy = P.crouch ? 7.5 : 6; P.grounded = false; P.jumps = 1; P.crouch = false; P.emote = null; }
+    if (P.grounded) { P.vy = P.crouch ? 7.5 : 6; P.grounded = false; P.jumps = 1; P.crouch = false; P.emote = null; puff([P.x,0,P.z], 5); }
     else if (P.jumps === 1) { P.vy = 6.5; P.jumps = 2; P.flip = 0; }
   }
-  if (pressed['f'] && P.roll <= 0) {
-    if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
+  // attacks: axe combo when holding it, fists otherwise
+  if (pressed['f'] && P.roll <= 0 && P.equip <= 0) {
+    if (P.hasAxe) { if (!P.atk) startAttack('chop'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4) P.atkQueued = true; }
+    else if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
   }
-  P.punch = Math.max(0, P.punch - dt / (P.combo === 3 ? .5 : .32));
-  if (P.punch === 0 && P.combo && !P.punchQueued) P.combo = P.combo; // combo resets naturally when punch fully ends
+  if (P.atk) { const A = ATTACKS[P.atk.name]; P.atk.t += dt; const k = P.atk.t / A.dur;
+    if (k > A.hit - .12 && k < A.hit + .06) { const h = axe.world && xform(axe.world, [0,-.12,.52]); // swing trail
+      if (h) for (let i = 0; i < 2; i++) spawn({ p:h.map(v => v + rand(-.04,.04)), g:0, drag:4, life:.22, s:.045, c:[.95,.92,.82], emit:true, spin:0 }); }
+    if (!P.atk.hit && k >= A.hit) { P.atk.hit = true; strike(A.range, A.cone, A.power); }
+    if (k >= 1) { const nx = P.atkQueued ? A.next : null; P.atk = null; if (nx) startAttack(nx); } }
+  const pk = P.punch; P.punch = Math.max(0, P.punch - dt / (P.combo === 3 ? .5 : .32));
+  if (pk > .6 && P.punch <= .6) strike(1.1, .6, 0);
   if (P.punch === 0) P.combo = 0;
+  if (P.equip > 0) { const before = P.equip; P.equip -= dt / .55;
+    if (before > .5 && P.equip <= .5 && P.hasAxe !== P.equipTo) setAxeInHand(P.equipTo); }
+  P.twirl = Math.max(0, P.twirl - dt / .7);
 
-  // physics
+  // physics + tree collision
   P.vy -= 18*dt; P.y += P.vy*dt; P.x += P.vx*dt; P.z += P.vz*dt;
-  if (P.y <= 0) { if (!P.grounded && P.vy < -4) P.land = 1; P.y = 0; P.vy = 0; P.grounded = true; P.jumps = 0; }
+  for (const tr of trees) { if (tr.state !== 'up') continue;
+    const dx = P.x - tr.x, dz = P.z - tr.z, d = Math.hypot(dx, dz);
+    if (d < .5 && d > 0) { P.x = tr.x + dx/d*.5; P.z = tr.z + dz/d*.5; } }
+  if (P.y <= 0) { if (!P.grounded && P.vy < -4) { P.land = 1; puff([P.x,0,P.z], 10); } P.y = 0; P.vy = 0; P.grounded = true; P.jumps = 0; }
   P.land = Math.max(0, P.land - dt*4);
-  if (P.jumps === 2) P.flip = (P.flip || 0) + dt*11; else P.flip = 0;
+  P.flip = P.jumps === 2 ? P.flip + dt*11 : 0;
   P.speed = Math.hypot(P.vx, P.vz);
-  P.phase += dt * (P.speed * 2.6 + .0) / (P.crouch ? .7 : 1);
+  if (P.grounded && P.speed > 4.5 && (P.dustT -= dt) < 0) { P.dustT = .1; puff([P.x,0,P.z], 1); }
+  P.phase += dt * P.speed * 2.6 / (P.crouch ? .7 : 1);
   if (P.emote) P.emoteT += dt; else P.idleT += dt;
   if (P.emote === 'bow' && P.emoteT > 2.6) P.emote = null;
+  if (cam.fp && P.roll <= 0 && !(P.atk && ATTACKS[P.atk.name].spin)) P.yaw = Math.atan2(fx, fz);
 
-  // animate
+  // animate (exp-smoothed toward the target pose)
   const { p, y } = poseFor(t);
-  const k = 1 - Math.exp(-(P.roll > 0 || P.punch > 0 ? 25 : 12) * dt);
+  const k = 1 - Math.exp(-(P.roll > 0 || P.punch > 0 || P.atk || P.equip > 0 ? 28 : 12) * dt);
   for (const j of JOINTS) for (let i = 0; i < 3; i++) cur[j][i] = lerp(cur[j][i], p[j][i], k);
   curY = lerp(curY, y, k);
-  for (const j of JOINTS) J[j].rot = cur[j];
-  root.pos = [P.x, P.y, P.z]; root.rot = [0, P.yaw, 0];
-  let pitch = 0;
-  if (P.roll > 0) pitch = (1 - P.roll) * Math.PI * 2;
-  if (P.jumps === 2) pitch = Math.min(P.flip, Math.PI*2);
-  if (P.jumps === 2 && P.flip >= Math.PI*2) pitch = 0;
-  body.pos = [0, .78 + curY, 0];
-  body.rot = [cur.body[0] + pitch, cur.body[1], cur.body[2]];
-  pack.boxes.forEach(b => b.hidden = !packOn);
+  for (const j of JOINTS) if (j !== 'axe') J[j].rot = cur[j];
+  if (P.hasAxe) axe.rot = [cur.axe[0] - smooth(1 - P.twirl)*Math.PI*2*(P.twirl > 0), cur.axe[1], cur.axe[2]];
+  let pitch = P.roll > 0 ? (1 - P.roll) * Math.PI * 2 : 0;
+  if (P.jumps === 2 && P.flip < Math.PI*2) pitch = P.flip;
+  const spinYaw = P.atk && ATTACKS[P.atk.name].spin ? smooth(clamp(P.atk.t / ATTACKS.spin.dur * 1.25 - .1, 0, 1)) * Math.PI*2 : 0;
+  root.pos = [P.x, P.y, P.z]; root.rot = [0, P.yaw + spinYaw, 0];
+  body.pos = [0, .78 + curY, 0]; body.rot = [cur.body[0] + pitch, cur.body[1], cur.body[2]];
+  pack.hidden = !packOn;
 
-  // camera follow
-  // first person: body always faces where you look
-  if (cam.fp && P.roll <= 0) P.yaw = Math.atan2(fx, fz), root.rot = [0, P.yaw, 0];
-  if (!cam.fp && cam.auto && il && !drag) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8 * Math.abs(iz < 0 ? 0 : 1));
+  for (const tr of trees) updateTree(tr, dt, t);
+  updateParts(dt, t);
+  cam.shake = Math.max(0, cam.shake - dt*.8);
+  if (!cam.fp && cam.auto && il && !drag && iz >= 0) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8);
   pressed = {};
-  const st = !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
-    P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 ? 'idle (fidget)' : 'idle');
-  document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
+  const st = P.equip > 0 ? (P.equipTo ? 'drawing axe' : 'holstering') : P.atk ? 'axe: ' + P.atk.name : P.twirl > 0 ? 'twirl' :
+    !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
+    P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.hasAxe && !cam.fp ? 'idle (fidget)' : 'idle');
+  document.getElementById('state').textContent = `${st}${P.hasAxe ? ' · axe' : ''}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
 }
 
-function computeWorld(n, parent) {
-  n.world = M.mul(M.mul(parent, M.t(...n.pos)), M.rot(n.rot));
-  for (const c of n.children) computeWorld(c, n.world);
-}
-const xform = (m, v) => [0,1,2].map(i => m[i]*v[0] + m[4+i]*v[1] + m[8+i]*v[2] + m[12+i]);
+// ================= render =================
+function computeWorld(n, parent) { n.world = M.mul(M.mul(parent, M.t(...n.pos)), M.rot(n.rot)); for (const c of n.children) computeWorld(c, n.world); }
+let boundGeo = null;
+function drawBox(m, c, g = 'box') { if (boundGeo !== g) { gl.bindVertexArray(GEO[g].a); boundGeo = g; }
+  gl.uniformMatrix4fv(U.uM, false, m); gl.uniform3fv(U.uCol, c); gl.drawArrays(gl.TRIANGLES, 0, GEO[g].n); }
 function drawNode(n) {
-  const m = n.world;
-  if (!(cam.fp && n === head)) for (const b of n.boxes) { if (b.hidden) continue;
-    const bm = M.mul(M.mul(M.mul(m, M.t(...b.o)), M.rot(b.r)), M.s(...b.s));
-    gl.uniformMatrix4fv(U.uM, false, bm); gl.uniform3fv(U.uCol, b.c); gl.drawArrays(gl.TRIANGLES, 0, 36); }
+  if (n.hidden) return;
+  if (!(cam.fp && n === head)) for (const b of n.boxes) if (!b.hidden)
+    drawBox(M.mul(M.mul(M.mul(n.world, M.t(...b.o)), M.rot(b.r)), M.s(...b.s)), b.c, b.g);
   for (const c of n.children) drawNode(c);
 }
 
 let last = performance.now();
 function frame(now) {
   let dt = Math.min(.05, (now - last) / 1000); last = now; if (slow) dt *= .25;
-  update(dt, now / 1000);
+  const t = now / 1000;
+  update(dt, t);
   const w = cv.clientWidth * devicePixelRatio | 0, h = cv.clientHeight * devicePixelRatio | 0;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   gl.viewport(0, 0, w, h); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  computeWorld(root, M.id());
+  computeWorld(root, M.id()); for (const tr of trees) computeWorld(tr.node, M.id());
   let eye, tgt;
-  if (cam.fp) { // eyes ride the animated head, so bob/crouch/sit/flip all carry into the view
-    eye = xform(head.world, [0, .26, .2]);
+  if (cam.fp) { // eyes ride the animated head, so bob/crouch/sit/flip carry into the view
+    eye = xform(head.world, [0, .3, -.22]);   // set back inside the (hidden) head so the hands sit at a natural distance
     const cp = Math.cos(cam.fpPitch);
     tgt = [eye[0] - Math.sin(cam.yaw)*cp, eye[1] - Math.sin(cam.fpPitch), eye[2] - Math.cos(cam.yaw)*cp];
   } else {
@@ -396,12 +570,23 @@ function frame(now) {
     eye = [tgt[0] + Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.dist, tgt[1] + Math.sin(cam.pitch)*cam.dist, tgt[2] + Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.dist];
     eye[1] = Math.max(.15, eye[1]);
   }
+  if (cam.shake > 0) { const s = cam.shake*cam.shake*1.5; for (const v of [eye, tgt]) { v[0] += rand(-s,s)*.3; v[1] += rand(-s,s)*.3; } }
   gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(cam.fp ? 1.25 : .9, w/h, .03, 300), M.look(eye, tgt, [0,1,0])));
   gl.uniform3fv(U.uPlayer, [P.x, P.y, P.z]); gl.uniform3fv(U.uCam, eye); gl.uniform1f(U.uGrid, grid);
-  gl.uniform1i(U.uFloor, 1); gl.bindVertexArray(floorVAO); gl.uniformMatrix4fv(U.uM, false, M.id()); gl.drawArrays(gl.TRIANGLES, 0, 6);
-  gl.uniform1i(U.uFloor, 0); gl.bindVertexArray(cubeVAO); drawNode(root);
+  gl.uniform1i(U.uMode, 1); boundGeo = null; drawBox(M.id(), [0,0,0], 'floor');
+  gl.uniform1i(U.uMode, 0);
+  drawNode(root); for (const tr of trees) drawNode(tr.node);
+  for (const q of parts) { if (q.emit) continue; const sc = q.s * Math.min(1, q.life*3);
+    drawBox(M.mul(M.mul(M.t(...q.p), M.rot(q.rot)), M.s(sc,sc,sc)), q.c); }
+  gl.uniform1i(U.uMode, 2);
+  for (const q of parts) { if (!q.emit) continue; const sc = q.s * (q.life / q.max);
+    drawBox(M.mul(M.t(...q.p), M.s(sc,sc,sc)), q.c); }
+  for (const f of flies) { const a = t*f.sp + f.ph, fl = .55 + .45*Math.sin(t*3 + f.ph*7), tw = f.t.trunk.pos[1];
+    const fp = [f.t.x + Math.sin(a)*f.r, f.h + Math.sin(a*1.7)*.35 + tw*.3, f.t.z + Math.cos(a*.8)*f.r], sc = .03 + .015*fl;
+    drawBox(M.mul(M.t(...fp), M.s(sc,sc,sc)), [1*fl, .85*fl, .45*fl]); }
   requestAnimationFrame(frame);
 }
+computeWorld(root, M.id()); for (const tr of trees) computeWorld(tr.node, M.id());
 requestAnimationFrame(frame);
 </script>
 </body>
