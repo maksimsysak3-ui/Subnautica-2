@@ -11,6 +11,8 @@ import { evaluateTrade, executeTrade, noteRejection, patience, pickLabel, pickTr
 import { gmOf, gmLine, readOf, READ_LABEL, noteFollowup, clearFollowup, dueFollowups, tradeDraft, setTradeDraft, type Read } from '../../core/tradetalk';
 import { hash } from '../../core/rng';
 import './tradecenter.css';
+import combineLogo from '../assets/combine.png';
+import { FaceArt } from '../face';
 import { positionNeeds } from '../../core/draft';
 import { POS_ORDER } from '../../core/ratings';
 // ---- the trade center -------------------------------------------------------------------
@@ -42,28 +44,31 @@ export function TradeCenter() {
       <h3 className="tc-sub">The league's general managers</h3>
       <div className="tc-gms">{others.map((t, i) => { const g = gmOf(L, t), tm = L.teams[t]; return (
         <button key={t} className="tc-gm" style={{ '--tc': tm.colors[0], animationDelay: `${0.2 + i * 0.015}s` } as React.CSSProperties} onClick={() => app.go({ id: 'trade', team: t })}>
-          <Logo team={tm} size={34} /><div><b>{g.name}</b><span>{tm.nick} · {g.label}</span></div>
+          <span className="tc-gmf"><GmFace L={L} team={t} size={40} /><Logo team={tm} size={18} /></span><div><b>{g.name}</b><span>{tm.nick} · {g.label}</span></div>
         </button>); })}</div>
     </div>
   );
 }
 
-/** A draft pick as a card: an original emblem (shield, star, round), the year, and the
- *  original team's colour. */
+/** A draft pick: the combine badge, with the round and the draft year on it. */
 export function PickEmblem({ L, k, size = 46 }: { L: LG; k: { round: number; season: number; orig: string }; size?: number }) {
   const t = L.teams[k.orig];
-  const c1 = t?.colors[0] ?? '#1d3b8a', c2 = t?.colors[1] ?? '#ffd23f';
   return (
-    <svg className="pk-em" width={size} height={size * 1.18} viewBox="0 0 100 118" aria-hidden>
-      <defs><linearGradient id={`pk${k.round}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1a2233" /><stop offset="1" stopColor="#0a0e16" /></linearGradient>
-        <linearGradient id="pkgold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff1b8" /><stop offset=".45" stopColor="#f2c230" /><stop offset="1" stopColor="#a87a10" /></linearGradient></defs>
-      <path d="M50 3 L94 18 V60 C94 88 72 106 50 115 C28 106 6 88 6 60 V18 Z" fill={`url(#pk${k.round})`} stroke="url(#pkgold)" strokeWidth="5" />
-      <path d="M14 24 L50 12 L86 24 V30 L50 18 L14 30 Z" fill={c1} opacity=".95" />
-      <path d="M14 30 L50 18 L86 30 V34 L50 22 L14 34 Z" fill={c2} opacity=".9" />
-      <path d="M50 30 l3.5 7 7.7 1.1 -5.6 5.4 1.3 7.6 -6.9 -3.6 -6.9 3.6 1.3 -7.6 -5.6 -5.4 7.7 -1.1 Z" fill="url(#pkgold)" />
-      <text x="50" y="86" textAnchor="middle" fontFamily="var(--head), Impact, sans-serif" fontWeight="900" fontSize="34" fill="url(#pkgold)">{k.round}</text>
-      <text x="50" y="102" textAnchor="middle" fontFamily="var(--ui), sans-serif" fontWeight="800" fontSize="10" letterSpacing="1.5" fill="#cfd6e3">{`'${String(k.season).slice(2)} RD`}</text>
-    </svg>
+    <span className="pk-em" style={{ width: size, height: size, '--pc': t?.colors[0] ?? '#1d3b8a' } as React.CSSProperties} aria-label={`${k.season} round ${k.round}`}>
+      <img src={combineLogo} alt="" draggable={false} />
+      <b style={{ fontSize: Math.max(9, size * 0.3) }}>{k.round}</b><i style={{ fontSize: Math.max(7, size * 0.17) }}>'{String(k.season).slice(2)}</i>
+    </span>
+  );
+}
+
+/** The other team's general manager, in a suit and a tie in his team's colour. */
+export function GmFace({ L, team, size = 58 }: { L: LG; team: string; size?: number }) {
+  const t = L.teams[team];
+  const p = { id: `gm-${team}`, face: hash(`${L.seed}-gm-${team}`), pos: 'QB', col: '', status: 'ACT' } as unknown as Player;
+  return (
+    <div className="gm-face" style={{ width: size, height: size, '--tc': t.colors[0] } as React.CSSProperties}>
+      <FaceArt p={p} team={t} size={size} suit />
+    </div>
   );
 }
 const projText = (n: number) => (n <= 10 ? 'Projected top 10' : n <= 20 ? 'Projected mid round' : 'Projected late round');
@@ -140,7 +145,7 @@ export function TradeScreen({ team, want }: { team?: string; want?: string }) {
         <section className="tr2-side me"><TeamHead L={L} abbr={L.user} you capAfter={any ? myCapAfter : undefined} /><Tray L={L} title="You send" side={give} onRemove={(k, id) => toggle('give', k, id)} /></section>
         <section className="tr2-gm" style={{ '--tc': tm.colors[0], '--tc2': tm.colors[1] ?? '#fff' } as React.CSSProperties}>
           <div className="tr2-gmh">
-            <div className="tr2-av">{gm.name.split(' ').map(x => x[0]).join('')}</div>
+            <GmFace L={L} team={other} size={64} />
             <div><b>{gm.name}</b><span>General Manager · {tm.nick}</span><em className={`st-${gm.style}`}>{gm.label}</em></div>
           </div>
           <p className="tr2-blurb">{gm.blurb}</p>
@@ -212,7 +217,7 @@ function Tray({ L, title, side, onRemove }: { L: LG; title: string; side: Side; 
           </div>))}
         {picks.map(k => (
           <div key={k.id} className="tr2-card pick" onClick={() => onRemove('picks', k.id)} title="Take off the table">
-            <PickEmblem L={L} k={k} size={40} /><div><span>{k.season} draft</span><b>{pickLabel(L, k)}</b><em>{projText(projectedSlot(L, k))}</em></div><i>×</i>
+            <PickEmblem L={L} k={k} size={50} /><div><span>{k.season} draft</span><b>{pickLabel(L, k)}</b><em>{projText(projectedSlot(L, k))}</em></div><i>×</i>
           </div>))}
       </div>
     </div>
@@ -238,7 +243,7 @@ function Assets({ L, abbr, sel, onToggle }: { L: LG; abbr: string; sel: Side; on
       </> : (
         <div className="tr2-list">{picks.map(k => { const on = sel.picks.includes(k.id); return (
           <div key={k.id} className={`tr2-row pick${on ? ' on' : ''}`} onClick={() => onToggle('picks', k.id)}>
-            <PickEmblem L={L} k={k} size={34} /><div><b>{pickLabel(L, k)}</b><div className="small mute">{projText(projectedSlot(L, k))}</div></div><div className="spacer" /><span className="tr2-add">{on ? '✓' : '+'}</span>
+            <PickEmblem L={L} k={k} size={42} /><div><b>{pickLabel(L, k)}</b><div className="small mute">{projText(projectedSlot(L, k))}</div></div><div className="spacer" /><span className="tr2-add">{on ? '✓' : '+'}</span>
           </div>); })}{!picks.length && <div className="small dim">No picks.</div>}</div>
       )}
     </div>

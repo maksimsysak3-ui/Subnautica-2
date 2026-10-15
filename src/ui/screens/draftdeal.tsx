@@ -10,7 +10,7 @@ import { gmOf, gmLine, readOf, READ_LABEL } from '../../core/tradetalk';
 import { hash } from '../../core/rng';
 import { app } from '../store';
 import { Logo } from '../components';
-import { PickEmblem } from './trades';
+import { PickEmblem, GmFace } from './trades';
 
 const label = (L: League, k: Pick) => (k.no && k.season === L.season ? `No. ${k.no}` : pickLabel(L, k));
 const findPick = (L: League, id: string) => L.picks.find(k => k.id === id)!;
@@ -31,7 +31,7 @@ export function DraftCalls({ L, order, cursor }: { L: League; order: Pick[]; cur
       <div className="dd-ring"><i>☎</i><b>{live.length} team{live.length > 1 ? 's' : ''} calling about your pick</b></div>
       {live.map((o, i) => { const g = gmOf(L, o.to); return (
         <div key={o.to} className="dd-call" style={{ animationDelay: `${i * 0.12}s` }}>
-          <Logo team={L.teams[o.to]} size={40} />
+          <span className="tc-gmf"><GmFace L={L} team={o.to} size={42} /><Logo team={L.teams[o.to]} size={18} /></span>
           <div className="dd-who"><b>{g.name}</b><span>{L.teams[o.to].nick} · {g.label}</span></div>
           <div className="dd-pk">{o.get.picks.map(id => { const k = findPick(L, id); return <span key={id}><PickEmblem L={L} k={k} size={28} /><em>{label(L, k)}</em></span>; })}</div>
           <div className="dd-btns"><button className="btn sm primary" onClick={() => accept(o)}>Trade down</button><button className="btn sm ghost" onClick={() => setGone(x => [...x, o.to])}>Hang up</button></div>
@@ -73,7 +73,7 @@ export function TradeUp({ L, pick, close }: { L: League; pick: Pick; close: (tra
   return createPortal(
     <div className="modal-bg" onClick={() => close(false)}>
       <div className="dd-up" onClick={e => e.stopPropagation()} style={{ '--tc': L.teams[owner].colors[0] } as React.CSSProperties}>
-        <header><Logo team={L.teams[owner]} size={56} /><div><span className="up">Trade up · the {L.teams[owner].nick} are on the clock</span><b>{gm.name}</b><em>{gm.label} · {gm.blurb}</em></div><button className="btn ghost sm" onClick={() => close(false)}>✕</button></header>
+        <header><span className="tc-gmf"><GmFace L={L} team={owner} size={60} /><Logo team={L.teams[owner]} size={24} /></span><div><span className="up">Trade up · the {L.teams[owner].nick} are on the clock</span><b>{gm.name}</b><em>{gm.label} · {gm.blurb}</em></div><button className="btn ghost sm" onClick={() => close(false)}>✕</button></header>
         <div className="dd-target"><PickEmblem L={L} k={pick} size={64} /><div><span>You want</span><b>Pick No. {pick.no}</b><em>Round {pick.round}</em></div></div>
         <div className="dd-sub">Your picks <button className="btn sm ghost" onClick={suggest}>Suggest a package</button></div>
         <div className="dd-mine">{mine.map(k => { const on = sel.includes(k.id); return (

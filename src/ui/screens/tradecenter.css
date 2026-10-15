@@ -197,3 +197,22 @@
 .dd-line b { font-family: var(--head); font-size: 16px; text-transform: uppercase; color: var(--rc, var(--text)); }
 .dd-line.r-cold { --rc: #ff6b6b; } .dd-line.r-listening { --rc: #ff9f43; } .dd-line.r-interested { --rc: #ffd166; } .dd-line.r-close { --rc: #a3e635; } .dd-line.r-deal { --rc: #3ddc84; }
 .dd-up footer { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 12px 18px; border-top: 1px solid var(--hair); }
+
+/* ---- pick badge: the combine logo with the round and year on it ----------------------- */
+.pk-em { position: relative; flex: none; display: inline-block; filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+.pk-em img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pk-em b { position: absolute; right: -6%; bottom: -4%; min-width: 42%; height: 42%; padding: 0 4%; display: grid; place-items: center; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff1b8, #f2c230 55%, #a87a10); color: #0a0b0e; border: 2px solid #0a0b0e;
+  font-family: var(--head), Impact, sans-serif; font-weight: 900; line-height: 1; }
+.pk-em i { position: absolute; left: -4%; bottom: -2%; padding: 0 4px; border-radius: 3px; background: var(--pc); color: #fff; border: 1px solid rgba(255,255,255,.35);
+  font-family: var(--ui), sans-serif; font-weight: 800; line-height: 1.4; font-style: normal; letter-spacing: .5px; }
+
+/* ---- the GM's portrait ------------------------------------------------------------------- */
+.gm-face { flex: none; overflow: hidden; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--tc) 70%, #fff);
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--tc) 75%, #fff 5%), #0b1120 85%); box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+.gm-face svg { display: block; }
+
+/* the player's face in a tray card keeps its square: only the text column stretches */
+.tr2-card > .face { flex: none; width: 52px; height: 52px; display: block; }
+.tc-gmf { position: relative; flex: none; display: inline-block; }
+.tc-gmf > .logo, .tc-gmf > img, .tc-gmf > :last-child:not(.gm-face) { position: absolute; right: -4px; bottom: -3px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.8)); }

@@ -197,10 +197,13 @@ function GenPhoto({ src, jersey, trim, size, flip }: { src: string; jersey: stri
   );
 }
 
-export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: number }) {
-  const photo = genFace(p);
+/** `suit`: a front-office portrait (jacket, shirt and a tie in the team colour) instead of a jersey. */
+export function FaceArt({ p, team, size, suit }: { p: Player; team?: Team; size: number; suit?: boolean }) {
+  const photo = suit ? undefined : genFace(p);
   if (photo) { const [j, t] = team?.colors ?? collegeKit(p.col); return <GenPhoto src={photo} jersey={j} trim={t} size={size} flip={genFlip(p)} />; }
   const f = faceSpec(p);
+  // Executives skew older: plenty of grey, no locs or mullets.
+  if (suit) { const g = (p.face >>> 3) % 10; if (g < 5) f.hair = g < 2 ? '#9a9a9a' : '#6f6a64'; if (['locs', 'mullet', 'flow', 'braids', 'twists', 'afro'].includes(f.style)) f.style = g % 2 ? 'short' : 'buzz'; if (f.beard === 'full' && g > 6) f.beard = 'stubble'; }
   const id = `f${p.id.replace(/[^a-z0-9]/gi, '')}`;
   const shade = shadeHex(f.skin, -0.22), light = shadeHex(f.skin, 0.12);
   const prospect = !team && p.status === 'PROSPECT';
@@ -213,9 +216,17 @@ export function FaceArt({ p, team, size }: { p: Player; team?: Team; size: numbe
         <radialGradient id={`${id}s`} cx="45%" cy="38%" r="65%"><stop offset="0" stopColor={light} /><stop offset=".65" stopColor={f.skin} /><stop offset="1" stopColor={shade} /></radialGradient>
         <linearGradient id={`${id}j`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={shadeHex(jersey, 0.15)} /><stop offset="1" stopColor={shadeHex(jersey, -0.35)} /></linearGradient>
       </defs>
-      {/* shoulders and jersey */}
-      <path d="M18 200 Q24 152 72 140 L128 140 Q176 152 182 200 Z" fill={`url(#${id}j)`} />
-      <path d="M78 140 Q100 162 122 140" fill="none" stroke={trim} strokeWidth="6" />
+      {suit ? <>
+        {/* jacket, shirt, tie */}
+        <path d="M18 200 Q24 152 72 140 L128 140 Q176 152 182 200 Z" fill="#1d2129" />
+        <path d="M76 140 L100 200 L124 140 Z" fill="#eef0f3" />
+        <path d="M76 140 L92 176 L84 182 L64 148 Z M124 140 L108 176 L116 182 L136 148 Z" fill="#2a2f39" />
+        <path d="M95 146 L105 146 L103 154 L108 196 L100 200 L92 196 L97 154 Z" fill={jersey} stroke="rgba(0,0,0,.3)" strokeWidth="1" />
+      </> : <>
+        {/* shoulders and jersey */}
+        <path d="M18 200 Q24 152 72 140 L128 140 Q176 152 182 200 Z" fill={`url(#${id}j)`} />
+        <path d="M78 140 Q100 162 122 140" fill="none" stroke={trim} strokeWidth="6" />
+      </>}
       {prospect && <><path d="M28 196 Q34 166 62 152" fill="none" stroke={trim} strokeWidth="5" strokeOpacity=".8" /><path d="M172 196 Q166 166 138 152" fill="none" stroke={trim} strokeWidth="5" strokeOpacity=".8" />
         <text x="100" y="192" textAnchor="middle" fontFamily="var(--head), Impact, sans-serif" fontWeight={800} fontSize="30" fill={trim} stroke="rgba(0,0,0,.35)" strokeWidth="1">{(Math.abs([...p.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 89) + 1}</text></>}
       {/* neck */}
