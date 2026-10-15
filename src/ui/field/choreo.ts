@@ -264,6 +264,12 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (scrim && c < preC) {
       if (sp > 0.8) return P(runRig(i, k, false), { face: VX[i][k] >= 0 ? 1 : -1 });
       const set = c > preC - 0.45;
+      // The quarterback runs the line: points out the Mike, then (in the gun) claps for the snap.
+      if (a.slot === 'QB' && isOff) {
+        const q = preC - c;
+        if (q > 0.95 && q < 1.5) return mk(x, y, s, { ...POSE.stand(), lean: 0.12, na: 1.55, ne: 0.08, fa: 0.25, fe: 0.5, look: -0.1 });
+        if (shotgun && q > 0.2 && q < 0.36) return mk(x, y, s, { ...POSE.gun(), na: 1.25, ne: 0.55, fa: 1.25, fe: 0.55, nt: 0.55, nk: 0.75 });
+      }
       return mk(x, y, isOff ? s : -s, set ? stanceOf(i) : (a.slot === 'QB' && !shotgun ? POSE.hold() : POSE.stand()));
     }
     // Beaten defenders: on the turf for a beat, then up and chasing.
@@ -423,8 +429,32 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     return P(POSE.stand(Math.sin(c * 2 + i)));
   };
   // After the whistle: coast to a stop, get up, celebrate, mob the scorer.
+  // After the whistle: a teammate helps the tackled carrier up; the carrier flips the ball to
+  // the official; on an incompletion the receiver grabs his helmet and the defender waves it off.
+  const fc0 = finalCarrier >= 0 ? scenePose(finalCarrier, D) : null;
+  const fcDown = !!fc0 && (!!fc0.lying || fc0.rig.hipY < 6);
+  const fcUp = finalCarrier < 0 ? 0 : (fcDown ? (finalCarrier === hero ? (td ? 0.35 : 0.5) : 0.75 + (finalCarrier % 5) * 0.13) + 0.4 : 0.35);
+  const ownsCelebration = finalCarrier === hero && celebrate !== 'none';
+  const tossAt = scrim && !td && !fumble && !turnover && finalCarrier >= 0 && hold(D) === finalCarrier && !ownsCelebration && !sc.oob ? fcUp + 0.35 : Infinity;
+  const helper = scrim && !td && fcDown && fc0 ? A.map((a, j) => ({ j, d: a.team === A[finalCarrier].team && j !== finalCarrier && !scenePose(j, D).lying ? Math.hypot(X[j][N - 1] - fc0.x, Y[j][N - 1] - fc0.y) : 1e9 })).sort((a, b) => a.d - b.d)[0] : undefined;
+  const helperJ = helper && helper.d < 9 ? helper.j : -1;
+  const incomp = scrim && !!sc.pass && sc.complete === false && !sc.int && tgt >= 0;
+  const waver = incomp && catchC !== undefined ? nearestOpp(tgt, catchC)[0] : -1;
   const postPose = (i: number, p: number): Pose => {
     const kk = N - 1, e0 = scenePose(i, D);
+    if (i === helperJ && fc0) {
+      const tx = fc0.x - fc0.face * 0.75, ty = fc0.y + 0.45, f = tx < fc0.x ? 1 : -1;
+      const arrive = Math.max(0.35, Math.hypot(tx - e0.x, ty - e0.y) / 5);
+      if (p < arrive) { const k2 = smooth(p / arrive); return mk(lerp(e0.x, tx, k2), lerp(e0.y, ty, k2), tx > e0.x ? 1 : -1, POSE.run((p * 2) % 1, 0.3)); }
+      if (p < fcUp + 0.15) return mk(tx, ty, f, { ...POSE.stand(), hipY: 13.4, lean: 0.55, na: 0.85, ne: 0.1, fa: 0.2, fe: 0.6 });
+      return mk(tx, ty, f, POSE.stand(Math.sin(p * 2 + i)));
+    }
+    if (i === finalCarrier && p >= tossAt - 0.2 && p < tossAt + 0.25) {
+      const st = scenePose(i, D);
+      return mk(st.x, st.y, st.face, { ...POSE.stand(), na: p < tossAt ? -0.2 : 1.1, ne: p < tossAt ? 0.6 : 0.15, ball: p < tossAt ? 1 : 0 });
+    }
+    if (incomp && i === tgt && p > 0.15 && p < 1.6 && !e0.lying) return mk(e0.x, e0.y, e0.face, { ...POSE.stand(), na: 2.75, ne: 2.35, fa: 2.75, fe: 2.35, look: 0.35, lean: -0.05 });
+    if (incomp && i === waver && p > 0.2 && p < 1.4 && !e0.lying) return mk(e0.x, e0.y, e0.face, POSE.incomplete(p));
     // Out of bounds: he carries it across the sideline and pulls up by the benches.
     if (i === finalCarrier && scrim && !td && tackC === undefined && (sc.oob || (sc.complete !== false && (Y[i][kk] < 3.2 || Y[i][kk] > FW - 3.2)))) {
       const side = Y[i][kk] < MID ? -1 : 1, k2 = smooth(p / 0.8), tx = e0.x + VX[i][kk] * 0.3, ty = side < 0 ? -1.6 : FW + 1.6;
@@ -434,7 +464,7 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     const down = !!e0.lying || e0.rig.hipY < 6;
     const moving = !down && SP[i][kk] * Math.exp(-p / 0.35) > 0.5;
     const bx = down ? e0.x : e0.x + VX[i][kk] * coast, by = down ? e0.y : e0.y + VY[i][kk] * coast;
-    const hasBall = hold(D) === i;
+    const hasBall = hold(D) === i && p < tossAt;
     const upAt = i === hero ? (td ? 0.35 : 0.5) : 0.75 + (i % 5) * 0.13;
     let base: Pose;
     if (down) {
@@ -523,6 +553,10 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     if (celebrate === 'spike' && h >= 0) {
       const ps = postPose(hero, p), t = p - (td ? 0.35 : 0.5) - 0.35;
       if (t > 0.45) { const q = t - 0.35, bounce = Math.abs(Math.sin(Math.min(q, 1.6) * 5)) * 1.6 * Math.exp(-q * 2.2); return { x: ps.x + ps.face * (0.6 + q * 1.2), y: ps.y + 0.2, h: 0.15 + bounce, free: true, kick: false }; }
+    }
+    if (p >= tossAt) {
+      const st = scenePose(finalCarrier, D), r = refs(c)[0], k = clamp((p - tossAt) / 0.45, 0, 1);
+      return { x: lerp(st.x + st.face * 0.3, r.x, k), y: lerp(st.y, r.y, k), h: 1.0 + Math.sin(k * Math.PI) * 1.4, free: k < 1, kick: false };
     }
     const [x, y] = sc.ball(1);
     return { x, y, h: sc.ballH(1), free: hold(D) < 0, kick: false };

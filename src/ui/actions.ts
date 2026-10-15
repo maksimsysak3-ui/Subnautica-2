@@ -17,10 +17,14 @@ import { storylines } from './storylines';
 import { storylines2 } from './storylines2';
 import { storylines3 } from './storylines3';
 import { storylines4 } from './storylines4';
+import { storylines5 } from './storylines5';
+import { withMeeting } from './meetings';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
 /** A choice; `hint` spells out the stakes, and `run` may return a line for the toast. */
-export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string }
+export interface Choice { label: string; key?: string; hint?: string; run: (open: Opener) => void | string;
+  /** What you say when you pick it, and how they take it (the meeting shows both). */
+  reply?: string; react?: string }
 export interface Delegate { who: string; role: string; quote: string; run: () => void }
 export interface ActionCard {
   id: string; kind: string; headline: string; body: string;
@@ -28,6 +32,10 @@ export interface ActionCard {
   choices: Choice[]; delegate?: Delegate;
   /** Where the decision happens (the pop-up's set), and who is calling or texting. */
   scene?: import('./scenes').SceneKind; caller?: string; texts?: string[];
+  /** The meeting: who you're talking to, where, and what they say to open it. */
+  speaker?: string; where?: string; lines?: string[];
+  /** The lines set the scene rather than being spoken by someone. */
+  narr?: boolean;
 }
 /** What a choice can ask the UI to open. */
 export interface Opener { negotiate: (p: Player) => void; go: (id: string, extra?: Record<string, string>) => void }
@@ -471,7 +479,7 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
   const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
-  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit));
+  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit), ...storylines5(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 
@@ -487,7 +495,7 @@ export function weeklyCards(L: League): ActionCard[] {
   }
   // What you said at the podium leads the row; the opponent card closes it.
   const rank = (c: ActionCard) => (c.matchup ? 9 : ['Fallout', 'League Office'].includes(c.kind) ? 0 : c.kind === 'Media' ? 1 : 5);
-  return curate(L, wk, out).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(x => x.c);
+  return curate(L, wk, out.filter(c => !CUT.test(c.id))).map(withMeeting).map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(x => x.c);
 }
 
 // ---- the weekly deck ------------------------------------------------------------------------
@@ -497,6 +505,9 @@ export function weeklyCards(L: League): ActionCard[] {
 // you haven't heard about lately. A card can't come back for a few weeks after it's shown,
 // and one you skip twice is handled by your staff (their default call) so it stops nagging.
 const URGENT = new Set(['Fallout', 'League Office', 'Trade Deadline', 'Holdout']);
+// Situations that aren't front-office decisions (photo ops, viral clips, uniforms, travel and
+// weather logistics, ceremonies): they never reach the hub.
+const CUT = /^(celebrate|endorse|legend|rookieshow|thanks|snow|ad|gm|vg|roh|plane|tb|baby|dinner|rksem|rkint|radio|doc|viral|flyover|sneaker|storm|charity|probowl|hot|fans)-/;
 const DECK_SIZE = 4;
 interface DeckMemory { wk: string; ids: string[]; idx: number; shown: Record<string, number>; seenAt: Record<string, number>; kindAt: Record<string, number>; pidAt: Record<string, number> }
 const deckMem = (L: League) => ((L as League & { actionDeck?: DeckMemory }).actionDeck ??= { wk: '', ids: [], idx: 0, shown: {}, seenAt: {}, kindAt: {}, pidAt: {} });

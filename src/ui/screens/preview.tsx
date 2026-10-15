@@ -40,6 +40,13 @@ export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: bool
   const out = [me, opp].map(t => Object.values(L.players).filter(p => p.team === t.abbr && p.injury && p.ovr >= 75).sort((a, b) => b.ovr - a.ovr).slice(0, 4));
   const rows: [string, number, number][] = [['Overall', ra.ovr, rh.ovr], ['Offense', ra.off, rh.off], ['Defense', ra.def, rh.def], ['Quarterback', ra.qb, rh.qb], ['O-Line', ra.ol, rh.ol], ['D-Line', ra.dl, rh.dl], ['Secondary', ra.db, rh.db]];
   const when = g.week > 18 ? ROUND_NAME[g.week] : `Week ${g.week}`;
+  // The line: ratings plus home field, the way a book would hang it.
+  const homeEdge = g.neutral ? 0 : 1.7;
+  const spread = Math.round(((rh.ovr - ra.ovr) * 0.9 + homeEdge) * 2) / 2;               // + means the home team is favoured
+  const pHome = 1 / (1 + Math.exp(-spread / 6.2));
+  const total = Math.round((44 + (ra.off + rh.off - ra.def - rh.def) * 0.22 - (wx.wind >= 15 && !wx.dome ? 3 : 0) - (wx.precip !== 'none' && !wx.dome ? 2.5 : 0)) * 2) / 2;
+  const fav = spread >= 0 ? home : away;
+  const keys = gameKeys(L, me, opp, me === home ? rh : ra, me === home ? ra : rh, st);
   // The week of practice comes first, day by day, unless it has already been run.
   const play = () => (practiceWeek(L).done || g.week !== L.week ? app.replace({ id: 'game', gid }) : app.go({ id: 'practice', then: 'play', gid }));
   const sim = () => app.busy('Simulating the week', async () => { await advance(L); await saveLeague(L, `${L.id}-auto`); app.replace({ id: 'box', gid }); });
@@ -63,7 +70,25 @@ export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: bool
         <div className="pv-vs">VS</div>
       </section>
 
+      <section className="pv-line">
+        <Form L={L} t={away} s={st[away.abbr]} side="a" />
+        <div className="pv-book">
+          <div className="pv-odds">
+            <div><span>Line</span><b>{Math.abs(spread) < 0.5 ? 'Pick' : `${fav.abbr} −${Math.abs(spread)}`}</b></div>
+            <div><span>Over/Under</span><b>{total}</b></div>
+            <div><span>Win probability</span><b>{Math.round((me === home ? pHome : 1 - pHome) * 100)}%</b><em>{me.nick}</em></div>
+          </div>
+          <div className="pv-wp"><i className="a" style={{ width: `${(1 - pHome) * 100}%` }}><Logo team={away} size={18} />{Math.round((1 - pHome) * 100)}%</i><i className="h" style={{ width: `${pHome * 100}%` }}>{Math.round(pHome * 100)}%<Logo team={home} size={18} /></i></div>
+        </div>
+        <Form L={L} t={home} s={st[home.abbr]} side="h" />
+      </section>
+
       <section className="pv-grid">
+        <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+        <div className="pv-panel pv-keys" style={{ '--d': '0.45s' } as CSSProperties}>
+          <h4>Keys to the Game · {me.nick}</h4>
+          {keys.map((k, i) => <div key={i} className={`pv-key ${k.tone}`}><b>{i + 1}</b><div><strong>{k.title}</strong><span>{k.text}</span></div></div>)}
+        </div>
         <div className="pv-panel" style={{ '--d': '0.5s' } as CSSProperties}>
           <h4>Tale of the Tape</h4>
           {rows.map(([k, a, h]) => (
@@ -73,6 +98,7 @@ export function MatchupPreview({ gid, embedded }: { gid: string; embedded?: bool
               <b className={h > a ? 'win' : ''}>{Math.round(h)}</b>
             </div>
           ))}
+        </div>
         </div>
         <div className="pv-panel pv-duels" style={{ '--d': '0.65s' } as CSSProperties}>
           <h4>Key Matchups</h4>
@@ -119,4 +145,34 @@ function Logo3D({ team, size }: { team: Team; size: number }) {
       </div>
     </div>
   );
+}
+
+type Ratings = ReturnType<typeof teamRatings>;
+type Standing = ReturnType<typeof standings>[string];
+/** Recent form: record, the last five, points for and against a game, the streak. */
+function Form({ L, t, s, side }: { L: League; t: Team; s: Standing; side: 'a' | 'h' }) {
+  const gp = Math.max(1, s.w + s.l + s.t);
+  const last = (s.last5 ?? '').split('').slice(-5);
+  return (
+    <div className={`pv-form ${side}`}>
+      <div className="pv-fh"><Logo team={t} size={26} /><b>{t.abbr}</b><span>{s.w}-{s.l}{s.t ? `-${s.t}` : ''}</span></div>
+      <div className="pv-l5">{last.length ? last.map((r, i) => <i key={i} className={r === 'W' ? 'w' : r === 'L' ? 'l' : 't'}>{r}</i>) : <em>First game</em>}</div>
+      <div className="pv-pp"><span>PF <b>{(s.pf / gp).toFixed(1)}</b></span><span>PA <b>{(s.pa / gp).toFixed(1)}</b></span>{s.streak && <span>Streak <b>{s.streak}</b></span>}</div>
+      {void L}
+    </div>
+  );
+}
+/** Three keys for your side, from the biggest gaps between the two rosters. */
+function gameKeys(L: League, me: Team, opp: Team, m: Ratings, o: Ratings, st: Record<string, Standing>) {
+  const qb = (t: Team) => { const id = t.depth.QB?.[0]; return id ? L.players[id] : undefined; };
+  const myQb = qb(me), theirQb = qb(opp);
+  const cands: { gap: number; title: string; text: string; tone: string }[] = [
+    { gap: m.dl - o.ol, title: m.dl >= o.ol ? 'Win up front' : 'Bring extra rushers', text: m.dl >= o.ol ? `Your front (${Math.round(m.dl)}) against their O-line (${Math.round(o.ol)}): a four-man rush should get home.` : `Their O-line (${Math.round(o.ol)}) handles your front (${Math.round(m.dl)}). Pressure has to come from the blitz.`, tone: m.dl >= o.ol ? 'good' : 'warn' },
+    { gap: m.ol - o.dl, title: m.ol >= o.dl ? `Keep ${myQb?.ln ?? 'the QB'} clean` : `Get the ball out fast`, text: m.ol >= o.dl ? `Your line (${Math.round(m.ol)}) should win against their rush (${Math.round(o.dl)}). Take shots off play-action.` : `Their rush (${Math.round(o.dl)}) beats your line (${Math.round(m.ol)}). Quick game, screens and a back chipping the edge.`, tone: m.ol >= o.dl ? 'good' : 'warn' },
+    { gap: m.db - o.qb, title: m.db >= o.qb ? `Make ${theirQb?.ln ?? 'him'} hold it` : `Keep ${theirQb?.ln ?? 'him'} in front`, text: m.db >= o.qb ? `Your secondary (${Math.round(m.db)}) can sit on routes against a ${Math.round(o.qb)} passer. Mix in man.` : `Their quarterback (${Math.round(o.qb)}) can pick apart your secondary (${Math.round(m.db)}). Two deep and tackle the catch.`, tone: m.db >= o.qb ? 'good' : 'warn' },
+    { gap: m.skill - o.lb, title: m.skill >= o.lb ? 'Attack their linebackers' : 'Grind it out', text: m.skill >= o.lb ? `Your skill players (${Math.round(m.skill)}) against their linebackers (${Math.round(o.lb)}): get your backs and tight end in space.` : `Their linebackers (${Math.round(o.lb)}) can run with your playmakers (${Math.round(m.skill)}). Stay ahead of the chains.`, tone: m.skill >= o.lb ? 'good' : 'warn' },
+  ];
+  const s = st[opp.abbr];
+  if (/^W[3-9]/.test(s.streak ?? '')) cands.push({ gap: 7, title: `Stop the streak`, text: `The ${opp.nick} have won ${s.streak!.slice(1)} straight. Start fast and take the crowd out of it.`, tone: 'warn' });
+  return cands.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap)).slice(0, 3);
 }
