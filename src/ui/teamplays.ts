@@ -185,7 +185,7 @@ const COVER_ALIASES: Record<string, string[]> = {
   Prevent: ['Prevent', 'Deep Wall', 'Umbrella'], 'Tampa 2': ['Tampa', 'Mike Pole', 'Deep Hole'], 'Cover 3 Sky': ['Sky', 'Rolldown', 'Sky Buzz'], 'Mike Blitz': ['Mike Plug', 'A Gap Mug', 'Mike Shoot'],
   'Cover 3 Fire Zone': ['Fire Zone', 'Zone Pressure', 'Sting'], 'Cover 6': ['Quarter Half', 'Six', 'Cover Six'], 'Cover 2 Man': ['Two Man', 'Trail Two', 'Man Under'],
   'Dime Cover 4': ['Dime Quarters', 'Dollar Palms', 'Penny Four'], 'Dime Blitz': ['Nickel Edge', 'Dime Fire', 'Corner Cat'], 'Goal Line 0': ['Goal Zero', 'Stuff', 'Wall Zero'], 'Goal Line Zone': ['Goal Squeeze', 'Red Zone', 'Plaster'],
-  'Double A Gap': ['Double Mug', 'A Gap Fire', 'Twin Plug'], 'Base Fire Zone': ['Will Fire', 'Edge Sting', 'Fire Three'], 'Zero Pressure': ['Cash Six', 'Zero Max', 'Jailbreak'], Overload: ['Overload', 'Strong Fire', 'Flood Blitz'],
+  'Double A Gap': ['Double Mug', 'A Gap Fire', 'Twin Plug'], 'Base Fire Zone': ['Will Fire', 'Edge Sting', 'Fire Three'], 'Zero Pressure': ['Cash Six', 'Zero Max', 'Jailbreak'], Overload: ['Overload', 'Strong Fire', 'Flood Blitz'], 'Drop Eight': ['Drop Eight', 'Max Cover', 'Rush Three'],
 };
 export interface TeamDef extends LibDef { base: string }
 const dcache = new Map<string, TeamDef[]>();

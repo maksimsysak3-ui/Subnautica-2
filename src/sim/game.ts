@@ -26,7 +26,12 @@ export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spi
   /** Formation subs: a player for a slot in this play's set. */ subs?: Partial<Record<'X' | 'Z' | 'SLOT' | 'TE' | 'RB', string>> }
 export type Personnel = '10' | '11' | '12' | '13' | '21' | '22';
 export type DefSet = 'Base' | 'Nickel' | 'Dime' | 'Goal Line';
-export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string; set?: DefSet }
+export type Front = '4-3' | '3-4' | '4-2-5' | '3-3-5' | '4-1-6' | 'Goal Line';
+/** `rush` is how many come after the quarterback (3 = drop eight .. 7 = everyone); `front` is
+ *  how the box is built. Both are optional on drawn and library calls and filled in from the rest. */
+export interface DefCall { shell: 'Cover 0' | 'Cover 1' | 'Cover 2' | 'Cover 3' | 'Cover 4' | 'Prevent'; blitz: boolean; box: number; name?: string; set?: DefSet; rush?: number; front?: Front }
+export const rushOf = (dc: DefCall) => dc.rush ?? (dc.blitz ? (dc.shell === 'Cover 0' ? 6 : 5) : 4);
+const FRONT_LABEL: Record<Front, string> = { '4-3': '4-3', '3-4': '3-4', '4-2-5': 'Nickel', '3-3-5': '3-3-5', '4-1-6': 'Dime', 'Goal Line': 'Goal Line' };
 
 export interface PlayEvent {
   n: number; q: number; clock: number; poss: 0 | 1; down: number; togo: number; yl: number;
@@ -36,7 +41,7 @@ export interface PlayEvent {
   air?: number; complete?: boolean; td?: boolean; turnover?: boolean; score?: [number, number]; big?: boolean;
   dir?: -1 | 0 | 1; call?: string; dcall?: string; wp?: number;
   /** The defense's coverage shell and how many extra rushers it sent (0 = four-man rush). */
-  shell?: string; blitz?: number;
+  shell?: string; blitz?: number; rush?: number; front?: Front;
   /** The home crowd's pulse (0..100) after this play. */
   pulse?: number;
 }
@@ -170,7 +175,7 @@ export class GameSim {
     if (side === this.sides[1] && !this.game.neutral) v += (side.abbr === this.league.user ? 0.4 + fans(this.league) * 0.008 : 0.8) + this.heat * 0.008;
     // The noise: the road offence plays worse when the building is rocking; the home defence feeds off it.
     const nz = this.noise();
-    if (nz) { if (side === this.sides[0]) v -= nz * 2.4; else v += nz * 0.8; }
+    if (nz) { if (side === this.sides[0]) v -= nz * 1.3; else v += nz * 0.4; }
     if (p.morale < 40) v -= 2; else if (p.morale >= 85) v += 0.6;
     v += p.sform ?? 0; // breakout or dud season
     if (side.abbr === this.league.user) v += this.coachEdge(side, p, a);
@@ -354,12 +359,23 @@ export class GameSim {
     if (this.down === 3) blitz += 0.08;
     if (plan.def === 'Blitz Heavy') blitz += 0.18;
     if (plan.def === 'Prevent') blitz = 0.03;
-    const isBlitz = this.rng.chance(blitz);
+    let isBlitz = this.rng.chance(blitz);
     // Defences protecting a big second-half lead play soft: give up underneath, not deep.
     const prevent = (this.twoMinute() && this.diff() < 0 && this.diff() >= -8 && this.yl < 70) || plan.def === 'Prevent' || (this.q >= 3 && this.diff() <= -17 && this.rng.chance(0.6));
+    // How many come: three and drop eight, the usual four, five- and six-man pressure, or
+    // everybody. Short yardage and the red zone bring more; long yardage drops more.
+    const shortYds = this.togo <= 3 || this.yl >= 90;
+    let rush = 4;
+    if (prevent) rush = this.rng.chance(0.45) ? 3 : 4;
+    else if (isBlitz) rush = this.rng.weighted<number>([[5, 0.58], [6, 0.3], [7, shortYds ? 0.2 : 0.07]]);
+    else if (this.rng.chance(longYds ? 0.16 : 0.06)) rush = 3;
+    if (prevent) isBlitz = false;
     let shell: DefCall['shell'];
     if (prevent) shell = 'Prevent';
-    else if (isBlitz) shell = this.rng.chance(0.3) ? 'Cover 0' : 'Cover 1';
+    else if (rush >= 7) shell = 'Cover 0';
+    else if (rush === 6) shell = this.rng.chance(0.55) ? 'Cover 0' : 'Cover 1';
+    else if (rush === 5) shell = this.rng.weighted<DefCall['shell']>([['Cover 1', 0.5], ['Cover 3', 0.35], ['Cover 0', 0.15]]);
+    else if (rush === 3) shell = this.rng.weighted<DefCall['shell']>([['Cover 2', 0.3], ['Cover 3', 0.35], ['Cover 4', 0.35]]);
     else {
       const w: [DefCall['shell'], number][] = scheme === 'Two-High' ? [['Cover 2', 0.3], ['Cover 4', 0.35], ['Cover 3', 0.2], ['Cover 1', 0.15]]
         : scheme === 'Cover 3' ? [['Cover 3', 0.5], ['Cover 1', 0.2], ['Cover 2', 0.15], ['Cover 4', 0.15]]
@@ -388,7 +404,23 @@ export class GameSim {
       else if (pers === '10') { set = 'Dime'; box = Math.min(box, 6); }
       else set = 'Nickel';
     }
-    return { shell, blitz: isBlitz, box, name: `${shell}${isBlitz ? ' Blitz' : ''}`, set };
+    if (rush >= 6) box = Math.max(box, 8);
+    // The front: base personnel plays 4-3 (three linebackers inside) or 3-4, sub packages play
+    // nickel (4-2-5 or a 3-3-5 look) and dime.
+    let front: Front;
+    if (set === 'Goal Line') front = 'Goal Line';
+    else if (set === 'Base' || (!set && box >= 7)) front = scheme === '3-4 Two-Gap' || this.rng.chance(0.25) ? '3-4' : '4-3';
+    else if (set === 'Dime' || (!set && longYds && this.rng.chance(0.35))) front = '4-1-6';
+    else front = this.rng.chance(scheme === '3-4 Two-Gap' ? 0.35 : rush === 3 ? 0.5 : 0.15) ? '3-3-5' : '4-2-5';
+    const tag = rush >= 7 ? ' · All-Out Blitz' : rush >= 5 ? ` · ${rush}-Man Pressure` : rush === 3 ? ' · Drop 8' : '';
+    return { shell, blitz: rush >= 5, box, name: `${FRONT_LABEL[front]} ${shell}${tag}`, set, rush, front };
+  }
+  /** The front a call without one plays out of: its personnel and the staff's scheme. */
+  private frontFor(dc: DefCall): Front {
+    if (dc.set === 'Goal Line') return 'Goal Line';
+    if (dc.set === 'Dime') return '4-1-6';
+    if (dc.set === 'Base') return this.sides[1 - this.poss].team.coach.def === '3-4 Two-Gap' ? '3-4' : '4-3';
+    return '4-2-5';
   }
 
   /** How hard the defense is sitting on this call: 0 fresh, up to 3 after a string of repeats. */
@@ -481,7 +513,8 @@ export class GameSim {
     // A play the user called is scouted; the defense reacts to the personnel it sees.
     this.keyed = 0;
     if (call && (oc.kind === 'run' || oc.kind === 'pass')) this.keyed = this.scout(oc);
-    const dc = dcall ?? this.aiDefense(call ? oc.pers : undefined);
+    const dc0 = dcall ?? this.aiDefense(call ? oc.pers : undefined);
+    const dc: DefCall = { ...dc0, rush: rushOf(dc0), front: dc0.front ?? this.frontFor(dc0) };
     this.at = { q: this.q, clock: this.clock, poss: this.poss, down: this.down, togo: this.togo, yl: this.yl };
     switch (oc.kind) {
       case 'kneel': return this.kneel();
@@ -676,7 +709,7 @@ export class GameSim {
     let ev: PlayEvent;
     if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
     else ev = this.runPlay(oc, dc, o, d);
-    ev.call = oc.name; ev.dcall = dc.name; ev.shell = dc.shell; ev.blitz = dc.blitz ? (dc.shell === 'Cover 0' ? 2 : 1) : 0;
+    ev.call = oc.name; ev.dcall = dc.name; ev.shell = dc.shell; ev.rush = rushOf(dc); ev.blitz = Math.max(0, ev.rush - 4); ev.front = dc.front;
     if (startDown === 3 && !ev.turnover) { this.box[ev.poss].third[1]++; if (ev.yards >= startTogo || ev.td) this.box[ev.poss].third[0]++; }
     void startYl;
     return ev;
@@ -741,12 +774,15 @@ export class GameSim {
     const depth = oc.depth ?? 'short';
     this.L(qb);
     // --- protection vs rush ---
-    const rushers = [...d.dl];
-    let blitzer: Player | undefined;
-    if (dc.blitz) { blitzer = this.rng.pick([...d.lbs, ...d.ss.slice(0, 1)].filter(Boolean)); if (blitzer) rushers.push(blitzer); if (dc.shell === 'Cover 0' && d.lbs[1]) rushers.push(d.lbs[1]); }
+    // The rush: three (one lineman drops out) up to everyone, the extras from the linebackers,
+    // then a safety and the slot corner.
+    const nRush = rushOf(dc);
+    const rushers = nRush <= 3 ? d.dl.slice(0, 3) : [...d.dl];
+    const pool = [...d.lbs, ...d.ss.slice(0, 1), ...d.cbs.slice(2, 3)].filter(Boolean);
+    for (let k = rushers.length; k < nRush && pool.length; k++) rushers.push(pool.splice(Math.floor(this.rng.next() * Math.min(pool.length, k < 6 ? d.lbs.length || 1 : pool.length)), 1)[0]);
     const rushV = rushers.reduce((a, p) => a + Math.max(this.r(def, p, 'FMV'), this.r(def, p, 'PMV')) * 0.62 + this.r(def, p, 'ACC') * 0.2 + this.r(def, p, 'STR') * 0.18, 0) / Math.max(1, rushers.length);
     const blockers = [...o.ol];
-    const chip = dc.blitz && o.rb ? o.rb : undefined;
+    const chip = nRush >= 5 && o.rb ? o.rb : undefined;
     const blockV = blockers.reduce((a, p) => a + this.r(off, p, 'PBK') * 0.7 + this.r(off, p, 'STR') * 0.15 + this.r(off, p, 'AWR') * 0.15, 0) / Math.max(1, blockers.length) + (chip ? 1.5 : 0);
     const extra = rushers.length - 4 - (chip ? 1 : 0);
     let tPressure = 2.88 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7) - this.staffOf(def).pr.rush;
@@ -780,7 +816,7 @@ export class GameSim {
       if (!man && depth === 'deep' && (dc.shell === 'Cover 2' || dc.shell === 'Cover 4' || dc.shell === 'Prevent')) s -= 0.7;
       if (dc.shell === 'Prevent' && depth !== 'deep') s += 0.7;
       if (man && dc.shell === 'Cover 0' && depth === 'deep') s += 0.4;
-      if (dc.blitz) s += 0.35;
+      s += (nRush - 4) * 0.3;   // every extra rusher is one fewer in coverage; dropping eight closes windows
       if (oc.pa) s += 0.45;
       // A man in motion gets a running start, and a defender trailing him across the formation.
       if (oc.motion === t.slot) s += man ? 0.45 : 0.2;

@@ -94,7 +94,7 @@ export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, col
             <div key={`${left}-${j}`} className={`cb-page ${j === 0 ? 'l' : 'r'}`}>
               <div className="cb-head"><span>{sections[pg?.section ?? cur]?.name}</span><i>{pageNo(left + j)}</i></div>
               {pg?.cells.length ? pg.cells.map(c => (
-                <button key={c.name} className={`cb-cell ${c.kind}${hover === c.name ? ' hot' : ''}`} onClick={c.run} onMouseEnter={() => setHover(c.name)} onMouseLeave={() => setHover(h => (h === c.name ? null : h))} onFocus={() => setHover(c.name)}>
+                <button key={c.name} className={`cb-cell k-${c.kind}${hover === c.name ? ' hot' : ''}`} onClick={c.run} onMouseEnter={() => setHover(c.name)} onMouseLeave={() => setHover(h => (h === c.name ? null : h))} onFocus={() => setHover(c.name)}>
                   <div className="cb-art">
                     {c.kind === 'sp' ? <SpecialDiagram kind={c.name as 'Punt'} w={single ? 150 : 210} h={single ? 92 : 120} />
                       : <PlayDiagram name={c.name} def={c.kind === 'def'} w={single ? 150 : 210} h={single ? 92 : 120} pro />}

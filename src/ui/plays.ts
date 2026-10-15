@@ -224,20 +224,22 @@ export const DEF_LIB: LibDef[] = [
     [Z(19, -18, 6), Z(19, -6, 6), Z(19, 6, 6), Z(19, 18, 6), Z(7, -10, 5), Z(7, 10, 5)]),
   dplay('Dime Blitz', 'Dime', 'A defensive back off the edge on third down', { shell: 'Cover 1', blitz: true },
     [Z(20, 0, 9), M(-19), M(19), M(11), BL([[6, -14], [-3, -4]])]),
-  dplay('Goal Line 0', 'Goal Line', 'Everyone in the box, man on the rest', { shell: 'Cover 0', blitz: true, box: 9 },
+  dplay('Goal Line 0', 'Goal Line', 'Everyone in the box, man on the rest', { shell: 'Cover 0', blitz: true, box: 9, rush: 7 },
     [M(-14), M(4.5), BL([[2, -2], [-2, -1]]), BL([[2, 2], [-2, 1]]), BL([[3, 0], [-2, 0]])]),
   dplay('Goal Line Zone', 'Goal Line', 'Squeeze the end zone, no gaps', { shell: 'Cover 2', blitz: false, box: 8 },
     [Z(6, -10, 5), Z(6, 0, 5), Z(6, 10, 5), Z(9, -6, 4), Z(9, 6, 4)]),
   // ---- second install: more pressure ----
   ...[
-    dplay('Double A Gap', 'Nickel', 'Both linebackers walk up and shoot the A gaps', { shell: 'Cover 1', blitz: true },
+    dplay('Double A Gap', 'Nickel', 'Both linebackers walk up and shoot the A gaps', { shell: 'Cover 1', blitz: true, rush: 6 },
       [Z(20, 0, 9), M(-19), M(19), M(11), BL([[2, -2], [-3, -1]]), BL([[2, 2], [-3, 1]])]),
     dplay('Base Fire Zone', 'Base', 'Will linebacker off the edge, three deep behind it', { shell: 'Cover 3', blitz: true },
       [Z(18, -16, 7.5), Z(18, 0, 7.5), Z(18, 16, 7.5), Z(6, -6, 5), Z(6, 8, 5), BL([[5, -8], [-3, -5]])]),
-    dplay('Zero Pressure', 'Nickel', 'Six rush, man everywhere, nobody deep', { shell: 'Cover 0', blitz: true },
+    dplay('Zero Pressure', 'Nickel', 'Six rush, man everywhere, nobody deep', { shell: 'Cover 0', blitz: true, rush: 6 },
       [M(-19), M(19), M(11), M(4.5), BL([[3, -3], [-3, -1]]), BL([[3, 3], [-3, 1]])]),
     dplay('Overload', 'Base', 'Three rushers to one side: somebody comes free', { shell: 'Cover 1', blitz: true },
       [Z(20, 0, 9), M(-19), M(19), BL([[5, 5], [-3, 3]]), BL([[6, 9], [-3, 6]])]),
+    dplay('Drop Eight', 'Nickel', 'Rush three, eight in coverage: no windows', { shell: 'Cover 3', blitz: false, rush: 3 },
+      [Z(18, -16, 7.5), Z(18, 0, 7.5), Z(18, 16, 7.5), Z(6, -12, 4.5), Z(6, -4, 4.5), Z(6, 4, 4.5), Z(6, 12, 4.5), Z(4, 0, 3.5)]),
   ].map(p => ({ ...p, extra: true })),
 ];
 
@@ -287,19 +289,19 @@ export function books(L: League): Playbook[] {
     const tb = bookOf(me);
     if (!L.playbooks.some(b => b.id === 'pb-team')) {
       const sets = [...new Set(tb.map(p => p.set))];
-      L.playbooks.unshift({ id: 'pb-team', rev: 2, name: `${me.name} Offense`, side: 'off', folders: sets.map(set => ({ name: OFF_SETS[set]?.label ?? set, set, plays: tb.filter(p => p.set === set).map(p => p.name) })) });
+      L.playbooks.unshift({ id: 'pb-team', rev: 3, name: `${me.name} Offense`, side: 'off', folders: sets.map(set => ({ name: OFF_SETS[set]?.label ?? set, set, plays: tb.filter(p => p.set === set).map(p => p.name) })) });
       L.activeBook = { ...(L.activeBook ?? { def: 'pb-def' }), off: 'pb-team' } as typeof L.activeBook;
     }
     const db = teamDefBook(me);
     if (!L.playbooks.some(b => b.id === 'pb-team-def')) {
-      L.playbooks.unshift({ id: 'pb-team-def', rev: 2, name: `${me.name} Defense`, side: 'def', folders: (Object.keys(DEF_SETS) as DefSet[]).map(set => ({ name: DEF_SETS[set].label, set, plays: db.filter(p => p.set === set).map(p => p.name) })) });
+      L.playbooks.unshift({ id: 'pb-team-def', rev: 3, name: `${me.name} Defense`, side: 'def', folders: (Object.keys(DEF_SETS) as DefSet[]).map(set => ({ name: DEF_SETS[set].label, set, plays: db.filter(p => p.set === set).map(p => p.name) })) });
       L.activeBook = { ...L.activeBook, def: 'pb-team-def' };
     }
   }
   // Old saves: the team books get the second install once (new concepts, never re-adding cuts after).
   if (me) for (const [id, plays] of [['pb-team', bookOf(me)], ['pb-team-def', teamDefBook(me)]] as const) {
     const b = L.playbooks.find(x => x.id === id);
-    if (!b || (b.rev ?? 0) >= 2) continue;
+    if (!b || (b.rev ?? 0) >= 3) continue;
     const have = new Set(b.folders.flatMap(f => f.plays));
     for (const p of plays as { name: string; set: string; extra?: boolean }[]) {
       if (!p.extra || have.has(p.name)) continue;
@@ -307,7 +309,7 @@ export function books(L: League): Playbook[] {
       if (!f) b.folders.push(f = { name: (b.side === 'off' ? OFF_SETS[p.set]?.label : DEF_SETS[p.set as DefSet]?.label) ?? p.set, set: p.set, plays: [] });
       f.plays.push(p.name);
     }
-    b.rev = 2;
+    b.rev = 3;
   }
   // Drawn plays without a home go into a "My Plays" folder of the active book.
   const act = activeBook(L, 'off');

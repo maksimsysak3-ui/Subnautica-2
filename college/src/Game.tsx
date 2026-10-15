@@ -144,7 +144,7 @@ function Scouting({ sim, userSide }: { sim: GameSim; userSide: number }) {
   const pass = (es: PlayEvent[]) => (es.length ? Math.round((es.filter(e => e.type !== 'run').length / es.length) * 100) : 0);
   const theirDef = sim.events.filter(e => e.poss === userSide && e.dcall);
   const cov: Record<string, number> = {};
-  for (const e of theirDef) { const k = e.dcall!.replace(/ \(.*\)/, ''); cov[k] = (cov[k] ?? 0) + 1; }
+  for (const e of theirDef) { const k = e.shell ?? e.dcall!.replace(/ \(.*\)/, ''); cov[k] = (cov[k] ?? 0) + 1; }
   const topCov = Object.entries(cov).sort((a, b) => b[1] - a[1]).slice(0, 3);
   return (
     <div className="gd-scout">
