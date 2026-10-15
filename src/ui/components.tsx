@@ -12,7 +12,13 @@ const POS_GROUP: Record<string, string> = { QB: 'qb', RB: 'sk', FB: 'sk', WR: 's
 export function PosTag({ pos }: { pos: string }) { return <span className={`postag ${POS_GROUP[pos] ?? 'st'}`}>{pos}</span>; }
 export function Grade({ g, lg }: { g: string; lg?: boolean }) { return <span className={`grade ${g[0]}${lg ? ' lg' : ''}`}>{g}</span>; }
 /** Development trait emblem: a bevelled metal crest (steel, bronze, gold, crimson) with a shine and its mark. */
-export function DevIcon({ d, size = 22 }: { d: Dev; size?: number }) {
+export function DevIcon({ d, size = 22 }: { d: Dev | 'Hidden'; size?: number }) {
+  if (d === 'Hidden') return (
+    <svg className="devicon dv-Hidden" width={size} height={size} viewBox="0 0 24 24" aria-label="Hidden dev trait" role="img">
+      <path d="M12 1 21.8 6.7v10.6L12 23 2.2 17.3V6.7z" fill="#2b2f38" stroke="#6b7385" strokeWidth=".9" strokeDasharray="2 1.4" />
+      <text x="12" y="16.6" textAnchor="middle" fontSize="12" fontWeight="900" fill="#c6ccd8" fontFamily="var(--head), sans-serif">?</text>
+    </svg>
+  );
   const id = `dv${d.replace(/\W/g, '')}`;
   const pal = { Normal: ['#9aa1ad', '#3b404a', '#d5dae3', '#2a2e36'], Star: ['#f3c48c', '#7a3e10', '#ffe2bf', '#3a1c06'], Superstar: ['#fff1a0', '#a67402', '#fff9d8', '#4a3300'], 'X-Factor': ['#ff5b6c', '#5c0310', '#ffd0d5', '#26000a'] }[d];
   const hex = 'M12 1 21.8 6.7v10.6L12 23 2.2 17.3V6.7z', inner = 'M12 3.6 19.6 8v8L12 20.4 4.4 16V8z';
@@ -33,13 +39,14 @@ export function DevIcon({ d, size = 22 }: { d: Dev; size?: number }) {
     </svg>
   );
 }
-export const DEV_BLURB: Record<Dev, string> = {
+export const DEV_BLURB: Record<Dev | 'Hidden', string> = {
+  Hidden: 'Hidden: a rookie\'s dev trait is revealed once he earns enough XP in practice and games.',
   Normal: 'Normal: develops slowly, no special abilities.',
   Star: 'Star: develops at a good pace and earns more from practice and games.',
   Superstar: 'Superstar: fast development and two Superstar abilities.',
   'X-Factor': 'X-Factor: elite development, three abilities and an X-Factor zone ability.',
 };
-export function DevBadge({ d, label = true }: { d: Dev; label?: boolean }) {
+export function DevBadge({ d, label = true }: { d: Dev | 'Hidden'; label?: boolean }) {
   return <span className={`dev ${d}`} title={DEV_BLURB[d]}><DevIcon d={d} size={18} />{label && d}</span>;
 }
 

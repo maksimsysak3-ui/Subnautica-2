@@ -1,4 +1,5 @@
 import type React from 'react';
+import { shownDev, devRank } from '../../core/devreveal';
 import { useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Table, Tabs, DevBadge, attrColor, Modal, CountUp, vivid, Grade } from '../components';
@@ -57,7 +58,7 @@ export function RosterScreen({ team }: { team?: string }) {
         { k: 'name', h: 'Player', get: p => <span className="tname">{p.fn[0]}. {p.ln}{p.injury && <i className="tinj">{p.injury.weeks}w</i>}</span>, sort: p => p.ln },
         { k: 'pos', h: 'Pos', get: p => <PosTag pos={p.pos} />, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
         { k: 'ovr', h: 'OVR', get: p => <b className="tovr">{p.ovr}</b>, sort: p => p.ovr, cls: 'c' },
-        { k: 'dev', h: 'Dev', get: p => <DevIcon d={p.dev} size={20} />, sort: p => ['Normal', 'Star', 'Superstar', 'X-Factor'].indexOf(p.dev), cls: 'c' },
+        { k: 'dev', h: 'Dev', get: p => <DevIcon d={shownDev(p)} size={20} />, sort: p => devRank(shownDev(p)), cls: 'c' },
         { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
         ...attrSet(f).map(k => ({ k, h: k, get: (p: Player) => <span className={p.attrs[k] >= 90 ? 'hi' : ''}>{p.attrs[k]}</span>, sort: (p: Player) => p.attrs[k], cls: 'c' })),
         ...(f === 'All' ? [
@@ -121,7 +122,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
             <div className="up" style={{ color: 'var(--team2)' }}>{POS_NAME[p.pos]} · {p.arch}{t ? ` · ${t.name}` : p.status === 'FA' ? ' · Free Agent' : prospect ? ` · ${p.col} · Prospect #${p.proj}` : ''}</div>
             <div className="phero-fn">{p.fn}</div><div className="h1 phero-ln">{p.ln}</div>
             <div className="row" style={{ gap: 8 }}>
-              {!prospect || sv?.dev ? <DevBadge d={p.dev} /> : <span className="dev Normal">Dev ?</span>}
+              {!prospect || sv?.dev ? <DevBadge d={shownDev(p)} /> : <span className="dev Normal">Dev ?</span>}
               <span className="chip">#{p.num}</span><span className="chip">{Math.floor(p.age)} yrs</span><span className="chip">{Math.floor(p.ht / 12)}'{p.ht % 12}" · {p.wt} lb</span><span className="chip">{p.col}</span>
               {p.injury && <span className="chip" style={{ color: 'var(--bad)' }}>✚ {p.injury.type} ({p.injury.season ? 'season' : `${p.injury.weeks}w`})</span>}
             </div>
@@ -132,7 +133,7 @@ export function PlayerScreen({ pid }: { pid: string }) {
               {!prospect && <div className="stat"><span className="k">Morale</span><span className="v">{Math.round(p.morale)}</span></div>}
               {!prospect && <div className="stat"><span className="k">Cap Hit</span><span className="v" style={{ fontSize: 22 }}>{money(capHit(p.contract, L.season))}</span></div>}
             </div>
-            {(p.abil.length > 0 || p.xf) && (!prospect || (sv?.lvl ?? 0) >= 3) && (
+            {(p.abil.length > 0 || p.xf) && !p.devHidden && (!prospect || (sv?.lvl ?? 0) >= 3) && (
               <div className="row" style={{ marginTop: 14 }}>
                 {p.xf && <span className="chip" title={XFACTOR_DESC[p.xf]} style={{ background: 'linear-gradient(90deg,#7f1d1d,#b91c1c)', color: '#fff', borderColor: '#ef4444' }}>✸ {p.xf}</span>}
                 {p.abil.map(a => <span key={a} className="chip" title={ABILITIES[a]?.desc} style={{ color: '#c4b5fd' }}>✦ {a}</span>)}

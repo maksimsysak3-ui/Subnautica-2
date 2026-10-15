@@ -301,6 +301,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   // --- personnel ---
   const OL = OL_SPOTS.map(([dx, dy], i) => mk(off, `OL${i}`, 'OL', at(dx, dy), 5.2, 7));
   const QB = mk(off, 'QB', 'QB', at(...FORMATION.QB), 7.2);
+  const gun = FORMATION.QB[0] < -3, snapT = gun ? 0.32 : 0.12;   // shotgun snaps travel
   const RB = mk(off, 'RB', 'RB', at(...spotOf('RB')), 8.4, 10);
   const WHO = ['X', 'Z', 'S', 'TE'] as const;
   const REC = WHO.map((w, i) => mk(off, w, w, at(...spotOf(w)), w === 'TE' ? 7.6 : 8.8, 10));
@@ -816,8 +817,13 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       ballXY = [ballXY[0] + loose[0] * DT, ballXY[1] + loose[1] * DT];
       ballZ += loose[2] * DT; loose[2] -= 10.7 * DT;
       if (ballZ < 0.12) { ballZ = 0.12; loose[2] = Math.abs(loose[2]) * 0.38; loose[0] *= 0.55; loose[1] *= 0.55; if (loose[2] < 0.6) loose[2] = 0; }
-    } else { const h = carrier ?? (t < 0.12 ? null : QB); if (h) { ballXY = [h.x, h.y]; ballZ = 1.1; } else ballZ = 0.15; }
-    holdTrack.push(pass && thrown && !caught ? -1 : pass && caught && !ev.complete && !ev.turnover ? -1 : carrier ? agents.indexOf(carrier) : t >= 0.12 ? agents.indexOf(QB) : -1);
+    } else {
+      // The snap: under centre it's a quick exchange; in the gun the ball flies back to him.
+      const h = carrier ?? (t < snapT ? null : QB);
+      if (h) { ballXY = [h.x, h.y]; ballZ = 1.1; }
+      else { const q = Math.min(1, t / snapT), c0 = at(0, 0); ballXY = [c0[0] + (QB.x - c0[0]) * q, c0[1] + (QB.y - c0[1]) * q]; ballZ = 0.3 + q * 0.8 + Math.sin(Math.PI * q) * (gun ? 0.7 : 0.1); }
+    }
+    holdTrack.push(pass && thrown && !caught ? -1 : pass && caught && !ev.complete && !ev.turnover ? -1 : carrier ? agents.indexOf(carrier) : t >= snapT ? agents.indexOf(QB) : -1);
     (ballTrack as [number, number, number][]).push([ballXY[0], ballXY[1], ballZ]);
     // When does it end?
     if (!endT) {
@@ -843,6 +849,16 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     for (let i = 0; i < segs.length; i++) { if (d <= segs[i] || i === segs.length - 1) { const k2 = segs[i] ? Math.min(1, d / segs[i]) : 1; return [pp[i][0] + (pp[i + 1][0] - pp[i][0]) * k2, pp[i][1] + (pp[i + 1][1] - pp[i][1]) * k2]; } d -= segs[i]; }
     return pp[pp.length - 1];
   };
+  // Smooth out the twitch from the body-spacing pushes: a short centred average (about 0.1 s)
+  // that leaves real motion untouched and takes out frame-to-frame jitter.
+  const smooth = (tr: [number, number][]) => {
+    const R = 3, outT: [number, number][] = tr.map(p => [p[0], p[1]]);
+    for (let i = R; i < tr.length - R; i++) { let sx = 0, sy = 0; for (let j = -R; j <= R; j++) { sx += tr[i + j][0]; sy += tr[i + j][1]; } outT[i] = [sx / (2 * R + 1), sy / (2 * R + 1)]; }
+    return outT;
+  };
+  for (const a of agents) a.track = smooth(a.track);
+  // The ball in a player's hands goes where his (smoothed) body goes.
+  for (let i = 0; i < ballTrack.length; i++) { const h = holdTrack[i]; if (h >= 0 && agents[h]?.track[i]) { ballTrack[i][0] = agents[h].track[i][0]; ballTrack[i][1] = agents[h].track[i][1]; } }
   for (const a of agents) {
     const first = a.track[0] ?? [a.x, a.y]; const tr = a.track, pre = a.pre;
     k.add(a.team, a.slot, a.role, u => (u * dur < PRE ? (pre ? along(pre, (u * dur - (PRE - MT)) / MT) : first) : sample(tr)(u)));

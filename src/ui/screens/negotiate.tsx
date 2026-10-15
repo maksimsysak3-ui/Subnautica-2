@@ -2,6 +2,7 @@
 // bonus, void years), see what it does to the cap year by year and where it ranks
 // against the position's top contracts, and go back and forth with his agent.
 import { useEffect, useRef, useState } from 'react';
+import { shownDev } from '../../core/devreveal';
 import { createPortal } from 'react-dom';
 import { app, useApp } from '../store';
 import { Face, Ovr, Logo, DevBadge } from '../components';
@@ -59,7 +60,7 @@ export function NegotiationRoom({ p, close }: { p: Player; close: () => void }) 
             <div>
               <div className="up dim">{extend ? 'Contract Extension' : L.phase === 'freeagency' ? `Free Agency · Day ${L.fa?.day}` : L.phase === 'resign' ? 'Re-sign' : 'Free Agent'}</div>
               <div className="h1" style={{ margin: 0 }}>{p.fn} {p.ln}</div>
-              <div className="row small dim" style={{ gap: 8 }}><b>{p.pos}</b>· {Math.floor(p.age)} yrs · {p.arch} <DevBadge d={p.dev} />
+              <div className="row small dim" style={{ gap: 8 }}><b>{p.pos}</b>· {Math.floor(p.age)} yrs · {p.arch} <DevBadge d={shownDev(p)} />
                 {p.team !== 'FA' && <><Logo team={L.teams[p.team]} size={20} /> {extend ? `Current ${money(contractApy(p.contract))}/yr through ${Math.max(...p.contract.years.filter(y => !y.v).map(y => y.s))}` : ''}</>}
               </div>
             </div>

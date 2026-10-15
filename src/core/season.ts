@@ -1,6 +1,7 @@
 // The season loop: results, standings and tiebreakers, playoffs, weekly XP and
 // growth, wear and injuries, awards, records, news, job security, coach XP.
 import { runPractice } from './practice';
+import { trackDevXp } from './devreveal';
 import { awardSkillPoints } from './archetypes';
 import type { Game, League, Player, Pos, StatLine } from './types';
 import { Rng, clamp, hash } from './rng';
@@ -113,7 +114,8 @@ function weeklyGameXp(league: League, p: Player, l: StatLine) {
 export const xpToLevel = (ovr: number) => 420 + Math.max(0, ovr - 50) * 30;
 
 /** Spend banked XP: each level raises the position's key attributes, never past potential. */
-export function spendXp(p: Player): number {
+export function spendXp(p: Player, league?: League): number {
+  trackDevXp(league, p);
   let gained = 0;
   while (p.xp >= xpToLevel(p.ovr) && p.ovr < p.pot && gained < 3) {
     p.xp -= xpToLevel(p.ovr);
@@ -129,6 +131,7 @@ export function spendXp(p: Player): number {
     if (p.ovr > before) gained += p.ovr - before;
   }
   if (p.ovr >= p.pot) p.xp = Math.min(p.xp, xpToLevel(p.ovr) * 0.9);
+  p.xpLeft = p.xp;
   return gained;
 }
 
@@ -195,7 +198,7 @@ export function advanceWeek(league: League): boolean {
       if (p.injury.weeks <= 0) { if (p.team === league.user && p.ovr >= 70) mail(league, 'Head Trainer', `${p.ln} cleared to play`, `${p.fn} ${p.ln} has recovered from his ${p.injury.type.toLowerCase()}.`); p.injury = undefined; if (p.status === 'IR') p.status = 'ACT'; }
     }
     const before = p.ovr;
-    if (spendXp(p) > 0 && p.team === league.user && p.ovr - before >= 1) news(league, 'milestone', `${p.fn} ${p.ln} progressed to ${p.ovr} OVR.`, [p.team], { pid: p.id });
+    if (spendXp(p, league) > 0 && p.team === league.user && p.ovr - before >= 1) news(league, 'milestone', `${p.fn} ${p.ln} progressed to ${p.ovr} OVR.`, [p.team], { pid: p.id });
   }
   aiWeekly(league, rng);
   coachXp(league);

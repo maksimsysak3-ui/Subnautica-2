@@ -2,6 +2,7 @@
 // offseason growth, ceiling, abilities), how he can climb to the next one, when he is
 // at risk of slipping, and how rare each trait is across the league.
 import type { CSSProperties } from 'react';
+import { shownDev, revealProgress, DEV_REVEAL_XP } from '../../core/devreveal';
 import { useApp } from '../store';
 import { DevIcon, vivid } from '../components';
 import type { Dev, Player } from '../../core/types';
@@ -22,6 +23,20 @@ const COLOR: Record<Dev, string> = { Normal: '#9aa1ad', Star: '#e0a060', Superst
 
 export function DevTab({ p }: { p: Player }) {
   const L = useApp().league!;
+  if (p.devHidden) {
+    const k = revealProgress(p);
+    return (
+      <div className="dvt" style={{ '--dc': '#8a93a6' } as CSSProperties}>
+        <div className="dvt-hero">
+          <div className="dvt-emblem dvt-sealed"><DevIcon d="Hidden" size={92} /></div>
+          <div className="dvt-id"><span className="up">Development trait</span><b>Hidden</b>
+            <p>Nobody knows what {p.fn} is yet, including him. His trait is revealed once he has earned {DEV_REVEAL_XP.toLocaleString()} XP in practice and games.</p>
+            <div className="dvt-reveal"><i style={{ width: `${k * 100}%` }} /><span>{Math.round(k * 100)}% to reveal</span></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const i = ORDER.indexOf(p.dev), next = ORDER[i + 1] as Dev | undefined;
   const counts = ORDER.map(d => Object.values(L.players).filter(x => x.status === 'ACT' && x.dev === d).length);
   const total = counts.reduce((a, b) => a + b, 0) || 1;
@@ -34,7 +49,7 @@ export function DevTab({ p }: { p: Player }) {
   return (
     <div className="dvt" style={{ '--dc': COLOR[p.dev] } as CSSProperties}>
       <div className="dvt-hero">
-        <div className="dvt-emblem"><DevIcon d={p.dev} size={92} /></div>
+        <div className="dvt-emblem"><DevIcon d={shownDev(p)} size={92} /></div>
         <div className="dvt-id"><span className="up">Development trait</span><b>{p.dev}</b><p>{TAG[p.dev]}</p></div>
       </div>
 

@@ -1714,3 +1714,9 @@ input:focus, select:focus { border-color: #fff !important; box-shadow: none; }
 .farow, .tc-gm, .li { transition: transform .15s var(--ease), background .15s; }
 .farow:hover { transform: translateX(3px); }
 @media (prefers-reduced-motion: reduce) { .card.hero::before, .subtab.on::after, .bigtab.on { animation: none !important; } }
+/* hidden dev trait */
+.dvt-sealed { animation: dvtWobble 3.2s ease-in-out infinite; }
+@keyframes dvtWobble { 0%, 86%, 100% { transform: none; } 90% { transform: rotate(-6deg) scale(1.04); } 94% { transform: rotate(6deg) scale(1.04); } }
+.dvt-reveal { position: relative; margin-top: 10px; height: 18px; border-radius: 9px; background: rgba(255,255,255,.08); overflow: hidden; max-width: 380px; }
+.dvt-reveal i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #6b7385, #f2c230); transition: width .6s var(--ease); }
+.dvt-reveal span { position: relative; display: block; text-align: center; font: 800 11px/18px var(--ui); letter-spacing: 1px; text-transform: uppercase; color: #fff; }

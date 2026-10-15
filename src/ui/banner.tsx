@@ -2,6 +2,7 @@
 // photo on his team (or school) colours, the name large, the bio line, and the
 // ratings that drive his position.
 import { useState, type CSSProperties } from 'react';
+import { shownDev } from '../core/devreveal';
 import type { Player } from '../core/types';
 import { OVR_W, ATTR_NAME, POS_NAME } from '../core/ratings';
 import { capHit, money, yearsLeft } from '../core/contracts';
@@ -35,8 +36,8 @@ export function PlayerBanner({ p, prospect }: { p: Player; prospect?: boolean })
           {!prospect && <span>{p.exp ? `${p.exp} yrs exp` : 'Rookie'}</span>}
         </div>
         <div className="pb-tags">
-          {prospect ? <><Grade g={draftGrade(p)} /><span className="pb-tag">Rank #{p.proj}</span>{(p.scout ?? 0) >= 1 && <span className="pb-tag">{p.arch}</span>}{(p.scout ?? 0) >= 3 && <span className="pb-tag dv"><DevIcon d={p.dev} size={16} />{p.dev}</span>}{p.combine && <span className="pb-tag">40: {p.combine.forty.toFixed(2)}</span>}</>
-            : <><span className={`ovr ${tier(p.ovr)}`}>{p.ovr}</span><span className="pb-tag">{POS_NAME[p.pos]}</span><span className="pb-tag">{p.arch}</span><span className="pb-tag dv"><DevIcon d={p.dev} size={16} />{p.dev}</span>
+          {prospect ? <><Grade g={draftGrade(p)} /><span className="pb-tag">Rank #{p.proj}</span>{(p.scout ?? 0) >= 1 && <span className="pb-tag">{p.arch}</span>}{(p.scout ?? 0) >= 3 && <span className="pb-tag dv"><DevIcon d={shownDev(p)} size={16} />{shownDev(p)}</span>}{p.combine && <span className="pb-tag">40: {p.combine.forty.toFixed(2)}</span>}</>
+            : <><span className={`ovr ${tier(p.ovr)}`}>{p.ovr}</span><span className="pb-tag">{POS_NAME[p.pos]}</span><span className="pb-tag">{p.arch}</span><span className="pb-tag dv"><DevIcon d={shownDev(p)} size={16} />{shownDev(p)}</span>
               {p.team !== 'FA' && <span className="pb-tag">{money(capHit(p.contract, L.season))} · {yearsLeft(p.contract, L.season)} yr{yearsLeft(p.contract, L.season) === 1 ? '' : 's'}</span>}
               {p.injury && <span className="pb-tag bad">{p.injury.type} · {p.injury.weeks} wk</span>}</>}
         </div>

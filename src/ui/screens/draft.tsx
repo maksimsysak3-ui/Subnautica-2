@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { shownDev } from '../../core/devreveal';
 import { collegeLogo } from '../face';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, Table, Tabs, DevBadge, DevIcon, Modal, Tilt, Grade } from '../components';
@@ -92,7 +93,7 @@ export function DraftScreen({ scouting }: { scouting?: boolean } = {}) {
           { k: 'pos', h: 'Pos', get: p => p.pos, sort: p => POS_ORDER.indexOf(p.pos), cls: 'c' },
           { k: 'grade', h: 'Grade', get: p => <Grade g={draftGrade(p)} />, sort: p => -['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'].indexOf(draftGrade(p)), cls: 'c' },
           { k: 'arch', h: 'Archetype', get: p => (p.scout ?? 0) >= 1 ? p.arch : <span className="mute">?</span> },
-          { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={p.dev} size={20} /> : <span className="mute">?</span>, cls: 'c' },
+          { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={shownDev(p)} size={20} /> : <span className="mute">?</span>, cls: 'c' },
           { k: 'forty', h: '40', get: p => p.combine?.forty.toFixed(2), sort: p => -(p.combine?.forty ?? 9), cls: 'c' },
           { k: 'age', h: 'Age', get: p => p.age, cls: 'c' },
           { k: 'proj2', h: 'Projection', get: p => projection(p.proj ?? 300) },
@@ -162,7 +163,7 @@ function Announce({ p, no, team }: { p: Player; no: number; team: string }) {
           <Face p={p} size={150} team={t} />
           <div><div className="up" style={{ color: 'var(--gold)' }}>With pick #{no} in the {p.draft.year} NFL Draft</div><div className="row"><Logo team={t} size={40} /><span className="h3">The {t.nick} select</span></div>
             <div className="h1" style={{ margin: '6px 0' }}>{p.fn} {p.ln}</div><div className="dim">{POS_NAME[p.pos]} · {p.col}</div>
-            <div className="row" style={{ marginTop: 10 }}><Ovr v={p.ovr} /><DevBadge d={p.dev} /><span className="small dim">{money(p.contract.years[0]?.base + (p.contract.years[0]?.bonus ?? 0))} cap hit</span></div></div>
+            <div className="row" style={{ marginTop: 10 }}><Ovr v={p.ovr} /><DevBadge d={shownDev(p)} /><span className="small dim">{money(p.contract.years[0]?.base + (p.contract.years[0]?.bonus ?? 0))} cap hit</span></div></div>
         </div>
       </div>
     </div>
@@ -192,7 +193,7 @@ function Results() {
     { k: 't', h: 'Team', get: p => <Logo team={L.teams[p.draft.team]} size={24} /> },
     { k: 'p', h: 'Player', get: p => <div className="pcell"><Face p={p} size={32} /><b>{p.fn} {p.ln}</b></div> },
     { k: 'pos', h: 'Pos', get: p => p.pos, cls: 'c' }, { k: 'col', h: 'College', get: p => p.col },
-    { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' }, { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} /> },
+    { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' }, { k: 'dev', h: 'Dev', get: p => <DevBadge d={shownDev(p)} /> },
   ]} />;
 }
 
@@ -228,7 +229,7 @@ function FutureClasses({ onSel }: { onSel: (p: Player) => void }) {
       { k: 'col', h: 'School', get: p => { const hs = prospectLevel(L, p).yearsOut >= 4; return <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>{logoOf(p) && <img src={logoOf(p)} width={18} height={18} alt="" />}<span className="dim">{hs ? `Committed: ${p.col}` : p.col}</span></span>; }, sort: p => p.col },
       { k: 'age', h: 'Age now', get: p => prospectLevel(L, p).ageNow, cls: 'c' },
       { k: 'rng', h: 'Proj. OVR', get: p => { const [a, b] = range(p); return <span className="fc-range"><i style={{ left: `${((a - 40) / 60) * 100}%`, width: `${((b - a) / 60) * 100}%` }} /><b>{a}–{b}</b></span>; }, sort: p => -range(p)[1], cls: 'c' },
-      { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={p.dev} size={20} /> : <span className="mute">?</span>, cls: 'c' },
+      { k: 'dev', h: 'Dev', get: p => (p.scout ?? 0) >= 3 ? <DevIcon d={shownDev(p)} size={20} /> : <span className="mute">?</span>, cls: 'c' },
       { k: 'sc', h: 'Scouting', get: p => <ScoutPips lvl={p.scout ?? 0} />, sort: p => p.scout ?? 0, cls: 'c' },
     ]} />
   </>;

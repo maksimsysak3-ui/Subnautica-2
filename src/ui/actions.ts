@@ -21,6 +21,7 @@ import { storylines3 } from './storylines3';
 import { storylines4 } from './storylines4';
 import { storylines5 } from './storylines5';
 import { storylines6 } from './storylines6';
+import { storylines7 } from './storylines7';
 import { withMeeting } from './meetings';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
@@ -41,7 +42,15 @@ export interface ActionCard {
   narr?: boolean;
   /** A social-media post at the centre of it. */
   post?: { handle: string; name: string; text: string };
+  /** An interactive moment instead of a list of answers (see screens/weeklygames.tsx). */
+  game?: GameSpec;
 }
+/** Interactive formats. Choices are ordered for the game: hot seat by stance, speech from calm
+ *  to fiery, tug from your terms to theirs. */
+export type GameSpec =
+  | { kind: 'hotseat'; qs: { q: string; who?: string; a: [string, string, string] }[]; stumble?: number }
+  | { kind: 'speech'; faces: Player[] }
+  | { kind: 'tug'; them: string; rounds?: number; patience?: number; walk: string; lines: { push: string; strain: string; hold: string; give: string } };
 /** What a choice can ask the UI to open. */
 export interface Opener { negotiate: (p: Player) => void; go: (id: string, extra?: Record<string, string>) => void }
 
@@ -518,7 +527,7 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
   const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
-  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit), ...storylines5(kit), ...storylines6(kit));
+  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit), ...storylines5(kit), ...storylines6(kit), ...storylines7(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 
@@ -570,7 +579,7 @@ function curate(L: League, wk: string, out: ActionCard[]): ActionCard[] {
       if (ago(m.seenAt[c.id]) < 4) return -1;                 // just saw this exact card
       if (c.p && ago(m.pidAt[c.p.id]) < 2) return -1;         // his storyline needs a rest
       const novelty = Math.min(8, ago(m.kindAt[c.kind]));
-      return (c.feature ? 2 : 0) + novelty + ((hash(`${wk}-${c.id}`) >>> 0) % 100) / 40;
+      return (c.feature ? 2 : 0) + (c.game ? 3 : 0) + novelty + ((hash(`${wk}-${c.id}`) >>> 0) % 100) / 40;   // interactive moments surface more
     };
     const keep = live.filter(c => c.matchup || URGENT.has(c.kind));
     const kinds = new Set<string>(), pids = new Set<string>();

@@ -7,6 +7,7 @@ import { WeeklyPop, Shot, accent, verb } from './weeklypop';
 import { useApp, app, type Screen } from '../store';
 import { Logo, vivid } from '../components';
 import { NegotiationRoom } from './negotiate';
+import { DevRevealPop } from './devreveal';
 import { weeklyCards, type ActionCard, type Opener } from '../actions';
 import type { Player } from '../../core/types';
 
@@ -60,6 +61,7 @@ export function WeeklyCards() {
       </div>
       {pop && !neg && createPortal(<WeeklyPop key={pop.id} c={pop} decide={j => decide(pop, j)} onClose={closePop} />, document.body)}
       {neg && <NegotiationRoom p={neg} close={() => { setNeg(null); app.touch(); }} />}
+      {!pop && !neg && <DevRevealPop L={L} />}
     </>
   );
 }

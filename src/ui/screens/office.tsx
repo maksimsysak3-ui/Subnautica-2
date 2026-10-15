@@ -1,4 +1,5 @@
 import type React from 'react';
+import { shownDev } from '../../core/devreveal';
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Face, DevIcon, vivid, Table, PlayerCell, Bar, Tabs, CountUp, Portrait } from '../components';
@@ -120,7 +121,7 @@ function FaCard({ p, i, onOpen }: { p: Player; i: number; onOpen: () => void }) 
     <button className={`fa2-card${mine ? ' mine' : ''}`} style={{ '--pc': was ? vivid(was.colors[0]) : '#1d3a7a', animationDelay: `${Math.min(i, 18) * 0.025}s` } as React.CSSProperties} onClick={onOpen}>
       <div className="fa2-ph"><Face p={p} size={66} /></div>
       <div className="fa2-id"><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {Math.floor(p.age)} yrs</span><em>{p.arch}</em></div>
-      <div className="fa2-ovr"><Ovr v={p.ovr} /><DevIcon d={p.dev} size={22} /></div>
+      <div className="fa2-ovr"><Ovr v={p.ovr} /><DevIcon d={shownDev(p)} size={22} /></div>
       <div className="fa2-foot"><div className="fa2-ask"><b>{money(ask.apy)}</b><span>× {ask.years}</span></div><Heat m={m} p={p} /></div>
     </button>
   );

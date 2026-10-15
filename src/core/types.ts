@@ -72,6 +72,8 @@ export interface Player {
   xp: number;
   traits: { work: number; cons: number; clutch: number; ego: number; prone: number };
   motiv: Motivation[];
+  /** Rookies: the dev trait is a secret until he earns DEV_REVEAL_XP. */
+  devHidden?: boolean; devXp?: number; xpLeft?: number;
   awards: string[];
   face: number;
   /** Scouting for prospects: 0 hidden .. 3 fully known (user team only). */

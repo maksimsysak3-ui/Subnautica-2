@@ -1,4 +1,5 @@
 import type React from 'react';
+import { shownDev } from '../../core/devreveal';
 // Depth chart: the starters laid out in their real formation on a broadcast-style
 // field, one clean card per spot (player art on team colour, overall, position, name,
 // archetype, a league grade for the spot). Select a card and the side panel becomes
@@ -142,7 +143,7 @@ export function DepthScreen() {
                     <div className="md-art">
                       {p && <i className="md-num">{p.num}</i>}
                       {p ? <Shot p={p} /> : <div className="dc-empty">+</div>}
-                      {p && p.dev !== 'Normal' && <span className="md-dev"><DevIcon d={p.dev} size={Math.round(cw * 0.15)} /></span>}
+                      {p && shownDev(p) !== 'Normal' && <span className="md-dev"><DevIcon d={shownDev(p)} size={Math.round(cw * 0.15)} /></span>}
                       {p && <b className="md-ovr">{v}</b>}
                       {p?.injury && <span className="md-inj">OUT</span>}
                       {p && !s.auto && p.pos !== s.pos && <span className="md-oop">{p.pos}</span>}

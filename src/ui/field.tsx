@@ -382,13 +382,15 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
   // The ball in flight: a shadow on the turf, a short trail, a spiral (or end over end off a foot).
   if (ball && (ball.free || ball.h > 1.6) && holder < 0 || (ball && ball.h > 1.6)) {
     const px = sx(ball.x), py = sy(ball.y, ball.h);
-    if (ball.h > 0.4) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(sx(ball.x) - 2, sy(ball.y), 5, 2); }
+    // The shadow on the turf shrinks and fades as the ball climbs, so you can read the arc.
+    if (ball.h > 0.4) { const k = Math.min(1, ball.h / 14), w = Math.round(6 - k * 3); g.fillStyle = `rgba(0,0,0,${0.38 - k * 0.2})`; g.fillRect(sx(ball.x) - Math.floor(w / 2), sy(ball.y), w, 2); }
     if (ball.h > 1) for (let k = 1; k <= 4; k++) { const b2 = ch.ball(c - k * 0.022); if (!b2) break; g.fillStyle = `rgba(255,255,255,${0.24 - k * 0.05})`; g.fillRect(sx(b2.x), sy(b2.y, b2.h), 2, 1); }
     // A proper football: dark outline, brown leather, laces, pointed along its flight
     // (a tight spiral on throws, end over end off the foot).
     const b2 = ch.ball(c + 0.03), dir = b2 ? Math.atan2(sy(b2.y, b2.h) - py, sx(b2.x) - px) : 0;
     const ang = ball.kick && ball.h > 0.5 ? (now / 90) % (Math.PI * 2) : dir;
-    drawFootball(g, px, py, ang, Math.floor(now / 45) % 3);
+    // Closer to the camera at the top of its arc: a touch bigger.
+    drawFootball(g, px, py, ang, Math.floor(now / 45) % 3, 1 + Math.min(0.32, Math.max(0, ball.h - 2) * 0.03));
   } else if (ball && ball.free) {
     const px = sx(ball.x), py = sy(ball.y, ball.h);
     g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(px - 2, sy(ball.y), 5, 1);
@@ -397,9 +399,10 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
 }
 
 /** The ball, 7x4 pixels: outlined so it reads against grass, crowd and jerseys. */
-function drawFootball(g: CanvasRenderingContext2D, px: number, py: number, ang: number, spin: number) {
-  const ca = Math.cos(ang), sa = Math.sin(ang);
-  const P = (u: number, v: number, col: string) => { g.fillStyle = col; g.fillRect(Math.round(px + u * ca - v * sa), Math.round(py + u * sa + v * ca), 1, 1); };
+function drawFootball(g: CanvasRenderingContext2D, px: number, py: number, ang: number, spin: number, scale = 1) {
+  const ca = Math.cos(ang) * scale, sa = Math.sin(ang) * scale;
+  const d = scale > 1.12 ? 2 : 1;   // fill the gaps when it's drawn bigger
+  const P = (u: number, v: number, col: string) => { g.fillStyle = col; g.fillRect(Math.round(px + u * ca - v * sa), Math.round(py + u * sa + v * ca), d, d); };
   // Ten pixels nose to nose (centred on a half pixel), a dark outline, a two-tone brown body,
   // and a single spinning lace pixel: brown reads as a football; white specks read as noise.
   for (let u = -4.5; u <= 4.5; u++) for (let v = -2; v <= 2; v++) { const e = (u * u) / 20.25 + (v * v) / 4; if (e <= 1.1 && e > 0.5) P(u, v, '#120803'); }

@@ -111,7 +111,7 @@ export function runDay(L: League): PracticeReport | null {
   for (const { p } of ranked) {
     const from = p.ovr, xp = Math.round(30 + q * 20);
     p.xp += xp; p.morale = clamp(p.morale + 1, 0, 100);
-    spendXp(p);
+    spendXp(p, L);
     // A good day can sharpen one of the skills that matter at his spot (+1, up to his ceiling).
     let attr: string | undefined;
     if (rng.chance(0.3 + q * 0.2)) {

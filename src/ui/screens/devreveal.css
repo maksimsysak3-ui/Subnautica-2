@@ -1,0 +1,35 @@
+.dr-bg { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at 50% 40%, rgba(30,34,46,.92), rgba(4,5,8,.96)); animation: fade .25s; outline: none; }
+.dr { width: min(980px, 100%); text-align: center; }
+.dr header span { font: 800 11px var(--ui); letter-spacing: 2.4px; text-transform: uppercase; color: #f2c230; }
+.dr header h2 { margin: 4px 0 6px; font: 800 44px/1 var(--head); text-transform: uppercase; letter-spacing: .5px; }
+.dr header p { margin: 0 0 22px; color: var(--dim); }
+.dr-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; perspective: 1400px; }
+.dr-card { width: 210px; height: 300px; padding: 0; border: 0; background: none; cursor: pointer; animation: drDeal .5s var(--ease) both; }
+.dr-in { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .8s cubic-bezier(.3,1.4,.4,1); }
+.dr-card:not(.on):hover .dr-in { transform: rotateY(-8deg) translateY(-4px); }
+.dr-card:not(.on) .dr-in { animation: drShake 2.4s ease-in-out infinite; }
+.dr-card.on .dr-in { transform: rotateY(180deg); animation: none; }
+.dr-back, .dr-front { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px; border-radius: 14px; backface-visibility: hidden; overflow: hidden; }
+.dr-back { background: repeating-linear-gradient(135deg, #1a1e27 0 10px, #161a22 10px 20px); border: 2px solid #3a4152; box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+.dr-back b { font: 800 20px/1.1 var(--head); text-transform: uppercase; color: #fff; }
+.dr-back span { font-size: 12px; color: var(--dim); }
+.dr-back em { margin-top: 10px; font: 800 10.5px var(--ui); font-style: normal; letter-spacing: 1.6px; text-transform: uppercase; color: #f2c230; animation: drBlink 1.4s infinite; }
+.dr-q { animation: drPulse 1.6s ease-in-out infinite; }
+.dr-front { transform: rotateY(180deg); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--dc) 45%, #11141b), #0c0e13 75%); border: 2px solid var(--dc); box-shadow: 0 0 40px color-mix(in srgb, var(--dc) 45%, transparent), 0 18px 40px rgba(0,0,0,.5); }
+.dr-face { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--tc); box-shadow: 0 0 0 3px var(--dc); }
+.dr-burst { position: absolute; inset: -40%; background: conic-gradient(from 0deg, transparent 0 8%, color-mix(in srgb, var(--dc) 30%, transparent) 10% 12%, transparent 14% 33%, color-mix(in srgb, var(--dc) 30%, transparent) 35% 37%, transparent 39% 58%, color-mix(in srgb, var(--dc) 30%, transparent) 60% 62%, transparent 64% 83%, color-mix(in srgb, var(--dc) 30%, transparent) 85% 87%, transparent 89%); opacity: 0; pointer-events: none; z-index: -1; }
+.dr-card.on .dr-burst { animation: drSpin 6s linear infinite, drFade .6s .5s forwards; }
+.dr-dev { font: 900 28px/1 var(--head); text-transform: uppercase; color: var(--dc); text-shadow: 0 0 18px color-mix(in srgb, var(--dc) 60%, transparent); }
+.dr-card.on .dr-dev, .dr-card.on .devicon:not(.dv-Hidden) { animation: drSlam .5s .55s cubic-bezier(.2,1.6,.4,1) both; }
+.dr-name { font-size: 12.5px; font-weight: 700; color: #fff; }
+.dr-front p { margin: 0; font-size: 12px; line-height: 1.35; color: #cfd3da; }
+.dr-card.d-XFactor.on { animation: drQuake .45s .6s; }
+.dr footer { margin-top: 24px; }
+@keyframes drDeal { from { opacity: 0; transform: translateY(40px) rotate(-6deg); } to { opacity: 1; transform: none; } }
+@keyframes drShake { 0%, 80%, 100% { transform: none; } 84% { transform: rotate(-2deg); } 88% { transform: rotate(2deg); } 92% { transform: rotate(-1deg); } }
+@keyframes drPulse { 50% { transform: scale(1.08); filter: drop-shadow(0 0 10px rgba(242,194,48,.5)); } }
+@keyframes drBlink { 50% { opacity: .35; } }
+@keyframes drSpin { to { transform: rotate(360deg); } }
+@keyframes drFade { to { opacity: 1; } }
+@keyframes drSlam { from { opacity: 0; transform: scale(2.2); } to { opacity: 1; transform: none; } }
+@keyframes drQuake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }

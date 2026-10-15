@@ -13,6 +13,7 @@ import { hash } from '../../core/rng';
 import type { ActionCard } from '../actions';
 import type { Player, Team } from '../../core/types';
 import './weeklypop.css';
+import { GameMoment } from './weeklygames';
 
 // ---- shared helpers ------------------------------------------------------------------------
 export const defaultCaller = (c: ActionCard) => (c.kind === 'Trade Call' ? `${c.team.name} GM` : c.kind === 'League Office' ? 'League Office' : c.kind === 'Coaching Staff' ? 'Your coordinator' : c.p ? `${c.p.fn} ${c.p.ln}` : c.kind);
@@ -45,6 +46,7 @@ export function formatOf(c: ActionCard): Format {
 }
 /** What taking the card means, in the card row. */
 export function verb(c: ActionCard) {
+  if (c.game) return ({ hotseat: 'Step up to the podium', speech: 'Address the team', tug: 'Start negotiating' } as const)[c.game.kind];
   return ({ phone: 'Answer the call', texts: 'Read the texts', broadcast: 'Watch the report', film: 'Go to the film room', room: 'Address the team', clipboard: 'Read the report', office: 'Take the meeting', social: 'See the post', email: 'Open the email' } as const)[formatOf(c)];
 }
 
@@ -111,6 +113,7 @@ const vars = (t: Team) => ({ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as 
 export function WeeklyPop({ c, decide, onClose }: { c: ActionCard; decide: Decide; onClose: () => void }) {
   const f = formatOf(c);
   const P = { c, decide, onClose };
+  if (c.game) return <GameMoment {...P} />;
   return f === 'social' ? <SocialPost {...P} /> : f === 'email' ? <Email {...P} /> : f === 'phone' ? <PhoneCall {...P} /> : f === 'texts' ? <TextThread {...P} /> : f === 'broadcast' ? <Broadcast {...P} /> : f === 'film' ? <FilmRoom {...P} /> : f === 'room' ? <TeamRoom {...P} /> : f === 'clipboard' ? <Clipboard {...P} /> : <Office {...P} />;
 }
 type Props = { c: ActionCard; decide: Decide; onClose: () => void };

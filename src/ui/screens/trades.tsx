@@ -61,13 +61,36 @@ export function PickEmblem({ L, k, size = 46 }: { L: LG; k: { round: number; sea
   );
 }
 
-/** The other team's general manager, in a suit and a tie in his team's colour. */
+/** The other team's general manager: his portrait (suit, tie in the team colour) drawn in
+ *  the same chunky pixel style as the players on the field. The vector face is rendered once
+ *  off screen, shrunk to a 30-pixel grid, and scaled back up with hard pixel edges. */
+const gmPixCache = new Map<string, string>();
 export function GmFace({ L, team, size = 58 }: { L: LG; team: string; size?: number }) {
   const t = L.teams[team];
+  const key = `${L.seed}-${team}`;
+  const [src, setSrc] = useState(() => gmPixCache.get(key));
+  const ref = useRef<HTMLDivElement>(null);
   const p = { id: `gm-${team}`, face: hash(`${L.seed}-gm-${team}`), pos: 'QB', col: '', status: 'ACT' } as unknown as Player;
+  useEffect(() => {
+    if (src || !ref.current) return;
+    const svg = ref.current.querySelector('svg'); if (!svg) return;
+    const xml = new XMLSerializer().serializeToString(svg).replace(/var\(--head\)[^"]*/g, 'Impact, sans-serif');
+    const img = new Image();
+    img.onload = () => {
+      const G = 30, c = document.createElement('canvas'); c.width = G; c.height = G;
+      const g = c.getContext('2d'); if (!g) return;
+      g.imageSmoothingEnabled = true; g.drawImage(img, 0, 0, G, G);
+      // Posterise a little so it reads as pixel art rather than a blurry thumbnail.
+      const d = g.getImageData(0, 0, G, G); for (let i = 0; i < d.data.length; i += 4) for (let k = 0; k < 3; k++) d.data[i + k] = Math.round(d.data[i + k] / 24) * 24;
+      g.putImageData(d, 0, 0);
+      const url = c.toDataURL(); gmPixCache.set(key, url); setSrc(url);
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
+  }, [key, src]);
   return (
     <div className="gm-face" style={{ width: size, height: size, '--tc': t.colors[0] } as React.CSSProperties}>
-      <FaceArt p={p} team={t} size={size} suit />
+      {src ? <img src={src} width={size} height={size} alt="" style={{ imageRendering: 'pixelated', display: 'block' }} />
+        : <div ref={ref} style={{ opacity: 0 }}><FaceArt p={p} team={t} size={120} suit /></div>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // Team statistics from every box score, league team stats, power rankings, progression.
 import { useState } from 'react';
+import { shownDev, devRank } from '../../core/devreveal';
 import { useApp, app } from '../store';
 import { Logo, Ovr, Table, PlayerCell, DevBadge, Bar } from '../components';
 import type { League } from '../../core/types';
@@ -93,7 +94,7 @@ export function ProgressionScreen() {
       <div><div className="page-title">Progression</div><div className="page-sub">XP earned from practice and production. Each level raises a player's key ratings, up to his ceiling. Development trait sets the pace.</div></div>
       <Table rows={rows} rowKey={p => p.id} initial="xp" onRow={p => app.go({ id: 'player', pid: p.id })} cols={[
         { k: 'p', h: 'Player', get: p => <PlayerCell p={p} /> }, { k: 'ovr', h: 'OVR', get: p => <Ovr v={p.ovr} />, sort: p => p.ovr, cls: 'c' },
-        { k: 'dev', h: 'Dev', get: p => <DevBadge d={p.dev} />, sort: p => ['Normal', 'Star', 'Superstar', 'X-Factor'].indexOf(p.dev) },
+        { k: 'dev', h: 'Dev', get: p => <DevBadge d={shownDev(p)} />, sort: p => devRank(shownDev(p)) },
         { k: 'age', h: 'Age', get: p => Math.floor(p.age), sort: p => p.age, cls: 'c' },
         { k: 'xp', h: 'XP to Next Level', get: p => <div style={{ width: 160 }}><Bar v={p.xp} max={xpToLevel(p.ovr)} /><div className="small mute">{Math.round(p.xp)} / {xpToLevel(p.ovr)}</div></div>, sort: p => p.xp / xpToLevel(p.ovr) },
         { k: 'room', h: 'Growth Left', get: p => p.age >= 29 || p.pot <= p.ovr ? <span className="mute">Peaked</span> : p.pot - p.ovr >= 8 ? 'High' : p.pot - p.ovr >= 4 ? 'Medium' : 'Low', sort: p => p.pot - p.ovr },

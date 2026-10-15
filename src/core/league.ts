@@ -1,7 +1,7 @@
 // Creates a franchise from the imported real-world data.
 import { RATING_TARGETS, rookieCeiling } from './ratingsupdate';
 import data from '../data/league.json';
-import type { Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
+import type { Dev, Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
 import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, devTrait, overall, potential } from './ratings';
 import { seasonForm, starterMeans, applyDelta } from './offseason';
@@ -156,6 +156,8 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   starFloors(league, rng);
   liftRatings(league, rng);
   ratingsUpdate(league, rng);   // last: the hand-set ratings are final
+  retierDev(league, rng);
+  hideRookieDev(league);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
   league.baseline = starterMeans(league);
@@ -203,6 +205,27 @@ function ratingsUpdate(league: League, rng: Rng) {
     if (t) setTo(p, t);
     else if (p.exp === 0 && p.status !== 'PROSPECT' && p.ovr > rookieCeiling(p.draft.pick)) setTo(p, rookieCeiling(p.draft.pick));
   }
+}
+/**
+ * Dev traits follow the final ratings (the data model's numbers were provisional): the
+ * league's best are X-Factors, real stars are Superstars. Rookies keep the trait their
+ * scouting gave them; it stays hidden until they earn it (see devreveal.ts).
+ */
+function retierDev(league: League, rng: Rng) {
+  const rank: Record<Dev, number> = { Normal: 0, Star: 1, Superstar: 2, 'X-Factor': 3 };
+  for (const p of Object.values(league.players)) {
+    if (p.status === 'PROSPECT' || p.status === 'RET' || p.exp === 0 || ['K', 'P', 'LS'].includes(p.pos)) continue;
+    const a = Math.floor(p.age);
+    const dev: Dev = p.ovr >= 93 || (p.ovr >= 90 && a <= 27) ? 'X-Factor' : p.ovr >= 87 || (p.ovr >= 82 && a <= 24) ? 'Superstar' : p.ovr >= 80 || (p.ovr >= 75 && a <= 24) ? 'Star' : 'Normal';
+    if (dev === p.dev) continue;
+    p.dev = dev;
+    if (rank[dev] >= 2) { const { abil, xf } = assignAbilities(p.pos, p.attrs, dev, rng); p.abil = abil.length ? abil : p.abil; p.xf = xf; }
+    else { p.abil = []; p.xf = undefined; }
+  }
+}
+/** This year's rookies don't know what they are yet. */
+function hideRookieDev(league: League) {
+  for (const p of Object.values(league.players)) if (p.exp === 0 && p.status !== 'PROSPECT' && p.status !== 'RET') p.devHidden = true;
 }
 function starFloors(league: League, rng: Rng) {
   for (const p of Object.values(league.players)) {

@@ -86,6 +86,29 @@ export const RATING_TARGETS: Record<string, number> = {
   'Dillon Thieneman|S': 74, 'Treydan Stukes|S': 72,
   // K / P
   'Brandon Aubrey|K': 85, 'Ka\'imi Fairbairn|K': 84, 'Cameron Dicker|K': 84, 'Chris Boswell|K': 83, 'Will Reichard|K': 81, 'Nick Folk|K': 80,
+  // --- second pass: good players the data undersold (injured or quiet 2025, rookie deals) ---
+  'Jaylon Johnson|CB': 85, 'Kyler Gordon|CB': 80, 'A.J. Terrell|CB': 84, 'Daron Bland|CB': 82, 'Zyon McCollum|CB': 81, 'Tyson Campbell|CB': 80,
+  'Charvarius Ward|CB': 80, 'Marcus Jones|CB': 80, 'Terrion Arnold|CB': 80, 'Alontae Taylor|CB': 79, 'Taron Johnson|CB': 79, 'Jahdae Barron|CB': 79,
+  'Dax Hill|CB': 78, 'Kool-Aid McKinstry|CB': 78, 'Emmanuel Forbes|CB': 77, 'Eric Stokes|CB': 76, 'Kristian Fulton|CB': 76, 'Greg Newsome|CB': 74,
+  'Brandon Stephens|CB': 74, 'Deonte Banks|CB': 70, 'Kaiir Elam|CB': 64,
+  'Darnell Wright|OT': 85, 'Joe Alt|OT': 86, 'Kelvin Banks|OT': 80, 'Walker Little|OT': 79, 'Armand Membou|OT': 79,
+  'Peter Skoronski|G': 82, 'Michael Onwenu|G': 82, 'Samuel Cosmi|G': 81, 'Joe Tippmann|G': 79, 'Donovan Jackson|G': 79, 'Wyatt Teller|G': 77,
+  'Jackson Powers-Johnson|G': 75,
+  'Jaelan Phillips|EDGE': 84, 'Nick Herbig|EDGE': 84, 'Derrick Brown|EDGE': 85, 'Ed Oliver|EDGE': 84, 'Jordyn Brooks|EDGE': 82, 'Laiatu Latu|EDGE': 81,
+  'Calijah Kancey|EDGE': 81, 'Khalil Mack|EDGE': 81, 'Travon Walker|EDGE': 80, 'Harold Landry|EDGE': 80, 'Will McDonald|EDGE': 80,
+  'Jeremiah Owusu-Koramoah|EDGE': 79, 'Bradley Chubb|EDGE': 79, 'Kayvon Thibodeaux|EDGE': 79, 'Dallas Turner|EDGE': 79, 'Nolan Smith|EDGE': 79,
+  'Jalon Walker|EDGE': 78, 'Lukas Van Ness|EDGE': 77, 'Chop Robinson|EDGE': 77, 'Mykel Williams|EDGE': 76,
+  'Jordan Davis|DT': 80, 'Poona Ford|DT': 80, 'Byron Murphy|DT': 79, 'Mason Graham|DT': 77, 'Teair Tart|DT': 76, 'Bryan Bresee|DT': 76,
+  'Kenneth Grant|DT': 74, 'Derrick Harmon|DT': 74, 'Tyleik Williams|DT': 74,
+  'Demario Davis|LB': 84, 'Zaire Franklin|LB': 83, 'Patrick Queen|LB': 82, 'Frankie Luvu|LB': 82, 'Jihaad Campbell|LB': 80, 'Divine Deablo|LB': 78, 'Alex Singleton|LB': 77,
+  'Minkah Fitzpatrick|S': 83, 'Talanoa Hufanga|S': 81, 'Kamren Curl|S': 80, 'Kevin Byard|S': 80, 'Amani Hooker|S': 79, 'Jaquan Brisker|S': 79,
+  'Malaki Starks|S': 79, 'Jeremy Chinn|S': 78,
+  'Michael Wilson|WR': 82, 'Rome Odunze|WR': 82, 'Jordan Addison|WR': 82, 'Emeka Egbuka|WR': 82, 'Quentin Johnston|WR': 81, 'Rashid Shaheed|WR': 80,
+  "Wan'Dale Robinson|WR": 80, 'Xavier Worthy|WR': 79, 'Matthew Golden|WR': 78, 'Travis Hunter|WR': 78, 'Jerry Jeudy|WR': 77, 'Cooper Kupp|WR': 77,
+  'Keon Coleman|WR': 77, 'Jayden Higgins|WR': 77, 'Rashod Bateman|WR': 75, 'Xavier Legette|WR': 72, 'Jahan Dotson|WR': 70,
+  'Cole Kmet|TE': 80, 'Cade Otton|TE': 79, 'Chigoziem Okonkwo|TE': 78, 'Michael Mayer|TE': 74,
+  'Ashton Jeanty|RB': 84, 'Javonte Williams|RB': 82, 'Chuba Hubbard|RB': 77,
+  'Anthony Richardson|QB': 72, 'Will Levis|QB': 66,
 };
 
 /** A rookie's ceiling by draft slot when he isn't in the table: 82 for the first pick, ~72 by round three. */
