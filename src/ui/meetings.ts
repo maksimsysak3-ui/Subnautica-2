@@ -5,7 +5,7 @@
 // own dialogue keep it. The effects of each choice are unchanged.
 import type { ActionCard } from './actions';
 
-interface Script { speaker?: string; where?: string; lines: string[]; replies?: ([string, string] | null)[] | Record<string, [string, string]> }
+interface Script { speaker?: string; where?: string; post?: ActionCard['post']; lines: string[]; replies?: ([string, string] | null)[] | Record<string, [string, string]> }
 type Writer = (c: ActionCard) => Script | null;
 
 const ln = (c: ActionCard) => (c.p ? c.p.ln : 'him');
@@ -68,9 +68,9 @@ const SCRIPTS: Record<string, Writer> = {
     replies: [[`You'll get some.`, `Thank you. I'll be ready.`], [`The starter gets the work.`, `Understood.`]] }),
   dcmtg: c => ({ speaker: 'Your defensive coordinator', where: 'Staff room · Tuesday', lines: [`What we did last week won't work against these guys. I want a new plan.`, `It's a lot to install in a short week.`],
     replies: [[`Install it.`, `We'll be up late. It'll be worth it.`], [`Keep it simple.`, `Simple it is.`]] }),
-  pod: c => ({ speaker: 'Your PR director', where: 'Phone call · Wednesday', lines: [`${full(c)} called them overrated on his podcast. It's their whole pregame show now.`],
+  pod: c => ({ post: c.p ? { handle: `@${c.p.fn.toLowerCase()}${c.p.ln.toLowerCase()}pod`, name: `The ${c.p.ln} Show`, text: `New episode 🎙️ Real talk: the team we play Sunday is overrated and everybody's scared to say it. Link in bio.` } : undefined, speaker: 'Your PR director', where: 'Trending · this morning', lines: [`${full(c)} called them overrated on his podcast. It's their whole pregame show now.`],
     replies: [[`Fine him.`, `I'll let him know.`], [`Let him talk.`, `Okay. Buckle up.`]] }),
-  post: c => ({ speaker: 'Your PR director', where: 'Phone call · Tuesday morning', lines: [`${full(c)}'s post is going around. It's not great.`, `How do you want to handle it?`],
+  post: c => ({ post: c.p ? { handle: `@${c.p.fn.toLowerCase()}${c.p.ln.toLowerCase()}${(c.p.num ?? 0) || ''}`, name: `${c.p.fn} ${c.p.ln}`, text: `Funny how the people upstairs always know best. I'll keep my head down and do my job I guess 🤷🏾‍♂️` } : undefined, speaker: 'Your PR director', where: 'Trending · this morning', lines: [`${full(c)}'s post is going around. It's not great.`, `How do you want to handle it?`],
     replies: [[`Fine him.`, `I'll send the letter.`], [`I've got his back publicly.`, `That'll play well with the players.`], [`I'll handle it in my office.`, `Good. Keep it quiet.`]] }),
   scout: c => ({ speaker: 'Director of college scouting', where: 'Phone call · Thursday', lines: [`I've got two trips I can make this weekend. Where do you want eyes?`] }),
   short: c => ({ speaker: 'Your coordinators', where: 'Staff room · Monday night', lines: [`Thursday game. We have two real practices, maybe.`, `Do we keep it light or put in a real plan?`],
@@ -95,7 +95,7 @@ export function withMeeting(c: ActionCard): ActionCard {
   if (!s) return c;
   const rep = (x: ActionCard['choices'][number], i: number) => (Array.isArray(s.replies) ? s.replies[i] : s.replies?.[x.label]) ?? null;
   return {
-    ...c, speaker: c.speaker ?? s.speaker, where: c.where ?? s.where, lines: s.lines, narr: !s.speaker,
+    ...c, speaker: c.speaker ?? s.speaker, where: c.where ?? s.where, lines: s.lines, narr: !s.speaker, post: c.post ?? s.post,
     choices: c.choices.map((x, i) => { const r = rep(x, i); return r && !x.reply ? { ...x, reply: r[0], react: x.react ?? r[1] } : x; }),
   };
 }

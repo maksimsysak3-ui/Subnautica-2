@@ -18,6 +18,7 @@ import { storylines2 } from './storylines2';
 import { storylines3 } from './storylines3';
 import { storylines4 } from './storylines4';
 import { storylines5 } from './storylines5';
+import { storylines6 } from './storylines6';
 import { withMeeting } from './meetings';
 import { rivalryTrashTalk, heat, heatLevel } from '../core/rivalry';
 
@@ -36,6 +37,8 @@ export interface ActionCard {
   speaker?: string; where?: string; lines?: string[];
   /** The lines set the scene rather than being spoken by someone. */
   narr?: boolean;
+  /** A social-media post at the centre of it. */
+  post?: { handle: string; name: string; text: string };
 }
 /** What a choice can ask the UI to open. */
 export interface Opener { negotiate: (p: Player) => void; go: (id: string, extra?: Record<string, string>) => void }
@@ -479,7 +482,7 @@ export function weeklyCards(L: League): ActionCard[] {
 
   // A couple of the situational cards a week, so the row stays a hand and not a pile.
   const kit = { L, me, roster, gm, hc, wk, fx, sp, resolve: (cid: string) => resolve(L, cid) };
-  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit), ...storylines5(kit));
+  pool.push(...storylines(kit), ...storylines2(kit), ...storylines3(kit), ...storylines4(kit), ...storylines5(kit), ...storylines6(kit));
   // The curator below decides which of these actually reach the hub this week.
   pool.filter(c => !done(L).includes(c.id)).sort((a, b) => h(a.id) - h(b.id)).forEach(c => out.push(c));
 

@@ -398,9 +398,11 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
 function drawFootball(g: CanvasRenderingContext2D, px: number, py: number, ang: number, spin: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const P = (u: number, v: number, col: string) => { g.fillStyle = col; g.fillRect(Math.round(px + u * ca - v * sa), Math.round(py + u * sa + v * ca), 1, 1); };
-  for (let u = -4; u <= 4; u++) for (let v = -2; v <= 2; v++) { const e = (u * u) / 16 + (v * v) / 4; if (e <= 1.15 && e > 0.55) P(u, v, '#120803'); }
-  for (let u = -3; u <= 3; u++) for (let v = -1; v <= 1; v++) { const e = (u * u) / 10 + (v * v) / 2.2; if (e <= 1) P(u, v, v < 0 ? '#a0521f' : '#7a3a12'); }
-  P(-1 + spin, 0, '#ffffff'); P(spin, -0, '#ffffff'); P(-3, 0, '#f2f2f2'); P(3, 0, '#f2f2f2');
+  // Ten pixels nose to nose (centred on a half pixel), a dark outline, a two-tone brown body,
+  // and a single spinning lace pixel: brown reads as a football; white specks read as noise.
+  for (let u = -4.5; u <= 4.5; u++) for (let v = -2; v <= 2; v++) { const e = (u * u) / 20.25 + (v * v) / 4; if (e <= 1.1 && e > 0.5) P(u, v, '#120803'); }
+  for (let u = -3.5; u <= 3.5; u++) for (let v = -1; v <= 1; v++) { const e = (u * u) / 13 + (v * v) / 2.2; if (e <= 1) P(u, v, v < 0 ? '#a8581f' : '#7a3a12'); }
+  P(-0.5 + spin, -0.5, '#f4efe4');
 }
 
 function drawArt(g: CanvasRenderingContext2D, sc: Scene, art: Art[], def: boolean, sx: (x: number) => number, sy: (y: number, z?: number) => number) {

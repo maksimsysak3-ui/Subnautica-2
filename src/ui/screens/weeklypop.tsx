@@ -29,11 +29,13 @@ export function accent(t: Team) { const c = t.colors[1] ?? '#ffd23f'; const n = 
 export const chips = (s?: string) => (s ?? '').split(' · ').map(x => x.trim()).filter(Boolean);
 export const toneOf = (x: string) => (/[−-]\d|−/.test(x) ? 'neg' : /\+\d/.test(x) ? 'pos' : '');
 
-export type Format = 'phone' | 'texts' | 'broadcast' | 'film' | 'room' | 'clipboard' | 'office';
+export type Format = 'phone' | 'texts' | 'broadcast' | 'film' | 'room' | 'clipboard' | 'office' | 'social' | 'email';
 /** Where this decision happens. */
 export function formatOf(c: ActionCard): Format {
   const k = c.kind, sc = sceneFor(c), key = c.id.split('-')[0];
   if (/Medical|Injury|Health|Workout/.test(k) || ['inj', 'tough', 'vet', 'workout'].includes(key)) return 'clipboard';
+  if (c.post || (k === 'Social Media' && !c.texts)) return 'social';
+  if (/League Office|League Discipline|Owner Memo/.test(k) && !c.caller && !c.scene) return 'email';
   if (sc === 'phone') return 'phone';
   if (sc === 'texts') return 'texts';
   if (sc === 'tv' || sc === 'interview') return 'broadcast';
@@ -43,7 +45,7 @@ export function formatOf(c: ActionCard): Format {
 }
 /** What taking the card means, in the card row. */
 export function verb(c: ActionCard) {
-  return ({ phone: 'Answer the call', texts: 'Read the texts', broadcast: 'Watch the report', film: 'Go to the film room', room: 'Address the team', clipboard: 'Read the report', office: 'Take the meeting' } as const)[formatOf(c)];
+  return ({ phone: 'Answer the call', texts: 'Read the texts', broadcast: 'Watch the report', film: 'Go to the film room', room: 'Address the team', clipboard: 'Read the report', office: 'Take the meeting', social: 'See the post', email: 'Open the email' } as const)[formatOf(c)];
 }
 
 // ---- the conversation engine ---------------------------------------------------------------
@@ -109,7 +111,7 @@ const vars = (t: Team) => ({ '--c1': vivid(t.colors[0]), '--c2': accent(t) } as 
 export function WeeklyPop({ c, decide, onClose }: { c: ActionCard; decide: Decide; onClose: () => void }) {
   const f = formatOf(c);
   const P = { c, decide, onClose };
-  return f === 'phone' ? <PhoneCall {...P} /> : f === 'texts' ? <TextThread {...P} /> : f === 'broadcast' ? <Broadcast {...P} /> : f === 'film' ? <FilmRoom {...P} /> : f === 'room' ? <TeamRoom {...P} /> : f === 'clipboard' ? <Clipboard {...P} /> : <Office {...P} />;
+  return f === 'social' ? <SocialPost {...P} /> : f === 'email' ? <Email {...P} /> : f === 'phone' ? <PhoneCall {...P} /> : f === 'texts' ? <TextThread {...P} /> : f === 'broadcast' ? <Broadcast {...P} /> : f === 'film' ? <FilmRoom {...P} /> : f === 'room' ? <TeamRoom {...P} /> : f === 'clipboard' ? <Clipboard {...P} /> : <Office {...P} />;
 }
 type Props = { c: ActionCard; decide: Decide; onClose: () => void };
 
@@ -167,11 +169,11 @@ function TextThread({ c, decide, onClose }: Props) {
         <div className="wpt-body">
           <span className="wpt-day">Today {7 + (hash(c.id) % 4)}:{String(10 + (hash(c.id) % 49)).padStart(2, '0')} AM</span>
           {t.lines.slice(0, t.shown + (t.talking ? 1 : 0)).map((m, i) => i === t.shown && t.talking
-            ? <p key={i} className="in typing"><i /><i /><i /></p>
-            : <p key={i} className="in">{m}</p>)}
-          {t.ch && <p className="out">{t.ch.reply ?? t.ch.label}<span className="wpt-rec">{t.beat >= 1 ? 'Read' : 'Delivered'}</span></p>}
-          {t.ch && t.beat === 1 && <p className="in typing"><i /><i /><i /></p>}
-          {t.ch && t.beat >= 2 && t.reaction && <p className="in">{t.reaction}</p>}
+            ? <p key={i} className="wt-in wt-typing"><i /><i /><i /></p>
+            : <p key={i} className="wt-in">{m}</p>)}
+          {t.ch && <p className="wt-out">{t.ch.reply ?? t.ch.label}<span className="wpt-rec">{t.beat >= 1 ? 'Read' : 'Delivered'}</span></p>}
+          {t.ch && t.beat === 1 && <p className="wt-in wt-typing"><i /><i /><i /></p>}
+          {t.ch && t.beat >= 2 && t.reaction && <p className="wt-in">{t.reaction}</p>}
         </div>
         {t.done && <div className="wpt-notes">{t.effects.map((h, i) => <div key={h} className={`wpt-note ${toneOf(h)}`} style={{ animationDelay: `${i * 0.25}s` }}><b>{c.team.nick} HQ</b><span>{h}</span></div>)}</div>}
         <div className="wpt-keys">{t.asking ? c.choices.map((x, i) => <button key={x.label} onClick={e => { e.stopPropagation(); t.choose(i); }}><kbd>{i + 1}</kbd>{x.reply ?? x.label}</button>) : <div className="wpt-input">{t.pick === null ? 'iMessage' : ' '}</div>}</div>
@@ -351,6 +353,76 @@ function Office({ c, decide, onClose }: Props) {
         </div>
       </div>
       <div className="sp-ticker"><span>{`Live from the ${tm.nick} facility · ${c.kind}`}</span></div>
+    </div>
+  );
+}
+
+/** A social post at the centre of it: the post itself with likes and reposts climbing and
+ *  the replies piling up, your PR director in your ear, and the team's response posted. */
+function SocialPost({ c, decide, onClose }: Props) {
+  const t = useTalk(c, decide, onClose, true, 5);
+  const post = c.post ?? (c.p ? { handle: `@${c.p.fn.toLowerCase()}${c.p.ln.toLowerCase()}`, name: `${c.p.fn} ${c.p.ln}`, text: c.body } : { handle: `@${c.team.nick.toLowerCase()}`, name: c.team.name, text: c.body });
+  const [n, setN] = useState(0);
+  useEffect(() => { const id = setInterval(() => setN(x => Math.min(1, x + 0.02)), 40); return () => clearInterval(id); }, []);
+  const base = 4000 + ((hash(c.id) >>> 0) % 60000);
+  const fmt = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v)));
+  const replies = useMemo(() => [`${c.p ? c.p.ln : 'he'} said what he said 😭`, `this is going to be a long week`, `somebody take his phone away`, `facts. all facts.`].map((x, i) => ({ who: FANS[((hash(c.id) >>> 0) + i) % FANS.length], x })), [c.id]);
+  return (
+    <div className="wp wp-social" style={vars(c.team)} onClick={t.skip}>
+      <div className="wp-bg"><SceneBg kind="texts" accent={vivid(c.team.colors[0])} /></div>
+      <div className="wps-feed">
+        <div className="wps-post">
+          <div className="wps-head">{c.p && post.name.includes(c.p.ln) ? <Shot p={c.p} t={c.team} cls="wps-av" /> : <div className="wps-av"><Logo team={c.team} size={44} /></div>}<div><b>{post.name} <i className="wps-ver">✓</i></b><span>{post.handle} · 2h</span></div></div>
+          <p className="wps-text">{post.text}</p>
+          <div className="wps-stats"><span>💬 {fmt(base * 0.08 * n)}</span><span>🔁 {fmt(base * 0.3 * n)}</span><span className="hot">♥ {fmt(base * n)}</span><span>📊 {fmt(base * 18 * n)}</span></div>
+        </div>
+        <div className="wps-replies">{replies.map((r, i) => <div key={i} className="wps-reply" style={{ animationDelay: `${0.8 + i * 0.5}s` }}><b>{r.who}</b><span>{r.x}</span></div>)}
+          {t.ch && t.beat >= 1 && <div className="wps-reply team"><b>@{c.team.nick.toLowerCase()} · Official</b><span>{t.ch.reply ?? t.ch.label}</span></div>}
+        </div>
+      </div>
+      <div className="wps-side">
+        <div className="wp-kick"><span className="wp-tag red">{c.kind}</span><span className="wp-tag">{c.where ?? 'Trending'}</span></div>
+        <h1 className="wp-h">{c.headline}</h1>
+        <div className="wpp-cc">{t.visible.map(i => <p key={i} className={t.spoken ? '' : 'narr'}>{t.spoken && <em>{t.name}</em>}{t.line(i)}</p>)}
+          {t.ch && t.beat >= 1 && t.reaction && <p className={t.spoken ? '' : 'narr'}>{t.spoken && <em>{t.name}</em>}{t.reaction}</p>}</div>
+        <Answers c={c} t={t} cls="wpp" />
+        <Effects t={t} label="Fallout" />
+        <Footer t={t} onClose={onClose} />
+      </div>
+    </div>
+  );
+}
+
+/** An email: the inbox, the notice from the league or the owner typed out, your reply
+ *  sent off, and their answer landing in the thread. */
+function Email({ c, decide, onClose }: Props) {
+  const t = useTalk(c, decide, onClose, true, 7);
+  const from = c.speaker ?? (c.kind === 'Owner Memo' ? 'Office of the Owner' : 'League Office');
+  const box = ['Inbox', 'Flagged', 'Sent', 'Legal', 'Scouting'];
+  const others = [`Travel: itinerary for ${c.team.nick} at …`, 'Equipment: cleat order confirmed', 'Pro scouting: waiver wire report', 'Cap update: weekly ledger'];
+  return (
+    <div className="wp wp-mail" style={vars(c.team)} onClick={t.skip}>
+      <div className="wp-bg"><SceneBg kind="office" accent={vivid(c.team.colors[0])} /></div>
+      <div className="wpm-win">
+        <div className="wpm-bar"><i /><i /><i /><span>Mail · {c.team.name}</span></div>
+        <div className="wpm-body">
+          <div className="wpm-side">{box.map((b, i) => <span key={b} className={i === 0 ? 'on' : ''}>{b}{i === 0 && <b>1</b>}</span>)}</div>
+          <div className="wpm-list">
+            <div className="wpm-item on"><b>{from}</b><span>{c.headline}</span></div>
+            {others.map(o => <div key={o} className="wpm-item"><b>{o.split(':')[0]}</b><span>{o.split(':')[1]}</span></div>)}
+          </div>
+          <div className="wpm-read">
+            <div className="wpm-head"><b>{c.headline}</b><span>From: <em>{from}</em> · To: you · {c.where?.replace('Email · ', '') ?? 'Today'}</span></div>
+            <div className="wpm-text">{t.visible.map(i => <p key={i}>{t.line(i)}</p>)}{c.kind === 'League Discipline' && !t.talking && <span className="wpm-att">📎 play_video.mp4 · notice.pdf</span>}</div>
+            {t.ch && <div className="wpm-sent"><span className="wpm-tag">{t.beat >= 1 ? 'Sent' : 'Sending…'}</span><p>{t.ch.reply ?? t.ch.label}</p></div>}
+            {t.ch && t.beat >= 2 && t.reaction && <div className="wpm-re"><b>Re: {c.headline}</b><p>{t.reaction}</p><span>{from}</span></div>}
+            {t.asking && <div className="wpm-replies"><span>Reply</span>{c.choices.map((x, i) => (
+              <button key={x.label} onClick={e => { e.stopPropagation(); t.choose(i); }} style={{ animationDelay: `${i * 0.08}s` }}><kbd>{i + 1}</kbd><b>{x.reply ?? x.label}</b>{x.hint && <em className="wp-stakes">{chips(x.hint).map(h => <i key={h} className={toneOf(h)}>{h}</i>)}</em>}</button>))}</div>}
+            <Effects t={t} label="Result" />
+            <Footer t={t} onClose={onClose} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
