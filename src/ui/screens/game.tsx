@@ -19,6 +19,7 @@ import { PlayerOfGame } from '../potg';
 import { StadiumPulse } from '../pulse';
 import { CallBinder } from '../callbinder';
 import { practiceWeek } from '../../core/practice';
+import './gamescreen.css';
 
 export function GameScreen({ gid }: { gid: string }) {
   const L = useApp().league!;
@@ -37,7 +38,7 @@ export function GameScreen({ gid }: { gid: string }) {
   useEffect(() => { if (!last || anim || auto.current && auto.current !== 'watch') return; if (last.td) sfx.crowd(); else if (last.turnover) sfx.groan(); else if (last.type === 'end' || last.type === 'kickoff' && last.n === 0) sfx.whistle(); }, [last?.n, anim]);
   const [coach, setCoach] = useState(true);
   const [pa, setPa] = useState(false);
-  const [box, setBox] = useState<'Play-by-Play' | 'Box Score' | 'Drive Chart'>('Play-by-Play');
+  const [railTab, setRailTab] = useState<'Drive' | 'Stats' | 'Log'>('Drive');
   const [finished, setFinished] = useState(false);
   const [designing, setDesigning] = useState(false);
   useMemo(() => { registerPlays(L); books(L); }, [L]);
@@ -95,7 +96,6 @@ export function GameScreen({ gid }: { gid: string }) {
     await saveLeague(L, `${L.id}-auto`);
     app.replace({ id: 'box', gid: game.id });
   });
-  const wp = useMemo(() => sim.events.filter(e => e.wp !== undefined).map(e => e.wp!), [sim.events.length]);
   // The booth: the latest line from the last few snaps.
   if (last) commentary(L, sim, last, booth.current);
   const recentEv = [...sim.events].reverse().slice(0, 3).find(e => booth.current.byN.get(e.n) && !(anim && e.n === last?.n));
@@ -111,97 +111,144 @@ export function GameScreen({ gid }: { gid: string }) {
   const shownPulse = (anim && last ? sim.events[sim.events.indexOf(last) - 1]?.pulse : [...sim.events].reverse().find(e => e.pulse !== undefined)?.pulse) ?? sim.pulseBase * 0.6;
   // Stat lines freeze at the snap so the sidebar can't spoil the play being animated.
   if (!live) shown.current = new Map([...sim.lines].map(([k, v]) => [k, { ...v }]));
+  // Nothing on the screen gets ahead of the play being shown: win probability, the drives and
+  // the team stats all hold the pre-snap picture until it finishes.
+  const wp = useMemo(() => sim.events.filter(e => e !== live && e.wp !== undefined).map(e => e.wp!), [sim.events.length, live?.n]);
+  const shownBox = useRef(sim.box.map(b => ({ ...b, third: [...b.third] })) as typeof sim.box);
+  if (!live) shownBox.current = sim.box.map(b => ({ ...b, third: [...b.third] })) as typeof sim.box;
+  // The field and the play call can't both fill the screen: when it's your call the page
+  // glides to the binder, and at the snap it glides back up to the field.
+  const callUp = needsCall && !anim && !finished;
+  useEffect(() => {
+    const el = document.querySelector(callUp ? '.gs-call' : '.gs-stage');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (callUp ? r.bottom > window.innerHeight || r.top < 0 : r.top < 0 || r.top > window.innerHeight * 0.3) el.scrollIntoView({ behavior: 'smooth', block: callUp ? 'end' : 'start' });
+  }, [callUp, anim]);
+  // The current drive: everything since the ball last changed hands.
+  const drive = (() => {
+    const evs = sim.events.filter(e => e !== live && ['run', 'pass', 'sack', 'scramble', 'penalty', 'kneel', 'spike', 'punt', 'fg'].includes(e.type));
+    const lastPoss = evs[evs.length - 1]?.poss;
+    let i = evs.length - 1; while (i >= 0 && evs[i].poss === lastPoss) i--;
+    const d = evs.slice(i + 1);
+    return { team: lastPoss === undefined ? null : lastPoss === 1 ? home : away, plays: d.length, yds: d.reduce((a, e) => a + (e.type === 'punt' || e.type === 'fg' ? 0 : e.yards), 0), start: d[0]?.yl, list: d.slice(-6).reverse() };
+  })();
+  const cur = wp[wp.length - 1] ?? 0.5;
+  const myWp = userSide === 1 ? cur : 1 - cur;
+  const me = L.teams[L.user];
   return (
-    <div style={{ padding: '16px 20px 70px', maxWidth: 1500, margin: '0 auto' }}>
+    <div className="gs" style={{ '--hc': home.colors[0], '--ac': away.colors[0], '--mc': me.colors[0] } as React.CSSProperties}>
       {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
       {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
       {toss && !intro && <CoinToss teams={[{ name: away.nick, abbr: away.abbr, color: away.colors[0] }, { name: home.nick, abbr: home.abbr, color: home.colors[0] }]} userSide={userSide as 0 | 1} onDone={r => { sim.setToss(r); setToss(false); force(x => x + 1); }} />}
-      <Scorebug L={L} sim={sim} pre={live} score={before} />
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 360px', marginTop: 14, alignItems: 'start' }}>
-        <div className="grid" style={{ gap: 12 }}>
-          <div className="card" style={{ padding: 10, background: 'linear-gradient(180deg,#0b1424,#070b14)' }}>
+      <Scorebug L={L} sim={sim} pre={live} score={before} wp={cur} />
+      <div className="gs-main">
+        <div className="gs-col">
+          <div className="gs-stage">
             <FieldView ev={ev && ev.type !== 'end' && ev.type !== 'timeout' && ev.type !== 'two' ? ev : null} home={home} away={away} logo={home.logo} playing={anim} huddle={!anim && !sim.over && !sim.pending ? { yl: sim.yl, poss: sim.poss as 0 | 1, down: sim.down, togo: sim.togo } : null} onDone={() => setAnim(false)} weather={sim.weather} night={+(game.time ?? '13:00').slice(0, 2) >= 19} pulse={shownPulse} overlay={<StadiumPulse sim={sim} value={shownPulse} color={home.colors[0]} />} />
-            <div className="row" style={{ padding: '10px 6px 2px' }}>
-              {ev && <><span className="chip">{ev.call ?? ev.type}</span>{ev.dcall && <span className="chip">vs {ev.dcall}</span>}</>}
-              {live ? <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'The ball is snapped…'}</div>
-                : <div key={ev?.n} style={{ flex: 1, fontWeight: 700, fontSize: 15 }} className={`${ev?.big ? 'gold' : ''} reveal`}>{ev?.text ?? 'Kickoff is moments away.'}</div>}
-              {!live && !finished && !ev?.td && ev?.type !== 'xp' && situationTag(sim) && <span className="bx-tag">{situationTag(sim)}</span>}
-            </div>
-            {!live && ev && ev.poss === userSide && sim.defAdjust && (ev.type === 'run' || ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble') && <div className="bx-adj" key={`a${ev.n}`}><b>Defense adjusts</b><span>{sim.defAdjust}</span></div>}
-            {recentSay ? <div className="bx-say" key={recentSay.n}><b>{ANALYST}</b><span>{recentSay.text}</span></div> : null}
           </div>
+          <div className={`gs-third${live ? '' : ev?.td ? ' td' : ev?.turnover ? ' to' : ev?.big ? ' big' : ''}`} key={`l${ev?.n}`}>
+            <span className="gs-third-team"><Logo team={ev ? (ev.poss === 1 ? home : away) : home} size={28} /></span>
+            <div className="gs-third-txt">
+              {ev && (ev.call || ev.dcall) && <div className="gs-calls">{ev.call && <span>{ev.call}</span>}{ev.dcall && <em>vs {ev.dcall}</em>}</div>}
+              {live ? <b className="dim">{live.type === 'kickoff' ? 'The kick is away…' : live.type === 'punt' ? 'The punt is away…' : live.type === 'fg' || live.type === 'xp' ? 'The kick is up…' : 'The ball is snapped…'}</b>
+                : <b className="reveal">{ev?.text ?? 'Kickoff is moments away.'}</b>}
+            </div>
+            {!live && !finished && !ev?.td && ev?.type !== 'xp' && situationTag(sim) && <span className="gs-sit">{situationTag(sim)}</span>}
+          </div>
+          {!live && ev && ev.poss === userSide && sim.defAdjust && (ev.type === 'run' || ev.type === 'pass' || ev.type === 'sack' || ev.type === 'scramble') && <div className="gs-adj" key={`a${ev.n}`}><b>Defense adjusts</b><span>{sim.defAdjust}</span></div>}
+          {recentSay && <div className="gs-booth" key={recentSay.n}><i>🎙</i><b>{ANALYST}</b><span>{recentSay.text}</span></div>}
           {finished && !potgSeen && <PlayerOfGame L={L} sim={sim} home={home} away={away} onClose={() => setPotgSeen(true)} />}
           {finished ? <FinalCard L={L} sim={sim} onContinue={finish} lines={booth.current.byN} /> : needsCall && !anim ? (
-            <div className="card">
-              <div className="row" style={{ marginBottom: 10 }}><Logo team={posTeam} size={26} /><b className="h3">{onOffense ? 'Offensive Play Call' : 'Defensive Play Call'}</b><span className="dim small">{down(sim)} · {ylText(sim.yl)}</span><div className="spacer" />
-                {onOffense && <span className={`chip${pa ? ' on' : ''}`} onClick={() => setPa(!pa)}>Play-Action</span>}
-                <button className="btn sm" onClick={() => setDesigning(true)}>✎ Draw a Play</button>
-                <button className="btn sm" onClick={() => userCall()}>Coordinator Call (AI)</button></div>
-              <CallBinder L={L} sim={sim} onOffense={onOffense} pa={pa} color={L.teams[L.user].colors[0]}
+            <section className="gs-call">
+              <header className="gs-call-h">
+                <div className="gs-side"><Logo team={posTeam} size={30} /><div><b>{onOffense ? 'Offense' : 'Defense'}</b><span>{down(sim)} · {ylText(sim.yl)}</span></div></div>
+                <div className="gs-seg">
+                  {onOffense && <button className={pa ? 'on' : ''} onClick={() => setPa(!pa)}>Play-action</button>}
+                  <button onClick={() => setDesigning(true)}>✎ Draw a play</button>
+                  <button onClick={() => userCall()}>Coordinator call</button>
+                </div>
+              </header>
+              <CallBinder L={L} sim={sim} onOffense={onOffense} pa={pa} color={me.colors[0]}
                 onOff={(oc, set) => step({ ...oc, pa: oc.kind === 'pass' && oc.depth !== 'screen' ? pa || oc.pa : false, name: pa && oc.kind === 'pass' && oc.depth !== 'screen' && !oc.pa ? `PA ${oc.name}` : oc.name, subs: set ? subsFor(L, set) : undefined })}
                 onDef={dc => step(undefined, dc)} onSpecial={oc => step(oc)} />
-            </div>
+            </section>
           ) : (
-            <div className="card row" style={{ justifyContent: 'center' }}>{anim ? <span className="dim">…</span> : <button className="btn primary" onClick={() => step()}>Next Play ▸</button>}</div>
+            <div className="gs-wait">{anim ? <span className="gs-live"><i />Live</span> : <button className="btn primary big" onClick={() => step()}>Next play ▸</button>}</div>
           )}
           {designing && <PlayDesigner L={L} side={onOffense ? 'off' : 'def'} close={() => setDesigning(false)} onSaved={n => { setDesigning(false); app.toast(`${n} added to your playbook`); force(x => x + 1); }} />}
-          <div className="card">
-            <Tabs tabs={['Play-by-Play', 'Box Score', 'Drive Chart'] as const} on={box} set={setBox} />
-            {box === 'Play-by-Play' && <div className="scroll" style={{ maxHeight: 340, border: 0 }}>{[...sim.events].reverse().filter(e => e !== live).slice(0, 120).map(e => (
-              <div key={e.n} className="li" style={{ cursor: 'default', alignItems: 'flex-start' }}>
-                <Logo team={e.poss === 1 ? home : away} size={20} /><span className="small mute" style={{ width: 92, flex: 'none' }}>Q{Math.min(e.q, 5) === 5 ? 'OT' : e.q} {clock(e.clock)} {e.type !== 'kickoff' && e.type !== 'xp' && e.type !== 'two' ? `${['', '1st', '2nd', '3rd', '4th'][e.down] ?? ''}&${e.togo}` : ''}</span>
-                <span style={{ fontWeight: e.td || e.turnover ? 700 : 400, color: e.td ? 'var(--good)' : e.turnover ? 'var(--bad)' : undefined }}>{e.text}{booth.current.byN.get(e.n) ? <em className="bx-log">{booth.current.byN.get(e.n)}</em> : null}</span>
-              </div>
-            ))}</div>}
-            {box === 'Box Score' && <LiveBox L={L} sim={sim} lines={shown.current} />}
-            {box === 'Drive Chart' && <DriveChart sim={sim} />}
-          </div>
         </div>
-        <div className="grid" style={{ gap: 12, position: 'sticky', top: 12 }}>
-          <div className="card"><h3>Win Probability</h3><WinChart wp={wp} home={home} away={away} /></div>
-          <div className="card"><h3>Game Control</h3>
-            <div className="row" style={{ marginBottom: 10 }}><span className={`chip${coach ? ' on' : ''}`} onClick={() => setCoach(true)}>Call Plays</span><span className={`chip${!coach ? ' on' : ''}`} onClick={() => setCoach(false)}>Watch (AI Calls)</span></div>
-            <div className="grid g2" style={{ gap: 8 }}>
-              <button className="btn" disabled={finished || anim || sim.sides[userSide].timeouts <= 0} title="Stop the clock" onClick={() => { const e = sim.callTimeout(userSide as 0 | 1); if (e) { setLast(e); force(x => x + 1); app.toast(e.text); } }}>Timeout ({sim.sides[userSide].timeouts})</button>
-              <button className="btn" disabled={finished} onClick={() => { auto.current = 'drive'; force(x => x + 1); }}>Sim Drive</button>
-              <button className="btn" disabled={finished} onClick={() => { auto.current = 'quarter'; force(x => x + 1); }}>Sim Quarter</button>
-              <button className="btn" disabled={finished} onClick={() => { auto.current = 'end'; force(x => x + 1); }}>Sim to End</button>
-              <button className="btn" onClick={() => app.replace({ id: 'hub' })}>Leave (save later)</button>
-            </div>
-            <div className="small dim" style={{ marginTop: 10 }}>{sim.weather.dome ? 'Indoors' : `${sim.weather.temp}°F · wind ${sim.weather.wind} mph${sim.weather.precip !== 'none' ? ` · ${sim.weather.precip}` : ''}`} · {game.neutral ?? home.stadium}</div>
+        <aside className="gs-rail">
+          <div className="gs-dock">
+            <div className="gs-seg full"><button className={coach ? 'on' : ''} onClick={() => setCoach(true)}>Call plays</button><button className={!coach ? 'on' : ''} onClick={() => setCoach(false)}>Watch</button></div>
+            <button className="gs-to" disabled={finished || anim || sim.sides[userSide].timeouts <= 0} title="Stop the clock" onClick={() => { const e = sim.callTimeout(userSide as 0 | 1); if (e) { setLast(e); force(x => x + 1); app.toast(e.text); } }}>
+              <span>Timeout</span><i className="gs-pips">{[0, 1, 2].map(k => <b key={k} className={k < sim.sides[userSide].timeouts ? 'on' : ''} />)}</i>
+            </button>
+            <div className="gs-sims"><span>Sim</span>{([['drive', 'Drive'], ['quarter', 'Quarter'], ['end', 'To end']] as const).map(([k, l]) => <button key={k} disabled={finished} onClick={() => { auto.current = k; force(x => x + 1); }}>{l}</button>)}</div>
+            <button className="gs-leave" onClick={() => app.replace({ id: 'hub' })}>Leave game</button>
           </div>
-          <div className="card"><h3>Key Players</h3><KeyPlayers L={L} sim={sim} lines={shown.current} /></div>
-        </div>
+          <div className="gs-wp">
+            <div className="gs-wp-top"><span>Win probability</span><b style={{ color: myWp >= 0.5 ? '#7ff0b0' : '#ff9b9b' }}>{Math.round(myWp * 100)}%</b><em>{me.nick}</em></div>
+            <WinChart wp={wp} home={home} away={away} />
+          </div>
+          <div className="gs-panel">
+            <Tabs tabs={['Drive', 'Stats', 'Log'] as const} on={railTab} set={setRailTab} />
+            {railTab === 'Drive' && <div className="gs-drive">
+              {drive.team ? <div className="gs-drive-h"><Logo team={drive.team} size={22} /><b>{drive.team.nick} drive</b><span>{drive.plays} plays · {drive.yds} yds{drive.start !== undefined ? ` · from ${ylText(drive.start)}` : ''}</span></div> : <div className="small mute">No drive yet.</div>}
+              {drive.list.map(e => <div key={e.n} className={`gs-dp${e.td ? ' td' : e.turnover ? ' to' : ''}`}><span>{['', '1st', '2nd', '3rd', '4th'][e.down] ?? ''}&{e.togo}</span><p>{e.text}</p></div>)}
+              <div className="gs-sub">All drives</div><DriveChart sim={sim} hide={live} />
+            </div>}
+            {railTab === 'Stats' && <div className="gs-stats"><TeamCompare L={L} sim={sim} box={shownBox.current} /><div className="gs-sub">Key players</div><KeyPlayers L={L} sim={sim} lines={shown.current} /><div className="gs-sub">Box score</div><LiveBox L={L} sim={sim} lines={shown.current} box={shownBox.current} /></div>}
+            {railTab === 'Log' && <div className="gs-log">{[...sim.events].reverse().filter(e => e !== live).slice(0, 120).map(e => (
+              <div key={e.n} className={`gs-lr${e.td ? ' td' : e.turnover ? ' to' : ''}`}>
+                <Logo team={e.poss === 1 ? home : away} size={18} /><span>Q{Math.min(e.q, 5) === 5 ? 'OT' : e.q} {clock(e.clock)}</span>
+                <p>{e.text}{booth.current.byN.get(e.n) ? <em>{booth.current.byN.get(e.n)}</em> : null}</p>
+              </div>))}</div>}
+          </div>
+          <div className="gs-wx">{sim.weather.dome ? 'Indoors' : `${sim.weather.temp}°F · wind ${sim.weather.wind} mph${sim.weather.precip !== 'none' ? ` · ${sim.weather.precip}` : ''}`} · {game.neutral ?? home.stadium}</div>
+        </aside>
       </div>
       <BottomLine tag="BottomLine" items={leagueCrawl(L, { away: away.abbr, home: home.abbr, as: sim.score[0], hs: sim.score[1], status: sim.over ? 'Final' : sim.q > 4 ? `OT ${clock(sim.clock)}` : `Q${sim.q} ${clock(sim.clock)}` })} />
     </div>
   );
 }
 
-function Scorebug({ L, sim, pre, score }: { L: League; sim: GameSim; pre?: PlayEvent | null; score?: [number, number] | null }) {
+/** Team stats side by side, as broadcast comparison bars. */
+function TeamCompare({ L, sim, box }: { L: League; sim: GameSim; box: GameSim['box'] }) {
+  const [a, h] = box;
+  const rows: [string, number, number, string?][] = [['Total yards', a.yds, h.yds], ['Passing', a.pyds, h.pyds], ['Rushing', a.ryds, h.ryds], ['First downs', a.fd, h.fd], ['3rd down', a.third[0], h.third[0], `${a.third[0]}/${a.third[1]} · ${h.third[0]}/${h.third[1]}`], ['Turnovers', a.to, h.to], ['Penalties', a.pen, h.pen]];
+  const ta = L.teams[sim.game.away], th = L.teams[sim.game.home];
+  return <div className="gs-cmp"><div className="gs-cmp-h"><span><Logo team={ta} size={18} />{ta.abbr}</span><span>{th.abbr}<Logo team={th} size={18} /></span></div>
+    {rows.map(([k, x, y, note]) => { const t = Math.max(1, x + y); return (
+      <div key={k} className="gs-cmp-r"><b>{note ? note.split(' · ')[0] : x}</b><div><i className="a" style={{ width: `${(x / t) * 100}%` }} /><span>{k}</span><i className="h" style={{ width: `${(y / t) * 100}%` }} /></div><b>{note ? note.split(' · ')[1] : y}</b></div>); })}
+  </div>;
+}
+
+function Scorebug({ L, sim, pre, score, wp }: { L: League; sim: GameSim; pre?: PlayEvent | null; score?: [number, number] | null; wp: number }) {
   const sc = score ?? sim.score;
   const sides = [L.teams[sim.game.away], L.teams[sim.game.home]];
+  const poss = pre ? pre.poss : sim.poss;
+  const status = pre ? (pre.type === 'kickoff' ? 'Kickoff' : pre.type === 'xp' || pre.type === 'two' ? 'Extra point' : `${down(pre)}`) : sim.over ? '' : sim.pending === 'kickoff' ? 'Kickoff' : sim.pending === 'pat' ? 'Extra point' : down(sim);
+  const spot = pre ? (pre.type === 'kickoff' || pre.type === 'xp' ? '' : ylText(pre.yl)) : sim.over || sim.pending ? '' : ylText(sim.yl);
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden', background: '#060a13' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'stretch' }}>
-        {[0, 1].map(i => {
-          const t = sides[i];
-          const side = i === 0 ? 'row' : 'row-reverse';
-          const has = (pre ? pre.poss : sim.poss) === i && (!!pre || !sim.over);
-          return (
-            <div key={i} style={{ display: 'flex', flexDirection: side as 'row', alignItems: 'center', gap: 14, padding: '12px 18px', background: `linear-gradient(${i === 0 ? '90deg' : '270deg'}, ${t.colors[0]}, ${t.colors[0]}55 70%, transparent)`, gridColumn: i === 0 ? 1 : 3 }}>
-              <Logo team={t} size={60} />
-              <div style={{ textAlign: i === 0 ? 'left' : 'right' }}><div className="h3">{t.nick}{has && ' ◂'}</div><div style={{ letterSpacing: 3, color: 'var(--team2)' }}>{'▮'.repeat(sim.sides[i].timeouts)}<span className="mute">{'▯'.repeat(Math.max(0, 3 - sim.sides[i].timeouts))}</span></div></div>
-              <div style={{ font: '900 54px/1 var(--head)', margin: i === 0 ? '0 0 0 auto' : '0 auto 0 0' }}><CountUp v={sc[i]} dur={500} /></div>
-            </div>
-          );
-        })}
-        <div style={{ gridColumn: 2, gridRow: 1, padding: '10px 22px', textAlign: 'center', background: '#0b1222', borderLeft: '1px solid var(--line)', borderRight: '1px solid var(--line)', minWidth: 170 }}>
-          <div className="row" style={{ justifyContent: 'center', gap: 8 }}>{(pre || !sim.over) && <span className="live-dot" />}<span className="up">{pre ? (pre.q >= 5 ? 'OT' : `Q${pre.q}`) : sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</span></div>
-          <div style={{ font: '800 34px/1.1 var(--head)' }}>{pre ? clock(pre.clock) : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
-          <div className="small" style={{ color: 'var(--warn)', fontWeight: 700 }}>{pre ? (pre.type === 'kickoff' ? 'Kickoff' : pre.type === 'xp' || pre.type === 'two' ? 'Extra point' : `${down(pre)} · ${ylText(pre.yl)}`) : sim.over ? '' : sim.pending === 'kickoff' ? 'Kickoff' : sim.pending === 'pat' ? 'Extra point' : `${down(sim)} · ${ylText(sim.yl)}`}</div>
-        </div>
+    <div className="gs-bug">
+      {[0, 1].map(i => {
+        const t = sides[i], has = poss === i && (!!pre || !sim.over);
+        return (
+          <div key={i} className={`gs-bt ${i ? 'h' : 'a'}${has ? ' has' : ''}`} style={{ '--tc': t.colors[0], '--tc2': t.colors[1] ?? '#fff' } as React.CSSProperties}>
+            <Logo team={t} size={46} />
+            <div className="gs-bn"><b>{t.abbr}</b><span>{t.nick}</span><i className="gs-pips">{[0, 1, 2].map(k => <b key={k} className={k < sim.sides[i].timeouts ? 'on' : ''} />)}</i></div>
+            {has && <span className="gs-ball" title="Possession">●</span>}
+            <div className="gs-score"><CountUp v={sc[i]} dur={500} /></div>
+          </div>
+        );
+      })}
+      <div className="gs-bc">
+        <div className="gs-q">{(pre || !sim.over) && <span className="live-dot" />}{pre ? (pre.q >= 5 ? 'OT' : `Q${pre.q}`) : sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</div>
+        <div className="gs-clock">{pre ? clock(pre.clock) : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
+        {status && <div className="gs-dd"><b>{status}</b>{spot && <span>{spot}</span>}</div>}
       </div>
+      <div className="gs-wpbar"><i className="a" style={{ width: `${(1 - wp) * 100}%` }} /><i className="h" style={{ width: `${wp * 100}%` }} /></div>
     </div>
   );
 }
@@ -221,7 +268,7 @@ function WinChart({ wp, home, away }: { wp: number[]; home: { abbr: string; colo
     </div>
   );
 }
-function LiveBox({ L, sim, lines }: { L: League; sim: GameSim; lines: Map<string, StatLine> }) {
+function LiveBox({ L, sim, lines, box }: { L: League; sim: GameSim; lines: Map<string, StatLine>; box: GameSim['box'] }) {
   const rows = (k: keyof StatLine, fmt: (l: StatLine) => string) => [...lines.entries()].filter(([, l]) => (l[k] as number) > 0).sort((a, b) => (b[1][k] as number) - (a[1][k] as number)).slice(0, 6).map(([id, l]) => { const p = L.players[id]; return <div key={id} className="row small" style={{ margin: '3px 0' }}><Logo team={L.teams[p.team]} size={16} /><b style={{ width: 120 }}>{p.fn[0]}. {p.ln}</b><span className="dim">{fmt(l)}</span></div>; });
   return (
     <div className="grid g2">
@@ -229,15 +276,15 @@ function LiveBox({ L, sim, lines }: { L: League; sim: GameSim; lines: Map<string
       <div><div className="up">Rushing</div>{rows('ra', l => `${l.ra} car, ${l.ry} yds (${l.ra ? (l.ry / l.ra).toFixed(1) : '0.0'} avg), ${l.rtd} TD`)}</div>
       <div><div className="up">Receiving</div>{rows('rec', l => `${l.rec} rec, ${l.recy} yds, ${l.rectd} TD`)}</div>
       <div><div className="up">Defense</div>{rows('tkl', l => `${l.tkl} tkl${l.dsk ? `, ${l.dsk} sk` : ''}${l.dint ? `, ${l.dint} INT` : ''}`)}</div>
-      <div className="span2"><div className="up">Team</div>{(['away', 'home'] as const).map((s, i) => <div key={s} className="small">{L.teams[i ? sim.game.home : sim.game.away].abbr}: {sim.box[i].yds} yds ({sim.box[i].pyds} pass, {sim.box[i].ryds} rush), {sim.box[i].fd} first downs, {sim.box[i].to} TO, {sim.box[i].pen} pen, 3rd {sim.box[i].third[0]}/{sim.box[i].third[1]}</div>)}</div>
+      <div className="span2"><div className="up">Team</div>{(['away', 'home'] as const).map((s, i) => <div key={s} className="small">{L.teams[i ? sim.game.home : sim.game.away].abbr}: {box[i].yds} yds ({box[i].pyds} pass, {box[i].ryds} rush), {box[i].fd} first downs, {box[i].to} TO, {box[i].pen} pen, 3rd {box[i].third[0]}/{box[i].third[1]}</div>)}</div>
     </div>
   );
 }
-function DriveChart({ sim }: { sim: GameSim }) {
+function DriveChart({ sim, hide }: { sim: GameSim; hide?: PlayEvent | null }) {
   const drives: { poss: number; start: number; plays: number; yds: number; result: string }[] = [];
   let cur: typeof drives[number] | null = null;
   for (const e of sim.events) {
-    if (!['run', 'pass', 'sack', 'scramble', 'punt', 'fg', 'penalty', 'kneel', 'spike'].includes(e.type)) continue;
+    if (e === hide || !['run', 'pass', 'sack', 'scramble', 'punt', 'fg', 'penalty', 'kneel', 'spike'].includes(e.type)) continue;
     if (!cur || cur.poss !== e.poss) { cur = { poss: e.poss, start: e.yl, plays: 0, yds: 0, result: '' }; drives.push(cur); }
     cur.plays++; cur.yds += e.type === 'punt' || e.type === 'fg' ? 0 : e.yards;
     cur.result = e.td ? 'TD' : e.type === 'fg' ? (e.turnover ? 'Missed FG' : 'FG') : e.type === 'punt' ? 'Punt' : e.turnover ? 'Turnover' : '…';

@@ -40,7 +40,7 @@ const SKIN = ['#e8c4a8', '#c99a76', '#a46e4c', '#7b4b31', '#5a3522'];
 const hashStr = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const REPLAY_KEY = 'gg-replays';
-const VIEW_YARDS = 46;
+const VIEW_YARDS = 46, VIEW_ACROSS = 44;
 let DPR = 1;
 const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) === '1'; } catch { return true; } };
 
@@ -153,7 +153,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
   useEffect(() => { if (!logo) return; const i = new Image(); i.crossOrigin = 'anonymous'; i.src = logo; i.onload = () => { img.current = i; stadium.current = null; }; }, [logo]);
   useEffect(() => {
     const el = wrap.current!, c = cv.current!;
-    const fit = () => { const w = el.clientWidth, h = Math.round(Math.min(w * 0.52, window.innerHeight * 0.7)); DPR = Math.min(3, window.devicePixelRatio || 1); c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); c.style.height = `${h}px`; size.current = { w: c.width, h: c.height }; stadium.current = null; };
+    const fit = () => { const w = el.clientWidth, h = Math.round(Math.min(w * 0.6, window.innerHeight * 0.76)); DPR = Math.min(3, window.devicePixelRatio || 1); c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); c.style.height = `${h}px`; size.current = { w: c.width, h: c.height }; stadium.current = null; };
     fit(); const ro = new ResizeObserver(fit); ro.observe(el); return () => ro.disconnect();
   }, []);
 
@@ -232,7 +232,9 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       
       hype += (0.18 + Math.max(0, ((pulse ?? 45) - 45) / 100) - hype) * realDt * 0.25;
       // --- geometry
-      const S = Math.max(1, w / (VIEW_YARDS * 16));   // the camera shows about 46 yards across
+      // The camera shows about 46 yards downfield and at least 44 of the field's 53 across (the
+      // depth squash is 0.62), pulling back a touch on short screens so wideouts stay in frame.
+      const S = Math.max(1, Math.min(w / (VIEW_YARDS * 16), h / (VIEW_ACROSS * 16 * 0.62)));
       const RW0 = Math.ceil(w / S), RH0 = Math.ceil(h / S);
       const key = `${RW0}x${RH0}|${home.abbr}|${away.abbr}|${img.current ? 1 : 0}|${night ? 1 : 0}|${college ? 1 : 0}`;
       if (!stadium.current || stadium.current.key !== key) { const W0 = makeWorld(RW0, RH0); stadium.current = { c: paintStadium(W0, { home, away, logo: img.current, night: !!night, college: !!college, snow: weather?.precip === 'snow' && !weather.dome }), key, W: W0, S }; cam.current.y = -1; }
@@ -264,7 +266,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       zoom = 1; C.z = 1;
       const E = S * C.z, VW = Math.ceil(w / E), VH = Math.ceil(h / E);
       const bottom = W.height - VH / 2;
-      const wantY = clamp(wy(W, fy0) - VH * 0.12, VH / 2, bottom);
+      const wantY = clamp(wy(W, fy0) - VH * 0.04, VH / 2, bottom);   // frame the play itself, so both sidelines' receivers fit
       if (C.y < 0) C.y = wantY; else C.y += (wantY - C.y) * k1;
       const ox = Math.round(wx(W, C.x) - VW / 2), oy = Math.round(Math.min(bottom, C.y) - VH / 2);
       const sx = (x: number) => Math.round(wx(W, x) - ox), sy = (y: number, z = 0) => Math.round(wy(W, y, z) - oy);
