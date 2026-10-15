@@ -13,6 +13,7 @@
   #hud kbd{display:inline-block;min-width:16px;text-align:center;background:#2b241d;border:1px solid #4a3f33;border-radius:4px;padding:0 4px;margin-right:4px;font:11px monospace;color:#efe6d2}
   #hud .row{margin:1px 0}
   #state{position:fixed;right:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:6px 10px;font:12px monospace}
+  #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,245,225,.85);box-shadow:0 0 0 1px rgba(0,0,0,.6);display:none;pointer-events:none}
   #toggle{position:fixed;left:12px;bottom:12px;background:#2b241d;color:#efe6d2;border:1px solid #4a3f33;border-radius:6px;padding:4px 10px;cursor:pointer}
 </style>
 </head>
@@ -31,8 +32,10 @@
   <div class="row">drag / <kbd>←→↑↓</kbd>orbit · wheel zoom</div>
   <div class="row"><kbd>V</kbd>auto-cam <kbd>T</kbd>slow-mo <kbd>G</kbd>grid <kbd>R</kbd>reset</div>
   <div class="row"><kbd>B</kbd>backpack on/off</div>
+  <div class="row"><kbd>P</kbd>first-person (click to lock mouse, <kbd>Esc</kbd> to release)</div>
 </div>
 <div id="state"></div>
+<div id="cross"></div>
 <button id="toggle">hide help</button>
 <script>
 "use strict";
@@ -134,22 +137,33 @@ function leg(side) { const x = side;
       B([.185,.03,.12],[0,-.33,.1],C.leather), B([.19,.04,.27],[0,-.43,.04],C.sole)
     ]) ]);
 }
-const hairSpikes = [];
-for (let i = 0; i < 9; i++) { const a = i/9*Math.PI*2;
-  hairSpikes.push(B([.16,.22,.1],[Math.cos(a)*.15,.49+.03*Math.sin(i*3),Math.sin(a)*.13-.02],C.hair,[Math.sin(a)*.6,-a,-Math.cos(a)*.6])); }
+// Hair: solid cap + chunky swept-back spikes on top, bangs over the forehead, tufts at sides and nape.
+const HD = [.25,.15,.11], HL = [.36,.24,.17]; // darker underside / lighter highlight tones
+const hair = [
+  B([.5,.15,.47],[0,.46,-.01],C.hair),                       // cap
+  B([.5,.32,.13],[0,.31,-.18],C.hair),                       // back mass
+  B([.065,.2,.34],[.245,.37,-.03],C.hair), B([.065,.2,.34],[-.245,.37,-.03],C.hair), // sides
+  // bangs: pointed chunks hanging over the forehead, alternating angles
+  B([.14,.15,.07],[-.17,.415,.215],HD,[-.15,0,-.35]), B([.14,.17,.07],[-.055,.405,.225],C.hair,[-.2,0,.2]),
+  B([.14,.16,.07],[.06,.41,.222],C.hair,[-.2,0,-.25]), B([.13,.15,.07],[.175,.415,.215],HD,[-.15,0,.4]),
+  // top spikes swept up and back
+  B([.16,.18,.15],[-.13,.53,.07],HL,[-.95,0,.3]), B([.17,.2,.16],[.02,.55,.04],C.hair,[-1,0,-.1]),
+  B([.15,.18,.15],[.15,.53,.05],HL,[-.9,0,-.4]), B([.16,.18,.15],[-.08,.54,-.1],C.hair,[-1.25,0,.2]),
+  B([.15,.17,.15],[.1,.53,-.13],HD,[-1.3,0,-.25]), B([.1,.14,.1],[.06,.6,.12],C.hair,[-.6,0,-.45]),
+  // side tufts flaring out above the ears
+  B([.08,.16,.12],[.26,.45,.04],C.hair,[0,0,-.7]), B([.08,.16,.12],[-.26,.45,.04],C.hair,[0,0,.7]),
+  B([.08,.14,.12],[.27,.44,-.12],HD,[0,0,-.9]), B([.08,.14,.12],[-.27,.44,-.12],HD,[0,0,.9]),
+  // nape spikes pointing down and back
+  B([.13,.16,.08],[-.12,.16,-.21],C.hair,[.45,0,.2]), B([.13,.18,.08],[.0,.14,-.22],HD,[.5,0,0]),
+  B([.13,.16,.08],[.12,.16,-.21],C.hair,[.45,0,-.2]),
+];
 const head = node('head', [0,.46,0], [
   B([.46,.44,.42],[0,.23,0],C.skin),
   B([.07,.12,.02],[.1,.23,.21],C.eye), B([.07,.12,.02],[-.1,.23,.21],C.eye),
   B([.13,.035,.02],[.1,.33,.212],C.hair,[0,0,.08]), B([.13,.035,.02],[-.1,.33,.212],C.hair,[0,0,-.08]),
   B([.06,.11,.09],[.245,.22,0],C.skin), B([.06,.11,.09],[-.245,.22,0],C.skin),
   B([.04,.025,.02],[0,.15,.212],[.75,.48,.31]),
-  // hair
-  B([.5,.17,.46],[0,.46,-.01],C.hair), B([.5,.36,.12],[0,.3,-.19],C.hair),
-  B([.06,.24,.3],[.24,.34,-.03],C.hair), B([.06,.24,.3],[-.24,.34,-.03],C.hair),
-  B([.16,.12,.08],[-.15,.4,.2],C.hair,[0,0,.5]), B([.16,.14,.08],[0,.41,.21],C.hair,[0,0,-.4]),
-  B([.16,.12,.08],[.15,.4,.2],C.hair,[0,0,-.6]), B([.14,.12,.08],[.2,.42,.15],C.hair,[0,.4,-.5]),
-  B([.14,.12,.08],[-.2,.42,.15],C.hair,[0,-.4,.5]), B([.12,.24,.1],[.02,.6,-.04],C.hair,[-.3,0,-.4]),
-  ...hairSpikes
+  ...hair
 ]);
 const pack = node('pack', [0,0,0], [
   B([.42,.42,.22],[0,.24,-.27],C.green), B([.43,.2,.06],[0,.33,-.385],C.dgreen),
@@ -182,13 +196,20 @@ addEventListener('keydown', e => { if (e.repeat) return; const k = e.key.toLower
   if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault(); });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
-const cam = { yaw: 0, pitch: .3, dist: 5, auto: true };
+const cam = { yaw: 0, pitch: .3, dist: 5, auto: true, fp: false, fpPitch: 0 };
 let drag = null;
-cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
-cv.addEventListener('pointermove', e => { if (!drag) return;
-  cam.yaw -= (e.clientX - drag[0]) * .006; cam.pitch = clamp(cam.pitch + (e.clientY - drag[1]) * .005, -.2, 1.4); drag = [e.clientX, e.clientY]; });
+const locked = () => document.pointerLockElement === cv;
+function look(dx, dy, k) { cam.yaw -= dx * k;
+  if (cam.fp) cam.fpPitch = clamp(cam.fpPitch + dy * k, -1.45, 1.45);
+  else cam.pitch = clamp(cam.pitch + dy * .005, -.2, 1.4); }
+cv.addEventListener('pointerdown', e => {
+  if (cam.fp && !locked()) { cv.requestPointerLock?.(); return; }
+  if (!locked()) { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); } });
+cv.addEventListener('pointermove', e => {
+  if (locked()) return look(e.movementX, e.movementY, .0025);
+  if (!drag) return; look(e.clientX - drag[0], e.clientY - drag[1], cam.fp ? .004 : .006); drag = [e.clientX, e.clientY]; });
 cv.addEventListener('pointerup', () => drag = null);
-cv.addEventListener('wheel', e => { cam.dist = clamp(cam.dist * Math.exp(e.deltaY * .001), 1.8, 18); e.preventDefault(); }, { passive: false });
+cv.addEventListener('wheel', e => { if (cam.fp) return; cam.dist = clamp(cam.dist * Math.exp(e.deltaY * .001), 1.8, 18); e.preventDefault(); }, { passive: false });
 document.getElementById('toggle').onclick = e => { const h = document.getElementById('hud'); const hid = h.style.display === 'none';
   h.style.display = hid ? '' : 'none'; e.target.textContent = hid ? 'hide help' : 'show help'; };
 
@@ -266,7 +287,11 @@ function poseFor(t) {
 function update(dt, t) {
   // camera keys
   if (keys['arrowleft']) cam.yaw += dt*2; if (keys['arrowright']) cam.yaw -= dt*2;
-  if (keys['arrowup']) cam.pitch = clamp(cam.pitch + dt, -.2, 1.4); if (keys['arrowdown']) cam.pitch = clamp(cam.pitch - dt, -.2, 1.4);
+  const lv = (keys['arrowup'] ? 1 : 0) - (keys['arrowdown'] ? 1 : 0);
+  if (cam.fp) cam.fpPitch = clamp(cam.fpPitch - lv*dt*1.5, -1.45, 1.45); else cam.pitch = clamp(cam.pitch + lv*dt, -.2, 1.4);
+  if (pressed['p']) { cam.fp = !cam.fp; cam.fpPitch = 0;
+    if (cam.fp) cam.yaw = P.yaw + Math.PI; else if (locked()) document.exitPointerLock();
+    document.getElementById('cross').style.display = cam.fp ? 'block' : 'none'; }
   if (pressed['t']) slow = !slow; if (pressed['g']) grid = grid ? 0 : 1; if (pressed['v']) cam.auto = !cam.auto;
   if (pressed['b']) packOn = !packOn;
   if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0 });
@@ -331,19 +356,26 @@ function update(dt, t) {
   pack.boxes.forEach(b => b.hidden = !packOn);
 
   // camera follow
-  if (cam.auto && il && !drag) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8 * Math.abs(iz < 0 ? 0 : 1));
+  // first person: body always faces where you look
+  if (cam.fp && P.roll <= 0) P.yaw = Math.atan2(fx, fz), root.rot = [0, P.yaw, 0];
+  if (!cam.fp && cam.auto && il && !drag) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8 * Math.abs(iz < 0 ? 0 : 1));
   pressed = {};
   const st = !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
     P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 ? 'idle (fidget)' : 'idle');
-  document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.auto ? '' : ' · free cam'}`;
+  document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
 }
 
-function drawNode(n, parent) {
-  const m = M.mul(M.mul(parent, M.t(...n.pos)), M.rot(n.rot));
-  for (const b of n.boxes) { if (b.hidden) continue;
+function computeWorld(n, parent) {
+  n.world = M.mul(M.mul(parent, M.t(...n.pos)), M.rot(n.rot));
+  for (const c of n.children) computeWorld(c, n.world);
+}
+const xform = (m, v) => [0,1,2].map(i => m[i]*v[0] + m[4+i]*v[1] + m[8+i]*v[2] + m[12+i]);
+function drawNode(n) {
+  const m = n.world;
+  if (!(cam.fp && n === head)) for (const b of n.boxes) { if (b.hidden) continue;
     const bm = M.mul(M.mul(M.mul(m, M.t(...b.o)), M.rot(b.r)), M.s(...b.s));
     gl.uniformMatrix4fv(U.uM, false, bm); gl.uniform3fv(U.uCol, b.c); gl.drawArrays(gl.TRIANGLES, 0, 36); }
-  for (const c of n.children) drawNode(c, m);
+  for (const c of n.children) drawNode(c);
 }
 
 let last = performance.now();
@@ -353,13 +385,21 @@ function frame(now) {
   const w = cv.clientWidth * devicePixelRatio | 0, h = cv.clientHeight * devicePixelRatio | 0;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   gl.viewport(0, 0, w, h); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  const tgt = [P.x, P.y*.5 + .9, P.z];
-  const eye = [tgt[0] + Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.dist, tgt[1] + Math.sin(cam.pitch)*cam.dist, tgt[2] + Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.dist];
-  eye[1] = Math.max(.15, eye[1]);
-  gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(.9, w/h, .05, 300), M.look(eye, tgt, [0,1,0])));
+  computeWorld(root, M.id());
+  let eye, tgt;
+  if (cam.fp) { // eyes ride the animated head, so bob/crouch/sit/flip all carry into the view
+    eye = xform(head.world, [0, .26, .2]);
+    const cp = Math.cos(cam.fpPitch);
+    tgt = [eye[0] - Math.sin(cam.yaw)*cp, eye[1] - Math.sin(cam.fpPitch), eye[2] - Math.cos(cam.yaw)*cp];
+  } else {
+    tgt = [P.x, P.y*.5 + .9, P.z];
+    eye = [tgt[0] + Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.dist, tgt[1] + Math.sin(cam.pitch)*cam.dist, tgt[2] + Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.dist];
+    eye[1] = Math.max(.15, eye[1]);
+  }
+  gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(cam.fp ? 1.25 : .9, w/h, .03, 300), M.look(eye, tgt, [0,1,0])));
   gl.uniform3fv(U.uPlayer, [P.x, P.y, P.z]); gl.uniform3fv(U.uCam, eye); gl.uniform1f(U.uGrid, grid);
   gl.uniform1i(U.uFloor, 1); gl.bindVertexArray(floorVAO); gl.uniformMatrix4fv(U.uM, false, M.id()); gl.drawArrays(gl.TRIANGLES, 0, 6);
-  gl.uniform1i(U.uFloor, 0); gl.bindVertexArray(cubeVAO); drawNode(root, M.id());
+  gl.uniform1i(U.uFloor, 0); gl.bindVertexArray(cubeVAO); drawNode(root);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
