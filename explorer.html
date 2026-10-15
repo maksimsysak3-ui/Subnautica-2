@@ -14,6 +14,80 @@
   #hud .row{margin:1px 0}
   #state{position:fixed;right:12px;top:12px;background:rgba(20,16,12,.72);border:1px solid #3a3128;border-radius:8px;padding:6px 10px;font:12px monospace}
   #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,245,225,.85);box-shadow:0 0 0 1px rgba(0,0,0,.6);display:none;pointer-events:none}
+  :root{--ink:#efe6d2;--muted:#9c8e78;--panel:rgba(22,17,12,.9);--line:#4d3f30;--amber:#e3b25e;--water:#5fb3d9;--food:#d08a4a}
+  #ui{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;user-select:none}
+  #vitals{display:flex;gap:18px;padding:0 4px}
+  .vital{display:flex;align-items:center;gap:7px;font:600 11px system-ui;color:var(--muted);letter-spacing:.04em}
+  .vital svg{width:16px;height:16px}
+  .bar{width:136px;height:9px;border-radius:5px;background:#16110c;border:1px solid #3d3226;overflow:hidden;position:relative;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+  .bar i{display:block;height:100%;transition:width .25s}
+  .bar::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 12.6px,rgba(0,0,0,.5) 12.6px 13.6px)}
+  #vFood .bar i{background:linear-gradient(90deg,#9a5a2a,var(--food) 70%,#f0b27a)}
+  #vWater .bar i{background:linear-gradient(90deg,#2f6f93,var(--water) 70%,#a6dcf2)}
+  .vital.low .bar{animation:low .8s infinite alternate}
+  @keyframes low{to{border-color:#c0503a;box-shadow:0 0 10px rgba(192,80,58,.6)}}
+  #barRow{display:flex;align-items:flex-end;gap:10px}
+  #hotbar{display:flex;gap:8px;padding:11px 13px 13px;background:var(--panel);border:1px solid var(--line);border-radius:15px;
+    box-shadow:0 12px 34px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,230,190,.05);
+    background-image:radial-gradient(circle at 7px 7px,#9b7a45 1.6px,transparent 2.2px),radial-gradient(circle at calc(100% - 7px) 7px,#9b7a45 1.6px,transparent 2.2px),
+      radial-gradient(circle at 7px calc(100% - 7px),#9b7a45 1.6px,transparent 2.2px),radial-gradient(circle at calc(100% - 7px) calc(100% - 7px),#9b7a45 1.6px,transparent 2.2px)}
+  .slot{width:60px;height:60px;position:relative;border-radius:10px;background:linear-gradient(#2b2219,#1a140f);border:1px solid #4d3f30;cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,235,200,.06),inset 0 -10px 18px rgba(0,0,0,.35);transition:transform .15s,border-color .15s,box-shadow .15s}
+  .slot::before{content:"";position:absolute;inset:4px;border:1px dashed rgba(230,205,160,.16);border-radius:7px;pointer-events:none}
+  .slot:hover{border-color:#7a6448}
+  .slot .k{position:absolute;left:7px;top:4px;font:700 10px ui-monospace,monospace;color:#7d6e59}
+  .slot .n{position:absolute;right:7px;bottom:4px;font:800 12px system-ui;color:var(--ink);text-shadow:0 1px 2px #000}
+  .slot svg.ic{position:absolute;left:9px;top:9px;width:42px;height:42px;filter:drop-shadow(0 3px 2px rgba(0,0,0,.55));pointer-events:none}
+  .slot .fill{position:absolute;right:5px;top:10px;bottom:10px;width:3px;border-radius:2px;background:rgba(255,255,255,.08)}
+  .slot .fill i{position:absolute;left:0;right:0;bottom:0;border-radius:2px;background:var(--water);box-shadow:0 0 6px var(--water)}
+  .slot.none svg.ic{opacity:.28;filter:grayscale(1)}
+  .slot.sel{border-color:var(--amber);transform:translateY(-6px);box-shadow:0 0 0 1px rgba(227,178,94,.3),0 10px 24px rgba(227,178,94,.22),inset 0 -10px 18px rgba(0,0,0,.35)}
+  .slot.sel .k{color:var(--amber)}
+  .slot.sel::after{content:"";position:absolute;left:50%;bottom:-10px;width:6px;height:6px;margin-left:-3px;background:var(--amber);transform:rotate(45deg);box-shadow:0 0 8px var(--amber)}
+  .slot.over{border-color:var(--water);box-shadow:0 0 14px rgba(95,179,217,.45)}
+  #hotbar.assign .slot{animation:pick .7s infinite alternate}
+  @keyframes pick{to{border-color:var(--amber);box-shadow:0 0 14px rgba(227,178,94,.5)}}
+  #bagBtn{width:58px;height:58px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle at 50% 35%,#3a2d20,#1a140f);cursor:pointer;position:relative;margin-bottom:6px;
+    box-shadow:0 10px 26px rgba(0,0,0,.6);transition:transform .15s,border-color .15s}
+  #bagBtn:hover{transform:translateY(-2px);border-color:var(--amber)}
+  #bagBtn svg{width:34px;height:34px}
+  #bagBtn kbd{position:absolute;right:-4px;top:-4px;background:#2b241d;border:1px solid #6a543b;border-radius:5px;font:700 10px monospace;color:var(--ink);padding:1px 5px}
+  #itemName{font:700 13px system-ui;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);text-shadow:0 2px 6px #000;opacity:0;transition:opacity .3s;height:16px}
+  #itemName.show{opacity:1}
+  #toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+  #toast div{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);padding:7px 14px;border-radius:8px;color:var(--ink);font:600 13px system-ui;animation:tin .25s ease-out}
+  @keyframes tin{from{opacity:0;transform:translateY(-6px)}}
+  #panel{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+  #panel[hidden],.pbody[hidden]{display:none}
+  .card{width:min(720px,94vw);background:linear-gradient(#231b14,#16110c);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.7);padding:18px 20px 20px;color:var(--ink)}
+  .card header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .card header svg{width:30px;height:30px}
+  .card h2{margin:0;font:800 18px system-ui;letter-spacing:.12em;text-transform:uppercase}
+  .card header .cap{color:var(--muted);font:600 12px system-ui;margin-left:auto}
+  .x{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:16px}
+  .x:hover{color:var(--ink);border-color:#7a6448}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid #33291f}
+  .tabs button{background:none;border:0;color:var(--muted);font:700 12px system-ui;letter-spacing:.1em;text-transform:uppercase;padding:8px 10px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs button.on{color:var(--ink);border-color:var(--amber)}
+  .pbody{display:flex;gap:18px;flex-wrap:wrap}
+  #grid{display:grid;grid-template-columns:repeat(5,60px);gap:8px;align-content:start}
+  #grid .slot.pick{border-color:var(--amber)}
+  #grid .slot .hb{position:absolute;left:5px;bottom:4px;font:800 9px monospace;color:#24180c;background:var(--amber);border-radius:3px;padding:0 3px}
+  #detail{flex:1;min-width:220px;background:rgba(0,0,0,.25);border:1px solid #33291f;border-radius:12px;padding:14px}
+  #detail .big{width:84px;height:84px;border-radius:12px;background:linear-gradient(#2b2219,#1a140f);border:1px solid var(--line);display:grid;place-items:center;float:left;margin:0 12px 6px 0}
+  #detail .big svg{width:64px;height:64px;filter:drop-shadow(0 4px 3px rgba(0,0,0,.5))}
+  #detail h3{margin:2px 0 4px;font:800 16px system-ui}
+  #detail .tag{display:inline-block;font:700 10px system-ui;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);border:1px solid rgba(227,178,94,.4);border-radius:4px;padding:1px 6px}
+  #detail p{clear:both;color:#cdbfa6;font-size:13px;margin:10px 0 8px}
+  #detail ul{margin:0 0 12px;padding-left:16px;color:var(--muted);font-size:12px}
+  #detail .acts{display:flex;gap:8px;flex-wrap:wrap}
+  #detail .hint{color:var(--muted);font-size:11px;margin-top:8px}
+  .btn{background:#3a2d20;border:1px solid #6a543b;color:var(--ink);border-radius:9px;padding:8px 13px;font:700 12px system-ui;cursor:pointer}
+  .btn:hover{border-color:var(--amber)}
+  .btn.primary{background:linear-gradient(#e8bb69,#b9873c);color:#24180c;border-color:#efc77f}
+  #emotes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%}
+  #emotes .btn{padding:12px}
+  #emotes kbd{font:700 10px monospace;color:var(--muted);margin-left:6px}
   #toggle{position:fixed;left:12px;bottom:12px;background:#2b241d;color:#efe6d2;border:1px solid #4a3f33;border-radius:6px;padding:4px 10px;cursor:pointer}
 </style>
 </head>
@@ -23,13 +97,12 @@
   <div class="row"><b>Move</b></div>
   <div class="row"><kbd>WASD</kbd>walk · <kbd>Shift</kbd>run · <kbd>Ctrl</kbd>sneak</div>
   <div class="row"><kbd>Space</kbd>jump (double) · <kbd>C</kbd>crouch · <kbd>Q</kbd>roll</div>
-  <div class="row"><b>Axe</b> — chop the palm trees!</div>
-  <div class="row"><kbd>1</kbd>draw / holster axe</div>
-  <div class="row"><kbd>F</kbd>/click attack: chop → sweep → spin</div>
-  <div class="row"><kbd>X</kbd>twirl axe · no axe: <kbd>F</kbd>punch combo</div>
-  <div class="row"><b>Emotes</b></div>
-  <div class="row"><kbd>2</kbd>wave <kbd>3</kbd>dance <kbd>4</kbd>sit <kbd>5</kbd>cheer</div>
-  <div class="row"><kbd>6</kbd>look <kbd>7</kbd>push-ups <kbd>8</kbd>bow <kbd>9</kbd>sleep</div>
+  <div class="row"><b>Items</b></div>
+  <div class="row"><kbd>1</kbd>–<kbd>5</kbd>hotbar · <kbd>I</kbd>/<kbd>Tab</kbd>or click backpack</div>
+  <div class="row"><kbd>F</kbd>/click use: chop · drink · eat · punch</div>
+  <div class="row"><kbd>X</kbd>twirl axe · chop palms for coconuts</div>
+  <div class="row"><b>Emotes</b> (all in backpack)</div>
+  <div class="row"><kbd>6</kbd>wave <kbd>7</kbd>dance <kbd>8</kbd>sit <kbd>9</kbd>cheer <kbd>0</kbd>bow</div>
   <div class="row"><b>Camera / misc</b></div>
   <div class="row"><kbd>P</kbd>first person (click locks mouse, <kbd>Esc</kbd> frees)</div>
   <div class="row">drag / <kbd>←→↑↓</kbd>orbit · wheel zoom · <kbd>V</kbd>auto-cam</div>
@@ -38,6 +111,24 @@
 <div id="state"></div>
 <div id="cross"></div>
 <button id="toggle">hide help</button>
+<div id="toast"></div>
+<div id="ui">
+  <div id="itemName"></div>
+  <div id="vitals">
+    <div class="vital" id="vFood"><svg viewBox="0 0 16 16"><path d="M8 1 L13 4 L14 9 L11 14 L5 14 L2 9 L3 4Z" fill="#7d5230"/><path d="M8 1 L13 4 L8 7 L3 4Z" fill="#9a6a40"/><circle cx="6.5" cy="9" r="1" fill="#2b1a0e"/><circle cx="9.5" cy="9" r="1" fill="#2b1a0e"/></svg><div class="bar"><i></i></div></div>
+    <div class="vital" id="vWater"><svg viewBox="0 0 16 16"><path d="M8 1 L13 8 L12 12 L8 15 L4 12 L3 8Z" fill="#5fb3d9"/><path d="M8 1 L8 15 L4 12 L3 8Z" fill="#3f8db3"/></svg><div class="bar"><i></i></div></div>
+  </div>
+  <div id="barRow"><div id="hotbar"></div>
+    <button id="bagBtn" title="Backpack (I)"><svg viewBox="0 0 48 48"><path d="M10 18 L38 18 L40 42 L8 42Z" fill="#5b6a3a"/><path d="M10 18 L24 18 L22 42 L8 42Z" fill="#6c7c45"/><path d="M8 12 L40 12 L40 20 L8 20Z" fill="#d8ccb0"/><path d="M8 12 L24 12 L24 20 L8 20Z" fill="#e6dcc4"/><path d="M13 22 L35 22 L35 32 L13 32Z" fill="#4a5530"/><rect x="17" y="27" width="4" height="4" fill="#9a958a"/><rect x="27" y="27" width="4" height="4" fill="#9a958a"/><path d="M14 12 L16 6 L32 6 L34 12 L31 12 L30 9 L18 9 L17 12Z" fill="#6b4428"/></svg><kbd>I</kbd></button>
+  </div>
+</div>
+<div id="panel" hidden><div class="card">
+  <header><svg viewBox="0 0 48 48"><path d="M10 18 L38 18 L40 42 L8 42Z" fill="#5b6a3a"/><path d="M8 12 L40 12 L40 20 L8 20Z" fill="#d8ccb0"/><path d="M13 22 L35 22 L35 32 L13 32Z" fill="#4a5530"/></svg>
+    <h2>Backpack</h2><span class="cap" id="cap"></span><button class="x" id="closeP" title="Close (Esc)">✕</button></header>
+  <div class="tabs"><button class="on" data-tab="items">Items</button><button data-tab="emotes">Emotes</button></div>
+  <div class="pbody" id="tabItems"><div id="grid"></div><div id="detail"></div></div>
+  <div class="pbody" id="tabEmotes" hidden><div id="emotes"></div></div>
+</div></div>
 <script>
 "use strict";
 // ================= math =================
@@ -244,6 +335,19 @@ function makeTree(x, z, yaw, lean) {
 }
 const trees = [makeTree(3.2,-3.6,.4,.7), makeTree(-4.6,-2,2.4,.9), makeTree(.8,6.4,4.1,.6), makeTree(-2.6,-8.5,1.3,1.0), makeTree(7.5,3,5.2,.8)];
 
+// ================= held items (origin = grip, item 'up' = +z) =================
+const canteen = node('canteen', [0,0,0], [
+  B([.13,.07,.19],[0,0,0],C.green), B([.12,.065,.04],[0,0,-.11],C.dgreen), B([.1,.06,.04],[0,0,.11],C.dgreen),
+  B([.137,.076,.045],[0,0,-.01],C.leather), B([.05,.05,.05],[0,0,.15],C.metal), B([.068,.068,.04],[0,0,.19],C.leather),
+  B([.02,.03,.13],[.075,0,.07],C.leather), B([.025,.04,.025],[.06,0,.17],C.metal),
+]);
+const coconutHeld = node('coconutHeld', [0,0,0], [
+  B([.17,.17,.14],[0,0,0],TC.coco), B([.18,.18,.04],[0,0,-.04],TC.husk), B([.14,.14,.02],[0,0,.075],[.94,.91,.83]),
+  B([.03,.03,.02],[-.03,.05,-.075],[.17,.11,.06]), B([.03,.03,.02],[.03,.05,-.075],[.17,.11,.06]),
+]);
+const HELD = { axe, canteen, coconut: coconutHeld };
+const HELD_NODES = new Set(Object.values(HELD));
+
 // ================= particles =================
 const parts = [];
 function spawn(o) { if (parts.length > 600) parts.shift();
@@ -263,18 +367,24 @@ function updateParts(dt, t) {
 }
 const puff = (p, n, col = [.34,.32,.29]) => { for (let i = 0; i < n; i++)
   spawn({ p:[p[0]+rand(-.15,.15), p[1]+.05, p[2]+rand(-.15,.15)], v:[rand(-1.2,1.2), rand(.3,1), rand(-1.2,1.2)], g:-.4, drag:3, life:rand(.4,.7), s:rand(.05,.1), c:col }); };
+for (const [x,z] of [[2.4,-2.9],[-3.9,-1.2],[1.5,5.6]]) spawn({ p:[x,.085,z], life:1e9, s:.17, c:TC.coco, spin:0, pickup:true });
 // fireflies drifting around the trees (emissive, keeps the world dark)
 const flies = Array.from({length: 34}, (_, i) => { const t = trees[i % trees.length];
   return { t, ph: rand(0,100), h: rand(.6,3.2), r: rand(.6,2.4), sp: rand(.15,.4) }; });
 
 // ================= input =================
 const keys = {}; let pressed = {};
-addEventListener('keydown', e => { if (e.repeat) return; const k = e.key.toLowerCase(); keys[k] = true; pressed[k] = true;
-  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault(); });
+addEventListener('keydown', e => { const k = e.key.toLowerCase();
+  if ([' ','arrowup','arrowdown','arrowleft','arrowright','tab'].includes(k)) e.preventDefault();
+  if (e.repeat) return;
+  if (k === 'i' || k === 'tab') return togglePanel();
+  if (k === 'escape') { if (assignId) return setAssign(null); if (panelOpen) return togglePanel(false); }
+  if (panelOpen) { if (assignId && k >= '1' && k <= '5') assignSlot(+k - 1, assignId); return; }
+  keys[k] = true; pressed[k] = true; });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const cam = { yaw: 0, pitch: .3, dist: 5, auto: true, fp: false, fpPitch: 0, shake: 0 };
-let drag = null;
+let drag = null, drag0 = [0,0], lastVP = null;
 const locked = () => document.pointerLockElement === cv;
 function look(dx, dy, k) { cam.yaw -= dx * k;
   if (cam.fp) cam.fpPitch = clamp(cam.fpPitch + dy * k, -1.45, 1.45);
@@ -282,11 +392,17 @@ function look(dx, dy, k) { cam.yaw -= dx * k;
 cv.addEventListener('pointerdown', e => {
   if (locked()) { pressed['f'] = true; return; }               // locked first-person: left click attacks
   if (cam.fp) { cv.requestPointerLock?.(); return; }
-  drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
+  drag = [e.clientX, e.clientY]; drag0 = [...drag]; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointermove', e => {
   if (locked()) return look(e.movementX, e.movementY, .0025);
   if (!drag) return; look(e.clientX - drag[0], e.clientY - drag[1], cam.fp ? .004 : .006); drag = [e.clientX, e.clientY]; });
-cv.addEventListener('pointerup', () => drag = null);
+cv.addEventListener('pointerup', e => { // a click (not a drag) on the backpack opens it
+  if (drag && !cam.fp && Math.hypot(e.clientX - drag0[0], e.clientY - drag0[1]) < 5 && pack.world && lastVP) {
+    const w = xform(pack.world, [0,.3,-.3]), m = lastVP, cw = m[3]*w[0] + m[7]*w[1] + m[11]*w[2] + m[15];
+    if (cw > 0) { const sx = ((m[0]*w[0] + m[4]*w[1] + m[8]*w[2] + m[12]) / cw * .5 + .5) * cv.clientWidth,
+      sy = (.5 - (m[1]*w[0] + m[5]*w[1] + m[9]*w[2] + m[13]) / cw * .5) * cv.clientHeight, rad = .32 * m[5] / cw * cv.clientHeight * .5;
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < Math.max(18, rad)) togglePanel(true); } }
+  drag = null; });
 cv.addEventListener('wheel', e => { if (cam.fp) return; cam.dist = clamp(cam.dist * Math.exp(e.deltaY * .001), 1.8, 18); e.preventDefault(); }, { passive: false });
 document.getElementById('toggle').onclick = e => { const h = document.getElementById('hud'); const hid = h.style.display === 'none';
   h.style.display = hid ? '' : 'none'; e.target.textContent = hid ? 'hide help' : 'show help'; };
@@ -294,9 +410,9 @@ document.getElementById('toggle').onclick = e => { const h = document.getElement
 // ================= player =================
 const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false, flip:0,
   phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0, dustT:0,
-  hasAxe:false, equip:0, atk:null, atkQueued:false, twirl:0 };
+  hasAxe:false, held:null, sel:-1, equip:0, atk:null, atkQueued:false, twirl:0, use:null, hunger:72, thirst:58 };
 let slow = false, grid = 1, packOn = true;
-const EMOTES = { '2':'wave', '3':'dance', '4':'sit', '5':'cheer', '6':'look', '7':'pushups', '8':'bow', '9':'sleep' };
+const EMOTES = { '6':'wave', '7':'dance', '8':'sit', '9':'cheer', '0':'bow' };
 const cur = {}; JOINTS.forEach(j => cur[j] = [0,0,0]); let curY = 0;
 
 // axe attacks: keyframes over normalized time; 0 and 1 blend from/to the current hold pose
@@ -317,11 +433,13 @@ function kf(k, frames) { let i = 0; while (i < frames.length-2 && k > frames[i+1
   const [t0,a] = frames[i], [t1,b] = frames[i+1], u = smooth(clamp((k-t0)/(t1-t0), 0, 1)), o = {};
   for (const j in a) o[j] = a[j].map((v,n) => lerp(v, b[j][n], u)); return o; }
 
-function setAxeInHand(inHand) {
-  P.hasAxe = inHand;
-  (inHand ? pack : J.foreR).children = (inHand ? pack : J.foreR).children.filter(c => c !== axe);
-  (inHand ? J.foreR : pack).children.push(axe);
-  axe.pos = inHand ? [0,-.28,.01] : HOLSTER.pos; axe.rot = inHand ? [0,0,0] : HOLSTER.rot;
+// put an item in the right hand (null = empty); the axe lives on the backpack when not held
+function setHeld(id) {
+  J.foreR.children = J.foreR.children.filter(c => !HELD_NODES.has(c));
+  pack.children = pack.children.filter(c => c !== axe);
+  if (id) { const n = HELD[id]; n.pos = [0,-.28,.01]; n.rot = [0,0,0]; J.foreR.children.push(n); }
+  if (id !== 'axe') { axe.pos = HOLSTER.pos; axe.rot = HOLSTER.rot; pack.children.push(axe); }
+  P.held = id; P.hasAxe = id === 'axe';
 }
 
 function poseFor(t) {
@@ -380,9 +498,29 @@ function poseFor(t) {
   if (P.hasAxe && free) {
     if (cam.fp) { p.armR = [-1.15+cam.fpPitch*.6,0,.12]; p.foreR = [-.9,0,0]; p.axe = [1.0,0,0]; }
     else { p.armR = [-.4,0,-.14]; p.foreR = [-1.8,0,0]; p.axe = [1.2,0,0]; } }
+  else if (P.held && free) {   // canteen / coconut carried upright in front
+    if (cam.fp) { p.armR = [-1.25+cam.fpPitch*.6,0,.3]; p.foreR = [-.85,0,0]; p.axe = [.5,0,0]; }
+    else { p.armR = [-.25,0,-.05]; p.foreR = [-1.15,0,0]; p.axe = [-.17,0,0]; } }
   const hold = { armR:p.armR, foreR:p.foreR, axe:p.axe, torso:p.torso };
+  if (P.use) { const k = P.use.t / P.use.dur, h2 = { ...hold, head:p.head }, sip = k > .3 && k < .82 ? Math.sin(k*44) : 0;
+    const F = cam.fp   // first person: bring it up in front of the lens, not into it
+      ? (P.use.kind === 'drink'
+        ? [[0,h2], [.24,{ armR:[-1.3,0,.5], foreR:[-1.15,0,0], axe:[0,0,0], torso:[0,0,0], head:[0,0,0] }],
+           [.34,{ armR:[-1.38,0,.52], foreR:[-1.2,0,0], axe:[-.75,0,0], torso:[0,0,0], head:[0,0,0] }],
+           [.8, { armR:[-1.4,0,.52], foreR:[-1.22,0,0], axe:[-.85,0,0], torso:[0,0,0], head:[0,0,0] }], [1,h2]]
+        : [[0,h2], [.22,{ armR:[-1.32,0,.5], foreR:[-1.1,0,0], axe:[-.35,0,0], torso:[0,0,0], head:[0,0,0] }],
+           [.82,{ armR:[-1.32,0,.5], foreR:[-1.1,0,0], axe:[-.35,0,0], torso:[0,0,0], head:[0,0,0] }], [1,h2]])
+      : P.use.kind === 'drink'
+      ? [[0,h2], [.24,{ armR:[-1.2,0,.42], foreR:[-1.72,0,0], axe:[-.2,0,0], torso:[-.05,0,0], head:[-.05,0,0] }],
+         [.34,{ armR:[-1.28,0,.42], foreR:[-1.78,0,0], axe:[-.85,0,0], torso:[-.12,0,0], head:[-.38,0,0] }],
+         [.8, { armR:[-1.3,0,.42], foreR:[-1.8,0,0], axe:[-.95,0,0], torso:[-.14,0,0], head:[-.42,0,0] }], [1,h2]]
+      : [[0,h2], [.22,{ armR:[-1.18,0,.42], foreR:[-1.68,0,0], axe:[-.3,0,0], torso:[.05,0,0], head:[.05,0,0] }],
+         [.82,{ armR:[-1.18,0,.42], foreR:[-1.68,0,0], axe:[-.3,0,0], torso:[.05,0,0], head:[.05,0,0] }], [1,h2]];
+    Object.assign(p, kf(k, F));
+    if (P.use.kind === 'drink') p.head = [p.head[0] + (cam.fp ? 0 : sip*.03), 0, 0];
+    else if (k > .25 && k < .82) { const b = Math.max(0, Math.sin(k*48)); p.head = [p.head[0] + (cam.fp ? 0 : b*.12), 0, 0]; p.armR = [p.armR[0] + b*.12, 0, p.armR[2]]; } }
   if (P.atk) Object.assign(p, kf(P.atk.t / ATTACKS[P.atk.name].dur, [[0,hold], ...ATTACKS[P.atk.name].keys, [1,hold]]));
-  if (P.equip > 0) Object.assign(p, kf(1 - P.equip, [[0,hold], [.5,{ armR:[-2.8,0,-.55], foreR:[-1.5,0,0], axe:[0,0,0], torso:[.05,-.3,0] }], [1,hold]]));
+  if (P.equip > 0) Object.assign(p, kf(1 - P.equip, [[0,hold], [.5,{ armR:[-2.8,0,-.55], foreR:[-1.5,0,0], axe:[0,0,0], torso:[.05,-.3,0] }], [1,hold]]));  // reach into the backpack
   if (P.punch > 0 && P.roll <= 0) { const k = P.punch, ext = k > .55 ? (1-k)/.45 : Math.min(1, k/.55*1.3), sg = P.punchSide;
     const a = sg > 0 ? 'armR' : 'armL', f = sg > 0 ? 'foreR' : 'foreL', o = sg > 0 ? 'armL' : 'armR', of = sg > 0 ? 'foreL' : 'foreR';
     if (P.combo === 3) { p[a] = [-2.6*ext,0,-.2*sg]; p[f] = [-.2,0,0]; y += ext*.12; }
@@ -412,7 +550,7 @@ function hitTree(tr, power, dx, dz) {
     spawn({ p:[cw[12]+rand(-1,1), cw[13]+rand(-.2,.3), cw[14]+rand(-1,1)], v:[rand(-.5,.5),0,rand(-.5,.5)], g:1.4, drag:2.5, flutter:3, life:rand(3,5), s:.09, c: Math.random()<.5 ? TC.leaf : TC.leaf2, spin:rand(-3,3) });
   const coco = tr.crown.boxes.find(b => b.coco && !b.hidden);
   if (coco && Math.random() < .35 + power*.15) { coco.hidden = true;
-    spawn({ p:xform(cw, coco.o), v:[rand(-1,1),0,rand(-1,1)], life:8, s:.17, c:TC.coco, bounce:.45, spin:rand(-4,4) }); }
+    spawn({ p:xform(cw, coco.o), v:[rand(-1,1),0,rand(-1,1)], life:90, s:.17, c:TC.coco, bounce:.45, spin:rand(-4,4), pickup:true }); }
   if (power && (tr.hp -= power) <= 0) { tr.state = 'falling'; tr.fallA = Math.atan2(dx, dz) - tr.yaw; tr.fall = 0; tr.fallV = .2; }
 }
 function updateTree(tr, dt, t) {
@@ -441,6 +579,137 @@ function updateTree(tr, dt, t) {
 }
 
 // ================= update =================
+// ================= items, hotbar & backpack UI =================
+const ITEMS = {
+  axe:     { name:"Explorer's Axe", short:'axe', tag:'Tool', desc:'Hand-forged head lashed to a worn ash handle, tied off with a scrap of scarf.',
+             stats:['F / click: chop → sweep → spin', 'Five hits fells a palm', 'X: twirl'] },
+  canteen: { name:'Field Canteen', short:'canteen', tag:'Drink', desc:'Dented tin canteen in a waxed canvas sleeve. Still cold somehow.',
+             stats:['+28 thirst per sip', '8 sips when full'] },
+  coconut: { name:'Coconut', short:'coconut', tag:'Food', desc:'Cracked open and ready. Shake a palm or chop one down for more.',
+             stats:['+30 hunger', '+12 thirst'] },
+};
+const ICONS = {
+  axe: '<path d="M11 43 L35 11 L38 13 L14 45Z" fill="#a9774a"/><path d="M11 43 L23 27 L25 28.5 L14 45Z" fill="#8a5d36"/><path d="M9 44 L12 41 L15 44 L12 47Z" fill="#5a3a22"/><path d="M15.5 37.5 L20 31.5 L23 33.5 L18.5 39.5Z" fill="#6b4428"/><path d="M16.8 36 L18.6 37.3 M19 33 L20.8 34.3" stroke="#cfc3a6" stroke-width="1.2"/><path d="M29 10 L39 3 L45 13 L36 19Z" fill="#8f8a80"/><path d="M39 3 L46 5 L45 13Z" fill="#e2dfd6"/><path d="M29 10 L33 7 L36 9.5 L32 12Z" fill="#6f6b62"/><path d="M32 15 L30 23 L33.5 22 L34 16Z" fill="#5b6a3a"/>',
+  canteen: '<path d="M8 15 L13 15 L11 22 L8 22Z" fill="#6b4428"/><path d="M14 16 L34 16 L39 24 L39 38 L33 44 L15 44 L9 38 L9 24Z" fill="#5b6a3a"/><path d="M14 16 L24 16 L23 44 L15 44 L9 38 L9 24Z" fill="#6f7f48"/><path d="M9 28 L39 28 L39 32 L9 32Z" fill="#6b4428"/><path d="M9 28 L24 28 L24 32 L9 32Z" fill="#7d5233"/><rect x="20" y="9" width="8" height="7" fill="#9a958a"/><rect x="20" y="9" width="4" height="7" fill="#b3aea3"/><rect x="18.5" y="4" width="11" height="5.5" rx="1" fill="#6b4428"/><path d="M15 36 L22 36 L21 41 L16 41Z" fill="#4a5530"/>',
+  coconut: '<path d="M24 5 L38 12 L43 26 L37 39 L24 44 L11 39 L5 26 L10 12Z" fill="#6a4426"/><path d="M24 5 L38 12 L31 23 L17 21 L10 12Z" fill="#82552f"/><path d="M5 26 L17 21 L31 23 L24 44 L11 39Z" fill="#59381f"/><path d="M31 23 L43 26 L37 39 L24 44Z" fill="#4c2f19"/><path d="M14 11 L24 7 L34 11 L24 15Z" fill="#efe9d8"/><circle cx="20" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="28" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="24" cy="23" r="1.8" fill="#2b1a0e"/>',
+};
+const icon = id => `<svg class="ic" viewBox="0 0 48 48">${ICONS[id]}</svg>`;
+const inv = { axe: 1, canteen: 1, coconut: 2 }, canteenSips = { n: 8, max: 8 };
+const hotbar = ['axe', null, null, null, null];
+let panelOpen = false, assignId = null, invSel = 'canteen', nameTimer = 0;
+const $ = id => document.getElementById(id);
+function toast(msg) { const d = document.createElement('div'); d.textContent = msg; $('toast').appendChild(d);
+  setTimeout(() => d.remove(), 1800); while ($('toast').children.length > 3) $('toast').firstChild.remove(); }
+function showName(id) { const el = $('itemName'); el.textContent = id ? ITEMS[id].name : 'Bare hands'; el.classList.add('show');
+  clearTimeout(nameTimer); nameTimer = setTimeout(() => el.classList.remove('show'), 1400); }
+function slotHTML(id, extra = '') {
+  if (!id) return extra;
+  const n = inv[id], cnt = id === 'coconut' ? `<span class="n">${n}</span>` : '';
+  const fill = id === 'canteen' ? `<span class="fill"><i style="height:${canteenSips.n / canteenSips.max * 100}%"></i></span>` : '';
+  return icon(id) + cnt + fill + extra;
+}
+const emptyItem = id => id && (inv[id] <= 0);
+function renderUI() {
+  $('hotbar').innerHTML = hotbar.map((id, i) => `<div class="slot${i === P.sel ? ' sel' : ''}${emptyItem(id) ? ' none' : ''}" data-hb="${i}"${id ? ' draggable="true"' : ''}
+    title="${id ? ITEMS[id].name + ' — right-click to clear' : 'Empty slot'}"><span class="k">${i+1}</span>${slotHTML(id)}</div>`).join('');
+  $('hotbar').classList.toggle('assign', !!assignId);
+  if (!panelOpen) return;
+  const ids = Object.keys(ITEMS).filter(id => inv[id] > 0);
+  if (!ids.includes(invSel)) invSel = ids[0] || null;
+  $('cap').textContent = `${ids.length} / 15 slots`;
+  $('grid').innerHTML = Array.from({length: 15}, (_, i) => { const id = ids[i], hb = id ? hotbar.indexOf(id) : -1;
+    return `<div class="slot${id && id === invSel ? ' pick' : ''}" ${id ? `data-inv="${id}" draggable="true" title="${ITEMS[id].name}"` : ''}>${slotHTML(id, hb >= 0 ? `<span class="hb">${hb+1}</span>` : '')}</div>`; }).join('');
+  const it = invSel && ITEMS[invSel], inBar = invSel ? hotbar.indexOf(invSel) : -1;
+  $('detail').innerHTML = !it ? '<p>Your backpack is empty.</p>' : `
+    <div class="big">${icon(invSel)}</div><span class="tag">${it.tag}</span><h3>${it.name}</h3>
+    <div style="color:var(--muted);font-size:12px">${invSel === 'canteen' ? `${canteenSips.n} / ${canteenSips.max} sips` : invSel === 'coconut' ? `× ${inv.coconut}` : 'Durable'}</div>
+    <p>${it.desc}</p><ul>${it.stats.map(x => `<li>${x}</li>`).join('')}</ul>
+    <div class="acts">${inBar >= 0 ? `<button class="btn" data-act="remove">Remove from hotbar (slot ${inBar+1})</button>`
+                                     : `<button class="btn primary" data-act="add">Add to hotbar</button>`}
+      ${invSel !== 'axe' ? `<button class="btn" data-act="use">${invSel === 'canteen' ? 'Drink' : 'Eat'}</button>` : ''}</div>
+    <div class="hint">${assignId ? 'Pick a hotbar slot below (or press 1–5)…' : 'Tip: drag items onto any hotbar slot.'}</div>`;
+}
+function togglePanel(open = !panelOpen) {
+  panelOpen = open; $('panel').hidden = !open; setAssign(null);
+  if (open) { for (const k in keys) keys[k] = false; if (locked()) document.exitPointerLock(); }
+  renderUI();
+}
+function setAssign(id) { assignId = id; renderUI(); }
+function assignSlot(i, id) {
+  const from = hotbar.indexOf(id);
+  if (from >= 0) hotbar[from] = hotbar[i];        // moving within the bar swaps
+  hotbar[i] = id; assignId = null;
+  toast(`${ITEMS[id].name} → slot ${i+1}`);
+  if (P.sel === i || P.sel === from) { const keep = P.sel; P.sel = -1; selectSlot(keep); }
+  renderUI();
+}
+function selectSlot(i) {
+  if (P.equip > 0 || P.atk || P.use) return;
+  const want = i === P.sel ? null : hotbar[i];
+  P.sel = i === P.sel ? -1 : i;
+  const id = want && inv[want] > 0 ? want : null;
+  showName(id); renderUI();
+  if (id === P.held) return;
+  P.equip = 1; P.equipTo = id; P.emote = null; P.punch = 0;
+}
+function startUse(kind, restore) {
+  if (kind === 'drink' && canteenSips.n <= 0) return toast('Canteen is empty');
+  if (kind === 'eat' && inv.coconut <= 0) return toast('No coconuts left — chop a palm');
+  P.use = { kind, t: 0, dur: kind === 'drink' ? 1.7 : 1.9, done: false, bite: 0, restore }; P.emote = null;
+}
+function updateUse(dt) {
+  const u = P.use; if (!u) return; u.t += dt; const k = u.t / u.dur, hand = J.foreR.world && xform(J.foreR.world, [0,-.32,.05]);
+  if (u.kind === 'drink' && hand && k > .34 && k < .8 && Math.random() < .25)
+    spawn({ p:hand, v:[rand(-.3,.3),rand(-.2,.4),rand(-.3,.3)], g:7, drag:.5, life:.6, s:.03, c:[.55,.8,.95], emit:true });
+  if (u.kind === 'eat' && hand && k > .3 && u.bite < 3 && k > .3 + u.bite*.17) { u.bite++;
+    for (let i = 0; i < 6; i++) spawn({ p:hand.map(v => v + rand(-.05,.05)), v:[rand(-.8,.8),rand(.5,1.5),rand(-.8,.8)], life:rand(.6,1), s:.03, c: i%2 ? [.94,.91,.83] : TC.coco }); }
+  if (!u.done && k >= .82) { u.done = true;
+    if (u.kind === 'drink') { canteenSips.n--; P.thirst = Math.min(100, P.thirst + 28); toast(`+28 Thirst · ${canteenSips.n} sips left`); }
+    else { inv.coconut--; P.hunger = Math.min(100, P.hunger + 30); P.thirst = Math.min(100, P.thirst + 12); toast('+30 Hunger · +12 Thirst'); }
+    renderUI(); }
+  if (k >= 1) { P.use = null;
+    if (u.restore !== undefined) setHeld(u.restore);
+    else if (P.held === 'coconut' && inv.coconut <= 0) setHeld(null); }
+}
+function useFromPanel(id) {
+  if (P.equip > 0 || P.atk || P.use) return;
+  const kind = id === 'canteen' ? 'drink' : 'eat';
+  if ((kind === 'drink' && canteenSips.n <= 0) || (kind === 'eat' && inv.coconut <= 0)) return startUse(kind);
+  togglePanel(false); const prev = P.held; setHeld(id); startUse(kind, prev);
+}
+// hotbar: click selects (or assigns), right-click clears, drop target for drag & drop
+$('hotbar').addEventListener('click', e => { const s = e.target.closest('[data-hb]'); if (!s) return; const i = +s.dataset.hb;
+  if (assignId) assignSlot(i, assignId); else selectSlot(i); });
+$('hotbar').addEventListener('contextmenu', e => { const s = e.target.closest('[data-hb]'); if (!s) return; e.preventDefault();
+  const i = +s.dataset.hb; if (!hotbar[i]) return; hotbar[i] = null; if (P.sel === i) { P.sel = -1; P.equip = 1; P.equipTo = null; } renderUI(); });
+$('hotbar').addEventListener('dragstart', e => { const s = e.target.closest('[data-hb]'); if (s && hotbar[+s.dataset.hb]) e.dataTransfer.setData('text/plain', hotbar[+s.dataset.hb]); });
+$('hotbar').addEventListener('dragover', e => { const s = e.target.closest('[data-hb]'); if (!s) return; e.preventDefault();
+  document.querySelectorAll('#hotbar .over').forEach(x => x !== s && x.classList.remove('over')); s.classList.add('over'); });
+$('hotbar').addEventListener('dragleave', e => e.target.closest?.('[data-hb]')?.classList.remove('over'));
+$('hotbar').addEventListener('drop', e => { const s = e.target.closest('[data-hb]'), id = e.dataTransfer.getData('text/plain');
+  if (s && ITEMS[id]) { e.preventDefault(); assignSlot(+s.dataset.hb, id); } });
+$('grid').addEventListener('click', e => { const s = e.target.closest('[data-inv]'); if (s) { invSel = s.dataset.inv; renderUI(); } });
+$('grid').addEventListener('dragstart', e => { const s = e.target.closest('[data-inv]'); if (s) e.dataTransfer.setData('text/plain', s.dataset.inv); });
+$('detail').addEventListener('click', e => { const a = e.target.closest('[data-act]')?.dataset.act; if (!a) return;
+  if (a === 'add') { const free = hotbar.indexOf(null); free >= 0 ? assignSlot(free, invSel) : (toast('Hotbar full — pick a slot to replace'), setAssign(invSel)); }
+  if (a === 'remove') { const i = hotbar.indexOf(invSel); hotbar[i] = null; if (P.sel === i) { P.sel = -1; P.equip = 1; P.equipTo = null; } renderUI(); }
+  if (a === 'use') useFromPanel(invSel); });
+$('bagBtn').onclick = () => togglePanel();
+$('closeP').onclick = () => togglePanel(false);
+$('panel').addEventListener('pointerdown', e => { if (e.target === $('panel')) togglePanel(false); });
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('tabItems').hidden = b.dataset.tab !== 'items'; $('tabEmotes').hidden = b.dataset.tab !== 'emotes'; });
+const EMOTE_LIST = [['wave','6'],['dance','7'],['sit','8'],['cheer','9'],['bow','0'],['look',''],['pushups',''],['sleep','']];
+$('emotes').innerHTML = EMOTE_LIST.map(([e,k]) => `<button class="btn" data-em="${e}">${e[0].toUpperCase() + e.slice(1)}${k ? `<kbd>${k}</kbd>` : ''}</button>`).join('');
+$('emotes').addEventListener('click', e => { const b = e.target.closest('[data-em]'); if (!b) return;
+  togglePanel(false); P.emote = b.dataset.em; P.emoteT = 0; P.crouch = false; P.atk = null; });
+function updateVitals() {
+  for (const [el, v] of [[$('vFood'), P.hunger], [$('vWater'), P.thirst]]) {
+    const w = Math.round(v) + '%', bar = el.querySelector('i'); if (bar.style.width !== w) bar.style.width = w;
+    el.classList.toggle('low', v < 20); }
+}
+
 function startAttack(name) { P.atk = { name, t: 0, hit: false }; P.atkQueued = false; P.emote = null; }
 function update(dt, t) {
   if (keys['arrowleft']) cam.yaw += dt*2; if (keys['arrowright']) cam.yaw -= dt*2;
@@ -454,7 +723,7 @@ function update(dt, t) {
   if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0, atk:null });
   if (pressed['c']) P.crouch = !P.crouch;
   for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; P.atk = null; }
-  if (pressed['1'] && P.equip <= 0 && !P.atk) { P.equip = 1; P.equipTo = !P.hasAxe; P.emote = null; P.punch = 0; }
+  for (let i = 0; i < 5; i++) if (pressed[String(i+1)]) selectSlot(i);
   if (pressed['x'] && P.hasAxe && !P.atk && P.twirl <= 0) P.twirl = 1;
 
   // movement relative to camera
@@ -464,7 +733,7 @@ function update(dt, t) {
   const mx = fx*iz - fz*ix, mz = fz*iz + fx*ix;
   if (il || P.roll > 0) { P.emote = null; P.idleT = 0; }
   const sneak = keys['control'], run = keys['shift'] && !P.crouch && !sneak;
-  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) * (P.atk ? .45 : 1) : 0;
+  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) * (P.atk ? .45 : P.use ? .5 : 1) : 0;
 
   if (P.roll > 0) {
     P.roll -= dt / .55; const rs = 7.5 * (P.roll > .2 ? 1 : P.roll/.2);
@@ -483,8 +752,9 @@ function update(dt, t) {
     else if (P.jumps === 1) { P.vy = 6.5; P.jumps = 2; P.flip = 0; }
   }
   // attacks: axe combo when holding it, fists otherwise
-  if (pressed['f'] && P.roll <= 0 && P.equip <= 0) {
+  if (pressed['f'] && P.roll <= 0 && P.equip <= 0 && !P.use) {
     if (P.hasAxe) { if (!P.atk) startAttack('chop'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4) P.atkQueued = true; }
+    else if (P.held === 'canteen' || P.held === 'coconut') startUse(P.held === 'canteen' ? 'drink' : 'eat');
     else if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
   }
   if (P.atk) { const A = ATTACKS[P.atk.name]; P.atk.t += dt; const k = P.atk.t / A.dur;
@@ -496,7 +766,8 @@ function update(dt, t) {
   if (pk > .6 && P.punch <= .6) strike(1.1, .6, 0);
   if (P.punch === 0) P.combo = 0;
   if (P.equip > 0) { const before = P.equip; P.equip -= dt / .55;
-    if (before > .5 && P.equip <= .5 && P.hasAxe !== P.equipTo) setAxeInHand(P.equipTo); }
+    if (before > .5 && P.equip <= .5 && P.held !== P.equipTo) setHeld(P.equipTo); }
+  updateUse(dt);
   P.twirl = Math.max(0, P.twirl - dt / .7);
 
   // physics + tree collision
@@ -506,6 +777,12 @@ function update(dt, t) {
     if (d < .5 && d > 0) { P.x = tr.x + dx/d*.5; P.z = tr.z + dz/d*.5; } }
   if (P.y <= 0) { if (!P.grounded && P.vy < -4) { P.land = 1; puff([P.x,0,P.z], 10); } P.y = 0; P.vy = 0; P.grounded = true; P.jumps = 0; }
   P.land = Math.max(0, P.land - dt*4);
+  // survival + coconut pickups
+  const burn = dt * (P.speed > 4 ? 1.8 : 1);
+  P.hunger = Math.max(0, P.hunger - .16*burn); P.thirst = Math.max(0, P.thirst - .24*burn);
+  for (let i = parts.length-1; i >= 0; i--) { const q = parts[i];
+    if (q.pickup && Math.abs(q.v[1]) < .5 && q.p[1] < .3 && Math.hypot(q.p[0]-P.x, q.p[2]-P.z) < .7) {
+      parts.splice(i, 1); inv.coconut++; puff(q.p, 5, [.6,.5,.35]); toast('+1 Coconut'); renderUI(); } }
   P.flip = P.jumps === 2 ? P.flip + dt*11 : 0;
   P.speed = Math.hypot(P.vx, P.vz);
   if (P.grounded && P.speed > 4.5 && (P.dustT -= dt) < 0) { P.dustT = .1; puff([P.x,0,P.z], 1); }
@@ -516,11 +793,11 @@ function update(dt, t) {
 
   // animate (exp-smoothed toward the target pose)
   const { p, y } = poseFor(t);
-  const k = 1 - Math.exp(-(P.roll > 0 || P.punch > 0 || P.atk || P.equip > 0 ? 28 : 12) * dt);
+  const k = 1 - Math.exp(-(P.roll > 0 || P.punch > 0 || P.atk || P.equip > 0 || P.use ? 28 : 12) * dt);
   for (const j of JOINTS) for (let i = 0; i < 3; i++) cur[j][i] = lerp(cur[j][i], p[j][i], k);
   curY = lerp(curY, y, k);
   for (const j of JOINTS) if (j !== 'axe') J[j].rot = cur[j];
-  if (P.hasAxe) axe.rot = [cur.axe[0] - smooth(1 - P.twirl)*Math.PI*2*(P.twirl > 0), cur.axe[1], cur.axe[2]];
+  if (P.held) HELD[P.held].rot = [cur.axe[0] - (P.hasAxe && P.twirl > 0 ? smooth(1 - P.twirl)*Math.PI*2 : 0), cur.axe[1], cur.axe[2]];
   let pitch = P.roll > 0 ? (1 - P.roll) * Math.PI * 2 : 0;
   if (P.jumps === 2 && P.flip < Math.PI*2) pitch = P.flip;
   const spinYaw = P.atk && ATTACKS[P.atk.name].spin ? smooth(clamp(P.atk.t / ATTACKS.spin.dur * 1.25 - .1, 0, 1)) * Math.PI*2 : 0;
@@ -533,10 +810,11 @@ function update(dt, t) {
   cam.shake = Math.max(0, cam.shake - dt*.8);
   if (!cam.fp && cam.auto && il && !drag && iz >= 0) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8);
   pressed = {};
-  const st = P.equip > 0 ? (P.equipTo ? 'drawing axe' : 'holstering') : P.atk ? 'axe: ' + P.atk.name : P.twirl > 0 ? 'twirl' :
+  updateVitals();
+  const st = P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? 'axe: ' + P.atk.name : P.twirl > 0 ? 'twirl' :
     !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
     P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.hasAxe && !cam.fp ? 'idle (fidget)' : 'idle');
-  document.getElementById('state').textContent = `${st}${P.hasAxe ? ' · axe' : ''}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
+  document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
 }
 
 // ================= render =================
@@ -544,9 +822,11 @@ function computeWorld(n, parent) { n.world = M.mul(M.mul(parent, M.t(...n.pos)),
 let boundGeo = null;
 function drawBox(m, c, g = 'box') { if (boundGeo !== g) { gl.bindVertexArray(GEO[g].a); boundGeo = g; }
   gl.uniformMatrix4fv(U.uM, false, m); gl.uniform3fv(U.uCol, c); gl.drawArrays(gl.TRIANGLES, 0, GEO[g].n); }
+// first person shows only forearms, hands and the held item
+const FP_SKIP_ALL = new Set([head, J.legL, J.legR, pack]), FP_SKIP_SELF = new Set([body, torso, J.armL, J.armR]);
 function drawNode(n) {
-  if (n.hidden) return;
-  if (!(cam.fp && n === head)) for (const b of n.boxes) if (!b.hidden)
+  if (n.hidden || (cam.fp && FP_SKIP_ALL.has(n))) return;
+  if (!(cam.fp && FP_SKIP_SELF.has(n))) for (const b of n.boxes) if (!b.hidden)
     drawBox(M.mul(M.mul(M.mul(n.world, M.t(...b.o)), M.rot(b.r)), M.s(...b.s)), b.c, b.g);
   for (const c of n.children) drawNode(c);
 }
@@ -571,7 +851,8 @@ function frame(now) {
     eye[1] = Math.max(.15, eye[1]);
   }
   if (cam.shake > 0) { const s = cam.shake*cam.shake*1.5; for (const v of [eye, tgt]) { v[0] += rand(-s,s)*.3; v[1] += rand(-s,s)*.3; } }
-  gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(cam.fp ? 1.25 : .9, w/h, .03, 300), M.look(eye, tgt, [0,1,0])));
+  lastVP = M.mul(M.persp(cam.fp ? 1.25 : .9, w/h, .03, 300), M.look(eye, tgt, [0,1,0]));
+  gl.uniformMatrix4fv(U.uVP, false, lastVP);
   gl.uniform3fv(U.uPlayer, [P.x, P.y, P.z]); gl.uniform3fv(U.uCam, eye); gl.uniform1f(U.uGrid, grid);
   gl.uniform1i(U.uMode, 1); boundGeo = null; drawBox(M.id(), [0,0,0], 'floor');
   gl.uniform1i(U.uMode, 0);
@@ -587,6 +868,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 computeWorld(root, M.id()); for (const tr of trees) computeWorld(tr.node, M.id());
+renderUI();
 requestAnimationFrame(frame);
 </script>
 </body>
