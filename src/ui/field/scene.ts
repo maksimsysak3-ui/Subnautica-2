@@ -514,10 +514,11 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         // The pocket: kick-slide back to a set depth in his lane, give ground only in front of
         // his rusher, and stay between him and the quarterback.
         const q = carrier ?? QB;
-        const setX = los - s * Math.min(2.3, 0.7 + t * 1.5);
+        // Meet the rusher just in front of him (never upfield of the line), giving ground only as he pushes.
+        const setX = los - s * 0.3;
         const laneY = q.y + laneOff * 1.12;
-        const ty = laneY + Math.max(-1.3, Math.min(1.3, m.y - laneY));
-        const tx = s > 0 ? Math.min(setX, m.x - 1.0) : Math.max(setX, m.x + 1.0);
+        const ty = laneY + Math.max(-1.7, Math.min(1.7, m.y - laneY));
+        const tx = s > 0 ? Math.min(setX, m.x - 0.95) : Math.max(setX, m.x + 0.95);
         steer(o, tx, ty, 0.9);
       }
     });
