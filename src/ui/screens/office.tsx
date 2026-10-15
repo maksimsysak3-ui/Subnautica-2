@@ -1,7 +1,9 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useApp, app } from '../store';
-import { Logo, Ovr, Face, DevIcon, vivid, Table, PlayerCell, Bar, Tabs, CountUp } from '../components';
+import { Logo, Ovr, Face, DevIcon, vivid, Table, PlayerCell, Bar, Tabs, CountUp, Portrait } from '../components';
+import { positionNeeds } from '../../core/draft';
+import './fa.css';
 import { NegotiationRoom, FaEmblem } from './negotiate';
 import { market } from '../../core/negotiate';
 import type { GamePlan, Player } from '../../core/types';
@@ -15,48 +17,112 @@ import { COACH_ABILITIES, COACH_TREES, TREE_INFO, coachXpNeed, POINTS_PER_LEVEL,
 
 // ---- free agency ------------------------------------------------------------------------------
 const FA_DAYS = ['Legal Tampering', 'Opening Day', 'Day 3', 'Day 4', 'Second Wave', 'Day 6', 'Bargain Bin', 'Final Day'];
+type FaSort = 'Overall' | 'Youngest' | 'Cheapest' | 'Hottest';
+/**
+ * The free agency board: the day and your cap up top, the headliners as big cards, a filter
+ * rail (position, fits your needs, fits your cap), every free agent as a card with his ask,
+ * how hot his market is and where he's leaning, and a live wire of signings and your offers.
+ */
 export function FreeAgencyScreen() {
   const L = useApp().league!;
   const [pos, setPos] = useState<string>('All');
   const [neg, setNeg] = useState<Player | null>(null);
-  const [shown, setShown] = useState(40);
+  const [shown, setShown] = useState(36);
+  const [needOnly, setNeedOnly] = useState(false);
+  const [capOnly, setCapOnly] = useState(false);
+  const [sort, setSort] = useState<FaSort>('Overall');
   const open = L.phase === 'freeagency';
-  const all = freeAgents(L).sort((a, b) => b.ovr - a.ovr);
-  const rows = all.filter(p => pos === 'All' || p.pos === pos);
   const day = L.fa?.day ?? 1;
-  const signings = L.news.filter(n => n.kind === 'sign' && n.season === L.season).slice(0, 8);
+  const space = capSpace(L, L.user);
+  const needs = positionNeeds(L, L.user);
+  const all = useMemo(() => freeAgents(L).sort((a, b) => b.ovr - a.ovr), [L, L.fa?.day, L.news.length]);
+  const askOf = (p: Player) => askingPrice(L, p).apy;
+  const rows = all.filter(p => (pos === 'All' || p.pos === pos) && (!needOnly || (needs[p.pos] ?? 0) >= 1.2) && (!capOnly || askOf(p) <= space))
+    .sort(sort === 'Youngest' ? (a, b) => a.age - b.age : sort === 'Cheapest' ? (a, b) => askOf(a) - askOf(b) : sort === 'Hottest' ? (a, b) => market(L, b).heat - market(L, a).heat : (a, b) => b.ovr - a.ovr);
+  const heads = all.slice(0, 4);
+  const signings = L.news.filter(n => n.kind === 'sign' && n.season === L.season).slice(0, 10);
+  const mine = all.filter(p => (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user));
+  const count = (p: string) => all.filter(x => x.pos === p).length;
   return (
-    <div className="grid">
-      <div className="row" style={{ gap: 12 }}><FaEmblem size={44} /><div className="h2">Free Agency</div><div className="spacer" /><span className="dim">Cap space <b className={capSpace(L, L.user) < 0 ? 'bad' : 'good'}>{money(capSpace(L, L.user))}</b></span></div>
-      {open ? <div className="fa-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}>{d}</div>)}</div>
-        : <div className="card small dim">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
-      <div className="row">{['All', ...POS_ORDER].map(p => <span key={p} className={`chip${pos === p ? ' on' : ''}`} onClick={() => setPos(p)}>{p}</span>)}<div className="spacer" /><span className="small dim">{rows.length} available</span></div>
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px', alignItems: 'start' }}>
-        <div className="falist">{rows.slice(0, shown).map(p => <FaRow key={p.id} p={p} onOpen={() => setNeg(p)} />)}
-          {rows.length > shown && <div className="empty"><button className="btn sm" onClick={() => setShown(n => n + 40)}>Show more ({rows.length - shown})</button></div>}
-          {!rows.length && <div className="empty">No free agents at this position.</div>}
+    <div className="fa2">
+      <header className="fa2-head">
+        <FaEmblem size={64} />
+        <div className="fa2-title"><span>{open ? `Free agency · day ${day} of ${FA_DAYS.length}` : L.phase === 'regular' ? 'In-season free agents' : 'Free agents'}</span><h1>The Market</h1></div>
+        <div className="fa2-stats">
+          <div><span>Cap space</span><b className={space < 0 ? 'bad' : 'good'}>{money(space)}</b></div>
+          <div><span>Available</span><b>{all.length}</b></div>
+          <div><span>Your offers out</span><b>{mine.length}</b></div>
         </div>
-        <div className="card"><div className="h3">Signings</div>{signings.length ? signings.map(n => <div key={n.id} className="li small">{n.teams[0] && <Logo team={L.teams[n.teams[0]]} size={22} />}<span>{n.text}</span></div>) : <div className="small dim">No moves yet.</div>}</div>
+      </header>
+      {open ? <div className="fa2-days">{FA_DAYS.map((d, i) => <div key={d} className={i + 1 === day ? 'on' : i + 1 < day ? 'past' : ''}><i />{d}</div>)}</div>
+        : <div className="fa2-note">{L.phase === 'regular' ? 'In-season: unsigned players want a job. Agree to terms and he signs on the spot.' : 'Outside the free agency period, agreed deals are signed immediately.'}</div>}
+
+      {heads.length > 0 && <section className="fa2-heads">{heads.map((p, i) => { const m = market(L, p), ask = askingPrice(L, p); return (
+        <button key={p.id} className="fa2-head-card" style={{ animationDelay: `${i * 0.07}s` }} onClick={() => setNeg(p)}>
+          <Portrait p={p} size={150} />
+          <div className="fa2-hc">
+            <span className="fa2-rank">#{i + 1} free agent</span>
+            <b>{p.fn} {p.ln}</b>
+            <em>{p.pos} · {Math.floor(p.age)} yrs · {p.arch}</em>
+            <div className="fa2-ask"><b>{money(ask.apy)}</b><span>/yr · {ask.years} yr ask</span></div>
+            <Heat m={m} p={p} />
+          </div>
+        </button>); })}</section>}
+
+      <div className="fa2-body">
+        <aside className="fa2-rail">
+          <div className="fa2-rt">Position</div>
+          <div className="fa2-pos">{['All', ...POS_ORDER].map(p => { const n = p === 'All' ? all.length : count(p); const need = p !== 'All' && (needs[p as keyof typeof needs] ?? 0) >= 1.2; return (
+            <button key={p} className={pos === p ? 'on' : ''} disabled={!n} onClick={() => { setPos(p); setShown(36); }}><span>{p}</span>{need && <i title="A need for your roster">NEED</i>}<em>{n}</em></button>); })}</div>
+          <div className="fa2-rt">Filters</div>
+          <label className="fa2-tog"><input type="checkbox" checked={needOnly} onChange={e => setNeedOnly(e.target.checked)} />Fits my needs</label>
+          <label className="fa2-tog"><input type="checkbox" checked={capOnly} onChange={e => setCapOnly(e.target.checked)} />Fits my cap</label>
+          <div className="fa2-rt">Sort</div>
+          <div className="fa2-sort">{(['Overall', 'Youngest', 'Cheapest', 'Hottest'] as const).map(k => <button key={k} className={sort === k ? 'on' : ''} onClick={() => setSort(k)}>{k}</button>)}</div>
+        </aside>
+        <main className="fa2-grid">
+          {rows.slice(0, shown).map((p, i) => <FaCard key={p.id} p={p} i={i} onOpen={() => setNeg(p)} />)}
+          {!rows.length && <div className="fa2-empty">Nobody fits those filters.</div>}
+          {rows.length > shown && <button className="fa2-more" onClick={() => setShown(n => n + 36)}>Show more · {rows.length - shown} left</button>}
+        </main>
+        <aside className="fa2-wire">
+          {mine.length > 0 && <><div className="fa2-rt">Your offers</div>{mine.map(p => { const m = market(L, p); const lead = m.leader === L.user; return (
+            <button key={p.id} className="fa2-mine" onClick={() => setNeg(p)}><Face p={p} size={34} /><div><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {m.offers.length} offer{m.offers.length === 1 ? '' : 's'}</span></div><em className={lead ? 'good' : 'bad'}>{lead ? 'Leading' : 'Behind'}</em></button>); })}</>}
+          <div className="fa2-rt">The wire</div>
+          {signings.length ? signings.map((n, i) => <div key={n.id} className="fa2-news" style={{ animationDelay: `${i * 0.05}s` }}>{n.teams[0] && <Logo team={L.teams[n.teams[0]]} size={26} />}<span>{n.text}</span></div>)
+            : <div className="small dim">No signings yet.</div>}
+        </aside>
       </div>
       {neg && <NegotiationRoom p={neg} close={() => { setNeg(null); app.touch(); }} />}
     </div>
   );
 }
 
-/** One free agent, the way Madden lists them: big photo, name, the line that matters, and his trait. */
-function FaRow({ p, onOpen }: { p: Player; onOpen: () => void }) {
+/** How hot his market is and where he's leaning, without numbers. */
+function Heat({ m, p }: { m: ReturnType<typeof market>; p: Player }) {
+  const L = useApp().league!;
+  const mine = (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user);
+  const label = m.heat > 0.75 ? 'Bidding war' : m.heat > 0.5 ? 'Hot market' : m.heat > 0.25 ? 'Some interest' : 'Quiet';
+  return (
+    <div className="fa2-heat">
+      <div className="fa2-flame">{[0, 1, 2, 3].map(i => <i key={i} className={m.heat > i * 0.25 ? 'on' : ''} />)}<span>{label}</span></div>
+      <div className="fa2-lean">{mine ? <b className="good">Your offer is in</b> : m.leader ? <>Leaning <Logo team={L.teams[m.leader]} size={18} /></> : L.talks?.[p.id]?.closed ? <span className="bad">Talks off</span> : <span>No offers yet</span>}</div>
+    </div>
+  );
+}
+
+function FaCard({ p, i, onOpen }: { p: Player; i: number; onOpen: () => void }) {
   const L = useApp().league!;
   const m = market(L, p), ask = askingPrice(L, p);
   const mine = (L.fa?.offers[p.id] ?? []).some(o => o.team === L.user);
-  const was = Object.values(L.teams).find(t => t.abbr === p.draft.team);
+  const was = L.teams[p.draft.team];
   return (
-    <div className={`farow${mine ? ' mine' : ''}`} onClick={onOpen}>
-      <div className="fa-ph" style={{ '--pc': was ? vivid(was.colors[0]) : '#1d3a7a' } as React.CSSProperties}><Face p={p} size={64} /></div>
-      <div className="fa-id"><b>{p.fn[0]}.{p.ln}</b><span>{p.ovr} OVR <i>|</i> {p.pos} <i>|</i> {p.arch} <i>|</i> {Math.floor(p.age)} YRS</span></div>
-      <div className="fa-ask"><b>{money(ask.apy)}</b><span>{ask.years} yr ask</span></div>
-      <div className="fa-mkt"><span className="heat"><b style={{ width: `${m.heat * 100}%` }} /></span><span>{mine ? 'Your offer is in' : m.leader ? <>Leaning <Logo team={L.teams[m.leader]} size={18} /></> : L.talks?.[p.id]?.closed ? 'Talks off' : 'No offers yet'}</span></div>
-      <DevIcon d={p.dev} size={30} />
-    </div>
+    <button className={`fa2-card${mine ? ' mine' : ''}`} style={{ '--pc': was ? vivid(was.colors[0]) : '#1d3a7a', animationDelay: `${Math.min(i, 18) * 0.025}s` } as React.CSSProperties} onClick={onOpen}>
+      <div className="fa2-ph"><Face p={p} size={66} /></div>
+      <div className="fa2-id"><b>{p.fn[0]}. {p.ln}</b><span>{p.pos} · {Math.floor(p.age)} yrs</span><em>{p.arch}</em></div>
+      <div className="fa2-ovr"><Ovr v={p.ovr} /><DevIcon d={p.dev} size={22} /></div>
+      <div className="fa2-foot"><div className="fa2-ask"><b>{money(ask.apy)}</b><span>× {ask.years}</span></div><Heat m={m} p={p} /></div>
+    </button>
   );
 }
 

@@ -496,15 +496,29 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     } else {
     // Offense.
     const rushDL = DL.filter(d => !dlDrop.has(d));
+    // The line keeps its shape: every blocker owns a lane (his spot in the formation) and only
+    // shades toward his man, so two blockers on one rusher stand side by side (a double team)
+    // instead of stacking on the same spot.
+    const lane0 = at(0, 0)[1];
     OL.forEach((o, i) => {
       const m = rushDL[Math.min(rushDL.length - 1, Math.round(i * (rushDL.length - 1) / 4))] ?? DL[1];
+      const laneOff = at(0, OL_SPOTS[i][1])[1] - lane0;
       if (run) {
         // The doubled-up blocker climbs to a linebacker; everyone else drives his man off the ball.
         const climb = (i === 2 && t > 0.45) || (i === 1 && ev.yards >= 5 && t > 0.75);
-        if (climb) { const lb = LB.reduce((b, x) => (dist(x, o) < dist(b, o) ? x : b), LB[0]); steer(o, lb.x - s * 0.6, lb.y, 0.9); }
-        else steer(o, m.x + s * (ev.yards >= 3 ? 0.9 : 0.1), m.y, 0.9);
+        const laneY = lane0 + laneOff + lateral * 0.25;
+        if (climb) { const lb = LB.reduce((b, x) => (dist(x, o) < dist(b, o) ? x : b), LB[0]); steer(o, lb.x - s * 0.7, (lb.y + laneY) / 2, 0.9); }
+        else steer(o, m.x + s * (ev.yards >= 3 ? 0.9 : 0.1), m.y * 0.55 + laneY * 0.45, 0.9);
+      } else {
+        // The pocket: kick-slide back to a set depth in his lane, give ground only in front of
+        // his rusher, and stay between him and the quarterback.
+        const q = carrier ?? QB;
+        const setX = los - s * Math.min(2.3, 0.7 + t * 1.5);
+        const laneY = q.y + laneOff * 1.12;
+        const ty = laneY + Math.max(-1.3, Math.min(1.3, m.y - laneY));
+        const tx = s > 0 ? Math.min(setX, m.x - 1.0) : Math.max(setX, m.x + 1.0);
+        steer(o, tx, ty, 0.9);
       }
-      else { const q = carrier ?? QB; const dx = q.x - m.x, dy = q.y - m.y, d = Math.hypot(dx, dy) || 1; steer(o, m.x + (dx / d) * 0.95, m.y + (dy / d) * 0.95, 0.9); }
     });
     if (run) {
       const runner = qbRun ? QB : RB, fake = qbRun ? RB : QB;
@@ -766,11 +780,13 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         d.vx = d.vx * 0.35 + (kind === 'stiff' ? -s * 1.5 : 0); d.vy = d.vy * 0.35 - away * 1.2;
       }
     }
-    for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
+    // Two relaxation passes: one is too weak to stop a pile from forming around the ball.
+    for (let pass2 = 0; pass2 < 2; pass2++) for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
       const a = agents[i], b = agents[j];
       if (endT && (a === carrier || b === carrier)) continue;
+      if (wrapper && ((a === wrapper && b === carrier) || (b === wrapper && a === carrier))) continue;
       const lineman = (x: Agent) => x.role === 'OL' || x.role === 'DL';
-      const min = a.team === b.team ? 1.15 : lineman(a) && lineman(b) ? 1.0 : 0.8;
+      const min = a.team === b.team ? 1.25 : lineman(a) && lineman(b) ? 1.0 : 0.85;
       const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
       if (d >= min || d < 1e-4) continue;
       const push = (min - d) * 0.5, nx = dx / d, ny = dy / d;

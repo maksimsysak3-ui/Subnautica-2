@@ -837,7 +837,7 @@ export class GameSim {
     const chip = nRush >= 5 && o.rb ? o.rb : undefined;
     const blockV = blockers.reduce((a, p) => a + this.r(off, p, 'PBK') * 0.7 + this.r(off, p, 'STR') * 0.15 + this.r(off, p, 'AWR') * 0.15, 0) / Math.max(1, blockers.length) + (chip ? 1.5 : 0);
     const extra = rushers.length - 4 - (chip ? 1 : 0);
-    let tPressure = 2.88 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7) - this.staffOf(def).pr.rush;
+    let tPressure = 2.96 + (blockV - rushV) * 0.021 - extra * 0.38 + this.rng.normal(0, 0.7) - this.staffOf(def).pr.rush;
     if (rushers.some(p => this.has(p, 'Edge Threat') || this.has(p, 'Inside Pressure'))) tPressure -= 0.15;
     if (rushers.some(p => def.zoneOn.has(p.id))) tPressure -= 0.6;
     if (blockers.some(p => this.has(p, 'Anchor'))) tPressure += 0.1;
@@ -855,7 +855,7 @@ export class GameSim {
     if (o.rb && !chip) targets.push({ p: o.rb, def: d.lbs[1] ?? d.lbs[0], bias: depth === 'screen' ? 0.9 : -0.35, slot: 'RB' });
     const planDef = def.team.plan.def;
     // Less room to work with near the goal line.
-    const sepBase = { screen: 1.4, quick: 0.8, short: 0.35, medium: 0, deep: -0.35 }[depth] - (this.yl >= 80 ? 0.55 + (this.yl - 80) * 0.03 : 0);
+    const sepBase = { screen: 1.45, quick: 0.86, short: 0.42, medium: 0.08, deep: -0.27 }[depth] - (this.yl >= 80 ? 0.45 + (this.yl - 80) * 0.028 : 0);
     const sep = targets.map(t => {
       const recv = (this.r(off, t.p, 'RTE') * 0.45 + this.r(off, t.p, depth === 'deep' ? 'SPD' : 'ACC') * 0.3 + this.r(off, t.p, 'RLS') * 0.25);
       const cov = !t.def ? 55 : man
@@ -1087,7 +1087,7 @@ export class GameSim {
     // the defense has seen over and over gets met at the line.
     let line0 = (o.extra?.length ?? 0) * 0.32 - this.keyed * 0.45;
     if (dc.set === 'Dime') line0 += 0.6; else if (dc.set === 'Nickel' && o.extra?.length) line0 += 0.25;
-    const adv = (blockV - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
+    const adv = (blockV + 2 - runD) / 13 - (dc.box - 7) * 0.55 - (this.yl >= 85 ? 0.9 : 0) + (def.team.plan.def === 'Stop the Pass' ? 0.3 : def.team.plan.def === 'Stop the Run' ? -0.3 : 0);
     const outside = oc.run === 'outside';
     // Jet or orbit motion pulls the second level a step: worth more on the edge.
     if (oc.motion) line0 += outside ? 0.35 : 0.12;
