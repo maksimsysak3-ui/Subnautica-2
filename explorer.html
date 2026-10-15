@@ -101,6 +101,7 @@
   <div class="row"><kbd>1</kbd>–<kbd>5</kbd>hotbar · <kbd>I</kbd>/<kbd>Tab</kbd>or click backpack</div>
   <div class="row"><kbd>F</kbd>/click use: chop · drink · eat · punch</div>
   <div class="row"><kbd>X</kbd>twirl axe · chop palms for coconuts</div>
+  <div class="row">Spear: <kbd>F</kbd>thrust combo · <kbd>E</kbd>throw · hunt chickens</div>
   <div class="row"><b>Emotes</b> (all in backpack)</div>
   <div class="row"><kbd>6</kbd>wave <kbd>7</kbd>dance <kbd>8</kbd>sit <kbd>9</kbd>cheer <kbd>0</kbd>bow</div>
   <div class="row"><b>Camera / misc</b></div>
@@ -164,39 +165,54 @@ const cv = document.getElementById('c');
 const gl = cv.getContext('webgl2', { antialias: true });
 if (!gl) document.body.innerHTML = '<p style="padding:20px">WebGL2 is not supported in this browser.</p>';
 const VS = `#version 300 es
-in vec3 p; uniform mat4 uVP, uM; out vec3 wp;
-void main(){ vec4 w = uM*vec4(p,1.); wp = w.xyz; gl_Position = uVP*w; }`;
+in vec3 p; uniform mat4 uVP, uM; uniform float uTime, uWind; out vec3 wp;
+void main(){ vec4 w = uM*vec4(p,1.);
+  if (uWind > 0.) { float s = sin(uTime*1.8 + w.x*.6 + w.z*.4) + .5*sin(uTime*3.1 + w.z*1.3); w.x += s*w.y*.1; w.z += s*w.y*.04; }  // grass sway
+  wp = w.xyz; gl_Position = uVP*w; }`;
 const FS = `#version 300 es
 precision highp float;
-in vec3 wp; uniform vec3 uCol, uPlayer, uCam; uniform int uMode; uniform float uGrid; out vec4 o;
+in vec3 wp; uniform vec3 uCol, uPlayer, uCam, uSky; uniform int uMode, uBlobN; uniform float uGrid; uniform vec3 uBlob[40]; out vec4 o;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p), u = f*f*(3.-2.*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
+float fbm(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 4; i++) { s += a*vnoise(p); p = p*2.03 + 17.; a *= .5; } return s; }
+float sandH(vec2 p){ float warp = fbm(p*.12)*5.; return fbm(p*.35)*.35 + sin(dot(p, vec2(2.6,1.)) + warp)*.035 + vnoise(p*9.)*.012; }
+vec3 fog(vec3 c){ return mix(c, uSky, 1. - exp(-length(wp - uCam)*.011)); }
 void main(){
-  if (uMode == 2) { o = vec4(uCol,1.); return; }            // emissive (fireflies, swing trails)
+  if (uMode == 2) { o = vec4(uCol,1.); return; }            // emissive (fireflies, trails, water)
+  vec3 L = normalize(vec3(.5,.9,.6));
   float dp = length(wp.xz - uPlayer.xz);
-  if (uMode == 1) {                                          // floor: black with a soft grid glow around the player
-    vec2 g = abs(fract(wp.xz) - .5); float l = 1. - smoothstep(.0, .03, .5 - max(g.x, g.y));
-    vec2 g4 = abs(fract(wp.xz/5.) - .5); float l4 = 1. - smoothstep(.0, .012, .5 - max(g4.x, g4.y));
-    float glow = exp(-dp*dp*.02);
-    vec3 c = vec3(.02) + vec3(.09,.08,.07)*(l*.5 + l4)*uGrid*glow + vec3(.05,.045,.04)*glow;
-    float sh = smoothstep(.0, .55, dp / (1. + uPlayer.y*.6));
-    c *= mix(.15, 1., sh + clamp(uPlayer.y*.4,0.,.7));
-    o = vec4(c,1.); return;
+  if (uMode == 1) {   // sand: dunes + wind ripples (bump-lit), tone variation, grains that fade with distance, soft contact shadows
+    vec2 q = wp.xz; float e = .05, h = sandH(q);
+    vec3 n = normalize(vec3(-(sandH(q + vec2(e,0.)) - h)/e, 1., -(sandH(q + vec2(0.,e)) - h)/e));
+    vec3 c = mix(vec3(.79,.68,.49), vec3(.9,.82,.64), fbm(q*.07));
+    c = mix(c, c*vec3(.92,.88,.83), smoothstep(.45,.75, fbm(q*.6 + 3.)));
+    float camD = length(wp - uCam), fine = 1. - smoothstep(5., 20., camD), gr = hash(floor(q*70.));
+    c *= 1. + (gr - .5)*.24*fine;
+    c = mix(c, vec3(.45,.38,.31), step(.985, gr)*.6*fine);     // dark mineral grains
+    c = mix(c, vec3(1.,.98,.94), step(gr, .006)*.7*fine);      // bright quartz / shell bits
+    c *= .52 + .6*max(dot(n, L), 0.);
+    float sh = mix(.6, 1., clamp(smoothstep(.0, .5, dp / (1. + uPlayer.y*.6)) + uPlayer.y*.4, 0., 1.));
+    for (int i = 0; i < 40; i++) { if (i >= uBlobN) break; sh *= mix(.62, 1., smoothstep(.2, 1., length(q - uBlob[i].xy) / uBlob[i].z)); }
+    c *= sh;
+    if (uGrid > 0.) { vec2 g = abs(fract(q) - .5); c *= 1. - .25*(1. - smoothstep(0., .03, .5 - max(g.x, g.y)))*exp(-dp*dp*.01); }
+    o = vec4(fog(pow(c, vec3(1./1.1))),1.); return;
   }
   vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));             // flat low-poly normals
-  vec3 L = normalize(vec3(.5,.9,.6));
   float d = max(dot(n,L),0.);
   float rim = pow(1. - max(dot(n, normalize(uCam-wp)),0.), 3.);
-  vec3 amb = mix(vec3(.32,.29,.27), vec3(.6,.6,.64), n.y*.5+.5);
+  vec3 amb = mix(vec3(.36,.32,.27), vec3(.6,.64,.7), n.y*.5+.5);
   vec3 c = uCol*(amb + d*vec3(1.05,1.,.9)) + rim*vec3(.12,.11,.1);
-  o = vec4(pow(c, vec3(1./1.1)),1.);
+  o = vec4(fog(pow(c, vec3(1./1.1))),1.);
 }`;
 function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(x);return x;}
 const prog = gl.createProgram();
 gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
 gl.linkProgram(prog); gl.useProgram(prog);
-const U = {}; for (const n of ['uVP','uM','uCol','uPlayer','uCam','uMode','uGrid']) U[n] = gl.getUniformLocation(prog, n);
+const U = {}; for (const n of ['uVP','uM','uCol','uPlayer','uCam','uMode','uGrid','uSky','uBlob','uBlobN','uTime','uWind']) U[n] = gl.getUniformLocation(prog, n);
 
 function vao(data){const a=gl.createVertexArray();gl.bindVertexArray(a);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);return {a, n: data.length/3};}
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);const l=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0);return {a, n: data.length/3, data};}
 const GEO = {};
 { // unit cube
   const v = [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]], c = [];
@@ -331,9 +347,26 @@ function makeTree(x, z, yaw, lean) {
     }
     crown.children.push(fr); fronds.push(fr);
   }
-  return { node: tree, trunk, inner, crown, fronds, x, z, yaw, hp: 5, shake: 0, state: 'up', fall: 0, fallV: 0, timer: 0, seed: Math.random()*9 };
+  const segs = inner.boxes.filter((b, k) => k < N*2 && k % 2 === 0), orig = segs.map(b => ({ s:[...b.s], o:[...b.o] }));
+  return { node: tree, trunk, inner, crown, fronds, segs, orig, x, z, yaw, hp: 5, shake: 0, state: 'up', fall: 0, fallV: 0, timer: 0, seed: Math.random()*9 };
 }
 const trees = [makeTree(3.2,-3.6,.4,.7), makeTree(-4.6,-2,2.4,.9), makeTree(.8,6.4,4.1,.6), makeTree(-2.6,-8.5,1.3,1.0), makeTree(7.5,3,5.2,.8)];
+for (let i = 0, tries = 0; i < 16 && tries < 400; tries++) {   // scatter more palms across the beach
+  const a = rand(0,6.28), rr = rand(9,46), x = Math.sin(a)*rr, z = Math.cos(a)*rr;
+  if (trees.some(t => Math.hypot(t.x-x, t.z-z) < 4)) continue;
+  trees.push(makeTree(x, z, rand(0,6.28), rand(.4,1.1))); i++; }
+
+// ================= grass: scattered clumps baked into a few static meshes, swayed in the vertex shader =================
+const GRASS = [[.5,.6,.26],[.4,.52,.21],[.62,.64,.32],[.7,.63,.38]].map(c => ({ c, v: [] }));
+function bakeInto(list, b) { const m = M.mul(M.mul(M.t(...b.o), M.rot(b.r)), M.s(...b.s)), d = GEO[b.g].data;
+  for (let i = 0; i < d.length; i += 3) list.push(...xform(m, [d[i], d[i+1], d[i+2]])); }
+for (let c = 0; c < 90; c++) {
+  const ca = rand(0,6.28), cr = 2.5 + Math.sqrt(Math.random())*45, cx = Math.sin(ca)*cr, cz = Math.cos(ca)*cr, dry = Math.random() < .3;
+  for (let t = 0, nt = 3 + (Math.random()*8|0); t < nt; t++) {
+    const tx = cx + rand(-1.4,1.4), tz = cz + rand(-1.4,1.4), H = rand(.18,.42);
+    for (let k = 0, nb = 5 + (Math.random()*5|0); k < nb; k++) { const a = rand(0,6.28), lean = rand(.15,.55);
+      bakeInto(GRASS[dry ? 2 + k%2 : k%2].v, spike([tx + Math.sin(a)*.04, 0, tz + Math.cos(a)*.04], [Math.sin(a)*lean, 1, Math.cos(a)*lean], H*rand(.6,1.1), rand(.03,.05), [0,0,0])); } } }
+GRASS.forEach(g => g.vao = vao(g.v));
 
 // ================= held items (origin = grip, item 'up' = +z) =================
 // canteen: flat oval flask in a canvas sleeve, hinged screw cap on a leather keeper
@@ -346,14 +379,39 @@ const canteen = node('canteen', [0,0,0], [
   B([.1,.07,.028],[0,0,-.104],C.dgreen), B([.09,.064,.03],[0,0,.106],C.dgreen), B([.065,.052,.022],[0,0,.13],C.green),  // base + shoulders
   B([.006,.08,.16],[.048,0,0],C.sock), B([.006,.08,.16],[-.048,0,0],C.sock),                                          // sleeve stitching
   B([.142,.084,.042],[0,0,-.012],C.leather), B([.022,.012,.03],[0,.045,-.012],C.metal),                               // band + buckle
-  B([.042,.042,.04],[0,0,.157],C.metal), B([.042,.042,.04],[0,0,.157],C.metal,[0,0,Math.PI/4]), B([.05,.05,.01],[0,0,.142],[.48,.46,.42]), // spout
+  B([.042,.042,.04],[0,0,.157],C.metal), B([.042,.042,.04],[0,0,.157],C.metal,[0,0,Math.PI/4]), B([.05,.05,.01],[0,0,.142],[.48,.46,.42]), B([.026,.026,.006],[0,0,.177],[.05,.04,.03]), // spout + opening
   B([.012,.012,.07],[.05,0,.14],C.leather,[0,-.4,0]),                                                                  // cap keeper strap
 ], [canteenCap]);
 const coconutHeld = node('coconutHeld', [0,0,0], [
   B([.17,.17,.14],[0,0,0],TC.coco), B([.18,.18,.04],[0,0,-.04],TC.husk), B([.14,.14,.02],[0,0,.075],[.94,.91,.83]),
   B([.03,.03,.02],[-.03,.05,-.075],[.17,.11,.06]), B([.03,.03,.02],[.03,.05,-.075],[.17,.11,.06]),
 ]);
-const HELD = { axe, canteen, coconut: coconutHeld };
+// spear: origin = grip, tip along +z
+function makeSpear() { return node('spear', [0,0,0], [
+  B([.036,.036,1.5],[0,0,.15],C.wood), B([.03,.03,.5],[0,.006,.55],C.woodD),
+  B([.048,.048,.22],[0,0,-.02],C.leather), B([.052,.052,.022],[0,0,-.13],C.sock), B([.052,.052,.022],[0,0,.09],C.sock),
+  B([.046,.046,.04],[0,0,-.6],C.leather),                                                          // butt cap
+  B([.05,.05,.08],[0,0,.88],C.leather), B([.054,.054,.02],[0,0,.86],C.sock),                       // lashing
+  B([.1,.3,.026],[0,0,1.05],C.metal,[Math.PI/2,0,0],'pyr'), B([.03,.29,.04],[0,0,1.05],C.edge,[Math.PI/2,0,0],'pyr'), // blade + ridge
+  B([.016,.13,.035],[.032,-.06,.84],C.green,[.3,0,0]), B([.014,.1,.03],[.032,-.08,.8],C.dgreen,[-.25,0,0]),           // scarf ribbon
+]); }
+const RAW = { meat:[.88,.55,.5], meat2:[.8,.46,.42], skin:[.95,.78,.66], bone:[.96,.93,.85] };
+// raw drumstick; flip = held version (bone at the grip, meat toward the mouth)
+function makeDrumstick(flip) { const f = z => flip ? .12 - z : z; return node('drumstick', [0,0,0], [
+  B([.12,.1,.14],[0,0,f(-.03)],RAW.meat), B([.1,.12,.12],[0,0,f(-.03)],RAW.meat2,[0,0,Math.PI/4]), B([.08,.08,.06],[0,0,f(-.11)],RAW.meat2),
+  B([.1,.025,.12],[0,.052,f(-.03)],RAW.skin), B([.06,.06,.05],[0,0,f(.06)],RAW.meat),
+  B([.032,.032,.12],[0,0,f(.12)],RAW.bone), B([.042,.036,.03],[.016,0,f(.185)],RAW.bone), B([.042,.036,.03],[-.016,0,f(.185)],RAW.bone,[0,.3,0]),
+]); }
+// palm log: octagonal bark body, pale end grain with growth rings, a snapped frond stub
+const GRAIN = [.86,.72,.5], RINGS = [.68,.53,.34];
+function makeLog() { return node('log', [0,0,0], [
+  B([.16,.15,.46],[0,0,0],[.55,.4,.26]), B([.16,.15,.46],[0,0,0],[.47,.33,.21],[0,0,Math.PI/4]),
+  B([.17,.17,.03],[0,0,.08],[.38,.27,.17],[0,0,.3]), B([.17,.17,.03],[0,0,-.12],[.38,.27,.17],[0,0,-.2]),
+  ...[1,-1].flatMap(sd => [B([.12,.12,.012],[0,0,.233*sd],GRAIN), B([.12,.12,.012],[0,0,.233*sd],GRAIN,[0,0,Math.PI/4]),
+    B([.075,.075,.014],[0,0,.235*sd],RINGS,[0,0,.4]), B([.04,.04,.016],[0,0,.237*sd],GRAIN)]),
+  B([.05,.11,.05],[.05,.09,.06],[.47,.33,.21],[0,0,-.5]),
+]); }
+const HELD = { axe, canteen, coconut: coconutHeld, spear: makeSpear(), chicken: makeDrumstick(true), wood: makeLog() };
 const HELD_NODES = new Set(Object.values(HELD));
 
 // ================= particles =================
@@ -419,7 +477,8 @@ document.getElementById('toggle').onclick = e => { const h = document.getElement
 const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false, flip:0,
   phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0, dustT:0,
   hasAxe:false, held:null, sel:-1, equip:0, atk:null, atkQueued:false, twirl:0, use:null, hunger:72, thirst:58 };
-let slow = false, grid = 1, packOn = true;
+let slow = false, grid = 0, packOn = true;
+const SKY = [.72,.83,.9], blobArr = new Float32Array(120);
 const EMOTES = { '6':'wave', '7':'dance', '8':'sit', '9':'cheer', '0':'bow' };
 const cur = {}; JOINTS.forEach(j => cur[j] = [0,0,0]); let curY = 0;
 
@@ -437,6 +496,16 @@ const ATTACKS = {
     [.2,  { armR:[-1.45,-.4,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.15,-.3,0] }],
     [.8,  { armR:[-1.45,-.4,0], foreR:[0,-1.5,0], axe:[1.5,0,0], torso:[.15,-.3,0] }] ] },
 };
+// spear moves: windup/strike poses keep arm+forearm+wrist summing to ~0 so the shaft stays level
+const SPEAR_PULL = { armR:[-.6,-.3,0], foreR:[-1.5,0,0], axe:[2.1,0,0], torso:[0,-.45,0] }, SPEAR_HIT = { armR:[-1.55,.1,0], foreR:[0,0,0], axe:[1.55,0,0], torso:[.15,.35,0] };
+Object.assign(ATTACKS, {
+  thrust:  { dur:.42, hit:.45, range:2.3, cone:.75, power:0, dmg:2, next:'thrust2', keys:[[.3,SPEAR_PULL],[.48,SPEAR_HIT],[.65,SPEAR_HIT]] },
+  thrust2: { dur:.42, hit:.45, range:2.3, cone:.75, power:0, dmg:2, next:'lunge', keys:[[.3,{ ...SPEAR_PULL, armR:[-.75,-.2,0] }],[.48,{ ...SPEAR_HIT, armR:[-1.7,.05,0], axe:[1.7,0,0] }],[.65,SPEAR_HIT]] },
+  lunge:   { dur:.7, hit:.5, range:2.7, cone:.7, power:0, dmg:3, dash:5.5, next:'thrust', keys:[
+    [.35,{ armR:[-.45,-.4,0], foreR:[-1.6,0,0], axe:[2.05,0,0], torso:[-.1,-.6,0] }], [.52,{ armR:[-1.6,.15,0], foreR:[0,0,0], axe:[1.6,0,0], torso:[.4,.4,0] }], [.75,{ armR:[-1.55,.1,0], foreR:[0,0,0], axe:[1.55,0,0], torso:[.35,.35,0] }]] },
+  throw:   { dur:.8, hit:.55, throw:true, keys:[
+    [.45,{ armR:[-2.9,0,-.2], foreR:[-.4,0,0], axe:[3.3,0,0], torso:[-.22,-.55,0] }], [.58,{ armR:[-1.4,0,-.05], foreR:[0,0,0], axe:[1.4,0,0], torso:[.32,.4,0] }], [.75,{ armR:[-1.3,0,-.05], foreR:[-.1,0,0], axe:[1.3,0,0], torso:[.25,.3,0] }]] },
+});
 function kf(k, frames) { let i = 0; while (i < frames.length-2 && k > frames[i+1][0]) i++;
   const [t0,a] = frames[i], [t1,b] = frames[i+1], u = smooth(clamp((k-t0)/(t1-t0), 0, 1)), o = {};
   for (const j in a) o[j] = a[j].map((v,n) => lerp(v, b[j][n], u)); return o; }
@@ -506,6 +575,9 @@ function poseFor(t) {
   if (P.hasAxe && free) {
     if (cam.fp) { p.armR = [-1.15+cam.fpPitch*.6,0,.12]; p.foreR = [-.9,0,0]; p.axe = [1.0,0,0]; }
     else { p.armR = [-.4,0,-.14]; p.foreR = [-1.8,0,0]; p.axe = [1.2,0,0]; } }
+  else if (P.held === 'spear' && free) {   // spear: upright at the side / leveled forward in first person
+    if (cam.fp) { p.armR = [-1.2+cam.fpPitch*.6,0,.15]; p.foreR = [-.5,0,0]; p.axe = [1.6,0,0]; }
+    else { p.armR = [-.2,0,-.1]; p.foreR = [-1.3,0,0]; p.axe = [-.25,0,0]; } }
   else if (P.held && free) {   // canteen / coconut carried upright in front
     if (cam.fp) { p.armR = [-1.25+cam.fpPitch*.6,0,.3]; p.foreR = [-.85,0,0]; p.axe = [.5,0,0]; }
     else { p.armR = [-.25,0,-.05]; p.foreR = [-1.15,0,0]; p.axe = [-.17,0,0]; } }
@@ -540,12 +612,16 @@ function poseFor(t) {
 }
 
 // ================= combat =================
-function strike(range, cone, power) {
+function strike(range, cone, power, dmg = power ? 3 : 1) {
   const fx = Math.sin(P.yaw), fz = Math.cos(P.yaw); let hit = false;
   for (const tr of trees) { if (tr.state !== 'up') continue;
     const dx = tr.x - P.x, dz = tr.z - P.z, d = Math.hypot(dx, dz) || 1;
     if (d > range + .3 || (cone > -1 && (dx*fx + dz*fz)/d < cone)) continue;
     hitTree(tr, power, dx/d, dz/d); hit = true; }
+  for (const c of chickens) { if (c.state === 'dead') continue;
+    const dx = c.x - P.x, dz = c.z - P.z, d = Math.hypot(dx, dz) || 1;
+    if (d > range + .15 || (cone > -1 && (dx*fx + dz*fz)/d < cone)) continue;
+    hitChicken(c, dmg, dx/d, dz/d); hit = true; }
   return hit;
 }
 function hitTree(tr, power, dx, dz) {
@@ -559,6 +635,14 @@ function hitTree(tr, power, dx, dz) {
   const coco = tr.crown.boxes.find(b => b.coco && !b.hidden);
   if (coco && Math.random() < .35 + power*.15) { coco.hidden = true;
     spawn({ p:xform(cw, coco.o), v:[rand(-1,1),0,rand(-1,1)], life:90, s:.17, c:TC.coco, bounce:.45, spin:rand(-4,4), pickup:true }); }
+  if (power) {
+    const f = clamp(1 - (tr.hp - power)/5, 0, 1), lx = Math.cos(tr.yaw)*dx - Math.sin(tr.yaw)*dz, lz = Math.sin(tr.yaw)*dx + Math.cos(tr.yaw)*dz;
+    [1,2].forEach((k, n) => { const sg = tr.segs[k], o = tr.orig[k], d = f*(n ? 1 : .55);
+      sg.s = [o.s[0]*(1 - .42*d), o.s[1], o.s[2]*(1 - .42*d)]; sg.o = [o.o[0] + lx*.07*d, o.o[1], o.o[2] + lz*.07*d]; delete sg.lm; });
+    const w = tr.orig[2].s[0], cy = tr.orig[2].o[1] + rand(-.12,.12);
+    tr.inner.boxes.push(Object.assign(B([w*.55,.09,.05],[tr.orig[2].o[0] - lx*w*(.36-.12*f), cy, -lz*w*(.36-.12*f)], [.88,.75,.53], [0, Math.atan2(lx, lz), rand(-.2,.2)]), { cut: true }));
+    for (let i = 0; i < 5; i++) spawn({ p:[...hp], v:[-dx*rand(1.5,3)+rand(-1,1), rand(2,4), -dz*rand(1.5,3)+rand(-1,1)], life:rand(2,3), s:rand(.08,.13), c:[.86,.72,.5], bounce:.3 }); // bigger splinters
+  }
   if (power && (tr.hp -= power) <= 0) { tr.state = 'falling'; tr.fallA = Math.atan2(dx, dz) - tr.yaw; tr.fall = 0; tr.fallV = .2; }
 }
 function updateTree(tr, dt, t) {
@@ -569,14 +653,16 @@ function updateTree(tr, dt, t) {
   if (tr.state === 'up') { tr.trunk.rot = [sh*Math.sin(t*30)*.025, 0, 0]; tr.inner.rot = [0,0,0]; }
   if (tr.state === 'falling') {
     tr.fallV += dt*2.6; tr.fall += tr.fallV*dt;
-    if (tr.fall >= 1.47) { tr.fall = 1.47; tr.state = 'down'; tr.timer = 4; cam.shake = .25;
+    if (tr.fall >= 1.47) { tr.fall = 1.47; tr.state = 'down'; tr.timer = .35; cam.shake = .25;
       const cw = tr.crown.world; if (cw) { puff([cw[12],0,cw[14]], 18);
         for (let i = 0; i < 18; i++) spawn({ p:[cw[12]+rand(-1.2,1.2), .3, cw[14]+rand(-1.2,1.2)], v:[rand(-2,2),rand(1,3),rand(-2,2)], g:2, drag:2, flutter:2, life:rand(2,4), s:.09, c: Math.random()<.5 ? TC.leaf : TC.leaf2 }); }
       for (let i = 0; i < 4; i++) puff([tr.x + Math.sin(tr.fallA+tr.yaw)*i, 0, tr.z + Math.cos(tr.fallA+tr.yaw)*i], 4); }
     tr.trunk.rot = [tr.fall, tr.fallA, 0]; tr.inner.rot = [0, -tr.fallA, 0];
-  } else if (tr.state === 'down' && (tr.timer -= dt) <= 0) {          // poof, then regrow from the ground
-    const cw = tr.crown.world; if (cw) for (let i = 0; i < 25; i++)
-      spawn({ p:[lerp(tr.x, cw[12], Math.random()), .3, lerp(tr.z, cw[14], Math.random())], v:[rand(-1,1),rand(1,3),rand(-1,1)], g:-.5, drag:3, life:rand(.5,1), s:rand(.06,.12), c:[.4,.37,.33] });
+  } else if (tr.state === 'down' && (tr.timer -= dt) <= 0) {          // smash into pieces + drop logs
+    breakTree(tr); tr.state = 'gone'; tr.timer = 7; tr.node.hidden = true;
+  } else if (tr.state === 'gone' && (tr.timer -= dt) <= 0) {          // regrow from the ground, scars healed
+    tr.segs.forEach((sg, k) => { sg.s = [...tr.orig[k].s]; sg.o = [...tr.orig[k].o]; delete sg.lm; });
+    tr.inner.boxes = tr.inner.boxes.filter(b => !b.cut); tr.node.hidden = false;
     tr.state = 'grow'; tr.trunk.rot = [0,0,0]; tr.inner.rot = [0,0,0]; tr.trunk.pos = [0,-4.6,0];
     tr.crown.boxes.forEach(b => b.hidden = false); tr.hp = 5;
   } else if (tr.state === 'grow') {
@@ -586,6 +672,128 @@ function updateTree(tr, dt, t) {
   }
 }
 
+// ================= tree debris (felled palms shatter into tumbling chunks) =================
+const debris = [];
+function breakTree(tr) {
+  const pieces = (n, list) => { if (!n.world) return; for (const b of list) { if (b.hidden) continue;
+    const m = M.mul(n.world, b.lm || (b.lm = M.mul(M.mul(M.t(...b.o), M.rot(b.r)), M.s(...b.s)))), m0 = [...m]; m0[12] = m0[13] = m0[14] = 0;
+    debris.push({ p:[m[12], m[13], m[14]], m0, rot:[0,0,0], v:[rand(-1.6,1.6), rand(1.5,4.5), rand(-1.6,1.6)], spin:[rand(-5,5),rand(-5,5),rand(-5,5)], life:rand(2.2,3.4), c:b.c }); } };
+  pieces(tr.inner, tr.inner.boxes); pieces(tr.crown, tr.crown.boxes);
+  for (const f of tr.fronds) if (f.world) { const p = xform(f.world, [0,0,.8]); for (let i = 0; i < 5; i++)
+    spawn({ p: p.map(v => v + rand(-.3,.3)), v:[rand(-2,2),rand(1,3),rand(-2,2)], g:2, drag:2, flutter:2.5, life:rand(2,3.5), s:rand(.08,.14), c: i%2 ? TC.leaf : TC.leaf2 }); }
+  for (const k of [1, 4, 7]) { const sg = tr.segs[k]; if (!tr.inner.world) break; dropItem('wood', xform(tr.inner.world, sg.o).map((v,a) => a === 1 ? Math.max(.3, v) : v)); }
+  for (let i = 0; i < 5; i++) puff(xform(tr.inner.world, tr.segs[i*2].o).map((v,a) => a === 1 ? 0 : v), 5, [.6,.5,.38]);
+  cam.shake = .3;
+}
+function updateDebris(dt) {
+  for (let i = debris.length-1; i >= 0; i--) { const d = debris[i];
+    d.v[1] -= 12*dt; for (let a = 0; a < 3; a++) { d.p[a] += d.v[a]*dt; d.rot[a] += d.spin[a]*dt; }
+    if (d.p[1] < .1) { d.p[1] = .1; d.v[1] = Math.abs(d.v[1]) > 1.5 ? -d.v[1]*.3 : 0; d.v[0] *= .8; d.v[2] *= .8; d.spin = d.spin.map(x => x*.6); }
+    if ((d.life -= dt) <= 0) { puff(d.p, 2, [.55,.45,.33]); debris.splice(i, 1); } }
+}
+
+// ================= chickens =================
+const CK = { white:[.95,.93,.88], cream:[.9,.85,.74], shade:[.8,.78,.74], red:[.82,.16,.12], beak:[.95,.68,.2], leg:[.93,.6,.2], eye:[.06,.05,.05] };
+function makeChicken(x, z) {
+  const head = node('ckHead', [0,.1,.12], [
+    B([.1,.11,.1],[0,.05,.02],CK.white), B([.09,.03,.09],[0,.105,.02],CK.white),
+    spike([0,.1,.03],[0,1,.25],.07,.05,CK.red), spike([0,.1,-.02],[0,1,-.35],.06,.045,CK.red), spike([0,.09,.07],[0,1,.7],.05,.04,CK.red),
+    spike([0,.05,.065],[0,-.15,1],.07,.045,CK.beak), B([.03,.05,.02],[0,0,.075],CK.red),
+    B([.012,.022,.022],[.051,.07,.04],CK.eye), B([.012,.022,.022],[-.051,.07,.04],CK.eye),
+  ]);
+  const wing = sd => node('ckWing', [.105*sd,.03,-.01], [B([.03,.12,.19],[0,-.03,-.01],CK.shade), B([.025,.06,.08],[0,-.06,-.1],CK.cream,[.4,0,0])]);
+  const leg = sd => node('ckLeg', [.05*sd,-.08,.01], [B([.025,.12,.025],[0,-.06,0],CK.leg), B([.02,.012,.07],[0,-.125,.03],CK.leg),
+    B([.018,.012,.05],[.02*sd,-.125,.025],CK.leg,[0,.6*sd,0]), B([.018,.012,.04],[0,-.125,-.015],CK.leg)]);
+  const wl = wing(1), wr = wing(-1), ll = leg(1), lr = leg(-1);
+  const body = node('ckBody', [0,.22,0], [
+    B([.2,.18,.27],[0,0,0],CK.white), B([.18,.16,.22],[0,.03,-.02],CK.white,[.35,0,0]), B([.17,.15,.12],[0,-.01,.11],CK.cream),
+    B([.16,.1,.2],[0,-.07,-.01],CK.shade),
+    spike([0,.06,-.12],[0,.9,-.55],.2,.11,CK.white), spike([.045,.04,-.12],[.3,.8,-.6],.16,.08,CK.shade), spike([-.045,.04,-.12],[-.3,.8,-.6],.16,.08,CK.shade),
+  ], [head, wl, wr, ll, lr]);
+  return { node: node('chicken', [x,0,z], [], [body]), body, head, wl, wr, ll, lr, x, z, yaw: rand(0,6.28), hp: 3, state: 'idle',
+    timer: rand(.5,2), tx: x, tz: z, speed: 0, phase: rand(0,6), vy: 0, y: 0, dead: 0, home: [x, z] };
+}
+function chickenSpot() { for (;;) { const x = rand(-20,20), z = rand(-20,20); if (Math.hypot(x - P.x, z - P.z) > 6) return [x, z]; } }
+const chickens = Array.from({length: 6}, () => makeChicken(...chickenSpot()));
+const feathers = (p, n) => { for (let i = 0; i < n; i++) spawn({ p:[p[0]+rand(-.1,.1), p[1]+rand(0,.15), p[2]+rand(-.1,.1)],
+  v:[rand(-1.5,1.5), rand(1,3), rand(-1.5,1.5)], g:1.2, drag:2.5, flutter:2.5, life:rand(1.5,2.6), s:rand(.035,.06), c: i%3 ? CK.white : CK.cream, spin:rand(-4,4) }); };
+function hitChicken(c, dmg, dx, dz) {
+  if (c.state === 'dead') return;
+  c.hp -= dmg; feathers([c.x, .25, c.z], 7); c.vy = 3; c.x += dx*.3; c.z += dz*.3; cam.shake = Math.max(cam.shake, .06);
+  if (c.hp <= 0) { c.state = 'dead'; c.dead = 0; feathers([c.x, .25, c.z], 10); }
+  else { c.state = 'flee'; c.timer = 2.2; c.tyaw = Math.atan2(dx, dz); }
+}
+function updateChicken(c, dt, t) {
+  if (c.state === 'dead') {
+    c.dead += dt; c.body.rot = [0, 0, Math.min(1.5, c.dead*5)]; c.ll.rot = c.lr.rot = [-.9,0,0];
+    c.y = Math.max(0, c.y + (c.vy -= 14*dt)*dt);
+    if (c.dead > 1.1 && !c.gone) { c.gone = true; c.respawn = 14; feathers([c.x, .2, c.z], 14); puff([c.x,0,c.z], 6, [.9,.88,.84]); dropItem('chicken', [c.x, .3, c.z]); }
+    if (c.gone) c.respawn -= dt;
+    c.node.pos = [c.x, c.y, c.z]; return; }
+  const dx = c.x - P.x, dz = c.z - P.z, d = Math.hypot(dx, dz);
+  if (c.state !== 'flee' && d < 1.7 && P.speed > 3.5) { c.state = 'flee'; c.timer = 1.6; }
+  c.timer -= dt; let want = 0;
+  if (c.state === 'flee') { want = 3.4; c.tyaw = Math.atan2(dx, dz) + Math.sin(t*3 + c.home[0])*.5; if (c.timer <= 0) { c.state = 'idle'; c.timer = rand(.5,1.5); } }
+  else if (c.state === 'walk') { want = .8; c.tyaw = Math.atan2(c.tx - c.x, c.tz - c.z);
+    if (Math.hypot(c.tx - c.x, c.tz - c.z) < .2 || c.timer <= 0) { c.state = 'idle'; c.timer = rand(.6,2); } }
+  else if (c.state === 'peck') { if (c.timer <= 0) { c.state = 'idle'; c.timer = rand(.4,1.5); } }
+  else if (c.timer <= 0) {
+    if (Math.random() < .45) { c.state = 'peck'; c.timer = rand(1,2.2); }
+    else { c.state = 'walk'; const a = rand(0,6.28), rr = rand(.8,3.5); c.tx = c.home[0] + Math.sin(a)*rr; c.tz = c.home[1] + Math.cos(a)*rr; c.timer = 6; } }
+  if (want > 0) c.yaw = angLerp(c.yaw, c.tyaw, 1 - Math.exp(-8*dt));
+  c.speed = lerp(c.speed, want, 1 - Math.exp(-6*dt));
+  c.x += Math.sin(c.yaw)*c.speed*dt; c.z += Math.cos(c.yaw)*c.speed*dt;
+  const rr = Math.hypot(c.x, c.z); if (rr > 47) { c.x *= 47/rr; c.z *= 47/rr; }
+  for (const tr of trees) if (tr.state === 'up') { const ex = c.x - tr.x, ez = c.z - tr.z, e = Math.hypot(ex, ez); if (e < .4 && e > 0) { c.x = tr.x + ex/e*.4; c.z = tr.z + ez/e*.4; } }
+  c.y = Math.max(0, c.y + (c.vy -= 14*dt)*dt); if (c.y === 0) c.vy = 0;
+  c.phase += dt*c.speed*14;
+  const s = Math.sin(c.phase), mv = Math.min(1, c.speed*1.5);
+  c.ll.rot = [s*.7*mv,0,0]; c.lr.rot = [-s*.7*mv,0,0];
+  c.body.pos = [0, .22 + Math.abs(Math.cos(c.phase))*.02*mv, 0]; c.body.rot = [c.state === 'flee' ? .25 : 0, 0, s*.05*mv];
+  if (c.state === 'peck') { const pk = Math.max(0, Math.sin(t*9 + c.home[0]*3)); c.head.rot = [pk*1.1 + .2, 0, 0]; c.head.pos = [0, .1 - pk*.03, .13 + pk*.03]; c.body.rot = [.25,0,0]; }
+  else { c.head.rot = [0, Math.sin(t*1.3 + c.home[1])*.4*(1 - mv), 0]; c.head.pos = [0, .1, .12 + Math.sin(c.phase*2)*.02*mv]; }   // the chicken head-bob
+  const flap = c.state === 'flee' || c.y > 0 ? Math.sin(t*32)*.6 + .7 : .05;
+  c.wl.rot = [0,0,flap]; c.wr.rot = [0,0,-flap];
+  c.node.pos = [c.x, c.y, c.z]; c.node.rot = [0, c.yaw, 0];
+}
+
+// ================= ground drops (3D pickups) =================
+const drops = [];
+function dropItem(id, p) { drops.push({ id, node: id === 'wood' ? makeLog() : makeDrumstick(false), p:[...p], v:[rand(-1,1),3.2,rand(-1,1)], yaw: rand(0,6), t: 0 }); }
+function updateDrops(dt, t) {
+  for (let i = drops.length-1; i >= 0; i--) { const d = drops[i]; d.t += dt;
+    d.v[1] -= 12*dt; for (let a = 0; a < 3; a++) d.p[a] += d.v[a]*dt;
+    if (d.p[1] < .07) { d.p[1] = .07; d.v[1] = Math.abs(d.v[1]) > 1 ? -d.v[1]*.35 : 0; d.v[0] *= .7; d.v[2] *= .7; }
+    d.yaw += dt*(d.v[1] ? 6 : 1.2);
+    d.node.pos = [d.p[0], d.p[1] + (d.v[1] === 0 ? Math.sin(t*3 + i)*.03 + .05 : 0), d.p[2]]; d.node.rot = [0, d.yaw, 0];
+    if (d.t > .6 && Math.hypot(d.p[0] - P.x, d.p[2] - P.z) < .8) {
+      drops.splice(i, 1); inv[d.id]++; puff(d.p, 4, [.9,.8,.7]); toast('+1 ' + ITEMS[d.id].name); renderUI(); } }
+}
+
+// ================= thrown spear =================
+let thrown = null; const thrownSpear = makeSpear();
+function throwSpear() {
+  const hn = HELD.spear; if (!hn.world) return;
+  let dir = cam.fp ? [-Math.sin(cam.yaw)*Math.cos(cam.fpPitch), -Math.sin(cam.fpPitch) + .08, -Math.cos(cam.yaw)*Math.cos(cam.fpPitch)]
+                   : [Math.sin(P.yaw), .2, Math.cos(P.yaw)];
+  dir = norm(dir); thrown = { p: xform(hn.world, [0,0,0]), v: dir.map(x => x*17), d: dir, stuck: false, t: 0 };
+  inv.spear = 0; setHeld(null); renderUI();
+}
+function updateThrown(dt) {
+  if (!thrown) return; const T = thrown; T.t += dt;
+  if (!T.stuck) {
+    T.v[1] -= 9*dt; for (let a = 0; a < 3; a++) T.p[a] += T.v[a]*dt; T.d = norm(T.v);
+    const tip = T.p.map((v,a) => v + T.d[a]*1.15);
+    for (const c of chickens) if (c.state !== 'dead' && Math.hypot(tip[0]-c.x, tip[1]-.25, tip[2]-c.z) < .35) { hitChicken(c, 3, T.d[0], T.d[2]); T.v = T.v.map(v => v*.25); }
+    for (const tr of trees) if (tr.state === 'up' && tip[1] < 2.5 && Math.hypot(tip[0]-tr.x, tip[2]-tr.z) < .25) { T.stuck = true; hitTree(tr, 0, T.d[0], T.d[2]); }
+    if (tip[1] <= .02) { T.stuck = true; puff(tip, 5); }
+  } else if (T.t > .4 && Math.hypot(T.p[0] - P.x, T.p[2] - P.z) < 1) {
+    thrown = null; inv.spear = 1; toast('Picked up ' + ITEMS.spear.name);
+    if (hotbar[P.sel] === 'spear' && !P.held && P.equip <= 0) { P.equip = 1; P.equipTo = 'spear'; }
+    renderUI(); return; }
+  thrownSpear.pos = T.p; thrownSpear.rot = [-Math.asin(clamp(T.d[1], -1, 1)), Math.atan2(T.d[0], T.d[2]), 0];
+}
+
 // ================= update =================
 // ================= items, hotbar & backpack UI =================
 const ITEMS = {
@@ -593,17 +801,25 @@ const ITEMS = {
              stats:['F / click: chop → sweep → spin', 'Five hits fells a palm', 'X: twirl'] },
   canteen: { name:'Field Canteen', short:'canteen', tag:'Drink', desc:'Dented tin canteen in a waxed canvas sleeve. Still cold somehow.',
              stats:['+28 thirst per sip', '8 sips when full'] },
+  spear:   { name:'Hunting Spear', short:'spear', tag:'Weapon', desc:'Ash shaft with a honed steel point, bound in leather and a strip of scarf cloth.',
+             stats:['F / click: thrust → thrust → lunge', 'E: throw it — walk over it to pick it up', 'Long reach, made for chickens'] },
+  chicken: { name:'Raw Chicken', short:'chicken', tag:'Food', desc:'A fresh drumstick. Better cooked, but it will do.', stats:['+40 hunger'] },
+  wood:    { name:'Palm Wood', short:'wood', tag:'Material', desc:'A fibrous palm log, split clean by your axe. Light, tough, good for building.',
+             stats:['3 logs from every felled palm'] },
   coconut: { name:'Coconut', short:'coconut', tag:'Food', desc:'Cracked open and ready. Shake a palm or chop one down for more.',
              stats:['+30 hunger', '+12 thirst'] },
 };
 const ICONS = {
   axe: '<path d="M11 43 L35 11 L38 13 L14 45Z" fill="#a9774a"/><path d="M11 43 L23 27 L25 28.5 L14 45Z" fill="#8a5d36"/><path d="M9 44 L12 41 L15 44 L12 47Z" fill="#5a3a22"/><path d="M15.5 37.5 L20 31.5 L23 33.5 L18.5 39.5Z" fill="#6b4428"/><path d="M16.8 36 L18.6 37.3 M19 33 L20.8 34.3" stroke="#cfc3a6" stroke-width="1.2"/><path d="M29 10 L39 3 L45 13 L36 19Z" fill="#8f8a80"/><path d="M39 3 L46 5 L45 13Z" fill="#e2dfd6"/><path d="M29 10 L33 7 L36 9.5 L32 12Z" fill="#6f6b62"/><path d="M32 15 L30 23 L33.5 22 L34 16Z" fill="#5b6a3a"/>',
   canteen: '<path d="M8 15 L13 15 L11 22 L8 22Z" fill="#6b4428"/><path d="M14 16 L34 16 L39 24 L39 38 L33 44 L15 44 L9 38 L9 24Z" fill="#5b6a3a"/><path d="M14 16 L24 16 L23 44 L15 44 L9 38 L9 24Z" fill="#6f7f48"/><path d="M9 28 L39 28 L39 32 L9 32Z" fill="#6b4428"/><path d="M9 28 L24 28 L24 32 L9 32Z" fill="#7d5233"/><rect x="20" y="9" width="8" height="7" fill="#9a958a"/><rect x="20" y="9" width="4" height="7" fill="#b3aea3"/><rect x="18.5" y="4" width="11" height="5.5" rx="1" fill="#6b4428"/><path d="M15 36 L22 36 L21 41 L16 41Z" fill="#4a5530"/>',
+  spear: '<path d="M5 46 L36 13 L38.5 15.5 L7.5 48.5Z" fill="#a9774a"/><path d="M5 46 L21 29 L23.2 31.2 L7.5 48.5Z" fill="#8a5d36"/><path d="M13 38 L18.6 32 L21.6 35 L16 41Z" fill="#6b4428"/><path d="M14.6 36.4 L17.6 39.4 M17 33.8 L20 36.8" stroke="#cfc3a6" stroke-width="1.1"/><path d="M3.5 47.5 L5.5 45.5 L8.5 48.5 L6.5 50.5Z" fill="#5a3a22"/><path d="M32.5 15.5 L35.5 12.5 L39.5 16.5 L36.5 19.5Z" fill="#6b4428"/><path d="M35 13 L46 2 L41.5 17.5Z" fill="#8f8a80"/><path d="M35 13 L46 2 L39.6 14.6Z" fill="#e2dfd6"/><path d="M36 19 L33 26 L35.6 25.4 L37.6 19.8Z" fill="#5b6a3a"/>',
+  chicken: '<path d="M8 13 L18 5 L31 8 L37 20 L33 31 L22 35 L12 31 L6 22Z" fill="#e3998c"/><path d="M8 13 L18 5 L31 8 L24 18 L12 19Z" fill="#f2b6a6"/><path d="M6 22 L12 19 L24 18 L22 35 L12 31Z" fill="#cf7f73"/><path d="M24 18 L31 8 L37 20 L33 31 L22 35Z" fill="#c26f63"/><path d="M13 10 L19 7.5 L21.5 10.5 L15.5 12.5Z" fill="#fbd9cb"/><path d="M27 26 L30 31 L26 30Z" fill="#e8a596"/><path d="M29 30 L39 39 L36.5 41.5 L27 33Z" fill="#f1eadb"/><path d="M29 30 L39 39 L38 40 L28 31.5Z" fill="#d6cbb2"/><circle cx="38.5" cy="42.5" r="3.3" fill="#efe7d6"/><circle cx="41.8" cy="39" r="3.3" fill="#f7f0e2"/><path d="M36.5 45 L40.5 45.3 L44.5 41.5" stroke="#cdbfa4" stroke-width="1" fill="none"/>',
+  wood: '<path d="M6 31 L28 9 L39 20 L17 42Z" fill="#7a5634"/><path d="M6 31 L28 9 L32 13 L10 35Z" fill="#94693f"/><path d="M13 38 L35 16 L39 20 L17 42Z" fill="#5f4128"/><path d="M11 33.5 L31 13.5 M15 37 L34 18" stroke="#4e351f" stroke-width="1.1"/><path d="M20 28 L16 19 L19.5 18 L23 26Z" fill="#5f4128"/><path d="M27 8 L34 5 L41 12 L38 19 L31 22 L26 15Z" fill="#e2c48f"/><path d="M29.5 10 L34 8.5 L38.5 13 L36.5 17.5 L32 19 L29 14.5Z" fill="none" stroke="#b48b55" stroke-width="1.1"/><path d="M32.5 12.5 L35 12 L36 14.5 L33.5 15.5Z" fill="#a87c47"/>',
   coconut: '<path d="M24 5 L38 12 L43 26 L37 39 L24 44 L11 39 L5 26 L10 12Z" fill="#6a4426"/><path d="M24 5 L38 12 L31 23 L17 21 L10 12Z" fill="#82552f"/><path d="M5 26 L17 21 L31 23 L24 44 L11 39Z" fill="#59381f"/><path d="M31 23 L43 26 L37 39 L24 44Z" fill="#4c2f19"/><path d="M14 11 L24 7 L34 11 L24 15Z" fill="#efe9d8"/><circle cx="20" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="28" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="24" cy="23" r="1.8" fill="#2b1a0e"/>',
 };
 const icon = id => `<svg class="ic" viewBox="0 0 48 48">${ICONS[id]}</svg>`;
-const inv = { axe: 1, canteen: 1, coconut: 2 }, canteenSips = { n: 8, max: 8 };
-const hotbar = ['axe', null, null, null, null];
+const inv = { axe: 1, spear: 1, canteen: 1, coconut: 2, chicken: 0, wood: 0 }, canteenSips = { n: 8, max: 8 };
+const hotbar = ['axe', 'spear', null, null, null];
 let panelOpen = false, assignId = null, invSel = 'canteen', nameTimer = 0;
 const $ = id => document.getElementById(id);
 function toast(msg) { const d = document.createElement('div'); d.textContent = msg; $('toast').appendChild(d);
@@ -612,7 +828,7 @@ function showName(id) { const el = $('itemName'); el.textContent = id ? ITEMS[id
   clearTimeout(nameTimer); nameTimer = setTimeout(() => el.classList.remove('show'), 1400); }
 function slotHTML(id, extra = '') {
   if (!id) return extra;
-  const n = inv[id], cnt = id === 'coconut' ? `<span class="n">${n}</span>` : '';
+  const n = inv[id], cnt = id === 'coconut' || id === 'chicken' || id === 'wood' ? `<span class="n">${n}</span>` : '';
   const fill = id === 'canteen' ? `<span class="fill"><i style="height:${canteenSips.n / canteenSips.max * 100}%"></i></span>` : '';
   return icon(id) + cnt + fill + extra;
 }
@@ -630,11 +846,11 @@ function renderUI() {
   const it = invSel && ITEMS[invSel], inBar = invSel ? hotbar.indexOf(invSel) : -1;
   $('detail').innerHTML = !it ? '<p>Your backpack is empty.</p>' : `
     <div class="big">${icon(invSel)}</div><span class="tag">${it.tag}</span><h3>${it.name}</h3>
-    <div style="color:var(--muted);font-size:12px">${invSel === 'canteen' ? `${canteenSips.n} / ${canteenSips.max} sips` : invSel === 'coconut' ? `× ${inv.coconut}` : 'Durable'}</div>
+    <div style="color:var(--muted);font-size:12px">${invSel === 'canteen' ? `${canteenSips.n} / ${canteenSips.max} sips` : ['coconut','chicken','wood'].includes(invSel) ? `× ${inv[invSel]}` : 'Durable'}</div>
     <p>${it.desc}</p><ul>${it.stats.map(x => `<li>${x}</li>`).join('')}</ul>
     <div class="acts">${inBar >= 0 ? `<button class="btn" data-act="remove">Remove from hotbar (slot ${inBar+1})</button>`
                                      : `<button class="btn primary" data-act="add">Add to hotbar</button>`}
-      ${invSel !== 'axe' ? `<button class="btn" data-act="use">${invSel === 'canteen' ? 'Drink' : 'Eat'}</button>` : ''}</div>
+      ${!['axe','spear','wood'].includes(invSel) ? `<button class="btn" data-act="use">${invSel === 'canteen' ? 'Drink' : 'Eat'}</button>` : ''}</div>
     <div class="hint">${assignId ? 'Pick a hotbar slot below (or press 1–5)…' : 'Tip: drag items onto any hotbar slot.'}</div>`;
 }
 function togglePanel(open = !panelOpen) {
@@ -662,8 +878,9 @@ function selectSlot(i) {
 }
 function startUse(kind, restore) {
   if (kind === 'drink' && canteenSips.n <= 0) return toast('Canteen is empty');
-  if (kind === 'eat' && inv.coconut <= 0) return toast('No coconuts left — chop a palm');
-  P.use = { kind, t: 0, dur: kind === 'drink' ? 1.9 : 1.9, done: false, bite: 0, restore }; P.emote = null;
+  const item = kind === 'eat' ? (P.held === 'chicken' ? 'chicken' : 'coconut') : 'canteen';
+  if (kind === 'eat' && inv[item] <= 0) return toast(item === 'chicken' ? 'No chicken left — hunt one' : 'No coconuts left — chop a palm');
+  P.use = { kind, item, t: 0, dur: kind === 'drink' ? 1.9 : 1.9, done: false, bite: 0, restore }; P.emote = null;
 }
 function updateUse(dt) {
   const u = P.use; if (!u) return; u.t += dt; const k = u.t / u.dur, hand = J.foreR.world && xform(J.foreR.world, [0,-.32,.05]);
@@ -671,24 +888,24 @@ function updateUse(dt) {
     // thumb flips the cap open on the way up, closes it on the way down
     const open = smooth(clamp((k - .12) / .12, 0, 1)) * (1 - smooth(clamp((k - .84) / .1, 0, 1)));
     canteenCap.rot = [0, open * 2.5, 0];
-    if (canteen.world && k > .36 && k < .8) {           // water pours from the spout along the flask's axis
-      const m = canteen.world, mouth = xform(m, [0,0,.19]), ax = norm([m[8], m[9], m[10]]);
-      for (let i = 0; i < 2; i++) spawn({ p: mouth.map(v => v + rand(-.008,.008)), v: ax.map(v => v*rand(.6,1)), g:3, drag:1, life:.16, s:.022, c:[.6,.85,1], emit:true, spin:0 });
-      if (Math.random() < .12) spawn({ p: mouth, v:[rand(-.3,.3),0,rand(-.3,.3)], g:8, drag:.3, life:.5, s:.02, c:[.55,.8,.95], emit:true }); } }
+    if (canteen.world && head.world && k > .36 && k < .8) {   // water runs from the spout straight into his mouth
+      const spout = xform(canteen.world, [0,0,.19]), mouth = xform(head.world, [0,.14,.22]), T = .14;
+      for (let i = 0; i < 3; i++) spawn({ p: spout.map(v => v + rand(-.006,.006)), v: mouth.map((m,j) => (m - spout[j]) / T), g:0, drag:0, life:T, s:.022, c:[.6,.85,1], emit:true, spin:0 }); } }
   if (u.kind === 'eat' && hand && k > .3 && u.bite < 3 && k > .3 + u.bite*.17) { u.bite++;
     for (let i = 0; i < 6; i++) spawn({ p:hand.map(v => v + rand(-.05,.05)), v:[rand(-.8,.8),rand(.5,1.5),rand(-.8,.8)], life:rand(.6,1), s:.03, c: i%2 ? [.94,.91,.83] : TC.coco }); }
   if (!u.done && k >= .82) { u.done = true;
     if (u.kind === 'drink') { canteenSips.n--; P.thirst = Math.min(100, P.thirst + 28); toast(`+28 Thirst · ${canteenSips.n} sips left`); }
+    else if (u.item === 'chicken') { inv.chicken--; P.hunger = Math.min(100, P.hunger + 40); toast('+40 Hunger'); }
     else { inv.coconut--; P.hunger = Math.min(100, P.hunger + 30); P.thirst = Math.min(100, P.thirst + 12); toast('+30 Hunger · +12 Thirst'); }
     renderUI(); }
   if (k >= 1) { P.use = null;
     if (u.restore !== undefined) setHeld(u.restore);
-    else if (P.held === 'coconut' && inv.coconut <= 0) setHeld(null); }
+    else if ((P.held === 'coconut' || P.held === 'chicken') && inv[P.held] <= 0) setHeld(null); }
 }
 function useFromPanel(id) {
   if (P.equip > 0 || P.atk || P.use) return;
   const kind = id === 'canteen' ? 'drink' : 'eat';
-  if ((kind === 'drink' && canteenSips.n <= 0) || (kind === 'eat' && inv.coconut <= 0)) return startUse(kind);
+  if ((kind === 'drink' && canteenSips.n <= 0) || (kind === 'eat' && inv[id] <= 0)) { setHeld(id); startUse(kind, P.held); return; }
   togglePanel(false); const prev = P.held; setHeld(id); startUse(kind, prev);
 }
 // hotbar: click selects (or assigns), right-click clears, drop target for drag & drop
@@ -739,6 +956,7 @@ function update(dt, t) {
   for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; P.atk = null; }
   for (let i = 0; i < 5; i++) if (pressed[String(i+1)]) selectSlot(i);
   if (pressed['x'] && P.hasAxe && !P.atk && P.twirl <= 0) P.twirl = 1;
+  if (pressed['e'] && P.held === 'spear' && !P.atk && P.equip <= 0 && !P.use) startAttack('throw');
 
   // movement relative to camera
   let ix = (keys['d']?1:0) - (keys['a']?1:0), iz = (keys['w']?1:0) - (keys['s']?1:0);
@@ -768,13 +986,15 @@ function update(dt, t) {
   // attacks: axe combo when holding it, fists otherwise
   if (pressed['f'] && P.roll <= 0 && P.equip <= 0 && !P.use) {
     if (P.hasAxe) { if (!P.atk) startAttack('chop'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4) P.atkQueued = true; }
-    else if (P.held === 'canteen' || P.held === 'coconut') startUse(P.held === 'canteen' ? 'drink' : 'eat');
+    else if (P.held === 'spear') { if (!P.atk) startAttack('thrust'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4 && ATTACKS[P.atk.name].next) P.atkQueued = true; }
+    else if (P.held === 'canteen' || P.held === 'coconut' || P.held === 'chicken') startUse(P.held === 'canteen' ? 'drink' : 'eat');
     else if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
   }
   if (P.atk) { const A = ATTACKS[P.atk.name]; P.atk.t += dt; const k = P.atk.t / A.dur;
-    if (k > A.hit - .12 && k < A.hit + .06) { const h = axe.world && xform(axe.world, [0,-.12,.52]); // swing trail
+    if (A.dash && k > .3 && k < .55) { P.x += Math.sin(P.yaw)*A.dash*dt; P.z += Math.cos(P.yaw)*A.dash*dt; }
+    if (k > A.hit - .12 && k < A.hit + .06) { const hn = HELD[P.held], h = hn && hn.world && xform(hn.world, P.held === 'spear' ? [0,0,1.18] : [0,-.12,.52]); // swing trail
       if (h) for (let i = 0; i < 2; i++) spawn({ p:h.map(v => v + rand(-.04,.04)), g:0, drag:4, life:.22, s:.045, c:[.95,.92,.82], emit:true, spin:0 }); }
-    if (!P.atk.hit && k >= A.hit) { P.atk.hit = true; strike(A.range, A.cone, A.power); }
+    if (!P.atk.hit && k >= A.hit) { P.atk.hit = true; if (A.throw) throwSpear(); else strike(A.range, A.cone, A.power, A.dmg); }
     if (k >= 1) { const nx = P.atkQueued ? A.next : null; P.atk = null; if (nx) startAttack(nx); } }
   const pk = P.punch; P.punch = Math.max(0, P.punch - dt / (P.combo === 3 ? .5 : .32));
   if (pk > .6 && P.punch <= .6) strike(1.1, .6, 0);
@@ -820,12 +1040,14 @@ function update(dt, t) {
   pack.hidden = !packOn;
 
   for (const tr of trees) updateTree(tr, dt, t);
+  chickens.forEach((c, i) => { updateChicken(c, dt, t); if (c.gone && c.respawn <= 0) chickens[i] = makeChicken(...chickenSpot()); });
+  updateDrops(dt, t); updateThrown(dt); updateDebris(dt);
   updateParts(dt, t);
   cam.shake = Math.max(0, cam.shake - dt*.8);
   if (!cam.fp && cam.auto && il && !drag && iz >= 0) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8);
   pressed = {};
   updateVitals();
-  const st = P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? 'axe: ' + P.atk.name : P.twirl > 0 ? 'twirl' :
+  const st = P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? (P.hasAxe ? 'axe: ' : 'spear: ') + P.atk.name : P.twirl > 0 ? 'twirl' :
     !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
     P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.hasAxe && !cam.fp ? 'idle (fidget)' : 'idle');
   document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
@@ -841,7 +1063,7 @@ const FP_SKIP_ALL = new Set([head, J.legL, J.legR, pack]), FP_SKIP_SELF = new Se
 function drawNode(n) {
   if (n.hidden || (cam.fp && FP_SKIP_ALL.has(n))) return;
   if (!(cam.fp && FP_SKIP_SELF.has(n))) for (const b of n.boxes) if (!b.hidden)
-    drawBox(M.mul(M.mul(M.mul(n.world, M.t(...b.o)), M.rot(b.r)), M.s(...b.s)), b.c, b.g);
+    drawBox(M.mul(n.world, b.lm || (b.lm = M.mul(M.mul(M.t(...b.o), M.rot(b.r)), M.s(...b.s)))), b.c, b.g);
   for (const c of n.children) drawNode(c);
 }
 
@@ -852,7 +1074,7 @@ function frame(now) {
   update(dt, t);
   const w = cv.clientWidth * devicePixelRatio | 0, h = cv.clientHeight * devicePixelRatio | 0;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  gl.viewport(0, 0, w, h); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.viewport(0, 0, w, h); gl.clearColor(...SKY, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   computeWorld(root, M.id()); for (const tr of trees) computeWorld(tr.node, M.id());
   let eye, tgt;
   if (cam.fp) { // eyes ride the animated head, so bob/crouch/sit/flip carry into the view
@@ -868,9 +1090,21 @@ function frame(now) {
   lastVP = M.mul(M.persp(cam.fp ? 1.25 : .9, w/h, .03, 300), M.look(eye, tgt, [0,1,0]));
   gl.uniformMatrix4fv(U.uVP, false, lastVP);
   gl.uniform3fv(U.uPlayer, [P.x, P.y, P.z]); gl.uniform3fv(U.uCam, eye); gl.uniform1f(U.uGrid, grid);
+  gl.uniform3fv(U.uSky, SKY); gl.uniform1f(U.uTime, t);
+  const blobs = [];   // soft contact shadows on the sand
+  for (const tr of trees) if (tr.state === 'up' && tr.crown.world) blobs.push(tr.crown.world[12], tr.crown.world[14], 1.7);
+  for (const c of chickens) if (!c.gone) blobs.push(c.x, c.z, .3);
+  for (const d of drops) blobs.push(d.p[0], d.p[2], .2);
+  blobArr.set(blobs.slice(0, 120)); gl.uniform3fv(U.uBlob, blobArr); gl.uniform1i(U.uBlobN, Math.min(40, blobs.length/3));
   gl.uniform1i(U.uMode, 1); boundGeo = null; drawBox(M.id(), [0,0,0], 'floor');
-  gl.uniform1i(U.uMode, 0);
+  gl.uniform1i(U.uMode, 0); gl.uniform1f(U.uWind, 1); gl.uniformMatrix4fv(U.uM, false, M.id());
+  for (const g of GRASS) { gl.bindVertexArray(g.vao.a); gl.uniform3fv(U.uCol, g.c); gl.drawArrays(gl.TRIANGLES, 0, g.vao.n); }
+  gl.uniform1f(U.uWind, 0); boundGeo = null;
   drawNode(root); for (const tr of trees) drawNode(tr.node);
+  for (const c of chickens) if (!c.gone) { computeWorld(c.node, M.id()); drawNode(c.node); }
+  for (const d of drops) { computeWorld(d.node, M.id()); drawNode(d.node); }
+  for (const d of debris) { const f = Math.min(1, d.life*1.2); drawBox(M.mul(M.mul(M.mul(M.t(...d.p), M.rot(d.rot)), M.s(f,f,f)), d.m0), d.c); }
+  if (thrown) { computeWorld(thrownSpear, M.id()); drawNode(thrownSpear); }
   for (const q of parts) { if (q.emit) continue; const sc = q.s * Math.min(1, q.life*3);
     drawBox(M.mul(M.mul(M.t(...q.p), M.rot(q.rot)), M.s(sc,sc,sc)), q.c); }
   gl.uniform1i(U.uMode, 2);
