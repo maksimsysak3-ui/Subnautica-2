@@ -417,6 +417,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
         if (!isOff && sc.pressured && (i * 7 + Math.floor(c * 2.5)) % 6 === 0) return mk(x, y, f, POSE.swim(((c * 2.5) % 1)));
         return mk(x, y, f, POSE.drive(PH[i][k] % 1 + c * 1.2));
       }
+      // The kick-slide: a blocker setting back before contact still faces his rusher, never the quarterback.
+      if (isOff && !holder && (sc.pass || sack || VX[i][k] * s < 0)) return mk(x, y, s, POSE.passpro(PH[i][k] % 1 + c * 0.8));
     }
     if (holder && sp > 1.2) return P(runRig(i, k, true));
     if (holder) return P({ ...POSE.stand(), na: 0.2, ne: 2.2, ball: 1 });
