@@ -438,6 +438,11 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const lineDone = DL.map(() => false);
   const escapeSide = rnd() < 0.5 ? -1 : 1;
   const past = (x: number) => s * (x - end) >= 0;   // reached the spot downfield
+  // A sideline finish: the carrier takes it out of bounds at the spot instead of stopping short
+  // of the line, so the play ends as he crosses it (no stop, then a slide off the field).
+  const runsOut = (c: Agent | null) => !!c && c.team === off && sidelineFinish && !ev.td && (endY < 2 || endY > 51.3) && Math.min(c.y, 53.3 - c.y) < 12 && (!pass || caught);
+  const outY = () => (endY < mid ? -1.6 : 54.9);
+  const isOut = (c: Agent) => c.y < -0.15 || c.y > 53.45;
   const before = (x: number) => s * (x - end) <= 0; // reached the spot behind
   // Contact always resolves: a defender who reaches the ball carrier either wraps him up
   // (when he is at or near the spot the engine decided) or gets beaten by a move.
@@ -447,6 +452,23 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
   const effort = new Map<Agent, number>();
   const out = (d: Agent) => (beaten.get(d) ?? 0) > t;
   let closer: Agent | null = null;
+  /** The defender on the play shadows the target before the throw: tight on an incompletion, a step lost on a completion. */
+  const shadow = (d: Agent) => {
+    const r = target, rv = Math.hypot(r.vx, r.vy), open = !!ev.complete;
+    d.top = Math.max(8.4, rv * (open ? 0.94 : 1.05) + 0.25);
+    steer(d, r.x + r.vx * 0.2 + s * (open ? 1.4 : 0.6), r.y + r.vy * 0.2 + (open ? 0.5 : 0.2), 1);
+  };
+  const shadowing = (d: Agent) => pass && d === cov && !thrown && !caught && t > 0.5 && !blitzers.has(d);
+  /** Receivers no defender is on (nobody within 2.5 yd), for the underneath help to pick up. */
+  const freeRecs = () => REC.filter(r => r !== carrier && !agents.some(a => a.team === def && a.role !== 'DL' && !blitzers.has(a) && dist(a, r) < 2.5));
+  /** Underneath help: pick up the nearest receiver nobody is on (a seam, a crosser) and carry him. */
+  const pickUp = (d: Agent) => {
+    if (!pass || caught || t < 0.6) return false;
+    const r = freeRecs().filter(rr => dist(rr, d) < 15).sort((a, b) => dist(a, d) - dist(b, d))[0];
+    if (!r) return false;
+    d.top = Math.max(d.top, Math.min(9.4, Math.hypot(r.vx, r.vy)));
+    steer(d, r.x - s * 0.8 + r.vx * 0.2, r.y + r.vy * 0.2, 1); return true;
+  };
   const zoneCarry = new Map<Agent, Agent>();          // zone defender -> the receiver he's carrying                     // the defender sent to make the tackle at the spot
   // The runner's own moves: reading the hole (cutback or bounce when it's filled), and making
   // the man in front miss before contact (side-to-side juke, jump cut, hesitation, spin).
@@ -511,8 +533,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         if (climb) { const lb = LB.reduce((b, x) => (dist(x, o) < dist(b, o) ? x : b), LB[0]); steer(o, lb.x - s * 0.7, (lb.y + laneY) / 2, 0.9); }
         else steer(o, m.x + s * (ev.yards >= 3 ? 0.9 : 0.1), m.y * 0.55 + laneY * 0.45, 0.9);
       } else {
-        // The pocket: kick-slide back to a set depth in his lane, give ground only in front of
-        // his rusher, and stay between him and the quarterback.
+        // The pocket: stay in his lane, between his rusher and the quarterback.
         const q = carrier ?? QB;
         // Meet the rusher just in front of him (never upfield of the line), giving ground only as he pushes.
         const setX = los - s * 0.3;
@@ -543,7 +564,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
             impulses.push({ a: runner, t0: t, t1: t + 0.22, vy: 0, fwd: 0.45 }, { a: runner, t0: t + 0.22, t1: t + 0.6, vy: 0, fwd: 1, top: runner.top * 1.1 });
           }
         }
-        const hole = at(0.8, lateral + holeShift); const thru = s * (runner.x - hole[0]) < -0.5; steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY));
+        const hole = at(0.8, lateral + holeShift); const thru = s * (runner.x - hole[0]) < -0.5; if (!thru && runsOut(runner)) steer(runner, end, outY()); else steer(runner, thru ? hole[0] : end + s * 2, thru ? hole[1] : evade(runner, endY));
       }
       if (qbRun) steer(fake, at(1, -lateral * 0.5)[0], at(1, -lateral * 0.5)[1], 0.7); else steer(fake, at(-5.5, -2)[0], at(-5.5, -2)[1], 0.5);
     } else {
@@ -563,7 +584,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (RB !== carrier) { const dq = dist(RB, QB); if (dq < 1.9) { const ay = Math.sign(RB.y - QB.y) || (RB.slot.length % 2 ? 1 : -1); RB.vy += ay * (1.9 - dq) * 0.6; if (s * (QB.x - RB.x) * RB.vx * s > 0) RB.vx *= 0.9; } }
     }
     REC.forEach((r, i) => {
-      if (r === carrier) { steer(r, end + s * 2, evade(r, endY)); return; }
+      if (r === carrier) { if (runsOut(r)) steer(r, end, outY()); else steer(r, end + s * 2, evade(r, endY)); return; }
       if (pass && r === target && thrown && !caught) {
         // Run through the catch point at full speed (never slow down to wait for the ball).
         const left = Math.max(0.05, catchT - t), dx = recvPt[0] - r.x, dy = recvPt[1] - r.y, d = Math.hypot(dx, dy) || 1;
@@ -651,6 +672,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       if (blitzers.has(d) && !thrown) { blitz(d); return; }
       if (run && t > 0.3) { const hole = at(1.6, lateral + (i ? 1.5 : -1.5)); steer(d, hole[0], hole[1], 0.75); return; }   // fill the gap
       if (thrown && d === cov) { const p: [number, number] = picked ? catchPt : [recvPt[0] - s * 1.2, recvPt[1]]; steer(d, p[0], p[1]); return; }
+      if (shadowing(d)) { shadow(d); return; }
+      if (pickUp(d)) return;
       const z = at(6 + Math.min(3, t * 1.5), i ? 4 : -4); steer(d, z[0], (z[1] + QB.y) / 2, 0.7);   // hook zone drop
     });
     DB.forEach((d, i) => {
@@ -661,6 +684,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       // A defensive back playing linebacker (the 4-3 Mike): run fit and the middle hook.
       if (asLB.has(d) && !manCov && !(thrown && d === cov)) {
         if (run && t > 0.3) { const hole = at(1.6, lateral); steer(d, hole[0], hole[1], 0.75); return; }
+        if (shadowing(d)) { shadow(d); return; }
+        if (pickUp(d)) return;
         const z = at(6 + Math.min(3, t * 1.5), 0); steer(d, z[0], (z[1] + QB.y) / 2, 0.7); return;
       }
       const r = REC[i];
@@ -676,13 +701,15 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
         if (picked || defended) d.top = Math.max(8.6, Math.min(10.4, Math.hypot(p[0] - d.x, p[1] - d.y) / Math.max(0.05, left - 0.04)));
         steer(d, p[0], p[1]); return;
       }
+      if (shadowing(d)) { zoneCarry.set(d, target); shadow(d); return; }
       if (run) { steer(d, r.x + s * 2.2, r.y, 0.5); return; }   // read run: keep leverage on the receiver
-      if (thrown && !caught && dist(d, { x: catchPt[0], y: catchPt[1] }) < 12) { steer(d, catchPt[0] + s * 0.8, catchPt[1], 1); return; }   // break on the ball
+      // Break on the ball only if he can get there; otherwise stay on his man (no one left alone).
+      if (thrown && !caught && dist(d, { x: catchPt[0], y: catchPt[1] }) < Math.min(12, 3 + 8.5 * Math.max(0, catchT - t))) { steer(d, catchPt[0] + s * 0.8, catchPt[1], 1); return; }   // break on the ball
       const rv = Math.hypot(r.vx, r.vy);
       if (manCov) {
         // Man: mirror him hip to hip, matching his speed (the target gets only the step the
         // engine says he wins; everyone else is blanketed).
-        d.top = Math.max(8.6, rv * (r === target && pass ? 0.97 : 1.04) + 0.25);
+        d.top = Math.max(8.6, rv * (r === target && pass && ev.complete ? 0.94 : 1.04) + 0.25);
         steer(d, r.x + r.vx * 0.2 + s * (press && t < 0.45 ? 0.5 : 0.75), r.y + r.vy * 0.2, t < 0.45 && press ? 0.6 : 1); return;
       }
       // Zone: backpedal to the landmark; whoever comes into it he picks up and carries until
@@ -690,10 +717,16 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       const [lx, ly] = landmark(i), z = at(lx, ly);
       let mine = zoneCarry.get(d);
       if (mine && (dist(mine, d) > 7 || DB.some(o => o !== d && !out(o) && dist(o, mine!) < dist(d, mine!) - 2.5))) mine = undefined;
-      if (!mine) mine = REC.filter(rr => Math.hypot(rr.x - z[0], rr.y - z[1]) < 8.5 && rr !== carrier).sort((a, b) => dist(a, d) - dist(b, d))[0];
+      // One defender per receiver: don't double a man someone else already carries (or shadows).
+      const takenBy = (rr: Agent) => [...zoneCarry].some(([o, m]) => o !== d && m === rr) || (shadowing(cov) && cov !== d && rr === target);
+      if (mine && takenBy(mine)) mine = undefined;
+      if (!mine) mine = REC.filter(rr => Math.hypot(rr.x - z[0], rr.y - z[1]) < 8.5 && rr !== carrier && !takenBy(rr)).sort((a, b) => dist(a, d) - dist(b, d))[0];
+      // Pattern match: once the routes declare, a receiver nobody has picked up is taken by the
+      // nearest defender who is free, so nobody runs alone through a void in the zone.
+      if (!mine && t > 0.6) { const held = new Set(zoneCarry.values()); mine = REC.filter(rr => rr !== carrier && !held.has(rr) && dist(rr, d) < 14).sort((a, b) => dist(a, d) - dist(b, d))[0]; }
       if (mine) zoneCarry.set(d, mine); else zoneCarry.delete(d);
-      if (mine && t > 0.5) { const mv = Math.hypot(mine.vx, mine.vy); d.top = Math.max(8.6, mv * (mine === target ? 0.96 : 1.02)); steer(d, mine.x + mine.vx * 0.15 + s * 1.1, mine.y + mine.vy * 0.15, 1); }
-      else steer(d, z[0], z[1], 0.85);
+      if (mine && t > 0.5) { const mv = Math.hypot(mine.vx, mine.vy), open = mine === target && pass && ev.complete; d.top = Math.max(8.6, mv * (open ? 0.94 : 1.03)); steer(d, mine.x + mine.vx * 0.15 + s * (open ? 1.1 : 0.85), mine.y + mine.vy * 0.15, 1); }
+      else if (!pickUp(d)) steer(d, z[0], z[1], 0.85);
     });
     if (FS === carrier) steer(FS, FS.x - s * 10, FS.y);
     else if (pursuing(FS)) pursue(FS);
@@ -704,13 +737,14 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
       // His half (or quarter): the side away from the strong safety; a vertical in it, he carries.
       const z = cov4 ? at(15, 7 * sideX) : at(17, 12 * sideX);
       const deep = REC.filter(r => s * (r.x - los) > 9 && (r.y - mid) * sideX > -2).sort((a, b) => s * (b.x - a.x))[0];
-      if (deep && t > 0.6) { FS.top = Math.max(8.4, Math.hypot(deep.vx, deep.vy)); steer(FS, deep.x + s * 2.5, deep.y, 0.95); } else steer(FS, z[0], z[1], 0.8);
+      if (deep && t > 0.6) { FS.top = Math.max(8.4, Math.hypot(deep.vx, deep.vy)); steer(FS, deep.x + s * 2.5, deep.y, 0.95); } else if (!pickUp(FS)) steer(FS, z[0], z[1], 0.8);
     }
     else if (zeroHigh) steer(FS, los + s * (7 + Math.min(2, t)), (QB.y + mid) / 2, 0.6);   // robber: the middle, underneath
     else {
       // Single high: stay deeper than the deepest route and shade to it.
       const deep = REC.filter(r => s * (r.x - los) > 9).sort((a, b) => s * (b.x - a.x))[0];
       if (deep && t > 0.6) { FS.top = Math.max(8.4, Math.hypot(deep.vx, deep.vy)); steer(FS, deep.x + s * 3.5, (deep.y * 2 + mid) / 3, 0.9); }
+      else if (pickUp(FS)) { /* nothing deep: come down on the man nobody has */ }
       else steer(FS, at(13 + t, 0)[0], (QB.y + mid) / 2, 0.5);
     }
     }
@@ -744,7 +778,7 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     // The tackle at the engine's spot: the carrier keeps running at full speed and the
     // defender with the best angle is sent to meet him there (he picks it up and closes). Only
     // if nobody could physically get there does the carrier ease off, and never below a stride.
-    if (carrier && carrier.team === off && !endT && !ev.td && !wrapper && (carrier !== QB || run || scramble)) {
+    if (carrier && carrier.team === off && !endT && !ev.td && !wrapper && (carrier !== QB || run || scramble) && !runsOut(carrier)) {
       const rem = s * (end - carrier.x), v = Math.max(4, Math.hypot(carrier.vx, carrier.vy));
       if (rem > 0 && rem < 14) {
         const tC = rem / Math.max(4, Math.abs(carrier.vx) || v);
@@ -802,7 +836,10 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (pass && thrown && !caught) {
       const q = Math.min(1, (t - throwT) / airT);
       const from = throwFrom;
-      ballXY = [from[0] + (catchPt[0] - from[0]) * q, from[1] + (catchPt[1] - from[1]) * q];
+      // An on-target ball finds his hands: the aim point eases onto where he actually is as it arrives.
+      const hands = picked ? cov : ev.complete || dropped || defended ? target : null;
+      const h = hands ? q * q : 0, aim: [number, number] = hands ? [catchPt[0] + (hands.x - catchPt[0]) * h, catchPt[1] + (hands.y - catchPt[1]) * h] : catchPt;
+      ballXY = [from[0] + (aim[0] - from[0]) * q, from[1] + (aim[1] - from[1]) * q];
       const peak = throwKind === 'bullet' ? 0.25 + Math.abs(air) * 0.04 : throwKind === 'touch' ? 1.6 + Math.abs(air) * 0.12 : 2.5 + Math.abs(air) * 0.12;
       ballZ = 2 - q * 0.5 + Math.sin(Math.PI * q) * peak;
     } else if (pass && caught && !ev.complete && !ev.turnover) {
@@ -830,6 +867,8 @@ function simScrimmage(ev: PlayEvent, k: { s: number; at: (dx: number, dy: number
     if (!endT) {
       if (pass && caught && !ev.complete && !ev.turnover && t > catchT + 0.45) endT = t;
       else if (pass && caught && ev.turnover && t > catchT + 1.6 + (ev.n % 7) * 0.12) endT = t;   // the return
+      else if (carrier && runsOut(carrier) && isOut(carrier)) endT = t;
+      else if (carrier && runsOut(carrier) && s * (carrier.x - end) < 1.5) { /* still heading for the sideline */ }
       else if (carrier && carrier.team === off && (ev.td ? s * (carrier.x - end) > 0.05 : (ev.yards >= 0 || run || scramble) ? past(carrier.x) && t > 0.5 : before(carrier.x)) && (carrier !== QB || !pass || sack || scramble) && (!pass || !caught || t > catchT + 0.3)) endT = t;
       else if (sack && t > 1.2 && dist(sacker, QB) < 1.1) endT = t;
       else if (wrapper && carrier && (s * (end - carrier.x) <= 0.05 || t - wrapT > 1.2)) endT = t;
