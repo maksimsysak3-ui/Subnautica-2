@@ -199,6 +199,9 @@ export function devTrait(ovr: number, age: number, rng: Rng): Dev {
   if (s >= 81) return 'Star';
   return 'Normal';
 }
+/** Offensive linemen top out at Superstar: no X-Factor for the big men up front. */
+const NO_XF = new Set<Pos>(['OT', 'G', 'C']);
+export const capDev = (pos: Pos, dev: Dev): Dev => (dev === 'X-Factor' && NO_XF.has(pos) ? 'Superstar' : dev);
 /** Hidden ceiling. Young players have room; veterans are what they are. */
 export function potential(ovr: number, age: number, dev: Dev, rng: Rng): number {
   const room = age <= 22 ? 14 : age <= 24 ? 9 : age <= 26 ? 5 : age <= 28 ? 2 : 0;
@@ -258,6 +261,7 @@ export const XFACTOR_DESC: Record<string, string> = {
 };
 
 export function assignAbilities(pos: Pos, a: Attrs, dev: Dev, rng: Rng): { abil: string[]; xf?: string } {
+  dev = capDev(pos, dev);
   if (dev === 'Normal' || dev === 'Star') return { abil: [] };
   const fit = Object.entries(ABILITIES).filter(([, v]) => v.pos.includes(pos) && v.needs(a)).map(([k]) => k);
   rng.shuffle(fit);

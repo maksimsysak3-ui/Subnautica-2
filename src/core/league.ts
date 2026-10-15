@@ -3,7 +3,7 @@ import { RATING_TARGETS, rookieCeiling } from './ratingsupdate';
 import data from '../data/league.json';
 import type { Dev, Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
 import { Rng, clamp, hash } from './rng';
-import { archetype, assignAbilities, buildAttrs, devTrait, overall, potential } from './ratings';
+import { archetype, assignAbilities, buildAttrs, capDev, devTrait, overall, potential } from './ratings';
 import { seasonForm, starterMeans, applyDelta } from './offseason';
 import { ensureFuture } from './draft';
 import { CAP_2026, capSpace, makeContract, minSalary, restructure, rookieContract } from './contracts';
@@ -59,7 +59,7 @@ export const emptyLine = (): StatLine => ({
 export function playerFromRaw(r: RawP, season: number, rng: Rng): Player {
   const attrs = buildAttrs({ ...r, ovr: r.ovr }, rng);
   const ovr = overall(r.pos, attrs);
-  const dev = devTrait(ovr, r.age, rng);
+  const dev = capDev(r.pos, devTrait(ovr, r.age, rng));
   const { abil, xf } = assignAbilities(r.pos, attrs, dev, rng);
   const p: Player = {
     id: r.id, fn: r.fn, ln: r.ln, pos: r.pos, team: r.team, status: r.st === 'PS' ? 'PS' : r.st === 'IR' ? 'IR' : r.team === 'FA' ? 'FA' : 'ACT',
@@ -217,9 +217,10 @@ function retierDev(league: League, rng: Rng) {
     if (p.status === 'PROSPECT' || p.status === 'RET' || p.exp === 0 || ['K', 'P', 'LS'].includes(p.pos)) continue;
     const a = Math.floor(p.age);
     const dev: Dev = p.ovr >= 93 || (p.ovr >= 90 && a <= 27) ? 'X-Factor' : p.ovr >= 87 || (p.ovr >= 82 && a <= 24) ? 'Superstar' : p.ovr >= 80 || (p.ovr >= 75 && a <= 24) ? 'Star' : 'Normal';
-    if (dev === p.dev) continue;
-    p.dev = dev;
-    if (rank[dev] >= 2) { const { abil, xf } = assignAbilities(p.pos, p.attrs, dev, rng); p.abil = abil.length ? abil : p.abil; p.xf = xf; }
+    const capped = capDev(p.pos, dev);
+    if (capped === p.dev) continue;
+    p.dev = capped;
+    if (rank[capped] >= 2) { const { abil, xf } = assignAbilities(p.pos, p.attrs, capped, rng); p.abil = abil.length ? abil : p.abil; p.xf = xf; }
     else { p.abil = []; p.xf = undefined; }
   }
 }

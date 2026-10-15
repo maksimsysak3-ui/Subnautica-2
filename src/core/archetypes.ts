@@ -8,7 +8,7 @@
 // Skill points come from the player's own goals: single-game milestones and season
 // targets for his position. You choose where they go.
 import type { Attrs, Dev, League, Player, Pos, StatLine } from './types';
-import { overall, XFACTORS } from './ratings';
+import { capDev, overall, XFACTORS } from './ratings';
 import { news } from './season';
 import { coachHas } from './coaching';
 
@@ -140,7 +140,7 @@ export function buy(league: League, p: Player, n: Node): { ovr: number; dev?: De
   p.ovr = overall(p.pos, p.attrs);
   p.pot = Math.max(p.pot, p.ovr);
   let dev: Dev | undefined;
-  const target: Dev | undefined = levelDone(p, 3) ? 'X-Factor' : levelDone(p, 2) ? 'Superstar' : levelDone(p, 1) ? 'Star' : undefined;
+  const target: Dev | undefined = levelDone(p, 3) ? capDev(p.pos, 'X-Factor') : levelDone(p, 2) ? 'Superstar' : levelDone(p, 1) ? 'Star' : undefined;
   if (target && DEV_RANK.indexOf(target) > DEV_RANK.indexOf(p.dev)) {
     p.dev = target; dev = target;
     if (target === 'X-Factor' && !p.xf) p.xf = XFACTORS[p.pos] ?? XFACTORS.ANY;

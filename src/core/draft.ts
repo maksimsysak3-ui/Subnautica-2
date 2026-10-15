@@ -1,7 +1,7 @@
 // Draft classes, Madden-style scouting, the combine, draft order, AI boards and picks.
 import type { League, Player, Pos } from './types';
 import { Rng, clamp, hash } from './rng';
-import { archetype, assignAbilities, buildAttrs, devTrait, overall } from './ratings';
+import { archetype, assignAbilities, buildAttrs, capDev, devTrait, overall } from './ratings';
 import { emptyLine, rollMotivations } from './league';
 import { rookieContract } from './contracts';
 import data from '../data/league.json';
@@ -54,7 +54,7 @@ export function generateClass(league: League, year: number): Player[] {
     const ht = Math.round(rng.normal(...HEIGHT[pos])), wt = Math.round(rng.normal(...WEIGHT[pos]));
     const attrs = buildAttrs({ pos, ovr, age, ht, wt }, rng);
     const real = overall(pos, attrs);
-    const dev = devTrait(real + rng.normal(4, 4), age, rng);
+    const dev = capDev(pos, devTrait(real + rng.normal(4, 4), age, rng));
     const growth = { Normal: 4, Star: 8, Superstar: 12, 'X-Factor': 15 }[dev];
     const pot = Math.round(clamp(real + growth + rng.normal(0, 4), real + 2, 99));
     const { abil, xf } = assignAbilities(pos, attrs, dev, rng);
@@ -81,7 +81,7 @@ function realClass(league: League, year: number, real: RealProspect[], rng: Rng)
     const age = 17 + Math.min(4, r.cls) + (year - SEASON_DATA) + rng.int(0, 1);
     const attrs = buildAttrs({ pos: r.pos, ovr: r.ovr, age, ht: r.ht, wt: r.wt }, rng);
     const real = overall(r.pos, attrs);
-    let dev = devTrait(real + rng.normal(3, 3), age, rng);
+    let dev = capDev(r.pos, devTrait(real + rng.normal(3, 3), age, rng));
     // Blue-chip prospects on the scouting board carry the upside scouts see in them.
     const floor = !r.g ? null : r.g >= 94 ? 'Superstar' : r.g >= 86 ? 'Star' : null;
     const RANK = { Normal: 0, Star: 1, Superstar: 2, 'X-Factor': 3 } as const;
