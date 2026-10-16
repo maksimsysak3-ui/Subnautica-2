@@ -615,12 +615,14 @@ const clipPage = node('page', [0,-.0095,.255], [
   ...[0,1,2,3,4,5,6].map(i => B([.15 - (i % 3)*.03, .002, .006], [-.015 + (i % 3)*.015, -.002, -.05 - i*.027], CB.ink)),
   B([.06,.002,.004],[.05,-.002,-.035],CB.blue), B([.004,.002,.05],[.02,-.002,-.06],CB.blue), B([.004,.002,.05],[.08,-.002,-.06],CB.blue), B([.06,.002,.004],[.05,-.002,-.085],CB.blue),
 ]);
-const hammer = node('clipboard', [0,0,0], [   // id stays 'hammer' internally: it's the build tool slot
+const clipInner = node('clipInner', [0,0,0], [
   B([.23,.014,.31],[0,0,.12],CB.board), B([.23,.004,.31],[0,.009,.12],CB.boardD),
   B([.2,.003,.25],[0,-.0085,.115],CB.paper2),
   B([.11,.02,.035],[0,-.013,.255],CB.clip), B([.09,.012,.02],[0,-.022,.238],CB.clipD), B([.04,.03,.012],[0,-.012,.28],CB.clipD),
   B([.012,.012,.17],[.085,-.018,.16],CB.pencil), spike([.085,-.018,.075],[0,0,-1],.03,.012,[.9,.76,.55]), B([.013,.013,.02],[.085,-.018,.252],CB.eraser),
 ], [clipPage]);
+clipInner.rot = [0, 0, Math.PI];   // paper side faces him (and the camera in first person)
+const hammer = node('clipboard', [0,0,0], [], [clipInner]);   // id stays 'hammer' internally: it's the build tool slot
 // materials lying around the island
 const MAT = { rope:[.8,.7,.48], ropeD:[.66,.56,.38], stone:[.6,.59,.56], stoneD:[.48,.47,.45] };
 function makeLeafItem() { return node('leafItem', [0,0,0], [ B([.03,.02,.72],[0,.012,0],TC.rib),
@@ -1142,13 +1144,13 @@ const STRUCTS = {
       B([.035,.035,.34],[-.22,.97,.08],SC.log,[0,.6,0]), B([.07,.07,.14],[-.32,.98,-.06],SC.metal,[0,.6,0]),
       B([.42,.01,.12],[.15,.955,-.18],SC.metal), B([.17,.1,.14],[-.5,.99,-.2],SC.stone,[.2,.4,0]), B([.12,.04,.12],[.3,.97,.15],SC.rope));
     return n; } },
-  net: { name:'Fish Net', desc:'Strung between two posts in the shallows. Fish swim in; you collect them.', cost:{ string:6, wood:2 }, r:1, snap:0, water:true, view:{ d:3.8, cy:.75 }, make() {
+  net: { name:'Fish Net', desc:'Laid flat on the shallow seabed, staked and weighted. Fish swim over it; you haul them in.', cost:{ string:6, wood:2 }, r:1, snap:0, water:true, view:{ d:3.4, cy:0 }, make() {
     const n = node('net', [0,0,0], []);
-    for (const x of [-1,1]) n.boxes.push(B([.12,1.45,.12],[x,.72,0],SC.log), spike([x,1.43,0],[0,1,0],.14,.13,SC.logD));
-    n.boxes.push(B([2,.03,.03],[0,1.25,0],SC.rope), B([2,.03,.03],[0,.18,0],SC.rope));
-    for (let i = 0; i < 9; i++) n.boxes.push(B([.016,1.06,.016],[-.9 + i*.225,.72,0],SC.net));
-    for (let j = 0; j < 5; j++) n.boxes.push(B([1.98,.016,.016],[0,.3 + j*.22,0],SC.net));
-    for (let i = 0; i < 4; i++) n.boxes.push(B([.1,.08,.1],[-.75 + i*.5,1.3,0],SC.float));
+    for (let i = 0; i < 9; i++) n.boxes.push(B([.016,.016,2],[-1 + i*.25,.03,0],SC.net), B([2,.016,.016],[0,.032,-1 + i*.25],SC.net));   // mesh
+    for (const sd of [1,-1]) n.boxes.push(B([2.06,.03,.03],[0,.04,1.02*sd],SC.rope), B([.03,.03,2.06],[1.02*sd,.04,0],SC.rope));      // rope border
+    for (const x of [-1.02,1.02]) for (const z of [-1.02,1.02]) n.boxes.push(B([.05,.22,.05],[x,.08,z],SC.logD,[.15,0,.1]));        // stakes
+    for (const [x, z] of [[0,1.02],[0,-1.02],[1.02,0],[-1.02,0]]) n.boxes.push(B([.12,.08,.12],[x,.06,z],SC.float));                     // floats
+    for (const [x, z] of [[.5,1.02],[-.5,-1.02],[1.02,-.5],[-1.02,.5]]) n.boxes.push(B([.14,.08,.12],[x,.05,z],SC.stone,[0,.4,0]));      // weights
     return n; } },
 };
 const BP_ORDER = ['campfire','wall','floor','roof','bench','net'];
@@ -1180,7 +1182,7 @@ function placeBuild() {
   const b = { type: B_.type, node: n, x: B_.x, z: B_.z, rot: B_.rot, prog: 0, dust: 0 }; builds.push(b);
   const c = Math.cos(B_.rot*Math.PI/2), s_ = Math.sin(B_.rot*Math.PI/2), at = (lx, lz, rad) => obstacles.push([B_.x + lx*c + lz*s_, B_.z - lx*s_ + lz*c, rad]);
   if (B_.type === 'wall') [-.7, 0, .7].forEach(x => at(x, 0, .3));
-  if (B_.type === 'roof' || B_.type === 'net') [[-.9,-.9],[.9,-.9],[-.9,.9],[.9,.9]].filter(([x, z]) => B_.type === 'roof' || z < 0).forEach(([x, z]) => at(x, B_.type === 'net' ? 0 : z, .15));
+  if (B_.type === 'roof') [[-.9,-.9],[.9,-.9],[-.9,.9],[.9,.9]].forEach(([x, z]) => at(x, z, .15));
   if (B_.type === 'bench') at(0, 0, .75);
   if (B_.type === 'campfire') at(0, 0, .55);
   toast(`Building ${S.name}…`); renderUI();
