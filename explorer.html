@@ -133,6 +133,56 @@
   .bfoot{display:flex;justify-content:space-between;margin-top:12px;color:var(--muted);font-size:11px}
   .bfoot kbd{background:#2b241d;border:1px solid #4a3f33;border-radius:4px;padding:0 5px;font:700 10px monospace;color:var(--ink)}
   @media (max-width:760px){.bbody{grid-template-columns:1fr}#bcats{flex-direction:row;flex-wrap:wrap}.bside{display:none}}
+  #builder .clipb{position:relative;width:min(900px,95vw);padding:36px 22px 22px;border-radius:22px;
+    background:linear-gradient(135deg,#8a5e36,#6e4a2a 60%,#5c3d22);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 2px 0 rgba(255,220,170,.15),inset 0 -3px 0 rgba(0,0,0,.25)}
+  #builder .clipb::before{content:"";position:absolute;inset:0;border-radius:22px;pointer-events:none;background:repeating-linear-gradient(95deg,rgba(255,255,255,.035) 0 3px,transparent 3px 11px)}
+  .clip{position:absolute;left:50%;top:-12px;transform:translateX(-50%);width:190px;height:46px;border-radius:10px 10px 16px 16px;z-index:2;
+    background:linear-gradient(#e2e1db,#9d9c95);box-shadow:0 6px 12px rgba(0,0,0,.4),inset 0 2px 0 #fff}
+  .clip span{position:absolute;left:50%;top:-12px;width:50px;height:18px;margin-left:-25px;border:5px solid #a9a8a1;border-bottom:0;border-radius:14px 14px 0 0}
+  .sheet{position:relative;background-color:#f6f1e3;color:#3b342b;border-radius:6px;padding:26px 22px 20px;min-height:430px;transform-origin:50% 0;
+    background-image:repeating-linear-gradient(transparent 0 27px,rgba(80,120,170,.12) 27px 28px);box-shadow:0 2px 0 #e6dfcc,0 4px 0 #dcd3bb,0 10px 20px rgba(0,0,0,.25)}
+  .sheet.flip{animation:pflip .44s ease-in-out}
+  @keyframes pflip{0%{transform:perspective(1300px) rotateX(0)}50%{transform:perspective(1300px) rotateX(-86deg)}100%{transform:perspective(1300px) rotateX(0)}}
+  .shead{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .tabs2 button{font:800 13px system-ui;letter-spacing:.12em;text-transform:uppercase;background:none;border:0;border-bottom:2px solid transparent;color:#8a7f6c;padding:6px 10px;cursor:pointer}
+  .tabs2 button.on{color:#2c5d8f;border-color:#2c5d8f}
+  .shead .hint{margin-left:auto;font:600 11px system-ui;color:#8a7f6c}
+  .shead kbd,.prompt kbd{background:#efe8d6;border:1px solid #cfc5b0;border-radius:4px;padding:0 5px;font:700 10px monospace;color:#3b342b}
+  .sheet .x{color:#8a7f6c;border-color:#cfc5b0}
+  .pg{display:grid;grid-template-columns:1fr 250px;gap:18px}
+  .pg[hidden]{display:none}
+  .bp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-content:start}
+  .bp{position:relative;border:1.5px solid #d7ccb4;border-radius:12px;background:#fbf8ef;padding:8px;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s}
+  .bp:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(60,40,10,.12)}
+  .bp.on{border-color:#2c5d8f;box-shadow:0 0 0 3px rgba(44,93,143,.15)}
+  .bp img{width:100%;aspect-ratio:1.25;object-fit:cover;display:block;background:radial-gradient(circle at 50% 62%,#e7dfca,#f7f2e4 72%);border-radius:8px}
+  .bp b{display:block;font:800 13px system-ui;margin:6px 2px 5px}
+  .bp.lack img{filter:saturate(.5) opacity(.7)}
+  .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .chip{display:inline-flex;align-items:center;gap:2px;font:700 11px system-ui;padding:1px 7px 1px 2px;border-radius:999px;background:#ece5d3;color:#5b5243}
+  .chip svg{width:17px;height:17px}
+  .chip.no{background:#f6dcd5;color:#a3402c}
+  .bp-side{display:flex;flex-direction:column;background:#fbf8ef;border:1.5px solid #d7ccb4;border-radius:12px;padding:12px}
+  .bp-prev{border-radius:10px;background:radial-gradient(circle at 50% 62%,#e2d9c1,#f5efdf 72%);margin-bottom:10px}
+  .bp-prev canvas{width:100%;display:block}
+  .bp-side h3{margin:0 0 4px;font:800 16px system-ui}
+  .bp-side p{margin:0 0 10px;font-size:12px;color:#6d6455;line-height:1.45}
+  .bp-cost .row{display:flex;align-items:center;gap:8px;font:600 12px system-ui;padding:4px 0;border-bottom:1px dashed #ddd2bb}
+  .bp-cost .row svg{width:22px;height:22px}
+  .bp-cost .row b{margin-left:auto}
+  .bp-cost .row.no b{color:#b2412b}
+  #bpBuild{margin-top:12px}
+  #bpBuild[disabled]{opacity:.45;cursor:not-allowed}
+  .guide{grid-column:1/-1;columns:2;column-gap:28px}
+  .step{break-inside:avoid;display:flex;gap:12px;margin-bottom:16px}
+  .step i{font-style:normal;width:28px;height:28px;border-radius:50%;background:#2c5d8f;color:#fff;display:grid;place-items:center;font:800 13px system-ui;flex:none}
+  .step b{display:block;font:700 15px "Segoe Print","Bradley Hand","Comic Sans MS",cursive;margin-bottom:2px;color:#2c3e57}
+  .step span{font-size:12.5px;color:#5d5547;line-height:1.5}
+  @media (max-width:760px){.pg{grid-template-columns:1fr}.bp-grid{grid-template-columns:repeat(2,1fr)}.guide{columns:1}}
+  .prompt{position:fixed;left:50%;bottom:190px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;
+    font:600 13px system-ui;color:var(--ink);display:none;align-items:center;gap:10px;white-space:nowrap}
+  .prompt.show{display:flex}
+  .prompt .chip{background:#2b241d;color:var(--ink)} .prompt .chip.no{background:#4a2018;color:#ffb3a3}
   #toggle{position:fixed;left:12px;bottom:12px;background:#2b241d;color:#efe6d2;border:1px solid #4a3f33;border-radius:6px;padding:4px 10px;cursor:pointer}
 </style>
 </head>
@@ -147,7 +197,7 @@
   <div class="row"><kbd>F</kbd>/click use: chop · drink · eat · punch</div>
   <div class="row"><kbd>X</kbd>twirl axe · chop palms for coconuts</div>
   <div class="row">Spear: <kbd>F</kbd>thrust combo · <kbd>E</kbd>throw · hunt chickens</div>
-  <div class="row"><kbd>H</kbd>blueprints · <kbd>F</kbd>with them: Builder menu</div>
+  <div class="row"><kbd>H</kbd>clipboard · <kbd>F</kbd>open it · <kbd>E</kbd>interact</div>
   <div class="row"><b>Emotes</b> (all in backpack)</div>
   <div class="row"><kbd>6</kbd>wave <kbd>7</kbd>dance <kbd>8</kbd>sit <kbd>9</kbd>cheer <kbd>0</kbd>bow</div>
   <div class="row"><b>Camera / misc</b></div>
@@ -165,36 +215,31 @@
     <div class="vital" id="vFood"><svg viewBox="0 0 16 16"><path d="M8 1 L13 4 L14 9 L11 14 L5 14 L2 9 L3 4Z" fill="#7d5230"/><path d="M8 1 L13 4 L8 7 L3 4Z" fill="#9a6a40"/><circle cx="6.5" cy="9" r="1" fill="#2b1a0e"/><circle cx="9.5" cy="9" r="1" fill="#2b1a0e"/></svg><div class="bar"><i></i></div></div>
     <div class="vital" id="vWater"><svg viewBox="0 0 16 16"><path d="M8 1 L13 8 L12 12 L8 15 L4 12 L3 8Z" fill="#5fb3d9"/><path d="M8 1 L8 15 L4 12 L3 8Z" fill="#3f8db3"/></svg><div class="bar"><i></i></div></div>
   </div>
-  <div id="barRow"><button id="hammerSlot" title="Blueprints (H) — press F while holding them to open the Builder">
+  <div id="barRow"><button id="hammerSlot" title="Clipboard (H) — press F while holding it to open Build / Guide">
       <svg class="ic" viewBox="0 0 48 48"></svg><span class="k">H</span><span class="cap">Build</span></button><div id="hotbar"></div>
     <button id="bagBtn" title="Backpack (I)"><svg viewBox="0 0 48 48"><path d="M10 18 L38 18 L40 42 L8 42Z" fill="#5b6a3a"/><path d="M10 18 L24 18 L22 42 L8 42Z" fill="#6c7c45"/><path d="M8 12 L40 12 L40 20 L8 20Z" fill="#d8ccb0"/><path d="M8 12 L24 12 L24 20 L8 20Z" fill="#e6dcc4"/><path d="M13 22 L35 22 L35 32 L13 32Z" fill="#4a5530"/><rect x="17" y="27" width="4" height="4" fill="#9a958a"/><rect x="27" y="27" width="4" height="4" fill="#9a958a"/><path d="M14 12 L16 6 L32 6 L34 12 L31 12 L30 9 L18 9 L17 12Z" fill="#6b4428"/></svg><kbd>I</kbd></button>
   </div>
 </div>
-<div id="builder" hidden><div class="card bcard">
-  <header><svg class="hic" viewBox="0 0 48 48"></svg><div><h2>Builder</h2><div class="sub">Construction</div></div>
-    <span class="cap" id="bCap">0 blueprints</span><button class="x" id="closeB" title="Close (Esc)">✕</button></header>
-  <div class="bbody">
-    <nav id="bcats"></nav>
-    <section class="bmain">
-      <div class="bhead"><h3 id="bcatName"></h3><span id="bcatCount">0 / 0</span></div>
-      <div class="bgrid" id="bgrid"></div>
-      <div class="bempty">
-        <svg viewBox="0 0 64 64"><path d="M10 18 L46 12 L54 46 L18 52Z" fill="#2c3b4a"/><path d="M10 18 L46 12 L47 17 L11 23Z" fill="#3a4e62"/>
-          <path d="M16 28 L44 23 M18 34 L40 30.5 M19 40 L46 35.5 M24 26 L28 46 M34 24 L38 44" stroke="#7fa6c4" stroke-width="1" opacity=".55"/>
-          <path d="M40 38 L48 36.6 L49.6 44.6 L41.6 46Z" fill="none" stroke="#e3b25e" stroke-width="1.4" stroke-dasharray="2 2"/>
-          <path d="M8 16 Q6 20 10 22 L12 20 Q9 19 10 17Z" fill="#c9a76a"/></svg>
-        <b>No blueprints yet</b><span>Blueprints you discover will appear here.</span></div>
-    </section>
-    <aside class="bside">
-      <div class="bprev"><svg viewBox="0 0 64 64"><path d="M32 10 L54 22 L54 44 L32 56 L10 44 L10 22Z" fill="none" stroke="#5a4a38" stroke-width="1.5" stroke-dasharray="3 3"/>
-        <path d="M32 10 L32 33 L54 22 M32 33 L10 22 M32 33 L32 56" fill="none" stroke="#4a3d2f" stroke-width="1" stroke-dasharray="3 3"/></svg></div>
-      <h4>Select a blueprint</h4><p>Its preview, description and required materials will show here.</p>
-      <div class="lbl">Materials</div>
-      <div class="mat"><svg viewBox="0 0 48 48" id="bWoodIc"></svg><span>Palm Wood</span><b id="bWood">0</b></div>
-    </aside>
+<div id="builder" hidden><div class="clipb"><div class="clip"><span></span></div>
+  <div class="sheet" id="sheet">
+    <header class="shead"><div class="tabs2"><button class="on" data-pg="build">Build</button><button data-pg="guide">Guide</button></div>
+      <span class="hint"><kbd>Q</kbd> flip page · <kbd>Esc</kbd> close</span><button class="x" id="closeB" title="Close">✕</button></header>
+    <div class="pg" id="pgBuild">
+      <div class="bp-grid" id="bpGrid"></div>
+      <aside class="bp-side"><div class="bp-prev"><canvas id="bpCanvas" width="256" height="256"></canvas></div>
+        <h3 id="bpName"></h3><p id="bpDesc"></p><div class="bp-cost" id="bpCost"></div><button class="btn primary" id="bpBuild">Build</button></aside>
+    </div>
+    <div class="pg" id="pgGuide" hidden><div class="guide">
+      <div class="step"><i>1</i><div><b>Gather materials</b><span>Chop palms with the axe for wood. Walk over palm leaves under the trees, string on the beaches (and floating out at sea) and stones beside the rock outcrops to pick them up.</span></div></div>
+      <div class="step"><i>2</i><div><b>Open your clipboard</b><span>Press <kbd>H</kbd> to take it out and <kbd>F</kbd> to open it. <kbd>Q</kbd> flips between the Build page and this Guide.</span></div></div>
+      <div class="step"><i>3</i><div><b>Pick a blueprint</b><span>Every card shows what it costs. Red means you're still short of something.</span></div></div>
+      <div class="step"><i>4</i><div><b>Place it</b><span>A ghost shows where it will go — green fits, red doesn't. <kbd>R</kbd> rotates, <kbd>F</kbd> or click builds, <kbd>Esc</kbd> stops building. Walls, floors and roofs snap to a 2 m grid.</span></div></div>
+      <div class="step"><i>5</i><div><b>Stay alive</b><span>Eat coconuts, chicken and fish, and sip from your canteen. Spear fish from the shallows or while swimming.</span></div></div>
+      <div class="step"><i>6</i><div><b>A sailor's rumour</b><span>They say a chest lies half-buried in the dunes. Watch for a glint in the sand, then press <kbd>E</kbd>.</span></div></div>
+    </div></div>
   </div>
-  <footer class="bfoot"><span><kbd>F</kbd> or <kbd>Esc</kbd> close</span><span><kbd>H</kbd> put the blueprints away</span></footer>
 </div></div>
+<div class="prompt" id="prompt"></div>
 <div id="panel" hidden><div class="card">
   <header><svg viewBox="0 0 48 48"><path d="M10 18 L38 18 L40 42 L8 42Z" fill="#5b6a3a"/><path d="M8 12 L40 12 L40 20 L8 20Z" fill="#d8ccb0"/><path d="M13 22 L35 22 L35 32 L13 32Z" fill="#4a5530"/></svg>
     <h2>Backpack</h2><span class="cap" id="cap"></span><button class="x" id="closeP" title="Close (Esc)">✕</button></header>
@@ -253,7 +298,8 @@ void main(){
   if (uMode == 2) { o = vec4(uCol,1.); return; }            // emissive (fireflies, trails, water stream)
   vec3 L = normalize(vec3(.5,.9,.6)), V = normalize(uCam - wp);
   vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));             // flat low-poly normals
-  if (uMode >= 3) {                                          // ocean: depth colour, facet glints, fresnel sky, shore foam
+  if (uMode == 5) { vec3 c = uCol*(.55 + .5*max(dot(n, L), 0.)) + pow(1. - max(dot(n, V), 0.), 2.)*.35; o = vec4(c, .42); return; }  // build ghost
+  if (uMode == 3 || uMode == 4) {                            // ocean: depth colour, facet glints, fresnel sky, shore foam
     if (uMode == 4 && max(abs(wp.x), abs(wp.z)) < 99.5) discard;
     if (n.y < 0.) n = -n;
     if (islandE(wp.xz) < -3.) discard;                     // swell must not poke through dry land
@@ -498,6 +544,16 @@ for (let f = 0; f < 220; f++) { const s0 = landSpot(isMeadow); if (!s0) continue
 const BUSH = [[.3,.5,.2],[.36,.58,.24],[.26,.44,.17]];
 for (let i = 0; i < 75; i++) { const s0 = landSpot((x, z) => meadow(x, z) > .15); if (!s0) continue; const sz = rand(.4,.75);
   for (let k = 0; k < 4; k++) { const q = sz*rand(.6,1); bake('still', B([q,q*.8,q],[s0[0]+rand(-.3,.3), q*.4 + rand(0,.15), s0[1]+rand(-.3,.3)], BUSH[k%3], [rand(0,.5),rand(0,6),rand(0,.5)])); } }
+const ROCKS = [], ROCKC = [[.6,.59,.56],[.5,.49,.47],[.66,.64,.6],[.55,.55,.53]];
+for (let i = 0; i < 28; i++) { const s0 = landSpot((x, z) => Math.hypot(x, z) > 6 && !trees.some(t => Math.hypot(t.x-x, t.z-z) < 2.5) && !obstacles.some(o => Math.hypot(o[0]-x, o[1]-z) < 5)); if (!s0) continue;
+  const [x, z] = s0;
+  for (let k = 0, n = 2 + (Math.random()*3|0); k < n; k++) { const sz = rand(.35,1.05)*(k ? .7 : 1);
+    bake('still', B([sz*1.2, sz*.8, sz], [x + rand(-.5,.5), sz*.3, z + rand(-.5,.5)], ROCKC[(i+k)%4], [rand(-.3,.3), rand(0,6), rand(-.3,.3)])); }
+  obstacles.push([x, z, .75]); staticBlobs.push(x, z, 1.4); ROCKS.push([x, z]); }
+// a chest lies half-buried in the dunes: sand heaped around it
+const CHEST_SPOT = landSpot((x, z) => Math.hypot(x, z) > 22 && islandE(x, z) < -6 && meadow(x, z) < .1 && !obstacles.some(o => Math.hypot(o[0]-x, o[1]-z) < 3), 400) || [26, 8];
+{ const [x, z] = CHEST_SPOT, SAND = [[.93,.84,.62],[.89,.8,.59]];
+  for (let k = 0; k < 6; k++) { const a = k/6*Math.PI*2; bake('still', B([.7,.16,.5],[x + Math.sin(a)*.55, -.03, z + Math.cos(a)*.45], SAND[k%2], [rand(-.1,.1), a, rand(-.08,.08)])); } }
 for (const m of Object.values(BAKED)) for (const g of m.values()) g.vao = vao(g.v);
 
 // ================= held items (origin = grip, item 'up' = +z) =================
@@ -552,21 +608,30 @@ function makeLog() { return node('log', [0,0,0], [
   B([.05,.11,.05],[.05,.09,.06],[.47,.33,.21],[0,0,-.5]),
 ]); }
 // build hammer: a simple sledge — long ash handle, leather grip, square iron head with flat faces and a brass band
-const BP = { paper:[.22,.43,.7], edge:[.17,.34,.58], line:[.86,.93,.99], pencil:[.96,.76,.2], pencilD:[.84,.62,.15], wood:[.9,.76,.55], lead:[.2,.2,.22], ferrule:[.76,.75,.72], eraser:[.95,.6,.6] };
-const hammer = node('blueprint', [0,0,0], [   // id stays 'hammer' internally: it's the build tool
-  B([.2,.008,.25],[0,0,.1],BP.paper), B([.2,.03,.03],[0,0,.235],BP.edge), B([.2,.03,.03],[0,0,.235],BP.paper,[Math.PI/4,0,0]),   // sheet + rolled top
-  B([.2,.024,.024],[0,0,-.03],BP.edge), B([.2,.024,.024],[0,0,-.03],BP.paper,[Math.PI/4,0,0]),                                        // rolled bottom
-  ...[1,-1].flatMap(sd => { const y = .0048*sd; return [                                                                                // floor plan in white
-    B([.15,.002,.006],[0,y,.19],BP.line), B([.15,.002,.006],[0,y,.01],BP.line), B([.006,.002,.18],[.075,y,.1],BP.line), B([.006,.002,.18],[-.075,y,.1],BP.line),
-    B([.006,.002,.08],[.0,y,.15],BP.line), B([.075,.002,.006],[-.037,y,.1],BP.line), B([.04,.002,.006],[.055,y,.065],BP.line),
-    B([.035,.002,.02],[.05,y,.025],BP.line), B([.02,.002,.006],[-.03,y,.05],BP.line,[0,.8,0])]; }),
-  B([.016,.016,.15],[.07,-.014,.11],BP.pencil,[0,0,0]), B([.016,.016,.15],[.07,-.014,.11],BP.pencilD,[0,0,Math.PI/4]),               // pencil (hex)
-  spike([.07,-.014,.035],[0,0,-1],.035,.016,BP.wood), spike([.07,-.014,.022],[0,0,-1],.012,.006,BP.lead),
-  B([.018,.018,.016],[.07,-.014,.193],BP.ferrule), B([.016,.016,.018],[.07,-.014,.209],BP.eraser),
-  B([.012,.008,.03],[.07,-.006,.16],BP.ferrule),                                                                                     // pocket clip
+// clipboard: board, two sheets of paper under a sprung metal clip, pencil tucked in. The top page can flip over the clip.
+const CB = { board:[.55,.38,.22], boardD:[.45,.3,.17], paper:[.96,.94,.87], paper2:[.9,.87,.78], ink:[.36,.36,.42], blue:[.3,.45,.65], clip:[.74,.73,.7], clipD:[.52,.52,.5], pencil:[.96,.76,.2], eraser:[.95,.6,.6] };
+const clipPage = node('page', [0,-.0095,.255], [
+  B([.2,.003,.24],[0,0,-.12],CB.paper),
+  ...[0,1,2,3,4,5,6].map(i => B([.15 - (i % 3)*.03, .002, .006], [-.015 + (i % 3)*.015, -.002, -.05 - i*.027], CB.ink)),
+  B([.06,.002,.004],[.05,-.002,-.035],CB.blue), B([.004,.002,.05],[.02,-.002,-.06],CB.blue), B([.004,.002,.05],[.08,-.002,-.06],CB.blue), B([.06,.002,.004],[.05,-.002,-.085],CB.blue),
 ]);
+const hammer = node('clipboard', [0,0,0], [   // id stays 'hammer' internally: it's the build tool slot
+  B([.23,.014,.31],[0,0,.12],CB.board), B([.23,.004,.31],[0,.009,.12],CB.boardD),
+  B([.2,.003,.25],[0,-.0085,.115],CB.paper2),
+  B([.11,.02,.035],[0,-.013,.255],CB.clip), B([.09,.012,.02],[0,-.022,.238],CB.clipD), B([.04,.03,.012],[0,-.012,.28],CB.clipD),
+  B([.012,.012,.17],[.085,-.018,.16],CB.pencil), spike([.085,-.018,.075],[0,0,-1],.03,.012,[.9,.76,.55]), B([.013,.013,.02],[.085,-.018,.252],CB.eraser),
+], [clipPage]);
+// materials lying around the island
+const MAT = { rope:[.8,.7,.48], ropeD:[.66,.56,.38], stone:[.6,.59,.56], stoneD:[.48,.47,.45] };
+function makeLeafItem() { return node('leafItem', [0,0,0], [ B([.03,.02,.72],[0,.012,0],TC.rib),
+  ...[0,1,2,3,4,5].flatMap(k => [1,-1].map(sd => B([.2,.01,.06],[.1*sd,.008,-.28 + k*.11],(k+sd)%2 ? TC.leaf : TC.leaf2,[0,.45*sd,0]))) ]); }
+function makeStringItem() { return node('stringItem', [0,0,0], [
+  ...[0,1,2,3,4,5,6,7].map(i => { const a = i/8*Math.PI*2; return B([.065,.026,.026],[Math.cos(a)*.08,.015,Math.sin(a)*.08], i%2 ? MAT.rope : MAT.ropeD, [0,-a + Math.PI/2,0]); }),
+  ...[0,1,2,3,4,5,6,7].map(i => { const a = i/8*Math.PI*2 + .3; return B([.05,.022,.022],[Math.cos(a)*.06,.04,Math.sin(a)*.06], MAT.rope, [0,-a + Math.PI/2,0]); }),
+  B([.022,.022,.2],[.12,.012,.12],MAT.ropeD,[0,.7,0]) ]); }
+function makeStoneItem() { return node('stoneItem', [0,0,0], [ B([.17,.1,.14],[0,.05,0],MAT.stone,[.2,.3,.1]), B([.12,.08,.1],[.03,.08,.01],MAT.stoneD,[.5,.9,.2]) ]); }
 const HAMMER_BELT = { pos: [-.27,-.44,.07], rot: [-Math.PI/2, 0, .12] };   // hangs head-up from the belt on his left hip
-const HELD = { axe, canteen, coconut: coconutHeld, spear: makeSpear(), chicken: makeDrumstick(true), wood: makeLog(), hammer };
+const HELD = { leaves: makeLeafItem(), string: makeStringItem(), stone: makeStoneItem(), axe, canteen, coconut: coconutHeld, spear: makeSpear(), chicken: makeDrumstick(true), wood: makeLog(), hammer };
 const HELD_NODES = new Set(Object.values(HELD));
 
 // ================= particles =================
@@ -598,7 +663,8 @@ const keys = {}; let pressed = {};
 addEventListener('keydown', e => { const k = e.key.toLowerCase();
   if ([' ','arrowup','arrowdown','arrowleft','arrowright','tab'].includes(k)) e.preventDefault();
   if (e.repeat) return;
-  if (builderOpen) { if (k === 'escape' || k === 'f' || k === 'h') toggleBuilder(false); return; }
+  if (builderOpen) { if (k === 'escape' || k === 'f' || k === 'h') toggleBuilder(false); else if (k === 'q' || k === 'tab') flipPage(page === 'build' ? 'guide' : 'build'); return; }
+  if (k === 'escape' && P.build && !panelOpen) { P.build = null; return; }
   if (k === 'i' || k === 'tab') return togglePanel();
   if (k === 'escape') { if (assignId) return setAssign(null); if (panelOpen) return togglePanel(false); }
   if (panelOpen) { if (assignId && k >= '1' && k <= '5') assignSlot(+k - 1, assignId); return; }
@@ -618,7 +684,8 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   if (locked()) return look(e.movementX, e.movementY, .0025);
   if (!drag) return; look(e.clientX - drag[0], e.clientY - drag[1], cam.fp ? .004 : .006); drag = [e.clientX, e.clientY]; });
-cv.addEventListener('pointerup', e => { // a click (not a drag) on the backpack opens it
+cv.addEventListener('pointerup', e => { // a click (not a drag) places a blueprint, or opens the backpack
+  if (drag && P.build && Math.hypot(e.clientX - drag0[0], e.clientY - drag0[1]) < 5) { drag = null; return placeBuild(); }
   if (drag && !cam.fp && Math.hypot(e.clientX - drag0[0], e.clientY - drag0[1]) < 5 && pack.world && lastVP) {
     const w = xform(pack.world, [0,.3,-.3]), m = lastVP, cw = m[3]*w[0] + m[7]*w[1] + m[11]*w[2] + m[15];
     if (cw > 0) { const sx = ((m[0]*w[0] + m[4]*w[1] + m[8]*w[2] + m[12]) / cw * .5 + .5) * cv.clientWidth,
@@ -674,6 +741,7 @@ function setHeld(id) {
   if (id !== 'axe') { axe.pos = HOLSTER.pos; axe.rot = HOLSTER.rot; pack.children.push(axe); }
   torso.children = torso.children.filter(c => c !== hammer);
 
+  if (id !== 'hammer') P.build = null;
   P.held = id; P.hasAxe = id === 'axe';
 }
 
@@ -720,7 +788,7 @@ function poseFor(t) {
     p.torso = [breathe,0,0]; p.armL = [0,0,.08+breathe]; p.armR = [0,0,-.08-breathe]; p.foreL = p.foreR = [-.1,0,0];
     p.head = [0, Math.sin(t*.4)*.15, 0]; y = breathe*.3;
     const e = P.emote, et = P.emoteT;
-    if (P.idleT > 8 && !e && !P.hasAxe && !cam.fp) { p.head = [.1, Math.sin(t*.9)*.6, 0]; p.armR = [-.3,0,-.2]; p.foreR = [-1.8,0,.3]; }
+    if (P.idleT > 8 && !e && !P.held && !cam.fp) { p.head = [.1, Math.sin(t*.9)*.6, 0]; p.armR = [-.3,0,-.2]; p.foreR = [-1.8,0,.3]; }
     if (e === 'wave') { p.armR = [0,0,-2.7]; p.foreR = [0,0,-.4 + Math.sin(et*12)*.5]; p.head = [0,.1,.08]; p.torso = [0,0,.05]; }
     if (e === 'dance') { const d = et*7;
       y = Math.abs(Math.sin(d))*.06 - .03; p.body = [0,Math.sin(d*.5)*.3,Math.sin(d)*.12]; p.torso = [0,0,-Math.sin(d)*.18];
@@ -990,15 +1058,151 @@ function updateFish(f, dt, t) {
 
 // ================= ground drops (3D pickups) =================
 const drops = [];
-function dropItem(id, p) { drops.push({ id, node: id === 'wood' ? makeLog() : id === 'fish' ? makeFishItem() : makeDrumstick(false), p:[...p], v:[rand(-1,1),3.2,rand(-1,1)], yaw: rand(0,6), t: 0 }); }
+const makeDropNode = id => ({ wood: makeLog, fish: makeFishItem, leaves: makeLeafItem, string: makeStringItem, stone: makeStoneItem }[id] || (() => makeDrumstick(false)))();
+function dropItem(id, p) { drops.push({ id, node: makeDropNode(id), p:[...p], v:[rand(-1,1),3.2,rand(-1,1)], yaw: rand(0,6), t: 0 }); }
 function updateDrops(dt, t) {
   for (let i = drops.length-1; i >= 0; i--) { const d = drops[i]; d.t += dt;
+    if (d.still || d.float) {   // world-placed: lying on the sand, or bobbing out at sea
+      if (d.float) { d.p[0] += Math.sin(t*.21 + d.yaw)*dt*.12; d.p[2] += Math.cos(t*.17 + d.yaw)*dt*.12; d.p[1] = WATER_Y + .02 + Math.sin(t*1.6 + d.yaw*3)*.03; }
+      d.node.pos = d.p; d.node.rot = [d.float ? Math.sin(t*1.3 + d.yaw)*.12 : 0, d.yaw, 0];
+      if (Math.hypot(d.p[0] - P.x, d.p[2] - P.z) < .8) { drops.splice(i, 1); inv[d.id]++; puff(d.p, 3, [.9,.85,.7]); toast('+1 ' + ITEMS[d.id].name); renderUI(); }
+      continue; }
     d.v[1] -= 12*dt; for (let a = 0; a < 3; a++) d.p[a] += d.v[a]*dt;
     if (d.p[1] < .07) { d.p[1] = .07; d.v[1] = Math.abs(d.v[1]) > 1 ? -d.v[1]*.35 : 0; d.v[0] *= .7; d.v[2] *= .7; }
     d.yaw += dt*(d.v[1] ? 6 : 1.2);
     d.node.pos = [d.p[0], d.p[1] + (d.v[1] === 0 ? Math.sin(t*3 + i)*.03 + .05 : 0), d.p[2]]; d.node.rot = [0, d.yaw, 0];
     if (d.t > .6 && Math.hypot(d.p[0] - P.x, d.p[2] - P.z) < .8) {
       drops.splice(i, 1); inv[d.id]++; puff(d.p, 4, [.9,.8,.7]); toast('+1 ' + ITEMS[d.id].name); renderUI(); } }
+}
+
+// ================= materials scattered on the island and at sea =================
+const placeItem = (id, x, z, extra = {}) => drops.push(Object.assign({ id, node: makeDropNode(id), p:[x, id === 'stone' ? .0 : .005, z], v:[0,0,0], yaw: rand(0,6.28), t: 1, still: true }, extra));
+for (let i = 0; i < 55; i++) { const tr = trees[(Math.random()*trees.length)|0], a = rand(0,6.28), rr = rand(1.2,3.2), x = tr.x + Math.sin(a)*rr, z = tr.z + Math.cos(a)*rr;
+  if (islandE(x, z) < -1.5) placeItem('leaves', x, z); }
+for (let i = 0; i < 34; i++) { const s0 = landSpot((x, z) => islandE(x, z) > -10); if (s0) placeItem('string', ...s0); }      // washed up on the beaches
+for (let i = 0; i < 16; i++) { const [x, z] = fishSpot(); placeItem('string', x, z, { still: false, float: true }); }            // drifting at sea
+for (const [x, z] of ROCKS) for (let k = 0, n = 2 + (Math.random()*2|0); k < n; k++) { const a = rand(0,6.28); placeItem('stone', x + Math.sin(a)*rand(1,1.6), z + Math.cos(a)*rand(1,1.6)); }
+
+// ================= buried chest =================
+const CHEST = { wood:[.5,.33,.2], woodD:[.4,.26,.15], band:[.34,.33,.3], gold:[.86,.69,.3] };
+const chestLid = node('lid', [0,.45,-.275], [
+  B([.9,.16,.55],[0,.08,.275],CHEST.wood), B([.86,.08,.5],[0,.19,.275],CHEST.woodD), B([.06,.2,.57],[.33,.1,.275],CHEST.band), B([.06,.2,.57],[-.33,.1,.275],CHEST.band),
+  B([.08,.1,.03],[0,.02,.555],CHEST.gold),
+]);
+const chest = { x: CHEST_SPOT[0], z: CHEST_SPOT[1], open: 0, opened: false, burst: false, glint: 0, lid: chestLid,
+  node: node('chest', [CHEST_SPOT[0], -.24, CHEST_SPOT[1]], [
+    B([.9,.45,.55],[0,.225,0],CHEST.wood), B([.92,.04,.57],[0,.14,0],CHEST.woodD), B([.92,.04,.57],[0,.32,0],CHEST.woodD),
+    B([.06,.47,.57],[.33,.225,0],CHEST.band), B([.06,.47,.57],[-.33,.225,0],CHEST.band), B([.11,.13,.02],[0,.37,.285],CHEST.gold),
+    B([.8,.02,.45],[0,.43,0],[.2,.14,.08]), B([.3,.06,.2],[-.15,.42,0],[.95,.85,.35]), B([.14,.05,.12],[.18,.42,.05],[.8,.7,.5]),   // inside: dark hollow, a glint of gold, a rope coil
+  ], [chestLid]) };
+chest.node.rot = [-.07, rand(0,6.28), .1]; obstacles.push([chest.x, chest.z, .55]);
+const CHEST_LOOT = ['string','string','string','string','stone','stone','stone','leaves','leaves','leaves','wood','wood'];
+function updateChest(dt) {
+  if (chest.opened) { chest.open = Math.min(1, chest.open + dt/.7); chest.lid.rot = [-1.95*smooth(chest.open), 0, 0];
+    if (!chest.burst && chest.open > .55) { chest.burst = true; puff([chest.x, .1, chest.z], 12, [.9,.82,.6]);
+      for (const id of CHEST_LOOT) drops.push({ id, node: makeDropNode(id), p:[chest.x, .55, chest.z], v:[rand(-1.8,1.8), rand(3,4.6), rand(-1.8,1.8)], yaw: rand(0,6), t: 0 }); } }
+  else if ((chest.glint -= dt) < 0) { chest.glint = rand(1.2,2.4);   // a glint in the sand gives it away
+    spawn({ p:[chest.x + rand(-.3,.3), .26, chest.z + rand(-.2,.2)], v:[0,.35,0], g:0, drag:1, life:.7, s:.045, c:[1,.9,.5], emit:true, spin:0 }); }
+}
+
+// ================= building: blueprints, ghost placement, construction =================
+const SC = { log:[.55,.4,.26], logD:[.45,.32,.2], plank:[.74,.56,.35], plankD:[.63,.46,.28], rope:[.82,.72,.5], thatch:[.66,.62,.32], thatchD:[.54,.52,.25],
+  stone:[.6,.59,.56], stoneD:[.48,.47,.45], ash:[.24,.21,.19], ember:[.95,.38,.1], net:[.88,.82,.64], float:[.96,.5,.2], metal:[.62,.6,.55] };
+const STRUCTS = {
+  campfire: { name:'Campfire', desc:'A ring of stones around a log teepee. Light and warmth through the night.', cost:{ wood:3, stone:4, leaves:2 }, r:.7, snap:0, view:{ d:2.2, cy:.2 }, make() {
+    const n = node('campfire', [0,0,0], [B([.9,.03,.9],[0,.015,0],SC.ash), B([.9,.03,.9],[0,.015,0],SC.ash,[0,Math.PI/4,0])]);
+    for (let i = 0; i < 8; i++) { const a = i*Math.PI/4; n.boxes.push(B([.2,.16,.18],[Math.sin(a)*.5,.08,Math.cos(a)*.5], i%2 ? SC.stone : SC.stoneD, [rand(-.2,.2),a,rand(-.2,.2)])); }
+    for (let i = 0; i < 4; i++) { const a = i*Math.PI/2 + .3; n.boxes.push(B([.08,.62,.08],[Math.sin(a)*.13,.25,Math.cos(a)*.13], i%2 ? SC.log : SC.logD, [.5,a + Math.PI,0])); }
+    for (let i = 0; i < 4; i++) n.boxes.push(B([.07,.04,.07],[rand(-.15,.15),.04,rand(-.15,.15)],SC.ember,[0,rand(0,3),0]));
+    return n; } },
+  wall: { name:'Wall', desc:'Upright palm logs, pointed and lashed with string. Snaps to the 2 m grid.', cost:{ wood:4, string:2 }, r:1, snap:'edge', view:{ d:4.4, cy:1.05 }, make() {
+    const n = node('wall', [0,0,0], []);
+    for (let i = 0; i < 6; i++) { const x = -.85 + i*.34, h = 2.05 + (i*37 % 11)/80;
+      n.boxes.push(B([.3,h,.3],[x,h/2,0], i%2 ? SC.log : SC.logD, [0,(i*.7)%1,0]), spike([x,h - .02,0],[0,1,0],.2,.27, i%2 ? SC.logD : SC.log)); }
+    for (const y of [.5, 1.6]) { n.boxes.push(B([2.1,.14,.1],[0,y,.19],SC.plank)); for (const x of [-.85,-.17,.51]) n.boxes.push(B([.07,.2,.36],[x,y,.02],SC.rope)); }
+    return n; } },
+  floor: { name:'Floor', desc:'A lashed plank platform, 2 × 2 m. The base of any shelter.', cost:{ wood:4, string:2 }, r:1.2, snap:'cell', view:{ d:4, cy:0 }, make() {
+    const n = node('floor', [0,0,0], []);
+    for (const z of [-.8, 0, .8]) n.boxes.push(B([2,.1,.12],[0,.05,z], SC.logD));
+    for (let i = 0; i < 5; i++) n.boxes.push(B([.38,.07,2],[-.8 + i*.4,.135,0], i%2 ? SC.plank : SC.plankD));
+    for (const x of [-.8,.8]) for (const z of [-.8,.8]) n.boxes.push(B([.12,.1,.16],[x,.14,z],SC.rope));
+    return n; } },
+  roof: { name:'Roof', desc:'A thatched A-frame on four posts. Shade by day, shelter from the rain.', cost:{ wood:3, leaves:6, string:2 }, r:1.3, snap:'cell', view:{ d:6.2, cy:1.5 }, make() {
+    const n = node('roof', [0,0,0], []);
+    for (const x of [-.9,.9]) for (const z of [-.9,.9]) n.boxes.push(B([.14,2.4,.14],[x,1.2,z],SC.log));
+    for (const z of [-.9,.9]) n.boxes.push(B([2.05,.12,.12],[0,2.38,z],SC.logD));
+    n.boxes.push(B([2.4,.12,.14],[0,3.02,0],SC.logD));
+    for (const sd of [1,-1]) n.boxes.push(B([2.4,.1,1.32],[0,2.72,.56*sd],SC.thatch,[.55*sd,0,0]), B([2.3,.06,1.2],[0,2.66,.56*sd],SC.thatchD,[.55*sd,0,0]),
+      ...[0,1,2,3].map(k => B([2.42,.04,.06],[0,2.79 - k*.12,(.12 + k*.24)*sd],SC.thatchD,[.55*sd,0,0])));
+    return n; } },
+  bench: { name:'Crafting Bench', desc:'A sturdy work table with a vice. Tools and gear will be crafted here.', cost:{ wood:6, stone:3, string:2 }, r:.9, snap:0, view:{ d:3, cy:.55 }, make() {
+    const n = node('bench', [0,0,0], [ B([1.4,.1,.7],[0,.9,0],SC.plank), B([1.4,.04,.7],[0,.83,0],SC.plankD) ]);
+    for (const x of [-.6,.6]) for (const z of [-.27,.27]) n.boxes.push(B([.1,.85,.1],[x,.42,z],SC.log));
+    n.boxes.push(B([1.25,.05,.56],[0,.3,0],SC.plankD), B([.18,.15,.16],[.55,1.02,.22],SC.metal), B([.04,.04,.26],[.55,1.02,.4],SC.metal),
+      B([.035,.035,.34],[-.22,.97,.08],SC.log,[0,.6,0]), B([.07,.07,.14],[-.32,.98,-.06],SC.metal,[0,.6,0]),
+      B([.42,.01,.12],[.15,.955,-.18],SC.metal), B([.17,.1,.14],[-.5,.99,-.2],SC.stone,[.2,.4,0]), B([.12,.04,.12],[.3,.97,.15],SC.rope));
+    return n; } },
+  net: { name:'Fish Net', desc:'Strung between two posts in the shallows. Fish swim in; you collect them.', cost:{ string:6, wood:2 }, r:1, snap:0, water:true, view:{ d:3.8, cy:.75 }, make() {
+    const n = node('net', [0,0,0], []);
+    for (const x of [-1,1]) n.boxes.push(B([.12,1.45,.12],[x,.72,0],SC.log), spike([x,1.43,0],[0,1,0],.14,.13,SC.logD));
+    n.boxes.push(B([2,.03,.03],[0,1.25,0],SC.rope), B([2,.03,.03],[0,.18,0],SC.rope));
+    for (let i = 0; i < 9; i++) n.boxes.push(B([.016,1.06,.016],[-.9 + i*.225,.72,0],SC.net));
+    for (let j = 0; j < 5; j++) n.boxes.push(B([1.98,.016,.016],[0,.3 + j*.22,0],SC.net));
+    for (let i = 0; i < 4; i++) n.boxes.push(B([.1,.08,.1],[-.75 + i*.5,1.3,0],SC.float));
+    return n; } },
+};
+const BP_ORDER = ['campfire','wall','floor','roof','bench','net'];
+const LM = b => b.lm || (b.lm = M.mul(M.mul(M.t(...b.o), M.rot(b.r)), M.s(...b.s)));
+const builds = [];
+const canAfford = cost => Object.entries(cost).every(([k, v]) => inv[k] >= v);
+function startBuild(type) { P.build = { type, rot: 0, x: P.x, z: P.z, ok: false, ghost: STRUCTS[type].make() }; toggleBuilder(false); }
+function updateBuild(dt) {
+  const B_ = P.build; if (!B_) return; const S = STRUCTS[B_.type];
+  let gx, gz;
+  if (cam.fp) { const cp = Math.cos(cam.fpPitch), dy = -Math.sin(cam.fpPitch), t = dy < -.08 ? clamp(1.5/-dy, 1.6, 7) : 4.5;
+    gx = P.x - Math.sin(cam.yaw)*cp*t; gz = P.z - Math.cos(cam.yaw)*cp*t; }
+  else { const d = 1.6 + S.r*1.2; gx = P.x + Math.sin(P.yaw)*d; gz = P.z + Math.cos(P.yaw)*d; }
+  const odd = v => Math.round((v - 1)/2)*2 + 1, even = v => Math.round(v/2)*2;
+  if (S.snap === 'cell') { gx = odd(gx); gz = odd(gz); }
+  else if (S.snap === 'edge') { if (B_.rot % 2) { gx = even(gx); gz = odd(gz); } else { gx = odd(gx); gz = even(gz); } }
+  const e = islandE(gx, gz), ground = S.water ? Math.min(0, groundH(gx, gz)) : 0;
+  const onLand = S.water ? e > -4 && e < 3.5 : e < -1.5;
+  const clear = !trees.some(t => t.state === 'up' && Math.hypot(t.x - gx, t.z - gz) < .7 + S.r*.5) && !builds.some(b => b.type === B_.type && Math.hypot(b.x - gx, b.z - gz) < .3 && b.rot % 2 === B_.rot % 2)
+    && Math.hypot(chest.x - gx, chest.z - gz) > 1.2;
+  B_.x = gx; B_.z = gz; B_.y = ground; B_.ok = onLand && clear && canAfford(S.cost); B_.why = !onLand ? (S.water ? 'Place it at the shoreline' : 'Needs dry land') : !clear ? 'Something is in the way' : !canAfford(S.cost) ? 'Not enough materials' : '';
+  B_.ghost.pos = [gx, ground, gz]; B_.ghost.rot = [0, B_.rot*Math.PI/2, 0];
+}
+function placeBuild() {
+  const B_ = P.build; if (!B_) return; const S = STRUCTS[B_.type];
+  if (!B_.ok) return toast(B_.why || "Can't build here");
+  for (const [k, v] of Object.entries(S.cost)) inv[k] -= v;
+  const n = S.make(); n.pos = [B_.x, B_.y, B_.z]; n.rot = [0, B_.rot*Math.PI/2, 0];
+  const b = { type: B_.type, node: n, x: B_.x, z: B_.z, rot: B_.rot, prog: 0, dust: 0 }; builds.push(b);
+  const c = Math.cos(B_.rot*Math.PI/2), s_ = Math.sin(B_.rot*Math.PI/2), at = (lx, lz, rad) => obstacles.push([B_.x + lx*c + lz*s_, B_.z - lx*s_ + lz*c, rad]);
+  if (B_.type === 'wall') [-.7, 0, .7].forEach(x => at(x, 0, .3));
+  if (B_.type === 'roof' || B_.type === 'net') [[-.9,-.9],[.9,-.9],[-.9,.9],[.9,.9]].filter(([x, z]) => B_.type === 'roof' || z < 0).forEach(([x, z]) => at(x, B_.type === 'net' ? 0 : z, .15));
+  if (B_.type === 'bench') at(0, 0, .75);
+  if (B_.type === 'campfire') at(0, 0, .55);
+  toast(`Building ${S.name}…`); renderUI();
+}
+function updateBuilds(dt) {
+  for (const b of builds) {
+    if (b.prog < 1) { b.prog = Math.min(1, b.prog + dt/1.7);
+      if ((b.dust -= dt) < 0) { b.dust = .11; puff([b.x + rand(-1,1), b.node.pos[1], b.z + rand(-1,1)], 2, [.78,.7,.56]);
+        spawn({ p:[b.x + rand(-.6,.6), b.node.pos[1] + rand(.2,1.4), b.z + rand(-.6,.6)], v:[rand(-1,1), rand(1,2.5), rand(-1,1)], life:rand(.8,1.4), s:rand(.03,.06), c:[.82,.68,.45], bounce:.3 }); }
+      if (b.prog === 1) { puff([b.x, b.node.pos[1], b.z], 10, [.8,.72,.58]); toast(STRUCTS[b.type].name + ' built'); } }
+    else if (b.type === 'campfire') {   // flames + embers
+      for (let i = 0; i < 2; i++) spawn({ p:[b.x + rand(-.12,.12), .2, b.z + rand(-.12,.12)], v:[rand(-.15,.15), rand(.9,1.6), rand(-.15,.15)], g:-1.2, drag:1.2,
+        life:rand(.35,.65), s:rand(.07,.13), c: [[1,.86,.35],[1,.55,.12],[.95,.32,.06]][(Math.random()*3)|0], emit:true, spin:0 });
+      if (Math.random() < .08) spawn({ p:[b.x, .3, b.z], v:[rand(-.4,.4), rand(1.5,2.6), rand(-.4,.4)], g:-.4, drag:.6, life:rand(.8,1.4), s:.02, c:[1,.6,.2], emit:true, spin:0 }); }
+  }
+}
+function drawBuild(b) {
+  computeWorld(b.node, M.id());
+  if (b.prog >= 1) return drawNode(b.node);
+  const N = b.node.boxes.length;   // construction: pieces drop in one after another
+  b.node.boxes.forEach((bx, i) => { const f = clamp((b.prog - i/N*.72)/.28, 0, 1); if (f <= 0) return; const e = 1 - (1 - f)**3;
+    drawBox(M.mul(M.mul(b.node.world, M.t(0, (1 - e)*.9, 0)), M.mul(M.mul(M.t(...bx.o), M.rot(bx.r)), M.s(...bx.s.map(v => v*(.35 + .65*e))))), bx.c, bx.g); });
 }
 
 // ================= thrown spear =================
@@ -1036,7 +1240,10 @@ const ITEMS = {
   spear:   { name:'Hunting Spear', short:'spear', tag:'Weapon', desc:'Ash shaft with a honed steel point, bound in leather and a strip of scarf cloth.',
              stats:['F / click: thrust → thrust → lunge', 'E: throw it — walk over it to pick it up', 'Long reach, made for chickens'] },
   chicken: { name:'Raw Chicken', short:'chicken', tag:'Food', desc:'A fresh drumstick. Better cooked, but it will do.', stats:['+40 hunger'] },
-  hammer:  { name:'Blueprints', short:'blueprints', tag:'Tool', desc:'', stats:[] },
+  leaves:  { name:'Palm Leaves', short:'leaves', tag:'Material', desc:'Broad green fronds. For thatching roofs and kindling fires.', stats:['Found under the palms'] },
+  string:  { name:'String', short:'string', tag:'Material', desc:'Loose twine washed ashore. Lashes logs together and makes nets.', stats:['Found on beaches and floating at sea'] },
+  stone:   { name:'Stone', short:'stone', tag:'Material', desc:'Fist-sized stones from the rock outcrops. For fire rings and tools.', stats:['Found beside the rock outcrops'] },
+  hammer:  { name:'Clipboard', short:'clipboard', tag:'Tool', desc:'', stats:[] },
   wood:    { name:'Palm Wood', short:'wood', tag:'Material', desc:'A fibrous palm log, split clean by your axe. Light, tough, good for building.',
              stats:['3 logs from every felled palm'] },
   fish:    { name:'Raw Fish', short:'fish', tag:'Food', desc:'A fresh catch from the shallows. Spear one from the shore or while swimming.', stats:['+25 hunger', '+5 thirst'] },
@@ -1048,14 +1255,18 @@ const ICONS = {
   canteen: '<path d="M24 4 L28.5 4 L28.5 9 L19.5 9 L19.5 4Z" fill="#6b4428"/><rect x="21" y="9" width="6" height="5" fill="#a19c91"/><path d="M15 14.5 L33 14.5 L41 22.5 L41 34.5 L33 42.5 L15 42.5 L7 34.5 L7 22.5Z" fill="#7f7b72"/><path d="M16.5 16.5 L31.5 16.5 L38.5 23.5 L38.5 33.5 L31.5 40.5 L16.5 40.5 L9.5 33.5 L9.5 23.5Z" fill="#6c7a45"/><path d="M16.5 16.5 L24 16.5 L24 40.5 L16.5 40.5 L9.5 33.5 L9.5 23.5Z" fill="#7d8c52"/><path d="M14 21 L24 18.5 L34 21 L24 24Z" fill="#8a9a5c" opacity=".6"/><rect x="21.5" y="13" width="5" height="30" fill="#6b4428"/><rect x="21.5" y="13" width="2.5" height="30" fill="#7d5233"/><rect x="20.5" y="29" width="7" height="3.5" fill="#b3aea3"/><path d="M5 23 L8 21 L9 25 L6 26Z M43 23 L40 21 L39 25 L42 26Z" fill="#6b4428"/>',
   spear: '<path d="M5 46 L36 13 L38.5 15.5 L7.5 48.5Z" fill="#a9774a"/><path d="M5 46 L21 29 L23.2 31.2 L7.5 48.5Z" fill="#8a5d36"/><path d="M13 38 L18.6 32 L21.6 35 L16 41Z" fill="#6b4428"/><path d="M14.6 36.4 L17.6 39.4 M17 33.8 L20 36.8" stroke="#cfc3a6" stroke-width="1.1"/><path d="M3.5 47.5 L5.5 45.5 L8.5 48.5 L6.5 50.5Z" fill="#5a3a22"/><path d="M32.5 15.5 L35.5 12.5 L39.5 16.5 L36.5 19.5Z" fill="#6b4428"/><path d="M35 13 L46 2 L41.5 17.5Z" fill="#8f8a80"/><path d="M35 13 L46 2 L39.6 14.6Z" fill="#e2dfd6"/><path d="M36 19 L33 26 L35.6 25.4 L37.6 19.8Z" fill="#5b6a3a"/>',
   chicken: '<path d="M8 13 L18 5 L31 8 L37 20 L33 31 L22 35 L12 31 L6 22Z" fill="#e3998c"/><path d="M8 13 L18 5 L31 8 L24 18 L12 19Z" fill="#f2b6a6"/><path d="M6 22 L12 19 L24 18 L22 35 L12 31Z" fill="#cf7f73"/><path d="M24 18 L31 8 L37 20 L33 31 L22 35Z" fill="#c26f63"/><path d="M13 10 L19 7.5 L21.5 10.5 L15.5 12.5Z" fill="#fbd9cb"/><path d="M27 26 L30 31 L26 30Z" fill="#e8a596"/><path d="M29 30 L39 39 L36.5 41.5 L27 33Z" fill="#f1eadb"/><path d="M29 30 L39 39 L38 40 L28 31.5Z" fill="#d6cbb2"/><circle cx="38.5" cy="42.5" r="3.3" fill="#efe7d6"/><circle cx="41.8" cy="39" r="3.3" fill="#f7f0e2"/><path d="M36.5 45 L40.5 45.3 L44.5 41.5" stroke="#cdbfa4" stroke-width="1" fill="none"/>',
-  hammer: '<path d="M7 10 L35 6 L39 38 L11 42Z" fill="#2f5d94"/><path d="M7 10 L35 6 L35.6 10 L7.6 14Z" fill="#244a78"/><path d="M11 42 L39 38 L39.4 40.6 L11.4 44.6Z" fill="#244a78"/><path d="M13 16 L31 13.5 L33.5 32 L15.5 34.5Z" fill="none" stroke="#d9e8f6" stroke-width="1.2"/><path d="M22 14.8 L23.6 26 M14.4 25 L23.6 23.8 M27 29 L32.8 28.2" stroke="#d9e8f6" stroke-width="1"/><path d="M27 46 L42 20 L45.6 22.1 L30.6 48.1Z" fill="#f2bf3a"/><path d="M27 46 L42 20 L43.8 21 L28.8 47Z" fill="#d9a22a"/><path d="M42 20 L44.2 16.2 L47.8 18.3 L45.6 22.1Z" fill="#c9c6bf"/><path d="M44.2 16.2 L45.6 13.8 L49.2 15.9 L47.8 18.3Z" fill="#e88e8e"/><path d="M27 46 L30.6 48.1 L26.6 51.4Z" fill="#e8c99a"/><path d="M26.6 51.4 L27.6 49.6 L28.6 50.2Z" fill="#333"/>',
+  hammer: '<path d="M10 7 L38 7 L38 45 L10 45Z" fill="#8c6238"/><path d="M10 7 L24 7 L24 45 L10 45Z" fill="#9c7042"/><path d="M13 12 L35 12 L35 42 L13 42Z" fill="#f2eee2"/><path d="M13 12 L24 12 L24 42 L13 42Z" fill="#faf7ee"/><path d="M16 19 H31 M16 23.5 H29 M16 28 H32 M16 32.5 H27 M16 37 H30" stroke="#8b8794" stroke-width="1.3"/><path d="M18 4 L30 4 L31 10 L17 10Z" fill="#b5b4ae"/><path d="M18 4 L24 4 L24 10 L17 10Z" fill="#cfceca"/><rect x="21.5" y="2" width="5" height="3" rx="1" fill="#8d8c86"/><path d="M33 36 L42 18 L44.5 19.3 L35.5 37.3Z" fill="#f2bf3a"/><path d="M33 36 L35.5 37.3 L32.6 40Z" fill="#e8c99a"/>',
+  leaves: '<path d="M8 40 Q20 30 40 8" stroke="#6b7a2e" stroke-width="2.2" fill="none"/><path d="M11 37 L5 30 L14 33Z M15 33 L9 24 L18 29Z M19 29 L14 19 L22 25Z M23 25 L20 14 L26 21Z M28 20 L27 10 L31 17Z M33 15 L34 6 L36 12Z" fill="#5f8a2c"/><path d="M12 38 L18 44 L16 35Z M16 34 L24 40 L20 30Z M21 29 L29 34 L24 25Z M25 24 L33 28 L28 20Z M30 19 L37 22 L33 15Z" fill="#79a83a"/>',
+  string: '<ellipse cx="24" cy="25" rx="14" ry="11" fill="none" stroke="#a08752" stroke-width="5"/><ellipse cx="24" cy="25" rx="14" ry="11" fill="none" stroke="#d2bb85" stroke-width="2.4" stroke-dasharray="3 2.2"/><ellipse cx="24" cy="25" rx="8" ry="6" fill="none" stroke="#c4a96f" stroke-width="3.5"/><path d="M36 31 Q41 37 44 43" stroke="#a08752" stroke-width="3.4" fill="none"/><path d="M36 31 Q41 37 44 43" stroke="#d2bb85" stroke-width="1.4" stroke-dasharray="2.5 2" fill="none"/>',
+  stone: '<path d="M9 30 L14 18 L27 12 L39 17 L42 29 L34 38 L17 39Z" fill="#8d8b86"/><path d="M14 18 L27 12 L39 17 L28 23Z" fill="#a9a7a1"/><path d="M9 30 L14 18 L28 23 L24 37 L17 39Z" fill="#7b7974"/><path d="M28 23 L39 17 L42 29 L34 38 L24 37Z" fill="#6c6a66"/>',
   wood: '<path d="M6 31 L28 9 L39 20 L17 42Z" fill="#7a5634"/><path d="M6 31 L28 9 L32 13 L10 35Z" fill="#94693f"/><path d="M13 38 L35 16 L39 20 L17 42Z" fill="#5f4128"/><path d="M11 33.5 L31 13.5 M15 37 L34 18" stroke="#4e351f" stroke-width="1.1"/><path d="M20 28 L16 19 L19.5 18 L23 26Z" fill="#5f4128"/><path d="M27 8 L34 5 L41 12 L38 19 L31 22 L26 15Z" fill="#e2c48f"/><path d="M29.5 10 L34 8.5 L38.5 13 L36.5 17.5 L32 19 L29 14.5Z" fill="none" stroke="#b48b55" stroke-width="1.1"/><path d="M32.5 12.5 L35 12 L36 14.5 L33.5 15.5Z" fill="#a87c47"/>',
   fish: '<path d="M6 24 L16 15 L31 13.5 L38 24 L31 34.5 L16 33Z" fill="#8fa3b5"/><path d="M6 24 L16 15 L31 13.5 L38 24Z" fill="#b8c8d6"/><path d="M6 24 L16 33 L31 34.5 L38 24Z" fill="#eaa99b"/><path d="M38 24 L46 14.5 L43.5 24 L46 33.5Z" fill="#7b8fa1"/><path d="M19 15 L25 8 L29 14Z" fill="#7b8fa1"/><path d="M20 30 L25 37 L27 32Z" fill="#7b8fa1"/><path d="M22 23 L27 26 L22 28.5Z" fill="#7b8fa1"/><circle cx="12.5" cy="22" r="2" fill="#1e1a17"/><circle cx="12" cy="21.4" r=".6" fill="#fff"/><path d="M6 24 L9 25.2" stroke="#5b6b7a" stroke-width="1"/>',
   coconut: '<path d="M24 5 L38 12 L43 26 L37 39 L24 44 L11 39 L5 26 L10 12Z" fill="#6a4426"/><path d="M24 5 L38 12 L31 23 L17 21 L10 12Z" fill="#82552f"/><path d="M5 26 L17 21 L31 23 L24 44 L11 39Z" fill="#59381f"/><path d="M31 23 L43 26 L37 39 L24 44Z" fill="#4c2f19"/><path d="M14 11 L24 7 L34 11 L24 15Z" fill="#efe9d8"/><circle cx="20" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="28" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="24" cy="23" r="1.8" fill="#2b1a0e"/>',
 };
 const icon = id => `<svg class="ic" viewBox="0 0 48 48">${ICONS[id]}</svg>`;
-const inv = { axe: 1, spear: 1, canteen: 1, coconut: 2, chicken: 0, fish: 0, wood: 0 }, canteenSips = { n: 8, max: 8 };
+const inv = { axe: 1, spear: 1, canteen: 1, coconut: 2, chicken: 0, fish: 0, wood: 0, leaves: 0, string: 0, stone: 0 }, canteenSips = { n: 8, max: 8 };
 const hotbar = ['axe', 'spear', null, null, null];
+const COUNTED = ['coconut','chicken','fish','wood','leaves','string','stone'];
 let panelOpen = false, assignId = null, invSel = 'canteen', nameTimer = 0;
 const $ = id => document.getElementById(id);
 function toast(msg) { const d = document.createElement('div'); d.textContent = msg; $('toast').appendChild(d);
@@ -1064,7 +1275,7 @@ function showName(id) { const el = $('itemName'); el.textContent = id ? ITEMS[id
   clearTimeout(nameTimer); nameTimer = setTimeout(() => el.classList.remove('show'), 1400); }
 function slotHTML(id, extra = '') {
   if (!id) return extra;
-  const n = inv[id], cnt = ['coconut','chicken','fish','wood'].includes(id) ? `<span class="n">${n}</span>` : '';
+  const n = inv[id], cnt = COUNTED.includes(id) ? `<span class="n">${n}</span>` : '';
   const fill = id === 'canteen' ? `<span class="fill"><i style="height:${canteenSips.n / canteenSips.max * 100}%"></i></span>` : '';
   return icon(id) + cnt + fill + extra;
 }
@@ -1083,11 +1294,11 @@ function renderUI() {
   const it = invSel && ITEMS[invSel], inBar = invSel ? hotbar.indexOf(invSel) : -1;
   $('detail').innerHTML = !it ? '<p>Your backpack is empty.</p>' : `
     <div class="big">${icon(invSel)}</div><span class="tag">${it.tag}</span><h3>${it.name}</h3>
-    <div style="color:var(--muted);font-size:12px">${invSel === 'canteen' ? `${canteenSips.n} / ${canteenSips.max} sips` : ['coconut','chicken','fish','wood'].includes(invSel) ? `× ${inv[invSel]}` : 'Durable'}</div>
+    <div style="color:var(--muted);font-size:12px">${invSel === 'canteen' ? `${canteenSips.n} / ${canteenSips.max} sips` : COUNTED.includes(invSel) ? `× ${inv[invSel]}` : 'Durable'}</div>
     <p>${it.desc}</p><ul>${it.stats.map(x => `<li>${x}</li>`).join('')}</ul>
     <div class="acts">${inBar >= 0 ? `<button class="btn" data-act="remove">Remove from hotbar (slot ${inBar+1})</button>`
                                      : `<button class="btn primary" data-act="add">Add to hotbar</button>`}
-      ${!['axe','spear','wood'].includes(invSel) ? `<button class="btn" data-act="use">${invSel === 'canteen' ? 'Drink' : 'Eat'}</button>` : ''}</div>
+      ${['canteen','coconut','chicken','fish'].includes(invSel) ? `<button class="btn" data-act="use">${invSel === 'canteen' ? 'Drink' : 'Eat'}</button>` : ''}</div>
     <div class="hint">${assignId ? 'Pick a hotbar slot below (or press 1–5)…' : 'Tip: drag items onto any hotbar slot.'}</div>`;
 }
 function togglePanel(open = !panelOpen) {
@@ -1182,32 +1393,63 @@ function updateVitals() {
     el.classList.toggle('low', v < 20); }
 }
 
-// ================= build hammer + builder menu (menu only — no blueprints yet) =================
-let builderOpen = false, bCat = 0;
-const BCATS = [
-  ['Foundations', 'M3 16h18v4H3z M5.5 16l2-4.5h9l2 4.5'], ['Walls', 'M3 5h18v14H3z M3 9.7h18 M3 14.3h18 M9 5v4.7 M15 9.7v4.6 M9 14.3V19'],
-  ['Floors', 'M2 15l10-5 10 5-10 5z M7 12.5l10 5 M17 12.5l-10 5'], ['Roofs', 'M2 13l10-8 10 8 M5 11v8h14v-8'],
-  ['Doors & Windows', 'M5 21V3h9v18 M3 21h18 M11.5 12h.5 M16 7h5v6h-5z M18.5 7v6'], ['Stairs', 'M3 20h5v-5h5v-5h5V5h3'],
-  ['Furniture', 'M7 3v10h10V3 M7 13v8 M17 13v8 M7 8.5h10'], ['Utility', 'M4 8h14l2 3h-6v3h3v4H7v-4h3v-3H4z'],
-];
-$('bgrid').innerHTML = '<div></div>'.repeat(12);
+// ================= clipboard: Build page (blueprints with 3D previews) + Guide page =================
+let builderOpen = false, page = 'build', bpSel = 'campfire';
 $('hammerSlot').querySelector('svg').innerHTML = ICONS.hammer;
-document.querySelector('#builder .hic').innerHTML = ICONS.hammer;
-$('bWoodIc').innerHTML = ICONS.wood;
+const matIcon = id => `<svg viewBox="0 0 48 48">${ICONS[id]}</svg>`;
+// offscreen renderer: draws a blueprint model into a small framebuffer and copies it into a 2D canvas
+const PV = { n: 256, px: new Uint8Array(256*256*4), models: Object.fromEntries(BP_ORDER.map(k => [k, STRUCTS[k].make()])), thumbs: {} };
+{ PV.fb = gl.createFramebuffer(); const tex = gl.createTexture(), rb = gl.createRenderbuffer();
+  gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, PV.n, PV.n, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, PV.n, PV.n);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, PV.fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb); gl.bindFramebuffer(gl.FRAMEBUFFER, null); }
+function renderModel(type, yaw, ctx) {
+  const n = PV.n, v = STRUCTS[type].view, mdl = PV.models[type], eye = [Math.sin(yaw)*v.d, v.cy + v.d*.5, Math.cos(yaw)*v.d];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, PV.fb); gl.viewport(0, 0, n, n); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.uniformMatrix4fv(U.uVP, false, M.mul(M.persp(.78, 1, .05, 60), M.look(eye, [0, v.cy, 0], [0,1,0])));
+  gl.uniform3fv(U.uCam, eye); gl.uniform3fv(U.uSky, [.95,.92,.84]); gl.uniform1i(U.uMode, 0); gl.uniform1f(U.uWind, 0); gl.uniform1f(U.uWater, 0);
+  mdl.pos = [0,0,0]; mdl.rot = [0,0,0]; computeWorld(mdl, M.id()); boundGeo = null; drawNode(mdl);
+  gl.readPixels(0, 0, n, n, gl.RGBA, gl.UNSIGNED_BYTE, PV.px); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  const img = ctx.createImageData(n, n); for (let y = 0; y < n; y++) img.data.set(PV.px.subarray((n - 1 - y)*n*4, (n - y)*n*4), y*n*4);
+  ctx.putImageData(img, 0, 0);
+}
+function thumbsOnce() { if (PV.done) return; PV.done = true; const c = document.createElement('canvas'); c.width = c.height = PV.n; const ctx = c.getContext('2d');
+  for (const k of BP_ORDER) { renderModel(k, .7, ctx); PV.thumbs[k] = c.toDataURL(); } }
+function renderBlueprintPreview(t) { if (page === 'build') renderModel(bpSel, t*.6, $('bpCanvas').getContext('2d')); }
+const chips = cost => Object.entries(cost).map(([k, v]) => `<span class="chip${inv[k] < v ? ' no' : ''}" title="${ITEMS[k].name}">${matIcon(k)}${v}</span>`).join('');
 function renderBuilder() {
-  $('bcats').innerHTML = BCATS.map(([n, d], i) => `<button class="${i === bCat ? 'on' : ''}" data-c="${i}"><svg viewBox="0 0 24 24"><path d="${d}"/></svg><span>${n}</span><em>0</em></button>`).join('');
-  $('bcatName').textContent = BCATS[bCat][0]; $('bWood').textContent = inv.wood;
+  thumbsOnce();
+  $('bpGrid').innerHTML = BP_ORDER.map(k => { const S = STRUCTS[k];
+    return `<div class="bp${k === bpSel ? ' on' : ''}${canAfford(S.cost) ? '' : ' lack'}" data-bp="${k}"><img src="${PV.thumbs[k]}" alt=""><b>${S.name}</b><div class="chips">${chips(S.cost)}</div></div>`; }).join('');
+  const S = STRUCTS[bpSel]; $('bpName').textContent = S.name; $('bpDesc').textContent = S.desc;
+  $('bpCost').innerHTML = Object.entries(S.cost).map(([k, v]) => `<div class="row${inv[k] < v ? ' no' : ''}">${matIcon(k)}<span>${ITEMS[k].name}</span><b>${inv[k]} / ${v}</b></div>`).join('');
+  $('bpBuild').disabled = !canAfford(S.cost); $('bpBuild').textContent = canAfford(S.cost) ? 'Build' : 'Need more materials';
+}
+function flipPage(to) {
+  if (to === page) return; const sh = $('sheet'); sh.classList.remove('flip'); void sh.offsetWidth; sh.classList.add('flip'); P.pageFlip = 1;
+  setTimeout(() => { page = to; document.querySelectorAll('.tabs2 button').forEach(b => b.classList.toggle('on', b.dataset.pg === to));
+    $('pgBuild').hidden = to !== 'build'; $('pgGuide').hidden = to !== 'guide'; }, 210);
 }
 function toggleBuilder(open = !builderOpen) {
   builderOpen = open; $('builder').hidden = !open;
-  if (open) { if (panelOpen) togglePanel(false); for (const k in keys) keys[k] = false; if (locked()) document.exitPointerLock(); renderBuilder(); }
+  if (open) { if (panelOpen) togglePanel(false); P.build = null; for (const k in keys) keys[k] = false; if (locked()) document.exitPointerLock(); renderBuilder(); }
+}
+function updatePrompt() {
+  let html = '';
+  if (P.build) { const S = STRUCTS[P.build.type]; html = `<b>${S.name}</b><span class="chips">${chips(S.cost)}</span><span>${P.build.ok ? '<kbd>F</kbd> build' : P.build.why}</span><span><kbd>R</kbd> rotate</span><span><kbd>Esc</kbd> stop</span>`; }
+  else if (!chest.opened && Math.hypot(chest.x - P.x, chest.z - P.z) < 1.9) html = '<kbd>E</kbd> Dig up the buried chest';
+  if (html !== updatePrompt.last) { updatePrompt.last = html; $('prompt').innerHTML = html; $('prompt').classList.toggle('show', !!html); }
 }
 function selectHammer() {
   if (P.equip > 0 || P.atk || P.use) return;
   const on = P.held !== 'hammer'; P.sel = -1; P.equip = 1; P.equipTo = on ? 'hammer' : null; P.emote = null; P.punch = 0;
   showName(on ? 'hammer' : null); renderUI();
 }
-$('bcats').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { bCat = +b.dataset.c; renderBuilder(); } });
+$('bpGrid').addEventListener('click', e => { const c = e.target.closest('[data-bp]'); if (c) { bpSel = c.dataset.bp; renderBuilder(); } });
+$('bpBuild').onclick = () => { if (canAfford(STRUCTS[bpSel].cost)) startBuild(bpSel); };
+document.querySelectorAll('.tabs2 button').forEach(b => b.onclick = () => flipPage(b.dataset.pg));
 $('closeB').onclick = () => toggleBuilder(false);
 $('builder').addEventListener('pointerdown', e => { if (e.target === $('builder')) toggleBuilder(false); });
 $('hammerSlot').onclick = () => P.held === 'hammer' && P.equip <= 0 ? toggleBuilder(true) : selectHammer();
@@ -1224,13 +1466,15 @@ function update(dt, t) {
     document.getElementById('cross').style.display = cam.fp ? 'block' : 'none'; }
   if (pressed['t']) slow = !slow; if (pressed['g']) grid = grid ? 0 : 1; if (pressed['v']) cam.auto = !cam.auto;
   if (pressed['b']) packOn = !packOn;
-  if (pressed['r']) Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0, atk:null });
+  if (pressed['r']) { if (P.build) P.build.rot = (P.build.rot + 1) % 4; else Object.assign(P, { x:0, y:0, z:0, vx:0, vy:0, vz:0, emote:null, roll:0, punch:0, atk:null }); }
   if (pressed['c']) P.crouch = !P.crouch;
   for (const k in EMOTES) if (pressed[k]) { P.emote = P.emote === EMOTES[k] ? null : EMOTES[k]; P.emoteT = 0; P.crouch = false; P.atk = null; }
   for (let i = 0; i < 5; i++) if (pressed[String(i+1)]) selectSlot(i);
   if (pressed['x'] && P.hasAxe && !P.atk && P.twirl <= 0) P.twirl = 1;
   if (pressed['h']) selectHammer();
-  if (pressed['e'] && P.held === 'spear' && !P.atk && P.equip <= 0 && !P.use) startAttack('throw');
+  const nearChest = !chest.opened && Math.hypot(chest.x - P.x, chest.z - P.z) < 1.9;
+  if (pressed['e']) { if (nearChest) { chest.opened = true; toast('You dug up a buried chest!'); }
+    else if (P.held === 'spear' && !P.atk && P.equip <= 0 && !P.use) startAttack('throw'); }
 
   // movement relative to camera
   let ix = (keys['d']?1:0) - (keys['a']?1:0), iz = (keys['w']?1:0) - (keys['s']?1:0);
@@ -1261,7 +1505,7 @@ function update(dt, t) {
   if (pressed['f'] && P.roll <= 0 && P.equip <= 0 && !P.use && !P.swim) {
     if (P.hasAxe) { if (!P.atk) startAttack('chop'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4) P.atkQueued = true; }
     else if (P.held === 'spear') { if (!P.atk) startAttack('thrust'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4 && ATTACKS[P.atk.name].next) P.atkQueued = true; }
-    else if (P.held === 'hammer') toggleBuilder(true);
+    else if (P.held === 'hammer') { if (P.build) placeBuild(); else toggleBuilder(true); }
     else if (P.held === 'canteen' || P.held === 'coconut' || P.held === 'chicken' || P.held === 'fish') startUse(P.held === 'canteen' ? 'drink' : 'eat');
     else if (P.punch < .45) { P.combo = P.punch > 0 ? (P.combo % 3) + 1 : 1; P.punchSide = P.combo === 2 ? -1 : 1; P.punch = 1; P.emote = null; }
   }
@@ -1335,15 +1579,16 @@ function update(dt, t) {
   for (const tr of trees) updateTree(tr, dt, t);
   fishes.forEach((f, i) => { updateFish(f, dt, t); if (f.gone && f.respawn <= 0) fishes[i] = makeFish(...fishSpot()); });
   chickens.forEach((c, i) => { updateChicken(c, dt, t); if (c.gone && c.respawn <= 0) chickens[i] = makeChicken(...chickenSpot()); });
-  updateDrops(dt, t); updateThrown(dt); updateDebris(dt);
+  updateDrops(dt, t); updateThrown(dt); updateDebris(dt); updateChest(dt); updateBuild(dt); updateBuilds(dt); updatePrompt();
+  if (P.pageFlip > 0) { P.pageFlip = Math.max(0, P.pageFlip - dt/.45); clipPage.rot = [P.pageFlip > 0 ? -Math.PI*smooth(1 - P.pageFlip) : 0, 0, 0]; }
   updateParts(dt, t);
   cam.shake = Math.max(0, cam.shake - dt*.8);
   if (!cam.fp && cam.auto && il && !drag && iz >= 0) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8);
   pressed = {};
   updateVitals();
-  const st = P.swim ? (P.speed > .6 ? 'swimming' : 'treading water') : P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? (P.hasAxe ? 'axe: ' : 'spear: ') + P.atk.name : P.twirl > 0 ? 'twirl' :
+  const st = P.build ? 'building' : P.swim ? (P.speed > .6 ? 'swimming' : 'treading water') : P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? (P.hasAxe ? 'axe: ' : 'spear: ') + P.atk.name : P.twirl > 0 ? 'twirl' :
     !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
-    P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.hasAxe && !cam.fp ? 'idle (fidget)' : 'idle');
+    P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.held && !cam.fp ? 'idle (fidget)' : 'idle');
   document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
 }
 
@@ -1407,7 +1652,9 @@ function frame(now) {
     if (vx*fwd[0] + vz*fwd[2] > -3.5 || vx*vx + vz*vz < 64) drawNode(tr.node); }
   for (const f of fishes) if (!f.gone) { computeWorld(f.node, M.id()); drawNode(f.node); }
   for (const c of chickens) if (!c.gone) { computeWorld(c.node, M.id()); drawNode(c.node); }
-  for (const d of drops) { computeWorld(d.node, M.id()); drawNode(d.node); }
+  for (const d of drops) { const vx = d.p[0] - eye[0], vz = d.p[2] - eye[2]; if (vx*fwd[0] + vz*fwd[2] < -2 && vx*vx + vz*vz > 25) continue; computeWorld(d.node, M.id()); drawNode(d.node); }
+  for (const b of builds) drawBuild(b);
+  computeWorld(chest.node, M.id()); drawNode(chest.node);
   for (const d of debris) { const f = Math.min(1, d.life*1.2); drawBox(M.mul(M.mul(M.mul(M.t(...d.p), M.rot(d.rot)), M.s(f,f,f)), d.m0), d.c); }
   if (thrown) { computeWorld(thrownSpear, M.id()); drawNode(thrownSpear); }
   for (const q of parts) { if (q.emit) continue; const sc = q.s * Math.min(1, q.life*3);
@@ -1415,13 +1662,19 @@ function frame(now) {
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);           // ocean last among solids
   gl.uniform1i(U.uMode, 3); gl.uniform1f(U.uWater, 1); drawBox(M.id(), [0,0,0], 'water');
   gl.uniform1i(U.uMode, 4); gl.uniform1f(U.uWater, 0); drawBox(M.id(), [0,0,0], 'skirt');
+  if (P.build) { const G = P.build.ghost, tint = P.build.ok ? [.45,1,.55] : [1,.38,.32];   // live ghost preview
+    computeWorld(G, M.id()); gl.uniform1i(U.uMode, 5); gl.depthMask(false); for (const bx of G.boxes) drawBox(M.mul(G.world, LM(bx)), tint, bx.g); gl.depthMask(true); }
   gl.disable(gl.BLEND);
   gl.uniform1i(U.uMode, 2);
+  for (const b of builds) if (b.type === 'campfire' && b.prog >= 1) for (let k = 0; k < 3; k++) {   // flickering flame core
+    const fl = .75 + .25*Math.sin(t*(13 + k*5) + k*2), w = (.22 - k*.06)*fl, hh = (.42 - k*.08)*fl;
+    drawBox(M.mul(M.mul(M.t(b.x, .12 + hh/2, b.z), M.ry(t*(1 + k) + k)), M.s(w, hh, w)), [[1,.5,.12],[1,.75,.25],[1,.95,.6]][k]); }
   for (const q of parts) { if (!q.emit) continue; const sc = q.s * (q.life / q.max);
     drawBox(M.mul(M.t(...q.p), M.s(sc,sc,sc)), q.c); }
   for (const f of flies) { const a = t*f.sp + f.ph, fl = .55 + .45*Math.sin(t*3 + f.ph*7), tw = f.t.trunk.pos[1];
     const fp = [f.t.x + Math.sin(a)*f.r, f.h + Math.sin(a*1.7)*.35 + tw*.3, f.t.z + Math.cos(a*.8)*f.r], sc = .03 + .015*fl;
     drawBox(M.mul(M.t(...fp), M.s(sc,sc,sc)), [1*fl, .85*fl, .45*fl]); }
+  if (builderOpen) renderBlueprintPreview(t);
   requestAnimationFrame(frame);
 }
 computeWorld(root, M.id()); for (const tr of trees) computeWorld(tr.node, M.id());
