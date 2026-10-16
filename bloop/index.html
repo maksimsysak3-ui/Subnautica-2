@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Bloop — Character Creator</title>
+<style>
+:root{
+  --bg1:#f4f1ec; --bg2:#e6e1d8; --ink:#1d1d2b; --muted:#6c6a75; --card:#ffffff;
+  --line:#e4dfd6; --accent:#ff7a2e; --blue:#3b82f6; --sel:#2f6bff; --panel:#fbf9f6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg1);color:var(--ink);
+  font-family:ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Arial Rounded MT Bold",system-ui,sans-serif;
+  -webkit-tap-highlight-color:transparent;user-select:none}
+#app{display:flex;height:100%}
+#stage{position:relative;flex:1;min-width:0;
+  background:radial-gradient(120% 90% at 50% 38%,#fffdf9 0%,var(--bg1) 45%,var(--bg2) 100%)}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+#c.drag{cursor:grabbing}
+#logo{position:absolute;left:22px;top:14px;font-size:54px;font-weight:900;letter-spacing:-1px;line-height:1;
+  transform:rotate(-4deg);text-shadow:0 3px 0 #fff;pointer-events:none}
+#logo small{display:block;font-size:15px;font-weight:700;color:var(--muted);letter-spacing:0;margin:6px 0 0 6px;transform:rotate(2deg)}
+#topbar{position:absolute;right:14px;top:14px;display:flex;gap:8px}
+.btn{border:2px solid var(--ink);background:#fff;color:var(--ink);border-radius:14px;padding:8px 12px;
+  font:inherit;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 3px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+#emotes{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
+  max-width:calc(100% - 24px)}
+#emotes .btn{padding:7px 10px;font-size:13px}
+#bubble{position:absolute;left:0;top:0;pointer-events:none;background:#fff;border:2.5px solid var(--ink);border-radius:18px;
+  padding:8px 14px;font-weight:800;font-size:15px;white-space:nowrap;transform:translate(-50%,-100%) scale(0);transform-origin:50% 120%;
+  transition:transform .18s cubic-bezier(.3,1.6,.5,1);box-shadow:0 3px 0 var(--ink)}
+#bubble.show{transform:translate(-50%,-100%) scale(1)}
+#bubble:after{content:"";position:absolute;left:50%;bottom:-10px;width:14px;height:14px;background:#fff;border:2.5px solid var(--ink);
+  border-top:0;border-left:0;transform:translateX(-50%) rotate(45deg)}
+#hint{position:absolute;left:22px;bottom:70px;font-size:12px;color:var(--muted);font-weight:700;pointer-events:none}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:30px;font-weight:800}
+aside{width:400px;flex:none;background:var(--panel);border-left:2px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:12px 12px 8px}
+.tab{border:2px solid transparent;background:#fff;border-radius:12px;padding:9px 2px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:800;
+  color:var(--muted);box-shadow:0 2px 0 var(--line)}
+.tab.on{border-color:var(--ink);box-shadow:0 3px 0 var(--ink);color:var(--ink)}
+#head{display:flex;align-items:baseline;justify-content:space-between;padding:6px 16px 8px}
+#head h2{margin:0;font-size:24px;font-weight:900}
+#head span{font-size:12px;color:var(--muted);font-weight:700}
+#grid{flex:1;overflow:auto;padding:4px 12px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-content:start}
+.item{position:relative;background:var(--card);border:2px solid var(--line);border-radius:16px;padding:4px 4px 8px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:4px;transition:transform .1s,border-color .1s;font:inherit;color:var(--ink)}
+.item:hover{transform:translateY(-2px) rotate(-1deg);border-color:#cfc8bb}
+.item.on{border-color:var(--sel);box-shadow:0 0 0 3px #2f6bff33;background:#f3f6ff}
+.item .th{width:100%;max-width:120px;aspect-ratio:1;display:block}
+.item .sw{width:38px;height:38px;border-radius:50%;border:2.5px solid var(--ink);box-shadow:inset -5px -6px 0 #0002}
+.item .nm{font-size:12px;padding:0 2px;font-weight:800;text-align:center;line-height:1.15}
+#bottom{display:flex;gap:8px;padding:10px 12px 14px;border-top:2px solid var(--line)}
+#bottom .btn{flex:1}
+@media (max-width:760px){
+  #app{flex-direction:column}
+  #stage{flex:none;height:54%}
+  aside{width:100%;flex:1;border-left:0;border-top:2px solid var(--line)}
+  #logo{font-size:36px;left:14px;top:10px}
+  #logo small{font-size:11px}
+  #topbar{top:10px;right:10px;gap:6px}
+  #topbar .btn{padding:6px 9px;font-size:13px}
+  #emotes{bottom:8px;gap:4px}
+  #emotes .btn{padding:5px 7px;font-size:12px;box-shadow:0 2px 0 var(--ink)}
+  #hint{display:none}
+  #tabs{grid-template-columns:repeat(5,1fr);gap:4px;padding:8px}
+  .tab{font-size:11px;padding:6px 1px}
+  #grid{grid-template-columns:repeat(4,1fr);gap:8px}
+  #bottom{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="logo">Bloop<small>small bean. big vibes.</small></div>
+    <div id="topbar">
+      <button class="btn" id="bRand" title="Randomize">Random</button>
+      <button class="btn" id="bShot" title="Save a picture">Photo</button>
+      <button class="btn" id="bMute" title="Sound">Sound on</button>
+    </div>
+    <div id="bubble"></div>
+    <div id="hint">drag to spin · scroll to zoom · poke Bloop</div>
+    <div id="emotes"></div>
+    <div id="err"></div>
+  </div>
+  <aside>
+    <nav id="tabs"></nav>
+    <div id="head"><h2 id="tabTitle"></h2><span id="tabCount"></span></div>
+    <div id="grid"></div>
+    <div id="bottom">
+      <button class="btn" id="bReset">Classic Bloop</button>
+      <button class="btn" id="bRand2">Surprise me</button>
+    </div>
+  </aside>
+</div>
+<script>
+"use strict";
+// =====================================================================
+//  Math
+// =====================================================================
+const TAU = Math.PI * 2, PI = Math.PI;
+const V = {
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  cross: (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]],
+  dot: (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2],
+  norm: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; },
+};
+const M4 = {
+  mul(a, b) {
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++)
+      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+    return o;
+  },
+  persp(f, asp, n, fr) { const t = 1/Math.tan(f/2); return new Float32Array([t/asp,0,0,0, 0,t,0,0, 0,0,(fr+n)/(n-fr),-1, 0,0,2*fr*n/(n-fr),0]); },
+  ortho(s, n, f) { return new Float32Array([1/s,0,0,0, 0,1/s,0,0, 0,0,-2/(f-n),0, 0,0,-(f+n)/(f-n),1]); },
+  lookAt(e, c, u) {
+    const z = V.norm(V.sub(e, c)), x = V.norm(V.cross(u, z)), y = V.cross(z, x);
+    return new Float32Array([x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -V.dot(x,e),-V.dot(y,e),-V.dot(z,e),1]);
+  },
+  // T * Ry * Rx * Rz * S
+  trs(p, r, s) {
+    const cx = Math.cos(r[0]), sx = Math.sin(r[0]), cy = Math.cos(r[1]), sy = Math.sin(r[1]), cz = Math.cos(r[2]), sz = Math.sin(r[2]);
+    const r00 = cy*cz + sy*sx*sz, r01 = -cy*sz + sy*sx*cz, r02 = sy*cx;
+    const r10 = cx*sz,            r11 = cx*cz,             r12 = -sx;
+    const r20 = -sy*cz + cy*sx*sz, r21 = sy*sz + cy*sx*cz,  r22 = cy*cx;
+    return new Float32Array([r00*s[0], r10*s[0], r20*s[0], 0, r01*s[1], r11*s[1], r21*s[1], 0, r02*s[2], r12*s[2], r22*s[2], 0, p[0], p[1], p[2], 1]);
+  },
+  normalMat(m) {
+    const a = [m[0],m[1],m[2]], b = [m[4],m[5],m[6]], c = [m[8],m[9],m[10]];
+    const bc = V.cross(b, c), ca = V.cross(c, a), ab = V.cross(a, b), d = V.dot(a, bc) || 1;
+    return new Float32Array([bc[0]/d,bc[1]/d,bc[2]/d, ca[0]/d,ca[1]/d,ca[2]/d, ab[0]/d,ab[1]/d,ab[2]/d]);
+  },
+  xform(m, p) {
+    const x = m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12], y = m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13],
+          z = m[2]*p[0]+m[6]*p[1]+m[10]*p[2]+m[14], w = m[3]*p[0]+m[7]*p[1]+m[11]*p[2]+m[15];
+    return [x/w, y/w, z/w];
+  },
+};
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const sp = (x, e) => Math.sign(x) * Math.pow(Math.abs(x), e);
+const ease = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+function hex(c) {
+  if (Array.isArray(c)) return c;
+  const n = parseInt(c.slice(1), 16);
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+}
+function hsl(h, s, l) {
+  const f = n => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return [f(0), f(8), f(4)];
+}
+
+// =====================================================================
+//  Procedural geometry: everything is a parametric surface
+// =====================================================================
+// f(u,v) -> [x,y,z]; normals by finite differences, oriented away from inside(u,v).
+function surf(nu, nv, f, inside) {
+  const data = new Float32Array((nu+1)*(nv+1)*6), idx = new Uint32Array(nu*nv*6), e = 1e-3;
+  let k = 0;
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+    const u = i/nu, v = j/nv, p = f(u, v), vv = clamp(v, .004, .996);
+    const q = f(u, vv);
+    let n = V.cross(V.sub(f(u+e, vv), f(u-e, vv)), V.sub(f(u, vv+e), f(u, vv-e)));
+    const out = V.sub(q, inside ? inside(u, vv) : [0, 0, 0]);
+    if (Math.hypot(n[0], n[1], n[2]) < 1e-12) n = out;
+    n = V.norm(n);
+    if (V.dot(n, out) < 0) n = [-n[0], -n[1], -n[2]];
+    data.set(p, k); data.set(n, k+3); k += 6;
+  }
+  k = 0;
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const a = j*(nu+1)+i, b = a+1, c = a+nu+1, d = c+1;
+    idx.set([a, c, b, b, c, d], k); k += 6;
+  }
+  return { data, idx };
+}
+function superE(e1, e2, u0 = 0, u1 = 1, v0 = 0, v1 = 1, nu = 48, nv = 32) {
+  return surf(nu, nv, (u, v) => {
+    const th = (u0 + (u1-u0)*u) * TAU, ph = (v0 + (v1-v0)*v) * PI, s = sp(Math.sin(ph), e1);
+    return [s*sp(Math.cos(th), e2), sp(Math.cos(ph), e1), s*sp(Math.sin(th), e2)];
+  });
+}
+// prof(v) -> [r, y, zScale]
+function lathe(prof, nu = 48, nv = 40, u0 = 0, u1 = 1) {
+  return surf(nu, nv, (u, v) => {
+    const th = (u0 + (u1-u0)*u) * TAU, [r, y, zs = 1] = prof(v);
+    return [r*Math.cos(th), y, r*Math.sin(th)*zs];
+  }, (u, v) => [0, prof(v)[1] * 0.5, 0]);
+}
+function torusGeo(rr, u0 = 0, u1 = 1) {
+  const th = u => (u0 + (u1-u0)*u) * TAU;
+  return surf(56, 18, (u, v) => {
+    const t = th(u), ph = v*TAU, R = 1 + rr*Math.cos(ph);
+    return [R*Math.cos(t), rr*Math.sin(ph), R*Math.sin(t)];
+  }, u => [Math.cos(th(u)), 0, Math.sin(th(u))]);
+}
+
+// ---- Bloop's bean body ----
+const DZ = 0.9; // front-to-back squish
+function bodyProfile(t) {
+  const ph = t * PI, s = Math.sin(ph), c = Math.cos(ph);
+  const y = c >= 0 ? 1.12 * sp(c, .8) : 0.98 * sp(c, .55);
+  return [0.84 * sp(s, .8) * (1 - 0.07 * y), y];
+}
+const PROF = []; for (let i = 0; i <= 400; i++) { const t = i/400; PROF.push([t, ...bodyProfile(t)]); }
+function bodyT(y) { // profile y is monotonic decreasing in t
+  for (let i = 1; i < PROF.length; i++) if (PROF[i][2] <= y) {
+    const a = PROF[i-1], b = PROF[i], f = (a[2] - y) / ((a[2] - b[2]) || 1);
+    return lerp(a[0], b[0], f);
+  }
+  return 1;
+}
+const bodyR = y => bodyProfile(bodyT(clamp(y, -0.979, 1.119)))[0];
+// point on body surface at angle th (PI/2 = front), height y, lifted along normal
+function at(th, y, lift = 0) {
+  const r = bodyR(y), nx = Math.cos(th), nz = Math.sin(th) / DZ, rotY = Math.atan2(nx, nz);
+  const drdy = (bodyR(y + .01) - bodyR(y - .01)) / .02, rotX = clamp(Math.atan(drdy), -1.2, 1.2);
+  const nl = Math.hypot(nx, nz), c = Math.cos(rotX);
+  return { pos: [r*Math.cos(th) + lift*nx/nl*c, y - lift*Math.sin(rotX), r*Math.sin(th)*DZ + lift*nz/nl*c], rot: [rotX, rotY, 0] };
+}
+const thx = (x, y) => Math.acos(clamp(x / bodyR(y), -0.999, 0.999)); // front angle for a given x
+const front = (x, y, lift = 0) => at(thx(x, y), y, lift);
+
+// =====================================================================
+//  WebGL2 renderer
+// =====================================================================
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: false });
+
+const VS = `#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
+uniform mat4 uModel, uVP, uLVP; uniform mat3 uNM;
+out vec3 vN, vW, vL; out vec4 vS;
+void main(){ vec4 w=uModel*vec4(aPos,1.); vW=w.xyz; vL=aPos; vN=uNM*aNrm; vS=uLVP*w; gl_Position=uVP*w; }`;
+const FS = `#version 300 es
+precision highp float; precision highp sampler2DShadow;
+in vec3 vN, vW, vL; in vec4 vS;
+uniform vec3 uColor, uCam, uLight; uniform float uEmit, uAlpha, uGloss, uGrain;
+uniform sampler2DShadow uShadow;
+out vec4 o;
+float h3(vec3 p){ p=fract(p*.3183099+.1); p*=17.; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float nz(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.-2.*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float shade(float nl){
+  vec3 p=vS.xyz/vS.w*.5+.5;
+  if(p.x<0.||p.x>1.||p.y<0.||p.y>1.||p.z>1.) return 1.;
+  vec2 tx=1.5/vec2(textureSize(uShadow,0)); float b=.0006+.0025*(1.-clamp(nl,0.,1.)), s=0.;
+  for(int x=-2;x<=2;x++) for(int y=-2;y<=2;y++) s+=texture(uShadow,vec3(p.xy+vec2(x,y)*tx,p.z-b));
+  return s/25.;
+}
+void main(){
+  vec3 n=normalize(vN);
+  vec3 v=normalize(uCam-vW), l=normalize(uLight), base=pow(uColor,vec3(2.2));
+  float g=nz(vL*22.)*.6+nz(vL*55.)*.4; base*=1.+uGrain*(g-.5)*.16;
+  float nl=dot(n,l), sh=shade(nl);
+  vec3 amb=mix(vec3(.42,.36,.34),vec3(.62,.68,.82),n.y*.5+.5)*.62;
+  vec3 key=vec3(1.,.95,.86)*smoothstep(-.15,1.,nl)*sh*1.05;
+  vec3 col=base*(amb+key);
+  float spec=pow(max(dot(n,normalize(l+v)),0.),18.+uGloss*30.)*(.06+uGloss*.22)*sh;
+  float rim=pow(1.-max(dot(n,v),0.),3.)*.22;
+  col+=spec+rim*mix(vec3(.8,.85,1.),base,.4)*(.4+.6*sh);
+  col=mix(col,base*1.15,uEmit);
+  col=col/(1.+col*.18);
+  col=pow(col,vec3(1./2.2));
+  o=vec4(col*uAlpha,uAlpha);
+}`;
+const DVS = `#version 300 es
+layout(location=0) in vec3 aPos; uniform mat4 uModel, uVP; void main(){ gl_Position=uVP*uModel*vec4(aPos,1.); }`;
+const DFS = `#version 300 es
+precision mediump float; void main(){}`;
+
+function program(vs, fs) {
+  const p = gl.createProgram();
+  for (const [t, s] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+    const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+    gl.attachShader(p, sh);
+  }
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
+  return { p, u };
+}
+
+const meshCache = new Map();
+function M(key, gen) {
+  let m = meshCache.get(key);
+  if (!m) {
+    const g = gen(), vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, g.data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, g.idx, gl.STATIC_DRAW);
+    gl.bindVertexArray(null);
+    m = { vao, n: g.idx.length }; meshCache.set(key, m);
+  }
+  return m;
+}
+// mesh library
+const sph   = () => M('sph', () => superE(1, 1));
+const hemi  = (u0 = 0, u1 = 1) => M('hemi' + u0 + u1, () => superE(1, 1, u0, u1, 0, .5, 48, 18));
+const bot   = () => M('bot', () => superE(1, 1, 0, 1, .5, 1, 48, 18));
+const cyl   = () => M('cyl', () => superE(.2, 1));
+const box   = () => M('box', () => superE(.2, .2));
+const soft  = () => M('soft', () => superE(.5, .5));
+const pill  = () => M('pill', () => superE(.6, 1));
+const disk  = () => M('disk', () => superE(.3, 1));
+const cone  = () => M('cone', () => lathe(v => v < .92 ? [v/.92, 1 - 2*v/.92] : [(1-v)/.08 * 1, -1], 40, 30));
+const tor   = (rr = .12, u0 = 0, u1 = 1) => M(`tor${rr}_${u0}_${u1}`, () => torusGeo(rr, u0, u1));
+const bodyM = () => M('body', () => lathe(v => [...bodyProfile(v), DZ], 64, 64));
+const shell = (y0, y1, inf = 1.04, u0 = 0, u1 = 1) => M(`sh${y0}_${y1}_${inf}_${u0}_${u1}`, () => {
+  const t0 = bodyT(y0), t1 = bodyT(y1);
+  return lathe(v => { const [r, y] = bodyProfile(lerp(t0, t1, v)); return [r * inf, y, DZ]; }, 56, 20, u0, u1);
+});
+const tube = (rin, rout, h) => M(`tube${rin}${rout}${h}`, () => lathe(v => {
+  const s = v * 4, k = Math.floor(Math.min(s, 3.999)), f = s - k;
+  return [[ [rin, h], [rout, h] ], [ [rout, h], [rout, 0] ], [ [rout, 0], [rin, 0] ], [ [rin, 0], [rin, h] ]][k]
+    .reduce((a, b) => [lerp(a[0], b[0], f), lerp(a[1], b[1], f)]);
+}, 48, 32));
+
+// scene nodes
+function N(o) { return Object.assign({ mesh: null, color: [1, 1, 1], pos: [0, 0, 0], rot: [0, 0, 0], scl: [1, 1, 1], kids: [], alpha: 1, emit: 0, gloss: .6, grain: 1 }, o); }
+const S3 = s => typeof s === 'number' ? [s, s, s] : s;
+const R3 = r => Array.isArray(r) ? r : [0, 0, 0];
+function P(mesh, col, pos = [0, 0, 0], scl = 1, rot = [0, 0, 0], o = {}) {
+  return N(Object.assign({ mesh, color: col === 'body' ? null : hex(col), bodyCol: col === 'body', pos, scl: S3(scl), rot: R3(rot) }, o));
+}
+function Grp(kids, pos = [0, 0, 0], rot = [0, 0, 0], scl = 1, o = {}) { return N(Object.assign({ kids, pos, rot: R3(rot), scl: S3(scl) }, o)); }
+const atP = (a, extra = [0, 0, 0]) => [a.rot[0] + extra[0], a.rot[1] + extra[1], extra[2]];
+
+// --- renderer state ---
+let prog, dprog, shadowFB, shadowTex;
+const SHADOW = 2048;
+function initGL() {
+  prog = program(VS, FS); dprog = program(DVS, DFS);
+  shadowTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, shadowTex);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, SHADOW, SHADOW);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+  shadowFB = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadowTex, 0);
+  gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+function gather(node, parent, out, t, dt, bodyColor) {
+  if (node.hidden) return;
+  if (node.upd) node.upd(node, t, dt);
+  const m = M4.mul(parent, M4.trs(node.pos, node.rot, node.scl));
+  if (node.mesh) out.push({ node, m, color: node.bodyCol ? (node.tint ? node.tint(bodyColor) : bodyColor) : node.color });
+  for (const k of node.kids) gather(k, m, out, t, dt, bodyColor);
+}
+function render(list, cam, light, W = canvas.width, H = canvas.height) {
+  // shadow pass
+  const target = [0, 1.2, 0], lp = [target[0] + light[0]*10, target[1] + light[1]*10, target[2] + light[2]*10];
+  const LVP = M4.mul(M4.ortho(3.4, 1, 22), M4.lookAt(lp, target, [0, 1, 0]));
+  gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFB); gl.viewport(0, 0, SHADOW, SHADOW);
+  gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.5, 2);
+  gl.useProgram(dprog.p); gl.uniformMatrix4fv(dprog.u.uVP, false, LVP);
+  for (const d of list) {
+    if (d.node.noShadow || d.node.alpha < .5) continue;
+    gl.uniformMatrix4fv(dprog.u.uModel, false, d.m); gl.bindVertexArray(d.node.mesh.vao);
+    gl.drawElements(gl.TRIANGLES, d.node.mesh.n, gl.UNSIGNED_INT, 0);
+  }
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  // main pass
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(prog.p);
+  const u = prog.u;
+  gl.uniformMatrix4fv(u.uVP, false, cam.vp); gl.uniformMatrix4fv(u.uLVP, false, LVP);
+  gl.uniform3fv(u.uCam, cam.eye); gl.uniform3fv(u.uLight, light);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shadowTex); gl.uniform1i(u.uShadow, 0);
+  const draw = d => {
+    const n = d.node;
+    gl.uniformMatrix4fv(u.uModel, false, d.m); gl.uniformMatrix3fv(u.uNM, false, M4.normalMat(d.m));
+    gl.uniform3fv(u.uColor, d.color); gl.uniform1f(u.uEmit, n.emit); gl.uniform1f(u.uAlpha, n.alpha);
+    gl.uniform1f(u.uGloss, n.gloss); gl.uniform1f(u.uGrain, n.grain);
+    gl.bindVertexArray(n.mesh.vao); gl.drawElements(gl.TRIANGLES, n.mesh.n, gl.UNSIGNED_INT, 0);
+  };
+  for (const d of list) if (d.node.alpha >= 1) draw(d);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+  for (const d of list) if (d.node.alpha < 1) draw(d);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+  gl.bindVertexArray(null);
+}
+
+// =====================================================================
+//  Little clay helpers (shared by items)
+// =====================================================================
+// smooth tube along a polyline (radius r0 -> r1). nrm: optional per-point "outward" hint, flat < 1 squashes along it (straps)
+function tubeGeo(pts, r0, r1, nrm, flat = 1) {
+  const n = pts.length, F = [];
+  let prev = null;
+  for (let i = 0; i < n; i++) {
+    const t = V.norm(V.sub(pts[Math.min(i+1, n-1)], pts[Math.max(i-1, 0)]));
+    let N = nrm ? nrm[i] : prev || (Math.abs(t[1]) < .9 ? [0, 1, 0] : [1, 0, 0]);
+    const d = V.dot(N, t); N = V.norm([N[0] - t[0]*d, N[1] - t[1]*d, N[2] - t[2]*d]); prev = N;
+    F.push([N, V.cross(t, N)]);
+  }
+  const at = v => { const s = clamp(v, 0, 1) * (n - 1), k = Math.min(Math.floor(s), n - 2), f = s - k;
+    const L = (a, b) => [lerp(a[0], b[0], f), lerp(a[1], b[1], f), lerp(a[2], b[2], f)];
+    return [L(pts[k], pts[k+1]), L(F[k][0], F[k+1][0]), L(F[k][1], F[k+1][1]), lerp(r0, r1, clamp(v, 0, 1))]; };
+  return surf(14, Math.max(8, n * 2), (u, v) => { const [c, N, B, r] = at(v), a = u * TAU, x = Math.cos(a) * r * flat, y = Math.sin(a) * r;
+    return [c[0] + N[0]*x + B[0]*y, c[1] + N[1]*x + B[1]*y, c[2] + N[2]*x + B[2]*y]; }, (u, v) => at(v)[0]);
+}
+const tubeKey = (pts, ...a) => 'tb' + pts.map(p => p.map(x => x.toFixed(3)).join(',')).join(';') + a.join('_');
+// rolled clay "coil": a smooth tube with rounded ends
+function coil(pts, r0, r1, col, _n, o = {}) {
+  return Grp([P(M(tubeKey(pts, r0, r1), () => tubeGeo(pts, r0, r1)), col, [0, 0, 0], 1, 0, o),
+    P(sph(), col, pts[0], r0, 0, o), P(sph(), col, pts[pts.length - 1], r1, 0, o)]);
+}
+// flat band that hugs the body: cp = [[theta, y], ...] in body-surface coordinates
+function strap(cp, w, col, lift = .035, thick = .3) {
+  const pts = [], nrm = [];
+  for (const [th, y] of curve(cp.map(([a, b]) => [a, b, 0]), 40)) {
+    const a = at(th, y, lift + w * thick); pts.push(a.pos);
+    nrm.push(V.norm([Math.cos(th), -Math.sin(a.rot[0]) * .6, Math.sin(th) / DZ]));
+  }
+  return P(M(tubeKey(pts, w, 'strap'), () => tubeGeo(pts, w, w, nrm, thick)), col);
+}
+// smooth curve through control points (Catmull-Rom) -> points
+function curve(cp, n = 24) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1) * (cp.length - 1), k = Math.min(Math.floor(t), cp.length - 2), f = t - k;
+    const p0 = cp[Math.max(k-1, 0)], p1 = cp[k], p2 = cp[k+1], p3 = cp[Math.min(k+2, cp.length-1)];
+    out.push([0, 1, 2].map(j => .5 * (2*p1[j] + (-p0[j] + p2[j])*f + (2*p0[j] - 5*p1[j] + 4*p2[j] - p3[j])*f*f + (-p0[j] + 3*p1[j] - 3*p2[j] + p3[j])*f*f*f)));
+  }
+  return out;
+}
+const crownEmblem = (col = '#ff8a1f', o = {}) => Grp([
+  P(soft(), col, [0, -.03, 0], [.13, .035, .03], 0, o),
+  ...[-1, 0, 1].map(i => P(cone(), col, [i*.085, .04, 0], [.04, .065, .025], [0, 0, -i*.25], o)),
+  ...[-1, 0, 1].map(i => P(sph(), col, [i*.105, .115 - Math.abs(i)*.01, 0], .022, 0, o)),
+]);
+const heart = (col, o = {}) => Grp([
+  P(sph(), col, [-.28, .12, 0], [.36, .36, .3], 0, o), P(sph(), col, [.28, .12, 0], [.36, .36, .3], 0, o),
+  P(soft(), col, [0, -.18, 0], [.36, .36, .28], [0, 0, PI/4], o),
+]);
+const star = (col, o = {}) => Grp([P(sph(), col, [0, 0, 0], [.38, .38, .25], 0, o),
+  ...[0, 1, 2, 3, 4].map(i => { const a = i * TAU / 5; return P(cone(), col, [-Math.sin(a)*.42, Math.cos(a)*.42, 0], [.24, .38, .14], [0, 0, a], o); })]);
+const flower = (petal, mid = '#ffd23f') => Grp([P(sph(), mid, [0, 0, .02], .35),
+  ...[0, 1, 2, 3, 4].map(i => { const a = i * TAU / 5; return P(sph(), petal, [Math.cos(a)*.5, Math.sin(a)*.5, 0], [.42, .42, .25]); })]);
+const wobble = (amp, spd, axis = 2, ph = 0) => (n, t) => { n.rot[axis] = (n.baseRot ??= n.rot.slice())[axis] + Math.sin(t*spd + ph) * amp; };
+
+// =====================================================================
+//  Item catalog
+// =====================================================================
+const HAT_Y = 0.9;  // hats are built relative to this body height
+const C = { orange: '#ff8a1f', cream: '#fff1dc', navy: '#2b3350', gold: '#ffc43a', black: '#23232c', white: '#fbfbf7', red: '#ef3d3d', pink: '#ff7eb6', yellow: '#ffd23f', green: '#5bc85b', purple: '#8f5bff', brown: '#8a5a36', grey: '#a5adb8', blue: '#4aa3ff' };
+function capHat(back) {
+  const dome = [.73, .52, .7];
+  return Grp([
+    P(hemi(), C.orange, [0, -.2, 0], dome),
+    P(hemi(.09, .41), C.cream, [0, -.2, 0], dome.map(x => x * 1.015)),
+    P(sph(), C.orange, [0, .32, 0], [.075, .05, .075]),
+    P(disk(), C.orange, [0, -.16, .62], [.44, .04, .42], [.2, 0, 0]),
+    Grp([crownEmblem()], [0, -.02, .66], [-.42, 0, 0], .95),
+    P(tor(.12), C.orange, [0, -.2, 0], [.73, .3, .7]),
+  ], [0, 0, 0], back ? [-.08, PI, .1] : [-.1, 0, -.12]);
+}
+const ITEMS = {
+  color: [
+    { id: 'blue',   name: 'Classic Blue', c: '#3b82f6', quip: "Ahh. Feels like home." },
+    { id: 'sky',    name: 'Sky',          c: '#62b6ff', quip: "Light and breezy!" },
+    { id: 'pink',   name: 'Bubblegum',    c: '#ff7eb6', quip: "I smell like candy now." },
+    { id: 'yellow', name: 'Banana',       c: '#ffd23f', quip: "Potassium mode: ON" },
+    { id: 'green',  name: 'Slime',        c: '#52c46a', quip: "Blorp. I mean... Bloop." },
+    { id: 'mint',   name: 'Mint',         c: '#5fe0c4', quip: "Fresh breath, fresh bean." },
+    { id: 'orange', name: 'Tangerine',    c: '#ff8a3d', quip: "I'm a whole snack." },
+    { id: 'red',    name: 'Tomato',       c: '#ef4a4a', quip: "Don't put me in a salad!" },
+    { id: 'purple', name: 'Grape',        c: '#8f5bff', quip: "Royal bean energy." },
+    { id: 'lilac',  name: 'Lilac',        c: '#c8a6ff', quip: "Soft. Like my brain." },
+    { id: 'brown',  name: 'Chocolate',    c: '#8a5a36', quip: "Please do not eat me." },
+    { id: 'white',  name: 'Marshmallow',  c: '#f1efe9', quip: "Toast me gently." },
+    { id: 'black',  name: 'Midnight',     c: '#33343f', quip: "I am the night. (I'm scared of it.)" },
+    { id: 'gold',   name: 'Solid Gold',   c: '#ffbe2e', gloss: 2.5, quip: "Bling bean. Don't scratch." },
+    { id: 'ghost',  name: 'Ghost',        c: '#dff3ff', alpha: .55, quip: "Boo! ...did that work?" },
+    { id: 'rainbow',name: 'RAINBOW',      c: 'rainbow', quip: "I CAN TASTE COLORS" },
+  ],
+  hat: [
+    { id: 'none', name: 'Bald Bean', quip: "Aerodynamic." },
+    { id: 'cap', name: 'Crown Cap', quip: "The classic. The legend.", build: () => capHat(false) },
+    { id: 'backcap', name: 'Backwards Cap', quip: "Skater bean, sick.", build: () => capHat(true) },
+    { id: 'beanie', name: 'Beanie', quip: "A bean in a beanie. Beanception.", build: () => Grp([
+      P(hemi(), C.red, [0, -.22, 0], [.74, .64, .71]),
+      P(tor(.16), C.white, [0, .02, 0], [.665, .4, .64]),
+      P(tor(.2), C.red, [0, -.2, 0], [.75, .5, .72]),
+      P(sph(), C.white, [0, .47, 0], .16, 0, { grain: 2.5 }),
+    ], [0, 0, 0], [-.05, 0, .08]) },
+    { id: 'tophat', name: 'Top Hat', quip: "Indubitably, old bean.", build: () => Grp([
+      P(cyl(), C.black, [0, .43, 0], [.44, .4, .42]), P(disk(), C.black, [0, .05, 0], [.78, .04, .72]),
+      P(cyl(), C.red, [0, .14, 0], [.45, .07, .43]), Grp([crownEmblem(C.gold)], [0, .2, .43], 0, .6),
+    ], [0, 0, 0], [-.05, 0, -.14]) },
+    { id: 'cowboy', name: 'Cowboy', quip: "Yeehaw. This town ain't big enough for one bean.", build: () => Grp([
+      P(M('cbrim', () => lathe(v => { const r = v < .5 ? v*2 : (1-v)*2, y = .3*Math.pow(r, 5); return [r, v < .5 ? y + .025 : y - .025]; }, 56, 30)), '#b07a45', [0, -.02, 0], [1.08, 1, .98]),
+      P(soft(), '#b07a45', [0, .22, 0], [.52, .32, .46]), P(soft(), '#5a3a22', [0, .07, 0], [.535, .07, .475]),
+      P(sph(), '#9a6a3a', [0, .5, 0], [.3, .08, .2]),
+    ], [0, 0, 0], [-.08, 0, .12]) },
+    { id: 'crown', name: 'Royal Crown', quip: "Kneel before the bean.", build: () => {
+      const k = [P(tube(.46, .52, .24), C.gold, [0, -.02, 0], [1, 1, .95], 0, { gloss: 3 })];
+      for (let i = 0; i < 7; i++) { const a = i/7*TAU, x = Math.cos(a), z = Math.sin(a)*.95;
+        k.push(P(cone(), C.gold, [x*.49, .32, z*.49], [.09, .12, .09], 0, { gloss: 3 }), P(sph(), C.gold, [x*.49, .46, z*.49], .045, 0, { gloss: 3 }),
+               P(sph(), ['#ef3d3d', '#4aa3ff', '#5bc85b'][i % 3], [x*.53, .1, z*.53], .055, 0, { gloss: 4 })); }
+      return Grp(k, [0, 0, 0], [-.05, 0, .1]); } },
+    { id: 'party', name: 'Party Hat', quip: "It's always a party when I show up.", build: () => {
+      const k = [P(cone(), C.pink, [0, .55, 0], [.36, .55, .36]), P(sph(), C.yellow, [0, 1.12, 0], .1, 0, { grain: 2.5 })];
+      for (let i = 0; i < 14; i++) { const h = (i % 5) / 5, a = i * 2.4, r = .36*(1-h*.92)+.01;
+        k.push(P(sph(), [C.yellow, C.blue, C.green][i % 3], [Math.cos(a)*r, .02 + h*1.0, Math.sin(a)*r], .045)); }
+      return Grp(k, [0, 0, 0], [-.05, 0, -.25]); } },
+    { id: 'chef', name: 'Chef Hat', quip: "Tonight's special: pizza. Every night.", build: () => Grp([
+      P(cyl(), C.white, [0, .2, 0], [.48, .25, .45]),
+      ...[0, 1, 2, 3, 4, 5].map(i => { const a = i/6*TAU; return P(sph(), C.white, [Math.cos(a)*.3, .58, Math.sin(a)*.28], .3); }),
+      P(sph(), C.white, [0, .68, 0], .33),
+    ], [0, 0, 0], [-.05, 0, .06]) },
+    { id: 'propeller', name: 'Propeller', quip: "Ready for takeoff! (I can't fly.)", build: () => Grp([
+      ...[C.red, C.yellow, C.blue, C.green].map((c, i) => P(hemi(i/4, (i+1)/4), c, [0, -.2, 0], [.73, .55, .7])),
+      P(cyl(), C.grey, [0, .38, 0], [.035, .06, .035]),
+      Grp([P(soft(), C.red, [.28, 0, 0], [.3, .02, .07], [.3, 0, 0]), P(soft(), C.blue, [-.28, 0, 0], [.3, .02, .07], [-.3, 0, 0]), P(sph(), C.yellow, [0, 0, 0], .06)],
+        [0, .44, 0], [0, 0, 0], 1, { upd: (n, t) => { n.rot[1] = t * 18; } }),
+    ], [0, 0, 0], [-.05, 0, -.08]) },
+    { id: 'viking', name: 'Viking', quip: "RAAAH! ...sorry. Too loud?", build: () => {
+      const horn = s => coil(curve([[s*.62, -.02, 0], [s*.85, .15, 0], [s*.92, .45, 0], [s*.8, .7, 0]], 18), .12, .025, C.cream, 18);
+      return Grp([P(hemi(), C.grey, [0, -.22, 0], [.76, .62, .72], 0, { gloss: 2.2 }), P(tor(.18), C.brown, [0, -.2, 0], [.76, .5, .73]),
+        P(soft(), C.grey, [0, .05, .62], [.06, .3, .05], [-.4, 0, 0], { gloss: 2 }), horn(1), horn(-1)], [0, 0, 0], [-.04, 0, .05]); } },
+    { id: 'wizard', name: 'Wizard', quip: "You shall not... uh... pass the snacks?", build: () => {
+      const tip = coil(curve([[0, .7, 0], [0, 1.1, -.05], [-.15, 1.35, -.15], [-.35, 1.42, -.25]], 16), .2, .04, '#5b3bc9', 22);
+      return Grp([P(disk(), '#5b3bc9', [0, -.12, 0], [.95, .04, .88]), P(cone(), '#5b3bc9', [0, .3, 0], [.56, .55, .54]), tip,
+        ...[[.3, .3, .38], [-.25, .55, .28], [.08, .1, .55]].map(p => Grp([star(C.yellow, { emit: .5 })], p, [0, Math.atan2(p[0], p[2]), 0], .09))], [0, 0, 0], [-.05, 0, .1]); } },
+    { id: 'halo', name: 'Halo', quip: "I've never done anything wrong. Ever.", build: () =>
+      P(tor(.14), C.gold, [0, .55, 0], [.45, .45, .42], [.15, 0, 0], { emit: .55, gloss: 3, noShadow: true, upd: (n, t) => { n.pos[1] = .55 + Math.sin(t * 2.2) * .05; } }) },
+    { id: 'cone', name: 'Traffic Cone', quip: "Safety first. Fashion second. Brain third.", build: () => Grp([
+      P(cone(), C.orange, [0, .55, 0], [.42, .62, .42]), P(tor(.15), C.white, [0, .52, 0], [.235, .35, .235]), P(tor(.15), C.white, [0, .82, 0], [.13, .3, .13]),
+      P(box(), C.orange, [0, -.03, 0], [.6, .05, .58]),
+    ], [0, 0, 0], [-.05, 0, .18]) },
+    { id: 'pot', name: 'Cooking Pot', quip: "I'm the chef AND the soup.", build: () => Grp([
+      P(tube(.52, .58, .5), '#9aa3ad', [0, -.15, 0], 1, 0, { gloss: 2.5 }), P(disk(), '#9aa3ad', [0, .35, 0], [.58, .03, .58], 0, { gloss: 2.5 }),
+      P(tor(.3), C.black, [.65, .1, 0], [.12, .12, .12], [PI/2, 0, 0]), P(tor(.3), C.black, [-.65, .1, 0], [.12, .12, .12], [PI/2, 0, 0]),
+    ], [0, 0, 0], [0, 0, .2]) },
+    { id: 'frog', name: 'Froggy', quip: "Ribbit. That's all I know.", build: () => Grp([
+      P(hemi(), C.green, [0, -.2, 0], [.75, .55, .72]),
+      ...[-1, 1].flatMap(s => [P(sph(), C.green, [s*.3, .3, .2], .2), P(sph(), C.white, [s*.31, .33, .34], .12), P(sph(), C.black, [s*.31, .33, .43], .06, 0, { gloss: 3 })]),
+      P(tor(.25, .05, .45), C.red, [0, .05, .32], [.3, .25, .2], [0, 0, PI]), ...[-1, 1].map(s => P(sph(), C.pink, [s*.45, .02, .45], [.1, .06, .05])),
+    ], [0, 0, 0], [-.05, 0, 0]) },
+    { id: 'duck', name: 'Duck Buddy', quip: "This is Gerald. Gerald lives here now.", build: () => Grp([
+      P(sph(), C.yellow, [0, .3, -.05], [.32, .24, .38], 0, { gloss: 2 }), P(sph(), C.yellow, [0, .62, .14], .2, 0, { gloss: 2 }),
+      P(soft(), C.orange, [0, .58, .34], [.1, .04, .1]), ...[-1, 1].map(s => P(sph(), C.black, [s*.09, .68, .3], .03)),
+      P(cone(), C.yellow, [0, .38, -.42], [.08, .12, .08], [-1.3, 0, 0]),
+    ], [0, 0, 0], [0, 0, 0], 1, { upd: wobble(.12, 3) }) },
+    { id: 'headphones', name: 'Headphones', quip: "Can't hear you, I'm vibing.", build: () => Grp([
+      P(tor(.07, 0, .5), C.black, [0, -.42, 0], [.86, .86, .86], [-PI/2, 0, 0]),
+      ...[-1, 1].flatMap(s => [P(cyl(), C.red, [s*.82, -.42, 0], [.2, .1, .2], [0, 0, PI/2]), P(cyl(), C.black, [s*.75, -.42, 0], [.16, .04, .16], [0, 0, PI/2])]),
+    ]) },
+    { id: 'mushroom', name: 'Shroom', quip: "I'm a fun-guy. Get it? GET IT?", build: () => Grp([
+      P(M('shroom', () => lathe(v => { const a = v * PI * .62; return v < .9 ? [Math.sin(a)*1.05, Math.cos(a)*.75] : [lerp(Math.sin(PI*.62*.9)*1.05, 0, (v-.9)/.1), Math.cos(PI*.62*.9)*.75]; }, 48, 30)), C.red, [0, -.05, 0], [.9, .8, .85]),
+      ...[[0, .55, .1], [.45, .3, .4], [-.4, .35, .38], [.1, .35, -.5], [-.5, .25, -.25], [.55, .2, -.2]].map(p => P(sph(), C.white, p, [.1, .1, .1])),
+    ], [0, 0, 0], [-.05, 0, .1]) },
+  ],
+  eyes: [
+    { id: 'none', name: 'Nothing', quip: "20/20 vision. Probably." },
+    { id: 'shades', name: 'Shades', quip: "Deal with it.", build: () => glasses(s => P(soft(), C.black, [0, 0, 0], [.26, .2, .05], 0, { gloss: 3.5 }), C.black) },
+    { id: 'nerd', name: 'Big Brain', quip: "Actually, beans are legumes.", build: () => glasses(() => Grp([P(tor(.12), C.black, [0, 0, 0], .24, [PI/2, 0, 0]), P(sph(), '#cfe9ff', [0, 0, -.01], [.24, .24, .02], 0, { alpha: .3, gloss: 4 })]), C.black) },
+    { id: '3d', name: '3D Glasses', quip: "Whoa, you're popping out at me!", build: () => Grp([
+      glasses(s => P(soft(), s < 0 ? '#ff2a2a' : '#2a8cff', [0, 0, 0], [.22, .17, .02], 0, { alpha: .65, gloss: 3 }), C.white, true),
+      P(soft(), C.white, [0, .43, .72], [.62, .23, .09]),
+    ]) },
+    { id: 'hearts', name: 'Lovestruck', quip: "Everyone is my best friend now.", build: () => glasses(() => Grp([heart(C.pink, { gloss: 3 })], [0, 0, 0], [0, 0, 0], [.32, .32, .15]), C.pink) },
+    { id: 'stars', name: 'Superstar', quip: "Autographs are 5 pizza each.", build: () => glasses(() => Grp([star(C.gold, { gloss: 3 })], [0, 0, 0], [0, 0, 0], [.3, .3, .15]), C.gold) },
+    { id: 'monocle', name: 'Monocle', quip: "Hmm, yes, quite the bean.", build: () => { const a = front(-.28, .42, .16); return Grp([
+      P(tor(.1), C.gold, a.pos, .27, atP(a, [PI/2, 0, 0]), { gloss: 3 }), P(sph(), '#e8f6ff', a.pos, [.26, .26, .02], a.rot, { alpha: .25 }),
+      coil(curve([V.sub(a.pos, [.05, .27, 0]), [-.45, .0, .72], [-.6, -.25, .62]]), .012, .012, C.gold, 24, { gloss: 3 })]); } },
+    { id: 'goggles', name: 'Ski Goggles', quip: "Shredding the gnar. What's gnar?", build: () => Grp([
+      P(shell(.27, .58, 1.05), C.black), glasses(() => P(soft(), '#ff9a2e', [0, 0, 0], [.3, .25, .09], 0, { gloss: 4 }), C.black, true),
+    ]) },
+    { id: 'patch', name: 'Pirate Patch', quip: "Arr! Where be the pizza?", build: () => { const a = front(.28, .43, .14); return Grp([
+      P(shell(.47, .55, 1.035), C.black), P(sph(), C.black, a.pos, [.27, .3, .07], a.rot)]); } },
+    { id: 'groucho', name: 'Disguise', quip: "You've never seen me before.", build: () => { const n = front(0, .24, .1); return Grp([
+      glasses(() => P(tor(.18), C.black, [0, 0, 0], .23, [PI/2, 0, 0]), C.black),
+      P(sph(), '#f5b39a', n.pos, [.15, .17, .2], n.rot), mustache('#2a1d16', .12),
+      ...[-1, 1].map(s => coil(curve([[s*.12, .72, .66], [s*.3, .78, .64], [s*.47, .72, .58]], 10), .05, .04, '#2a1d16', 10))]); } },
+    { id: 'vr', name: 'VR Headset', quip: "I'm in the metaverse. It's also beans.", build: () => Grp([
+      P(shell(.26, .58, 1.03), C.black), P(soft(), C.white, [0, .43, .72], [.62, .3, .28], 0, { gloss: 2 }), P(soft(), '#2b2b38', [0, .43, .99], [.5, .2, .03], 0, { gloss: 4 }),
+      P(sph(), '#3bf0ff', [.35, .55, 1.0], .025, 0, { emit: 1 }),
+    ]) },
+    { id: 'lasers', name: 'Laser Eyes', quip: "PEW PEW PEW", build: () => Grp([-1, 1].map(s => { const a = front(s*.28, .42, .18);
+      return Grp([P(cyl(), '#ff2a2a', [0, 0, 2.2], [.05, 2.2, .05], [PI/2, 0, 0], { emit: 1, alpha: .85, noShadow: true }), P(sph(), '#ffd0d0', [0, 0, 0], .1, 0, { emit: 1, noShadow: true })],
+        a.pos, a.rot, 1, { upd: (n, t) => { const f = .8 + Math.sin(t * 40 + s) * .2; n.scl = [f, f, 1]; } }); })) },
+  ],
+  face: [
+    { id: 'none', name: 'Clean Bean', quip: "Smooth operator." },
+    { id: 'mustache', name: 'Mustache', quip: "I'm 40 now. Bean years.", build: () => mustache('#5a3a22') },
+    { id: 'handlebar', name: 'Handlebar', quip: "Fancy AND aerodynamic.", build: () => Grp(
+      [-1, 1].map(s => coil(curve([[0, .22, .78], [s*.15, .19, .79], [s*.3, .18, .76], [s*.4, .26, .7], [s*.33, .33, .7]], 20), .07, .025, '#3a2618', 20))) },
+    { id: 'beard', name: 'Wizard Beard', quip: "I've seen things. Mostly snacks.", build: () => {
+      const k = [];
+      for (let i = 0; i < 26; i++) { const x = ((i * 37) % 13 - 6) / 6 * .5, y = -.2 - ((i * 17) % 7) / 7 * .45 + Math.abs(x) * .4, a = front(x, y, .05);
+        k.push(P(sph(), '#e6e1d8', a.pos, .13 + (i % 3) * .02, 0, { grain: 2 })); }
+      k.push(...[[-.3, -.95, .55], [0, -1.05, .6], [.3, -.95, .55]].map(p => P(sph(), '#e6e1d8', p, .12)));
+      return Grp(k); } },
+    { id: 'clown', name: 'Clown Nose', quip: "Honk honk.", build: () => { const a = front(0, .22, .1); return P(sph(), '#ff2a2a', a.pos, .13, a.rot, { gloss: 3.5 }); } },
+    { id: 'blush', name: 'Blushing', quip: "Stop, you're making me blush.", build: () => Grp([-1, 1].map(s => { const a = front(s*.52, .16, .0); return P(sph(), '#ff5f8f', a.pos, [.14, .08, .03], a.rot, { alpha: .6, noShadow: true }); })) },
+    { id: 'bandaid', name: 'Bandaid', quip: "Tripped over nothing. Again.", build: () => { const a = front(.5, .2, .02); return Grp([
+      P(soft(), '#f2c79a', [0, 0, 0], [.2, .07, .02]), P(soft(), '#e8b484', [0, 0, .012], [.07, .06, .015])], a.pos, atP(a, [0, 0, .5])); } },
+    { id: 'gum', name: 'Bubblegum', quip: "*chews loudly*", build: () => { const a = front(0, .02, .12);
+      return P(sph(), C.pink, a.pos, .01, a.rot, { gloss: 3, alpha: .92, noShadow: true, upd: (n, t) => { const p = (t * .35) % 1, s = p < .85 ? .04 + p * .45 : 0.001; n.scl = [s, s, s]; n.pos = [a.pos[0], a.pos[1], a.pos[2] + s * .7]; } }); } },
+    { id: 'fangs', name: 'Vampire', quip: "I vant to hang out with you.", build: () => Grp([-1, 1].map(s => { const a = front(s*.1, -.02, .04); return P(cone(), C.white, a.pos, [.035, .07, .03], atP(a, [0, 0, PI])); })) },
+    { id: 'whiskers', name: 'Kitty', quip: "Meow. I'm a cat now. Deal.", build: () => { const n = front(0, .22, .04); return Grp([
+      P(sph(), C.pink, n.pos, [.07, .05, .05], n.rot),
+      ...[-1, 1].flatMap(s => [-1, 0, 1].map(k => { const a = front(s*.45, .14 + k*.05, .02); return P(pill(), C.black, a.pos, [.012, .2, .012], atP(a, [0, 0, s*(PI/2 + k*.18)])); }))]); } },
+    { id: 'pacifier', name: 'Binky', quip: "Baby bean. Goo goo.", build: () => { const a = front(0, .03, .08); return Grp([
+      P(disk(), '#7fd6ff', [0, 0, 0], [.2, .1, .03], [0, 0, 0]), P(tor(.25), C.yellow, [0, -.05, .07], .1, [0, 0, 0])], a.pos, atP(a, [PI/2, 0, 0])); } },
+  ],
+  outfit: [
+    { id: 'none', name: 'Au Naturel', quip: "Free as a bean." },
+    { id: 'tee', name: 'Tee', quip: "Casual Friday. Every day.", build: () => shirt(C.white, [Grp([crownEmblem(C.orange)], front(0, -.42, .04).pos, [0, 0, 0], 1.3)]) },
+    { id: 'stripes', name: 'Stripes', quip: "I'm basically a mime now.", build: () => {
+      const k = []; for (let i = 0; i < 6; i++) { const y0 = -.22 - i*.115; k.push(P(shell(+y0.toFixed(3), +(y0 - .115).toFixed(3), 1.035), i % 2 ? C.white : C.red)); }
+      return Grp([...k, collar(C.red)]); } },
+    { id: 'hoodie', name: 'Hoodie', quip: "Hood up. Do not perceive me.", build: () => shirt('#7c8a9e', [
+      P(tor(.32, .45, 1.05), '#6c7a8e', [0, -.2, -.1], [.74, .5, .62], [0, 0, 0]),
+      ...[-1, 1].map(s => P(pill(), C.white, V.sub(front(s*.13, -.3, .05).pos, [0, .12, 0]), [.025, .14, .025])),
+      P(shell(-.55, -.78, 1.05, .17, .33), '#6c7a8e')]) },
+    { id: 'tux', name: 'Tuxedo', quip: "Bean. James Bean.", build: () => Grp([
+      P(shell(-.22, -.9, 1.035), C.black), P(shell(-.22, -.9, 1.042, .19, .31), C.white), collar(C.black),
+      bowtie(C.black, -.28), ...[-.4, -.55, -.7].map(y => { const a = front(0, y, .05); return P(sph(), C.black, a.pos, .035, 0, { gloss: 3 }); })]) },
+    { id: 'hawaii', name: 'Aloha Shirt', quip: "Vacation mode activated.", build: () => {
+      const k = []; for (let i = 0; i < 16; i++) { const th = (i * 2.399) % TAU, y = -.2 - (i * .618 % 1) * .65, a = at(th, y, .045);
+        k.push(Grp([flower(i % 2 ? C.white : C.yellow, C.red)], a.pos, a.rot, .1)); }
+      return shirt('#ff7b54', k); } },
+    { id: 'overalls', name: 'Overalls', quip: "Ready to fix your pipes!", build: () => Grp([
+      P(shell(-.48, -.95, 1.04), '#284a86'), P(shell(-.22, -.5, 1.045, .17, .33), '#284a86'),
+      P(shell(-.38, -.48, 1.05, .2, .3), '#1f3d72'),
+      ...[-1, 1].flatMap(s => { const a = front(s*.22, -.26, .05); return [P(sph(), C.yellow, a.pos, .055, 0, { gloss: 3 }),
+        strap([[PI/2 - s*.32, -.22], [PI/2 - s*.6, .35], [(s > 0 ? 0 : PI) - s*.2, .62], [(s > 0 ? -PI/2 : 3*PI/2) + s*.6, .3], [(s > 0 ? -PI/2 : 3*PI/2) + s*.35, -.5]], .055, '#284a86')]; })]) },
+    { id: 'tutu', name: 'Tutu', quip: "Ballet bean. Very graceful. *trips*", build: () => {
+      const k = [P(shell(-.45, -.62, 1.04), C.pink)];
+      for (let i = 0; i < 18; i++) { const th = i/18*TAU, a = at(th, -.6, .1);
+        k.push(P(sph(), i % 2 ? '#ffb3d1' : C.pink, a.pos, [.2, .07, .14], [0, a.rot[1], 0], { grain: 2.5 })); }
+      return Grp(k); } },
+    { id: 'floaty', name: 'Duck Floaty', quip: "I can't swim. I'm a bean.", build: () => Grp([
+      P(tor(.3), C.yellow, [0, -.6, 0], [.95, .95, .88], 0, { gloss: 2.2 }),
+      ...[0, 1, 2, 3].map(i => P(tor(.31, i/4 + .06, i/4 + .14), C.white, [0, -.6, 0], [.95, .95, .88], 0, { gloss: 2.2 })),
+      P(sph(), C.yellow, [0, -.28, 1.1], .2, 0, { gloss: 2 }), P(soft(), C.orange, [0, -.32, 1.3], [.11, .04, .1]),
+      ...[-1, 1].map(s => P(sph(), C.black, [s*.09, -.22, 1.26], .03)),
+    ], [0, 0, 0], [0, 0, 0], 1, { upd: wobble(.06, 2.4, 2) }) },
+    { id: 'barrel', name: 'Barrel', quip: "Lost my clothes in a bet.", build: () => Grp([
+      P(M('barrel', () => lathe(v => { const y = 1 - 2*v, r = .95 + .1 * (1 - y*y); return [v < .03 ? v/.03*r : v > .97 ? (1-v)/.03*r : r, y]; }, 48, 30)), '#a8733f', [0, -.5, 0], [.98, .45, .9]),
+      ...[-.88, -.12].map(y => P(tor(.05), '#5a5a62', [0, y, 0], [.98, 1, .9], 0, { gloss: 2 })),
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => { const a = i/12*TAU; return P(box(), '#8a5a30', [Math.cos(a)*1.0, -.5, Math.sin(a)*.92], [.01, .42, .01]); }),
+      ...[-1, 1].map(s => strap([[PI/2 - s*.5, -.1], [PI/2 - s*.75, .4], [(s > 0 ? 0 : PI) - s*.15, .66], [(s > 0 ? -PI/2 : 3*PI/2) + s*.75, .4], [(s > 0 ? -PI/2 : 3*PI/2) + s*.5, -.1]], .045, '#6b4a2a')),
+    ]) },
+    { id: 'hero', name: 'Super Bean', quip: "Is it a bird? Is it a plane? It's a bean.", build: () => Grp([
+      P(shell(-.62, -.74, 1.04), C.yellow), Grp([star(C.yellow, { gloss: 2 })], front(0, -.32, .03).pos, [0, 0, 0], [.13, .13, .08]),
+      cape(C.red, true),
+    ]) },
+    { id: 'scarf', name: 'Cozy Scarf', quip: "It's not cold, I'm just stylish.", build: () => Grp([
+      P(tor(.22), C.red, [0, -.18, 0], [.86, .7, .79]), ...[0, 1, 2, 3, 4, 5].map(i => P(tor(.235, i/6 + .02, i/6 + .07), C.white, [0, -.18, 0], [.86, .7, .79])),
+      Grp([P(soft(), C.red, [0, -.25, 0], [.12, .3, .05]), P(soft(), C.white, [0, -.3, .005], [.123, .05, .05]), P(soft(), C.white, [0, -.45, .005], [.123, .05, .05])],
+        V.sub(front(.32, -.22, .08).pos, [0, 0, 0]), atP(front(.32, -.22, .08), [0, 0, .15]), 1, { upd: wobble(.08, 2.5) }),
+    ]) },
+    { id: 'bling', name: 'Gold Chain', quip: "Bean of the streets.", build: () => {
+      const k = []; for (let i = 0; i < 40; i++) { const a = i/40*TAU, s = Math.sin(a), y = -.18 - Math.max(0, s) * .22, r = bodyR(y) + .05;
+        k.push(P(tor(.35), C.gold, [Math.cos(a)*r, y, s*r*DZ], .04, [0, -a, i % 2 ? PI/2 : 0], { gloss: 3 })); }
+      const a = front(0, -.48, .06);
+      k.push(Grp([P(disk(), C.gold, [0, 0, 0], [.18, .03, .18], [PI/2, 0, 0], { gloss: 3 }), Grp([crownEmblem('#ff4a4a')], [0, 0, .035], 0, .7)], a.pos, a.rot));
+      return Grp(k); } },
+    { id: 'lei', name: 'Flower Lei', quip: "Aloha means hello AND goodbye. Confusing.", build: () => {
+      const k = []; for (let i = 0; i < 18; i++) { const a = i/18*TAU, s = Math.sin(a), y = -.16 - Math.max(0, s) * .2, r = bodyR(y) + .07;
+        k.push(Grp([flower([C.pink, C.yellow, C.white, '#ff7b54'][i % 4], '#ffb000')], [Math.cos(a)*r, y, s*r*DZ], [0, Math.atan2(Math.cos(a), s), 0], .13)); }
+      return Grp(k); } },
+    { id: 'tie', name: 'Office Tie', quip: "Per my last email, Bloop.", build: () => shirt(C.white, [
+      P(soft(), C.blue, front(0, -.3, .07).pos, [.08, .06, .04]),
+      Grp([P(cone(), C.blue, [0, -.2, 0], [.1, .22, .03], [0, 0, PI]), P(soft(), C.blue, [0, .04, 0], [.07, .12, .03])], front(0, -.45, .06).pos, front(0, -.45, .06).rot)]) },
+  ],
+  back: [
+    { id: 'none', name: 'Nothing', quip: "Traveling light." },
+    { id: 'backpack', name: 'Backpack', quip: "Snacks: packed. Friends: soon.", build: () => { const a = at(-PI/2, -.15, .03); return Grp([
+      Grp([P(soft(), C.navy, [0, 0, 0], [.52, .55, .22]), P(soft(), '#363f62', [0, -.18, .2], [.38, .28, .08]),
+        P(soft(), C.navy, [0, .32, .12], [.48, .18, .16]), Grp([P(soft(), C.orange, [0, 0, 0], [.13, .1, .02]), Grp([crownEmblem(C.white)], [0, 0, .02], 0, .65)], [0, -.15, .29]),
+        P(pill(), '#23293f', [0, .58, -.05], [.12, .04, .04], [0, 0, PI/2])], a.pos, [0, PI, 0]),
+      ...[-1, 1].map(s => { const side = s > 0 ? 0 : PI, f = s > 0 ? 1 : -1, bk = s > 0 ? -PI/2 : 3*PI/2;
+        return strap([[bk + f*.42, .2], [side - f*.55, .55], [side + f*.25, .5], [side + f*.55, .1], [side + f*.45, -.35], [side - f*.3, -.55], [bk + f*.5, -.5]], .07, '#252c47'); })]); } },
+    { id: 'jetpack', name: 'Jetpack', quip: "To infinity and... the snack table.", build: () => { const a = at(-PI/2, -.1, .1); return Grp([
+      P(soft(), C.grey, [0, 0, .05], [.3, .4, .15], 0, { gloss: 2 }),
+      ...[-1, 1].flatMap(s => [P(cyl(), '#d8dde3', [s*.25, 0, .12], [.17, .45, .17], 0, { gloss: 2.5 }), P(cone(), C.red, [s*.25, .58, .12], [.17, .16, .17], 0, { gloss: 2 }),
+        P(cone(), '#5a5a62', [s*.25, -.5, .12], [.12, .08, .12]),
+        Grp([P(cone(), C.orange, [0, -.25, 0], [.12, .25, .12], [PI, 0, 0], { emit: 1, noShadow: true }), P(cone(), C.yellow, [0, -.15, 0], [.07, .15, .07], [PI, 0, 0], { emit: 1, noShadow: true })],
+          [s*.25, -.58, .12], [0, 0, 0], 1, { upd: (n, t) => { const f = .75 + Math.abs(Math.sin(t*31 + s*2)) * .45; n.scl = [1, f, 1]; } })]),
+    ], a.pos, [0, PI, 0]); } },
+    { id: 'angel', name: 'Angel Wings', quip: "Flap flap. Nothing. Flap harder.", build: () => wings(C.white, false) },
+    { id: 'bat', name: 'Bat Wings', quip: "I'm the night. (Still scared of it.)", build: () => wings('#4a3566', true) },
+    { id: 'turtle', name: 'Turtle Shell', quip: "Slow and steady wins the... I forgot.", build: () => { const a = at(-PI/2, -.2, -.12); return Grp([
+      P(hemi(), '#4e9a4a', [0, 0, 0], [.72, .5, .75], [-PI/2, 0, 0]), P(tor(.12), '#d9c27a', [0, 0, 0], [.74, .74, .76], [PI/2, 0, 0]),
+      ...[[0, 0, .5], [.32, .3, .36], [-.32, .3, .36], [.32, -.3, .36], [-.32, -.3, .36]].map(p => P(sph(), '#3a7a38', p, [.18, .18, .08], [0, Math.atan2(p[0], p[2]) * .6, 0]))], a.pos, [0, PI, 0]); } },
+    { id: 'balloons', name: 'Balloons', quip: "If I get enough of these, I'll fly. Right?", build: () => Grp([[C.red, -.4, 2.3], [C.yellow, .1, 2.6], [C.blue, .5, 2.2]].map(([c, x, y], i) => Grp([
+      P(cyl(), '#ddd', [x*.5, y*.5 - .1, -.75], [.006, y*.5 - .05, .006], [0, 0, -x*.18]),
+      P(sph(), c, [x, y, -.75], [.3, .36, .3], 0, { gloss: 3 }), P(cone(), c, [x, y - .38, -.75], [.06, .05, .06], [PI, 0, 0])],
+    [0, 0, 0], [0, 0, 0], 1, { upd: wobble(.05, 1.6 + i*.3, 2, i) }))) },
+    { id: 'teddy', name: 'Teddy Pack', quip: "This is Mr. Snuggles. He's my bodyguard.", build: () => { const a = at(-PI/2, -.1, .1); return Grp([
+      P(sph(), '#b07a45', [0, 0, 0], [.38, .36, .26], 0, { grain: 2.5 }), ...[-1, 1].flatMap(s => [P(sph(), '#b07a45', [s*.3, .3, 0], .13, 0, { grain: 2.5 }), P(sph(), '#e7c08f', [s*.3, .3, .07], .07)]),
+      P(sph(), '#e7c08f', [0, -.08, .22], [.14, .1, .08]), P(sph(), C.black, [0, -.04, .3], .04, 0, { gloss: 3 }),
+      ...[-1, 1].map(s => P(sph(), C.black, [s*.13, .1, .24], .04, 0, { gloss: 3 })),
+    ], a.pos, [0, PI, 0]); } },
+    { id: 'windup', name: 'Wind-up Key', quip: "Batteries not included. Bean powered.", build: () => { const a = at(-PI/2, 0, .05); return Grp([
+      P(cyl(), C.gold, [0, 0, .2], [.06, .2, .06], [PI/2, 0, 0], { gloss: 3 }),
+      Grp([P(tor(.25), C.gold, [.2, 0, 0], .17, [PI/2, 0, 0], { gloss: 3 }), P(tor(.25), C.gold, [-.2, 0, 0], .17, [PI/2, 0, 0], { gloss: 3 }), P(sph(), C.gold, [0, 0, 0], .07, 0, { gloss: 3 })],
+        [0, 0, .42], [0, 0, 0], 1, { upd: (n, t) => { n.rot[2] = t * 2.5; } }),
+    ], a.pos, [0, PI, 0]); } },
+    { id: 'snail', name: 'Snail Shell', quip: "I live here now. Rent is free.", build: () => { const a = at(-PI/2, -.2, -.05);
+      const k = [P(sph(), '#e0a96d', [0, 0, .3], [.62, .62, .4])];
+      for (let i = 0; i < 46; i++) { const t = i / 46, ang = t * TAU * 2.4, r = .58 * (1 - t*.9); k.push(P(sph(), '#9c6a3c', [Math.cos(ang)*r, Math.sin(ang)*r, .3 + Math.sqrt(1 - (r/.62)**2) * .38], .05)); }
+      return Grp(k, a.pos, [0, PI, 0]); } },
+    { id: 'cape', name: 'Royal Cape', quip: "Fancy bean coming through!", build: () => cape('#7b3fe4', false) },
+  ],
+  shoes: [
+    { id: 'none', name: 'Barefoot', quip: "Toe beans. Wait, do I have toes?" },
+    { id: 'sneakers', name: 'Sneakers', quip: "Gotta go fast!", build: () => shoe(f => [
+      P(soft(), C.white, [0, -.4, .1], [.28, .14, .36]), P(soft(), C.red, [0, -.5, .1], [.29, .05, .37]), P(soft(), C.red, [f*.24, -.38, .05], [.04, .07, .2]),
+      ...[0, 1, 2].map(i => P(pill(), C.red, [0, -.28 + i*.0, .22 + i*.08], [.13, .02, .02], [0, 0, PI/2]))]) },
+    { id: 'boots', name: 'Boots', quip: "These boots were made for wobbling.", build: () => shoe(() => [
+      P(cyl(), C.brown, [0, -.3, .02], [.29, .22, .3]), P(soft(), C.brown, [0, -.43, .12], [.29, .12, .36]), P(soft(), '#3a2618', [0, -.52, .12], [.3, .04, .37]),
+      P(tor(.2), '#6b4528', [0, -.1, .02], [.29, .3, .3])]) },
+    { id: 'rainboots', name: 'Rain Boots', quip: "Puddles fear me.", build: () => shoe(() => [
+      P(cyl(), C.yellow, [0, -.28, .02], [.29, .26, .3], 0, { gloss: 3 }), P(soft(), C.yellow, [0, -.44, .12], [.29, .11, .36], 0, { gloss: 3 }), P(soft(), C.black, [0, -.52, .12], [.3, .03, .37])]) },
+    { id: 'flippers', name: 'Flippers', quip: "*flap* *flap* *flap*", build: () => shoe(() => [
+      P(soft(), '#2ec4b6', [0, -.42, .1], [.28, .12, .3]), P(soft(), '#2ec4b6', [0, -.51, .55], [.34, .03, .55], [-.05, 0, 0], { gloss: 2 })]) },
+    { id: 'skates', name: 'Roller Skates', quip: "Wheee— *crash*", build: () => shoe(() => [
+      P(cyl(), C.pink, [0, -.28, .03], [.29, .2, .3]), P(soft(), C.pink, [0, -.42, .12], [.29, .12, .36]), P(soft(), C.white, [0, -.53, .12], [.27, .03, .34]),
+      ...[-1, 1].flatMap(z => [-1, 1].map(x => P(cyl(), C.yellow, [x*.16, -.6, .12 + z*.2], [.07, .05, .07], [0, 0, PI/2], { gloss: 2 })))]) },
+    { id: 'clown', name: 'Clown Shoes', quip: "Big shoes to fill. Literally.", build: () => shoe(() => [P(sph(), C.red, [0, -.42, .38], [.34, .17, .62], 0, { gloss: 3 }), P(cyl(), C.yellow, [0, -.33, 0], [.26, .06, .26])]) },
+    { id: 'bunny', name: 'Bunny Slippers', quip: "Hop hop. It's bedtime somewhere.", build: () => shoe(() => [
+      P(sph(), '#ffd6e6', [0, -.42, .12], [.32, .16, .38], 0, { grain: 2.5 }),
+      ...[-1, 1].flatMap(s => [P(sph(), '#ffd6e6', [s*.1, -.15, .1], [.06, .22, .05], [-.3, 0, s*.25], { grain: 2.5 }), P(sph(), C.black, [s*.1, -.36, .45], .03)]),
+      P(sph(), C.pink, [0, -.4, .5], .04)]) },
+    { id: 'socks', name: 'Silly Socks', quip: "Mismatched on purpose. Totally.", build: () => shoe(f => [0, 1, 2, 3].map(i => P(cyl(), i % 2 ? C.white : (f > 0 ? C.green : C.purple), [0, -.44 + i*.08, .03], [.27, .045, .28]))) },
+  ],
+  hand: [
+    { id: 'none', name: 'Empty', quip: "Hands free! (Nubs free?)" },
+    { id: 'pizza', name: 'Pizza', quip: "Pizza is my love language.", build: () => Grp([
+      P(cone(), '#ffc94d', [0, 0, 0], [.32, .42, .04]), P(pill(), '#d58b3b', [0, .44, 0], [.06, .34, .07], [0, 0, PI/2]),
+      ...[[-.08, .2], [.1, .12], [0, -.1], [-.1, -.02]].map(([x, y]) => P(sph(), '#d8402b', [x, y, .035], [.06, .06, .02])),
+    ], [0, -.12, .25], [.4, 0, PI], 1) },
+    { id: 'controller', name: 'Controller', quip: "One more game. One more. ONE more.", build: () => Grp([
+      P(soft(), '#3a3d4a', [0, 0, 0], [.32, .14, .1]), ...[-1, 1].map(s => P(sph(), '#3a3d4a', [s*.24, -.08, 0], [.12, .13, .1])),
+      ...[[C.red, .2, .04], [C.yellow, .26, -.02], [C.green, .14, -.02], [C.blue, .2, -.08]].map(([c, x, y]) => P(sph(), c, [x - .02, y + .02, .09], .03, 0, { gloss: 3 })),
+      P(cyl(), C.black, [-.18, .0, .1], [.04, .03, .04], [PI/2, 0, 0]),
+    ], [0, -.1, .2], [-.9, 0, 0]) },
+    { id: 'balloon', name: 'Balloon', quip: "His name is Floaty. We're married.", build: () => Grp([
+      P(cyl(), '#ddd', [0, .8, 0], [.006, .8, .006]), P(sph(), C.red, [0, 1.85, 0], [.3, .36, .3], 0, { gloss: 3 }), P(cone(), C.red, [0, 1.47, 0], [.05, .04, .05], [PI, 0, 0])],
+      [0, -.05, .05], [0, 0, 0], 1, { upd: (n, t) => { n.rot[2] = Math.sin(t * 1.7) * .12 - 0.3; n.rot[0] = Math.cos(t * 1.3) * .08; } }) },
+    { id: 'icecream', name: 'Ice Cream', quip: "Brain freeze is a lifestyle.", build: () => Grp([
+      P(cone(), '#d9a35b', [0, 0, 0], [.12, .25, .12], [PI, 0, 0]), P(sph(), C.pink, [0, .3, 0], .16, 0, { grain: 2 }), P(sph(), '#fff4d6', [0, .5, 0], .14, 0, { grain: 2 }),
+      P(sph(), C.red, [0, .67, 0], .05, 0, { gloss: 3 })], [0, -.15, .15], [.3, 0, PI]) },
+    { id: 'sword', name: 'Foam Sword', quip: "En garde! *bonk*", build: () => Grp([
+      P(pill(), C.blue, [0, .7, 0], [.08, .65, .04], 0, { grain: 2 }), P(pill(), C.yellow, [0, .05, 0], [.24, .05, .06], [0, 0, 0]), P(pill(), C.red, [0, -.1, 0], [.05, .14, .05])],
+      [0, -.1, .1], [1.2, 0, PI]) },
+    { id: 'chicken', name: 'Rubber Chicken', quip: "*squeak*", build: () => Grp([
+      P(pill(), C.yellow, [0, -.35, 0], [.11, .32, .1]), P(sph(), C.yellow, [0, -.7, .03], .1), P(cone(), C.orange, [0, -.72, .14], [.03, .06, .03], [PI/2, 0, 0]),
+      P(sph(), C.red, [0, -.78, 0], [.02, .06, .05]), ...[-1, 1].map(s => P(pill(), C.orange, [s*.04, -.02, 0], [.015, .1, .015]))],
+      [0, -.05, .05], [0, 0, 0], 1, { upd: wobble(.25, 6, 2) }) },
+    { id: 'fish', name: 'Fish', quip: "This is Kevin. He's not doing great.", build: () => Grp([
+      P(sph(), '#7fb4d6', [0, -.25, 0], [.12, .3, .06], 0, { gloss: 3 }), P(cone(), '#7fb4d6', [0, .1, 0], [.12, .1, .03], [PI, 0, 0], { gloss: 3 }),
+      ...[-1, 1].map(s => P(sph(), C.black, [s*.07, -.42, .03], .02))], [0, -.1, .1], [0, 0, 0], 1, { upd: wobble(.35, 9, 2) }) },
+    { id: 'wand', name: 'Magic Wand', quip: "Abraca-bean!", build: () => Grp([
+      P(cyl(), C.black, [0, .3, 0], [.025, .35, .025]), P(cyl(), C.white, [0, .63, 0], [.027, .05, .027]),
+      Grp([star(C.yellow, { emit: .6 })], [0, .75, 0], [0, 0, 0], .13, { upd: (n, t) => { n.rot[1] = t * 3; } })], [0, -.1, .1], [1.1, 0, PI]) },
+    { id: 'lolly', name: 'Lollipop', quip: "I licked it, so it's mine.", build: () => Grp([
+      P(cyl(), C.white, [0, .3, 0], [.02, .35, .02]),
+      ...[0, 1, 2, 3].map(i => P(tor(.35), [C.pink, C.white, C.blue, C.yellow][i], [0, .82, 0], .26 - i*.065, [PI/2, 0, 0], { gloss: 3 })), P(sph(), C.pink, [0, .82, 0], [.04, .04, .05])],
+      [0, -.1, .1], [.9, 0, PI]) },
+    { id: 'banana', name: 'Banana', quip: "Banana for scale.", build: () => Grp([
+      coil(curve([[0, 0, 0], [.08, .2, 0], [.05, .45, 0], [-.08, .62, 0]], 14), .05, .03, C.yellow, 20, { gloss: 1.5 }), P(sph(), C.brown, [-.09, .64, 0], .03)],
+      [0, -.1, .1], [.9, 0, PI]) },
+    { id: 'trophy', name: 'Trophy', quip: "World's Okayest Bean.", build: () => Grp([
+      P(M('cup', () => lathe(v => { const a = v * PI * .5; return [Math.sin(a) * .9 + .1, Math.cos(a) * -1 + .4]; }, 40, 20)), C.gold, [0, .2, 0], [.18, .3, .18], [PI, 0, 0], { gloss: 3 }),
+      P(cyl(), C.gold, [0, -.08, 0], [.04, .1, .04], 0, { gloss: 3 }), P(cyl(), C.brown, [0, -.2, 0], [.12, .05, .12]),
+      ...[-1, 1].map(s => P(tor(.25), C.gold, [s*.2, .25, 0], .08, [PI/2, 0, 0], { gloss: 3 }))], [0, -.15, .12], [0, 0, PI]) },
+  ],
+};
+// ---- builders used by the catalog ----
+function glasses(lens, frame, noArms) {
+  const k = [];
+  for (const s of [-1, 1]) { const a = front(s*.28, .43, .17); k.push(Grp([lens(s)], a.pos, a.rot)); }
+  const b = front(0, .48, .14);
+  k.push(P(pill(), frame, b.pos, [.025, .06, .025], [0, 0, PI/2]));
+  if (!noArms) for (const s of [-1, 1]) { const a = front(s*.62, .47, .06); k.push(P(pill(), frame, [a.pos[0], a.pos[1], a.pos[2] - .18], [.02, .25, .02], [PI/2, a.rot[1] * .7, 0])); }
+  return Grp(k);
+}
+function mustache(col, y = .2) {
+  return Grp([-1, 1].map(s => coil(curve([[0, y + .02, .8], [s*.12, y, .8], [s*.25, y - .02, .77], [s*.33, y - .1, .72]], 14), .075, .035, col, 16, { grain: 2 })));
+}
+function collar(col, y = -.22) { return P(tor(.06), col, [0, y, 0], [bodyR(y) * 1.035, 1, bodyR(y) * 1.035 * DZ]); }
+function shirt(col, extras = [], top = -.22) { return Grp([P(shell(top, -.9, 1.035), col), collar(col, top), P(tor(.05), col, [0, -.9, 0], [bodyR(-.9) * 1.035, 1, bodyR(-.9) * 1.035 * DZ]), ...extras]); }
+function bowtie(col, y) { const a = front(0, y, .05); return Grp([-1, 1].map(s => P(cone(), col, [s*.1, 0, 0], [.07, .1, .04], [0, 0, s*PI/2])).concat([P(sph(), col, [0, 0, .01], .045)]), a.pos, a.rot); }
+function cape(col, short) {
+  const len = short ? 1.05 : 1.3;
+  return Grp([
+    P(M('cape' + len, () => surf(24, 16, (u, v) => {
+      const y = .05 - v * len, th = -PI/2 + (u - .5) * (1.4 + v * .9), r = bodyR(Math.max(y, -.97)) + .06 + v * .14 + Math.sin(u * TAU * 2) * v * .03;
+      return [r*Math.cos(th), y, r*Math.sin(th)*DZ];
+    }, (u, v) => [0, .05 - v * len, 0])), col),
+    P(tor(.12), col, [0, .03, 0], [bodyR(.03) + .05, .6, (bodyR(.03) + .05) * DZ]),
+    ...[-1, 1].map(s => { const a = front(s*.3, .02, .06); return P(sph(), C.gold, a.pos, .07, 0, { gloss: 3 }); }),
+  ], [0, 0, 0], [0, 0, 0], 1, { upd: (n, t) => { n.rot[0] = Math.sin(t * 2) * .03; } });
+}
+function wings(col, bat) {
+  const side = s => {
+    const feathers = bat
+      ? [0, 1, 2].map(i => P(cone(), col, [s*(.25 + i*.22), .1 - i*.12, 0], [.12, .4, .03], [0, 0, s*(1.9 + i*.35)]))
+        .concat([P(soft(), col, [s*.4, .2, 0], [.45, .22, .03], [0, 0, s*.2])])
+      : [0, 1, 2, 3].map(i => P(sph(), col, [s*(.25 + i*.12), .25 - i*.15, 0], [.42 - i*.06, .12, .05], [0, 0, s*(.5 - i*.25)], { grain: 2 }));
+    return Grp(feathers, [s*.22, .25, -.82], [0, -s*.5, 0], 1, { upd: (n, t) => { n.rot[1] = -s*(.4 + Math.sin(t * (bat ? 6 : 4)) * .35); } });
+  };
+  return Grp([side(-1), side(1)]);
+}
+function shoe(parts) { return f => Grp(parts(f)); } // built per-foot with f = ±1
+
+// =====================================================================
+//  Bloop
+// =====================================================================
+const EXPRESSIONS = [
+  { id: 'happy', name: 'Happy' }, { id: 'grin', name: 'Grin' }, { id: 'shock', name: 'Shook' },
+  { id: 'sleepy', name: 'Sleepy' }, { id: 'angry', name: 'Grumpy' }, { id: 'derp', name: 'Derp' },
+  { id: 'love', name: 'In Love' }, { id: 'starry', name: 'Starstruck' }, { id: 'smug', name: 'Smug' },
+  { id: 'cry', name: 'Big Sad' },
+];
+ITEMS.expr = EXPRESSIONS.map(e => ({ ...e, quip: { happy: "Let's make some friendslop!", grin: "Hehe.", shock: "WHAT?!", sleepy: "zzz... five more minutes...", angry: "Who ate my pizza.",
+  derp: "Bleh!", love: "I love you. I love everyone.", starry: "WOWWWW", smug: "Yeah, I know I look good.", cry: "Nobody likes my hat. *sob*" }[e.id] }));
+
+function beads(pts, r, col, o = {}) { return Grp(pts.map(([x, y]) => { const a = front(x, y, r * .25); return P(sph(), col, a.pos, [r, r, r * .7], a.rot, o); })); }
+const arc = (x0, x1, yc, bend, n = 11, tilt = 0) => Array.from({ length: n }, (_, i) => { const s = i / (n - 1) * 2 - 1; return [lerp(x0, x1, (s + 1) / 2), yc + bend * (s * s - 1) + tilt * s]; });
+
+const bloop = { eyes: [], pupils: [], look: [0, 0], blink: 0 };
+function buildFace(ex) {
+  const k = []; bloop.eyes = []; bloop.pupils = [];
+  const MOUTH = '#4a1020', TONGUE = '#ff6f8e';
+  for (const s of [-1, 1]) {
+    const a = front(s*.28, .42, -.05), eye = Grp([], a.pos, a.rot);
+    const big = ex === 'shock' ? 1.1 : 1;
+    eye.kids.push(P(sph(), '#ffffff', [0, 0, 0], [.24*big, .28*big, .15], 0, { gloss: 1.6, grain: 0 }));
+    const pup = Grp([], [0, 0, 0]);
+    let pk = ex === 'shock' ? .55 : ex === 'angry' ? .85 : 1, off = [0, 0];
+    if (ex === 'derp') { pk = s < 0 ? 1.1 : .7; off = [-s * .07, s * .04]; }
+    if (ex === 'love') pup.kids.push(Grp([heart('#ff2d55', { gloss: 2.5, emit: .15 })], [0, -.01, .14], 0, [.17, .17, .1], { upd: (n, t) => { const p = 1 + Math.max(0, Math.sin(t * 7)) * .18; n.scl = [.17*p, .17*p, .1]; } }));
+    else if (ex === 'starry') pup.kids.push(Grp([star(C.gold, { gloss: 3, emit: .2 })], [0, 0, .14], 0, [.15, .15, .1], { upd: (n, t) => { n.rot[2] = Math.sin(t * 3) * .3; } }));
+    else {
+      pup.kids.push(P(sph(), '#15151c', [off[0], off[1], .1], [.145*pk, .17*pk, .07], 0, { gloss: 2.5, grain: 0 }));
+      pup.kids.push(P(sph(), '#ffffff', [off[0] + .045*pk, off[1] + .06*pk, .165], [.035*pk, .035*pk, .02], 0, { emit: .7, grain: 0 }));
+    }
+    eye.kids.push(pup); bloop.pupils.push(pup);
+    if (ex === 'sleepy' || ex === 'smug') eye.kids.push(P(hemi(), 'body', [0, 0, 0], [.255, .3, .165], [ex === 'sleepy' ? 1.25 : .95, 0, 0]));
+    if (ex === 'grin') eye.kids.push(P(bot(), 'body', [0, -.03, 0], [.255, .26, .165], [-.75, 0, 0]));
+    if (ex === 'angry') eye.kids.push(P(hemi(), 'body', [0, 0, 0], [.255, .3, .165], [.8, 0, s * .45]));
+    k.push(eye); bloop.eyes.push(eye);
+  }
+  // brows
+  if (ex === 'angry') for (const s of [-1, 1]) k.push(beads(arc(s*.12, s*.42, .72 - .04, 0, 7, s * -.06), .045, '#1d2a52'));
+  if (ex === 'cry' || ex === 'shock') for (const s of [-1, 1]) k.push(beads(arc(s*.14, s*.4, ex === 'cry' ? .77 : .82, -.03, 7, ex === 'cry' ? s*.05 : 0), .035, '#1d2a52'));
+  // mouth
+  const mouthD = (w, h, tongueOut) => { const a = front(0, .03, -.035); return Grp([
+    P(bot(), MOUTH, [0, 0, 0], [w, h, .09], 0, { gloss: 1.5 }),
+    P(sph(), TONGUE, tongueOut ? [.08, -h * .95, .05] : [0, -h * .62, .045], tongueOut ? [.1, .14, .06] : [w * .55, h * .32, .05], [0, 0, tongueOut ? .3 : 0]),
+  ], a.pos, a.rot); };
+  if (ex === 'happy') k.push(mouthD(.2, .21));
+  else if (ex === 'starry') k.push(mouthD(.22, .25));
+  else if (ex === 'derp') k.push(mouthD(.18, .16, true));
+  else if (ex === 'grin' || ex === 'love') k.push(beads(arc(-.2, .2, .07, .1, 13), .035, MOUTH));
+  else if (ex === 'smug') k.push(beads(arc(-.16, .2, .05, .05, 11, .045), .032, MOUTH));
+  else if (ex === 'angry' || ex === 'cry') k.push(beads(arc(-.15, .15, -.04, -.07, 11), .035, MOUTH));
+  else if (ex === 'shock') { const a = front(0, .0, -.03); k.push(P(sph(), MOUTH, a.pos, [.1, .14, .09], a.rot)); }
+  else if (ex === 'sleepy') { const a = front(.03, .04, -.02); k.push(P(sph(), MOUTH, a.pos, [.06, .045, .06], a.rot));
+    k.push(Grp([0, 1, 2].map(i => Grp([P(soft(), '#7a8bb5', [0, .06, 0], [.06, .012, .012]), P(soft(), '#7a8bb5', [0, 0, 0], [.012, .07, .012], [0, 0, -.75]), P(soft(), '#7a8bb5', [0, -.06, 0], [.06, .012, .012])],
+      [0, 0, 0], 0, 1, { upd: (n, t) => { const p = (t * .35 + i / 3) % 1; n.pos = [.5 + p * .5 + Math.sin(p * 8) * .05, .9 + p * .9, .3]; const s = Math.sin(p * PI) * 1.4; n.scl = [s, s, s]; } })))); }
+  if (ex === 'cry') for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const a = front(s*.3, .2, .03);
+    k.push(P(sph(), '#7cc7ff', a.pos, .05, 0, { alpha: .8, gloss: 4, noShadow: true, upd: (n, t) => { const p = (t * .9 + i / 3) % 1;
+      n.pos = [a.pos[0] + s * p * .08, a.pos[1] - p * 1.1, a.pos[2] + .05 + p * .1]; const z = Math.sin(p * PI) * .07; n.scl = [z, z * 1.3, z]; } }));
+  }
+  return Grp(k);
+}
+
+// skeleton
+const BODY_Y = 1.32, HIP_Y = BODY_Y - .82;
+function makeBloop() {
+  const slots = {}; for (const c of ['hat', 'eyes', 'face', 'outfit', 'back', 'hand']) slots[c] = Grp([]);
+  slots.hat.pos = [0, HAT_Y, 0];
+  const face = Grp([]);
+  const arm = s => Grp([P(pill(), 'body', [0, -.2, 0], [.17, .29, .17]), ...(s < 0 ? [Grp([slots.hand], [0, -.43, 0])] : [])], [s*.74, -.05, 0], [0, 0, s*.35]);
+  const armL = arm(1), armR = arm(-1);
+  const inner = Grp([P(bodyM(), 'body'), face, armL, armR, slots.outfit, slots.back, slots.eyes, slots.face, slots.hat], [0, 1.0, 0]);
+  const body = Grp([inner], [0, BODY_Y - 1.0, 0]);
+  const shoeL = Grp([]), shoeR = Grp([]);
+  const leg = (s, sh) => Grp([P(pill(), 'body', [0, -.24, .02], [.25, .3, .26]), sh], [s*.34, HIP_Y, 0]);
+  const legL = leg(1, shoeL), legR = leg(-1, shoeR);
+  const root = Grp([legL, legR, body]);
+  Object.assign(bloop, { root, body, inner, face, armL, armR, legL, legR, slots, shoeL, shoeR });
+}
+
+// =====================================================================
+//  State, animation, emotes
+// =====================================================================
+const DEFAULT = { color: 'blue', hat: 'cap', eyes: 'none', face: 'none', outfit: 'none', back: 'backpack', shoes: 'none', hand: 'none', expr: 'happy' };
+let state = { ...DEFAULT };
+try { const s = JSON.parse(localStorage.getItem('bloop.look') || 'null'); if (s) for (const k in DEFAULT) if (s[k] && (ITEMS[k] || []).some(i => i.id === s[k])) state[k] = s[k]; } catch (e) {}
+const save = () => { try { localStorage.setItem('bloop.look', JSON.stringify(state)); } catch (e) {} };
+const find = (cat, id) => ITEMS[cat].find(i => i.id === id) || ITEMS[cat][0];
+
+function apply(cat) {
+  if (cat === 'expr' || !cat) { bloop.face.kids = [buildFace(state.expr)]; }
+  for (const c of ['hat', 'eyes', 'face', 'outfit', 'back', 'hand']) if (!cat || cat === c) {
+    const it = find(c, state[c]); bloop.slots[c].kids = it.build ? [it.build()] : [];
+  }
+  if (!cat || cat === 'shoes') {
+    const it = find('shoes', state.shoes);
+    bloop.shoeL.kids = it.build ? [it.build()(1)] : []; bloop.shoeR.kids = it.build ? [it.build()(-1)] : [];
+  }
+  const col = find('color', state.color);
+  bloop.gloss = col.gloss || .6; bloop.alpha = col.alpha || 1;
+  // body-colored parts pick up the material of the chosen color
+  const walk = n => { if (n.bodyCol) { n.gloss = bloop.gloss; n.alpha = bloop.alpha; } n.kids.forEach(walk); };
+  walk(bloop.root);
+}
+function bodyColor(t) {
+  const c = find('color', state.color).c;
+  return c === 'rainbow' ? hsl((t * .12) % 1, .85, .6) : hex(c);
+}
+
+const EMOTES = [
+  { id: 'wave', name: 'Wave', dur: 2.2, quip: "Heyyy bestie!" },
+  { id: 'dance', name: 'Dance', dur: 4, quip: "Bean boogie!" },
+  { id: 'jump', name: 'Jump', dur: 1.1, quip: "Boing!" },
+  { id: 'spin', name: 'Spin', dur: 1.2, quip: "Wheeeee!" },
+  { id: 'cheer', name: 'Cheer', dur: 2, quip: "LET'S GOOOO!" },
+  { id: 'wiggle', name: 'Wiggle', dur: 1.6, quip: "Jiggle jiggle." },
+  { id: 'trip', name: 'Trip', dur: 3, quip: "I'm okay!! I'm okay." },
+];
+let emote = null, emoteT = 0, boing = 0, boingV = 0;
+function playEmote(id) { emote = EMOTES.find(e => e.id === id); emoteT = 0; say(emote.quip); sfx.boop(emote.id === 'trip' ? 180 : 420, emote.id === 'jump' ? 1.8 : 1.3); }
+function poseAt(t, dt) {
+  const p = { y: 0, rx: 0, ry: 0, rz: 0, sq: 0, aL: .35, aR: -.35, axL: 0, axR: 0, lL: 0, lR: 0, lean: 0 };
+  // idle
+  p.sq = Math.sin(t * 2.2) * .018; p.aL += Math.sin(t * 1.7) * .06; p.aR -= Math.sin(t * 1.7 + 1) * .06; p.lean = Math.sin(t * .9) * .025;
+  if (!emote) return p;
+  emoteT += dt;
+  const e = emote, T = emoteT, q = T / e.dur, w = Math.min(1, T / .15, (e.dur - T) / .2);
+  if (q >= 1) { emote = null; return p; }
+  const o = { ...p };
+  switch (e.id) {
+    case 'wave': o.aR = -2.55 + Math.sin(T * 13) * .35; o.rz = .08; o.aL = .5; o.lean = -.05; break;
+    case 'dance': { const b = T * 7.5; o.y = Math.abs(Math.sin(b)) * .18; o.sq = -Math.abs(Math.sin(b)) * .05 + .03; o.rz = Math.sin(b) * .14; o.ry = Math.sin(b * .5) * .5;
+      o.aL = 1.2 + Math.sin(b) * 1.0; o.aR = -1.2 + Math.sin(b) * 1.0; o.lL = Math.max(0, Math.sin(b)) * -.6; o.lR = Math.max(0, -Math.sin(b)) * -.6; break; }
+    case 'jump': { if (T < .22) { o.sq = T / .22 * .18; } else { const a = (T - .22) / .65; o.y = a < 1 ? Math.sin(a * PI) * 1.3 : 0; o.sq = a < 1 ? -.12 * Math.sin(a * PI) : .18 * Math.max(0, 1 - (a - 1) * 4); o.aL = 2.5; o.aR = -2.5; o.lL = o.lR = -.3; } break; }
+    case 'spin': { const a = ease(Math.min(1, T / 1)); o.ry = a * TAU; o.y = Math.sin(a * PI) * .35; o.aL = 1.3; o.aR = -1.3; break; }
+    case 'cheer': { const b = T * 9; o.aL = 2.6 + Math.sin(b) * .3; o.aR = -2.6 - Math.sin(b) * .3; o.y = Math.abs(Math.sin(b * .5)) * .25; o.sq = Math.sin(b) * .04; break; }
+    case 'wiggle': { o.sq = Math.sin(T * 28) * .09 * (1 - q); o.rz = Math.sin(T * 19) * .1; o.ry = Math.sin(T * 13) * .25; break; }
+    case 'trip': {
+      const fall = clamp(T / .35, 0, 1), up = clamp((T - 2.2) / .5, 0, 1), f = ease(fall) * (1 - ease(up));
+      o.rx = f * 1.45; o.y = f * .78 + Math.sin(up * PI) * .3; o.aL = .35 + f * 2.4; o.aR = -.35 - f * 2.4;
+      if (T > .35 && T < 2.2) { o.lL = Math.sin(T * 16) * .6 * f; o.lR = -Math.sin(T * 16) * .6 * f; o.sq = Math.sin(T * 30) * .02; }
+      break; }
+  }
+  for (const k in p) p[k] = lerp(p[k], o[k], k === 'ry' && e.id === 'spin' ? 1 : w);
+  return p;
+}
+function animate(t, dt) {
+  const p = poseAt(t, dt);
+  // springy "boing" when items change
+  boingV += (-boing * 180 - boingV * 9) * dt; boing += boingV * dt;
+  const sq = p.sq + boing;
+  const b = bloop;
+  b.root.pos = [0, p.y, 0]; b.root.rot = [p.rx, p.ry, p.rz];
+  b.body.scl = [1 + sq * .55, 1 - sq, 1 + sq * .55]; b.body.rot = [0, 0, p.lean];
+  b.armL.rot = [p.axL, 0, p.aL]; b.armR.rot = [p.axR, 0, p.aR];
+  b.legL.rot = [p.lL, 0, 0]; b.legR.rot = [p.lR, 0, 0];
+  // blink
+  b.blink -= dt; if (b.blink < -.14) b.blink = 1.8 + Math.random() * 3.2;
+  const bl = b.blink < 0 ? .12 : 1;
+  for (const e of b.eyes) e.scl = [1, state.expr === 'love' || state.expr === 'starry' ? 1 : bl, 1];
+  // pupils follow cursor
+  for (const pp of b.pupils) pp.pos = [b.look[0] * .055, b.look[1] * .05, 0];
+}
+
+// =====================================================================
+//  Camera + main loop
+// =====================================================================
+const cam = { yaw: .38, pitch: .1, dist: 6.4, target: [0, 1.3, 0], vyaw: 0, vp: null, eye: null };
+const LIGHT = V.norm([.45, 1.0, .85]);
+let lastT = performance.now() / 1000, clock = 0;
+const stageEl = document.getElementById('stage');
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), r = stageEl.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(r.width * dpr)); canvas.height = Math.max(1, Math.round(r.height * dpr));
+}
+const pedestal = Grp([
+  P(cyl(), '#f3ebe0', [0, -.16, 0], [2.3, .16, 2.3], 0, { gloss: .3 }),
+  P(tor(.05), '#e8ddcf', [0, -.03, 0], [2.3, 1, 2.3], 0, { gloss: .3 }),
+]);
+function frame() {
+  const now = performance.now() / 1000, dt = Math.min(.05, now - lastT); lastT = now; clock += dt;
+  if (!dragging) { cam.yaw += cam.vyaw * dt; cam.vyaw *= Math.pow(.04, dt); }
+  animate(clock, dt);
+  const W = canvas.width, H = canvas.height, asp = W / H;
+  const dist = cam.dist * (asp < 1 ? Math.min(1.7, 1 / asp * .9) : 1);
+  const cp = Math.cos(cam.pitch);
+  cam.eye = [cam.target[0] + Math.sin(cam.yaw) * cp * dist, cam.target[1] + Math.sin(cam.pitch) * dist + .4, cam.target[2] + Math.cos(cam.yaw) * cp * dist];
+  cam.vp = M4.mul(M4.persp(.55, asp, .1, 60), M4.lookAt(cam.eye, cam.target, [0, 1, 0]));
+  const list = [], I = M4.trs([0, 0, 0], [0, 0, 0], [1, 1, 1]);
+  const bc = bodyColor(clock);
+  renderThumbs(clock, LIGHT);
+  gather(pedestal, I, list, clock, dt, bc);
+  gather(bloop.root, I, list, clock, dt, bc);
+  render(list, cam, LIGHT);
+  positionBubble();
+  if (pendingShot) { pendingShot(); pendingShot = null; }
+  requestAnimationFrame(frame);
+}
+
+// =====================================================================
+//  Item thumbnails: Bloop wearing each item, rendered with the same engine
+// =====================================================================
+const THUMB = 160, thumbCache = new Map(), thumbQ = [];
+const THUMB_VIEW = { // target, distance, yaw, pitch
+  hat: [[0, 2.35, 0], 3.3, .45, .12], eyes: [[0, 1.78, 0], 2.3, .35, .02], face: [[0, 1.6, 0], 2.5, .35, .02], expr: [[0, 1.7, 0], 2.5, .3, .02],
+  outfit: [[0, 1.25, 0], 4.6, .4, .05], back: [[0, 1.35, 0], 4.6, PI + .7, .1], shoes: [[0, .35, 0], 2.8, .7, .25], hand: [[-.85, .95, .2], 3.0, -.5, .05],
+};
+function requestThumb(cat, id, cv) {
+  const key = cat + ':' + id, done = thumbCache.get(key);
+  if (done) { cv.getContext('2d').drawImage(done, 0, 0); return; }
+  thumbQ.push({ cat, id, cv, key });
+}
+function renderThumbs(t, light) {
+  if (!thumbQ.length || canvas.height < THUMB || canvas.width < THUMB) return;
+  const touched = new Set(), saved = { ...state };
+  const I = M4.trs([0, 0, 0], [0, 0, 0], [1, 1, 1]);
+  const pose = { pos: bloop.root.pos, rot: bloop.root.rot }; bloop.root.pos = [0, 0, 0]; bloop.root.rot = [0, 0, 0];
+  for (let n = 0; n < 6 && thumbQ.length; n++) {
+    const job = thumbQ.shift();
+    state[job.cat] = job.id; apply(job.cat); touched.add(job.cat);
+    for (const e of bloop.eyes) e.scl = [1, 1, 1];
+    for (const p of bloop.pupils) p.pos = [0, 0, 0];
+    const [tg, d, yaw, pitch] = THUMB_VIEW[job.cat], cp = Math.cos(pitch);
+    const eye = [tg[0] + Math.sin(yaw)*cp*d, tg[1] + Math.sin(pitch)*d, tg[2] + Math.cos(yaw)*cp*d];
+    const list = []; gather(bloop.root, I, list, t, 0, bodyColor(t));
+    render(list, { eye, vp: M4.mul(M4.persp(.6, 1, .1, 60), M4.lookAt(eye, tg, [0, 1, 0])) }, light, THUMB, THUMB);
+    const c = document.createElement('canvas'); c.width = c.height = THUMB;
+    c.getContext('2d').drawImage(canvas, 0, canvas.height - THUMB, THUMB, THUMB, 0, 0, THUMB, THUMB);
+    thumbCache.set(job.key, c);
+    if (job.cv.isConnected) job.cv.getContext('2d').drawImage(c, 0, 0);
+  }
+  Object.assign(state, saved); for (const c of touched) apply(c);
+  bloop.root.pos = pose.pos; bloop.root.rot = pose.rot;
+}
+
+// =====================================================================
+//  Speech bubble, sound
+// =====================================================================
+const bubble = document.getElementById('bubble');
+let bubbleTimer = 0;
+function say(text) {
+  bubble.textContent = text; bubble.classList.add('show');
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => bubble.classList.remove('show'), 2400);
+}
+function headScreen() {
+  const m = M4.mul(cam.vp, M4.trs([0, 0, 0], [0, 0, 0], [1, 1, 1]));
+  const top = bloop.root.pos[1] + BODY_Y + 1.15 + (state.hat !== 'none' ? .45 : .1);
+  const p = M4.xform(m, [0, top, 0]), r = canvas.getBoundingClientRect();
+  return [(p[0] * .5 + .5) * r.width, (1 - (p[1] * .5 + .5)) * r.height];
+}
+function positionBubble() { const [x, y] = headScreen(); bubble.style.left = clamp(x, 120, stageEl.clientWidth - 120) + 'px'; bubble.style.top = Math.max(y, 70) + 'px'; }
+
+const sfx = (() => {
+  let ac = null, muted = false;
+  try { muted = localStorage.getItem('bloop.mute') === '1'; } catch (e) {}
+  const ctx = () => { if (!ac) { const A = window.AudioContext || window.webkitAudioContext; if (A) ac = new A(); } return ac; };
+  const tone = (f0, f1, dur, type = 'sine', vol = .15) => {
+    if (muted) return; const a = ctx(); if (!a) return;
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur);
+  };
+  return {
+    boop: (f = 520, r = 1.5) => tone(f, f * r, .14, 'sine', .18),
+    pop: () => { tone(900, 300, .08, 'triangle', .12); },
+    squeak: () => { tone(700, 1400, .1, 'square', .05); setTimeout(() => tone(1300, 600, .12, 'square', .05), 90); },
+    get muted() { return muted; }, set muted(v) { muted = v; try { localStorage.setItem('bloop.mute', v ? '1' : '0'); } catch (e) {} },
+  };
+})();
+
+// =====================================================================
+//  UI
+// =====================================================================
+const TABS = [
+  { id: 'hat', name: 'Hats' }, { id: 'eyes', name: 'Eyewear' }, { id: 'face', name: 'Face' },
+  { id: 'outfit', name: 'Outfits' }, { id: 'back', name: 'Back' }, { id: 'shoes', name: 'Shoes' },
+  { id: 'hand', name: 'Holding' }, { id: 'color', name: 'Color' }, { id: 'expr', name: 'Mood' },
+  { id: 'emote', name: 'Emotes' },
+];
+let tab = 'hat';
+try { const t = localStorage.getItem('bloop.tab'); if (TABS.some(x => x.id === t)) tab = t; } catch (e) {}
+const $ = id => document.getElementById(id);
+function renderTabs() {
+  $('tabs').innerHTML = '';
+  for (const t of TABS) {
+    const b = document.createElement('button'); b.className = 'tab' + (t.id === tab ? ' on' : ''); b.title = t.name;
+    b.textContent = t.name;
+    b.onclick = () => { tab = t.id; try { localStorage.setItem('bloop.tab', tab); } catch (e) {} sfx.pop(); renderTabs(); renderGrid(); };
+    $('tabs').appendChild(b);
+  }
+}
+function renderGrid() {
+  const t = TABS.find(x => x.id === tab), g = $('grid'), list = tab === 'emote' ? EMOTES : ITEMS[tab];
+  thumbQ.length = 0;
+  $('tabTitle').textContent = t.name; $('tabCount').textContent = tab === 'emote' ? 'tap to play' : tab === 'color' ? `${list.length} colors` : `${list.length} items`;
+  g.innerHTML = '';
+  for (const it of list) {
+    const b = document.createElement('button'); b.className = 'item' + (state[tab] === it.id ? ' on' : '');
+    const ic = tab === 'emote' ? '' : tab === 'color'
+      ? `<div class="sw" style="background:${it.c === 'rainbow' ? 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' : it.c};${it.alpha ? 'opacity:.55' : ''}"></div>`
+      : `<canvas class="th" width="${THUMB}" height="${THUMB}"></canvas>`;
+    b.innerHTML = `${ic}<div class="nm">${it.name}</div>`;
+    b.onclick = () => choose(tab, it.id);
+    g.appendChild(b);
+    if (THUMB_VIEW[tab]) requestThumb(tab, it.id, b.querySelector('canvas'));
+  }
+}
+function choose(cat, id) {
+  if (cat === 'emote') { playEmote(id); return; }
+  state[cat] = id; save(); apply(cat);
+  boingV = -2.2; sfx.boop(380 + Math.random() * 300);
+  say(find(cat, id).quip || '');
+  renderGrid();
+}
+function randomize() {
+  const pick = (c, noneOdds) => { const l = ITEMS[c]; if (l[0].id === 'none' && Math.random() < noneOdds) return 'none'; return l[1 + Math.floor(Math.random() * (l.length - 1))]?.id || l[0].id; };
+  state = { color: ITEMS.color[Math.floor(Math.random() * ITEMS.color.length)].id, hat: pick('hat', .1), eyes: pick('eyes', .45), face: pick('face', .55),
+    outfit: pick('outfit', .3), back: pick('back', .35), shoes: pick('shoes', .3), hand: pick('hand', .35), expr: ITEMS.expr[Math.floor(Math.random() * ITEMS.expr.length)].id };
+  save(); apply(); boingV = -3; sfx.squeak();
+  say(['New bean, who dis?', 'I am... beautiful?', 'Fashion is my passion!', 'Chaos mode engaged!', "Mom said it's my turn on the outfit."][Math.floor(Math.random() * 5)]);
+  renderGrid();
+}
+$('bRand').onclick = randomize; $('bRand2').onclick = randomize;
+$('bReset').onclick = () => { state = { ...DEFAULT }; save(); apply(); boingV = -2.5; sfx.boop(); say("Let's make some friendslop!"); renderGrid(); };
+const muteLabel = () => { $('bMute').textContent = sfx.muted ? 'Sound off' : 'Sound on'; };
+$('bMute').onclick = () => { sfx.muted = !sfx.muted; muteLabel(); };
+muteLabel();
+let pendingShot = null;
+$('bShot').onclick = () => {
+  pendingShot = () => { // composite the transparent render over the stage background
+    const c = document.createElement('canvas'); c.width = canvas.width; c.height = canvas.height;
+    const x = c.getContext('2d'), gr = x.createRadialGradient(c.width/2, c.height*.38, 0, c.width/2, c.height*.38, Math.max(c.width, c.height) * .75);
+    gr.addColorStop(0, '#fffdf9'); gr.addColorStop(.5, '#f4f1ec'); gr.addColorStop(1, '#e6e1d8'); x.fillStyle = gr; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(canvas, 0, 0);
+    const a = document.createElement('a'); a.download = 'bloop.png'; a.href = c.toDataURL('image/png'); a.click();
+  };
+  sfx.squeak(); say('Say cheese!');
+};
+for (const e of EMOTES) {
+  const b = document.createElement('button'); b.className = 'btn'; b.textContent = e.name; b.onclick = () => playEmote(e.id);
+  $('emotes').appendChild(b);
+}
+
+// orbit + poke
+let dragging = false, lastX = 0, lastY = 0, moved = 0;
+canvas.addEventListener('pointerdown', e => { dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.classList.add('drag'); });
+canvas.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  bloop.look = [clamp(((e.clientX - r.left) / r.width - .5) * 2.4, -1, 1), clamp(-((e.clientY - r.top) / r.height - .4) * 2.4, -1, 1)];
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+  cam.yaw -= dx * .008; cam.vyaw = -dx * .5; cam.pitch = clamp(cam.pitch + dy * .005, -.25, .9);
+});
+const endDrag = e => {
+  if (!dragging) return; dragging = false; canvas.classList.remove('drag');
+  if (moved < 6) { // poke!
+    const r = canvas.getBoundingClientRect(), m = cam.vp;
+    const c = M4.xform(m, [0, BODY_Y + bloop.root.pos[1], 0]), tp = M4.xform(m, [0, BODY_Y + 1.2 + bloop.root.pos[1], 0]);
+    const cx = (c[0] * .5 + .5) * r.width, cy = (1 - (c[1] * .5 + .5)) * r.height, rad = Math.abs((1 - (tp[1] * .5 + .5)) * r.height - cy);
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (Math.hypot((x - cx) * 1.3, y - cy) < rad * 1.1) {
+      const ids = ['jump', 'wiggle', 'spin', 'wave', 'trip', 'cheer', 'dance'];
+      playEmote(ids[Math.floor(Math.random() * ids.length)]); boingV = -3;
+      say(["Hey! That tickles!", "Boop!", "Wanna be friends?", "I'm squishy!", "Do that again!", "Let's make some friendslop!"][Math.floor(Math.random() * 6)]);
+    }
+  }
+};
+canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointerleave', () => { bloop.look = [0, 0]; });
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * Math.exp(e.deltaY * .001), 3.6, 11); }, { passive: false });
+canvas.addEventListener('dblclick', () => { cam.yaw = .38; cam.pitch = .1; cam.dist = 6.4; cam.vyaw = 0; });
+
+// =====================================================================
+//  Boot
+// =====================================================================
+try {
+  if (!gl) throw new Error('WebGL2 is not available in this browser.');
+  initGL(); makeBloop(); apply();
+  renderTabs(); renderGrid();
+  new ResizeObserver(resize).observe(stageEl); resize();
+  requestAnimationFrame(frame);
+  setTimeout(() => say("Let's make some friendslop!"), 500);
+  window.__bloop = { state, ITEMS, choose, playEmote, cam };
+} catch (err) {
+  $('err').style.display = 'flex'; $('err').textContent = 'Bloop could not load: ' + err.message;
+  console.error(err);
+}
+</script>
+</body>
+</html>
