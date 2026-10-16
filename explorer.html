@@ -266,7 +266,7 @@ void main(){
     float band = sin(e*3.2 + uTime*1.4)*.5 + .5;
     float foam = max(1. - smoothstep(.0, .1, depth), (1. - smoothstep(.05, .5, depth))*smoothstep(.82, .97, band)*.85);
     c = mix(c, vec3(.97,.99,1.), foam);
-    o = vec4(fog(c), max(mix(.5, 1., smoothstep(.05, 2.4, depth)), foam)); return;
+    o = vec4(fog(c), max(max(mix(.5, .86, smoothstep(.05, 2.4, depth)), step(66., max(abs(wp.x), abs(wp.z)))), foam)); return;  // see your strokes; opaque past the seabed
   }
   float d = max(dot(n,L),0.);
   vec3 amb = mix(vec3(.36,.32,.27), vec3(.6,.64,.7), n.y*.5+.5);
@@ -469,9 +469,9 @@ function makeTree(x, z, yaw, lean) {
   return { node: tree, trunk, inner, crown, fronds, segs, orig, x, z, yaw, hp: 5, shake: 0, state: 'up', fall: 0, fallV: 0, timer: 0, seed: Math.random()*9 };
 }
 const trees = [makeTree(3.2,-3.6,.4,.7), makeTree(-4.6,-2,2.4,.9), makeTree(.8,6.4,4.1,.6), makeTree(-2.6,-8.5,1.3,1.0), makeTree(7.5,3,5.2,.8)];
-for (let i = 0, tries = 0; i < 30 && tries < 1500; tries++) {   // palms: mostly on the beach ring, leaning seaward
+for (let i = 0, tries = 0; i < 48 && tries < 3000; tries++) {   // palms: mostly on the beach ring, leaning seaward
   const x = rand(-45,45), z = rand(-45,45), e = islandE(x, z);
-  if (e > -3.5 || (e < -11 && Math.random() < .8) || Math.hypot(x, z) < 5 || trees.some(t => Math.hypot(t.x-x, t.z-z) < 3.5)) continue;
+  if (e > -3.5 || (e < -11 && Math.random() < .6) || Math.hypot(x, z) < 5 || trees.some(t => Math.hypot(t.x-x, t.z-z) < 3.5)) continue;
   trees.push(makeTree(x, z, Math.atan2(-z, x) + rand(-.5,.5), rand(.5,1.2))); i++; }
 
 // ================= nature: meadows, grass, flowers, bushes and broadleaf trees (baked into static meshes) =================
@@ -502,17 +502,21 @@ for (const m of Object.values(BAKED)) for (const g of m.values()) g.vao = vao(g.
 
 // ================= held items (origin = grip, item 'up' = +z) =================
 // canteen: flat oval flask in a canvas sleeve, hinged screw cap on a leather keeper
-const canteenCap = node('cap', [.032,0,.178], [
-  B([.056,.056,.034],[-.032,0,.017],C.leather), B([.056,.056,.034],[-.032,0,.017],C.leather,[0,0,Math.PI/4]),
-  B([.03,.03,.012],[-.032,0,.038],C.woodD), B([.012,.02,.03],[0,0,.012],C.metal),
+const canteenCap = node('cap', [.026,0,.118], [
+  B([.046,.046,.03],[-.026,0,.015],C.leather), B([.046,.046,.03],[-.026,0,.015],C.leather,[0,0,Math.PI/4]),
+  B([.024,.024,.01],[-.026,0,.033],C.woodD), B([.01,.016,.024],[0,0,.01],C.metal),
 ]);
+// round explorer's canteen: octagonal tin disc with a crimped seam, canvas cover, cross strap, screw neck with hinged cap
+const CAN = { cloth:[.43,.49,.29], clothD:[.35,.4,.23], tin:[.64,.62,.57], seam:[.5,.48,.43] }, O8 = Math.PI/4;
 const canteen = node('canteen', [0,0,0], [
-  B([.11,.078,.19],[0,0,0],C.green), B([.03,.058,.18],[.062,0,0],C.dgreen), B([.03,.058,.18],[-.062,0,0],C.dgreen), // rounded sides
-  B([.1,.07,.028],[0,0,-.104],C.dgreen), B([.09,.064,.03],[0,0,.106],C.dgreen), B([.065,.052,.022],[0,0,.13],C.green),  // base + shoulders
-  B([.006,.08,.16],[.048,0,0],C.sock), B([.006,.08,.16],[-.048,0,0],C.sock),                                          // sleeve stitching
-  B([.142,.084,.042],[0,0,-.012],C.leather), B([.022,.012,.03],[0,.045,-.012],C.metal),                               // band + buckle
-  B([.042,.042,.04],[0,0,.157],C.metal), B([.042,.042,.04],[0,0,.157],C.metal,[0,0,Math.PI/4]), B([.05,.05,.01],[0,0,.142],[.48,.46,.42]), B([.026,.026,.006],[0,0,.177],[.05,.04,.03]), // spout + opening
-  B([.012,.012,.07],[.05,0,.14],C.leather,[0,-.4,0]),                                                                  // cap keeper strap
+  B([.17,.066,.17],[0,0,0],CAN.cloth), B([.17,.066,.17],[0,0,0],CAN.clothD,[0,O8,0]),                     // flat round body
+  B([.12,.082,.12],[0,0,0],CAN.cloth,[0,O8/2,0]), B([.12,.082,.12],[0,0,0],CAN.clothD,[0,O8*1.5,0]),       // domed faces
+  B([.184,.022,.184],[0,0,0],CAN.seam), B([.184,.022,.184],[0,0,0],CAN.seam,[0,O8,0]),                    // crimped tin seam
+  B([.03,.09,.19],[0,0,.0],C.leather), B([.036,.094,.02],[0,0,-.03],C.metal),                               // cross strap + buckle
+  B([.026,.024,.04],[.093,0,.04],C.leather,[0,0,0]), B([.026,.024,.04],[-.093,0,.04],C.leather),            // strap loops
+  B([.034,.034,.034],[0,0,.1],CAN.tin), B([.034,.034,.034],[0,0,.1],CAN.tin,[0,0,O8]), B([.044,.044,.008],[0,0,.114],CAN.seam), // neck + collar
+  B([.022,.022,.006],[0,0,.1185],[.05,.04,.03]),                                                            // opening
+  B([.01,.01,.05],[.035,0,.1],C.leather,[0,-.5,0]),                                                         // cap keeper
 ], [canteenCap]);
 const coconutHeld = node('coconutHeld', [0,0,0], [
   B([.17,.17,.14],[0,0,0],TC.coco), B([.18,.18,.04],[0,0,-.04],TC.husk), B([.14,.14,.02],[0,0,.075],[.94,.91,.83]),
@@ -527,12 +531,16 @@ function makeSpear() { return node('spear', [0,0,0], [
   B([.1,.3,.026],[0,0,1.05],C.metal,[Math.PI/2,0,0],'pyr'), B([.03,.29,.04],[0,0,1.05],C.edge,[Math.PI/2,0,0],'pyr'), // blade + ridge
   B([.016,.13,.035],[.032,-.06,.84],C.green,[.3,0,0]), B([.014,.1,.03],[.032,-.08,.8],C.dgreen,[-.25,0,0]),           // scarf ribbon
 ]); }
-const RAW = { meat:[.88,.55,.5], meat2:[.8,.46,.42], skin:[.95,.78,.66], bone:[.96,.93,.85] };
+const RAW = { meat:[.9,.6,.55], meat2:[.82,.5,.46], skin:[.97,.82,.74], bone:[.96,.93,.85], tendon:[.93,.85,.8] };
 // raw drumstick; flip = held version (bone at the grip, meat toward the mouth)
-function makeDrumstick(flip) { const f = z => flip ? .12 - z : z; return node('drumstick', [0,0,0], [
-  B([.12,.1,.14],[0,0,f(-.03)],RAW.meat), B([.1,.12,.12],[0,0,f(-.03)],RAW.meat2,[0,0,Math.PI/4]), B([.08,.08,.06],[0,0,f(-.11)],RAW.meat2),
-  B([.1,.025,.12],[0,.052,f(-.03)],RAW.skin), B([.06,.06,.05],[0,0,f(.06)],RAW.meat),
-  B([.032,.032,.12],[0,0,f(.12)],RAW.bone), B([.042,.036,.03],[.016,0,f(.185)],RAW.bone), B([.042,.036,.03],[-.016,0,f(.185)],RAW.bone,[0,.3,0]),
+function makeDrumstick(flip) { const f = z => flip ? .1 - z : z, O = Math.PI/4; return node('drumstick', [0,0,0], [
+  B([.13,.12,.11],[0,0,f(-.05)],RAW.meat), B([.13,.12,.11],[0,0,f(-.05)],RAW.meat2,[0,0,O]),            // round bulb
+  B([.11,.08,.03],[0,0,f(-.115)],RAW.meat2), B([.08,.06,.02],[0,0,f(-.135)],RAW.meat,[0,0,O]),          // rounded end
+  B([.1,.095,.08],[0,0,f(.03)],RAW.meat), B([.1,.095,.08],[0,0,f(.03)],RAW.meat2,[0,0,O]),               // taper
+  B([.064,.06,.05],[0,0,f(.09)],RAW.meat2), B([.04,.04,.03],[0,0,f(.125)],RAW.tendon),                   // narrow end + tendon
+  B([.1,.02,.1],[0,.062,f(-.04)],RAW.skin), B([.074,.018,.07],[0,.05,f(.04)],RAW.skin),                  // skin over the top
+  B([.026,.026,.07],[0,0,f(.165)],RAW.bone), B([.03,.03,.012],[0,0,f(.14)],RAW.tendon),                   // bone
+  B([.036,.032,.032],[.014,0,f(.205)],RAW.bone), B([.036,.032,.032],[-.014,0,f(.205)],RAW.bone,[0,0,O]),  // knuckle
 ]); }
 // palm log: octagonal bark body, pale end grain with growth rings, a snapped frond stub
 const GRAIN = [.86,.72,.5], RINGS = [.68,.53,.34];
@@ -545,11 +553,14 @@ function makeLog() { return node('log', [0,0,0], [
 ]); }
 // build hammer: ash handle, leather grip, iron head with a polished striking face and a split claw
 const hammer = node('hammer', [0,0,0], [
-  B([.04,.04,.52],[0,0,.12],C.wood), B([.034,.034,.2],[0,.004,.3],C.woodD),
-  B([.052,.052,.17],[0,0,-.03],C.leather), B([.056,.056,.02],[0,0,-.1],C.sock), B([.056,.056,.02],[0,0,.04],C.sock), B([.05,.05,.04],[0,0,-.14],C.leather),
-  B([.075,.19,.085],[0,.01,.39],C.metal), B([.09,.065,.1],[0,-.11,.39],[.48,.46,.42]), B([.094,.012,.104],[0,-.146,.39],C.edge),
-  spike([.022,.09,.39],[0,1,-.45],.15,.035,C.metal), spike([-.022,.09,.39],[0,1,-.45],.15,.035,C.metal),
-  B([.085,.03,.095],[0,0,.335],[.74,.6,.3]), B([.016,.11,.03],[.03,-.06,.31],C.green,[.3,0,0]),
+  B([.034,.03,.5],[0,0,.13],C.wood), B([.028,.026,.18],[0,.003,.3],C.woodD),                                   // slim ash handle
+  B([.046,.042,.16],[0,0,-.03],C.leather), B([.05,.046,.016],[0,0,-.1],C.sock), B([.05,.046,.016],[0,0,.04],C.sock), B([.042,.04,.03],[0,0,-.13],C.leather),
+  B([.044,.07,.05],[0,0,.4],C.metal),                                                                          // eye
+  B([.036,.05,.042],[0,-.055,.4],C.metal), B([.052,.022,.052],[0,-.09,.4],[.5,.48,.44]), B([.052,.022,.052],[0,-.09,.4],[.5,.48,.44],[0,Math.PI/4,0]), // neck + round face
+  B([.054,.006,.054],[0,-.102,.4],C.edge), B([.054,.006,.054],[0,-.102,.4],C.edge,[0,Math.PI/4,0]),
+  ...[1,-1].flatMap(sd => [B([.016,.05,.036],[.011*sd,.055,.398],C.metal,[-.25,0,0]), B([.015,.045,.03],[.011*sd,.094,.388],C.metal,[-.7,0,0]),
+    spike([.011*sd,.112,.374],[0,.45,-1],.06,.016,C.metal)]),                                                  // curved split claw
+  B([.02,.012,.03],[0,0,.428],[.74,.6,.3]), B([.012,.09,.024],[.024,-.05,.33],C.green,[.3,0,0]),               // brass wedge + ribbon
 ]);
 const HAMMER_BELT = { pos: [-.27,-.36,.07], rot: [-Math.PI/2, 0, .12] };   // hangs head-up from the belt on his left hip
 const HELD = { axe, canteen, coconut: coconutHeld, spear: makeSpear(), chicken: makeDrumstick(true), wood: makeLog(), hammer };
@@ -618,7 +629,7 @@ document.getElementById('toggle').onclick = e => { const h = document.getElement
 // ================= player =================
 const P = { x:0, y:0, z:0, vx:0, vy:0, vz:0, yaw:0, grounded:true, jumps:0, crouch:false, flip:0,
   phase:0, emote:null, emoteT:0, roll:0, rollDir:[0,0], punch:0, punchSide:1, combo:0, idleT:0, land:0, speed:0, dustT:0,
-  hasAxe:false, held:null, sel:-1, equip:0, atk:null, atkQueued:false, twirl:0, use:null, hunger:72, thirst:58 };
+  swim:false, rippleT:0, hasAxe:false, held:null, sel:-1, equip:0, atk:null, atkQueued:false, twirl:0, use:null, hunger:72, thirst:58 };
 let slow = false, grid = 0, packOn = true;
 const SKY = [.72,.83,.9], blobArr = new Float32Array(192);
 const EMOTES = { '6':'wave', '7':'dance', '8':'sit', '9':'cheer', '0':'bow' };
@@ -666,6 +677,22 @@ function setHeld(id) {
 function poseFor(t) {
   const p = {}; JOINTS.forEach(j => p[j] = [0,0,0]); let y = 0;
   const s = Math.sin(P.phase), c = Math.cos(P.phase), breathe = Math.sin(t*2.2)*.03, sp = P.speed;
+  if (P.swim) {
+    if (sp > .6) {   // breaststroke: glide with arms ahead, sweep out and back, frog kick
+      const ph = t*3.2, s1 = Math.sin(ph), c1 = Math.cos(ph), pull = Math.max(0, s1), kick = Math.max(0, c1);
+      p.body = [1.3, 0, 0]; p.head = [-1.05, 0, 0]; p.torso = [-.05, 0, 0];
+      p.armL = [-2.95 + pull*1.25, 0, .25 + pull*1.1]; p.armR = [-2.95 + pull*1.25, 0, -.25 - pull*1.1];
+      p.foreL = p.foreR = [-Math.max(0, -c1)*1.3, 0, 0];
+      p.legL = [-kick*1.1, 0, .2 + Math.max(0, -s1)*.45]; p.legR = [-kick*1.1, 0, -.2 - Math.max(0, -s1)*.45];
+      p.shinL = p.shinR = [kick*1.7 + .1, 0, 0];
+    } else {         // treading water: sculling hands, slow pedalling legs
+      const s1 = Math.sin(t*2.4);
+      p.body = [.12, 0, 0]; p.head = [-.12, Math.sin(t*.5)*.3, 0];
+      p.armL = [-.55, 0, 1.05 + s1*.35]; p.armR = [-.55, 0, -1.05 - s1*.35]; p.foreL = [-.5, 0, s1*.3]; p.foreR = [-.5, 0, -s1*.3];
+      p.legL = [-.6 + s1*.5, 0, .15]; p.legR = [-.6 - s1*.5, 0, -.15]; p.shinL = [.9 - s1*.4, 0, 0]; p.shinR = [.9 + s1*.4, 0, 0];
+    }
+    return { p, y: 0 };
+  }
   if (!P.grounded) {
     const up = clamp(P.vy/6, -1, 1);
     p.legL = [-.9 - up*.3,0,.05]; p.shinL = [1.3,0,0]; p.legR = [-.2+up*.3,0,-.05]; p.shinR = [.6,0,0];
@@ -729,19 +756,19 @@ function poseFor(t) {
   if (P.use) { const k = P.use.t / P.use.dur, h2 = { ...hold, head:p.head }, sip = k > .3 && k < .82 ? Math.sin(k*44) : 0;
     const F = cam.fp   // first person: bring it up in front of the lens, not into it
       ? (P.use.kind === 'drink'
-        ? [[0,h2], [.24,{ armR:[-1.3,0,.5], foreR:[-1.15,0,0], axe:[0,0,0], torso:[0,0,0], head:[0,0,0] }],
-           [.34,{ armR:[-1.5,0,.62], foreR:[-1.3,0,0], axe:[-1.25,0,0], torso:[0,0,0], head:[0,0,0] }],
-           [.8, { armR:[-1.55,0,.62], foreR:[-1.32,0,0], axe:[-1.4,0,0], torso:[0,0,0], head:[0,0,0] }], [1,h2]]
+        ? [[0,h2], [.22,{ armR:[-1.3,.2,.45], foreR:[-1.0,0,0], axe:[-.3,0,0], torso:[0,0,0], head:[0,0,0] }],
+           [.34,{ armR:[-1.498,.42,.568], foreR:[-.963,0,0], axe:[-1.025,0,0], torso:[0,0,0], head:[0,0,0] }],
+           [.8, { armR:[-1.498,.42,.568], foreR:[-.963,0,0], axe:[-1.025,0,0], torso:[0,0,0], head:[0,0,0] }], [1,h2]]
         : [[0,h2], [.22,{ armR:[-1.32,0,.5], foreR:[-1.1,0,0], axe:[-.35,0,0], torso:[0,0,0], head:[0,0,0] }],
            [.82,{ armR:[-1.32,0,.5], foreR:[-1.1,0,0], axe:[-.35,0,0], torso:[0,0,0], head:[0,0,0] }], [1,h2]])
       : P.use.kind === 'drink'
-      ? [[0,h2], [.24,{ armR:[-1.2,0,.42], foreR:[-1.72,0,0], axe:[-.2,0,0], torso:[-.05,0,0], head:[-.05,0,0] }],
-         [.34,{ armR:[-1.28,0,.42], foreR:[-1.78,0,0], axe:[-.85,0,0], torso:[-.12,0,0], head:[-.38,0,0] }],
-         [.8, { armR:[-1.3,0,.42], foreR:[-1.8,0,0], axe:[-.95,0,0], torso:[-.14,0,0], head:[-.42,0,0] }], [1,h2]]
+      ? [[0,h2], [.22,{ armR:[-1.6,-.15,.8], foreR:[-1.3,0,0], axe:[-.4,0,0], torso:[-.05,0,0], head:[-.1,0,0] }],
+         [.34,{ armR:[-2.088,-.311,1.097], foreR:[-.9,0,0], axe:[-.995,0,0], torso:[-.14,0,0], head:[-.42,0,0] }],
+         [.8, { armR:[-2.088,-.311,1.097], foreR:[-.9,0,0], axe:[-.995,0,0], torso:[-.14,0,0], head:[-.42,0,0] }], [1,h2]]
       : [[0,h2], [.22,{ armR:[-1.18,0,.42], foreR:[-1.68,0,0], axe:[-.3,0,0], torso:[.05,0,0], head:[.05,0,0] }],
          [.82,{ armR:[-1.18,0,.42], foreR:[-1.68,0,0], axe:[-.3,0,0], torso:[.05,0,0], head:[.05,0,0] }], [1,h2]];
     Object.assign(p, kf(k, F));
-    if (P.use.kind === 'drink') p.head = [p.head[0] + (cam.fp ? 0 : sip*.03), 0, 0];
+    if (P.use.kind === 'drink') p.head = [p.head[0] + (cam.fp ? 0 : sip*.012), 0, 0];   // gulps (small, so the lips stay on the spout)
     else if (k > .25 && k < .82) { const b = Math.max(0, Math.sin(k*48)); p.head = [p.head[0] + (cam.fp ? 0 : b*.12), 0, 0]; p.armR = [p.armR[0] + b*.12, 0, p.armR[2]]; } }
   if (P.atk) Object.assign(p, kf(P.atk.t / ATTACKS[P.atk.name].dur, [[0,hold], ...ATTACKS[P.atk.name].keys, [1,hold]]));
   if (P.equip > 0) Object.assign(p, kf(1 - P.equip, [[0,hold], [.5,{ armR:[-2.8,0,-.55], foreR:[-1.5,0,0], axe:[0,0,0], torso:[.05,-.3,0] }], [1,hold]]));  // reach into the backpack
@@ -957,10 +984,10 @@ const ITEMS = {
 };
 const ICONS = {
   axe: '<path d="M11 43 L35 11 L38 13 L14 45Z" fill="#a9774a"/><path d="M11 43 L23 27 L25 28.5 L14 45Z" fill="#8a5d36"/><path d="M9 44 L12 41 L15 44 L12 47Z" fill="#5a3a22"/><path d="M15.5 37.5 L20 31.5 L23 33.5 L18.5 39.5Z" fill="#6b4428"/><path d="M16.8 36 L18.6 37.3 M19 33 L20.8 34.3" stroke="#cfc3a6" stroke-width="1.2"/><path d="M29 10 L39 3 L45 13 L36 19Z" fill="#8f8a80"/><path d="M39 3 L46 5 L45 13Z" fill="#e2dfd6"/><path d="M29 10 L33 7 L36 9.5 L32 12Z" fill="#6f6b62"/><path d="M32 15 L30 23 L33.5 22 L34 16Z" fill="#5b6a3a"/>',
-  canteen: '<path d="M8 15 L13 15 L11 22 L8 22Z" fill="#6b4428"/><path d="M14 16 L34 16 L39 24 L39 38 L33 44 L15 44 L9 38 L9 24Z" fill="#5b6a3a"/><path d="M14 16 L24 16 L23 44 L15 44 L9 38 L9 24Z" fill="#6f7f48"/><path d="M9 28 L39 28 L39 32 L9 32Z" fill="#6b4428"/><path d="M9 28 L24 28 L24 32 L9 32Z" fill="#7d5233"/><rect x="20" y="9" width="8" height="7" fill="#9a958a"/><rect x="20" y="9" width="4" height="7" fill="#b3aea3"/><rect x="18.5" y="4" width="11" height="5.5" rx="1" fill="#6b4428"/><path d="M15 36 L22 36 L21 41 L16 41Z" fill="#4a5530"/>',
+  canteen: '<path d="M24 4 L28.5 4 L28.5 9 L19.5 9 L19.5 4Z" fill="#6b4428"/><rect x="21" y="9" width="6" height="5" fill="#a19c91"/><path d="M15 14.5 L33 14.5 L41 22.5 L41 34.5 L33 42.5 L15 42.5 L7 34.5 L7 22.5Z" fill="#7f7b72"/><path d="M16.5 16.5 L31.5 16.5 L38.5 23.5 L38.5 33.5 L31.5 40.5 L16.5 40.5 L9.5 33.5 L9.5 23.5Z" fill="#6c7a45"/><path d="M16.5 16.5 L24 16.5 L24 40.5 L16.5 40.5 L9.5 33.5 L9.5 23.5Z" fill="#7d8c52"/><path d="M14 21 L24 18.5 L34 21 L24 24Z" fill="#8a9a5c" opacity=".6"/><rect x="21.5" y="13" width="5" height="30" fill="#6b4428"/><rect x="21.5" y="13" width="2.5" height="30" fill="#7d5233"/><rect x="20.5" y="29" width="7" height="3.5" fill="#b3aea3"/><path d="M5 23 L8 21 L9 25 L6 26Z M43 23 L40 21 L39 25 L42 26Z" fill="#6b4428"/>',
   spear: '<path d="M5 46 L36 13 L38.5 15.5 L7.5 48.5Z" fill="#a9774a"/><path d="M5 46 L21 29 L23.2 31.2 L7.5 48.5Z" fill="#8a5d36"/><path d="M13 38 L18.6 32 L21.6 35 L16 41Z" fill="#6b4428"/><path d="M14.6 36.4 L17.6 39.4 M17 33.8 L20 36.8" stroke="#cfc3a6" stroke-width="1.1"/><path d="M3.5 47.5 L5.5 45.5 L8.5 48.5 L6.5 50.5Z" fill="#5a3a22"/><path d="M32.5 15.5 L35.5 12.5 L39.5 16.5 L36.5 19.5Z" fill="#6b4428"/><path d="M35 13 L46 2 L41.5 17.5Z" fill="#8f8a80"/><path d="M35 13 L46 2 L39.6 14.6Z" fill="#e2dfd6"/><path d="M36 19 L33 26 L35.6 25.4 L37.6 19.8Z" fill="#5b6a3a"/>',
   chicken: '<path d="M8 13 L18 5 L31 8 L37 20 L33 31 L22 35 L12 31 L6 22Z" fill="#e3998c"/><path d="M8 13 L18 5 L31 8 L24 18 L12 19Z" fill="#f2b6a6"/><path d="M6 22 L12 19 L24 18 L22 35 L12 31Z" fill="#cf7f73"/><path d="M24 18 L31 8 L37 20 L33 31 L22 35Z" fill="#c26f63"/><path d="M13 10 L19 7.5 L21.5 10.5 L15.5 12.5Z" fill="#fbd9cb"/><path d="M27 26 L30 31 L26 30Z" fill="#e8a596"/><path d="M29 30 L39 39 L36.5 41.5 L27 33Z" fill="#f1eadb"/><path d="M29 30 L39 39 L38 40 L28 31.5Z" fill="#d6cbb2"/><circle cx="38.5" cy="42.5" r="3.3" fill="#efe7d6"/><circle cx="41.8" cy="39" r="3.3" fill="#f7f0e2"/><path d="M36.5 45 L40.5 45.3 L44.5 41.5" stroke="#cdbfa4" stroke-width="1" fill="none"/>',
-  hammer: '<path d="M9 44 L29 18 L32 20.5 L12 46.5Z" fill="#a9774a"/><path d="M9 44 L19 31 L21.5 33 L12 46.5Z" fill="#8a5d36"/><path d="M12.5 39.5 L17 33.6 L20 36 L15.5 42Z" fill="#6b4428"/><path d="M13.6 37.8 L16.6 40.2 M15.6 35.2 L18.6 37.6" stroke="#cfc3a6" stroke-width="1.1"/><path d="M7 45.5 L9.5 42.5 L12.8 45 L10.3 48Z" fill="#5a3a22"/><path d="M21 14 L33 25 L39 18.5 L27 7.5Z" fill="#8f8a80"/><path d="M33 25 L39 18.5 L43 22 L37 28.5Z" fill="#9c978c"/><path d="M37 28.5 L43 22 L44.5 23.5 L38.5 30Z" fill="#e6e3da"/><path d="M27 7.5 L21 14 L15 10.5 L17.5 4.5 L22 8.5 L22.5 3.5Z" fill="#6f6b62"/><path d="M27 19 L31.5 23 L29.5 25.5 L25 21.5Z" fill="#b8913f"/><path d="M30.5 27 L28 33 L30.5 32.6 L32.2 28.4Z" fill="#5b6a3a"/>',
+  hammer: '<path d="M10 44 L31 16 L33.6 18 L12.6 46Z" fill="#a9774a"/><path d="M10 44 L20.5 30 L23 32 L12.6 46Z" fill="#8a5d36"/><path d="M12.6 40.4 L16.8 34.8 L19.6 37 L15.4 42.6Z" fill="#6b4428"/><path d="M13.8 38.8 L16.6 41 M15.6 36.4 L18.4 38.6" stroke="#cfc3a6" stroke-width="1"/><path d="M8.5 45.2 L10.6 42.6 L13.6 44.8 L11.5 47.4Z" fill="#5a3a22"/><path d="M27 15 L33 20 L36 16.5 L30 11.5Z" fill="#8f8a80"/><path d="M33 20 L36 16.5 L40.5 20.5 L37.5 24Z" fill="#9c978c"/><path d="M37.5 24 L40.5 20.5 L43 22.6 L40 26.2Z" fill="#e6e3da"/><path d="M30 11.5 L27 15 C24 13 22 10.5 21.5 7 C24 9.5 26.5 10.8 30 11.5Z" fill="#6f6b62"/><path d="M29 12.5 C26 11.5 23.5 9.6 21.5 7 L22.6 9.8 C24.4 11.8 26.4 13.2 28.2 13.6Z" fill="#55524b"/><path d="M29.6 14.4 L31.4 16 L30.4 17.2 L28.6 15.6Z" fill="#b8913f"/>',
   wood: '<path d="M6 31 L28 9 L39 20 L17 42Z" fill="#7a5634"/><path d="M6 31 L28 9 L32 13 L10 35Z" fill="#94693f"/><path d="M13 38 L35 16 L39 20 L17 42Z" fill="#5f4128"/><path d="M11 33.5 L31 13.5 M15 37 L34 18" stroke="#4e351f" stroke-width="1.1"/><path d="M20 28 L16 19 L19.5 18 L23 26Z" fill="#5f4128"/><path d="M27 8 L34 5 L41 12 L38 19 L31 22 L26 15Z" fill="#e2c48f"/><path d="M29.5 10 L34 8.5 L38.5 13 L36.5 17.5 L32 19 L29 14.5Z" fill="none" stroke="#b48b55" stroke-width="1.1"/><path d="M32.5 12.5 L35 12 L36 14.5 L33.5 15.5Z" fill="#a87c47"/>',
   coconut: '<path d="M24 5 L38 12 L43 26 L37 39 L24 44 L11 39 L5 26 L10 12Z" fill="#6a4426"/><path d="M24 5 L38 12 L31 23 L17 21 L10 12Z" fill="#82552f"/><path d="M5 26 L17 21 L31 23 L24 44 L11 39Z" fill="#59381f"/><path d="M31 23 L43 26 L37 39 L24 44Z" fill="#4c2f19"/><path d="M14 11 L24 7 L34 11 L24 15Z" fill="#efe9d8"/><circle cx="20" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="28" cy="18" r="1.8" fill="#2b1a0e"/><circle cx="24" cy="23" r="1.8" fill="#2b1a0e"/>',
 };
@@ -1038,8 +1065,9 @@ function updateUse(dt) {
     const open = smooth(clamp((k - .12) / .12, 0, 1)) * (1 - smooth(clamp((k - .84) / .1, 0, 1)));
     canteenCap.rot = [0, open * 2.5, 0];
     if (canteen.world && head.world && k > .36 && k < .8) {   // water runs from the spout straight into his mouth
-      const spout = xform(canteen.world, [0,0,.19]), mouth = xform(head.world, [0,.14,.22]), T = .14;
-      for (let i = 0; i < 3; i++) spawn({ p: spout.map(v => v + rand(-.006,.006)), v: mouth.map((m,j) => (m - spout[j]) / T), g:0, drag:0, life:T, s:.022, c:[.6,.85,1], emit:true, spin:0 }); } }
+      const spout = xform(canteen.world, [0,0,.12]), mouth = xform(head.world, [0,.14,.22]), T = .14;
+      for (let i = 0; i < 2; i++) spawn({ p: spout.map(v => v + rand(-.006,.006)), v: mouth.map((m,j) => (m - spout[j]) / T), g:0, drag:0, life:T, s:.018, c:[.6,.85,1], emit:true, spin:0 });
+      if (Math.random() < .06) spawn({ p: xform(head.world, [.07,.12,.215]), v:[0,-.2,.1], g:6, drag:.5, life:.45, s:.016, c:[.6,.85,1], emit:true, spin:0 }); } }
   if (u.kind === 'eat' && hand && k > .3 && u.bite < 3 && k > .3 + u.bite*.17) { u.bite++;
     for (let i = 0; i < 6; i++) spawn({ p:hand.map(v => v + rand(-.05,.05)), v:[rand(-.8,.8),rand(.5,1.5),rand(-.8,.8)], life:rand(.6,1), s:.03, c: i%2 ? [.94,.91,.83] : TC.coco }); }
   if (!u.done && k >= .82) { u.done = true;
@@ -1121,6 +1149,8 @@ $('closeB').onclick = () => toggleBuilder(false);
 $('builder').addEventListener('pointerdown', e => { if (e.target === $('builder')) toggleBuilder(false); });
 $('hammerSlot').onclick = () => P.held === 'hammer' && P.equip <= 0 ? toggleBuilder(true) : selectHammer();
 
+const splash = n => { for (let i = 0; i < n; i++) spawn({ p:[P.x + rand(-.3,.3), WATER_Y + .05, P.z + rand(-.3,.3)],
+  v:[rand(-1.6,1.6), rand(1.5,3.8), rand(-1.6,1.6)], g:9, drag:.6, life:rand(.45,.8), s:rand(.04,.08), c:[.85,.95,1], emit:true }); };
 function startAttack(name) { P.atk = { name, t: 0, hit: false }; P.atkQueued = false; P.emote = null; }
 function update(dt, t) {
   if (keys['arrowleft']) cam.yaw += dt*2; if (keys['arrowright']) cam.yaw -= dt*2;
@@ -1146,7 +1176,7 @@ function update(dt, t) {
   const mx = fx*iz - fz*ix, mz = fz*iz + fx*ix;
   if (il || P.roll > 0) { P.emote = null; P.idleT = 0; }
   const sneak = keys['control'], run = keys['shift'] && !P.crouch && !sneak;
-  const target = il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) * (P.atk ? .45 : P.use ? .5 : 1) : 0;
+  const target = P.swim ? (il ? (keys['shift'] ? 3.4 : 2.1) : 0) : il ? (P.crouch || sneak ? 1.6 : run ? 6.2 : 2.6) * (P.atk ? .45 : P.use ? .5 : 1) : 0;
 
   if (P.roll > 0) {
     P.roll -= dt / .55; const rs = 7.5 * (P.roll > .2 ? 1 : P.roll/.2);
@@ -1156,16 +1186,16 @@ function update(dt, t) {
     P.vx = lerp(P.vx, mx*target, 1 - Math.exp(-acc*dt)); P.vz = lerp(P.vz, mz*target, 1 - Math.exp(-acc*dt));
     if (il && !P.atk) P.yaw = angLerp(P.yaw, Math.atan2(mx, mz), 1 - Math.exp(-12*dt));
   }
-  if (pressed['q'] && P.roll <= 0 && P.grounded) {
+  if (pressed['q'] && P.roll <= 0 && P.grounded && !P.swim) {
     const d = il ? [mx, mz] : [Math.sin(P.yaw), Math.cos(P.yaw)];
     P.rollDir = d; P.yaw = Math.atan2(d[0], d[1]); P.roll = 1; P.crouch = false; P.emote = null; P.atk = null; puff([P.x,0,P.z], 6);
   }
-  if (pressed[' '] && P.roll <= 0) {
+  if (pressed[' '] && P.roll <= 0 && !P.swim) {
     if (P.grounded) { P.vy = P.crouch ? 7.5 : 6; P.grounded = false; P.jumps = 1; P.crouch = false; P.emote = null; puff([P.x,0,P.z], 5); }
     else if (P.jumps === 1) { P.vy = 6.5; P.jumps = 2; P.flip = 0; }
   }
   // attacks: axe combo when holding it, fists otherwise
-  if (pressed['f'] && P.roll <= 0 && P.equip <= 0 && !P.use) {
+  if (pressed['f'] && P.roll <= 0 && P.equip <= 0 && !P.use && !P.swim) {
     if (P.hasAxe) { if (!P.atk) startAttack('chop'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4) P.atkQueued = true; }
     else if (P.held === 'spear') { if (!P.atk) startAttack('thrust'); else if (P.atk.t / ATTACKS[P.atk.name].dur > .4 && ATTACKS[P.atk.name].next) P.atkQueued = true; }
     else if (P.held === 'hammer') toggleBuilder(true);
@@ -1193,8 +1223,19 @@ function update(dt, t) {
     if (d < .5 && d > 0) { P.x = tr.x + dx/d*.5; P.z = tr.z + dz/d*.5; } }
   for (const o of obstacles) { const dx = P.x - o[0], dz = P.z - o[1], d = Math.hypot(dx, dz), m = o[2] + .3;
     if (d < m && d > 0) { P.x = o[0] + dx/d*m; P.z = o[1] + dz/d*m; } }
-  { const e = islandE(P.x, P.z); if (e > -1.2) { const d = Math.hypot(P.x, P.z), k = (d - (e + 1.2))/d; P.x *= k; P.z *= k; } }  // ankle-deep at most
-  if (P.y <= 0) { if (!P.grounded && P.vy < -4) { P.land = 1; puff([P.x,0,P.z], 10); } P.y = 0; P.vy = 0; P.grounded = true; P.jumps = 0; }
+  { const d = Math.hypot(P.x, P.z); if (d > 88) { P.x *= 88/d; P.z *= 88/d; } }   // the open sea ends where the swell does
+  // ground follows the beach down into the sea; deep enough and he swims
+  const floorY = islandE(P.x, P.z) > -4 ? Math.min(0, groundH(P.x, P.z)) : 0, wasSwim = P.swim;
+  P.swim = WATER_Y - floorY > .95;
+  if (P.swim) { const ty = WATER_Y - (P.speed > .6 ? .8 : 1.25) + Math.sin(t*2.1)*.025;
+    if (P.y < ty + .03) { if (P.vy < -3) splash(14); P.vy = 0; P.y = lerp(P.y, ty, 1 - Math.exp(-5*dt)); }
+    if (!wasSwim) splash(8);
+    P.grounded = true; P.jumps = 0; P.crouch = false; P.roll = 0;
+    if ((P.rippleT -= dt) < 0) { P.rippleT = P.speed > .6 ? .09 : .35;
+      spawn({ p:[P.x + rand(-.25,.25), WATER_Y + .03, P.z + rand(-.25,.25)], v:[-P.vx*.15, 0, -P.vz*.15], g:0, drag:2, life:rand(.5,.9), s:rand(.06,.1), c:[.92,.97,1], emit:true, spin:0 }); } }
+  else if (P.y <= floorY || (P.grounded && P.vy <= 0 && P.y - floorY < .35)) {
+    if (!P.grounded && P.vy < -4) { P.land = 1; puff([P.x,P.y,P.z], 10); } P.y = floorY; P.vy = 0; P.grounded = true; P.jumps = 0; }
+  else P.grounded = false;
   P.land = Math.max(0, P.land - dt*4);
   // survival + coconut pickups
   const burn = dt * (P.speed > 4 ? 1.8 : 1);
@@ -1203,6 +1244,7 @@ function update(dt, t) {
     if (q.pickup && Math.abs(q.v[1]) < .5 && q.p[1] < .3 && Math.hypot(q.p[0]-P.x, q.p[2]-P.z) < .7) {
       parts.splice(i, 1); inv.coconut++; puff(q.p, 5, [.6,.5,.35]); toast('+1 Coconut'); renderUI(); } }
   P.flip = P.jumps === 2 ? P.flip + dt*11 : 0;
+  if (P.swim) P.flip = 0;
   P.speed = Math.hypot(P.vx, P.vz);
   if (P.grounded && P.speed > 4.5 && (P.dustT -= dt) < 0) { P.dustT = .1; puff([P.x,0,P.z], 1); }
   P.phase += dt * P.speed * 2.6 / (P.crouch ? .7 : 1);
@@ -1217,6 +1259,9 @@ function update(dt, t) {
   curY = lerp(curY, y, k);
   for (const j of JOINTS) if (j !== 'axe') J[j].rot = cur[j];
   if (P.held) HELD[P.held].rot = [cur.axe[0] - (P.hasAxe && P.twirl > 0 ? smooth(1 - P.twirl)*Math.PI*2 : 0), cur.axe[1], cur.axe[2]];
+  if (P.held === 'canteen') {   // while drinking his grip slides up to the neck, so the spout meets his lips with a bent arm
+    const u = P.use, k = u && u.kind === 'drink' ? u.t/u.dur : 0, g = smooth(clamp((k - .1)/.2, 0, 1))*(1 - smooth(clamp((k - .82)/.14, 0, 1))), w = canteen.rot[0];
+    canteen.pos = [0, -.28 + .09*Math.sin(w)*g, .01 - .09*Math.cos(w)*g]; }
   let pitch = P.roll > 0 ? (1 - P.roll) * Math.PI * 2 : 0;
   if (P.jumps === 2 && P.flip < Math.PI*2) pitch = P.flip;
   const spinYaw = P.atk && ATTACKS[P.atk.name].spin ? smooth(clamp(P.atk.t / ATTACKS.spin.dur * 1.25 - .1, 0, 1)) * Math.PI*2 : 0;
@@ -1232,7 +1277,7 @@ function update(dt, t) {
   if (!cam.fp && cam.auto && il && !drag && iz >= 0) cam.yaw = angLerp(cam.yaw, P.yaw + Math.PI, dt * .8);
   pressed = {};
   updateVitals();
-  const st = P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? (P.hasAxe ? 'axe: ' : 'spear: ') + P.atk.name : P.twirl > 0 ? 'twirl' :
+  const st = P.swim ? (P.speed > .6 ? 'swimming' : 'treading water') : P.use ? (P.use.kind === 'drink' ? 'drinking' : 'eating') : P.equip > 0 ? (P.equipTo ? 'taking out ' + ITEMS[P.equipTo].short : 'stowing') : P.atk ? (P.hasAxe ? 'axe: ' : 'spear: ') + P.atk.name : P.twirl > 0 ? 'twirl' :
     !P.grounded ? (P.jumps === 2 ? 'double jump' : 'jump') : P.roll > 0 ? 'roll' : P.punch > 0 ? ['','jab','cross','uppercut'][P.combo] :
     P.speed > .2 ? (P.crouch ? 'crouch-walk' : P.speed > 4 ? 'run' : 'walk') : P.crouch ? 'crouch' : P.emote || (P.idleT > 8 && !P.hasAxe && !cam.fp ? 'idle (fidget)' : 'idle');
   document.getElementById('state').textContent = `${st}${slow ? ' · slow-mo' : ''}${cam.fp ? ' · first person' : cam.auto ? '' : ' · free cam'}`;
