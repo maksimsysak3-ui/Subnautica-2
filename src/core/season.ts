@@ -445,6 +445,7 @@ export async function advance(league: League, opts: { auto?: boolean } = {}) {
     case 'preseason': {
       if (opts.auto) { const { aiCapManagement, fillRoster } = await import('./offseason'); aiCapManagement(league, league.user, 1_000_000); fillRoster(league, league.user); }
       for (const t of Object.keys(league.teams)) { trimRoster(league, t); prepTeam(league, t); }
+      (await import('./freeagency')).trimFreeAgents(league);   // final cuts land on the street; keep the list real-sized
       league.phase = 'regular'; league.week = 1;
       return;
     }

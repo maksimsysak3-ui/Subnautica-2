@@ -8,8 +8,8 @@ import { OVR_W, overall, archetype, assignAbilities } from './ratings';
 import { autoDepth, activateHealthy, emptyLine, makeCoach, rosterOf, floorStarters } from './league';
 import { capFor, capHit, capSpace, deadMoney, franchiseTag, makeContract, marketTerms, minSalary, releaseSavings, restructure, voidedProration, yearsLeft } from './contracts';
 import { playerTradeValue, aiOffseasonTrades } from './trade';
-import { freeAgents } from './freeagency';
-import { freeNumber } from './draft';
+import { freeAgents, trimFreeAgents } from './freeagency';
+import { freeNumber, positionNeeds } from './draft';
 import { generateClass, startDraft, ensureFuture } from './draft';
 import { news, mail, standings, REG_WEEKS, divisionOrder } from './season';
 import { runFreeAgencyDay, openFreeAgency } from './freeagency';
@@ -343,21 +343,58 @@ export function applyTag(league: League, p: Player) {
 
 /** AI teams keep the players worth keeping at a fair price, if they can afford them. */
 function aiResign(league: League, rng: Rng) {
+  // Real teams almost never let a star reach the market: they extend him, tag him, or clear cap
+  // room to keep him. Good starters usually stay; role players are a coin flip; the old walk.
+  const keepChance = (p: Player) => {
+    const a = Math.floor(p.age);
+    let k = p.ovr >= 88 ? 0.96 : p.ovr >= 84 ? 0.88 : p.ovr >= 80 ? 0.76 : p.ovr >= 76 ? 0.6 : p.ovr >= 72 ? 0.4 : p.ovr >= 68 && a <= 26 ? 0.3 : 0.08;
+    if (a >= 34) k *= 0.45; else if (a >= 32) k *= 0.75; else if (a <= 27) k = Math.min(0.97, k + 0.08);
+    if (p.ovr >= 86 && a <= 31) k = 1;                       // a young star is never allowed to walk
+    if (['K', 'P', 'LS'].includes(p.pos)) k = Math.max(k, p.ovr >= 75 ? 0.75 : 0.3);
+    return k;
+  };
   for (const t of Object.keys(league.teams)) {
     if (t === league.user) continue;
     const exp = expiringFor(league, t).sort((a, b) => b.ovr - a.ovr);
     let tagged = false;
     for (const p of exp) {
+      if (!rng.chance(keepChance(p))) continue;
       const ask = askingPrice(league, p);
-      const space = capSpace(league, t);
-      const keep = p.ovr >= 76 && p.age <= 30 || p.ovr >= 84 && p.age <= 33 || (p.ovr >= 70 && p.age <= 26 && rng.chance(0.6));
-      if (!keep || ask.apy > space * 0.6) continue;
-      if (!tagged && p.ovr >= 88 && rng.chance(0.25)) { applyTag(league, p); tagged = true; news(league, 'sign', `${league.teams[t].nick} placed the franchise tag on ${p.pos} ${p.fn} ${p.ln}.`, [t], { pid: p.id }); continue; }
-      if (rng.chance(0.82)) {
-        signPlayer(league, p, t, ask);
-        if (p.ovr >= 82) news(league, 'sign', `${league.teams[t].nick} re-signed ${p.pos} ${p.fn} ${p.ln}: ${ask.years} years, $${(ask.apy * ask.years / 1e6).toFixed(1)}M.`, [t], { pid: p.id });
+      // Make room for the players worth it (restructures and cuts), then decide.
+      const mustKeep = p.ovr >= 86 && p.age < 32;
+      if (capSpace(league, t) < ask.apy && p.ovr >= 80) aiCapManagement(league, t, ask.apy + 2_000_000);
+      // A franchise player: whatever it takes (cuts and restructures until he fits).
+      for (let k = 0; mustKeep && k < 4 && capSpace(league, t) < ask.apy; k++) aiCapManagement(league, t, ask.apy + (k + 1) * 6_000_000);
+      if (!tagged && p.ovr >= 88 && (capSpace(league, t) < ask.apy || rng.chance(0.2))) {
+        if (capSpace(league, t) >= franchiseTag(league, p, league.season)) { applyTag(league, p); tagged = true; news(league, 'sign', `${league.teams[t].nick} placed the franchise tag on ${p.pos} ${p.fn} ${p.ln}.`, [t], { pid: p.id }); continue; }
       }
+      if (capSpace(league, t) < ask.apy) continue;
+      signPlayer(league, p, t, ask);
+      if (p.ovr >= 82) news(league, 'sign', `${league.teams[t].nick} re-signed ${p.pos} ${p.fn} ${p.ln}: ${ask.years} years, $${(ask.apy * ask.years / 1e6).toFixed(1)}M.`, [t], { pid: p.id });
     }
+  }
+}
+
+/**
+ * The end of the free agency period: nobody decent is left hanging for long. Veterans who
+ * didn't get the deal they wanted take a one-year prove-it deal with a team that needs them;
+ * the old and the marginal retire.
+ */
+function lateMarket(league: League, rng: Rng) {
+  const pool = freeAgents(league).filter(p => p.ovr >= 68).sort((a, b) => b.ovr - a.ovr);
+  for (const p of pool) {
+    const a = Math.floor(p.age);
+    if (a >= 33 && p.ovr < 80 && rng.chance(0.55)) { p.status = 'RET'; continue; }
+    if (p.ovr < 72 && rng.chance(0.5)) continue;               // the bottom of the market waits for injuries
+    const terms = marketTerms(p, league.season);
+    const apy = Math.max(minSalary(p.exp, league.season), terms.apy * (p.ovr >= 78 ? 0.6 : 0.45));
+    const teams = Object.keys(league.teams).filter(t => t !== league.user && capSpace(league, t) >= apy + 1_000_000)
+      .map(t => ({ t, v: (positionNeeds(league, t)[p.pos] ?? 0) + rng.next() * 0.8 })).sort((x, y) => y.v - x.v);
+    const pick = teams[0];
+    if (!pick || pick.v < 0.3) continue;
+    signPlayer(league, p, pick.t, { apy, years: 1, gtd: 0.4 });
+    p.num = freeNumber(league, pick.t, p.pos);
+    if (p.ovr >= 78) news(league, 'sign', `${league.teams[pick.t].nick} signed ${p.pos} ${p.fn} ${p.ln} to a one-year deal.`, [pick.t], { pid: p.id });
   }
 }
 
@@ -378,7 +415,7 @@ export function advanceOffseason(league: League) {
   if (league.phase === 'freeagency') {
     if ([1, 4, 7].includes(league.fa?.day ?? 0)) aiOffseasonTrades(league, rng);
     runFreeAgencyDay(league, rng);
-    if ((league.fa?.day ?? 0) > 8) startDraft(league);
+    if ((league.fa?.day ?? 0) > 8) { lateMarket(league, rng); startDraft(league); }
     return;
   }
   if (league.phase === 'draft') {
@@ -395,6 +432,7 @@ export function advanceOffseason(league: League) {
     league.games.push(...makeSchedule(league, rng));
     for (const t of Object.keys(league.teams)) autoDepth(league, t);
     floorStarters(league, rng);
+    trimFreeAgents(league);
     league.phase = 'preseason'; league.week = 1;
     seasonForm(league, rng);
     return;
