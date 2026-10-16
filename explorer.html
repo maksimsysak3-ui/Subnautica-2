@@ -498,14 +498,6 @@ for (let f = 0; f < 150; f++) { const s0 = landSpot(isMeadow); if (!s0) continue
 const BUSH = [[.3,.5,.2],[.36,.58,.24],[.26,.44,.17]];
 for (let i = 0; i < 50; i++) { const s0 = landSpot((x, z) => meadow(x, z) > .15); if (!s0) continue; const sz = rand(.4,.75);
   for (let k = 0; k < 4; k++) { const q = sz*rand(.6,1); bake('still', B([q,q*.8,q],[s0[0]+rand(-.3,.3), q*.4 + rand(0,.15), s0[1]+rand(-.3,.3)], BUSH[k%3], [rand(0,.5),rand(0,6),rand(0,.5)])); } }
-const CANOPY = [[.34,.54,.21],[.28,.47,.17],[.4,.6,.25],[.3,.5,.2]];
-for (let i = 0; i < 24; i++) { const s0 = landSpot((x, z) => meadow(x, z) > .15 && islandE(x, z) < -6 && Math.hypot(x, z) > 5
-    && !trees.some(t => Math.hypot(t.x-x, t.z-z) < 3) && !obstacles.some(o => Math.hypot(o[0]-x, o[1]-z) < 4)); if (!s0) continue;
-  const [x, z] = s0, H = rand(2.4,3.4), yaw = rand(0,6.28);
-  bake('still', B([.3,H*.6,.3],[x, H*.3, z], [.45,.32,.22], [0,yaw,0])); bake('still', B([.22,H*.4,.22],[x+.05, H*.72, z], [.38,.27,.18], [0,yaw+.6,.08]));
-  for (const sd of [1,-1]) bake('still', B([.12,.7,.12],[x + sd*.3, H*.7, z], [.38,.27,.18], [0,yaw,-sd*.8]));
-  for (let k = 0; k < 7; k++) { const sz = rand(1,1.7); bake('still', B([sz,sz*.8,sz],[x+rand(-.9,.9), H*.85+rand(0,1.2), z+rand(-.9,.9)], CANOPY[k%4], [rand(0,.6),rand(0,6),rand(0,.6)])); }
-  obstacles.push([x, z, .45]); staticBlobs.push(x, z, 2.1); }
 for (const m of Object.values(BAKED)) for (const g of m.values()) g.vao = vao(g.v);
 
 // ================= held items (origin = grip, item 'up' = +z) =================
