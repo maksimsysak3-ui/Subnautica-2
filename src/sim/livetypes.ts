@@ -21,6 +21,8 @@ export interface LiveCtx {
   depth?: PassDepth; run?: 'inside' | 'outside' | 'qb'; pa?: boolean; call?: string;
   primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
   shell: string; dcall?: string; rush: number;
+  /** Defenders in the box (6 light .. 8 loaded) on this call. */
+  box: number;
   /** Rating 0..~105 for the player in a slot (fatigue, form, coaching already applied). */
   rate: (slot: LiveSlot, attr: string) => number;
   has: (slot: LiveSlot, ability: string) => boolean;
@@ -46,7 +48,7 @@ export interface LiveRec {
   breaks: { f: number; who: number; back: boolean }[];
   missed: { f: number; who: number }[];
   /** The carrier making a man miss: juke, spin or stiff-arm, and who he beat. */
-  jukes: { f: number; who: number; kind: 'juke' | 'spin' | 'stiff' }[];
+  jukes: { f: number; who: number; kind: 'juke' | 'spin' | 'stiff' | 'jumpcut' }[];
   /** Rushers beating their blocker: the move, the rusher and the man he beat. */
   sheds: { f: number; rusher: number; blocker: number; kind: 'swim' | 'rip' | 'spinmove' }[];
 }

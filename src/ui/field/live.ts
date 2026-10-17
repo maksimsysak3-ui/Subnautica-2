@@ -88,6 +88,12 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const LB = [-3.5, 3.5].map((dy, i) => mk(DEF_SLOTS[4 + i], 'LB', at(5, dy)));
   const DB = WHO.map((w, i) => mk(DEF_SLOTS[6 + i], 'DB', at(FORM[w][0] + (w === 'TE' ? 5.5 : press && w !== 'S' ? 1.2 : 6.5), FORM[w][1] * 0.95)));
   const FS = mk('FS', 'S', at(13, 0));
+  const loaded = ctx.box >= 8 ? 2 : ctx.box >= 7 && (ctx.down === 1 || ctx.togo <= 3) ? 1 : 0;
+  for (let k = 0; k < loaded; k++) { const l = LB[k]; [l.x, l.y] = at(1, (k ? 1 : -1) * 5.6); }
+  // Two-high shells show it before the snap: the strong safety sits deep with the free safety.
+  const twoHighLook = !man && (cov2 || cov4 || ctx.shell === 'Prevent');
+  if (twoHighLook) { [DB[3].x, DB[3].y] = at(12.5, -9); [FS.x, FS.y] = at(12.5, 9); }
+  else if (/Cover 0/.test(ctx.shell)) [FS.x, FS.y] = at(7, 0);
   const OFF = agents.filter(a => a.off), DEF = agents.filter(a => !a.off);
   const gun = FORM.QB[0] < -3;
   for (const a of DEF) a.react = clamp(0.37 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.08, 0.36);
@@ -129,7 +135,10 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const rushers: Ag[] = [...DL];
   // Extra rushers: linebackers, then the nickel; a zone keeps its deep men home.
   const blitzPool = man ? [LB[0], LB[1], DB[2], DB[3]] : [LB[0], LB[1], DB[2]];
-  while (rushers.length < Math.max(3, Math.min(8, ctx.rush)) && blitzPool.length) rushers.push(blitzPool.shift()!);
+  // On a run they're in the backfield at the snap; on a pass a walked-up backer comes half the time, else drops.
+  const comes = Array.from({ length: loaded }, () => !pass || rnd() < 0.15);
+  for (let k = 0; k < loaded; k++) if (comes[k]) { rushers.push(LB[k]); blitzPool.splice(blitzPool.indexOf(LB[k]), 1); }
+  while (rushers.length < Math.max(3, Math.min(8, ctx.rush + comes.filter(Boolean).length)) && blitzPool.length) rushers.push(blitzPool.shift()!);
   if (ctx.rush <= 3) { DL[1].job = 'zone'; DL[1].zone = at(7, -2); rushers.splice(rushers.indexOf(DL[1]), 1); }
   for (const d of rushers) d.job = 'rush';
   const sideOf = (k: number) => (FORM[WHO[k]][1] >= 0 ? 1 : -1);
@@ -269,14 +278,14 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     let B = (rushing ? pbPow(b) : rbPow(b)) + (d.helper ? 14 : 0);
     if (!rushing && !pass && b.role !== 'OL') B -= 6;          // a receiver stalking a linebacker
     const edge = (D - B) / 10 + gauss() * 0.35;
-    const v = rushing ? clamp(0.55 + edge * 0.8, -1.0, 2.8) : clamp(edge * 0.9, -2.4, 1.8);
+    const v = rushing ? clamp(0.2 + edge * 0.8 + Math.min(0.5, Math.max(0, t - 1.5) * 0.18), -1.0, 3.0) : clamp(edge * 0.9, -2.4, 1.8);
     d.vx = ux * v; d.vy = uy * v;
     d.x += d.vx * DT; d.y += d.vy * DT;
     // Blockers stay locked on, between their man and where he wants to go.
     for (const bb of [b, d.helper]) if (bb) { const side = bb === d.helper ? 0.55 : 0; const px = d.x + ux * 0.95 - uy * side, py = d.y + uy * 0.95 + ux * side; bb.vx = (px - bb.x) * 8; bb.vy = (py - bb.y) * 8; bb.x += bb.vx * DT; bb.y += bb.vy * DT; }
     // The shed: technique beats the block on its own clock, much less often against a double.
     const open = !rushing && b.role !== 'OL' && b.role !== 'TE';   // blocks in space don't hold for long
-    const h = (rushing ? 0.11 : open ? (pass ? 3.2 : 0.35) : 0.06) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
+    const h = (rushing ? 0.075 : open ? (pass ? 3.2 : 0.35) : 0.06) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
     if (rnd() < h * DT || (!rushing && carrier && dist(d, carrier) < 1.1 && rnd() < 0.006)) {
       const bb = d.eng!; release(d);
       if (rushing) sheds.push({ f, rusher: d.i, blocker: bb.i, kind: (['swim', 'rip', 'spinmove'] as const)[Math.floor(rnd() * 3)] });
@@ -420,7 +429,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const power0 = power - 8 > shake;
     const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.4 : 1.75));
     if (rnd() >= p) return false;
-    const kind = power0 ? 'stiff' : rnd() < 0.75 ? 'juke' : 'spin';
+    const u = rnd(), kind = power0 ? 'stiff' : u < 0.5 ? 'juke' : u < 0.8 ? 'jumpcut' : 'spin';
     d.downUntil = t + (kind === 'stiff' ? 0.8 : 0.55); d.tackleCD = t + 0.9; d.vx *= 0.3; d.vy *= 0.3;
     if (kind !== 'stiff') { c.vx *= 0.85; c.vy *= 0.85; }
     jukes.push({ f, who: d.i, kind });
@@ -711,8 +720,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
         const developed = r && developed0(r);
         // A rusher coming clean: get it out now to whoever is open (the hot read).
         const unblocked = DEF.some(d => d.job === 'rush' && free(d) && dist(d, QB) < 5.5 && t - (d.beatenUntil || 0) > 0 && !OFF.some(o => o.eng === d));
-        const hot = unblocked && awr > 60 + rnd() * 25 ? reads.map(x => ({ x, o: openness(x) })).filter(o => o.x.ri >= 1 && t > 0.45).sort((a, b) => b.o - a.o)[0] : undefined;
-        if (hot && hot.o > 0.2) throwTo(hot.x, p < 2.2);
+        const hot = unblocked && awr > 50 + rnd() * 20 ? reads.map(x => ({ x, o: openness(x) })).filter(o => o.x.ri >= 1 && t > 0.45).sort((a, b) => b.o - a.o)[0] : undefined;
+        if (hot && hot.o > -0.2) throwTo(hot.x, p < 2.2);
         // Deeper throws need a bigger window: the ball is in the air longer and the safety is coming.
         else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.12 - (r === RB ? 0.3 : 0)) throwTo(r, p < 2.2);
         else if (RB.job === 'route' && reads.includes(RB) && (p < 3.2 || since > 1.6) && developed0(RB) && openness(RB) > 1.8 && rnd() < 0.08) throwTo(RB, p < 2.2);
@@ -721,11 +730,12 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
           const best = reads.map(x => ({ x, o: openness(x) })).sort((a, b) => b.o - a.o)[0];
           const lane = (() => { for (const k of [0, 1, -1, 2, -2]) { const th = Math.atan2(0, s) + k * 0.6; const px = QB.x + Math.cos(th) * 3, py = QB.y + Math.sin(th) * 3; if (DEF.every(d => !free(d) || hyp(d.x - px, d.y - py) > 2.6)) return true; } return false; })();
           if (best && best.o > 0.4) throwTo(best.x, true);
-          else if (lane && (QB.r('SPD') >= 70 || rnd() < 0.25)) { scramble = true; carrier = QB; }
+          else if (lane && (QB.r('SPD') >= 62 || rnd() < 0.45)) { scramble = true; carrier = QB; }
           else if (rnd() < clamp((awr - 50) / 60, 0.1, 0.8) * DT * 7) throwAway();
         } else if (t - readFrom > readTime) {
           readI++; readFrom = t;
           if (readI >= reads.length) { readI = 0; cycle++; }
+          if (since > 2.6 && cycle >= 1 && QB.r('SPD') >= 72 && rnd() < 0.35 && DEF.every(d => !free(d) || dist(d, QB) > 3.5)) { scramble = true; carrier = QB; }
           if (since > 4.2) { const lane = DEF.every(d => !free(d) || dist(d, QB) > 4); if (lane && QB.r('SPD') >= 65) { scramble = true; carrier = QB; } else throwAway(); }
         }
       }
