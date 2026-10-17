@@ -228,10 +228,11 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
 
   // ---- state ----------------------------------------------------------------------------
   let carrier = null as Ag | null, f = 0, t = 0;
-  let ball: { mode: 'snap' | 'held' | 'air' | 'dead'; x: number; y: number; z: number; holder: Ag | null; from: [number, number]; to: [number, number]; t0: number; T: number; peak: number } =
+  let ball: { mode: 'snap' | 'held' | 'air' | 'dead' | 'loose'; x: number; y: number; z: number; holder: Ag | null; from: [number, number]; to: [number, number]; t0: number; T: number; peak: number } =
     { mode: 'snap', x: at(0, 0)[0], y: MID, z: 0.3, holder: null, from: at(0, 0), to: at(...FORM.QB), t0: 0, T: gun ? 0.3 : 0.12, peak: gun ? 0.5 : 0 };
   let thrownAt = -1, caughtAt = -1, endAt = -1, tackleAt = -1, wrapAt = -1;
   const ballTrack: [number, number, number, number][] = [];
+  let lv: [number, number, number] = [0, 0, 0];   // a loose ball's velocity
   let victim = null as Ag | null, offBalance = -1, sideCatch = false;
   /** Rolling out: the side he's escaping to (0 = in the pocket) and when he started. */
   let roll = 0, rollT = 0;
@@ -316,7 +317,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     for (const bb of [b, d.helper]) if (bb) { const side = bb === d.helper ? 0.55 : 0; const px = d.x + ux * 0.95 - uy * side, py = d.y + uy * 0.95 + ux * side; bb.vx = (px - bb.x) * 8; bb.vy = (py - bb.y) * 8; bb.x += bb.vx * DT; bb.y += bb.vy * DT; }
     // The shed: technique beats the block on its own clock, much less often against a double.
     const open = !rushing && b.role !== 'OL' && b.role !== 'TE';   // blocks in space don't hold for long
-    const h = (rushing ? 0.095 : open ? (pass ? 3.2 : 0.35) : 0.06) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
+    const h = (rushing ? 0.095 : open ? (pass ? 3.2 : 0.35) : 0.075) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
     if (rnd() < h * DT || (!rushing && carrier && dist(d, carrier) < 1.1 && rnd() < 0.006)) {
       const bb = d.eng!; release(d);
       if (rushing) sheds.push({ f, rusher: d.i, blocker: bb.i, kind: (['swim', 'rip', 'spinmove'] as const)[Math.floor(rnd() * 3)] });
@@ -458,7 +459,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const def = d.r('TAK') * 0.5 + d.r('PUR') * 0.3 + d.r('PRC') * 0.2;
     const shake = c.r('ELU') * 0.6 + c.r('AGI') * 0.4, power = c.r('TRK') * 0.6 + c.r('STR') * 0.4;
     const power0 = power - 8 > shake;
-    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.5 : 1.9));
+    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.5 : 2.15));
     if (rnd() >= p) return false;
     const u = rnd(), kind = power0 ? 'stiff' : u < 0.5 ? 'juke' : u < 0.8 ? 'jumpcut' : 'spin';
     d.downUntil = t + (kind === 'stiff' ? 0.8 : 0.55); d.tackleCD = t + 0.9; d.vx *= 0.3; d.vy *= 0.3;
@@ -514,7 +515,10 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
       ball.x = ball.from[0] + (QB.x - ball.from[0]) * q; ball.y = ball.from[1] + (QB.y - ball.from[1]) * q; ball.z = 0.3 + q * 0.8 + Math.sin(Math.PI * q) * ball.peak;
       if (q >= 1) { ball.mode = 'held'; ball.holder = QB; }
     } else if (ball.mode === 'held' && ball.holder) { ball.x = ball.holder.x; ball.y = ball.holder.y; ball.z = 1.1; }
-    else if (ball.mode === 'air') {
+    else if (ball.mode === 'loose') {
+      ball.x += lv[0] * DT; ball.y += lv[1] * DT; ball.z += lv[2] * DT; lv[2] -= 10.7 * DT;
+      if (ball.z < 0.12) { ball.z = 0.12; lv[2] = Math.abs(lv[2]) * 0.38; lv[0] *= 0.55; lv[1] *= 0.55; if (lv[2] < 0.6) lv = [lv[0] * 0.9, lv[1] * 0.9, 0]; }
+    } else if (ball.mode === 'air') {
       const q = Math.min(1, (t - ball.t0) / ball.T);
       ball.x = ball.from[0] + (ball.to[0] - ball.from[0]) * q; ball.y = ball.from[1] + (ball.to[1] - ball.from[1]) * q;
       ball.z = 2 - q * 0.7 + Math.sin(Math.PI * q) * ball.peak;
@@ -543,7 +547,15 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
           }
           if (res === 'catch') { complete = true; carrier = r; sideCatch = Math.min(P.y, FW - P.y) < 1.4; ball.mode = 'held'; ball.holder = r; caughtAt = t; catchX = P.x; }
           else if (res === 'int') { intercepted = true; picker = near.d; carrier = near.d; ball.mode = 'held'; ball.holder = near.d; caughtAt = t; catchX = P.x; }
-          else { defended = res === 'pbu'; dropped = res === 'drop'; if (defended) swatter = near.d; ball.mode = 'dead'; caughtAt = t; catchX = P.x; whistle(los, MID); }
+          else {
+            defended = res === 'pbu'; dropped = res === 'drop'; if (defended) swatter = near.d; caughtAt = t; catchX = P.x; whistle(los, MID);
+            // The ball doesn't stop in the air: knocked away, off his hands, or on past him to the turf.
+            const dx = ball.to[0] - ball.from[0], dy = ball.to[1] - ball.from[1], dd = hyp(dx, dy) || 1, sp = dd / ball.T;
+            lv = defended ? [(dx / dd) * 2 + (rnd() - 0.5) * 5, (dy / dd) * 2 + (rnd() - 0.5) * 5, 3.5]
+              : dropped ? [(dx / dd) * 1.5 + (rnd() - 0.5) * 2, (dy / dd) * 1.5 + (rnd() - 0.5) * 2, 2.2]
+              : [(dx / dd) * sp * 0.55, (dy / dd) * sp * 0.55, -1.5];
+            ball.mode = 'loose';
+          }
         }
       }
     }
