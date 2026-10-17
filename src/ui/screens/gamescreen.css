@@ -105,3 +105,8 @@
 .gs-cmp-r > div span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 10.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
 .gs-wx { padding: 0 4px; font: 600 11px var(--ui); color: #6b7487; }
 @media (max-width: 1100px) { .gs-main { grid-template-columns: 1fr; } .gs-rail { position: static; } .gs-panel { max-height: none; } .gs-score { font-size: 40px; } .gs-bn span { display: none; } }
+.gs-pclock{display:flex;flex-direction:column;align-items:center;line-height:1;padding:4px 10px;border-radius:6px;background:rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
+.gs-pclock span{font-size:9px;letter-spacing:.12em;opacity:.7}
+.gs-pclock b{font-size:20px}
+.gs-pclock.low b{color:#ff5a4f;animation:pclk 1s steps(2) infinite}
+@keyframes pclk{50%{opacity:.45}}

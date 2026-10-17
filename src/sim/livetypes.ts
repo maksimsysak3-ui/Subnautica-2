@@ -66,4 +66,6 @@ export interface LiveResult {
   ret?: number;
   dir: -1 | 0 | 1;
   rec: LiveRec;
+  /** How long the play ran, snap to whistle (game seconds). */
+  secs?: number;
 }

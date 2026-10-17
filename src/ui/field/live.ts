@@ -106,7 +106,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   else if (/Cover 0/.test(ctx.shell)) [FS.x, FS.y] = at(7, 0);
   const OFF = agents.filter(a => a.off), DEF = agents.filter(a => !a.off);
   const gun = FORM.QB[0] < -3;
-  for (const a of DEF) a.react = clamp(0.30 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.06, 0.30);
+  for (const a of DEF) a.react = clamp(0.50 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.003, 0.03, 0.32)   // ~0.16s for a 60, ~0.07 average, near-instant for the elite;
 
   // Routes and blocks from the call's art.
   const artFor = (w: string) => art.find(a => a.who === w);
@@ -879,6 +879,6 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   return {
     type, yards: safety ? Math.min(yards, -1) : yards, air: pass && !throwaway ? air : undefined, complete, int: intercepted, td, safety, oob,
     throwaway, dropped, defended, hurried,
-    carrier: (carrier ?? (sacked ? QB : null))?.slot, target: target?.slot, tackler: tackler?.slot, sacker: sacked ? tackler?.slot : undefined, picker: picker?.slot, swatter: swatter?.slot, ret, dir, rec,
+    carrier: (carrier ?? (sacked ? QB : null))?.slot, target: target?.slot, tackler: tackler?.slot, sacker: sacked ? tackler?.slot : undefined, picker: picker?.slot, swatter: swatter?.slot, ret, dir, rec, secs: Math.max(2, Math.round(endAt)),
   };
 }

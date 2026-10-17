@@ -177,6 +177,7 @@ export function GameScreen({ gid }: { gid: string }) {
                   <button onClick={() => setDesigning(true)}>✎ Draw a play</button>
                   <button onClick={() => userCall()}>Coordinator call</button>
                 </div>
+                <PlayClock key={`pc${sim.events.length}`} onExpire={() => { app.toast('Play clock expired: the coordinator made the call'); userCall(); }} />
               </header>
               <CallBinder L={L} sim={sim} onOffense={onOffense} pa={pa} color={me.colors[0]}
                 onOff={(oc, set) => step({ ...oc, pa: oc.kind === 'pass' && oc.depth !== 'screen' ? pa || oc.pa : false, name: pa && oc.kind === 'pass' && oc.depth !== 'screen' && !oc.pa ? `PA ${oc.name}` : oc.name, subs: set ? subsFor(L, set) : undefined })}
@@ -254,7 +255,7 @@ function Scorebug({ L, sim, pre, score, wp }: { L: League; sim: GameSim; pre?: P
       })}
       <div className="gs-bc">
         <div className="gs-q">{(pre || !sim.over) && <span className="live-dot" />}{pre ? (pre.q >= 5 ? 'OT' : `Q${pre.q}`) : sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</div>
-        <div className="gs-clock">{pre ? clock(pre.clock) : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
+        <div className="gs-clock">{pre ? <LiveClock key={pre.n} from={pre.clock} to={sim.clock} /> : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
         {status && <div className="gs-dd"><b>{status}</b>{spot && <span>{spot}</span>}</div>}
       </div>
       <div className="gs-wpbar"><i className="a" style={{ width: `${(1 - wp) * 100}%` }} /><i className="h" style={{ width: `${wp * 100}%` }} /></div>
@@ -332,3 +333,26 @@ function FinalCard({ L, sim, onContinue, lines }: { L: League; sim: GameSim; onC
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 const down = (sim: { down: number; yl: number; togo: number }) => `${['', '1st', '2nd', '3rd', '4th'][sim.down]} & ${sim.yl + sim.togo >= 100 ? 'Goal' : sim.togo}`;
 
+
+/** The play clock: 40 seconds to get a call in, or the coordinator calls it. */
+function PlayClock({ onExpire }: { onExpire: () => void }) {
+  const [left, setLeft] = useState(40);
+  const done = useRef(onExpire); done.current = onExpire;
+  useEffect(() => {
+    if (left <= 0) { done.current(); return; }
+    const t = setTimeout(() => setLeft(l => l - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left]);
+  return <div className={`gs-pclock${left <= 10 ? ' low' : ''}`} title="Play clock"><span>PLAY CLOCK</span><b>:{String(Math.max(0, left)).padStart(2, '0')}</b></div>;
+}
+
+/** The game clock during a snap: it runs in real time from the snap down to where the play ended. */
+function LiveClock({ from, to }: { from: number; to: number }) {
+  const [c, setC] = useState(from);
+  useEffect(() => {
+    if (c <= to) return;
+    const t = setTimeout(() => setC(x => Math.max(to, x - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [c, to]);
+  return <>{clock(c)}</>;
+}

@@ -123,6 +123,7 @@ export class GameSim {
 
   /** Huddle-to-snap time multiplier: college offenses play faster and the clock stops on first downs. */
   pace = 1;
+  private liveSecs: number | undefined;
   /** Where a kickoff touchback is spotted (35 in the pros, 25 in college), and how much more often kicks go for one. */
   touchback = 35; touchbackBoost = 0;
   constructor(public league: League, public game: Game, seed?: number, public playoff = game.week > 18) {
@@ -536,6 +537,7 @@ export class GameSim {
       off.timeouts--; this.lastClockRunning = false;
       return this.push({ type: 'timeout', text: `Timeout, ${off.team.nick}. ${off.timeouts} left.`, yards: 0, endYl: this.yl });
     }
+    this.liveSecs = undefined;
     // Clock runs off between snaps when it was left running.
     if (this.lastClockRunning) this.runoff(this.betweenPlays());
     if (this.clock <= 0) return this.endPeriod();
@@ -565,6 +567,8 @@ export class GameSim {
     return Math.round((36 + this.rng.int(-4, 8)) * this.pace);
   }
   private runoff(sec: number) {
+    // A live play runs the clock for as long as it actually took on the field.
+    if (this.liveSecs !== undefined) { sec = this.liveSecs; this.liveSecs = undefined; }
     // Two-minute warning stops the clock.
     const half = this.q <= 2 ? 0 : 1;
     if ((this.q === 2 || this.q === 4) && !this.warned[half] && this.clock > 120 && this.clock - sec <= 120) {
@@ -809,6 +813,7 @@ export class GameSim {
       hurry: (this.q >= 4 && this.clock <= 180 && this.diff() < 0) || (this.q === 2 && this.clock <= 90),
     };
     const res = simHooks.live!(ctx);
+    this.liveSecs = res.secs;
     for (const e of this.events) if (e.live) delete e.live;
     const live = { rec: res.rec, ids: ctx.ids };
     const dir = res.dir;
