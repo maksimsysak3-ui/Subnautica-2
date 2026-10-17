@@ -23,6 +23,8 @@ export interface LiveCtx {
   shell: string; dcall?: string; rush: number;
   /** Defenders in the box (6 light .. 8 loaded) on this call. */
   box: number;
+  /** The front the call lines up in (4-3, 3-4, 3-3-5, Bear, ...). */
+  front?: string;
   /** Rating 0..~105 for the player in a slot (fatigue, form, coaching already applied). */
   rate: (slot: LiveSlot, attr: string) => number;
   has: (slot: LiveSlot, ability: string) => boolean;

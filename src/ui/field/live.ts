@@ -88,7 +88,11 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const LB = [-3.5, 3.5].map((dy, i) => mk(DEF_SLOTS[4 + i], 'LB', at(5, dy)));
   const DB = WHO.map((w, i) => mk(DEF_SLOTS[6 + i], 'DB', at(FORM[w][0] + (w === 'TE' ? 5.5 : press && w !== 'S' ? 1.2 : 6.5), FORM[w][1] * 0.95)));
   const FS = mk('FS', 'S', at(13, 0));
-  const loaded = ctx.box >= 8 ? 2 : ctx.box >= 7 && (ctx.down === 1 || ctx.togo <= 3) ? 1 : 0;
+  // The front: three down (a nose, two ends, an outside backer standing up on the edge) or four.
+  const three = ctx.front === '3-4' || ctx.front === '3-3-5';
+  if (three) { [DL[0].x, DL[0].y] = at(1, -4); [DL[1].x, DL[1].y] = at(1, 0); [DL[2].x, DL[2].y] = at(1, 4); [DL[3].x, DL[3].y] = at(1.6, 6.8); }
+  const heavyFront = ctx.front === 'Bear' || ctx.front === 'Goal Line';
+  const loaded = heavyFront ? (ctx.front === 'Goal Line' ? 2 : 1) : ctx.box >= 8 ? 2 : ctx.box >= 7 && (ctx.down === 1 || ctx.togo <= 3) ? 1 : 0;
   // Walk-ups: either edge, 50/50 (both edges when two come); the backer left behind plays the middle.
   const walkSide = rnd() < 0.5 ? 1 : -1;
   for (let k = 0; k < loaded; k++) { const l = LB[k]; [l.x, l.y] = at(1, (k ? -walkSide : walkSide) * 5.6); }
@@ -142,6 +146,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const comes = Array.from({ length: loaded }, () => !pass || rnd() < 0.15);
   for (let k = 0; k < loaded; k++) if (comes[k]) { rushers.push(LB[k]); blitzPool.splice(blitzPool.indexOf(LB[k]), 1); }
   while (rushers.length < Math.max(3, Math.min(8, ctx.rush + comes.filter(Boolean).length)) && blitzPool.length) rushers.push(blitzPool.shift()!);
+  // Heavy pressure: the blitzers often show it, creeping into the A and B gaps before the snap.
+  if (ctx.rush >= 6 && rnd() < 0.55) rushers.filter(d => d.role !== 'DL' && down(d.x) > 2).forEach((d, k) => { [d.x, d.y] = at(1.8, (k % 2 ? 1 : -1) * (1 + Math.floor(k / 2) * 2.2)); });
   if (ctx.rush <= 3) { DL[1].job = 'zone'; DL[1].zone = at(7, -2); rushers.splice(rushers.indexOf(DL[1]), 1); }
   for (const d of rushers) d.job = 'rush';
   const sideOf = (k: number) => (FORM[WHO[k]][1] >= 0 ? 1 : -1);

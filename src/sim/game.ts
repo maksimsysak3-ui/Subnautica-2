@@ -795,7 +795,7 @@ export class GameSim {
     const ctx: LiveCtx = {
       seed: this.n * 7919 + this.yl * 31 + this.q, s: this.poss === 1 ? 1 : -1, yl: this.yl, togo: this.togo, down: this.down,
       kind: oc.kind === 'pass' ? 'pass' : 'run', depth: oc.depth, run: oc.run, pa: oc.pa, call: oc.name, primary: oc.primary,
-      shell: dc.shell, dcall: dc.name, rush: rushOf(dc), box: dc.box,
+      shell: dc.shell, dcall: dc.name, rush: rushOf(dc), box: dc.box, front: dc.front,
       rate: (sl, a) => this.r(sideOf(sl), slots[sl], a as keyof Player['attrs']),
       has: (sl, ab) => this.has(slots[sl], ab),
       ids: Object.fromEntries(Object.entries(slots).map(([k, p]) => [k, p?.id])) as Partial<Record<LiveSlot, string>>,
