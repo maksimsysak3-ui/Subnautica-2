@@ -311,7 +311,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const D = rushing ? passPow(d) : runPow(d);
     let B = (rushing ? pbPow(b) : rbPow(b)) + (d.helper ? 14 : 0);
     if (!rushing && !pass && b.role !== 'OL') B -= 6;          // a receiver stalking a linebacker
-    const edge = (D - B) / (rushing ? 10 : 7) + gauss() * 0.35;
+    const edge = (D - B) / 10 + gauss() * 0.35;
     const v = rushing ? clamp(0.4 + edge * 0.75 + Math.min(1.2, Math.max(0, t - 1.2) * 0.4), -0.7, 3.0) : clamp(edge * 0.9, -2.4, 1.8);
     d.vx = ux * v; d.vy = uy * v;
     d.x += d.vx * DT; d.y += d.vy * DT;
@@ -478,7 +478,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const tk = d.r('TAK') * 0.55 + d.r('HIT') * 0.15 + d.r('PUR') * 0.1 + d.r('STR') * 0.2;
     const ev = c.r('BTK') * 0.45 + c.r('ELU') * 0.3 + c.r('TRK') * 0.25 + (c.role === 'OL' || c.role === 'DL' ? -20 : 0);
     // A carrier who just broke one is off balance for the next man; a dive from the side is a lower percentage.
-    const p = sig((tk - ev) / 12 + 1.95 + gang * 0.5 - arm + clamp(closing / 6, -0.3, 0.4) - (c === QB && pass && !carrier ? -0.6 : 0) + (t < offBalance ? 1.1 : 0) - (dive ? 0.4 : 0) + (caughtAt >= 0 ? 0.4 : 0));   // after the catch the receiver is still gathering himself
+    const p = sig((tk - ev) / 18 + 1.9 + gang * 0.5 - arm + clamp(closing / 6, -0.3, 0.4) - (c === QB && pass && !carrier ? -0.6 : 0) + (t < offBalance ? 1.1 : 0) - (dive ? 0.4 : 0) + (caughtAt >= 0 ? 0.4 : 0));   // after the catch the receiver is still gathering himself
     if (rnd() < p) { wrapper = d; wrapAt = t; tackler = d; victim = c; d.vx = c.vx; d.vy = c.vy; }
     else { d.downUntil = t + (dive ? 0.9 : 0.55); d.vx *= 0.3; d.vy *= 0.3; c.vx *= 0.75; c.vy *= 0.75; offBalance = t + 0.6; missed.push({ f, who: d.i }); }
   };

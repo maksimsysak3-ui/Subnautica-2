@@ -21,6 +21,20 @@ import { practiceEdge } from '../core/practice';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 /** Optional hooks the UI installs: the AI's calls drawn from each team's own playbook. */
+const LIVE_SPREAD = 1.4;
+/** League average of an attribute among starters-calibre players at a position (cached per league). */
+const normCache = new WeakMap<object, Map<string, number>>();
+function posNorm(L: { players: Record<string, Player> }, pos: string, a: string): number {
+  let m = normCache.get(L);
+  if (!m) { m = new Map(); normCache.set(L, m); }
+  const k = `${pos}:${a}`; let v = m.get(k);
+  if (v === undefined) {
+    const vals = Object.values(L.players).filter(p => p.pos === pos && p.status === 'ACT').map(p => p.attrs[a as keyof Player['attrs']] as number).filter(x => typeof x === 'number').sort((x, y) => y - x);
+    const top = vals.slice(0, Math.max(1, Math.round(vals.length * 0.5)));
+    v = top.length ? top.reduce((x, y) => x + y, 0) / top.length : 70; m.set(k, v);
+  }
+  return v;
+}
 export const simHooks: { teamCall?: (t: Team, c: OffCall, r: () => number) => OffCall; /** The live play engine (set by the UI). */ live?: (ctx: LiveCtx) => LiveResult } = {};
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
   /** Personnel grouping (RBs then TEs): 11 is 1 RB 1 TE 3 WR. */ pers?: Personnel;
@@ -806,7 +820,8 @@ export class GameSim {
       seed: this.n * 7919 + this.yl * 31 + this.q, s: this.poss === 1 ? 1 : -1, yl: this.yl, togo: this.togo, down: this.down,
       kind: oc.kind === 'pass' ? 'pass' : 'run', depth: oc.depth, run: oc.run, pa: oc.pa, call: oc.name, primary: oc.primary,
       shell: dc.shell, dcall: dc.name, rush: rushOf(dc), box: dc.box, front: dc.front,
-      rate: (sl, a) => this.r(sideOf(sl), slots[sl], a as keyof Player['attrs']),
+      // Talent gaps are stretched for the live engine, where many small edges otherwise average out.
+      rate: (sl, a) => { const p = slots[sl], v = this.r(sideOf(sl), p, a as keyof Player['attrs']); if (!p) return v; const mid = posNorm(this.league, p.pos, a); return mid + (v - mid) * LIVE_SPREAD; },
       has: (sl, ab) => this.has(slots[sl], ab),
       ids: Object.fromEntries(Object.entries(slots).map(([k, p]) => [k, p?.id])) as Partial<Record<LiveSlot, string>>,
       wind: this.weather.wind, wet: this.weather.precip !== 'none' && !this.weather.dome,
