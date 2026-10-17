@@ -204,6 +204,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   let thrownAt = -1, caughtAt = -1, endAt = -1, tackleAt = -1, wrapAt = -1;
   const ballTrack: [number, number, number, number][] = [];
   let victim = null as Ag | null, offBalance = -1, sideCatch = false;
+  /** Rolling out: the side he's escaping to (0 = in the pocket) and when he started. */
+  let roll = 0, rollT = 0;
   let target = null as Ag | null, tackler = null as Ag | null, wrapper = null as Ag | null, swatter = null as Ag | null, picker = null as Ag | null;
   let complete = false, intercepted = false, dropped = false, defended = false, throwaway = false, hurried = false, scramble = false, sacked = false, oob = false, td = false;
   let catchX = 0, deadX = los, deadY = MID, handed = qbRun ? false : !pass ? false : true;
@@ -561,7 +563,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
           if (thrownAt >= 0) { go(QB, QB.x, QB.y, 0); continue; }
           // The drop, then sit in the pocket; step up away from edge pressure.
           const p = pressure();
-          if (setT < 0) { go(QB, setPt[0], setPt[1], 0.62, [s, 0]); if ((dist(QB, { x: setPt[0], y: setPt[1] }) < 0.4 && t > minSet) || t > minSet + 0.6) setT = t; }
+          if (setT < 0) { go(QB, setPt[0], setPt[1], 0.62, [s, 0]); if ((dist(QB, { x: setPt[0], y: setPt[1] }) < 0.4 && t > minSet) || t > minSet + 0.6 || (p < 2.3 && t > minSet * 0.6)) setT = t; }   // pressure cuts the drop short
+          else if (roll) go(QB, QB.x - s * 0.15, clamp(MID + roll * 16, 4, FW - 4), 0.62, [s, 0], false);   // buying time sideways, eyes downfield
           else { const step = p < 3.5 ? 0.8 : 0; go(QB, setPt[0] + s * step, setPt[1], 0.35, [s, 0]); }
           continue;
         }
@@ -721,17 +724,28 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
         // A rusher coming clean: get it out now to whoever is open (the hot read).
         const unblocked = DEF.some(d => d.job === 'rush' && free(d) && dist(d, QB) < 5.5 && t - (d.beatenUntil || 0) > 0 && !OFF.some(o => o.eng === d));
         const hot = unblocked && awr > 50 + rnd() * 20 ? reads.map(x => ({ x, o: openness(x) })).filter(o => o.x.ri >= 1 && t > 0.45).sort((a, b) => b.o - a.o)[0] : undefined;
-        if (hot && hot.o > -0.2) throwTo(hot.x, p < 2.2);
+        // He needs a beat to see the free man and reset his feet.
+        if (hot && hot.o > -0.2 && since > 0.12 + (100 - awr) * 0.004) throwTo(hot.x, p < 2.2);
         // Deeper throws need a bigger window: the ball is in the air longer and the safety is coming.
         else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.12 - (r === RB ? 0.3 : 0)) throwTo(r, p < 2.2);
         else if (RB.job === 'route' && reads.includes(RB) && (p < 3.2 || since > 1.6) && developed0(RB) && openness(RB) > 1.8 && rnd() < 0.08) throwTo(RB, p < 2.2);
-        else if (p < 1.4) {
+        else if (p < 1.4 && since > 0.08 + (100 - awr) * 0.003) {
           // He has to do something now.
           const best = reads.map(x => ({ x, o: openness(x) })).sort((a, b) => b.o - a.o)[0];
           const lane = (() => { for (const k of [0, 1, -1, 2, -2]) { const th = Math.atan2(0, s) + k * 0.6; const px = QB.x + Math.cos(th) * 3, py = QB.y + Math.sin(th) * 3; if (DEF.every(d => !free(d) || hyp(d.x - px, d.y - py) > 2.6)) return true; } return false; })();
+          // Escape sideways if there's room: keep the play alive and let the routes come open.
+          const sideOpen = (sd: number) => DEF.every(d => !free(d) || hyp(d.x - QB.x, d.y - (QB.y + sd * 3.5)) > 2.4) && Math.abs(QB.y + sd * 4 - MID) < 22;
+          const away = (() => { let n: Ag | null = null, nd = 9; for (const d of DEF) if (free(d) && d.job === 'rush' && dist(d, QB) < nd) { nd = dist(d, QB); n = d; } return n && n.y > QB.y ? -1 : 1; })();
           if (best && best.o > 0.4) throwTo(best.x, true);
+          else if (!roll && sideOpen(away) && rnd() < 0.3 + (QB.r('AGI') - 70) / 60) { roll = away; rollT = t; }
+          else if (!roll && sideOpen(-away) && rnd() < 0.15) { roll = -away; rollT = t; }
+          else if (roll && best && best.o > -0.1) throwTo(best.x, true);
           else if (lane && (QB.r('SPD') >= 62 || rnd() < 0.45)) { scramble = true; carrier = QB; }
           else if (rnd() < clamp((awr - 50) / 60, 0.1, 0.8) * DT * 7) throwAway();
+        } else if (roll && t - rollT > 0.35 && reads.some(x => openness(x) > Math.max(0.5, need - 0.6))) {
+          throwTo(reads.map(x => ({ x, o: openness(x) })).sort((a, b) => b.o - a.o)[0].x, p < 2.2);
+        } else if (roll && (t - rollT > 1.8 || Math.min(QB.y, FW - QB.y) < 6)) {
+          if (DEF.every(d => !free(d) || dist(d, QB) > 3.5) && QB.r('SPD') >= 66) { scramble = true; carrier = QB; } else throwAway();
         } else if (t - readFrom > readTime) {
           readI++; readFrom = t;
           if (readI >= reads.length) { readI = 0; cycle++; }
