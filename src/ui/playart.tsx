@@ -45,6 +45,9 @@ export const alignFor = (name?: string): Align => ({ ...FORMATION, ...(name ? PL
 export const snapSpot = (a: Art, al: Align = FORMATION): [number, number] => a.motion?.length ? a.motion[a.motion.length - 1] : al[a.who as Skill];
 export const startOf = (who: Who, i = 0): [number, number] => (who === 'OL' ? OL_SPOTS[i % 5] : who === 'DEF' ? [0, 0] : FORMATION[who]);
 
+/** Each skill player's color on the play cards: easy to follow who runs what. */
+const WHO_COL = { X: '#4da3ff', Z: '#ff5d6c', S: '#ffd23f', TE: '#c08cff', RB: '#4fe08f', QB: '#f4f6fa' } as const;
+
 /** SVG play diagram for a play-call card. */
 export function PlayDiagram({ name, def, w = 150, h = 92, pro }: { name: string; def?: boolean; w?: number; h?: number; pro?: boolean }) {
   const art = (def ? DEF_ART : PLAY_ART)[name] ?? [];
@@ -55,18 +58,24 @@ export function PlayDiagram({ name, def, w = 150, h = 92, pro }: { name: string;
   let olIdx = 0;
   const id = `ah${name.replace(/\W/g, '')}${def ? 'd' : ''}`;
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={pro ? 'pd pro' : 'pd'} style={{ display: 'block', background: pro ? 'linear-gradient(180deg,#14361f,#0f2a18)' : 'linear-gradient(180deg,#1d4d2a,#163d21)' }}>
-      {pro && <>{Array.from({ length: 8 }, (_, k) => <rect key={k} x="0" y={(k * h) / 8} width={w} height={h / 16} fill="rgba(255,255,255,.025)" />)}
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={pro ? 'pd pro' : 'pd'} style={{ display: 'block', background: pro ? 'radial-gradient(120% 90% at 50% 70%,#2a7a3c 0%,#1b5a2b 55%,#0f3519 100%)' : 'linear-gradient(180deg,#1d4d2a,#163d21)' }}>
+      {pro && <>{[5, 10, 15, 20, 25].map(d => <rect key={`m${d}`} x="0" y={X(d)} width={w} height={(5 / 32) * h} fill={d % 10 ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.035)'} />)}
+        {[10, 20].map(d => <text key={`n${d}`} x={w * 0.06} y={X(d) + 3} fill="rgba(255,255,255,.16)" fontSize={h * 0.075} fontWeight="800" fontFamily="Barlow Condensed, sans-serif">{d}</text>)}
+        <rect x="0" y={X(0) - 1.5} width={w} height="3" fill="rgba(90,170,255,.35)" filter={`url(#${id}g)`} />
         {Array.from({ length: Math.floor(w / 9) }, (_, k) => <g key={`h${k}`}><line x1={k * 9 + 4} x2={k * 9 + 4} y1={h * 0.02} y2={h * 0.05} stroke="rgba(255,255,255,.12)" /><line x1={k * 9 + 4} x2={k * 9 + 4} y1={h * 0.95} y2={h * 0.98} stroke="rgba(255,255,255,.12)" /></g>)}
         <filter id={`${id}g`}><feGaussianBlur stdDeviation="1.6" /></filter></>}
       <defs>
         <marker id={id} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#fff" /></marker>
         <marker id={`${id}p`} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ffd23f" /></marker>
+        {Object.entries(WHO_COL).map(([k, c]) => <marker key={k} id={`${id}${k}`} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill={c} /></marker>)}
       </defs>
       {[5, 10, 15, 20].map(d => <line key={d} x1="0" x2={w} y1={X(d)} y2={X(d)} stroke="rgba(255,255,255,.08)" />)}
       <line x1="0" x2={w} y1={X(0)} y2={X(0)} stroke="rgba(120,180,255,.7)" strokeWidth="1.5" />
-      {/* offence dots */}
-      {(['X', 'Z', 'S', 'TE', 'RB', 'QB'] as const).map(k => <circle key={k} cx={Y(al[k][1])} cy={X(al[k][0])} r={pro ? 3.6 : 3} fill={pro ? (k === 'QB' ? '#ffd23f' : '#f4f6fa') : 'none'} stroke={pro ? '#0b0f16' : '#fff'} strokeWidth={pro ? 1.2 : 1.3} />)}
+      {/* offence: each skill player in his own color, labeled */}
+      {(['X', 'Z', 'S', 'TE', 'RB', 'QB'] as const).map(k => pro
+        ? <g key={k}><circle cx={Y(al[k][1])} cy={X(al[k][0])} r={5.2} fill={WHO_COL[k]} stroke="#0b0f16" strokeWidth={1.3} />
+            <text x={Y(al[k][1])} y={X(al[k][0]) + 2.4} textAnchor="middle" fontSize="6.4" fontWeight="900" fill="#0b0f16" fontFamily="Inter, sans-serif">{k === 'S' ? 'S' : k === 'TE' ? 'Y' : k === 'RB' ? 'H' : k}</text></g>
+        : <circle key={k} cx={Y(al[k][1])} cy={X(al[k][0])} r={3} fill="none" stroke="#fff" strokeWidth={1.3} />)}
       {OL_SPOTS.map(([x, y], i) => <rect key={i} x={Y(y) - (pro ? 3.2 : 2.5)} y={X(x) - (pro ? 3.2 : 2.5)} width={pro ? 6.4 : 5} height={pro ? 6.4 : 5} rx={pro ? 1 : 0} fill={pro ? '#c9d2e0' : 'none'} stroke={pro ? '#0b0f16' : '#fff'} strokeWidth="1.2" />)}
       {art.map((a, i) => {
         if (a.kind === 'zone') { const [x, y] = a.pts[0]; return <ellipse key={i} cx={Y(y)} cy={X(x)} rx={(a.r ?? 5) / 46 * w} ry={(a.r ?? 5) / 32 * h * 0.8} fill={x > 12 ? 'rgba(80,160,255,.28)' : 'rgba(255,210,63,.25)'} stroke={x > 12 ? 'rgba(120,190,255,.7)' : 'rgba(255,210,63,.7)'} />; }
@@ -75,13 +84,14 @@ export function PlayDiagram({ name, def, w = 150, h = 92, pro }: { name: string;
         const mo = a.motion?.length && a.who !== 'OL' && a.who !== 'DEF' ? [al[a.who], ...a.motion].map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ') : '';
         if (pts.length < 2) return mo ? <path key={i} d={mo} fill="none" stroke="#7fd4ff" strokeWidth="1.3" strokeDasharray="2 2" /> : null;
         const d = pts.map(([x, y], j) => `${j ? 'L' : 'M'}${Y(y).toFixed(1)},${X(x).toFixed(1)}`).join(' ');
-        const color = a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'man' ? 'rgba(255,255,255,.7)' : a.kind === 'block' ? 'rgba(255,255,255,.55)' : '#fff';
+        const color = pro && a.who in WHO_COL && a.kind !== 'block' ? WHO_COL[a.who as keyof typeof WHO_COL] : a.primary ? '#ffd23f' : a.kind === 'blitz' ? '#ff4d5e' : a.kind === 'man' ? 'rgba(255,255,255,.7)' : a.kind === 'block' ? 'rgba(255,255,255,.55)' : '#fff';
         const end = pts[pts.length - 1], prev = pts[pts.length - 2];
         const tee = a.kind === 'block' && pro ? (() => { const ex = Y(end[1]), ey = X(end[0]), dx = ex - Y(prev[1]), dy = ey - X(prev[0]), L = Math.hypot(dx, dy) || 1, nx = -dy / L * 4, ny = dx / L * 4; return <line x1={ex - nx} y1={ey - ny} x2={ex + nx} y2={ey + ny} stroke="#ff6b5a" strokeWidth="2" strokeLinecap="round" />; })() : null;
-        const col = pro && a.kind === 'block' ? '#ff6b5a' : color;
+        const col = pro && a.kind === 'block' ? 'rgba(235,240,248,.75)' : color;
         return <g key={i}>{mo && <path d={mo} fill="none" stroke="#7fd4ff" strokeWidth="1.3" strokeDasharray="2 2" />}
-          {pro && a.primary && <path d={d} fill="none" stroke="#ffd23f" strokeWidth="5" opacity=".35" filter={`url(#${id}g)`} />}
-          <path className={pro && a.kind !== 'block' && a.kind !== 'man' && !(a.kind === 'run' && !a.primary) ? 'pd-route' : undefined} pathLength={pro ? 1 : undefined} d={d} fill="none" stroke={col} strokeWidth={pro ? (a.primary ? 2.6 : 1.8) : a.primary ? 2.2 : 1.5} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={a.kind === 'man' ? (pro ? '0.04 0.04' : '3 3') : a.kind === 'run' && !a.primary ? (pro ? '0.03 0.03' : '2 2') : undefined} markerEnd={a.kind === 'block' ? undefined : `url(#${id}${a.primary ? 'p' : ''})`} />{tee}</g>;
+          {pro && a.kind !== 'block' && a.kind !== 'man' && <path d={d} fill="none" stroke={col} strokeWidth={a.primary ? 6 : 4} opacity={a.primary ? 0.45 : 0.25} filter={`url(#${id}g)`} />}
+          {pro && a.primary && a.who !== 'DEF' && (() => { const [ex, ey] = [Y(end[1]), X(end[0])]; return <g><circle cx={ex} cy={ey - 8} r="5" fill="#ffd23f" stroke="#0b0f16" strokeWidth="1" /><text x={ex} y={ey - 5.6} textAnchor="middle" fontSize="7" fontWeight="900" fill="#0b0f16" fontFamily="Inter, sans-serif">1</text></g>; })()}
+          <path className={pro && a.kind !== 'block' && a.kind !== 'man' && !(a.kind === 'run' && !a.primary) ? 'pd-route' : undefined} pathLength={pro ? 1 : undefined} d={d} fill="none" stroke={col} strokeWidth={pro ? (a.primary ? 3 : 2.2) : a.primary ? 2.2 : 1.5} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={a.kind === 'man' ? (pro ? '0.04 0.04' : '3 3') : a.kind === 'run' && !a.primary ? (pro ? '0.03 0.03' : '2 2') : undefined} markerEnd={a.kind === 'block' ? undefined : pro && a.who in WHO_COL ? `url(#${id}${a.who})` : `url(#${id}${a.primary ? 'p' : ''})`} />{tee}</g>;
       })}
     </svg>
   );

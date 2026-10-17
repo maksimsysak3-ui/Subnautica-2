@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { League } from '../core/types';
 import type { DefCall, GameSim, OffCall } from '../sim/game';
-import { activeBook, offPlay, defPlay, OFF_SETS, DEF_SETS } from './plays';
+import { books, activeBook, offPlay, defPlay, OFF_SETS, DEF_SETS, OFF_LIB, DEF_LIB } from './plays';
 import { PLAY_ART, PlayDiagram, SpecialDiagram } from './playart';
 import './callbinder.css';
 
@@ -14,6 +14,7 @@ const memory: Record<string, string> = {};    // the formation each side's binde
 
 export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, color }: { L: League; sim: GameSim; onOffense: boolean; pa: boolean; onOff: (oc: OffCall, set?: string) => void; onDef: (dc: DefCall) => void; onSpecial: (oc: OffCall) => void; color: string }) {
   const side = onOffense ? 'off' : 'def';
+  books(L);   // make sure the playbooks exist (a new franchise may not have opened the Playbook tab yet)
   const book = activeBook(L, side);
   const userSide = sim.sides[0].abbr === L.user ? 0 : 1;
   const qbFast = (L.players[sim.sides[userSide].team.depth.QB?.[0] ?? '']?.attrs.SPD ?? 0) >= 78;
@@ -36,6 +37,14 @@ export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, col
       const note = onOffense ? OFF_SETS[f.set]?.note : DEF_SETS[f.set as keyof typeof DEF_SETS]?.note;
       add(f.name, (note ?? '').split(' · ')[0], cells);
     }
+    // The base install: every library play the book doesn't already carry, so the whole
+    // concept list is always one click away.
+    { const inBook = new Set((book?.folders ?? []).flatMap(f => f.plays)), base: Cell[] = [];
+      if (onOffense) for (const lp of OFF_LIB) { if (inBook.has(lp.name) || (lp.call.run === 'qb' && !qbFast)) continue; const p = offPlay(L, lp.name)!;
+        base.push({ kind: 'off', name: lp.name, title: lp.name, desc: p.desc, set: p.set, tag: p.call.kind === 'run' ? 'Run' : p.call.depth === 'screen' ? 'Screen' : p.call.pa ? 'Play-action' : p.call.depth === 'deep' ? 'Shot' : 'Pass', run: () => onOff({ ...p.call, name: p.call.name ?? lp.name }, p.set) }); }
+      else for (const lp of DEF_LIB) { if (inBook.has(lp.name)) continue; const p = defPlay(L, lp.name)!;
+        base.push({ kind: 'def', name: lp.name, title: lp.name, desc: p.desc, set: p.set, tag: p.call.blitz ? 'Pressure' : /Cover [01]/.test(lp.name) ? 'Man' : 'Zone', run: () => onDef(p.call) }); }
+      add('Base', 'The full base install', base); }
     if (onOffense) {
       const sp: Cell[] = [];
       if (sim.down === 4) { sp.push({ kind: 'sp', name: 'Punt', title: 'Punt', desc: 'Flip the field', tag: 'Special teams', run: () => onSpecial({ kind: 'punt', name: 'Punt' }) }); sp.push({ kind: 'sp', name: 'Field Goal', title: 'Field Goal', desc: `${100 - sim.yl + 17}-yard try`, tag: 'Special teams', run: () => onSpecial({ kind: 'fg', name: 'Field Goal' }) }); }
@@ -62,13 +71,13 @@ export function CallBinder({ L, sim, onOffense, pa, onOff, onDef, onSpecial, col
     const k = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.closest('input,textarea')) return; if (e.key === 'ArrowRight') go(cur + 1); if (e.key === 'ArrowLeft') go(cur - 1); };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   });
-  if (!book || !sections.length) return null;
+  if (!sections.length) return null;
   const sec = sections[cur];
   const info = sec.cells.find(c => c.name === hover);
   return (
     <div className="cb" style={{ '--tc': color } as CSSProperties}>
       <div className="cb-bar">
-        <span className="cb-book">{book.name}</span>
+        <span className="cb-book">{book?.name ?? 'Playbook'}</span>
         <button className="cb-arrow" onClick={() => go(cur - 1)} disabled={cur === 0} aria-label="Previous formation">‹</button>
         <div className="cb-forms">{sections.map((s, i) => <button key={s.name} className={`${i === cur ? 'on' : ''}${s.name === 'Situational' ? ' sit' : ''}`} onClick={() => go(i)}>{s.name}</button>)}</div>
         <button className="cb-arrow" onClick={() => go(cur + 1)} disabled={cur === sections.length - 1} aria-label="Next formation">›</button>

@@ -31,7 +31,9 @@
 .cb-name { padding: 8px 10px 9px; font: 900 16px/1.05 var(--head, 'Barlow Condensed'), sans-serif; text-transform: uppercase; letter-spacing: .02em;
   background: linear-gradient(180deg, #171c26, #10141c); border-top: 1px solid rgba(255,255,255,.06); min-height: 2.3em; display: flex; align-items: center; transition: background .16s; }
 .cb-tile:hover .cb-name, .cb-tile.hot .cb-name { background: var(--tc); }
-.cb-tile.hot .pd-route { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cbDraw .9s cubic-bezier(.4,.1,.3,1) forwards; }
+.cb-tile .pd-route { stroke-dasharray: 1; stroke-dashoffset: 1; animation: cbDraw .8s cubic-bezier(.4,.1,.3,1) forwards; animation-delay: calc(var(--i) * 40ms + .12s); }
+.cb-tile.hot .pd-route { animation: cbDraw2 .9s cubic-bezier(.4,.1,.3,1) forwards; }
+@keyframes cbDraw2 { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes cbDraw { to { stroke-dashoffset: 0; } }
 
 .cb-tag.t-run, .cb-dot.t-run { background: #4fd18b; } .cb-tag.t-shot, .cb-tag.t-pressure, .cb-dot.t-shot, .cb-dot.t-pressure { background: #ff6b5a; }
