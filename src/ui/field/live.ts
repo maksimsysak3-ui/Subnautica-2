@@ -182,6 +182,22 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   for (const d of DEF) if (d.job === 'idle') setZone(d, 7, 0, false);
 
   // Protection: each rusher gets a blocker by where he lines up; the spare helps inside.
+  /** Line blocking: blockers and men on the line paired left to right, no crossed assignments;
+   *  with more blockers than men, the pairing that keeps everyone closest (a small DP). */
+  const assignLine = (blockers: Ag[], threats: Ag[]) => {
+    const B = [...blockers].sort((a, b) => a.y - b.y), T = [...threats].sort((a, b) => a.y - b.y);
+    for (const b of B) b.man = null;
+    if (!T.length) return [] as Ag[];
+    const n = B.length, m = Math.min(T.length, n), Tm = T.length > n ? T.slice(Math.floor((T.length - n) / 2), Math.floor((T.length - n) / 2) + n) : T;
+    const cost: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(Infinity)), pick: boolean[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(false));
+    cost[0][0] = 0;
+    for (let i = 1; i <= n; i++) for (let j = 0; j <= m; j++) {
+      cost[i][j] = cost[i - 1][j];                                                   // blocker i-1 free
+      if (j > 0 && cost[i - 1][j - 1] + Math.abs(B[i - 1].y - Tm[j - 1].y) < cost[i][j]) { cost[i][j] = cost[i - 1][j - 1] + Math.abs(B[i - 1].y - Tm[j - 1].y); pick[i][j] = true; }
+    }
+    for (let i = n, j = m; i > 0; i--) if (pick[i][j]) { B[i - 1].man = Tm[j - 1]; j--; }
+    return B.filter(b => !b.man);
+  };
   const assignBlocks = (blockers: Ag[], threats: Ag[]) => {
     const free = [...blockers];
     for (const t of [...threats].sort((a, b) => Math.abs(a.y - MID) - Math.abs(b.y - MID))) {
@@ -193,16 +209,19 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   };
   if (pass) {
     // Linemen take the defensive line; the spare lineman, tight end and back pick up blitzers.
-    const dlR = rushers.filter(d => d.role === 'DL'), extra = rushers.filter(d => d.role !== 'DL');
-    assignBlocks(OL, dlR);
-    const spare = [...OL.filter(o => !o.man), ...REC.filter(r => r.job === 'protect'), ...(RB.job === 'protect' ? [RB] : [])];
+    const extra = rushers.filter(d => d.role !== 'DL');
+    const onLine = rushers.filter(d => d.role === 'DL' || down(d.x) < 2.2);
+    assignLine(OL, onLine);
+    extra.splice(0, extra.length, ...rushers.filter(d => !onLine.includes(d) || !OL.some(o => o.man === d)));
+    const spare = [...OL.filter(o => !o.man), ...REC.filter(r => r.job === 'protect'), ...(RB.job === 'protect' ? [RB] : [])];   // pick up whoever is left
     assignBlocks(spare, extra);
   }
   else {
     // Run blocking: linemen take the man over them; uncovered linemen climb to a linebacker.
     const fronts = [...DL, ...LB];
-    assignBlocks(OL, DL);
-    const lbs = [...LB];
+    const lineMen = [...DL, ...LB.filter(l => down(l.x) < 2.2)];
+    assignLine(OL, lineMen);
+    const lbs = LB.filter(l => !OL.some(o => o.man === l));
     for (const o of OL) if (!o.man) { const l = lbs.sort((a, b) => hyp(a.x - o.x, a.y - o.y) - hyp(b.x - o.x, b.y - o.y)).shift(); o.man = l ?? null; }
     REC.forEach((r, k) => { r.man = r.role === 'TE' ? (fronts.find(f => f.job !== 'rush' && Math.abs(f.y - r.y) < 4) ?? DB[k]) : DB[k]; });
   }
@@ -297,7 +316,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     for (const bb of [b, d.helper]) if (bb) { const side = bb === d.helper ? 0.55 : 0; const px = d.x + ux * 0.95 - uy * side, py = d.y + uy * 0.95 + ux * side; bb.vx = (px - bb.x) * 8; bb.vy = (py - bb.y) * 8; bb.x += bb.vx * DT; bb.y += bb.vy * DT; }
     // The shed: technique beats the block on its own clock, much less often against a double.
     const open = !rushing && b.role !== 'OL' && b.role !== 'TE';   // blocks in space don't hold for long
-    const h = (rushing ? 0.075 : open ? (pass ? 3.2 : 0.35) : 0.06) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
+    const h = (rushing ? 0.095 : open ? (pass ? 3.2 : 0.35) : 0.06) * Math.exp((D - B) / 7) * (d.helper ? 0.35 : 1);
     if (rnd() < h * DT || (!rushing && carrier && dist(d, carrier) < 1.1 && rnd() < 0.006)) {
       const bb = d.eng!; release(d);
       if (rushing) sheds.push({ f, rusher: d.i, blocker: bb.i, kind: (['swim', 'rip', 'spinmove'] as const)[Math.floor(rnd() * 3)] });
@@ -371,7 +390,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     if (moving) acc = acc * 0.6 + QB.r('TOR') * 0.4 - 3;
     if (rushed) acc = acc * 0.55 + QB.r('TUP') * 0.45 - (ctx.has('QB', 'Fearless') ? 1 : 5);
     // Error grows with distance, and faster on deep balls: touch and timing over 30 yards is hard.
-    let sigma = (0.26 + d * 0.019 + Math.pow(Math.max(0, d - 15), 1.5) * 0.013) * clamp(1.65 - acc * 0.0105, 0.5, 1.3) * (rushed ? 1.4 : 1);
+    let sigma = (0.3 + d * 0.021 + Math.pow(Math.max(0, d - 15), 1.5) * 0.013) * clamp(1.65 - acc * 0.0105, 0.5, 1.3) * (rushed ? 1.4 : 1);
     sigma *= 1 + (ctx.wind > 15 ? (d > 22 ? 0.35 : 0.12) : 0) + (ctx.wet ? 0.12 : 0);
     const ux = (p[0] - QB.x) / (d || 1), uy = (p[1] - QB.y) / (d || 1);
     const ea = gauss() * sigma * 1.25, ep = gauss() * sigma;
@@ -439,7 +458,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const def = d.r('TAK') * 0.5 + d.r('PUR') * 0.3 + d.r('PRC') * 0.2;
     const shake = c.r('ELU') * 0.6 + c.r('AGI') * 0.4, power = c.r('TRK') * 0.6 + c.r('STR') * 0.4;
     const power0 = power - 8 > shake;
-    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.4 : 1.55));
+    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.5 : 1.9));
     if (rnd() >= p) return false;
     const u = rnd(), kind = power0 ? 'stiff' : u < 0.5 ? 'juke' : u < 0.8 ? 'jumpcut' : 'spin';
     d.downUntil = t + (kind === 'stiff' ? 0.8 : 0.55); d.tackleCD = t + 0.9; d.vx *= 0.3; d.vy *= 0.3;
