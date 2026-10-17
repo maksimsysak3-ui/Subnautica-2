@@ -301,7 +301,13 @@ export class GameSim {
   aiOffense(): OffCall {
     const c = this.aiCall();
     const t = this.sides[this.poss].team;
-    return simHooks.teamCall && (c.kind === 'run' || c.kind === 'pass') ? simHooks.teamCall(t, c, () => this.rng.next()) : c;
+    const call = simHooks.teamCall && (c.kind === 'run' || c.kind === 'pass') ? simHooks.teamCall(t, c, () => this.rng.next()) : c;
+    if (call.kind !== 'run' && call.kind !== 'pass') return call;
+    // Dress the call like a human would: some motion, and a first read on the best target.
+    const out = { ...call };
+    if (!out.motion && this.rng.chance(0.35)) out.motion = this.rng.pick(['SLOT', 'Z', 'TE'] as const);
+    if (out.kind === 'pass' && !out.primary && out.depth !== 'screen' && this.rng.chance(0.5)) out.primary = this.rng.pick(['X', 'X', 'Z', 'SLOT', 'TE'] as const);
+    return out;
   }
   private aiCall(): OffCall {
     const s = this.sides[this.poss];
@@ -1004,7 +1010,7 @@ export class GameSim {
       s += (nRush - 4) * 0.3;   // every extra rusher is one fewer in coverage; dropping eight closes windows
       if (oc.pa) s += 0.45;
       // A man in motion gets a running start, and a defender trailing him across the formation.
-      if (oc.motion === t.slot) s += man ? 0.45 : 0.2;
+      if (oc.motion === t.slot) s += man ? 0.32 : 0.14;
       // A repeated call: the coverage knows where it is going.
       s -= this.keyed * 0.32;
       // Mismatches: a tight end in the slot against a dime back, a receiver against a linebacker.
@@ -1040,7 +1046,7 @@ export class GameSim {
     // awareness) and his place in the read; the ball still spreads around.
     // Motion tips the coverage (a defender following him means man), so the read is cleaner.
     const noise = (100 - this.r(off, qb, 'AWR')) / 45 * (oc.motion ? 0.85 : 1);
-    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.47 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.9 : 0) - Math.max(0, (this.lines.get(t.p.id)?.tgt ?? 0) - 7) * 0.08)));
+    const util = targets.map((t, i) => Math.exp(0.95 * ((sep[i] + this.rng.normal(0, noise)) * 0.47 + t.bias + (hurried && t.slot === 'RB' ? 0.6 : 0) + (oc.primary === t.slot ? 0.6 : 0) - Math.max(0, (this.lines.get(t.p.id)?.tgt ?? 0) - 7) * 0.08)));
     let pick = 0;
     { let r = this.rng.next() * util.reduce((a, b) => a + b, 0); for (let i = 0; i < util.length; i++) { r -= util[i]; if (r <= 0) { pick = i; break; } } }
     const tgt = targets[pick];
