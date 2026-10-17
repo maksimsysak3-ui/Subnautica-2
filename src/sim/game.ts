@@ -520,6 +520,9 @@ export class GameSim {
 
   // ---- driving the game ---------------------------------------------------------
   private lastClockRunning = false;
+  get clockRunning() { return this.lastClockRunning; }
+  /** Real seconds the user spent at the call screen with the clock running (used once, at the next snap). */
+  callSecs: number | undefined;
 
   /** The user calls a timeout: the clock stops and doesn't run off before the next snap. */
   /** The opening toss, decided on screen: `receiver` takes the first kickoff and the other side gets the second half. */
@@ -553,7 +556,9 @@ export class GameSim {
     }
     this.liveSecs = undefined;
     // Clock runs off between snaps when it was left running.
-    if (this.lastClockRunning) this.runoff(this.betweenPlays());
+    const cs = this.callSecs; this.callSecs = undefined;
+    // A user call: the clock ran in real time while he picked; add the time to line up and snap (never slower than the play clock).
+    if (this.lastClockRunning) this.runoff(cs !== undefined ? Math.min(40, Math.max(this.hurry[this.poss] || this.twoMinute() ? 8 : 12, Math.round(cs) + 6)) : this.betweenPlays());
     if (this.clock <= 0) return this.endPeriod();
     const oc = call ?? this.aiOffense();
     // A play the user called is scouted; the defense reacts to the personnel it sees.

@@ -60,7 +60,13 @@ export function GameScreen({ gid }: { gid: string }) {
   const onOffense = sim.poss === userSide;
   const needsCall = coach && !sim.over && !sim.pending && !auto.current;
 
+  // The clock keeps running while the user picks a play (when it was running at the whistle).
+  const callStart = useRef<number | null>(null);
+  const [, tick] = useState(0);
+  const callElapsed = () => (callStart.current === null ? 0 : (Date.now() - callStart.current) / 1000);
   const step = (oc?: OffCall, dc?: DefCall) => {
+    if (callStart.current !== null) sim.callSecs = callElapsed();
+    callStart.current = null;
     sim.liveOn = liveEngineOn();
     let ev = sim.step(oc, dc);
     // Skip quiet administrative events when animating.
@@ -128,6 +134,10 @@ export function GameScreen({ gid }: { gid: string }) {
   // The field and the play call can't both fill the screen: when it's your call the page
   // glides to the binder, and at the snap it glides back up to the field.
   const callUp = needsCall && !anim && !finished;
+  if (callUp && sim.clockRunning && callStart.current === null) callStart.current = Date.now();
+  if (!callUp) callStart.current = null;
+  useEffect(() => { if (!callUp || callStart.current === null) return; const t = setInterval(() => tick(x => x + 1), 500); return () => clearInterval(t); }, [callUp, callStart.current]);
+  const runClock = callStart.current !== null ? Math.max(0, sim.clock - Math.floor(callElapsed())) : null;
   useEffect(() => {
     const el = document.querySelector(callUp ? '.gs-call' : '.gs-stage');
     if (!el) return;
@@ -150,7 +160,7 @@ export function GameScreen({ gid }: { gid: string }) {
       {sim.halfPending && !intro && <Halftime L={L} sim={sim} onPick={a => { sim.setHalf((sim.sides[0].abbr === L.user ? 0 : 1) as 0 | 1, a); if (a) app.toast(`Halftime adjustment: ${a.name}`); force(x => x + 1); }} />}
       {intro && <PrimeIntro L={L} g={game} weather={sim.weather} onDone={() => setIntro(false)} />}
       {toss && !intro && <CoinToss teams={[{ name: away.nick, abbr: away.abbr, color: away.colors[0] }, { name: home.nick, abbr: home.abbr, color: home.colors[0] }]} userSide={userSide as 0 | 1} onDone={r => { sim.setToss(r); setToss(false); force(x => x + 1); }} />}
-      <Scorebug L={L} sim={sim} pre={live} score={before} wp={cur} />
+      <Scorebug L={L} sim={sim} pre={live} score={before} wp={cur} running={runClock} />
       <div className="gs-main">
         <div className="gs-col">
           <div className="gs-stage">
@@ -234,7 +244,7 @@ function TeamCompare({ L, sim, box }: { L: League; sim: GameSim; box: GameSim['b
   </div>;
 }
 
-function Scorebug({ L, sim, pre, score, wp }: { L: League; sim: GameSim; pre?: PlayEvent | null; score?: [number, number] | null; wp: number }) {
+function Scorebug({ L, sim, pre, score, wp, running }: { L: League; sim: GameSim; pre?: PlayEvent | null; score?: [number, number] | null; wp: number; running?: number | null }) {
   const sc = score ?? sim.score;
   const sides = [L.teams[sim.game.away], L.teams[sim.game.home]];
   const poss = pre ? pre.poss : sim.poss;
@@ -255,7 +265,7 @@ function Scorebug({ L, sim, pre, score, wp }: { L: League; sim: GameSim; pre?: P
       })}
       <div className="gs-bc">
         <div className="gs-q">{(pre || !sim.over) && <span className="live-dot" />}{pre ? (pre.q >= 5 ? 'OT' : `Q${pre.q}`) : sim.over ? 'Final' : sim.q >= 5 ? 'OT' : `Q${sim.q}`}</div>
-        <div className="gs-clock">{pre ? <LiveClock key={pre.n} from={pre.clock} to={sim.clock} /> : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(sim.clock)}</div>
+        <div className="gs-clock">{pre ? <LiveClock key={pre.n} from={pre.clock} to={sim.clock} /> : sim.over ? (sim.ot ? 'F/OT' : 'FINAL') : clock(running ?? sim.clock)}</div>
         {status && <div className="gs-dd"><b>{status}</b>{spot && <span>{spot}</span>}</div>}
       </div>
       <div className="gs-wpbar"><i className="a" style={{ width: `${(1 - wp) * 100}%` }} /><i className="h" style={{ width: `${wp * 100}%` }} /></div>
