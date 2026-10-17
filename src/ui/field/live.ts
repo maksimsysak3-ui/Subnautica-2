@@ -89,7 +89,10 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const DB = WHO.map((w, i) => mk(DEF_SLOTS[6 + i], 'DB', at(FORM[w][0] + (w === 'TE' ? 5.5 : press && w !== 'S' ? 1.2 : 6.5), FORM[w][1] * 0.95)));
   const FS = mk('FS', 'S', at(13, 0));
   const loaded = ctx.box >= 8 ? 2 : ctx.box >= 7 && (ctx.down === 1 || ctx.togo <= 3) ? 1 : 0;
-  for (let k = 0; k < loaded; k++) { const l = LB[k]; [l.x, l.y] = at(1, (k ? 1 : -1) * 5.6); }
+  // Walk-ups: either edge, 50/50 (both edges when two come); the backer left behind plays the middle.
+  const walkSide = rnd() < 0.5 ? 1 : -1;
+  for (let k = 0; k < loaded; k++) { const l = LB[k]; [l.x, l.y] = at(1, (k ? -walkSide : walkSide) * 5.6); }
+  if (loaded === 1) [LB[1].x, LB[1].y] = at(5, 0);
   // Two-high shells show it before the snap: the strong safety sits deep with the free safety.
   const twoHighLook = !man && (cov2 || cov4 || ctx.shell === 'Prevent');
   if (twoHighLook) { [DB[3].x, DB[3].y] = at(12.5, -9); [FS.x, FS.y] = at(12.5, 9); }
