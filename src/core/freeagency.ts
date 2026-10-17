@@ -121,6 +121,24 @@ export function runFreeAgencyDay(league: League, rng: Rng) {
   fa.day++;
 }
 
+/**
+ * Keep the street free-agent list to a real size: aging and marginal players retire (career
+ * players keep their record as retired; never-played filler is removed outright), and the
+ * pool is held to the best ~250 by rating and upside.
+ */
+export function trimFreeAgents(league: League, keep = 250) {
+  const gone = (p: Player) => { if (Object.keys(p.stats ?? {}).length || p.exp >= 2) p.status = 'RET'; else delete league.players[p.id]; };
+  const fa = freeAgents(league);
+  for (const p of fa) if ((p.age >= 30 && p.ovr < 68) || (p.age >= 33 && p.ovr < 75) || p.ovr < 52) gone(p);
+  const rest = freeAgents(league).sort((a, b) => (b.ovr + Math.max(0, b.pot - b.ovr) * 0.5) - (a.ovr + Math.max(0, a.pot - a.ovr) * 0.5));
+  // Injury replacements need bodies at every spot: the best few at each position always stay.
+  const per: Record<string, number> = {}, floor = (pos: string) => (['K', 'P', 'LS', 'FB'].includes(pos) ? 2 : 6);
+  const stay = new Set<string>();
+  for (const p of rest) if ((per[p.pos] = (per[p.pos] ?? 0) + 1) <= floor(p.pos)) stay.add(p.id);
+  for (const p of rest) { if (stay.size >= keep) break; stay.add(p.id); }
+  for (const p of rest) if (!stay.has(p.id)) gone(p);
+}
+
 /** In-season depth: AI teams plug holes with the best free agent at a need. */
 export function aiFillHoles(league: League, team: string, rng: Rng) {
   const act = Object.values(league.players).filter(p => p.team === team && p.status === 'ACT');

@@ -4,9 +4,10 @@ import data from '../data/league.json';
 import type { Dev, Coach, DefScheme, League, OffScheme, Pick, Player, Pos, StatLine, Team } from './types';
 import { Rng, clamp, hash } from './rng';
 import { archetype, assignAbilities, buildAttrs, capDev, devTrait, overall, potential } from './ratings';
-import { seasonForm, starterMeans, applyDelta } from './offseason';
-import { ensureFuture } from './draft';
-import { CAP_2026, capSpace, makeContract, minSalary, restructure, rookieContract } from './contracts';
+import { seasonForm, starterMeans, applyDelta, signPlayer } from './offseason';
+import { ensureFuture, positionNeeds, freeNumber } from './draft';
+import { trimFreeAgents } from './freeagency';
+import { CAP_2026, capSpace, makeContract, marketTerms, minSalary, restructure, rookieContract } from './contracts';
 
 interface RawP {
   id: string; fn: string; ln: string; pos: Pos; team: string; st: string; num: number; age: number; ht?: number; wt?: number;
@@ -158,6 +159,8 @@ export function createLeague(user: string, gm: string, opts: { difficulty?: Leag
   ratingsUpdate(league, rng);   // last: the hand-set ratings are final
   retierDev(league, rng);
   hideRookieDev(league);
+  placeStrayStarters(league, rng);
+  trimFreeAgents(league);
   for (const abbr of Object.keys(teams)) autoDepth(league, abbr);
   seasonForm(league, rng);
   league.baseline = starterMeans(league);
@@ -222,6 +225,25 @@ function retierDev(league: League, rng: Rng) {
     p.dev = capped;
     if (rank[capped] >= 2) { const { abil, xf } = assignAbilities(p.pos, p.attrs, capped, rng); p.abil = abil.length ? abil : p.abil; p.xf = xf; }
     else { p.abil = []; p.xf = undefined; }
+  }
+}
+/**
+ * The roster snapshot lists a handful of real starters as unsigned (injured-reserve moves and
+ * late transactions it can't see). In-season free agency is street free agents, so anyone good
+ * enough to start goes to the AI team that needs him most, and that team's weakest man at the
+ * position takes his place on the street.
+ */
+function placeStrayStarters(league: League, rng: Rng) {
+  const strays = Object.values(league.players).filter(p => p.team === 'FA' && p.status !== 'RET' && p.status !== 'PROSPECT' && p.ovr >= 72).sort((a, b) => b.ovr - a.ovr);
+  for (const p of strays) {
+    const apy = Math.max(minSalary(p.exp, league.season), marketTerms(p, league.season).apy * 0.7);
+    const best = Object.keys(league.teams).filter(t => t !== league.user && capSpace(league, t) >= apy)
+      .map(t => ({ t, v: (positionNeeds(league, t)[p.pos] ?? 0) + rng.next() * 0.5 })).sort((a, b) => b.v - a.v)[0];
+    if (!best) continue;
+    const worst = Object.values(league.players).filter(q => q.team === best.t && q.pos === p.pos && q.status === 'ACT').sort((a, b) => a.ovr - b.ovr)[0];
+    signPlayer(league, p, best.t, { apy, years: 1 + (p.age <= 28 ? 1 : 0), gtd: 0.5 });
+    p.num = freeNumber(league, best.t, p.pos);
+    if (worst && worst.ovr < p.ovr) { worst.team = 'FA'; worst.status = 'FA'; worst.contract = { years: [] }; }
   }
 }
 /** This year's rookies don't know what they are yet. */
