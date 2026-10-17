@@ -338,7 +338,9 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
         }
       }
       if (handC > 0 && c > preC && c < handC + 0.25) return mk(x, y, s, c < handC - 0.15 ? POSE.hold() : { ...POSE.reach(9, -6), ball: c < handC ? 1 : 0 });
-      if (holder && sp < 1.4 && !(ev.type === 'scramble' && c > preC + 1.2)) return mk(x, y, s, POSE.compose(POSE.run((c * 1.3) % 1, 0), { ...POSE.hold(), lean: 0.12 }));
+      // In the pocket: set and still when he isn't moving (no walking in place); a short
+      // shuffle, stepped by how far he actually moves, when he slides or climbs.
+      if (holder && sp < 1.4 && !(ev.type === 'scramble' && c > preC + 1.2)) return mk(x, y, s, sp < 0.45 ? { ...POSE.hold(), lean: 0.1 } : POSE.compose(POSE.run(PH[i][k] % 1, 0), { ...POSE.hold(), lean: 0.12 }));
     }
     // The catch: hands go up only as the ball arrives, the way it's caught depends on the throw.
     if (catchC !== undefined && (i === tgt || (sc.int && holder && c < catchC + 0.4))) {
