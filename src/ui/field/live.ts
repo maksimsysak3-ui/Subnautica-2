@@ -84,7 +84,9 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const WHO = ['X', 'Z', 'S', 'TE'] as const;
   const REC = WHO.map(w => mk(w, w === 'TE' ? 'TE' : 'WR', at(...FORM[w])));
   const press = man && rnd() < 0.55;
-  const DL = [-5, -1.7, 1.7, 5].map((dy, i) => mk(DEF_SLOTS[i], 'DL', at(1, dy)));
+  // A 4-3 line: a 1-technique over the center, a 3-technique on a guard (sides flip), ends on the tackles.
+  const tech = rnd() < 0.5 ? 1 : -1;
+  const DL = [-4.4, tech > 0 ? -0.9 : -2.6, tech > 0 ? 2.6 : 0.9, 4.4].map((dy, i) => mk(DEF_SLOTS[i], 'DL', at(1, dy)));
   const LB = [-3.5, 3.5].map((dy, i) => mk(DEF_SLOTS[4 + i], 'LB', at(5, dy)));
   const DB = WHO.map((w, i) => mk(DEF_SLOTS[6 + i], 'DB', at(FORM[w][0] + (w === 'TE' ? 5.5 : press && w !== 'S' ? 1.2 : 6.5), FORM[w][1] * 0.95)));
   const FS = mk('FS', 'S', at(13, 0));
@@ -93,7 +95,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const longDown = ctx.down >= 2 && ctx.togo >= 8;
   const goalLine = ctx.front === 'Goal Line' || ctx.yl >= 95 || (ctx.togo <= 1 && ctx.down >= 3);
   const three = !goalLine && (ctx.rush <= 3 || (longDown && ctx.rush <= 4 && rnd() < 0.7));
-  if (three) { [DL[0].x, DL[0].y] = at(1, -4); [DL[1].x, DL[1].y] = at(1, 0); [DL[2].x, DL[2].y] = at(1, 4); [DL[3].x, DL[3].y] = at(1.6, 6.8); }
+  if (three) { [DL[0].x, DL[0].y] = at(1, -4); [DL[1].x, DL[1].y] = at(1, 0); [DL[2].x, DL[2].y] = at(1, 4); [DL[3].x, DL[3].y] = at(1.4, 5.6); }
   const loaded = three ? 0 : goalLine ? 2 : ctx.rush >= 5 || ctx.front === 'Bear' || ctx.box >= 7 || (!pass && rnd() < 0.7) ? 1 : 0;
   const walkSide = rnd() < 0.5 ? 1 : -1;   // either edge, 50/50; the backer left behind plays the middle
   for (let k = 0; k < loaded; k++) { const l = LB[k]; [l.x, l.y] = at(1, (k ? -walkSide : walkSide) * 5.6); }
