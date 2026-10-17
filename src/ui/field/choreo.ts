@@ -54,7 +54,8 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
       const a = Math.max(0, k - 3), b = Math.min(N - 1, k + 3), dt = (b - a) / HZ || 1;
       const vx = (X[i][b] - X[i][a]) / dt, vy = (Y[i][b] - Y[i][a]) / dt, sp = Math.hypot(vx, vy);
       VX[i][k] = vx; VY[i][k] = vy; SP[i][k] = sp;
-      if (Math.abs(vx) > 0.9) face = vx > 0 ? 1 : -1;
+      if (sc.act) face = sc.act(i, k / (N - 1)).f;          // the live engine knows where he's looking
+      else if (Math.abs(vx) > 0.9) face = vx > 0 ? 1 : -1;
       FACE[i][k] = face;
       ph += (sp > 0.5 ? 0.85 + sp * 0.17 : 0) / HZ; PH[i][k] = ph;
     }
@@ -414,6 +415,17 @@ export function choreograph(sc: Scene, ev: PlayEvent): Choreo {
     }
     // A pass batted down at the line.
     if (sc.tipped && sc.tipped.by === i) { const d = c - C(sc.tipped.at); if (d > -0.3 && d < 0.3) return mk(x, y, isOff ? s : -s, POSE.reach(2, 12, Math.sin(clamp((d + 0.3) / 0.6, 0, 1) * Math.PI) * 6)); }
+    // Live-engine plays: draw what he is really doing, facing where he is really looking.
+    if (sc.act && scrim && c > preC && !holder) {
+      const st = sc.act(i, U(c)), ph = PH[i][k] % 1;
+      // A block: sitting down in pass pro until the ball is out, otherwise driving his man.
+      if (st.a === 3) return mk(x, y, st.f, sc.pass && (throwC === undefined || c < throwC) ? POSE.passpro(ph + c * 0.8) : POSE.drive(ph + c * 1.2));
+      if (st.a === 4) return mk(x, y, st.f, sp > 1.2 && (i * 5 + Math.floor(c * 2)) % 7 === 0 ? POSE.swim((c * 2) % 1) : POSE.drive(ph + c * 1.2));
+      if (st.a === 2) return mk(x, y, st.f, POSE.backpedal(ph));
+      if (st.a === 5) return mk(x, y, st.f, POSE.lying(st.f, false), { lying: true });
+      if (st.a === 1) return mk(x, y, st.f, runRig(i, k, false));
+      return mk(x, y, st.f, POSE.stand(Math.sin(c * 2 + i)));
+    }
     // Blocking: run blocks drive, pass pro sits down, the rush works its hands.
     if (scrim && c > preC && isLine(i) && sp < 4.5) {
       let eng = -1;

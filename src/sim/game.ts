@@ -8,6 +8,7 @@
 // real rates, the 2025 kickoff rules, fourth-down and two-point decisions,
 // weather, injuries, wear, Superstar abilities and X-Factor zones.
 import { crowdBase } from './pulse';
+import type { LiveCtx, LiveResult, LiveRec, LiveSlot } from './livetypes';
 import type { League, Player, Pos, StatLine, Team, Game, BoxScore, TeamBox } from '../core/types';
 import { Rng, clamp, hash } from '../core/rng';
 import { emptyLine } from '../core/league';
@@ -20,7 +21,7 @@ import { practiceEdge } from '../core/practice';
 
 export type PassDepth = 'screen' | 'quick' | 'short' | 'medium' | 'deep';
 /** Optional hooks the UI installs: the AI's calls drawn from each team's own playbook. */
-export const simHooks: { teamCall?: (t: Team, c: OffCall, r: () => number) => OffCall } = {};
+export const simHooks: { teamCall?: (t: Team, c: OffCall, r: () => number) => OffCall; /** The live play engine (set by the UI). */ live?: (ctx: LiveCtx) => LiveResult } = {};
 export interface OffCall { kind: 'run' | 'pass' | 'punt' | 'fg' | 'kneel' | 'spike'; run?: 'inside' | 'outside' | 'qb'; depth?: PassDepth; pa?: boolean; name?: string; /** First read for a designed play. */ primary?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB'; /** Who goes in pre-snap motion. */ motion?: 'X' | 'Z' | 'SLOT' | 'TE' | 'RB';
   /** Personnel grouping (RBs then TEs): 11 is 1 RB 1 TE 3 WR. */ pers?: Personnel;
   /** Formation subs: a player for a slot in this play's set. */ subs?: Partial<Record<'X' | 'Z' | 'SLOT' | 'TE' | 'RB', string>> }
@@ -44,6 +45,8 @@ export interface PlayEvent {
   shell?: string; blitz?: number; rush?: number; front?: Front; creep?: boolean;
   /** The home crowd's pulse (0..100) after this play. */
   pulse?: number;
+  /** A play run by the live engine: its recording and who was in each slot (latest play only). */
+  live?: { rec: LiveRec; ids: Partial<Record<LiveSlot, string>> };
 }
 
 interface Tend { run: number; pass: number; deep: number; heavy: number; spread: number; recent: string[] }
@@ -103,6 +106,8 @@ export class GameSim {
   adj: [HalfAdj | null, HalfAdj | null] = [null, null];
   /** When false, the user's halftime call waits for the UI (halfPending). */
   autoHalf = true;
+  /** Run scrimmage plays through the live play engine (the user's games). */
+  liveOn = false;
   halfPending = false;
   /** What an AI staff does at the half: chase points when behind, protect the ball when ahead. */
   aiHalf(i: 0 | 1): HalfAdj | null {
@@ -759,12 +764,140 @@ export class GameSim {
       return this.penalty(true, 5, 'Illegal motion', m, false, true);
     }
     let ev: PlayEvent;
-    if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
+    if (this.liveOn && simHooks.live && (oc.kind === 'pass' || oc.kind === 'run')) ev = this.liveScrimmage(oc, dc, o, d);
+    else if (oc.kind === 'pass') ev = this.passPlay(oc, dc, o, d);
     else ev = this.runPlay(oc, dc, o, d);
     ev.call = oc.name; ev.dcall = dc.name; ev.shell = dc.shell; ev.rush = rushOf(dc); ev.blitz = Math.max(0, ev.rush - 4); ev.front = dc.front; ev.creep = dc.creep;
     if (startDown === 3 && !ev.turnover) { this.box[ev.poss].third[1]++; if (ev.yards >= startTogo || ev.td) this.box[ev.poss].third[0]++; }
     void startYl;
     return ev;
+  }
+
+  /**
+   * A scrimmage play run by the live engine: the 22 players play it out and the stats are
+   * booked from what happened on the field (no dice for the outcome here).
+   */
+  private liveScrimmage(oc: OffCall, dc: DefCall, o: ReturnType<GameSim['offense']>, d: ReturnType<GameSim['defense']>): PlayEvent {
+    const off = o.s, def = d.s;
+    const used = new Set<string>();
+    const take = (...ps: (Player | undefined)[]) => { for (const p of ps) if (p && !used.has(p.id)) { used.add(p.id); return p; } return undefined; };
+    const ol = o.ol;
+    const slots: Partial<Record<LiveSlot, Player>> = {
+      OL0: take(ol[0]), OL1: take(ol[2]), OL2: take(ol[4], ol[2]), OL3: take(ol[3]), OL4: take(ol[1]),
+      QB: take(o.qb), RB: take(o.rb, o.fb), X: take(o.wrs[0]), Z: take(o.wrs[1]), S: take(o.wrs[2], o.tes[1]), TE: take(o.tes[0], o.wrs[3]),
+      DL0: take(d.edges[0], d.dl[0]), DL1: take(d.dts[0], d.dl[1]), DL2: take(d.dts[1], d.dl[2]), DL3: take(d.edges[1], d.dl[3]),
+      LB0: take(d.lbs[0], d.ss[1]), LB1: take(d.lbs[1], d.cbs[2], d.lbs[2]),
+      DB0: take(d.cbs[0]), DB1: take(d.cbs[1]), DB2: take(d.cbs[2], d.ss[1], d.lbs[2]), DB3: take(d.ss[1], d.cbs[3], d.lbs[2], d.cbs[2]), FS: take(d.ss[0], d.cbs[3]),
+    };
+    const sideOf = (sl: LiveSlot) => (/^(OL|QB|RB|X|Z|S|TE)/.test(sl) && sl !== 'FS' ? off : def);
+    const P = (sl?: LiveSlot) => (sl ? slots[sl] : undefined);
+    const qb = o.qb;
+    const ctx: LiveCtx = {
+      seed: this.n * 7919 + this.yl * 31 + this.q, s: this.poss === 1 ? 1 : -1, yl: this.yl, togo: this.togo, down: this.down,
+      kind: oc.kind === 'pass' ? 'pass' : 'run', depth: oc.depth, run: oc.run, pa: oc.pa, call: oc.name, primary: oc.primary,
+      shell: dc.shell, dcall: dc.name, rush: rushOf(dc),
+      rate: (sl, a) => this.r(sideOf(sl), slots[sl], a as keyof Player['attrs']),
+      has: (sl, ab) => this.has(slots[sl], ab),
+      ids: Object.fromEntries(Object.entries(slots).map(([k, p]) => [k, p?.id])) as Partial<Record<LiveSlot, string>>,
+      wind: this.weather.wind, wet: this.weather.precip !== 'none' && !this.weather.dome,
+      hurry: (this.q >= 4 && this.clock <= 180 && this.diff() < 0) || (this.q === 2 && this.clock <= 90),
+    };
+    const res = simHooks.live!(ctx);
+    for (const e of this.events) if (e.live) delete e.live;
+    const live = { rec: res.rec, ids: ctx.ids };
+    const dir = res.dir;
+    const tackler = P(res.tackler);
+    const l = this.L(qb);
+    const wrap = (ev: PlayEvent) => { ev.live = live; return ev; };
+
+    if (res.type === 'sack') {
+      const loss = Math.max(0, -res.yards), sacker = P(res.sacker) ?? d.dl[0];
+      l.sk++; l.sky += loss;
+      const sl = this.L(sacker); sl.dsk++; sl.tkl++; sl.qbh++;
+      const beat = o.ol.length ? o.ol.reduce((a, b) => (a.attrs.PBK < b.attrs.PBK ? a : b)) : undefined;
+      if (beat) this.L(beat).sacka++;
+      this.box[1 - this.poss].sacks++;
+      this.box[this.poss].yds -= loss; this.box[this.poss].pyds -= loss;
+      this.zonePoint(def, sacker, 1.5); this.knockout(off, qb);
+      this.hit(qb, 2); this.maybeInjure(off, qb, 1.4); this.snapInjury();
+      this.lastClockRunning = true; this.runoff(6);
+      const r = this.advance(-loss);
+      if (r.safety || res.safety) { this.safety(); return wrap(this.push({ type: 'sack', text: `${pn(qb)} is SACKED in the end zone by ${pn(sacker)}. SAFETY!`, yards: -loss, endYl: 0, ids: { qb: qb?.id, def: sacker?.id }, big: true })); }
+      return wrap(this.push({ type: 'sack', text: `${pn(qb)} is SACKED by ${pn(sacker)} for ${loss ? `a loss of ${loss}` : 'no gain'}.`, yards: -loss, endYl: this.yl, ids: { qb: qb?.id, def: sacker?.id }, big: true }));
+    }
+    if (res.type === 'run' || res.type === 'scramble') {
+      const carrier = P(res.carrier) ?? (res.type === 'scramble' ? qb : o.rb);
+      let y = res.yards; if (this.yl + y > 100) y = 100 - this.yl;
+      const cl = this.L(carrier); cl.ra++; cl.ry += y; cl.rlng = Math.max(cl.rlng, y);
+      this.box[this.poss].ryds += y; this.box[this.poss].yds += y;
+      if (tackler && !res.td) { const tl = this.L(tackler); tl.tkl++; if (y < 0) { tl.tfl++; this.zonePoint(def, tackler, 1); } }
+      if (y >= 12) this.zonePoint(off, carrier, 1);
+      this.hit(carrier); this.maybeInjure(off, carrier, 1.1); this.maybeInjure(def, tackler, 0.5); this.snapInjury();
+      const r = this.advance(y);
+      this.lastClockRunning = !res.oob || !(this.twoMinute() || (this.q >= 4 && this.clock <= 300));
+      this.runoff(res.oob ? 4 : 5);
+      const scr = res.type === 'scramble';
+      const ids = scr ? { qb: qb?.id, ball: carrier?.id, def: tackler?.id } : { ball: carrier?.id, def: tackler?.id };
+      if (r.safety || res.safety) { this.safety(); return wrap(this.push({ type: res.type, text: `${pn(carrier)} is tackled in the end zone. SAFETY!`, yards: y, endYl: 0, ids, big: true, dir })); }
+      if (r.td) {
+        cl.rtd++; this.zonePoint(off, carrier, 1);
+        this.touchdown(this.poss, `${pn(carrier)} ${y}-yd run`);
+        return wrap(this.push({ type: res.type, text: scr ? `${pn(carrier)} escapes the pocket and scrambles ${y} yards for a TOUCHDOWN!` : `${pn(carrier)} ${runWord(oc, dir)} for ${y} yard${y === 1 ? '' : 's'}, TOUCHDOWN!`, yards: y, endYl: 100, ids, td: true, big: true, dir }));
+      }
+      const gain = y === 0 ? 'no gain' : y < 0 ? `a loss of ${-y}` : `${y} yard${y === 1 ? '' : 's'}`;
+      return wrap(this.push({ type: res.type, text: `${pn(carrier)} ${scr ? 'scrambles for' : runWord(oc, dir) + ' for'} ${gain}${tackler ? ` (${pn(tackler)})` : ''}${res.oob ? ', out of bounds' : ''}.${r.first ? ' First down.' : ''}`, yards: y, endYl: this.yl, ids, big: y >= 15, dir }));
+    }
+    // A pass.
+    const depth = oc.depth ?? 'short';
+    l.pa++;
+    if (res.hurried) for (const p of d.dl) if (this.rng.chance(0.3)) { this.L(p).qbh++; break; }
+    if (res.throwaway) {
+      this.lastClockRunning = false; this.runoff(5); this.advance(0);
+      return wrap(this.push({ type: 'pass', text: `${pn(qb)} throws it away under pressure.`, yards: 0, endYl: this.yl, ids: { qb: qb?.id }, complete: false }));
+    }
+    const recv = P(res.target) ?? o.wrs[0];
+    const air = res.air ?? 0;
+    this.L(recv).tgt++;
+    if (res.int) {
+      const picker = P(res.picker) ?? d.ss[0];
+      l.pint++; this.L(picker).dint++; this.L(picker).pd++;
+      this.box[this.poss].to++;
+      this.knockout(off, qb); this.zonePoint(def, picker, 2);
+      const spotYl = clamp(this.yl + air, 1, 99), ret = res.ret ?? 0;
+      const newYl = 100 - spotYl + ret;
+      this.lastClockRunning = false;
+      if (res.td || newYl >= 100) {
+        this.changePossession(99); this.L(picker).dtd++;
+        this.touchdown(this.poss, `${pn(picker)} ${100 - spotYl}-yd interception return`);
+        return wrap(this.push({ type: 'pass', text: `${pn(qb)} pass ${depthWord(depth, dir)} intended for ${pn(recv)} is INTERCEPTED by ${pn(picker)} and returned for a TOUCHDOWN!`, yards: 0, endYl: 100, ids: { qb: qb?.id, target: recv?.id, def: picker?.id }, air, turnover: true, td: true, big: true, dir }));
+      }
+      this.changePossession(clamp(newYl, 1, 99));
+      return wrap(this.push({ type: 'pass', text: `${pn(qb)} pass ${depthWord(depth, dir)} intended for ${pn(recv)} is INTERCEPTED by ${pn(picker)}${ret > 0 ? `, returned ${ret} yards` : ''}.`, yards: 0, endYl: this.yl, ids: { qb: qb?.id, target: recv?.id, def: picker?.id }, air, turnover: true, big: true, dir }));
+    }
+    if (!res.complete) {
+      const swat = res.defended ? P(res.swatter) : undefined;
+      if (res.dropped) this.L(recv).drop++;
+      if (swat) { this.L(swat).pd++; this.zonePoint(def, swat, 1); }
+      this.lastClockRunning = false; this.runoff(5); this.advance(0);
+      return wrap(this.push({ type: 'pass', text: `${pn(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} ${res.dropped ? 'is DROPPED' : res.defended ? 'is broken up' : res.hurried ? 'is off target under pressure' : 'falls incomplete'}.`, yards: 0, endYl: this.yl, ids: { qb: qb?.id, target: recv?.id, def: swat?.id }, air, complete: false, dir }));
+    }
+    let gain = res.yards; if (this.yl + gain > 100) gain = 100 - this.yl;
+    l.pc++; l.py += gain; l.plng = Math.max(l.plng, gain);
+    const rl = this.L(recv); rl.rec++; rl.recy += gain; rl.reclng = Math.max(rl.reclng, gain);
+    this.box[this.poss].pyds += gain; this.box[this.poss].yds += gain;
+    if (gain >= 15) { this.zonePoint(off, qb, 1); this.zonePoint(off, recv, 1); }
+    if (tackler && !res.td) { this.L(tackler).tkl++; this.hit(recv); }
+    this.maybeInjure(off, recv, 1); this.maybeInjure(def, tackler, 0.6); this.snapInjury();
+    const r = this.advance(gain);
+    this.lastClockRunning = !res.oob || !(this.twoMinute() || (this.q >= 4 && this.clock <= 300));
+    this.runoff(res.oob ? 4 : 6);
+    if (r.td) {
+      l.ptd++; rl.rectd++; this.zonePoint(off, qb, 1); this.zonePoint(off, recv, 1);
+      this.touchdown(this.poss, `${pn(recv)} ${gain}-yd pass from ${pn(qb)}`);
+      return wrap(this.push({ type: 'pass', text: `${pn(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} for ${gain} yard${gain === 1 ? '' : 's'}, TOUCHDOWN!`, yards: gain, endYl: 100, ids: { qb: qb?.id, target: recv?.id }, air, complete: true, td: true, big: true, dir }));
+    }
+    if (r.safety) { this.safety(); return wrap(this.push({ type: 'pass', text: `${pn(recv)} is tackled in the end zone. SAFETY!`, yards: gain, endYl: 0, ids: { qb: qb?.id, target: recv?.id, def: tackler?.id }, air, complete: true, big: true, dir })); }
+    return wrap(this.push({ type: 'pass', text: `${pn(qb)} pass ${depthWord(depth, dir)} to ${pn(recv)} for ${gain} yard${gain === 1 ? '' : 's'}${tackler ? ` (${pn(tackler)})` : ''}${res.oob ? ', out of bounds' : ''}.${r.first ? ' First down.' : ''}`, yards: gain, endYl: this.yl, ids: { qb: qb?.id, target: recv?.id, def: tackler?.id }, air, complete: true, big: gain >= 20, dir }));
   }
 
   /** Advance the chains after a play gains `yards`. Returns true on a touchdown. */

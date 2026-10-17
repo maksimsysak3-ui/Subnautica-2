@@ -5,7 +5,12 @@ import { FieldView } from '../field';
 import { BottomLine, leagueCrawl } from '../ticker';
 import { PlayDesigner, registerPlays } from '../playdesigner';
 import { books, subsFor } from '../plays';
-import { GameSim, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
+import { GameSim, simHooks, type DefCall, type OffCall, type PlayEvent, ylText } from '../../sim/game';
+import { runLivePlay } from '../field/live';
+import { liveEngineOn } from '../field/livescene';
+
+// Scrimmage plays in the user's games are played out by the live engine.
+simHooks.live = runLivePlay;
 import { applyResult, prepTeam, simWeek, advanceWeek, ROUND_NAME, REG_WEEKS, standings } from '../../core/season';
 import type { League, StatLine } from '../../core/types';
 import { commentary, newBooth, situationTag, ANALYST } from '../booth';
@@ -56,6 +61,7 @@ export function GameScreen({ gid }: { gid: string }) {
   const needsCall = coach && !sim.over && !sim.pending && !auto.current;
 
   const step = (oc?: OffCall, dc?: DefCall) => {
+    sim.liveOn = liveEngineOn();
     let ev = sim.step(oc, dc);
     // Skip quiet administrative events when animating.
     while (ev && (ev.type === 'end' || ev.type === 'timeout') && !sim.over && !auto.current) {

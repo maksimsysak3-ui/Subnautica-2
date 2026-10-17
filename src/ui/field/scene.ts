@@ -57,6 +57,8 @@ export interface Scene { dur: number; pre: number; los: number; first: number; a
   /** A pass batted down at the line, and by whom. */
   tipped?: { at: number; by: number };
   /** Story beats in scene time (0..1) and who is involved, for poses and the camera. */
+  /** Live-engine plays: what each man is really doing (ACT code) and which way he faces, at scene time t. */
+  act?: (i: number, t: number) => { a: number; f: 1 | -1 };
   off?: 0 | 1; td?: boolean; hold?: (t: number) => number; broken?: boolean; pass?: boolean; complete?: boolean; int?: boolean; qb?: number; target?: number; throwAt?: number; catchAt?: number; endAt?: number; kicker?: number; kickAt?: number; tackler?: number; swatter?: number }
 
 interface KickCtx { s: number; toX: (yl: number) => number; mid: number; off: 0 | 1; def: 0 | 1; los: number; first: number; lerp: (a: number, b: number, k: number) => number; seg: (t: number, a: number, b: number) => number; add: (team: 0 | 1, slot: string, role: string, path: Path) => void; actors: Actor[] }

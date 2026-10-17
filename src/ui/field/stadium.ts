@@ -91,12 +91,8 @@ export function paintStadium(W: World, o: StadiumOpts): HTMLCanvasElement {
   for (const [x0, x1, t] of [[38, 60, away], [60, 82, home]] as const) {
     if (t === home && x0 === 60) { /* fallthrough */ }
     g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(X(x0 + 1), side0 + 1, X(x1 - 1) - X(x0 + 1), 2);
-    for (let x = X(x0 + 1); x < X(x1 - 1); x += 3) {
-      const yy = side0 + 2 + Math.floor(rnd() * 2);
-      g.fillStyle = rnd() < 0.15 ? '#d9c9a3' : t.colors[0]; g.fillRect(x, yy + 1, 2, 4);
-      g.fillStyle = SK[Math.floor(rnd() * SK.length)]; g.fillRect(x, yy, 2, 1);
-      g.fillStyle = rnd() < 0.3 ? t.colors[0] : '#e8e8e8'; if (rnd() < 0.2) g.fillRect(x + 2, yy + 3, 1, 1);
-    }
+    // (The people in the team areas are drawn live: field/sideline.ts.) The bench itself:
+    g.fillStyle = mix(t.colors[0], '#000000', 0.45); g.fillRect(X(x0 + 2), side0 + 1, X(x1 - 2) - X(x0 + 2), 2);
     g.fillStyle = '#f07c1c'; g.fillRect(X(x0 + 3), side0 + 3, 3, 3); g.fillStyle = '#fff'; g.fillRect(X(x0 + 3), side0 + 3, 3, 1);
   }
   // Turf.

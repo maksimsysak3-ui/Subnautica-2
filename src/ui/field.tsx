@@ -16,6 +16,9 @@ import type { PlayEvent, Weather } from '../sim/game';
 import type { Team } from '../core/types';
 import { UNIFORM } from './components';
 import { buildScene, lineupFor, type Scene } from './field/scene';
+import { liveScene, liveEngineOn, setLiveEngine } from './field/livescene';
+import { sidelineCrew, queueSideline } from './field/sideline';
+let crewKey = '', crew: ReturnType<typeof sidelineCrew> = [];
 import type { Kit } from './field/pixel';
 import { renderRig, buildOf, gearFor, blend, POSE, AX, AY, type RigPose } from './field/rig';
 import { choreograph, MID, FW, type Choreo, type Pose } from './field/choreo';
@@ -41,6 +44,7 @@ const hashStr = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const REPLAY_KEY = 'gg-replays';
 const VIEW_YARDS = 46, VIEW_ACROSS = 44;
+const BODY = 1.05;   // player size relative to the hand-drawn rig
 let DPR = 1;
 const replaysOn = () => { try { return localStorage.getItem(REPLAY_KEY) === '1'; } catch { return true; } };
 
@@ -75,7 +79,7 @@ function huddleStage(spot: HuddleSpot, last: PlayEvent, prev: { sc: Scene; ch: C
 
 function stage(ev: PlayEvent, lineups: Parameters<typeof buildScene>[1]): { sc: Scene; ch: Choreo; special: Special } {
   const special: Special = ev.type === 'penalty' || ev.type === 'kneel' || ev.type === 'spike' ? ev.type : null;
-  if (!special) { const sc = buildScene(ev, lineups); return { sc, ch: choreograph(sc, ev), special }; }
+  if (!special) { const sc = ev.live ? liveScene(ev, lineups) : buildScene(ev, lineups); return { sc, ch: choreograph(sc, ev), special }; }
   // Live fouls (holding, interference, roughing) happen during a real-looking play; the flag
   // flies at the moment of the foul and the play is blown dead after it.
   const preSnapFoul = /False start|Offside|Neutral zone|Encroach|Illegal motion|Delay/i.test(ev.text);
@@ -146,6 +150,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
   const [banner, setBanner] = useState<Banner | null>(null);
   const [ui, setUi] = useState<{ replay: boolean; box: boolean; label?: string; phase: string }>({ replay: false, box: false, phase: 'idle' });
   const [replays, setReplays] = useState(replaysOn);
+  const [liveEng, setLiveEng] = useState(liveEngineOn);
   const replayRef = useRef(replays); replayRef.current = replays;
   const kits = useMemo(() => [kitFor(away, false), kitFor(home, true)] as const, [home.abbr, away.abbr]);
   const lineups = useMemo(() => [lineupFor(away), lineupFor(home)] as [ReturnType<typeof lineupFor>, ReturnType<typeof lineupFor>], [home.abbr, away.abbr, ev?.n]);
@@ -307,6 +312,7 @@ export function FieldView({ ev: evIn, home, away, logo, playing: playIn, onDone,
       {ui.replay && <div className="bc-replay"><b>REPLAY</b>{ui.label && <span>{ui.label}</span>}</div>}
       {ui.phase !== 'done' && ui.phase !== 'idle' && <button className="bc-skip" onClick={e => { e.stopPropagation(); skip.current?.(); }}>{ui.phase === 'replay' ? 'Skip replay ▸' : 'Skip ▸'}</button>}
       <button className={`bc-rp${replays ? ' on' : ''}`} title="Instant replays of big plays" onClick={e => { e.stopPropagation(); const v = !replays; setReplays(v); try { localStorage.setItem(REPLAY_KEY, v ? '1' : '0'); } catch { /* storage blocked */ } }}>Replays {replays ? 'on' : 'off'}</button>
+      <button className={`bc-rp bc-live${liveEng ? ' on' : ''}`} title="Live engine: every play is played out by the 22 players on the field. Off: the classic engine decides the result first. Takes effect from the next snap." onClick={e => { e.stopPropagation(); const v = !liveEng; setLiveEng(v); setLiveEngine(v); }}>Live engine {liveEng ? 'on' : 'off'}</button>
       {banner && !ui.replay && <div key={banner.n} className={`pxbanner bn2${banner.small ? ' small' : ''}${banner.kind ? ` k-${banner.kind}` : ''}`} style={{ '--bc': banner.color } as React.CSSProperties}><span>{banner.text}</span>{banner.sub && <small>{banner.sub}</small>}</div>}
     </div>
   );
@@ -360,7 +366,9 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(Math.round(sx0 - sw / 2), py - 1, sw, 2); g.fillRect(Math.round(sx0 - sw / 2) + 2, py + 1, sw - 4, 1);
     const b = isRef ? 'ref' : buildOf(sc.actors[i]?.slot ?? '', sc.actors[i]?.role ?? '');
     const a0 = sc.actors[i];
-    g.drawImage(renderRig(p.rig, b, kit, skin, isRef || !a0 ? null : gearFor(a0.id ?? `${a0.team}${a0.slot}${a0.num}`, b), p.face < 0), px - AX, py - AY);
+    // Players are drawn 5% larger than the rig, anchored at the feet.
+    const img = renderRig(p.rig, b, kit, skin, isRef || !a0 ? null : gearFor(a0.id ?? `${a0.team}${a0.slot}${a0.num}`, b), p.face < 0);
+    g.drawImage(img, Math.round(px - AX * BODY), Math.round(py - AY * BODY), Math.round(img.width * BODY), Math.round(img.height * BODY));
     // Breath in the cold.
     if (cold && ((now / 1000 + i * 0.37) % 1.6) < 0.45) { const k = ((now / 1000 + i * 0.37) % 1.6) / 0.45; g.fillStyle = `rgba(240,244,250,${0.55 * (1 - k)})`; g.fillRect(px + p.face * (5 + Math.round(k * 3)), py - 17 - lift - Math.round(k * 2), 2, 1); }
   };
@@ -378,6 +386,11 @@ function drawPlay(g: CanvasRenderingContext2D, W: World, sc: Scene, ch: Choreo, 
     } });
   });
   refs.forEach((r, j) => list.push({ y: r.y, draw: () => drawOne(r, kits[0], '#c99a76', true, 100 + j) }));
+  // The team areas: the sideline celebrates its team's touchdowns and takeaways.
+  { const key = kits[0].jersey + kits[1].jersey + kits[0].helmet + kits[1].helmet; if (key !== crewKey) { crewKey = key; crew = sidelineCrew(hashStr(key)); }
+    const post = c - ch.DUR, cheer: [number, number] = [0, 0];
+    if (!sc.kick && post > 0 && post < 3.5) { const by = sc.int ? 1 - (sc.off ?? 0) : sc.off ?? 0; if (sc.td || sc.int) cheer[by] = post < 2.5 ? 0.6 : 0.3; else if (ch.first) cheer[by] = post < 1.2 ? 0.2 : 0; }
+    queueSideline(list, g, crew, kits, ball?.x ?? sc.los, now, cheer, sx, y => sy(y), vw, BODY); }
   list.sort((a, b) => a.y - b.y).forEach(d => d.draw());
   // The ball in flight: a shadow on the turf, a short trail, a spiral (or end over end off a foot).
   if (ball && (ball.free || ball.h > 1.6) && holder < 0 || (ball && ball.h > 1.6)) {
