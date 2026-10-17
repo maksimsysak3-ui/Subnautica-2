@@ -90,7 +90,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const FS = mk('FS', 'S', at(13, 0));
   const OFF = agents.filter(a => a.off), DEF = agents.filter(a => !a.off);
   const gun = FORM.QB[0] < -3;
-  for (const a of DEF) a.react = clamp(0.42 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.08, 0.36);
+  for (const a of DEF) a.react = clamp(0.37 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.08, 0.36);
 
   // Routes and blocks from the call's art.
   const artFor = (w: string) => art.find(a => a.who === w);
@@ -194,7 +194,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     { mode: 'snap', x: at(0, 0)[0], y: MID, z: 0.3, holder: null, from: at(0, 0), to: at(...FORM.QB), t0: 0, T: gun ? 0.3 : 0.12, peak: gun ? 0.5 : 0 };
   let thrownAt = -1, caughtAt = -1, endAt = -1, tackleAt = -1, wrapAt = -1;
   const ballTrack: [number, number, number, number][] = [];
-  let victim = null as Ag | null, offBalance = -1;
+  let victim = null as Ag | null, offBalance = -1, sideCatch = false;
   let target = null as Ag | null, tackler = null as Ag | null, wrapper = null as Ag | null, swatter = null as Ag | null, picker = null as Ag | null;
   let complete = false, intercepted = false, dropped = false, defended = false, throwaway = false, hurried = false, scramble = false, sacked = false, oob = false, td = false;
   let catchX = 0, deadX = los, deadY = MID, handed = qbRun ? false : !pass ? false : true;
@@ -350,7 +350,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     if (moving) acc = acc * 0.6 + QB.r('TOR') * 0.4 - 3;
     if (rushed) acc = acc * 0.55 + QB.r('TUP') * 0.45 - (ctx.has('QB', 'Fearless') ? 1 : 5);
     // Error grows with distance, and faster on deep balls: touch and timing over 30 yards is hard.
-    let sigma = (0.2 + d * 0.017 + Math.pow(Math.max(0, d - 15), 1.5) * 0.013) * clamp(1.65 - acc * 0.0105, 0.5, 1.3) * (rushed ? 1.4 : 1);
+    let sigma = (0.26 + d * 0.019 + Math.pow(Math.max(0, d - 15), 1.5) * 0.013) * clamp(1.65 - acc * 0.0105, 0.5, 1.3) * (rushed ? 1.4 : 1);
     sigma *= 1 + (ctx.wind > 15 ? (d > 22 ? 0.35 : 0.12) : 0) + (ctx.wet ? 0.12 : 0);
     const ux = (p[0] - QB.x) / (d || 1), uy = (p[1] - QB.y) / (d || 1);
     const ea = gauss() * sigma * 1.25, ep = gauss() * sigma;
@@ -418,7 +418,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const def = d.r('TAK') * 0.5 + d.r('PUR') * 0.3 + d.r('PRC') * 0.2;
     const shake = c.r('ELU') * 0.6 + c.r('AGI') * 0.4, power = c.r('TRK') * 0.6 + c.r('STR') * 0.4;
     const power0 = power - 8 > shake;
-    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.3 : 1.5));
+    const p = sig(((power0 ? power : shake) - def) / 12 - (pass ? 2.4 : 1.75));
     if (rnd() >= p) return false;
     const kind = power0 ? 'stiff' : rnd() < 0.75 ? 'juke' : 'spin';
     d.downUntil = t + (kind === 'stiff' ? 0.8 : 0.55); d.tackleCD = t + 0.9; d.vx *= 0.3; d.vy *= 0.3;
@@ -491,7 +491,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
           let res: 'catch' | 'int' | 'pbu' | 'drop' | 'inc' = 'inc';
           if (near && near.dd < reach && (near.dd < dr - 0.2 || contested)) {
             const ahead = near.dd < dr - 0.2;
-            const pInt = sig((near.d.r('CTH') - 65) / 12 - 1.7 + (ahead ? 1.0 : 0) + (ctx.has(near.d.slot, 'Ball Hawk') ? 0.4 : 0));
+            const pInt = sig((near.d.r('CTH') - 65) / 12 - 1.3 + (ahead ? 1.0 : 0) + (ctx.has(near.d.slot, 'Ball Hawk') ? 0.4 : 0));
             const pBu = sig((near.d.r(man ? 'MCV' : 'ZCV') - 70) / 12 - 0.35 + (ahead ? 0.9 : 0) - near.dd * 0.9);
             const u = rnd();
             if (u < pInt) res = 'int'; else if (u < pInt + pBu * (1 - pInt)) res = 'pbu';
@@ -501,7 +501,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
             const pC = sig((cv - 70) / 11 + 2.2 - dr * 1.1 - (contested ? 1.35 - (r.r('CIT') - 70) / 30 : 0) - (ctx.wet ? 0.25 : 0) - (hurried ? 0.15 : 0));
             if (rnd() < pC) res = 'catch'; else res = pC > 0.72 ? 'drop' : 'inc';
           }
-          if (res === 'catch') { complete = true; carrier = r; ball.mode = 'held'; ball.holder = r; caughtAt = t; catchX = P.x; }
+          if (res === 'catch') { complete = true; carrier = r; sideCatch = Math.min(P.y, FW - P.y) < 1.4; ball.mode = 'held'; ball.holder = r; caughtAt = t; catchX = P.x; }
           else if (res === 'int') { intercepted = true; picker = near.d; carrier = near.d; ball.mode = 'held'; ball.holder = near.d; caughtAt = t; catchX = P.x; }
           else { defended = res === 'pbu'; dropped = res === 'drop'; if (defended) swatter = near.d; ball.mode = 'dead'; caughtAt = t; catchX = P.x; whistle(los, MID); }
         }
@@ -527,6 +527,9 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
             // Press the designed hole first, then read it.
             const k = runPath.findIndex(p => down(p[0]) > down(a.x) + 0.8); const p = runPath[Math.max(1, k)] ?? runPath[runPath.length - 1];
             const [lx, ly] = carryDir(a), w = clamp((a.r('BCV') - 60) / 60, 0.2, 0.65); go(a, p[0] * (1 - w) + lx * w, p[1] * (1 - w) + ly * w, 1, undefined, false);
+          } else if (sideCatch || (Math.min(a.y, FW - a.y) < 3 && DEF.some(d => free(d) && dist(d, a) < 3.2 && (a.off ? s : -s) * (d.x - a.x) > -1))) {
+            // Get out of bounds: step out rather than take the hit (or drag the feet and go out on a sideline catch).
+            go(a, a.x + s * (sideCatch ? 0.6 : 2), a.y < MID ? -3 : FW + 3, sideCatch ? 0.6 : 1, undefined, false);
           } else { const [lx, ly] = carryDir(a); go(a, lx, ly, 1, undefined, false); }
           continue;
         }
@@ -661,7 +664,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
           if (!pass || (!handed && !pass)) { go(d, zx - s * 3, zy, 0.4, [-s, 0]); continue; }
           // Read the quarterback's eyes a little, then match whoever enters the zone.
           const eyes = reads[readI];
-          const inZone = [...REC, RB].filter(r => r.job === 'route' && hyp(r.x - zx, r.y - zy) < (d.deep ? 11 : 8.5));
+          // Underneath defenders also take the back when he releases into their area.
+          const inZone = [...REC, RB].filter(r => r.job === 'route' && hyp(r.x - zx, r.y - zy) < (d.deep ? 11 : r === RB && d.role === 'LB' ? 11 : 8.5));
           let m = d.carry && inZone.includes(d.carry) ? d.carry : null;
           if (!m && inZone.length) m = d.deep ? inZone.sort((a, b) => down(b.x) - down(a.x))[0] : inZone.sort((a, b) => dist(a, d) - dist(b, d))[0];
           d.carry = m;
@@ -710,8 +714,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
         const hot = unblocked && awr > 60 + rnd() * 25 ? reads.map(x => ({ x, o: openness(x) })).filter(o => o.x.ri >= 1 && t > 0.45).sort((a, b) => b.o - a.o)[0] : undefined;
         if (hot && hot.o > 0.2) throwTo(hot.x, p < 2.2);
         // Deeper throws need a bigger window: the ball is in the air longer and the safety is coming.
-        else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.12 - (r === RB ? 0.9 : 0)) throwTo(r, p < 2.2);
-        else if (RB.job === 'route' && reads.includes(RB) && (p < 3.2 || since > 1.6) && developed0(RB) && openness(RB) > 1.2 && rnd() < 0.12) throwTo(RB, p < 2.2);
+        else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.12 - (r === RB ? 0.3 : 0)) throwTo(r, p < 2.2);
+        else if (RB.job === 'route' && reads.includes(RB) && (p < 3.2 || since > 1.6) && developed0(RB) && openness(RB) > 1.8 && rnd() < 0.08) throwTo(RB, p < 2.2);
         else if (p < 1.4) {
           // He has to do something now.
           const best = reads.map(x => ({ x, o: openness(x) })).sort((a, b) => b.o - a.o)[0];

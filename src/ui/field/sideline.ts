@@ -15,10 +15,10 @@ export function sidelineCrew(seed: number): Person[] {
   // Team areas match the painted benches: away 38-60, home 60-82 (field x).
   for (const [team, x0, x1] of [[0, 38, 59], [1, 61, 82]] as const) {
     for (let k = 0; k < 18; k++) {
-      const row = k % 3 === 0 ? -0.75 : -0.5;   // a back row, and the men leaning on the front
+      const row = k % 3 === 0 ? -3.4 : k % 3 === 1 ? -2.7 : -2.0;   // the bench row, standing, and the men at the front
       out.push({ team, x: x0 + 1 + rnd() * (x1 - x0 - 2), y: row - rnd() * 0.12, build: rnd() < 0.3 ? 'line' : 'skill', skin: SKIN[Math.floor(rnd() * SKIN.length)], coach: false, phase: rnd() * 6 });
     }
-    for (let k = 0; k < 3; k++) out.push({ team, x: x0 + 4 + k * ((x1 - x0 - 8) / 2) + (rnd() - 0.5) * 2, y: -0.22, build: 'civ', skin: SKIN[Math.floor(rnd() * SKIN.length)], coach: true, phase: rnd() * 6 });
+    for (let k = 0; k < 3; k++) out.push({ team, x: x0 + 4 + k * ((x1 - x0 - 8) / 2) + (rnd() - 0.5) * 2, y: -1.1, build: 'civ', skin: SKIN[Math.floor(rnd() * SKIN.length)], coach: true, phase: rnd() * 6 });
   }
   return out;
 }

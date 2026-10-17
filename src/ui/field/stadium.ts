@@ -20,7 +20,9 @@ export function makeWorld(RW: number, RH: number): World {
   const stand = Math.round(RH * 0.62);        // extra stands above the base framing, for tilt-ups and close-ups
   const top = stand + fieldTop;
   const ribbon: [number, number] = [Math.round(stand * 0.52), Math.round(stand * 0.52) + 7];
-  const bowl: [number, number] = [ribbon[1] + 10, top - 12];
+  // The wall sits back behind a real team area: about four yards of sideline before the stands.
+  const side = Math.round(4.2 * ppy * dep);
+  const bowl: [number, number] = [ribbon[1] + 10, top - 12 - side];
   return { ppy, dep, top, height: top + Math.ceil(FW * ppy * dep) + 10, X0: -44, X1: 164, ribbon, bowl };
 }
 export const wx = (W: World, x: number) => (x - W.X0) * W.ppy;
