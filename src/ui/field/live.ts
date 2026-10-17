@@ -478,7 +478,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
     const tk = d.r('TAK') * 0.55 + d.r('HIT') * 0.15 + d.r('PUR') * 0.1 + d.r('STR') * 0.2;
     const ev = c.r('BTK') * 0.45 + c.r('ELU') * 0.3 + c.r('TRK') * 0.25 + (c.role === 'OL' || c.role === 'DL' ? -20 : 0);
     // A carrier who just broke one is off balance for the next man; a dive from the side is a lower percentage.
-    const p = sig((tk - ev) / 12 + 1.95 + gang * 0.5 - arm + clamp(closing / 6, -0.3, 0.4) - (c === QB && pass && !carrier ? -0.6 : 0) + (t < offBalance ? 1.1 : 0) - (dive ? 0.4 : 0));
+    const p = sig((tk - ev) / 12 + 1.95 + gang * 0.5 - arm + clamp(closing / 6, -0.3, 0.4) - (c === QB && pass && !carrier ? -0.6 : 0) + (t < offBalance ? 1.1 : 0) - (dive ? 0.4 : 0) + (caughtAt >= 0 ? 0.4 : 0));   // after the catch the receiver is still gathering himself
     if (rnd() < p) { wrapper = d; wrapAt = t; tackler = d; victim = c; d.vx = c.vx; d.vy = c.vy; }
     else { d.downUntil = t + (dive ? 0.9 : 0.55); d.vx *= 0.3; d.vy *= 0.3; c.vx *= 0.75; c.vy *= 0.75; offBalance = t + 0.6; missed.push({ f, who: d.i }); }
   };
@@ -770,7 +770,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
         // He needs a beat to see the free man and reset his feet.
         if (hot && hot.o > -0.2 && since > 0.12 + (100 - awr) * 0.004) throwTo(hot.x, p < 2.2);
         // Deeper throws need a bigger window: the ball is in the air longer and the safety is coming.
-        else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.12 - (r === RB ? 0.3 : 0)) throwTo(r, p < 2.2);
+        else if (r && developed && openness(r) + gauss() * noise * 0.4 > need + Math.max(0, down(aimFor(r).p[0]) - 7) * 0.18 - (r === RB ? 0.3 : 0)) throwTo(r, p < 2.2);
         else if (RB.job === 'route' && reads.includes(RB) && (p < 3.2 || since > 1.6) && developed0(RB) && openness(RB) > 1.8 && rnd() < 0.08) throwTo(RB, p < 2.2);
         else if (p < 1.4 && since > 0.08 + (100 - awr) * 0.003) {
           // He has to do something now.
