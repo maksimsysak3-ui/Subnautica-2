@@ -89,7 +89,8 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   const DB = WHO.map((w, i) => mk(DEF_SLOTS[6 + i], 'DB', at(FORM[w][0] + (w === 'TE' ? 5.5 : press && w !== 'S' ? 1.2 : 6.5), FORM[w][1] * 0.95)));
   const FS = mk('FS', 'S', at(13, 0));
   // The front: three down (a nose, two ends, an outside backer standing up on the edge) or four.
-  const three = ctx.front === '3-4' || ctx.front === '3-3-5';
+  // Four down is the base look; three down is a change-up (always when only three rush).
+  const three = ctx.rush <= 3 || ((ctx.front === '3-4' || ctx.front === '3-3-5') && rnd() < 0.25);
   if (three) { [DL[0].x, DL[0].y] = at(1, -4); [DL[1].x, DL[1].y] = at(1, 0); [DL[2].x, DL[2].y] = at(1, 4); [DL[3].x, DL[3].y] = at(1.6, 6.8); }
   const heavyFront = ctx.front === 'Bear' || ctx.front === 'Goal Line';
   const loaded = heavyFront ? (ctx.front === 'Goal Line' ? 2 : 1) : ctx.box >= 8 ? 2 : ctx.box >= 7 && (ctx.down === 1 || ctx.togo <= 3) ? 1 : 0;
