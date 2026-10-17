@@ -106,7 +106,7 @@ export function runLivePlay(ctx: LiveCtx): LiveResult {
   else if (/Cover 0/.test(ctx.shell)) [FS.x, FS.y] = at(7, 0);
   const OFF = agents.filter(a => a.off), DEF = agents.filter(a => !a.off);
   const gun = FORM.QB[0] < -3;
-  for (const a of DEF) a.react = clamp(0.37 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.08, 0.36);
+  for (const a of DEF) a.react = clamp(0.30 - (a.r('PRC') + a.r(man ? 'MCV' : 'ZCV')) * 0.0016, 0.06, 0.30);
 
   // Routes and blocks from the call's art.
   const artFor = (w: string) => art.find(a => a.who === w);
