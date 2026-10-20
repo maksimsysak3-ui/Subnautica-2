@@ -431,16 +431,18 @@ function dims(c) {
 // Hand-sculpted low-poly head: an ellipsoid pushed around like clay — flat face plane, brow ridge,
 // cheekbones, an angled jaw and chin, flatter crown/back — plus a tiny deterministic wobble on every facet.
 function headShape(d) {
-  const ex = d.hw * 0.54, ey = d.hh * 0.52, ez = d.hd * 0.54;
+  const ex = d.hw * 0.5, ey = d.hh * 0.52, ez = d.hd * 0.54; // 8% narrower than the first pass
   return { ex, ey, ez, cy: d.hh / 2 };
 }
 const bump = (x, y, cx, cy, r) => Math.exp(-(((x - cx) ** 2) + ((y - cy) ** 2)) / (r * r));
 function sculpt(H, ux, uy, uz) { // unit-sphere direction in, head-space offset out (relative to head centre)
+  const bx = (u) => Math.sign(u) * Math.abs(u) ** 0.55; // push toward a box like the concept art
+  ux = bx(ux); uy = bx(uy); uz = bx(uz);
   const front = Math.max(0, uz), side = Math.abs(ux);
   let x = ux * H.ex, y = uy * H.ey, z = uz * H.ez;
   if (uy < 0) { // jaw: narrows toward the chin but keeps a corner at the jaw angle
     const t = Math.min(1, -uy);
-    x *= 1 - 0.22 * t * t + 0.06 * bump(ux * ux, uy, 0.5, -0.55, 0.35);
+    x *= 1 - 0.38 * t * t;
     z *= 1 - 0.08 * t;
   }
   if (uy > 0.55) y = H.ey * (0.55 + (uy - 0.55) * 0.82);        // flatter crown
@@ -457,7 +459,7 @@ function sculpt(H, ux, uy, uz) { // unit-sphere direction in, head-space offset 
   const w = (h - Math.floor(h) - 0.5) * 0.035;
   return [x * (1 + w), y * (1 + w * 0.6), z * (1 + w)];
 }
-function headShell(d, grow, phiStart = 0, phiLen = Math.PI * 2, thStart = 0, thLen = Math.PI, ws = 11, hs = 8) {
+function headShell(d, grow, phiStart = 0, phiLen = Math.PI * 2, thStart = 0, thLen = Math.PI, ws = 8, hs = 6) {
   const H = headShape(d);
   const g = new THREE.SphereGeometry(1, ws, hs, phiStart, phiLen, thStart, thLen);
   const p = g.attributes.position;
@@ -488,10 +490,10 @@ function buildHead(c, d, head) {
     return M(geo, mat, head, x, y, z, 0, ry, rz);
   };
   for (const sx of [1, -1]) {
-    onFace(box(d.hw * 0.1, d.hh * 0.17, 0.012), S.eye, sx * d.hw * 0.2, d.hh * 0.52, 0.012, 0, 0.006);
+    onFace(box(d.hw * 0.1, d.hh * 0.17, 0.012), S.eye, sx * d.hw * 0.2, d.hh * 0.48, 0.012, 0, 0.006);
     if (c.brows !== 'none') {
       const rz = c.brows === 'stern' ? 0.28 * sx : c.brows === 'raised' ? -0.18 * sx : 0;
-      const by = c.brows === 'raised' ? 0.71 : 0.68;
+      const by = c.brows === 'raised' ? 0.66 : 0.63;
       onFace(box(d.hw * 0.3, d.hh * 0.075, 0.02), S.brow, sx * d.hw * 0.22, d.hh * by, 0.02, rz, 0.012);
     }
     M(ball(0.03, 0), S.skin, head, sx * H.ex * 0.93, d.hh * 0.47, -0.01).scale.set(0.5, 1, 0.7);
@@ -510,9 +512,9 @@ function buildHead(c, d, head) {
   const hs = c.hair;
   if (hs !== 'none') {
     const t = hs === 'buzz' ? 0.005 : 0.014;
-    M(headShell(d, t, 0, Math.PI * 2, 0, Math.PI * 0.36), S.hair, head);
+    if (c.headwear === 'none' || c.headwear === 'capback') M(headShell(d, t, 0, Math.PI * 2, 0, Math.PI * 0.36), S.hair, head);
     M(headShell(d, t, FRONT + 1.2, Math.PI * 2 - 2.4, 0, Math.PI * (hs === 'long' ? 0.8 : 0.64)), S.hair, head);
-    if (hs === 'messy') for (let i = 0; i < 6; i++)
+    if (hs === 'messy' && c.headwear === 'none') for (let i = 0; i < 6; i++)
       M(box(0.05, 0.035, 0.07), S.hair, head, (i % 3 - 1) * d.hw * 0.25, d.hh + 0.005, (Math.floor(i / 3) - 0.5) * d.hd * 0.35, rand(-0.4, 0.4), rand(-0.6, 0.6), rand(-0.4, 0.4));
     if (hs === 'long') M(box(d.hw * 0.9, d.hh * 0.6, 0.04), S.hair, head, 0, d.hh * 0.05, -H.ez * 0.85);
     if (hs === 'ponytail') {
@@ -524,26 +526,22 @@ function buildHead(c, d, head) {
   // headwear
   const hw = c.headwear;
   let crownTop = d.hh + 0.02;
+  // hats are built from the sculpted head shape itself so they always fit it
+  const top = H.cy + H.ey * 0.92;
   if (hw === 'cap' || hw === 'capback') {
-    const cap = new THREE.Group(); cap.position.y = d.hh * 0.66; head.add(cap);
+    M(headShell(d, 0.022, 0, Math.PI * 2, 0, Math.PI * 0.42), S.hat, head);
+    const cap = new THREE.Group(); cap.position.y = d.hh * 0.74; head.add(cap);
     if (hw === 'capback') cap.rotation.y = Math.PI;
-    const r = Math.hypot(d.hw, d.hd) * 0.55;
-    const cg = new THREE.SphereGeometry(r, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-    cg.scale(1, 0.72, 1);
-    M(cg, S.hat, cap);
-    M(box(d.hw * 0.95, 0.014, d.hd * 0.6), S.hat, cap, 0, 0.004, d.hd / 2 + d.hd * 0.18, 0.12);
-    M(box(d.hw * 0.36, d.hh * 0.14, 0.012), S.hatPatch, cap, 0, r * 0.36, r * 0.86, -0.4);
-    M(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 6), S.hat, cap, 0, r * 0.72, 0);
-    crownTop = d.hh * 0.66 + r * 0.72;
+    M(box(H.ex * 1.65, 0.014, d.hd * 0.5), S.hat, cap, 0, 0, H.ez * 0.9 + d.hd * 0.2, 0.12);
+    M(box(H.ex * 0.7, d.hh * 0.12, 0.012), S.hatPatch, cap, 0, d.hh * 0.11, H.ez * 0.86 + 0.02, -0.35);
+    M(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 6), S.hat, head, 0, top + 0.025, 0);
+    crownTop = top + 0.022;
   } else if (hw === 'beanie') {
-    const r = Math.hypot(d.hw, d.hd) * 0.55;
-    const bg = new THREE.SphereGeometry(r, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2); bg.scale(1, 0.95, 1);
-    M(bg, S.hat, head, 0, d.hh * 0.62, 0);
-    const cuff = new THREE.CylinderGeometry(r * 1.02, r * 1.02, 0.06, 8); cuff.scale(1, 1, 1);
-    M(cuff, S.hatPatch, head, 0, d.hh * 0.62, 0);
-    crownTop = d.hh * 0.62 + r * 0.95;
+    M(headShell(d, 0.02, 0, Math.PI * 2, 0, Math.PI * 0.46), S.hat, head);
+    M(headShell(d, 0.03, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.07), S.hatPatch, head);
+    crownTop = top + 0.02;
   } else if (hw === 'helmet') {
-    const r = Math.hypot(d.hw, d.hd) * 0.6;
+    const r = Math.hypot(H.ex, H.ez) * 0.98;
     const hg = new THREE.SphereGeometry(r, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2); hg.scale(1, 0.85, 1.05);
     M(hg, S.hat, head, 0, d.hh * 0.56, -0.005);
     M(new THREE.CylinderGeometry(r * 1.02, r * 1.02, 0.025, 9), S.hat, head, 0, d.hh * 0.56, -0.005);
@@ -560,10 +558,10 @@ function buildHead(c, d, head) {
   // hearing protection
   if (c.ears !== 'none') {
     const big = c.ears === 'earpro';
-    const cy = d.hh * 0.47, cx = d.hw / 2 + (big ? 0.03 : 0.018);
+    const cy = d.hh * 0.47, cx = H.ex + (big ? 0.016 : 0.008);
     for (const sx of [1, -1]) {
       const cup = new THREE.Group(); cup.position.set(sx * cx, cy, 0); head.add(cup);
-      const rr = big ? 0.062 : 0.045;
+      const rr = big ? 0.054 : 0.04;
       const g1 = new THREE.CylinderGeometry(rr, rr, big ? 0.05 : 0.035, 8); g1.rotateZ(Math.PI / 2); g1.scale(1, 1.15, 0.9);
       M(g1, S.ear, cup, sx * 0.008, 0, 0);
       const g2 = new THREE.CylinderGeometry(rr * 0.98, rr * 0.98, 0.016, 8); g2.rotateZ(Math.PI / 2); g2.scale(1, 1.15, 0.9);
