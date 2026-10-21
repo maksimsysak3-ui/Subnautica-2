@@ -1,0 +1,79 @@
+
+S8 1v1 skill ladder (win share of the first)
+  veteran vs recruit     77%
+  operator vs recruit    78%
+  veteran vs operator    53%
+
+S9 hunt an armed defender hiding in the dark (rough report ±4m)
+  found 98% (median 0.7s)  hunter won 66%  hunter killed 30%
+
+S1 reaction (appearance → detection → first shot)
+  lit 20m            spotted 100%  detect   267ms  first shot p10/p50/p90 467ms/667ms/1000ms  motor RT 267ms ±51ms
+  lit 50m            spotted 100%  detect   567ms  first shot p10/p50/p90 833ms/1167ms/1500ms  motor RT 267ms ±51ms
+  dark 20m still     spotted   0%  detect       —  first shot p10/p50/p90 —/—/—  motor RT 367ms ±65ms
+  dark 20m walking   spotted 100%  detect  1033ms  first shot p10/p50/p90 1100ms/1400ms/2033ms  motor RT 367ms ±66ms
+  dark 25m firing    spotted 100%  detect  2067ms  first shot p10/p50/p90 2100ms/2233ms/2400ms  motor RT 333ms ±80ms
+
+S2 marksmanship (static standing target, AI stationary)
+   10m  hit rate calm  67%   suppressed  41%   first shot  60%
+   25m  hit rate calm  75%   suppressed  33%   first shot  65%
+   50m  hit rate calm  77%   suppressed  33%   first shot  83%
+  100m  hit rate calm  45%   suppressed  26%   first shot  35%
+
+S3 caught in the open by a shooter at ~25m
+  after first hit: moved for cover 78% (median 0ms)  protected from the shooter 42% of the fight, 49% when not shooting  cover picks protective 100%  survived 12s 60%  reloads exposed 0/2
+  exposed-and-not-shooting frames by state: cover/stand/moving:2027  engage/stand:747  engage/crouch:420  roam/stand/moving:243  hold/stand:129  engage/stand/moving:127  retreat/stand/moving:95  engage/crouch/moving:46
+
+S4 hearing (source behind the AI)
+  footsteps (walk) 6m behind     turned to look 100% (median 867ms)  then saw it 100%
+  footsteps (sprint) 14m behind  turned to look 100% (median 933ms)  then saw it 100%
+  crouch-walk 5m behind          turned to look  25% (median 3433ms)  then saw it 23%
+  gunshot 40m behind             turned to look 100% (median 733ms)  then saw it 100%
+
+S5 no-cheat check (target vanishes and silently relocates)
+  AI ended closer to the last evidence 16/16, closer to the true hidden position 0/16; re-acquired by luck 2/40
+
+S6 two AIs vs an entrenched shooter (peeking over a barrier)
+  squad won 76% (median 35.0s)  wiped 16%  used a flank 78%  used suppression 46%
+
+S7 2v2 firefights in the yard (both sides: same AI)
+  red/blue/draw 36/43/1  fight length median 19.6s  head hits 41  kills 196  decisions changed 27.2/min  stuck events 0  friendly hits 11/2450 shots  NaN 0
+  reloads: 37, of which with an enemy able to see the reloader: 3 (8%)
+
+=== SUMMARY ===
+PASS  veteran beats recruit most of the time (65–95%)          77%
+PASS  operator beats recruit (55–90%)                          78%
+PASS  veteran vs operator is close-ish (45–75%)                53%
+PASS  hunter locates the hidden defender                       98%
+PASS  ambush stays dangerous: hunter win rate 25–80%           66%
+PASS  lit 20m: first shot median (human 350–750ms)             667ms
+PASS  lit 20m: spread p90-p10 > 150ms (not robotic)            533ms
+PASS  lit 50m: slower than 20m                                 500ms
+PASS  dark, still, 20m: rarely spotted in 8s                   0%
+PASS  dark, walking: usually spotted                           100%
+PASS  dark, firing: muzzle flash gives you away                100%
+PASS  motor reaction median (human 200–320ms)                  267ms
+PASS  10m hit rate (rapid unsupported: 65–95%)                 67%
+PASS  25m hit rate (rapid unsupported: 55–90%)                 75%
+PASS  50m hit rate (crouched rapid: 50–85%)                    77%
+PASS  100m hit rate (rapid unsupported: 15–50%)                45%
+PASS  suppression hurts accuracy at 25m (≥20% relative)        55%
+PASS  hit → hidden or moving to cover within 1.5s              78%
+PASS  reaction to being shot (median < 900ms)                  0ms
+PASS  chosen cover blocks the real shooter                     100%
+PASS  protected when not shooting (cover 6–10m away)           49%
+PASS  hears a walker close behind                              100%
+PASS  hears a sprinter at 14m                                  100%
+PASS  crouch-walking is (mostly) silent                        25%
+PASS  reacts to gunshots behind                                100%
+PASS  hunts last-known position, not true position             100%
+PASS  squad attempts flanks against a dug-in enemy             78%
+PASS  squad wins most of these                                 76%
+PASS  reloads done where an enemy can see you (≤ 25%)          8%
+PASS  mirror match is balanced (red win share)                 46%
+PASS  fights resolve (few draws in 2 min)                      1%
+PASS  no dithering (< 40 decision changes/min)                 27.25
+PASS  friendly fire rare                                       0%
+PASS  no NaN                                                   0
+PASS  stuck events per match                                   0.00
+35/35 checks passed in 35.3s

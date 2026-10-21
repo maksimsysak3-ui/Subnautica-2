@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Night Range AI Lab</title>
+<style>
+:root{--bg:#06070a;--panel:#0f1116;--line:rgba(255,255,255,.08);--text:#e6e8ee;--dim:#8b919c;--accent:#c9a45c;--red:#e0533d;--blue:#4f8de0}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+#wrap{display:grid;grid-template-columns:1fr 340px;height:100%}
+canvas{width:100%;height:100%;display:block;cursor:crosshair}
+aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px 16px}
+h1{font-size:16px;letter-spacing:.18em;margin:0 0 2px}
+.sub{color:var(--dim);font-size:12px;margin-bottom:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+button,select{background:#191c23;color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px 9px;font:inherit;font-size:13px;cursor:pointer}
+button.on{border-color:var(--accent);color:var(--accent)}
+label.t{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim)}
+.sec{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+.sec h2{font-size:12px;letter-spacing:.2em;color:var(--accent);margin:0 0 6px}
+.ag{display:grid;grid-template-columns:14px 1fr auto;gap:6px;align-items:center;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:13px}
+.ag:hover{background:rgba(255,255,255,.04)}.ag.sel{background:rgba(201,164,92,.12)}
+.dot{width:10px;height:10px;border-radius:50%}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
+.kv span:nth-child(odd){color:var(--dim)}
+.hint{font-size:12px;color:var(--dim);line-height:1.5}
+.bar{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%}
+#banner{position:fixed;left:16px;top:12px;font-size:13px;color:var(--dim);pointer-events:none;text-shadow:0 0 4px #000}
+@media (max-width:820px){#wrap{grid-template-columns:1fr;grid-template-rows:60vh 1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas><aside id="side">
+  <h1>AI LAB</h1>
+  <div class="sub">Night Range combat AI · top-down debug view (not in the game yet)</div>
+  <div class="row">
+    <select id="scen">
+      <option value="duel">2v2 firefight (AI vs AI)</option>
+      <option value="squad">Squad vs entrenched shooter</option>
+      <option value="you">You vs 2 AI (take control)</option>
+      <option value="sneak">Sneak past a sentry</option>
+      <option value="ladder">Veteran vs recruit</option>
+    </select>
+    <button id="restart">Restart</button>
+  </div>
+  <div class="row">
+    <button id="pause">Pause</button>
+    <button data-sp="0.25">¼×</button><button data-sp="1" class="on">1×</button><button data-sp="3">3×</button><button data-sp="8">8×</button>
+  </div>
+  <div class="row">
+    <label class="t"><input type="checkbox" id="oVision" checked> vision</label>
+    <label class="t"><input type="checkbox" id="oMem" checked> beliefs</label>
+    <label class="t"><input type="checkbox" id="oSound" checked> sound</label>
+    <label class="t"><input type="checkbox" id="oPath" checked> paths</label>
+    <label class="t"><input type="checkbox" id="oTruth"> show everyone</label>
+  </div>
+  <div class="hint" id="howto"></div>
+  <div class="sec"><h2>AGENTS</h2><div id="agents"></div></div>
+  <div class="sec"><h2>SELECTED</h2><div id="detail" class="hint">Click an agent.</div></div>
+  <div class="sec"><h2>LOG</h2><div id="log" class="hint"></div></div>
+</aside></div>
+<div id="banner"></div>
+<script type="module">
+/*__CORE__*/
+
+// ======================= lab =======================
+const cv = document.getElementById('cv'), g = cv.getContext('2d');
+const $ = (id) => document.getElementById(id);
+let world, speed = 1, paused = false, sel = null, player = null, scale = 10, ox = 0, oy = 0;
+const keys = {}, mouse = { x: 0, y: 0, down: false };
+const logLines = [];
+const log = (s) => { logLines.unshift(`${world.time.toFixed(1)}s  ${s}`); logLines.length = Math.min(logLines.length, 12); $('log').innerHTML = logLines.join('<br>'); };
+
+function yardMap(seed) {
+  const boxes = [
+    { x0: -6, x1: 6, z0: -1.2, z1: 1.2, h: 2.6 }, { x0: -18, x1: -14, z0: -10, z1: -8, h: 1.1 }, { x0: 14, x1: 18, z0: -10, z1: -8, h: 1.1 },
+    { x0: -18, x1: -14, z0: 8, z1: 10, h: 1.1 }, { x0: 14, x1: 18, z0: 8, z1: 10, h: 1.1 }, { x0: -3, x1: 3, z0: -16, z1: -14.8, h: 1.1 },
+    { x0: -3, x1: 3, z0: 14.8, z1: 16, h: 1.1 }, { x0: -26, x1: -23, z0: -3, z1: 3, h: 2.6 }, { x0: 23, x1: 26, z0: -3, z1: 3, h: 2.6 },
+    { x0: -10, x1: -8, z0: 20, z1: 26, h: 2.6 }, { x0: 8, x1: 10, z0: -26, z1: -20, h: 2.6 }, { x0: 8, x1: 12, z0: 20, z1: 21, h: 1.1 }, { x0: -12, x1: -8, z0: -21, z1: -20, h: 1.1 }];
+  const lights = [{ x: 0, z: -22, r: 10, i: 0.9 }, { x: 0, z: 22, r: 10, i: 0.9 }, { x: -20, z: 0, r: 8, i: 0.7 }, { x: 20, z: 0, r: 8, i: 0.7 }, { x: 0, z: 0, r: 6, i: 0.5 }];
+  const w = new World({ w: 70, h: 70, seed, boxes, lights, ambient: 0.035 });
+  w.recordTracers = true;
+  return w;
+}
+const v = (x, z) => ({ x, y: 0, z });
+function setup() {
+  const kind = $('scen').value, seed = (Math.random() * 1e9) | 0;
+  world = yardMap(seed); sel = null; player = null; logLines.length = 0; $('log').innerHTML = '';
+  const tell = (a, b) => a.receiveCallout({ id: b.id, pos: v(b.pos.x * 0.7 + world.rand.normal(0, 3), b.pos.z * 0.7 + world.rand.normal(0, 3)), vel: v(0, 0), t: 0 });
+  let howto = '';
+  if (kind === 'duel' || kind === 'ladder') {
+    const pr = kind === 'ladder' ? ['veteran', 'recruit'] : ['operator', 'operator'];
+    const R = [new Agent(world, { team: 'red', pos: v(-20, 25), yaw: 0, profile: pr[0], name: kind === 'ladder' ? 'Veteran' : 'Red 1' })];
+    const B = [new Agent(world, { team: 'blue', pos: v(20, -25), yaw: Math.PI, profile: pr[1], name: kind === 'ladder' ? 'Recruit' : 'Blue 1' })];
+    if (kind === 'duel') { R.push(new Agent(world, { team: 'red', pos: v(-12, 27), yaw: 0, name: 'Red 2' })); B.push(new Agent(world, { team: 'blue', pos: v(12, -27), yaw: Math.PI, name: 'Blue 2' })); }
+    for (const a of R) tell(a, B[0]); for (const b of B) tell(b, R[0]);
+    howto = 'Both teams were told roughly where the other spawned. Watch them hold, search, and clear ground through the dark. Click an agent to see what it believes vs. the truth.';
+  } else if (kind === 'squad') {
+    const a1 = new Agent(world, { team: 'red', pos: v(-4, 26), yaw: 0, name: 'Red 1' }), a2 = new Agent(world, { team: 'red', pos: v(4, 26), yaw: 0, name: 'Red 2' });
+    const e = new Agent(world, { team: 'blue', pos: v(0, -17), yaw: 0, name: 'Defender', profile: 'veteran' });
+    e.mission = 'guard';
+    tell(a1, e); tell(a2, e);
+    howto = 'Two AIs assault a veteran defender behind a barrier. Look for one suppressing while the other flanks through the shadows.';
+  } else if (kind === 'you') {
+    player = new Agent(world, { team: 'blue', pos: v(0, -26), yaw: Math.PI, controller: 'script', name: 'YOU' });
+    player.script = playerScript;
+    const r1 = new Agent(world, { team: 'red', pos: v(-14, 26), yaw: 0, name: 'Red 1' }), r2 = new Agent(world, { team: 'red', pos: v(14, 26), yaw: 0, name: 'Red 2' });
+    tell(r1, player); tell(r2, player);
+    sel = r1;
+    howto = '<b>WASD</b> move · <b>mouse</b> aim · <b>click</b> fire · <b>Shift</b> sprint · <b>C</b> crouch · <b>R</b> reload. Darkness hides you; moving, sprinting and shooting give you away. They only know what they saw, heard or were told.';
+  } else if (kind === 'sneak') {
+    player = new Agent(world, { team: 'blue', pos: v(-28, -28), yaw: Math.PI, controller: 'script', name: 'YOU' });
+    player.script = playerScript;
+    const s = new Agent(world, { team: 'red', pos: v(0, 2.2), yaw: Math.PI, name: 'Sentry', patrol: [v(-12, 4), v(12, 4)] });
+    s.mission = 'guard';
+    sel = s;
+    howto = 'Get from the bottom-left to the top-right corner. Stay out of the light, crouch (C) to be quiet, and keep out of the sentry\'s vision cone.';
+  }
+  $('howto').innerHTML = howto;
+  for (const a of world.agents) a._lastAction = a.action.type;
+}
+// ---- the human player (truth-driven input, same body/weapon rules as the AI) ----
+function playerScript(me, dt, w) {
+  if (!me.alive) { me.vel = v(0, 0); return; }
+  const sp = keys.ShiftLeft ? 5.4 : me.stance === 'crouch' ? 1.3 : 2.4;
+  let x = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), z = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
+  const l = Math.hypot(x, z) || 1;
+  me.vel = v((x / l) * sp * (x || z ? 1 : 0), (z / l) * sp * (x || z ? 1 : 0));
+  if (keys.ShiftLeft && (x || z)) me.stance = 'stand';
+  const wp = toWorld(mouse.x, mouse.y);
+  me.look.yaw = Math.atan2(-(wp.x - me.pos.x), -(wp.z - me.pos.z)); me.yaw = me.look.yaw; me.look.pitch = 0;
+  const now = w.time;
+  if (me.reloadUntil && now >= me.reloadUntil) { me.W.mag = me.W.cap; me.reloadUntil = 0; }
+  if (mouse.down && me.W.mag > 0 && !me.reloadUntil && now >= me.nextShotT) {
+    me.nextShotT = now + 60 / me.W.rpm;
+    const moving = Math.hypot(me.vel.x, me.vel.z) > 0.5;
+    const spr = (moving ? 0.03 : 0.008) * (me.stance === 'crouch' ? 0.7 : 1);
+    const dir = util.dirOf(me.look.yaw + w.rand.normal(0, spr), w.rand.normal(0, spr) - 0.02);
+    const eye = me.eye();
+    w.shoot(me, { x: eye.x, y: eye.y - 0.05, z: eye.z }, dir, me.W);
+    me.W.mag--; me.lastShotT = now;
+    w.emitSound(me.pos, TUNE.hearing.gunshot, 'shot', me.id);
+  }
+}
+function toWorld(px, py) { return { x: (px - ox) / scale, z: (py - oy) / scale }; }
+const sx = (x) => ox + x * scale, sz = (z) => oy + z * scale;
+
+// ---- rendering ----
+function resize() {
+  const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d; g.setTransform(d, 0, 0, d, 0, 0);
+  scale = Math.min(r.width, r.height) / (world.w + 2); ox = r.width / 2; oy = r.height / 2;
+}
+const teamCol = { red: '#e0533d', blue: '#4f8de0' };
+function draw() {
+  const W = cv.clientWidth, H = cv.clientHeight;
+  g.fillStyle = '#030405'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#0b0c10'; g.fillRect(sx(-world.w / 2), sz(-world.h / 2), world.w * scale, world.h * scale);
+  // light pools
+  g.globalCompositeOperation = 'lighter';
+  for (const l of world.lights) {
+    const gr = g.createRadialGradient(sx(l.x), sz(l.z), 0, sx(l.x), sz(l.z), l.r * 2.2 * scale);
+    gr.addColorStop(0, `rgba(210,200,170,${0.22 * l.i})`); gr.addColorStop(0.45, `rgba(160,150,130,${0.08 * l.i})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(sx(l.x), sz(l.z), l.r * 2.2 * scale, 0, 7); g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+  for (const b of world.boxes) {
+    g.fillStyle = b.h > 1.5 ? '#2a2e37' : '#1a1d24'; g.strokeStyle = b.h > 1.5 ? '#454b58' : '#5a6070';
+    g.fillRect(sx(b.x0), sz(b.z0), (b.x1 - b.x0) * scale, (b.z1 - b.z0) * scale);
+    g.lineWidth = 1; g.strokeRect(sx(b.x0) + 0.5, sz(b.z0) + 0.5, (b.x1 - b.x0) * scale - 1, (b.z1 - b.z0) * scale - 1);
+    if (b.h < 1.5) { g.save(); g.beginPath(); g.rect(sx(b.x0), sz(b.z0), (b.x1 - b.x0) * scale, (b.z1 - b.z0) * scale); g.clip(); g.strokeStyle = 'rgba(255,255,255,.07)';
+      for (let k = -40; k < 80; k += 6) { g.beginPath(); g.moveTo(sx(b.x0) + k, sz(b.z0)); g.lineTo(sx(b.x0) + k + 30, sz(b.z1) + 30); g.stroke(); } g.restore(); }
+  }
+  // sounds
+  if ($('oSound').checked) for (const s of world.soundLog) {
+    const age = world.time - s.t; if (age > 0.8) continue;
+    const r = Math.min(s.range, 4 + age * 60) * scale;
+    g.strokeStyle = s.kind === 'shot' ? `rgba(255,190,90,${0.35 * (1 - age / 0.8)})` : `rgba(160,200,255,${0.3 * (1 - age / 0.8)})`;
+    g.beginPath(); g.arc(sx(s.pos.x), sz(s.pos.z), s.kind === 'shot' ? r : Math.min(s.range * scale, r), 0, 7); g.stroke();
+  }
+  // tracers
+  for (const t of world.tracers) {
+    const age = world.time - t.t; if (age > 0.12) continue;
+    g.strokeStyle = t.hit ? 'rgba(255,90,60,.95)' : 'rgba(255,220,140,.7)'; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(sx(t.a.x), sz(t.a.z)); g.lineTo(sx(t.b.x), sz(t.b.z)); g.stroke();
+  }
+  const viewer = sel;
+  const showAll = $('oTruth').checked || !viewer;
+  for (const a of world.agents) {
+    if (!a.alive) { g.strokeStyle = '#555'; g.lineWidth = 2; const x = sx(a.pos.x), y = sz(a.pos.z); g.beginPath(); g.moveTo(x - 5, y - 5); g.lineTo(x + 5, y + 5); g.moveTo(x + 5, y - 5); g.lineTo(x - 5, y + 5); g.stroke(); continue; }
+    const hidden = !showAll && viewer && a.team !== viewer.team && !(viewer.mem.get(a.id)?.visible);
+    // vision cone
+    if ($('oVision').checked && a.controller === 'ai' && (a === sel || !sel)) {
+      const fov = TUNE.vision.fovHalf, fo = TUNE.vision.foveal, R = 30 * scale, yaw = a.look.yaw;
+      const ang = (k) => Math.atan2(-Math.cos(yaw + k), -Math.sin(yaw + k));
+      g.fillStyle = a.team === 'red' ? 'rgba(224,83,61,.05)' : 'rgba(79,141,224,.05)';
+      g.beginPath(); g.moveTo(sx(a.pos.x), sz(a.pos.z)); g.arc(sx(a.pos.x), sz(a.pos.z), R, ang(-fov), ang(fov), true); g.closePath(); g.fill();
+      g.fillStyle = a.team === 'red' ? 'rgba(224,83,61,.1)' : 'rgba(79,141,224,.1)';
+      g.beginPath(); g.moveTo(sx(a.pos.x), sz(a.pos.z)); g.arc(sx(a.pos.x), sz(a.pos.z), R * 1.4, ang(-fo), ang(fo), true); g.closePath(); g.fill();
+    }
+    if ($('oPath').checked && a.path && a.controller === 'ai') {
+      g.strokeStyle = a.team === 'red' ? 'rgba(224,83,61,.4)' : 'rgba(79,141,224,.4)'; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(sx(a.pos.x), sz(a.pos.z));
+      for (let i = a.pathIdx; i < a.path.length; i++) g.lineTo(sx(a.path[i].x), sz(a.path[i].z)); g.stroke(); g.setLineDash([]);
+    }
+    if (hidden) continue;
+    const x = sx(a.pos.x), y = sz(a.pos.z), r = Math.max(4, 0.32 * scale) * (a.stance === 'stand' ? 1 : a.stance === 'crouch' ? 0.85 : 0.7);
+    g.fillStyle = teamCol[a.team]; g.globalAlpha = a.stance === 'duck' ? 0.6 : 1;
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.globalAlpha = 1;
+    if (a === sel) { g.strokeStyle = '#c9a45c'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r + 4, 0, 7); g.stroke(); }
+    g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y);
+    g.lineTo(x - Math.sin(a.look.yaw) * r * 2.2, y - Math.cos(a.look.yaw) * r * 2.2); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '11px system-ui'; g.textAlign = 'center';
+    g.fillText(`${a.name}${a.controller === 'ai' ? ' · ' + a.action.type : ''}`, x, y - r - 8);
+    g.fillStyle = '#300'; g.fillRect(x - 12, y + r + 4, 24, 3); g.fillStyle = a.health > 50 ? '#7c4' : a.health > 25 ? '#ec4' : '#e44'; g.fillRect(x - 12, y + r + 4, 24 * a.health / 100, 3);
+  }
+  // selected agent's beliefs about enemies
+  if ($('oMem').checked && sel && sel.alive && sel.controller === 'ai') {
+    for (const m of sel.mem.values()) {
+      if (m.dead) continue;
+      const e = sel.est(m, world.time), u = sel.uncertainty(m, world.time);
+      if (m.visible) { g.strokeStyle = 'rgba(255,230,120,.8)'; g.setLineDash([]); g.beginPath(); g.moveTo(sx(sel.pos.x), sz(sel.pos.z)); g.lineTo(sx(m.pos.x), sz(m.pos.z)); g.stroke(); continue; }
+      g.strokeStyle = 'rgba(255,230,120,.75)'; g.fillStyle = 'rgba(255,230,120,.07)'; g.setLineDash([4, 3]);
+      g.beginPath(); g.arc(sx(e.x), sz(e.z), Math.max(4, u * scale), 0, 7); g.fill(); g.stroke(); g.setLineDash([]);
+      g.fillStyle = 'rgba(255,230,120,.9)'; g.font = '10px system-ui'; g.fillText(`? ${m.source} ${(world.time - m.t).toFixed(1)}s`, sx(e.x), sz(e.z) - Math.max(6, u * scale) - 3);
+    }
+  }
+  $('banner').textContent = `t=${world.time.toFixed(1)}s  ${paused ? 'PAUSED' : speed + '×'}  ${player ? (player.alive ? `you: ${player.health}hp  mag ${player.W.mag}${player.reloadUntil ? ' (reloading)' : ''}  ${player.stance}` : 'you are down — Restart') : ''}`;
+}
+function panel() {
+  $('agents').innerHTML = world.agents.map((a) => `<div class="ag${a === sel ? ' sel' : ''}" data-id="${a.id}"><span class="dot" style="background:${teamCol[a.team]};opacity:${a.alive ? 1 : 0.3}"></span><span>${a.name} <span style="color:var(--dim)">${a.alive ? (a.controller === 'ai' ? a.action.type : 'player') : 'down'}</span></span><span style="color:var(--dim)">${a.health}hp · ${a.W.mag}</span></div>`).join('');
+  $('agents').querySelectorAll('.ag').forEach((el) => el.onclick = () => { sel = world.agents.find((a) => a.id === +el.dataset.id); });
+  if (!sel) return;
+  const a = sel, st = a.stats, rts = st.reactions;
+  const sus = [...a.sus.entries()].map(([id, s]) => `${world.agents.find((o) => o.id === id)?.name}: ${Math.min(1, s).toFixed(2)}`).join(', ') || '—';
+  const mem = [...a.mem.values()].filter((m) => !m.dead).map((m) => `${world.agents.find((o) => o.id === m.id)?.name}: ${m.visible ? '<b>in sight</b>' : `${m.source}, ${(world.time - m.t).toFixed(1)}s ago, ±${a.uncertainty(m, world.time).toFixed(1)}m`}`).join('<br>') || 'nothing';
+  $('detail').innerHTML = `<div class="kv">
+    <span>agent</span><span>${a.name} (${typeof a.prof === 'object' ? ['operator','recruit','veteran','player'].find((k) => PROFILES[k].skill === a.prof.skill) || 'custom' : ''})</span>
+    <span>doing</span><span>${a.controller === 'ai' ? a.action.type : 'player'} · ${a.stance} · ${a.curMoveMode || 'still'}</span>
+    <span>health</span><span>${a.health}</span>
+    <span>magazine</span><span>${a.W.mag}/${a.W.cap}${world.time < a.reloadUntil ? ' reloading' : ''}</span>
+    <span>suppression</span><span><div class="bar"><i style="width:${a.suppression * 100}%;background:#e0533d"></i></div></span>
+    <span>aim state</span><span>${a.aim.mode}</span>
+    <span>noticing</span><span>${sus}</span>
+    <span>believes</span><span>${mem}</span>
+    <span>shots/hits</span><span>${st.shots}/${st.hits}</span>
+    <span>reaction times</span><span>${rts.slice(-5).map((x) => Math.round(x * 1000) + 'ms').join(', ') || '—'}</span>
+  </div>`;
+}
+// ---- loop ----
+let last = performance.now(), acc = 0, panelT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!paused) {
+    acc += dt * speed;
+    const step = 1 / 30;
+    while (acc >= step) {
+      world.step(step); acc -= step;
+      for (const a of world.agents) if (a.controller === 'ai' && a.action.type !== a._lastAction) { if (['flank', 'suppress', 'retreat', 'cover'].includes(a.action.type)) log(`${a.name} → ${a.action.type}`); a._lastAction = a.action.type; }
+      for (const e of world.events.splice(0)) if (e.type === 'kill') log(`${world.agents.find((a) => a.id === e.from)?.name} killed ${world.agents.find((a) => a.id === e.to)?.name}`);
+    }
+  }
+  draw();
+  panelT -= dt; if (panelT <= 0) { panel(); panelT = 0.2; }
+}
+addEventListener('keydown', (e) => { keys[e.code] = true; if (!player) return; if (e.code === 'KeyC') player.stance = player.stance === 'crouch' ? 'stand' : 'crouch'; if (e.code === 'KeyR' && !player.reloadUntil && player.W.mag < player.W.cap) { player.reloadUntil = world.time + 2.3; world.emitSound(player.pos, TUNE.hearing.reload, 'reload', player.id); } if (e.code === 'Space') { paused = !paused; e.preventDefault(); } });
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+cv.addEventListener('mousemove', (e) => { const r = cv.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; });
+cv.addEventListener('mousedown', (e) => {
+  if (player && player.alive) { mouse.down = true; return; }
+  const p = toWorld(mouse.x, mouse.y); let best = null, bd = 2;
+  for (const a of world.agents) { const d = Math.hypot(a.pos.x - p.x, a.pos.z - p.z); if (d < bd) { bd = d; best = a; } }
+  sel = best;
+});
+addEventListener('mouseup', () => { mouse.down = false; });
+$('restart').onclick = () => { setup(); resize(); };
+$('scen').onchange = () => { setup(); resize(); };
+$('pause').onclick = () => { paused = !paused; $('pause').classList.toggle('on', paused); };
+document.querySelectorAll('[data-sp]').forEach((b) => b.onclick = () => { speed = +b.dataset.sp; document.querySelectorAll('[data-sp]').forEach((x) => x.classList.toggle('on', x === b)); });
+addEventListener('resize', resize);
+setup(); resize(); requestAnimationFrame(frame);
+window.__lab = { get world() { return world; } };
+</script>
+</body>
+</html>
