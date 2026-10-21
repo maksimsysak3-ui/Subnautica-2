@@ -179,7 +179,7 @@ export function setupFinances(w: World, club: Club, initial: boolean) {
   const wages = club.squad.reduce((s, id) => s + (w.players[id]?.wage ?? 0), 0);
   club.wageBudget = Math.round(wages * (1.06 + club.rep / 900) / 1000) * 1000;
   const r = Math.max(0, club.rep - 50);
-  const budget = Math.max(1.5e6, r * r * 52000 * wealth * (0.8 + rand() * 0.4));
+  const budget = Math.max(1.5e6, r * r * 52000 * wealth * (0.85 + (hash(club.id + w.season) % 1000) / 1000 * 0.3));
   club.budget = Math.round(budget / 5e5) * 5e5;
   if (initial) club.balance = club.budget * 1.5 + 20e6 * wealth;
 }

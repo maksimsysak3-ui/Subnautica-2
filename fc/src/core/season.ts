@@ -56,7 +56,8 @@ function roundRobin(teams: string[]): [string, string][][] {
 export function addFixture(w: World, f: Omit<Fixture, 'id'>) { const fx = { ...f, id: w.nextFx++ }; w.fixtures.push(fx); return fx; }
 
 export function news(w: World, kind: NewsItem['kind'], title: string, body: string, extra: Partial<NewsItem> = {}) {
-  w.news.unshift({ id: w.nextNews++, day: w.day, season: w.season, kind, title, body, ...extra });
+  const mine = kind === 'board' || kind === 'offer' || kind === 'injury' || kind === 'contract' || kind === 'squad' || extra.club === w.user || (extra.pid !== undefined && w.players[extra.pid]?.club === w.user) || body.includes(w.clubs[w.user]?.name ?? '@@');
+  w.news.unshift({ id: w.nextNews++, day: w.day, season: w.season, kind, title, body, read: !mine, ...extra });
   if (w.news.length > 220) w.news.length = 220;
 }
 
@@ -367,9 +368,12 @@ function dailyUpkeep(w: World) {
     const club = w.clubs[p.club];
     if (!club || club.tier === 2) continue;
     const inten = club.id === w.user ? w.training.intensity : 50;
-    p.fitness = clamp(p.fitness + 6.5 + club.facilities * 0.25 - inten * 0.03, 0, 100);
+    p.fitness = clamp(p.fitness + 6.5 + club.facilities * 0.25 - inten * 0.03 + (club.id === w.user && w.training.focus === 'Fitness' ? 1.5 : 0), 0, 100);
     if (weekly) {
+      const own = club.id === w.user && !p.devFocus;
+      if (own) p.devFocus = TEAM_FOCUS[w.training.focus];
       develop(p, w.season, 1, club.facilities + (club.id === w.user ? trainingBoost(w) : 0));
+      if (own) p.devFocus = undefined;
       if (p.morale > 70) p.morale -= 0.5; else if (p.morale < 60) p.morale += 0.8;
     }
   }
@@ -394,6 +398,7 @@ function dailyUpkeep(w: World) {
     } else if (p && !p.inj) delete (p as Player & { injNews?: boolean }).injNews;
   }
 }
+const TEAM_FOCUS: Record<string, Player['devFocus']> = { Attacking: 'SHO', Defending: 'DEF', Fitness: 'PHY', 'Set pieces': 'PAS' };
 function trainingBoost(w: World) { return w.training.intensity > 60 ? 1.5 : w.training.intensity < 35 ? -1 : 0.5; }
 
 function boardReview(w: World) {
@@ -549,7 +554,7 @@ function awards(w: World) {
   const all = Object.values(w.players).filter(p => p.s.apps >= 10);
   const score = (p: Player) => p.s.ratingSum / p.s.apps * 10 + p.s.goals * 0.9 + p.s.assists * 0.5 + p.ovr * 0.4 + (p.club ? trophyBonus(w, p.club) : 0);
   const ranked = [...all].sort((a, b) => score(b) - score(a));
-  const add = (title: string, p?: Player, value?: string) => { if (p) { w.awards.push({ season: w.season, title, pid: p.id, club: p.club ?? undefined, value }); } };
+  const add = (title: string, p?: Player, value?: string) => { if (p) { w.awards.push({ season: w.season, title, pid: p.id, name: p.name, club: p.club ?? undefined, value }); } };
   add("Ballon d'Or", ranked[0], `${ranked[0]?.s.goals}G ${ranked[0]?.s.assists}A`);
   add("Ballon d'Or — 2nd", ranked[1]); add("Ballon d'Or — 3rd", ranked[2]);
   const young = ranked.find(p => ageOf(p, w.season) <= 21);

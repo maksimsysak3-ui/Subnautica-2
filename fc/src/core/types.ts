@@ -199,7 +199,7 @@ export interface World {
   board: { confidence: number; objective: string; objectiveRank: number; cupTarget: string; warnings: number };
   history: { season: number; champions: Record<string, string>; cups: Record<string, string>; ballon?: number; userFinish?: number; userComp?: string }[];
   shortlist: number[];
-  awards: { season: number; title: string; pid?: number; club?: string; value?: string }[];
+  awards: { season: number; title: string; pid?: number; name?: string; club?: string; value?: string }[];
   training: { focus: string; intensity: number };
   sacked?: boolean;
   lastResultFx?: number;

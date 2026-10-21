@@ -104,7 +104,7 @@ export function bestFormation(world: World, club: Club): string {
       for (const p of pool) { if (used.has(p.id)) continue; const r = slotRating(p, pos); if (r > v) { v = r; b = p; } }
       if (b) { used.add(b.id); tot += v; }
     }
-    const bias = name === '4-3-3' || name === '4-2-3-1' ? 3 : name === '4-4-2' ? 1 : 0;
+    const bias = name === '4-3-3' || name === '4-2-3-1' ? 8 : name === '4-4-2' || name === '3-4-3' || name === '3-5-2' ? 3 : 0;
     if (tot + bias > bv) { bv = tot + bias; best = name; }
   }
   return best;

@@ -18,7 +18,6 @@ export type ActType = 'kickoff' | 'pass' | 'long' | 'through' | 'cross' | 'dribb
 export interface Action { t: number; type: ActType; side: 0 | 1; pid: number; pid2?: number; from: [number, number]; to: [number, number]; dur: number; text?: string; big?: boolean; xg?: number; shotOn?: boolean }
 
 const ATT_POS = new Set<Pos>(['ST', 'LW', 'RW', 'CAM']);
-const WIDE = new Set<Pos>(['LW', 'RW', 'LM', 'RM', 'LB', 'RB']);
 
 export interface MatchOpts { neutral?: boolean; knockout?: boolean; aggregate?: [number, number]; leg2?: boolean; userSide?: 0 | 1 | null; live?: boolean; compName?: string }
 
@@ -485,6 +484,7 @@ export class Match {
       }
       const d = this.nearestOpp(s, mid);
       this.push({ type: 'intercept', side: (1 - s) as 0 | 1, pid: d.id, pid2: c.id, from: [...this.ball], to: mid, dur });
+      if (rand() < 0.05) this.say(`${d.p.name} reads it and intercepts.`);
       this.t += dur + 0.5;
       c.rating -= bp < 35 ? 0.12 : 0.03;
       this.turnover(d, mid, 'intercept');
@@ -519,7 +519,8 @@ export class Match {
     if (rand() < p) {
       this.push({ type: take ? 'dribble' : 'carry', side: s, pid: c.id, pid2: d.id, from: [...this.ball], to, dur });
       this.ball = to; this.t += dur;
-      if (take) c.rating += 0.05;
+      if (take) { c.rating += 0.05; if (rand() < 0.22) this.say(pick([`${c.p.name} skips past ${d.p.name}.`, `Lovely footwork from ${c.p.name}, ${d.p.name} left for dead.`, `${c.p.name} glides away from ${d.p.name}.`])); }
+      else if (rand() < 0.06 && this.prog(s, to[0]) > 60) this.say(`${c.p.name} drives forward for ${this.clubs[s].short}.`);
       if (this.counter > 0) this.counter--;
       return;
     }
@@ -528,6 +529,7 @@ export class Match {
     if (rand() < foulP) return this.foul(d, c, to);
     this.push({ type: 'tackle', side: d.side, pid: d.id, pid2: c.id, from: [...this.ball], to: [...this.ball], dur });
     this.t += dur;
+    if (rand() < 0.16) this.say(pick([`Strong challenge from ${d.p.name} to stop ${c.p.name}.`, `${d.p.name} wins it back.`, `Superb tackle by ${d.p.name}!`]));
     c.rating -= 0.04;
     this.turnover(d, [...this.ball] as [number, number], 'tackle');
   }
@@ -611,6 +613,7 @@ export class Match {
   private corner(s: 0 | 1) {
     this.st.corners[s]++;
     this.setPiece = 'corner';
+    if (rand() < 0.5) this.say(`Corner to ${this.clubs[s].name}.`);
     this.side = s;
     const top = rand() < 0.5;
     this.ball = [this.absX(s, 104.5), top ? 0.5 : 67.5];
@@ -622,7 +625,12 @@ export class Match {
   private doSetPiece(c: LP) {
     const s = this.side;
     const sp = this.setPiece; this.setPiece = null;
-    if (sp === 'kickoff') { this.push({ type: 'kickoff', side: s, pid: c.id, from: [52.5, 34], to: [52.5, 34], dur: 1 }); this.t += 1; return this.pass(c, 'short', 55); }
+    if (sp === 'kickoff') {
+      this.push({ type: 'kickoff', side: s, pid: c.id, from: [52.5, 34], to: [52.5, 34], dur: 1 });
+      if (this.t < 5) this.say(`The referee blows and we're underway${this.fx.neutral ? '' : ` at ${this.clubs[0].stadium}`}! ${this.clubs[s].name} get us started.`, 'whistle');
+      else if (this.half === 2 && Math.abs(this.t - 45 * 60) < 5) this.say(`The second half is underway.`, 'whistle');
+      this.t += 1; return this.pass(c, 'short', 55);
+    }
     if (sp === 'throw') { this.t += 2; return this.pass(c, 'short', this.resist(s, this.prog(s, this.ball[0])) - 6); }
     if (sp === 'pen') {
       const tk = this.byId.get(this.tac[s].pens ?? -1);
@@ -749,6 +757,7 @@ export class Match {
       const won = this.score[l.side] > this.score[1 - l.side];
       r += won ? 0.25 : this.score[l.side] < this.score[1 - l.side] ? -0.2 : 0;
       r += (l.passOk - (l.passes - l.passOk) * 1.5) * 0.004;
+      r = 6.3 + (r - 6.3) * 0.62;
       r = clamp(Math.round(r * 10) / 10, 3, 10);
       ratings[l.id] = r;
       if (r > best) { best = r; motm = l.id; }
