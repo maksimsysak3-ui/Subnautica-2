@@ -1,5 +1,5 @@
 import logos from '../data/logos.json';
-import { CLUB_META } from '../data/clubs';
+import { CLUB_META, KIT_EXTRA } from '../data/clubs';
 import { ENG } from '../data/sq-eng';
 import { ESP } from '../data/sq-esp';
 import { GER } from '../data/sq-ger';
@@ -63,6 +63,7 @@ export function createWorld(userClub: string, manager: string, seed = Date.now()
       id: slug, name: meta?.name ?? cname, short: meta?.short ?? cname.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase(), country, league: lg ? league : 'world', rep,
       c1, c2, a1: meta?.a1 ?? c2, a2: meta?.a2 ?? c1, kit: meta?.kit ?? 'plain', stadium: meta?.stadium ?? `${cname} Stadium`, cap: meta?.cap ?? 15000 + Math.round(rand() * 20000),
       logo: logoUrl(country, slug, h), budget: 0, wageBudget: 0, balance: 0, squad: [], tactic: defaultTactic(), youth: clamp(Math.round(rep / 12 + rand() * 3), 2, 10), facilities: clamp(Math.round(rep / 11 + rand() * 2), 2, 10),
+      shorts: KIT_EXTRA[slug]?.[0], socks: KIT_EXTRA[slug]?.[1],
       fans: 65, form: [], fin: { tv: 0, gate: 0, prize: 0, merch: 0, transfersIn: 0, transfersOut: 0, wages: 0 }, tier, trophies: [],
     };
     if (tier === 2) club.strength = squadLevel(rep) - 2.5 + gauss() * 1.5;

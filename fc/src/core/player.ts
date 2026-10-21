@@ -71,10 +71,10 @@ const archKey = (p: Pos) => p === 'ST' ? 'ST' : (p === 'RW' || p === 'LW' || p =
 
 /** Optional card-stat hints for well-known profiles so stars play like themselves. */
 export const HINTS: Record<string, Partial<Record<'PAC' | 'SHO' | 'PAS' | 'DRI' | 'DEF' | 'PHY', number>>> = {
-  'Kylian Mbappé': { PAC: 97, SHO: 90, DRI: 92 }, 'Vinícius Júnior': { PAC: 95, DRI: 91, SHO: 84 }, 'Erling Haaland': { PAC: 86, SHO: 92, PHY: 88, PAS: 66 },
+  'Kylian Mbappé': { PAC: 97, SHO: 90, DRI: 92 }, 'Vinícius Júnior': { PAC: 95, DRI: 91, SHO: 84 }, 'Erling Haaland': { PAC: 89, SHO: 94, PHY: 88, PAS: 66, DRI: 80 },
   'Mohamed Salah': { PAC: 88, SHO: 88, PAS: 84, DRI: 88 }, 'Lamine Yamal': { PAC: 84, DRI: 93, PAS: 86, SHO: 80 }, 'Jérémy Doku': { PAC: 93, DRI: 89, SHO: 68 },
   'Rafael Leão': { PAC: 93, DRI: 88 }, 'Achraf Hakimi': { PAC: 93, PAS: 82, DEF: 79 }, 'Alphonso Davies': { PAC: 95 }, 'Jeremie Frimpong': { PAC: 94 },
-  'Virgil van Dijk': { DEF: 91, PHY: 86, PAC: 78 }, 'Rodri': { PAS: 86, DEF: 86, PHY: 84 }, 'Kevin De Bruyne': { PAS: 92, SHO: 85 }, 'Harry Kane': { SHO: 93, PAS: 84, PAC: 66 },
+  'Virgil van Dijk': { DEF: 91, PHY: 86, PAC: 78 }, 'Rodri': { PAS: 86, DEF: 86, PHY: 84 }, 'Kevin De Bruyne': { PAS: 92, SHO: 85 }, 'Harry Kane': { SHO: 93, PAS: 84, PAC: 66, DRI: 83 },
   'Jude Bellingham': { DRI: 87, PHY: 84, SHO: 84 }, 'Pedri': { PAS: 89, DRI: 90 }, 'Luka Modrić': { PAS: 88, DRI: 86, PAC: 64 }, 'Ousmane Dembélé': { PAC: 92, DRI: 90, SHO: 87 },
   'Bukayo Saka': { PAC: 85, DRI: 88, PAS: 84 }, 'Florian Wirtz': { DRI: 90, PAS: 88 }, 'Jamal Musiala': { DRI: 92, PAS: 83 }, 'Michael Olise': { DRI: 89, PAS: 87 },
   'Cristiano Ronaldo': { SHO: 90, PAC: 76, PHY: 78 }, 'Lionel Messi': { DRI: 91, PAS: 90, SHO: 86, PAC: 70 }, 'Robert Lewandowski': { SHO: 89, PAC: 70 },
@@ -115,10 +115,22 @@ export function buildAttrs(pos: Pos, ovr: number, seed: number, hints?: Partial<
     if (pos === 'RB' || pos === 'LB') attrs[A.cro] = ovr - 6 + g() * 5;
   }
   // nudge everything so the positional overall hits the target
-  for (let it = 0; it < 6; it++) {
+  // hinted groups stay put; the remaining weighted attributes absorb the difference
+  const locked = new Set<number>();
+  if (hints && pos !== 'GK') for (const k of Object.keys(hints)) for (const i of GROUPS[k as keyof typeof GROUPS] ?? []) locked.add(i);
+  const free = WI[pos].filter(([i]) => !locked.has(i));
+  const adj = free.length >= 3 ? free : WI[pos];
+  const share = adj.reduce((t, [, wt]) => t + wt, 0);
+  const cap = ovr + 6;
+  for (let it = 0; it < 8; it++) {
     const d = ovr - posOvrRaw(attrs, pos);
     if (Math.abs(d) < 0.3) break;
-    for (const [i] of WI[pos]) attrs[i] += d * 1.05;
+    for (const [i] of adj) attrs[i] = Math.min(d > 0 ? Math.max(cap, attrs[i]) : 99, attrs[i] + d / share * 0.9);
+  }
+  for (let it = 0; it < 8; it++) {
+    const d = ovr - posOvrRaw(attrs, pos);
+    if (Math.abs(d) < 0.3) break;
+    for (const [i] of WI[pos]) attrs[i] = Math.min(99, attrs[i] + d * 1.05);
   }
   return attrs.map(v => Math.round(clamp(v, 10, 99)));
 }

@@ -1,6 +1,6 @@
 // Club identity: short code, reputation (1-100, drives budgets, wages and expectations),
 // kit colours and pattern, home ground. Names and crests come from logos.json.
-export type KitPattern = 'plain' | 'stripes' | 'hoops' | 'halves' | 'sash' | 'band' | 'sleeves' | 'pinstripe' | 'quarters' | 'chevron' | 'yoke';
+export type KitPattern = 'plain' | 'stripes' | 'hoops' | 'halves' | 'sash' | 'band' | 'hband' | 'sleeves' | 'pinstripe' | 'quarters' | 'chevron' | 'yoke';
 
 export interface ClubMeta { short: string; rep: number; c1: string; c2: string; kit: KitPattern; stadium: string; cap: number; name?: string; a1?: string; a2?: string }
 
@@ -27,7 +27,7 @@ export const CLUB_META: Record<string, ClubMeta> = {
   'leeds-united': m('LEE', 72, '#FFFFFF', '#1D428A', 'plain', 'Elland Road', 37645, 'Leeds United', '#1D428A', '#FFCD00'),
   'sunderland': m('SUN', 70, '#EB172B', '#FFFFFF', 'stripes', 'Stadium of Light', 49000, 'Sunderland', '#111111', '#EB172B'),
   'coventry-city': m('COV', 64, '#59CBE8', '#FFFFFF', 'plain', 'Coventry Building Society Arena', 32609, 'Coventry City', '#1A1A1A', '#59CBE8'),
-  'ipswich': m('IPS', 64, '#0044A9', '#FFFFFF', 'sleeves', 'Portman Road', 29813, 'Ipswich Town', '#E2241A', '#FFFFFF'),
+  'ipswich': m('IPS', 64, '#0044A9', '#FFFFFF', 'plain', 'Portman Road', 29813, 'Ipswich Town', '#E2241A', '#FFFFFF'),
   'hull-city': m('HUL', 62, '#F5A12D', '#000000', 'stripes', 'MKM Stadium', 25586, 'Hull City', '#FFFFFF', '#F5A12D'),
   // LaLiga
   'real-madrid': m('RMA', 98, '#FFFFFF', '#FEBE10', 'plain', 'Santiago Bernabéu', 83186, 'Real Madrid', '#1A1A2E', '#FEBE10'),
@@ -45,7 +45,7 @@ export const CLUB_META: Record<string, ClubMeta> = {
   'rayo-vallecano': m('RAY', 67, '#FFFFFF', '#E53027', 'sash', 'Estadio de Vallecas', 14708, 'Rayo Vallecano', '#111111', '#E53027'),
   'espanyol': m('ESP', 68, '#007FC8', '#FFFFFF', 'stripes', 'RCDE Stadium', 40000, 'Espanyol', '#F2E3B3', '#007FC8'),
   'deportivo': m('ALA', 66, '#0761AF', '#FFFFFF', 'stripes', 'Mendizorroza', 19840, 'Deportivo Alavés', '#E5E5E5', '#0761AF'),
-  'elche': m('ELC', 64, '#FFFFFF', '#05642C', 'band', 'Martínez Valero', 31388, 'Elche', '#05642C', '#FFFFFF'),
+  'elche': m('ELC', 64, '#FFFFFF', '#05642C', 'hband', 'Martínez Valero', 31388, 'Elche', '#05642C', '#FFFFFF'),
   'levante': m('LEV', 64, '#004D98', '#A50044', 'stripes', 'Ciutat de València', 26354, 'Levante', '#FFFFFF', '#004D98'),
   'deportivo-la-coruna': m('DEP', 65, '#FFFFFF', '#0067B1', 'stripes', 'Riazor', 32490, 'Deportivo La Coruña', '#0067B1', '#FFFFFF'),
   'racing': m('RAC', 62, '#FFFFFF', '#10703A', 'plain', 'El Sardinero', 22222, 'Racing Santander', '#10703A', '#FFFFFF'),
@@ -56,7 +56,7 @@ export const CLUB_META: Record<string, ClubMeta> = {
   'bayer-leverkusen': m('B04', 84, '#E32221', '#000000', 'plain', 'BayArena', 30210, 'Bayer 04 Leverkusen', '#111111', '#E32221'),
   'rb-leipzig': m('RBL', 82, '#FFFFFF', '#DD0741', 'plain', 'Red Bull Arena', 47069, 'RB Leipzig', '#0C2043', '#DD0741'),
   'eintracht-frankfurt': m('SGE', 79, '#E1000F', '#000000', 'plain', 'Deutsche Bank Park', 58000, 'Eintracht Frankfurt', '#111111', '#E1000F'),
-  'vfb-stuttgart': m('VFB', 78, '#FFFFFF', '#E32219', 'band', 'MHPArena', 60449, 'VfB Stuttgart', '#E32219', '#FFFFFF'),
+  'vfb-stuttgart': m('VFB', 78, '#FFFFFF', '#E32219', 'hband', 'MHPArena', 60449, 'VfB Stuttgart', '#E32219', '#FFFFFF'),
   'freiburg': m('SCF', 73, '#E2001A', '#FFFFFF', 'plain', 'Europa-Park Stadion', 34700, 'SC Freiburg', '#111111', '#E2001A'),
   'hoffenheim': m('TSG', 71, '#1961B5', '#FFFFFF', 'plain', 'PreZero Arena', 30150, 'TSG Hoffenheim', '#FFFFFF', '#1961B5'),
   'werder-bremen': m('SVW', 71, '#1D9053', '#FFFFFF', 'plain', 'Weserstadion', 42100, 'Werder Bremen', '#FFFFFF', '#1D9053'),
@@ -149,7 +149,7 @@ export const CLUB_META: Record<string, ClubMeta> = {
   'flamengo': m('FLA', 75, '#C4161C', '#000000', 'hoops', 'Maracanã', 78838, 'Flamengo', '#FFFFFF', '#C4161C'),
   'palmeiras': m('PAL', 74, '#006437', '#FFFFFF', 'plain', 'Allianz Parque', 43713, 'Palmeiras', '#FFFFFF', '#006437'),
   'river-plate': m('RIV', 74, '#FFFFFF', '#E3001B', 'sash', 'Estadio Monumental', 85018, 'River Plate', '#E3001B', '#FFFFFF'),
-  'boca-juniors': m('BOC', 73, '#003F8A', '#FFD100', 'band', 'La Bombonera', 54000, 'Boca Juniors', '#FFD100', '#003F8A'),
+  'boca-juniors': m('BOC', 73, '#003F8A', '#FFD100', 'hband', 'La Bombonera', 54000, 'Boca Juniors', '#FFD100', '#003F8A'),
   // Second tiers (notable clubs with real colours; the rest fall back to generated ones)
   'west-ham': m('WHU', 74, '#7A263A', '#1BB1E7', 'sleeves', 'London Stadium', 62500, 'West Ham United'),
   'wolves': m('WOL', 70, '#FDB913', '#231F20', 'plain', 'Molineux', 31750, 'Wolverhampton'),
@@ -168,4 +168,26 @@ export const CLUB_META: Record<string, ClubMeta> = {
   'fc-metz': m('FCM', 60, '#7B1E3A', '#FFFFFF', 'plain', 'Saint-Symphorien', 28786, 'FC Metz'),
   'montpellier': m('MHSC', 62, '#0B2D6B', '#F58220', 'plain', 'La Mosson', 32900, 'Montpellier'),
   'stade-de-reims': m('SDR', 63, '#E30613', '#FFFFFF', 'sleeves', 'Auguste-Delaune', 21684, 'Stade de Reims'),
+};
+
+/** Home kit shorts and socks (2025/26 designs), where they differ from the generic rule. */
+export const KIT_EXTRA: Record<string, [shorts: string, socks: string]> = {
+  'arsenal': ['#FFFFFF', '#EF0107'], 'manchester-city': ['#FFFFFF', '#6CABDD'], 'liverpool': ['#C8102E', '#C8102E'], 'chelsea': ['#034694', '#FFFFFF'],
+  'manchester-united': ['#FFFFFF', '#000000'], 'tottenham': ['#132257', '#FFFFFF'], 'newcastle': ['#000000', '#000000'], 'aston-villa': ['#FFFFFF', '#670E36'],
+  'brighton': ['#0057B8', '#0057B8'], 'nottingham-forest': ['#FFFFFF', '#DD0000'], 'crystal-palace': ['#1B458F', '#1B458F'], 'bournemouth': ['#000000', '#000000'],
+  'brentford': ['#000000', '#E30613'], 'fulham': ['#000000', '#FFFFFF'], 'everton': ['#FFFFFF', '#FFFFFF'], 'leeds-united': ['#FFFFFF', '#FFFFFF'],
+  'sunderland': ['#000000', '#000000'], 'coventry-city': ['#59CBE8', '#59CBE8'], 'ipswich': ['#FFFFFF', '#0044A9'], 'hull-city': ['#000000', '#F5A12D'], 'west-ham': ['#FFFFFF', '#FFFFFF'],
+  'real-madrid': ['#FFFFFF', '#FFFFFF'], 'barcelona': ['#004D98', '#A50044'], 'atletico-madrid': ['#272E61', '#CB3524'], 'athletic-club': ['#000000', '#000000'],
+  'villarreal': ['#FFE667', '#FFE667'], 'real-betis': ['#FFFFFF', '#0BB363'], 'real-sociedad': ['#FFFFFF', '#0067B1'], 'sevilla': ['#FFFFFF', '#FFFFFF'], 'valencia': ['#000000', '#FFFFFF'],
+  'celta': ['#FFFFFF', '#8AC3EE'], 'osasuna': ['#0A346F', '#0A346F'], 'getafe': ['#005999', '#005999'], 'espanyol': ['#FFFFFF', '#007FC8'],
+  'bayern-munchen': ['#DC052D', '#DC052D'], 'borussia-dortmund': ['#000000', '#FDE100'], 'bayer-leverkusen': ['#000000', '#E32221'], 'rb-leipzig': ['#FFFFFF', '#FFFFFF'],
+  'eintracht-frankfurt': ['#000000', '#000000'], 'vfb-stuttgart': ['#FFFFFF', '#FFFFFF'], 'werder-bremen': ['#1D9053', '#1D9053'], 'borussia-monchengladbach': ['#FFFFFF', '#FFFFFF'],
+  'hamburger-sv': ['#D9001B', '#0A3D91'], 'schalke-04': ['#FFFFFF', '#004D9D'], 'koln': ['#FFFFFF', '#FFFFFF'],
+  'inter': ['#000000', '#000000'], 'milan': ['#FFFFFF', '#000000'], 'juventus': ['#FFFFFF', '#FFFFFF'], 'napoli': ['#FFFFFF', '#12A0D7'], 'atalanta': ['#000000', '#000000'],
+  'roma': ['#FFFFFF', '#8E1F2F'], 'lazio': ['#FFFFFF', '#87D8F7'], 'fiorentina': ['#482E92', '#482E92'], 'bologna': ['#FFFFFF', '#1A2F48'], 'torino': ['#FFFFFF', '#8A1E03'],
+  'paris-saint-germain': ['#004170', '#004170'], 'marseille': ['#FFFFFF', '#FFFFFF'], 'as-monaco': ['#FFFFFF', '#E7192B'], 'lille': ['#1D2C5E', '#E01E13'], 'lyon': ['#FFFFFF', '#FFFFFF'],
+  'rc-lens': ['#000000', '#FFD700'], 'nice': ['#000000', '#000000'], 'rennes': ['#000000', '#E13327'],
+  'sporting-cp': ['#000000', '#008057'], 'benfica': ['#FFFFFF', '#E30613'], 'fc-porto': ['#FFFFFF', '#0055A4'], 'psv': ['#000000', '#ED1C24'], 'ajax': ['#FFFFFF', '#FFFFFF'],
+  'feyenoord': ['#000000', '#000000'], 'celtic': ['#FFFFFF', '#FFFFFF'], 'rangers': ['#FFFFFF', '#000000'], 'galatasaray': ['#FFFFFF', '#A90432'], 'fenerbahce': ['#FFFFFF', '#163962'],
+  'al-hilal': ['#FFFFFF', '#005CA9'], 'al-nassr': ['#0033A0', '#FFE600'], 'inter-miami-cf': ['#F7B5CD', '#F7B5CD'], 'flamengo': ['#FFFFFF', '#C4161C'], 'boca-juniors': ['#003F8A', '#003F8A'], 'river-plate': ['#000000', '#FFFFFF'],
 };

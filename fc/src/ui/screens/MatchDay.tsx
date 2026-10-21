@@ -12,6 +12,7 @@ import { Instructions } from './Tactics';
 import { GoalCine, MatchIntro, TrophyCine } from '../cine';
 import { startCrowd, stopCrowd, roar, groan, whistle, setSound } from '../sfx';
 import { luminance } from '../art';
+import { Broadcast, LW, LH } from '../broadcast';
 
 type Phase = 'preview' | 'intro' | 'live' | 'done';
 
@@ -49,7 +50,7 @@ export function MatchDay({ fxId }: { fxId: number }) {
   };
 
   const home = w.clubs[fx.home], away = w.clubs[fx.away];
-  if (trophy) return <TrophyCine club={w.clubs[w.user]} title={trophy} onDone={() => setTrophy(null)} />;
+  if (trophy) return <TrophyCine club={w.clubs[w.user]} title={trophy} players={squadForCine(w)} onDone={() => setTrophy(null)} />;
   if (phase === 'preview') return <Preview w={w} fx={fx} onLive={() => begin(true)} onSim={() => begin(false)} />;
   if (phase === 'intro' && match) return <MatchIntro home={home} away={away} comp={w.comps[fx.comp]?.name ?? ''} stage={fx.stage} stadium={fx.neutral ? 'Neutral venue' : home.stadium} homeXI={match.onPitch(0).map(l => l.p)} awayXI={match.onPitch(1).map(l => l.p)} onDone={() => setPhase('live')} />;
   if (phase === 'live' && match) return <Live m={match} userSide={userSide} onEnd={() => finish(match)} />;
@@ -112,14 +113,17 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
   const [goal, setGoal] = useState<Action | null>(null);
   const [ht, setHt] = useState(false);
   const [subOut, setSubOut] = useState<number | null>(null);
-  const st = useRef({ queue: [] as Action[], cur: null as Anim | null, ball: [52.5, 34] as [number, number], bh: 0, pos: new Map<number, [number, number]>(), last: performance.now(), half: 1, paused: false, goal: false, ht: false, speed: 1, ended: false, flash: 0, replay: [] as Action[] });
+  const [camMode, setCamMode] = useState<'25d' | 'tac'>('25d');
+  const camRef = useRef(camMode); camRef.current = camMode;
+  const st = useRef({ celebUntil: 0, queue: [] as Action[], cur: null as Anim | null, ball: [52.5, 34] as [number, number], bh: 0, pos: new Map<number, [number, number]>(), last: performance.now(), half: 1, paused: false, goal: false, ht: false, speed: 1, ended: false, flash: 0, replay: [] as Action[] });
   st.current.paused = paused || !!goal || ht; st.current.speed = speed;
   const clubs = m.clubs;
   const kit = useMemo(() => {
     const h = clubs[0], a = clubs[1];
     const away = Math.abs(luminance(h.c1) - luminance(a.c1)) < 0.18 || h.c1.toLowerCase() === a.c1.toLowerCase();
-    return [{ c1: h.c1, c2: h.c2, gk: '#1ed760' }, away ? { c1: a.a1, c2: a.a2, gk: '#f97316' } : { c1: a.c1, c2: a.c2, gk: '#f97316' }];
+    return [{ c1: h.c1, c2: h.c2, gk: '#1ed760' }, away ? { c1: a.a1, c2: a.a2, gk: '#f97316', away: true } : { c1: a.c1, c2: a.c2, gk: '#f97316' }];
   }, [clubs]);
+  const bc = useMemo(() => new Broadcast(m, kit), [m, kit]);
 
   useEffect(() => { startCrowd(); whistle(); return () => stopCrowd(); }, []);
 
@@ -131,7 +135,8 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
     for (const l of m.lps) if (l.on) S.pos.set(l.id, m.shapePos(l));
     const frame = (now: number) => {
       const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now;
-      if (!S.paused && !S.ended) {
+      const celebrating = now < S.celebUntil;
+      if (!S.paused && !S.ended && !celebrating) {
         if (!S.cur) {
           if (!S.queue.length && !m.done) {
             const acts = m.step();
@@ -144,6 +149,7 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
             const k = SPEEDS[S.speed];
             const ms = Math.max(60, a.dur * 1000 * k * (a.type === 'goal' || a.type === 'save' || a.type === 'miss' || a.type === 'post' ? 1.6 : 1) * (a.type === 'sub' || a.type === 'card' || a.type === 'whistle' || a.type === 'kickoff' ? 0.4 : 1));
             S.cur = { a, t0: now, ms };
+            bc.onAction(a);
             S.replay.push(a); if (S.replay.length > 8) S.replay.shift();
             if (a.type === 'save' || a.type === 'miss' || a.type === 'post' || a.type === 'block') { if (a.big || a.type === 'post') roar(0.35); }
             if (a.type === 'foul') whistle();
@@ -156,7 +162,11 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
           S.ball = [a.from[0] + (a.to[0] - a.from[0]) * e, a.from[1] + (a.to[1] - a.from[1]) * e];
           S.bh = LONG.has(a.type) ? Math.sin(Math.PI * k) * (a.type === 'cross' || a.type === 'long' || a.type === 'clear' ? 6 : a.type === 'through' ? 1.5 : 1.2) : 0;
           if (k >= 1) {
-            if (a.type === 'goal') { S.goal = true; S.flash = 1; setGoal(a); roar(1); }
+            if (a.type === 'goal') {
+              S.goal = true; S.flash = 1; roar(1);
+              if (camRef.current === '25d' && getWorld().settings.cinematics) { bc.startCelebration(a); S.celebUntil = now + 3300; setTimeout(() => setGoal(a), 3300); }
+              else setGoal(a);
+            }
             else if (a.type === 'miss' && a.big) groan();
             S.cur = null;
             if (a.type === 'goal' || a.type === 'red' as string) rerender();
@@ -177,14 +187,20 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
         const sp = Math.min(1, dt * (a && (a.pid === l.id || a.pid2 === l.id) ? 6 : 1.8) * (1 + S.speed * 0.6));
         S.pos.set(l.id, [cur[0] + (tgt[0] - cur[0]) * sp, cur[1] + (tgt[1] - cur[1]) * sp]);
       }
-      draw(ctx, canvas, m, S, kit, now);
+      if (camRef.current === '25d') {
+        if (canvas.width !== LW) { canvas.width = LW; canvas.height = LH; }
+        bc.frame(ctx, S.ball, S.bh * 0.7, S.cur?.a ?? null, l => m.shapePos(l, S.ball, poss as 0 | 1), dt);
+      } else {
+        if (canvas.width === LW) { const r = canvas.getBoundingClientRect(); canvas.width = r.width * devicePixelRatio; canvas.height = r.height * devicePixelRatio; }
+        draw(ctx, canvas, m, S, kit, now);
+      }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    const ro = () => { const r = canvas.getBoundingClientRect(); canvas.width = r.width * devicePixelRatio; canvas.height = r.height * devicePixelRatio; };
+    const ro = () => { if (camRef.current === '25d') return; const r = canvas.getBoundingClientRect(); canvas.width = r.width * devicePixelRatio; canvas.height = r.height * devicePixelRatio; };
     ro(); window.addEventListener('resize', ro);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', ro); };
-  }, [m, kit, onEnd]);
+  }, [m, kit, onEnd, bc]);
 
   const setTac = (f: (t: typeof m.tac[0]) => void) => { f(m.tac[userSide]); rerender(); };
   const comm = m.commentary.slice(-60).reverse();
@@ -205,10 +221,11 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
       </div>
       <div className="live-grid">
         <div className="live-pitch">
-          <div className="persp"><canvas ref={cv} /></div>
+          <div className={`persp ${camMode === '25d' ? 'bcast' : ''}`}><canvas ref={cv} /></div>
           <div className="ticker">{comm[0]?.text}</div>
           <div className="live-ctrl">
             <button onClick={() => setPaused(p => !p)}>{paused ? '▶ Resume' : '❚❚ Pause'}</button>
+            <button className={camMode === '25d' ? 'on' : ''} onClick={() => setCamMode(c => c === '25d' ? 'tac' : '25d')}>{camMode === '25d' ? 'Broadcast cam' : 'Tactical cam'}</button>
             {['1x', '2x', '4x', '10x'].map((s, i) => <button key={s} className={speed === i ? 'on' : ''} onClick={() => setSpeed(i)}>{s}</button>)}
             <button onClick={() => { while (!m.done) m.step(); st.current.queue = []; st.current.cur = null; rerender(); }}>Sim to end</button>
           </div>
@@ -244,7 +261,7 @@ function Live({ m, userSide, onEnd }: { m: Match; userSide: 0 | 1; onEnd: () => 
           )}
         </div>
       </div>
-      {goal && <GoalCine scorer={goalLp?.p} assist={astLp?.p} club={clubs[goal.side]} minute={m.clock()} score={`${clubs[0].short} ${m.score[0]}-${m.score[1]} ${clubs[1].short}`} onDone={() => { st.current.goal = false; setGoal(null); }} />}
+      {goal && <GoalCine scorer={goalLp?.p} assist={astLp?.p} mates={m.onPitch(goal.side).filter(l => l.pos !== 'GK').slice(0, 4).map(l => l.p)} club={clubs[goal.side]} minute={m.clock()} score={`${clubs[0].short} ${m.score[0]}-${m.score[1]} ${clubs[1].short}`} onDone={() => { st.current.goal = false; setGoal(null); }} />}
       {ht && (
         <div className="ht-overlay">
           <div className="ht-box">
@@ -376,4 +393,11 @@ function Summary({ w, fx }: { w: World; fx: Fixture }) {
       <div className="sum-btns"><button className="btn-hero" onClick={() => go({ s: 'hub' })}>Continue</button></div>
     </div>
   );
+}
+
+export function squadForCine(w: World) {
+  const u = w.clubs[w.user];
+  const cap = w.players[u.tactic.captain ?? -1];
+  const rest = u.squad.map(id => w.players[id]).filter(p => p && p !== cap && p.pos !== 'GK').sort((a, b) => b.ovr - a.ovr);
+  return (cap ? [cap, ...rest] : rest).slice(0, 5);
 }

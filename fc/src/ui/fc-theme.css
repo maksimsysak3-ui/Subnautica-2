@@ -47,6 +47,7 @@ body { background: #04050a; }
 .fc-util { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 .fc-util button { background: none; border: 1px solid var(--edge); border-radius: 3px; padding: 4px 8px; font: 800 10.5px var(--body); letter-spacing: .1em; color: #8190b0; }
 .fc-util button:hover { color: #fff; border-color: #fff; }
+.fc-util button.on { color: #05060a; background: var(--accent); border-color: var(--accent); }
 .fc-main { position: relative; z-index: 1; padding: 22px 26px 70px; max-width: 1680px; margin: 0 auto; animation: screenIn .35s cubic-bezier(.2, .9, .3, 1); }
 @keyframes screenIn { from { opacity: 0; transform: translateY(10px); } }
 
@@ -216,3 +217,20 @@ input, select { border-radius: 4px; background: rgba(0, 0, 0, .45); border-color
   .title2 { grid-template-columns: 1fr; } .t2-right { display: none; } .t2-left { padding: 0 20px; }
   .nmh-crests .crest { width: 80px; height: 80px; } .nmh-crests > div:not(.nmh-vs) { width: 130px; } .nmh-crests b { font-size: 16px; } .nmh-vs { font-size: 40px; }
 }
+
+/* 2.5D broadcast canvas: crisp upscaled pixel art */
+.persp.bcast { width: 100%; }
+.persp.bcast canvas { transform: none; aspect-ratio: 16 / 9; image-rendering: pixelated; image-rendering: crisp-edges; border-radius: 6px; width: min(100%, calc((100vh - 190px) * 16 / 9)); height: auto; max-height: none; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px #000c; }
+
+/* pixel cutscene stages */
+.pixel-stage { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.gl-stage { position: absolute; left: 50%; top: 50%; width: min(1000px, 96vw); aspect-ratio: 200 / 80; transform: translate(-50%, -38%); z-index: 0; border: 3px solid var(--c1); box-shadow: 0 30px 90px #000c; animation: fade .4s both; }
+.goal .gl-word { z-index: 2; margin-top: -42vh; font-size: clamp(70px, 12vw, 170px); }
+.goal .gl-card { z-index: 3; bottom: 4%; }
+.goal .gl-stripes { opacity: .55; }
+.tr-stage { position: relative; width: min(900px, 94vw); aspect-ratio: 200 / 96; border-radius: 6px; box-shadow: 0 30px 90px #000c; animation: fade 1s both; }
+.trophy .tr-text { margin-top: -30px; }
+.sg-stage { width: 240px; aspect-ratio: 120 / 70; border-radius: 4px; border: 2px solid var(--c1); }
+.sg-kit { display: flex; gap: 14px; align-items: flex-end; }
+.aw-stage { position: relative; width: min(760px, 92vw); aspect-ratio: 200 / 96; border-radius: 6px; border: 1px solid #f5c54255; box-shadow: 0 20px 70px #000b; }
+.awards-night .podium { transform: scale(.82); margin: -30px 0 -40px; }

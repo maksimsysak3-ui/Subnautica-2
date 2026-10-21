@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { PixelStage, type Actor } from './PixelStage';
 import type { Club, Player } from '../core/types';
 import { Crest, Face, PlayerCard, TrophySvg, Kit, kitFor } from './art';
 import { fmtMoney } from '../core/transfers';
@@ -19,12 +20,17 @@ export function SigningCine({ p, club, fee, loan, onDone }: { p: Player; club: C
           <h1>{p.name}</h1>
           <div className="sg-meta"><Crest club={club} size={34} /><b>{club.name}</b></div>
           <div className="sg-fee">{loan ? 'Season-long loan' : fee ? fmtMoney(fee) : 'Free'}</div>
-          <div className="sg-kit"><Kit {...kitFor(club)} num={p.num} name={p.name.split(' ').slice(-1)[0]} size={130} /></div>
+          <div className="sg-kit"><Kit {...kitFor(club)} num={p.num} name={p.name.split(' ').slice(-1)[0]} size={110} /><SignStage p={p} club={club} /></div>
         </div>
       </div>
       <div className="cine-skip">Click to continue</div>
     </div>
   );
+}
+
+function SignStage({ p, club }: { p: Player; club: Club }) {
+  const actors = useMemo<Actor[]>(() => [{ p, club, pose: 'wave', x: 60, dx: -50, delay: 1.2, ball: true }], [p, club]);
+  return <PixelStage actors={actors} bg="stage" w={120} h={70} className="sg-stage" accent={club.c1} />;
 }
 
 /** Pre-match walkout: competition, stadium, crests slam, line-ups. */
@@ -53,11 +59,20 @@ export function MatchIntro({ home, away, comp, stage, stadium, homeXI, awayXI, o
 }
 
 /** Goal celebration overlay. */
-export function GoalCine({ scorer, assist, club, minute, score, onDone, own }: { scorer?: Player; assist?: Player; club: Club; minute: string; score: string; own?: boolean; onDone: () => void }) {
+export function GoalCine({ scorer, assist, club, minute, score, onDone, own, mates = [] }: { scorer?: Player; assist?: Player; club: Club; minute: string; score: string; own?: boolean; onDone: () => void; mates?: Player[] }) {
   useEffect(() => { roar(1); const t = setTimeout(onDone, 4200); return () => clearTimeout(t); }, [onDone]);
+  const actors = useMemo<Actor[]>(() => {
+    const a: Actor[] = [];
+    if (scorer) a.push({ p: scorer, club, pose: 'slideCelebrate', x: 112, dx: -90, delay: 0.2 });
+    const others = [assist, ...mates].filter((x): x is Player => !!x && x !== scorer).slice(0, 3);
+    others.forEach((m, i) => a.push({ p: m, club, pose: i % 2 ? 'celebrate' : 'jump', x: 70 - i * 22, dx: -60, delay: 0.6 + i * 0.25 }));
+    return a;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scorer?.id, club.id]);
   return (
     <div className="cine goal" onClick={onDone} style={{ ['--c1' as string]: club.c1, ['--c2' as string]: club.c2 }}>
       <div className="gl-stripes"><i /><i /><i /></div>
+      <PixelStage actors={actors} w={200} h={80} className="gl-stage" accent={club.c1} />
       <div className="gl-word">{own ? 'GOAL' : 'GOAL!'}</div>
       <div className="gl-card">
         {scorer && <Face p={scorer} club={club} size={130} />}
@@ -73,7 +88,8 @@ export function GoalCine({ scorer, assist, club, minute, score, onDone, own }: {
 }
 
 /** Trophy lift with confetti. */
-export function TrophyCine({ club, title, onDone }: { club: Club; title: string; onDone: () => void }) {
+export function TrophyCine({ club, title, onDone, players = [] }: { club: Club; title: string; onDone: () => void; players?: Player[] }) {
+  const actors = useMemo<Actor[]>(() => players.slice(0, 5).map((p, i) => ({ p, club, pose: i === 0 ? 'lift' : i % 2 ? 'jump' : 'celebrate', trophy: i === 0, x: [100, 72, 128, 46, 154][i], facing: (i % 2 ? 1 : -1) as 1 | -1, delay: 0.4 + i * 0.15 })), [players, club]);
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     whistle(true); setTimeout(() => sting(), 600);
@@ -94,7 +110,7 @@ export function TrophyCine({ club, title, onDone }: { club: Club; title: string;
     <div className="cine trophy" style={{ ['--c1' as string]: club.c1, ['--c2' as string]: club.c2 }}>
       <canvas ref={ref} className="confetti" />
       <div className="tr-glow" />
-      <div className="tr-cup"><TrophySvg size={200} /></div>
+      {actors.length ? <PixelStage actors={actors} w={200} h={96} className="tr-stage" confetti={[club.c1, club.c2, '#f5c542', '#ffffff']} accent={club.c1} /> : <div className="tr-cup"><TrophySvg size={200} /></div>}
       <div className="tr-text"><span>CHAMPIONS</span><h1>{title}</h1><div><Crest club={club} size={60} /><b>{club.name}</b></div></div>
       <button className="btn-hero" onClick={onDone}>Continue</button>
     </div>

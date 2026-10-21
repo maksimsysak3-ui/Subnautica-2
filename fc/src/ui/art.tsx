@@ -58,6 +58,7 @@ function patternEls(p: KitPattern, c1: string, c2: string) {
     case 'quarters': return <><rect x="50" y="0" width="50" height="50" fill={c2} /><rect x="0" y="50" width="50" height="50" fill={c2} /></>;
     case 'sash': return <path d="M10 0 L30 0 L100 80 L100 100 L88 100 L10 12 Z" fill={c2} />;
     case 'band': return <rect x="40" y="0" width="20" height="100" fill={c2} />;
+    case 'hband': return <rect x="0" y="34" width="100" height="16" fill={c2} />;
     case 'sleeves': return <><path d="M0 0 L30 0 L26 40 L0 40 Z" fill={c2} /><path d="M70 0 L100 0 L100 40 L74 40 Z" fill={c2} /></>;
     case 'chevron': return <path d="M26 30 L50 50 L74 30 L74 42 L50 62 L26 42 Z" fill={c2} />;
     case 'yoke': return <rect x="0" y="0" width="100" height="22" fill={c2} />;
@@ -142,6 +143,7 @@ export const Face = memo(function Face({ p, club, size = 64, away = false }: { p
         {k.pattern === 'halves' && <rect x="50" y="88" width="50" height="40" fill={k.c2} />}
         {k.pattern === 'sash' && <path d="M20 88 L34 88 L80 128 L66 128 Z" fill={k.c2} />}
         {k.pattern === 'band' && <rect x="42" y="88" width="16" height="40" fill={k.c2} />}
+        {k.pattern === 'hband' && <rect x="0" y="104" width="100" height="8" fill={k.c2} />}
         {k.pattern === 'sleeves' && <><rect x="0" y="88" width="20" height="40" fill={k.c2} /><rect x="80" y="88" width="20" height="40" fill={k.c2} /></>}
         <rect x="0" y="88" width="100" height="40" fill="#000" opacity=".12" />
       </g>

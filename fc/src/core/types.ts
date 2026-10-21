@@ -99,7 +99,7 @@ export interface Club {
   country: string;
   league: string;
   rep: number;
-  c1: string; c2: string; a1: string; a2: string; kit: KitPattern;
+  c1: string; c2: string; a1: string; a2: string; kit: KitPattern; shorts?: string; socks?: string;
   stadium: string; cap: number;
   logo: string;
   budget: number;      // transfer funds €
@@ -203,5 +203,5 @@ export interface World {
   training: { focus: string; intensity: number };
   sacked?: boolean;
   lastResultFx?: number;
-  settings: { speed: number; sound: boolean; cinematics: boolean };
+  settings: { speed: number; sound: boolean; cinematics: boolean; autoSim?: boolean };
 }

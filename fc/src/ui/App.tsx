@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { World } from '../core/types';
 import { createWorld, LEAGUES, leagueLogo } from '../core/world';
-import { advanceDay, fmtDate, startSeason, news, table, ord } from '../core/season';
+import { advanceDay, fmtDate, startSeason, news, table, ord, playFixture } from '../core/season';
 import { teamRatings } from '../core/tactics';
 import { fmtMoney, windowOpen } from '../core/transfers';
 import { useWorld, setWorld, mutate, listSaves, loadSlot, saveNow, setSlot, deleteSlot, bump, type SaveMeta, getWorld } from './store';
@@ -193,7 +193,7 @@ function Shell() {
   const advance = (mode: 'next' | 'day' | 'week') => {
     if (sim) return;
     if (route.s === 'match') return;
-    if (todayMatch && nextFx) { go({ s: 'match', fx: nextFx.id }); return; }
+    if (todayMatch && nextFx && !w.settings.autoSim) { go({ s: 'match', fx: nextFx.id }); return; }
     setSim('Simulating…');
     let days = 0;
     const limit = mode === 'day' ? 1 : mode === 'week' ? 7 : 400;
@@ -203,6 +203,7 @@ function Shell() {
         const wd = getWorld();
         const stop = advanceDay(wd);
         days++;
+        if (stop && stop.kind === 'match' && wd.settings.autoSim) { playFixture(wd, stop.fx); continue; }
         if (stop) {
           bump(); setSim(null); void saveNow();
           if (stop.kind === 'match') { go({ s: 'match', fx: stop.fx.id }); return; }
@@ -270,6 +271,7 @@ function Shell() {
           <div className="fc-util">
             <button title="Save" onClick={async () => { const ok = await saveNow(); toast(ok ? 'Career saved' : 'Save failed', ok ? 'good' : 'bad'); }}>SAVE</button>
             <button title="Sound" onClick={() => mutate(x => { x.settings.sound = !x.settings.sound; setSound(x.settings.sound); })}>{w.settings.sound ? 'SFX ON' : 'SFX OFF'}</button>
+            <button title="Quick-sim your own matches when continuing" className={w.settings.autoSim ? 'on' : ''} onClick={() => mutate(x => { x.settings.autoSim = !x.settings.autoSim; })}>{w.settings.autoSim ? 'AUTO-PLAY ON' : 'AUTO-PLAY OFF'}</button>
             <button title="Cinematics" onClick={() => mutate(x => { x.settings.cinematics = !x.settings.cinematics; })}>{w.settings.cinematics ? 'CINE ON' : 'CINE OFF'}</button>
           </div>
         </nav>

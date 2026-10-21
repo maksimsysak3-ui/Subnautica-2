@@ -6,6 +6,8 @@ import { Panel } from '../bits';
 import { endSeason, table, ord, setObjectives, news } from '../../core/season';
 import { LEAGUES } from '../../core/world';
 import { TrophyCine } from '../cine';
+import { squadForCine } from './MatchDay';
+import { PixelStage, type Actor } from '../PixelStage';
 import { fmtSeason } from '../App';
 import { shuffle } from '../../core/rng';
 
@@ -17,7 +19,7 @@ export function SeasonEnd({ onNext }: { onNext?: () => void }) {
   const won = u.trophies.filter(t => t.season === w.season);
   const [season] = useState(w.season);
   void onNext;
-  if (step === 'trophy' && won[trophyIdx]) return <TrophyCine club={u} title={won[trophyIdx].name} onDone={() => { if (trophyIdx + 1 < won.length) setTrophyIdx(trophyIdx + 1); else setStep('review'); }} />;
+  if (step === 'trophy' && won[trophyIdx]) return <TrophyCine club={u} players={squadForCine(w)} title={won[trophyIdx].name} onDone={() => { if (trophyIdx + 1 < won.length) setTrophyIdx(trophyIdx + 1); else setStep('review'); }} />;
   if (step === 'awards') {
     const aw = w.awards.filter(a => a.season === season);
     const podium = ["Ballon d'Or", "Ballon d'Or — 2nd", "Ballon d'Or — 3rd"].map(t => aw.find(a => a.title === t)).filter(Boolean);
@@ -25,6 +27,7 @@ export function SeasonEnd({ onNext }: { onNext?: () => void }) {
       <div className="season-end awards-night">
         <div className="an-bg" />
         <h1>Awards Night <span>{fmtSeason(season)}</span></h1>
+        <AwardsStage w={w} pids={podium.map(a => a!.pid!)} />
         <div className="podium">
           {[1, 0, 2].map(i => { const a = podium[i]; const p = a?.pid ? w.players[a.pid] : undefined; return p ? <div key={i} className={`pod p${i + 1}`}><PlayerCard p={p} club={p.club ? w.clubs[p.club] : undefined} size={i === 0 ? 1.2 : 0.95} /><b>{i === 0 ? "BALLON D'OR" : `${i + 1}${ord(i + 1)}`}</b></div> : null; })}
         </div>
@@ -98,4 +101,12 @@ export function Sacked() {
       </div>
     </div>
   );
+}
+
+function AwardsStage({ w, pids }: { w: ReturnType<typeof useWorld>; pids: number[] }) {
+  const actors = useMemo<Actor[]>(() => {
+    const xs = [100, 56, 144];
+    return pids.map((id, i) => w.players[id]).map((p, i) => p ? ({ p, club: p.club ? w.clubs[p.club] : undefined, pose: i === 0 ? 'lift' : 'celebrate', trophy: i === 0, x: xs[i], y: 96 - 12 - [18, 11, 7][i], delay: [1.2, 0.6, 0.2][i] } as Actor) : null).filter((a): a is Actor => !!a);
+  }, [w, pids]);
+  return <PixelStage actors={actors} bg="stage" w={200} h={96} podium className="aw-stage" confetti={['#f5c542', '#ffffff', '#22e3a1']} accent="#f5c542" />;
 }
