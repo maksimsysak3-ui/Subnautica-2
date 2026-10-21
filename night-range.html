@@ -612,15 +612,22 @@ function buildHead(c, d, head) {
     M(headShell(d, g, 0, Math.PI * 2, 0, rimTh, 10, 7), S.hat, cap);
     for (let k = 0; k < 6; k++) seam(d, g + 0.002, FRONT + k * Math.PI / 3, 0.05, rimTh, 0.0024, S.hatSeam, cap);
     ring(d, g + 0.003, rimTh - 0.02, 0.0045, S.hatSeam, cap);
-    const rim = shellPt(d, g, rimTh, FRONT);
-    const bw = H.ex * 1.02, bd = d.hd * 0.58;
-    const sh = new THREE.Shape(); sh.moveTo(bw, 0); sh.absellipse(0, 0, bw, bd, 0, Math.PI, false); sh.lineTo(bw, 0);
-    const bg = new THREE.ExtrudeGeometry(sh, { depth: 0.011, bevelEnabled: false, curveSegments: 12 });
-    bg.rotateX(Math.PI / 2);
-    const bp = bg.attributes.position;
-    for (let i = 0; i < bp.count; i++) bp.setY(i, bp.getY(i) - (bp.getX(i) / bw) ** 2 * 0.028 - (bp.getZ(i) / bd) ** 2 * 0.006);
-    bg.computeVertexNormals();
-    M(bg, S.hatDS, cap, 0, rim.y + 0.004, rim.z - 0.045, 0.14);
+    // brim: its inner edge is the crown's front rim itself, so it is attached all the way round the curve
+    const span = 1.15, N = 14, inner = [], outer = [], pos = [], idx = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N, phi = FRONT - span + u * span * 2, c = Math.cos((u - 0.5) * Math.PI);
+      const p = shellPt(d, g, rimTh, phi);
+      const out = new V3(p.x, 0, p.z).normalize().lerp(new V3(0, 0, 1), 0.55).normalize();
+      const w = d.hd * 0.6 * Math.pow(Math.max(c, 0), 0.55);
+      const q = p.clone().addScaledVector(out, w); q.y -= w * 0.2 + (1 - c) * 0.004;
+      inner.push(p); outer.push(q);
+      pos.push(p.x, p.y, p.z, q.x, q.y, q.z);
+      if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 2, k + 1, k + 3); }
+    }
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setIndex(idx); bg.computeVertexNormals();
+    M(bg, S.hatDS, cap);
+    M(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(outer), 28, 0.0055, 4), S.hatDS, cap);   // stiff brim edge / thickness
+    M(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(inner), 28, 0.004, 4), S.hatSeam, cap);  // seam where the brim meets the crown
     const pp = shellPt(d, g + 0.004, Math.PI * 0.26, FRONT);
     M(box(H.ex * 0.62, d.hh * 0.11, 0.008), S.hatPatch, cap, 0, pp.y, pp.z, -0.55);
     const bk = shellPt(d, g, rimTh - 0.06, FRONT + Math.PI);
