@@ -201,6 +201,7 @@ function buildLiving() {
     shelf(3.3, 0.05, 1.6, Math.PI, 1.2, 4, 'supply'); firstAid(2.0, 0.85, 2.1, Math.PI); tableFolding(0, 0.05, 1.7, 0, 1.6, 0.6); for (let i = 0; i < 4; i++) bottle(-0.5 + i * 0.3, 0.81, 1.7, 0xd8e8f0, 0.18);
     W.box(0.6, 0.06, 2.0, -3.3, 0.5, 1.4, PC.olive); for (const s of [-1, 1]) W.box(0.04, 0.04, 2.3, -3.3 + s * 0.3, 0.5, 1.4, PC.alu, { layer: 'metal' });
     W.box(0.3, 0.3, 0.004, 0, 1.5, -2.45, PC.redLt); bulb(0, 2.9, 0, 0.3, GLOW.cool, 4, 8);
+    medCabinet(-1.8, 0.05, 2.15, Math.PI); ivStand(3.4, 0.05, -0.6); sharpsBin(1.2, 0.81, 1.85); glovesBox(0.5, 0.81, 1.6);
   });
   W.push(-14, 0, 30); W.box(1.2, 1.2, 0.02, 0, 3.3, 0, PC.white, { ry: 0 }); W.pop();
   // latrines + showers (CHU style) by the south wall
@@ -246,6 +247,7 @@ function buildEastSide() {
     for (let i = 0; i < 4; i++) tire(-3.5, 0.05 + i * 0.4, -1.8, 0); jerrycan(-2.5, 0.05, -2.2, 0.3, PC.olive); jerrycan(-2.1, 0.05, -2.2, 0.1, PC.redLt); drum(-1.4, 0.05, -2.2, PC.blue);
     W.box(2.0, 0.02, 1.2, 0.5, 0.06, -0.5, 0x1a1a18, { ao: false }); bulb(0, 3.0, 0, 0.3, GLOW.cool, 4, 9); bulb(2.5, 3.0, 0, 0.3, GLOW.cool, 3, 7);
     W.box(0.6, 1.5, 0.6, 4.2, 0.8, -1.8, PC.metalDk, { layer: 'metal' }); W.cable([4.2, 1.2, -1.5], [2.0, 0.05, -0.8], 0.2, 0.02, PC.black, 6);  // air compressor
+    weldingCart(2.4, 0.05, 1.0, -0.4); toolChest(-4.2, 0.05, 2.3, Math.PI, PC.blue); wheelbarrow(-0.5, 0.05, -2.0, 0.3);
   });
   for (let i = 0; i < 3; i++) for (let k = 0; k < 4; k++) tire(52 + i * 0.95, k * 0.4, 112, 0);
   for (let i = 0; i < 8; i++) W.box(mr(0.5, 1.6), 0.004, mr(0.4, 1.2), 30 + mr(0, 25), 0.07, 100 + mr(-3, 3), 0x16150f, { ao: false }); // oil stains
@@ -308,6 +310,9 @@ function buildOutside() {
   W.pop();
   for (let i = 0; i < 30; i++) { const z = mr(-200, 280), x = -228 + Math.sin(z * 0.018) * 14 + mr(-6, 6); rock(x, terrainH(x, z) - 0.2, z, mr(0.3, 1.0), mpick([0x6b6050, 0x7a6a56, 0x5a5044])); }
   for (let i = 0; i < 26; i++) { const z = mr(-200, 280), x = -228 + Math.sin(z * 0.018) * 14 + mr(-10, 10); bush(x, terrainH(x, z), z, mr(0.5, 1.3), PC.leaf); }
+  // bus stop on the highway shoulder
+  busShelter(24, terrainH(24, 179), 179, Math.PI); bench(30, terrainH(30, 178.5), 178.5, Math.PI);
+  for (let i = 0; i < 4; i++) trafficCone(-112 + i * 3, terrainH(-112 + i * 3, 172), 172);
   buildCrashSite(-152, 56);
   buildRadioHill(190, -70);
   buildVillage(150, 222);
@@ -441,6 +446,13 @@ function buildVillage(cx, cz) {
   // a well with a bucket in the square
   W.push(-5, 0, 3); W.cyl(1.1, 1.2, 0.8, 0, 0.4, 0, PC.mud, { seg: 12, solid: true }); W.cyl(0.9, 0.9, 0.02, 0, 0.81, 0, 0x0a0a0a, { seg: 12 }); for (const s of [-1, 1]) W.box(0.12, 2.0, 0.12, s * 1.0, 1.0, 0, PC.woodDk); W.box(2.3, 0.12, 0.12, 0, 2.0, 0, PC.woodDk); W.cyl(0.12, 0.12, 0.6, 0, 1.85, 0, PC.wood, { rz: Math.PI / 2, seg: 8 }); W.rod([0, 1.75, 0], [0, 1.1, 0], 0.008, 0xb8a070); W.cyl(0.15, 0.12, 0.25, 0, 1.0, 0, PC.metal, { seg: 10, layer: 'metal' }); W.pop();
   W.solid(2.4, 0.8, 2.4, -5, 0.4, 3, 'concrete');
+  // village square life: livestock, a tea table, bikes against the compound walls
+  goat(6, 0, 2, 0.6); goat(8, 0, 4.2, 2.2); goat(7.2, 0, 0.6, -1.0); donkey(15.5, 0, 3, 1.4);
+  for (let i = 0; i < 6; i++) chicken(-9 + mr(-2, 2), 0, 4.5 + mr(-1.5, 1.5), mr(0, 6));
+  dog(1, 0, 5.5, 2.5); playBall(3, 0, 6, PC.blueLt);
+  plasticTable(-1, 0, -0.5); for (let i = 0; i < 4; i++) plasticChair(-1 + Math.sin(i * 1.57) * 0.85, 0, -0.5 + Math.cos(i * 1.57) * 0.85, i * 1.57 + Math.PI, mpick([PC.white, PC.blueLt, PC.green]));
+  samovar(-1.2, 0.72, -0.4); hookah(0.6, 0, 0.6);
+  bicycle(-14, 0, 8.2, 0, PC.blueLt); bicycle(-12.2, 0, 8.2, 0.05, PC.redLt); bicycle(10, 0, 8.3, 0, PC.green);
   // compounds: courtyard walls + houses with interiors; one is the shoot house
   const comps = [
     { x: -38, z: 14, w: 16, d: 14, houses: [[-3, -2, 8, 6, 'living'], [5, 3, 4, 5, 'kitchen']] },
