@@ -17,15 +17,41 @@ const RUN_CODES = { asphalt: SURF.asphalt, gravel: SURF.gravel, grass: SURF.gras
 const KERB_CODES = { flat: 1, sausage: 2 };
 
 function defaultSettings() {
-  return { barriers: true, scenery: true, tod: 15.5, livery: 0, kerbStyle: 'flat', runSurf: 'gravel', runW: 14 };
+  return { barriers: true, scenery: true, tod: 15.5, livery: 0, kerbStyle: 'flat', runSurf: 'gravel', runW: 14, wallH: 2.2, wallSp: 's1', showLine: true };
+}
+
+// Sponsors: designs drawn onto walls, billboards and boards. All names are fictional.
+const SPONSOR_LAYOUTS = ['block', 'stripe', 'split', 'badge', 'outline', 'script'];
+const SPONSOR_ICONS = ['none', 'bolt', 'star', 'wing', 'ring', 'chevron', 'flag', 'drop'];
+function defaultSponsors() {
+  return [
+    { id: 's1', name: 'Apex Energy', text: 'APEX', tag: 'ENERGY DRINK', bg: '#111111', fg: '#ffd200', accent: '#e10600', layout: 'block', icon: 'bolt' },
+    { id: 's2', name: 'Velocita', text: 'VELOCITA', tag: 'PERFORMANCE WATCHES', bg: '#0b2a6f', fg: '#ffffff', accent: '#4fc3ff', layout: 'stripe', icon: 'wing' },
+    { id: 's3', name: 'Northwind', text: 'NORTHWIND', tag: 'AIRLINES', bg: '#ffffff', fg: '#0d3b66', accent: '#ee964b', layout: 'split', icon: 'chevron' },
+    { id: 's4', name: 'Kinetic Oil', text: 'KINETIC', tag: 'MOTOR OIL', bg: '#d3121b', fg: '#ffffff', accent: '#ffd200', layout: 'badge', icon: 'drop' },
+    { id: 's5', name: 'Pitlane', text: 'PITLANE', tag: 'TYRES & SERVICE', bg: '#1a1a1a', fg: '#ffffff', accent: '#2fd06a', layout: 'outline', icon: 'ring' },
+    { id: 's6', name: 'Helix', text: 'Helix', tag: 'CLOUD COMPUTING', bg: '#5a1bd6', fg: '#ffffff', accent: '#00e5c7', layout: 'script', icon: 'star' },
+    { id: 's7', name: 'Corsa', text: 'CORSA', tag: 'RACING FUEL', bg: '#f4f4f4', fg: '#c8102e', accent: '#111111', layout: 'block', icon: 'flag' },
+    { id: 's8', name: 'Quantum', text: 'QUANTUM', tag: 'MOBILE NETWORK', bg: '#00a3e0', fg: '#ffffff', accent: '#002b49', layout: 'stripe', icon: 'none' },
+    { id: 's9', name: 'Solaris', text: 'SOLARIS', tag: 'SUNGLASSES', bg: '#ff7a00', fg: '#1a1a1a', accent: '#ffffff', layout: 'split', icon: 'star' },
+    { id: 's10', name: 'Ironclad', text: 'IRONCLAD', tag: 'INSURANCE', bg: '#22313f', fg: '#e8e8e8', accent: '#c0392b', layout: 'outline', icon: 'chevron' },
+    { id: 's11', name: 'Bluepeak', text: 'BLUEPEAK', tag: 'MINERAL WATER', bg: '#e6f4ff', fg: '#0057b8', accent: '#00b4d8', layout: 'badge', icon: 'drop' },
+    { id: 's12', name: 'Torque', text: 'TORQUE', tag: 'POWER TOOLS', bg: '#ffd200', fg: '#111111', accent: '#111111', layout: 'block', icon: 'bolt' },
+    { id: 's13', name: 'Monarch', text: 'Monarch', tag: 'PRIVATE BANKING', bg: '#0f2a1d', fg: '#d4af37', accent: '#d4af37', layout: 'script', icon: 'wing' },
+    { id: 's14', name: 'Vortex', text: 'VORTEX', tag: 'GAMING', bg: '#0a0a0a', fg: '#39ff14', accent: '#ff00a0', layout: 'stripe', icon: 'ring' },
+    { id: 's15', name: 'Grand Prix TV', text: 'GP TV', tag: 'LIVE EVERY RACE', bg: '#c8102e', fg: '#ffffff', accent: '#111111', layout: 'split', icon: 'flag' },
+    { id: 's16', name: 'Aerolux', text: 'AEROLUX', tag: 'LUXURY CARS', bg: '#f2f2ee', fg: '#222222', accent: '#b08d57', layout: 'outline', icon: 'wing' },
+  ];
 }
 
 const state = {
   name: 'New circuit',
   points: [],          // {x, z, y, w, bank}
   closed: false,
-  features: [],        // {kind:'kerb'|'runoff', side:1|-1, u0, u1, style|surf, width}
+  features: [],        // {kind:'kerb'|'runoff'|'wall', side:1|-1, u0, u1, style|surf, width|height, sponsor}
   settings: defaultSettings(),
+  sponsors: defaultSponsors(),
+  props: [],           // hand-placed props: {t (catalog id), x, z, r (rotation), s (scale), sp (sponsor id)}
 };
 
 // Number of spline segments: closed loops have one per point, open paths one fewer.
@@ -77,6 +103,8 @@ function buildSamples() {
     tx: new Float32Array(count), tz: new Float32Array(count),
     u: new Float32Array(count), w: new Float32Array(count), roll: new Float32Array(count), k: new Float32Array(count),
     kerb: [new Uint8Array(count), new Uint8Array(count)],       // [left, right] style code
+    wallH: [new Float32Array(count), new Float32Array(count)],  // painted wall height (0 = standard barrier)
+    wallSp: [new Array(count).fill(''), new Array(count).fill('')],
     runW: [new Float32Array(count), new Float32Array(count)],
     runS: [new Uint8Array(count), new Uint8Array(count)],
     bar: [new Float32Array(count), new Float32Array(count)],    // barrier distance from centre
@@ -147,13 +175,14 @@ function featureCovers(f, u, segs) {
 function applyFeatures(s) {
   const segs = segCount();
   for (let i = 0; i < s.n; i++) {
-    for (let k = 0; k < 2; k++) { s.kerb[k][i] = 0; s.runW[k][i] = 0; s.runS[k][i] = SURF.grass; }
+    for (let k = 0; k < 2; k++) { s.kerb[k][i] = 0; s.runW[k][i] = 0; s.runS[k][i] = SURF.grass; s.wallH[k][i] = 0; s.wallSp[k][i] = ''; }
   }
   for (const f of state.features) {
     const k = f.side > 0 ? 0 : 1;
     for (let i = 0; i < s.n; i++) {
       if (!featureCovers(f, s.u[i], segs)) continue;
       if (f.kind === 'kerb') s.kerb[k][i] = KERB_CODES[f.style] || 1;
+      else if (f.kind === 'wall') { s.wallH[k][i] = f.height; s.wallSp[k][i] = f.sponsor || ''; }
       else { s.runW[k][i] = Math.max(s.runW[k][i], f.width); s.runS[k][i] = RUN_CODES[f.surf] ?? SURF.gravel; }
     }
   }
@@ -243,6 +272,77 @@ function project(x, z, hint = -1) {
   const roll = lerp(S.roll[best.ia], S.roll[best.ib], best.t);
   const dist = (best.ia + best.t) * S.step;
   return { i, ia: best.ia, ib: best.ib, t: best.t, d, dist, cy, roll };
+}
+
+// ---------------------------------------------------------------------
+//  Racing line: a minimum-curvature path inside the track edges (string
+//  pulling at shrinking scales), then a speed profile from the car's grip,
+//  power and brakes. Each sample is tagged accelerate / at the limit / brake.
+// ---------------------------------------------------------------------
+let racingLine = null;   // Float32Array of lateral offsets (+ = left)
+const LINE = { v: null, zone: null };   // speed (m/s) and zone (0 accelerate, 1 limit, 2 brake) per sample
+function computeRacingLine() {
+  const n = S.n;
+  const idx = (i) => (S.closed ? ((i % n) + n) % n : clamp(i, 0, n - 1));
+  const lo = new Float32Array(n), hi = new Float32Array(n), off = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const m = 1.25;                                     // half the car plus a little margin
+    hi[i] = Math.min(S.w[i] / 2 + (S.kerb[0][i] ? KERB_W * 0.6 : 0) - m, S.lim[0][i] - m);
+    lo[i] = -Math.min(S.w[i] / 2 + (S.kerb[1][i] ? KERB_W * 0.6 : 0) - m, S.lim[1][i] - m);
+  }
+  const px = (i, o) => S.px[i] + leftX(i) * o, pz = (i, o) => S.pz[i] + leftZ(i) * o;
+  for (const k of [40, 24, 12, 6, 3, 1]) {
+    for (let it = 0; it < 50; it++) {
+      for (let i = 0; i < n; i++) {
+        if (!S.closed && (i < k || i >= n - k)) continue;
+        const a = idx(i - k), b = idx(i + k);
+        const mx = (px(a, off[a]) + px(b, off[b])) / 2, mz = (pz(a, off[a]) + pz(b, off[b])) / 2;
+        off[i] = clamp((mx - S.px[i]) * leftX(i) + (mz - S.pz[i]) * leftZ(i), lo[i], hi[i]);
+      }
+    }
+  }
+  racingLine = off;
+  // Curvature of the line itself.
+  const kap = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = idx(i - 3), b = idx(i + 3);
+    const ax = px(i, off[i]) - px(a, off[a]), az = pz(i, off[i]) - pz(a, off[a]);
+    const bx = px(b, off[b]) - px(i, off[i]), bz = pz(b, off[b]) - pz(i, off[i]);
+    const la = Math.hypot(ax, az) || 1, lb = Math.hypot(bx, bz) || 1;
+    kap[i] = Math.abs(Math.atan2(ax * bz - az * bx, ax * bx + az * bz)) / ((la + lb) / 2);
+  }
+  // Speed limit per sample, then acceleration (forward) and braking (backward) passes.
+  const MU = 1.7, KA = 0.5 * 1.225 * 4.0 / 800, VTOP = 94, g = 9.81;
+  const vmax = new Float32Array(n);
+  for (let i = 0; i < n; i++) vmax[i] = kap[i] <= MU * KA ? VTOP : Math.min(VTOP, Math.sqrt((MU * g) / (kap[i] - MU * KA)));
+  const accel = (v) => Math.min(11, 700000 / (800 * Math.max(v, 5))) - (0.5 * 1.225 * 1.2 * v * v) / 800;
+  const brake = (v) => Math.min(48, 1.55 * (g + KA * v * v));
+  const ds = S.step, laps = S.closed ? 2 : 1;
+  const fwd = Float32Array.from(vmax), v = new Float32Array(n);
+  let start = 0;
+  for (let i = 0; i < n; i++) if (vmax[i] < vmax[start]) start = i;
+  let cur = S.closed ? vmax[start] : 0;
+  for (let o = 0; o < n * laps; o++) {
+    const i = S.closed ? (start + o) % n : o;
+    if (i >= n) break;
+    cur = Math.min(vmax[i], cur);
+    fwd[i] = cur;
+    cur = Math.sqrt(cur * cur + 2 * Math.max(0, accel(cur)) * ds);
+  }
+  v.set(fwd);
+  cur = S.closed ? vmax[start] : fwd[n - 1];
+  for (let o = 0; o < n * laps; o++) {
+    const i = S.closed ? ((start - o) % n + n) % n : n - 1 - o;
+    if (i < 0) break;
+    cur = Math.min(v[i], cur);
+    v[i] = cur;
+    cur = Math.sqrt(cur * cur + 2 * brake(cur) * ds);
+  }
+  const zone = new Uint8Array(n);
+  for (let i = 0; i < n; i++) zone[i] = v[i] < fwd[i] - 0.4 ? 2 : vmax[i] < VTOP - 3 && v[i] > vmax[i] - 2.5 ? 1 : 0;
+  // Don't flicker: drop isolated one- or two-sample zones.
+  for (let i = 0; i < n; i++) if (zone[idx(i - 2)] === zone[idx(i + 2)] && zone[i] !== zone[idx(i - 2)]) zone[i] = zone[idx(i - 2)];
+  LINE.v = v; LINE.zone = zone;
 }
 
 // ---------------------------------------------------------------------
@@ -378,7 +478,9 @@ function setStart(k) {
 // Merge overlapping features of the same kind/side/look so repeated painting stays tidy.
 function addFeature(f) {
   const segs = segCount();
-  const same = (g) => g.kind === f.kind && g.side === f.side && (f.kind === 'kerb' ? g.style === f.style : g.surf === f.surf && g.width === f.width);
+  if (f.kind === 'wall') state.features = subtractRange(state.features, f.side, ['wall'], f.u0, f.u1, (g) => !(g.height === f.height && g.sponsor === f.sponsor));
+  const same = (g) => g.kind === f.kind && g.side === f.side && (f.kind === 'kerb' ? g.style === f.style
+    : f.kind === 'wall' ? g.height === f.height && g.sponsor === f.sponsor : g.surf === f.surf && g.width === f.width);
   const span = (g) => [g.u0, g.u1];
   let [a, b] = span(f);
   const keep = [];
@@ -398,6 +500,22 @@ function addFeature(f) {
   }
   keep.push({ ...f, u0: a, u1: b });
   state.features = keep;
+}
+
+// Cut [a,b] out of the features of the given kinds on one side (optionally only those matching `which`).
+function subtractRange(list, side, kinds, a, b, which = () => true) {
+  const segs = segCount();
+  const out = [];
+  for (const f of list) {
+    if (f.side !== side || !kinds.includes(f.kind) || !which(f)) { out.push(f); continue; }
+    let pieces = [[f.u0, f.u1]];
+    for (const sh of state.closed ? [-segs, 0, segs] : [0]) {
+      const A = a + sh, B = b + sh;
+      pieces = pieces.flatMap(([c, e]) => (B <= c || A >= e ? [[c, e]] : [[c, A], [B, e]].filter(([x, y]) => y - x > 0.02)));
+    }
+    for (const [c, e] of pieces) out.push({ ...f, u0: c, u1: e });
+  }
+  return out;
 }
 
 // Kerbs on both edges of every corner, run-off on the outside of the faster ones.
@@ -463,6 +581,8 @@ function serialise() {
     points: state.points.map((p) => ({ x: r(p.x), z: r(p.z), y: r(p.y), w: r(p.w), bank: r(p.bank) })),
     features: state.features.map((f) => ({ ...f, u0: Math.round(f.u0 * 1e4) / 1e4, u1: Math.round(f.u1 * 1e4) / 1e4 })),
     settings: state.settings,
+    sponsors: state.sponsors,
+    props: state.props.map((p) => ({ t: p.t, x: r(p.x), z: r(p.z), r: Math.round(p.r * 1000) / 1000, s: r(p.s), ...(p.sp ? { sp: p.sp } : {}) })),
   });
 }
 // Validates untrusted JSON (imports, localStorage) before it touches the state.
@@ -477,12 +597,13 @@ function deserialise(text) {
   const closed = !!o.closed && points.length >= 3;
   const segs = closed ? points.length : Math.max(0, points.length - 1);
   const features = (Array.isArray(o.features) ? o.features : []).slice(0, 2000).map((f) => {
-    const kind = f.kind === 'kerb' ? 'kerb' : f.kind === 'runoff' ? 'runoff' : null;
+    const kind = ['kerb', 'runoff', 'wall'].includes(f.kind) ? f.kind : null;
     if (!kind) return null;
     const u0 = num(f.u0, 0, 0, segs), u1 = num(f.u1, 0, 0, segs * 2);
     if (!(u1 > u0)) return null;
     const g = { kind, side: f.side > 0 ? 1 : -1, u0, u1 };
     if (kind === 'kerb') g.style = f.style === 'sausage' ? 'sausage' : 'flat';
+    else if (kind === 'wall') { g.height = num(f.height, 2.2, 0.6, 8); g.sponsor = /^[a-z0-9]{1,12}$/.test(f.sponsor) ? f.sponsor : ''; }
     else { g.surf = RUN_CODES[f.surf] != null ? f.surf : 'gravel'; g.width = num(f.width, 14, 4, 40); }
     return g;
   }).filter(Boolean);
@@ -491,12 +612,25 @@ function deserialise(text) {
     barriers: !!st.barriers, scenery: !!st.scenery, tod: num(st.tod, 15.5, 6.5, 19.5),
     livery: Math.floor(num(st.livery, 0, 0, 6)), kerbStyle: st.kerbStyle === 'sausage' ? 'sausage' : 'flat',
     runSurf: RUN_CODES[st.runSurf] != null ? st.runSurf : 'gravel', runW: num(st.runW, 14, 4, 40),
+    wallH: num(st.wallH, 2.2, 0.6, 8), wallSp: /^[a-z0-9]{0,12}$/.test(st.wallSp) ? st.wallSp : '', showLine: st.showLine !== false,
   };
-  return { name: String(o.name || 'Imported circuit').slice(0, 40), points, closed, features, settings };
+  const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : d);
+  const txt = (v, n) => String(v ?? '').replace(/[\u0000-\u001f]/g, '').slice(0, n);
+  const sponsors = Array.isArray(o.sponsors) ? o.sponsors.slice(0, 40).filter((sp) => sp && /^[a-z0-9]{1,12}$/.test(sp.id)).map((sp) => ({
+    id: sp.id, name: txt(sp.name, 24) || 'Sponsor', text: txt(sp.text, 18), tag: txt(sp.tag, 28),
+    bg: hex(sp.bg, '#111111'), fg: hex(sp.fg, '#ffffff'), accent: hex(sp.accent, '#e10600'),
+    layout: SPONSOR_LAYOUTS.includes(sp.layout) ? sp.layout : 'block', icon: SPONSOR_ICONS.includes(sp.icon) ? sp.icon : 'none',
+  })) : defaultSponsors();
+  const props = (Array.isArray(o.props) ? o.props : []).slice(0, 4000).filter((p) => p && PROP_INDEX.has(p.t)).map((p) => ({
+    t: p.t, x: num(p.x, 0, -20000, 20000), z: num(p.z, 0, -20000, 20000), r: num(p.r, 0, -100, 100), s: num(p.s, 1, 0.25, 4),
+    ...(/^[a-z0-9]{1,12}$/.test(p.sp) ? { sp: p.sp } : {}),
+  }));
+  return { name: String(o.name || 'Imported circuit').slice(0, 40), points, closed, features, settings, sponsors, props };
 }
 function loadInto(obj) {
   state.name = obj.name; state.points = obj.points; state.closed = obj.closed;
   state.features = obj.features; state.settings = obj.settings;
+  state.sponsors = obj.sponsors || defaultSponsors(); state.props = obj.props || [];
 }
 
 const history = { stack: [], pos: -1 };
@@ -526,5 +660,6 @@ function sampleTrack() {
     name: 'Valle Rossa GP', closed: true,
     points: pts.map(([x, z, y], i) => ({ x, z, y, w: i < 3 ? 15 : 13, bank: banks[i] || 0 })),
     features: [], settings: { ...defaultSettings(), ...state.settings },
+    sponsors: state.sponsors && state.sponsors.length ? state.sponsors : defaultSponsors(), props: [],
   };
 }

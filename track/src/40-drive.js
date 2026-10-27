@@ -61,15 +61,21 @@ const ASSIST_NAMES = ['OFF', 'SPORT', 'FULL'];
 const ground = {
   heightAt(x, z) { return S ? surfaceHeight(x, z, car.hint).y : 0; },
   surfaceAt(x, z) { return S ? SURF_PHYS[surfaceHeight(x, z, car.hint).surf] : null; },
+  // Barriers (and painted walls, which stand even with barriers off), then hand-placed props.
   wallContact(x, z) {
-    if (!S || !state.settings.barriers) return null;
-    const p = project(x, z, car.hint);
-    if (!p) return null;
-    const k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
-    const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 0.15;
-    const depth = Math.abs(p.d) - lim;
-    if (depth <= 0) return null;
-    return { nx: -leftX(p.i) * side, nz: -leftZ(p.i) * side, depth: Math.min(depth, 0.6) };
+    let best = null;
+    const p = S ? project(x, z, car.hint) : null;
+    if (p) {
+      const k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
+      if (state.settings.barriers || S.wallH[k][p.i] > 0) {
+        const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 0.15;
+        const depth = Math.abs(p.d) - lim;
+        if (depth > 0 && depth < 4) best = { nx: -leftX(p.i) * side, nz: -leftZ(p.i) * side, depth: Math.min(depth, 0.6) };
+      }
+    }
+    const pc = propContact(x, z);
+    if (pc && (!best || pc.depth > best.depth)) best = pc;
+    return best;
   },
 };
 const vehicle = new F4.vehicle.Vehicle(ground, F1_SPEC);

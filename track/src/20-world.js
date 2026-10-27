@@ -161,6 +161,15 @@ const MAT = {
   barrier: new THREE.MeshStandardMaterial({ map: TEX.barrier, roughness: 0.6, side: THREE.DoubleSide }),
   fence: new THREE.MeshStandardMaterial({ map: TEX.fence, transparent: true, alphaTest: 0.25, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.4 }),
   terrain: new THREE.MeshStandardMaterial({ map: TEX.grass, roughness: 1, vertexColors: true }),
+  concrete: new THREE.MeshStandardMaterial({ map: canvasTex(256, (g, s) => {
+    const r = rng(21);
+    g.fillStyle = '#b9b7b1'; g.fillRect(0, 0, s, s);
+    speckle(g, 9000, s, ['#a9a7a1', '#c6c4be', '#9c9a94'], 1, 2.5, r);
+    g.fillStyle = '#c8102e'; g.fillRect(0, s * 0.82, s, s * 0.08);
+    g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 0, 3, s);
+  }), roughness: 0.9, side: THREE.DoubleSide }),
+  capping: new THREE.MeshStandardMaterial({ color: 0x9a9893, roughness: 0.85 }),
+  raceLine: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.78, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, fog: true }),
   checker: new THREE.MeshStandardMaterial({ map: TEX.checker, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4 }),
   white: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -3 }),
 };
@@ -256,59 +265,108 @@ function buildTrackMeshes() {
       }));
     }
     add(ribbon({ side, inner: half, outer: (i) => S.bar[k][i] + 3, uLen: 12, vLen: 12, mat: MAT.verge, profile: () => -0.03 }));
+    const bar = (i) => S.bar[k][i];
     if (state.settings.barriers && S.closed) {
-      add(ribbonWall(side, (i) => S.bar[k][i], 0, 1.05, MAT.barrier, 1.0));
-      add(ribbonWall(side, (i) => S.bar[k][i] + 0.4, 1.05, 3.6, MAT.fence, 4));
+      add(ribbonWall(side, bar, () => 0, () => 1.05, MAT.barrier, () => 1, (i) => !S.wallH[k][i]));
+      add(ribbonWall(side, (i) => bar(i) + 0.4, (i) => Math.max(1.05, S.wallH[k][i]), (i) => Math.max(3.6, S.wallH[k][i] + 1.2), MAT.fence, () => 4));
+    }
+    // Painted walls: one strip per sponsor (or plain concrete), artwork repeating every 4x its height.
+    const ids = new Set();
+    for (let i = 0; i < S.n; i++) if (S.wallH[k][i]) ids.add(S.wallSp[k][i]);
+    for (const id of ids) {
+      const mat = (id && sponsorMat(id, 'wall')) || MAT.concrete;
+      const mask = (i) => S.wallH[k][i] > 0 && S.wallSp[k][i] === id;
+      add(ribbonWall(side, bar, () => 0, (i) => S.wallH[k][i], mat, (i) => S.wallH[k][i] * 4, mask, true));
+      add(wallCap(side, bar, mask, k));
     }
   }
+  computeRacingLine();
   add(rubberLine());
+  lineMesh = buildLineMesh();
+  add(lineMesh);
   if (S.closed) buildStartLine();
 }
 
+// Coloured driving line: green = accelerate, yellow = at the grip limit, red = braking.
+let lineMesh = null;
+const LINE_COLS = [new THREE.Color(0x22d36a), new THREE.Color(0xffc21a), new THREE.Color(0xff2a2a)];
+function buildLineMesh() {
+  const n = S.n, pos = [], col = [], ind = [];
+  const count = S.closed ? n + 1 : n;
+  const c = new THREE.Color();
+  for (let o = 0; o < count; o++) {
+    const i = o % n;
+    // Blend the zone colour over a few samples so transitions read as gradients.
+    c.setRGB(0, 0, 0);
+    let wsum = 0;
+    for (let q = -2; q <= 2; q++) {
+      const j = S.closed ? (i + q + n) % n : clamp(i + q, 0, n - 1);
+      const w = 3 - Math.abs(q);
+      c.r += LINE_COLS[LINE.zone[j]].r * w; c.g += LINE_COLS[LINE.zone[j]].g * w; c.b += LINE_COLS[LINE.zone[j]].b * w; wsum += w;
+    }
+    c.multiplyScalar(1 / wsum);
+    for (const f of [-1, 1]) {
+      const d = racingLine[i] + f * 0.45;
+      pos.push(S.px[i] + leftX(i) * d, crossY(i, d) + 0.02, S.pz[i] + leftZ(i) * d);
+      col.push(c.r, c.g, c.b);
+    }
+    if (o) { const a = (o - 1) * 2; ind.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(ind);
+  const m = new THREE.Mesh(g, MAT.raceLine);
+  m.visible = !!state.settings.showLine;
+  m.renderOrder = 2;
+  return m;
+}
+function setLineVisible(on) {
+  state.settings.showLine = on;
+  if (lineMesh) lineMesh.visible = on;
+}
+
 // Vertical wall (barrier / fence) following an offset line.
-function ribbonWall(side, off, y0, y1, mat, vLen) {
+// Vertical strip along an offset line. y0/y1/uLen are per-sample; mask limits it to runs of samples.
+// uAlong puts the texture's u along the wall (sponsor art), otherwise u also runs along it but unmirrored.
+function ribbonWall(side, off, y0, y1, mat, uLen, mask = () => true, uAlong = false) {
   const k = side > 0 ? 0 : 1, n = S.n;
   const pos = [], uv = [], ind = [];
+  let run = 0, dist = 0;
   const count = S.closed ? n + 1 : n;
   for (let o = 0; o < count; o++) {
     const i = o % n;
+    if (!mask(i)) { run = 0; continue; }
     const d = side * Math.min(off(i), S.lim[k][i]);
     const x = S.px[i] + leftX(i) * d, z = S.pz[i] + leftZ(i) * d, y = crossY(i, d);
-    pos.push(x, y + y0, z, x, y + y1, z);
-    uv.push((o * S.step) / vLen, 0, (o * S.step) / vLen, 1);
-    if (o) { const a = (o - 1) * 2; ind.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    dist = run ? dist + S.step : 0;
+    pos.push(x, y + y0(i), z, x, y + y1(i), z);
+    // Mirror the art on the left-hand wall so it reads the right way round from the track.
+    const u = (dist / uLen(i)) * (uAlong && side > 0 ? -1 : 1);
+    uv.push(u, 0, u, 1);
+    const v = pos.length / 3 - 2;               // index of this pair's bottom vertex
+    if (run) ind.push(v - 2, v, v - 1, v - 1, v, v + 1);
+    run++;
   }
+  if (!ind.length) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(ind); g.computeVertexNormals();
   const m = new THREE.Mesh(g, mat);
-  m.castShadow = mat === MAT.barrier; m.receiveShadow = true;
+  m.castShadow = mat !== MAT.fence; m.receiveShadow = true;
   return m;
 }
-
-// A darker rubbered racing line that swings to the outside before corners and clips the apex.
-let racingLine = null;   // Float32Array of lateral offsets, reused by the minimap
-function computeRacingLine() {
-  const n = S.n;
-  const off = new Float32Array(n);
-  const idx = (i) => (S.closed ? (i + n) % n : clamp(i, 0, n - 1));
-  // Look-ahead curvature: positive ahead => go right (outside) before, left (inside) at apex.
-  for (let i = 0; i < n; i++) {
-    let ahead = 0, here = 0;
-    for (let o = 6; o <= 30; o++) ahead += S.k[idx(i + o)];
-    for (let o = -4; o <= 4; o++) here += S.k[idx(i + o)];
-    const lim = S.w[i] / 2 - 1.4;
-    off[i] = clamp(here * 9 * 60 - ahead * 60 * 0.9, -1, 1) * lim;
-  }
-  for (let pass = 0; pass < 6; pass++) {
-    const t = Float32Array.from(off);
-    for (let i = 0; i < n; i++) off[i] = (t[idx(i - 2)] + t[idx(i - 1)] * 2 + t[i] * 3 + t[idx(i + 1)] * 2 + t[idx(i + 2)]) / 9;
-  }
-  racingLine = off;
+// Flat concrete cap on top of a painted wall.
+function wallCap(side, off, mask, k) {
+  return ribbon({
+    side, inner: (i) => off(i) - 0.18, outer: (i) => off(i) + 0.18, mask, mat: MAT.capping, uLen: 2, vLen: 2,
+    profile: (f, i) => S.wallH[k][i] + 0.01 + (crossY(i, side * off(i)) - crossY(i, side * lerp(off(i) - 0.18, off(i) + 0.18, f))),
+  });
 }
+
+// Rubbered-in groove along the racing line.
 function rubberLine() {
-  computeRacingLine();
   const n = S.n, pos = [], uv = [], ind = [];
   const count = S.closed ? n + 1 : n;
   for (let o = 0; o < count; o++) {
@@ -661,6 +719,15 @@ const BOARD_TEX = ['APEX', 'LATE BRAKE', 'FULL SEND', 'DRS ZONE', 'GRIP+', 'TRAC
 for (const t of BOARD_TEX) { t.repeat.set(1, 0.5); t.offset.set(0, 0.5); }
 function board(r) {
   const g = new THREE.Group();
+  const sp = state.sponsors.length ? state.sponsors[(r() * state.sponsors.length) | 0] : null;
+  const face = sp ? sponsorMat(sp.id, 'wall') : null;
+  if (face) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 0.2), [STAND_MAT.dark, STAND_MAT.dark, STAND_MAT.dark, STAND_MAT.dark, face, STAND_MAT.dark]);
+    panel.position.y = 2.6; panel.castShadow = true;
+    g.add(panel);
+    for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.6, 0.15), STAND_MAT.steel); p.position.set(s * 3.6, 1.3, -0.1); g.add(p); }
+    return g;
+  }
   const t = BOARD_TEX[(r() * BOARD_TEX.length) | 0];
   const panel = new THREE.Mesh(new THREE.BoxGeometry(8, 1.6, 0.2), [STAND_MAT.dark, STAND_MAT.dark, STAND_MAT.dark, STAND_MAT.dark, new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }), STAND_MAT.dark]);
   panel.position.y = 2.6; panel.castShadow = true;

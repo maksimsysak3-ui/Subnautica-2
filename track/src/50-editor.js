@@ -149,6 +149,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (mode !== 'edit' || e.button !== 0) return;
   canvas.focus();
   setNdc(e);
+  if (tool === 'props') { propPointerDown(e); return; }
   const h = pickHandle(e);
   if (tool === 'draw' || tool === 'move') {
     if (h >= 0) {
@@ -188,7 +189,7 @@ canvas.addEventListener('pointerdown', (e) => {
     select(-1);
     return;
   }
-  if ((tool === 'kerb' || tool === 'runoff' || tool === 'erase') && S) {
+  if ((tool === 'kerb' || tool === 'runoff' || tool === 'erase' || tool === 'wall') && S) {
     const g = hitGround();
     if (!g) return;
     const tp = trackParamAt(g);
@@ -200,12 +201,14 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 });
 function zoneAt(tp) {
-  const half = S.w[tp.i] / 2, ad = Math.abs(tp.d);
+  const half = S.w[tp.i] / 2, ad = Math.abs(tp.d), k = tp.d > 0 ? 0 : 1;
+  if (ad >= S.bar[k][tp.i] - 2.5) return 'wall';
   return ad <= half + KERB_W + 0.6 ? 'kerb' : 'runoff';
 }
 canvas.addEventListener('pointermove', (e) => {
   if (mode !== 'edit') return;
   setNdc(e);
+  if (tool === 'props') { propPointerMove(e); return; }
   if (!drag) {
     const h = (tool === 'draw' || tool === 'move') ? pickHandle(e) : -1;
     if (h !== hovered) { hovered = h; canvas.style.cursor = h >= 0 ? 'grab' : ''; }
@@ -252,6 +255,7 @@ function canCloseByDrag(i) {
   return Math.hypot(a.x - b.x, a.z - b.z) < tol;
 }
 canvas.addEventListener('pointerup', (e) => {
+  if (tool === 'props') { propPointerUp(e); return; }
   if (!drag) return;
   const d = drag;
   drag = null;
@@ -286,6 +290,7 @@ function paintRange(d) {
 function paintFeature(d) {
   const [u0, u1] = paintRange(d);
   const st = state.settings;
+  if (tool === 'wall') return { kind: 'wall', side: d.side, height: st.wallH, sponsor: st.wallSp, u0, u1 };
   return tool === 'kerb' ? { kind: 'kerb', side: d.side, style: st.kerbStyle, u0, u1 } : { kind: 'runoff', side: d.side, surf: st.runSurf, width: st.runW, u0, u1 };
 }
 function paintPreview() {
@@ -302,25 +307,13 @@ function paintCommit(d) {
 // Remove [a,b] on one side from features; a plain click deletes the whole feature under the cursor.
 function eraseRange(list, d) {
   const segs = segCount();
-  const kinds = d.zone === 'kerb' ? ['kerb'] : ['runoff'];
-  if (!d.moved) {
-    return list.filter((f) => !(f.side === d.side && kinds.includes(f.kind) && featureCovers(f, d.u0 % segs, segs)));
-  }
+  const kinds = [d.zone];
+  if (!d.moved) return list.filter((f) => !(f.side === d.side && kinds.includes(f.kind) && featureCovers(f, d.u0 % segs, segs)));
   const [a, b] = paintRange(d);
-  const out = [];
-  for (const f of list) {
-    if (f.side !== d.side || !kinds.includes(f.kind)) { out.push(f); continue; }
-    let pieces = [[f.u0, f.u1]];
-    for (const sh of S.closed ? [-segs, 0, segs] : [0]) {
-      const A = a + sh, B = b + sh;
-      pieces = pieces.flatMap(([c, e]) => (B <= c || A >= e ? [[c, e]] : [[c, A], [B, e]].filter(([x, y]) => y - x > 0.02)));
-    }
-    for (const [c, e] of pieces) out.push({ ...f, u0: c, u1: e });
-  }
-  return out;
+  return subtractRange(list, d.side, kinds, a, b);
 }
 function updateCursor() {
-  const paint = (tool === 'kerb' || tool === 'runoff' || tool === 'erase') && S;
+  const paint = (tool === 'kerb' || tool === 'runoff' || tool === 'erase' || tool === 'wall') && S;
   cursorRing.visible = false;
   ghostLine.visible = false;
   if (paint) {
@@ -329,11 +322,11 @@ function updateCursor() {
     const tp = trackParamAt(g);
     if (!tp || Math.abs(tp.d) > S.bar[tp.d > 0 ? 0 : 1][tp.i] + 6) return;
     const side = tp.d > 0 ? 1 : -1, i = tp.i;
-    const off = tool === 'kerb' ? S.w[i] / 2 + KERB_W / 2 : tool === 'runoff' ? S.w[i] / 2 + (S.kerb[side > 0 ? 0 : 1][i] ? KERB_W : 0) + state.settings.runW / 2 : Math.abs(tp.d);
+    const off = tool === 'wall' ? S.bar[side > 0 ? 0 : 1][i] : tool === 'kerb' ? S.w[i] / 2 + KERB_W / 2 : tool === 'runoff' ? S.w[i] / 2 + (S.kerb[side > 0 ? 0 : 1][i] ? KERB_W : 0) + state.settings.runW / 2 : Math.abs(tp.d);
     const d = side * off;
     cursorRing.position.set(S.px[i] + leftX(i) * d, crossY(i, d) + 0.2, S.pz[i] + leftZ(i) * d);
-    cursorRing.scale.setScalar(tool === 'runoff' ? state.settings.runW / 2 : tool === 'kerb' ? 1.4 : 2.5);
-    cursorRing.material.color.setHex(tool === 'erase' ? 0xff4d4d : tool === 'kerb' ? 0xff3030 : 0xc9b58a);
+    cursorRing.scale.setScalar(tool === 'runoff' ? state.settings.runW / 2 : tool === 'kerb' ? 1.4 : tool === 'wall' ? 2 : 2.5);
+    cursorRing.material.color.setHex(tool === 'erase' ? 0xff4d4d : tool === 'kerb' ? 0xff3030 : tool === 'wall' ? 0x4fc3ff : 0xc9b58a);
     cursorRing.visible = true;
   } else if (tool === 'draw' && !state.closed && state.points.length) {
     const last = state.points[state.points.length - 1];
@@ -355,12 +348,12 @@ function afterEdit(full) {
   refreshPanel();
   if (full) {
     clearTimeout(fullTimer);
-    fullTimer = setTimeout(() => { buildTerrain(); buildScenery(); updateHandles(); }, 0);
+    fullTimer = setTimeout(() => { buildTerrain(); buildScenery(); rebuildProps(); updateHandles(); }, 0);
     commit();
   }
 }
 function fullRebuild() {
-  buildSamples(); buildTrackMeshes(); buildTerrain(); buildScenery(); updateHandles(); refreshPanel();
+  buildSamples(); buildTrackMeshes(); buildTerrain(); buildScenery(); rebuildProps(); updateHandles(); refreshPanel();
 }
 
 // --- panels ---------------------------------------------------------
@@ -372,13 +365,16 @@ const HINTS = {
   move: () => 'Drag points to move · <b>Shift</b>+drag = elevation · click the road to insert · <b>Del</b> removes the selected point',
   kerb: () => 'Click or drag along a track edge to lay kerbs on that side',
   runoff: () => 'Drag along a side to paint run-off · pick surface + width on the right',
-  erase: () => 'Click a kerb or run-off to remove it · drag to cut part of it away',
+  erase: () => 'Click a kerb, run-off or wall to remove it · drag to cut part of it away',
+  wall: () => 'Drag along a side to build a wall · pick its height and sponsor on the right (plain = concrete)',
+  props: () => (propBrush ? `Click to place <b>${PROP_INDEX.get(propBrush).name}</b> · <b>Q</b>/<b>E</b> rotate · <b>Esc</b> stop placing` : 'Pick a prop from the palette · click a placed prop to select, drag to move · <b>Q</b>/<b>E</b> rotate · <b>[</b> <b>]</b> scale · <b>Del</b> remove'),
 };
 function setTool(t) {
   tool = t;
   document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
   $('hint').innerHTML = HINTS[t]();
-  canvas.style.cursor = t === 'draw' ? 'crosshair' : t === 'move' ? '' : 'cell';
+  canvas.style.cursor = t === 'draw' ? 'crosshair' : t === 'move' || t === 'props' ? '' : 'cell';
+  onToolChanged(t);
   updateCursor();
 }
 function select(i) {
@@ -417,6 +413,8 @@ function refreshSettings() {
   $('rTod').value = st.tod; $('vTod').textContent = `${Math.floor(st.tod)}:${String(Math.round((st.tod % 1) * 60)).padStart(2, '0')}`;
   $('rRunW').value = st.runW; $('vRunW').textContent = st.runW + ' m';
   segPick('segKerb', st.kerbStyle); segPick('segSurf', st.runSurf); segPick('segLivery', String(st.livery));
+  $('cLine').checked = !!st.showLine;
+  refreshSponsorUI();
 }
 function segPick(id, v) { $(id).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === v)); }
 
@@ -470,8 +468,8 @@ function loadSample() {
 }
 $('bUndo').addEventListener('click', () => doUndo());
 $('bRedo').addEventListener('click', () => doRedo());
-function doUndo() { if (undo()) { select(-1); fullRebuild(); refreshSettings(); applyTimeOfDay(state.settings.tod); } }
-function doRedo() { if (redo()) { select(-1); fullRebuild(); refreshSettings(); applyTimeOfDay(state.settings.tod); } }
+function doUndo() { if (undo()) { select(-1); selectProp(-1); fullRebuild(); refreshSettings(); applyTimeOfDay(state.settings.tod); } }
+function doRedo() { if (redo()) { select(-1); selectProp(-1); fullRebuild(); refreshSettings(); applyTimeOfDay(state.settings.tod); } }
 $('bView').addEventListener('click', () => setTopView(!topView));
 
 // Saved tracks live in this browser's localStorage only.
@@ -522,6 +520,7 @@ addEventListener('keydown', (e) => {
     else if (e.code === 'KeyR') resetCar();
     else if (e.code === 'KeyM') { audio.on = !audio.on; showToast(audio.on ? 'SOUND ON' : 'SOUND OFF'); }
     else if (e.code === 'KeyT') cycleAssists();
+    else if (e.code === 'KeyL') { setLineVisible(!state.settings.showLine); $('cLine').checked = state.settings.showLine; showToast('RACING LINE ' + (state.settings.showLine ? 'ON' : 'OFF')); }
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     return;
   }
@@ -529,7 +528,8 @@ addEventListener('keydown', (e) => {
   if (ctrl && e.code === 'KeyZ') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
   if (ctrl && e.code === 'KeyY') { e.preventDefault(); doRedo(); return; }
   if (ctrl) return;
-  const toolKeys = { Digit1: 'draw', Digit2: 'move', Digit3: 'kerb', Digit4: 'runoff', Digit5: 'erase' };
+  if (propKey(e)) return;
+  const toolKeys = { Digit1: 'draw', Digit2: 'move', Digit3: 'kerb', Digit4: 'runoff', Digit5: 'erase', Digit6: 'wall', Digit7: 'props' };
   if (toolKeys[e.code]) setTool(toolKeys[e.code]);
   else if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); deleteSelected(); }
   else if (e.code === 'KeyT') setTopView(!topView);

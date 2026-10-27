@@ -105,6 +105,31 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
 #lights{position:absolute;left:50%;top:12%;transform:translateX(-50%);display:flex;gap:10px;padding:10px 14px;border-radius:12px;background:#0b0b0c;border:1px solid #222}
 #lights i{width:30px;height:30px;border-radius:50%;background:#2a0d0d;box-shadow:inset 0 0 6px #000}
 #lights i.on{background:#ff1a1a;box-shadow:0 0 18px #ff2a2a}
+/* sponsors, props palette, dialog */
+.spgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.spgrid button{border:2px solid transparent;border-radius:6px;padding:0;background:#000;overflow:hidden;height:34px}
+.spgrid button canvas{display:block;width:100%;height:100%}
+.spgrid button.on{border-color:var(--accent2)}
+.spgrid button.plain{background:#b9b7b1;color:#333;font-weight:700;font-size:12px}
+.tb.mini{height:22px;padding:0 8px;font-size:11px}
+#palette{position:fixed;left:140px;top:60px;bottom:60px;width:336px;z-index:10;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;backdrop-filter:blur(6px)}
+#propCats{display:flex;flex-wrap:wrap;gap:4px}
+#propCats button{height:24px;padding:0 8px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);font-size:11.5px;font-weight:700;letter-spacing:.04em}
+#propCats button.on{background:var(--accent);border-color:var(--accent)}
+#propGrid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:start;scrollbar-width:thin}
+#propGrid button{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.05);padding:4px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;line-height:1.1;min-height:104px}
+#propGrid button img,#propGrid button .ph{width:80px;height:80px;border-radius:6px;background:radial-gradient(#3a414b,#1c2026)}
+#propGrid button.on{border-color:var(--accent);background:rgba(225,6,0,.22)}
+#propGrid button:hover:not(.on){background:rgba(255,255,255,.1)}
+#spDialog{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+#spDialog .dlg{width:min(560px,100%);max-height:100%;overflow:auto;background:#101318;border:1px solid var(--line);border-radius:12px;padding:16px}
+#spDialog h3{margin:0 0 10px;letter-spacing:.14em;font-size:13px;color:var(--dim)}
+#spPreview{width:100%;border-radius:8px;display:block;background:#000}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.dgrid label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.06em}
+.dgrid input[type=color]{width:100%;height:30px;border:1px solid var(--line);background:none;border-radius:6px;padding:0 2px}
+#spLayout button,#spIcon button{font-size:11.5px;text-transform:capitalize}
+@media (max-width:820px){ #palette{left:8px;right:8px;width:auto;top:56px;bottom:auto;height:38vh} }
 #err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#07090c;z-index:50;text-align:center;padding:24px}
 
 @media (max-width:820px){
@@ -149,6 +174,8 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
     <button class="tool" data-tool="move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>EDIT<kbd>2</kbd></button>
     <button class="tool" data-tool="kerb"><svg viewBox="0 0 24 24"><path d="M2 15h5v4H2z" fill="#e10600"/><path d="M7 15h5v4H7z" fill="#fff"/><path d="M12 15h5v4h-5z" fill="#e10600"/><path d="M17 15h5v4h-5z" fill="#fff"/><path d="M2 7q10 5 20 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>KERB<kbd>3</kbd></button>
     <button class="tool" data-tool="runoff"><svg viewBox="0 0 24 24"><rect x="2" y="13" width="20" height="8" rx="1" fill="#c9b58a"/><path d="M2 9q10 5 20 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>RUN-OFF<kbd>4</kbd></button>
+    <button class="tool" data-tool="wall"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="1" fill="#4fc3ff"/><rect x="4" y="9.5" width="16" height="5" fill="#0b2a6f"/></svg>WALL<kbd>6</kbd></button>
+    <button class="tool" data-tool="props"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 21V12M7 12l-4 0 4-8 4 8z"/><rect x="13" y="9" width="8" height="12"/><path d="M15 12h1M18 12h1M15 15h1M18 15h1M15 18h1M18 18h1"/></svg>PROPS<kbd>7</kbd></button>
     <button class="tool" data-tool="erase"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 21h12M4 15l9-9 6 6-7 7H8z"/></svg>ERASE<kbd>5</kbd></button>
   </div>
 
@@ -197,8 +224,39 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
       </div>
     </div>
 
+    <div class="card" id="cWall">
+      <h3>Wall</h3>
+      <div class="row"><label>Height</label><span class="val" id="vWallH"></span></div>
+      <input type="range" id="rWallH" min="0.6" max="8" step="0.2">
+      <div class="muted">Sponsor (click one below, or plain concrete)</div>
+      <div class="spgrid" id="wallSp"></div>
+    </div>
+
+    <div class="card" id="cProp">
+      <h3>Selected prop <span id="propName" class="mono"></span></h3>
+      <div id="propNone" class="muted">Click a placed prop to edit it.</div>
+      <div id="propEdit" class="hidden">
+        <div class="row"><label>Rotation</label><span class="val" id="vPropR"></span></div>
+        <input type="range" id="rPropR" min="-180" max="180" step="5">
+        <div class="row"><label>Scale</label><span class="val" id="vPropS"></span></div>
+        <input type="range" id="rPropS" min="0.25" max="4" step="0.05">
+        <div id="propSpWrap"><div class="muted">Sponsor</div><div class="spgrid" id="propSp"></div></div>
+        <div class="btns">
+          <button class="tb" id="bPropDup" title="Duplicate (D)">Duplicate</button>
+          <button class="tb" id="bPropDel" title="Delete (Del)">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sponsors <span><button class="tb mini" id="bSpNew">+ New</button></span></h3>
+      <div class="muted">Click to edit. Used by walls, billboards, banners, stands and more.</div>
+      <div class="spgrid" id="spList"></div>
+    </div>
+
     <div class="card">
       <h3>World</h3>
+      <label class="chk"><input type="checkbox" id="cLine"> Racing line (L)</label>
       <label class="chk"><input type="checkbox" id="cBarriers"> Barriers</label>
       <label class="chk"><input type="checkbox" id="cScenery"> Trees, stands &amp; pit building</label>
       <div class="row"><label>Time of day</label><span class="val" id="vTod"></span></div>
@@ -209,6 +267,37 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
   </div>
 
   <div id="hint"></div>
+
+  <div id="palette" class="hidden">
+    <input type="text" id="propSearch" placeholder="Search 130 props…" spellcheck="false">
+    <div id="propCats"></div>
+    <div id="propGrid"></div>
+  </div>
+</div>
+
+<div id="spDialog" class="hidden">
+  <div class="dlg">
+    <h3>Sponsor design</h3>
+    <canvas id="spPreview" width="512" height="128"></canvas>
+    <div class="dgrid">
+      <label>Name<input type="text" id="spName" maxlength="24"></label>
+      <label>Logo text<input type="text" id="spText" maxlength="18"></label>
+      <label style="grid-column:span 2">Tagline<input type="text" id="spTag" maxlength="28"></label>
+      <label>Background<input type="color" id="spBg"></label>
+      <label>Text<input type="color" id="spFg"></label>
+      <label>Accent<input type="color" id="spAccent"></label>
+      <label>&nbsp;<button class="tb" id="spRandom" type="button">Randomise colours</button></label>
+    </div>
+    <div class="muted" style="margin:8px 0 4px">Layout</div>
+    <div class="seg" id="spLayout"></div>
+    <div class="muted" style="margin:8px 0 4px">Icon</div>
+    <div class="seg" id="spIcon"></div>
+    <div class="btns" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px">
+      <button class="tb" id="spDelete">Delete</button>
+      <button class="tb" id="spCancel">Cancel</button>
+      <button class="tb primary" id="spSave">Save</button>
+    </div>
+  </div>
 </div>
 
 <div id="hud" class="hidden">

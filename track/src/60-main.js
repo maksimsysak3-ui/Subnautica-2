@@ -102,6 +102,8 @@ window.__tb = {
     }
   },
 };
+window.__tbProps = () => PROP_DEFS.map((d) => ({ id: d.id, cat: d.cat, sp: !!d.sp }));
+window.__tbRebuild = () => rebuildProps();
 try { boot(); }
 catch (err) {
   console.error(err);
