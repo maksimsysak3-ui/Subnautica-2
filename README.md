@@ -12,6 +12,17 @@ Madden-style ratings built from real stats, and a play-by-play engine calibrated
 - **Franchise.** Call plays live on a 3D field or sim; weekly strategy and practice; stat-driven XP growth; breakout and dud seasons; standings with tiebreakers; 14-team playoffs; awards and records; owner job security; coach ability tree.
 - **Front office.** Trades valued on a draft-chart scale (picks matter), AI trades and offers; re-signing, franchise tags, restructures, post-June 1 cuts; multi-day free agency with player motivations; scouting, combine and a live draft day with AI boards; training camp, cutdowns, retirements, Hall of Fame, coaching carousel and NFL-formula schedules. A quantile anchor keeps the rating scale stable across decades.
 
+## Track Builder
+A separate 3D circuit editor with a drivable F1 car: `track-builder.html` (one self-contained page, Three.js from a CDN).
+
+**Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/track-builder.html
+
+- **Build.** Click to lay out a spline track, close it by clicking or dragging onto the start point, then set elevation, width and banking per point. Paint kerbs (flat or raised) and run-off (asphalt, gravel, grass) along either edge, or generate them for every corner. Barriers, grandstands, pit building and forests are placed around the layout automatically.
+- **Drive.** Start lights, lap and sector timing, track limits, best laps saved per track. The car runs on a tyre model with downforce, load transfer, ABS and optional assists, plus chase, far, onboard and TV cameras. Keyboard or gamepad.
+- **Keep.** Autosaves in the browser, named saves, JSON export and import, undo and redo.
+
+Source lives in `track/src/` and is stitched into the page by `npm run build:track`.
+
 ## Develop
 ```
 npm install

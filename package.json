@@ -13,7 +13,8 @@
     "build:college": "vite build -c vite.college.config.ts && cp play-college/index.html play/college.html",
     "data:college": "node tools/college-dynasty.mjs",
     "build:fc": "vite build -c vite.fc.config.ts && cp play-fc/index.html play/football.html",
-    "dev:fc": "vite -c vite.fc.config.ts"
+    "dev:fc": "vite -c vite.fc.config.ts",
+    "build:track": "node track/build.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Track Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090c; --panel:rgba(13,15,19,.9); --panel2:rgba(255,255,255,.04); --line:rgba(255,255,255,.09);
+  --text:#e8eaee; --dim:#8a909b; --accent:#e10600; --accent2:#ffb800; --ok:#3ccf7a; --warn:#ffb800; --bad:#ff4d4d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:500 14px/1.35 Rajdhani,system-ui,sans-serif;user-select:none}
+canvas#view{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
+button{font:inherit;color:inherit;cursor:pointer}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.hidden{display:none!important}
+
+/* ---------- editor chrome ---------- */
+#topbar{position:fixed;top:0;left:0;right:0;height:48px;display:flex;align-items:center;gap:6px;padding:0 10px;
+  background:linear-gradient(#0b0d11,#0b0d11e6);border-bottom:1px solid var(--line);z-index:10}
+#topbar .brand{font-weight:700;letter-spacing:.14em;font-size:15px;margin-right:10px;white-space:nowrap}
+#topbar .brand b{color:var(--accent)}
+.tb{height:32px;padding:0 11px;border:1px solid var(--line);background:var(--panel2);border-radius:6px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.tb:hover{background:rgba(255,255,255,.09)}
+.tb:disabled{opacity:.35;cursor:default}
+.tb.primary{background:var(--accent);border-color:var(--accent);color:#fff;padding:0 18px;letter-spacing:.12em}
+.tb.primary:hover{filter:brightness(1.12)}
+.tb.primary:disabled{background:#3a1515;border-color:#3a1515}
+.sp{flex:1}
+.sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+select.tb{appearance:none;color:var(--text);background-color:var(--panel2);padding-right:22px;background-image:linear-gradient(45deg,transparent 50%,#999 50%),linear-gradient(135deg,#999 50%,transparent 50%);
+  background-position:calc(100% - 12px) 14px,calc(100% - 7px) 14px;background-size:5px 5px;background-repeat:no-repeat}
+select.tb option{background:#111}
+
+#tools{position:fixed;top:60px;left:10px;display:flex;flex-direction:column;gap:6px;z-index:10}
+.tool{width:118px;height:44px;display:flex;align-items:center;gap:9px;padding:0 10px;border:1px solid var(--line);
+  background:var(--panel);border-radius:8px;font-weight:700;letter-spacing:.06em;text-align:left;backdrop-filter:blur(6px)}
+.tool svg{width:20px;height:20px;flex:none;opacity:.85}
+.tool kbd{margin-left:auto;font:600 10px 'JetBrains Mono',monospace;color:var(--dim)}
+.tool.on{border-color:var(--accent);background:linear-gradient(90deg,rgba(225,6,0,.28),rgba(225,6,0,.06))}
+.tool:hover:not(.on){background:rgba(30,33,40,.95)}
+
+#hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:var(--panel);
+  border:1px solid var(--line);color:#cfd3da;font-size:13.5px;z-index:10;max-width:min(760px,calc(100vw - 32px));text-align:center;backdrop-filter:blur(6px)}
+#hint b{color:#fff}
+
+#panel{position:fixed;top:60px;right:10px;bottom:10px;width:280px;overflow:auto;z-index:10;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px)}
+.card h3{margin:0 0 8px;font-size:11.5px;letter-spacing:.18em;color:var(--dim);font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
+.row label{color:#c5c9d0;font-weight:600}
+.row .val{font:600 12px 'JetBrains Mono',monospace;color:#fff;min-width:56px;text-align:right}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0 4px}
+input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(--line);background:rgba(0,0,0,.35);color:#fff;font:600 14px Rajdhani;padding:0 8px}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{flex:1;height:28px;border:0;background:transparent;font-weight:700;font-size:12.5px;letter-spacing:.04em}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:rgba(225,6,0,.35)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.btns .tb{height:30px;font-size:13px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.stat{background:rgba(0,0,0,.25);border-radius:6px;padding:6px 8px}
+.stat span{display:block;font-size:10.5px;letter-spacing:.14em;color:var(--dim);font-weight:700}
+.stat b{font:700 15px 'JetBrains Mono',monospace}
+.issues{margin:8px 0 0;padding:0;list-style:none;font-size:13px}
+.issues li{padding:4px 0 4px 18px;position:relative;color:#d9dce1}
+.issues li::before{content:'';position:absolute;left:3px;top:10px;width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.issues li.bad::before{background:var(--bad)}
+.issues li.ok::before{background:var(--ok)}
+.chk{display:flex;align-items:center;gap:8px;margin:7px 0;font-weight:600;color:#c5c9d0;cursor:pointer}
+.chk input{accent-color:var(--accent);width:15px;height:15px}
+.muted{color:var(--dim);font-size:12.5px}
+
+/* ---------- drive HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+#speedo{position:absolute;right:22px;bottom:22px;width:230px;padding:12px 16px 14px;border-radius:14px;background:rgba(8,9,12,.72);border:1px solid var(--line);backdrop-filter:blur(6px)}
+#rpm{display:grid;grid-template-columns:repeat(15,1fr);gap:3px;height:9px;margin-bottom:10px}
+#rpm i{border-radius:2px;background:rgba(255,255,255,.08)}
+#rpm i.g{background:#2fd06a}#rpm i.r{background:#ff2a2a}#rpm i.b{background:#5b6bff}
+#speedo .big{display:flex;align-items:flex-end;justify-content:space-between}
+#spd{font:700 54px/0.9 'JetBrains Mono',monospace;letter-spacing:-.04em}
+#spd small{font:600 13px Rajdhani;color:var(--dim);letter-spacing:.12em;margin-left:4px}
+#gear{font:700 46px/0.9 'JetBrains Mono',monospace;color:var(--accent2)}
+#speedo .sub{display:flex;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--dim);letter-spacing:.12em;font-weight:700}
+#speedo .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:3px}
+#speedo .bar i{display:block;height:100%;width:0}
+#thr i{background:#2fd06a}#brk i{background:#ff3b3b}
+#timing{position:absolute;left:18px;top:18px;width:250px;border-radius:12px;background:rgba(8,9,12,.72);border:1px solid var(--line);overflow:hidden;backdrop-filter:blur(6px)}
+#timing .hd{display:flex;justify-content:space-between;padding:8px 12px;background:var(--accent);font-weight:700;letter-spacing:.14em;font-size:12.5px}
+#timing .ln{display:flex;justify-content:space-between;padding:6px 12px;border-top:1px solid var(--line);font-weight:600}
+#timing .ln b{font:700 15px 'JetBrains Mono',monospace}
+#cur{font-size:22px!important}
+#sectors{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px 12px 10px}
+#sectors div{border-radius:4px;background:rgba(255,255,255,.07);text-align:center;font:700 11.5px 'JetBrains Mono',monospace;padding:4px 0}
+#sectors div.pb{background:#1f8f4d}#sectors div.best{background:#7a2bd6}#sectors div.slow{background:#8f6d12}
+#mini{position:absolute;right:22px;top:18px;width:210px;height:210px;border-radius:12px;background:rgba(8,9,12,.62);border:1px solid var(--line)}
+#toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);font:700 28px Rajdhani;letter-spacing:.16em;text-shadow:0 2px 14px #000;opacity:0;transition:opacity .25s}
+#toast.show{opacity:1}
+#dhelp{position:absolute;left:18px;bottom:18px;font-size:13px;color:#c9cdd4;background:rgba(8,9,12,.62);border:1px solid var(--line);border-radius:10px;padding:8px 12px;line-height:1.6}
+#dhelp kbd{font:700 11px 'JetBrains Mono',monospace;background:rgba(255,255,255,.1);border-radius:3px;padding:1px 5px;margin-right:3px}
+#exitDrive{position:absolute;top:18px;left:50%;transform:translateX(-50%);pointer-events:auto;background:rgba(8,9,12,.72);backdrop-filter:blur(6px)}
+#lights{position:absolute;left:50%;top:12%;transform:translateX(-50%);display:flex;gap:10px;padding:10px 14px;border-radius:12px;background:#0b0b0c;border:1px solid #222}
+#lights i{width:30px;height:30px;border-radius:50%;background:#2a0d0d;box-shadow:inset 0 0 6px #000}
+#lights i.on{background:#ff1a1a;box-shadow:0 0 18px #ff2a2a}
+#err{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#07090c;z-index:50;text-align:center;padding:24px}
+
+@media (max-width:820px){
+  #tools{top:auto;bottom:62px;flex-direction:row;left:8px;right:8px;overflow-x:auto}
+  .tool{width:auto;min-width:92px}
+  .tool kbd{display:none}
+  #panel{top:auto;bottom:118px;height:34vh;left:8px;right:8px;width:auto}
+  #topbar{overflow-x:auto}
+  #topbar .brand{display:none}
+  #hint{display:none}
+  #mini{width:130px;height:130px}
+  #dhelp{display:none}
+}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="view" tabindex="0"></canvas>
+
+<div id="editorUI">
+  <div id="topbar">
+    <div class="brand">TRACK <b>BUILDER</b></div>
+    <button class="tb" id="bNew" title="Start an empty track">New</button>
+    <button class="tb" id="bSample" title="Load the sample circuit">Sample</button>
+    <div class="sep"></div>
+    <button class="tb" id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button class="tb" id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
+    <div class="sep"></div>
+    <button class="tb" id="bSave" title="Save to this browser">Save</button>
+    <select class="tb" id="selLoad" title="Load a saved track"><option value="">Load…</option></select>
+    <button class="tb" id="bExport" title="Download as .json">Export</button>
+    <button class="tb" id="bImport" title="Open a .json track">Import</button>
+    <input type="file" id="fileIn" accept=".json,application/json" class="hidden">
+    <div class="sep"></div>
+    <button class="tb" id="bView" title="Toggle top-down view (T)">Top view</button>
+    <div class="sp"></div>
+    <button class="tb primary" id="bDrive" title="Drive the track (Enter)">DRIVE</button>
+  </div>
+
+  <div id="tools">
+    <button class="tool" data-tool="draw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18c3-9 7 2 10-6s5-4 6-6"/><circle cx="4" cy="18" r="2"/><circle cx="20" cy="6" r="2"/></svg>DRAW<kbd>1</kbd></button>
+    <button class="tool" data-tool="move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>EDIT<kbd>2</kbd></button>
+    <button class="tool" data-tool="kerb"><svg viewBox="0 0 24 24"><path d="M2 15h5v4H2z" fill="#e10600"/><path d="M7 15h5v4H7z" fill="#fff"/><path d="M12 15h5v4h-5z" fill="#e10600"/><path d="M17 15h5v4h-5z" fill="#fff"/><path d="M2 7q10 5 20 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>KERB<kbd>3</kbd></button>
+    <button class="tool" data-tool="runoff"><svg viewBox="0 0 24 24"><rect x="2" y="13" width="20" height="8" rx="1" fill="#c9b58a"/><path d="M2 9q10 5 20 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>RUN-OFF<kbd>4</kbd></button>
+    <button class="tool" data-tool="erase"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 21h12M4 15l9-9 6 6-7 7H8z"/></svg>ERASE<kbd>5</kbd></button>
+  </div>
+
+  <div id="panel">
+    <div class="card">
+      <h3>Track</h3>
+      <input type="text" id="tName" maxlength="40" spellcheck="false">
+      <div class="stats" style="margin-top:8px">
+        <div class="stat"><span>LENGTH</span><b id="sLen">0.00 km</b></div>
+        <div class="stat"><span>CORNERS</span><b id="sCorners">0</b></div>
+        <div class="stat"><span>TIGHTEST</span><b id="sRadius">–</b></div>
+        <div class="stat"><span>CLIMB</span><b id="sClimb">0 m</b></div>
+      </div>
+      <ul class="issues" id="issues"></ul>
+    </div>
+
+    <div class="card" id="cPoint">
+      <h3>Selected point <span id="pIdx" class="mono"></span></h3>
+      <div id="pNone" class="muted">Pick a point with the <b>Edit</b> tool to set its elevation, width and banking.</div>
+      <div id="pEdit" class="hidden">
+        <div class="row"><label>Elevation</label><span class="val" id="vElev"></span></div>
+        <input type="range" id="rElev" min="-20" max="40" step="0.5">
+        <div class="row"><label>Width</label><span class="val" id="vWidth"></span></div>
+        <input type="range" id="rWidth" min="9" max="22" step="0.5">
+        <div class="row"><label>Banking</label><span class="val" id="vBank"></span></div>
+        <input type="range" id="rBank" min="-12" max="12" step="0.5">
+        <div class="btns">
+          <button class="tb" id="bStart" title="Make this point the start/finish line">Set start</button>
+          <button class="tb" id="bDel" title="Delete point (Del)">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="cPaint">
+      <h3>Kerbs &amp; run-off</h3>
+      <div class="row"><label>Kerb style</label></div>
+      <div class="seg" id="segKerb"><button data-v="flat">Flat</button><button data-v="sausage">Raised</button></div>
+      <div class="row" style="margin-top:10px"><label>Run-off surface</label></div>
+      <div class="seg" id="segSurf"><button data-v="asphalt">Asphalt</button><button data-v="gravel">Gravel</button><button data-v="grass">Grass</button></div>
+      <div class="row"><label>Run-off width</label><span class="val" id="vRunW"></span></div>
+      <input type="range" id="rRunW" min="4" max="40" step="1">
+      <div class="btns">
+        <button class="tb" id="bAutoKerb" title="Place kerbs at every corner">Auto kerbs</button>
+        <button class="tb" id="bAutoRun" title="Add run-off on the outside of corners">Auto run-off</button>
+        <button class="tb" id="bClearFx" style="grid-column:span 2" title="Remove every kerb and run-off">Clear kerbs &amp; run-off</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>World</h3>
+      <label class="chk"><input type="checkbox" id="cBarriers"> Barriers</label>
+      <label class="chk"><input type="checkbox" id="cScenery"> Trees, stands &amp; pit building</label>
+      <div class="row"><label>Time of day</label><span class="val" id="vTod"></span></div>
+      <input type="range" id="rTod" min="6.5" max="19.5" step="0.1">
+      <div class="row"><label>Car livery</label></div>
+      <div class="seg" id="segLivery"></div>
+    </div>
+  </div>
+
+  <div id="hint"></div>
+</div>
+
+<div id="hud" class="hidden">
+  <button class="tb" id="exitDrive">EDIT TRACK <span class="mono" style="opacity:.6">ESC</span></button>
+  <div id="timing">
+    <div class="hd"><span id="lapNo">LAP 1</span><span id="lapState"></span></div>
+    <div class="ln"><span>CURRENT</span><b id="cur">0:00.000</b></div>
+    <div id="sectors"><div id="sec0">S1</div><div id="sec1">S2</div><div id="sec2">S3</div></div>
+    <div class="ln"><span>LAST</span><b id="last">–</b></div>
+    <div class="ln"><span>BEST</span><b id="best">–</b></div>
+  </div>
+  <canvas id="mini" width="420" height="420"></canvas>
+  <div id="lights" class="hidden"><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="toast"></div>
+  <div id="speedo">
+    <div id="rpm"></div>
+    <div class="big"><div id="spd">0<small>KM/H</small></div><div id="gear">N</div></div>
+    <div class="sub"><span>THROTTLE</span><span>BRAKE</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="bar" id="thr"><i></i></div><div class="bar" id="brk"><i></i></div></div>
+    <div class="sub"><span id="surf">TRACK</span><span id="camName">CHASE</span></div>
+  </div>
+  <div id="dhelp">
+    <kbd>W</kbd><kbd>S</kbd> throttle / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer<br>
+    <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> reset to track &nbsp; <kbd>T</kbd> assists <span id="tcState" class="mono">ON</span><br>
+    <kbd>M</kbd> sound &nbsp; gamepad: triggers + left stick
+  </div>
+</div>
+
+<div id="err" class="hidden"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+window.__started = true;
