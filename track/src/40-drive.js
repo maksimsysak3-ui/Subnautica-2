@@ -1,19 +1,13 @@
 // =====================================================================
 //  Driving: input, vehicle dynamics, surfaces, laps, cameras, audio, HUD
 // =====================================================================
-const CAR = {
-  // CG sits 2.0 m behind the front axle (44 % front weight, like a real F1 car).
-  mass: 800, Iz: 1150, a: 2.0, b: 1.6, hCG: 0.3, trackW: 1.58,
-  power: 760e3, maxDrive: 15500, ClA: 3.9, CdA: 1.25, aeroFront: 0.42, rho: 1.2,
-  // Wider rear tyres: more cornering stiffness and a touch more grip -> stable, mild understeer at the limit.
-  mu: 1.78, muRear: 1.05, B: 12, BRear: 15, C: 1.45, brakeMu: 0.98, frontBrake: 0.58,
+const RPM_MAX = 12300, RPM_IDLE = 3800;
+// Surfaces as the F4 physics sees them (grip multiplier, rolling drag).
+const SURF_PHYS = {
+  [SURF.road]: { kind: 'asphalt', grip: 1, drag: 0 }, [SURF.kerb]: { kind: 'kerb', grip: 0.97, drag: 0 },
+  [SURF.asphalt]: { kind: 'paint', grip: 0.95, drag: 0.004 }, [SURF.gravel]: { kind: 'gravel', grip: 0.5, drag: 0.32 },
+  [SURF.grass]: { kind: 'grass', grip: 0.55, drag: 0.06 },
 };
-CAR.L = CAR.a + CAR.b;
-const G = 9.81;
-const SURF_GRIP = { [SURF.road]: 1, [SURF.kerb]: 0.93, [SURF.asphalt]: 0.95, [SURF.gravel]: 0.5, [SURF.grass]: 0.56 };
-const SURF_ROLL = { [SURF.road]: 0.012, [SURF.kerb]: 0.02, [SURF.asphalt]: 0.015, [SURF.gravel]: 0.55, [SURF.grass]: 0.11 };
-const GEAR_TOP = [24, 35, 46, 57, 67, 77, 87, 99];   // m/s at the 12 500 rpm limiter in each gear
-const RPM_MAX = 12500, RPM_IDLE = 4200;
 
 // ---------------------------------------------------------------------
 //  Input
@@ -40,9 +34,9 @@ function readInput(dt, speed) {
   if (!analog || kL || kR || kT || kB) {
     // Keyboard: ramp inputs so taps are progressive rather than binary.
     const target = (kL ? 1 : 0) - (kR ? 1 : 0);
-    const rate = target === 0 || Math.sign(target) !== Math.sign(input.steer) ? 7 : 2.6 + 2 / (1 + speed / 25);
+    const rate = target === 0 || Math.sign(target) !== Math.sign(input.steer) ? 6 : 1.6 + 3 / (1 + speed / 15);
     input.steer += clamp(target - input.steer, -rate * dt, rate * dt);
-    input.throttle += clamp((kT ? 1 : 0) - input.throttle, -9 * dt, 5 * dt);
+    input.throttle += clamp((kT ? 1 : 0) - input.throttle, -9 * dt, 3 * dt);
     input.brake += clamp((kB ? 1 : 0) - input.brake, -12 * dt, 9 * dt);
   } else {
     input.steer += (st - input.steer) * Math.min(1, dt * 20);
@@ -58,41 +52,62 @@ function padRelease(k) { padState[k] = false; }
 // ---------------------------------------------------------------------
 const car = {
   x: 0, z: 0, y: 0, heading: 0, vF: 0, vL: 0, yaw: 0, steer: 0,
-  pitch: 0, roll: 0, bodyPitch: 0, bodyRoll: 0, ax: 0, ay: 0,
-  gear: 1, rpm: RPM_IDLE, shiftCut: 0, reverse: false, reverseHold: 0,
-  wheelSpin: 0, hint: -1, surf: SURF.road, wheelSurf: [0, 0, 0, 0], slip: 0, bump: 0, onKerb: 0,
-  tc: true, impact: 0,
+  gear: '1', rpm: RPM_IDLE, hint: -1, surf: SURF.road, wheelSurf: [0, 0, 0, 0], slip: 0, onKerb: 0,
+  assist: 1, impact: 0,
 };
+const ASSIST_NAMES = ['OFF', 'SPORT', 'FULL'];
+
+// The track as the F4 physics' ground: height, surface and barrier contacts.
+const ground = {
+  heightAt(x, z) { return S ? surfaceHeight(x, z, car.hint).y : 0; },
+  surfaceAt(x, z) { return S ? SURF_PHYS[surfaceHeight(x, z, car.hint).surf] : null; },
+  wallContact(x, z) {
+    if (!S || !state.settings.barriers) return null;
+    const p = project(x, z, car.hint);
+    if (!p) return null;
+    const k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
+    const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 0.15;
+    const depth = Math.abs(p.d) - lim;
+    if (depth <= 0) return null;
+    return { nx: -leftX(p.i) * side, nz: -leftZ(p.i) * side, depth: Math.min(depth, 0.6) };
+  },
+};
+const vehicle = new F4.vehicle.Vehicle(ground, F1_SPEC);
+vehicle.awd = false;
+vehicle.assistLevel = car.assist;
+
 let carModel = null;
 function ensureCarModel() {
   if (carModel && carModel.livery === state.settings.livery) return;
   if (carModel) { scene.remove(carModel.root); carModel.root.traverse((o) => o.geometry && o.geometry.dispose()); }
-  carModel = buildCar(state.settings.livery);
+  carModel = buildCar(state.settings.livery, vehicle);
   carModel.livery = state.settings.livery;
   scene.add(carModel.root);
 }
 
+function placeAt(i, lat) {
+  car.hint = i;
+  const x = S.px[i] + leftX(i) * lat, z = S.pz[i] + leftZ(i) * lat;
+  vehicle.reset(new THREE.Vector3(x, surfaceHeight(x, z, i).y, z), Math.atan2(S.tx[i], S.tz[i]));
+  syncCar();
+}
 function placeOnGrid() {
-  const back = Math.round(10 / S.step);
-  const i = (S.n - back) % S.n;
-  const lat = Math.min(3.2, S.w[i] / 4);
-  car.x = S.px[i] + leftX(i) * lat; car.z = S.pz[i] + leftZ(i) * lat;
-  car.heading = Math.atan2(S.tx[i], S.tz[i]);
-  car.vF = car.vL = car.yaw = car.steer = 0;
-  car.gear = 1; car.rpm = RPM_IDLE; car.reverse = false; car.hint = i;
-  car.y = surfaceHeight(car.x, car.z, i).y;
+  const i = (S.n - Math.round(10 / S.step)) % S.n;
+  placeAt(i, Math.min(3.2, S.w[i] / 4));
 }
 function resetCar() {
   if (!S || mode !== 'drive') return;
   const p = project(car.x, car.z, car.hint);
   if (!p) return;
-  const i = p.i;
-  const lat = clamp(p.d, -S.w[i] / 2 + 1.5, S.w[i] / 2 - 1.5);
-  car.x = S.px[i] + leftX(i) * lat; car.z = S.pz[i] + leftZ(i) * lat;
-  car.heading = Math.atan2(S.tx[i], S.tz[i]);
-  car.vF = car.vL = car.yaw = 0; car.reverse = false; car.gear = 1; car.hint = i;
+  placeAt(p.i, clamp(p.d, -S.w[p.i] / 2 + 1.5, S.w[p.i] / 2 - 1.5));
   lap.valid = false;
   showToast('RESET — LAP INVALID', '#ffb800');
+}
+function cycleAssists() {
+  car.assist = (car.assist + 2) % 3;          // SPORT -> OFF -> FULL -> SPORT
+  vehicle.assistLevel = car.assist;
+  $('tcState').textContent = ASSIST_NAMES[car.assist];
+  showToast('ASSISTS ' + ASSIST_NAMES[car.assist]);
 }
 
 // Surface type and height under a world point.
@@ -127,159 +142,42 @@ function surfaceHeight(x, z, hint) {
 }
 
 // ---------------------------------------------------------------------
-//  Vehicle dynamics: bicycle model with Pacejka-style tyres, load transfer,
-//  downforce, friction circles per axle, traction control and ABS.
+//  One physics step of the F4 vehicle, then mirror its state into `car`
+//  (position, heading, speeds) for the camera, laps, HUD and audio.
 // ---------------------------------------------------------------------
-function tyreForce(alpha, Fz, mu, B) {
-  return -mu * Fz * Math.sin(CAR.C * Math.atan(B * alpha));
-}
+const ctrl = { throttle: 0, brake: 0, steer: 0, handbrake: 0, shiftUp: false, shiftDown: false };
+const _fw = new THREE.Vector3(), _lf = new THREE.Vector3();
 function physicsStep(dt) {
-  const c = car;
-  const speed = Math.hypot(c.vF, c.vL);
-  // Steering lock shrinks with speed so keyboard play stays inside the tyre's window.
-  const lock = Math.min(0.36, 0.04 + 5 / (Math.abs(c.vF) + 14));
-  const targetSteer = input.steer * lock;
-  c.steer += clamp(targetSteer - c.steer, -2.2 * dt, 2.2 * dt);
-
-  // Gear / reverse logic.
-  let thr = input.throttle, brk = input.brake;
-  if (!c.reverse && c.vF < 0.6 && brk > 0.5 && thr < 0.05) { c.reverseHold += dt; if (c.reverseHold > 0.35) c.reverse = true; }
-  else if (!c.reverse) c.reverseHold = 0;
-  if (c.reverse && thr > 0.1 && c.vF > -0.6) { c.reverse = false; c.reverseHold = 0; }
-  if (c.reverse) { const t = thr; thr = brk; brk = t; }
-
-  // Normal loads: static + aero + longitudinal transfer.
-  const down = 0.5 * CAR.rho * CAR.ClA * speed * speed;
-  const W = CAR.mass * G;
-  let Fzf = W * CAR.b / CAR.L + down * CAR.aeroFront - CAR.mass * c.ax * CAR.hCG / CAR.L;
-  let Fzr = W * CAR.a / CAR.L + down * (1 - CAR.aeroFront) + CAR.mass * c.ax * CAR.hCG / CAR.L;
-  Fzf = Math.max(Fzf, 200); Fzr = Math.max(Fzr, 200);
-  const gF = (SURF_GRIP[c.wheelSurf[0]] + SURF_GRIP[c.wheelSurf[1]]) / 2;
-  const gR = (SURF_GRIP[c.wheelSurf[2]] + SURF_GRIP[c.wheelSurf[3]]) / 2;
-  const load = (Fz) => 1 - 0.07 * (Fz / 4500 - 1);       // mild load sensitivity
-  const muF = CAR.mu * gF * load(Fzf / 2), muR = CAR.mu * CAR.muRear * gR * load(Fzr / 2);
-
-  // Slip angles.
-  const vRef = Math.max(Math.abs(c.vF), 3);
-  const dir = c.vF >= 0 ? 1 : -1;
-  const aF = Math.atan2(c.vL + CAR.a * c.yaw, vRef) - c.steer * dir;
-  const aR = Math.atan2(c.vL - CAR.b * c.yaw, vRef);
-  let Fyf = tyreForce(aF, Fzf, muF, CAR.B), Fyr = tyreForce(aR, Fzr, muR, CAR.BRear);
-
-  // Longitudinal: power-limited drive on the rear, split braking, shift cut.
-  c.shiftCut = Math.max(0, c.shiftCut - dt);
-  let drive = 0;
-  if (c.reverse) drive = -thr * (c.vF > -11 ? 5200 : 0);
-  else if (c.shiftCut <= 0) drive = thr * Math.min(CAR.maxDrive, CAR.power / Math.max(Math.abs(c.vF), 6));
-  const brakeTotal = brk * CAR.brakeMu * (muF * Fzf + muR * Fzr);
-  const bsign = Math.abs(c.vF) > 0.3 ? Math.sign(c.vF) : 0;
-  let Fxf = -bsign * brakeTotal * CAR.frontBrake;
-  let Fxr = drive - bsign * brakeTotal * (1 - CAR.frontBrake);
-  if (!thr && !brk && !c.reverse) Fxr -= Math.sign(c.vF) * Math.min(1800, Math.abs(c.vF) * 400);   // engine braking
-  if (c.tc) {
-    // Assists: traction control trims power, and cornering brake control eases the rear brakes,
-    // so the rear tyres always keep enough grip to hold the line (the rear never steps out under braking).
-    const room = Math.sqrt(Math.max(0, (muR * Fzr) ** 2 - Fyr * Fyr)) * 0.94;
-    if (!c.reverse && drive > 0) Fxr = Math.min(Fxr, room);
-    else if (Fxr < 0) Fxr = Math.max(Fxr, -room);
-  }
-  // ABS on the fronts: braking never takes more than the grip left after cornering (keeping at
-  // least 70 % of full braking), so the car still turns while trail-braking.
-  if (Fxf < 0) {
-    const capF = muF * Fzf;
-    Fxf = Math.max(Fxf, -Math.max(0.7 * capF, Math.sqrt(Math.max(0, capF * capF - Fyf * Fyf))));
-  }
-  // Friction circles (without assists, wheelspin and rear braking eat lateral grip).
-  const circle = (Fx, Fy, cap) => {
-    Fx = clamp(Fx, -cap, cap);
-    const room = Math.sqrt(Math.max(0, cap * cap - Fx * Fx));
-    return [Fx, clamp(Fy, -room, room)];
-  };
-  [Fxf, Fyf] = circle(Fxf, Fyf, muF * Fzf);
-  [Fxr, Fyr] = circle(Fxr, Fyr, muR * Fzr);
-
-  // Resistances: aero drag, rolling/surface drag, gravity along the slope.
-  const drag = 0.5 * CAR.rho * CAR.CdA * c.vF * Math.abs(c.vF);
-  const crr = (SURF_ROLL[c.wheelSurf[0]] + SURF_ROLL[c.wheelSurf[1]] + SURF_ROLL[c.wheelSurf[2]] + SURF_ROLL[c.wheelSurf[3]]) / 4;
-  const roll = Math.abs(c.vF) > 0.05 ? Math.sign(c.vF) * crr * W * Math.min(1, Math.abs(c.vF) / 2) : 0;
-  const slopeF = -W * Math.sin(c.pitch), slopeL = -W * Math.sin(c.roll);   // gravity pulls toward the low side
-
-  const cs = Math.cos(c.steer), sn = Math.sin(c.steer);
-  const FxTot = Fxf * cs - Fyf * sn + Fxr - drag - roll + slopeF;
-  const FyTot = Fyf * cs + Fxf * sn + Fyr + slopeL;
-  const Mz = CAR.a * (Fyf * cs + Fxf * sn) - CAR.b * Fyr;
-  c.ax = lerp(c.ax, FxTot / CAR.mass, Math.min(1, dt * 12));
-  c.ay = FyTot / CAR.mass;
-  c.vF += (FxTot / CAR.mass + c.yaw * c.vL) * dt;
-  c.vL += (FyTot / CAR.mass - c.yaw * c.vF) * dt;
-  c.yaw += (Mz / CAR.Iz) * dt;
-  // Low speed: blend toward rolling kinematics so the car doesn't jitter or spin on the spot.
-  const kin = clamp(1 - Math.abs(c.vF) / 4, 0, 1);
-  if (kin > 0) {
-    c.yaw = lerp(c.yaw, (c.vF * Math.tan(c.steer)) / CAR.L, kin * Math.min(1, dt * 18));
-    c.vL *= 1 - kin * Math.min(1, dt * 10);
-    if (!thr && !c.reverse && Math.abs(c.vF) < 0.4 && brk > 0.1) c.vF = 0;
-  }
-  c.heading += c.yaw * dt;
-  const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
-  const lx = Math.cos(c.heading), lz = -Math.sin(c.heading);
-  c.x += (fx * c.vF + lx * c.vL) * dt;
-  c.z += (fz * c.vF + lz * c.vL) * dt;
-  c.slip = Math.max(Math.abs(aF), Math.abs(aR)) - 0.09 + (Math.abs(Fxr) > 0.97 * muR * Fzr ? 0.05 : 0);
-
-  // Gearbox (sound + HUD; power delivery is smoothed above).
-  if (!c.reverse) {
-    const v = Math.max(0, c.vF);
-    c.rpm = clamp((v / GEAR_TOP[c.gear - 1]) * RPM_MAX, RPM_IDLE, RPM_MAX);
-    if (c.rpm > 11900 && c.gear < 8) { c.gear++; c.shiftCut = 0.05; }
-    else if (c.gear > 1 && (v / GEAR_TOP[c.gear - 2]) * RPM_MAX < 9800) c.gear--;
-    if (c.gear === 1 && v < 2 && thr > 0) c.rpm = Math.max(c.rpm, RPM_IDLE + thr * 5000);
-  } else c.rpm = clamp(RPM_IDLE + Math.abs(c.vF) * 500, RPM_IDLE, 9000);
+  const held = heldOnGrid();
+  ctrl.throttle = held ? 0 : input.throttle;
+  ctrl.brake = held ? 1 : input.brake;
+  ctrl.steer = -input.steer;                     // F4 steer: + = right
+  vehicle.step(dt, ctrl);
+  syncCar();
+  if (vehicle.wallHit > 4) { lap.valid = false; car.impact = Math.max(car.impact, Math.min(1, vehicle.wallHit / 25)); audio.thump(Math.min(1, vehicle.wallHit / 30)); }
 }
-
-// Wheels on the ground: surfaces, ride height, pitch/roll from terrain, barrier contact.
-const WHEEL_OFF = [[0.79, CAR.a], [-0.79, CAR.a], [0.77, -CAR.b], [-0.77, -CAR.b]];   // [left offset, forward offset]
-function groundStep(dt) {
-  const c = car;
-  const fx = Math.sin(c.heading), fz = Math.cos(c.heading), lx = Math.cos(c.heading), lz = -Math.sin(c.heading);
-  const hs = [];
-  let kerb = 0;
-  for (let w = 0; w < 4; w++) {
-    const [ox, oz] = WHEEL_OFF[w];
-    const r = surfaceHeight(c.x + lx * ox + fx * oz, c.z + lz * ox + fz * oz, c.hint);
-    c.wheelSurf[w] = r.surf; hs.push(r.y);
-    if (r.surf === SURF.kerb) kerb++;
-  }
-  const centre = surfaceHeight(c.x, c.z, c.hint);
-  if (centre.p) c.hint = centre.p.i;
-  c.surf = centre.surf;
+function syncCar() {
+  const b = vehicle.body, c = car;
+  _fw.set(0, 0, 1).applyQuaternion(b.quaternion);
+  _lf.set(1, 0, 0).applyQuaternion(b.quaternion);
+  c.x = b.position.x; c.z = b.position.z; c.y = b.position.y - F1_SPEC.cgHeight;
+  c.heading = Math.atan2(_fw.x, _fw.z);
+  c.vF = b.velocity.dot(_fw); c.vL = b.velocity.dot(_lf);
+  c.yaw = b.angularVelocity.y;
+  c.steer = vehicle.steerAngle;
+  c.rpm = vehicle.rpm; c.gear = vehicle.gearLabel; c.reverse = c.gear === 'R';
+  const p = project(c.x, c.z, c.hint);
+  if (p) { c.hint = p.i; }
+  let kerb = 0, slip = 0;
+  vehicle.wheels.forEach((w, i) => {
+    const sf = w.surface === 'kerb' ? SURF.kerb : w.surface === 'gravel' ? SURF.gravel : w.surface === 'grass' ? SURF.grass : w.surface === 'paint' ? SURF.asphalt : SURF.road;
+    c.wheelSurf[i] = sf;
+    if (sf === SURF.kerb) kerb++;
+    slip = Math.max(slip, Math.abs(w.vLat || 0) / Math.max(4, w.groundSpeed || 0));
+  });
   c.onKerb = kerb;
-  const front = (hs[0] + hs[1]) / 2, rear = (hs[2] + hs[3]) / 2, left = (hs[0] + hs[2]) / 2, right = (hs[1] + hs[3]) / 2;
-  const tPitch = Math.atan2(front - rear, CAR.L), tRoll = Math.atan2(left - right, CAR.trackW);
-  c.pitch = lerp(c.pitch, tPitch, Math.min(1, dt * 20));
-  c.roll = lerp(c.roll, tRoll, Math.min(1, dt * 20));
-  c.y = lerp(c.y, (front + rear) / 2, Math.min(1, dt * 30));
-  // Barriers.
-  if (centre.p && state.settings.barriers) {
-    const p = centre.p, k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
-    const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 1.05;
-    if (Math.abs(p.d) > lim) {
-      const nx = leftX(p.i) * side, nz = leftZ(p.i) * side;          // outward normal
-      const pen = Math.abs(p.d) - lim;
-      c.x -= nx * pen; c.z -= nz * pen;
-      let vx = fx * c.vF + lx * c.vL, vz = fz * c.vF + lz * c.vL;
-      const vn = vx * nx + vz * nz;
-      if (vn > 0) {
-        vx -= nx * vn * 1.3; vz -= nz * vn * 1.3;
-        const keep = clamp(1 - vn / 60, 0.55, 0.92);
-        vx *= keep; vz *= keep;
-        c.vF = vx * fx + vz * fz; c.vL = vx * lx + vz * lz;
-        c.yaw *= 0.5;
-        c.impact = Math.max(c.impact, Math.min(1, vn / 25));
-        if (vn > 4) { lap.valid = false; audio.thump(Math.min(1, vn / 30)); }
-      }
-    }
-  }
+  c.slip = slip - 0.08;
+  c.surf = surfaceHeight(c.x, c.z, c.hint).surf;
 }
 
 // ---------------------------------------------------------------------
@@ -409,8 +307,8 @@ function updateCamera(dt) {
   } else if (mode === 'ONBOARD') {
     carModel.body.updateWorldMatrix(true, false);
     // T-cam: just above the airbox, looking over the halo.
-    camera.position.set(0, 1.24, -0.42).applyMatrix4(carModel.body.matrixWorld);
-    camState.look.set(0, 0.9, 14).applyMatrix4(carModel.body.matrixWorld);
+    camera.position.set(0, 0.98, -0.3).applyMatrix4(carModel.body.matrixWorld);
+    camState.look.set(0, 0.62, 14).applyMatrix4(carModel.body.matrixWorld);
     fov = 66 + clamp(speed / 90, 0, 1) * 10;
   } else {
     // TV: hop between trackside cameras set back from the barriers.
@@ -526,35 +424,51 @@ function buildMinimap() {
   miniPath = new Path2D();
   for (let i = 0; i <= S.n; i++) { const [a, b] = miniXf(S.px[i % S.n], S.pz[i % S.n]); i ? miniPath.lineTo(a, b) : miniPath.moveTo(a, b); }
   miniPath.closePath();
+  miniBg = null;
 }
+let miniBg = null;
 function drawMinimap() {
   const cv = $('mini'), g = cv.getContext('2d');
+  if (!miniBg) {
+    miniBg = document.createElement('canvas');
+    miniBg.width = cv.width; miniBg.height = cv.height;
+    const b = miniBg.getContext('2d');
+    b.lineJoin = 'round';
+    b.strokeStyle = 'rgba(255,255,255,.18)'; b.lineWidth = 14; b.stroke(miniPath);
+    b.strokeStyle = '#e8eaee'; b.lineWidth = 5; b.stroke(miniPath);
+    const [sx, sz] = miniXf(S.px[0], S.pz[0]);
+    b.fillStyle = '#e10600'; b.fillRect(sx - 7, sz - 7, 14, 14);
+  }
   g.clearRect(0, 0, cv.width, cv.height);
-  g.lineJoin = 'round';
-  g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 14; g.stroke(miniPath);
-  g.strokeStyle = '#e8eaee'; g.lineWidth = 5; g.stroke(miniPath);
-  const [sx, sz] = miniXf(S.px[0], S.pz[0]);
-  g.fillStyle = '#e10600'; g.fillRect(sx - 7, sz - 7, 14, 14);
+  g.drawImage(miniBg, 0, 0);
   const [cx, cz] = miniXf(car.x, car.z);
   g.fillStyle = '#ffb800'; g.beginPath(); g.arc(cx, cz, 11, 0, 7); g.fill();
   g.strokeStyle = '#000'; g.lineWidth = 3; g.stroke();
 }
-function updateHUD() {
+// DOM writes only when a value changes, at most 20 times a second.
+let hudT = 0;
+const hudCache = {};
+function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
+function updateHUD(dt) {
+  hudT += dt;
+  if (hudT < 0.05) return;
+  hudT = 0;
   const c = car;
   const kmh = Math.abs(c.vF) * 3.6;
-  $('spd').firstChild.nodeValue = Math.round(kmh);
-  $('gear').textContent = c.reverse ? 'R' : kmh < 1 && input.throttle < 0.05 ? 'N' : c.gear;
+  const spd = String(Math.round(kmh));
+  if (hudCache.spd !== spd) { hudCache.spd = spd; $('spd').firstChild.nodeValue = spd; }
+  setText('gear', String(c.gear));
   const lit = Math.round(((c.rpm - RPM_IDLE) / (RPM_MAX - RPM_IDLE)) * 15);
-  [...rpmEl.children].forEach((el, i) => { el.className = i < lit ? (i < 5 ? 'g' : i < 10 ? 'r' : 'b') : ''; });
-  $('thr').firstChild.style.width = (input.throttle * 100) + '%';
-  $('brk').firstChild.style.width = (input.brake * 100) + '%';
-  $('surf').textContent = SURF_NAMES[c.surf];
+  if (hudCache.lit !== lit) { hudCache.lit = lit; [...rpmEl.children].forEach((el, i) => { el.className = i < lit ? (i < 5 ? 'g' : i < 10 ? 'r' : 'b') : ''; }); }
+  $('thr').firstChild.style.width = Math.round(input.throttle * 100) + '%';
+  $('brk').firstChild.style.width = Math.round(input.brake * 100) + '%';
+  setText('surf', SURF_NAMES[c.surf]);
   $('surf').style.color = c.surf === SURF.gravel || c.surf === SURF.grass ? '#ffb800' : '';
-  $('lapNo').textContent = 'LAP ' + lap.n;
-  $('lapState').textContent = !lap.running ? 'GRID' : lap.valid ? '' : 'INVALID';
-  $('cur').textContent = fmtLap(lap.t);
+  setText('lapNo', 'LAP ' + lap.n);
+  setText('lapState', !lap.running ? 'GRID' : lap.valid ? '' : 'INVALID');
+  setText('cur', fmtLap(lap.t));
   $('cur').style.color = lap.valid ? '' : '#ff6b6b';
-  $('last').textContent = lap.last ? fmtLap(lap.last.t) + (lap.last.valid ? '' : ' ✕') : '–';
-  $('best').textContent = fmtLap(lap.best);
+  setText('last', lap.last ? fmtLap(lap.last.t) + (lap.last.valid ? '' : ' ✕') : '–');
+  setText('best', fmtLap(lap.best));
   drawMinimap();
 }

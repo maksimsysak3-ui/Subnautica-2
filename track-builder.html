@@ -232,7 +232,7 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
   </div>
   <div id="dhelp">
     <kbd>W</kbd><kbd>S</kbd> throttle / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer<br>
-    <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> reset to track &nbsp; <kbd>T</kbd> assists <span id="tcState" class="mono">ON</span><br>
+    <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> reset to track &nbsp; <kbd>T</kbd> assists <span id="tcState" class="mono">SPORT</span><br>
     <kbd>M</kbd> sound &nbsp; gamepad: triggers + left stick
   </div>
 </div>
@@ -735,7 +735,7 @@ function deserialise(text) {
   const st = { ...defaultSettings(), ...(o.settings && typeof o.settings === 'object' ? o.settings : {}) };
   const settings = {
     barriers: !!st.barriers, scenery: !!st.scenery, tod: num(st.tod, 15.5, 6.5, 19.5),
-    livery: Math.floor(num(st.livery, 0, 0, 5)), kerbStyle: st.kerbStyle === 'sausage' ? 'sausage' : 'flat',
+    livery: Math.floor(num(st.livery, 0, 0, 6)), kerbStyle: st.kerbStyle === 'sausage' ? 'sausage' : 'flat',
     runSurf: RUN_CODES[st.runSurf] != null ? st.runSurf : 'gravel', runW: num(st.runW, 14, 4, 40),
   };
   return { name: String(o.name || 'Imported circuit').slice(0, 40), points, closed, features, settings };
@@ -779,12 +779,12 @@ function sampleTrack() {
 // =====================================================================
 const canvas = $('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.62;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
 
 const scene = new THREE.Scene();
@@ -1445,303 +1445,2252 @@ function board(r) {
   return g;
 }
 // =====================================================================
-//  Hand-built F1 car (2026-style proportions, ~5.6 m long, 2 m wide).
-//  Faces +z. Modelled with the front axle at z = +1.6 and rear at z = -2.0,
-//  then shifted so the root origin sits under the centre of mass (CAR.a / CAR.b).
+//  F1 car model, ported from the F4 racer (maksimsysak3-ui/F4, racer/src/car + cars/f1)
+//  at full size: no miniature squash, normal-size helmet. Each module keeps its own scope.
 // =====================================================================
-const LIVERIES = [
-  { name: 'Rosso', body: 0xc4121a, second: 0x16161a, accent: 0xf4f4f4 },
-  { name: 'Argento', body: 0xb8bec6, second: 0x0f1013, accent: 0x00c2b2 },
-  { name: 'Papaya', body: 0xff7a00, second: 0x1b2a4a, accent: 0x111111 },
-  { name: 'Verde', body: 0x0b5a3c, second: 0x0d0f0d, accent: 0xb6f000 },
-  { name: 'Notte', body: 0x101a3a, second: 0xc4121a, accent: 0xffcc00 },
-  { name: 'Ghiaccio', body: 0xf2f4f7, second: 0x111216, accent: 0x2aa8ff },
-];
+const F4 = {};
+F4.meshBuilder = (() => {
+const { BufferGeometry, Float32BufferAttribute, Mesh, Group, ShapeUtils, Vector2 } = THREE;
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const WHITE = [1, 1, 1];
+const normalize = (v) => {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+};
 
-const carbonTex = canvasTex(128, (g, s) => {
-  g.fillStyle = '#151619'; g.fillRect(0, 0, s, s);
-  const c = 8;
-  for (let y = 0; y < s; y += c) for (let x = 0; x < s; x += c) {
-    const on = ((x + y) / c) % 2 === 0;
-    const grd = g.createLinearGradient(x, y, on ? x + c : x, on ? y : y + c);
-    grd.addColorStop(0, '#202227'); grd.addColorStop(0.5, '#2d3036'); grd.addColorStop(1, '#1a1b1f');
-    g.fillStyle = grd; g.fillRect(x, y, c, c);
+/** Per-material vertex data in growable typed arrays (pos/nrm/col/uv expose the filled part). */
+class Bucket {
+  constructor() {
+    this.n = 0; // vertices
+    this.P = new Float32Array(768); this.N = new Float32Array(768); this.C = new Float32Array(768); this.U = new Float32Array(512);
+    this.hasColor = false; this.hasUV = false;
   }
-});
-carbonTex.repeat.set(6, 6);
+  /** Room for k more vertices; returns the first new vertex index. */
+  reserve(k) {
+    const v = this.n, need = (v + k) * 3;
+    if (need > this.P.length) {
+      const cap = Math.max(need, this.P.length * 2), grow = (a, m) => { const b = new Float32Array(cap / 3 * m); b.set(a); return b; };
+      this.P = grow(this.P, 3); this.N = grow(this.N, 3); this.C = grow(this.C, 3); this.U = grow(this.U, 2);
+    }
+    this.n += k;
+    return v;
+  }
+  get pos() { return this.P.subarray(0, this.n * 3); }
+  get nrm() { return this.N.subarray(0, this.n * 3); }
+  get col() { return this.C.subarray(0, this.n * 3); }
+  get uv() { return this.U.subarray(0, this.n * 2); }
+}
 
-// Loft through superellipse cross-sections: {z, w (half width), h (half height), y (centre), p (squareness)}.
-function loft(sections, { x = 0, seg = 28, capStart = true, capEnd = true } = {}) {
-  const pos = [], uv = [], ind = [];
-  const ring = seg + 1;
-  sections.forEach((s, j) => {
-    const p = s.p ?? 2.6;
-    for (let k = 0; k <= seg; k++) {
-      const a = (k / seg) * Math.PI * 2;
-      const c = Math.cos(a), sn = Math.sin(a);
-      const ex = Math.sign(c) * Math.pow(Math.abs(c), 2 / p), ey = Math.sign(sn) * Math.pow(Math.abs(sn), 2 / p);
-      // Flatten the underside: real chassis are close to flat-bottomed.
-      const yy = ey < 0 ? ey * (s.under ?? 0.7) : ey;
-      pos.push(x + ex * s.w, s.y + yy * s.h, s.z);
-      uv.push(k / seg, j / (sections.length - 1));
-    }
-  });
-  for (let j = 0; j < sections.length - 1; j++) for (let k = 0; k < seg; k++) {
-    const a = j * ring + k, b = a + ring;
-    ind.push(a, a + 1, b, a + 1, b + 1, b);
+/**
+ * Collects triangles per material key and emits one mesh per material.
+ *
+ * Normals are explicit: every quad gets a single normal (from its diagonals),
+ * so a slightly non-planar quad still reads as one clean facet instead of two
+ * differently-lit triangles. That is what makes low-poly read as "designed".
+ */
+class MeshBuilder {
+  constructor() {
+    this.buckets = new Map();
+    /** Optional vertex colour [r, g, b] (linear) applied to everything emitted while set. */
+    this.color = null;
   }
-  const cap = (j, flip) => {
-    const s = sections[j];
-    const centre = pos.length / 3;
-    pos.push(x, s.y, s.z); uv.push(0.5, 0.5);
-    for (let k = 0; k < seg; k++) {
-      const a = j * ring + k;
-      if (flip) ind.push(centre, a + 1, a); else ind.push(centre, a, a + 1);
+
+  bucket(key) {
+    let b = this.buckets.get(key);
+    if (!b) this.buckets.set(key, (b = new Bucket()));
+    return b;
+  }
+
+  tri(key, a, b, c, n = null, uvs = null) {
+    const bk = this.bucket(key);
+    let nx, ny, nz;
+    if (n) { nx = n[0]; ny = n[1]; nz = n[2]; } else {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      nx = uy * vz - uz * vy; ny = uz * vx - ux * vz; nz = ux * vy - uy * vx;
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= l; ny /= l; nz /= l;
     }
-  };
-  if (capStart) cap(0, true);
-  if (capEnd) cap(sections.length - 1, false);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(ind);
+    const v = bk.reserve(3);
+    const P = bk.P, N = bk.N, C = bk.C, U = bk.U, o = v * 3;
+    P[o] = a[0]; P[o + 1] = a[1]; P[o + 2] = a[2]; P[o + 3] = b[0]; P[o + 4] = b[1]; P[o + 5] = b[2]; P[o + 6] = c[0]; P[o + 7] = c[1]; P[o + 8] = c[2];
+    for (let i = 0; i < 9; i += 3) { N[o + i] = nx; N[o + i + 1] = ny; N[o + i + 2] = nz; }
+    const col = this.color || WHITE;
+    if (this.color) bk.hasColor = true;
+    for (let i = 0; i < 9; i += 3) { C[o + i] = col[0]; C[o + i + 1] = col[1]; C[o + i + 2] = col[2]; }
+    const u = v * 2;
+    if (uvs) { bk.hasUV = true; U[u] = uvs[0][0]; U[u + 1] = uvs[0][1]; U[u + 2] = uvs[1][0]; U[u + 3] = uvs[1][1]; U[u + 4] = uvs[2][0]; U[u + 5] = uvs[2][1]; }
+    else { U[u] = 0; U[u + 1] = 0; U[u + 2] = 0; U[u + 3] = 0; U[u + 4] = 0; U[u + 5] = 0; }
+  }
+
+  /** Textured quad: uv per corner. */
+  quadUV(key, a, b, c, d, ua, ub, uc, ud) {
+    const raw = cross(sub(c, a), sub(d, b));
+    if (Math.hypot(raw[0], raw[1], raw[2]) < 1e-12) return;
+    const n = normalize(raw);
+    this.tri(key, a, b, c, n, [ua, ub, uc]);
+    this.tri(key, a, c, d, n, [ua, uc, ud]);
+  }
+
+  /** Quad a-b-c-d, counter-clockwise when viewed from the front face. */
+  quad(key, a, b, c, d) {
+    const raw = cross(sub(c, a), sub(d, b));
+    if (Math.hypot(raw[0], raw[1], raw[2]) < 1e-12) return; // degenerate
+    const n = normalize(raw);
+    this.tri(key, a, b, c, n);
+    this.tri(key, a, c, d, n);
+  }
+
+  /** Closed polygon ring fanned from its centroid (safe for mildly concave outlines). */
+  fan(key, ring) {
+    const c = [0, 0, 0];
+    for (const p of ring) { c[0] += p[0]; c[1] += p[1]; c[2] += p[2]; }
+    c[0] /= ring.length; c[1] /= ring.length; c[2] /= ring.length;
+    for (let i = 0; i < ring.length; i++) this.tri(key, c, ring[i], ring[(i + 1) % ring.length]);
+  }
+
+  /** Triangle flipped if needed so its normal faces along n. */
+  triFacing(key, a, b, c, n) {
+    const fn = cross(sub(b, a), sub(c, a));
+    if (fn[0] * n[0] + fn[1] * n[1] + fn[2] * n[2] >= 0) this.tri(key, a, b, c);
+    else this.tri(key, a, c, b);
+  }
+
+  /**
+   * Six-sided solid from 8 corners: bottom ring b0..b3 and top ring t0..t3
+   * (matching order). Faces are oriented outward from the centroid. Good for
+   * tapered blocks (mirrors, scoops) that a straight prism can't express.
+   */
+  hexa(key, b, t) {
+    const all = [...b, ...t];
+    const c = all.reduce((s, p) => [s[0] + p[0] / 8, s[1] + p[1] / 8, s[2] + p[2] / 8], [0, 0, 0]);
+    const face = (p, q, r, s) => {
+      const mid = [(p[0] + r[0]) / 2, (p[1] + r[1]) / 2, (p[2] + r[2]) / 2];
+      const out = sub(mid, c);
+      const n = cross(sub(r, p), sub(s, q));
+      if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] >= 0) this.quad(key, p, q, r, s);
+      else this.quad(key, s, r, q, p);
+    };
+    face(b[0], b[1], b[2], b[3]);
+    face(t[0], t[1], t[2], t[3]);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      face(b[i], b[j], t[j], t[i]);
+    }
+  }
+
+  /**
+   * Extrude a 2D outline (may be concave) along an axis between lo and hi.
+   * axis 'x': outline is (z, y). axis 'y': (x, z). axis 'z': (x, y).
+   */
+  prism(key, outline, axis, lo, hi) {
+    const to3 = {
+      x: (u, v, t) => [t, v, u],
+      y: (u, v, t) => [u, t, v],
+      z: (u, v, t) => [u, v, t],
+    }[axis];
+    const axisN = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[axis];
+    const pts = outline.map(([u, v]) => new Vector2(u, v));
+    if (ShapeUtils.isClockWise(pts)) pts.reverse();
+    const faces = ShapeUtils.triangulateShape(pts, []);
+    const neg = axisN.map((v) => -v);
+    for (const [i, j, k] of faces) {
+      const P = (q, t) => to3(pts[q].x, pts[q].y, t);
+      this.triFacing(key, P(i, hi), P(j, hi), P(k, hi), axisN);
+      this.triFacing(key, P(i, lo), P(j, lo), P(k, lo), neg);
+    }
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const out = to3(b.y - a.y, -(b.x - a.x), 0); // outward 2D normal of a CCW outline
+      const p0 = to3(a.x, a.y, lo), p1 = to3(b.x, b.y, lo), p2 = to3(b.x, b.y, hi), p3 = to3(a.x, a.y, hi);
+      this.triFacing(key, p0, p1, p2, out);
+      this.triFacing(key, p0, p2, p3, out);
+    }
+  }
+
+  /** Same prism on both sides of the car (outline axis 'x', x range given for the left side). */
+  prismMirrorX(key, outline, lo, hi) {
+    this.prism(key, outline, 'x', lo, hi);
+    this.prism(key, outline, 'x', -hi, -lo);
+  }
+
+  /**
+   * @param materials  key -> material
+   * @param warpZ      optional (z) => z' applied to every vertex, with slope(z) for normals
+   */
+  build(materials, warpZ = null, slope = null) {
+    const group = new Group();
+    for (const [key, { pos, nrm, col, uv, hasColor, hasUV }] of this.buckets) {
+      if (warpZ) {
+        for (let i = 0; i < pos.length; i += 3) {
+          // Normals of a stretched surface scale by the inverse stretch.
+          const k = slope(pos[i + 2]);
+          nrm[i + 2] /= k;
+          const l = Math.hypot(nrm[i], nrm[i + 1], nrm[i + 2]) || 1;
+          nrm[i] /= l; nrm[i + 1] /= l; nrm[i + 2] /= l;
+          pos[i + 2] = warpZ(pos[i + 2]);
+        }
+      }
+      const geo = new BufferGeometry();
+      geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new Float32BufferAttribute(nrm, 3));
+      if (hasColor) geo.setAttribute('color', new Float32BufferAttribute(col, 3));
+      if (hasUV) geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+      geo.computeBoundingSphere();
+      const mesh = new Mesh(geo, materials[key]);
+      mesh.name = key;
+      mesh.castShadow = key !== 'glass';
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+    return group;
+  }
+}
+
+/** Faceted copy of a primitive geometry (non-indexed, one normal per triangle). */
+function facet(geometry) {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
   g.computeVertexNormals();
   return g;
 }
+return { MeshBuilder, facet };
+})();
+F4.loft = (() => {
+/**
+ * Lofted car bodies from a hand-drawn "lines plan": a table of half
+ * cross-sections from nose to tail. Each section is 7 points running from the
+ * sill up and over to the roof centreline. Sections are mirrored for the right
+ * side, and every quad between neighbouring stations becomes one flat facet,
+ * which gives the faceted low-poly look.
+ *
+ * Point index meaning (per section):
+ *  P0 sill/bottom edge  P1 lower side  P2 belt (widest)  P3 shoulder / fender peak
+ *  P4 hood crease / window base  P5 roof edge / A-pillar  P6 centreline top
+ * Each lines row: [z, x0,y0, x1,y1, x2,y2, x3,y3, x4,y4, x5,y5, y6]
+ *
+ * Design space: +X left, +Y up, +Z forward, ground at y = 0.
+ */
 
-// Airfoil cross-section (in the y/z plane) extruded across the car (x).
-function wing(span, chord, thick, { aoa = 0, camber = 0.06 } = {}) {
-  const sh = new THREE.Shape();
-  const N = 14;
-  const top = [], bot = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N, xc = (1 - Math.cos(t * Math.PI)) / 2;
-    const yt = 5 * thick * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc * xc + 0.2843 * xc ** 3 - 0.1015 * xc ** 4);
-    const yc = camber * 4 * xc * (1 - xc);
-    top.push([xc, yc + yt]); bot.push([xc, yc - yt]);
+const mirror = (p) => [-p[0], p[1], p[2]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const vec = { sub, add, scale, cross, norm, mirror };
+
+/**
+ * @param {object} o
+ * @param {number[][]} o.lines         lines plan rows, front (high z) to rear
+ * @param {number[][]} o.arch          arch profile [distance from axle, height], from the top down
+ * @param {number[]}   o.axles         [front z, rear z]
+ * @param {number}     o.wellX         x of the inner wheel-well walls
+ * @param {number[]}   [o.extraStations] extra z stations so features get their own facets
+ * @param {(strip:number, z:number, arch:number) => string} o.stripMaterial
+ * @param {number[]}   [o.archGaps]    how far P1..P3 must clear the arch edge
+ */
+function createLoft(o) {
+  const { lines, arch, axles, wellX, stripMaterial } = o;
+  const archGaps = o.archGaps || [0, 0.02, 0.045, 0.07];
+  const nose = lines[0][0];
+  const tail = lines[lines.length - 1][0];
+  const archHalf = arch[arch.length - 1][0];
+
+  function archHeight(z) {
+    let best = 0;
+    for (const zc of axles) {
+      const d = Math.abs(z - zc);
+      if (d >= archHalf) continue;
+      for (let i = 1; i < arch.length; i++) {
+        if (d <= arch[i][0]) {
+          const [d0, h0] = arch[i - 1];
+          const [d1, h1] = arch[i];
+          best = Math.max(best, h0 + ((h1 - h0) * (d - d0)) / (d1 - d0));
+          break;
+        }
+      }
+    }
+    return best;
   }
-  sh.moveTo(0, 0);
-  for (const [a, b] of top) sh.lineTo(a * chord, b * chord);
-  for (let i = bot.length - 1; i >= 0; i--) sh.lineTo(bot[i][0] * chord, bot[i][1] * chord);
-  const g = new THREE.ExtrudeGeometry(sh, { depth: span, bevelEnabled: false, curveSegments: 4 });
-  // Shape x = chord running back (-z), shape y = up. Extrusion along +z becomes the span (x).
-  g.translate(0, 0, -span / 2);
-  g.rotateY(Math.PI / 2);         // extrusion axis -> x, chord -> -z... leading edge forward
-  g.rotateX(aoa);
-  return g;
+
+  /** Arch outline in (z, y) for one axle, used for the inner wheel-well liners. */
+  function archOutline(zc) {
+    const pts = [];
+    for (let i = arch.length - 1; i >= 0; i--) pts.push([zc + arch[i][0], arch[i][1]]);
+    for (let i = 1; i < arch.length; i++) pts.push([zc - arch[i][0], arch[i][1]]);
+    return pts;
+  }
+
+  function rowAt(z) {
+    if (z >= lines[0][0]) return lines[0].slice();
+    for (let i = 1; i < lines.length; i++) {
+      const a = lines[i - 1];
+      const b = lines[i];
+      if (z >= b[0]) {
+        const t = (a[0] - z) / (a[0] - b[0]);
+        return a.map((v, k) => v + (b[k] - v) * t);
+      }
+    }
+    return lines[lines.length - 1].slice();
+  }
+
+  /** Half cross-section at z as 7 [x, y] points (arches applied). */
+  function sectionAt(z) {
+    const r = rowAt(z);
+    const p = [];
+    for (let i = 0; i < 6; i++) p.push([r[1 + i * 2], r[2 + i * 2]]);
+    p.push([0, r[13]]);
+    const a = archHeight(z);
+    if (a > p[0][1]) {
+      // Lift the lower body over the tire; the panel above becomes the fender lip.
+      p[0] = [p[1][0], a];
+      for (let i = 1; i <= 3; i++) p[i][1] = Math.max(p[i][1], a + archGaps[i]);
+    }
+    return p;
+  }
+
+  function stations() {
+    const zs = new Set(lines.map((r) => r[0]));
+    for (const zc of axles) {
+      for (const [d] of arch) { zs.add(+(zc + d).toFixed(4)); zs.add(+(zc - d).toFixed(4)); }
+    }
+    (o.extraStations || []).forEach((z) => zs.add(z));
+    return [...zs].filter((z) => z <= nose && z >= tail).sort((a, b) => b - a);
+  }
+
+  /** Emits the shell into a MeshBuilder. */
+  function buildShell(mb) {
+    const zs = stations();
+    const secs = zs.map((z) => sectionAt(z).map(([x, y]) => [x, y, z]));
+    for (let k = 0; k < secs.length - 1; k++) {
+      const A = secs[k];
+      const B = secs[k + 1];
+      const zMid = (zs[k] + zs[k + 1]) / 2;
+      const a = archHeight(zMid);
+      for (let i = 0; i < 6; i++) {
+        const mat = stripMaterial(i, zMid, a);
+        mb.quad(mat, A[i], B[i], B[i + 1], A[i + 1]); // left side (outward = +X)
+        mb.quad(mat, mirror(A[i]), mirror(A[i + 1]), mirror(B[i + 1]), mirror(B[i])); // right, mirrored
+      }
+      // Underside between the two sills (over the wheels this is the well ceiling).
+      mb.quad('black', A[0], mirror(A[0]), mirror(B[0]), B[0]);
+      if (a > 0) {
+        // Keep the floor flat between the wheel wells so the car isn't hollow from below.
+        const ya = rowAt(zs[k])[2];
+        const yb = rowAt(zs[k + 1])[2];
+        mb.quad('black', [wellX, ya, zs[k]], [-wellX, ya, zs[k]], [-wellX, yb, zs[k + 1]], [wellX, yb, zs[k + 1]]);
+      }
+    }
+    // Nose and tail caps. Ring runs counter-clockwise seen from the front.
+    const ring = (sec) => [...sec.slice().reverse().map(mirror), ...sec.slice(0, 6)];
+    mb.fan(o.noseMaterial || 'paint', ring(secs[0]));
+    mb.fan(o.tailMaterial || 'paint', ring(secs[secs.length - 1]).reverse());
+    for (const zc of axles) mb.prismMirrorX('grille', archOutline(zc), wellX - 0.02, wellX);
+  }
+
+  /** Point on the shell surface: z and a fractional profile index s in [0, 6]. */
+  function surfacePoint(z, s, side = 1) {
+    const p = sectionAt(z);
+    const i = Math.min(5, Math.floor(s));
+    const f = s - i;
+    const x = p[i][0] + (p[i + 1][0] - p[i][0]) * f;
+    const y = p[i][1] + (p[i + 1][1] - p[i][1]) * f;
+    return [x * side, y, z];
+  }
+
+  /** Outward surface normal at (z, s). */
+  function surfaceNormal(z, s, side = 1) {
+    const e = 0.01;
+    const dz = sub(surfacePoint(z + e, s, side), surfacePoint(z - e, s, side));
+    const ds = sub(surfacePoint(z, Math.min(6, s + e), side), surfacePoint(z, Math.max(0, s - e), side));
+    const n = norm(cross(ds, dz));
+    return side > 0 ? n : scale(n, -1);
+  }
+
+  /** Thin raised ribbon following the body surface through (z, s) waypoints. */
+  function ribbon(mb, key, path, width, lift, side) {
+    const pts = path.map(([z, s]) => add(surfacePoint(z, s, side), scale(surfaceNormal(z, s, side), lift)));
+    const nrm = path.map(([z, s]) => surfaceNormal(z, s, side));
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dir = norm(sub(pts[i + 1], pts[i]));
+      const offA = scale(norm(cross(nrm[i], dir)), width / 2);
+      const offB = scale(norm(cross(nrm[i + 1], dir)), width / 2);
+      const a0 = sub(pts[i], offA), a1 = add(pts[i], offA);
+      const b0 = sub(pts[i + 1], offB), b1 = add(pts[i + 1], offB);
+      mb.triFacing(key, a0, b0, b1, nrm[i]);
+      mb.triFacing(key, a0, b1, a1, nrm[i]);
+    }
+  }
+
+  /**
+   * Triangle laid onto the curved body: subdivided in (z, s) parameter space so
+   * every vertex sits on the surface, then lifted slightly along the normal.
+   */
+  function decal(mb, key, [A, B, C], lift, side, steps = 6) {
+    const P = (u, v) => {
+      const z = A[0] + (B[0] - A[0]) * u + (C[0] - A[0]) * v;
+      const s = A[1] + (B[1] - A[1]) * u + (C[1] - A[1]) * v;
+      return [add(surfacePoint(z, s, side), scale(surfaceNormal(z, s, side), lift)), surfaceNormal(z, s, side)];
+    };
+    for (let i = 0; i < steps; i++) {
+      for (let j = 0; j < steps - i; j++) {
+        const u0 = i / steps, v0 = j / steps, d = 1 / steps;
+        const [a, n] = P(u0, v0);
+        const [b] = P(u0 + d, v0);
+        const [c] = P(u0, v0 + d);
+        mb.triFacing(key, a, b, c, n);
+        if (j < steps - i - 1) {
+          const [e] = P(u0 + d, v0 + d);
+          mb.triFacing(key, b, e, c, n);
+        }
+      }
+    }
+  }
+
+  /** Quad patch on the surface (corners A..D in (z, s), CCW from outside), subdivided. */
+  function patch(mb, key, [A, B, C, D], lift, side) {
+    decal(mb, key, [A, B, C], lift, side, 4);
+    decal(mb, key, [A, C, D], lift, side, 4);
+  }
+
+  return {
+    nose, tail, axles, wellX,
+    rowAt, sectionAt, archHeight, archOutline, surfacePoint, surfaceNormal,
+    buildShell, ribbon, decal, patch,
+  };
 }
 
-function tube(points, r, seg = 24) {
-  const c = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
-  return new THREE.TubeGeometry(c, seg, r, 8, false);
+/**
+ * A low-poly domed lens (headlight, indicator) sitting on a surface: an n-gon
+ * ring in the plane through `center` perpendicular to `normal`, with a raised
+ * centre. `up` orients the ellipse; rx/ry are its radii.
+ */
+function lens(mb, key, center, normal, up, rx, ry, { segments = 12, dome = 0.02, rim = null, rimWidth = 0.012 } = {}) {
+  const n = norm(normal);
+  const u = norm(cross(up, n));
+  const v = norm(cross(n, u));
+  const ring = (k, grow) => {
+    const a = (k / segments) * Math.PI * 2;
+    return add(center, add(scale(u, Math.cos(a) * (rx + grow)), scale(v, Math.sin(a) * (ry + grow))));
+  };
+  const apex = add(center, scale(n, dome));
+  for (let k = 0; k < segments; k++) mb.triFacing(key, apex, ring(k, 0), ring(k + 1, 0), n);
+  if (rim) {
+    for (let k = 0; k < segments; k++) {
+      const a = ring(k, 0), b = ring(k + 1, 0), c = ring(k + 1, rimWidth), d = ring(k, rimWidth);
+      mb.triFacing(rim, a, c, b, n);
+      mb.triFacing(rim, a, d, c, n);
+    }
+  }
 }
-function strut(a, b, r = 0.018) {
-  const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
-  const len = va.distanceTo(vb);
-  const g = new THREE.CylinderGeometry(r, r, len, 6);
-  g.translate(0, len / 2, 0);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize()));
-  g.translate(va.x, va.y, va.z);
-  return g;
+return { vec, createLoft, lens };
+})();
+F4.materials = (() => {
+const { MeshPhysicalMaterial, MeshStandardMaterial, MeshBasicMaterial, Color, AdditiveBlending, DoubleSide } = THREE;
+/** Every material the car uses, keyed by the names the geometry builders emit. */
+function createCarMaterials(paintHex, overrides = {}) {
+  // Body meshes carry explicit per-facet normals; primitives are pre-faceted with facet().
+  const flat = {};
+  const m = {
+    paint: new MeshPhysicalMaterial({
+      ...flat, color: paintHex, metalness: 0.3, roughness: 0.32,
+      clearcoat: 1, clearcoatRoughness: 0.24, envMapIntensity: 1.35,
+    }),
+    black: new MeshStandardMaterial({ ...flat, color: 0x0c0c0e, roughness: 0.6, metalness: 0.2 }),
+    carbon: new MeshPhysicalMaterial({
+      ...flat, color: 0x18181b, roughness: 0.38, metalness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.15,
+    }),
+    grille: new MeshStandardMaterial({ ...flat, color: 0x050506, roughness: 0.85, metalness: 0.1 }),
+    glass: new MeshPhysicalMaterial({
+      ...flat, color: 0x0b0f16, roughness: 0.09, metalness: 0.1, transparent: true, opacity: 0.8,
+      envMapIntensity: 1.1, depthWrite: false,
+    }),
+    headlight: new MeshPhysicalMaterial({
+      ...flat, color: 0x1a1d22, roughness: 0.05, metalness: 0.9, clearcoat: 1, envMapIntensity: 2.2,
+    }),
+    drl: new MeshStandardMaterial({ color: 0x000000, emissive: new Color(0xf2f6ff), emissiveIntensity: 6 }),
+    tail: new MeshStandardMaterial({ color: 0x220000, emissive: new Color(0xff1020), emissiveIntensity: 3 }),
+    reverse: new MeshStandardMaterial({ color: 0x111111, emissive: new Color(0xffffff), emissiveIntensity: 0 }),
+    chrome: new MeshStandardMaterial({ ...flat, color: 0xc8ccd2, roughness: 0.12, metalness: 1 }),
+    titanium: new MeshStandardMaterial({ ...flat, color: 0x6d6a66, roughness: 0.25, metalness: 1 }),
+    gold: new MeshStandardMaterial({ ...flat, color: 0xd4a640, roughness: 0.2, metalness: 1 }),
+    tire: new MeshStandardMaterial({ ...flat, color: 0x141416, roughness: 0.92, metalness: 0 }),
+    tireWall: new MeshStandardMaterial({ ...flat, color: 0x1c1c1f, roughness: 0.8, metalness: 0 }),
+    rim: new MeshStandardMaterial({ ...flat, color: 0x2a2b2f, roughness: 0.28, metalness: 0.9 }),
+    rimLip: new MeshStandardMaterial({ ...flat, color: 0xb9bdc4, roughness: 0.15, metalness: 1 }),
+    disc: new MeshStandardMaterial({ ...flat, color: 0x55575c, roughness: 0.45, metalness: 0.85 }),
+    caliper: new MeshStandardMaterial({ ...flat, color: 0xffb400, roughness: 0.35, metalness: 0.2 }),
+    interior: new MeshStandardMaterial({ ...flat, color: 0x121214, roughness: 0.9 }),
+    alcantara: new MeshStandardMaterial({ ...flat, color: 0x1d1d22, roughness: 1 }),
+    stitch: new MeshStandardMaterial({ ...flat, color: 0xffc21a, roughness: 0.6 }),
+    helmet: new MeshPhysicalMaterial({ ...flat, color: 0xf4f4f4, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3, envMapIntensity: 0.6 }),
+    visor: new MeshPhysicalMaterial({ ...flat, color: 0x101418, roughness: 0.05, metalness: 0.6, clearcoat: 1 }),
+    suit: new MeshStandardMaterial({ ...flat, color: 0x24242a, roughness: 0.8 }),
+    stripe: new MeshPhysicalMaterial({
+      ...flat, color: 0xf4f4f2, metalness: 0.1, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.24,
+    }),
+    amber: new MeshStandardMaterial({ color: 0x331a00, emissive: new Color(0xff8a10), emissiveIntensity: 1.2 }),
+    lamp: new MeshPhysicalMaterial({ color: 0xdfe6ee, emissive: new Color(0xfff2d8), emissiveIntensity: 1.3, roughness: 0.1, clearcoat: 1 }),
+    plate: new MeshStandardMaterial({ ...flat, color: 0xe9e6dc, roughness: 0.6 }),
+    flame: new MeshBasicMaterial({
+      color: 0xff8a2a, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, side: DoubleSide,
+    }),
+  };
+  for (const [key, hex] of Object.entries(overrides)) m[key].color.setHex(hex);
+  return m;
+}
+return { createCarMaterials };
+})();
+F4.wheel = (() => {
+const { Group, Mesh, LatheGeometry, Vector2, Vector3, Shape, ExtrudeGeometry, CylinderGeometry, BoxGeometry } = THREE;
+const { facet } = F4.meshBuilder;
+const TIRE_SEGMENTS = 22;
+
+/** Lathe a profile given as [radius, axialOffset] pairs around the X axis. */
+function latheX(profile, segments) {
+  const geo = new LatheGeometry(profile.map(([r, x]) => new Vector2(r, x)), segments);
+  geo.rotateZ(-Math.PI / 2); // lathe axis Y -> X
+  return facet(geo);
 }
 
-const COMPOUND = [0xe8202a, 0xffd21e, 0xf2f2f2];   // soft / medium / hard sidewall stripe
-const wheelCoverTex = canvasTex(256, (g, s) => {
-  g.fillStyle = '#1b1c20'; g.fillRect(0, 0, s, s);
-  g.translate(s / 2, s / 2);
+/** Y-shaped spoke, the Huracán-style design, in the wheel face plane. */
+function ySpokeShape() {
+  const s = new Shape();
+  const pts = [
+    [-0.017, 0.05], [0.017, 0.05], [0.021, 0.125], [0.079, 0.214], [0.052, 0.226],
+    [0.0, 0.152], [-0.052, 0.226], [-0.079, 0.214], [-0.021, 0.125],
+  ];
+  s.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+  s.closePath();
+  return s;
+}
+
+/**
+ * One wheel assembly. Returns:
+ *  root  - positioned at the hub, steers about Y
+ *  spin  - child of root, rotates about X with the wheel
+ * Outer face points to +X; mirrored for right-hand wheels.
+ */
+/** Torq-Thrust style spoke: tapered from a wide root to a narrow tip, classic muscle-car mag. */
+function torqSpokeShape() {
+  const s = new Shape();
+  const pts = [[-0.045, 0.07], [0.045, 0.07], [0.022, 0.215], [-0.022, 0.215]];
+  s.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]);
+  s.closePath();
+  return s;
+}
+
+/** style: 'ySpoke' (Lamborghini, centre-lock), 'torq' (classic mag, lug nuts, taller sidewall) or
+ * 'offroad' (all-terrain tyre with block tread, six-spoke wheel with a beadlock ring). */
+function buildWheel(mats, { radius, width, left, style = 'ySpoke' }) {
+  const root = new Group();
+  const spin = new Group();
+  const holder = new Group();
+  root.add(spin);
+  spin.add(holder);
+  if (!left) holder.rotation.y = Math.PI;
+
+  const hw = width / 2;
+  if (style === 'kart') return kartWheel(mats, root, spin, holder, radius, hw);
+  if (style === 'rally') return rallyWheel(mats, root, spin, holder, radius, hw, left);
+  if (style === 'aero') return aeroWheel(mats, root, spin, holder, radius, hw, left);
+  const off = style === 'offroad';
+  const torq = style === 'torq' || off; // offroad shares the lug-nut hub and recessed face
+  const rimR = radius * (off ? 0.56 : torq ? 0.64 : 0.72);
+
+  // Tire: tread + rounded shoulders + sidewalls, one low-poly lathe each.
+  const tread = latheX([
+    [radius * 0.96, -hw], [radius, -hw + 0.03], [radius, hw - 0.03], [radius * 0.96, hw],
+  ], TIRE_SEGMENTS);
+  // Profile order sets which way lathe faces point; these run so the walls face away from the tire centre.
+  const wall = latheX([
+    [radius * 0.96, hw], [radius * 0.9, hw + 0.004], [rimR, hw - 0.012],
+  ], TIRE_SEGMENTS);
+  const wallIn = latheX([
+    [rimR, -hw + 0.012], [radius * 0.9, -hw - 0.004], [radius * 0.96, -hw],
+  ], TIRE_SEGMENTS);
+  for (const [g, m] of [[tread, mats.tire], [wall, mats.tireWall], [wallIn, mats.tireWall]]) {
+    const mesh = new Mesh(g, m);
+    mesh.castShadow = true;
+    holder.add(mesh);
+  }
+
+  if (off) {
+    // All-terrain tread: staggered blocks standing proud of the carcass, and shoulder lugs.
+    const block = new BoxGeometry(width * 0.4, 0.028, radius * 0.17);
+    const lug = new BoxGeometry(0.03, radius * 0.1, radius * 0.14);
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      for (const sx of [-1, 1]) {
+        const m = new Mesh(block, mats.tire);
+        const x = sx * width * (i % 2 ? 0.22 : 0.26);
+        m.position.set(x, Math.cos(a) * (radius + 0.008), Math.sin(a) * (radius + 0.008));
+        m.rotation.x = -a;
+        holder.add(m);
+        const l = new Mesh(lug, mats.tireWall);
+        l.position.set(sx * (hw + 0.006), Math.cos(a + 0.17) * radius * 0.9, Math.sin(a + 0.17) * radius * 0.9);
+        l.rotation.x = -a - 0.17;
+        holder.add(l);
+      }
+    }
+  }
+
+  // Rim barrel (inside) and polished lip.
+  const barrel = new Mesh(latheX([[rimR, hw - 0.02], [rimR * 0.97, -hw + 0.02]], 18), mats.rim);
+  const lip = new Mesh(latheX([[rimR * 1.01, hw - 0.004], [rimR * 0.93, hw - 0.012], [rimR * 0.92, hw - 0.04]], 30), mats.rimLip);
+  holder.add(barrel, lip);
+
+  // Five spokes.
+  const spokeGeo = facet(new ExtrudeGeometry(torq ? torqSpokeShape() : ySpokeShape(), { depth: 0.028, bevelEnabled: false }));
+  spokeGeo.scale(rimR / 0.235, rimR / 0.235, 1);
+  spokeGeo.rotateY(Math.PI / 2); // shape plane XY -> ZY, extrude along X
+  if (torq) {
+    // Dark recessed face behind the polished spokes.
+    const face = new Mesh(facet(new CylinderGeometry(rimR * 0.93, rimR * 0.93, 0.01, 20)), mats.rim);
+    face.rotation.z = Math.PI / 2;
+    face.position.x = hw - 0.065;
+    holder.add(face);
+  }
+  const spokes = off ? 6 : 5;
+  for (let i = 0; i < spokes; i++) {
+    const spoke = new Mesh(spokeGeo, torq && !off ? mats.rimLip : mats.rim);
+    spoke.rotation.x = (i / spokes) * Math.PI * 2;
+    spoke.position.x = hw - 0.05;
+    spoke.castShadow = true;
+    holder.add(spoke);
+  }
+
+  if (torq) {
+    // Domed chrome cap and five lug nuts.
+    const capT = new Mesh(facet(new CylinderGeometry(0.035, 0.055, 0.04, 10)), mats.chrome);
+    capT.rotation.z = Math.PI / 2;
+    capT.position.x = hw - 0.025;
+    holder.add(capT);
+    if (off) {
+      // Beadlock ring bolted round the rim edge.
+      const ring = new Mesh(latheX([[rimR * 1.04, hw + 0.004], [rimR * 0.9, hw + 0.004], [rimR * 0.9, hw - 0.01]], 24), mats.rimLip);
+      holder.add(ring);
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const bolt = new Mesh(facet(new CylinderGeometry(0.008, 0.008, 0.02, 6)), mats.chrome);
+        bolt.rotation.z = Math.PI / 2;
+        bolt.position.set(hw + 0.008, Math.cos(a) * rimR * 0.97, Math.sin(a) * rimR * 0.97);
+        holder.add(bolt);
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = ((i + 0.5) / 5) * Math.PI * 2;
+      const nut = new Mesh(facet(new CylinderGeometry(0.012, 0.012, 0.03, 6)), mats.chrome);
+      nut.rotation.z = Math.PI / 2;
+      nut.position.set(hw - 0.04, Math.cos(a) * 0.075, Math.sin(a) * 0.075);
+      holder.add(nut);
+    }
+  }
+
+  // Hexagonal centre-lock nut.
+  const hub = new Mesh(facet(new CylinderGeometry(0.05, 0.058, 0.05, 6)), mats.rimLip);
+  hub.rotation.z = Math.PI / 2;
+  hub.position.x = hw - 0.03;
+  const cap = new Mesh(facet(new CylinderGeometry(0.03, 0.03, 0.012, 6)), mats.gold);
+  cap.rotation.z = Math.PI / 2;
+  cap.position.x = hw - 0.002;
+  if (!torq) holder.add(hub, cap);
+
+  // Brake disc spins; the caliper does not.
+  const disc = new Mesh(facet(new CylinderGeometry(rimR * 0.86, rimR * 0.86, 0.028, 24)), mats.disc);
+  disc.rotation.z = Math.PI / 2;
+  disc.position.x = hw - 0.11;
+  holder.add(disc);
+
+  const caliper = new Mesh(new BoxGeometry(0.05, 0.13, 0.075), mats.caliper);
+  caliper.position.set((left ? 1 : -1) * (hw - 0.085), rimR * 0.62, -rimR * 0.42);
+  caliper.rotation.x = 0.6;
+  caliper.castShadow = true;
+  root.add(caliper);
+
+  return { root, spin };
+}
+
+/**
+ * Kart wheel: a wide, low slick with square shoulders on a small cast
+ * magnesium rim: a flat dished face with six lightening holes, a raised hub
+ * boss with three studs and a gold centre nut. No brake inside (the kart
+ * brakes on its rear axle).
+ */
+function kartWheel(mats, root, spin, holder, radius, hw) {
+  const rimR = radius * 0.6;
+  const tread = latheX([[radius * 0.97, -hw], [radius, -hw + 0.012], [radius, hw - 0.012], [radius * 0.97, hw]], TIRE_SEGMENTS);
+  const wall = latheX([[radius * 0.97, hw], [radius * 0.93, hw + 0.002], [rimR * 1.04, hw - 0.004]], TIRE_SEGMENTS);
+  const wallIn = latheX([[rimR * 1.04, -hw + 0.004], [radius * 0.93, -hw - 0.002], [radius * 0.97, -hw]], TIRE_SEGMENTS);
+  for (const [g, m] of [[tread, mats.tire], [wall, mats.tireWall], [wallIn, mats.tireWall]]) {
+    const mesh = new Mesh(g, m);
+    mesh.castShadow = true;
+    holder.add(mesh);
+  }
+  // Bead flange, dish and face.
+  holder.add(new Mesh(latheX([[rimR * 1.05, hw - 0.002], [rimR * 0.98, hw - 0.01], [rimR * 0.96, -hw + 0.01], [rimR * 1.05, -hw + 0.002]], 24), mats.rimLip));
+  const face = new Mesh(facet(new CylinderGeometry(rimR * 0.96, rimR * 0.96, 0.012, 24)), mats.rim);
+  face.rotation.z = Math.PI / 2;
+  face.position.x = hw - 0.03;
+  holder.add(face);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const hole = new Mesh(facet(new CylinderGeometry(rimR * 0.17, rimR * 0.17, 0.014, 10)), mats.tire);
+    hole.rotation.z = Math.PI / 2;
+    hole.position.set(hw - 0.028, Math.cos(a) * rimR * 0.6, Math.sin(a) * rimR * 0.6);
+    holder.add(hole);
+  }
+  const boss = new Mesh(facet(new CylinderGeometry(rimR * 0.3, rimR * 0.36, 0.03, 12)), mats.rimLip);
+  boss.rotation.z = Math.PI / 2;
+  boss.position.x = hw - 0.012;
+  holder.add(boss);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.5;
+    const stud = new Mesh(facet(new CylinderGeometry(0.009, 0.009, 0.03, 6)), mats.chrome);
+    stud.rotation.z = Math.PI / 2;
+    stud.position.set(hw + 0.004, Math.cos(a) * rimR * 0.2, Math.sin(a) * rimR * 0.2);
+    holder.add(stud);
+  }
+  const nut = new Mesh(facet(new CylinderGeometry(0.018, 0.018, 0.02, 6)), mats.gold);
+  nut.rotation.z = Math.PI / 2;
+  nut.position.x = hw + 0.006;
+  holder.add(nut);
+  return { root, spin };
+}
+
+/** Tyre carcass shared by the custom wheels: tread band and two sidewalls down to rimR. */
+function carcass(mats, holder, radius, hw, rimR, crown = 0.97) {
+  const tread = latheX([[radius * crown, -hw], [radius, -hw + hw * 0.15], [radius, hw - hw * 0.15], [radius * crown, hw]], TIRE_SEGMENTS);
+  const wall = latheX([[radius * crown, hw], [radius * 0.9, hw + 0.004], [rimR * 1.03, hw - 0.008]], TIRE_SEGMENTS);
+  const wallIn = latheX([[rimR * 1.03, -hw + 0.008], [radius * 0.9, -hw - 0.004], [radius * crown, -hw]], TIRE_SEGMENTS);
+  for (const [g, m] of [[tread, mats.tire], [wall, mats.tireWall], [wallIn, mats.tireWall]]) {
+    const mesh = new Mesh(g, m);
+    mesh.castShadow = true;
+    holder.add(mesh);
+  }
+}
+
+/**
+ * Gravel rally wheel: a chunky block-tread tyre on a white flat-faced rim with
+ * eight round lightening holes, a deep dish and five wheel nuts; a vented disc
+ * and the red caliper behind it.
+ */
+function rallyWheel(mats, root, spin, holder, radius, hw, left) {
+  const rimR = radius * 0.6;
+  carcass(mats, holder, radius, hw, rimR, 0.95);
+  // Gravel blocks across the tread, staggered.
+  const block = new BoxGeometry(hw * 0.7, 0.02, radius * 0.13);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * Math.PI * 2;
+    for (const sx of [-1, 1]) {
+      const m = new Mesh(block, mats.tire);
+      m.position.set(sx * hw * (i % 2 ? 0.4 : 0.5), Math.cos(a) * (radius + 0.006), Math.sin(a) * (radius + 0.006));
+      m.rotation.x = -a;
+      holder.add(m);
+    }
+  }
+  holder.add(new Mesh(latheX([[rimR * 1.04, hw - 0.004], [rimR * 0.97, hw - 0.012], [rimR * 0.95, -hw + 0.012], [rimR * 1.04, -hw + 0.004]], 24), mats.rim));
+  const face = new Mesh(facet(new CylinderGeometry(rimR * 0.95, rimR * 0.95, 0.014, 24)), mats.rim);
+  face.rotation.z = Math.PI / 2;
+  face.position.x = hw - 0.045;
+  holder.add(face);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const hole = new Mesh(facet(new CylinderGeometry(rimR * 0.15, rimR * 0.15, 0.016, 10)), mats.tire);
+    hole.rotation.z = Math.PI / 2;
+    hole.position.set(hw - 0.043, Math.cos(a) * rimR * 0.66, Math.sin(a) * rimR * 0.66);
+    holder.add(hole);
+  }
   for (let i = 0; i < 5; i++) {
-    g.rotate((Math.PI * 2) / 5);
-    g.fillStyle = '#2c2f35'; g.fillRect(-10, 18, 20, s * 0.32);
+    const a = ((i + 0.5) / 5) * Math.PI * 2;
+    const nut = new Mesh(facet(new CylinderGeometry(0.012, 0.012, 0.03, 6)), mats.chrome);
+    nut.rotation.z = Math.PI / 2;
+    nut.position.set(hw - 0.03, Math.cos(a) * rimR * 0.28, Math.sin(a) * rimR * 0.28);
+    holder.add(nut);
   }
-  g.fillStyle = '#c9cbd0'; g.beginPath(); g.arc(0, 0, 22, 0, 7); g.fill();
-  g.fillStyle = '#e10600'; g.beginPath(); g.arc(0, 0, 12, 0, 7); g.fill();
-}, false);
-
-function buildWheel(width, mats, compound) {
-  const R = 0.36, rim = 0.235;
-  const g = new THREE.Group();
-  // Tyre profile revolved around the axle: flat tread with rounded shoulders.
-  const prof = [];
-  const hw = width / 2, sh = 0.05;
-  prof.push(new THREE.Vector2(rim, -hw + 0.01));
-  prof.push(new THREE.Vector2(R - sh, -hw));
-  for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + (i / 5) * (Math.PI / 2); prof.push(new THREE.Vector2(R - sh + Math.cos(a) * sh, -hw + sh + Math.sin(a) * sh)); }
-  for (let i = 0; i <= 5; i++) { const a = (i / 5) * (Math.PI / 2); prof.push(new THREE.Vector2(R - sh + Math.cos(a) * sh, hw - sh + Math.sin(a) * sh)); }
-  prof.push(new THREE.Vector2(R - sh, hw));
-  prof.push(new THREE.Vector2(rim, hw - 0.01));
-  const tyre = new THREE.Mesh(new THREE.LatheGeometry(prof, 40).rotateZ(Math.PI / 2), mats.tyre);
-  tyre.castShadow = true;
-  g.add(tyre);
-  for (const s of [-1, 1]) {
-    const stripe = new THREE.Mesh(new THREE.RingGeometry(0.29, 0.305, 40), new THREE.MeshStandardMaterial({ color: COMPOUND[compound], roughness: 0.6, side: THREE.DoubleSide }));
-    stripe.rotation.y = s * Math.PI / 2;
-    stripe.position.x = s * (hw + 0.002);
-    g.add(stripe);
-    const cover = new THREE.Mesh(new THREE.CircleGeometry(rim + 0.005, 32), mats.cover);
-    cover.rotation.y = s * Math.PI / 2;
-    cover.position.x = s * (hw - 0.012);
-    g.add(cover);
-  }
-  return g;
+  const disc = new Mesh(facet(new CylinderGeometry(rimR * 0.8, rimR * 0.8, 0.026, 22)), mats.disc);
+  disc.rotation.z = Math.PI / 2;
+  disc.position.x = hw - 0.11;
+  holder.add(disc);
+  const caliper = new Mesh(new BoxGeometry(0.05, 0.12, 0.07), mats.caliper);
+  caliper.position.set((left ? 1 : -1) * (hw - 0.09), rimR * 0.55, -rimR * 0.4);
+  caliper.rotation.x = 0.6;
+  root.add(caliper);
+  return { root, spin };
 }
 
-function buildCar(liveryIdx = 0) {
-  const L = LIVERIES[liveryIdx] || LIVERIES[0];
-  const paint = (c) => new THREE.MeshPhysicalMaterial({ color: c, metalness: 0.1, roughness: 0.4, clearcoat: 0.7, clearcoatRoughness: 0.12, envMapIntensity: 0.6 });
-  const mats = {
-    body: paint(L.body), second: paint(L.second), accent: paint(L.accent),
-    carbon: new THREE.MeshStandardMaterial({ map: carbonTex, color: 0xffffff, metalness: 0.25, roughness: 0.4 }),
-    tyre: new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.82 }),
-    cover: new THREE.MeshStandardMaterial({ map: wheelCoverTex, metalness: 0.5, roughness: 0.35 }),
-    metal: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.25 }),
-    black: new THREE.MeshStandardMaterial({ color: 0x08080a, roughness: 0.5 }),
-    visor: new THREE.MeshPhysicalMaterial({ color: 0x0a0a0c, metalness: 0.9, roughness: 0.05, clearcoat: 1 }),
-    rain: new THREE.MeshStandardMaterial({ color: 0x330000, emissive: 0xff1010, emissiveIntensity: 0 }),
-  };
-  const root = new THREE.Group();
-  const body = new THREE.Group();      // pitches / rolls on the "suspension"
-  root.add(body);
-  const add = (geo, mat, parent = body, shadow = true) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.castShadow = shadow; m.receiveShadow = true;
-    parent.add(m);
-    return m;
-  };
-
-  // Chassis: nose -> cockpit -> engine cover -> gearbox.
-  add(loft([
-    { z: 3.02, w: 0.07, h: 0.06, y: 0.24, p: 2.2 },
-    { z: 2.85, w: 0.13, h: 0.09, y: 0.27 },
-    { z: 2.3, w: 0.2, h: 0.14, y: 0.33 },
-    { z: 1.6, w: 0.27, h: 0.2, y: 0.42 },
-    { z: 0.9, w: 0.34, h: 0.25, y: 0.48 },
-    { z: 0.35, w: 0.4, h: 0.26, y: 0.5 },
-    { z: -0.35, w: 0.44, h: 0.27, y: 0.5 },
-    { z: -1.0, w: 0.38, h: 0.27, y: 0.48 },
-    { z: -1.6, w: 0.26, h: 0.22, y: 0.42 },
-    { z: -2.15, w: 0.14, h: 0.14, y: 0.36 },
-    { z: -2.42, w: 0.08, h: 0.08, y: 0.33 },
-  ]), mats.body);
-  // Airbox + engine cover spine with the shark-fin taper.
-  add(loft([
-    { z: -0.18, w: 0.17, h: 0.16, y: 0.86, p: 2.2, under: 1 },
-    { z: -0.4, w: 0.2, h: 0.2, y: 0.84, under: 1 },
-    { z: -0.9, w: 0.17, h: 0.2, y: 0.75, under: 1 },
-    { z: -1.5, w: 0.09, h: 0.17, y: 0.62, under: 1 },
-    { z: -2.1, w: 0.035, h: 0.12, y: 0.52, under: 1 },
-  ]), mats.second);
-  // Airbox intake (dark mouth above the driver's head).
-  const mouth = add(new THREE.CircleGeometry(1, 20), mats.black, body, false);
-  mouth.scale.set(0.11, 0.11, 1); mouth.position.set(0, 0.88, -0.17);
-  // Engine cover fin.
-  add(new THREE.BoxGeometry(0.012, 0.22, 1.1).translate(0, 0.72, -1.55).rotateX(0.05), mats.accent);
-
-  // Sidepods with dark radiator inlets.
-  for (const s of [-1, 1]) {
-    add(loft([
-      { z: 0.55, w: 0.13, h: 0.15, y: 0.36, p: 3.2 },
-      { z: 0.35, w: 0.2, h: 0.18, y: 0.37, p: 3.2 },
-      { z: -0.2, w: 0.22, h: 0.19, y: 0.36, p: 3 },
-      { z: -0.9, w: 0.19, h: 0.15, y: 0.31 },
-      { z: -1.55, w: 0.11, h: 0.09, y: 0.25 },
-      { z: -1.95, w: 0.05, h: 0.05, y: 0.22 },
-    ], { x: s * 0.5 }), mats.body);
-    const inlet = add(new THREE.PlaneGeometry(0.3, 0.2), mats.black, body, false);
-    inlet.position.set(s * 0.5, 0.39, 0.556);
-    // Accent stripe along the sidepod.
-    add(loft([
-      { z: 0.3, w: 0.012, h: 0.03, y: 0.5 }, { z: -0.6, w: 0.012, h: 0.03, y: 0.47 }, { z: -1.3, w: 0.01, h: 0.02, y: 0.36 },
-    ], { x: s * 0.66 }), mats.accent, body, false);
+/**
+ * Aero wheel: a low-profile tyre on a big rim closed by a flat turbine cover:
+ * a dark disc with curved vanes and a coloured accent ring, the brake glowing behind.
+ */
+function aeroWheel(mats, root, spin, holder, radius, hw, left) {
+  const rimR = radius * 0.76;
+  carcass(mats, holder, radius, hw, rimR, 0.97);
+  holder.add(new Mesh(latheX([[rimR * 1.03, hw - 0.003], [rimR * 0.97, hw - 0.01], [rimR * 0.95, -hw + 0.01], [rimR * 1.03, -hw + 0.003]], 28), mats.rimLip));
+  const cover = new Mesh(facet(new CylinderGeometry(rimR * 0.95, rimR * 0.95, 0.012, 28)), mats.rim);
+  cover.rotation.z = Math.PI / 2;
+  cover.position.x = hw - 0.02;
+  holder.add(cover);
+  // Curved turbine vanes raised on the cover.
+  const vane = new BoxGeometry(0.008, rimR * 0.62, 0.03);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const m = new Mesh(vane, mats.rimLip);
+    m.position.set(hw - 0.01, Math.cos(a) * rimR * 0.55, Math.sin(a) * rimR * 0.55);
+    m.rotation.x = -a + 0.5;
+    holder.add(m);
   }
+  const ring = new Mesh(latheX([[rimR * 0.9, hw - 0.012], [rimR * 0.86, hw - 0.012]], 28), mats.caliper);
+  holder.add(ring);
+  const hub = new Mesh(facet(new CylinderGeometry(rimR * 0.18, rimR * 0.2, 0.03, 8)), mats.rimLip);
+  hub.rotation.z = Math.PI / 2;
+  hub.position.x = hw - 0.005;
+  holder.add(hub);
+  const caliper = new Mesh(new BoxGeometry(0.05, 0.13, 0.075), mats.caliper);
+  caliper.position.set((left ? 1 : -1) * (hw - 0.085), rimR * 0.6, -rimR * 0.4);
+  caliper.rotation.x = 0.6;
+  root.add(caliper);
+  return { root, spin };
+}
+return { buildWheel };
+})();
+F4.cockpit = (() => {
+const { Group, Mesh, IcosahedronGeometry, TorusGeometry, BoxGeometry, SphereGeometry, CylinderGeometry, ConeGeometry } = THREE;
+const { facet } = F4.meshBuilder;
+/**
+ * Chibi driver (oversized helmet, tiny body) and steering wheel, shared by all
+ * cars. Positions are in the car's design space; the visual squashes only the
+ * placement, so the helmet stays round.
+ */
+function buildCockpit(mats, { seatX = 0.36, seatZ = -0.18, wheelZ = 0.2, wheelY = 0.7, seatY = 0 } = {}) {
+  const group = new Group();
 
-  // Floor with tapered planform, edge wings and a diffuser.
-  const fl = new THREE.Shape();
-  fl.moveTo(-0.32, 1.1); fl.lineTo(0.32, 1.1); fl.lineTo(0.78, 0.4); fl.lineTo(0.78, -1.7); fl.lineTo(0.6, -2.25);
-  fl.lineTo(-0.6, -2.25); fl.lineTo(-0.78, -1.7); fl.lineTo(-0.78, 0.4); fl.closePath();
-  add(new THREE.ExtrudeGeometry(fl, { depth: 0.025, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 0.085, 0), mats.carbon);
-  add(new THREE.BoxGeometry(1.15, 0.012, 0.55).rotateX(-0.28).translate(0, 0.16, -2.42), mats.carbon);
-  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.012, 0.22, 0.55).translate(s * 0.58, 0.17, -2.42), mats.carbon);
+  const driver = new Group();
+  driver.position.set(seatX, seatY, seatZ);
+  const torso = new Mesh(facet(new BoxGeometry(0.3, 0.32, 0.2)), mats.suit);
+  torso.position.set(0, 0.56, -0.08);
+  torso.rotation.x = -0.25;
+  const head = new Group();
+  head.position.set(0, 0.92, -0.02);
+  head.userData.baseY = 0.92;
+  const helmet = new Mesh(facet(new IcosahedronGeometry(0.175, 2)), mats.helmet);
+  const stripe = new Mesh(facet(new IcosahedronGeometry(0.178, 2)), mats.paint);
+  stripe.scale.set(0.28, 1, 1);
+  const visor = new Mesh(facet(new SphereGeometry(0.18, 10, 3, Math.PI / 2 - 0.95, 1.9, 1.2, 0.62)), mats.visor);
+  head.add(helmet, stripe, visor);
+  for (const m of [torso, helmet, stripe, visor]) m.castShadow = true;
+  const armL = new Mesh(facet(new BoxGeometry(0.07, 0.07, 0.24)), mats.suit);
+  armL.position.set(0.13, 0.64, 0.1);
+  armL.rotation.x = 0.3;
+  const armR = armL.clone();
+  armR.position.x = -0.13;
+  driver.add(torso, head, armL, armR);
+  group.add(driver);
 
-  // Front wing: three elements, endplates, nose pylons.
-  add(wing(1.75, 0.34, 0.1, { aoa: 0.05 }).translate(0, 0.1, 3.1), mats.carbon);
-  add(wing(1.6, 0.22, 0.09, { aoa: -0.22 }).translate(0, 0.17, 2.82), mats.accent);
-  add(wing(1.45, 0.16, 0.09, { aoa: -0.45 }).translate(0, 0.24, 2.64), mats.body);
-  for (const s of [-1, 1]) {
-    add(new THREE.BoxGeometry(0.012, 0.22, 0.6).translate(s * 0.88, 0.17, 2.84), mats.body);
-    add(new THREE.BoxGeometry(0.03, 0.14, 0.18).translate(s * 0.09, 0.18, 2.86), mats.carbon);
+  const steering = new Group();
+  steering.position.set(seatX, wheelY + seatY, wheelZ);
+  steering.rotation.x = -0.35;
+  const rimMesh = new Mesh(facet(new TorusGeometry(0.12, 0.018, 5, 12)), mats.alcantara);
+  const spokeBar = new Mesh(new BoxGeometry(0.22, 0.03, 0.02), mats.interior);
+  const marker = new Mesh(new BoxGeometry(0.02, 0.03, 0.03), mats.stitch);
+  marker.position.y = 0.12;
+  steering.add(rimMesh, spokeBar, marker);
+  group.add(steering);
+
+  return { group, head, steering };
+}
+
+/**
+ * Exhaust tips with flame cones for pops & bangs. Each tip: { x, y, z, r, sides, rotate }.
+ * Returns the meshes to add and the flame cones to animate.
+ */
+function buildExhausts(mats, tips) {
+  const group = new Group();
+  const flames = [];
+  for (const t of tips) {
+    const pipe = new Mesh(facet(new CylinderGeometry(t.r, t.r, 0.16, t.sides, 1, true)), mats.titanium);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.rotation.y = t.rotate || 0;
+    pipe.position.set(t.x, t.y, t.z - 0.04);
+    const inner = new Mesh(new CylinderGeometry(t.r * 0.85, t.r * 0.85, 0.01, t.sides), mats.grille);
+    inner.rotation.x = Math.PI / 2;
+    inner.rotation.y = t.rotate || 0;
+    inner.position.set(t.x, t.y, t.z - 0.06);
+    const flame = new Mesh(new ConeGeometry(t.r, 0.32, 7, 1, true), mats.flame);
+    flame.rotation.x = -Math.PI / 2;
+    flame.position.set(t.x, t.y, t.z - 0.28);
+    flame.visible = false;
+    flames.push(flame);
+    group.add(pipe, inner, flame);
   }
-  // Rear wing: main plane + DRS flap, endplates, swan-neck pylon, beam wing.
-  add(wing(1.0, 0.36, 0.12, { aoa: 0.12 }).translate(0, 0.84, -2.3), mats.second);
-  add(wing(1.0, 0.24, 0.1, { aoa: -0.42 }).translate(0, 0.99, -2.52), mats.body);
-  add(wing(0.9, 0.18, 0.12, { aoa: 0.1 }).translate(0, 0.42, -2.42), mats.carbon);
-  for (const s of [-1, 1]) {
-    const ep = new THREE.Shape();
-    ep.moveTo(0, 0); ep.lineTo(0.72, 0); ep.lineTo(0.72, 0.5); ep.quadraticCurveTo(0.3, 0.62, 0, 0.42); ep.closePath();
-    add(new THREE.ExtrudeGeometry(ep, { depth: 0.014, bevelEnabled: false }).rotateY(Math.PI / 2).translate(s * 0.5, 0.55, -2.0 + 0), mats.body);
+  return { group, flames };
+}
+return { buildCockpit, buildExhausts };
+})();
+F4.f1body = (() => {
+const { Group } = THREE;
+const { lens } = F4.loft;
+const { buildCockpit, buildExhausts } = F4.cockpit;
+/**
+ * Mini F1 car, hand-built in design space (+X left, +Y up, +Z forward, ground
+ * at y = 0). Open wheels: the body is a narrow tub with a raised nose, a
+ * multi-element front wing, sidepods, an engine cover with shark fin, a
+ * halo, a two-element rear wing with beam wing, floor and diffuser, and
+ * wishbones out to the wheels.
+ */
+const AXLE_FRONT = 1.75;
+const AXLE_REAR = -1.75;
+const NOSE_Z = 2.78;
+const TAIL_Z = -2.42;
+const HUB_X = 0.95;
+
+// Tub/nose/engine cover sections: [z, half width, bottom y, top y].
+const SPINE = [
+  [2.62, 0.07, 0.27, 0.33], [2.35, 0.11, 0.24, 0.4], [2.0, 0.16, 0.21, 0.48], [1.5, 0.22, 0.19, 0.56],
+  [1.0, 0.29, 0.17, 0.63], [0.6, 0.33, 0.15, 0.66], [-0.3, 0.35, 0.15, 0.68], [-0.75, 0.32, 0.15, 0.82],
+  [-1.25, 0.24, 0.16, 0.66], [-1.75, 0.16, 0.17, 0.5], [-2.15, 0.1, 0.2, 0.42],
+];
+
+const ring = ([z, w, y0, y1], dw = 0, dy = 0) => [[w + dw, y0 - dy, z], [-w - dw, y0 - dy, z], [-w - dw, y1 + dy, z], [w + dw, y1 + dy, z]];
+
+/** Square-section rod between two design-space points. */
+function rod(mb, key, p, q, w) {
+  const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+  const len = Math.hypot(...d) || 1;
+  const t = d.map((x) => x / len);
+  let u = Math.abs(t[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  let v = cr(t, u); const lv = Math.hypot(...v); v = v.map((x) => x / lv);
+  u = cr(v, t);
+  const h = w / 2;
+  const sq = (c) => [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([i, j]) => [c[0] + (u[0] * i + v[0] * j) * h, c[1] + (u[1] * i + v[1] * j) * h, c[2] + (u[2] * i + v[2] * j) * h]);
+  mb.hexa(key, sq(p), sq(q));
+}
+
+/** Wing element: a thin cambered plate spanning x0..x1, chord from zLead to zTrail, rising by `lift`. */
+function plate(mb, key, x0, x1, zLead, zTrail, y, thick, lift = 0) {
+  const b = [[x1, y + lift, zTrail], [x0, y + lift, zTrail], [x0, y, zLead], [x1, y, zLead]];
+  mb.hexa(key, b, b.map(([x, yy, z]) => [x, yy + thick, z]));
+}
+
+function buildShell(mb) {
+  // Spine: nose, tub, engine cover. Top half in livery, lower half carbon.
+  for (let k = 0; k < SPINE.length - 1; k++) {
+    const a = SPINE[k], b = SPINE[k + 1];
+    const mid = (s) => [s[0], s[1], s[2], (s[2] + s[3]) / 2];
+    const top = (s) => [s[0], s[1], (s[2] + s[3]) / 2, s[3]];
+    mb.hexa('carbon', ring(mid(a)), ring(mid(b)));
+    // Livery on top, with the cockpit opening cut from the tub (between z 0.6 and -0.3).
+    if (!(a[0] <= 0.6 && b[0] >= -0.3)) mb.hexa('paint', ring(top(a)), ring(top(b)));
   }
-  add(new THREE.BoxGeometry(0.03, 0.42, 0.14).translate(0, 0.62, -2.32).rotateX(-0.1), mats.carbon);
+  // Cockpit sides and rim around the opening.
+  for (const s of [1, -1]) {
+    mb.hexa('paint', [[0.35 * s, 0.4, 0.6], [0.26 * s, 0.4, 0.6], [0.26 * s, 0.4, -0.3], [0.35 * s, 0.4, -0.3]], [[0.35 * s, 0.68, 0.6], [0.26 * s, 0.7, 0.6], [0.26 * s, 0.7, -0.3], [0.35 * s, 0.68, -0.3]]);
+    mb.hexa('carbon', [[0.27 * s, 0.68, 0.6], [0.22 * s, 0.68, 0.6], [0.22 * s, 0.68, -0.3], [0.27 * s, 0.68, -0.3]], [[0.27 * s, 0.72, 0.6], [0.22 * s, 0.72, 0.6], [0.22 * s, 0.72, -0.3], [0.27 * s, 0.72, -0.3]]);
+  }
+  mb.prism('interior', [[-0.26, 0.6], [0.26, 0.6], [0.26, -0.3], [-0.26, -0.3]], 'y', 0.38, 0.42); // cockpit floor
+  // Nose tip accent and the front of the tub in stripe colour.
+  mb.hexa('stripe', ring(SPINE[0], 0.003, 0.003), ring([2.45, 0.1, 0.25, 0.38], 0.003, 0.003));
+  mb.hexa('stripe', ring([-0.75, 0.33, 0.6, 0.83], 0.004, 0.004), ring([-1.0, 0.29, 0.55, 0.75], 0.004, 0.004));
+}
+
+function buildFrontWing(mb) {
+  // Main plane and two flaps rising towards the wheels, with endplates and nose pylons.
+  plate(mb, 'carbon', -1.08, 1.08, 2.82, 2.48, 0.1, 0.035, 0.02);
+  for (const s of [1, -1]) {
+    plate(mb, 'paint', 0.18 * s, 1.06 * s, 2.55, 2.36, 0.16, 0.025, 0.08);
+    plate(mb, 'stripe', 0.3 * s, 1.04 * s, 2.42, 2.26, 0.26, 0.02, 0.07);
+    mb.prism('carbon', [[2.86, 0.08], [2.24, 0.08], [2.24, 0.4], [2.5, 0.42], [2.86, 0.22]], 'x', 1.06 * s - 0.015, 1.06 * s + 0.015);
+    rod(mb, 'carbon', [0.06 * s, 0.13, 2.6], [0.06 * s, 0.3, 2.5], 0.03); // pylons
+  }
+}
+
+function buildSidepods(mb) {
+  for (const s of [1, -1]) {
+    const S = (p) => [p[0] * s, p[1], p[2]];
+    const front = [[0.34, 0.18, 0.45], [0.76, 0.18, 0.45], [0.76, 0.52, 0.42], [0.34, 0.6, 0.45]].map(S);
+    const mid = [[0.34, 0.18, -0.4], [0.72, 0.2, -0.4], [0.7, 0.5, -0.4], [0.34, 0.6, -0.4]].map(S);
+    const rear = [[0.25, 0.18, -1.5], [0.36, 0.2, -1.5], [0.36, 0.32, -1.5], [0.25, 0.42, -1.5]].map(S);
+    mb.hexa('paint', front, mid);
+    mb.hexa('paint', mid, rear);
+    // Inlet: dark opening in the pod front.
+    mb.prism('grille', [[0.4 * s, 0.24], [0.72 * s, 0.24], [0.72 * s, 0.48], [0.4 * s, 0.54]].map(([x, y]) => [x, y]), 'z', 0.455, 0.47);
+    // Undercut and sidepod wing / bargeboard.
+    mb.prism('carbon', [[0.85, 0.12], [0.85, 0.5], [0.4, 0.52], [0.2, 0.12]].map(([z, y]) => [z, y]), 'x', 0.78 * s - 0.01, 0.78 * s + 0.01);
+    // Mirror on a stalk.
+    rod(mb, 'carbon', [0.33 * s, 0.66, 0.5], [0.52 * s, 0.78, 0.48], 0.025);
+    mb.hexa('carbon', [[0.48 * s, 0.74, 0.5], [0.64 * s, 0.74, 0.5], [0.64 * s, 0.74, 0.44], [0.48 * s, 0.74, 0.44]], [[0.48 * s, 0.83, 0.5], [0.64 * s, 0.83, 0.5], [0.64 * s, 0.83, 0.44], [0.48 * s, 0.83, 0.44]]);
+    mb.prism('chrome', [[0.49 * s, 0.75], [0.63 * s, 0.75], [0.63 * s, 0.82], [0.49 * s, 0.82]], 'z', 0.435, 0.44);
+  }
+}
+
+function buildEngineAndRear(mb) {
+  // Airbox intake above the driver, roll hoop, T-cam and the shark fin.
+  mb.prism('grille', [[-0.11, 0.7], [0.11, 0.7], [0.1, 0.86], [-0.1, 0.86]], 'z', -0.33, -0.31);
+  mb.hexa('paint', [[0.13, 0.8, -0.3], [-0.13, 0.8, -0.3], [-0.13, 0.88, -0.3], [0.13, 0.88, -0.3]], [[0.18, 0.78, -0.75], [-0.18, 0.78, -0.75], [-0.16, 0.9, -0.75], [0.16, 0.9, -0.75]]);
+  mb.hexa('stripe', [[0.05, 0.9, -0.42], [-0.05, 0.9, -0.42], [-0.05, 0.94, -0.42], [0.05, 0.94, -0.42]], [[0.05, 0.9, -0.5], [-0.05, 0.9, -0.5], [-0.05, 0.94, -0.5], [0.05, 0.94, -0.5]]);
+  mb.prism('paint', [[-0.75, 0.82], [-2.05, 0.95], [-2.05, 0.62], [-1.2, 0.62]], 'x', -0.012, 0.012);
+  // Floor with edge wing, and the diffuser fins.
+  mb.prism('carbon', [[-0.85, 1.0], [0.85, 1.0], [0.85, -2.05], [-0.85, -2.05]], 'y', 0.06, 0.09);
+  for (const s of [1, -1]) mb.prism('carbon', [[1.0, 0.06], [1.0, 0.13], [-2.05, 0.13], [-2.05, 0.06]], 'x', 0.84 * s - 0.01, 0.84 * s + 0.01);
+  for (const x of [-0.6, -0.3, 0, 0.3, 0.6]) mb.prism('carbon', [[-2.05, 0.08], [-2.42, 0.36], [-2.42, 0.4], [-2.05, 0.12]], 'x', x - 0.01, x + 0.01);
+  mb.prism('carbon', [[-0.62, 0.36], [0.62, 0.36], [0.62, 0.4], [-0.62, 0.4]], 'z', -2.42, -2.4);
+  // Rear wing: endplates, main plane, DRS flap, beam wing, swan-neck pylon.
+  for (const s of [1, -1]) mb.prism('paint', [[-2.0, 0.5], [-2.0, 1.04], [-2.4, 1.08], [-2.42, 0.46]], 'x', 0.56 * s - 0.015, 0.56 * s + 0.015);
+  plate(mb, 'carbon', -0.55, 0.55, -2.04, -2.3, 0.82, 0.04, 0.05);
+  plate(mb, 'paint', -0.55, 0.55, -2.26, -2.4, 0.93, 0.03, 0.06);
+  plate(mb, 'carbon', -0.5, 0.5, -2.1, -2.3, 0.45, 0.03, 0.04);
+  rod(mb, 'carbon', [0, 0.6, -1.9], [0, 0.97, -2.3], 0.04);
   // Rain light.
-  add(new THREE.BoxGeometry(0.12, 0.05, 0.03).translate(0, 0.36, -2.47), mats.rain, body, false);
+  mb.prism('tail', [[-0.06, 0.28], [0.06, 0.28], [0.06, 0.36], [-0.06, 0.36]], 'z', -2.44, -2.42);
+}
 
-  // Halo.
-  add(tube([[-0.32, 0.6, -0.3], [-0.31, 0.82, -0.05], [-0.22, 0.88, 0.25], [0, 0.9, 0.36], [0.22, 0.88, 0.25], [0.31, 0.82, -0.05], [0.32, 0.6, -0.3]], 0.026), mats.second);
-  add(tube([[0, 0.9, 0.36], [0, 0.83, 0.52], [0, 0.72, 0.66]], 0.026, 8), mats.second);
-  // Cockpit rim and driver.
-  const rim = add(new THREE.TorusGeometry(1, 0.035, 8, 32), mats.black);
-  rim.scale.set(0.3, 0.55, 1); rim.rotation.x = Math.PI / 2; rim.position.set(0, 0.73, 0.02);
-  const opening = add(new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2), mats.black, body, false);
-  opening.scale.set(0.29, 1, 0.54); opening.position.set(0, 0.735, 0.02);
-  const helmet = add(new THREE.SphereGeometry(0.135, 24, 16), mats.accent);
-  helmet.position.set(0, 0.84, -0.06); helmet.scale.set(1, 1, 1.12);
-  const visor = add(new THREE.SphereGeometry(0.137, 24, 12, -Math.PI * 0.32, Math.PI * 0.64, Math.PI * 0.36, Math.PI * 0.2), mats.visor, body, false);
-  visor.position.copy(helmet.position); visor.scale.copy(helmet.scale);
-  // Mirrors.
-  for (const s of [-1, 1]) {
-    add(new THREE.BoxGeometry(0.13, 0.055, 0.035).translate(s * 0.47, 0.76, 0.42), mats.second);
-    add(strut([s * 0.3, 0.68, 0.4], [s * 0.45, 0.77, 0.42], 0.01), mats.carbon, body, false);
+function buildSuspension(mb) {
+  // Upper and lower wishbones and push rods from the tub to each hub.
+  for (const [z, inner, yb, yt] of [[AXLE_FRONT, 0.28, 0.24, 0.5], [AXLE_REAR, 0.22, 0.24, 0.46]]) {
+    for (const s of [1, -1]) {
+      for (const [y0, y1] of [[yb, 0.26], [yt, 0.48]]) {
+        rod(mb, 'carbon', [inner * s, y0, z + 0.22], [(HUB_X - 0.12) * s, y1, z], 0.028);
+        rod(mb, 'carbon', [inner * s, y0, z - 0.22], [(HUB_X - 0.12) * s, y1, z], 0.028);
+      }
+      rod(mb, 'titanium', [(HUB_X - 0.15) * s, 0.27, z], [(inner + 0.02) * s, 0.58, z + (z > 0 ? -0.15 : 0.15)], 0.022);
+    }
   }
-  // T-cam on the airbox.
-  add(new THREE.BoxGeometry(0.08, 0.05, 0.16).translate(0, 1.07, -0.3), mats.accent, body, false);
+}
 
-  // Wheels: steering pivots up front, all four spin.
-  const wheels = [];
-  const hubs = [[0.79, 1.6, 0.31, true], [-0.79, 1.6, 0.31, true], [0.77, -2.0, 0.41, false], [-0.77, -2.0, 0.41, false]];
-  for (const [x, z, w, front] of hubs) {
-    const pivot = new THREE.Group();
-    pivot.position.set(x, 0.36, z);
-    const wheel = buildWheel(w, mats, front ? 0 : 0);
-    pivot.add(wheel);
-    root.add(pivot);
-    wheels.push({ pivot, wheel, front });
-    // Wishbones + push rod from the chassis side to the hub.
-    const cx = Math.sign(x) * (front ? 0.24 : 0.3);
-    const parent = root;
-    add(strut([cx, 0.45, z + 0.22], [x * 0.9, 0.48, z], 0.016), mats.carbon, parent);
-    add(strut([cx, 0.45, z - 0.25], [x * 0.9, 0.48, z], 0.016), mats.carbon, parent);
-    add(strut([cx, 0.25, z + 0.25], [x * 0.9, 0.24, z], 0.016), mats.carbon, parent);
-    add(strut([cx, 0.25, z - 0.28], [x * 0.9, 0.24, z], 0.016), mats.carbon, parent);
-    add(strut([cx, 0.55, z - 0.05], [x * 0.88, 0.27, z], 0.012), mats.metal, parent);
+function buildDetails(mb) {
+  buildFrontWing(mb);
+  buildSidepods(mb);
+  buildEngineAndRear(mb);
+  buildSuspension(mb);
+  // Halo: titanium hoop from the tub front over the cockpit to the roll-hoop sides.
+  const H = [[0, 0.7, 0.6], [0, 0.88, 0.45], [0.16, 0.9, 0.2], [0.26, 0.88, -0.05], [0.28, 0.72, -0.25]];
+  for (let k = 0; k < H.length - 1; k++) {
+    rod(mb, 'titanium', H[k], H[k + 1], 0.045);
+    if (k > 0) rod(mb, 'titanium', [-H[k][0], H[k][1], H[k][2]], [-H[k + 1][0], H[k + 1][1], H[k + 1][2]], 0.045);
   }
-  // Move the modelling origin to the centre of mass (2.0 m behind the front axle).
-  for (const o of root.children) o.position.z += 0.4;
-  return { root, body, wheels, mats };
+  // Number dot on the nose.
+  lens(mb, 'plate', [0, 0.5, 1.75], [0, 0.85, 0.5], [0, 0, 1], 0.07, 0.07, { segments: 12 });
+}
+
+function buildAnimatedParts(mats) {
+  const cockpit = buildCockpit(mats, { seatX: 0, seatZ: -0.15, wheelZ: 0.32, wheelY: 0.55, seatY: -0.05 });
+  const ex = buildExhausts(mats, [{ x: 0, y: 0.5, z: -2.3, r: 0.05, sides: 10 }]);
+  const group = new Group();
+  group.add(...cockpit.group.children, ...ex.group.children);
+  return { group, head: cockpit.head, steering: cockpit.steering, flames: ex.flames };
+}
+return { AXLE_FRONT, AXLE_REAR, NOSE_Z, TAIL_Z, rod, plate, buildShell, buildDetails, buildAnimatedParts };
+})();
+// =====================================================================
+//  Vehicle physics, ported from the F4 racer (maksimsysak3-ui/F4, racer/src/physics + config):
+//  rigid body, raycast suspension, slip-based tyres, gearbox, ABS/TC/ESC assists.
+// =====================================================================
+F4.config = (() => {
+// World and assist tunables. Each car's own handling lives in src/cars/<car>/spec.js.
+// Units are SI: metres, kilograms, seconds, newtons, radians.
+
+const PHYSICS_HZ = 240;
+
+const TRACK = {
+  centerRadius: 150,
+  width: 22,
+  thickness: 2.4,      // visual slab depth under the asphalt
+  kerbWidth: 1.4,
+  kerbHeight: 0.035,   // kerbs are real bumps the suspension feels
+  kerbBlockLength: 2.2,
+  segments: 360,
+  voidY: -40,          // below this the car is lost and respawns
+};
+
+const ASSISTS = {
+  tractionSlip: 0.14,      // target max slip ratio with TC on
+  stabilitySlip: 1.08,     // max combined slip on a driven tire before TC trims power
+  escGrip: 1.65,           // g used to cap the yaw rate the driver can ask for (just above real grip)
+  escDeadband: 0.06,       // rad/s of extra yaw tolerated before ESC steps in
+  escGain: 4000,           // Nm of outside-front brake per rad/s of excess yaw
+  escMaxTorque: 1500,
+  escSlipAngle: 0.12,      // rad of tail-out sideslip ESC tolerates
+  escSlipGain: 2.5,        // ESC level per rad of sideslip beyond that
+  absSlip: 0.10,
+  absCapMargin: 1.0,       // brake torque cap as a fraction of what the tyre can transmit
+  absSlipRear: 0.06,       // rears are held well inside the limit so they keep side grip
+  alignDeadband: 0.07,     // rad of body slide before the fronts start following the direction of travel
+  alignGain: 1.0,          // how fully they follow it (1 = wheels track the slide)
+  yawGain: 7,              // assist: how hard the car is turned toward the requested yaw rate (1/s)
+  yawTorque: 0.32,         // assist: max yaw torque as a fraction of m*g*wheelbase
+  assistGrip: 1.0,         // assist: requested yaw is capped at this fraction of the ESC grip
+  slideDamp: 1.6,          // assist: sideways slide decay rate (1/s)
+  slideMax: 0.35,          // assist: cap on the anti-slide force (g)
+  brakeBoost: 0.6,         // extra braking deceleration (g) with assists on, along the nose
+  brakeYawCut: 0.45,       // handling assist asks for this much less rotation at full brake
+  frontSlipCap: 1.1,       // steering limiter: front slip angle at most this x the tyre's peak
+  counterBeta: 0.04,       // slip (rad) from which a counter-steer stops asking the assist for rotation
+  counterRange: 0.1,       // ...fading over this much more slip
+  counterFloor: 0.1,       // ...to this fraction of the requested yaw rate
+  handbrakeScale: 0.45,    // handbrake torque with assists on
+  handbrakeSlideCap: 0.45, // rad: past this, ESC intervenes even with the handbrake held
+};
+
+/**
+ * SPORT assists (the default): the same helpers with a looser grip. Wheels can lock
+ * for a moment under a stamp on the brakes mid-corner, the rears can be spun up, and
+ * the stability aids saturate well past the limit, so overdriving can still end in a spin.
+ */
+const SPORT = {
+  ...ASSISTS,
+  tractionSlip: 0.19,
+  stabilitySlip: 1.3,
+  escDeadband: 0.14,
+  escGain: 2200,
+  escMaxTorque: 900,
+  escSlipAngle: 0.2,
+  escSlipGain: 1.4,
+  absSlip: 0.35,          // a stamp on the brakes locks the fronts for a moment (smoke, flat-spot squeal)
+  absCapMargin: 1.2,
+  absSlipRear: 0.22,
+  yawTorque: 0.16,
+  slideDamp: 0.7,
+  slideMax: 0.18,
+  brakeBoost: 0.45,
+  frontSlipCap: 1.25,
+  counterFloor: 0.3,
+  handbrakeScale: 0.7,
+  handbrakeSlideCap: 0.8,
+};
+return { PHYSICS_HZ, TRACK, ASSISTS, SPORT };
+})();
+F4.rigidbody = (() => {
+const { Vector3, Quaternion } = THREE;
+const _r = new Vector3();
+const _t = new Vector3();
+const _q = new Quaternion();
+const _qInv = new Quaternion();
+const _dq = new Quaternion();
+
+/**
+ * Minimal 6-DOF rigid body with a diagonal body-space inertia tensor.
+ * Forces accumulate during a step and are cleared by integrate().
+ */
+class RigidBody {
+  constructor(mass, inertia) {
+    this.mass = mass;
+    this.invMass = 1 / mass;
+    this.invInertia = new Vector3(1 / inertia.x, 1 / inertia.y, 1 / inertia.z);
+
+    this.position = new Vector3();
+    this.quaternion = new Quaternion();
+    this.velocity = new Vector3();
+    this.angularVelocity = new Vector3(); // world space
+
+    this.force = new Vector3();
+    this.torque = new Vector3();
+  }
+
+  applyForce(f) {
+    this.force.add(f);
+  }
+
+  applyForceAtPoint(f, worldPoint) {
+    this.force.add(f);
+    _r.subVectors(worldPoint, this.position);
+    this.torque.add(_t.crossVectors(_r, f));
+  }
+
+  applyTorque(t) {
+    this.torque.add(t);
+  }
+
+  /** Velocity of a world-space point rigidly attached to the body. */
+  pointVelocity(worldPoint, out) {
+    _r.subVectors(worldPoint, this.position);
+    return out.crossVectors(this.angularVelocity, _r).add(this.velocity);
+  }
+
+  /** Body-space vector -> world-space point. */
+  localToWorld(local, out) {
+    return out.copy(local).applyQuaternion(this.quaternion).add(this.position);
+  }
+
+  /** Semi-implicit Euler. Gyroscopic term omitted (stable, negligible for a car). */
+  integrate(dt) {
+    this.velocity.addScaledVector(this.force, this.invMass * dt);
+
+    // dw = R * I^-1 * R^T * torque * dt
+    _qInv.copy(this.quaternion).invert();
+    _t.copy(this.torque).applyQuaternion(_qInv).multiply(this.invInertia).applyQuaternion(this.quaternion);
+    this.angularVelocity.addScaledVector(_t, dt);
+
+    this.position.addScaledVector(this.velocity, dt);
+
+    const w = this.angularVelocity;
+    _dq.set(w.x * dt * 0.5, w.y * dt * 0.5, w.z * dt * 0.5, 0);
+    _q.multiplyQuaternions(_dq, this.quaternion);
+    this.quaternion.x += _q.x;
+    this.quaternion.y += _q.y;
+    this.quaternion.z += _q.z;
+    this.quaternion.w += _q.w;
+    this.quaternion.normalize();
+
+    this.force.set(0, 0, 0);
+    this.torque.set(0, 0, 0);
+  }
+}
+return { RigidBody };
+})();
+F4.tire = (() => {
+/**
+ * Combined-slip tire model.
+ *
+ * Slip ratio and slip angle are normalised by their peak values and combined
+ * into one slip magnitude `s` (friction ellipse). A single curve maps `s` to the
+ * fraction of available grip: it rises to 1 at s = 1 (the peak) and decays
+ * smoothly towards `slide` as the tire slides. The resulting force is split back
+ * into longitudinal / lateral parts in proportion to each normalised slip, so
+ * hard braking eats into cornering grip and vice versa.
+ */
+
+/** Grip fraction for a normalised combined slip (C1-continuous). */
+function frictionCurve(s, slide, falloff) {
+  if (s <= 1) return 1.5 * s - 0.5 * s * s * s;
+  const e = s - 1;
+  return slide + (1 - slide) * Math.exp(-falloff * e * e);
+}
+
+/** Grip drops as a tire is loaded beyond its nominal load (why weight transfer matters). */
+function loadFactor(load, nominalLoad, sensitivity) {
+  return Math.max(0.6, 1 - sensitivity * (load / nominalLoad - 1));
+}
+
+/**
+ * @param {object} t        tire params (muLat, muLong, peakSlipAngle, peakSlipRatio, slide, falloff)
+ * @param {number} grip     normal load * load factor (N)
+ * @param {number} slipRatio  (wheel surface speed - ground speed) / reference speed
+ * @param {number} slipAngle  radians, positive when the contact patch slides to the left
+ * @param {object} out      receives fx (forward +), fy (left +), slip (combined, normalised)
+ */
+function tireForce(t, grip, slipRatio, slipAngle, out) {
+  const sx = slipRatio / t.peakSlipRatio;
+  const sy = slipAngle / t.peakSlipAngle;
+  const s = Math.hypot(sx, sy);
+  out.slip = s;
+  if (s < 1e-9 || grip <= 0) {
+    out.fx = 0;
+    out.fy = 0;
+    return out;
+  }
+  const f = frictionCurve(s, t.slide, t.falloff) * grip / s;
+  out.fx = f * sx * t.muLong;
+  out.fy = -f * sy * t.muLat;
+  return out;
+}
+
+/** Max d(fx)/d(slipRatio): used to integrate wheel spin implicitly (stable at any load). */
+function longitudinalStiffness(t, grip) {
+  return (1.5 * grip * t.muLong) / t.peakSlipRatio;
+}
+return { frictionCurve, loadFactor, tireForce, longitudinalStiffness };
+})();
+F4.vehicle = (() => {
+const { Vector3, Quaternion } = THREE;
+const { ASSISTS, SPORT } = F4.config;
+const { RigidBody } = F4.rigidbody;
+const { tireForce, loadFactor, longitudinalStiffness } = F4.tire;
+const G = 9.81;
+const WHEEL_SUBSTEPS = 6;
+const RPM_PER_RADS = 60 / (2 * Math.PI);
+const GEAR_R = 0;
+const GEAR_N = 1;
+const GEAR_FIRST = 2;
+
+const UP = new Vector3(0, 1, 0);
+const WALL = { stiffness: 320000, damping: 14000, friction: 0.3 };
+const _v = new Vector3();
+const _p = new Vector3();
+const _q2 = new Vector3();
+const _ax = new Vector3();
+const _qa = new Quaternion();
+const _f = new Vector3();
+const _fwd = new Vector3();
+const _up = new Vector3();
+const _left = new Vector3();
+const _wf = new Vector3();
+const _wl = new Vector3();
+const _tire = { fx: 0, fy: 0, slip: 0 };
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
+
+function sampleCurve(curve, x) {
+  if (x <= curve[0][0]) return curve[0][1];
+  for (let i = 1; i < curve.length; i++) {
+    if (x <= curve[i][0]) {
+      const [x0, y0] = curve[i - 1];
+      const [x1, y1] = curve[i];
+      return lerp(y0, y1, (x - x0) / (x1 - x0));
+    }
+  }
+  return curve[curve.length - 1][1];
+}
+
+class Wheel {
+  constructor(spec, cfg) {
+    const front = spec.axle === 'front';
+    const s = cfg.suspension;
+    const axleZ = front ? cfg.cgToFront : -(cfg.wheelbase - cfg.cgToFront);
+    this.id = spec.id;
+    this.isFront = front;
+    this.isLeft = spec.x > 0;
+    this.anchor = new Vector3(spec.x, s.anchorHeight, axleZ); // body space
+    this.radius = cfg.wheelRadius;
+    this.tire = front ? cfg.tires.front : cfg.tires.rear;
+    this.susp = front ? s.front : s.rear;
+    this.restLength = s.restLength;
+    this.maxCompression = s.maxTravel + 0.075;
+
+    // Dynamic state
+    this.compression = 0;
+    this.prevCompression = 0;
+    this.suspensionLength = s.restLength;
+    this.inContact = false;
+    this.springForce = 0;
+    this.load = 0;
+    this.omega = 0;           // spin rate, rad/s (+ = rolling forwards)
+    this.spinAngle = 0;
+    this.steer = 0;           // rad, + = left
+    this.driveTorque = 0;
+    this.brakeTorque = 0;
+    this.slipRatio = 0;
+    this.slipAngle = 0;
+    this.slip = 0;            // normalised combined slip (1 = peak grip)
+    this.fx = 0;
+    this.fy = 0;
+    this.absFactor = 1;
+    this.vLong = 0;
+    this.vLat = 0;
+    this.groundSpeed = 0;
+    this.contactPoint = new Vector3();
+    this.forward = new Vector3();
+    this.lateral = new Vector3();
+  }
+
+  get surfaceSpeed() {
+    return this.omega * this.radius;
+  }
+}
+
+/**
+ * Raycast-suspension vehicle on a 6-DOF rigid body.
+ * Each physics step: suspension -> drivetrain + tires (sub-stepped wheel spin)
+ * -> aero -> hull contacts -> integrate.
+ */
+class Vehicle {
+  /** @param cfg a car spec from src/cars (physics fields + proportions) */
+  constructor(ground, cfg) {
+    this.cfg = cfg;
+    this.ground = ground;
+    this.body = new RigidBody(cfg.mass, cfg.inertia);
+    this.wheels = cfg.wheels.map((w) => new Wheel(w, cfg));
+    this.nominalLoad = (cfg.mass * G) / 4;
+    this.staticRearLoad = (cfg.mass * G * (cfg.cgToFront / cfg.wheelbase)) / 2;
+
+    const cgZ = cfg.wheelbase / 2 - cfg.cgToFront; // CG position in model space
+    this.modelOffset = new Vector3(0, -cfg.cgHeight, -cgZ); // model space -> body space
+    this.hullPoints = cfg.hullPoints.map((p) => new Vector3(...cfg.proportions.designToModel(p)).add(this.modelOffset));
+
+    // Driver-facing settings (toggled from the UI)
+    this.damage = 0;        // 0 pristine .. 1 wrecked (set by the crash system, cleared on reset)
+    this.hitPoint = new Vector3();
+    this.hitNormal = new Vector3();
+    this.assistLevel = 2; // 0 off, 1 sport, 2 full (the game picks SPORT from settings)
+    this.wetness = 0; // 0 dry .. 1 soaking (set by the weather)
+    this.puddleAt = null; // (x, z) -> standing-water depth 0..1, set by the weather
+    this.automatic = true;
+    this.awd = true;
+
+    this.reset(new Vector3(0, 0, 0), 0);
+  }
+
+  reset(position, yaw) {
+    const b = this.body;
+    this.damage = 0;
+    b.position.copy(position).y += this.cfg.cgHeight + 0.05;
+    b.quaternion.setFromAxisAngle(UP, yaw);
+    // On a slope, start pitched with the road so the wheels all touch at once.
+    const half = this.cfg.wheelbase / 2;
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const hf = this.ground.heightAt(position.x + fx * half, position.z + fz * half);
+    const hr = this.ground.heightAt(position.x - fx * half, position.z - fz * half);
+    if (hf !== null && hr !== null && Math.abs(hf - hr) > 0.01) {
+      const pitch = Math.atan2(hf - hr, 2 * half); // nose up = positive
+      b.quaternion.multiply(_qa.setFromAxisAngle(_ax.set(1, 0, 0), -pitch));
+      b.position.y = (hf + hr) / 2 + this.cfg.cgHeight + 0.05;
+    }
+    b.velocity.set(0, 0, 0);
+    b.angularVelocity.set(0, 0, 0);
+    for (const w of this.wheels) {
+      w.omega = 0;
+      w.compression = w.prevCompression = 0.06;
+      w.absFactor = 1;
+    }
+    this.gear = GEAR_FIRST;
+    this.pendingGear = GEAR_FIRST;
+    this.shiftTimer = 0;
+    this.rpm = this.cfg.engine.idleRpm;
+    this.clutchLocked = false;
+    this.limiterTimer = 0;
+    this.tcFactor = 1;
+    this.escLevel = 0;
+    this.tcActive = false;
+    this.absActive = false;
+    this.stopTimer = 0;
+    this.steerAngle = 0;
+    this.steerIntent = 0;
+    this.throttle = 0;
+    this.brake = 0;
+    this.aeroMode = 0;        // active aero: 0 = Z-mode (cornering), 1 = X-mode (straight-line)
+    this.engineTorque = 0;
+    this.airTime = 0;
+  }
+
+  // ---------- Derived quantities ----------
+
+  get forward() { return _fwd.set(0, 0, 1).applyQuaternion(this.body.quaternion); }
+  get speed() { return this.body.velocity.length(); }
+  get forwardSpeed() { return this.body.velocity.dot(this.forward); }
+
+  /** Gear for display: during a shift, show the gear being engaged. */
+  get gearLabel() {
+    const g = this.isShifting ? this.pendingGear : this.gear;
+    if (g === GEAR_R) return 'R';
+    if (g === GEAR_N) return 'N';
+    return String(g - 1);
+  }
+
+  get isShifting() { return this.shiftTimer > 0; }
+
+  /** Any assists on (0 off, 1 sport, 2 full). */
+  get assists() { return this.assistLevel > 0; }
+  set assists(on) { this.assistLevel = on === true ? 2 : on === false ? 0 : on; }
+  /** Assist tuning for the current level. */
+  /**
+   * Grip (in g) the stability aids expect at speed v. Downforce cars set escGripAero: their
+   * grip grows with v^2, so a fixed figure would let them rotate past the tyres at low speed.
+   */
+  escGripAt(v) {
+    const c = this.cfg, base = c.escGrip ?? this.A.escGrip;
+    return c.escGripAero ? Math.min(c.escGripMax ?? base * 2, base + c.escGripAero * v * v) : base;
+  }
+
+  /** Assist settings for the current level, with the car's own overrides (cfg.assistTune.sport / .full). */
+  get A() {
+    const sport = this.assistLevel === 1;
+    const t = this.cfg.assistTune?.[sport ? 'sport' : 'full'];
+    if (!t) return sport ? SPORT : ASSISTS;
+    const key = sport ? '_aSport' : '_aFull';
+    return this[key] ?? (this[key] = { ...(sport ? SPORT : ASSISTS), ...t });
+  }
+
+  /** Body side-slip angle (rad), + when the car slides towards its left. */
+  get slipAngle() {
+    const b = this.body;
+    _fwd.set(0, 0, 1).applyQuaternion(b.quaternion);
+    _left.set(1, 0, 0).applyQuaternion(b.quaternion);
+    const vl = b.velocity.dot(_fwd);
+    const vs = b.velocity.dot(_left);
+    if (Math.hypot(vl, vs) < 3) return 0;
+    return Math.atan2(vs, Math.abs(vl));
+  }
+
+  /**
+   * Wet-road grip for a wheel: the film of water costs grip on asphalt, more on
+   * painted surfaces and kerbs, and at speed the tyre starts to aquaplane.
+   */
+  weatherGrip(w) {
+    const wet = this.wetness;
+    if (!wet) return 1;
+    const painted = w.surface === 'kerb' || w.surface === 'paint' ? 0.12 : 0;
+    const aqua = Math.max(0, (w.groundSpeed - 38) / 30) * 0.25; // above ~140 km/h the tread can't clear the water
+    // Standing water: a puddle takes grip away, and at speed the tyre rides up on it (aquaplaning).
+    const depth = this.puddleAt ? this.puddleAt(w.contactPoint.x, w.contactPoint.z) : 0;
+    w.puddle = depth;
+    const pool = depth * (0.18 + Math.min(0.32, Math.max(0, (w.groundSpeed - 18) / 40) * 0.32));
+    return Math.max(0.3, 1 - wet * (0.3 + painted + Math.min(0.25, aqua) + pool));
+  }
+
+  get wheelsInContact() {
+    let n = 0;
+    for (const w of this.wheels) if (w.inContact) n++;
+    return n;
+  }
+
+  // ---------- Main step ----------
+
+  /**
+   * @param {number} dt
+   * @param {{throttle:number, brake:number, steer:number, handbrake:number, shiftUp?:boolean, shiftDown?:boolean}} input
+   *        steer: -1 (left) .. +1 (right)
+   */
+  step(dt, input) {
+    const b = this.body;
+    _fwd.set(0, 0, 1).applyQuaternion(b.quaternion);
+    _up.set(0, 1, 0).applyQuaternion(b.quaternion);
+    _left.set(1, 0, 0).applyQuaternion(b.quaternion);
+
+    this.updateGearbox(dt, input);
+    this.mapPedals(input);
+    this.updateSteering(dt, input);
+    this.updateSuspension(dt);
+    this.updateWheelsAndDrivetrain(dt, input);
+    this.applyTireForces(dt);
+    if (this.assists) this.applyHandlingAssist(input);
+    this.applyAero(dt);
+    this.applyHullContacts(dt);
+    b.applyForce(_f.set(0, -G * b.mass, 0));
+    b.integrate(dt);
+
+    for (const w of this.wheels) w.spinAngle = (w.spinAngle + w.omega * dt) % (Math.PI * 2);
+    this.airTime = this.wheelsInContact === 0 ? this.airTime + dt : 0;
+  }
+
+  // ---------- Gearbox & pedals ----------
+
+  shiftTo(gear) {
+    const g = clamp(gear, GEAR_R, this.cfg.gearbox.ratios.length - 1);
+    if (g === this.gear && !this.isShifting) return;
+    this.pendingGear = g;
+    // Into/out of reverse or neutral is instant; real shifts cut torque briefly.
+    if (g <= GEAR_N || this.gear <= GEAR_N) {
+      this.gear = g;
+      this.shiftTimer = 0;
+    } else {
+      this.shiftTimer = this.cfg.gearbox.shiftTime;
+      this.gear = GEAR_N;
+    }
+  }
+
+  updateGearbox(dt, input) {
+    const gb = this.cfg.gearbox;
+    const top = gb.ratios.length - 1;
+
+    if (this.shiftTimer > 0) {
+      this.shiftTimer -= dt;
+      if (this.shiftTimer <= 0) {
+        this.shiftTimer = 0;
+        this.gear = this.pendingGear;
+      }
+      return;
+    }
+
+    if (!this.automatic) {
+      if (input.shiftUp) this.shiftTo(this.gear + 1);
+      else if (input.shiftDown) this.shiftTo(this.gear - 1);
+      return;
+    }
+
+    const v = this.forwardSpeed;
+    const g = this.gear;
+
+    // Reverse handling: hold brake at a standstill to engage R, throttle to go back to 1st.
+    const stopped = Math.abs(v) < 0.7;
+    if (g >= GEAR_FIRST && stopped && input.brake > 0.1 && input.throttle < 0.05) {
+      this.stopTimer += dt;
+      if (this.stopTimer > 0.25) { this.shiftTo(GEAR_R); this.stopTimer = 0; }
+      return;
+    }
+    if (g === GEAR_R && stopped && input.throttle > 0.1 && input.brake < 0.05) {
+      this.stopTimer += dt;
+      if (this.stopTimer > 0.1) { this.shiftTo(GEAR_FIRST); this.stopTimer = 0; }
+      return;
+    }
+    this.stopTimer = 0;
+    if (g === GEAR_N) { this.shiftTo(GEAR_FIRST); return; }
+    if (g < GEAR_FIRST) return;
+
+    // Don't hunt gears while airborne or wildly spinning the wheels.
+    if (this.wheelsInContact < 2) return;
+    const rpm = this.wheelRpm(g);
+    if (rpm > gb.upshiftRpm && g < top && input.throttle > 0.15) {
+      this.shiftTo(g + 1);
+    } else if (g > GEAR_FIRST) {
+      const lowerRpm = this.wheelRpm(g - 1);
+      const threshold = input.brake > 0.2 ? gb.downshiftRpm + 1200 : gb.downshiftRpm;
+      if (rpm < threshold && lowerRpm < gb.upshiftRpm - 700) this.shiftTo(g - 1);
+    }
+  }
+
+  /** Engine rpm implied by the driven wheels in a given gear. */
+  wheelRpm(gear) {
+    const ratio = this.cfg.gearbox.ratios[gear] * this.cfg.gearbox.finalDrive;
+    return this.drivenOmega() * ratio * RPM_PER_RADS;
+  }
+
+  /** Front-wheel-drive cars have no driveshaft to the rear: the AWD toggle doesn't apply. */
+  get fwd() { return this.cfg.drivetrain.layout === 'fwd'; }
+
+  /** Share of drive torque sent to the front axle. */
+  get frontShare() { return this.fwd ? 1 : this.awd ? this.cfg.drivetrain.awdFrontShare : 0; }
+
+  get layoutLabel() { return this.fwd ? 'FWD' : this.awd ? 'AWD' : 'RWD'; }
+
+  drivenOmega() {
+    const [fl, fr, rl, rr] = this.wheels;
+    const fs = this.frontShare;
+    return fs * (fl.omega + fr.omega) / 2 + (1 - fs) * (rl.omega + rr.omega) / 2;
+  }
+
+  mapPedals(input) {
+    // In automatic reverse the pedals swap so "down" keeps meaning "go backwards".
+    const swap = this.automatic && this.gear === GEAR_R;
+    this.throttle = swap ? input.brake : input.throttle;
+    this.brake = swap ? input.throttle : input.brake;
+  }
+
+  // ---------- Steering ----------
+
+  updateSteering(dt, input) {
+    const st = this.cfg.steering;
+    const v = Math.max(1, Math.abs(this.forwardSpeed));
+    const geometric = (this.cfg.wheelbase * st.limitGrip * G) / (v * v);
+    let limit = Math.min(st.maxAngle, geometric + st.limitSlip);
+
+    // Positive steer angle = left. Input +1 = right.
+    const target = -input.steer;
+    const beta = this.slipAngle;
+    this.steerIntent = target * limit; // what the driver asks for (ESC's yaw reference)
+    if (this.assists) {
+      // Self-aligning steering: once the body slides beyond normal cornering
+      // slip, the fronts follow the direction of travel the way a real wheel
+      // lets go through its caster. Steering input is then measured from where
+      // the car is going, so a held key can never pile on counter-lock and
+      // whip the car into the opposite slide (the keyboard tank-slapper).
+      const excess = Math.sign(beta) * Math.max(0, Math.abs(beta) - this.A.alignDeadband) * this.A.alignGain;
+      const driver = target * limit;
+      // A driver counter-steering on top of the self-aligned wheel would double the
+      // counter-lock and fire the car into the opposite slide: the larger of the two wins.
+      const counter = excess !== 0 && Math.sign(driver) === Math.sign(excess);
+      const angle = counter ? Math.sign(excess) * Math.max(Math.abs(driver), Math.abs(excess)) : driver + excess;
+      this.steerAngle = clamp(angle, -st.maxAngle, st.maxAngle);
+      // Front grip limiter: a held key would wind on more lock than the tyres can use, so the
+      // fronts scrub past their peak and the car washes wide. Keep the front slip angle at the
+      // tyre's peak (measured from where the front axle is actually travelling).
+      if (v > 3) {
+        const b = this.body;
+        const fl = this.wheels[0], fr = this.wheels[1];
+        _p.copy(fl.anchor).add(fr.anchor).multiplyScalar(0.5);
+        b.localToWorld(_p, _q2);
+        b.pointVelocity(_q2, _v);
+        const flow = Math.atan2(_v.dot(_left), Math.max(1, _v.dot(_fwd))); // + = travelling left of the nose
+        const pk = fl.tire.peakSlipAngle * this.A.frontSlipCap;
+        this.steerAngle = clamp(this.steerAngle, flow - pk, flow + pk);
+      }
+    } else {
+      // Raw: extra lock when counter-steering so drifts are catchable by hand.
+      if (Math.sign(target) === Math.sign(beta)) limit = Math.min(st.maxAngle, limit + Math.abs(beta) * 0.9);
+      this.steerAngle = target * limit;
+    }
+
+    const L = this.cfg.wheelbase;
+    const halfTrack = Math.abs(this.wheels[0].anchor.x);
+    const a = this.steerAngle;
+    for (const w of this.wheels) {
+      if (!w.isFront) { w.steer = 0; continue; }
+      if (Math.abs(a) < 1e-4) { w.steer = 0; continue; }
+      const turnRadius = L / Math.tan(Math.abs(a));
+      const inside = (a > 0) === w.isLeft;
+      const ideal = Math.atan(L / (turnRadius + (inside ? -halfTrack : halfTrack)));
+      w.steer = Math.sign(a) * lerp(Math.abs(a), ideal, st.ackermann);
+    }
+  }
+
+  // ---------- Suspension ----------
+
+  updateSuspension(dt) {
+    const b = this.body;
+    const s = this.cfg.suspension;
+    const dirY = -_up.y; // ray direction = -up (world y component)
+
+    for (const w of this.wheels) {
+      w.prevCompression = w.compression;
+      w.inContact = false;
+      w.springForce = 0;
+      w.load = 0;
+
+      const anchor = b.localToWorld(w.anchor, _p);
+      const maxLen = w.restLength + w.radius;
+      let t = Infinity;
+      if (dirY < -0.25) {
+        // Ray vs. height field: estimate at the anchor, refine at the hit point.
+        let h = this.ground.heightAt(anchor.x, anchor.z);
+        if (h !== null) {
+          t = (anchor.y - h) / -dirY;
+          const hx = anchor.x - _up.x * t;
+          const hz = anchor.z - _up.z * t;
+          h = this.ground.heightAt(hx, hz);
+          t = h === null ? Infinity : (anchor.y - h) / -dirY;
+        }
+      }
+
+      // An anchor below the surface (a steep slope or a hard landing) is full compression, not air.
+      if (t < 0 && t > -0.6) t = 0;
+      if (t >= 0 && t <= maxLen) {
+        w.inContact = true;
+        w.compression = Math.min(maxLen - t, w.restLength);
+        w.contactPoint.copy(anchor).addScaledVector(_up, -t);
+      } else {
+        w.compression = 0;
+      }
+      w.suspensionLength = w.restLength - w.compression;
+      w.compressionVelocity = (w.compression - w.prevCompression) / dt;
+
+      if (w.inContact) {
+        const cv = w.compressionVelocity;
+        let f = w.susp.spring * w.compression + (cv > 0 ? w.susp.damperBump : w.susp.damperRebound) * cv;
+        const over = w.compression - w.maxCompression;
+        if (over > 0) f += s.bumpStopRate * over + 4000 * Math.max(cv, 0);
+        w.springForce = f;
+      }
+    }
+
+    // Anti-roll bars move load from the more-compressed side to the other.
+    for (let i = 0; i < 4; i += 2) {
+      const l = this.wheels[i];
+      const r = this.wheels[i + 1];
+      const arb = l.susp.antiRoll * (l.compression - r.compression);
+      if (l.inContact) l.springForce += arb;
+      if (r.inContact) r.springForce -= arb;
+    }
+
+    for (const w of this.wheels) {
+      if (!w.inContact) continue;
+      // Only the component along the ground normal holds the car up.
+      w.load = Math.max(0, w.springForce) * Math.max(0, _up.y);
+      b.applyForceAtPoint(_f.copy(UP).multiplyScalar(w.load), w.contactPoint);
+    }
+  }
+
+  // ---------- Drivetrain & wheel spin ----------
+
+  updateWheelsAndDrivetrain(dt, input) {
+    const b = this.body;
+    const cfg = this.cfg;
+    const eng = cfg.engine;
+    const gb = cfg.gearbox;
+    const dtc = cfg.drivetrain;
+    const h = dt / WHEEL_SUBSTEPS;
+
+    // Per-wheel contact kinematics (body velocity is frozen across sub-steps).
+    for (const w of this.wheels) {
+      w.fxSum = 0;
+      w.fySum = 0;
+      if (!w.inContact) continue;
+      const c = Math.cos(w.steer);
+      const s = Math.sin(w.steer);
+      _wf.copy(_fwd).multiplyScalar(c).addScaledVector(_left, s);
+      _wf.y = 0;
+      _wf.normalize();
+      _wl.crossVectors(UP, _wf);
+      w.forward.copy(_wf);
+      w.lateral.copy(_wl);
+      b.pointVelocity(w.contactPoint, _v);
+      w.vLong = _v.dot(_wf);
+      w.vLat = _v.dot(_wl);
+      w.groundSpeed = Math.hypot(w.vLong, w.vLat);
+      // Surface (asphalt, kerb, grass, gravel) and weather scale what the tyre can hold.
+      const surf = this.ground.surfaceAt ? this.ground.surfaceAt(w.contactPoint.x, w.contactPoint.z) : null;
+      // Off-road tyres (cfg.tires.offroad 0..1) lose less of their grip and drag less on grass and gravel.
+      const off = this.cfg.tires.offroad ?? 0;
+      w.surfaceGrip = surf ? 1 - (1 - surf.grip) * (1 - off) : 1;
+      w.surfaceDrag = surf ? surf.drag * (1 - off) : 0;
+      w.surface = surf ? surf.kind : 'asphalt';
+      w.grip = w.load * loadFactor(w.load, this.nominalLoad, cfg.tires.loadSensitivity) * w.surfaceGrip * this.weatherGrip(w);
+    }
+
+    // Pedals -> brake torque (with ABS) per wheel.
+    this.absActive = false;
+    for (const w of this.wheels) {
+      const bias = w.isFront ? cfg.brakes.frontBias : 1 - cfg.brakes.frontBias;
+      let tb = this.brake * cfg.brakes.maxTorque * 2 * bias;
+      // EBD: each rear brake follows that wheel's actual load, so braking can't
+      // overwhelm a rear that has gone light under deceleration or in a corner.
+      if (this.assists && !w.isFront) tb *= clamp(w.load / this.staticRearLoad, 0.2, 1);
+      if (this.assists && tb > 0 && w.inContact && w.groundSpeed > 3) {
+        // Never ask a tyre for more torque than it can transmit, minus the share
+        // it is using to corner: the wheel can't lock, and braking can't steal
+        // the grip the steering needs (the friction-circle budget, applied up front).
+        const sy = Math.min(0.95, Math.abs(w.slipAngle) / w.tire.peakSlipAngle);
+        const cap = w.grip * w.tire.muLong * w.radius * Math.sqrt(1 - sy * sy) * this.A.absCapMargin;
+        tb = Math.min(tb, Math.max(0, cap));
+        // Cornering brake control: a turning car sheds rear brake so the light rear keeps its side grip.
+        if (!w.isFront) tb *= 1 - 0.5 * Math.min(1, Math.abs(this.steerIntent) / 0.12);
+        // Fine trim on top of the cap: a fast ABS loop on the measured slip.
+        const target = (w.isFront ? this.A.absSlip : this.A.absSlipRear) * (1 - 0.4 * sy);
+        if (w.slipRatio < -target) w.absFactor = Math.max(0.3, w.absFactor - 40 * dt);
+        else w.absFactor = Math.min(1, w.absFactor + 8 * dt);
+        if (w.absFactor < 0.97) this.absActive = true;
+        tb *= w.absFactor;
+      } else {
+        w.absFactor = 1;
+      }
+      // With assists the handbrake is a drift starter, not a spin button.
+      if (!w.isFront) tb += input.handbrake * cfg.brakes.handbrakeTorque * (this.assists ? this.A.handbrakeScale : 1);
+      w.brakeTorque = tb;
+    }
+
+    // Stability control (assists on): if the car yaws faster than the steering
+    // asks for, brake the outside front wheel and trim power - like real ESC.
+    // The intervention is low-passed so it eases in and out instead of chattering.
+    let escTarget = 0;
+    const vf = b.velocity.dot(_fwd);
+    const yaw = b.angularVelocity.dot(_up);
+    const caught = Math.abs(this.slipAngle) > this.A.handbrakeSlideCap; // ESC still catches a handbrake slide that goes too far
+    if (this.assists && vf > 8 && this.wheelsInContact >= 3 && (input.handbrake < 0.1 || caught)) {
+      const maxYaw = (this.escGripAt(vf) * G) / vf;
+      const ref = clamp((vf * Math.tan(this.steerIntent)) / cfg.wheelbase, -maxYaw, maxYaw);
+      const over = Math.abs(yaw) - Math.abs(ref) - this.A.escDeadband;
+      if (over > 0 && (Math.sign(yaw) === Math.sign(ref) || Math.abs(ref) < 0.02)) escTarget = over * Math.sign(yaw);
+      // Sideslip: a sliding car can rotate at a 'normal' rate while its tail walks out.
+      const beta = this.slipAngle;
+      if (Math.sign(beta) === -Math.sign(yaw) && Math.abs(beta) > this.A.escSlipAngle) {
+        const slide = (Math.abs(beta) - this.A.escSlipAngle) * this.A.escSlipGain * Math.sign(yaw);
+        if (Math.abs(slide) > Math.abs(escTarget)) escTarget = slide;
+      }
+    }
+    this.escLevel += (escTarget - this.escLevel) * Math.min(1, dt * 15);
+    this.escActive = Math.abs(this.escLevel) > 0.01;
+    let escCut = 0;
+    if (this.escActive) {
+      const outsideFront = this.escLevel > 0 ? this.wheels[1] : this.wheels[0];
+      outsideFront.brakeTorque += Math.min(this.A.escMaxTorque, Math.abs(this.escLevel) * this.A.escGain);
+      // Oversteering under braking: ease the rear brakes so the rear tires get their side grip back.
+      const release = 1 - Math.min(0.85, Math.abs(this.escLevel) * 5);
+      this.wheels[2].brakeTorque *= release;
+      this.wheels[3].brakeTorque *= release;
+      escCut = Math.min(0.85, Math.abs(this.escLevel) * 3);
+    }
+
+    // Traction control trims throttle when driven wheels exceed the target slip.
+    const driven = this.fwd ? this.wheels.slice(0, 2) : this.awd ? this.wheels : this.wheels.slice(2);
+    // Also watches combined slip so power can't break the rear loose mid-corner.
+    const dir = this.gear === GEAR_R ? -1 : 1;
+    let excess = -1;
+    for (const w of driven) {
+      // A nearly unloaded tire (front lifting under launch) can't be helped by cutting power.
+      if (!w.inContact || w.load < this.nominalLoad * 0.3) continue;
+      excess = Math.max(excess, w.slipRatio * dir - this.A.tractionSlip);
+      // Only the rear can be powered into a spin; a working front tire is not a reason to cut throttle.
+      if (!w.isFront && w.groundSpeed > 4) excess = Math.max(excess, (w.slip - this.A.stabilitySlip) * 0.25);
+    }
+    if (this.assists && this.throttle > 0.05) {
+      this.tcFactor = excess > 0 ? Math.max(0.02, this.tcFactor - excess * 45 * dt) : Math.min(1, this.tcFactor + 2.5 * dt);
+      this.tcFactor = Math.min(this.tcFactor, 1 - escCut);
+    } else {
+      this.tcFactor = 1;
+    }
+    this.tcActive = this.tcFactor < 0.95 || this.escActive;
+
+    // Engine / clutch state for this step.
+    this.limiterTimer = Math.max(0, this.limiterTimer - dt);
+    const ratio = gb.ratios[this.gear] * gb.finalDrive;
+    const inGear = this.gear !== GEAR_N && !this.isShifting;
+    // A badly damaged car loses power (a smoking engine, a broken intercooler).
+    const sick = 1 - 0.45 * Math.max(0, this.damage - 0.45) / 0.55;
+    const throttle = this.limiterTimer > 0 ? 0 : this.throttle * this.tcFactor * sick;
+    const wheelRpm = inGear ? this.drivenOmega() * ratio * RPM_PER_RADS : 0;
+
+    let transmitted = 0; // torque at the crank delivered into the gearbox
+    let reflected = 0;   // engine inertia seen by the wheels when locked
+    if (!inGear) {
+      // Free revving.
+      const target = eng.idleRpm + (eng.limiterRpm - eng.idleRpm) * this.throttle;
+      this.rpm += (target - this.rpm) * Math.min(1, dt * (this.throttle > 0 ? 7 : 3.5));
+      this.clutchLocked = false;
+    }
+    // The clutch slips while launching until the wheels catch up with the engine.
+    const launchTarget = this.throttle > 0.02 ? lerp(eng.idleRpm * 1.3, eng.launchRpm, this.throttle) : eng.idleRpm;
+    const lock = this.clutchLocked
+      ? wheelRpm >= eng.idleRpm * 0.9
+      : wheelRpm >= Math.max(eng.idleRpm * 1.05, Math.min(launchTarget, this.rpm) * 0.97);
+    if (!inGear) {
+      // handled above
+    } else if (lock) {
+      // Clutch locked: engine speed is tied to the wheels.
+      this.clutchLocked = true;
+      this.rpm = wheelRpm;
+      const drive = sampleCurve(eng.torqueCurve, this.rpm) * throttle;
+      const drag = eng.engineBrake * this.rpm * (1 - this.throttle);
+      transmitted = drive - drag;
+      reflected = eng.inertia * ratio * ratio;
+    } else {
+      // Slipping clutch (launch / crawling): engine held near launch rpm.
+      this.clutchLocked = false;
+      this.rpm += (Math.max(launchTarget, wheelRpm) - this.rpm) * Math.min(1, dt * 9);
+      transmitted = this.throttle > 0.02 ? sampleCurve(eng.torqueCurve, this.rpm) * throttle : 0;
+    }
+    if (this.rpm >= eng.limiterRpm) {
+      this.limiterTimer = 0.07;
+      this.rpm = Math.min(this.rpm, eng.limiterRpm + 150);
+    }
+    this.rpm = Math.max(this.rpm, eng.idleRpm * 0.9);
+    this.engineTorque = transmitted;
+
+    const carrierTorque = transmitted * ratio * gb.efficiency;
+    const frontShare = this.frontShare;
+    const fourByFour = this.awd && !this.fwd;
+    const [fl, fr, rl, rr] = this.wheels;
+    for (const w of this.wheels) {
+      const share = w.isFront ? frontShare : 1 - frontShare;
+      w.inertia = cfg.wheelInertia + reflected * share * 0.5;
+    }
+
+    // Sub-stepped wheel spin: tire force integrated implicitly so stiff tires stay stable.
+    for (let i = 0; i < WHEEL_SUBSTEPS; i++) {
+      const tf = carrierTorque * frontShare * 0.5;
+      const tr = carrierTorque * (1 - frontShare) * 0.5;
+      const lockF = frontShare > 0 ? dtc.lsdFront * (fl.omega - fr.omega) : 0;
+      const lockR = frontShare < 1 ? dtc.lsdRear * (rl.omega - rr.omega) : 0;
+      const center = fourByFour ? dtc.centerCoupling * ((fl.omega + fr.omega) - (rl.omega + rr.omega)) * 0.5 : 0;
+      fl.driveTorque = frontShare > 0 ? tf - lockF - center * 0.5 : 0;
+      fr.driveTorque = frontShare > 0 ? tf + lockF - center * 0.5 : 0;
+      rl.driveTorque = frontShare < 1 ? tr - lockR + center * 0.5 : 0;
+      rr.driveTorque = frontShare < 1 ? tr + lockR + center * 0.5 : 0;
+
+      for (const w of this.wheels) this.stepWheel(w, h);
+    }
+
+    for (const w of this.wheels) {
+      w.fx = w.fxSum / WHEEL_SUBSTEPS;
+      w.fy = w.fySum / WHEEL_SUBSTEPS;
+    }
+  }
+
+  stepWheel(w, h) {
+    const R = w.radius;
+    let denom = w.inertia / h;
+    let net = w.driveTorque - Math.sign(w.omega) * 1.5; // bearing drag
+
+    if (w.inContact) {
+      const refSpeed = Math.max(Math.abs(w.vLong), 2.0);
+      w.slipRatio = (w.omega * R - w.vLong) / refSpeed;
+      w.slipAngle = Math.atan2(w.vLat, Math.max(Math.abs(w.vLong), 1.5));
+      tireForce(w.tire, w.grip, w.slipRatio, w.slipAngle, _tire);
+
+      // At low speed, never push harder sideways than needed to stop the slide this step.
+      const fyStop = (Math.abs(w.vLat) * (w.load / G)) / (h * WHEEL_SUBSTEPS);
+      if (Math.abs(_tire.fy) > fyStop) _tire.fy = Math.sign(_tire.fy) * fyStop;
+
+      w.slip = _tire.slip;
+      w.fxSum += _tire.fx;
+      w.fySum += _tire.fy;
+      net -= _tire.fx * R;
+      denom += R * longitudinalStiffness(w.tire, w.grip) * R / refSpeed;
+    } else {
+      w.slipRatio = 0;
+      w.slipAngle = 0;
+      w.slip = 0;
+    }
+
+    let omega = w.omega + net / denom;
+    // Brakes are friction: they slow the wheel towards zero but never reverse it.
+    const brakeDelta = w.brakeTorque / denom;
+    if (omega > 0) omega = Math.max(0, omega - brakeDelta);
+    else omega = Math.min(0, omega + brakeDelta);
+    w.omega = omega;
+  }
+
+  applyTireForces(dt) {
+    const b = this.body;
+    const rollCentre = this.cfg.rollCentre ?? 0.45;
+    const crr = this.cfg.tires.rollingResistance;
+    for (const w of this.wheels) {
+      if (!w.inContact) continue;
+      let fx = w.fx;
+      const roll = Math.min((crr + (w.surfaceDrag || 0)) * w.load, (Math.abs(w.vLong) * w.load) / G / dt);
+      fx -= Math.sign(w.vLong) * roll;
+      _f.copy(w.forward).multiplyScalar(fx).addScaledVector(w.lateral, w.fy);
+      // Suspension geometry (roll centre, anti-dive/squat) reacts part of the tyre force
+      // straight into the chassis: apply it partway up from the contact patch towards the
+      // centre of mass, so cornering, braking and kerbs roll and pitch the body less.
+      _p.copy(w.contactPoint);
+      const h = _q2.subVectors(b.position, w.contactPoint).dot(_up);
+      _p.addScaledVector(_up, h * rollCentre);
+      b.applyForceAtPoint(_f, _p);
+    }
+  }
+
+  // ---------- Handling assist (assists on) ----------
+
+  /**
+   * Arcade-style help layered on the tyre physics: a yaw torque that rotates
+   * the car towards the turn the driver is asking for (capped by what the grip
+   * could sustain), and damping of sideways sliding so the car stays on its
+   * line. Keyboard steering is all-or-nothing; this makes it feel intended.
+   */
+  applyHandlingAssist(input) {
+    const b = this.body;
+    if (this.wheelsInContact < 3 || input.handbrake > 0.1) return;
+    const v = b.velocity.dot(_fwd);
+    if (v < 2) return;
+    const cfg = this.cfg;
+    const yaw = b.angularVelocity.dot(_up);
+    // Braking uses up grip, so ask for less rotation while the brakes are on: the car turns in
+    // progressively instead of pivoting and sliding, and stays catchable on the correction.
+    const brake = input.brake ?? 0;
+    const maxYaw = (this.escGripAt(v) * G * this.A.assistGrip * (1 - this.A.brakeYawCut * brake)) / v;
+    let target = clamp((v * Math.tan(this.steerIntent)) / cfg.wheelbase, -maxYaw, maxYaw);
+    // Counter-steering out of a slide (steer and slip share a sign): on a keyboard that is
+    // always full lock, so read it as "straighten up", not "rotate the other way".
+    const beta = this.slipAngle;
+    if (Math.sign(this.steerIntent) === Math.sign(beta)) {
+      target *= clamp(1 - (Math.abs(beta) - this.A.counterBeta) / this.A.counterRange, this.A.counterFloor, 1);
+    }
+    const limit = this.A.yawTorque * cfg.mass * G * cfg.wheelbase;
+    const torque = clamp((target - yaw) * this.A.yawGain * cfg.inertia.y, -limit, limit);
+    b.applyTorque(_f.copy(_up).multiplyScalar(torque));
+    // Sideways slide damping at the centre of mass.
+    const vLat = b.velocity.dot(_left);
+    const damp = this.A.slideDamp * (1 + brake), dmax = this.A.slideMax * (1 + 0.5 * brake);
+    const fLat = clamp(-vLat * damp * cfg.mass, -dmax * cfg.mass * G, dmax * cfg.mass * G);
+    b.applyForce(_f.copy(_left).multiplyScalar(fLat));
+    // Brake boost: extra deceleration at the centre of mass (no yaw), scaled by the
+    // grip of what the tyres are on, so braking bites hard on tarmac but still punishes gravel and rain.
+    if (input.brake > 0.02 && this.gear !== GEAR_R) {
+      let grip = 0;
+      for (const w of this.wheels) if (w.inContact) grip += w.surfaceGrip * this.weatherGrip(w);
+      const fade = Math.min(1, (v - 2) / 4);
+      const decel = input.brake * this.A.brakeBoost * G * (grip / 4) * fade;
+      // Along the car's nose rather than the velocity: when the car is slipping, this also pulls
+      // the direction of travel back towards where it points, so hard braking settles the car.
+      _f.copy(_fwd);
+      _f.y = 0;
+      const len = _f.length();
+      if (len > 0.1) b.applyForce(_f.multiplyScalar(-decel * cfg.mass / len));
+    }
+  }
+
+  // ---------- Aero & hull ----------
+
+  applyAero(dt = 1 / 240) {
+    const b = this.body;
+    const a = this.cfg.aero;
+    const v = b.velocity;
+    const speed = v.length();
+    // Active aero (2026 rules): on a straight at full throttle the wing flaps flatten (X-mode: less
+    // drag, less downforce); they snap back (Z-mode) the moment the driver brakes or turns in.
+    if (a.active) {
+      const straight = this.throttle > 0.92 && this.brake < 0.05 && Math.abs(this.steerAngle) < 0.045 && speed > (a.active.minSpeed ?? 28);
+      const target = straight ? 1 : 0;
+      this.aeroMode += (target - this.aeroMode) * Math.min(1, dt * (target > this.aeroMode ? 2.5 : 14));
+    }
+    if (speed < 0.1) return;
+    const x = a.active ? this.aeroMode : 0;
+    const dragArea = a.dragArea * (1 - x * (1 - (a.active?.drag ?? 1))), liftArea = a.liftArea * (1 - x * (1 - (a.active?.lift ?? 1)));
+    b.applyForce(_f.copy(v).multiplyScalar(-0.5 * a.airDensity * dragArea * speed));
+
+    const vf = Math.max(0, v.dot(_fwd));
+    const down = 0.5 * a.airDensity * liftArea * vf * vf;
+    const wf = this.wheels[0].anchor.z;
+    const wr = this.wheels[2].anchor.z;
+    _f.copy(_up).multiplyScalar(-down * a.frontBalance);
+    b.applyForceAtPoint(_f, b.localToWorld(_p.set(0, 0, wf), _p));
+    _f.copy(_up).multiplyScalar(-down * (1 - a.frontBalance));
+    b.applyForceAtPoint(_f, b.localToWorld(_p.set(0, 0, wr), _p));
+  }
+
+  applyHullContacts(dt) {
+    const b = this.body;
+    const hc = this.cfg.hull;
+    const share = b.mass / 4;
+    this.hullContact = false;
+    this.hullHit = 0; // fastest bodywork-into-ground speed this step (rollovers, hard landings)
+    for (const lp of this.hullPoints) {
+      const p = b.localToWorld(lp, _p);
+      const hgt = this.ground.heightAt(p.x, p.z);
+      if (hgt === null) continue;
+      const depth = hgt - p.y;
+      if (depth <= 0 || depth > 1.2) continue;
+      this.hullContact = true;
+      b.pointVelocity(p, _v);
+      if (-_v.y > this.hullHit) { this.hullHit = -_v.y; this.hitPoint.copy(p); this.hitNormal.set(0, 1, 0); }
+      const fn = Math.max(0, hc.stiffness * depth - hc.damping * _v.y);
+      _f.set(0, fn, 0);
+      const vt = Math.hypot(_v.x, _v.z);
+      if (vt > 1e-4) {
+        const ft = Math.min(hc.friction * fn, (vt * share) / dt);
+        _f.x -= (_v.x / vt) * ft;
+        _f.z -= (_v.z / vt) * ft;
+      }
+      b.applyForceAtPoint(_f, p);
+    }
+    this.applyWallContacts(dt);
+  }
+
+  /** Barriers (street circuits): stiff, slightly slippery penalty contacts on the hull points. */
+  applyWallContacts(dt) {
+    this.wallHit = 0;
+    this.wallSlide = 0;
+    if (!this.ground.wallContact) return;
+    const b = this.body;
+    const share = b.mass / 4;
+    for (const lp of this.hullPoints) {
+      const p = b.localToWorld(lp, _p);
+      const c = this.ground.wallContact(p.x, p.z);
+      if (!c) continue;
+      b.pointVelocity(p, _v);
+      const vn = _v.x * c.nx + _v.z * c.nz; // < 0 when moving into the wall
+      const fn = Math.max(0, WALL.stiffness * c.depth - WALL.damping * vn);
+      _f.set(c.nx * fn, 0, c.nz * fn);
+      const tx = _v.x - c.nx * vn;
+      const tz = _v.z - c.nz * vn;
+      const vt = Math.hypot(tx, tz);
+      if (vt > 1e-4) {
+        const ft = Math.min(WALL.friction * fn, (vt * share) / dt);
+        _f.x -= (tx / vt) * ft;
+        _f.z -= (tz / vt) * ft;
+      }
+      // Barriers push at bumper height: apply at CG level so a hit yaws the car
+      // (realistic) without levering it onto its roof or tipping it onto two wheels.
+      p.y = b.position.y;
+      b.applyForceAtPoint(_f, p);
+      if (-vn > this.wallHit) {
+        this.wallHit = -vn;
+        this.wallSlide = vt; // speed along the barrier (scraping)
+        this.hitPoint.set(p.x, p.y, p.z);
+        this.hitNormal.set(c.nx, 0, c.nz);
+      }
+    }
+  }
+}
+return { Vehicle };
+})();
+// =====================================================================
+//  The F1 car: the F4 racer's F1 (body + physics) at full size.
+//  Design space is real-size already (3.5 m wheelbase), so the proportions
+//  are the identity map. Physics retuned for a full-size ~800 kg car.
+// =====================================================================
+const LIVERIES = [
+  { name: 'Rosso Corsa', body: 0xd4141c, second: 0xffd23f },
+  { name: 'Silver Arrow', body: 0xc8ccd2, second: 0x14c3b0 },
+  { name: 'Papaya', body: 0xff7a12, second: 0x1f6fd9 },
+  { name: 'Midnight Racing Blue', body: 0x1b2a6a, second: 0xe0003a },
+  { name: 'British Racing Green', body: 0x0f4a2c, second: 0xd8ff3a },
+  { name: 'Black & Gold', body: 0x111114, second: 0xc9a64a },
+  { name: 'Liquid White', body: 0xf2f2ee, second: 0x3b7bff },
+];
+
+const F1_PROPORTIONS = { scale: 1, squashZ: (z) => z, squashSlope: () => 1, designToModel: ([x, y, z]) => [x, y, z] };
+const WHEELBASE = 3.5;
+
+const F1_SPEC = {
+  proportions: F1_PROPORTIONS,
+  // The F1 assist tune from the F4 racer (ESC torques scaled for the heavier car).
+  assistTune: {
+    sport: { tractionSlip: 0.11, stabilitySlip: 1.08, slideDamp: 1.7, slideMax: 0.34, yawTorque: 0.18, escSlipAngle: 0.11, escDeadband: 0.08, escGain: 9000, escMaxTorque: 3500 },
+    full: { tractionSlip: 0.1, escGain: 9000, escMaxTorque: 3800 },
+  },
+  escGrip: 1.75,
+  escGripAero: 0.00065,
+  escGripMax: 3.2,
+
+  mass: 800,
+  inertia: { x: 1050, y: 1250, z: 330 },
+  wheelbase: WHEELBASE,
+  cgHeight: 0.29,
+  cgToFront: WHEELBASE * 0.55,     // 45 % front / 55 % rear
+
+  wheels: [
+    { id: 'FL', x: 0.95, axle: 'front' },
+    { id: 'FR', x: -0.95, axle: 'front' },
+    { id: 'RL', x: 0.93, axle: 'rear' },
+    { id: 'RR', x: -0.93, axle: 'rear' },
+  ],
+  wheelRadius: 0.36,
+  wheelInertia: 1.2,
+  tireWidth: { front: 0.3, rear: 0.4 },
+
+  suspension: {
+    anchorHeight: 0.18,
+    restLength: 0.3,
+    maxTravel: 0.08,
+    front: { spring: 72000, damperBump: 5200, damperRebound: 6800, antiRoll: 21000 },
+    rear:  { spring: 78000, damperBump: 5500, damperRebound: 7400, antiRoll: 10500 },
+    bumpStopRate: 450000,
+  },
+
+  tires: {
+    // A touch more forgiving past the peak than the mini car: easier to catch on a keyboard.
+    front: { muLat: 1.98, muLong: 1.95, peakSlipAngle: 0.1, peakSlipRatio: 0.1, slide: 0.86, falloff: 1.3 },
+    rear:  { muLat: 2.24, muLong: 2.1, peakSlipAngle: 0.11, peakSlipRatio: 0.1, slide: 0.88, falloff: 1.25 },
+    loadSensitivity: 0.11,
+    rollingResistance: 0.014,
+  },
+
+  steering: { maxAngle: 0.38, limitGrip: 1.55, limitSlip: 0.055, rate: 3.6, returnRate: 5, ackermann: 0.35 },
+  brakes: { maxTorque: 4200, frontBias: 0.6, handbrakeTorque: 1800 },
+
+  engine: {
+    idleRpm: 3800, redlineRpm: 12000, limiterRpm: 12300, launchRpm: 7500, inertia: 0.12,
+    // ~950 hp hybrid V6.
+    torqueCurve: [[3800, 420], [6000, 520], [8000, 560], [9500, 585], [10500, 590], [11300, 575], [12000, 545], [12300, 520]],
+    engineBrake: 0.02,
+  },
+  gearbox: {
+    ratios: [-3.0, 0, 3.25, 2.5, 2.02, 1.7, 1.46, 1.28, 1.13, 1.0],
+    finalDrive: 4.1, efficiency: 0.94, shiftTime: 0.04, upshiftRpm: 11800, downshiftRpm: 8200,
+  },
+  drivetrain: { awdFrontShare: 0, lsdFront: 0, lsdRear: 22, centerCoupling: 0 },
+  aero: { dragArea: 1.2, liftArea: 4.0, frontBalance: 0.43, airDensity: 1.225 },
+
+  hullPoints: [
+    [1.08, 0.17, 2.8], [-1.08, 0.17, 2.8], [0.85, 0.14, -2.1], [-0.85, 0.14, -2.1],
+    [0.78, 0.5, 0.4], [-0.78, 0.5, 0.4], [0.56, 1.05, -2.4], [-0.56, 1.05, -2.4],
+    [0, 0.94, -0.4], [0.28, 0.88, 0.2], [-0.28, 0.88, 0.2], [0, 0.66, 1.0],
+  ],
+  hull: { stiffness: 190000, damping: 10000, friction: 0.5 },
+};
+
+// Visual: same structure as the racer's CarVisual. root follows the physics body (CG frame);
+// the body shell sits in `model`, offset by the vehicle's modelOffset; wheels live in root.
+function buildCar(liveryIdx, vehicle) {
+  const L = LIVERIES[liveryIdx] || LIVERIES[0];
+  const mats = F4.materials.createCarMaterials(L.body, { caliper: 0x1b1b1f });
+  mats.stripe.color.setHex(L.second);
+  // This scene's sky lighting is brighter than the racer's: tone the reflections down so the paint keeps its colour.
+  for (const k of ['paint', 'stripe', 'carbon']) { mats[k].envMapIntensity = 0.5; mats[k].clearcoatRoughness = 0.3; }
+  const root = new THREE.Group();
+  const model = new THREE.Group();
+  model.position.copy(vehicle.modelOffset);
+  root.add(model);
+  const mb = new F4.meshBuilder.MeshBuilder();
+  F4.f1body.buildShell(mb);
+  F4.f1body.buildDetails(mb);
+  model.add(mb.build(mats, F1_PROPORTIONS.squashZ, F1_PROPORTIONS.squashSlope));
+  const anim = F4.f1body.buildAnimatedParts(mats);
+  model.add(anim.group);
+  anim.head.position.set(0, 0.92, -0.02);           // full-size helmet, no bobblehead
+  for (const f of anim.flames) f.visible = false;
+  const wheels = F1_SPEC.wheels.map((w) => {
+    const front = w.axle === 'front';
+    const wheel = F4.wheel.buildWheel(mats, { radius: F1_SPEC.wheelRadius, width: front ? F1_SPEC.tireWidth.front : F1_SPEC.tireWidth.rear, left: w.x > 0, style: 'ySpoke' });
+    root.add(wheel.root);
+    return wheel;
+  });
+  root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return { root, body: root, model, wheels, mats, steering: anim.steering };
 }
 // =====================================================================
 //  Driving: input, vehicle dynamics, surfaces, laps, cameras, audio, HUD
 // =====================================================================
-const CAR = {
-  // CG sits 2.0 m behind the front axle (44 % front weight, like a real F1 car).
-  mass: 800, Iz: 1150, a: 2.0, b: 1.6, hCG: 0.3, trackW: 1.58,
-  power: 760e3, maxDrive: 15500, ClA: 3.9, CdA: 1.25, aeroFront: 0.42, rho: 1.2,
-  // Wider rear tyres: more cornering stiffness and a touch more grip -> stable, mild understeer at the limit.
-  mu: 1.78, muRear: 1.05, B: 12, BRear: 15, C: 1.45, brakeMu: 0.98, frontBrake: 0.58,
+const RPM_MAX = 12300, RPM_IDLE = 3800;
+// Surfaces as the F4 physics sees them (grip multiplier, rolling drag).
+const SURF_PHYS = {
+  [SURF.road]: { kind: 'asphalt', grip: 1, drag: 0 }, [SURF.kerb]: { kind: 'kerb', grip: 0.97, drag: 0 },
+  [SURF.asphalt]: { kind: 'paint', grip: 0.95, drag: 0.004 }, [SURF.gravel]: { kind: 'gravel', grip: 0.5, drag: 0.32 },
+  [SURF.grass]: { kind: 'grass', grip: 0.55, drag: 0.06 },
 };
-CAR.L = CAR.a + CAR.b;
-const G = 9.81;
-const SURF_GRIP = { [SURF.road]: 1, [SURF.kerb]: 0.93, [SURF.asphalt]: 0.95, [SURF.gravel]: 0.5, [SURF.grass]: 0.56 };
-const SURF_ROLL = { [SURF.road]: 0.012, [SURF.kerb]: 0.02, [SURF.asphalt]: 0.015, [SURF.gravel]: 0.55, [SURF.grass]: 0.11 };
-const GEAR_TOP = [24, 35, 46, 57, 67, 77, 87, 99];   // m/s at the 12 500 rpm limiter in each gear
-const RPM_MAX = 12500, RPM_IDLE = 4200;
 
 // ---------------------------------------------------------------------
 //  Input
@@ -1768,9 +3717,9 @@ function readInput(dt, speed) {
   if (!analog || kL || kR || kT || kB) {
     // Keyboard: ramp inputs so taps are progressive rather than binary.
     const target = (kL ? 1 : 0) - (kR ? 1 : 0);
-    const rate = target === 0 || Math.sign(target) !== Math.sign(input.steer) ? 7 : 2.6 + 2 / (1 + speed / 25);
+    const rate = target === 0 || Math.sign(target) !== Math.sign(input.steer) ? 6 : 1.6 + 3 / (1 + speed / 15);
     input.steer += clamp(target - input.steer, -rate * dt, rate * dt);
-    input.throttle += clamp((kT ? 1 : 0) - input.throttle, -9 * dt, 5 * dt);
+    input.throttle += clamp((kT ? 1 : 0) - input.throttle, -9 * dt, 3 * dt);
     input.brake += clamp((kB ? 1 : 0) - input.brake, -12 * dt, 9 * dt);
   } else {
     input.steer += (st - input.steer) * Math.min(1, dt * 20);
@@ -1786,41 +3735,62 @@ function padRelease(k) { padState[k] = false; }
 // ---------------------------------------------------------------------
 const car = {
   x: 0, z: 0, y: 0, heading: 0, vF: 0, vL: 0, yaw: 0, steer: 0,
-  pitch: 0, roll: 0, bodyPitch: 0, bodyRoll: 0, ax: 0, ay: 0,
-  gear: 1, rpm: RPM_IDLE, shiftCut: 0, reverse: false, reverseHold: 0,
-  wheelSpin: 0, hint: -1, surf: SURF.road, wheelSurf: [0, 0, 0, 0], slip: 0, bump: 0, onKerb: 0,
-  tc: true, impact: 0,
+  gear: '1', rpm: RPM_IDLE, hint: -1, surf: SURF.road, wheelSurf: [0, 0, 0, 0], slip: 0, onKerb: 0,
+  assist: 1, impact: 0,
 };
+const ASSIST_NAMES = ['OFF', 'SPORT', 'FULL'];
+
+// The track as the F4 physics' ground: height, surface and barrier contacts.
+const ground = {
+  heightAt(x, z) { return S ? surfaceHeight(x, z, car.hint).y : 0; },
+  surfaceAt(x, z) { return S ? SURF_PHYS[surfaceHeight(x, z, car.hint).surf] : null; },
+  wallContact(x, z) {
+    if (!S || !state.settings.barriers) return null;
+    const p = project(x, z, car.hint);
+    if (!p) return null;
+    const k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
+    const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 0.15;
+    const depth = Math.abs(p.d) - lim;
+    if (depth <= 0) return null;
+    return { nx: -leftX(p.i) * side, nz: -leftZ(p.i) * side, depth: Math.min(depth, 0.6) };
+  },
+};
+const vehicle = new F4.vehicle.Vehicle(ground, F1_SPEC);
+vehicle.awd = false;
+vehicle.assistLevel = car.assist;
+
 let carModel = null;
 function ensureCarModel() {
   if (carModel && carModel.livery === state.settings.livery) return;
   if (carModel) { scene.remove(carModel.root); carModel.root.traverse((o) => o.geometry && o.geometry.dispose()); }
-  carModel = buildCar(state.settings.livery);
+  carModel = buildCar(state.settings.livery, vehicle);
   carModel.livery = state.settings.livery;
   scene.add(carModel.root);
 }
 
+function placeAt(i, lat) {
+  car.hint = i;
+  const x = S.px[i] + leftX(i) * lat, z = S.pz[i] + leftZ(i) * lat;
+  vehicle.reset(new THREE.Vector3(x, surfaceHeight(x, z, i).y, z), Math.atan2(S.tx[i], S.tz[i]));
+  syncCar();
+}
 function placeOnGrid() {
-  const back = Math.round(10 / S.step);
-  const i = (S.n - back) % S.n;
-  const lat = Math.min(3.2, S.w[i] / 4);
-  car.x = S.px[i] + leftX(i) * lat; car.z = S.pz[i] + leftZ(i) * lat;
-  car.heading = Math.atan2(S.tx[i], S.tz[i]);
-  car.vF = car.vL = car.yaw = car.steer = 0;
-  car.gear = 1; car.rpm = RPM_IDLE; car.reverse = false; car.hint = i;
-  car.y = surfaceHeight(car.x, car.z, i).y;
+  const i = (S.n - Math.round(10 / S.step)) % S.n;
+  placeAt(i, Math.min(3.2, S.w[i] / 4));
 }
 function resetCar() {
   if (!S || mode !== 'drive') return;
   const p = project(car.x, car.z, car.hint);
   if (!p) return;
-  const i = p.i;
-  const lat = clamp(p.d, -S.w[i] / 2 + 1.5, S.w[i] / 2 - 1.5);
-  car.x = S.px[i] + leftX(i) * lat; car.z = S.pz[i] + leftZ(i) * lat;
-  car.heading = Math.atan2(S.tx[i], S.tz[i]);
-  car.vF = car.vL = car.yaw = 0; car.reverse = false; car.gear = 1; car.hint = i;
+  placeAt(p.i, clamp(p.d, -S.w[p.i] / 2 + 1.5, S.w[p.i] / 2 - 1.5));
   lap.valid = false;
   showToast('RESET — LAP INVALID', '#ffb800');
+}
+function cycleAssists() {
+  car.assist = (car.assist + 2) % 3;          // SPORT -> OFF -> FULL -> SPORT
+  vehicle.assistLevel = car.assist;
+  $('tcState').textContent = ASSIST_NAMES[car.assist];
+  showToast('ASSISTS ' + ASSIST_NAMES[car.assist]);
 }
 
 // Surface type and height under a world point.
@@ -1855,159 +3825,42 @@ function surfaceHeight(x, z, hint) {
 }
 
 // ---------------------------------------------------------------------
-//  Vehicle dynamics: bicycle model with Pacejka-style tyres, load transfer,
-//  downforce, friction circles per axle, traction control and ABS.
+//  One physics step of the F4 vehicle, then mirror its state into `car`
+//  (position, heading, speeds) for the camera, laps, HUD and audio.
 // ---------------------------------------------------------------------
-function tyreForce(alpha, Fz, mu, B) {
-  return -mu * Fz * Math.sin(CAR.C * Math.atan(B * alpha));
-}
+const ctrl = { throttle: 0, brake: 0, steer: 0, handbrake: 0, shiftUp: false, shiftDown: false };
+const _fw = new THREE.Vector3(), _lf = new THREE.Vector3();
 function physicsStep(dt) {
-  const c = car;
-  const speed = Math.hypot(c.vF, c.vL);
-  // Steering lock shrinks with speed so keyboard play stays inside the tyre's window.
-  const lock = Math.min(0.36, 0.04 + 5 / (Math.abs(c.vF) + 14));
-  const targetSteer = input.steer * lock;
-  c.steer += clamp(targetSteer - c.steer, -2.2 * dt, 2.2 * dt);
-
-  // Gear / reverse logic.
-  let thr = input.throttle, brk = input.brake;
-  if (!c.reverse && c.vF < 0.6 && brk > 0.5 && thr < 0.05) { c.reverseHold += dt; if (c.reverseHold > 0.35) c.reverse = true; }
-  else if (!c.reverse) c.reverseHold = 0;
-  if (c.reverse && thr > 0.1 && c.vF > -0.6) { c.reverse = false; c.reverseHold = 0; }
-  if (c.reverse) { const t = thr; thr = brk; brk = t; }
-
-  // Normal loads: static + aero + longitudinal transfer.
-  const down = 0.5 * CAR.rho * CAR.ClA * speed * speed;
-  const W = CAR.mass * G;
-  let Fzf = W * CAR.b / CAR.L + down * CAR.aeroFront - CAR.mass * c.ax * CAR.hCG / CAR.L;
-  let Fzr = W * CAR.a / CAR.L + down * (1 - CAR.aeroFront) + CAR.mass * c.ax * CAR.hCG / CAR.L;
-  Fzf = Math.max(Fzf, 200); Fzr = Math.max(Fzr, 200);
-  const gF = (SURF_GRIP[c.wheelSurf[0]] + SURF_GRIP[c.wheelSurf[1]]) / 2;
-  const gR = (SURF_GRIP[c.wheelSurf[2]] + SURF_GRIP[c.wheelSurf[3]]) / 2;
-  const load = (Fz) => 1 - 0.07 * (Fz / 4500 - 1);       // mild load sensitivity
-  const muF = CAR.mu * gF * load(Fzf / 2), muR = CAR.mu * CAR.muRear * gR * load(Fzr / 2);
-
-  // Slip angles.
-  const vRef = Math.max(Math.abs(c.vF), 3);
-  const dir = c.vF >= 0 ? 1 : -1;
-  const aF = Math.atan2(c.vL + CAR.a * c.yaw, vRef) - c.steer * dir;
-  const aR = Math.atan2(c.vL - CAR.b * c.yaw, vRef);
-  let Fyf = tyreForce(aF, Fzf, muF, CAR.B), Fyr = tyreForce(aR, Fzr, muR, CAR.BRear);
-
-  // Longitudinal: power-limited drive on the rear, split braking, shift cut.
-  c.shiftCut = Math.max(0, c.shiftCut - dt);
-  let drive = 0;
-  if (c.reverse) drive = -thr * (c.vF > -11 ? 5200 : 0);
-  else if (c.shiftCut <= 0) drive = thr * Math.min(CAR.maxDrive, CAR.power / Math.max(Math.abs(c.vF), 6));
-  const brakeTotal = brk * CAR.brakeMu * (muF * Fzf + muR * Fzr);
-  const bsign = Math.abs(c.vF) > 0.3 ? Math.sign(c.vF) : 0;
-  let Fxf = -bsign * brakeTotal * CAR.frontBrake;
-  let Fxr = drive - bsign * brakeTotal * (1 - CAR.frontBrake);
-  if (!thr && !brk && !c.reverse) Fxr -= Math.sign(c.vF) * Math.min(1800, Math.abs(c.vF) * 400);   // engine braking
-  if (c.tc) {
-    // Assists: traction control trims power, and cornering brake control eases the rear brakes,
-    // so the rear tyres always keep enough grip to hold the line (the rear never steps out under braking).
-    const room = Math.sqrt(Math.max(0, (muR * Fzr) ** 2 - Fyr * Fyr)) * 0.94;
-    if (!c.reverse && drive > 0) Fxr = Math.min(Fxr, room);
-    else if (Fxr < 0) Fxr = Math.max(Fxr, -room);
-  }
-  // ABS on the fronts: braking never takes more than the grip left after cornering (keeping at
-  // least 70 % of full braking), so the car still turns while trail-braking.
-  if (Fxf < 0) {
-    const capF = muF * Fzf;
-    Fxf = Math.max(Fxf, -Math.max(0.7 * capF, Math.sqrt(Math.max(0, capF * capF - Fyf * Fyf))));
-  }
-  // Friction circles (without assists, wheelspin and rear braking eat lateral grip).
-  const circle = (Fx, Fy, cap) => {
-    Fx = clamp(Fx, -cap, cap);
-    const room = Math.sqrt(Math.max(0, cap * cap - Fx * Fx));
-    return [Fx, clamp(Fy, -room, room)];
-  };
-  [Fxf, Fyf] = circle(Fxf, Fyf, muF * Fzf);
-  [Fxr, Fyr] = circle(Fxr, Fyr, muR * Fzr);
-
-  // Resistances: aero drag, rolling/surface drag, gravity along the slope.
-  const drag = 0.5 * CAR.rho * CAR.CdA * c.vF * Math.abs(c.vF);
-  const crr = (SURF_ROLL[c.wheelSurf[0]] + SURF_ROLL[c.wheelSurf[1]] + SURF_ROLL[c.wheelSurf[2]] + SURF_ROLL[c.wheelSurf[3]]) / 4;
-  const roll = Math.abs(c.vF) > 0.05 ? Math.sign(c.vF) * crr * W * Math.min(1, Math.abs(c.vF) / 2) : 0;
-  const slopeF = -W * Math.sin(c.pitch), slopeL = -W * Math.sin(c.roll);   // gravity pulls toward the low side
-
-  const cs = Math.cos(c.steer), sn = Math.sin(c.steer);
-  const FxTot = Fxf * cs - Fyf * sn + Fxr - drag - roll + slopeF;
-  const FyTot = Fyf * cs + Fxf * sn + Fyr + slopeL;
-  const Mz = CAR.a * (Fyf * cs + Fxf * sn) - CAR.b * Fyr;
-  c.ax = lerp(c.ax, FxTot / CAR.mass, Math.min(1, dt * 12));
-  c.ay = FyTot / CAR.mass;
-  c.vF += (FxTot / CAR.mass + c.yaw * c.vL) * dt;
-  c.vL += (FyTot / CAR.mass - c.yaw * c.vF) * dt;
-  c.yaw += (Mz / CAR.Iz) * dt;
-  // Low speed: blend toward rolling kinematics so the car doesn't jitter or spin on the spot.
-  const kin = clamp(1 - Math.abs(c.vF) / 4, 0, 1);
-  if (kin > 0) {
-    c.yaw = lerp(c.yaw, (c.vF * Math.tan(c.steer)) / CAR.L, kin * Math.min(1, dt * 18));
-    c.vL *= 1 - kin * Math.min(1, dt * 10);
-    if (!thr && !c.reverse && Math.abs(c.vF) < 0.4 && brk > 0.1) c.vF = 0;
-  }
-  c.heading += c.yaw * dt;
-  const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
-  const lx = Math.cos(c.heading), lz = -Math.sin(c.heading);
-  c.x += (fx * c.vF + lx * c.vL) * dt;
-  c.z += (fz * c.vF + lz * c.vL) * dt;
-  c.slip = Math.max(Math.abs(aF), Math.abs(aR)) - 0.09 + (Math.abs(Fxr) > 0.97 * muR * Fzr ? 0.05 : 0);
-
-  // Gearbox (sound + HUD; power delivery is smoothed above).
-  if (!c.reverse) {
-    const v = Math.max(0, c.vF);
-    c.rpm = clamp((v / GEAR_TOP[c.gear - 1]) * RPM_MAX, RPM_IDLE, RPM_MAX);
-    if (c.rpm > 11900 && c.gear < 8) { c.gear++; c.shiftCut = 0.05; }
-    else if (c.gear > 1 && (v / GEAR_TOP[c.gear - 2]) * RPM_MAX < 9800) c.gear--;
-    if (c.gear === 1 && v < 2 && thr > 0) c.rpm = Math.max(c.rpm, RPM_IDLE + thr * 5000);
-  } else c.rpm = clamp(RPM_IDLE + Math.abs(c.vF) * 500, RPM_IDLE, 9000);
+  const held = heldOnGrid();
+  ctrl.throttle = held ? 0 : input.throttle;
+  ctrl.brake = held ? 1 : input.brake;
+  ctrl.steer = -input.steer;                     // F4 steer: + = right
+  vehicle.step(dt, ctrl);
+  syncCar();
+  if (vehicle.wallHit > 4) { lap.valid = false; car.impact = Math.max(car.impact, Math.min(1, vehicle.wallHit / 25)); audio.thump(Math.min(1, vehicle.wallHit / 30)); }
 }
-
-// Wheels on the ground: surfaces, ride height, pitch/roll from terrain, barrier contact.
-const WHEEL_OFF = [[0.79, CAR.a], [-0.79, CAR.a], [0.77, -CAR.b], [-0.77, -CAR.b]];   // [left offset, forward offset]
-function groundStep(dt) {
-  const c = car;
-  const fx = Math.sin(c.heading), fz = Math.cos(c.heading), lx = Math.cos(c.heading), lz = -Math.sin(c.heading);
-  const hs = [];
-  let kerb = 0;
-  for (let w = 0; w < 4; w++) {
-    const [ox, oz] = WHEEL_OFF[w];
-    const r = surfaceHeight(c.x + lx * ox + fx * oz, c.z + lz * ox + fz * oz, c.hint);
-    c.wheelSurf[w] = r.surf; hs.push(r.y);
-    if (r.surf === SURF.kerb) kerb++;
-  }
-  const centre = surfaceHeight(c.x, c.z, c.hint);
-  if (centre.p) c.hint = centre.p.i;
-  c.surf = centre.surf;
+function syncCar() {
+  const b = vehicle.body, c = car;
+  _fw.set(0, 0, 1).applyQuaternion(b.quaternion);
+  _lf.set(1, 0, 0).applyQuaternion(b.quaternion);
+  c.x = b.position.x; c.z = b.position.z; c.y = b.position.y - F1_SPEC.cgHeight;
+  c.heading = Math.atan2(_fw.x, _fw.z);
+  c.vF = b.velocity.dot(_fw); c.vL = b.velocity.dot(_lf);
+  c.yaw = b.angularVelocity.y;
+  c.steer = vehicle.steerAngle;
+  c.rpm = vehicle.rpm; c.gear = vehicle.gearLabel; c.reverse = c.gear === 'R';
+  const p = project(c.x, c.z, c.hint);
+  if (p) { c.hint = p.i; }
+  let kerb = 0, slip = 0;
+  vehicle.wheels.forEach((w, i) => {
+    const sf = w.surface === 'kerb' ? SURF.kerb : w.surface === 'gravel' ? SURF.gravel : w.surface === 'grass' ? SURF.grass : w.surface === 'paint' ? SURF.asphalt : SURF.road;
+    c.wheelSurf[i] = sf;
+    if (sf === SURF.kerb) kerb++;
+    slip = Math.max(slip, Math.abs(w.vLat || 0) / Math.max(4, w.groundSpeed || 0));
+  });
   c.onKerb = kerb;
-  const front = (hs[0] + hs[1]) / 2, rear = (hs[2] + hs[3]) / 2, left = (hs[0] + hs[2]) / 2, right = (hs[1] + hs[3]) / 2;
-  const tPitch = Math.atan2(front - rear, CAR.L), tRoll = Math.atan2(left - right, CAR.trackW);
-  c.pitch = lerp(c.pitch, tPitch, Math.min(1, dt * 20));
-  c.roll = lerp(c.roll, tRoll, Math.min(1, dt * 20));
-  c.y = lerp(c.y, (front + rear) / 2, Math.min(1, dt * 30));
-  // Barriers.
-  if (centre.p && state.settings.barriers) {
-    const p = centre.p, k = p.d > 0 ? 0 : 1, side = p.d > 0 ? 1 : -1;
-    const lim = Math.min(S.bar[k][p.i], S.lim[k][p.i]) - 1.05;
-    if (Math.abs(p.d) > lim) {
-      const nx = leftX(p.i) * side, nz = leftZ(p.i) * side;          // outward normal
-      const pen = Math.abs(p.d) - lim;
-      c.x -= nx * pen; c.z -= nz * pen;
-      let vx = fx * c.vF + lx * c.vL, vz = fz * c.vF + lz * c.vL;
-      const vn = vx * nx + vz * nz;
-      if (vn > 0) {
-        vx -= nx * vn * 1.3; vz -= nz * vn * 1.3;
-        const keep = clamp(1 - vn / 60, 0.55, 0.92);
-        vx *= keep; vz *= keep;
-        c.vF = vx * fx + vz * fz; c.vL = vx * lx + vz * lz;
-        c.yaw *= 0.5;
-        c.impact = Math.max(c.impact, Math.min(1, vn / 25));
-        if (vn > 4) { lap.valid = false; audio.thump(Math.min(1, vn / 30)); }
-      }
-    }
-  }
+  c.slip = slip - 0.08;
+  c.surf = surfaceHeight(c.x, c.z, c.hint).surf;
 }
 
 // ---------------------------------------------------------------------
@@ -2137,8 +3990,8 @@ function updateCamera(dt) {
   } else if (mode === 'ONBOARD') {
     carModel.body.updateWorldMatrix(true, false);
     // T-cam: just above the airbox, looking over the halo.
-    camera.position.set(0, 1.24, -0.42).applyMatrix4(carModel.body.matrixWorld);
-    camState.look.set(0, 0.9, 14).applyMatrix4(carModel.body.matrixWorld);
+    camera.position.set(0, 0.98, -0.3).applyMatrix4(carModel.body.matrixWorld);
+    camState.look.set(0, 0.62, 14).applyMatrix4(carModel.body.matrixWorld);
     fov = 66 + clamp(speed / 90, 0, 1) * 10;
   } else {
     // TV: hop between trackside cameras set back from the barriers.
@@ -2254,36 +4107,52 @@ function buildMinimap() {
   miniPath = new Path2D();
   for (let i = 0; i <= S.n; i++) { const [a, b] = miniXf(S.px[i % S.n], S.pz[i % S.n]); i ? miniPath.lineTo(a, b) : miniPath.moveTo(a, b); }
   miniPath.closePath();
+  miniBg = null;
 }
+let miniBg = null;
 function drawMinimap() {
   const cv = $('mini'), g = cv.getContext('2d');
+  if (!miniBg) {
+    miniBg = document.createElement('canvas');
+    miniBg.width = cv.width; miniBg.height = cv.height;
+    const b = miniBg.getContext('2d');
+    b.lineJoin = 'round';
+    b.strokeStyle = 'rgba(255,255,255,.18)'; b.lineWidth = 14; b.stroke(miniPath);
+    b.strokeStyle = '#e8eaee'; b.lineWidth = 5; b.stroke(miniPath);
+    const [sx, sz] = miniXf(S.px[0], S.pz[0]);
+    b.fillStyle = '#e10600'; b.fillRect(sx - 7, sz - 7, 14, 14);
+  }
   g.clearRect(0, 0, cv.width, cv.height);
-  g.lineJoin = 'round';
-  g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 14; g.stroke(miniPath);
-  g.strokeStyle = '#e8eaee'; g.lineWidth = 5; g.stroke(miniPath);
-  const [sx, sz] = miniXf(S.px[0], S.pz[0]);
-  g.fillStyle = '#e10600'; g.fillRect(sx - 7, sz - 7, 14, 14);
+  g.drawImage(miniBg, 0, 0);
   const [cx, cz] = miniXf(car.x, car.z);
   g.fillStyle = '#ffb800'; g.beginPath(); g.arc(cx, cz, 11, 0, 7); g.fill();
   g.strokeStyle = '#000'; g.lineWidth = 3; g.stroke();
 }
-function updateHUD() {
+// DOM writes only when a value changes, at most 20 times a second.
+let hudT = 0;
+const hudCache = {};
+function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
+function updateHUD(dt) {
+  hudT += dt;
+  if (hudT < 0.05) return;
+  hudT = 0;
   const c = car;
   const kmh = Math.abs(c.vF) * 3.6;
-  $('spd').firstChild.nodeValue = Math.round(kmh);
-  $('gear').textContent = c.reverse ? 'R' : kmh < 1 && input.throttle < 0.05 ? 'N' : c.gear;
+  const spd = String(Math.round(kmh));
+  if (hudCache.spd !== spd) { hudCache.spd = spd; $('spd').firstChild.nodeValue = spd; }
+  setText('gear', String(c.gear));
   const lit = Math.round(((c.rpm - RPM_IDLE) / (RPM_MAX - RPM_IDLE)) * 15);
-  [...rpmEl.children].forEach((el, i) => { el.className = i < lit ? (i < 5 ? 'g' : i < 10 ? 'r' : 'b') : ''; });
-  $('thr').firstChild.style.width = (input.throttle * 100) + '%';
-  $('brk').firstChild.style.width = (input.brake * 100) + '%';
-  $('surf').textContent = SURF_NAMES[c.surf];
+  if (hudCache.lit !== lit) { hudCache.lit = lit; [...rpmEl.children].forEach((el, i) => { el.className = i < lit ? (i < 5 ? 'g' : i < 10 ? 'r' : 'b') : ''; }); }
+  $('thr').firstChild.style.width = Math.round(input.throttle * 100) + '%';
+  $('brk').firstChild.style.width = Math.round(input.brake * 100) + '%';
+  setText('surf', SURF_NAMES[c.surf]);
   $('surf').style.color = c.surf === SURF.gravel || c.surf === SURF.grass ? '#ffb800' : '';
-  $('lapNo').textContent = 'LAP ' + lap.n;
-  $('lapState').textContent = !lap.running ? 'GRID' : lap.valid ? '' : 'INVALID';
-  $('cur').textContent = fmtLap(lap.t);
+  setText('lapNo', 'LAP ' + lap.n);
+  setText('lapState', !lap.running ? 'GRID' : lap.valid ? '' : 'INVALID');
+  setText('cur', fmtLap(lap.t));
   $('cur').style.color = lap.valid ? '' : '#ff6b6b';
-  $('last').textContent = lap.last ? fmtLap(lap.last.t) + (lap.last.valid ? '' : ' ✕') : '–';
-  $('best').textContent = fmtLap(lap.best);
+  setText('last', lap.last ? fmtLap(lap.last.t) + (lap.last.valid ? '' : ' ✕') : '–');
+  setText('best', fmtLap(lap.best));
   drawMinimap();
 }
 // =====================================================================
@@ -2809,7 +4678,7 @@ addEventListener('keydown', (e) => {
     else if (e.code === 'KeyC') cycleCamera();
     else if (e.code === 'KeyR') resetCar();
     else if (e.code === 'KeyM') { audio.on = !audio.on; showToast(audio.on ? 'SOUND ON' : 'SOUND OFF'); }
-    else if (e.code === 'KeyT') { car.tc = !car.tc; $('tcState').textContent = car.tc ? 'ON' : 'OFF'; showToast('ASSISTS ' + (car.tc ? 'ON' : 'OFF')); }
+    else if (e.code === 'KeyT') cycleAssists();
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     return;
   }
@@ -2839,7 +4708,6 @@ function enterDrive() {
   cursorRing.visible = ghostLine.visible = false;
   ensureCarModel();
   carModel.root.visible = true;
-  heldPos = null;
   placeOnGrid();
   resetLap();
   for (let s = 0; s < 3; s++) { $('sec' + s).textContent = 'S' + (s + 1); $('sec' + s).className = ''; }
@@ -2880,24 +4748,35 @@ addEventListener('resize', resize);
 const PHYS_DT = 1 / 240;
 let acc = 0, last = performance.now();
 const _focus = new THREE.Vector3();
+// Adaptive resolution: drop render scale when frames run long, raise it again when there is headroom.
+const MAX_PR = Math.min(devicePixelRatio, 1.5);
+let pixelRatio = Math.min(MAX_PR, 1.25), frameAvg = 16, prCooldown = 0;
+function adaptResolution(ms) {
+  frameAvg += (ms - frameAvg) * 0.05;
+  if ((prCooldown -= ms) > 0) return;
+  let next = pixelRatio;
+  if (frameAvg > 21 && pixelRatio > 0.6) next = Math.max(0.6, pixelRatio - 0.15);
+  else if (frameAvg < 13 && pixelRatio < MAX_PR) next = Math.min(MAX_PR, pixelRatio + 0.1);
+  if (next !== pixelRatio) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); resize(); prCooldown = 1500; }
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const ms = now - last;
+  const dt = Math.min(0.05, ms / 1000);
   last = now;
+  if (ms < 200) adaptResolution(ms);
   if (mode === 'drive') {
     readInput(dt, Math.abs(car.vF));
     startStep(dt);
     acc += dt;
     while (acc >= PHYS_DT) {
       physicsStep(PHYS_DT);
-      if (heldOnGrid()) { car.vF = car.vL = car.yaw = 0; placeHeld(); }
-      groundStep(PHYS_DT);
       acc -= PHYS_DT;
     }
     lapStep(dt);
-    poseCar(dt);
+    poseCar();
     updateCamera(dt);
-    updateHUD();
+    updateHUD(dt);
     _focus.set(car.x, car.y, car.z);
   } else {
     controls.update();
@@ -2913,28 +4792,19 @@ function frame(now) {
   sun.position.copy(_focus).addScaledVector(sunDir, 450);
   renderer.render(scene, camera);
 }
-let heldPos = null;
-function placeHeld() {
-  if (!heldPos) heldPos = { x: car.x, z: car.z, h: car.heading };
-  car.x = heldPos.x; car.z = heldPos.z; car.heading = heldPos.h;
-}
-function poseCar(dt) {
-  if (!heldOnGrid()) heldPos = null;
-  const m = carModel, c = car;
-  m.root.position.set(c.x, c.y, c.z);
-  m.root.rotation.set(-c.pitch, c.heading, c.roll, 'YXZ');
-  // Body squat/dive and roll from accelerations; kerb chatter.
-  c.bodyPitch = lerp(c.bodyPitch, clamp(-c.ax * 0.0003, -0.02, 0.02), Math.min(1, dt * 10));
-  c.bodyRoll = lerp(c.bodyRoll, clamp(c.ay * 0.00035, -0.025, 0.025), Math.min(1, dt * 10));
-  const chatter = c.onKerb ? (Math.random() - 0.5) * 0.012 * clamp(Math.abs(c.vF) / 30, 0, 1) : 0;
-  m.body.rotation.set(c.bodyPitch, 0, c.bodyRoll + chatter);
-  m.body.position.y = chatter * 2;
-  c.wheelSpin += (c.vF / 0.36) * dt;
-  for (const w of m.wheels) {
-    w.wheel.rotation.x = c.wheelSpin;
-    if (w.front) w.pivot.rotation.y = c.steer;
+// The visual follows the physics body exactly (CG frame); wheels sit on their suspension.
+function poseCar() {
+  const m = carModel, b = vehicle.body;
+  m.root.position.copy(b.position);
+  m.root.quaternion.copy(b.quaternion);
+  for (let i = 0; i < 4; i++) {
+    const w = vehicle.wheels[i], vis = m.wheels[i];
+    vis.root.position.set(w.anchor.x, w.anchor.y - w.suspensionLength, w.anchor.z);
+    vis.root.rotation.y = w.steer;
+    vis.spin.rotation.x = w.spinAngle;
   }
-  m.mats.rain.emissiveIntensity = input.brake > 0.3 ? 2 : 0;
+  if (m.steering) m.steering.rotation.z = -vehicle.steerAngle * 6;
+  m.mats.tail.emissiveIntensity = vehicle.brake > 0.05 ? 9 : 3;
 }
 
 function boot() {
@@ -2958,13 +4828,12 @@ function boot() {
 }
 // Test hook: lets automated checks step the simulation faster than real time.
 window.__tb = {
-  car, lap, input, start, state, project, physicsStep, camera, controls, get S() { return S; }, get racingLine() { return racingLine; },
-  step(sec) {
+  car, vehicle, lap, input, start, state, project, physicsStep, camera, controls, ensureCarModel, get carModel() { return carModel; }, get S() { return S; }, get racingLine() { return racingLine; },
+  step(sec, keyboard = false) {
     for (let t = 0; t < sec; t += PHYS_DT) {
+      if (keyboard) readInput(PHYS_DT, Math.abs(car.vF));
       startStep(PHYS_DT);
       physicsStep(PHYS_DT);
-      if (heldOnGrid()) { car.vF = car.vL = car.yaw = 0; placeHeld(); }
-      groundStep(PHYS_DT);
       lapStep(PHYS_DT);
     }
   },

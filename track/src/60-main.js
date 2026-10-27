@@ -12,24 +12,35 @@ addEventListener('resize', resize);
 const PHYS_DT = 1 / 240;
 let acc = 0, last = performance.now();
 const _focus = new THREE.Vector3();
+// Adaptive resolution: drop render scale when frames run long, raise it again when there is headroom.
+const MAX_PR = Math.min(devicePixelRatio, 1.5);
+let pixelRatio = Math.min(MAX_PR, 1.25), frameAvg = 16, prCooldown = 0;
+function adaptResolution(ms) {
+  frameAvg += (ms - frameAvg) * 0.05;
+  if ((prCooldown -= ms) > 0) return;
+  let next = pixelRatio;
+  if (frameAvg > 21 && pixelRatio > 0.6) next = Math.max(0.6, pixelRatio - 0.15);
+  else if (frameAvg < 13 && pixelRatio < MAX_PR) next = Math.min(MAX_PR, pixelRatio + 0.1);
+  if (next !== pixelRatio) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); resize(); prCooldown = 1500; }
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const ms = now - last;
+  const dt = Math.min(0.05, ms / 1000);
   last = now;
+  if (ms < 200) adaptResolution(ms);
   if (mode === 'drive') {
     readInput(dt, Math.abs(car.vF));
     startStep(dt);
     acc += dt;
     while (acc >= PHYS_DT) {
       physicsStep(PHYS_DT);
-      if (heldOnGrid()) { car.vF = car.vL = car.yaw = 0; placeHeld(); }
-      groundStep(PHYS_DT);
       acc -= PHYS_DT;
     }
     lapStep(dt);
-    poseCar(dt);
+    poseCar();
     updateCamera(dt);
-    updateHUD();
+    updateHUD(dt);
     _focus.set(car.x, car.y, car.z);
   } else {
     controls.update();
@@ -45,28 +56,19 @@ function frame(now) {
   sun.position.copy(_focus).addScaledVector(sunDir, 450);
   renderer.render(scene, camera);
 }
-let heldPos = null;
-function placeHeld() {
-  if (!heldPos) heldPos = { x: car.x, z: car.z, h: car.heading };
-  car.x = heldPos.x; car.z = heldPos.z; car.heading = heldPos.h;
-}
-function poseCar(dt) {
-  if (!heldOnGrid()) heldPos = null;
-  const m = carModel, c = car;
-  m.root.position.set(c.x, c.y, c.z);
-  m.root.rotation.set(-c.pitch, c.heading, c.roll, 'YXZ');
-  // Body squat/dive and roll from accelerations; kerb chatter.
-  c.bodyPitch = lerp(c.bodyPitch, clamp(-c.ax * 0.0003, -0.02, 0.02), Math.min(1, dt * 10));
-  c.bodyRoll = lerp(c.bodyRoll, clamp(c.ay * 0.00035, -0.025, 0.025), Math.min(1, dt * 10));
-  const chatter = c.onKerb ? (Math.random() - 0.5) * 0.012 * clamp(Math.abs(c.vF) / 30, 0, 1) : 0;
-  m.body.rotation.set(c.bodyPitch, 0, c.bodyRoll + chatter);
-  m.body.position.y = chatter * 2;
-  c.wheelSpin += (c.vF / 0.36) * dt;
-  for (const w of m.wheels) {
-    w.wheel.rotation.x = c.wheelSpin;
-    if (w.front) w.pivot.rotation.y = c.steer;
+// The visual follows the physics body exactly (CG frame); wheels sit on their suspension.
+function poseCar() {
+  const m = carModel, b = vehicle.body;
+  m.root.position.copy(b.position);
+  m.root.quaternion.copy(b.quaternion);
+  for (let i = 0; i < 4; i++) {
+    const w = vehicle.wheels[i], vis = m.wheels[i];
+    vis.root.position.set(w.anchor.x, w.anchor.y - w.suspensionLength, w.anchor.z);
+    vis.root.rotation.y = w.steer;
+    vis.spin.rotation.x = w.spinAngle;
   }
-  m.mats.rain.emissiveIntensity = input.brake > 0.3 ? 2 : 0;
+  if (m.steering) m.steering.rotation.z = -vehicle.steerAngle * 6;
+  m.mats.tail.emissiveIntensity = vehicle.brake > 0.05 ? 9 : 3;
 }
 
 function boot() {
@@ -90,13 +92,12 @@ function boot() {
 }
 // Test hook: lets automated checks step the simulation faster than real time.
 window.__tb = {
-  car, lap, input, start, state, project, physicsStep, camera, controls, get S() { return S; }, get racingLine() { return racingLine; },
-  step(sec) {
+  car, vehicle, lap, input, start, state, project, physicsStep, camera, controls, ensureCarModel, get carModel() { return carModel; }, get S() { return S; }, get racingLine() { return racingLine; },
+  step(sec, keyboard = false) {
     for (let t = 0; t < sec; t += PHYS_DT) {
+      if (keyboard) readInput(PHYS_DT, Math.abs(car.vF));
       startStep(PHYS_DT);
       physicsStep(PHYS_DT);
-      if (heldOnGrid()) { car.vF = car.vL = car.yaw = 0; placeHeld(); }
-      groundStep(PHYS_DT);
       lapStep(PHYS_DT);
     }
   },

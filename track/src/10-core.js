@@ -489,7 +489,7 @@ function deserialise(text) {
   const st = { ...defaultSettings(), ...(o.settings && typeof o.settings === 'object' ? o.settings : {}) };
   const settings = {
     barriers: !!st.barriers, scenery: !!st.scenery, tod: num(st.tod, 15.5, 6.5, 19.5),
-    livery: Math.floor(num(st.livery, 0, 0, 5)), kerbStyle: st.kerbStyle === 'sausage' ? 'sausage' : 'flat',
+    livery: Math.floor(num(st.livery, 0, 0, 6)), kerbStyle: st.kerbStyle === 'sausage' ? 'sausage' : 'flat',
     runSurf: RUN_CODES[st.runSurf] != null ? st.runSurf : 'gravel', runW: num(st.runW, 14, 4, 40),
   };
   return { name: String(o.name || 'Imported circuit').slice(0, 40), points, closed, features, settings };

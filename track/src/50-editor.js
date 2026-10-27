@@ -521,7 +521,7 @@ addEventListener('keydown', (e) => {
     else if (e.code === 'KeyC') cycleCamera();
     else if (e.code === 'KeyR') resetCar();
     else if (e.code === 'KeyM') { audio.on = !audio.on; showToast(audio.on ? 'SOUND ON' : 'SOUND OFF'); }
-    else if (e.code === 'KeyT') { car.tc = !car.tc; $('tcState').textContent = car.tc ? 'ON' : 'OFF'; showToast('ASSISTS ' + (car.tc ? 'ON' : 'OFF')); }
+    else if (e.code === 'KeyT') cycleAssists();
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     return;
   }
@@ -551,7 +551,6 @@ function enterDrive() {
   cursorRing.visible = ghostLine.visible = false;
   ensureCarModel();
   carModel.root.visible = true;
-  heldPos = null;
   placeOnGrid();
   resetLap();
   for (let s = 0; s < 3; s++) { $('sec' + s).textContent = 'S' + (s + 1); $('sec' + s).className = ''; }

@@ -18,7 +18,7 @@ A separate 3D circuit editor with a drivable F1 car: `track-builder.html` (one s
 **Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/track-builder.html
 
 - **Build.** Click to lay out a spline track, close it by clicking or dragging onto the start point, then set elevation, width and banking per point. Paint kerbs (flat or raised) and run-off (asphalt, gravel, grass) along either edge, or generate them for every corner. Barriers, grandstands, pit building and forests are placed around the layout automatically.
-- **Drive.** Start lights, lap and sector timing, track limits, best laps saved per track. The car runs on a tyre model with downforce, load transfer, ABS and optional assists, plus chase, far, onboard and TV cameras. Keyboard or gamepad.
+- **Drive.** Start lights, lap and sector timing, track limits, best laps saved per track. The car is the F4 racer's F1 (body and physics, from `maksimsysak3-ui/F4`) at full size: rigid-body car with raycast suspension, slip-based tyres, gearbox and OFF / SPORT / FULL assists. Chase, far, onboard and TV cameras. Keyboard or gamepad.
 - **Keep.** Autosaves in the browser, named saves, JSON export and import, undo and redo.
 
 Source lives in `track/src/` and is stitched into the page by `npm run build:track`.
