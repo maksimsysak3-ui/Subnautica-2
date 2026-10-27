@@ -360,9 +360,9 @@ function fullRebuild() {
 const HINTS = {
   draw: () => (state.closed
     ? '<b>Track closed.</b> Click the road to add a point · drag points to reshape · <b>Shift</b>+drag raises/lowers'
-    : state.points.length === 0 ? '<b>Click the ground</b> to place your first point · right-drag to orbit · scroll to zoom'
+    : state.points.length === 0 ? '<b>Click the ground</b> to place your first point · right-drag to orbit · scroll to zoom · <b>arrow keys</b> to move'
       : 'Click to add points · <b>click the green start point</b> or <b>drag the last point onto it</b> to close the loop'),
-  move: () => 'Drag points to move · <b>Shift</b>+drag = elevation · click the road to insert · <b>Del</b> removes the selected point',
+  move: () => '<b>Arrows</b> move the view · drag points to move · <b>Shift</b>+drag = elevation · click the road to insert · <b>Del</b> removes the selected point',
   kerb: () => 'Click or drag along a track edge to lay kerbs on that side',
   runoff: () => 'Drag along a side to paint run-off · pick surface + width on the right',
   erase: () => 'Click a kerb, run-off or wall to remove it · drag to cut part of it away',

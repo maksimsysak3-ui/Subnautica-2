@@ -11,7 +11,8 @@ function defProp(def) { PROP_DEFS.push(def); PROP_INDEX.set(def.id, def); }
 // --- materials (cached so props merge into few draw calls) ----------------
 const _pmats = new Map();
 function pm(color, o = {}) {
-  const key = color + '|' + JSON.stringify(o, (k, v) => (v && v.isTexture ? v.uuid : v));
+  // Key by texture uuid: JSON.stringify would call Texture.toJSON and encode the whole image.
+  const key = color + '|' + Object.keys(o).sort().map((k) => k + ':' + (o[k] && o[k].isTexture ? o[k].uuid : o[k])).join(',');
   let m = _pmats.get(key);
   if (!m) {
     m = new THREE.MeshStandardMaterial({
@@ -160,7 +161,7 @@ function placeholderMat(kind) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
     placeholderMats[kind] = kind === 'screen'
       ? new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.5 })
-      : new THREE.MeshStandardMaterial({ map: t, roughness: 0.7, side: THREE.DoubleSide });
+      : new THREE.MeshStandardMaterial({ map: t, roughness: 0.7 });
   }
   return placeholderMats[kind];
 }
@@ -255,7 +256,8 @@ const C = {
 // --- instanced prototypes ---------------------------------------------------
 const _protos = new Map();   // key (id|sponsor) -> {parts:[{geo, mat}], radius, height, center}
 function sponsorCtx(spId) {
-  return { sp: (kind = 'wall') => (spId && sponsorMat(spId, kind)) || placeholderMat(kind === 'screen' ? 'screen' : 'wall') };
+  // Props get single-sided art ('board') so the back of a panel never shows the logo mirrored.
+  return { sp: (kind = 'wall') => (spId && sponsorMat(spId, kind === 'wall' ? 'board' : kind)) || placeholderMat(kind === 'screen' ? 'screen' : 'wall') };
 }
 function propProto(id, spId = '') {
   const def = PROP_INDEX.get(id);

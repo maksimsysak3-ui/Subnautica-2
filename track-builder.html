@@ -151,7 +151,7 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
 
 <div id="editorUI">
   <div id="topbar">
-    <div class="brand">TRACK <b>BUILDER</b> <span class="mono" style="font-size:10px;color:var(--dim);letter-spacing:0">v2026-10-27 23:32 · 4d8a208</span></div>
+    <div class="brand">TRACK <b>BUILDER</b> <span class="mono" style="font-size:10px;color:var(--dim);letter-spacing:0">v2026-10-27 23:55 · fb89ec9</span></div>
     <button class="tb" id="bNew" title="Start an empty track">New</button>
     <button class="tb" id="bSample" title="Load the sample circuit">Sample</button>
     <div class="sep"></div>
@@ -322,7 +322,7 @@ input[type=text]{width:100%;height:30px;border-radius:6px;border:1px solid var(-
   <div id="dhelp">
     <kbd>W</kbd><kbd>S</kbd> throttle / brake &nbsp; <kbd>A</kbd><kbd>D</kbd> steer<br>
     <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> reset to track &nbsp; <kbd>T</kbd> assists <span id="tcState" class="mono">SPORT</span><br>
-    <kbd>M</kbd> sound &nbsp; gamepad: triggers + left stick
+    <kbd>L</kbd> racing line &nbsp; <kbd>M</kbd> sound &nbsp; gamepad: triggers + left stick
   </div>
 </div>
 
@@ -1341,8 +1341,8 @@ function ribbonWall(side, off, y0, y1, mat, uLen, mask = () => true, uAlong = fa
     const x = S.px[i] + leftX(i) * d, z = S.pz[i] + leftZ(i) * d, y = crossY(i, d);
     dist = run ? dist + S.step : 0;
     pos.push(x, y + y0(i), z, x, y + y1(i), z);
-    // Mirror the art on the left-hand wall so it reads the right way round from the track.
-    const u = (dist / uLen(i)) * (uAlong && side > 0 ? -1 : 1);
+    // Seen from the track, a right-hand wall runs right-to-left: flip it so the art reads correctly.
+    const u = (dist / uLen(i)) * (uAlong && side < 0 ? -1 : 1);
     uv.push(u, 0, u, 1);
     const v = pos.length / 3 - 2;               // index of this pair's bottom vertex
     if (run) ind.push(v - 2, v, v - 1, v - 1, v, v + 1);
@@ -1901,7 +1901,7 @@ function sponsorMat(id, kind = 'wall') {
   if (!m) {
     m = kind === 'screen'
       ? new THREE.MeshStandardMaterial({ map: e.tex, emissiveMap: e.tex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.35 })
-      : new THREE.MeshStandardMaterial({ map: e.tex, roughness: kind === 'banner' ? 0.85 : 0.6, side: kind === 'wall' || kind === 'banner' ? THREE.DoubleSide : THREE.FrontSide });
+      : new THREE.MeshStandardMaterial({ map: e.tex, roughness: kind === 'banner' ? 0.85 : 0.6, side: kind === 'wall' ? THREE.DoubleSide : THREE.FrontSide });
     e.mats.set(kind, m);
   }
   return m;
@@ -4043,7 +4043,8 @@ function defProp(def) { PROP_DEFS.push(def); PROP_INDEX.set(def.id, def); }
 // --- materials (cached so props merge into few draw calls) ----------------
 const _pmats = new Map();
 function pm(color, o = {}) {
-  const key = color + '|' + JSON.stringify(o, (k, v) => (v && v.isTexture ? v.uuid : v));
+  // Key by texture uuid: JSON.stringify would call Texture.toJSON and encode the whole image.
+  const key = color + '|' + Object.keys(o).sort().map((k) => k + ':' + (o[k] && o[k].isTexture ? o[k].uuid : o[k])).join(',');
   let m = _pmats.get(key);
   if (!m) {
     m = new THREE.MeshStandardMaterial({
@@ -4192,7 +4193,7 @@ function placeholderMat(kind) {
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping;
     placeholderMats[kind] = kind === 'screen'
       ? new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.5 })
-      : new THREE.MeshStandardMaterial({ map: t, roughness: 0.7, side: THREE.DoubleSide });
+      : new THREE.MeshStandardMaterial({ map: t, roughness: 0.7 });
   }
   return placeholderMats[kind];
 }
@@ -4287,7 +4288,8 @@ const C = {
 // --- instanced prototypes ---------------------------------------------------
 const _protos = new Map();   // key (id|sponsor) -> {parts:[{geo, mat}], radius, height, center}
 function sponsorCtx(spId) {
-  return { sp: (kind = 'wall') => (spId && sponsorMat(spId, kind)) || placeholderMat(kind === 'screen' ? 'screen' : 'wall') };
+  // Props get single-sided art ('board') so the back of a panel never shows the logo mirrored.
+  return { sp: (kind = 'wall') => (spId && sponsorMat(spId, kind === 'wall' ? 'board' : kind)) || placeholderMat(kind === 'screen' ? 'screen' : 'wall') };
 }
 function propProto(id, spId = '') {
   const def = PROP_INDEX.get(id);
@@ -5631,9 +5633,11 @@ function placeAt(i, lat) {
   vehicle.reset(new THREE.Vector3(x, surfaceHeight(x, z, i).y, z), Math.atan2(S.tx[i], S.tz[i]));
   syncCar();
 }
+let gridHold = null;
 function placeOnGrid() {
   const i = (S.n - Math.round(10 / S.step)) % S.n;
   placeAt(i, Math.min(3.2, S.w[i] / 4));
+  gridHold = { x: vehicle.body.position.x, z: vehicle.body.position.z };
 }
 function resetCar() {
   if (!S || mode !== 'drive') return;
@@ -5689,10 +5693,20 @@ const ctrl = { throttle: 0, brake: 0, steer: 0, handbrake: 0, shiftUp: false, sh
 const _fw = new THREE.Vector3(), _lf = new THREE.Vector3();
 function physicsStep(dt) {
   const held = heldOnGrid();
+  // On the grid: handbrake only. Holding the foot brake at a standstill would make the
+  // automatic gearbox select reverse, and the car would creep backwards when released.
   ctrl.throttle = held ? 0 : input.throttle;
-  ctrl.brake = held ? 1 : input.brake;
+  ctrl.brake = held ? 0 : input.brake;
+  ctrl.handbrake = held ? 1 : 0;
   ctrl.steer = -input.steer;                     // F4 steer: + = right
   vehicle.step(dt, ctrl);
+  if (held && gridHold) {
+    // Pin the car to its grid slot (it may still settle on its springs).
+    const b = vehicle.body;
+    b.position.x = gridHold.x; b.position.z = gridHold.z;
+    b.velocity.x = b.velocity.z = 0;
+    b.angularVelocity.y = 0;
+  }
   syncCar();
   if (vehicle.wallHit > 4) { lap.valid = false; car.impact = Math.max(car.impact, Math.min(1, vehicle.wallHit / 25)); audio.thump(Math.min(1, vehicle.wallHit / 30)); }
 }
@@ -6374,9 +6388,9 @@ function fullRebuild() {
 const HINTS = {
   draw: () => (state.closed
     ? '<b>Track closed.</b> Click the road to add a point · drag points to reshape · <b>Shift</b>+drag raises/lowers'
-    : state.points.length === 0 ? '<b>Click the ground</b> to place your first point · right-drag to orbit · scroll to zoom'
+    : state.points.length === 0 ? '<b>Click the ground</b> to place your first point · right-drag to orbit · scroll to zoom · <b>arrow keys</b> to move'
       : 'Click to add points · <b>click the green start point</b> or <b>drag the last point onto it</b> to close the loop'),
-  move: () => 'Drag points to move · <b>Shift</b>+drag = elevation · click the road to insert · <b>Del</b> removes the selected point',
+  move: () => '<b>Arrows</b> move the view · drag points to move · <b>Shift</b>+drag = elevation · click the road to insert · <b>Del</b> removes the selected point',
   kerb: () => 'Click or drag along a track edge to lay kerbs on that side',
   runoff: () => 'Drag along a side to paint run-off · pick surface + width on the right',
   erase: () => 'Click a kerb, run-off or wall to remove it · drag to cut part of it away',
@@ -6959,6 +6973,7 @@ function frame(now) {
     updateHUD(dt);
     _focus.set(car.x, car.y, car.z);
   } else {
+    flyCamera(dt);
     controls.update();
     updateHandles();
     _focus.copy(controls.target);
@@ -6972,6 +6987,26 @@ function frame(now) {
   sun.position.copy(_focus).addScaledVector(sunDir, 450);
   renderer.render(scene, camera);
 }
+// Arrow keys pan the editor camera over the ground (Shift = faster); speed scales with zoom.
+const _fwdv = new THREE.Vector3(), _rgt = new THREE.Vector3();
+function flyCamera(dt) {
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT')) return;
+  const f = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
+  const r = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+  if (!f && !r) return;
+  camera.getWorldDirection(_fwdv);
+  _fwdv.y = 0;
+  if (_fwdv.lengthSq() < 1e-12) _fwdv.set(0, 0, -1);   // straight down: screen-up is north (-z)
+  _fwdv.normalize();
+  _rgt.crossVectors(_fwdv, THREE.Object3D.DEFAULT_UP).normalize();
+  const dist = camera.position.distanceTo(controls.target);
+  const speed = Math.max(20, dist * 0.9) * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.5 : 1) * dt;
+  const mx = (_fwdv.x * f + _rgt.x * r) * speed, mz = (_fwdv.z * f + _rgt.z * r) * speed;
+  camera.position.x += mx; camera.position.z += mz;
+  controls.target.x += mx; controls.target.z += mz;
+}
+
 // The visual follows the physics body exactly (CG frame); wheels sit on their suspension.
 function poseCar() {
   const m = carModel, b = vehicle.body;
@@ -7020,6 +7055,8 @@ window.__tb = {
 };
 window.__tbProps = () => PROP_DEFS.map((d) => ({ id: d.id, cat: d.cat, sp: !!d.sp }));
 window.__tbRebuild = () => rebuildProps();
+window.__tbProto = (id) => propProto(id, 's1');
+window.__tbFull = () => { buildSamples(); fullRebuild(); };
 try { boot(); }
 catch (err) {
   console.error(err);

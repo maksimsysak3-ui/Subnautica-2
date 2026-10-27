@@ -43,6 +43,7 @@ function frame(now) {
     updateHUD(dt);
     _focus.set(car.x, car.y, car.z);
   } else {
+    flyCamera(dt);
     controls.update();
     updateHandles();
     _focus.copy(controls.target);
@@ -56,6 +57,26 @@ function frame(now) {
   sun.position.copy(_focus).addScaledVector(sunDir, 450);
   renderer.render(scene, camera);
 }
+// Arrow keys pan the editor camera over the ground (Shift = faster); speed scales with zoom.
+const _fwdv = new THREE.Vector3(), _rgt = new THREE.Vector3();
+function flyCamera(dt) {
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT')) return;
+  const f = (keys.has('ArrowUp') ? 1 : 0) - (keys.has('ArrowDown') ? 1 : 0);
+  const r = (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0);
+  if (!f && !r) return;
+  camera.getWorldDirection(_fwdv);
+  _fwdv.y = 0;
+  if (_fwdv.lengthSq() < 1e-12) _fwdv.set(0, 0, -1);   // straight down: screen-up is north (-z)
+  _fwdv.normalize();
+  _rgt.crossVectors(_fwdv, THREE.Object3D.DEFAULT_UP).normalize();
+  const dist = camera.position.distanceTo(controls.target);
+  const speed = Math.max(20, dist * 0.9) * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.5 : 1) * dt;
+  const mx = (_fwdv.x * f + _rgt.x * r) * speed, mz = (_fwdv.z * f + _rgt.z * r) * speed;
+  camera.position.x += mx; camera.position.z += mz;
+  controls.target.x += mx; controls.target.z += mz;
+}
+
 // The visual follows the physics body exactly (CG frame); wheels sit on their suspension.
 function poseCar() {
   const m = carModel, b = vehicle.body;
@@ -104,6 +125,8 @@ window.__tb = {
 };
 window.__tbProps = () => PROP_DEFS.map((d) => ({ id: d.id, cat: d.cat, sp: !!d.sp }));
 window.__tbRebuild = () => rebuildProps();
+window.__tbProto = (id) => propProto(id, 's1');
+window.__tbFull = () => { buildSamples(); fullRebuild(); };
 try { boot(); }
 catch (err) {
   console.error(err);

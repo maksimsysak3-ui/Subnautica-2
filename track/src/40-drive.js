@@ -97,9 +97,11 @@ function placeAt(i, lat) {
   vehicle.reset(new THREE.Vector3(x, surfaceHeight(x, z, i).y, z), Math.atan2(S.tx[i], S.tz[i]));
   syncCar();
 }
+let gridHold = null;
 function placeOnGrid() {
   const i = (S.n - Math.round(10 / S.step)) % S.n;
   placeAt(i, Math.min(3.2, S.w[i] / 4));
+  gridHold = { x: vehicle.body.position.x, z: vehicle.body.position.z };
 }
 function resetCar() {
   if (!S || mode !== 'drive') return;
@@ -155,10 +157,20 @@ const ctrl = { throttle: 0, brake: 0, steer: 0, handbrake: 0, shiftUp: false, sh
 const _fw = new THREE.Vector3(), _lf = new THREE.Vector3();
 function physicsStep(dt) {
   const held = heldOnGrid();
+  // On the grid: handbrake only. Holding the foot brake at a standstill would make the
+  // automatic gearbox select reverse, and the car would creep backwards when released.
   ctrl.throttle = held ? 0 : input.throttle;
-  ctrl.brake = held ? 1 : input.brake;
+  ctrl.brake = held ? 0 : input.brake;
+  ctrl.handbrake = held ? 1 : 0;
   ctrl.steer = -input.steer;                     // F4 steer: + = right
   vehicle.step(dt, ctrl);
+  if (held && gridHold) {
+    // Pin the car to its grid slot (it may still settle on its springs).
+    const b = vehicle.body;
+    b.position.x = gridHold.x; b.position.z = gridHold.z;
+    b.velocity.x = b.velocity.z = 0;
+    b.angularVelocity.y = 0;
+  }
   syncCar();
   if (vehicle.wallHit > 4) { lap.valid = false; car.impact = Math.max(car.impact, Math.min(1, vehicle.wallHit / 25)); audio.thump(Math.min(1, vehicle.wallHit / 30)); }
 }

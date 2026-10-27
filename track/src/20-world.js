@@ -341,8 +341,8 @@ function ribbonWall(side, off, y0, y1, mat, uLen, mask = () => true, uAlong = fa
     const x = S.px[i] + leftX(i) * d, z = S.pz[i] + leftZ(i) * d, y = crossY(i, d);
     dist = run ? dist + S.step : 0;
     pos.push(x, y + y0(i), z, x, y + y1(i), z);
-    // Mirror the art on the left-hand wall so it reads the right way round from the track.
-    const u = (dist / uLen(i)) * (uAlong && side > 0 ? -1 : 1);
+    // Seen from the track, a right-hand wall runs right-to-left: flip it so the art reads correctly.
+    const u = (dist / uLen(i)) * (uAlong && side < 0 ? -1 : 1);
     uv.push(u, 0, u, 1);
     const v = pos.length / 3 - 2;               // index of this pair's bottom vertex
     if (run) ind.push(v - 2, v, v - 1, v - 1, v, v + 1);

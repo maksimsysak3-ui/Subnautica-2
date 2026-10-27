@@ -164,7 +164,7 @@ function sponsorMat(id, kind = 'wall') {
   if (!m) {
     m = kind === 'screen'
       ? new THREE.MeshStandardMaterial({ map: e.tex, emissiveMap: e.tex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.35 })
-      : new THREE.MeshStandardMaterial({ map: e.tex, roughness: kind === 'banner' ? 0.85 : 0.6, side: kind === 'wall' || kind === 'banner' ? THREE.DoubleSide : THREE.FrontSide });
+      : new THREE.MeshStandardMaterial({ map: e.tex, roughness: kind === 'banner' ? 0.85 : 0.6, side: kind === 'wall' ? THREE.DoubleSide : THREE.FrontSide });
     e.mats.set(kind, m);
   }
   return m;
