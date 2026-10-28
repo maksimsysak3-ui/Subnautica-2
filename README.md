@@ -34,3 +34,19 @@ npm run build      # single-file build to play/index.html
 npm run calibrate  # league-wide sim rates vs real NFL
 npx tsx tools/franchise-test.ts 8   # eight full seasons, every phase
 ```
+
+---
+
+# Cold Case Archive
+
+**Play:** https://raw.githack.com/maksimsysak3-ui/Subnautica-2/claude/nfl-gm-sim/cold-case-archive.html
+
+A single-file detective game (`cold-case-archive.html`, no build step). It's 1988, and you've been exiled to the
+basement records room of a Great Lakes police department with nine unsolved boxes from 1952 to 1986. You have
+twenty years, until 2008. Forensic science arrives on its real historical schedule: superglue fuming and ESDA
+now, RFLP in 1989, PCR in 1991, NFPA 921 in 1992, STR in 1996, mtDNA, CODIS in 1998, NIBIN, Y-STR in 2003,
+NamUs in 2007. Many tests use up the sample, so sometimes the right move is to wait. Witnesses die. Evidence
+gets purged or flooded. Some witnesses only talk once the person they fear is gone. The DA will charge the wrong
+man if you hand her a convincing enough wrong case, and the science will catch your mistake years later.
+
+All persons and cases are fictional. The techniques, and the years they arrived, are real.
