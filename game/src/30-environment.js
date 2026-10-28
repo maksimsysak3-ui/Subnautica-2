@@ -1,7 +1,8 @@
 // =====================================================================
 //  Environment: void, floor, lights
 // =====================================================================
-scene.add(new THREE.HemisphereLight(0x8a9ac0, 0x2a2418, 0.55));
+const HEMI = new THREE.HemisphereLight(0xd2dae4, 0xa88864, 0.62);
+scene.add(HEMI);
 const keyLight = new THREE.SpotLight(0xffe9d2, 230, 0, 0.5, 0.7, 2);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);
@@ -57,7 +58,7 @@ const splashMat = new THREE.MeshStandardMaterial({ color: 0x7c7d80, roughness: 0
 
 function addSteel(dist, x, shape, size, opts = {}) {
   const frame = new THREE.Group(); scene.add(frame);
-  if (opts.at) { frame.position.set(opts.at.x, terrainH(opts.at.x, opts.at.z), opts.at.z); frame.rotation.y = opts.at.ry || 0; x = opts.at.x; } else frame.position.set(x, 0, -dist);
+  if (opts.at) { frame.position.set(opts.at.x, opts.at.y ?? terrainH(opts.at.x, opts.at.z), opts.at.z); frame.rotation.y = opts.at.ry || 0; x = opts.at.x; } else frame.position.set(x, 0, -dist);
   const H = opts.H ?? 1.9, half = size * 0.6 + 0.25, chain = 0.45;
   for (const sx of [1, -1]) {
     const post = M(box(0.07, H, 0.07), frameMat, frame, sx * half, H / 2, 0);
@@ -103,7 +104,7 @@ function paperZone(px, py) {
 }
 function addPaper(dist, x, opts = {}) {
   const base = new THREE.Group(); scene.add(base);
-  if (opts.at) { base.position.set(opts.at.x, terrainH(opts.at.x, opts.at.z), opts.at.z); base.rotation.y = opts.at.ry || 0; } else base.position.set(x, 0, -dist);
+  if (opts.at) { base.position.set(opts.at.x, opts.at.y ?? terrainH(opts.at.x, opts.at.z), opts.at.z); base.rotation.y = opts.at.ry || 0; } else base.position.set(x, 0, -dist);
   M(box(0.5, 0.22, 0.32), frameMat, base, 0, 0.11, 0);
   const hinge = new THREE.Group(); hinge.position.set(0, 0.2, 0); base.add(hinge);
   M(box(0.03, 0.75, 0.03), std(0x5b4630, 0.9), hinge, 0, 0.375, -0.02);

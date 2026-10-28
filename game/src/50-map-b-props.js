@@ -564,14 +564,14 @@ function bush(x, y, z, s = 1, col = PC.leaf) {
 function palm(x, y, z, h = 7) {
   W.push(x, y, z, mr(0, 6));
   let px = 0, py = 0, lean = mr(0.04, 0.12);
-  for (let i = 0; i < 8; i++) { const nx = px + lean * (h / 8), ny = py + h / 8; W.rod([px, py, 0], [nx, ny, 0], 0.16 - i * 0.008, i % 2 ? 0x6b5a40 : 0x5a4a34, { seg: 7 }); px = nx; py = ny; }
+  for (let i = 0; i < 5; i++) { const nx = px + lean * (h / 5), ny = py + h / 5; W.rod([px, py, 0], [nx, ny, 0], 0.16 - i * 0.012, i % 2 ? 0x6b5a40 : 0x5a4a34, { seg: 6 }); px = nx; py = ny; }
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2, L = mr(2.2, 3.0);
     W.push(px, py, 0, a);
-    for (let k = 0; k < 5; k++) { const t0 = k / 5, t1 = (k + 1) / 5; W.box(0.5 - k * 0.07, 0.02, L / 5, 0, 0.3 * Math.sin(t0 * 2.4) - t0 * t0 * 1.2, L * (t0 + t1) / 2, mpick([PC.leafLt, PC.leaf, 0x6b7a3a]), { layer: 'cloth', rx: -0.4 + t0 * 1.3, ao: false }); }
+    for (let k = 0; k < 3; k++) { const t0 = k / 3, t1 = (k + 1) / 3; W.box(0.85 - k * 0.2, 0.02, L / 3, 0, 0.3 * Math.sin(t0 * 2.4) - t0 * t0 * 1.2, L * (t0 + t1) / 2, mpick([0x6a8a3a, 0x5a7a34, 0x7a9440]), { layer: 'cloth', rx: -0.4 + t0 * 1.3, ao: false, t: TX.leaf }); }
     W.pop();
   }
-  for (let i = 0; i < 5; i++) W.sphere(0.12, 0.12, 0.12, px + mr(-0.2, 0.2), py - 0.25, mr(-0.2, 0.2), 0x7a4a2a, { seg: 6, hseg: 4 }); // dates
+  for (let i = 0; i < 2; i++) W.sphere(0.2, 0.3, 0.2, px + mr(-0.2, 0.2), py - 0.25, mr(-0.2, 0.2), 0x7a4a2a, { seg: 5, hseg: 3, lod: 2 }); // date clusters
   W.pop();
   W.solid(0.4, h, 0.4, x, y + h / 2, z, 'wood');
 }

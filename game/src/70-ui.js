@@ -100,8 +100,8 @@ function enterRange() {
   camera.clearViewOffset();
   ['panel', 'topbar', 'poses'].forEach((id) => $(id).classList.add('hidden'));
   $('hud').classList.remove('hidden');
-  P.yaw = 0; P.pitch = 0; P.camY = ch.d.hipY + 0.7;
-  if (P.pos.z < 0.5) P.pos.set(0, 0, 3);
+  P.pitch = 0; P.camY = ch.d.hipY + 0.7;
+  if (!P.spawned) { P.spawned = true; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; }
   audio.init();
   requestLock();
   if (lockFallback) setPaused(false);
@@ -203,6 +203,7 @@ addEventListener('resize', () => {
 });
 
 let last = performance.now(), time = 0, first = true;
+const DBGCAM = { on: false, pos: new V3(), yaw: 0, pitch: 0, fov: 60 }; // scripted camera for screenshots/tests
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -220,13 +221,40 @@ function frame(now) {
   keyLight.position.set(P.pos.x + 2.4, py + 7, P.pos.z + 4); keyLight.target.position.set(P.pos.x, py + 0.9, P.pos.z);
   rimLight.position.set(P.pos.x - 2.5, py + 4.5, P.pos.z - 5); rimLight.target.position.set(P.pos.x, py + 1.2, P.pos.z);
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
-  LAMPS.update(dt, P.pos, time);
-  SKY.update(camera, P.pos);
+  if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
+  LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos);
+  STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
+  W.updateLOD(camera);
+  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
-  if (first) { first = false; $('loading').classList.add('hidden'); }
+  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); }
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
 window.__OPTS = OPTS;
+// scripted walk along waypoints with the real movement + collision code (tests)
+window.__dbg.walk = (path, o = {}) => {
+  const out = []; P.pos.set(path[0][0], path[0][1], path[0][2]); P.vel.set(0, 0, 0); P.vy = 0;
+  for (let i = 1; i < path.length; i++) {
+    const [tx, ty, tz] = path[i]; let ok = false, it = 0;
+    for (; it < (o.maxIt ?? 120); it++) {
+      const dx = tx - P.pos.x, dz = tz - P.pos.z;
+      if (Math.hypot(dx, dz) < (o.tol ?? 0.35)) { ok = true; break; }
+      P.yaw = Math.atan2(-dx, -dz); keys.KeyW = true; window.__dbg.step(4);
+    }
+    keys.KeyW = false;
+    out.push({ i, ok, it, pos: [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)), want: path[i], dy: +(P.pos.y - ty).toFixed(2) });
+    if (!ok && !o.keepGoing) break;
+  }
+  return out;
+};
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.MAP = MAP;
+window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM;
+// debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
+window.__dbg.gridImage = () => {
+  const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);
+  const pal = [[60, 52, 40], [200, 200, 200], [230, 200, 120], [170, 80, 60], [60, 120, 160], [20, 20, 20]];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const v = GR.cells[(j * 2) * GR.N + i * 2], c = pal[v] || [255, 0, 255], k = (j * n + i) * 4; im.data[k] = c[0]; im.data[k + 1] = c[1]; im.data[k + 2] = c[2]; im.data[k + 3] = 255; }
+  g.putImageData(im, 0, 0); return cv.toDataURL('image/png');
+}; window.__dbg.STREAM = STREAM; window.__dbg.W = W; window.__dbg.renderer = renderer;
