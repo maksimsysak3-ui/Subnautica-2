@@ -1,0 +1,12 @@
+</script>
+<script>
+// If the 3D module never starts (offline, blocked CDN, no WebGL), say so instead of showing a blank page.
+setTimeout(function () {
+  if (window.__started) return;
+  var e = document.getElementById('err');
+  e.classList.remove('hidden');
+  e.textContent = 'Could not load the 3D engine. Check your connection (Three.js loads from cdn.jsdelivr.net) and reload.';
+}, 8000);
+</script>
+</body>
+</html>

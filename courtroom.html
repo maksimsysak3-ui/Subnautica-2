@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>State v. Hale</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Courier+Prime:wght@400;700&family=Libre+Franklin:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: full-bleed 2.5D courtroom canvas; HUD rides the top edge, bench tools on a right rail, testimony in a bottom band; documents open as parchment over the room. */
+:root{
+  --ink:#0c0a08; --walnut:#241912; --panel:rgba(19,14,10,.9); --panel2:rgba(33,24,17,.96); --line:rgba(201,163,90,.26);
+  --brass:#c9a35a; --brass2:#e8cc88; --parch:#efe5cf; --parch2:#e2d5b8; --pink:#2b2219;
+  --text:#efe6d6; --muted:#a99c87; --state:#c04a55; --defense:#5d8fc8; --good:#7dba88; --bad:#d8635b;
+  --f-disp:'Cinzel',Georgia,'Times New Roman',serif; --f-ui:'Libre Franklin',system-ui,-apple-system,'Segoe UI',sans-serif; --f-doc:'Courier Prime','Courier New',monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font:14px/1.45 var(--f-ui);overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--brass2);outline-offset:2px}
+#app{position:fixed;inset:0;overflow:hidden}
+#court{position:absolute;inset:0;width:100%;height:100%;display:block}
+#fx{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 40%,rgba(0,0,0,.62) 100%)}
+#grain{position:absolute;inset:-50%;pointer-events:none;opacity:.07;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");animation:grain 1s steps(6) infinite}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+.lb i{position:absolute;left:0;right:0;height:0;background:#000;transition:height .9s cubic-bezier(.6,0,.2,1);pointer-events:none;z-index:2}
+.lb i:first-child{top:0}.lb i:last-child{bottom:0}
+.lb.on i{height:8.5vh}
+
+#ui{position:absolute;inset:0;display:flex;flex-direction:column;pointer-events:none;z-index:5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:max(10px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-bottom,0px))}
+#ui.off > *{opacity:0;pointer-events:none!important}
+#ui > *{transition:opacity .5s}
+#hud{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;pointer-events:auto}
+.cap{min-width:0}
+.cap .no{font:600 10px/1 var(--f-ui);letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
+.cap h1{margin:4px 0 2px;font:700 clamp(17px,2.2vw,23px)/1.1 var(--f-disp);letter-spacing:.06em;text-shadow:0 2px 10px #000}
+.cap .ph{font-size:12px;color:var(--muted)}
+.meters{display:flex;gap:10px;flex-wrap:wrap}
+.meter{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 10px;min-width:104px}
+.meter b{display:block;font:600 9.5px/1 var(--f-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.meter .v{font:700 16px/1.3 var(--f-ui);font-variant-numeric:tabular-nums}
+.meter .bar{height:3px;background:rgba(255,255,255,.08);margin-top:3px}
+.meter .bar i{display:block;height:100%;background:var(--brass);transition:width .6s,background .6s}
+#counsel{margin-top:10px;align-self:center;width:min(640px,100%);pointer-events:auto}
+.tug{display:flex;align-items:center;gap:8px;font:600 10.5px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase}
+.tug .s{color:var(--state)}.tug .d{color:var(--defense)}
+.tug .track{flex:1;height:6px;background:var(--defense);border-radius:3px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.tug .track i{display:block;height:100%;background:var(--state);transition:width 1.2s cubic-bezier(.5,0,.2,1)}
+.chips{display:flex;justify-content:space-between;gap:12px;margin-top:5px;font-size:11.5px;color:var(--muted)}
+.chips span{min-width:0;max-width:50%;text-shadow:0 1px 4px #000}
+.chips span:last-child{text-align:right}
+.chips em{font-style:normal;color:var(--text)}
+
+#mid{flex:1;display:flex;justify-content:flex-end;align-items:center;min-height:0;pointer-events:none}
+#rail{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+.tool{width:58px;padding:8px 4px 6px;background:var(--panel);border:1px solid var(--line);border-radius:3px;display:flex;flex-direction:column;align-items:center;gap:3px;font:600 9px/1 var(--f-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);transition:background .2s,color .2s,transform .15s}
+.tool svg{width:22px;height:22px;stroke:var(--brass);fill:none;stroke-width:1.6}
+.tool:hover{background:var(--panel2);color:var(--text);transform:translateX(-2px)}
+.tool.pulse{animation:pulse 1s infinite}
+.tool kbd{font:500 8.5px var(--f-ui);opacity:.55}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,204,136,.0)}50%{box-shadow:0 0 0 6px rgba(232,204,136,.35);background:#3a2a17}}
+
+#dlg{align-self:center;width:min(940px,100%);display:flex;gap:14px;background:linear-gradient(180deg,rgba(24,18,13,.94),rgba(14,11,8,.97));border:1px solid var(--line);border-top:2px solid var(--rc,var(--brass));border-radius:3px;padding:14px 16px;pointer-events:auto;cursor:pointer;box-shadow:0 18px 50px rgba(0,0,0,.6);min-height:112px}
+#dPor{width:84px;height:84px;flex:none;border:1px solid var(--line);background:#1a130e;border-radius:2px}
+#dlg .tx{flex:1;min-width:0}
+#dlg .nm{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#dName{font:700 15px/1.2 var(--f-disp);letter-spacing:.05em;color:var(--rc,var(--brass2))}
+#dRole{font:500 10px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+#dTxt{margin-top:6px;font-size:16.5px;line-height:1.5;max-width:70ch;text-wrap:pretty}
+#dTxt em{color:var(--brass2);font-style:normal}
+#dlg.narr #dTxt{font-style:italic;color:#d9ccb4}
+#dlg.narr #dPor{display:none}
+.dfoot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10.5px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+#autoBtn{padding:3px 8px;border:1px solid var(--line);border-radius:2px;font-size:10px;letter-spacing:.12em}
+#autoBtn[aria-pressed="true"]{background:var(--brass);color:#1b130b}
+.hint{animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+.panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-56%);width:min(620px,calc(100% - 32px));max-height:calc(100% - 40px);overflow:auto;background:var(--panel2);border:1px solid var(--line);border-top:2px solid var(--brass);border-radius:3px;padding:20px 22px;box-shadow:0 30px 80px rgba(0,0,0,.7);pointer-events:auto;z-index:8;animation:rise .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{opacity:0;transform:translate(-50%,-50%) scale(.97)}}
+.kick{font:600 10.5px/1 var(--f-ui);letter-spacing:.18em;text-transform:uppercase;color:var(--brass)}
+.panel h2{margin:8px 0 10px;font:700 22px/1.2 var(--f-disp);letter-spacing:.03em;text-wrap:balance}
+.panel .body{color:#ddd1bd;font-size:14px}
+.panel .body q{display:block;margin:6px 0 10px;padding:8px 12px;border-left:2px solid var(--brass);background:rgba(0,0,0,.25);font-style:italic;quotes:none}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.big{flex:1 1 160px;padding:14px 12px;border:1px solid var(--line);border-radius:3px;background:rgba(0,0,0,.25);font:700 15px/1.1 var(--f-disp);letter-spacing:.08em;text-transform:uppercase;transition:background .2s,border-color .2s,transform .1s}
+.big:hover{background:rgba(201,163,90,.16);border-color:var(--brass)}
+.big:active{transform:scale(.98)}
+.big.a{border-color:rgba(125,186,136,.5)}.big.b{border-color:rgba(216,99,91,.5)}
+.aux{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.aux button{font-size:12px;color:var(--brass2);text-decoration:underline;text-underline-offset:3px}
+.timer{height:3px;background:rgba(255,255,255,.08);margin-top:14px}
+.timer i{display:block;height:100%;background:var(--brass);width:100%}
+.args{margin-top:12px;display:grid;gap:8px}
+.args p{margin:0;padding:8px 10px;background:rgba(0,0,0,.25);border-radius:2px;font-size:13px}
+.args b{font:700 10px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase;display:block;margin-bottom:4px}
+.opt{display:block;width:100%;text-align:left;padding:12px 14px;margin-top:8px;border:1px solid var(--line);border-radius:3px;background:rgba(0,0,0,.25);transition:background .2s,border-color .2s}
+.opt:hover{background:rgba(201,163,90,.14);border-color:var(--brass)}
+.opt strong{display:block;font-weight:600;font-size:14.5px}
+.opt span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+
+#stamp{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) rotate(-8deg);font:900 clamp(40px,9vw,96px)/1 var(--f-disp);letter-spacing:.04em;color:#fff;-webkit-text-stroke:2px #000;text-shadow:0 6px 0 var(--sc,#8e2b33),0 10px 30px rgba(0,0,0,.8);pointer-events:none;z-index:9;animation:stamp .9s cubic-bezier(.2,1.6,.4,1) forwards}
+@keyframes stamp{0%{opacity:0;transform:translate(-50%,-50%) rotate(-8deg) scale(2.4)}30%{opacity:1;transform:translate(-50%,-50%) rotate(-8deg) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(-8deg) scale(.96)}}
+#toast{position:absolute;left:50%;top:84px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:3px;font-size:13px;z-index:12;pointer-events:none;animation:rise .3s;max-width:calc(100% - 32px);text-align:center}
+
+#gavelFx{position:absolute;right:max(90px,env(safe-area-inset-right,0px));bottom:150px;width:170px;height:170px;pointer-events:none;z-index:9;opacity:0}
+#gavelFx.go{animation:gfade .9s}
+#gavelFx.go .gh{animation:swing .9s cubic-bezier(.5,0,.2,1)}
+@keyframes gfade{0%,85%{opacity:1}100%{opacity:0}}
+@keyframes swing{0%{transform:rotate(-55deg)}38%{transform:rotate(6deg)}48%{transform:rotate(-4deg)}60%,100%{transform:rotate(0)}}
+.gh{transform-origin:150px 150px}
+.flash{position:absolute;inset:0;background:radial-gradient(circle at 75% 70%,rgba(255,230,180,.35),transparent 50%);pointer-events:none;z-index:8;animation:fl .5s forwards}
+@keyframes fl{to{opacity:0}}
+
+#chapter{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at center,rgba(20,14,9,.86),rgba(0,0,0,.96));padding:24px max(16px,env(safe-area-inset-left,0px));animation:chin .8s}
+@keyframes chin{from{opacity:0}}
+#chapter.out{animation:chout .8s forwards}
+@keyframes chout{to{opacity:0}}
+#chapter .k{font:600 11px/1 var(--f-ui);letter-spacing:.3em;text-transform:uppercase;color:var(--brass)}
+#chapter h2{margin:14px 0 10px;font:700 clamp(30px,6vw,64px)/1.05 var(--f-disp);letter-spacing:.06em;text-wrap:balance}
+#chapter p{margin:0;color:var(--muted);font-size:14px;letter-spacing:.04em}
+#chapter .rule{width:120px;height:1px;background:linear-gradient(90deg,transparent,var(--brass),transparent);margin:18px auto 0}
+
+.overlay{position:absolute;inset:0;z-index:15;overflow:auto;background:radial-gradient(ellipse at 50% 0%,rgba(52,36,22,.96),rgba(10,8,6,.98));padding-block:max(18px,env(safe-area-inset-top,0px)) 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto}
+.oh{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
+.oh h2{margin:6px 0 0;font:700 clamp(22px,3.4vw,34px)/1.1 var(--f-disp);letter-spacing:.05em}
+
+/* discovery */
+.disc{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.side{background:rgba(0,0,0,.28);border:1px solid var(--line);border-top:2px solid var(--sc);border-radius:3px;padding:14px;min-width:0}
+.side header{display:flex;gap:12px;align-items:center}
+.side canvas{width:56px;height:56px;border:1px solid var(--line);flex:none}
+.side h3{margin:0;font:700 16px/1.2 var(--f-disp);color:var(--sc)}
+.side .st{font-size:11.5px;color:var(--muted)}
+.log{margin-top:12px;height:300px;overflow:auto;font:13px/1.55 var(--f-doc);color:#d8ccb6;display:flex;flex-direction:column;gap:4px}
+.log div{animation:rise2 .4s}
+.log time{color:var(--brass);margin-right:8px}
+.log .ok{color:var(--good)}.log .no{color:var(--bad)}
+@keyframes rise2{from{opacity:0;transform:translateY(4px)}}
+.exrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;min-height:24px}
+.exchip{font:600 11px/1 var(--f-ui);padding:5px 7px;border:1px solid var(--line);border-radius:2px;background:rgba(0,0,0,.3)}
+.ff{font-size:12px;color:var(--muted)}
+.ff button{color:var(--brass2);text-decoration:underline}
+
+/* documents */
+.doc{background:var(--parch);color:var(--pink);border-radius:2px;padding:22px 24px;font:14px/1.55 var(--f-doc);box-shadow:0 20px 60px rgba(0,0,0,.6),inset 0 0 60px rgba(120,90,40,.18);position:relative;max-width:760px;margin:0 auto}
+.doc h4{margin:0 0 2px;font:700 15px/1.3 var(--f-doc);letter-spacing:.06em;text-transform:uppercase;text-align:center}
+.doc .sub{text-align:center;font-size:12px;margin-bottom:14px;opacity:.8}
+.doc table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+.doc td,.doc th{border-bottom:1px dashed rgba(43,34,25,.35);padding:4px 6px;text-align:left;vertical-align:top}
+.doc th{font-weight:700}
+.doc .hl{background:rgba(214,170,60,.35)}
+.doc ol{padding-left:22px;margin:6px 0}
+.doc .lbl{font-weight:700;text-transform:uppercase;font-size:11.5px;letter-spacing:.08em;margin-top:10px}
+.stampd{position:absolute;right:22px;top:18px;transform:rotate(9deg);border:3px solid currentColor;padding:4px 10px;font:700 18px/1 var(--f-doc);letter-spacing:.1em;opacity:.85;color:#9b2a22}
+.stampd.ok{color:#2c6b39}
+.stampd.big{font-size:42px;top:40%;right:50%;transform:translate(50%,-50%) rotate(-12deg);animation:stamp2 .5s cubic-bezier(.2,1.6,.4,1)}
+@keyframes stamp2{from{transform:translate(50%,-50%) rotate(-12deg) scale(2.2);opacity:0}}
+.reqbox{position:fixed;inset:0;z-index:18;background:rgba(0,0,0,.72);overflow:auto;padding:24px max(16px,env(safe-area-inset-left,0px))}
+.reqbox .btns{max-width:760px;margin:16px auto 0}
+.reqbox .aux{max-width:760px;margin:10px auto 0}
+
+/* modal */
+#modal{position:absolute;inset:0;z-index:30;background:rgba(5,4,3,.78);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.mbox{width:min(1100px,100%);height:min(760px,100%);background:var(--panel2);border:1px solid var(--line);border-top:2px solid var(--brass);border-radius:3px;display:flex;flex-direction:column;min-height:0;box-shadow:0 30px 90px #000}
+.mhead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.mhead h3{margin:0;font:700 18px/1.2 var(--f-disp);letter-spacing:.05em}
+.mhead button{font-size:22px;line-height:1;padding:4px 8px;color:var(--muted)}
+.mbody{flex:1;min-height:0;overflow:auto;padding:16px}
+.split{display:grid;grid-template-columns:260px 1fr;gap:16px;height:100%;min-height:0}
+.list{overflow:auto;display:flex;flex-direction:column;gap:6px;min-height:0}
+.li{text-align:left;padding:9px 10px;border:1px solid var(--line);border-radius:3px;background:rgba(0,0,0,.25)}
+.li.on{border-color:var(--brass);background:rgba(201,163,90,.14)}
+.li b{display:block;font-size:13px}
+.li small{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11px;margin-top:2px}
+.badge{font:700 9px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;padding:3px 5px;border-radius:2px;background:rgba(255,255,255,.08);color:var(--muted)}
+.badge.admitted{background:rgba(125,186,136,.2);color:var(--good)}
+.badge.suppressed,.badge.excluded{background:rgba(216,99,91,.2);color:var(--bad)}
+.badge.gathered{background:rgba(201,163,90,.18);color:var(--brass2)}
+.view{min-width:0;overflow:auto}
+.exhead{margin-bottom:10px}
+.exhead h4{margin:0;font:700 18px/1.2 var(--f-disp)}
+.exhead p{margin:4px 0 0;color:var(--muted);font-size:13px;max-width:75ch}
+.warnbar{margin:8px 0;padding:8px 10px;border:1px solid rgba(216,99,91,.5);background:rgba(216,99,91,.12);color:#f1c1bc;font-size:12.5px;border-radius:2px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{padding:6px 10px;border:1px solid var(--line);border-radius:2px;font-size:12px}
+.tabs button.on{background:var(--brass);color:#1b130b;border-color:var(--brass)}
+.book input{width:100%;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--text);border-radius:3px;font:inherit;margin-bottom:12px}
+.book h4{font:700 14px/1.2 var(--f-disp);letter-spacing:.06em;color:var(--brass2);margin:16px 0 6px}
+.book details{border-bottom:1px solid var(--line);padding:8px 0}
+.book summary{cursor:pointer;font-weight:600}
+.book details p{margin:6px 0 2px;color:#d9cdb8;max-width:78ch}
+.book mark{background:rgba(232,204,136,.35);color:inherit}
+.cf h4{font:700 14px/1.2 var(--f-disp);letter-spacing:.06em;color:var(--brass2);margin:14px 0 6px}
+.cf p,.cf li{max-width:80ch;color:#ddd1bd}
+.cf table{border-collapse:collapse;width:100%;font-size:13px}
+.cf td,.cf th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.cf .tw{overflow-x:auto}
+textarea#notes{width:100%;height:100%;min-height:300px;background:var(--parch);color:var(--pink);font:14px/1.6 var(--f-doc);border:0;padding:16px;border-radius:2px;resize:none}
+
+/* video */
+.vp{background:#050606;border:1px solid #222;border-radius:3px;padding:8px}
+.vpS{position:relative}
+.vpS canvas{width:100%;aspect-ratio:16/9;display:block;background:#000;max-width:100%;cursor:crosshair}
+.vpC{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px}
+.vpC button,.vpC select{padding:5px 8px;border:1px solid #333;background:#111;color:#ddd;border-radius:2px;font:12px var(--f-ui)}
+.vpC button[aria-pressed="true"]{background:#2b4a3a;border-color:#4a8;color:#cfe}
+.vpC .tc{font:700 13px var(--f-doc);color:#9fd8b0;font-variant-numeric:tabular-nums;margin-left:auto}
+.tl{position:relative;margin-top:8px;height:26px}
+.tl canvas{position:absolute;inset:0;width:100%;height:100%}
+.tl input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;margin:0}
+#court-vid{position:absolute;inset:0;z-index:16;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px max(16px,env(safe-area-inset-left,0px))}
+#court-vid .vp{width:min(960px,100%)}
+#court-vid .cap2{margin-top:12px;max-width:820px;text-align:center;font-size:16px;min-height:48px}
+
+/* chambers & epilogue */
+.cols{display:grid;grid-template-columns:320px 1fr;gap:18px}
+.card{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:3px;padding:14px;min-width:0}
+.card h3{margin:0 0 8px;font:700 15px/1.2 var(--f-disp);letter-spacing:.05em;color:var(--brass2)}
+.q{padding:12px 0;border-bottom:1px solid var(--line)}
+.q p{margin:0 0 8px;font-weight:600;max-width:80ch}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:8px 12px;border:1px solid var(--line);border-radius:3px;background:rgba(0,0,0,.25);font-size:13px}
+.seg button.on{background:var(--brass);color:#1b130b;border-color:var(--brass);font-weight:600}
+.vbtn{padding:16px 20px;font:700 17px/1 var(--f-disp);letter-spacing:.1em;border:1px solid var(--brass);border-radius:3px;background:linear-gradient(180deg,#3b2a17,#21170e);margin-top:16px}
+.vbtn:disabled{opacity:.4;cursor:not-allowed}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.score div{background:rgba(0,0,0,.3);border:1px solid var(--line);padding:10px 12px;border-radius:3px}
+.score b{display:block;font:600 10px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.score span{font:700 22px/1.4 var(--f-disp);font-variant-numeric:tabular-nums}
+.grade{font:900 clamp(60px,10vw,110px)/1 var(--f-disp);color:var(--brass2);text-shadow:0 6px 30px rgba(201,163,90,.35)}
+.rv{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.rv .m{font-weight:700}.rv .m.y{color:var(--good)}.rv .m.n{color:var(--bad)}
+.rv small{display:block;color:var(--muted);margin-top:2px;max-width:85ch}
+.prose{max-width:76ch;font-size:15px;line-height:1.65;color:#e2d6c1}
+
+/* title */
+#title{position:absolute;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px max(16px,env(safe-area-inset-left,0px));background:radial-gradient(ellipse at center,rgba(12,9,6,.35),rgba(0,0,0,.88))}
+#title .t{max-width:640px}
+#title .k{font:600 11px/1.4 var(--f-ui);letter-spacing:.3em;text-transform:uppercase;color:var(--brass)}
+#title h1{margin:14px 0 8px;font:900 clamp(40px,9vw,92px)/1 var(--f-disp);letter-spacing:.05em;text-shadow:0 8px 40px #000}
+#title h1 small{display:block;font-size:.3em;letter-spacing:.3em;color:var(--brass2);margin-bottom:10px}
+#title p{color:#d6cab5;max-width:58ch;margin:10px auto}
+#title label{display:block;margin-top:22px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+#title input{margin-top:6px;padding:10px 14px;width:min(280px,100%);text-align:center;background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:3px;color:var(--text);font:600 16px var(--f-disp);letter-spacing:.06em}
+#title .how{margin-top:20px;font-size:12px;color:var(--muted);line-height:1.7}
+
+@media (max-width:760px){
+  .disc,.cols,.split{grid-template-columns:1fr}
+  .split{height:auto}
+  .list{max-height:180px}
+  #mid{align-items:flex-start;justify-content:center;flex:0 0 auto;margin-top:8px}
+  #rail{flex-direction:row;flex-wrap:wrap;justify-content:center}
+  .tool{width:auto;min-width:48px;padding:6px}
+  .tool kbd{display:none}
+  #ui{justify-content:space-between}
+  #counsel{display:none}
+  #dPor{width:56px;height:56px}
+  #dTxt{font-size:15px}
+  .meter{min-width:84px;padding:4px 8px}
+  #gavelFx{right:16px;bottom:200px;width:120px;height:120px}
+  .log{height:200px}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}#grain{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="court" aria-label="Live view of Courtroom 12"></canvas>
+  <div id="fx"></div><div id="grain"></div>
+  <div class="lb" id="lb"><i></i><i></i></div>
+  <div id="ui" class="off">
+    <header id="hud">
+      <div class="cap"><div class="no">Marlow County Superior Court · CR-2026-04417</div><h1>State v. Hale</h1><div class="ph" id="phase">Chambers</div></div>
+      <div class="meters">
+        <div class="meter"><b>Order</b><div class="v" id="mOrder">80</div><div class="bar"><i id="bOrder"></i></div></div>
+        <div class="meter"><b>Public trust</b><div class="v" id="mTrust">60</div><div class="bar"><i id="bTrust"></i></div></div>
+        <div class="meter"><b>Court clock</b><div class="v" id="mClock">9:00</div><div class="bar"><i id="bDays" style="width:0"></i></div></div>
+      </div>
+    </header>
+    <div id="counsel">
+      <div class="tug"><span class="s">Varga · State AI <span id="pPct">50%</span></span><div class="track"><i id="tug" style="width:50%"></i></div><span class="d"><span id="dPct">50%</span> Okafor · Defense AI</span></div>
+      <div class="chips"><span>▸ <em id="aiP">Building the file.</em></span><span><em id="aiD">Building the file.</em> ◂</span></div>
+    </div>
+    <div id="mid">
+      <nav id="rail" aria-label="Bench tools">
+        <button class="tool" id="tGavel" title="Gavel (G)"><svg viewBox="0 0 24 24"><path d="M4 20h10M13 3l7 7M10 6l7 7M11.5 4.5l-5 5 4 4 5-5M8.5 11.5 3 17"/></svg>Gavel<kbd>G</kbd></button>
+        <button class="tool" id="tCase" title="Case file (C)"><svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></svg>Case<kbd>C</kbd></button>
+        <button class="tool" id="tEv" title="Evidence locker (E)"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M10 9l5 3-5 3z"/></svg>Evidence<kbd>E</kbd></button>
+        <button class="tool" id="tBook" title="Bench Book (R)"><svg viewBox="0 0 24 24"><path d="M4 4h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a2 2 0 0 0-2 1 2 2 0 0 0-2-1H4zM12 5v15"/></svg>Rules<kbd>R</kbd></button>
+        <button class="tool" id="tNotes" title="Notes (N)"><svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM8 10h8M8 14h8M8 18h5"/></svg>Notes<kbd>N</kbd></button>
+        <button class="tool" id="tRecess" title="Call a recess (X)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Recess<kbd>X</kbd></button>
+        <button class="tool" id="tCam" title="Change camera (V)"><svg viewBox="0 0 24 24"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3"/></svg>Camera<kbd>V</kbd></button>
+        <button class="tool" id="tSnd" title="Sound (M)"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6"/></svg><span id="sndL">Sound</span><kbd>M</kbd></button>
+      </nav>
+    </div>
+    <div id="dlg" hidden role="button" tabindex="0" aria-label="Continue">
+      <canvas id="dPor" width="168" height="168"></canvas>
+      <div class="tx">
+        <div class="nm"><span id="dName"></span><span id="dRole"></span></div>
+        <div id="dTxt" aria-live="polite"></div>
+        <div class="dfoot"><span class="hint" id="dHint">Click or Space ▸</span><button id="autoBtn" aria-pressed="false">Auto</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="gavelFx" aria-hidden="true"><svg viewBox="0 0 170 170"><ellipse cx="96" cy="152" rx="56" ry="9" fill="#2a1a10"/><rect x="58" y="140" width="76" height="12" rx="3" fill="#5b3820"/><g class="gh"><rect x="30" y="54" width="104" height="9" rx="4" fill="#7a4b28" transform="rotate(-35 82 58)"/><rect x="104" y="96" width="44" height="30" rx="6" fill="#6b3f22" transform="rotate(-35 126 111)"/><rect x="110" y="100" width="6" height="22" fill="#c9a35a" transform="rotate(-35 126 111)"/><rect x="136" y="100" width="6" height="22" fill="#c9a35a" transform="rotate(-35 126 111)"/></g></svg></div>
+  <div id="title">
+    <div class="t">
+      <div class="k">Superior Court of Marlow County · Department 12</div>
+      <h1><small>The bench trial of</small>State v. Hale</h1>
+      <p>A distillery owner is found dead. His partner's jacket walks out of the building on camera. Two AI litigators will fight over every exhibit, and you alone decide what the evidence proves.</p>
+      <label for="jname">Your name, Your Honor</label>
+      <input id="jname" maxlength="24" value="Harlan" autocomplete="off">
+      <div class="btns" style="justify-content:center"><button class="big" id="startBtn" style="flex:0 1 260px">Take the bench</button></div>
+      <div class="how">Space / click to continue · G gavel · C case file · E evidence · R bench book · N notes · X recess<br>Rulings are reviewed on appeal at the end. Nobody tells you if you got one right until then.</div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*t;
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)};
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- game state ---------------- */
+const S={name:'Harlan',order:80,trust:60,lean:50,days:0,min:9*60,day:'Chambers',
+  f:{},ex:{},rulings:[],findings:{},verdict:{},sentence:{},gavelSpam:0,recessQ:false,recesses:0,auto:false,busy:false,
+  temper:100,danielWarned:false,benchQs:0,notes:store.get('svh-notes','')};
+window.__S=S;
+
+/* ---------------- audio (synthesised, starts on first click) ---------------- */
+const AU={ctx:null,on:store.get('svh-snd','1')==='1',m:null,mg:null,wb:null,
+  init(){if(this.ctx)return;try{const C=window.AudioContext||window.webkitAudioContext;this.ctx=new C();this.m=this.ctx.createGain();this.m.gain.value=this.on?.7:0;this.m.connect(this.ctx.destination);
+    const c=this.ctx,b=c.createBuffer(1,c.sampleRate*4,c.sampleRate),d=b.getChannelData(0);let l=0;for(let i=0;i<d.length;i++){l=(l+.02*(Math.random()*2-1))/1.02;d[i]=l*3.5}
+    const s=c.createBufferSource();s.buffer=b;s.loop=true;const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=380;f.Q.value=.5;this.mg=c.createGain();this.mg.gain.value=.03;s.connect(f);f.connect(this.mg);this.mg.connect(this.m);s.start();
+    this.wb=c.createBuffer(1,c.sampleRate*.5,c.sampleRate);const w=this.wb.getChannelData(0);for(let i=0;i<w.length;i++)w[i]=Math.random()*2-1;}catch(e){this.ctx=null}},
+  env(node,t,a,d){const g=this.ctx.createGain();g.gain.setValueAtTime(a,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);node.connect(g);g.connect(this.m);return g},
+  osc(type,f0,f1,t,a,d){const o=this.ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(f0,t);if(f1)o.frequency.exponentialRampToValueAtTime(f1,t+d*.6);this.env(o,t,a,d);o.start(t);o.stop(t+d+.05)},
+  noise(fq,q,t,a,d){const n=this.ctx.createBufferSource();n.buffer=this.wb;const bp=this.ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=fq;bp.Q.value=q;n.connect(bp);this.env(bp,t,a,d);n.start(t);n.stop(t+d+.05)},
+  gavel(){if(!this.ctx)return;const t=this.ctx.currentTime;this.osc('sine',170,52,t,.9,.38);this.noise(1900,1.3,t,.7,.08);this.osc('triangle',640,0,t,.16,.12);this.noise(500,.8,t+.01,.25,.25)},
+  stamp(){if(!this.ctx)return;const t=this.ctx.currentTime;this.osc('sine',120,60,t,.6,.2);this.noise(2600,.7,t,.35,.06)},
+  sting(){if(!this.ctx)return;const t=this.ctx.currentTime;[110,164.8,233].forEach((f,i)=>{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=f;const lp=this.ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(2400,t);lp.frequency.exponentialRampToValueAtTime(300,t+.8);o.connect(lp);this.env(lp,t,.09,.9);o.start(t+i*.01);o.stop(t+1)});this.noise(3000,.5,t,.2,.15)},
+  blip(p){if(!this.ctx)return;const t=this.ctx.currentTime;this.osc('square',p,0,t,.018,.04)},
+  murmur(l){if(this.mg)this.mg.gain.setTargetAtTime(.02+l*.28,this.ctx.currentTime,.5)},
+  toggle(){this.on=!this.on;store.set('svh-snd',this.on?'1':'0');if(this.m)this.m.gain.value=this.on?.7:0;$('#sndL').textContent=this.on?'Sound':'Muted'}};
+
+/* ---------------- 2.5D renderer ---------------- */
+const cv=$('#court'),g=cv.getContext('2d');let W=1,H=1,F=1,DPR=1;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=cv.clientWidth||innerWidth;H=cv.clientHeight||innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);g.setTransform(DPR,0,0,DPR,0,0)}
+addEventListener('resize',resize);resize();
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],norm=a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return[a[0]/l,a[1]/l,a[2]/l]};
+const hex=h=>{h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]};
+const V={p:[0,0,0],f:[0,0,1],r:[1,0,0],u:[0,1,0]};
+const CAM={pos:[0,7.4,-5.5],tgt:[0,2,19],fov:50,a:null,b:null,t:1,dur:1,name:'wide',orbit:true};
+let shake=0;
+function proj(p){const dx=p[0]-V.p[0],dy=p[1]-V.p[1],dz=p[2]-V.p[2];const z=dx*V.f[0]+dy*V.f[1]+dz*V.f[2];if(z<.15)return null;
+  return[W/2+(dx*V.r[0]+dy*V.r[1]+dz*V.r[2])*F/z,H/2-(dx*V.u[0]+dy*V.u[1]+dz*V.u[2])*F/z,z]}
+
+const BG=[],OBJ=[],LAMPS=[[0,8.6,5,1],[0,8.6,17,1.2],[-7,8.4,12,.7],[7,8.4,12,.7],[0,4.6,25,.6],[3.3,1.5,14.2,.35],[-3.6,1.5,14.2,.35]];
+const LIGHT=norm([.55,.8,-.3]);
+function lit(c,n,p){let b=.36+.34*Math.max(0,dot(n,LIGHT));for(const l of LAMPS){const d2=(p[0]-l[0])**2+(p[1]-l[1])**2+(p[2]-l[2])**2;b+=l[3]*5/(5+d2)*.6}b=Math.min(b,1.3);return[c[0]*b,c[1]*b*.96,c[2]*b*.86]}
+function quad(list,pts,n,col,emis){const c=[0,0,0];for(const p of pts){c[0]+=p[0]/4;c[1]+=p[1]/4;c[2]+=p[2]/4}list.push({pts,n,c,rgb:emis?col:lit(col,n,c),emis:!!emis})}
+function box(x0,y0,z0,x1,y1,z1,col,top){
+  if(x1-x0>3.2){const k=Math.ceil((x1-x0)/3);for(let i=0;i<k;i++)box(x0+(x1-x0)*i/k,y0,z0,x0+(x1-x0)*(i+1)/k,y1,z1,col,top);return}
+  if(z1-z0>3.2){const k=Math.ceil((z1-z0)/3);for(let i=0;i<k;i++)box(x0,y0,z0+(z1-z0)*i/k,x1,y1,z0+(z1-z0)*(i+1)/k,col,top);return}
+  const C=hex(col),T=top?hex(top):C.map(v=>v*1.15),Sd=C.map(v=>v*.86);
+  quad(OBJ,[[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],[0,1,0],T);
+  quad(OBJ,[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]],[0,0,-1],C);
+  quad(OBJ,[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],[0,0,1],C);
+  quad(OBJ,[[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]],[-1,0,0],Sd);
+  quad(OBJ,[[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0]],[1,0,0],Sd)}
+function panelZ(x0,y0,x1,y1,z,n,col){quad(OBJ,[[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]],[0,0,n],hex(col))}
+function buildRoom(){
+  // floor: carpet in gallery, plank floor in the well, runner down the aisle
+  for(let x=-12;x<12;x+=1.5)for(let z=-8;z<30;z+=2){const aisle=x>=-1.5&&x<1.5,well=z>=11,j=hash(x*7+z*13)*.08;
+    let c=well?[86,52,30]:aisle?[92,22,28]:[52,28,30];c=c.map(v=>v*(1-j+(well&&((z/2)%2===0)?.04:0)));
+    quad(BG,[[x,0,z],[x+1.5,0,z],[x+1.5,0,z+2],[x,0,z+2]],[0,1,0],c)}
+  const wain=[58,34,20],plaster=[118,104,86],plaster2=[96,84,70];
+  for(let x=-12;x<12;x+=2){quad(BG,[[x,0,30],[x+2,0,30],[x+2,2.4,30],[x,2.4,30]],[0,0,-1],wain);quad(BG,[[x,2.4,30],[x+2,2.4,30],[x+2,9.5,30],[x,9.5,30]],[0,0,-1],Math.abs(x+1)<5?[70,42,26]:plaster);
+    quad(BG,[[x,0,-8],[x+2,0,-8],[x+2,2.4,-8],[x,2.4,-8]],[0,0,1],wain);quad(BG,[[x,2.4,-8],[x+2,2.4,-8],[x+2,9.5,-8],[x,9.5,-8]],[0,0,1],plaster2)}
+  for(let z=-8;z<30;z+=2)for(const s of[-1,1]){const x=12*s,n=[-s,0,0];quad(BG,[[x,0,z],[x,0,z+2],[x,2.4,z+2],[x,2.4,z]],n,wain);
+    const win=s<0&&[[2,6],[10,14],[18,22]].some(w=>z>=w[0]&&z<w[1]);
+    if(win){quad(BG,[[x,2.4,z],[x,2.4,z+2],[x,3.2,z+2],[x,3.2,z]],n,plaster);quad(BG,[[x,3.2,z],[x,3.2,z+2],[x,7.6,z+2],[x,7.6,z]],n,[170,186,200],1);quad(BG,[[x,7.6,z],[x,7.6,z+2],[x,9.5,z+2],[x,9.5,z]],n,plaster)}
+    else quad(BG,[[x,2.4,z],[x,2.4,z+2],[x,9.5,z+2],[x,9.5,z]],n,s<0?plaster:plaster2)}
+  for(let x=-12;x<12;x+=4)for(let z=-8;z<30;z+=4)quad(BG,[[x,9.5,z],[x+4,9.5,z],[x+4,9.5,z+4],[x,9.5,z+4]],[0,-1,0],(x/4+z/4)%2?[44,30,22]:[52,36,26]);
+  // the bench and its platform
+  box(-4.4,0,24,4.4,1.5,29.9,'#3d2415');box(-3.8,0,23.5,3.8,2.35,25.0,'#4a2a17','#5e3a22');
+  for(const x of[-3.3,-1.1,1.1])panelZ(x,.4,x+2,1.95,23.48,-1,'#3a1f10');
+  box(-.55,1.5,26.7,.55,3.75,27.2,'#2a1210','#3b1a16');
+  box(-2.4,2.35,24.1,-1.6,2.42,24.6,'#c9a35a');
+  // witness stand
+  box(4.1,0,22.0,6.9,.5,24.8,'#3d2415');box(4.1,.5,22.0,6.9,1.22,22.22,'#4a2a17','#5e3a22');box(4.1,.5,22.0,4.32,1.22,24.6,'#4a2a17','#5e3a22');
+  box(5.1,.5,23.7,5.9,1.6,24.0,'#2a1210');
+  // clerk's desk, counsel tables, lectern
+  box(-6.4,0,21.1,-3.3,1.08,22.1,'#4a2a17','#6a4527');
+  box(1.3,0,13.6,5.3,.8,14.8,'#5a361e','#704628');box(-5.9,0,13.6,-1.3,.8,14.8,'#5a361e','#704628');
+  box(.25,0,17.9,1.05,1.15,18.5,'#4a2a17','#6a4527');
+  // bar rail with balusters, gate gap at the aisle
+  for(const[a,b]of[[-12,-1.1],[1.1,12]]){box(a,.95,10.95,b,1.08,11.2,'#5e3a22','#7a4c2c');for(let x=a+.2;x<b;x+=.55)box(x,0,11.03,x+.08,.95,11.12,'#4a2a17')}
+  // gallery pews
+  for(const z of[2.4,4.6,6.8,9.0])for(const[a,b]of[[-11,-1.7],[1.7,11]]){box(a,0,z,b,.46,z+.5,'#4a2a17','#5e3a22');box(a,.46,z+.45,b,1.05,z+.6,'#3f2414')}
+  // flags and a door
+  for(const x of[-5,5]){box(x-.05,0,28.4,x+.05,4.4,28.5,'#a3864a');}
+  quad(OBJ,[[-5,3.1,28.45],[-3.9,3.0,28.45],[-3.9,4.2,28.45],[-5,4.3,28.45]],[0,0,-1],[28,40,86]);
+  quad(OBJ,[[5,3.1,28.45],[6.1,3.0,28.45],[6.1,4.2,28.45],[5,4.3,28.45]],[0,0,-1],[30,64,44]);
+  quad(BG,[[8,0,29.95],[10,0,29.95],[10,3.2,29.95],[8,3.2,29.95]],[0,0,-1],[44,24,14]);
+}
+buildRoom();
+
+/* ---------------- characters ---------------- */
+const CH={};
+function mk(id,o){const c=Object.assign({id,h:1.78,sit:0,sitT:0,face:[0,1],col:'#333333',skin:'#d2a17f',hair:'#2a1d15',hs:'short',tie:'#6b2a2a',seed:hash(id.length*9.1)*20,vis:true,pitch:200,tag:'#c9a35a',short:o.name},o);c.pos=[...o.pos];c.home=[...o.pos];c.homeFace=[...c.face];CH[id]=c;return c}
+const PODIUM=[.65,0,17.6],STAND=[5.5,.5,23.35],GATE=[0,0,10.3];
+mk('judge',{name:'Judge Harlan',role:'The Court · You',pos:[0,1.5,26.2],face:[0,-1],h:1.86,col:'#141418',robe:true,skin:'#c99674',hair:'#b9b2a8',hs:'short',sit:1,sitT:1,pitch:150,tag:'#e8cc88',vis:false});
+mk('pros',{name:'Celeste Varga',short:'Varga',role:'Deputy DA · State AI counsel',pos:[3.3,0,13.0],h:1.72,col:'#5e1c26',skin:'#e4b996',hair:'#24150f',hs:'bob',tie:'#e8dcd0',pitch:260,tag:'#c04a55',sit:1,sitT:1});
+mk('def',{name:'Theo Okafor',short:'Okafor',role:'Defense · AI counsel',pos:[-2.9,0,13.0],h:1.83,col:'#1d3150',skin:'#6e4630',hair:'#141010',hs:'crop',tie:'#b38a3c',pitch:170,tag:'#5d8fc8',sit:1,sitT:1,glasses:true});
+mk('hale',{name:'Marcus Hale',short:'Hale',role:'Defendant',pos:[-4.7,0,13.0],h:1.88,col:'#4a4d55',skin:'#d8aa8a',hair:'#5a4030',tie:'#2f3640',pitch:140,tag:'#a99c87',sit:1,sitT:1});
+mk('bailiff',{name:'Bailiff Dunn',role:'Court security',pos:[-8.6,0,21.5],face:[1,0],h:1.85,col:'#3d4436',uniform:true,skin:'#b9855f',hair:'#1a1410',hs:'bald',pitch:130});
+mk('clerk',{name:'Ines Morrow',role:'Courtroom clerk',pos:[-4.8,.4,22.7],face:[0,-1],h:1.64,col:'#40345a',skin:'#e7c3a2',hair:'#6b4426',hs:'bun',pitch:240,sit:1,sitT:1});
+mk('calloway',{name:'Det. Ray Calloway',short:'Calloway',role:'MCPD Homicide · State witness',pos:[-3,0,9.6],h:1.8,col:'#4b4234',skin:'#d9a988',hair:'#7d7468',tie:'#24313d',pitch:150,sit:1,sitT:1});
+mk('pratt',{name:'Owen Pratt',short:'Pratt',role:'Facilities manager · State witness',pos:[-5,0,9.6],h:1.73,col:'#5a4a38',skin:'#e0b392',hair:'#8a6a44',tie:'#3a4a2a',pitch:185,sit:1,sitT:1});
+mk('shah',{name:'Dr. Anita Shah',short:'Dr. Shah',role:'Deputy medical examiner · State witness',pos:[-7,0,9.6],h:1.66,col:'#28474a',skin:'#a87555',hair:'#120c0a',hs:'long',tie:'#e8e2d6',glasses:true,pitch:230,sit:1,sitT:1});
+mk('price',{name:'Jamal Price',short:'Price',role:'Bar manager, The Copper Still · Defense witness',pos:[-3,0,7.4],h:1.79,col:'#2b2b2b',skin:'#5e3b28',hair:'#0f0b09',hs:'crop',tie:'#7a5a2a',pitch:165,sit:1,sitT:1});
+mk('ortiz',{name:'Lena Ortiz',short:'Ortiz',role:'Forensic video examiner · Defense witness',pos:[-5,0,7.4],h:1.68,col:'#3a3f48',skin:'#c99271',hair:'#2a1a12',hs:'bun',glasses:true,tie:'#d8d0c0',pitch:235,sit:1,sitT:1});
+mk('daniel',{name:'Daniel Lang',role:"Victim's brother · gallery",pos:[2.6,0,9.6],h:1.82,col:'#2e2a26',skin:'#e0b090',hair:'#3a2a1a',tie:'#1a1a1a',pitch:175,sit:1,sitT:1});
+mk('narr',{name:'',role:'',pos:[0,-50,0],vis:false});
+const CROWD=[];
+for(const z of[2.4,4.6,6.8,9.0])for(const sd of[-1,1])for(let i=0;i<4;i++){if(hash(z*3+i*7+sd)>.62)continue;const x=sd*(2.4+i*2.1+hash(i+z)*.8);
+  if(z===9.0&&sd<0)continue;if(z===9.0&&sd>0&&i===0)continue;
+  const pal=['#2b2b30','#3d3226','#283447','#4a2f2f','#30402f','#55504a'];
+  CROWD.push({id:'c'+CROWD.length,pos:[x,0,z-.25],face:[0,1],h:1.65+hash(x*z)*.25,sit:1,sitT:1,col:pal[Math.floor(hash(x+z*2)*6)],skin:['#e2b896','#c18e6a','#8a5a3c','#f0c8a8','#5e3b28'][Math.floor(hash(x*1.3+z)*5)],hair:['#2a1d15','#6b4a2a','#141010','#9a9088','#3a2a1a'][Math.floor(hash(x*2.7+z)*5)],hs:['short','bob','long','bald','crop','bun'][Math.floor(hash(x*4.1+z*1.7)*6)],tie:'#222',seed:hash(x*z)*20,crowd:true})}
+
+const shadeMemo=new Map();
+function shade(h,f){f=Math.round(f*20)/20;const k=h+f;let v=shadeMemo.get(k);if(!v){const c=hex(h);v=`rgb(${Math.min(255,c[0]*f)|0},${Math.min(255,c[1]*f*.97)|0},${Math.min(255,c[2]*f*.9)|0})`;shadeMemo.set(k,v)}return v}
+let talking=null;
+function drawPerson(c,ch,x,y,k,front,lat,t,L){
+  const hh=ch.h*(1-.27*ch.sit),s=(col,f=1)=>shade(col,L*f);
+  c.save();c.translate(x,y);c.scale(k,k);
+  const br=Math.sin(t*1.6+ch.seed)*.006,sh=hh*.815+br,wa=hh*.5,sw=.22;
+  const spk=talking===ch.id,mouth=spk&&D.typing?Math.abs(Math.sin(t*16+ch.seed)):0;
+  c.fillStyle='rgba(0,0,0,.33)';c.beginPath();c.ellipse(0,0,.3,.06,0,0,7);c.fill();
+  if(spk){c.shadowColor='rgba(232,204,136,.55)';c.shadowBlur=16}
+  if(!ch.robe&&ch.sit<.5){c.fillStyle=s(ch.uniform?'#24291f':'#1b1b20');c.fillRect(-.14,-wa,.12,wa);c.fillRect(.02,-wa,.12,wa);c.fillStyle='#0b0b0b';c.fillRect(-.16,-.035,.15,.035);c.fillRect(.01,-.035,.15,.035)}
+  // torso
+  c.fillStyle=s(ch.col);c.beginPath();
+  const bot=ch.robe?(ch.sit>.5?-hh*.3:0):-wa+.02;
+  c.moveTo(-sw,-sh);c.quadraticCurveTo(-sw-.04,-sh+.06,-sw+(ch.robe?-.06:.01),-sh+.14);c.lineTo(ch.robe?-sw-.08:-.17,bot);c.lineTo(ch.robe?sw+.08:.17,bot);c.lineTo(sw-(ch.robe?-.06:.01),-sh+.14);c.quadraticCurveTo(sw+.04,-sh+.06,sw,-sh);c.closePath();c.fill();
+  c.shadowBlur=0;
+  // arms
+  const gest=spk?(Math.sin(t*2.3+ch.seed)*.5+.5):0;c.lineCap='round';c.lineWidth=.085;c.strokeStyle=s(ch.col,.82);
+  const arm=(sd,hx,hy)=>{c.beginPath();c.moveTo(sd*(sw-.03),-sh+.05);c.quadraticCurveTo(sd*(sw+.03),-hh*.62,hx,hy);c.stroke();c.fillStyle=s(ch.skin);c.beginPath();c.arc(hx,hy,.038,0,7);c.fill()};
+  if(ch.pose==='write'&&front)arm(1,.05,-hh*.5+Math.sin(t*9)*.01);else arm(1,(sw+.02)+gest*.06,-hh*.47-gest*.12);
+  if(ch.pose==='point'){c.beginPath();c.moveTo(-(sw-.03),-sh+.05);c.lineTo(-sw-.3,-sh+.02);c.stroke()}else arm(-1,-(sw-.01),-hh*.48);
+  if(front&&!ch.robe){c.fillStyle=s(ch.uniform?'#5a6248':'#ece6dc');c.beginPath();c.moveTo(-.07,-sh);c.lineTo(.07,-sh);c.lineTo(0,-sh+.17);c.closePath();c.fill();
+    if(ch.uniform){c.fillStyle='#d4b04a';c.beginPath();c.arc(-.11,-sh+.1,.022,0,7);c.fill()}
+    else{c.fillStyle=s(ch.tie);c.beginPath();c.moveTo(-.018,-sh+.02);c.lineTo(.018,-sh+.02);c.lineTo(.026,-sh+.2);c.lineTo(0,-sh+.23);c.lineTo(-.026,-sh+.2);c.closePath();c.fill()}
+    c.strokeStyle=s(ch.col,.6);c.lineWidth=.012;c.beginPath();c.moveTo(-.07,-sh);c.lineTo(-.02,-sh+.24);c.moveTo(.07,-sh);c.lineTo(.02,-sh+.24);c.stroke()}
+  if(front&&ch.robe){c.fillStyle='#e9e4da';c.beginPath();c.moveTo(-.05,-sh);c.lineTo(.05,-sh);c.lineTo(0,-sh+.07);c.closePath();c.fill()}
+  // neck + head
+  const hx=lat*.025,hy=-hh*.925;
+  c.fillStyle=s(ch.skin,.85);c.fillRect(-.035,-sh-.05,.07,.07);
+  c.fillStyle=s(front?ch.skin:ch.hair);c.beginPath();c.ellipse(hx,hy,.082,.1,0,0,7);c.fill();
+  c.fillStyle=s(ch.hair);const hs=ch.hs;
+  if(front){
+    if(hs!=='bald'){c.beginPath();c.ellipse(hx,hy-.03,.088,hs==='crop'?.075:.082,0,Math.PI,0);c.fill()}
+    else{c.fillRect(hx-.085,hy-.02,.02,.05);c.fillRect(hx+.065,hy-.02,.02,.05)}
+    if(hs==='bob'){c.fillRect(hx-.092,hy-.04,.03,.12);c.fillRect(hx+.062,hy-.04,.03,.12)}
+    if(hs==='long'){c.fillRect(hx-.095,hy-.04,.032,.2);c.fillRect(hx+.063,hy-.04,.032,.2)}
+    if(hs==='bun'){c.beginPath();c.arc(hx,hy-.11,.04,0,7);c.fill()}
+    const blink=(t+ch.seed)%4.2<.12?.15:1,ex=lat*.03;
+    c.fillStyle='#1a120c';for(const sd of[-1,1]){c.beginPath();c.ellipse(hx+ex+sd*.03,hy-.005,.011,.011*blink,0,0,7);c.fill()}
+    c.strokeStyle='rgba(30,20,14,.6)';c.lineWidth=.008;for(const sd of[-1,1]){c.beginPath();c.moveTo(hx+ex+sd*.045,hy-.03);c.lineTo(hx+ex+sd*.018,hy-.033);c.stroke()}
+    if(ch.glasses){c.strokeStyle='rgba(20,20,20,.8)';c.lineWidth=.007;for(const sd of[-1,1]){c.beginPath();c.arc(hx+ex+sd*.031,hy-.004,.021,0,7);c.stroke()}}
+    c.fillStyle='#4a2420';c.beginPath();c.ellipse(hx+ex,hy+.045,.022,.004+mouth*.013,0,0,7);c.fill();
+  }else{c.beginPath();c.ellipse(hx,hy-.01,.088,.1,0,0,7);c.fill();if(hs==='bun'){c.beginPath();c.arc(hx,hy-.06,.042,0,7);c.fill()}if(hs==='long'||hs==='bob'){c.fillRect(hx-.09,hy,.18,hs==='long'?.17:.09)}if(hs==='bald'){c.fillStyle=s(ch.skin);c.beginPath();c.ellipse(hx,hy-.02,.08,.085,0,0,7);c.fill()}}
+  c.restore()}
+
+/* ---------------- shots ---------------- */
+function closeOn(ch){if(ch.id==='judge')return{pos:[.9,3.35,21.3],tgt:[0,2.6,26.2],fov:30};const hh=ch.h*(1-.27*ch.sit),head=[ch.pos[0],ch.pos[1]+hh*.86,ch.pos[2]],f=ch.face,sd=[f[1],-f[0]],d=ch.id==='judge'?3.5:2.9;
+  return{pos:[head[0]+f[0]*d+sd[0]*.85,head[1]+.28,head[2]+f[1]*d+sd[1]*.85],tgt:[head[0],head[1]-.14,head[2]],fov:34}}
+const SHOTS={wide:()=>({pos:[0,7.4,-5.5],tgt:[0,2,19],fov:50}),bench:()=>({pos:[0,4.4,27.3],tgt:[.4,1.4,14],fov:62}),
+  well:()=>({pos:[-9.5,5.2,7],tgt:[1,1.6,20],fov:50}),gallery:()=>({pos:[0,4,15.5],tgt:[0,1.2,6],fov:56}),
+  counsel:()=>({pos:[0,3.4,20.4],tgt:[0,1.2,13],fov:54}),hero:()=>({pos:[0,1.9,17.5],tgt:[0,3.1,26],fov:44}),
+  stand:()=>({pos:[1.8,2.7,18.6],tgt:[5.4,1.6,23.3],fov:40})};
+const CAMLIST=['bench','wide','well','counsel','stand','hero'];
+function shot(name,dur=1.3){const fn=SHOTS[name];let s=fn?fn():CH[name]&&CH[name].vis!==false?closeOn(CH[name]):null;if(!s)return;
+  CAM.orbit=false;CAM.name=name;CAM.a={pos:[...CAM.pos],tgt:[...CAM.tgt],fov:CAM.fov};CAM.b=s;CAM.t=dur?0:1;CAM.dur=dur||1;if(!dur){CAM.pos=[...s.pos];CAM.tgt=[...s.tgt];CAM.fov=s.fov}}
+
+/* ---------------- frame loop ---------------- */
+const DUST=[...Array(90)].map((_,i)=>({p:[-11+hash(i)*9,hash(i*3)*7.5,1+hash(i*7)*22],v:hash(i*11)*.1+.02,s:hash(i*13)}));
+let T=0,lastT=performance.now();
+function update(dt){
+  if(CAM.orbit){const a=T*.045;CAM.pos=[Math.sin(a)*7,5.8+Math.sin(T*.11)*.6,4+Math.cos(a)*6-6];CAM.tgt=[0,2,20];CAM.fov=52}
+  else if(CAM.t<1){CAM.t=Math.min(1,CAM.t+dt/CAM.dur);const e=ease(CAM.t);for(let i=0;i<3;i++){CAM.pos[i]=lerp(CAM.a.pos[i],CAM.b.pos[i],e);CAM.tgt[i]=lerp(CAM.a.tgt[i],CAM.b.tgt[i],e)}CAM.fov=lerp(CAM.a.fov,CAM.b.fov,e)}
+  const p=[CAM.pos[0]+Math.sin(T*.31)*.05,CAM.pos[1]+Math.sin(T*.23)*.035,CAM.pos[2]];
+  V.p=p;V.f=norm(sub(CAM.tgt,p));V.r=norm(cross([0,1,0],V.f));V.u=cross(V.f,V.r);F=(H/2)/Math.tan(CAM.fov*Math.PI/360);
+  for(const ch of[...Object.values(CH),...CROWD]){ch.sit+=(ch.sitT-ch.sit)*Math.min(1,dt*5);
+    if(ch.walk){const w=ch.walk;w.t+=dt;const seg=w.pts[w.i],nx=w.pts[w.i+1];const L=Math.hypot(nx[0]-seg[0],nx[2]-seg[2])||.01,u=Math.min(1,w.t/(L/1.5));
+      ch.pos=[lerp(seg[0],nx[0],u),lerp(seg[1],nx[1],u)+Math.abs(Math.sin(w.t*7))*.03,lerp(seg[2],nx[2],u)];const dx=nx[0]-seg[0],dz=nx[2]-seg[2],dl=Math.hypot(dx,dz)||1;ch.face=[dx/dl,dz/dl];
+      if(u>=1){w.i++;w.t=0;if(w.i>=w.pts.length-1){ch.pos=[...nx];ch.face=w.face||ch.face;const r=w.res;ch.walk=null;r()}}}}
+  if(S.order<55)for(const c of CROWD)c.jit=Math.sin(T*3+c.seed)*.04*(55-S.order)/55;else for(const c of CROWD)c.jit=0;
+  for(const d of DUST){d.p[1]+=Math.sin(T*.5+d.s*9)*.002;d.p[0]+=d.v*dt*.3;if(d.p[0]>-2)d.p[0]=-11}
+}
+function fog(rgb,z){const f=clamp((z-12)/45,0,.6);return`rgb(${lerp(rgb[0],14,f)|0},${lerp(rgb[1],10,f)|0},${lerp(rgb[2],8,f)|0})`}
+function drawQuad(q,P){g.beginPath();g.moveTo(P[0][0],P[0][1]);for(let i=1;i<4;i++)g.lineTo(P[i][0],P[i][1]);g.closePath();const col=q.emis?`rgb(${q.rgb})`:fog(q.rgb,P.z);g.fillStyle=col;g.fill();g.strokeStyle=col;g.lineWidth=.8;g.stroke()}
+function faceItems(list,out){for(const q of list){const vx=V.p[0]-q.c[0],vy=V.p[1]-q.c[1],vz=V.p[2]-q.c[2];if(vx*q.n[0]+vy*q.n[1]+vz*q.n[2]<=0)continue;
+  const P=[];for(const p of q.pts){const s=proj(p);if(!s){P.length=0;break}P.push(s)}if(P.length<4)continue;P.z=dot(sub(q.c,V.p),V.f);out.push({z:P.z,q,P})}}
+function lightAt(p){let b=.55;for(const l of LAMPS){const d2=(p[0]-l[0])**2+(p[1]+1-l[1])**2+(p[2]-l[2])**2;b+=l[3]*5/(5+d2)*.7}return clamp(b,.45,1.12)}
+function render(){
+  g.save();if(shake>.2){g.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.86}
+  g.fillStyle='#0d0a08';g.fillRect(-30,-30,W+60,H+60);
+  const bg=[];faceItems(BG,bg);bg.sort((a,b)=>b.z-a.z);for(const it of bg)drawQuad(it.q,it.P);
+  // engraved motto + seal + clock on the back wall
+  const m=proj([0,7.9,29.9]);if(m&&V.p[2]<29){const k=F/m[2];g.save();g.fillStyle='rgba(214,180,110,.75)';g.font=`700 ${.42*k}px Cinzel,Georgia,serif`;g.textAlign='center';g.fillText('EQUAL JUSTICE UNDER LAW',m[0],m[1]);g.restore();
+    const sc=proj([0,5.4,29.9]);if(sc){const r=1.15*F/sc[2];g.save();g.translate(sc[0],sc[1]);const gr=g.createRadialGradient(0,0,r*.2,0,0,r);gr.addColorStop(0,'#d9b56a');gr.addColorStop(1,'#7a5a2a');g.fillStyle=gr;g.beginPath();g.arc(0,0,r,0,7);g.fill();g.strokeStyle='#3d2a12';g.lineWidth=r*.05;g.beginPath();g.arc(0,0,r*.78,0,7);g.stroke();
+      g.strokeStyle='#3d2a12';g.lineWidth=r*.06;g.beginPath();g.moveTo(0,-r*.45);g.lineTo(0,r*.4);g.moveTo(-r*.4,-r*.25);g.lineTo(r*.4,-r*.25);g.stroke();for(const sd of[-1,1]){g.beginPath();g.arc(sd*r*.4,-r*.05,r*.16,0,Math.PI);g.stroke()}g.restore()}
+    const ck=proj([-7,5.6,29.9]);if(ck){const r=.55*F/ck[2],mins=S.min;g.save();g.translate(ck[0],ck[1]);g.fillStyle='#e9e0cc';g.beginPath();g.arc(0,0,r,0,7);g.fill();g.strokeStyle='#3d2a12';g.lineWidth=r*.12;g.stroke();g.lineWidth=r*.09;
+      const ha=((mins/60)%12)/12*Math.PI*2,ma=(mins%60)/60*Math.PI*2;g.beginPath();g.moveTo(0,0);g.lineTo(Math.sin(ha)*r*.5,-Math.cos(ha)*r*.5);g.moveTo(0,0);g.lineTo(Math.sin(ma)*r*.8,-Math.cos(ma)*r*.8);g.stroke();g.restore()}}
+  const items=[];faceItems(OBJ,items);
+  for(const ch of[...Object.values(CH),...CROWD]){if(ch.vis===false)continue;const base=[ch.pos[0]+(ch.jit||0),ch.pos[1],ch.pos[2]];const s=proj(base);if(!s||s[2]<.7)continue;
+    const z=dot(sub([base[0],base[1]+.8,base[2]],V.p),V.f);const vx=V.p[0]-ch.pos[0],vz=V.p[2]-ch.pos[2],vl=Math.hypot(vx,vz)||1;
+    const front=(ch.face[0]*vx+ch.face[1]*vz)/vl>-.15,lat=(ch.face[1]*vx-ch.face[0]*vz)/vl;
+    items.push({z,ch,s,front,lat:clamp(-lat,-1,1)})}
+  items.sort((a,b)=>b.z-a.z);
+  for(const it of items){if(it.q)drawQuad(it.q,it.P);else{const ch=it.ch;drawPerson(g,ch,it.s[0],it.s[1],F/it.s[2],it.front,it.lat,T,lightAt(ch.pos)*(ch.crowd?.82:1))}}
+  // window light shafts and dust
+  g.globalCompositeOperation='lighter';const D3=norm([.9,-.8,.32]);
+  for(const[za,zb]of[[2,6],[10,14],[18,22]]){const pts=[];for(const z of[za,zb])for(const y of[3.2,7.6]){const w=[-11.95,y,z];pts.push(w);const t=-y/D3[1];pts.push([w[0]+D3[0]*t,0,w[2]+D3[2]*t])}
+    const sp=pts.map(proj);if(sp.some(p=>!p))continue;const hull=convexHull(sp);g.beginPath();hull.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();
+    const a=proj([-11.95,6,(za+zb)/2]),b=proj([-3,0,(za+zb)/2+3]);const gr=g.createLinearGradient(a[0],a[1],b[0],b[1]);gr.addColorStop(0,'rgba(255,236,200,.11)');gr.addColorStop(1,'rgba(255,220,170,0)');g.fillStyle=gr;g.fill()}
+  for(const d of DUST){const s=proj(d.p);if(!s)continue;const a=(.25+.25*Math.sin(T*2+d.s*30))*clamp(6/s[2],0,1);g.fillStyle=`rgba(255,230,190,${a})`;g.fillRect(s[0],s[1],Math.max(1,F*.012/s[2]),Math.max(1,F*.012/s[2]))}
+  for(const l of LAMPS.slice(0,4)){const s=proj(l);if(!s)continue;const r=F*1.4/s[2];const gr=g.createRadialGradient(s[0],s[1],0,s[0],s[1],r);gr.addColorStop(0,'rgba(255,214,150,.5)');gr.addColorStop(.25,'rgba(255,190,120,.12)');gr.addColorStop(1,'rgba(255,190,120,0)');g.fillStyle=gr;g.fillRect(s[0]-r,s[1]-r,r*2,r*2)}
+  g.globalCompositeOperation='source-over';g.restore()}
+function convexHull(p){p=p.map(a=>[a[0],a[1]]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);const lo=[],up=[];
+  for(const q of p){while(lo.length>1&&cr(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q)}for(const q of p.slice().reverse()){while(up.length>1&&cr(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q)}return lo.slice(0,-1).concat(up.slice(0,-1))}
+function frame(now){const dt=Math.min(.05,(now-lastT)/1000);lastT=now;T+=dt;update(dt);render();requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+
+function walk(id,pts,face){const ch=CH[id];return new Promise(res=>{ch.vis=true;ch.sitT=0;ch.walk={pts:[[...ch.pos],...pts],i:0,t:0,res,face}})}
+function portrait(cv2,ch){const c=cv2.getContext('2d'),w=cv2.width,h=cv2.height;c.clearRect(0,0,w,h);const gr=c.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#3a2717');gr.addColorStop(1,'#140e09');c.fillStyle=gr;c.fillRect(0,0,w,h);
+  const tmp=Object.assign({},ch,{sit:0,pose:null}),k=h/.62;drawPerson(c,tmp,w/2,8+tmp.h*k,k,true,.15,T,1.05)}
+
+/* ---------------- CCTV exhibit P-3 (procedural DVR footage) ---------------- */
+const VID={len:1320,base:22*3600+45*60,drift:33*60+4,marks:[[95,150],[598,630],[898,916],[1194,1282]]};
+const hms=s=>{s=Math.floor(((s%86400)+86400)%86400);return[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(v=>String(v).padStart(2,'0')).join(':')};
+const NOISE=[0,1,2,3].map(i=>{const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d'),d=x.createImageData(320,180);for(let j=0;j<d.data.length;j+=4){const v=Math.random()*255;d.data[j]=d.data[j+1]=d.data[j+2]=v;d.data[j+3]=255}x.putImageData(d,0,0);return c});
+function doorOpen(t){const r=(a,b,c,d)=>t<a?0:t<b?(t-a)/(b-a):t<c?1:t<d?1-(t-c)/(d-c):0;return Math.max(r(136,140,146,150),r(1194,1198,1206,1210))}
+function subjectAt(t){
+  if(t>=95&&t<128)return{x:lerp(-30,314,(t-95)/33),y:250,s:1,m:'away',j:1,w:t};
+  if(t>=128&&t<138)return{x:314,y:250,s:1,m:'swipe',p:(t-128)/10,j:1};
+  if(t>=138&&t<147)return{x:lerp(314,284,(t-138)/9),y:250,s:1,m:'enter',p:(t-138)/9,j:1};
+  if(t>=1198&&t<1238){const p=(t-1198)/40;return{x:lerp(284,575,p),y:lerp(250,292,p),s:lerp(1,1.22,p),m:'toward',j:1,w:t}}
+  if(t>=1238&&t<1256){const p=(t-1238)/18;return{x:575,y:292,s:1.22,m:'toss',p,j:p<.55?1:0}}
+  if(t>=1256&&t<1282)return{x:lerp(575,720,(t-1256)/26),y:292,s:1.22,m:'right',j:0,w:t};
+  return null}
+function drawSubject(c,t){const st=subjectAt(t);if(!st)return;const hp=112*st.s,x=st.x,y=st.y,u=hp/1.73;
+  c.save();if(st.m==='enter'){c.globalAlpha=1-st.p;}
+  const body=st.j?'#1d1c15':'#0f1012',dark='#0a0b0c';const sw=.22*u,sh=y-hp*.82,wa=y-hp*.5,ph=st.w?Math.sin(st.w*6):0;
+  c.fillStyle=dark;c.fillRect(x-.13*u+ph*3,wa,.11*u,hp*.5);c.fillRect(x+.02*u-ph*3,wa,.11*u,hp*.5);
+  c.fillStyle=body;c.beginPath();c.moveTo(x-sw,sh);c.lineTo(x+sw,sh);c.lineTo(x+.19*u,wa+.04*u);c.lineTo(x-.19*u,wa+.04*u);c.closePath();c.fill();
+  c.lineCap='round';c.lineWidth=.085*u;c.strokeStyle=body;
+  const facing=st.m==='toward'||st.m==='toss'; // toward camera: subject's left hand is screen-right
+  const L=facing?1:-1;
+  const armTo=(sd,hx,hy)=>{c.beginPath();c.moveTo(x+sd*(sw-.02*u),sh+.05*u);c.lineTo(hx,hy);c.stroke()};
+  if(st.m==='swipe'){const p=st.p,reach=p>.15&&p<.85;armTo(-1,reach?334:x-sw-2,reach?177:wa+ .02*u);armTo(1,x+sw+2,wa)}
+  else if(st.m==='toss'){armTo(-L,x-L*(sw+4),wa);const p=st.p;armTo(L,x+L*(sw+6),wa);if(p<.55){armTo(-L,x+20,sh-20*p)}}
+  else{armTo(-1,x-sw-3-ph*4,wa+4);armTo(1,x+sw+3+ph*4,wa+4)}
+  if(facing){c.strokeStyle='#8f969a';c.lineWidth=.03*u;const hx=x+L*(sw+5),hy=wa+4;c.beginPath();c.moveTo(hx,hy-.05*u);c.lineTo(hx+L*4,hy+.5*u);c.stroke()}
+  if(st.m==='right'){c.strokeStyle='#8f969a';c.lineWidth=.03*u;c.beginPath();c.moveTo(x-sw-3,wa);c.lineTo(x-sw-8,wa+.5*u);c.stroke()}
+  if(st.j){const px=facing?x+.12*u:x-.15*u;c.fillStyle='rgba(235,240,180,.95)';c.fillRect(px,sh+.03*u,.06*u,.035*u)}
+  c.fillStyle='#0a0a0b';c.beginPath();c.ellipse(x,y-hp*.925,.082*u,.1*u,0,0,7);c.fill();
+  if(facing){c.fillStyle='rgba(120,100,90,.35)';c.beginPath();c.ellipse(x,y-hp*.915,.055*u,.07*u,0,0,7);c.fill()}
+  if(st.m==='toss'&&st.p>=.4&&st.p<.75){const q=(st.p-.4)/.35;c.fillStyle='#3a382c';c.beginPath();c.ellipse(lerp(x+20,612,q),lerp(sh-12,190,q)-Math.sin(q*Math.PI)*30,16,9,q*3,0,7);c.fill()}
+  c.restore()}
+function wallClock(c,x,y,r,sec){c.fillStyle='#cfd2c8';c.beginPath();c.arc(x,y,r,0,7);c.fill();c.strokeStyle='#111';c.lineWidth=1.4;c.stroke();
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2;c.beginPath();c.moveTo(x+Math.sin(a)*r*.8,y-Math.cos(a)*r*.8);c.lineTo(x+Math.sin(a)*r*.95,y-Math.cos(a)*r*.95);c.lineWidth=.8;c.stroke()}
+  const h=(sec/3600)%12,m=(sec/60)%60;c.lineWidth=1.8;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.sin(h/12*Math.PI*2)*r*.5,y-Math.cos(h/12*Math.PI*2)*r*.5);c.stroke();
+  c.lineWidth=1.1;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.sin(m/60*Math.PI*2)*r*.82,y-Math.cos(m/60*Math.PI*2)*r*.82);c.stroke()}
+function drawCCTV(c,t,o){const fr=Math.floor(t*15);c.save();c.globalCompositeOperation='source-over';
+  let gr=c.createLinearGradient(0,0,0,250);gr.addColorStop(0,'#1b2023');gr.addColorStop(1,'#2a3033');c.fillStyle=gr;c.fillRect(0,0,640,250);
+  c.strokeStyle='rgba(0,0,0,.25)';c.lineWidth=1;for(let y=10;y<250;y+=12){c.beginPath();c.moveTo(0,y);c.lineTo(640,y);c.stroke()}
+  gr=c.createLinearGradient(0,250,0,360);gr.addColorStop(0,'#17191b');gr.addColorStop(1,'#0b0c0d');c.fillStyle=gr;c.fillRect(0,250,640,110);c.fillStyle='#25292c';c.fillRect(0,247,640,4);
+  const lp=c.createRadialGradient(284,100,4,284,200,180);lp.addColorStop(0,'rgba(255,190,110,.5)');lp.addColorStop(1,'rgba(255,170,90,0)');c.fillStyle=lp;c.fillRect(90,90,390,270);
+  c.fillStyle='rgba(255,180,100,.1)';c.beginPath();c.ellipse(292,302,120,14,0,0,7);c.fill();
+  c.fillStyle='#30363a';c.fillRect(400,90,160,158);c.strokeStyle='rgba(0,0,0,.4)';for(let y=96;y<248;y+=8){c.beginPath();c.moveTo(400,y);c.lineTo(560,y);c.stroke()}
+  c.fillStyle='#0e0f10';c.fillRect(396,85,168,6);c.fillStyle='rgba(220,200,120,.45)';c.font='bold 14px monospace';c.fillText('DOCK B',452,78);
+  const op=doorOpen(t);c.fillStyle='#08090a';c.fillRect(246,108,76,142);if(op>0){c.fillStyle=`rgba(255,205,140,${.55*op})`;c.fillRect(250,112,68,138)}
+  c.fillStyle='#596265';c.fillRect(250,112,68*(1-op*.86),138);if(op<.3){c.fillStyle='#8a9496';c.fillRect(256,180,3,11)}
+  c.fillStyle='#14171a';c.fillRect(329,168,11,19);c.fillStyle=t>=131&&t<=134?'#3f6':'#d33';c.fillRect(332,171,5,3);
+  wallClock(c,284,80,11,VID.base+t+VID.drift);
+  c.fillStyle='#202224';c.fillRect(276,95,16,5);c.fillStyle='rgba(255,215,150,.95)';c.fillRect(279,100,10,2);
+  c.fillStyle='#2a241c';for(let i=0;i<3;i++){c.fillRect(18,262-i*16,78,10);c.fillRect(22,272-i*16,8,6);c.fillRect(54,272-i*16,8,6);c.fillRect(86,272-i*16,8,6)}
+  const tossing=t>=1238&&t<1252;c.fillStyle='#1c2a22';c.fillRect(572,206,80,52);c.fillStyle='#142019';
+  if(tossing){c.save();c.translate(572,206);c.rotate(-.5);c.fillRect(0,-7,84,7);c.restore()}else c.fillRect(570,199,84,7);
+  if(t>898&&t<916){const p=(t-898)/18,x=-120+p*880;const hg=c.createRadialGradient(x,170,5,x,170,160);hg.addColorStop(0,'rgba(240,245,255,.45)');hg.addColorStop(1,'rgba(240,245,255,0)');c.fillStyle=hg;c.fillRect(0,0,640,360)}
+  if(t>598&&t<630){const p=(t-598)/32,x=640-p*720;c.fillStyle='#060707';c.beginPath();c.ellipse(x,268,11,5,0,0,7);c.fill();c.beginPath();c.arc(x-11,263,4,0,7);c.fill();c.fillRect(x+9,258,2,9)}
+  drawSubject(c,t);
+  c.strokeStyle='rgba(185,195,205,.2)';for(let i=0;i<70;i++){const x=hash(i*13.7+fr*.37)*640,y=hash(i*7.1+fr*.71)*360;c.beginPath();c.moveTo(x,y);c.lineTo(x-3,y+12);c.stroke()}
+  c.globalCompositeOperation='saturation';c.fillStyle='rgba(128,128,128,.75)';c.fillRect(0,0,640,360);
+  c.globalCompositeOperation='source-over';c.fillStyle=o.enh?'rgba(40,60,50,.05)':'rgba(30,60,45,.14)';c.fillRect(0,0,640,360);
+  if(o.enh){c.globalCompositeOperation='screen';c.fillStyle='rgba(70,70,70,.55)';c.fillRect(0,0,640,360);c.globalCompositeOperation='source-over'}
+  c.globalAlpha=o.enh?.06:.17;c.drawImage(NOISE[fr%4],0,0,640,360);c.globalAlpha=1;
+  c.fillStyle='rgba(0,0,0,.18)';for(let y=0;y<360;y+=3)c.fillRect(0,y,640,1);
+  if(o.meas){c.strokeStyle='rgba(90,230,240,.85)';c.fillStyle='rgba(90,230,240,.95)';c.font='11px monospace';c.lineWidth=1;
+    const px=138/2.13;c.beginPath();c.moveTo(238,250);c.lineTo(238,112);c.stroke();
+    for(const[ft,m]of[['5′0″',1.524],['5′6″',1.676],['6′0″',1.829],['6′6″',1.981]]){const y=250-m*px;c.beginPath();c.moveTo(232,y);c.lineTo(244,y);c.stroke();c.fillText(ft,196,y+4)}
+    c.fillText('door 2.13 m',186,107);const st=subjectAt(t);if(st&&st.s===1&&st.x>150){const hy=250-112;c.setLineDash([4,3]);c.beginPath();c.moveTo(st.x-30,hy);c.lineTo(st.x+30,hy);c.stroke();c.setLineDash([]);c.fillText('≈1.73 m (5′8″)',st.x+34,hy+4)}
+    c.fillText('height scale valid only in the door plane',8,326)}
+  c.font='bold 15px "Courier Prime",monospace';c.fillStyle='#ececec';c.shadowColor='#000';c.shadowBlur=3;c.fillText('CAM 03  DOCK-B',14,26);c.textAlign='right';c.fillText('03/14/2026 '+hms(VID.base+t),626,26);
+  c.font='12px "Courier Prime",monospace';c.fillText('DVR-8CH  15FPS  CH03',626,348);c.textAlign='left';c.fillStyle=fr%15<9?'#ff4b4b':'#ececec';c.fillText('● REC',14,348);c.restore()}
+
+function VideoPlayer(host,{onFlag}={}){
+  host.innerHTML=`<div class="vp"><div class="vpS"><canvas width="640" height="360"></canvas></div>
+  <div class="tl"><canvas></canvas><input type="range" min="0" max="${VID.len}" step="0.0667" value="0" aria-label="Scrub footage"></div>
+  <div class="vpC"><button data-a="-10">−10s</button><button data-a="-1">−1s</button><button data-a="-.0667">◀ frame</button><button data-a="play" style="min-width:64px">▶ Play</button><button data-a=".0667">frame ▶</button><button data-a="1">+1s</button><button data-a="10">+10s</button>
+  <select aria-label="Playback speed"><option value="1">1×</option><option value="4">4×</option><option value="15" selected>15×</option><option value="60">60×</option></select>
+  <button data-t="zoom" aria-pressed="false">Zoom lens</button><button data-t="enh" aria-pressed="false">Enhance</button><button data-t="meas" aria-pressed="false">Measure</button><button data-a="flag">Flag frame → notes</button><span class="tc"></span></div></div>`;
+  const cvs=host.querySelector('.vpS canvas'),c=cvs.getContext('2d'),off=document.createElement('canvas');off.width=640;off.height=360;const oc=off.getContext('2d');
+  const tl=host.querySelector('.tl canvas'),rng=host.querySelector('input'),tc=host.querySelector('.tc'),pb=host.querySelector('[data-a="play"]'),sel=host.querySelector('select');
+  const st={t:0,play:false,speed:15,zoom:false,enh:false,meas:false,px:-1,py:-1,end:null,res:null};let last=performance.now(),alive=true;
+  const draw=()=>{drawCCTV(oc,st.t,st);c.drawImage(off,0,0);
+    if(st.zoom&&st.px>=0){const R=70,z=3;c.save();c.beginPath();c.arc(st.px,st.py,R,0,7);c.clip();c.imageSmoothingEnabled=false;c.drawImage(off,st.px-R/z,st.py-R/z,2*R/z,2*R/z,st.px-R,st.py-R,2*R,2*R);c.restore();c.strokeStyle='#9fd8b0';c.lineWidth=2;c.beginPath();c.arc(st.px,st.py,R,0,7);c.stroke()}
+    const w=tl.clientWidth,h=tl.clientHeight;if(tl.width!==w*2){tl.width=w*2;tl.height=h*2}const x=tl.getContext('2d');x.setTransform(2,0,0,2,0,0);x.clearRect(0,0,w,h);x.fillStyle='#161a18';x.fillRect(0,8,w,10);
+    x.fillStyle='rgba(232,180,80,.85)';for(const[a,b]of VID.marks)x.fillRect(a/VID.len*w,8,Math.max(2,(b-a)/VID.len*w),10);x.fillStyle='#9fd8b0';x.fillRect(st.t/VID.len*w-1,2,2,22);
+    x.fillStyle='#777';x.font='9px sans-serif';x.fillText('motion events',4,7);
+    tc.textContent=hms(VID.base+st.t);rng.value=st.t};
+  const loop=now=>{if(!alive||!host.isConnected){alive=false;return}const dt=Math.min(.1,(now-last)/1000);last=now;
+    if(st.play){st.t+=dt*st.speed;if(st.end!=null&&st.t>=st.end){st.t=st.end;st.play=false;st.end=null;pb.textContent='▶ Play';if(st.res){const r=st.res;st.res=null;r()}}if(st.t>=VID.len){st.t=VID.len;st.play=false;pb.textContent='▶ Play'}}
+    draw();requestAnimationFrame(loop)};requestAnimationFrame(loop);
+  host.querySelector('.vpC').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a,tg=b.dataset.t;
+    if(tg){st[tg]=!st[tg];b.setAttribute('aria-pressed',st[tg]);return}
+    if(a==='play'){st.play=!st.play;if(st.t>=VID.len)st.t=0;pb.textContent=st.play?'❚❚ Pause':'▶ Play';return}
+    if(a==='flag'){const line=`[P-3 @ ${hms(VID.base+st.t)} overlay] `;addNote(line);toast('Frame flagged in your notes');onFlag&&onFlag();return}
+    st.t=clamp(st.t+parseFloat(a),0,VID.len)});
+  sel.onchange=()=>st.speed=+sel.value;rng.oninput=()=>{st.t=+rng.value};
+  cvs.addEventListener('pointermove',e=>{const r=cvs.getBoundingClientRect();st.px=(e.clientX-r.left)/r.width*640;st.py=(e.clientY-r.top)/r.height*360});
+  cvs.addEventListener('pointerleave',()=>{st.px=-1});
+  cvs.addEventListener('click',()=>{if(!st.zoom){st.zoom=true;host.querySelector('[data-t="zoom"]').setAttribute('aria-pressed','true')}});
+  return{st,segment(a,b,speed){st.t=a;st.end=b;st.speed=speed;st.play=true;pb.textContent='❚❚ Pause';return new Promise(r=>st.res=r)},stop(){alive=false}}}
+
+/* ---------------- other exhibit renderers ---------------- */
+function scenePhoto(host){host.innerHTML='<canvas width="720" height="440" style="width:100%;max-width:720px;display:block;border:8px solid #f4efe4;box-shadow:0 10px 30px #000"></canvas><div class="doc" style="margin-top:12px"><div class="lbl">Evidence markers</div><ol><li>Blood pool beneath the right side of the decedent\'s head.</li><li>Office chair overturned, 1.4 m from the desk.</li><li>Wall safe open. Inventory per E. Lang: AP ledger box (2024–26) missing; cash ($1,800) untouched.</li><li>Coat rack by the door: one empty hook, a wet umbrella (V. Lang\'s).</li><li>Desk drawer forced. Pry marks 2.0 cm wide.</li><li>Decedent\'s phone. Last call 22:52:40 to E. Lang, 3 min 10 s.</li></ol></div>';
+  const c=host.querySelector('canvas').getContext('2d');c.fillStyle='#5a4128';c.fillRect(0,0,720,440);for(let x=0;x<720;x+=36){c.fillStyle=`rgba(0,0,0,${.06+hash(x)*.08})`;c.fillRect(x,0,35,440)}
+  c.fillStyle='#2e2016';c.fillRect(380,40,260,120);c.fillStyle='#3a2a1c';c.fillRect(392,52,236,96);c.fillStyle='#222';c.fillRect(470,60,60,40);
+  c.fillStyle='#1b1b1b';c.fillRect(640,20,62,80);c.fillStyle='#0b0b0b';c.fillRect(646,26,50,68);c.save();c.translate(633,24);c.rotate(-.8);c.fillStyle='#2a2a2a';c.fillRect(0,0,12,70);c.restore();
+  c.save();c.translate(210,300);c.rotate(.9);c.fillStyle='#262626';c.fillRect(-30,-30,60,60);c.fillRect(-36,-46,72,14);c.restore();
+  c.fillStyle='rgba(95,10,10,.9)';c.beginPath();c.ellipse(312,205,44,30,.3,0,7);c.fill();c.beginPath();c.ellipse(340,226,20,12,.6,0,7);c.fill();
+  c.strokeStyle='#f2f2f2';c.lineWidth=3;c.setLineDash([7,5]);c.beginPath();c.ellipse(285,205,24,28,0,0,7);c.moveTo(300,228);c.lineTo(460,300);c.moveTo(330,240);c.lineTo(370,330);c.moveTo(440,290);c.lineTo(520,330);c.moveTo(450,300);c.lineTo(500,380);c.stroke();c.setLineDash([]);
+  c.fillStyle='#4a3a2a';c.fillRect(40,30,24,24);c.fillStyle='#8a7a5a';c.beginPath();c.arc(52,42,6,0,7);c.fill();c.fillRect(30,60,44,4);
+  [[318,170],[210,252],[668,112],[52,90],[482,170],[262,330]].forEach(([x,y],i)=>{c.fillStyle='#f2c230';c.beginPath();c.moveTo(x,y-16);c.lineTo(x+12,y+6);c.lineTo(x-12,y+6);c.closePath();c.fill();c.fillStyle='#111';c.font='bold 12px sans-serif';c.textAlign='center';c.fillText(i+1,x,y+3)});
+  c.fillStyle='rgba(255,255,255,.85)';c.font='12px monospace';c.textAlign='left';c.fillText('MCPD CSU · 26-03114 · 900 KILN RD · OFFICE · 03/15/2026 07:12',12,430)}
+const doc=(title,sub,body,stamp)=>`<div class="doc">${stamp||''}<h4>${title}</h4><div class="sub">${sub}</div>${body}</div>`;
+const EX={
+ 'P-1':{t:'Crime scene photographs',by:'State',k:'Photo',d:'Overhead CSU photograph of the distillery office, with marker legend.',r:scenePhoto},
+ 'P-2':{t:'Autopsy report, Dr. A. Shah',by:'State',k:'Report',d:'Cause, mechanism and time of death of Victor Lang.',h:()=>doc('Office of the Medical Examiner','Case ME-26-0611 · Decedent: Victor Lang, 51 M',`<div class="lbl">Cause of death</div><p>Blunt-force craniocerebral trauma.</p><div class="lbl">Findings</div><ol><li>Depressed, comminuted fracture of the <span class="hl">right temporoparietal</span> skull; linear impression 2.0 cm wide, consistent with a steel bar.</li><li>Single impact site. Blow delivered from the decedent's front-right, slightly downward.</li><li>Contusion, 6 cm, <span class="hl">left ulnar forearm</span>: consistent with a defensive raise of the left arm.</li></ol><div class="lbl">Time of death</div><p>Interval 22:30–00:30 (rigor, livor, vitreous K⁺ 6.9 mmol/L). Gastric contents: partially digested meal; last meal ~19:30 per E. Lang. Post-prandial interval favors the later part of the window.</p><div class="lbl">Toxicology</div><p>BAC 0.03 g/dL. Manner: homicide.</p>`)},
+ 'P-3':{t:'CCTV, Cam 03 / Dock B',by:'State',k:'Video',d:'Native DVR export, 22:45:00–23:07:00 by the burned-in overlay. Exported by Det. Calloway with O. Pratt; SHA-256 verified. Use the zoom lens, Enhance and Measure tools.',video:true},
+ 'P-4':{t:'Recovered jacket, lab report',by:'State',k:'Report',d:'Waxed field jacket found in the Dock B dumpster on 3/15.',h:()=>doc('MCPD Crime Laboratory','Item 26-03114-07 · Waxed canvas field jacket',`<ol><li>Olive waxed canvas, size L. Embroidered "M. HALE" inside the collar. Reflective "L&H" patch on the <span class="hl">left shoulder</span>.</li><li>Human blood, DNA profile matching Victor Lang, on the right cuff and front panel.</li><li>Collar swab: mixture of two contributors. Major contributor consistent with Marcus Hale. <span class="hl">Minor male contributor unidentified</span>; uploaded to CODIS, no hit.</li><li>Pockets: Lang & Hale business card; a parking stub dated 3/02.</li></ol>`)},
+ 'P-5':{t:'Text messages, Hale ↔ V. Lang',by:'State',k:'Messages',d:'From a warrantless extraction of the defendant\'s phone at booking.',h:()=>`<div class="doc" style="max-width:420px;background:#1a1d22;color:#e8e8e8;font-family:var(--f-ui)"><h4 style="color:#aaa">Victor Lang · Mar 14</h4><div style="display:grid;gap:8px;margin-top:10px">${[['V','Board meets Thursday. I\'m voting no on the buyout.','17:41'],['M','You sign the buyout or I end this. All of it.','17:58'],['V','Is that a threat, Marcus?','18:02'],['M','Take it how you want.','18:03']].map(([w,t,ts])=>`<div style="justify-self:${w==='M'?'end':'start'};max-width:80%;background:${w==='M'?'#2f6fd6':'#3a3d44'};padding:8px 11px;border-radius:14px">${t}<div style="font-size:10px;opacity:.6;margin-top:2px">${ts}</div></div>`).join('')}</div></div>`},
+ 'P-6':{t:'Interrogation transcript (excerpt)',by:'State',k:'Transcript',d:'MCPD Interview Room 2, 3/15/2026, beginning 00:12.',h:()=>doc('Transcript of recorded interview','MCPD 26-03114 · Det. R. Calloway / M. Hale',`<table><tr><td>00:40:51</td><td>CALLOWAY</td><td>Your jacket was in that dumpster, Marcus.</td></tr><tr><td>00:41:05</td><td>HALE</td><td>I left it on the rack. I don't know how it got there.</td></tr><tr class="hl"><td>00:41:12</td><td>HALE</td><td>I want a lawyer. I'm not saying anything else without a lawyer.</td></tr><tr><td>00:41:20</td><td>CALLOWAY</td><td>Okay, okay. Just help me with one thing. Why would someone put your jacket there?</td></tr><tr class="hl"><td>00:41:31</td><td>HALE</td><td>I don't know! He was ruining everything. I should have done it years ago. Bought him out, I mean.</td></tr><tr><td>00:41:44</td><td>CALLOWAY</td><td>Interview concluded.</td></tr></table>`)},
+ 'P-7':{t:'Nimbus Cloud account records',by:'State',k:'Records',d:'Returned under search warrant; certified business records (902(11)).',h:()=>doc('Nimbus Cloud, Inc. · Legal Response','Account: mhale · Period 03/01–03/20/2026 · Content not retained',`<table><tr><th>Time (UTC−7)</th><th>Event</th></tr><tr><td>03/15 06:55:02</td><td>Incoming call logged (MCPD main line, 2 min 40 s)</td></tr><tr class="hl"><td>03/15 07:40:12</td><td>Thread "Elena L." deleted (212 messages) from iPhone</td></tr><tr class="hl"><td>03/15 07:41:03</td><td>"Recently Deleted" purged</td></tr><tr><td>03/15 07:43:30</td><td>Device backup completed</td></tr></table><p>Deletion metadata only. Message content was not recoverable.</p>`)},
+ 'P-8':{t:'Key-person insurance policy',by:'State',k:'Contract',d:'$2,000,000 policy on Victor Lang.',h:()=>doc('Halvard Mutual Life','Policy KP-88213 · Issued 2021',`<table><tr><td>Insured</td><td>Victor Lang</td></tr><tr><td>Face amount</td><td>$2,000,000</td></tr><tr><td>Owner &amp; beneficiary</td><td class="hl">Lang & Hale Distilling LLC (not any individual)</td></tr><tr><td>Companion policy</td><td>KP-88214 on Marcus Hale, same terms, same beneficiary</td></tr></table><p>Under the operating agreement, proceeds fund the surviving partner's buyout of the decedent's estate.</p>`)},
+ 'D-1':{t:'Bar receipt, The Copper Still',by:'Defense',k:'Receipt',d:'From the defendant\'s wallet at booking.',h:()=>`<div class="doc" style="max-width:300px;font-size:13px"><h4>The Copper Still</h4><div class="sub">418 Wharf St · Marlow</div>TAB #2207 · SRV: JAMAL<br>OPENED 03/14/26 <span class="hl">23:20</span><br>CLOSED 03/15/26 00:34<br>------------------------<br>RYE NEAT ×3 ....... 27.00<br>SMASH BURGER ....... 16.00<br>BAR TOWEL ........... 0.00<br>------------------------<br>TOTAL ............. 43.00<br>VISA ****1187 HALE/M<br></div>`},
+ 'D-2':{t:'POS log, The Copper Still',by:'Defense',k:'Records',d:'Returned under defense subpoena; custodian J. Price.',h:()=>doc('Point-of-sale terminal log','Terminal BAR-1 · 03/14/2026 21:00 – 03/15/2026 01:00 (NTP-synced)',`<table><tr><td class="hl">23:20:41</td><td>Tab #2207 opened by J.PRICE · card ****1187</td></tr><tr><td>23:21:10</td><td>Rye, neat</td></tr><tr><td>23:48:55</td><td>Rye, neat</td></tr><tr><td>00:09:30</td><td>Smash burger</td></tr><tr><td>00:14:02</td><td>Rye, neat</td></tr><tr><td>00:34:12</td><td>Tab #2207 closed</td></tr></table><p>Security video for 3/14 was overwritten under the bar's 7-day retention policy before the subpoena issued.</p>`)},
+ 'D-3':{t:'Forensic audit, Lang & Hale AP',by:'Defense',k:'Analysis',d:'Defense forensic accountant\'s summary of subpoenaed ledgers.',h:()=>doc('Accounts-payable anomaly summary','Prepared by R. Basu, CPA/CFF · Source: subpoenaed general ledger',`<table><tr><th>Vendor</th><th>Payments</th><th>Total</th><th>Approved by</th></tr><tr class="hl"><td>Northfield Barrel Supply LLC</td><td>14 (Jun 2025 – Mar 2026)</td><td>$342,600</td><td>O. Pratt</td></tr></table><ol><li>No receiving records, no barrels in inventory from this vendor.</li><li>Registered agent: K. Pratt-Ellison (O. Pratt's sister). Mailing address is a UPS box.</li><li>Email, V. Lang to outside CPA, 03/12/2026 21:14: "Found something in AP. Need to talk Monday. Don't loop in staff."</li><li>Original AP ledger box was kept in the office safe (see P-1, marker 3).</li></ol>`)},
+ 'D-4':{t:'DVR service log & clock test',by:'Defense',k:'Report',d:'Forensic examination of the Dock B DVR by L. Ortiz.',h:()=>doc('Forensic video examination','Hikari DVR-8CH · S/N HK8-220913 · Examiner L. Ortiz, CFVE',`<table><tr><td>2023-06-02</td><td>Installed. Time set manually.</td></tr><tr><td>2023-06-02 → 2026-04-02</td><td class="hl">"NTP sync FAILED (no route)": 1,036 log entries</td></tr><tr><td>2026-04-02 22:47:55</td><td>GPS reference clock</td></tr><tr><td>2026-04-02 22:14:51</td><td>DVR overlay at the same instant</td></tr><tr class="hl"><td>Offset</td><td>DVR runs 33 min 04 s <b>slow</b>. Add 33:04 to every overlay time.</td></tr></table><p>Cross-check: the analog wall clock visible above the Dock B door reads 11:20 when the overlay reads 22:47. Subject height at the door plane: 1.73 m ± 0.04 m.</p>`)},
+ 'D-5':{t:'Dock B access log & personnel file',by:'Defense',k:'Records',d:'Access-control server (NTP-synced) and personnel excerpt, under defense subpoena.',h:()=>doc('Access control · Reader DOCK-B-01','Server time, NTP-synced · 03/14–03/15/2026',`<table><tr><td>03/14 18:02:11</td><td>Card 0114 (V. Lang), entry</td></tr><tr><td>03/14 21:31:40</td><td>Card 0102 (M. Hale), exit</td></tr><tr class="hl"><td>03/14 23:20:16</td><td>MASTER-01, entry</td></tr><tr class="hl"><td>03/14 23:37:58</td><td>Request-to-exit, door opened</td></tr><tr><td>03/15 06:08:37</td><td>Card 0131 (O. Pratt), entry</td></tr></table><div class="lbl">Credential register</div><p>MASTER-01 issued to: Facilities Manager (O. Pratt). MASTER-02: office safe.</p><div class="lbl">Personnel file, Pratt, Owen</div><p>Height 5′8″. Forklift certification note (2024): "<span class="hl">left-hand joystick configuration requested</span>."</p>`)},
+};
+const STATUS_TXT={gathered:'In file',admitted:'Admitted',suppressed:'Suppressed',excluded:'Excluded'};
+function gather(id){if(!S.ex[id])S.ex[id]='gathered'}
+function setEx(id,st){S.ex[id]=st}
+
+/* ---------------- Bench Book ---------------- */
+const BOOK=[
+ ['I. Bench procedure',[
+  ['Burden & standard of proof','The State must prove every element of each count beyond a reasonable doubt. In a bench trial the judge is the finder of fact. A reasonable doubt is one based on reason, arising from the evidence or the lack of it. The defendant need prove nothing.'],
+  ['Motion for judgment of acquittal (Rule 29)','At the close of the State\'s case, deny the motion if, viewing the evidence in the light most favorable to the State, any rational trier of fact could find the elements proven. Weight and credibility are not weighed at this stage; that comes at verdict.'],
+  ['Continuances','Grant for good cause. Weigh the requesting party\'s diligence, whether the need arose from the other side\'s conduct (such as late disclosure), the prejudice caused by delay, prior continuances, and the defendant\'s speedy-trial right. A party that never subpoenaed a witness has not shown diligence in securing that witness.'],
+  ['Courtroom control & contempt','Use the least severe measure that restores order. Admonish first; remove a spectator who persists after warning. Summary contempt is reserved for serious, willful disruption. It is not a first response to an emotional outburst by a victim\'s family member.'],
+  ['Questioning by the Court','The judge may question witnesses to clarify testimony. Questions must be neutral and sparing; the Court may not take on the role of either advocate.'],
+  ['Defendant\'s silence','A defendant\'s decision not to testify may not be considered for any purpose (Griffin v. California). In a bench trial the judge should state on the record that no inference will be drawn.'],
+  ['Witness privilege (Fifth Amendment)','Any witness may refuse to answer a question whose answer could tend to incriminate them. The Court should advise the witness of the privilege and allow consultation with counsel. It may not compel an answer without a grant of immunity.'],
+  ['Prior rulings (law of the case)','Once evidence is excluded by a pretrial ruling, counsel may not elicit or refer to it at trial without first seeking leave outside the fact-finder\'s hearing.']]],
+ ['II. Rules of evidence',[
+  ['401–403 Relevance','Evidence is relevant if it has any tendency to make a material fact more or less probable. Relevant evidence may be excluded only if its probative value is substantially outweighed by unfair prejudice, confusion, or waste of time. A witness\'s perception, sobriety and bias are always relevant to credibility.'],
+  ['404(b) Other acts','Other crimes or acts are not admissible to prove character in order to show the person acted in conformity with it. They may be admitted for another purpose (motive, intent, identity, plan) only where that purpose is genuinely disputed and the prior act actually proves it.'],
+  ['609 Prior convictions (impeachment)','A conviction more than ten years old is admissible to impeach only if its probative value substantially outweighs its prejudicial effect. Misdemeanors not involving dishonesty are not admissible to impeach.'],
+  ['602 Personal knowledge / speculation','A lay witness may testify only to what they personally perceived. A question asking a witness to guess at another person\'s thoughts calls for speculation.'],
+  ['611(c) Leading questions','Leading questions should not be used on direct examination. They are ordinarily permitted on cross-examination.'],
+  ['611(a) Argumentative questions / badgering','The Court protects witnesses from harassment. A question that argues with the witness or repeats a demand instead of seeking facts is objectionable as argumentative.'],
+  ['Good-faith basis on cross','Counsel may ask on cross about facts not yet in evidence if counsel has a good-faith factual basis (for example, records in hand). Without one, the objection "assumes facts not in evidence" is sustained.'],
+  ['701–702 Opinion & expert testimony','A qualified expert may give opinions within their field: a medical examiner may testify to wound mechanics and the likely position or handedness of an assailant. No witness may offer an opinion that a particular defendant is guilty. Qualification rests on knowledge, skill, experience, training or education.'],
+  ['801–802 Hearsay','Hearsay is an out-of-court statement offered to prove the truth of the matter asserted. It is inadmissible unless an exception applies. An anonymous tip repeated by an officer is classic hearsay.'],
+  ['801(d)(2) Opposing party\'s statement','A statement made by a party and offered against that party is not hearsay. Any witness who heard the defendant\'s own words may repeat them.'],
+  ['803(3) State of mind','A declarant\'s statement of their own then-existing state of mind (fear, plan, intent) is admissible only to prove the declarant\'s own state of mind, and only when that is relevant. It may not be used to prove what someone else did or intended: "X is going to kill me" cannot prove X\'s intent.'],
+  ['803(6) & 902(11) Business records','Records made at or near the time by someone with knowledge, kept in the regular course of business, are admissible through a custodian or other qualified witness, or by written certification.'],
+  ['901 Authentication','The proponent need only offer evidence sufficient to support a finding that the item is what it is claimed to be, such as the testimony of the person who exported a video, plus a matching hash. Disputes about accuracy, such as a device clock\'s reliability, go to weight, not admissibility.'],
+  ['Third-party culpability','A defendant may offer evidence that another person committed the crime when it tends to connect that person to the offense (motive plus access or opportunity), as opposed to mere speculation.']]],
+ ['III. Constitutional rules',[
+  ['Fourth Amendment: warrants & probable cause','A warrant requires probable cause, meaning a fair probability under the totality of the circumstances that evidence of a crime will be found in the place to be searched (Illinois v. Gates). An anonymous tip with no stated basis of knowledge and no corroboration does not establish probable cause (Florida v. J.L.).'],
+  ['Subpoenas duces tecum (compulsory process)','The defense has a constitutional right to compulsory process. Issue a subpoena for records that are relevant, specifically identified, and reasonably limited in time and scope. "The defense might find something helpful" is not a ground to deny.'],
+  ['Cell phones: Riley v. California','Police generally must obtain a warrant before searching the digital contents of a cell phone, including a search incident to arrest.'],
+  ['Miranda / Edwards','Once a suspect in custody clearly invokes the right to counsel, all interrogation must stop (Edwards v. Arizona). Interrogation includes express questioning and any words police should know are reasonably likely to elicit an incriminating response (Rhode Island v. Innis). Statements taken in violation are excluded from the State\'s case-in-chief.'],
+  ['Exclusionary rule & inevitable discovery','Evidence from an unlawful search is suppressed unless the State proves, by a preponderance, that it would inevitably have been found through lawful means. Speculation that a warrant could have been obtained is not enough, and lawful process that returns different evidence does not save the unlawfully obtained evidence.']]],
+ ['IV. Charges & sentencing',[
+  ['Count I: second-degree murder','Elements: (1) the defendant caused the death of Victor Lang; (2) with malice aforethought. Identity of the killer is an element the State must prove beyond a reasonable doubt. Sentence on conviction: 15 years to life.'],
+  ['Count II: tampering with evidence','Elements: (1) the defendant knowingly destroyed or concealed a thing; (2) knowing it was about to be produced in an investigation or proceeding; (3) with intent to prevent its production. Range: probation to 3 years. Guideline for a first tampering offense that did not obstruct the underlying investigation: probation, with up to 12 months county jail.']]]];
+function openBook(q=''){
+  const html=`<div class="book"><input id="bookQ" type="search" placeholder="Search the Bench Book (hearsay, leading, warrant, continuance…)" value="${esc(q)}"><div id="bookR"></div><p class="ff">Marlow County Bench Book, 2026 ed. A fictional bench book modeled on the U.S. Federal Rules of Evidence and leading constitutional cases.</p></div>`;
+  modal('Bench Book',html);const inp=$('#bookQ'),out=$('#bookR');
+  const draw=()=>{const s=inp.value.trim().toLowerCase(),words=s.split(/\s+/).filter(Boolean);let h='';
+    for(const[sec,items]of BOOK){const hits=items.filter(([t,b])=>!words.length||words.some(w=>(t+' '+b).toLowerCase().includes(w)));if(!hits.length)continue;
+      h+=`<h4>${sec}</h4>`+hits.map(([t,b])=>{let bb=esc(b),tt=esc(t);for(const w of words){const re=new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');bb=bb.replace(re,'<mark>$1</mark>');tt=tt.replace(re,'<mark>$1</mark>')}return`<details ${words.length?'open':''}><summary>${tt}</summary><p>${bb}</p></details>`}).join('')}
+    out.innerHTML=h||'<p>No matching rule. Try a broader term.</p>'};inp.oninput=draw;draw();setTimeout(()=>inp.focus(),50)}
+
+/* ---------------- case file ---------------- */
+function openCase(){const tab=k=>`<button data-k="${k}">${k}</button>`;
+  modal('Case file · CR-2026-04417',`<div class="cf"><div class="tabs">${['Summary','Charges','People','State\'s timeline','Defense account'].map(tab).join('')}</div><div id="cfB"></div></div>`);
+  const P={Summary:`<h4>The People of the State v. Marcus Hale</h4><p>Victor Lang, 51, co-founder of Lang & Hale Distilling (900 Kiln Road), was found dead in the company office at 6:10 AM on March 15, 2026, by facilities manager Owen Pratt. Cause of death: a single blow to the right side of the head with a bar-shaped object. The weapon was never recovered.</p><p>Marcus Hale, 46, co-founder, was arrested on March 15 at 00:05 after Cam 03 footage showed a person wearing his embroidered jacket entering Dock B. The jacket was found in the Dock B dumpster with the victim's blood on it.</p><p>The partners had quarrelled over Hale's proposed sale of the company. Hale has pleaded not guilty and waived a jury. He has been in custody since arrest; bail was denied.</p><p><b>Your role:</b> rule on warrants, motions, objections and courtroom conduct; then decide the facts and the verdict on each count.</p>`,
+   Charges:`<h4>Count I: Second-degree murder</h4><p>Unlawful killing of Victor Lang with malice aforethought. 15 years to life.</p><h4>Count II: Tampering with evidence</h4><p>Knowingly destroying records on or after March 15, 2026, with intent to prevent their production in the homicide investigation. Probation to 3 years.</p>`,
+   People:`<div class="tw"><table><tr><th>Name</th><th>Role</th><th>Notes</th></tr><tr><td>Marcus Hale</td><td>Defendant</td><td>6′2″ (1.88 m), right-handed. 2014 misdemeanor assault (bar altercation), fine paid.</td></tr><tr><td>Victor Lang</td><td>Decedent</td><td>Co-owner. Opposed the sale.</td></tr><tr><td>Elena Lang</td><td>Decedent's wife</td><td>Gave a statement on 3/18. Not on either witness list.</td></tr><tr><td>Celeste Varga</td><td>Deputy DA (State AI counsel)</td><td>Adversarial Counsel pilot, aggressive profile.</td></tr><tr><td>Theo Okafor</td><td>Defense (AI counsel)</td><td>Adversarial Counsel pilot, methodical profile.</td></tr><tr><td>Det. Ray Calloway</td><td>Lead detective</td><td>Recovered the jacket; exported CCTV.</td></tr><tr><td>Owen Pratt</td><td>Facilities manager</td><td>Found the body. DVR custodian.</td></tr><tr><td>Dr. Anita Shah</td><td>Medical examiner</td><td>Performed the autopsy.</td></tr><tr><td>Jamal Price</td><td>Bar manager, The Copper Still</td><td>Served Hale on 3/14.</td></tr><tr><td>Daniel Lang</td><td>Decedent's brother</td><td>Attends every hearing.</td></tr></table></div>`,
+   "State's timeline":`<div class="tw"><table><tr><th>Time</th><th>Event (as alleged)</th></tr><tr><td>18:00</td><td>Hale and Lang argue in the office; Hale: "You'll regret this."</td></tr><tr><td>21:30</td><td>Hale leaves (access log shows his card exiting 21:31).</td></tr><tr><td>22:47</td><td>Subject in Hale's jacket badges into Dock B (CCTV overlay).</td></tr><tr><td>23:05</td><td>Subject leaves, throws the jacket in the dumpster.</td></tr><tr><td>23:20</td><td>Hale opens a tab at The Copper Still, 12 minutes' drive away.</td></tr><tr><td>07:40 (3/15)</td><td>Hale deletes messages after police call him at 06:55.</td></tr></table></div>`,
+   'Defense account':`<p>Hale says he left the office at 9:30 PM, too angry to notice he had left his jacket on the office rack. He drove to the river, sat in his car, then went to The Copper Still in the rain. He denies returning to the distillery. He has not said why he deleted messages.</p>`};
+  const B=$('#cfB'),bs=[...document.querySelectorAll('.cf .tabs button')];const show=k=>{bs.forEach(b=>b.classList.toggle('on',b.dataset.k===k));B.innerHTML=P[k]};bs.forEach(b=>b.onclick=()=>show(b.dataset.k));show('Summary')}
+
+/* ---------------- evidence locker ---------------- */
+let curVP=null;
+function openEvidence(id){const ids=Object.keys(EX).filter(k=>S.ex[k]);
+  modal('Evidence locker',`<div class="split"><div class="list">${ids.length?ids.map(k=>`<button class="li" data-id="${k}"><b>${k} · ${EX[k].t}</b><small><span class="badge ${S.ex[k]}">${STATUS_TXT[S.ex[k]]}</span>${EX[k].by} · ${EX[k].k}</small></button>`).join(''):'<p>No exhibits have been produced yet.</p>'}</div><div class="view" id="exV"></div></div>`);
+  const show=k=>{document.querySelectorAll('.li').forEach(b=>b.classList.toggle('on',b.dataset.id===k));const e=EX[k],v=$('#exV'),stt=S.ex[k];if(curVP){curVP.stop();curVP=null}
+    v.innerHTML=`<div class="exhead"><h4>${k} · ${e.t}</h4><p>${e.d}</p></div>${stt==='suppressed'||stt==='excluded'?`<div class="warnbar">${stt==='suppressed'?'Suppressed by the Court.':'Excluded by the Court.'} You have seen it, but you may not consider it in deciding the case.</div>`:''}<div id="exC"></div>`;
+    const C=$('#exC');if(e.video)curVP=VideoPlayer(C);else if(e.r)e.r(C);else C.innerHTML=e.h()};
+  document.querySelectorAll('.li').forEach(b=>b.onclick=()=>show(b.dataset.id));if(ids.length)show(id&&S.ex[id]?id:ids[0])}
+
+/* ---------------- notes ---------------- */
+function addNote(t){S.notes=(S.notes?S.notes.replace(/\s*$/,'')+'\n':'')+t;store.set('svh-notes',S.notes);const ta=$('#notes');if(ta)ta.value=S.notes}
+function openNotes(){modal('Bench notes','<textarea id="notes" spellcheck="false" placeholder="Your notes. They stay in this browser."></textarea>');const ta=$('#notes');ta.value=S.notes;ta.oninput=()=>{S.notes=ta.value;store.set('svh-notes',S.notes)};setTimeout(()=>ta.focus(),50)}
+
+/* ---------------- modal shell ---------------- */
+let modalOpen=false;
+function modal(title,html){let m=$('#modal');if(!m){m=document.createElement('div');m.id='modal';$('#app').appendChild(m)}m.hidden=false;modalOpen=true;
+  m.innerHTML=`<div class="mbox" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="mhead"><h3>${title}</h3><button aria-label="Close" id="mClose">×</button></div><div class="mbody">${html}</div></div>`;
+  $('#mClose').onclick=closeModal;m.onclick=e=>{if(e.target===m)closeModal()}}
+function closeModal(){const m=$('#modal');if(m){m.hidden=true;m.innerHTML=''}if(curVP){curVP.stop();curVP=null}modalOpen=false}
+
+/* ---------------- HUD ---------------- */
+function hud(){const o=Math.round(S.order),t=Math.round(S.trust);$('#mOrder').textContent=o;$('#bOrder').style.width=o+'%';$('#bOrder').style.background=o<40?'var(--bad)':o<65?'#d9a441':'var(--good)';
+  $('#mTrust').textContent=t;$('#bTrust').style.width=t+'%';const h=Math.floor(S.min/60),m=S.min%60;$('#mClock').textContent=`${(h%12)||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;
+  $('#bDays').style.width=clamp(S.days/21*100,0,100)+'%';$('#tug').style.width=S.lean+'%';$('#pPct').textContent=Math.round(S.lean)+'%';$('#dPct').textContent=Math.round(100-S.lean)+'%';AU.murmur((100-S.order)/100)}
+function phase(t){S.day=t;$('#phase').textContent=t}
+function lean(n){S.lean=clamp(S.lean+n,4,96);hud()}
+function ai(side,txt){const el=$(side==='P'?'#aiP':'#aiD');el.textContent=txt}
+function order(n){S.order=clamp(S.order+n,0,100);hud()}
+function trust(n){S.trust=clamp(S.trust+n,0,100);hud()}
+function toast(t){const o=$('#toast');if(o)o.remove();const d=document.createElement('div');d.id='toast';d.textContent=t;$('#app').appendChild(d);setTimeout(()=>d.remove(),2600)}
+function letterbox(on){$('#lb').classList.toggle('on',on)}
+function stampFx(txt,col){const d=document.createElement('div');d.id='stamp';d.textContent=txt;d.style.setProperty('--sc',col);$('#app').appendChild(d);setTimeout(()=>d.remove(),950)}
+function gavelFx(){AU.gavel();shake=14;const gf=$('#gavelFx');gf.classList.remove('go');void gf.offsetWidth;gf.classList.add('go');const f=document.createElement('div');f.className='flash';$('#app').appendChild(f);setTimeout(()=>f.remove(),520)}
+let outburstOpen=false;
+function gavelButton(){gavelFx();$('#tGavel').classList.remove('pulse');
+  if(outburstOpen)return;
+  if(S.order<88){order(14);toast('Order in the court. The room settles.')}else{S.gavelSpam++;if(S.gavelSpam>2){trust(-2);S.temper-=3;toast('The gallery flinches. Heavy-handedness noted.')}else toast('The gavel echoes through Courtroom 12.')}}
+
+/* ---------------- dialogue ---------------- */
+const D={el:$('#dlg'),typing:false,res:null,autoT:null};
+const fmt=s=>esc(s).replace(/\*(.+?)\*/g,'<em>$1</em>');
+function tick(n=1){S.min+=n;hud()}
+function say(who,text,o={}){return(async()=>{await recessCheck();const ch=CH[who];text=text.replace(/\{N\}/g,S.name);
+  if(o.shot!==false&&who!=='narr')shot(o.shot||who,o.dur);
+  D.el.hidden=false;D.el.classList.toggle('narr',who==='narr');talking=who;
+  $('#dName').textContent=who==='narr'?'':ch.name;$('#dRole').textContent=who==='narr'?'':ch.role;D.el.style.setProperty('--rc',ch.tag||'#c9a35a');
+  if(who!=='narr')portrait($('#dPor'),ch);
+  const el=$('#dTxt'),plain=text.replace(/\*/g,'');el.textContent='';D.typing=true;$('#dHint').textContent='Click or Space ▸';
+  await new Promise(res=>{let i=0;const step=()=>{if(!D.typing||i>=plain.length){D.typing=false;el.innerHTML=fmt(text);res();return}i+=2;el.textContent=plain.slice(0,i);if(i%6===0)AU.blip((ch.pitch||200)+Math.random()*25);setTimeout(step,17)};step()});
+  tick(1);await new Promise(res=>{D.res=res;if(S.auto)D.autoT=setTimeout(advance,900+plain.length*26)});talking=null})()}
+const narr=t=>say('narr',t,{shot:false});
+function advance(){if(modalOpen||panelOpen)return;if(D.typing){D.typing=false;return}clearTimeout(D.autoT);if(D.res){const r=D.res;D.res=null;r()}}
+D.el.addEventListener('click',e=>{if(e.target.id==='autoBtn')return;advance()});
+$('#autoBtn').onclick=e=>{e.stopPropagation();S.auto=!S.auto;e.target.setAttribute('aria-pressed',S.auto);if(S.auto&&D.res&&!D.typing)D.autoT=setTimeout(advance,600)};
+
+/* ---------------- decision panels ---------------- */
+let panelOpen=false;
+function panel({kick,title,body='',btns,opts,args,search,timer,ev}){return new Promise(res=>{panelOpen=true;const p=document.createElement('div');p.className='panel';p.setAttribute('role','dialog');
+  p.innerHTML=`<div class="kick">${kick}</div><h2>${title}</h2><div class="body">${body}</div>${args?'<div class="args" hidden></div>':''}
+   ${opts?opts.map((o,i)=>`<button class="opt" data-i="${i}"><strong>${o.label}</strong>${o.sub?`<span>${o.sub}</span>`:''}</button>`).join(''):''}
+   ${btns?`<div class="btns">${btns.map((b,i)=>`<button class="big ${i?'b':'a'}" data-i="${i}">${b[1]}</button>`).join('')}</div>`:''}
+   ${timer?'<div class="timer"><i></i></div>':''}<div class="aux">${args?'<button data-x="args">Hear argument at sidebar</button>':''}<button data-x="book">Bench Book</button>${ev?'<button data-x="ev">Evidence locker</button>':''}<button data-x="case">Case file</button><button data-x="notes">Notes</button></div>`;
+  $('#app').appendChild(p);const first=p.querySelector('.big,.opt');first&&first.focus();
+  let left=timer?28:0,warned=false;const bar=p.querySelector('.timer i');const iv=timer?setInterval(()=>{if(modalOpen)return;left-=.25;bar.style.width=clamp(left/28*100,0,100)+'%';if(left<=0&&!warned){warned=true;order(-4);S.temper-=2;toast('Counsel: "Your Honor? We need a ruling."')}},250):0;
+  p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const x=b.dataset.x;
+    if(x==='args'){const a=p.querySelector('.args');a.hidden=false;a.innerHTML=args.map(([who,t])=>`<p><b style="color:${CH[who].tag}">${CH[who].short}</b>${esc(t)}</p>`).join('');b.remove();tick(2);return}
+    if(x==='book')return openBook(search||'');if(x==='ev')return openEvidence(ev);if(x==='case')return openCase();if(x==='notes')return openNotes();
+    if(b.dataset.i!=null){clearInterval(iv);p.remove();panelOpen=false;const i=+b.dataset.i;res(btns?btns[i][0]:opts[i].v)}})})}
+function record(label,choice,correct,rule,why,w=1){const ok=Array.isArray(correct)?correct.includes(choice):choice===correct;S.rulings.push({label,choice,correct:Array.isArray(correct)?correct[0]:correct,ok,rule,why,w});return ok}
+const WORD={sustain:'Sustained',overrule:'Overruled',grant:'Granted',deny:'Denied',sign:'Signed',admit:'Admitted',exclude:'Excluded',warn:'Warned',remove:'Removed',contempt:'Contempt',ignore:'Ignored',advise:'Advised of privilege',compel:'Compelled answer',strike:'Struck testimony',noinf:'No inference',inf:'Inference noted'};
+
+async function objection(o){const by=CH[o.by];by.sitT=0;AU.sting();stampFx('OBJECTION!',by.tag);await sleep(350);
+  await say(o.by,o.text,{shot:o.by});shot('bench');
+  const v=await panel({kick:`Objection · ${by.short} · ${o.basis}`,title:o.title||'Rule on the objection',body:o.q?`<q>${esc(o.q)}</q>`:'',btns:[['sustain','Sustained'],['overrule','Overruled']],args:o.args,search:o.search,timer:true,ev:o.ev});
+  const c=typeof o.correct==='function'?o.correct():o.correct;record(o.label||('Objection: '+o.basis),v,c,o.rule,o.why,o.w||1);gavelFx();
+  await say('judge',v==='sustain'?(o.sl||'Sustained.'):(o.ol||'Overruled. The witness may answer.'),{shot:'judge'});by.sitT=by.atPodium?0:1;
+  if(v==='sustain'){lean(o.by==='pros'?2:-2)}else lean(o.by==='pros'?-1:1);
+  if(v==='sustain'&&o.onS)await o.onS();if(v==='overrule'&&o.onO)await o.onO();return v}
+async function motion(o){shot('bench');const v=await panel({kick:o.kick,title:o.title,body:o.body||'',btns:o.btns||[['grant','Grant'],['deny','Deny']],args:o.args,search:o.search,ev:o.ev});
+  const c=typeof o.correct==='function'?o.correct():o.correct;record(o.label,v,c,o.rule,o.why,o.w||1);gavelFx();await sleep(250);return v}
+async function choose(kick,title,opts,body){shot('bench');return panel({kick,title,body,opts})}
+
+/* ---------------- recess, chapter cards ---------------- */
+async function recessCheck(){if(!S.recessQ)return;S.recessQ=false;S.recesses++;const t=$('#dTxt');
+  D.el.hidden=false;$('#dName').textContent=CH.judge.name;$('#dRole').textContent=CH.judge.role;t.textContent='We will take a fifteen-minute recess.';gavelFx();await sleep(1300);
+  await chapter('Recess','Fifteen minutes. The gallery stretches; counsel confer.',1800);S.min+=15;order(28);if(S.recesses>3){trust(-3);toast('Repeated recesses are slowing the docket.')}hud()}
+function chapter(k,sub,ms=2600){return new Promise(res=>{const d=document.createElement('div');d.id='chapter';d.innerHTML=`<div class="k">${k.split('|')[1]||''}</div><h2>${k.split('|')[0]}</h2><p>${sub||''}</p><div class="rule"></div>`;$('#app').appendChild(d);
+  let done=false;const end=()=>{if(done)return;done=true;d.classList.add('out');setTimeout(()=>{d.remove();res()},700)};d.onclick=end;setTimeout(end,ms)})}
+async function allRise(){CH.judge.vis=false;shot('wide',1.6);for(const c of[CH.pros,CH.def,CH.hale,...CROWD,CH.daniel])c.sitT=0;
+  for(const w of['calloway','pratt','shah','price','ortiz'])if(CH[w].pos[2]<11)CH[w].sitT=0;
+  await say('bailiff','All rise. Department Twelve of the Superior Court of Marlow County is now in session, the Honorable {N} presiding.',{shot:'bailiff'});
+  CH.judge.pos=[3.6,1.5,26.6];CH.judge.vis=true;CH.judge.sitT=0;shot('hero',2);await walk('judge',[[0,1.5,26.2]],[0,-1]);CH.judge.sitT=1;
+  await say('judge','Please be seated.',{shot:'hero'});for(const c of[CH.pros,CH.def,CH.hale,...CROWD,CH.daniel])c.sitT=1;for(const w of['calloway','pratt','shah','price','ortiz'])if(CH[w].pos[2]<11)CH[w].sitT=1}
+async function callWitness(id,swear=true){const w=CH[id];shot('well',1.4);await walk(id,[GATE,[.3,0,16.6],[4.2,0,21.5],STAND],[-.6,-.8]);w.sitT=1;
+  if(swear){await say('clerk','Please raise your right hand. Do you swear the testimony you are about to give is the truth, the whole truth, and nothing but the truth?',{shot:'clerk'});await say(id,'I do.',{shot:id})}}
+async function excuse(id){const w=CH[id];await walk(id,[[4.2,0,21.5],[.3,0,16.6],GATE,[w.home[0],0,w.home[2]]],[0,1]);w.sitT=1}
+async function toPodium(id){CH[id].atPodium=true;await walk(id,[PODIUM],[.5,.86])}
+async function toTable(id){CH[id].atPodium=false;await walk(id,[CH[id].home],[0,1]);CH[id].sitT=1}
+function drama(n){order(-n);AU.murmur((100-S.order)/100+.25);setTimeout(hud,1600)}
+
+/* ================= STORY ================= */
+const REQ={
+ W1:{side:'P',type:'Application for search warrant',target:'Nimbus Cloud, Inc., custodian of records, account "mhale"',items:'Message-deletion logs, device sync records and login history, March 1–20, 2026. (The provider does not retain message content.)',
+   lines:['Affiant: Det. Ray Calloway, MCPD Homicide, 14 years.','On 3/15/2026 Victor Lang was found dead at 900 Kiln Rd. (Lang & Hale Distilling).','On 3/18 Elena Lang, the decedent\'s wife, told affiant that on the morning of 3/15 the suspect, Marcus Hale, told her by phone he had "cleaned up our messages" after police called him.','Nimbus Cloud retains deletion logs for 90 days. The logs will show whether and when messages were deleted.','Affiant believes the records are evidence of tampering with evidence.'],
+   correct:'sign',rule:'Fourth Amendment: probable cause',why:'A firsthand statement from an identified witness, matched to the timing of the police call, gives a fair probability the logs hold evidence of tampering. The request is narrow in time and scope.'},
+ S1:{side:'D',type:'Subpoena duces tecum (defense)',target:'The Copper Still, 418 Wharf St., custodian of records',items:'Point-of-sale transaction logs and staff schedule, 3/14/2026 21:00 – 3/15/2026 01:00; any security video for the same window.',
+   lines:['The defendant states he arrived at about 23:20 and stayed until close.','The records will corroborate or refute the time and length of his presence.','The request covers four hours on one night.'],
+   correct:'sign',rule:'Compulsory process',why:'Relevant, specific and narrowly limited. The defense is entitled to compel records that corroborate an alibi.'},
+ W2:{side:'P',type:'Application for search warrant',target:'18 Corbin Lane, residence of Dana Hale-Ruiz (the suspect\'s sister)',items:'A steel pry bar; bloodstained clothing; documents of Lang & Hale Distilling. Nighttime service requested.',
+   lines:['Affiant: Det. Ray Calloway.','On 3/20 the MCPD tip line received an anonymous voicemail: "If you want the weapon, Hale probably hid stuff at his sister\'s."','The caller did not identify themselves or say how they knew this.','Ms. Hale-Ruiz is not a suspect. No other information connects the residence to the offense.'],
+   correct:'deny',rule:'Illinois v. Gates; Florida v. J.L.',why:'An anonymous tip with no basis of knowledge and no corroboration is not probable cause, and the target is the home of an uninvolved person.'},
+ S2:{side:'D',type:'Subpoena duces tecum (defense)',target:'Lang & Hale Distilling LLC, custodian of records',items:'(a) General ledger and accounts-payable records, Jan 2025 – Mar 2026; (b) Dock B access-control logs for 3/14–3/15/2026; (c) personnel files of employees issued master credentials.',
+   lines:['A defense investigator found a vendor, Northfield Barrel Supply, with no physical address, receiving regular payments.','The access-control server logs which credential opened Dock B on the night of the homicide.','The request is limited to 15 months and three named categories.'],
+   opp:'The State opposes: "This is a fishing expedition to manufacture a third-party-culpability defense."',
+   correct:'sign',rule:'Compulsory process; third-party culpability',why:'The request is relevant to motive and access, specifically described and time-limited. That the records might help the defense is the point of compulsory process, not a ground to deny it.'}};
+async function request(id){const r=REQ[id],side=r.side==='P'?CH.pros:CH.def;
+  const box=document.createElement('div');box.className='reqbox';
+  box.innerHTML=`<div class="doc"><h4>${r.type}</h4><div class="sub">Marlow County Superior Court · Presented by ${side.name} (${r.side==='P'?'State':'Defense'} AI counsel)</div>
+   <div class="lbl">To be served on</div><p>${r.target}</p><div class="lbl">Items sought</div><p>${r.items}</p><div class="lbl">${r.side==='P'?'Affidavit of probable cause':'Statement of good cause'}</div><ol>${r.lines.map(l=>`<li>${esc(l)}</li>`).join('')}</ol>${r.opp?`<div class="lbl">Opposition</div><p>${esc(r.opp)}</p>`:''}
+   <p style="margin-top:18px">______________________________<br>Judge of the Superior Court</p><div id="rqStamp"></div></div>
+   <div class="btns"><button class="big a" data-v="sign">Sign</button><button class="big b" data-v="deny">Deny</button></div><div class="aux"><button data-x="book">Bench Book</button><button data-x="ev">Evidence locker</button><button data-x="case">Case file</button></div>`;
+  $('#app').appendChild(box);panelOpen=true;
+  const v=await new Promise(res=>box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.x==='book')openBook(id[0]==='W'?'warrant probable':'subpoena');if(b.dataset.x==='ev')openEvidence();if(b.dataset.x==='case')openCase();if(b.dataset.v)res(b.dataset.v)}));
+  AU.stamp();$('#rqStamp').innerHTML=`<span class="stampd big ${v==='sign'?'ok':''}">${v==='sign'?'SIGNED':'DENIED'}</span>`;
+  if(v==='sign')box.querySelector('.doc p:last-of-type').innerHTML=`<span style="font:italic 22px Georgia,serif">${esc(S.name)}</span><br>Judge of the Superior Court`;
+  box.querySelector('.btns').remove();box.querySelector('.aux').remove();await sleep(1100);box.remove();panelOpen=false;
+  S.f[id]=v==='sign';record(`${r.type}: ${r.target.split(',')[0]}`,v,r.correct,r.rule,r.why,1);return v==='sign'}
+
+async function discovery(){phase('Discovery · 28 days to trial');const ov=document.createElement('div');ov.className='overlay';ov.id='disc';
+  ov.innerHTML=`<div class="wrap"><div class="oh"><div><div class="kick">Discovery · Adversarial Counsel pilot</div><h2>Both sides are building their cases</h2></div><div class="ff">Day <b id="dDay">−28</b> · <button id="ffBtn">Fast-forward</button></div></div>
+   <div class="disc">${['P','D'].map(s=>{const c=s==='P'?CH.pros:CH.def;return`<section class="side" style="--sc:${c.tag}"><header><canvas width="112" height="112" id="por${s}"></canvas><div><h3>${c.name}</h3><div class="st">${s==='P'?'State':'Defense'} AI counsel · <span id="st${s}">initialising case model…</span></div></div></header><div class="log" id="log${s}"></div><div class="exrow" id="ex${s}"></div></section>`}).join('')}</div>
+   <p class="ff" style="margin-top:14px">Warrant and subpoena applications come to you as they are filed. What you sign decides what evidence exists at trial.</p></div>`;
+  $('#app').appendChild(ov);portrait($('#porP'),CH.pros);portrait($('#porD'),CH.def);let fast=false;$('#ffBtn').onclick=()=>fast=true;
+  const L=async(day,s,t,ex,cls)=>{$('#dDay').textContent=day;const d=document.createElement('div');d.innerHTML=`<time>D${day}</time><span class="${cls||''}">${esc(t)}</span>`;const log=$('#log'+s);log.appendChild(d);log.scrollTop=log.scrollHeight;
+    if(ex)for(const e of ex){gather(e);const c=document.createElement('span');c.className='exchip';c.textContent=e+' · '+EX[e].t;$('#ex'+s).appendChild(c)}AU.blip(s==='P'?520:420);await sleep(fast?90:620)};
+  const st=(s,t)=>{$('#st'+s).textContent=t;ai(s,t)};
+  st('P','Theory: motive + jacket + camera.');st('D','Theory: the camera is wrong.');
+  await L(-28,'P','Opened MCPD file 26-03114 (homicide, V. Lang).');await L(-28,'D','Client interview, M. Hale, county jail visiting room 4.');
+  await L(-27,'P','Collected scene photographs and autopsy report.',['P-1','P-2']);await L(-27,'D','Client\'s wallet: receipt from The Copper Still, tab opened 23:20.',['D-1']);
+  await L(-26,'P','Crime lab: victim\'s blood on the recovered jacket.',['P-4']);await L(-26,'P','Exported Cam 03 / Dock B. Compressed MP4 copy produced to defense.',['P-3']);
+  await L(-25,'D','Interrogation video: client invoked counsel at 00:41:12. Questioning continued.');await L(-25,'D','Phone extraction report: no warrant on file. Flagged for suppression.');
+  await L(-24,'P','Logged phone texts and interrogation transcript.',['P-5','P-6']);await L(-24,'P','Insurance: $2M key-person policy on V. Lang.',['P-8']);
+  await L(-23,'P','Filing for a warrant: Nimbus Cloud account records.');
+  if(await request('W1')){await L(-21,'P','Nimbus return received: thread deleted 3/15 07:40, after the 06:55 police call.',['P-7'],'ok');st('P','Count II is strong. Consciousness of guilt supports Count I.')}else{await L(-21,'P','Warrant denied. Count II rests on the excluded-at-risk phone extraction.',null,'no');st('P','Count II is weak; lead with Count I.')}
+  await L(-20,'D','Canvassed Wharf St. businesses for the night of March 14.');
+  if(await request('S1')){await L(-18,'D','Copper Still POS log received: tab opened 23:20:41. Video already overwritten.',['D-2'],'ok')}else await L(-18,'D','Subpoena denied. Alibi rests on the receipt and the bartender.',null,'no');
+  await L(-17,'P','Tip line: one anonymous voicemail mentions "his sister\'s."');
+  if(await request('W2')){await L(-15,'P','Executed warrant at 18 Corbin Ln at 22:40. Nothing recovered. Ms. Hale-Ruiz has filed a complaint.',null,'no');trust(-4)}else await L(-15,'P','Warrant denied. Weapon still unrecovered.');
+  await L(-14,'D','Vendor list shows an unfamiliar supplier: Northfield Barrel Supply. No street address.');
+  if(await request('S2')){await L(-11,'D','Ledgers in. Forensic accountant flags $342,600 to Northfield, approved by O. Pratt.',['D-3'],'ok');await L(-11,'D','Dock B access server: MASTER-01 entry at 23:20:16. Credential issued to O. Pratt.',['D-5'],'ok');st('D','Third-party theory: Pratt. Access, motive, left hand.');st('P','Expect an alternate-suspect attack. Frame it as speculation.')}
+  else{await L(-11,'D','Subpoena denied. Third-party theory limited to cross-examination.',null,'no');st('D','Attack the clock and the hand. No records on Pratt.')}
+  await L(-9,'D','Received the native DVR export from the State. Requested May 4; produced today.');await L(-9,'D','Overlay clock unverified. Retaining a forensic video examiner; will move to continue.');
+  await L(-5,'P','Witness prep: Det. Calloway, O. Pratt, Dr. A. Shah.');await L(-4,'D','Witness prep: J. Price.');
+  await sleep(fast?200:900);ov.remove()}
+
+async function intro(){letterbox(true);phase('Chambers · Monday, September 21, 2026');shot('well',0);CH.judge.vis=false;
+  await chapter('Chambers|Monday, September 21, 2026','Superior Court of Marlow County · Department 12',2600);letterbox(false);
+  await say('clerk','Morning, Judge {N}. You drew *State v. Hale*. Docket CR-2026-04417.',{shot:'clerk'});
+  await say('clerk','Marcus Hale, forty-six, co-owner of Lang & Hale Distilling. Charged with the second-degree murder of his partner, Victor Lang, and with tampering with evidence.');
+  await say('clerk','Lang was found in the distillery office the morning of March 15th. One blow to the head. The State says Hale came back that night wearing his own jacket, then dumped it.');
+  await say('clerk','He waived a jury. It\'s a bench trial: you decide the law *and* the facts.');
+  await say('clerk','Both sides drew counsel from the county\'s Adversarial Counsel pilot. *Varga* for the State, *Okafor* for the defense. AI litigators. Fast, thorough, and they will exploit any ruling you get wrong.');
+  await say('clerk','The case file, evidence locker and Bench Book are on your rail. Discovery opens now, and they\'ll bring you warrants and subpoenas. Sign what the law supports. Nothing more.');
+  D.el.hidden=true;await discovery()}
+
+async function pretrial(){phase('Pretrial motions · 9:00 AM');S.min=9*60;await chapter('Pretrial Motions|Three days before trial','Courtroom 12 · Four motions on calendar');await allRise();
+  await say('judge','We\'re on the record in State versus Hale. Counsel, your appearances.');
+  CH.pros.sitT=0;await say('pros','Celeste Varga for the State, Your Honor.');CH.pros.sitT=1;CH.def.sitT=0;await say('def','Theo Okafor for Mr. Hale, who is present and in custody.');CH.def.sitT=1;
+  await say('judge','Four motions. We\'ll start with the defense.');
+  // M1
+  CH.def.sitT=0;await say('def','Motion one: suppress the interrogation statement, Exhibit P-6. At 00:41:12 Mr. Hale said, *"I want a lawyer. I\'m not saying anything else without a lawyer."*');
+  await say('def','Eight seconds later Detective Calloway asked him why his jacket was in the dumpster. Everything after that is the product of interrogation.');CH.def.sitT=1;
+  CH.pros.sitT=0;await say('pros','The defendant volunteered "I should have done it years ago." That was a spontaneous outburst, not a response to questioning.');CH.pros.sitT=1;
+  CH.def.sitT=0;await say('def','It answered a direct question about the jacket. That is interrogation by definition.');CH.def.sitT=1;
+  let v=await motion({kick:'Defense motion · Suppress Exhibit P-6',title:'Suppress the post-invocation statement?',body:'<q>00:41:12 HALE: I want a lawyer. … 00:41:20 CALLOWAY: Just help me with one thing. Why would someone put your jacket there? … 00:41:31 HALE: I should have done it years ago.</q>',search:'miranda edwards interrogation',ev:'P-6',label:'Motion to suppress interrogation statement (P-6)',correct:'grant',rule:'Edwards v. Arizona; Rhode Island v. Innis',why:'Hale clearly invoked counsel. Calloway\'s follow-up was express questioning, so the answer is inadmissible in the State\'s case-in-chief.'});
+  S.f.M1=v==='grant';setEx('P-6',S.f.M1?'suppressed':'gathered');
+  await say('judge',S.f.M1?'The motion is granted. Exhibit P-6 is suppressed. The invocation was unambiguous and the questioning didn\'t stop.':'The motion is denied. The statement may come in.');
+  if(S.f.M1){lean(-6);ai('P','Admission theme dropped. Lean on physical evidence.')}else{lean(8);ai('D','Preserving the Edwards issue for appeal.')}
+  // M2
+  CH.def.sitT=0;await say('def','Motion two: suppress the text messages, Exhibit P-5. Officers searched Mr. Hale\'s phone at booking. No warrant, no consent.');CH.def.sitT=1;
+  CH.pros.sitT=0;await say('pros',S.f.W1?'Search incident to arrest. And it\'s inevitable discovery: this Court signed a warrant for his Nimbus account.':'Search incident to arrest. And we would inevitably have obtained a warrant.');CH.pros.sitT=1;
+  CH.def.sitT=0;await say('def',S.f.W1?'Nimbus returned deletion metadata. No message content. Nothing in that return would ever have produced these texts.':'The State never obtained any warrant. Inevitable discovery requires proof, not hope.');CH.def.sitT=1;
+  v=await motion({kick:'Defense motion · Suppress Exhibit P-5',title:'Suppress the warrantless phone search?',body:'<q>"You sign the buyout or I end this. All of it." (Hale to V. Lang, 3/14, 17:58)</q>',search:'riley phone inevitable',ev:'P-5',label:'Motion to suppress phone texts (P-5)',correct:'grant',rule:'Riley v. California; inevitable discovery',why:'A phone\'s contents need a warrant even incident to arrest. The only lawful process returned metadata, not content, so inevitable discovery fails.'});
+  S.f.M2=v==='grant';setEx('P-5',S.f.M2?'suppressed':'gathered');
+  await say('judge',S.f.M2?'Granted. P-5 is suppressed.':'Denied. The texts are admissible.');if(S.f.M2)lean(-6);else lean(8);
+  // M3
+  CH.pros.sitT=0;await say('pros','The State moves in limine to admit the defendant\'s 2014 misdemeanor assault conviction, a bar fight, to show how he behaves when he\'s angry.');CH.pros.sitT=1;
+  CH.def.sitT=0;await say('def','That is propensity, Your Honor, which Rule 404(b) forbids outright. It\'s twelve years old, it was a shoving match, and it has nothing in common with this case.');CH.def.sitT=1;
+  CH.pros.sitT=0;await say('pros','It goes to intent.');CH.pros.sitT=1;CH.def.sitT=0;await say('def','Intent isn\'t disputed. Whoever did this meant it. *Identity* is disputed.');CH.def.sitT=1;
+  v=await motion({kick:'State motion in limine',title:'Admit the 2014 assault conviction?',search:'404(b) other acts 609',label:'Motion in limine: 2014 conviction',correct:'deny',rule:'Rule 404(b), 403, 609(b)',why:'Offered to show violent character, which is forbidden propensity. Intent is not genuinely disputed, and the old misdemeanor has little probative value against heavy prejudice.'});
+  S.f.M3=v==='grant';await say('judge',S.f.M3?'Granted. The conviction may be used.':'Denied. The 2014 conviction stays out.');if(S.f.M3)lean(5);
+  // M4
+  CH.def.sitT=0;await say('def','Motion four: the defense asks for a fourteen-day continuance. The State produced the native CCTV file with its DVR metadata nine days ago. Until then we had a compressed MP4 with a burned-in timestamp.');
+  await say('def','We need a forensic examiner to test the DVR clock. We asked for the native file on May 4th, and that request is in the record.');CH.def.sitT=1;
+  CH.pros.sitT=0;await say('pros','The defendant has had the footage since April. The Lang family has waited seven months. The State is ready to proceed.');CH.pros.sitT=1;
+  v=await motion({kick:'Defense motion · Continuance',title:'Continue the trial fourteen days?',body:'<q>Native DVR export requested by the defense on May 4. Produced by the State on September 12. Defendant in custody since March 15. No prior continuances.</q>',search:'continuance',label:'Defense motion to continue (14 days)',correct:'grant',rule:'Continuance: good cause and diligence',args:[['def','A copy is not the evidence. The metadata that shows whether the clock is right came nine days ago, from the State.'],['pros','Fourteen more days in a homicide that\'s been pending seven months. The defense could have hired an expert from the MP4.']],btns:[['grant','Grant · +14 days'],['deny','Deny · go to trial']],why:'The need arose from the State\'s late production; the defense was diligent and asked once. The prejudice of two weeks is modest.'});
+  S.f.M4=v==='grant';
+  if(S.f.M4){S.days+=14;trust(-3);await say('judge','Granted. Trial is continued fourteen days, to Monday, October 12.');CH.daniel.sitT=0;drama(8);await say('daniel','Seven months. And now another two weeks.',{shot:'daniel'});CH.daniel.sitT=1;ai('D','Expert retained. Testing the DVR clock against GPS.')}
+  else{await say('judge','Denied. We start Thursday as scheduled.');lean(6);ai('D','No expert. We\'ll point the Court to the frame itself.')}
+  await say('judge','That concludes the motions. We\'re in recess.');gavelFx()}
+
+async function playInCourt(segs){const ov=document.createElement('div');ov.id='court-vid';ov.innerHTML='<div class="kick">Exhibit P-3 · published to the Court</div><div id="cvh" style="width:min(960px,100%);margin-top:8px"></div><div class="cap2" id="cvc"></div><div class="btns" style="justify-content:center"><button class="big" id="cvx" style="flex:0 1 280px">Return to the proceedings</button></div>';
+  $('#app').appendChild(ov);letterbox(true);const vp=VideoPlayer($('#cvh'));$('#cvx').hidden=true;
+  for(const[a,b,cap]of segs){$('#cvc').innerHTML=fmt(cap);await vp.segment(a,b,8);await sleep(500)}
+  $('#cvc').innerHTML='The footage stays in the evidence locker. Scrub it, zoom, enhance and measure whenever you like.';$('#cvx').hidden=false;
+  await new Promise(r=>$('#cvx').onclick=r);vp.stop();ov.remove();letterbox(false)}
+async function outburst(text){const d=CH.daniel;if(d.removed){drama(5);await narr('A murmur runs through the gallery.');return}
+  d.sitT=0;drama(20);AU.sting();await say('daniel',text,{shot:'daniel'});$('#tGavel').classList.add('pulse');outburstOpen=true;
+  const second=S.danielWarned;const v=await choose('Disruption in the gallery',second?'Daniel Lang has disrupted the trial again':'The victim\'s brother is on his feet',[
+    {v:'warn',label:second?'Warn him a second time':'Strike the gavel and warn him',sub:'"Mr. Lang, I understand this is painful. One more outburst and you will be removed."'},
+    {v:'remove',label:'Have the bailiff escort him out',sub:'He may watch the rest of the trial from the overflow room.'},
+    {v:'contempt',label:'Hold him in direct contempt',sub:'Summary sanction: five days in county jail.'},
+    {v:'ignore',label:'Ignore it and press on',sub:'Let the moment pass.'}]);
+  outburstOpen=false;$('#tGavel').classList.remove('pulse');if(v!=='ignore')gavelFx();
+  record(second?'Second gallery outburst':'First gallery outburst',v,second?['remove']:['warn','remove'],'Courtroom control & contempt',second?'He was already warned, so removal is the proportionate next step. Contempt is still excessive for grief.':'A first emotional outburst calls for a warning, or at most removal. Contempt is disproportionate; ignoring it lets order collapse.');
+  if(v==='warn'){S.danielWarned=true;order(18);await say('judge','Mr. Lang. I understand this is painful. One more outburst and you will be removed from this courtroom.',{shot:'judge'});d.sitT=1}
+  if(v==='remove'){order(24);trust(-2);await say('judge','Bailiff, please escort Mr. Lang out. He may watch from the overflow room.',{shot:'judge'});await walk('daniel',[[1.2,0,9.6],[0,0,1],[0,0,-6]]);d.vis=false;d.removed=true}
+  if(v==='contempt'){order(26);trust(-9);S.temper-=18;await say('judge','Mr. Lang, I find you in direct contempt. Five days. Bailiff.',{shot:'judge'});CH.bailiff.sitT=0;await walk('daniel',[[1.2,0,9.6],[0,0,1],[0,0,-6]]);d.vis=false;d.removed=true;drama(10);await narr('A woman in the second row starts crying. A reporter writes something down.')}
+  if(v==='ignore'){order(-12);S.temper-=12;trust(-3);d.sitT=1;await narr('The murmur in the gallery doesn\'t fade. Counsel glance at the bench.')}}
+async function benchQ(id,qs){const opts=qs.map((q,i)=>({v:i,label:q[0]})).concat([{v:-1,label:'No questions from the Court',sub:'Let counsel try the case.'}]);
+  const v=await choose('Questions from the bench',`Does the Court have questions for ${CH[id].short}?`,opts);if(v<0)return;S.benchQs++;
+  await say('judge',qs[v][0],{shot:'judge'});for(const l of qs[v][1])await say(id,l)}
+
+async function trialDay1(){phase(S.f.M4?'Trial · Day 1 · Monday, Oct 12':'Trial · Day 1 · Thursday, Sept 24');S.min=9*60;await chapter('Trial · Day One|'+(S.f.M4?'Monday, October 12':'Thursday, September 24'),'The People v. Marcus Hale',2600);
+  await allRise();
+  for(const e of['P-1','P-2','P-4','P-8'])setEx(e,'admitted');
+  await say('judge','Back on the record. The parties have stipulated to Exhibits P-1, P-2, P-4 and P-8. They are received.');
+  if(S.f.W1){await say('judge','P-7, the Nimbus Cloud records, are offered by certification.');CH.def.sitT=0;await say('def','No objection, Your Honor.');CH.def.sitT=1;setEx('P-7','admitted');ai('D','Not fighting P-7. We will explain it instead.')}
+  if(S.ex['D-3'])setEx('D-3','gathered');
+  await say('judge','Ms. Varga, your opening statement.');
+  letterbox(true);await toPodium('pros');CH.pros.face=[0,1];
+  await say('pros','Your Honor, on March 14th Marcus Hale told his partner he would regret blocking the sale. That night Victor Lang was killed with a single blow from a steel bar.');
+  await say('pros','You will watch the defendant\'s own jacket walk into Dock B at *10:47 PM* and walk out at *11:05*. You will watch it go into the dumpster, where police found it soaked in Victor\'s blood.');
+  await say('pros',S.f.W1?'And the next morning, with the police already calling, he deleted his messages.':'And you\'ll learn what Victor\'s death was worth: a two-million-dollar insurance policy.');
+  await say('pros','Motive. His jacket. His building. His temper. The State will prove it beyond a reasonable doubt.');await toTable('pros');
+  await say('judge','Mr. Okafor.');await toPodium('def');CH.def.face=[0,1];
+  await say('def','The State\'s whole case runs on one clock. A clock nobody checked.');
+  await say('def','At 11:20 that night Marcus Hale was at The Copper Still, twelve minutes away, soaked through and without a jacket.');
+  await say('def',S.f.S2?'The evidence will show that the person on that tape is shorter than Mr. Hale, badged in with the wrong hand, and carried a master key that Mr. Hale never held.':'The evidence will show that the person on that tape is shorter than Mr. Hale and badged in with the wrong hand.');
+  await say('def','That isn\'t reasonable doubt, Your Honor. That is a different person.');await toTable('def');letterbox(false);
+
+  /* --- Det. Calloway --- */
+  await say('judge','The State may call its first witness.');CH.pros.sitT=0;await say('pros','The State calls Detective Ray Calloway.');CH.pros.sitT=1;
+  await callWitness('calloway');await toPodium('pros');
+  await say('pros','Detective, what did you find at 900 Kiln Road?');
+  await say('calloway','Victor Lang, fifty-one, on the office floor. One blow to the right side of the head. The wall safe was open and a desk drawer had been forced.');
+  await say('pros','And the jacket marked P-4?');
+  await say('calloway','In the Dock B dumpster, on top of the bags. Waxed canvas, "M. HALE" embroidered in the collar. The victim\'s blood on the right cuff and the front.');
+  await say('pros','Did you recover video?');
+  await say('calloway','Camera 3 covers the Dock B door. I exported it from the DVR with the facilities manager, Mr. Pratt, and hashed the file at export. The hash matches what\'s in court.');
+  await say('pros','The State offers Exhibit P-3.');
+  await objection({by:'def',basis:'Lack of foundation / authentication',text:'Objection. There\'s no foundation that the DVR clock is accurate. The State can\'t authenticate a timestamp it never tested.',q:'Offer of P-3 through the officer who exported it, hash-verified.',search:'authentication',label:'Admissibility of CCTV (P-3)',correct:'overrule',rule:'Rule 901',why:'The exporting officer and the matching hash authenticate the video as what it claims to be. The clock\'s accuracy goes to weight, which the defense can attack.',
+    args:[['def','The timestamp is the State\'s whole case. If it\'s wrong, the exhibit misleads.'],['pros','Authentication asks whether this is the Dock B footage. It is. The clock is for cross.']],
+    sl:'Sustained. P-3 is excluded for now.',ol:'Overruled. P-3 is received. The clock goes to weight.',onO:async()=>{setEx('P-3','admitted')},onS:async()=>{setEx('P-3','excluded');lean(-10);ai('P','Video excluded. Rebuilding the timeline on the jacket.')}});
+  if(S.ex['P-3']==='admitted'){await say('pros','With the Court\'s permission, the State will publish P-3.');
+    await playInCourt([[92,152,'*Varga:* "22:47 by the overlay. A figure in the defendant\'s jacket, with the reflective L&H patch, walks up and badges into Dock B."'],[1190,1284,'*Varga:* "23:05. The same figure comes out, walks to the dumpster and throws the jacket in. Then walks away."']]);
+    drama(8);lean(6)}
+  if(!S.f.M2){await say('pros','Detective, what did the defendant text the victim at 5:58 that evening?');await say('calloway','"You sign the buyout or I end this. All of it."');setEx('P-5','admitted');drama(10);lean(6)}
+  if(!S.f.M1){await say('pros','And what did the defendant tell you in the interview room?');await say('calloway','"He was ruining everything. I should have done it years ago."');setEx('P-6','admitted');drama(12);lean(8)}
+  await say('pros','Detective, that\'s the defendant on the tape, isn\'t it?');
+  await objection({by:'def',basis:'Leading / speculation',text:'Objection. Leading, and it calls for speculation. The detective has never met the person on that tape.',q:'"Detective, that\'s the defendant on the tape, isn\'t it?" (on direct)',search:'leading speculation',label:'Leading identification question on direct',correct:'sustain',rule:'Rules 611(c), 602, 701',why:'It is a leading question on direct, and the detective has no personal basis to identify a silhouette.',
+    onO:async()=>{await say('calloway','In my opinion, yes. That\'s Marcus Hale.');drama(6);lean(5)},sl:'Sustained. Rephrase, counsel.'});
+  await say('pros','Did the investigation receive any tips?');
+  await say('calloway','Two days later the tip line got a message saying a man "looking like Hale" was seen running from the distillery.');
+  await objection({by:'def',basis:'Hearsay',text:'Objection. Hearsay, and anonymous hearsay at that. Move to strike.',q:'Officer repeating an anonymous tip-line message received two days after the event.',search:'hearsay',label:'Anonymous tip repeated by the detective',correct:'sustain',rule:'Rules 801–802',why:'An out-of-court statement offered for its truth, from an unknown declarant, made two days later. No exception applies.',sl:'Sustained. The answer is stricken.',onO:async()=>lean(4)});
+  await say('pros','Nothing further.');await toTable('pros');
+  await toPodium('def');
+  await say('def','Detective, you never compared the DVR\'s clock against any accurate time source, did you?');
+  await objection({by:'pros',basis:'Leading',text:'Objection. Counsel is leading the witness.',q:'Defense question on cross-examination.',search:'leading',label:'Leading question on cross',correct:'overrule',rule:'Rule 611(c)',why:'Leading questions are permitted on cross-examination.',onO:async()=>{await say('calloway','No. We relied on the overlay.');lean(-3)},onS:async()=>{await say('def','Did you check the DVR clock, Detective?');await say('calloway','No. We relied on the overlay.')}});
+  await say('def','And the access-control log for the Dock B reader? Did you pull it?');
+  await say('calloway','The badge system is a separate vendor. We asked. It hadn\'t come back by the time we charged.');
+  if(S.f.S2){await say('def','The defense has it, Detective. It\'s marked D-5. It shows a master credential opening that door at 11:20:16 PM by the server clock. Not 10:47.');drama(10);lean(-6)}
+  await say('def','You had your man by midnight and you stopped looking. Isn\'t that right? *Isn\'t it,* Detective?');
+  await objection({by:'pros',basis:'Argumentative',text:'Objection! Argumentative. He\'s badgering the witness.',q:'"You had your man by midnight and you stopped looking. Isn\'t that right? Isn\'t it?"',search:'argumentative badgering',label:'Argumentative question on cross',correct:'sustain',rule:'Rule 611(a)',why:'A repeated rhetorical demand that argues with the witness instead of asking for facts.',onO:async()=>{await say('calloway','I followed the evidence, counsel.')}});
+  await say('def','Nothing further.');await toTable('def');
+  await benchQ('calloway',[['Detective, was the jacket in a size that fits the defendant?',['Size large. Mr. Hale\'s booking sheet lists him at six-two, two hundred and five pounds. I can\'t tell you how it fits him.']],['Detective, was the weapon ever found?',['No, Your Honor. Not in the building, not in the dumpster, not on the route to the bar.']]]);
+  await excuse('calloway');
+
+  /* --- Owen Pratt --- */
+  CH.pros.sitT=0;await say('pros','The State calls Owen Pratt.');CH.pros.sitT=1;await callWitness('pratt');await toPodium('pros');
+  await say('pros','Mr. Pratt, what did you hear on the evening of March 14th?');
+  await say('pratt','Marcus and Victor were shouting in the office, around six. About the buyout. Marcus said, "You\'ll regret this."');
+  await objection({by:'def',basis:'Hearsay',text:'Objection, hearsay.',q:'Witness repeating the defendant\'s own words, offered by the State.',search:'opposing party statement',label:'Defendant\'s own words repeated by a witness',correct:'overrule',rule:'Rule 801(d)(2)',why:'A party\'s own statement offered against that party is not hearsay.',onS:async()=>lean(-2)});
+  await say('pratt','And I saw Marcus leave at about half past nine. He was wearing that jacket.');drama(6);
+  await say('pros','Did Victor say anything to you about Mr. Hale before that night?');
+  await say('pratt','The week before, Victor told me, "Marcus is going to kill me over this buyout."');
+  await objection({by:'def',basis:'Hearsay',text:'Objection. Hearsay, offered to prove what my client intended.',q:'The decedent\'s out-of-court statement: "Marcus is going to kill me over this buyout."',search:'state of mind 803(3)',label:'Victim\'s "Marcus is going to kill me" statement',correct:'sustain',rule:'Rules 802, 803(3)',why:'Victim fear statements show only the victim\'s own state of mind, which is not at issue here. They cannot be used to prove the defendant\'s intent or conduct.',
+    args:[['pros','State of mind, 803(3). It shows Victor\'s fear of the defendant.'],['def','Victor\'s fear isn\'t an issue in this case. The State wants it for Marcus\'s intent, and 803(3) can\'t do that.']],sl:'Sustained. Stricken.',onO:async()=>{drama(8);lean(6)}});
+  await say('pros','You found Victor?');await say('pratt','Six-ten the next morning. I opened the dock and saw the office light still on.');
+  await say('pros','Nothing further.');await toTable('pros');await toPodium('def');
+  await say('def','Mr. Pratt, would you write your name on this pad for the Court?');
+  await objection({by:'pros',basis:'Relevance',text:'Objection. Relevance. What does his penmanship have to do with anything?',q:'Defense asks the witness to write his name in open court.',search:'relevance',label:'Handwriting demonstration (Pratt)',correct:'overrule',rule:'Rule 401',why:'The wound and the video point to a left-handed assailant. Which hand a witness with access uses has some tendency to matter, and that is all Rule 401 requires.',
+    onO:async()=>{CH.pratt.pose='write';shot('pratt');await narr('Pratt picks up the pen with his *left hand*. He writes slowly, then sets it down.');CH.pratt.pose=null;drama(8);lean(-6)},onS:async()=>lean(2)});
+  await say('def','There are two master credentials for the Dock B reader. You carry one of them?');
+  await say('pratt','MASTER-01, yes. The other\'s in the office safe. Anyone with the safe code could take it. Marcus has the code.');
+  if(S.f.S2){await say('def','Isn\'t it true, Mr. Pratt, that $342,600 went to Northfield Barrel Supply, a company registered to your sister, on your approval?');
+    await objection({by:'pros',basis:'Assumes facts not in evidence',text:'Objection. Assumes facts not in evidence.',q:'Defense holds subpoenaed ledgers and an audit (D-3), not yet offered.',search:'good-faith basis cross',ev:'D-3',label:'Northfield payments question to Pratt',correct:'overrule',rule:'Good-faith basis on cross',why:'Counsel holds subpoenaed ledgers and an audit, which is a good-faith basis. Cross may go into facts that will be proven later.',onS:async()=>{lean(3);ai('D','Blocked on cross. We will put D-3 in directly.')}});
+    if(S.rulings[S.rulings.length-1].choice==='overrule'){await say('pratt','I\'m not... I don\'t have to answer that. I want a lawyer.');drama(14);
+      const v=await choose('The witness invokes','Pratt refuses to answer and asks for a lawyer',[{v:'advise',label:'Advise him of his Fifth Amendment privilege and let him consult counsel',sub:'Appoint duty counsel; the question stands unanswered.'},{v:'compel',label:'Order him to answer',sub:'"You are under oath, Mr. Pratt. Answer the question."'},{v:'strike',label:'Strike his entire testimony',sub:'Remove everything he said on direct.'}]);
+      record('Pratt invokes the Fifth Amendment',v,'advise','Witness privilege (Fifth Amendment)','Any witness may refuse to give answers that could incriminate them. The Court advises the witness and cannot compel an answer without immunity.');
+      if(v==='compel'){await say('judge','You are under oath, Mr. Pratt. Answer the question.',{shot:'judge'});await say('pratt','I... I approved invoices. That\'s all I\'m saying.');trust(-3)}
+      else if(v==='strike'){await say('judge','The witness\'s testimony is stricken in its entirety.',{shot:'judge'});lean(-4)}
+      else{await say('judge','Mr. Pratt, you have a right not to answer questions that may incriminate you. The Court will appoint duty counsel to advise you. The question will stand unanswered.',{shot:'judge'});lean(-8)}
+      S.f.prattFifth=true;ai('P','Pratt compromised. Isolate him from the timeline.')}
+    await outburst('He\'s lying! Marcus did this, everybody knows it! You\'re letting them put Victor on trial!')}
+  else{await say('def','Isn\'t it true money went missing from the accounts you managed?');
+    await objection({by:'pros',basis:'Assumes facts not in evidence',text:'Objection. Assumes facts not in evidence. There\'s nothing in the record about missing money.',q:'Defense has no records on company finances (subpoena denied).',search:'good-faith basis cross',label:'Unsupported missing-money question to Pratt',correct:'sustain',rule:'Good-faith basis on cross',why:'With the subpoena denied, the defense had no factual basis for the insinuation.',onO:async()=>{await say('pratt','No. That\'s not true.')}});
+    await outburst('This is disgusting! Victor\'s dead and they\'re smearing the people who loved him!')}
+  await say('def','Nothing further.');await toTable('def');await excuse('pratt');
+
+  /* --- Dr. Shah --- */
+  CH.pros.sitT=0;await say('pros','The State calls Dr. Anita Shah.');CH.pros.sitT=1;await callWitness('shah');await toPodium('pros');
+  await say('shah','The cause of death was blunt-force trauma: a depressed skull fracture on the right temporoparietal side, from a cylindrical object about two centimetres wide. A steel bar fits.');
+  await say('shah','Time of death between 10:30 PM and 12:30 AM.');
+  await say('pros','Doctor, in your opinion, did the defendant strike that blow?');
+  await objection({by:'def',basis:'Beyond expertise',text:'Objection. That\'s beyond any pathologist\'s expertise. It\'s the ultimate question of guilt.',q:'Asking the medical examiner whether the defendant was the attacker.',search:'expert opinion 702',label:'Asking the ME to identify the killer',correct:'sustain',rule:'Rules 702, 704',why:'Wound findings cannot identify a particular person. The opinion would be guilt dressed up as expertise.',onO:async()=>{await say('shah','I... can only say the injury is consistent with an attacker of adult strength.')}});
+  await say('pros','Nothing further.');await toTable('pros');await toPodium('def');
+  await say('def','Doctor, the fracture is on the right side of his head. If the attacker was facing Mr. Lang, which hand swung the bar?');
+  await objection({by:'pros',basis:'Speculation',text:'Objection. Calls for speculation.',q:'Asking the ME about the mechanics and likely handedness of the blow.',search:'expert opinion handedness',label:'ME opinion on handedness',correct:'overrule',rule:'Rule 702',why:'Wound mechanics and the likely position of the assailant are squarely within forensic pathology.',onS:async()=>lean(3)});
+  if(S.rulings[S.rulings.length-1].choice==='overrule'){await say('shah','A face-to-face blow to the right temple is most consistent with a *left-handed* swing. A right-handed blow from behind is possible, but the bruise on his left forearm says he saw it coming and raised that arm.');drama(8);lean(-7)}
+  await say('def','Nothing further.');await toTable('def');
+  await benchQ('shah',[['Doctor, can you narrow the time of death at all?',['The gastric contents favor the later part of the window. After eleven, more likely than not. And his phone shows a three-minute call at 10:52, so he was alive then.']],['Doctor, how much force did that blow take?',['A single committed swing. An adult of average strength could do it.']]]);
+  await excuse('shah');
+  CH.pros.sitT=0;await say('pros','The State rests, Your Honor.');CH.pros.sitT=1;
+  CH.def.sitT=0;await say('def','The defense moves for a judgment of acquittal on Count One. The State\'s identification is a silhouette and a jacket.');CH.def.sitT=1;
+  const v=await motion({kick:'Defense motion · Rule 29',title:'Acquit on Count One now?',body:'<q>Standard: viewing the evidence in the light most favorable to the State, could any rational fact-finder find every element beyond a reasonable doubt?</q>',search:'rule 29 acquittal',label:'Rule 29 motion for acquittal (Count I)',correct:'deny',rule:'Rule 29 standard',why:'Taken in the State\'s favor (the jacket, the video, motive, opportunity), a rational fact-finder could convict. Weighing doubt is for the verdict, not this motion.'});
+  if(v==='grant'){S.f.rule29=true;await say('judge','Granted. Count One is dismissed. Judgment of acquittal on the murder charge.');drama(25);trust(-6)}
+  else await say('judge','Denied. Weighing the evidence comes at the verdict. We\'ll resume tomorrow at nine.');gavelFx()}
+
+async function trialDay2(){phase('Trial · Day 2');S.min=9*60;await chapter('Trial · Day Two|The defense case','Courtroom 12',2400);await allRise();
+  CH.pros.sitT=0;await say('pros','Before the defense begins, the State requests a one-week continuance to locate Elena Lang, the victim\'s widow. She has stopped returning our calls.');CH.pros.sitT=1;
+  CH.def.sitT=0;await say('def','The State never subpoenaed her. She has been on nobody\'s witness list for seven months, and Mr. Hale is in custody.');CH.def.sitT=1;
+  let v=await motion({kick:'State motion · Continuance',title:'Recess the trial a week for Elena Lang?',search:'continuance diligence',label:'State mid-trial continuance (Elena Lang)',correct:'deny',rule:'Continuance: diligence; speedy trial',why:'The State never subpoenaed her and gave no offer of proof of her testimony. A mid-trial delay with the defendant in custody is not justified.',btns:[['grant','Grant · +7 days'],['deny','Deny · proceed']]});
+  if(v==='grant'){S.days+=7;trust(-2);await chapter('One week later','The trial resumes',1800);CH.pros.sitT=0;await say('pros','Your Honor, despite our efforts, Ms. Lang could not be located.');CH.pros.sitT=1;await say('judge','Then we proceed. Mr. Okafor.')}
+  else await say('judge','Denied. Mr. Okafor, call your first witness.');
+  /* --- Price --- */
+  CH.def.sitT=0;await say('def','The defense calls Jamal Price.');CH.def.sitT=1;await callWitness('price');await toPodium('def');
+  await say('price','Marcus came in around 11:20. Soaked. No jacket, just a shirt, in March. I gave him a bar towel.');
+  await say('price','He sat at the end of the bar until we closed at 12:30. Three ryes and a burger, all on one tab.');
+  await say('def',S.f.S1?'The defense offers D-1, the receipt, and D-2, the POS log, through Mr. Price as the manager on duty.':'The defense offers D-1, the receipt, through Mr. Price.');
+  await objection({by:'pros',basis:'Hearsay',text:'Objection. Hearsay. The receipt is an out-of-court statement.',q:'Point-of-sale records offered through the bar manager who maintains the system.',search:'business records',label:'Bar receipt / POS records',correct:'overrule',rule:'Rule 803(6)',why:'Records generated in the regular course of business at the time of the transaction, laid through the manager who maintains them.',onO:async()=>{setEx('D-1','admitted');if(S.f.S1)setEx('D-2','admitted');lean(-6)},onS:async()=>{setEx('D-1','excluded');if(S.f.S1)setEx('D-2','excluded')}});
+  await say('def','Mr. Price, did he seem to you like a man who\'d just killed someone?');
+  await objection({by:'pros',basis:'Speculation',text:'Objection. Calls for speculation.',q:'Asking a lay witness to read the defendant\'s mind.',search:'speculation personal knowledge',label:'Bartender asked about defendant\'s guilty demeanor',correct:'sustain',rule:'Rule 602 / 701',why:'A lay witness can describe demeanor but cannot opine on whether someone had just committed a killing.',onO:async()=>{await say('price','No. He looked like a guy who\'d had the worst fight of his life with his best friend.')}});
+  await say('def','Nothing further.');await toTable('def');await toPodium('pros');
+  await say('pros','You\'d had a few drinks yourself that night, Mr. Price?');
+  await objection({by:'def',basis:'Relevance',text:'Objection. Relevance.',q:'Cross on the witness\'s own drinking during the shift.',search:'relevance credibility',label:'Cross on the bartender\'s drinking',correct:'overrule',rule:'Rule 401 (credibility)',why:'A witness\'s sobriety bears on their perception and is always relevant to credibility.',onO:async()=>{await say('price','One beer, after close. I don\'t drink on shift.')}});
+  await say('pros','The Copper Still is twelve minutes from the distillery?');await say('price','Without traffic. In that rain, fifteen.');
+  await say('pros','Nothing further.');await toTable('pros');await excuse('price');
+  /* --- Ortiz or the frame --- */
+  if(S.f.M4){CH.def.sitT=0;await say('def','The defense calls Lena Ortiz, forensic video examiner.');CH.def.sitT=1;await callWitness('ortiz');await toPodium('def');
+    await say('ortiz','I hold the CFVE certification. Eleven years in forensic video, and I\'ve testified forty-one times, for both sides.');
+    await say('def','The defense offers Ms. Ortiz as an expert in forensic video analysis.');
+    await objection({by:'pros',basis:'Qualifications',text:'Objection. She\'s a defense-paid technician, not a scientist.',q:'Proffer: CFVE certified, 11 years, 41 prior qualifications.',search:'expert qualification 702',label:'Qualifying the defense video expert',correct:'overrule',rule:'Rule 702',why:'Certification, experience and prior qualification are ample. Who pays her goes to weight and can be explored on cross.',onS:async()=>{lean(5);ai('D','Expert blocked. Directing the Court to the frame itself.')}});
+    if(S.rulings[S.rulings.length-1].choice==='overrule'){setEx('D-4','admitted');
+      await say('ortiz','The DVR\'s clock was set by hand in 2023 and has never synced. On April 2nd I compared it with a GPS reference. It runs *33 minutes and 4 seconds slow*.');
+      await say('ortiz','You can see it in the footage itself. The wall clock above the door reads 11:20 while the overlay reads 22:47. So the figure badged in at about *11:20 PM*.');
+      await say('ortiz','Measured against the door frame, the subject is 1.73 metres tall, give or take four centimetres. About five-eight.');drama(14);lean(-12);
+      await toTable('def');await toPodium('pros');await say('pros','Ms. Ortiz, you can\'t tell this Court who that person is.');await say('ortiz','No. I can only tell you who it\'s unlikely to be. Someone six-foot-two is not.');await toTable('pros')}
+    else await toTable('def');await excuse('ortiz')}
+  else{CH.def.sitT=0;await say('def','Without our expert, Your Honor, the defense asks the Court to examine P-3 itself, and in particular the clock on the wall above the door.');CH.def.sitT=1;
+    if(S.ex['P-3']==='admitted')await narr('You can open P-3 in the evidence locker at any time. Its zoom lens and measuring tool are available to the Court.')}
+  if(S.f.S2){CH.def.sitT=0;await say('def','The defense offers D-3, the audit of the subpoenaed ledgers, and D-5, the Dock B access log and personnel record, as certified business records.');CH.def.sitT=1;
+    await objection({by:'pros',basis:'Relevance / third-party speculation',text:'Objection. Relevance. This is a third-party culpability sideshow.',q:'Records tying O. Pratt to $342,600 in diverted payments, the MASTER-01 entry at 23:20:16, and a left-hand forklift configuration.',search:'third-party culpability',ev:'D-5',label:'Admitting D-3 / D-5 (alternate suspect)',correct:'overrule',rule:'Third-party culpability; 803(6)',why:'Motive (embezzlement discovered by the victim) and access (the master credential at the true time) connect Pratt to the crime. That is far more than speculation.',onO:async()=>{setEx('D-3','admitted');setEx('D-5','admitted');drama(10);lean(-10)},onS:async()=>{setEx('D-3','excluded');setEx('D-5','excluded')}})}
+  /* --- Hale --- */
+  if(S.ex['P-7']==='admitted'){ai('D','Concede the deletion to defuse consciousness of guilt.');CH.def.sitT=0;await say('def','The defense calls Marcus Hale.');CH.def.sitT=1;drama(6);await callWitness('hale');await toPodium('def');
+    await say('hale','Victor and I fought about the sale. I said things I\'m ashamed of. I left at nine-thirty. My jacket was on the rack; I was too angry to notice.');
+    await say('hale','I drove to the river and sat in the car. Then the Copper Still. I got soaked walking from the lot.');
+    await say('def','Why did you delete your messages?');await say('hale','Detective Calloway called at 6:55 and told me Victor was dead. At 7:40 I deleted my messages with Elena. Victor\'s wife. We\'d been... seeing each other.');drama(16);
+    await say('hale','I didn\'t want her dragged into it. It was stupid. I knew it was stupid when I did it.');await toTable('def');
+    await toPodium('pros');await say('pros','You deleted them knowing the police were investigating Victor\'s death?');await say('hale','Yes.');
+    await say('pros','And between nine-thirty and eleven-twenty, nobody saw you?');await say('hale','No one. I was alone.');
+    await say('pros','Isn\'t it true, Mr. Hale, that you\'ve been violent before? In 2014?');
+    await objection({by:'def',basis:'Improper character / prior ruling',text:'Objection. '+(S.f.M3?'That conviction is twelve years old and a misdemeanor. It can\'t be used to impeach.':'This Court already excluded that conviction.'),q:'State raises the 2014 misdemeanor assault during cross of the defendant.',search:'609 prior convictions 404(b)',label:'2014 conviction raised on cross of Hale',correct:'sustain',rule:'Rules 404(b), 609(b); law of the case',why:'A twelve-year-old misdemeanor without dishonesty is not admissible to impeach, and it is barred as propensity evidence.',onO:async()=>{await say('hale','A shoving match. I paid a fine.');drama(8);lean(5)}});
+    if(!CH.daniel.removed&&!S.danielWarned)await outburst('You were sleeping with his wife! You\'re a liar, Marcus!');
+    else if(!CH.daniel.removed)await outburst('Liar! You were sleeping with his wife!');
+    await say('pros','Nothing further.');await toTable('pros');await excuse('hale');CH.hale.pos=[...CH.hale.home];CH.hale.face=[0,1];CH.hale.sitT=1}
+  else{CH.def.sitT=0;await say('def','Your Honor, Mr. Hale will exercise his right not to testify.');CH.def.sitT=1;
+    const v=await choose('The defendant will not testify','How do you address it on the record?',[{v:'noinf',label:'"The Court will draw no inference from Mr. Hale\'s decision."',sub:'State it on the record.'},{v:'inf',label:'"Noted. The Court will weigh that in its deliberations."',sub:'Treat his silence as part of the evidence.'}]);
+    record('Defendant declines to testify',v,'noinf','Griffin v. California','A defendant\'s silence may not be considered for any purpose; the Court should say so on the record.');
+    await say('judge',v==='noinf'?'So noted. The Court will draw no inference from that decision, for any purpose.':'So noted. The Court will weigh that.',{shot:'judge'});if(v==='inf')lean(4);
+    if(!CH.daniel.removed&&S.danielWarned)await outburst('Of course he won\'t talk! Because he did it!')}
+  CH.def.sitT=0;await say('def','The defense rests.');CH.def.sitT=1}
+
+async function closings(){phase('Closing arguments');letterbox(true);await say('judge','Closing arguments. Ms. Varga.');await toPodium('pros');CH.pros.face=[0,1];
+  await say('pros','The defendant had the motive: a sale Victor was blocking, a company and a policy worth two million dollars. He had the temper; you heard "You\'ll regret this."');
+  await say('pros','He had the building, the safe code and the master key in the safe. And his jacket, his own jacket, came out of that door and went into the dumpster with Victor\'s blood on it.');
+  if(S.f.W1)await say('pros','And when the police called, he destroyed evidence within forty-five minutes. Innocent people don\'t do that.');
+  await say('pros','For nearly two hours that night nobody can vouch for him. The State asks for guilty on both counts.');await toTable('pros');
+  await say('judge','Mr. Okafor.');await toPodium('def');CH.def.face=[0,1];
+  await say('def','Every piece of the State\'s timeline hangs on a DVR that has been 33 minutes slow since the day it was installed. The clock on the wall in their own exhibit says so.');
+  await say('def','Correct the clock and the person in that jacket walks in at 11:20. At 11:20 Marcus Hale was opening a tab twelve minutes away. Soaked. No jacket.');
+  await say('def','The figure is five-eight. Marcus is six-two. The figure badges in with the left hand; Dr. Shah says the blow came from a left hand. Marcus is right-handed.');
+  if(S.ex['D-5']==='admitted')await say('def','And the key that opened that door at 11:20:16 was MASTER-01, issued to Owen Pratt. The man who signed off on $342,600 to his sister\'s shell company, which Victor found two days before he died.');
+  await say('def',S.ex['P-7']==='admitted'?'Marcus deleted messages to protect a woman, and he told you so. Judge him for that if the law requires it. Not for a murder he could not have committed.':'The State has proved a quarrel. It has not proved a killer.');
+  await toTable('def');letterbox(false);await say('judge','Thank you, counsel. The matter is submitted. The Court will retire to chambers.');gavelFx()}
+
+/* ---------------- chambers ---------------- */
+const FIND=[
+ {k:'time',q:'When did the subject actually badge into Dock B?',o:[['2247','10:47 PM, as the overlay reads'],['2320','About 11:20 PM, with the DVR clock corrected'],['unk','Cannot be determined']],c:()=>'2320',why:'The wall clock visible in P-3 reads 11:20 against an overlay of 22:47'},
+ {k:'hand',q:'Which hand did the subject use to badge in and to carry the bar?',o:[['L','Left'],['R','Right'],['unk','Unclear']],c:()=>'L',why:'In P-3 the subject reaches across their body with the left arm to the reader, and carries the bar in the left hand on the way out'},
+ {k:'height',q:'How tall is the subject, measured at the door plane?',o:[['58','About 5′8″ (1.73 m)'],['62','About 6′2″ (1.88 m)'],['unk','Cannot be measured']],c:()=>'58',why:'Against the 2.13 m door frame the subject stands about 1.73 m'},
+ {k:'alibi',q:'Is the defendant\'s presence at The Copper Still at the corrected entry time credibly established?',o:[['y','Yes'],['n','No']],c:()=>S.ex['D-1']==='admitted'?'y':'n',why:'The receipt (and POS log) put the tab open at 23:20, corroborated by Price'},
+ {k:'del',q:'Did the defendant knowingly delete messages after learning of the investigation?',o:[['y','Yes, proven by admitted evidence'],['ne','Not established by admitted evidence']],c:()=>S.ex['P-7']==='admitted'?'y':'ne',why:'Nimbus records (P-7) and Hale\'s own testimony'}];
+async function chambers(){phase('Chambers · Deliberation');CH.judge.vis=false;shot('well');const ov=document.createElement('div');ov.className='overlay';
+  const counts=[...(S.f.rule29?[]:[{k:'c1',t:'Count I: Second-degree murder of Victor Lang'}]),{k:'c2',t:'Count II: Tampering with evidence'}];
+  ov.innerHTML=`<div class="wrap"><div class="oh"><div><div class="kick">Chambers · The matter is under submission</div><h2>Findings of fact & verdict</h2></div><div class="ff">Take as long as you need. The proceedings are paused.</div></div>
+   <div class="cols"><aside class="card"><h3>The record</h3><div style="display:grid;gap:6px">${Object.keys(EX).filter(k=>S.ex[k]).map(k=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px"><span>${k} · ${EX[k].t}</span><span class="badge ${S.ex[k]}">${S.ex[k]==='gathered'?'Not offered':STATUS_TXT[S.ex[k]]}</span></div>`).join('')}</div>
+    <div class="btns"><button class="big" data-x="ev" style="font-size:12px">Evidence</button><button class="big" data-x="book" style="font-size:12px">Bench Book</button></div><div class="btns" style="margin-top:8px"><button class="big" data-x="case" style="font-size:12px">Case file</button><button class="big" data-x="notes" style="font-size:12px">Notes</button></div>
+    <p class="ff" style="margin-top:12px">Only admitted evidence may support a finding. Suppressed, excluded or never-offered exhibits do not count.</p></aside>
+    <section class="card"><h3>Findings of fact</h3>${FIND.map(f=>`<div class="q"><p>${f.q}</p><div class="seg" data-q="${f.k}">${f.o.map(o=>`<button data-v="${o[0]}">${o[1]}</button>`).join('')}</div></div>`).join('')}
+    <h3 style="margin-top:18px">Verdict</h3>${S.f.rule29?'<p class="ff">Count I was dismissed on the Rule 29 motion.</p>':''}${counts.map(c=>`<div class="q"><p>${c.t}</p><div class="seg" data-q="${c.k}"><button data-v="G">Guilty</button><button data-v="NG">Not guilty</button></div></div>`).join('')}
+    <button class="vbtn" id="toCourt" disabled>Return to the courtroom</button></section></div></div>`;
+  $('#app').appendChild(ov);
+  const need=FIND.length+counts.length;
+  await new Promise(res=>ov.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const x=b.dataset.x;if(x==='ev')return openEvidence();if(x==='book')return openBook();if(x==='case')return openCase();if(x==='notes')return openNotes();
+    const sg=b.closest('.seg');if(sg){sg.querySelectorAll('button').forEach(z=>z.classList.toggle('on',z===b));const k=sg.dataset.q;if(k==='c1'||k==='c2')S.verdict[k]=b.dataset.v;else S.findings[k]=b.dataset.v;
+      $('#toCourt').disabled=Object.keys(S.findings).length+Object.keys(S.verdict).length<need}
+    if(b.id==='toCourt')res()}));ov.remove();if(S.f.rule29)S.verdict.c1='NG'}
+
+async function verdictScene(){phase('Verdict');S.min=16*60+10;await chapter('The Verdict|Courtroom 12 · 4:10 PM','The Court has reached its decision',2400);letterbox(true);await allRise();
+  CH.hale.sitT=0;CH.def.sitT=0;await say('judge','The defendant will rise.',{shot:'hero'});
+  if(!S.f.rule29){await say('judge','On Count One, second-degree murder, the Court finds the defendant, Marcus Hale...',{shot:'judge'});await sleep(900);gavelFx();stampFx(S.verdict.c1==='G'?'GUILTY':'NOT GUILTY',S.verdict.c1==='G'?'#8e2b33':'#2c5a8a');
+    await say('judge',S.verdict.c1==='G'?'*Guilty.*':'*Not guilty.*',{shot:'hale'});drama(22);await narr(S.verdict.c1==='G'?'Hale\'s knees buckle. Okafor catches his arm. Behind the bar, someone says "Thank God."':'Hale closes his eyes. In the gallery, Daniel Lang\'s seat scrapes back.')}
+  await say('judge','On Count Two, tampering with evidence, the Court finds the defendant...',{shot:'judge'});await sleep(700);gavelFx();stampFx(S.verdict.c2==='G'?'GUILTY':'NOT GUILTY',S.verdict.c2==='G'?'#8e2b33':'#2c5a8a');
+  await say('judge',S.verdict.c2==='G'?'*Guilty.*':'*Not guilty.*',{shot:'hale'});CH.hale.sitT=1;CH.def.sitT=1;letterbox(false)}
+
+async function sentencing(){if(S.verdict.c1!=='G'&&S.verdict.c2!=='G')return;phase('Sentencing');
+  if(S.verdict.c1==='G'){await say('judge','On Count One the sentence is fixed by statute: fifteen years to life.',{shot:'judge'});S.sentence.c1='15 years to life'}
+  if(S.verdict.c2==='G'){CH.pros.sitT=0;await say('pros','On Count Two the State asks for sixteen months in state prison.');CH.pros.sitT=1;CH.def.sitT=0;await say('def','A first offense, admitted under oath. Probation is the guideline.');CH.def.sitT=1;
+    const v=await choose('Sentencing · Count II','Tampering with evidence',[{v:'p12',label:'12 months summary probation',sub:'Within guideline.'},{v:'p24',label:'24 months probation, 30 days county jail',sub:'Within guideline.'},{v:'j6',label:'6 months county jail',sub:'Upper end of guideline.'},{v:'s16',label:'16 months state prison',sub:'The State\'s request; above guideline.'},{v:'s36',label:'3 years state prison',sub:'Statutory maximum.'}]);
+    S.sentence.c2={p12:'12 months probation',p24:'24 months probation + 30 days',j6:'6 months county jail',s16:'16 months state prison',s36:'3 years state prison'}[v];
+    record('Sentence on Count II',v,['p12','p24','j6'],'Count II sentencing guideline','A first tampering offense that did not obstruct the homicide investigation falls at probation up to 12 months jail.');
+    await say('judge','On Count Two the Court imposes '+S.sentence.c2+'.',{shot:'judge'})}
+  gavelFx();await say('judge','We\'re adjourned.',{shot:'hero'})}
+
+/* ---------------- epilogue ---------------- */
+function epilogue(){phase('Review');D.el.hidden=true;letterbox(false);
+  const tot=S.rulings.reduce((a,r)=>a+r.w,0)||1,acc=Math.round(S.rulings.reduce((a,r)=>a+(r.ok?r.w:0),0)/tot*100);
+  const fRes=FIND.map(f=>({f,ok:S.findings[f.k]===f.c()})),fac=Math.round(fRes.filter(x=>x.ok).length/FIND.length*100);
+  const c2ok=(S.verdict.c2==='G')===(S.ex['P-7']==='admitted'),c1ok=S.verdict.c1!=='G';const vsc=(c1ok?70:0)+(c2ok?30:0);
+  const temper=clamp(Math.round(S.temper*.6+S.order*.4),0,100);const score=Math.round(acc*.4+fac*.2+vsc*.3+temper*.1);
+  const grade=score>=92?'S':score>=82?'A':score>=70?'B':score>=55?'C':'D';
+  const reversed=S.verdict.c1==='G'&&(!S.f.M1||!S.f.M2);
+  let outcome='';
+  if(S.verdict.c1==='G')outcome=reversed?`<p>The Court of Appeals <b>reversed</b> the murder conviction fourteen months later: the State's case-in-chief included evidence obtained in violation of ${!S.f.M1?'Edwards (P-6)':''}${!S.f.M1&&!S.f.M2?' and ':''}${!S.f.M2?'Riley (P-5)':''}. Hale spent 19 months in prison before release.</p>`:`<p>The conviction was <b>affirmed</b>: the appellate court reviews a bench verdict only for sufficiency, and the jacket and video were enough on paper. Marcus Hale began serving fifteen years to life for a murder he did not commit.</p>`;
+  else outcome='<p>The acquittal on Count One is final; double jeopardy bars any appeal by the State.</p>';
+  if(S.verdict.c2==='G'&&S.ex['P-7']!=='admitted')outcome+='<p>The Count II conviction was <b>reversed for insufficient evidence</b>: no admitted evidence proved the deletion.</p>';
+  const caught=S.f.S2&&(S.ex['D-5']==='admitted'||S.f.prattFifth);
+  outcome+=caught?'<p>Eight months after trial, a grand jury indicted <b>Owen Pratt</b> for the murder of Victor Lang and the theft of $342,600. The MASTER-01 log, the corrected DVR clock and the minor DNA profile on the jacket collar, now matched to Pratt, carried the case.</p>':'<p>Without the company records in evidence, nobody looked hard at the facilities manager. The murder of Victor Lang remains officially '+(S.verdict.c1==='G'?'solved':'unsolved')+'.</p>';
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex=26;
+  ov.innerHTML=`<div class="wrap"><div class="oh"><div><div class="kick">Judicial review · State v. Hale</div><h2>The Court of Appeals reviews your trial</h2></div><div class="grade" aria-label="Grade ${grade}">${grade}</div></div>
+  <div class="score"><div><b>Legal accuracy</b><span>${acc}%</span></div><div><b>Fact-finding</b><span>${fac}%</span></div><div><b>Verdict</b><span>${vsc}/100</span></div><div><b>Temperament</b><span>${temper}</span></div><div><b>Public trust</b><span>${Math.round(S.trust)}</span></div><div><b>Delay added</b><span>${S.days} days</span></div></div>
+  <div class="cols"><section class="card"><h3>What happened next</h3><div class="prose"><p>Verdict: Count I <b>${S.verdict.c1==='G'?'Guilty':'Not guilty'}</b>${S.f.rule29?' (Rule 29)':''} · Count II <b>${S.verdict.c2==='G'?'Guilty':'Not guilty'}</b>${S.sentence.c2?' · '+S.sentence.c2:''}</p>${outcome}</div>
+   <h3 style="margin-top:16px">What really happened</h3><div class="prose"><p>Owen Pratt had been skimming from Lang & Hale since June 2025 through Northfield Barrel Supply, a shell company registered to his sister. On March 12 Victor emailed the company's outside accountant: "Found something in AP."</p><p>On the night of the 14th, Pratt waited until Hale stormed out at 9:30 and left his jacket on the office rack. At <b>11:20 PM real time</b> (10:47 on a DVR that had run 33 minutes slow since the day it was installed) Pratt badged in with MASTER-01, wearing Hale's jacket against the rain and the camera. Victor turned to face him and raised his left arm. Pratt, who is left-handed, swung once.</p><p>He took the AP ledgers from the safe, threw the jacket in the dumpster, and walked out at 11:38. Marcus Hale was at The Copper Still, soaked, drinking rye. He did delete his messages the next morning: to hide an affair with Elena Lang, not a murder.</p></div></section>
+   <section class="card"><h3>Your findings</h3>${fRes.map(({f,ok})=>`<div class="rv"><span class="m ${ok?'y':'n'}">${ok?'✓':'✗'}</span><div>${f.q}<small>${ok?'Correct.':'The record supports: '+f.o.find(o=>o[0]===f.c())[1]+'.'} ${f.why}.</small></div></div>`).join('')}
+   <h3 style="margin-top:16px">Your rulings, reviewed</h3>${S.rulings.map(r=>`<div class="rv"><span class="m ${r.ok?'y':'n'}">${r.ok?'✓':'✗'}</span><div>${esc(r.label)}: <b>${WORD[r.choice]||r.choice}</b>${r.ok?'':` (correct: ${WORD[r.correct]||r.correct})`}<small>${esc(r.rule)}. ${esc(r.why)}</small></div></div>`).join('')}
+   <div class="btns"><button class="big" id="again">Preside again</button></div></section></div></div>`;
+  $('#app').appendChild(ov);$('#again').onclick=()=>location.reload()}
+
+/* ---------------- input & boot ---------------- */
+$('#tGavel').onclick=gavelButton;$('#tCase').onclick=openCase;$('#tEv').onclick=()=>openEvidence();$('#tBook').onclick=()=>openBook();$('#tNotes').onclick=openNotes;
+$('#tRecess').onclick=()=>{if(S.recessQ)return;S.recessQ=true;toast('Recess will be called at the next pause in testimony.')};
+let camI=0;$('#tCam').onclick=()=>{camI=(camI+1)%CAMLIST.length;shot(CAMLIST[camI]);toast('Camera: '+CAMLIST[camI])};
+$('#tSnd').onclick=()=>AU.toggle();$('#sndL').textContent=AU.on?'Sound':'Muted';
+addEventListener('keydown',e=>{if(e.target.matches('input,textarea'))return;const k=e.key.toLowerCase();
+  if(k==='escape'){if(modalOpen)closeModal();return}
+  if(k===' '||k==='enter'){if(!D.el.hidden&&!modalOpen&&!panelOpen){e.preventDefault();advance()}return}
+  if(modalOpen)return;if(!S.started)return;
+  const map={g:'#tGavel',c:'#tCase',e:'#tEv',r:'#tBook',n:'#tNotes',x:'#tRecess',v:'#tCam',m:'#tSnd'};if(map[k]){e.preventDefault();$(map[k]).click()}});
+hud();
+$('#startBtn').onclick=async()=>{AU.init();S.name=($('#jname').value.trim()||'Harlan').slice(0,24);CH.judge.name='Judge '+S.name+' (You)';S.started=true;
+  $('#title').remove();$('#ui').classList.remove('off');
+  try{await intro();await pretrial();await trialDay1();await trialDay2();await closings();await chambers();await verdictScene();await sentencing();epilogue()}catch(err){console.error(err);toast('Something went wrong: '+err.message)}};
+</script>
+</body>
+</html>

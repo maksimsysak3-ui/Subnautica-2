@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Player model tests</title>
+<style>
+body{margin:0;background:#0b0d12;color:#e8ebf1;font:600 14px Barlow,Arial,sans-serif;padding:24px}
+h1{font:900 34px "Barlow Condensed",Arial Narrow,sans-serif;letter-spacing:.04em;margin:0 0 4px}
+.sub{color:#9aa3b5;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.card{background:#141822;border-radius:10px;padding:14px;box-shadow:inset 0 0 0 1px #ffffff18}
+.card h2{margin:0;font:800 22px "Barlow Condensed",Arial Narrow,sans-serif;letter-spacing:.06em}
+.card p{margin:2px 0 10px;color:#9aa3b5;font-weight:500}
+canvas{display:block;width:100%;image-rendering:pixelated;border-radius:6px}
+</style></head><body>
+<h1>PLAYER MODEL TESTS · PIXEL</h1>
+<div class="sub">Not applied to the game. Each shows home + away in stance / run / catch poses on the live-game grass, at the same on-field scale (×6 zoom).</div>
+<div class="grid" id="g"></div>
+<script>
+const TEAMS=[{j:'#0b2265',j2:'#a71930',h:'#0b2265',hs:'#ffffff',p:'#a5acaf',n:'#ffffff',sock:'#0b2265'},{j:'#ffffff',j2:'#004c54',h:'#004c54',hs:'#a5acaf',p:'#ffffff',n:'#004c54',sock:'#004c54'}];
+const SKIN=['#8d5524','#c68642','#e0ac69','#5a3a22'];
+const sh=(h,f)=>{let v=parseInt(h.slice(1),16),r=v>>16,g=v>>8&255,b=v&255;const c=x=>Math.max(0,Math.min(255,Math.round(f<0?x*(1+f):x+(255-x)*f)));return`rgb(${c(r)},${c(g)},${c(b)})`};
+function grass(g,w,h){for(let y=0;y<h;y++)for(let x=0;x<w;x++){const n=(Math.sin(x*12.9898+y*78.233)*43758.5453)%1;g.fillStyle=n>0.82?'#2f8a3e':n<-0.85?'#2a7a37':((Math.floor(x/16))%2?'#35923f':'#38983f');g.fillRect(x,y,1,1)}
+ g.fillStyle='rgba(255,255,255,.85)';for(let x=0;x<w;x+=48)g.fillRect(x,0,1,h)}
+// pixel helpers
+const P=(g,x,y,c,w=1,h=1)=>{g.fillStyle=c;g.fillRect(x|0,y|0,w,h)};
+const DIG={'0':['111','101','101','101','111'],'1':['010','110','010','010','111'],'2':['111','001','111','100','111'],'3':['111','001','111','001','111'],'4':['101','101','111','001','001'],'5':['111','100','111','001','111'],'6':['111','100','111','101','111'],'7':['111','001','010','010','010'],'8':['111','101','111','101','111'],'9':['111','101','111','001','111']};
+const num=(g,x,y,s,c,sc=1)=>{[...s].forEach((d,i)=>DIG[d].forEach((r,yy)=>[...r].forEach((b,xx)=>b==='1'&&P(g,x+i*4*sc+xx*sc,y+yy*sc,c,sc,sc))))};
+// A: pro 16-bit, top-down back view 16x28
+function A(g,x,y,t,pose,skin){const o='#0a0c10';const leg=pose==='run'?[2,-2]:[0,0];
+ P(g,x+3,y+27,'rgba(0,0,0,.28)',10,2);
+ // legs
+ [[5,leg[0]],[9,leg[1]]].forEach(([lx,d])=>{P(g,x+lx-1,y+17+Math.min(0,d),o,4,10);P(g,x+lx,y+17+Math.min(0,d),t.p,2,5);P(g,x+lx,y+22+Math.min(0,d),t.sock,2,3);P(g,x+lx,y+25+Math.min(0,d),'#111',2,1)});
+ // torso + pads
+ P(g,x+1,y+8,o,14,11);P(g,x+2,y+9,t.j,12,9);P(g,x+2,y+9,sh(t.j,.25),12,2);P(g,x+2,y+16,sh(t.j,-.3),12,1);
+ P(g,x+1,y+11,t.j2,1,3);P(g,x+14,y+11,t.j2,1,3);num(g,x+4,y+11,'84',t.n,1);
+ // arms
+ const ay=pose==='catch'?-8:pose==='run'?1:2;[[-1,0],[15,1]].forEach(([ax,k])=>{const yy=y+9+(k&&pose==='run'?-2:ay);P(g,x+ax-1,yy,o,3,8);P(g,x+ax,yy+1,t.j,1,3);P(g,x+ax,yy+4,skin,1,2);P(g,x+ax,yy+6,'#1d1f24',1,1)});
+ // helmet
+ P(g,x+3,y,o,10,9);P(g,x+4,y+1,t.h,8,7);P(g,x+5,y+1,sh(t.h,.35),3,2);P(g,x+7,y+1,t.hs,2,7);P(g,x+4,y+7,sh(t.h,-.35),8,1)}
+// B: chunky tecmo 14x20, big helmet bold outline
+function B(g,x,y,t,pose,skin){const o='#000';const s=pose==='run';P(g,x+2,y+20,'rgba(0,0,0,.3)',11,2);
+ P(g,x+3,y+13,o,9,8);P(g,x+4,y+13,t.p,3,4);P(g,x+8,y+13,t.p,3,4);P(g,x+4+(s?-1:0),y+17,t.sock,3,3);P(g,x+8+(s?1:0),y+17,t.sock,3,3);
+ P(g,x+1,y+6,o,13,9);P(g,x+2,y+7,t.j,11,7);num(g,x+4,y+8,'8',t.n,1);num(g,x+8,y+8,'4',t.n,1);
+ const ay=pose==='catch'?-6:0;P(g,x,y+7+ay,o,3,6);P(g,x+12,y+7+ay,o,3,6);P(g,x+1,y+8+ay,skin,1,4);P(g,x+13,y+8+ay,skin,1,4);
+ P(g,x+2,y-1,o,11,9);P(g,x+3,y,t.h,9,7);P(g,x+7,y,t.hs,1,7);P(g,x+4,y,sh(t.h,.4),2,2)}
+// C: hi-bit 24x40 with rim light
+function C(g,x,y,t,pose,skin){const o='#06070a';const run=pose==='run';P(g,x+4,y+39,'rgba(0,0,0,.3)',16,3);
+ const L=(lx,d)=>{P(g,x+lx-1,y+25+d,o,6,14);P(g,x+lx,y+25+d,t.p,4,7);P(g,x+lx,y+25+d,sh(t.p,.3),1,7);P(g,x+lx,y+32+d,t.sock,4,4);P(g,x+lx,y+33+d,t.j2,4,1);P(g,x+lx,y+36+d,'#0d0d0f',4,2)};
+ L(7,run?-3:0);L(13,run?2:0);
+ P(g,x+2,y+11,o,20,16);P(g,x+3,y+12,t.j,18,14);P(g,x+3,y+12,sh(t.j,.3),18,3);P(g,x+3,y+24,sh(t.j,-.35),18,2);P(g,x+3,y+12,'rgba(255,255,255,.35)',1,13);
+ P(g,x+3,y+14,t.j2,18,1);num(g,x+6,y+16,'84',t.n,2);
+ const ay=pose==='catch'?-12:run?2:3;[[0,0],[21,1]].forEach(([ax,k])=>{const yy=y+12+(k&&run?-3:ay);P(g,x+ax-1,yy,o,4,12);P(g,x+ax,yy+1,t.j,2,5);P(g,x+ax,yy+6,skin,2,3);P(g,x+ax,yy+9,'#24262c',2,2)});
+ P(g,x+5,y,o,14,13);P(g,x+6,y+1,t.h,12,11);P(g,x+7,y+1,sh(t.h,.45),4,3);P(g,x+11,y+1,t.hs,2,11);P(g,x+6,y+10,sh(t.h,-.4),12,2);P(g,x+6,y+1,'rgba(255,255,255,.5)',1,9)}
+// D: three-quarter view, logo side of helmet, facemask
+function D(g,x,y,t,pose,skin){const o='#08090c';const run=pose==='run';P(g,x+2,y+30,'rgba(0,0,0,.3)',16,3);
+ const L=(lx,d,f)=>{P(g,x+lx-1,y+19,o,5,12);P(g,x+lx,y+19+Math.min(d,0),t.p,3,6);P(g,x+lx,y+25,t.sock,3,3);P(g,x+lx+(f?1:0),y+28,'#111',4,2)};
+ L(6,run?-2:0,1);L(11,run?2:0,1);
+ P(g,x+3,y+9,o,14,12);P(g,x+4,y+10,t.j,12,10);P(g,x+4,y+10,sh(t.j,.25),12,2);P(g,x+12,y+10,sh(t.j,-.25),4,10);num(g,x+5,y+13,'84',t.n,1);
+ const ay=pose==='catch'?-9:2;P(g,x+16,y+10+ay,o,3,8);P(g,x+17,y+11+ay,t.j,1,3);P(g,x+17,y+14+ay,skin,1,3);P(g,x+1,y+11+(run?-2:2),o,3,7);P(g,x+2,y+12+(run?-2:2),t.j,1,3);P(g,x+2,y+15+(run?-2:2),skin,1,2);
+ P(g,x+4,y,o,12,10);P(g,x+5,y+1,t.h,10,8);P(g,x+6,y+3,t.hs,3,3);P(g,x+13,y+3,'#cfd3da',3,5);P(g,x+14,y+3,o,1,5);P(g,x+12,y+5,skin,1,2);P(g,x+6,y+1,sh(t.h,.45),4,1)}
+const MODELS=[['A · PRO 16-BIT','16×28. Shoulder-pad silhouette, numbers on the back, helmet stripe + 3-tone shading. Closest to today, just cleaner and more readable.',A,30,46],['B · CHUNKY TECMO','14×20. Big helmet, bold black outline, high contrast — reads instantly even zoomed out. Most retro.',B,26,34],['C · HI-BIT','24×40. Rim light, cast shadow, sock stripes, 2× numbers. Most detail; needs a slightly tighter camera.',C,40,58],['D · THREE-QUARTER','16×31. Angled view: helmet logo side and facemask visible, leading foot forward. Feels most like a broadcast.',D,30,46]];
+const g0=document.getElementById('g');
+for(const [name,desc,fn,stepX,hgt] of MODELS){const card=document.createElement('div');card.className='card';card.innerHTML=`<h2>${name}</h2><p>${desc}</p>`;const cv=document.createElement('canvas');const W=stepX*6+10,H=hgt*2+10;cv.width=W;cv.height=H;const g=cv.getContext('2d');grass(g,W,H);
+ TEAMS.forEach((t,ti)=>['stance','run','catch'].forEach((pose,pi)=>fn(g,6+(ti*3+pi)*stepX,8+ti*hgt+(fn===B?2:0),t,pose,SKIN[(ti*3+pi)%4])));
+ card.appendChild(cv);g0.appendChild(card)}
+</script></body></html>

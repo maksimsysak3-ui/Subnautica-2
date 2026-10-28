@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tab design ideas</title>
+<style>
+:root{--tc:#004c54;--tc2:#a5acaf;--acc:#d50a0a}
+*{box-sizing:border-box}body{margin:0;background:#07090d;color:#e8ebf1;font:500 14px Barlow,Arial,sans-serif}
+.mock{width:1440px;height:820px;position:relative;overflow:hidden;padding:26px 34px;border-bottom:6px solid #000}
+.lbl{position:absolute;right:20px;top:14px;font:800 12px Arial;letter-spacing:.2em;color:#ffd23f;background:#000a;padding:6px 10px;border-radius:4px;z-index:9}
+.cn{font-family:"Barlow Condensed","Arial Narrow",Arial,sans-serif}
+/* ---------- 1 BROADCAST GLASS ---------- */
+.m1{background:radial-gradient(90% 70% at 85% -10%,color-mix(in srgb,var(--tc) 70%,transparent),transparent 60%),linear-gradient(180deg,#0c111a,#06080c)}
+.m1 .hd{display:flex;align-items:end;gap:18px;margin-bottom:18px}.m1 .hd .lg{width:76px;height:76px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2a8a92,var(--tc));box-shadow:0 0 0 3px #fff,0 10px 30px #0009;display:grid;place-items:center;font:900 26px Arial;color:#fff}
+.m1 h1{margin:0;font:900 52px/0.9 "Arial Narrow",Arial;letter-spacing:.01em;text-transform:uppercase}.m1 .k{font:800 12px Arial;letter-spacing:.22em;color:#9fb3c8}
+.m1 .stats{margin-left:auto;display:flex;gap:10px}.m1 .st{padding:10px 16px;border-radius:10px;background:linear-gradient(180deg,#ffffff1c,#ffffff08);box-shadow:inset 0 1px 0 #ffffff30,inset 0 0 0 1px #ffffff14;text-align:center}.m1 .st b{display:block;font:900 28px "Arial Narrow",Arial}.m1 .st span{font:700 10px Arial;letter-spacing:.18em;color:#9fb3c8}
+.m1 .rail{display:flex;gap:6px;margin-bottom:14px}.m1 .rail span{padding:7px 14px;border-radius:999px;background:#ffffff10;font:800 12px Arial;letter-spacing:.12em;color:#b9c3d3}.m1 .rail .on{background:#fff;color:#07090d}
+.m1 .wrap{display:grid;grid-template-columns:1fr 360px;gap:16px}
+.m1 .pane{border-radius:14px;background:linear-gradient(180deg,#151b26e6,#0b0f16f2);box-shadow:inset 0 1px 0 #ffffff26,inset 0 0 0 1px #ffffff12,0 20px 40px #0009;padding:8px 6px}
+.m1 table{width:100%;border-collapse:collapse}.m1 th{font:800 10px Arial;letter-spacing:.18em;color:#7f8ca3;text-align:left;padding:9px 12px}
+.m1 td{padding:9px 12px;border-top:1px solid #ffffff0d}.m1 tr:hover td{background:#ffffff07}
+.m1 .pl{display:flex;align-items:center;gap:10px}.m1 .fc{width:34px;height:34px;border-radius:50%;background:linear-gradient(180deg,#2c7d84,var(--tc));box-shadow:0 0 0 2px #ffffff40}.m1 .pl b{font:700 15px Arial}.m1 .pl em{display:block;font:600 11px Arial;font-style:normal;color:#8f9bb0}
+.m1 .ov{display:inline-grid;place-items:center;width:40px;height:30px;border-radius:7px;font:900 16px "Arial Narrow",Arial;background:linear-gradient(180deg,#2bd47e,#0f8a4c);box-shadow:inset 0 1px 0 #ffffff60}.m1 .ov.b{background:linear-gradient(180deg,#3aa0ff,#1559c9)}.m1 .ov.c{background:linear-gradient(180deg,#9aa3b5,#596275)}
+.m1 .bar{height:6px;border-radius:3px;background:#ffffff14;overflow:hidden;width:110px}.m1 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--tc),#3fd0d9)}
+.m1 .side h3{margin:8px 10px;font:800 12px Arial;letter-spacing:.2em;color:#9fb3c8}
+.m1 .unit{display:grid;grid-template-columns:90px 1fr 40px;gap:10px;align-items:center;padding:9px 12px;font:700 13px Arial}
+/* ---------- 2 MADDEN TILES ---------- */
+.m2{background:linear-gradient(135deg,#101318 0%,#0a0c10 60%,#16090b 100%)}
+.m2 .top{display:flex;align-items:center;gap:22px;margin-bottom:20px}.m2 h1{margin:0;font:italic 900 64px/0.85 "Arial Narrow",Arial;text-transform:uppercase;transform:skewX(-6deg)}
+.m2 .chips{display:flex;gap:0}.m2 .chips span{padding:10px 22px;background:#1b1f27;font:italic 900 15px "Arial Narrow",Arial;letter-spacing:.06em;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);margin-right:-4px;color:#aab3c2}.m2 .chips .on{background:var(--acc);color:#fff}
+.m2 .feat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.m2 .card{position:relative;height:300px;clip-path:polygon(0 0,100% 0,100% 88%,88% 100%,0 100%);background:linear-gradient(160deg,color-mix(in srgb,var(--tc) 90%,#fff 10%),#05080b 80%);box-shadow:inset 0 0 0 2px #ffffff40;overflow:hidden}
+.m2 .card .big{position:absolute;right:-10px;top:-24px;font:italic 900 180px/1 "Arial Narrow",Arial;color:#ffffff14}
+.m2 .card .ph{position:absolute;left:50%;top:40px;transform:translateX(-50%);width:120px;height:150px;border-radius:60px 60px 10px 10px;background:linear-gradient(180deg,#2d8a91,#0c3a3f);box-shadow:0 0 0 3px #ffffff30}
+.m2 .card .ovr{position:absolute;left:14px;top:14px;font:italic 900 46px/1 "Arial Narrow",Arial}.m2 .card .ovr small{display:block;font:800 12px Arial;letter-spacing:.2em;font-style:normal;color:#ffffffb0}
+.m2 .card .nm{position:absolute;left:14px;right:14px;bottom:16px}.m2 .card .nm b{display:block;font:italic 900 26px/1 "Arial Narrow",Arial;text-transform:uppercase}.m2 .card .nm span{font:700 11px Arial;letter-spacing:.14em;color:#c6ced9}
+.m2 .card .dev{position:absolute;right:14px;top:16px;padding:4px 8px;background:#ffd23f;color:#000;font:900 11px Arial;letter-spacing:.1em}
+.m2 .row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.m2 .mini{height:150px;background:#151920;box-shadow:inset 0 0 0 1px #ffffff1a;clip-path:polygon(0 0,100% 0,100% 85%,85% 100%,0 100%);padding:12px;position:relative}.m2 .mini b{font:italic 900 34px "Arial Narrow",Arial}.m2 .mini span{display:block;font:800 13px Arial;text-transform:uppercase;margin-top:44px}.m2 .mini em{font:600 11px Arial;color:#8f9bb0;font-style:normal}
+/* ---------- 3 DATA-DENSE ESPN ---------- */
+.m3{background:#0d1016;font-family:Arial,sans-serif}
+.m3 .bar0{display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:3px solid var(--acc);margin-bottom:12px}.m3 h1{margin:0;font:800 30px Arial}.m3 .rec{font:700 14px Arial;color:#9aa3b5}
+.m3 .tbs{display:flex;gap:22px;margin-left:auto;font:700 13px Arial;color:#9aa3b5}.m3 .tbs .on{color:#fff;box-shadow:0 3px 0 #fff}
+.m3 .flt{display:flex;gap:8px;margin-bottom:10px}.m3 .flt span{padding:5px 10px;border:1px solid #ffffff26;border-radius:4px;font:700 12px Arial;color:#cfd5e2}.m3 .flt .on{background:#e8ebf1;color:#0d1016}
+.m3 table{width:100%;border-collapse:collapse;font-size:13px}.m3 th{position:sticky;top:0;background:#171b23;font:700 11px Arial;color:#9aa3b5;text-align:right;padding:8px 10px;border-bottom:1px solid #ffffff1a}.m3 th:first-child,.m3 td:first-child{text-align:left}
+.m3 td{padding:7px 10px;text-align:right;border-bottom:1px solid #ffffff0d;font-variant-numeric:tabular-nums}.m3 tr:nth-child(even) td{background:#ffffff04}
+.m3 .g{color:#4ade80}.m3 .r{color:#f87171}.m3 .sp{display:inline-block;vertical-align:middle}
+.m3 .grid3{display:grid;grid-template-columns:1fr 300px;gap:14px}.m3 .box{background:#141821;border:1px solid #ffffff14;border-radius:6px;padding:12px}.m3 .box h4{margin:0 0 8px;font:700 12px Arial;letter-spacing:.08em;color:#9aa3b5;text-transform:uppercase}
+.m3 .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ffffff0d;font-size:13px}
+</style></head><body>
+
+<!-- 1 -->
+<div class="mock m1"><div class="lbl">IDEA 1 · BROADCAST GLASS</div>
+ <div class="hd"><div class="lg">PHI</div><div><div class="k">MANAGE ROSTER</div><h1>Eagles Roster</h1></div>
+ <div class="stats"><div class="st"><b>53/53</b><span>ROSTER</span></div><div class="st"><b>$12.4M</b><span>CAP SPACE</span></div><div class="st"><b>86</b><span>TEAM OVR</span></div><div class="st"><b>26.1</b><span>AVG AGE</span></div></div></div>
+ <div class="rail"><span class="on">ALL</span><span>OFFENSE</span><span>DEFENSE</span><span>SPECIAL TEAMS</span><span>INJURED</span><span>EXPIRING</span></div>
+ <div class="wrap"><div class="pane"><table><tr><th>PLAYER</th><th>OVR</th><th>AGE</th><th>CONTRACT</th><th>MORALE</th><th>DEV</th></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Jalen Hurts</b><em>QB · #1</em></span></div></td><td><span class="ov">89</span></td><td>28</td><td>$51.0M · 2029</td><td><div class="bar"><i style="width:82%"></i></div></td><td>Star</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Saquon Barkley</b><em>RB · #26</em></span></div></td><td><span class="ov">89</span></td><td>29</td><td>$20.6M · 2027</td><td><div class="bar"><i style="width:91%"></i></div></td><td>Superstar</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Jordan Mailata</b><em>OT · #68</em></span></div></td><td><span class="ov">93</span></td><td>29</td><td>$22.0M · 2028</td><td><div class="bar"><i style="width:74%"></i></div></td><td>Star</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Jalen Carter</b><em>DT · #98</em></span></div></td><td><span class="ov">91</span></td><td>25</td><td>$6.4M · 2027</td><td><div class="bar"><i style="width:66%"></i></div></td><td>X-Factor</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Quinyon Mitchell</b><em>CB · #27</em></span></div></td><td><span class="ov b">89</span></td><td>24</td><td>$3.2M · 2028</td><td><div class="bar"><i style="width:95%"></i></div></td><td>Star</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>DeVonta Smith</b><em>WR · #6</em></span></div></td><td><span class="ov b">86</span></td><td>27</td><td>$25.0M · 2028</td><td><div class="bar"><i style="width:58%"></i></div></td><td>Normal</td></tr>
+ <tr><td><div class="pl"><i class="fc"></i><span><b>Andrew Mukuba</b><em>S · #22</em></span></div></td><td><span class="ov c">75</span></td><td>23</td><td>$1.6M · 2028</td><td><div class="bar"><i style="width:70%"></i></div></td><td>Normal</td></tr>
+ </table></div>
+ <div class="pane side"><h3>UNIT GRADES</h3>
+ <div class="unit"><span>Quarterback</span><div class="bar" style="width:100%"><i style="width:88%"></i></div><b>89</b></div><div class="unit"><span>O-Line</span><div class="bar" style="width:100%"><i style="width:93%"></i></div><b>92</b></div><div class="unit"><span>Skill</span><div class="bar" style="width:100%"><i style="width:84%"></i></div><b>85</b></div><div class="unit"><span>D-Line</span><div class="bar" style="width:100%"><i style="width:86%"></i></div><b>87</b></div><div class="unit"><span>Linebackers</span><div class="bar" style="width:100%"><i style="width:80%"></i></div><b>83</b></div><div class="unit"><span>Secondary</span><div class="bar" style="width:100%"><i style="width:85%"></i></div><b>86</b></div>
+ <h3 style="margin-top:18px">NOTES</h3><div class="unit" style="grid-template-columns:1fr"><span style="color:#b9c3d3;font-weight:500">Mailata and Carter are the core. Two starters are expiring; safety depth is thin behind Mukuba.</span></div></div></div>
+ <div style="position:absolute;left:34px;bottom:20px;color:#7f8ca3;font:600 13px Arial">Frosted glass panels on a team-tinted backdrop, pill filters, glossy OVR chips, inline morale bars + a unit-grade sidebar.</div>
+</div>
+
+<!-- 2 -->
+<div class="mock m2"><div class="lbl">IDEA 2 · MADDEN TILES</div>
+ <div class="top"><h1>Eagles</h1><div class="chips"><span class="on">STARTERS</span><span>DEPTH</span><span>RATINGS</span><span>CONTRACTS</span><span>INJURIES</span></div></div>
+ <div class="feat">
+ <div class="card"><div class="big">1</div><div class="ph"></div><div class="ovr">89<small>OVR</small></div><span class="dev">STAR</span><div class="nm"><b>Jalen Hurts</b><span>QB · 28 · $51.0M</span></div></div>
+ <div class="card"><div class="big">68</div><div class="ph"></div><div class="ovr">93<small>OVR</small></div><span class="dev">STAR</span><div class="nm"><b>Jordan Mailata</b><span>LT · 29 · $22.0M</span></div></div>
+ <div class="card"><div class="big">98</div><div class="ph"></div><div class="ovr">91<small>OVR</small></div><span class="dev" style="background:#ff3b3b;color:#fff">X-FACTOR</span><div class="nm"><b>Jalen Carter</b><span>DT · 25 · $6.4M</span></div></div>
+ <div class="card"><div class="big">26</div><div class="ph"></div><div class="ovr">89<small>OVR</small></div><span class="dev">SUPERSTAR</span><div class="nm"><b>Saquon Barkley</b><span>RB · 29 · $20.6M</span></div></div></div>
+ <div class="row"><div class="mini"><b>86</b><span>D. Smith</span><em>WR · 27</em></div><div class="mini"><b>89</b><span>Q. Mitchell</span><em>CB · 24</em></div><div class="mini"><b>88</b><span>C. DeJean</span><em>CB · 23</em></div><div class="mini"><b>89</b><span>Z. Baun</span><em>LB · 29</em></div><div class="mini"><b>90</b><span>L. Johnson</span><em>RT · 36</em></div><div class="mini"><b>85</b><span>D. Goedert</span><em>TE · 31</em></div></div>
+ <div style="position:absolute;left:34px;bottom:20px;color:#7f8ca3;font:600 13px Arial">Angled, clipped-corner player cards with giant jersey numbers and dev-trait flags; slanted tab chips. Loud, game-menu feel.</div>
+</div>
+
+<!-- 3 -->
+<div class="mock m3"><div class="lbl">IDEA 3 · DATA-DENSE (ESPN)</div>
+ <div class="bar0"><h1>Philadelphia Eagles</h1><span class="rec">11-4 · 1st NFC East · Cap $12.4M</span><div class="tbs"><span class="on">Roster</span><span>Depth Chart</span><span>Stats</span><span>Contracts</span><span>Transactions</span></div></div>
+ <div class="flt"><span class="on">All</span><span>QB</span><span>RB</span><span>WR</span><span>TE</span><span>OL</span><span>DL</span><span>LB</span><span>DB</span><span>K/P</span></div>
+ <div class="grid3"><div class="box" style="padding:0"><table><tr><th>Player</th><th>Pos</th><th>Age</th><th>OVR</th><th>Δ season</th><th>Snaps</th><th>Cap hit</th><th>Thru</th><th>Trend</th></tr>
+ <tr><td>Jalen Hurts</td><td>QB</td><td>28</td><td>89</td><td class="g">+1</td><td>98%</td><td>$51.0M</td><td>2029</td><td><svg class="sp" width="60" height="14"><polyline points="0,10 10,8 20,9 30,6 40,5 50,6 60,3" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Saquon Barkley</td><td>RB</td><td>29</td><td>89</td><td class="r">−2</td><td>71%</td><td>$20.6M</td><td>2027</td><td><svg class="sp" width="60" height="14"><polyline points="0,3 10,4 20,5 30,6 40,8 50,9 60,10" fill="none" stroke="#f87171" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>A.J. Brown</td><td>WR</td><td>29</td><td>91</td><td>0</td><td>88%</td><td>$32.0M</td><td>2029</td><td><svg class="sp" width="60" height="14"><polyline points="0,6 10,7 20,6 30,6 40,5 50,6 60,6" fill="none" stroke="#9aa3b5" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Jordan Mailata</td><td>OT</td><td>29</td><td>93</td><td class="g">+2</td><td>100%</td><td>$22.0M</td><td>2028</td><td><svg class="sp" width="60" height="14"><polyline points="0,11 10,9 20,8 30,7 40,5 50,4 60,3" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Jalen Carter</td><td>DT</td><td>25</td><td>91</td><td class="g">+3</td><td>82%</td><td>$6.4M</td><td>2027</td><td><svg class="sp" width="60" height="14"><polyline points="0,12 10,10 20,9 30,6 40,5 50,3 60,2" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Zack Baun</td><td>LB</td><td>29</td><td>89</td><td>0</td><td>95%</td><td>$17.0M</td><td>2027</td><td><svg class="sp" width="60" height="14"><polyline points="0,5 10,6 20,5 30,5 40,6 50,5 60,5" fill="none" stroke="#9aa3b5" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Quinyon Mitchell</td><td>CB</td><td>24</td><td>89</td><td class="g">+4</td><td>97%</td><td>$3.2M</td><td>2028</td><td><svg class="sp" width="60" height="14"><polyline points="0,12 10,11 20,8 30,7 40,5 50,4 60,2" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Cooper DeJean</td><td>CB</td><td>23</td><td>88</td><td class="g">+3</td><td>93%</td><td>$2.1M</td><td>2028</td><td><svg class="sp" width="60" height="14"><polyline points="0,11 10,10 20,8 30,8 40,6 50,4 60,3" fill="none" stroke="#4ade80" stroke-width="1.5"/></svg></td></tr>
+ <tr><td>Dallas Goedert</td><td>TE</td><td>31</td><td>85</td><td class="r">−1</td><td>79%</td><td>$10.0M</td><td>2026</td><td><svg class="sp" width="60" height="14"><polyline points="0,4 10,5 20,6 30,6 40,7 50,8 60,8" fill="none" stroke="#f87171" stroke-width="1.5"/></svg></td></tr>
+ </table></div>
+ <div><div class="box"><h4>Cap snapshot</h4><div class="kv"><span>Committed 2026</span><b>$267.8M</b></div><div class="kv"><span>Space</span><b class="g">$12.4M</b></div><div class="kv"><span>Dead money</span><b class="r">$8.9M</b></div><div class="kv"><span>2027 projected space</span><b>$41.0M</b></div></div>
+ <div class="box" style="margin-top:12px"><h4>Expiring after season</h4><div class="kv"><span>Dallas Goedert · TE</span><b>85</b></div><div class="kv"><span>Josh Sweat · EDGE</span><b>84</b></div><div class="kv"><span>Isaiah Rodgers · CB</span><b>77</b></div></div></div></div>
+ <div style="position:absolute;left:34px;bottom:20px;color:#7f8ca3;font:600 13px Arial">Plain, fast, information-first: sticky table headers, season deltas, sparklines, compact side boxes. Least flashy, easiest to scan.</div>
+</div>
+</body></html>
