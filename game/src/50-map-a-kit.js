@@ -8,9 +8,10 @@
 const MAP = {
   bounds: 930, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
-  chunk: [96, 64, 32, 32],
+  chunk: [64, 48, 32, 32],
   // max draw distance per detail level: 0 architecture, 1 street props, 2 interior furniture, 3 small clutter
-  lodDist: [1500, 190, 80, 38],
+  lodDist: [420, 120, 55, 28],
+  drawDist: 420,
 };
 
 // ---------------- deterministic randomness (layout must be identical every load) ----------------
@@ -546,6 +547,8 @@ const W = (() => {
         m.visible = p.distanceTo(s.center) - s.radius < MAP.lodDist[m.userData.lod];
       }
     },
+    // keep detail ranges proportional to the current draw distance
+    setDrawDist(d) { MAP.drawDist = d; MAP.lodDist[0] = d; MAP.lodDist[1] = Math.min(120, d * 0.4); MAP.lodDist[2] = Math.min(55, d * 0.2); MAP.lodDist[3] = Math.min(28, d * 0.1); scene.fog.near = d * 0.33; scene.fog.far = d; },
   };
   return api;
 })();
@@ -553,7 +556,7 @@ const W = (() => {
 // ---------------- interior streaming: furnished rooms are built near the camera, dropped far away ----------------
 const STREAM = (() => {
   // two rings: 'near' = furnished interiors, 'mid' = facade/street/rooftop detail
-  const CLS = { near: { CS: 48, R_IN: 92, R_OUT: 130 }, mid: { CS: 64, R_IN: 205, R_OUT: 250 } };
+  const CLS = { near: { CS: 48, R_IN: 70, R_OUT: 100 }, mid: { CS: 64, R_IN: 135, R_OUT: 170 } };
   const chunks = new Map();
   let t = 0, ready = false;
   const queue = [];
@@ -773,8 +776,8 @@ const SKY = (() => {
   scene.add(ring);
   const sun = new THREE.DirectionalLight(0xffdcae, 2.9);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
-  const SH = 130;
+  sun.shadow.mapSize.set(2048, 2048);
+  const SH = 70;
   const sc = sun.shadow.camera; sc.left = -SH; sc.right = SH; sc.top = SH; sc.bottom = -SH; sc.near = 1; sc.far = 700;
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.06;
   scene.add(sun, sun.target);
@@ -787,7 +790,7 @@ const SKY = (() => {
       // shadow box biased ahead of the camera (more useful texels where the player looks), snapped to texels
       cam.getWorldDirection(_f); _f.y = 0; if (_f.lengthSq() > 1e-6) _f.normalize();
       const cx = focus.x + _f.x * SH * 0.55, cz = focus.z + _f.z * SH * 0.55;
-      const snap = (SH * 2) / 4096;
+      const snap = (SH * 2) / 2048;
       const fx = Math.round(cx / snap) * snap, fz = Math.round(cz / snap) * snap;
       sun.target.position.set(fx, 0, fz);
       sun.position.set(fx + sunDir.x * 350, sunDir.y * 350, fz + sunDir.z * 350);
@@ -797,7 +800,7 @@ const SKY = (() => {
 
 // ---------------- lamp pool: hundreds of lamps, only the nearest few are real lights ----------------
 const LAMPS = (() => {
-  const N = 12, pool = [];
+  const N = 6, pool = [];
   for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffffff, 0, 10, 2); scene.add(l); pool.push({ l, lamp: null, cur: 0 }); }
   let haloPts = null, timer = 0;
   function buildHalos() {

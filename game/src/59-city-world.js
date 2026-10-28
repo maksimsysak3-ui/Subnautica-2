@@ -21,7 +21,7 @@ function buildEnvironment() {
 
 // terrain mesh: 1600 m square; flat city plateau (finished by the district ground plates), foothills beyond
 function buildTerrain() {
-  const S = 2600, N = 420;
+  const S = 2600, N = 180;
   const g = new THREE.PlaneGeometry(S, S, N, N); g.rotateX(-Math.PI / 2);
   const ng = g.toNonIndexed(); g.dispose();
   const p = ng.attributes.position, col = new Uint8Array(p.count * 3), srf = new Uint8Array(p.count * 3), c = new THREE.Color();

@@ -203,6 +203,22 @@ addEventListener('resize', () => {
 });
 
 let last = performance.now(), time = 0, first = true;
+// adaptive quality: watches frame time and trades draw distance / resolution for frame rate
+const QUALITY = (() => {
+  let avg = 16, t = 0, dist = 420, pr = Math.min(devicePixelRatio, 1.25);
+  const maxPR = Math.min(devicePixelRatio, 1.25);
+  return {
+    update(dt) {
+      if (!MAP.ready) return;
+      avg = lerp(avg, dt * 1000, 0.05); t += dt;
+      if (t < 1.0) return; t = 0;
+      if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
+      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < 520) dist += 30; }
+      W.setDrawDist(dist);
+    },
+    get fps() { return Math.round(1000 / avg); },
+  };
+})();
 const DBGCAM = { on: false, pos: new V3(), yaw: 0, pitch: 0, fov: 60 }; // scripted camera for screenshots/tests
 function frame(now) {
   requestAnimationFrame(frame);
@@ -225,6 +241,7 @@ function frame(now) {
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
   SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
+  QUALITY.update(dt);
   W.updateLOD(camera);
   if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
