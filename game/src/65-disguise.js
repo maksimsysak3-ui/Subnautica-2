@@ -70,5 +70,5 @@ const DISGUISE = (() => {
     else if (NPCS.canKnockout(P.pos, P.yaw)) pr = '[F]  KNOCK OUT';
     prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
   }
-  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; } };
+  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();

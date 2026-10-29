@@ -5,7 +5,11 @@
 // polylines (keeping to the right of their direction of travel), wander the market square, scatter
 // when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
 const NPCS = (() => {
-  const N = 18, NEAR_POSE = 45, FAR = 85, PLAZA_N = 8, R = 0.28;
+  const N = 30, NEAR_POSE = 42, FAR = 85, PLAZA_N = 13, SHADOW_R = 32, R = 0.28;
+  // squares where people linger (not the kasbah's: that's the militia's ground)
+  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt'];
+  const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
+  function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
   const SKIN = ['#e3b48e', '#c98e62', '#a8714a', '#8a5a3a', '#6b4430', '#d9a37a'];
   const TOPC = ['#8a2f2f', '#2f4f7a', '#d8d2c4', '#556b2f', '#c9a45c', '#3c3c44', '#7a5c8a', '#b86b3a', '#e8e4da', '#2a6f6a', '#5a3a2a', '#9aa4ac'];
@@ -66,8 +70,8 @@ const NPCS = (() => {
     for (const o of kill) o.parent.remove(o);
   }
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
-  function makeModel() {
-    const kit = outfit();
+  function makeModel(kitIn) {
+    const kit = kitIn || outfit();
     applyColors(kit);
     const c = buildCharacter(kit);
     c.spine.rotation.order = 'YXZ'; c.head.rotation.order = 'YXZ'; c.pelvis.rotation.order = 'YXZ'; c.root.rotation.order = 'YXZ';
@@ -75,7 +79,8 @@ const NPCS = (() => {
     applyColors(cfg);
     const px = { head: M(new THREE.SphereGeometry(0.13, 8, 6), proxyMat, c.root, 0, c.d.hipY + 0.78, 0), torso: M(new THREE.BoxGeometry(0.44, 0.6, 0.3), proxyMat, c.root, 0, c.d.hipY + 0.32, 0), legs: M(new THREE.BoxGeometry(0.36, c.d.hipY, 0.24), proxyMat, c.root, 0, c.d.hipY / 2, 0) };
     scene.add(c.root);
-    return { ch: c, px, kit };
+    const meshes = []; c.root.traverse((o) => { if (o.isMesh && o.material !== proxyMat) meshes.push(o); });
+    return { ch: c, px, kit, meshes };
   }
 
   const civs = [];
@@ -95,7 +100,7 @@ const NPCS = (() => {
   function place(v, minD, maxD, hidden) {
     for (let t = 0; t < 60; t++) {
       let x, z;
-      if (v.plaza) { x = rand(SQ.x0 + 4, SQ.x1 - 4); z = rand(SQ.z0 + 4, SQ.z1 - 4); const d = Math.hypot(x - P.pos.x, z - P.pos.z); if (d < minD || d > maxD) continue; }
+      if (v.plaza) { const Q = v.plaza; x = rand(Q.x0 + 2, Q.x1 - 2); z = rand(Q.z0 + 2, Q.z1 - 2); const d = Math.hypot(x - P.pos.x, z - P.pos.z); if (d < minD || d > maxD) continue; }
       else {
         const a = Math.random() * Math.PI * 2, d = rand(minD, maxD); x = P.pos.x + Math.sin(a) * d; z = P.pos.z + Math.cos(a) * d;
         const id = GR.roadAt(x, z), st = id && STREETS[id - 1]; if (!st || st.len < 12) continue;
@@ -136,15 +141,18 @@ const NPCS = (() => {
     if ((b[0] - a[0]) * (P.pos.x - a[0]) + (b[1] - a[1]) * (P.pos.z - a[1]) < 0) { v.dir = -v.dir; if (v.i === 0 && v.dir < 0 || v.i === q.length - 1 && v.dir > 0) v.dir = -v.dir; }
   }
   function newPlazaGoal(v) {
-    for (let t = 0; t < 12; t++) { const nearP = Math.random() < 0.6, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(SQ.x0, SQ.x1), SQ.x0 + 3, SQ.x1 - 3), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(SQ.z0, SQ.z1), SQ.z0 + 3, SQ.z1 - 3); if (free(x, z) && Math.hypot(x - v.x, z - v.z) > 6) { v.tx = x; v.tz = z; return; } }
+    const Q = v.plaza;
+    for (let t = 0; t < 12; t++) { const nearP = Math.random() < 0.6, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(Q.x0, Q.x1), Q.x0 + 1.5, Q.x1 - 1.5), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(Q.z0, Q.z1), Q.z0 + 1.5, Q.z1 - 1.5); if (free(x, z) && Math.hypot(x - v.x, z - v.z) > 6) { v.tx = x; v.tz = z; return; } }
   }
 
   // ---------------- motion ----------------
   function step(v, dt) {
     if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
-    if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
+    if (v.route) { const r = v.route[v.ri]; v.tx = r[0]; v.tz = r[1]; }
+    else if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
     let dx = v.tx - v.x, dz = v.tz - v.z; const L = Math.hypot(dx, dz);
-    if (L < 0.9) {
+    if (L < (v.route ? 0.5 : 0.9)) {
+      if (v.route) { const w = v.route[v.ri][2]; if (w) v.idle = w; v.ri++; if (v.ri >= v.route.length) { if (v.fig.loop) v.ri = 0; else { v.ri = v.route.length - 1; v.arrived = true; v.idle = 1e9; } } return; }
       if (v.plaza) { newPlazaGoal(v); if (v.panic <= 0 && Math.random() < 0.6) v.idle = rand(1.5, 5); }
       else { const j = v.i + v.dir; if (j <= 0 || j >= v.st.pts.length - 1) { v.i = clamp(j, 0, v.st.pts.length - 1); junction(v); } else v.i = j; }
       return;
@@ -158,7 +166,7 @@ const NPCS = (() => {
     v.yaw += wrap(Math.atan2(-dx, -dz) - v.yaw) * Math.min(1, dt * (v.panic > 0 ? 10 : 5));
     // blocked (stall, parked car, someone's doorstep): turn back / choose another spot
     v.stuckT = Math.hypot(v.vx, v.vz) < sp * 0.3 ? v.stuckT + dt : 0;
-    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
+    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.route) { v.ri = Math.min(v.route.length - 1, v.ri + 1); } else if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
   }
   const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
 
@@ -207,23 +215,33 @@ const NPCS = (() => {
       for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
       civs.push(v); v.m.ch.root.visible = false;
     }
-    const nearSq = Math.hypot(clamp(P.pos.x, SQ.x0, SQ.x1) - P.pos.x, clamp(P.pos.z, SQ.z0, SQ.z1) - P.pos.z) < 80;
+    const pz = nearPlaza();
     scan -= dt;
     for (const v of civs) {
       const root = v.m.ch.root;
       // recycle: out of range (or the square's crowd while you're elsewhere) → re-place near you, out of sight
-      const wantPlaza = v.k < PLAZA_N && nearSq;
-      if (scan <= 0 && (!v.alive ? v.deadT >= 20 : d2(v.x, v.z) > FAR * FAR || (v.plaza !== wantPlaza && (v.plaza || d2(v.x, v.z) > 35 * 35)))) {
+      const wantPlaza = v.k < PLAZA_N && pz ? pz : false;
+      if (scan <= 0 && (!v.alive ? v.deadT >= 20 : d2(v.x, v.z) > FAR * FAR || (v.plaza !== wantPlaza && d2(v.x, v.z) > 30 * 30))) {
         v.plaza = wantPlaza;
         if (place(v, v.placed ? 22 : 4, v.placed ? 70 : 55, v.placed)) { v.placed = true; setHits(v, true); } else { v.alive = false; v.deadT = 20; setHits(v, false); }
       }
       root.visible = v.alive || v.deadT < 20;
+      const sh = root.visible && d2(v.x, v.z) < SHADOW_R * SHADOW_R;   // only the near crowd casts shadows
+      if (v.shadow !== sh) { v.shadow = sh; for (const m of v.m.meshes) m.castShadow = sh; }
       if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
       if (d2(v.x, v.z) < NEAR_POSE * NEAR_POSE) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
     }
     if (scan <= 0) scan = 0.3;
+    // scripted figures (mission targets, couriers): follow their route, posed out to scope range
+    for (const v of figs) {
+      const root = v.m.ch.root;
+      if (!v.alive) { if (v.deadT < 90) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
+      if (v.fig.paused) { v.vx = v.vz = 0; } else step(v, dt);
+      if (v.fig.lookAt) { const L = v.fig.lookAt; v.yaw += wrap(Math.atan2(-(L.x - v.x), -(L.z - v.z)) - v.yaw) * Math.min(1, dt * 4); }
+      if (d2(v.x, v.z) < 220 * 220) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+    }
   }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
   // gunfire nearby: scatter away from the shooter
@@ -234,7 +252,7 @@ const NPCS = (() => {
       const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d > 60) continue;
       const wasCalm = v.panic <= 0; v.panic = rand(6, 10); v.idle = 0;
       if (!wasCalm) continue;
-      if (v.plaza) { v.tx = clamp(v.x + dx / (d || 1) * 30, SQ.x0 + 3, SQ.x1 - 3); v.tz = clamp(v.z + dz / (d || 1) * 30, SQ.z0 + 3, SQ.z1 - 3); }
+      if (v.plaza) { const Q = v.plaza; v.tx = clamp(v.x + dx / (d || 1) * 30, Q.x0 + 1.5, Q.x1 - 1.5); v.tz = clamp(v.z + dz / (d || 1) * 30, Q.z0 + 1.5, Q.z1 - 1.5); }
       else { const q = target(v); if ((q.x - v.x) * dx + (q.z - v.z) * dz < 0) v.dir = -v.dir; }
     }
   }
@@ -247,6 +265,7 @@ const NPCS = (() => {
   function hit(tg, p, b) {
     const v = tg.civ; if (!v.alive) return;
     v.alive = false; v.deadT = 0; setHits(v, false);
+    if (v.fig) { emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6); audio.fleshHit(p.distanceTo(P.pos)); hitFx(false); v.fig.onDeath?.(v, tg.part); return; }
     emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6);
     audio.fleshHit(p.distanceTo(P.pos));
     P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>');
@@ -266,5 +285,16 @@ const NPCS = (() => {
     return true;
   }
   function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
-  return { update, alarm, conceal, hit, knockout, bodies, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  // ---- scripted figures ----
+  const figs = [];
+  function spawnFigure(o) {
+    const v = { m: makeModel(o.kit), k: -1, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, alive: true, deadT: 0, hits: [], fig: o, route: o.route, ri: 0,
+      x: o.route[0][0], z: o.route[0][1], y: 0, yaw: o.yaw ?? 0, speed: o.speed ?? 1.3, panic: 0, idle: 0, stuckT: 0, vx: 0, vz: 0, plaza: false };
+    v.y = COL.ground(v.x, v.z, (o.y ?? 0) + 0.3);
+    for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
+    setHits(v, true); v.m.ch.root.visible = true; for (const m of v.m.meshes) m.castShadow = true;
+    figs.push(v); return v;
+  }
+  function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
+  return { update, alarm, conceal, hit, knockout, bodies, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();

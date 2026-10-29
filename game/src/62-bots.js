@@ -191,6 +191,8 @@ const BOTS = (() => {
     me.onHit = (dmg, part) => hurtPlayer(dmg, part);
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
+    // kasbah sentries at their posts (each post stays empty for a while after its man falls)
+    for (const g of TOWN.guards) { if (clock < (g.deadUntil || 0)) continue; if (Math.abs(g.x - arena.ox) > SIZE / 2 - 4 || Math.abs(g.z - arena.oz) > SIZE / 2 - 4) continue; spawnGuard(g); }
     for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight
@@ -208,9 +210,17 @@ const BOTS = (() => {
     }
     return null;
   }
-  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) ? SQ_MAX : N_BOTS;
+  let extra = 0;   // mission pressure: more roaming hostiles
+  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) && !extra ? SQ_MAX : N_BOTS + extra;
+  const roaming = () => views.filter((v) => v.agent.alive && !v.post).length;
+  function spawnGuard(g) {
+    const lp = arena.nearestFree(toLocal(g.x, g.z));
+    const a = new Agent(arena, { team: 'red', pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
+    a.mission = 'guard';
+    const v = makeView(a, views.length); v.post = g; views.push(v);
+  }
   function spawnBot(i) {
-    if (views.filter((v) => v.agent.alive).length >= cap()) return false;
+    if (roaming() >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
     const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
@@ -256,7 +266,7 @@ const BOTS = (() => {
     const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz, c = v.model.ch;
     v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
     if (!a.alive) {
-      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } pending.push(RESPAWN_S); v.model.flash.visible = false; }
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) v.post.deadUntil = clock + 240; else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
       v.deadT += dt; const k = Math.min(1, v.deadT / 0.6);
       c.root.position.set(wx, v.y, wz); c.root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0);
       return;
@@ -288,7 +298,7 @@ const BOTS = (() => {
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
     for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0) { if (spawnBot(views.length)) pending.splice(i, 1); else pending[i] = 1; } }
-    if (views.filter((v) => v.agent.alive).length + pending.length < cap()) pending.push(8);   // left the square: top back up
+    if (roaming() + pending.length < cap()) pending.push(extra ? 3 : 8);   // left the square: top back up
     for (let i = views.length - 1; i >= 0; i--) { const v = views[i]; if (!v.alive && v.deadT > 25) { dropView(v); views.splice(i, 1); arena.agents.splice(arena.agents.indexOf(v.agent), 1); } }
     // health: slow regeneration after a few quiet seconds; death → regroup at the spawn
     if (P.dead) {
@@ -330,5 +340,5 @@ const BOTS = (() => {
     P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
     return true;
   }
-  return { update, hit, playerShot, bodies, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  return { update, hit, playerShot, bodies, setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();

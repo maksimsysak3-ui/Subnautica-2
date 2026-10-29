@@ -51,7 +51,7 @@ function townUnit(u) {
     for (let i = 0; i < n; i++) {
       const at = -w / 2 + (i + 0.5) * w / n;
       ops0.push({ at, w: sw, h: 2.8, kind: 'shop', style: 'roll', leaf: u.f.closed ? 'closed' : 'open', awning: u.f.noawn ? null : mpick([[0xb03a2e, 0xe8dcc0], [0x2a5a8a, 0xe8dcc0], [0xc89a3a, 0xc89a3a], [0x3a6a4a, 0xe8dcc0], [0x8a3a5a, 0xe8c8a0]]) });
-      W.defer(() => shopNiche(at, sw, shopD, T, u.trade || mpick(TRADES), u.f.closed), 'near', [at, -T - shopD / 2]);
+      W.defer(() => shopNiche(at, sw, shopD, T, u.trade || mpick(TRADES), u.f.closed, u.room ?? 2), 'near', [at, -T - shopD / 2]);
     }
   } else if (ware) {
     const dw = Math.min(4.2, w - 1.6); doorAt = 0;
@@ -143,15 +143,24 @@ function gardenWall(u, col, tx) {
   return h;
 }
 // an open shop niche: floor, back/side walls, shelves and goods spilling into the street
-function shopNiche(at, sw, d, T, trade, closed) {
+function shopNiche(at, sw, d, T, trade, closed, room = 2) {
   if (closed) return;
   W.scope({ lod: 2, dim: 0.75 }, () => {
     W.box(sw, 0.04, d, at, 0.02, -T - d / 2, 0xb8a888, { t: TX.terrazzo, wear: 5, ao: false });
     W.box(sw, 0.04, d, at, FH0 - 0.25, -T - d / 2, 0xd8d0c0, { t: TX.plaster, dim: 0.6 });
     shopFit(at - sw / 2 + 0.05, -T - d, at + sw / 2 - 0.05, -T, 0, 1, trade, FH0 - 0.3);
   });
-  W.scope({ lod: 2 }, () => {   // the spill: goods on the street in front of the shop
-    const z = 0.55, ry = 0;
+  // the spill: goods on the street in front of the shop — only as deep as the lane allows (a clear path stays open)
+  if (room < 0.45) { if (trade === 'lamps') W.scope({ lod: 2 }, () => lanternCluster(at, FH0 - 0.6, 0.4, 6, sw / 2)); else if (trade === 'rugs' || trade === 'fabric') W.scope({ lod: 2 }, () => hangingRug(at - sw / 4, 0.4, 0.08, 0, 1.0, 2.2)); return; }
+  W.scope({ lod: 2 }, () => {
+    const z = Math.min(0.55, room - 0.35), ry = 0;
+    if (room < 1.25) {   // a narrow lane: a few sacks and baskets against the wall, nothing in the way
+      for (let k = 0; k < 3; k++) { const x = at - sw / 2 + 0.35 + k * (sw - 0.7) / 2; if (trade === 'spice' || trade === 'grocery') sack(x, 0, 0.32, mpick([0xc8a050, 0xa8402a, 0xd8c070, 0x6a8a3a]), mr(0, 6)); else if (k !== 1) basket(x, 0, 0.3, mpick([0x5a3a2a, 0xc8a050, null])); }
+      if (trade === 'lamps') lanternCluster(at, FH0 - 0.6, 0.45, 6, sw / 2);
+      if (trade === 'rugs' || trade === 'fabric') hangingRug(at - sw / 4, 0.4, 0.08, 0, 1.0, 2.2);
+      if (trade === 'leather') babouches(at - sw / 2 + 0.1, 0, 0.12, 0, Math.min(1.6, sw - 0.2), 2);
+      return;
+    }
     if (trade === 'spice') { spiceStand(at, 0, z + 0.3, ry, Math.min(1.8, sw)); sack(at - sw / 2 + 0.2, 0, z, 0xc8a050); }
     else if (trade === 'pottery' || trade === 'copper') { potteryDisplay(at, 0, z + 0.3, ry, Math.min(2, sw)); if (trade === 'copper') copperware(at + sw / 2 - 0.3, 0, z, ry); }
     else if (trade === 'lamps') lanternCluster(at, FH0 - 0.6, 0.6, 7, sw / 2);
@@ -292,6 +301,7 @@ function front(st, side, spec, o = {}) {
     const tok = k < toks.length ? toks[k] : fill ? fill[(k - toks.length) % fill.length] : null;
     if (!tok) break;
     const u = parseUnit(tok); if (!u.d) u.d = o.d ?? 8;
+    u.room = st.w ? st.w / 2 - 0.95 : 3;   // street space in front of this house, keeping ~1.9 m clear
     if (tok.startsWith('-')) { s += Math.abs(u.w); k++; continue; }   // "-3" = leave a gap of 3 m
     if (s + u.w > L + 0.3) { if (u.w > 3.2) { u.w = Math.max(3, L - s); } else break; }
     const p = pathAt(st.pts, s + u.w / 2), nx = -p.tz * side, nz = p.tx * side, ry = Math.atan2(-nx, -nz);

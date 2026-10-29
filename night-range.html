@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>J</b> restart mission · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -6300,7 +6300,7 @@ function townUnit(u) {
     for (let i = 0; i < n; i++) {
       const at = -w / 2 + (i + 0.5) * w / n;
       ops0.push({ at, w: sw, h: 2.8, kind: 'shop', style: 'roll', leaf: u.f.closed ? 'closed' : 'open', awning: u.f.noawn ? null : mpick([[0xb03a2e, 0xe8dcc0], [0x2a5a8a, 0xe8dcc0], [0xc89a3a, 0xc89a3a], [0x3a6a4a, 0xe8dcc0], [0x8a3a5a, 0xe8c8a0]]) });
-      W.defer(() => shopNiche(at, sw, shopD, T, u.trade || mpick(TRADES), u.f.closed), 'near', [at, -T - shopD / 2]);
+      W.defer(() => shopNiche(at, sw, shopD, T, u.trade || mpick(TRADES), u.f.closed, u.room ?? 2), 'near', [at, -T - shopD / 2]);
     }
   } else if (ware) {
     const dw = Math.min(4.2, w - 1.6); doorAt = 0;
@@ -6392,15 +6392,24 @@ function gardenWall(u, col, tx) {
   return h;
 }
 // an open shop niche: floor, back/side walls, shelves and goods spilling into the street
-function shopNiche(at, sw, d, T, trade, closed) {
+function shopNiche(at, sw, d, T, trade, closed, room = 2) {
   if (closed) return;
   W.scope({ lod: 2, dim: 0.75 }, () => {
     W.box(sw, 0.04, d, at, 0.02, -T - d / 2, 0xb8a888, { t: TX.terrazzo, wear: 5, ao: false });
     W.box(sw, 0.04, d, at, FH0 - 0.25, -T - d / 2, 0xd8d0c0, { t: TX.plaster, dim: 0.6 });
     shopFit(at - sw / 2 + 0.05, -T - d, at + sw / 2 - 0.05, -T, 0, 1, trade, FH0 - 0.3);
   });
-  W.scope({ lod: 2 }, () => {   // the spill: goods on the street in front of the shop
-    const z = 0.55, ry = 0;
+  // the spill: goods on the street in front of the shop — only as deep as the lane allows (a clear path stays open)
+  if (room < 0.45) { if (trade === 'lamps') W.scope({ lod: 2 }, () => lanternCluster(at, FH0 - 0.6, 0.4, 6, sw / 2)); else if (trade === 'rugs' || trade === 'fabric') W.scope({ lod: 2 }, () => hangingRug(at - sw / 4, 0.4, 0.08, 0, 1.0, 2.2)); return; }
+  W.scope({ lod: 2 }, () => {
+    const z = Math.min(0.55, room - 0.35), ry = 0;
+    if (room < 1.25) {   // a narrow lane: a few sacks and baskets against the wall, nothing in the way
+      for (let k = 0; k < 3; k++) { const x = at - sw / 2 + 0.35 + k * (sw - 0.7) / 2; if (trade === 'spice' || trade === 'grocery') sack(x, 0, 0.32, mpick([0xc8a050, 0xa8402a, 0xd8c070, 0x6a8a3a]), mr(0, 6)); else if (k !== 1) basket(x, 0, 0.3, mpick([0x5a3a2a, 0xc8a050, null])); }
+      if (trade === 'lamps') lanternCluster(at, FH0 - 0.6, 0.45, 6, sw / 2);
+      if (trade === 'rugs' || trade === 'fabric') hangingRug(at - sw / 4, 0.4, 0.08, 0, 1.0, 2.2);
+      if (trade === 'leather') babouches(at - sw / 2 + 0.1, 0, 0.12, 0, Math.min(1.6, sw - 0.2), 2);
+      return;
+    }
     if (trade === 'spice') { spiceStand(at, 0, z + 0.3, ry, Math.min(1.8, sw)); sack(at - sw / 2 + 0.2, 0, z, 0xc8a050); }
     else if (trade === 'pottery' || trade === 'copper') { potteryDisplay(at, 0, z + 0.3, ry, Math.min(2, sw)); if (trade === 'copper') copperware(at + sw / 2 - 0.3, 0, z, ry); }
     else if (trade === 'lamps') lanternCluster(at, FH0 - 0.6, 0.6, 7, sw / 2);
@@ -6541,6 +6550,7 @@ function front(st, side, spec, o = {}) {
     const tok = k < toks.length ? toks[k] : fill ? fill[(k - toks.length) % fill.length] : null;
     if (!tok) break;
     const u = parseUnit(tok); if (!u.d) u.d = o.d ?? 8;
+    u.room = st.w ? st.w / 2 - 0.95 : 3;   // street space in front of this house, keeping ~1.9 m clear
     if (tok.startsWith('-')) { s += Math.abs(u.w); k++; continue; }   // "-3" = leave a gap of 3 m
     if (s + u.w > L + 0.3) { if (u.w > 3.2) { u.w = Math.max(3, L - s); } else break; }
     const p = pathAt(st.pts, s + u.w / 2), nx = -p.tz * side, nz = p.tx * side, ry = Math.atan2(-nx, -nz);
@@ -9649,6 +9659,8 @@ const BOTS = (() => {
     me.onHit = (dmg, part) => hurtPlayer(dmg, part);
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
+    // kasbah sentries at their posts (each post stays empty for a while after its man falls)
+    for (const g of TOWN.guards) { if (clock < (g.deadUntil || 0)) continue; if (Math.abs(g.x - arena.ox) > SIZE / 2 - 4 || Math.abs(g.z - arena.oz) > SIZE / 2 - 4) continue; spawnGuard(g); }
     for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight
@@ -9666,9 +9678,17 @@ const BOTS = (() => {
     }
     return null;
   }
-  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) ? SQ_MAX : N_BOTS;
+  let extra = 0;   // mission pressure: more roaming hostiles
+  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) && !extra ? SQ_MAX : N_BOTS + extra;
+  const roaming = () => views.filter((v) => v.agent.alive && !v.post).length;
+  function spawnGuard(g) {
+    const lp = arena.nearestFree(toLocal(g.x, g.z));
+    const a = new Agent(arena, { team: 'red', pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
+    a.mission = 'guard';
+    const v = makeView(a, views.length); v.post = g; views.push(v);
+  }
   function spawnBot(i) {
-    if (views.filter((v) => v.agent.alive).length >= cap()) return false;
+    if (roaming() >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
     const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
@@ -9714,7 +9734,7 @@ const BOTS = (() => {
     const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz, c = v.model.ch;
     v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
     if (!a.alive) {
-      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } pending.push(RESPAWN_S); v.model.flash.visible = false; }
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) v.post.deadUntil = clock + 240; else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
       v.deadT += dt; const k = Math.min(1, v.deadT / 0.6);
       c.root.position.set(wx, v.y, wz); c.root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0);
       return;
@@ -9746,7 +9766,7 @@ const BOTS = (() => {
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
     for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0) { if (spawnBot(views.length)) pending.splice(i, 1); else pending[i] = 1; } }
-    if (views.filter((v) => v.agent.alive).length + pending.length < cap()) pending.push(8);   // left the square: top back up
+    if (roaming() + pending.length < cap()) pending.push(extra ? 3 : 8);   // left the square: top back up
     for (let i = views.length - 1; i >= 0; i--) { const v = views[i]; if (!v.alive && v.deadT > 25) { dropView(v); views.splice(i, 1); arena.agents.splice(arena.agents.indexOf(v.agent), 1); } }
     // health: slow regeneration after a few quiet seconds; death → regroup at the spawn
     if (P.dead) {
@@ -9788,7 +9808,7 @@ const BOTS = (() => {
     P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
     return true;
   }
-  return { update, hit, playerShot, bodies, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  return { update, hit, playerShot, bodies, setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
 // =====================================================================
 //  Civilians: unarmed townsfolk walking the streets around the player
@@ -9797,7 +9817,11 @@ const BOTS = (() => {
 // polylines (keeping to the right of their direction of travel), wander the market square, scatter
 // when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
 const NPCS = (() => {
-  const N = 18, NEAR_POSE = 45, FAR = 85, PLAZA_N = 8, R = 0.28;
+  const N = 30, NEAR_POSE = 42, FAR = 85, PLAZA_N = 13, SHADOW_R = 32, R = 0.28;
+  // squares where people linger (not the kasbah's: that's the militia's ground)
+  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt'];
+  const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
+  function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
   const SKIN = ['#e3b48e', '#c98e62', '#a8714a', '#8a5a3a', '#6b4430', '#d9a37a'];
   const TOPC = ['#8a2f2f', '#2f4f7a', '#d8d2c4', '#556b2f', '#c9a45c', '#3c3c44', '#7a5c8a', '#b86b3a', '#e8e4da', '#2a6f6a', '#5a3a2a', '#9aa4ac'];
@@ -9858,8 +9882,8 @@ const NPCS = (() => {
     for (const o of kill) o.parent.remove(o);
   }
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
-  function makeModel() {
-    const kit = outfit();
+  function makeModel(kitIn) {
+    const kit = kitIn || outfit();
     applyColors(kit);
     const c = buildCharacter(kit);
     c.spine.rotation.order = 'YXZ'; c.head.rotation.order = 'YXZ'; c.pelvis.rotation.order = 'YXZ'; c.root.rotation.order = 'YXZ';
@@ -9867,7 +9891,8 @@ const NPCS = (() => {
     applyColors(cfg);
     const px = { head: M(new THREE.SphereGeometry(0.13, 8, 6), proxyMat, c.root, 0, c.d.hipY + 0.78, 0), torso: M(new THREE.BoxGeometry(0.44, 0.6, 0.3), proxyMat, c.root, 0, c.d.hipY + 0.32, 0), legs: M(new THREE.BoxGeometry(0.36, c.d.hipY, 0.24), proxyMat, c.root, 0, c.d.hipY / 2, 0) };
     scene.add(c.root);
-    return { ch: c, px, kit };
+    const meshes = []; c.root.traverse((o) => { if (o.isMesh && o.material !== proxyMat) meshes.push(o); });
+    return { ch: c, px, kit, meshes };
   }
 
   const civs = [];
@@ -9887,7 +9912,7 @@ const NPCS = (() => {
   function place(v, minD, maxD, hidden) {
     for (let t = 0; t < 60; t++) {
       let x, z;
-      if (v.plaza) { x = rand(SQ.x0 + 4, SQ.x1 - 4); z = rand(SQ.z0 + 4, SQ.z1 - 4); const d = Math.hypot(x - P.pos.x, z - P.pos.z); if (d < minD || d > maxD) continue; }
+      if (v.plaza) { const Q = v.plaza; x = rand(Q.x0 + 2, Q.x1 - 2); z = rand(Q.z0 + 2, Q.z1 - 2); const d = Math.hypot(x - P.pos.x, z - P.pos.z); if (d < minD || d > maxD) continue; }
       else {
         const a = Math.random() * Math.PI * 2, d = rand(minD, maxD); x = P.pos.x + Math.sin(a) * d; z = P.pos.z + Math.cos(a) * d;
         const id = GR.roadAt(x, z), st = id && STREETS[id - 1]; if (!st || st.len < 12) continue;
@@ -9928,15 +9953,18 @@ const NPCS = (() => {
     if ((b[0] - a[0]) * (P.pos.x - a[0]) + (b[1] - a[1]) * (P.pos.z - a[1]) < 0) { v.dir = -v.dir; if (v.i === 0 && v.dir < 0 || v.i === q.length - 1 && v.dir > 0) v.dir = -v.dir; }
   }
   function newPlazaGoal(v) {
-    for (let t = 0; t < 12; t++) { const nearP = Math.random() < 0.6, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(SQ.x0, SQ.x1), SQ.x0 + 3, SQ.x1 - 3), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(SQ.z0, SQ.z1), SQ.z0 + 3, SQ.z1 - 3); if (free(x, z) && Math.hypot(x - v.x, z - v.z) > 6) { v.tx = x; v.tz = z; return; } }
+    const Q = v.plaza;
+    for (let t = 0; t < 12; t++) { const nearP = Math.random() < 0.6, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(Q.x0, Q.x1), Q.x0 + 1.5, Q.x1 - 1.5), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(Q.z0, Q.z1), Q.z0 + 1.5, Q.z1 - 1.5); if (free(x, z) && Math.hypot(x - v.x, z - v.z) > 6) { v.tx = x; v.tz = z; return; } }
   }
 
   // ---------------- motion ----------------
   function step(v, dt) {
     if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
-    if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
+    if (v.route) { const r = v.route[v.ri]; v.tx = r[0]; v.tz = r[1]; }
+    else if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
     let dx = v.tx - v.x, dz = v.tz - v.z; const L = Math.hypot(dx, dz);
-    if (L < 0.9) {
+    if (L < (v.route ? 0.5 : 0.9)) {
+      if (v.route) { const w = v.route[v.ri][2]; if (w) v.idle = w; v.ri++; if (v.ri >= v.route.length) { if (v.fig.loop) v.ri = 0; else { v.ri = v.route.length - 1; v.arrived = true; v.idle = 1e9; } } return; }
       if (v.plaza) { newPlazaGoal(v); if (v.panic <= 0 && Math.random() < 0.6) v.idle = rand(1.5, 5); }
       else { const j = v.i + v.dir; if (j <= 0 || j >= v.st.pts.length - 1) { v.i = clamp(j, 0, v.st.pts.length - 1); junction(v); } else v.i = j; }
       return;
@@ -9950,7 +9978,7 @@ const NPCS = (() => {
     v.yaw += wrap(Math.atan2(-dx, -dz) - v.yaw) * Math.min(1, dt * (v.panic > 0 ? 10 : 5));
     // blocked (stall, parked car, someone's doorstep): turn back / choose another spot
     v.stuckT = Math.hypot(v.vx, v.vz) < sp * 0.3 ? v.stuckT + dt : 0;
-    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
+    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.route) { v.ri = Math.min(v.route.length - 1, v.ri + 1); } else if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
   }
   const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
 
@@ -9999,23 +10027,33 @@ const NPCS = (() => {
       for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
       civs.push(v); v.m.ch.root.visible = false;
     }
-    const nearSq = Math.hypot(clamp(P.pos.x, SQ.x0, SQ.x1) - P.pos.x, clamp(P.pos.z, SQ.z0, SQ.z1) - P.pos.z) < 80;
+    const pz = nearPlaza();
     scan -= dt;
     for (const v of civs) {
       const root = v.m.ch.root;
       // recycle: out of range (or the square's crowd while you're elsewhere) → re-place near you, out of sight
-      const wantPlaza = v.k < PLAZA_N && nearSq;
-      if (scan <= 0 && (!v.alive ? v.deadT >= 20 : d2(v.x, v.z) > FAR * FAR || (v.plaza !== wantPlaza && (v.plaza || d2(v.x, v.z) > 35 * 35)))) {
+      const wantPlaza = v.k < PLAZA_N && pz ? pz : false;
+      if (scan <= 0 && (!v.alive ? v.deadT >= 20 : d2(v.x, v.z) > FAR * FAR || (v.plaza !== wantPlaza && d2(v.x, v.z) > 30 * 30))) {
         v.plaza = wantPlaza;
         if (place(v, v.placed ? 22 : 4, v.placed ? 70 : 55, v.placed)) { v.placed = true; setHits(v, true); } else { v.alive = false; v.deadT = 20; setHits(v, false); }
       }
       root.visible = v.alive || v.deadT < 20;
+      const sh = root.visible && d2(v.x, v.z) < SHADOW_R * SHADOW_R;   // only the near crowd casts shadows
+      if (v.shadow !== sh) { v.shadow = sh; for (const m of v.m.meshes) m.castShadow = sh; }
       if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
       if (d2(v.x, v.z) < NEAR_POSE * NEAR_POSE) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
     }
     if (scan <= 0) scan = 0.3;
+    // scripted figures (mission targets, couriers): follow their route, posed out to scope range
+    for (const v of figs) {
+      const root = v.m.ch.root;
+      if (!v.alive) { if (v.deadT < 90) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
+      if (v.fig.paused) { v.vx = v.vz = 0; } else step(v, dt);
+      if (v.fig.lookAt) { const L = v.fig.lookAt; v.yaw += wrap(Math.atan2(-(L.x - v.x), -(L.z - v.z)) - v.yaw) * Math.min(1, dt * 4); }
+      if (d2(v.x, v.z) < 220 * 220) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+    }
   }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
   // gunfire nearby: scatter away from the shooter
@@ -10026,7 +10064,7 @@ const NPCS = (() => {
       const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d > 60) continue;
       const wasCalm = v.panic <= 0; v.panic = rand(6, 10); v.idle = 0;
       if (!wasCalm) continue;
-      if (v.plaza) { v.tx = clamp(v.x + dx / (d || 1) * 30, SQ.x0 + 3, SQ.x1 - 3); v.tz = clamp(v.z + dz / (d || 1) * 30, SQ.z0 + 3, SQ.z1 - 3); }
+      if (v.plaza) { const Q = v.plaza; v.tx = clamp(v.x + dx / (d || 1) * 30, Q.x0 + 1.5, Q.x1 - 1.5); v.tz = clamp(v.z + dz / (d || 1) * 30, Q.z0 + 1.5, Q.z1 - 1.5); }
       else { const q = target(v); if ((q.x - v.x) * dx + (q.z - v.z) * dz < 0) v.dir = -v.dir; }
     }
   }
@@ -10039,6 +10077,7 @@ const NPCS = (() => {
   function hit(tg, p, b) {
     const v = tg.civ; if (!v.alive) return;
     v.alive = false; v.deadT = 0; setHits(v, false);
+    if (v.fig) { emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6); audio.fleshHit(p.distanceTo(P.pos)); hitFx(false); v.fig.onDeath?.(v, tg.part); return; }
     emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6);
     audio.fleshHit(p.distanceTo(P.pos));
     P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>');
@@ -10058,83 +10097,195 @@ const NPCS = (() => {
     return true;
   }
   function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
-  return { update, alarm, conceal, hit, knockout, bodies, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  // ---- scripted figures ----
+  const figs = [];
+  function spawnFigure(o) {
+    const v = { m: makeModel(o.kit), k: -1, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, alive: true, deadT: 0, hits: [], fig: o, route: o.route, ri: 0,
+      x: o.route[0][0], z: o.route[0][1], y: 0, yaw: o.yaw ?? 0, speed: o.speed ?? 1.3, panic: 0, idle: 0, stuckT: 0, vx: 0, vz: 0, plaza: false };
+    v.y = COL.ground(v.x, v.z, (o.y ?? 0) + 0.3);
+    for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
+    setHits(v, true); v.m.ch.root.visible = true; for (const m of v.m.meshes) m.castShadow = true;
+    figs.push(v); return v;
+  }
+  function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
+  return { update, alarm, conceal, hit, knockout, bodies, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();
 // =====================================================================
-//  Mission 1 — "Dead Drop": recover the intel from a riad near the souk, extract to the civic plaza
+//  The campaign: five missions through Dar Essalam
 // =====================================================================
+// 1 Dead Drop — 2 The Captain (sniper) — 3 Wolf in Wolf's Clothing (disguise) — 4 Market Tail — 5 Exfil.
+// Each mission is a list of steps: what to do, where (a waypoint), when it's done, and what E does.
+// Progress is kept between sessions; J restarts the current mission.
 const MISSION = (() => {
-  const EXTRACT = { x: 64, z: 160, r: 6 }, REWARD = 500, PICK_R = 2.2;
-  let stage = 'init', intel = null, beam = null, banT = 0;
   const host = document.getElementById('hud');
-  const el = (css, parent = host) => { const d = document.createElement('div'); d.style.cssText = css; parent.appendChild(d); return d; };
-  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.14em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.5');
+  const el = (css) => { const d = document.createElement('div'); d.style.cssText = css; host.appendChild(d); return d; };
+  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.12em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.55;max-width:420px');
   const way = el('position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.12em;color:#ffd27a;text-shadow:0 0 5px #000;text-align:center;white-space:nowrap;display:none');
   const prompt = el('position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:16px;letter-spacing:.25em;color:#ffd27a;text-shadow:0 0 8px #000;display:none');
-  const banner = el('position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(620px,90vw);text-align:center;color:#f0e2c4;text-shadow:0 0 12px #000;opacity:0;transition:opacity .5s;font:600 22px Rajdhani,sans-serif;letter-spacing:.22em');
-
-  function show(title, sub, t = 5) { banner.innerHTML = `${title}<div style="font-size:13px;letter-spacing:.12em;color:#d9c49a;margin-top:8px;line-height:1.5">${sub}</div>`; banner.style.opacity = '1'; banT = t; }
-  // a riad courtyard a short walk from the spawn square
-  function init() {
-    const sp = TOWN.spots.intel; if (!sp) { stage = 'none'; obj.textContent = ''; return; }
-    const best = { x: sp.x, y: sp.y + 0.77, z: sp.z };   // on the study desk, upstairs in Dar Lamia
-    if (TOWN.spots.jettyEnd) { EXTRACT.x = TOWN.spots.jettyEnd.x; EXTRACT.z = TOWN.spots.jettyEnd.z - 6; EXTRACT.r = 6; }
-    // the intel: a hard case with a red tag, under a tall marker beam
+  const banner = el('position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(640px,90vw);text-align:center;color:#f0e2c4;text-shadow:0 0 12px #000;opacity:0;transition:opacity .5s;font:600 22px Rajdhani,sans-serif;letter-spacing:.22em');
+  let banT = 0;
+  function show(title, sub, t = 5) { banner.innerHTML = `${title}<div style="font-size:13px;letter-spacing:.1em;color:#d9c49a;margin-top:8px;line-height:1.5">${sub}</div>`; banner.style.opacity = '1'; banT = t; }
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 40, 6, 1, true).translate(0, 20, 0), new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  beam.visible = false; scene.add(beam);
+  const S = () => TOWN.spots, near = (p, r, dy = 1.6) => !!p && Math.hypot(p.x - P.pos.x, p.z - P.pos.z) < r && Math.abs((p.y ?? 0) - P.pos.y) < dy;
+  const live = (f, name) => () => f && f.alive ? { x: f.x, y: f.y + 2.1, z: f.z, name } : null;
+  let figs = [], flags = {};
+  const fig = (o) => { const f = NPCS.spawnFigure(o); figs.push(f); return f; };
+  const clearFigs = () => { for (const f of figs) NPCS.removeFigure(f); figs = []; };
+  const kit = (o) => NPCS.outfit(o);
+  const intelCase = (() => {
     const g = new THREE.Group();
     M(new THREE.BoxGeometry(0.46, 0.13, 0.33), new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.5, metalness: 0.4 }), g, 0, 0.065, 0);
     M(new THREE.BoxGeometry(0.16, 0.04, 0.03), new THREE.MeshStandardMaterial({ color: 0x111111 }), g, 0, 0.15, 0);
     M(new THREE.BoxGeometry(0.06, 0.008, 0.09), new THREE.MeshStandardMaterial({ color: 0xc0302a, emissive: 0x601010 }), g, 0.12, 0.134, 0.06);
-    g.position.set(best.x, best.y, best.z); g.rotation.y = Math.random() * 6.28;
-    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-    scene.add(g);
-    beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 40, 6, 1, true).translate(0, 20, 0), new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-    beam.position.copy(g.position); scene.add(beam);
-    intel = { ...best, g };
-    stage = 'intel';
-    show('MISSION 1 — DEAD DROP', 'A courier left intel upstairs in Dar Lamia, a riad at the end of Derb Lamia in the medina. Recover it and get it to the boat at the end of the jetty.', 7);
+    g.visible = false; scene.add(g); return g;
+  })();
+  function nearestIdx(pts, p) { let b = 0, bd = Infinity; pts.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; b = i; } }); return b; }
+  const lanePart = (st, a, b) => { const P0 = st.pts, ia = nearestIdx(P0, a), ib = nearestIdx(P0, b), out = [], s = ia <= ib ? 1 : -1; for (let i = ia; s > 0 ? i <= ib : i >= ib; i += s) out.push([P0[i][0], P0[i][1]]); return out; };
+
+  // ---------------- the missions ----------------
+  const MISSIONS = [
+    {
+      title: 'DEAD DROP', reward: 300,
+      brief: 'A courier left a case of intel upstairs in Dar Lamia, a riad at the far end of Derb Lamia in the medina. Get it to your handler on the roof of Café de la Place.',
+      setup() { const p = S().intel; intelCase.position.set(p.x, p.y + 0.77, p.z); intelCase.visible = true; flags.handler = fig({ kit: kit({ top: 'longsleeve', topColor: '#e8e0d0', headwear: 'boonie', hatColor: '#c8b890' }), route: [[11.6, -24.8]], y: 7.2, speed: 0 }); flags.handler.fig.lookAt = P.pos; },
+      steps: [
+        { text: 'Recover the intel — Dar Lamia, the study upstairs', where: () => ({ ...S().intel, y: S().intel.y + 0.8, name: 'INTEL' }),
+          act: () => { if (!near(S().intel, 2.4)) return false; intelCase.visible = false; audio.pouch(); feed('<span class="s">INTEL RECOVERED</span>'); return true; }, prompt: () => near(S().intel, 2.4) ? '[E]  TAKE THE CASE' : '' },
+        { text: 'Deliver it to your handler on the roof of Café de la Place', where: () => ({ x: 11.6, y: 9.4, z: -24.8, name: 'HANDLER' }), done: () => near({ x: 11.6, y: 7.2, z: -24.8 }, 2.5) },
+      ],
+    },
+    {
+      title: 'THE CAPTAIN', reward: 400,
+      brief: 'Captain Haddad runs the militia from the kasbah, and inspects his men from the roof of the headquarters. The minaret of the Great Mosque looks straight over the kasbah wall — take the sniper rifle (4).',
+      setup() {
+        const r = [[140, -70, 3], [146, -64], [146, -54, 4], [140, -51], [137, -61, 2]];
+        flags.vip = fig({ kit: kit({ top: 'jacket', topColor: '#3a3f2a', pantsColor: '#3a3f2a', headwear: 'cap', hatColor: '#9a1a1a', facialHair: 'beard', shoes: 'boots', shoeColor: '#1a1a1a' }), route: r, loop: true, y: 7.2, speed: 0.9,
+          onDeath: (v, part) => { flags.vipDead = true; feed(`<span class="s">CAPTAIN HADDAD DOWN${part === 'head' ? ' — HEADSHOT' : ''}</span>`); } });
+        for (const off of [[-1.6, 1.4], [1.6, 1.6]]) fig({ kit: kit({ ...PRESETS['Urban Black'], pack: 'none' }), route: r.map(([x, z, w]) => [x + off[0], z + off[1], w]), loop: true, y: 7.2, speed: 0.92, onDeath: () => feed('<span class="m">BODYGUARD DOWN</span>') });
+      },
+      steps: [
+        { text: 'Climb the minaret of the Great Mosque', where: () => ({ ...S().minaretTop, y: S().minaretTop.y + 1, name: 'MINARET' }), done: () => P.pos.y > 20 && near(S().minaretTop, 4, 3) },
+        { text: 'Captain Haddad (red cap) is on the HQ roof in the kasbah. Take the shot — hold SHIFT to steady the scope', where: () => live(flags.vip, 'TARGET')(), done: () => flags.vipDead },
+        { text: 'Get down and away from the minaret before they work out where it came from', where: () => ({ ...S().minaretDoor, y: 1.5, name: 'EXIT' }), done: () => P.pos.y < 1 && Math.hypot(P.pos.x - S().minaretDoor.x, P.pos.z - S().minaretDoor.z) > 25 },
+      ],
+    },
+    {
+      title: 'WOLF IN WOLF’S CLOTHING', reward: 400,
+      brief: 'The captain’s papers are still in the safe in his office. Get a militia uniform — come up behind one of them (F), then take his uniform (E). Hide your weapons (H), walk into the kasbah like you belong, and photograph what’s in the safe.',
+      setup() { flags.clean = true; },
+      tick() { if (DISGUISE.blown) flags.clean = false; },
+      bonus: () => (flags.clean ? 200 : 0),
+      steps: [
+        { text: 'Get a militia uniform: take a militiaman down from behind (F), then take his uniform (E)', where: () => ({ x: S().kasbahGate.x - 12, y: 2, z: S().kasbahGate.z, name: 'KASBAH' }), done: () => P.disguise === 'militia' },
+        { text: 'Weapons hidden (H), walk into the kasbah HQ. The safe is upstairs behind the commander’s desk', where: () => ({ ...S().hqSafe, y: S().hqSafe.y + 1, name: 'SAFE' }),
+          act: () => { if (!near(S().hqSafe, 2.2, 1.3)) return false; audio.switchMode(); feed('<span class="s">DOCUMENTS PHOTOGRAPHED</span>'); return true; }, prompt: () => near(S().hqSafe, 2.2, 1.3) ? '[E]  OPEN THE SAFE — PHOTOGRAPH THE PAPERS' : '' },
+        { text: 'Walk out through the kasbah gate', where: () => ({ x: 47, y: 2, z: -52, name: 'OUT' }), done: () => P.pos.x < 60 && near({ x: 47, y: 0, z: -52 }, 12) },
+      ],
+    },
+    {
+      title: 'MARKET TAIL', reward: 400,
+      brief: 'The papers name a courier who carries the militia’s messages through the souk. He waits at the mouth of the Souk el Kebir in a green cap. Follow him to whoever he meets — not too close, don’t lose him — then take the package off his contact.',
+      setup() {
+        const T = TOWN.lanes;
+        const route = [...lanePart(T.soukKebir, [0, -24], [-2, -70]), ...lanePart(T.derbChouari, [-2, -70], [-36, -73]), [-40, -82], [-50, -88], ...lanePart(T.derbDebbagh, [-62, -92], [-100, -103]), [-101.5, -101]];
+        flags.route = route;
+        flags.courier = fig({ kit: kit({ top: 'jacket', topColor: '#6a5a3a', headwear: 'cap', hatColor: '#2a8a3a', pantsColor: '#2d3550' }), route, speed: 1.2 });
+        flags.courier.fig.paused = true;
+        flags.contact = fig({ kit: kit({ top: 'jacket', topColor: '#22252a', pantsColor: '#22252a', eyewear: 'sunglasses', headwear: 'none', facialHair: 'stubble' }), route: [[-103.6, -99.5]], speed: 0, onDeath: () => { flags.contactDead = true; feed('<span class="s">CONTACT DOWN</span>'); } });
+        flags.lostT = 0; flags.closeT = 0;
+      },
+      steps: [
+        { text: 'Find the courier at the mouth of the Souk el Kebir (green cap)', where: () => live(flags.courier, 'COURIER')(), done: () => near(flags.courier, 20, 3) },
+        { text: 'Tail him: keep him within 40 m, never closer than 5 m, weapons hidden', where: () => live(flags.courier, 'COURIER')(), enter: () => { flags.courier.fig.paused = false; flags.lostT = flags.closeT = 0; },
+          done: () => flags.courier.arrived,
+          tick: (dt) => {
+            const d = Math.hypot(flags.courier.x - P.pos.x, flags.courier.z - P.pos.z);
+            flags.lostT = d > 42 ? flags.lostT + dt : 0; flags.closeT = d < 5 || (!P.holstered && d < 12) ? flags.closeT + dt : 0;
+            if (flags.lostT > 8) return 'You lost him — he went back to where he started.';
+            if (flags.closeT > 2.5) return 'He made you — he went back to where he started. Keep your distance, weapons hidden (H).';
+            return null;
+          } },
+        { text: 'That’s his contact by the tannery steps. Take him down', where: () => live(flags.contact, 'CONTACT')(), done: () => flags.contactDead, enter: () => { flags.contact.fig.lookAt = flags.courier; } },
+        { text: 'Take the package off the body (E)', where: () => ({ x: flags.contact.x, y: flags.contact.y + 1, z: flags.contact.z, name: 'PACKAGE' }),
+          act: () => { if (!near(flags.contact, 2.4)) return false; audio.pouch(); feed('<span class="s">PACKAGE TAKEN</span>'); return true; }, prompt: () => near(flags.contact, 2.4) ? '[E]  TAKE THE PACKAGE' : '' },
+      ],
+      reset(step) { if (step === 1) { const c = flags.courier; c.x = flags.route[0][0]; c.z = flags.route[0][1]; c.ri = 0; c.arrived = false; c.idle = 0; c.fig.paused = true; return 0; } return step; },
+    },
+    {
+      title: 'EXFIL', reward: 600,
+      brief: 'They know who you are now, and every militiaman in town is coming. A boat is waiting at the end of the jetty in the harbour — get to it.',
+      setup() { BOTS.setPressure(3); fig({ kit: kit({ top: 'tshirt', topColor: '#2a5aa0', headwear: 'beanie', hatColor: '#c0302a' }), route: [[64, 163.5]], speed: 0 }); },
+      teardown() { BOTS.setPressure(0); },
+      steps: [{ text: 'Get to the boat at the end of the jetty', where: () => ({ x: 64, y: 2, z: 160, name: 'BOAT' }), done: () => near({ x: 64, y: 0, z: 161 }, 5, 3) }],
+    },
+  ];
+
+  // ---------------- state ----------------
+  let mi = (() => { try { return +(localStorage.getItem('dar.campaign') || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
+  const cur = () => MISSIONS[mi];
+  function start(i) {
+    if (state === 'run' && cur()?.teardown) cur().teardown();
+    clearFigs(); flags = {}; intelCase.visible = false;
+    mi = i; si = 0;
+    try { localStorage.setItem('dar.campaign', String(mi)); } catch { }
+    if (!cur()) { state = 'free'; return; }
+    state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
+    show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
   }
-  const target = () => stage === 'intel' ? { x: intel.x, y: intel.y + 0.4, z: intel.z, name: 'INTEL' } : stage === 'extract' ? { x: EXTRACT.x, y: 1.5, z: EXTRACT.z, name: 'EXTRACT' } : null;
+  function complete() {
+    const m = cur(), bonus = m.bonus ? m.bonus() : 0;
+    P.stats.score += m.reward + bonus;
+    feed(`<span class="s">MISSION COMPLETE +${m.reward}${bonus ? ` · CLEAN +${bonus}` : ''}</span>`);
+    show(`MISSION ${mi + 1} COMPLETE`, mi + 1 < MISSIONS.length ? `+${m.reward + bonus} · next: ${MISSIONS[mi + 1].title}` : `+${m.reward + bonus} · You made it out. The town is yours to roam.`, 6);
+    audio.switchMode();
+    m.teardown?.();
+    state = 'between'; wait = 7;
+  }
+  function advance() { si++; if (si >= cur().steps.length) { complete(); return; } cur().steps[si].enter?.(); audio.pouch(); }
+  const SCOPED = () => WD().scope && P.adsT > 0.8 && P.fpT > 0.8;
   const _p = new V3();
   function update(dt) {
     if (!MAP.ready) return;
-    if (stage === 'init') init();
+    if (state === 'init') start(Math.min(mi, MISSIONS.length));
     if (banT > 0 && (banT -= dt) <= 0) banner.style.opacity = '0';
-    const t = target();
-    obj.innerHTML = stage === 'intel' ? 'OBJECTIVE<br><b style="color:#ffd27a">▸ RECOVER THE INTEL</b> (Dar Lamia, upstairs study)'
-      : stage === 'extract' ? 'OBJECTIVE<br><span style="opacity:.55">✓ Intel recovered</span><br><b style="color:#ffd27a">▸ EXTRACT — BOAT AT THE END OF THE JETTY</b>'
-      : stage === 'done' ? 'MISSION 1 COMPLETE<br><span style="opacity:.6">Free roam — hostiles remain active</span>' : '';
-    if (!t) { way.style.display = prompt.style.display = 'none'; return; }
-    const dist = Math.hypot(t.x - P.pos.x, t.z - P.pos.z);
-    if (stage === 'intel') {
-      const near = dist < PICK_R && Math.abs(P.pos.y - intel.y) < 1.5 && !P.dead;
-      prompt.style.display = near ? 'block' : 'none'; prompt.textContent = '[E]  TAKE INTEL';
-    } else prompt.style.display = 'none';
-    beam.position.set(t.x, stage === 'extract' ? 0 : intel.y, t.z);
-    beam.material.opacity = 0.18 + 0.12 * Math.sin(performance.now() / 300) ** 2;
-    if (stage === 'extract' && dist < EXTRACT.r && !P.dead) {
-      stage = 'done'; P.stats.score += REWARD; scene.remove(beam);
-      feed(`<span class="s">MISSION COMPLETE +${REWARD}</span>`); show('MISSION COMPLETE', `Intel delivered · +${REWARD}`, 6); audio.switchMode();
-      return;
+    if (state === 'between') { wait -= dt; if (wait <= 0) start(mi + 1); }
+    const m = cur();
+    if (state !== 'run' || !m) {
+      obj.innerHTML = state === 'free' ? 'CAMPAIGN COMPLETE<br><span style="opacity:.6">Free roam · J replays the last mission</span>' : '';
+      way.style.display = prompt.style.display = 'none'; beam.visible = false; return;
     }
-    // waypoint: on screen over the target, or pinned to the screen edge pointing at it
-    _p.set(t.x, t.y, t.z).project(camera);
+    m.tick?.(dt);
+    const st = m.steps[si];
+    const fail = st.tick ? st.tick(dt) : null;
+    if (fail) { show('NOT LIKE THAT', fail, 4); si = m.reset ? m.reset(si) : si; m.steps[si].enter?.(); }
+    else if (st.done && st.done()) { advance(); return; }
+    obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? `<span style="opacity:.45">✓ ${q.text}</span>` : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>` : '')).filter(Boolean).join('<br>');
+    const pr = st.prompt ? st.prompt() : '';
+    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    const t = st.where ? st.where() : null;
+    if (!t) { way.style.display = 'none'; beam.visible = false; return; }
+    beam.visible = true; beam.position.set(t.x, (t.y ?? 1) - 2, t.z); beam.material.opacity = 0.16 + 0.12 * Math.sin(performance.now() / 300) ** 2;
+    const dist = Math.hypot(t.x - P.pos.x, t.z - P.pos.z);
+    _p.set(t.x, t.y ?? 1.5, t.z).project(camera);
     let x = _p.x, y = _p.y; const behind = _p.z > 1;
     if (behind) { x = -x; y = -y; }
-    const off = behind || Math.abs(x) > 0.92 || Math.abs(y) > 0.88;
-    if (off) { const k = 1 / Math.max(Math.abs(x) / 0.92, Math.abs(y) / 0.88, 1e-3); x *= k; y *= k; }
-    way.style.display = 'block';
+    if (behind || Math.abs(x) > 0.92 || Math.abs(y) > 0.88) { const k = 1 / Math.max(Math.abs(x) / 0.92, Math.abs(y) / 0.88, 1e-3); x *= k; y *= k; }
+    way.style.display = SCOPED() ? 'none' : 'block';
     way.style.left = `${(x * 0.5 + 0.5) * innerWidth}px`; way.style.top = `${(-y * 0.5 + 0.5) * innerHeight}px`;
     way.innerHTML = `◆<br>${t.name} ${Math.round(dist)} m`;
   }
   function interact() {
-    if (stage !== 'intel' || P.dead) return false;
-    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return false;
-    scene.remove(intel.g); stage = 'extract'; audio.switchMode();
-    beam.material.color.set(0x7ae0a0);
-    feed('<span class="s">INTEL RECOVERED</span>'); show('INTEL RECOVERED', 'Get to the boat at the end of the jetty (green marker)', 4);
-    return true;
+    if (state !== 'run' || P.dead) return false;
+    const st = cur().steps[si];
+    if (st.act && st.act()) { advance(); return true; }
+    return false;
   }
-  return { update, interact, get stage() { return stage; }, get intel() { return intel; } };
+  function restart() { start(state === 'free' ? MISSIONS.length - 1 : mi); feed('<span class="m">MISSION RESTARTED</span>'); }
+  return {
+    update, interact, restart, start, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
+    get target() { if (state !== 'run') return null; const st = cur().steps[si]; return st.where ? st.where() : null; },
+  };
 })();
 // =====================================================================
 //  Disguise: hide your weapons, take the clothes off a fallen militiaman or a knocked-out civilian
@@ -10208,7 +10359,7 @@ const DISGUISE = (() => {
     else if (NPCS.canKnockout(P.pos, P.yaw)) pr = '[F]  KNOCK OUT';
     prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
   }
-  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; } };
+  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();
 // =====================================================================
 //  Input
@@ -10232,6 +10383,7 @@ addEventListener('keydown', (e) => {
     case 'KeyF': DISGUISE.takedown(); break;
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
+    case 'KeyJ': MISSION.restart(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();

@@ -20,6 +20,7 @@ addEventListener('keydown', (e) => {
     case 'KeyF': DISGUISE.takedown(); break;
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
+    case 'KeyJ': MISSION.restart(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
