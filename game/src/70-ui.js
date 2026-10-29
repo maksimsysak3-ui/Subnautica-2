@@ -247,11 +247,11 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
-  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera); else renderer.toneMappingExposure = 1.0;
+  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera, MAP.night ? 1.55 : 1); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
   if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); }
 }

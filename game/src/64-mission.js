@@ -177,3 +177,30 @@ const MISSION = (() => {
     get target() { if (state !== 'run') return null; const st = cur().steps[si]; return st.where ? st.where() : null; },
   };
 })();
+
+// ---------------- Case 02: Neon Seoul ----------------
+function seoulMissions({ fig, live, near, kit, S, flags }) {
+  const F = flags;
+  return [{
+    title: 'THE BROKER’S DRIVE', reward: 700,
+    brief: 'The kasbah papers are on a drive, and a broker is selling it tonight to the gang that runs these streets. Our informant is waiting in the 24-hour store on Yanghwa-ro. Find out who has the drive, take it off him, and get underground.',
+    setup() {
+      const f = F();
+      f.informant = fig({ kit: kit({ top: 'hoodie', topColor: '#2a2a32', headwear: 'cap', hatColor: '#1a1a1a', pantsColor: '#2d3550' }), route: [[11.5, -13.2]], speed: 0 });
+      f.informant.fig.lookAt = P.pos;
+      // the lieutenant eats at the third tent down the food alley with two of his men
+      const lx = -0.6, lz = -48.5;
+      f.lt = fig({ kit: kit({ top: 'jacket', topColor: '#141414', pantsColor: '#141414', eyewear: 'sunglasses', hair: 'short', facialHair: 'none', shoes: 'boots', shoeColor: '#0a0a0a' }), route: [[lx, lz]], speed: 0, onDeath: () => { F().ltDead = true; feed('<span class="s">LIEUTENANT DOWN</span>'); NPCS.alarm(lx, lz); BOTS.setPressure(2); } });
+      for (const [dx, dz] of [[1.6, -1.2], [1.6, 1.4]]) fig({ kit: kit({ ...PRESETS['Urban Black'], pack: 'none', vest: 'none', headwear: 'none' }), route: [[lx + dx, lz + dz], [lx + dx + 3, lz + dz], [lx + dx, lz + dz]], loop: true, speed: 0.7, onDeath: () => feed('<span class="m">BODYGUARD DOWN</span>') });
+    },
+    steps: [
+      { text: 'Meet the informant in the 24-hour store (빛24) on the corner of Yanghwa-ro and the food alley', where: () => live(F().informant, 'INFORMANT')(),
+        act: () => { if (!near(F().informant, 2.4)) return false; audio.pouch(); feed('<span class="s">"The lieutenant. Third tent down the food alley. Two men with him."</span>'); return true; }, prompt: () => near(F().informant, 2.4) ? '[E]  TALK TO THE INFORMANT' : '' },
+      { text: 'The gang’s lieutenant (sunglasses) is eating at the third pojangmacha tent in the food alley. Take him down', where: () => live(F().lt, 'LIEUTENANT')(), done: () => F().ltDead },
+      { text: 'Take the drive off his body (E)', where: () => ({ x: F().lt.x, y: F().lt.y + 1, z: F().lt.z, name: 'DRIVE' }),
+        act: () => { if (!near(F().lt, 2.4)) return false; audio.pouch(); feed('<span class="s">DRIVE TAKEN</span>'); BOTS.setPressure(3); return true; }, prompt: () => near(F().lt, 2.4) ? '[E]  TAKE THE DRIVE' : '' },
+      { text: 'The whole gang is out looking for you. Get to the subway entrance at the station plaza', where: () => ({ ...S().subway, y: 2, name: 'SUBWAY' }), done: () => near({ ...S().subway, y: 0 }, 3, 3) },
+    ],
+    teardown() { BOTS.setPressure(0); },
+  }];
+}

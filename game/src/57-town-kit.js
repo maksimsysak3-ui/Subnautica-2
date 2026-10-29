@@ -224,7 +224,8 @@ function dressFace(L, H, col, o = {}) {
       for (let i = 0; i < n; i++) {
         if (mchance(0.35)) continue;
         const ww = mr(0.6, 1.0), wh = mr(0.8, 1.3), x = -L / 2 + (i + 0.5) * L / n + mr(-0.3, 0.3);
-        W.box(ww, wh, 0.03, x, y + wh / 2, 0.015, 0x15110d, { ao: false });
+        const lit = o.night && mchance(0.5);   // at night, about half the windows are lit
+        W.box(ww, wh, 0.03, x, y + wh / 2, 0.015, lit ? mpick([0x8a6a3a, 0x9a8250, 0x5a7090, 0x8a5a7a]) : 0x15110d, { ao: false, layer: lit ? 'glow' : 'solid' });
         W.box(ww + 0.14, 0.06, 0.14, x, y - 0.03, 0.07, MC.stone, { t: TX.stone, wear: 4 });
         for (const s of [-1, 1]) W.box(0.07, wh + 0.07, 0.06, x + s * (ww / 2 + 0.035), y + wh / 2, 0.03, shade(col, 1.08), { t: TX.plaster });
         W.box(ww + 0.2, 0.09, 0.07, x, y + wh + 0.05, 0.035, shade(col, 1.08), { t: TX.plaster });
@@ -312,7 +313,7 @@ function front(st, side, spec, o = {}) {
       GR.rect(cx, cz, u.w + 0.2, d + 0.2, ry, GR.BUILT);
       u.d = d;
       W.push(p.x + nx * setback, 0, p.z + nz * setback, ry);
-      const H = townUnit(u);
+      const H = (o.unit || townUnit)(u);
       W.pop();
       // exposed side walls: above a lower neighbour, or the whole side at a gap / junction
       const prev = out[out.length - 1], joined = prev && prev.s1 > s - 0.6, me = { ...u, x: cx, z: cz, ry, H, s1: s + u.w, ox: p.x + nx * setback, oz: p.z + nz * setback };
@@ -331,7 +332,7 @@ function front(st, side, spec, o = {}) {
 // dress one side wall of a placed unit (side −1 = left, +1 = right) from height y0 up
 function sideFace(u, side, y0) {
   W.push(u.ox, 0, u.oz, u.ry); W.push(side * u.w / 2, 0, -u.d / 2, side * Math.PI / 2);
-  dressFace(u.d, u.H, mpick(STY[u.s]?.cols || STY.o.cols), { y0, windows: u.H - y0 > 3 });
+  dressFace(u.d, u.H, u.sideCol ?? mpick(STY[u.s]?.cols || STY.o.cols), { y0, windows: u.H - y0 > 3, green: u.green ?? true, night: MAP.night });
   W.pop(); W.pop();
 }
 // back-of-block masses: everything left inside a block becomes roofscape (seen from the rooftops/minaret)
@@ -347,7 +348,7 @@ function fillBlocks(x0, z0, x1, z1, inside, cols) {
     for (const [sx, sz, ry, L] of [[0, 1, 0, r.w], [0, -1, Math.PI, r.w], [1, 0, Math.PI / 2, r.d], [-1, 0, -Math.PI / 2, r.d]]) {
       const ox = sx * (r.w / 2), oz = sz * (r.d / 2), g = GR.get(r.cx + ox + sx * 1.5, r.cz + oz + sz * 1.5);
       if (g !== GR.STREET && g !== GR.PAVE) continue;
-      W.push(ox, 0, oz, ry); dressFace(L, H, col, {}); W.pop();
+      W.push(ox, 0, oz, ry); dressFace(L, H, col, { night: MAP.night, green: !MAP.night }); W.pop();
     }
     if (r.w * r.d > 20) roofClutter(-r.w / 2 + 0.4, -r.d / 2 + 0.4, r.w / 2 - 0.4, r.d / 2 - 0.4, H, { cheap: true, tank: 0.5, laundry: 0.4 });
     W.pop();

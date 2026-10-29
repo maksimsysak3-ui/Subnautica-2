@@ -788,8 +788,21 @@ const SKY = (() => {
   scene.add(sun, sun.target);
   scene.fog.color.copy(HOR); scene.background.copy(HOR);
   const _f = new V3();
+  // night: moonlit sky with the city's sodium-and-neon glow on the horizon; the range behind goes dark
+  function night() {
+    MAP.night = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.003, 0.004, 0.012); u.hor.value.setRGB(0.05, 0.028, 0.05); u.glowc.value.setRGB(0.05, 0.05, 0.07);
+    HOR.copy(u.hor.value);
+    ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.07, 0.06, 0.1); });
+    sunDir.set(0.35, 0.62, -0.7).normalize();
+    sun.color.set(0x8fa4d8); sun.intensity = 0.32;
+    scene.fog.color.setRGB(0.03, 0.022, 0.04); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.18, 0.2, 0.32); HEMI.groundColor.setRGB(0.12, 0.06, 0.1); HEMI.intensity = 0.35;
+    MAP.lampGain = 3.2;
+  }
   return {
-    sunDir, sun, horizon: HOR,
+    sunDir, sun, horizon: HOR, night,
     update(cam, focus) {
       dome.position.copy(cam.position); ring.position.set(cam.position.x, 0, cam.position.z);
       // shadow box biased ahead of the camera (more useful texels where the player looks), snapped to texels
@@ -805,7 +818,7 @@ const SKY = (() => {
 
 // ---------------- lamp pool: hundreds of lamps, only the nearest few are real lights ----------------
 const LAMPS = (() => {
-  const N = 6, pool = [];
+  const N = MAP.id === 'seoul' ? 12 : 6, pool = [];
   for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffffff, 0, 10, 2); scene.add(l); pool.push({ l, lamp: null, cur: 0 }); }
   let haloPts = null, timer = 0;
   function buildHalos() {
