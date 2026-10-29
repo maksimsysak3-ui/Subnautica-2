@@ -288,14 +288,42 @@ const BOTS = (() => {
     }
     lastTracer = arena.time;
   }
+  // ---- suspicion: a triangle over each guard who's noticed you, filling yellow as he works out who you are;
+  // red once he has. Guards out of view get theirs pinned to the edge of the screen. ----
+  const marks = [], _mp = new V3();
+  function markEl() {
+    const d = document.createElement('div'); d.style.cssText = 'position:absolute;width:26px;height:23px;transform:translate(-50%,-100%);pointer-events:none;display:none;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))';
+    d.innerHTML = '<svg viewBox="0 0 26 23" width="26" height="23"><defs><clipPath id="tri"><path d="M13 1 L25 22 L1 22 Z"/></clipPath></defs><rect class="f" x="0" y="23" width="26" height="23" clip-path="url(#tri)" fill="#ffcc33"/><path d="M13 1 L25 22 L1 22 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+    document.getElementById('hud').appendChild(d); return { d, f: d.querySelector('.f'), path: d.querySelector('path') };
+  }
+  function suspicionMarks() {
+    let n = 0;
+    for (const v of views) {
+      const a = v.agent; if (!a.alive || !me) continue;
+      const s = a.sus.get(me.id) || 0, known = a.mem.get(me.id)?.visible || s >= 1, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;
+      if (s < 0.04 && !known) continue;
+      if (Math.hypot(wx - P.pos.x, wz - P.pos.z) > 90) continue;
+      const m = marks[n] || (marks[n] = markEl()); n++;
+      _mp.set(wx, v.y + 2.25, wz).project(camera);
+      let x = _mp.x, y = _mp.y; const behind = _mp.z > 1; if (behind) { x = -x; y = -y; }
+      const off = behind || Math.abs(x) > 0.94 || Math.abs(y) > 0.9;
+      if (off) { const k = 1 / Math.max(Math.abs(x) / 0.94, Math.abs(y) / 0.9, 1e-3); x *= k; y *= k; }
+      m.d.style.display = 'block'; m.d.style.left = `${(x * 0.5 + 0.5) * innerWidth}px`; m.d.style.top = `${(-y * 0.5 + 0.5) * innerHeight}px`;
+      m.d.style.transform = `translate(-50%,-100%) scale(${off ? 0.75 : 1})`;
+      const k = Math.min(1, s); m.f.setAttribute('y', String(23 - 23 * k)); m.f.setAttribute('fill', known ? '#e8432e' : '#ffcc33');
+      m.path.setAttribute('stroke', known ? '#ffb0a0' : '#ffffff'); m.d.style.opacity = known ? String(0.75 + 0.25 * Math.sin(clock * 12)) : '1';
+    }
+    for (let i = n; i < marks.length; i++) marks[i].d.style.display = 'none';
+  }
   function update(dt) {
     clock += dt;
-    if (!enabled || !MAP.ready) return;
+    if (!enabled || !MAP.ready) { for (const m of marks) m.d.style.display = 'none'; return; }
     if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
     if (P.disguise && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible)) DISGUISE.blow('seen');
     for (const v of views) animate(v, dt);
+    suspicionMarks();
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
@@ -346,5 +374,7 @@ const BOTS = (() => {
     if (!arena) return;
     for (const v of views) { if (!v.agent.alive) continue; const w = wpos(v); if (Math.hypot(w.x - x, w.z - z) < 1.0 && speed > 4) { v.agent.onHit(speed * 9, 'torso', me, { x: w.x - x, y: 0, z: w.z - z }, arena); if (!v.agent.alive) { P.stats.score += 25; feed('<span class="s">RUN DOWN +25</span>'); } } }
   }
-  return { update, hit, playerShot, bodies, ram, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
+  function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
+  return { update, hit, playerShot, bodies, ram, noise, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();

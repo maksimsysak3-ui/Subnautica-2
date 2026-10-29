@@ -255,6 +255,9 @@ const audio = (() => {
     // Seoul metro: the two-note door chime, and the rumble of a car in the tunnel (call every frame; it paces itself)
     chime() { if (!ctx) return; const t = ctx.currentTime; tone(t, 'sine', 988, null, 0.12, 0.6, 0.2); tone(t + 0.32, 'sine', 784, null, 0.12, 0.8, 0.2); },
     rumble(k) { if (!ctx || k <= 0.02) return; const t = ctx.currentTime; if (t < (this._rumbleT || 0)) return; this._rumbleT = t + 0.22; nz(t, 0.3, 'lowpass', 110 + 90 * k, 0.7, 0.05 + 0.22 * k, 0.3); if (Math.random() < 0.18 * k) nz(t + 0.1, 0.05, 'bandpass', 900, 2, 0.15 * k, 0.05); },
+    // thrown things landing: glass breaking, or a heavy thud and a skitter
+    smash(d = 10) { if (!ctx) return; const t = ctx.currentTime, g = 1 / (1 + d / 12); nz(t, 0.25, 'highpass', 3200, 0.8, 0.5 * g, 0.25, 0.2); for (let i = 0; i < 5; i++) tone(t + 0.01 + i * 0.025, 'sine', 2400 + Math.random() * 2600, null, 0.08 * g, 0.12, 0.2); },
+    thud(d = 10) { if (!ctx) return; const t = ctx.currentTime, g = 1 / (1 + d / 12); nz(t, 0.12, 'lowpass', 380, 1, 0.7 * g, 0.12, 0.15); nz(t + 0.06, 0.08, 'bandpass', 1200, 2, 0.2 * g, 0.08, 0.1); },
     pouch() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.15, 'bandpass', 1200, 0.6, 0.12, 0.15, 0, 600); },
     boltRelease(slide) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.03, 'bandpass', slide ? 3000 : 2200, 2, 0.8, 0.04, 0.2); tone(t, 'triangle', 820, 600, 0.18, 0.08, 0.1); nz(t + 0.012, 0.02, 'highpass', 5000, 1, 0.3, 0.02); },
     // a rifle fired by someone else: delayed by distance, duller and quieter the further it is

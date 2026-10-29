@@ -54,7 +54,7 @@ const HUD = (() => {
   const host = document.getElementById('hud');
   const mk = (id, html = '') => { const d = document.createElement('div'); d.id = id; d.innerHTML = html; host.appendChild(d); return d; };
   // controls: a tidy panel on TAB (and for the first few seconds of a session)
-  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
+  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['G', 'throw (pick up with E)'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
   const ctl = mk('ctl', `<h3>CONTROLS</h3>${C.map(([k, v]) => `<div><kbd>${k}</kbd>${v}</div>`).join('')}`);
   const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
   // vitals: health, its counter, the gear tag, stacked

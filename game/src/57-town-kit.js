@@ -4,7 +4,7 @@
 // The town is laid out by hand (58-town-*.js): every street is drawn, every frontage is written as a
 // sequence of houses ("7/3/r+boug" = 7 m wide, 3 storeys, rose medina house with bougainvillea), and
 // every square, shop, landmark and interior is placed explicitly. This file holds the pieces.
-const TOWN = { doors: [], plazas: [], spots: {}, guards: [], lanes: {} };
+const TOWN = { doors: [], plazas: [], spots: {}, guards: [], lanes: {}, restricted: [] };
 const FH0 = 3.7, FHU = 3.2;          // ground / upper storey heights of town houses
 
 // ---------------- house styles ----------------

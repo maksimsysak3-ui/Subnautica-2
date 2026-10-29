@@ -1685,6 +1685,9 @@ const audio = (() => {
     // Seoul metro: the two-note door chime, and the rumble of a car in the tunnel (call every frame; it paces itself)
     chime() { if (!ctx) return; const t = ctx.currentTime; tone(t, 'sine', 988, null, 0.12, 0.6, 0.2); tone(t + 0.32, 'sine', 784, null, 0.12, 0.8, 0.2); },
     rumble(k) { if (!ctx || k <= 0.02) return; const t = ctx.currentTime; if (t < (this._rumbleT || 0)) return; this._rumbleT = t + 0.22; nz(t, 0.3, 'lowpass', 110 + 90 * k, 0.7, 0.05 + 0.22 * k, 0.3); if (Math.random() < 0.18 * k) nz(t + 0.1, 0.05, 'bandpass', 900, 2, 0.15 * k, 0.05); },
+    // thrown things landing: glass breaking, or a heavy thud and a skitter
+    smash(d = 10) { if (!ctx) return; const t = ctx.currentTime, g = 1 / (1 + d / 12); nz(t, 0.25, 'highpass', 3200, 0.8, 0.5 * g, 0.25, 0.2); for (let i = 0; i < 5; i++) tone(t + 0.01 + i * 0.025, 'sine', 2400 + Math.random() * 2600, null, 0.08 * g, 0.12, 0.2); },
+    thud(d = 10) { if (!ctx) return; const t = ctx.currentTime, g = 1 / (1 + d / 12); nz(t, 0.12, 'lowpass', 380, 1, 0.7 * g, 0.12, 0.15); nz(t + 0.06, 0.08, 'bandpass', 1200, 2, 0.2 * g, 0.08, 0.1); },
     pouch() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.15, 'bandpass', 1200, 0.6, 0.12, 0.15, 0, 600); },
     boltRelease(slide) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.03, 'bandpass', slide ? 3000 : 2200, 2, 0.8, 0.04, 0.2); tone(t, 'triangle', 820, 600, 0.18, 0.08, 0.1); nz(t + 0.012, 0.02, 'highpass', 5000, 1, 0.3, 0.02); },
     // a rifle fired by someone else: delayed by distance, duller and quieter the further it is
@@ -6299,7 +6302,7 @@ function station(x, z, ry, w = 70) {
 // The town is laid out by hand (58-town-*.js): every street is drawn, every frontage is written as a
 // sequence of houses ("7/3/r+boug" = 7 m wide, 3 storeys, rose medina house with bougainvillea), and
 // every square, shop, landmark and interior is placed explicitly. This file holds the pieces.
-const TOWN = { doors: [], plazas: [], spots: {}, guards: [], lanes: {} };
+const TOWN = { doors: [], plazas: [], spots: {}, guards: [], lanes: {}, restricted: [] };
 const FH0 = 3.7, FHU = 3.2;          // ground / upper storey heights of town houses
 
 // ---------------- house styles ----------------
@@ -6850,6 +6853,7 @@ function buildTownPlan() {
   plaza('Jardin du Mellah', JARDIN, 0xc8b898, TX.paving);
   plaza('Quai des Pêcheurs', QUAY, 0xa89c88, TX.paving);
   for (const r of [KASBAH, MOSQUE, TANNERY]) reserve(r, 0.5);
+  TOWN.restricted.push(KASBAH, PALACE);   // no civilian business inside the militia's walls
   plaza('Mosque forecourt', { x0: -44, z0: -29, x1: -30, z1: -14 }, 0xd0c0a0, TX.paving);
   plaza('Minaret steps', { x0: -34, z0: -36.5, x1: -27.5, z1: -30 }, 0xc8b898, TX.paving);
   plaza('Tannery steps', { x0: -106, z0: -112, x1: -102, z1: -96 }, 0xb8a888, TX.cobble);
@@ -11580,14 +11584,42 @@ const BOTS = (() => {
     }
     lastTracer = arena.time;
   }
+  // ---- suspicion: a triangle over each guard who's noticed you, filling yellow as he works out who you are;
+  // red once he has. Guards out of view get theirs pinned to the edge of the screen. ----
+  const marks = [], _mp = new V3();
+  function markEl() {
+    const d = document.createElement('div'); d.style.cssText = 'position:absolute;width:26px;height:23px;transform:translate(-50%,-100%);pointer-events:none;display:none;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))';
+    d.innerHTML = '<svg viewBox="0 0 26 23" width="26" height="23"><defs><clipPath id="tri"><path d="M13 1 L25 22 L1 22 Z"/></clipPath></defs><rect class="f" x="0" y="23" width="26" height="23" clip-path="url(#tri)" fill="#ffcc33"/><path d="M13 1 L25 22 L1 22 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+    document.getElementById('hud').appendChild(d); return { d, f: d.querySelector('.f'), path: d.querySelector('path') };
+  }
+  function suspicionMarks() {
+    let n = 0;
+    for (const v of views) {
+      const a = v.agent; if (!a.alive || !me) continue;
+      const s = a.sus.get(me.id) || 0, known = a.mem.get(me.id)?.visible || s >= 1, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;
+      if (s < 0.04 && !known) continue;
+      if (Math.hypot(wx - P.pos.x, wz - P.pos.z) > 90) continue;
+      const m = marks[n] || (marks[n] = markEl()); n++;
+      _mp.set(wx, v.y + 2.25, wz).project(camera);
+      let x = _mp.x, y = _mp.y; const behind = _mp.z > 1; if (behind) { x = -x; y = -y; }
+      const off = behind || Math.abs(x) > 0.94 || Math.abs(y) > 0.9;
+      if (off) { const k = 1 / Math.max(Math.abs(x) / 0.94, Math.abs(y) / 0.9, 1e-3); x *= k; y *= k; }
+      m.d.style.display = 'block'; m.d.style.left = `${(x * 0.5 + 0.5) * innerWidth}px`; m.d.style.top = `${(-y * 0.5 + 0.5) * innerHeight}px`;
+      m.d.style.transform = `translate(-50%,-100%) scale(${off ? 0.75 : 1})`;
+      const k = Math.min(1, s); m.f.setAttribute('y', String(23 - 23 * k)); m.f.setAttribute('fill', known ? '#e8432e' : '#ffcc33');
+      m.path.setAttribute('stroke', known ? '#ffb0a0' : '#ffffff'); m.d.style.opacity = known ? String(0.75 + 0.25 * Math.sin(clock * 12)) : '1';
+    }
+    for (let i = n; i < marks.length; i++) marks[i].d.style.display = 'none';
+  }
   function update(dt) {
     clock += dt;
-    if (!enabled || !MAP.ready) return;
+    if (!enabled || !MAP.ready) { for (const m of marks) m.d.style.display = 'none'; return; }
     if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
     if (P.disguise && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible)) DISGUISE.blow('seen');
     for (const v of views) animate(v, dt);
+    suspicionMarks();
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
@@ -11638,7 +11670,9 @@ const BOTS = (() => {
     if (!arena) return;
     for (const v of views) { if (!v.agent.alive) continue; const w = wpos(v); if (Math.hypot(w.x - x, w.z - z) < 1.0 && speed > 4) { v.agent.onHit(speed * 9, 'torso', me, { x: w.x - x, y: 0, z: w.z - z }, arena); if (!v.agent.alive) { P.stats.score += 25; feed('<span class="s">RUN DOWN +25</span>'); } } }
   }
-  return { update, hit, playerShot, bodies, ram, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
+  function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
+  return { update, hit, playerShot, bodies, ram, noise, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
 // =====================================================================
 //  Civilians: unarmed townsfolk walking the streets around the player
@@ -12438,12 +12472,17 @@ const DISGUISE = (() => {
     feed('<span class="m">BACK IN YOUR OWN GEAR</span>');
   }
   // how much your clothes buy you right now (0 = they see you for what you are)
+  // A disguise holds while you act the part. What gives you away: running, sneaking (crouched), a weapon
+  // raised, and — for a civilian — a weapon out at all, or wandering where civilians have no business.
   function level() {
     if (!P.disguise || t < P.blownUntil) return 0;
-    const running = P.sprintT > 0.5;
-    if (P.disguise === 'militia') return (P.holstered ? 0.97 : WD().scope ? 0.6 : 0.9) * (running ? 0.7 : 1);
-    return P.holstered ? (running ? 0.75 : 0.97) : 0;   // a civilian with a rifle out is no civilian
+    const running = P.sprintT > 0.5, sneaking = P.crouch, aiming = P.ads, restricted = inRestricted();
+    if (P.disguise === 'militia') return (P.holstered ? 0.97 : aiming ? (WD().scope ? 0.25 : 0.4) : 0.92) * (running ? 0.62 : 1) * (sneaking ? 0.55 : 1);
+    if (!P.holstered) return 0;   // a civilian with a rifle out is no civilian
+    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.3 : 1);
   }
+  // places a civilian has no reason to be (each map lists its own)
+  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1) return true; return false; }
   function blow(why) {
     if (!P.disguise) return;
     if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
@@ -12467,6 +12506,7 @@ const DISGUISE = (() => {
     if (SCOOTER.interact()) return;
     const b = nearestBody();
     if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); return; }
+    if (THROW.pickup()) return;
     if (DOORS.interact()) return;
     NPCS.talk();
   }
@@ -12481,16 +12521,115 @@ const DISGUISE = (() => {
     t += dt;
     if (mode !== 'range') return;
     const blown = P.disguise && t < P.blownUntil;
-    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
+    const lv = level(), cover = !P.disguise ? '' : lv > 0.9 ? 'SOLID' : lv > 0.6 ? 'SHAKY' : lv > 0 ? 'THIN' : 'NONE';
+    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b> · COVER <b style="color:${lv > 0.9 ? '#9fd08a' : lv > 0.6 ? '#ffcc33' : '#e8432e'}">${cover}</b>` : 'OWN GEAR')
       + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
     else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
-    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || THROW.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    if (!pr && THROW.held) pr = `[G]  THROW THE ${THROW.held}`;
     setPrompt(prompt, pr);
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
+})();
+// =====================================================================
+//  Things to throw: bottles, cans, bricks, stones lying about every map
+// =====================================================================
+// E picks one up (one at a time), G throws it where you're looking. Where it lands it makes a noise —
+// glass smashing carries further than a brick's thud — and guards who hear it go to look, away from you.
+const THROW = (() => {
+  const KINDS = {
+    bottle: { geo: () => { const g = new THREE.CylinderGeometry(0.035, 0.04, 0.22, 8); g.translate(0, 0.11, 0); return g; }, col: 0x2a8a4a, glass: true, range: 26, name: 'BOTTLE', ko: '병' },
+    can: { geo: () => { const g = new THREE.CylinderGeometry(0.033, 0.033, 0.12, 8); g.translate(0, 0.06, 0); return g; }, col: 0xc0302a, range: 14, name: 'CAN', ko: '캔' },
+    brick: { geo: () => { const g = new THREE.BoxGeometry(0.21, 0.065, 0.1); g.translate(0, 0.033, 0); return g; }, col: 0x9a4a34, range: 18, name: 'BRICK', ko: '벽돌' },
+    stone: { geo: () => { const g = new THREE.DodecahedronGeometry(0.07, 0); g.translate(0, 0.06, 0); return g; }, col: 0x8a8478, range: 16, name: 'STONE', ko: '돌' },
+    pipe: { geo: () => { const g = new THREE.CylinderGeometry(0.018, 0.018, 0.45, 6); g.rotateZ(Math.PI / 2); g.translate(0, 0.02, 0); return g; }, col: 0x6a6e72, metal: true, range: 22, name: 'PIPE', ko: '파이프' },
+  };
+  const SETS = { seoul: ['bottle', 'bottle', 'can', 'brick', 'pipe'], dar: ['stone', 'stone', 'bottle', 'brick', 'can'], manor: ['stone', 'bottle', 'pipe', 'brick'] };
+  const items = [], flying = [];
+  let held = null, built = false, meshes = {};
+  const mat = (k) => new THREE.MeshStandardMaterial({ color: KINDS[k].col, roughness: KINDS[k].glass ? 0.15 : 0.7, metalness: KINDS[k].metal ? 0.6 : 0, transparent: !!KINDS[k].glass, opacity: KINDS[k].glass ? 0.85 : 1 });
+  function build() {
+    built = true;
+    const set = SETS[MAP.id] || SETS.dar, R = mrand;
+    // along every street, at the foot of the walls: one every ~22 m
+    for (const st of STREETS) {
+      if (st.len < 10) continue;
+      for (let s = 4 + R() * 6; s < st.len - 4; s += 9 + R() * 9) {
+        const p = pathAt(st.pts, s), side = R() < 0.5 ? 1 : -1, r = st.w / 2 - 0.35;
+        const x = p.x - p.tz * r * side, z = p.z + p.tx * r * side;
+        if (terrainH(x, z) > 0.5) continue;
+        items.push({ kind: set[(R() * set.length) | 0], x, z, y: COL.ground(x, z, 0.5), ry: R() * 6.28, live: true });
+      }
+    }
+    for (const k in KINDS) { const im = new THREE.InstancedMesh(KINDS[k].geo(), mat(k), items.length + 4); im.castShadow = true; im.frustumCulled = false; scene.add(im); meshes[k] = im; }
+    sync();
+  }
+  const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new V3(1, 1, 1), _p = new V3();
+  function sync() {
+    const n = {}; for (const k in meshes) n[k] = 0;
+    for (const it of items) { if (!it.live) continue; const im = meshes[it.kind]; _q.setFromAxisAngle(UP, it.ry); if (it.lie) _q.multiply(new THREE.Quaternion().setFromAxisAngle(new V3(1, 0, 0), Math.PI / 2)); _m.compose(_p.set(it.x, it.y, it.z), _q, _s); im.setMatrixAt(n[it.kind]++, _m); }
+    for (const k in meshes) { meshes[k].count = n[k]; meshes[k].instanceMatrix.needsUpdate = true; }
+  }
+  function nearest() { let b = null, bd = 1.6; for (const it of items) { if (!it.live) continue; const d = Math.hypot(it.x - P.pos.x, it.z - P.pos.z); if (d < bd && Math.abs(it.y - P.pos.y) < 1.4) { bd = d; b = it; } } return b; }
+  // the one in your hand, at the bottom of the screen
+  const hand = new THREE.Group(); let handMesh = null;
+  function showHand() { if (handMesh) hand.remove(handMesh); handMesh = held ? new THREE.Mesh(KINDS[held.kind].geo(), mat(held.kind)) : null; if (handMesh) { handMesh.rotation.set(0.5, 0, 0.3); hand.add(handMesh); } if (!hand.parent) { hand.position.set(0.22, -0.2, -0.45); camera.add(hand); if (!camera.parent) scene.add(camera); } hand.visible = !!held; }
+  function pickup() {
+    if (held || P.vehicle) return false;
+    const it = nearest(); if (!it) return false;
+    it.live = false; held = it; sync(); showHand(); audio.pouch();
+    feed(`<span class="m">${KINDS[it.kind].name} — G TO THROW</span>`);
+    return true;
+  }
+  function toss() {
+    if (!held || P.dead || P.vehicle) return false;
+    const dir = new V3(); camera.getWorldDirection(dir);
+    const from = camera.position.clone().addScaledVector(dir, 0.6); from.y = Math.max(from.y, P.pos.y + 1.2);
+    const v = dir.multiplyScalar(15).add(new V3(P.vel.x, 3.2, P.vel.z));
+    const m = new THREE.Mesh(KINDS[held.kind].geo(), mat(held.kind)); m.position.copy(from); scene.add(m);
+    flying.push({ it: held, m, p: from, v, spin: new V3(8 + Math.random() * 6, Math.random() * 4, 0), t: 0, loud: true });
+    held = null; showHand(); audio.holster();
+    return true;
+  }
+  function land(f, point, normal) {
+    const it = f.it, K = KINDS[it.kind], d = point.distanceTo(P.pos);
+    if (f.loud) { BOTS.noise(point.x, point.z, K.range); f.loud = false; }
+    if (K.glass) { audio.smash(d); emitSparks(point, 10, normal, [0.6, 1, 0.7], 3); scene.remove(f.m); return 'gone'; }
+    audio.thud(d); emitPuff(point, 0x8a8478, 0.06, 0.4, normal.clone().multiplyScalar(0.4), 0.3, 1.5);
+    return 'bounce';
+  }
+  const _d = new V3(), _n = new V3(0, 1, 0);
+  function update(dt) {
+    if (!MAP.ready || mode !== 'range') return;
+    if (!built) build();
+    for (let i = flying.length - 1; i >= 0; i--) {
+      const f = flying[i]; f.t += dt;
+      f.v.y -= 9.8 * dt;
+      const stepL = f.v.length() * dt; _d.copy(f.v).normalize();
+      const hit = COL.ray(f.p, _d, stepL + 0.05);
+      let done = false;
+      if (hit) {
+        const r = land(f, hit.point, hit.normal || _n);
+        if (r === 'gone') done = true; else { f.p.copy(hit.point).addScaledVector(hit.normal || _n, 0.05); const n = hit.normal || _n; f.v.addScaledVector(n, -1.6 * f.v.dot(n)).multiplyScalar(0.35); }
+      } else f.p.addScaledVector(f.v, dt);
+      const g = COL.ground(f.p.x, f.p.z, f.p.y + 0.3);
+      if (!done && f.p.y <= g + 0.02) {
+        if (f.loud || f.v.length() > 3) { const r = land(f, new V3(f.p.x, g, f.p.z), _n); if (r === 'gone') done = true; else { f.p.y = g + 0.02; f.v.y = Math.abs(f.v.y) * 0.3; f.v.x *= 0.5; f.v.z *= 0.5; } }
+        else { f.it.x = f.p.x; f.it.z = f.p.z; f.it.y = g; f.it.lie = f.it.kind === 'bottle' || f.it.kind === 'can'; f.it.live = true; scene.remove(f.m); sync(); done = true; }
+      }
+      if (!done) { f.m.position.copy(f.p); f.m.rotation.x += f.spin.x * dt; f.m.rotation.y += f.spin.y * dt; }
+      if (done || f.t > 8) { if (!done) scene.remove(f.m); flying.splice(i, 1); }
+    }
+  }
+  return {
+    update, pickup, toss,
+    prompt: () => { if (held || P.vehicle) return ''; const it = nearest(); return it ? `[E]  PICK UP ${MAP.id === 'seoul' ? KINDS[it.kind].ko + ' · ' : ''}${KINDS[it.kind].name}` : ''; },
+    get held() { return held ? KINDS[held.kind].name : null; },
+    get items() { return items; },
+  };
 })();
 // =====================================================================
 //  The handheld map: a little wooden relief model of Dar Essalam (M)
@@ -13063,7 +13202,7 @@ const HUD = (() => {
   const host = document.getElementById('hud');
   const mk = (id, html = '') => { const d = document.createElement('div'); d.id = id; d.innerHTML = html; host.appendChild(d); return d; };
   // controls: a tidy panel on TAB (and for the first few seconds of a session)
-  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
+  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['G', 'throw (pick up with E)'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
   const ctl = mk('ctl', `<h3>CONTROLS</h3>${C.map(([k, v]) => `<div><kbd>${k}</kbd>${v}</div>`).join('')}`);
   const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
   // vitals: health, its counter, the gear tag, stacked
@@ -13139,6 +13278,7 @@ addEventListener('keydown', (e) => {
     case 'KeyJ': MISSION.restart(); break;
     case 'KeyM': HANDMAP.toggle(); break;
     case 'KeyL': TORCH.toggle(); break;
+    case 'KeyG': THROW.toss(); break;
     case 'Tab': e.preventDefault(); HUD.toggleKeys(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
@@ -13353,7 +13493,7 @@ function frame(now) {
   if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); HUD.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); HUD.update(dt); THROW.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -13396,7 +13536,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.THROW = THROW; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

@@ -23,12 +23,17 @@ const DISGUISE = (() => {
     feed('<span class="m">BACK IN YOUR OWN GEAR</span>');
   }
   // how much your clothes buy you right now (0 = they see you for what you are)
+  // A disguise holds while you act the part. What gives you away: running, sneaking (crouched), a weapon
+  // raised, and — for a civilian — a weapon out at all, or wandering where civilians have no business.
   function level() {
     if (!P.disguise || t < P.blownUntil) return 0;
-    const running = P.sprintT > 0.5;
-    if (P.disguise === 'militia') return (P.holstered ? 0.97 : WD().scope ? 0.6 : 0.9) * (running ? 0.7 : 1);
-    return P.holstered ? (running ? 0.75 : 0.97) : 0;   // a civilian with a rifle out is no civilian
+    const running = P.sprintT > 0.5, sneaking = P.crouch, aiming = P.ads, restricted = inRestricted();
+    if (P.disguise === 'militia') return (P.holstered ? 0.97 : aiming ? (WD().scope ? 0.25 : 0.4) : 0.92) * (running ? 0.62 : 1) * (sneaking ? 0.55 : 1);
+    if (!P.holstered) return 0;   // a civilian with a rifle out is no civilian
+    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.3 : 1);
   }
+  // places a civilian has no reason to be (each map lists its own)
+  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1) return true; return false; }
   function blow(why) {
     if (!P.disguise) return;
     if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
@@ -52,6 +57,7 @@ const DISGUISE = (() => {
     if (SCOOTER.interact()) return;
     const b = nearestBody();
     if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); return; }
+    if (THROW.pickup()) return;
     if (DOORS.interact()) return;
     NPCS.talk();
   }
@@ -66,13 +72,15 @@ const DISGUISE = (() => {
     t += dt;
     if (mode !== 'range') return;
     const blown = P.disguise && t < P.blownUntil;
-    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
+    const lv = level(), cover = !P.disguise ? '' : lv > 0.9 ? 'SOLID' : lv > 0.6 ? 'SHAKY' : lv > 0 ? 'THIN' : 'NONE';
+    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b> · COVER <b style="color:${lv > 0.9 ? '#9fd08a' : lv > 0.6 ? '#ffcc33' : '#e8432e'}">${cover}</b>` : 'OWN GEAR')
       + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
     else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
-    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || THROW.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    if (!pr && THROW.held) pr = `[G]  THROW THE ${THROW.held}`;
     setPrompt(prompt, pr);
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
