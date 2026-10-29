@@ -56,17 +56,7 @@ function boulevard(st) {
   if (st.road >= 15) W.scope({ lod: 1 }, () => {
     for (let s = 2; s < st.len - 2; s += 2) { const p = pathAt(st.pts, s); if (!clear(p, 0) || crossed(p.x + p.tx * 12, p.z + p.tz * 12) || crossed(p.x - p.tx * 12, p.z - p.tz * 12)) continue; const ry = Math.atan2(-p.tz, p.tx); W.push(p.x, 0, p.z, ry); W.box(0.06, 0.9, 0.06, 0, 0.45, 0, 0xe8e8e0, { layer: 'metal' }); W.box(2, 0.06, 0.04, 1, 0.85, 0, 0xe8e8e0, { layer: 'metal' }); W.box(2, 0.12, 0.03, 1, 0.6, 0, 0xe8c020, { layer: 'metal' }); W.pop(); }
   });
-  // traffic: taxis (lit roof signs), buses, cars, each streamed in with its stretch of road
-  const lanes = st.road >= 15 ? [-5.4, -1.8, 1.8, 5.4] : [-3, 3];
-  for (let s = 10; s < st.len - 10; s += mr(16, 30)) {
-    const p = pathAt(st.pts, s), off = mpick(lanes); if (crossed(p.x, p.z) || crossed(p.x - p.tz * off, p.z + p.tx * off)) continue;
-    const x = p.x - p.tz * off, z = p.z + p.tx * off, ry = Math.atan2(-p.tz, p.tx) + (off > 0 ? Math.PI : 0), bus2 = mchance(0.2), c = mpick([0xe87a2a, 0xc8c4bc, 0x2a2c30, 0xe8e6e0, 0xe87a2a, 0x8a8e94]), taxi = c === 0xe87a2a || mchance(0.12);
-    W.defer(() => {
-      if (bus2) { bus(x, z, ry, mpick([0x3a9a5a, 0x2a6ab0])); return; }
-      sedan(x, z, ry, c);
-      if (taxi) { W.push(x, 0, z, ry); W.box(0.5, 0.16, 0.26, -0.1, 1.46, 0, 0xffd040, { layer: 'glow' }); W.box(0.52, 0.04, 0.28, -0.1, 1.38, 0, 0x2a2a2a); W.pop(); }
-    }, 'mid', [x, z]);
-  }
+  // (the traffic on it drives: see TRAFFIC)
 }
 
 // ---------------- the lanes of the new quarters ----------------
