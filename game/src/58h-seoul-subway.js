@@ -84,6 +84,9 @@ function metroStation(s, i) {
   later(() => W.scope({ lod: 2 }, () => { for (let k = 0; k < 4; k++) for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) W.box(0.02, 0.48, 0.58, -49.28, 0.3 + r * 0.52, 3.85 + k * 2 + c * 0.62, 0xb8bcc0, { layer: 'metal' }); }), 'near');
   for (let k = 0; k < 3; k++) vendingMachine(-49.5, 0, -5 - k * 1.1, Math.PI / 2, mpick([0xc0302a, 0x2a5aa0, 0xe8e0d0]));
   routeMap(-25, 3.0, -13.95, 0, i);
+  // the people: clerks in the three shops, a few waiting for trains
+  staffAt(-34, -10.15, Math.PI, 'shop'); staffAt(-42, 10.1, 0, 'shop'); staffAt(-29, 12.45, 0, 'shop');
+  for (const [x, z, y] of [[4, 2.2, 0.4], [17, -2.5, 2.8], [27, 1.9, -0.3], [-30, -3, 1.2]]) staffAt(x, z, y, 'guest');
   for (const x of [-40, -24]) for (const z of [-4.5, 4.5]) { wall(1.1, 5.2, 1.1, x, 2.6, z, 0x2a6a4a); W.scope({ lod: 1 }, () => { bench(x + 1.8, 0, z, z > 0 ? Math.PI : 0); }); }
   // ---- ticket gates ----
   for (let k = 0; k < 13; k++) {
@@ -231,15 +234,15 @@ const SUBWAY = (() => {
         TUNNEL.speed = 60 * k; tunnelTick(dt); P.shake = Math.max(P.shake, 0.06 + 0.12 * k); audio.rumble?.(k);
         if (t > 3 && !pending) { pending = 1; say(`이번 역은 ${LINE2[dest.st].ko}역입니다 · This stop is ${LINE2[dest.st].en}`); }
         if (t >= 7) { state = 'arrive'; blackout(() => { const ride = SUBCARS.find((c) => c.ride); moveRel(ride, dest); dest.open = 0; dest.want = 0; setTimeout(() => { dest.want = 1; audio.chime?.(); }, 500); state = 'idle'; car = null; }); }
-        tip.style.display = 'none'; return;
+        setPrompt(tip, ''); return;
       }
       if (state === 'closing') {
         t += dt;
         if (!inCar(car)) { state = 'idle'; car.want = 1; say('승차 취소 · You stepped off'); return; }
         if (t >= 1.5) { state = 'riding'; t = 0; pending = null; const ride = SUBCARS.find((c) => c.ride); ride.open = 0; placeDoors(ride); moveRel(car, ride); car.want = 1; }
-        tip.style.display = 'none'; return;
+        setPrompt(tip, ''); return;
       }
-      if (busy > 0 || P.dead || P.vehicle) { tip.style.display = 'none'; return; }
+      if (busy > 0 || P.dead || P.vehicle) { setPrompt(tip, ''); return; }
       // entrances: walk into a stairwell on the street and you're downstairs
       if (!under) for (let i = 0; i < LINE2.length; i++) {
         const s = LINE2[i], lx = P.pos.x - s.x, lz = P.pos.z - s.z;
@@ -249,9 +252,9 @@ const SUBWAY = (() => {
         // the exit landing back up to the street
         for (const s of LINE2) if (Math.abs(P.pos.z - s.oz) < 3 && P.pos.x < s.ox - 57.5 && P.pos.x > s.ox - 63 && P.pos.y > 3.5) { blackout(() => { put(s.x, 0.05, s.z + 5.6, Math.PI); under = false; }); return; }
         const c = SUBCARS.find((c2) => !c2.ride && inCar(c2));
-        if (c) { const to = LINE2[(c.st + c.dir + 5) % 5]; tip.innerHTML = `[E]  ${c.dir > 0 ? '내선순환 INNER LOOP' : '외선순환 OUTER LOOP'}<br>다음역 ${to.ko} · next stop ${to.en}`; tip.style.display = 'block'; return; }
+        if (c) { const to = LINE2[(c.st + c.dir + 5) % 5]; setPrompt(tip, `[E]  ${c.dir > 0 ? '내선순환 INNER LOOP' : '외선순환 OUTER LOOP'}<br>다음역 ${to.ko} · next stop ${to.en}`); return; }
       }
-      tip.style.display = 'none';
+      setPrompt(tip, '');
     },
     interact() {
       if (!under || state !== 'idle' || busy > 0) return false;

@@ -8,7 +8,7 @@ const DISGUISE = (() => {
   P.holstered = false; P.disguise = null; P.blownUntil = -99;
   let own = null, t = 0;
   const host = document.getElementById('hud');
-  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; host.appendChild(tag);
+  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; tag.id = 'gearTag'; host.appendChild(tag);
   const prompt = document.createElement('div'); prompt.style.cssText = 'position:absolute;left:50%;top:60%;transform:translateX(-50%);font-size:15px;letter-spacing:.22em;color:#e8dcc4;text-shadow:0 0 8px #000;display:none'; host.appendChild(prompt);
 
   function wear(kit, type) {
@@ -51,7 +51,9 @@ const DISGUISE = (() => {
     if (MISSION.interact()) return;
     if (SCOOTER.interact()) return;
     const b = nearestBody();
-    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
+    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); return; }
+    if (DOORS.interact()) return;
+    NPCS.talk();
   }
   // silent takedown from behind (militia) / knockout (civilian)
   function takedown() {
@@ -70,9 +72,8 @@ const DISGUISE = (() => {
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
     else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
-    else if (NPCS.canKnockout(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  KNOCK OUT';
-    else pr = SCOOTER.prompt();
-    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    setPrompt(prompt, pr);
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();

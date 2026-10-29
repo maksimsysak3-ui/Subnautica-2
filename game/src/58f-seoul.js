@@ -208,6 +208,10 @@ function shopGround(u, w, G0, gd, col, kind, clad) {
   for (let i = 1; i < nm; i++) W.box(0.07, G0 - 1.05, 0.1, fx - fw / 2 + i * fw / nm, (G0 - 1.05) / 2, -0.28, 0x2a2c2e, { layer: 'metal' });
   W.box(fw, 0.07, 0.1, fx, G0 - 1.08, -0.28, 0x2a2c2e, { layer: 'metal' });
   const dx = fx + mpick([-1, 1]) * (fw / 2 - 0.7);
+  streetDoor(dx, -0.25, kind, txt);
+  // whoever works here, at their post
+  const post = { r: [fx + fw / 2 - 0.7, -2.9, 'food'], b: [fx + fw / 2 - 0.7, -2.9, 'bar'], c: [fx - fw / 4, -3.25, 'cafe'], o: [fx - fw / 4, -3.25, 'cafe'], n: [fx, -3.25, 'room'], k: [fx - fw / 2 + 0.9, -1.55, 'shop'], p: [fx - fw / 2 + 0.9, -1.55, 'shop'] }[kind];
+  if (post && fw > 3.5) staffAt(post[0], post[1], Math.PI, post[2]);
   W.box(0.05, 2.2, 0.05, dx - 0.45, 1.1, -0.25, 0xb8bcc0, { layer: 'metal' }); W.box(0.05, 2.2, 0.05, dx + 0.45, 1.1, -0.25, 0xb8bcc0, { layer: 'metal' }); W.box(0.04, 0.35, 0.04, dx + 0.36, 1.05, -0.2, 0xd8d8d8, { layer: 'metal' });
   if (mchance(0.6)) NEON.sign(mpick(GLASSNOTE), dx, 1.55, -0.27, 0.7, 0.18, { style: 'vinyl', col: 'white' });
   // the room: floor, a glowing back wall (lit from inside), ceiling panels, the trade's furniture
@@ -316,6 +320,7 @@ function villaGround(u, w, G0, gd, col, piloti, H) {
     W.box(2.2, 0.03, 0.6, -w / 4, G0 - 0.02, -gd / 2, 0xf0f4ff, { layer: 'glow' });
     W.lamp(0, G0 - 0.4, -gd / 2, 0xe8f0ff, 1.6, 7, { halo: 0 });
     // the lobby at the back: glass door, mailboxes, the bike nobody rides
+    streetDoor(w / 4, -gd + 0.1, 'v', '');
     W.box(1.3, 2.3, 0.05, w / 4, 1.15, -gd + 0.04, 0xa8c0c8, { layer: 'glow' }); W.box(1.4, 2.4, 0.1, w / 4, 1.2, -gd + 0.06, 0x8a8e94, { layer: 'metal' });
     W.scope({ lod: 2 }, () => {
       for (let i = 0; i < 6; i++) W.box(0.3, 0.25, 0.25, w / 4 + 1.1 + (i % 3) * 0.32, 1.2 + Math.floor(i / 3) * 0.27, -gd + 0.15, 0xb8bcc0, { layer: 'metal' });
@@ -326,6 +331,7 @@ function villaGround(u, w, G0, gd, col, piloti, H) {
   }
   W.box(w, G0, 0.6, 0, G0 / 2, -0.3, shade(col, 0.9), { t: TX.brick, wear: 4 }); W.solid(w, G0, 0.6, 0, G0 / 2, -0.3, 'concrete');
   const dx = mr(-w / 2 + 1.2, w / 2 - 1.2);
+  streetDoor(dx, 0, 'v', '');
   W.box(1.1, 2.2, 0.05, dx, 1.1, 0.02, mpick([0x6a6e72, 0x5a4a3a, 0x8a8e94, 0x3a5a4a]), { layer: 'metal', t: TX.metal, wear: 4 });
   W.box(1.5, 0.1, 0.9, dx, 2.5, 0.45, 0x8a8e94, { layer: 'metal' });
   NEON.sign(name, dx, 2.78, 0.03, 1.6, 0.36, { style: 'plate', col: plate });
@@ -393,6 +399,7 @@ function seoulPlan() {
     ['Gangnam, the market, the river', seoulOuterFronts],
     ['Rooftops', () => { fillBlocks(-250, -330, 250, DIST.RIVER, null, [0x9a968c, 0x8a8478, 0x8a4a38, 0xa8a49c]); }],
     ['Pojangmacha, poles and cables', () => { seoulDressing(); seoulOuterDressing(); }],
+    ['Behind the doors', seoulInteriors],
     ['Lighting the signs', () => { NEON.finish(); seoulSkyline(); }],
   ];
 }
@@ -465,7 +472,7 @@ function seoulKonbini() {
     W.box(x1 - x0 - 3, 0.4, 0.1, (x0 + x1 - 1.5) / 2, 2.5, z0 + 0.4, 0x1a6a3a, { layer: 'metal' });
     NEON.sign('시원한 음료', (x0 + x1 - 1.5) / 2, 2.5, z0 + 0.46, 3.2, 0.36, { style: 'box', col: 'green', glow: false, pool: false, lamp: false });
     // counter: till, hot-bun steamer, the cigarette wall behind
-    counter(14.4, 0.12, -15.2, Math.PI / 2, 2.6, 0xe8e8e4, 0x8a8a88); cashRegister(14.2, 1.15, -14.8, -Math.PI / 2);
+    counter(14.4, 0.12, -15.2, Math.PI / 2, 2.6, 0xe8e8e4, 0x8a8a88); staffAt(15.25, -15.2, Math.PI / 2, 'shop'); cashRegister(14.2, 1.15, -14.8, -Math.PI / 2);
     W.box(0.5, 0.45, 0.5, 14.3, 1.37, -16.1, 0xc8ccd0, { layer: 'glass' }); W.box(0.46, 0.4, 0.46, 14.3, 1.37, -16.1, 0xffe8b0, { layer: 'glow' }); for (let k = 0; k < 4; k++) W.sphere(0.1, 0.08, 0.1, 14.2 + (k % 2) * 0.2, 1.24 + Math.floor(k / 2) * 0.18, -16.1, 0xf8f0e0);
     konbiniCounterWall(15.65, -16.6, -13.9);
     // window bar with the night's leftovers: cup noodles, a can, a triangle kimbap
@@ -519,6 +526,7 @@ function pojangmacha(x, z, ry) {
   for (let i = 0; i < 3; i++) W.cyl(0.18, 0.16, 0.22, 0.2 + i * 0.5, 0.92, -1.1, 0x8a8e94, { seg: 10, layer: 'metal' });
   W.cyl(0.16, 0.16, 0.02, 0.2, 1.03, -1.1, 0xc02a1a, { seg: 10 }); W.cyl(0.16, 0.16, 0.02, 0.7, 1.03, -1.1, 0xc8a060, { seg: 10 });   // tteokbokki, eomuk broth
   W.scope({ lod: 2 }, () => { for (let k = 0; k < 8; k++) W.rod([0.62 + k * 0.03, 1.0, -1.1], [0.62 + k * 0.035, 1.35, -1.0], 0.006, 0xd8c8a0); for (let k = 0; k < 4; k++) W.cyl(0.035, 0.035, 0.22, -0.8 + k * 0.12, 0.83, 0.5 + (k % 2) * 0.1, 0x2a8a4a, { seg: 6, layer: 'glass' }); W.cyl(0.12, 0.1, 0.05, -0.4, 0.75, 0.6, 0xe8e8e0, { seg: 10 }); });
+  staffAt(0.8, -1.62, Math.PI, 'food');   // the cook
   plasticTable(-0.6, 0, 0.5, 0, 0x2a5aa0); for (const [a, b] of [[-1.3, 0.5], [0.1, 0.5], [-0.6, 1.2], [-0.6, -0.2]]) stool(a, 0, b, 0xc0302a);
   for (let i = 0; i < 6; i++) W.sphere(0.07, 0.07, 0.07, -1.9 + i * 0.75, 2.35, 0, 0xfff0c0, { layer: 'glow' });
   W.lamp(0, 2.2, 0, 0xffb060, 2.6, 7, { halo: 0.5 });
@@ -738,8 +746,10 @@ const RAIN = (() => {
   return {
     update(dt, cam) {
       if (!MAP.night || !MAP.ready) return;
-      if (mesh) mesh.visible = !SUBWAY.under;
-      if (SUBWAY.under) return;
+      const inn = indoors();
+      HEMI.intensity += ((inn ? 0.95 : 0.35) - HEMI.intensity) * Math.min(1, dt * 4);   // under a roof the room's own light fills in
+      if (mesh) mesh.visible = !inn;
+      if (inn) return;
       if (!mesh) build();
       const p = mesh.geometry.attributes.position.array, cx = cam.position.x, cy = cam.position.y, cz = cam.position.z;
       for (let i = 0; i < N; i++) {

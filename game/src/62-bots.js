@@ -172,6 +172,7 @@ const BOTS = (() => {
     const blood = document.createElement('div'); blood.style.cssText = 'position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(140,0,0,.85) 100%);opacity:0;transition:opacity .25s;z-index:5';
     const dead = document.createElement('div'); dead.style.cssText = 'position:fixed;inset:0;display:none;place-items:center;pointer-events:none;color:#e8d8c8;font:600 22px Rajdhani,sans-serif;letter-spacing:.3em;background:rgba(40,0,0,.45);z-index:6'; dead.textContent = 'YOU WERE KILLED — REGROUPING…';
     const cnt = document.createElement('div'); cnt.style.cssText = 'position:absolute;left:24px;bottom:104px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.55)';
+    hp.id = 'hpbar'; cnt.id = 'hpcnt';
     const host = document.getElementById('hud'); host.appendChild(hp); host.appendChild(cnt); document.body.appendChild(blood); document.body.appendChild(dead);
     return { fill, blood, dead, cnt };
   })();

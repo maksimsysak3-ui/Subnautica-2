@@ -78,11 +78,37 @@ function rebuildGuns() {
   gun = null;
   equip(P.w);
 }
+// weapon light (night maps): L clicks a torch under the barrel on and off — a real spotlight, the lens
+// glowing, and its beam hanging in the rain
+const TORCH = (() => {
+  const light = new THREE.SpotLight(0xfff2dc, 0, 46, 0.34, 0.6, 1.4), tgt = new THREE.Object3D();
+  light.target = tgt; tgt.position.set(0, 0, 10); light.castShadow = false;
+  const body = new THREE.Group(), dark = new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.5, metalness: 0.6 });
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.11, 10), dark); tube.rotation.x = Math.PI / 2; body.add(tube);
+  const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.018, 0.025, 12), dark); bezel.rotation.x = Math.PI / 2; bezel.position.z = 0.065; body.add(bezel);
+  const lensMat = new THREE.MeshBasicMaterial({ color: 0x404040, toneMapped: false }), lens = new THREE.Mesh(new THREE.CircleGeometry(0.017, 12), lensMat); lens.position.z = 0.0785; body.add(lens);
+  const fadeTex = canvasTex(4, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.75, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const beamGeo = new THREE.ConeGeometry(2.4, 14, 20, 1, true); beamGeo.rotateX(-Math.PI / 2); beamGeo.translate(0, 0, 7.08);
+  const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xfff0d8, alphaMap: fadeTex, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.renderOrder = 5; body.add(beam, light, tgt);
+  let on = false, k = 0;
+  return {
+    mount(g) { body.position.set(0.034, -0.012, Math.max(0.12, g.muzzle.z - 0.16)); g.group.add(body); },
+    toggle() { if (!MAP.night) return; on = !on; audio.dry(); feed(`<span class="m">WEAPON LIGHT ${on ? 'ON' : 'OFF'}</span>`); },
+    update(dt) {
+      const want = on && mode === 'range' && !P.holstered && !P.dead && !P.vehicle ? 1 : 0;
+      k = want ? 1 : Math.max(0, k - dt * 12);   // clicks on, dies off in a blink
+      light.intensity = k * 70; light.visible = k > 0; beam.visible = k > 0.02; beam.material.opacity = 0.05 * k * (P.fpT > 0.5 && P.adsT > 0.5 ? 0.35 : 1);
+      lensMat.color.setScalar(0.25 + k * 3);
+    },
+    get on() { return on; },
+  };
+})();
 function equip(id) {
   if (gun) { ch.root.remove(gun.group); gun.handItem.visible = false; if (gun.mag) gun.mag.visible = true; }
   P.w = id; gun = guns[id];
   ch.root.add(gun.group);
-  flash.position.copy(gun.muzzle); gun.group.add(flash);
+  flash.position.copy(gun.muzzle); gun.group.add(flash); TORCH.mount(gun);
   if (gun.mag) gun.mag.visible = true;
   P.reload = null; P.burst = 0;
   if (holsterModel) holsterModel.visible = id !== 'pistol';
@@ -649,6 +675,7 @@ function flinch(side, k = 1) { P.feel.vhit -= 6 * k; P.feel.hitSide = side; }
 const aimKey = { down: false, t: 0, toggled: false };
 
 function updateRange(dt, time) {
+  TORCH.update(dt);
   // movement + stamina
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);

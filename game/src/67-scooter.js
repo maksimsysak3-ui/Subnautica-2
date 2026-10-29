@@ -116,7 +116,9 @@ const SCOOTER = (() => {
     if (sp > 3) { NPCS.bump(s.x, s.z, sp); BOTS.ram(s.x, s.z, sp); }
     P.pos.set(s.x, s.y, s.z); P.vel.set(s.vx, 0, s.vz); placeModel(s);
     // the camera settles behind the bars unless you're looking around
-    if (performance.now() - lastLookT > 700) P.yaw += wrapPI(s.yaw - P.yaw) * Math.min(1, dt * 2.5);
+    // follow a filtered heading (the low-speed wobble and lean twitches don't reach the camera), only while moving
+    s.camYaw = s.camYaw === undefined ? s.yaw : s.camYaw + wrapPI(s.yaw - s.camYaw) * Math.min(1, dt * 3);
+    if (performance.now() - lastLookT > 1200 && Math.abs(v) > 1.2) P.yaw += wrapPI(s.camYaw - P.yaw) * Math.min(1, dt * 3.5);
     audio.engine(true, clamp(Math.abs(v) / VMAX, 0, 1) * 0.8 + thr * 0.2, thr);
     audio.skid(clamp((s.slip - 0.8) / 4, 0, 1) * (sp > 2 ? 1 : 0));
     if (thr && sp > 1) P.shake = Math.min(0.3, P.shake + dt * 0.4);
@@ -181,6 +183,6 @@ const SCOOTER = (() => {
     update, drive, interact, horn, poseRider, placeModel,
     get riding() { return riding; },
     prompt: () => (riding ? (Math.hypot(riding.vx, riding.vz) < 3 ? '' : '') : nearest() ? '[E]  RIDE THE SCOOTER' : ''),
-    camRoll: () => (riding ? -riding.lean * 0.55 : 0),
+    camRoll: () => (riding ? -riding.lean * 0.18 : 0),   // a hint of the lean in first person; the horizon mostly stays put
   };
 })();

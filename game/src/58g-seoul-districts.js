@@ -298,7 +298,7 @@ function seoulRiver() {
   W.defer(() => W.scope({ lod: 1 }, () => { for (let i = 0; i < 6; i++) { const tx = sx - 8 + (i % 3) * 8, tz = sz - 8 - Math.floor(i / 3) * 5; plasticTable(tx, 0, tz, 0, 0xe8e8e0); for (const s of [-1, 1]) plasticChair(tx + s * 0.7, 0, tz, s * 1.57, 0xe8e8e0); W.cone(1.3, 0.45, tx, 2.3, tz, mpick([0x2a8a4a, 0xd8302a, 0x2a5aa0]), { seg: 8, layer: 'cloth' }); W.rod([tx, 0, tz], [tx, 2.3, tz], 0.025, 0xc8c8c8, { layer: 'metal' }); W.cyl(0.08, 0.06, 0.1, tx + 0.15, 0.78, tz, 0xd8302a, { seg: 8 }); } }), 'mid', [sx, sz]);
   // food truck with its hatch open
   W.box(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 0xe8c020, { layer: 'metal' }); W.box(3, 1.0, 0.04, -150, 2.0, P.z0 + 36.88, 0xffd8a0, { layer: 'glow' }); W.box(3.2, 0.06, 1.0, -150, 2.6, P.z0 + 36.4, 0xe8c020, { layer: 'metal', rx: -0.5 });
-  W.solid(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 'metal'); W.lamp(-150, 2.2, P.z0 + 35.5, 0xffd8a0, 2, 8, { halo: 0.4 });
+  W.solid(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 'metal'); staffAt(-150.6, P.z0 + 36.1, 0, 'food'); W.lamp(-150, 2.2, P.z0 + 35.5, 0xffd8a0, 2, 8, { halo: 0.4 });
   W.push(-150, 0, P.z0 + 36.85, Math.PI); NEON.sign('닭꼬치', 0, 3.2, 0, 2.6, 0.6, { style: 'tube', col: 'orange', pool: false }); W.pop();
 }
 

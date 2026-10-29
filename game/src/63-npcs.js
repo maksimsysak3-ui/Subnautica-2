@@ -5,9 +5,10 @@
 // polylines (keeping to the right of their direction of travel), wander the market square, scatter
 // when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
 const NPCS = (() => {
-  const N = 30, NEAR_POSE = 42, FAR = 85, PLAZA_N = 13, SHADOW_R = 32, R = 0.28;
+  // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
+  const N = MAP.id === 'seoul' ? 84 : 66, NEAR_POSE = 26, FAR = 85, PLAZA_N = 24, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square'];
+  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -68,6 +69,24 @@ const NPCS = (() => {
     const gone = new Set(kill);
     for (const o of kill) for (const k of [...o.children]) if (!gone.has(k)) { let j = o.parent; while (!joints.has(j)) j = j.parent; j.attach(k); }
     for (const o of kill) o.parent.remove(o);
+  }
+  // the whole posed body baked into one mesh, for civilians beyond posing range
+  function farMesh(m) {
+    const c = m.ch; c.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(c.root.matrixWorld).invert(), parts = [];
+    c.root.traverse((o) => { if (o.isMesh && (o.material === bodyMat[THREE.FrontSide] || o.material === bodyMat[THREE.DoubleSide])) parts.push(o); });
+    let nv = 0, ni = 0; for (const o of parts) { nv += o.geometry.attributes.position.count; ni += o.geometry.index.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+    let v0 = 0, i0 = 0;
+    for (const o of parts) {
+      const g = o.geometry, P0 = g.attributes.position, N0 = g.attributes.normal, C0 = g.attributes.color;
+      _m4.multiplyMatrices(inv, o.matrixWorld); _n3.getNormalMatrix(_m4);
+      for (let i = 0; i < P0.count; i++) { _pv.fromBufferAttribute(P0, i).applyMatrix4(_m4); pos.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); _pv.fromBufferAttribute(N0, i).applyMatrix3(_n3).normalize(); nor.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); col.set([C0.getX(i), C0.getY(i), C0.getZ(i)], (v0 + i) * 3); }
+      for (let i = 0; i < g.index.count; i++) idx[i0 + i] = g.index.getX(i) + v0;
+      i0 += g.index.count; v0 += P0.count;
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, bodyMat[THREE.DoubleSide]); mesh.visible = false; scene.add(mesh); return mesh;
   }
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
   function makeModel(kitIn) {
@@ -147,6 +166,7 @@ const NPCS = (() => {
 
   // ---------------- motion ----------------
   function step(v, dt) {
+    if (v.talkT > 0 && v.panic <= 0) { v.talkT -= dt; v.vx = v.vz = 0; v.yaw += wrap(Math.atan2(-(P.pos.x - v.x), -(P.pos.z - v.z)) - v.yaw) * Math.min(1, dt * 6); return; }
     if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
     if (v.route) { const r = v.route[v.ri]; v.tx = r[0]; v.tz = r[1]; }
     else if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
@@ -213,6 +233,7 @@ const NPCS = (() => {
     if (civs.length < N) {   // build the crowd a model per frame (no hitch)
       const v = { m: makeModel(), k: civs.length, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, plaza: false, alive: false, deadT: 20, hits: [] };
       for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
+      v.x = v.y = v.z = 0; v.yaw = -Math.PI; v.vx = v.vz = 0; pose(v, 1 / 60); v.far = farMesh(v.m);
       civs.push(v); v.m.ch.root.visible = false;
     }
     const pz = nearPlaza();
@@ -231,9 +252,14 @@ const NPCS = (() => {
       if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
-      if (d2(v.x, v.z) < NEAR_POSE * NEAR_POSE) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+      const near = d2(v.x, v.z) < NEAR_POSE * NEAR_POSE;
+      if (near) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+      root.visible = near; v.far.visible = !near;
+      if (!near) { v.far.position.set(v.x, v.y, v.z); v.far.rotation.set(0, v.yaw + Math.PI, 0); }
     }
+    for (const v of civs) if (!v.alive && v.far) v.far.visible = false;
     if (scan <= 0) scan = 0.3;
+    staffTick(dt); bubbleTick(dt);
     // scripted figures (mission targets, couriers): follow their route, posed out to scope range
     for (const v of figs) {
       const root = v.m.ch.root;
@@ -241,6 +267,84 @@ const NPCS = (() => {
       if (v.fig.paused) { v.vx = v.vz = 0; } else step(v, dt);
       if (v.fig.lookAt) { const L = v.fig.lookAt; v.yaw += wrap(Math.atan2(-(L.x - v.x), -(L.z - v.z)) - v.yaw) * Math.min(1, dt * 4); }
       if (d2(v.x, v.z) < 220 * 220) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+    }
+  }
+  // ---------------- talking (E) ----------------
+  const SEOUL = MAP.id === 'seoul';
+  const LINES = SEOUL ? {
+    chat: [['안녕하세요?', 'Hi there.'], ['비가 계속 오네요.', 'It just keeps raining.'], ['지하철역은 저쪽이에요.', 'The subway is that way.'], ['편의점 라면 드셔 보세요. 진짜 맛있어요.', 'Try the konbini ramen. It’s really good.'], ['죄송해요, 지금 바빠서요.', 'Sorry, I’m in a hurry.'], ['강남 가시려면 2호선 타세요.', 'For Gangnam, take Line 2.'], ['요즘 이 동네 깡패들 조심하세요.', 'Watch out for the gangs round here lately.'], ['외국인이세요? 한국 처음이에요?', 'Not from here? First time in Korea?'], ['저기 포장마차 떡볶이 최고예요.', 'The tteokbokki at that tent is the best.'], ['한강 가면 야경 진짜 예뻐요.', 'The river’s beautiful at night.'], ['네? 뭐라고요?', 'Huh? Say again?'], ['우산 없어요? 감기 걸려요.', 'No umbrella? You’ll catch a cold.']],
+    scared: [['으악! 총이다!', 'He’s got a gun!'], ['살려주세요!', 'Help!'], ['경찰 불러요!', 'Call the police!']],
+    shop: [['어서오세요!', 'Welcome!'], ['1+1 행사 중이에요.', 'Buy one, get one free tonight.'], ['봉투 필요하세요?', 'Need a bag?'], ['카드 되세요.', 'We take cards.']],
+    food: [['몇 분이세요?', 'Table for how many?'], ['삼겹살 2인분 드릴까요?', 'Pork belly for two?'], ['여기 앉으세요!', 'Sit anywhere!'], ['소주 한 병 더요?', 'Another bottle of soju?']],
+    bar: [['생맥주 한 잔?', 'A draught beer?'], ['치킨 금방 나와요.', 'The chicken’s nearly done.'], ['오늘 축구 보세요?', 'Watching the match tonight?']],
+    room: [['몇 시간 하실 거예요?', 'How many hours?'], ['3번 방으로 가세요.', 'Room three, go on in.'], ['음료수는 서비스예요.', 'Drinks are on the house.']],
+    guest: [['조용히 좀 해 주세요.', 'Keep it down, please.'], ['아, 깜짝이야!', 'Oh, you startled me!'], ['한 판만 더 하고 갈게.', 'One more round and I’m off.'], ['여기 자주 와요?', 'Come here often?']],
+    home: [['누구세요?!', 'Who are you?!'], ['나가세요! 경찰 부를 거예요!', 'Get out! I’ll call the police!']],
+    snack: ['삼각김밥', '컵라면', '바나나우유', '호빵', '에너지 드링크'],
+  } : {
+    chat: [['Salam alikoum.', 'Peace be upon you.'], ['Labas? Kulchi mzyan?', 'All good?'], ['Le souk, c’est par là.', 'The souk is that way.'], ['Attention aux soldats près du palais.', 'Careful of the soldiers by the palace.'], ['Un thé à la menthe?', 'Mint tea?'], ['Smeh liya, ana mzroub.', 'Sorry, I’m in a hurry.'], ['Le port est en bas.', 'The harbour is down there.'], ['Il fait chaud aujourd’hui.', 'Hot today.']],
+    scared: [['Aaah! Il est armé!', 'He’s armed!'], ['Aawnou! Aawnou!', 'Help! Help!']],
+    shop: [['Marhba bik!', 'Welcome!'], ['Bon prix pour toi.', 'Good price for you.']], food: [['Tajine, couscous?', 'Tagine? Couscous?']], bar: [['Un café?', 'Coffee?']], room: [['Marhba.', 'Welcome.']], guest: [['Salam.', 'Hello.']], home: [['Chkoun?!', 'Who’s there?!']],
+    snack: ['msemen', 'thé à la menthe', 'pain au chocolat'],
+  };
+  const bubble = document.createElement('div');
+  bubble.style.cssText = 'position:absolute;transform:translate(-50%,-100%);max-width:260px;padding:7px 11px;border-radius:10px;background:rgba(14,16,22,.82);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 14px/1.3 system-ui,"Malgun Gothic","Noto Sans KR",sans-serif;text-align:center;pointer-events:none;display:none;white-space:normal';
+  let talker = null, talkT = 0, snackT = -99, bubbleOn = false;
+  const _hp = new V3();
+  function say(v, [ko, en]) {
+    if (!bubbleOn) { document.getElementById('hud').appendChild(bubble); bubbleOn = true; }
+    bubble.innerHTML = `${ko}<br><span style="font-weight:400;font-size:12px;opacity:.75">${en}</span>`;
+    talker = v; talkT = 4.5;
+  }
+  function bubbleTick(dt) {
+    if (!talker || (talkT -= dt) <= 0 || !talker.alive) { bubble.style.display = 'none'; talker = null; return; }
+    _hp.set(talker.x, talker.y + 2.05, talker.z).project(camera);
+    if (_hp.z > 1 || Math.hypot(talker.x - P.pos.x, talker.z - P.pos.z) > 12) { bubble.style.display = 'none'; return; }
+    bubble.style.display = 'block'; bubble.style.left = `${(_hp.x * 0.5 + 0.5) * innerWidth}px`; bubble.style.top = `${(-_hp.y * 0.5 + 0.5) * innerHeight}px`;
+  }
+  // the person in front of you (within reach), civilian or shop staff
+  function facing() {
+    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw); let best = null, bd = 2.6;
+    for (const v of [...civs, ...figs]) {
+      if (!v.alive || (v.fig && !v.fig.staff)) continue;
+      const dx = v.x - P.pos.x, dz = v.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.25 && Math.abs(v.y - P.pos.y) < 1.3) { bd = d; best = v; }
+    }
+    return best;
+  }
+  function talk() {
+    const v = facing(); if (!v) return false;
+    const armed = !P.holstered && P.disguise !== 'militia';
+    if (v.fig) {
+      const role = v.fig.role || 'shop';
+      if (role === 'home') { say(v, pick(LINES.home)); return true; }
+      if ((role === 'shop' || role === 'food') && clock - snackT > 15 && P.hp < 100) {
+        snackT = clock; const item = pick(LINES.snack); P.hp = Math.min(100, P.hp + 30);
+        say(v, SEOUL ? [`${item} 여기요. 맛있게 드세요!`, `Here’s your ${item}. Enjoy!`] : [`Tfeddal, ${item}.`, `Here you go: ${item}.`]); feed(`<span class="s">${item.toUpperCase()} · +30 HP</span>`); audio.pouch(); return true;
+      }
+      say(v, pick(LINES[role] || LINES.shop)); return true;
+    }
+    if (armed) { say(v, pick(LINES.scared)); v.panic = rand(6, 9); v.idle = 0; v.talkT = 0; return true; }
+    say(v, pick(LINES.chat)); v.talkT = 4.5; v.idle = 0; return true;
+  }
+  const promptTalk = () => { const v = facing(); return v ? (v.fig ? '[E]  TALK' + ((v.fig.role === 'shop' || v.fig.role === 'food') && P.hp < 100 ? ' · BUY A SNACK' : '') : '[E]  TALK') : ''; };
+  // ---------------- shop staff: real people behind the counters near you (spots registered by the map) ----------------
+  const STAFF_R = 32, STAFF_MAX = 18, UNIFORM = { shop: ['#2a8a4a', 'cap'], food: ['#1a1a1a', 'none'], bar: ['#6a1a1a', 'none'], room: ['#3a2a6a', 'none'], cafe: ['#4a3424', 'none'], guest: [null, 'none'], home: ['#8a8a9a', 'none'] };
+  let staffClock = 0;
+  function staffTick(dt) {
+    if ((staffClock -= dt) > 0 || !TOWN.staff) return; staffClock = 0.5;
+    let live = 0; for (const s2 of TOWN.staff) if (s2.v) live++;
+    for (const s2 of TOWN.staff) {
+      const d = Math.hypot(s2.x - P.pos.x, s2.z - P.pos.z) + Math.abs((s2.y || 0) - P.pos.y) * 4;
+      if (s2.v && (d > STAFF_R + 14 || !s2.v.alive && s2.v.deadT > 30)) { removeFigure(s2.v); s2.v = null; live--; continue; }
+      if (!s2.v && d < STAFF_R && live < STAFF_MAX && !s2.dead) {
+        const [col, hat] = UNIFORM[s2.role] || UNIFORM.shop, kit = outfit();
+        if (col) Object.assign(kit, { top: 'tshirt', topColor: col, headwear: hat, hatColor: col, vest: s2.role === 'food' ? 'none' : kit.vest });
+        const home = { x: s2.x - Math.sin(s2.yaw) * 3, z: s2.z - Math.cos(s2.yaw) * 3 };
+        s2.v = spawnFigure({ kit, route: s2.route || [[s2.x, s2.z]], loop: !!s2.route, speed: s2.route ? 0.9 : 0, yaw: s2.yaw, y: s2.y, staff: true, role: s2.role === 'cafe' ? 'shop' : s2.role, home, onDeath: () => { s2.dead = true; P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>'); alarm(s2.x, s2.z); } });
+        s2.v.fig.lookAt = s2.route ? null : home; live++;
+      }
+      if (s2.v && s2.v.alive && !s2.route) s2.v.fig.lookAt = d < 5 ? P.pos : s2.v.fig.home;
     }
   }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
@@ -308,5 +412,5 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();

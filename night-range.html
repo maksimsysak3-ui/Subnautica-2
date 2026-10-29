@@ -8098,6 +8098,10 @@ function shopGround(u, w, G0, gd, col, kind, clad) {
   for (let i = 1; i < nm; i++) W.box(0.07, G0 - 1.05, 0.1, fx - fw / 2 + i * fw / nm, (G0 - 1.05) / 2, -0.28, 0x2a2c2e, { layer: 'metal' });
   W.box(fw, 0.07, 0.1, fx, G0 - 1.08, -0.28, 0x2a2c2e, { layer: 'metal' });
   const dx = fx + mpick([-1, 1]) * (fw / 2 - 0.7);
+  streetDoor(dx, -0.25, kind, txt);
+  // whoever works here, at their post
+  const post = { r: [fx + fw / 2 - 0.7, -2.9, 'food'], b: [fx + fw / 2 - 0.7, -2.9, 'bar'], c: [fx - fw / 4, -3.25, 'cafe'], o: [fx - fw / 4, -3.25, 'cafe'], n: [fx, -3.25, 'room'], k: [fx - fw / 2 + 0.9, -1.55, 'shop'], p: [fx - fw / 2 + 0.9, -1.55, 'shop'] }[kind];
+  if (post && fw > 3.5) staffAt(post[0], post[1], Math.PI, post[2]);
   W.box(0.05, 2.2, 0.05, dx - 0.45, 1.1, -0.25, 0xb8bcc0, { layer: 'metal' }); W.box(0.05, 2.2, 0.05, dx + 0.45, 1.1, -0.25, 0xb8bcc0, { layer: 'metal' }); W.box(0.04, 0.35, 0.04, dx + 0.36, 1.05, -0.2, 0xd8d8d8, { layer: 'metal' });
   if (mchance(0.6)) NEON.sign(mpick(GLASSNOTE), dx, 1.55, -0.27, 0.7, 0.18, { style: 'vinyl', col: 'white' });
   // the room: floor, a glowing back wall (lit from inside), ceiling panels, the trade's furniture
@@ -8206,6 +8210,7 @@ function villaGround(u, w, G0, gd, col, piloti, H) {
     W.box(2.2, 0.03, 0.6, -w / 4, G0 - 0.02, -gd / 2, 0xf0f4ff, { layer: 'glow' });
     W.lamp(0, G0 - 0.4, -gd / 2, 0xe8f0ff, 1.6, 7, { halo: 0 });
     // the lobby at the back: glass door, mailboxes, the bike nobody rides
+    streetDoor(w / 4, -gd + 0.1, 'v', '');
     W.box(1.3, 2.3, 0.05, w / 4, 1.15, -gd + 0.04, 0xa8c0c8, { layer: 'glow' }); W.box(1.4, 2.4, 0.1, w / 4, 1.2, -gd + 0.06, 0x8a8e94, { layer: 'metal' });
     W.scope({ lod: 2 }, () => {
       for (let i = 0; i < 6; i++) W.box(0.3, 0.25, 0.25, w / 4 + 1.1 + (i % 3) * 0.32, 1.2 + Math.floor(i / 3) * 0.27, -gd + 0.15, 0xb8bcc0, { layer: 'metal' });
@@ -8216,6 +8221,7 @@ function villaGround(u, w, G0, gd, col, piloti, H) {
   }
   W.box(w, G0, 0.6, 0, G0 / 2, -0.3, shade(col, 0.9), { t: TX.brick, wear: 4 }); W.solid(w, G0, 0.6, 0, G0 / 2, -0.3, 'concrete');
   const dx = mr(-w / 2 + 1.2, w / 2 - 1.2);
+  streetDoor(dx, 0, 'v', '');
   W.box(1.1, 2.2, 0.05, dx, 1.1, 0.02, mpick([0x6a6e72, 0x5a4a3a, 0x8a8e94, 0x3a5a4a]), { layer: 'metal', t: TX.metal, wear: 4 });
   W.box(1.5, 0.1, 0.9, dx, 2.5, 0.45, 0x8a8e94, { layer: 'metal' });
   NEON.sign(name, dx, 2.78, 0.03, 1.6, 0.36, { style: 'plate', col: plate });
@@ -8283,6 +8289,7 @@ function seoulPlan() {
     ['Gangnam, the market, the river', seoulOuterFronts],
     ['Rooftops', () => { fillBlocks(-250, -330, 250, DIST.RIVER, null, [0x9a968c, 0x8a8478, 0x8a4a38, 0xa8a49c]); }],
     ['Pojangmacha, poles and cables', () => { seoulDressing(); seoulOuterDressing(); }],
+    ['Behind the doors', seoulInteriors],
     ['Lighting the signs', () => { NEON.finish(); seoulSkyline(); }],
   ];
 }
@@ -8355,7 +8362,7 @@ function seoulKonbini() {
     W.box(x1 - x0 - 3, 0.4, 0.1, (x0 + x1 - 1.5) / 2, 2.5, z0 + 0.4, 0x1a6a3a, { layer: 'metal' });
     NEON.sign('시원한 음료', (x0 + x1 - 1.5) / 2, 2.5, z0 + 0.46, 3.2, 0.36, { style: 'box', col: 'green', glow: false, pool: false, lamp: false });
     // counter: till, hot-bun steamer, the cigarette wall behind
-    counter(14.4, 0.12, -15.2, Math.PI / 2, 2.6, 0xe8e8e4, 0x8a8a88); cashRegister(14.2, 1.15, -14.8, -Math.PI / 2);
+    counter(14.4, 0.12, -15.2, Math.PI / 2, 2.6, 0xe8e8e4, 0x8a8a88); staffAt(15.25, -15.2, Math.PI / 2, 'shop'); cashRegister(14.2, 1.15, -14.8, -Math.PI / 2);
     W.box(0.5, 0.45, 0.5, 14.3, 1.37, -16.1, 0xc8ccd0, { layer: 'glass' }); W.box(0.46, 0.4, 0.46, 14.3, 1.37, -16.1, 0xffe8b0, { layer: 'glow' }); for (let k = 0; k < 4; k++) W.sphere(0.1, 0.08, 0.1, 14.2 + (k % 2) * 0.2, 1.24 + Math.floor(k / 2) * 0.18, -16.1, 0xf8f0e0);
     konbiniCounterWall(15.65, -16.6, -13.9);
     // window bar with the night's leftovers: cup noodles, a can, a triangle kimbap
@@ -8409,6 +8416,7 @@ function pojangmacha(x, z, ry) {
   for (let i = 0; i < 3; i++) W.cyl(0.18, 0.16, 0.22, 0.2 + i * 0.5, 0.92, -1.1, 0x8a8e94, { seg: 10, layer: 'metal' });
   W.cyl(0.16, 0.16, 0.02, 0.2, 1.03, -1.1, 0xc02a1a, { seg: 10 }); W.cyl(0.16, 0.16, 0.02, 0.7, 1.03, -1.1, 0xc8a060, { seg: 10 });   // tteokbokki, eomuk broth
   W.scope({ lod: 2 }, () => { for (let k = 0; k < 8; k++) W.rod([0.62 + k * 0.03, 1.0, -1.1], [0.62 + k * 0.035, 1.35, -1.0], 0.006, 0xd8c8a0); for (let k = 0; k < 4; k++) W.cyl(0.035, 0.035, 0.22, -0.8 + k * 0.12, 0.83, 0.5 + (k % 2) * 0.1, 0x2a8a4a, { seg: 6, layer: 'glass' }); W.cyl(0.12, 0.1, 0.05, -0.4, 0.75, 0.6, 0xe8e8e0, { seg: 10 }); });
+  staffAt(0.8, -1.62, Math.PI, 'food');   // the cook
   plasticTable(-0.6, 0, 0.5, 0, 0x2a5aa0); for (const [a, b] of [[-1.3, 0.5], [0.1, 0.5], [-0.6, 1.2], [-0.6, -0.2]]) stool(a, 0, b, 0xc0302a);
   for (let i = 0; i < 6; i++) W.sphere(0.07, 0.07, 0.07, -1.9 + i * 0.75, 2.35, 0, 0xfff0c0, { layer: 'glow' });
   W.lamp(0, 2.2, 0, 0xffb060, 2.6, 7, { halo: 0.5 });
@@ -8628,8 +8636,10 @@ const RAIN = (() => {
   return {
     update(dt, cam) {
       if (!MAP.night || !MAP.ready) return;
-      if (mesh) mesh.visible = !SUBWAY.under;
-      if (SUBWAY.under) return;
+      const inn = indoors();
+      HEMI.intensity += ((inn ? 0.95 : 0.35) - HEMI.intensity) * Math.min(1, dt * 4);   // under a roof the room's own light fills in
+      if (mesh) mesh.visible = !inn;
+      if (inn) return;
       if (!mesh) build();
       const p = mesh.geometry.attributes.position.array, cx = cam.position.x, cy = cam.position.y, cz = cam.position.z;
       for (let i = 0; i < N; i++) {
@@ -8942,7 +8952,7 @@ function seoulRiver() {
   W.defer(() => W.scope({ lod: 1 }, () => { for (let i = 0; i < 6; i++) { const tx = sx - 8 + (i % 3) * 8, tz = sz - 8 - Math.floor(i / 3) * 5; plasticTable(tx, 0, tz, 0, 0xe8e8e0); for (const s of [-1, 1]) plasticChair(tx + s * 0.7, 0, tz, s * 1.57, 0xe8e8e0); W.cone(1.3, 0.45, tx, 2.3, tz, mpick([0x2a8a4a, 0xd8302a, 0x2a5aa0]), { seg: 8, layer: 'cloth' }); W.rod([tx, 0, tz], [tx, 2.3, tz], 0.025, 0xc8c8c8, { layer: 'metal' }); W.cyl(0.08, 0.06, 0.1, tx + 0.15, 0.78, tz, 0xd8302a, { seg: 8 }); } }), 'mid', [sx, sz]);
   // food truck with its hatch open
   W.box(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 0xe8c020, { layer: 'metal' }); W.box(3, 1.0, 0.04, -150, 2.0, P.z0 + 36.88, 0xffd8a0, { layer: 'glow' }); W.box(3.2, 0.06, 1.0, -150, 2.6, P.z0 + 36.4, 0xe8c020, { layer: 'metal', rx: -0.5 });
-  W.solid(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 'metal'); W.lamp(-150, 2.2, P.z0 + 35.5, 0xffd8a0, 2, 8, { halo: 0.4 });
+  W.solid(5.5, 2.6, 2.2, -150, 1.6, P.z0 + 38, 'metal'); staffAt(-150.6, P.z0 + 36.1, 0, 'food'); W.lamp(-150, 2.2, P.z0 + 35.5, 0xffd8a0, 2, 8, { halo: 0.4 });
   W.push(-150, 0, P.z0 + 36.85, Math.PI); NEON.sign('닭꼬치', 0, 3.2, 0, 2.6, 0.6, { style: 'tube', col: 'orange', pool: false }); W.pop();
 }
 
@@ -9047,6 +9057,9 @@ function metroStation(s, i) {
   later(() => W.scope({ lod: 2 }, () => { for (let k = 0; k < 4; k++) for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) W.box(0.02, 0.48, 0.58, -49.28, 0.3 + r * 0.52, 3.85 + k * 2 + c * 0.62, 0xb8bcc0, { layer: 'metal' }); }), 'near');
   for (let k = 0; k < 3; k++) vendingMachine(-49.5, 0, -5 - k * 1.1, Math.PI / 2, mpick([0xc0302a, 0x2a5aa0, 0xe8e0d0]));
   routeMap(-25, 3.0, -13.95, 0, i);
+  // the people: clerks in the three shops, a few waiting for trains
+  staffAt(-34, -10.15, Math.PI, 'shop'); staffAt(-42, 10.1, 0, 'shop'); staffAt(-29, 12.45, 0, 'shop');
+  for (const [x, z, y] of [[4, 2.2, 0.4], [17, -2.5, 2.8], [27, 1.9, -0.3], [-30, -3, 1.2]]) staffAt(x, z, y, 'guest');
   for (const x of [-40, -24]) for (const z of [-4.5, 4.5]) { wall(1.1, 5.2, 1.1, x, 2.6, z, 0x2a6a4a); W.scope({ lod: 1 }, () => { bench(x + 1.8, 0, z, z > 0 ? Math.PI : 0); }); }
   // ---- ticket gates ----
   for (let k = 0; k < 13; k++) {
@@ -9194,15 +9207,15 @@ const SUBWAY = (() => {
         TUNNEL.speed = 60 * k; tunnelTick(dt); P.shake = Math.max(P.shake, 0.06 + 0.12 * k); audio.rumble?.(k);
         if (t > 3 && !pending) { pending = 1; say(`이번 역은 ${LINE2[dest.st].ko}역입니다 · This stop is ${LINE2[dest.st].en}`); }
         if (t >= 7) { state = 'arrive'; blackout(() => { const ride = SUBCARS.find((c) => c.ride); moveRel(ride, dest); dest.open = 0; dest.want = 0; setTimeout(() => { dest.want = 1; audio.chime?.(); }, 500); state = 'idle'; car = null; }); }
-        tip.style.display = 'none'; return;
+        setPrompt(tip, ''); return;
       }
       if (state === 'closing') {
         t += dt;
         if (!inCar(car)) { state = 'idle'; car.want = 1; say('승차 취소 · You stepped off'); return; }
         if (t >= 1.5) { state = 'riding'; t = 0; pending = null; const ride = SUBCARS.find((c) => c.ride); ride.open = 0; placeDoors(ride); moveRel(car, ride); car.want = 1; }
-        tip.style.display = 'none'; return;
+        setPrompt(tip, ''); return;
       }
-      if (busy > 0 || P.dead || P.vehicle) { tip.style.display = 'none'; return; }
+      if (busy > 0 || P.dead || P.vehicle) { setPrompt(tip, ''); return; }
       // entrances: walk into a stairwell on the street and you're downstairs
       if (!under) for (let i = 0; i < LINE2.length; i++) {
         const s = LINE2[i], lx = P.pos.x - s.x, lz = P.pos.z - s.z;
@@ -9212,9 +9225,9 @@ const SUBWAY = (() => {
         // the exit landing back up to the street
         for (const s of LINE2) if (Math.abs(P.pos.z - s.oz) < 3 && P.pos.x < s.ox - 57.5 && P.pos.x > s.ox - 63 && P.pos.y > 3.5) { blackout(() => { put(s.x, 0.05, s.z + 5.6, Math.PI); under = false; }); return; }
         const c = SUBCARS.find((c2) => !c2.ride && inCar(c2));
-        if (c) { const to = LINE2[(c.st + c.dir + 5) % 5]; tip.innerHTML = `[E]  ${c.dir > 0 ? '내선순환 INNER LOOP' : '외선순환 OUTER LOOP'}<br>다음역 ${to.ko} · next stop ${to.en}`; tip.style.display = 'block'; return; }
+        if (c) { const to = LINE2[(c.st + c.dir + 5) % 5]; setPrompt(tip, `[E]  ${c.dir > 0 ? '내선순환 INNER LOOP' : '외선순환 OUTER LOOP'}<br>다음역 ${to.ko} · next stop ${to.en}`); return; }
       }
-      tip.style.display = 'none';
+      setPrompt(tip, '');
     },
     interact() {
       if (!under || state !== 'idle' || busy > 0) return false;
@@ -9225,6 +9238,231 @@ const SUBWAY = (() => {
     },
   };
 })();
+// =====================================================================
+//  NEON SEOUL — through the door: the rooms behind the shopfronts
+// =====================================================================
+// Most street doors in Seoul open (E). Each kind of business leads to its own furnished room, built
+// out past the city's edge like the subway stations: a barbecue restaurant, a beer hof, a karaoke
+// with its private room, a PC bang, a café, and — through a villa's front door — somebody's flat.
+// Staff and customers are real people (they talk, and you can buy a snack where food is sold).
+// Leave by the door you came in and you're back on the street where you were.
+const ROOMS = {};          // kind → { x, z, D, name, en }
+const ROOM_ROW = { z: -600, x: { bbq: -450, hof: -300, karaoke: -150, pc: 0, cafe: 150, apt: 300 } };
+TOWN.doors = []; TOWN.staff = [];
+// which room a business's door leads to
+function roomFor(kind, txt = '') {
+  if (kind === 'r') return 'bbq'; if (kind === 'b') return 'hof'; if (kind === 'c' || kind === 'o') return 'cafe'; if (kind === 'v') return 'apt';
+  if (kind === 'n') return /PC/.test(txt) ? 'pc' : 'karaoke';
+  return null;
+}
+// register a street door: (x, z) where you stand to open it, (ox, oz) a step back out on the pavement
+function streetDoor(lx, lz, kind, txt) {
+  const room = roomFor(kind, txt); if (!room || W.mode === 'geom') return;
+  const a = W.worldPos(lx, 0, lz + 0.45), b = W.worldPos(lx, 0, lz + 1.6);
+  TOWN.doors.push({ x: a.x, z: a.z, ox: b.x, oz: b.z, room, name: txt });
+}
+// a staff spot in the current frame; yaw is local (0 faces −z), turned into the world's
+const staffAt = (lx, lz, yaw, role, route) => { if (W.mode === 'geom') return; const p = W.worldPos(lx, 0, lz), q = W.worldPos(lx - Math.sin(yaw), 0, lz - Math.cos(yaw)); TOWN.staff.push({ x: p.x, z: p.z, y: 0, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), role, route: route && route.map(([a, b]) => { const q = W.worldPos(a, 0, b); return [q.x, q.z]; }) }); };
+
+// a closed room: floor, walls (solid), ceiling, the street door on its +z wall
+function roomShell(kind, Wd, D, H, o) {
+  const x = ROOM_ROW.x[kind], z = ROOM_ROW.z;
+  flat(x - Wd / 2 - 6, z - D / 2 - 6, x + Wd / 2 + 6, z + D / 2 + 6, 0, 8); GR.rect(x, z, Wd + 20, D + 20, 0, GR.WALL, true);
+  ROOMS[kind] = { x, z, D, name: o.name, en: o.en };
+  W.push(x, 0, z, 0);
+  W.box(Wd, 0.06, D, 0, 0.03, 0, o.floor, { t: o.floorTx ?? TX.wood, wear: 3 });
+  for (const s of [-1, 1]) { W.box(Wd + 0.4, H, 0.2, 0, H / 2, s * (D / 2 + 0.1), o.wall, { t: o.wallTx ?? TX.plaster, wear: 2 }); W.solid(Wd + 0.4, H, 0.2, 0, H / 2, s * (D / 2 + 0.1), 'concrete'); W.box(0.2, H, D, s * (Wd / 2 + 0.1), H / 2, 0, o.wall, { t: o.wallTx ?? TX.plaster, wear: 2 }); W.solid(0.2, H, D, s * (Wd / 2 + 0.1), H / 2, 0, 'concrete'); }
+  W.box(Wd, 0.1, D, 0, H + 0.05, 0, o.ceil ?? 0x2a2a2c);
+  W.box(Wd, 0.12, 0.04, 0, 0.06, D / 2 - 0.01, shade(o.wall, 0.6));   // skirting
+  // the door you came in by, and the exit sign over it
+  W.box(1.3, 2.3, 0.08, 0, 1.15, D / 2 - 0.03, o.door ?? 0x5a6a72, { layer: 'metal' }); W.box(0.08, 0.4, 0.06, 0.45, 1.05, D / 2 - 0.1, 0xc8ccd0, { layer: 'metal' });
+  W.box(0.7, 0.24, 0.05, 0, 2.6, D / 2 - 0.06, 0x2aa04a, { layer: 'glow' });
+  W.lamp(0, H - 0.4, D / 2 - 1.2, 0xfff0d8, 1.2, 6, { halo: 0 });
+  return { x, z };
+}
+
+// ---------------- 고깃집: Korean barbecue ----------------
+function roomBBQ() {
+  const Wd = 16, D = 11, H = 3.3;
+  roomShell('bbq', Wd, D, H, { name: '고깃집', en: 'BBQ restaurant', floor: 0x6a4a32, wall: 0xc8b89a, ceil: 0x2a2624 });
+  const steel = 0xb8bcc0;
+  // six grill tables, each with its extractor duct dropping from the ceiling, banchan and soju on top
+  for (let i = 0; i < 6; i++) {
+    const x = -5.5 + (i % 3) * 4.6, z = -1.2 + Math.floor(i / 3) * 3.6;
+    W.cyl(0.6, 0.55, 0.72, x, 0.36, z, 0x8a8e94, { seg: 14, layer: 'metal' }); W.solid(1.2, 0.75, 1.2, x, 0.37, z, 'metal');
+    W.cyl(0.24, 0.24, 0.04, x, 0.74, z, 0x2a2a2a, { seg: 12 }); W.cyl(0.2, 0.2, 0.02, x, 0.765, z, 0xff6a1a, { seg: 12, layer: 'glow' });
+    W.cyl(0.18, 0.2, H - 1.55, x, (H + 1.55) / 2, z, steel, { seg: 10, layer: 'metal' }); W.cyl(0.32, 0.18, 0.25, x, 1.62, z, steel, { seg: 12, layer: 'metal' });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; W.cyl(0.06, 0.05, 0.03, x + Math.cos(a) * 0.42, 0.75, z + Math.sin(a) * 0.42, mpick([0xc0302a, 0x6aa02a, 0xe8d8a0, 0xe8e8e0]), { seg: 8 }); }
+    for (let k = 0; k < 2; k++) W.cyl(0.035, 0.035, 0.22, x + 0.2 - k * 0.4, 0.84, z - 0.3, 0x2a8a4a, { seg: 6, layer: 'glass' });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + 0.5; stool(x + Math.cos(a) * 0.95, 0, z + Math.sin(a) * 0.95, 0xc0302a); }
+    W.lamp(x, 1.4, z, 0xffb070, 1.1, 4, { halo: 0 });
+  }
+  // the kitchen pass at the back, menu boards over it, a soju fridge, posters
+  W.box(8, 1.1, 0.7, 0, 0.55, -D / 2 + 0.5, 0xd8d8d0, { layer: 'metal' }); W.solid(8, 1.1, 0.7, 0, 0.55, -D / 2 + 0.5, 'metal');
+  W.box(7.6, 1.1, 0.04, 0, 1.9, -D / 2 + 0.06, 0xffe0b0, { layer: 'glow' });
+  for (let i = 0; i < 6; i++) { W.box(1.1, 0.45, 0.03, -3 + i * 1.2, 2.8, -D / 2 + 0.05, 0xf8f0d8, { layer: 'glow' }); }
+  W.push(0, 0, -D / 2 + 0.08, 0); NEON.sign('삼겹살 · 목살 · 갈비', 0, 2.8, 0.01, 6.8, 0.4, { style: 'banner', col: 'red' }); W.pop();
+  W.box(1.2, 2.0, 0.7, Wd / 2 - 0.8, 1.0, -2, 0xd8f0ff, { layer: 'glow' }); W.solid(1.2, 2.0, 0.7, Wd / 2 - 0.8, 1.0, -2, 'metal');
+  for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++) W.cyl(0.04, 0.04, 0.22, Wd / 2 - 1.3 + k * 0.17 - 0.0, 0.55 + r * 0.42, -1.75, mchance(0.7) ? 0x2a8a4a : 0xd8a020, { seg: 6, layer: 'glass' });
+  for (let i = 0; i < 3; i++) W.box(0.9, 1.3, 0.02, -Wd / 2 + 0.03, 1.8, -3 + i * 2.6, mpick([0x2a8a4a, 0xe8e0d0, 0xd83a3a]), { ry: Math.PI / 2 });
+  for (let x = -6; x <= 6; x += 3) W.box(2.4, 0.04, 0.3, x, H - 0.03, 1.5, 0xfff0d8, { layer: 'glow' });
+  W.lamp(-4, 2.6, 0, 0xffd8a8, 1.6, 9, { halo: 0 }); W.lamp(4, 2.6, 0, 0xffd8a8, 1.6, 9, { halo: 0 });
+  // people: a cook at the pass, a waitress doing the rounds, a manager by the till, two diners waiting
+  staffAt(-1.5, -D / 2 + 1.4, Math.PI, 'food'); staffAt(2, 3.6, 0, 'food', [[2, 3.6], [-5.5, 0.7], [-1, 0.7], [3.6, 0.7], [3.6, -1.2, 2], [-1, 2.4], [2, 3.6, 3]]);
+  staffAt(Wd / 2 - 1.6, 3.8, Math.PI / 2, 'food'); staffAt(-6.5, 4.2, -Math.PI / 4, 'guest'); staffAt(-5.6, 4.6, Math.PI * 0.8, 'guest');
+  W.pop();
+}
+
+// ---------------- 호프: beer hall ----------------
+function roomHof() {
+  const Wd = 14, D = 10, H = 3.2;
+  roomShell('hof', Wd, D, H, { name: '호프', en: 'beer hof', floor: 0x3a2a1e, wall: 0x5a3a2a, ceil: 0x1a1412, wallTx: TX.brick });
+  // the bar: counter, taps, bottles glowing on the back shelf
+  W.box(6, 1.1, 0.7, -2, 0.55, -D / 2 + 1.6, 0x4a2a1a, { t: TX.wood }); W.solid(6, 1.1, 0.7, -2, 0.55, -D / 2 + 1.6, 'wood'); W.box(6.2, 0.06, 0.8, -2, 1.12, -D / 2 + 1.6, 0x2a1a10, { t: TX.wood });
+  for (let i = 0; i < 4; i++) { W.rod([-3.5 + i * 0.5, 1.12, -D / 2 + 1.5], [-3.5 + i * 0.5, 1.5, -D / 2 + 1.5], 0.025, 0xc8a050, { layer: 'metal' }); W.box(0.06, 0.12, 0.06, -3.5 + i * 0.5, 1.55, -D / 2 + 1.5, mpick([0xd8302a, 0x2a6ab0, 0xe8c020])); }
+  W.box(6, 1.6, 0.3, -2, 2.0, -D / 2 + 0.2, 0xffb060, { layer: 'glow' });
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 18; k++) W.cyl(0.04, 0.04, 0.26, -4.8 + k * 0.32, 1.38 + r * 0.5, -D / 2 + 0.38, mpick([0x2a8a4a, 0x8a5a2a, 0xe8e8e0, 0x2a5aa0]), { seg: 6, layer: 'glass' });
+  // TV with the match on, neon on the wall
+  W.box(2.6, 1.5, 0.08, Wd / 2 - 0.06, 2.1, -1, 0x2a6ad8, { layer: 'glow', ry: Math.PI / 2 }); W.box(2.0, 0.6, 0.05, Wd / 2 - 0.05, 1.8, -1, 0x3ab04a, { layer: 'glow', ry: Math.PI / 2 });
+  W.push(-Wd / 2 + 0.12, 0, 1.5, Math.PI / 2); NEON.sign('생맥주 치킨', 0, 2.3, 0, 3.8, 0.8, { style: 'tube', col: 'yellow', pool: false }); W.pop();
+  // high tables, a plate of fried chicken and frothy mugs on each
+  for (let i = 0; i < 5; i++) {
+    const x = -4.5 + (i % 3) * 4.5 + (i > 2 ? 2.2 : 0), z = 0.8 + Math.floor(i / 3) * 2.8;
+    W.cyl(0.45, 0.45, 0.05, x, 1.08, z, 0x4a2a1a, { seg: 12, t: TX.wood }); W.cyl(0.05, 0.05, 1.05, x, 0.53, z, 0x1a1a1a, { seg: 6, layer: 'metal' }); W.cyl(0.3, 0.3, 0.03, x, 0.02, z, 0x1a1a1a, { seg: 10, layer: 'metal' }); W.solid(0.9, 1.1, 0.9, x, 0.55, z, 'wood');
+    W.cyl(0.18, 0.15, 0.05, x - 0.1, 1.13, z, 0xe8e8e0, { seg: 10 }); for (let k = 0; k < 5; k++) W.sphere(0.07, 0.05, 0.06, x - 0.15 + (k % 3) * 0.08, 1.18, z - 0.05 + Math.floor(k / 3) * 0.08, 0xc87a2a, { seg: 5, hseg: 3 });
+    for (let k = 0; k < 2; k++) { W.cyl(0.05, 0.05, 0.16, x + 0.2, 1.19, z - 0.12 + k * 0.24, 0xe8b030, { seg: 8, layer: 'glass' }); W.cyl(0.05, 0.05, 0.03, x + 0.2, 1.285, z - 0.12 + k * 0.24, 0xf8f4e8, { seg: 8 }); }
+    W.lamp(x, 2.6, z, 0xffc080, 1.0, 5, { halo: 0 }); W.rod([x, H, z], [x, 2.5, z], 0.006, 0x1a1a1a); W.sphere(0.2, 0.16, 0.2, x, 2.45, z, 0xffd090, { layer: 'glow' });
+  }
+  staffAt(-2, -D / 2 + 0.9, 0, 'bar'); staffAt(-4.9, 0.3, 0.6, 'guest'); staffAt(-4.0, 1.4, -2.4, 'guest'); staffAt(0.5, 3.0, 2.2, 'guest'); staffAt(4.8, 0.2, -0.5, 'guest');
+  W.pop();
+}
+
+// ---------------- 노래방: karaoke ----------------
+function roomKaraoke() {
+  const Wd = 14, D = 12, H = 3.0;
+  roomShell('karaoke', Wd, D, H, { name: '노래방', en: 'karaoke', floor: 0x1a1424, wall: 0x2a1a3a, ceil: 0x0e0a14, door: 0x3a2a4a });
+  // reception by the door, the corridor of numbered rooms down the left
+  W.box(2.6, 1.05, 0.7, 4.5, 0.52, 3.6, 0x1a1a22, { layer: 'metal' }); W.solid(2.6, 1.05, 0.7, 4.5, 0.52, 3.6, 'metal'); W.box(2.6, 0.04, 0.04, 4.5, 1.05, 3.94, 0xff2a8a, { layer: 'glow' });
+  for (let i = 0; i < 4; i++) { const z = 3.6 - i * 2.4; W.box(0.06, 2.1, 0.9, -Wd / 2 + 0.05, 1.05, z, 0x4a3a5a, { layer: 'metal' }); W.box(0.04, 0.5, 0.35, -Wd / 2 + 0.09, 1.5, z, 0x9a6aff, { layer: 'glow' }); W.push(-Wd / 2 + 0.12, 0, z, Math.PI / 2); NEON.sign(`${i + 1}`, 0, 2.35, 0, 0.4, 0.3, { style: 'led', col: 'pink', glow: false, pool: false, lamp: false }); W.pop(); }
+  for (const z of [-D / 2 + 0.2, D / 2 - 0.2]) W.box(Wd, 0.04, 0.04, 0, 2.9, z, 0xff2a8a, { layer: 'glow' });
+  for (const x of [-Wd / 2 + 0.2, Wd / 2 - 0.2]) W.box(0.04, 0.04, D, x, 2.9, 0, 0x2af0ff, { layer: 'glow' });
+  // room 5, open: U sofa, low table with tambourines and mics, the big screen, a mirror ball
+  const rz = -2.5;
+  W.box(7.6, 0.06, 0.06, 2.4, 2.95, rz + 2.6, 0x9a6aff, { layer: 'glow' });
+  sofa(2.4, 0, rz - 1.6, 0, 0x6a2a8a, 4.4); sofa(0.0, 0, rz + 0.4, Math.PI / 2, 0x6a2a8a, 2.6); sofa(4.8, 0, rz + 0.4, -Math.PI / 2, 0x6a2a8a, 2.6);
+  W.box(2.6, 0.45, 1.2, 2.4, 0.22, rz + 0.3, 0x1a1a22, { layer: 'metal' }); W.solid(2.6, 0.45, 1.2, 2.4, 0.22, rz + 0.3, 'wood'); W.box(2.6, 0.02, 1.2, 2.4, 0.46, rz + 0.3, 0x3a2a6a, { layer: 'glow' });
+  for (let k = 0; k < 2; k++) { W.cyl(0.025, 0.02, 0.22, 1.8 + k * 0.5, 0.58, rz + 0.3, 0x1a1a1a, { seg: 6, rz: 1.4 }); W.sphere(0.04, 0.04, 0.04, 1.69 + k * 0.5, 0.6, rz + 0.3, 0x8a8e94, { layer: 'metal' }); }
+  W.cyl(0.13, 0.13, 0.05, 3.2, 0.5, rz + 0.1, 0xd8302a, { seg: 12, rx: 0.3 }); for (let k = 0; k < 4; k++) W.cyl(0.04, 0.04, 0.2, 2.9 + k * 0.12, 0.57, rz + 0.6, mpick([0x2a8a4a, 0xe8c020, 0x2a6ab0]), { seg: 6, layer: 'glass' });
+  ledScreen(ROOM_ROW.x.karaoke + 2.4, 1.7, ROOM_ROW.z + rz + 2.75, Math.PI, 3.4, 1.9, 5);
+  W.sphere(0.25, 0.25, 0.25, 2.4, 2.6, rz, 0xd8dce0, { layer: 'metal', seg: 10, hseg: 8 }); W.rod([2.4, 3.0, rz], [2.4, 2.85, rz], 0.01, 0x8a8a8a);
+  for (const [c, x] of [[0xff2a8a, 1.2], [0x2af0ff, 3.6], [0xffd040, 2.4]]) W.lamp(x, 2.4, rz, c, 1.6, 5, { halo: 0.2 });
+  for (let k = 0; k < 30; k++) W.box(0.06, 0.06, 0.01, mr(-Wd / 2 + 1, Wd / 2 - 1), mr(0.6, 2.8), -D / 2 + 0.02, mpick([0xff2a8a, 0x2af0ff, 0xffd040, 0x9a6aff]), { layer: 'glow' });
+  staffAt(4.5, 4.4, 0, 'room'); staffAt(1.4, rz + 1.2, Math.PI * 0.95, 'guest'); staffAt(3.4, rz + 1.3, -Math.PI * 0.9, 'guest');
+  W.pop();
+}
+
+// ---------------- PC방 ----------------
+function roomPC() {
+  const Wd = 16, D = 12, H = 3.0;
+  roomShell('pc', Wd, D, H, { name: 'PC방', en: 'PC bang', floor: 0x1a1c22, wall: 0x22262e, ceil: 0x101216, floorTx: TX.ceramic });
+  for (const x of [-Wd / 2 + 0.2, Wd / 2 - 0.2]) W.box(0.04, 0.04, D, x, 2.4, 0, 0x2a8aff, { layer: 'glow' });
+  // four rows of desks, two monitors deep, RGB keyboards, gaming chairs
+  for (let r = 0; r < 4; r++) for (let k = 0; k < 7; k++) {
+    const x = -6 + k * 1.6, z = -4.4 + r * 2.4, face = r % 2 ? 0 : Math.PI;
+    W.push(x, 0, z, face);
+    W.box(1.4, 0.05, 0.75, 0, 0.74, -0.15, 0x2a2a2e, { layer: 'metal' }); W.box(1.4, 0.72, 0.05, 0, 0.36, -0.5, 0x1a1a1e, { layer: 'metal' });
+    W.box(0.62, 0.38, 0.03, 0, 1.08, -0.38, mpick([0x3a6ad8, 0x2aa04a, 0xd8602a, 0x8a3ad8, 0x2ab0d8, 0xd83a5a]), { layer: 'glow' }); W.box(0.66, 0.42, 0.04, 0, 1.08, -0.4, 0x0e0e10, { layer: 'metal' }); W.box(0.05, 0.25, 0.05, 0, 0.86, -0.42, 0x1a1a1e);
+    W.box(0.45, 0.02, 0.15, -0.05, 0.775, 0.0, mpick([0xff2a8a, 0x2af0ff, 0x40ff7a]), { layer: 'glow' }); W.box(0.08, 0.02, 0.1, 0.3, 0.775, 0.0, 0x2a2a2a);
+    chairOffice(0, 0, 0.45, Math.PI, mpick([0xd8302a, 0x1a1a1a, 0x2a2a6a]));
+    W.pop();
+  }
+  for (let r = 0; r < 4; r++) W.solid(11.4, 1.0, 0.8, -1.2, 0.5, -4.4 + r * 2.4 + (r % 2 ? -0.15 : 0.15), 'metal');
+  // the counter: noodles, drinks fridge, snacks; the price board in LEDs
+  W.box(3, 1.05, 0.7, Wd / 2 - 2, 0.52, 4.4, 0x1a1a22, { layer: 'metal' }); W.solid(3, 1.05, 0.7, Wd / 2 - 2, 0.52, 4.4, 'metal');
+  W.box(1.0, 2.0, 0.6, Wd / 2 - 0.5, 1.0, 2.6, 0xd8f0ff, { layer: 'glow' }); W.solid(1.0, 2.0, 0.6, Wd / 2 - 0.5, 1.0, 2.6, 'metal');
+  for (let k = 0; k < 10; k++) W.cyl(0.06, 0.05, 0.1, Wd / 2 - 3.2 + k * 0.25, 1.1, 4.35, mpick([0xd8302a, 0xe8a020]), { seg: 8 });
+  W.push(Wd / 2 - 0.12, 0, 4.4, -Math.PI / 2); NEON.sign('1시간 1,500원', 0, 2.2, 0, 2.6, 0.4, { style: 'led', col: 'green', glow: false, pool: false, lamp: false }); W.pop();
+  for (let x = -6; x <= 6; x += 3) W.lamp(x, 2.6, 0, 0xb0c8ff, 1.0, 7, { halo: 0 });
+  staffAt(Wd / 2 - 2, 3.7, Math.PI, 'room'); for (const [k, r] of [[1, 0], [4, 1], [2, 2], [5, 3]]) staffAt(-6 + k * 1.6, -4.4 + r * 2.4 + (r % 2 ? 0.55 : -0.55), r % 2 ? 0 : Math.PI, 'guest');
+  W.pop();
+}
+
+// ---------------- 카페 ----------------
+function roomCafe() {
+  const Wd = 12, D = 9, H = 3.4;
+  roomShell('cafe', Wd, D, H, { name: '카페', en: 'café', floor: 0x8a6a4a, wall: 0xe8e0d0, ceil: 0x3a3430 });
+  W.box(5, 1.05, 0.7, -2.5, 0.52, -D / 2 + 1.4, 0x6a4a2a, { t: TX.wood }); W.solid(5, 1.05, 0.7, -2.5, 0.52, -D / 2 + 1.4, 'wood'); W.box(5.2, 0.05, 0.8, -2.5, 1.07, -D / 2 + 1.4, 0xe8e8e4, { t: TX.stone });
+  espressoMachine(-3.8, 1.1, -D / 2 + 1.4, 0); espressoMachine(-2.4, 1.1, -D / 2 + 1.4, 0);
+  W.box(1.4, 0.5, 0.6, -0.6, 1.33, -D / 2 + 1.4, 0xfff0d0, { layer: 'glow' }); for (let k = 0; k < 8; k++) W.sphere(0.09, 0.06, 0.09, -1.1 + (k % 4) * 0.3, 1.25 + Math.floor(k / 4) * 0.2, -D / 2 + 1.4, mpick([0xc88a4a, 0xe8c890, 0x6a3a1a, 0xe86a8a]), { seg: 6, hseg: 4 });
+  W.box(4, 1.2, 0.05, -2.5, 2.5, -D / 2 + 0.04, 0x1a1a1a); W.push(-2.5, 0, -D / 2 + 0.07, 0); NEON.sign('아메리카노 · 라떼', 0, 2.65, 0, 3.4, 0.35, { style: 'plate', col: '#ffffff', dim: 0.9 }); NEON.sign('4,500원', 0, 2.25, 0, 1.6, 0.3, { style: 'plate', col: '#e8d8b0', dim: 0.9 }); W.pop();
+  for (let i = 0; i < 4; i++) { const x = 1.5 + (i % 2) * 2.6, z = -1.8 + Math.floor(i / 2) * 2.8; W.cyl(0.38, 0.38, 0.04, x, 0.74, z, 0xe8e0d0, { seg: 12 }); W.cyl(0.04, 0.04, 0.72, x, 0.36, z, 0x2a2a2a); W.solid(0.8, 0.76, 0.8, x, 0.38, z, 'wood'); for (const s of [-1, 1]) bistroChair(x + s * 0.65, 0, z, s * Math.PI / 2, 0x3a3a3a); W.cyl(0.04, 0.035, 0.1, x + 0.1, 0.81, z, 0xe8e8e0, { seg: 8 }); }
+  for (let k = 0; k < 4; k++) { W.rod([-4 + k * 1.2, H, 0], [-4 + k * 1.2, 2.3, 0], 0.006, 0x1a1a1a); W.sphere(0.12, 0.16, 0.12, -4 + k * 1.2, 2.25, 0, 0xffd090, { layer: 'glow' }); }
+  for (const [x, z] of [[-Wd / 2 + 0.6, 3.6], [Wd / 2 - 0.6, 3.6], [Wd / 2 - 0.6, -3.6]]) plantPot(x, 0, z, 'ficus', 2.2);
+  shelfUnit(-Wd / 2 + 0.25, 0, 0.5, Math.PI / 2, 2.4, 2.0, 0.4, 0x6a4a2a, 'books');
+  W.lamp(-2, 2.8, -1, 0xffd8a8, 1.6, 9, { halo: 0 }); W.lamp(3, 2.8, 0.5, 0xffd8a8, 1.4, 9, { halo: 0 });
+  staffAt(-3, -D / 2 + 0.75, 0, 'cafe'); staffAt(-0.8, -D / 2 + 0.75, 0, 'cafe'); staffAt(1.5, -1.0, Math.PI, 'guest'); staffAt(-1.5, -1.6, 0.3, 'guest');
+  W.pop();
+}
+
+// ---------------- a villa flat ----------------
+function roomApt() {
+  const Wd = 11, D = 9, H = 2.6;
+  roomShell('apt', Wd, D, H, { name: '빌라', en: 'a flat', floor: 0xb89a6a, wall: 0xe8e4d8, ceil: 0xe8e8e4, door: 0x5a4a3a });
+  // the entrance step and the shoes, the partition to the bedroom
+  W.box(1.6, 0.04, 1.2, 0, 0.05, D / 2 - 0.6, 0x8a8a84, { t: TX.ceramic }); for (let k = 0; k < 5; k++) W.box(0.12, 0.08, 0.28, -0.5 + k * 0.25, 0.1, D / 2 - 0.5, mpick([0xe8e8e0, 0x2a2a2a, 0xd83a3a]));
+  W.box(0.12, H, 4.5, 1.5, H / 2, -2.25, 0xe8e4d8, { t: TX.plaster }); W.solid(0.12, H, 4.5, 1.5, H / 2, -2.25, 'concrete');
+  // living room: sofa, low table with fruit, TV on, a fan, the rice cooker on the counter
+  sofa(-3.2, 0, 1.6, Math.PI, 0x6a7a8a, 2.4); lowTable(-3.2, 0, 0.4, 0, 1.2, 0.6); fruitBowl(-3.2, 0.42, 0.4);
+  W.box(1.6, 0.9, 0.06, -3.2, 1.2, -D / 2 + 0.08, 0x3a6aa8, { layer: 'glow' }); W.box(1.7, 0.5, 0.4, -3.2, 0.25, -D / 2 + 0.3, 0x4a3a2a, { t: TX.wood }); W.lamp(-3.2, 1.2, -D / 2 + 1.2, 0x6aa0ff, 0.8, 4, { halo: 0 });
+  fanStand(-5, 0, 2.6, 2.4); floorRug(-3.2, 0.04, 0.6, 2.6, 2.0, 0, 0x8a6a4a);
+  kitchenRun(-Wd / 2 + 0.35, 0, -1.6, Math.PI / 2, 2.6); fridge(-Wd / 2 + 0.45, 0, 0.6, Math.PI / 2);
+  // bedroom: bed, wardrobe, desk with a laptop, laundry drying by the window
+  bed(3.6, 0, -2.4, 0, 0xd8a0b0); W.box(1.2, 2.0, 0.6, Wd / 2 - 0.4, 1.0, 0.4, 0xd8c8a8, { t: TX.wood, ry: Math.PI / 2 }); W.solid(0.6, 2.0, 1.2, Wd / 2 - 0.4, 1.0, 0.4, 'wood');
+  desk(2.4, 0, 2.6, Math.PI, 1.2, 0.6); laptop(2.4, 0.76, 2.6, Math.PI);
+  for (let k = 0; k < 6; k++) W.box(0.3, 0.45, 0.01, 2.6 + k * 0.4, 1.6, -D / 2 + 0.6, mpick([0xe8e8e0, 0x6a8ab0, 0xd8a0b0, 0x2a2a2a]));
+  W.rod([2.4, 1.85, -D / 2 + 0.6], [5.1, 1.85, -D / 2 + 0.6], 0.01, 0xc8ccd0);
+  // the window: the city lit up beyond the glass
+  const view = canvasTex(256, 128, (g, w, h) => { g.fillStyle = '#0a0b14'; g.fillRect(0, 0, w, h); for (let i = 0; i < 300; i++) { g.fillStyle = Math.random() < 0.15 ? `hsl(${Math.random() * 360},90%,60%)` : `rgba(255,${200 + Math.random() * 40},${140 + Math.random() * 60},${0.4 + Math.random() * 0.6})`; g.fillRect(Math.random() * w, h * 0.25 + Math.random() * h * 0.75, 2, 2); } });
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.4), new THREE.MeshBasicMaterial({ map: view, toneMapped: false }));
+  const wp = W.worldPos(3.6, 1.55, -D / 2 + 0.02); win.position.copy(wp); scene.add(win);
+  W.box(3.2, 1.6, 0.06, 3.6, 1.55, -D / 2 + 0.03, 0xe8e8e0, { layer: 'metal' }); W.box(0.05, 1.5, 0.08, 3.6, 1.55, -D / 2 + 0.06, 0xe8e8e0, { layer: 'metal' });
+  W.lamp(-2, 2.2, 0, 0xfff0d8, 1.4, 8, { halo: 0 }); W.lamp(3.4, 2.2, -1, 0xffe0c0, 1.0, 6, { halo: 0 }); W.box(0.6, 0.05, 0.6, -2, H - 0.03, 0, 0xfff8e8, { layer: 'glow' });
+  staffAt(-3.2, 0.9, Math.PI, 'home');
+  W.pop();
+}
+function seoulInteriors() { roomBBQ(); roomHof(); roomKaraoke(); roomPC(); roomCafe(); roomApt(); }
+
+// ---------------- runtime: E at a door, E at the door inside ----------------
+const DOORS = (() => {
+  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; } };
+  let inside = null, fadeEl = null, busyUntil = 0;
+  const fade = (fn) => {
+    if (!fadeEl) { fadeEl = document.createElement('div'); fadeEl.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:40'; document.body.appendChild(fadeEl); }
+    busyUntil = performance.now() + 700; fadeEl.style.opacity = '1'; audio.pouch(); setTimeout(() => { fn(); setTimeout(() => { fadeEl.style.opacity = '0'; }, 100); }, 260);
+  };
+  const near = () => {
+    if (P.vehicle || P.dead || SUBWAY.under) return null;
+    if (inside) { const R2 = ROOMS[inside.room]; return Math.hypot(P.pos.x - R2.x, P.pos.z - (R2.z + R2.D / 2)) < 1.8 ? inside : null; }
+    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw); let best = null, bd = 1.7;
+    for (const d of TOWN.doors) { const dx = d.x - P.pos.x, dz = d.z - P.pos.z; if (Math.abs(dx) > 2 || Math.abs(dz) > 2) continue; const L = Math.hypot(dx, dz); if (L < bd && (L < 0.5 || (dx * fx + dz * fz) / L > 0.2)) { bd = L; best = d; } }
+    return best;
+  };
+  function interact() {
+    if (performance.now() < busyUntil) return false;
+    const d = near(); if (!d) return false;
+    if (inside) { const back = inside; fade(() => { P.pos.set(back.ox, 0.05, back.oz); P.vel.set(0, 0, 0); P.yaw = Math.atan2(-(back.ox - back.x), -(back.oz - back.z)); STREAM.prime(P.pos); }); inside = null; return true; }
+    const R2 = ROOMS[d.room];
+    fade(() => { P.pos.set(R2.x, 0.05, R2.z + R2.D / 2 - 1.1); P.vel.set(0, 0, 0); P.yaw = 0; STREAM.prime(P.pos); feed(`<span class="s">${d.name ? d.name + ' · ' : ''}${R2.en.toUpperCase()}</span>`); });
+    inside = d; return true;
+  }
+  return {
+    interact,
+    prompt() { if (performance.now() < busyUntil) return ''; const d = near(); return d ? (inside ? '[E]  나가기 · LEAVE' : `[E]  들어가기 · ENTER${d.name ? '  ' + d.name : ''}`) : ''; },
+    get inside() { return !!inside; },
+  };
+})();
+// under a roof: no rain (subway, rooms)
+const indoors = () => SUBWAY.under || DOORS.inside;
 // =====================================================================
 //  DAR ESSALAM — build order
 // =====================================================================
@@ -9410,11 +9648,37 @@ function rebuildGuns() {
   gun = null;
   equip(P.w);
 }
+// weapon light (night maps): L clicks a torch under the barrel on and off — a real spotlight, the lens
+// glowing, and its beam hanging in the rain
+const TORCH = (() => {
+  const light = new THREE.SpotLight(0xfff2dc, 0, 46, 0.34, 0.6, 1.4), tgt = new THREE.Object3D();
+  light.target = tgt; tgt.position.set(0, 0, 10); light.castShadow = false;
+  const body = new THREE.Group(), dark = new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.5, metalness: 0.6 });
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.11, 10), dark); tube.rotation.x = Math.PI / 2; body.add(tube);
+  const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.018, 0.025, 12), dark); bezel.rotation.x = Math.PI / 2; bezel.position.z = 0.065; body.add(bezel);
+  const lensMat = new THREE.MeshBasicMaterial({ color: 0x404040, toneMapped: false }), lens = new THREE.Mesh(new THREE.CircleGeometry(0.017, 12), lensMat); lens.position.z = 0.0785; body.add(lens);
+  const fadeTex = canvasTex(4, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.75, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const beamGeo = new THREE.ConeGeometry(2.4, 14, 20, 1, true); beamGeo.rotateX(-Math.PI / 2); beamGeo.translate(0, 0, 7.08);
+  const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xfff0d8, alphaMap: fadeTex, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+  beam.renderOrder = 5; body.add(beam, light, tgt);
+  let on = false, k = 0;
+  return {
+    mount(g) { body.position.set(0.034, -0.012, Math.max(0.12, g.muzzle.z - 0.16)); g.group.add(body); },
+    toggle() { if (!MAP.night) return; on = !on; audio.dry(); feed(`<span class="m">WEAPON LIGHT ${on ? 'ON' : 'OFF'}</span>`); },
+    update(dt) {
+      const want = on && mode === 'range' && !P.holstered && !P.dead && !P.vehicle ? 1 : 0;
+      k = want ? 1 : Math.max(0, k - dt * 12);   // clicks on, dies off in a blink
+      light.intensity = k * 70; light.visible = k > 0; beam.visible = k > 0.02; beam.material.opacity = 0.05 * k * (P.fpT > 0.5 && P.adsT > 0.5 ? 0.35 : 1);
+      lensMat.color.setScalar(0.25 + k * 3);
+    },
+    get on() { return on; },
+  };
+})();
 function equip(id) {
   if (gun) { ch.root.remove(gun.group); gun.handItem.visible = false; if (gun.mag) gun.mag.visible = true; }
   P.w = id; gun = guns[id];
   ch.root.add(gun.group);
-  flash.position.copy(gun.muzzle); gun.group.add(flash);
+  flash.position.copy(gun.muzzle); gun.group.add(flash); TORCH.mount(gun);
   if (gun.mag) gun.mag.visible = true;
   P.reload = null; P.burst = 0;
   if (holsterModel) holsterModel.visible = id !== 'pistol';
@@ -9981,6 +10245,7 @@ function flinch(side, k = 1) { P.feel.vhit -= 6 * k; P.feel.hitSide = side; }
 const aimKey = { down: false, t: 0, toggled: false };
 
 function updateRange(dt, time) {
+  TORCH.update(dt);
   // movement + stamina
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
@@ -11199,6 +11464,7 @@ const BOTS = (() => {
     const blood = document.createElement('div'); blood.style.cssText = 'position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(140,0,0,.85) 100%);opacity:0;transition:opacity .25s;z-index:5';
     const dead = document.createElement('div'); dead.style.cssText = 'position:fixed;inset:0;display:none;place-items:center;pointer-events:none;color:#e8d8c8;font:600 22px Rajdhani,sans-serif;letter-spacing:.3em;background:rgba(40,0,0,.45);z-index:6'; dead.textContent = 'YOU WERE KILLED — REGROUPING…';
     const cnt = document.createElement('div'); cnt.style.cssText = 'position:absolute;left:24px;bottom:104px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.55)';
+    hp.id = 'hpbar'; cnt.id = 'hpcnt';
     const host = document.getElementById('hud'); host.appendChild(hp); host.appendChild(cnt); document.body.appendChild(blood); document.body.appendChild(dead);
     return { fill, blood, dead, cnt };
   })();
@@ -11381,9 +11647,10 @@ const BOTS = (() => {
 // polylines (keeping to the right of their direction of travel), wander the market square, scatter
 // when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
 const NPCS = (() => {
-  const N = 30, NEAR_POSE = 42, FAR = 85, PLAZA_N = 13, SHADOW_R = 32, R = 0.28;
+  // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
+  const N = MAP.id === 'seoul' ? 84 : 66, NEAR_POSE = 26, FAR = 85, PLAZA_N = 24, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square'];
+  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -11444,6 +11711,24 @@ const NPCS = (() => {
     const gone = new Set(kill);
     for (const o of kill) for (const k of [...o.children]) if (!gone.has(k)) { let j = o.parent; while (!joints.has(j)) j = j.parent; j.attach(k); }
     for (const o of kill) o.parent.remove(o);
+  }
+  // the whole posed body baked into one mesh, for civilians beyond posing range
+  function farMesh(m) {
+    const c = m.ch; c.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(c.root.matrixWorld).invert(), parts = [];
+    c.root.traverse((o) => { if (o.isMesh && (o.material === bodyMat[THREE.FrontSide] || o.material === bodyMat[THREE.DoubleSide])) parts.push(o); });
+    let nv = 0, ni = 0; for (const o of parts) { nv += o.geometry.attributes.position.count; ni += o.geometry.index.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+    let v0 = 0, i0 = 0;
+    for (const o of parts) {
+      const g = o.geometry, P0 = g.attributes.position, N0 = g.attributes.normal, C0 = g.attributes.color;
+      _m4.multiplyMatrices(inv, o.matrixWorld); _n3.getNormalMatrix(_m4);
+      for (let i = 0; i < P0.count; i++) { _pv.fromBufferAttribute(P0, i).applyMatrix4(_m4); pos.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); _pv.fromBufferAttribute(N0, i).applyMatrix3(_n3).normalize(); nor.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); col.set([C0.getX(i), C0.getY(i), C0.getZ(i)], (v0 + i) * 3); }
+      for (let i = 0; i < g.index.count; i++) idx[i0 + i] = g.index.getX(i) + v0;
+      i0 += g.index.count; v0 += P0.count;
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, bodyMat[THREE.DoubleSide]); mesh.visible = false; scene.add(mesh); return mesh;
   }
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
   function makeModel(kitIn) {
@@ -11523,6 +11808,7 @@ const NPCS = (() => {
 
   // ---------------- motion ----------------
   function step(v, dt) {
+    if (v.talkT > 0 && v.panic <= 0) { v.talkT -= dt; v.vx = v.vz = 0; v.yaw += wrap(Math.atan2(-(P.pos.x - v.x), -(P.pos.z - v.z)) - v.yaw) * Math.min(1, dt * 6); return; }
     if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
     if (v.route) { const r = v.route[v.ri]; v.tx = r[0]; v.tz = r[1]; }
     else if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
@@ -11589,6 +11875,7 @@ const NPCS = (() => {
     if (civs.length < N) {   // build the crowd a model per frame (no hitch)
       const v = { m: makeModel(), k: civs.length, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, plaza: false, alive: false, deadT: 20, hits: [] };
       for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
+      v.x = v.y = v.z = 0; v.yaw = -Math.PI; v.vx = v.vz = 0; pose(v, 1 / 60); v.far = farMesh(v.m);
       civs.push(v); v.m.ch.root.visible = false;
     }
     const pz = nearPlaza();
@@ -11607,9 +11894,14 @@ const NPCS = (() => {
       if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
-      if (d2(v.x, v.z) < NEAR_POSE * NEAR_POSE) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+      const near = d2(v.x, v.z) < NEAR_POSE * NEAR_POSE;
+      if (near) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+      root.visible = near; v.far.visible = !near;
+      if (!near) { v.far.position.set(v.x, v.y, v.z); v.far.rotation.set(0, v.yaw + Math.PI, 0); }
     }
+    for (const v of civs) if (!v.alive && v.far) v.far.visible = false;
     if (scan <= 0) scan = 0.3;
+    staffTick(dt); bubbleTick(dt);
     // scripted figures (mission targets, couriers): follow their route, posed out to scope range
     for (const v of figs) {
       const root = v.m.ch.root;
@@ -11617,6 +11909,84 @@ const NPCS = (() => {
       if (v.fig.paused) { v.vx = v.vz = 0; } else step(v, dt);
       if (v.fig.lookAt) { const L = v.fig.lookAt; v.yaw += wrap(Math.atan2(-(L.x - v.x), -(L.z - v.z)) - v.yaw) * Math.min(1, dt * 4); }
       if (d2(v.x, v.z) < 220 * 220) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+    }
+  }
+  // ---------------- talking (E) ----------------
+  const SEOUL = MAP.id === 'seoul';
+  const LINES = SEOUL ? {
+    chat: [['안녕하세요?', 'Hi there.'], ['비가 계속 오네요.', 'It just keeps raining.'], ['지하철역은 저쪽이에요.', 'The subway is that way.'], ['편의점 라면 드셔 보세요. 진짜 맛있어요.', 'Try the konbini ramen. It’s really good.'], ['죄송해요, 지금 바빠서요.', 'Sorry, I’m in a hurry.'], ['강남 가시려면 2호선 타세요.', 'For Gangnam, take Line 2.'], ['요즘 이 동네 깡패들 조심하세요.', 'Watch out for the gangs round here lately.'], ['외국인이세요? 한국 처음이에요?', 'Not from here? First time in Korea?'], ['저기 포장마차 떡볶이 최고예요.', 'The tteokbokki at that tent is the best.'], ['한강 가면 야경 진짜 예뻐요.', 'The river’s beautiful at night.'], ['네? 뭐라고요?', 'Huh? Say again?'], ['우산 없어요? 감기 걸려요.', 'No umbrella? You’ll catch a cold.']],
+    scared: [['으악! 총이다!', 'He’s got a gun!'], ['살려주세요!', 'Help!'], ['경찰 불러요!', 'Call the police!']],
+    shop: [['어서오세요!', 'Welcome!'], ['1+1 행사 중이에요.', 'Buy one, get one free tonight.'], ['봉투 필요하세요?', 'Need a bag?'], ['카드 되세요.', 'We take cards.']],
+    food: [['몇 분이세요?', 'Table for how many?'], ['삼겹살 2인분 드릴까요?', 'Pork belly for two?'], ['여기 앉으세요!', 'Sit anywhere!'], ['소주 한 병 더요?', 'Another bottle of soju?']],
+    bar: [['생맥주 한 잔?', 'A draught beer?'], ['치킨 금방 나와요.', 'The chicken’s nearly done.'], ['오늘 축구 보세요?', 'Watching the match tonight?']],
+    room: [['몇 시간 하실 거예요?', 'How many hours?'], ['3번 방으로 가세요.', 'Room three, go on in.'], ['음료수는 서비스예요.', 'Drinks are on the house.']],
+    guest: [['조용히 좀 해 주세요.', 'Keep it down, please.'], ['아, 깜짝이야!', 'Oh, you startled me!'], ['한 판만 더 하고 갈게.', 'One more round and I’m off.'], ['여기 자주 와요?', 'Come here often?']],
+    home: [['누구세요?!', 'Who are you?!'], ['나가세요! 경찰 부를 거예요!', 'Get out! I’ll call the police!']],
+    snack: ['삼각김밥', '컵라면', '바나나우유', '호빵', '에너지 드링크'],
+  } : {
+    chat: [['Salam alikoum.', 'Peace be upon you.'], ['Labas? Kulchi mzyan?', 'All good?'], ['Le souk, c’est par là.', 'The souk is that way.'], ['Attention aux soldats près du palais.', 'Careful of the soldiers by the palace.'], ['Un thé à la menthe?', 'Mint tea?'], ['Smeh liya, ana mzroub.', 'Sorry, I’m in a hurry.'], ['Le port est en bas.', 'The harbour is down there.'], ['Il fait chaud aujourd’hui.', 'Hot today.']],
+    scared: [['Aaah! Il est armé!', 'He’s armed!'], ['Aawnou! Aawnou!', 'Help! Help!']],
+    shop: [['Marhba bik!', 'Welcome!'], ['Bon prix pour toi.', 'Good price for you.']], food: [['Tajine, couscous?', 'Tagine? Couscous?']], bar: [['Un café?', 'Coffee?']], room: [['Marhba.', 'Welcome.']], guest: [['Salam.', 'Hello.']], home: [['Chkoun?!', 'Who’s there?!']],
+    snack: ['msemen', 'thé à la menthe', 'pain au chocolat'],
+  };
+  const bubble = document.createElement('div');
+  bubble.style.cssText = 'position:absolute;transform:translate(-50%,-100%);max-width:260px;padding:7px 11px;border-radius:10px;background:rgba(14,16,22,.82);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 14px/1.3 system-ui,"Malgun Gothic","Noto Sans KR",sans-serif;text-align:center;pointer-events:none;display:none;white-space:normal';
+  let talker = null, talkT = 0, snackT = -99, bubbleOn = false;
+  const _hp = new V3();
+  function say(v, [ko, en]) {
+    if (!bubbleOn) { document.getElementById('hud').appendChild(bubble); bubbleOn = true; }
+    bubble.innerHTML = `${ko}<br><span style="font-weight:400;font-size:12px;opacity:.75">${en}</span>`;
+    talker = v; talkT = 4.5;
+  }
+  function bubbleTick(dt) {
+    if (!talker || (talkT -= dt) <= 0 || !talker.alive) { bubble.style.display = 'none'; talker = null; return; }
+    _hp.set(talker.x, talker.y + 2.05, talker.z).project(camera);
+    if (_hp.z > 1 || Math.hypot(talker.x - P.pos.x, talker.z - P.pos.z) > 12) { bubble.style.display = 'none'; return; }
+    bubble.style.display = 'block'; bubble.style.left = `${(_hp.x * 0.5 + 0.5) * innerWidth}px`; bubble.style.top = `${(-_hp.y * 0.5 + 0.5) * innerHeight}px`;
+  }
+  // the person in front of you (within reach), civilian or shop staff
+  function facing() {
+    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw); let best = null, bd = 2.6;
+    for (const v of [...civs, ...figs]) {
+      if (!v.alive || (v.fig && !v.fig.staff)) continue;
+      const dx = v.x - P.pos.x, dz = v.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.25 && Math.abs(v.y - P.pos.y) < 1.3) { bd = d; best = v; }
+    }
+    return best;
+  }
+  function talk() {
+    const v = facing(); if (!v) return false;
+    const armed = !P.holstered && P.disguise !== 'militia';
+    if (v.fig) {
+      const role = v.fig.role || 'shop';
+      if (role === 'home') { say(v, pick(LINES.home)); return true; }
+      if ((role === 'shop' || role === 'food') && clock - snackT > 15 && P.hp < 100) {
+        snackT = clock; const item = pick(LINES.snack); P.hp = Math.min(100, P.hp + 30);
+        say(v, SEOUL ? [`${item} 여기요. 맛있게 드세요!`, `Here’s your ${item}. Enjoy!`] : [`Tfeddal, ${item}.`, `Here you go: ${item}.`]); feed(`<span class="s">${item.toUpperCase()} · +30 HP</span>`); audio.pouch(); return true;
+      }
+      say(v, pick(LINES[role] || LINES.shop)); return true;
+    }
+    if (armed) { say(v, pick(LINES.scared)); v.panic = rand(6, 9); v.idle = 0; v.talkT = 0; return true; }
+    say(v, pick(LINES.chat)); v.talkT = 4.5; v.idle = 0; return true;
+  }
+  const promptTalk = () => { const v = facing(); return v ? (v.fig ? '[E]  TALK' + ((v.fig.role === 'shop' || v.fig.role === 'food') && P.hp < 100 ? ' · BUY A SNACK' : '') : '[E]  TALK') : ''; };
+  // ---------------- shop staff: real people behind the counters near you (spots registered by the map) ----------------
+  const STAFF_R = 32, STAFF_MAX = 18, UNIFORM = { shop: ['#2a8a4a', 'cap'], food: ['#1a1a1a', 'none'], bar: ['#6a1a1a', 'none'], room: ['#3a2a6a', 'none'], cafe: ['#4a3424', 'none'], guest: [null, 'none'], home: ['#8a8a9a', 'none'] };
+  let staffClock = 0;
+  function staffTick(dt) {
+    if ((staffClock -= dt) > 0 || !TOWN.staff) return; staffClock = 0.5;
+    let live = 0; for (const s2 of TOWN.staff) if (s2.v) live++;
+    for (const s2 of TOWN.staff) {
+      const d = Math.hypot(s2.x - P.pos.x, s2.z - P.pos.z) + Math.abs((s2.y || 0) - P.pos.y) * 4;
+      if (s2.v && (d > STAFF_R + 14 || !s2.v.alive && s2.v.deadT > 30)) { removeFigure(s2.v); s2.v = null; live--; continue; }
+      if (!s2.v && d < STAFF_R && live < STAFF_MAX && !s2.dead) {
+        const [col, hat] = UNIFORM[s2.role] || UNIFORM.shop, kit = outfit();
+        if (col) Object.assign(kit, { top: 'tshirt', topColor: col, headwear: hat, hatColor: col, vest: s2.role === 'food' ? 'none' : kit.vest });
+        const home = { x: s2.x - Math.sin(s2.yaw) * 3, z: s2.z - Math.cos(s2.yaw) * 3 };
+        s2.v = spawnFigure({ kit, route: s2.route || [[s2.x, s2.z]], loop: !!s2.route, speed: s2.route ? 0.9 : 0, yaw: s2.yaw, y: s2.y, staff: true, role: s2.role === 'cafe' ? 'shop' : s2.role, home, onDeath: () => { s2.dead = true; P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>'); alarm(s2.x, s2.z); } });
+        s2.v.fig.lookAt = s2.route ? null : home; live++;
+      }
+      if (s2.v && s2.v.alive && !s2.route) s2.v.fig.lookAt = d < 5 ? P.pos : s2.v.fig.home;
     }
   }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
@@ -11684,7 +12054,7 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();
 // =====================================================================
 //  The campaign: five missions through Dar Essalam
@@ -11695,7 +12065,7 @@ const NPCS = (() => {
 const MISSION = (() => {
   const host = document.getElementById('hud');
   const el = (css) => { const d = document.createElement('div'); d.style.cssText = css; host.appendChild(d); return d; };
-  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.12em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.55;max-width:420px');
+  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.12em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.55;max-width:420px'); obj.id = 'objPanel';
   const way = el('position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.12em;color:#ffd27a;text-shadow:0 0 5px #000;text-align:center;white-space:nowrap;display:none');
   const prompt = el('position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:16px;letter-spacing:.25em;color:#ffd27a;text-shadow:0 0 8px #000;display:none');
   const banner = el('position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(640px,90vw);text-align:center;color:#f0e2c4;text-shadow:0 0 12px #000;opacity:0;transition:opacity .5s;font:600 22px Rajdhani,sans-serif;letter-spacing:.22em');
@@ -11840,7 +12210,7 @@ const MISSION = (() => {
     else if (st.done && st.done()) { advance(); return; }
     obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? `<span style="opacity:.45">✓ ${q.text}</span>` : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>` : '')).filter(Boolean).join('<br>');
     const pr = st.prompt ? st.prompt() : '';
-    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    setPrompt(prompt, pr);
     const t = st.where ? st.where() : null;
     if (!t) { way.style.display = 'none'; beam.visible = false; return; }
     beam.visible = true; beam.position.set(t.x, (t.y ?? 1) - 2, t.z); beam.material.opacity = 0.16 + 0.12 * Math.sin(performance.now() / 300) ** 2;
@@ -11902,7 +12272,7 @@ const DISGUISE = (() => {
   P.holstered = false; P.disguise = null; P.blownUntil = -99;
   let own = null, t = 0;
   const host = document.getElementById('hud');
-  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; host.appendChild(tag);
+  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; tag.id = 'gearTag'; host.appendChild(tag);
   const prompt = document.createElement('div'); prompt.style.cssText = 'position:absolute;left:50%;top:60%;transform:translateX(-50%);font-size:15px;letter-spacing:.22em;color:#e8dcc4;text-shadow:0 0 8px #000;display:none'; host.appendChild(prompt);
 
   function wear(kit, type) {
@@ -11945,7 +12315,9 @@ const DISGUISE = (() => {
     if (MISSION.interact()) return;
     if (SCOOTER.interact()) return;
     const b = nearestBody();
-    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
+    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); return; }
+    if (DOORS.interact()) return;
+    NPCS.talk();
   }
   // silent takedown from behind (militia) / knockout (civilian)
   function takedown() {
@@ -11964,9 +12336,8 @@ const DISGUISE = (() => {
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
     else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
-    else if (NPCS.canKnockout(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  KNOCK OUT';
-    else pr = SCOOTER.prompt();
-    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    else { const talk = SCOOTER.riding ? '' : NPCS.promptTalk(), ko = !SCOOTER.riding && NPCS.canKnockout(P.pos, P.yaw) ? '[F]  KNOCK OUT' : ''; pr = SCOOTER.prompt() || DOORS.prompt() || [talk, ko].filter(Boolean).join('     '); }
+    setPrompt(prompt, pr);
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();
@@ -12194,7 +12565,9 @@ const SCOOTER = (() => {
     if (sp > 3) { NPCS.bump(s.x, s.z, sp); BOTS.ram(s.x, s.z, sp); }
     P.pos.set(s.x, s.y, s.z); P.vel.set(s.vx, 0, s.vz); placeModel(s);
     // the camera settles behind the bars unless you're looking around
-    if (performance.now() - lastLookT > 700) P.yaw += wrapPI(s.yaw - P.yaw) * Math.min(1, dt * 2.5);
+    // follow a filtered heading (the low-speed wobble and lean twitches don't reach the camera), only while moving
+    s.camYaw = s.camYaw === undefined ? s.yaw : s.camYaw + wrapPI(s.yaw - s.camYaw) * Math.min(1, dt * 3);
+    if (performance.now() - lastLookT > 1200 && Math.abs(v) > 1.2) P.yaw += wrapPI(s.camYaw - P.yaw) * Math.min(1, dt * 3.5);
     audio.engine(true, clamp(Math.abs(v) / VMAX, 0, 1) * 0.8 + thr * 0.2, thr);
     audio.skid(clamp((s.slip - 0.8) / 4, 0, 1) * (sp > 2 ? 1 : 0));
     if (thr && sp > 1) P.shake = Math.min(0.3, P.shake + dt * 0.4);
@@ -12259,7 +12632,7 @@ const SCOOTER = (() => {
     update, drive, interact, horn, poseRider, placeModel,
     get riding() { return riding; },
     prompt: () => (riding ? (Math.hypot(riding.vx, riding.vz) < 3 ? '' : '') : nearest() ? '[E]  RIDE THE SCOOTER' : ''),
-    camRoll: () => (riding ? -riding.lean * 0.55 : 0),
+    camRoll: () => (riding ? -riding.lean * 0.18 : 0),   // a hint of the lean in first person; the horizon mostly stays put
   };
 })();
 // =====================================================================
@@ -12484,6 +12857,109 @@ const MENU = (() => {
   };
 })();
 // =====================================================================
+//  HUD: controls panel (TAB), vitals, key-chip prompts, compass, where you are
+// =====================================================================
+// The pieces of the HUD are made by the modules that own them (BOTS the health bar, DISGUISE the gear
+// tag, MISSION the objective); this file only dresses them as one set and adds what was missing.
+(() => {
+  const css = document.createElement('style');
+  css.textContent = `
+  #hud kbd{display:inline-block;min-width:1.4em;padding:1px 7px;margin:0 8px 0 0;border-radius:4px;background:#f0e6d0;color:#121212;font:700 13px Rajdhani,system-ui,sans-serif;letter-spacing:.05em;text-align:center;box-shadow:0 2px 0 rgba(0,0,0,.45);text-shadow:none}
+  .hudPrompt{padding:8px 16px;border-radius:6px;background:rgba(10,12,16,.62);backdrop-filter:blur(3px);border:1px solid rgba(255,255,255,.1);letter-spacing:.16em!important;white-space:nowrap}
+  #keys{display:none!important}
+  #ctl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;grid-template-columns:repeat(3,auto);gap:8px 28px;padding:22px 28px;border-radius:10px;background:rgba(10,12,16,.86);border:1px solid rgba(255,255,255,.1);font-size:14px;letter-spacing:.08em;color:#c8ccd4}
+  #ctl.show{display:grid}
+  #ctl h3{grid-column:1/-1;margin:0 0 6px;font-size:13px;letter-spacing:.3em;color:#c9a45c;font-weight:600}
+  #ctl div{white-space:nowrap}
+  #ctlHint{position:absolute;left:24px;bottom:20px;font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.45)}
+  #vitals{position:absolute;left:24px;bottom:44px;width:220px}
+  #hpbar{position:static!important;width:100%!important;height:8px!important;border-radius:4px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.14)!important}
+  #hpbar i{border-radius:4px}
+  #hpcnt{position:static!important;margin-bottom:5px}
+  #gearTag{position:static!important;margin-top:7px;font-size:12px!important;white-space:nowrap}
+  #objPanel{padding:10px 14px;border-radius:6px;background:linear-gradient(90deg,rgba(10,12,16,0),rgba(10,12,16,.6));border-right:2px solid #c9a45c}
+  #objPanel:empty{display:none}
+  #compass{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:420px;height:30px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+  #compass .strip{position:absolute;top:0;left:0;height:100%;white-space:nowrap}
+  #compass .t{position:absolute;top:2px;width:1px;height:7px;background:rgba(255,255,255,.4)}
+  #compass .c{position:absolute;top:9px;transform:translateX(-50%);font-size:13px;font-weight:700;letter-spacing:.1em;color:#e7e9ee}
+  #compass .c.n{color:#e0533d}
+  #compass .goal{position:absolute;top:0;transform:translateX(-50%);color:#ffd27a;font-size:12px}
+  #compass::after{content:'';position:absolute;left:50%;top:0;width:2px;height:10px;background:#c9a45c;transform:translateX(-1px)}
+  #where{position:absolute;left:50%;top:46px;transform:translateX(-50%);font-size:12px;letter-spacing:.3em;color:rgba(255,255,255,.55);white-space:nowrap}
+  #ctlHint.pulse{animation:hp 1.2s ease-in-out infinite alternate;color:#e8dcc4}
+  @keyframes hp{from{opacity:.45}to{opacity:1}}
+  #placeToast{position:absolute;left:50%;top:30%;transform:translateX(-50%);text-align:center;opacity:0;transition:opacity .8s;pointer-events:none;text-shadow:0 0 14px #000}
+  #placeToast b{display:block;font:700 34px "Malgun Gothic","Noto Sans KR",Rajdhani,sans-serif;letter-spacing:.2em;color:#f4ecdc}
+  #placeToast span{font-size:13px;letter-spacing:.45em;color:#c9a45c}
+  #feed{top:118px!important}
+  `;
+  document.head.appendChild(css);
+})();
+
+// "[E]  TEXT" → a key chip and the text; used for every interaction prompt
+function setPrompt(el, s) {
+  if (el._s === s) return; el._s = s;
+  el.innerHTML = s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]\s*/g, '<kbd>$1</kbd>').replace(/&lt;br&gt;/g, '<br>') : '';
+  el.style.display = s ? 'block' : 'none';
+  el.classList.add('hudPrompt');
+}
+
+const HUD = (() => {
+  const host = document.getElementById('hud');
+  const mk = (id, html = '') => { const d = document.createElement('div'); d.id = id; d.innerHTML = html; host.appendChild(d); return d; };
+  // controls: a tidy panel on TAB (and for the first few seconds of a session)
+  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
+  const ctl = mk('ctl', `<h3>CONTROLS</h3>${C.map(([k, v]) => `<div><kbd>${k}</kbd>${v}</div>`).join('')}`);
+  const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
+  // vitals: health, its counter, the gear tag, stacked
+  const vit = mk('vitals');
+  // compass along the top, with the objective's bearing on it
+  const comp = mk('compass'), strip = document.createElement('div'); strip.className = 'strip'; comp.appendChild(strip);
+  const PX = 2.4, NAMES = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+  let h = ''; for (let d = -360; d <= 720; d += 15) { const a = ((d % 360) + 360) % 360; h += NAMES[a] ? `<span class="c${a === 0 ? ' n' : ''}" style="left:${d * PX}px">${NAMES[a]}</span>` : `<i class="t" style="left:${d * PX}px"></i>`; }
+  strip.innerHTML = h; const goal = document.createElement('span'); goal.className = 'goal'; goal.textContent = '◆'; comp.appendChild(goal);
+  const where = mk('where'), toast = mk('placeToast');
+  let shownAt = -1, place = '', toastT = 0, adopted = false, t = 0;
+  function region() {
+    if (MAP.id === 'seoul') {
+      if (SUBWAY.under) { let best = LINE2[0]; for (const s of LINE2) if (Math.abs(P.pos.x - (s.ox ?? 1e9)) < 80) best = s; return [`${best.ko}역`, `${best.en.toUpperCase()} · LINE 2`]; }
+      if (DOORS.inside) return ['실내', 'INDOORS'];
+      const { x, z } = P.pos;
+      if (z > 150) return ['한강공원', 'HANGANG PARK']; if (x > 153) return ['강남', 'GANGNAM']; if (x < -153) return ['아현', 'AHYEON'];
+      if (z < -140) return ['남대문시장', 'NAMDAEMUN MARKET']; return ['홍대 · 마포', 'HONGDAE · MAPO'];
+    }
+    if (typeof PALACE !== 'undefined' && P.pos.z < PALACE.z1 && P.pos.x > PALACE.x0 && P.pos.x < PALACE.x1) return ['دار المخزن', 'DAR EL MAKHZEN'];
+    let best = null, bd = 45; for (const r of TOWN.plazas) { const d = Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z); if (d < bd) { bd = d; best = r; } }
+    return best ? ['', best.name.toUpperCase()] : ['', 'DAR ESSALAM'];
+  }
+  return {
+    toggleKeys(on) { ctl.classList.toggle('show', on ?? !ctl.classList.contains('show')); },
+    update(dt) {
+      t += dt;
+      if (mode !== 'range' || !MAP.ready) return;
+      if (!adopted) {   // pull the other modules' pieces into the vitals block once they exist
+        for (const id of ['hpcnt', 'hpbar', 'gearTag']) { const e = document.getElementById(id); if (e) vit.appendChild(e); }
+        adopted = !!document.getElementById('gearTag');
+      }
+      if (shownAt < 0) shownAt = performance.now();
+      hint.classList.toggle('pulse', performance.now() - shownAt < 12000);   // the TAB hint draws the eye for the first few seconds
+      // compass: heading 0 = north (−z), clockwise
+      const head = ((-P.yaw * 180 / Math.PI) % 360 + 360) % 360;
+      strip.style.transform = `translateX(${210 - head * PX}px)`;
+      const g = MISSION.target;
+      if (g) { const b = ((Math.atan2(g.x - P.pos.x, -(g.z - P.pos.z)) * 180 / Math.PI) % 360 + 360) % 360; let rel = b - head; rel = ((rel + 540) % 360) - 180; goal.style.display = Math.abs(rel) < 85 ? 'block' : 'none'; goal.style.left = `${210 + rel * PX}px`; } else goal.style.display = 'none';
+      // where you are, and a title card when it changes
+      if ((t * 4 | 0) !== ((t - dt) * 4 | 0)) {
+        const [ko, en] = region(), key = ko + en;
+        where.textContent = ko ? `${ko}  ·  ${en}` : en;
+        if (key !== place) { if (place) { toast.innerHTML = `${ko ? `<b>${ko}</b>` : ''}<span>${en}</span>`; toast.style.opacity = '1'; toastT = 3; } place = key; }
+      }
+      if (toastT > 0 && (toastT -= dt) <= 0) toast.style.opacity = '0';
+    },
+  };
+})();
+// =====================================================================
 //  Input
 // =====================================================================
 addEventListener('keydown', (e) => {
@@ -12507,6 +12983,8 @@ addEventListener('keydown', (e) => {
     case 'KeyU': DISGUISE.ownGear(); break;
     case 'KeyJ': MISSION.restart(); break;
     case 'KeyM': HANDMAP.toggle(); break;
+    case 'KeyL': TORCH.toggle(); break;
+    case 'Tab': e.preventDefault(); HUD.toggleKeys(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -12720,7 +13198,7 @@ function frame(now) {
   if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); HUD.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -12763,7 +13241,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

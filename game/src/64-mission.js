@@ -7,7 +7,7 @@
 const MISSION = (() => {
   const host = document.getElementById('hud');
   const el = (css) => { const d = document.createElement('div'); d.style.cssText = css; host.appendChild(d); return d; };
-  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.12em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.55;max-width:420px');
+  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.12em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.55;max-width:420px'); obj.id = 'objPanel';
   const way = el('position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.12em;color:#ffd27a;text-shadow:0 0 5px #000;text-align:center;white-space:nowrap;display:none');
   const prompt = el('position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:16px;letter-spacing:.25em;color:#ffd27a;text-shadow:0 0 8px #000;display:none');
   const banner = el('position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(640px,90vw);text-align:center;color:#f0e2c4;text-shadow:0 0 12px #000;opacity:0;transition:opacity .5s;font:600 22px Rajdhani,sans-serif;letter-spacing:.22em');
@@ -152,7 +152,7 @@ const MISSION = (() => {
     else if (st.done && st.done()) { advance(); return; }
     obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? `<span style="opacity:.45">✓ ${q.text}</span>` : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>` : '')).filter(Boolean).join('<br>');
     const pr = st.prompt ? st.prompt() : '';
-    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+    setPrompt(prompt, pr);
     const t = st.where ? st.where() : null;
     if (!t) { way.style.display = 'none'; beam.visible = false; return; }
     beam.visible = true; beam.position.set(t.x, (t.y ?? 1) - 2, t.z); beam.material.opacity = 0.16 + 0.12 * Math.sin(performance.now() / 300) ** 2;
