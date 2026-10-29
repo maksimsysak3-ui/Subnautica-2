@@ -391,6 +391,10 @@ function seoulPlan() {
   MAP.lodDist.splice(0, 4, 200, 80, 45, 24); MAP.drawDist = 200;
   Object.assign(SPAWN, { x: 58, z: 19, yaw: Math.PI * 0.85 });
   Object.assign(SQ, { x0: 1e4, z0: 1e4, x1: 1e4 + 1, z1: 1e4 + 1 });   // no "quiet square" here
+  // two crews: the Black Dragons hold Mapo's bar streets, the Blue Snakes Gangnam and the north-east
+  TOWN.factionAt = (x, z) => (x > 150 || (z < -150 && x > 30) ? 'gold' : 'red');
+  TOWN.guards.push(...[[66, -45, -Math.PI / 2], [74, -72, Math.PI / 2], [66, -98, -Math.PI / 2], [74, -124, Math.PI / 2], [2, -127, Math.PI], [-66, -30, -Math.PI / 2]].map(([x, z, yaw]) => ({ x, z, yaw, team: 'red' })),
+    ...[[196, 27, Math.PI / 2], [216, 31, Math.PI / 2], [209, -60, -Math.PI / 2], [215, -112, Math.PI / 2], [209, 92, -Math.PI / 2], [95, -205, Math.PI / 2]].map(([x, z, yaw]) => ({ x, z, yaw, team: 'gold' })));
   MAP.bounds = 900;
   return [
     ['Laying out Mapo-gu', () => { seoulRoads(); seoulStreets(); seoulOuterLanes(); seoulReserves(); }],

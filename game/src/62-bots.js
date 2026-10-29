@@ -67,7 +67,19 @@ const BOTS = (() => {
     { ...PRESETS['Urban Black'] },
     { ...PRESETS['Desert'], topColor: '#3b3a33', pantsColor: '#4a4436', vestColor: '#2c2e25', hatColor: '#3a3a30', packColor: '#2c2e25' },
     { ...PRESETS['Woodland'], topColor: '#2a2d33', vestColor: '#33352a', pantsColor: '#2f3236' },
+    // Seoul: the Black Dragons (black suits, shades) and the Blue Snakes (navy tracksuits, caps)
+    { ...REFERENCE, top: 'jacket', topColor: '#121214', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#141416', headwear: 'none', hair: 'short', hairColor: '#121010', eyewear: 'sunglasses', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#d9a37a' },
+    { ...REFERENCE, top: 'longsleeve', topColor: '#3a1a1e', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18181a', headwear: 'none', hair: 'buzz', hairColor: '#121010', eyewear: 'none', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
+    { ...REFERENCE, top: 'hoodie', topColor: '#1e3a6a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#1a1f2e', headwear: 'cap', hatColor: '#1e3a6a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#e8e8e8', facialHair: 'none', skin: '#d9a37a' },
+    { ...REFERENCE, top: 'jacket', topColor: '#2a5a9a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#2a5a9a', headwear: 'beanie', hatColor: '#141a2a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#2a2a2a', facialHair: 'stubble', skin: '#c98e62' },
   ];
+  // the sides on each map: team id → name and the kits its men wear. Every side fights every other (and you).
+  const FACTIONS = MAP.id === 'seoul'
+    ? { red: { name: '흑룡파 · BLACK DRAGONS', kits: [3, 4] }, gold: { name: '청사파 · BLUE SNAKES', kits: [5, 6] } }
+    : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
+  // whose ground is this? (each map says; the militia / Black Dragons by default)
+  const sideAt = (x, z) => (TOWN.factionAt ? TOWN.factionAt(x, z) : 'red');
+  const kitFor = (team) => { const ks = (FACTIONS[team] || FACTIONS.red).kits; return ks[(Math.random() * ks.length) | 0]; };
   let kitMats = null;
   // clone every slot material per kit, coloured for that kit (the player's own materials are untouched)
   function buildKitMats() {
@@ -91,9 +103,9 @@ const BOTS = (() => {
     scene.add(c.root);
     return { ch: c, gun: g, flash, px, k };
   }
-  function takeModel(i) { const m = pool.length ? pool.pop() : makeModel(i); m.ch.root.visible = true; return m; }
+  function takeModel(k) { const i = pool.findIndex((m) => m.k === k); const m = i >= 0 ? pool.splice(i, 1)[0] : makeModel(k); m.ch.root.visible = true; return m; }
   function makeView(agent, i) {
-    const model = takeModel(i);
+    const model = takeModel(agent.kit ?? i);
     const v = { agent, model, y: 0, yaw: agent.look.yaw, phase: Math.random() * 6, gaitW: 0, crouchT: 0, lowT: 0.6, prevU: [0, 0], alive: true, deadT: 0, hits: [] };
     for (const part of ['head', 'torso', 'legs']) { const m = model.px[part]; m.userData.target = { type: 'bot', view: v, part }; hitList.push(m); v.hits.push(m); }
     return v;
@@ -185,6 +197,7 @@ const BOTS = (() => {
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
     me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); a.disguise = DISGUISE.level(); };
+    me.disguiseFor = (team) => DISGUISE.levelFor(team);
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -217,15 +230,17 @@ const BOTS = (() => {
   const roaming = () => views.filter((v) => v.agent.alive && !v.post).length;
   function spawnGuard(g) {
     const lp = arena.nearestFree(toLocal(g.x, g.z));
-    const a = new Agent(arena, { team: 'red', pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
-    a.mission = 'guard';
+    const team = g.team || sideAt(g.x, g.z);
+    const a = new Agent(arena, { team, pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
+    a.mission = 'guard'; a.kit = g.kit ?? kitFor(team);
     const v = makeView(a, views.length); v.post = g; views.push(v);
   }
   function spawnBot(i) {
     if (roaming() >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
-    const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
+    const team = sideAt(p.x + arena.ox, p.z + arena.oz);
+    const a = new Agent(arena, { team, pos: p, yaw: Math.random() * 6.28, profile: prof }); a.kit = kitFor(team);
     views.push(makeView(a, i));
     return true;
   }
@@ -292,8 +307,8 @@ const BOTS = (() => {
   // red once he has. Guards out of view get theirs pinned to the edge of the screen. ----
   const marks = [], _mp = new V3();
   function markEl() {
-    const d = document.createElement('div'); d.style.cssText = 'position:absolute;width:26px;height:23px;transform:translate(-50%,-100%);pointer-events:none;display:none;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))';
-    d.innerHTML = '<svg viewBox="0 0 26 23" width="26" height="23"><defs><clipPath id="tri"><path d="M13 1 L25 22 L1 22 Z"/></clipPath></defs><rect class="f" x="0" y="23" width="26" height="23" clip-path="url(#tri)" fill="#ffcc33"/><path d="M13 1 L25 22 L1 22 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+    const d = document.createElement('div'); d.style.cssText = 'position:absolute;width:15px;height:13px;transform:translate(-50%,-100%);pointer-events:none;display:none;filter:drop-shadow(0 0 3px rgba(0,0,0,.8))';
+    d.innerHTML = '<svg viewBox="0 0 26 23" width="15" height="13"><defs><clipPath id="tri"><path d="M13 1 L25 22 L1 22 Z"/></clipPath></defs><rect class="f" x="0" y="23" width="26" height="23" clip-path="url(#tri)" fill="#ffcc33"/><path d="M13 1 L25 22 L1 22 Z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>';
     document.getElementById('hud').appendChild(d); return { d, f: d.querySelector('.f'), path: d.querySelector('path') };
   }
   function suspicionMarks() {
@@ -349,7 +364,7 @@ const BOTS = (() => {
   const wpos = (v) => ({ x: v.agent.pos.x + arena.ox, z: v.agent.pos.z + arena.oz });
   function bodies() {
     if (!arena) return [];
-    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', taken: v.taken, mark: () => { v.taken = true; } }; });
+    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', team: v.agent.team, taken: v.taken, mark: () => { v.taken = true; } }; });
   }
   function takedownTarget(pos) {
     if (!arena || !enabled) return null;
@@ -376,5 +391,5 @@ const BOTS = (() => {
   }
   // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
   function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
-  return { update, hit, playerShot, bodies, ram, noise, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  return { update, hit, playerShot, bodies, ram, noise, FACTIONS, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
