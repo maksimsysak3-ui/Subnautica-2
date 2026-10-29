@@ -652,7 +652,7 @@ function updateHud() {
   xhParts[2].style.transform = `translateX(${-gap - 9}px)`; xhParts[3].style.transform = `translateX(${gap}px)`;
   for (const x of xhParts) x.style.opacity = lines;
   hud.vig.style.opacity = (P.fpT * P.adsT * 0.9 + P.winded * 0.35).toFixed(3);
-  hud.stam.style.opacity = P.stamina < 0.98 ? 1 : 0;
+  hud.stam.style.opacity = 1;
   hud.stam.firstElementChild.style.width = `${P.stamina * 100}%`;
 }
 
@@ -683,7 +683,7 @@ function updateRange(dt, time) {
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
-  P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
+  P.stamina = clamp(P.stamina + (sprint ? -dt / 15 : dt / (P.vel.lengthSq() > 1 ? 9 : 5)), 0, 1);   // ~15 s of sprint from full
   P.winded = damp(P.winded, clamp((0.6 - P.stamina) / 0.6, 0, 1), 1.5, dt);
   if (P.vehicle) SCOOTER.drive(dt); else {
   const spd = sprint ? 5.6 : P.crouch ? 1.5 : P.ads ? 1.8 : 3.1;

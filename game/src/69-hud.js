@@ -18,6 +18,9 @@
   #hpbar{position:static!important;width:100%!important;height:8px!important;border-radius:4px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.14)!important}
   #hpbar i{border-radius:4px}
   #hpcnt{position:static!important;margin-bottom:5px}
+  #vitals #stam{width:100%!important;height:6px!important;margin:6px 0 0!important;border-radius:3px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.12)}
+  #vitals #stam i{background:linear-gradient(90deg,#c9a45c,#e8d08a)!important}
+  #stamLbl{margin-top:6px;font-size:11px;letter-spacing:.25em;color:rgba(255,255,255,.45)}
   #gearTag{position:static!important;margin-top:7px;font-size:12px!important;white-space:nowrap}
   #objPanel{padding:10px 14px;border-radius:6px;background:linear-gradient(90deg,rgba(10,12,16,0),rgba(10,12,16,.6));border-right:2px solid #c9a45c}
   #objPanel:empty{display:none}
@@ -56,6 +59,7 @@ const HUD = (() => {
   const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
   // vitals: health, its counter, the gear tag, stacked
   const vit = mk('vitals');
+  { const l = document.createElement('div'); l.id = 'stamLbl'; l.textContent = 'STAMINA'; host.appendChild(l); }
   // compass along the top, with the objective's bearing on it
   const comp = mk('compass'), strip = document.createElement('div'); strip.className = 'strip'; comp.appendChild(strip);
   const PX = 2.4, NAMES = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
@@ -81,7 +85,7 @@ const HUD = (() => {
       t += dt;
       if (mode !== 'range' || !MAP.ready) return;
       if (!adopted) {   // pull the other modules' pieces into the vitals block once they exist
-        for (const id of ['hpcnt', 'hpbar', 'gearTag']) { const e = document.getElementById(id); if (e) vit.appendChild(e); }
+        for (const id of ['hpcnt', 'hpbar', 'stamLbl', 'stam', 'gearTag']) { const e = document.getElementById(id); if (e) vit.appendChild(e); }
         adopted = !!document.getElementById('gearTag');
       }
       if (shownAt < 0) shownAt = performance.now();

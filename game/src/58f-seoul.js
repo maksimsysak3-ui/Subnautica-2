@@ -361,7 +361,7 @@ function setbackTop(w, D, H, FL, col, tx, wt, tenant) {
     for (let i = 0; i < 3; i++) plantPot(-w / 2 + 0.8 + i * 1.2, H, D / 2 - 0.7, mpick(['ficus', 'geranium']), 1.4);
     plasticTable(w / 4, H, tz + td / 2 + 1.4, 0, 0xe8e8e0);
   });
-  lightParapet(tw, td, H + FL, 0.5, shade(col, 1.0), 'plain');
+  W.push(0, 0, tz); lightParapet(tw, td, H + FL, 0.5, shade(col, 1.0), 'plain'); W.pop();
   W.push(0, 0, tz); roofLife(tw, td, H + FL, false, 'p', 1); W.pop();
 }
 // what lives on a Seoul roof: water tanks, condensers, the rooftop room, styrofoam gardens, laundry

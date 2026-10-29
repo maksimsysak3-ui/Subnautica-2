@@ -7760,7 +7760,7 @@ function buildPalace() {
     const bx = s * 104, bw = 22, bd = 42;
     W.box(bw, 7, bd, bx, 3.5, -231, col, { t: TX.plaster, wear: 3 }); W.solid(bw, 7, bd, bx, 3.5, -231, 'plaster');
     W.push(bx - s * bw / 2, 0, -231, s * -Math.PI / 2 + (s < 0 ? Math.PI : 0)); dressFace(bd, 7, col, { green: false }); W.pop();
-    lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.push(bx, 0, -231); lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.pop();
+    W.push(bx, 0, -231); lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.pop();
     W.scope({ lod: 1 }, () => { for (let z = -248; z <= -214; z += 6) { W.box(0.04, 2.2, 1.2, bx - s * (bw / 2 + 0.02), 1.1, z, 0x1e160e); archRim(1.2, 1.6, 0.6, 'horse', 0.0, 0xf0e2c4, TX.gebs); } });
     sandbagWall(s * 30, -214, s * 30, -222, 3); hescoLine(s * 60, -248, s * 74, -248, 2);
   }
@@ -8251,7 +8251,7 @@ function setbackTop(w, D, H, FL, col, tx, wt, tenant) {
     for (let i = 0; i < 3; i++) plantPot(-w / 2 + 0.8 + i * 1.2, H, D / 2 - 0.7, mpick(['ficus', 'geranium']), 1.4);
     plasticTable(w / 4, H, tz + td / 2 + 1.4, 0, 0xe8e8e0);
   });
-  lightParapet(tw, td, H + FL, 0.5, shade(col, 1.0), 'plain');
+  W.push(0, 0, tz); lightParapet(tw, td, H + FL, 0.5, shade(col, 1.0), 'plain'); W.pop();
   W.push(0, 0, tz); roofLife(tw, td, H + FL, false, 'p', 1); W.pop();
 }
 // what lives on a Seoul roof: water tanks, condensers, the rooftop room, styrofoam gardens, laundry
@@ -10222,7 +10222,7 @@ function updateHud() {
   xhParts[2].style.transform = `translateX(${-gap - 9}px)`; xhParts[3].style.transform = `translateX(${gap}px)`;
   for (const x of xhParts) x.style.opacity = lines;
   hud.vig.style.opacity = (P.fpT * P.adsT * 0.9 + P.winded * 0.35).toFixed(3);
-  hud.stam.style.opacity = P.stamina < 0.98 ? 1 : 0;
+  hud.stam.style.opacity = 1;
   hud.stam.firstElementChild.style.width = `${P.stamina * 100}%`;
 }
 
@@ -10253,7 +10253,7 @@ function updateRange(dt, time) {
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
-  P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
+  P.stamina = clamp(P.stamina + (sprint ? -dt / 15 : dt / (P.vel.lengthSq() > 1 ? 9 : 5)), 0, 1);   // ~15 s of sprint from full
   P.winded = damp(P.winded, clamp((0.6 - P.stamina) / 0.6, 0, 1), 1.5, dt);
   if (P.vehicle) SCOOTER.drive(dt); else {
   const spd = sprint ? 5.6 : P.crouch ? 1.5 : P.ads ? 1.8 : 3.1;
@@ -11648,7 +11648,9 @@ const BOTS = (() => {
 // when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
 const NPCS = (() => {
   // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
-  const N = MAP.id === 'seoul' ? 84 : 66, NEAR_POSE = 26, FAR = 85, PLAZA_N = 24, SHADOW_R = 16, R = 0.28;
+  // N posed civilians live near you (full rigs, collision, panic, talk); WALKERS more fill the streets out to the
+  // draw distance. Beyond posing range everyone is drawn as an instance of one of K outfits.
+  const N = MAP.id === 'seoul' ? 50 : 46, WALKERS = MAP.id === 'seoul' ? 820 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
   const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
@@ -11712,23 +11714,80 @@ const NPCS = (() => {
     for (const o of kill) for (const k of [...o.children]) if (!gone.has(k)) { let j = o.parent; while (!joints.has(j)) j = j.parent; j.attach(k); }
     for (const o of kill) o.parent.remove(o);
   }
-  // the whole posed body baked into one mesh, for civilians beyond posing range
-  function farMesh(m) {
+  // ---------------- the crowd's bodies: one baked, standing body per outfit, limbs tagged for swinging ----------------
+  // limb: 0 body, 1 left leg, 2 right leg, 3 left arm, 4 right arm; pivY: the hip or shoulder height it swings from
+  function crowdGeo(m, low) {
     const c = m.ch; c.root.updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(c.root.matrixWorld).invert(), parts = [];
-    c.root.traverse((o) => { if (o.isMesh && (o.material === bodyMat[THREE.FrontSide] || o.material === bodyMat[THREE.DoubleSide])) parts.push(o); });
-    let nv = 0, ni = 0; for (const o of parts) { nv += o.geometry.attributes.position.count; ni += o.geometry.index.count; }
-    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+    const inv = new THREE.Matrix4().copy(c.root.matrixWorld).invert(), limbOf = new Map();
+    [[c.legL, 1], [c.legR, 2], [c.armL, 3], [c.armR, 4]].forEach(([set, k]) => { for (const key in set) if (set[key] && set[key].isObject3D) limbOf.set(set[key], k); });
+    const pivot = { 1: c.hipL, 2: c.hipR, 3: c.shL, 4: c.shR }, pv = {};
+    for (const k in pivot) { const w = new V3(); pivot[k].getWorldPosition(w); pv[k] = w.applyMatrix4(inv).y; }
+    const parts = [];
+    c.root.traverse((o) => {
+      if (!o.isMesh || !(o.material === bodyMat[THREE.FrontSide] || o.material === bodyMat[THREE.DoubleSide])) return;
+      if (low) { o.geometry.computeBoundingSphere(); if (o.geometry.boundingSphere.radius < 0.035) return; }   // the tiny bits go
+      let j = o, k = 0; while (j && !k) { k = limbOf.get(j) || 0; j = j.parent; if (j === c.root) break; }
+      parts.push([o, k]);
+    });
+    let nv = 0, ni = 0; for (const [o] of parts) { nv += o.geometry.attributes.position.count; ni += o.geometry.index.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), limb = new Float32Array(nv), piv = new Float32Array(nv), idx = new Uint32Array(ni);
     let v0 = 0, i0 = 0;
-    for (const o of parts) {
+    for (const [o, k] of parts) {
       const g = o.geometry, P0 = g.attributes.position, N0 = g.attributes.normal, C0 = g.attributes.color;
       _m4.multiplyMatrices(inv, o.matrixWorld); _n3.getNormalMatrix(_m4);
-      for (let i = 0; i < P0.count; i++) { _pv.fromBufferAttribute(P0, i).applyMatrix4(_m4); pos.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); _pv.fromBufferAttribute(N0, i).applyMatrix3(_n3).normalize(); nor.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); col.set([C0.getX(i), C0.getY(i), C0.getZ(i)], (v0 + i) * 3); }
+      for (let i = 0; i < P0.count; i++) { _pv.fromBufferAttribute(P0, i).applyMatrix4(_m4); pos.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); _pv.fromBufferAttribute(N0, i).applyMatrix3(_n3).normalize(); nor.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); col.set([C0.getX(i), C0.getY(i), C0.getZ(i)], (v0 + i) * 3); limb[v0 + i] = k; piv[v0 + i] = k ? pv[k] : 0; }
       for (let i = 0; i < g.index.count; i++) idx[i0 + i] = g.index.getX(i) + v0;
       i0 += g.index.count; v0 += P0.count;
     }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, bodyMat[THREE.DoubleSide]); mesh.visible = false; scene.add(mesh); return mesh;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('limb', new THREE.BufferAttribute(limb, 1)); geo.setAttribute('pivY', new THREE.BufferAttribute(piv, 1)); geo.setIndex(new THREE.BufferAttribute(nv < 65536 ? new Uint16Array(idx) : idx, 1));
+    return geo;
+  }
+  // beyond 70 m: a dozen boxes in the outfit's colours (≈110 triangles instead of thousands)
+  function lowBody(m) {
+    const c = m.ch, k = m.kit; c.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(c.root.matrixWorld).invert(), Y = (o) => { const w = new V3(); o.getWorldPosition(w); return w.applyMatrix4(inv); };
+    const hip = Y(c.hipL), sh = Y(c.shL), head = Y(c.head), hipY = hip.y, shY = sh.y, hx = Math.abs(hip.x), sx = Math.abs(sh.x);
+    const parts = [], col = (h) => new THREE.Color(h || '#777');
+    const box = (w, h, d, x, y, z, color, limb, piv) => parts.push({ g: new THREE.BoxGeometry(w, h, d).translate(x, y, z), c: col(color), limb, piv });
+    const legC = k.bottom === 'shorts' ? k.skin : k.pantsColor;
+    for (const [sgn, L] of [[1, 1], [-1, 2]]) { box(0.15, hipY - 0.1, 0.17, sgn * hx, (hipY + 0.1) / 2, 0, legC, L, hipY); box(0.14, 0.09, 0.26, sgn * hx, 0.05, 0.03, k.shoeColor, L, hipY); }
+    box(sx * 2 + 0.06, shY - hipY + 0.14, 0.25, 0, (shY + hipY) / 2 + 0.02, 0, k.topColor, 0, 0);
+    for (const [sgn, L] of [[1, 3], [-1, 4]]) { box(0.1, 0.56, 0.11, sgn * (sx + 0.08), shY - 0.27, 0, k.top === 'tshirt' ? k.skin : k.topColor, L, shY); box(0.08, 0.1, 0.09, sgn * (sx + 0.08), shY - 0.6, 0, k.skin, L, shY); }
+    box(0.19, 0.23, 0.21, 0, head.y + 0.1, 0, k.skin, 0, 0);
+    if (k.headwear !== 'none') box(0.22, 0.08, 0.23, 0, head.y + 0.24, 0, k.hatColor, 0, 0); else if (k.hair !== 'none') box(0.2, 0.06, 0.22, 0, head.y + 0.23, -0.01, k.hairColor, 0, 0);
+    let nv = 0, ni = 0; for (const p of parts) { nv += p.g.attributes.position.count; ni += p.g.index.count; }
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), cl = new Float32Array(nv * 3), limb = new Float32Array(nv), piv = new Float32Array(nv), idx = new Uint16Array(ni);
+    let v0 = 0, i0 = 0;
+    for (const p of parts) { const P0 = p.g.attributes.position, N0 = p.g.attributes.normal; for (let i = 0; i < P0.count; i++) { pos.set([P0.getX(i), P0.getY(i), P0.getZ(i)], (v0 + i) * 3); nor.set([N0.getX(i), N0.getY(i), N0.getZ(i)], (v0 + i) * 3); cl.set([p.c.r, p.c.g, p.c.b], (v0 + i) * 3); limb[v0 + i] = p.limb; piv[v0 + i] = p.piv; } for (let i = 0; i < p.g.index.count; i++) idx[i0 + i] = p.g.index.getX(i) + v0; v0 += P0.count; i0 += p.g.index.count; p.g.dispose(); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(cl, 3)); geo.setAttribute('limb', new THREE.BufferAttribute(limb, 1)); geo.setAttribute('pivY', new THREE.BufferAttribute(piv, 1)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    return geo;
+  }
+  // walking, in the vertex shader: legs and arms swing about hip and shoulder, the body bobs
+  const crowdMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, side: THREE.DoubleSide });
+  crowdMat.onBeforeCompile = (sh) => {
+    // at night the city's light on them: a little of their own colour, so a street full of people reads as one
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance += vColor.rgb * ${MAP.id === 'seoul' ? '0.28' : '0.0'};`);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float limb; attribute float pivY; attribute float iPhase; attribute float iGait;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        if (limb > 0.5) { float side = (limb < 1.5 || limb > 3.5) ? 0.0 : 3.14159; float a = sin(iPhase + side) * (limb < 2.5 ? 0.5 : 0.36) * iGait, c = cos(a), s = sin(a);
+          float py = transformed.y - pivY, pz = transformed.z; transformed.y = pivY + py * c - pz * s; transformed.z = py * s + pz * c; }
+        transformed.y += abs(sin(iPhase)) * 0.03 * iGait;`);
+  };
+  const VAR = [];   // { kit, mid, low } — the instanced meshes, filled every frame
+  function makeVariant(k) {
+    const kit = outfit(), m = makeModel(kit), tmp = { m, x: 0, y: 0, z: 0, yaw: -Math.PI, vx: 0, vz: 0, gaitW: 0, phase: 0, seed: 0 };
+    pose(tmp, 1 / 60);
+    const mk = (geo, cap) => {
+      geo.setAttribute('iPhase', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1)); geo.setAttribute('iGait', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+      const im = new THREE.InstancedMesh(geo, crowdMat, cap); im.count = 0; im.frustumCulled = false; im.castShadow = false; im.receiveShadow = true; scene.add(im); return im;
+    };
+    const cap = Math.ceil((WALKERS + N) / K * 2.2) + 8;
+    VAR[k] = { kit, mid: mk(crowdGeo(m, true), cap), low: mk(lowBody(m), cap) };
+    scene.remove(m.ch.root);
   }
   const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
   function makeModel(kitIn) {
@@ -11872,10 +11931,10 @@ const NPCS = (() => {
   function update(dt) {
     clock += dt;
     if (!MAP.ready || mode !== 'range') return;
+    if (VAR.length < K) { makeVariant(VAR.length); return; }   // the outfits first, one a frame
     if (civs.length < N) {   // build the crowd a model per frame (no hitch)
-      const v = { m: makeModel(), k: civs.length, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, plaza: false, alive: false, deadT: 20, hits: [] };
+      const vk = civs.length % K, v = { m: makeModel({ ...VAR[vk].kit }), vk, k: civs.length, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, plaza: false, alive: false, deadT: 20, hits: [] };
       for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
-      v.x = v.y = v.z = 0; v.yaw = -Math.PI; v.vx = v.vz = 0; pose(v, 1 / 60); v.far = farMesh(v.m);
       civs.push(v); v.m.ch.root.visible = false;
     }
     const pz = nearPlaza();
@@ -11891,15 +11950,14 @@ const NPCS = (() => {
       root.visible = v.alive || v.deadT < 20;
       const sh = root.visible && d2(v.x, v.z) < SHADOW_R * SHADOW_R;   // only the near crowd casts shadows
       if (v.shadow !== sh) { v.shadow = sh; for (const m of v.m.meshes) m.castShadow = sh; }
-      if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
+      if (!v.alive) { v.inst = false; if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
       const near = d2(v.x, v.z) < NEAR_POSE * NEAR_POSE;
       if (near) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
-      root.visible = near; v.far.visible = !near;
-      if (!near) { v.far.position.set(v.x, v.y, v.z); v.far.rotation.set(0, v.yaw + Math.PI, 0); }
+      root.visible = near; v.inst = !near;
     }
-    for (const v of civs) if (!v.alive && v.far) v.far.visible = false;
+    crowdTick(dt);
     if (scan <= 0) scan = 0.3;
     staffTick(dt); bubbleTick(dt);
     // scripted figures (mission targets, couriers): follow their route, posed out to scope range
@@ -11989,10 +12047,103 @@ const NPCS = (() => {
       if (s2.v && s2.v.alive && !s2.route) s2.v.fig.lookAt = d < 5 ? P.pos : s2.v.fig.home;
     }
   }
+  // ---------------- walkers: the rest of the crowd — street-following, no collision, drawn instanced ----------------
+  const walkers = [];
+  let frameN = 0;
+  const _mx = new THREE.Matrix4(), _q2 = new THREE.Quaternion(), _sc = new V3(1, 1, 1), _ps = new V3(), _fw = new V3();
+  const RMAX = () => Math.min(300, (MAP.drawDist || 300) + 20);
+  // streets by length, the main roads (with their wide pavements) counting extra
+  let streetW = null;
+  function pickStreet() {
+    if (!streetW) { let acc = 0; streetW = STREETS.filter((st) => st.len >= 12).map((st) => [st, acc += st.len * (st.road > 0 ? 2.5 : 1)]); }
+    const r = Math.random() * streetW[streetW.length - 1][1]; for (const [st, a] of streetW) if (a >= r) return st; return null;
+  }
+  function placeWalker(w, minD, maxD) {
+    if (Math.random() < 0.6) maxD = Math.min(maxD, Math.max(minD + 30, 110));   // most of the crowd stays within a block or two of you
+    // a quarter of them mill about the squares instead of walking the streets
+    if (Math.random() < 0.28) {
+      const pl = TOWN.plazas.filter((r) => CIVIL.includes(r.name) && plazaDist(r) < maxD && (r.x1 - r.x0) * (r.z1 - r.z0) > 200);
+      if (pl.length) {
+        const Q = pl[(Math.random() * pl.length) | 0];
+        for (let t = 0; t < 12; t++) {
+          const x = rand(Q.x0 + 1.5, Q.x1 - 1.5), z = rand(Q.z0 + 1.5, Q.z1 - 1.5), d = Math.hypot(x - P.pos.x, z - P.pos.z), g = GR.get(x, z);
+          if (d < minD || d > maxD || g === GR.BUILT || g === GR.WALL || terrainH(x, z) > 0.5) continue;
+          w.plaza = Q; w.x = x; w.z = z; w.y = COL.ground(x, z, 0.4); w.yaw = Math.random() * 6.28; w.idle = rand(0, 4); w.panic = 0; w.speed = rand(0.8, 1.2); newPlazaGoal(w);
+          return true;
+        }
+      }
+    }
+    const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw);
+    for (let t = 0; t < 40; t++) {
+      const st = pickStreet(); if (!st) continue;
+      const i = (Math.random() * (st.pts.length - 1)) | 0, f = Math.random(), a = st.pts[i], b = st.pts[i + 1];
+      onStreet(w, st, i, Math.random() < 0.5 ? 1 : -1);
+      const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, sgn = w.off * w.dir;
+      const x = a[0] + dx * f - dz / L * sgn, z = a[1] + dz * f + dx / L * sgn, d = Math.hypot(x - P.pos.x, z - P.pos.z);
+      if (d < minD || d > maxD || terrainH(x, z) > 0.5 || GR.get(x, z) === GR.WALL) continue;
+      if (d < 110 && ((x - P.pos.x) * fx + (z - P.pos.z) * fz) / d > 0.2 && Math.random() < 0.85) continue;   // not right in front of you
+      w.x = x; w.z = z; w.y = COL.ground(x, z, 0.4); w.yaw = Math.random() * 6.28; w.idle = 0; w.panic = 0; w.plaza = false; w.speed = rand(1.0, 1.45);
+      return true;
+    }
+    return false;
+  }
+  function walk(w, dt) {
+    if (w.idle > 0 && w.panic <= 0) { w.idle -= dt; w.gait = Math.max(0, w.gait - dt * 3); return; }
+    if (w.panic > 0) w.panic -= dt;
+    let tx, tz; if (w.plaza) { tx = w.tx; tz = w.tz; } else { const q = target(w); tx = q.x; tz = q.z; }
+    let dx = tx - w.x, dz = tz - w.z; const L = Math.hypot(dx, dz);
+    if (L < 0.9) {
+      if (w.plaza) { newPlazaGoal(w); if (Math.random() < 0.5) w.idle = rand(2, 6); }
+      else { const j = w.i + w.dir; if (j <= 0 || j >= w.st.pts.length - 1) { w.i = clamp(j, 0, w.st.pts.length - 1); junction(w); } else w.i = j; }
+      return;
+    }
+    const sp = w.panic > 0 ? w.speed * 3 : w.speed;
+    dx /= L; dz /= L; w.x += dx * sp * dt; w.z += dz * sp * dt;
+    w.yaw += wrap(Math.atan2(-dx, -dz) - w.yaw) * Math.min(1, dt * 5);
+    w.phase += dt * sp * 5.9; w.gait = Math.min(1, w.gait + dt * 3);
+    if ((w.yT -= dt) <= 0) { w.yT = 0.5; w.y = COL.ground(w.x, w.z, w.y + 0.5); }
+  }
+  // a walker coming into posing range trades places with a far-off civilian in the same outfit: nobody sees it
+  const SWAP = ['x', 'y', 'z', 'yaw', 'st', 'i', 'dir', 'off', 'speed', 'phase', 'plaza', 'tx', 'tz', 'idle'];
+  function swapIn(w) {
+    for (const c of civs) {
+      if (c.vk !== w.vk || !c.alive || !c.inst || c.panic > 0 || c.talkT > 0 || d2(c.x, c.z) < (NEAR_POSE + 10) ** 2) continue;
+      for (const k of SWAP) { const t = c[k]; c[k] = w[k]; w[k] = t; }
+      c.vx = c.vz = 0; c.stuckT = 0; c.gaitW = w.gait || 0; return true;
+    }
+    return false;
+  }
+  function crowdTick(dt) {
+    if (VAR.length < K) return;
+    while (walkers.length < WALKERS) { const w = { vk: walkers.length % K, phase: Math.random() * 6, gait: 0, yT: Math.random(), panic: 0, idle: 0 }; if (!placeWalker(w, 30, RMAX())) break; walkers.push(w); }
+    frameN++;
+    const R2 = RMAX() ** 2;
+    for (let n = 0; n < walkers.length; n++) {
+      const w = walkers[n], dd = d2(w.x, w.z);
+      if (dd > R2) { placeWalker(w, 70, RMAX()); continue; }
+      if (dd > 120 * 120) { if ((n + frameN) % 3 === 0) walk(w, dt * 3); } else walk(w, dt);
+      if (dd < (NEAR_POSE + 3) ** 2 && (n + frameN) % 4 === 0) swapIn(w);
+    }
+    // draw: everyone beyond posing range (and any walker that couldn't swap), by outfit, near or far body
+    for (const V of VAR) { V.mid.count = 0; V.low.count = 0; }
+    camera.getWorldDirection(_fw);
+    const cx = camera.position.x, cz = camera.position.z, DD = (MAP.drawDist || 300) ** 2;
+    const put = (p, gait) => {
+      const dx = p.x - cx, dz = p.z - cz, dd = dx * dx + dz * dz;
+      if (dd > DD || dx * _fw.x + dz * _fw.z < -6) return;
+      const V = VAR[p.vk], im = dd < 55 * 55 ? V.mid : V.low, k = im.count; if (k >= im.instanceMatrix.count) return;
+      _q2.setFromAxisAngle(UP, p.yaw + Math.PI); _mx.compose(_ps.set(p.x, p.y, p.z), _q2, _sc); im.setMatrixAt(k, _mx);
+      im.geometry.attributes.iPhase.array[k] = p.phase; im.geometry.attributes.iGait.array[k] = gait; im.count = k + 1;
+    };
+    for (const w of walkers) put(w, w.gait);
+    for (const c of civs) if (c.inst && c.alive) put(c, c.gaitW);
+    for (const V of VAR) for (const im of [V.mid, V.low]) { im.instanceMatrix.needsUpdate = true; im.geometry.attributes.iPhase.needsUpdate = true; im.geometry.attributes.iGait.needsUpdate = true; }
+  }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
   // gunfire nearby: scatter away from the shooter
   function alarm(x, z) {
     if (clock - lastAlarm < 0.15) return; lastAlarm = clock;
+    for (const w of walkers) { const d = Math.hypot(w.x - x, w.z - z); if (d < 60) { w.panic = rand(6, 10); w.idle = 0; if (!w.plaza) { const q = target(w); if ((q.x - w.x) * (w.x - x) + (q.z - w.z) * (w.z - z) < 0) w.dir = -w.dir; } } }
     for (const v of civs) {
       if (!v.alive) continue;
       const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d > 60) continue;
@@ -12054,7 +12205,7 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; }, get walkers() { return walkers; }, get VAR() { return VAR; } };
 })();
 // =====================================================================
 //  The campaign: five missions through Dar Essalam
@@ -12876,6 +13027,9 @@ const MENU = (() => {
   #hpbar{position:static!important;width:100%!important;height:8px!important;border-radius:4px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.14)!important}
   #hpbar i{border-radius:4px}
   #hpcnt{position:static!important;margin-bottom:5px}
+  #vitals #stam{width:100%!important;height:6px!important;margin:6px 0 0!important;border-radius:3px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.12)}
+  #vitals #stam i{background:linear-gradient(90deg,#c9a45c,#e8d08a)!important}
+  #stamLbl{margin-top:6px;font-size:11px;letter-spacing:.25em;color:rgba(255,255,255,.45)}
   #gearTag{position:static!important;margin-top:7px;font-size:12px!important;white-space:nowrap}
   #objPanel{padding:10px 14px;border-radius:6px;background:linear-gradient(90deg,rgba(10,12,16,0),rgba(10,12,16,.6));border-right:2px solid #c9a45c}
   #objPanel:empty{display:none}
@@ -12914,6 +13068,7 @@ const HUD = (() => {
   const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
   // vitals: health, its counter, the gear tag, stacked
   const vit = mk('vitals');
+  { const l = document.createElement('div'); l.id = 'stamLbl'; l.textContent = 'STAMINA'; host.appendChild(l); }
   // compass along the top, with the objective's bearing on it
   const comp = mk('compass'), strip = document.createElement('div'); strip.className = 'strip'; comp.appendChild(strip);
   const PX = 2.4, NAMES = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
@@ -12939,7 +13094,7 @@ const HUD = (() => {
       t += dt;
       if (mode !== 'range' || !MAP.ready) return;
       if (!adopted) {   // pull the other modules' pieces into the vitals block once they exist
-        for (const id of ['hpcnt', 'hpbar', 'gearTag']) { const e = document.getElementById(id); if (e) vit.appendChild(e); }
+        for (const id of ['hpcnt', 'hpbar', 'stamLbl', 'stam', 'gearTag']) { const e = document.getElementById(id); if (e) vit.appendChild(e); }
         adopted = !!document.getElementById('gearTag');
       }
       if (shownAt < 0) shownAt = performance.now();

@@ -37,7 +37,7 @@ function buildPalace() {
     const bx = s * 104, bw = 22, bd = 42;
     W.box(bw, 7, bd, bx, 3.5, -231, col, { t: TX.plaster, wear: 3 }); W.solid(bw, 7, bd, bx, 3.5, -231, 'plaster');
     W.push(bx - s * bw / 2, 0, -231, s * -Math.PI / 2 + (s < 0 ? Math.PI : 0)); dressFace(bd, 7, col, { green: false }); W.pop();
-    lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.push(bx, 0, -231); lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.pop();
+    W.push(bx, 0, -231); lightParapet(bw, bd, 7, 0.9, col, 'merlon'); W.pop();
     W.scope({ lod: 1 }, () => { for (let z = -248; z <= -214; z += 6) { W.box(0.04, 2.2, 1.2, bx - s * (bw / 2 + 0.02), 1.1, z, 0x1e160e); archRim(1.2, 1.6, 0.6, 'horse', 0.0, 0xf0e2c4, TX.gebs); } });
     sandbagWall(s * 30, -214, s * 30, -222, 3); hescoLine(s * 60, -248, s * 74, -248, 2);
   }
