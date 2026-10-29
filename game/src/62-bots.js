@@ -314,6 +314,7 @@ const BOTS = (() => {
   }
   function suspicionMarks() {
     let n = 0;
+    if (!HUD.marks) { for (const m of marks) m.d.style.display = 'none'; return; }
     for (const v of views) {
       const a = v.agent; if (!a.alive || !me) continue;
       const s = a.sus.get(me.id) || 0, known = a.mem.get(me.id)?.visible || s >= 1, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;

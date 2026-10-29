@@ -14,7 +14,7 @@
   #ctl h3{grid-column:1/-1;margin:0 0 6px;font-size:13px;letter-spacing:.3em;color:#c9a45c;font-weight:600}
   #ctl div{white-space:nowrap}
   #ctlHint{position:absolute;left:24px;bottom:20px;font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.45)}
-  #vitals{position:absolute;left:24px;bottom:44px;width:220px}
+  #vitals{position:absolute;left:24px;bottom:22px;width:220px}
   #hpbar{position:static!important;width:100%!important;height:8px!important;border-radius:4px;overflow:hidden;background:rgba(0,0,0,.45)!important;border:1px solid rgba(255,255,255,.14)!important}
   #hpbar i{border-radius:4px}
   #hpcnt{position:static!important;margin-bottom:5px}
@@ -54,9 +54,14 @@ const HUD = (() => {
   const host = document.getElementById('hud');
   const mk = (id, html = '') => { const d = document.createElement('div'); d.id = id; d.innerHTML = html; host.appendChild(d); return d; };
   // controls: a tidy panel on TAB (and for the first few seconds of a session)
-  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapons (4 sniper)'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['G', 'throw (pick up with E)'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
-  const ctl = mk('ctl', `<h3>CONTROLS</h3>${C.map(([k, v]) => `<div><kbd>${k}</kbd>${v}</div>`).join('')}`);
-  const hint = mk('ctlHint', '<kbd>TAB</kbd>CONTROLS');
+  const C = [['WASD', 'move'], ['SHIFT', 'sprint · hold breath'], ['SPACE', 'jump'], ['C', 'crouch'], ['Q', 'aim'], ['LMB', 'fire'], ['R', 'reload'], ['1–4', 'weapon slots'], ['B', 'fire mode'], ['Z X', 'lean'], ['V', '1st / 3rd person'], ['E', 'interact · talk · doors'], ['F', 'takedown · horn'], ['H', 'hide weapons'], ['G', 'throw (pick up with E)'], ['U', 'own gear'], ...(MAP.id === 'seoul' ? [['L', 'weapon light']] : []), ['M', 'map'], ['J', 'restart mission'], ['N', 'hostiles on/off'], ['T', 'reset'], ['ESC', 'menu']];
+  // the key list lives in the pause menu (ESC → CONTROLS), not on the HUD
+  const ctl = { classList: { toggle() { }, add() { }, remove() { } } }, hint = { classList: { toggle() { } } };
+  const kl = document.getElementById('keyList'); if (kl) kl.innerHTML = C.map(([k, v]) => `<div><kbd>${k}</kbd>${v}</div>`).join('');
+  document.querySelectorAll('#pause .ptab').forEach((b) => b.onclick = () => { document.querySelectorAll('#pause .ptab').forEach((x) => x.classList.toggle('on', x === b)); document.querySelectorAll('#pause .psec').forEach((sec) => { sec.style.display = sec.dataset.ps === b.dataset.pt ? 'grid' : 'none'; }); });
+  const opt = (id, on) => { const e = document.getElementById(id); if (e) e.onchange = () => on(e.checked); };
+  opt('optCompass', (v) => { comp.style.display = v ? '' : 'none'; where.style.display = v ? '' : 'none'; });
+  opt('optMarks', (v) => { HUD.marks = v; });
   // vitals: health, its counter, the gear tag, stacked
   const vit = mk('vitals');
   { const l = document.createElement('div'); l.id = 'stamLbl'; l.textContent = 'STAMINA'; host.appendChild(l); }
@@ -80,7 +85,8 @@ const HUD = (() => {
     return best ? ['', best.name.toUpperCase()] : ['', 'DAR ESSALAM'];
   }
   return {
-    toggleKeys(on) { ctl.classList.toggle('show', on ?? !ctl.classList.contains('show')); },
+    marks: true,
+    toggleKeys() { },
     update(dt) {
       t += dt;
       if (mode !== 'range' || !MAP.ready) return;

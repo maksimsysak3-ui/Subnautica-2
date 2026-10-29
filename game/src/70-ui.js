@@ -24,7 +24,6 @@ addEventListener('keydown', (e) => {
     case 'KeyM': HANDMAP.toggle(); break;
     case 'KeyL': TORCH.toggle(); break;
     case 'KeyG': THROW.toss(); break;
-    case 'Tab': e.preventDefault(); HUD.toggleKeys(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();

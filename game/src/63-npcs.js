@@ -387,7 +387,7 @@ const NPCS = (() => {
   }
   const promptTalk = () => { const v = facing(); return v ? (v.fig ? '[E]  TALK' + ((v.fig.role === 'shop' || v.fig.role === 'food') && P.hp < 100 ? ' · BUY A SNACK' : '') : '[E]  TALK') : ''; };
   // ---------------- shop staff: real people behind the counters near you (spots registered by the map) ----------------
-  const STAFF_R = 32, STAFF_MAX = 18, UNIFORM = { shop: ['#2a8a4a', 'cap'], food: ['#1a1a1a', 'none'], bar: ['#6a1a1a', 'none'], room: ['#3a2a6a', 'none'], cafe: ['#4a3424', 'none'], guest: [null, 'none'], home: ['#8a8a9a', 'none'] };
+  const STAFF_R = 32, STAFF_MAX = 26, UNIFORM = { shop: ['#2a8a4a', 'cap'], food: ['#1a1a1a', 'none'], bar: ['#6a1a1a', 'none'], room: ['#3a2a6a', 'none'], cafe: ['#4a3424', 'none'], guest: [null, 'none'], home: ['#8a8a9a', 'none'] };
   let staffClock = 0;
   function staffTick(dt) {
     if ((staffClock -= dt) > 0 || !TOWN.staff) return; staffClock = 0.5;

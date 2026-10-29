@@ -86,7 +86,7 @@ function metroStation(s, i) {
   routeMap(-25, 3.0, -13.95, 0, i);
   // the people: clerks in the three shops, a few waiting for trains
   staffAt(-34, -10.15, Math.PI, 'shop'); staffAt(-42, 10.1, 0, 'shop'); staffAt(-29, 12.45, 0, 'shop');
-  for (const [x, z, y] of [[4, 2.2, 0.4], [17, -2.5, 2.8], [27, 1.9, -0.3], [-30, -3, 1.2]]) staffAt(x, z, y, 'guest');
+  for (const [x, z, y] of [[4, 2.2, 0.4], [17, -2.5, 2.8], [27, 1.9, -0.3], [-30, -3, 1.2], [9, -1.4, 3.0], [22, 2.6, 0.2], [35, -2.2, 2.6], [-1, 0.6, -1.4], [-20, 4, 1.6], [-36, -1, -0.8], [-44, 6, 2.2], [13, 6.2, 1.57], [19, 6.0, -1.57], [11, -5.9, 1.57], [24, -6.1, 1.57]]) staffAt(x, z, y, 'guest');
   for (const x of [-40, -24]) for (const z of [-4.5, 4.5]) { wall(1.1, 5.2, 1.1, x, 2.6, z, 0x2a6a4a); W.scope({ lod: 1 }, () => { bench(x + 1.8, 0, z, z > 0 ? Math.PI : 0); }); }
   // ---- ticket gates ----
   for (let k = 0; k < 13; k++) {
