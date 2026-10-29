@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3</b>/<b>WHEEL</b> weapons · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3</b>/<b>WHEEL</b> weapons · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -7456,6 +7456,7 @@ function impact(b, h) {
   const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : UP.clone();
   if (tg.type === 'frame') { emitSparks(p, 8, n, [1, 0.6, 0.25], 3); return; }
   if (tg.type === 'bot') { BOTS.hit(tg, p, b); return; }
+  if (tg.type === 'civ') { NPCS.hit(tg, p, b); return; }
   const firstOnTarget = tg.lastShot !== b.shot;
   tg.lastShot = b.shot;
   if (P.lastHitShot !== b.shot) { P.lastHitShot = b.shot; P.stats.hits++; }
@@ -7997,6 +7998,7 @@ class Agent {
           // trained eyes pick out shapes and movement faster (situational awareness)
           let rate = V.rate * acuity * eff * size * distF * (moving ? 1.6 : 1) * (1 - 0.45 * this.suppression) * (0.55 + 0.6 * this.prof.skill);
           if (m && m.visible) rate *= 3; // already tracking
+          rate *= 1 - (o.conceal || 0);   // blending into a crowd (host-supplied, 0..1)
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);
@@ -8571,7 +8573,10 @@ return { World, Agent, TUNE, PROFILES, util, rng };
 // The AI still only knows what it perceives (sight, sound, being shot at, squad callouts).
 const BOTS = (() => {
   const { World, Agent, TUNE } = AICORE;
-  const SIZE = 140, RELOCATE = 45, N_BOTS = 6, RESPAWN_S = 14;
+  const SIZE = 140, RELOCATE = 45, N_BOTS = 4, RESPAWN_S = 20;
+  // the market square (player spawn) stays a light zone: no spawns inside it, at most 2 hostiles while you're there
+  const SQ_PAD = 12, SQ_MAX = 2;
+  const inSquare = (x, z, pad = 0) => x > SQ.x0 - pad && x < SQ.x1 + pad && z > SQ.z0 - pad && z < SQ.z1 + pad;
   let NEXT = null;
   class CityArena extends World {
     constructor(cx, cz) { NEXT = { cx, cz }; super({ w: SIZE, h: SIZE, seed: (Math.random() * 1e9) | 0, cell: 0.5 }); this.recordTracers = true; this.light = new Map(); }
@@ -8619,10 +8624,10 @@ const BOTS = (() => {
   }
 
   // ---------------- tuning for the city (the lab defaults are tuned for small arenas) ----------------
-  Object.assign(TUNE.vision, { rate: TUNE.vision.rate * 0.45, distScale: 24, range: 110 });
-  Object.assign(TUNE.aim, { react: 0.5, reactSpread: 0.3 });
-  TUNE.weapon.spread = 0.012;
-  const HURT = { head: 18, torso: 9, legs: 6 }, GRACE = 10;   // damage the player takes per hit (≈ 11 body hits)   // damage the player takes per hit (≈ 9 body hits)
+  Object.assign(TUNE.vision, { rate: TUNE.vision.rate * 0.3, distScale: 20, range: 85 });
+  Object.assign(TUNE.aim, { react: 0.75, reactSpread: 0.35, gainSd: 0.13, lateralSd: 0.065, trackGain: 4 });
+  TUNE.weapon.spread = 0.02;
+  const HURT = { head: 15, torso: 7, legs: 5 }, GRACE = 10;   // damage the player takes per hit (≈ 14 body hits)
 
   // ---------------- soldiers use the player's own character rig + rifle, in enemy kit ----------------
   const KITS = [
@@ -8745,7 +8750,7 @@ const BOTS = (() => {
     views = []; pending = [];
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
-    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; };
+    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); };
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -8753,7 +8758,7 @@ const BOTS = (() => {
     me.onHit = (dmg, part) => hurtPlayer(dmg, part);
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
-    for (let i = 0; i < N_BOTS; i++) spawnBot(i);
+    for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight
   function spawnPoint() {
@@ -8761,6 +8766,7 @@ const BOTS = (() => {
     for (let t = 0; t < 300; t++) {
       const a = Math.random() * Math.PI * 2, d = rand(40, 66), x = P.pos.x + Math.sin(a) * d, z = P.pos.z + Math.cos(a) * d;
       if (Math.abs(x - arena.ox) > SIZE / 2 - 4 || Math.abs(z - arena.oz) > SIZE / 2 - 4) continue;
+      if (inSquare(x, z, SQ_PAD)) continue;
       const g = GR.get(x, z); if (g !== GR.STREET && g !== GR.PAVE) continue;
       const lp = toLocal(x, z); if (!arena.free(lp)) continue;
       const tgt = new V3(x, 1.3, z), dir = tgt.clone().sub(eye), L = dir.length();
@@ -8769,7 +8775,9 @@ const BOTS = (() => {
     }
     return null;
   }
+  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) ? SQ_MAX : N_BOTS;
   function spawnBot(i) {
+    if (views.filter((v) => v.agent.alive).length >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
     const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
@@ -8789,7 +8797,7 @@ const BOTS = (() => {
   function playerShot(origin, dir) {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
-    me.lastShotT = arena.time;
+    me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
     arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
@@ -8829,7 +8837,7 @@ const BOTS = (() => {
       const d = B.clone().sub(A), L = d.length(); d.divideScalar(L);
       const m = new THREE.Mesh(tracerGeo2, tracerMat2); m.position.copy(A); m.lookAt(B); m.scale.set(1, 1, Math.min(L, 14)); m.frustumCulled = false;
       scene.add(m); tracersFx.push({ m, A, d, L, t: 0 });
-      audio.enemyShot(A.distanceTo(P.pos));
+      audio.enemyShot(A.distanceTo(P.pos)); NPCS.alarm(A.x, A.z);
       if (!tr.hit) { const h = COL.ray(A, d, L + 0.2); if (h) { HOLES.add(h.point, h.normal, 1); emitPuff(h.point, 0x8a8478, 0.08, 0.7, h.normal.clone().multiplyScalar(0.6), 0.35, 1.6); emitSparks(h.point, 3, h.normal, [0.9, 0.75, 0.5], 2); } }
     }
     lastTracer = arena.time;
@@ -8844,7 +8852,8 @@ const BOTS = (() => {
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
-    for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0 && spawnBot(views.length)) pending.splice(i, 1); }
+    for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0) { if (spawnBot(views.length)) pending.splice(i, 1); else pending[i] = 1; } }
+    if (views.filter((v) => v.agent.alive).length + pending.length < cap()) pending.push(8);   // left the square: top back up
     for (let i = views.length - 1; i >= 0; i--) { const v = views[i]; if (!v.alive && v.deadT > 25) { dropView(v); views.splice(i, 1); arena.agents.splice(arena.agents.indexOf(v.agent), 1); } }
     // health: slow regeneration after a few quiet seconds; death → regroup at the spawn
     if (P.dead) {
@@ -8854,7 +8863,7 @@ const BOTS = (() => {
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
-    ui.cnt.textContent = clock < graceUntil ? `SPAWN PROTECTION ${Math.ceil(graceUntil - clock)}` : `HOSTILES ${views.filter((v) => v.agent.alive).length}`;
+    ui.cnt.textContent = clock < graceUntil ? `SPAWN PROTECTION ${Math.ceil(graceUntil - clock)}` : `HOSTILES ${views.filter((v) => v.agent.alive).length}${me && me.conceal > 0.15 ? ' · HIDDEN IN CROWD' : ''}`;
   }
   function setEnabled(on) {
     enabled = on;
@@ -8862,6 +8871,345 @@ const BOTS = (() => {
     feed(`<span class="m">HOSTILES ${on ? 'ON' : 'OFF'}</span>`);
   }
   return { update, hit, playerShot, toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+})();
+// =====================================================================
+//  Civilians: unarmed townsfolk walking the streets around the player
+// =====================================================================
+// Built from the same character rig as the player, in everyday clothes. They follow the street
+// polylines (keeping to the right of their direction of travel), wander the market square, scatter
+// when shots are fired, and give the player cover: standing in a crowd slows enemy recognition.
+const NPCS = (() => {
+  const N = 18, NEAR_POSE = 45, FAR = 85, PLAZA_N = 8, R = 0.28;
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+  const SKIN = ['#e3b48e', '#c98e62', '#a8714a', '#8a5a3a', '#6b4430', '#d9a37a'];
+  const TOPC = ['#8a2f2f', '#2f4f7a', '#d8d2c4', '#556b2f', '#c9a45c', '#3c3c44', '#7a5c8a', '#b86b3a', '#e8e4da', '#2a6f6a', '#5a3a2a', '#9aa4ac'];
+  const PANTC = ['#2d3550', '#4a4a4a', '#c8b89a', '#1f1f22', '#6b5a44', '#3d4a3a'];
+  const HAIRC = ['#1c1612', '#2e2018', '#4a3426', '#6a6058', '#121010'];
+  function outfit() {
+    return {
+      ...REFERENCE, skin: pick(SKIN), height: rand(0.92, 1.06), shoulders: rand(0.9, 1.04), muscle: rand(0.15, 0.5), fat: rand(0.1, 0.55), headSize: rand(1.0, 1.1),
+      brows: pick(['flat', 'raised', 'stern']), facialHair: pick(['none', 'none', 'stubble', 'beard', 'mustache']), hair: pick(['short', 'messy', 'buzz', 'long', 'none']), hairColor: pick(HAIRC),
+      headwear: pick(['none', 'none', 'none', 'cap', 'beanie', 'boonie']), hatColor: pick(TOPC), ears: 'none',
+      top: pick(['hoodie', 'longsleeve', 'tshirt', 'tshirt', 'jacket']), topColor: pick(TOPC), sleeves: pick(['rolled', 'full']), gloves: 'none',
+      vest: 'none', pack: 'none', belt: Math.random() < 0.5, beltColor: '#2a2420', bottom: pick(['pants', 'pants', 'joggers', 'shorts']), pantsColor: pick(PANTC),
+      kneepads: false, shoes: pick(['sneakers', 'sneakers', 'boots']), shoeColor: pick(['#2a2a2a', '#7a5a3a', '#e8e8e8', '#3a3f50']),
+      eyewear: Math.random() < 0.15 ? 'sunglasses' : 'none', facePaint: 'none', patch: 'none', holster: false, watch: Math.random() < 0.4,
+    };
+  }
+  // ~76 small meshes per rig → one vertex-coloured mesh per joint (≈16 draw calls per civilian)
+  const bodyMat = { [THREE.FrontSide]: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }), [THREE.DoubleSide]: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, side: THREE.DoubleSide }) };
+  const _m4 = new THREE.Matrix4(), _n3 = new THREE.Matrix3(), _pv = new V3();
+  function bake(c) {
+    const joints = new Set([c.root, c.pelvis, c.spine, c.head]);
+    for (const k of ['armL', 'armR', 'legL', 'legR']) for (const s in c[k]) if (c[k][s] && c[k][s].isObject3D) joints.add(c[k][s]);
+    c.root.updateMatrixWorld(true);
+    const groups = new Map(), kill = [];
+    c.root.traverse((o) => {
+      if (!o.isMesh) return;
+      const m = o.material, bucket = m.side === THREE.DoubleSide ? THREE.DoubleSide : THREE.FrontSide;
+      if (m.transparent || m.map || !m.isMeshStandardMaterial || !o.visible) { if (!m.transparent && !m.map) o.castShadow = true; return; }   // glass, decals: kept as they are
+      let j = o.parent; while (!joints.has(j)) j = j.parent;
+      const key = j.uuid + bucket; let g = groups.get(key); if (!g) groups.set(key, g = { j, bucket, list: [] });
+      g.list.push(o); kill.push(o);
+    });
+    for (const { j, bucket, list } of groups.values()) {
+      let nv = 0, ni = 0;
+      for (const o of list) { const g = o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = new Uint32Array(ni);
+      let v0 = 0, i0 = 0;
+      const inv = new THREE.Matrix4().copy(j.matrixWorld).invert();
+      for (const o of list) {
+        const g = o.geometry, P0 = g.attributes.position, N0 = g.attributes.normal, cl = o.material.color;
+        _m4.multiplyMatrices(inv, o.matrixWorld); _n3.getNormalMatrix(_m4);
+        for (let i = 0; i < P0.count; i++) {
+          _pv.fromBufferAttribute(P0, i).applyMatrix4(_m4); pos.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3);
+          if (N0) { _pv.fromBufferAttribute(N0, i).applyMatrix3(_n3).normalize(); nor.set([_pv.x, _pv.y, _pv.z], (v0 + i) * 3); }
+          col.set([cl.r, cl.g, cl.b], (v0 + i) * 3);
+        }
+        if (g.index) for (let i = 0; i < g.index.count; i++) idx[i0 + i] = g.index.getX(i) + v0; else for (let i = 0; i < P0.count; i++) idx[i0 + i] = i + v0;
+        i0 += g.index ? g.index.count : P0.count; v0 += P0.count;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, bodyMat[bucket]); mesh.castShadow = true; j.add(mesh);
+    }
+    // kept meshes may hang off merged ones: move them onto the owning joint first
+    const gone = new Set(kill);
+    for (const o of kill) for (const k of [...o.children]) if (!gone.has(k)) { let j = o.parent; while (!joints.has(j)) j = j.parent; j.attach(k); }
+    for (const o of kill) o.parent.remove(o);
+  }
+  const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+  function makeModel() {
+    const kit = outfit();
+    applyColors(kit);
+    const c = buildCharacter(kit);
+    c.spine.rotation.order = 'YXZ'; c.head.rotation.order = 'YXZ'; c.pelvis.rotation.order = 'YXZ'; c.root.rotation.order = 'YXZ';
+    bake(c);
+    applyColors(cfg);
+    const px = { head: M(new THREE.SphereGeometry(0.13, 8, 6), proxyMat, c.root, 0, c.d.hipY + 0.78, 0), torso: M(new THREE.BoxGeometry(0.44, 0.6, 0.3), proxyMat, c.root, 0, c.d.hipY + 0.32, 0), legs: M(new THREE.BoxGeometry(0.36, c.d.hipY, 0.24), proxyMat, c.root, 0, c.d.hipY / 2, 0) };
+    scene.add(c.root);
+    return { ch: c, px };
+  }
+
+  const civs = [];
+  let lastAlarm = -99, clock = 0, scan = 0;
+  const free = (x, z) => { const p = { x, y: 0, z }; COL.resolve(p, R, 1.7); return Math.hypot(p.x - x, p.z - z) < 0.05; };
+  const visibleFrom = (x, z) => { const e = new V3(P.pos.x, P.pos.y + 1.6, P.pos.z), d = new V3(x, 1.3, z).sub(e), L = d.length(); return !COL.ray(e, d.divideScalar(L), L); };
+
+  // ---------------- placement ----------------
+  function nearestSeg(st, x, z) { let bi = 0, bd = Infinity; for (let i = 0; i < st.pts.length; i++) { const d = (st.pts[i][0] - x) ** 2 + (st.pts[i][1] - z) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; }
+  function onStreet(v, st, i, dir) {
+    v.st = st; v.dir = dir; v.i = clamp(i, 0, st.pts.length - 1);
+    if (v.i === st.pts.length - 1 && dir > 0) v.dir = -1; else if (v.i === 0 && dir < 0) v.dir = 1;
+    // keep right: pavements on roads, anywhere across a lane
+    const half = st.w / 2;
+    v.off = st.road > 0 ? Math.max(0.3, half - rand(0.9, 1.6)) : Math.max(0, half - 0.7) * rand(0.15, 0.9);
+  }
+  function place(v, minD, maxD, hidden) {
+    for (let t = 0; t < 60; t++) {
+      let x, z;
+      if (v.plaza) { x = rand(SQ.x0 + 4, SQ.x1 - 4); z = rand(SQ.z0 + 4, SQ.z1 - 4); const d = Math.hypot(x - P.pos.x, z - P.pos.z); if (d < minD || d > maxD) continue; }
+      else {
+        const a = Math.random() * Math.PI * 2, d = rand(minD, maxD); x = P.pos.x + Math.sin(a) * d; z = P.pos.z + Math.cos(a) * d;
+        const id = GR.roadAt(x, z), st = id && STREETS[id - 1]; if (!st || st.len < 12) continue;
+        onStreet(v, st, nearestSeg(st, x, z), Math.random() < 0.5 ? 1 : -1); towardPlayer(v, 0.7);
+        const q = target(v); x = q.x; z = q.z;
+      }
+      if (terrainH(x, z) > 0.5 || !free(x, z)) continue;
+      if (hidden && d2(x, z) < 60 * 60 && visibleFrom(x, z)) continue;
+      v.x = x; v.z = z; v.y = COL.ground(x, z, 0.3); v.yaw = Math.random() * 6.28; v.panic = 0; v.idle = 0; v.stuckT = 0; v.tx = x; v.tz = z;
+      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.m.ch.root.rotation.x = 0;
+      if (v.plaza) newPlazaGoal(v);
+      return true;
+    }
+    return false;
+  }
+  const d2 = (x, z) => (x - P.pos.x) ** 2 + (z - P.pos.z) ** 2;
+  // street walkers aim for the next polyline point, shifted to their side of the street
+  function target(v) {
+    const p = v.st.pts, j = clamp(v.i + v.dir, 0, p.length - 1), a = p[Math.min(v.i, j)], b = p[Math.max(v.i, j)];
+    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, s = v.off * v.dir;
+    return { x: p[j][0] - dz / L * s, z: p[j][1] + dx / L * s };
+  }
+  // at a street's end: carry on into a street that meets it, else turn around
+  function junction(v) {
+    const e = v.st.pts[v.i];
+    let best = null, bd = 16;
+    for (const st of STREETS) {
+      if (st === v.st || st.len < 12) continue;
+      const k = nearestSeg(st, e[0], e[1]), d = (st.pts[k][0] - e[0]) ** 2 + (st.pts[k][1] - e[1]) ** 2;
+      if (d < bd && Math.random() < 0.8) { bd = d; best = [st, k]; }
+    }
+    if (best) { onStreet(v, best[0], best[1], Math.random() < 0.5 ? 1 : -1); towardPlayer(v, 0.6); } else v.dir = -v.dir;
+  }
+  // pedestrians drift toward where the player is, so the crowd stays around them
+  function towardPlayer(v, p) {
+    if (Math.random() > p) return;
+    const q = v.st.pts, a = q[v.i], b = q[clamp(v.i + v.dir, 0, q.length - 1)];
+    if ((b[0] - a[0]) * (P.pos.x - a[0]) + (b[1] - a[1]) * (P.pos.z - a[1]) < 0) { v.dir = -v.dir; if (v.i === 0 && v.dir < 0 || v.i === q.length - 1 && v.dir > 0) v.dir = -v.dir; }
+  }
+  function newPlazaGoal(v) {
+    for (let t = 0; t < 12; t++) { const nearP = Math.random() < 0.6, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(SQ.x0, SQ.x1), SQ.x0 + 3, SQ.x1 - 3), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(SQ.z0, SQ.z1), SQ.z0 + 3, SQ.z1 - 3); if (free(x, z) && Math.hypot(x - v.x, z - v.z) > 6) { v.tx = x; v.tz = z; return; } }
+  }
+
+  // ---------------- motion ----------------
+  function step(v, dt) {
+    if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
+    if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
+    let dx = v.tx - v.x, dz = v.tz - v.z; const L = Math.hypot(dx, dz);
+    if (L < 0.9) {
+      if (v.plaza) { newPlazaGoal(v); if (v.panic <= 0 && Math.random() < 0.6) v.idle = rand(1.5, 5); }
+      else { const j = v.i + v.dir; if (j <= 0 || j >= v.st.pts.length - 1) { v.i = clamp(j, 0, v.st.pts.length - 1); junction(v); } else v.i = j; }
+      return;
+    }
+    const sp = v.panic > 0 ? v.speed * 3.1 : v.speed;
+    dx /= L; dz /= L;
+    const ox = v.x, oz = v.z, p = { x: v.x + dx * sp * dt, y: v.y, z: v.z + dz * sp * dt };
+    COL.resolve(p, R, 1.7);
+    v.x = p.x; v.z = p.z; v.y = damp(v.y, COL.ground(v.x, v.z, v.y + 0.3), 12, dt);
+    v.vx = (v.x - ox) / dt; v.vz = (v.z - oz) / dt;
+    v.yaw += wrap(Math.atan2(-dx, -dz) - v.yaw) * Math.min(1, dt * (v.panic > 0 ? 10 : 5));
+    // blocked (stall, parked car, someone's doorstep): turn back / choose another spot
+    v.stuckT = Math.hypot(v.vx, v.vz) < sp * 0.3 ? v.stuckT + dt : 0;
+    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
+  }
+  const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
+
+  // ---------------- pose (same IK helpers as the player; rig swapped in) ----------------
+  const _v = new V3(), _w = new V3(), _a = new V3(), _b = new V3();
+  function pose(v, dt) {
+    const c = v.m.ch, d = c.d;
+    c.root.position.set(v.x, v.y, v.z); c.root.rotation.set(0, v.yaw + Math.PI, 0);
+    const keepCh = ch; ch = c;
+    try {
+      const lv = _v.set(v.vx || 0, 0, v.vz || 0).applyAxisAngle(UP, -(v.yaw + Math.PI)), speed = Math.hypot(lv.x, lv.z), run = clamp((speed - 2) / 2, 0, 1);
+      v.gaitW = damp(v.gaitW, clamp(speed / 1.0, 0, 1), 8, dt);
+      const Ls = clamp(0.32 + speed * 0.16, 0.32, 1.1);
+      if (speed > 0.05) v.phase += dt * Math.PI * speed / Ls;
+      const bob = v.gaitW * (0.022 + run * 0.03) * Math.abs(Math.sin(v.phase));
+      c.pelvis.position.set(0, d.hipY - bob - run * 0.05, 0); c.pelvis.rotation.set(0, Math.sin(v.phase) * 0.1 * v.gaitW, 0);
+      c.spine.rotation.set(0.04 + run * 0.22, -Math.sin(v.phase) * 0.12 * v.gaitW, 0);
+      c.head.rotation.set(-run * 0.15, Math.sin(clock * 0.4 + v.seed) * 0.35 * (1 - v.gaitW * 0.6), 0);
+      c.root.updateMatrixWorld(true);
+      const dir = _w.set(lv.x, 0, lv.z); if (speed > 0.01) dir.divideScalar(speed);
+      [[c.legL, c.hipL, 1, 0], [c.legR, c.hipR, -1, Math.PI]].forEach(([leg, hipA, side, off]) => {
+        const hip = toRoot(hipA, T.a), u = (((v.phase + off) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        let along, lift = 0;
+        if (u < Math.PI) along = Ls / 2 - Ls * (u / Math.PI); else { const q = (u - Math.PI) / Math.PI; along = -Ls / 2 + Ls * smooth(q); lift = Math.sin(q * Math.PI); }
+        const st = T.b.set(side * (d.hipX + 0.02), d.ankle, 0).addScaledVector(dir, along * v.gaitW); st.y += lift * (0.1 + run * 0.08) * v.gaitW;
+        ik(hip, st, d.thigh, d.shin, T.pole.set(side * 0.15, 0, 1), T.mid, T.end);
+        placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd);
+        leg.foot.position.copy(T.end); leg.foot.rotation.set(-lift * 0.35 * v.gaitW, side * 0.1, 0, 'YXZ');
+      });
+      // arms swing opposite the legs; pumping, bent elbows when running
+      [[c.armL, c.shL, 1, Math.PI], [c.armR, c.shR, -1, 0]].forEach(([arm, shA, side, off]) => {
+        const sh = toRoot(shA, _a), sw = Math.sin(v.phase + off) * v.gaitW;
+        const reach = (d.upper + d.fore) * (0.93 - run * 0.35);
+        const w = _b.set(sh.x + side * (0.06 + run * 0.02), sh.y - reach, sh.z + sw * (0.16 + run * 0.2) + run * 0.12);
+        placeArm(arm, sh, w, null, T.pole.set(side * 0.2, 0, -1), T.fwd);
+      });
+    } finally { ch = keepCh; }
+  }
+
+  // ---------------- lifecycle ----------------
+  function update(dt) {
+    clock += dt;
+    if (!MAP.ready || mode !== 'range') return;
+    if (civs.length < N) {   // build the crowd a model per frame (no hitch)
+      const v = { m: makeModel(), k: civs.length, seed: Math.random() * 10, phase: Math.random() * 6, gaitW: 0, plaza: false, alive: false, deadT: 20, hits: [] };
+      for (const part of ['head', 'torso', 'legs']) { const m = v.m.px[part]; m.userData.target = { type: 'civ', civ: v, part }; v.hits.push(m); }
+      civs.push(v); v.m.ch.root.visible = false;
+    }
+    const nearSq = Math.hypot(clamp(P.pos.x, SQ.x0, SQ.x1) - P.pos.x, clamp(P.pos.z, SQ.z0, SQ.z1) - P.pos.z) < 80;
+    scan -= dt;
+    for (const v of civs) {
+      const root = v.m.ch.root;
+      // recycle: out of range (or the square's crowd while you're elsewhere) → re-place near you, out of sight
+      const wantPlaza = v.k < PLAZA_N && nearSq;
+      if (scan <= 0 && (!v.alive ? v.deadT >= 20 : d2(v.x, v.z) > FAR * FAR || (v.plaza !== wantPlaza && (v.plaza || d2(v.x, v.z) > 35 * 35)))) {
+        v.plaza = wantPlaza;
+        if (place(v, v.placed ? 22 : 4, v.placed ? 70 : 55, v.placed)) { v.placed = true; setHits(v, true); } else { v.alive = false; v.deadT = 20; setHits(v, false); }
+      }
+      root.visible = v.alive || v.deadT < 20;
+      if (!v.alive) { if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
+      if (v.panic > 0) v.panic -= dt;
+      step(v, dt);
+      if (d2(v.x, v.z) < NEAR_POSE * NEAR_POSE) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
+    }
+    if (scan <= 0) scan = 0.3;
+  }
+  function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
+  // gunfire nearby: scatter away from the shooter
+  function alarm(x, z) {
+    if (clock - lastAlarm < 0.15) return; lastAlarm = clock;
+    for (const v of civs) {
+      if (!v.alive) continue;
+      const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d > 60) continue;
+      const wasCalm = v.panic <= 0; v.panic = rand(6, 10); v.idle = 0;
+      if (!wasCalm) continue;
+      if (v.plaza) { v.tx = clamp(v.x + dx / (d || 1) * 30, SQ.x0 + 3, SQ.x1 - 3); v.tz = clamp(v.z + dz / (d || 1) * 30, SQ.z0 + 3, SQ.z1 - 3); }
+      else { const q = target(v); if ((q.x - v.x) * dx + (q.z - v.z) * dz < 0) v.dir = -v.dir; }
+    }
+  }
+  // the player's cover: each civilian within a few metres slows enemy recognition (capped)
+  function conceal(p) {
+    let n = 0;
+    for (const v of civs) if (v.alive && Math.abs(v.x - p.x) < 7 && Math.abs(v.z - p.z) < 7 && (v.x - p.x) ** 2 + (v.z - p.z) ** 2 < 49) n++;
+    return Math.min(0.7, n * 0.22);
+  }
+  function hit(tg, p, b) {
+    const v = tg.civ; if (!v.alive) return;
+    v.alive = false; v.deadT = 0; setHits(v, false);
+    emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6);
+    audio.fleshHit(p.distanceTo(P.pos));
+    P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>');
+    alarm(p.x, p.z);
+  }
+  return { update, alarm, conceal, hit, get civs() { return civs; } };
+})();
+// =====================================================================
+//  Mission 1 — "Dead Drop": recover the intel from a riad near the souk, extract to the civic plaza
+// =====================================================================
+const MISSION = (() => {
+  const EXTRACT = { x: -18, z: -61, r: 9 }, REWARD = 500, PICK_R = 2.2;
+  let stage = 'init', intel = null, beam = null, banT = 0;
+  const host = document.getElementById('hud');
+  const el = (css, parent = host) => { const d = document.createElement('div'); d.style.cssText = css; parent.appendChild(d); return d; };
+  const obj = el('position:absolute;right:24px;top:24px;text-align:right;font-size:13px;letter-spacing:.14em;color:#e8dcc4;text-shadow:0 0 6px #000;line-height:1.5');
+  const way = el('position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.12em;color:#ffd27a;text-shadow:0 0 5px #000;text-align:center;white-space:nowrap;display:none');
+  const prompt = el('position:absolute;left:50%;top:56%;transform:translateX(-50%);font-size:16px;letter-spacing:.25em;color:#ffd27a;text-shadow:0 0 8px #000;display:none');
+  const banner = el('position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(620px,90vw);text-align:center;color:#f0e2c4;text-shadow:0 0 12px #000;opacity:0;transition:opacity .5s;font:600 22px Rajdhani,sans-serif;letter-spacing:.22em');
+
+  function show(title, sub, t = 5) { banner.innerHTML = `${title}<div style="font-size:13px;letter-spacing:.12em;color:#d9c49a;margin-top:8px;line-height:1.5">${sub}</div>`; banner.style.opacity = '1'; banT = t; }
+  // a riad courtyard a short walk from the spawn square
+  function init() {
+    let best = null, bd = Infinity;
+    for (const p of MAP.poi) {
+      if (p.kind !== 'riad' || !p.path[4]) continue;
+      const [x, y, z] = p.path[4], d = Math.abs(Math.hypot(x - SPAWN.x, z - SPAWN.z) - 110);
+      if (Math.abs(y) < 0.6 && d < bd) { bd = d; best = { x, y, z, p }; }
+    }
+    if (!best) { stage = 'none'; obj.textContent = ''; return; }
+    // path[4] is the courtyard corner by the stair: step out into the open courtyard
+    { const [a, b, c] = [3, 4, 5].map((i) => best.p.path[i]), u = [a[0] - b[0], a[2] - b[2]], w = [c[0] - b[0], c[2] - b[2]], lu = Math.hypot(...u) || 1, lw = Math.hypot(...w) || 1;
+      for (const k of [1, 0.6, 0.3, 0]) { const x = b[0] + u[0] / lu * 1.4 * k + w[0] / lw * 1.8 * k, z = b[2] + u[1] / lu * 1.4 * k + w[1] / lw * 1.8 * k, q = { x, y: b[1], z }; COL.resolve(q, 0.35, 1.5); if (Math.hypot(q.x - x, q.z - z) < 0.02) { best.x = x; best.z = z; break; } } }
+    best.y = COL.ground(best.x, best.z, best.y + 0.3);
+    // the intel: a hard case with a red tag, under a tall marker beam
+    const g = new THREE.Group();
+    M(new THREE.BoxGeometry(0.46, 0.13, 0.33), new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.5, metalness: 0.4 }), g, 0, 0.065, 0);
+    M(new THREE.BoxGeometry(0.16, 0.04, 0.03), new THREE.MeshStandardMaterial({ color: 0x111111 }), g, 0, 0.15, 0);
+    M(new THREE.BoxGeometry(0.06, 0.008, 0.09), new THREE.MeshStandardMaterial({ color: 0xc0302a, emissive: 0x601010 }), g, 0.12, 0.134, 0.06);
+    g.position.set(best.x, best.y, best.z); g.rotation.y = Math.random() * 6.28;
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    scene.add(g);
+    beam = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 40, 6, 1, true).translate(0, 20, 0), new THREE.MeshBasicMaterial({ color: 0xffc860, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    beam.position.copy(g.position); scene.add(beam);
+    intel = { ...best, g };
+    stage = 'intel';
+    show('MISSION 1 — DEAD DROP', 'A courier left intel in a riad off the souk. Recover it and get it to the civic plaza.', 7);
+  }
+  const target = () => stage === 'intel' ? { x: intel.x, y: intel.y + 0.4, z: intel.z, name: 'INTEL' } : stage === 'extract' ? { x: EXTRACT.x, y: 1.5, z: EXTRACT.z, name: 'EXTRACT' } : null;
+  const _p = new V3();
+  function update(dt) {
+    if (!MAP.ready) return;
+    if (stage === 'init') init();
+    if (banT > 0 && (banT -= dt) <= 0) banner.style.opacity = '0';
+    const t = target();
+    obj.innerHTML = stage === 'intel' ? 'OBJECTIVE<br><b style="color:#ffd27a">▸ RECOVER THE INTEL</b> (riad near the souk)'
+      : stage === 'extract' ? 'OBJECTIVE<br><span style="opacity:.55">✓ Intel recovered</span><br><b style="color:#ffd27a">▸ EXTRACT TO THE CIVIC PLAZA</b>'
+      : stage === 'done' ? 'MISSION 1 COMPLETE<br><span style="opacity:.6">Free roam — hostiles remain active</span>' : '';
+    if (!t) { way.style.display = prompt.style.display = 'none'; return; }
+    const dist = Math.hypot(t.x - P.pos.x, t.z - P.pos.z);
+    if (stage === 'intel') {
+      const near = dist < PICK_R && Math.abs(P.pos.y - intel.y) < 1.5 && !P.dead;
+      prompt.style.display = near ? 'block' : 'none'; prompt.textContent = '[E]  TAKE INTEL';
+    } else prompt.style.display = 'none';
+    beam.position.set(t.x, stage === 'extract' ? 0 : intel.y, t.z);
+    beam.material.opacity = 0.18 + 0.12 * Math.sin(performance.now() / 300) ** 2;
+    if (stage === 'extract' && dist < EXTRACT.r && !P.dead) {
+      stage = 'done'; P.stats.score += REWARD; scene.remove(beam);
+      feed(`<span class="s">MISSION COMPLETE +${REWARD}</span>`); show('MISSION COMPLETE', `Intel delivered · +${REWARD}`, 6); audio.switchMode();
+      return;
+    }
+    // waypoint: on screen over the target, or pinned to the screen edge pointing at it
+    _p.set(t.x, t.y, t.z).project(camera);
+    let x = _p.x, y = _p.y; const behind = _p.z > 1;
+    if (behind) { x = -x; y = -y; }
+    const off = behind || Math.abs(x) > 0.92 || Math.abs(y) > 0.88;
+    if (off) { const k = 1 / Math.max(Math.abs(x) / 0.92, Math.abs(y) / 0.88, 1e-3); x *= k; y *= k; }
+    way.style.display = 'block';
+    way.style.left = `${(x * 0.5 + 0.5) * innerWidth}px`; way.style.top = `${(-y * 0.5 + 0.5) * innerHeight}px`;
+    way.innerHTML = `◆<br>${t.name} ${Math.round(dist)} m`;
+  }
+  function interact() {
+    if (stage !== 'intel' || P.dead) return;
+    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return;
+    scene.remove(intel.g); stage = 'extract'; audio.switchMode();
+    beam.material.color.set(0x7ae0a0);
+    feed('<span class="s">INTEL RECOVERED</span>'); show('INTEL RECOVERED', 'Get it to the civic plaza (follow the green marker)', 4);
+  }
+  return { update, interact, get stage() { return stage; }, get intel() { return intel; } };
 })();
 // =====================================================================
 //  Input
@@ -8883,6 +9231,7 @@ addEventListener('keydown', (e) => {
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
+    case 'KeyE': MISSION.interact(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -9091,7 +9440,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); BOTS.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -9115,6 +9464,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

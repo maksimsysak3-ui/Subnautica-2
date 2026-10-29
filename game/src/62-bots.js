@@ -6,7 +6,10 @@
 // The AI still only knows what it perceives (sight, sound, being shot at, squad callouts).
 const BOTS = (() => {
   const { World, Agent, TUNE } = AICORE;
-  const SIZE = 140, RELOCATE = 45, N_BOTS = 6, RESPAWN_S = 14;
+  const SIZE = 140, RELOCATE = 45, N_BOTS = 4, RESPAWN_S = 20;
+  // the market square (player spawn) stays a light zone: no spawns inside it, at most 2 hostiles while you're there
+  const SQ_PAD = 12, SQ_MAX = 2;
+  const inSquare = (x, z, pad = 0) => x > SQ.x0 - pad && x < SQ.x1 + pad && z > SQ.z0 - pad && z < SQ.z1 + pad;
   let NEXT = null;
   class CityArena extends World {
     constructor(cx, cz) { NEXT = { cx, cz }; super({ w: SIZE, h: SIZE, seed: (Math.random() * 1e9) | 0, cell: 0.5 }); this.recordTracers = true; this.light = new Map(); }
@@ -54,10 +57,10 @@ const BOTS = (() => {
   }
 
   // ---------------- tuning for the city (the lab defaults are tuned for small arenas) ----------------
-  Object.assign(TUNE.vision, { rate: TUNE.vision.rate * 0.45, distScale: 24, range: 110 });
-  Object.assign(TUNE.aim, { react: 0.5, reactSpread: 0.3 });
-  TUNE.weapon.spread = 0.012;
-  const HURT = { head: 18, torso: 9, legs: 6 }, GRACE = 10;   // damage the player takes per hit (≈ 11 body hits)   // damage the player takes per hit (≈ 9 body hits)
+  Object.assign(TUNE.vision, { rate: TUNE.vision.rate * 0.3, distScale: 20, range: 85 });
+  Object.assign(TUNE.aim, { react: 0.75, reactSpread: 0.35, gainSd: 0.13, lateralSd: 0.065, trackGain: 4 });
+  TUNE.weapon.spread = 0.02;
+  const HURT = { head: 15, torso: 7, legs: 5 }, GRACE = 10;   // damage the player takes per hit (≈ 14 body hits)
 
   // ---------------- soldiers use the player's own character rig + rifle, in enemy kit ----------------
   const KITS = [
@@ -180,7 +183,7 @@ const BOTS = (() => {
     views = []; pending = [];
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
-    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; };
+    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); };
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -188,7 +191,7 @@ const BOTS = (() => {
     me.onHit = (dmg, part) => hurtPlayer(dmg, part);
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
-    for (let i = 0; i < N_BOTS; i++) spawnBot(i);
+    for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight
   function spawnPoint() {
@@ -196,6 +199,7 @@ const BOTS = (() => {
     for (let t = 0; t < 300; t++) {
       const a = Math.random() * Math.PI * 2, d = rand(40, 66), x = P.pos.x + Math.sin(a) * d, z = P.pos.z + Math.cos(a) * d;
       if (Math.abs(x - arena.ox) > SIZE / 2 - 4 || Math.abs(z - arena.oz) > SIZE / 2 - 4) continue;
+      if (inSquare(x, z, SQ_PAD)) continue;
       const g = GR.get(x, z); if (g !== GR.STREET && g !== GR.PAVE) continue;
       const lp = toLocal(x, z); if (!arena.free(lp)) continue;
       const tgt = new V3(x, 1.3, z), dir = tgt.clone().sub(eye), L = dir.length();
@@ -204,7 +208,9 @@ const BOTS = (() => {
     }
     return null;
   }
+  const cap = () => inSquare(P.pos.x, P.pos.z, SQ_PAD) ? SQ_MAX : N_BOTS;
   function spawnBot(i) {
+    if (views.filter((v) => v.agent.alive).length >= cap()) return false;
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
     const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
@@ -224,7 +230,7 @@ const BOTS = (() => {
   function playerShot(origin, dir) {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
-    me.lastShotT = arena.time;
+    me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
     arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
@@ -264,7 +270,7 @@ const BOTS = (() => {
       const d = B.clone().sub(A), L = d.length(); d.divideScalar(L);
       const m = new THREE.Mesh(tracerGeo2, tracerMat2); m.position.copy(A); m.lookAt(B); m.scale.set(1, 1, Math.min(L, 14)); m.frustumCulled = false;
       scene.add(m); tracersFx.push({ m, A, d, L, t: 0 });
-      audio.enemyShot(A.distanceTo(P.pos));
+      audio.enemyShot(A.distanceTo(P.pos)); NPCS.alarm(A.x, A.z);
       if (!tr.hit) { const h = COL.ray(A, d, L + 0.2); if (h) { HOLES.add(h.point, h.normal, 1); emitPuff(h.point, 0x8a8478, 0.08, 0.7, h.normal.clone().multiplyScalar(0.6), 0.35, 1.6); emitSparks(h.point, 3, h.normal, [0.9, 0.75, 0.5], 2); } }
     }
     lastTracer = arena.time;
@@ -279,7 +285,8 @@ const BOTS = (() => {
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
     // replacements for the fallen (out of sight), cleanup of old bodies
-    for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0 && spawnBot(views.length)) pending.splice(i, 1); }
+    for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0) { if (spawnBot(views.length)) pending.splice(i, 1); else pending[i] = 1; } }
+    if (views.filter((v) => v.agent.alive).length + pending.length < cap()) pending.push(8);   // left the square: top back up
     for (let i = views.length - 1; i >= 0; i--) { const v = views[i]; if (!v.alive && v.deadT > 25) { dropView(v); views.splice(i, 1); arena.agents.splice(arena.agents.indexOf(v.agent), 1); } }
     // health: slow regeneration after a few quiet seconds; death → regroup at the spawn
     if (P.dead) {
@@ -289,7 +296,7 @@ const BOTS = (() => {
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
-    ui.cnt.textContent = clock < graceUntil ? `SPAWN PROTECTION ${Math.ceil(graceUntil - clock)}` : `HOSTILES ${views.filter((v) => v.agent.alive).length}`;
+    ui.cnt.textContent = clock < graceUntil ? `SPAWN PROTECTION ${Math.ceil(graceUntil - clock)}` : `HOSTILES ${views.filter((v) => v.agent.alive).length}${me && me.conceal > 0.15 ? ' · HIDDEN IN CROWD' : ''}`;
   }
   function setEnabled(on) {
     enabled = on;

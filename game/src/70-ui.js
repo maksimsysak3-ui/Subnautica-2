@@ -18,6 +18,7 @@ addEventListener('keydown', (e) => {
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
+    case 'KeyE': MISSION.interact(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -226,7 +227,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); BOTS.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -250,6 +251,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

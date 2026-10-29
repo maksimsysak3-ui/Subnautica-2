@@ -511,6 +511,7 @@ function impact(b, h) {
   const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : UP.clone();
   if (tg.type === 'frame') { emitSparks(p, 8, n, [1, 0.6, 0.25], 3); return; }
   if (tg.type === 'bot') { BOTS.hit(tg, p, b); return; }
+  if (tg.type === 'civ') { NPCS.hit(tg, p, b); return; }
   const firstOnTarget = tg.lastShot !== b.shot;
   tg.lastShot = b.shot;
   if (P.lastHitShot !== b.shot) { P.lastHitShot = b.shot; P.stats.hits++; }
