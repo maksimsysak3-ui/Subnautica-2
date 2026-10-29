@@ -42,7 +42,7 @@ function cafeDeLaPlace() {
     // balcony across the first-floor front
     W.box(x1 - x0 - 0.4, 0.16, 1.1, (x0 + x1) / 2, H0 - 0.08, z1 + 0.55, MC.concreteLt, { t: TX.terrazzo }); W.solid(x1 - x0 - 0.4, 0.16, 1.1, (x0 + x1) / 2, H0 - 0.08, z1 + 0.55, 'concrete', { walk: true });
     railing(x0 + 0.2, z1 + 1.06, x1 - 0.2, z1 + 1.06, H0, 'iron');
-    tiledCornice(x1 - x0, z1 - z0, yR, col);
+    W.push((x0 + x1) / 2, 0, (z0 + z1) / 2); tiledCornice(x1 - x0, z1 - z0, yR, col); W.pop();
   });
   // ground floor: the café
   W.scope({ dim: 0.8 }, () => {
