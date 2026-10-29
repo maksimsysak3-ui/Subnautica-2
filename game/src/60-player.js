@@ -417,6 +417,7 @@ function fire() {
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
   if (W.casing !== 'shell') ejectCasing(W.casing);
   audio.gunshot(g.kind, sup, g.brake);
+  BOTS.playerShot(mz, base);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
   const R = W.recoil;
@@ -509,6 +510,7 @@ function impact(b, h) {
   const tg = h.object.userData.target;
   const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : UP.clone();
   if (tg.type === 'frame') { emitSparks(p, 8, n, [1, 0.6, 0.25], 3); return; }
+  if (tg.type === 'bot') { BOTS.hit(tg, p, b); return; }
   const firstOnTarget = tg.lastShot !== b.shot;
   tg.lastShot = b.shot;
   if (P.lastHitShot !== b.shot) { P.lastHitShot = b.shot; P.stats.hits++; }
@@ -733,6 +735,7 @@ function updateCustom(dt, time) {
 }
 
 function resetRange() {
+  BOTS.reset();
   resetTargets();
   freshInv();
   P.reload = null; P.burst = 0; P.pump = null; P.swap = null;

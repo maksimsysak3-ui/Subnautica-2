@@ -42,11 +42,11 @@ function laneTraffic(st, n) {
 
 // ---------------- MODERN COMMERCIAL DISTRICT ----------------
 function buildModern() {
-  const inMod = (x, z) => x > 128 && x < 832 && z > -322 && z < 302;
+  const inMod = (x, z) => x > 128 && x < 652 && z > -322 && z < 302;
   const RB = [300, 30], rbR = 26;
   // boulevards meet at a roundabout with a monument
-  const ave = [addStreet([[300, -330], [300, RB[1] - rbR - 4]], 36, 'boulevard', { road: 24, walk: 6, median: 4 }), addStreet([[300, RB[1] + rbR + 4], [300, 832]], 36, 'boulevard', { road: 24, walk: 6, median: 4 })];
-  const blvd = [addStreet([[-40, 30], [RB[0] - rbR - 4, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 }), addStreet([[RB[0] + rbR + 4, 30], [832, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 })];
+  const ave = [addStreet([[300, -330], [300, RB[1] - rbR - 4]], 36, 'boulevard', { road: 24, walk: 6, median: 4 }), addStreet([[300, RB[1] + rbR + 4], [300, 612]], 36, 'boulevard', { road: 24, walk: 6, median: 4 })];
+  const blvd = [addStreet([[-40, 30], [RB[0] - rbR - 4, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 }), addStreet([[RB[0] + rbR + 4, 30], [652, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 })];
   const ring = []; for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; ring.push([RB[0] + Math.cos(a) * rbR, RB[1] + Math.sin(a) * rbR]); }
   const rbs = addStreet(ring, 14, 'ring', { road: 11, walk: 1.5, raw: true });
   GR.street([RB, [RB[0] + 0.01, RB[1]]], (rbR - 5.5) * 2, GR.RESERVED);
@@ -54,15 +54,14 @@ function buildModern() {
     addStreet([[190, -320], [190, 12]], 18, 'street', { road: 10, walk: 4 }), addStreet([[190, 48], [190, 300]], 18, 'street', { road: 10, walk: 4 }),
     addStreet([[430, -320], [430, 300]], 20, 'street', { road: 12, walk: 4 }),
     addStreet([[560, -320], [575, -150], [550, 0], [565, 150], [560, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[700, -320], [700, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -210], [832, -210]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -110], [832, -110]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[118, 140], [832, 140]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, 230], [832, 230]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -300], [832, -300]], 16, 'street', { road: 10, walk: 3 }),
+    addStreet([[130, -210], [652, -210]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, -110], [652, -110]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[118, 140], [652, 140]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, 230], [652, 230]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, -300], [652, -300]], 16, 'street', { road: 10, walk: 3 }),
   ];
   // the park and two car parks are kept open
-  GR.rect(495, 185, 112, 76, 0, GR.RESERVED); GR.rect(765, -40, 110, 100, 0, GR.RESERVED); GR.rect(245, -160, 80, 70, 0, GR.RESERVED);
+  GR.rect(495, 185, 112, 76, 0, GR.RESERVED); GR.rect(495, -160, 104, 72, 0, GR.RESERVED); GR.rect(245, -160, 80, 70, 0, GR.RESERVED);
   for (const s of [...ave, ...blvd, ...grid, rbs]) roadway(s);
   // buildings: offices (enterable), glass towers, slabs, apartment blocks with shops; cafés on the boulevard
   let nOff = 0, nCafe = 0;
@@ -74,7 +73,7 @@ function buildModern() {
   for (const s of [...ave, ...blvd]) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 14, wMax: 30, dMin: 16, dMax: 28, region: inMod, gap: () => (mchance(0.25) ? mr(3, 8) : 0) }), true);
   for (const s of grid) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 16, wMax: 34, dMin: 14, dMax: 26, region: inMod, gap: () => (mchance(0.3) ? mr(4, 10) : 0) }), false);
   // deep block interiors: service yards and surface car parks
-  for (const r of fillFree(128, -322, 832, 302, inMod, { cell: 4, max: 40, minA: 300 })) {
+  for (const r of fillFree(128, -322, 652, 302, inMod, { cell: 4, max: 40, minA: 300 })) {
     if (r.w > 26 && r.d > 26 && mchance(0.45)) modernShell({ cx: r.cx, cz: r.cz, w: r.w - 10, d: r.d - 10, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: Math.round(mr(3, 7)) });
     else if (r.w > 24 && r.d > 18 && mchance(0.5)) carPark(r.cx, r.cz, r.w - 4, r.d - 4); else yard(r);
   }
@@ -90,7 +89,7 @@ function buildModern() {
   W.cyl(1.4, 1.0, 1.4, RB[0], 15.2, RB[1], MC.brass, { seg: 8, layer: 'metal', t: TX.gebs }); W.cone(1.5, 2.0, RB[0], 16.9, RB[1], MC.tile, { seg: 8, t: TX.rooftile });
   // city park: lawns, palms, paths, a playground, a café kiosk
   cityPark(495, 185, 108, 72);
-  carPark(765, -40, 104, 94); carPark(245, -160, 74, 64);
+  carPark(495, -160, 98, 66); carPark(245, -160, 74, 64);
 }
 function cityPark(x, z, w, d) {
   groundPlate(x - w / 2, z - d / 2, x + w / 2, z + d / 2, 0x5c6a3a, TX.earth, 2, 0.05);
@@ -126,20 +125,19 @@ function carPark(x, z, w, d) {
 }
 
 // ---------------- RESIDENTIAL QUARTERS ----------------
-const RESI = [[-382, 64], [128, 64], [128, 306], [832, 306], [832, 832], [-382, 832]];
+const RESI = [[-382, 64], [128, 64], [128, 306], [652, 306], [652, 612], [-382, 612]];
 function buildResidential() {
   const poly = [...RESI, RESI[0]];
   const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 2;
   // a warped street grid: every line meanders a little so blocks are never quite rectangular
   const streets = [];
   const wig = (a, b, amp, seed) => { const pts = []; const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 40)); for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t), dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), o = i === 0 || i === n ? 0 : (vnoise(t * 4 + seed, seed) - 0.5) * 2 * amp; pts.push([x - dz / L * o, z + dx / L * o]); } return pts; };
-  for (const [x, z0, z1] of [[-330, 44, 832], [-235, 44, 832], [-140, 44, 832], [-45, 44, 832], [55, 44, 832], [170, 306, 832], [420, 306, 832], [530, 306, 832], [640, 306, 832], [750, 306, 832]]) streets.push(addStreet(wig([x, z0], [x, z1], 9, x * 0.01), 14, 'street', { road: 8, walk: 3 }));
-  for (const [z, x0, x1] of [[150, -382, 190], [235, -382, 190], [395, -382, 832], [490, -382, 832], [585, -382, 832], [680, -382, 832], [770, -382, 832]]) streets.push(addStreet(wig([x0, z], [x1, z], 8, z * 0.013), 14, 'street', { road: 8, walk: 3 }));
+  for (const [x, z0, z1] of [[-330, 44, 612], [-235, 44, 612], [-140, 44, 612], [-45, 44, 612], [55, 44, 612], [170, 306, 612], [420, 306, 612], [530, 306, 612]]) streets.push(addStreet(wig([x, z0], [x, z1], 9, x * 0.01), 14, 'street', { road: 8, walk: 3 }));
+  for (const [z, x0, x1] of [[150, -382, 190], [235, -382, 190], [395, -382, 652], [490, -382, 652], [585, -382, 652]]) streets.push(addStreet(wig([x0, z], [x1, z], 8, z * 0.013), 14, 'street', { road: 8, walk: 3 }));
   // two collector roads cutting diagonally (they make the irregular triangles and corner plazas)
   streets.push(addStreet([[-382, 330], [-200, 300], [0, 330], [128, 306]], 16, 'street', { road: 10, walk: 3 }));
-  streets.push(addStreet([[300, 640], [420, 700], [560, 740], [700, 820]], 16, 'street', { road: 10, walk: 3 }));
   // reserve: football pitch, school yard, bus depot, a neighbourhood square with a fountain
-  GR.rect(5, 545, 104, 70, 0, GR.RESERVED); GR.rect(-290, 545, 70, 60, 0, GR.RESERVED); GR.rect(700, 735, 90, 60, 0, GR.RESERVED); reserveSquare(-90, 440, 18); reserveSquare(475, 440, 16);
+  GR.rect(5, 545, 104, 70, 0, GR.RESERVED); GR.rect(-290, 545, 70, 60, 0, GR.RESERVED); GR.rect(590, 445, 90, 60, 0, GR.RESERVED); reserveSquare(-90, 440, 18); reserveSquare(475, 440, 16);
   for (const s of streets) roadway(s, { wear: 5 });
   let nApt = 0, nCafe = 0, nWork = 0;
   const raise = (lots) => raiseLots(lots, (lot) => {
@@ -150,13 +148,13 @@ function buildResidential() {
   });
   for (const s of streets) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 12, wMax: 24, dMin: 11, dMax: 22, region: inside, gap: () => (mchance(0.15) ? mr(2, 5) : 0) }));
   // block interiors: courtyards with trees, parked cars, laundry, dumpsters
-  for (const r of fillFree(-382, 64, 832, 832, inside, { cell: 4, max: 28, minA: 60 })) {
+  for (const r of fillFree(-382, 64, 652, 612, inside, { cell: 4, max: 28, minA: 60 })) {
     // courtyard apartment blocks in the deeper block interiors, ringed by parking and yards
     if (r.w >= 18 && r.d >= 18 && mchance(0.6)) { aptShell({ cx: r.cx, cz: r.cz, w: r.w - 7, d: r.d - 7, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: mpick([3, 4, 4, 5]), shops: false, balcony: 0.5, col: mpick([MC.plaster, MC.cream, MC.ochre, MC.rose, 0xe0d4c0, 0xd8c8a8, MC.whitewash]) }); yard({ ...r, ring: true }); }
     else yard(r);
   }
   for (const s of streets) dressRoad(s, { lamp: 34, tree: 22, park: 0.22, furn: 0.05, lampH: 7 });
-  footballPitch(5, 545); school(-290, 545); busDepot(700, 735);
+  footballPitch(5, 545); school(-290, 545); busDepot(590, 445);
   dressSquare(-90, 440, 18); dressSquare(475, 440, 16);
 }
 function yard(r) { W.defer(() => yardNow(r), 'mid', [r.cx, r.cz]); }
@@ -206,25 +204,24 @@ function busDepot(x, z) {
 
 // ---------------- INDUSTRY + RAIL ----------------
 function buildIndustry() {
-  const inInd = (x, z) => x > -96 && x < 832 && z > -832 && z < -432;
+  const inInd = (x, z) => x > -96 && x < 652 && z > -664 && z < -432;
   // railway: main line + freight sidings + the station
   const RZ = -414;
-  GR.rect(225, RZ, 1240, 16, 0, GR.RESERVED, true);
-  railTrack(-385, RZ, 832, RZ); railTrack(-385, RZ + 5, 832, RZ + 5);
-  for (const dz of [-8, -13, -18]) { GR.rect(560, RZ + dz, 560, 5, 0, GR.RESERVED, true); railTrack(280, RZ + dz, 832, RZ + dz); }
+  GR.rect(135, RZ, 1050, 16, 0, GR.RESERVED, true);
+  railTrack(-385, RZ, 655, RZ); railTrack(-385, RZ + 5, 655, RZ + 5);
+  for (const dz of [-8, -13, -18]) { GR.rect(468, RZ + dz, 376, 5, 0, GR.RESERVED, true); railTrack(280, RZ + dz, 655, RZ + dz); }
   station(-200, -388, 0, 72);
   for (let i = 0; i < 14; i++) freightWagon(320 + i * 14.2, RZ - 8, 0);
   for (let i = 0; i < 9; i++) freightWagon(420 + i * 14.2, RZ - 18, 0, mpick([0x3a4a5a, 0x7a3a2a, 0x2a5a3a]));
-  gantryCrane(600, RZ - 13, Math.PI / 2, 26, 12);
+  gantryCrane(580, RZ - 13, Math.PI / 2, 26, 12);
   const roads = [
-    addStreet([[-96, -470], [832, -470]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -610], [832, -610]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -750], [832, -750]], 16, 'street', { road: 10, walk: 3 }),
-    addStreet([[40, -470], [40, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[230, -470], [230, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[430, -470], [430, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[630, -470], [630, -832]], 16, 'street', { road: 10, walk: 3 }),
+    addStreet([[-96, -470], [652, -470]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -610], [652, -610]], 16, 'street', { road: 10, walk: 3 }), addStreet([[40, -470], [40, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[230, -470], [230, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[430, -470], [430, -662]], 16, 'street', { road: 10, walk: 3 }), 
     addStreet([[-60, -430], [-60, -470]], 12, 'street', { road: 8, walk: 2 }), addStreet([[300, -426], [300, -470]], 12, 'street', { road: 8, walk: 2 }),
   ];
   // container yard and fuel depot claim space; level-crossings connect the industrial roads to the city
-  GR.rect(530, -680, 170, 120, 0, GR.RESERVED, true); GR.rect(740, -790, 150, 80, 0, GR.RESERVED, true);
+  GR.rect(530, -540, 172, 112, 0, GR.RESERVED, true); GR.rect(330, -540, 160, 84, 0, GR.RESERVED, true);
   for (const s of roads) roadway(s, { wear: 6, pave: 0x9a948a, paveTx: TX.concrete });
-  groundPlate(-96, -832, 832, -434, 0x8a8478, TX.concrete, 6, 0.018);
+  groundPlate(-96, -664, 652, -434, 0x8a8478, TX.concrete, 6, 0.018);
   let nWh = 0, nWs = 0;
   const raise = (lots) => raiseLots(lots, (lot) => {
     if (lot.w >= 26 && lot.d >= 22 && nWh < 12 && mchance(0.35)) { nWh++; warehouse({ ...lot, w: Math.min(lot.w, 44), d: Math.min(lot.d, 32) }, { enter: true }); return; }
@@ -236,11 +233,11 @@ function buildIndustry() {
   for (const s of roads) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 22, wMax: 46, dMin: 20, dMax: 36, region: inInd, gap: () => mr(4, 12), setback: 3 }));
   for (const s of roads) dressRoad(s, { lamp: 36, park: 0.15, furn: 0.05, lampH: 9 });
   for (const s of roads) laneTraffic(s, Math.floor(s.len / 120));
-  for (const r of fillFree(-96, -832, 832, -434, inInd, { cell: 4, max: 40, minA: 200 })) W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(8, Math.floor(r.w * r.d / 120)); i++) { const x = r.cx + mr(-r.w / 2 + 3, r.w / 2 - 3), z = r.cz + mr(-r.d / 2 + 3, r.d / 2 - 3); mpick([() => container(x, 0, z, mpick([0, Math.PI / 2]), mpick([PC.redLt, 0x2a5aa0, 0x3a7a4a, 0x8a8e92])), () => crateStack(x, 0, z, mr(0, 3), 3), () => pallet(x, 0, z, mr(0, 3)), () => cargoTruck(x, z, mr(0, 6), mpick([0x2a5aa0, 0xe8e6e0])), () => drum(x, 0, z, PC.blue, 0)])(); } });
-  containerYard(530, -680, 160, 110);
-  fuelDepot(740, -790);
+  for (const r of fillFree(-96, -664, 652, -434, inInd, { cell: 4, max: 40, minA: 200 })) W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(8, Math.floor(r.w * r.d / 120)); i++) { const x = r.cx + mr(-r.w / 2 + 3, r.w / 2 - 3), z = r.cz + mr(-r.d / 2 + 3, r.d / 2 - 3); mpick([() => container(x, 0, z, mpick([0, Math.PI / 2]), mpick([PC.redLt, 0x2a5aa0, 0x3a7a4a, 0x8a8e92])), () => crateStack(x, 0, z, mr(0, 3), 3), () => pallet(x, 0, z, mr(0, 3)), () => cargoTruck(x, z, mr(0, 6), mpick([0x2a5aa0, 0xe8e6e0])), () => drum(x, 0, z, PC.blue, 0)])(); } });
+  containerYard(530, -540, 160, 100);
+  fuelDepot(330, -540);
   // industrial perimeter: a concrete wall along the rail with two gates and guard posts
-  for (const [x0, x1] of [[-90, -66], [-54, 294], [306, 826]]) { W.box(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, MC.concrete, { t: TX.concrete, wear: 6 }); W.solid(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, 'concrete'); W.scope({ lod: 1 }, () => { for (let x = x0 + 1; x < x1; x += 3) W.rod([x, 3, -432], [x, 3.6, -432.3], 0.02, 0x8a8e92); W.cable([x0, 3.5, -432.2], [x1, 3.5, -432.2], 0.05, 0.008, 0x8a8e92, Math.max(2, Math.round((x1 - x0) / 6))); }); }
+  for (const [x0, x1] of [[-90, -66], [-54, 294], [306, 650]]) { W.box(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, MC.concrete, { t: TX.concrete, wear: 6 }); W.solid(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, 'concrete'); W.scope({ lod: 1 }, () => { for (let x = x0 + 1; x < x1; x += 3) W.rod([x, 3, -432], [x, 3.6, -432.3], 0.02, 0x8a8e92); W.cable([x0, 3.5, -432.2], [x1, 3.5, -432.2], 0.05, 0.008, 0x8a8e92, Math.max(2, Math.round((x1 - x0) / 6))); }); }
   for (const gx of [-60, 300]) { guardHouse({ cx: gx + 9, cz: -440, w: 4, d: 3.4, ry: Math.PI }); W.box(6, 0.15, 0.15, gx, 1.0, -436, 0xd8302a, { layer: 'metal', ry: 0 }); }
 }
 function containerYard(x, z, w, d) {
@@ -265,14 +262,14 @@ function fuelDepot(x, z) {
 // ---------------- OUTSKIRTS: olive groves, cemetery, farmsteads, the road out ----------------
 function buildOutskirts() {
   // olive groves south-west of the walls (long sight lines between the rows)
-  for (let x = -810; x < -420; x += 9) for (let z = 505; z < 820; z += 9) if (mchance(0.85)) tree(x + mr(-1.5, 1.5), 0, z + mr(-1.5, 1.5), 'olive', mr(0.8, 1.15));
+  for (let x = -810; x < -420; x += 9) for (let z = 505; z < 640; z += 9) if (mchance(0.85)) tree(x + mr(-1.5, 1.5), 0, z + mr(-1.5, 1.5), 'olive', mr(0.8, 1.15));
   // a whitewashed cemetery north of the medina
   W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 26; i++) for (let j = 0; j < 12; j++) { if (mchance(0.15)) continue; const x = -760 + i * 6 + mr(-1, 1), z = -720 + j * 5 + mr(-1, 1); W.box(0.6, 0.4, 1.9, x, 0.2, z, 0xe8e6e0, { t: TX.plaster, wear: 6, ry: 0.1 }); W.box(0.25, 0.7, 0.12, x, 0.55, z - 0.9, 0xe8e6e0, { t: TX.plaster, wear: 6 }); }
+    for (let i = 0; i < 26; i++) for (let j = 0; j < 12; j++) { if (mchance(0.15)) continue; const x = -760 + i * 6 + mr(-1, 1), z = -655 + j * 5 + mr(-1, 1); W.box(0.6, 0.4, 1.9, x, 0.2, z, 0xe8e6e0, { t: TX.plaster, wear: 6, ry: 0.1 }); W.box(0.25, 0.7, 0.12, x, 0.55, z - 0.9, 0xe8e6e0, { t: TX.plaster, wear: 6 }); }
   });
-  for (let k = 0; k < 2; k++) { W.push(-685 + k * 60, 0, -650); W.box(6, 5, 6, 0, 2.5, 0, 0xf0ece4, { t: TX.plaster, wear: 3 }); W.solid(6, 5, 6, 0, 2.5, 0, 'plaster'); W.hemi(5.4, 4.0, 5.4, 0, 5, 0, 0xf0ece4, { seg: 12, hseg: 6, t: TX.plaster }); faceDoor('s', 6, 6, 0, 0, 1.0, 1.9, 'metal', { doorCol: MC.green, arch: true }); W.pop(); }
+  for (let k = 0; k < 2; k++) { W.push(-685 + k * 60, 0, -638); W.box(6, 5, 6, 0, 2.5, 0, 0xf0ece4, { t: TX.plaster, wear: 3 }); W.solid(6, 5, 6, 0, 2.5, 0, 'plaster'); W.hemi(5.4, 4.0, 5.4, 0, 5, 0, 0xf0ece4, { seg: 12, hseg: 6, t: TX.plaster }); faceDoor('s', 6, 6, 0, 0, 1.0, 1.9, 'metal', { doorCol: MC.green, arch: true }); W.pop(); }
   // farmsteads and walls
-  for (const [x, z] of [[-870, 300], [-900, -350], [880, 420], [900, -150], [200, 900], [-200, 920], [600, -900], [-600, -900]]) {
+  for (const [x, z] of [[-890, 300], [-900, -350], [720, 420], [730, -150], [200, 690], [-200, 700], [450, -730], [-500, -740]]) {
     const y = terrainH(x, z) - 0.3;
     medinaShell({ cx: x, cz: z, y, w: mr(9, 13), d: mr(8, 11), ry: mr(0, 3), open: { s: true, n: true, e: true, w: true } }, { H: 4.6, col: MC.pise, tx: TX.pise, parapet: 'low' });
     for (let i = 0; i < 6; i++) tree(x + mr(-25, 25), terrainH(x, z), z + mr(-25, 25), 'olive', mr(0.7, 1.1));
@@ -294,9 +291,9 @@ function placeWorldTargets() {
   // civic garden: steel between the parterres; palace roof gong (long shot from the plaza)
   for (let i = 0; i < 3; i++) T(40, -95 + i * 8, -Math.PI / 2, 'steel', 1.65 + G0);
   // freight yard long range: 100–400 m steel lane along the sidings
-  for (const d of [100, 200, 300, 400]) T(300 + d, -470 + 9, 0, d >= 300 ? 'gong' : 'steel');
+  for (const d of [80, 160, 240, 320]) T(300 + d, -470 + 9, 0, d >= 240 ? 'gong' : 'steel');
   // modern car park + boulevard median
-  for (let i = 0; i < 4; i++) T(735 + i * 10, -60, 0, i % 2 ? 'ipsc' : 'paper');
+  for (let i = 0; i < 4; i++) T(470 + i * 10, -165, 0, i % 2 ? 'ipsc' : 'paper');
   // residential football pitch: mixed lane
   for (let i = 0; i < 6; i++) T(-40 + i * 15, 545, Math.PI / 2, i % 3 === 0 ? 'steel' : 'paper');
 }

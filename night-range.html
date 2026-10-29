@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3</b>/<b>WHEEL</b> weapons · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>T</b> reset · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3</b>/<b>WHEEL</b> weapons · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -1601,6 +1601,17 @@ const audio = (() => {
     magIn(small) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.05, 'lowpass', 700, 1, 0.6, 0.06, 0.1); nz(t + 0.015, 0.02, 'bandpass', 3000, 4, 0.5, 0.02); tone(t, 'sine', 180, 90, 0.25, 0.06); },
     pouch() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.15, 'bandpass', 1200, 0.6, 0.12, 0.15, 0, 600); },
     boltRelease(slide) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.03, 'bandpass', slide ? 3000 : 2200, 2, 0.8, 0.04, 0.2); tone(t, 'triangle', 820, 600, 0.18, 0.08, 0.1); nz(t + 0.012, 0.02, 'highpass', 5000, 1, 0.3, 0.02); },
+    // a rifle fired by someone else: delayed by distance, duller and quieter the further it is
+    enemyShot(dist) {
+      if (!ctx) return; const t = ctx.currentTime + dist / 343, k = 1 / (1 + dist / 25), p = rand(0.92, 1.08);
+      nz(t, 0.05, 'highpass', 2000 * p, 0.7, 0.8 * k, 0.04, 0.7);
+      nz(t, 0.4, 'lowpass', Math.max(400, 2200 - dist * 8) * p, 0.8, 0.9 * k + 0.05, 0.35, 1.0, 200);
+      tone(t, 'sine', 110 * p, 35, 0.7 * k, 0.25, 0.5);
+    },
+    // supersonic crack of a round passing close by
+    crack() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.012, 'highpass', 4500, 1, 0.55, 0.012, 0.1); nz(t + 0.004, 0.06, 'bandpass', 2400, 2, 0.12, 0.05, 0.3); },
+    hurt() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.09, 'lowpass', 420, 1, 0.9, 0.09, 0.1); tone(t, 'sine', 70, 40, 0.6, 0.15); },
+    fleshHit(dist) { if (!ctx) return; const t = ctx.currentTime + dist / 343; nz(t, 0.06, 'lowpass', 700, 1, 0.5 / (1 + dist / 15), 0.06, 0.1); },
     step(crouch, run = 0) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.07, 'lowpass', crouch ? 300 : 500 + run * 200, 1, crouch ? 0.06 : 0.14 + run * 0.08, 0.07, 0.15); if (run > 0.5) nz(t + 0.02, 0.06, 'bandpass', 1800, 1.5, 0.05, 0.06); },
     ding(dist, size) {
       if (!ctx) return; const t = ctx.currentTime + dist / 343, f = 520 * Math.sqrt(0.35 / size) * rand(0.97, 1.03);
@@ -1659,10 +1670,10 @@ function vnoise(x, z) {
   return lerp(lerp(a, b, u), lerp(c, d, u), v);
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
-const CITY_R = 830; // flat city plateau half-size
+// flat city plateau: a rectangle (the medina spreads further west than the new town east)
+const CITY = { x0: -845, x1: 665, z0: -685, z1: 625 };
 function rawTerrain(x, z) {
-  const r = Math.max(Math.abs(x) * 0.96, Math.abs(z)) + fbm(x * 0.004, z * 0.004) * 60 - 30;
-  const out = Math.max(0, r - CITY_R);
+  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z, z - CITY.z1) + fbm(x * 0.004, z * 0.004) * 60 - 30);
   let h = out > 0 ? 95 * (1 - Math.exp(-((out / 160) ** 1.4))) + (fbm(x * 0.008, z * 0.008) - 0.5) * 22 * Math.min(1, out / 60) : 0;
   h += (fbm(x * 0.03 + 5, z * 0.03) - 0.5) * 1.6 * Math.min(1, out / 30);
   return h;
@@ -6428,19 +6439,19 @@ function dressLanes(streets, district) {
 }
 
 // ---------------- MELLAH: older quarter north of the medina (balconied houses) ----------------
-const MELLAH = [[-380, -830], [-120, -830], [-110, -440], [-380, -585]];
+const MELLAH = [[-380, -662], [-120, -662], [-110, -440], [-380, -585]];
 function buildMellah() {
   const poly = [...MELLAH, MELLAH[0]];
   const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 4;
   const main = [
-    addStreet([[-375, -600], [-300, -640], [-230, -700], [-170, -760], [-125, -815]], 6, 'lane', { district: 'mellah' }),
-    addStreet([[-300, -560], [-280, -640], [-300, -720], [-280, -815]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-200, -520], [-210, -600], [-180, -680], [-200, -815]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-360, -760], [-300, -720], [-210, -600], [-130, -520]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-375, -600], [-300, -625], [-230, -642], [-140, -655]], 6, 'lane', { district: 'mellah' }),
+    addStreet([[-300, -560], [-292, -610], [-285, -658]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-200, -520], [-210, -590], [-195, -658]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-130, -500], [-205, -570], [-300, -615]], 5, 'lane', { district: 'mellah' }),
   ];
   const sec = [];
   for (const a of main) sec.push(...branches(a, { gapMin: 28, gapMax: 45, lenMin: 30, lenMax: 90, wMin: 3.0, wMax: 3.8, inside, kind: 'alley', district: 'mellah' }));
-  groundPlate(-385, -832, -105, -435, 0x9a8a72, TX.cobble, 5, 0.03, (x, z) => pip(poly, x, z));
+  groundPlate(-385, -664, -105, -435, 0x9a8a72, TX.cobble, 5, 0.03, (x, z) => pip(poly, x, z));
   for (const a of main) ribbon(a.pts, -a.w / 2, a.w / 2, 0.045, 0x8a8478, TX.paving, { wear: 6 });
   const raise = (lots) => raiseLots(lots, (lot) => {
     if (lot.w >= 9 && lot.d >= 9 && mchance(0.08)) { apartment(lot, { enter: true, floors: 3, shops: mchance(0.5), balcony: 0.8, win: 'shut' }); return; }
@@ -6449,7 +6460,7 @@ function buildMellah() {
   });
   for (const a of main) for (const side of [1, -1]) raise(lotsAlong(a, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 14, region: inside }));
   for (const s of sec) for (const side of [1, -1]) raise(lotsAlong(s, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 13, region: inside }));
-  for (const r of fillFree(-385, -832, -105, -435, inside, { max: 22, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6, 6.6, 7.2]), col: mpick([MC.whitewash, MC.cream, 0xd8e4ec]), clutter: mchance(0.5) }); }
+  for (const r of fillFree(-385, -664, -105, -435, inside, { max: 22, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6, 6.6, 7.2]), col: mpick([MC.whitewash, MC.cream, 0xd8e4ec]), clutter: mchance(0.5) }); }
   for (const s of [...main, ...sec]) laneOverhead(s, { every: 15 });
   dressLanes([...main, ...sec], 'mellah');
 }
@@ -6576,11 +6587,11 @@ function laneTraffic(st, n) {
 
 // ---------------- MODERN COMMERCIAL DISTRICT ----------------
 function buildModern() {
-  const inMod = (x, z) => x > 128 && x < 832 && z > -322 && z < 302;
+  const inMod = (x, z) => x > 128 && x < 652 && z > -322 && z < 302;
   const RB = [300, 30], rbR = 26;
   // boulevards meet at a roundabout with a monument
-  const ave = [addStreet([[300, -330], [300, RB[1] - rbR - 4]], 36, 'boulevard', { road: 24, walk: 6, median: 4 }), addStreet([[300, RB[1] + rbR + 4], [300, 832]], 36, 'boulevard', { road: 24, walk: 6, median: 4 })];
-  const blvd = [addStreet([[-40, 30], [RB[0] - rbR - 4, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 }), addStreet([[RB[0] + rbR + 4, 30], [832, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 })];
+  const ave = [addStreet([[300, -330], [300, RB[1] - rbR - 4]], 36, 'boulevard', { road: 24, walk: 6, median: 4 }), addStreet([[300, RB[1] + rbR + 4], [300, 612]], 36, 'boulevard', { road: 24, walk: 6, median: 4 })];
+  const blvd = [addStreet([[-40, 30], [RB[0] - rbR - 4, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 }), addStreet([[RB[0] + rbR + 4, 30], [652, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 })];
   const ring = []; for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; ring.push([RB[0] + Math.cos(a) * rbR, RB[1] + Math.sin(a) * rbR]); }
   const rbs = addStreet(ring, 14, 'ring', { road: 11, walk: 1.5, raw: true });
   GR.street([RB, [RB[0] + 0.01, RB[1]]], (rbR - 5.5) * 2, GR.RESERVED);
@@ -6588,15 +6599,14 @@ function buildModern() {
     addStreet([[190, -320], [190, 12]], 18, 'street', { road: 10, walk: 4 }), addStreet([[190, 48], [190, 300]], 18, 'street', { road: 10, walk: 4 }),
     addStreet([[430, -320], [430, 300]], 20, 'street', { road: 12, walk: 4 }),
     addStreet([[560, -320], [575, -150], [550, 0], [565, 150], [560, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[700, -320], [700, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -210], [832, -210]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -110], [832, -110]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[118, 140], [832, 140]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, 230], [832, 230]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -300], [832, -300]], 16, 'street', { road: 10, walk: 3 }),
+    addStreet([[130, -210], [652, -210]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, -110], [652, -110]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[118, 140], [652, 140]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, 230], [652, 230]], 18, 'street', { road: 10, walk: 4 }),
+    addStreet([[130, -300], [652, -300]], 16, 'street', { road: 10, walk: 3 }),
   ];
   // the park and two car parks are kept open
-  GR.rect(495, 185, 112, 76, 0, GR.RESERVED); GR.rect(765, -40, 110, 100, 0, GR.RESERVED); GR.rect(245, -160, 80, 70, 0, GR.RESERVED);
+  GR.rect(495, 185, 112, 76, 0, GR.RESERVED); GR.rect(495, -160, 104, 72, 0, GR.RESERVED); GR.rect(245, -160, 80, 70, 0, GR.RESERVED);
   for (const s of [...ave, ...blvd, ...grid, rbs]) roadway(s);
   // buildings: offices (enterable), glass towers, slabs, apartment blocks with shops; cafés on the boulevard
   let nOff = 0, nCafe = 0;
@@ -6608,7 +6618,7 @@ function buildModern() {
   for (const s of [...ave, ...blvd]) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 14, wMax: 30, dMin: 16, dMax: 28, region: inMod, gap: () => (mchance(0.25) ? mr(3, 8) : 0) }), true);
   for (const s of grid) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 16, wMax: 34, dMin: 14, dMax: 26, region: inMod, gap: () => (mchance(0.3) ? mr(4, 10) : 0) }), false);
   // deep block interiors: service yards and surface car parks
-  for (const r of fillFree(128, -322, 832, 302, inMod, { cell: 4, max: 40, minA: 300 })) {
+  for (const r of fillFree(128, -322, 652, 302, inMod, { cell: 4, max: 40, minA: 300 })) {
     if (r.w > 26 && r.d > 26 && mchance(0.45)) modernShell({ cx: r.cx, cz: r.cz, w: r.w - 10, d: r.d - 10, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: Math.round(mr(3, 7)) });
     else if (r.w > 24 && r.d > 18 && mchance(0.5)) carPark(r.cx, r.cz, r.w - 4, r.d - 4); else yard(r);
   }
@@ -6624,7 +6634,7 @@ function buildModern() {
   W.cyl(1.4, 1.0, 1.4, RB[0], 15.2, RB[1], MC.brass, { seg: 8, layer: 'metal', t: TX.gebs }); W.cone(1.5, 2.0, RB[0], 16.9, RB[1], MC.tile, { seg: 8, t: TX.rooftile });
   // city park: lawns, palms, paths, a playground, a café kiosk
   cityPark(495, 185, 108, 72);
-  carPark(765, -40, 104, 94); carPark(245, -160, 74, 64);
+  carPark(495, -160, 98, 66); carPark(245, -160, 74, 64);
 }
 function cityPark(x, z, w, d) {
   groundPlate(x - w / 2, z - d / 2, x + w / 2, z + d / 2, 0x5c6a3a, TX.earth, 2, 0.05);
@@ -6660,20 +6670,19 @@ function carPark(x, z, w, d) {
 }
 
 // ---------------- RESIDENTIAL QUARTERS ----------------
-const RESI = [[-382, 64], [128, 64], [128, 306], [832, 306], [832, 832], [-382, 832]];
+const RESI = [[-382, 64], [128, 64], [128, 306], [652, 306], [652, 612], [-382, 612]];
 function buildResidential() {
   const poly = [...RESI, RESI[0]];
   const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 2;
   // a warped street grid: every line meanders a little so blocks are never quite rectangular
   const streets = [];
   const wig = (a, b, amp, seed) => { const pts = []; const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 40)); for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t), dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), o = i === 0 || i === n ? 0 : (vnoise(t * 4 + seed, seed) - 0.5) * 2 * amp; pts.push([x - dz / L * o, z + dx / L * o]); } return pts; };
-  for (const [x, z0, z1] of [[-330, 44, 832], [-235, 44, 832], [-140, 44, 832], [-45, 44, 832], [55, 44, 832], [170, 306, 832], [420, 306, 832], [530, 306, 832], [640, 306, 832], [750, 306, 832]]) streets.push(addStreet(wig([x, z0], [x, z1], 9, x * 0.01), 14, 'street', { road: 8, walk: 3 }));
-  for (const [z, x0, x1] of [[150, -382, 190], [235, -382, 190], [395, -382, 832], [490, -382, 832], [585, -382, 832], [680, -382, 832], [770, -382, 832]]) streets.push(addStreet(wig([x0, z], [x1, z], 8, z * 0.013), 14, 'street', { road: 8, walk: 3 }));
+  for (const [x, z0, z1] of [[-330, 44, 612], [-235, 44, 612], [-140, 44, 612], [-45, 44, 612], [55, 44, 612], [170, 306, 612], [420, 306, 612], [530, 306, 612]]) streets.push(addStreet(wig([x, z0], [x, z1], 9, x * 0.01), 14, 'street', { road: 8, walk: 3 }));
+  for (const [z, x0, x1] of [[150, -382, 190], [235, -382, 190], [395, -382, 652], [490, -382, 652], [585, -382, 652]]) streets.push(addStreet(wig([x0, z], [x1, z], 8, z * 0.013), 14, 'street', { road: 8, walk: 3 }));
   // two collector roads cutting diagonally (they make the irregular triangles and corner plazas)
   streets.push(addStreet([[-382, 330], [-200, 300], [0, 330], [128, 306]], 16, 'street', { road: 10, walk: 3 }));
-  streets.push(addStreet([[300, 640], [420, 700], [560, 740], [700, 820]], 16, 'street', { road: 10, walk: 3 }));
   // reserve: football pitch, school yard, bus depot, a neighbourhood square with a fountain
-  GR.rect(5, 545, 104, 70, 0, GR.RESERVED); GR.rect(-290, 545, 70, 60, 0, GR.RESERVED); GR.rect(700, 735, 90, 60, 0, GR.RESERVED); reserveSquare(-90, 440, 18); reserveSquare(475, 440, 16);
+  GR.rect(5, 545, 104, 70, 0, GR.RESERVED); GR.rect(-290, 545, 70, 60, 0, GR.RESERVED); GR.rect(590, 445, 90, 60, 0, GR.RESERVED); reserveSquare(-90, 440, 18); reserveSquare(475, 440, 16);
   for (const s of streets) roadway(s, { wear: 5 });
   let nApt = 0, nCafe = 0, nWork = 0;
   const raise = (lots) => raiseLots(lots, (lot) => {
@@ -6684,13 +6693,13 @@ function buildResidential() {
   });
   for (const s of streets) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 12, wMax: 24, dMin: 11, dMax: 22, region: inside, gap: () => (mchance(0.15) ? mr(2, 5) : 0) }));
   // block interiors: courtyards with trees, parked cars, laundry, dumpsters
-  for (const r of fillFree(-382, 64, 832, 832, inside, { cell: 4, max: 28, minA: 60 })) {
+  for (const r of fillFree(-382, 64, 652, 612, inside, { cell: 4, max: 28, minA: 60 })) {
     // courtyard apartment blocks in the deeper block interiors, ringed by parking and yards
     if (r.w >= 18 && r.d >= 18 && mchance(0.6)) { aptShell({ cx: r.cx, cz: r.cz, w: r.w - 7, d: r.d - 7, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: mpick([3, 4, 4, 5]), shops: false, balcony: 0.5, col: mpick([MC.plaster, MC.cream, MC.ochre, MC.rose, 0xe0d4c0, 0xd8c8a8, MC.whitewash]) }); yard({ ...r, ring: true }); }
     else yard(r);
   }
   for (const s of streets) dressRoad(s, { lamp: 34, tree: 22, park: 0.22, furn: 0.05, lampH: 7 });
-  footballPitch(5, 545); school(-290, 545); busDepot(700, 735);
+  footballPitch(5, 545); school(-290, 545); busDepot(590, 445);
   dressSquare(-90, 440, 18); dressSquare(475, 440, 16);
 }
 function yard(r) { W.defer(() => yardNow(r), 'mid', [r.cx, r.cz]); }
@@ -6740,25 +6749,24 @@ function busDepot(x, z) {
 
 // ---------------- INDUSTRY + RAIL ----------------
 function buildIndustry() {
-  const inInd = (x, z) => x > -96 && x < 832 && z > -832 && z < -432;
+  const inInd = (x, z) => x > -96 && x < 652 && z > -664 && z < -432;
   // railway: main line + freight sidings + the station
   const RZ = -414;
-  GR.rect(225, RZ, 1240, 16, 0, GR.RESERVED, true);
-  railTrack(-385, RZ, 832, RZ); railTrack(-385, RZ + 5, 832, RZ + 5);
-  for (const dz of [-8, -13, -18]) { GR.rect(560, RZ + dz, 560, 5, 0, GR.RESERVED, true); railTrack(280, RZ + dz, 832, RZ + dz); }
+  GR.rect(135, RZ, 1050, 16, 0, GR.RESERVED, true);
+  railTrack(-385, RZ, 655, RZ); railTrack(-385, RZ + 5, 655, RZ + 5);
+  for (const dz of [-8, -13, -18]) { GR.rect(468, RZ + dz, 376, 5, 0, GR.RESERVED, true); railTrack(280, RZ + dz, 655, RZ + dz); }
   station(-200, -388, 0, 72);
   for (let i = 0; i < 14; i++) freightWagon(320 + i * 14.2, RZ - 8, 0);
   for (let i = 0; i < 9; i++) freightWagon(420 + i * 14.2, RZ - 18, 0, mpick([0x3a4a5a, 0x7a3a2a, 0x2a5a3a]));
-  gantryCrane(600, RZ - 13, Math.PI / 2, 26, 12);
+  gantryCrane(580, RZ - 13, Math.PI / 2, 26, 12);
   const roads = [
-    addStreet([[-96, -470], [832, -470]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -610], [832, -610]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -750], [832, -750]], 16, 'street', { road: 10, walk: 3 }),
-    addStreet([[40, -470], [40, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[230, -470], [230, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[430, -470], [430, -832]], 16, 'street', { road: 10, walk: 3 }), addStreet([[630, -470], [630, -832]], 16, 'street', { road: 10, walk: 3 }),
+    addStreet([[-96, -470], [652, -470]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -610], [652, -610]], 16, 'street', { road: 10, walk: 3 }), addStreet([[40, -470], [40, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[230, -470], [230, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[430, -470], [430, -662]], 16, 'street', { road: 10, walk: 3 }), 
     addStreet([[-60, -430], [-60, -470]], 12, 'street', { road: 8, walk: 2 }), addStreet([[300, -426], [300, -470]], 12, 'street', { road: 8, walk: 2 }),
   ];
   // container yard and fuel depot claim space; level-crossings connect the industrial roads to the city
-  GR.rect(530, -680, 170, 120, 0, GR.RESERVED, true); GR.rect(740, -790, 150, 80, 0, GR.RESERVED, true);
+  GR.rect(530, -540, 172, 112, 0, GR.RESERVED, true); GR.rect(330, -540, 160, 84, 0, GR.RESERVED, true);
   for (const s of roads) roadway(s, { wear: 6, pave: 0x9a948a, paveTx: TX.concrete });
-  groundPlate(-96, -832, 832, -434, 0x8a8478, TX.concrete, 6, 0.018);
+  groundPlate(-96, -664, 652, -434, 0x8a8478, TX.concrete, 6, 0.018);
   let nWh = 0, nWs = 0;
   const raise = (lots) => raiseLots(lots, (lot) => {
     if (lot.w >= 26 && lot.d >= 22 && nWh < 12 && mchance(0.35)) { nWh++; warehouse({ ...lot, w: Math.min(lot.w, 44), d: Math.min(lot.d, 32) }, { enter: true }); return; }
@@ -6770,11 +6778,11 @@ function buildIndustry() {
   for (const s of roads) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 22, wMax: 46, dMin: 20, dMax: 36, region: inInd, gap: () => mr(4, 12), setback: 3 }));
   for (const s of roads) dressRoad(s, { lamp: 36, park: 0.15, furn: 0.05, lampH: 9 });
   for (const s of roads) laneTraffic(s, Math.floor(s.len / 120));
-  for (const r of fillFree(-96, -832, 832, -434, inInd, { cell: 4, max: 40, minA: 200 })) W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(8, Math.floor(r.w * r.d / 120)); i++) { const x = r.cx + mr(-r.w / 2 + 3, r.w / 2 - 3), z = r.cz + mr(-r.d / 2 + 3, r.d / 2 - 3); mpick([() => container(x, 0, z, mpick([0, Math.PI / 2]), mpick([PC.redLt, 0x2a5aa0, 0x3a7a4a, 0x8a8e92])), () => crateStack(x, 0, z, mr(0, 3), 3), () => pallet(x, 0, z, mr(0, 3)), () => cargoTruck(x, z, mr(0, 6), mpick([0x2a5aa0, 0xe8e6e0])), () => drum(x, 0, z, PC.blue, 0)])(); } });
-  containerYard(530, -680, 160, 110);
-  fuelDepot(740, -790);
+  for (const r of fillFree(-96, -664, 652, -434, inInd, { cell: 4, max: 40, minA: 200 })) W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(8, Math.floor(r.w * r.d / 120)); i++) { const x = r.cx + mr(-r.w / 2 + 3, r.w / 2 - 3), z = r.cz + mr(-r.d / 2 + 3, r.d / 2 - 3); mpick([() => container(x, 0, z, mpick([0, Math.PI / 2]), mpick([PC.redLt, 0x2a5aa0, 0x3a7a4a, 0x8a8e92])), () => crateStack(x, 0, z, mr(0, 3), 3), () => pallet(x, 0, z, mr(0, 3)), () => cargoTruck(x, z, mr(0, 6), mpick([0x2a5aa0, 0xe8e6e0])), () => drum(x, 0, z, PC.blue, 0)])(); } });
+  containerYard(530, -540, 160, 100);
+  fuelDepot(330, -540);
   // industrial perimeter: a concrete wall along the rail with two gates and guard posts
-  for (const [x0, x1] of [[-90, -66], [-54, 294], [306, 826]]) { W.box(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, MC.concrete, { t: TX.concrete, wear: 6 }); W.solid(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, 'concrete'); W.scope({ lod: 1 }, () => { for (let x = x0 + 1; x < x1; x += 3) W.rod([x, 3, -432], [x, 3.6, -432.3], 0.02, 0x8a8e92); W.cable([x0, 3.5, -432.2], [x1, 3.5, -432.2], 0.05, 0.008, 0x8a8e92, Math.max(2, Math.round((x1 - x0) / 6))); }); }
+  for (const [x0, x1] of [[-90, -66], [-54, 294], [306, 650]]) { W.box(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, MC.concrete, { t: TX.concrete, wear: 6 }); W.solid(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, 'concrete'); W.scope({ lod: 1 }, () => { for (let x = x0 + 1; x < x1; x += 3) W.rod([x, 3, -432], [x, 3.6, -432.3], 0.02, 0x8a8e92); W.cable([x0, 3.5, -432.2], [x1, 3.5, -432.2], 0.05, 0.008, 0x8a8e92, Math.max(2, Math.round((x1 - x0) / 6))); }); }
   for (const gx of [-60, 300]) { guardHouse({ cx: gx + 9, cz: -440, w: 4, d: 3.4, ry: Math.PI }); W.box(6, 0.15, 0.15, gx, 1.0, -436, 0xd8302a, { layer: 'metal', ry: 0 }); }
 }
 function containerYard(x, z, w, d) {
@@ -6799,14 +6807,14 @@ function fuelDepot(x, z) {
 // ---------------- OUTSKIRTS: olive groves, cemetery, farmsteads, the road out ----------------
 function buildOutskirts() {
   // olive groves south-west of the walls (long sight lines between the rows)
-  for (let x = -810; x < -420; x += 9) for (let z = 505; z < 820; z += 9) if (mchance(0.85)) tree(x + mr(-1.5, 1.5), 0, z + mr(-1.5, 1.5), 'olive', mr(0.8, 1.15));
+  for (let x = -810; x < -420; x += 9) for (let z = 505; z < 640; z += 9) if (mchance(0.85)) tree(x + mr(-1.5, 1.5), 0, z + mr(-1.5, 1.5), 'olive', mr(0.8, 1.15));
   // a whitewashed cemetery north of the medina
   W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 26; i++) for (let j = 0; j < 12; j++) { if (mchance(0.15)) continue; const x = -760 + i * 6 + mr(-1, 1), z = -720 + j * 5 + mr(-1, 1); W.box(0.6, 0.4, 1.9, x, 0.2, z, 0xe8e6e0, { t: TX.plaster, wear: 6, ry: 0.1 }); W.box(0.25, 0.7, 0.12, x, 0.55, z - 0.9, 0xe8e6e0, { t: TX.plaster, wear: 6 }); }
+    for (let i = 0; i < 26; i++) for (let j = 0; j < 12; j++) { if (mchance(0.15)) continue; const x = -760 + i * 6 + mr(-1, 1), z = -655 + j * 5 + mr(-1, 1); W.box(0.6, 0.4, 1.9, x, 0.2, z, 0xe8e6e0, { t: TX.plaster, wear: 6, ry: 0.1 }); W.box(0.25, 0.7, 0.12, x, 0.55, z - 0.9, 0xe8e6e0, { t: TX.plaster, wear: 6 }); }
   });
-  for (let k = 0; k < 2; k++) { W.push(-685 + k * 60, 0, -650); W.box(6, 5, 6, 0, 2.5, 0, 0xf0ece4, { t: TX.plaster, wear: 3 }); W.solid(6, 5, 6, 0, 2.5, 0, 'plaster'); W.hemi(5.4, 4.0, 5.4, 0, 5, 0, 0xf0ece4, { seg: 12, hseg: 6, t: TX.plaster }); faceDoor('s', 6, 6, 0, 0, 1.0, 1.9, 'metal', { doorCol: MC.green, arch: true }); W.pop(); }
+  for (let k = 0; k < 2; k++) { W.push(-685 + k * 60, 0, -638); W.box(6, 5, 6, 0, 2.5, 0, 0xf0ece4, { t: TX.plaster, wear: 3 }); W.solid(6, 5, 6, 0, 2.5, 0, 'plaster'); W.hemi(5.4, 4.0, 5.4, 0, 5, 0, 0xf0ece4, { seg: 12, hseg: 6, t: TX.plaster }); faceDoor('s', 6, 6, 0, 0, 1.0, 1.9, 'metal', { doorCol: MC.green, arch: true }); W.pop(); }
   // farmsteads and walls
-  for (const [x, z] of [[-870, 300], [-900, -350], [880, 420], [900, -150], [200, 900], [-200, 920], [600, -900], [-600, -900]]) {
+  for (const [x, z] of [[-890, 300], [-900, -350], [720, 420], [730, -150], [200, 690], [-200, 700], [450, -730], [-500, -740]]) {
     const y = terrainH(x, z) - 0.3;
     medinaShell({ cx: x, cz: z, y, w: mr(9, 13), d: mr(8, 11), ry: mr(0, 3), open: { s: true, n: true, e: true, w: true } }, { H: 4.6, col: MC.pise, tx: TX.pise, parapet: 'low' });
     for (let i = 0; i < 6; i++) tree(x + mr(-25, 25), terrainH(x, z), z + mr(-25, 25), 'olive', mr(0.7, 1.1));
@@ -6828,9 +6836,9 @@ function placeWorldTargets() {
   // civic garden: steel between the parterres; palace roof gong (long shot from the plaza)
   for (let i = 0; i < 3; i++) T(40, -95 + i * 8, -Math.PI / 2, 'steel', 1.65 + G0);
   // freight yard long range: 100–400 m steel lane along the sidings
-  for (const d of [100, 200, 300, 400]) T(300 + d, -470 + 9, 0, d >= 300 ? 'gong' : 'steel');
+  for (const d of [80, 160, 240, 320]) T(300 + d, -470 + 9, 0, d >= 240 ? 'gong' : 'steel');
   // modern car park + boulevard median
-  for (let i = 0; i < 4; i++) T(735 + i * 10, -60, 0, i % 2 ? 'ipsc' : 'paper');
+  for (let i = 0; i < 4; i++) T(470 + i * 10, -165, 0, i % 2 ? 'ipsc' : 'paper');
   // residential football pitch: mixed lane
   for (let i = 0; i < 6; i++) T(-40 + i * 15, 545, Math.PI / 2, i % 3 === 0 ? 'steel' : 'paper');
 }
@@ -7354,6 +7362,7 @@ function fire() {
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
   if (W.casing !== 'shell') ejectCasing(W.casing);
   audio.gunshot(g.kind, sup, g.brake);
+  BOTS.playerShot(mz, base);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
   const R = W.recoil;
@@ -7446,6 +7455,7 @@ function impact(b, h) {
   const tg = h.object.userData.target;
   const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : UP.clone();
   if (tg.type === 'frame') { emitSparks(p, 8, n, [1, 0.6, 0.25], 3); return; }
+  if (tg.type === 'bot') { BOTS.hit(tg, p, b); return; }
   const firstOnTarget = tg.lastShot !== b.shot;
   tg.lastShot = b.shot;
   if (P.lastHitShot !== b.shot) { P.lastHitShot = b.shot; P.stats.hits++; }
@@ -7670,6 +7680,7 @@ function updateCustom(dt, time) {
 }
 
 function resetRange() {
+  BOTS.reset();
   resetTargets();
   freshInv();
   P.reload = null; P.burst = 0; P.pump = null; P.swap = null;
@@ -7681,6 +7692,1116 @@ function resetRange() {
   hud.feed.innerHTML = '';
 }
 
+// ===== combat AI core (generated from ai/core.mjs) =====
+const AICORE = (() => {
+// Night Range combat AI — standalone core (no rendering, no three.js).
+//
+// Design rule: an agent's *decisions* only ever read its own memory (built by perceive()),
+// its own body state and the static map. perceive() is the single place that touches the
+// truth (other agents' real positions), and it does so only through sight, hearing, being
+// hit and squad callouts — so the AI cannot cheat by "knowing" where you are.
+
+// ---------------------------------------------------------------------------
+//  Math + RNG
+// ---------------------------------------------------------------------------
+function rng(seed = 1) {
+  let a = seed >>> 0;
+  const f = () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  f.range = (lo, hi) => lo + f() * (hi - lo);
+  f.normal = (mu = 0, sd = 1) => { const u = 1 - f(), v = f(); return mu + sd * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  f.logn = (median, spread) => median * Math.exp(f.normal(0, spread));
+  f.pick = (arr) => arr[Math.floor(f() * arr.length)];
+  return f;
+}
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const v3 = (x = 0, y = 0, z = 0) => ({ x, y, z });
+const sub = (a, b) => v3(a.x - b.x, a.y - b.y, a.z - b.z);
+const add = (a, b) => v3(a.x + b.x, a.y + b.y, a.z + b.z);
+const mul = (a, k) => v3(a.x * k, a.y * k, a.z * k);
+const len = (a) => Math.hypot(a.x, a.y, a.z);
+const dist2d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const norm = (a) => { const l = len(a) || 1; return v3(a.x / l, a.y / l, a.z / l); };
+const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+// yaw 0 looks toward -z (same convention as the game camera); pitch + is up
+const dirOf = (yaw, pitch) => v3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+const anglesTo = (from, to) => { const d = sub(to, from); return { yaw: Math.atan2(-d.x, -d.z), pitch: Math.atan2(d.y, Math.hypot(d.x, d.z)) }; };
+const angBetween = (a, b) => Math.acos(clamp((a.x * b.x + a.y * b.y + a.z * b.z) / ((len(a) * len(b)) || 1), -1, 1));
+const util = { v3, sub, add, mul, len, norm, dist2d, dirOf, anglesTo, angBetween, wrap };
+
+// ---------------------------------------------------------------------------
+//  Tunables (one place, so the test harness can sweep them)
+// ---------------------------------------------------------------------------
+const TUNE = {
+  body: { standEye: 1.65, crouchEye: 1.12, duckEye: 0.84, standTop: 1.8, crouchTop: 1.25, duckTop: 0.97, radius: 0.24 },
+  speed: { sprint: 5.4, run: 3.8, walk: 2.0, crouch: 1.3, accel: 14 },
+  vision: { fovHalf: 1.75, foveal: 0.26, rate: 5.0, distScale: 38, decay: 0.6, glimpse: 0.3, darkFloor: 0.018, moveFloor: 0.16, flash: 15 },
+  hearing: { gunshot: 260, suppressed: 45, sprint: 20, run: 13, walk: 7, crouch: 2.5, impact: 12, reload: 6, occlusion: 0.45 },
+  memory: { predict: 1.2, growth: 1.1 },
+  callout: { delay: [0.6, 1.3], error: 1.2 },
+  think: { interval: [0.22, 0.42], commit: 0.18 },
+  aim: { react: 0.235, reactSpread: 0.22, fittsA: 0.08, fittsB: 0.075, overshoot: 0.05, gainSd: 0.07, lateralSd: 0.03, motorSd: 0.0018,
+    correctDelay: 0.075, trackGain: 7.5, swayStill: 0.0042, swayMove: 0.011, recoilComp: 5, flinch: 0.0026 },
+  weapon: { rpm: 750, cap: 30, spread: 0.0016, kick: 0.0105, kickYaw: 0.0045, dmg: { head: 100, torso: 34, legs: 22 }, reloadTac: 2.3, reloadEmpty: 2.8, range: 300 },
+  suppression: { perMiss: 0.16, missRadius: 1.6, decay: 0.28, hurt: 0.45 },
+};
+
+// ---------------------------------------------------------------------------
+//  World: static geometry, lights, nav grid, sound + ballistics
+// ---------------------------------------------------------------------------
+class World {
+  constructor({ w = 80, h = 80, boxes = [], lights = [], ambient = 0.03, seed = 1, cell = 0.5 } = {}) {
+    this.w = w; this.h = h; this.boxes = boxes; this.lights = lights; this.ambient = ambient;
+    this.rand = rng(seed); this.cell = cell; this.time = 0;
+    this.agents = []; this.sounds = []; this.events = []; this.callouts = []; this.tracers = []; this.soundLog = [];
+    this.stats = { shots: 0, hits: 0, wallHitsThroughCover: 0, friendlyHits: 0, coverHits: 0 };
+    this.buildNav();
+    this.coverPts = this.buildCoverPoints();
+  }
+  inBounds(p) { return Math.abs(p.x) < this.w / 2 - 0.5 && Math.abs(p.z) < this.h / 2 - 0.5; }
+  lightAt(p) {
+    let L = this.ambient;
+    for (const l of this.lights) {
+      const d2 = (p.x - l.x) ** 2 + (p.z - l.z) ** 2;
+      if (d2 > (l.r * 2.2) ** 2) continue;
+      L += l.i / (1 + d2 / (l.r * l.r * 0.35)) * clamp(1 - Math.sqrt(d2) / (l.r * 2.2), 0, 1);
+    }
+    return Math.min(1.5, L);
+  }
+  // first hit parameter t∈[0,1] of segment a→b against any box, or Infinity
+  segHit(a, b, ignoreLow = false) {
+    let best = Infinity;
+    const d = sub(b, a);
+    for (const bx of this.boxes) {
+      if (ignoreLow && bx.h < 1.3) continue;
+      let t0 = 0, t1 = 1;
+      const lo = [bx.x0, 0, bx.z0], hi = [bx.x1, bx.h, bx.z1], o = [a.x, a.y, a.z], dd = [d.x, d.y, d.z];
+      let ok = true;
+      for (let k = 0; k < 3; k++) {
+        if (Math.abs(dd[k]) < 1e-9) { if (o[k] < lo[k] || o[k] > hi[k]) { ok = false; break; } continue; }
+        let ta = (lo[k] - o[k]) / dd[k], tb = (hi[k] - o[k]) / dd[k];
+        if (ta > tb) [ta, tb] = [tb, ta];
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+        if (t0 > t1) { ok = false; break; }
+      }
+      if (ok && t0 < best) best = t0;
+    }
+    return best;
+  }
+  los(a, b) { return this.segHit(a, b) === Infinity; }
+  // ---- navigation grid ----
+  buildNav() {
+    const c = this.cell; this.cols = Math.round(this.w / c); this.rows = Math.round(this.h / c);
+    this.blocked = new Uint8Array(this.cols * this.rows);
+    const pad = TUNE.body.radius + 0.12;
+    for (let j = 0; j < this.rows; j++) for (let i = 0; i < this.cols; i++) {
+      const x = -this.w / 2 + (i + 0.5) * c, z = -this.h / 2 + (j + 0.5) * c;
+      if (i === 0 || j === 0 || i === this.cols - 1 || j === this.rows - 1) { this.blocked[j * this.cols + i] = 1; continue; }
+      for (const b of this.boxes) if (x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad) { this.blocked[j * this.cols + i] = 1; break; }
+    }
+  }
+  cellOf(p) { return [clamp(Math.floor((p.x + this.w / 2) / this.cell), 0, this.cols - 1), clamp(Math.floor((p.z + this.h / 2) / this.cell), 0, this.rows - 1)]; }
+  cellPos(i, j) { return v3(-this.w / 2 + (i + 0.5) * this.cell, 0, -this.h / 2 + (j + 0.5) * this.cell); }
+  free(p) { const [i, j] = this.cellOf(p); return !this.blocked[j * this.cols + i]; }
+  nearestFree(p) {
+    if (this.free(p)) return p;
+    const [i0, j0] = this.cellOf(p);
+    for (let r = 1; r < 12; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+      const i = i0 + di, j = j0 + dj;
+      if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) continue;
+      if (!this.blocked[j * this.cols + i]) return this.cellPos(i, j);
+    }
+    return p;
+  }
+  // A* with an optional extra per-cell cost (used for exposure-aware tactical paths)
+  path(from, to, extraCost = null) {
+    const C = this.cols, R = this.rows;
+    const s = this.cellOf(this.nearestFree(from)), g = this.cellOf(this.nearestFree(to));
+    const si = s[1] * C + s[0], gi = g[1] * C + g[0];
+    const gs = new Float32Array(C * R).fill(Infinity), came = new Int32Array(C * R).fill(-1), closed = new Uint8Array(C * R);
+    const heap = []; // binary heap of [f, idx]
+    const push = (f, i) => { heap.push([f, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    const h = (i) => Math.hypot((i % C) - g[0], Math.floor(i / C) - g[1]);
+    gs[si] = 0; push(h(si), si);
+    let iter = 0;
+    while (heap.length && iter++ < 40000) {
+      const [, cur] = pop();
+      if (cur === gi) break;
+      if (closed[cur]) continue;
+      closed[cur] = 1;
+      const cx = cur % C, cz = Math.floor(cur / C);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dz) continue;
+        const nx = cx + dx, nz = cz + dz;
+        if (nx < 0 || nz < 0 || nx >= C || nz >= R) continue;
+        const ni = nz * C + nx;
+        if (this.blocked[ni] || closed[ni]) continue;
+        if (dx && dz && (this.blocked[cz * C + nx] || this.blocked[nz * C + cx])) continue;
+        const step = dx && dz ? 1.414 : 1;
+        const ng = gs[cur] + step + (extraCost ? extraCost(nx, nz) * step : 0);
+        if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; push(ng + h(ni), ni); }
+      }
+    }
+    if (came[gi] === -1 && si !== gi) return null;
+    const cells = [];
+    for (let k = gi; k !== -1; k = came[k]) { cells.push(k); if (k === si) break; }
+    cells.reverse();
+    const pts = cells.map((k) => this.cellPos(k % C, Math.floor(k / C)));
+    pts[pts.length - 1] = this.nearestFree(to);
+    if (extraCost) return pts.filter((_, i) => i % 2 === 0 || i === pts.length - 1); // keep the tactical shape
+    // string-pull smoothing at knee height
+    const out = [pts[0]];
+    let i = 0;
+    while (i < pts.length - 1) {
+      let j = pts.length - 1;
+      while (j > i + 1 && !this.walkable(pts[i], pts[j])) j--;
+      out.push(pts[j]); i = j;
+    }
+    return out;
+  }
+  walkable(a, b) {
+    const n = Math.ceil(dist2d(a, b) / (this.cell * 0.5));
+    for (let k = 1; k < n; k++) if (!this.free(v3(lerp(a.x, b.x, k / n), 0, lerp(a.z, b.z, k / n)))) return false;
+    return true;
+  }
+  // candidate cover spots around every box (crouch-protected from some direction)
+  buildCoverPoints() {
+    const pts = [];
+    for (const b of this.boxes) {
+      const off = TUNE.body.radius + 0.35, step = 0.8;
+      for (let x = b.x0; x <= b.x1 + 1e-6; x += step) { pts.push({ p: v3(x, 0, b.z0 - off), box: b, n: v3(0, 0, 1) }); pts.push({ p: v3(x, 0, b.z1 + off), box: b, n: v3(0, 0, -1) }); }
+      for (let z = b.z0; z <= b.z1 + 1e-6; z += step) { pts.push({ p: v3(b.x0 - off, 0, z), box: b, n: v3(1, 0, 0) }); pts.push({ p: v3(b.x1 + off, 0, z), box: b, n: v3(-1, 0, 0) }); }
+    }
+    return pts.filter((c) => this.inBounds(c.p) && this.free(c.p));
+  }
+  emitSound(pos, range, kind, src) {
+    this.sounds.push({ pos: { ...pos }, range, kind, src, t: this.time });
+    if (this.recordTracers) { this.soundLog.push({ pos: { ...pos }, range, kind, t: this.time }); if (this.soundLog.length > 120) this.soundLog.shift(); }
+  }
+  // instant ballistics (bullets at 30-80 m arrive in <0.1 s)
+  shoot(shooter, origin, dir, W) {
+    this.stats.shots++;
+    const end = add(origin, mul(dir, W.range));
+    const tBox = this.segHit(origin, end);
+    let best = { t: tBox * W.range, agent: null };
+    for (const a of this.agents) {
+      if (a === shooter || !a.alive) continue;
+      const top = a.top();
+      // ray vs vertical cylinder
+      const ox = origin.x - a.pos.x, oz = origin.z - a.pos.z, r = TUNE.body.radius;
+      const A = dir.x * dir.x + dir.z * dir.z, B = 2 * (ox * dir.x + oz * dir.z), Cc = ox * ox + oz * oz - r * r;
+      const disc = B * B - 4 * A * Cc;
+      // near-miss suppression (closest approach to the chest)
+      const chest = v3(a.pos.x, (a.pos.y || 0) + top * 0.7, a.pos.z), w = sub(chest, origin), tc = w.x * dir.x + w.y * dir.y + w.z * dir.z;
+      if (tc > 0 && tc < best.t) {
+        const cp = add(origin, mul(dir, tc)), miss = len(sub(cp, chest));
+        if (miss < TUNE.suppression.missRadius && a.team !== shooter.team) a.onNearMiss(miss, shooter, this);
+      }
+      if (disc < 0 || A < 1e-9) continue;
+      const t = (-B - Math.sqrt(disc)) / (2 * A);
+      if (t < 0 || t >= best.t) continue;
+      const y = origin.y + dir.y * t;
+      if (y < (a.pos.y || 0) || y > (a.pos.y || 0) + top) continue;
+      best = { t, agent: a, y };
+    }
+    const hitPt = add(origin, mul(dir, Math.min(best.t, W.range)));
+    if (this.recordTracers) { this.tracers.push({ a: { ...origin }, b: hitPt, t: this.time, team: shooter.team, hit: !!best.agent }); if (this.tracers.length > 200) this.tracers.shift(); }
+    if (best.agent) {
+      const a = best.agent, top = a.top();
+      const ry = best.y - (a.pos.y || 0), part = ry > top - 0.26 ? 'head' : ry > top * 0.5 ? 'torso' : 'legs';
+      this.stats.hits++;
+      if (a.team === shooter.team) this.stats.friendlyHits++;
+      a.onHit(W.dmg[part], part, shooter, dir, this);
+      this.events.push({ t: this.time, type: 'hit', from: shooter.id, to: a.id, part });
+      return { hit: a, part, point: hitPt };
+    }
+    if (tBox !== Infinity) { this.stats.coverHits++; this.emitSound(hitPt, TUNE.hearing.impact, 'impact', shooter.id); }
+    return { hit: null, point: hitPt };
+  }
+  step(dt) {
+    this.time += dt;
+    for (const c of this.callouts) if (c.at <= this.time && !c.done) { c.done = true; c.to.receiveCallout(c); }
+    this.callouts = this.callouts.filter((c) => !c.done);
+    const order = [...this.agents].sort(() => this.rand() - 0.5); // no first-mover bias
+    for (const a of order) if (a.alive) a.perceive(dt, this);
+    for (const a of order) if (a.alive) a.think(dt, this);
+    for (const a of order) if (a.alive) a.act(dt, this);
+    this.sounds = this.sounds.filter((s) => this.time - s.t < 0.2);
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  Agent
+// ---------------------------------------------------------------------------
+let NEXT_ID = 1;
+const PROFILES = {
+  operator: { skill: 0.75, aggression: 0.5, discipline: 0.8, reaction: 1.0 },
+  recruit: { skill: 0.3, aggression: 0.55, discipline: 0.3, reaction: 1.3 },
+  veteran: { skill: 0.88, aggression: 0.55, discipline: 0.9, reaction: 0.92 },
+  player: { skill: 0.65, aggression: 0.65, discipline: 0.6, reaction: 1.0 },
+};
+
+class Agent {
+  constructor(world, { team = 'red', pos = v3(), yaw = 0, profile = 'operator', name, patrol = null, controller = 'ai', seed } = {}) {
+    this.id = NEXT_ID++; this.name = name || `${team}${this.id}`; this.team = team;
+    this.pos = v3(pos.x, 0, pos.z); this.vel = v3(); this.yaw = yaw;
+    this.look = { yaw, pitch: 0 }; this.stance = 'stand'; this.moveMode = 'walk';
+    this.health = 100; this.alive = true; this.controller = controller;
+    this.prof = { ...(PROFILES[profile] || profile) };
+    this.r = rng(seed ?? (world.rand() * 1e9) | 0);
+    this.W = { ...TUNE.weapon, mag: TUNE.weapon.cap, chamber: 1 };
+    this.reloadUntil = 0; this.nextShotT = 0; this.burstLeft = 0; this.burstPauseUntil = 0;
+    this.mem = new Map();      // enemyId -> memory record (everything the agent *believes*)
+    this.sus = new Map();      // enemyId -> detection accumulator
+    this.suppression = 0; this.lastHurt = null; this.lastShotT = -9;
+    this.action = { type: 'idle', since: 0, minUntil: 0 }; this.nextThink = 0;
+    this.path = null; this.pathIdx = 0; this.dest = null;
+    this.aim = { mode: 'free', targetId: null, point: null, reactUntil: 0, from: null, to: null, t0: 0, dur: 0, correctAt: 0, ou: { x: 0, y: 0 }, recoil: { p: 0, y: 0 } };
+    this.patrol = patrol; this.patrolIdx = 0; this.searchPts = []; this.peek = { up: true, until: 0 };
+    this.mission = 'hunt'; this.visited = []; // hunt = keep clearing the area when contact is lost
+    this.stats = { shots: 0, hits: 0, reactions: [], firstShotTimes: [], reloadsExposed: 0, reloads: 0, actions: {}, actionSwitches: 0, coverArrivals: 0, coverGood: 0,
+      flanks: 0, detections: [], stuckEvents: 0, overshoots: 0, flicks: 0, damageTaken: 0 };
+    this.stuck = { t: 0, ref: v3(pos.x, 0, pos.z) };
+    this.script = null; // for test dummies
+    world.agents.push(this);
+  }
+  eye() { const B = TUNE.body; return v3(this.pos.x, (this.pos.y || 0) + (this.stance === 'duck' ? B.duckEye : this.stance === 'crouch' ? B.crouchEye : B.standEye), this.pos.z); }
+  top() { const B = TUNE.body; return this.stance === 'duck' ? B.duckTop : this.stance === 'crouch' ? B.crouchTop : B.standTop; }
+  bodyPts() { const t = this.top(), y = this.pos.y || 0; return [v3(this.pos.x, y + t - 0.12, this.pos.z), v3(this.pos.x, y + t * 0.7, this.pos.z), v3(this.pos.x, y + t * 0.42, this.pos.z)]; }
+  speed() { return Math.hypot(this.vel.x, this.vel.z); }
+  enemies(world) { return world.agents.filter((a) => a.team !== this.team); }
+
+  // =========================== PERCEPTION ===========================
+  perceive(dt, world) {
+    if (this.controller !== 'ai') return;
+    const now = world.time, V = TUNE.vision, eye = this.eye(), lookDir = dirOf(this.look.yaw, this.look.pitch);
+    for (const o of this.enemies(world)) {
+      let m = this.mem.get(o.id);
+      if (!o.alive) { if (m && m.visible && !m.dead) { m.dead = true; m.visible = false; } continue; }
+      const pts = o.bodyPts();
+      let vis = 0, seenPt = null;
+      for (const p of pts) if (world.los(eye, p)) { vis++; seenPt = seenPt || p; }
+      let s = this.sus.get(o.id) || 0;
+      const d = dist2d(this.pos, o.pos);
+      if (vis > 0 && d < 250) {
+        const toO = sub(seenPt, eye), off = angBetween(lookDir, toO);
+        const flash = now - o.lastShotT < 0.09 && !o.suppressed;
+        if (off < V.fovHalf) {
+          const acuity = off < V.foveal ? 1 : off < 0.7 ? 0.55 : off < 1.2 ? 0.25 : 0.1;
+          const moving = o.speed() > 0.6;
+          const light = clamp((world.lightAt(o.pos) - 0.02) / 0.3, 0, 1);
+          const eff = Math.max(light, moving ? V.moveFloor : V.darkFloor);
+          const size = (vis / 3) * (o.stance === 'stand' ? 1 : o.stance === 'crouch' ? 0.75 : 0.55);
+          const distF = 1 / (1 + (d / V.distScale) ** 2);
+          // trained eyes pick out shapes and movement faster (situational awareness)
+          let rate = V.rate * acuity * eff * size * distF * (moving ? 1.6 : 1) * (1 - 0.45 * this.suppression) * (0.55 + 0.6 * this.prof.skill);
+          if (m && m.visible) rate *= 3; // already tracking
+          if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
+          s = Math.min(1.6, s + rate * dt);
+        } else s = Math.max(0, s - V.decay * dt);
+        // seen
+        if (s >= 1) {
+          const err = d * 0.01 * (1 - clamp(world.lightAt(o.pos), 0, 1));
+          const pos = v3(o.pos.x + this.r.normal(0, err), o.pos.y || 0, o.pos.z + this.r.normal(0, err));
+          const firstContact = !m || (!m.visible && now - m.t > 3);
+          if (!m) { m = { id: o.id }; this.mem.set(o.id, m); }
+          if (firstContact) { m.firstSeenT = now; this.stats.detections.push({ t: now, d, light: world.lightAt(o.pos) }); }
+          m.vel = m.visible && m.pos ? mul(sub(pos, m.pos), 1 / Math.max(dt, 1e-3)) : v3();
+          m.vel = v3(clamp(o.vel.x, -6, 6), 0, clamp(o.vel.z, -6, 6)); // motion is perceived directly while visible
+          Object.assign(m, { pos, t: now, visible: true, conf: 1, source: 'sight', stance: o.stance, exposure: vis / 3, dead: false, inCover: vis < 3 });
+          if (firstContact) this.callout(world, m);
+          else if (now - (m.lastCallout || 0) > 2.5) this.callout(world, m);
+        } else if (s >= V.glimpse && (!m || !m.visible)) {
+          // something moved over there: rough position, not yet identified
+          const err = d * 0.08;
+          if (!m) { m = { id: o.id, conf: 0 }; this.mem.set(o.id, m); }
+          if (!m.t || now - m.t > 1) Object.assign(m, { pos: v3(o.pos.x + this.r.normal(0, err), o.pos.y || 0, o.pos.z + this.r.normal(0, err)), vel: v3(), t: now, visible: false, conf: Math.max(m.conf || 0, 0.35), source: 'glimpse' });
+        } else if (m && m.visible) m.visible = false;
+      } else {
+        s = Math.max(0, s - V.decay * dt);
+        if (m && m.visible) { m.visible = false; }
+      }
+      this.sus.set(o.id, s);
+    }
+    // hearing
+    const Hh = TUNE.hearing;
+    for (const snd of world.sounds) {
+      if (snd.heardBy && snd.heardBy.has(this.id)) continue;
+      (snd.heardBy ||= new Set()).add(this.id);
+      const src = world.agents.find((a) => a.id === snd.src);
+      if (!src || src === this) continue;
+      const d = dist2d(this.pos, snd.pos);
+      const occ = world.los(eye, v3(snd.pos.x, 1.2, snd.pos.z)) ? 1 : Hh.occlusion;
+      if (d > snd.range * occ) continue;
+      if (src.team === this.team) continue;
+      const m0 = this.mem.get(src.id);
+      if (m0 && m0.visible) continue;
+      const err = d * (snd.kind === 'shot' ? 0.06 : snd.kind === 'impact' ? 0.25 : 0.12);
+      let pos = v3(snd.pos.x + this.r.normal(0, err), 0, snd.pos.z + this.r.normal(0, err));
+      if (snd.kind === 'impact') pos = this.guessShooterFromImpact(snd, world) || pos;
+      const m = m0 || { id: src.id, conf: 0 };
+      if (!m0) this.mem.set(src.id, m);
+      if (!m.t || now - m.t > 0.5 || m.source !== 'sight') {
+        Object.assign(m, { pos, vel: v3(), t: now, visible: false, conf: Math.max(snd.kind === 'shot' ? 0.6 : 0.4, m.conf * 0.8), source: snd.kind === 'shot' ? 'gunshot' : 'noise' });
+      }
+      if (!this.attentionUntil || now > this.attentionUntil - 0.5) { this.attention = { ...pos }; this.attentionUntil = now + 1.6; }
+    }
+    this.suppression = Math.max(0, this.suppression - TUNE.suppression.decay * dt * (now - (this.lastSuppressedT || 0) > 1.5 ? 1.6 : 0.6));
+    // forget very old, low-confidence info
+    for (const [id, m] of this.mem) if (!m.visible && now - m.t > 60) this.mem.delete(id);
+  }
+  guessShooterFromImpact() { return null; } // impacts tell you you're being shot at, not from where
+  onNearMiss(miss, shooter, world) {
+    this.suppression = Math.min(1, this.suppression + TUNE.suppression.perMiss * (1 - miss / TUNE.suppression.missRadius) * 1.5);
+    this.lastSuppressedT = world.time;
+    this.stats.nearMisses = (this.stats.nearMisses || 0) + 1;
+    // you hear the crack and roughly the direction it came from
+    if (this.controller === 'ai') this.noteDirection(shooter, world, 0.3);
+  }
+  onHit(dmg, part, shooter, dir, world) {
+    this.health -= dmg; this.stats.damageTaken += dmg;
+    this.suppression = Math.min(1, this.suppression + TUNE.suppression.hurt);
+    this.lastHurt = { t: world.time };
+    this.lastSuppressedT = world.time;
+    if (this.health <= 0) { this.alive = false; this.health = 0; world.events.push({ t: world.time, type: 'kill', from: shooter.id, to: this.id }); return; }
+    if (this.controller === 'ai') this.noteDirection(shooter, world, 0.35);
+  }
+  // knowledge of an incoming direction only: bearing ±error, range unknown (guess)
+  noteDirection(shooter, world, angErr) {
+    const m = this.mem.get(shooter.id);
+    if (m && m.visible) return;
+    const b = Math.atan2(shooter.pos.x - this.pos.x, shooter.pos.z - this.pos.z) + this.r.normal(0, angErr);
+    const guess = m && world.time - m.t < 8 ? dist2d(this.pos, m.pos) : this.r.range(15, 45);
+    const pos = v3(this.pos.x + Math.sin(b) * guess, 0, this.pos.z + Math.cos(b) * guess);
+    const rec = m || { id: shooter.id, conf: 0 };
+    if (!m) this.mem.set(shooter.id, rec);
+    Object.assign(rec, { pos, vel: v3(), t: world.time, visible: false, conf: Math.max(rec.conf * 0.9, 0.45), source: 'incoming' });
+    this.attention = { ...pos }; this.attentionUntil = world.time + 1.2;
+  }
+  callout(world, m) {
+    m.lastCallout = world.time;
+    for (const mate of world.agents) {
+      if (mate === this || mate.team !== this.team || !mate.alive || mate.controller !== 'ai') continue;
+      if (dist2d(mate.pos, this.pos) > 60) continue; // voice range
+      const e = TUNE.callout.error;
+      world.callouts.push({ at: world.time + this.r.range(...TUNE.callout.delay), to: mate, id: m.id, from: this.id,
+        pos: v3(m.pos.x + this.r.normal(0, e), 0, m.pos.z + this.r.normal(0, e)), vel: { ...m.vel }, t: world.time });
+    }
+  }
+  receiveCallout(c) {
+    const m = this.mem.get(c.id);
+    if (m && (m.visible || m.t >= c.t)) return;
+    const rec = m || { id: c.id, conf: 0 };
+    if (!m) this.mem.set(c.id, rec);
+    Object.assign(rec, { pos: c.pos, vel: c.vel, t: c.t, visible: false, conf: Math.max(rec.conf || 0, 0.6), source: 'callout' });
+  }
+
+  // =========================== BELIEF HELPERS ===========================
+  est(m, now) { const age = Math.min(now - m.t, TUNE.memory.predict); return v3(m.pos.x + m.vel.x * age, m.pos.y || 0, m.pos.z + m.vel.z * age); }
+  uncertainty(m, now) { return 0.4 + TUNE.memory.growth * (now - m.t); }
+  threat(now) {
+    let best = null, bs = -Infinity;
+    for (const m of this.mem.values()) {
+      if (m.dead) continue;
+      const age = now - m.t;
+      if (age > 45) continue;
+      const sc = (m.visible ? 4 : 0) + m.conf * 2 - age * 0.12 - dist2d(this.pos, m.pos) * 0.015;
+      if (sc > bs) { bs = sc; best = m; }
+    }
+    return best;
+  }
+  // am I protected from point p (crouched chest hidden)?
+  coveredFrom(world, p, pos = this.pos, stance = 'crouch') {
+    // 'crouch' here means ducked behind cover (head tucked below the cover line)
+    const chest = v3(pos.x, stance === 'crouch' ? 0.7 : 1.25, pos.z), head = v3(pos.x, stance === 'crouch' ? 0.95 : 1.65, pos.z);
+    const from = v3(p.x, 1.55, p.z);
+    return !world.los(from, chest) && !world.los(from, head);
+  }
+
+  // =========================== DECISION (utility AI) ===========================
+  think(dt, world) {
+    if (this.controller !== 'ai') return;
+    const now = world.time;
+    if (now < this.nextThink) return;
+    this.nextThink = now + this.r.range(...TUNE.think.interval) * (1 + this.suppression * 0.4);
+    const th = this.threat(now), P = this.prof;
+    const W = this.W;
+    const est = th ? this.est(th, now) : null;
+    const d = est ? dist2d(this.pos, est) : Infinity;
+    const age = th ? now - th.t : Infinity;
+    const covered = est ? this.coveredFrom(world, est) : false;
+    const hurt = this.lastHurt && now - this.lastHurt.t < 3;
+    const magFrac = W.mag / W.cap;
+    const reloading = now < this.reloadUntil;
+    const mates = world.agents.filter((a) => a !== this && a.alive && a.team === this.team);
+    const sc = {};
+    sc.idle = 0.1;
+    const stale = !th || now - th.t > 25;
+    if (stale && this.mission === 'hunt' && !this.patrol) sc.roam = 0.3;
+    if (!th) {
+      sc.patrol = this.patrol ? 0.3 : 0;
+      if (magFrac < 0.7 && !reloading) sc.reload = 0.5;
+    } else {
+      const visible = th.visible;
+      sc.engage = visible ? 0.62 + 0.25 * P.aggression + (covered ? 0.05 : 0) - 0.45 * this.suppression - (this.health < 40 ? 0.2 : 0) - (W.mag === 0 ? 1 : 0)
+        : age < 2.5 ? 0.42 + 0.1 * P.aggression : 0;
+      // when a known threat is close and visible, fighting back beats running across its line of fire
+      const exposedOpen = !covered;
+      // trained instinct: caught in the open at range → get off the X before trading shots
+      const underFire = now - (this.lastSuppressedT || -9) < 1.5;
+      sc.cover = exposedOpen ? 0.22 + 0.2 * P.discipline + 0.75 * this.suppression + (hurt ? 0.45 : 0) + (visible && d > 12 ? 0.15 + 0.2 * P.discipline : 0) + (underFire ? 0.15 : 0) + (W.mag < 6 ? 0.25 : 0) - (visible && d < 8 ? 0.35 : 0) - P.aggression * 0.15 : 0;
+      sc.reload = W.mag === 0 && !reloading ? (covered || !visible || this.noCover ? 0.95 : 0.3) : (!visible && magFrac < 0.5 && !reloading ? 0.55 + (covered ? 0.15 : -0.1) : 0);
+      if (W.mag === 0 && exposedOpen && visible && !this.noCover) sc.cover += 0.6;
+      const freshHit = this.lastHurt && now - this.lastHurt.t < 1.0;
+      sc.retreat = this.health < 35 && (!covered || freshHit) && (visible || hurt) ? 0.55 + (1 - this.health / 35) * 0.3 : 0;
+      const enemyDug = !visible && age > 2 && age < 20 && th.conf > 0.5;
+      const someoneEngaging = mates.some((m) => ['engage', 'suppress'].includes(m.action.type));
+      const someoneFlanking = mates.some((m) => m.action.type === 'flank');
+      sc.flank = enemyDug && this.health > 50 && !someoneFlanking && mates.length ? 0.45 + 0.25 * P.aggression + (someoneEngaging ? 0.15 : 0) : 0;
+      sc.suppress = !visible && age < 5 && someoneFlanking && W.mag > 8 ? 0.6 : 0;
+      sc.search = !visible && age > 3 ? clamp(0.35 + 0.2 * P.aggression - age * 0.004, 0.15, 0.55) * (th.conf > 0.3 ? 1 : 0.6) : 0;
+      sc.hold = !visible && age >= 2.5 && age < 15 ? 0.4 + 0.2 * P.discipline - 0.15 * P.aggression + (covered ? 0.1 : 0) : 0;
+    }
+    // commitment / hysteresis
+    const cur = this.action.type;
+    if (sc[cur] !== undefined) sc[cur] += now < this.action.minUntil ? 0.35 : TUNE.think.commit;
+    let best = 'idle', bv = -Infinity;
+    for (const [k, v] of Object.entries(sc)) if (v > bv) { bv = v; best = k; }
+    if (best !== cur || (this.action.replan && now >= this.action.minUntil)) this.setAction(best, world, th, est);
+  }
+  setAction(type, world, th, est) {
+    const now = world.time;
+    if (type !== this.action.type) { this.stats.actionSwitches++; this.stats.actions[type] = (this.stats.actions[type] || 0) + 1; }
+    this.action = { type, since: now, minUntil: now + ({ cover: 1.2, flank: 3, search: 4, retreat: 2, reload: 0.5, engage: 0.6, hold: 1.5, suppress: 1.5 }[type] || 0.5), threatId: th && th.id };
+    this.path = null; this.dest = null;
+    if (type === 'cover' || type === 'retreat') {
+      const c = this.findCover(world, est, type === 'retreat');
+      const urgent = type === 'retreat' || this.suppression > 0.25 || (th && th.visible) || (this.lastHurt && now - this.lastHurt.t < 2);
+      if (c) { this.goTo(world, c.p, urgent ? 'sprint' : 'run', est, true); this.action.cover = c; this.noCover = false; }
+      else { this.noCover = true; this.action.minUntil = now; }
+    } else if (type === 'flank') {
+      const f = this.findFlank(world, th, est);
+      if (f) { this.goTo(world, f, 'run', est, true); this.stats.flanks++; this.action.flankPt = f; }
+      else this.action.type = 'hold';
+    } else if (type === 'search') {
+      this.searchPts = this.planSearch(world, th);
+      this.nextSearchPoint(world);
+    } else if (type === 'reload') {
+      this.startReload(world);
+    } else if (type === 'roam') {
+      // clear ground we haven't looked at recently, moving between cover, mostly through the dark
+      let best = null, bs = -Infinity;
+      for (let k = 0; k < 20; k++) {
+        const c = world.coverPts.length ? this.r.pick(world.coverPts).p : world.nearestFree(v3(this.r.range(-world.w / 2.5, world.w / 2.5), 0, this.r.range(-world.h / 2.5, world.h / 2.5))), d = dist2d(this.pos, c);
+        if (d < 8 || d > 35) continue;
+        const fresh = Math.min(...this.visited.map((v) => dist2d(v, c)).concat([40]));
+        const sc2 = fresh * 0.6 - d * 0.15 - world.lightAt(c) * 6 + this.r() * 3;
+        if (sc2 > bs) { bs = sc2; best = c; }
+      }
+      if (best) { this.goTo(world, best, this.r() > this.prof.discipline + 0.25 ? 'run' : 'walk', null, false, this.prof.discipline); this.visited.push({ ...best }); if (this.visited.length > 8) this.visited.shift(); }
+    } else if (type === 'patrol' && this.patrol) {
+      this.goTo(world, this.patrol[this.patrolIdx % this.patrol.length], 'walk');
+    }
+  }
+  goTo(world, p, mode, threatPos = null, tactical = false, shadows = 0) {
+    let cost = null;
+    if (shadows > 0) {
+      // fieldcraft: prefer routes through the dark
+      const cache = new Map();
+      cost = (i, j) => { const k = j * world.cols + i; if (!cache.has(k)) cache.set(k, Math.max(0, world.lightAt(world.cellPos(i, j)) - 0.05) * 10 * shadows); return cache.get(k); };
+    }
+    if (threatPos && tactical) {
+      // exposure-aware path: cells visible from the threat cost more (move behind cover when possible)
+      const tp = v3(threatPos.x, 1.5, threatPos.z), cache = new Map();
+      cost = (i, j) => {
+        const k = j * world.cols + i;
+        if (!cache.has(k)) { const c = world.cellPos(i, j); cache.set(k, world.los(tp, v3(c.x, 1.0, c.z)) ? 6 : 0); }
+        return cache.get(k);
+      };
+    }
+    const path = world.path(this.pos, p, cost);
+    this.path = path; this.pathIdx = 1; this.dest = p; this.moveMode = mode;
+  }
+  findCover(world, threat, far) {
+    if (!threat) return null;
+    const th = this.threat(world.time), margin = clamp(th ? this.uncertainty(th, world.time) + dist2d(this.pos, threat) * 0.05 : 2, 1.5, 4);
+    const mates = world.agents.filter((a) => a !== this && a.alive && a.team === this.team);
+    let best = null, bs = -Infinity;
+    for (const c of world.coverPts) {
+      const dMe = dist2d(this.pos, c.p);
+      if (dMe > (far ? 30 : 16)) continue;
+      const dT = dist2d(c.p, threat);
+      if (dT < 4) continue;
+      // cover must hold against where the threat *might* be, not just the best guess
+      const perp = norm(v3(-(threat.z - c.p.z), 0, threat.x - c.p.x)), m = margin;
+      if (!this.coveredFrom(world, threat, c.p) || !this.coveredFrom(world, add(threat, mul(perp, m)), c.p) || !this.coveredFrom(world, add(threat, mul(perp, -m)), c.p)) continue;
+      let s = -dMe * (far ? 0.3 : 1.0);
+      if (far) s += Math.min(dT, 40) * 0.6; else s -= Math.abs(dT - 22) * 0.12;
+      // prefer spots I can shoot from by standing up (low cover) or stepping out (edges)
+      const peek = this.coveredFrom(world, threat, c.p, 'stand') ? 0 : 1.2;
+      s += far ? 0 : peek;
+      // don't run toward the threat to reach cover
+      if (dist2d(c.p, threat) < dist2d(this.pos, threat) - 3) s -= 4;
+      for (const m of mates) if (dist2d(m.pos, c.p) < 2.5 || (m.dest && dist2d(m.dest, c.p) < 2.5)) s -= 5;
+      if (s > bs) { bs = s; best = c; }
+    }
+    return best;
+  }
+  findFlank(world, th, est) {
+    if (!est) return null;
+    const cur = Math.atan2(this.pos.x - est.x, this.pos.z - est.z);
+    let best = null, bs = -Infinity;
+    for (let k = 0; k < 24; k++) {
+      const side = k % 2 ? 1 : -1, a = cur + side * this.r.range(0.9, 1.9), r = this.r.range(10, 22);
+      const p = world.nearestFree(v3(est.x + Math.sin(a) * r, 0, est.z + Math.cos(a) * r));
+      if (!world.inBounds(p)) continue;
+      // must be able to see where the enemy is hiding from there (standing)
+      if (!world.los(v3(p.x, 1.6, p.z), v3(est.x, (est.y || 0) + 1.0, est.z))) continue;
+      const travel = dist2d(this.pos, p);
+      if (travel > 35) continue;
+      const angGain = Math.abs(wrap(a - cur));
+      const s = angGain * 4 - travel * 0.15 + (this.coveredFrom(world, est, p, 'crouch') ? 0 : 0.5);
+      if (s > bs) { bs = s; best = p; }
+    }
+    return best;
+  }
+  planSearch(world, th) {
+    const now = world.time, base = this.est(th, now), u = Math.min(this.uncertainty(th, now), 12);
+    const pts = [base];
+    // likely hiding spots near where they were: cover points within the uncertainty radius
+    const cands = world.coverPts.filter((c) => dist2d(c.p, base) < u + 3).sort(() => this.r() - 0.5).slice(0, 4);
+    for (const c of cands) pts.push(c.p);
+    return pts;
+  }
+  nextSearchPoint(world) {
+    const p = this.searchPts.shift();
+    if (p) this.goTo(world, p, this.prof.discipline > 0.6 ? 'walk' : 'run', null, false, this.prof.discipline * 0.5); else { this.action = { type: 'idle', since: world.time, minUntil: world.time + 1 }; }
+  }
+  startReload(world) {
+    if (world.time < this.reloadUntil || this.W.mag === this.W.cap) return;
+    const empty = this.W.mag === 0;
+    this.reloadUntil = world.time + (empty ? this.W.reloadEmpty : this.W.reloadTac) * this.r.range(0.92, 1.1);
+    this.stats.reloads++;
+    // was anyone I know about able to see me right now? (judged from beliefs, scored with truth later)
+    world.emitSound(this.pos, TUNE.hearing.reload, 'reload', this.id);
+    this.reloadingStarted = world.time;
+    if (world.agents.some((o) => o.team !== this.team && o.alive && world.los(o.eye(), v3(this.pos.x, 1.0, this.pos.z)))) this.stats.reloadsExposed++;
+  }
+
+  // =========================== ACTION / MOTOR ===========================
+  act(dt, world) {
+    if (this.controller === 'script') { this.script && this.script(this, dt, world); this.integrate(dt, world); return; }
+    const now = world.time, th = this.threat(now), est = th ? this.est(th, now) : null;
+    // dry gun: reload right away only if it's safe or there's nowhere to go; otherwise think() sends us to cover first
+    if (this.W.mag === 0 && now >= this.reloadUntil && !this.reloadingStarted && (!est || this.coveredFrom(world, est) || !(th && th.visible) || this.action.type === 'reload' || this.noCover)) this.startReload(world);
+    if (now >= this.reloadUntil && this.reloadingStarted) { this.W.mag = this.W.cap; this.reloadingStarted = 0; }
+    const reloading = now < this.reloadUntil;
+    const t = this.action.type;
+    let wantMove = null, aimPoint = null, aimId = null, fire = false;
+
+    if (t === 'engage' || t === 'hold' || t === 'suppress') {
+      if (th && th.visible) {
+        const o = world.agents.find((a) => a.id === th.id);
+        // aim at what is exposed: centre mass, or the head if that's all that shows
+        aimPoint = th.exposure < 0.5 ? v3(th.pos.x, (th.pos.y || 0) + (th.stance === 'crouch' ? 1.12 : 1.62), th.pos.z) : v3(th.pos.x, (th.pos.y || 0) + (th.stance === 'crouch' ? 0.85 : 1.2), th.pos.z);
+        aimId = th.id;
+        fire = !reloading;
+        void o;
+      } else if (est) {
+        // pre-aim where they're expected to reappear (head height); suppress = fire at it
+        aimPoint = v3(est.x, (est.y || 0) + 1.35, est.z); aimId = th.id;
+        fire = t === 'suppress' && !reloading;
+      }
+      this.handleCoverPeek(world, est, t, th);
+      if (t === 'engage' && th && th.visible) {
+        const d = dist2d(this.pos, th.pos);
+        // human strafing in open ground at mid range
+        if (!this.coveredFrom(world, th.pos) && d > 7 && d < 35 && this.prof.aggression > 0.3) {
+          if (!this.strafe || now > this.strafe.until) this.strafe = { dir: this.r() < 0.5 ? -1 : 1, until: now + this.r.range(0.4, 1.1) };
+          const right = v3(Math.cos(this.look.yaw), 0, -Math.sin(this.look.yaw));
+          wantMove = { dir: mul(right, this.strafe.dir), mode: this.stance === 'crouch' ? 'crouch' : 'walk' };
+        }
+      }
+    } else if (t === 'cover' || t === 'retreat' || t === 'flank' || t === 'search' || t === 'patrol' || t === 'roam') {
+      const step = this.followPath(world);
+      if (step) { wantMove = step; if (step.mode === 'run' || step.mode === 'sprint') this.stance = 'stand'; else if (this.stance === 'duck') this.stance = 'crouch'; }
+      else if (t === 'cover' || t === 'retreat') { if (this.action.cover && !this.action.arrived) this.arriveCover(world, est); this.stance = est && this.coveredFrom(world, est) ? 'duck' : 'crouch'; }
+      else if (t === 'search') { this.nextSearchPoint(world); }
+      else if (t === 'flank') { this.action.minUntil = 0; }
+      else if (t === 'patrol') { this.patrolIdx++; this.setAction('patrol', world, null, null); }
+      else if (t === 'roam' && !this.action.replan) {
+        // listening halt: disciplined hunters stop, get low and watch (a still observer spots movers); novices barely pause
+        const D = this.prof.discipline;
+        this.action.replan = true; this.action.minUntil = now + (D > 0.6 ? this.r.range(3, 7) : this.r.range(0.5, 1.5)); this.nextThink = this.action.minUntil;
+        if (D > 0.6) this.stance = 'crouch';
+      }
+      // while moving: watch the threat if known, otherwise look where you're going (and check sounds)
+      if (th && th.visible) { aimPoint = v3(th.pos.x, (th.pos.y || 0) + 1.2, th.pos.z); aimId = th.id; fire = !reloading && (t === 'flank' || t === 'search' || dist2d(this.pos, th.pos) < 10); }
+      else if (this.attention && now < this.attentionUntil) aimPoint = v3(this.attention.x, 1.4, this.attention.z);
+      else if (est && t !== 'patrol' && t !== 'roam') aimPoint = v3(est.x, (est.y || 0) + 1.4, est.z);
+      else if (step) aimPoint = add(this.eye(), mul(step.dir, 10));
+      if (t === 'search' || t === 'flank') this.stance = 'stand';
+    } else if (t === 'reload') {
+      if (est) aimPoint = v3(est.x, (est.y || 0) + 1.3, est.z);
+      this.stance = est && this.coveredFrom(world, est) ? 'duck' : 'crouch';
+      if (!reloading) this.action.minUntil = 0;
+    } else {
+      // idle: scan, look at sounds
+      if (this.attention && now < this.attentionUntil) aimPoint = v3(this.attention.x, 1.4, this.attention.z);
+      else if (!this.scan || now > this.scan.until) { this.scan = { yaw: this.yaw + this.r.range(-1.2, 1.2) * (0.6 + this.prof.skill), until: now + this.r.range(1.5, 3.5) * (1.3 - this.prof.skill * 0.6) }; }
+      if (!aimPoint && this.scan) aimPoint = add(this.eye(), mul(dirOf(this.scan.yaw, 0), 10));
+    }
+    this.updateAim(dt, world, aimPoint, aimId, th);
+    if (fire && aimPoint) this.tryFire(dt, world, aimPoint, th);
+    this.applyMove(dt, wantMove);
+    this.integrate(dt, world);
+    this.checkStuck(dt, world, !!wantMove);
+  }
+  handleCoverPeek(world, est, t, th) {
+    if (!est) { this.stance = 'stand'; return; }
+    const now = world.time;
+    const coveredCrouch = this.coveredFrom(world, est, this.pos, 'crouch'), coveredStand = this.coveredFrom(world, est, this.pos, 'stand');
+    if (coveredCrouch && !coveredStand) {
+      // low cover: pop up to shoot, duck to recover/reload
+      if (now > this.peek.until) { this.peek.up = !this.peek.up; this.peek.until = now + (this.peek.up ? this.r.range(1.1, 2.6) * (1.5 - 0.6 * this.prof.discipline) : this.r.range(0.7, 1.6)) * (this.peek.up ? 1 - this.suppression * 0.5 : 1 + this.suppression); }
+      const reloading = now < this.reloadUntil;
+      this.stance = this.peek.up && !reloading && this.suppression < 0.85 ? 'stand' : 'duck';
+    } else if (coveredCrouch && coveredStand && (t === 'engage' || t === 'hold' || t === 'suppress')) {
+      // high cover: step out to an edge that sees the threat, then back
+      if (!this.action.peekPos) {
+        const tp = v3(est.x, (est.y || 0) + 1.2, est.z);
+        for (const a of [0, 1, -1, 2, -2, 3, -3]) {
+          for (const r of [0.8, 1.4, 2.0]) {
+            const right = v3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+            const p = add(this.pos, mul(right, Math.sign(a) * r + (a === 0 ? 0 : 0)));
+            if (world.free(p) && world.los(v3(p.x, 1.6, p.z), tp)) { this.action.peekPos = p; this.action.home = { ...this.pos }; break; }
+          }
+          if (this.action.peekPos) break;
+        }
+      }
+      if (this.action.peekPos && now > this.peek.until) {
+        this.peek.up = !this.peek.up; this.peek.until = now + (this.peek.up ? this.r.range(1.0, 2.2) : this.r.range(0.8, 1.8));
+        this.goTo(world, this.peek.up ? this.action.peekPos : this.action.home, 'walk');
+      }
+      this.stance = 'stand';
+      if (this.path) { const s = this.followPath(world); if (s) this.applyMove(1 / 30, s); }
+    } else {
+      // in the open: crouch for stability at range unless moving
+      const d = dist2d(this.pos, est);
+      this.stance = d > 18 && th && th.visible ? 'crouch' : 'stand';
+    }
+  }
+  arriveCover(world, est) {
+    this.action.arrived = true;
+    if (this.W.mag / this.W.cap < 0.4) this.startReload(world);
+    this.stats.coverArrivals++;
+    if (est && this.coveredFrom(world, est)) this.stats.coverGood++;
+    this.action.minUntil = world.time; // re-decide now that we're in cover
+  }
+  followPath(world) {
+    if (!this.path || this.pathIdx >= this.path.length) return null;
+    let wp = this.path[this.pathIdx];
+    if (dist2d(this.pos, wp) < (this.pathIdx === this.path.length - 1 ? 0.18 : 0.45)) { this.pathIdx++; if (this.pathIdx >= this.path.length) { this.path = null; return null; } wp = this.path[this.pathIdx]; }
+    const d = sub(wp, this.pos); d.y = 0;
+    return { dir: norm(d), mode: this.moveMode };
+  }
+  applyMove(dt, want) {
+    const S = TUNE.speed;
+    let target = v3();
+    if (want) {
+      let mode = want.mode;
+      if ((this.stance === 'crouch' || this.stance === 'duck') && mode !== 'sprint') mode = 'crouch';
+      if (mode === 'sprint') this.stance = 'stand';
+      const sp = { sprint: S.sprint, run: S.run, walk: S.walk, crouch: S.crouch }[mode] * (this.health < 50 ? 0.8 : 1);
+      target = mul(want.dir, sp);
+      this.curMoveMode = mode;
+    } else this.curMoveMode = null;
+    const k = 1 - Math.exp(-S.accel * dt);
+    this.vel.x += (target.x - this.vel.x) * k; this.vel.z += (target.z - this.vel.z) * k;
+    const sp = this.speed();
+    if (sp > 0.3) {
+      const moveYaw = Math.atan2(-this.vel.x, -this.vel.z);
+      // body faces aim when aiming at something, else movement
+      this.yaw = this.aim.point ? this.look.yaw : moveYaw;
+    }
+  }
+  integrate(dt, world) {
+    const np = add(this.pos, mul(this.vel, dt));
+    if (world.free(np)) this.pos = np;
+    else if (world.free(v3(np.x, 0, this.pos.z))) { this.pos = v3(np.x, 0, this.pos.z); this.vel.z = 0; }
+    else if (world.free(v3(this.pos.x, 0, np.z))) { this.pos = v3(this.pos.x, 0, np.z); this.vel.x = 0; }
+    else { this.vel = v3(); }
+    // footsteps
+    const sp = this.speed();
+    this.stepAcc = (this.stepAcc || 0) + sp * dt;
+    if (this.stepAcc > 0.75) {
+      this.stepAcc = 0;
+      const H = TUNE.hearing;
+      const r = sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk;
+      world.emitSound(this.pos, r, 'step', this.id);
+    }
+  }
+  checkStuck(dt, world, moving) {
+    if (!moving) { this.stuck.t = 0; this.stuck.ref = { ...this.pos }; return; }
+    this.stuck.t += dt;
+    if (this.stuck.t > 2.5) {
+      if (dist2d(this.pos, this.stuck.ref) < 0.6) { this.stats.stuckEvents++; this.path = null; this.action.minUntil = 0; this.nextThink = 0; }
+      this.stuck.t = 0; this.stuck.ref = { ...this.pos };
+    }
+  }
+
+  // ---------------- human aim model ----------------
+  // Aim = reaction delay → ballistic flick (Fitts' law timing, minimum-jerk profile, overshoot/undershoot)
+  //     → corrective sub-movements → smooth pursuit with lag and physiological sway; recoil is fought imperfectly.
+  updateAim(dt, world, point, id, th) {
+    const A = this.aim, T = TUNE.aim, P = this.prof, now = world.time, eye = this.eye();
+    if (!point) { A.point = null; A.targetId = null; return; }
+    const want = anglesTo(eye, point);
+    const d = Math.max(1, dist2d(this.pos, point));
+    const newTarget = id !== A.targetId || (id == null && A.targetId == null && !A.point);
+    A.point = point;
+    if (newTarget) {
+      A.targetId = id;
+      if (id != null) {
+        // reaction time (log-normal like real human RTs); slower in the dark, when suppressed or surprised from the side
+        const off = Math.abs(wrap(want.yaw - this.look.yaw));
+        const light = clamp(world.lightAt(point), 0, 1);
+        const rt = this.r.logn(T.react * P.reaction * (1 + 0.35 * (1 - light) + 0.4 * this.suppression + 0.25 * clamp(off / 1.5, 0, 1)), T.reactSpread);
+        A.mode = 'react'; A.reactUntil = now + rt; A.reactStart = now; A.rt = rt;
+      } else { A.mode = 'smooth'; }
+    }
+    const look = this.look;
+    if (A.mode === 'react') {
+      if (now >= A.reactUntil) this.planFlick(want, d, now, true);
+    } else if (A.mode === 'flick') {
+      const u = clamp((now - A.t0) / A.dur, 0, 1), s = u * u * u * (10 - 15 * u + 6 * u * u);
+      look.yaw = A.from.yaw + wrap(A.to.yaw - A.from.yaw) * s;
+      look.pitch = A.from.pitch + (A.to.pitch - A.from.pitch) * s;
+      if (u >= 1) {
+        const err = Math.hypot(wrap(want.yaw - look.yaw), want.pitch - look.pitch), tgt = Math.atan(0.3 / d);
+        if (err > tgt * 1.2) { A.mode = 'wait'; A.correctAt = now + T.correctDelay * this.r.range(0.8, 1.3); }
+        else A.mode = 'track';
+      }
+    } else if (A.mode === 'wait') {
+      if (now >= A.correctAt) this.planFlick(want, d, now, false);
+    } else {
+      // smooth pursuit (tracking) and general looking
+      const k = (A.mode === 'track' ? T.trackGain * (0.6 + 0.5 * P.skill) : 10) * dt; // free looking / orienting to a sound is a fast head turn
+      const eyaw = wrap(want.yaw - look.yaw), ep = want.pitch - look.pitch;
+      if (A.mode === 'track' && Math.hypot(eyaw, ep) > 0.25) { this.planFlick(want, d, now, false); }
+      else { look.yaw += eyaw * Math.min(1, k); look.pitch += ep * Math.min(1, k); }
+    }
+    // physiological sway: Ornstein–Uhlenbeck noise, worse when moving, hurt, suppressed or out of breath
+    const moving = this.speed() > 0.5;
+    const amp = (moving ? T.swayMove : T.swayStill) * (this.stance === 'crouch' ? 0.75 : 1) * (1 + this.suppression * 2.2) * (1 + (100 - this.health) / 120) * (1.5 - P.skill * 0.6);
+    const th2 = 3.2;
+    A.ou.x += -A.ou.x * th2 * dt + this.r.normal(0, amp * Math.sqrt(2 * th2 * dt));
+    A.ou.y += -A.ou.y * th2 * dt + this.r.normal(0, amp * Math.sqrt(2 * th2 * dt));
+    // recoil recovery: the shooter pulls the muzzle back down, imperfectly and with lag
+    const rec = A.recoil, comp = T.recoilComp * (0.55 + 0.6 * P.skill);
+    if (now - this.lastShotT > 0.06) { rec.p -= rec.p * Math.min(1, comp * dt); rec.y -= rec.y * Math.min(1, comp * 0.8 * dt); }
+  }
+  planFlick(want, d, now, first) {
+    const A = this.aim, T = TUNE.aim, P = this.prof;
+    const from = { yaw: this.look.yaw, pitch: this.look.pitch };
+    const dy = wrap(want.yaw - from.yaw), dp = want.pitch - from.pitch, amp = Math.hypot(dy, dp);
+    const W = Math.max(0.004, 2 * Math.atan(0.25 / d));
+    const dur = (T.fittsA + T.fittsB * (1.35 - P.skill * 0.5) * Math.log2(1 + amp / W)) * this.r.range(0.85, 1.2);
+    // endpoint error scales with movement amplitude (speed–accuracy trade-off)
+    const g = 1 + this.r.normal(T.overshoot, T.gainSd * (1.4 - P.skill * 0.6)) * (first ? 1 : 0.6);
+    const lat = this.r.normal(0, T.lateralSd * (1.4 - P.skill * 0.6)) * amp;
+    const ux = amp > 1e-6 ? dy / amp : 0, uy = amp > 1e-6 ? dp / amp : 0;
+    const to = { yaw: from.yaw + dy * g - uy * lat + this.r.normal(0, T.motorSd), pitch: from.pitch + dp * g + ux * lat + this.r.normal(0, T.motorSd) };
+    if (first && amp > 0.03) { this.stats.flicks++; if (g > 1.02) this.stats.overshoots++; }
+    if (first && this.aim.reactStart != null) { this.stats.reactions.push(now - this.aim.reactStart); this.aim.reactStart = null; }
+    Object.assign(A, { mode: 'flick', from, to, t0: now, dur: Math.max(0.05, dur) });
+  }
+  effectiveAim() {
+    const A = this.aim;
+    return { yaw: this.look.yaw + A.ou.x + A.recoil.y, pitch: this.look.pitch + A.ou.y + A.recoil.p };
+  }
+  tryFire(dt, world, point, th) {
+    const now = world.time, W = this.W, A = this.aim;
+    if (now < this.reloadUntil || W.mag <= 0 || this.stance === 'duck') return;
+    if (A.mode === 'react') return;
+    if (now < this.nextShotT || now < this.burstPauseUntil) return;
+    const eye = this.eye(), d = Math.max(1, dist2d(this.pos, point));
+    const aimNow = this.effectiveAim();
+    const want = anglesTo(eye, point);
+    const err = Math.hypot(wrap(want.yaw - aimNow.yaw), want.pitch - aimNow.pitch);
+    // shoot when the sights are on: tolerance ~ target half-width, looser up close / when suppressing
+    const suppressing = !(th && th.visible);
+    // trained shooters wait for a proper sight picture; novices pull the trigger on a rough one
+    const tol = suppressing ? 0.06 : Math.atan(0.22 / d) * (d < 8 ? 2.2 : 1.3) * (0.8 + 0.4 * this.prof.aggression) * (1 + this.suppression * 1.2) * (1.55 - 0.6 * this.prof.skill);
+    // once a burst has started the finger keeps going through the recoil climb; only a big miss stops it
+    if (this.burstLeft > 0 ? err > tol * 5 : err > tol) { if (this.burstLeft > 0) this.burstLeft = 0; return; }
+    if (this.burstLeft <= 0) {
+      // trigger discipline: full auto up close, short bursts mid range, single shots far
+      this.burstLeft = suppressing ? this.r.range(3, 6) | 0 : d < 8 ? this.r.range(5, 10) | 0 : d < 25 ? this.r.range(3, 5) | 0 : d < 50 ? this.r.range(1, 3) | 0 : 1;
+      this.burstLeft = Math.max(1, Math.round(this.burstLeft * (1 + (1 - this.prof.discipline) * 0.9))); // novices hold the trigger down
+      if (A.firstShotPending !== A.targetId && th) { A.firstShotPending = A.targetId; if (th.firstSeenT != null) this.stats.firstShotTimes.push(now - th.firstSeenT); }
+    }
+    // spread: weapon + movement + stance
+    const moving = this.speed() > 0.5;
+    const spread = W.spread * (moving ? 3.5 : 1) * (this.stance === 'crouch' ? 0.8 : 1);
+    const r = spread * Math.sqrt(this.r()), a = this.r() * Math.PI * 2;
+    // trigger press disturbs the sights (flinch/jerk), worse for less skilled or stressed shooters
+    const fl = TUNE.aim.flinch * (1.5 - this.prof.skill) * (1 + this.suppression * 1.5);
+    const dir = dirOf(aimNow.yaw + Math.cos(a) * r + this.r.normal(0, fl), aimNow.pitch + Math.sin(a) * r + this.r.normal(0, fl));
+    const muzzle = v3(eye.x + dir.x * 0.6, eye.y - 0.05, eye.z + dir.z * 0.6);
+    const res = world.shoot(this, muzzle, dir, W);
+    this.stats.shots++; if (res.hit && res.hit.team !== this.team) this.stats.hits++;
+    W.mag--; this.lastShotT = now; this.burstLeft--;
+    this.nextShotT = now + 60 / W.rpm;
+    if (this.burstLeft <= 0) this.burstPauseUntil = now + this.r.range(0.18, 0.45) * (d > 25 ? 1.4 : 1);
+    A.recoil.p += W.kick * this.r.range(0.8, 1.2); A.recoil.y += this.r.normal(0, W.kickYaw);
+    world.emitSound(this.pos, TUNE.hearing.gunshot, 'shot', this.id);
+    world.events.push({ t: now, type: 'shot', from: this.id, hit: res.hit ? res.hit.id : null });
+  }
+}
+
+return { World, Agent, TUNE, PROFILES, util, rng };
+})();
+// =====================================================================
+//  Enemy fighters: the tested combat AI (ai/core.mjs → AICORE) running in the city
+// =====================================================================
+// A 140 m "arena" follows the player: its navigation grid and cover points are sampled from the
+// city's real collision boxes, and line of sight / bullets use the same collision as the player.
+// The AI still only knows what it perceives (sight, sound, being shot at, squad callouts).
+const BOTS = (() => {
+  const { World, Agent, TUNE } = AICORE;
+  const SIZE = 140, RELOCATE = 45, N_BOTS = 6, RESPAWN_S = 14;
+  let NEXT = null;
+  class CityArena extends World {
+    constructor(cx, cz) { NEXT = { cx, cz }; super({ w: SIZE, h: SIZE, seed: (Math.random() * 1e9) | 0, cell: 0.5 }); this.recordTracers = true; this.light = new Map(); }
+    // walkable = nothing between knee and head height (floors, kerbs and the first stair steps don't block)
+    buildNav() {
+      this.ox = NEXT.cx; this.oz = NEXT.cz;
+      const c = this.cell; this.cols = Math.round(this.w / c); this.rows = Math.round(this.h / c);
+      this.blocked = new Uint8Array(this.cols * this.rows);
+      const pad = TUNE.body.radius + 0.1, tmp = [];
+      for (let j = 0; j < this.rows; j++) for (let i = 0; i < this.cols; i++) {
+        const k = j * this.cols + i;
+        if (i === 0 || j === 0 || i === this.cols - 1 || j === this.rows - 1) { this.blocked[k] = 1; continue; }
+        const x = this.ox - this.w / 2 + (i + 0.5) * c, z = this.oz - this.h / 2 + (j + 0.5) * c;
+        if (terrainH(x, z) > 0.5) { this.blocked[k] = 1; continue; }
+        for (const b of COL.near(x - pad, z - pad, x + pad, z + pad, tmp)) {
+          if (b.y1 < 0.5 || b.y0 > 1.7) continue;
+          const dx = x - b.cx, dz = z - b.cz, lx = dx * b.c - dz * b.s, lz = dx * b.s + dz * b.c;
+          if (Math.abs(lx) <= b.hx + pad && Math.abs(lz) <= b.hz + pad) { this.blocked[k] = 1; break; }
+        }
+      }
+    }
+    // cover = free cells hugging something solid (sampled, capped so tactical scoring stays cheap)
+    buildCoverPoints() {
+      const pts = [], C = this.cols, R = this.rows, b = this.blocked;
+      for (let j = 3; j < R - 3; j += 2) for (let i = 3; i < C - 3; i += 2) {
+        if (b[j * C + i]) continue;
+        for (const [di, dj] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) if (b[(j + dj) * C + i + di]) { pts.push({ p: this.cellPos(i, j), n: { x: -di / 2, y: 0, z: -dj / 2 } }); break; }
+      }
+      for (let i = pts.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [pts[i], pts[k]] = [pts[k], pts[i]]; }
+      return pts.slice(0, 700);
+    }
+    // daylight outside, dim under a roof
+    lightAt(p) {
+      const k = (Math.floor(p.x / 3) * 4099 + Math.floor(p.z / 3)) | 0;
+      let v = this.light.get(k);
+      if (v === undefined) { v = COL.ray(new V3(p.x + this.ox, 1.6, p.z + this.oz), UP, 14) ? 0.4 : 0.95; this.light.set(k, v); }
+      return v;
+    }
+    segHit(a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, L = Math.hypot(dx, dy, dz);
+      if (L < 1e-6) return Infinity;
+      const h = COL.ray(new V3(a.x + this.ox, a.y, a.z + this.oz), new V3(dx / L, dy / L, dz / L), L);
+      return h ? h.t / L : Infinity;
+    }
+  }
+
+  // ---------------- soldier model ----------------
+  const mats = {
+    cloth: std(0x9a8462, 0.95), vest: std(0x4c5236, 0.9), skin: std(0x8a6448, 0.8), dark: std(0x1e1f22, 0.7), gun: std(0x232427, 0.5, 0.4), wrap: std(0x6a5a44, 1),
+    flash: new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+  };
+  const bx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  function makeView(agent) {
+    const root = new THREE.Group(), hips = new THREE.Group(), upper = new THREE.Group(), arms = new THREE.Group();
+    root.add(hips); hips.position.y = 0.95; hips.add(upper);
+    const torso = M(bx(0.4, 0.56, 0.24), mats.cloth, upper, 0, 0.3, 0);
+    M(bx(0.44, 0.38, 0.3), mats.vest, upper, 0, 0.36, 0);
+    for (let i = 0; i < 3; i++) M(bx(0.1, 0.13, 0.06), mats.vest, upper, -0.12 + i * 0.12, 0.22, -0.17);
+    const head = M(new THREE.SphereGeometry(0.115, 10, 8), mats.skin, upper, 0, 0.74, 0);
+    M(new THREE.SphereGeometry(0.135, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mats.vest, upper, 0, 0.77, 0);
+    M(bx(0.22, 0.12, 0.2), mats.wrap, upper, 0, 0.66, 0.0);
+    const legs = [];
+    for (const s of [-1, 1]) {
+      const pivot = new THREE.Group(); pivot.position.set(s * 0.11, 0, 0); hips.add(pivot);
+      const leg = M(bx(0.16, 0.9, 0.18), mats.cloth, pivot, 0, -0.45, 0);
+      M(bx(0.16, 0.1, 0.28), mats.dark, pivot, 0, -0.9, -0.05);
+      legs.push({ pivot, mesh: leg });
+    }
+    // arms + rifle pitch together around the shoulders; the rifle points down −Z
+    arms.position.set(0, 0.6, 0); upper.add(arms);
+    M(bx(0.08, 0.1, 0.82), mats.gun, arms, 0.1, -0.08, -0.42);
+    M(bx(0.05, 0.16, 0.08), mats.gun, arms, 0.1, -0.2, -0.36);
+    M(bx(0.1, 0.1, 0.42), mats.cloth, arms, 0.2, -0.06, -0.14).rotation.y = -0.2;
+    M(bx(0.1, 0.1, 0.46), mats.cloth, arms, -0.08, -0.08, -0.26).rotation.y = 0.45;
+    const flash = M(new THREE.SphereGeometry(0.09, 6, 4), mats.flash, arms, 0.1, -0.08, -0.9); flash.visible = false; flash.scale.set(1, 1, 2.2);
+    root.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
+    const v = { agent, root, hips, upper, arms, legs, flash, phase: Math.random() * 6, y: 0, alive: true, deadT: 0, hits: [] };
+    for (const [mesh, part] of [[head, 'head'], [torso, 'torso'], [legs[0].mesh, 'legs'], [legs[1].mesh, 'legs']]) { mesh.userData.target = { type: 'bot', view: v, part }; hitList.push(mesh); v.hits.push(mesh); }
+    scene.add(root);
+    return v;
+  }
+  function dropView(v) { scene.remove(v.root); for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } }
+
+  // ---------------- state ----------------
+  let arena = null, me = null, views = [], pending = [], enabled = true, lastTracer = 0, tracersFx = [];
+  const tracerGeo2 = new THREE.BoxGeometry(0.025, 0.025, 1).translate(0, 0, -0.5);
+  const tracerMat2 = new THREE.MeshBasicMaterial({ color: 0xffc070, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const ui = (() => {
+    const hp = document.createElement('div'); hp.style.cssText = 'position:absolute;left:24px;bottom:92px;width:180px;height:6px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15)';
+    const fill = document.createElement('i'); fill.style.cssText = 'display:block;height:100%;width:100%;background:#c9d4c0;transition:width .15s'; hp.appendChild(fill);
+    const blood = document.createElement('div'); blood.style.cssText = 'position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(140,0,0,.85) 100%);opacity:0;transition:opacity .25s;z-index:5';
+    const dead = document.createElement('div'); dead.style.cssText = 'position:fixed;inset:0;display:none;place-items:center;pointer-events:none;color:#e8d8c8;font:600 22px Rajdhani,sans-serif;letter-spacing:.3em;background:rgba(40,0,0,.45);z-index:6'; dead.textContent = 'YOU WERE KILLED — REGROUPING…';
+    const cnt = document.createElement('div'); cnt.style.cssText = 'position:absolute;left:24px;bottom:104px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.55)';
+    const host = document.getElementById('hud'); host.appendChild(hp); host.appendChild(cnt); document.body.appendChild(blood); document.body.appendChild(dead);
+    return { fill, blood, dead, cnt };
+  })();
+  P.hp = 100; P.dead = false; P.hurtT = -99;
+
+  const toLocal = (x, z) => ({ x: x - arena.ox, y: 0, z: z - arena.oz });
+  function build(cx, cz) {
+    for (const v of views) dropView(v);
+    views = []; pending = [];
+    arena = new CityArena(cx, cz);
+    me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
+    me.script = (a, dt, w) => { a.pos = { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; };
+    me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
+      const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
+      if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
+    };
+    me.onHit = (dmg, part) => hurtPlayer(dmg, part);
+    me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
+    lastTracer = arena.time;
+    for (let i = 0; i < N_BOTS; i++) spawnBot(i);
+  }
+  // somewhere outdoors, 30–62 m away, out of the player's sight
+  function spawnPoint() {
+    const eye = new V3(P.pos.x, P.pos.y + 1.6, P.pos.z);
+    for (let t = 0; t < 300; t++) {
+      const a = Math.random() * Math.PI * 2, d = rand(30, 62), x = P.pos.x + Math.sin(a) * d, z = P.pos.z + Math.cos(a) * d;
+      if (Math.abs(x - arena.ox) > SIZE / 2 - 4 || Math.abs(z - arena.oz) > SIZE / 2 - 4) continue;
+      const g = GR.get(x, z); if (g !== GR.STREET && g !== GR.PAVE) continue;
+      const lp = toLocal(x, z); if (!arena.free(lp)) continue;
+      const tgt = new V3(x, 1.3, z), dir = tgt.clone().sub(eye), L = dir.length();
+      if (!COL.ray(eye, dir.divideScalar(L), L)) continue;   // visible from the player → not here
+      return lp;
+    }
+    return null;
+  }
+  function spawnBot(i) {
+    const p = spawnPoint(); if (!p) return false;
+    const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
+    const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
+    views.push(makeView(a));
+    return true;
+  }
+  function hurtPlayer(dmg, part) {
+    if (P.dead) return;
+    P.hp = Math.max(0, P.hp - dmg * 0.5); P.hurtT = time0();
+    audio.hurt(); P.shake = Math.min(2, P.shake + 0.8);
+    ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
+    me.health = P.hp;
+    if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
+  }
+  let clock = 0; const time0 = () => clock;
+  // player's own shots: the AI hears them, and rounds cracking past make it duck
+  function playerShot(origin, dir) {
+    if (!arena || !enabled) return;
+    const lo = toLocal(origin.x, origin.z);
+    me.lastShotT = arena.time;
+    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
+    for (const v of views) {
+      const a = v.agent; if (!a.alive) continue;
+      const c = new V3(a.pos.x + arena.ox, (a.pos.y || 0) + a.top() * 0.7, a.pos.z + arena.oz), w = c.clone().sub(origin), t = w.dot(dir);
+      if (t <= 0) continue;
+      const miss = c.distanceTo(origin.clone().addScaledVector(dir, t));
+      if (miss < TUNE.suppression.missRadius) a.onNearMiss(miss, me, arena);
+    }
+  }
+  // a player round struck a soldier
+  function hit(tg, p, b) {
+    const a = tg.view.agent; if (!a.alive) return;
+    const dmg = TUNE.weapon.dmg[tg.part] * clamp(b.mass ?? 1, 0.3, 1.3);
+    a.onHit(dmg, tg.part, me, b.d0, arena);
+    emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6);
+    audio.fleshHit(p.distanceTo(P.pos));
+    hitFx(false);
+    if (!a.alive) { P.stats.score += tg.part === 'head' ? 40 : 25; feed(`<span class="s">ENEMY DOWN${tg.part === 'head' ? ' — HEADSHOT' : ''} +${tg.part === 'head' ? 40 : 25}</span>`); }
+  }
+
+  function animate(v, dt) {
+    const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;
+    v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
+    v.root.position.set(wx, v.y, wz);
+    if (!a.alive) {
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } pending.push(RESPAWN_S); }
+      v.deadT += dt; const k = Math.min(1, v.deadT / 0.55);
+      v.root.rotation.x = -k * k * Math.PI / 2 * 0.95; v.hips.position.y = 0.95 - k * 0.7;
+      return;
+    }
+    v.root.rotation.y = damp(v.root.rotation.y, a.look.yaw, 10, dt);
+    const sp = Math.hypot(a.vel.x, a.vel.z), crouch = a.stance === 'crouch' ? 1 : a.stance === 'duck' ? 1.4 : 0;
+    v.phase += dt * (2.5 + sp * 1.6);
+    const swing = Math.sin(v.phase) * 0.65 * Math.min(1, sp / 3);
+    v.legs[0].pivot.rotation.x = swing - crouch * 0.9; v.legs[1].pivot.rotation.x = -swing - crouch * 0.9;
+    for (const l of v.legs) l.pivot.scale.y = 1 - crouch * 0.18;
+    v.hips.position.y = damp(v.hips.position.y, 0.95 - crouch * 0.38, 10, dt);
+    v.upper.rotation.x = damp(v.upper.rotation.x, -crouch * 0.25 - Math.min(0.2, sp * 0.04), 8, dt);
+    v.arms.rotation.x = damp(v.arms.rotation.x, a.look.pitch + crouch * 0.25, 14, dt);
+    v.flash.visible = arena.time - a.lastShotT < 0.05;
+  }
+  function tracers() {
+    for (const tr of arena.tracers) {
+      if (tr.t <= lastTracer) continue;
+      const A = new V3(tr.a.x + arena.ox, tr.a.y, tr.a.z + arena.oz), B = new V3(tr.b.x + arena.ox, tr.b.y, tr.b.z + arena.oz);
+      const d = B.clone().sub(A), L = d.length(); d.divideScalar(L);
+      const m = new THREE.Mesh(tracerGeo2, tracerMat2); m.position.copy(A); m.lookAt(B); m.scale.set(1, 1, Math.min(L, 14)); m.frustumCulled = false;
+      scene.add(m); tracersFx.push({ m, A, d, L, t: 0 });
+      audio.enemyShot(A.distanceTo(P.pos));
+      if (!tr.hit) { const h = COL.ray(A, d, L + 0.2); if (h) { HOLES.add(h.point, h.normal, 1); emitPuff(h.point, 0x8a8478, 0.08, 0.7, h.normal.clone().multiplyScalar(0.6), 0.35, 1.6); emitSparks(h.point, 3, h.normal, [0.9, 0.75, 0.5], 2); } }
+    }
+    lastTracer = arena.time;
+  }
+  function update(dt) {
+    clock += dt;
+    if (!enabled || !MAP.ready) return;
+    if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
+    arena.step(Math.min(dt, 0.05));
+    for (const v of views) animate(v, dt);
+    tracers();
+    for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
+    // replacements for the fallen (out of sight), cleanup of old bodies
+    for (let i = pending.length - 1; i >= 0; i--) { pending[i] -= dt; if (pending[i] <= 0 && spawnBot(views.length)) pending.splice(i, 1); }
+    for (let i = views.length - 1; i >= 0; i--) { const v = views[i]; if (!v.alive && v.deadT > 25) { dropView(v); views.splice(i, 1); arena.agents.splice(arena.agents.indexOf(v.agent), 1); } }
+    // health: slow regeneration after a few quiet seconds; death → regroup at the spawn
+    if (P.dead) {
+      for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
+      P.deadT -= dt;
+      if (P.deadT <= 0) { P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; build(P.pos.x, P.pos.z); }
+    } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
+    ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
+    if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
+    ui.cnt.textContent = `HOSTILES ${views.filter((v) => v.agent.alive).length}`;
+  }
+  function setEnabled(on) {
+    enabled = on;
+    if (!on) { for (const v of views) dropView(v); views = []; arena = null; for (const f of tracersFx) scene.remove(f.m); tracersFx = []; ui.cnt.textContent = 'HOSTILES OFF'; ui.blood.style.opacity = '0'; }
+    feed(`<span class="m">HOSTILES ${on ? 'ON' : 'OFF'}</span>`);
+  }
+  return { update, hit, playerShot, toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+})();
 // =====================================================================
 //  Input
 // =====================================================================
@@ -7700,6 +8821,7 @@ addEventListener('keydown', (e) => {
     case 'KeyV': P.fp = !P.fp; break;
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
+    case 'KeyN': BOTS.toggle(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -7908,7 +9030,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') updateRange(dt, time); else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); BOTS.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -7950,7 +9072,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM;
+window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

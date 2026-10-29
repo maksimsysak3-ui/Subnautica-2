@@ -250,19 +250,19 @@ function dressLanes(streets, district) {
 }
 
 // ---------------- MELLAH: older quarter north of the medina (balconied houses) ----------------
-const MELLAH = [[-380, -830], [-120, -830], [-110, -440], [-380, -585]];
+const MELLAH = [[-380, -662], [-120, -662], [-110, -440], [-380, -585]];
 function buildMellah() {
   const poly = [...MELLAH, MELLAH[0]];
   const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 4;
   const main = [
-    addStreet([[-375, -600], [-300, -640], [-230, -700], [-170, -760], [-125, -815]], 6, 'lane', { district: 'mellah' }),
-    addStreet([[-300, -560], [-280, -640], [-300, -720], [-280, -815]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-200, -520], [-210, -600], [-180, -680], [-200, -815]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-360, -760], [-300, -720], [-210, -600], [-130, -520]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-375, -600], [-300, -625], [-230, -642], [-140, -655]], 6, 'lane', { district: 'mellah' }),
+    addStreet([[-300, -560], [-292, -610], [-285, -658]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-200, -520], [-210, -590], [-195, -658]], 5, 'lane', { district: 'mellah' }),
+    addStreet([[-130, -500], [-205, -570], [-300, -615]], 5, 'lane', { district: 'mellah' }),
   ];
   const sec = [];
   for (const a of main) sec.push(...branches(a, { gapMin: 28, gapMax: 45, lenMin: 30, lenMax: 90, wMin: 3.0, wMax: 3.8, inside, kind: 'alley', district: 'mellah' }));
-  groundPlate(-385, -832, -105, -435, 0x9a8a72, TX.cobble, 5, 0.03, (x, z) => pip(poly, x, z));
+  groundPlate(-385, -664, -105, -435, 0x9a8a72, TX.cobble, 5, 0.03, (x, z) => pip(poly, x, z));
   for (const a of main) ribbon(a.pts, -a.w / 2, a.w / 2, 0.045, 0x8a8478, TX.paving, { wear: 6 });
   const raise = (lots) => raiseLots(lots, (lot) => {
     if (lot.w >= 9 && lot.d >= 9 && mchance(0.08)) { apartment(lot, { enter: true, floors: 3, shops: mchance(0.5), balcony: 0.8, win: 'shut' }); return; }
@@ -271,7 +271,7 @@ function buildMellah() {
   });
   for (const a of main) for (const side of [1, -1]) raise(lotsAlong(a, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 14, region: inside }));
   for (const s of sec) for (const side of [1, -1]) raise(lotsAlong(s, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 13, region: inside }));
-  for (const r of fillFree(-385, -832, -105, -435, inside, { max: 22, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6, 6.6, 7.2]), col: mpick([MC.whitewash, MC.cream, 0xd8e4ec]), clutter: mchance(0.5) }); }
+  for (const r of fillFree(-385, -664, -105, -435, inside, { max: 22, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6, 6.6, 7.2]), col: mpick([MC.whitewash, MC.cream, 0xd8e4ec]), clutter: mchance(0.5) }); }
   for (const s of [...main, ...sec]) laneOverhead(s, { every: 15 });
   dressLanes([...main, ...sec], 'mellah');
 }

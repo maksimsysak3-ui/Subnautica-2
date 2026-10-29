@@ -229,6 +229,17 @@ const audio = (() => {
     magIn(small) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.05, 'lowpass', 700, 1, 0.6, 0.06, 0.1); nz(t + 0.015, 0.02, 'bandpass', 3000, 4, 0.5, 0.02); tone(t, 'sine', 180, 90, 0.25, 0.06); },
     pouch() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.15, 'bandpass', 1200, 0.6, 0.12, 0.15, 0, 600); },
     boltRelease(slide) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.03, 'bandpass', slide ? 3000 : 2200, 2, 0.8, 0.04, 0.2); tone(t, 'triangle', 820, 600, 0.18, 0.08, 0.1); nz(t + 0.012, 0.02, 'highpass', 5000, 1, 0.3, 0.02); },
+    // a rifle fired by someone else: delayed by distance, duller and quieter the further it is
+    enemyShot(dist) {
+      if (!ctx) return; const t = ctx.currentTime + dist / 343, k = 1 / (1 + dist / 25), p = rand(0.92, 1.08);
+      nz(t, 0.05, 'highpass', 2000 * p, 0.7, 0.8 * k, 0.04, 0.7);
+      nz(t, 0.4, 'lowpass', Math.max(400, 2200 - dist * 8) * p, 0.8, 0.9 * k + 0.05, 0.35, 1.0, 200);
+      tone(t, 'sine', 110 * p, 35, 0.7 * k, 0.25, 0.5);
+    },
+    // supersonic crack of a round passing close by
+    crack() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.012, 'highpass', 4500, 1, 0.55, 0.012, 0.1); nz(t + 0.004, 0.06, 'bandpass', 2400, 2, 0.12, 0.05, 0.3); },
+    hurt() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.09, 'lowpass', 420, 1, 0.9, 0.09, 0.1); tone(t, 'sine', 70, 40, 0.6, 0.15); },
+    fleshHit(dist) { if (!ctx) return; const t = ctx.currentTime + dist / 343; nz(t, 0.06, 'lowpass', 700, 1, 0.5 / (1 + dist / 15), 0.06, 0.1); },
     step(crouch, run = 0) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.07, 'lowpass', crouch ? 300 : 500 + run * 200, 1, crouch ? 0.06 : 0.14 + run * 0.08, 0.07, 0.15); if (run > 0.5) nz(t + 0.02, 0.06, 'bandpass', 1800, 1.5, 0.05, 0.06); },
     ding(dist, size) {
       if (!ctx) return; const t = ctx.currentTime + dist / 343, f = 520 * Math.sqrt(0.35 / size) * rand(0.97, 1.03);

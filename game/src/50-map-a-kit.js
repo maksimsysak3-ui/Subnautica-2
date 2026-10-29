@@ -39,10 +39,10 @@ function vnoise(x, z) {
   return lerp(lerp(a, b, u), lerp(c, d, u), v);
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
-const CITY_R = 830; // flat city plateau half-size
+// flat city plateau: a rectangle (the medina spreads further west than the new town east)
+const CITY = { x0: -845, x1: 665, z0: -685, z1: 625 };
 function rawTerrain(x, z) {
-  const r = Math.max(Math.abs(x) * 0.96, Math.abs(z)) + fbm(x * 0.004, z * 0.004) * 60 - 30;
-  const out = Math.max(0, r - CITY_R);
+  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z, z - CITY.z1) + fbm(x * 0.004, z * 0.004) * 60 - 30);
   let h = out > 0 ? 95 * (1 - Math.exp(-((out / 160) ** 1.4))) + (fbm(x * 0.008, z * 0.008) - 0.5) * 22 * Math.min(1, out / 60) : 0;
   h += (fbm(x * 0.03 + 5, z * 0.03) - 0.5) * 1.6 * Math.min(1, out / 30);
   return h;

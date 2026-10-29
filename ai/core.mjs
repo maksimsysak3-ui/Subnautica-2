@@ -197,7 +197,7 @@ export class World {
       const A = dir.x * dir.x + dir.z * dir.z, B = 2 * (ox * dir.x + oz * dir.z), Cc = ox * ox + oz * oz - r * r;
       const disc = B * B - 4 * A * Cc;
       // near-miss suppression (closest approach to the chest)
-      const chest = v3(a.pos.x, top * 0.7, a.pos.z), w = sub(chest, origin), tc = w.x * dir.x + w.y * dir.y + w.z * dir.z;
+      const chest = v3(a.pos.x, (a.pos.y || 0) + top * 0.7, a.pos.z), w = sub(chest, origin), tc = w.x * dir.x + w.y * dir.y + w.z * dir.z;
       if (tc > 0 && tc < best.t) {
         const cp = add(origin, mul(dir, tc)), miss = len(sub(cp, chest));
         if (miss < TUNE.suppression.missRadius && a.team !== shooter.team) a.onNearMiss(miss, shooter, this);
@@ -206,14 +206,14 @@ export class World {
       const t = (-B - Math.sqrt(disc)) / (2 * A);
       if (t < 0 || t >= best.t) continue;
       const y = origin.y + dir.y * t;
-      if (y < 0 || y > top) continue;
+      if (y < (a.pos.y || 0) || y > (a.pos.y || 0) + top) continue;
       best = { t, agent: a, y };
     }
     const hitPt = add(origin, mul(dir, Math.min(best.t, W.range)));
     if (this.recordTracers) { this.tracers.push({ a: { ...origin }, b: hitPt, t: this.time, team: shooter.team, hit: !!best.agent }); if (this.tracers.length > 200) this.tracers.shift(); }
     if (best.agent) {
       const a = best.agent, top = a.top();
-      const part = best.y > top - 0.26 ? 'head' : best.y > top * 0.5 ? 'torso' : 'legs';
+      const ry = best.y - (a.pos.y || 0), part = ry > top - 0.26 ? 'head' : ry > top * 0.5 ? 'torso' : 'legs';
       this.stats.hits++;
       if (a.team === shooter.team) this.stats.friendlyHits++;
       a.onHit(W.dmg[part], part, shooter, dir, this);
@@ -270,9 +270,9 @@ export class Agent {
     this.script = null; // for test dummies
     world.agents.push(this);
   }
-  eye() { const B = TUNE.body; return v3(this.pos.x, this.stance === 'duck' ? B.duckEye : this.stance === 'crouch' ? B.crouchEye : B.standEye, this.pos.z); }
+  eye() { const B = TUNE.body; return v3(this.pos.x, (this.pos.y || 0) + (this.stance === 'duck' ? B.duckEye : this.stance === 'crouch' ? B.crouchEye : B.standEye), this.pos.z); }
   top() { const B = TUNE.body; return this.stance === 'duck' ? B.duckTop : this.stance === 'crouch' ? B.crouchTop : B.standTop; }
-  bodyPts() { const t = this.top(); return [v3(this.pos.x, t - 0.12, this.pos.z), v3(this.pos.x, t * 0.7, this.pos.z), v3(this.pos.x, t * 0.42, this.pos.z)]; }
+  bodyPts() { const t = this.top(), y = this.pos.y || 0; return [v3(this.pos.x, y + t - 0.12, this.pos.z), v3(this.pos.x, y + t * 0.7, this.pos.z), v3(this.pos.x, y + t * 0.42, this.pos.z)]; }
   speed() { return Math.hypot(this.vel.x, this.vel.z); }
   enemies(world) { return world.agents.filter((a) => a.team !== this.team); }
 
@@ -307,7 +307,7 @@ export class Agent {
         // seen
         if (s >= 1) {
           const err = d * 0.01 * (1 - clamp(world.lightAt(o.pos), 0, 1));
-          const pos = v3(o.pos.x + this.r.normal(0, err), 0, o.pos.z + this.r.normal(0, err));
+          const pos = v3(o.pos.x + this.r.normal(0, err), o.pos.y || 0, o.pos.z + this.r.normal(0, err));
           const firstContact = !m || (!m.visible && now - m.t > 3);
           if (!m) { m = { id: o.id }; this.mem.set(o.id, m); }
           if (firstContact) { m.firstSeenT = now; this.stats.detections.push({ t: now, d, light: world.lightAt(o.pos) }); }
@@ -320,7 +320,7 @@ export class Agent {
           // something moved over there: rough position, not yet identified
           const err = d * 0.08;
           if (!m) { m = { id: o.id, conf: 0 }; this.mem.set(o.id, m); }
-          if (!m.t || now - m.t > 1) Object.assign(m, { pos: v3(o.pos.x + this.r.normal(0, err), 0, o.pos.z + this.r.normal(0, err)), vel: v3(), t: now, visible: false, conf: Math.max(m.conf || 0, 0.35), source: 'glimpse' });
+          if (!m.t || now - m.t > 1) Object.assign(m, { pos: v3(o.pos.x + this.r.normal(0, err), o.pos.y || 0, o.pos.z + this.r.normal(0, err)), vel: v3(), t: now, visible: false, conf: Math.max(m.conf || 0, 0.35), source: 'glimpse' });
         } else if (m && m.visible) m.visible = false;
       } else {
         s = Math.max(0, s - V.decay * dt);
@@ -402,7 +402,7 @@ export class Agent {
   }
 
   // =========================== BELIEF HELPERS ===========================
-  est(m, now) { const age = Math.min(now - m.t, TUNE.memory.predict); return v3(m.pos.x + m.vel.x * age, 0, m.pos.z + m.vel.z * age); }
+  est(m, now) { const age = Math.min(now - m.t, TUNE.memory.predict); return v3(m.pos.x + m.vel.x * age, m.pos.y || 0, m.pos.z + m.vel.z * age); }
   uncertainty(m, now) { return 0.4 + TUNE.memory.growth * (now - m.t); }
   threat(now) {
     let best = null, bs = -Infinity;
@@ -561,7 +561,7 @@ export class Agent {
       const p = world.nearestFree(v3(est.x + Math.sin(a) * r, 0, est.z + Math.cos(a) * r));
       if (!world.inBounds(p)) continue;
       // must be able to see where the enemy is hiding from there (standing)
-      if (!world.los(v3(p.x, 1.6, p.z), v3(est.x, 1.0, est.z))) continue;
+      if (!world.los(v3(p.x, 1.6, p.z), v3(est.x, (est.y || 0) + 1.0, est.z))) continue;
       const travel = dist2d(this.pos, p);
       if (travel > 35) continue;
       const angGain = Math.abs(wrap(a - cur));
@@ -608,13 +608,13 @@ export class Agent {
       if (th && th.visible) {
         const o = world.agents.find((a) => a.id === th.id);
         // aim at what is exposed: centre mass, or the head if that's all that shows
-        aimPoint = th.exposure < 0.5 ? v3(th.pos.x, (th.stance === 'crouch' ? 1.12 : 1.62), th.pos.z) : v3(th.pos.x, th.stance === 'crouch' ? 0.85 : 1.2, th.pos.z);
+        aimPoint = th.exposure < 0.5 ? v3(th.pos.x, (th.pos.y || 0) + (th.stance === 'crouch' ? 1.12 : 1.62), th.pos.z) : v3(th.pos.x, (th.pos.y || 0) + (th.stance === 'crouch' ? 0.85 : 1.2), th.pos.z);
         aimId = th.id;
         fire = !reloading;
         void o;
       } else if (est) {
         // pre-aim where they're expected to reappear (head height); suppress = fire at it
-        aimPoint = v3(est.x, 1.35, est.z); aimId = th.id;
+        aimPoint = v3(est.x, (est.y || 0) + 1.35, est.z); aimId = th.id;
         fire = t === 'suppress' && !reloading;
       }
       this.handleCoverPeek(world, est, t, th);
@@ -641,13 +641,13 @@ export class Agent {
         if (D > 0.6) this.stance = 'crouch';
       }
       // while moving: watch the threat if known, otherwise look where you're going (and check sounds)
-      if (th && th.visible) { aimPoint = v3(th.pos.x, 1.2, th.pos.z); aimId = th.id; fire = !reloading && (t === 'flank' || t === 'search' || dist2d(this.pos, th.pos) < 10); }
+      if (th && th.visible) { aimPoint = v3(th.pos.x, (th.pos.y || 0) + 1.2, th.pos.z); aimId = th.id; fire = !reloading && (t === 'flank' || t === 'search' || dist2d(this.pos, th.pos) < 10); }
       else if (this.attention && now < this.attentionUntil) aimPoint = v3(this.attention.x, 1.4, this.attention.z);
-      else if (est && t !== 'patrol' && t !== 'roam') aimPoint = v3(est.x, 1.4, est.z);
+      else if (est && t !== 'patrol' && t !== 'roam') aimPoint = v3(est.x, (est.y || 0) + 1.4, est.z);
       else if (step) aimPoint = add(this.eye(), mul(step.dir, 10));
       if (t === 'search' || t === 'flank') this.stance = 'stand';
     } else if (t === 'reload') {
-      if (est) aimPoint = v3(est.x, 1.3, est.z);
+      if (est) aimPoint = v3(est.x, (est.y || 0) + 1.3, est.z);
       this.stance = est && this.coveredFrom(world, est) ? 'duck' : 'crouch';
       if (!reloading) this.action.minUntil = 0;
     } else {
@@ -674,7 +674,7 @@ export class Agent {
     } else if (coveredCrouch && coveredStand && (t === 'engage' || t === 'hold' || t === 'suppress')) {
       // high cover: step out to an edge that sees the threat, then back
       if (!this.action.peekPos) {
-        const tp = v3(est.x, 1.2, est.z);
+        const tp = v3(est.x, (est.y || 0) + 1.2, est.z);
         for (const a of [0, 1, -1, 2, -2, 3, -3]) {
           for (const r of [0.8, 1.4, 2.0]) {
             const right = v3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
