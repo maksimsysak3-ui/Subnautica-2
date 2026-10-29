@@ -42,21 +42,31 @@ const MENU = (() => {
       g.save(); g.translate(w - 150, h - 90); g.rotate(-0.18); g.strokeStyle = 'rgba(170,30,25,0.85)'; g.lineWidth = 5; g.strokeRect(-110, -32, 220, 64); g.fillStyle = 'rgba(170,30,25,0.85)'; g.font = '700 30px "Courier New",monospace'; g.textAlign = 'center'; g.fillText(c.id === 'op' ? 'EYES ONLY' : 'TOP SECRET', 0, 11); g.restore();
     });
   }
+  // a print of a real photo of the place: white border, a strip of tape, slightly faded
+  function print(g, img, x, y, w, h, rot) {
+    g.save(); g.translate(x, y); g.rotate(rot);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(-8, -6, w + 28, h + 52);
+    g.fillStyle = '#fbfaf6'; g.fillRect(-12, -12, w + 24, h + 46);
+    if (img && img.complete && img.naturalWidth) { g.filter = 'saturate(0.82) contrast(1.06) sepia(0.12)'; const s = Math.max(w / img.naturalWidth, h / img.naturalHeight), iw = img.naturalWidth * s, ih = img.naturalHeight * s; g.save(); g.beginPath(); g.rect(0, 0, w, h); g.clip(); g.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih); g.restore(); g.filter = 'none'; }
+    else { g.fillStyle = '#2a2622'; g.fillRect(0, 0, w, h); }
+    g.fillStyle = 'rgba(220,210,180,0.75)'; g.fillRect(w / 2 - 40, -22, 80, 26);
+    g.restore();
+  }
+  // redraw a texture once its photos have decoded
+  function whenPhotos(id, t, w, h, draw) { for (const img of CASE_IMG[id] || []) if (!img.complete) img.addEventListener('load', () => { draw(t.image.getContext('2d'), w, h); t.needsUpdate = true; }); }
   function pageTex(c) {
-    return tex(1024, 768, (g, w, h) => {
+    const draw = (g, w, h) => {
       g.fillStyle = '#f2ead6'; g.fillRect(0, 0, w, h);
       for (let y = 120; y < h; y += 34) { g.fillStyle = 'rgba(80,110,160,0.10)'; g.fillRect(0, y, w, 1); }
       g.fillStyle = '#1a1612'; g.font = '700 40px "Courier New",monospace'; g.fillText(c.id === 'op' ? 'OPERATOR' : `CASE ${c.no} — ${c.title}`, 50, 76);
       g.font = '24px "Courier New",monospace'; g.fillStyle = '#5a4a38'; g.fillText(c.place, 50, 112);
       g.font = '25px "Courier New",monospace'; g.fillStyle = '#1e1a16';
       c.lines.forEach((l, i) => { g.font = (l === 'OBJECTIVES' ? '700 ' : '') + '20px "Courier New",monospace'; g.fillText(l, 50, 180 + i * 34, c.photo ? 600 : 900); });
-      if (c.photo) {
-        g.save(); g.translate(w - 300, 150); g.rotate(0.05); g.scale(0.92, 0.92);
-        g.fillStyle = '#fafafa'; g.fillRect(-12, -12, 284, 244); const cv = document.createElement('canvas'); cv.width = 260; cv.height = 200; c.photo(cv.getContext('2d'), 260, 200); g.drawImage(cv, 0, 0);
-        g.fillStyle = '#9a9a9a'; g.fillRect(100, -26, 60, 22); g.restore();
-      }
+      const P2 = CASE_IMG[c.id];
+      if (P2 && P2.length) { print(g, P2[1] || P2[0], w - 330, 330, 260, 170, -0.06); print(g, P2[0], w - 360, 150, 290, 190, 0.05); }
       g.save(); g.translate(w - 240, h - 110); g.rotate(-0.12); g.strokeStyle = 'rgba(170,30,25,0.8)'; g.lineWidth = 5; g.strokeRect(-150, -40, 300, 80); g.fillStyle = 'rgba(170,30,25,0.8)'; g.font = '700 38px "Courier New",monospace'; g.textAlign = 'center'; g.fillText(c.id === 'op' ? 'CLEARED' : 'AUTHORISED', 0, 13); g.restore();
-    });
+    };
+    const t = tex(1024, 768, draw); whenPhotos(c.id, t, 1024, 768, draw); return t;
   }
 
   // ---------------- the office ----------------

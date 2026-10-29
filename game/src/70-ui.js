@@ -259,7 +259,7 @@ function frame(now) {
   W.updateLOD(camera);
   if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera, MAP.night ? 1.55 : 1); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
-  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); }
+  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); LOADSCREEN.done(); }
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };

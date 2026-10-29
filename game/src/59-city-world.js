@@ -44,6 +44,7 @@ function buildTerrain() {
 }
 
 function setLoading(msg, t) {
+  LOADSCREEN.progress(msg, t);
   const el = document.getElementById('loading'); if (!el) return;
   el.innerHTML = `<div><div style="margin-bottom:14px">${msg.toUpperCase()}…</div><div style="width:min(420px,70vw);height:3px;background:#2a2a2a;margin:0 auto"><div style="width:${Math.round(t * 100)}%;height:100%;background:#c9a45c;transition:width .2s"></div></div></div>`;
 }
