@@ -192,7 +192,8 @@ const BOTS = (() => {
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
     // kasbah sentries at their posts (each post stays empty for a while after its man falls)
-    for (const g of TOWN.guards) { if (clock < (g.deadUntil || 0)) continue; if (Math.abs(g.x - arena.ox) > SIZE / 2 - 4 || Math.abs(g.z - arena.oz) > SIZE / 2 - 4) continue; spawnGuard(g); }
+    TOWN.guards.filter((g) => clock >= (g.deadUntil || 0) && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4)
+      .sort((a, b) => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z)).slice(0, 14).forEach(spawnGuard);
     for (let i = 0; i < cap(); i++) spawnBot(i);
   }
   // somewhere outdoors, 30–62 m away, out of the player's sight

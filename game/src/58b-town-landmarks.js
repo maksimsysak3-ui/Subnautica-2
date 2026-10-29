@@ -38,15 +38,15 @@ function townWalls() {
   // east (south of the kasbah, behind the Mellah)
   rampartRun([154, -36], [154, 92], 10, 2.6, { inner: 1 });
   for (const [x, z] of [[-156, -136], [-118, -136], [-80, -136], [-40, -136], [30, -136], [-156, -96], [-156, -56], [-156, 40], [-156, 70], [154, 0], [154, 40], [154, 88]]) rampartTower(x, z);
-  townGate(-3, -136, 0, 'Bab Doukkala');
+  townGate(-3, -136, 0, 'Bab Doukkala', true);
   townGate(-156, 3, Math.PI / 2, 'Bab Zerka');
 }
 // a closed town gate: twin towers, horseshoe arch, studded doors, inscription band
-function townGate(x, z, ry, name) {
+function townGate(x, z, ry, name, open = false) {
   W.push(x, 0, z, ry);
   const col = 0xc8a07a, w = 5.2, H = 12;
   for (const s of [-1, 1]) rampartTower(s * 5.4, 0, 5.6, 14, col);
-  wall('x', -2.6, 2.6, 0, 0, H, 3.4, { col, tx: TX.stone, side: -1, ops: [{ at: 0, w: 3.6, h: 6.2, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'closed', double: true, zellige: 1, rimCol: 0xe8d8b8 }] });
+  wall('x', -2.6, 2.6, 0, 0, H, 3.4, { col, tx: TX.stone, side: -1, ops: [{ at: 0, w: 3.6, h: 6.2, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: open ? 'open' : 'closed', double: true, zellige: 1, rimCol: 0xe8d8b8 }] });
   W.box(w + 6, 0.8, 0.2, 0, H - 2, 1.8, 0xffffff, { t: TX.zellige, wear: 1, lod: 1 });
   for (let i = -2; i <= 2; i++) W.box(0.8, 0.9, 1.2, i * 1.1, H + 0.45, 0, col, { t: TX.stone, lod: 1 });
   W.pop();

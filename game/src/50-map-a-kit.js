@@ -40,7 +40,7 @@ function vnoise(x, z) {
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
 // the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
-const CITY = { x0: -165, x1: 165, z0: -150, z1: 118 };
+const CITY = { x0: -165, x1: 165, z0: -470, z1: 118 };
 const coastZ = (x) => (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
   const cz = coastZ(x);

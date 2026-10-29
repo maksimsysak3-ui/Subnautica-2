@@ -6,7 +6,7 @@
 // all read. Held in both hands, north up, with a red pin (and arrow) for you and a gold one for the
 // current objective. Aim (Q) brings it closer.
 const HANDMAP = (() => {
-  const X0 = -160, X1 = 160, Z0 = -140, Z1 = 120, CELL = 2, K = 0.00082, VEX = 2.4;   // world → model scale, vertical exaggeration
+  const X0 = -160, X1 = 160, Z0 = -450, Z1 = 120, CELL = 2, K = 0.0006, VEX = 2.4;   // world → model scale, vertical exaggeration
   const group = new THREE.Group(); group.visible = false;
   const tray = new THREE.Group(); group.add(tray);
   let built = false, open = false, t = 0;

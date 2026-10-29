@@ -9,6 +9,7 @@ function cityPlan() {
     ['The Great Mosque and its minaret', greatMosque],
     ['The tannery', tanneryYard],
     ['The kasbah', buildKasbah],
+    ['Dar el Makhzen, the palace', buildPalace],
     ['Authored houses and interiors', buildInteriors],
     ['Houses, shops and stalls, street by street', buildTownFronts],
     ['Rooftops', buildTownBlocks],
