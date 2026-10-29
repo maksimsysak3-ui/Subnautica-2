@@ -183,7 +183,7 @@ function seoulMissions({ fig, live, near, kit, S, flags }) {
   const F = flags;
   return [{
     title: 'THE BROKER’S DRIVE', reward: 700,
-    brief: 'The kasbah papers are on a drive, and a broker is selling it tonight to the gang that runs these streets. Our informant is waiting in the 24-hour store on Yanghwa-ro. Find out who has the drive, take it off him, and get underground.',
+    brief: 'A list of our people in the city is on a USB drive, and a broker is selling it tonight to the gang that runs these streets. Our informant is waiting in the 24-hour store on Yanghwa-ro. Find out who has the drive, take it off him, and get underground.',
     setup() {
       const f = F();
       f.informant = fig({ kit: kit({ top: 'hoodie', topColor: '#2a2a32', headwear: 'cap', hatColor: '#1a1a1a', pantsColor: '#2d3550' }), route: [[11.5, -13.2]], speed: 0 });
