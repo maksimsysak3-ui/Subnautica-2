@@ -288,7 +288,7 @@ export class Agent {
       for (const p of pts) if (world.los(eye, p)) { vis++; seenPt = seenPt || p; }
       let s = this.sus.get(o.id) || 0;
       const d = dist2d(this.pos, o.pos);
-      if (vis > 0 && d < 250) {
+      if (vis > 0 && d < (V.range || 250)) {
         const toO = sub(seenPt, eye), off = angBetween(lookDir, toO);
         const flash = now - o.lastShotT < 0.09 && !o.suppressed;
         if (off < V.fovHalf) {

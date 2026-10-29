@@ -7984,7 +7984,7 @@ class Agent {
       for (const p of pts) if (world.los(eye, p)) { vis++; seenPt = seenPt || p; }
       let s = this.sus.get(o.id) || 0;
       const d = dist2d(this.pos, o.pos);
-      if (vis > 0 && d < 250) {
+      if (vis > 0 && d < (V.range || 250)) {
         const toO = sub(seenPt, eye), off = angBetween(lookDir, toO);
         const flash = now - o.lastShotT < 0.09 && !o.suppressed;
         if (off < V.fovHalf) {
@@ -8618,42 +8618,111 @@ const BOTS = (() => {
     }
   }
 
-  // ---------------- soldier model ----------------
-  const mats = {
-    cloth: std(0x9a8462, 0.95), vest: std(0x4c5236, 0.9), skin: std(0x8a6448, 0.8), dark: std(0x1e1f22, 0.7), gun: std(0x232427, 0.5, 0.4), wrap: std(0x6a5a44, 1),
-    flash: new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
-  };
-  const bx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  function makeView(agent) {
-    const root = new THREE.Group(), hips = new THREE.Group(), upper = new THREE.Group(), arms = new THREE.Group();
-    root.add(hips); hips.position.y = 0.95; hips.add(upper);
-    const torso = M(bx(0.4, 0.56, 0.24), mats.cloth, upper, 0, 0.3, 0);
-    M(bx(0.44, 0.38, 0.3), mats.vest, upper, 0, 0.36, 0);
-    for (let i = 0; i < 3; i++) M(bx(0.1, 0.13, 0.06), mats.vest, upper, -0.12 + i * 0.12, 0.22, -0.17);
-    const head = M(new THREE.SphereGeometry(0.115, 10, 8), mats.skin, upper, 0, 0.74, 0);
-    M(new THREE.SphereGeometry(0.135, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mats.vest, upper, 0, 0.77, 0);
-    M(bx(0.22, 0.12, 0.2), mats.wrap, upper, 0, 0.66, 0.0);
-    const legs = [];
-    for (const s of [-1, 1]) {
-      const pivot = new THREE.Group(); pivot.position.set(s * 0.11, 0, 0); hips.add(pivot);
-      const leg = M(bx(0.16, 0.9, 0.18), mats.cloth, pivot, 0, -0.45, 0);
-      M(bx(0.16, 0.1, 0.28), mats.dark, pivot, 0, -0.9, -0.05);
-      legs.push({ pivot, mesh: leg });
-    }
-    // arms + rifle pitch together around the shoulders; the rifle points down −Z
-    arms.position.set(0, 0.6, 0); upper.add(arms);
-    M(bx(0.08, 0.1, 0.82), mats.gun, arms, 0.1, -0.08, -0.42);
-    M(bx(0.05, 0.16, 0.08), mats.gun, arms, 0.1, -0.2, -0.36);
-    M(bx(0.1, 0.1, 0.42), mats.cloth, arms, 0.2, -0.06, -0.14).rotation.y = -0.2;
-    M(bx(0.1, 0.1, 0.46), mats.cloth, arms, -0.08, -0.08, -0.26).rotation.y = 0.45;
-    const flash = M(new THREE.SphereGeometry(0.09, 6, 4), mats.flash, arms, 0.1, -0.08, -0.9); flash.visible = false; flash.scale.set(1, 1, 2.2);
-    root.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
-    const v = { agent, root, hips, upper, arms, legs, flash, phase: Math.random() * 6, y: 0, alive: true, deadT: 0, hits: [] };
-    for (const [mesh, part] of [[head, 'head'], [torso, 'torso'], [legs[0].mesh, 'legs'], [legs[1].mesh, 'legs']]) { mesh.userData.target = { type: 'bot', view: v, part }; hitList.push(mesh); v.hits.push(mesh); }
-    scene.add(root);
+  // ---------------- tuning for the city (the lab defaults are tuned for small arenas) ----------------
+  Object.assign(TUNE.vision, { rate: TUNE.vision.rate * 0.45, distScale: 24, range: 110 });
+  Object.assign(TUNE.aim, { react: 0.5, reactSpread: 0.3 });
+  TUNE.weapon.spread = 0.012;
+  const HURT = { head: 18, torso: 9, legs: 6 }, GRACE = 10;   // damage the player takes per hit (≈ 11 body hits)   // damage the player takes per hit (≈ 9 body hits)
+
+  // ---------------- soldiers use the player's own character rig + rifle, in enemy kit ----------------
+  const KITS = [
+    { ...PRESETS['Urban Black'] },
+    { ...PRESETS['Desert'], topColor: '#3b3a33', pantsColor: '#4a4436', vestColor: '#2c2e25', hatColor: '#3a3a30', packColor: '#2c2e25' },
+    { ...PRESETS['Woodland'], topColor: '#2a2d33', vestColor: '#33352a', pantsColor: '#2f3236' },
+  ];
+  let kitMats = null;
+  // clone every slot material per kit, coloured for that kit (the player's own materials are untouched)
+  function buildKitMats() {
+    kitMats = KITS.map((k) => { applyColors(k); const m = new Map(); for (const key in SLOT) { const mat = SLOT[key]; if (mat && mat.isMaterial) m.set(mat, mat.clone()); } return m; });
+    applyColors(cfg);
+  }
+  const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const pool = [];
+  function makeModel(k) {
+    if (!kitMats) buildKitMats();
+    const kit = KITS[k % KITS.length], mats = kitMats[k % KITS.length];
+    const c = buildCharacter(kit);
+    c.spine.rotation.order = 'YXZ'; c.head.rotation.order = 'YXZ'; c.pelvis.rotation.order = 'YXZ'; c.root.rotation.order = 'YXZ';
+    const g = buildRifle(kit);
+    c.root.add(g.group);
+    c.root.traverse((o) => { if (o.isMesh) { const r = mats.get(o.material); if (r) o.material = r; o.castShadow = true; } });
+    const flash = M(new THREE.SphereGeometry(0.07, 6, 4), flashMat, g.group, g.muzzle.x, g.muzzle.y, g.muzzle.z + 0.08); flash.scale.set(1, 1, 2.4); flash.visible = false;
+    // invisible hit volumes (head / torso / legs) that follow the rig
+    const px = { head: M(new THREE.SphereGeometry(0.135, 8, 6), proxyMat, c.root), torso: M(new THREE.BoxGeometry(0.46, 0.62, 0.32), proxyMat, c.root), legs: M(new THREE.BoxGeometry(0.38, 1, 0.26), proxyMat, c.root) };
+    scene.add(c.root);
+    return { ch: c, gun: g, flash, px, k };
+  }
+  function takeModel(i) { const m = pool.length ? pool.pop() : makeModel(i); m.ch.root.visible = true; return m; }
+  function makeView(agent, i) {
+    const model = takeModel(i);
+    const v = { agent, model, y: 0, yaw: agent.look.yaw, phase: Math.random() * 6, gaitW: 0, crouchT: 0, lowT: 0.6, prevU: [0, 0], alive: true, deadT: 0, hits: [] };
+    for (const part of ['head', 'torso', 'legs']) { const m = model.px[part]; m.userData.target = { type: 'bot', view: v, part }; hitList.push(m); v.hits.push(m); }
     return v;
   }
-  function dropView(v) { scene.remove(v.root); for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } }
+  function dropView(v) { for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } v.model.ch.root.visible = false; v.model.ch.root.rotation.x = 0; pool.push(v.model); }
+  // pose a soldier with the same IK helpers the player uses (swap the rig the helpers act on)
+  const _v = new V3(), _w = new V3(), _q = new THREE.Quaternion(), _q2b = new THREE.Quaternion();
+  function poseSoldier(v, dt, wx, wz, near) {
+    const a = v.agent, m = v.model, c = m.ch;
+    v.yaw = v.yaw + wrapA(a.look.yaw - v.yaw) * Math.min(1, dt * 10);
+    c.root.position.set(wx, v.y, wz); c.root.rotation.set(0, v.yaw + Math.PI, 0);
+    m.flash.visible = arena.time - a.lastShotT < 0.05;
+    if (!near) return;
+    const keepCh = ch, keepGun = gun; ch = c; gun = m.gun;
+    try {
+      const d = c.d;
+      const lv = _v.set(a.vel.x, 0, a.vel.z).applyAxisAngle(UP, -(v.yaw + Math.PI)), speed = Math.hypot(lv.x, lv.z);
+      v.gaitW = damp(v.gaitW, clamp(speed / 1.2, 0, 1), 8, dt);
+      v.crouchT = damp(v.crouchT, a.stance === 'stand' ? 0 : 1, 9, dt);
+      const engaging = a.action && (a.action.type === 'engage' || a.action.type === 'hold' || a.action.type === 'suppress');
+      v.lowT = damp(v.lowT, engaging ? 0 : speed > 3.5 ? 1 : 0.55, 6, dt);
+      const L = clamp(0.3 + speed * 0.13, 0.3, 1.05) * (1 - v.crouchT * 0.35);
+      if (speed > 0.05) v.phase += dt * Math.PI * speed / L;
+      const bob = v.gaitW * 0.028 * Math.abs(Math.sin(v.phase)), bladed = 1 - v.lowT * 0.6, pitch = a.look.pitch;
+      const pelYaw = -0.2 * bladed + Math.sin(v.phase) * 0.08 * v.gaitW, spYaw = -0.3 * bladed - Math.sin(v.phase) * 0.12 * v.gaitW;
+      c.pelvis.position.set(0, d.hipY - v.crouchT * d.hipY * 0.3 - bob, 0); c.pelvis.rotation.set(0, pelYaw, 0);
+      const lean = 0.12 * v.crouchT - 0.3 * pitch * (1 - v.lowT);
+      c.spine.rotation.set(lean, spYaw, 0);
+      c.head.rotation.set(-pitch * 0.55 - lean * 0.6, -(pelYaw + spYaw) * 0.95, 0);
+      c.root.updateMatrixWorld(true);
+      const dir = _w.set(lv.x, 0, lv.z); if (speed > 0.01) dir.divideScalar(speed);
+      [[c.legL, c.hipL, 1, 0], [c.legR, c.hipR, -1, Math.PI]].forEach(([leg, hipA, side, off]) => {
+        const hip = toRoot(hipA, T.a);
+        const u = (((v.phase + off) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        let along, lift = 0;
+        if (u < Math.PI) along = L / 2 - L * (u / Math.PI); else { const q = (u - Math.PI) / Math.PI; along = -L / 2 + L * smooth(q); lift = Math.sin(q * Math.PI); }
+        const st = T.b.set(side * (d.hipX + 0.025 + 0.04 * bladed + 0.05 * v.crouchT), d.ankle, 0);
+        st.z += side > 0 ? 0.1 * bladed + 0.24 * v.crouchT : -0.08 * bladed - 0.12 * v.crouchT;
+        st.addScaledVector(dir, along * v.gaitW); st.y += lift * 0.11 * v.gaitW;
+        T.pole.set(side * 0.2, 0, 1);
+        ik(hip, st, d.thigh, d.shin, T.pole, T.mid, T.end);
+        placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd);
+        leg.foot.position.copy(T.end); leg.foot.rotation.set(-lift * 0.35 * v.gaitW, side * 0.12 + pelYaw * 0.6, 0, 'YXZ');
+      });
+      // rifle: aimed along the look direction, or carried at low ready
+      const mount = toRoot(c.mount, T.a), low = toRoot(c.lowMount, T.b);
+      const aimW = _v.set(-Math.sin(a.look.yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(a.look.yaw) * Math.cos(pitch));
+      const dirRoot = aimW.applyQuaternion(_q.copy(c.root.quaternion).invert());
+      lookQuat(dirRoot, T.q);
+      lookQuat(T.c.set(0.66, -0.58, 0.48).normalize(), T.q2); T.q2.multiply(_q2b.setFromEuler(_e1.set(0, 0, 0.25)));
+      T.q.slerp(T.q2, v.lowT); mount.lerp(low, v.lowT);
+      gun.group.quaternion.copy(T.q);
+      const anchorPt = T.c.copy(gun.butt).multiplyScalar(GUN_SCALE).applyQuaternion(T.q);
+      gun.group.position.copy(mount).sub(anchorPt);
+      gun.group.updateMatrix(); gun.group.updateMatrixWorld(true);
+      const gunX = new V3(1, 0, 0).applyQuaternion(T.q), gunY = new V3(0, 1, 0).applyQuaternion(T.q);
+      placeArm(c.armR, toRoot(c.shR, T.a), gunToRoot(gun.gripWrist, T.b), gunToRoot(gun.gripPalm, new V3()), T.pole.set(-0.9, -1, -0.35), gunX);
+      const wrist = supportPt(gun.support.wrist, new V3()), palm = supportPt(gun.support.palm, new V3());
+      placeArm(c.armL, toRoot(c.shL, T.a), wrist, palm, T.pole.set(0.7, -1, -0.1), gunY);
+      // hit volumes follow the posed body
+      c.root.updateMatrixWorld(true);
+      const hp = toRoot(c.head, T.a); m.px.head.position.set(hp.x, hp.y + d.hh * 0.5, hp.z);
+      const sp = toRoot(c.spine, T.b); m.px.torso.position.set(sp.x, sp.y + d.torso * 0.45, sp.z);
+      const py = c.pelvis.position.y; m.px.legs.position.set(0, py / 2, 0); m.px.legs.scale.y = Math.max(0.3, py);
+    } finally { ch = keepCh; gun = keepGun; }
+  }
+  const wrapA = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
 
   // ---------------- state ----------------
   let arena = null, me = null, views = [], pending = [], enabled = true, lastTracer = 0, tracersFx = [];
@@ -8676,7 +8745,7 @@ const BOTS = (() => {
     views = []; pending = [];
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
-    me.script = (a, dt, w) => { a.pos = { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; };
+    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; };
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -8690,7 +8759,7 @@ const BOTS = (() => {
   function spawnPoint() {
     const eye = new V3(P.pos.x, P.pos.y + 1.6, P.pos.z);
     for (let t = 0; t < 300; t++) {
-      const a = Math.random() * Math.PI * 2, d = rand(30, 62), x = P.pos.x + Math.sin(a) * d, z = P.pos.z + Math.cos(a) * d;
+      const a = Math.random() * Math.PI * 2, d = rand(40, 66), x = P.pos.x + Math.sin(a) * d, z = P.pos.z + Math.cos(a) * d;
       if (Math.abs(x - arena.ox) > SIZE / 2 - 4 || Math.abs(z - arena.oz) > SIZE / 2 - 4) continue;
       const g = GR.get(x, z); if (g !== GR.STREET && g !== GR.PAVE) continue;
       const lp = toLocal(x, z); if (!arena.free(lp)) continue;
@@ -8704,18 +8773,18 @@ const BOTS = (() => {
     const p = spawnPoint(); if (!p) return false;
     const prof = ['recruit', 'recruit', 'operator', 'recruit', 'operator', 'veteran'][i % 6];
     const a = new Agent(arena, { team: 'red', pos: p, yaw: Math.random() * 6.28, profile: prof });
-    views.push(makeView(a));
+    views.push(makeView(a, i));
     return true;
   }
   function hurtPlayer(dmg, part) {
-    if (P.dead) return;
-    P.hp = Math.max(0, P.hp - dmg * 0.5); P.hurtT = time0();
+    if (P.dead || clock < graceUntil) return;
+    P.hp = Math.max(0, P.hp - (HURT[part] ?? 12)); P.hurtT = time0();
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
     if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
   }
-  let clock = 0; const time0 = () => clock;
+  let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
   function playerShot(origin, dir) {
     if (!arena || !enabled) return;
@@ -8742,25 +8811,16 @@ const BOTS = (() => {
   }
 
   function animate(v, dt) {
-    const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz;
+    const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz, c = v.model.ch;
     v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
-    v.root.position.set(wx, v.y, wz);
     if (!a.alive) {
-      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } pending.push(RESPAWN_S); }
-      v.deadT += dt; const k = Math.min(1, v.deadT / 0.55);
-      v.root.rotation.x = -k * k * Math.PI / 2 * 0.95; v.hips.position.y = 0.95 - k * 0.7;
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } pending.push(RESPAWN_S); v.model.flash.visible = false; }
+      v.deadT += dt; const k = Math.min(1, v.deadT / 0.6);
+      c.root.position.set(wx, v.y, wz); c.root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0);
       return;
     }
-    v.root.rotation.y = damp(v.root.rotation.y, a.look.yaw, 10, dt);
-    const sp = Math.hypot(a.vel.x, a.vel.z), crouch = a.stance === 'crouch' ? 1 : a.stance === 'duck' ? 1.4 : 0;
-    v.phase += dt * (2.5 + sp * 1.6);
-    const swing = Math.sin(v.phase) * 0.65 * Math.min(1, sp / 3);
-    v.legs[0].pivot.rotation.x = swing - crouch * 0.9; v.legs[1].pivot.rotation.x = -swing - crouch * 0.9;
-    for (const l of v.legs) l.pivot.scale.y = 1 - crouch * 0.18;
-    v.hips.position.y = damp(v.hips.position.y, 0.95 - crouch * 0.38, 10, dt);
-    v.upper.rotation.x = damp(v.upper.rotation.x, -crouch * 0.25 - Math.min(0.2, sp * 0.04), 8, dt);
-    v.arms.rotation.x = damp(v.arms.rotation.x, a.look.pitch + crouch * 0.25, 14, dt);
-    v.flash.visible = arena.time - a.lastShotT < 0.05;
+    const dist = Math.hypot(wx - camera.position.x, wz - camera.position.z);
+    poseSoldier(v, dt, wx, wz, dist < 70);
   }
   function tracers() {
     for (const tr of arena.tracers) {
@@ -8777,6 +8837,7 @@ const BOTS = (() => {
   function update(dt) {
     clock += dt;
     if (!enabled || !MAP.ready) return;
+    if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
     for (const v of views) animate(v, dt);
@@ -8789,11 +8850,11 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
-    ui.cnt.textContent = `HOSTILES ${views.filter((v) => v.agent.alive).length}`;
+    ui.cnt.textContent = clock < graceUntil ? `SPAWN PROTECTION ${Math.ceil(graceUntil - clock)}` : `HOSTILES ${views.filter((v) => v.agent.alive).length}`;
   }
   function setEnabled(on) {
     enabled = on;
