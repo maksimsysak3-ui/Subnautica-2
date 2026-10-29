@@ -302,6 +302,7 @@ export class Agent {
           let rate = V.rate * acuity * eff * size * distF * (moving ? 1.6 : 1) * (1 - 0.45 * this.suppression) * (0.55 + 0.6 * this.prof.skill);
           if (m && m.visible) rate *= 3; // already tracking
           rate *= 1 - (o.conceal || 0);   // blending into a crowd (host-supplied, 0..1)
+          if (o.disguise) rate *= 1 - o.disguise * clamp((d - 2.5) / 5, 0, 1);   // in someone else's clothes: only a close look gives you away
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);

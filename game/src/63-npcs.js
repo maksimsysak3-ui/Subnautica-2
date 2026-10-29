@@ -75,7 +75,7 @@ const NPCS = (() => {
     applyColors(cfg);
     const px = { head: M(new THREE.SphereGeometry(0.13, 8, 6), proxyMat, c.root, 0, c.d.hipY + 0.78, 0), torso: M(new THREE.BoxGeometry(0.44, 0.6, 0.3), proxyMat, c.root, 0, c.d.hipY + 0.32, 0), legs: M(new THREE.BoxGeometry(0.36, c.d.hipY, 0.24), proxyMat, c.root, 0, c.d.hipY / 2, 0) };
     scene.add(c.root);
-    return { ch: c, px };
+    return { ch: c, px, kit };
   }
 
   const civs = [];
@@ -105,7 +105,7 @@ const NPCS = (() => {
       if (terrainH(x, z) > 0.5 || !free(x, z)) continue;
       if (hidden && d2(x, z) < 60 * 60 && visibleFrom(x, z)) continue;
       v.x = x; v.z = z; v.y = COL.ground(x, z, 0.3); v.yaw = Math.random() * 6.28; v.panic = 0; v.idle = 0; v.stuckT = 0; v.tx = x; v.tz = z;
-      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.m.ch.root.rotation.x = 0;
+      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.ko = false; v.taken = false; v.m.ch.root.rotation.x = 0;
       if (v.plaza) newPlazaGoal(v);
       return true;
     }
@@ -252,5 +252,19 @@ const NPCS = (() => {
     P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>');
     alarm(p.x, p.z);
   }
-  return { update, alarm, conceal, hit, get civs() { return civs; } };
+  // ---- close quarters: a knocked-out civilian, and their clothes ----
+  function koTarget(pos) {
+    let best = null, bd = 1.7;
+    for (const v of civs) { if (!v.alive) continue; const d = Math.hypot(v.x - pos.x, v.z - pos.z); if (d < bd && Math.abs(v.y - pos.y) < 1) { bd = d; best = v; } }
+    return best;
+  }
+  function knockout(pos) {
+    const v = koTarget(pos); if (!v) return false;
+    v.alive = false; v.deadT = 0; v.ko = true; setHits(v, false);
+    feed('<span class="m">CIVILIAN KNOCKED OUT</span>');
+    alarm(v.x, v.z);
+    return true;
+  }
+  function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
+  return { update, alarm, conceal, hit, knockout, bodies, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();

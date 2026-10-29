@@ -8,18 +8,18 @@ addEventListener('keydown', (e) => {
   switch (e.code) {
     case 'KeyR': startReload(); break;
     case 'KeyB': { const I = inv(); if (WD().modes.length > 1) { I.mode = (I.mode + 1) % WD().modes.length; P.burst = 0; audio.switchMode(); } break; }
-    case 'KeyQ': aimKey.down = true; aimKey.t = performance.now(); break;
+    case 'KeyQ': if (P.holstered) DISGUISE.toggleHolster(false); aimKey.down = true; aimKey.t = performance.now(); break;
     case 'KeyZ': P.lean = -1; break;
     case 'KeyX': P.lean = 1; break;
-    case 'Digit1': switchTo('rifle'); break;
-    case 'Digit2': switchTo('shotgun'); break;
-    case 'Digit3': switchTo('pistol'); break;
-    case 'Digit4': switchTo('sniper'); break;
+    case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': { const id = ORDER[+e.code.slice(5) - 1]; if (P.holstered) { P.w === id ? DISGUISE.toggleHolster(false) : (equip(id), DISGUISE.toggleHolster(false)); } else switchTo(id); break; }
     case 'KeyV': P.fp = !P.fp; break;
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
-    case 'KeyE': MISSION.interact(); break;
+    case 'KeyE': DISGUISE.interact(); break;
+    case 'KeyF': DISGUISE.takedown(); break;
+    case 'KeyH': DISGUISE.toggleHolster(); break;
+    case 'KeyU': DISGUISE.ownGear(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -41,7 +41,7 @@ canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
     if (!locked && !lockFallback) { requestLock(); return; }
-    if (e.button === 0) { P.trigger = true; P.edge = true; }
+    if (e.button === 0) { if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', (e) => {
@@ -61,7 +61,7 @@ addEventListener('mousemove', (e) => {
   }
 });
 canvas.addEventListener('wheel', (e) => {
-  if (mode === 'range') { const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
+  if (mode === 'range') { if (P.holstered) return; const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
   if (mode !== 'custom') return;
   e.preventDefault();
   orbit.tdist = clamp(orbit.tdist * (1 + Math.sign(e.deltaY) * 0.1), 1.1, 7);
@@ -110,6 +110,7 @@ function enterRange() {
   if (lockFallback) setPaused(false);
 }
 function enterCustom() {
+  DISGUISE.ownGear(); if (P.holstered) DISGUISE.toggleHolster(false);
   mode = 'custom'; setPaused(false);
   keyLight.visible = rimLight.visible = fillLight.visible = true;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -228,7 +229,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -252,7 +253,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

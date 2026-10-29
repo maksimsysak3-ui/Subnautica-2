@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -8236,12 +8236,12 @@ const SCOPE = (() => {
   return {
     update(k) {
       if (k !== shown) { shown = k; el.style.display = k > 0.01 ? 'block' : 'none'; el.style.opacity = String(k); }
-      if (gun && gun.kind === 'sniper') gun.group.visible = k < 0.5;
+      if (gun && gun.kind === 'sniper' && !P.holstered) gun.group.visible = k < 0.5;
       if (k > 0.5) info.textContent = P.holdBreath ? 'BREATH HELD' : P.breath < 0.2 ? 'OUT OF BREATH' : 'SHIFT — HOLD BREATH';
     },
   };
 })();
-function canFire() { return !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
+function canFire() { return !P.holstered && !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
 function trigger(now) {
   if (mode !== 'range' || paused) { P.edge = false; return; }
   const I = inv(), W = WD(), m = W.modes[I.mode];
@@ -8421,7 +8421,7 @@ function updateRange(dt, time) {
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const shift = keys.ShiftLeft || keys.ShiftRight;
-  P.ads = aimKey.down || aimKey.toggled;
+  P.ads = (aimKey.down || aimKey.toggled) && !P.holstered;
   const sprint = shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
   P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
@@ -8525,7 +8525,7 @@ function updateRange(dt, time) {
   const mountW = (pistol ? ch.pistolMount : ch.mount).getWorldPosition(T.c);
   const dirW = T.d.subVectors(T.aim, mountW).normalize().lerp(T.camFwd, P.fpT * P.adsT).normalize();
   const dirRoot = dirW.applyQuaternion(_q2.copy(ch.root.quaternion).invert());
-  poseGun(dt, dirRoot, P.lowT, false);
+  poseGun(dt, dirRoot, P.lowT, P.holstered && !P.swap);
 
   // final camera: through the sights in first person ADS
   camera.quaternion.copy(T.camQ);
@@ -8889,6 +8889,7 @@ class Agent {
           let rate = V.rate * acuity * eff * size * distF * (moving ? 1.6 : 1) * (1 - 0.45 * this.suppression) * (0.55 + 0.6 * this.prof.skill);
           if (m && m.visible) rate *= 3; // already tracking
           rate *= 1 - (o.conceal || 0);   // blending into a crowd (host-supplied, 0..1)
+          if (o.disguise) rate *= 1 - o.disguise * clamp((d - 2.5) / 5, 0, 1);   // in someone else's clothes: only a close look gives you away
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);
@@ -9640,7 +9641,7 @@ const BOTS = (() => {
     views = []; pending = [];
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
-    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); };
+    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); a.disguise = DISGUISE.level(); };
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -9688,6 +9689,7 @@ const BOTS = (() => {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
     me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
+    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < 90)) DISGUISE.blow('shot');
     arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
@@ -9738,6 +9740,7 @@ const BOTS = (() => {
     if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
+    if (P.disguise && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible)) DISGUISE.blow('seen');
     for (const v of views) animate(v, dt);
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
@@ -9749,7 +9752,7 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
@@ -9760,7 +9763,32 @@ const BOTS = (() => {
     if (!on) { for (const v of views) dropView(v); views = []; arena = null; for (const f of tracersFx) scene.remove(f.m); tracersFx = []; ui.cnt.textContent = 'HOSTILES OFF'; ui.blood.style.opacity = '0'; }
     feed(`<span class="m">HOSTILES ${on ? 'ON' : 'OFF'}</span>`);
   }
-  return { update, hit, playerShot, toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  // ---- close quarters: bodies to strip, sentries to take down from behind ----
+  const wpos = (v) => ({ x: v.agent.pos.x + arena.ox, z: v.agent.pos.z + arena.oz });
+  function bodies() {
+    if (!arena) return [];
+    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', taken: v.taken, mark: () => { v.taken = true; } }; });
+  }
+  function takedownTarget(pos) {
+    if (!arena || !enabled) return null;
+    let best = null, bd = 1.8;
+    for (const v of views) {
+      if (!v.agent.alive) continue;
+      const w = wpos(v), dx = pos.x - w.x, dz = pos.z - w.z, d = Math.hypot(dx, dz);
+      if (d > bd || Math.abs((v.y || 0) - pos.y) > 1) continue;
+      const fx = -Math.sin(v.agent.look.yaw), fz = -Math.cos(v.agent.look.yaw), facing = (fx * dx + fz * dz) / (d || 1);
+      if (facing < 0.25 || !v.agent.mem.get(me.id)?.visible) { bd = d; best = v; }
+    }
+    return best;
+  }
+  function takedown(pos) {
+    const v = takedownTarget(pos); if (!v) return false;
+    const w = wpos(v);
+    v.agent.onHit(999, 'torso', me, { x: w.x - pos.x, y: 0, z: w.z - pos.z }, arena);
+    P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
+    return true;
+  }
+  return { update, hit, playerShot, bodies, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
 // =====================================================================
 //  Civilians: unarmed townsfolk walking the streets around the player
@@ -9839,7 +9867,7 @@ const NPCS = (() => {
     applyColors(cfg);
     const px = { head: M(new THREE.SphereGeometry(0.13, 8, 6), proxyMat, c.root, 0, c.d.hipY + 0.78, 0), torso: M(new THREE.BoxGeometry(0.44, 0.6, 0.3), proxyMat, c.root, 0, c.d.hipY + 0.32, 0), legs: M(new THREE.BoxGeometry(0.36, c.d.hipY, 0.24), proxyMat, c.root, 0, c.d.hipY / 2, 0) };
     scene.add(c.root);
-    return { ch: c, px };
+    return { ch: c, px, kit };
   }
 
   const civs = [];
@@ -9869,7 +9897,7 @@ const NPCS = (() => {
       if (terrainH(x, z) > 0.5 || !free(x, z)) continue;
       if (hidden && d2(x, z) < 60 * 60 && visibleFrom(x, z)) continue;
       v.x = x; v.z = z; v.y = COL.ground(x, z, 0.3); v.yaw = Math.random() * 6.28; v.panic = 0; v.idle = 0; v.stuckT = 0; v.tx = x; v.tz = z;
-      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.m.ch.root.rotation.x = 0;
+      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.ko = false; v.taken = false; v.m.ch.root.rotation.x = 0;
       if (v.plaza) newPlazaGoal(v);
       return true;
     }
@@ -10016,7 +10044,21 @@ const NPCS = (() => {
     P.stats.score -= 100; feed('<span class="m">CIVILIAN DOWN −100</span>');
     alarm(p.x, p.z);
   }
-  return { update, alarm, conceal, hit, get civs() { return civs; } };
+  // ---- close quarters: a knocked-out civilian, and their clothes ----
+  function koTarget(pos) {
+    let best = null, bd = 1.7;
+    for (const v of civs) { if (!v.alive) continue; const d = Math.hypot(v.x - pos.x, v.z - pos.z); if (d < bd && Math.abs(v.y - pos.y) < 1) { bd = d; best = v; } }
+    return best;
+  }
+  function knockout(pos) {
+    const v = koTarget(pos); if (!v) return false;
+    v.alive = false; v.deadT = 0; v.ko = true; setHits(v, false);
+    feed('<span class="m">CIVILIAN KNOCKED OUT</span>');
+    alarm(v.x, v.z);
+    return true;
+  }
+  function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
+  return { update, alarm, conceal, hit, knockout, bodies, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();
 // =====================================================================
 //  Mission 1 — "Dead Drop": recover the intel from a riad near the souk, extract to the civic plaza
@@ -10085,13 +10127,88 @@ const MISSION = (() => {
     way.innerHTML = `◆<br>${t.name} ${Math.round(dist)} m`;
   }
   function interact() {
-    if (stage !== 'intel' || P.dead) return;
-    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return;
+    if (stage !== 'intel' || P.dead) return false;
+    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return false;
     scene.remove(intel.g); stage = 'extract'; audio.switchMode();
     beam.material.color.set(0x7ae0a0);
     feed('<span class="s">INTEL RECOVERED</span>'); show('INTEL RECOVERED', 'Get to the boat at the end of the jetty (green marker)', 4);
+    return true;
   }
   return { update, interact, get stage() { return stage; }, get intel() { return intel; } };
+})();
+// =====================================================================
+//  Disguise: hide your weapons, take the clothes off a fallen militiaman or a knocked-out civilian
+// =====================================================================
+// The AI reads it through a single number on the player agent (`disguise`, 0..1): how much a uniform
+// or plain clothes slow recognition. Close up (under ~3 m) nobody is fooled; shooting, being made by
+// a sentry or running about with a rifle in civilian clothes blows your cover for a while.
+const DISGUISE = (() => {
+  P.holstered = false; P.disguise = null; P.blownUntil = -99;
+  let own = null, t = 0;
+  const host = document.getElementById('hud');
+  const tag = document.createElement('div'); tag.style.cssText = 'position:absolute;left:24px;bottom:122px;font-size:12px;letter-spacing:.15em;color:rgba(255,255,255,.6)'; host.appendChild(tag);
+  const prompt = document.createElement('div'); prompt.style.cssText = 'position:absolute;left:50%;top:60%;transform:translateX(-50%);font-size:15px;letter-spacing:.22em;color:#e8dcc4;text-shadow:0 0 8px #000;display:none'; host.appendChild(prompt);
+
+  function wear(kit, type) {
+    if (!own) own = cfg;
+    cfg = { ...kit }; rebuild();
+    P.disguise = type; P.blownUntil = -99;
+    audio.pouch(); feed(`<span class="s">${type === 'militia' ? 'MILITIA UNIFORM ON — WALK, DON’T RUN; KEEP YOUR DISTANCE' : 'CIVILIAN CLOTHES ON — HIDE YOUR WEAPONS (H)'}</span>`);
+  }
+  function ownGear() {
+    if (!own) return;
+    cfg = own; own = null; rebuild(); P.disguise = null;
+    feed('<span class="m">BACK IN YOUR OWN GEAR</span>');
+  }
+  // how much your clothes buy you right now (0 = they see you for what you are)
+  function level() {
+    if (!P.disguise || t < P.blownUntil) return 0;
+    const running = P.sprintT > 0.5;
+    if (P.disguise === 'militia') return (P.holstered ? 0.97 : WD().scope ? 0.6 : 0.9) * (running ? 0.7 : 1);
+    return P.holstered ? (running ? 0.75 : 0.97) : 0;   // a civilian with a rifle out is no civilian
+  }
+  function blow(why) {
+    if (!P.disguise) return;
+    if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
+    P.blownUntil = t + 20;
+  }
+  function toggleHolster(force) {
+    const on = force ?? !P.holstered;
+    if (on === P.holstered || P.dead) return;
+    if (on) { P.holstered = true; P.reload = null; P.burst = 0; P.trigger = false; aimKey.down = aimKey.toggled = false; if (gun && gun.mag) gun.mag.visible = true; audio.holster(); }
+    else { P.holstered = false; P.swap = { t: 0.26, to: P.w, done: true, k: 1 }; audio.draw(); }
+  }
+  // fallen militia and knocked-out (or dead) civilians within reach
+  function nearestBody() {
+    let best = null, bd = 2.2;
+    for (const b of [...BOTS.bodies(), ...NPCS.bodies()]) { const d = Math.hypot(b.x - P.pos.x, b.z - P.pos.z); if (d < bd && Math.abs(b.y - P.pos.y) < 1.2) { bd = d; best = b; } }
+    return best;
+  }
+  function interact() {
+    if (MISSION.interact()) return;
+    const b = nearestBody();
+    if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
+  }
+  // silent takedown from behind (militia) / knockout (civilian)
+  function takedown() {
+    if (P.dead || P.reload) return;
+    if (BOTS.takedown(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.5); return; }
+    if (NPCS.knockout(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.4); }
+  }
+  function update(dt) {
+    t += dt;
+    if (mode !== 'range') return;
+    const blown = P.disguise && t < P.blownUntil;
+    tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
+      + (P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
+    let pr = '';
+    const b = nearestBody();
+    if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
+    else if (BOTS.canTakedown(P.pos, P.yaw)) pr = '[F]  SILENT TAKEDOWN';
+    else if (NPCS.canKnockout(P.pos, P.yaw)) pr = '[F]  KNOCK OUT';
+    prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
+  }
+  return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; } };
 })();
 // =====================================================================
 //  Input
@@ -10103,18 +10220,18 @@ addEventListener('keydown', (e) => {
   switch (e.code) {
     case 'KeyR': startReload(); break;
     case 'KeyB': { const I = inv(); if (WD().modes.length > 1) { I.mode = (I.mode + 1) % WD().modes.length; P.burst = 0; audio.switchMode(); } break; }
-    case 'KeyQ': aimKey.down = true; aimKey.t = performance.now(); break;
+    case 'KeyQ': if (P.holstered) DISGUISE.toggleHolster(false); aimKey.down = true; aimKey.t = performance.now(); break;
     case 'KeyZ': P.lean = -1; break;
     case 'KeyX': P.lean = 1; break;
-    case 'Digit1': switchTo('rifle'); break;
-    case 'Digit2': switchTo('shotgun'); break;
-    case 'Digit3': switchTo('pistol'); break;
-    case 'Digit4': switchTo('sniper'); break;
+    case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': { const id = ORDER[+e.code.slice(5) - 1]; if (P.holstered) { P.w === id ? DISGUISE.toggleHolster(false) : (equip(id), DISGUISE.toggleHolster(false)); } else switchTo(id); break; }
     case 'KeyV': P.fp = !P.fp; break;
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
-    case 'KeyE': MISSION.interact(); break;
+    case 'KeyE': DISGUISE.interact(); break;
+    case 'KeyF': DISGUISE.takedown(); break;
+    case 'KeyH': DISGUISE.toggleHolster(); break;
+    case 'KeyU': DISGUISE.ownGear(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -10136,7 +10253,7 @@ canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
     if (!locked && !lockFallback) { requestLock(); return; }
-    if (e.button === 0) { P.trigger = true; P.edge = true; }
+    if (e.button === 0) { if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', (e) => {
@@ -10156,7 +10273,7 @@ addEventListener('mousemove', (e) => {
   }
 });
 canvas.addEventListener('wheel', (e) => {
-  if (mode === 'range') { const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
+  if (mode === 'range') { if (P.holstered) return; const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
   if (mode !== 'custom') return;
   e.preventDefault();
   orbit.tdist = clamp(orbit.tdist * (1 + Math.sign(e.deltaY) * 0.1), 1.1, 7);
@@ -10205,6 +10322,7 @@ function enterRange() {
   if (lockFallback) setPaused(false);
 }
 function enterCustom() {
+  DISGUISE.ownGear(); if (P.holstered) DISGUISE.toggleHolster(false);
   mode = 'custom'; setPaused(false);
   keyLight.visible = rimLight.visible = fillLight.visible = true;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -10323,7 +10441,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -10347,7 +10465,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

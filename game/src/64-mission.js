@@ -65,11 +65,12 @@ const MISSION = (() => {
     way.innerHTML = `◆<br>${t.name} ${Math.round(dist)} m`;
   }
   function interact() {
-    if (stage !== 'intel' || P.dead) return;
-    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return;
+    if (stage !== 'intel' || P.dead) return false;
+    if (Math.hypot(intel.x - P.pos.x, intel.z - P.pos.z) > PICK_R || Math.abs(P.pos.y - intel.y) > 1.5) return false;
     scene.remove(intel.g); stage = 'extract'; audio.switchMode();
     beam.material.color.set(0x7ae0a0);
     feed('<span class="s">INTEL RECOVERED</span>'); show('INTEL RECOVERED', 'Get to the boat at the end of the jetty (green marker)', 4);
+    return true;
   }
   return { update, interact, get stage() { return stage; }, get intel() { return intel; } };
 })();

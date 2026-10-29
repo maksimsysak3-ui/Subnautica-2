@@ -183,7 +183,7 @@ const BOTS = (() => {
     views = []; pending = [];
     arena = new CityArena(cx, cz);
     me = new Agent(arena, { team: 'blue', controller: 'script', name: 'you', profile: 'player' });
-    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); };
+    me.script = (a, dt, w) => { const hid = clock < graceUntil; a.pos = hid ? { x: 1e4, y: 0, z: 1e4 } : { x: P.pos.x - w.ox, y: P.pos.y, z: P.pos.z - w.oz }; a.vel = { x: P.vel.x, y: 0, z: P.vel.z }; a.stance = P.crouch ? 'crouch' : 'stand'; a.look = { yaw: P.yaw, pitch: P.pitch }; a.alive = !P.dead; a.conceal = NPCS.conceal(P.pos); a.disguise = DISGUISE.level(); };
     me.integrate = function (dt, w) { // footsteps carry: the AI hears you move
       const sp = Math.hypot(this.vel.x, this.vel.z); this.stepAcc = (this.stepAcc || 0) + sp * dt;
       if (this.stepAcc > 0.75) { this.stepAcc = 0; const H = TUNE.hearing; w.emitSound(this.pos, sp > 4.6 ? H.sprint : this.stance !== 'stand' ? H.crouch : sp > 2.8 ? H.run : H.walk, 'step', this.id); }
@@ -231,6 +231,7 @@ const BOTS = (() => {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
     me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
+    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < 90)) DISGUISE.blow('shot');
     arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
@@ -281,6 +282,7 @@ const BOTS = (() => {
     if (!arena) graceUntil = clock + GRACE;
     if (!arena || Math.hypot(P.pos.x - arena.ox, P.pos.z - arena.oz) > RELOCATE) build(P.pos.x, P.pos.z);
     arena.step(Math.min(dt, 0.05));
+    if (P.disguise && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible)) DISGUISE.blow('seen');
     for (const v of views) animate(v, dt);
     tracers();
     for (let i = tracersFx.length - 1; i >= 0; i--) { const f = tracersFx[i]; f.t += dt; f.m.position.copy(f.A).addScaledVector(f.d, Math.min(f.L, f.t * 900)); if (f.t > f.L / 900 + 0.02) { scene.remove(f.m); tracersFx.splice(i, 1); } }
@@ -292,7 +294,7 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
@@ -303,5 +305,30 @@ const BOTS = (() => {
     if (!on) { for (const v of views) dropView(v); views = []; arena = null; for (const f of tracersFx) scene.remove(f.m); tracersFx = []; ui.cnt.textContent = 'HOSTILES OFF'; ui.blood.style.opacity = '0'; }
     feed(`<span class="m">HOSTILES ${on ? 'ON' : 'OFF'}</span>`);
   }
-  return { update, hit, playerShot, toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  // ---- close quarters: bodies to strip, sentries to take down from behind ----
+  const wpos = (v) => ({ x: v.agent.pos.x + arena.ox, z: v.agent.pos.z + arena.oz });
+  function bodies() {
+    if (!arena) return [];
+    return views.filter((v) => !v.alive && v.deadT < 25).map((v) => { const p = v.model.ch.root.position; return { x: p.x, y: v.y, z: p.z, kit: KITS[v.model.k % KITS.length], type: 'militia', taken: v.taken, mark: () => { v.taken = true; } }; });
+  }
+  function takedownTarget(pos) {
+    if (!arena || !enabled) return null;
+    let best = null, bd = 1.8;
+    for (const v of views) {
+      if (!v.agent.alive) continue;
+      const w = wpos(v), dx = pos.x - w.x, dz = pos.z - w.z, d = Math.hypot(dx, dz);
+      if (d > bd || Math.abs((v.y || 0) - pos.y) > 1) continue;
+      const fx = -Math.sin(v.agent.look.yaw), fz = -Math.cos(v.agent.look.yaw), facing = (fx * dx + fz * dz) / (d || 1);
+      if (facing < 0.25 || !v.agent.mem.get(me.id)?.visible) { bd = d; best = v; }
+    }
+    return best;
+  }
+  function takedown(pos) {
+    const v = takedownTarget(pos); if (!v) return false;
+    const w = wpos(v);
+    v.agent.onHit(999, 'torso', me, { x: w.x - pos.x, y: 0, z: w.z - pos.z }, arena);
+    P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
+    return true;
+  }
+  return { update, hit, playerShot, bodies, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
