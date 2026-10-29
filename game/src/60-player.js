@@ -472,7 +472,7 @@ const SCOPE = (() => {
     },
   };
 })();
-function canFire() { return !P.holstered && !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
+function canFire() { return !P.holstered && !HANDMAP.open && !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
 function trigger(now) {
   if (mode !== 'range' || paused) { P.edge = false; return; }
   const I = inv(), W = WD(), m = W.modes[I.mode];
@@ -652,7 +652,7 @@ function updateRange(dt, time) {
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const shift = keys.ShiftLeft || keys.ShiftRight;
-  P.ads = (aimKey.down || aimKey.toggled) && !P.holstered;
+  P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
   P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
@@ -680,7 +680,7 @@ function updateRange(dt, time) {
   P.lowT = damp(P.lowT, sprint ? 1 : 0, 9, dt);
   P.crouchT = damp(P.crouchT, P.crouch ? 1 : 0, 9, dt);
   const scoped = WD().scope && P.ads && !sprint && !P.reload && !P.swap;
-  P.fpT = damp(P.fpT, P.fp || scoped ? 1 : 0, scoped ? 16 : 10, dt);
+  P.fpT = damp(P.fpT, P.fp || scoped || HANDMAP.open ? 1 : 0, scoped ? 16 : 10, dt);
   P.leanT = damp(P.leanT, P.lean, 9, dt);
   P.bloom = Math.max(0, P.bloom - dt * 5);
   P.shake *= Math.exp(-14 * dt);
@@ -756,7 +756,7 @@ function updateRange(dt, time) {
   const mountW = (pistol ? ch.pistolMount : ch.mount).getWorldPosition(T.c);
   const dirW = T.d.subVectors(T.aim, mountW).normalize().lerp(T.camFwd, P.fpT * P.adsT).normalize();
   const dirRoot = dirW.applyQuaternion(_q2.copy(ch.root.quaternion).invert());
-  poseGun(dt, dirRoot, P.lowT, P.holstered && !P.swap);
+  poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
 
   // final camera: through the sights in first person ADS
   camera.quaternion.copy(T.camQ);

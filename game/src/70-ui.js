@@ -21,6 +21,7 @@ addEventListener('keydown', (e) => {
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
     case 'KeyJ': MISSION.restart(); break;
+    case 'KeyM': HANDMAP.toggle(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -42,7 +43,7 @@ canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
     if (!locked && !lockFallback) { requestLock(); return; }
-    if (e.button === 0) { if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
+    if (e.button === 0) { if (HANDMAP.open) { HANDMAP.toggle(false); return; } if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', (e) => {
@@ -230,7 +231,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -254,7 +255,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

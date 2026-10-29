@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>J</b> restart mission · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>J</b> restart mission · <b>M</b> map · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -8251,7 +8251,7 @@ const SCOPE = (() => {
     },
   };
 })();
-function canFire() { return !P.holstered && !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
+function canFire() { return !P.holstered && !HANDMAP.open && !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
 function trigger(now) {
   if (mode !== 'range' || paused) { P.edge = false; return; }
   const I = inv(), W = WD(), m = W.modes[I.mode];
@@ -8431,7 +8431,7 @@ function updateRange(dt, time) {
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const shift = keys.ShiftLeft || keys.ShiftRight;
-  P.ads = (aimKey.down || aimKey.toggled) && !P.holstered;
+  P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
   P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
@@ -8459,7 +8459,7 @@ function updateRange(dt, time) {
   P.lowT = damp(P.lowT, sprint ? 1 : 0, 9, dt);
   P.crouchT = damp(P.crouchT, P.crouch ? 1 : 0, 9, dt);
   const scoped = WD().scope && P.ads && !sprint && !P.reload && !P.swap;
-  P.fpT = damp(P.fpT, P.fp || scoped ? 1 : 0, scoped ? 16 : 10, dt);
+  P.fpT = damp(P.fpT, P.fp || scoped || HANDMAP.open ? 1 : 0, scoped ? 16 : 10, dt);
   P.leanT = damp(P.leanT, P.lean, 9, dt);
   P.bloom = Math.max(0, P.bloom - dt * 5);
   P.shake *= Math.exp(-14 * dt);
@@ -8535,7 +8535,7 @@ function updateRange(dt, time) {
   const mountW = (pistol ? ch.pistolMount : ch.mount).getWorldPosition(T.c);
   const dirW = T.d.subVectors(T.aim, mountW).normalize().lerp(T.camFwd, P.fpT * P.adsT).normalize();
   const dirRoot = dirW.applyQuaternion(_q2.copy(ch.root.quaternion).invert());
-  poseGun(dt, dirRoot, P.lowT, P.holstered && !P.swap);
+  poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
 
   // final camera: through the sights in first person ADS
   camera.quaternion.copy(T.camQ);
@@ -10362,6 +10362,111 @@ const DISGUISE = (() => {
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
 })();
 // =====================================================================
+//  The handheld map: a little wooden relief model of Dar Essalam (M)
+// =====================================================================
+// Built once from the real town: every 2 m column takes its height from the collision world and its
+// colour from a top-down photograph of the rendered town, so roofs, awnings, gardens and the boats
+// all read. Held in both hands, north up, with a red pin (and arrow) for you and a gold one for the
+// current objective. Aim (Q) brings it closer.
+const HANDMAP = (() => {
+  const X0 = -160, X1 = 160, Z0 = -140, Z1 = 120, CELL = 2, K = 0.00082, VEX = 2.4;   // world → model scale, vertical exaggeration
+  const group = new THREE.Group(); group.visible = false;
+  const tray = new THREE.Group(); group.add(tray);
+  let built = false, open = false, t = 0;
+  let pinMe = null, pinGoal = null, hands = [];
+
+  function photograph() {
+    const W = 640, H = Math.round(640 * (Z1 - Z0) / (X1 - X0));
+    const rt = new THREE.WebGLRenderTarget(W, H);
+    const cam = new THREE.OrthographicCamera(X0, X1, -Z0, -Z1, 1, 800);   // looking straight down, north up
+    cam.position.set(0, 400, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0);
+    cam.left = X0; cam.right = X1; cam.top = -Z0; cam.bottom = -Z1; cam.updateProjectionMatrix();
+    const fog = scene.fog, vis = MAP.meshes.map((m) => m.visible), wasOpen = group.visible;
+    scene.fog = null; for (const m of MAP.meshes) m.visible = m.userData.lod <= 1; group.visible = false;
+    const tm = renderer.toneMapping;
+    renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null);
+    renderer.toneMapping = tm; scene.fog = fog; MAP.meshes.forEach((m, i) => { m.visible = vis[i]; }); group.visible = wasOpen;
+    const px = new Uint8Array(W * H * 4); renderer.readRenderTargetPixels(rt, 0, 0, W, H, px); rt.dispose();
+    // pixel (u, v) of a world point; row 0 is the south edge
+    return (x, z) => { const u = clamp(Math.floor((x - X0) / (X1 - X0) * W), 0, W - 1), v = clamp(Math.floor((Z1 - z) / (Z1 - Z0) * H), 0, H - 1), i = (v * W + u) * 4; return [px[i] / 255, px[i + 1] / 255, px[i + 2] / 255]; };
+  }
+  function build() {
+    built = true;
+    const colAt = photograph();
+    const nx = Math.round((X1 - X0) / CELL), nz = Math.round((Z1 - Z0) / CELL);
+    const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 }), nx * nz);
+    const m4 = new THREE.Matrix4(), c = new THREE.Color();
+    let n = 0;
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const x = X0 + (i + 0.5) * CELL, z = Z0 + (j + 0.5) * CELL, th = terrainH(x, z);
+      let h = Math.max(COL.ground(x, z, 200, 0), th);
+      const water = th < -0.6 && h < 0.2;
+      if (water) h = -0.6;
+      const hh = Math.max(0.05, (h + 1.2) * K * VEX);
+      m4.makeScale(CELL * K * 1.002, hh, CELL * K * 1.002); m4.setPosition((x) * K, 0, (z) * K);
+      mesh.setMatrixAt(n, m4);
+      const [r, g, b] = colAt(x, z), gr = GR.get(x, z);
+      // the photograph, steered toward a legible palette: dark lanes, pale squares, warm roofs, deep water
+      const base = water ? 0x1a5a78 : gr === GR.STREET ? 0x7a6a56 : gr === GR.PAVE ? 0xcab896 : h > 2 ? (h > 9 ? 0xe8d6b4 : 0xd2b48c) : 0xa89070;
+      c.setRGB(r, g, b).lerp(new THREE.Color(base), water ? 0.6 : 0.5);
+      mesh.setColorAt(n, c); n++;
+    }
+    mesh.count = n; mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+    mesh.position.y = 0.012;
+    tray.add(mesh);
+    // the board: cedar tray with a raised lip, a brass compass rose in the corner
+    const wood = new THREE.MeshStandardMaterial({ color: 0x6a4428, roughness: 0.7 }), brass = new THREE.MeshStandardMaterial({ color: 0xc0973f, roughness: 0.35, metalness: 0.8 });
+    const w = (X1 - X0) * K + 0.03, d = (Z1 - Z0) * K + 0.03, cx = (X0 + X1) / 2 * K, cz = (Z0 + Z1) / 2 * K;
+    // drawn after the world with a fresh depth buffer, so the map never sinks into a wall you're standing against
+    const board = M(new THREE.BoxGeometry(w, 0.012, d), wood, tray, cx, 0.006, cz); board.onBeforeRender = (r) => r.clearDepth();
+    for (const [sx, sz, lw, ld] of [[0, -1, w, 0.012], [0, 1, w, 0.012], [-1, 0, 0.012, d], [1, 0, 0.012, d]]) M(new THREE.BoxGeometry(lw, 0.018, ld), wood, tray, cx + sx * (w / 2 - 0.006), 0.021, cz + sz * (d / 2 - 0.006));
+    const rose = new THREE.Group(); rose.position.set(X1 * K - 0.03, 0.03, Z0 * K + 0.03); tray.add(rose);
+    M(new THREE.CylinderGeometry(0.018, 0.018, 0.004, 16), brass, rose, 0, 0, 0);
+    M(new THREE.ConeGeometry(0.006, 0.026, 4), new THREE.MeshStandardMaterial({ color: 0xa02a20, roughness: 0.5 }), rose, 0, 0.004, -0.012, -Math.PI / 2);
+    // pins
+    pinMe = new THREE.Group(); M(new THREE.ConeGeometry(0.004, 0.024, 8), new THREE.MeshStandardMaterial({ color: 0xd8301e, emissive: 0x501008 }), pinMe, 0, 0.012, 0, Math.PI); M(new THREE.SphereGeometry(0.0055, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff4030, emissive: 0x802010 }), pinMe, 0, 0.026, 0);
+    M(new THREE.ConeGeometry(0.004, 0.014, 6), new THREE.MeshStandardMaterial({ color: 0xff4030, emissive: 0x802010 }), pinMe, 0, 0.003, -0.012, -Math.PI / 2); tray.add(pinMe);   // arrow: the way you face
+    pinGoal = new THREE.Group(); M(new THREE.ConeGeometry(0.004, 0.03, 8), new THREE.MeshStandardMaterial({ color: 0xe8b830, emissive: 0x604008 }), pinGoal, 0, 0.015, 0, Math.PI); M(new THREE.SphereGeometry(0.007, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffd040, emissive: 0x806010 }), pinGoal, 0, 0.032, 0); tray.add(pinGoal);
+    pinMe.scale.setScalar(1.9); pinGoal.scale.setScalar(1.7);
+    tray.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = o === board ? 999 : 1000; } });
+    // two hands gripping the near corners
+    const skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.skin || '#c98e62'), roughness: 0.7 });
+    for (const s of [-1, 1]) { const h = M(new THREE.BoxGeometry(0.05, 0.022, 0.085), skin, group, s * (w / 2 - 0.012), 0.004, d / 2 - 0.02); h.frustumCulled = false; h.renderOrder = 1000; hands.push(h); const th = M(new THREE.BoxGeometry(0.04, 0.012, 0.02), skin, h, -s * 0.004, 0.015, -0.045); th.renderOrder = 1000; th.frustumCulled = false; }
+    tray.position.set(-cx, 0, -cz);
+    camera.add(group);
+    if (!camera.parent) scene.add(camera);
+  }
+  function toggle(force) {
+    const want = force ?? !open;
+    if (want === open) return;
+    if (want && !built) build();
+    open = want; group.visible = open;
+    if (open) { P.trigger = false; aimKey.down = aimKey.toggled = false; audio.pouch(); } else audio.holster();
+    for (const h of hands) h.material.color.set(cfg.skin || '#c98e62');
+  }
+  const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+  function update(dt) {
+    t += dt;
+    if (!open) return;
+    if (mode !== 'range' || P.dead) { toggle(false); return; }
+    // held low in both hands, tilted up toward the eyes; aim brings it close
+    const close = aimKey.down || aimKey.toggled ? 1 : 0;
+    P.mapClose = damp(P.mapClose || 0, close, 8, dt);
+    const bob = Math.sin(P.phase * 2) * 0.004 * P.gaitW;
+    group.position.set(0, lerp(-0.13, -0.05, P.mapClose) + bob, lerp(-0.37, -0.27, P.mapClose));
+    group.rotation.set(lerp(0.85, 1.2, P.mapClose) + P.pitch * 0.2, 0, Math.sin(t * 0.9) * 0.01);
+    // north is up the board; the red pin's arrow shows the way you face
+    const gy = (x, z) => Math.max(COL.ground(x, z, P.pos.y + 1, 0.5), terrainH(x, z)) + 1.2;
+    pinMe.position.set(P.pos.x * K, 0.012 + gy(P.pos.x, P.pos.z) * K * VEX, P.pos.z * K);
+    pinMe.rotation.y = P.yaw;
+    const g = MISSION.target;
+    pinGoal.visible = !!g;
+    if (g) pinGoal.position.set(clamp(g.x, X0, X1) * K, 0.012 + ((g.y ?? 1) + 1.2) * K * VEX + Math.abs(Math.sin(t * 3)) * 0.008, clamp(g.z, Z0, Z1) * K);
+  }
+  return { toggle, update, get open() { return open; } };
+})();
+// =====================================================================
 //  Input
 // =====================================================================
 addEventListener('keydown', (e) => {
@@ -10384,6 +10489,7 @@ addEventListener('keydown', (e) => {
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
     case 'KeyJ': MISSION.restart(); break;
+    case 'KeyM': HANDMAP.toggle(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -10405,7 +10511,7 @@ canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
     if (!locked && !lockFallback) { requestLock(); return; }
-    if (e.button === 0) { if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
+    if (e.button === 0) { if (HANDMAP.open) { HANDMAP.toggle(false); return; } if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', (e) => {
@@ -10593,7 +10699,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -10617,7 +10723,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {
