@@ -8,15 +8,20 @@ addEventListener('keydown', (e) => {
   switch (e.code) {
     case 'KeyR': startReload(); break;
     case 'KeyB': { const I = inv(); if (WD().modes.length > 1) { I.mode = (I.mode + 1) % WD().modes.length; P.burst = 0; audio.switchMode(); } break; }
-    case 'KeyQ': aimKey.down = true; aimKey.t = performance.now(); break;
+    case 'KeyQ': if (P.holstered) DISGUISE.toggleHolster(false); aimKey.down = true; aimKey.t = performance.now(); break;
     case 'KeyZ': P.lean = -1; break;
     case 'KeyX': P.lean = 1; break;
-    case 'Digit1': switchTo('rifle'); break;
-    case 'Digit2': switchTo('shotgun'); break;
-    case 'Digit3': switchTo('pistol'); break;
+    case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': { const id = ORDER[+e.code.slice(5) - 1]; if (P.holstered) { P.w === id ? DISGUISE.toggleHolster(false) : (equip(id), DISGUISE.toggleHolster(false)); } else switchTo(id); break; }
     case 'KeyV': P.fp = !P.fp; break;
-    case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
+    case 'KeyC': case 'ControlLeft': if (!P.vehicle) P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
+    case 'KeyN': BOTS.toggle(); break;
+    case 'KeyE': DISGUISE.interact(); break;
+    case 'KeyF': DISGUISE.takedown(); break;
+    case 'KeyH': DISGUISE.toggleHolster(); break;
+    case 'KeyU': DISGUISE.ownGear(); break;
+    case 'KeyJ': MISSION.restart(); break;
+    case 'KeyM': HANDMAP.toggle(); break;
     case 'Escape': if (lockFallback) setPaused(true); break;
   }
   if (['Space', 'Tab', 'ControlLeft'].includes(e.code)) e.preventDefault();
@@ -38,7 +43,7 @@ canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
     if (!locked && !lockFallback) { requestLock(); return; }
-    if (e.button === 0) { P.trigger = true; P.edge = true; }
+    if (e.button === 0) { if (HANDMAP.open) { HANDMAP.toggle(false); return; } if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('mouseup', (e) => {
@@ -58,7 +63,7 @@ addEventListener('mousemove', (e) => {
   }
 });
 canvas.addEventListener('wheel', (e) => {
-  if (mode === 'range') { const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
+  if (mode === 'range') { if (P.holstered) return; const i = ORDER.indexOf(P.swap ? P.swap.to : P.w); switchTo(ORDER[(i + (e.deltaY > 0 ? 1 : ORDER.length - 1)) % ORDER.length]); return; }
   if (mode !== 'custom') return;
   e.preventDefault();
   orbit.tdist = clamp(orbit.tdist * (1 + Math.sign(e.deltaY) * 0.1), 1.1, 7);
@@ -100,13 +105,14 @@ function enterRange() {
   camera.clearViewOffset();
   ['panel', 'topbar', 'poses'].forEach((id) => $(id).classList.add('hidden'));
   $('hud').classList.remove('hidden');
-  P.yaw = 0; P.pitch = 0; P.camY = ch.d.hipY + 0.7;
-  if (P.pos.z < 0.5) P.pos.set(0, 0, 3);
+  P.pitch = 0; P.camY = ch.d.hipY + 0.7;
+  if (!P.spawned) { P.spawned = true; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; }
   audio.init();
   requestLock();
   if (lockFallback) setPaused(false);
 }
 function enterCustom() {
+  DISGUISE.ownGear(); if (P.holstered) DISGUISE.toggleHolster(false);
   mode = 'custom'; setPaused(false);
   keyLight.visible = rimLight.visible = fillLight.visible = true;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -203,12 +209,29 @@ addEventListener('resize', () => {
 });
 
 let last = performance.now(), time = 0, first = true;
+// adaptive quality: watches frame time and trades draw distance / resolution for frame rate
+const QUALITY = (() => {
+  let avg = 16, t = 0, dist = 420, pr = Math.min(devicePixelRatio, 1.25);
+  const maxPR = Math.min(devicePixelRatio, 1.25);
+  return {
+    update(dt) {
+      if (!MAP.ready || MAP.lockDraw) return;
+      avg = lerp(avg, dt * 1000, 0.05); t += dt;
+      if (t < 1.0) return; t = 0;
+      if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
+      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < 520) dist += 30; }
+      W.setDrawDist(dist);
+    },
+    get fps() { return Math.round(1000 / avg); },
+  };
+})();
+const DBGCAM = { on: false, pos: new V3(), yaw: 0, pitch: 0, fov: 60 }; // scripted camera for screenshots/tests
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') updateRange(dt, time); else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -220,13 +243,42 @@ function frame(now) {
   keyLight.position.set(P.pos.x + 2.4, py + 7, P.pos.z + 4); keyLight.target.position.set(P.pos.x, py + 0.9, P.pos.z);
   rimLight.position.set(P.pos.x - 2.5, py + 4.5, P.pos.z - 5); rimLight.target.position.set(P.pos.x, py + 1.2, P.pos.z);
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
-  LAMPS.update(dt, P.pos, time);
-  SKY.update(camera, P.pos);
+  if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
+  LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time);
+  STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
+  QUALITY.update(dt);
+  W.updateLOD(camera);
+  if (mode === 'range' || DBGCAM.on) EYE.update(dt, camera); else renderer.toneMappingExposure = 1.0;
   renderer.render(scene, camera);
-  if (first) { first = false; $('loading').classList.add('hidden'); }
+  if (first && MAP.ready) { first = false; $('loading').classList.add('hidden'); }
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
+// scripted walk along waypoints with the real movement + collision code (tests)
+window.__dbg.walk = (path, o = {}) => {
+  const out = []; P.pos.set(path[0][0], path[0][1], path[0][2]); P.vel.set(0, 0, 0); P.vy = 0;
+  for (let i = 1; i < path.length; i++) {
+    const [tx, ty, tz] = path[i]; let ok = false, it = 0;
+    for (; it < (o.maxIt ?? 120); it++) {
+      const dx = tx - P.pos.x, dz = tz - P.pos.z;
+      if (Math.hypot(dx, dz) < (o.tol ?? 0.35)) { ok = true; break; }
+      P.yaw = Math.atan2(-dx, -dz); keys.KeyW = true; window.__dbg.step(4);
+    }
+    keys.KeyW = false;
+    out.push({ i, ok, it, pos: [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)), want: path[i], dy: +(P.pos.y - ty).toFixed(2) });
+    if (!ok && !o.keepGoing) break;
+  }
+  return out;
+};
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.MAP = MAP;
+window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+// debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
+window.__dbg.gridImage = () => {
+  const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);
+  const pal = [[60, 52, 40], [200, 200, 200], [230, 200, 120], [170, 80, 60], [60, 120, 160], [20, 20, 20]];
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const v = GR.cells[(j * 2) * GR.N + i * 2], c = pal[v] || [255, 0, 255], k = (j * n + i) * 4; im.data[k] = c[0]; im.data[k + 1] = c[1]; im.data[k + 2] = c[2]; im.data[k + 3] = 255; }
+  g.putImageData(im, 0, 0); return cv.toDataURL('image/png');
+}; window.__dbg.STREAM = STREAM; window.__dbg.W = W; window.__dbg.renderer = renderer;

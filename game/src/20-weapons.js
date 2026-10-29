@@ -129,6 +129,63 @@ function buildRifle(c) {
   };
 }
 
+// Bolt-action sniper rifle (M24-style): heavy barrel, 10x scope, 5-round box magazine, folded bipod
+const cylX = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg).rotateZ(Math.PI / 2);
+const cylY = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg);
+function buildSniper(c) {
+  const S = SLOT, g = new THREE.Group();
+  const B = S.gun, F = S.furn, D = S.gunDark;
+  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, p = g) => M(geo, mat, p, x, y, z, rx, ry, rz);
+  // receiver + action
+  add(cylZ(0.019, 0.24, 12), B, 0, 0.056, 0.04);
+  add(box(0.03, 0.03, 0.2), B, 0, 0.034, 0.04);
+  add(box(0.024, 0.006, 0.17), D, 0, 0.079, 0.04);
+  // stock: one-piece composite with a raised cheek piece, pistol grip, rubber pad
+  add(box(0.042, 0.05, 0.42), F, 0, 0.022, 0.21);
+  add(box(0.04, 0.04, 0.14), F, 0, 0.004, -0.05);
+  add(box(0.034, 0.1, 0.045), F, 0, -0.06, -0.055, 0.32);
+  add(box(0.04, 0.06, 0.24), F, 0, 0.032, -0.2);
+  add(box(0.036, 0.03, 0.15), F, 0, 0.074, -0.2);
+  add(box(0.042, 0.12, 0.03), S.rubber, 0, 0.02, -0.33);
+  add(box(0.04, 0.03, 0.12), F, 0, -0.02, -0.25, -0.15);
+  add(box(0.006, 0.026, 0.018), D, 0, -0.022, 0.0, -0.2);   // trigger
+  add(box(0.03, 0.006, 0.07), D, 0, -0.035, 0.0);
+  // heavy barrel + brake
+  add(cylZ(0.0125, 0.52, 10), D, 0, 0.056, 0.42);
+  add(cylZ(0.016, 0.07, 10), D, 0, 0.056, 0.71);
+  for (let i = 0; i < 3; i++) add(box(0.036, 0.008, 0.01), S.rubber, 0, 0.056, 0.69 + i * 0.02);
+  // bolt (handle group animates during the cycle)
+  const bolt = new THREE.Group(); bolt.position.set(-0.02, 0.06, -0.035); g.add(bolt);
+  add(cylX(0.005, 0.05, 8), B, -0.025, 0, 0, 0, 0, 0, bolt);
+  add(new THREE.SphereGeometry(0.011, 8, 6), D, -0.052, -0.004, 0, 0, 0, 0, bolt);
+  // 10x scope: rings, tube, turrets, objective bell, sunshade
+  for (const z of [-0.02, 0.1]) add(box(0.03, 0.034, 0.016), B, 0, 0.098, z);
+  add(cylZ(0.0145, 0.28, 14), B, 0, 0.125, 0.04);
+  add(cylZ(0.021, 0.07, 14), B, 0, 0.125, 0.2);
+  add(cylZ(0.024, 0.05, 14), B, 0, 0.125, 0.25);
+  add(cylZ(0.019, 0.06, 14), B, 0, 0.125, -0.11);
+  add(cylY(0.01, 0.024, 10), D, 0, 0.152, 0.04);
+  add(cylX(0.01, 0.024, 10), D, 0.026, 0.125, 0.04);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 14), S.glass); lens.position.set(0, 0.125, 0.276); g.add(lens);
+  // folded bipod under the fore-end
+  for (const sx of [-1, 1]) add(box(0.006, 0.006, 0.17), D, sx * 0.016, -0.008, 0.33 + 0.085, 0.05);
+  add(box(0.04, 0.012, 0.02), D, 0, 0.0, 0.33);
+  // 5-round box magazine
+  const mag = new THREE.Group(); mag.position.set(0, -0.004, 0.06); g.add(mag);
+  add(box(0.026, 0.05, 0.08), D, 0, -0.025, 0, 0, 0, 0, mag);
+  add(box(0.028, 0.008, 0.084), F, 0, -0.052, 0, 0, 0, 0, mag);
+  g.scale.setScalar(GUN_SCALE);
+  g.traverse((o) => { if (o.isMesh) o.userData.player = true; });
+  return {
+    kind: 'sniper', group: g, mag, bolt, reticle: null,
+    muzzle: new V3(0, 0.056, 0.75), eye: new V3(0, 0.125, -0.2), sightH: 0.125 - 0.056,
+    gripWrist: new V3(-0.003, -0.04, -0.095), gripPalm: new V3(0, -0.065, -0.03),
+    support: { wrist: new V3(0.004, -0.02, 0.29), palm: new V3(0, 0.015, 0.35) }, butt: new V3(0, 0.03, -0.34), port: new V3(-0.02, 0.07, 0.03),
+    magwell: new V3(0, -0.12, 0.08), magLow: new V3(0.02, -0.26, 0.06), boltCatch: new V3(-0.06, 0.06, -0.035),
+    suppressed: false, brake: true,
+  };
+}
+
 // Pump shotgun (870-style). Same gun-local convention as the rifle.
 function buildShotgun(c) {
   const S = SLOT, g = new THREE.Group();

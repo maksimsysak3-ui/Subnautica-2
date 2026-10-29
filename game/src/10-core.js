@@ -19,19 +19,19 @@ const _e1 = new THREE.Euler();
 //  Renderer / scene
 // =====================================================================
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ logarithmicDepthBuffer: true, canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0d14);
-scene.fog = new THREE.FogExp2(0x0a0d14, 0.0042);
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.02, 3000);
+scene.background = new THREE.Color(0x9c958a);
+scene.fog = new THREE.Fog(0x9c958a, 140, 420);   // linear haze: everything past the draw distance is fully hazed and not drawn
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.02, 4000);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 

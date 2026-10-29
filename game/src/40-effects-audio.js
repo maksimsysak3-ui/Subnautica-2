@@ -187,8 +187,33 @@ const audio = (() => {
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(g); out(g, wet); o.start(t); o.stop(t + decay + 0.05);
   }
+  // a little two-stroke: sawtooth + square through a throaty low-pass, pitch follows the revs
+  let eng = null, skid = null;
+  function engineNodes() {
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o1.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.Q.value = 4; g.gain.value = 0;
+    lfo.frequency.value = 18; lg.gain.value = 6; lfo.connect(lg); lg.connect(o1.frequency);
+    o1.connect(f); o2.connect(f); f.connect(g); out(g, 0.05);
+    o1.start(); o2.start(); lfo.start();
+    return { o1, o2, f, g, lfo };
+  }
   return {
     init,
+    engine(on, rpm = 0, load = 0) {
+      if (!ctx) return;
+      if (!eng) eng = engineNodes();
+      const t = ctx.currentTime, f0 = 32 + rpm * 120;
+      eng.o1.frequency.setTargetAtTime(f0, t, 0.05); eng.o2.frequency.setTargetAtTime(f0 * 2.01, t, 0.05); eng.lfo.frequency.setTargetAtTime(f0 * 0.5, t, 0.05);
+      eng.f.frequency.setTargetAtTime(380 + rpm * 900 + load * 600, t, 0.05);
+      eng.g.gain.setTargetAtTime(on ? 0.05 + load * 0.06 + rpm * 0.03 : 0, t, on ? 0.08 : 0.3);
+    },
+    skid(k) {
+      if (!ctx) return;
+      if (!skid) { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 3; const g = ctx.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); out(g, 0.1); s.start(); skid = { g, f }; }
+      skid.g.gain.setTargetAtTime(k * 0.16, ctx.currentTime, 0.05); skid.f.frequency.setTargetAtTime(1800 + k * 1200, ctx.currentTime, 0.05);
+    },
+    horn() { if (!ctx) return; const t = ctx.currentTime; tone(t, 'square', 415, null, 0.07, 0.42, 0.1); tone(t, 'square', 523, null, 0.06, 0.42, 0.1); },
+    crash(k = 1) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.4, 'lowpass', 900, 1, 0.9 * k, 0.4, 0.3); nz(t + 0.02, 0.25, 'bandpass', 3000, 1, 0.4 * k, 0.25, 0.3); tone(t, 'sine', 90, 40, 0.5 * k, 0.3); },
     setVolume(v) { volume = v; if (master) master.gain.value = v; },
     gunshot(kind, suppressed, brake) {
       if (!ctx) return; const t = ctx.currentTime, p = rand(0.94, 1.06);
@@ -229,6 +254,17 @@ const audio = (() => {
     magIn(small) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.05, 'lowpass', 700, 1, 0.6, 0.06, 0.1); nz(t + 0.015, 0.02, 'bandpass', 3000, 4, 0.5, 0.02); tone(t, 'sine', 180, 90, 0.25, 0.06); },
     pouch() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.15, 'bandpass', 1200, 0.6, 0.12, 0.15, 0, 600); },
     boltRelease(slide) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.03, 'bandpass', slide ? 3000 : 2200, 2, 0.8, 0.04, 0.2); tone(t, 'triangle', 820, 600, 0.18, 0.08, 0.1); nz(t + 0.012, 0.02, 'highpass', 5000, 1, 0.3, 0.02); },
+    // a rifle fired by someone else: delayed by distance, duller and quieter the further it is
+    enemyShot(dist) {
+      if (!ctx) return; const t = ctx.currentTime + dist / 343, k = 1 / (1 + dist / 25), p = rand(0.92, 1.08);
+      nz(t, 0.05, 'highpass', 2000 * p, 0.7, 0.8 * k, 0.04, 0.7);
+      nz(t, 0.4, 'lowpass', Math.max(400, 2200 - dist * 8) * p, 0.8, 0.9 * k + 0.05, 0.35, 1.0, 200);
+      tone(t, 'sine', 110 * p, 35, 0.7 * k, 0.25, 0.5);
+    },
+    // supersonic crack of a round passing close by
+    crack() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.012, 'highpass', 4500, 1, 0.55, 0.012, 0.1); nz(t + 0.004, 0.06, 'bandpass', 2400, 2, 0.12, 0.05, 0.3); },
+    hurt() { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.09, 'lowpass', 420, 1, 0.9, 0.09, 0.1); tone(t, 'sine', 70, 40, 0.6, 0.15); },
+    fleshHit(dist) { if (!ctx) return; const t = ctx.currentTime + dist / 343; nz(t, 0.06, 'lowpass', 700, 1, 0.5 / (1 + dist / 15), 0.06, 0.1); },
     step(crouch, run = 0) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.07, 'lowpass', crouch ? 300 : 500 + run * 200, 1, crouch ? 0.06 : 0.14 + run * 0.08, 0.07, 0.15); if (run > 0.5) nz(t + 0.02, 0.06, 'bandpass', 1800, 1.5, 0.05, 0.06); },
     ding(dist, size) {
       if (!ctx) return; const t = ctx.currentTime + dist / 343, f = 520 * Math.sqrt(0.35 / size) * rand(0.97, 1.03);
