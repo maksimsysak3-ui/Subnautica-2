@@ -179,7 +179,7 @@ function renderControls() {
 function renderPoses() {
   const items = [['ready', 'Low Ready'], ['aim', 'Aim'], ['relaxed', 'Relaxed']];
   const wl = { rifle: 'Rifle', shotgun: 'Shotgun', pistol: 'Pistol' };
-  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${wl[id]}</button>`).join('') +
+  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${WEAPONS[id].name}</button>`).join('') +
     items.map(([v, n]) => `<button class="chip${pose === v ? ' on' : ''}" data-pose="${v}">${n}</button>`).join('') +
     `<button class="chip${turntable ? ' on' : ''}" data-tt>Turntable</button><button class="chip" data-face>Face</button><button class="chip" data-full>Full Body</button>`;
   $('poses').querySelectorAll('[data-pose]').forEach((b) => b.onclick = () => { pose = b.dataset.pose; renderPoses(); });

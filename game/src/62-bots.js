@@ -254,12 +254,13 @@ const BOTS = (() => {
   }
   let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
-  function playerShot(origin, dir) {
+  function playerShot(origin, dir, quiet = false) {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
-    me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
-    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < 90)) DISGUISE.blow('shot');
-    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
+    // a suppressed shot: no flash, and it carries a quarter as far (guards close by still hear it)
+    me.lastShotT = arena.time; me.suppressed = quiet; if (!quiet) NPCS.alarm(origin.x, origin.z);
+    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < (quiet ? 22 : 90))) DISGUISE.blow('shot');
+    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot * (quiet ? 0.25 : 1), 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
       const c = new V3(a.pos.x + arena.ox, (a.pos.y || 0) + a.top() * 0.7, a.pos.z + arena.oz), w = c.clone().sub(origin), t = w.dot(dir);

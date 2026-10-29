@@ -18,10 +18,10 @@ const MENU = (() => {
 
   // ---------------- the cases ----------------
   const CASES = [
-    { id: 'dar', no: '01', title: 'DAR ESSALAM', place: 'Morocco · walled harbour town · day', tab: '#c9a45c',
+    { id: 'dar', no: '01', intel: 'The militia holds the kasbah and the palace on the hill. A uniform opens their doors — walk, don’t run, keep your weapon down. Bottles and stones thrown into a lane will pull a sentry off his post.', title: 'DAR ESSALAM', place: 'Morocco · walled harbour town · day', tab: '#c9a45c',
       lines: ['A militia has taken the old kasbah of a coastal', 'town. Our people are still inside the medina.', '', 'OBJECTIVES', '· Recover the dead drop in the riad Dar Lamia', '· Remove Captain Haddad (minaret overwatch)', '· Infiltrate the kasbah HQ in their uniform', '· Tail the courier through the souk', '· The palace of Dar el Makhzen is heavily guarded', '· Exfil by boat from the harbour'],
       photo: (g, w, h) => { const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#8fb4dc'); sky.addColorStop(1, '#f0d8b0'); g.fillStyle = sky; g.fillRect(0, 0, w, h); g.fillStyle = '#2a6a8a'; g.fillRect(0, h * 0.78, w, h); g.fillStyle = '#c8986a'; for (let i = 0; i < 14; i++) { const bw = 18 + (i * 37) % 30, bh = 30 + (i * 53) % 60; g.fillRect(i * 22 - 10, h * 0.78 - bh, bw, bh); } g.fillStyle = '#d8b88a'; g.fillRect(w * 0.62, h * 0.18, 26, h * 0.6); g.fillStyle = '#2a6a4a'; g.fillRect(w * 0.62 - 3, h * 0.15, 32, 10); } },
-    { id: 'seoul', no: '02', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
+    { id: 'seoul', no: '02', intel: 'Two crews split the district: the Black Dragons hold Mapo’s bar streets, the Blue Snakes Gangnam. Their own men’s clothes fool only them. Line 2 runs under all of it — five stations, trains every few minutes.', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
       lines: ['A broker is selling the papers we took from the', 'kasbah to a gang that runs the night markets.', '', 'OBJECTIVES', '· Meet the informant at the 24-hour store', '· Find the gang’s lieutenant in the food alley', '· Get the drive off him — however you have to', '· Lose the gang in the alleys, reach the subway'],
       photo: (g, w, h) => { g.fillStyle = '#0a0a18'; g.fillRect(0, 0, w, h); for (let i = 0; i < 12; i++) { const x = i * 24, bh = 60 + (i * 41) % 90; g.fillStyle = '#14142a'; g.fillRect(x, h - bh, 22, bh); for (let k = 0; k < 10; k++) { g.fillStyle = ['#ff2a8a', '#2af0ff', '#ffd040', '#8a5aff'][(i + k) % 4]; if ((i * 7 + k * 3) % 5 === 0) g.fillRect(x + 4, h - bh + 8 + k * 12, 14, 5); } } g.fillStyle = 'rgba(255,40,140,0.25)'; g.fillRect(0, h * 0.85, w, h); } },
     { id: 'op', no: 'P', title: 'PERSONNEL', place: 'Operator file · loadout & appearance', tab: '#7a8a6a',
@@ -152,8 +152,34 @@ const MENU = (() => {
     const c = opened.userData.c;
     audio.init(); audio.pouch();
     if (c.id === 'op') { active = false; ui.style.display = 'none'; document.getElementById('topbar').classList.remove('hidden'); document.getElementById('panel').classList.remove('hidden'); document.getElementById('poses').classList.remove('hidden'); return; }
-    $m('mHint').textContent = 'LOADING CASE…'; $m('mBtns').style.display = 'none';
-    location.search = `?map=${c.id}`;
+    $m('mBtns').style.display = 'none'; showLoadout(c);
+  }
+  // ---------------- the loadout: briefing, four weapon slots, the operator ----------------
+  const lo = document.createElement('div');
+  lo.style.cssText = 'position:fixed;inset:0;z-index:25;display:none;place-items:center;background:radial-gradient(ellipse at center,rgba(8,8,10,.55),rgba(4,4,6,.9));font-family:Rajdhani,sans-serif;color:#e8dcc4';
+  document.body.appendChild(lo);
+  const SLOTNAME = { primary: 'PRIMARY', secondary: 'SECONDARY', sidearm: 'SIDEARM', long: 'LONG RANGE' };
+  const stat = (id) => { const W2 = WEAPONS[id], dmg = W2.dmg ?? W2.mass * (W2.pellets > 1 ? 2.2 : 1); return { DAMAGE: Math.min(1, dmg / 3.2), 'FIRE RATE': Math.min(1, W2.rpm / 850), RANGE: Math.min(1, (W2.v / 900) * (1 / (W2.drag + 0.3)) * 1.2), STEALTH: id === 'mp5' ? 0.95 : id === 'pistol' ? 0.35 : id === 'dmr' || id === 'sniper' ? 0.25 : 0.15, CONTROL: Math.max(0.05, 1 - W2.recoil.rx / 8) }; };
+  function showLoadout(c) {
+    const L = { ...LOADOUT };
+    const render = () => {
+      lo.innerHTML = `<div style="width:min(1100px,94vw);max-height:92vh;overflow:auto;padding:26px 30px;border-radius:12px;background:rgba(16,15,13,.94);border:1px solid rgba(201,164,92,.35);box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px"><div style="font-size:13px;letter-spacing:.35em;color:#c9a45c">CASE ${c.no} · MISSION BRIEFING</div><div style="font-size:12px;letter-spacing:.25em;opacity:.6">${c.place.toUpperCase()}</div></div>
+        <div style="font-size:34px;font-weight:700;letter-spacing:.12em;margin:4px 0 10px">${c.title}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+          <div style="font-size:15px;line-height:1.55;letter-spacing:.03em;color:#d8ccb4">${c.lines.map((l) => l === '' ? '<div style="height:8px"></div>' : l === 'OBJECTIVES' ? '<div style="margin-top:6px;font-size:12px;letter-spacing:.3em;color:#c9a45c">OBJECTIVES</div>' : `<div>${l}</div>`).join('')}
+            <div style="margin-top:16px;font-size:12px;letter-spacing:.3em;color:#c9a45c">INTEL</div><div style="opacity:.8">${c.intel || ''}</div></div>
+          <div>${Object.keys(SLOTNAME).map((k) => `<div style="margin-bottom:12px"><div style="font-size:11px;letter-spacing:.32em;opacity:.65;margin-bottom:5px">${SLOTNAME[k]}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${SLOTS[k].map((id) => `<button data-s="${k}" data-w="${id}" class="btn${L[k] === id ? ' primary' : ''}" style="padding:7px 12px;font-size:13px;letter-spacing:.12em;opacity:${(k === 'secondary' && id === L.primary) ? 0.35 : 1}">${WEAPONS[id].name}</button>`).join('')}</div>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px">${Object.entries(stat(L[k])).map(([n, v]) => `<div><div style="font-size:9px;letter-spacing:.2em;opacity:.55">${n}</div><div style="height:4px;background:rgba(255,255,255,.1);border-radius:2px"><i style="display:block;height:100%;width:${Math.round(v * 100)}%;background:#c9a45c;border-radius:2px"></i></div></div>`).join('')}</div></div>`).join('')}</div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:18px"><button class="btn" id="loBack">BACK</button><button class="btn" id="loOp">CUSTOMIZE OPERATOR</button><button class="btn primary" id="loGo" style="min-width:200px">DEPLOY</button></div></div>`;
+      lo.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { const k = b.dataset.s, w = b.dataset.w; if (k === 'secondary' && w === L.primary) return; L[k] = w; if (k === 'primary' && L.secondary === w) L.secondary = SLOTS.secondary.find((x) => x !== w); audio.pouch(); render(); });
+      lo.querySelector('#loBack').onclick = () => { lo.style.display = 'none'; $m('mBtns').style.display = 'flex'; };
+      lo.querySelector('#loOp').onclick = () => { save(); try { sessionStorage.setItem('nightrange.pendingCase', c.id); } catch (e) { /* ignore */ } lo.style.display = 'none'; const op = files.find((g) => g.userData.c.id === 'op'); opened = op; go(); };
+      lo.querySelector('#loGo').onclick = () => { save(); try { sessionStorage.removeItem('nightrange.pendingCase'); } catch (e) { /* ignore */ } lo.innerHTML = '<div style="letter-spacing:.35em;font-size:14px;opacity:.75">LOADING CASE…</div>'; location.search = `?map=${c.id}`; };
+    };
+    const save = () => { Object.assign(LOADOUT, L); try { localStorage.setItem('nightrange.loadout', JSON.stringify(L)); } catch (e) { /* ignore */ } };
+    lo.style.display = 'grid'; render();
   }
   function open(g) { opened = g; audio.init(); audio.pouch(); $m('mBtns').style.display = 'flex'; $m('mHint').style.display = 'none'; $m('mGo').textContent = g.userData.c.id === 'op' ? 'OPEN FILE' : 'DEPLOY'; }
   function close() { if (!opened) return; opened = null; audio.holster(); $m('mBtns').style.display = 'none'; $m('mHint').style.display = 'block'; }
@@ -214,6 +240,9 @@ const MENU = (() => {
       if (!built) build();
       active = true; ui.style.display = 'block';
       for (const id of ['panel', 'topbar', 'poses', 'loading']) { const e = document.getElementById(id); if (e) e.classList.add('hidden'); }
+      // back from the operator file mid-briefing: straight back to that case's loadout
+      let pend = null; try { pend = sessionStorage.getItem('nightrange.pendingCase'); } catch (e) { /* ignore */ }
+      if (pend) { const c = CASES.find((q) => q.id === pend); if (c) { opened = files.find((g) => g.userData.c.id === pend); showLoadout(c); } }
     },
     frame,
     _dbg: { files, cam, screen: (i) => { const p = files[i].getWorldPosition(new V3()).project(cam); return [(p.x + 1) / 2 * innerWidth, (1 - p.y) / 2 * innerHeight]; } },

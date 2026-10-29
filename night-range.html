@@ -1097,6 +1097,19 @@ function buildRifle(c) {
   };
 }
 
+// ---- variants on the rifle frame, each with its own finish (their own materials, so the operator's gun colours don't touch them) ----
+function refinish(g, map) { g.group.traverse((o) => { if (o.isMesh && map.has(o.material)) o.material = map.get(o.material); }); return g; }
+const FINISH = {
+  wood: new THREE.MeshStandardMaterial({ color: 0x6a3418, roughness: 0.55, metalness: 0.05 }), blued: new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.45, metalness: 0.7 }),
+  black: new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.6, metalness: 0.4 }), tan: new THREE.MeshStandardMaterial({ color: 0x9a8662, roughness: 0.7, metalness: 0.1 }),
+};
+// AKM: blued steel and lacquered wood, slant brake, iron sights
+function buildAKM(c) { return refinish(buildRifle({ ...c, optic: 'irons', muzzle: 'brake', grip: 'none' }), new Map([[SLOT.furn, FINISH.wood], [SLOT.gun, FINISH.blued]])); }
+// MP5SD: compact, all black, the integral suppressor — quiet enough that guards a street away don't hear it
+function buildMP5(c) { const g = refinish(buildRifle({ ...c, optic: 'reddot', muzzle: 'suppressor', grip: 'none' }), new Map([[SLOT.furn, FINISH.black], [SLOT.gun, FINISH.black]])); g.group.scale.setScalar(GUN_SCALE * 0.84); return g; }
+// MK14: a long semi-auto battle rifle in tan furniture with a magnified sight
+function buildDMR(c) { const g = refinish(buildRifle({ ...c, optic: 'holo', muzzle: 'flash', grip: 'vertical' }), new Map([[SLOT.furn, FINISH.tan], [SLOT.gun, FINISH.black]])); g.group.scale.setScalar(GUN_SCALE * 1.08); return g; }
+
 // Bolt-action sniper rifle (M24-style): heavy barrel, 10x scope, 5-round box magazine, folded bipod
 const cylX = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg).rotateZ(Math.PI / 2);
 const cylY = (r, len, seg = 8) => new THREE.CylinderGeometry(r, r, len, seg);
@@ -9718,19 +9731,31 @@ const WEAPONS = {
   sniper: { name: 'M24 SNIPER', build: buildSniper, hold: 'shoulder', rpm: 50, modes: ['BOLT'], cap: 5, reserve: 40, bolt: true,
     v: 850, drag: 0.32, pellets: 1, choke: 0, mass: 1.6, dmg: 3.2, spread: [0.055, 0.00022], recoil: { z: 3.2, rx: 7.5, ry: 1.0, cam: 1.0, climb: 0.018 },
     reload: 'mag', tracer: 0, zero: 100, ads: [8, 8], casing: 'rifle', scope: true },
+  akm: { name: 'AKM RIFLE', build: buildAKM, hold: 'shoulder', rpm: 600, modes: ['AUTO', 'SEMI'], cap: 30, reserve: 210,
+    v: 715, drag: 0.9, pellets: 1, choke: 0, mass: 1.25, dmg: 1.3, spread: [0.03, 0.0016], recoil: { z: 1.8, rx: 3.5, ry: 1.25, cam: 0.48, climb: 0.006 },
+    reload: 'mag', tracer: 3, zero: 50, ads: [54, 48], casing: 'rifle' },
+  mp5: { name: 'MP5SD', build: buildMP5, hold: 'shoulder', rpm: 800, modes: ['AUTO', 'SEMI', 'BURST'], cap: 30, reserve: 240,
+    v: 285, drag: 1.3, pellets: 1, choke: 0, mass: 0.55, dmg: 0.85, spread: [0.026, 0.0018], recoil: { z: 0.9, rx: 1.6, ry: 0.6, cam: 0.22, climb: 0.003 },
+    reload: 'mag', tracer: 0, zero: 25, ads: [54, 50], casing: 'pistol' },
+  dmr: { name: 'MK14 DMR', build: buildDMR, hold: 'shoulder', rpm: 300, modes: ['SEMI'], cap: 20, reserve: 120,
+    v: 850, drag: 0.4, pellets: 1, choke: 0, mass: 1.4, dmg: 2.0, spread: [0.03, 0.0005], recoil: { z: 2.4, rx: 5.4, ry: 1.0, cam: 0.72, climb: 0.011 },
+    reload: 'mag', tracer: 0, zero: 100, ads: [24, 20], casing: 'rifle' },
 };
-const ORDER = ['rifle', 'shotgun', 'pistol', 'sniper'];
+// what you carry: four slots, chosen on the loadout screen before a mission (stored between sessions)
+const SLOTS = { primary: ['rifle', 'akm', 'mp5'], secondary: ['shotgun', 'mp5', 'akm', 'rifle'], sidearm: ['pistol'], long: ['sniper', 'dmr'] };
+const LOADOUT = (() => { const d = { primary: 'rifle', secondary: 'shotgun', sidearm: 'pistol', long: 'sniper' }; try { const s = JSON.parse(localStorage.getItem('nightrange.loadout') || '{}'); for (const k in d) if (SLOTS[k].includes(s[k])) d[k] = s[k]; } catch (e) { /* ignore */ } if (d.secondary === d.primary) d.secondary = d.primary === 'shotgun' ? 'rifle' : 'shotgun'; return d; })();
+const ORDER = [LOADOUT.primary, LOADOUT.secondary, LOADOUT.sidearm, LOADOUT.long];
 const P = {
   pos: new V3(0, 0, -2.5), vel: new V3(), yaw: 0, pitch: 0,
   crouch: false, crouchT: 0, sprintT: 0, ads: false, adsT: 0, fp: false, fpT: 0, lowT: 0,
   phase: 0, gaitW: 0, prevU: [0, 0], camY: 1.6,
-  w: 'rifle', inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
+  w: ORDER[0], inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
   reload: null, swap: null, pump: null, boltT: 0, slideT: 0,
   kick: { z: 0, vz: 0, rx: 0, vrx: 0, ry: 0, vry: 0 }, cr: { p: 0, vp: 0, y: 0, vy: 0 }, bloom: 0,
   sway: { x: 0, vx: 0, y: 0, vy: 0 }, feel: { land: 0, vland: 0, hit: 0, vhit: 0, hitSide: 1, yawRate: 0, lastYaw: 0 }, air: false, shake: 0, lean: 0, leanT: 0, stamina: 1, breath: 1, holdBreath: false, winded: 0,
   stats: { shots: 0, hits: 0, score: 0 }, infinite: true, sens: 1, flashT: 0, shotId: 0, lastHitShot: -1,
 };
-function freshInv() { for (const id of ORDER) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
+function freshInv() { for (const id of Object.keys(WEAPONS)) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
 freshInv();
 const inv = () => P.inv[P.w];
 const WD = () => WEAPONS[P.w];
@@ -9771,6 +9796,7 @@ function rebuildGuns() {
   for (let i = props.length - 1; i >= 0; i--) if (props[i].kind === 'mag') { scene.remove(props[i].obj); props.splice(i, 1); }
   guns = {};
   for (const id of ORDER) {
+    if (guns[id]) continue;
     const g = WEAPONS[id].build(cfg);
     g.handItem = g.mag ? g.mag.clone() : shellMesh();
     g.handItem.scale.setScalar(GUN_SCALE); g.handItem.visible = false; scene.add(g.handItem);
@@ -10168,7 +10194,7 @@ function fire() {
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
   if (W.casing !== 'shell' && !W.bolt) ejectCasing(W.casing);
   audio.gunshot(g.kind === 'sniper' ? 'shotgun' : g.kind, sup, g.brake);
-  BOTS.playerShot(mz, base);
+  BOTS.playerShot(mz, base, sup);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
   const R = W.recoil;
@@ -11679,12 +11705,13 @@ const BOTS = (() => {
   }
   let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
-  function playerShot(origin, dir) {
+  function playerShot(origin, dir, quiet = false) {
     if (!arena || !enabled) return;
     const lo = toLocal(origin.x, origin.z);
-    me.lastShotT = arena.time; NPCS.alarm(origin.x, origin.z);
-    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < 90)) DISGUISE.blow('shot');
-    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot, 'shot', me.id);
+    // a suppressed shot: no flash, and it carries a quarter as far (guards close by still hear it)
+    me.lastShotT = arena.time; me.suppressed = quiet; if (!quiet) NPCS.alarm(origin.x, origin.z);
+    if (views.some((v) => v.agent.alive && Math.hypot(v.agent.pos.x + arena.ox - origin.x, v.agent.pos.z + arena.oz - origin.z) < (quiet ? 22 : 90))) DISGUISE.blow('shot');
+    arena.emitSound({ x: lo.x, y: 0, z: lo.z }, TUNE.hearing.gunshot * (quiet ? 0.25 : 1), 'shot', me.id);
     for (const v of views) {
       const a = v.agent; if (!a.alive) continue;
       const c = new V3(a.pos.x + arena.ox, (a.pos.y || 0) + a.top() * 0.7, a.pos.z + arena.oz), w = c.clone().sub(origin), t = w.dot(dir);
@@ -13091,10 +13118,10 @@ const MENU = (() => {
 
   // ---------------- the cases ----------------
   const CASES = [
-    { id: 'dar', no: '01', title: 'DAR ESSALAM', place: 'Morocco · walled harbour town · day', tab: '#c9a45c',
+    { id: 'dar', no: '01', intel: 'The militia holds the kasbah and the palace on the hill. A uniform opens their doors — walk, don’t run, keep your weapon down. Bottles and stones thrown into a lane will pull a sentry off his post.', title: 'DAR ESSALAM', place: 'Morocco · walled harbour town · day', tab: '#c9a45c',
       lines: ['A militia has taken the old kasbah of a coastal', 'town. Our people are still inside the medina.', '', 'OBJECTIVES', '· Recover the dead drop in the riad Dar Lamia', '· Remove Captain Haddad (minaret overwatch)', '· Infiltrate the kasbah HQ in their uniform', '· Tail the courier through the souk', '· The palace of Dar el Makhzen is heavily guarded', '· Exfil by boat from the harbour'],
       photo: (g, w, h) => { const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#8fb4dc'); sky.addColorStop(1, '#f0d8b0'); g.fillStyle = sky; g.fillRect(0, 0, w, h); g.fillStyle = '#2a6a8a'; g.fillRect(0, h * 0.78, w, h); g.fillStyle = '#c8986a'; for (let i = 0; i < 14; i++) { const bw = 18 + (i * 37) % 30, bh = 30 + (i * 53) % 60; g.fillRect(i * 22 - 10, h * 0.78 - bh, bw, bh); } g.fillStyle = '#d8b88a'; g.fillRect(w * 0.62, h * 0.18, 26, h * 0.6); g.fillStyle = '#2a6a4a'; g.fillRect(w * 0.62 - 3, h * 0.15, 32, 10); } },
-    { id: 'seoul', no: '02', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
+    { id: 'seoul', no: '02', intel: 'Two crews split the district: the Black Dragons hold Mapo’s bar streets, the Blue Snakes Gangnam. Their own men’s clothes fool only them. Line 2 runs under all of it — five stations, trains every few minutes.', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
       lines: ['A broker is selling the papers we took from the', 'kasbah to a gang that runs the night markets.', '', 'OBJECTIVES', '· Meet the informant at the 24-hour store', '· Find the gang’s lieutenant in the food alley', '· Get the drive off him — however you have to', '· Lose the gang in the alleys, reach the subway'],
       photo: (g, w, h) => { g.fillStyle = '#0a0a18'; g.fillRect(0, 0, w, h); for (let i = 0; i < 12; i++) { const x = i * 24, bh = 60 + (i * 41) % 90; g.fillStyle = '#14142a'; g.fillRect(x, h - bh, 22, bh); for (let k = 0; k < 10; k++) { g.fillStyle = ['#ff2a8a', '#2af0ff', '#ffd040', '#8a5aff'][(i + k) % 4]; if ((i * 7 + k * 3) % 5 === 0) g.fillRect(x + 4, h - bh + 8 + k * 12, 14, 5); } } g.fillStyle = 'rgba(255,40,140,0.25)'; g.fillRect(0, h * 0.85, w, h); } },
     { id: 'op', no: 'P', title: 'PERSONNEL', place: 'Operator file · loadout & appearance', tab: '#7a8a6a',
@@ -13225,8 +13252,34 @@ const MENU = (() => {
     const c = opened.userData.c;
     audio.init(); audio.pouch();
     if (c.id === 'op') { active = false; ui.style.display = 'none'; document.getElementById('topbar').classList.remove('hidden'); document.getElementById('panel').classList.remove('hidden'); document.getElementById('poses').classList.remove('hidden'); return; }
-    $m('mHint').textContent = 'LOADING CASE…'; $m('mBtns').style.display = 'none';
-    location.search = `?map=${c.id}`;
+    $m('mBtns').style.display = 'none'; showLoadout(c);
+  }
+  // ---------------- the loadout: briefing, four weapon slots, the operator ----------------
+  const lo = document.createElement('div');
+  lo.style.cssText = 'position:fixed;inset:0;z-index:25;display:none;place-items:center;background:radial-gradient(ellipse at center,rgba(8,8,10,.55),rgba(4,4,6,.9));font-family:Rajdhani,sans-serif;color:#e8dcc4';
+  document.body.appendChild(lo);
+  const SLOTNAME = { primary: 'PRIMARY', secondary: 'SECONDARY', sidearm: 'SIDEARM', long: 'LONG RANGE' };
+  const stat = (id) => { const W2 = WEAPONS[id], dmg = W2.dmg ?? W2.mass * (W2.pellets > 1 ? 2.2 : 1); return { DAMAGE: Math.min(1, dmg / 3.2), 'FIRE RATE': Math.min(1, W2.rpm / 850), RANGE: Math.min(1, (W2.v / 900) * (1 / (W2.drag + 0.3)) * 1.2), STEALTH: id === 'mp5' ? 0.95 : id === 'pistol' ? 0.35 : id === 'dmr' || id === 'sniper' ? 0.25 : 0.15, CONTROL: Math.max(0.05, 1 - W2.recoil.rx / 8) }; };
+  function showLoadout(c) {
+    const L = { ...LOADOUT };
+    const render = () => {
+      lo.innerHTML = `<div style="width:min(1100px,94vw);max-height:92vh;overflow:auto;padding:26px 30px;border-radius:12px;background:rgba(16,15,13,.94);border:1px solid rgba(201,164,92,.35);box-shadow:0 20px 60px rgba(0,0,0,.6)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:20px"><div style="font-size:13px;letter-spacing:.35em;color:#c9a45c">CASE ${c.no} · MISSION BRIEFING</div><div style="font-size:12px;letter-spacing:.25em;opacity:.6">${c.place.toUpperCase()}</div></div>
+        <div style="font-size:34px;font-weight:700;letter-spacing:.12em;margin:4px 0 10px">${c.title}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+          <div style="font-size:15px;line-height:1.55;letter-spacing:.03em;color:#d8ccb4">${c.lines.map((l) => l === '' ? '<div style="height:8px"></div>' : l === 'OBJECTIVES' ? '<div style="margin-top:6px;font-size:12px;letter-spacing:.3em;color:#c9a45c">OBJECTIVES</div>' : `<div>${l}</div>`).join('')}
+            <div style="margin-top:16px;font-size:12px;letter-spacing:.3em;color:#c9a45c">INTEL</div><div style="opacity:.8">${c.intel || ''}</div></div>
+          <div>${Object.keys(SLOTNAME).map((k) => `<div style="margin-bottom:12px"><div style="font-size:11px;letter-spacing:.32em;opacity:.65;margin-bottom:5px">${SLOTNAME[k]}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${SLOTS[k].map((id) => `<button data-s="${k}" data-w="${id}" class="btn${L[k] === id ? ' primary' : ''}" style="padding:7px 12px;font-size:13px;letter-spacing:.12em;opacity:${(k === 'secondary' && id === L.primary) ? 0.35 : 1}">${WEAPONS[id].name}</button>`).join('')}</div>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px">${Object.entries(stat(L[k])).map(([n, v]) => `<div><div style="font-size:9px;letter-spacing:.2em;opacity:.55">${n}</div><div style="height:4px;background:rgba(255,255,255,.1);border-radius:2px"><i style="display:block;height:100%;width:${Math.round(v * 100)}%;background:#c9a45c;border-radius:2px"></i></div></div>`).join('')}</div></div>`).join('')}</div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:18px"><button class="btn" id="loBack">BACK</button><button class="btn" id="loOp">CUSTOMIZE OPERATOR</button><button class="btn primary" id="loGo" style="min-width:200px">DEPLOY</button></div></div>`;
+      lo.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { const k = b.dataset.s, w = b.dataset.w; if (k === 'secondary' && w === L.primary) return; L[k] = w; if (k === 'primary' && L.secondary === w) L.secondary = SLOTS.secondary.find((x) => x !== w); audio.pouch(); render(); });
+      lo.querySelector('#loBack').onclick = () => { lo.style.display = 'none'; $m('mBtns').style.display = 'flex'; };
+      lo.querySelector('#loOp').onclick = () => { save(); try { sessionStorage.setItem('nightrange.pendingCase', c.id); } catch (e) { /* ignore */ } lo.style.display = 'none'; const op = files.find((g) => g.userData.c.id === 'op'); opened = op; go(); };
+      lo.querySelector('#loGo').onclick = () => { save(); try { sessionStorage.removeItem('nightrange.pendingCase'); } catch (e) { /* ignore */ } lo.innerHTML = '<div style="letter-spacing:.35em;font-size:14px;opacity:.75">LOADING CASE…</div>'; location.search = `?map=${c.id}`; };
+    };
+    const save = () => { Object.assign(LOADOUT, L); try { localStorage.setItem('nightrange.loadout', JSON.stringify(L)); } catch (e) { /* ignore */ } };
+    lo.style.display = 'grid'; render();
   }
   function open(g) { opened = g; audio.init(); audio.pouch(); $m('mBtns').style.display = 'flex'; $m('mHint').style.display = 'none'; $m('mGo').textContent = g.userData.c.id === 'op' ? 'OPEN FILE' : 'DEPLOY'; }
   function close() { if (!opened) return; opened = null; audio.holster(); $m('mBtns').style.display = 'none'; $m('mHint').style.display = 'block'; }
@@ -13287,6 +13340,9 @@ const MENU = (() => {
       if (!built) build();
       active = true; ui.style.display = 'block';
       for (const id of ['panel', 'topbar', 'poses', 'loading']) { const e = document.getElementById(id); if (e) e.classList.add('hidden'); }
+      // back from the operator file mid-briefing: straight back to that case's loadout
+      let pend = null; try { pend = sessionStorage.getItem('nightrange.pendingCase'); } catch (e) { /* ignore */ }
+      if (pend) { const c = CASES.find((q) => q.id === pend); if (c) { opened = files.find((g) => g.userData.c.id === pend); showLoadout(c); } }
     },
     frame,
     _dbg: { files, cam, screen: (i) => { const p = files[i].getWorldPosition(new V3()).project(cam); return [(p.x + 1) / 2 * innerWidth, (1 - p.y) / 2 * innerHeight]; } },
@@ -13580,7 +13636,7 @@ function renderControls() {
 function renderPoses() {
   const items = [['ready', 'Low Ready'], ['aim', 'Aim'], ['relaxed', 'Relaxed']];
   const wl = { rifle: 'Rifle', shotgun: 'Shotgun', pistol: 'Pistol' };
-  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${wl[id]}</button>`).join('') +
+  $('poses').innerHTML = ORDER.map((id) => `<button class="chip${P.w === id ? ' on' : ''}" data-w="${id}">${WEAPONS[id].name}</button>`).join('') +
     items.map(([v, n]) => `<button class="chip${pose === v ? ' on' : ''}" data-pose="${v}">${n}</button>`).join('') +
     `<button class="chip${turntable ? ' on' : ''}" data-tt>Turntable</button><button class="chip" data-face>Face</button><button class="chip" data-full>Full Body</button>`;
   $('poses').querySelectorAll('[data-pose]').forEach((b) => b.onclick = () => { pose = b.dataset.pose; renderPoses(); });

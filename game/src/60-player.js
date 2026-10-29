@@ -16,19 +16,31 @@ const WEAPONS = {
   sniper: { name: 'M24 SNIPER', build: buildSniper, hold: 'shoulder', rpm: 50, modes: ['BOLT'], cap: 5, reserve: 40, bolt: true,
     v: 850, drag: 0.32, pellets: 1, choke: 0, mass: 1.6, dmg: 3.2, spread: [0.055, 0.00022], recoil: { z: 3.2, rx: 7.5, ry: 1.0, cam: 1.0, climb: 0.018 },
     reload: 'mag', tracer: 0, zero: 100, ads: [8, 8], casing: 'rifle', scope: true },
+  akm: { name: 'AKM RIFLE', build: buildAKM, hold: 'shoulder', rpm: 600, modes: ['AUTO', 'SEMI'], cap: 30, reserve: 210,
+    v: 715, drag: 0.9, pellets: 1, choke: 0, mass: 1.25, dmg: 1.3, spread: [0.03, 0.0016], recoil: { z: 1.8, rx: 3.5, ry: 1.25, cam: 0.48, climb: 0.006 },
+    reload: 'mag', tracer: 3, zero: 50, ads: [54, 48], casing: 'rifle' },
+  mp5: { name: 'MP5SD', build: buildMP5, hold: 'shoulder', rpm: 800, modes: ['AUTO', 'SEMI', 'BURST'], cap: 30, reserve: 240,
+    v: 285, drag: 1.3, pellets: 1, choke: 0, mass: 0.55, dmg: 0.85, spread: [0.026, 0.0018], recoil: { z: 0.9, rx: 1.6, ry: 0.6, cam: 0.22, climb: 0.003 },
+    reload: 'mag', tracer: 0, zero: 25, ads: [54, 50], casing: 'pistol' },
+  dmr: { name: 'MK14 DMR', build: buildDMR, hold: 'shoulder', rpm: 300, modes: ['SEMI'], cap: 20, reserve: 120,
+    v: 850, drag: 0.4, pellets: 1, choke: 0, mass: 1.4, dmg: 2.0, spread: [0.03, 0.0005], recoil: { z: 2.4, rx: 5.4, ry: 1.0, cam: 0.72, climb: 0.011 },
+    reload: 'mag', tracer: 0, zero: 100, ads: [24, 20], casing: 'rifle' },
 };
-const ORDER = ['rifle', 'shotgun', 'pistol', 'sniper'];
+// what you carry: four slots, chosen on the loadout screen before a mission (stored between sessions)
+const SLOTS = { primary: ['rifle', 'akm', 'mp5'], secondary: ['shotgun', 'mp5', 'akm', 'rifle'], sidearm: ['pistol'], long: ['sniper', 'dmr'] };
+const LOADOUT = (() => { const d = { primary: 'rifle', secondary: 'shotgun', sidearm: 'pistol', long: 'sniper' }; try { const s = JSON.parse(localStorage.getItem('nightrange.loadout') || '{}'); for (const k in d) if (SLOTS[k].includes(s[k])) d[k] = s[k]; } catch (e) { /* ignore */ } if (d.secondary === d.primary) d.secondary = d.primary === 'shotgun' ? 'rifle' : 'shotgun'; return d; })();
+const ORDER = [LOADOUT.primary, LOADOUT.secondary, LOADOUT.sidearm, LOADOUT.long];
 const P = {
   pos: new V3(0, 0, -2.5), vel: new V3(), yaw: 0, pitch: 0,
   crouch: false, crouchT: 0, sprintT: 0, ads: false, adsT: 0, fp: false, fpT: 0, lowT: 0,
   phase: 0, gaitW: 0, prevU: [0, 0], camY: 1.6,
-  w: 'rifle', inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
+  w: ORDER[0], inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
   reload: null, swap: null, pump: null, boltT: 0, slideT: 0,
   kick: { z: 0, vz: 0, rx: 0, vrx: 0, ry: 0, vry: 0 }, cr: { p: 0, vp: 0, y: 0, vy: 0 }, bloom: 0,
   sway: { x: 0, vx: 0, y: 0, vy: 0 }, feel: { land: 0, vland: 0, hit: 0, vhit: 0, hitSide: 1, yawRate: 0, lastYaw: 0 }, air: false, shake: 0, lean: 0, leanT: 0, stamina: 1, breath: 1, holdBreath: false, winded: 0,
   stats: { shots: 0, hits: 0, score: 0 }, infinite: true, sens: 1, flashT: 0, shotId: 0, lastHitShot: -1,
 };
-function freshInv() { for (const id of ORDER) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
+function freshInv() { for (const id of Object.keys(WEAPONS)) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
 freshInv();
 const inv = () => P.inv[P.w];
 const WD = () => WEAPONS[P.w];
@@ -69,6 +81,7 @@ function rebuildGuns() {
   for (let i = props.length - 1; i >= 0; i--) if (props[i].kind === 'mag') { scene.remove(props[i].obj); props.splice(i, 1); }
   guns = {};
   for (const id of ORDER) {
+    if (guns[id]) continue;
     const g = WEAPONS[id].build(cfg);
     g.handItem = g.mag ? g.mag.clone() : shellMesh();
     g.handItem.scale.setScalar(GUN_SCALE); g.handItem.visible = false; scene.add(g.handItem);
@@ -466,7 +479,7 @@ function fire() {
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
   if (W.casing !== 'shell' && !W.bolt) ejectCasing(W.casing);
   audio.gunshot(g.kind === 'sniper' ? 'shotgun' : g.kind, sup, g.brake);
-  BOTS.playerShot(mz, base);
+  BOTS.playerShot(mz, base, sup);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
   const R = W.recoil;
