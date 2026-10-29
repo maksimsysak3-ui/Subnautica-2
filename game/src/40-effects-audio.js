@@ -187,8 +187,33 @@ const audio = (() => {
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(g); out(g, wet); o.start(t); o.stop(t + decay + 0.05);
   }
+  // a little two-stroke: sawtooth + square through a throaty low-pass, pitch follows the revs
+  let eng = null, skid = null;
+  function engineNodes() {
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o1.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.Q.value = 4; g.gain.value = 0;
+    lfo.frequency.value = 18; lg.gain.value = 6; lfo.connect(lg); lg.connect(o1.frequency);
+    o1.connect(f); o2.connect(f); f.connect(g); out(g, 0.05);
+    o1.start(); o2.start(); lfo.start();
+    return { o1, o2, f, g, lfo };
+  }
   return {
     init,
+    engine(on, rpm = 0, load = 0) {
+      if (!ctx) return;
+      if (!eng) eng = engineNodes();
+      const t = ctx.currentTime, f0 = 32 + rpm * 120;
+      eng.o1.frequency.setTargetAtTime(f0, t, 0.05); eng.o2.frequency.setTargetAtTime(f0 * 2.01, t, 0.05); eng.lfo.frequency.setTargetAtTime(f0 * 0.5, t, 0.05);
+      eng.f.frequency.setTargetAtTime(380 + rpm * 900 + load * 600, t, 0.05);
+      eng.g.gain.setTargetAtTime(on ? 0.05 + load * 0.06 + rpm * 0.03 : 0, t, on ? 0.08 : 0.3);
+    },
+    skid(k) {
+      if (!ctx) return;
+      if (!skid) { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 3; const g = ctx.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); out(g, 0.1); s.start(); skid = { g, f }; }
+      skid.g.gain.setTargetAtTime(k * 0.16, ctx.currentTime, 0.05); skid.f.frequency.setTargetAtTime(1800 + k * 1200, ctx.currentTime, 0.05);
+    },
+    horn() { if (!ctx) return; const t = ctx.currentTime; tone(t, 'square', 415, null, 0.07, 0.42, 0.1); tone(t, 'square', 523, null, 0.06, 0.42, 0.1); },
+    crash(k = 1) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.4, 'lowpass', 900, 1, 0.9 * k, 0.4, 0.3); nz(t + 0.02, 0.25, 'bandpass', 3000, 1, 0.4 * k, 0.25, 0.3); tone(t, 'sine', 90, 40, 0.5 * k, 0.3); },
     setVolume(v) { volume = v; if (master) master.gain.value = v; },
     gunshot(kind, suppressed, brake) {
       if (!ctx) return; const t = ctx.currentTime, p = rand(0.94, 1.06);

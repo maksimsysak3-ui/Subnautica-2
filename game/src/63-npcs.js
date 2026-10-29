@@ -285,6 +285,18 @@ const NPCS = (() => {
     return true;
   }
   function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
+  // ---- traffic: a horn clears the way; a scooter at speed knocks people flying ----
+  function honk(x, z, yaw) {
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    for (const v of civs) { if (!v.alive) continue; const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d < 16 && (dx * fx + dz * fz) / (d || 1) > 0.2) { v.panic = Math.max(v.panic, 1.6); v.idle = 0; } }
+  }
+  function bump(x, z, speed) {
+    for (const v of [...civs, ...figs]) {
+      if (!v.alive || Math.hypot(v.x - x, v.z - z) > 0.85) continue;
+      if (speed > 5 && !v.fig) { v.alive = false; v.deadT = 0; v.ko = true; setHits(v, false); P.stats.score -= 50; feed('<span class="m">CIVILIAN HIT −50</span>'); audio.fleshHit(1); alarm(x, z); }
+      else { v.panic = 2.5; }
+    }
+  }
   // ---- scripted figures ----
   const figs = [];
   function spawnFigure(o) {
@@ -296,5 +308,5 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();

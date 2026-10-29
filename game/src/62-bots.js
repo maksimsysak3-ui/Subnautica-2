@@ -229,7 +229,7 @@ const BOTS = (() => {
   }
   function hurtPlayer(dmg, part) {
     if (P.dead || clock < graceUntil) return;
-    P.hp = Math.max(0, P.hp - (HURT[part] ?? 12)); P.hurtT = time0();
+    P.hp = Math.max(0, P.hp - (typeof part === 'number' ? part : HURT[part] ?? 12)); P.hurtT = time0();
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
@@ -340,5 +340,9 @@ const BOTS = (() => {
     P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
     return true;
   }
-  return { update, hit, playerShot, bodies, setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  function ram(x, z, speed) {
+    if (!arena) return;
+    for (const v of views) { if (!v.agent.alive) continue; const w = wpos(v); if (Math.hypot(w.x - x, w.z - z) < 1.0 && speed > 4) { v.agent.onHit(speed * 9, 'torso', me, { x: w.x - x, y: 0, z: w.z - z }, arena); if (!v.agent.alive) { P.stats.score += 25; feed('<span class="s">RUN DOWN +25</span>'); } } }
+  }
+  return { update, hit, playerShot, bodies, ram, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();

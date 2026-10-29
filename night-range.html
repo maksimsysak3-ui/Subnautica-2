@@ -131,7 +131,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <div id="feed"></div>
   <div id="prompt"></div>
   <div id="ammo"><div class="mag"><span id="magN">30</span><small id="chamN">+1</small></div><div class="res" id="resN">/ 240</div><div class="mode" id="modeN">AUTO</div><div class="wname" id="wname"></div><div id="rbar"><i></i></div><div id="stam"><i></i></div></div>
-  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>J</b> restart mission · <b>M</b> map · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
+  <div id="keys"><b>WASD</b> move · <b>SHIFT</b> sprint / hold breath · <b>SPACE</b> jump · <b>C</b> crouch · <b>Q</b> aim (tap/hold) · <b>LMB</b> fire · <b>R</b> reload · <b>1 2 3 4</b>/<b>WHEEL</b> weapons (4 = sniper) · <b>B</b> fire mode · <b>Z X</b> lean · <b>V</b> 1st/3rd person · <b>E</b> interact / ride scooter / take clothes · <b>F</b> takedown · <b>H</b> hide weapons · <b>U</b> own gear · <b>J</b> restart mission · <b>M</b> map · <b>T</b> reset · <b>N</b> hostiles on/off · <b>ESC</b> menu</div>
 </div>
 
 <div id="pause" class="overlay hidden">
@@ -1616,8 +1616,33 @@ const audio = (() => {
     const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(g); out(g, wet); o.start(t); o.stop(t + decay + 0.05);
   }
+  // a little two-stroke: sawtooth + square through a throaty low-pass, pitch follows the revs
+  let eng = null, skid = null;
+  function engineNodes() {
+    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o1.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.Q.value = 4; g.gain.value = 0;
+    lfo.frequency.value = 18; lg.gain.value = 6; lfo.connect(lg); lg.connect(o1.frequency);
+    o1.connect(f); o2.connect(f); f.connect(g); out(g, 0.05);
+    o1.start(); o2.start(); lfo.start();
+    return { o1, o2, f, g, lfo };
+  }
   return {
     init,
+    engine(on, rpm = 0, load = 0) {
+      if (!ctx) return;
+      if (!eng) eng = engineNodes();
+      const t = ctx.currentTime, f0 = 32 + rpm * 120;
+      eng.o1.frequency.setTargetAtTime(f0, t, 0.05); eng.o2.frequency.setTargetAtTime(f0 * 2.01, t, 0.05); eng.lfo.frequency.setTargetAtTime(f0 * 0.5, t, 0.05);
+      eng.f.frequency.setTargetAtTime(380 + rpm * 900 + load * 600, t, 0.05);
+      eng.g.gain.setTargetAtTime(on ? 0.05 + load * 0.06 + rpm * 0.03 : 0, t, on ? 0.08 : 0.3);
+    },
+    skid(k) {
+      if (!ctx) return;
+      if (!skid) { const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 3; const g = ctx.createGain(); g.gain.value = 0; s.connect(f); f.connect(g); out(g, 0.1); s.start(); skid = { g, f }; }
+      skid.g.gain.setTargetAtTime(k * 0.16, ctx.currentTime, 0.05); skid.f.frequency.setTargetAtTime(1800 + k * 1200, ctx.currentTime, 0.05);
+    },
+    horn() { if (!ctx) return; const t = ctx.currentTime; tone(t, 'square', 415, null, 0.07, 0.42, 0.1); tone(t, 'square', 523, null, 0.06, 0.42, 0.1); },
+    crash(k = 1) { if (!ctx) return; const t = ctx.currentTime; nz(t, 0.4, 'lowpass', 900, 1, 0.9 * k, 0.4, 0.3); nz(t + 0.02, 0.25, 'bandpass', 3000, 1, 0.4 * k, 0.25, 0.3); tone(t, 'sine', 90, 40, 0.5 * k, 0.3); },
     setVolume(v) { volume = v; if (master) master.gain.value = v; },
     gunshot(kind, suppressed, brake) {
       if (!ctx) return; const t = ctx.currentTime, p = rand(0.94, 1.06);
@@ -8414,6 +8439,7 @@ function updateHud() {
 // =====================================================================
 const keys = {};
 function spring(o, x, v, k, c, dt) { o[v] += (-k * o[x] - c * o[v]) * dt; o[x] += o[v] * dt; }
+const _rideOff = new V3();
 const wrapPI = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 let lastJumpT = -9;
 const clockJump = (t) => { if (t - lastJumpT < 0.45) return false; lastJumpT = t; return true; };
@@ -8432,10 +8458,11 @@ function updateRange(dt, time) {
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const shift = keys.ShiftLeft || keys.ShiftRight;
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
-  const sprint = shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
+  const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
   P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
   P.winded = damp(P.winded, clamp((0.6 - P.stamina) / 0.6, 0, 1), 1.5, dt);
+  if (P.vehicle) SCOOTER.drive(dt); else {
   const spd = sprint ? 5.6 : P.crouch ? 1.5 : P.ads ? 1.8 : 3.1;
   const wish = T.c.copy(fwd).multiplyScalar(iz).addScaledVector(right, ix);
   if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(spd);
@@ -8449,6 +8476,7 @@ function updateRange(dt, time) {
   if (keys.Space && !P.air && !P.dead && P.stamina > 0.1 && clockJump(time)) { P.vy = 4.3; P.air = true; P.stamina = Math.max(0, P.stamina - 0.08); audio.step(false, 1); }
   if ((P.vy || 0) > 0 || gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); P.air = P.pos.y > gy + 0.02 || P.vy > 0; if (!P.air) land(); }
   else { if (P.air) land(); P.vy = 0; P.pos.y = damp(P.pos.y, gy, 20, dt); }
+  }
 
   // hold breath while aiming (Shift): steadies sway for a few seconds, then you pay for it
   P.holdBreath = shift && P.ads && P.breath > 0;
@@ -8500,22 +8528,25 @@ function updateRange(dt, time) {
   const pitch = clamp(P.pitch + P.cr.p + nod + Math.sin(time * bf) * 0.0013 * swayAmp + Math.sin(time * 2.9) * 0.0004 * swayAmp, -1.4, 1.4);
   const yaw = P.yaw + P.cr.y + Math.sin(time * bf * 0.63) * 0.001 * swayAmp + P.feel.hit * P.feel.hitSide * 0.025;
   const roll = -P.leanT * 0.17 - lvx * 0.006 * hipK + Math.sin(P.phase) * (0.006 + 0.012 * P.sprintT) * P.gaitW * hipK
-    - clamp(P.feel.yawRate, -6, 6) * 0.0045 * hipK + P.feel.hit * P.feel.hitSide * 0.04 + (Math.random() - 0.5) * P.shake * 0.02;
+    - clamp(P.feel.yawRate, -6, 6) * 0.0045 * hipK * (P.vehicle ? 0 : 1) + P.feel.hit * P.feel.hitSide * 0.04 + (Math.random() - 0.5) * P.shake * 0.02 + SCOOTER.camRoll() * P.fpT;
   _e1.set(pitch + (Math.random() - 0.5) * P.shake * 0.004, yaw, roll, 'YXZ'); T.camQ.setFromEuler(_e1);
   T.camFwd.set(0, 0, -1).applyQuaternion(T.camQ);
 
   // body
+  const pistol = WD().hold === 'pistol';
+  if (P.vehicle) SCOOTER.poseRider(dt); else {
   ch.root.position.copy(P.pos);
   ch.root.rotation.set(0, P.yaw + Math.PI, 0);
   const lv = T.d.copy(P.vel).applyAxisAngle(UP, -(P.yaw + Math.PI));
-  const pistol = WD().hold === 'pistol';
   poseBody(dt, time, { localVel: lv, bladed: (1 - P.lowT) * (pistol ? 0.35 : 1), lean: 0.22 * P.sprintT + 0.12 * P.crouchT - 0.3 * pitch * (1 - P.lowT), lookPitch: pitch * (1 - P.lowT * 0.5), crouchT: P.crouchT, sprintT: P.sprintT, side: P.leanT });
   ch.head.visible = P.fpT < 0.5;
+  }
 
   // camera base position (third person shoulder cam or the eyes)
   const eyeW = ch.eye.getWorldPosition(T.e);
+  if (P.vehicle) eyeW.add(_rideOff.set(-Math.sin(P.vehicle.yaw) * 0.24, 0.06, -Math.cos(P.vehicle.yaw) * 0.24));   // riding: eyes ahead of the chest, over the bars
   P.camY = damp(P.camY, eyeW.y, 12, dt);
-  const off = T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
+  const off = P.vehicle ? T.a.set(0, 0.7, 3.9) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
   _e1.set(pitch, yaw, 0, 'YXZ'); off.applyQuaternion(_q2.setFromEuler(_e1));
   // shoulder camera: pull in when a wall is between you and the camera
   const pivot = T.b.set(P.pos.x, P.camY + 0.05, P.pos.z), offLen = off.length();
@@ -8535,7 +8566,7 @@ function updateRange(dt, time) {
   const mountW = (pistol ? ch.pistolMount : ch.mount).getWorldPosition(T.c);
   const dirW = T.d.subVectors(T.aim, mountW).normalize().lerp(T.camFwd, P.fpT * P.adsT).normalize();
   const dirRoot = dirW.applyQuaternion(_q2.copy(ch.root.quaternion).invert());
-  poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
+  if (!P.vehicle) poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
 
   // final camera: through the sights in first person ADS
   camera.quaternion.copy(T.camQ);
@@ -9697,7 +9728,7 @@ const BOTS = (() => {
   }
   function hurtPlayer(dmg, part) {
     if (P.dead || clock < graceUntil) return;
-    P.hp = Math.max(0, P.hp - (HURT[part] ?? 12)); P.hurtT = time0();
+    P.hp = Math.max(0, P.hp - (typeof part === 'number' ? part : HURT[part] ?? 12)); P.hurtT = time0();
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
@@ -9808,7 +9839,11 @@ const BOTS = (() => {
     P.stats.score += 30; feed('<span class="s">SILENT TAKEDOWN +30</span>');
     return true;
   }
-  return { update, hit, playerShot, bodies, setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  function ram(x, z, speed) {
+    if (!arena) return;
+    for (const v of views) { if (!v.agent.alive) continue; const w = wpos(v); if (Math.hypot(w.x - x, w.z - z) < 1.0 && speed > 4) { v.agent.onHit(speed * 9, 'torso', me, { x: w.x - x, y: 0, z: w.z - z }, arena); if (!v.agent.alive) { P.stats.score += 25; feed('<span class="s">RUN DOWN +25</span>'); } } }
+  }
+  return { update, hit, playerShot, bodies, ram, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
 // =====================================================================
 //  Civilians: unarmed townsfolk walking the streets around the player
@@ -10097,6 +10132,18 @@ const NPCS = (() => {
     return true;
   }
   function bodies() { return civs.filter((v) => !v.alive && v.deadT < 20 && v.placed).map((v) => ({ x: v.x, y: v.y, z: v.z, kit: v.m.kit, type: 'civilian', taken: v.taken, mark: () => { v.taken = true; } })); }
+  // ---- traffic: a horn clears the way; a scooter at speed knocks people flying ----
+  function honk(x, z, yaw) {
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    for (const v of civs) { if (!v.alive) continue; const dx = v.x - x, dz = v.z - z, d = Math.hypot(dx, dz); if (d < 16 && (dx * fx + dz * fz) / (d || 1) > 0.2) { v.panic = Math.max(v.panic, 1.6); v.idle = 0; } }
+  }
+  function bump(x, z, speed) {
+    for (const v of [...civs, ...figs]) {
+      if (!v.alive || Math.hypot(v.x - x, v.z - z) > 0.85) continue;
+      if (speed > 5 && !v.fig) { v.alive = false; v.deadT = 0; v.ko = true; setHits(v, false); P.stats.score -= 50; feed('<span class="m">CIVILIAN HIT −50</span>'); audio.fleshHit(1); alarm(x, z); }
+      else { v.panic = 2.5; }
+    }
+  }
   // ---- scripted figures ----
   const figs = [];
   function spawnFigure(o) {
@@ -10108,7 +10155,7 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
+  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; } };
 })();
 // =====================================================================
 //  The campaign: five missions through Dar Essalam
@@ -10325,7 +10372,7 @@ const DISGUISE = (() => {
   }
   function toggleHolster(force) {
     const on = force ?? !P.holstered;
-    if (on === P.holstered || P.dead) return;
+    if (on === P.holstered || P.dead || (!on && SCOOTER.riding)) return;
     if (on) { P.holstered = true; P.reload = null; P.burst = 0; P.trigger = false; aimKey.down = aimKey.toggled = false; if (gun && gun.mag) gun.mag.visible = true; audio.holster(); }
     else { P.holstered = false; P.swap = { t: 0.26, to: P.w, done: true, k: 1 }; audio.draw(); }
   }
@@ -10336,12 +10383,15 @@ const DISGUISE = (() => {
     return best;
   }
   function interact() {
+    if (SCOOTER.riding) { SCOOTER.interact(); return; }
     if (MISSION.interact()) return;
+    if (SCOOTER.interact()) return;
     const b = nearestBody();
     if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
   }
   // silent takedown from behind (militia) / knockout (civilian)
   function takedown() {
+    if (SCOOTER.horn()) return;
     if (P.dead || P.reload) return;
     if (BOTS.takedown(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.5); return; }
     if (NPCS.knockout(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.4); }
@@ -10351,12 +10401,13 @@ const DISGUISE = (() => {
     if (mode !== 'range') return;
     const blown = P.disguise && t < P.blownUntil;
     tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
-      + (P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
+      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
-    else if (BOTS.canTakedown(P.pos, P.yaw)) pr = '[F]  SILENT TAKEDOWN';
-    else if (NPCS.canKnockout(P.pos, P.yaw)) pr = '[F]  KNOCK OUT';
+    else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
+    else if (NPCS.canKnockout(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  KNOCK OUT';
+    else pr = SCOOTER.prompt();
     prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
@@ -10467,6 +10518,192 @@ const HANDMAP = (() => {
   return { toggle, update, get open() { return open; } };
 })();
 // =====================================================================
+//  Scooters: hop on (E) and ride through the medina
+// =====================================================================
+// A two-wheeler handles like one: at speed you steer by leaning (A/D), and the turn follows from the
+// lean (radius = v² / g·tanθ), so fast corners need early, deep leans. Below walking pace it wobbles
+// and you paddle it round with the bars. SPACE locks the rear wheel to swing the tail out round a
+// tight corner; F is the horn (people get out of the way); hit a wall too fast and you're off.
+const SCOOTER = (() => {
+  const SPOTS = [[25, -14, 1.2, 0xc8261e], [30, 97, 0.3, 0x2a6ab0], [-6, 50, 3.1, 0xe8e6e0], [48, 9, 1.6, 0x3a8a6a], [-56, 11, -1.4, 0xe8c040], [38, -41, 0.2, 0x2a2a2a], [80, 26, 2.2, 0x8a3a5a], [-112, 2.6, 1.57, 0x4a8ac8]];
+  const list = [];
+  let riding = null, t = 0, lastLookT = 0, crashT = 0;
+  addEventListener('mousemove', () => { lastLookT = performance.now(); });
+  const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: o.r ?? 0.35, metalness: o.m ?? 0.25, ...o.x });
+  function model(col) {
+    const g = new THREE.Group(), body = mat(col, { r: 0.25, m: 0.35 }), dark = mat(0x1c1c1e, { r: 0.6, m: 0.2 }), chrome = mat(0xd8dade, { r: 0.15, m: 0.95 }), tyre = mat(0x121214, { r: 0.9, m: 0 });
+    const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, p = g) => { const o = M(geo, m, p, x, y, z, rx, ry, rz); o.castShadow = true; return o; };
+    // rear body: rounded side panels over the engine, seat, tail light, rack with a crate
+    add(new THREE.SphereGeometry(0.3, 14, 10).scale(1, 0.85, 1.6), body, 0, 0.45, -0.32);
+    add(new THREE.BoxGeometry(0.42, 0.18, 0.6), body, 0, 0.38, -0.3);
+    add(new THREE.BoxGeometry(0.3, 0.12, 0.66), dark, 0, 0.77, -0.25, 0.05);
+    add(new THREE.BoxGeometry(0.12, 0.06, 0.04), mat(0xc0201a, { x: { emissive: 0x500808 } }), 0, 0.6, -0.81);
+    add(new THREE.BoxGeometry(0.34, 0.025, 0.3), chrome, 0, 0.84, -0.6);
+    add(new THREE.BoxGeometry(0.32, 0.26, 0.3), mat(0x8a6a4a, { r: 0.8, m: 0 }), 0, 0.98, -0.6);
+    // floorboard + legshield sweeping up to the headset
+    add(new THREE.BoxGeometry(0.34, 0.06, 0.62), dark, 0, 0.26, 0.2);
+    add(new THREE.BoxGeometry(0.44, 0.62, 0.05), body, 0, 0.6, 0.53, -0.16);
+    add(new THREE.CylinderGeometry(0.06, 0.06, 0.62, 10), body, 0, 0.62, 0.62, -0.25);
+    // steering: headset, bars, mirrors, headlight, front wheel in the fork (turns as a unit)
+    const steer = new THREE.Group(); steer.position.set(0, 0.95, 0.66); steer.rotation.x = -0.25; g.add(steer);
+    add(new THREE.BoxGeometry(0.22, 0.14, 0.16), body, 0, 0.06, 0, 0, 0, 0, steer);
+    add(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 14), chrome, 0, 0.06, 0.09, Math.PI / 2, 0, 0, steer);
+    add(new THREE.CircleGeometry(0.06, 14), mat(0xfff4d0, { x: { emissive: 0xfff0c0, emissiveIntensity: 0.6 } }), 0, 0.06, 0.116, 0, 0, 0, steer);
+    add(new THREE.CylinderGeometry(0.014, 0.014, 0.68, 8), chrome, 0, 0.12, -0.02, 0, 0, Math.PI / 2, steer);
+    for (const s of [-1, 1]) { add(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 8), dark, s * 0.3, 0.12, -0.02, 0, 0, Math.PI / 2, steer); add(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 6), chrome, s * 0.2, 0.22, -0.02, 0, 0, s * 0.3, steer); add(new THREE.CylinderGeometry(0.035, 0.035, 0.01, 12), chrome, s * 0.24, 0.32, -0.02, Math.PI / 2, 0, 0, steer); }
+    const fork = new THREE.Group(); fork.position.set(0, -0.69, 0.06); steer.add(fork);
+    add(new THREE.BoxGeometry(0.05, 0.5, 0.05), dark, 0.07, 0.3, 0, 0, 0, 0, fork);
+    add(new THREE.SphereGeometry(0.2, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(0.8, 0.6, 1.1), body, 0, 0.12, 0, 0, 0, 0, fork);
+    const fw = new THREE.Group(); fw.position.set(0, 0, 0); fork.add(fw);
+    add(new THREE.TorusGeometry(0.17, 0.055, 8, 18), tyre, 0, 0, 0, 0, Math.PI / 2, 0, fw); add(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), chrome, 0, 0, 0, 0, 0, Math.PI / 2, fw);
+    const rw = new THREE.Group(); rw.position.set(0, 0.22, -0.48); g.add(rw);
+    add(new THREE.TorusGeometry(0.17, 0.055, 8, 18), tyre, 0, 0, 0, 0, Math.PI / 2, 0, rw); add(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 12), chrome, 0, 0, 0, 0, 0, Math.PI / 2, rw);
+    add(new THREE.CylinderGeometry(0.035, 0.045, 0.4, 8), chrome, 0.16, 0.28, -0.62, Math.PI / 2 - 0.15);   // exhaust
+    const stand = add(new THREE.BoxGeometry(0.03, 0.28, 0.03), dark, 0.16, 0.12, -0.05, 0, 0, 0.35);
+    return { g, steer, fw, rw, stand };
+  }
+  function spawn() {
+    for (const [x, z, yaw, col] of SPOTS) {
+      const m = model(col); scene.add(m.g);
+      list.push({ m, x, z, y: COL.ground(x, z, 0.3), yaw, v: 0, vx: 0, vz: 0, lean: 0.22, steer: 0, steerIn: 0, slip: 0 });
+    }
+  }
+  const nearest = () => { let b = null, bd = 1.9; for (const s of list) { const d = Math.hypot(s.x - P.pos.x, s.z - P.pos.z); if (d < bd && s !== riding && Math.abs(s.y - P.pos.y) < 1) { bd = d; b = s; } } return b; };
+  function mount(s) {
+    riding = s; P.vehicle = s; s.v = 0; s.vx = s.vz = 0;
+    s.wasHolstered = P.holstered; if (!P.holstered) DISGUISE.toggleHolster(true);
+    P.crouch = false; P.lean = 0; P.yaw = s.yaw; audio.pouch(); s.m.stand.visible = false;
+    feed('<span class="m">W throttle · S brake · A/D lean · SPACE rear brake · F horn · E get off</span>');
+  }
+  function dismount(force = false) {
+    const s = riding; if (!s) return;
+    if (!force && Math.hypot(s.vx, s.vz) > 3) return;
+    const lx = Math.cos(s.yaw), lz = -Math.sin(s.yaw);   // the scooter's left side
+    const p = { x: s.x - lx * 0.9, y: s.y, z: s.z - lz * 0.9 }; COL.resolve(p, 0.32, 1.75);
+    P.pos.set(p.x, s.y, p.z); P.vel.set(s.vx * 0.5, 0, s.vz * 0.5);
+    riding = null; P.vehicle = null; s.v = 0; s.vx = s.vz = 0; s.m.stand.visible = true;
+    audio.engine(false); audio.skid(0);
+    if (!s.wasHolstered && !force) DISGUISE.toggleHolster(false);
+  }
+  function interact() {
+    if (riding) { dismount(); return true; }
+    const s = nearest(); if (s) { mount(s); return true; }
+    return false;
+  }
+  function horn() { if (!riding) return false; audio.horn(); NPCS.honk(riding.x, riding.z, riding.yaw); return true; }
+  // ---------------- riding ----------------
+  function drive(dt) {
+    const s = riding, keys2 = keys;
+    const thr = keys2.KeyW ? 1 : 0, brk = keys2.KeyS ? 1 : 0, rear = keys2.Space ? 1 : 0;
+    s.steerIn = damp(s.steerIn, (keys2.KeyA ? 1 : 0) - (keys2.KeyD ? 1 : 0), 6, dt);
+    const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+    let v = s.vx * fx + s.vz * fz;                         // speed along the heading
+    const VMAX = 15;
+    if (thr) v += 4.4 * (1 - Math.max(0, v) / VMAX) * dt;
+    if (brk) v = v > 0.4 ? v - 7.5 * dt : Math.max(-1.4, v - 2 * dt);   // stop, then walk it backwards
+    if (rear) v = v > 0 ? Math.max(0, v - 3.2 * dt) : v;
+    v *= Math.exp(-(thr ? 0.04 : 0.22) * dt);
+    if (!thr && !brk && Math.abs(v) < 0.15) v = 0;
+    // lean: how far you can lean grows with speed; below ~2 m/s it wobbles and you steer the bars
+    const leanMax = clamp(Math.abs(v) / 6, 0, 1) * 0.72, wob = Math.abs(v) > 0.3 && Math.abs(v) < 2.4 ? Math.sin(t * 8.5) * 0.06 * (2.4 - Math.abs(v)) : 0;
+    s.lean = damp(s.lean, s.steerIn * leanMax + wob, 3.2 + Math.abs(v) * 0.2, dt);
+    let yawRate = Math.abs(v) > 2 ? 9.81 * Math.tan(s.lean) / Math.max(2, v) : s.steerIn * 1.5 * clamp(v, -1, 1);
+    if (rear && Math.abs(v) > 2.5) yawRate *= 1.9;          // tail out: pivots round the front
+    s.yaw += yawRate * dt;
+    s.steer = damp(s.steer, Math.abs(v) > 2 ? s.steerIn * 0.12 : s.steerIn * 0.6, 10, dt);
+    // tyre grip pulls the velocity onto the new heading; with the rear locked it slides
+    // (forward speed is kept; only the sideways part bleeds off, slowly when the rear wheel is locked)
+    const nfx = -Math.sin(s.yaw), nfz = -Math.cos(s.yaw), grip = rear ? 1.4 : 12;
+    const along = s.vx * nfx + s.vz * nfz, latX = s.vx - along * nfx, latZ = s.vz - along * nfz, keep = Math.exp(-grip * dt);
+    const vNew = v + (along - (s.vx * fx + s.vz * fz));   // speed carried round the turn
+    s.vx = nfx * vNew + latX * keep; s.vz = nfz * vNew + latZ * keep;
+    s.slip = Math.hypot(latX, latZ);
+    // move + collide
+    const ox = s.x, oz = s.z, p = { x: s.x + s.vx * dt, y: s.y, z: s.z + s.vz * dt };
+    COL.resolve(p, 0.42, 1.3);
+    const pushX = p.x - (ox + s.vx * dt), pushZ = p.z - (oz + s.vz * dt), push = Math.hypot(pushX, pushZ);
+    if (push > 1e-4) {
+      const nx = pushX / push, nz = pushZ / push, into = -(s.vx * nx + s.vz * nz);   // speed into the wall
+      if (into > 7.5) { crash(into); return; }
+      if (into > 2.5) { P.shake = Math.min(1.5, P.shake + into * 0.12); audio.crash(into / 12); }
+      s.vx += nx * into * 1.05; s.vz += nz * into * 1.05;   // scrape along it
+    }
+    s.x = p.x; s.z = p.z; s.y = damp(s.y, COL.ground(s.x, s.z, s.y + 0.45), 14, dt);
+    if (terrainH(s.x, s.z) < -0.8) { crash(6); return; }
+    // people in the way
+    const sp = Math.hypot(s.vx, s.vz);
+    if (sp > 3) { NPCS.bump(s.x, s.z, sp); BOTS.ram(s.x, s.z, sp); }
+    P.pos.set(s.x, s.y, s.z); P.vel.set(s.vx, 0, s.vz); placeModel(s);
+    // the camera settles behind the bars unless you're looking around
+    if (performance.now() - lastLookT > 700) P.yaw += wrapPI(s.yaw - P.yaw) * Math.min(1, dt * 2.5);
+    audio.engine(true, clamp(Math.abs(v) / VMAX, 0, 1) * 0.8 + thr * 0.2, thr);
+    audio.skid(clamp((s.slip - 0.8) / 4, 0, 1) * (sp > 2 ? 1 : 0));
+    if (thr && sp > 1) P.shake = Math.min(0.3, P.shake + dt * 0.4);
+  }
+  function crash(speed) {
+    const s = riding;
+    audio.crash(1); audio.skid(0);
+    P.shake = 1.6; P.feel.vland -= 12; crashT = 1.2;
+    const dmg = Math.round((speed - 6) * 9);
+    s.lean = 1.35; s.v = 0;
+    dismount(true);
+    P.vel.set(-s.vx * 0.15, 0, -s.vz * 0.15); s.vx = s.vz = 0;
+    if (dmg > 0) BOTS.hurt(dmg);
+    feed('<span class="m">CRASHED</span>');
+  }
+  // ---------------- the rider: seated, feet on the floorboard, hands on the grips ----------------
+  const _q = new THREE.Quaternion(), _qr = new THREE.Quaternion(), _e = new THREE.Euler(), _a = new V3(), _b = new V3(), _c = new V3();
+  function placeModel(s) {
+    _q.setFromEuler(_e.set(0, s.yaw + Math.PI, 0)); _qr.setFromAxisAngle(T.fwd, -s.lean); _q.multiply(_qr);
+    s.m.g.position.set(s.x, s.y, s.z); s.m.g.quaternion.copy(_q);
+    s.m.steer.rotation.y = s.steer;
+  }
+  function poseRider(dt) {
+    const s = riding, c = ch, d = c.d;
+    c.root.position.set(s.x, s.y, s.z); c.root.quaternion.copy(s.m.g.quaternion);
+    c.pelvis.position.set(0, 0.8, -0.2); c.pelvis.rotation.set(0, 0, 0);
+    c.spine.rotation.set(0.1 + Math.min(0.1, Math.hypot(s.vx, s.vz) * 0.008), 0, s.steerIn * 0.08);
+    c.head.rotation.set(-0.2 - P.pitch * 0.6, clamp(wrapPI(P.yaw - s.yaw), -1.2, 1.2), 0);
+    c.root.updateMatrixWorld(true);
+    for (const [leg, hipA, side] of [[c.legL, c.hipL, 1], [c.legR, c.hipR, -1]]) {
+      const hip = toRoot(hipA, T.a), foot = _c.set(side * 0.15, 0.3 + d.ankle * 0.5, 0.26);
+      ik(hip, foot, d.thigh, d.shin, T.pole.set(side * 0.1, 0.2, 1), T.mid, T.end);
+      placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd);
+      leg.foot.position.copy(T.end); leg.foot.rotation.set(0.1, 0, 0);
+    }
+    s.m.g.updateMatrixWorld(true);
+    for (const [arm, shA, side] of [[c.armL, c.shL, 1], [c.armR, c.shR, -1]]) {
+      const grip = c.root.worldToLocal(s.m.steer.localToWorld(_b.set(side * 0.31, 0.12, -0.02)));
+      placeArm(arm, toRoot(shA, _a), grip, null, T.pole.set(side * 0.6, -1, -0.6), T.fwd);
+    }
+    if (gun) gun.group.visible = false;
+    c.head.visible = P.fpT < 0.5;
+  }
+  function update(dt) {
+    t += dt; crashT = Math.max(0, crashT - dt);
+    if (!MAP.ready) return;
+    if (!list.length) spawn();
+    for (const s of list) {
+      if (s === riding) continue;
+      // parked (or dropped): settle onto the stand, roll to a stop
+      const sp = Math.hypot(s.vx, s.vz);
+      if (sp > 0.05) { s.vx *= Math.exp(-2 * dt); s.vz *= Math.exp(-2 * dt); const p = { x: s.x + s.vx * dt, y: s.y, z: s.z + s.vz * dt }; COL.resolve(p, 0.42, 1.3); s.x = p.x; s.z = p.z; }
+      s.lean = damp(s.lean, s.lean > 0.9 ? 1.35 : 0.22, 4, dt); s.steer = damp(s.steer, 0.35, 4, dt);
+      placeModel(s);
+    }
+    if (riding && mode === 'range') {
+      if (P.dead) { dismount(true); return; }
+      placeModel(riding);
+    }
+  }
+  return {
+    update, drive, interact, horn, poseRider, placeModel,
+    get riding() { return riding; },
+    prompt: () => (riding ? (Math.hypot(riding.vx, riding.vz) < 3 ? '' : '') : nearest() ? '[E]  RIDE THE SCOOTER' : ''),
+    camRoll: () => (riding ? -riding.lean * 0.55 : 0),
+  };
+})();
+// =====================================================================
 //  Input
 // =====================================================================
 addEventListener('keydown', (e) => {
@@ -10481,7 +10718,7 @@ addEventListener('keydown', (e) => {
     case 'KeyX': P.lean = 1; break;
     case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': { const id = ORDER[+e.code.slice(5) - 1]; if (P.holstered) { P.w === id ? DISGUISE.toggleHolster(false) : (equip(id), DISGUISE.toggleHolster(false)); } else switchTo(id); break; }
     case 'KeyV': P.fp = !P.fp; break;
-    case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
+    case 'KeyC': case 'ControlLeft': if (!P.vehicle) P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
     case 'KeyE': DISGUISE.interact(); break;
@@ -10699,7 +10936,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -10723,7 +10960,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

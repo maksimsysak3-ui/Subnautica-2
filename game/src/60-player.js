@@ -635,6 +635,7 @@ function updateHud() {
 // =====================================================================
 const keys = {};
 function spring(o, x, v, k, c, dt) { o[v] += (-k * o[x] - c * o[v]) * dt; o[x] += o[v] * dt; }
+const _rideOff = new V3();
 const wrapPI = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 let lastJumpT = -9;
 const clockJump = (t) => { if (t - lastJumpT < 0.45) return false; lastJumpT = t; return true; };
@@ -653,10 +654,11 @@ function updateRange(dt, time) {
   const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const shift = keys.ShiftLeft || keys.ShiftRight;
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
-  const sprint = shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
+  const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
   if (sprint && P.crouch) P.crouch = false;
   P.stamina = clamp(P.stamina + (sprint ? -dt / 6 : dt / (P.vel.lengthSq() > 1 ? 7 : 4)), 0, 1);
   P.winded = damp(P.winded, clamp((0.6 - P.stamina) / 0.6, 0, 1), 1.5, dt);
+  if (P.vehicle) SCOOTER.drive(dt); else {
   const spd = sprint ? 5.6 : P.crouch ? 1.5 : P.ads ? 1.8 : 3.1;
   const wish = T.c.copy(fwd).multiplyScalar(iz).addScaledVector(right, ix);
   if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(spd);
@@ -670,6 +672,7 @@ function updateRange(dt, time) {
   if (keys.Space && !P.air && !P.dead && P.stamina > 0.1 && clockJump(time)) { P.vy = 4.3; P.air = true; P.stamina = Math.max(0, P.stamina - 0.08); audio.step(false, 1); }
   if ((P.vy || 0) > 0 || gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); P.air = P.pos.y > gy + 0.02 || P.vy > 0; if (!P.air) land(); }
   else { if (P.air) land(); P.vy = 0; P.pos.y = damp(P.pos.y, gy, 20, dt); }
+  }
 
   // hold breath while aiming (Shift): steadies sway for a few seconds, then you pay for it
   P.holdBreath = shift && P.ads && P.breath > 0;
@@ -721,22 +724,25 @@ function updateRange(dt, time) {
   const pitch = clamp(P.pitch + P.cr.p + nod + Math.sin(time * bf) * 0.0013 * swayAmp + Math.sin(time * 2.9) * 0.0004 * swayAmp, -1.4, 1.4);
   const yaw = P.yaw + P.cr.y + Math.sin(time * bf * 0.63) * 0.001 * swayAmp + P.feel.hit * P.feel.hitSide * 0.025;
   const roll = -P.leanT * 0.17 - lvx * 0.006 * hipK + Math.sin(P.phase) * (0.006 + 0.012 * P.sprintT) * P.gaitW * hipK
-    - clamp(P.feel.yawRate, -6, 6) * 0.0045 * hipK + P.feel.hit * P.feel.hitSide * 0.04 + (Math.random() - 0.5) * P.shake * 0.02;
+    - clamp(P.feel.yawRate, -6, 6) * 0.0045 * hipK * (P.vehicle ? 0 : 1) + P.feel.hit * P.feel.hitSide * 0.04 + (Math.random() - 0.5) * P.shake * 0.02 + SCOOTER.camRoll() * P.fpT;
   _e1.set(pitch + (Math.random() - 0.5) * P.shake * 0.004, yaw, roll, 'YXZ'); T.camQ.setFromEuler(_e1);
   T.camFwd.set(0, 0, -1).applyQuaternion(T.camQ);
 
   // body
+  const pistol = WD().hold === 'pistol';
+  if (P.vehicle) SCOOTER.poseRider(dt); else {
   ch.root.position.copy(P.pos);
   ch.root.rotation.set(0, P.yaw + Math.PI, 0);
   const lv = T.d.copy(P.vel).applyAxisAngle(UP, -(P.yaw + Math.PI));
-  const pistol = WD().hold === 'pistol';
   poseBody(dt, time, { localVel: lv, bladed: (1 - P.lowT) * (pistol ? 0.35 : 1), lean: 0.22 * P.sprintT + 0.12 * P.crouchT - 0.3 * pitch * (1 - P.lowT), lookPitch: pitch * (1 - P.lowT * 0.5), crouchT: P.crouchT, sprintT: P.sprintT, side: P.leanT });
   ch.head.visible = P.fpT < 0.5;
+  }
 
   // camera base position (third person shoulder cam or the eyes)
   const eyeW = ch.eye.getWorldPosition(T.e);
+  if (P.vehicle) eyeW.add(_rideOff.set(-Math.sin(P.vehicle.yaw) * 0.24, 0.06, -Math.cos(P.vehicle.yaw) * 0.24));   // riding: eyes ahead of the chest, over the bars
   P.camY = damp(P.camY, eyeW.y, 12, dt);
-  const off = T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
+  const off = P.vehicle ? T.a.set(0, 0.7, 3.9) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
   _e1.set(pitch, yaw, 0, 'YXZ'); off.applyQuaternion(_q2.setFromEuler(_e1));
   // shoulder camera: pull in when a wall is between you and the camera
   const pivot = T.b.set(P.pos.x, P.camY + 0.05, P.pos.z), offLen = off.length();
@@ -756,7 +762,7 @@ function updateRange(dt, time) {
   const mountW = (pistol ? ch.pistolMount : ch.mount).getWorldPosition(T.c);
   const dirW = T.d.subVectors(T.aim, mountW).normalize().lerp(T.camFwd, P.fpT * P.adsT).normalize();
   const dirRoot = dirW.applyQuaternion(_q2.copy(ch.root.quaternion).invert());
-  poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
+  if (!P.vehicle) poseGun(dt, dirRoot, P.lowT, (P.holstered && !P.swap) || HANDMAP.open);
 
   // final camera: through the sights in first person ADS
   camera.quaternion.copy(T.camQ);

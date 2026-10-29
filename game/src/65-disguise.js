@@ -36,7 +36,7 @@ const DISGUISE = (() => {
   }
   function toggleHolster(force) {
     const on = force ?? !P.holstered;
-    if (on === P.holstered || P.dead) return;
+    if (on === P.holstered || P.dead || (!on && SCOOTER.riding)) return;
     if (on) { P.holstered = true; P.reload = null; P.burst = 0; P.trigger = false; aimKey.down = aimKey.toggled = false; if (gun && gun.mag) gun.mag.visible = true; audio.holster(); }
     else { P.holstered = false; P.swap = { t: 0.26, to: P.w, done: true, k: 1 }; audio.draw(); }
   }
@@ -47,12 +47,15 @@ const DISGUISE = (() => {
     return best;
   }
   function interact() {
+    if (SCOOTER.riding) { SCOOTER.interact(); return; }
     if (MISSION.interact()) return;
+    if (SCOOTER.interact()) return;
     const b = nearestBody();
     if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type); }
   }
   // silent takedown from behind (militia) / knockout (civilian)
   function takedown() {
+    if (SCOOTER.horn()) return;
     if (P.dead || P.reload) return;
     if (BOTS.takedown(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.5); return; }
     if (NPCS.knockout(P.pos, P.yaw)) { audio.fleshHit(1); P.shake = Math.min(1.5, P.shake + 0.4); }
@@ -62,12 +65,13 @@ const DISGUISE = (() => {
     if (mode !== 'range') return;
     const blown = P.disguise && t < P.blownUntil;
     tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? 'MILITIA' : 'CIVILIAN'}</b>` : 'OWN GEAR')
-      + (P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
+      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;
-    else if (BOTS.canTakedown(P.pos, P.yaw)) pr = '[F]  SILENT TAKEDOWN';
-    else if (NPCS.canKnockout(P.pos, P.yaw)) pr = '[F]  KNOCK OUT';
+    else if (BOTS.canTakedown(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  SILENT TAKEDOWN';
+    else if (NPCS.canKnockout(P.pos, P.yaw) && !SCOOTER.riding) pr = '[F]  KNOCK OUT';
+    else pr = SCOOTER.prompt();
     prompt.textContent = pr; prompt.style.display = pr ? 'block' : 'none';
   }
   return { update, interact, takedown, toggleHolster, ownGear, level, blow, get worn() { return !!own; }, get blown() { return !!P.disguise && t < P.blownUntil; } };
