@@ -122,7 +122,8 @@ function enterCustom() {
   aimKey.down = aimKey.toggled = false; P.lean = 0;
   P.fp = false; P.crouch = false;
 }
-$('bEnter').onclick = enterRange;
+$('bEnter').onclick = () => { if (MAP.id) enterRange(); else MENU.open(); };
+$('bCases').onclick = () => { location.search = ''; };
 $('bResume').onclick = () => { if (lockFallback) setPaused(false); else requestLock(); };
 $('bCustom').onclick = enterCustom;
 $('bReset').onclick = () => { resetRange(); };
@@ -199,7 +200,7 @@ $('bRef').onclick = () => { cfg = { ...REFERENCE }; rebuild(); saveCfg(); render
 // =====================================================================
 //  Main loop
 // =====================================================================
-buildWorld();
+if (MAP.id) buildWorld(); else MENU.open();
 rebuild();
 renderTabs(); renderControls(); renderPoses();
 
@@ -229,6 +230,7 @@ const DBGCAM = { on: false, pos: new V3(), yaw: 0, pitch: 0, fov: 60 }; // scrip
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
     if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
@@ -255,7 +257,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.DISGUISE = DISGUISE; window.__dbg.HANDMAP = HANDMAP; window.__dbg.SCOOTER = SCOOTER; window.__dbg.MENU = MENU; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

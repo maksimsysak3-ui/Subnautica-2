@@ -6,6 +6,8 @@
 // (plaster, ashlar, zellige, asphalt, cobbles, wood…) that a shared shader turns into world-space
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
+  // which case is loaded (?map=dar | seoul); none → the case-files menu
+  id: (() => { const m = new URLSearchParams(location.search).get('map'); return m === 'dar' || m === 'seoul' ? m : null; })(),
   bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
@@ -41,7 +43,7 @@ function vnoise(x, z) {
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
 // the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
 const CITY = { x0: -165, x1: 165, z0: -470, z1: 118 };
-const coastZ = (x) => (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
+const coastZ = (x) => MAP.id === 'seoul' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
   const cz = coastZ(x);
   if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed

@@ -7,7 +7,7 @@
 const NPCS = (() => {
   const N = 30, NEAR_POSE = 42, FAR = 85, PLAZA_N = 13, SHADOW_R = 32, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt'];
+  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];

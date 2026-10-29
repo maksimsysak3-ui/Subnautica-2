@@ -6,7 +6,7 @@
 // and you paddle it round with the bars. SPACE locks the rear wheel to swing the tail out round a
 // tight corner; F is the horn (people get out of the way); hit a wall too fast and you're off.
 const SCOOTER = (() => {
-  const SPOTS = [[25, -14, 1.2, 0xc8261e], [30, 97, 0.3, 0x2a6ab0], [-6, 50, 3.1, 0xe8e6e0], [48, 9, 1.6, 0x3a8a6a], [-56, 11, -1.4, 0xe8c040], [38, -41, 0.2, 0x2a2a2a], [80, 26, 2.2, 0x8a3a5a], [-112, 2.6, 1.57, 0x4a8ac8]];
+  const SPOTS = MAP.id === 'seoul' ? SEOUL.scooters : [[25, -14, 1.2, 0xc8261e], [30, 97, 0.3, 0x2a6ab0], [-6, 50, 3.1, 0xe8e6e0], [48, 9, 1.6, 0x3a8a6a], [-56, 11, -1.4, 0xe8c040], [38, -41, 0.2, 0x2a2a2a], [80, 26, 2.2, 0x8a3a5a], [-112, 2.6, 1.57, 0x4a8ac8]];
   const list = [];
   let riding = null, t = 0, lastLookT = 0, crashT = 0;
   addEventListener('mousemove', () => { lastLookT = performance.now(); });

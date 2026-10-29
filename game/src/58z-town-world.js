@@ -3,6 +3,7 @@
 // =====================================================================
 function placeWorldTargets() { }
 function cityPlan() {
+  if (MAP.id === 'seoul') return seoulPlan();
   return [
     ['Drawing the streets of Dar Essalam', buildTownPlan],
     ['Raising the walls, the skala and the gates', () => { townWalls(); skala(); seaGate(); }],

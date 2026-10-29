@@ -32,7 +32,7 @@ const MISSION = (() => {
   const lanePart = (st, a, b) => { const P0 = st.pts, ia = nearestIdx(P0, a), ib = nearestIdx(P0, b), out = [], s = ia <= ib ? 1 : -1; for (let i = ia; s > 0 ? i <= ib : i >= ib; i += s) out.push([P0[i][0], P0[i][1]]); return out; };
 
   // ---------------- the missions ----------------
-  const MISSIONS = [
+  const DAR = [
     {
       title: 'DEAD DROP', reward: 300,
       brief: 'A courier left a case of intel upstairs in Dar Lamia, a riad at the far end of Derb Lamia in the medina. Get it to your handler on the roof of Café de la Place.',
@@ -110,13 +110,15 @@ const MISSION = (() => {
   ];
 
   // ---------------- state ----------------
-  let mi = (() => { try { return +(localStorage.getItem('dar.campaign') || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
+  const MISSIONS = MAP.id === 'seoul' ? seoulMissions({ fig, live, near, kit, S, flags: () => flags, show }) : DAR;
+  const KEY = `${MAP.id}.campaign`;
+  let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
   function start(i) {
     if (state === 'run' && cur()?.teardown) cur().teardown();
     clearFigs(); flags = {}; intelCase.visible = false;
     mi = i; si = 0;
-    try { localStorage.setItem('dar.campaign', String(mi)); } catch { }
+    try { localStorage.setItem(KEY, String(mi)); } catch { }
     if (!cur()) { state = 'free'; return; }
     state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
     show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
