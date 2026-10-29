@@ -6,12 +6,12 @@
 // (plaster, ashlar, zellige, asphalt, cobbles, wood…) that a shared shader turns into world-space
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
-  bounds: 930, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
+  bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
   // max draw distance per detail level: 0 architecture, 1 street props, 2 interior furniture, 3 small clutter
-  lodDist: [420, 120, 55, 28],
-  drawDist: 420,
+  lodDist: [520, 140, 60, 30],
+  drawDist: 520,
 };
 
 // ---------------- deterministic randomness (layout must be identical every load) ----------------
@@ -39,13 +39,16 @@ function vnoise(x, z) {
   return lerp(lerp(a, b, u), lerp(c, d, u), v);
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
-// flat city plateau: a rectangle (the medina spreads further west than the new town east)
-const CITY = { x0: -845, x1: 665, z0: -685, z1: 625 };
+// the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
+const CITY = { x0: -165, x1: 165, z0: -150, z1: 118 };
+const coastZ = (x) => (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
-  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z, z - CITY.z1) + fbm(x * 0.004, z * 0.004) * 60 - 30);
-  let h = out > 0 ? 95 * (1 - Math.exp(-((out / 160) ** 1.4))) + (fbm(x * 0.008, z * 0.008) - 0.5) * 22 * Math.min(1, out / 60) : 0;
+  const cz = coastZ(x);
+  if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed
+  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z) + fbm(x * 0.006, z * 0.006) * 40 - 20);
+  let h = out > 0 ? 80 * (1 - Math.exp(-((out / 140) ** 1.4))) + (fbm(x * 0.01, z * 0.01) - 0.5) * 18 * Math.min(1, out / 50) : 0;
   h += (fbm(x * 0.03 + 5, z * 0.03) - 0.5) * 1.6 * Math.min(1, out / 30);
-  return h;
+  return h * clamp((cz - z) / 45, 0, 1);   // hills ease down to the shore
 }
 function terrainH(x, z) {
   let h = rawTerrain(x, z);

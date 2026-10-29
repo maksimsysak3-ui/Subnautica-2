@@ -211,7 +211,7 @@ const QUALITY = (() => {
   const maxPR = Math.min(devicePixelRatio, 1.25);
   return {
     update(dt) {
-      if (!MAP.ready) return;
+      if (!MAP.ready || MAP.lockDraw) return;
       avg = lerp(avg, dt * 1000, 0.05); t += dt;
       if (t < 1.0) return; t = 0;
       if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
@@ -241,7 +241,7 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
@@ -251,7 +251,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {

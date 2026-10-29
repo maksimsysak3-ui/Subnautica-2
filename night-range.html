@@ -1637,12 +1637,12 @@ const audio = (() => {
 // (plaster, ashlar, zellige, asphalt, cobbles, wood…) that a shared shader turns into world-space
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
-  bounds: 930, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
+  bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
   // max draw distance per detail level: 0 architecture, 1 street props, 2 interior furniture, 3 small clutter
-  lodDist: [420, 120, 55, 28],
-  drawDist: 420,
+  lodDist: [520, 140, 60, 30],
+  drawDist: 520,
 };
 
 // ---------------- deterministic randomness (layout must be identical every load) ----------------
@@ -1670,13 +1670,16 @@ function vnoise(x, z) {
   return lerp(lerp(a, b, u), lerp(c, d, u), v);
 }
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
-// flat city plateau: a rectangle (the medina spreads further west than the new town east)
-const CITY = { x0: -845, x1: 665, z0: -685, z1: 625 };
+// the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
+const CITY = { x0: -165, x1: 165, z0: -150, z1: 118 };
+const coastZ = (x) => (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
-  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z, z - CITY.z1) + fbm(x * 0.004, z * 0.004) * 60 - 30);
-  let h = out > 0 ? 95 * (1 - Math.exp(-((out / 160) ** 1.4))) + (fbm(x * 0.008, z * 0.008) - 0.5) * 22 * Math.min(1, out / 60) : 0;
+  const cz = coastZ(x);
+  if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed
+  const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z) + fbm(x * 0.006, z * 0.006) * 40 - 20);
+  let h = out > 0 ? 80 * (1 - Math.exp(-((out / 140) ** 1.4))) + (fbm(x * 0.01, z * 0.01) - 0.5) * 18 * Math.min(1, out / 50) : 0;
   h += (fbm(x * 0.03 + 5, z * 0.03) - 0.5) * 1.6 * Math.min(1, out / 30);
-  return h;
+  return h * clamp((cz - z) / 45, 0, 1);   // hills ease down to the shore
 }
 function terrainH(x, z) {
   let h = rawTerrain(x, z);
@@ -6188,48 +6191,458 @@ function station(x, z, ry, w = 70) {
   W.pop();
 }
 // =====================================================================
-//  CITY — the old city: walled medina, Mellah quarter, grand market & souks, civic plaza
+//  TOWN — authoring kit for the hand-laid harbour town of Dar Essalam
 // =====================================================================
-function pip(poly, x, z) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; }
-function polyDist(poly, x, z) { let d = Infinity; for (let i = 0; i < poly.length - 1; i++) { const [ax, az] = poly[i], [bx, bz] = poly[i + 1], dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1); d = Math.min(d, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return d; }
-// organic street: a random walk that stops when it meets another street (or leaves the region)
-function walkStreet(x, z, ang, len, w, inside, kind, o = {}) {
-  const pts = [[x, z]], step = o.step ?? 7, turn = o.turn ?? 0.32;
-  let a = ang, joined = false;
-  for (let s = 0; s < len; s += step) {
-    a += mr(-turn, turn);
-    const nx = x + Math.cos(a) * step, nz = z + Math.sin(a) * step;
-    if (!inside(nx, nz)) break;
-    // look ahead: meet an existing street → run straight into it and stop
-    if (s > 8) for (let k = 3; k <= 10; k += 1.5) { const ax = nx + Math.cos(a) * k, az = nz + Math.sin(a) * k; const v = GR.get(ax, az); if (v === GR.STREET || v === GR.PAVE) { pts.push([nx, nz], [ax, az]); joined = true; break; } }
-    if (joined) break;
-    // too close alongside another street → stop (a dead-end derb)
-    let crowd = false;
-    for (const sgn of [-1, 1]) { const px = nx - Math.sin(a) * sgn * (w / 2 + 5), pz = nz + Math.cos(a) * sgn * (w / 2 + 5); const v = GR.get(px, pz); if (s > 10 && (v === GR.STREET)) crowd = true; }
-    const v0 = GR.get(nx, nz);
-    if (v0 === GR.BUILT || v0 === GR.RESERVED || v0 === GR.WALL) break;
-    pts.push([nx, nz]); x = nx; z = nz;
-    if (crowd) break;
-  }
-  if (pts.length < 3) return null;
-  return addStreet(pts, w, kind, { raw: false, district: o.district, joined });
+// The town is laid out by hand (58-town-*.js): every street is drawn, every frontage is written as a
+// sequence of houses ("7/3/r+boug" = 7 m wide, 3 storeys, rose medina house with bougainvillea), and
+// every square, shop, landmark and interior is placed explicitly. This file holds the pieces.
+const TOWN = { doors: [], plazas: [], spots: {}, guards: [], lanes: {} };
+const FH0 = 3.7, FHU = 3.2;          // ground / upper storey heights of town houses
+
+// ---------------- house styles ----------------
+// cols: wall colours · door: door style · win: upper window kind · top: roofline · tx: wall surface
+const STY = {
+  r: { cols: [MC.rose, MC.roseDk, MC.terracotta, 0xc98a6c], door: 'carved', win: 'grille', top: 'merlon', few: true },     // medina, rose
+  o: { cols: [MC.ochre, MC.ochreDk, 0xc89058, 0xd8a870], door: 'plank', win: 'shut', top: 'plain' },                          // medina, ochre
+  c: { cols: [MC.cream, MC.whitewash, MC.plasterLt, 0xe8dcc4], door: 'metal', win: 'arch', top: 'plain' },                     // whitewashed
+  b: { cols: [0xe9eef3, 0xdfe7f0, 0xd6e2ee], door: 'metal', doorCol: 0x2a5aa0, win: 'shut', shut: 0x3a6ab0, top: 'plain', blue: true }, // blue quarter
+  m: { cols: [MC.plasterLt, 0xd8c8b0, 0xe8d8a0, 0xdce4e2, 0xe6c6b0, 0xd0b48c, 0xeae2d0], door: 'plank', win: 'shut', top: 'cornice', bal: true },          // mellah: balconies
+  h: { cols: [MC.cream, 0xe6d2b0, MC.plasterLt], door: 'carved', win: 'arch', top: 'cornice', grand: true },                 // grand / hotel
+  k: { cols: [MC.pise, 0xa97e58, 0xc09068], door: 'carved', win: 'slit', top: 'merlon', tx: TX.pise, few: true },              // kasbah pisé
+  s: { cols: [MC.ochre, MC.cream, MC.rose, MC.plaster], door: 'plank', win: 'shut', top: 'plain', shop: true },               // souk shop
+  w: { cols: [MC.whitewash, 0xd8d4c8, 0xc8c0b0], door: 'metal', win: 'grille', top: 'plain', ware: true },                   // harbour store
+};
+const TRADES = ['spice', 'pottery', 'lamps', 'leather', 'rugs', 'grocery', 'copper', 'fabric'];
+
+// "7x9/3/r:spice+boug+bal" → { w:7, d:9, F:3, s:'r', trade:'spice', f:{boug,bal} }
+function parseUnit(tok) {
+  const [main, ...feats] = tok.split('+'), [dims, F, sk = 'o'] = main.split('/'), [w, d] = dims.split('x').map(Number);
+  const [s, trade] = sk.split(':');
+  const f = {}; for (const k of feats) { const [a, b] = k.split('='); f[a] = b ?? true; }
+  return { w, d: d || 0, F: Number(F ?? 2), s, trade, f };
 }
-// branch side streets off a street every gap metres
-function branches(st, o) {
-  const out = [];
-  for (let s = o.start ?? 15; s < st.len - 10; s += mr(o.gapMin, o.gapMax)) {
-    const p = pathAt(st.pts, s), side = mchance(0.5) ? 1 : -1;
-    const nx = -p.tz * side, nz = p.tx * side, ang = Math.atan2(nz, nx) + mr(-0.45, 0.45);
-    const sx = p.x + nx * (st.w / 2 + 0.5), sz = p.z + nz * (st.w / 2 + 0.5);
-    if (GR.get(sx + nx * 4, sz + nz * 4) !== GR.FREE) continue;
-    const ns = walkStreet(sx, sz, ang, mr(o.lenMin, o.lenMax), mr(o.wMin, o.wMax), o.inside, o.kind, { district: o.district, turn: o.turn });
-    if (ns) out.push(ns);
+
+// ---------------- one house front + body, in a frame at the front centre (+z = street) ----------------
+function townUnit(u) {
+  const S = STY[u.s] || STY.o, w = u.w, D = u.d, F = u.F, T = 0.42;
+  const col = u.f.col ? Number(u.f.col) : mpick(S.cols), tx = S.tx ?? TX.plaster, wear = Math.floor(mr(2, 6));
+  if (F === 0) return gardenWall(u, col, tx);
+  const H = FH0 + (F - 1) * FHU;
+  const shop = (S.shop || u.trade) && !u.f.noshop, ware = S.ware && !u.f.house;
+  const shopD = shop ? Math.min(3.2, D - T - 1) : 0;
+  const dark = 0x15110d;
+  // --- body (solid) behind the front wall; a shop niche keeps the ground floor open
+  W.box(w, H - (shop ? FH0 : 0), D - T, 0, (shop ? FH0 : 0) + (H - (shop ? FH0 : 0)) / 2, -T - (D - T) / 2, col, { t: tx, wear });
+  W.solid(w, H - (shop ? FH0 : 0), D - T, 0, (shop ? FH0 : 0) + (H - (shop ? FH0 : 0)) / 2, -T - (D - T) / 2, 'plaster');
+  if (shop) { const bd = D - T - shopD; W.box(w, FH0, bd, 0, FH0 / 2, -T - shopD - bd / 2, col, { t: tx, wear }); W.solid(w, FH0, bd, 0, FH0 / 2, -T - shopD - bd / 2, 'plaster'); }
+  // --- ground floor
+  const ops0 = [];
+  let doorAt = null;
+  if (shop) {
+    const n = w > 7.5 ? 2 : 1, sw = Math.min(3.8, w / n - 1.0);
+    for (let i = 0; i < n; i++) {
+      const at = -w / 2 + (i + 0.5) * w / n;
+      ops0.push({ at, w: sw, h: 2.8, kind: 'shop', style: 'roll', leaf: u.f.closed ? 'closed' : 'open', awning: u.f.noawn ? null : mpick([[0xb03a2e, 0xe8dcc0], [0x2a5a8a, 0xe8dcc0], [0xc89a3a, 0xc89a3a], [0x3a6a4a, 0xe8dcc0], [0x8a3a5a, 0xe8c8a0]]) });
+      W.defer(() => shopNiche(at, sw, shopD, T, u.trade || mpick(TRADES), u.f.closed), 'near', [at, -T - shopD / 2]);
+    }
+  } else if (ware) {
+    const dw = Math.min(4.2, w - 1.6); doorAt = 0;
+    ops0.push({ at: 0, w: dw, h: 3.2, kind: 'door', style: 'metal', leaf: 'closed', double: true, doorCol: mpick([0x2a5a8a, 0x3a6a4a, 0x7a3a2a]) });
+    for (const s of [-1, 1]) if (w > 8) ops0.push({ at: s * (w / 2 - 1.1), w: 0.9, h: 0.6, sill: 2.4, kind: 'win', win: 'grille' });
+  } else {
+    const dw = S.door === 'carved' ? 1.3 : 1.0, dh = S.door === 'carved' ? 2.5 : 2.15;
+    doorAt = u.f.door !== undefined ? Number(u.f.door) * (w / 2 - 1) : (w > 5 ? mpick([-1, 1, 0]) * (w / 2 - dw / 2 - 0.9) : 0);
+    const arch = S.door === 'carved' && (S.grand || mchance(0.6));
+    ops0.push({ at: doorAt, w: dw, h: arch ? dh + 0.55 : dh, kind: arch ? 'archdoor' : 'door', arch: 'horse', style: S.door, leaf: 'closed', doorCol: S.doorCol ?? (S.door === 'metal' ? mpick([MC.blue, MC.green, 0x2a6a8a, 0x7a3a2a, 0x3a4048]) : undefined), hood: u.f.hood || (S.grand && mchance(0.5)), lamp: u.f.lamp || mchance(0.35) ? 0xffc070 : null, zellige: (u.f.zel || S.grand) ? Math.floor(mr(0, 8)) : undefined, rimCol: S.blue ? 0x5a86c0 : undefined });
+    // a small high window or two (privacy) beside the door
+    const free = [-w / 2 + 1.0, w / 2 - 1.0].filter((x) => Math.abs(x - doorAt) > dw / 2 + 0.9);
+    for (const x of free) if (!S.few || mchance(0.5)) ops0.push({ at: x, w: 0.6, h: 0.7, sill: 1.7, kind: 'win', win: 'grille' });
   }
+  TOWN.doors.push(W.worldPos(doorAt ?? 0, 0, 0.6));
+  frontWall(w, 0, FH0, T, col, tx, wear, ops0, 0.55, S);
+  // --- upper floors
+  const nWin = Math.max(1, Math.min(4, Math.floor(w / (S.few ? 3.6 : 2.7))));
+  for (let f = 1; f < F; f++) {
+    const y0 = FH0 + (f - 1) * FHU, ops = [];
+    for (let i = 0; i < nWin; i++) {
+      if (S.few && nWin > 1 && mchance(0.3)) continue;
+      const at = -w / 2 + (i + 0.5) * w / nWin;
+      const kind = S.win === 'slit' ? 'slit' : S.win === 'arch' ? 'arch' : u.f.mash && i === 0 ? 'mash' : S.win;
+      if (kind === 'slit') ops.push({ at, w: 0.35, h: 0.9, sill: 1.2, kind: 'win', win: 'open' });
+      else if (kind === 'arch') ops.push({ at, w: S.grand ? 1.2 : 1.0, h: 1.9, sill: 0.7, kind: 'archwin', arch: mpick(['horse', 'point', 'round']), win: mchance(0.5) ? 'grille' : 'shut', shutCol: S.shut, box: mchance(0.35), zellige: S.grand ? 3 : undefined, rimCol: MC.cream });
+      else if (kind === 'mash') ops.push({ at, w: 1.3, h: 1.6, sill: 0.8, kind: 'win', win: 'mash' });
+      else ops.push({ at, w: kind === 'grille' ? 0.8 : 1.0, h: kind === 'grille' ? 1.0 : 1.5, sill: kind === 'grille' ? 1.1 : 0.8, kind: 'win', win: kind === 'shut' ? (mchance(0.3) ? 'shutclosed' : 'shut') : 'grille', shutCol: S.shut ?? mpick([MC.green, MC.blue, 0x6a4a2a, 0x2a5a6a, 0x8a2a24]), box: S.blue ? true : mchance(0.2) });
+    }
+    frontWall(w, y0, FHU, T, col, tx, wear, ops, 0, S);
+    // balconies (mellah style or explicit)
+    if ((S.bal || u.f.bal) && ops.length) for (const op of ops.filter((_, k) => k % 2 === 0)) W.defer(() => townBalcony(op.at, y0 + 0.02, Math.min(2.4, op.w + 1.2), S.bal ? 'wood' : 'iron'), 'mid', [op.at, 0.6]);
+    if (f === 1 && S.blue) W.scope({ lod: 1 }, () => W.box(w + 0.02, 0.12, 0.06, 0, y0, 0.03, 0x5a86c0, { t: TX.plaster, wear: 3 }));
+  }
+  // string courses + blue skirt
+  W.scope({ lod: 1 }, () => {
+    if (!S.few) for (let f = 1; f < F; f++) W.box(w + 0.06, 0.13, 0.1, 0, FH0 + (f - 1) * FHU - 0.02, 0.05, shade(col, 0.92), { t: tx, wear: 3 });
+    if (S.blue) W.box(w + 0.01, 1.1, 0.02, 0, 0.55, 0.01, 0x5a86c0, { t: TX.plaster, wear: 5 });
+  });
+  // roofline
+  W.push(0, 0, -D / 2);
+  const top = u.f.top ?? S.top;
+  W.box(w - 0.3, 0.04, D - 0.3, 0, H + 0.02, 0, MC.roofGravel, { t: TX.gravel, wear: 5, lod: 1 });
+  if (top === 'cornice') tiledCornice(w, D, H, col);
+  else lightParapet(w, D, H, mr(0.7, 1.0), col, top === 'merlon' ? 'merlon' : 'plain');
+  if (u.f.terr) W.defer(() => roofTerrace(w, D, H), 'mid');
+  else if (!u.f.bare) roofClutter(-w / 2 + 0.4, -D / 2 + 0.4, w / 2 - 0.4, D / 2 - 0.4, H, { cheap: true, tank: 0.45, laundry: 0.35, dishYaw: 2.4 });
+  W.pop();
+  // life on the facade
+  W.defer(() => W.scope({ lod: 1 }, () => {
+    if (u.f.boug) bougainvillea(Number(u.f.boug === true ? mr(-w / 2 + 0.8, w / 2 - 0.8) : u.f.boug), Math.min(H + 0.5, FH0 + FHU), 0.05, mr(2.2, 3.4));
+    if (u.f.vine) vineRun(-w / 2 + 0.3, w / 2 - 0.3, FH0 + 0.2, 0.06);
+    if (u.f.rug) hangingRug(mr(-w / 2 + 1, w / 2 - 1), FH0 + 0.6, 0.06, 0, mr(1.1, 1.5), mr(1.6, 2.2));
+    if (u.f.ac || mchance(0.18)) acWall(mr(-w / 2 + 0.8, w / 2 - 0.8), FH0 + mr(0.4, 1.0), 0.3, 0);
+    if (u.f.sign) shopSign(0, FH0 - 0.15, 0.08, 0, Math.min(3, w - 1.5));
+    if (!shop && !ware && doorAt !== null && (u.f.pots || mchance(0.4))) for (const s of [-1, 1]) if (mchance(0.7)) plantPot(doorAt + s * (S.door === 'carved' ? 1.0 : 0.85), 0, 0.35, mpick(['geranium', 'aloe', 'ficus', 'palm']), mr(0.9, 1.3));
+    if (u.f.cat) cat(doorAt ?? 0.5, 0.06, 0.45, mr(0, 6));
+    if (u.f.scoot) scooter(mr(-1, 1), 0.9, Math.PI / 2 + mr(-0.2, 0.2));
+  }), 'mid', [0, 0.5]);
+  return H;
+}
+// one storey of a front wall with its openings; dark voids behind every opening
+function frontWall(w, y0, h, T, col, tx, wear, ops, plinth, S) {
+  wall('x', -w / 2, w / 2, -T / 2, y0, h, T, { col, tx, wear, side: 1, ops, plinth, plinthCol: S.blue ? 0x4a76b0 : undefined, mat: 'plaster', ground: y0 });
+  for (const op of ops) {
+    if (op.kind === 'shop') continue;
+    const sill = op.sill ?? 0, hh = op.kind === 'archwin' || op.kind === 'archdoor' ? op.h : op.h;
+    W.box(op.w, hh, 0.03, op.at, y0 + sill + hh / 2, -T + 0.015, 0x14100c, { ao: false, t: TX.none, jit: 0 });
+  }
+}
+// green glazed tile cornice on carved brackets
+function tiledCornice(w, d, H, col) {
+  W.scope({ lod: 1 }, () => {
+    lightParapet(w, d, H, 0.5, col, 'plain');
+    W.box(w + 0.5, 0.06, 0.8, 0, H + 0.62, d / 2 + 0.2, MC.tile, { rx: -0.35, t: TX.rooftile, wear: 2 });
+    W.box(w + 0.3, 0.12, 0.3, 0, H + 0.42, d / 2 + 0.08, MC.cedar, { t: TX.carved });
+    for (let x = -w / 2 + 0.4; x < w / 2; x += 0.8) W.box(0.08, 0.22, 0.32, x, H + 0.28, d / 2 + 0.12, MC.cedarDk, { lod: 2 });
+  });
+}
+// a garden / courtyard wall with a gate and something green showing over it
+function gardenWall(u, col, tx) {
+  const w = u.w, D = u.d, h = 3.4;
+  wall('x', -w / 2, w / 2, -0.21, 0, h, 0.42, { col, tx, side: 1, plinth: 0.5, mat: 'plaster', ops: u.f.gate ? [{ at: 0, w: 1.4, h: 2.6, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'closed', zellige: 2 }] : [] });
+  W.box(w + 0.1, 0.12, 0.6, 0, h + 0.06, -0.21, MC.tile, { t: TX.rooftile, lod: 1 });
+  W.defer(() => {
+    if (D > 3) for (let x = -w / 2 + 2; x < w / 2 - 1; x += mr(3.5, 5)) tree(x, 0, -D / 2 - mr(-0.5, 0.5), mpick(['orange', 'orange', 'olive', 'palm']), mr(1.0, 1.3));
+    if (u.f.boug) bougainvillea(mr(-w / 2 + 1, w / 2 - 1), h + 0.4, 0.05, 2.8);
+  }, 'mid', [0, -D / 2]);
+  return h;
+}
+// an open shop niche: floor, back/side walls, shelves and goods spilling into the street
+function shopNiche(at, sw, d, T, trade, closed) {
+  if (closed) return;
+  W.scope({ lod: 2, dim: 0.75 }, () => {
+    W.box(sw, 0.04, d, at, 0.02, -T - d / 2, 0xb8a888, { t: TX.terrazzo, wear: 5, ao: false });
+    W.box(sw, 0.04, d, at, FH0 - 0.25, -T - d / 2, 0xd8d0c0, { t: TX.plaster, dim: 0.6 });
+    shopFit(at - sw / 2 + 0.05, -T - d, at + sw / 2 - 0.05, -T, 0, 1, trade, FH0 - 0.3);
+  });
+  W.scope({ lod: 2 }, () => {   // the spill: goods on the street in front of the shop
+    const z = 0.55, ry = 0;
+    if (trade === 'spice') { spiceStand(at, 0, z + 0.3, ry, Math.min(1.8, sw)); sack(at - sw / 2 + 0.2, 0, z, 0xc8a050); }
+    else if (trade === 'pottery' || trade === 'copper') { potteryDisplay(at, 0, z + 0.3, ry, Math.min(2, sw)); if (trade === 'copper') copperware(at + sw / 2 - 0.3, 0, z, ry); }
+    else if (trade === 'lamps') lanternCluster(at, FH0 - 0.6, 0.6, 7, sw / 2);
+    else if (trade === 'rugs') { hangingRug(at - sw / 4, 0.4, 0.1, 0, 1.2, 2.2); rugPile(at + sw / 4, 0, z + 0.3, 0.1); }
+    else if (trade === 'leather') babouches(at - sw / 2 + 0.1, 0, z + 0.2, 0, Math.min(1.6, sw - 0.2), 4);
+    else if (trade === 'grocery') { produceCrates(at, 0, z + 0.25, ry, Math.min(1.8, sw)); }
+    else if (trade === 'fabric') { fabricRolls(at, 0, z + 0.2, 0, 5); hangingRug(at + sw / 3, 0.6, 0.1, 0, 0.8, 1.8, mpick([0xc8a040, 0x3a7a8a, 0xa02a4a])); }
+  });
+}
+// mellah wooden box balcony / iron balcony, on the front face at x
+function townBalcony(x, y, len, style) {
+  const dep = 0.9;
+  W.push(x, y, 0);
+  W.box(len, 0.14, dep, 0, -0.07, dep / 2, style === 'wood' ? MC.cedarDk : MC.concreteLt, { t: style === 'wood' ? TX.wood : TX.terrazzo, wear: 4 });
+  for (let i = 0; i < 4; i++) W.box(0.08, 0.3, 0.08, -len / 2 + 0.15 + i * (len - 0.3) / 3, -0.25, dep - 0.1, MC.cedarDk, { lod: 2 });
+  if (style === 'wood') {
+    for (const [a, b] of [[[-len / 2, 0], [len / 2, 0]], [[-len / 2, 0], [-len / 2, -dep]], [[len / 2, 0], [len / 2, -dep]]]) {
+      const cx = (a[0] + b[0]) / 2, cz = dep + (a[1] + b[1]) / 2, L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      W.box(a[1] === b[1] ? L : 0.05, 1.0, a[1] === b[1] ? 0.05 : L, cx, 0.5, a[1] === b[1] ? dep - 0.03 : dep / 2, MC.cedar, { t: TX.carved, wear: 4 });
+    }
+    W.box(len + 0.1, 0.06, dep + 0.08, 0, 1.0, dep / 2, MC.cedarDk, { t: TX.wood });
+  } else railing(-len / 2, dep - 0.04, len / 2, dep - 0.04, 0, 'iron');
+  W.solid(len, 0.14, dep, 0, -0.07, dep / 2, 'wood', { walk: true });
+  if (mchance(0.6)) plantPot(len / 2 - 0.3, 0, dep - 0.3, mpick(['geranium', 'geranium', 'aloe']), 0.9);
+  if (mchance(0.35)) W.box(len * 0.6, 0.7, 0.02, 0, 0.55, dep + 0.02, mpick([0x9a2a24, 0x2a3a6a, 0xc8a050, 0x6a2a4a]), { layer: 'cloth', t: TX.rug, wear: 3 });
+  W.pop();
+}
+// roof terrace: tiled floor, pergola, cushions, plants, an umbrella
+function roofTerrace(w, d, H) {
+  W.scope({ lod: 1 }, () => {
+    W.box(w - 0.5, 0.03, d - 0.5, 0, H + 0.05, 0, 0xc89a78, { t: TX.ceramic, wear: 3, ao: false });
+    const px = w / 2 - Math.min(3, w * 0.4), pz = -d / 2 + 0.5;
+    for (const [a, b] of [[px, pz], [w / 2 - 0.4, pz], [px, pz + 2.6], [w / 2 - 0.4, pz + 2.6]]) W.box(0.1, 2.3, 0.1, a, H + 1.15, b, MC.cedarDk, { t: TX.wood });
+    for (let k = 0; k < 8; k++) W.box(w / 2 - 0.4 - px, 0.05, 0.06, (px + w / 2 - 0.4) / 2, H + 2.32, pz + k * 0.37, MC.cedar, { t: TX.wood });
+    W.box(w / 2 - 0.4 - px + 0.4, 0.02, 2.8, (px + w / 2 - 0.4) / 2, H + 2.38, pz + 1.3, 0xd8c8a0, { layer: 'cloth', t: TX.fabric });
+    sedari((px + w / 2 - 0.4) / 2, H + 0.06, pz + 0.4, 0, Math.min(2.6, w / 2 - 0.4 - px), mpick([0x9a2a24, 0x2a5a6a, 0xc8a050]));
+    teaTable((px + w / 2 - 0.4) / 2, H + 0.06, pz + 1.4, 0.4);
+    for (let i = 0; i < 3; i++) plantPot(-w / 2 + 0.6 + i * 0.7, H + 0.06, d / 2 - 0.6, mpick(['geranium', 'palm', 'aloe']), 1.1);
+  });
+}
+
+// ---------------- no blank walls ----------------
+// dress a plain wall face (frame: centre of the face at ground, x along it, +z out): side windows,
+// plaster repairs, fallen plaster showing brick, drainpipe + roof spout, conduit and meter, AC, vents, stains
+function dressFace(L, H, col, o = {}) {
+  const y0 = o.y0 ?? 0;
+  if (L < 1.2 || H - y0 < 1.2) return;
+  W.defer(() => W.scope({ lod: 1 }, () => {
+    const pick = (a, b) => mr(-L / 2 + a, L / 2 - b);
+    // repairs and scars
+    for (let i = 0, n = Math.ceil(L * (H - y0) / 14); i < n; i++) {
+      const pw = mr(0.5, 1.8), ph = mr(0.4, 1.4), px = pick(pw / 2 + 0.1, pw / 2 + 0.1), py = mr(y0 + 0.6, H - 0.6);
+      if (mchance(0.22)) W.box(pw * 0.7, ph * 0.6, 0.02, px, py, 0.005, mpick([0x9a5a40, 0x8a5038]), { t: TX.brick, wear: 6, ao: false });
+      else W.box(pw, ph, 0.02, px, py, 0.008, shade(col, mr(0.86, 1.1)), { t: TX.plaster, wear: Math.floor(mr(1, 7)), ao: false });
+    }
+    // rain stains under the parapet
+    for (let x = -L / 2 + mr(0.5, 2); x < L / 2 - 0.4; x += mr(1.5, 4)) W.box(mr(0.2, 0.6), mr(1, 3), 0.01, x, H - 1.2, 0.012, shade(col, 0.72), { t: TX.plaster, wear: 7, ao: false });
+    // windows on the exposed storeys
+    if (o.windows !== false) for (let y = Math.max(y0 + 1.4, FH0 + 0.9); y < H - 1.4; y += FHU) {
+      const n = Math.floor(L / 3.4);
+      for (let i = 0; i < n; i++) {
+        if (mchance(0.35)) continue;
+        const ww = mr(0.6, 1.0), wh = mr(0.8, 1.3), x = -L / 2 + (i + 0.5) * L / n + mr(-0.3, 0.3);
+        W.box(ww, wh, 0.03, x, y + wh / 2, 0.015, 0x15110d, { ao: false });
+        W.box(ww + 0.14, 0.06, 0.14, x, y - 0.03, 0.07, MC.stone, { t: TX.stone, wear: 4 });
+        for (const s of [-1, 1]) W.box(0.07, wh + 0.07, 0.06, x + s * (ww / 2 + 0.035), y + wh / 2, 0.03, shade(col, 1.08), { t: TX.plaster });
+        W.box(ww + 0.2, 0.09, 0.07, x, y + wh + 0.05, 0.035, shade(col, 1.08), { t: TX.plaster });
+        const k = mrand();
+        if (k < 0.4) shutters(ww, y, wh, 0.04, mchance(0.4), mpick([MC.green, MC.blue, 0x6a4a2a, 0x2a5a6a]));
+        else if (k < 0.75) ironGrille(ww, y, wh, 0.02);
+        else W.box(ww * 0.45, wh - 0.1, 0.01, -ww * 0.25 + x, y + wh / 2, 0.035, mpick([0xe8e0d0, 0xc8a070, 0x8a3a3a]), { layer: 'cloth', lod: 2 });
+        if (mchance(0.15)) acWall(x + ww / 2 + 0.55, y - 0.5, 0, 0);
+      }
+    }
+    // drainpipe from a roof spout
+    if (mchance(o.pipe ?? 0.7)) { const x = mchance(0.5) ? -L / 2 + 0.25 : L / 2 - 0.25; W.rod([x, 0.1, 0.1], [x, H - 0.3, 0.1], 0.05, mpick([0x6a6a66, 0x8a8478, 0x4a4a4a]), { layer: 'metal', seg: 6 }); W.box(0.14, 0.12, 0.4, x, H - 0.25, 0.2, MC.stone, { t: TX.stone }); for (let y = 1; y < H - 0.5; y += 1.6) W.box(0.12, 0.03, 0.1, x, y, 0.06, 0x3a3a3a, { lod: 2 }); }
+    else W.box(0.12, 0.12, 0.5, mr(-L / 2 + 0.5, L / 2 - 0.5), H - 0.25, 0.25, MC.cedarDk, { t: TX.wood });   // wooden gargoyle spout
+    // electrics
+    if (mchance(o.cable ?? 0.6)) { const y = mr(2.6, 3.4); W.rod([-L / 2, y, 0.04], [L / 2, y + mr(-0.15, 0.15), 0.04], 0.012, 0x1a1a1a, { seg: 3 }); if (mchance(0.6)) meterBox(mr(-L / 2 + 0.6, L / 2 - 0.6), 1.5, 0, 0); }
+    if (mchance(0.25)) W.box(0.3, 0.3, 0.04, mr(-L / 2 + 0.5, L / 2 - 0.5), mr(2, H - 1), 0.02, 0x6a6a64, { layer: 'metal', t: TX.louver });   // vent
+    if (mchance(0.2) && L > 3) wallLantern(mr(-L / 2 + 0.6, L / 2 - 0.6), 2.6, 0, true);
+    if (o.green !== false && mchance(0.18)) bougainvillea(mr(-L / 2 + 0.8, L / 2 - 0.8), Math.min(H, 6.5), 0.02, 2.4);
+    // plinth
+    W.box(L, 0.5, 0.04, 0, 0.25, 0.02, shade(col, 0.8), { t: TX.plaster, wear: 7 });
+  }), 'mid');
+}
+// ---------------- greenery ----------------
+// bougainvillea: a twisted trunk up the wall and a magenta cascade over the parapet
+function bougainvillea(x, top, z, spread = 3) {
+  const cols = [0xc0306a, 0xd8408a, 0xa82a6a, 0xe05a9a, 0xb83478], leaf = [0x3a6a2a, 0x46782e, 0x2f5a22];
+  // woody stems fanned up the wall, then a dense mantle of bracts over the top, thinning as it falls
+  for (const k of [-1, 0, 1]) W.rod([x + k * 0.15, 0, z + 0.08], [x + k * spread * 0.22, top * 0.75, z + 0.1], 0.035, 0x5a4632, { seg: 4 });
+  for (let i = 0; i < 46; i++) {
+    const u = mr(-1, 1), fall = Math.pow(mrand(), 1.8) * (1.6 + (1 - Math.abs(u)) * 1.6);
+    const px = x + u * spread / 2, py = top - fall + 0.15, r = mr(0.18, 0.36) * (1 - fall * 0.12);
+    W.sphere(r * 1.4, r, r * 0.9, px, py, z + 0.12 + mr(0, 0.22), i % 3 === 0 ? mpick(leaf) : mpick(cols), { seg: 6, hseg: 4, t: TX.leaf, ao: false, jit: 0.15 });
+  }
+  for (let i = 0; i < 10; i++) W.sphere(mr(0.2, 0.32), mr(0.16, 0.24), 0.18, x + mr(-spread / 2, spread / 2), top + mr(-0.1, 0.3), z + mr(-0.2, 0.1), mpick(cols), { seg: 6, hseg: 4, t: TX.leaf, ao: false });
+}
+// a vine trained along a wire across a facade
+function vineRun(x0, x1, y, z) {
+  W.rod([x0, y, z + 0.1], [x1, y, z + 0.1], 0.015, MC.iron, { layer: 'metal' });
+  for (let x = x0; x < x1; x += mr(0.35, 0.6)) W.sphere(mr(0.4, 0.6), mr(0.35, 0.6), 0.35, x, y - mr(0, 0.4), z + 0.2, mpick([0x3a6a2a, 0x4a7a32, 0x356024]), { seg: 5, hseg: 3, t: TX.leaf, ao: false });
+}
+function cypress(x, z, h = 9) {
+  W.cyl(0.1, 0.16, 1, x, 0.5, z, 0x4a3a2a, { seg: 5 });
+  W.cone(0.9, h, x, h / 2 + 0.4, z, 0x24402a, { seg: 8, t: TX.leaf });
+  W.cone(0.75, h * 0.7, x, h * 0.45 + 0.2, z, 0x2c4a30, { seg: 7, t: TX.leaf, lod: 1 });
+  W.solid(0.5, h, 0.5, x, h / 2, z, 'wood');
+}
+function cat(x, y, z, ry = 0) {
+  W.push(x, y, z, ry);
+  const c = mpick([0x2a2622, 0xb8763a, 0xe8e0d0, 0x6a6058]);
+  W.sphere(0.32, 0.2, 0.18, 0, 0.14, 0, c, { seg: 6, hseg: 4 }); W.sphere(0.13, 0.12, 0.12, 0.17, 0.27, 0, c, { seg: 6, hseg: 4 });
+  for (const s of [-1, 1]) W.cone(0.03, 0.06, 0.18, 0.35, s * 0.04, c, { seg: 3 });
+  W.rod([-0.15, 0.12, 0], [-0.32, 0.05, 0.12], 0.02, c, { seg: 3 });
+  W.pop();
+}
+
+// ---------------- streets ----------------
+// a hand-drawn lane: registered for the planner/AI/NPCs, then paved
+function lane(name, ctrl, w, kind, o = {}) {
+  const st = addStreet(ctrl, w, kind, { raw: !!o.raw, district: o.district });
+  TOWN.lanes[name] = st;
+  const t = o.tx ?? (kind === 'avenue' || kind === 'quay' ? TX.paving : TX.cobble);
+  ribbon(st.pts, -w / 2 - 0.6, w / 2 + 0.6, 0.03, o.col ?? (t === TX.cobble ? MC.cobble : MC.paving), t, { wear: 4 });
+  if (kind !== 'avenue' && kind !== 'quay') ribbon(st.pts, -0.22, 0.22, 0.034, 0x8a7a64, TX.stone, { wear: 6, lod: 1 });   // centre gutter
+  return st;
+}
+// frontage: hand-written house sequence along one side of a lane (side +1 = right of travel)
+// o: { start, end, d: default depth, fill: tokens to keep cycling once the list runs out, setback }
+function front(st, side, spec, o = {}) {
+  const toks = spec.trim().split(/\s+/).filter(Boolean), fill = o.fill ? o.fill.trim().split(/\s+/) : null;
+  const L = st.len - (o.end ?? 0.5), setback = st.w / 2 + (o.setback ?? 0.05);
+  let s = o.start ?? 0.3, k = 0, guard = 0;
+  const out = [];
+  while (s < L && guard++ < 400) {
+    const tok = k < toks.length ? toks[k] : fill ? fill[(k - toks.length) % fill.length] : null;
+    if (!tok) break;
+    const u = parseUnit(tok); if (!u.d) u.d = o.d ?? 8;
+    if (tok.startsWith('-')) { s += Math.abs(u.w); k++; continue; }   // "-3" = leave a gap of 3 m
+    if (s + u.w > L + 0.3) { if (u.w > 3.2) { u.w = Math.max(3, L - s); } else break; }
+    const p = pathAt(st.pts, s + u.w / 2), nx = -p.tz * side, nz = p.tx * side, ry = Math.atan2(-nx, -nz);
+    let placed = false;
+    for (let d = u.d; d >= 3; d -= 1.5) {
+      const cx = p.x + nx * (setback + d / 2), cz = p.z + nz * (setback + d / 2);
+      if (!GR.free(cx, cz, u.w - 0.9, d - 0.9, ry, 0)) continue;
+      GR.rect(cx, cz, u.w + 0.2, d + 0.2, ry, GR.BUILT);
+      u.d = d;
+      W.push(p.x + nx * setback, 0, p.z + nz * setback, ry);
+      const H = townUnit(u);
+      W.pop();
+      // exposed side walls: above a lower neighbour, or the whole side at a gap / junction
+      const prev = out[out.length - 1], joined = prev && prev.s1 > s - 0.6, me = { ...u, x: cx, z: cz, ry, H, s1: s + u.w, ox: p.x + nx * setback, oz: p.z + nz * setback };
+      const low = joined ? prev.H : 0;
+      if (H > low + 1.2) sideFace(me, -1, low);
+      if (prev && (!joined || prev.H > H + 1.2)) sideFace(prev, 1, joined ? H : 0);
+      out.push(me);
+      placed = true; break;
+    }
+    if (placed) { s += u.w; k++; } else s += 1;
+  }
+  const last = out[out.length - 1];
+  if (last) sideFace(last, 1, 0);
   return out;
 }
-// small square: a paved disc kept free of buildings
-function reserveSquare(x, z, r) { GR.street([[x, z], [x + 0.01, z]], r * 2, GR.PAVE); }
-// covered souk roof: timber lattice on beams spanning the lane (casts striped sunlight)
+// dress one side wall of a placed unit (side −1 = left, +1 = right) from height y0 up
+function sideFace(u, side, y0) {
+  W.push(u.ox, 0, u.oz, u.ry); W.push(side * u.w / 2, 0, -u.d / 2, side * Math.PI / 2);
+  dressFace(u.d, u.H, mpick(STY[u.s]?.cols || STY.o.cols), { y0, windows: u.H - y0 > 3 });
+  W.pop(); W.pop();
+}
+// back-of-block masses: everything left inside a block becomes roofscape (seen from the rooftops/minaret)
+function fillBlocks(x0, z0, x1, z1, inside, cols) {
+  for (const r of fillFree(x0, z0, x1, z1, inside, { cell: 2, max: 12, minA: 4 })) {
+    const H = mpick([6.6, 6.9, 7.2, 8.4, 9.6]), col = mpick(cols);
+    W.box(r.w, H, r.d, r.cx, H / 2, r.cz, col, { t: TX.plaster, wear: 4 });
+    W.solid(r.w, H, r.d, r.cx, H / 2, r.cz, 'plaster');
+    W.push(r.cx, 0, r.cz);
+    W.box(r.w - 0.3, 0.04, r.d - 0.3, 0, H + 0.02, 0, MC.roofGravel, { t: TX.gravel, wear: 5, lod: 1 });
+    lightParapet(r.w, r.d, H, 0.7, col, mchance(0.2) ? 'merlon' : 'plain');
+    // faces that happen to see a street get a plinth and a shuttered window
+    for (const [sx, sz, ry, L] of [[0, 1, 0, r.w], [0, -1, Math.PI, r.w], [1, 0, Math.PI / 2, r.d], [-1, 0, -Math.PI / 2, r.d]]) {
+      const ox = sx * (r.w / 2), oz = sz * (r.d / 2), g = GR.get(r.cx + ox + sx * 1.5, r.cz + oz + sz * 1.5);
+      if (g !== GR.STREET && g !== GR.PAVE) continue;
+      W.push(ox, 0, oz, ry); dressFace(L, H, col, {}); W.pop();
+    }
+    if (r.w * r.d > 20) roofClutter(-r.w / 2 + 0.4, -r.d / 2 + 0.4, r.w / 2 - 0.4, r.d / 2 - 0.4, H, { cheap: true, tank: 0.5, laundry: 0.4 });
+    W.pop();
+  }
+}
+// overhead life across a lane: cables, laundry, lanterns, a sabat (room bridging the lane)
+function overhead(st, s, kind, o = {}) {
+  const p = pathAt(st.pts, s), n = [-p.tz, p.tx], r = st.w / 2 + 0.1, ry = Math.atan2(-p.tz, p.tx);
+  const A = (y, k = 1) => [p.x + n[0] * r * k, y, p.z + n[1] * r * k], B = (y, k = 1) => [p.x - n[0] * r * k, y, p.z - n[1] * r * k];
+  W.defer(() => W.scope({ lod: 1 }, () => {
+    if (kind === 'cable') { const y = o.y ?? mr(4.5, 6); W.cable(A(y), B(y + mr(-0.4, 0.4)), 0.4, 0.012, 0x1a1a1a, 8); }
+    else if (kind === 'laundry') laundryLine(...A(o.y ?? 5), ...B(o.y ?? 5), Math.max(3, Math.floor(st.w / 0.7)));
+    else if (kind === 'lantern') { const y = o.y ?? 4.4; W.cable(A(y + 0.6), B(y + 0.6), 0.3, 0.01, 0x1a1a1a, 6); hangLantern(p.x, y + 0.3, p.z, 0xffc070, 0.25, true); }
+    else if (kind === 'bunting') { const y = o.y ?? 5; W.cable(A(y), B(y), 0.5, 0.008, 0xe8e0d0, 6); for (let t = 0.08; t < 0.95; t += 0.11) { const q = [lerp(A(y)[0], B(y)[0], t), y - Math.sin(t * Math.PI) * 0.5 - 0.15, lerp(A(y)[2], B(y)[2], t)]; W.box(0.24, 0.26, 0.01, q[0], q[1], q[2], mpick([0xc0302a, 0x2a6a4a, 0xe8c040, 0x2a5aa0, 0xe8e0d0]), { ry, layer: 'cloth', rz: Math.PI / 4, ao: false }); } }
+  }), 'mid', [p.x, p.z]);
+  if (kind === 'sabat') {   // a little room bridging the lane, on beams, with a window each side
+    const len = o.len ?? 4, y = o.y ?? 3.4, h = 2.8, col = o.col ?? MC.ochre;
+    W.push(p.x, 0, p.z, ry);
+    W.box(len, h, st.w + 1.0, 0, y + h / 2, 0, col, { t: TX.plaster, wear: 5 }); W.solid(len, h, st.w + 1.0, 0, y + h / 2, 0, 'plaster');
+    for (let i = 0; i < 5; i++) W.box(0.14, 0.14, st.w + 1.0, -len / 2 + 0.3 + i * (len - 0.6) / 4, y - 0.07, 0, MC.cedarDk, { t: TX.wood });
+    W.box(len, 0.06, st.w + 0.9, 0, y + 0.01, 0, 0x7a6a50, { t: TX.wood });
+    for (const s2 of [-1, 1]) { W.box(0.7, 0.8, 0.03, 0, y + 1.3, 0, 0x14100c); W.push(0, y + 0.9, s2 * 0.02, 0); W.pop(); }
+    W.pop();
+  }
+}
+
+// ---------------- the sea ----------------
+const SEA = (() => {
+  const mat = new THREE.ShaderMaterial({
+    transparent: false, fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { t: { value: 0 }, sunDir: { value: new V3(-0.74, 0.43, 0.52).normalize() }, sky: { value: new THREE.Color(0x9fb4c8) }, deep: { value: new THREE.Color(0x0e3a4a) }, shallow: { value: new THREE.Color(0x2a7a7a) } }]),
+    vertexShader: `#include <common>
+      varying vec3 vW;
+      #include <fog_pars_vertex>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <logdepthbuf_vertex>
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float t; uniform vec3 sunDir, sky, deep, shallow; varying vec3 vW;
+      #include <fog_pars_fragment>
+      #include <logdepthbuf_pars_fragment>
+      vec2 h2(vec2 p){ p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3))); return -1. + 2.*fract(sin(p)*43758.5453); }
+      float gn(vec2 p){ vec2 i = floor(p), f = fract(p), u = f*f*(3.-2.*f); return mix(mix(dot(h2(i),f), dot(h2(i+vec2(1,0)),f-vec2(1,0)),u.x), mix(dot(h2(i+vec2(0,1)),f-vec2(0,1)), dot(h2(i+vec2(1,1)),f-vec2(1,1)),u.x),u.y); }
+      float hgt(vec2 p){ return gn(p*.12 + vec2(t*.05, t*.03))*1.0 + gn(p*.35 - vec2(t*.11, -t*.07))*.4 + gn(p*1.1 + vec2(t*.3, t*.21))*.12; }
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec2 p = vW.xz; float e = .25;
+        vec3 n = normalize(vec3(hgt(p-vec2(e,0.)) - hgt(p+vec2(e,0.)), 2.*e*2.2, hgt(p-vec2(0.,e)) - hgt(p+vec2(0.,e))));
+        vec3 v = normalize(cameraPosition - vW);
+        float fr = .03 + .97 * pow(1. - max(dot(n, v), 0.), 5.);
+        vec3 r = reflect(-v, n);
+        float shore = smoothstep(26., 0., vW.z - 112.) ;
+        vec3 water = mix(deep, shallow, .35 + .4 * shore);
+        vec3 c = mix(water, sky, clamp(fr, 0., .85));
+        c += vec3(1.4,1.2,.95) * pow(max(dot(r, sunDir), 0.), 180.) * 3.;
+        c += vec3(.9) * smoothstep(.55, .75, hgt(p*1.3)) * .06;
+        gl_FragColor = vec4(c, 1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000, 1, 1).rotateX(-Math.PI / 2), mat);
+  mesh.position.set(0, -1.25, 0); mesh.renderOrder = -1;
+  return { mesh, mat, add() { scene.add(mesh); }, update(t) { mat.uniforms.t.value = t; } };
+})();
+
+// ---------------- harbour props ----------------
+// Essaouira fishing boat: blue hull, red/yellow trim, a little wheelhouse on the bigger ones
+function fishingBoat(x, z, ry, L = 7, o = {}) {
+  // local +z = bow. A planked shell: side strakes and a bottom between tapered stations, sheer rising to the bow
+  W.push(x, o.y ?? -1.0, z, ry);
+  const B = L * 0.3, hull = o.col ?? mpick([0x2a5aa0, 0x2a6ab0, 0x3a7ac0, 0x2a4a8a, 0x2a5aa0]), trim = mpick([0xc8302a, 0xe8c040, 0xe8e0d0, 0xc8302a]), inside = 0x8a6a4a;
+  const N = 7, st = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, w = B * (t < 0.12 ? 0.82 + t * 1.4 : 1 - Math.pow(Math.max(0, (t - 0.5) / 0.5), 1.7) * 0.94), sh = 0.95 + 0.45 * t * t; st.push({ z: (t - 0.5) * L, w: Math.max(0.12, w), sh }); }
+  for (let i = 0; i < N; i++) {
+    const a = st[i], b = st[i + 1], mz = (a.z + b.z) / 2, len = Math.hypot(b.z - a.z, (b.w - a.w) / 2), h = (a.sh + b.sh) / 2;
+    for (const sd of [-1, 1]) {
+      const ang = Math.atan2(sd * (b.w - a.w) / 2, b.z - a.z), mx = sd * (a.w + b.w) / 4;
+      W.box(0.08, h, len + 0.04, mx, h / 2, mz, hull, { ry: -ang, t: TX.wood, wear: 5 });
+      W.box(0.12, 0.1, len + 0.06, mx, h + 0.02, mz, trim, { ry: -ang, t: TX.wood, wear: 4, lod: 1 });
+      W.box(0.09, 0.08, len + 0.04, mx * 1.01, 0.35, mz, shade(hull, 0.7), { ry: -ang, t: TX.wood, lod: 1 });
+    }
+    W.box(Math.min(a.w, b.w) - 0.08, 0.08, b.z - a.z + 0.02, 0, 0.04, mz, shade(hull, 0.55), { t: TX.wood, wear: 6 });
+    W.box(Math.min(a.w, b.w) - 0.2, 0.04, b.z - a.z, 0, 0.28, mz, inside, { t: TX.wood, wear: 5, lod: 1 });
+  }
+  W.box(0.14, 0.5, 0.3, 0, st[N].sh - 0.1, st[N].z + 0.05, trim, { lod: 1 });   // stem post
+  W.box(st[0].w, st[0].sh, 0.08, 0, st[0].sh / 2, st[0].z, hull, { t: TX.wood, wear: 5 });   // transom
+  W.scope({ lod: 1 }, () => {
+    for (const t of [0.3, 0.6]) W.box(B * 0.9, 0.06, 0.28, 0, 0.62, (t - 0.5) * L, inside, { t: TX.wood });   // thwarts
+    if (L > 8.5) { W.box(1.5, 1.5, 1.7, 0, 1.25, -L * 0.18, 0xe8e0d0, { t: TX.wood, wear: 4 }); W.box(1.7, 0.1, 1.9, 0, 2.05, -L * 0.18, trim, { t: TX.wood }); W.box(1.1, 0.45, 0.02, 0, 1.6, -L * 0.18 + 0.86, 0x14100c); W.rod([0, 2, -L * 0.18], [0, 4.8, -L * 0.18], 0.05, 0xe8e0d0); }
+    else { W.box(0.32, 0.55, 0.32, 0, 0.9, st[0].z - 0.2, 0x2a2a2a, { layer: 'metal' }); W.rod([0, 0.6, st[0].z - 0.25], [0, -0.3, st[0].z - 0.3], 0.05, 0x3a3a3a, { layer: 'metal' }); }
+    W.box(0.6, 0.02, 0.14, B * 0.3, 0.75, L * 0.3, 0xe8e0d0, { lod: 2 });   // registration plate
+  });
+  W.scope({ lod: 2 }, () => { if (mchance(0.6)) netPile(mr(-0.3, 0.3), 0.3, mr(-L * 0.25, L * 0.1)); for (let i = 0; i < 2; i++) if (mchance(0.5)) crate(mr(-0.4, 0.4), 0.3, mr(-L * 0.3, 0), 0.6, 0.35, 0.45, mr(0, 1), 0x9a8a6a, false); });
+  W.pop();
+}
+function netPile(x, y, z) {
+  const c = mpick([0x2a6a4a, 0x8a3a2a, 0x3a4a6a, 0xc8a040]);
+  for (let i = 0; i < 4; i++) W.sphere(mr(0.6, 1.0), mr(0.25, 0.4), mr(0.6, 1.0), x + mr(-0.3, 0.3), y + 0.1 + i * 0.08, z + mr(-0.3, 0.3), c, { seg: 7, hseg: 3, layer: 'cloth', t: TX.fabric, wear: 6 });
+}
+function bollardQuay(x, z) { W.cyl(0.22, 0.26, 0.6, x, 0.3, z, 0x2a2a2a, { seg: 8, layer: 'metal', t: TX.metal, wear: 6 }); W.cyl(0.3, 0.3, 0.08, x, 0.62, z, 0x2a2a2a, { seg: 8, layer: 'metal' }); W.solid(0.5, 0.65, 0.5, x, 0.32, z, 'metal'); }
+function cannon(x, y, z, ry) {
+  W.push(x, y, z, ry);
+  W.box(0.9, 0.35, 1.4, 0, 0.35, 0, MC.cedarDk, { t: TX.wood, wear: 6 });
+  for (const s of [-1, 1]) for (const zz of [-0.5, 0.5]) W.cyl(0.22, 0.22, 0.08, s * 0.48, 0.22, zz, MC.cedarDk, { rz: Math.PI / 2, seg: 8 });
+  W.cyl(0.13, 0.2, 2.4, 0, 0.7, 0.6, 0x2a2c2a, { rx: Math.PI / 2 - 0.08, seg: 10, layer: 'metal', t: TX.metal, wear: 7 });
+  W.solid(0.9, 0.9, 2.2, 0, 0.45, 0.4, 'metal');
+  W.pop();
+}
+
+// ---------------- market pieces (souk roof, food stalls, juice carts, café umbrellas) ----------------
 function soukRoof(st, y = 4.6) {
   W.scope({ lod: 1 }, () => {
     for (let s = 1; s < st.len - 1; s += 0.62) {
@@ -6244,46 +6657,6 @@ function soukRoof(st, y = 4.6) {
   for (let s = 4; s < st.len - 2; s += 9) { const p = pathAt(st.pts, s); if (GR.get(p.x, p.z) === GR.STREET) hangLantern(p.x, y, p.z, 0xffc070, 0.7, Math.floor(s / 9) % 2 === 0); }
 }
 // fabric canopies and cables strung across a lane
-function laneOverhead(st, o = {}) {
-  for (let s = mr(4, 12); s < st.len - 4; s += mr(o.every ?? 14, (o.every ?? 14) * 2)) { const p = pathAt(st.pts, s); W.defer(() => laneOverheadAt(st, p), 'mid', [p.x, p.z]); }
-}
-function laneOverheadAt(st, p) {
-  W.scope({ lod: 1 }, () => {
-    {
-      const n = [-p.tz, p.tx], r = st.w / 2 + 0.2, y = mr(3.6, 5.5);
-      const a = [p.x + n[0] * r, y, p.z + n[1] * r], b = [p.x - n[0] * r, y + mr(-0.4, 0.4), p.z - n[1] * r];
-      if (GR.get(a[0] + n[0] * 0.8, a[2] + n[1] * 0.8) !== GR.BUILT || GR.get(b[0] - n[0] * 0.8, b[2] - n[1] * 0.8) !== GR.BUILT) return;
-      const k = mrand();
-      if (k < 0.4) { const len = mr(2, 4), col = mpick([0xb03a2e, 0xd8b06a, 0xe8dcc0, 0x7a2a4a, 0x2a5a8a]); W.box(st.w + 0.4, 0.02, len, p.x, y + 0.2, p.z, col, { ry: Math.atan2(-p.tz, p.tx) + Math.PI / 2, layer: 'cloth', t: TX.fabric, wear: mchance(0.5) ? 5 : 1, rz: mr(-0.05, 0.05) }); }
-      else if (k < 0.75) W.cable(a, b, mr(0.2, 0.6), 0.008, 0x1a1a1a, 8);
-      else laundryLine(a[0], a[1], a[2], b[0], b[1], b[2], Math.round(st.w / 0.7));
-    }
-  });
-}
-// covered passage (sabat): a room bridging an alley between two houses
-function sabat(st, s, len = 4) {
-  const p = pathAt(st.pts, s), n = [-p.tz, p.tx], r = st.w / 2 + 1.0;
-  if (GR.get(p.x + n[0] * r, p.z + n[1] * r) !== GR.BUILT || GR.get(p.x - n[0] * r, p.z - n[1] * r) !== GR.BUILT) return false;
-  const ry = Math.atan2(-p.tz, p.tx), col = mpick([MC.ochre, MC.rose, MC.plaster, MC.cream]);
-  W.push(p.x, 0, p.z, ry);
-  W.box(len, 2.8, st.w + 1.6, 0, 3.4 + 1.4, 0, col, { t: TX.plaster, wear: 4 }); W.solid(len, 2.8, st.w + 1.6, 0, 4.8, 0, 'plaster');
-  W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.floor(len / 0.5); i++) W.box(0.14, 0.16, st.w + 1.6, -len / 2 + 0.25 + i * 0.5, 3.32, 0, MC.cedarDk, { t: TX.wood }); });
-  hangLantern(0, 3.4, 0, 0xffc070, 0.4, true);
-  W.pop();
-  return true;
-}
-// lots → buildings, by district rules
-function raiseLots(lots, pick) {
-  MAP.lotCount = (MAP.lotCount || 0) + lots.length;
-  for (const lot of lots) { lot.open = lotOpenSides(lot); pick(lot); }
-}
-function fillerOpen(r) {
-  const test = (x, z) => { const v = GR.get(x, z); return v === GR.STREET || v === GR.PAVE; };
-  const k = (fn) => { let n = 0; for (let t = -0.35; t <= 0.35; t += 0.175) if (fn(t)) n++; return n >= 3; };
-  return { s: k((t) => test(r.cx + t * r.w, r.cz + r.d / 2 + 2)), n: k((t) => test(r.cx + t * r.w, r.cz - r.d / 2 - 2)), e: k((t) => test(r.cx + r.w / 2 + 2, r.cz + t * r.d)), w: k((t) => test(r.cx - r.w / 2 - 2, r.cz + t * r.d)) };
-}
-
-// ---------------- market props ----------------
 function foodStall(x, z, ry = 0) {
   W.push(x, 0, z, ry);
   W.scope({ lod: 1 }, () => {
@@ -6316,545 +6689,939 @@ function umbrellaTable(x, z, col = mpick([0xe8dcc0, 0xb03a2e, 0x2a5a3a])) {
   W.cone(1.4, 0.5, x, 2.45, z, col, { seg: 8, layer: 'cloth', lod: 1, t: TX.fabric });
   bistroTable(x, 0, z, mpick([2, 3, 4]), mpick([0x2a2a2a, 0x7a2a24]));
 }
+// =====================================================================
+//  DAR ESSALAM — the street plan (every lane drawn by hand)
+// =====================================================================
+//              N (−z)
+//   tannery · souk lanes · mosque+minaret · KASBAH (enemy HQ)
+//   medina (riads, blue quarter) · PLACE (main square) · Rue des Orangers
+//   skala sea wall · avenue to the sea gate · Mellah · garden
+//   ~~~~~~~~~~~~~~~~~~~~~ harbour quay · jetty · fishing boats ~~~~~~~~~~~~~~~~~~~~~
+// x east, z south. The square is centred on the origin.
+const SQ = { x0: -30, z0: -22, x1: 30, z1: 22 };                // Place Lalla Yeto — the main square
+const RAHBA = { x0: -62, z0: -97, x1: -41, z1: -78 };           // spice square in the souk
+const KSQ = { x0: 34, z0: -66, x1: 61, z1: -37 };               // square before the kasbah gate
+const JARDIN = { x0: 78, z0: 28, x1: 112, z1: 55 };             // Mellah garden
+const QUAY = { x0: -22, z0: 92, x1: 152, z1: 113.5 };           // harbour quay
+const KASBAH = { x0: 64, z0: -134, x1: 152, z1: -36 };
+const MOSQUE = { x0: -72, z0: -62, x1: -34, z1: -30 };
+const TANNERY = { x0: -146, z0: -130, x1: -106, z1: -96 };
+const SPAWN = { x: -5, z: 13, yaw: 0.35 };
 
-// ---------------- the walled medina ----------------
-const MEDINA = [[-392, -562], [-600, -575], [-805, -548], [-818, -300], [-806, -80], [-815, 180], [-795, 462], [-600, 478], [-402, 470], [-386, 150], [-394, -200], [-392, -562]];
-function buildMedina() {
-  const inside = (x, z) => pip(MEDINA, x, z) && polyDist(MEDINA, x, z) > 5;
-  // ramparts: stamp them so nothing builds into the wall
-  for (let i = 0; i < MEDINA.length - 1; i++) GR.street([MEDINA[i], MEDINA[i + 1]], 7, GR.WALL);
-  const gates = [{ i: 0, t: 0.55, zel: 0 }, { i: 4, t: 0.1, zel: 2 }, { i: 6, t: 0.5, zel: 5 }, { i: 7, t: 0.5, zel: 1 }, { i: 9, t: 0.62, zel: 4 }, { i: 10, t: 0.27, zel: 3 }];
-  // squares, the tannery and the mosque claim space first
-  const squares = [[-560, -75, 20], [-700, -200, 14], [-470, 180, 14], [-620, 196, 18], [-520, 330, 13], [-735, 300, 12], [-480, -390, 13]];
-  for (const [x, z, r] of squares) reserveSquare(x, z, r);
-  GR.rect(-650, -420, 50, 38, 0, GR.RESERVED); GR.rect(-620, 150, 50, 42, 0, GR.RESERVED);
-  // arteries between the gates
-  const art = [
-    [[[-402, -67], [-470, -40], [-560, -75], [-650, -50], [-740, -62], [-795, -54]], 5.2],
-    [[[-506, -556], [-520, -470], [-480, -390], [-540, -280], [-520, -170], [-560, -75]], 4.6],
-    [[[-404, -298], [-460, -310], [-540, -280]], 4.2],
-    [[[-560, -75], [-590, 20], [-560, 120], [-585, 230], [-560, 340], [-501, 462]], 4.6],
-    [[[-650, -50], [-700, 60], [-690, 200], [-700, 340], [-697, 458]], 4.2],
-    [[[-470, -40], [-440, 60], [-470, 180], [-430, 300], [-460, 400], [-530, 420]], 3.8],
-    [[[-740, -62], [-725, -200], [-760, -330], [-715, -470], [-600, -520], [-520, -470]], 3.8],
-  ];
-  const arteries = art.map(([pts, w]) => addStreet(pts, w, 'lane', { district: 'medina' }));
-  // second order streets and dead-end derbs
-  const sec = [];
-  for (const a of arteries) sec.push(...branches(a, { gapMin: 32, gapMax: 55, lenMin: 40, lenMax: 140, wMin: 2.8, wMax: 3.5, inside, kind: 'alley', district: 'medina' }));
-  const derbs = [];
-  for (const s of sec) derbs.push(...branches(s, { gapMin: 24, gapMax: 40, lenMin: 14, lenMax: 42, wMin: 2.0, wMax: 2.5, inside, kind: 'derb', district: 'medina', turn: 0.2 }));
-  // ground: worn cobbles everywhere inside the walls, dressed paving on the arteries
-  groundPlate(-820, -580, -384, 482, MC.cobble, TX.cobble, 4, 0.03, (x, z) => pip(MEDINA, x, z) || polyDist(MEDINA, x, z) < 20);
-  for (const a of arteries) ribbon(a.pts, -a.w / 2, a.w / 2, 0.045, MC.paving, TX.paving, { wear: 5 });
-  // buildings
-  let nShop = 0, nRiad = 0;
-  const raise = (lots, kind) => raiseLots(lots, (lot) => {
-    if (kind === 'artery' && lot.w <= 7.5 && lot.d >= 6 && nShop < 70) { nShop++; shopHouse(lot, { up: mpick([1, 1, 2]) }); return; }
-    if (lot.w >= 10.6 && lot.d >= 10.6 && nRiad < 34 && mchance(kind === 'artery' ? 0.25 : 0.45)) { nRiad++; riad(lot, {}); return; }
-    medinaShell(lot, { H: mpick([6.4, 6.8, 7.4, 9.8, 10.2, 6.8]) });
-  });
-  for (const a of arteries) for (const side of [1, -1]) raise(lotsAlong(a, side, { wMin: 4.5, wMax: 8.5, dMin: 6, dMax: 14, region: inside }), 'artery');
-  for (const s of sec) for (const side of [1, -1]) raise(lotsAlong(s, side, { wMin: 7, wMax: 13, dMin: 7, dMax: 15, region: inside }), 'alley');
-  for (const s of derbs) for (const side of [1, -1]) raise(lotsAlong(s, side, { wMin: 6.5, wMax: 12, dMin: 6.5, dMax: 13, region: inside }), 'derb');
-  for (const sq of squares) { const st = addRing(sq[0], sq[1], sq[2]); for (const side of [-1]) raise(lotsAlong(st, side, { wMin: 6, wMax: 10, dMin: 7, dMax: 12, region: inside, setback: -0.2 }), 'artery'); }
-  // back-of-block mass fills the rest of the quarter
-  for (const r of fillFree(-818, -578, -384, 480, inside, { max: 24, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([5.8, 6.4, 7.0, 7.6, 9.6]), clutter: mchance(0.4) }); }
-  // overhead life in the lanes + covered passages
-  for (const s of [...sec, ...derbs]) { laneOverhead(s, { every: 12 }); if (s.len > 30 && mchance(0.4)) sabat(s, mr(8, s.len - 8), mr(3, 6)); }
-  for (const a of arteries) laneOverhead(a, { every: 16 });
-  // street-level dressing along the lanes
-  dressLanes([...arteries, ...sec, ...derbs], 'medina');
-  // squares
-  for (const [x, z, r] of squares) dressSquare(x, z, r);
-  tannery(-650, -420);
-  mosque(-620, 150, 0, 46, 38); minaret(-648, 126, 0, 6.8, 38);
-  ramparts(MEDINA, gates, { H: 8.6, T: 2.8 });
-  return { arteries, sec, derbs };
+function plaza(name, r, col, tx) {
+  GR.rect((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0, r.z1 - r.z0, 0, GR.PAVE, true);
+  groundPlate(r.x0, r.z0, r.x1, r.z1, col, tx, 3, 0.035);
+  TOWN.plazas.push({ name, ...r });
 }
-// a ring street around a square (used only to front lots onto squares)
-function addRing(x, z, r) {
-  const pts = []; for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2; pts.push([x + Math.cos(a) * r, z + Math.sin(a) * r]); }
-  const s = { id: 0, pts, w: 0.8, kind: 'ring', len: pathLength(pts) };
-  return s;
-}
-function dressSquare(x, z, r) {
-  if (r > 16) fountain(x, 0, z, 2.6, Math.floor(mr(0, 8))); else wallFountainFree(x, z);
-  W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < Math.floor(r / 5); i++) { const a = mr(0, 6.28), d = mr(r * 0.45, r * 0.75); tree(x + Math.cos(a) * d, 0, z + Math.sin(a) * d, mpick(['orange', 'ficus', 'olive']), mr(0.6, 0.9)); }
-    for (let i = 0; i < 3; i++) { const a = mr(0, 6.28), d = r * 0.55; umbrellaTable(x + Math.cos(a) * d, z + Math.sin(a) * d); }
-    for (let i = 0; i < 3; i++) { const a = mr(0, 6.28), d = r * 0.7; scooter(x + Math.cos(a) * d, z + Math.sin(a) * d, a); }
-    for (let i = 0; i < 2; i++) { const a = mr(0, 6.28), d = r * 0.65; handCart(x + Math.cos(a) * d, 0, z + Math.sin(a) * d, a + Math.PI / 2, mpick(['produce', 'boxes'])); }
-    lampPostOld(x + r * 0.35, 0, z + r * 0.35, 4.0); lampPostOld(x - r * 0.35, 0, z - r * 0.35, 4.0);
-  });
-}
-function wallFountainFree(x, z) {
-  // a free-standing tiled fountain block (two faces)
-  W.box(2.4, 2.8, 1.2, x, 1.4, z, MC.plaster, { t: TX.plaster, wear: 4 }); W.solid(2.4, 2.8, 1.2, x, 1.4, z, 'plaster');
-  wallFountain(x, 0, z + 0.6, 0, Math.floor(mr(0, 8))); wallFountain(x, 0, z - 0.6, Math.PI, Math.floor(mr(0, 8)));
-}
-// the dyers' and tanners' yard: stone pits of colour, terraces of hides, a walkway grid
-function tannery(x, z) {
-  const w = 46, d = 34;
-  W.push(x, 0, z);
-  W.box(w, 0.9, d, 0, 0.45, 0, 0xc8b8a0, { t: TX.stone, wear: 6 }); W.solid(w, 0.9, d, 0, 0.45, 0, 'stone', { walk: true });
-  const cols = [0xb8862a, 0x8a2a1a, 0x5a2a6a, 0xe8e0d0, 0x2a5a8a, 0xc8b02a, 0x6a4a2a, 0x3a6a3a, 0xd05a2a];
-  for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) {
-    const px = -w / 2 + 3.5 + i * 5.6, pz = -d / 2 + 3.5 + j * 6.5;
-    W.cyl(1.6, 1.6, 0.95, px, 0.45, pz, 0xe8dcc8, { seg: 10, t: TX.stone, wear: 6 });
-    W.cyl(1.35, 1.35, 0.02, px, 0.86, pz, mpick(cols), { seg: 10, t: TX.gravel, wear: 2 });
-    W.solid(3.2, 0.95, 3.2, px, 0.47, pz, 'stone');
-  }
-  // drying terraces with hides on the surrounding low walls
-  for (const s of [-1, 1]) { W.box(w, 3.2, 3, 0, 1.6, s * (d / 2 + 1.5), MC.plaster, { t: TX.plaster, wear: 7 }); W.solid(w, 3.2, 3, 0, 1.6, s * (d / 2 + 1.5), 'plaster', { walk: true }); W.scope({ lod: 1 }, () => { for (let i = 0; i < 20; i++) W.box(mr(0.6, 1.0), 0.02, mr(0.8, 1.2), -w / 2 + 1.2 + i * 2.3, 3.22, s * (d / 2 + 1.5), mpick([0xd8b878, 0xb88a4a, 0xe8dcc0, 0x8a2a1a]), { ry: mr(-0.3, 0.3), layer: 'cloth', ao: false }); }); }
-  flight(-w / 2 - 1.2, d / 2 + 0.3, [0, 1], 1.2, 0, 3.2, { col: MC.stone, tx: TX.stone, thick: 20, run: 0.28 });
-  W.pop();
+const reserve = (r, pad = 0) => GR.rect((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0 + pad * 2, r.z1 - r.z0 + pad * 2, 0, GR.RESERVED, true);
+// a straight frontage line along the edge of a square (not a street: no paving, no NPC route)
+const edge = (a, b) => ({ pts: [a, b], w: 0, len: Math.hypot(b[0] - a[0], b[1] - a[1]) });
+
+// district fill palettes (used once a hand-written frontage list runs out)
+const FILL = {
+  medina: '6/3/o 5/2/r+pots 7/3/c+boug 4/2/o 6/3/r+mash 5/2/c 8/3/o+rug 5/3/r 6/2/c+terr 4/3/o 7/2/r+boug+cat 5/3/c+mash',
+  blue: '5/2/b+pots 6/3/b 4/2/b+boug 7/3/b+pots 5/2/b+cat 6/2/b+terr 4/3/b+pots',
+  souk: '4x6/2/s:spice 3.6x6/2/s:leather 4.2x6/2/s:rugs 3.4x6/1/s:lamps 4x6/2/s:pottery 3.8x6/2/s:fabric 4.4x6/2/s:copper 3.6x6/1/s:grocery',
+  mellah: '6/3/m 5/3/m+boug 7/4/m 5/2/m+pots 6/3/m+rug 8/3/m+terr 5/3/m+cat',
+  avenue: '8/3/h:grocery 7/4/h 9/3/s:fabric+bal 7/3/h:pottery 8/4/h+bal 6/3/s:spice+bal',
+  quay: '10x10/2/w 8x10/2/w 7/2/s:grocery+terr 12x12/2/w 6/2/c+boug',
+};
+const PAL = { medina: [MC.ochre, MC.rose, MC.plaster, MC.ochreDk, MC.cream, MC.roseDk], blue: [0xe9eef3, 0xdfe7f0, 0xc6d8ea], mellah: [MC.plasterLt, 0xd8c8b0, MC.cream, 0xe8d8a8, 0xd8e0e0, 0xe4c8b8], kasbah: [MC.pise, 0xa97e58] };
+
+function buildTownPlan() {
+  // ---- open spaces and big footprints first, so frontages wrap around them ----
+  plaza('Place Lalla Yeto', SQ, 0xcdb894, TX.paving);
+  plaza('Rahba Kedima', RAHBA, 0xb8a080, TX.cobble);
+  plaza('Place de la Kasbah', KSQ, 0xc0aa88, TX.paving);
+  plaza('Jardin du Mellah', JARDIN, 0xc8b898, TX.paving);
+  plaza('Quai des Pêcheurs', QUAY, 0xa89c88, TX.paving);
+  for (const r of [KASBAH, MOSQUE, TANNERY]) reserve(r, 0.5);
+  plaza('Mosque forecourt', { x0: -44, z0: -29, x1: -30, z1: -14 }, 0xd0c0a0, TX.paving);
+  plaza('Minaret steps', { x0: -34, z0: -36.5, x1: -27.5, z1: -30 }, 0xc8b898, TX.paving);
+  plaza('Tannery steps', { x0: -106, z0: -112, x1: -102, z1: -96 }, 0xb8a888, TX.cobble);
+  plaza('Skala steps', { x0: -24.5, z0: 86, x1: -21.5, z1: 99 }, 0xb8a888, TX.stone);
+  // town walls: a strip all round
+  for (const r of [{ x0: -160, z0: -140, x1: 64, z1: -132 }, { x0: -160, z0: -140, x1: -152, z1: 100 }, { x0: 150, z0: -36, x1: 160, z1: 92 }, { x0: -160, z0: 89, x1: -22, z1: 101 }]) GR.rect((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0, r.z1 - r.z0, 0, GR.WALL, true);
+
+  // ---- streets ----
+  const L = (n, pts, w, kind, o) => lane(n, pts, w, kind, o);
+  // the avenue to the sea gate and the quay
+  L('avenue', [[0, 22], [0, 92]], 9, 'avenue', { raw: true });
+  L('quay', [[-20, 102], [150, 102]], 12, 'quay', { raw: true });
+  // souk
+  L('soukKebir', [[0, -22], [2, -46], [-2, -70], [0, -96], [-3, -128]], 4.4, 'souk');
+  L('soukZarbia', [[-24, -22], [-29, -48], [-36, -73], [-40, -100], [-44, -128]], 3.6, 'souk');
+  L('soukSemmarine', [[24, -22], [28, -44], [34, -60]], 3.6, 'souk');
+  L('derbChouari', [[-36, -73], [-18, -71], [-2, -70], [16, -66], [34, -62]], 3.2, 'souk');
+  L('derbRahba', [[-82, -60], [-70, -72], [-62, -84]], 3, 'alley');
+  L('derbDebbagh', [[-62, -92], [-84, -99], [-106, -104]], 2.8, 'alley');
+  // medina
+  L('derbLalla', [[-30, 4], [-48, 8], [-68, 2], [-92, 6], [-118, 0], [-148, 3]], 3.6, 'alley');
+  L('derbJamaa', [[-30, -14], [-44, -21]], 4, 'alley', { raw: true });
+  L('derbSidi', [[-68, 2], [-71, -18], [-79, -38], [-82, -60]], 3, 'alley');
+  L('derbKhemis', [[-92, 6], [-90, -20], [-100, -42], [-104, -64], [-82, -60]], 2.6, 'alley');
+  L('derbLamia', [[-92, 6], [-96, 24], [-104, 36], [-108, 42]], 2.8, 'alley');
+  L('derbSaida', [[-48, 8], [-47, 30], [-54, 54], [-50, 76], [-44, 86]], 3, 'alley');
+  L('derbZerka', [[-118, 0], [-124, 30], [-120, 58], [-104, 80], [-84, 86]], 2.8, 'alley');
+  L('derbTala', [[-118, 0], [-128, -28], [-126, -56], [-114, -84], [-106, -98]], 2.8, 'alley');
+  L('derbZitoun', [[-47, 30], [-30, 33], [-4.5, 31]], 3, 'alley');
+  L('derbFrane', [[-120, 58], [-92, 63], [-54, 54]], 2.6, 'alley');
+  L('derbBab', [[-54, 54], [-30, 58], [-4.5, 60]], 3, 'alley');
+  L('skalaLane', [[-148, 86], [-84, 86], [-44, 86], [-4.5, 86]], 4, 'alley', { raw: true });
+  // east town
+  L('orangers', [[30, 0], [62, 3], [100, -1], [148, 1]], 7, 'avenue');
+  L('derbKasbah', [[44, -37], [42, -18], [44, -3.5]], 3.4, 'alley');
+  L('derbMellah', [[42, 3.5], [46, 28], [41, 52], [44, 80], [44, 92]], 3.2, 'alley');
+  L('derbHebrew', [[98, 3.5], [96, 28]], 3.2, 'alley');
+  L('derbSouiri', [[95, 55], [97, 80], [97, 92]], 3.2, 'alley');
+  L('derbNajjar', [[46, 28], [78, 34]], 3, 'alley');
+  L('derbTijani', [[112, 40], [148, 38]], 3, 'alley');
+  L('derbMoulay', [[41, 52], [78, 50]], 3, 'alley');
+  L('derbBahri', [[112, 52], [132, 62], [148, 64]], 3, 'alley');
+  L('derbSoussi', [[4.5, 46], [41, 46]], 3, 'alley', { raw: true });
+  L('derbFassi', [[4.5, 72], [43, 70]], 3, 'alley', { raw: true });
 }
 
-// ---------------- street dressing (medina / souks / mellah) ----------------
-function dressLanes(streets, district) {
-  for (const st of streets) {
-    for (let s = mr(3, 10); s < st.len - 3; s += mr(9, 22)) {
-      const p = pathAt(st.pts, s), side = mchance(0.5) ? 1 : -1, n = [-p.tz * side, p.tx * side], r = st.w / 2 - 0.45;
-      const x = p.x + n[0] * r, z = p.z + n[1] * r, ry = Math.atan2(-p.tz, p.tx);
-      if (GR.get(p.x + n[0] * (st.w / 2 + 0.8), p.z + n[1] * (st.w / 2 + 0.8)) !== GR.BUILT) continue;
-      if (GR.get(x, z) === GR.PAVE || GR.get(x + p.tx, z + p.tz) === GR.PAVE || GR.get(x - p.tx, z - p.tz) === GR.PAVE) continue;   // a doorway
-      const k = mrand();
-      W.defer(() => W.scope({ lod: 1 }, () => {
-        if (k < 0.18) plantPot(x, 0, z, mpick(['geranium', 'aloe', 'palm']), mr(0.8, 1.2));
-        else if (k < 0.3) { scooter(x, z, ry + (side > 0 ? 0 : Math.PI)); }
-        else if (k < 0.4) bicycle(x, 0, z, ry, mpick([PC.blueLt, PC.redLt, 0x2a2a2a]));
-        else if (k < 0.52) { for (let i = 0; i < mpick([1, 2, 3]); i++) crate(x + p.tx * i * 0.9, 0, z + p.tz * i * 0.9, 0.7, 0.5, 0.6, ry + mr(-0.2, 0.2), mpick([PC.woodLt, PC.plywood, 0x3a6aa0]), i === 0); }
-        else if (k < 0.6) sack(x, 0, z, mpick([0xc8b088, 0xa89068]), ry);
-        else if (k < 0.68) { for (let i = 0; i < 3; i++) cardboard(x + mr(-0.3, 0.3), i * 0.4, z + mr(-0.3, 0.3), mr(0, 1)); }
-        else if (k < 0.74 && st.w > 3) handCart(x, 0, z, ry, mpick(['produce', 'boxes']));
-        else if (k < 0.8) { W.cyl(0.2, 0.17, 0.42, x, 0.21, z, mpick([0x2a6ab0, 0x3a7a4a, 0xe8e0d0]), { seg: 8 }); }
-        else if (k < 0.86) butane(x, 0, z);
-        else if (k < 0.9) stool(x, 0, z, PC.woodLt);
-        else if (k < 0.94) plasticChair(x, 0, z, ry + Math.PI / 2 * -side, mpick([PC.white, PC.blueLt, PC.green]));
-        else trashBin(x, 0, z);
-      }), 'mid', [x, z]);
-    }
-  }
+// ---------------- frontages: written house by house ----------------
+function buildTownFronts() {
+  const T = TOWN.lanes, F = (n, side, spec, o = {}) => front(T[n], side, spec, o);
+  // ===== the square: four hand-composed sides =====
+  // north: between the three souk mouths (café at the centre-right is an authored building)
+  front(edge([-30, -22], [-26.5, -22]), -1, '3.5/3/r');
+  front(edge([-21.8, -22], [-2.4, -22]), -1, '6x9/3/h:pottery+bal 7x9/4/h+bal+sign 6x9/3/s:spice+bal');
+  front(edge([16, -22], [22, -22]), -1, '6x8/3/h:lamps+bal');
+  front(edge([26, -22], [30, -22]), -1, '4/3/h');
+  // west: mosque passage, then houses along the medina mouth
+  front(edge([-30, -1.6], [-30, -11.5]), -1, '9.9x10/3/h:leather+bal+sign');
+  front(edge([-30, 22], [-30, 6]), -1, '8x10/4/h+bal+terr 8x10/3/h:rugs+bal');
+  // south: either side of the avenue
+  front(edge([-4.5, 22], [-30, 22]), -1, '8x10/3/h:spice+bal 9x10/4/h+bal+zel 8.5x10/3/h:fabric+bal');
+  front(edge([30, 22], [4.5, 22]), -1, '8x10/3/h:grocery+bal 9x10/3/h+bal 8.3x10/4/h+bal+terr');
+  // east: either side of the Rue des Orangers
+  front(edge([30, -22], [30, -3.5]), -1, '9x10/3/h:copper+bal 9.5x10/4/h+bal');
+  front(edge([30, 3.5], [30, 22]), -1, '9x10/3/h:pottery+bal 9.5x10/3/h+bal+terr');
+
+  // ===== souk lanes: stall after stall =====
+  F('soukKebir', 1, '4x6/2/s:spice 3.6x6/2/s:spice 4.2x6/2/s:pottery 3.4x6/1/s:lamps 4x6/2/s:lamps 4x6/2/s:leather 3.8x6/2/s:leather 4.4x6/2/s:rugs 3.6x6/2/s:copper -2 4x6/2/s:fabric 3.6x6/2/s:grocery 4x6/1/s:spice 4.2x6/2/s:rugs', { fill: FILL.souk, d: 6, start: 0.5 });
+  F('soukKebir', -1, '4.2x6/2/s:rugs 4x6/2/s:rugs 3.6x6/2/s:fabric 4x6/1/s:lamps 3.8x6/2/s:pottery 4.4x6/2/s:copper 3.6x6/2/s:spice 4x6/2/s:leather -3 3.8x6/2/s:grocery 4x6/2/s:spice', { fill: FILL.souk, d: 6, start: 0.5 });
+  F('soukZarbia', 1, '4x6/2/s:rugs 4.4x6/2/s:rugs 3.6x6/1/s:rugs 4x6/2/s:fabric 4.2x6/2/s:rugs', { fill: FILL.souk, d: 6 });
+  F('soukZarbia', -1, '4x6/2/s:rugs 3.8x6/2/s:leather 4.2x6/2/s:rugs 3.6x6/2/s:fabric', { fill: FILL.souk, d: 6 });
+  F('soukSemmarine', 1, '4x6/2/s:copper 4x6/2/s:copper 3.6x6/2/s:lamps 4.2x6/2/s:pottery', { fill: FILL.souk, d: 6 });
+  F('soukSemmarine', -1, '4x6/2/s:leather 4x6/1/s:leather 3.6x6/2/s:spice', { fill: FILL.souk, d: 6 });
+  F('derbChouari', 1, '4x6/2/s:copper 4x6/2/s:copper 4/2/o+pots 5/3/r', { fill: FILL.souk, d: 6 });
+  F('derbChouari', -1, '4x6/2/s:leather 4x6/2/s:spice 5/3/o', { fill: FILL.souk, d: 6 });
+  // ===== medina: residential, every few houses something particular =====
+  F('derbLalla', 1, '5/3/r+pots 6/3/o+boug 4/2/c 7/3/r+mash+lamp 5/2/o+cat 6/3/c+rug 5/3/r+boug', { fill: FILL.medina });
+  F('derbLalla', -1, '6/3/c+lamp 5/2/r+pots 4x6/2/s:grocery 6/3/o+boug 5/3/r+mash 7/2/c+terr', { fill: FILL.medina });
+  F('derbSidi', 1, '5/3/r 6/2/o+pots 5/3/c+boug', { fill: FILL.medina });
+  F('derbSidi', -1, '6/3/o+rug 5/2/r+cat', { fill: FILL.medina });
+  F('derbKhemis', 1, '', { fill: FILL.medina }); F('derbKhemis', -1, '', { fill: FILL.medina });
+  F('derbLamia', 1, '5/3/o+boug 6/2/c+pots', { fill: FILL.medina, end: 9 }); F('derbLamia', -1, '6/3/r+mash 5/2/o', { fill: FILL.medina, end: 9 });
+  F('derbSaida', 1, '6/3/c+boug 5/2/o', { fill: FILL.medina }); F('derbSaida', -1, '5/3/r+lamp', { fill: FILL.medina });
+  F('derbZerka', 1, '', { fill: FILL.blue }); F('derbZerka', -1, '', { fill: FILL.blue });
+  F('derbTala', 1, '', { fill: FILL.blue }); F('derbTala', -1, '', { fill: FILL.blue });
+  F('derbZitoun', 1, '', { fill: FILL.medina }); F('derbZitoun', -1, '', { fill: FILL.medina });
+  F('derbFrane', 1, '', { fill: FILL.blue }); F('derbFrane', -1, '', { fill: FILL.medina });
+  F('derbBab', 1, '', { fill: FILL.medina }); F('derbBab', -1, '', { fill: FILL.medina });
+  F('derbRahba', 1, '', { fill: FILL.souk, d: 6 }); F('derbRahba', -1, '', { fill: FILL.medina });
+  F('derbDebbagh', 1, '4x6/2/s:leather 4x6/2/s:leather', { fill: FILL.medina }); F('derbDebbagh', -1, '4x6/2/s:leather', { fill: FILL.medina });
+  F('skalaLane', -1, '', { fill: FILL.medina });
+  // ===== the avenue: arcaded grand houses and shops =====
+  F('avenue', 1, '8x12/4/h:fabric+bal 9x12/3/h+bal+terr 8x12/4/s:spice+bal -0.5 7x12/3/h+bal 8x12/4/h:pottery+bal 9x12/3/h+bal', { fill: FILL.avenue, start: 0.5 });
+  F('avenue', -1, '8x12/3/h:grocery+bal 8x12/4/h+bal+terr 7x12/3/s:lamps+bal 9x12/4/h+bal', { fill: FILL.avenue, start: 0.5 });
+  // ===== east town and Mellah =====
+  F('orangers', 1, '9x10/3/m+bal 8x10/4/m+boug 8x10/3/s:grocery 7x10/3/m 9x10/4/m+terr 8x10/3/m+rug', { fill: FILL.mellah });
+  F('orangers', -1, '8x12/3/m+boug 9x12/3/m 7x12/4/m+bal', { fill: FILL.mellah });
+  for (const n of ['derbKasbah', 'derbMellah', 'derbHebrew', 'derbSouiri', 'derbNajjar', 'derbTijani', 'derbMoulay', 'derbBahri', 'derbSoussi', 'derbFassi']) { F(n, 1, '', { fill: FILL.mellah }); F(n, -1, '', { fill: FILL.mellah }); }
+  // garden and kasbah squares
+  front(edge([78, 28], [112, 28]), -1, '7/3/m+bal 8/3/m+boug 6/4/m 7/3/m+terr');
+  front(edge([78, 55], [112, 55]), 1, '8/3/m+bal 7/3/m 9/4/m+boug');
+  front(edge([34, -37], [34, -66]), -1, '7/2/k 8/3/k 6/2/k');
+  // ===== the quay: warehouses and fish restaurants facing the boats =====
+  front(edge([4.5, 92], [150, 92]), -1, '7x10/2/s:grocery+terr 8x10/2/c+boug 12x14/2/w 10x14/2/w -1 8x10/2/s:fabric 12x14/2/w 10x12/2/w+sign 7x10/2/c+terr', { fill: FILL.quay });
 }
 
-// ---------------- MELLAH: older quarter north of the medina (balconied houses) ----------------
-const MELLAH = [[-380, -662], [-120, -662], [-110, -440], [-380, -585]];
-function buildMellah() {
-  const poly = [...MELLAH, MELLAH[0]];
-  const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 4;
-  const main = [
-    addStreet([[-375, -600], [-300, -625], [-230, -642], [-140, -655]], 6, 'lane', { district: 'mellah' }),
-    addStreet([[-300, -560], [-292, -610], [-285, -658]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-200, -520], [-210, -590], [-195, -658]], 5, 'lane', { district: 'mellah' }),
-    addStreet([[-130, -500], [-205, -570], [-300, -615]], 5, 'lane', { district: 'mellah' }),
-  ];
-  const sec = [];
-  for (const a of main) sec.push(...branches(a, { gapMin: 28, gapMax: 45, lenMin: 30, lenMax: 90, wMin: 3.0, wMax: 3.8, inside, kind: 'alley', district: 'mellah' }));
-  groundPlate(-385, -664, -105, -435, 0x9a8a72, TX.cobble, 5, 0.03, (x, z) => pip(poly, x, z));
-  for (const a of main) ribbon(a.pts, -a.w / 2, a.w / 2, 0.045, 0x8a8478, TX.paving, { wear: 6 });
-  const raise = (lots) => raiseLots(lots, (lot) => {
-    if (lot.w >= 9 && lot.d >= 9 && mchance(0.08)) { apartment(lot, { enter: true, floors: 3, shops: mchance(0.5), balcony: 0.8, win: 'shut' }); return; }
-    if (lot.w >= 8 && lot.d >= 8 && mchance(0.5)) { aptShell(lot, { floors: mpick([2, 3, 3]), balcony: 0.7, win: 'shut', col: mpick([MC.whitewash, MC.sky, MC.cream, 0xe8e0d0, 0xd8e4ec]) }); return; }
-    medinaShell(lot, { H: mpick([6.4, 7.0, 9.6]), col: mpick([MC.whitewash, MC.sky, MC.cream, 0xd8e4ec, MC.plaster]) });
-  });
-  for (const a of main) for (const side of [1, -1]) raise(lotsAlong(a, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 14, region: inside }));
-  for (const s of sec) for (const side of [1, -1]) raise(lotsAlong(s, side, { wMin: 6, wMax: 11, dMin: 7, dMax: 13, region: inside }));
-  for (const r of fillFree(-385, -664, -105, -435, inside, { max: 22, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6, 6.6, 7.2]), col: mpick([MC.whitewash, MC.cream, 0xd8e4ec]), clutter: mchance(0.5) }); }
-  for (const s of [...main, ...sec]) laneOverhead(s, { every: 15 });
-  dressLanes([...main, ...sec], 'mellah');
-}
-
-// ---------------- GRAND MARKET: the great square, covered souks, cafés with terraces ----------------
-const SQ = { x0: -282, z0: -205, x1: -138, z1: -95 };
-function buildMarket() {
-  const inMkt = (x, z) => x > -382 && x < -46 && z > -372 && z < 62 && !(pip(MEDINA, x, z) || polyDist(MEDINA, x, z) < 6);
-  // the square itself, paved
-  GR.rect((SQ.x0 + SQ.x1) / 2, (SQ.z0 + SQ.z1) / 2, SQ.x1 - SQ.x0, SQ.z1 - SQ.z0, 0, GR.PAVE, true);
-  // the promenade to the civic plaza, souk lanes radiating out
-  const prom = addStreet([[-138, -150], [-100, -146], [-60, -140], [-20, -130]], 9, 'street', { district: 'market' });
-  const souks = [
-    [[-282, -172], [-330, -190], [-372, -280], [-386, -296]],
-    [[-282, -122], [-320, -102], [-358, -80], [-384, -68]],
-    [[-232, -205], [-242, -262], [-222, -330], [-205, -368]],
-    [[-170, -205], [-152, -262], [-112, -302], [-82, -340]],
-    [[-232, -95], [-246, -40], [-232, 12], [-205, 55]],
-    [[-162, -95], [-140, -48], [-100, -10], [-58, 20]],
-    [[-330, -190], [-286, -232], [-242, -262]],
-    [[-242, -262], [-196, -270], [-152, -262]],
-    [[-320, -102], [-282, -66], [-246, -40]],
-    [[-246, -40], [-192, -44], [-140, -48]],
-    [[-152, -262], [-104, -222], [-70, -175]],
-    [[-358, -80], [-340, -20], [-300, 30], [-250, 50]],
-  ].map((pts) => addStreet(pts, 4.4, 'souk', { district: 'market' }));
-  const side = [];
-  for (const s of souks) side.push(...branches(s, { gapMin: 30, gapMax: 50, lenMin: 18, lenMax: 50, wMin: 2.6, wMax: 3.2, inside: inMkt, kind: 'alley', district: 'market', turn: 0.25 }));
-  groundPlate(-388, -380, -40, 66, MC.paving, TX.paving, 4, 0.03, (x, z) => inMkt(x, z));
-  // buildings: square frontage = cafés (enterable, roof terraces) and shops; souks = enterable shop-houses
-  const edges = [
-    { id: 0, pts: [[SQ.x0, SQ.z0], [SQ.x1, SQ.z0]], w: 1, len: SQ.x1 - SQ.x0, side: -1 },
-    { id: 0, pts: [[SQ.x1, SQ.z1], [SQ.x0, SQ.z1]], w: 1, len: SQ.x1 - SQ.x0, side: -1 },
-    { id: 0, pts: [[SQ.x0, SQ.z1], [SQ.x0, SQ.z0]], w: 1, len: SQ.z1 - SQ.z0, side: -1 },
-  ];
-  let nCafe = 0, nShop = 0;
-  for (const e of edges) raiseLots(lotsAlong(e, e.side, { wMin: 8, wMax: 13, dMin: 9, dMax: 13, region: inMkt, start: 6, end: 6 }), (lot) => {
-    if (nCafe < 9 && lot.w >= 8 && mchance(0.6)) { nCafe++; lot.open = lotOpenSides(lot); cafe(lot); } else shopHouse(lot, { up: 2 });
-  });
-  for (const s of souks) { for (const sd of [1, -1]) raiseLots(lotsAlong(s, sd, { wMin: 3.8, wMax: 6.5, dMin: 6, dMax: 10, region: inMkt }), (lot) => { if (nShop < 150 && mchance(0.85)) { nShop++; shopHouse(lot, { up: mpick([1, 1, 2]) }); } else medinaShell(lot, { H: 7 }); }); soukRoof(s); }
-  for (const s of [prom, ...side]) for (const sd of [1, -1]) raiseLots(lotsAlong(s, sd, { wMin: 5, wMax: 10, dMin: 7, dMax: 13, region: inMkt }), (lot) => { if (lot.w < 7 && nShop < 190) { nShop++; shopHouse(lot, { up: 2 }); } else medinaShell(lot, { H: mpick([7, 9.6]) }); });
-  for (const r of fillFree(-388, -380, -40, 66, inMkt, { max: 24, minA: 14 })) { r.open = fillerOpen(r); medinaShell(r, { H: mpick([6.4, 7, 9.6]), clutter: mchance(0.4) }); }
-  for (const s of side) laneOverhead(s, { every: 10 });
-  dressLanes([prom, ...side], 'market');
-  dressMarketSquare();
-}
-function dressMarketSquare() {
-  const { x0, z0, x1, z1 } = SQ, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  // food-stall city in the east half, juice carts along the north edge, open performers' ground to the west
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) foodStall(cx + 14 + i * 13, z0 + 26 + j * 17, 0);
-  for (let i = 0; i < 9; i++) juiceCart(x0 + 18 + i * 13, z0 + 8, Math.PI);
-  W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 6; i++) { floorRug(cx - 40 + mr(-20, 20), 0.04, cz + mr(-25, 25), mr(2, 3), mr(1.5, 2), mr(0, 3)); }
-    for (let i = 0; i < 8; i++) umbrellaTable(x0 + 10 + mr(0, 50), z1 - 10 - mr(0, 20));
-    for (let i = 0; i < 10; i++) lampPostOld(x0 + 6 + i * ((x1 - x0 - 12) / 9), 0, z1 - 3, 4.5);
-    for (let i = 0; i < 10; i++) lampPostOld(x0 + 6 + i * ((x1 - x0 - 12) / 9), 0, z0 + 3, 4.5);
-    for (let i = 0; i < 6; i++) { handCart(cx - 30 + mr(-25, 25), 0, cz + mr(-30, 30), mr(0, 6), mpick(['produce', 'boxes'])); }
-    for (let i = 0; i < 8; i++) scooter(x1 - 4 - mr(0, 3), z0 + 15 + i * 9, Math.PI / 2 + mr(-0.2, 0.2));
-    for (let i = 0; i < 5; i++) kiosk(x0 + 4, 0, z0 + 25 + i * 16, Math.PI / 2);
-    for (let i = 0; i < 4; i++) sedan(x1 - 12 - i * 6, z1 - 8, 0, undefined, mpick(['taxi', 'taxiB', 'taxiB']));
-  });
-}
-
-// ---------------- civic plaza between the market and the palace ----------------
-function buildCivicPlaza() {
-  const x0 = -48, x1 = 12, z0 = -150, z1 = 28;
-  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, 0, GR.PAVE, true);
-  groundPlate(x0, z0, x1, z1, 0xd0c0a0, TX.paving, 2, 0.035);
-  // a ceremonial axis to the palace portal: zellige band, two fountains, palm colonnades, benches, lamps
-  W.box(x1 - x0, 0.02, 6, (x0 + x1) / 2, 0.05, -60, 0xffffff, { t: TX.zellige, wear: 3, ao: false });
-  fountain(-30, 0, -60, 3.4, 3); fountain(-6, 0, -60, 2.4, 6);
-  for (let i = 0; i < 9; i++) for (const s of [-1, 1]) { palm(x0 + 4 + i * 6.8, 0, -60 + s * 9, 9 + mr(-1, 2)); }
-  W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) bench(x0 + 6 + i * 7.5, 0, -60 + s * 13, s > 0 ? Math.PI : 0);
-    for (let i = 0; i < 12; i++) for (const s of [-1, 1]) lampPostOld(x0 + 2 + i * 5.2, 0, -60 + s * 20, 4.6);
-    for (let i = 0; i < 20; i++) bollard(x0 + 1, 0, z0 + 6 + i * 8.6);
-    for (let i = 0; i < 6; i++) planterTree(x0 + 8 + i * 9, 0, z0 + 12, 'orange', 0.8);
-    for (let i = 0; i < 6; i++) planterTree(x0 + 8 + i * 9, 0, z1 - 12, 'orange', 0.8);
-    for (let i = 0; i < 3; i++) kiosk(x0 + 10 + i * 18, 0, z1 - 4, Math.PI);
-    for (let i = 0; i < 5; i++) trashBin(x0 + 5 + i * 12, 0, -60 + 16);
-  });
+// ---------------- the leftovers inside every block become roofscape ----------------
+function buildTownBlocks() {
+  fillBlocks(-152, -132, -4, 90, null, PAL.medina);
+  fillBlocks(4, -40, 150, 92, null, PAL.mellah);
+  fillBlocks(-4, -132, 64, -38, null, PAL.medina);
 }
 // =====================================================================
-//  CITY — the new city: commercial avenues, residential quarters, industry & rail, outskirts
+//  DAR ESSALAM — landmarks: walls, sea bastion, gates, minaret, mosque, tannery
 // =====================================================================
-const CARCOL = [0xe8e6e0, 0x2a2c30, 0x8a8e94, 0x6a1a1a, 0x1a2a4a, 0xc8b89a, 0x3a4a3a, 0xb8bcc0, 0x5a3a2a];
-// dress both pavements of a road: lamps, trees, furniture, parked cars, zebra crossings at junctions
-function dressRoad(st, o = {}) {
-  const rw = st.road / 2, pw = st.walk;
-  if (!pw) return;
-  const isX = (x, z) => { const id = GR.roadAt(x, z); return id && id !== st.id && STREETS[id - 1]?.road > 0; };
-  for (const side of [-1, 1]) {
-    let lastCross = -99;
-    for (let s = 2; s < st.len - 2; s += 2) {
-      const p = pathAt(st.pts, s), n = [-p.tz * side, p.tx * side], ry = Math.atan2(-p.tz, p.tx);
-      const wx = p.x + n[0] * (rw + pw * 0.5), wz = p.z + n[1] * (rw + pw * 0.5);
-      if (isX(wx, wz)) { if (s - lastCross > 6 && side > 0) { // zebra across this road just before the junction
-          W.scope({ lod: 1 }, () => { for (let k = -rw + 0.5; k < rw - 0.3; k += 1.0) W.box(0.55, 0.012, 3.0, p.x - p.tx * 4 + (-p.tz) * k, 0.035, p.z - p.tz * 4 + p.tx * k, 0xe8e4d8, { ry: ry + Math.PI / 2, t: TX.none, ao: false, jit: 0.1 }); });
-          if (mchance(0.6)) trafficLight(p.x + n[0] * (rw + 0.6) - p.tx * 6, 0.16, p.z + n[1] * (rw + 0.6) - p.tz * 6, ry + Math.PI / 2);
-        }
-        lastCross = s; continue; }
-      if (s - lastCross < 7) continue;
-      const k = Math.floor(s / 2);
-      const lx = p.x + n[0] * (rw + 0.7), lz = p.z + n[1] * (rw + 0.7);
-      if (o.lamp && k % Math.round(o.lamp / 2) === (side > 0 ? 0 : Math.round(o.lamp / 4))) W.scope({ lod: 1 }, () => streetLampModern(lx, 0.16, lz, ry + (side > 0 ? -Math.PI / 2 : Math.PI / 2), o.lampH ?? 8));
-      else if (o.tree && k % Math.round(o.tree / 2) === 3) tree(p.x + n[0] * (rw + 1.4), 0.16, p.z + n[1] * (rw + 1.4), o.treeKind ?? mpick(['ficus', 'ficus', 'palm']), mr(0.75, 1.0));
-      else if (mchance(o.furn ?? 0.06) && GR.get(p.x + n[0] * (rw + pw - 0.6), p.z + n[1] * (rw + pw - 0.6)) !== GR.PAVE) W.defer(() => W.scope({ lod: 1 }, () => { const fx = p.x + n[0] * (rw + pw - 0.6), fz = p.z + n[1] * (rw + pw - 0.6); const q = mrand(); if (q < 0.25) trashBin(fx, 0.16, fz); else if (q < 0.45) bench(fx, 0.16, fz, ry + (side > 0 ? Math.PI : 0)); else if (q < 0.6) utilityBox(fx, 0.16, fz, ry + (side > 0 ? Math.PI : 0)); else if (q < 0.7) roadSign(lx, 0.16, lz, ry + (side > 0 ? -Math.PI / 2 : Math.PI / 2)); else if (q < 0.8) scooter(fx, fz, ry, undefined, 0.16); else if (q < 0.88) kiosk(fx, 0.16, fz, ry + (side > 0 ? Math.PI : 0)); else dumpster(fx, 0.16, fz, ry + (side > 0 ? Math.PI : 0)); }), 'mid', [lx, lz]);
-      // parked cars along the kerb
-      if (o.park && s % 7 < 2 && mchance(o.park)) { const cx = p.x + n[0] * (rw - 1.2), cz = p.z + n[1] * (rw - 1.2); if (GR.roadAt(cx + p.tx * 3, cz + p.tz * 3) === st.id && GR.roadAt(cx - p.tx * 3, cz - p.tz * 3) === st.id) { const q = mrand(); W.defer(() => { if (q < 0.12) van(cx, cz, ry + (side > 0 ? 0 : Math.PI)); else sedan(cx, cz, ry + (side > 0 ? 0 : Math.PI) + mr(-0.04, 0.04), mpick(CARCOL), q < 0.3 ? mpick(['taxi', 'taxiB']) : 'car'); }, 'mid', [cx, cz]); s += 4; } }
+// ---------------- town walls (pisé, crenellated, towers; inner faces dressed) ----------------
+function rampartRun(a, b, H = 10, T = 2.6, o = {}) {
+  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), ry = Math.atan2(-dz, dx);
+  W.push((a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2, ry);
+  const col = o.col ?? MC.pise;
+  W.box(L, H, T, 0, H / 2, 0, col, { t: TX.pise, wear: 6 }); W.solid(L, H, T, 0, H / 2, 0, 'stone');
+  W.scope({ lod: 1 }, () => {
+    // merlons
+    for (let x = -L / 2 + 0.6; x < L / 2 - 0.4; x += 1.5) W.box(0.8, 0.9, T * 0.5, x, H + 0.45, 0, col, { t: TX.pise, wear: 5 });
+    // the face toward the town (local -z when o.inner = -1): putlog holes, buttresses, stains, plants
+    const s = o.inner ?? 1;
+    for (let y = 1.6; y < H - 1; y += 1.25) for (let x = -L / 2 + 0.8 + (y % 2.5) * 0.4; x < L / 2 - 0.5; x += 1.9) W.box(0.18, 0.16, 0.05, x, y, s * (T / 2 + 0.01), 0x3a2a1c, { ao: false, lod: 2 });
+    for (let x = -L / 2 + 6; x < L / 2 - 3; x += 12) { W.box(1.4, H * 0.7, 1.2, x, H * 0.35, s * (T / 2 + 0.6), shade(col, 0.95), { t: TX.pise, wear: 6 }); W.solid(1.4, H * 0.7, 1.2, x, H * 0.35, s * (T / 2 + 0.6), 'stone'); }
+    for (let x = -L / 2 + mr(1, 4); x < L / 2; x += mr(3, 7)) W.box(mr(0.4, 1.4), mr(2, 6), 0.02, x, H - mr(1.5, 3), s * (T / 2 + 0.012), shade(col, 0.75), { t: TX.pise, wear: 7, ao: false });
+    for (let x = -L / 2 + mr(4, 9); x < L / 2; x += mr(9, 20)) bush(x, 0, s * (T / 2 + 0.5), mr(0.5, 0.9), mpick([0x5a6a3a, 0x4a5a32]));
+  });
+  W.pop();
+}
+function rampartTower(x, z, s = 7, H = 13, col = MC.pise) {
+  GR.rect(x, z, s + 1, s + 1, 0, GR.RESERVED);
+  W.box(s, H, s, x, H / 2, z, col, { t: TX.pise, wear: 6 }); W.solid(s, H, s, x, H / 2, z, 'stone');
+  W.scope({ lod: 1 }, () => {
+    for (const [ox, oz, rx] of [[0, s / 2, 0], [0, -s / 2, 0], [s / 2, 0, 1], [-s / 2, 0, 1]]) {
+      for (let k = -1; k <= 1; k++) W.box(rx ? 0.6 : 0.8, 0.9, rx ? 0.8 : 0.6, x + ox * (rx ? 1 : 0) + (rx ? 0 : k * s * 0.33), H + 0.45, z + oz * (rx ? 0 : 1) + (rx ? k * s * 0.33 : 0), col, { t: TX.pise });
+      W.box(rx ? 0.04 : 0.3, 1.0, rx ? 0.3 : 0.04, x + ox, H - 3, z + oz, 0x1a140e, { ao: false });   // arrow slit
     }
-  }
+    W.box(s + 0.3, 0.3, s + 0.3, x, H - 1.6, z, shade(col, 0.9), { t: TX.pise, wear: 4 });   // corbel band
+  });
 }
-// moving-traffic snapshot: a few cars stopped in lanes (cover on the open avenues)
-function laneTraffic(st, n) {
-  for (let i = 0; i < n; i++) {
-    const s = mr(10, st.len - 10), p = pathAt(st.pts, s), side = mchance(0.5) ? 1 : -1, lane = st.median ? st.median / 2 + mr(1.5, st.road / 2 - st.median / 2 - 1.5) : mr(1.2, st.road / 2 - 1.2);
-    const x = p.x + -p.tz * side * lane, z = p.z + p.tx * side * lane;
-    if (GR.roadAt(x, z) !== st.id) continue;
-    const ry = Math.atan2(-p.tz, p.tx) + (side > 0 ? 0 : Math.PI);
-    const q = mrand();
-    W.defer(() => { if (q < 0.08) bus(x, z, ry, mpick([0x2a6ab0, 0xd8302a, 0xe8c020])); else if (q < 0.2) van(x, z, ry); else if (q < 0.26) cargoTruck(x, z, ry, mpick([0x2a5aa0, 0xe8e6e0, 0xc8301a])); else sedan(x, z, ry, mpick(CARCOL), q < 0.5 ? mpick(['taxi', 'taxiB']) : 'car'); }, 'mid', [x, z]);
-  }
+function townWalls() {
+  // north
+  for (const [a, b] of [[[-156, -136], [-80, -136]], [[-80, -136], [-10, -136]], [[4, -136], [64, -136]]]) rampartRun(a, b, 10, 2.6, { inner: 1 });
+  // west
+  for (const [a, b] of [[[-156, -136], [-156, -40]], [[-156, -40], [-156, 0]], [[-156, 6], [-156, 95]]]) rampartRun(a, b, 10, 2.6, { inner: -1 });
+  // east (south of the kasbah, behind the Mellah)
+  rampartRun([154, -36], [154, 92], 10, 2.6, { inner: 1 });
+  for (const [x, z] of [[-156, -136], [-118, -136], [-80, -136], [-40, -136], [30, -136], [-156, -96], [-156, -56], [-156, 40], [-156, 70], [154, 0], [154, 40], [154, 88]]) rampartTower(x, z);
+  townGate(-3, -136, 0, 'Bab Doukkala');
+  townGate(-156, 3, Math.PI / 2, 'Bab Zerka');
+}
+// a closed town gate: twin towers, horseshoe arch, studded doors, inscription band
+function townGate(x, z, ry, name) {
+  W.push(x, 0, z, ry);
+  const col = 0xc8a07a, w = 5.2, H = 12;
+  for (const s of [-1, 1]) rampartTower(s * 5.4, 0, 5.6, 14, col);
+  wall('x', -2.6, 2.6, 0, 0, H, 3.4, { col, tx: TX.stone, side: -1, ops: [{ at: 0, w: 3.6, h: 6.2, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'closed', double: true, zellige: 1, rimCol: 0xe8d8b8 }] });
+  W.box(w + 6, 0.8, 0.2, 0, H - 2, 1.8, 0xffffff, { t: TX.zellige, wear: 1, lod: 1 });
+  for (let i = -2; i <= 2; i++) W.box(0.8, 0.9, 1.2, i * 1.1, H + 0.45, 0, col, { t: TX.stone, lod: 1 });
+  W.pop();
+  TOWN.spots[name] = { x, z };
 }
 
-// ---------------- MODERN COMMERCIAL DISTRICT ----------------
-function buildModern() {
-  const inMod = (x, z) => x > 128 && x < 652 && z > -322 && z < 302;
-  const RB = [300, 30], rbR = 26;
-  // boulevards meet at a roundabout with a monument
-  const ave = [addStreet([[300, -330], [300, RB[1] - rbR - 4]], 36, 'boulevard', { road: 24, walk: 6, median: 4 }), addStreet([[300, RB[1] + rbR + 4], [300, 612]], 36, 'boulevard', { road: 24, walk: 6, median: 4 })];
-  const blvd = [addStreet([[-40, 30], [RB[0] - rbR - 4, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 }), addStreet([[RB[0] + rbR + 4, 30], [652, 30]], 32, 'boulevard', { road: 20, walk: 6, median: 3 })];
-  const ring = []; for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; ring.push([RB[0] + Math.cos(a) * rbR, RB[1] + Math.sin(a) * rbR]); }
-  const rbs = addStreet(ring, 14, 'ring', { road: 11, walk: 1.5, raw: true });
-  GR.street([RB, [RB[0] + 0.01, RB[1]]], (rbR - 5.5) * 2, GR.RESERVED);
-  const grid = [
-    addStreet([[190, -320], [190, 12]], 18, 'street', { road: 10, walk: 4 }), addStreet([[190, 48], [190, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[430, -320], [430, 300]], 20, 'street', { road: 12, walk: 4 }),
-    addStreet([[560, -320], [575, -150], [550, 0], [565, 150], [560, 300]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -210], [652, -210]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -110], [652, -110]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[118, 140], [652, 140]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, 230], [652, 230]], 18, 'street', { road: 10, walk: 4 }),
-    addStreet([[130, -300], [652, -300]], 16, 'street', { road: 10, walk: 3 }),
-  ];
-  // the park and two car parks are kept open
-  GR.rect(495, 185, 112, 76, 0, GR.RESERVED); GR.rect(495, -160, 104, 72, 0, GR.RESERVED); GR.rect(245, -160, 80, 70, 0, GR.RESERVED);
-  for (const s of [...ave, ...blvd, ...grid, rbs]) roadway(s);
-  // buildings: offices (enterable), glass towers, slabs, apartment blocks with shops; cafés on the boulevard
-  let nOff = 0, nCafe = 0;
-  const raise = (lots, frontage) => raiseLots(lots, (lot) => {
-    if (frontage && nCafe < 8 && lot.w < 16 && mchance(0.3)) { nCafe++; cafe({ ...lot }); return; }
-    if (nOff < 11 && lot.w >= 18 && lot.d >= 16 && mchance(0.22)) { nOff++; office({ ...lot, w: Math.min(lot.w, 26), d: Math.min(lot.d, 22) }, { floors: mpick([3, 4, 5]) }); return; }
-    if (mchance(0.55)) modernShell(lot, { floors: Math.round(mr(4, frontage ? 13 : 9)) }); else aptShell(lot, { floors: mpick([5, 6, 7]), col: mpick([0xe8e4dc, 0xd8d0c0, MC.cream, 0xe0d8c8]), win: mpick(['glass', 'curtain', 'shut']), balcony: 0.5 });
-  });
-  for (const s of [...ave, ...blvd]) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 14, wMax: 30, dMin: 16, dMax: 28, region: inMod, gap: () => (mchance(0.25) ? mr(3, 8) : 0) }), true);
-  for (const s of grid) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 16, wMax: 34, dMin: 14, dMax: 26, region: inMod, gap: () => (mchance(0.3) ? mr(4, 10) : 0) }), false);
-  // deep block interiors: service yards and surface car parks
-  for (const r of fillFree(128, -322, 652, 302, inMod, { cell: 4, max: 40, minA: 300 })) {
-    if (r.w > 26 && r.d > 26 && mchance(0.45)) modernShell({ cx: r.cx, cz: r.cz, w: r.w - 10, d: r.d - 10, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: Math.round(mr(3, 7)) });
-    else if (r.w > 24 && r.d > 18 && mchance(0.5)) carPark(r.cx, r.cz, r.w - 4, r.d - 4); else yard(r);
-  }
-  // street life
-  for (const s of [...ave, ...blvd]) { dressRoad(s, { lamp: 28, tree: 14, treeKind: 'palm', park: 0.35, furn: 0.08 }); laneTraffic(s, Math.floor(s.len / 45)); }
-  for (const s of grid) { dressRoad(s, { lamp: 30, tree: 16, park: 0.3, furn: 0.06 }); laneTraffic(s, Math.floor(s.len / 90)); }
-  for (const s of [...ave, ...blvd]) W.scope({ lod: 1 }, () => { for (let t = 15; t < s.len - 10; t += 22) { const p = pathAt(s.pts, t); if (GR.roadAt(p.x, p.z) === s.id) palm(p.x, 0.2, p.z, 9 + mr(-1, 2)); } });
-  // roundabout monument: a tiled fountain basin, palms, a tall bronze lantern column
-  fountain(RB[0], 0.2, RB[1], 9, 0);
-  W.box(rbR * 1.4, 0.2, rbR * 1.4, RB[0], 0.1, RB[1], 0x5a6a3a, { t: TX.earth, wear: 2 });
-  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + 0.4; palm(RB[0] + Math.cos(a) * 14, 0.2, RB[1] + Math.sin(a) * 14, 10); }
-  W.cyl(0.9, 1.3, 14, RB[0], 7.6, RB[1], 0xcdb28a, { seg: 8, t: TX.stone }); W.solid(2.2, 14, 2.2, RB[0], 7.6, RB[1], 'stone');
-  W.cyl(1.4, 1.0, 1.4, RB[0], 15.2, RB[1], MC.brass, { seg: 8, layer: 'metal', t: TX.gebs }); W.cone(1.5, 2.0, RB[0], 16.9, RB[1], MC.tile, { seg: 8, t: TX.rooftile });
-  // city park: lawns, palms, paths, a playground, a café kiosk
-  cityPark(495, 185, 108, 72);
-  carPark(495, -160, 98, 66); carPark(245, -160, 74, 64);
-}
-function cityPark(x, z, w, d) {
-  groundPlate(x - w / 2, z - d / 2, x + w / 2, z + d / 2, 0x5c6a3a, TX.earth, 2, 0.05);
-  for (const s of [-1, 1]) W.box(w, 0.02, 3, x, 0.07, z + s * d * 0.18, 0xd0c0a0, { t: TX.paving, ao: false });
-  W.box(3, 0.02, d, x, 0.075, z, 0xd0c0a0, { t: TX.paving, ao: false });
-  fountain(x, 0.05, z, 3.2, 5);
-  for (let i = 0; i < 26; i++) { const px = x + mr(-w / 2 + 4, w / 2 - 4), pz = z + mr(-d / 2 + 4, d / 2 - 4); if (Math.abs(px - x) < 4 || Math.abs(pz - z - d * 0.18) < 3 || Math.abs(pz - z + d * 0.18) < 3) continue; tree(px, 0.05, pz, mpick(['palm', 'ficus', 'olive', 'orange']), mr(0.8, 1.2)); }
+// ---------------- the skala: sea bastion with cannons, vaulted workshops beneath ----------------
+function skala() {
+  const x0 = -154, x1 = -24, zIn = 89.5, zOut = 100, H = 6;
+  const L = x1 - x0, cx = (x0 + x1) / 2, cz = (zIn + zOut) / 2;
+  // mass with vaulted workshops opening onto the lane
+  W.box(L, H, zOut - zIn, cx, H / 2, cz, MC.stone, { t: TX.stone, wear: 6 });
+  W.solid(L, H, zOut - zIn, cx, H / 2, cz, 'stone', { walk: true });
+  W.box(L, 0.05, zOut - zIn - 0.6, cx, H + 0.03, cz, 0xb8a888, { t: TX.paving, wear: 5, ao: false });
   W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 10; i++) bench(x - w / 2 + 6 + i * (w - 12) / 9, 0.05, z + d * 0.18 + 2.2, Math.PI);
-    for (let i = 0; i < 8; i++) lampPostOld(x - w / 2 + 6 + i * (w - 12) / 7, 0.05, z - d * 0.18 - 2.5, 4.2);
-    kiosk(x + w / 2 - 8, 0.05, z - d / 2 + 6, 0);
-    // playground: swings, slide, climbing frame
-    const px = x - w / 2 + 14, pz = z - d / 2 + 12;
-    W.box(14, 0.03, 10, px, 0.06, pz, 0xc8a87a, { t: TX.earth });
-    for (const s of [-1, 1]) W.rod([px - 4 + s * 1.5, 0, pz - 2], [px - 4, 2.6, pz - 2], 0.05, 0xc8301a, { layer: 'metal' });
-    W.rod([px - 5.5, 2.6, pz - 2], [px - 2.5, 2.6, pz - 2], 0.05, 0xc8301a, { layer: 'metal' });
-    for (const s of [-0.7, 0.7]) { W.rod([px - 4 + s, 2.6, pz - 2], [px - 4 + s, 0.6, pz - 2], 0.01, 0x8a8a8a); W.box(0.5, 0.04, 0.2, px - 4 + s, 0.6, pz - 2, 0x2a2a2a); }
-    W.box(0.8, 0.06, 3.2, px + 3, 1.0, pz, 0x2a8ac8, { rx: 0.6, layer: 'metal' }); W.box(1.2, 1.8, 1.2, px + 3, 0.9, pz - 1.9, 0xe8c020, { layer: 'metal' });
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) W.rod([px - 1 + i * 0.6, 0, pz + 2.5 + j * 0.01], [px - 1 + i * 0.6, 1.8, pz + 2.5], 0.03, 0x3a8a3a, { layer: 'metal' });
-  });
-}
-function carPark(x, z, w, d) {
-  groundPlate(x - w / 2, z - d / 2, x + w / 2, z + d / 2, MC.asphalt, TX.asphalt, 4, 0.035);
-  W.defer(() => W.scope({ lod: 1 }, () => {
-    for (let r = 0; r < Math.floor(d / 14); r++) for (let i = 0; i < Math.floor(w / 2.8); i++) {
-      const px = x - w / 2 + 1.4 + i * 2.8, pz = z - d / 2 + 4 + r * 14;
-      W.box(0.1, 0.01, 5, px - 1.4, 0.045, pz + 1, 0xe8e4d8, { ao: false, t: TX.none });
-      if (mchance(0.55)) { const q = mrand(); if (q < 0.1) van(px, pz + 1, Math.PI / 2); else sedan(px, pz + 1, Math.PI / 2 + (mchance(0.5) ? Math.PI : 0) + mr(-0.05, 0.05), mpick(CARCOL), q < 0.25 ? 'taxiB' : 'car'); }
+    for (let x = x0 + 4; x < x1 - 3; x += 5.5) {   // vault arches with woodworkers' shops (thuya marquetry)
+      W.push(x, 0, zIn, Math.PI);
+      archRim(3.2, 2.2, 1.6, 'round', 0.02, 0xd8c8a8, TX.stone);
+      W.box(3.2, 3.8, 0.04, 0, 1.9, -0.0, 0x1a140e, { ao: false });
+      W.box(3.0, 1.6, 0.02, 0, 3.0, -0.02, 0x2a1e14, { ao: false });
+      if (mchance(0.75)) W.scope({ lod: 2 }, () => { for (let k = 0; k < 4; k++) W.box(mr(0.3, 0.6), mr(0.3, 0.7), 0.25, mr(-1.2, 1.2), mr(0.3, 2.4), 0.25, mpick([0x8a5a2a, 0xa06a3a, 0x6a4a2a]), { t: TX.carved }); crate(mr(-1, 1), 0, 0.6, 0.7, 0.5, 0.5, mr(0, 1), 0x8a6a4a, false); });
+      W.pop();
     }
-    for (let i = 0; i < 4; i++) streetLampModern(x - w / 2 + 6 + i * (w - 12) / 3, 0, z, 0, 9, true);
-    W.box(3, 2.4, 3, x - w / 2 + 2.5, 1.2, z + d / 2 - 2.5, 0xe8e4dc, { t: TX.concrete }); W.solid(3, 2.4, 3, x - w / 2 + 2.5, 1.2, z + d / 2 - 2.5, 'concrete');
-  }), 'mid', [x, z]);
+    // parapet with embrasures facing the sea, low wall to the town
+    for (let x = x0 + 0.8; x < x1; x += 2.6) { W.box(1.8, 1.4, 0.9, x, H + 0.7, zOut - 0.45, MC.stone, { t: TX.stone, wear: 6 }); W.solid(1.8, 1.4, 0.9, x, H + 0.7, zOut - 0.45, 'stone'); }
+    W.box(L, 0.9, 0.5, cx, H + 0.45, zIn + 0.25, MC.stone, { t: TX.stone, wear: 5 }); W.solid(L, 1.1, 0.5, cx, H + 0.55, zIn + 0.25, 'stone');
+    for (let x = x0 + 2.1; x < x1 - 1; x += 5.2) cannon(x, H, zOut - 2.4, 0);
+    // sea face: weathered, wet at the foot
+    W.box(L, 3, 0.05, cx, -1.0, zOut + 0.03, 0x4a5a4a, { t: TX.stone, wear: 7 });
+  });
+  // steps up the bastion's end, beside the sea gate
+  W.push(-23.1, 0, 87.6, 0);
+  flight(0, 0, [0, 1], 2.2, 0, H, { col: MC.stone, tx: TX.stone, thick: 6.2, soffit: false });
+  W.pop();
+  // rock apron below the bastion
+  W.scope({ lod: 1 }, () => { for (let x = x0; x < x1; x += mr(2, 4)) rock(x, -1.6, zOut + mr(1, 4), mr(1.2, 2.6), 0x5a5448); });
+  // corner bastion tower at the west end, toward the open sea
+  rampartTower(x0 + 3, zOut - 4, 9, H + 4, MC.stone);
+  TOWN.spots.skalaTop = { x: -60, y: H, z: 96 };
+}
+// Bab el Bahr: the sea gate where the avenue meets the quay
+function seaGate() {
+  const z = 90, col = 0xd8c4a0;
+  for (const s of [-1, 1]) { rampartTower(s * 7.6, z, 5.2, 13, col); }
+  W.box(9.8, 3.2, 3, 0, 9.4, z, col, { t: TX.stone, wear: 4 }); W.solid(9.8, 3.2, 3, 0, 9.4, z, 'stone');
+  W.push(0, 0, z, 0);
+  const n = 18; for (let i = 0; i < n; i++) { const u0 = -5 + (i / n) * 10, u1 = -5 + ((i + 1) / n) * 10, uc = (u0 + u1) / 2, top = 4.9 + archY('horse', uc, 10) * 0.75; W.box(u1 - u0, 7.8 - top, 3, uc, (top + 7.8) / 2, 0, col, { t: TX.stone, wear: 4 }); }
+  archRim(10, 4.9, 3.9, 'horse', 1.5, 0xf0e2c4, TX.gebs, 2); W.push(0, 0, 0, Math.PI); archRim(10, 4.9, 3.9, 'horse', 1.5, 0xf0e2c4, TX.gebs, 2); W.pop();
+  W.box(6, 0.7, 0.1, 0, 9.0, 1.56, 0xffffff, { t: TX.zellige, wear: 2, lod: 1 });
+  W.pop();
+  for (const s of [-1, 1]) wallLantern(s * 5.4, 4.4, 0, true);
 }
 
-// ---------------- RESIDENTIAL QUARTERS ----------------
-const RESI = [[-382, 64], [128, 64], [128, 306], [652, 306], [652, 612], [-382, 612]];
-function buildResidential() {
-  const poly = [...RESI, RESI[0]];
-  const inside = (x, z) => pip(poly, x, z) && polyDist(poly, x, z) > 2;
-  // a warped street grid: every line meanders a little so blocks are never quite rectangular
-  const streets = [];
-  const wig = (a, b, amp, seed) => { const pts = []; const n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 40)); for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t), dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), o = i === 0 || i === n ? 0 : (vnoise(t * 4 + seed, seed) - 0.5) * 2 * amp; pts.push([x - dz / L * o, z + dx / L * o]); } return pts; };
-  for (const [x, z0, z1] of [[-330, 44, 612], [-235, 44, 612], [-140, 44, 612], [-45, 44, 612], [55, 44, 612], [170, 306, 612], [420, 306, 612], [530, 306, 612]]) streets.push(addStreet(wig([x, z0], [x, z1], 9, x * 0.01), 14, 'street', { road: 8, walk: 3 }));
-  for (const [z, x0, x1] of [[150, -382, 190], [235, -382, 190], [395, -382, 652], [490, -382, 652], [585, -382, 652]]) streets.push(addStreet(wig([x0, z], [x1, z], 8, z * 0.013), 14, 'street', { road: 8, walk: 3 }));
-  // two collector roads cutting diagonally (they make the irregular triangles and corner plazas)
-  streets.push(addStreet([[-382, 330], [-200, 300], [0, 330], [128, 306]], 16, 'street', { road: 10, walk: 3 }));
-  // reserve: football pitch, school yard, bus depot, a neighbourhood square with a fountain
-  GR.rect(5, 545, 104, 70, 0, GR.RESERVED); GR.rect(-290, 545, 70, 60, 0, GR.RESERVED); GR.rect(590, 445, 90, 60, 0, GR.RESERVED); reserveSquare(-90, 440, 18); reserveSquare(475, 440, 16);
-  for (const s of streets) roadway(s, { wear: 5 });
-  let nApt = 0, nCafe = 0, nWork = 0;
-  const raise = (lots) => raiseLots(lots, (lot) => {
-    if (lot.w >= 11 && lot.d >= 11 && nApt < 30 && mchance(0.13)) { nApt++; apartment({ ...lot, w: Math.min(lot.w, 18), d: Math.min(lot.d, 15) }, { enter: true, floors: mpick([3, 4, 4, 5]), shops: mchance(0.55), balcony: 0.6 }); return; }
-    if (lot.w <= 11 && nCafe < 12 && mchance(0.06)) { nCafe++; cafe(lot); return; }
-    if (lot.w >= 10 && nWork < 14 && mchance(0.05)) { nWork++; workshop({ ...lot, w: Math.min(lot.w, 14) }); return; }
-    aptShell(lot, { floors: mpick([3, 4, 4, 5, 5]), shops: mchance(0.5), balcony: 0.4, col: mpick([MC.plaster, MC.cream, MC.ochre, MC.rose, 0xe0d4c0, 0xd8c8a8, MC.whitewash, 0xe6d2b4]) });
-  });
-  for (const s of streets) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 12, wMax: 24, dMin: 11, dMax: 22, region: inside, gap: () => (mchance(0.15) ? mr(2, 5) : 0) }));
-  // block interiors: courtyards with trees, parked cars, laundry, dumpsters
-  for (const r of fillFree(-382, 64, 652, 612, inside, { cell: 4, max: 28, minA: 60 })) {
-    // courtyard apartment blocks in the deeper block interiors, ringed by parking and yards
-    if (r.w >= 18 && r.d >= 18 && mchance(0.6)) { aptShell({ cx: r.cx, cz: r.cz, w: r.w - 7, d: r.d - 7, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: mpick([3, 4, 4, 5]), shops: false, balcony: 0.5, col: mpick([MC.plaster, MC.cream, MC.ochre, MC.rose, 0xe0d4c0, 0xd8c8a8, MC.whitewash]) }); yard({ ...r, ring: true }); }
-    else yard(r);
+// ---------------- the minaret: climbable, a gallery at 25 m over the whole town ----------------
+function climbMinaret(cx, cz) {
+  const s = 6.2, T = 0.75, I = s / 2 - T, core = 0.7, seg = 0.9, turns = 7, Ht = turns * 4 * seg, top = Ht + 1.0;
+  const col = 0xdcc2a0;
+  W.push(cx, 0, cz, 0);
+  // shaft walls, banded so openings can sit at different heights; door on the east face
+  const faces = [['x', -s / 2, s / 2, s / 2 - T / 2, 1], ['x', -s / 2, s / 2, -s / 2 + T / 2, -1], ['z', -s / 2 + T, s / 2 - T, s / 2 - T / 2, 1], ['z', -s / 2 + T, s / 2 - T, -s / 2 + T / 2, -1]];
+  for (let b = 0; b * 3.6 < top; b++) {
+    const y0 = b * 3.6, h = Math.min(3.6, top - y0);
+    faces.forEach(([ax, a0, a1, c, side], fi) => {
+      const ops = [];
+      if (b === 0 && fi === 2) ops.push({ at: 0, w: 1.1, h: 2.4, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', zellige: 0, rimCol: 0xf2e6cc });
+      else if (b > 0 && b % 2 === (fi % 2) && h > 2) ops.push({ at: 0, w: 0.32, h: 1.1, sill: 1.3, kind: 'win', win: 'open' });
+      wall(ax, a0, a1, c, y0, h, T, { col, tx: TX.plaster, wear: 3, side, ops, inCol: 0xcab494, inTx: TX.plaster, dimIn: 0.45 });
+    });
   }
-  for (const s of streets) dressRoad(s, { lamp: 34, tree: 22, park: 0.22, furn: 0.05, lampH: 7 });
-  footballPitch(5, 545); school(-290, 545); busDepot(590, 445);
-  dressSquare(-90, 440, 18); dressSquare(475, 440, 16);
-}
-function yard(r) { W.defer(() => yardNow(r), 'mid', [r.cx, r.cz]); }
-function yardNow(r) {
-  const { cx, cz, w, d } = r;
-  if (r.ring) { W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(10, Math.floor((w + d) / 6)); i++) { const sd = mrand(), t = mr(-0.4, 0.4); const x = sd < 0.5 ? cx + t * w : cx + (sd < 0.75 ? -1 : 1) * (w / 2 - 1.8), z = sd < 0.5 ? cz + (sd < 0.25 ? -1 : 1) * (d / 2 - 1.8) : cz + t * d; mpick([() => sedan(x, z, sd < 0.5 ? 0 : Math.PI / 2, mpick(CARCOL)), () => tree(x, 0, z, mpick(['olive', 'ficus', 'orange']), 0.7), () => dumpster(x, 0, z, sd < 0.5 ? 0 : Math.PI / 2), () => scooter(x, z, mr(0, 6)), () => plantPot(x, 0, z, 'palm', 1.3)])(); } }); return; }
+  // decoration: blind arcade panels with carved lattice, zellige band, merlons
   W.scope({ lod: 1 }, () => {
-    const k = mrand();
-    if (k < 0.35) { for (let i = 0; i < Math.min(6, Math.floor(w * d / 220)); i++) tree(cx + mr(-w / 2 + 2, w / 2 - 2), 0, cz + mr(-d / 2 + 2, d / 2 - 2), mpick(['olive', 'orange', 'ficus', 'palm']), mr(0.6, 1.0)); }
-    else if (k < 0.65) { for (let i = 0; i < Math.min(8, Math.floor(w / 3.2)); i++) if (mchance(0.4)) sedan(cx - w / 2 + 1.6 + i * 3.2, cz + mr(-d / 4, d / 4), Math.PI / 2 + mr(-0.15, 0.15), mpick(CARCOL)); }
-    else if (k < 0.8) { W.box(w - 2, 0.04, d - 2, cx, 0.02, cz, 0xb8a88a, { t: TX.paving, wear: 6, ao: false }); for (let i = 0; i < 3; i++) laundryLine(cx - w / 2 + 1, 2.0, cz + mr(-d / 3, d / 3), cx + w / 2 - 1, 2.0, cz + mr(-d / 3, d / 3), Math.floor(w / 0.8)); for (const s of [-1, 1]) for (let i = 0; i < 3; i++) W.rod([cx + s * (w / 2 - 1), 0, cz + mr(-d / 3, d / 3)], [cx + s * (w / 2 - 1), 2.1, cz], 0.03, MC.iron); }
-    else { dumpster(cx + mr(-w / 4, w / 4), 0, cz + mr(-d / 4, d / 4), mr(0, 3)); rubble(cx + mr(-w / 4, w / 4), 0, cz + mr(-d / 4, d / 4), 12); if (mchance(0.5)) scaffold(cx, 0, cz, mr(0, 3), 4, 4); }
-    if (mchance(0.4)) { crateStack(cx + mr(-w / 3, w / 3), 0, cz + mr(-d / 3, d / 3), mr(0, 3), 3); }
+    for (const r of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      W.push(0, 0, 0, r);
+      for (const yy of [7.2, 15.2]) {
+        W.box(s - 1.4, 5.6, 0.06, 0, yy + 2.8, s / 2 + 0.04, shade(col, 0.96), { t: TX.carved, wear: 2 });
+        for (const k of [-1, 0, 1]) archRim(0.9, yy + 3.4, 0.7, 'horse', s / 2 + 0.07, 0xf2e6cc, TX.gebs);
+      }
+      W.box(s + 0.04, 1.0, 0.06, 0, Ht - 1.0, s / 2 + 0.04, 0xffffff, { t: TX.zellige, wear: 0 });
+      W.box(s + 0.3, 0.25, 0.3, 0, Ht - 0.3, s / 2 + 0.05, 0xf2e6cc, { t: TX.gebs });
+      for (let i = 0; i < 4; i++) W.box(0.7, 0.45, 0.6, -s / 2 + 0.7 + i * (s - 1.4) / 3, top + 0.22, s / 2 - 0.3, col, { t: TX.plaster });
+      W.pop();
+    }
+  });
+  // interior: central core and a square spiral of short flights and corner landings
+  W.scope({ dim: 0.55 }, () => {
+    W.box(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 0xcab494, { t: TX.plaster }); W.solid(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 'plaster');
+    W.box(I * 2, 0.06, I * 2, 0, 0.03, 0, MC.stone, { t: TX.stone, wear: 5, ao: false });
+    const C = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [a * (core + I) / 2, b * (core + I) / 2]), wd = I - core;
+    let y = 0;
+    for (let t = 0; t < turns; t++) for (let k = 0; k < 4; k++) {
+      const a = C[k], b = C[(k + 1) % 4], dir = [Math.sign(b[0] - a[0]), Math.sign(b[1] - a[1])];
+      const start = [a[0] + dir[0] * wd / 2, a[1] + dir[1] * wd / 2];
+      flight(start[0], start[1], dir, wd, y, y + seg, { run: (2 * core) / 5, col: 0xb8a68a, tx: TX.stone, soffit: false, thick: 0.3 });
+      y += seg;
+      const isTop = t === turns - 1 && k === 3;
+      if (!isTop) { W.box(wd, 0.2, wd, b[0], y - 0.1, b[1], 0xb8a68a, { t: TX.stone, ao: false }); W.solid(wd, 0.2, wd, b[0], y - 0.1, b[1], 'stone', { walk: true }); }
+    }
+    // the gallery deck at the top: a ring walk round the core, open where the last flight arrives
+    // (the east side and north-east corner stay open: that's the stairwell)
+    for (const [x0, z0, x1, z1] of [[-I, core, I, I], [-I, -core, -core, core], [-I, -I, core, -core]]) { W.box(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 0xc8b49a, { t: TX.terrazzo, ao: false }); W.solid(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 'stone', { walk: true }); }
+    railing(core, -I, core, -core, Ht, 'iron');
+    hangLantern(0.0, Ht - 0.4, I - 0.4, 0xffc070, 0.2, true);
+  });
+  // lantern storey on the core: small tower, green tile pyramid, brass finials
+  const ls = 2.2, LH = 4.4;
+  W.box(ls, LH, ls, 0, Ht + LH / 2, 0, col, { t: TX.plaster }); W.solid(ls, LH, ls, 0, Ht + LH / 2, 0, 'plaster');
+  W.scope({ lod: 1 }, () => { for (const r of [0, 1, 2, 3]) { W.push(0, 0, 0, r * Math.PI / 2); W.box(0.7, 1.6, 0.03, 0, Ht + 2.4, ls / 2 + 0.02, 0x1a140e, { ao: false }); archRim(0.7, Ht + 2.9, 0.5, 'horse', ls / 2 + 0.03, 0xf2e6cc, TX.gebs); W.box(ls + 0.04, 0.5, 0.04, 0, Ht + LH - 0.5, ls / 2 + 0.02, 0xffffff, { t: TX.zellige, wear: 0 }); W.pop(); } });
+  W.pyramid(ls + 0.5, 2.2, ls + 0.5, 0, Ht + LH + 1.1, 0, MC.tile, { t: TX.rooftile });
+  W.rod([0, Ht + LH + 2, 0], [0, Ht + LH + 4.6, 0], 0.05, MC.brass, { layer: 'metal' });
+  for (let i = 0; i < 3; i++) W.sphere(0.42 - i * 0.1, 0.42 - i * 0.1, 0.42 - i * 0.1, 0, Ht + LH + 2.7 + i * 0.7, 0, MC.brass, { layer: 'metal', seg: 10, hseg: 6 });
+  W.pop();
+  TOWN.spots.minaretTop = { x: cx, y: Ht, z: cz + 1.6 };
+  TOWN.spots.minaretDoor = { x: cx + s / 2 + 1, z: cz };
+}
+
+// ---------------- the Great Mosque (exterior: courtyard walls, prayer-hall roofs, shops in its flank) ----------------
+function greatMosque() {
+  const { x0, z0, x1, z1 } = MOSQUE, w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, col = 0xe2d2b4, H = 9;
+  W.push(cx, 0, cz, 0);
+  // prayer hall (north 60%) and walled courtyard (south)
+  const hz = -d / 2 + d * 0.6;
+  W.box(w, H, d * 0.6, 0, H / 2, (-d / 2 + hz) / 2, col, { t: TX.plaster, wear: 2 }); W.solid(w, H, d * 0.6, 0, H / 2, (-d / 2 + hz) / 2, 'plaster');
+  const cd = d / 2 - hz;
+  for (const [ax, a0, a1, c, side] of [['x', -w / 2, w / 2 - 6.4, d / 2 - 0.4, 1], ['z', hz, d / 2, -w / 2 + 0.4, -1], ['z', hz, d / 2 - 6.4, w / 2 - 0.4, 1]]) {
+    const ops = ax === 'x' ? [{ at: -4, w: 2.6, h: 4.4, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'closed', double: true, hood: true, zellige: 0, rimCol: 0xf2e6cc }] : [];
+    wall(ax, a0, a1, c, 0, H - 1.5, 0.8, { col, tx: TX.plaster, wear: 3, side, ops, plinth: 0.8 });
+  }
+  W.box(w - 2, 0.05, cd - 1, 0, 0.04, hz + cd / 2, 0xffffff, { t: TX.zellige, wear: 2, ao: false });
+  fountain(-4, 0, hz + cd / 2, 1.8, 3);
+  // ridged green-tile roofs over the naves + a cupola over the mihrab
+  W.scope({ lod: 0 }, () => {
+    const n = Math.floor(w / 5.4);
+    for (let i = 0; i < n; i++) { const xx = -w / 2 + (i + 0.5) * w / n; for (const s of [-1, 1]) W.box(w / n * 0.56, 0.14, d * 0.58, xx + s * w / n * 0.24, H + 1.2, (-d / 2 + hz) / 2, MC.tile, { rz: -s * 0.62, t: TX.rooftile, wear: 2 }); W.box(0.2, 0.25, d * 0.58, xx, H + 1.85, (-d / 2 + hz) / 2, MC.greenDk, { t: TX.rooftile }); }
+    W.box(w + 0.6, 0.4, d * 0.6 + 0.6, 0, H + 0.2, (-d / 2 + hz) / 2, MC.cedarDk, { t: TX.carved });
+    W.pyramid(6, 2.6, 6, 0, H + 3.0, -d / 2 + 4, MC.tile, { t: TX.rooftile });
+  });
+  // the hall's south face, seen across the courtyard: arcade of horseshoe arches
+  W.scope({ lod: 1 }, () => { for (let i = 0; i < 6; i++) { const xx = -w / 2 + 3 + i * (w - 6) / 5; W.push(xx, 0, hz, 0); W.box(2.4, 4.6, 0.04, 0, 2.3, 0.02, 0x1e160e, { ao: false }); archRim(2.4, 3.4, 1.8, 'horse', 0.04, 0xf2e6cc, TX.gebs, 1); W.pop(); } });
+  W.pop();
+  // the east flank faces the rug souk: little shops let into the mosque wall (habous shops)
+  W.push(x1, 0, cz, Math.PI / 2);
+  for (let i = 0; i < 5; i++) {
+    const at = -d / 2 + 2.6 + i * 4.6;
+    W.box(3.2, 2.6, 0.05, at, 1.3, 0.02, 0x1a140e, { ao: false });
+    W.scope({ lod: 1 }, () => { W.box(3.4, 0.1, 0.2, at, 2.65, 0.1, MC.cedarDk, { t: TX.wood }); awning(3.4, 2.75, 0, mpick([[0xb03a2e, 0xe8dcc0], [0x2a5a8a, 0xe8dcc0], [0x8a3a5a, 0xe8c8a0]])); });
+    W.scope({ lod: 2 }, () => { if (i % 2) hangingRug(at - 0.8, 0.3, 0.12, 0, 1.3, 2.1); else { rugPile(at, 0, 0.8, 0); babouches(at - 1.4, 0, 0.3, 0, 1.5, 3); } });
+  }
+  W.pop();
+  // and its west and north walls get the treatment too
+  W.push(x0, 0, cz, -Math.PI / 2); dressFace(d, H, col, { windows: false, green: false }); W.pop();
+  W.push(cx, 0, z0, Math.PI); dressFace(w, H, col, { windows: false, green: false }); W.pop();
+  climbMinaret(x1 - 3.4, z1 - 3.4);
+  // forecourt: ablution fountain, shoes, a bench under a fig tree
+  W.scope({ lod: 1 }, () => {
+    wallFountain(-36.5, 0, -28.6, 0, 3);
+    tree(-41, 0, -18, 'ficus', 0.9); bench(-38, 0, -16.5, Math.PI);
+    for (let i = 0; i < 6; i++) slippers(-46 + i * 0.6, 0, -27.2, mr(-0.3, 0.3));
   });
 }
-function footballPitch(x, z) {
-  W.push(x, 0, z);
-  W.box(100, 0.04, 66, 0, 0.02, 0, 0xa88a62, { t: TX.earth, wear: 6, ao: false });
+
+// ---------------- the tannery: honeycomb of dye vats, hides drying on the terraces ----------------
+function tanneryYard() {
+  const { x0, z0, x1, z1 } = TANNERY, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
+  W.push(cx, 0, cz, 0);
+  W.push(-1, 0, 0);
+  const pw = w - 12, pd = d - 10;
+  W.box(pw, 0.9, pd, 0, 0.45, 0, 0xc8b8a0, { t: TX.stone, wear: 7 }); W.solid(pw, 0.9, pd, 0, 0.45, 0, 'stone', { walk: true });
+  const dyes = [0xb8862a, 0x8a2a1a, 0x5a2a6a, 0xe8e0d0, 0x2a5a8a, 0xc8b02a, 0x6a4a2a, 0x3a6a3a, 0xd05a2a, 0xa83a2a];
+  const nx = Math.floor(pw / 3.6), nz = Math.floor(pd / 3.6);
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    const px = -pw / 2 + (i + 0.5) * pw / nx, pz = -pd / 2 + (j + 0.5) * pd / nz;
+    W.cyl(1.55, 1.55, 0.25, px, 0.97, pz, 0xe0d4c0, { seg: 10, t: TX.stone, wear: 6 });
+    W.cyl(1.3, 1.3, 0.02, px, 1.08, pz, mpick(dyes), { seg: 10, t: TX.gravel, wear: 2, ao: false });
+    if ((i + j) % 5 === 0) W.scope({ lod: 2 }, () => { W.box(0.8, 0.02, 1.0, px + 1.2, 1.1, pz, 0xc89a5a, { layer: 'cloth', ry: mr(0, 3), ao: false }); });
+  }
+  // the three-storey leather houses round it, terraces stepping down to the vats
+  W.pop(); W.pop();
+  for (const [a, b, c, e, H] of [[x0, z0, x1, z0 + 5, 9.6], [x0, z1 - 5, x0 + 18, z1, 6.6], [x0, z0 + 5, x0 + 5, z1 - 5, 9.6]]) {
+    const ww = c - a, dd = e - b;
+    W.box(ww, H, dd, (a + c) / 2, H / 2, (b + e) / 2, mpick([MC.ochre, MC.plaster, MC.rose]), { t: TX.plaster, wear: 6 }); W.solid(ww, H, dd, (a + c) / 2, H / 2, (b + e) / 2, 'plaster', { walk: true });
+    W.scope({ lod: 1 }, () => { for (let k = 0; k < Math.floor(ww * dd / 3); k++) W.box(mr(0.6, 1.1), 0.03, mr(0.8, 1.3), mr(a + 0.6, c - 0.6), H + 0.03, mr(b + 0.6, e - 0.6), mpick([0xd8b878, 0xb88a4a, 0xe8dcc0, 0x8a2a1a, 0xc8a050]), { ry: mr(-0.4, 0.4), layer: 'cloth', ao: false }); });
+  }
+  // the viewing terrace of the leather shop on the east side, reached by a stair from the lane
+  const tx = x1 - 6, H = 6.6;
+  W.box(6, H, d, tx + 3, H / 2, cz, MC.cream, { t: TX.plaster, wear: 4 }); W.solid(6, H, d, tx + 3, H / 2, cz, 'plaster', { walk: true });
+  W.box(6, 0.05, d, tx + 3, H + 0.03, cz, 0xb87a5a, { t: TX.ceramic, wear: 4, ao: false });
+  railing(tx, z0 + 5, tx, z1, H, 'iron');
+  W.push(x1 + 1.2, 0, z1 - 0.5, 0); flight(0, 0, [0, -1], 1.6, 0, H, { col: MC.stone, tx: TX.stone, thick: 7, soffit: false }); W.pop();
+  W.scope({ lod: 2 }, () => { for (let k = 0; k < 6; k++) { hangingRug(tx + 5.9, H - 0.2 - 2.2, z0 + 6 + k * 4, -Math.PI / 2, 1.4, 2.0, mpick([0xc8a050, 0x8a2a1a, 0x5a2a6a, 0x2a5a8a])); } babouches(tx + 1.2, H, z0 + 8, Math.PI / 2, 4, 5); for (let k = 0; k < 4; k++) plantPot(tx + 0.6, H, z0 + 14 + k * 3, 'geranium', 1.2); });
+  TOWN.spots.tanneryTerrace = { x: tx + 2, y: H, z: cz };
+}
+// =====================================================================
+//  DAR ESSALAM — the kasbah, the squares, the souk roofs and the harbour, dressed by hand
+// =====================================================================
+
+// ---------------- the kasbah: old fortress, now the militia's headquarters ----------------
+function buildKasbah() {
+  const { x0, z0, x1, z1 } = KASBAH, H = 12, col = 0xb98a62;
+  rampartRun([x0, z0], [x1, z0], H, 3, { inner: 1, col });
+  rampartRun([x0, z0], [x0, -56.5], H, 3, { inner: -1, col }); rampartRun([x0, -47.5], [x0, z1], H, 3, { inner: -1, col });
+  rampartRun([x0, z1], [x1, z1], H, 3, { inner: -1, col });
+  rampartRun([x1, z0], [x1, z1], H, 3, { inner: 1, col });
+  for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) rampartTower(x, z, 10, 17, col);
+  for (const [x, z] of [[108, z0], [108, z1], [x1, -85]]) rampartTower(x, z, 7, 14.5, col);
+  // the gate: open, sandbagged, a checkpoint barrier
+  W.push(x0, 0, -52, -Math.PI / 2);
+  for (const s of [-1, 1]) rampartTower(s * 5.4, 0, 5.6, 15, col);
+  wall('x', -2.6, 2.6, 0, 0, H + 1, 3.4, { col, tx: TX.pise, side: -1, ops: [{ at: 0, w: 4.0, h: 6.8, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', double: true, zellige: 4, rimCol: 0xe0c8a0 }] });
+  W.box(8, 0.9, 0.12, 0, H - 1.6, -1.76, 0xffffff, { t: TX.zellige, wear: 3, lod: 1 });
+  W.pop();
   W.scope({ lod: 1 }, () => {
-    for (const [w, d, px, pz] of [[96, 0.12, 0, -31], [96, 0.12, 0, 31], [0.12, 62, -48, 0], [0.12, 62, 48, 0], [0.12, 62, 0, 0]]) W.box(w, 0.012, d, px, 0.045, pz, 0xe8e4d8, { ao: false, t: TX.none });
-    W.torus(9, 0.06, 0, 0.05, 0, 0xe8e4d8, { rx: Math.PI / 2, seg: 32 });
-    for (const s of [-1, 1]) { const gx = s * 48; for (const t of [-1, 1]) W.cyl(0.06, 0.06, 2.44, gx, 1.22, t * 3.66, 0xe8e8e8, { seg: 6, layer: 'metal' }); W.cyl(0.06, 0.06, 7.32, gx, 2.44, 0, 0xe8e8e8, { rx: Math.PI / 2, seg: 6, layer: 'metal' }); W.box(1.6, 2.4, 7.3, gx + s * 0.8, 1.2, 0, 0xe8e8e8, { layer: 'glass' }); }
-    for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { W.box(40, 0.4, 0.8, 0, 0.2 + i * 0.4, s * (36 + i * 0.8), 0x8a8e92, { layer: 'metal' }); W.solid(40, 0.4 + i * 0.4, 0.8, 0, (0.4 + i * 0.4) / 2, s * (36 + i * 0.8), 'metal', { walk: true }); }
-    for (const s of [-1, 1]) for (const t of [-1, 1]) floodPole(s * 52, 0, t * 34, 0, 14, 2);
-    chainFence(-52, -40, 52, -40, 3.2); chainFence(-52, 40, 52, 40, 3.2, 0, [0]); chainFence(-52, -40, -52, 40, 3.2, 0, [40]); chainFence(52, -40, 52, 40, 3.2);
-    playBall(10, 0, 5, 0xe8e8e8);
+    sandbagWall(58, -59, 58, -55, 3); sandbagWall(58, -49, 58, -45, 3);
+    W.box(0.12, 0.12, 6, 60.5, 1.0, -52, 0xd83a2a, { layer: 'metal' }); W.box(0.3, 1.0, 0.3, 60.5, 0.5, -55.2, 0x3a3a3a, { layer: 'metal' });
+    floodPole(59, 0, -60.5, 0, 6, 1); signPost(58.5, 0, -45, Math.PI / 2, 1.2, 0.8, PC.white, PC.redLt, 1.8);
+  });
+  // grounds: parade gravel, beaten earth round the buildings
+  groundPlate(x0 + 1.5, z0 + 1.5, x1 - 1.5, z1 - 1.5, 0xa88c68, TX.earth, 5, 0.03);
+  groundPlate(68, -92, 122, -40, 0xb8a888, TX.gravel, 4, 0.04);
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 - 4, z1 - z0 - 4, 0, GR.PAVE, true);
+  // the old keep (tighremt): tapering corner towers, brick-patterned crown
+  kasbahKeep(92, -106);
+  // motor pool: a long open shed on posts, trucks and drums
+  const mx0 = 118, mz0 = -130, mx1 = 149, mz1 = -104;
+  W.box(mx1 - mx0, 0.25, mz1 - mz0, (mx0 + mx1) / 2, 4.6, (mz0 + mz1) / 2, 0x6a6a64, { layer: 'metal', t: TX.corrugated, wear: 6 });
+  for (let x = mx0 + 0.3; x <= mx1; x += 6.1) for (const z of [mz0 + 0.3, mz1 - 0.3]) { W.box(0.3, 4.6, 0.3, x, 2.3, z, 0x5a5a56, { layer: 'metal' }); W.solid(0.3, 4.6, 0.3, x, 2.3, z, 'metal'); }
+  cargoTruck(124, -115, Math.PI / 2, PC.olive); pickup(134, -124, Math.PI / 2 + 0.1, 0xd8d4c8); pickup(143, -113, -Math.PI / 2, 0x3a3a34);
+  W.scope({ lod: 2 }, () => { for (let i = 0; i < 7; i++) drum(mx1 - 1 - (i % 3) * 0.7, 0, mz0 + 1.2 + Math.floor(i / 3) * 0.7, mpick([PC.olive, PC.blue, PC.redLt])); workbench(mx0 + 2, 0, mz0 + 1, 0); toolChest(mx0 + 4.5, 0, mz0 + 0.8, 0); bigGenerator(mx0 + 8, 0, mz0 + 2, 0); jerrycan(mx0 + 10, 0, mz0 + 1, 0); tire(mx0 + 12, 0, mz0 + 1.2); });
+  // radio mast + dishes on a plinth
+  W.box(3, 1.2, 3, 140, 0.6, -92, MC.concrete, { t: TX.concrete, wear: 5 }); W.solid(3, 1.2, 3, 140, 0.6, -92, 'concrete');
+  for (let y = 1.2; y < 22; y += 1.6) { for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) W.rod([140 + a * (1 - y / 30), y, -92 + b * (1 - y / 30)], [140 + a * (1 - (y + 1.6) / 30), y + 1.6, -92 + b * (1 - (y + 1.6) / 30)], 0.03, 0xc8c8c8, { layer: 'metal', seg: 3 }); W.rod([140 - 0.5 * (1 - y / 30), y, -92 - 0.5 * (1 - y / 30)], [140 + 0.5 * (1 - y / 30), y + 1.6, -92 + 0.5 * (1 - y / 30)], 0.02, 0xc8c8c8, { layer: 'metal', seg: 3, lod: 1 }); }
+  W.box(0.3, 0.3, 0.3, 140, 22.2, -92, 0xff3020, { layer: 'glow' });
+  satDish(138.4, 1.2, -93, 2.4, 1.3);
+  // defences and camp life on the parade ground
+  W.scope({ lod: 1 }, () => {
+    hescoLine(70, -84, 70, -70, 2); hescoLine(116, -44, 116, -56, 2);
+    sandbagWall(100, -50, 106, -50, 3); sandbagWall(78, -62, 78, -56, 3);
+    camoNet(84, 0, -46, 8, 6, 3, 0); tableFolding(84, 0, -46, 0); chairFolding(83, 0, -45, 2.6); chairFolding(85, 0, -47, -0.5); radioSet(84.3, 0.76, -46.1, 0); mapBoard(81, 0.9, -48.4, 0.3);
+    camoNet(108, 0, -74, 9, 7, 3.2, 0.2); for (let i = 0; i < 4; i++) cot(105 + i * 2, 0, -76, Math.PI / 2, PC.olive);
+    for (let i = 0; i < 6; i++) ammoCan(110 + (i % 3) * 0.5, 0, -71 + Math.floor(i / 3) * 0.4, mr(0, 1));
+    crateStack(73, 0, -88, 0.3, 4); crateStack(118, 0, -88, -0.2, 3); for (let i = 0; i < 4; i++) concreteBarrier(90 + i * 2.2, 0, -41.5, 0, PC.concreteLt, true);
+    floodPole(70, 0, -40, Math.PI / 4, 8, 2); floodPole(122, 0, -94, -Math.PI / 4, 8, 2);
+    // flag at the centre of the parade ground
+    W.rod([95, 0, -66], [95, 12, -66], 0.06, 0xd8d8d8, { layer: 'metal' }); W.box(2.4, 1.5, 0.02, 96.2, 11.2, -66, 0x2a2a2a, { layer: 'cloth' }); W.box(1.0, 0.3, 0.03, 96.2, 11.2, -66, 0xc0302a, { layer: 'cloth' });
+    for (const [x, z] of [[74, -100], [112, -92], [76, -50]]) tree(x, 0, z, 'palm', 1.1);
+  });
+  // where the guards stand (missions place hostiles here)
+  TOWN.guards.push(...[[60, -57, 1.57], [60, -47, 1.57], [80, -55, 2.6], [96, -48, 3.14], [110, -62, 1.2], [92, -78, 0], [124, -96, 0.6], [134, -60, -1.57], [86, -98, -0.6], [72, -114, 1.0]].map(([x, z, yaw]) => ({ x, z, yaw })));
+  TOWN.spots.kasbahGate = { x: x0 - 3, z: -52 };
+}
+function kasbahKeep(cx, cz) {
+  const w = 18, d = 15, H = 16, col = 0xb07e58;
+  W.push(cx, 0, cz, 0);
+  W.box(w - 2, H, d - 2, 0, H / 2, 0, col, { t: TX.pise, wear: 6 }); W.solid(w - 2, H, d - 2, 0, H / 2, 0, 'stone');
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    // tapering corner tower: three stacked boxes
+    for (let k = 0; k < 3; k++) { const ss = 4.6 - k * 0.45, y0 = k * 6.3, hh = k === 2 ? 7 : 6.3; W.box(ss, hh, ss, sx * (w / 2 - 2.2), y0 + hh / 2, sz * (d / 2 - 2.2), col, { t: TX.pise, wear: 6 }); }
+    W.solid(4.6, 19.6, 4.6, sx * (w / 2 - 2.2), 9.8, sz * (d / 2 - 2.2), 'stone');
+    W.scope({ lod: 1 }, () => { for (let k = 0; k < 4; k++) for (const r of [-1, 1]) W.box(0.5, 0.9, 0.5, sx * (w / 2 - 2.2) + r * 1.2, 20.05, sz * (d / 2 - 2.2) + (k - 1.5) * 1.0, col, { t: TX.pise }); });
+  }
+  // brick-patterned crown: diamond motifs (darj w ktaf) in relief on every face, slit windows below
+  W.scope({ lod: 1 }, () => {
+    for (const [r, L] of [[0, w - 2], [Math.PI / 2, d - 2], [Math.PI, w - 2], [-Math.PI / 2, d - 2]]) {
+      W.push(0, 0, 0, r); const zf = (r === 0 || r === Math.PI ? d - 2 : w - 2) / 2 + 0.02;
+      for (let x = -L / 2 + 1.2; x < L / 2 - 1; x += 1.4) { W.box(0.7, 0.7, 0.08, x, H - 2.6, zf, shade(col, 0.82), { rz: Math.PI / 4, t: TX.brick, wear: 3 }); W.box(0.35, 0.35, 0.1, x, H - 2.6, zf, shade(col, 1.12), { rz: Math.PI / 4, t: TX.pise }); }
+      W.box(L, 0.3, 0.12, 0, H - 4, zf, shade(col, 0.88), { t: TX.brick });
+      for (let x = -L / 2 + 2; x < L / 2 - 1.5; x += 3) for (const y of [5, 9.5]) W.box(0.3, 1.1, 0.06, x, y, zf, 0x1a120c, { ao: false });
+      for (let x = -L / 2 + 0.5; x < L / 2; x += 1.2) W.box(0.6, 0.8, 0.5, x, H + 0.4, zf - 0.25, col, { t: TX.pise });
+      W.pop();
+    }
+    W.push(0, 0, d / 2 - 1, 0); W.box(2.0, 3.0, 0.08, 0, 1.5, 0.02, 0x2a1a10, { t: TX.carved }); archRim(2.0, 2.6, 1.0, 'horse', 0.05, 0xd8b890, TX.pise); W.pop();
   });
   W.pop();
-}
-function school(x, z) {
-  // U-shaped two-storey shell around a playground, flag-less, with a mural band
-  W.push(x, 0, z);
-  W.box(70, 0.04, 60, 0, 0.02, 0, 0xc8b898, { t: TX.paving, wear: 5, ao: false });
-  for (const [w, d, px, pz] of [[70, 12, 0, -24], [12, 36, -29, 6], [12, 36, 29, 6]]) aptShell({ cx: px, cz: pz, w, d, ry: 0, open: { s: true, n: true, e: true, w: true } }, { floors: 2, col: 0xe8dcc0, win: 'grille', balcony: 0, shops: false });
-  W.scope({ lod: 1 }, () => { for (const s of [-1, 1]) { W.cyl(0.08, 0.08, 3, s * 6, 1.5, 10, 0xe86a1a, { seg: 6, layer: 'metal' }); W.box(1.8, 1.2, 0.05, s * 6, 3.2, 10, 0xe8e8e8, { layer: 'metal' }); } for (let i = 0; i < 6; i++) bench(-12 + i * 5, 0, 22, Math.PI); playBall(2, 0, 4, PC.redLt); });
-  W.pop();
-}
-function busDepot(x, z) {
-  W.push(x, 0, z);
-  W.box(88, 0.04, 58, 0, 0.02, 0, MC.asphalt, { t: TX.asphalt, wear: 6, ao: false });
-  for (let i = 0; i < 8; i++) bus(-35 + i * 10, 0, Math.PI / 2 + mr(-0.05, 0.05), mpick([0x2a6ab0, 0xd8302a, 0xe8c020, 0x2a8a5a]));
-  W.box(60, 0.3, 14, 0, 7, -20, 0x6a6e72, { layer: 'metal', t: TX.corrugated, wear: 5 });
-  for (let i = 0; i < 7; i++) { W.box(0.4, 7, 0.4, -30 + i * 10, 3.5, -26, 0x3a5a7a, { layer: 'metal' }); W.solid(0.4, 7, 0.4, -30 + i * 10, 3.5, -26, 'metal'); }
-  W.pop();
-  guardHouse({ cx: x + 40, cz: z + 26, w: 4, d: 3.4, ry: 0 });
+  GR.rect(cx, cz, w + 1, d + 1, 0, GR.RESERVED, true);
 }
 
-// ---------------- INDUSTRY + RAIL ----------------
-function buildIndustry() {
-  const inInd = (x, z) => x > -96 && x < 652 && z > -664 && z < -432;
-  // railway: main line + freight sidings + the station
-  const RZ = -414;
-  GR.rect(135, RZ, 1050, 16, 0, GR.RESERVED, true);
-  railTrack(-385, RZ, 655, RZ); railTrack(-385, RZ + 5, 655, RZ + 5);
-  for (const dz of [-8, -13, -18]) { GR.rect(468, RZ + dz, 376, 5, 0, GR.RESERVED, true); railTrack(280, RZ + dz, 655, RZ + dz); }
-  station(-200, -388, 0, 72);
-  for (let i = 0; i < 14; i++) freightWagon(320 + i * 14.2, RZ - 8, 0);
-  for (let i = 0; i < 9; i++) freightWagon(420 + i * 14.2, RZ - 18, 0, mpick([0x3a4a5a, 0x7a3a2a, 0x2a5a3a]));
-  gantryCrane(580, RZ - 13, Math.PI / 2, 26, 12);
-  const roads = [
-    addStreet([[-96, -470], [652, -470]], 16, 'street', { road: 10, walk: 3 }), addStreet([[-96, -610], [652, -610]], 16, 'street', { road: 10, walk: 3 }), addStreet([[40, -470], [40, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[230, -470], [230, -662]], 16, 'street', { road: 10, walk: 3 }), addStreet([[430, -470], [430, -662]], 16, 'street', { road: 10, walk: 3 }), 
-    addStreet([[-60, -430], [-60, -470]], 12, 'street', { road: 8, walk: 2 }), addStreet([[300, -426], [300, -470]], 12, 'street', { road: 8, walk: 2 }),
-  ];
-  // container yard and fuel depot claim space; level-crossings connect the industrial roads to the city
-  GR.rect(530, -540, 172, 112, 0, GR.RESERVED, true); GR.rect(330, -540, 160, 84, 0, GR.RESERVED, true);
-  for (const s of roads) roadway(s, { wear: 6, pave: 0x9a948a, paveTx: TX.concrete });
-  groundPlate(-96, -664, 652, -434, 0x8a8478, TX.concrete, 6, 0.018);
-  let nWh = 0, nWs = 0;
-  const raise = (lots) => raiseLots(lots, (lot) => {
-    if (lot.w >= 26 && lot.d >= 22 && nWh < 12 && mchance(0.35)) { nWh++; warehouse({ ...lot, w: Math.min(lot.w, 44), d: Math.min(lot.d, 32) }, { enter: true }); return; }
-    if (lot.w < 20 && nWs < 12 && mchance(0.5)) { nWs++; workshop({ ...lot, w: Math.min(lot.w, 16) }); return; }
-    warehouse(lot, { enter: false });
-    // yard clutter in front of closed sheds
-    W.scope({ lod: 1 }, () => { const c = Math.cos(lot.ry), s = Math.sin(lot.ry); for (let i = 0; i < 3; i++) { const lx = mr(-lot.w / 2 + 2, lot.w / 2 - 2), lz = lot.d / 2 + 2.5; const x = lot.cx + lx * c + lz * s, z = lot.cz - lx * s + lz * c; mpick([() => pallet(x, 0, z, mr(0, 3)), () => drum(x, 0, z, mpick([PC.blue, PC.redLt]), 0), () => crateStack(x, 0, z, mr(0, 3), 2)])(); } });
-  });
-  for (const s of roads) for (const sd of [1, -1]) raise(lotsAlong(s, sd, { wMin: 22, wMax: 46, dMin: 20, dMax: 36, region: inInd, gap: () => mr(4, 12), setback: 3 }));
-  for (const s of roads) dressRoad(s, { lamp: 36, park: 0.15, furn: 0.05, lampH: 9 });
-  for (const s of roads) laneTraffic(s, Math.floor(s.len / 120));
-  for (const r of fillFree(-96, -664, 652, -434, inInd, { cell: 4, max: 40, minA: 200 })) W.scope({ lod: 1 }, () => { for (let i = 0; i < Math.min(8, Math.floor(r.w * r.d / 120)); i++) { const x = r.cx + mr(-r.w / 2 + 3, r.w / 2 - 3), z = r.cz + mr(-r.d / 2 + 3, r.d / 2 - 3); mpick([() => container(x, 0, z, mpick([0, Math.PI / 2]), mpick([PC.redLt, 0x2a5aa0, 0x3a7a4a, 0x8a8e92])), () => crateStack(x, 0, z, mr(0, 3), 3), () => pallet(x, 0, z, mr(0, 3)), () => cargoTruck(x, z, mr(0, 6), mpick([0x2a5aa0, 0xe8e6e0])), () => drum(x, 0, z, PC.blue, 0)])(); } });
-  containerYard(530, -540, 160, 100);
-  fuelDepot(330, -540);
-  // industrial perimeter: a concrete wall along the rail with two gates and guard posts
-  for (const [x0, x1] of [[-90, -66], [-54, 294], [306, 650]]) { W.box(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, MC.concrete, { t: TX.concrete, wear: 6 }); W.solid(x1 - x0, 3, 0.4, (x0 + x1) / 2, 1.5, -432, 'concrete'); W.scope({ lod: 1 }, () => { for (let x = x0 + 1; x < x1; x += 3) W.rod([x, 3, -432], [x, 3.6, -432.3], 0.02, 0x8a8e92); W.cable([x0, 3.5, -432.2], [x1, 3.5, -432.2], 0.05, 0.008, 0x8a8e92, Math.max(2, Math.round((x1 - x0) / 6))); }); }
-  for (const gx of [-60, 300]) { guardHouse({ cx: gx + 9, cz: -440, w: 4, d: 3.4, ry: Math.PI }); W.box(6, 0.15, 0.15, gx, 1.0, -436, 0xd8302a, { layer: 'metal', ry: 0 }); }
-}
-function containerYard(x, z, w, d) {
-  const cols = [PC.redLt, 0x2a5aa0, 0x3a7a4a, 0xe8b020, 0x8a8e92, 0xd86a2a, 0x5a3a7a, 0x2a8a8a];
-  for (let r = 0; r < 6; r++) for (let i = 0; i < 9; i++) {
-    if (mchance(0.12)) continue;
-    const cx = x - w / 2 + 12 + i * 15.5, cz = z - d / 2 + 10 + r * 17;
-    const h = Math.floor(mr(1, 4));
-    for (let k = 0; k < h; k++) container(cx, k * 2.6, cz, (k % 2) * 0 + (mchance(0.1) ? 0.05 : 0), mpick(cols), { long: true });
-  }
-  gantryCrane(x, z, 0, w - 10, 16);
-  W.scope({ lod: 1 }, () => { for (let i = 0; i < 4; i++) streetLampModern(x - w / 2 + 10 + i * (w - 20) / 3, 0, z + d / 2 - 3, 0, 12, true); forklift(x + 20, z + d / 2 - 8, 0.4); forklift(x - 30, z - 10, 2.1); });
-}
-function fuelDepot(x, z) {
-  for (let i = 0; i < 3; i++) fuelTank(x - 45 + i * 30, 0, z - 15, 0, 18, 3.2);
-  for (let i = 0; i < 4; i++) { W.cyl(6, 6, 9, x - 50 + i * 30, 4.5, z + 18, 0xe8e6e0, { seg: 20, layer: 'metal', t: TX.metal, wear: 4 }); W.solid(12, 9, 12, x - 50 + i * 30, 4.5, z + 18, 'metal'); W.scope({ lod: 1 }, () => { for (let k = 0; k < 12; k++) W.rod([x - 50 + i * 30 + Math.cos(k * 0.5) * 6.05, 0, z + 18 + Math.sin(k * 0.5) * 6.05], [x - 50 + i * 30 + Math.cos(k * 0.5 + 0.6) * 6.05, 9, z + 18 + Math.sin(k * 0.5 + 0.6) * 6.05], 0.04, 0x8a8e92, { layer: 'metal' }); }); }
-  pipeRun(x - 70, 1.2, z, x + 70, 1.2, z, 0.25, 0x7a8a6a); pipeRun(x - 70, 1.8, z + 1, x + 70, 1.8, z + 1, 0.18, 0xc8a020);
-  chainFence(x - 75, z - 38, x + 75, z - 38, 3); chainFence(x - 75, z + 38, x + 75, z + 38, 3, 0, [0]);
-  transformer(x + 60, 0, z - 30); bigGenerator(x + 52, 0, z - 30, 0);
-}
-
-// ---------------- OUTSKIRTS: olive groves, cemetery, farmsteads, the road out ----------------
-function buildOutskirts() {
-  // olive groves south-west of the walls (long sight lines between the rows)
-  for (let x = -810; x < -420; x += 9) for (let z = 505; z < 640; z += 9) if (mchance(0.85)) tree(x + mr(-1.5, 1.5), 0, z + mr(-1.5, 1.5), 'olive', mr(0.8, 1.15));
-  // a whitewashed cemetery north of the medina
+// ---------------- the main square, dressed piece by piece ----------------
+function dressSquareMain() {
+  // fountain on the west side, under two big ficus trees
+  fountain(-14, 0, 0, 2.8, 5);
+  tree(-21, 0, -9, 'ficus', 1.3); tree(-21, 0, 10, 'ficus', 1.25);
+  for (const [x, z, r] of [[-17.5, -6, 0.5], [-17.5, 6, -0.5], [-10, -5, -0.6], [-10, 5, 0.6]]) bench(x, 0, z, r);
+  // food stalls: three rows of four under white canopies, lights strung between them
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) foodStall(4 + i * 6.2, -9 + j * 8, 0);
+  W.defer(() => W.scope({ lod: 1 }, () => { for (let j = 0; j < 3; j++) { const z = -9 + j * 8 - 1.8; W.cable([1.6, 2.85, z], [26.4, 2.85, z], 0.25, 0.01, 0x1a1a1a, 12); for (let x = 2.5; x < 26; x += 1.6) W.sphere(0.07, 0.07, 0.07, x, 2.72 - Math.sin((x - 1.6) / 24.8 * Math.PI) * 0.25, z, 0xfff0c0, { layer: 'glow' }); } }), 'mid', [15, -1]);
+  // fresh orange juice carts along the north edge, numbered, each a little different
+  for (let i = 0; i < 6; i++) juiceCart(-18 + i * 6.2, -17.5, 0);
+  // storyteller's ring, a henna artist, a water seller, a snake charmer's rug
   W.scope({ lod: 1 }, () => {
-    for (let i = 0; i < 26; i++) for (let j = 0; j < 12; j++) { if (mchance(0.15)) continue; const x = -760 + i * 6 + mr(-1, 1), z = -655 + j * 5 + mr(-1, 1); W.box(0.6, 0.4, 1.9, x, 0.2, z, 0xe8e6e0, { t: TX.plaster, wear: 6, ry: 0.1 }); W.box(0.25, 0.7, 0.12, x, 0.55, z - 0.9, 0xe8e6e0, { t: TX.plaster, wear: 6 }); }
+    floorRug(-14, 0.04, 14, 3, 2.2, 0.2, 0x9a2a24); for (let i = 0; i < 6; i++) pouf(-14 + Math.cos(i) * 2.6, 0, 14 + Math.sin(i) * 2.2);
+    umbrellaTable(-6, 15, 0xe8c040); stool(-5, 0, 14.2); stool(-6.8, 0, 15.6);
+    floorRug(-2, 0.04, 16.5, 2, 1.4, -0.3, 0x2a3a6a); for (let i = 0; i < 3; i++) basket(-2.6 + i * 0.6, 0.04, 16.4);
+    W.cone(1.2, 0.5, -22, 2.5, 16, 0xe8dcc0, { seg: 8, layer: 'cloth', t: TX.fabric }); W.rod([-22, 0, 16], [-22, 2.5, 16], 0.03, MC.alu, { layer: 'metal' });
+    for (let i = 0; i < 4; i++) stool(-22 + Math.cos(i * 1.6) * 1.1, 0, 16 + Math.sin(i * 1.6) * 1.1);
   });
-  for (let k = 0; k < 2; k++) { W.push(-685 + k * 60, 0, -638); W.box(6, 5, 6, 0, 2.5, 0, 0xf0ece4, { t: TX.plaster, wear: 3 }); W.solid(6, 5, 6, 0, 2.5, 0, 'plaster'); W.hemi(5.4, 4.0, 5.4, 0, 5, 0, 0xf0ece4, { seg: 12, hseg: 6, t: TX.plaster }); faceDoor('s', 6, 6, 0, 0, 1.0, 1.9, 'metal', { doorCol: MC.green, arch: true }); W.pop(); }
-  // farmsteads and walls
-  for (const [x, z] of [[-890, 300], [-900, -350], [720, 420], [730, -150], [200, 690], [-200, 700], [450, -730], [-500, -740]]) {
-    const y = terrainH(x, z) - 0.3;
-    medinaShell({ cx: x, cz: z, y, w: mr(9, 13), d: mr(8, 11), ry: mr(0, 3), open: { s: true, n: true, e: true, w: true } }, { H: 4.6, col: MC.pise, tx: TX.pise, parapet: 'low' });
-    for (let i = 0; i < 6; i++) tree(x + mr(-25, 25), terrainH(x, z), z + mr(-25, 25), 'olive', mr(0.7, 1.1));
+  // palms along the south edge, old lamp posts round the edge
+  for (let x = -26; x <= 26; x += 8.6) if (Math.abs(x) > 6) palm(x, 0, 19.5, 7.5 + mr(-1, 1.5));
+  for (const [x, z] of [[-28.5, -20.5], [28.5, -20.5], [-28.5, 20.5], [28.5, 20.5], [-28.5, 0], [28.5, -10], [0, -20.5], [-14, 20.5], [14, 20.5]]) lampPostOld(x, 0, z, 4.4);
+  // petits taxis waiting at the avenue corner, a donkey cart, scooters
+  sedan(9, 17.5, Math.PI / 2, 0x2a6ab0); sedan(14.5, 17.5, Math.PI / 2, 0x2a6ab0);
+  W.scope({ lod: 1 }, () => { donkey(-26, 0, -12, 0.4); handCart(-24.5, 0, -12.6, 0.4, 'produce'); scooter(27, -15, 0.3); scooter(27.4, -13.6, 0.2); bicycle(-29, 0, 9, Math.PI / 2); });
+  TOWN.spots.square = { x: 0, z: 0 };
+}
+// souk mouths: a horseshoe arch gateway with a carved sign over each souk entrance
+function soukArch(x, z, w, ry, name) {
+  W.push(x, 0, z, ry);
+  const col = 0xd8c4a0, H = 7.2;
+  for (const s of [-1, 1]) { W.box(1.2, H, 1.6, s * (w / 2 + 0.6), H / 2, 0, col, { t: TX.plaster, wear: 3 }); W.solid(1.2, H, 1.6, s * (w / 2 + 0.6), H / 2, 0, 'plaster'); }
+  const n = 12; for (let i = 0; i < n; i++) { const u0 = -w / 2 + (i / n) * w, u1 = -w / 2 + ((i + 1) / n) * w, uc = (u0 + u1) / 2, top = 3.6 + archY('horse', uc, w); W.box(u1 - u0, H - top, 1.6, uc, (top + H) / 2, 0, col, { t: TX.plaster, wear: 3 }); }
+  for (const r of [0, Math.PI]) { W.push(0, 0, 0, r); archRim(w, 3.6, w * 0.78, 'horse', 0.8, 0xf2e6cc, TX.gebs, 2); W.box(w * 0.9, 0.7, 0.06, 0, H - 1.0, 0.82, 0x2a5a3a, { t: TX.carved, lod: 1 }); W.pop(); }
+  W.box(w + 3.2, 0.4, 2.2, 0, H + 0.2, 0, MC.tile, { t: TX.rooftile, lod: 1 });
+  hangLantern(0, H - 0.6, 0, 0xffc070, 1.2, true);
+  W.pop();
+  TOWN.spots[name] = { x, z };
+}
+function rahbaSpices() {
+  const { x0, z0, x1, z1 } = RAHBA, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  tree(cx, 0, cz, 'ficus', 1.4);
+  W.box(4.6, 0.5, 4.6, cx, 0.25, cz, MC.stone, { t: TX.stone, wear: 6 }); W.solid(4.6, 0.5, 4.6, cx, 0.25, cz, 'stone');
+  for (const [x, z, r] of [[x0 + 3, z0 + 3, 0.3], [x1 - 3, z0 + 3, -0.4], [x0 + 3, z1 - 3, 2.8], [x1 - 3.5, z1 - 3, 3.4], [cx, z0 + 2.5, 0]]) { spiceStand(x, 0, z, r, 1.8); W.cone(1.6, 0.5, x, 2.4, z, mpick([0xe8dcc0, 0xb03a2e, 0xc8a040]), { seg: 8, layer: 'cloth', t: TX.fabric, lod: 1 }); W.rod([x, 0, z], [x, 2.4, z], 0.03, MC.cedarDk, { lod: 1 }); }
+  W.scope({ lod: 2 }, () => { for (let i = 0; i < 14; i++) sack(mr(x0 + 1.5, x1 - 1.5), 0, mr(z0 + 1.5, z1 - 1.5), mpick([0xc8a050, 0xa8402a, 0xd8c070, 0x6a8a3a, 0x8a4a2a]), mr(0, 6)); for (let i = 0; i < 6; i++) basket(mr(x0 + 2, x1 - 2), 0, mr(z0 + 2, z1 - 2), mpick([0x5a3a2a, 0x4a5a2a, 0xc8a050])); });
+  wallFountain(x0 + 0.4, 0, cz, Math.PI / 2, 6);
+}
+function kasbahSquare() {
+  const { x0, z0, x1, z1 } = KSQ;
+  W.scope({ lod: 1 }, () => {
+    for (const [x, z] of [[x0 + 4, z0 + 4], [x1 - 6, z1 - 3], [x0 + 5, z1 - 4]]) tree(x, 0, z, 'palm', 1.15);
+    fountain((x0 + x1) / 2 - 3, 0, (z0 + z1) / 2 + 2, 2.0, 1);
+    pickup(x1 - 8, z0 + 6, 0.2, 0x8a8478, false); rubble(x0 + 8, 0, z1 - 2, 8);
+    for (let i = 0; i < 3; i++) bench(x0 + 2 + i * 3, 0, z1 - 1.2, Math.PI);
+    hescoLine(x1 - 2, z0 + 10, x1 - 2, z0 + 16, 1);
+  });
+}
+function gardenMellah() {
+  const { x0, z0, x1, z1 } = JARDIN, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  // tiled cross paths, raised beds with orange trees, cypresses at the corners, a central fountain
+  W.box(x1 - x0 - 2, 0.05, 2.4, cx, 0.06, cz, 0xffffff, { t: TX.zellige, wear: 2, ao: false }); W.box(2.4, 0.05, z1 - z0 - 2, cx, 0.06, cz, 0xffffff, { t: TX.zellige, wear: 2, ao: false });
+  fountain(cx, 0, cz, 2.2, 4);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const bx = cx + sx * (x1 - x0) / 4, bz = cz + sz * (z1 - z0) / 4, bw = (x1 - x0) / 2 - 4, bd = (z1 - z0) / 2 - 4;
+    W.box(bw, 0.4, bd, bx, 0.2, bz, 0x6a5a3a, { t: TX.earth, wear: 3 }); W.box(bw - 0.4, 0.04, bd - 0.4, bx, 0.42, bz, 0x5a7a34, { t: TX.leaf, wear: 2, ao: false }); W.box(bw + 0.3, 0.45, 0.25, bx, 0.22, bz - bd / 2, MC.stone, { t: TX.stone }); W.box(bw + 0.3, 0.45, 0.25, bx, 0.22, bz + bd / 2, MC.stone, { t: TX.stone });
+    W.solid(bw, 0.45, bd, bx, 0.22, bz, 'stone', { walk: true });
+    for (const k of [-1, 1]) tree(bx + k * bw / 4, 0.4, bz, 'orange', 1.0);
+    W.scope({ lod: 2 }, () => { for (let i = 0; i < 14; i++) bush(bx + mr(-bw / 2 + 0.5, bw / 2 - 0.5), 0.42, bz + mr(-bd / 2 + 0.5, bd / 2 - 0.5), mr(0.35, 0.65), mpick([0x3a6a2a, 0x4a7a32, 0xc0306a, 0xe8c040, 0xd8d8e8])); });
+    cypress(cx + sx * ((x1 - x0) / 2 - 1.2), cz + sz * ((z1 - z0) / 2 - 1.2), 8 + mr(-1, 2));
+    bench(cx + sx * 4, 0, cz + sz * 1.9, sz > 0 ? 0 : Math.PI);
   }
-  // road out of the west gate up into the hills
-  const west = addStreet([[-830, -54], [-880, -40], [-930, -10]], 10, 'road', { road: 8, walk: 0 });
-  roadway(west, { wear: 7 });
+  TOWN.spots.garden = { x: cx, z: cz };
+}
+// ---------------- the harbour: quay, jetty, breakwater, lighthouse, boats, fish market ----------------
+function harbour() {
+  const { x0, z0, x1, z1 } = QUAY;
+  // quay edge: big dressed stones, a wet face down to the sea, bollards and tyres
+  W.box(x1 - x0, 0.3, 1.2, (x0 + x1) / 2, 0.06, z1 - 0.6, 0xa89c88, { t: TX.stone, wear: 6, ao: false });
+  W.box(x1 - x0, 4, 0.6, (x0 + x1) / 2, -2, z1 + 0.3, 0x6a6a5e, { t: TX.stone, wear: 7 });
+  W.solid(x1 - x0, 4, 0.6, (x0 + x1) / 2, -0.8, z1 + 0.6, 'stone');
+  W.solid(x1 - x0 - 4, 3, 0.2, (x0 + x1) / 2, 1.5, z1 + 0.8, 'stone');   // invisible: nobody walks off the quay
+  for (let x = x0 + 3; x < x1 - 2; x += 9) { bollardQuay(x, z1 - 0.7); if (Math.abs(x - 64) > 6) W.scope({ lod: 2 }, () => tire(x + 2.5, -0.4, z1 + 0.65, 0, false)); }
+  // jetty out into the harbour
+  const jx = 64, jz1 = 168;
+  W.box(6, 0.4, jz1 - z1, jx, -0.15, (z1 + jz1) / 2, 0xa89c88, { t: TX.stone, wear: 6 });
+  W.box(6, 5, jz1 - z1, jx, -2.6, (z1 + jz1) / 2, 0x6a6a5e, { t: TX.stone, wear: 7 });
+  W.solid(6, 5.4, jz1 - z1, jx, -2.65, (z1 + jz1) / 2, 'stone', { walk: true });
+  for (const s of [-1, 1]) W.solid(0.2, 3, jz1 - z1, jx + s * 3.1, 1.5, (z1 + jz1) / 2, 'stone');
+  W.solid(6, 3, 0.2, jx, 1.5, jz1 + 0.1, 'stone');
+  for (let z = z1 + 6; z < jz1; z += 10) for (const s of [-1, 1]) bollardQuay(jx + s * 2.6, z);
+  // breakwater with the lighthouse
+  W.box(10, 3, 80, 158, -0.5, 150, 0x6a665a, { t: TX.stone, wear: 7 }); W.solid(10, 3, 80, 158, -0.5, 150, 'stone');
+  W.scope({ lod: 1 }, () => { for (let z = 112; z < 190; z += 2.5) rock(152 + mr(-1, 1), -0.8, z, mr(1.4, 2.4), 0x5a564c); });
+  W.cyl(1.8, 2.4, 14, 158, 7, 186, 0xe8e4dc, { seg: 12, t: TX.plaster, wear: 3 }); W.cyl(1.3, 1.3, 2.2, 158, 15.1, 186, 0x2a2a2a, { seg: 10, layer: 'metal' }); W.cyl(1.0, 1.0, 1.6, 158, 15.1, 186, 0xfff0c0, { seg: 10, layer: 'glow' }); W.cone(1.5, 1.4, 158, 16.9, 186, 0xc0302a, { seg: 10, layer: 'metal' });
+  for (let k = 0; k < 4; k++) W.box(3.8, 0.8, 3.8, 158, 2 + k * 3.4, 186, 0xc0302a, { lod: 2, ao: false, dim: 0 });
+  // the blue boats: moored in rows along the quay and the jetty, a few hauled out for repair
+  let b = 0;
+  // moored bow-in to the quay in loose groups, some rafted two abreast
+  for (const [xa, xb] of [[x0 + 8, 40], [50, 58], [72, 104], [118, 140]]) for (let x = xa; x < xb; x += mr(3.1, 4.2)) { const L = mr(6, 8); fishingBoat(x, z1 + 0.6 + L / 2 + mr(0.1, 0.5), Math.PI + mr(-0.12, 0.12), L); if (mchance(0.25)) { const L2 = mr(6, 7.5); fishingBoat(x + mr(-0.4, 0.4), z1 + L + 1.2 + L2 / 2, Math.PI + mr(-0.2, 0.2), L2); } b++; }
+  for (let z = z1 + 8; z < jz1 - 6; z += mr(8, 12)) for (const s of [-1, 1]) if (mchance(0.75)) { const L = s > 0 ? mr(9, 11) : mr(6, 8); fishingBoat(jx + s * (3.6 + 1.1), z, s > 0 ? mr(-0.05, 0.05) : Math.PI + mr(-0.05, 0.05), L); }
+  for (let i = 0; i < 7; i++) fishingBoat(84 + (i % 4) * 16 + mr(-3, 3), 132 + Math.floor(i / 4) * 18 + mr(-3, 3), mr(0, 6), mr(7, 11));
+  for (const [x, z, r] of [[122, 100, 0.3], [131, 101, -0.2], [140, 99, 0.1]]) {
+    fishingBoat(x, z, r, 8, { y: 0.55 });
+    W.scope({ lod: 1 }, () => { for (const s of [-1, 1]) W.rod([x + s * 1.6, 0, z - 2], [x + s * 1.1, 1.4, z - 2], 0.1, MC.cedarDk); scaffold(x + 2.6, 0, z, r, 3, 3); paintCans(x - 2.4, 0, z + 2, 3); });
+  }
+  // fish market: stalls under umbrellas, ice boxes of sardines, scales, gulls
+  for (let i = 0; i < 5; i++) {
+    const x = 10 + i * 6.5, z = 104;
+    W.box(3.2, 0.9, 1.2, x, 0.45, z, 0xd8d8d0, { t: TX.ceramic, wear: 5 }); W.solid(3.2, 0.9, 1.2, x, 0.45, z, 'metal');
+    W.scope({ lod: 2 }, () => { for (let k = 0; k < 18; k++) W.sphere(0.24, 0.05, 0.08, x + mr(-1.4, 1.4), 0.95, z + mr(-0.45, 0.45), mpick([0xa8b0b8, 0x8a98a8, 0xc8ccd0, 0xd06a4a]), { seg: 5, hseg: 3, layer: 'metal', ry: mr(0, 3) }); cooler(x + 1.9, 0, z, 0, mpick([PC.blueLt, PC.white, PC.redLt])); });
+    W.cone(2.2, 0.6, x, 2.7, z, mpick([0xe8dcc0, 0x2a5aa0, 0xc0302a]), { seg: 8, layer: 'cloth', t: TX.fabric, lod: 1 }); W.rod([x, 0, z], [x, 2.7, z], 0.03, MC.alu, { layer: 'metal', lod: 1 });
+  }
+  W.scope({ lod: 1 }, () => {
+    for (let i = 0; i < 14; i++) netPile(mr(x0 + 30, x1 - 10), 0, mr(z0 + 4, z1 - 3));
+    for (let i = 0; i < 10; i++) crateStack(mr(x0 + 40, x1 - 10), 0, mr(z0 + 2, z0 + 6), mr(0, 3), Math.floor(mr(2, 5)));
+    for (let i = 0; i < 6; i++) ropeCoil(mr(x0 + 10, x1 - 10), 0, z1 - 1.6);
+    for (let i = 0; i < 8; i++) { const x = mr(x0 + 5, x1 - 5); gull(x, 0.7, z1 - 0.7); }
+    for (let x = x0 + 8; x < x1; x += 22) { lampPostOld(x, 0, z0 + 1.2, 4.4); bench(x + 4, 0, z0 + 1.4, 0); }
+    for (let i = 0; i < 3; i++) palm(-12 + i * 7, 0, z0 + 2.2, 7.5 + i);
+    handCart(46, 0, 98, 0.4, 'produce'); forklift(104, 97, 2.6); pallet(108, 0, 96, 0.2); crateStack(108, 0.15, 96, 0.2, 3);
+  });
+  TOWN.spots.jettyEnd = { x: jx, z: jz1 - 3 };
+}
+function gull(x, y, z) {
+  W.push(x, y, z, mr(0, 6));
+  W.sphere(0.32, 0.18, 0.16, 0, 0.2, 0, 0xf2f2ee, { seg: 6, hseg: 4 }); W.sphere(0.12, 0.12, 0.12, 0.16, 0.32, 0, 0xf2f2ee, { seg: 5, hseg: 3 });
+  W.box(0.3, 0.03, 0.12, -0.05, 0.27, 0.1, 0x8a8e94); W.box(0.3, 0.03, 0.12, -0.05, 0.27, -0.1, 0x8a8e94); W.box(0.08, 0.03, 0.03, 0.27, 0.31, 0, 0xe8b040);
+  W.pop();
+}
+// ---------------- lanes: roofs over the souks, overhead life, doorstep clutter, trees ----------------
+function dressLanesTown() {
+  const T = TOWN.lanes;
+  // reed-and-timber roofs over the souk streets (light falls through in stripes)
+  for (const n of ['soukKebir', 'soukSemmarine', 'derbChouari']) soukRoof(T[n], 4.9);
+  soukRoof({ ...T.soukZarbia, len: T.soukZarbia.len * 0.6 }, 4.9);
+  // souk mouths on the square
+  soukArch(0, -24.5, 4.6, 0, 'Souk el Kebir'); soukArch(-24.6, -24.5, 3.8, 0.19, 'Souk Zarbia'); soukArch(24.3, -24.5, 3.8, -0.17, 'Souk Semmarine');
+  // overhead life, lane by lane (spots picked along each lane)
+  const plan = {
+    derbLalla: [[8, 'lantern'], [17, 'cable'], [26, 'sabat'], [37, 'laundry'], [52, 'cable'], [63, 'bunting'], [75, 'sabat'], [88, 'laundry'], [101, 'cable']],
+    derbSidi: [[10, 'laundry'], [24, 'cable'], [40, 'sabat'], [54, 'laundry']],
+    derbKhemis: [[12, 'cable'], [30, 'laundry'], [50, 'sabat'], [70, 'cable']],
+    derbLamia: [[8, 'laundry'], [20, 'lantern'], [30, 'cable']],
+    derbSaida: [[10, 'cable'], [25, 'sabat'], [42, 'laundry'], [60, 'cable'], [74, 'laundry']],
+    derbZerka: [[12, 'laundry'], [26, 'cable'], [44, 'laundry'], [60, 'sabat'], [80, 'laundry'], [95, 'cable']],
+    derbTala: [[10, 'cable'], [28, 'laundry'], [46, 'sabat'], [66, 'laundry'], [86, 'cable']],
+    derbZitoun: [[10, 'laundry'], [26, 'lantern']], derbFrane: [[14, 'cable'], [34, 'laundry'], [54, 'cable']],
+    derbBab: [[12, 'laundry'], [30, 'cable'], [44, 'lantern']], skalaLane: [[30, 'cable'], [70, 'laundry'], [110, 'cable']],
+    derbMellah: [[10, 'cable'], [30, 'laundry'], [52, 'cable'], [70, 'laundry']], derbNajjar: [[14, 'laundry']], derbMoulay: [[16, 'cable']],
+    derbSoussi: [[12, 'laundry'], [26, 'cable']], derbFassi: [[10, 'cable'], [28, 'laundry']], derbTijani: [[14, 'laundry']], derbBahri: [[18, 'cable']],
+    derbRahba: [[8, 'lantern']], derbDebbagh: [[10, 'laundry'], [24, 'cable']],
+    soukZarbia: [[40, 'bunting'], [62, 'bunting']],
+  };
+  for (const [n, list] of Object.entries(plan)) for (const [s, kind] of list) if (T[n] && s < T[n].len - 2) overhead(T[n], s, kind, { col: mpick(PAL.medina) });
+  // trees and lamps along the two boulevards
+  for (let z = 26; z < 88; z += 9) for (const s of [-1, 1]) { tree(s * 3.4, 0, z, 'palm', 1.0); if ((z / 9 | 0) % 2) lampPostOld(s * 3.7, 0, z + 4.5, 4.4); }
+  for (let s = 6; s < T.orangers.len - 4; s += 8) { const p = pathAt(T.orangers.pts, s); for (const k of [-1, 1]) { const x = p.x - p.tz * k * 2.6, z = p.z + p.tx * k * 2.6; W.box(1.4, 0.18, 1.4, x, 0.09, z, MC.stone, { t: TX.stone, wear: 5 }); tree(x, 0.1, z, 'orange', 0.95); } }
+  // wall fountains at medina junctions, and doorstep life along every lane
+  for (const [x, z, r] of [[-68.5, 4.6, Math.PI], [-93, 8.4, Math.PI], [-118, 2.6, Math.PI], [-47, 31.8, -Math.PI / 2], [-54, 56.2, Math.PI]]) wallFountain(x, 0, z, r, Math.floor(mr(0, 8)));
+  W.scope({ lod: 2 }, () => {
+    for (const st of Object.values(T)) {
+      if (st.kind === 'quay' || st.kind === 'avenue') continue;
+      for (let s = mr(5, 10); s < st.len - 4; s += mr(7, 13)) {
+        const p = pathAt(st.pts, s), side = mchance(0.5) ? 1 : -1, r = st.w / 2 - 0.35, x = p.x - p.tz * side * r, z = p.z + p.tx * side * r, k = mrand();
+        if (k < 0.2) { plantPot(x, 0, z, 'geranium', 1.2); plantPot(x + p.tx * 0.5, 0, z + p.tz * 0.5, 'aloe', 1.0); }
+        else if (k < 0.3) scooter(x, z, Math.atan2(-p.tz, p.tx));
+        else if (k < 0.38) bicycle(x, 0, z, Math.atan2(-p.tz, p.tx));
+        else if (k < 0.48) cat(x, 0.05, z, mr(0, 6));
+        else if (k < 0.56) crateStack(x, 0, z, mr(0, 3), 2);
+        else if (k < 0.62) chicken(x, 0, z, mr(0, 6));
+        else if (k < 0.7) { plasticChair(x, 0, z, mr(0, 6)); }
+        else if (k < 0.76) sack(x, 0, z, 0xc8b088, mr(0, 6));
+        else if (k < 0.8) donkey(x, 0, z, Math.atan2(-p.tz, p.tx));
+      }
+    }
+  });
+}
+function buildTownPlaces() {
+  dressSquareMain();
+  rahbaSpices();
+  kasbahSquare();
+  gardenMellah();
+  harbour();
+  dressLanesTown();
+}
+// =====================================================================
+//  DAR ESSALAM — authored buildings with hand-furnished interiors
+// =====================================================================
+// Each of these is laid out room by room: walls, doors, stairs and every piece of furniture placed on
+// purpose. (Ordinary town houses keep their doors shut — you only go inside where there is a reason.)
+const IN = { plaster: 0xe8dcc4, cream: 0xf0e6d2, zel: 0xffffff };
+// one wall line: [ax, a0, a1, c, side, ops] at y0 with height H, outside colour col, inside colour inCol
+function walls(list, y0, H, T, col, inCol, o = {}) {
+  for (const [ax, a0, a1, c, side, ops = []] of list) wall(ax, a0, a1, c, y0, H, T, { col, tx: o.tx ?? TX.plaster, wear: o.wear ?? 3, side, ops, inCol, inTx: o.inTx ?? TX.plaster, inWear: 1, dimIn: o.dimIn ?? 0.62, plinth: y0 < 0.5 ? (o.plinth ?? 0.55) : 0, ground: y0 });
+}
+// interior partition: the same paint both sides
+function partition(ax, a0, a1, c, y0, H, ops = [], col = IN.plaster) { wall(ax, a0, a1, c, y0, H, 0.16, { col, tx: TX.plaster, wear: 1, ops, dim: 0.62, solid: true }); }
+const DOOR = (at, w = 0.9, h = 2.1, o = {}) => ({ at, w, h, kind: 'door', style: 'plank', leaf: 'open', ...o });
+const ARCH = (at, w = 1.8, h = 2.9, o = {}) => ({ at, w, h, kind: 'arch', arch: 'horse', ...o });
+const WIN = (at, w = 1.0, h = 1.4, sill = 0.9, o = {}) => ({ at, w, h, sill, kind: 'win', win: 'grille', ...o });
+
+// ---------------- Café de la Place: on the square, terrace on the roof ----------------
+function cafeDeLaPlace() {
+  const x0 = 3.2, x1 = 15.8, z0 = -32, z1 = -22, T = 0.35, H0 = 3.8, H1 = 3.4, yR = H0 + H1, col = 0xe8d8b8;
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, 0, GR.RESERVED, true);
+  W.scope({}, () => {
+    walls([
+      ['x', x0, x1, z1 - T / 2, 1, [{ at: 6.4, w: 3.8, h: 2.9, kind: 'shop', style: 'glass' }, { at: 12.4, w: 3.8, h: 2.9, kind: 'shop', style: 'glass', awning: [0x2a5a3a, 0xe8dcc0] }]],
+      ['x', x0, x1, z0 + T / 2, -1, [DOOR(5.0, 0.9, 2.1, { style: 'metal', leaf: 'closed' })]],
+      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [WIN(-29.5, 0.8, 1.0, 1.6), WIN(-25.5, 0.8, 1.0, 1.6)]],
+      ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+    ], 0, H0, T, col, 0xf2e2c2);
+    walls([
+      ['x', x0, x1, z1 - T / 2, 1, [{ at: 5.6, w: 1.2, h: 2.4, sill: 0, kind: 'archdoor', arch: 'horse', style: 'glass', leaf: 'open', zellige: 2 }, { at: 9.5, w: 1.2, h: 2.4, kind: 'archdoor', arch: 'horse', style: 'glass', leaf: 'open', zellige: 2 }, { at: 13.4, w: 1.2, h: 2.4, kind: 'archdoor', arch: 'horse', style: 'glass', leaf: 'open', zellige: 2 }]],
+      ['x', x0, x1, z0 + T / 2, -1, [WIN(9.5)]],
+      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [WIN(-28, 1.0, 1.4, 0.9, { win: 'mash' }), WIN(-24.5, 1.0, 1.4, 0.9, { win: 'shut' })]],
+      ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+    ], H0, H1, T, col, 0xe6e0d0);
+    // floors, stairs (ground → salon along the east wall, salon → roof along the west wall)
+    slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0xc8b8a0, topTx: TX.ceramic, bot: false });
+    flight(x1 - T - 0.6, z1 - T - 0.6, [0, -1], 1.15, 0.15, H0, { col: 0xb87a5a, tx: TX.ceramic, riser: 3 });
+    slab(x0 + T, z0 + T, x1 - T, z1 - T, H0, { top: 0xb88a6a, topTx: TX.ceramic, holes: [[x1 - T - 1.25, z0 + 3.2, x1 - T, z1 - T]] });
+    flight(x0 + T + 0.6, z0 + T + 0.3, [0, 1], 1.1, H0, yR, { col: 0xb87a5a, tx: TX.ceramic, riser: 5 });
+    slab(x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05, yR, { top: 0xc89a78, topTx: TX.ceramic, holes: [[x0 + T, z0 + T, x0 + T + 1.2, z0 + T + 6.2]], bot: 0xe6e0d0 });
+    parapet(x0, z0, x1, z1, yR, { h: 1.0, T: 0.25, col, style: 'plain' });
+    railing(x0 + T + 1.2, z0 + T, x0 + T + 1.2, z0 + T + 6.2, yR, 'iron');
+    // balcony across the first-floor front
+    W.box(x1 - x0 - 0.4, 0.16, 1.1, (x0 + x1) / 2, H0 - 0.08, z1 + 0.55, MC.concreteLt, { t: TX.terrazzo }); W.solid(x1 - x0 - 0.4, 0.16, 1.1, (x0 + x1) / 2, H0 - 0.08, z1 + 0.55, 'concrete', { walk: true });
+    railing(x0 + 0.2, z1 + 1.06, x1 - 0.2, z1 + 1.06, H0, 'iron');
+    tiledCornice(x1 - x0, z1 - z0, yR, col);
+  });
+  // ground floor: the café
+  W.scope({ dim: 0.8 }, () => {
+    counter(9.5, 0.15, -30.6, 0, 4.2, MC.cedarDk, 0x3a3a3a); espressoMachine(8.4, 1.2, -30.8, 0); cashRegister(10.8, 1.2, -30.7, 0);
+    displayFridge(4.2, 0.15, -30.8, Math.PI / 2); shelfUnit(12.8, 0.15, -31.4, 0, 1.6, 2.2, 0.35, MC.cedarDk, 'home');
+    for (const [x, z] of [[5.4, -24.4], [8.2, -24.4], [11.0, -24.6], [5.4, -27.2], [8.4, -27.4]]) bistroTable(x, 0.15, z, 3, 0x2a2a2a);
+    ornateMirror(x0 + T + 0.03, 1.4, -26.5, Math.PI / 2, 0.8, 1.1); wallPlates(x0 + T + 0.03, 2.4, -24, Math.PI / 2, 3);
+    ceilingFan(7.5, H0 - 0.1, -26); ceilingFan(11.5, H0 - 0.1, -26); hangLantern(9.5, H0 - 0.05, -29.4, 0xffc070, 0.6, true);
+    plantPot(4.0, 0.15, -23.0, 'palm', 1.3); plantPot(13.8, 0.15, -23.0, 'ficus', 1.2);
+    floorRug(8, 0.16, -26, 3, 2, 0, 0x8a2a24);
+  });
+  // first floor: the salon (cushions, hookah, mint tea)
+  W.scope({ dim: 0.75 }, () => {
+    sedari(7.6, H0, -31.3, 0, 5.2, 0x8a2a24); sedari(x0 + T + 0.45, H0, -24.4, Math.PI / 2, 2.6, 0x8a2a24);
+    teaTable(7.6, H0, -30.0, 0.5); teaTable(9.2, H0, -25.2, 0.45); hookah(10.2, H0, -24.6); samovar(12.6, H0, -31.2);
+    floorRug(8.6, H0 + 0.01, -27.6, 5, 3.4, 0, 0x2a3a6a); hangLantern(8.6, yR - 0.1, -27.4, 0xffc070, 0.8, true); lanternCluster(12.2, yR - 0.05, -27.8, 5, 0.6);
+    for (let i = 0; i < 4; i++) pouf(6.2 + i * 1.4, H0, -28.4 + (i % 2) * 0.5);
+  });
+  // the roof terrace: umbrellas, plants, the best seat over the square
+  W.scope({ lod: 1 }, () => {
+    for (const [x, z] of [[7.2, -24.2], [11.4, -24.2], [11.6, -28.8]]) { bistroTable(x, yR, z, 3, 0x2a5a3a); W.rod([x, yR, z], [x, yR + 2.3, z], 0.03, MC.alu, { layer: 'metal' }); W.cone(1.3, 0.45, x, yR + 2.35, z, mpick([0xe8dcc0, 0x2a5a3a, 0xb03a2e]), { seg: 8, layer: 'cloth', t: TX.fabric }); }
+    for (let i = 0; i < 5; i++) plantPot(x0 + 1.6 + i * 2.5, yR, z1 - 0.5, mpick(['geranium', 'palm']), 1.2);
+    satDish(14.8, yR, -31, 2.4, 0.9); waterTank(13.2, yR, -31.1, 'white');
+  });
+  // the terrace in front, on the square
+  for (const [x, z] of [[5, -20], [9, -20.2], [13, -20]]) umbrellaTable(x, z, 0x2a5a3a);
+  TOWN.spots.cafeRoof = { x: 9.5, y: yR, z: -26 };
 }
 
-// ---------------- spawn + targets ----------------
-const SPAWN = { x: -230, z: -150, yaw: -Math.PI / 2 };
-function placeWorldTargets() {
-  const T = (x, z, ry, kind = 'paper', y) => kind === 'paper' ? addPaper(0, 0, { at: { x, z, ry, y } }) : addSteel(0, 0, kind === 'gong' ? 'circle' : kind === 'ipsc' ? 'rect' : 'circle', kind === 'gong' ? 0.7 : 0.45, { at: { x, z, ry, y }, label: kind === 'gong' ? 'GONG' : 'STEEL' });
-  // market square: paper targets between the food stalls
-  for (let i = 0; i < 5; i++) T(SQ.x0 + 18 + i * 7, SQ.z1 - 25, Math.PI / 2 * 0);
-  // medina: a tannery shooting lane and steel down the main street
-  for (let i = 0; i < 4; i++) T(-665 + i * 10, -428, 0, i % 2 ? 'steel' : 'paper', 0.9);
-  T(-600, -62, Math.PI / 2, 'steel'); T(-700, -57, Math.PI / 2, 'ipsc');
-  // civic garden: steel between the parterres; palace roof gong (long shot from the plaza)
-  for (let i = 0; i < 3; i++) T(40, -95 + i * 8, -Math.PI / 2, 'steel', 1.65 + G0);
-  // freight yard long range: 100–400 m steel lane along the sidings
-  for (const d of [80, 160, 240, 320]) T(300 + d, -470 + 9, 0, d >= 240 ? 'gong' : 'steel');
-  // modern car park + boulevard median
-  for (let i = 0; i < 4; i++) T(470 + i * 10, -165, 0, i % 2 ? 'ipsc' : 'paper');
-  // residential football pitch: mixed lane
-  for (let i = 0; i < 6; i++) T(-40 + i * 15, 545, Math.PI / 2, i % 3 === 0 ? 'steel' : 'paper');
+// ---------------- Dar Lamia: a riad at the end of a dead-end lane (the dead drop) ----------------
+function darLamia() {
+  const x0 = -116, x1 = -101, z0 = 43, z1 = 56.5, T = 0.45, H0 = 3.8, H1 = 3.4, yR = H0 + H1, col = 0xc98a6c;
+  const cx0 = -111.5, cx1 = -105.5, cz0 = 47.5, cz1 = 52.5;   // courtyard, open to the sky
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 + 0.4, z1 - z0 + 0.4, 0, GR.RESERVED, true);
+  const zel = 5, inner = 0xece0c8;
+  // outer walls: the lane front has the only door (carved, zellige surround, lantern)
+  walls([
+    ['x', x0, x1, z0 + T / 2, -1, [{ at: -108, w: 1.3, h: 3.0, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', flip: true, hood: true, lamp: 0xffc070, zellige: 1, rimCol: 0xf2e6cc }, WIN(-113.5, 0.6, 0.7, 1.8), WIN(-103.4, 0.6, 0.7, 1.8)]],
+    ['x', x0, x1, z1 - T / 2, 1, []], ['z', z0 + T, z1 - T, x0 + T / 2, -1, []], ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+  ], 0, H0, T, col, inner);
+  walls([
+    ['x', x0, x1, z0 + T / 2, -1, [WIN(-112, 1.1, 1.5, 0.9, { win: 'mash' }), WIN(-104.5, 0.8, 1.0, 1.2)]],
+    ['x', x0, x1, z1 - T / 2, 1, []], ['z', z0 + T, z1 - T, x0 + T / 2, -1, []], ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+  ], H0, H1, T, col, inner);
+  // round the courtyard: horseshoe arches below, windows and a mashrabiya above
+  for (const [y, h, ops] of [[0, H0, 'g'], [H0, H1, 'u']]) {
+    const g = ops === 'g';
+    partition('x', x0 + T, x1 - T, cz0, y, h, g ? [DOOR(-113.6, 0.9, 2.2, { style: 'carved', doorCol: MC.cedar }), ARCH(-108.5, 2.4, 3.0, { zellige: zel }), DOOR(-103.4, 0.9, 2.2, { style: 'carved' })] : [DOOR(-113.6), WIN(-108.5, 1.2, 1.5, 0.9, { win: 'mash' }), DOOR(-103.4)], inner);
+    partition('x', x0 + T, x1 - T, cz1, y, h, g ? [DOOR(-113.6, 0.9, 2.2, { style: 'carved' }), ARCH(-108.5, 2.4, 3.0, { zellige: zel }), DOOR(-103.4, 0.9, 2.2, { style: 'carved' })] : [DOOR(-113.6), WIN(-108.5, 1.4, 1.5, 0.9), DOOR(-103.4)], inner);
+    partition('z', cz0 + 0.08, cz1 - 0.08, cx0, y, h, g ? [ARCH(50, 2.2, 3.0, { zellige: zel })] : [WIN(50, 1.0, 1.4, 0.9, { win: 'shut' })], inner);
+    partition('z', cz0 + 0.08, cz1 - 0.08, cx1, y, h, g ? [ARCH(50, 2.2, 3.0, { zellige: zel })] : [WIN(50, 1.0, 1.4, 0.9, { win: 'shut' })], inner);
+  }
+  // zellige courtyard, tiled wainscot, fountain, orange tree
+  W.box(cx1 - cx0, 0.04, cz1 - cz0, (cx0 + cx1) / 2, 0.17, (cz0 + cz1) / 2, IN.zel, { t: TX.zellige, wear: zel, ao: false });
+  for (const [ax, c, a0, a1] of [['x', cz0 + 0.09, cx0, cx1], ['x', cz1 - 0.09, cx0, cx1], ['z', cx0 + 0.09, cz0, cz1], ['z', cx1 - 0.09, cz0, cz1]]) wallBox(ax, c, a0, a1, 0.15, 1.2, -0.01, 0.01, IN.zel, { t: TX.zellige, wear: zel + 1, ao: false });
+  fountain(-108.5, 0.15, 50, 0.9, zel);
+  tree(-110.6, 0.15, 48.5, 'orange', 0.85); plantPot(-106.3, 0.15, 48.4, 'palm', 1.5); plantPot(-106.3, 0.15, 51.6, 'ficus', 1.3); plantPot(-110.7, 0.15, 51.6, 'aloe', 1.4);
+  // floors and stairs: ground → first along the south range, first → roof along the north range
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0xd8c8b0, topTx: TX.terrazzo, bot: false, holes: [[cx0, cz0, cx1, cz1]] });
+  flight(-102.2, 55.4, [-1, 0], 1.1, 0.15, H0, { col: 0xb87a5a, tx: TX.ceramic, riser: zel });
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, H0, { top: 0xc8a888, topTx: TX.terrazzo, holes: [[cx0, cz0, cx1, cz1], [-108.6, 54.8, x1 - T, z1 - T]] });
+  flight(-115.0, 44.0, [1, 0], 1.0, H0, yR, { col: 0xb87a5a, tx: TX.ceramic, riser: zel });
+  slab(x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05, yR, { top: 0xc89a78, topTx: TX.ceramic, holes: [[cx0, cz0, cx1, cz1], [x0 + T, z0 + T, -109.2, z0 + T + 1.1]], bot: 0xe8d8c0 });
+  parapet(x0, z0, x1, z1, yR, { h: 0.9, T: 0.3, col, style: 'merlon' });
+  railing(cx0, cz0, cx1, cz0, yR, 'iron'); railing(cx0, cz1, cx1, cz1, yR, 'iron'); railing(cx0, cz0, cx0, cz1, yR, 'iron'); railing(cx1, cz0, cx1, cz1, yR, 'iron');
+  railing(-109.2, z0 + T, -109.2, z0 + T + 1.1, yR, 'iron');
+  // --- furnishing, room by room ---
+  W.scope({ dim: 0.7 }, () => {
+    // north range, ground: the salon either side of the entrance
+    sedari(-113.6, 0.15, 44.0, 0, 3.4, 0x6a2a4a); sedari(-115.1, 0.15, 45.6, Math.PI / 2, 2.4, 0x6a2a4a); teaTable(-113.4, 0.15, 45.6, 0.45);
+    floorRug(-113.2, 0.16, 45.6, 3.4, 2.4, 0, 0x9a2a24); ornateMirror(-113.6, 1.5, 43.48, 0, 0.7, 1.0); hangLantern(-113.3, H0 - 0.1, 45.6, 0xffc070, 0.7, true);
+    sedari(-103.5, 0.15, 44.0, 0, 3.4, 0x2a5a6a); teaTable(-103.6, 0.15, 45.5, 0.4); wallPlates(-101.48, 2.3, 45.5, -Math.PI / 2, 3); hangLantern(-103.5, H0 - 0.1, 45.5, 0xffc070, 0.6, true);
+    // west range: a reading room; east range: the kitchen
+    shelfUnit(-115.3, 0.15, 50, Math.PI / 2, 1.8, 2.2, 0.38, MC.cedarDk, 'home'); pouf(-113.8, 0.15, 49.2); pouf(-113.6, 0.15, 50.9); lowTable(-113, 0.15, 50, Math.PI / 2);
+    kitchenRun(-101.8, 0.15, 50, -Math.PI / 2, 2.6, 0xe6e0d4); butane(-103, 0.15, 48.2); for (let i = 0; i < 3; i++) tagine(-102.5 + i * 0.1, 1.05, 49.2 + i * 0.5);
+    // south range, ground: dining room (the stair runs along its back wall)
+    lowTable(-112.5, 0.15, 54, 0, 1.4, 0.8); sedari(-112.6, 0.15, 53.0, Math.PI, 2.6, 0x8a5a2a); floorRug(-112.5, 0.16, 54, 3, 1.6, 0, 0x2a3a6a);
+    // first floor: bedrooms, and the study where the courier left the intel
+    bed(-103.6, H0, 45.2, Math.PI / 2, 0x8a3a3a); nightstand(-102, H0, 43.9, 0); wardrobe(-106, H0, 44.0, 0, MC.cedar);
+    bed(-103.4, H0, 50, -Math.PI / 2, 0x3a5a7a); dresser(-101.9, H0, 48.2, -Math.PI / 2);
+    desk(-113.4, H0, 55.4, Math.PI, 1.4, 0.7, MC.cedarDk); chairOffice(-113.4, H0, 54.6, 0); laptop(-113.6, H0 + 0.76, 55.5, Math.PI); paperStack(-112.9, H0 + 0.76, 55.4, 8, 0.2); deskLamp(-114, H0 + 0.76, 55.6, Math.PI); safe(-115.3, H0, 55.6, Math.PI / 2);
+    floorRug(-113, H0 + 0.01, 53.8, 2.6, 1.8, 0, 0x6a2a4a); hangLantern(-113.2, yR - 0.1, 54.4, 0xffc070, 0.5, true);
+    shelfUnit(-115.3, H0, 50, Math.PI / 2, 1.8, 2.2, 0.38, MC.cedarDk, 'home');
+    hangingRug(-115.5, H0 + 0.5, 54.2, Math.PI / 2, 1.3, 1.9, 0x2a3a6a); wallPlates(-112.2, H0 + 2.2, 56.0, Math.PI, 3); framedPhoto(-114.6, H0 + 1.6, 52.62, 0, 0.4, 0.3); wallClock(-111.7, H0 + 2.3, 53.6, -Math.PI / 2);
+    for (const [x, z] of [[-103.4, 44.9], [-103.4, 50]]) hangLantern(x, yR - 0.1, z, 0xffc070, 0.5, true);
+    ornateMirror(-101.5, H0 + 1.4, 46.5, -Math.PI / 2, 0.7, 1.0); floorRug(-103.6, H0 + 0.01, 45.2, 2.6, 1.8, 0, 0x9a2a24); floorRug(-103.4, H0 + 0.01, 50, 2.4, 1.8, 0, 0x2a5a6a);
+  });
+  // roof: laundry, plants, a tank and a dish
+  W.scope({ lod: 1 }, () => { laundryLine(-115, yR + 1.7, 55.6, -110, yR + 1.7, 55.8, 7); for (const xx of [-115, -110]) W.rod([xx, yR, 55.7], [xx, yR + 1.8, 55.7], 0.02, MC.iron); waterTank(-102.5, yR, 55, 'black'); satDish(-102.4, yR, 44.2, 2.4, 0.9); for (let i = 0; i < 4; i++) plantPot(-115 + i * 1.6, yR, 44, 'geranium', 1.2); plasticChair(-104, yR, 53, 1.2); });
+  W.push(-110.5, 0, z0, Math.PI); bougainvillea(0, yR + 0.6, 0, 3.2); W.pop();
+  TOWN.spots.intel = { x: -113.4, y: H0, z: 55.3 };
+  TOWN.spots.darLamiaDoor = { x: -108, z: 41.5 };
 }
 
-// generation steps (run one per frame so the loading bar can move)
+// ---------------- the kasbah headquarters: commander's house + barracks ----------------
+function kasbahHQ() {
+  const x0 = 126, x1 = 149, z0 = -80, z1 = -46, T = 0.5, H0 = 3.8, H1 = 3.4, yR = H0 + H1, col = 0xb98a62, inner = 0xe2d6c0;
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 + 0.4, z1 - z0 + 0.4, 0, GR.RESERVED, true);
+  // façade toward the parade ground (west): the door, grilled windows, a tiled hood
+  walls([
+    ['z', z0 + T, z1 - T, x0 + T / 2, -1, [WIN(-76, 0.8, 1.1, 1.4), WIN(-70, 0.8, 1.1, 1.4), { at: -63, w: 1.6, h: 3.0, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', double: true, hood: true, lamp: 0xffc070, zellige: 6 }, WIN(-56, 0.8, 1.1, 1.4), WIN(-50, 0.8, 1.1, 1.4)]],
+    ['z', z0 + T, z1 - T, x1 - T / 2, 1, []], ['x', x0, x1, z0 + T / 2, -1, [WIN(137.5, 0.8, 1.1, 1.4)]], ['x', x0, x1, z1 - T / 2, 1, [WIN(137.5, 0.8, 1.1, 1.4)]],
+  ], 0, H0, T, col, inner, { tx: TX.pise });
+  walls([
+    ['z', z0 + T, z1 - T, x0 + T / 2, -1, [WIN(-76, 1.0, 1.5, 0.9, { win: 'shut' }), WIN(-70, 1.0, 1.5, 0.9, { win: 'shut' }), WIN(-63, 1.2, 1.6, 0.9, { win: 'mash' }), WIN(-56, 1.0, 1.5, 0.9, { win: 'shut' }), WIN(-50, 1.0, 1.5, 0.9, { win: 'shut' })]],
+    ['z', z0 + T, z1 - T, x1 - T / 2, 1, [WIN(-63)]], ['x', x0, x1, z0 + T / 2, -1, [WIN(137.5)]], ['x', x0, x1, z1 - T / 2, 1, [WIN(137.5)]],
+  ], H0, H1, T, col, inner, { tx: TX.pise });
+  // ground: central hall (x 126.5-136) with rooms off it — guard room N, radio room S, armoury E
+  for (const [y, h] of [[0, H0], [H0, H1]]) {
+    partition('z', z0 + T, z1 - T, 136, y, h, [DOOR(-61.5, 1.2, 2.3, { style: 'metal', doorCol: 0x3a4a3a }), DOOR(-74, 0.9), DOOR(-52, 0.9)]);
+    partition('x', x0 + T, 136, -68, y, h, [DOOR(131, 1.0)]);
+    partition('x', x0 + T, 136, -58, y, h, [DOOR(131, 1.0)]);
+    partition('x', 136, x1 - T, -66, y, h, [DOOR(138.5, 0.9)]);
+  }
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0xb8b0a0, topTx: TX.terrazzo, bot: false });
+  flight(128.0, -59.0, [0, -1], 1.2, 0.15, H0, { col: 0x9a9488, tx: TX.terrazzo });
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, H0, { top: 0xa88a6a, topTx: TX.wood, holes: [[127.3, -65.4, 128.7, -58.5]] });
+  flight(134.6, -67.0, [0, 1], 1.0, H0, yR, { col: 0x9a9488, tx: TX.terrazzo });
+  slab(x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05, yR, { top: 0xa89c88, topTx: TX.concrete, holes: [[134.0, -67.2, 135.2, -61.4]] });
+  parapet(x0, z0, x1, z1, yR, { h: 1.0, T: 0.4, col, style: 'merlon' });
+  railing(134.0, -67.2, 134.0, -61.4, yR, 'iron');
+  W.scope({ dim: 0.65 }, () => {
+    // guard room (north-west): table, cards, cots, a kettle
+    tableFolding(131, 0.15, -75, 0); chairFolding(130.2, 0.15, -74.2, 2.8); chairFolding(131.8, 0.15, -75.8, -0.4); cards(131, 0.91, -75); kettle(131.6, 0.91, -74.8); ashtray(130.5, 0.91, -75.2);
+    cot(128, 0.15, -78.6, 0, PC.olive); cot(133.4, 0.15, -78.6, 0, PC.olive); footlocker(128, 0.15, -77.2); weaponRack(135.5, 0.15, -72, -Math.PI / 2, 4);
+    // radio room (south-west): the comms desk
+    desk(131, 0.15, -48.2, Math.PI, 2.2, 0.8); radioSet(130.3, 0.91, -48.3, Math.PI); radioSet(131.6, 0.91, -48.3, Math.PI); monitor(131.0, 0.91, -48.4, Math.PI); headset(132.4, 0.91, -48.1);
+    chairOffice(131, 0.15, -49.4, 0); mapBoard(126.6, 1.0, -52, Math.PI / 2, 2.2, 1.4); fieldPhone(133.8, 0.91, -48.2, Math.PI); powerStrip(130, 0.15, -47.2); generator(134.6, 0.15, -55.4, 0);
+    // armoury (north-east): racks, crates, ammo
+    weaponRack(146.6, 0.15, -72, -Math.PI / 2, 6); weaponRack(146.6, 0.15, -68, -Math.PI / 2, 6); ammoCrateOpen(140, 0.15, -78, 0); grenadeCrate(142.4, 0.15, -78.2, 0); for (let i = 0; i < 5; i++) ammoCan(138 + i * 0.5, 0.15, -66, 0); vestStand(139, 0.15, -72, Math.PI / 2); launcherTube(143, 0.15, -70, 0.4);
+    // store (south-east)
+    shelf(146.8, 0.15, -55, -Math.PI / 2, 1.8, 4, 'supply'); for (let i = 0; i < 4; i++) crate(141 + i * 1.3, 0.15, -48.2, 1.0, 0.7, 0.8, 0, PC.olive); waterCase(139, 0.15, -52, 0); mre(140, 0.15, -53);
+    // first floor: commander's office over the hall — the documents are in the safe behind his desk
+    desk(141.5, H0, -58, Math.PI, 1.8, 0.85, MC.cedarDk); chairOffice(141.5, H0, -59, 0); laptop(141.2, H0 + 0.76, -58.1, Math.PI); paperStack(142.1, H0 + 0.76, -58, 10, 0.3); deskLamp(140.7, H0 + 0.76, -57.8, Math.PI); phone(142.5, H0 + 0.76, -58.2, 0);
+    safe(147.9, H0, -59.5, -Math.PI / 2); sandTable(140.5, H0, -54, 0); flag(146.8, H0, -55.5); framedPhoto(143.6, H0 + 1.6, -46.6, Math.PI, 0.5, 0.4); floorRug(141.5, H0 + 0.01, -56, 3.4, 2.4, 0, 0x6a2a24);
+    sofa(144, H0, -52, Math.PI, 0x5a3a2a, 2.0); lowTable(144, H0, -53.2, 0, 1.0, 0.6);
+    // his quarters (north-east) and the briefing room (west)
+    bed(144, H0, -77, 0, 0x2a3a4a); wardrobe(147.8, H0, -72, -Math.PI / 2, MC.cedarDk); nightstand(142, H0, -78.8, 0);
+    meetingTable(131, H0, -52, 0, 3.2); for (let i = 0; i < 6; i++) chairFolding(129.4 + (i % 3) * 1.6, H0, -52 + (i < 3 ? -0.9 : 0.9), i < 3 ? 0 : Math.PI); whiteboard(126.6, H0 + 1.2, -52, Math.PI / 2); projector(131, H0 + 0.76, -52, 0);
+    cot(128, H0, -77, 0, PC.olive); cot(131, H0, -77, 0, PC.olive); footlocker(133.5, H0, -78.6);
+    for (const [x, z] of [[131, -63], [141.5, -66], [141.5, -50], [131, -74]]) ceilingLight(x, H0 - 0.05, z, 0, 1.2, true);
+  });
+  // roof: a sandbagged lookout
+  W.scope({ lod: 1 }, () => { sandbagWall(127, -78, 127, -72, 2); sandbagWall(127, -78, 132, -78, 2); antenna(147, yR, -48); satDish(146.5, yR, -76, 2.4, 1.1); camoNet(130, yR, -75, 5, 5, 2.3, 0); });
+  TOWN.spots.hqSafe = { x: 147.4, y: H0, z: -59.5 };
+  TOWN.spots.hqDoor = { x: x0 - 1.5, z: -63 };
+  TOWN.spots.hqRoof = { x: 130, y: yR, z: -75 };
+}
+function flag(x, y, z) { W.rod([x, y, z], [x, y + 2.2, z], 0.02, MC.brass, { layer: 'metal' }); W.box(0.9, 0.6, 0.01, x + 0.45, y + 1.85, z, 0x2a2a2a, { layer: 'cloth' }); W.box(0.4, 0.12, 0.012, x + 0.45, y + 1.85, z, 0xc0302a, { layer: 'cloth' }); }
+function barracks() {
+  const x0 = 68, x1 = 112, z0 = -131, z1 = -117, T = 0.45, H = 4.2, col = 0xb98a62, inner = 0xd8d0be;
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 + 0.4, z1 - z0 + 0.4, 0, GR.RESERVED, true);
+  const win = []; for (let x = 72; x < 110; x += 5) if (Math.abs(x - 80) > 2 && Math.abs(x - 100) > 2) win.push(WIN(x, 1.0, 1.1, 1.3));
+  walls([
+    ['x', x0, x1, z1 - T / 2, 1, [DOOR(80, 1.4, 2.4, { style: 'metal', leaf: 'open', doorCol: 0x3a4a3a }), DOOR(100, 1.4, 2.4, { style: 'metal', leaf: 'ajar', doorCol: 0x3a4a3a }), ...win]],
+    ['x', x0, x1, z0 + T / 2, -1, win.map((w) => ({ ...w, sill: 1.8, h: 0.8 }))], ['z', z0 + T, z1 - T, x0 + T / 2, -1, []], ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+  ], 0, H, T, col, inner, { tx: TX.pise });
+  partition('z', z0 + T, z1 - T, 105, 0, H, [DOOR(-124, 0.9)]);
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0x9a948a, topTx: TX.concrete, bot: false });
+  slab(x0 - 0.05, z0 - 0.05, x1 + 0.05, z1 + 0.05, H, { top: 0x8a8478, topTx: TX.concrete, bot: 0xd0c8b8 });
+  parapet(x0, z0, x1, z1, H, { h: 0.8, T: 0.3, col, style: 'merlon' });
+  W.scope({ dim: 0.65 }, () => {
+    for (let i = 0; i < 6; i++) { const x = 72 + i * 5.4; bunkBed(x, 0.15, -129.6, 0, PC.olive); locker(x + 1.6, 0.15, -130.4, 0, PC.olive); footlocker(x, 0.15, -128.1); bunkBed(x, 0.15, -118.6, Math.PI, PC.oliveDk); }
+    tableFolding(88, 0.15, -124, 0, 2.4, 0.9); for (let i = 0; i < 4; i++) chairFolding(87 + (i % 2) * 2, 0.15, -124 + (i < 2 ? -0.9 : 0.9), i < 2 ? 0 : Math.PI); cards(88, 0.91, -124); ashtray(88.6, 0.91, -124.2); energyCans(87.2, 0.91, -123.9, 3);
+    tv(103.6, 0.15, -123, -Math.PI / 2); sofa(100.4, 0.15, -123, Math.PI / 2, 0x4a4a3a); fanStand(102, 0.15, -120, 0);
+    for (let i = 0; i < 3; i++) { sink(106 + i * 2, 0.15, -130.6, 0); mirror(106 + i * 2, 1.6, -130.75, 0); } showerCorner(110.8, 0.15, -118.4, Math.PI);
+    for (let x = 74; x < 104; x += 8) ceilingLight(x, H - 0.05, -124, 0, 1.4, true);
+    uniformLine(70, -120, 84, -120, 1.9, 6);
+  });
+}
+// ---------------- the smugglers' store on the quay ----------------
+function smugglersWarehouse() {
+  const x0 = 108, x1 = 126, z0 = 76, z1 = 92, T = 0.4, H = 7, col = 0xd8d4c8;
+  GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 + 0.4, z1 - z0 + 0.4, 0, GR.RESERVED, true);
+  walls([
+    ['x', x0, x1, z1 - T / 2, 1, [DOOR(114, 4.2, 4.0, { style: 'metal', leaf: 'open', double: true, doorCol: 0x2a5a8a }), WIN(122.4, 1.4, 1.0, 2.6)]],
+    ['x', x0, x1, z0 + T / 2, -1, [WIN(112, 1.2, 0.8, 4.6), WIN(120, 1.2, 0.8, 4.6)]], ['z', z0 + T, z1 - T, x0 + T / 2, -1, [WIN(84, 1.2, 0.8, 4.6)]], ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
+  ], 0, H, T, col, 0xcfc8b8, { wear: 6 });
+  slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.12, { top: 0x8a8478, topTx: TX.concrete, bot: false });
+  // mezzanine office along the back, steel stair up to it
+  slab(x0 + T, z0 + T, x1 - T, z0 + 4.4, 3.4, { top: 0x8a7458, topTx: TX.wood, thk: 0.2 });
+  for (const x of [112, 118, 124]) { W.box(0.2, 3.3, 0.2, x, 1.65, z0 + 4.3, 0x4a4e52, { layer: 'metal' }); W.solid(0.2, 3.3, 0.2, x, 1.65, z0 + 4.3, 'metal'); }
+  railing(x0 + 2.2, z0 + 4.4, x1 - T, z0 + 4.4, 3.4, 'iron');
+  flight(x0 + T + 0.6, z0 + 9.7, [0, -1], 1.1, 0.12, 3.4, { col: 0x4a4e52, tx: TX.metal, thick: 0.08, soffit: false });
+  W.box(x1 - x0, 0.3, z1 - z0, (x0 + x1) / 2, H + 0.15, (z0 + z1) / 2, 0x7a7a74, { layer: 'metal', t: TX.corrugated, wear: 6 });
+  W.solid(x1 - x0, 0.3, z1 - z0, (x0 + x1) / 2, H + 0.15, (z0 + z1) / 2, 'metal');
+  W.scope({ dim: 0.6 }, () => {
+    van(119, 85.5, Math.PI / 2, 0xe8e6e0); forklift(112.6, 87.5, 0.4);
+    for (const [x, z, n] of [[110.5, 81.5, 4], [110.5, 84, 3], [123.5, 89.4, 4], [121.4, 89.6, 2], [124, 80.5, 3]]) crateStack(x, 0.12, z, 0, n);
+    palletRack(122.5, 0.12, 83.5, Math.PI / 2, 5.4, 3, 1.1);
+    for (let i = 0; i < 6; i++) drum(109 + (i % 3) * 0.7, 0.12, 89.6 + Math.floor(i / 3) * 0.7, PC.blue);
+    fishingBoat(115.5, 81, Math.PI / 2, 6, { y: 0.4 });
+    // the office on the mezzanine: maps, radio, cash box, a rifle case
+    desk(115, 3.4, z0 + 1.2, 0, 1.6, 0.75); chairOffice(115, 3.4, z0 + 2.0, Math.PI); radioSet(114.4, 4.16, z0 + 1.1, 0); mapBoard(118, 4.6, z0 + 0.45, 0, 1.6, 1.0); paperStack(115.6, 4.16, z0 + 1.2, 6, 0.1);
+    safe(121, 3.4, z0 + 1.0, 0); ammoCrateOpen(123, 3.4, z0 + 1.4, 0.2); weaponRack(110, 3.4, z0 + 0.9, 0, 3); ceilingLight(116, H - 0.1, 84, 0, 1.4, true); ceilingLight(116, 3.25, z0 + 2, 0, 1.0, true);
+  });
+  TOWN.spots.warehouse = { x: 114, z: 93 };
+  TOWN.spots.warehouseOffice = { x: 116, y: 3.4, z: 78.5 };
+}
+function buildInteriors() {
+  cafeDeLaPlace();
+  darLamia();
+  kasbahHQ();
+  barracks();
+  smugglersWarehouse();
+}
+// =====================================================================
+//  DAR ESSALAM — build order
+// =====================================================================
+function placeWorldTargets() { }
 function cityPlan() {
   return [
-    ['Laying out the civic plaza', buildCivicPlaza],
-    ['Raising the palace and clock tower', () => { civicPalace(60, -60, -Math.PI / 2); GR.rect(60, -60, 100, 122, 0, GR.RESERVED, true); }],
-    ['Stalls and souks of the grand market', buildMarket],
-    ['Walls, lanes and riads of the medina', buildMedina],
-    ['The Mellah quarter', buildMellah],
-    ['Rail yards and industry', buildIndustry],
-    ['Boulevards and towers', buildModern],
-    ['Residential quarters', buildResidential],
-    ['Olive groves and outskirts', buildOutskirts],
+    ['Drawing the streets of Dar Essalam', buildTownPlan],
+    ['Raising the walls, the skala and the gates', () => { townWalls(); skala(); seaGate(); }],
+    ['The Great Mosque and its minaret', greatMosque],
+    ['The tannery', tanneryYard],
+    ['The kasbah', buildKasbah],
+    ['Authored houses and interiors', buildInteriors],
+    ['Houses, shops and stalls, street by street', buildTownFronts],
+    ['Rooftops', buildTownBlocks],
+    ['Squares, souks and the harbour', () => { buildTownPlaces(); SEA.add(); }],
   ];
 }
 // =====================================================================
@@ -9424,7 +10191,7 @@ const QUALITY = (() => {
   const maxPR = Math.min(devicePixelRatio, 1.25);
   return {
     update(dt) {
-      if (!MAP.ready) return;
+      if (!MAP.ready || MAP.lockDraw) return;
       avg = lerp(avg, dt * 1000, 0.05); t += dt;
       if (t < 1.0) return; t = 0;
       if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
@@ -9454,7 +10221,7 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
@@ -9464,7 +10231,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 window.__dbg = { P, get ch() { return ch; }, get gun() { return gun; }, enterRange, enterCustom, setPose: (p) => { pose = p; }, orbit, fire, startReload, setCfg, keys, aimKey, switchTo, equip, inv, setLockFallback: (v) => { lockFallback = v; } };
-window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION;
+window.__dbg.NPCS = NPCS; window.__dbg.MISSION = MISSION; window.__dbg.scene = scene; window.__dbg.SEA = SEA; window.__dbg.TOWN = TOWN; window.__dbg.camera = camera;
 window.__OPTS = OPTS;
 // scripted walk along waypoints with the real movement + collision code (tests)
 window.__dbg.walk = (path, o = {}) => {
