@@ -5,7 +5,7 @@ function buildEnvironment() {
   // image-based light from a soft sky/ground gradient: gives glass, glaze and metal something to reflect
   const envScene = new THREE.Scene();
   const g = new THREE.SphereGeometry(10, 32, 16), c = [], p = g.attributes.position;
-  const N = MAP.night, top = N ? new THREE.Color().setRGB(0.02, 0.02, 0.06) : new THREE.Color().setRGB(0.32, 0.46, 0.75), hor = N ? new THREE.Color().setRGB(0.12, 0.05, 0.1) : SKY.horizon.clone(), gnd = N ? new THREE.Color().setRGB(0.05, 0.08, 0.12) : new THREE.Color().setRGB(0.42, 0.33, 0.24), sunC = N ? new THREE.Color().setRGB(0.1, 0.25, 0.3) : new THREE.Color().setRGB(4, 3.2, 2.2);
+  const N = MAP.night, Dk = MAP.dusk, top = N ? new THREE.Color().setRGB(0.02, 0.02, 0.06) : Dk ? new THREE.Color().setRGB(0.12, 0.14, 0.32) : new THREE.Color().setRGB(0.32, 0.46, 0.75), hor = N ? new THREE.Color().setRGB(0.12, 0.05, 0.1) : SKY.horizon.clone(), gnd = N ? new THREE.Color().setRGB(0.05, 0.08, 0.12) : new THREE.Color().setRGB(0.42, 0.33, 0.24), sunC = N ? new THREE.Color().setRGB(0.1, 0.25, 0.3) : new THREE.Color().setRGB(4, 3.2, 2.2);
   for (let i = 0; i < p.count; i++) {
     const v = new V3(p.getX(i), p.getY(i), p.getZ(i)).normalize();
     const col = v.y > 0 ? hor.clone().lerp(top, Math.pow(v.y, 0.6)) : hor.clone().lerp(gnd, Math.min(1, -v.y * 3));

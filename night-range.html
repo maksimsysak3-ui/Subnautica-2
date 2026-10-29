@@ -1754,7 +1754,7 @@ const audio = (() => {
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
   // which case is loaded (?map=dar | seoul); none → the case-files menu
-  id: (() => { const m = new URLSearchParams(location.search).get('map'); return m === 'dar' || m === 'seoul' ? m : null; })(),
+  id: (() => { const m = new URLSearchParams(location.search).get('map'); return m === 'dar' || m === 'seoul' || m === 'manor' ? m : null; })(),
   bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
@@ -1790,7 +1790,7 @@ function vnoise(x, z) {
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
 // the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
 const CITY = { x0: -165, x1: 165, z0: -470, z1: 118 };
-const coastZ = (x) => MAP.id === 'seoul' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
+const coastZ = (x) => MAP.id === 'seoul' || MAP.id === 'manor' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
   const cz = coastZ(x);
   if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed
@@ -2537,6 +2537,19 @@ const SKY = (() => {
   scene.fog.color.copy(HOR); scene.background.copy(HOR);
   const _f = new V3();
   // night: moonlit sky with the city's sodium-and-neon glow on the horizon; the range behind goes dark
+  // dusk: the sun just over the trees, a long orange light, the sky going violet overhead
+  function dusk() {
+    MAP.dusk = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.07, 0.1, 0.28); u.hor.value.setRGB(0.95, 0.5, 0.3); u.glowc.value.setRGB(1.0, 0.52, 0.22);
+    HOR.copy(u.hor.value);
+    ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.3, 0.22, 0.26); });
+    sunDir.set(0.86, 0.15, -0.48).normalize();
+    sun.color.set(0xffa060); sun.intensity = 1.8;
+    scene.fog.color.setRGB(0.58, 0.42, 0.4); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.5, 0.52, 0.72); HEMI.groundColor.setRGB(0.32, 0.24, 0.2); HEMI.intensity = 0.5;
+    MAP.lampGain = 2.6;
+  }
   function night() {
     MAP.night = true;
     const u = dome.material.uniforms;
@@ -2551,7 +2564,7 @@ const SKY = (() => {
     MAP.lampGain = 3.2;
   }
   return {
-    sunDir, sun, horizon: HOR, night,
+    sunDir, sun, horizon: HOR, night, dusk,
     update(cam, focus) {
       dome.position.copy(cam.position); ring.position.set(cam.position.x, 0, cam.position.z);
       // shadow box biased ahead of the camera (more useful texels where the player looks), snapped to texels
@@ -9459,7 +9472,7 @@ function seoulInteriors() { roomBBQ(); roomHof(); roomKaraoke(); roomPC(); roomC
 
 // ---------------- runtime: E at a door, E at the door inside ----------------
 const DOORS = (() => {
-  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; } };
+  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; }, get room() { return null; } };
   let inside = null, fadeEl = null, busyUntil = 0;
   const fade = (fn) => {
     if (!fadeEl) { fadeEl = document.createElement('div'); fadeEl.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:40'; document.body.appendChild(fadeEl); }
@@ -9484,6 +9497,7 @@ const DOORS = (() => {
     interact,
     prompt() { if (performance.now() < busyUntil) return ''; const d = near(); return d ? (inside ? '[E]  나가기 · LEAVE' : `[E]  들어가기 · ENTER${d.name ? '  ' + d.name : ''}`) : ''; },
     get inside() { return !!inside; },
+    get room() { return inside ? inside.room : null; },
   };
 })();
 // under a roof: no rain (subway, rooms)
@@ -9623,11 +9637,395 @@ const TRAFFIC = (() => {
   return { update, get cars() { return cars; }, light };
 })();
 // =====================================================================
+//  CASE 03 — RAVENSCROFT: a walled estate on the night of a gala
+// =====================================================================
+// A three-part house (central block over two floors, two single-storey wings) at the top of a long
+// gravel drive; lawns with a marquee where the guests drink, formal gardens behind, a hedge maze to the
+// west, a lake with a boathouse to the east, garages, a helipad. A stone wall all round: the main gate
+// (checked), a service gate, and one stretch the winter brought down. Private security everywhere.
+const MANOR = { house: { x0: -24, x1: 24, z0: -62, z1: -30 }, H0: 4.6, H1: 4.2, T: 0.45, wall: { x0: -200, x1: 200, z0: -200, z1: 200 } };
+const STONE = 0xd8cdb8, STONE_DK = 0xb8ab94, SLATE = 0x4a5058, GRASS = 0x4a6a34, GRAVEL = 0xb8ae98;
+
+function manorPlan() {
+  SKY.dusk();
+  Object.assign(CITY, { x0: -260, x1: 260, z0: -230, z1: 245 });
+  Object.assign(SPAWN, { x: -46, z: 220, yaw: 0 });
+  Object.assign(SQ, { x0: 1e4, z0: 1e4, x1: 1e4 + 1, z1: 1e4 + 1 });
+  MAP.bounds = 600;
+  TOWN.factionAt = () => 'red';
+  return [
+    ['The estate: walls, gates, the drive', manorGrounds],
+    ['Ravenscroft House', manorHouse],
+    ['Inside the house', manorRooms],
+    ['Gardens, the maze, the lake', manorGardens],
+    ['The gala', manorParty],
+    ['Security', manorSecurity],
+  ];
+}
+
+// ---------------- grounds ----------------
+function manorGrounds() {
+  const Wl = MANOR.wall;
+  // the country road outside the gate, the drive, the forecourt, the garden walks (guests walk these)
+  lane('countryRoad', [[-255, 222], [255, 222]], 9, 'alley', { tx: TX.asphalt, col: 0x3a3a3c });
+  lane('drive', [[0, 222], [0, 20]], 9, 'avenue', { tx: TX.gravel, col: GRAVEL });
+  lane('serviceRoad', [[255, -60], [60, -60]], 6, 'alley', { tx: TX.gravel, col: GRAVEL });
+  for (const [n, pts] of [['walkN', [[-44, -84], [44, -84]]], ['walkW', [[-44, -84], [-44, -172]]], ['walkE', [[44, -84], [44, -172]]], ['walkS', [[-44, -172], [44, -172]]], ['walkMid', [[0, -76], [0, -172]]], ['walkLawnW', [[-14, 20], [-120, 20], [-120, 170]]], ['walkLawnE', [[14, 20], [120, 20], [120, 170]]], ['walkLake', [[56, -50], [92, -95]]]])
+    lane(n, pts, 3.2, 'alley', { tx: TX.gravel, col: GRAVEL });
+  plaza('Forecourt', { x0: -30, z0: -24, x1: 30, z1: 22 }, GRAVEL, TX.gravel);
+  plaza('Front lawn', { x0: -118, z0: 26, x1: -12, z1: 168 }, GRASS, TX.leaf);
+  plaza('East lawn', { x0: 12, z0: 26, x1: 118, z1: 168 }, GRASS, TX.leaf);
+  plaza('Terrace', { x0: -30, z0: -76, x1: 30, z1: -62 }, STONE, TX.stone);
+  // everything else inside the walls is lawn; outside, rough grass under the trees
+  groundPlate(Wl.x0, Wl.z0, Wl.x1, Wl.z1, GRASS, TX.leaf, 4, 0.03);
+  groundPlate(-260, -230, 260, Wl.z0, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(-260, Wl.z1, 260, 245, 0x3e5230, TX.leaf, 6, 0.03);
+  groundPlate(-260, Wl.z0, Wl.x0, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(Wl.x1, Wl.z0, 260, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03);
+  fountain(0, 0, 0, 4.2, 1);
+  // the wall: stone, coped, with piers every 12 m; gaps for the gates and the fallen stretch
+  const gaps = { s: [[-6, 6]], e: [[-66, -54]], w: [[-128, -116]], n: [] };
+  const run = (ax, a0, a1, c, key) => {
+    let a = a0; const cuts = [...gaps[key]].sort((p, q) => p[0] - q[0]);
+    for (const [g0, g1] of [...cuts, [a1, a1]]) { if (g0 > a) wallRun(ax, a, g0, c); a = g1; }
+  };
+  run('x', Wl.x0, Wl.x1, Wl.z1, 's'); run('x', Wl.x0, Wl.x1, Wl.z0, 'n'); run('z', Wl.z0, Wl.z1, Wl.x1, 'e'); run('z', Wl.z0, Wl.z1, Wl.x0, 'w');
+  for (const z of [-128, -116]) { /* the fallen stretch: rubble you can step over */ }
+  W.scope({ lod: 1 }, () => { for (let k = 0; k < 26; k++) W.box(mr(0.4, 1.0), mr(0.2, 0.6), mr(0.4, 0.9), Wl.x0 + mr(-2, 2), 0.2, mr(-128, -116), STONE_DK, { t: TX.stone, ry: mr(0, 3) }); });
+  // the main gate: stone piers with lamps, iron gates folded back, the gatehouse
+  for (const s of [-1, 1]) {
+    W.box(1.6, 5.2, 1.6, s * 6.8, 2.6, Wl.z1, STONE, { t: TX.stone }); W.solid(1.6, 5.2, 1.6, s * 6.8, 2.6, Wl.z1, 'stone');
+    W.sphere(1.0, 1.0, 1.0, s * 6.8, 5.7, Wl.z1, STONE, { t: TX.stone }); lampPostOld(s * 6.8, 5.2, Wl.z1 + 0.9, 0.6);
+    for (let k = 0; k < 9; k++) W.box(0.05, 3.2, 0.05, s * (5.8 - 0.1), 1.6, Wl.z1 - 0.6 - k * 0.65, 0x1a1a1a, { layer: 'metal' });
+    W.box(0.08, 0.1, 5.8, s * 5.7, 3.1, Wl.z1 - 3.3, 0x1a1a1a, { layer: 'metal' });
+  }
+  W.box(5, 3.4, 4.5, -12, 1.7, Wl.z1 - 4, STONE, { t: TX.stone }); W.solid(5, 3.4, 4.5, -12, 1.7, Wl.z1 - 4, 'stone');
+  W.pyramid(6, 1.8, 5.5, -12, 4.3, Wl.z1 - 4, SLATE, { t: TX.rooftile }); W.box(1.6, 1.0, 0.05, -9.47, 1.9, Wl.z1 - 4, 0xffd8a0, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(-8, 2.5, Wl.z1 - 4, 0xffd8a0, 2, 8, { halo: 0.4 });
+  // service gate: a plain opening with a barrier arm
+  W.box(0.2, 1.1, 0.2, Wl.x1 - 0.3, 0.55, -54.5, 0xe8e8e0, { layer: 'metal' }); W.box(0.1, 0.12, 11, Wl.x1 - 0.3, 1.0, -60, 0xd83a2a, { layer: 'metal' });
+  // lamps down the drive, guests' cars parked along it
+  for (let z = 30; z < 200; z += 16) for (const s of [-1, 1]) { lampPostOld(s * 6, 0, z, 4.2); W.lamp(s * 6, 4, z, 0xffd8a0, 2.4, 12, { halo: 0.7 }); }
+  W.scope({ lod: 1 }, () => { for (let z = 46; z < 190; z += 7.5) for (const s of [-1, 1]) if (mchance(0.75)) sedan(s * 9.5, z, s > 0 ? Math.PI / 2 : -Math.PI / 2, mpick([0x141414, 0x1a1a2a, 0xe8e6e0, 0x4a1a1a, 0x8a8e94, 0x2a3a2a])); });
+  // the forest round the outside: pines, dark and close
+  for (let i = 0; i < 260; i++) {
+    const a = mr(0, Math.PI * 2), r = mr(215, 300), x = Math.cos(a) * r * 1.15, z = Math.sin(a) * r;
+    if (z > 212 && z < 232 && Math.abs(x) < 250) continue;   // the road
+    pine(x, z, mr(9, 16));
+  }
+  for (let i = 0; i < 70; i++) { const x = mr(-190, 190), z = mr(-190, 190); if (Math.hypot(x, z + 45) < 70 || (Math.abs(x) < 16 && z > -30) || GR.get(x, z) !== GR.FREE) continue; pine(x, z, mr(8, 13)); }
+}
+function wallRun(ax, a0, a1, c) {
+  const L = a1 - a0, m = (a0 + a1) / 2, H = 3.2;
+  if (ax === 'x') { W.box(L, H, 0.6, m, H / 2, c, STONE_DK, { t: TX.stone, wear: 4 }); W.solid(L, H, 0.6, m, H / 2, c, 'stone'); W.box(L, 0.18, 0.8, m, H + 0.09, c, STONE, { t: TX.stone }); }
+  else { W.box(0.6, H, L, c, H / 2, m, STONE_DK, { t: TX.stone, wear: 4 }); W.solid(0.6, H, L, c, H / 2, m, 'stone'); W.box(0.8, 0.18, L, c, H + 0.09, m, STONE, { t: TX.stone }); }
+  for (let a = a0; a <= a1; a += 12) { const [x, z] = ax === 'x' ? [a, c] : [c, a]; W.box(1.0, H + 0.6, 1.0, x, (H + 0.6) / 2, z, STONE, { t: TX.stone, lod: 1 }); }
+}
+function pine(x, z, h) {
+  W.cyl(0.16, 0.24, h * 0.35, x, h * 0.17, z, 0x4a3426, { seg: 6 });
+  W.scope({ lod: 1 }, () => { for (let k = 0; k < 3; k++) W.cone(h * (0.28 - k * 0.06), h * 0.42, x, h * (0.38 + k * 0.2), z, mpick([0x24402a, 0x2a4a2e, 0x1e3a26]), { seg: 7, t: TX.leaf }); });
+  W.solid(0.5, h * 0.4, 0.5, x, h * 0.2, z, 'wood');
+}
+
+// ---------------- the house ----------------
+// a pitched roof over a rectangle, ridge along its longer side, gable ends filled
+function pitched(x0, z0, x1, z1, y, h, col) {
+  const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, alongX = w >= d, span = alongX ? d : w, L = alongX ? w : d, a = Math.atan2(h, span / 2), sl = Math.hypot(h, span / 2) + 0.6;
+  for (const s of [-1, 1]) {
+    if (alongX) W.box(L + 0.8, 0.22, sl, cx, y + h / 2, cz + s * span / 4, col, { t: TX.rooftile, wear: 3, rx: s * a });
+    else W.box(sl, 0.22, L + 0.8, cx + s * span / 4, y + h / 2, cz, col, { t: TX.rooftile, wear: 3, rz: -s * a });
+  }
+  // gable triangles
+  const tri = [];
+  for (const e of [-1, 1]) {
+    if (alongX) { const x = cx + e * L / 2; tri.push(x, y, z0, x, y, z1, x, y + h, cz); }
+    else { const z = cz + e * L / 2; tri.push(x0, y, z, x1, y, z, cx, y + h, z); }
+  }
+  W.tris(twoSided(tri), STONE, { t: TX.stone });
+}
+// a triangle list drawn from both sides
+function twoSided(t) { const o = [...t]; for (let i = 0; i < t.length; i += 9) o.push(t[i], t[i + 1], t[i + 2], t[i + 6], t[i + 7], t[i + 8], t[i + 3], t[i + 4], t[i + 5]); return o; }
+function manorHouse() {
+  const { x0, x1, z0, z1 } = MANOR.house, { H0, H1, T } = MANOR, yR = H0 + H1;
+  GR.rect(0, -46, 120, 36, 0, GR.RESERVED, true);
+  const archWin = (at) => ({ at, w: 1.5, h: 2.9, sill: 0.5, kind: 'archwin', arch: 'round', _spring: 2.1, win: 'plain', rimCol: STONE, rimTx: TX.stone });
+  const win = (at, h = 2.2) => ({ at, w: 1.3, h, sill: 0.9, kind: 'win', win: 'plain', sillCol: STONE });
+  W.scope({}, () => {
+    // ground floor: the front with the great door, the garden side with French doors onto the terrace
+    walls([
+      ['x', x0, x1, z1 - T / 2, 1, [{ at: 0, w: 2.4, h: 3.4, kind: 'door', style: 'plank', leaf: 'open' }, ...[-19, -14, -9, -4, 4, 9, 14, 19].map(archWin)]],
+      ['x', x0, x1, z0 + T / 2, -1, [DOOR(-3, 1.6, 2.8, { style: 'glass', leaf: 'open' }), DOOR(3, 1.6, 2.8, { style: 'glass', leaf: 'open' }), ...[-19, -14, -9, 9, 14, 19].map(archWin)]],
+      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [DOOR(-46, 1.6, 2.6, { style: 'plank', leaf: 'open' }), win(-38), win(-54)]],
+      ['z', z0 + T, z1 - T, x1 - T / 2, 1, [DOOR(-46, 1.6, 2.6, { style: 'plank', leaf: 'open' }), win(-38), win(-54)]],
+    ], 0, H0, T, STONE, 0xe8dcc8, { tx: TX.stone });
+    walls([
+      ['x', x0, x1, z1 - T / 2, 1, [-19, -14, -9, -4, 0, 4, 9, 14, 19].map((a) => win(a))],
+      ['x', x0, x1, z0 + T / 2, -1, [-19, -14, -9, -4, 0, 4, 9, 14, 19].map((a) => win(a))],
+      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [win(-38), win(-54)]],
+      ['z', z0 + T, z1 - T, x1 - T / 2, 1, [win(-38), win(-54)]],
+    ], H0, H1, T, STONE, 0xe8e0d0, { tx: TX.stone });
+    // floors and the grand stair (two flights up the sides of the hall)
+    slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0xd8d4cc, topTx: TX.ceramic, bot: false });
+    flight(-6.2, z1 - T - 0.4, [0, -1], 1.8, 0.15, H0, { col: 0xd8d0c0, tx: TX.stone });
+    flight(6.2, z1 - T - 0.4, [0, -1], 1.8, 0.15, H0, { col: 0xd8d0c0, tx: TX.stone });
+    const run = Math.round((H0 - 0.15) / ST_RISE) * ST_RUN, zTop = z1 - T - 0.4 - run;
+    slab(x0 + T, z0 + T, x1 - T, z1 - T, H0, { top: 0x8a5a3a, topTx: TX.wood, bot: 0xf0ece4, holes: [[-7.2, zTop, -5.2, z1 - T], [5.2, zTop, 7.2, z1 - T], [-5.2, zTop + 1.5, 5.2, z1 - T]] });
+    railing(-7.2, zTop, -7.2, z1 - T, H0, 'iron'); railing(7.2, zTop, 7.2, z1 - T, H0, 'iron'); railing(-5.2, zTop + 1.5, 5.2, zTop + 1.5, H0, 'iron');
+    // roof: cornice, then the slate pitch, chimneys at the ends
+    slab(x0 - 0.3, z0 - 0.3, x1 + 0.3, z1 + 0.3, yR, { top: 0x5a5a58, topTx: TX.concrete, bot: 0xf0ece4 });
+    W.box(x1 - x0 + 1.2, 0.5, z1 - z0 + 1.2, 0, yR + 0.25, (z0 + z1) / 2, STONE, { t: TX.stone });
+    pitched(x0, z0, x1, z1, yR + 0.5, 5.5, SLATE);
+    for (const cx of [-18, -6, 6, 18]) { W.box(1.4, 3.4, 1.0, cx, yR + 5.0, (z0 + z1) / 2 + mr(-3, 3), STONE_DK, { t: TX.brick }); W.box(1.6, 0.25, 1.2, cx, yR + 6.8, (z0 + z1) / 2, STONE); }
+    // the portico: six columns, a pediment, steps down to the forecourt
+    for (const cx of [-9, -5.4, -1.8, 1.8, 5.4, 9]) { W.cyl(0.42, 0.48, yR - 0.4, cx, (yR - 0.4) / 2 + 0.2, z1 + 5, STONE, { seg: 12, t: TX.stone }); W.solid(0.9, yR, 0.9, cx, yR / 2, z1 + 5, 'stone'); W.box(1.2, 0.4, 1.2, cx, 0.2, z1 + 5, STONE); W.box(1.1, 0.4, 1.1, cx, yR - 0.2, z1 + 5, STONE); }
+    W.box(21, 0.8, 6.4, 0, yR + 0.2, z1 + 3, STONE, { t: TX.stone });
+    W.tris(twoSided([-10.5, yR + 0.6, z1 + 6.2, 10.5, yR + 0.6, z1 + 6.2, 0, yR + 3.6, z1 + 6.2]), STONE, { t: TX.stone });
+    pitched(-10.5, z1, 10.5, z1 + 6.2, yR + 0.6, 3.0, SLATE);
+    for (let k = 0; k < 4; k++) { W.box(22 - k * 0.6, 0.15, 1.0, 0, 0.075 + k * 0.15 - 0.45, z1 + 7.0 + k * 0.9 - 2.7, STONE, { t: TX.stone }); }
+    slab(-11, z1, 11, z1 + 6.8, 0.15, { top: STONE, topTx: TX.stone, bot: false });
+    // the terrace behind, with its balustrade and steps to the garden
+    slab(-30, z0 - 14, 30, z0, 0.15, { top: STONE, topTx: TX.stone, bot: false });
+    balustrade(-30, z0 - 14, -3, z0 - 14); balustrade(3, z0 - 14, 30, z0 - 14); balustrade(-30, z0 - 14, -30, z0); balustrade(30, z0 - 14, 30, z0);
+    // the wings: library (west), kitchen and service (east), a storey each under their own roofs
+    for (const s of [-1, 1]) {
+      const wx0 = s < 0 ? -56 : 24, wx1 = s < 0 ? -24 : 56, wz0 = -58, wz1 = -34, H = 5.0;
+      walls([
+        ['x', wx0, wx1, wz1 - T / 2, 1, [s * 30, s * 36, s * 42, s * 48].map((a) => archWin(a))],
+        ['x', wx0, wx1, wz0 + T / 2, -1, s > 0 ? [DOOR(42, 1.4, 2.4, { style: 'plank', leaf: 'open' }), win(32), win(50)] : [win(-32), win(-40), win(-48)]],
+        ['z', wz0 + T, wz1 - T, s < 0 ? wx0 + T / 2 : wx1 - T / 2, s, [win(-40), win(-50)]],
+      ], 0, H, T, STONE, 0xe8dcc8, { tx: TX.stone });
+      slab(wx0 + T, wz0 + T, wx1 - T, wz1 - T, 0.15, { top: s < 0 ? 0x7a4a2a : 0xd8d8d0, topTx: s < 0 ? TX.wood : TX.ceramic, bot: false });
+      slab(wx0 - 0.2, wz0 - 0.2, wx1 + 0.2, wz1 + 0.2, H, { top: 0x5a5a58, topTx: TX.concrete, bot: 0xf0ece4 });
+      W.box(wx1 - wx0 + 0.8, 0.4, wz1 - wz0 + 0.8, (wx0 + wx1) / 2, H + 0.2, (wz0 + wz1) / 2, STONE, { t: TX.stone });
+      pitched(wx0, wz0, wx1, wz1, H + 0.4, 3.6, SLATE);
+    }
+  });
+  // light in every window at dusk: the rooms are lit (see manorRooms); a warm wash on the façade from lamps in the forecourt
+  for (const x of [-16, 0, 16]) W.lamp(x, 1.5, z1 + 12, 0xffd8a0, 2.4, 16, { halo: 0 });
+}
+function balustrade(xa, za, xb, zb) {
+  const L = Math.hypot(xb - xa, zb - za), n = Math.max(2, Math.round(L / 0.45)), y = 0.15;
+  W.push((xa + xb) / 2, 0, (za + zb) / 2, Math.atan2(-(zb - za), xb - xa));
+  W.box(L, 0.12, 0.42, 0, y + 1.0, 0, STONE, { t: TX.stone }); W.box(L, 0.15, 0.4, 0, y + 0.08, 0, STONE, { t: TX.stone }); W.solid(L, 1.1, 0.4, 0, y + 0.55, 0, 'stone');
+  W.scope({ lod: 1 }, () => { for (let i = 0; i <= n; i++) W.cyl(0.07, 0.1, 0.8, -L / 2 + i * L / n, y + 0.55, 0, STONE, { seg: 6 }); });
+  W.pop();
+}
+
+// ---------------- the rooms ----------------
+function manorRooms() {
+  const { x0, x1, z0, z1 } = MANOR.house, { H0, H1, T } = MANOR, y1 = H0;
+  const sAt = (x, z, yaw, role, route, y = 0) => { TOWN.staff.push({ x, z, y, yaw, role, route }); };
+  W.scope({}, () => {
+    // ground-floor partitions: hall in the middle (stairs), ballroom west, dining room east
+    partition('z', z0 + T, z1 - T, -8, 0.15, H0 - 0.15, [{ at: -40, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }, { at: -54, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }], 0xf0e6d4);
+    partition('z', z0 + T, z1 - T, 8, 0.15, H0 - 0.15, [{ at: -40, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }, { at: -54, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }], 0xf0e6d4);
+    // first floor: the landing in the middle, bedrooms at the front, the security room and the study at the back
+    partition('z', z0 + T, z1 - T, -8, y1, H1, [DOOR(-38, 1.0, 2.3, { style: 'plank', leaf: 'open' }), DOOR(-54, 1.0, 2.3, { style: 'plank', leaf: 'open' })], 0xe8e0d0);
+    partition('z', z0 + T, z1 - T, 8, y1, H1, [DOOR(-38, 1.0, 2.3, { style: 'plank', leaf: 'open' }), DOOR(-54, 1.0, 2.3, { style: 'plank', leaf: 'open' })], 0xe8e0d0);
+    partition('x', x0 + T, -8, -46, y1, H1, [], 0xe8e0d0); partition('x', 8, x1 - T, -46, y1, H1, [], 0xe8e0d0);
+  });
+  // the hall: black-and-white marble, a round table under the chandelier, portraits up the stairs
+  W.scope({ dim: 0.85 }, () => {
+    for (let i = 0; i < 16; i++) for (let k = 0; k < 30; k++) if ((i + k) % 2) W.box(1, 0.01, 1, -7.5 + i, 0.16, z0 + 1 + k, 0x1a1a1c, { t: TX.ceramic, lod: 2, ao: false });
+    W.cyl(0.9, 0.9, 0.06, 0, 0.95, -46, 0x5a3a24, { seg: 16, t: TX.wood }); W.cyl(0.14, 0.2, 0.8, 0, 0.55, -46, 0x5a3a24, { seg: 8 }); W.solid(1.8, 1.0, 1.8, 0, 0.5, -46, 'wood');
+    W.cyl(0.15, 0.1, 0.35, 0, 1.15, -46, 0xe8e8f0, { seg: 10, layer: 'glass' }); for (let k = 0; k < 7; k++) W.sphere(0.12, 0.12, 0.12, mr(-0.15, 0.15), 1.4 + mr(0, 0.25), -46 + mr(-0.15, 0.15), mpick([0xd83a5a, 0xf0f0e8, 0xe8a0b0]), { seg: 6, hseg: 4 });
+    chandelier(0, H0 - 0.2, -46, 1.4);
+    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) portrait(s * 7.9, 2.6 + k * 0.5, -34 - k * 2.4, s > 0 ? -Math.PI / 2 : Math.PI / 2);
+    floorRug(0, 0.17, -38, 4, 6, 0, 0x6a1a24);
+  });
+  // the ballroom: parquet, three chandeliers, mirrors, a string quartet on a low stage, the bar
+  W.scope({ dim: 0.85 }, () => {
+    W.box(15, 0.02, 30, -16, 0.165, -46, 0x9a6a3a, { t: TX.wood });
+    for (const z of [-38, -46, -54]) chandelier(-16, H0 - 0.2, z, 1.6);
+    for (const z of [-36, -46, -56]) { W.box(0.05, 2.6, 1.4, x0 + T + 0.03, 2.0, z, 0xc8d8e0, { layer: 'glass' }); W.box(0.06, 2.8, 1.6, x0 + T + 0.02, 2.0, z, 0xc8a050, { layer: 'metal' }); }
+    W.box(6, 0.4, 3.5, -16, 0.35, z0 + 2.6, 0x5a3a24, { t: TX.wood }); W.solid(6, 0.4, 3.5, -16, 0.35, z0 + 2.6, 'wood');
+    for (let k = 0; k < 4; k++) { chairWood(-18.2 + k * 1.5, 0.55, z0 + 2.4); W.box(0.06, 1.0, 0.06, -18.2 + k * 1.5, 1.3, z0 + 3.1, 0x1a1a1a); }
+    W.box(1.6, 1.0, 0.7, -11.6, 0.65, z0 + 2.4, 0x141414, { layer: 'metal' }); // the piano
+    W.box(5, 1.1, 0.7, -16, 0.7, z1 - 2.2, 0x3a2418, { t: TX.wood }); W.solid(5, 1.1, 0.7, -16, 0.7, z1 - 2.2, 'wood');
+    for (let k = 0; k < 14; k++) W.cyl(0.035, 0.035, 0.28, -18.2 + k * 0.32, 1.39, z1 - 2.2, mpick([0x2a6a3a, 0xe8d8a0, 0x6a1a2a]), { seg: 6, layer: 'glass' });
+    for (let k = 0; k < 4; k++) { const x = -21 + k * 3.6; W.cyl(0.4, 0.4, 0.04, x, 1.1, -46 + (k % 2 ? 6 : -6), 0xf0f0e8, { seg: 12 }); W.cyl(0.04, 0.04, 1.0, x, 0.6, -46 + (k % 2 ? 6 : -6), 0x8a8a8a); }
+  });
+  // dining room: the long table laid for sixteen, candelabra, a sideboard
+  W.scope({ dim: 0.85 }, () => {
+    W.box(2.2, 0.08, 14, 16, 0.95, -46, 0x5a3420, { t: TX.wood }); W.box(2.3, 0.02, 14.1, 16, 1.0, -46, 0xf0ece0); W.solid(2.2, 1.0, 14, 16, 0.5, -46, 'wood');
+    for (let k = 0; k < 8; k++) for (const s of [-1, 1]) { chairWood(16 + s * 1.5, 0.15, -52.3 + k * 1.8, s > 0 ? -Math.PI / 2 : Math.PI / 2); W.cyl(0.13, 0.13, 0.02, 16 + s * 0.7, 1.02, -52.3 + k * 1.8, 0xf8f8f0, { seg: 10 }); W.cyl(0.03, 0.03, 0.18, 16 + s * 0.55, 1.1, -52 + k * 1.8, 0xe8e8f0, { seg: 6, layer: 'glass' }); }
+    for (const z of [-50, -46, -42]) { W.cyl(0.05, 0.08, 0.5, 16, 1.25, z, 0xc8a050, { seg: 6, layer: 'metal' }); for (const dx of [-0.2, 0, 0.2]) W.sphere(0.05, 0.09, 0.05, 16 + dx, 1.58, z, 0xffd080, { layer: 'glow' }); W.lamp(16, 1.8, z, 0xffc070, 1.2, 5, { halo: 0.3 }); }
+    W.box(4, 1.0, 0.6, 16, 0.65, z0 + 1.0, 0x4a2a18, { t: TX.wood }); chandelier(16, H0 - 0.2, -46, 1.2);
+  });
+  // library (west wing): books floor to ceiling, a fire, leather chairs
+  W.scope({ dim: 0.85 }, () => {
+    for (let x = -54; x < -27; x += 2.2) { shelfUnit(x, 0.15, -57.0, 0, 2.0, 4.2, 0.4, 0x4a2a18, 'books'); shelfUnit(x, 0.15, -35.0, Math.PI, 2.0, 4.2, 0.4, 0x4a2a18, 'books'); }
+    W.box(2.4, 1.6, 0.6, -55.3, 0.95, -46, STONE, { t: TX.stone, ry: Math.PI / 2 }); W.box(1.4, 0.8, 0.3, -55.1, 0.65, -46, 0xff8a30, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(-54.2, 0.9, -46, 0xff9a40, 2.0, 7, { halo: 0.3, flicker: 0.3 });
+    for (const [x, z, r] of [[-51, -48, -1.2], [-51, -44, -1.9]]) sofa(x, 0.15, z, r, 0x5a2a1e, 1.0);
+    desk(-36, 0.15, -46, Math.PI / 2, 1.8, 0.9, 0x4a2a18); W.lamp(-40, 3.5, -46, 0xffd8a0, 1.6, 10, { halo: 0 });
+  });
+  // kitchen and service (east wing): ranges, steel counters, the cooks
+  W.scope({ dim: 0.9 }, () => {
+    for (let x = 28; x < 54; x += 2.6) kitchenRun(x, 0.15, -56.8, 0, 2.4, 0xd8d8d0);
+    for (const x of [32, 40, 48]) { W.box(2.4, 0.9, 1.2, x, 0.6, -46, 0xc8ccd0, { layer: 'metal' }); W.solid(2.4, 0.9, 1.2, x, 0.6, -46, 'metal'); W.box(2.2, 0.05, 1.0, x, 1.06, -46, 0xe8e8e8, { layer: 'metal' }); }
+    for (const x of [30, 52]) fridge(x, 0.15, -35.4, Math.PI);
+    W.lamp(36, 4.2, -46, 0xf0f4ff, 2.2, 12, { halo: 0 }); W.lamp(48, 4.2, -46, 0xf0f4ff, 2.2, 12, { halo: 0 });
+  });
+  // first floor: bedrooms at the front
+  W.scope({ dim: 0.8 }, () => {
+    for (const s of [-1, 1]) { const cx = s * 16; bed(cx, y1, -36, Math.PI, s < 0 ? 0x6a2a3a : 0x2a3a5a); wardrobe(cx + s * 5.5, y1, -44.6, 0, 0x5a3a24); floorRug(cx, y1 + 0.02, -38, 3.6, 3, 0, 0x8a6a4a); W.lamp(cx, y1 + 3.2, -38, 0xffd8a0, 1.2, 8, { halo: 0 }); }
+    // security room (back west): the monitor wall, two desks
+    cctvWall(-16, y1 + 0.3, -61.3, 0, 5, 3); officeDesk(-16, y1, -56.5, Math.PI, 2.4, 'office'); officeDesk(-20, y1, -52, Math.PI / 2, 1.6, 'office');
+    for (let k = 0; k < 3; k++) monitor(-17 + k * 1.0, y1 + 0.78, -56.6, Math.PI, 0x4aa0ff);
+    W.lamp(-16, y1 + 3.4, -54, 0xcfe0ff, 1.4, 9, { halo: 0 });
+    // the study (back east): desk, bookcases, the painting that hides the safe
+    desk(16, y1, -52, 0, 2.0, 1.0, 0x3a2014); chairWood(16, y1, -50.8, Math.PI); for (let x = 10; x < 23; x += 2.2) shelfUnit(x, y1, -61.3, 0, 2.0, 2.6, 0.38, 0x3a2014, 'books');
+    safe(22.9, y1, -55, -Math.PI / 2); portrait(23.2, y1 + 2.0, -55, -Math.PI / 2, 1.2, 0.9);
+    floorRug(16, y1 + 0.02, -54, 4, 3, 0, 0x5a1a1a); W.lamp(16, y1 + 1.4, -52, 0xffd090, 1.4, 6, { halo: 0.3 });
+    // the landing: a long gallery of paintings over the hall
+    for (let k = 0; k < 5; k++) portrait(-7.9, y1 + 1.8, -40 - k * 4, Math.PI / 2);
+    chandelier(0, yRoof() - 0.3, -50, 1.0);
+  });
+  TOWN.spots.safe = { x: 22.6, y: y1 + 1, z: -55 }; TOWN.spots.study = { x: 16, y: y1, z: -53 };
+  TOWN.spots.boathouse = { x: 96, z: -95 }; TOWN.spots.gate = { x: 0, z: 196 }; TOWN.spots.serviceGate = { x: 198, z: -60 };
+  TOWN.spots.ballroom = { x: -16, z: -46 }; TOWN.spots.kitchen = { x: 40, z: -46 }; TOWN.spots.security = { x: -16, y: y1, z: -54 };
+  // the staff at work and the guests at the party, inside
+  sAt(-15, z1 - 1.4, Math.PI, 'bar'); sAt(16, -40, 0, 'food', [[16, -40], [13.4, -52], [13.4, -40, 2], [18.6, -40], [18.6, -52, 2]]);
+  for (const [x, z] of [[-19, -40], [-13, -42], [-18, -50], [-13.5, -52], [-20, -45], [-12, -47], [-17, -55], [-14.5, -36]]) sAt(x, z, mr(0, 6.28), 'guest');
+  for (const [x, z] of [[-18.2, z0 + 2.4], [-16.7, z0 + 2.4], [-15.2, z0 + 2.4], [-13.7, z0 + 2.4]]) TOWN.staff.push({ x, z, y: 0.55, yaw: Math.PI, role: 'guest' });
+  for (const [x, z] of [[34, -44], [40, -48], [46, -44]]) sAt(x, z, mr(0, 6.28), 'food');
+  sAt(-3, -44, Math.PI / 2, 'guest'); sAt(3, -48, -Math.PI / 2, 'guest');
+}
+const yRoof = () => MANOR.H0 + MANOR.H1;
+function chandelier(x, y, z, r) {
+  W.rod([x, y + 0.2, z], [x, y - 0.4, z], 0.02, 0xc8a050, { layer: 'metal' });
+  W.torus(r * 0.5, 0.05, x, y - 0.5, z, 0xc8a050, { layer: 'metal', rx: Math.PI / 2, seg: 16 });
+  for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; W.sphere(0.07, 0.11, 0.07, x + Math.cos(a) * r * 0.5, y - 0.38, z + Math.sin(a) * r * 0.5, 0xffe0a8, { layer: 'glow' }); }
+  W.lamp(x, y - 0.7, z, 0xffd8a0, 2.4, 11, { halo: 0.5 });
+}
+function portrait(x, y, z, ry, w = 0.9, h = 1.15) {
+  W.push(x, y, z, ry);
+  W.box(w + 0.16, h + 0.16, 0.06, 0, 0, 0.03, 0xb88a3a, { layer: 'metal' }); W.box(w, h, 0.02, 0, 0, 0.07, mpick([0x3a2a20, 0x2a3a2a, 0x4a3020, 0x2a2a3a]), { t: TX.fabric });
+  W.sphere(w * 0.32, h * 0.38, 0.02, 0, h * 0.08, 0.08, mpick([0xc89a7a, 0xb8886a]), { seg: 8 });
+  W.pop();
+}
+function chairWood(x, y, z, ry = 0) {
+  W.push(x, y, z, ry);
+  W.box(0.46, 0.05, 0.46, 0, 0.46, 0, 0x5a3420, { t: TX.wood }); W.box(0.46, 0.6, 0.05, 0, 0.78, -0.21, 0x5a3420, { t: TX.wood }); W.box(0.4, 0.04, 0.4, 0, 0.5, 0, 0x7a1a2a, { t: TX.fabric });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.box(0.04, 0.46, 0.04, sx * 0.2, 0.23, sz * 0.2, 0x4a2a18);
+  W.pop();
+}
+
+// ---------------- gardens, maze, lake ----------------
+function manorGardens() {
+  // the formal garden behind the house: parterres of box hedge, gravel, a fountain, statues, a temple at the end
+  const hedge = (x, z, w, d, h = 0.7) => { W.box(w, h, d, x, h / 2, z, 0x2a4a24, { t: TX.leaf, wear: 3 }); if (h > 1.2) W.solid(w, h, d, x, h / 2, z, 'cloth'); };
+  for (const sx of [-1, 1]) for (const sz of [0, 1]) {
+    const cx = sx * 22, cz = -106 - sz * 44;
+    hedge(cx, cz - 17, 34, 0.6); hedge(cx, cz + 17, 34, 0.6); hedge(cx - 17, cz, 0.6, 34); hedge(cx + 17, cz, 0.6, 34);
+    hedge(cx, cz, 0.5, 20); hedge(cx, cz, 20, 0.5);
+    for (const [dx, dz] of [[-8, -8], [8, -8], [-8, 8], [8, 8]]) W.box(10, 0.18, 10, cx + dx, 0.09, cz + dz, mpick([0xc83a4a, 0xe8d0e0, 0xd8a030, 0x8a3a8a]), { t: TX.leaf, wear: 6 });
+    W.cone(0.8, 2.6, cx + 15, 1.3, cz + 15, 0x2a4a24, { seg: 8, t: TX.leaf }); W.cone(0.8, 2.6, cx - 15, 1.3, cz - 15, 0x2a4a24, { seg: 8, t: TX.leaf });
+  }
+  fountain(0, 0, -128, 5, 1);
+  for (const z of [-96, -116, -140, -160]) for (const s of [-1, 1]) statue(s * 3.4, z, s > 0 ? Math.PI / 2 : -Math.PI / 2);
+  // the little temple at the end of the walk
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; W.cyl(0.25, 0.3, 4.2, Math.cos(a) * 3.2, 2.3, -184 + Math.sin(a) * 3.2, STONE, { seg: 10, t: TX.stone }); }
+  W.cyl(4, 4, 0.4, 0, 0.2, -184, STONE, { seg: 16, t: TX.stone }); W.solid(8, 0.4, 8, 0, 0.2, -184, 'stone', { walk: true }); W.hemi(7.6, 2.6, 7.6, 0, 4.4, -184, 0x8a9a8a, { seg: 16, hseg: 6, t: TX.stone });
+  for (let z = -90; z > -176; z -= 14) for (const s of [-1, 1]) { lampPostOld(s * 4.5, 0, z, 3.6); W.lamp(s * 4.5, 3.4, z, 0xffd8a0, 1.8, 10, { halo: 0.6 }); }
+  // the maze: 10 × 10 cells of 7 m, 2.6 m yew, carved out depth-first from the east side
+  const MX = -170, MZ = -66, C = 7, N2 = 10, Hh = 2.6;
+  const cells = [], seen = new Set(), walls2 = new Set();
+  for (let i = 0; i <= N2; i++) for (let j = 0; j < N2; j++) { walls2.add(`v${i},${j}`); walls2.add(`h${j},${i}`); }
+  const stack = [[N2 - 1, N2 >> 1]]; seen.add(`${N2 - 1},${N2 >> 1}`);
+  while (stack.length) {
+    const [i, j] = stack[stack.length - 1], nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([di, dj]) => [i + di, j + dj, di, dj]).filter(([a, b]) => a >= 0 && b >= 0 && a < N2 && b < N2 && !seen.has(`${a},${b}`));
+    if (!nb.length) { stack.pop(); continue; }
+    const [a, b, di, dj] = nb[(mrand() * nb.length) | 0];
+    if (di) walls2.delete(`v${Math.max(i, a)},${j}`); else walls2.delete(`h${i},${Math.max(j, b)}`);
+    seen.add(`${a},${b}`); stack.push([a, b]);
+  }
+  walls2.delete(`v${N2},${N2 >> 1}`);   // the way in, from the lawn side
+  for (const k of walls2) {
+    const vert = k[0] === 'v', [p, q] = k.slice(1).split(',').map(Number);
+    if (vert) hedge(MX + p * C, MZ + (q + 0.5) * C, 1.0, C + 1, Hh); else hedge(MX + (p + 0.5) * C, MZ + q * C, C + 1, 1.0, Hh);
+  }
+  statue(MX + 5 * C, MZ + 5 * C, 0); W.lamp(MX + 5 * C, 3, MZ + 5 * C, 0xffd8a0, 1.6, 10, { halo: 0.5 });
+  GR.rect(MX + 35, MZ + 35, 72, 72, 0, GR.RESERVED, true);
+  // the lake: lowered ground, still dark water, reeds, the boathouse on its jetty
+  const L = { x0: 92, z0: -150, x1: 176, z1: -36 };
+  flat(L.x0 + 6, L.z0 + 6, L.x1 - 6, L.z1 - 6, -2.6, 9); GR.rect((L.x0 + L.x1) / 2, (L.z0 + L.z1) / 2, L.x1 - L.x0, L.z1 - L.z0, 0, GR.WALL, true);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(L.x1 - L.x0, L.z1 - L.z0), new THREE.MeshStandardMaterial({ color: 0x1a2a34, roughness: 0.08, metalness: 0.7 }));
+  water.rotation.x = -Math.PI / 2; water.position.set((L.x0 + L.x1) / 2, -0.9, (L.z0 + L.z1) / 2); scene.add(water);
+  for (let i = 0; i < 90; i++) { const a = mr(0, 6.28), x = (L.x0 + L.x1) / 2 + Math.cos(a) * (L.x1 - L.x0) * 0.47, z = (L.z0 + L.z1) / 2 + Math.sin(a) * (L.z1 - L.z0) * 0.47; for (let k = 0; k < 4; k++) W.box(0.04, mr(0.8, 1.6), 0.04, x + mr(-0.5, 0.5), 0.2, z + mr(-0.5, 0.5), 0x5a6a34, { lod: 1, rz: mr(-0.2, 0.2) }); }
+  // boathouse: timber on stilts, a jetty, the boats (your way out)
+  const bx = 96, bz = -95;
+  W.box(9, 4, 7, bx + 4.5, 2.4, bz, 0x5a4030, { t: TX.wood, wear: 4 }); W.solid(9, 4, 7, bx + 4.5, 2.4, bz, 'wood');
+  W.box(1.2, 2.2, 0.06, bx - 0.02, 1.5, bz, 0x3a2a1e, { ry: Math.PI / 2, t: TX.wood }); W.box(1.6, 1.0, 0.04, bx + 9.03, 2.8, bz, 0xffd8a0, { layer: 'glow', ry: Math.PI / 2 });
+  pitched(bx, bz - 3.5, bx + 9, bz + 3.5, 4.4, 2.2, 0x3a3a34);
+  W.box(14, 0.2, 2.4, bx + 16, 0.25, bz - 5, 0x6a5038, { t: TX.wood }); W.solid(14, 0.3, 2.4, bx + 16, 0.2, bz - 5, 'wood', { walk: true });
+  for (let x = bx + 10; x < bx + 23; x += 2.5) for (const s of [-1, 1]) W.cyl(0.1, 0.1, 2.4, x, -0.9, bz - 5 + s * 1.1, 0x4a3a2a, { seg: 6 });
+  W.scope({ lod: 1 }, () => { fishingBoat(bx + 16, bz - 1.5, Math.PI / 2, 4.5, { y: -0.75 }); fishingBoat(bx + 16, bz - 8.5, Math.PI / 2, 4.5, { y: -0.75 }); });
+  lampPostOld(bx + 22, 0.3, bz - 4, 2.8); W.lamp(bx + 22, 2.8, bz - 4, 0xffd8a0, 2, 10, { halo: 0.6 });
+  // garages and the helipad
+  W.box(44, 5, 12, -128, 2.5, 106, STONE, { t: TX.stone }); W.solid(44, 5, 12, -128, 2.5, 106, 'stone'); pitched(-150, 100, -106, 112, 5, 2.8, SLATE);
+  for (let k = 0; k < 5; k++) W.box(5.6, 3.4, 0.08, -146 + k * 9, 1.7, 112.04, mpick([0x2a3a2a, 0x3a3a3a]), { layer: 'metal', t: TX.corrugated });
+  W.scope({ lod: 1 }, () => { for (let k = 0; k < 4; k++) sedan(-141 + k * 9, 120, Math.PI / 2, mpick([0x141414, 0x8a1a1a, 0xe8e6e0, 0x1a2a4a])); });
+  W.cyl(11, 11, 0.12, 128, 0.07, 116, 0x4a4a4c, { seg: 24, t: TX.concrete }); W.box(1.2, 0.02, 7, 125, 0.14, 116, 0xf0f0e8, { ao: false }); W.box(1.2, 0.02, 7, 131, 0.14, 116, 0xf0f0e8, { ao: false }); W.box(4.8, 0.02, 1.2, 128, 0.14, 116, 0xf0f0e8, { ao: false });
+  helicopter(128, 116, 0.6);
+}
+function statue(x, z, ry) {
+  W.box(1.2, 1.4, 1.2, x, 0.7, z, STONE, { t: TX.stone }); W.solid(1.2, 1.4, 1.2, x, 0.7, z, 'stone');
+  W.push(x, 1.4, z, ry);
+  W.cyl(0.22, 0.3, 1.0, 0, 0.5, 0, 0xe8e4dc, { seg: 8, t: TX.stone }); W.cyl(0.24, 0.2, 0.7, 0, 1.3, 0, 0xe8e4dc, { seg: 8, t: TX.stone }); W.sphere(0.24, 0.3, 0.26, 0, 1.85, 0, 0xe8e4dc, { t: TX.stone });
+  W.rod([0.2, 1.5, 0], [0.5, 1.9, 0.2], 0.07, 0xe8e4dc); W.rod([-0.2, 1.5, 0], [-0.35, 1.0, 0.15], 0.07, 0xe8e4dc);
+  W.pop();
+}
+function helicopter(x, z, ry) {
+  W.push(x, 0, z, ry);
+  W.box(5.2, 2.0, 2.2, 0, 1.6, 0, 0x1a1a1e, { layer: 'metal' }); W.box(2.0, 1.2, 2.0, 2.0, 1.9, 0, 0x2a3a4a, { layer: 'glass' });
+  W.box(6, 0.5, 0.5, -5, 2.0, 0, 0x1a1a1e, { layer: 'metal' }); W.box(0.2, 1.4, 0.1, -7.8, 2.4, 0, 0x1a1a1e, { layer: 'metal' });
+  for (const s of [-1, 1]) W.box(4.6, 0.1, 0.1, 0, 0.3, s * 1.1, 0x5a5a5a, { layer: 'metal' });
+  W.cyl(0.2, 0.2, 0.5, 0, 2.85, 0, 0x2a2a2a, { layer: 'metal' }); for (let k = 0; k < 4; k++) W.box(10, 0.04, 0.32, 0, 3.12, 0, 0x2a2a2a, { layer: 'metal', ry: k * Math.PI / 4 });
+  W.pop(); W.solid(5.4, 2.6, 2.4, x, 1.3, z, 'metal', { ry });
+}
+
+// ---------------- the gala: the marquee, bars, strings of lights ----------------
+function manorParty() {
+  const mx = 64, mz = 56;
+  W.box(28, 0.1, 18, mx, 0.08, mz, 0xd8c8a8, { t: TX.wood });
+  for (const sx of [-1, 1]) for (let k = 0; k <= 4; k++) W.cyl(0.08, 0.08, 4, mx + sx * 14, 2, mz - 9 + k * 4.5, 0xf0f0e8, { seg: 6 });
+  for (const sz of [-1, 1]) W.box(28.4, 0.1, 9.6, mx, 4.9, mz + sz * 4.6, 0xf4f2ea, { layer: 'cloth', rx: sz * 0.22, t: TX.fabric });
+  for (const sx of [-1, 1]) W.box(0.05, 1.0, 18, mx + sx * 14.1, 3.6, mz, 0xf4f2ea, { layer: 'cloth', t: TX.fabric });
+  for (let k = 0; k < 6; k++) { W.rod([mx - 13, 4.6, mz - 7 + k * 2.8], [mx + 13, 4.6, mz - 7 + k * 2.8], 0.004, 0x1a1a1a); for (let i = 0; i < 12; i++) W.sphere(0.06, 0.08, 0.06, mx - 12 + i * 2.2, 4.5, mz - 7 + k * 2.8, 0xffe0a0, { layer: 'glow', seg: 5, hseg: 3 }); }
+  for (const [x, z] of [[mx - 6, mz - 3], [mx, mz - 3], [mx + 6, mz - 3]]) W.lamp(x, 4.2, z, 0xffd8a0, 2.2, 12, { halo: 0.3 });
+  W.box(8, 1.1, 0.8, mx, 0.6, mz - 7.6, 0xf0ece0); W.solid(8, 1.1, 0.8, mx, 0.6, mz - 7.6, 'cloth');
+  for (let k = 0; k < 20; k++) W.cyl(0.035, 0.035, 0.28, mx - 3.6 + k * 0.38, 1.3, mz - 7.6, mpick([0x2a6a3a, 0xe8d8a0, 0x6a1a2a, 0xe8e8f0]), { seg: 6, layer: 'glass' });
+  for (let k = 0; k < 8; k++) { const x = mx - 10 + (k % 4) * 6.5, z = mz + (k < 4 ? 1 : 6); W.cyl(0.4, 0.4, 0.04, x, 1.1, z, 0xf0f0e8, { seg: 12 }); W.cyl(0.04, 0.04, 1.0, x, 0.6, z, 0x8a8a8a); W.cyl(0.03, 0.03, 0.2, x + 0.1, 1.22, z, 0xe8e8f0, { seg: 6, layer: 'glass' }); }
+  TOWN.staff.push({ x: mx, z: mz - 8.4, y: 0, yaw: Math.PI, role: 'bar' }, { x: mx - 3, z: mz - 8.4, y: 0, yaw: Math.PI, role: 'bar' });
+  TOWN.staff.push({ x: mx - 9, z: mz + 3, y: 0, yaw: 0, role: 'food', route: [[mx - 9, mz + 3], [mx + 9, mz + 3, 2], [mx + 9, mz - 4], [mx - 9, mz - 4, 2]] });
+  for (let k = 0; k < 10; k++) TOWN.staff.push({ x: mx - 10 + (k % 5) * 5 + mr(-1, 1), z: mz - 2 + (k < 5 ? 0 : 7) + mr(-1, 1), y: 0, yaw: mr(0, 6.28), role: 'guest' });
+  // strings of bulbs across the forecourt and the front of the house
+  for (let k = 0; k < 5; k++) for (const sx of [-1, 1]) { W.cyl(0.06, 0.08, 4.7, sx * 26.2, 2.35, -18 + k * 8, 0x2a2a2a, { seg: 6, layer: 'metal' }); W.solid(0.3, 4.7, 0.3, sx * 26.2, 2.35, -18 + k * 8, 'metal'); }
+  for (let k = 0; k < 5; k++) { const z = -18 + k * 8; W.cable([-26, 4.5, z], [26, 4.5, z], 0.8, 0.006, 0x1a1a1a, 10); for (let i = 0; i < 14; i++) { const t = i / 13; W.sphere(0.06, 0.08, 0.06, -26 + t * 52, 4.4 - Math.sin(t * Math.PI) * 0.8, z, 0xffe0a0, { layer: 'glow', seg: 5, hseg: 3 }); } }
+  for (const [x, z] of [[-12, 4], [12, 4], [0, -14]]) W.lamp(x, 3.8, z, 0xffd8a0, 2.0, 12, { halo: 0.3 });
+}
+
+// ---------------- security: posts all round, the house's upper floor off limits ----------------
+function manorSecurity() {
+  const post = (x, z, yaw) => TOWN.guards.push({ x, z, yaw, team: 'red' });
+  // the main gate and the drive
+  post(-4, 196, 0); post(4, 196, 0); post(-11, 190, 0.4); post(0, 120, Math.PI); post(-8, 60, -1.2); post(8, 30, 1.2);
+  // the house: front door, garden doors, service door, the wings' corners
+  post(-3, -21, Math.PI); post(3, -21, Math.PI); post(-6, -78, 0); post(6, -78, 0); post(42, -62, 0); post(-60, -46, -Math.PI / 2); post(60, -46, Math.PI / 2);
+  // inside: the hall, the landing, the security room, the study door
+  TOWN.guards.push({ x: 0, z: -40, yaw: Math.PI, team: 'red' }, { x: -16, z: -34, yaw: Math.PI, team: 'red' }, { x: 16, z: -34, yaw: Math.PI, team: 'red' });
+  // the gardens, the maze mouth, the lake, the boathouse, the garages, the helipad, the service gate, the fallen wall
+  post(-20, -128, Math.PI / 2); post(20, -150, -Math.PI / 2); post(0, -176, 0); post(-96, -31, -Math.PI / 2); post(84, -70, Math.PI / 2); post(100, -110, Math.PI);
+  post(-110, 96, Math.PI); post(-130, 128, 0); post(118, 104, 0.6); post(190, -56, -Math.PI / 2); post(186, -66, -Math.PI / 2); post(-186, -122, Math.PI / 2);
+  // where a guest has no business: the upper floor of the house, the security room, the kitchen yard
+  TOWN.restricted.push({ x0: -24, z0: -62, x1: 24, z1: -30, y0: 3 }, { x0: 24, z0: -66, x1: 60, z1: -56 });
+  const H = MANOR.house; GR.rect((H.x0 + H.x1) / 2, (H.z0 + H.z1) / 2, H.x1 - H.x0, H.z1 - H.z0, 0, GR.RESERVED, true);
+}
+// =====================================================================
 //  DAR ESSALAM — build order
 // =====================================================================
 function placeWorldTargets() { }
 function cityPlan() {
   if (MAP.id === 'seoul') return seoulPlan();
+  if (MAP.id === 'manor') return manorPlan();
   return [
     ['Drawing the streets of Dar Essalam', buildTownPlan],
     ['Raising the walls, the skala and the gates', () => { townWalls(); skala(); seaGate(); }],
@@ -9648,7 +10046,7 @@ function buildEnvironment() {
   // image-based light from a soft sky/ground gradient: gives glass, glaze and metal something to reflect
   const envScene = new THREE.Scene();
   const g = new THREE.SphereGeometry(10, 32, 16), c = [], p = g.attributes.position;
-  const N = MAP.night, top = N ? new THREE.Color().setRGB(0.02, 0.02, 0.06) : new THREE.Color().setRGB(0.32, 0.46, 0.75), hor = N ? new THREE.Color().setRGB(0.12, 0.05, 0.1) : SKY.horizon.clone(), gnd = N ? new THREE.Color().setRGB(0.05, 0.08, 0.12) : new THREE.Color().setRGB(0.42, 0.33, 0.24), sunC = N ? new THREE.Color().setRGB(0.1, 0.25, 0.3) : new THREE.Color().setRGB(4, 3.2, 2.2);
+  const N = MAP.night, Dk = MAP.dusk, top = N ? new THREE.Color().setRGB(0.02, 0.02, 0.06) : Dk ? new THREE.Color().setRGB(0.12, 0.14, 0.32) : new THREE.Color().setRGB(0.32, 0.46, 0.75), hor = N ? new THREE.Color().setRGB(0.12, 0.05, 0.1) : SKY.horizon.clone(), gnd = N ? new THREE.Color().setRGB(0.05, 0.08, 0.12) : new THREE.Color().setRGB(0.42, 0.33, 0.24), sunC = N ? new THREE.Color().setRGB(0.1, 0.25, 0.3) : new THREE.Color().setRGB(4, 3.2, 2.2);
   for (let i = 0; i < p.count; i++) {
     const v = new V3(p.getX(i), p.getY(i), p.getZ(i)).normalize();
     const col = v.y > 0 ? hor.clone().lerp(top, Math.pow(v.y, 0.6)) : hor.clone().lerp(gnd, Math.min(1, -v.y * 3));
@@ -11537,11 +11935,14 @@ const BOTS = (() => {
     { ...REFERENCE, top: 'longsleeve', topColor: '#3a1a1e', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18181a', headwear: 'none', hair: 'buzz', hairColor: '#121010', eyewear: 'none', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
     { ...REFERENCE, top: 'hoodie', topColor: '#1e3a6a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#1a1f2e', headwear: 'cap', hatColor: '#1e3a6a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#e8e8e8', facialHair: 'none', skin: '#d9a37a' },
     { ...REFERENCE, top: 'jacket', topColor: '#2a5a9a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#2a5a9a', headwear: 'beanie', hatColor: '#141a2a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#2a2a2a', facialHair: 'stubble', skin: '#c98e62' },
+    // Ravenscroft's private security: dark suits, earpieces, plates under the jackets
+    { ...REFERENCE, top: 'jacket', topColor: '#18191c', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18191c', headwear: 'none', hair: 'short', hairColor: '#1c1612', ears: 'headset', earColor: '#1a1a1a', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
+    { ...REFERENCE, top: 'jacket', topColor: '#22252a', sleeves: 'full', vest: 'plate', vestColor: '#1a1b1e', pack: 'none', bottom: 'pants', pantsColor: '#1e1f22', headwear: 'none', hair: 'buzz', hairColor: '#2e2018', ears: 'headset', earColor: '#1a1a1a', gloves: 'full', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'stubble', skin: '#a8714a' },
   ];
   // the sides on each map: team id → name and the kits its men wear. Every side fights every other (and you).
   const FACTIONS = MAP.id === 'seoul'
     ? { red: { name: '흑룡파 · BLACK DRAGONS', kits: [3, 4] }, gold: { name: '청사파 · BLUE SNAKES', kits: [5, 6] } }
-    : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
+    : MAP.id === 'manor' ? { red: { name: 'SECURITY', kits: [7, 8] } } : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
   // whose ground is this? (each map says; the militia / Black Dragons by default)
   const sideAt = (x, z) => (TOWN.factionAt ? TOWN.factionAt(x, z) : 'red');
   const kitFor = (team) => { const ks = (FACTIONS[team] || FACTIONS.red).kits; return ks[(Math.random() * ks.length) | 0]; };
@@ -11858,7 +12259,7 @@ const BOTS = (() => {
   }
   // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
   function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
-  return { update, hit, playerShot, bodies, ram, noise, FACTIONS, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  return { update, hit, playerShot, bodies, ram, noise, FACTIONS, hold: (s) => { graceUntil = Math.max(graceUntil, clock + s); }, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();
 // =====================================================================
 //  Civilians: unarmed townsfolk walking the streets around the player
@@ -11870,9 +12271,9 @@ const NPCS = (() => {
   // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
   // N posed civilians live near you (full rigs, collision, panic, talk); WALKERS more fill the streets out to the
   // draw distance. Beyond posing range everyone is drawn as an instance of one of K outfits.
-  const N = MAP.id === 'seoul' ? 50 : 46, WALKERS = MAP.id === 'seoul' ? 820 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
+  const N = MAP.id === 'seoul' ? 50 : MAP.id === 'manor' ? 36 : 46, WALKERS = MAP.id === 'seoul' ? 820 : MAP.id === 'manor' ? 220 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
+  const CIVIL = ['Forecourt', 'Front lawn', 'East lawn', 'Terrace', 'Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -11880,7 +12281,10 @@ const NPCS = (() => {
   const TOPC = ['#8a2f2f', '#2f4f7a', '#d8d2c4', '#556b2f', '#c9a45c', '#3c3c44', '#7a5c8a', '#b86b3a', '#e8e4da', '#2a6f6a', '#5a3a2a', '#9aa4ac'];
   const PANTC = ['#2d3550', '#4a4a4a', '#c8b89a', '#1f1f22', '#6b5a44', '#3d4a3a'];
   const HAIRC = ['#1c1612', '#2e2018', '#4a3426', '#6a6058', '#121010'];
+  // the manor's guests dress for the gala
+  const FORMAL = ['#141416', '#1a2238', '#2a2a2e', '#4a1a24', '#e8e4dc', '#2a3a2a'];
   function outfit() {
+    if (MAP.id === 'manor') return { ...REFERENCE, skin: pick(SKIN), height: rand(0.92, 1.06), shoulders: rand(0.9, 1.04), muscle: rand(0.15, 0.4), fat: rand(0.1, 0.45), headSize: rand(1.0, 1.1), brows: pick(['flat', 'raised']), facialHair: pick(['none', 'none', 'stubble', 'beard']), hair: pick(['short', 'long', 'messy', 'buzz']), hairColor: pick(HAIRC), headwear: 'none', ears: 'none', top: pick(['jacket', 'jacket', 'longsleeve']), topColor: pick(FORMAL), sleeves: 'full', gloves: 'none', vest: 'none', pack: 'none', belt: false, bottom: 'pants', pantsColor: pick(['#141416', '#1a1a22', '#2a2a2e']), kneepads: false, shoes: 'boots', shoeColor: '#0e0e10', eyewear: 'none', facePaint: 'none', patch: 'none', holster: false, watch: Math.random() < 0.6 };
     return {
       ...REFERENCE, skin: pick(SKIN), height: rand(0.92, 1.06), shoulders: rand(0.9, 1.04), muscle: rand(0.15, 0.5), fat: rand(0.1, 0.55), headSize: rand(1.0, 1.1),
       brows: pick(['flat', 'raised', 'stern']), facialHair: pick(['none', 'none', 'stubble', 'beard', 'mustache']), hair: pick(['short', 'messy', 'buzz', 'long', 'none']), hairColor: pick(HAIRC),
@@ -12428,6 +12832,64 @@ const NPCS = (() => {
   return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; }, get walkers() { return walkers; }, get VAR() { return VAR; } };
 })();
 // =====================================================================
+//  Cutscenes: letterbox, a camera on rails, subtitles
+// =====================================================================
+// A cutscene is a list of shots. Each shot moves the camera from `from` to `to` while it looks from
+// `look` to `look2` (or keeps `look`), over `dur` seconds with an ease, and may carry a subtitle line
+// ('NAME: words'). The world keeps living (people walk, rain falls); you don't move and nobody shoots.
+// Space / E / Enter skips. Missions start with one, and big moments inside them get their own.
+const CINEMA = (() => {
+  let shots = null, i = 0, t = 0, done = null, el = null;
+  const ease = (x) => x * x * (3 - 2 * x), lerp3 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  function ui() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.innerHTML = `<div class="cb" style="top:0"></div><div class="cb" style="bottom:0"></div><div class="cs"></div><div class="ck"><kbd>SPACE</kbd> SKIP</div>`;
+    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:30;display:none';
+    const css = document.createElement('style');
+    css.textContent = `.cb{position:absolute;left:0;right:0;height:0;background:#000;transition:height .6s ease}.cine .cb{height:11vh}
+      .cs{position:absolute;left:50%;bottom:14vh;transform:translateX(-50%);width:min(820px,88vw);text-align:center;font:500 20px/1.45 Rajdhani,system-ui,sans-serif;color:#f4ecdc;text-shadow:0 2px 8px #000;letter-spacing:.04em;opacity:0;transition:opacity .35s}
+      .cs b{color:#c9a45c;letter-spacing:.2em;font-size:14px;display:block;margin-bottom:2px}
+      .ck{position:absolute;right:28px;bottom:4vh;color:rgba(255,255,255,.5);font:600 12px Rajdhani,sans-serif;letter-spacing:.25em}.ck kbd{background:#f0e6d0;color:#111;border-radius:4px;padding:1px 6px;margin-right:6px}
+      body.cine #hud{opacity:0;transition:opacity .4s}`;
+    document.head.appendChild(css); document.body.appendChild(el); return el;
+  }
+  function look(s, k) { const to = s.look2 ? lerp3(s.look, s.look2, k) : s.look; return to; }
+  function apply() {
+    const s = shots[i], k = ease(Math.min(1, t / s.dur)), p = s.to ? lerp3(s.from, s.to, k) : s.from, L = look(s, k);
+    const dx = L[0] - p[0], dy = L[1] - p[1], dz = L[2] - p[2], h = Math.hypot(dx, dz);
+    DBGCAM.on = true; DBGCAM.pos.set(p[0], p[1], p[2]); DBGCAM.yaw = Math.atan2(-dx, -dz); DBGCAM.pitch = Math.atan2(dy, h); DBGCAM.fov = s.fov || 50;
+  }
+  function line(s) {
+    const c = ui().querySelector('.cs');
+    if (!s.say) { c.style.opacity = '0'; return; }
+    const [who, ...rest] = s.say.split(': '); c.innerHTML = rest.length ? `<b>${who}</b>${rest.join(': ')}` : who; c.style.opacity = '1';
+  }
+  function finish() {
+    if (!shots) return;
+    shots = null; DBGCAM.on = false; document.body.classList.remove('cine'); ui().classList.remove('cine'); ui().style.display = 'none'; ui().querySelector('.cs').style.opacity = '0';
+    const d = done; done = null; d?.();
+  }
+  return {
+    get active() { return !!shots; },
+    play(list, onDone) {
+      if (!list || !list.length) { onDone?.(); return; }
+      shots = list; i = 0; t = 0; done = onDone;
+      ui().style.display = 'block'; requestAnimationFrame(() => ui().classList.add('cine')); document.body.classList.add('cine');
+      for (const k in keys) keys[k] = false; P.vel.set(0, 0, 0); P.trigger = false;
+      BOTS.hold(list.reduce((a, s) => a + s.dur, 0) + 2);
+      line(shots[0]); apply();
+    },
+    update(dt) {
+      if (!shots) return;
+      t += dt;
+      if (t >= shots[i].dur) { i++; t = 0; if (i >= shots.length) { finish(); return; } line(shots[i]); }
+      apply();
+    },
+    skip() { if (!shots) return false; finish(); return true; },
+  };
+})();
+// =====================================================================
 //  The campaign: five missions through Dar Essalam
 // =====================================================================
 // 1 Dead Drop — 2 The Captain (sniper) — 3 Wolf in Wolf's Clothing (disguise) — 4 Market Tail — 5 Exfil.
@@ -12450,6 +12912,19 @@ const MISSION = (() => {
   const fig = (o) => { const f = NPCS.spawnFigure(o); figs.push(f); return f; };
   const clearFigs = () => { for (const f of figs) NPCS.removeFigure(f); figs = []; };
   const kit = (o) => NPCS.outfit(o);
+  // a conversation as a cutscene: over one shoulder, then the other, a line each
+  const behind = (f) => { const fx = -Math.sin(f.yaw), fz = -Math.cos(f.yaw), dx = P.pos.x - f.x, dz = P.pos.z - f.z, L = Math.hypot(dx, dz) || 1; return (fx * dx + fz * dz) / L < -0.15; };
+  function talkShots(a, b, lines) {
+    const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, sx = -uz, sz = ux, ya = (a.y ?? P.pos.y) + 1.62, yb = (b.y ?? 0) + 1.62;
+    return lines.map((ln, k) => {
+      const mine = ln.startsWith('YOU');
+      const [cx, cz, lx, lz, cy, ly] = mine ? [b.x + ux * 1.1 + sx * 0.7, b.z + uz * 1.1 + sz * 0.7, a.x, a.z, yb + 0.05, ya] : [a.x - ux * 1.1 + sx * 0.7, a.z - uz * 1.1 + sz * 0.7, b.x, b.z, ya + 0.05, yb];
+      const words = ln.split(' ').length;
+      return { from: [cx, cy, cz], to: [cx + sx * 0.25, cy, cz + sz * 0.25], look: [lx, ly - 0.05, lz], dur: Math.max(2.6, words * 0.33), say: ln, fov: 42 };
+    });
+  }
+  // a slow aerial: from a point high over the map down toward a target, with the handler's lines spread across it
+  function flyover(path, lines, dur = 4.2) { return path.map((p, k) => ({ from: p.from, to: p.to, look: p.look, look2: p.look2, dur: p.dur ?? dur, say: lines[k] || '', fov: p.fov || 55 })); }
   const intelCase = (() => {
     const g = new THREE.Group();
     M(new THREE.BoxGeometry(0.46, 0.13, 0.33), new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.5, metalness: 0.4 }), g, 0, 0.065, 0);
@@ -12538,8 +13013,29 @@ const MISSION = (() => {
     },
   ];
 
+  // the handler's opening for each Dar mission: where it happens, from the air
+  const HV = (t) => `HANDLER: ${t}`;
+  DAR[0].intro = () => flyover([
+    { from: [70, 80, 280], to: [30, 60, 170], look: [0, 0, -40] },
+    { from: [40, 28, 40], to: [18, 16, 4], look: [9.5, 8, -27] },
+    { from: [-2, 4, 26], to: [-5, 2.6, 18], look: [S().intel.x, S().intel.y + 2, S().intel.z], dur: 5 },
+  ], [HV('Dar Essalam. The militia took the kasbah three weeks ago — and the town with it.'), HV('I’m on the roof of Café de la Place. Our courier never made it out of the medina.'), HV('He left the case upstairs in Dar Lamia, at the end of Derb Lamia. Bring it to me. Keep your head down.')]);
+  DAR[1].intro = () => flyover([
+    { from: [40, 50, 10], to: [80, 42, -30], look: [108, 10, -85] },
+    { from: [S().minaretTop.x + 14, S().minaretTop.y + 6, S().minaretTop.z + 14], to: [S().minaretTop.x + 6, S().minaretTop.y + 3, S().minaretTop.z + 6], look: [S().minaretTop.x, S().minaretTop.y, S().minaretTop.z] },
+  ], [HV('Captain Haddad. He walks the roof of the kasbah HQ every evening to look at his men.'), HV('The minaret of the Great Mosque sees over the kasbah wall. One shot — then get down before they work out where it came from.')], 5);
+  DAR[2].intro = () => flyover([
+    { from: [S().kasbahGate.x - 40, 20, S().kasbahGate.z + 30], to: [S().kasbahGate.x - 18, 6, S().kasbahGate.z + 8], look: [S().kasbahGate.x, 4, S().kasbahGate.z] },
+    { from: [S().kasbahGate.x - 8, 2.2, S().kasbahGate.z + 14], to: [S().kasbahGate.x - 4, 2.0, S().kasbahGate.z + 9], look: [S().kasbahGate.x, 2.5, S().kasbahGate.z] },
+  ], [HV('The papers we want are in the kasbah HQ. Nobody walks in there — unless he’s one of them.'), HV('Take a militiaman quietly. Wear his uniform. Walk, don’t run, and keep your rifle down.')], 5);
+  DAR[3].intro = () => flyover([{ from: [10, 30, 30], to: [0, 14, -10], look: [0, 2, -60] }, { from: [-6, 3, -40], to: [-3, 2.4, -48], look: [0, 1.8, -62] }],
+    [HV('The papers name a courier — green cap — who carries the militia’s messages through the souk.'), HV('He’ll meet someone. Follow him. Not too close, and don’t let him see your face twice.')], 5);
+  DAR[4].intro = () => flyover([{ from: [0, 30, 60], to: [30, 18, 110], look: [64, 2, 160] }, { from: [50, 4, 140], to: [58, 3, 150], look: [64, 2, 163] }],
+    [HV('They know your face now. Every militiaman in town is coming for you.'), HV('There’s a boat at the end of the jetty. Run.')], 4.5);
+
   // ---------------- state ----------------
-  const MISSIONS = MAP.id === 'seoul' ? seoulMissions({ fig, live, near, kit, S, flags: () => flags, show }) : DAR;
+  const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind };
+  const MISSIONS = MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : DAR;
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
@@ -12550,7 +13046,8 @@ const MISSION = (() => {
     try { localStorage.setItem(KEY, String(mi)); } catch { }
     if (!cur()) { state = 'free'; return; }
     state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
-    show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
+    const banner = () => show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
+    if (cur().intro) CINEMA.play(cur().intro(), banner); else banner();
   }
   function complete() {
     const m = cur(), bonus = m.bonus ? m.bonus() : 0;
@@ -12560,8 +13057,9 @@ const MISSION = (() => {
     audio.switchMode();
     m.teardown?.();
     state = 'between'; wait = 7;
+    if (m.outro) { state = 'outro'; CINEMA.play(m.outro(), () => { state = 'between'; wait = 4; }); }
   }
-  function advance() { si++; if (si >= cur().steps.length) { complete(); return; } cur().steps[si].enter?.(); audio.pouch(); }
+  function advance() { const prev = cur().steps[si]; si++; const go = () => { if (si >= cur().steps.length) { complete(); return; } cur().steps[si].enter?.(); audio.pouch(); }; if (prev.cut) CINEMA.play(prev.cut(), go); else go(); }
   const SCOPED = () => WD().scope && P.adsT > 0.8 && P.fpT > 0.8;
   const _p = new V3();
   function update(dt) {
@@ -12570,6 +13068,7 @@ const MISSION = (() => {
     if (banT > 0 && (banT -= dt) <= 0) banner.style.opacity = '0';
     if (state === 'between') { wait -= dt; if (wait <= 0) start(mi + 1); }
     const m = cur();
+    if (CINEMA.active) { way.style.display = 'none'; setPrompt(prompt, ''); beam.visible = false; return; }
     if (state !== 'run' || !m) {
       obj.innerHTML = state === 'free' ? 'CAMPAIGN COMPLETE<br><span style="opacity:.6">Free roam · J replays the last mission</span>' : '';
       way.style.display = prompt.style.display = 'none'; beam.visible = false; return;
@@ -12608,9 +13107,12 @@ const MISSION = (() => {
 })();
 
 // ---------------- Case 02: Neon Seoul ----------------
-function seoulMissions({ fig, live, near, kit, S, flags }) {
-  const F = flags;
+function seoulMissions({ fig, live, near, kit, S, flags, talkShots, flyover, behind }) {
+  const F = flags, HV = (t) => `HANDLER: ${t}`;
+  const nearestDoor = (room) => { let b = null, bd = 1e9; for (const d of TOWN.doors) if (d.room === room) { const q = Math.hypot(d.x - P.pos.x, d.z - P.pos.z); if (q < bd) { bd = q; b = d; } } return b; };
   return [{
+    intro: () => flyover([{ from: [-140, 70, 80], to: [-20, 34, 40], look: [60, 4, 0] }, { from: [30, 9, 22], to: [44, 5, 14], look: [10, 3, -14] }, { from: [8, 2.4, -6], to: [9, 2.2, -9], look: [11.5, 1.7, -13.2] }],
+      [HV('Seoul. Mapo-gu, a wet Tuesday night.'), HV('A list of our people is on a USB drive — and a broker is selling it to the Black Dragons tonight.'), HV('Our informant is in the 24-hour store on the corner. Start there.')]),
     title: 'THE BROKER’S DRIVE', reward: 700,
     brief: 'A list of our people in the city is on a USB drive, and a broker is selling it tonight to the gang that runs these streets. Our informant is waiting in the 24-hour store on Yanghwa-ro. Find out who has the drive, take it off him, and get underground.',
     setup() {
@@ -12624,13 +13126,125 @@ function seoulMissions({ fig, live, near, kit, S, flags }) {
     },
     steps: [
       { text: 'Meet the informant in the 24-hour store (빛24) on the corner of Yanghwa-ro and the food alley', where: () => live(F().informant, 'INFORMANT')(),
-        act: () => { if (!near(F().informant, 2.4)) return false; audio.pouch(); feed('<span class="s">"The lieutenant. Third tent down the food alley. Two men with him."</span>'); return true; }, prompt: () => near(F().informant, 2.4) ? '[E]  TALK TO THE INFORMANT' : '' },
+        act: () => { if (!near(F().informant, 2.4)) return false; audio.pouch(); return true; },
+        cut: () => talkShots(P.pos, F().informant, ['INFORMANT: You’re late. The broker already sold it.', 'YOU: To who?', 'INFORMANT: A Dragon lieutenant. Sunglasses. He’s eating at the third tent down the food alley — two of his men with him.', 'INFORMANT: The drive’s in his jacket. Don’t do it in front of the whole street.']), prompt: () => near(F().informant, 2.4) ? '[E]  TALK TO THE INFORMANT' : '' },
       { text: 'The gang’s lieutenant (sunglasses) is eating at the third pojangmacha tent in the food alley. Take him down', where: () => live(F().lt, 'LIEUTENANT')(), done: () => F().ltDead },
       { text: 'Take the drive off his body (E)', where: () => ({ x: F().lt.x, y: F().lt.y + 1, z: F().lt.z, name: 'DRIVE' }),
         act: () => { if (!near(F().lt, 2.4)) return false; audio.pouch(); feed('<span class="s">DRIVE TAKEN</span>'); BOTS.setPressure(3); return true; }, prompt: () => near(F().lt, 2.4) ? '[E]  TAKE THE DRIVE' : '' },
       { text: 'The whole gang is out looking for you. Get to the subway entrance at the station plaza', where: () => ({ ...S().subway, y: 2, name: 'SUBWAY' }), done: () => SUBWAY.under || near({ ...S().subway, y: 0 }, 3, 3) },
     ],
     teardown() { BOTS.setPressure(0); },
+  }, {
+    title: 'NORAEBANG', reward: 600,
+    brief: 'The drive is encrypted. A hacker who calls himself Moth can open it — but he doesn’t do meetings. He does karaoke. Walk into any 노래방 and he’ll find you.',
+    intro: () => flyover([{ from: [70, 16, -10], to: [70, 9, -30], look: [70, 5, -80] }, { from: [62, 3, -46], to: [66, 2.6, -52], look: [74, 4, -60] }],
+      [HV('The drive’s locked. There’s a hacker who calls himself Moth.'), HV('He doesn’t take meetings. Walk into any karaoke bar — he’ll find you.')], 4.5),
+    setup() { const R2 = ROOMS.karaoke; F().moth = fig({ kit: kit({ top: 'hoodie', topColor: '#5a5a62', headwear: 'beanie', hatColor: '#1a1a1a', eyewear: 'none', pantsColor: '#2a2a30' }), route: [[R2.x + 1.2, R2.z - 3.6]], speed: 0, yaw: Math.PI }); F().moth.fig.lookAt = P.pos; },
+    steps: [
+      { text: 'Go into any karaoke bar (노래방) — Moth will find you', where: () => { const d = nearestDoor('karaoke'); return d && !DOORS.inside ? { x: d.x, y: 3, z: d.z, name: '노래방' } : null; }, done: () => DOORS.room === 'karaoke' },
+      { text: 'Talk to Moth in the open room (E)', where: () => live(F().moth, 'MOTH')(), act: () => near(F().moth, 2.6), prompt: () => near(F().moth, 2.6) ? '[E]  TALK TO MOTH' : '',
+        cut: () => talkShots(P.pos, F().moth, ['MOTH: You sing?', 'YOU: Not tonight.', 'MOTH: Shame. Give it here... huh. Two keys. One I can break in an hour. The other is on a phone.', 'MOTH: The Blue Snakes’ captain in Gangnam carries it everywhere. Bring me that phone — any PC bang. I’ll be online.']) },
+    ],
+  }, {
+    title: 'SNAKE’S PHONE', reward: 800,
+    brief: 'Gangnam belongs to the Blue Snakes. Their captain holds court by the big screens at the crossing, the phone with the second key in his pocket. Lift it — or take it. Then upload it from any PC bang.',
+    intro: () => flyover([{ from: [140, 45, -60], to: [175, 26, -20], look: [205, 18, 25] }, { from: [196, 3, 44], to: [200, 2.6, 40], look: [205, 1.8, 26] }],
+      [HV('Gangnam is Blue Snake ground. Their captain holds court under the big screens.'), HV('Pick his pocket from behind if you can. If it goes loud, the whole crew comes for you.')], 4.5),
+    setup() {
+      const cx = 205, cz = 26;
+      F().cap = fig({ kit: kit({ top: 'hoodie', topColor: '#1e3a6a', headwear: 'cap', hatColor: '#e8e8e8', pantsColor: '#1a1f2e', shoes: 'sneakers', shoeColor: '#e8e8e8' }), route: [[cx, cz], [cx + 6, cz + 2, 6], [cx + 2, cz + 6, 5], [cx - 4, cz + 2, 6]], loop: true, speed: 0.6, onDeath: () => { F().capDead = true; NPCS.alarm(cx, cz); BOTS.setPressure(2); feed('<span class="m">THE CAPTAIN IS DOWN — THE SNAKES ARE COMING</span>'); } });
+      for (const [dx, dz] of [[2, -2], [-2, 3]]) fig({ kit: kit({ top: 'jacket', topColor: '#2a5a9a', headwear: 'beanie', hatColor: '#141a2a', pantsColor: '#2a5a9a' }), route: [[cx + dx, cz + dz], [cx + dx + 4, cz + dz, 4], [cx + dx, cz + dz + 4, 4]], loop: true, speed: 0.6 });
+    },
+    steps: [
+      { text: 'Find the Blue Snake captain (white cap) at the Gangnam crossing', where: () => live(F().cap, 'CAPTAIN')(), done: () => near(F().cap, 22, 3) },
+      { text: 'Take his phone: pick his pocket from behind (E) — or take it off him', where: () => ({ x: F().cap.x, y: F().cap.y + 2.1, z: F().cap.z, name: 'PHONE' }),
+        act: () => { const c = F().cap; if (c.alive && near(c, 1.9) && behind(c)) { feed('<span class="s">PHONE LIFTED — HE DIDN’T FEEL A THING</span>'); audio.pouch(); return true; } if (!c.alive && near(c, 2.4)) { feed('<span class="s">PHONE TAKEN</span>'); audio.pouch(); return true; } return false; },
+        prompt: () => { const c = F().cap; return c.alive && near(c, 1.9) ? (behind(c) ? '[E]  LIFT THE PHONE' : 'GET BEHIND HIM') : !c.alive && near(c, 2.4) ? '[E]  TAKE THE PHONE' : ''; } },
+      { text: 'Upload it from any PC bang (PC방): sit at a free PC (E)', where: () => { const d = nearestDoor('pc'); return d && !DOORS.inside ? { x: d.x, y: 3, z: d.z, name: 'PC방' } : null; },
+        act: () => DOORS.room === 'pc', prompt: () => DOORS.room === 'pc' ? '[E]  UPLOAD THE PHONE' : '',
+        cut: () => { const R2 = ROOMS.pc; return [
+          { from: [R2.x - 4.6, 1.5, R2.z - 3.2], to: [R2.x - 4.4, 1.35, R2.z - 3.6], look: [R2.x - 4.8, 1.1, R2.z - 4.9], dur: 4, say: 'MOTH: Got it. Both keys. Opening it now…', fov: 40 },
+          { from: [R2.x + 3, 2.4, R2.z + 3], to: [R2.x + 2, 2.2, R2.z + 1], look: [R2.x - 3, 1, R2.z - 4], dur: 5, say: 'MOTH: …oh. The list wasn’t sold to the Dragons. Their boss wrote it. He’s selling your people to both crews.', fov: 48 },
+          { from: [R2.x - 1, 1.7, R2.z + 4.5], to: [R2.x - 1.2, 1.7, R2.z + 4.2], look: [R2.x - 1, 1.5, R2.z], dur: 4, say: 'HANDLER: Then the night just got longer.', fov: 46 } ]; } },
+    ],
+    teardown() { BOTS.setPressure(0); },
+  }, {
+    title: 'LAST TRAIN', reward: 1000,
+    brief: 'Both crews know your face. The Dragons hold Yanghwa-ro, the Snakes are coming over from Gangnam. Get underground, ride Line 2 to Yeouinaru, and meet the boat on the river.',
+    intro: () => flyover([{ from: [30, 12, 30], to: [60, 6, 20], look: [100, 3, 0] }, { from: [60, 30, 120], to: [60, 16, 160], look: [60, 2, 230] }],
+      [HV('Both crews know your face. The Dragons are on Yanghwa-ro. The Snakes are coming over from Gangnam.'), HV('Line 2 to Yeouinaru. There’s a boat on the river. Don’t miss it.')], 5),
+    setup() { BOTS.setPressure(3); },
+    teardown() { BOTS.setPressure(0); },
+    steps: [
+      { text: 'Get underground: any Line 2 entrance', where: () => { let b = null, bd = 1e9; for (const s2 of LINE2) { const d = Math.hypot(s2.x - P.pos.x, s2.z - P.pos.z); if (d < bd) { bd = d; b = s2; } } return b && !SUBWAY.under ? { x: b.x, y: 4, z: b.z, name: 'LINE 2' } : null; }, done: () => SUBWAY.under },
+      { text: 'Ride Line 2 to Yeouinaru (여의나루), then up to the street', where: () => (!SUBWAY.under ? { x: LINE2[4].x, y: 4, z: LINE2[4].z, name: '여의나루' } : null), done: () => !SUBWAY.under && Math.hypot(P.pos.x - LINE2[4].x, P.pos.z - LINE2[4].z) < 16 },
+      { text: 'Meet the boat at the river, below the riverside store', where: () => ({ x: 110, y: 2, z: 228, name: 'BOAT' }), done: () => Math.hypot(P.pos.x - 110, P.pos.z - 228) < 7 },
+    ],
+    outro: () => [
+      { from: [110, 3, 222], to: [112, 2.2, 236], look: [110, 0, 260], dur: 4, say: 'HANDLER: I see you. Get in.', fov: 50 },
+      { from: [90, 1.2, 270], to: [60, 1.4, 300], look: [0, 30, 0], look2: [-40, 25, -20], dur: 6, say: 'HANDLER: The list is safe. The broker’s done, and both crews will be looking at each other for a week.', fov: 55 },
+      { from: [60, 1.4, 300], to: [40, 2, 330], look: [-40, 25, -20], dur: 5, say: 'HANDLER: Seoul can keep its neon. Come home.', fov: 55 },
+    ],
+  }];
+}
+
+// ---------------- Case 03: Ravenscroft ----------------
+function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, behind }) {
+  const F = flags, HV = (t) => `HANDLER: ${t}`;
+  const insideWalls = () => Math.abs(P.pos.x) < 199 && P.pos.z < 199 && P.pos.z > -199;
+  return [{
+    title: 'THE GUEST LIST', reward: 600,
+    brief: 'Lord Ashdown keeps a ledger of every bribe he has paid, and tonight he throws a gala. Get inside the walls, dress for the party, and meet our contact — the sommelier at the marquee bar.',
+    intro: () => flyover([
+      { from: [-260, 90, 280], to: [-80, 55, 170], look: [0, 8, -45], dur: 5 },
+      { from: [0, 32, 240], to: [0, 12, 120], look: [0, 6, -30], dur: 5 },
+      { from: [52, 16, 96], to: [62, 4.5, 66], look: [64, 2, 48], dur: 5 },
+    ], [HV('Ravenscroft. Lord Ashdown’s estate — and tonight, his gala.'), HV('Three hundred guests, forty men in suits with earpieces. Ashdown keeps a ledger of every bribe he has ever paid.'), HV('Our contact pours the wine at the marquee. Get in, dress for the party, and find him.')]),
+    setup() {
+      F().contact = fig({ kit: kit({ top: 'jacket', topColor: '#e8e4dc', pantsColor: '#141416', headwear: 'none', hair: 'short', facialHair: 'none' }), route: [[67.5, 47.6]], speed: 0, yaw: Math.PI });
+      F().contact.fig.lookAt = P.pos;
+      F().sec = fig({ kit: kit({ top: 'longsleeve', topColor: '#a01a2a', hair: 'long', hairColor: '#2e2018', pantsColor: '#a01a2a', facialHair: 'none' }), route: [[-20, -40, 4], [-12, -44, 5], [-14, -52, 4], [-20, -50, 5]], loop: true, speed: 0.55 });
+    },
+    steps: [
+      { text: 'Get inside the walls — the gate checks guests, the service gate is guarded, and the west wall has fallen in', where: () => ({ x: 0, y: 3, z: 196, name: 'GATE' }), done: insideWalls },
+      { text: 'Dress for the party: knock a guest out where nobody sees (F), take his clothes (E), keep your weapons hidden (H)', where: () => null, done: () => P.disguise === 'civilian' },
+      { text: 'Meet the sommelier at the marquee bar (E)', where: () => live(F().contact, 'SOMMELIER')(), act: () => near(F().contact, 2.8), prompt: () => near(F().contact, 2.8) ? '[E]  ASK FOR THE WINE LIST' : '',
+        cut: () => talkShots(P.pos, F().contact, ['SOMMELIER: Red or white, sir?', 'YOU: Whatever Ashdown is hiding.', 'SOMMELIER: Upstairs. The study, east side of the landing. A safe behind the portrait of his father.', 'SOMMELIER: The code changes every night. His secretary keeps it in her diary — red dress, in the ballroom. Don’t let her see you.']) },
+      { text: 'Lift the diary from Ashdown’s secretary (red dress) in the ballroom — from behind (E)', where: () => live(F().sec, 'SECRETARY')(),
+        act: () => { const s2 = F().sec; if (s2.alive && near(s2, 1.9) && behind(s2)) { feed('<span class="s">DIARY TAKEN — TONIGHT’S CODE: 4-1-7-9</span>'); audio.pouch(); return true; } return false; },
+        prompt: () => { const s2 = F().sec; return s2.alive && near(s2, 1.9) ? (behind(s2) ? '[E]  LIFT THE DIARY' : 'GET BEHIND HER') : ''; } },
+    ],
+  }, {
+    title: 'THE LEDGER', reward: 800,
+    brief: 'The study is upstairs on the east side of the landing. Guests don’t go upstairs — your cover thins the moment you do. The safe is behind the portrait. Tonight’s code: 4-1-7-9.',
+    intro: () => [
+      { from: [0, 1.9, -24], to: [0, 2.4, -32], look: [0, 3.5, -44], dur: 4.5, say: HV('The study is up the grand stairs, east side of the landing.'), fov: 55 },
+      { from: [0, 5.4, -36], to: [4, 6.2, -44], look: [10, 5.6, -54], dur: 5, say: HV('Guests don’t go upstairs. If they see you there, your cover goes fast — throw something to pull them off the landing.'), fov: 55 },
+    ],
+    steps: [
+      { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 4, 1.6) },
+      { text: 'Open the safe behind the portrait (E): 4-1-7-9', where: () => ({ ...S().safe, y: S().safe.y + 1, name: 'SAFE' }), act: () => near(S().safe, 2.4, 2.2), prompt: () => near(S().safe, 2.4, 2.2) ? '[E]  4 · 1 · 7 · 9' : '',
+        cut: () => [
+          { from: [S().safe.x - 1.6, S().safe.y + 0.7, S().safe.z + 0.8], to: [S().safe.x - 1.1, S().safe.y + 0.4, S().safe.z + 0.4], look: [S().safe.x, S().safe.y - 0.2, S().safe.z], dur: 3.6, say: 'YOU: Four. One. Seven. Nine.', fov: 38 },
+          { from: [S().safe.x - 2.4, S().safe.y + 1.2, S().safe.z - 1.5], to: [S().safe.x - 2.2, S().safe.y + 1.1, S().safe.z - 1.2], look: [S().safe.x - 0.4, S().safe.y, S().safe.z], dur: 4.4, say: HV('That’s it — every name, every payment. Now get out of that house.'), fov: 44 },
+        ] },
+    ],
+  }, {
+    title: 'OUT BY WATER', reward: 900,
+    brief: 'They’ve found the guest you left in the bushes and they’re locking the gates. Don’t try them. Get to the boathouse on the lake and take a boat across.',
+    intro: () => flyover([{ from: [40, 26, -40], to: [70, 18, -70], look: [100, 2, -98] }, { from: [104, 3, -82], to: [108, 2.4, -88], look: [112, 0.5, -100] }],
+      [HV('They’ve found the guest you left in the bushes. The gates are locked and every earpiece in the place is talking about you.'), HV('The boathouse, on the lake. Take a boat across — I’ll be on the far shore.')], 5),
+    setup() { BOTS.setPressure(3); },
+    teardown() { BOTS.setPressure(0); },
+    steps: [
+      { text: 'Get to the boathouse on the lake', where: () => ({ ...S().boathouse, y: 3, name: 'BOATHOUSE' }), done: () => near({ ...S().boathouse, y: 0 }, 9, 3) },
+      { text: 'Take a boat from the jetty (E)', where: () => ({ x: 112, y: 2, z: -100, name: 'BOAT' }), act: () => near({ x: 112, y: 0.3, z: -100 }, 4, 2.5), prompt: () => near({ x: 112, y: 0.3, z: -100 }, 4, 2.5) ? '[E]  TAKE THE BOAT' : '' },
+    ],
+    outro: () => [
+      { from: [112, 1.4, -96], to: [130, 1.0, -120], look: [170, 0.8, -150], dur: 5, say: HV('I see your lamp. Keep rowing.'), fov: 50 },
+      { from: [150, 6, -150], to: [120, 14, -170], look: [0, 10, -45], dur: 6, say: HV('Haddad’s kasbah. The Dragons’ list. Ashdown’s ledger. They all point the same way.'), fov: 52 },
+      { from: [120, 14, -170], to: [60, 40, -230], look: [0, 10, -45], dur: 5, say: HV('Get some sleep. The next file is already on my desk.'), fov: 52 },
+    ],
   }];
 }
 // =====================================================================
@@ -12670,7 +13284,7 @@ const DISGUISE = (() => {
   // what one side makes of you: their own men's clothes fool them; a rival's clothes make you a target
   function levelFor(team) { if (P.disguise === 'militia' && P.disguiseTeam !== team) return 0; return level(); }
   // places a civilian has no reason to be (each map lists its own)
-  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1) return true; return false; }
+  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1 && (r.y0 === undefined || P.pos.y > r.y0)) return true; return false; }
   function blow(why) {
     if (!P.disguise) return;
     if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
@@ -12827,7 +13441,7 @@ const THROW = (() => {
 // all read. Held in both hands, north up, with a red pin (and arrow) for you and a gold one for the
 // current objective. Aim (Q) brings it closer.
 const HANDMAP = (() => {
-  const [X0, X1, Z0, Z1] = MAP.id === 'seoul' ? SEOUL.bounds : [-160, 160, -450, 120], CELL = MAP.id === 'seoul' ? 3 : 2, K = 0.3 / Math.max(X1 - X0, Z1 - Z0), VEX = 2.4;   // world → model scale, vertical exaggeration
+  const [X0, X1, Z0, Z1] = MAP.id === 'seoul' ? SEOUL.bounds : MAP.id === 'manor' ? [-215, 215, -215, 235] : [-160, 160, -450, 120], CELL = MAP.id === 'seoul' ? 3 : 2, K = 0.3 / Math.max(X1 - X0, Z1 - Z0), VEX = 2.4;   // world → model scale, vertical exaggeration
   const group = new THREE.Group(); group.visible = false;
   const tray = new THREE.Group(); group.add(tray);
   let built = false, open = false, t = 0;
@@ -12933,7 +13547,7 @@ const HANDMAP = (() => {
 // and you paddle it round with the bars. SPACE locks the rear wheel to swing the tail out round a
 // tight corner; F is the horn (people get out of the way); hit a wall too fast and you're off.
 const SCOOTER = (() => {
-  const SPOTS = MAP.id === 'seoul' ? SEOUL.scooters : [[25, -14, 1.2, 0xc8261e], [30, 97, 0.3, 0x2a6ab0], [-6, 50, 3.1, 0xe8e6e0], [48, 9, 1.6, 0x3a8a6a], [-56, 11, -1.4, 0xe8c040], [38, -41, 0.2, 0x2a2a2a], [80, 26, 2.2, 0x8a3a5a], [-112, 2.6, 1.57, 0x4a8ac8]];
+  const SPOTS = MAP.id === 'manor' ? [] : MAP.id === 'seoul' ? SEOUL.scooters : [[25, -14, 1.2, 0xc8261e], [30, 97, 0.3, 0x2a6ab0], [-6, 50, 3.1, 0xe8e6e0], [48, 9, 1.6, 0x3a8a6a], [-56, 11, -1.4, 0xe8c040], [38, -41, 0.2, 0x2a2a2a], [80, 26, 2.2, 0x8a3a5a], [-112, 2.6, 1.57, 0x4a8ac8]];
   const list = [];
   let riding = null, t = 0, lastLookT = 0, crashT = 0;
   addEventListener('mousemove', () => { lastLookT = performance.now(); });
@@ -13139,6 +13753,10 @@ const MENU = (() => {
     { id: 'seoul', no: '02', intel: 'Two crews split the district: the Black Dragons hold Mapo’s bar streets, the Blue Snakes Gangnam. Their own men’s clothes fool only them. Line 2 runs under all of it — five stations, trains every few minutes.', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
       lines: ['A broker is selling the papers we took from the', 'kasbah to a gang that runs the night markets.', '', 'OBJECTIVES', '· Meet the informant at the 24-hour store', '· Find the gang’s lieutenant in the food alley', '· Get the drive off him — however you have to', '· Lose the gang in the alleys, reach the subway'],
       photo: (g, w, h) => { g.fillStyle = '#0a0a18'; g.fillRect(0, 0, w, h); for (let i = 0; i < 12; i++) { const x = i * 24, bh = 60 + (i * 41) % 90; g.fillStyle = '#14142a'; g.fillRect(x, h - bh, 22, bh); for (let k = 0; k < 10; k++) { g.fillStyle = ['#ff2a8a', '#2af0ff', '#ffd040', '#8a5aff'][(i + k) % 4]; if ((i * 7 + k * 3) % 5 === 0) g.fillRect(x + 4, h - bh + 8 + k * 12, 14, 5); } } g.fillStyle = 'rgba(255,40,140,0.25)'; g.fillRect(0, h * 0.85, w, h); } },
+    { id: 'manor', no: '03', title: 'RAVENSCROFT', place: 'England · a walled country estate · the night of a gala', tab: '#6a8ac0',
+      intel: 'Private security in dark suits and earpieces, posts at every gate and door; the upper floor is off limits to guests. The service gate is guarded. Winter brought down a stretch of the west wall. Guests are fair game for their clothes — out of sight.',
+      lines: ['Lord Ashdown keeps a ledger of every bribe he', 'has ever paid. Tonight he throws a gala.', '', 'OBJECTIVES', '· Get inside the walls and dress for the party', '· Meet the sommelier; lift the safe code', '· Take the ledger from the study upstairs', '· Get out across the lake'],
+      photo: (g, w, h) => { const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#2a3460'); sky.addColorStop(1, '#e8905a'); g.fillStyle = sky; g.fillRect(0, 0, w, h); g.fillStyle = '#1e2a1e'; g.fillRect(0, h * 0.72, w, h); g.fillStyle = '#d8cdb8'; g.fillRect(w * 0.22, h * 0.42, w * 0.56, h * 0.32); g.fillStyle = '#4a5058'; g.beginPath(); g.moveTo(w * 0.2, h * 0.43); g.lineTo(w * 0.5, h * 0.28); g.lineTo(w * 0.8, h * 0.43); g.fill(); g.fillStyle = '#ffd890'; for (let r = 0; r < 2; r++) for (let k = 0; k < 9; k++) g.fillRect(w * 0.26 + k * w * 0.055, h * 0.5 + r * h * 0.11, w * 0.025, h * 0.06); } },
     { id: 'op', no: 'P', title: 'PERSONNEL', place: 'Operator file · loadout & appearance', tab: '#7a8a6a',
       lines: ['Your own file. Change your face, your clothes,', 'your kit and your weapons before you go in.'], photo: null },
   ];
@@ -13239,7 +13857,7 @@ const MENU = (() => {
     fan = new THREE.Group(); fan.position.set(0, 2.82, -0.4); sc.add(fan); cyl(0.07, 0.07, 0.12, brass, 0, 0, 0, fan); for (let k = 0; k < 4; k++) { const bl = box(0.6, 0.008, 0.11, wood, 0, -0.05, 0, fan); bl.geometry.translate(0.32, 0, 0); bl.rotation.y = k * Math.PI / 2; }
     // the files, fanned across the desk
     CASES.forEach((c, i) => {
-      const g = new THREE.Group(); g.position.set(-0.36 + i * 0.36, 0.806 + i * 0.012, -0.22 + (i % 2) * 0.04); g.rotation.y = (i - 1) * 0.16; sc.add(g);
+      const n = CASES.length, g = new THREE.Group(); g.position.set(-0.46 + i * 0.92 / (n - 1), 0.806 + i * 0.012, -0.22 + (i % 2) * 0.05); g.rotation.y = (i - (n - 1) / 2) * 0.13; sc.add(g);
       const coverM = new THREE.MeshStandardMaterial({ map: coverTex(c), roughness: 0.85 }), back = std(0xb89858, 0.85);
       const backBoard = box(0.3, 0.004, 0.225, back, 0, 0.002, 0, g);
       const page = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.002, 0.215), [paper, paper, new THREE.MeshStandardMaterial({ map: pageTex(c), roughness: 0.9 }), paper, paper, paper]); page.position.set(0, 0.006, 0); g.add(page);
@@ -13445,6 +14063,7 @@ const HUD = (() => {
       if (z > 150) return ['한강공원', 'HANGANG PARK']; if (x > 153) return ['강남', 'GANGNAM']; if (x < -153) return ['아현', 'AHYEON'];
       if (z < -140) return ['남대문시장', 'NAMDAEMUN MARKET']; return ['홍대 · 마포', 'HONGDAE · MAPO'];
     }
+    if (MAP.id === 'manor') { const { x, z, y } = P.pos; if (x > -24 && x < 24 && z > -62 && z < -30) return y > 3 ? ['', 'RAVENSCROFT HOUSE · FIRST FLOOR'] : ['', 'RAVENSCROFT HOUSE']; if (x > -56 && x < 56 && z > -62 && z < -30) return ['', 'RAVENSCROFT HOUSE · THE WINGS']; if (x < -95 && z < 10 && z > -70) return ['', 'THE MAZE']; if (x > 85 && z < -30 && z > -155) return ['', 'THE LAKE']; if (z < -70) return ['', 'THE GARDENS']; if (Math.abs(x) > 200 || z > 200) return ['', 'OUTSIDE THE WALLS']; return ['', 'RAVENSCROFT · THE GROUNDS']; }
     if (typeof PALACE !== 'undefined' && P.pos.z < PALACE.z1 && P.pos.x > PALACE.x0 && P.pos.x < PALACE.x1) return ['دار المخزن', 'DAR EL MAKHZEN'];
     let best = null, bd = 45; for (const r of TOWN.plazas) { const d = Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z); if (d < bd) { bd = d; best = r; } }
     return best ? ['', best.name.toUpperCase()] : ['', 'DAR ESSALAM'];
@@ -13481,6 +14100,7 @@ const HUD = (() => {
 // =====================================================================
 addEventListener('keydown', (e) => {
   if (mode !== 'range' || paused) return;
+  if (CINEMA.active) { if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter') CINEMA.skip(); e.preventDefault(); return; }
   keys[e.code] = true;
   if (e.repeat) return;
   switch (e.code) {
@@ -13522,6 +14142,7 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   audio.init();
   if (mode === 'range') {
+    if (CINEMA.active) return;
     if (!locked && !lockFallback) { requestLock(); return; }
     if (e.button === 0) { if (HANDMAP.open) { HANDMAP.toggle(false); return; } if (P.holstered) { DISGUISE.toggleHolster(false); return; } P.trigger = true; P.edge = true; }
   } else drag = { x: e.clientX, y: e.clientY };
@@ -13715,7 +14336,7 @@ function frame(now) {
   if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); HUD.update(dt); THROW.update(dt); TRAFFIC.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); CINEMA.update(dt); SUBWAY.update(dt); HUD.update(dt); THROW.update(dt); TRAFFIC.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -13758,7 +14379,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.THROW = THROW; window.__dbg.TRAFFIC = TRAFFIC; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.CINEMA = CINEMA; window.__dbg.THROW = THROW; window.__dbg.TRAFFIC = TRAFFIC; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

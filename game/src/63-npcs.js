@@ -8,9 +8,9 @@ const NPCS = (() => {
   // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
   // N posed civilians live near you (full rigs, collision, panic, talk); WALKERS more fill the streets out to the
   // draw distance. Beyond posing range everyone is drawn as an instance of one of K outfits.
-  const N = MAP.id === 'seoul' ? 50 : 46, WALKERS = MAP.id === 'seoul' ? 820 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
+  const N = MAP.id === 'seoul' ? 50 : MAP.id === 'manor' ? 36 : 46, WALKERS = MAP.id === 'seoul' ? 820 : MAP.id === 'manor' ? 220 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
+  const CIVIL = ['Forecourt', 'Front lawn', 'East lawn', 'Terrace', 'Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -18,7 +18,10 @@ const NPCS = (() => {
   const TOPC = ['#8a2f2f', '#2f4f7a', '#d8d2c4', '#556b2f', '#c9a45c', '#3c3c44', '#7a5c8a', '#b86b3a', '#e8e4da', '#2a6f6a', '#5a3a2a', '#9aa4ac'];
   const PANTC = ['#2d3550', '#4a4a4a', '#c8b89a', '#1f1f22', '#6b5a44', '#3d4a3a'];
   const HAIRC = ['#1c1612', '#2e2018', '#4a3426', '#6a6058', '#121010'];
+  // the manor's guests dress for the gala
+  const FORMAL = ['#141416', '#1a2238', '#2a2a2e', '#4a1a24', '#e8e4dc', '#2a3a2a'];
   function outfit() {
+    if (MAP.id === 'manor') return { ...REFERENCE, skin: pick(SKIN), height: rand(0.92, 1.06), shoulders: rand(0.9, 1.04), muscle: rand(0.15, 0.4), fat: rand(0.1, 0.45), headSize: rand(1.0, 1.1), brows: pick(['flat', 'raised']), facialHair: pick(['none', 'none', 'stubble', 'beard']), hair: pick(['short', 'long', 'messy', 'buzz']), hairColor: pick(HAIRC), headwear: 'none', ears: 'none', top: pick(['jacket', 'jacket', 'longsleeve']), topColor: pick(FORMAL), sleeves: 'full', gloves: 'none', vest: 'none', pack: 'none', belt: false, bottom: 'pants', pantsColor: pick(['#141416', '#1a1a22', '#2a2a2e']), kneepads: false, shoes: 'boots', shoeColor: '#0e0e10', eyewear: 'none', facePaint: 'none', patch: 'none', holster: false, watch: Math.random() < 0.6 };
     return {
       ...REFERENCE, skin: pick(SKIN), height: rand(0.92, 1.06), shoulders: rand(0.9, 1.04), muscle: rand(0.15, 0.5), fat: rand(0.1, 0.55), headSize: rand(1.0, 1.1),
       brows: pick(['flat', 'raised', 'stern']), facialHair: pick(['none', 'none', 'stubble', 'beard', 'mustache']), hair: pick(['short', 'messy', 'buzz', 'long', 'none']), hairColor: pick(HAIRC),

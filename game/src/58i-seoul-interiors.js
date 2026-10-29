@@ -194,7 +194,7 @@ function seoulInteriors() { roomBBQ(); roomHof(); roomKaraoke(); roomPC(); roomC
 
 // ---------------- runtime: E at a door, E at the door inside ----------------
 const DOORS = (() => {
-  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; } };
+  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; }, get room() { return null; } };
   let inside = null, fadeEl = null, busyUntil = 0;
   const fade = (fn) => {
     if (!fadeEl) { fadeEl = document.createElement('div'); fadeEl.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:40'; document.body.appendChild(fadeEl); }
@@ -219,6 +219,7 @@ const DOORS = (() => {
     interact,
     prompt() { if (performance.now() < busyUntil) return ''; const d = near(); return d ? (inside ? '[E]  나가기 · LEAVE' : `[E]  들어가기 · ENTER${d.name ? '  ' + d.name : ''}`) : ''; },
     get inside() { return !!inside; },
+    get room() { return inside ? inside.room : null; },
   };
 })();
 // under a roof: no rain (subway, rooms)

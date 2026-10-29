@@ -24,6 +24,10 @@ const MENU = (() => {
     { id: 'seoul', no: '02', intel: 'Two crews split the district: the Black Dragons hold Mapo’s bar streets, the Blue Snakes Gangnam. Their own men’s clothes fool only them. Line 2 runs under all of it — five stations, trains every few minutes.', title: 'NEON SEOUL', place: 'South Korea · back streets of Mapo-gu · night', tab: '#e0408a',
       lines: ['A broker is selling the papers we took from the', 'kasbah to a gang that runs the night markets.', '', 'OBJECTIVES', '· Meet the informant at the 24-hour store', '· Find the gang’s lieutenant in the food alley', '· Get the drive off him — however you have to', '· Lose the gang in the alleys, reach the subway'],
       photo: (g, w, h) => { g.fillStyle = '#0a0a18'; g.fillRect(0, 0, w, h); for (let i = 0; i < 12; i++) { const x = i * 24, bh = 60 + (i * 41) % 90; g.fillStyle = '#14142a'; g.fillRect(x, h - bh, 22, bh); for (let k = 0; k < 10; k++) { g.fillStyle = ['#ff2a8a', '#2af0ff', '#ffd040', '#8a5aff'][(i + k) % 4]; if ((i * 7 + k * 3) % 5 === 0) g.fillRect(x + 4, h - bh + 8 + k * 12, 14, 5); } } g.fillStyle = 'rgba(255,40,140,0.25)'; g.fillRect(0, h * 0.85, w, h); } },
+    { id: 'manor', no: '03', title: 'RAVENSCROFT', place: 'England · a walled country estate · the night of a gala', tab: '#6a8ac0',
+      intel: 'Private security in dark suits and earpieces, posts at every gate and door; the upper floor is off limits to guests. The service gate is guarded. Winter brought down a stretch of the west wall. Guests are fair game for their clothes — out of sight.',
+      lines: ['Lord Ashdown keeps a ledger of every bribe he', 'has ever paid. Tonight he throws a gala.', '', 'OBJECTIVES', '· Get inside the walls and dress for the party', '· Meet the sommelier; lift the safe code', '· Take the ledger from the study upstairs', '· Get out across the lake'],
+      photo: (g, w, h) => { const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#2a3460'); sky.addColorStop(1, '#e8905a'); g.fillStyle = sky; g.fillRect(0, 0, w, h); g.fillStyle = '#1e2a1e'; g.fillRect(0, h * 0.72, w, h); g.fillStyle = '#d8cdb8'; g.fillRect(w * 0.22, h * 0.42, w * 0.56, h * 0.32); g.fillStyle = '#4a5058'; g.beginPath(); g.moveTo(w * 0.2, h * 0.43); g.lineTo(w * 0.5, h * 0.28); g.lineTo(w * 0.8, h * 0.43); g.fill(); g.fillStyle = '#ffd890'; for (let r = 0; r < 2; r++) for (let k = 0; k < 9; k++) g.fillRect(w * 0.26 + k * w * 0.055, h * 0.5 + r * h * 0.11, w * 0.025, h * 0.06); } },
     { id: 'op', no: 'P', title: 'PERSONNEL', place: 'Operator file · loadout & appearance', tab: '#7a8a6a',
       lines: ['Your own file. Change your face, your clothes,', 'your kit and your weapons before you go in.'], photo: null },
   ];
@@ -124,7 +128,7 @@ const MENU = (() => {
     fan = new THREE.Group(); fan.position.set(0, 2.82, -0.4); sc.add(fan); cyl(0.07, 0.07, 0.12, brass, 0, 0, 0, fan); for (let k = 0; k < 4; k++) { const bl = box(0.6, 0.008, 0.11, wood, 0, -0.05, 0, fan); bl.geometry.translate(0.32, 0, 0); bl.rotation.y = k * Math.PI / 2; }
     // the files, fanned across the desk
     CASES.forEach((c, i) => {
-      const g = new THREE.Group(); g.position.set(-0.36 + i * 0.36, 0.806 + i * 0.012, -0.22 + (i % 2) * 0.04); g.rotation.y = (i - 1) * 0.16; sc.add(g);
+      const n = CASES.length, g = new THREE.Group(); g.position.set(-0.46 + i * 0.92 / (n - 1), 0.806 + i * 0.012, -0.22 + (i % 2) * 0.05); g.rotation.y = (i - (n - 1) / 2) * 0.13; sc.add(g);
       const coverM = new THREE.MeshStandardMaterial({ map: coverTex(c), roughness: 0.85 }), back = std(0xb89858, 0.85);
       const backBoard = box(0.3, 0.004, 0.225, back, 0, 0.002, 0, g);
       const page = new THREE.Mesh(new THREE.BoxGeometry(0.29, 0.002, 0.215), [paper, paper, new THREE.MeshStandardMaterial({ map: pageTex(c), roughness: 0.9 }), paper, paper, paper]); page.position.set(0, 0.006, 0); g.add(page);

@@ -35,7 +35,7 @@ const DISGUISE = (() => {
   // what one side makes of you: their own men's clothes fool them; a rival's clothes make you a target
   function levelFor(team) { if (P.disguise === 'militia' && P.disguiseTeam !== team) return 0; return level(); }
   // places a civilian has no reason to be (each map lists its own)
-  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1) return true; return false; }
+  function inRestricted() { for (const r of (TOWN.restricted || [])) if (P.pos.x > r.x0 && P.pos.x < r.x1 && P.pos.z > r.z0 && P.pos.z < r.z1 && (r.y0 === undefined || P.pos.y > r.y0)) return true; return false; }
   function blow(why) {
     if (!P.disguise) return;
     if (t >= P.blownUntil) feed(`<span class="m">COVER BLOWN${why === 'shot' ? ' — THEY HEARD YOU' : ''}</span>`);
