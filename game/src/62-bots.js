@@ -220,7 +220,7 @@ const BOTS = (() => {
   function hurtPlayer(dmg, part) {
     if (P.dead || clock < graceUntil) return;
     P.hp = Math.max(0, P.hp - (HURT[part] ?? 12)); P.hurtT = time0();
-    audio.hurt(); P.shake = Math.min(2, P.shake + 0.8);
+    audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
     if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
@@ -243,7 +243,7 @@ const BOTS = (() => {
   // a player round struck a soldier
   function hit(tg, p, b) {
     const a = tg.view.agent; if (!a.alive) return;
-    const dmg = TUNE.weapon.dmg[tg.part] * clamp(b.mass ?? 1, 0.3, 1.3);
+    const dmg = TUNE.weapon.dmg[tg.part] * (b.dmg ?? clamp(b.mass ?? 1, 0.3, 1.3));
     a.onHit(dmg, tg.part, me, b.d0, arena);
     emitPuff(p, 0x5a1010, 0.07, 0.45, b.d0.clone().multiplyScalar(0.6), 0.5, 1.6);
     audio.fleshHit(p.distanceTo(P.pos));

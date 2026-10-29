@@ -14,6 +14,7 @@ addEventListener('keydown', (e) => {
     case 'Digit1': switchTo('rifle'); break;
     case 'Digit2': switchTo('shotgun'); break;
     case 'Digit3': switchTo('pistol'); break;
+    case 'Digit4': switchTo('sniper'); break;
     case 'KeyV': P.fp = !P.fp; break;
     case 'KeyC': case 'ControlLeft': P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;

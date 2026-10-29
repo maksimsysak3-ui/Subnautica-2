@@ -12,8 +12,12 @@ const WEAPONS = {
   pistol: { name: 'G17 PISTOL', build: buildPistol, hold: 'pistol', rpm: 600, modes: ['SEMI'], cap: 17, reserve: 102,
     v: 375, drag: 1.1, pellets: 1, choke: 0, mass: 0.6, spread: [0.03, 0.0025], recoil: { z: 0.7, rx: 5.2, ry: 1.1, cam: 0.5, climb: 0.006 },
     reload: 'mag', tracer: 0, zero: 15, ads: [58, 54], casing: 'pistol' },
+  // bolt action: every shot is followed by a ~0.8 s bolt cycle; one body hit drops a man, scope at ~9x
+  sniper: { name: 'M24 SNIPER', build: buildSniper, hold: 'shoulder', rpm: 50, modes: ['BOLT'], cap: 5, reserve: 40, bolt: true,
+    v: 850, drag: 0.32, pellets: 1, choke: 0, mass: 1.6, dmg: 3.2, spread: [0.055, 0.00022], recoil: { z: 3.2, rx: 7.5, ry: 1.0, cam: 1.0, climb: 0.018 },
+    reload: 'mag', tracer: 0, zero: 100, ads: [8, 8], casing: 'rifle', scope: true },
 };
-const ORDER = ['rifle', 'shotgun', 'pistol'];
+const ORDER = ['rifle', 'shotgun', 'pistol', 'sniper'];
 const P = {
   pos: new V3(0, 0, -2.5), vel: new V3(), yaw: 0, pitch: 0,
   crouch: false, crouchT: 0, sprintT: 0, ads: false, adsT: 0, fp: false, fpT: 0, lowT: 0,
@@ -21,7 +25,7 @@ const P = {
   w: 'rifle', inv: {}, burst: 0, nextShot: 0, trigger: false, edge: false,
   reload: null, swap: null, pump: null, boltT: 0, slideT: 0,
   kick: { z: 0, vz: 0, rx: 0, vrx: 0, ry: 0, vry: 0 }, cr: { p: 0, vp: 0, y: 0, vy: 0 }, bloom: 0,
-  sway: { x: 0, vx: 0, y: 0, vy: 0 }, shake: 0, lean: 0, leanT: 0, stamina: 1, breath: 1, holdBreath: false, winded: 0,
+  sway: { x: 0, vx: 0, y: 0, vy: 0 }, feel: { land: 0, vland: 0, hit: 0, vhit: 0, hitSide: 1, yawRate: 0, lastYaw: 0 }, air: false, shake: 0, lean: 0, leanT: 0, stamina: 1, breath: 1, holdBreath: false, winded: 0,
   stats: { shots: 0, hits: 0, score: 0 }, infinite: true, sens: 1, flashT: 0, shotId: 0, lastHitShot: -1,
 };
 function freshInv() { for (const id of ORDER) P.inv[id] = { mag: WEAPONS[id].cap, chamber: 1, reserve: WEAPONS[id].reserve, locked: false, mode: 0 }; }
@@ -159,6 +163,12 @@ const RELOADS = {
     empty: { dur: 2.55, keys: [[0, 'support', 0], [0.2, 'support', 1], [0.55, 'pouch', 1], [0.82, 'pouch', 1], [1.15, 'magLow', 1], [1.32, 'magwell', 1], [1.46, 'magwell', 1], [1.7, 'bolt', 1], [1.86, 'bolt', 0.9], [2.2, 'support', 0.4], [2.55, 'support', 0]],
       ev: [[0.22, 'magOut'], [0.6, 'pouch'], [0.82, 'grab'], [1.32, 'magIn'], [1.76, 'bolt'], [2.55, 'done']] },
   },
+  sniper: {
+    tac: { dur: 2.4, keys: [[0, 'support', 0], [0.25, 'support', 1], [0.6, 'pouch', 1], [0.95, 'pouch', 1], [1.35, 'magLow', 1], [1.55, 'magwell', 1], [1.75, 'magwell', 1], [2.05, 'support', 0.45], [2.4, 'support', 0]],
+      ev: [[0.27, 'magOut'], [0.65, 'pouch'], [0.95, 'grab'], [1.55, 'magIn'], [2.4, 'done']] },
+    empty: { dur: 3.0, keys: [[0, 'support', 0], [0.25, 'support', 1], [0.6, 'pouch', 1], [0.95, 'pouch', 1], [1.35, 'magLow', 1], [1.55, 'magwell', 1], [1.75, 'magwell', 1], [2.05, 'bolt', 1], [2.4, 'bolt', 0.9], [2.7, 'support', 0.4], [3.0, 'support', 0]],
+      ev: [[0.27, 'magOut'], [0.65, 'pouch'], [0.95, 'grab'], [1.55, 'magIn'], [2.2, 'bolt'], [3.0, 'done']] },
+  },
   pistol: {
     tac: { dur: 1.45, keys: [[0, 'support', 0], [0.14, 'support', 1], [0.45, 'pouch', 1], [0.62, 'pouch', 1], [0.9, 'magLow', 1], [1.02, 'magwell', 1], [1.12, 'magwell', 1], [1.3, 'support', 0.4], [1.45, 'support', 0]],
       ev: [[0.16, 'magOut'], [0.5, 'pouch'], [0.62, 'grab'], [1.02, 'magIn'], [1.45, 'done']] },
@@ -269,6 +279,18 @@ function pumpK(t) {
   if (t < 0.34) return 1 - smooth((t - 0.22) / 0.12);
   return 0;
 }
+// bolt cycle: lift + draw back (casing out), push + lock (next round in)
+function updateBoltCycle(dt) {
+  const c = P.cycle, t0 = c.t, I = inv();
+  c.t += dt;
+  const k = c.t < 0 ? 0 : c.t < 0.15 ? c.t / 0.15 : c.t < 0.55 ? 1 : c.t < 0.72 ? 1 - (c.t - 0.55) / 0.17 : 0;
+  const pull = c.t < 0.15 ? 0 : c.t < 0.32 ? (c.t - 0.15) / 0.17 : c.t < 0.45 ? 1 : c.t < 0.58 ? 1 - (c.t - 0.45) / 0.13 : 0;
+  if (gun.bolt) { gun.bolt.rotation.z = -k * 1.1; gun.bolt.position.z = -0.035 - pull * 0.09; }
+  if (t0 < 0.15 && c.t >= 0.15) { audio.pump(0); P.kick.vrx += 0.6; }
+  if (t0 < 0.3 && c.t >= 0.3) ejectCasing('rifle');
+  if (t0 < 0.5 && c.t >= 0.5) { audio.pump(1); if (!I.chamber && I.mag > 0) { I.mag--; I.chamber = 1; } P.kick.vrx -= 0.4; }
+  if (c.t >= 0.78) { P.cycle = null; if (gun.bolt) { gun.bolt.rotation.z = 0; gun.bolt.position.z = -0.035; } }
+}
 function updatePump(dt) {
   const p = P.pump, t0 = p.t, I = inv();
   p.t += dt;
@@ -332,7 +354,7 @@ function poseGun(dt, aimDirRoot, lowT, relaxed) {
     let s = I.locked ? 1 : P.slideT;
     if (r && r.type === 'mag') { const sg = reloadSeg(r); if (sg.b[1] === 'rackBack') s = Math.max(s, sg.u); }
     gun.slide.position.z = gun.slideZ0 - 0.03 * s;
-  } else {
+  } else if (gun.kind === 'shotgun') {
     const k = P.pump ? pumpK(P.pump.t) : 0;
     gun.pump.position.z = gun.pumpZ0 - 0.085 * k;
     gun.bolt.position.z = gun.boltZ0 - 0.07 * k;
@@ -384,6 +406,7 @@ function fire() {
   const W = WD(), I = inv(), g = gun;
   I.chamber = 0;
   if (W.reload === 'shell') P.pump = { t: -0.12, hull: true };
+  else if (W.bolt) P.cycle = { t: -0.18 };
   else if (I.mag > 0) { I.mag--; I.chamber = 1; } else I.locked = true;
   if (g.kind === 'rifle') P.boltT = 1;
   if (g.kind === 'pistol') P.slideT = 1;
@@ -403,7 +426,7 @@ function fire() {
   for (let i = 0; i < W.pellets; i++) {
     const dir = W.pellets > 1 ? cone(base.clone(), W.choke) : base.clone();
     const b = { pos: mz.clone(), vel: dir.clone().multiplyScalar(W.v * (W.pellets > 1 ? rand(0.95, 1.05) : 1)).add(P.vel), p0: mz.clone(), d0: dir.clone(), t: 0, tracer: null,
-      drag: W.drag, mass: W.mass, shot: id };
+      drag: W.drag, mass: W.mass, dmg: W.dmg, shot: id };
     if (W.tracer && P.stats.shots % W.tracer === 0) { b.tracer = new THREE.Mesh(tracerGeo, tracerMat); b.tracer.frustumCulled = false; scene.add(b.tracer); }
     bullets.push(b);
   }
@@ -415,8 +438,8 @@ function fire() {
   flash.scale.setScalar((sup ? 0.22 : g.brake ? 1.25 : big ? 1.6 : g.kind === 'pistol' ? 0.75 : 1) * rand(0.8, 1.2));
   flashLight.position.copy(mz); flashLight.intensity = sup ? 4 : big ? 90 : 60;
   emitPuff(mz.clone().addScaledVector(base, 0.08), 0x8a8a8a, big ? 0.16 : 0.1, 1.3, base.clone().multiplyScalar(sup ? 0.3 : 0.9).add(T.e.set(0, 0.25, 0)), sup ? 0.12 : big ? 0.3 : 0.2, 1.8);
-  if (W.casing !== 'shell') ejectCasing(W.casing);
-  audio.gunshot(g.kind, sup, g.brake);
+  if (W.casing !== 'shell' && !W.bolt) ejectCasing(W.casing);
+  audio.gunshot(g.kind === 'sniper' ? 'shotgun' : g.kind, sup, g.brake);
   BOTS.playerShot(mz, base);
 
   // recoil: visual gun spring, camera spring, permanent climb, view shake
@@ -428,17 +451,38 @@ function fire() {
   P.shake = Math.min(1.5, P.shake + R.cam * 0.9);
   P.bloom = Math.min(4, P.bloom + (big ? 2.5 : 1));
 }
-function canFire() { return !P.reload && !P.swap && !P.pump && P.lowT < 0.35; }
+// telescopic sight: black surround, lens edge, mil-dot reticle; the rifle is hidden while you're behind the glass
+const SCOPE = (() => {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;display:none';
+  el.innerHTML = `<svg width="100%" height="100%" viewBox="-100 -56.25 200 112.5" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="sg"><stop offset="0.86" stop-color="#000" stop-opacity="0"/><stop offset="0.97" stop-color="#000" stop-opacity="0.75"/><stop offset="1" stop-color="#000"/></radialGradient><mask id="sm"><rect x="-200" y="-200" width="400" height="400" fill="#fff"/><circle r="47" fill="#000"/></mask></defs>
+    <rect x="-200" y="-200" width="400" height="400" fill="#000" mask="url(#sm)"/><circle r="47.2" fill="url(#sg)"/>
+    <g stroke="#0a0a0a" fill="#0a0a0a"><line x1="-47" y1="0" x2="-1.2" y2="0" stroke-width="0.35"/><line x1="1.2" y1="0" x2="47" y2="0" stroke-width="0.35"/><line x1="0" y1="-47" x2="0" y2="-1.2" stroke-width="0.35"/><line x1="0" y1="1.2" x2="0" y2="47" stroke-width="0.35"/>
+    <line x1="-47" y1="0" x2="-24" y2="0" stroke-width="1.2"/><line x1="24" y1="0" x2="47" y2="0" stroke-width="1.2"/><line x1="0" y1="24" x2="0" y2="47" stroke-width="1.2"/><line x1="0" y1="-47" x2="0" y2="-24" stroke-width="1.2"/>
+    ${[-4, -3, -2, -1, 1, 2, 3, 4].map((k) => `<circle cx="${k * 5}" cy="0" r="0.55"/><circle cx="0" cy="${k * 5}" r="0.55"/>`).join('')}</g>
+    <circle r="0.25" fill="#c0201a"/></svg><div id="scopeInfo" style="position:absolute;left:50%;top:calc(50% + 34vh);transform:translateX(-50%);font:600 12px Rajdhani,sans-serif;letter-spacing:.2em;color:#9a9a8a"></div>`;
+  document.body.appendChild(el);
+  const info = el.querySelector('#scopeInfo');
+  let shown = 0;
+  return {
+    update(k) {
+      if (k !== shown) { shown = k; el.style.display = k > 0.01 ? 'block' : 'none'; el.style.opacity = String(k); }
+      if (gun && gun.kind === 'sniper') gun.group.visible = k < 0.5;
+      if (k > 0.5) info.textContent = P.holdBreath ? 'BREATH HELD' : P.breath < 0.2 ? 'OUT OF BREATH' : 'SHIFT — HOLD BREATH';
+    },
+  };
+})();
+function canFire() { return !P.reload && !P.swap && !P.pump && !P.cycle && P.lowT < 0.35; }
 function trigger(now) {
   if (mode !== 'range' || paused) { P.edge = false; return; }
   const I = inv(), W = WD(), m = W.modes[I.mode];
   if (P.edge && P.reload && P.reload.type === 'shell' && I.chamber) P.reload.stop = true;
-  if (!canFire()) { if (P.edge && !P.reload && !P.swap && !P.pump && !I.chamber) audio.dry(); P.edge = false; return; }
+  if (!canFire()) { if (P.edge && !P.reload && !P.swap && !P.pump && !P.cycle && !I.chamber) audio.dry(); P.edge = false; return; }
   if (P.edge) {
     P.edge = false;
     if (!I.chamber) { audio.dry(); return; }
     if (m === 'BURST') P.burst = 3;
-    if ((m === 'SEMI' || m === 'PUMP') && now >= P.nextShot) { fire(); P.nextShot = now + 60 / W.rpm; return; }
+    if ((m === 'SEMI' || m === 'PUMP' || m === 'BOLT') && now >= P.nextShot) { fire(); P.nextShot = now + 60 / W.rpm; return; }
   }
   if (!I.chamber) { P.burst = 0; return; }
   if (now < P.nextShot) return;
@@ -591,6 +635,16 @@ function updateHud() {
 // =====================================================================
 const keys = {};
 function spring(o, x, v, k, c, dt) { o[v] += (-k * o[x] - c * o[v]) * dt; o[x] += o[v] * dt; }
+const wrapPI = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+let lastJumpT = -9;
+const clockJump = (t) => { if (t - lastJumpT < 0.45) return false; lastJumpT = t; return true; };
+// touching down: the harder the fall, the deeper the dip (and a jolt of shake past ~2 m)
+function land() {
+  const v = -(P.vy || 0); P.air = false;
+  if (v > 2.5) { const k = Math.min(1, (v - 2.5) / 7); P.feel.vland -= 4 + k * 10; P.shake = Math.min(1.5, P.shake + k * 0.7); audio.step(false, 1); if (v > 5) audio.step(true, 0); }
+}
+// a hit rocks the view toward the side it came from
+function flinch(side, k = 1) { P.feel.vhit -= 6 * k; P.feel.hitSide = side; }
 const aimKey = { down: false, t: 0, toggled: false };
 
 function updateRange(dt, time) {
@@ -612,8 +666,10 @@ function updateRange(dt, time) {
   COL.resolve(P.pos, 0.32, 1.75);
   P.pos.x = clamp(P.pos.x, -MAP.bounds, MAP.bounds); P.pos.z = clamp(P.pos.z, -MAP.bounds, MAP.bounds);
   const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y);
-  if (gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); }
-  else { P.vy = 0; P.pos.y = damp(P.pos.y, gy, 20, dt); }
+  // jump (Space): a modest hop — enough for a kerb or a low wall, not for rooftops
+  if (keys.Space && !P.air && !P.dead && P.stamina > 0.1 && clockJump(time)) { P.vy = 4.3; P.air = true; P.stamina = Math.max(0, P.stamina - 0.08); audio.step(false, 1); }
+  if ((P.vy || 0) > 0 || gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); P.air = P.pos.y > gy + 0.02 || P.vy > 0; if (!P.air) land(); }
+  else { if (P.air) land(); P.vy = 0; P.pos.y = damp(P.pos.y, gy, 20, dt); }
 
   // hold breath while aiming (Shift): steadies sway for a few seconds, then you pay for it
   P.holdBreath = shift && P.ads && P.breath > 0;
@@ -623,7 +679,8 @@ function updateRange(dt, time) {
   P.sprintT = damp(P.sprintT, sprint ? 1 : 0, 8, dt);
   P.lowT = damp(P.lowT, sprint ? 1 : 0, 9, dt);
   P.crouchT = damp(P.crouchT, P.crouch ? 1 : 0, 9, dt);
-  P.fpT = damp(P.fpT, P.fp ? 1 : 0, 10, dt);
+  const scoped = WD().scope && P.ads && !sprint && !P.reload && !P.swap;
+  P.fpT = damp(P.fpT, P.fp || scoped ? 1 : 0, scoped ? 16 : 10, dt);
   P.leanT = damp(P.leanT, P.lean, 9, dt);
   P.bloom = Math.max(0, P.bloom - dt * 5);
   P.shake *= Math.exp(-14 * dt);
@@ -632,7 +689,9 @@ function updateRange(dt, time) {
     spring(P.kick, 'z', 'vz', 380, 28, h); spring(P.kick, 'rx', 'vrx', 300, 24, h); spring(P.kick, 'ry', 'vry', 300, 24, h);
     spring(P.cr, 'p', 'vp', 90, 16, h); spring(P.cr, 'y', 'vy', 90, 16, h);
     spring(P.sway, 'x', 'vx', 150, 15, h); spring(P.sway, 'y', 'vy', 150, 15, h);
+    spring(P.feel, 'land', 'vland', 140, 13, h); spring(P.feel, 'hit', 'vhit', 160, 12, h);
   }
+  P.feel.yawRate = damp(P.feel.yawRate, wrapPI(P.yaw - P.feel.lastYaw) / Math.max(dt, 1e-3), 10, dt); P.feel.lastYaw = P.yaw;
   P.sway.x = clamp(P.sway.x, -0.09, 0.09); P.sway.y = clamp(P.sway.y, -0.07, 0.07);
   if (P.swap) {
     const s = P.swap, half = 0.26;
@@ -650,14 +709,19 @@ function updateRange(dt, time) {
     }
   }
   if (P.pump) updatePump(dt);
+  if (P.cycle) updateBoltCycle(dt);
 
   // camera orientation: breathing sway (worse when winded, calm when holding breath), strafe roll, lean, shake
-  const swayAmp = P.adsT * (1 - 0.5 * P.crouchT) * (P.holdBreath ? 0.12 : 1 + P.winded * 3 + (P.breath < 0.05 ? 1.5 : 0));
+  const swayAmp = P.adsT * (1 - 0.5 * P.crouchT) * (P.holdBreath ? 0.12 : 1 + P.winded * 3 + (P.breath < 0.05 ? 1.5 : 0)) * (WD().scope ? 2.6 : 1);
   const bf = 1.3 + P.winded * 1.2;
   const lvx = P.vel.dot(right);
-  const pitch = clamp(P.pitch + P.cr.p + Math.sin(time * bf) * 0.0013 * swayAmp + Math.sin(time * 2.9) * 0.0004 * swayAmp, -1.4, 1.4);
-  const yaw = P.yaw + P.cr.y + Math.sin(time * bf * 0.63) * 0.001 * swayAmp;
-  const roll = -P.leanT * 0.17 - lvx * 0.006 * (1 - P.adsT) + Math.sin(P.phase) * 0.006 * P.gaitW * P.fpT + (Math.random() - 0.5) * P.shake * 0.02;
+  // head motion: footfalls nod the view (more when sprinting, little when aiming), idle breathing, landing dip, flinch when hit
+  const hipK = 1 - 0.75 * P.adsT, gait = P.gaitW * (1 + 1.6 * P.sprintT) * hipK;
+  const nod = Math.sin(P.phase * 2) * 0.0045 * gait + Math.sin(time * (1.1 + P.winded)) * 0.0016 * (1 - P.gaitW) * hipK * (1 + P.winded * 2) + P.feel.land * 0.05 - P.feel.hit * 0.035;
+  const pitch = clamp(P.pitch + P.cr.p + nod + Math.sin(time * bf) * 0.0013 * swayAmp + Math.sin(time * 2.9) * 0.0004 * swayAmp, -1.4, 1.4);
+  const yaw = P.yaw + P.cr.y + Math.sin(time * bf * 0.63) * 0.001 * swayAmp + P.feel.hit * P.feel.hitSide * 0.025;
+  const roll = -P.leanT * 0.17 - lvx * 0.006 * hipK + Math.sin(P.phase) * (0.006 + 0.012 * P.sprintT) * P.gaitW * hipK
+    - clamp(P.feel.yawRate, -6, 6) * 0.0045 * hipK + P.feel.hit * P.feel.hitSide * 0.04 + (Math.random() - 0.5) * P.shake * 0.02;
   _e1.set(pitch + (Math.random() - 0.5) * P.shake * 0.004, yaw, roll, 'YXZ'); T.camQ.setFromEuler(_e1);
   T.camFwd.set(0, 0, -1).applyQuaternion(T.camQ);
 
@@ -699,6 +763,8 @@ function updateRange(dt, time) {
   const k = P.fpT * P.adsT;
   if (k > 0.001) camera.position.copy(T.camBase).lerp(gun.group.localToWorld(T.a.copy(gun.eye)), smooth(k));
   else camera.position.copy(T.camBase);
+  camera.position.y += P.feel.land * 0.16;
+  SCOPE.update(WD().scope ? smooth(clamp((P.adsT * P.fpT - 0.82) / 0.18, 0, 1)) : 0);
   const W = WD();
   const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2;
   if (Math.abs(camera.fov - fovT) > 0.01) { camera.fov = fovT; camera.updateProjectionMatrix(); }
