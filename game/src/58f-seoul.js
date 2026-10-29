@@ -6,16 +6,17 @@
 // villas on narrow lanes. Every business has its sign — lightboxes, neon tubes, vertical blades —
 // and the 24-hour store on the corner is open (you can go in). Namsan and its tower on the skyline.
 const SEOUL = {
-  bounds: [-150, 150, -135, 135],
-  scooters: [[60, 14, 1.57, 0xe8e6e0], [-6, -18, 0, 0xc8261e], [72, -40, 3.1, 0x2a5aa0], [24, 40, 0.2, 0x2a2a2a], [-66, -50, 1.2, 0xe8c040], [108, 70, 2.8, 0x3a8a6a], [-40, 70, 0.4, 0xe8e6e0]],
+  bounds: [-250, 250, -330, 240],
+  scooters: [[60, 14, 1.57, 0xe8e6e0], [-6, -18, 0, 0xc8261e], [72, -40, 3.1, 0x2a5aa0], [24, 40, 0.2, 0x2a2a2a], [-66, -50, 1.2, 0xe8c040], [108, 70, 2.8, 0x3a8a6a], [-40, 70, 0.4, 0xe8e6e0],
+    [200, 40, 1.57, 0x2a2a2a], [-200, 40, 0, 0xe8e6e0], [40, -232, 0.3, 0xc8261e], [100, 176, 1.57, 0x2a5aa0], [212, -150, 0, 0xe8c040]],
 };
 const STATION = { x0: 40, z0: 11, x1: 92, z1: 40 }, MARKET = { x0: -52, z0: -58, x1: -18, z1: -30 };
 
 // ---------------- neon: one sign atlas, one mesh for every sign in town ----------------
 const NEON = (() => {
-  // 2048×4096: 112 horizontal cells (512×128, 4 a row) over 16 vertical ones (128×512) along the bottom.
+  // 4096×4096: 224 horizontal cells (512×128, 8 a row) over 32 vertical ones (128×512) along the bottom.
   // A cell is keyed by text+style+colour, so callers keep each text to one colour to stay inside it.
-  const SW = 2048, SH = 4096, HROWS = 28, cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
+  const SW = 4096, SH = 4096, HROWS = 28, cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
   const g = cv.getContext('2d'); g.clearRect(0, 0, SW, SH);
   const FONT = '"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR","Nanum Gothic",sans-serif';
   const cells = new Map(); let hn = 0, vn = 0;
@@ -28,8 +29,8 @@ const NEON = (() => {
     if (cells.has(key)) return cells.get(key);
     const c = COLS[col] || col;
     let x, y, w, h;
-    if (!vertical) { if (hn >= HROWS * 4) console.warn('NEON: atlas full'); x = (hn % 4) * 512; y = Math.floor(hn / 4) % HROWS * 128; w = 512; h = 128; hn++; }
-    else { if (vn >= 16) console.warn('NEON: atlas full (vertical)'); x = (vn % 16) * 128; y = HROWS * 128; w = 128; h = 512; vn++; }
+    if (!vertical) { if (hn >= HROWS * 8) console.warn('NEON: atlas full'); x = (hn % 8) * 512; y = Math.floor(hn / 8) % HROWS * 128; w = 512; h = 128; hn++; }
+    else { if (vn >= 32) console.warn('NEON: atlas full (vertical)'); x = (vn % 32) * 128; y = HROWS * 128; w = 128; h = 512; vn++; }
     g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.clearRect(x, y, w, h);
     if (style === 'box') { g.fillStyle = c; g.fillRect(x + 4, y + 4, w - 8, h - 8); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(x + 4, y + 4, w - 8, (h - 8) * 0.4); }
     else if (style === 'banner') { g.fillStyle = '#ece6da'; g.fillRect(x + 2, y + 8, w - 4, h - 16); g.fillStyle = c; g.fillRect(x + 2, y + 8, 26, h - 16); g.fillRect(x + w - 28, y + 8, 26, h - 16); }
@@ -55,7 +56,7 @@ const NEON = (() => {
   // a sign facing local +z in the current W frame; o: {style, col, vertical, glow, pool, back, lamp, dim}
   // printed things (plate, banner, vinyl) default to no halo, no pool, no light, and are dimmed to read as lit by the street
   function sign(text, x, y, z, w, h, o = {}) {
-    if (MODE_GEOM()) return;
+    if (W.mode === 'geom') { if (o.lamp !== false && !['plate', 'banner', 'vinyl'].includes(o.style)) mchance(0.5); return; }   // streamed detail: quads were laid in its first pass
     const st = o.style || 'tube', r = cell(text, st, o.col || 'pink', !!o.vertical);
     if (st === 'plate' || st === 'banner' || st === 'vinyl') o = { glow: false, pool: false, lamp: false, dim: st === 'vinyl' ? 0.8 : 0.32, ...o };
     const dm = o.dim ?? 1;
@@ -70,21 +71,37 @@ const NEON = (() => {
     if (o.lamp !== false && mchance(0.5)) W.lamp(x, y - h / 2 - 0.3, z + 0.8, r.col.getHex(), 2.2, 9, { halo: 0 });
   }
   // a soft spill of light on the wet ground under a street lamp (world coordinates)
-  function groundPool(x, z, r, hex, k = 0.4) { const c = new THREE.Color(hex); for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) { pool.push(x + a * r, 0.05, z + b * r); poolCol.push(c.r * k, c.g * k, c.b * k); } }
-  const MODE_GEOM = () => false;
-  function finish() {
-    console.log(`[map] neon atlas: ${hn}/${HROWS * 4} horizontal, ${vn}/16 vertical`);
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    const gs = new THREE.BufferGeometry(); gs.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); gs.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gs.setAttribute('color', new THREE.Float32BufferAttribute(dimv, 3));
-    const signs = new THREE.Mesh(gs, new THREE.MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, toneMapped: false, side: THREE.DoubleSide, alphaTest: 0.02 }));
-    signs.renderOrder = 3; scene.add(signs);
-    const blob = canvasTex(64, 64, (c2) => { const gr = c2.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c2.fillStyle = gr; c2.fillRect(0, 0, 64, 64); });
-    const quadUV = (n) => { const a = []; for (let i = 0; i < n / 6; i++) a.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1); return a; };
-    for (const [P2, C2] of [[halo, haloCol], [pool, poolCol]]) {
-      const gh = new THREE.BufferGeometry(); gh.setAttribute('position', new THREE.Float32BufferAttribute(P2, 3)); gh.setAttribute('color', new THREE.Float32BufferAttribute(C2, 3)); gh.setAttribute('uv', new THREE.Float32BufferAttribute(quadUV(P2.length / 3), 2));
-      const m = new THREE.Mesh(gh, new THREE.MeshBasicMaterial({ map: blob, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
-      m.renderOrder = 4; scene.add(m);
+  function groundPool(x, z, r, hex, k = 0.4) { if (W.mode === 'geom') return; const c = new THREE.Color(hex); for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) { pool.push(x + a * r, 0.05, z + b * r); poolCol.push(c.r * k, c.g * k, c.b * k); } }
+  // split quad soup (6 vertices a quad) into 64 m chunks, so far signs drop out with the rest of the map
+  function chunked(P, attrs) {
+    const out = new Map();
+    for (let q = 0; q < P.length / 18; q++) {
+      const k = `${Math.floor(P[q * 18] / 64)}|${Math.floor(P[q * 18 + 2] / 64)}`;
+      let c = out.get(k); if (!c) out.set(k, (c = { P: [], A: attrs.map(() => []) }));
+      for (let v = 0; v < 18; v++) c.P.push(P[q * 18 + v]);
+      attrs.forEach(([arr, n], i) => { for (let v = 0; v < 6 * n; v++) c.A[i].push(arr[q * 6 * n + v]); });
     }
+    return out.values();
+  }
+  function addMesh(c, names, mat, order) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(c.P, 3));
+    names.forEach(([nm, n], i) => g.setAttribute(nm, new THREE.Float32BufferAttribute(c.A[i], n)));
+    g.computeBoundingSphere(); g.userData.tris = c.P.length / 9;
+    const m = new THREE.Mesh(g, mat); m.renderOrder = order; m.userData.lod = 0; m.matrixAutoUpdate = false;
+    scene.add(m); MAP.meshes.push(m);
+  }
+  function finish() {
+    console.log(`[map] neon atlas: ${hn}/${HROWS * 8} horizontal, ${vn}/32 vertical`);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const signMat = new THREE.MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, toneMapped: false, side: THREE.DoubleSide, alphaTest: 0.02 });
+    for (const c of chunked(pos, [[uv, 2], [dimv, 3]])) addMesh(c, [['uv', 2], ['color', 3]], signMat, 3);
+    const blob = canvasTex(64, 64, (c2) => { const gr = c2.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c2.fillStyle = gr; c2.fillRect(0, 0, 64, 64); });
+    const glowMat = new THREE.MeshBasicMaterial({ map: blob, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+    for (const [P2, C2] of [[halo, haloCol], [pool, poolCol]]) {
+      const uv2 = []; for (let i = 0; i < P2.length / 18; i++) uv2.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+      for (const c of chunked(P2, [[C2, 3], [uv2, 2]])) addMesh(c, [['color', 3], ['uv', 2]], glowMat, 4);
+    }
+    pos.length = uv.length = dimv.length = halo.length = haloCol.length = pool.length = poolCol.length = 0;
   }
   return { sign, finish, cell, pool: groundPool, get used() { return [hn, vn]; } };
 })();
@@ -98,6 +115,7 @@ const BIZ = {
   c: [['카페', 'tube', 'white'], ['COFFEE', 'tube', 'cyan'], ['디저트', 'tube', 'pink']],
   p: [['약국', 'box', 'green'], ['세탁소', 'box', 'blue'], ['부동산', 'box', 'blue'], ['마트', 'box', 'red'], ['안경', 'box', 'blue']],
   m: [['모텔', 'tube', 'pink'], ['호텔', 'tube', 'violet']],
+  o: [['은행', 'box', 'blue'], ['증권', 'box', 'cyan'], ['CAFE', 'tube', 'white'], ['서점', 'box', 'orange'], ['베이커리', 'box', 'yellow'], ['클리닉', 'box', 'green']],
 };
 const UPPER = [['노래방', 'pink'], ['PC방', 'cyan'], ['영어학원', 'yellow'], ['치과', 'green'], ['당구장', 'green'], ['헬스', 'red'], ['미용실', 'violet'], ['한의원', 'orange'], ['스크린골프', 'cyan'], ['네일', 'pink'], ['수학학원', 'orange'], ['세무회계', 'blue'], ['필라테스', 'violet'], ['피부과', 'cyan']];
 const BLADE = [['노래연습장', 'pink'], ['맥주', 'yellow'], ['모텔', 'violet'], ['PC', 'cyan'], ['치킨', 'orange'], ['호프', 'yellow'], ['당구', 'green'], ['찜질방', 'red']];
@@ -105,13 +123,15 @@ const GLASSNOTE = ['영업중', 'OPEN', '배달 가능', '포장 환영', '카�
 const VILLAS = [['그린빌라', '#c8b088'], ['행복하우스', '#e8d8b0'], ['로즈빌', '#e8d8b0'], ['미래빌라', '#ffffff'], ['한강맨션', '#c8b088'], ['은하빌', '#ffffff'], ['청솔빌라', '#e8d8b0'], ['해피하임', '#c8b088']];
 const SKIN = { concrete: [0xb8b4ac, 0xa8a49c, 0xc8c0b0, 0x8a8478, 0xd0c8b8, 0x9a968c], brick: [0x8a4a38, 0x9a5a44, 0x7a4234, 0xa8644a, 0x6a3a2e], panel: [0xd8d8d4, 0x8a9098, 0x5a6068, 0xc8c0b0, 0x3a3e44] };
 const NEONHEX = { pink: 0xff2a8a, cyan: 0x2af0ff, yellow: 0xffd040, green: 0x40ff7a, red: 0xff3a3a, violet: 0xb06aff, white: 0xffffff, orange: 0xff8a2a, blue: 0x3a8aff };
+// detail that only matters up close: built when the camera comes near, dropped when it leaves (see STREAM)
+const later = (fn, cls = 'mid') => W.defer(fn, cls);
 // one Korean street building, frame at the front centre (+z = street). Mixes the massing (glass towers,
 // set-back top floors, villas on piloti over their parking), the cladding, the window type and the
 // shopfront — open, shuttered, with the stair door to the tenants upstairs — so no two read the same.
 function seoulUnit(u) {
   const w = u.w, D = u.d, F = u.F, kind = u.s, villa = kind === 'v';
   const G0 = villa ? 3.0 : 4.2, FL = villa ? 2.9 : 3.3;
-  const tower = !villa && F >= 6 && mchance(0.5);
+  const tower = !villa && F >= 6 && (kind === 'o' || mchance(0.5));
   const setback = !tower && F >= 4 && D >= 9 && mchance(0.35), Fm = setback ? F - 1 : F;
   const piloti = villa && F >= 4 && w >= 7 && mchance(0.55);
   const H = G0 + (Fm - 1) * FL;
@@ -128,7 +148,7 @@ function seoulUnit(u) {
   const wt = villa ? 'villa' : tower ? 'grid' : mpick(['ribbon', 'ribbon', 'punched', 'punched', 'blinds']);
   const tenants = [...UPPER].sort(() => mrand() - 0.5);
   for (let f = 1; f < Fm; f++) upperFloor(wt, w, G0 + (f - 1) * FL, FL, col, tx, f, tenants[f % tenants.length], f === Fm - 1);
-  if (villa) villaFace(w, G0, H, FL, Fm, col);
+  if (villa) later(() => villaFace(w, G0, H, FL, Fm, col));
   // LED strips tracing the edges of the nightlife buildings
   if (!villa && (kind === 'n' || kind === 'm' || kind === 'b' || tower) && mchance(0.45)) {
     const c = NEONHEX[mpick(['pink', 'cyan', 'violet', 'blue', 'white'])];
@@ -151,10 +171,10 @@ function seoulUnit(u) {
   const greenRoof = villa || mchance(0.45);
   W.box(w - 0.5, 0.03, D - 0.5, 0, H + 0.015, 0, greenRoof ? mpick([0x3a7a5a, 0x2a6a4a, 0x4a8a6a]) : 0x6a6a68, { t: TX.concrete, wear: 5, lod: 1 });
   if (setback) setbackTop(w, D, H, FL, col, tx, wt, tenants[0]);
-  else roofLife(w, D, H, villa, kind, F);
+  else later(() => roofLife(w, D, H, villa, kind, F));
   W.pop();
   // AC condensers stacked up the facade of the commercial ones
-  if (!villa && !tower) W.scope({ lod: 1 }, () => { for (let f = 1; f < Fm; f += 2) if (mchance(0.4)) acWall(mpick([-1, 1]) * (w / 2 - 0.7), G0 + (f - 1) * FL + 0.15, 0, 0); });
+  if (!villa && !tower) later(() => W.scope({ lod: 1 }, () => { for (let f = 1; f < Fm; f += 2) if (mchance(0.4)) acWall(mpick([-1, 1]) * (w / 2 - 0.7), G0 + (f - 1) * FL + 0.15, 0, 0); }));
   return H;
 }
 // shop on the ground floor: a real room behind the glass (3.4 m deep), lit, furnished by its trade
@@ -170,7 +190,7 @@ function shopGround(u, w, G0, gd, col, kind, clad) {
   const [txt, sty, c] = u.trade ? [u.trade, u.f.sty || 'box', u.f.c || 'pink'] : mpick(BIZ[kind] || BIZ.r);
   W.box(w, 0.95, 0.35, 0, G0 - 0.55, 0.12, 0x1a1a1e, { layer: 'metal' });
   NEON.sign(txt, fx, G0 - 0.55, 0.3, Math.min(fw - 0.2, 6.5), 0.8, { style: sty, col: c });
-  if (stairs) stairDoor(sx * (w / 2 - 0.3 - sw / 2), G0, gd, u);
+  if (stairs) later(() => stairDoor(sx * (w / 2 - 0.3 - sw / 2), G0, gd, u));
   if (shut) {
     // roller shutter down: corrugated steel, the shutter box, a notice taped on
     W.box(fw, G0 - 1.05, 0.06, fx, (G0 - 1.05) / 2, -0.1, mpick([0x8a8e94, 0x6a7078, 0x9aa0a6, 0x7a6a5a]), { layer: 'metal', t: TX.corrugated, wear: 6 });
@@ -181,7 +201,7 @@ function shopGround(u, w, G0, gd, col, kind, clad) {
     return;
   }
   // glass, mullions, kick plate, a door; the room behind
-  const konbini = kind === 'k', inside = { k: 0xe8f0f0, r: 0x8a6a4a, b: 0x5a3a2a, n: 0x3a2a4a, c: 0x9a7a5a, p: 0xd8dcd8, m: 0x4a2a3a }[kind] || 0x7a6040;
+  const konbini = kind === 'k', inside = { o: 0xd8d0c0, k: 0xe8f0f0, r: 0x8a6a4a, b: 0x5a3a2a, n: 0x3a2a4a, c: 0x9a7a5a, p: 0xd8dcd8, m: 0x4a2a3a }[kind] || 0x7a6040;
   W.box(fw, G0 - 1.15, 0.04, fx, (G0 - 1.15) / 2 + 0.2, -0.3, 0x8aa0b0, { layer: 'glass' }); W.solid(fw, G0 - 0.95, 0.15, fx, (G0 - 0.95) / 2, -0.3, 'glass');
   W.box(fw, 0.2, 0.08, fx, 0.1, -0.28, 0x2a2c2e, { layer: 'metal' });
   const nm = Math.max(1, Math.round(fw / 2.2));
@@ -197,18 +217,18 @@ function shopGround(u, w, G0, gd, col, kind, clad) {
   W.box(fw, 0.04, rd, fx, G0 - 1.1, rz, shade(inside, 0.4), { layer: 'glow' });
   for (let x = fx - fw / 2 + 1.2; x < fx + fw / 2 - 0.6; x += 2.2) W.box(1.2, 0.03, 0.3, x, G0 - 1.13, rz, kind === 'n' || kind === 'b' || kind === 'm' ? NEONHEX[mpick(['violet', 'pink', 'cyan'])] : 0xf4f0e8, { layer: 'glow' });
   W.lamp(fx, G0 - 1.4, -1.6, konbini || kind === 'p' ? 0xe8f4ff : kind === 'n' ? 0xc070ff : 0xffd0a0, konbini ? 3.0 : 2.0, 8, { halo: 0 });
-  W.scope({ lod: 2 }, () => shopFurniture(kind, fx, fw, gd, inside));
+  later(() => W.scope({ lod: 2 }, () => shopFurniture(kind, fx, fw, gd, inside)), 'near');
   // out front, by trade
-  W.scope({ lod: 2 }, () => {
+  later(() => W.scope({ lod: 2 }, () => {
     if ((kind === 'r' || kind === 'c' || kind === 'p') && mchance(0.4)) { const ac = mpick([0xc0302a, 0x2a6a4a, 0x2a4a8a, 0xd8a020, 0xe8e0d0]); W.box(fw, 0.04, 1.4, fx, G0 - 1.35, 0.6, ac, { layer: 'cloth', t: TX.fabric, rx: 0.32 }); W.box(fw, 0.25, 0.02, fx, G0 - 1.65, 1.26, ac, { layer: 'cloth', t: TX.fabric }); }
     if (kind === 'r' || kind === 'b') { for (let i = 0; i < (w > 7 ? 2 : 1); i++) { const tx2 = fx - fw / 4 + i * fw / 2; plasticTable(tx2, 0, 1.25, 0, mpick([0xc0302a, 0x2a6a4a, 0xe8e0d0, 0x2a5aa0])); for (const s of [-1, 1]) stool(tx2 + s * 0.65, 0, 1.25, 0xc0302a); for (let k = 0; k < 3; k++) W.cyl(0.03, 0.03, 0.22, tx2 + mr(-0.25, 0.25), 0.83, 1.25 + mr(-0.25, 0.25), 0x2a8a4a, { seg: 6, layer: 'glass' }); } }
     if (kind === 'b' || kind === 'r') sojuCrates(fx + fw / 2 - 0.3, 0.5, mchance(0.5) ? 3 : 2);
     if (kind === 'c') for (let i = 0; i < 3; i++) plantPot(fx - fw / 2 + 0.5 + i * 0.55, 0, 0.45, 'ficus', 1.2);
-    if (kind !== 'p' && mchance(0.55)) standSign(fx + mpick([-1, 1]) * (fw / 2 - 0.4), 0.9, kind);
+    if (kind !== 'p' && kind !== 'o' && mchance(0.55)) standSign(fx + mpick([-1, 1]) * (fw / 2 - 0.4), 0.9, kind);
     else if (mchance(0.4)) aBoard(fx + mr(-fw / 3, fw / 3), 0.8, mpick([0.2, -0.2]));
     if (mchance(0.25)) vendingMachine(fx + fw / 2 - 0.55, 0, 0.45, 0, mpick([0xc0302a, 0x2a5aa0, 0xe8e0d0]));
     if (kind === 'm') { for (let i = 0; i < 9; i++) W.box(0.22, 2.2, 0.01, fx - 1.0 + i * 0.25, 1.2, -0.2, mpick([0xc02a6a, 0x8a2a8a]), { layer: 'cloth' }); }   // the motel's car-park fringe
-  });
+  }));
 }
 function shopFurniture(kind, fx, fw, gd, inside) {
   const back = -gd + 0.4, n = Math.max(1, Math.floor(fw / 2.2));
@@ -218,7 +238,7 @@ function shopFurniture(kind, fx, fw, gd, inside) {
   } else if (kind === 'b') {   // hof: long tables, the TV on the wall, a fridge of beer
     for (let i = 0; i < n; i++) { const x = fx - fw / 2 + (i + 0.5) * fw / n; W.box(1.3, 0.05, 0.7, x, 0.75, -1.9, 0x6a4a2a, { t: TX.wood }); W.box(0.1, 0.72, 0.1, x, 0.37, -1.9, 0x2a2a2a); for (const s of [-1, 1]) stool(x + s * 0.5, 0, -1.25, 0x3a2a1a); }
     W.box(1.4, 0.8, 0.06, fx, 2.2, back + 0.33, 0x4a8ad8, { layer: 'glow' }); W.box(1.0, 1.9, 0.6, fx + fw / 2 - 0.7, 0.95, back + 0.3, 0xd8f0ff, { layer: 'glow' });
-  } else if (kind === 'c') {   // café: counter with the machine, pendant bulbs, little tables
+  } else if (kind === 'c' || kind === 'o') {   // café (and the tower lobbies' coffee bars): counter with the machine, pendant bulbs, little tables
     counter(fx - fw / 4, 0, back + 0.5, 0, Math.min(2.6, fw / 2), 0xd8c8b0, 0x3a3a3a); espressoMachine(fx - fw / 4, 1.0, back + 0.5, 0);
     for (let i = 0; i < 3; i++) { W.rod([fx + i * 0.8 - 0.4, 3.05, -1.6], [fx + i * 0.8 - 0.4, 2.3, -1.6], 0.006, 0x1a1a1a); W.sphere(0.08, 0.1, 0.08, fx + i * 0.8 - 0.4, 2.25, -1.6, 0xffd090, { layer: 'glow' }); }
     W.cyl(0.35, 0.35, 0.04, fx + fw / 4, 0.74, -1.6, 0xe8e0d0, { seg: 12 }); W.cyl(0.04, 0.04, 0.72, fx + fw / 4, 0.36, -1.6, 0x2a2a2a);
@@ -247,31 +267,40 @@ function stairDoor(x, G0, gd, u) {
   for (let i = 0; i < n; i++) { const [t, c] = UPPER[(Math.floor(mrand() * UPPER.length))]; NEON.sign(t, x - 0.75 * Math.sign(x || 1), 1.1 + i * 0.3, 0.11, 0.56, 0.24, { style: 'box', col: c, glow: false, pool: false, lamp: false }); }
 }
 function upperFloor(wt, w, y0, FL, col, tx, f, tenant, top) {
+  // the lit and dark panes are built now (they're what reads from down the street); frames, sills,
+  // grilles and blinds stream in close up
   const z = 0.02;
   if (wt === 'ribbon') {
     const lit = mchance(0.65), wc = lit ? mpick([0xc8b890, 0xa8c0d0, 0xd8c8a0, 0x9ab0c8, 0xe8e8f0]) : 0x101418;
     W.box(w - 0.6, 1.8, 0.04, 0, y0 + 1.55, z, wc, { layer: lit ? 'glow' : 'pane' });
-    for (let x = -w / 2 + 0.3; x <= w / 2 - 0.2; x += 1.5) W.box(0.07, 1.8, 0.08, x, y0 + 1.55, 0.05, 0x2a2e32, { layer: 'metal', lod: 1 });
-    W.box(w - 0.6, 0.07, 0.08, 0, y0 + 2.45, 0.05, 0x2a2e32, { layer: 'metal', lod: 1 });
-    W.box(w, 0.5, 0.14, 0, y0 + 0.32, 0.07, shade(col, 0.85), { t: tx, lod: 1 });
+    W.box(w, 0.5, 0.14, 0, y0 + 0.32, 0.07, shade(col, 0.85), { t: tx });
+    later(() => W.scope({ lod: 1 }, () => {
+      for (let x = -w / 2 + 0.3; x <= w / 2 - 0.2; x += 1.5) W.box(0.07, 1.8, 0.08, x, y0 + 1.55, 0.05, 0x2a2e32, { layer: 'metal' });
+      W.box(w - 0.6, 0.07, 0.08, 0, y0 + 2.45, 0.05, 0x2a2e32, { layer: 'metal' });
+    }));
     if (lit && mchance(0.55)) NEON.sign(tenant[0], 0, y0 + 1.6, 0.05, Math.min(4.4, w * 0.6), 1.0, { style: 'vinyl', col: tenant[1] });
     else if (mchance(0.35)) NEON.sign(tenant[0], mr(-w / 4, w / 4), y0 + 1.6, 0.07, Math.min(3.6, w * 0.45), 0.9, { style: 'box', col: tenant[1], pool: false, glow: false, lamp: false });
   } else if (wt === 'punched' || wt === 'blinds' || wt === 'villa') {
-    const n = Math.max(1, Math.round(w / (wt === 'villa' ? 3.2 : 2.3)));
+    const n = Math.max(1, Math.round(w / (wt === 'villa' ? 3.2 : 2.3))), ww = Math.min(1.6, w / n - 0.6), wins = [];
     for (let i = 0; i < n; i++) {
-      const x = -w / 2 + (i + 0.5) * w / n, lit = mchance(0.55), ww = Math.min(1.6, w / n - 0.6);
+      const x = -w / 2 + (i + 0.5) * w / n, lit = mchance(0.55);
       W.box(ww, 1.4, 0.04, x, y0 + 1.5, z, lit ? mpick([0xb08a50, 0xc8a870, 0x8aa0c0, 0xd8c8a0]) : 0x14161a, { layer: lit ? 'glow' : 'pane' });
-      W.box(ww + 0.14, 0.08, 0.1, x, y0 + 2.24, 0.05, 0xd8d8d0, { layer: 'metal', lod: 1 }); W.box(ww + 0.14, 0.08, 0.1, x, y0 + 0.76, 0.05, 0xd8d8d0, { layer: 'metal', lod: 1 });
-      for (const s of [-1, 1]) W.box(0.07, 1.4, 0.1, x + s * (ww / 2 + 0.03), y0 + 1.5, 0.05, 0xd8d8d0, { layer: 'metal', lod: 1 });
-      W.box(0.05, 1.4, 0.06, x, y0 + 1.5, 0.05, 0xd8d8d0, { layer: 'metal', lod: 2 });
-      if (wt === 'blinds' && lit) for (let k = 0; k < 6; k++) W.box(ww, 0.05, 0.02, x, y0 + 0.9 + k * 0.23, 0.04, 0x8a7a5a, { lod: 2 });
-      if (wt === 'villa' && mchance(0.45)) { for (let k = 0; k < 8; k++) W.box(0.02, 0.85, 0.02, x - ww / 2 + 0.05 + k * (ww - 0.1) / 7, y0 + 1.2, 0.28, 0x2a2a2a, { layer: 'metal', lod: 1 }); W.box(ww + 0.1, 0.04, 0.3, x, y0 + 1.64, 0.15, 0x2a2a2a, { layer: 'metal', lod: 1 }); }
+      wins.push([x, lit, wt === 'villa' && mchance(0.45)]);
     }
+    later(() => W.scope({ lod: 1 }, () => {
+      for (const [x, lit, grille] of wins) {
+        W.box(ww + 0.14, 0.08, 0.1, x, y0 + 2.24, 0.05, 0xd8d8d0, { layer: 'metal' }); W.box(ww + 0.14, 0.08, 0.1, x, y0 + 0.76, 0.05, 0xd8d8d0, { layer: 'metal' });
+        for (const s of [-1, 1]) W.box(0.07, 1.4, 0.1, x + s * (ww / 2 + 0.03), y0 + 1.5, 0.05, 0xd8d8d0, { layer: 'metal' });
+        W.box(0.05, 1.4, 0.06, x, y0 + 1.5, 0.05, 0xd8d8d0, { layer: 'metal', lod: 2 });
+        if (wt === 'blinds' && lit) for (let k = 0; k < 6; k++) W.box(ww, 0.05, 0.02, x, y0 + 0.9 + k * 0.23, 0.04, 0x8a7a5a, { lod: 2 });
+        if (grille) { for (let k = 0; k < 8; k++) W.box(0.02, 0.85, 0.02, x - ww / 2 + 0.05 + k * (ww - 0.1) / 7, y0 + 1.2, 0.28, 0x2a2a2a, { layer: 'metal' }); W.box(ww + 0.1, 0.04, 0.3, x, y0 + 1.64, 0.15, 0x2a2a2a, { layer: 'metal' }); }
+      }
+    }));
     if (wt !== 'villa' && mchance(0.4)) NEON.sign(tenant[0], 0, y0 + 2.75, 0.07, Math.min(3.4, w * 0.45), 0.55, { style: 'box', col: tenant[1], pool: false, glow: false, lamp: false });
   } else if (wt === 'grid') {
     // glass curtain wall: dark panes, a few offices still lit, mullions both ways
-    for (let x = -w / 2 + 0.75; x < w / 2; x += 1.5) { const lit = mchance(0.28); W.box(1.42, FL - 0.12, 0.04, x, y0 + FL / 2, z, lit ? mpick([0x8a9cb0, 0x9aa8b8, 0xa89a78, 0x7a90a8]) : 0x1a2430, { layer: lit ? 'glow' : 'pane' }); W.box(0.06, FL, 0.12, x - 0.75, y0 + FL / 2, 0.06, 0x5a626a, { layer: 'metal', lod: 1 }); }
-    W.box(w, 0.12, 0.14, 0, y0, 0.07, 0x5a626a, { layer: 'metal', lod: 1 });
+    for (let x = -w / 2 + 0.75; x < w / 2; x += 1.5) { const lit = mchance(0.28); W.box(1.42, FL - 0.12, 0.04, x, y0 + FL / 2, z, lit ? mpick([0x8a9cb0, 0x9aa8b8, 0xa89a78, 0x7a90a8]) : 0x1a2430, { layer: lit ? 'glow' : 'pane' }); }
+    later(() => W.scope({ lod: 1 }, () => { for (let x = -w / 2 + 0.75; x < w / 2; x += 1.5) W.box(0.06, FL, 0.12, x - 0.75, y0 + FL / 2, 0.06, 0x5a626a, { layer: 'metal' }); W.box(w, 0.12, 0.14, 0, y0, 0.07, 0x5a626a, { layer: 'metal' }); }));
   }
   if (wt === 'villa') W.box(w, 0.12, 0.16, 0, y0 - 0.06, 0.08, shade(col, 1.18), { t: TX.concrete, lod: 1 });
 }
@@ -352,52 +381,43 @@ function roofLife(w, D, H, villa, kind, F) {
 // ---------------- the street plan ----------------
 function seoulPlan() {
   SKY.night();
-  Object.assign(CITY, { x0: -165, x1: 165, z0: -150, z1: 150 });
-  Object.assign(SPAWN, { x: 66, z: 30, yaw: Math.PI * 0.85 });
+  Object.assign(CITY, { x0: -250, x1: 250, z0: -330, z1: 270 });
+  MAP.lodDist.splice(0, 4, 200, 80, 45, 24); MAP.drawDist = 200;
+  Object.assign(SPAWN, { x: 58, z: 19, yaw: Math.PI * 0.85 });
   Object.assign(SQ, { x0: 1e4, z0: 1e4, x1: 1e4 + 1, z1: 1e4 + 1 });   // no "quiet square" here
-  MAP.lodDist[0] = 420;
+  MAP.bounds = 900;
   return [
-    ['Laying out Mapo-gu', seoulStreets],
-    ['The 24-hour store and the subway', () => { seoulKonbini(); subwayEntrance(65, 30); }],
+    ['Laying out Mapo-gu', () => { seoulRoads(); seoulStreets(); seoulOuterLanes(); seoulReserves(); }],
+    ['The 24-hour store and the subway', () => { seoulKonbini(); seoulSubway(); }],
     ['Shops, bars and villas, street by street', seoulFronts],
-    ['Rooftops', () => { fillBlocks(-150, -135, 150, 135, null, [0x9a968c, 0x8a8478, 0x8a4a38, 0xa8a49c]); }],
-    ['Pojangmacha, poles and cables', seoulDressing],
+    ['Gangnam, the market, the river', seoulOuterFronts],
+    ['Rooftops', () => { fillBlocks(-250, -330, 250, DIST.RIVER, null, [0x9a968c, 0x8a8478, 0x8a4a38, 0xa8a49c]); }],
+    ['Pojangmacha, poles and cables', () => { seoulDressing(); seoulOuterDressing(); }],
     ['Lighting the signs', () => { NEON.finish(); seoulSkyline(); }],
   ];
 }
 function seoulStreets() {
-  // Yanghwa-ro: asphalt, kerbed pavements, lane markings
-  const main = addStreet([[-150, 0], [150, 0]], 24, 'road', { raw: true, road: 15, walk: 4.5 });
-  TOWN.lanes.yanghwa = main; roadway(main, { asphalt: 0x2a2b2e, pave: 0x8a8680 });
   for (const x of [-70, 0, 70]) for (const dx of [-11, 11]) for (let k = -6; k <= 6; k++) W.box(3, 0.012, 0.6, x + dx, 0.04, k * 1.2, 0xe8e8e0, { ao: false, t: TX.none });   // zebra crossings
   const asphalt = { tx: TX.asphalt, col: 0x323335 };
-  lane('golmokN', [[-70, -12], [-70, -135]], 7, 'alley', asphalt);
-  lane('golmokS', [[-70, 12], [-70, 135]], 7, 'alley', asphalt);
-  lane('foodAlley', [[0, -12], [0, -130]], 6.5, 'alley', { tx: TX.concrete, col: 0x5a5856 });
-  lane('barStreet', [[70, -12], [70, -135]], 8, 'alley', asphalt);
-  lane('villaLane1', [[20, 12], [18, 62], [22, 135]], 6, 'alley', asphalt);
-  lane('villaLane2', [[112, 12], [112, 135]], 6, 'alley', asphalt);
-  lane('villaLane3', [[-112, 12], [-110, 70], [-114, 135]], 6, 'alley', asphalt);
-  lane('cross1', [[-150, -66], [150, -66]], 7, 'alley', asphalt);
-  lane('cross2', [[-150, 70], [150, 70]], 6, 'alley', asphalt);
-  lane('back1', [[-150, -110], [150, -110]], 6, 'alley', asphalt);
+  lane('golmokN', [[-70, -12], [-70, -140]], 7, 'alley', asphalt);
+  lane('golmokS', [[-70, 12], [-70, 140]], 7, 'alley', asphalt);
+  lane('foodAlley', [[0, -12], [0, -140]], 6.5, 'alley', { tx: TX.concrete, col: 0x5a5856 });
+  lane('barStreet', [[70, -12], [70, -140]], 8, 'alley', asphalt);
+  lane('villaLane1', [[20, 12], [18, 62], [22, 140]], 6, 'alley', asphalt);
+  lane('villaLane2', [[112, 12], [112, 140]], 6, 'alley', asphalt);
+  lane('villaLane3', [[-112, 12], [-110, 70], [-114, 140]], 6, 'alley', asphalt);
+  lane('cross1', [[-153, -66], [153, -66]], 7, 'alley', asphalt);
+  lane('cross2', [[-153, 70], [153, 70]], 6, 'alley', asphalt);
+  lane('back1', [[-153, -110], [153, -110]], 6, 'alley', asphalt);
   plaza('Station plaza', STATION, 0x8a8680, TX.paving);
   plaza('Market square', MARKET, 0x6a6660, TX.paving);
-  for (const r of [{ x0: -170, z0: -150, x1: -150, z1: 150 }, { x0: 150, z0: -150, x1: 170, z1: 150 }, { x0: -170, z0: -150, x1: 170, z1: -135 }, { x0: -170, z0: 135, x1: 170, z1: 150 }]) GR.rect((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0, r.z1 - r.z0, 0, GR.WALL, true);
-  // backstops at the map's edge: noise barriers and construction hoarding
-  for (const [a, b] of [[[-150, -135], [150, -135]], [[150, -135], [150, 135]], [[150, 135], [-150, 135]], [[-150, 135], [-150, -135]]]) {
-    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz);
-    W.push((a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2, Math.atan2(-dz, dx)); W.box(L, 6, 0.4, 0, 3, 0, 0x4a5a6a, { layer: 'metal', t: TX.corrugated, wear: 4 }); W.solid(L, 6, 0.4, 0, 3, 0, 'metal');
-    for (let x = -L / 2 + 10; x < L / 2; x += 20) NEON.sign(mpick(['공사중', '안전제일', '출입금지']), x, 4.4, 0.25, 3.2, 0.8, { style: 'box', col: 'yellow', pool: false, glow: false, lamp: false });
-    W.pop();
-  }
 }
 function seoulFronts() {
   const T = TOWN.lanes, U = { unit: seoulUnit };
   const F = (n, side, spec, o = {}) => front(T[n], side, spec, { ...U, d: 13, ...o });
   // Yanghwa-ro: the busy frontage — konbini, restaurants, bars, karaoke towers, a motel
-  F('yanghwa', -1, '-5 9/6/n 8/5/r 10/7/n 7/4/c -3 9/5/b 8/6/n 11/8/m 8/5/r -2 7/4/p 9/6/n 10/5/b 8/7/n', { fill: '9/5/n 8/4/r 10/6/b 7/4/c 9/7/n 8/5/p' });
-  F('yanghwa', 1, '-5 8/5/r 9/6/n 8/4/c 10/5/b -2 9/7/n 8/4/p 7/4/r 11/6/m 9/5/b -12 8/5/n 9/4/r', { fill: '8/5/r 9/6/n 7/4/c 10/5/b 9/6/p' });
+  F('yanghwa', -1, '-105 9/6/n 8/5/r 10/7/n 7/4/c -3 9/5/b 8/6/n 11/8/m 8/5/r -2 7/4/p 9/6/n 10/5/b 8/7/n', { fill: '9/5/n 8/4/r 10/6/b 7/4/c 9/7/n 8/5/p', end: 100 });
+  F('yanghwa', 1, '-105 8/5/r 9/6/n 8/4/c 10/5/b -2 9/7/n 8/4/p 7/4/r 11/6/m 9/5/b -12 8/5/n 9/4/r', { fill: '8/5/r 9/6/n 7/4/c 10/5/b 9/6/p', end: 100 });
   // food alley: restaurants and pubs, low and close
   F('foodAlley', 1, '6/3/r 5/2/b 7/3/r 5/3/b 6/2/r 6/3/b 5/2/r 7/4/n 6/3/r 5/2/b', { d: 10, fill: '6/3/r 5/2/b' });
   F('foodAlley', -1, '5/2/b 6/3/r 6/2/b 7/3/r 5/3/b 6/3/r 6/2/b 7/4/n 5/3/r', { d: 10, fill: '5/2/b 6/3/r' });
@@ -467,8 +487,9 @@ function seoulKonbini() {
   TOWN.spots.konbini = { x: 9.5, y: 0.12, z: -19 }; TOWN.spots.konbiniDoor = { x: 7, z: -10.5 };
 }
 // subway entrance: glass canopy, steps down, the line's green circle
-function subwayEntrance(x, z) {
+function subwayEntrance(x, z, name = '') {
   W.push(x, 0, z, 0);
+  if (name) { W.box(3.6, 0.5, 0.06, 0, 2.75, 3.9, 0x1a1a1e, { layer: 'metal' }); NEON.sign(`${name}역`, 0, 2.75, 3.94, 3.2, 0.42, { style: 'box', col: 'white', glow: false, pool: false, lamp: false, dim: 0.8 }); }
   W.box(4.4, 0.2, 8, 0, 3.2, 0, 0x6a7a8a, { layer: 'metal' }); W.box(4.2, 0.05, 7.8, 0, 3.1, 0, 0x9ab0c0, { layer: 'glass' });
   for (const s of [-1, 1]) { W.box(0.15, 1.1, 8, s * 2.15, 0.55, 0, 0x8a8e94, { layer: 'metal' }); W.solid(0.15, 1.1, 8, s * 2.15, 0.55, 0, 'metal'); W.box(0.12, 3.2, 0.12, s * 2.1, 1.6, -3.9, 0x6a6e72, { layer: 'metal' }); W.box(0.12, 3.2, 0.12, s * 2.1, 1.6, 3.9, 0x6a6e72, { layer: 'metal' }); }
   W.box(4.4, 1.1, 0.15, 0, 0.55, -4, 0x8a8e94, { layer: 'metal' }); W.solid(4.4, 1.1, 0.15, 0, 0.55, -4, 'metal');
@@ -532,9 +553,6 @@ function seoulDressing() {
   const T = TOWN.lanes;
   // pojangmacha down the food alley
   for (let z = -22; z > -125; z -= 13) pojangmacha(mpick([-1.2, 1.2]), z, Math.PI / 2);
-  // street lamps and trees along Yanghwa-ro; poles and cables everywhere else
-  for (let x = -140; x <= 140; x += 22) for (const s of [-1, 1]) { streetLampModern(x, 0.16, s * 10.2, s > 0 ? Math.PI : 0, 9); W.lamp(x, 8.8, s * 8.4, 0xffc888, 3.0, 16, { halo: 0.8 }); NEON.pool(x, s * 8.4, 5, 0xffc888, 0.32); }
-  for (let x = -130; x <= 130; x += 16) for (const s of [-1, 1]) if (Math.abs(x % 70) > 6) ginkgo(x + 8, s * 10.6);
   for (const x of [-70, 0, 70]) for (const s of [-1, 1]) trafficLight(x + s * 9, 0.16, s * 10.5, s > 0 ? Math.PI : 0);
   for (const [name, st] of Object.entries(T)) {
     if (st.kind === 'road') continue;
@@ -544,11 +562,9 @@ function seoulDressing() {
     // parked cars and delivery scooters along the residential lanes
     const taken = [];
     W.scope({ lod: 1 }, () => { for (let s = 12; s < st.len - 6; s += mr(14, 24)) { const p = pathAt(st.pts, s), side = mchance(0.5) ? 1 : -1, r = st.w / 2 - 1.1; taken.push([s, side]); if (st.w >= 6.5 && mchance(0.5)) sedan(p.x - p.tz * r * side, p.z + p.tx * r * side, Math.atan2(-p.tz, p.tx), mpick([0xe8e6e0, 0x2a2c30, 0x8a8e94, 0x1a2a4a, 0xc8c4bc])); else scooter(p.x - p.tz * (r + 0.4) * side, p.z + p.tx * (r + 0.4) * side, Math.atan2(-p.tz, p.tx) + 1.57, mpick([0xe8e6e0, 0xc8261e, 0x2a2a2a])); } });
-    kerbLife(name, st, taken);
+    W.defer(() => kerbLife(name, st, taken), 'mid', [st.pts[0][0], st.pts[0][1]]);
   }
-  // traffic on Yanghwa-ro: taxis, buses, a stopped delivery truck
   W.scope({ lod: 1 }, () => {
-    for (let x = -130; x < 140; x += mr(18, 30)) { const lane2 = mpick([-5.4, -1.8, 1.8, 5.4]); if (mchance(0.25)) bus(x, lane2, lane2 > 0 ? Math.PI : 0, mpick([0x3a9a5a, 0x2a6ab0])); else { const c = mpick([0xe87a2a, 0xc8c4bc, 0x2a2c30, 0xe8e6e0, 0xe87a2a, 0x8a8e94]); sedan(x, lane2, lane2 > 0 ? Math.PI : 0, c); if (c === 0xe87a2a || mchance(0.15)) { W.box(0.5, 0.16, 0.26, x - 0.1, 1.46, lane2, 0xffd040, { layer: 'glow' }); W.box(0.52, 0.04, 0.28, x - 0.1, 1.38, lane2, 0x2a2a2a); } } }
     busShelter(40, 0.16, 10, Math.PI); busShelter(-40, 0.16, -10, 0);
   });
   // market square: stalls under lights, the station plaza: benches and a kiosk
@@ -561,8 +577,6 @@ function seoulDressing() {
     for (const [x, z] of [[-73.8, -14], [3.6, -14], [73.8, -14], [-73.8, 14], [23.6, 14], [115.6, 14]]) cctvPole(x, z);
     for (const x of [-70, 0, 70]) for (const s of [-1, 1]) steelBollards(x - 4, s * 7.9, x + 4, s * 7.9, 1.6);
     bikeDock(-37, -10.6, 0, 5); bikeDock(98, 10.6, Math.PI, 5); bikeDock(-120, 10.6, Math.PI, 4);
-    // the median: a low railing down the middle of Yanghwa-ro, broken at the crossings
-    for (let x = -148; x < 148; x += 2) { if ([-70, 0, 70].some((c) => Math.abs(x - c) < 13)) continue; W.box(0.06, 0.9, 0.06, x, 0.45, 0, 0xe8e8e0, { layer: 'metal' }); W.box(2, 0.06, 0.04, x + 1, 0.85, 0, 0xe8e8e0, { layer: 'metal' }); W.box(2, 0.12, 0.03, x + 1, 0.6, 0, 0xe8c020, { layer: 'metal' }); }
   });
 }
 // whatever piles up against the buildings: bins, rubbish, gardens, bikes — never on a parked car's spot or a junction
@@ -581,24 +595,11 @@ function kerbLife(name, st, taken) {
     }
   });
 }
-// the skyline: apartment slabs with lit windows round the edge, Namsan and its tower to the north
+// beyond the draw distance there's only rain and haze; N Seoul Tower stands lit on its hill to the north
 function seoulSkyline() {
-  const tex = canvasTex(256, 512, (g, w, h) => { g.fillStyle = '#0b0c12'; g.fillRect(0, 0, w, h); for (let y = 8; y < h; y += 16) for (let x = 6; x < w; x += 14) if (Math.random() < 0.42) { g.fillStyle = Math.random() < 0.8 ? `rgba(255,${200 + Math.random() * 40},${130 + Math.random() * 60},0.9)` : 'rgba(150,200,255,0.9)'; g.fillRect(x, y, 8, 8); } });
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: true, color: 0x9a9aa0 });
-  let seed = 3;
-  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  for (let i = 0; i < 70; i++) {
-    const a = rnd() * Math.PI * 2, r = 230 + rnd() * 160, x = Math.cos(a) * r * 1.1, z = Math.sin(a) * r;
-    if (z < -200 && Math.abs(x - 40) < 140) continue;   // keep Namsan clear
-    const w = 18 + rnd() * 16, h = 40 + rnd() * 50, d = 12;
-    const geo = new THREE.BoxGeometry(w, h, d); const uvs = geo.attributes.uv; for (let k = 0; k < uvs.count; k++) uvs.setXY(k, uvs.getX(k) * w / 18, uvs.getY(k) * h / 40);
-    const m = new THREE.Mesh(geo, mat); m.position.set(x, h / 2 + terrainH(x, z), z); m.rotation.y = -a + Math.PI / 2; scene.add(m);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(w * 0.4, 2, 0.3), new THREE.MeshBasicMaterial({ color: 0xff2a3a, toneMapped: false })); top.position.set(x, h + 1 + terrainH(x, z), z); top.rotation.y = m.rotation.y; if (rnd() < 0.5) scene.add(top);
-  }
   // N Seoul Tower on the hill
   const at = (m, x, y, z) => { m.position.set(x, y, z); return m; };
-  const tx = 40, tz = -420, ty = terrainH(tx, tz);
+  const tx = 60, tz = -980, ty = terrainH(tx, tz);
   const tw = new THREE.Group(); tw.position.set(tx, ty, tz); scene.add(tw);
   const wm = new THREE.MeshBasicMaterial({ color: 0x8a8ea0 }), lm = new THREE.MeshBasicMaterial({ color: 0xfff0e0, toneMapped: false });
   tw.add(at(new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.4, 90, 12), wm), 0, 45, 0));
@@ -606,6 +607,7 @@ function seoulSkyline() {
   tw.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.6, 40, 8), wm), 0, 117, 0));
   tw.add(at(new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3a3a, toneMapped: false })), 0, 138, 0));
   for (let i = 0; i < 12; i++) tw.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), lm), Math.cos(i / 12 * Math.PI * 2) * 9.2, 92, Math.sin(i / 12 * Math.PI * 2) * 9.2));
+  tw.scale.setScalar(1.8); tw.traverse((o) => { if (o.material) o.material.fog = false; });
 }
 
 // ---------------- street furniture of the Seoul kind ----------------
@@ -736,6 +738,8 @@ const RAIN = (() => {
   return {
     update(dt, cam) {
       if (!MAP.night || !MAP.ready) return;
+      if (mesh) mesh.visible = !SUBWAY.under;
+      if (SUBWAY.under) return;
       if (!mesh) build();
       const p = mesh.geometry.attributes.position.array, cx = cam.position.x, cy = cam.position.y, cz = cam.position.z;
       for (let i = 0; i < N; i++) {

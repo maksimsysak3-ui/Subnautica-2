@@ -199,7 +199,7 @@ function seoulMissions({ fig, live, near, kit, S, flags }) {
       { text: 'The gang’s lieutenant (sunglasses) is eating at the third pojangmacha tent in the food alley. Take him down', where: () => live(F().lt, 'LIEUTENANT')(), done: () => F().ltDead },
       { text: 'Take the drive off his body (E)', where: () => ({ x: F().lt.x, y: F().lt.y + 1, z: F().lt.z, name: 'DRIVE' }),
         act: () => { if (!near(F().lt, 2.4)) return false; audio.pouch(); feed('<span class="s">DRIVE TAKEN</span>'); BOTS.setPressure(3); return true; }, prompt: () => near(F().lt, 2.4) ? '[E]  TAKE THE DRIVE' : '' },
-      { text: 'The whole gang is out looking for you. Get to the subway entrance at the station plaza', where: () => ({ ...S().subway, y: 2, name: 'SUBWAY' }), done: () => near({ ...S().subway, y: 0 }, 3, 3) },
+      { text: 'The whole gang is out looking for you. Get to the subway entrance at the station plaza', where: () => ({ ...S().subway, y: 2, name: 'SUBWAY' }), done: () => SUBWAY.under || near({ ...S().subway, y: 0 }, 3, 3) },
     ],
     teardown() { BOTS.setPressure(0); },
   }];

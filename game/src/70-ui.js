@@ -16,7 +16,7 @@ addEventListener('keydown', (e) => {
     case 'KeyC': case 'ControlLeft': if (!P.vehicle) P.crouch = !P.crouch; break;
     case 'KeyT': resetRange(); break;
     case 'KeyN': BOTS.toggle(); break;
-    case 'KeyE': DISGUISE.interact(); break;
+    case 'KeyE': if (!SUBWAY.interact()) DISGUISE.interact(); break;
     case 'KeyF': DISGUISE.takedown(); break;
     case 'KeyH': DISGUISE.toggleHolster(); break;
     case 'KeyU': DISGUISE.ownGear(); break;
@@ -212,15 +212,17 @@ addEventListener('resize', () => {
 let last = performance.now(), time = 0, first = true;
 // adaptive quality: watches frame time and trades draw distance / resolution for frame rate
 const QUALITY = (() => {
-  let avg = 16, t = 0, dist = 420, pr = Math.min(devicePixelRatio, 1.25);
+  // Seoul keeps its draw distance short: night, rain and fog hide the cut, and the streets are dense
+  const DMIN = MAP.id === 'seoul' ? 130 : 220, DMAX = MAP.id === 'seoul' ? 240 : 520;
+  let avg = 16, t = 0, dist = MAP.id === 'seoul' ? 200 : 420, pr = Math.min(devicePixelRatio, 1.25);
   const maxPR = Math.min(devicePixelRatio, 1.25);
   return {
     update(dt) {
       if (!MAP.ready || MAP.lockDraw) return;
       avg = lerp(avg, dt * 1000, 0.05); t += dt;
       if (t < 1.0) return; t = 0;
-      if (avg > 24) { if (dist > 220) dist -= 50; else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
-      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < 520) dist += 30; }
+      if (avg > 24) { if (dist > DMIN) dist = Math.max(DMIN, dist - 40); else if (pr > 0.7) { pr = Math.max(0.7, pr - 0.15); renderer.setPixelRatio(pr); } }
+      else if (avg < 15) { if (pr < maxPR) { pr = Math.min(maxPR, pr + 0.1); renderer.setPixelRatio(pr); } else if (dist < DMAX) dist = Math.min(DMAX, dist + 30); }
       W.setDrawDist(dist);
     },
     get fps() { return Math.round(1000 / avg); },
@@ -233,7 +235,7 @@ function frame(now) {
   if (MENU.active) { MENU.frame(dt, now / 1000); return; }
   if (!paused) {
     time += dt;
-    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
+    if (mode === 'range') { updateRange(dt, time); NPCS.update(dt); BOTS.update(dt); MISSION.update(dt); SUBWAY.update(dt); DISGUISE.update(dt); HANDMAP.update(dt); SCOOTER.update(dt); } else updateCustom(dt, time);
     updateTargets(dt, time);
     updateBullets(dt);
     updateSparks(dt);
@@ -247,7 +249,7 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
@@ -276,7 +278,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

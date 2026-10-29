@@ -6,7 +6,7 @@
 // all read. Held in both hands, north up, with a red pin (and arrow) for you and a gold one for the
 // current objective. Aim (Q) brings it closer.
 const HANDMAP = (() => {
-  const [X0, X1, Z0, Z1] = MAP.id === 'seoul' ? SEOUL.bounds : [-160, 160, -450, 120], CELL = 2, K = 0.3 / Math.max(X1 - X0, Z1 - Z0), VEX = 2.4;   // world → model scale, vertical exaggeration
+  const [X0, X1, Z0, Z1] = MAP.id === 'seoul' ? SEOUL.bounds : [-160, 160, -450, 120], CELL = MAP.id === 'seoul' ? 3 : 2, K = 0.3 / Math.max(X1 - X0, Z1 - Z0), VEX = 2.4;   // world → model scale, vertical exaggeration
   const group = new THREE.Group(); group.visible = false;
   const tray = new THREE.Group(); group.add(tray);
   let built = false, open = false, t = 0;
@@ -95,7 +95,8 @@ const HANDMAP = (() => {
     group.rotation.set(lerp(0.85, 1.2, P.mapClose) + P.pitch * 0.2, 0, Math.sin(t * 0.9) * 0.01);
     // north is up the board; the red pin's arrow shows the way you face
     const gy = (x, z) => Math.max(COL.ground(x, z, P.pos.y + 1, 0.5), terrainH(x, z)) + 1.2;
-    pinMe.position.set(P.pos.x * K, 0.012 + gy(P.pos.x, P.pos.z) * K * VEX, P.pos.z * K);
+    const px = clamp(P.pos.x, X0, X1), pz = clamp(P.pos.z, Z0, Z1);   // underground (Seoul's stations): pinned to the board's edge
+    pinMe.position.set(px * K, 0.012 + gy(px, pz) * K * VEX, pz * K);
     pinMe.rotation.y = P.yaw;
     const g = MISSION.target;
     pinGoal.visible = !!g;

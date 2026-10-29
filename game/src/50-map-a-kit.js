@@ -483,6 +483,7 @@ const W = (() => {
       MAP.lamps.push({ p, color: new THREE.Color(color), intensity: intensity * MAP.lampGain, range: range * 1.25, flicker: o.flicker || 0, halo: o.halo ?? 0.6 });
     },
     stats: () => ({ tris: Math.round(tris), objects, buckets: buckets.size, lod: lodTris.map(Math.round) }),
+    get mode() { return MODE; },
     // DEFERRED DETAIL: fn runs now for its colliders/lamps; its geometry is generated later, only when
     // the camera comes near (see STREAM). RNG state, frame and drawing state are captured so both runs match.
     defer(fn, cls = 'near', at = null) {
@@ -797,6 +798,7 @@ const SKY = (() => {
     ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.07, 0.06, 0.1); });
     sunDir.set(0.35, 0.62, -0.7).normalize();
     sun.color.set(0x8fa4d8); sun.intensity = 0.32;
+    sun.castShadow = false;   // moonlight this faint casts nothing you'd see under the street lamps: skip the whole shadow pass
     scene.fog.color.setRGB(0.03, 0.022, 0.04); scene.background.copy(scene.fog.color);
     HEMI.color.setRGB(0.18, 0.2, 0.32); HEMI.groundColor.setRGB(0.12, 0.06, 0.1); HEMI.intensity = 0.35;
     MAP.lampGain = 3.2;
@@ -818,7 +820,7 @@ const SKY = (() => {
 
 // ---------------- lamp pool: hundreds of lamps, only the nearest few are real lights ----------------
 const LAMPS = (() => {
-  const N = MAP.id === 'seoul' ? 12 : 6, pool = [];
+  const N = MAP.id === 'seoul' ? 8 : 6, pool = [];
   for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffffff, 0, 10, 2); scene.add(l); pool.push({ l, lamp: null, cur: 0 }); }
   let haloPts = null, timer = 0;
   function buildHalos() {
