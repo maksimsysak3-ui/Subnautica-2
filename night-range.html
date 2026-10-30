@@ -7164,7 +7164,7 @@ function climbMinaret(cx, cz) {
     const y0 = b * 3.6, h = Math.min(3.6, top - y0);
     faces.forEach(([ax, a0, a1, c, side], fi) => {
       const ops = [];
-      if (b === 0 && fi === 2) ops.push({ at: 0, w: 1.1, h: 2.4, kind: 'archdoor', arch: 'horse', style: 'carved', leaf: 'open', zellige: 0, rimCol: 0xf2e6cc });
+      if (b === 0 && fi === 2) ops.push({ at: 0, w: 1.7, h: 3.0, kind: 'arch', arch: 'horse', zellige: 0, rimCol: 0xf2e6cc });   // an open archway: you can see the stair from the street
       else if (b > 0 && b % 2 === (fi % 2) && h > 2) ops.push({ at: 0, w: 0.32, h: 1.1, sill: 1.3, kind: 'win', win: 'open' });
       wall(ax, a0, a1, c, y0, h, T, { col, tx: TX.plaster, wear: 3, side, ops, inCol: 0xcab494, inTx: TX.plaster, dimIn: 0.45 });
     });
@@ -7184,7 +7184,7 @@ function climbMinaret(cx, cz) {
     }
   });
   // interior: central core and a square spiral of short flights and corner landings
-  W.scope({ dim: 0.55 }, () => {
+  W.scope({ dim: 0.85 }, () => {
     W.box(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 0xcab494, { t: TX.plaster }); W.solid(core * 2, Ht + 0.1, core * 2, 0, (Ht + 0.1) / 2, 0, 'plaster');
     W.box(I * 2, 0.06, I * 2, 0, 0.03, 0, MC.stone, { t: TX.stone, wear: 5, ao: false });
     const C = [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [a * (core + I) / 2, b * (core + I) / 2]), wd = I - core;
@@ -7199,9 +7199,12 @@ function climbMinaret(cx, cz) {
     }
     // the gallery deck at the top: a ring walk round the core, open where the last flight arrives
     // (the east side and north-east corner stay open: that's the stairwell)
-    for (const [x0, z0, x1, z1] of [[-I, core, I, I], [-I, -core, -core, core], [-I, -I, core, -core]]) { W.box(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 0xc8b49a, { t: TX.terrazzo, ao: false }); W.solid(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 'stone', { walk: true }); }
-    railing(core, -I, core, -core, Ht, 'iron');
+    for (const [x0, z0, x1, z1] of [[-I, core, I, I]]) { W.box(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 0xc8b49a, { t: TX.terrazzo, ao: false }); W.solid(x1 - x0, 0.2, z1 - z0, (x0 + x1) / 2, Ht - 0.1, (z0 + z1) / 2, 'stone', { walk: true }); }
+    railing(-I, core, -core, core, Ht, 'iron');   // the deck is the north side only: everywhere else the stair runs too close under it
     hangLantern(0.0, Ht - 0.4, I - 0.4, 0xffc070, 0.2, true);
+    // lamps up the stairwell, and one at the foot by the archway
+    for (let y = 1.8; y < Ht; y += 3.6) W.lamp(0, y + 1.6, I - 0.2, 0xffc890, 1.6, 6, { halo: 0.3 });
+    W.lamp(I - 0.4, 2.4, 0, 0xffc890, 2.0, 7, { halo: 0.4 }); W.box(0.2, 0.3, 0.2, s / 2 - T - 0.12, 2.6, 0.8, 0xffd8a0, { layer: 'glow' });
   });
   // lantern storey on the core: small tower, green tile pyramid, brass finials
   const ls = 2.2, LH = 4.4;
@@ -10027,9 +10030,11 @@ function manorBigHouse() {
 // ---------- a façade line, one floor: bays of windows every 5 m, doors where asked, mouldings ----------
 function facade(ax, a0, a1, c, side, f, y0, H, doors) {
   const ops = [], bay = 5;
+  // doors first, wherever they're asked for; a window that would overlap one is left out
+  for (const [at, kind] of doors) ops.push(kind === 'door' ? { at, w: 2.6, h: 3.8, kind: 'door', style: 'plank', leaf: 'open' } : { at, w: 1.8, h: 3.4, kind: 'door', style: 'glass', leaf: 'open' });
+  const clash = (a) => doors.some(([at, kind]) => Math.abs(at - a) < (kind === 'door' ? 1.3 : 0.9) + 1.0);
   for (let a = a0 + bay / 2; a < a1; a += bay) {
-    const d = doors.find(([at]) => Math.abs(at - a) < bay / 2);
-    if (d) { ops.push(d[1] === 'door' ? { at: d[0], w: 2.6, h: 3.8, kind: 'door', style: 'plank', leaf: 'open' } : { at: d[0], w: 1.8, h: 3.4, kind: 'door', style: 'glass', leaf: 'open' }); continue; }
+    if (clash(a)) continue;
     if (f === 0) ops.push({ at: a, w: 1.7, h: 3.4, sill: 0.6, kind: 'archwin', arch: 'round', _spring: 2.5, win: 'plain', rimCol: STONE, rimTx: TX.stone });
     else if (f === 1) ops.push({ at: a, w: 1.6, h: 3.0, sill: 0.5, kind: 'win', win: 'plain', sillCol: STONE });
     else ops.push({ at: a, w: 1.4, h: 1.7, sill: 1.0, kind: 'win', win: 'plain', sillCol: STONE });
@@ -10042,7 +10047,7 @@ function facade(ax, a0, a1, c, side, f, y0, H, doors) {
     bx(L + 0.4, 0.35, 0.3, m, y0 + H - 0.1);
     if (f === 0) { for (let y = 0.9; y < H - 0.5; y += 0.9) bx(L, 0.06, 0.12, m, y); bx(L + 0.2, 0.6, 0.35, m, 0.3); }
     for (let a = a0 + bay / 2; a < a1; a += bay) {
-      if (doors.some(([at]) => Math.abs(at - a) < bay / 2)) continue;
+      if (clash(a)) continue;
       if (f === 1) { bx(2.2, 0.18, 0.3, a, y0 + 3.6); if (ax === 'x') W.tris(twoSided([a - 1.15, y0 + 3.7, o + side * 0.15, a + 1.15, y0 + 3.7, o + side * 0.15, a, y0 + 4.3, o + side * 0.15]), STONE, { t: TX.stone }); else W.tris(twoSided([o + side * 0.15, y0 + 3.7, a - 1.15, o + side * 0.15, y0 + 3.7, a + 1.15, o + side * 0.15, y0 + 4.3, a]), STONE, { t: TX.stone }); }
       if (a + bay / 2 < a1) bx(0.6, H - 0.4, 0.18, a + bay / 2, y0 + (H - 0.4) / 2);   // pilaster between bays
       if (f === 0 && side > 0 && ax === 'x') { W.box(0.9, 0.5, 0.4, a, 0.95, o + side * 0.3, STONE); W.box(0.85, 0.3, 0.35, a, 1.3, o + side * 0.3, 0x3a5a2a, { t: TX.leaf }); for (let k = 0; k < 5; k++) W.sphere(0.1, 0.1, 0.1, a - 0.35 + k * 0.17, 1.48, o + side * 0.3, mpick([0xd83a4a, 0xf0e0e8, 0xe8b030]), { seg: 5, hseg: 3 }); }   // window boxes
@@ -10188,7 +10193,7 @@ function furnishRoom(kind, w, d, H) {
       for (let k = 0; k < 10; k++) W.sphere(0.055, 0.055, 0.055, mr(-1, 1), 0.89, mr(-0.5, 0.5), mpick([0xe8e8e0, 0xd83a2a, 0xe8c020, 0x1a1a1a, 0x2a5aa0]), { seg: 6 });
       W.box(1.0, 0.05, 2.6, 0, 1.9, 0, 0x2a2a2a, { ry: Math.PI / 2 }); W.box(0.9, 0.04, 2.4, 0, 1.86, 0, 0xfff0c0, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(0, 1.7, 0, 0xffe8b0, 1.6, 6, { halo: 0 });
       W.box(1.2, 1.6, 0.1, L + 0.2, 1.4, 0, 0x4a2a18, { ry: Math.PI / 2 }); for (let k = 0; k < 6; k++) W.rod([L + 0.25, 0.4, -0.5 + k * 0.2], [L + 0.25, 1.9, -0.5 + k * 0.2], 0.012, 0xc8a070);
-      sofa(0, 0, d / 2 - 1.4, Math.PI, 0x3a1a14, 2.2); fire(); break;
+      sofa(-w / 4 - 0.6, 0, d / 2 - 1.4, Math.PI, 0x3a1a14, 2.2); fire(); break;
     case 'drawing': case 'sitting': for (const s of [-1, 1]) sofa(s * 1.6, 0, 0, s * Math.PI / 2, kind === 'drawing' ? 0x6a7a5a : 0x8a5a4a, 2.2); lowTable(0, 0, 0, 0, 1.4, 0.8); W.cyl(0.12, 0.08, 0.2, 0, 0.42, 0, 0xe8e8f0, { seg: 8, layer: 'glass' });
       fire(); rug(kind === 'drawing' ? 0x4a5a3a : 0x6a2a2a); for (const x of [L + 0.5, R - 0.5]) plantPot(x, 0, d / 2 - 1, 'palm', 1.6); W.box(1.2, 1.9, 0.5, R - 0.4, 0.95, far + 1.5, 0x4a2a18, { t: TX.wood, ry: -Math.PI / 2 }); if (w > 14) chandel(); break;
     case 'gallery': for (let x = L + 1.5; x < R - 1; x += 3) { portrait(x, 2.2, far - 0.2, 0, 1.4, 1.8); } for (let x = -w / 2 + 3; x < w / 2 - 2; x += 5) statue(x, 0, Math.PI); for (const z of [-1, 1]) W.box(2.2, 0.45, 0.6, 0, 0.23, z * 1.5, 0x5a2a1e, { t: TX.fabric }); chandel(); break;
@@ -10199,10 +10204,10 @@ function furnishRoom(kind, w, d, H) {
     case 'bath': W.box(1.7, 0.6, 0.8, L + 1.1, 0.3, far + 0.6, 0xf4f4f0); W.box(1.5, 0.1, 0.6, L + 1.1, 0.58, far + 0.6, 0x9ac8e0, { layer: 'glass' }); for (const sx of [-1, 1]) W.sphere(0.12, 0.12, 0.12, L + 1.1 + sx * 0.7, 0.05, far + 0.3, 0xc8a050, { layer: 'metal' });
       W.box(0.9, 0.85, 0.5, R - 0.6, 0.42, far + 0.4, 0xf0f0ec); W.box(0.5, 0.65, 0.04, R - 0.6, 1.5, far + 0.1, 0xc8d8e0, { layer: 'glass' }); W.box(0.45, 0.45, 0.65, R - 0.5, 0.22, 0, 0xf4f4f0);
       W.box(w - 0.4, 1.2, 0.02, 0, 0.6, far, 0xd8e8e8, { t: TX.ceramic }); break;
-    case 'dressing': for (let x = L + 0.7; x < R - 0.5; x += 1.3) wardrobe(x, 0, far + 0.3, 0, 0x6a4a2a); W.box(1.4, 1.9, 0.05, 0, 1.2, d / 2 - 0.4, 0xc8d8e0, { layer: 'glass' }); W.box(0.8, 0.45, 0.8, 0, 0.23, 0, 0x8a4a5a, { t: TX.fabric }); break;
+    case 'dressing': for (let x = L + 0.7; x < R - 0.5; x += 1.3) wardrobe(x, 0, far + 0.3, 0, 0x6a4a2a); W.box(1.4, 1.9, 0.05, w / 2 - 1.4, 1.2, d / 2 - 0.4, 0xc8d8e0, { layer: 'glass' }); W.box(0.8, 0.45, 0.8, -w / 4, 0.23, 0, 0x8a4a5a, { t: TX.fabric }); break;
     case 'study': desk(0, 0, -d / 6, 0, 2.2, 1.0, 0x3a2014); chairWood(0, 0, -d / 6 - 1.0, 0); deskLamp(0.7, 0.78, -d / 6, 0, true); for (let k = 0; k < 6; k++) W.box(0.22, 0.02, 0.3, -0.6 + k * 0.1, 0.79 + k * 0.003, -d / 6 + 0.1, 0xf0ece0);
       for (let x = L + 1.0; x < R - 0.8; x += 2.1) shelfUnit(x, 0, far + 0.2, 0, 2.0, 2.6, 0.38, 0x3a2014, 'books');
-      safe(R - 0.25, 0, -d / 2 + 2.2, -Math.PI / 2); portrait(R - 0.08, 2.0, -d / 2 + 2.2, -Math.PI / 2, 1.1, 0.9); rug(0x5a1a1a); sofa(0, 0, d / 2 - 1.5, Math.PI, 0x3a1a14, 2.0); globe(L + 1.0, 0.0, d / 2 - 1.2); break;
+      safe(R - 0.25, 0, -d / 2 + 2.2, -Math.PI / 2); portrait(R - 0.08, 2.0, -d / 2 + 2.2, -Math.PI / 2, 1.1, 0.9); rug(0x5a1a1a); sofa(-w / 4 - 0.6, 0, d / 2 - 1.5, Math.PI, 0x3a1a14, 2.0); globe(L + 1.0, 0.0, d / 2 - 1.2); break;
     case 'office': for (const x of [-w / 4, w / 4]) { officeDesk(x, 0, -d / 6, 0, 1.8, 'office'); chairOffice(x, 0, -d / 6 + 0.9, Math.PI); } for (let x = L + 0.6; x < R; x += 1.2) fileCabinet(x, 0, far + 0.2, 0); break;
     case 'security': cctvWall(0, 0.3, far + 0.1, 0, Math.max(3, Math.floor(w / 2)), 3); officeDesk(0, 0, far + 1.6, 0, Math.min(w - 2, 4), 'office'); for (let k = -1; k <= 1; k++) { monitor(k * 1.0, 0.78, far + 1.5, 0, 0x4aa0ff); chairOffice(k * 1.2, 0, far + 2.6, Math.PI); } W.lamp(0, 2, far + 1.5, 0x6aa0ff, 1.2, 6, { halo: 0 }); break;
     case 'guardroom': W.box(2.4, 0.06, 1.0, 0, 0.75, 0, 0x6a6e72, { layer: 'metal' }); for (const s of [-1, 1]) chairFolding(s * 0.8, 0, 0.9, Math.PI); for (let x = L + 0.6; x < R - 0.4; x += 0.8) locker(x, 0, far + 0.25, 0, 0x4a4e54); W.box(1.6, 1.6, 0.1, R - 0.1, 1.4, 0, 0x3a3a3a, { ry: -Math.PI / 2 }); for (let k = 0; k < 5; k++) W.box(0.08, 0.9, 0.06, R - 0.2, 1.3, -0.6 + k * 0.3, 0x1a1a1a, { layer: 'metal' }); break;
@@ -10217,7 +10222,7 @@ function furnishRoom(kind, w, d, H) {
     case 'boots': for (let x = L + 0.4; x < R; x += 0.5) { W.box(0.3, 0.3, 0.3, x, 0.15, far + 0.2, mpick([0x2a2a2a, 0x3a2a1a, 0x2a3a2a])); W.rod([x, 1.4, far + 0.1], [x, 1.6, far + 0.1], 0.02, 0x8a8a8a); W.box(0.35, 0.8, 0.12, x, 1.2, far + 0.15, mpick([0x3a4a2a, 0x2a2a3a, 0x5a4a3a]), { layer: 'cloth' }); } break;
     case 'gunroom': for (let x = L + 1; x < R - 0.8; x += 1.6) { W.box(1.4, 2.0, 0.4, x, 1.0, far + 0.25, 0x4a2a18, { t: TX.wood }); W.box(1.2, 1.7, 0.04, x, 1.0, far + 0.46, 0x9ab0c0, { layer: 'glass' }); for (let k = 0; k < 4; k++) W.box(0.05, 1.2, 0.05, x - 0.45 + k * 0.3, 1.1, far + 0.35, 0x2a2018); } W.box(2.0, 0.06, 1.0, 0, 0.8, 0, 0x4a2a18, { t: TX.wood }); fire(); break;
     case 'orangery': for (let x = -w / 2 + 1.5; x < w / 2 - 1; x += 2.5) for (const z of [-d / 4, d / 4]) { W.box(0.9, 0.7, 0.9, x, 0.35, z, 0xd8d0c0, { t: TX.stone }); tree(x, 0.7, z, 'orange', 0.6); } for (let x = -w / 2 + 1; x < w / 2; x += 2) W.box(1.6, 2.6, 0.04, x, 2.2, far, 0xc8d8d0, { layer: 'glass' }); bench(0, 0, 0, 0); break;
-    case 'games': W.box(1.6, 0.08, 1.0, -w / 4, 0.78, 0, 0x2a6a3a); W.box(1.7, 0.7, 1.1, -w / 4, 0.4, 0, 0x4a2a18, { t: TX.wood }); W.box(1.4, 0.05, 0.8, w / 4, 0.76, 0, 0x4a2a18, { t: TX.wood }); chessBoard(w / 4, 0.8, 0, 0); for (const s of [-1, 1]) chairWood(w / 4 + s * 0.9, 0, 0, s * Math.PI / 2); W.box(1.8, 1.0, 0.06, 0, 1.6, far, 0x2a5aa0, { layer: 'glow' }); sofa(0, 0, d / 2 - 1.4, Math.PI, 0x4a4a5a, 2.4); break;
+    case 'games': W.box(1.6, 0.08, 1.0, -w / 4, 0.78, 0, 0x2a6a3a); W.box(1.7, 0.7, 1.1, -w / 4, 0.4, 0, 0x4a2a18, { t: TX.wood }); W.box(1.4, 0.05, 0.8, w / 4, 0.76, 0, 0x4a2a18, { t: TX.wood }); chessBoard(w / 4, 0.8, 0, 0); for (const s of [-1, 1]) chairWood(w / 4 + s * 0.9, 0, 0, s * Math.PI / 2); W.box(1.8, 1.0, 0.06, 0, 1.6, far, 0x2a5aa0, { layer: 'glow' }); sofa(-w / 4 - 0.6, 0, d / 2 - 1.4, Math.PI, 0x4a4a5a, 2.4); break;
     case 'cinema': W.box(w - 2, (w - 2) * 0.45, 0.05, 0, 0.6 + (w - 2) * 0.225, far, 0xd8e0f0, { layer: 'glow' }); for (let r = 0; r < 3; r++) for (let x = -w / 2 + 1.6; x < w / 2 - 1; x += 1.0) W.box(0.8, 0.9, 0.8, x, 0.45 + r * 0.25, far + 4 + r * 1.6, 0x6a1a24, { t: TX.fabric }); break;
     case 'chapel': for (let r = 0; r < Math.floor((d - 5) / 1.4); r++) for (const s of [-1, 1]) { W.box(w / 2 - 1.6, 0.45, 0.45, s * (w / 4 + 0.2), 0.45, far + 4 + r * 1.4, 0x5a3a24, { t: TX.wood }); W.box(w / 2 - 1.6, 0.6, 0.06, s * (w / 4 + 0.2), 0.75, far + 4.2 + r * 1.4, 0x5a3a24, { t: TX.wood }); }
       W.box(2.4, 1.0, 1.0, 0, 0.5, far + 1.2, 0xf0ece0); W.box(0.12, 1.2, 0.12, 0, 1.6, far + 1.2, 0xc8a050, { layer: 'metal' }); W.box(0.6, 0.12, 0.12, 0, 1.9, far + 1.2, 0xc8a050, { layer: 'metal' }); for (const s of [-1, 1]) { W.cyl(0.04, 0.04, 0.4, s * 0.9, 1.2, far + 1.2, 0xf0f0e8, { seg: 6 }); W.sphere(0.05, 0.1, 0.05, s * 0.9, 1.45, far + 1.2, 0xffd080, { layer: 'glow' }); }
@@ -11127,7 +11132,7 @@ function updateRange(dt, time) {
   TORCH.update(dt);
   // movement + stamina
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
-  const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  const live = !P.dead && !CINEMA.active, ix = live ? (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) : 0, iz = live ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0;
   const shift = keys.ShiftLeft || keys.ShiftRight;
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
@@ -11211,7 +11216,9 @@ function updateRange(dt, time) {
   ch.root.rotation.set(0, P.yaw + Math.PI, 0);
   const lv = T.d.copy(P.vel).applyAxisAngle(UP, -(P.yaw + Math.PI));
   poseBody(dt, time, { localVel: lv, bladed: (1 - P.lowT) * (pistol ? 0.35 : 1), lean: 0.22 * P.sprintT + 0.12 * P.crouchT - 0.3 * pitch * (1 - P.lowT), lookPitch: pitch * (1 - P.lowT * 0.5), crouchT: P.crouchT, sprintT: P.sprintT, side: P.leanT });
-  ch.head.visible = P.fpT < 0.5;
+  ch.head.visible = P.fpT < 0.5 || P.dead;
+  // dying: the knees go, then the body pitches forward onto the ground, a little to one side
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 1.1, 0, 1), e = k * k * (3 - 2 * k); P.crouch = true; ch.root.rotation.set(-e * 1.42, P.yaw + Math.PI, P.deathSide * e * 0.3, 'YXZ'); ch.root.position.y = P.pos.y + Math.sin(k * Math.PI) * 0.05; }
   }
 
   // camera base position (third person shoulder cam or the eyes)
@@ -11246,6 +11253,9 @@ function updateRange(dt, time) {
   if (k > 0.001) camera.position.copy(T.camBase).lerp(gun.group.localToWorld(T.a.copy(gun.eye)), smooth(k));
   else camera.position.copy(T.camBase);
   camera.position.y += P.feel.land * 0.16;
+  // the death camera: pulls up and back over the body, looking down at it
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 2.8, 0, 1), e = k * k * (3 - 2 * k), bx = Math.sin(P.yaw + 0.6 * P.deathSide), bz = Math.cos(P.yaw + 0.6 * P.deathSide);
+    camera.position.lerp(T.e.set(P.pos.x + bx * (2.4 + e * 2.2), P.pos.y + 1.4 + e * 3.4, P.pos.z + bz * (2.4 + e * 2.2)), Math.min(1, 0.15 + e)); camera.lookAt(P.pos.x - Math.sin(P.yaw) * 0.8, P.pos.y + 0.25, P.pos.z - Math.cos(P.yaw) * 0.8); }
   SCOPE.update(WD().scope ? smooth(clamp((P.adsT * P.fpT - 0.82) / 0.18, 0, 1)) : 0);
   const W = WD();
   const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2;
@@ -12425,7 +12435,14 @@ const BOTS = (() => {
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
-    if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
+    if (P.hp <= 0) {
+      P.dead = true; P.deadT = 4.6; P.deathAt = performance.now() / 1000; P.deathSide = Math.random() < 0.5 ? -1 : 1; me.alive = false; P.trigger = false;
+      const inMission = /^\d+:\d+$/.test(MISSION.stage);
+      ui.dead.innerHTML = `<div style="text-align:center"><div style="font-size:42px;letter-spacing:.35em;font-weight:700;color:#e8d8c8">${inMission ? 'MISSION FAILED' : 'YOU WERE KILLED'}</div><div style="margin-top:12px;font-size:14px;letter-spacing:.3em;opacity:.7">${part === 'head' ? 'HEADSHOT · ' : ''}${inMission ? 'RESTARTING THE MISSION' : 'REGROUPING'}</div></div>`;
+      ui.dead.style.display = 'grid'; ui.dead.style.opacity = '0'; requestAnimationFrame(() => { ui.dead.style.transition = 'opacity 1.2s 0.6s'; ui.dead.style.opacity = '1'; });
+      canvas.style.transition = 'filter 1.4s'; canvas.style.filter = 'grayscale(0.85) brightness(0.75) contrast(1.1)';
+      audio.hurt();
+    }
   }
   let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
@@ -12526,7 +12543,7 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; P.crouch = false; ui.dead.style.display = 'none'; ui.blood.style.opacity = '0'; canvas.style.filter = ''; if (SUBWAY.under || DOORS.inside) { /* surface first */ } P.pos.set(SPAWN.x, 0, SPAWN.z); P.vel.set(0, 0, 0); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); if (/^\d+:\d+$/.test(MISSION.stage) || MISSION.stage === 'between') MISSION.retry(); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));
@@ -13348,7 +13365,7 @@ const MISSION = (() => {
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
-  function start(i) {
+  function start(i, quiet = false) {
     if (state === 'run' && cur()?.teardown) cur().teardown();
     clearFigs(); flags = {}; intelCase.visible = false;
     mi = i; si = 0;
@@ -13356,7 +13373,7 @@ const MISSION = (() => {
     if (!cur()) { state = 'free'; return; }
     state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
     const banner = () => show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
-    if (cur().intro) CINEMA.play(cur().intro(), banner); else banner();
+    if (cur().intro && !quiet) CINEMA.play(cur().intro(), banner); else banner();
   }
   function complete() {
     const m = cur(), bonus = m.bonus ? m.bonus() : 0;
@@ -13410,7 +13427,8 @@ const MISSION = (() => {
   }
   function restart() { start(state === 'free' ? MISSIONS.length - 1 : mi); feed('<span class="m">MISSION RESTARTED</span>'); }
   return {
-    update, interact, restart, start, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
+    get missions() { return MISSIONS; }, get flags() { return flags; },
+    update, interact, restart, start, retry: () => { start(Math.min(mi, MISSIONS.length - 1), true); feed('<span class="m">MISSION RESTARTED</span>'); }, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
     get target() { if (state !== 'run') return null; const st = cur().steps[si]; return st.where ? st.where() : null; },
   };
 })();
@@ -13531,7 +13549,7 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
       { from: [0, 6.8, -40], to: [8, 7.0, -48], look: [17, 6.2, -58], dur: 5, say: HV('Guests don’t go upstairs. If they see you there, your cover goes fast — throw something to pull them off the landing.'), fov: 55 },
     ],
     steps: [
-      { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 4, 1.6) },
+      { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 7.5, 1.6) },
       { text: 'Open the safe behind the portrait (E): 4-1-7-9', where: () => ({ ...S().safe, y: S().safe.y + 1, name: 'SAFE' }), act: () => near(S().safe, 2.4, 2.2), prompt: () => near(S().safe, 2.4, 2.2) ? '[E]  4 · 1 · 7 · 9' : '',
         cut: () => [
           { from: [S().safe.x - 1.6, S().safe.y + 0.7, S().safe.z + 0.8], to: [S().safe.x - 1.1, S().safe.y + 0.4, S().safe.z + 0.4], look: [S().safe.x, S().safe.y - 0.2, S().safe.z], dur: 3.6, say: 'YOU: Four. One. Seven. Nine.', fov: 38 },

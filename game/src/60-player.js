@@ -691,7 +691,7 @@ function updateRange(dt, time) {
   TORCH.update(dt);
   // movement + stamina
   const fwd = T.a.set(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = T.b.set(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
-  const ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  const live = !P.dead && !CINEMA.active, ix = live ? (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) : 0, iz = live ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0;
   const shift = keys.ShiftLeft || keys.ShiftRight;
   P.ads = (aimKey.down || aimKey.toggled) && !P.holstered && !HANDMAP.open;
   const sprint = !P.vehicle && shift && iz > 0 && !P.ads && !P.reload && P.stamina > 0.05;
@@ -775,7 +775,9 @@ function updateRange(dt, time) {
   ch.root.rotation.set(0, P.yaw + Math.PI, 0);
   const lv = T.d.copy(P.vel).applyAxisAngle(UP, -(P.yaw + Math.PI));
   poseBody(dt, time, { localVel: lv, bladed: (1 - P.lowT) * (pistol ? 0.35 : 1), lean: 0.22 * P.sprintT + 0.12 * P.crouchT - 0.3 * pitch * (1 - P.lowT), lookPitch: pitch * (1 - P.lowT * 0.5), crouchT: P.crouchT, sprintT: P.sprintT, side: P.leanT });
-  ch.head.visible = P.fpT < 0.5;
+  ch.head.visible = P.fpT < 0.5 || P.dead;
+  // dying: the knees go, then the body pitches forward onto the ground, a little to one side
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 1.1, 0, 1), e = k * k * (3 - 2 * k); P.crouch = true; ch.root.rotation.set(-e * 1.42, P.yaw + Math.PI, P.deathSide * e * 0.3, 'YXZ'); ch.root.position.y = P.pos.y + Math.sin(k * Math.PI) * 0.05; }
   }
 
   // camera base position (third person shoulder cam or the eyes)
@@ -810,6 +812,9 @@ function updateRange(dt, time) {
   if (k > 0.001) camera.position.copy(T.camBase).lerp(gun.group.localToWorld(T.a.copy(gun.eye)), smooth(k));
   else camera.position.copy(T.camBase);
   camera.position.y += P.feel.land * 0.16;
+  // the death camera: pulls up and back over the body, looking down at it
+  if (P.dead) { const k = clamp((performance.now() / 1000 - P.deathAt) / 2.8, 0, 1), e = k * k * (3 - 2 * k), bx = Math.sin(P.yaw + 0.6 * P.deathSide), bz = Math.cos(P.yaw + 0.6 * P.deathSide);
+    camera.position.lerp(T.e.set(P.pos.x + bx * (2.4 + e * 2.2), P.pos.y + 1.4 + e * 3.4, P.pos.z + bz * (2.4 + e * 2.2)), Math.min(1, 0.15 + e)); camera.lookAt(P.pos.x - Math.sin(P.yaw) * 0.8, P.pos.y + 0.25, P.pos.z - Math.cos(P.yaw) * 0.8); }
   SCOPE.update(WD().scope ? smooth(clamp((P.adsT * P.fpT - 0.82) / 0.18, 0, 1)) : 0);
   const W = WD();
   const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2;

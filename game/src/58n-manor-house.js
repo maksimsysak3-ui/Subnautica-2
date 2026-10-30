@@ -96,9 +96,11 @@ function manorBigHouse() {
 // ---------- a façade line, one floor: bays of windows every 5 m, doors where asked, mouldings ----------
 function facade(ax, a0, a1, c, side, f, y0, H, doors) {
   const ops = [], bay = 5;
+  // doors first, wherever they're asked for; a window that would overlap one is left out
+  for (const [at, kind] of doors) ops.push(kind === 'door' ? { at, w: 2.6, h: 3.8, kind: 'door', style: 'plank', leaf: 'open' } : { at, w: 1.8, h: 3.4, kind: 'door', style: 'glass', leaf: 'open' });
+  const clash = (a) => doors.some(([at, kind]) => Math.abs(at - a) < (kind === 'door' ? 1.3 : 0.9) + 1.0);
   for (let a = a0 + bay / 2; a < a1; a += bay) {
-    const d = doors.find(([at]) => Math.abs(at - a) < bay / 2);
-    if (d) { ops.push(d[1] === 'door' ? { at: d[0], w: 2.6, h: 3.8, kind: 'door', style: 'plank', leaf: 'open' } : { at: d[0], w: 1.8, h: 3.4, kind: 'door', style: 'glass', leaf: 'open' }); continue; }
+    if (clash(a)) continue;
     if (f === 0) ops.push({ at: a, w: 1.7, h: 3.4, sill: 0.6, kind: 'archwin', arch: 'round', _spring: 2.5, win: 'plain', rimCol: STONE, rimTx: TX.stone });
     else if (f === 1) ops.push({ at: a, w: 1.6, h: 3.0, sill: 0.5, kind: 'win', win: 'plain', sillCol: STONE });
     else ops.push({ at: a, w: 1.4, h: 1.7, sill: 1.0, kind: 'win', win: 'plain', sillCol: STONE });
@@ -111,7 +113,7 @@ function facade(ax, a0, a1, c, side, f, y0, H, doors) {
     bx(L + 0.4, 0.35, 0.3, m, y0 + H - 0.1);
     if (f === 0) { for (let y = 0.9; y < H - 0.5; y += 0.9) bx(L, 0.06, 0.12, m, y); bx(L + 0.2, 0.6, 0.35, m, 0.3); }
     for (let a = a0 + bay / 2; a < a1; a += bay) {
-      if (doors.some(([at]) => Math.abs(at - a) < bay / 2)) continue;
+      if (clash(a)) continue;
       if (f === 1) { bx(2.2, 0.18, 0.3, a, y0 + 3.6); if (ax === 'x') W.tris(twoSided([a - 1.15, y0 + 3.7, o + side * 0.15, a + 1.15, y0 + 3.7, o + side * 0.15, a, y0 + 4.3, o + side * 0.15]), STONE, { t: TX.stone }); else W.tris(twoSided([o + side * 0.15, y0 + 3.7, a - 1.15, o + side * 0.15, y0 + 3.7, a + 1.15, o + side * 0.15, y0 + 4.3, a]), STONE, { t: TX.stone }); }
       if (a + bay / 2 < a1) bx(0.6, H - 0.4, 0.18, a + bay / 2, y0 + (H - 0.4) / 2);   // pilaster between bays
       if (f === 0 && side > 0 && ax === 'x') { W.box(0.9, 0.5, 0.4, a, 0.95, o + side * 0.3, STONE); W.box(0.85, 0.3, 0.35, a, 1.3, o + side * 0.3, 0x3a5a2a, { t: TX.leaf }); for (let k = 0; k < 5; k++) W.sphere(0.1, 0.1, 0.1, a - 0.35 + k * 0.17, 1.48, o + side * 0.3, mpick([0xd83a4a, 0xf0e0e8, 0xe8b030]), { seg: 5, hseg: 3 }); }   // window boxes
@@ -257,7 +259,7 @@ function furnishRoom(kind, w, d, H) {
       for (let k = 0; k < 10; k++) W.sphere(0.055, 0.055, 0.055, mr(-1, 1), 0.89, mr(-0.5, 0.5), mpick([0xe8e8e0, 0xd83a2a, 0xe8c020, 0x1a1a1a, 0x2a5aa0]), { seg: 6 });
       W.box(1.0, 0.05, 2.6, 0, 1.9, 0, 0x2a2a2a, { ry: Math.PI / 2 }); W.box(0.9, 0.04, 2.4, 0, 1.86, 0, 0xfff0c0, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(0, 1.7, 0, 0xffe8b0, 1.6, 6, { halo: 0 });
       W.box(1.2, 1.6, 0.1, L + 0.2, 1.4, 0, 0x4a2a18, { ry: Math.PI / 2 }); for (let k = 0; k < 6; k++) W.rod([L + 0.25, 0.4, -0.5 + k * 0.2], [L + 0.25, 1.9, -0.5 + k * 0.2], 0.012, 0xc8a070);
-      sofa(0, 0, d / 2 - 1.4, Math.PI, 0x3a1a14, 2.2); fire(); break;
+      sofa(-w / 4 - 0.6, 0, d / 2 - 1.4, Math.PI, 0x3a1a14, 2.2); fire(); break;
     case 'drawing': case 'sitting': for (const s of [-1, 1]) sofa(s * 1.6, 0, 0, s * Math.PI / 2, kind === 'drawing' ? 0x6a7a5a : 0x8a5a4a, 2.2); lowTable(0, 0, 0, 0, 1.4, 0.8); W.cyl(0.12, 0.08, 0.2, 0, 0.42, 0, 0xe8e8f0, { seg: 8, layer: 'glass' });
       fire(); rug(kind === 'drawing' ? 0x4a5a3a : 0x6a2a2a); for (const x of [L + 0.5, R - 0.5]) plantPot(x, 0, d / 2 - 1, 'palm', 1.6); W.box(1.2, 1.9, 0.5, R - 0.4, 0.95, far + 1.5, 0x4a2a18, { t: TX.wood, ry: -Math.PI / 2 }); if (w > 14) chandel(); break;
     case 'gallery': for (let x = L + 1.5; x < R - 1; x += 3) { portrait(x, 2.2, far - 0.2, 0, 1.4, 1.8); } for (let x = -w / 2 + 3; x < w / 2 - 2; x += 5) statue(x, 0, Math.PI); for (const z of [-1, 1]) W.box(2.2, 0.45, 0.6, 0, 0.23, z * 1.5, 0x5a2a1e, { t: TX.fabric }); chandel(); break;
@@ -268,10 +270,10 @@ function furnishRoom(kind, w, d, H) {
     case 'bath': W.box(1.7, 0.6, 0.8, L + 1.1, 0.3, far + 0.6, 0xf4f4f0); W.box(1.5, 0.1, 0.6, L + 1.1, 0.58, far + 0.6, 0x9ac8e0, { layer: 'glass' }); for (const sx of [-1, 1]) W.sphere(0.12, 0.12, 0.12, L + 1.1 + sx * 0.7, 0.05, far + 0.3, 0xc8a050, { layer: 'metal' });
       W.box(0.9, 0.85, 0.5, R - 0.6, 0.42, far + 0.4, 0xf0f0ec); W.box(0.5, 0.65, 0.04, R - 0.6, 1.5, far + 0.1, 0xc8d8e0, { layer: 'glass' }); W.box(0.45, 0.45, 0.65, R - 0.5, 0.22, 0, 0xf4f4f0);
       W.box(w - 0.4, 1.2, 0.02, 0, 0.6, far, 0xd8e8e8, { t: TX.ceramic }); break;
-    case 'dressing': for (let x = L + 0.7; x < R - 0.5; x += 1.3) wardrobe(x, 0, far + 0.3, 0, 0x6a4a2a); W.box(1.4, 1.9, 0.05, 0, 1.2, d / 2 - 0.4, 0xc8d8e0, { layer: 'glass' }); W.box(0.8, 0.45, 0.8, 0, 0.23, 0, 0x8a4a5a, { t: TX.fabric }); break;
+    case 'dressing': for (let x = L + 0.7; x < R - 0.5; x += 1.3) wardrobe(x, 0, far + 0.3, 0, 0x6a4a2a); W.box(1.4, 1.9, 0.05, w / 2 - 1.4, 1.2, d / 2 - 0.4, 0xc8d8e0, { layer: 'glass' }); W.box(0.8, 0.45, 0.8, -w / 4, 0.23, 0, 0x8a4a5a, { t: TX.fabric }); break;
     case 'study': desk(0, 0, -d / 6, 0, 2.2, 1.0, 0x3a2014); chairWood(0, 0, -d / 6 - 1.0, 0); deskLamp(0.7, 0.78, -d / 6, 0, true); for (let k = 0; k < 6; k++) W.box(0.22, 0.02, 0.3, -0.6 + k * 0.1, 0.79 + k * 0.003, -d / 6 + 0.1, 0xf0ece0);
       for (let x = L + 1.0; x < R - 0.8; x += 2.1) shelfUnit(x, 0, far + 0.2, 0, 2.0, 2.6, 0.38, 0x3a2014, 'books');
-      safe(R - 0.25, 0, -d / 2 + 2.2, -Math.PI / 2); portrait(R - 0.08, 2.0, -d / 2 + 2.2, -Math.PI / 2, 1.1, 0.9); rug(0x5a1a1a); sofa(0, 0, d / 2 - 1.5, Math.PI, 0x3a1a14, 2.0); globe(L + 1.0, 0.0, d / 2 - 1.2); break;
+      safe(R - 0.25, 0, -d / 2 + 2.2, -Math.PI / 2); portrait(R - 0.08, 2.0, -d / 2 + 2.2, -Math.PI / 2, 1.1, 0.9); rug(0x5a1a1a); sofa(-w / 4 - 0.6, 0, d / 2 - 1.5, Math.PI, 0x3a1a14, 2.0); globe(L + 1.0, 0.0, d / 2 - 1.2); break;
     case 'office': for (const x of [-w / 4, w / 4]) { officeDesk(x, 0, -d / 6, 0, 1.8, 'office'); chairOffice(x, 0, -d / 6 + 0.9, Math.PI); } for (let x = L + 0.6; x < R; x += 1.2) fileCabinet(x, 0, far + 0.2, 0); break;
     case 'security': cctvWall(0, 0.3, far + 0.1, 0, Math.max(3, Math.floor(w / 2)), 3); officeDesk(0, 0, far + 1.6, 0, Math.min(w - 2, 4), 'office'); for (let k = -1; k <= 1; k++) { monitor(k * 1.0, 0.78, far + 1.5, 0, 0x4aa0ff); chairOffice(k * 1.2, 0, far + 2.6, Math.PI); } W.lamp(0, 2, far + 1.5, 0x6aa0ff, 1.2, 6, { halo: 0 }); break;
     case 'guardroom': W.box(2.4, 0.06, 1.0, 0, 0.75, 0, 0x6a6e72, { layer: 'metal' }); for (const s of [-1, 1]) chairFolding(s * 0.8, 0, 0.9, Math.PI); for (let x = L + 0.6; x < R - 0.4; x += 0.8) locker(x, 0, far + 0.25, 0, 0x4a4e54); W.box(1.6, 1.6, 0.1, R - 0.1, 1.4, 0, 0x3a3a3a, { ry: -Math.PI / 2 }); for (let k = 0; k < 5; k++) W.box(0.08, 0.9, 0.06, R - 0.2, 1.3, -0.6 + k * 0.3, 0x1a1a1a, { layer: 'metal' }); break;
@@ -286,7 +288,7 @@ function furnishRoom(kind, w, d, H) {
     case 'boots': for (let x = L + 0.4; x < R; x += 0.5) { W.box(0.3, 0.3, 0.3, x, 0.15, far + 0.2, mpick([0x2a2a2a, 0x3a2a1a, 0x2a3a2a])); W.rod([x, 1.4, far + 0.1], [x, 1.6, far + 0.1], 0.02, 0x8a8a8a); W.box(0.35, 0.8, 0.12, x, 1.2, far + 0.15, mpick([0x3a4a2a, 0x2a2a3a, 0x5a4a3a]), { layer: 'cloth' }); } break;
     case 'gunroom': for (let x = L + 1; x < R - 0.8; x += 1.6) { W.box(1.4, 2.0, 0.4, x, 1.0, far + 0.25, 0x4a2a18, { t: TX.wood }); W.box(1.2, 1.7, 0.04, x, 1.0, far + 0.46, 0x9ab0c0, { layer: 'glass' }); for (let k = 0; k < 4; k++) W.box(0.05, 1.2, 0.05, x - 0.45 + k * 0.3, 1.1, far + 0.35, 0x2a2018); } W.box(2.0, 0.06, 1.0, 0, 0.8, 0, 0x4a2a18, { t: TX.wood }); fire(); break;
     case 'orangery': for (let x = -w / 2 + 1.5; x < w / 2 - 1; x += 2.5) for (const z of [-d / 4, d / 4]) { W.box(0.9, 0.7, 0.9, x, 0.35, z, 0xd8d0c0, { t: TX.stone }); tree(x, 0.7, z, 'orange', 0.6); } for (let x = -w / 2 + 1; x < w / 2; x += 2) W.box(1.6, 2.6, 0.04, x, 2.2, far, 0xc8d8d0, { layer: 'glass' }); bench(0, 0, 0, 0); break;
-    case 'games': W.box(1.6, 0.08, 1.0, -w / 4, 0.78, 0, 0x2a6a3a); W.box(1.7, 0.7, 1.1, -w / 4, 0.4, 0, 0x4a2a18, { t: TX.wood }); W.box(1.4, 0.05, 0.8, w / 4, 0.76, 0, 0x4a2a18, { t: TX.wood }); chessBoard(w / 4, 0.8, 0, 0); for (const s of [-1, 1]) chairWood(w / 4 + s * 0.9, 0, 0, s * Math.PI / 2); W.box(1.8, 1.0, 0.06, 0, 1.6, far, 0x2a5aa0, { layer: 'glow' }); sofa(0, 0, d / 2 - 1.4, Math.PI, 0x4a4a5a, 2.4); break;
+    case 'games': W.box(1.6, 0.08, 1.0, -w / 4, 0.78, 0, 0x2a6a3a); W.box(1.7, 0.7, 1.1, -w / 4, 0.4, 0, 0x4a2a18, { t: TX.wood }); W.box(1.4, 0.05, 0.8, w / 4, 0.76, 0, 0x4a2a18, { t: TX.wood }); chessBoard(w / 4, 0.8, 0, 0); for (const s of [-1, 1]) chairWood(w / 4 + s * 0.9, 0, 0, s * Math.PI / 2); W.box(1.8, 1.0, 0.06, 0, 1.6, far, 0x2a5aa0, { layer: 'glow' }); sofa(-w / 4 - 0.6, 0, d / 2 - 1.4, Math.PI, 0x4a4a5a, 2.4); break;
     case 'cinema': W.box(w - 2, (w - 2) * 0.45, 0.05, 0, 0.6 + (w - 2) * 0.225, far, 0xd8e0f0, { layer: 'glow' }); for (let r = 0; r < 3; r++) for (let x = -w / 2 + 1.6; x < w / 2 - 1; x += 1.0) W.box(0.8, 0.9, 0.8, x, 0.45 + r * 0.25, far + 4 + r * 1.6, 0x6a1a24, { t: TX.fabric }); break;
     case 'chapel': for (let r = 0; r < Math.floor((d - 5) / 1.4); r++) for (const s of [-1, 1]) { W.box(w / 2 - 1.6, 0.45, 0.45, s * (w / 4 + 0.2), 0.45, far + 4 + r * 1.4, 0x5a3a24, { t: TX.wood }); W.box(w / 2 - 1.6, 0.6, 0.06, s * (w / 4 + 0.2), 0.75, far + 4.2 + r * 1.4, 0x5a3a24, { t: TX.wood }); }
       W.box(2.4, 1.0, 1.0, 0, 0.5, far + 1.2, 0xf0ece0); W.box(0.12, 1.2, 0.12, 0, 1.6, far + 1.2, 0xc8a050, { layer: 'metal' }); W.box(0.6, 0.12, 0.12, 0, 1.9, far + 1.2, 0xc8a050, { layer: 'metal' }); for (const s of [-1, 1]) { W.cyl(0.04, 0.04, 0.4, s * 0.9, 1.2, far + 1.2, 0xf0f0e8, { seg: 6 }); W.sphere(0.05, 0.1, 0.05, s * 0.9, 1.45, far + 1.2, 0xffd080, { layer: 'glow' }); }

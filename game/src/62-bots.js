@@ -253,7 +253,14 @@ const BOTS = (() => {
     audio.hurt(); P.shake = Math.min(2, P.shake + 0.8); flinch(Math.random() < 0.5 ? -1 : 1, part === 'head' ? 1.6 : 1);
     ui.blood.style.opacity = String(Math.min(1, 0.35 + (100 - P.hp) / 120));
     me.health = P.hp;
-    if (P.hp <= 0) { P.dead = true; P.deadT = 3.2; me.alive = false; ui.dead.style.display = 'grid'; feed(`<span class="m">KILLED${part === 'head' ? ' — HEADSHOT' : ''}</span>`); }
+    if (P.hp <= 0) {
+      P.dead = true; P.deadT = 4.6; P.deathAt = performance.now() / 1000; P.deathSide = Math.random() < 0.5 ? -1 : 1; me.alive = false; P.trigger = false;
+      const inMission = /^\d+:\d+$/.test(MISSION.stage);
+      ui.dead.innerHTML = `<div style="text-align:center"><div style="font-size:42px;letter-spacing:.35em;font-weight:700;color:#e8d8c8">${inMission ? 'MISSION FAILED' : 'YOU WERE KILLED'}</div><div style="margin-top:12px;font-size:14px;letter-spacing:.3em;opacity:.7">${part === 'head' ? 'HEADSHOT · ' : ''}${inMission ? 'RESTARTING THE MISSION' : 'REGROUPING'}</div></div>`;
+      ui.dead.style.display = 'grid'; ui.dead.style.opacity = '0'; requestAnimationFrame(() => { ui.dead.style.transition = 'opacity 1.2s 0.6s'; ui.dead.style.opacity = '1'; });
+      canvas.style.transition = 'filter 1.4s'; canvas.style.filter = 'grayscale(0.85) brightness(0.75) contrast(1.1)';
+      audio.hurt();
+    }
   }
   let clock = 0, graceUntil = GRACE; const time0 = () => clock;
   // player's own shots: the AI hears them, and rounds cracking past make it duck
@@ -354,7 +361,7 @@ const BOTS = (() => {
     if (P.dead) {
       for (const k in keys) keys[k] = false; P.trigger = false; P.vel.set(0, 0, 0);
       P.deadT -= dt;
-      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; ui.dead.style.display = 'none'; P.pos.set(SPAWN.x, 0, SPAWN.z); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); }
+      if (P.deadT <= 0) { DISGUISE.ownGear(); DISGUISE.toggleHolster(false); P.dead = false; P.hp = 100; P.crouch = false; ui.dead.style.display = 'none'; ui.blood.style.opacity = '0'; canvas.style.filter = ''; if (SUBWAY.under || DOORS.inside) { /* surface first */ } P.pos.set(SPAWN.x, 0, SPAWN.z); P.vel.set(0, 0, 0); P.yaw = SPAWN.yaw; graceUntil = clock + GRACE; build(P.pos.x, P.pos.z); if (/^\d+:\d+$/.test(MISSION.stage) || MISSION.stage === 'between') MISSION.retry(); }
     } else if (clock - P.hurtT > 5 && P.hp < 100) P.hp = Math.min(100, P.hp + 8 * dt);
     ui.fill.style.width = `${P.hp}%`; ui.fill.style.background = P.hp < 35 ? '#d0503a' : '#c9d4c0';
     if (clock - P.hurtT > 0.4) ui.blood.style.opacity = String(Math.max(0, (60 - P.hp) / 80));

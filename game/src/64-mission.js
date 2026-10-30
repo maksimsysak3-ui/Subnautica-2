@@ -148,7 +148,7 @@ const MISSION = (() => {
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
-  function start(i) {
+  function start(i, quiet = false) {
     if (state === 'run' && cur()?.teardown) cur().teardown();
     clearFigs(); flags = {}; intelCase.visible = false;
     mi = i; si = 0;
@@ -156,7 +156,7 @@ const MISSION = (() => {
     if (!cur()) { state = 'free'; return; }
     state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
     const banner = () => show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
-    if (cur().intro) CINEMA.play(cur().intro(), banner); else banner();
+    if (cur().intro && !quiet) CINEMA.play(cur().intro(), banner); else banner();
   }
   function complete() {
     const m = cur(), bonus = m.bonus ? m.bonus() : 0;
@@ -210,7 +210,8 @@ const MISSION = (() => {
   }
   function restart() { start(state === 'free' ? MISSIONS.length - 1 : mi); feed('<span class="m">MISSION RESTARTED</span>'); }
   return {
-    update, interact, restart, start, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
+    get missions() { return MISSIONS; }, get flags() { return flags; },
+    update, interact, restart, start, retry: () => { start(Math.min(mi, MISSIONS.length - 1), true); feed('<span class="m">MISSION RESTARTED</span>'); }, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
     get target() { if (state !== 'run') return null; const st = cur().steps[si]; return st.where ? st.where() : null; },
   };
 })();
@@ -331,7 +332,7 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
       { from: [0, 6.8, -40], to: [8, 7.0, -48], look: [17, 6.2, -58], dur: 5, say: HV('Guests don’t go upstairs. If they see you there, your cover goes fast — throw something to pull them off the landing.'), fov: 55 },
     ],
     steps: [
-      { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 4, 1.6) },
+      { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 7.5, 1.6) },
       { text: 'Open the safe behind the portrait (E): 4-1-7-9', where: () => ({ ...S().safe, y: S().safe.y + 1, name: 'SAFE' }), act: () => near(S().safe, 2.4, 2.2), prompt: () => near(S().safe, 2.4, 2.2) ? '[E]  4 · 1 · 7 · 9' : '',
         cut: () => [
           { from: [S().safe.x - 1.6, S().safe.y + 0.7, S().safe.z + 0.8], to: [S().safe.x - 1.1, S().safe.y + 0.4, S().safe.z + 0.4], look: [S().safe.x, S().safe.y - 0.2, S().safe.z], dur: 3.6, say: 'YOU: Four. One. Seven. Nine.', fov: 38 },
