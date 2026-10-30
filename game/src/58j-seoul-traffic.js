@@ -6,8 +6,9 @@
 // then north–south), brakes and honks for you, and turns onto the crossing road when its road runs out.
 // Every car is an instance: a few draw calls for the lot, headlight beams pooled on the wet road.
 const TRAFFIC = (() => {
-  if (MAP.id !== 'seoul') return { update() { } };
-  const N = 64, CYCLE = { green: 13, amber: 3 };
+  if (MAP.id !== 'seoul' && MAP.id !== 'bahamas') return { update() { } };
+  const BH = MAP.id === 'bahamas';   // island roads: fewer cars, on the left, no lights, daylight
+  const N = BH ? 22 : 64, CYCLE = { green: 13, amber: 3 };
   const cars = [];
   let built = false, t = 0, junctions = [], meshes = {};
   // ---- models: boxes merged into one geometry each, white where the paint goes (instance colour tints it) ----
@@ -26,7 +27,7 @@ const TRAFFIC = (() => {
       lights: [[0.06, 0.18, 0.4, 5.52, 0.8, 0.9, 0xfff4dc], [0.06, 0.18, 0.4, 5.52, 0.8, -0.9, 0xfff4dc], [0.06, 0.25, 0.3, -5.52, 0.9, 1.0, 0xff2a20], [0.06, 0.25, 0.3, -5.52, 0.9, -1.0, 0xff2a20], [0.05, 0.3, 1.6, 5.53, 2.75, 0, 0xffa020]] },
   };
   TYPES.taxi.body = TYPES.car.body; TYPES.taxi.lights = [...TYPES.car.lights, ...TYPES.taxi.lights];
-  const COLORS = { car: [0xe8e6e0, 0x2a2c30, 0x8a8e94, 0x1a2a4a, 0xc8c4bc, 0x6a1a1a, 0xdedcd4], taxi: [0xe87a2a, 0xc8c4bc], bus: [0x3a9a5a, 0x2a6ab0, 0x3a9a5a] };
+  const COLORS = BH ? { car: [0xf0f0ec, 0xe8e6e0, 0x9ad0ec, 0xf4b0b8, 0x2a5aa0, 0xc84a3a, 0x8a8e94, 0xf6e08a], taxi: [0xf0f0ec, 0x2a2c30], bus: [0x2ab0b0, 0xf0c040, 0xe8604a] } : { car: [0xe8e6e0, 0x2a2c30, 0x8a8e94, 0x1a2a4a, 0xc8c4bc, 0x6a1a1a, 0xdedcd4], taxi: [0xe87a2a, 0xc8c4bc], bus: [0x3a9a5a, 0x2a6ab0, 0x3a9a5a] };
   function build() {
     built = true;
     const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.4 });
@@ -45,12 +46,12 @@ const TRAFFIC = (() => {
     // junctions: every crossing of an x-road and a z-road
     const xs = ROADS.filter((r) => r.pts[0][1] === r.pts[1][1]), zs = ROADS.filter((r) => r.pts[0][0] === r.pts[1][0]);
     for (const a of xs) for (const b of zs) { const z = a.pts[0][1], x = b.pts[0][0]; if (x < Math.min(a.pts[0][0], a.pts[1][0]) - 1 || x > Math.max(a.pts[0][0], a.pts[1][0]) + 1 || z < Math.min(b.pts[0][1], b.pts[1][1]) - 1 || z > Math.max(b.pts[0][1], b.pts[1][1]) + 1) continue; junctions.push({ x, z, a, b }); }
-    for (const r of ROADS) if (r.road >= 10 && r.len > 80) for (let i = 0; i < Math.round(N * r.len / 2200); i++) spawn(r);
-    while (cars.length < N) spawn(ROADS[(Math.random() * 5) | 0]);
+    for (const r of ROADS) if (r.road >= (BH ? 6 : 10) && r.len > 80) for (let i = 0; i < Math.round(N * r.len / 2200); i++) spawn(r);
+    while (cars.length < N) spawn(ROADS[(Math.random() * Math.min(5, ROADS.length)) | 0]);
   }
   // a car on road r: s along it, dir ±1, lane offset to the right of travel
   const axisX = (r) => r.pts[0][1] === r.pts[1][1];
-  function lanes(r) { return r.road >= 15 ? [1.8, 5.4] : [2.6]; }
+  function lanes(r) { return BH ? [-(r.w / 4 + 0.3)] : r.road >= 15 ? [1.8, 5.4] : [2.6]; }
   function spawn(r, s) {
     const dir = Math.random() < 0.5 ? 1 : -1, kind = Math.random() < 0.14 ? 'bus' : Math.random() < 0.3 ? 'taxi' : 'car';
     const c = { r, dir, lane: lanes(r)[(Math.random() * lanes(r).length) | 0], s: s ?? Math.random() * r.len, v: 8, kind, col: new THREE.Color(COLORS[kind][(Math.random() * COLORS[kind].length) | 0]), cruise: kind === 'bus' ? 9 : 11 + Math.random() * 4, yaw: 0, horn: 0, x: 0, z: 0 };
@@ -64,7 +65,7 @@ const TRAFFIC = (() => {
     c.tyaw = Math.atan2(-fz, fx);   // model faces +x
   }
   // the light for a car's axis at time t: 'g' | 'a' | 'r'
-  function light(isX) { const T = 2 * (CYCLE.green + CYCLE.amber), u = t % T, myStart = isX ? 0 : CYCLE.green + CYCLE.amber; const k = (u - myStart + T) % T; return k < CYCLE.green ? 'g' : k < CYCLE.green + CYCLE.amber ? 'a' : 'r'; }
+  function light(isX) { if (BH) return 'g'; const T = 2 * (CYCLE.green + CYCLE.amber), u = t % T, myStart = isX ? 0 : CYCLE.green + CYCLE.amber; const k = (u - myStart + T) % T; return k < CYCLE.green ? 'g' : k < CYCLE.green + CYCLE.amber ? 'a' : 'r'; }
   // distance along the road to the next stop line ahead (and whether it's red for us)
   function stopAhead(c) {
     const isX = axisX(c.r); let best = Infinity;
@@ -84,7 +85,8 @@ const TRAFFIC = (() => {
       const [nr, j] = opts[(Math.random() * opts.length) | 0], a = nr.pts[0], b = nr.pts[1], L = nr.len;
       c.r = nr; c.s = ((j.x - a[0]) * (b[0] - a[0]) + (j.z - a[1]) * (b[1] - a[1])) / L; c.dir = c.s < 12 ? 1 : c.s > L - 12 ? -1 : (Math.random() < 0.5 ? 1 : -1); c.lane = lanes(nr)[0];
       c.s += c.dir * 8; c.v = Math.min(c.v, 5);
-    } else { c.s = c.dir > 0 ? 2 : c.r.len - 2; }
+    } else if (BH) { c.dir = -c.dir; c.s = clamp(c.s, 0.5, c.r.len - 0.5); c.v = Math.min(c.v, 3); }   // a dead end: turn round
+    else { c.s = c.dir > 0 ? 2 : c.r.len - 2; }
     place(c);
   }
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new V3(), _sc = new V3(1, 1, 1);
@@ -124,7 +126,7 @@ const TRAFFIC = (() => {
       const M2 = meshes[c.kind], k = cnt[c.kind]++;
       _q.setFromAxisAngle(UP, c.yaw); _m.compose(_p.set(c.x, 0.04, c.z), _q, _sc);
       M2.body.setMatrixAt(k, _m); M2.lights.setMatrixAt(k, _m); M2.body.setColorAt(k, c.col);
-      meshes.beam.setMatrixAt(nb++, _m);
+      if (!BH) meshes.beam.setMatrixAt(nb++, _m);
     }
     for (const k in cnt) { const M2 = meshes[k]; M2.body.count = M2.lights.count = cnt[k]; M2.body.instanceMatrix.needsUpdate = M2.lights.instanceMatrix.needsUpdate = true; if (M2.body.instanceColor) M2.body.instanceColor.needsUpdate = true; }
     meshes.beam.count = nb; meshes.beam.instanceMatrix.needsUpdate = true;

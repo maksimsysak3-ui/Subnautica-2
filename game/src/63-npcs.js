@@ -8,9 +8,9 @@ const NPCS = (() => {
   // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
   // N posed civilians live near you (full rigs, collision, panic, talk); WALKERS more fill the streets out to the
   // draw distance. Beyond posing range everyone is drawn as an instance of one of K outfits.
-  const N = MAP.id === 'seoul' ? 50 : MAP.id === 'manor' ? 36 : 46, WALKERS = MAP.id === 'seoul' ? 820 : MAP.id === 'manor' ? 220 : MAP.id === 'bahamas' ? 420 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
+  const N = MAP.id === 'seoul' ? 50 : MAP.id === 'manor' ? 36 : 46, WALKERS = MAP.id === 'seoul' ? 820 : MAP.id === 'manor' ? 220 : MAP.id === 'bahamas' ? 640 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
-  const CIVIL = ['Harbour front', 'Resort beach', 'Pool deck', 'Straw market', 'Forecourt', 'Front lawn', 'East lawn', 'Terrace', 'Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
+  const CIVIL = ['Harbour front', 'Resort beach', 'Pool deck', 'Straw market', 'Town square', 'Farm stand', 'Sports field', 'Forecourt', 'Front lawn', 'East lawn', 'Terrace', 'Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   const plazaDist = (r) => Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z);
   function nearPlaza() { let best = null, bd = 70; for (const r of TOWN.plazas) if (CIVIL.includes(r.name)) { const d = plazaDist(r); if (d < bd) { bd = d; best = r; } } return best; }
   const pick = (a) => a[(Math.random() * a.length) | 0];

@@ -13,7 +13,7 @@ const ISLANDS = [
 ];
 const BAHAMAS = {
   bounds: [-480, 480, -360, 340],
-  jets: [[-47, 162.6, Math.PI / 2, 0xe8e8e8], [-43, 162.6, Math.PI / 2, 0x2ab0d0], [-37, 157.4, -Math.PI / 2, 0xf0d020], [-33, 157.4, -Math.PI / 2, 0xe83a5a], [282, -276, -Math.PI / 2, 0x1a1a1a], [282, -224, -Math.PI / 2, 0x1a1a1a], [-80, -162, 0, 0xe8e8e8]],
+  jets: [[-47, 162.2, Math.PI / 2, 0xe8e8e8], [-43, 162.2, Math.PI / 2, 0x2ab0d0], [-37, 157.4, -Math.PI / 2, 0xf0d020], [-33, 157.4, -Math.PI / 2, 0xe83a5a], [282, -276, -Math.PI / 2, 0x1a1a1a], [282, -224, -Math.PI / 2, 0x1a1a1a], [-97.5, -166, 0, 0xe8e8e8]],
 };
 const PASTEL = [0xf4b0b8, 0xf6e08a, 0xa8e0c8, 0x9ad0ec, 0xc8b0e0, 0xf8c8a0, 0xf4f0e8, 0xb8e8a8, 0xf09a8a];
 const ACCENT = [0x2ab0b0, 0xf0f0ec, 0x3a8ac8, 0xe8604a, 0x5ab05a, 0xf0c040];
@@ -125,6 +125,7 @@ function bahamasPlan() {
     ['The village and the harbour', bahamasVillage],
     ['The resort, the pier, the bungalows on the water', bahamasResort],
     ['Open white houses along the coast', bahamasVillas],
+    ['The town, the settlement, the pineapple farm, the playing field', bahamasTown],
     ['The private island', bahamasPrivate],
     ['Palm forests, the cay and the seaplane', bahamasNature],
     ['The sea', () => { BSEA.build(); bahamasSecurity(); bahamasInteriors(); }],
@@ -147,6 +148,14 @@ function bahamasLayout() {
   plaza('Resort beach', { x0: -110, z0: 108, x1: 110, z1: 134 }, 0xf2ead8, TX.gravel);
   plaza('Pool deck', { x0: -60, z0: 88, x1: 60, z1: 106 }, 0xf0ece4, TX.ceramic);
   plaza('Straw market', { x0: -20, z0: -128, x1: 14, z1: -104 }, 0xd8ccb0, TX.paving);
+  // the settlement over the hill, north-east of the town
+  for (const [n, pts] of [['oA', [[70, -82], [178, -82]]], ['oB', [[70, -46], [178, -46]]], ['oC', [[95, -82], [95, -14]]], ['oD', [[140, -82], [140, -14]]]]) lane(n, pts, 5.5, 'alley', sandRoad);
+  plaza('Town square', { x0: 22, z0: -46, x1: 56, z1: -14 }, 0xe8dcc0, TX.paving);
+  plaza('Farm stand', { x0: -72, z0: 6, x1: -44, z1: 16 }, 0xd8ccb0, TX.gravel);
+  plaza('Sports field', { x0: 58, z0: 50, x1: 146, z1: 56 }, 0xe0d8c8, TX.paving);
+  // the tarmac roads carry traffic (on the left, as in the Bahamas); the two cross roads run as one
+  ROADS.push({ id: 'bSpine', pts: [[0, -98], [0, 48]], len: 146, w: 8, road: 8 }, { id: 'bCross', pts: [[-205, 0], [205, 0]], len: 410, w: 6, road: 6 },
+    { id: 'bEast', pts: [[205, -70], [205, 70]], len: 140, w: 7, road: 7 }, { id: 'bWest', pts: [[-205, -70], [-205, 70]], len: 140, w: 7, road: 7 });
 }
 
 // ---------------- buildings ----------------
@@ -284,6 +293,15 @@ function jetty(x0, z0, x1, z1, w = 3, y = 0.55) {
   W.box(L, 0.18, w, 0, y, 0, 0xb89a72, { t: TX.wood, wear: 4 }); W.solid(L, 0.4, w, 0, y - 0.11, 0, 'wood', { walk: true });
   W.scope({ lod: 1 }, () => { for (let k = -L / 2; k <= L / 2; k += 3) for (const s of [-1, 1]) W.cyl(0.13, 0.13, 3, k, y - 1.5, s * (w / 2 - 0.1), 0x8a6a4a, { seg: 6 }); for (let k = -L / 2; k <= L / 2; k += 0.4) W.box(0.06, 0.02, w, k, y + 0.1, 0, 0x8a7050, { ao: false }); });
   W.pop();
+  // steps down at any end that lands on the beach, so you can walk up onto the deck (the player climbs 0.45 at most)
+  const top = y + 0.09;
+  for (const [ex, ez, ux, uz] of [[x0, z0, (x0 - x1) / L, (z0 - z1) / L], [x1, z1, (x1 - x0) / L, (z1 - z0) / L]]) {
+    const g = islandH(ex + ux * 0.6, ez + uz * 0.6); if (g < WY + 0.15 || top - g < 0.3) continue;   // only where it lands on dry sand
+    const n = Math.ceil((top - g) / 0.32), h = (top - g) / (n + 1);
+    W.push(ex, 0, ez, Math.atan2(ux, uz));
+    for (let j = 1; j <= n; j++) { const t = top - j * h, b = g - 0.4; W.box(w, t - b, 0.45, 0, (t + b) / 2, (j - 0.5) * 0.45, 0xb89a72, { t: TX.wood, wear: 4 }); W.solid(w, t - b, 0.45, 0, (t + b) / 2, (j - 0.5) * 0.45, 'wood', { walk: true }); }
+    W.pop();
+  }
 }
 
 // ---------------- the village and the harbour ----------------
@@ -304,6 +322,7 @@ function bahamasVillage() {
   for (let k = 0; k < 3; k++) W.box(1.0, 2.6, 0.05, -64.97, 3.6, -76 + k * 4, 0xd8e8f0, { layer: 'glow', ry: Math.PI / 2 }); GR.rect(-60, -70, 12, 24, 0, GR.BUILT);
   // harbour: a stone quay, jetties, fishing boats, conch shacks, the straw market
   W.box(130, 1.2, 6, -85, -0.1, -138, 0xd8ccb0, { t: TX.stone }); W.solid(130, 1.2, 6, -85, -0.1, -138, 'stone', { walk: true });
+  for (let j = 1; j <= 3; j++) { const t = 0.5 - j * 0.24; W.box(130, t + 1.0, 0.45, -85, (t - 1.0) / 2, -135 + (j - 0.5) * 0.45, 0xd0c4a8, { t: TX.stone }); W.solid(130, t + 1.0, 0.45, -85, (t - 1.0) / 2, -135 + (j - 0.5) * 0.45, 'stone', { walk: true }); }   // steps up from the harbour front
   for (const x of [-140, -100, -60]) jetty(x, -140, x, -170, 2.6);
   W.scope({ lod: 1 }, () => { for (const [x, z, r] of [[-134, -156, 0], [-106, -160, 0], [-94, -150, 0.2], [-66, -162, -0.1], [-54, -152, 0.1], [-120, -175, 1.4]]) fishingBoat(x, z, r, 6.5, { y: WY - 0.4 }); });
   const SHACKS = ['CONCH SALAD', 'FRY FISH', 'MISS LOU’S', 'CRACK CONCH', 'GOOMBAY', 'ERROL’S CATCH'];
@@ -386,8 +405,10 @@ function bahamasResort() {
   for (let k = 0; k < 4; k++) { W.cyl(0.35, 0.35, 0.04, -4 + k * 2.6, 1.6, 268, 0xf0ece4, { seg: 10 }); W.cyl(0.04, 0.04, 0.8, -4 + k * 2.6, 1.2, 268, 0x8a6a4a); }
   // the jetski rental dock
   jetty(-40, 132, -40, 172, 3, 0.55); jetty(-50, 160, -30, 160, 2.4, 0.55);
-  W.box(3, 2.4, 2.4, -40, 1.75, 136, 0xf0c040, { t: TX.wood }); W.solid(3, 2.4, 2.4, -40, 1.75, 136, 'wood'); NEONish('JETSKI RENTAL', -40, 3.4, 137.3, 3.2, 0.5);
-  TOWN.staff.push({ x: -38.5, z: 138.4, y: 0.55, yaw: 0, role: 'shop' });
+  // the rental hut stands on the sand beside the jetty, not across it
+  const ry0 = islandH(-45, 128);
+  W.box(3, 2.4, 2.4, -45, ry0 + 1.2, 127.5, 0xf0c040, { t: TX.wood }); W.solid(3, 2.4, 2.4, -45, ry0 + 1.2, 127.5, 'wood'); W.box(3.6, 0.1, 3.2, -45, ry0 + 2.45, 127.9, 0x2ab0b0, { layer: 'metal', rx: -0.1 }); NEONish('JETSKI RENTAL', -45, ry0 + 2.9, 128.8, 3.2, 0.5);
+  TOWN.staff.push({ x: -45, z: 129.6, y: ry0, yaw: 0, role: 'shop' });
   TOWN.spots.rental = { x: -40, y: 0.6, z: 160 };
 }
 // painted signboards (lit at the edges by the sun, not neon)
@@ -397,6 +418,110 @@ function NEONish(text, x, y, z, w, h) {
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
   m.position.copy(W.worldPos(x, y, z)); m.rotation.y = W.worldRotY(); scene.add(m);
+}
+
+// ---------------- the town: Queen's Highway, the square, the settlement, the farm, the field ----------------
+// a two-storey shop: a gallery on posts over the pavement, shop windows, a painted sign, shutters upstairs, the shop door
+function shopB(x, z, ry, w, d, name, o = {}) {
+  const col = o.col ?? mpick(PASTEL), trim = 0xf8f8f4, acc = mpick(ACCENT), roof = mpick([0xc84a3a, 0x3a8a8a, 0xf0f0ec]), H = 6.4, fz = d / 2 - 2.6;
+  W.push(x, 0, z, ry);
+  W.box(w, 0.25, d, 0, 0.125, 0, 0xd8d0c0, { t: TX.stone }); W.solid(w, 0.25, d, 0, 0.125, 0, 'stone', { walk: true });
+  W.box(w, H, d - 2.6, 0, 0.25 + H / 2, -1.3, col, { t: TX.plaster, wear: 3 }); W.solid(w, H, d - 2.6, 0, 0.25 + H / 2, -1.3, 'concrete');
+  W.box(w + 0.2, 0.7, d - 2.4, 0, H + 0.6, -1.3, trim); W.box(w + 0.1, 0.2, d - 2.5, 0, 0.35, -1.3, shade(col, 0.8));
+  for (const s2 of [-1, 1]) {
+    const lit = mchance(0.65), cx = s2 * (w / 4 + 0.4), ww = w / 2 - 1.6;
+    W.box(ww, 2.0, 0.05, cx, 1.5, fz + 0.02, lit ? 0xfff0d0 : 0x6a8a9a, { layer: lit ? 'glow' : 'glass' }); W.box(ww + 0.2, 0.12, 0.14, cx, 2.56, fz + 0.06, trim); W.box(ww + 0.2, 0.5, 0.2, cx, 0.5, fz + 0.08, trim);
+    W.scope({ lod: 1 }, () => { W.push(cx, 0.76, fz - 0.25, 0); shelfGoods(ww - 0.2, 0, 0.3, o.goods ?? 'grocery'); W.pop(); W.box(0.06, 2.0, 0.04, cx, 1.5, fz + 0.06, trim); });
+  }
+  bDoor(0, 0.25, fz, o.room ?? 'store', acc, { w: 1.2, h: 2.3, name, fan: false, lamp: false });
+  NEONish(name, 0, 3.0, fz + 0.1, Math.min(w - 1.2, 1.2 + name.length * 0.3), 0.55);
+  const posts = []; for (let k = -w / 2 + 0.2; k <= w / 2 - 0.1; k += (w - 0.4) / Math.max(1, Math.round(w / 3.2))) posts.push(k);
+  for (const k of posts) { W.box(0.2, 3.3, 0.2, k, 1.9, d / 2 - 0.15, trim); W.solid(0.2, 3.3, 0.2, k, 1.9, d / 2 - 0.15, 'wood'); }
+  W.box(w, 0.2, 2.6, 0, 3.6, d / 2 - 1.3, trim);
+  for (const k of posts) W.box(0.1, 2.6, 0.1, k, 5.0, d / 2 - 0.15, trim);
+  W.box(w, 0.07, 0.07, 0, 4.6, d / 2 - 0.12, trim);
+  W.scope({ lod: 1 }, () => { for (let k = -w / 2 + 0.25; k < w / 2; k += 0.22) W.box(0.04, 0.85, 0.04, k, 4.15, d / 2 - 0.12, trim); for (let i = 0; i < 2; i++) plasticChair(-w / 4 + i * 0.9, 3.7, d / 2 - 1.4, Math.PI, trim); });
+  for (let k = -w / 2 + 1.4; k < w / 2 - 0.8; k += 2.4) { const lit = mchance(0.35); W.box(0.9, 1.9, 0.05, k, 4.75, fz + 0.02, lit ? 0xfff0c8 : 0x2a3a44, { layer: lit ? 'glow' : 'pane' }); W.box(1.1, 0.1, 0.12, k, 5.75, fz + 0.06, trim); W.scope({ lod: 1 }, () => { for (const s2 of [-1, 1]) W.box(0.5, 2.0, 0.06, k + s2 * 0.75, 4.75, fz + 0.06, acc, { t: TX.louver }); }); }
+  W.box(w + 0.3, 0.12, 2.9, 0, 6.5, d / 2 - 1.2, roof, { layer: 'metal', rx: -0.12 });
+  W.pop();
+}
+function golfCart(x, z, ry, col = mpick([0xf0f0ec, 0x2ab0d0, 0xf0c040])) {
+  W.push(x, 0, z, ry);
+  W.box(1.2, 0.5, 2.3, 0, 0.55, 0, col, { layer: 'metal' }); W.box(1.0, 0.45, 0.5, 0, 0.95, -0.2, 0xe8e0d0, { t: TX.fabric }); W.box(1.0, 0.5, 0.1, 0, 1.2, -0.45, 0xe8e0d0, { t: TX.fabric });
+  for (const sx of [-1, 1]) for (const sz of [-0.8, 0.9]) W.cyl(0.22, 0.22, 0.16, sx * 0.6, 0.22, sz, 0x1a1a1a, { rz: Math.PI / 2, seg: 10 });
+  for (const sx of [-1, 1]) for (const sz of [-0.6, 0.8]) W.rod([sx * 0.52, 0.8, sz], [sx * 0.52, 2.0, sz], 0.025, 0xd8d8d0, { layer: 'metal' });
+  W.box(1.2, 0.06, 1.7, 0, 2.03, 0.1, col, { layer: 'metal' }); W.box(1.0, 0.6, 0.03, 0, 1.6, 0.8, 0xb8d8e0, { layer: 'glass' });
+  W.pop(); W.solid(1.2, 1.2, 2.3, x, 0.6, z, 'metal', { ry });
+}
+function bandstand(x, z) {
+  W.cyl(4.2, 4.4, 0.6, x, 0.3, z, 0xf8f8f4, { seg: 8, t: TX.stone }); W.solid(7.6, 0.6, 7.6, x, 0.3, z, 'stone', { walk: true });
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8, px = x + Math.cos(a) * 3.8, pz = z + Math.sin(a) * 3.8; W.cyl(0.1, 0.1, 3, px, 2.1, pz, 0xf8f8f4, { seg: 8 }); }
+  W.cone(4.8, 2.0, x, 4.6, z, 0x2ab0b0, { seg: 8, layer: 'metal' }); W.cyl(4.6, 4.6, 0.25, x, 3.6, z, 0xf8f8f4, { seg: 8 }); W.sphere(0.3, 0.3, 0.3, x, 5.7, z, 0xc8a050, { layer: 'metal' });
+  W.scope({ lod: 1 }, () => { W.cyl(3.9, 3.9, 0.06, x, 1.4, z, 0xf8f8f4, { seg: 8 }); for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2; if (Math.abs(Math.sin(a) - 1) < 0.08) continue; W.box(0.04, 0.8, 0.04, x + Math.cos(a) * 3.9, 1.0, z + Math.sin(a) * 3.9, 0xf8f8f4); } for (let k = 0; k < 4; k++) chairOffice(x - 1.5 + k, 0.6, z - 1, 0, 0x2a2a2a); });
+}
+function bahamasTown() {
+  const T = TOWN.lanes;
+  // Queen's Highway through the town: shops both sides of the spine, cars parked at the kerb
+  const SHOPS = ['KNOWLES GROCERY', 'ISLAND PHARMACY', 'BAY STREET LIQUORS', 'CONCH HARDWARE', 'SANDS BANK', 'POST OFFICE', 'ELEUTHERA BAKERY', 'ISLAND STYLE', 'SHELLS & BOOKS', 'POLICE', 'PINDER’S VARIETY', 'GOOMBAY TRAVEL', 'JOHNSON’S ICE CREAM', 'THE STRAW HAT'];
+  let si = 0;
+  for (const side of [-1, 1]) for (let zz = -88; zz < -10; zz += mr(15, 17)) {
+    const w = mr(11, 14), d = 11, cx = side * (4 + 1.4 + d / 2), ry = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    if (!GR.free(cx, zz, d, w, 0, 0)) continue; GR.rect(cx, zz, d + 0.6, w + 0.6, 0, GR.BUILT);
+    const name = SHOPS[si++ % SHOPS.length];
+    shopB(cx, zz, ry, w, d, name, { goods: name.includes('BOOKS') ? 'books' : name.includes('HARDWARE') ? 'boxes' : 'grocery' });
+    W.scope({ lod: 1 }, () => { if (mchance(0.55)) sedan(side * 2.4, zz + mr(-3, 3), mchance(0.5) ? 0 : Math.PI, mpick([0xf0f0ec, 0x9ad0ec, 0xf4b0b8, 0x2a5aa0, 0xc84a3a, 0x8a8e94])); else if (mchance(0.5)) golfCart(side * 2.8, zz, 0); lampPostOld(side * 4.6, 0, zz + 7.5, 4.2); if (mchance(0.5)) bench(side * 4.4, 0.25, zz - 3, side > 0 ? Math.PI / 2 : -Math.PI / 2); });
+  }
+  // the town square: the bandstand, the Queen's statue, flame trees, benches, a war memorial
+  bandstand(39, -30);
+  W.box(1.4, 2.0, 1.4, 50, 1.0, -20, 0xe8e4dc, { t: TX.stone }); W.solid(1.4, 2.0, 1.4, 50, 1.0, -20, 'stone'); W.cyl(0.3, 0.35, 1.6, 50, 2.8, -20, 0x6a8a7a, { seg: 8, layer: 'metal' }); W.sphere(0.3, 0.32, 0.3, 50, 3.85, -20, 0x6a8a7a, { layer: 'metal' });
+  W.box(0.5, 3.4, 0.5, 28, 1.7, -40, 0xe8e4dc, { t: TX.stone }); W.solid(0.8, 3.4, 0.8, 28, 1.7, -40, 'stone'); W.box(1.6, 0.4, 1.6, 28, 0.2, -40, 0xe8e4dc, { t: TX.stone });
+  W.scope({ lod: 1 }, () => {
+    for (const [x, z] of [[25, -18], [53, -43], [25, -43], [53, -33]]) { W.cyl(0.18, 0.3, 3.2, x, 1.6, z, 0x6a5040, { seg: 7 }); W.sphere(3.2, 1.2, 3.2, x, 3.6, z, 0x3a7a2a, { t: TX.leaf }); for (let i = 0; i < 10; i++) W.sphere(0.6, 0.35, 0.6, x + mr(-2.6, 2.6), 4.1 + mr(-0.2, 0.4), z + mr(-2.6, 2.6), mpick([0xe8402a, 0xf0582a, 0xd8302a]), { seg: 6 }); }
+    for (const [x, z, r] of [[30, -24, 0], [48, -24, 0], [30, -36, Math.PI], [48, -36, Math.PI], [39, -17, 0], [39, -43, Math.PI]]) bench(x, 0.03, z, r);
+    for (const [x, z] of [[22.5, -46], [55.5, -46], [22.5, -14], [55.5, -14]]) lampPostOld(x, 0, z, 4.2);
+    trashBin(36, 0, -45); trashBin(44, 0, -15);
+  });
+  // a gas station on the east road, its shop
+  const GX = 186, GZ = -36;
+  W.box(16, 0.12, 14, GX, 0.06, GZ, 0x9a9a98, { t: TX.concrete }); W.box(10, 0.4, 7, GX + 2, 4.6, GZ, 0xf0f0ec, { layer: 'metal' }); W.box(10.2, 0.3, 7.2, GX + 2, 4.3, GZ, 0xe8302a, { layer: 'metal' });
+  for (const z of [-2, 2]) { W.box(0.4, 4.3, 0.4, GX + 2, 2.15, GZ + z, 0xf0f0ec); W.solid(0.5, 4.3, 0.5, GX + 2, 2.15, GZ + z, 'metal'); W.box(0.8, 1.7, 0.5, GX + 2, 0.85, GZ + z + 1.0, 0xe8302a, { layer: 'metal' }); W.box(0.6, 0.4, 0.04, GX + 2.42, 1.3, GZ + z + 1.0, 0x2a3a44, { layer: 'glow', ry: Math.PI / 2 }); W.solid(0.8, 1.7, 0.5, GX + 2, 0.85, GZ + z + 1.0, 'metal'); }
+  W.lamp(GX + 2, 4.0, GZ, 0xffffff, 1.6, 12, { halo: 0 });
+  shopB(GX - 9, GZ, Math.PI / 2, 10, 9, 'ISLAND GAS & GO', { col: 0xf0f0ec }); GR.rect(GX - 9, GZ, 10, 11, 0, GR.BUILT); GR.rect(GX + 2, GZ, 12, 10, 0, GR.BUILT);
+  W.scope({ lod: 1 }, () => { sedan(GX + 4.5, GZ - 2, Math.PI / 2, 0x9ad0ec); van(GX - 2, GZ + 8, 0, 0xf0f0ec); signPost(GX + 9, 0, GZ - 7, -Math.PI / 2, 1.6, 1.0, 0xe8302a, 0xf0f0ec, 3.2); });
+  // the settlement over the hill: cottages on four sandy lanes, its own little church and shop
+  for (const n of ['oC', 'oD', 'oA', 'oB']) for (const side of [-1, 1]) {
+    const st = T[n];
+    for (let ss = 7; ss < st.len - 6; ss += mr(10, 14)) {
+      const pp = pathAt(st.pts, ss), nx = -pp.tz * side, nz = pp.tx * side, w = mr(7, 10), d = mr(9, 12), cx = pp.x + nx * (st.w / 2 + 1 + d / 2), cz = pp.z + nz * (st.w / 2 + 1 + d / 2), ry = Math.atan2(-nx, -nz);
+      if (!GR.free(cx, cz, w, d, ry, 0.5) || islandSD(cx, cz) > -30) continue; GR.rect(cx, cz, w + 0.6, d + 0.6, ry, GR.BUILT);
+      cottageB(cx, cz, ry, w, d, mchance(0.3) ? 2 : 1);
+      W.scope({ lod: 1 }, () => { if (mchance(0.6)) palm(cx + nx * (d / 2 + 2) + mr(-3, 3), 0, cz + nz * (d / 2 + 2) + mr(-3, 3), mr(6, 9)); if (mchance(0.25)) sedan(pp.x + nx * (st.w / 2 + 0.2) + pp.tx * 4, pp.z + nz * (st.w / 2 + 0.2) + pp.tz * 4, Math.atan2(-pp.tz, pp.tx), mpick([0xf0f0ec, 0x9ad0ec, 0xc84a3a, 0x8a8e94])); });
+    }
+  }
+  // the pineapple farm (Eleuthera's pineapples were famous): rows in red earth, the packing shed, a stand by the road
+  const FX0 = -185, FX1 = -80, FZ0 = 18, FZ1 = 50;
+  W.box(FX1 - FX0, 0.06, FZ1 - FZ0, (FX0 + FX1) / 2, 0.03, (FZ0 + FZ1) / 2, 0x9a5a3a, { t: TX.earth }); GR.rect((FX0 + FX1) / 2, (FZ0 + FZ1) / 2, FX1 - FX0, FZ1 - FZ0, 0, GR.BUILT);
+  W.scope({ lod: 1 }, () => { for (let x = FX0 + 1.5; x < FX1 - 1; x += 1.6) for (let z = FZ0 + 1.2; z < FZ1 - 1; z += 1.1) { if (mchance(0.08)) continue; W.cone(0.38, 0.55, x + mr(-0.15, 0.15), 0.3, z, mpick([0x4a7a3a, 0x3a6a3a, 0x5a8a4a]), { seg: 5 }); if (mchance(0.25)) W.sphere(0.12, 0.17, 0.12, x, 0.66, z, 0xd8a030, { seg: 6 }); } });
+  W.box(12, 4, 8, -60, 2, 30, 0xb84a3a, { t: TX.corrugated }); W.solid(12, 4, 8, -60, 2, 30, 'metal'); W.pyramid(13, 1.6, 9, -60, 4.8, 30, 0x8a8e94, { layer: 'metal' }); W.box(4, 3, 0.06, -60, 1.5, 25.97, 0x3a2a1a);
+  GR.rect(-60, 30, 13, 9, 0, GR.BUILT);
+  W.scope({ lod: 1 }, () => { crateStack(-55, 0, 24.5, 0, 3); crateStack(-65, 0, 24.5, 0.3, 2); for (let k = 0; k < 6; k++) { W.box(0.9, 0.5, 0.6, -58 + k * 1.1, 0.25, 24.2, 0xb89a6a, { t: TX.wood }); for (let i = 0; i < 4; i++) W.sphere(0.13, 0.18, 0.13, -58.3 + k * 1.1 + (i % 2) * 0.35, 0.62, 24.1 + Math.floor(i / 2) * 0.25, 0xd8a030, { seg: 6 }); } });
+  marketStall(-58, 11, Math.PI, 'produce'); W.scope({ lod: 1 }, () => { van(-48, 12, Math.PI / 2, 0xf0f0ec); for (let i = 0; i < 3; i++) plasticChair(-54 + i * 0.8, 0, 13.5, Math.PI, 0xf8f8f4); });
+  TOWN.staff.push({ x: -58, z: 9.6, y: 0, yaw: Math.PI, role: 'shop' });
+  // the playing field: a football pitch, stands, a basketball court, the school
+  const PX = 102, PZ = 32;
+  W.box(84, 0.05, 34, PX, 0.03, PZ, 0x5aa040, { t: TX.leaf }); GR.rect(PX, PZ, 86, 36, 0, GR.BUILT);
+  for (const [w, d, x, z] of [[80, 0.15, PX, PZ - 15], [80, 0.15, PX, PZ + 15], [0.15, 30, PX - 40, PZ], [0.15, 30, PX + 40, PZ], [0.15, 30, PX, PZ]]) W.box(w, 0.02, d, x, 0.07, z, 0xf8f8f4, { ao: false });
+  W.cyl(4.5, 4.5, 0.02, PX, 0.065, PZ, 0xf8f8f4, { seg: 24 }); W.cyl(4.35, 4.35, 0.025, PX, 0.07, PZ, 0x5aa040, { seg: 24 });
+  for (const s2 of [-1, 1]) { const gx = PX + s2 * 40; for (const z of [-3.6, 3.6]) W.rod([gx, 0, PZ + z], [gx, 2.4, PZ + z], 0.06, 0xf8f8f4); W.rod([gx, 2.4, PZ - 3.6], [gx, 2.4, PZ + 3.6], 0.06, 0xf8f8f4); W.box(1.6, 2.3, 7.2, gx + s2 * 0.8, 1.2, PZ, 0xf0f0ec, { layer: 'cloth' }); }
+  for (let r = 0; r < 4; r++) { W.box(60, 0.4, 0.8, PX, 0.2 + r * 0.45, 52 + r * 0.8, 0xe8e4dc, { t: TX.concrete }); W.solid(60, 0.4 + r * 0.45, 0.8, PX, (0.4 + r * 0.45) / 2, 52 + r * 0.8, 'concrete', { walk: true }); }
+  W.box(60, 0.15, 4, PX, 3.6, 53.2, 0x2ab0b0, { layer: 'metal' }); for (let k = -30; k <= 30; k += 10) W.rod([PX + k, 0, 55], [PX + k, 3.6, 55], 0.08, 0xd8d8d0, { layer: 'metal' });
+  W.box(16, 0.08, 28, 38, 0.04, 30, 0xc84a3a, { t: TX.concrete }); GR.rect(38, 30, 18, 30, 0, GR.BUILT);
+  for (const s2 of [-1, 1]) { W.rod([38, 0, 30 + s2 * 13], [38, 3.0, 30 + s2 * 12.6], 0.08, 0x8a8e94, { layer: 'metal' }); W.box(1.8, 1.1, 0.06, 38, 3.4, 30 + s2 * 12.4, 0xf8f8f4); W.cyl(0.25, 0.25, 0.04, 38, 3.0, 30 + s2 * 12.1, 0xe8602a, { seg: 10, layer: 'metal' }); }
+  for (const [w, d, x, z] of [[15, 0.1, 38, 16.4], [15, 0.1, 38, 43.6], [0.1, 27, 30.4, 30], [0.1, 27, 45.6, 30], [15, 0.1, 38, 30]]) W.box(w, 0.02, d, x, 0.09, z, 0xf8f8f4, { ao: false });
+  W.scope({ lod: 1 }, () => { W.sphere(0.12, 0.12, 0.12, 36, 0.12, 27, 0xe8602a); W.sphere(0.11, 0.11, 0.11, PX + 6, 0.11, PZ - 2, 0xf8f8f4); });
+  shopB(172, 32, -Math.PI / 2, 22, 12, 'PREVIOUS BAY ALL-AGE SCHOOL', { col: 0xf6e08a, room: 'homestead', goods: 'books' }); GR.rect(172, 32, 12, 22, 0, GR.BUILT);
+  // golf carts parked round the resort and the town, the way people get about here
+  W.scope({ lod: 1 }, () => { for (const [x, z, r] of [[-70, 80, 0], [-67.5, 80, 0], [70, 80, 0], [72.5, 80, 0], [-12, 46, Math.PI / 2], [-12, 48.6, Math.PI / 2], [14, 52, 0.4], [-36, -98, 0], [-128, -100, Math.PI]]) golfCart(x, z, r); });
 }
 
 // ---------------- villas along both coasts ----------------
@@ -510,7 +635,23 @@ function diningTable(x, z, len, col = 0x8a6a4a, chair = (cx, cz, r) => plasticCh
   for (let k = -len / 2 + 0.5; k < len / 2; k += 0.8) for (const s of [-1, 1]) chair(x + k, z + s * 0.8, s > 0 ? Math.PI : 0);
 }
 function bahamasInteriors() {
-  Object.assign(ROOM_ROW, { z: 640, x: { cottage: -300, homestead: -200, villa: -100, suite: 0, bungalow: 100, shack: 200, chapel: 300 } });
+  Object.assign(ROOM_ROW, { z: 640, x: { cottage: -300, homestead: -200, villa: -100, suite: 0, bungalow: 100, shack: 200, chapel: 300, store: 400 } });
+  // ---- a shop on Queen's Highway: shelves in aisles, the counter, the fridges, the radio ----
+  {
+    const Wd = 12, D = 9, H = 3.2;
+    roomShell('store', Wd, D, H, { name: '', en: 'a shop', floor: 0xe8e4dc, wall: 0xf4ecd0, ceil: 0xf0ece4, floorTx: TX.ceramic, door: 0x2ab0b0 });
+    for (const x of [-3.4, 0, 3.4]) for (const s of [-1, 1]) shelfUnit(x, 0, -0.6 + s * 0.22, s > 0 ? 0 : Math.PI, 2.6, 1.6, 0.4, 0xf0f0ec, 'grocery');
+    for (const x of [-3.4, 0, 3.4]) W.solid(2.6, 1.6, 0.9, x, 0.8, -0.6, 'wood');
+    for (let k = 0; k < 3; k++) displayFridge(-4.8 + k * 1.0, 0, -4.0, 0);
+    shelfUnit(3.4, 0, -4.2, 0, 3.6, 2.0, 0.4, 0xf0f0ec, 'grocery');
+    counter(3.6, 0, 2.6, Math.PI, 3.0, 0x2ab0b0, 0xe8e4dc); cashRegister(3.0, 1.02, 2.6, Math.PI); transistorRadio(4.4, 1.02, 2.6, Math.PI); for (let i = 0; i < 5; i++) W.cyl(0.07, 0.07, 0.24, 4.6 - i * 0.2, 1.14, 2.75, mpick([0xd8a030, 0xe8604a, 0x3a8a3a]), { seg: 6, layer: 'glass' });
+    cooler(-4.6, 0, 2.8, Math.PI / 2, 0xe83a3a); for (let k = 0; k < 4; k++) W.box(0.5, 0.4, 0.4, -5.4, 0.2 + (k % 2) * 0.42, 1.2 + Math.floor(k / 2) * 0.5, 0xb89a6a, { t: TX.wood });
+    sunWindow(-2.6, 4.46, Math.PI, 2.4, 1.6, 1.5, 0xf0c040); ceilingFan(-1.6, H - 0.1, 1.8); ceilingFan(1.8, H - 0.1, -2.2); for (const x of [-3, 0, 3]) W.box(1.4, 0.06, 0.2, x, H - 0.05, -0.6, 0xfff8e8, { layer: 'glow' });
+    W.lamp(0, 2.8, 0, 0xfff8e8, 1.8, 11, { halo: 0 });
+    LOOT.spot('store', 3.6, 1.02, 2.3, 'cash');
+    staffAt(3.6, 3.4, Math.PI, 'shop'); staffAt(-1.7, 0.6, Math.PI / 2, 'guest'); staffAt(1.7, -2.2, -Math.PI / 2, 'guest');
+    W.pop();
+  }
   // ---- an island cottage: the front room, the kitchen corner, the bed under the window ----
   {
     const Wd = 10, D = 8, H = 3.0;

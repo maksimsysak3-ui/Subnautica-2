@@ -706,11 +706,13 @@ function updateRange(dt, time) {
   P.pos.addScaledVector(P.vel, dt);
   // world collision: walls push you out, floors/steps lift you, ledges drop you with gravity
   const wx0 = P.pos.x - P.vel.x * dt, wz0 = P.pos.z - P.vel.z * dt;
-  COL.resolve(P.pos, 0.32, 1.75);
+  // in the water you can haul yourself up onto a dock or a boat landing, not just a kerb-high step
+  const climb = MAP.waterY !== undefined && terrainH(P.pos.x, P.pos.z) < MAP.waterY + 0.35 && P.pos.y < MAP.waterY + 0.9 ? 1.5 : 0.45;   // the water and the wet sand at its edge
+  COL.resolve(P.pos, 0.32, 1.75, climb);
   // islands: you can wade the shallows, not swim the channel
-  if (MAP.waterY !== undefined && COL.ground(P.pos.x, P.pos.z, P.pos.y + 0.4) < MAP.waterY - 0.9) { P.pos.x = wx0; P.pos.z = wz0; P.vel.x = P.vel.z = 0; }
+  if (MAP.waterY !== undefined && COL.ground(P.pos.x, P.pos.z, P.pos.y + 0.4, climb) < MAP.waterY - 0.9) { P.pos.x = wx0; P.pos.z = wz0; P.vel.x = P.vel.z = 0; }
   P.pos.x = clamp(P.pos.x, -MAP.bounds, MAP.bounds); P.pos.z = clamp(P.pos.z, -MAP.bounds, MAP.bounds);
-  const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y);
+  const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y, climb);
   // jump (Space): a modest hop — enough for a kerb or a low wall, not for rooftops
   if (keys.Space && !P.air && !P.dead && P.stamina > 0.1 && clockJump(time)) { P.vy = 4.3; P.air = true; P.stamina = Math.max(0, P.stamina - 0.08); audio.step(false, 1); }
   if ((P.vy || 0) > 0 || gy < P.pos.y - 0.04) { P.vy = (P.vy || 0) - G * dt; P.pos.y = Math.max(gy, P.pos.y + P.vy * dt); P.air = P.pos.y > gy + 0.02 || P.vy > 0; if (!P.air) land(); }

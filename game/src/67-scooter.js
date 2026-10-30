@@ -83,7 +83,8 @@ const SCOOTER = (() => {
     if (s.kind === 'jet') {
       // step off onto a dock or into water shallow enough to stand in
       p = null;
-      for (let r = 1.2; r <= 3.2 && !p; r += 0.5) for (let k = 0; k < 16 && !p; k++) { const a = k / 16 * Math.PI * 2, x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r, g = COL.ground(x, z, 2); if (g > MAP.waterY - 0.8) p = { x, y: g, z }; }
+      // a dry deck or beach first (anywhere within reach), shallow water only if there's nothing better
+      for (const ok of [MAP.waterY + 0.15, MAP.waterY - 0.8]) for (let r = 1.2; r <= 4.2 && !p; r += 0.5) for (let k = 0; k < 16 && !p; k++) { const a = k / 16 * Math.PI * 2, x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r, g = COL.ground(x, z, 2); if (g > ok) p = { x, y: g, z }; }
       if (!p) { if (!force) feed('<span class="m">TOO DEEP — GET TO A DOCK OR THE BEACH</span>'); if (!force) return; p = { x: s.x, y: s.y, z: s.z }; }
     }
     COL.resolve(p, 0.32, 1.75);

@@ -410,7 +410,7 @@ function bahamasMissions({ fig, live, near, kit, S, flags, talkShots, flyover, b
       { text: 'Deal with Kane’s collector (black shirt) at the conch shacks — quietly, if you can', where: () => live(F().collector, 'COLLECTOR')(), done: () => F().colDead },
       { text: 'Go back to Errol on the jetty (E)', where: () => live(F().errol, 'ERROL')(), act: () => near(F().errol, 2.8, 2), prompt: () => near(F().errol, 2.8, 2) ? '[E]  “HE’S GONE.”' : '',
         cut: () => talkShots(P.pos, F().errol, ['ERROL: Forty years I been waiting for somebody to do that.', 'ERROL: Two grey boats. They go round the island the long way, slow, and pass the dock every four minutes. Wait till one goes by, then go straight in behind it.', 'ERROL: Take the jetski at the end of my jetty. Tell the hotel you found it.']) },
-      { text: 'Take the jetski at the end of the harbour jetty (E)', where: () => ({ x: -80, y: 2, z: -162, name: 'JETSKI' }), done: onJet },
+      { text: 'Take the jetski at the end of the harbour jetty (E)', where: () => ({ x: -97.5, y: 2, z: -166, name: 'JETSKI' }), done: onJet },
     ],
   }, {
     title: 'KANE’S ISLAND', reward: 1000,
