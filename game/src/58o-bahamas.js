@@ -153,9 +153,6 @@ function bahamasLayout() {
   plaza('Town square', { x0: 22, z0: -46, x1: 56, z1: -14 }, 0xe8dcc0, TX.paving);
   plaza('Farm stand', { x0: -72, z0: 6, x1: -44, z1: 16 }, 0xd8ccb0, TX.gravel);
   plaza('Sports field', { x0: 58, z0: 50, x1: 146, z1: 56 }, 0xe0d8c8, TX.paving);
-  // the tarmac roads carry traffic (on the left, as in the Bahamas); the two cross roads run as one
-  ROADS.push({ id: 'bSpine', pts: [[0, -98], [0, 48]], len: 146, w: 8, road: 8 }, { id: 'bCross', pts: [[-205, 0], [205, 0]], len: 410, w: 6, road: 6 },
-    { id: 'bEast', pts: [[205, -70], [205, 70]], len: 140, w: 7, road: 7 }, { id: 'bWest', pts: [[-205, -70], [-205, 70]], len: 140, w: 7, road: 7 });
 }
 
 // ---------------- buildings ----------------
