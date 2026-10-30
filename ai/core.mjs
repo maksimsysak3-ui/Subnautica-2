@@ -303,7 +303,11 @@ export class Agent {
           if (m && m.visible) rate *= 3; // already tracking
           rate *= 1 - (o.conceal || 0);   // blending into a crowd (host-supplied, 0..1)
           const dg = o.disguiseFor ? o.disguiseFor(this.team) : o.disguise;   // host may judge the clothes per observer's side
-          if (dg) rate *= 1 - dg * clamp((d - 2.5) / 5, 0, 1);   // in someone else's clothes: only a close look gives you away
+          // in someone else's clothes: a uniform only survives a distant look (they know their own men's faces);
+          // a civilian blending in (disguiseClose) holds at any distance. Behaving perfectly, nothing builds — what was there fades.
+          const close = o.disguiseClose ? 1 : clamp((d - 2.5) / 5, 0, 1);
+          if (dg >= 0.9 && close === 1 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
+          else if (dg) rate *= 1 - dg * close;
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);

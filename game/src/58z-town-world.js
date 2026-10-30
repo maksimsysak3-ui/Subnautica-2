@@ -16,5 +16,6 @@ function cityPlan() {
     ['Houses, shops and stalls, street by street', buildTownFronts],
     ['Rooftops', buildTownBlocks],
     ['Squares, souks and the harbour', () => { buildTownPlaces(); SEA.add(); }],
+    ['Behind the doors', darInteriors],
   ];
 }

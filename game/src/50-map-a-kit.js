@@ -8,7 +8,7 @@
 const MAP = {
   // which case is loaded (?map=dar | seoul); none → the case-files menu
   id: (() => { const m = new URLSearchParams(location.search).get('map'); return m === 'dar' || m === 'seoul' || m === 'manor' ? m : null; })(),
-  bounds: 400, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
+  bounds: 900, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
   // max draw distance per detail level: 0 architecture, 1 street props, 2 interior furniture, 3 small clutter

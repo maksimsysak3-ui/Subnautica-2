@@ -190,11 +190,14 @@ function roomApt() {
   staffAt(-3.2, 0.9, Math.PI, 'home');
   W.pop();
 }
-function seoulInteriors() { roomBBQ(); roomHof(); roomKaraoke(); roomPC(); roomCafe(); roomApt(); }
+function seoulInteriors() {
+  roomBBQ(); roomHof(); roomKaraoke(); roomPC(); roomCafe(); roomApt();
+  // a stash in each (E): on the counters, the desk
+  for (const [k, dx, y, dz, kind] of [['apt', 2.0, 0.78, 2.6, 'cash'], ['pc', 7.0, 1.05, 4.4, 'cash'], ['hof', -4.0, 1.12, -3.4, 'cash'], ['karaoke', 5.4, 1.05, 3.6, 'medkit'], ['bbq', 3.0, 1.1, -5.0, 'medkit'], ['cafe', -1.0, 1.07, -3.1, 'cash']]) LOOT.spot(k, ROOMS[k].x + dx, y, ROOMS[k].z + dz, kind);
+}
 
 // ---------------- runtime: E at a door, E at the door inside ----------------
 const DOORS = (() => {
-  if (MAP.id !== 'seoul') return { interact: () => false, prompt: () => '', get inside() { return false; }, get room() { return null; } };
   let inside = null, fadeEl = null, busyUntil = 0;
   const fade = (fn) => {
     if (!fadeEl) { fadeEl = document.createElement('div'); fadeEl.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:40'; document.body.appendChild(fadeEl); }
@@ -204,11 +207,12 @@ const DOORS = (() => {
     if (P.vehicle || P.dead || SUBWAY.under) return null;
     if (inside) { const R2 = ROOMS[inside.room]; return Math.hypot(P.pos.x - R2.x, P.pos.z - (R2.z + R2.D / 2)) < 1.8 ? inside : null; }
     const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw); let best = null, bd = 1.7;
-    for (const d of TOWN.doors) { const dx = d.x - P.pos.x, dz = d.z - P.pos.z; if (Math.abs(dx) > 2 || Math.abs(dz) > 2) continue; const L = Math.hypot(dx, dz); if (L < bd && (L < 0.5 || (dx * fx + dz * fz) / L > 0.2)) { bd = L; best = d; } }
+    for (const d of TOWN.doors) { if (!d.room || !ROOMS[d.room]) continue; const dx = d.x - P.pos.x, dz = d.z - P.pos.z; if (Math.abs(dx) > 2 || Math.abs(dz) > 2) continue; const L = Math.hypot(dx, dz); if (L < bd && (L < 0.5 || (dx * fx + dz * fz) / L > 0.2)) { bd = L; best = d; } }
     return best;
   };
   function interact() {
     if (performance.now() < busyUntil) return false;
+    if (LOOT.take(inside)) return true;
     const d = near(); if (!d) return false;
     if (inside) { const back = inside; fade(() => { P.pos.set(back.ox, 0.05, back.oz); P.vel.set(0, 0, 0); P.yaw = Math.atan2(-(back.ox - back.x), -(back.oz - back.z)); STREAM.prime(P.pos); }); inside = null; return true; }
     const R2 = ROOMS[d.room];
@@ -217,9 +221,10 @@ const DOORS = (() => {
   }
   return {
     interact,
-    prompt() { if (performance.now() < busyUntil) return ''; const d = near(); return d ? (inside ? '[E]  나가기 · LEAVE' : `[E]  들어가기 · ENTER${d.name ? '  ' + d.name : ''}`) : ''; },
+    prompt() { if (performance.now() < busyUntil) return ''; const L = LOOT.prompt(); if (L) return L; const d = near(); const ko = MAP.id === 'seoul'; return d ? (inside ? `[E]  ${ko ? '나가기 · ' : ''}LEAVE` : `[E]  ${ko ? '들어가기 · ' : ''}ENTER${d.name ? '  ' + d.name : ''}`) : ''; },
     get inside() { return !!inside; },
     get room() { return inside ? inside.room : null; },
+    get current() { return inside; },
   };
 })();
 // under a roof: no rain (subway, rooms)

@@ -73,9 +73,10 @@ const HUD = (() => {
   const where = mk('where'), toast = mk('placeToast');
   let shownAt = -1, place = '', toastT = 0, adopted = false, t = 0;
   function region() {
+    if (DOORS.inside) { const R2 = ROOMS[DOORS.room]; return ['', (R2 ? R2.en : 'indoors').toUpperCase()]; }
     if (MAP.id === 'seoul') {
       if (SUBWAY.under) { let best = LINE2[0]; for (const s of LINE2) if (Math.abs(P.pos.x - (s.ox ?? 1e9)) < 80) best = s; return [`${best.ko}역`, `${best.en.toUpperCase()} · LINE 2`]; }
-      if (DOORS.inside) return ['실내', 'INDOORS'];
+
       const { x, z } = P.pos;
       if (z > 150) return ['한강공원', 'HANGANG PARK']; if (x > 153) return ['강남', 'GANGNAM']; if (x < -153) return ['아현', 'AHYEON'];
       if (z < -140) return ['남대문시장', 'NAMDAEMUN MARKET']; return ['홍대 · 마포', 'HONGDAE · MAPO'];

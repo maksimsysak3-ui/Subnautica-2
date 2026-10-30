@@ -66,7 +66,11 @@ function townUnit(u) {
     const free = [-w / 2 + 1.0, w / 2 - 1.0].filter((x) => Math.abs(x - doorAt) > dw / 2 + 0.9);
     for (const x of free) if (!S.few || mchance(0.5)) ops0.push({ at: x, w: 0.6, h: 0.7, sill: 1.7, kind: 'win', win: 'grille' });
   }
-  TOWN.doors.push(W.worldPos(doorAt ?? 0, 0, 0.6));
+  if (MAP.id === 'dar' && W.mode !== 'geom') {   // most front doors open (E): a riad, a family house, a warehouse, a tea room
+    const a = W.worldPos(doorAt ?? 0, 0, 0.45), b = W.worldPos(doorAt ?? 0, 0, 1.6), h = Math.abs(Math.floor(a.x * 7.3 + a.z * 13.1)) % 4;   // position-hashed, so the town's own randomness is untouched
+    const room = ware ? 'warehouse' : shop ? null : S.grand || S.door === 'carved' ? 'riad' : h === 0 ? 'teahouse' : 'dhouse';
+    if (room) { TOWN.doors.push({ x: a.x, z: a.z, ox: b.x, oz: b.z, room, name: '' }); }
+  }
   frontWall(w, 0, FH0, T, col, tx, wear, ops0, 0.55, S);
   // --- upper floors
   const nWin = Math.max(1, Math.min(4, Math.floor(w / (S.few ? 3.6 : 2.7))));

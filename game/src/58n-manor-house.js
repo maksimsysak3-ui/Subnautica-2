@@ -311,6 +311,7 @@ function cottage(x, z, w, d, H, ry, o = {}) {
   W.box(w + 0.2, 0.3, d + 0.2, 0, 0.15, 0, STONE_DK, { t: TX.stone });
   for (let k = -w / 2 + 1.6; k < w / 2 - 1; k += 2.8) for (const s of [-1, 1]) { const lit = mchance(0.55); W.box(1.0, 1.2, 0.05, k, H * 0.55, s * (d / 2 + 0.02), lit ? 0xd8b880 : 0x1a1e24, { layer: lit ? 'glow' : 'pane' }); W.box(1.2, 0.1, 0.2, k, H * 0.55 - 0.65, s * (d / 2 + 0.08), STONE); }
   W.box(1.1, 2.1, 0.06, o.doorX ?? 0, 1.05, d / 2 + 0.03, o.door ?? 0x2a4a3a, { t: TX.wood }); W.lamp(o.doorX ?? 0, 2.4, d / 2 + 0.8, 0xffd8a0, 1.2, 6, { halo: 0.4 });
+  if (o.room && W.mode !== 'geom') { const a = W.worldPos(o.doorX ?? 0, 0, d / 2 + 0.45), b = W.worldPos(o.doorX ?? 0, 0, d / 2 + 1.6); TOWN.doors.push({ x: a.x, z: a.z, ox: b.x, oz: b.z, room: o.room, name: '' }); }
   W.pop();
   W.push(x, 0, z, ry); pitched(-w / 2 - 0.3, -d / 2 - 0.3, w / 2 + 0.3, d / 2 + 0.3, H, o.pitch ?? Math.min(3.2, d * 0.45), roof); W.pop();
   if (o.chimney !== false) { W.push(x, 0, z, ry); W.box(0.9, 2.6, 0.9, w / 2 - 1.2, H + 1.6, 0, 0x8a6a54, { t: TX.brick }); W.pop(); }
@@ -342,13 +343,13 @@ function carPark(x0, z0, x1, z1, rows, fill = 0.8) {
 }
 function manorEstate() {
   // the gate lodge: the keeper's cottage, a picket fence and its own garden
-  cottage(-28, 184, 10, 7, 5.5, 0, { col: 0xd0c4ac, chimney: true });
+  cottage(-28, 184, 10, 7, 5.5, 0, { col: 0xd0c4ac, chimney: true, room: 'lodge' });
   W.scope({ lod: 1 }, () => { for (let x = -36; x <= -20; x += 0.6) W.box(0.08, 1.0, 0.06, x, 0.5, 190.5, 0xf0f0ec); W.box(16, 0.08, 0.06, -28, 0.85, 190.5, 0xf0f0ec); for (let k = 0; k < 8; k++) W.sphere(0.5, 0.4, 0.5, -34 + k * 1.7, 0.3, 189.5, mpick([0xd83a4a, 0xe8d0e0, 0xd8a030, 0x3a6a2a]), { seg: 6, t: TX.leaf }); });
   // guest car park by the gate, the staff car park in the service yard
   carPark(18, 148, 76, 192, 4, 0.85);
   carPark(78, -34, 112, -4, 2, 0.6);
   W.scope({ lod: 1 }, () => { for (const [x, z] of [[84, -36.6], [92, -36.6], [100, -36.6]]) { W.box(1.4, 1.3, 1.0, x, 0.65, z, mpick([0x2a6a3a, 0x2a4a8a, 0x8a8e94]), { layer: 'metal' }); } cargoTruck(104, -12, Math.PI, 0xe8e6e0); });
-  cottage(118, -20, 8, 6, 4, Math.PI / 2, { col: 0xb8b0a0, tx: TX.concrete, roof: 0x4a4a4a, chimney: false });   // generator house
+  cottage(118, -20, 8, 6, 4, Math.PI / 2, { col: 0xb8b0a0, tx: TX.concrete, roof: 0x4a4a4a, chimney: false, room: 'genhouse' });   // generator house
   // the stable block: three ranges round a cobbled yard, the clock tower over the arch
   const SX = -128, SZ = 60;
   for (const [dx, dz, w, d, ry] of [[0, -22, 48, 7, 0], [-21, 0, 38, 7, Math.PI / 2], [21, 0, 38, 7, Math.PI / 2]]) {
@@ -360,6 +361,7 @@ function manorEstate() {
   }
   groundPlate(SX - 18, SZ - 18, SX + 18, SZ + 20, 0x8a8478, TX.cobble, 4, 0.05);
   W.box(4, 12, 4, SX, 6, SZ - 22, 0xc8a888, { t: TX.brick }); W.solid(4, 12, 4, SX, 6, SZ - 22, 'stone');
+  W.box(1.8, 2.6, 0.08, SX + 6, 1.3, SZ - 18.45, 0x2a4a3a, { t: TX.wood }); W.lamp(SX + 6, 2.8, SZ - 17.6, 0xffd8a0, 1.2, 6, { halo: 0.4 }); TOWN.doors.push({ x: SX + 6, z: SZ - 17.9, ox: SX + 6, oz: SZ - 16.6, room: 'stable', name: '' });
   W.cyl(1.3, 1.3, 0.1, SX, 9.5, SZ - 19.98, 0xf0f0e8, { rx: Math.PI / 2, seg: 20 }); W.box(0.08, 1.0, 0.04, SX, 9.8, SZ - 19.9, 0x1a1a1a); W.box(0.7, 0.08, 0.04, SX + 0.3, 9.5, SZ - 19.9, 0x1a1a1a);
   W.cyl(2.4, 2.4, 2.5, SX, 13.2, SZ - 22, 0xe8e4dc, { seg: 8 }); W.cone(2.8, 3.2, SX, 16.1, SZ - 22, 0x6a8a84, { seg: 8 }); W.lamp(SX, 9.5, SZ - 18.5, 0xfff0d0, 1.4, 8, { halo: 0.4 });
   W.scope({ lod: 1 }, () => { for (let k = 0; k < 8; k++) haybale(SX + mr(-12, 12), 0, SZ + mr(-10, 14), mr(0, 3)); W.box(3, 0.6, 0.8, SX + 8, 0.3, SZ + 6, STONE); W.box(2.8, 0.05, 0.6, SX + 8, 0.58, SZ + 6, 0x3a5a6a, { layer: 'glass' }); });
@@ -379,14 +381,14 @@ function manorEstate() {
   }
   for (let r = 0; r < 6; r++) for (let k = 0; k < 3; k++) { const x = K.x0 + 8 + k * 14, z = K.z0 + 8 + r * 6; W.box(10, 0.35, 3.2, x, 0.18, z, 0x4a3a2a, { t: TX.earth }); W.scope({ lod: 2 }, () => { for (let i = 0; i < 12; i++) W.sphere(0.4, 0.35, 0.4, x - 4.5 + i * 0.82, 0.5, z + mr(-0.8, 0.8), mpick([0x3a7a2a, 0x4a8a3a, 0x6aa02a, 0x8a3a6a]), { seg: 6, hseg: 4, t: TX.leaf }); }); }
   glasshouse(K.x0 + 52, K.z0 + 20, 22, 8, 3.5, Math.PI / 2); glasshouse(K.x0 + 52, K.z0 + 50, 22, 8, 3.5, Math.PI / 2);
-  cottage(K.x1 - 6, K.z1 - 5, 6, 4, 2.8, Math.PI, { col: 0x8a6a4a, tx: TX.wood, roof: 0x3a3a34, chimney: false, pitch: 1.4 });
+  cottage(K.x1 - 6, K.z1 - 5, 6, 4, 2.8, Math.PI, { col: 0x8a6a4a, tx: TX.wood, roof: 0x3a3a34, chimney: false, pitch: 1.4, room: 'shed' });
   // tennis court with its fence, a pavilion; garden sheds about the grounds; an orchard in the north-west
   groundPlate(50, -196, 86, -178, 0x3a6a4a, TX.concrete, 2, 0.06);
   for (const [w, d, x, z] of [[24, 0.08, 68, -180], [24, 0.08, 68, -194], [0.08, 14, 56, -187], [0.08, 14, 80, -187], [0.08, 14, 68, -187]]) W.box(w, 0.01, d, x, 0.09, z, 0xf0f0ec, { ao: false });
   W.box(0.08, 1.0, 12, 68, 0.5, -187, 0x2a2a2a, { layer: 'metal' });
   chainFence(48, -198, 88, -198, 3); chainFence(48, -176, 88, -176, 3); chainFence(48, -198, 48, -176, 3); chainFence(88, -198, 88, -176, 3);
-  cottage(98, -186, 6, 4, 3, -Math.PI / 2, { col: 0xf0ece4, tx: TX.wood, roof: 0x2a4a3a, chimney: false });
-  for (const [x, z, r] of [[-40, -192, 0], [36, -150, 1.2], [-150, -20, 2.4], [150, -170, 0.6], [180, 120, 3]]) cottage(x, z, 3.6, 2.6, 2.4, r, { col: 0x5a4a3a, tx: TX.wood, roof: 0x3a3a34, chimney: false, pitch: 0.9 });
+  cottage(98, -186, 6, 4, 3, -Math.PI / 2, { col: 0xf0ece4, tx: TX.wood, roof: 0x2a4a3a, chimney: false, room: 'shed' });
+  for (const [x, z, r] of [[-40, -192, 0], [36, -150, 1.2], [-150, -20, 2.4], [150, -170, 0.6], [180, 120, 3]]) cottage(x, z, 3.6, 2.6, 2.4, r, { col: 0x5a4a3a, tx: TX.wood, roof: 0x3a3a34, chimney: false, pitch: 0.9, room: 'shed' });
   for (let x = -190; x <= -130; x += 7) for (let z = 128; z <= 190; z += 7) tree(x + mr(-1, 1), 0, z + mr(-1, 1), 'orange', 0.75);
   // plants: borders along the courtyard faces, urns at the corners, clipped bay trees by the doors
   W.scope({ lod: 1 }, () => {

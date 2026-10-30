@@ -22,6 +22,7 @@ function manorPlan() {
     ['Gardens, the maze, the lake', manorGardens],
     ['The gala', manorParty],
     ['Security', manorSecurity],
+    ['Behind the doors', manorInteriors],
   ];
 }
 
