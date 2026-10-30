@@ -1,0 +1,431 @@
+// =====================================================================
+//  CASE 04 — PARADISE: an island in the Bahamas
+// =====================================================================
+// One main island (a pastel village and its harbour on the north shore, a resort on the long white
+// beach to the south, open white villas along both coasts, palm forest between), a guarded private
+// island to the north-east, and a small cay to the south-west where a seaplane is moored. Shallow
+// turquoise shelves round every shore, a reef further out, deep blue beyond. Jetskis to get between them.
+const WY = -0.45;   // sea level (the land plateau sits at 0)
+const ISLANDS = [
+  { x: 0, z: 0, rx: 262, rz: 142, n: 2.6, rot: 0 },        // the main island
+  { x: 380, z: -250, rx: 88, rz: 62, n: 2.2, rot: 0.3 },   // the private island
+  { x: -360, z: 262, rx: 34, rz: 24, n: 2, rot: -0.4 },    // the cay
+];
+const BAHAMAS = {
+  bounds: [-480, 480, -360, 340],
+  jets: [[-47, 162.6, Math.PI / 2, 0xe8e8e8], [-43, 162.6, Math.PI / 2, 0x2ab0d0], [-37, 157.4, -Math.PI / 2, 0xf0d020], [-33, 157.4, -Math.PI / 2, 0xe83a5a], [282, -276, -Math.PI / 2, 0x1a1a1a], [282, -224, -Math.PI / 2, 0x1a1a1a], [-80, -162, 0, 0xe8e8e8]],
+};
+const PASTEL = [0xf4b0b8, 0xf6e08a, 0xa8e0c8, 0x9ad0ec, 0xc8b0e0, 0xf8c8a0, 0xf4f0e8, 0xb8e8a8, 0xf09a8a];
+const ACCENT = [0x2ab0b0, 0xf0f0ec, 0x3a8ac8, 0xe8604a, 0x5ab05a, 0xf0c040];
+// signed distance to the nearest shore (negative inland), with a little noise in the coastline
+function islandSD(x, z) {
+  let best = 1e9;
+  for (const I of ISLANDS) {
+    const c = Math.cos(I.rot), s = Math.sin(I.rot), lx = (x - I.x) * c + (z - I.z) * s, lz = -(x - I.x) * s + (z - I.z) * c;
+    const q = Math.pow(Math.pow(Math.abs(lx / I.rx), I.n) + Math.pow(Math.abs(lz / I.rz), I.n), 1 / I.n);
+    best = Math.min(best, (q - 1) * Math.min(I.rx, I.rz));
+  }
+  return best + (fbm(x * 0.018 + 7, z * 0.018) - 0.5) * 12;
+}
+function islandH(x, z) {
+  const sd = islandSD(x, z);
+  if (sd < -26) return 0;
+  if (sd < 0) { const t = (sd + 26) / 26; return WY * t * t; }   // the beach
+  let h = WY - 2.8 * smooth(Math.min(1, sd / 45)) - 12 * smooth(clamp((sd - 70) / 180, 0, 1));
+  h += (vnoise(x * 0.08, z * 0.08) - 0.5) * 0.35 * Math.min(1, sd / 20);              // ripples in the sand
+  const reef = Math.exp(-(((sd - 120) / 14) ** 2)); h = Math.max(h, WY - 1.0 - (1 - reef) * 20);   // the reef line
+  // the sandbar out to the cay: walkable at low water, barely awash
+  const ax = -230, az = 130, bx = -340, bz = 248, ux = bx - ax, uz = bz - az, L2 = ux * ux + uz * uz, t2 = clamp(((x - ax) * ux + (z - az) * uz) / L2, 0, 1), dd = Math.hypot(x - ax - ux * t2, z - az - uz * t2);
+  if (dd < 30) h = Math.max(h, WY - 0.15 - dd * 0.05);
+  return h;
+}
+function islandColor(c, x, z, h, n, n2) {
+  const sd = islandSD(x, z);
+  if (h < WY - 0.05) { c.setRGB(0.93, 0.88, 0.76).lerp(new THREE.Color(0.55, 0.62, 0.55), clamp((WY - h) / 12, 0, 1) * 0.7); if (h > WY - 2.5) c.lerp(new THREE.Color(0.98, 0.95, 0.86), 0.3 * n2); return; }
+  if (sd > -26) { c.setRGB(0.97, 0.94, 0.86).lerp(new THREE.Color(0.9, 0.84, 0.7), n * 0.35); return; }   // white sand
+  c.setRGB(0.36, 0.56, 0.22).lerp(new THREE.Color(0.52, 0.6, 0.3), n * 0.6).lerp(new THREE.Color(0.86, 0.8, 0.62), clamp((sd + 40) / 14, 0, 1) * 0.6);
+}
+
+// ---------------- the water: depth from the real sea bed, so the shallows glow turquoise ----------------
+const BSEA = (() => {
+  const R = 900, N = 384;
+  let mesh = null;
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, fog: true, depthWrite: false,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { t: { value: 0 }, depth: { value: null }, sunDir: { value: new V3() }, sky: { value: new THREE.Color(0.6, 0.8, 0.95) } }]),
+    vertexShader: `#include <common>
+      varying vec3 vW;
+      #include <fog_pars_vertex>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
+      #include <logdepthbuf_vertex>
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float t; uniform sampler2D depth; uniform vec3 sunDir, sky; varying vec3 vW;
+      #include <fog_pars_fragment>
+      #include <logdepthbuf_pars_fragment>
+      vec2 h2(vec2 p){ p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3))); return -1. + 2.*fract(sin(p)*43758.5453); }
+      float gn(vec2 p){ vec2 i = floor(p), f = fract(p), u = f*f*(3.-2.*f); return mix(mix(dot(h2(i),f), dot(h2(i+vec2(1,0)),f-vec2(1,0)),u.x), mix(dot(h2(i+vec2(0,1)),f-vec2(0,1)), dot(h2(i+vec2(1,1)),f-vec2(1,1)),u.x),u.y); }
+      float hgt(vec2 p){ return gn(p*.18 + vec2(t*.06, t*.04))*.7 + gn(p*.55 - vec2(t*.13, -t*.09))*.3 + gn(p*1.6 + vec2(t*.35, t*.22))*.1; }
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec2 p = vW.xz; float e = .2;
+        vec2 uv = p / ${(2 * R).toFixed(1)} + .5;
+        float d = texture2D(depth, uv).r * 30.;                      // metres of water here
+        vec3 n = normalize(vec3(hgt(p-vec2(e,0.)) - hgt(p+vec2(e,0.)), 2.*e*3.0, hgt(p-vec2(0.,e)) - hgt(p+vec2(0.,e))));
+        vec3 v = normalize(cameraPosition - vW);
+        float fr = .02 + .98 * pow(1. - max(dot(n, v), 0.), 5.);
+        vec3 r = reflect(-v, n);
+        // colour by depth: glassy white-turquoise over sand, bright turquoise, cobalt, deep navy
+        vec3 c0 = vec3(.4,.92,.86), c1 = vec3(.0,.76,.8), c2 = vec3(.0,.44,.7), c3 = vec3(.01,.13,.34);
+        vec3 water = mix(c0, c1, smoothstep(.0, 1.4, d)); water = mix(water, c2, smoothstep(1.6, 7., d)); water = mix(water, c3, smoothstep(7., 20., d));
+        // caustics dancing on the bottom of the shallows
+        float ca = pow(abs(sin(gn(p*.9 + t*.4)*6. + gn(p*1.7 - t*.3)*4.)), 8.);
+        water += vec3(.35,.4,.35) * ca * (1. - smoothstep(.3, 4., d));
+        vec3 col = mix(water, sky, clamp(fr * (.4 + .6 * smoothstep(1., 8., d)), 0., .7));
+        col += vec3(1.5,1.4,1.2) * pow(max(dot(r, sunDir), 0.), 260.) * 4.;
+        // foam: the surf line where the water runs out, and white caps far out
+        float foam = smoothstep(.45, .05, d) * (.55 + .45 * sin(t * 1.6 + d * 18. + gn(p*.6) * 6.));
+        foam = max(foam, smoothstep(.62, .8, hgt(p*1.4)) * .25 * smoothstep(10., 25., d));
+        col = mix(col, vec3(.98,.99,1.), clamp(foam, 0., 1.) * .8);
+        float a = mix(.62, .98, smoothstep(.0, 3.5, d));             // you see the sand through the shallows
+        gl_FragColor = vec4(col, max(a, foam));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+  function build() {
+    const data = new Uint8Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const x = -R + (i + 0.5) * 2 * R / N, z = R - (j + 0.5) * 2 * R / N; data[j * N + i] = Math.round(clamp((WY - terrainH(x, z)) / 30, 0, 1) * 255); }
+    const tex = new THREE.DataTexture(data, N, N, THREE.RedFormat, THREE.UnsignedByteType); tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.flipY = false; tex.needsUpdate = true;
+    // rows run from +z down: v = 0 at z = −R in the shader's uv, so flip the rows to match
+    const flipped = new Uint8Array(N * N); for (let j = 0; j < N; j++) flipped.set(data.subarray((N - 1 - j) * N, (N - j) * N), j * N);
+    tex.image.data = flipped;
+    mat.uniforms.depth.value = tex; mat.uniforms.sunDir.value.copy(SKY.sunDir);
+    mesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, 2 * R, 1, 1).rotateX(-Math.PI / 2), mat);
+    mesh.position.y = WY; mesh.renderOrder = 1; scene.add(mesh);
+    // beyond the depth map, the open ocean
+    const far = new THREE.Mesh(new THREE.RingGeometry(R * 0.99, 6000, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x0a3a6a, fog: true }));
+    far.position.y = WY - 0.02; scene.add(far);
+  }
+  return { build, update(t) { if (mesh) mat.uniforms.t.value = t; } };
+})();
+const waveH = (x, z, t) => Math.sin(x * 0.17 + t * 1.3) * 0.07 + Math.sin(z * 0.23 - t * 1.05) * 0.06;
+
+function bahamasPlan() {
+  SKY.tropical();
+  Object.assign(CITY, { x0: -480, x1: 480, z0: -360, z1: 340 });
+  Object.assign(SPAWN, { x: -20, z: 98, yaw: Math.PI });
+  Object.assign(SQ, { x0: 1e4, z0: 1e4, x1: 1e4 + 1, z1: 1e4 + 1 });
+  MAP.waterY = WY; MAP.bounds = 900;
+  TOWN.factionAt = () => 'red';
+  return [
+    ['Laying out the island', bahamasLayout],
+    ['The village and the harbour', bahamasVillage],
+    ['The resort, the pier, the bungalows on the water', bahamasResort],
+    ['Open white houses along the coast', bahamasVillas],
+    ['The private island', bahamasPrivate],
+    ['Palm forests, the cay and the seaplane', bahamasNature],
+    ['The sea', () => { BSEA.build(); bahamasSecurity(); bahamasInteriors(); }],
+  ];
+}
+
+// ---------------- roads and lanes ----------------
+function bahamasLayout() {
+  const sandRoad = { tx: TX.gravel, col: 0xe8dcc0 }, tar = { tx: TX.asphalt, col: 0x4a4a48 };
+  // the coast road, round the island inside the beach
+  lane('spine', [[0, -98], [0, 48]], 8, 'avenue', tar);
+  lane('eastRoad', [[205, -70], [205, 70]], 7, 'avenue', tar); lane('westRoad', [[-205, -70], [-205, 70]], 7, 'avenue', tar);
+  lane('crossW', [[-205, 0], [-8, 0]], 6, 'alley', tar); lane('crossE', [[8, 0], [205, 0]], 6, 'alley', tar);
+  // the village: sandy lanes off the harbour
+  for (const [n, pts] of [['vMain', [[-150, -96], [-20, -96]]], ['vA', [[-130, -96], [-130, -40]]], ['vB', [[-100, -120], [-100, -40]]], ['vC', [[-70, -96], [-70, -40]]], ['vD', [[-40, -120], [-40, -40]]], ['vE', [[-150, -60], [-20, -60]]]])
+    lane(n, pts, 5.5, 'alley', sandRoad);
+  // beach paths down to the water
+  for (const x of [-120, -60, 60, 120]) lane(`beach${x}`, [[x, 92], [x, 128]], 3, 'alley', sandRoad);
+  plaza('Harbour front', { x0: -150, z0: -136, x1: -20, z1: -104 }, 0xd8ccb0, TX.paving);
+  plaza('Resort beach', { x0: -110, z0: 108, x1: 110, z1: 134 }, 0xf2ead8, TX.gravel);
+  plaza('Pool deck', { x0: -60, z0: 88, x1: 60, z1: 106 }, 0xf0ece4, TX.ceramic);
+  plaza('Straw market', { x0: -20, z0: -128, x1: 14, z1: -104 }, 0xd8ccb0, TX.paving);
+}
+
+// ---------------- buildings ----------------
+// a Bahamian clapboard cottage: pastel siding, white trim, louvred shutters, a hip roof, a veranda
+function cottageB(x, z, ry, w, d, F = 1, col = mpick(PASTEL), o = {}) {
+  const H = F === 2 ? 6.2 : 3.3, acc = mpick(ACCENT), roof = mpick([0xf0f0ec, 0xc84a3a, 0x3a8a8a, 0xf0f0ec, 0x5a8ac8]);
+  W.push(x, 0, z, ry);
+  W.box(w, 0.6, d, 0, 0.3, 0, 0xe8e0d0, { t: TX.stone }); W.solid(w, 0.6, d, 0, 0.3, 0, 'stone', { walk: true });
+  W.box(w - 0.4, H, d - 2.2, 0, 0.6 + H / 2, -1.1, col, { t: TX.wood, wear: 2 }); W.solid(w - 0.4, H, d - 2.2, 0, 0.6 + H / 2, -1.1, 'wood');
+  for (const sx of [-1, 1]) W.box(0.16, H, 0.16, sx * (w / 2 - 0.2), 0.6 + H / 2, d / 2 - 2.2, 0xf8f8f4);
+  for (let f = 0; f < F; f++) {
+    const y = 0.6 + f * 3.1;
+    for (let k = -w / 2 + 1.4; k < w / 2 - 0.8; k += 2.2) {
+      if (f === 0 && Math.abs(k) < 0.9) continue;
+      const lit = mchance(0.3); W.box(0.9, 1.3, 0.05, k, y + 1.6, d / 2 - 2.18, lit ? 0xfff0c8 : 0x2a3a44, { layer: lit ? 'glow' : 'pane' });
+      W.box(1.1, 0.12, 0.12, k, y + 2.3, d / 2 - 2.15, 0xf8f8f4); W.box(1.1, 0.1, 0.18, k, y + 0.9, d / 2 - 2.12, 0xf8f8f4);
+      for (const s of [-1, 1]) W.box(0.5, 1.4, 0.06, k + s * 0.75, y + 1.6, d / 2 - 2.12, acc, { t: TX.louver, lod: 1 });
+    }
+  }
+  W.box(1.0, 2.1, 0.06, 0, 1.65, d / 2 - 2.17, acc, { t: TX.wood });
+  if (o.door !== false && W.mode !== 'geom') { const a = W.worldPos(0, 0, d / 2 - 1.75), b = W.worldPos(0, 0, d / 2 + 0.9); TOWN.doors.push({ x: a.x, z: a.z, ox: b.x, oz: b.z, room: 'cottage', name: '' }); }
+  // veranda: deck, posts, railing, its own little roof
+  W.box(w, 0.08, 2.2, 0, 0.64, d / 2 - 1.1, 0xc8a878, { t: TX.wood });
+  for (let k = -w / 2 + 0.2; k <= w / 2 - 0.1; k += (w - 0.4) / Math.max(1, Math.round(w / 2.4))) W.box(0.12, 2.6, 0.12, k, 1.9, d / 2 - 0.1, 0xf8f8f4);
+  W.scope({ lod: 1 }, () => { for (const s of [-1, 1]) W.box(w / 2 - 0.8, 0.06, 0.06, s * (w / 4 + 0.4), 1.5, d / 2 - 0.1, 0xf8f8f4); for (let k = -w / 2 + 0.3; k < w / 2; k += 0.25) if (Math.abs(k) > 0.8) W.box(0.04, 0.8, 0.04, k, 1.05, d / 2 - 0.1, 0xf8f8f4); plasticChair(-w / 4, 0.68, d / 2 - 1.1, Math.PI, 0xf8f8f4); plantPot(w / 2 - 0.6, 0.68, d / 2 - 0.6, 'geranium', 1.3); });
+  W.box(w + 0.3, 0.12, 2.6, 0, 3.4, d / 2 - 1.0, roof, { layer: 'metal', rx: -0.18 });
+  W.pyramid(w + 0.8, F === 2 ? 2.4 : 2.0, d - 1.4, 0, 0.6 + H + (F === 2 ? 1.2 : 1.0), -1.1, roof, { t: TX.metal, layer: 'metal' });
+  W.box(w + 0.6, 0.14, d - 1.6, 0, 0.6 + H + 0.07, -1.1, 0xf8f8f4);
+  W.pop();
+}
+// an open white house: two stacked white planes, glass, a deck, an infinity pool, the living room open to the breeze
+function whiteVilla(x, z, ry, big = false) {
+  const w = big ? 26 : 18, d = big ? 16 : 12, H = 3.6;
+  W.push(x, 0, z, ry);
+  W.box(w + 6, 0.5, d + 8, 0, 0.25, 1, 0xf4f2ec, { t: TX.ceramic }); W.solid(w + 6, 0.5, d + 8, 0, 0.25, 1, 'stone', { walk: true });
+  // ground floor: open on the sea side — columns, a back wall, sliding glass half open
+  W.box(w, H, 0.4, 0, 0.5 + H / 2, -d / 2, 0xf8f8f4, { t: TX.plaster }); W.solid(w, H, 0.4, 0, 0.5 + H / 2, -d / 2, 'concrete');
+  for (const s of [-1, 1]) { W.box(0.4, H, d * 0.5, s * w / 2, 0.5 + H / 2, -d / 4, 0xf8f8f4, { t: TX.plaster }); W.solid(0.4, H, d * 0.5, s * w / 2, 0.5 + H / 2, -d / 4, 'concrete'); }
+  for (let k = -w / 2 + 2; k < w / 2; k += 4) { W.box(0.3, H, 0.3, k, 0.5 + H / 2, d / 2 - 0.2, 0xf8f8f4); W.solid(0.3, H, 0.3, k, 0.5 + H / 2, d / 2 - 0.2, 'concrete'); }
+  W.box(w * 0.4, H - 0.4, 0.04, -w / 4, 0.5 + (H - 0.4) / 2, d / 2 - 0.5, 0xb8d8e0, { layer: 'glass' });
+  W.box(w + 2, 0.4, d + 2, 0, 0.5 + H + 0.2, 0, 0xf8f8f4, { t: TX.plaster }); W.solid(w + 2, 0.4, d + 2, 0, 0.5 + H + 0.2, 0, 'concrete', { walk: true });
+  // upper box, pushed back and turned glassy to the sea
+  const y2 = 0.5 + H + 0.4;
+  W.box(w * 0.65, 3.2, d * 0.7, -w * 0.12, y2 + 1.6, -d * 0.12, 0xf8f8f4, { t: TX.plaster }); W.solid(w * 0.65, 3.2, d * 0.7, -w * 0.12, y2 + 1.6, -d * 0.12, 'concrete');
+  W.box(w * 0.65 - 0.4, 2.6, 0.04, -w * 0.12, y2 + 1.5, -d * 0.12 + d * 0.35 + 0.02, 0x9ac8d8, { layer: 'glass' });
+  W.box(w * 0.65 + 2.4, 0.3, d * 0.7 + 2.4, -w * 0.12, y2 + 3.35, -d * 0.12, 0xf8f8f4, { t: TX.plaster });
+  W.box(w * 0.3, 1.0, 0.03, w * 0.32, y2 + 0.5, d / 2 + 0.9, 0xc8e0e8, { layer: 'glass' });   // glass balustrade on the roof terrace
+  // living room: sofas, rug, a long table, pendant lights; the deck, loungers, the pool lapping at its edge
+  W.scope({ lod: 1 }, () => {
+    for (const s of [-1, 1]) sofa(w / 6 + s * 2.2, 0.5, -d / 6, s * Math.PI / 2, 0xe8e4dc, 2.4); lowTable(w / 6, 0.5, -d / 6, 0, 1.4, 0.8); floorRug(w / 6, 0.52, -d / 6, 5, 4, 0, 0xd8d0c0);
+    W.box(4, 0.08, 1.2, -w / 4, 1.25, -d / 4, 0x8a6a4a, { t: TX.wood }); for (let k = 0; k < 3; k++) { W.rod([-w / 4 - 1.2 + k * 1.2, 0.5 + H, -d / 4], [-w / 4 - 1.2 + k * 1.2, 2.8, -d / 4], 0.006, 0x1a1a1a); W.sphere(0.2, 0.2, 0.2, -w / 4 - 1.2 + k * 1.2, 2.7, -d / 4, 0xfff0d0, { layer: 'glow' }); }
+    for (let k = 0; k < 4; k++) lounger(-w / 2 + 3 + k * 2.4, 0.5, d / 2 + 2.6, Math.PI);
+    plantPot(w / 2 - 1, 0.5, d / 2 + 1, 'palm', 2.2); plantPot(-w / 2 + 1, 0.5, d / 2 + 1, 'palm', 2.2);
+  });
+  W.box(w * 0.7, 0.05, 3.4, w * 0.12, 0.47, d / 2 + 4.6, 0x3ac8e0, { layer: 'glass' }); W.box(w * 0.7 + 0.4, 0.5, 3.8, w * 0.12, 0.2, d / 2 + 4.6, 0xe8e4dc, { t: TX.ceramic });
+  W.lamp(0, 3.2, 0, 0xfff0d8, 1.6, 12, { halo: 0 });
+  W.pop();
+}
+function lounger(x, y, z, ry) { W.push(x, y, z, ry); W.box(0.7, 0.08, 1.9, 0, 0.32, 0, 0xf8f8f4); W.box(0.66, 0.08, 0.7, 0, 0.55, -0.75, 0xf8f8f4, { rx: 0.6 }); W.box(0.6, 0.05, 1.6, 0, 0.38, 0.1, mpick([0x2ab0d0, 0xf0f0ec, 0xe8604a, 0xf0c040]), { t: TX.fabric }); for (const sx of [-1, 1]) for (const sz of [-0.8, 0.8]) W.box(0.05, 0.3, 0.05, sx * 0.3, 0.15, sz, 0xd8d8d0); W.pop(); }
+function umbrella(x, y, z, col = mpick([0xf0f0ec, 0x2ab0d0, 0xe8604a, 0xf0c040])) { W.rod([x, y, z], [x, y + 2.5, z], 0.03, 0xd8d8d0, { layer: 'metal' }); W.cone(1.5, 0.5, x, y + 2.5, z, col, { seg: 10, layer: 'cloth', t: TX.fabric }); }
+function thatch(x, y, z, r, h) { W.cone(r, h, x, y + h / 2, z, 0xc8a868, { seg: 12, t: TX.fabric, wear: 6 }); W.cone(r * 1.02, 0.3, x, y + 0.1, z, 0xb89858, { seg: 12, t: TX.fabric }); }
+function speedboat(x, z, ry, col = 0xf8f8f4) {
+  W.push(x, WY + 0.05, z, ry);
+  W.box(2.4, 0.9, 7, 0, 0.3, 0, col, { layer: 'metal' }); W.cone(1.25, 2.2, 0, 0.3, 4.4, col, { seg: 4, rx: Math.PI / 2, layer: 'metal' }); W.box(2.42, 0.12, 7, 0, 0.0, 0, 0x2a5aa0, { layer: 'metal' });
+  W.box(1.8, 0.7, 1.2, 0, 1.0, 0.8, 0x9ac8d8, { layer: 'glass', rx: -0.4 }); W.box(1.6, 0.4, 2.2, 0, 0.9, -1.2, 0xe8e0d0, { t: TX.fabric }); W.box(0.4, 0.6, 0.4, 0, 0.6, -3.6, 0x1a1a1a);
+  W.pop(); W.solid(2.4, 1.4, 8, x, WY + 0.5, z, 'metal', { ry });
+}
+function jetty(x0, z0, x1, z1, w = 3, y = 0.55) {
+  const L = Math.hypot(x1 - x0, z1 - z0), ry = Math.atan2(-(z1 - z0), x1 - x0);
+  W.push((x0 + x1) / 2, 0, (z0 + z1) / 2, ry);
+  W.box(L, 0.18, w, 0, y, 0, 0xb89a72, { t: TX.wood, wear: 4 }); W.solid(L, 0.4, w, 0, y - 0.11, 0, 'wood', { walk: true });
+  W.scope({ lod: 1 }, () => { for (let k = -L / 2; k <= L / 2; k += 3) for (const s of [-1, 1]) W.cyl(0.13, 0.13, 3, k, y - 1.5, s * (w / 2 - 0.1), 0x8a6a4a, { seg: 6 }); for (let k = -L / 2; k <= L / 2; k += 0.4) W.box(0.06, 0.02, w, k, y + 0.1, 0, 0x8a7050, { ao: false }); });
+  W.pop();
+}
+
+// ---------------- the village and the harbour ----------------
+function bahamasVillage() {
+  const T = TOWN.lanes;
+  for (const n of ['vA', 'vB', 'vC', 'vD']) for (const side of [-1, 1]) {
+    const st = T[n];
+    for (let s = 8; s < st.len - 6; s += mr(10, 14)) {
+      const p = pathAt(st.pts, s), nx = -p.tz * side, nz = p.tx * side, w = mr(7, 10), d = mr(9, 12), cx = p.x + nx * (st.w / 2 + 1 + d / 2), cz = p.z + nz * (st.w / 2 + 1 + d / 2), ry = Math.atan2(-nx, -nz);
+      if (!GR.free(cx, cz, w, d, ry, 0.5)) continue; GR.rect(cx, cz, w + 0.6, d + 0.6, ry, GR.BUILT);
+      cottageB(cx, cz, ry, w, d, mchance(0.3) ? 2 : 1);
+      W.scope({ lod: 1 }, () => { if (mchance(0.6)) palm(cx + nx * (d / 2 + 2) + mr(-3, 3), 0, cz + nz * (d / 2 + 2) + mr(-3, 3), mr(6, 9)); });
+    }
+  }
+  // the church: white, a square tower, the bell
+  W.box(10, 7, 18, -60, 3.5, -72, 0xf8f8f4, { t: TX.plaster }); W.solid(10, 7, 18, -60, 3.5, -72, 'concrete'); W.pyramid(11, 4, 19, -60, 9, -72, 0xc84a3a, { layer: 'metal' });
+  W.box(4, 13, 4, -60, 6.5, -61.5, 0xf8f8f4, { t: TX.plaster }); W.pyramid(4.6, 4, 4.6, -60, 15, -61.5, 0xc84a3a, { layer: 'metal' }); W.box(2.4, 2.2, 0.06, -60, 1.1, -59.47, 0x5ab0b0, { t: TX.wood });
+  for (let k = 0; k < 3; k++) W.box(1.0, 2.6, 0.05, -64.97, 3.6, -76 + k * 4, 0xd8e8f0, { layer: 'glow', ry: Math.PI / 2 }); GR.rect(-60, -70, 12, 24, 0, GR.BUILT);
+  // harbour: a stone quay, jetties, fishing boats, conch shacks, the straw market
+  W.box(130, 1.2, 6, -85, -0.1, -138, 0xd8ccb0, { t: TX.stone }); W.solid(130, 1.2, 6, -85, -0.1, -138, 'stone', { walk: true });
+  for (const x of [-140, -100, -60]) jetty(x, -140, x, -170, 2.6);
+  W.scope({ lod: 1 }, () => { for (const [x, z, r] of [[-134, -156, 0], [-106, -160, 0], [-94, -150, 0.2], [-66, -162, -0.1], [-54, -152, 0.1], [-120, -175, 1.4]]) fishingBoat(x, z, r, 6.5, { y: WY - 0.4 }); });
+  for (let k = 0; k < 6; k++) { const x = -146 + k * 16, z = -118; W.box(4, 2.6, 3, x, 1.3, z, mpick(PASTEL), { t: TX.wood }); W.solid(4, 2.6, 3, x, 1.3, z, 'wood'); W.box(4.6, 0.1, 3.8, x, 2.7, z + 0.3, mpick(ACCENT), { layer: 'metal', rx: -0.1 }); W.box(3.4, 0.9, 0.5, x, 0.9, z + 1.8, 0xc8a878, { t: TX.wood }); for (let i = 0; i < 6; i++) W.sphere(0.18, 0.1, 0.12, x - 1.2 + i * 0.45, 1.42, z + 1.8, 0xf0b0a0, { seg: 6 }); }
+  for (let i = 0; i < 8; i++) marketStall(-14 + (i % 4) * 8, -122 + Math.floor(i / 4) * 10, 0, mpick(['fabric', 'produce', 'fabric']));
+  // the lighthouse on the east point
+  const LX = 240, LZ = -10;
+  for (let k = 0; k < 6; k++) W.cyl(2.4 - k * 0.16, 2.4 - (k + 1) * 0.16, 3, LX, 1.5 + k * 3, LZ, k % 2 ? 0xd83a2a : 0xf8f8f4, { seg: 16 });
+  W.cyl(1.7, 1.7, 2.2, LX, 19.1, LZ, 0x9ac8d8, { layer: 'glass', seg: 12 }); W.cone(2.0, 1.8, LX, 21.1, LZ, 0x2a2a2a, { seg: 12, layer: 'metal' }); W.sphere(0.8, 0.8, 0.8, LX, 19.1, LZ, 0xfff8d0, { layer: 'glow' });
+  W.solid(4.8, 22, 4.8, LX, 11, LZ, 'stone'); cottageB(LX - 9, LZ + 6, Math.PI / 2, 7, 8, 1, 0xf8f8f4, { door: false });
+  TOWN.spots.harbour = { x: -100, z: -128 };
+}
+
+// ---------------- the resort ----------------
+function bahamasResort() {
+  // the hotel: a long white block of four floors, every room with a glass balcony to the sea
+  const HX = 0, HZ = 66, HW = 130, HD = 16, FLR = 3.4, NF = 4, HH = FLR * NF;
+  W.box(HW, HH, HD, HX, HH / 2, HZ, 0xf8f8f4, { t: TX.plaster }); W.solid(HW, HH, HD, HX, HH / 2, HZ, 'concrete'); GR.rect(HX, HZ, HW + 2, HD + 2, 0, GR.BUILT);
+  for (let f = 0; f < NF; f++) for (let x = -HW / 2 + 2.5; x < HW / 2; x += 5) {
+    if (f === 0 && Math.abs(x) < 10) continue;
+    const y = f * FLR, lit = mchance(0.3);
+    W.box(4.2, 2.6, 0.05, HX + x, y + 1.6, HZ + HD / 2 + 0.02, lit ? 0xfff0d0 : 0x6a9ab0, { layer: lit ? 'glow' : 'glass' });
+    if (f > 0) { W.box(4.6, 0.18, 1.6, HX + x, y + 0.1, HZ + HD / 2 + 0.8, 0xf8f8f4); W.box(4.6, 1.0, 0.03, HX + x, y + 0.7, HZ + HD / 2 + 1.6, 0xc8e0e8, { layer: 'glass' }); W.scope({ lod: 2 }, () => { lounger(HX + x - 1, y + 0.18, HZ + HD / 2 + 0.9, -Math.PI / 2); }); }
+  }
+  for (let k = 0; k <= NF; k++) W.box(HW + 0.6, 0.25, 0.4, HX, k * FLR, HZ + HD / 2 + 0.1, 0x2ab0b0);
+  W.box(HW + 2, 0.6, HD + 2, HX, HH + 0.3, HZ, 0xf8f8f4); NEONish('THE CORAL BAY RESORT', HX, HH + 1.7, HZ + HD / 2 + 0.4, 22, 1.8);
+  // the lobby: an open pavilion under a great thatch, the reception, a fountain
+  W.box(22, 0.4, 14, HX, 0.2, HZ + HD / 2 + 7, 0xf0ece4, { t: TX.ceramic }); W.solid(22, 0.4, 14, HX, 0.2, HZ + HD / 2 + 7, 'stone', { walk: true });
+  for (const [x, z] of [[-10, 2], [10, 2], [-10, 12], [10, 12]]) { W.cyl(0.3, 0.35, 6, HX + x, 3.4, HZ + HD / 2 + z, 0x8a6a4a, { seg: 8 }); W.solid(0.7, 6, 0.7, HX + x, 3, HZ + HD / 2 + z, 'wood'); }
+  W.pyramid(26, 6, 17, HX, 9.2, HZ + HD / 2 + 7, 0xc8a868, { t: TX.fabric, wear: 6 });
+  counter(HX, 0.4, HZ + HD / 2 + 2.5, 0, 5, 0x8a6a4a, 0xe8e4dc); fountain(HX, 0.4, HZ + HD / 2 + 9, 1.6, 2);
+  TOWN.staff.push({ x: HX - 1, z: HZ + HD / 2 + 1.7, y: 0.4, yaw: Math.PI, role: 'shop' }, { x: HX + 1.2, z: HZ + HD / 2 + 1.7, y: 0.4, yaw: Math.PI, role: 'shop' });
+  // the pool deck: three pools in a row, a swim-up bar, loungers in lines, umbrellas
+  for (const [x, w, d] of [[-38, 26, 10], [0, 30, 12], [38, 26, 10]]) { W.box(w, 0.06, d, x, 0.05, 97, 0x3acce0, { layer: 'glass' }); W.box(w + 0.6, 0.2, d + 0.6, x, -0.02, 97, 0xe8e4dc, { t: TX.ceramic }); W.lamp(x, 0.3, 97, 0x6ad8ff, 1.4, 10, { halo: 0 }); }
+  thatch(0, 0, 97, 3.4, 2.8); W.cyl(2.2, 2.2, 1.1, 0, 0.55, 97, 0x8a6a4a, { seg: 12, t: TX.wood }); W.solid(4.4, 1.1, 4.4, 0, 0.55, 97, 'wood');
+  W.scope({ lod: 1 }, () => { for (let x = -56; x <= 56; x += 2.6) if (Math.abs(x) > 4) { lounger(x, 0, 90.5, 0); lounger(x, 0, 104, Math.PI); if (Math.round(x / 2.6) % 3 === 0) { umbrella(x + 1.3, 0, 90.5); umbrella(x + 1.3, 0, 104); } } });
+  // the beach: umbrellas and loungers in rows, cabanas, the beach bar, a lifeguard tower, volleyball
+  W.scope({ lod: 1 }, () => {
+    for (let x = -100; x <= 100; x += 7) for (const z of [116, 124]) { if (Math.abs(x - 55) < 10 || Math.abs(x + 40) < 6) continue; umbrella(x, islandH(x, z), z); lounger(x - 1, islandH(x, z), z + 1.2, 0); lounger(x + 1, islandH(x, z), z + 1.2, 0); }
+    for (const x of [-90, -70, 80, 96]) { const y = islandH(x, 112); for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.rod([x + sx * 1.4, y, 112 + sz * 1.4], [x + sx * 1.4, y + 2.6, 112 + sz * 1.4], 0.05, 0xf8f8f4); W.box(3.2, 0.1, 3.2, x, y + 2.65, 112, 0xf8f8f4, { layer: 'cloth', t: TX.fabric }); for (const sx of [-1, 1]) W.box(0.03, 2.4, 2.8, x + sx * 1.42, y + 1.3, 112, 0xfaf8f0, { layer: 'cloth', t: TX.fabric }); W.box(2.2, 0.4, 2.2, x, y + 0.3, 112, 0xf0ece4, { t: TX.fabric }); }
+    const ly = islandH(20, 128); for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.rod([20 + sx * 0.8, ly, 128 + sz * 0.8], [20 + sx * 0.6, ly + 2.4, 128 + sz * 0.6], 0.06, 0xf8f8f4); W.box(1.8, 1.2, 1.8, 20, ly + 3.0, 128, 0xe83a3a); W.box(2.2, 0.1, 2.2, 20, ly + 3.7, 128, 0xf8f8f4);
+    W.rod([-20, islandH(-20, 120), 120], [-20, 2.4, 120], 0.05, 0xf8f8f4); W.rod([-20, islandH(-20, 130), 130], [-20, 2.4, 130], 0.05, 0xf8f8f4); W.box(0.02, 0.8, 10, -20, 2.0, 125, 0xf8f8f4, { layer: 'cloth' });
+  });
+  const bx = 55, bz = 118, by = islandH(bx, bz);
+  W.box(10, 0.4, 7, bx, by + 0.2, bz, 0xb89a72, { t: TX.wood }); W.solid(10, 0.4, 7, bx, by + 0.2, bz, 'wood', { walk: true });
+  W.box(6, 1.1, 1.0, bx, by + 0.95, bz - 1.5, 0x8a6a4a, { t: TX.wood }); W.solid(6, 1.1, 1.0, bx, by + 0.95, bz - 1.5, 'wood');
+  for (let k = 0; k < 14; k++) W.cyl(0.04, 0.04, 0.26, bx - 2.6 + k * 0.4, by + 1.62, bz - 1.5, mpick([0xf0c040, 0x2ab0d0, 0xe8604a, 0x8ad86a]), { seg: 6, layer: 'glass' });
+  for (const [x, z] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) W.rod([bx + x, by + 0.4, bz + z], [bx + x, by + 3.2, bz + z], 0.12, 0x8a6a4a);
+  W.pyramid(11, 2.6, 8.5, bx, by + 4.4, bz, 0xc8a868, { t: TX.fabric, wear: 6 });
+  for (const s of [-1, 1]) for (let k = 0; k < 3; k++) stool(bx - 2 + k * 2, by + 0.4, bz - 0.5, 0x2ab0d0);
+  NEONish('CONCH BAR', bx, by + 3.4, bz + 3.6, 5, 0.7);
+  TOWN.staff.push({ x: bx, z: bz - 2.3, y: by + 0.4, yaw: 0, role: 'bar' });
+  TOWN.spots.beachBar = { x: bx, y: by + 0.4, z: bz + 0.2 };
+  // the overwater bungalows: a long boardwalk out into the lagoon, thatched huts on stilts either side
+  jetty(0, 132, 0, 262, 3.2, 0.75);
+  for (let k = 0; k < 10; k++) for (const s of [-1, 1]) {
+    const z = 150 + k * 11, x = s * 9;
+    jetty(s * 1.6, z, s * 4.5, z, 1.6, 0.75);
+    W.box(8, 0.3, 8, x, 0.7, z, 0xb89a72, { t: TX.wood }); W.solid(8, 0.5, 8, x, 0.6, z, 'wood', { walk: true });
+    W.scope({ lod: 1 }, () => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.cyl(0.18, 0.18, 3.6, x + sx * 3.6, -1.1, z + sz * 3.6, 0x6a5040, { seg: 6 }); });
+    W.box(6, 3, 5, x, 2.35, z - 0.5, 0xf8f4e8, { t: TX.wood }); W.solid(6, 3, 5, x, 2.35, z - 0.5, 'wood');
+    W.box(4, 2.2, 0.04, x - s * 0, 2.0, z + 2.02, 0x9ac8d8, { layer: 'glass' }); W.pyramid(8.4, 3.2, 7.4, x, 5.4, z - 0.5, 0xc8a868, { t: TX.fabric, wear: 6 });
+    W.scope({ lod: 2 }, () => { lounger(x + s * 2.6, 0.85, z + 2.4, s * Math.PI / 2); W.rod([x + s * 3.9, 0.85, z + 2], [x + s * 4.3, -1.2, z + 2], 0.03, 0xd8d8d0, { layer: 'metal' }); });
+  }
+  W.box(14, 0.3, 10, 0, 0.7, 268, 0xb89a72, { t: TX.wood }); W.solid(14, 0.5, 10, 0, 0.6, 268, 'wood', { walk: true }); thatch(0, 0.85, 268, 5, 3.4);
+  for (let k = 0; k < 4; k++) { W.cyl(0.35, 0.35, 0.04, -4 + k * 2.6, 1.6, 268, 0xf0ece4, { seg: 10 }); W.cyl(0.04, 0.04, 0.8, -4 + k * 2.6, 1.2, 268, 0x8a6a4a); }
+  // the jetski rental dock
+  jetty(-40, 132, -40, 172, 3, 0.55); jetty(-50, 160, -30, 160, 2.4, 0.55);
+  W.box(3, 2.4, 2.4, -40, 1.75, 136, 0xf0c040, { t: TX.wood }); W.solid(3, 2.4, 2.4, -40, 1.75, 136, 'wood'); NEONish('JETSKI RENTAL', -40, 3.4, 137.3, 3.2, 0.5);
+  TOWN.staff.push({ x: -38.5, z: 138.4, y: 0.55, yaw: 0, role: 'shop' });
+  TOWN.spots.rental = { x: -40, y: 0.6, z: 160 };
+}
+// painted signboards (lit at the edges by the sun, not neon)
+function NEONish(text, x, y, z, w, h) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = Math.max(32, Math.round(512 * h / w)); const g = cv.getContext('2d');
+  g.fillStyle = '#f8f6ee'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = '#1a7a8a'; g.font = `700 ${Math.round(cv.height * 0.62)}px Rajdhani, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cv.width / 2, cv.height / 2 + 2);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
+  m.position.copy(W.worldPos(x, y, z)); m.rotation.y = W.worldRotY(); scene.add(m);
+}
+
+// ---------------- villas along both coasts ----------------
+function bahamasVillas() {
+  const spots = [[220, -60, Math.PI / 2], [222, 40, Math.PI / 2], [190, 92, 0.6], [-222, -50, -Math.PI / 2], [-224, 30, -Math.PI / 2], [-180, 96, -0.5], [150, -104, Math.PI], [150, 108, 0], [-150, 106, 0]];
+  for (const [x, z, ry] of spots) { if (!GR.free(x, z, 22, 18, ry, 0)) continue; GR.rect(x, z, 26, 22, ry, GR.BUILT); whiteVilla(x, z, ry); W.scope({ lod: 1 }, () => { for (let k = 0; k < 5; k++) palm(x + mr(-14, 14), 0, z + mr(-12, 12), mr(7, 11)); }); }
+}
+
+// ---------------- the private island: the money man's house, his dock, his men ----------------
+function bahamasPrivate() {
+  const X = 380, Z = -250;
+  whiteVilla(X, Z, -Math.PI / 2 + 0.3, true); GR.rect(X, Z, 36, 30, -Math.PI / 2 + 0.3, GR.BUILT);
+  // the office inside: a desk, the laptop that matters, a safe, the view
+  W.push(X, 0, Z, -Math.PI / 2 + 0.3);
+  desk(-6, 0.5, -3, 0, 2.2, 1.0, 0x3a2a1a); laptop(-6, 1.28, -3, Math.PI); chairOffice(-6, 0.5, -4.2, 0); safe(-10, 0.5, -6.6, 0);
+  const lp = W.worldPos(-6, 1.3, -3); TOWN.spots.laptop = { x: lp.x, y: 0.5, z: lp.z };
+  W.pop();
+  W.cyl(9, 9, 0.12, X + 30, 0.07, Z + 26, 0x4a4a4c, { seg: 24, t: TX.concrete }); W.box(1.2, 0.02, 7, X + 27, 0.14, Z + 26, 0xf0f0e8, { ao: false }); W.box(1.2, 0.02, 7, X + 33, 0.14, Z + 26, 0xf0f0e8, { ao: false }); W.box(4.8, 0.02, 1.2, X + 30, 0.14, Z + 26, 0xf0f0e8, { ao: false });
+  helicopter(X + 30, Z + 26, 0.4);
+  // the dock facing the main island, with the boats
+  jetty(X - 92, Z, X - 70, Z, 4, 0.55); jetty(X - 92, Z - 18, X - 92, Z + 18, 3, 0.55);
+  speedboat(X - 100, Z - 9, Math.PI / 2, 0x1a1a1a); speedboat(X - 100, Z + 10, Math.PI / 2, 0xf8f8f4);
+  W.box(3, 2.6, 3, X - 74, 1.85, Z - 4, 0xf8f8f4, { t: TX.plaster }); W.solid(3, 2.6, 3, X - 74, 1.85, Z - 4, 'concrete');
+  // a low white wall round the house, gate on the dock path
+  for (const [a, b] of [[[X - 30, Z - 26], [X + 40, Z - 26]], [[X + 40, Z - 26], [X + 40, Z + 40]], [[X - 30, Z + 40], [X + 40, Z + 40]], [[X - 30, Z - 26], [X - 30, Z - 4]], [[X - 30, Z + 4], [X - 30, Z + 40]]]) {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ry = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
+    W.push((a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2, ry); W.box(L, 2.2, 0.4, 0, 1.1, 0, 0xf8f8f4, { t: TX.plaster }); W.solid(L, 2.2, 0.4, 0, 1.1, 0, 'concrete'); W.pop();
+  }
+  lane('privPath', [[X - 70, Z], [X - 22, Z]], 4, 'alley', { tx: TX.gravel, col: 0xe8dcc0 });
+  W.scope({ lod: 1 }, () => { for (let k = 0; k < 40; k++) { const a = mr(0, 6.28), r = mr(42, 70), x = X + Math.cos(a) * r, z = Z + Math.sin(a) * r * 0.7; if (islandSD(x, z) < -6) palm(x, 0, z, mr(7, 11)); } });
+  TOWN.spots.privateDock = { x: X - 80, y: 0.6, z: Z };
+  TOWN.restricted.push({ x0: X - 100, z0: Z - 70, x1: X + 90, z1: Z + 60 });
+}
+
+// ---------------- nature: palm forests, sea grape, the cay and its seaplane, the reef ----------------
+function bahamasNature() {
+  // palms: dense forest over the free interior, a line leaning over every beach
+  let n = 0;
+  for (let i = 0; i < 2600 && n < 1100; i++) {
+    const x = mr(-250, 250), z = mr(-135, 135), sd = islandSD(x, z), g = GR.get(x, z);
+    if (sd > -4 || g !== GR.FREE) continue;
+    const forest = fbm(x * 0.02, z * 0.02 + 5) > 0.45 || sd > -34;
+    if (!forest && mchance(0.75)) continue;
+    n++; W.scope({ lod: sd > -34 ? 0 : 1 }, () => palm(x, 0, z, mr(6, 12)));
+    if (mchance(0.25)) W.scope({ lod: 2 }, () => bush(x + mr(-2, 2), 0, z + mr(-2, 2), mr(0.8, 1.4), mpick([0x3a6a2a, 0x4a7a3a, 0x5a8a3a])));
+  }
+  // the cay: a sandbank, a dozen palms, a hammock, the seaplane riding at anchor off its west side
+  for (let k = 0; k < 12; k++) { const a = mr(0, 6.28), r = mr(2, 18); palm(-360 + Math.cos(a) * r, 0, 262 + Math.sin(a) * r * 0.7, mr(6, 10)); }
+  W.cable([-364, 1.6, 258], [-356, 1.6, 264], 0.6, 0.15, 0xf0e0c0, 8);
+  const PX = -405, PZ = 270;
+  W.push(PX, WY, PZ, 0.4);
+  for (const s of [-1, 1]) { W.box(0.6, 0.6, 6.5, s * 1.6, 0.25, 0, 0xf8f8f4, { layer: 'metal' }); W.rod([s * 1.6, 0.5, 1.4], [s * 0.4, 1.6, 1.0], 0.05, 0x8a8e94); W.rod([s * 1.6, 0.5, -1.2], [s * 0.4, 1.6, -0.8], 0.05, 0x8a8e94); }
+  W.box(1.4, 1.5, 7, 0, 2.2, 0, 0xf8f8f4, { layer: 'metal' }); W.box(1.2, 0.6, 1.4, 0, 2.8, 2.4, 0x6a9ab0, { layer: 'glass' }); W.box(12, 0.12, 1.6, 0, 3.1, 0.6, 0xf8f8f4, { layer: 'metal' });
+  W.box(0.1, 1.6, 1.2, 0, 3.2, -3.4, 0x2ab0d0, { layer: 'metal' }); W.box(3.6, 0.1, 1.0, 0, 2.6, -3.4, 0xf8f8f4, { layer: 'metal' }); W.cyl(0.25, 0.25, 0.6, 0, 2.2, 3.7, 0x2a2a2a, { rx: Math.PI / 2, seg: 8 }); W.box(0.1, 2.0, 0.16, 0, 2.2, 4.05, 0x2a2a2a);
+  W.box(1.42, 0.2, 7.02, 0, 1.9, 0, 0x2ab0d0, { layer: 'metal' });
+  W.pop(); W.solid(4, 3, 7, PX, WY + 1.5, PZ, 'metal');
+  TOWN.spots.seaplane = { x: PX + 4, z: PZ };
+  // buoys marking the channel, some moored yachts
+  W.scope({ lod: 1 }, () => {
+    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2, x = Math.cos(a) * 330, z = Math.sin(a) * 195; W.cyl(0.3, 0.4, 1.0, x, WY + 0.3, z, k % 2 ? 0xd83a2a : 0x2a8a3a, { seg: 8, layer: 'metal' }); }
+    for (const [x, z, r] of [[120, 190, 0.3], [-150, 205, -0.4], [240, 150, 1.2]]) { speedboat(x, z, r, 0xf8f8f4); W.rod([x, WY + 1.2, z], [x, WY + 12, z], 0.06, 0xd8d8d0, { layer: 'metal' }); }
+  });
+}
+
+// ---------------- security: marine guards on the docks, the beach, the private island; patrol boats ----------------
+function bahamasSecurity() {
+  const post = (x, z, yaw) => TOWN.guards.push({ x, z, yaw, team: 'red' });
+  for (const [x, z, y] of [[-24, 74 + 18, Math.PI], [24, 92, Math.PI], [-60, 110, 0], [60, 110, 0], [0, 140, 0], [-100, -132, 0], [-30, -132, 0], [235, 0, Math.PI / 2], [-40, 132, Math.PI]]) post(x, z, y);
+  const X = 380, Z = -250;
+  for (const [dx, dz, y] of [[-78, -3, -Math.PI / 2], [-78, 3, -Math.PI / 2], [-32, -2, -Math.PI / 2], [-32, 6, -Math.PI / 2], [0, -20, 0], [20, 34, Math.PI], [30, 26, 0.6], [-10, 30, Math.PI], [36, -20, Math.PI / 2], [12, 8, 0]]) post(X + dx, Z + dz, y);
+}
+// patrol boats circling the private island and the lagoon; they spot you on the water
+const PATROL = (() => {
+  if (MAP.id !== 'bahamas') return { update() { } };
+  const boats = []; let built = false, warned = 0;
+  function build() {
+    built = true;
+    for (const [cx, cz, r, rz, sp, ph] of [[380, -250, 125, 95, 0.05, 0], [380, -250, 140, 110, -0.04, 2], [0, 210, 150, 40, 0.035, 1]]) {
+      const g = new THREE.Group(), m = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.4, metalness: 0.3 });
+      M(new THREE.BoxGeometry(2.4, 1.0, 7), m(0x2a3a4a), g, 0, 0.4, 0); M(new THREE.ConeGeometry(1.25, 2.2, 4).rotateX(Math.PI / 2), m(0x2a3a4a), g, 0, 0.4, 4.4); M(new THREE.BoxGeometry(1.8, 1.2, 2), m(0xe8e8e0), g, 0, 1.4, 0.4);
+      M(new THREE.BoxGeometry(0.15, 0.8, 0.15), m(0x1a1a1a), g, 0, 2.4, 0.4); M(new THREE.BoxGeometry(0.5, 0.25, 0.25), new THREE.MeshBasicMaterial({ color: 0x3a8aff }), g, 0, 2.9, 0.4);
+      M(new THREE.BoxGeometry(2.6, 0.2, 0.4), m(0xd8a020), g, 0, 0.9, -1.2);
+      scene.add(g); boats.push({ g, cx, cz, r, rz, sp, a: ph });
+    }
+  }
+  return {
+    update(dt, t) {
+      if (!MAP.ready) return; if (!built) build();
+      for (const b of boats) {
+        b.a += b.sp * dt; const x = b.cx + Math.cos(b.a) * b.r, z = b.cz + Math.sin(b.a) * b.rz, tx = -Math.sin(b.a) * b.r * Math.sign(b.sp), tz = Math.cos(b.a) * b.rz * Math.sign(b.sp);
+        b.g.position.set(x, WY + waveH(x, z, t) * 0.8, z); b.g.rotation.set(0, Math.atan2(tx, tz), Math.sin(t * 1.3 + b.a) * 0.04);
+        // close enough on the water, out of disguise: they radio it in
+        if (P.vehicle && Math.hypot(P.pos.x - x, P.pos.z - z) < 30 && DISGUISE.level() < 0.5 && t - warned > 20) { warned = t; feed('<span class="m">PATROL BOAT — THEY’VE SEEN YOU</span>'); BOTS.setPressure(2); audio.horn(); }
+      }
+    },
+  };
+})();
+
+// ---------------- rooms behind the cottage doors ----------------
+function bahamasInteriors() {
+  Object.assign(ROOM_ROW, { z: 640, x: { cottage: -60 } });
+  const Wd = 10, D = 8, H = 3.0;
+  roomShell('cottage', Wd, D, H, { name: '', en: 'an island cottage', floor: 0xc8a878, wall: 0xf4ecd8, ceil: 0xf0ece4, door: 0x2ab0b0 });
+  sofa(-2.6, 0, -2.6, 0, 0x2ab0d0, 2.2); lowTable(-2.6, 0, -1.4, 0, 1.2, 0.6); fruitBowl(-2.6, 0.32, -1.4); ceilingFan(-2.6, H - 0.1, -1.4);
+  kitchenRun(3.8, 0, -3.5, 0, 2.4, 0xf0f0ec); fridge(4.6, 0, 0.4, -Math.PI / 2); bistroTable(2.4, 0, 1.6, 2, 0x2ab0b0);
+  bed(-3.4, 0, 2.2, Math.PI / 2, 0xf0c040); W.box(1.4, 1.0, 0.04, 0, 1.6, -3.95, 0x7ad8e8, { layer: 'glow' }); floorRug(-1, 0.03, -0.6, 3.6, 2.4, 0, 0x2a8ab0);
+  plantPot(4.4, 0, 3.4, 'palm', 1.8); W.lamp(0, 2.4, 0, 0xfff0d8, 1.6, 9, { halo: 0 });
+  LOOT.spot('cottage', 3.6, 0.92, -3.5, 'cash');
+  staffAt(-1.2, -2.6, Math.PI, 'home');
+  W.pop();
+}

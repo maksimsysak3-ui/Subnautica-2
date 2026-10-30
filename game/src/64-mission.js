@@ -144,7 +144,7 @@ const MISSION = (() => {
 
   // ---------------- state ----------------
   const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind };
-  const MISSIONS = MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : DAR;
+  const MISSIONS = MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : MAP.id === 'bahamas' ? bahamasMissions(CTX) : DAR;
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
@@ -354,6 +354,51 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
       { from: [112, 1.4, -96], to: [130, 1.0, -120], look: [170, 0.8, -150], dur: 5, say: HV('I see your lamp. Keep rowing.'), fov: 50 },
       { from: [150, 6, -150], to: [120, 14, -170], look: [0, 10, -45], dur: 6, say: HV('Haddad’s kasbah. The Dragons’ list. Ashdown’s ledger. They all point the same way.'), fov: 52 },
       { from: [120, 14, -170], to: [60, 40, -230], look: [0, 10, -45], dur: 5, say: HV('Get some sleep. The next file is already on my desk.'), fov: 52 },
+    ],
+  }];
+}
+
+// ---------------- Case 04: Paradise ----------------
+function bahamasMissions({ fig, live, near, kit, S, flags, talkShots, flyover, behind }) {
+  const F = flags, HV = (t) => `HANDLER: ${t}`, onJet = () => SCOOTER.riding && SCOOTER.riding.kind === 'jet';
+  return [{
+    title: 'SAND AND SALT', reward: 600,
+    brief: 'Ashdown’s ledger names one banker for every bribe: Victor Kane, who lives on a private island off Eleuthera. Our contact tends bar at the Conch Bar on the resort beach. Find her — then get yourself a ride on the water.',
+    intro: () => flyover([
+      { from: [-300, 70, 330], to: [-120, 40, 240], look: [0, 4, 80], dur: 5 },
+      { from: [60, 18, 230], to: [30, 9, 170], look: [0, 3, 110], dur: 5 },
+      { from: [290, 30, -120], to: [330, 22, -170], look: [380, 4, -250], dur: 5 },
+    ], [HV('Eleuthera. White sand, warm water — and a banker who washes money for half the files on my desk.'), HV('Our contact pours drinks at the Conch Bar on the resort beach. Walk in like a tourist.'), HV('Kane’s island is out there to the north-east. His men are ex-navy, and they own the water.')]),
+    setup() { F().contact = fig({ kit: kit({ top: 'tshirt', topColor: '#f0c040', bottom: 'shorts', pantsColor: '#2ab0b0', hair: 'long', hairColor: '#2e2018', headwear: 'none', facialHair: 'none' }), route: [[S().beachBar.x + 1.6, S().beachBar.z - 2.4]], y: S().beachBar.y, speed: 0, yaw: 0 }); F().contact.fig.lookAt = P.pos; },
+    steps: [
+      { text: 'Find the bartender at the Conch Bar on the resort beach (E)', where: () => live(F().contact, 'CONCH BAR')(), act: () => near(F().contact, 3, 2), prompt: () => near(F().contact, 3, 2) ? '[E]  ORDER A RUM PUNCH' : '',
+        cut: () => talkShots(P.pos, F().contact, ['BARTENDER: Rum punch? You look like you need it.', 'YOU: I need a boat.', 'BARTENDER: Kane’s men watch every boat that leaves this beach. They don’t watch the jetskis — tourists fall off them all day.', 'BARTENDER: Rental dock, west of the pier. Go round the reef, not over it, and keep away from the grey patrol boats.']) },
+      { text: 'Take a jetski from the rental dock west of the pier (E)', where: () => ({ ...S().rental, y: 2, name: 'JETSKIS' }), done: onJet },
+    ],
+  }, {
+    title: 'KANE’S ISLAND', reward: 900,
+    brief: 'Cross to Kane’s island on the jetski, round the patrol boats, and come ashore at his dock. His laptop is in the office of the big white house. Walk in like you belong there — or don’t be seen at all.',
+    intro: () => flyover([{ from: [200, 26, -150], to: [270, 14, -210], look: [380, 4, -250] }, { from: [330, 6, -232], to: [352, 4, -244], look: [S().laptop.x, 2, S().laptop.z] }],
+      [HV('The patrol boats circle the island. Thirty metres and they’ll see you — time your run.'), HV('The laptop is in the office of the main house, on the desk. Take it and get back on the water.')], 5),
+    steps: [
+      { text: 'Ride to Kane’s dock on the private island', where: () => ({ ...S().privateDock, y: 3, name: 'DOCK' }), done: () => near({ ...S().privateDock, y: P.pos.y }, 28, 3) },
+      { text: 'Get into the white house and take the laptop from the office desk (E)', where: () => ({ ...S().laptop, y: 2.4, name: 'LAPTOP' }), act: () => near(S().laptop, 2.6, 2), prompt: () => near(S().laptop, 2.6, 2) ? '[E]  TAKE THE LAPTOP' : '',
+        cut: () => [{ from: [S().laptop.x + 2, 2.4, S().laptop.z + 2], to: [S().laptop.x + 1.4, 2.0, S().laptop.z + 1.4], look: [S().laptop.x, 1.3, S().laptop.z], dur: 4, say: HV('That’s it. Every account he runs. Now go — they’ll miss it in minutes.'), fov: 42 }] },
+    ],
+  }, {
+    title: 'SEAPLANE', reward: 1100,
+    brief: 'They know. Every boat Kane has is out. The seaplane is waiting off Sandy Cay to the south-west — get back on the water and get to it.',
+    intro: () => flyover([{ from: [-200, 40, 160], to: [-300, 20, 230], look: [-405, 2, 270] }], [HV('Sandy Cay, south-west. The seaplane is riding at anchor off its west side. Don’t stop for anything.')], 5),
+    setup() { BOTS.setPressure(3); },
+    teardown() { BOTS.setPressure(0); },
+    steps: [
+      { text: 'Get back on a jetski', where: () => null, done: onJet },
+      { text: 'Reach the seaplane off Sandy Cay', where: () => ({ ...S().seaplane, y: 3, name: 'SEAPLANE' }), done: () => near({ ...S().seaplane, y: P.pos.y }, 8, 3) },
+    ],
+    outro: () => [
+      { from: [-398, 1.4, 276], to: [-394, 2.4, 280], look: [-405, 2.4, 270], dur: 4, say: 'PILOT: Leave the toy, climb aboard. We’re late.', fov: 48 },
+      { from: [-430, 10, 300], to: [-520, 60, 360], look: [0, 0, 0], dur: 6, say: HV('Kane’s accounts, Ashdown’s ledger, the Dragons’ list, Haddad’s papers. One name keeps coming back.'), fov: 55 },
+      { from: [-520, 60, 360], to: [-600, 120, 420], look: [0, 0, 0], dur: 5, say: HV('Get some sun on the way home. You’ve earned it.'), fov: 55 },
     ],
   }];
 }

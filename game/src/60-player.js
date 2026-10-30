@@ -705,7 +705,10 @@ function updateRange(dt, time) {
   P.vel.lerp(wish, 1 - Math.exp(-(wish.lengthSq() > 0 ? 9 : 12) * dt));
   P.pos.addScaledVector(P.vel, dt);
   // world collision: walls push you out, floors/steps lift you, ledges drop you with gravity
+  const wx0 = P.pos.x - P.vel.x * dt, wz0 = P.pos.z - P.vel.z * dt;
   COL.resolve(P.pos, 0.32, 1.75);
+  // islands: you can wade the shallows, not swim the channel
+  if (MAP.waterY !== undefined && COL.ground(P.pos.x, P.pos.z, P.pos.y + 0.4) < MAP.waterY - 0.9) { P.pos.x = wx0; P.pos.z = wz0; P.vel.x = P.vel.z = 0; }
   P.pos.x = clamp(P.pos.x, -MAP.bounds, MAP.bounds); P.pos.z = clamp(P.pos.z, -MAP.bounds, MAP.bounds);
   const gy = COL.ground(P.pos.x, P.pos.z, P.pos.y);
   // jump (Space): a modest hop — enough for a kerb or a low wall, not for rooftops

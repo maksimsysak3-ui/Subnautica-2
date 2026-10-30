@@ -7,7 +7,7 @@
 // procedural texture, bump and roughness, so nothing is stretched and nothing needs UVs.
 const MAP = {
   // which case is loaded (?map=dar | seoul); none → the case-files menu
-  id: (() => { const m = new URLSearchParams(location.search).get('map'); return m === 'dar' || m === 'seoul' || m === 'manor' ? m : null; })(),
+  id: (() => { const m = new URLSearchParams(location.search).get('map'); return ['dar', 'seoul', 'manor', 'bahamas'].includes(m) ? m : null; })(),
   bounds: 900, debugNaN: 5, poi: [], lamps: [], colliders: [], meshes: [], lampGain: 2.0,
   // batch chunk size per detail level: big chunks for far architecture (few draw calls), small for fine detail (tight culling)
   chunk: [64, 48, 32, 32],
@@ -43,8 +43,9 @@ function vnoise(x, z) {
 function fbm(x, z) { let s = 0, a = 1, f = 1; for (let i = 0; i < 4; i++) { s += a * vnoise(x * f, z * f); a *= 0.5; f *= 2.03; } return s / 1.875; }
 // the walled town sits on a flat coastal shelf: the sea to the south, dry hills rising inland
 const CITY = { x0: -165, x1: 165, z0: -470, z1: 118 };
-const coastZ = (x) => MAP.id === 'seoul' || MAP.id === 'manor' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
+const coastZ = (x) => MAP.id !== 'dar' ? 1e9 : (x < -22 ? 101 : 113.5) + (x < -175 || x > 175 ? (fbm(x * 0.02, 3.1) - 0.5) * 18 : 0);
 function rawTerrain(x, z) {
+  if (MAP.id === 'bahamas') return islandH(x, z);
   const cz = coastZ(x);
   if (z > cz) return Math.max(-8, -2.2 - (z - cz) * 0.22) + (fbm(x * 0.05, z * 0.05) - 0.5) * 0.8;   // sea bed
   const out = Math.max(0, Math.max(CITY.x0 - x, x - CITY.x1, CITY.z0 - z) + fbm(x * 0.006, z * 0.006) * 40 - 20);
@@ -790,6 +791,18 @@ const SKY = (() => {
   scene.fog.color.copy(HOR); scene.background.copy(HOR);
   const _f = new V3();
   // night: moonlit sky with the city's sodium-and-neon glow on the horizon; the range behind goes dark
+  // the tropics: a high white sun, a deep blue sky paling to the sea, clean air
+  function tropical() {
+    MAP.tropical = true;
+    const u = dome.material.uniforms;
+    u.zen.value.setRGB(0.12, 0.32, 0.78); u.hor.value.setRGB(0.62, 0.82, 0.96); u.glowc.value.setRGB(1.0, 0.95, 0.85);
+    HOR.copy(u.hor.value);
+    ring.visible = false;   // no mountains in the Bahamas: open sea to the horizon
+    sunDir.set(-0.45, 0.78, 0.42).normalize();
+    sun.color.set(0xfff4e0); sun.intensity = 3.3;
+    scene.fog.color.setRGB(0.66, 0.82, 0.94); scene.background.copy(scene.fog.color);
+    HEMI.color.setRGB(0.62, 0.78, 1.0); HEMI.groundColor.setRGB(0.86, 0.8, 0.66); HEMI.intensity = 0.8;
+  }
   // dusk: the sun just over the trees, a long orange light, the sky going violet overhead
   function dusk() {
     MAP.dusk = true;
@@ -817,7 +830,7 @@ const SKY = (() => {
     MAP.lampGain = 3.2;
   }
   return {
-    sunDir, sun, horizon: HOR, night, dusk,
+    sunDir, sun, horizon: HOR, night, dusk, tropical,
     update(cam, focus) {
       dome.position.copy(cam.position); ring.position.set(cam.position.x, 0, cam.position.z);
       // shadow box biased ahead of the camera (more useful texels where the player looks), snapped to texels

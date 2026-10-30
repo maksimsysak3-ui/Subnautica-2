@@ -81,6 +81,7 @@ const HUD = (() => {
       if (z > 150) return ['한강공원', 'HANGANG PARK']; if (x > 153) return ['강남', 'GANGNAM']; if (x < -153) return ['아현', 'AHYEON'];
       if (z < -140) return ['남대문시장', 'NAMDAEMUN MARKET']; return ['홍대 · 마포', 'HONGDAE · MAPO'];
     }
+    if (MAP.id === 'bahamas') { const { x, z } = P.pos; if (Math.hypot(x - 380, z + 250) < 110) return ['', 'THE PRIVATE ISLAND']; if (Math.hypot(x + 360, z - 262) < 60) return ['', 'SANDY CAY']; if (islandSD(x, z) > 2) return ['', 'THE LAGOON']; if (z > 50) return ['', 'CORAL BAY RESORT']; if (z < -40 && x < 0) return ['', 'GOVERNOR’S HARBOUR']; return ['', 'ELEUTHERA']; }
     if (MAP.id === 'manor') { const { x, z, y } = P.pos; if (x > -72 && x < 72 && z > -66 && z < 10 && !(Math.abs(x) < 50 && z > -32)) return y > 8.5 ? ['', 'RAVENSCROFT HOUSE · SECOND FLOOR'] : y > 3 ? ['', 'RAVENSCROFT HOUSE · FIRST FLOOR'] : ['', Math.abs(x) > 50 ? 'RAVENSCROFT HOUSE · THE WINGS' : 'RAVENSCROFT HOUSE']; if (x < -95 && z < 10 && z > -70) return ['', 'THE MAZE']; if (x > 85 && z < -30 && z > -155) return ['', 'THE LAKE']; if (z < -70) return ['', 'THE GARDENS']; if (Math.abs(x) > 200 || z > 200) return ['', 'OUTSIDE THE WALLS']; return ['', 'RAVENSCROFT · THE GROUNDS']; }
     if (typeof PALACE !== 'undefined' && P.pos.z < PALACE.z1 && P.pos.x > PALACE.x0 && P.pos.x < PALACE.x1) return ['دار المخزن', 'DAR EL MAKHZEN'];
     let best = null, bd = 45; for (const r of TOWN.plazas) { const d = Math.hypot(clamp(P.pos.x, r.x0, r.x1) - P.pos.x, clamp(P.pos.z, r.z0, r.z1) - P.pos.z); if (d < bd) { bd = d; best = r; } }

@@ -5,6 +5,7 @@ function placeWorldTargets() { }
 function cityPlan() {
   if (MAP.id === 'seoul') return seoulPlan();
   if (MAP.id === 'manor') return manorPlan();
+  if (MAP.id === 'bahamas') return bahamasPlan();
   return [
     ['Drawing the streets of Dar Essalam', buildTownPlan],
     ['Raising the walls, the skala and the gates', () => { townWalls(); skala(); seaGate(); }],

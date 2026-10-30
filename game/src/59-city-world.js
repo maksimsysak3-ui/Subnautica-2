@@ -21,7 +21,7 @@ function buildEnvironment() {
 
 // terrain mesh: 1600 m square; flat city plateau (finished by the district ground plates), foothills beyond
 function buildTerrain() {
-  const S = 2600, N = 180;
+  const isl = MAP.id === 'bahamas', S = isl ? 1700 : 2600, N = isl ? 360 : 180;
   const g = new THREE.PlaneGeometry(S, S, N, N); g.rotateX(-Math.PI / 2);
   const ng = g.toNonIndexed(); g.dispose();
   const p = ng.attributes.position, col = new Uint8Array(p.count * 3), srf = new Uint8Array(p.count * 3), c = new THREE.Color();
@@ -30,9 +30,9 @@ function buildTerrain() {
     const x = p.getX(i), z = p.getZ(i), h = terrainH(x, z);
     p.setY(i, h);
     const n = fbm(x * 0.012, z * 0.012), n2 = vnoise(x * 0.09, z * 0.09);
-    c.copy(sand).lerp(dry, n * 0.8).lerp(red, clamp((h - 10) / 50, 0, 0.6) * n2).lerp(scrub, clamp((n2 - 0.6) * 2, 0, 0.5) * clamp(h / 8, 0, 1));
+    if (isl) islandColor(c, x, z, h, n, n2); else c.copy(sand).lerp(dry, n * 0.8).lerp(red, clamp((h - 10) / 50, 0, 0.6) * n2).lerp(scrub, clamp((n2 - 0.6) * 2, 0, 0.5) * clamp(h / 8, 0, 1));
     col.set([Math.sqrt(c.r) * 255, Math.sqrt(c.g) * 255, Math.sqrt(c.b) * 255], i * 3);
-    srf.set([TX.earth, 3, 0], i * 3);
+    srf.set([isl && h > -0.3 && islandSD(x, z) < -30 ? TX.leaf : TX.earth, isl ? 1 : 3, 0], i * 3);
   }
   ng.setAttribute('color', new THREE.BufferAttribute(col, 3, true));
   ng.setAttribute('surf', new THREE.BufferAttribute(srf, 3));

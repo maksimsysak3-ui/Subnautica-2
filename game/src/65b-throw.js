@@ -11,7 +11,7 @@ const THROW = (() => {
     stone: { geo: () => { const g = new THREE.DodecahedronGeometry(0.07, 0); g.translate(0, 0.06, 0); return g; }, col: 0x8a8478, range: 16, name: 'STONE', ko: '돌' },
     pipe: { geo: () => { const g = new THREE.CylinderGeometry(0.018, 0.018, 0.45, 6); g.rotateZ(Math.PI / 2); g.translate(0, 0.02, 0); return g; }, col: 0x6a6e72, metal: true, range: 22, name: 'PIPE', ko: '파이프' },
   };
-  const SETS = { seoul: ['bottle', 'bottle', 'can', 'brick', 'pipe'], dar: ['stone', 'stone', 'bottle', 'brick', 'can'], manor: ['stone', 'bottle', 'pipe', 'brick'] };
+  const SETS = { seoul: ['bottle', 'bottle', 'can', 'brick', 'pipe'], dar: ['stone', 'stone', 'bottle', 'brick', 'can'], manor: ['stone', 'bottle', 'pipe', 'brick'], bahamas: ['bottle', 'bottle', 'can', 'stone'] };
   const items = [], flying = [];
   let held = null, built = false, meshes = {};
   const mat = (k) => new THREE.MeshStandardMaterial({ color: KINDS[k].col, roughness: KINDS[k].glass ? 0.15 : 0.7, metalness: KINDS[k].metal ? 0.6 : 0, transparent: !!KINDS[k].glass, opacity: KINDS[k].glass ? 0.85 : 1 });

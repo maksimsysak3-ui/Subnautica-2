@@ -72,6 +72,9 @@ const BOTS = (() => {
     { ...REFERENCE, top: 'longsleeve', topColor: '#3a1a1e', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18181a', headwear: 'none', hair: 'buzz', hairColor: '#121010', eyewear: 'none', ears: 'none', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
     { ...REFERENCE, top: 'hoodie', topColor: '#1e3a6a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#1a1f2e', headwear: 'cap', hatColor: '#1e3a6a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#e8e8e8', facialHair: 'none', skin: '#d9a37a' },
     { ...REFERENCE, top: 'jacket', topColor: '#2a5a9a', vest: 'none', pack: 'none', bottom: 'joggers', pantsColor: '#2a5a9a', headwear: 'beanie', hatColor: '#141a2a', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#2a2a2a', facialHair: 'stubble', skin: '#c98e62' },
+    // the island's marine security: white polos and navy shorts, and the divers in black wetsuits with their tanks
+    { ...REFERENCE, top: 'tshirt', topColor: '#f0f0ec', vest: 'none', pack: 'none', bottom: 'shorts', pantsColor: '#1a2a4a', headwear: 'cap', hatColor: '#1a2a4a', eyewear: 'sunglasses', ears: 'none', gloves: 'none', shoes: 'sneakers', shoeColor: '#f0f0ec', facialHair: 'none', skin: '#a8714a' },
+    { ...REFERENCE, top: 'longsleeve', topColor: '#111316', sleeves: 'full', vest: 'rig', vestColor: '#e8b020', pack: 'hydration', packColor: '#e8b020', bottom: 'pants', pantsColor: '#111316', headwear: 'none', hair: 'buzz', ears: 'none', gloves: 'full', shoes: 'boots', shoeColor: '#111316', facialHair: 'stubble', skin: '#6b4430', eyewear: 'sunglasses' },
     // Ravenscroft's private security: dark suits, earpieces, plates under the jackets
     { ...REFERENCE, top: 'jacket', topColor: '#18191c', sleeves: 'full', vest: 'none', pack: 'none', bottom: 'pants', pantsColor: '#18191c', headwear: 'none', hair: 'short', hairColor: '#1c1612', ears: 'headset', earColor: '#1a1a1a', gloves: 'none', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'none', skin: '#e3b48e' },
     { ...REFERENCE, top: 'jacket', topColor: '#22252a', sleeves: 'full', vest: 'plate', vestColor: '#1a1b1e', pack: 'none', bottom: 'pants', pantsColor: '#1e1f22', headwear: 'none', hair: 'buzz', hairColor: '#2e2018', ears: 'headset', earColor: '#1a1a1a', gloves: 'full', shoes: 'boots', shoeColor: '#0a0a0a', facialHair: 'stubble', skin: '#a8714a' },
@@ -79,7 +82,7 @@ const BOTS = (() => {
   // the sides on each map: team id → name and the kits its men wear. Every side fights every other (and you).
   const FACTIONS = MAP.id === 'seoul'
     ? { red: { name: '흑룡파 · BLACK DRAGONS', kits: [3, 4] }, gold: { name: '청사파 · BLUE SNAKES', kits: [5, 6] } }
-    : MAP.id === 'manor' ? { red: { name: 'SECURITY', kits: [7, 8] } } : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
+    : MAP.id === 'bahamas' ? { red: { name: 'MARINE SECURITY', kits: [7, 8] } } : MAP.id === 'manor' ? { red: { name: 'SECURITY', kits: [9, 10] } } : { red: { name: 'MILITIA', kits: [0, 1, 2] } };   // Dar: the militia alone
   // whose ground is this? (each map says; the militia / Black Dragons by default)
   const sideAt = (x, z) => (TOWN.factionAt ? TOWN.factionAt(x, z) : 'red');
   const kitFor = (team) => { const ks = (FACTIONS[team] || FACTIONS.red).kits; return ks[(Math.random() * ks.length) | 0]; };
