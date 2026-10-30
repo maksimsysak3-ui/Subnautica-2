@@ -6,6 +6,8 @@
 // west, a lake with a boathouse to the east, garages, a helipad. A stone wall all round: the main gate
 // (checked), a service gate, and one stretch the winter brought down. Private security everywhere.
 const MANOR = { house: { x0: -72, x1: 72, z0: -66, z1: 10 }, H0: 5.0, H1: 4.5, T: 0.5, wall: { x0: -200, x1: 200, z0: -200, z1: 200 } };
+// the lake (east of the gardens): the lawn stops at its stone edge; the boathouse stands on the west shore
+const LAKE = { x0: 101, z0: -150, x1: 176, z1: -36 };
 const STONE = 0xd8cdb8, STONE_DK = 0xb8ab94, SLATE = 0x4a5058, GRASS = 0x4a6a34, GRAVEL = 0xb8ae98;
 
 function manorPlan() {
@@ -40,7 +42,7 @@ function manorGrounds() {
   plaza('East lawn', { x0: 14, z0: 30, x1: 96, z1: 140 }, GRASS, TX.leaf);
   plaza('Terrace', { x0: -50, z0: -80, x1: 50, z1: -66 }, STONE, TX.stone);
   // everything else inside the walls is lawn; outside, rough grass under the trees
-  groundPlate(Wl.x0, Wl.z0, Wl.x1, Wl.z1, GRASS, TX.leaf, 4, 0.03);
+  groundPlate(Wl.x0, Wl.z0, Wl.x1, Wl.z1, GRASS, TX.leaf, 4, 0.03, null, LAKE);
   groundPlate(-260, -230, 260, Wl.z0, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(-260, Wl.z1, 260, 245, 0x3e5230, TX.leaf, 6, 0.03);
   groundPlate(-260, Wl.z0, Wl.x0, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(Wl.x1, Wl.z0, 260, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03);
   fountain(0, 0, -6, 5.2, 1);
@@ -173,19 +175,26 @@ function manorGardens() {
   statue(MX + 5 * C, MZ + 5 * C, 0); W.lamp(MX + 5 * C, 3, MZ + 5 * C, 0xffd8a0, 1.6, 10, { halo: 0.5 });
   GR.rect(MX + 35, MZ + 35, 72, 72, 0, GR.RESERVED, true);
   // the lake: lowered ground, still dark water, reeds, the boathouse on its jetty
-  const L = { x0: 92, z0: -150, x1: 176, z1: -36 };
-  flat(L.x0 + 6, L.z0 + 6, L.x1 - 6, L.z1 - 6, -2.6, 9); GR.rect((L.x0 + L.x1) / 2, (L.z0 + L.z1) / 2, L.x1 - L.x0, L.z1 - L.z0, 0, GR.WALL, true);
+  const L = LAKE;
+  flat(L.x0 + 3, L.z0 + 3, L.x1 - 3, L.z1 - 3, -2.6, 3);   // the bed drops away inside the kerb, never under the lawn GR.rect((L.x0 + L.x1) / 2, (L.z0 + L.z1) / 2, L.x1 - L.x0, L.z1 - L.z0, 0, GR.WALL, true);
+  // the water stands just below the lawn, up to a stone kerb all round; a low invisible rail on the kerb keeps you
+  // out of it (except onto the jetty, by the boathouse)
   const water = new THREE.Mesh(new THREE.PlaneGeometry(L.x1 - L.x0, L.z1 - L.z0), new THREE.MeshStandardMaterial({ color: 0x1a2a34, roughness: 0.08, metalness: 0.7 }));
-  water.rotation.x = -Math.PI / 2; water.position.set((L.x0 + L.x1) / 2, -0.9, (L.z0 + L.z1) / 2); scene.add(water);
+  water.rotation.x = -Math.PI / 2; water.position.set((L.x0 + L.x1) / 2, -0.15, (L.z0 + L.z1) / 2); scene.add(water);
+  const kerb = (ax, az, bx, bz) => { const cx = (ax + bx) / 2, cz = (az + bz) / 2, w = Math.abs(bx - ax) + 0.9, d = Math.abs(bz - az) + 0.9; W.box(w, 0.3, d, cx, -0.03, cz, STONE, { t: TX.stone, wear: 4 }); W.solid(w, 1.3, d, cx, 0.65, cz, 'stone'); };
+  kerb(L.x0, L.z0, L.x1, L.z0); kerb(L.x0, L.z1, L.x1, L.z1); kerb(L.x1, L.z0, L.x1, L.z1);
+  kerb(L.x0, L.z0, L.x0, -101.6); kerb(L.x0, -98.4, L.x0, L.z1);   // the gap: the jetty
   for (let i = 0; i < 90; i++) { const a = mr(0, 6.28), x = (L.x0 + L.x1) / 2 + Math.cos(a) * (L.x1 - L.x0) * 0.47, z = (L.z0 + L.z1) / 2 + Math.sin(a) * (L.z1 - L.z0) * 0.47; for (let k = 0; k < 4; k++) W.box(0.04, mr(0.8, 1.6), 0.04, x + mr(-0.5, 0.5), 0.2, z + mr(-0.5, 0.5), 0x5a6a34, { lod: 1, rz: mr(-0.2, 0.2) }); }
   // boathouse: timber on stilts, a jetty, the boats (your way out)
   const bx = 96, bz = -95;
-  W.box(9, 4, 7, bx + 4.5, 2.4, bz, 0x5a4030, { t: TX.wood, wear: 4 }); W.solid(9, 4, 7, bx + 4.5, 2.4, bz, 'wood');
+  W.box(9, 4, 7, bx + 4.5, 2.4, bz, 0x5a4030, { t: TX.wood, wear: 4 }); W.solid(9, 6.6, 7, bx + 4.5, 1.1, bz, 'wood');   // solid to the lake bed: nothing gets under it
+  W.box(9.3, 1.6, 7.3, bx + 4.5, -0.4, bz, STONE_DK, { t: TX.stone, wear: 5 });   // its stone footing, half in the water
   W.box(1.2, 2.2, 0.06, bx - 0.02, 1.5, bz, 0x3a2a1e, { ry: Math.PI / 2, t: TX.wood }); W.box(1.6, 1.0, 0.04, bx + 9.03, 2.8, bz, 0xffd8a0, { layer: 'glow', ry: Math.PI / 2 });
   pitched(bx, bz - 3.5, bx + 9, bz + 3.5, 4.4, 2.2, 0x3a3a34);
-  W.box(14, 0.2, 2.4, bx + 16, 0.25, bz - 5, 0x6a5038, { t: TX.wood }); W.solid(14, 0.3, 2.4, bx + 16, 0.2, bz - 5, 'wood', { walk: true });
-  for (let x = bx + 10; x < bx + 23; x += 2.5) for (const s of [-1, 1]) W.cyl(0.1, 0.1, 2.4, x, -0.9, bz - 5 + s * 1.1, 0x4a3a2a, { seg: 6 });
-  W.scope({ lod: 1 }, () => { fishingBoat(bx + 16, bz - 1.5, Math.PI / 2, 4.5, { y: -0.75 }); fishingBoat(bx + 16, bz - 8.5, Math.PI / 2, 4.5, { y: -0.75 }); });
+  // the jetty runs out from the shore beside the boathouse
+  W.box(20, 0.2, 2.4, bx + 13, 0.25, bz - 5, 0x6a5038, { t: TX.wood }); W.solid(20, 0.3, 2.4, bx + 13, 0.2, bz - 5, 'wood', { walk: true });
+  for (let x = bx + 6; x < bx + 23; x += 2.5) for (const s of [-1, 1]) W.cyl(0.1, 0.1, 2.4, x, -0.9, bz - 5 + s * 1.1, 0x4a3a2a, { seg: 6 });
+  W.scope({ lod: 1 }, () => { fishingBoat(bx + 16, bz - 1.5, Math.PI / 2, 4.5, { y: -0.3 }); fishingBoat(bx + 16, bz - 8.5, Math.PI / 2, 4.5, { y: -0.3 }); });
   lampPostOld(bx + 22, 0.3, bz - 4, 2.8); W.lamp(bx + 22, 2.8, bz - 4, 0xffd8a0, 2, 10, { halo: 0.6 });
   // garages and the helipad
   W.box(44, 5, 12, -128, 2.5, 106, STONE, { t: TX.stone }); W.solid(44, 5, 12, -128, 2.5, 106, 'stone'); pitched(-150, 100, -106, 112, 5, 2.8, SLATE);
