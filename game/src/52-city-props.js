@@ -236,7 +236,7 @@ function bistroTable(x, y, z, chairs = 2, col = mpick([0x2a5a3a, 0x7a2a24, 0x2a2
   W.scope({ lod: 3 }, () => { if (mchance(0.7)) W.cyl(0.03, 0.025, 0.09, x + 0.08, y + 0.78, z, mpick([0x7a9a3a, 0x3a2a1a]), { seg: 6, layer: 'glass' }); if (mchance(0.4)) ashtray(x - 0.1, y + 0.735, z + 0.08); });
 }
 function bistroChair(x, y, z, ry = 0, col = 0x2a5a3a) {
-  W.push(x, y, z, ry);
+  W.push(x, y, z, ry); seatHere(0, 0.48, 0.02);
   W.box(0.42, 0.04, 0.42, 0, 0.46, 0, col, { t: TX.wood });
   for (const s of [-1, 1]) for (const t of [-1, 1]) W.rod([s * 0.18, 0.45, t * 0.18], [s * 0.2, 0, t * 0.2], 0.014, MC.iron, { layer: 'metal' });
   W.box(0.42, 0.3, 0.03, 0, 0.75, -0.2, col, { rx: -0.1, t: TX.wood });

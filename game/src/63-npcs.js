@@ -142,9 +142,15 @@ const NPCS = (() => {
     // at night the city's light on them: a little of their own colour, so a street full of people reads as one
     sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       totalEmissiveRadiance += vColor.rgb * ${MAP.id === 'seoul' ? '0.28' : '0.0'};`);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float limb; attribute float pivY; attribute float iPhase; attribute float iGait;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float limb; attribute float pivY; attribute float iPhase; attribute float iGait; attribute float iAct;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        if (limb > 0.5) { float side = (limb < 1.5 || limb > 3.5) ? 0.0 : 3.14159; float a = sin(iPhase + side) * (limb < 2.5 ? 0.5 : 0.36) * iGait, c = cos(a), s = sin(a);
+        if (limb > 0.5) { float side = (limb < 1.5 || limb > 3.5) ? 0.0 : 3.14159; float a = sin(iPhase + side) * (limb < 2.5 ? 0.5 : 0.36) * iGait;
+          // what they're doing: 1 sitting (legs out in front), 2 phone to the ear / a drink (right arm up), 3 talking (arms going), 4 phone in front of them (forearms up)
+          if (iAct > 0.5 && iAct < 1.5 && limb < 2.5) a = -1.45;
+          if (iAct > 1.5 && iAct < 2.5 && limb > 3.5) a = -2.5;
+          if (iAct > 2.5 && iAct < 3.5 && limb > 2.5) a = -0.45 + sin(iPhase * 1.7 + side) * 0.35;
+          if (iAct > 3.5 && iAct < 4.5 && limb > 2.5) a = -1.15;
+          float c = cos(a), s = sin(a);
           float py = transformed.y - pivY, pz = transformed.z; transformed.y = pivY + py * c - pz * s; transformed.z = py * s + pz * c; }
         transformed.y += abs(sin(iPhase)) * 0.03 * iGait;`);
   };
@@ -153,7 +159,7 @@ const NPCS = (() => {
     const kit = outfit(), m = makeModel(kit), tmp = { m, x: 0, y: 0, z: 0, yaw: -Math.PI, vx: 0, vz: 0, gaitW: 0, phase: 0, seed: 0 };
     pose(tmp, 1 / 60);
     const mk = (geo, cap) => {
-      geo.setAttribute('iPhase', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1)); geo.setAttribute('iGait', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+      geo.setAttribute('iPhase', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1)); geo.setAttribute('iGait', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1)); geo.setAttribute('iAct', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
       const im = new THREE.InstancedMesh(geo, crowdMat, cap); im.count = 0; im.frustumCulled = false; im.castShadow = false; im.receiveShadow = true; scene.add(im); return im;
     };
     const cap = Math.ceil((WALKERS + N) / K * 2.2) + 8;
@@ -200,6 +206,7 @@ const NPCS = (() => {
     v.off = st.road > 0 ? Math.max(0.3, half - rand(0.9, 1.6)) : Math.max(0, half - 0.7) * rand(0.15, 0.9);
   }
   function place(v, minD, maxD, hidden) {
+    if (v.act) endAct(v);
     if (!v.plaza && ROAM && Math.random() < ROAM) v.plaza = roamSpot(minD, maxD) || false;
     for (let t = 0; t < 60; t++) {
       let x, z;
@@ -213,7 +220,7 @@ const NPCS = (() => {
       if (terrainH(x, z) > 0.5 || !dry(x, z) || (t < 40 && busy(x, z)) || !free(x, z)) continue;
       if (hidden && d2(x, z) < 60 * 60 && visibleFrom(x, z)) continue;
       v.x = x; v.z = z; v.y = COL.ground(x, z, 0.3); v.yaw = Math.random() * 6.28; v.panic = 0; v.idle = 0; v.stuckT = 0; v.tx = x; v.tz = z;
-      v.speed = rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.ko = false; v.taken = false; v.m.ch.root.rotation.x = 0;
+      v.speed = !v.plaza && Math.random() < 0.05 ? rand(2.6, 3.2) : rand(1.05, 1.45); v.alive = true; v.deadT = 0; v.ko = false; v.taken = false; v.m.ch.root.rotation.x = 0;
       if (v.plaza) newPlazaGoal(v);
       return true;
     }
@@ -248,16 +255,133 @@ const NPCS = (() => {
     for (let t = 0; t < 12; t++) { const nearP = !Q.roam && Math.random() < 0.2, x = clamp(nearP ? P.pos.x + rand(-25, 25) : rand(Q.x0, Q.x1), Q.x0 + 1.5, Q.x1 - 1.5), z = clamp(nearP ? P.pos.z + rand(-25, 25) : rand(Q.z0, Q.z1), Q.z0 + 1.5, Q.z1 - 1.5); if ((t > 9 || !busy(x, z)) && dry(x, z) && free(x, z) && Math.hypot(x - v.x, z - v.z) > (Q.roam ? 3 : 6)) { v.tx = x; v.tz = z; claim(x, z); return; } }
   }
 
+  // ---------------- what people do when they're not walking ----------------
+  // They sit on benches and chairs, lie on loungers and on the sand, take calls, text, take photos, have a drink,
+  // stand talking in twos and threes, look about, wade in the shallows; street walkers stop now and then for a call
+  // and a few jog. The posed crowd near you is posed for it; the far crowd shows it in the instanced body.
+  const SEATED = new Set(['sit', 'lie', 'sand']), STOPS = ['text', 'call', 'look', 'look', 'text', 'drink'];
+  const ACT_I = { sit: 1, sand: 1, call: 2, drink: 2, chat: 3, text: 4, photo: 4 }, _eA = new THREE.Euler();
+  let seatGrid = null;
+  function seatsNear(x, z, r) {
+    if (!seatGrid) {
+      seatGrid = new Map(); const seen = new Set();
+      for (const s of SEATS) { const key = Math.round(s.x * 4) + ',' + Math.round(s.z * 4) + ',' + Math.round(s.y * 4); if (seen.has(key)) continue; seen.add(key); const k = Math.floor(s.x / 16) * 65536 + Math.floor(s.z / 16); let L = seatGrid.get(k); if (!L) seatGrid.set(k, L = []); L.push(s); }
+    }
+    const out = [], cx = Math.floor(x / 16), cz = Math.floor(z / 16);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const L = seatGrid.get((cx + i) * 65536 + cz + j); if (L) for (const s of L) if (!s.by && Math.hypot(s.x - x, s.z - z) < r) out.push(s); }
+    return out;
+  }
+  // real sand: low ground by the sea that isn't paved (the resort's beach is a 'square' but it's sand)
+  const sandy = (x, z) => { if (MAP.id !== 'bahamas' || terrainH(x, z) > -0.05 || terrainH(x, z) < MAP.waterY + 0.1) return false; const pl = TOWN.plazas.find((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1); return pl ? pl.name === 'Resort beach' : GR.get(x, z) === GR.FREE; };
+  function wadeSpot(x, z) { for (let t = 0; t < 24; t++) { const a = Math.random() * 6.28, d = rand(4, 26), px = x + Math.sin(a) * d, pz = z + Math.cos(a) * d, h = terrainH(px, pz); if (h < MAP.waterY - 0.3 && h > MAP.waterY - 0.85) return { x: px, z: pz }; } return null; }
+  function setAct(v, a, T, face) { v.act = a; v.aT = T; v.face = face; v.goTo = null; v.vx = v.vz = 0; v.idle = 0; }
+  function endAct(v) {
+    if (v.seat) { const s = v.seat; s.by = null; v.seat = null; if (!v.goTo) { v.x += Math.sin(s.ry) * 0.65; v.z += Math.cos(s.ry) * 0.65; v.y = COL.ground(v.x, v.z, v.y + 0.6); } }
+    v.act = null; v.goTo = null; v.aT = 0;
+  }
+  // somebody standing about nearby who isn't busy: the two of you get talking
+  function partner(v, street = false) {
+    for (const L of [civs, walkers]) for (const o of L) if (o !== v && !o.act && !o.goTo && !o.route && (o.alive !== false) && !(o.panic > 0) && (street ? !o.plaza && o.speed < 2 : o.plaza) && Math.abs(o.x - v.x) < (street ? 3 : 4) && Math.abs(o.z - v.z) < (street ? 3 : 4)) return o;
+    return null;
+  }
+  function startActivity(v) {
+    if (v.route) return;
+    const r = Math.random();
+    if (r < 0.42) {   // a free seat in reach: walk over and sit (or lie, on a lounger)
+      const S2 = seatsNear(v.x, v.z, 16).filter((s) => Math.abs(s.y - v.y) < 0.7);
+      if (S2.length) { const s = S2[(Math.random() * S2.length) | 0]; s.by = v; v.seat = s; v.act = s.kind; v.aT = rand(20, 70); v.goTo = { x: s.x + Math.sin(s.ry) * 0.7, z: s.z + Math.cos(s.ry) * 0.7 }; v.tx = v.goTo.x; v.tz = v.goTo.z; v.idle = 0; return; }
+    }
+    if (sandy(v.x, v.z) && Math.random() < 0.65) {   // the beach: lie out, sit on the sand, or go for a paddle
+      const q = Math.random();
+      if (q < 0.3) { const w = wadeSpot(v.x, v.z); if (w) { v.act = 'wade'; v.aT = rand(20, 50); v.face = Math.random() * 6.28; v.goTo = w; v.tx = w.x; v.tz = w.z; v.idle = 0; return; } }
+      setAct(v, q < 0.7 ? 'lie' : 'sand', rand(25, 80), Math.random() * 6.28); v.yaw = v.face; return;
+    }
+    const o = partner(v);
+    if (o && Math.random() < 0.75) { const a = Math.atan2(-(o.x - v.x), -(o.z - v.z)), T = rand(8, 24); setAct(v, 'chat', T, a); setAct(o, 'chat', T + rand(-2, 3), a + Math.PI); return; }
+    const k = Math.random(); setAct(v, k < 0.2 ? 'call' : k < 0.45 ? 'text' : k < 0.58 ? 'photo' : k < 0.74 ? 'drink' : 'look', rand(5, 14), v.yaw + rand(-1, 1));
+  }
+  // a street walker stops: a text, a call, a look in a shop window, or a word with someone passing
+  function streetStop(v) {
+    const o = Math.random() < 0.35 ? partner(v, true) : null;
+    if (o) { const a = Math.atan2(-(o.x - v.x), -(o.z - v.z)), T = rand(6, 16); setAct(v, 'chat', T, a); setAct(o, 'chat', T + rand(-1, 2), a + Math.PI); return; }
+    const k = pick(STOPS); setAct(v, k, rand(4, 12), k === 'look' ? v.yaw + (Math.random() < 0.5 ? 1 : -1) * Math.PI / 2 : v.yaw);
+  }
+  // got there: sit down on it / stand in the water
+  function arrive(v) {
+    const g = v.goTo; v.goTo = null;
+    if (v.seat) { const s = v.seat; v.x = s.x; v.z = s.z; v.y = s.y; v.yaw = v.face = s.ry - Math.PI; }
+    else { v.x = g.x; v.z = g.z; v.y = COL.ground(v.x, v.z, v.y + 0.5); }
+    v.vx = v.vz = 0;
+  }
+  // the near crowd's body for what they're doing (positions are in the body's own frame: +z forward, feet at 0)
+  const propGeo = { phone: new THREE.BoxGeometry(0.07, 0.14, 0.012), cup: new THREE.CylinderGeometry(0.036, 0.03, 0.12, 8) };
+  const propMat = { phone: new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.3, metalness: 0.5 }), cup: new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.7 }) };
+  const _pp = new V3(), _h = new V3();
+  function prop(v, kind, at) { if (!v.props) v.props = {}; let m = v.props[kind]; if (!m) { m = v.props[kind] = new THREE.Mesh(propGeo[kind], propMat[kind]); scene.add(m); } m.visible = true; m.position.copy(v.m.ch.root.localToWorld(_pp.copy(at))); m.quaternion.copy(v.m.ch.root.quaternion); }
+  function arms(c, f) { [[c.armL, c.shL, 1], [c.armR, c.shR, -1]].forEach(([arm, shA, side]) => { const sh = toRoot(shA, _a), r = f(side, sh, _h); if (r) placeArm(arm, sh, r.t, null, T.pole.set(r.p[0], r.p[1], r.p[2]), T.fwd); }); }
+  function actPose(v, c, d) {
+    const a = v.act, t = clock + v.seed * 3, hy = d.hipY;
+    if (a === 'sit' || a === 'sand') {
+      const h = a === 'sit' ? (v.seat ? v.seat.h : 0.45) : 0.03;
+      c.pelvis.position.set(0, h + 0.1, a === 'sit' ? -0.06 : 0); c.pelvis.rotation.set(0, 0, 0);
+      c.spine.rotation.set(a === 'sand' ? -0.28 : -0.04, 0, 0); c.head.rotation.set(a === 'sand' ? 0.2 : 0, Math.sin(t * 0.3) * 0.5, 0);
+      c.root.updateMatrixWorld(true);
+      for (const [leg, hipA, side] of [[c.legL, c.hipL, 1], [c.legR, c.hipR, -1]]) {
+        const hip = toRoot(hipA, T.a), ft = T.b.set(side * (d.hipX + 0.05), d.ankle, a === 'sit' ? 0.44 : 0.62 + side * 0.08);
+        ik(hip, ft, d.thigh, d.shin, T.pole.set(side * 0.1, 1, 0.8), T.mid, T.end); placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd); leg.foot.position.copy(T.end); leg.foot.rotation.set(0, 0, 0);
+      }
+      arms(c, (side, sh, o) => a === 'sit' ? { t: o.set(side * 0.17, h + 0.24, 0.3), p: [side * 0.3, 0, -1] } : { t: o.set(side * 0.3, 0.06, -0.32), p: [side * 0.6, 0, 0.4] });
+      return;
+    }
+    if (a === 'lie') {
+      const s = v.seat, fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
+      c.root.position.set(v.x + fx * 0.85, v.y + (s ? s.h : 0) + 0.11, v.z + fz * 0.85); c.root.rotation.set(-Math.PI / 2, v.yaw + Math.PI, 0);
+      c.head.rotation.set(s ? 0.35 : 0.1, 0, 0); c.root.updateMatrixWorld(true);
+      arms(c, (side, sh, o) => (v.seed % 1 > 0.5 ? { t: o.set(side * 0.14, sh.y + 0.2, -0.12), p: [side, 0, 0] } : { t: o.set(side * 0.24, sh.y - 0.55, -0.05), p: [side * 0.3, 0, -1] }));
+      return;
+    }
+    // standing about
+    if (a === 'text' || a === 'photo') {
+      c.head.rotation.set(a === 'text' ? 0.5 : 0, 0, 0);
+      const hy2 = a === 'text' ? hy + 0.22 : hy + 0.62, fz2 = a === 'text' ? 0.28 : 0.4;
+      arms(c, (side, sh, o) => ({ t: o.set(side * 0.06, hy2, fz2), p: [side * 0.6, -1, 0] }));
+      prop(v, 'phone', _h.set(0, hy2 + 0.05, fz2 + 0.02));
+    } else if (a === 'call') {
+      c.head.rotation.set(0.05, Math.sin(t * 0.4) * 0.4, -0.12);
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.1, hy + 0.72, 0.04), p: [-1, -1, 0] } : null));
+      prop(v, 'phone', _h.set(-0.11, hy + 0.76, 0.03));
+    } else if (a === 'drink') {
+      const up = smooth(clamp((Math.sin(t * 0.8) - 0.55) / 0.35, 0, 1)), hand = _b.set(-0.16, hy + 0.08, 0.18).lerp(_v.set(-0.04, hy + 0.66, 0.13), up);
+      c.head.rotation.set(-up * 0.25, 0, 0);
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.copy(hand), p: [-1, -0.5, -0.5] } : null));
+      prop(v, 'cup', _h.copy(hand).add(_v.set(0, 0.04, 0.02)));
+    } else if (a === 'chat') {
+      c.head.rotation.set(Math.sin(t * 2.6) * 0.06, Math.sin(t * 0.7) * 0.15, 0);
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.2 + Math.sin(t * 2.3) * 0.07, hy + 0.2 + Math.sin(t * 1.7) * 0.1, 0.24 + Math.sin(t * 3.1) * 0.05), p: [-1, -1, -0.2] }
+        : (v.seed % 1 > 0.5 ? { t: o.set(0.24, hy + 0.04, -0.02), p: [1, 0, -0.3] } : null)));
+    } else if (a === 'look') {
+      c.head.rotation.set(-0.05, Math.sin(t * 0.35) * 0.75, 0);
+      arms(c, (side, sh, o) => ({ t: o.set(side * 0.09, hy - 0.02, -0.16), p: [side, 0, 0.2] }));
+    } else if (a === 'wade') {
+      c.head.rotation.set(-0.05, Math.sin(t * 0.3) * 0.6, 0);
+      arms(c, (side, sh, o) => ({ t: o.set(side * (0.34 + Math.sin(t * 1.3 + side) * 0.05), hy - 0.08, 0.12), p: [side, 0, -0.5] }));
+    }
+  }
+
   // ---------------- motion ----------------
   function step(v, dt) {
-    if (v.talkT > 0 && v.panic <= 0) { v.talkT -= dt; v.vx = v.vz = 0; v.yaw += wrap(Math.atan2(-(P.pos.x - v.x), -(P.pos.z - v.z)) - v.yaw) * Math.min(1, dt * 6); return; }
+    if (v.talkT > 0 && v.panic <= 0) { v.talkT -= dt; v.vx = v.vz = 0; if (!SEATED.has(v.act)) v.yaw += wrap(Math.atan2(-(P.pos.x - v.x), -(P.pos.z - v.z)) - v.yaw) * Math.min(1, dt * 6); return; }
+    if (v.act && v.panic > 0) endAct(v);
+    if (v.act && !v.goTo) { v.vx = v.vz = 0; v.aT -= dt; if (!SEATED.has(v.act)) v.yaw += wrap(v.face - v.yaw) * Math.min(1, dt * 4); if (v.aT <= 0) endAct(v); return; }
     if (v.idle > 0 && v.panic <= 0) { v.idle -= dt; v.vx = v.vz = 0; return; }
+    if (!v.plaza && !v.route && !v.act && v.panic <= 0 && v.speed < 2 && Math.random() < dt * 0.025) { streetStop(v); return; }   // stops for a call, a text, a look about
     if (v.route) { const r = v.route[v.ri]; v.tx = r[0]; v.tz = r[1]; }
     else if (!v.plaza) { const q = target(v); v.tx = q.x; v.tz = q.z; }
     let dx = v.tx - v.x, dz = v.tz - v.z; const L = Math.hypot(dx, dz);
     if (L < (v.route ? 0.5 : 0.9)) {
+      if (v.goTo) { arrive(v); return; }
       if (v.route) { const w = v.route[v.ri][2]; if (w) v.idle = w; v.ri++; if (v.ri >= v.route.length) { if (v.fig.loop) v.ri = 0; else { v.ri = v.route.length - 1; v.arrived = true; v.idle = 1e9; } } return; }
-      if (v.plaza) { newPlazaGoal(v); if (v.panic <= 0 && Math.random() < 0.6) v.idle = rand(1.5, 5); }
+      if (v.plaza) { newPlazaGoal(v); if (v.panic <= 0) { const r = Math.random(); if (r < 0.6) startActivity(v); else if (r < 0.8) v.idle = rand(1.5, 5); } }
       else { const j = v.i + v.dir; if (j <= 0 || j >= v.st.pts.length - 1) { v.i = clamp(j, 0, v.st.pts.length - 1); junction(v); } else v.i = j; }
       return;
     }
@@ -270,7 +394,7 @@ const NPCS = (() => {
     v.yaw += wrap(Math.atan2(-dx, -dz) - v.yaw) * Math.min(1, dt * (v.panic > 0 ? 10 : 5));
     // blocked (stall, parked car, someone's doorstep): turn back / choose another spot
     v.stuckT = Math.hypot(v.vx, v.vz) < sp * 0.3 ? v.stuckT + dt : 0;
-    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.route) { v.ri = Math.min(v.route.length - 1, v.ri + 1); } else if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
+    if (v.stuckT > 1.2) { v.stuckT = 0; if (v.route) { v.ri = Math.min(v.route.length - 1, v.ri + 1); } else if (v.goTo) endAct(v); else if (v.plaza) newPlazaGoal(v); else { v.dir = -v.dir; v.off *= rand(0.3, 1); } }
   }
   const wrap = (x) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
 
@@ -307,6 +431,8 @@ const NPCS = (() => {
         const w = _b.set(sh.x + side * (0.06 + run * 0.02), sh.y - reach, sh.z + sw * (0.16 + run * 0.2) + run * 0.12);
         placeArm(arm, sh, w, null, T.pole.set(side * 0.2, 0, -1), T.fwd);
       });
+      if (v.props) for (const k in v.props) v.props[k].visible = false;
+      if (v.act && !v.goTo) actPose(v, c, d);
     } finally { ch = keepCh; }
   }
 
@@ -334,12 +460,13 @@ const NPCS = (() => {
       root.visible = v.alive || v.deadT < 20;
       const sh = root.visible && d2(v.x, v.z) < SHADOW_R * SHADOW_R;   // only the near crowd casts shadows
       if (v.shadow !== sh) { v.shadow = sh; for (const m of v.m.meshes) m.castShadow = sh; }
-      if (!v.alive) { v.inst = false; if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
+      if (!v.alive) { v.inst = false; if (v.act) endAct(v); if (v.props) for (const k in v.props) v.props[k].visible = false; if (v.deadT < 20) { v.deadT += dt; const k = Math.min(1, v.deadT / 0.7); root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0); } continue; }
       if (v.panic > 0) v.panic -= dt;
       step(v, dt);
       const near = d2(v.x, v.z) < NEAR_POSE * NEAR_POSE;
       if (near) pose(v, dt); else { root.position.set(v.x, v.y, v.z); root.rotation.set(0, v.yaw + Math.PI, 0); }
       root.visible = near; v.inst = !near;
+      if (!near && v.props) for (const k in v.props) v.props[k].visible = false;
     }
     crowdTick(dt);
     if (scan <= 0) scan = 0.3;
@@ -443,6 +570,7 @@ const NPCS = (() => {
     const r = Math.random() * streetW[streetW.length - 1][1]; for (const [st, a] of streetW) if (a >= r) return st; return null;
   }
   function placeWalker(w, minD, maxD) {
+    if (w.act) endAct(w);
     if (Math.random() < (ROAM ? 0.3 : 0.6)) maxD = Math.min(maxD, Math.max(minD + 30, 110));   // most of the crowd stays within a block or two of you (on the island, it spreads wider)
     if (ROAM && Math.random() < ROAM) { const Q = roamSpot(minD, maxD); if (Q) { w.plaza = Q; w.x = (Q.x0 + Q.x1) / 2; w.z = (Q.z0 + Q.z1) / 2; w.y = COL.ground(w.x, w.z, 0.4); w.yaw = Math.random() * 6.28; w.idle = rand(0, 4); w.panic = 0; w.speed = rand(0.8, 1.2); newPlazaGoal(w); return true; } }
     // a quarter of them mill about the squares instead of walking the streets
@@ -470,18 +598,22 @@ const NPCS = (() => {
       const x = a[0] + dx * f - dz / L * sgn, z = a[1] + dz * f + dx / L * sgn, d = Math.hypot(x - P.pos.x, z - P.pos.z);
       if (d < minD || d > maxD || terrainH(x, z) > 0.5 || GR.get(x, z) === GR.WALL || (t < 30 && busy(x, z, 3))) continue;
       if (d < 110 && ((x - P.pos.x) * fx + (z - P.pos.z) * fz) / d > 0.2 && Math.random() < 0.85) continue;   // not right in front of you
-      w.x = x; w.z = z; w.y = COL.ground(x, z, 0.4); w.yaw = Math.random() * 6.28; w.idle = 0; w.panic = 0; w.plaza = false; w.speed = rand(1.0, 1.45);
+      w.x = x; w.z = z; w.y = COL.ground(x, z, 0.4); w.yaw = Math.random() * 6.28; w.idle = 0; w.panic = 0; w.plaza = false; w.speed = Math.random() < 0.06 ? rand(2.6, 3.2) : rand(1.0, 1.45);   // a few out jogging
       return true;
     }
     return false;
   }
   function walk(w, dt) {
+    if (w.act && w.panic > 0) endAct(w);
+    if (w.act && !w.goTo) { w.aT -= dt; w.gait = Math.max(0, w.gait - dt * 3); if (w.act === 'chat') w.phase += dt * 2.2; if (!SEATED.has(w.act)) w.yaw += wrap(w.face - w.yaw) * Math.min(1, dt * 4); if (w.aT <= 0) endAct(w); return; }
     if (w.idle > 0 && w.panic <= 0) { w.idle -= dt; w.gait = Math.max(0, w.gait - dt * 3); return; }
     if (w.panic > 0) w.panic -= dt;
+    if (!w.plaza && !w.act && w.panic <= 0 && w.speed < 2 && Math.random() < dt * 0.02) { streetStop(w); return; }
     let tx, tz; if (w.plaza) { tx = w.tx; tz = w.tz; } else { const q = target(w); tx = q.x; tz = q.z; }
     let dx = tx - w.x, dz = tz - w.z; const L = Math.hypot(dx, dz);
     if (L < 0.9) {
-      if (w.plaza) { newPlazaGoal(w); if (Math.random() < 0.5) w.idle = rand(2, 6); }
+      if (w.goTo) { arrive(w); return; }
+      if (w.plaza) { newPlazaGoal(w); const r = Math.random(); if (r < 0.6) startActivity(w); else if (r < 0.8) w.idle = rand(2, 6); }
       else { const j = w.i + w.dir; if (j <= 0 || j >= w.st.pts.length - 1) { w.i = clamp(j, 0, w.st.pts.length - 1); junction(w); } else w.i = j; }
       return;
     }
@@ -492,7 +624,7 @@ const NPCS = (() => {
     if ((w.yT -= dt) <= 0) { w.yT = 0.5; w.y = COL.ground(w.x, w.z, w.y + 0.5); }
   }
   // a walker coming into posing range trades places with a far-off civilian in the same outfit: nobody sees it
-  const SWAP = ['x', 'y', 'z', 'yaw', 'st', 'i', 'dir', 'off', 'speed', 'phase', 'plaza', 'tx', 'tz', 'idle'];
+  const SWAP = ['x', 'y', 'z', 'yaw', 'st', 'i', 'dir', 'off', 'speed', 'phase', 'plaza', 'tx', 'tz', 'idle', 'act', 'aT', 'face', 'goTo', 'seat'];
   function swapIn(w) {
     for (const c of civs) {
       if (c.vk !== w.vk || !c.alive || !c.inst || c.panic > 0 || c.talkT > 0 || d2(c.x, c.z) < (NEAR_POSE + 10) ** 2) continue;
@@ -520,12 +652,15 @@ const NPCS = (() => {
       const dx = p.x - cx, dz = p.z - cz, dd = dx * dx + dz * dz;
       if (dd > DD || dx * _fw.x + dz * _fw.z < -6) return;
       const V = VAR[p.vk], im = dd < 55 * 55 ? V.mid : V.low, k = im.count; if (k >= im.instanceMatrix.count) return;
-      _q2.setFromAxisAngle(UP, p.yaw + Math.PI); _mx.compose(_ps.set(p.x, p.y, p.z), _q2, _sc); im.setMatrixAt(k, _mx);
-      im.geometry.attributes.iPhase.array[k] = p.phase; im.geometry.attributes.iGait.array[k] = gait; im.count = k + 1;
+      const a = p.act && !p.goTo ? p.act : null; let y = p.y, x = p.x, z = p.z;
+      if (a === 'lie') { const s = p.seat, fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw); x += fx * 0.85; z += fz * 0.85; y += (s ? s.h : 0) + 0.11; _q2.setFromEuler(_eA.set(-Math.PI / 2, p.yaw + Math.PI, 0, 'YXZ')); }
+      else { if (a === 'sit' || a === 'sand') y += (a === 'sit' && p.seat ? p.seat.h + 0.1 : 0.12) - 0.88; _q2.setFromAxisAngle(UP, p.yaw + Math.PI); }
+      _mx.compose(_ps.set(x, y, z), _q2, _sc); im.setMatrixAt(k, _mx);
+      im.geometry.attributes.iPhase.array[k] = p.phase; im.geometry.attributes.iGait.array[k] = gait; im.geometry.attributes.iAct.array[k] = ACT_I[a] || 0; im.count = k + 1;
     };
     for (const w of walkers) put(w, w.gait);
     for (const c of civs) if (c.inst && c.alive) put(c, c.gaitW);
-    for (const V of VAR) for (const im of [V.mid, V.low]) { im.instanceMatrix.needsUpdate = true; im.geometry.attributes.iPhase.needsUpdate = true; im.geometry.attributes.iGait.needsUpdate = true; }
+    for (const V of VAR) for (const im of [V.mid, V.low]) { im.instanceMatrix.needsUpdate = true; im.geometry.attributes.iPhase.needsUpdate = true; im.geometry.attributes.iGait.needsUpdate = true; im.geometry.attributes.iAct.needsUpdate = true; }
   }
   function setHits(v, on) { for (const m of v.hits) { const i = hitList.indexOf(m); if (on && i < 0) hitList.push(m); else if (!on && i >= 0) hitList.splice(i, 1); } }
   // gunfire nearby: scatter away from the shooter

@@ -276,7 +276,7 @@ function whiteVilla(x, z, ry, big = false) {
   W.lamp(0, 3.2, 0, 0xfff0d8, 1.6, 12, { halo: 0 });
   W.pop();
 }
-function lounger(x, y, z, ry) { W.push(x, y, z, ry); W.box(0.7, 0.08, 1.9, 0, 0.32, 0, 0xf8f8f4); W.box(0.66, 0.08, 0.7, 0, 0.55, -0.75, 0xf8f8f4, { rx: 0.6 }); W.box(0.6, 0.05, 1.6, 0, 0.38, 0.1, mpick([0x2ab0d0, 0xf0f0ec, 0xe8604a, 0xf0c040]), { t: TX.fabric }); for (const sx of [-1, 1]) for (const sz of [-0.8, 0.8]) W.box(0.05, 0.3, 0.05, sx * 0.3, 0.15, sz, 0xd8d8d0); W.pop(); }
+function lounger(x, y, z, ry) { W.push(x, y, z, ry); seatHere(0, 0.4, 0, 'lie'); W.box(0.7, 0.08, 1.9, 0, 0.32, 0, 0xf8f8f4); W.box(0.66, 0.08, 0.7, 0, 0.55, -0.75, 0xf8f8f4, { rx: 0.6 }); W.box(0.6, 0.05, 1.6, 0, 0.38, 0.1, mpick([0x2ab0d0, 0xf0f0ec, 0xe8604a, 0xf0c040]), { t: TX.fabric }); for (const sx of [-1, 1]) for (const sz of [-0.8, 0.8]) W.box(0.05, 0.3, 0.05, sx * 0.3, 0.15, sz, 0xd8d8d0); W.pop(); }
 function umbrella(x, y, z, col = mpick([0xf0f0ec, 0x2ab0d0, 0xe8604a, 0xf0c040])) { W.rod([x, y, z], [x, y + 2.5, z], 0.03, 0xd8d8d0, { layer: 'metal' }); W.cone(1.5, 0.5, x, y + 2.5, z, col, { seg: 10, layer: 'cloth', t: TX.fabric }); }
 function thatch(x, y, z, r, h) { W.cone(r, h, x, y + h / 2, z, 0xc8a868, { seg: 12, t: TX.fabric, wear: 6 }); W.cone(r * 1.02, 0.3, x, y + 0.1, z, 0xb89858, { seg: 12, t: TX.fabric }); }
 function speedboat(x, z, ry, col = 0xf8f8f4) {
