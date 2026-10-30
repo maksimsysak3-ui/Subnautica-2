@@ -76,7 +76,7 @@ const DISGUISE = (() => {
     const blown = P.disguise && t < P.blownUntil;
     const lv = level(), cover = !P.disguise ? '' : lv > 0.9 ? 'SOLID' : lv > 0.6 ? 'SHAKY' : lv > 0 ? 'THIN' : 'NONE';
     tag.innerHTML = (P.disguise ? `DISGUISE: <b style="color:${blown ? '#d0503a' : '#c9d4c0'}">${P.disguise === 'militia' ? BOTS.FACTIONS[P.disguiseTeam || 'red'].name.split(' · ').pop() : 'CIVILIAN'}</b> · COVER <b style="color:${lv > 0.9 ? '#9fd08a' : lv > 0.6 ? '#ffcc33' : '#e8432e'}">${cover}</b>` : 'OWN GEAR')
-      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">SCOOTER ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
+      + (SCOOTER.riding ? ` · <b style="color:#e8dcc4">${({ jet: 'JETSKI', cart: 'GOLF CART' })[SCOOTER.riding.kind] || 'SCOOTER'} ${Math.round(Math.hypot(SCOOTER.riding.vx, SCOOTER.riding.vz) * 3.6)} KM/H</b>` : P.holstered ? ' · WEAPONS HIDDEN' : '') + (blown ? ` · <b style="color:#d0503a">COVER BLOWN ${Math.ceil(P.blownUntil - t)}</b>` : '');
     let pr = '';
     const b = nearestBody();
     if (b && !b.taken) pr = `[E]  TAKE ${b.type === 'militia' ? 'UNIFORM' : 'CLOTHES'}`;

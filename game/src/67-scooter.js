@@ -60,26 +60,44 @@ const SCOOTER = (() => {
     const nop = new THREE.Group(); g.add(nop);
     return { g, steer, fw: nop, rw: nop, stand: nop };
   }
+  // a golf cart: the tub, the bench seat and its back, a roof on four posts, the windscreen, the wheel on its column
+  function cartModel(col) {
+    const g = new THREE.Group(), paint = mat(col, { r: 0.3, m: 0.3 }), seat = mat(0xe8e0d0, { r: 0.85, m: 0 }), dark = mat(0x1c1c1e, { r: 0.6, m: 0.2 }), chrome = mat(0xd8dade, { r: 0.15, m: 0.9 }), tyre = mat(0x121214, { r: 0.9, m: 0 });
+    const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, p = g) => { const o = M(geo, m, p, x, y, z, rx, ry, rz); o.castShadow = true; return o; };
+    add(new THREE.BoxGeometry(1.2, 0.36, 2.3), paint, 0, 0.42, 0); add(new THREE.BoxGeometry(1.2, 0.34, 0.55), paint, 0, 0.75, 0.88); add(new THREE.BoxGeometry(1.1, 0.04, 1.1), dark, 0, 0.61, 0.15);
+    add(new THREE.BoxGeometry(1.08, 0.16, 0.6), seat, 0, 0.72, -0.3); add(new THREE.BoxGeometry(1.08, 0.5, 0.1), seat, 0, 1.02, -0.6, -0.12);
+    add(new THREE.CylinderGeometry(0.17, 0.17, 0.75, 10), dark, 0, 0.98, -0.98, 0.2);   // the golf bag on the back
+    for (const [x, z] of [[-0.55, 0.95], [0.55, 0.95], [-0.55, -0.62], [0.55, -0.62]]) add(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 6), chrome, x, 1.3, z);
+    add(new THREE.BoxGeometry(1.28, 0.06, 1.8), paint, 0, 1.97, 0.15); add(new THREE.BoxGeometry(1.08, 0.62, 0.02), mat(0xb8d8e0, { r: 0.05, m: 0.1, x: { transparent: true, opacity: 0.3 } }), 0, 1.45, 0.95, -0.08);
+    for (const sx of [-1, 1]) for (const z of [0.78, -0.72]) add(new THREE.CylinderGeometry(0.22, 0.22, 0.16, 12), tyre, sx * 0.58, 0.22, z, 0, 0, Math.PI / 2);
+    for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.16, 0.08, 0.04), mat(0xfff4d0, { x: { emissive: 0xfff0c0, emissiveIntensity: 0.4 } }), sx * 0.4, 0.78, 1.16);
+    const steer = new THREE.Group(); steer.position.set(0.26, 1.02, 0.38); steer.rotation.x = 0.9; g.add(steer);
+    add(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6), dark, 0, 0, -0.25, Math.PI / 2, 0, 0, steer);
+    const wheel = new THREE.Group(); steer.add(wheel); add(new THREE.TorusGeometry(0.16, 0.018, 6, 16), dark, 0, 0, 0, 0, 0, 0, wheel);
+    const nop = new THREE.Group(); g.add(nop);
+    return { g, steer, wheel, fw: nop, rw: nop, stand: nop, grip: [0.15, 0, 0] };
+  }
   function spawn() {
-    for (const [x, z, yaw, col, kind] of SPOTS) {
-      const jet = kind === 'jet', m = jet ? jetModel(col) : model(col); scene.add(m.g);
-      const s = { m, kind, x, z, y: jet ? MAP.waterY : COL.ground(x, z, 0.3), yaw, v: 0, vx: 0, vz: 0, lean: jet ? 0 : 0.22, steer: 0, steerIn: 0, slip: 0, pitch: 0 };
+    const carts = MAP.id === 'bahamas' ? BAHAMAS.carts.map((c) => [...c, 'cart']) : [];
+    for (const [x, z, yaw, col, kind] of SPOTS.concat(carts)) {
+      const jet = kind === 'jet', m = jet ? jetModel(col) : kind === 'cart' ? cartModel(col) : model(col); scene.add(m.g);
+      const s = { m, kind, x, z, y: jet ? MAP.waterY : COL.ground(x, z, 0.3), yaw, v: 0, vx: 0, vz: 0, lean: jet || kind === 'cart' ? 0 : 0.22, steer: 0, steerIn: 0, slip: 0, pitch: 0 };
       if (jet && terrainH(s.x, s.z) > MAP.waterY - 0.35) { let b = null; for (let r = 1.5; r < 30 && !b; r += 1.5) for (let k = 0; k < 12 && !b; k++) { const a = k / 12 * Math.PI * 2, x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r; if (terrainH(x, z) < MAP.waterY - 0.5) b = [x, z]; } if (b) { s.x = b[0]; s.z = b[1]; } }   // find enough water to float in
       list.push(s);
     }
   }
-  const nearest = () => { let b = null, bd = 2.4; for (const s of list) { const d = Math.hypot(s.x - P.pos.x, s.z - P.pos.z); if (d < (s.kind === 'jet' ? 2.4 : 1.9) && d < bd && s !== riding && Math.abs(s.y - P.pos.y) < (s.kind === 'jet' ? 1.8 : 1)) { bd = d; b = s; } } return b; };
+  const nearest = () => { let b = null, bd = 2.6; for (const s of list) { const d = Math.hypot(s.x - P.pos.x, s.z - P.pos.z); if (d < (s.kind === 'jet' ? 2.4 : s.kind === 'cart' ? 2.6 : 1.9) && d < bd && s !== riding && Math.abs(s.y - P.pos.y) < (s.kind === 'jet' ? 1.8 : 1.2)) { bd = d; b = s; } } return b; };
   function mount(s) {
     riding = s; P.vehicle = s; s.v = 0; s.vx = s.vz = 0;
     s.wasHolstered = P.holstered; if (!P.holstered) DISGUISE.toggleHolster(true);
     P.crouch = false; P.lean = 0; P.yaw = s.yaw; audio.pouch(); s.m.stand.visible = false;
-    feed(s.kind === 'jet' ? '<span class="m">W throttle · S reverse · A/D steer · SPACE carve · E get off at a dock or the beach</span>' : '<span class="m">W throttle · S brake · A/D lean · SPACE rear brake · F horn · E get off</span>');
+    feed(s.kind === 'jet' ? '<span class="m">W throttle · S reverse · A/D steer · SPACE carve · E get off at a dock or the beach</span>' : s.kind === 'cart' ? '<span class="m">W drive · S brake, then reverse · A/D steer · F horn · E get out</span>' : '<span class="m">W throttle · S brake · A/D lean · SPACE rear brake · F horn · E get off</span>');
   }
   function dismount(force = false) {
     const s = riding; if (!s) return;
     if (!force && Math.hypot(s.vx, s.vz) > 3) return;
     const lx = Math.cos(s.yaw), lz = -Math.sin(s.yaw);   // the scooter's left side
-    let p = { x: s.x - lx * 0.9, y: s.y, z: s.z - lz * 0.9 };
+    const out = s.kind === 'cart' ? 1.3 : 0.9; let p = { x: s.x - lx * out, y: s.y, z: s.z - lz * out };
     if (s.kind === 'jet') {
       // step off onto a dock or into water shallow enough to stand in
       p = null;
@@ -88,7 +106,7 @@ const SCOOTER = (() => {
       if (!p) { if (!force) feed('<span class="m">TOO DEEP — GET TO A DOCK OR THE BEACH</span>'); if (!force) return; p = { x: s.x, y: s.y, z: s.z }; }
     }
     COL.resolve(p, 0.32, 1.75);
-    P.pos.set(p.x, s.kind === 'jet' ? p.y : s.y, p.z); P.vel.set(s.vx * 0.5, 0, s.vz * 0.5);
+    P.pos.set(p.x, s.kind === 'jet' ? p.y : s.kind === 'cart' ? COL.ground(p.x, p.z, s.y + 0.5) : s.y, p.z); P.vel.set(s.vx * 0.5, 0, s.vz * 0.5);
     riding = null; P.vehicle = null; s.v = 0; s.vx = s.vz = 0; s.m.stand.visible = true;
     audio.engine(false); audio.skid(0);
     if (!s.wasHolstered && !force) DISGUISE.toggleHolster(false);
@@ -102,6 +120,7 @@ const SCOOTER = (() => {
   // ---------------- riding ----------------
   function drive(dt) {
     if (riding.kind === 'jet') { driveJet(dt); return; }
+    if (riding.kind === 'cart') { driveCart(dt); return; }
     const s = riding, keys2 = keys;
     const thr = keys2.KeyW ? 1 : 0, brk = keys2.KeyS ? 1 : 0, rear = keys2.Space ? 1 : 0;
     s.steerIn = damp(s.steerIn, (keys2.KeyA ? 1 : 0) - (keys2.KeyD ? 1 : 0), 6, dt);
@@ -189,6 +208,34 @@ const SCOOTER = (() => {
     audio.engine(true, clamp(sp / VMAX, 0, 1) * 0.9 + thr * 0.25, thr);
     if (thr && sp > 4) P.shake = Math.min(0.25, P.shake + dt * 0.3);
   }
+  // a golf cart: electric, about 30 km/h flat out, steers like a car (no lean, no slide); it won't go into the sea
+  // or onto the jetties, and it bumps off walls rather than throwing you
+  function driveCart(dt) {
+    const s = riding, thr = keys.KeyW ? 1 : 0, brk = keys.KeyS ? 1 : 0, VMAX = 8.5;
+    s.steerIn = damp(s.steerIn, (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0), 5, dt);
+    const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+    let v = s.vx * fx + s.vz * fz;
+    if (thr) v += 3.2 * (1 - Math.max(0, v) / VMAX) * dt;
+    if (brk) v = v > 0.3 ? v - 6 * dt : Math.max(-2.5, v - 2.5 * dt);
+    v *= Math.exp(-(thr || brk ? 0.05 : 0.6) * dt); if (!thr && !brk && Math.abs(v) < 0.1) v = 0;
+    const lock = 0.55 * (1 - 0.45 * clamp(Math.abs(v) / VMAX, 0, 1));
+    s.yaw += v * Math.tan(s.steerIn * lock) / 1.9 * dt;   // wheelbase 1.9 m
+    const nfx = -Math.sin(s.yaw), nfz = -Math.cos(s.yaw);
+    s.vx = nfx * v; s.vz = nfz * v;
+    const p = { x: s.x + s.vx * dt, y: s.y, z: s.z + s.vz * dt };
+    if (MAP.waterY !== undefined && terrainH(p.x, p.z) < MAP.waterY - 0.1) { s.vx = s.vz = 0; p.x = s.x; p.z = s.z; }   // the water's edge
+    COL.resolve(p, 0.75, 1.5);
+    const pushX = p.x - (s.x + s.vx * dt), pushZ = p.z - (s.z + s.vz * dt), push = Math.hypot(pushX, pushZ);
+    if (push > 1e-4) { const nx = pushX / push, nz = pushZ / push, into = -(s.vx * nx + s.vz * nz); if (into > 3.5) { P.shake = Math.min(1.2, P.shake + into * 0.1); audio.crash(into / 14); } s.vx += nx * into; s.vz += nz * into; }
+    s.x = p.x; s.z = p.z; s.y = damp(s.y, COL.ground(s.x, s.z, s.y + 0.45), 14, dt);
+    const sp = Math.hypot(s.vx, s.vz);
+    s.lean = damp(s.lean, -s.steerIn * clamp(sp / VMAX, 0, 1) * 0.05, 4, dt); s.steer = damp(s.steer, s.steerIn * 1.6, 8, dt);
+    if (sp > 2.5) { NPCS.bump(s.x, s.z, sp); BOTS.ram(s.x, s.z, sp); }
+    P.pos.set(s.x, s.y, s.z); P.vel.set(s.vx, 0, s.vz); placeModel(s);
+    s.camYaw = s.camYaw === undefined ? s.yaw : s.camYaw + wrapPI(s.yaw - s.camYaw) * Math.min(1, dt * 3);
+    if (performance.now() - lastLookT > 1200 && sp > 1.2) P.yaw += wrapPI(s.camYaw - P.yaw) * Math.min(1, dt * 3.5);
+    audio.engine(true, clamp(sp / VMAX, 0, 1) * 0.35 + thr * 0.1, thr);
+  }
   function crash(speed) {
     const s = riding;
     audio.crash(1); audio.skid(0);
@@ -205,25 +252,25 @@ const SCOOTER = (() => {
   function placeModel(s) {
     _q.setFromEuler(_e.set(0, s.yaw + Math.PI, 0)); _qr.setFromAxisAngle(T.fwd, -s.lean); _q.multiply(_qr); if (s.pitch) { _qr.setFromAxisAngle(_xAxis, -s.pitch); _q.multiply(_qr); }
     s.m.g.position.set(s.x, s.y, s.z); s.m.g.quaternion.copy(_q);
-    s.m.steer.rotation.y = s.steer;
+    if (s.m.wheel) s.m.wheel.rotation.z = -s.steer; else s.m.steer.rotation.y = s.steer;
   }
   function poseRider(dt) {
     const s = riding, c = ch, d = c.d;
     c.root.position.set(s.x, s.y, s.z); c.root.quaternion.copy(s.m.g.quaternion);
-    const jet = s.kind === 'jet';
-    c.pelvis.position.set(0, jet ? 0.92 : 0.8, jet ? -0.45 : -0.2); c.pelvis.rotation.set(0, 0, 0);
+    const jet = s.kind === 'jet', cart = s.kind === 'cart';
+    c.pelvis.position.set(cart ? 0.26 : 0, jet ? 0.92 : cart ? 0.86 : 0.8, jet ? -0.45 : cart ? -0.3 : -0.2); c.pelvis.rotation.set(0, 0, 0);
     c.spine.rotation.set(0.1 + Math.min(0.1, Math.hypot(s.vx, s.vz) * 0.008), 0, s.steerIn * 0.08);
     c.head.rotation.set(-0.2 - P.pitch * 0.6, clamp(wrapPI(P.yaw - s.yaw), -1.2, 1.2), 0);
     c.root.updateMatrixWorld(true);
     for (const [leg, hipA, side] of [[c.legL, c.hipL, 1], [c.legR, c.hipR, -1]]) {
-      const hip = toRoot(hipA, T.a), foot = jet ? _c.set(side * 0.36, 0.42 + d.ankle * 0.5, -0.2) : _c.set(side * 0.15, 0.3 + d.ankle * 0.5, 0.26);
+      const hip = toRoot(hipA, T.a), foot = jet ? _c.set(side * 0.36, 0.42 + d.ankle * 0.5, -0.2) : cart ? _c.set(0.26 + side * 0.16, 0.62 + d.ankle * 0.5, 0.42) : _c.set(side * 0.15, 0.3 + d.ankle * 0.5, 0.26);
       ik(hip, foot, d.thigh, d.shin, T.pole.set(side * 0.1, 0.2, 1), T.mid, T.end);
       placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd);
       leg.foot.position.copy(T.end); leg.foot.rotation.set(0.1, 0, 0);
     }
     s.m.g.updateMatrixWorld(true);
     for (const [arm, shA, side] of [[c.armL, c.shL, 1], [c.armR, c.shR, -1]]) {
-      const grip = c.root.worldToLocal(s.m.steer.localToWorld(_b.set(side * 0.31, 0.12, -0.02)));
+      const gp = s.m.grip, grip = c.root.worldToLocal(s.m.steer.localToWorld(gp ? _b.set(side * gp[0], gp[1], gp[2]) : _b.set(side * 0.31, 0.12, -0.02)));
       placeArm(arm, toRoot(shA, _a), grip, null, T.pole.set(side * 0.6, -1, -0.6), T.fwd);
     }
     if (gun) gun.group.visible = false;
@@ -236,6 +283,7 @@ const SCOOTER = (() => {
     for (const s of list) {
       if (s === riding) continue;
       if (s.kind === 'jet') { const tt = performance.now() / 1000; s.vx *= Math.exp(-1.5 * dt); s.vz *= Math.exp(-1.5 * dt); if (terrainH(s.x + s.vx * dt, s.z + s.vz * dt) < MAP.waterY - 0.25) { s.x += s.vx * dt; s.z += s.vz * dt; } s.y = MAP.waterY + waveH(s.x, s.z, tt); s.lean = damp(s.lean, Math.sin(tt * 1.2 + s.x) * 0.05, 2, dt); s.pitch = Math.sin(tt * 1.6 + s.z) * 0.03; placeModel(s); continue; }
+      if (s.kind === 'cart') { const sp = Math.hypot(s.vx, s.vz); if (sp > 0.05) { s.vx *= Math.exp(-3 * dt); s.vz *= Math.exp(-3 * dt); const p = { x: s.x + s.vx * dt, y: s.y, z: s.z + s.vz * dt }; COL.resolve(p, 0.75, 1.5); s.x = p.x; s.z = p.z; } s.lean = 0; placeModel(s); continue; }
       // parked (or dropped): settle onto the stand, roll to a stop
       const sp = Math.hypot(s.vx, s.vz);
       if (sp > 0.05) { s.vx *= Math.exp(-2 * dt); s.vz *= Math.exp(-2 * dt); const p = { x: s.x + s.vx * dt, y: s.y, z: s.z + s.vz * dt }; COL.resolve(p, 0.42, 1.3); s.x = p.x; s.z = p.z; }
@@ -250,7 +298,7 @@ const SCOOTER = (() => {
   return {
     update, drive, interact, horn, poseRider, placeModel,
     get riding() { return riding; },
-    prompt: () => { if (riding) return ''; const n = nearest(); return n ? (n.kind === 'jet' ? '[E]  RIDE THE JETSKI' : '[E]  RIDE THE SCOOTER') : ''; },
+    prompt: () => { if (riding) return ''; const n = nearest(); return n ? (n.kind === 'jet' ? '[E]  RIDE THE JETSKI' : n.kind === 'cart' ? '[E]  DRIVE THE GOLF CART' : '[E]  RIDE THE SCOOTER') : ''; },
     camRoll: () => (riding ? -riding.lean * 0.18 : 0),   // a hint of the lean in first person; the horizon mostly stays put
   };
 })();

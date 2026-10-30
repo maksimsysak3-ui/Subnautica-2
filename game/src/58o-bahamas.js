@@ -13,6 +13,7 @@ const ISLANDS = [
 ];
 const BAHAMAS = {
   bounds: [-480, 480, -360, 340],
+  carts: [],   // parked golf carts (world x, z, yaw, colour): rideable, spawned by SCOOTER
   jets: [[-47, 162.2, Math.PI / 2, 0xe8e8e8], [-43, 162.2, Math.PI / 2, 0x2ab0d0], [-37, 157.4, -Math.PI / 2, 0xf0d020], [-33, 157.4, -Math.PI / 2, 0xe83a5a], [282, -276, -Math.PI / 2, 0x1a1a1a], [282, -224, -Math.PI / 2, 0x1a1a1a], [-97.5, -166, 0, 0xe8e8e8]],
 };
 const PASTEL = [0xf4b0b8, 0xf6e08a, 0xa8e0c8, 0x9ad0ec, 0xc8b0e0, 0xf8c8a0, 0xf4f0e8, 0xb8e8a8, 0xf09a8a];
@@ -442,13 +443,10 @@ function shopB(x, z, ry, w, d, name, o = {}) {
   W.box(w + 0.3, 0.12, 2.9, 0, 6.5, d / 2 - 1.2, roof, { layer: 'metal', rx: -0.12 });
   W.pop();
 }
-function golfCart(x, z, ry, col = mpick([0xf0f0ec, 0x2ab0d0, 0xf0c040])) {
-  W.push(x, 0, z, ry);
-  W.box(1.2, 0.5, 2.3, 0, 0.55, 0, col, { layer: 'metal' }); W.box(1.0, 0.45, 0.5, 0, 0.95, -0.2, 0xe8e0d0, { t: TX.fabric }); W.box(1.0, 0.5, 0.1, 0, 1.2, -0.45, 0xe8e0d0, { t: TX.fabric });
-  for (const sx of [-1, 1]) for (const sz of [-0.8, 0.9]) W.cyl(0.22, 0.22, 0.16, sx * 0.6, 0.22, sz, 0x1a1a1a, { rz: Math.PI / 2, seg: 10 });
-  for (const sx of [-1, 1]) for (const sz of [-0.6, 0.8]) W.rod([sx * 0.52, 0.8, sz], [sx * 0.52, 2.0, sz], 0.025, 0xd8d8d0, { layer: 'metal' });
-  W.box(1.2, 0.06, 1.7, 0, 2.03, 0.1, col, { layer: 'metal' }); W.box(1.0, 0.6, 0.03, 0, 1.6, 0.8, 0xb8d8e0, { layer: 'glass' });
-  W.pop(); W.solid(1.2, 1.2, 2.3, x, 0.6, z, 'metal', { ry });
+function golfCart(x, z, ry, col = mpick([0xf0f0ec, 0x2ab0d0, 0xf0c040, 0xf4b0b8, 0xa8e0c8])) {
+  // not drawn here: a parked cart is a vehicle you can drive (SCOOTER builds it), so just note where it stands
+  if (W.mode === 'geom') return;
+  const p = W.worldPos(x, 0, z); BAHAMAS.carts.push([p.x, p.z, W.worldRotY() + ry - Math.PI, col]);
 }
 function bandstand(x, z) {
   W.cyl(4.2, 4.4, 0.6, x, 0.3, z, 0xf8f8f4, { seg: 8, t: TX.stone }); W.solid(7.6, 0.6, 7.6, x, 0.3, z, 'stone', { walk: true });
@@ -466,7 +464,7 @@ function bahamasTown() {
     if (!GR.free(cx, zz, d, w, 0, 0)) continue; GR.rect(cx, zz, d + 0.6, w + 0.6, 0, GR.BUILT);
     const name = SHOPS[si++ % SHOPS.length];
     shopB(cx, zz, ry, w, d, name, { goods: name.includes('BOOKS') ? 'books' : name.includes('HARDWARE') ? 'boxes' : 'grocery' });
-    W.scope({ lod: 1 }, () => { if (mchance(0.55)) sedan(side * 2.4, zz + mr(-3, 3), mchance(0.5) ? 0 : Math.PI, mpick([0xf0f0ec, 0x9ad0ec, 0xf4b0b8, 0x2a5aa0, 0xc84a3a, 0x8a8e94])); else if (mchance(0.5)) golfCart(side * 2.8, zz, 0); lampPostOld(side * 4.6, 0, zz + 7.5, 4.2); if (mchance(0.5)) bench(side * 4.4, 0.25, zz - 3, side > 0 ? Math.PI / 2 : -Math.PI / 2); });
+    W.scope({ lod: 1 }, () => { if (mchance(0.5)) golfCart(side * 2.6, zz + mr(-3, 3), mchance(0.5) ? 0 : Math.PI); lampPostOld(side * 4.6, 0, zz + 7.5, 4.2); if (mchance(0.5)) bench(side * 4.4, 0.25, zz - 3, side > 0 ? Math.PI / 2 : -Math.PI / 2); });
   }
   // the town square: the bandstand, the Queen's statue, flame trees, benches, a war memorial
   bandstand(39, -30);
@@ -484,7 +482,7 @@ function bahamasTown() {
   for (const z of [-2, 2]) { W.box(0.4, 4.3, 0.4, GX + 2, 2.15, GZ + z, 0xf0f0ec); W.solid(0.5, 4.3, 0.5, GX + 2, 2.15, GZ + z, 'metal'); W.box(0.8, 1.7, 0.5, GX + 2, 0.85, GZ + z + 1.0, 0xe8302a, { layer: 'metal' }); W.box(0.6, 0.4, 0.04, GX + 2.42, 1.3, GZ + z + 1.0, 0x2a3a44, { layer: 'glow', ry: Math.PI / 2 }); W.solid(0.8, 1.7, 0.5, GX + 2, 0.85, GZ + z + 1.0, 'metal'); }
   W.lamp(GX + 2, 4.0, GZ, 0xffffff, 1.6, 12, { halo: 0 });
   shopB(GX - 9, GZ, Math.PI / 2, 10, 9, 'ISLAND GAS & GO', { col: 0xf0f0ec }); GR.rect(GX - 9, GZ, 10, 11, 0, GR.BUILT); GR.rect(GX + 2, GZ, 12, 10, 0, GR.BUILT);
-  W.scope({ lod: 1 }, () => { sedan(GX + 4.5, GZ - 2, Math.PI / 2, 0x9ad0ec); van(GX - 2, GZ + 8, 0, 0xf0f0ec); signPost(GX + 9, 0, GZ - 7, -Math.PI / 2, 1.6, 1.0, 0xe8302a, 0xf0f0ec, 3.2); });
+  W.scope({ lod: 1 }, () => { golfCart(GX + 4.5, GZ - 2, Math.PI / 2); golfCart(GX - 2, GZ + 8, 0); signPost(GX + 9, 0, GZ - 7, -Math.PI / 2, 1.6, 1.0, 0xe8302a, 0xf0f0ec, 3.2); });
   // the settlement over the hill: cottages on four sandy lanes, its own little church and shop
   for (const n of ['oC', 'oD', 'oA', 'oB']) for (const side of [-1, 1]) {
     const st = T[n];
@@ -492,7 +490,7 @@ function bahamasTown() {
       const pp = pathAt(st.pts, ss), nx = -pp.tz * side, nz = pp.tx * side, w = mr(7, 10), d = mr(9, 12), cx = pp.x + nx * (st.w / 2 + 1 + d / 2), cz = pp.z + nz * (st.w / 2 + 1 + d / 2), ry = Math.atan2(-nx, -nz);
       if (!GR.free(cx, cz, w, d, ry, 0.5) || islandSD(cx, cz) > -30) continue; GR.rect(cx, cz, w + 0.6, d + 0.6, ry, GR.BUILT);
       cottageB(cx, cz, ry, w, d, mchance(0.3) ? 2 : 1);
-      W.scope({ lod: 1 }, () => { if (mchance(0.6)) palm(cx + nx * (d / 2 + 2) + mr(-3, 3), 0, cz + nz * (d / 2 + 2) + mr(-3, 3), mr(6, 9)); if (mchance(0.25)) sedan(pp.x + nx * (st.w / 2 + 0.2) + pp.tx * 4, pp.z + nz * (st.w / 2 + 0.2) + pp.tz * 4, Math.atan2(-pp.tz, pp.tx), mpick([0xf0f0ec, 0x9ad0ec, 0xc84a3a, 0x8a8e94])); });
+      W.scope({ lod: 1 }, () => { if (mchance(0.6)) palm(cx + nx * (d / 2 + 2) + mr(-3, 3), 0, cz + nz * (d / 2 + 2) + mr(-3, 3), mr(6, 9)); if (mchance(0.2)) golfCart(pp.x + nx * (st.w / 2 + 0.2) + pp.tx * 4, pp.z + nz * (st.w / 2 + 0.2) + pp.tz * 4, Math.atan2(pp.tx, pp.tz)); });
     }
   }
   // the pineapple farm (Eleuthera's pineapples were famous): rows in red earth, the packing shed, a stand by the road
@@ -502,7 +500,7 @@ function bahamasTown() {
   W.box(12, 4, 8, -60, 2, 30, 0xb84a3a, { t: TX.corrugated }); W.solid(12, 4, 8, -60, 2, 30, 'metal'); W.pyramid(13, 1.6, 9, -60, 4.8, 30, 0x8a8e94, { layer: 'metal' }); W.box(4, 3, 0.06, -60, 1.5, 25.97, 0x3a2a1a);
   GR.rect(-60, 30, 13, 9, 0, GR.BUILT);
   W.scope({ lod: 1 }, () => { crateStack(-55, 0, 24.5, 0, 3); crateStack(-65, 0, 24.5, 0.3, 2); for (let k = 0; k < 6; k++) { W.box(0.9, 0.5, 0.6, -58 + k * 1.1, 0.25, 24.2, 0xb89a6a, { t: TX.wood }); for (let i = 0; i < 4; i++) W.sphere(0.13, 0.18, 0.13, -58.3 + k * 1.1 + (i % 2) * 0.35, 0.62, 24.1 + Math.floor(i / 2) * 0.25, 0xd8a030, { seg: 6 }); } });
-  marketStall(-58, 11, Math.PI, 'produce'); W.scope({ lod: 1 }, () => { van(-48, 12, Math.PI / 2, 0xf0f0ec); for (let i = 0; i < 3; i++) plasticChair(-54 + i * 0.8, 0, 13.5, Math.PI, 0xf8f8f4); });
+  marketStall(-58, 11, Math.PI, 'produce'); W.scope({ lod: 1 }, () => { golfCart(-48, 12, Math.PI / 2, 0xf0f0ec); for (let i = 0; i < 3; i++) plasticChair(-54 + i * 0.8, 0, 13.5, Math.PI, 0xf8f8f4); });
   TOWN.staff.push({ x: -58, z: 9.6, y: 0, yaw: Math.PI, role: 'shop' });
   // the playing field: a football pitch, stands, a basketball court, the school
   const PX = 102, PZ = 32;
@@ -612,7 +610,7 @@ const PATROL = (() => {
         b.a += b.sp * dt; const x = b.cx + Math.cos(b.a) * b.r, z = b.cz + Math.sin(b.a) * b.rz, tx = -Math.sin(b.a) * b.r * Math.sign(b.sp), tz = Math.cos(b.a) * b.rz * Math.sign(b.sp);
         b.g.position.set(x, WY + waveH(x, z, t) * 0.8, z); b.g.rotation.set(0, Math.atan2(tx, tz), Math.sin(t * 1.3 + b.a) * 0.04);
         // close enough on the water, out of disguise: they radio it in
-        if (P.vehicle && Math.hypot(P.pos.x - x, P.pos.z - z) < 30 && DISGUISE.level() < 0.5 && t - warned > 20) { warned = t; feed('<span class="m">PATROL BOAT — THEY’VE SEEN YOU</span>'); BOTS.setPressure(2); audio.horn(); }
+        if (P.vehicle && P.vehicle.kind === 'jet' && Math.hypot(P.pos.x - x, P.pos.z - z) < 30 && DISGUISE.level() < 0.5 && t - warned > 20) { warned = t; feed('<span class="m">PATROL BOAT — THEY’VE SEEN YOU</span>'); BOTS.setPressure(2); audio.horn(); }
       }
     },
   };

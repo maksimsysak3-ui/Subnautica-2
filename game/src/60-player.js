@@ -789,7 +789,7 @@ function updateRange(dt, time) {
   const eyeW = ch.eye.getWorldPosition(T.e);
   if (P.vehicle) eyeW.add(_rideOff.set(-Math.sin(P.vehicle.yaw) * 0.24, 0.06, -Math.cos(P.vehicle.yaw) * 0.24));   // riding: eyes ahead of the chest, over the bars
   P.camY = damp(P.camY, eyeW.y, 12, dt);
-  const off = P.vehicle ? T.a.set(0, 0.7, 3.9) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
+  const off = P.vehicle ? (P.vehicle.kind === 'cart' ? T.a.set(0, 1.5, 5.6) : T.a.set(0, 0.7, 3.9)) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
   _e1.set(pitch, yaw, 0, 'YXZ'); off.applyQuaternion(_q2.setFromEuler(_e1));
   // shoulder camera: pull in when a wall is between you and the camera
   const pivot = T.b.set(P.pos.x, P.camY + 0.05, P.pos.z), offLen = off.length();
