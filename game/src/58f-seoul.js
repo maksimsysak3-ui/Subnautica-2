@@ -450,7 +450,7 @@ function seoulKonbini() {
   GR.rect((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0 + 0.4, z1 - z0 + 0.4, 0, GR.RESERVED, true);
   const col = 0xd8d8d0, inner = 0xf4f4f0;
   walls([
-    ['x', x0, x1, z1 - T / 2, 1, [{ at: 7.0, w: 1.6, h: 2.4, kind: 'shop', style: 'glass' }, { at: 11.5, w: 6.0, h: 2.6, sill: 0.4, kind: 'win', win: 'open' }]],
+    ['x', x0, x1, z1 - T / 2, 1, [{ at: 7.0, w: 1.6, h: 2.4, kind: 'shop', style: 'glass', dw: 1.05 }, { at: 11.5, w: 6.0, h: 2.6, sill: 0.4, kind: 'win', win: 'open' }]],
     ['x', x0, x1, z0 + T / 2, -1, [DOOR(14.8, 0.9, 2.1, { style: 'metal', leaf: 'closed' })]],
     ['z', z0 + T, z1 - T, x0 + T / 2, -1, [{ at: -18, w: 6.0, h: 2.6, sill: 0.4, kind: 'win', win: 'open' }]], ['z', z0 + T, z1 - T, x1 - T / 2, 1, []],
   ], 0, H, T, col, inner, { dimIn: 1 });
