@@ -214,7 +214,7 @@ const DOORS = (() => {
     if (performance.now() < busyUntil) return false;
     if (LOOT.take(inside)) return true;
     const d = near(); if (!d) return false;
-    if (inside) { const back = inside; fade(() => { P.pos.set(back.ox, 0.05, back.oz); P.vel.set(0, 0, 0); P.yaw = Math.atan2(-(back.ox - back.x), -(back.oz - back.z)); STREAM.prime(P.pos); }); inside = null; return true; }
+    if (inside) { const back = inside; fade(() => { P.pos.set(back.ox, back.oy ?? 0.05, back.oz); P.vel.set(0, 0, 0); P.yaw = Math.atan2(-(back.ox - back.x), -(back.oz - back.z)); STREAM.prime(P.pos); }); inside = null; return true; }
     const R2 = ROOMS[d.room];
     fade(() => { P.pos.set(R2.x, 0.05, R2.z + R2.D / 2 - 1.1); P.vel.set(0, 0, 0); P.yaw = 0; STREAM.prime(P.pos); feed(`<span class="s">${d.name ? d.name + ' · ' : ''}${R2.en.toUpperCase()}</span>`); });
     inside = d; return true;
