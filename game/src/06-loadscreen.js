@@ -6,7 +6,7 @@ const LOADSCREEN = (() => {
   const CASE = {
     dar: { no: '01', title: 'DAR ESSALAM', place: 'MOROCCO · A WALLED HARBOUR TOWN', lines: ['The militia took the kasbah three weeks ago — and the town with it.', 'Our people are still inside the medina.', 'Walk, don’t run. A uniform opens their doors.'] },
     seoul: { no: '02', title: 'NEON SEOUL', place: 'SOUTH KOREA · MAPO-GU · NIGHT', lines: ['A list of our people is for sale tonight.', 'Two crews, one city, five stations on Line 2.', 'Their own men’s clothes fool only them.'] },
-    bahamas: { no: '04', title: 'PARADISE', place: 'THE BAHAMAS · ELEUTHERA · A PRIVATE ISLAND', lines: ['Victor Kane washes money for half the files on the desk.', 'His men are ex-navy, and they own the water.', 'Tourists fall off jetskis all day. Be a tourist.'] },
+    bahamas: { no: '04', title: 'PARADISE', place: 'THE BAHAMAS · ELEUTHERA · A PRIVATE ISLAND', lines: ['Victor Kane banks for every file on the desk.', 'His accountant wants out. She knows where he keeps the keys.', 'Every payment went through one man.'] },
     manor: { no: '03', title: 'RAVENSCROFT', place: 'ENGLAND · A COUNTRY ESTATE · THE GALA', lines: ['Lord Ashdown keeps a ledger of every bribe he has paid.', 'Three hundred guests. Forty men with earpieces.', 'Guests don’t go upstairs.'] },
   }[id];
   if (!CASE) return { progress() { }, done() { } };

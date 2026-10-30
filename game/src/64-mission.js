@@ -359,46 +359,115 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
 }
 
 // ---------------- Case 04: Paradise ----------------
+// Victor Kane banks for every file on the desk. His accountant, Delia Ross, wants out — and she knows where
+// he keeps the keys. Five missions: the bartender and the accountant; the fisherman who knows the patrols;
+// Kane's island and Kane's phone; the lighthouse, where they take the bartender; the seaplane, and a name.
 function bahamasMissions({ fig, live, near, kit, S, flags, talkShots, flyover, behind }) {
   const F = flags, HV = (t) => `HANDLER: ${t}`, onJet = () => SCOOTER.riding && SCOOTER.riding.kind === 'jet';
+  const deliaKit = () => kit({ top: 'longsleeve', topColor: '#f0e8d8', bottom: 'pants', pantsColor: '#2a3a5a', hair: 'long', hairColor: '#1c1612', headwear: 'boonie', hatColor: '#e8d8b0', eyewear: 'sunglasses', facialHair: 'none' });
+  const marisolKit = () => kit({ top: 'tshirt', topColor: '#f0c040', bottom: 'shorts', pantsColor: '#2ab0b0', hair: 'long', hairColor: '#2e2018', headwear: 'none', facialHair: 'none', eyewear: 'none' });
+  const goon = (o = {}) => kit({ top: 'tshirt', topColor: '#f0f0ec', bottom: 'shorts', pantsColor: '#1a2a4a', headwear: 'cap', hatColor: '#1a2a4a', eyewear: 'sunglasses', ...o });
+  const doorNear = (x, z) => { let b = null, bd = 1e9; for (const d of TOWN.doors) if (d.room === 'cottage') { const q = Math.hypot(d.x - x, d.z - z); if (q < bd) { bd = q; b = d; } } return b; };
+  const bedSpot = () => ({ x: ROOMS.cottage.x - 3.4, y: 0, z: ROOMS.cottage.z + 2.2 });
+  const alive = (k) => k.filter((f) => f && f.alive).length;
   return [{
-    title: 'SAND AND SALT', reward: 600,
-    brief: 'Ashdown’s ledger names one banker for every bribe: Victor Kane, who lives on a private island off Eleuthera. Our contact tends bar at the Conch Bar on the resort beach. Find her — then get yourself a ride on the water.',
+    title: 'ISLAND TIME', reward: 600,
+    brief: 'Ashdown’s ledger names one banker for every bribe on the desk: Victor Kane, who lives on a private island off Eleuthera. His accountant, Delia Ross, wants out. Our bartender at the Conch Bar can put you in touch.',
     intro: () => flyover([
       { from: [-300, 70, 330], to: [-120, 40, 240], look: [0, 4, 80], dur: 5 },
       { from: [60, 18, 230], to: [30, 9, 170], look: [0, 3, 110], dur: 5 },
       { from: [290, 30, -120], to: [330, 22, -170], look: [380, 4, -250], dur: 5 },
-    ], [HV('Eleuthera. White sand, warm water — and a banker who washes money for half the files on my desk.'), HV('Our contact pours drinks at the Conch Bar on the resort beach. Walk in like a tourist.'), HV('Kane’s island is out there to the north-east. His men are ex-navy, and they own the water.')]),
-    setup() { F().contact = fig({ kit: kit({ top: 'tshirt', topColor: '#f0c040', bottom: 'shorts', pantsColor: '#2ab0b0', hair: 'long', hairColor: '#2e2018', headwear: 'none', facialHair: 'none' }), route: [[S().beachBar.x + 1.6, S().beachBar.z - 2.4]], y: S().beachBar.y, speed: 0, yaw: 0 }); F().contact.fig.lookAt = P.pos; },
+    ], [HV('Eleuthera. White sand, warm water — and a banker who washes money for half the files on my desk.'), HV('Haddad’s papers, the Dragons’ list, Ashdown’s ledger: every payment went through Victor Kane.'), HV('That’s his island, out to the north-east. Start with our bartender at the Conch Bar. Walk in like a tourist.')]),
+    setup() {
+      F().marisol = fig({ kit: marisolKit(), route: [[S().beachBar.x + 1.6, S().beachBar.z - 2.4]], y: S().beachBar.y, speed: 0, yaw: 0 }); F().marisol.fig.lookAt = P.pos;
+      F().delia = fig({ kit: deliaKit(), route: [[S().market.x - 6, S().market.z, 4], [S().market.x + 6, S().market.z - 4, 5], [S().market.x + 2, S().market.z + 6, 4]], loop: true, speed: 0.5 });
+      F().door = doorNear(-100, -78);
+    },
     steps: [
-      { text: 'Find the bartender at the Conch Bar on the resort beach (E)', where: () => live(F().contact, 'CONCH BAR')(), act: () => near(F().contact, 3, 2), prompt: () => near(F().contact, 3, 2) ? '[E]  ORDER A RUM PUNCH' : '',
-        cut: () => talkShots(P.pos, F().contact, ['BARTENDER: Rum punch? You look like you need it.', 'YOU: I need a boat.', 'BARTENDER: Kane’s men watch every boat that leaves this beach. They don’t watch the jetskis — tourists fall off them all day.', 'BARTENDER: Rental dock, west of the pier. Go round the reef, not over it, and keep away from the grey patrol boats.']) },
-      { text: 'Take a jetski from the rental dock west of the pier (E)', where: () => ({ ...S().rental, y: 2, name: 'JETSKIS' }), done: onJet },
+      { text: 'Meet Marisol, the bartender at the Conch Bar on the resort beach (E)', where: () => live(F().marisol, 'CONCH BAR')(), act: () => near(F().marisol, 3, 2), prompt: () => near(F().marisol, 3, 2) ? '[E]  ORDER A RUM PUNCH' : '',
+        cut: () => talkShots(P.pos, F().marisol, ['MARISOL: Rum punch? You look like you came a long way for one.', 'YOU: I’m looking for Delia Ross.', 'MARISOL: Keep your voice down. Kane’s men drink here on their days off.', 'MARISOL: She buys straw hats at the market in the harbour every afternoon — it’s the only time they let her out alone. White hat, long sleeves.']) },
+      { text: 'Find Delia Ross at the straw market by the harbour (white hat, long sleeves)', where: () => live(F().delia, 'DELIA')(), act: () => near(F().delia, 2.6, 2), prompt: () => near(F().delia, 2.6, 2) ? '[E]  “NICE HAT.”' : '',
+        cut: () => talkShots(P.pos, F().delia, ['DELIA: Don’t look at me. Look at the hats.', 'DELIA: I keep Victor’s books. All of them. I can give you the accounts — but not without my passport.', 'YOU: Where is it?', 'DELIA: In my cottage in the village, under the bed. His men watch the house from the lane. Bring it to me here.']) },
+      { text: 'Get into Delia’s cottage in the village (E at the door)', where: () => (F().door && !DOORS.inside ? { x: F().door.x, y: 3, z: F().door.z, name: 'DELIA’S COTTAGE' } : null), done: () => DOORS.inside && DOORS.current === F().door },
+      { text: 'Find the passport under the bed (E)', where: () => ({ ...bedSpot(), y: 1.5, name: 'PASSPORT' }), act: () => DOORS.inside && near(bedSpot(), 2.4, 2), prompt: () => DOORS.inside && near(bedSpot(), 2.4, 2) ? '[E]  LOOK UNDER THE BED' : '' },
+      { text: 'Take the passport back to Delia at the straw market', where: () => (DOORS.inside ? null : live(F().delia, 'DELIA')()), act: () => !DOORS.inside && near(F().delia, 2.6, 2), prompt: () => !DOORS.inside && near(F().delia, 2.6, 2) ? '[E]  GIVE HER THE PASSPORT' : '',
+        cut: () => talkShots(P.pos, F().delia, ['DELIA: You actually did it.', 'DELIA: The accounts are on his laptop, on the island. It won’t open without the key on his phone — he never puts it down.', 'DELIA: Ask for Errol, down on the harbour jetty. He’s fished these waters forty years. He knows when the boats go round.']) },
     ],
   }, {
-    title: 'KANE’S ISLAND', reward: 900,
-    brief: 'Cross to Kane’s island on the jetski, round the patrol boats, and come ashore at his dock. His laptop is in the office of the big white house. Walk in like you belong there — or don’t be seen at all.',
-    intro: () => flyover([{ from: [200, 26, -150], to: [270, 14, -210], look: [380, 4, -250] }, { from: [330, 6, -232], to: [352, 4, -244], look: [S().laptop.x, 2, S().laptop.z] }],
-      [HV('The patrol boats circle the island. Thirty metres and they’ll see you — time your run.'), HV('The laptop is in the office of the main house, on the desk. Take it and get back on the water.')], 5),
+    title: 'THE FISHERMAN', reward: 700,
+    brief: 'Kane’s patrol boats circle his island on a pattern. Errol, an old fisherman on the harbour jetty, knows it — but Kane’s collector is squeezing the fishermen today, and nobody talks while he’s on the quay.',
+    intro: () => flyover([{ from: [-160, 26, -200], to: [-120, 12, -170], look: [-100, 1, -140] }, { from: [-130, 4, -100], to: [-120, 3, -104], look: [-114, 1.6, -114] }],
+      [HV('Governor’s Harbour. Errol keeps his boat on the middle jetty.'), HV('Kane’s collector works the conch shacks on Fridays. Today is Friday.')], 5),
+    setup() {
+      F().errol = fig({ kit: kit({ top: 'longsleeve', topColor: '#6a8ab0', bottom: 'pants', pantsColor: '#5a4a3a', headwear: 'boonie', hatColor: '#c8b890', facialHair: 'beard', hairColor: '#d8d8d0' }), route: [[S().harbourJetty.x + 0.6, S().harbourJetty.z]], y: 0.55, speed: 0, yaw: Math.PI / 2 });
+      const sx = S().shacks.x, sz = S().shacks.z;
+      F().collector = fig({ kit: goon({ top: 'longsleeve', topColor: '#1a1a1a', headwear: 'none', hair: 'short' }), route: [[sx, sz + 3, 4], [sx + 16, sz + 3, 4], [sx + 32, sz + 3, 5]], loop: true, speed: 0.6, onDeath: () => { F().colDead = true; NPCS.alarm(sx, sz); feed('<span class="s">THE COLLECTOR IS DOWN</span>'); } });
+      F().heavies = [[-1.4, 1.2], [1.4, 1.4]].map(([dx, dz]) => fig({ kit: goon(), route: [[sx + dx, sz + 3 + dz, 4], [sx + 16 + dx, sz + 3 + dz, 4], [sx + 32 + dx, sz + 3 + dz, 5]], loop: true, speed: 0.6 }));
+    },
     steps: [
-      { text: 'Ride to Kane’s dock on the private island', where: () => ({ ...S().privateDock, y: 3, name: 'DOCK' }), done: () => near({ ...S().privateDock, y: P.pos.y }, 28, 3) },
-      { text: 'Get into the white house and take the laptop from the office desk (E)', where: () => ({ ...S().laptop, y: 2.4, name: 'LAPTOP' }), act: () => near(S().laptop, 2.6, 2), prompt: () => near(S().laptop, 2.6, 2) ? '[E]  TAKE THE LAPTOP' : '',
-        cut: () => [{ from: [S().laptop.x + 2, 2.4, S().laptop.z + 2], to: [S().laptop.x + 1.4, 2.0, S().laptop.z + 1.4], look: [S().laptop.x, 1.3, S().laptop.z], dur: 4, say: HV('That’s it. Every account he runs. Now go — they’ll miss it in minutes.'), fov: 42 }] },
+      { text: 'Find Errol on the middle jetty of the harbour', where: () => live(F().errol, 'ERROL')(), act: () => near(F().errol, 2.8, 2), prompt: () => near(F().errol, 2.8, 2) ? '[E]  TALK TO ERROL' : '',
+        cut: () => talkShots(P.pos, F().errol, ['ERROL: Not today, son. Not with him walking the quay.', 'YOU: Who?', 'ERROL: Kane’s collector. Black shirt. Takes a cut of every catch, breaks a hand if you’re short. Two big lads with him.', 'ERROL: Get him off this harbour and I’ll tell you anything you like about those boats.']) },
+      { text: 'Deal with Kane’s collector (black shirt) at the conch shacks — quietly, if you can', where: () => live(F().collector, 'COLLECTOR')(), done: () => F().colDead },
+      { text: 'Go back to Errol on the jetty (E)', where: () => live(F().errol, 'ERROL')(), act: () => near(F().errol, 2.8, 2), prompt: () => near(F().errol, 2.8, 2) ? '[E]  “HE’S GONE.”' : '',
+        cut: () => talkShots(P.pos, F().errol, ['ERROL: Forty years I been waiting for somebody to do that.', 'ERROL: Two grey boats. They go round the island the long way, slow, and pass the dock every four minutes. Wait till one goes by, then go straight in behind it.', 'ERROL: Take the jetski at the end of my jetty. Tell the hotel you found it.']) },
+      { text: 'Take the jetski at the end of the harbour jetty (E)', where: () => ({ x: -80, y: 2, z: -162, name: 'JETSKI' }), done: onJet },
     ],
   }, {
-    title: 'SEAPLANE', reward: 1100,
-    brief: 'They know. Every boat Kane has is out. The seaplane is waiting off Sandy Cay to the south-west — get back on the water and get to it.',
-    intro: () => flyover([{ from: [-200, 40, 160], to: [-300, 20, 230], look: [-405, 2, 270] }], [HV('Sandy Cay, south-west. The seaplane is riding at anchor off its west side. Don’t stop for anything.')], 5),
-    setup() { BOTS.setPressure(3); },
+    title: 'KANE’S ISLAND', reward: 1000,
+    brief: 'Cross to Kane’s island behind a patrol boat. Kane takes his calls on the pool terrace — lift his phone, or take it. Then open the laptop in his office with it.',
+    intro: () => flyover([{ from: [200, 26, -150], to: [270, 14, -210], look: [380, 4, -250] }, { from: [S().kaneTerrace.x + 10, 4, S().kaneTerrace.z + 6], to: [S().kaneTerrace.x + 6, 3, S().kaneTerrace.z + 4], look: [S().kaneTerrace.x, 1.6, S().kaneTerrace.z] }],
+      [HV('Follow a patrol boat in. Thirty metres and they’ll see you.'), HV('That’s Kane. The phone never leaves his hand — except when he’s talking with it.')], 5),
+    setup() {
+      const t = S().kaneTerrace;
+      F().kane = fig({ kit: kit({ top: 'longsleeve', topColor: '#f0f0ec', bottom: 'pants', pantsColor: '#e8e0d0', headwear: 'none', hair: 'short', hairColor: '#6a6058', facialHair: 'stubble', eyewear: 'sunglasses' }), route: [[t.x, t.z, 6], [t.x + 3, t.z + 2, 5], [t.x - 3, t.z + 2, 6]], loop: true, speed: 0.45, y: 0.5, onDeath: () => { F().kaneDead = true; BOTS.setPressure(2); feed('<span class="m">KANE IS DOWN — HIS MEN WILL HAVE HEARD</span>'); } });
+      for (const [dx, dz] of [[2.4, -1.6], [-2.6, -1.4]]) fig({ kit: goon({ top: 'longsleeve', topColor: '#111316', bottom: 'pants', pantsColor: '#111316', headwear: 'none' }), route: [[t.x + dx, t.z + dz]], y: 0.5, speed: 0, yaw: Math.PI });
+    },
+    steps: [
+      { text: 'Ride to Kane’s dock on the private island — go in behind a patrol boat', where: () => ({ ...S().privateDock, y: 3, name: 'DOCK' }), done: () => near({ ...S().privateDock, y: P.pos.y }, 28, 3) },
+      { text: 'Get Kane’s phone: pick his pocket from behind on the pool terrace (E) — or take it off him', where: () => ({ x: F().kane.x, y: (F().kane.y || 0) + 2.2, z: F().kane.z, name: 'KANE' }),
+        act: () => { const k = F().kane; if (k.alive && near(k, 1.9, 2) && behind(k)) { feed('<span class="s">PHONE LIFTED</span>'); audio.pouch(); return true; } if (!k.alive && near(k, 2.4, 2)) { feed('<span class="s">PHONE TAKEN</span>'); audio.pouch(); return true; } return false; },
+        prompt: () => { const k = F().kane; return k.alive && near(k, 1.9, 2) ? (behind(k) ? '[E]  LIFT THE PHONE' : 'GET BEHIND HIM') : !k.alive && near(k, 2.4, 2) ? '[E]  TAKE THE PHONE' : ''; } },
+      { text: 'Open the laptop on the office desk with his phone (E)', where: () => ({ ...S().laptop, y: 2.4, name: 'LAPTOP' }), act: () => near(S().laptop, 2.6, 2), prompt: () => near(S().laptop, 2.6, 2) ? '[E]  UNLOCK THE LAPTOP' : '',
+        cut: () => [
+          { from: [S().laptop.x + 1.6, 2.2, S().laptop.z + 1.6], to: [S().laptop.x + 1.0, 1.9, S().laptop.z + 1.0], look: [S().laptop.x, 1.3, S().laptop.z], dur: 4.5, say: HV('It’s opening. Every account. Every payment — the kasbah, the Dragons, Ashdown…'), fov: 40 },
+          { from: [S().laptop.x - 1.2, 1.8, S().laptop.z + 2.2], to: [S().laptop.x - 1.0, 1.8, S().laptop.z + 1.8], look: [S().laptop.x, 1.4, S().laptop.z], dur: 4.5, say: 'PHONE (KANE’S, RINGING): “Victor. It’s Cassius. Someone’s been asking questions in Seoul. Clean house.”', fov: 40 },
+          { from: [S().laptop.x + 2.6, 2.4, S().laptop.z - 1.0], to: [S().laptop.x + 2.2, 2.2, S().laptop.z - 0.6], look: [S().laptop.x, 1.4, S().laptop.z], dur: 4, say: HV('…Cassius. I know that voice. Get off that island. Now.'), fov: 44 },
+        ] },
+      { text: 'Get back to the main island — the Conch Bar', where: () => ({ ...S().beachBar, y: 3, name: 'CONCH BAR' }), done: () => near(S().beachBar, 10, 3) },
+    ],
+  }, {
+    title: 'THE LIGHTHOUSE', reward: 1100,
+    brief: 'Cassius told Kane to clean house. The Conch Bar is empty. Find out where they took Marisol — and get her back.',
+    intro: () => [{ from: [S().beachBar.x + 6, 2.6, S().beachBar.z + 6], to: [S().beachBar.x + 3, 2.2, S().beachBar.z + 3], look: [S().beachBar.x, 1.2, S().beachBar.z - 2], dur: 4.5, say: 'BARBACK: They took her. Grey boat, an hour ago. Went east, round the point — toward the lighthouse.', fov: 46 },
+      { from: [200, 30, 40], to: [225, 18, 10], look: [240, 6, -10], dur: 5, say: HV('Three of Kane’s men at the lighthouse. She’s alive or they wouldn’t still be there.'), fov: 50 }],
+    setup() {
+      const lx = S().lighthouse.x, lz = S().lighthouse.z;
+      F().hostage = fig({ kit: marisolKit(), route: [[lx - 4, lz + 3]], speed: 0, yaw: Math.PI / 2 });
+      F().captors = [[-6, -2, 0], [-2, 6, 2], [-9, 7, 3]].map(([dx, dz, w]) => fig({ kit: goon({ top: 'longsleeve', topColor: '#111316', bottom: 'pants', pantsColor: '#111316' }), route: [[lx + dx, lz + dz, w], [lx + dx - 3, lz + dz + 2, w + 1]], loop: true, speed: 0.5 }));
+    },
+    steps: [
+      { text: 'Get to the lighthouse on the east point', where: () => ({ ...S().lighthouse, y: 6, name: 'LIGHTHOUSE' }), done: () => near({ ...S().lighthouse, y: P.pos.y }, 40, 4) },
+      { text: 'Take out Kane’s men holding Marisol', where: () => { const c = F().captors.find((f) => f.alive); return c ? { x: c.x, y: c.y + 2.1, z: c.z, name: 'KANE’S MEN' } : null; }, done: () => alive(F().captors) === 0 },
+      { text: 'Free Marisol (E)', where: () => live(F().hostage, 'MARISOL')(), act: () => near(F().hostage, 2.6, 2), prompt: () => near(F().hostage, 2.6, 2) ? '[E]  CUT HER LOOSE' : '',
+        cut: () => talkShots(P.pos, F().hostage, ['MARISOL: Took you long enough.', 'MARISOL: They were waiting for a call. Someone called Cassius was going to tell them what to do with me.', 'MARISOL: Delia’s waiting at the end of the hotel pier. She says the seaplane leaves with or without you.']) },
+    ],
+  }, {
+    title: 'THE SEAPLANE', reward: 1400,
+    brief: 'Every boat Kane has is out now. Pick up Delia at the end of the resort pier, get her on a jetski, and get her to the seaplane off Sandy Cay.',
+    intro: () => flyover([{ from: [0, 30, 330], to: [0, 10, 290], look: [0, 1, 266] }, { from: [-260, 40, 200], to: [-340, 18, 250], look: [-405, 2, 270] }],
+      [HV('Delia’s at the restaurant at the end of the bungalow pier.'), HV('Sandy Cay, south-west. The seaplane is riding at anchor off its west side. Don’t stop for anything.')], 5),
+    setup() { BOTS.setPressure(3); F().delia = fig({ kit: deliaKit(), route: [[S().pierEnd.x + 2, S().pierEnd.z + 1]], y: S().pierEnd.y, speed: 0, yaw: Math.PI }); F().delia.fig.lookAt = P.pos; },
     teardown() { BOTS.setPressure(0); },
     steps: [
-      { text: 'Get back on a jetski', where: () => null, done: onJet },
+      { text: 'Meet Delia at the restaurant at the end of the bungalow pier (E)', where: () => live(F().delia, 'DELIA')(), act: () => near(F().delia, 2.8, 2), prompt: () => near(F().delia, 2.8, 2) ? '[E]  “TIME TO GO.”' : '',
+        cut: () => talkShots(P.pos, F().delia, ['DELIA: I heard about the lighthouse. Thank you.', 'DELIA: There’s something I didn’t put in the accounts. Cassius isn’t a client. He’s the one who sends the clients — from inside your own service.', 'YOU: Then we’re taking you somewhere he can’t find you. Can you ride pillion on a jetski?', 'DELIA: Can you drive one?']) },
+      { text: 'Get on a jetski (the rental dock is just west of the pier)', where: () => ({ ...S().rental, y: 2, name: 'JETSKIS' }), done: onJet },
       { text: 'Reach the seaplane off Sandy Cay', where: () => ({ ...S().seaplane, y: 3, name: 'SEAPLANE' }), done: () => near({ ...S().seaplane, y: P.pos.y }, 8, 3) },
     ],
     outro: () => [
-      { from: [-398, 1.4, 276], to: [-394, 2.4, 280], look: [-405, 2.4, 270], dur: 4, say: 'PILOT: Leave the toy, climb aboard. We’re late.', fov: 48 },
-      { from: [-430, 10, 300], to: [-520, 60, 360], look: [0, 0, 0], dur: 6, say: HV('Kane’s accounts, Ashdown’s ledger, the Dragons’ list, Haddad’s papers. One name keeps coming back.'), fov: 55 },
-      { from: [-520, 60, 360], to: [-600, 120, 420], look: [0, 0, 0], dur: 5, say: HV('Get some sun on the way home. You’ve earned it.'), fov: 55 },
+      { from: [-398, 1.4, 276], to: [-394, 2.4, 280], look: [-405, 2.4, 270], dur: 4, say: 'PILOT: Two of you? Fine. Climb aboard — we’re late.', fov: 48 },
+      { from: [-430, 10, 300], to: [-520, 60, 360], look: [0, 0, 0], dur: 6, say: HV('Haddad’s papers. The Dragons’ list. Ashdown’s ledger. Kane’s accounts. Every one of them paid by the same man.'), fov: 55 },
+      { from: [-520, 60, 360], to: [-600, 120, 420], look: [0, 0, 0], dur: 6, say: HV('Cassius signs my orders. Don’t come back to the office. I’ll find you.'), fov: 55 },
     ],
   }];
 }

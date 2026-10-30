@@ -249,7 +249,8 @@ function bahamasVillage() {
   for (let k = 0; k < 6; k++) W.cyl(2.4 - k * 0.16, 2.4 - (k + 1) * 0.16, 3, LX, 1.5 + k * 3, LZ, k % 2 ? 0xd83a2a : 0xf8f8f4, { seg: 16 });
   W.cyl(1.7, 1.7, 2.2, LX, 19.1, LZ, 0x9ac8d8, { layer: 'glass', seg: 12 }); W.cone(2.0, 1.8, LX, 21.1, LZ, 0x2a2a2a, { seg: 12, layer: 'metal' }); W.sphere(0.8, 0.8, 0.8, LX, 19.1, LZ, 0xfff8d0, { layer: 'glow' });
   W.solid(4.8, 22, 4.8, LX, 11, LZ, 'stone'); cottageB(LX - 9, LZ + 6, Math.PI / 2, 7, 8, 1, 0xf8f8f4, { door: false });
-  TOWN.spots.harbour = { x: -100, z: -128 };
+  TOWN.spots.harbour = { x: -100, z: -128 }; TOWN.spots.harbourJetty = { x: -100, y: 0.55, z: -164 }; TOWN.spots.shacks = { x: -114, z: -112 };
+  TOWN.spots.market = { x: -2, z: -110 }; TOWN.spots.lighthouse = { x: 240, z: -10 }; TOWN.spots.pierEnd = { x: 0, y: 0.85, z: 266 };
 }
 
 // ---------------- the resort ----------------
@@ -334,6 +335,7 @@ function bahamasPrivate() {
   W.push(X, 0, Z, -Math.PI / 2 + 0.3);
   desk(-6, 0.5, -3, 0, 2.2, 1.0, 0x3a2a1a); laptop(-6, 1.28, -3, Math.PI); chairOffice(-6, 0.5, -4.2, 0); safe(-10, 0.5, -6.6, 0);
   const lp = W.worldPos(-6, 1.3, -3); TOWN.spots.laptop = { x: lp.x, y: 0.5, z: lp.z };
+  const kt = W.worldPos(4, 0.5, 13); TOWN.spots.kaneTerrace = { x: kt.x, y: 0.5, z: kt.z };   // the terrace by the pool, where Kane takes his calls
   W.pop();
   W.cyl(9, 9, 0.12, X + 30, 0.07, Z + 26, 0x4a4a4c, { seg: 24, t: TX.concrete }); W.box(1.2, 0.02, 7, X + 27, 0.14, Z + 26, 0xf0f0e8, { ao: false }); W.box(1.2, 0.02, 7, X + 33, 0.14, Z + 26, 0xf0f0e8, { ao: false }); W.box(4.8, 0.02, 1.2, X + 30, 0.14, Z + 26, 0xf0f0e8, { ao: false });
   helicopter(X + 30, Z + 26, 0.4);
