@@ -312,7 +312,7 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
     setup() {
       F().contact = fig({ kit: kit({ top: 'jacket', topColor: '#e8e4dc', pantsColor: '#141416', headwear: 'none', hair: 'short', facialHair: 'none' }), route: [[67.5, 47.6]], speed: 0, yaw: Math.PI });
       F().contact.fig.lookAt = P.pos;
-      F().sec = fig({ kit: kit({ top: 'longsleeve', topColor: '#a01a2a', hair: 'long', hairColor: '#2e2018', pantsColor: '#a01a2a', facialHair: 'none' }), route: [[-20, -40, 4], [-12, -44, 5], [-14, -52, 4], [-20, -50, 5]], loop: true, speed: 0.55 });
+      F().sec = fig({ kit: kit({ top: 'longsleeve', topColor: '#a01a2a', hair: 'long', hairColor: '#2e2018', pantsColor: '#a01a2a', facialHair: 'none' }), route: [[-36, -40, 4], [-24, -43, 5], [-18, -36, 4], [-40, -35, 5]], loop: true, speed: 0.55 });
     },
     steps: [
       { text: 'Get inside the walls — the gate checks guests, the service gate is guarded, and the west wall has fallen in', where: () => ({ x: 0, y: 3, z: 196, name: 'GATE' }), done: insideWalls },
@@ -327,8 +327,8 @@ function manorMissions({ fig, live, near, kit, S, flags, talkShots, flyover, beh
     title: 'THE LEDGER', reward: 800,
     brief: 'The study is upstairs on the east side of the landing. Guests don’t go upstairs — your cover thins the moment you do. The safe is behind the portrait. Tonight’s code: 4-1-7-9.',
     intro: () => [
-      { from: [0, 1.9, -24], to: [0, 2.4, -32], look: [0, 3.5, -44], dur: 4.5, say: HV('The study is up the grand stairs, east side of the landing.'), fov: 55 },
-      { from: [0, 5.4, -36], to: [4, 6.2, -44], look: [10, 5.6, -54], dur: 5, say: HV('Guests don’t go upstairs. If they see you there, your cover goes fast — throw something to pull them off the landing.'), fov: 55 },
+      { from: [0, 1.9, -18], to: [0, 2.4, -30], look: [0, 4.5, -44], dur: 4.5, say: HV('The study is up the grand stairs, then east along the corridor — the north side.'), fov: 55 },
+      { from: [0, 6.8, -40], to: [8, 7.0, -48], look: [17, 6.2, -58], dur: 5, say: HV('Guests don’t go upstairs. If they see you there, your cover goes fast — throw something to pull them off the landing.'), fov: 55 },
     ],
     steps: [
       { text: 'Get upstairs to the study (east side of the first floor)', where: () => ({ ...S().study, y: S().study.y + 2, name: 'STUDY' }), done: () => near(S().study, 4, 1.6) },

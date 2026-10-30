@@ -5,7 +5,7 @@
 // gravel drive; lawns with a marquee where the guests drink, formal gardens behind, a hedge maze to the
 // west, a lake with a boathouse to the east, garages, a helipad. A stone wall all round: the main gate
 // (checked), a service gate, and one stretch the winter brought down. Private security everywhere.
-const MANOR = { house: { x0: -24, x1: 24, z0: -62, z1: -30 }, H0: 4.6, H1: 4.2, T: 0.45, wall: { x0: -200, x1: 200, z0: -200, z1: 200 } };
+const MANOR = { house: { x0: -72, x1: 72, z0: -66, z1: 10 }, H0: 5.0, H1: 4.5, T: 0.5, wall: { x0: -200, x1: 200, z0: -200, z1: 200 } };
 const STONE = 0xd8cdb8, STONE_DK = 0xb8ab94, SLATE = 0x4a5058, GRASS = 0x4a6a34, GRAVEL = 0xb8ae98;
 
 function manorPlan() {
@@ -17,8 +17,8 @@ function manorPlan() {
   TOWN.factionAt = () => 'red';
   return [
     ['The estate: walls, gates, the drive', manorGrounds],
-    ['Ravenscroft House', manorHouse],
-    ['Inside the house', manorRooms],
+    ['Ravenscroft House: the main block, the wings, ninety rooms', manorBigHouse],
+    ['The estate: lodge, stables, orangery, kitchen garden, car parks', manorEstate],
     ['Gardens, the maze, the lake', manorGardens],
     ['The gala', manorParty],
     ['Security', manorSecurity],
@@ -30,21 +30,22 @@ function manorGrounds() {
   const Wl = MANOR.wall;
   // the country road outside the gate, the drive, the forecourt, the garden walks (guests walk these)
   lane('countryRoad', [[-255, 222], [255, 222]], 9, 'alley', { tx: TX.asphalt, col: 0x3a3a3c });
-  lane('drive', [[0, 222], [0, 20]], 9, 'avenue', { tx: TX.gravel, col: GRAVEL });
-  lane('serviceRoad', [[255, -60], [60, -60]], 6, 'alley', { tx: TX.gravel, col: GRAVEL });
-  for (const [n, pts] of [['walkN', [[-44, -84], [44, -84]]], ['walkW', [[-44, -84], [-44, -172]]], ['walkE', [[44, -84], [44, -172]]], ['walkS', [[-44, -172], [44, -172]]], ['walkMid', [[0, -76], [0, -172]]], ['walkLawnW', [[-14, 20], [-120, 20], [-120, 170]]], ['walkLawnE', [[14, 20], [120, 20], [120, 170]]], ['walkLake', [[56, -50], [92, -95]]]])
+  lane('drive', [[0, 222], [0, 24]], 9, 'avenue', { tx: TX.gravel, col: GRAVEL });
+  lane('serviceRoad', [[255, -20], [78, -20]], 6, 'alley', { tx: TX.gravel, col: GRAVEL });
+  for (const [n, pts] of [['walkN', [[-44, -84], [44, -84]]], ['walkW', [[-44, -84], [-44, -172]]], ['walkE', [[44, -84], [44, -172]]], ['walkS', [[-44, -172], [44, -172]]], ['walkMid', [[0, -76], [0, -172]]], ['walkLawnW', [[-14, 20], [-120, 20], [-120, 170]]], ['walkLawnE', [[14, 20], [120, 20], [120, 170]]], ['walkLake', [[76, -72], [92, -95]]]])
     lane(n, pts, 3.2, 'alley', { tx: TX.gravel, col: GRAVEL });
-  plaza('Forecourt', { x0: -30, z0: -24, x1: 30, z1: 22 }, GRAVEL, TX.gravel);
-  plaza('Front lawn', { x0: -118, z0: 26, x1: -12, z1: 168 }, GRASS, TX.leaf);
-  plaza('East lawn', { x0: 12, z0: 26, x1: 118, z1: 168 }, GRASS, TX.leaf);
-  plaza('Terrace', { x0: -30, z0: -76, x1: 30, z1: -62 }, STONE, TX.stone);
+  plaza('Forecourt', { x0: -49, z0: -31, x1: 49, z1: 24 }, GRAVEL, TX.gravel);
+  plaza('Front lawn', { x0: -96, z0: 30, x1: -14, z1: 168 }, GRASS, TX.leaf);
+  plaza('East lawn', { x0: 14, z0: 30, x1: 96, z1: 140 }, GRASS, TX.leaf);
+  plaza('Terrace', { x0: -50, z0: -80, x1: 50, z1: -66 }, STONE, TX.stone);
   // everything else inside the walls is lawn; outside, rough grass under the trees
   groundPlate(Wl.x0, Wl.z0, Wl.x1, Wl.z1, GRASS, TX.leaf, 4, 0.03);
   groundPlate(-260, -230, 260, Wl.z0, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(-260, Wl.z1, 260, 245, 0x3e5230, TX.leaf, 6, 0.03);
   groundPlate(-260, Wl.z0, Wl.x0, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03); groundPlate(Wl.x1, Wl.z0, 260, Wl.z1, 0x3e5230, TX.leaf, 6, 0.03);
-  fountain(0, 0, 0, 4.2, 1);
+  fountain(0, 0, -6, 5.2, 1);
+  for (const [x, z] of [[-40, -24], [40, -24], [-40, 2], [40, 2], [-20, -14], [20, -14]]) { W.cone(1.1, 3.4, x, 1.7, z, 0x2a4a24, { seg: 8, t: TX.leaf }); W.cyl(0.9, 0.7, 0.8, x, 0.4, z, STONE, { seg: 8 }); }
   // the wall: stone, coped, with piers every 12 m; gaps for the gates and the fallen stretch
-  const gaps = { s: [[-6, 6]], e: [[-66, -54]], w: [[-128, -116]], n: [] };
+  const gaps = { s: [[-6, 6]], e: [[-26, -14]], w: [[-128, -116]], n: [] };
   const run = (ax, a0, a1, c, key) => {
     let a = a0; const cuts = [...gaps[key]].sort((p, q) => p[0] - q[0]);
     for (const [g0, g1] of [...cuts, [a1, a1]]) { if (g0 > a) wallRun(ax, a, g0, c); a = g1; }
@@ -62,10 +63,12 @@ function manorGrounds() {
   W.box(5, 3.4, 4.5, -12, 1.7, Wl.z1 - 4, STONE, { t: TX.stone }); W.solid(5, 3.4, 4.5, -12, 1.7, Wl.z1 - 4, 'stone');
   W.pyramid(6, 1.8, 5.5, -12, 4.3, Wl.z1 - 4, SLATE, { t: TX.rooftile }); W.box(1.6, 1.0, 0.05, -9.47, 1.9, Wl.z1 - 4, 0xffd8a0, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(-8, 2.5, Wl.z1 - 4, 0xffd8a0, 2, 8, { halo: 0.4 });
   // service gate: a plain opening with a barrier arm
-  W.box(0.2, 1.1, 0.2, Wl.x1 - 0.3, 0.55, -54.5, 0xe8e8e0, { layer: 'metal' }); W.box(0.1, 0.12, 11, Wl.x1 - 0.3, 1.0, -60, 0xd83a2a, { layer: 'metal' });
+  W.box(0.2, 1.1, 0.2, Wl.x1 - 0.3, 0.55, -14.5, 0xe8e8e0, { layer: 'metal' }); W.box(0.1, 0.12, 11, Wl.x1 - 0.3, 1.0, -20, 0xd83a2a, { layer: 'metal' });
+  W.box(3, 2.8, 3, Wl.x1 - 4, 1.4, -10, 0xe8e4dc, { t: TX.plaster }); W.solid(3, 2.8, 3, Wl.x1 - 4, 1.4, -10, 'concrete'); W.box(3.4, 0.2, 3.4, Wl.x1 - 4, 2.9, -10, 0x3a3a3c); W.box(1.4, 0.8, 0.04, Wl.x1 - 5.52, 1.6, -10, 0xd8e8f0, { layer: 'glow', ry: Math.PI / 2 });
   // lamps down the drive, guests' cars parked along it
   for (let z = 30; z < 200; z += 16) for (const s of [-1, 1]) { lampPostOld(s * 6, 0, z, 4.2); W.lamp(s * 6, 4, z, 0xffd8a0, 2.4, 12, { halo: 0.7 }); }
-  W.scope({ lod: 1 }, () => { for (let z = 46; z < 190; z += 7.5) for (const s of [-1, 1]) if (mchance(0.75)) sedan(s * 9.5, z, s > 0 ? Math.PI / 2 : -Math.PI / 2, mpick([0x141414, 0x1a1a2a, 0xe8e6e0, 0x4a1a1a, 0x8a8e94, 0x2a3a2a])); });
+  // an avenue of limes down both sides of the drive, box hedges at their feet
+  for (let z = 38; z < 196; z += 16) for (const s of [-1, 1]) { tree(s * 11, 0, z, 'ficus', 1.25); W.box(0.8, 0.7, 14, s * 8, 0.35, z + 8, 0x2a4a24, { t: TX.leaf, lod: 1 }); }
   // the forest round the outside: pines, dark and close
   for (let i = 0; i < 260; i++) {
     const a = mr(0, Math.PI * 2), r = mr(215, 300), x = Math.cos(a) * r * 1.15, z = Math.sin(a) * r;
@@ -104,64 +107,6 @@ function pitched(x0, z0, x1, z1, y, h, col) {
 }
 // a triangle list drawn from both sides
 function twoSided(t) { const o = [...t]; for (let i = 0; i < t.length; i += 9) o.push(t[i], t[i + 1], t[i + 2], t[i + 6], t[i + 7], t[i + 8], t[i + 3], t[i + 4], t[i + 5]); return o; }
-function manorHouse() {
-  const { x0, x1, z0, z1 } = MANOR.house, { H0, H1, T } = MANOR, yR = H0 + H1;
-  GR.rect(0, -46, 120, 36, 0, GR.RESERVED, true);
-  const archWin = (at) => ({ at, w: 1.5, h: 2.9, sill: 0.5, kind: 'archwin', arch: 'round', _spring: 2.1, win: 'plain', rimCol: STONE, rimTx: TX.stone });
-  const win = (at, h = 2.2) => ({ at, w: 1.3, h, sill: 0.9, kind: 'win', win: 'plain', sillCol: STONE });
-  W.scope({}, () => {
-    // ground floor: the front with the great door, the garden side with French doors onto the terrace
-    walls([
-      ['x', x0, x1, z1 - T / 2, 1, [{ at: 0, w: 2.4, h: 3.4, kind: 'door', style: 'plank', leaf: 'open' }, ...[-19, -14, -9, -4, 4, 9, 14, 19].map(archWin)]],
-      ['x', x0, x1, z0 + T / 2, -1, [DOOR(-3, 1.6, 2.8, { style: 'glass', leaf: 'open' }), DOOR(3, 1.6, 2.8, { style: 'glass', leaf: 'open' }), ...[-19, -14, -9, 9, 14, 19].map(archWin)]],
-      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [DOOR(-46, 1.6, 2.6, { style: 'plank', leaf: 'open' }), win(-38), win(-54)]],
-      ['z', z0 + T, z1 - T, x1 - T / 2, 1, [DOOR(-46, 1.6, 2.6, { style: 'plank', leaf: 'open' }), win(-38), win(-54)]],
-    ], 0, H0, T, STONE, 0xe8dcc8, { tx: TX.stone });
-    walls([
-      ['x', x0, x1, z1 - T / 2, 1, [-19, -14, -9, -4, 0, 4, 9, 14, 19].map((a) => win(a))],
-      ['x', x0, x1, z0 + T / 2, -1, [-19, -14, -9, -4, 0, 4, 9, 14, 19].map((a) => win(a))],
-      ['z', z0 + T, z1 - T, x0 + T / 2, -1, [win(-38), win(-54)]],
-      ['z', z0 + T, z1 - T, x1 - T / 2, 1, [win(-38), win(-54)]],
-    ], H0, H1, T, STONE, 0xe8e0d0, { tx: TX.stone });
-    // floors and the grand stair (two flights up the sides of the hall)
-    slab(x0 + T, z0 + T, x1 - T, z1 - T, 0.15, { top: 0xd8d4cc, topTx: TX.ceramic, bot: false });
-    flight(-6.2, z1 - T - 0.4, [0, -1], 1.8, 0.15, H0, { col: 0xd8d0c0, tx: TX.stone });
-    flight(6.2, z1 - T - 0.4, [0, -1], 1.8, 0.15, H0, { col: 0xd8d0c0, tx: TX.stone });
-    const run = Math.round((H0 - 0.15) / ST_RISE) * ST_RUN, zTop = z1 - T - 0.4 - run;
-    slab(x0 + T, z0 + T, x1 - T, z1 - T, H0, { top: 0x8a5a3a, topTx: TX.wood, bot: 0xf0ece4, holes: [[-7.2, zTop, -5.2, z1 - T], [5.2, zTop, 7.2, z1 - T], [-5.2, zTop + 1.5, 5.2, z1 - T]] });
-    railing(-7.2, zTop, -7.2, z1 - T, H0, 'iron'); railing(7.2, zTop, 7.2, z1 - T, H0, 'iron'); railing(-5.2, zTop + 1.5, 5.2, zTop + 1.5, H0, 'iron');
-    // roof: cornice, then the slate pitch, chimneys at the ends
-    slab(x0 - 0.3, z0 - 0.3, x1 + 0.3, z1 + 0.3, yR, { top: 0x5a5a58, topTx: TX.concrete, bot: 0xf0ece4 });
-    W.box(x1 - x0 + 1.2, 0.5, z1 - z0 + 1.2, 0, yR + 0.25, (z0 + z1) / 2, STONE, { t: TX.stone });
-    pitched(x0, z0, x1, z1, yR + 0.5, 5.5, SLATE);
-    for (const cx of [-18, -6, 6, 18]) { W.box(1.4, 3.4, 1.0, cx, yR + 5.0, (z0 + z1) / 2 + mr(-3, 3), STONE_DK, { t: TX.brick }); W.box(1.6, 0.25, 1.2, cx, yR + 6.8, (z0 + z1) / 2, STONE); }
-    // the portico: six columns, a pediment, steps down to the forecourt
-    for (const cx of [-9, -5.4, -1.8, 1.8, 5.4, 9]) { W.cyl(0.42, 0.48, yR - 0.4, cx, (yR - 0.4) / 2 + 0.2, z1 + 5, STONE, { seg: 12, t: TX.stone }); W.solid(0.9, yR, 0.9, cx, yR / 2, z1 + 5, 'stone'); W.box(1.2, 0.4, 1.2, cx, 0.2, z1 + 5, STONE); W.box(1.1, 0.4, 1.1, cx, yR - 0.2, z1 + 5, STONE); }
-    W.box(21, 0.8, 6.4, 0, yR + 0.2, z1 + 3, STONE, { t: TX.stone });
-    W.tris(twoSided([-10.5, yR + 0.6, z1 + 6.2, 10.5, yR + 0.6, z1 + 6.2, 0, yR + 3.6, z1 + 6.2]), STONE, { t: TX.stone });
-    pitched(-10.5, z1, 10.5, z1 + 6.2, yR + 0.6, 3.0, SLATE);
-    for (let k = 0; k < 4; k++) { W.box(22 - k * 0.6, 0.15, 1.0, 0, 0.075 + k * 0.15 - 0.45, z1 + 7.0 + k * 0.9 - 2.7, STONE, { t: TX.stone }); }
-    slab(-11, z1, 11, z1 + 6.8, 0.15, { top: STONE, topTx: TX.stone, bot: false });
-    // the terrace behind, with its balustrade and steps to the garden
-    slab(-30, z0 - 14, 30, z0, 0.15, { top: STONE, topTx: TX.stone, bot: false });
-    balustrade(-30, z0 - 14, -3, z0 - 14); balustrade(3, z0 - 14, 30, z0 - 14); balustrade(-30, z0 - 14, -30, z0); balustrade(30, z0 - 14, 30, z0);
-    // the wings: library (west), kitchen and service (east), a storey each under their own roofs
-    for (const s of [-1, 1]) {
-      const wx0 = s < 0 ? -56 : 24, wx1 = s < 0 ? -24 : 56, wz0 = -58, wz1 = -34, H = 5.0;
-      walls([
-        ['x', wx0, wx1, wz1 - T / 2, 1, [s * 30, s * 36, s * 42, s * 48].map((a) => archWin(a))],
-        ['x', wx0, wx1, wz0 + T / 2, -1, s > 0 ? [DOOR(42, 1.4, 2.4, { style: 'plank', leaf: 'open' }), win(32), win(50)] : [win(-32), win(-40), win(-48)]],
-        ['z', wz0 + T, wz1 - T, s < 0 ? wx0 + T / 2 : wx1 - T / 2, s, [win(-40), win(-50)]],
-      ], 0, H, T, STONE, 0xe8dcc8, { tx: TX.stone });
-      slab(wx0 + T, wz0 + T, wx1 - T, wz1 - T, 0.15, { top: s < 0 ? 0x7a4a2a : 0xd8d8d0, topTx: s < 0 ? TX.wood : TX.ceramic, bot: false });
-      slab(wx0 - 0.2, wz0 - 0.2, wx1 + 0.2, wz1 + 0.2, H, { top: 0x5a5a58, topTx: TX.concrete, bot: 0xf0ece4 });
-      W.box(wx1 - wx0 + 0.8, 0.4, wz1 - wz0 + 0.8, (wx0 + wx1) / 2, H + 0.2, (wz0 + wz1) / 2, STONE, { t: TX.stone });
-      pitched(wx0, wz0, wx1, wz1, H + 0.4, 3.6, SLATE);
-    }
-  });
-  // light in every window at dusk: the rooms are lit (see manorRooms); a warm wash on the façade from lamps in the forecourt
-  for (const x of [-16, 0, 16]) W.lamp(x, 1.5, z1 + 12, 0xffd8a0, 2.4, 16, { halo: 0 });
-}
 function balustrade(xa, za, xb, zb) {
   const L = Math.hypot(xb - xa, zb - za), n = Math.max(2, Math.round(L / 0.45)), y = 0.15;
   W.push((xa + xb) / 2, 0, (za + zb) / 2, Math.atan2(-(zb - za), xb - xa));
@@ -170,86 +115,6 @@ function balustrade(xa, za, xb, zb) {
   W.pop();
 }
 
-// ---------------- the rooms ----------------
-function manorRooms() {
-  const { x0, x1, z0, z1 } = MANOR.house, { H0, H1, T } = MANOR, y1 = H0;
-  const sAt = (x, z, yaw, role, route, y = 0) => { TOWN.staff.push({ x, z, y, yaw, role, route }); };
-  W.scope({}, () => {
-    // ground-floor partitions: hall in the middle (stairs), ballroom west, dining room east
-    partition('z', z0 + T, z1 - T, -8, 0.15, H0 - 0.15, [{ at: -40, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }, { at: -54, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }], 0xf0e6d4);
-    partition('z', z0 + T, z1 - T, 8, 0.15, H0 - 0.15, [{ at: -40, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }, { at: -54, w: 2.4, h: 3.0, kind: 'door', style: 'plank', leaf: 'open' }], 0xf0e6d4);
-    // first floor: the landing in the middle, bedrooms at the front, the security room and the study at the back
-    partition('z', z0 + T, z1 - T, -8, y1, H1, [DOOR(-38, 1.0, 2.3, { style: 'plank', leaf: 'open' }), DOOR(-54, 1.0, 2.3, { style: 'plank', leaf: 'open' })], 0xe8e0d0);
-    partition('z', z0 + T, z1 - T, 8, y1, H1, [DOOR(-38, 1.0, 2.3, { style: 'plank', leaf: 'open' }), DOOR(-54, 1.0, 2.3, { style: 'plank', leaf: 'open' })], 0xe8e0d0);
-    partition('x', x0 + T, -8, -46, y1, H1, [], 0xe8e0d0); partition('x', 8, x1 - T, -46, y1, H1, [], 0xe8e0d0);
-  });
-  // the hall: black-and-white marble, a round table under the chandelier, portraits up the stairs
-  W.scope({ dim: 0.85 }, () => {
-    for (let i = 0; i < 16; i++) for (let k = 0; k < 30; k++) if ((i + k) % 2) W.box(1, 0.01, 1, -7.5 + i, 0.16, z0 + 1 + k, 0x1a1a1c, { t: TX.ceramic, lod: 2, ao: false });
-    W.cyl(0.9, 0.9, 0.06, 0, 0.95, -46, 0x5a3a24, { seg: 16, t: TX.wood }); W.cyl(0.14, 0.2, 0.8, 0, 0.55, -46, 0x5a3a24, { seg: 8 }); W.solid(1.8, 1.0, 1.8, 0, 0.5, -46, 'wood');
-    W.cyl(0.15, 0.1, 0.35, 0, 1.15, -46, 0xe8e8f0, { seg: 10, layer: 'glass' }); for (let k = 0; k < 7; k++) W.sphere(0.12, 0.12, 0.12, mr(-0.15, 0.15), 1.4 + mr(0, 0.25), -46 + mr(-0.15, 0.15), mpick([0xd83a5a, 0xf0f0e8, 0xe8a0b0]), { seg: 6, hseg: 4 });
-    chandelier(0, H0 - 0.2, -46, 1.4);
-    for (const s of [-1, 1]) for (let k = 0; k < 3; k++) portrait(s * 7.9, 2.6 + k * 0.5, -34 - k * 2.4, s > 0 ? -Math.PI / 2 : Math.PI / 2);
-    floorRug(0, 0.17, -38, 4, 6, 0, 0x6a1a24);
-  });
-  // the ballroom: parquet, three chandeliers, mirrors, a string quartet on a low stage, the bar
-  W.scope({ dim: 0.85 }, () => {
-    W.box(15, 0.02, 30, -16, 0.165, -46, 0x9a6a3a, { t: TX.wood });
-    for (const z of [-38, -46, -54]) chandelier(-16, H0 - 0.2, z, 1.6);
-    for (const z of [-36, -46, -56]) { W.box(0.05, 2.6, 1.4, x0 + T + 0.03, 2.0, z, 0xc8d8e0, { layer: 'glass' }); W.box(0.06, 2.8, 1.6, x0 + T + 0.02, 2.0, z, 0xc8a050, { layer: 'metal' }); }
-    W.box(6, 0.4, 3.5, -16, 0.35, z0 + 2.6, 0x5a3a24, { t: TX.wood }); W.solid(6, 0.4, 3.5, -16, 0.35, z0 + 2.6, 'wood');
-    for (let k = 0; k < 4; k++) { chairWood(-18.2 + k * 1.5, 0.55, z0 + 2.4); W.box(0.06, 1.0, 0.06, -18.2 + k * 1.5, 1.3, z0 + 3.1, 0x1a1a1a); }
-    W.box(1.6, 1.0, 0.7, -11.6, 0.65, z0 + 2.4, 0x141414, { layer: 'metal' }); // the piano
-    W.box(5, 1.1, 0.7, -16, 0.7, z1 - 2.2, 0x3a2418, { t: TX.wood }); W.solid(5, 1.1, 0.7, -16, 0.7, z1 - 2.2, 'wood');
-    for (let k = 0; k < 14; k++) W.cyl(0.035, 0.035, 0.28, -18.2 + k * 0.32, 1.39, z1 - 2.2, mpick([0x2a6a3a, 0xe8d8a0, 0x6a1a2a]), { seg: 6, layer: 'glass' });
-    for (let k = 0; k < 4; k++) { const x = -21 + k * 3.6; W.cyl(0.4, 0.4, 0.04, x, 1.1, -46 + (k % 2 ? 6 : -6), 0xf0f0e8, { seg: 12 }); W.cyl(0.04, 0.04, 1.0, x, 0.6, -46 + (k % 2 ? 6 : -6), 0x8a8a8a); }
-  });
-  // dining room: the long table laid for sixteen, candelabra, a sideboard
-  W.scope({ dim: 0.85 }, () => {
-    W.box(2.2, 0.08, 14, 16, 0.95, -46, 0x5a3420, { t: TX.wood }); W.box(2.3, 0.02, 14.1, 16, 1.0, -46, 0xf0ece0); W.solid(2.2, 1.0, 14, 16, 0.5, -46, 'wood');
-    for (let k = 0; k < 8; k++) for (const s of [-1, 1]) { chairWood(16 + s * 1.5, 0.15, -52.3 + k * 1.8, s > 0 ? -Math.PI / 2 : Math.PI / 2); W.cyl(0.13, 0.13, 0.02, 16 + s * 0.7, 1.02, -52.3 + k * 1.8, 0xf8f8f0, { seg: 10 }); W.cyl(0.03, 0.03, 0.18, 16 + s * 0.55, 1.1, -52 + k * 1.8, 0xe8e8f0, { seg: 6, layer: 'glass' }); }
-    for (const z of [-50, -46, -42]) { W.cyl(0.05, 0.08, 0.5, 16, 1.25, z, 0xc8a050, { seg: 6, layer: 'metal' }); for (const dx of [-0.2, 0, 0.2]) W.sphere(0.05, 0.09, 0.05, 16 + dx, 1.58, z, 0xffd080, { layer: 'glow' }); W.lamp(16, 1.8, z, 0xffc070, 1.2, 5, { halo: 0.3 }); }
-    W.box(4, 1.0, 0.6, 16, 0.65, z0 + 1.0, 0x4a2a18, { t: TX.wood }); chandelier(16, H0 - 0.2, -46, 1.2);
-  });
-  // library (west wing): books floor to ceiling, a fire, leather chairs
-  W.scope({ dim: 0.85 }, () => {
-    for (let x = -54; x < -27; x += 2.2) { shelfUnit(x, 0.15, -57.0, 0, 2.0, 4.2, 0.4, 0x4a2a18, 'books'); shelfUnit(x, 0.15, -35.0, Math.PI, 2.0, 4.2, 0.4, 0x4a2a18, 'books'); }
-    W.box(2.4, 1.6, 0.6, -55.3, 0.95, -46, STONE, { t: TX.stone, ry: Math.PI / 2 }); W.box(1.4, 0.8, 0.3, -55.1, 0.65, -46, 0xff8a30, { layer: 'glow', ry: Math.PI / 2 }); W.lamp(-54.2, 0.9, -46, 0xff9a40, 2.0, 7, { halo: 0.3, flicker: 0.3 });
-    for (const [x, z, r] of [[-51, -48, -1.2], [-51, -44, -1.9]]) sofa(x, 0.15, z, r, 0x5a2a1e, 1.0);
-    desk(-36, 0.15, -46, Math.PI / 2, 1.8, 0.9, 0x4a2a18); W.lamp(-40, 3.5, -46, 0xffd8a0, 1.6, 10, { halo: 0 });
-  });
-  // kitchen and service (east wing): ranges, steel counters, the cooks
-  W.scope({ dim: 0.9 }, () => {
-    for (let x = 28; x < 54; x += 2.6) kitchenRun(x, 0.15, -56.8, 0, 2.4, 0xd8d8d0);
-    for (const x of [32, 40, 48]) { W.box(2.4, 0.9, 1.2, x, 0.6, -46, 0xc8ccd0, { layer: 'metal' }); W.solid(2.4, 0.9, 1.2, x, 0.6, -46, 'metal'); W.box(2.2, 0.05, 1.0, x, 1.06, -46, 0xe8e8e8, { layer: 'metal' }); }
-    for (const x of [30, 52]) fridge(x, 0.15, -35.4, Math.PI);
-    W.lamp(36, 4.2, -46, 0xf0f4ff, 2.2, 12, { halo: 0 }); W.lamp(48, 4.2, -46, 0xf0f4ff, 2.2, 12, { halo: 0 });
-  });
-  // first floor: bedrooms at the front
-  W.scope({ dim: 0.8 }, () => {
-    for (const s of [-1, 1]) { const cx = s * 16; bed(cx, y1, -36, Math.PI, s < 0 ? 0x6a2a3a : 0x2a3a5a); wardrobe(cx + s * 5.5, y1, -44.6, 0, 0x5a3a24); floorRug(cx, y1 + 0.02, -38, 3.6, 3, 0, 0x8a6a4a); W.lamp(cx, y1 + 3.2, -38, 0xffd8a0, 1.2, 8, { halo: 0 }); }
-    // security room (back west): the monitor wall, two desks
-    cctvWall(-16, y1 + 0.3, -61.3, 0, 5, 3); officeDesk(-16, y1, -56.5, Math.PI, 2.4, 'office'); officeDesk(-20, y1, -52, Math.PI / 2, 1.6, 'office');
-    for (let k = 0; k < 3; k++) monitor(-17 + k * 1.0, y1 + 0.78, -56.6, Math.PI, 0x4aa0ff);
-    W.lamp(-16, y1 + 3.4, -54, 0xcfe0ff, 1.4, 9, { halo: 0 });
-    // the study (back east): desk, bookcases, the painting that hides the safe
-    desk(16, y1, -52, 0, 2.0, 1.0, 0x3a2014); chairWood(16, y1, -50.8, Math.PI); for (let x = 10; x < 23; x += 2.2) shelfUnit(x, y1, -61.3, 0, 2.0, 2.6, 0.38, 0x3a2014, 'books');
-    safe(22.9, y1, -55, -Math.PI / 2); portrait(23.2, y1 + 2.0, -55, -Math.PI / 2, 1.2, 0.9);
-    floorRug(16, y1 + 0.02, -54, 4, 3, 0, 0x5a1a1a); W.lamp(16, y1 + 1.4, -52, 0xffd090, 1.4, 6, { halo: 0.3 });
-    // the landing: a long gallery of paintings over the hall
-    for (let k = 0; k < 5; k++) portrait(-7.9, y1 + 1.8, -40 - k * 4, Math.PI / 2);
-    chandelier(0, yRoof() - 0.3, -50, 1.0);
-  });
-  TOWN.spots.safe = { x: 22.6, y: y1 + 1, z: -55 }; TOWN.spots.study = { x: 16, y: y1, z: -53 };
-  TOWN.spots.boathouse = { x: 96, z: -95 }; TOWN.spots.gate = { x: 0, z: 196 }; TOWN.spots.serviceGate = { x: 198, z: -60 };
-  TOWN.spots.ballroom = { x: -16, z: -46 }; TOWN.spots.kitchen = { x: 40, z: -46 }; TOWN.spots.security = { x: -16, y: y1, z: -54 };
-  // the staff at work and the guests at the party, inside
-  sAt(-15, z1 - 1.4, Math.PI, 'bar'); sAt(16, -40, 0, 'food', [[16, -40], [13.4, -52], [13.4, -40, 2], [18.6, -40], [18.6, -52, 2]]);
-  for (const [x, z] of [[-19, -40], [-13, -42], [-18, -50], [-13.5, -52], [-20, -45], [-12, -47], [-17, -55], [-14.5, -36]]) sAt(x, z, mr(0, 6.28), 'guest');
-  for (const [x, z] of [[-18.2, z0 + 2.4], [-16.7, z0 + 2.4], [-15.2, z0 + 2.4], [-13.7, z0 + 2.4]]) TOWN.staff.push({ x, z, y: 0.55, yaw: Math.PI, role: 'guest' });
-  for (const [x, z] of [[34, -44], [40, -48], [46, -44]]) sAt(x, z, mr(0, 6.28), 'food');
-  sAt(-3, -44, Math.PI / 2, 'guest'); sAt(3, -48, -Math.PI / 2, 'guest');
-}
 const yRoof = () => MANOR.H0 + MANOR.H1;
 function chandelier(x, y, z, r) {
   W.rod([x, y + 0.2, z], [x, y - 0.4, z], 0.02, 0xc8a050, { layer: 'metal' });
@@ -371,13 +236,12 @@ function manorSecurity() {
   // the main gate and the drive
   post(-4, 196, 0); post(4, 196, 0); post(-11, 190, 0.4); post(0, 120, Math.PI); post(-8, 60, -1.2); post(8, 30, 1.2);
   // the house: front door, garden doors, service door, the wings' corners
-  post(-3, -21, Math.PI); post(3, -21, Math.PI); post(-6, -78, 0); post(6, -78, 0); post(42, -62, 0); post(-60, -46, -Math.PI / 2); post(60, -46, Math.PI / 2);
+  post(-4, -22, Math.PI); post(4, -22, Math.PI); post(-6, -78, 0); post(6, -78, 0); post(-26, -78, 0); post(26, -78, 0); post(-75, -22, -Math.PI / 2); post(75, -22, Math.PI / 2); post(-61, 13, Math.PI); post(61, 13, Math.PI); post(-46, 6, Math.PI / 2); post(46, 6, -Math.PI / 2);
   // inside: the hall, the landing, the security room, the study door
-  TOWN.guards.push({ x: 0, z: -40, yaw: Math.PI, team: 'red' }, { x: -16, z: -34, yaw: Math.PI, team: 'red' }, { x: 16, z: -34, yaw: Math.PI, team: 'red' });
+  TOWN.guards.push(...[[0, -40, Math.PI], [-25, -36, Math.PI], [20, -36, Math.PI], [-30, -48.5, -Math.PI / 2], [30, -48.5, Math.PI / 2], [-61, -20, 0], [61, -20, 0]].map(([x, z, yaw]) => ({ x, z, yaw, team: 'red' })));
   // the gardens, the maze mouth, the lake, the boathouse, the garages, the helipad, the service gate, the fallen wall
   post(-20, -128, Math.PI / 2); post(20, -150, -Math.PI / 2); post(0, -176, 0); post(-96, -31, -Math.PI / 2); post(84, -70, Math.PI / 2); post(100, -110, Math.PI);
-  post(-110, 96, Math.PI); post(-130, 128, 0); post(118, 104, 0.6); post(190, -56, -Math.PI / 2); post(186, -66, -Math.PI / 2); post(-186, -122, Math.PI / 2);
+  post(-110, 96, Math.PI); post(-130, 128, 0); post(118, 104, 0.6); post(190, -16, -Math.PI / 2); post(186, -26, -Math.PI / 2); post(-128, 60, 0); post(130, 40, 0); post(-80, -112, 0); post(-186, -122, Math.PI / 2);
   // where a guest has no business: the upper floor of the house, the security room, the kitchen yard
-  TOWN.restricted.push({ x0: -24, z0: -62, x1: 24, z1: -30, y0: 3 }, { x0: 24, z0: -66, x1: 60, z1: -56 });
-  const H = MANOR.house; GR.rect((H.x0 + H.x1) / 2, (H.z0 + H.z1) / 2, H.x1 - H.x0, H.z1 - H.z0, 0, GR.RESERVED, true);
+  TOWN.restricted.push({ x0: -72, z0: -66, x1: 72, z1: 10, y0: 3 }, { x0: 50, z0: -66, x1: 72, z1: 10 }, { x0: 76, z0: -36, x1: 112, z1: -4 });
 }
