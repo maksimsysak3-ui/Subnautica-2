@@ -56,6 +56,7 @@ const DISGUISE = (() => {
   function interact() {
     if (SCOOTER.riding) { SCOOTER.interact(); return; }
     if (MISSION.interact()) return;
+    if (JOBS.interact()) return;
     if (SCOOTER.interact()) return;
     const b = nearestBody();
     if (b && !b.taken) { b.taken = true; b.mark(); wear(b.kit, b.type, b.team); return; }

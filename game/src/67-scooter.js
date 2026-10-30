@@ -254,7 +254,7 @@ const SCOOTER = (() => {
   }
   return {
     update, drive, interact, horn, poseRider, placeModel,
-    get riding() { return riding; },
+    get riding() { return riding; }, get list() { return list; },
     prompt: () => { if (riding) return ''; const n = nearest(); return n ? (n.kind === 'jet' ? '[E]  RIDE THE JETSKI' : n.kind === 'cart' ? '[E]  DRIVE THE GOLF CART' : '[E]  RIDE THE SCOOTER') : ''; },
     camRoll: () => (riding ? -riding.lean * 0.18 : 0),   // a hint of the lean in first person; the horizon mostly stays put
   };

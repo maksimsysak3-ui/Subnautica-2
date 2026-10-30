@@ -23,15 +23,27 @@ const MISSION = (() => {
   const kit = (o) => NPCS.outfit(o);
   // a conversation as a cutscene: over one shoulder, then the other, a line each
   const behind = (f) => { const fx = -Math.sin(f.yaw), fz = -Math.cos(f.yaw), dx = P.pos.x - f.x, dz = P.pos.z - f.z, L = Math.hypot(dx, dz) || 1; return (fx * dx + fz * dz) / L < -0.15; };
+  // the other person acts it out: turns to you, talks with their hands, listens and nods while you speak, and a
+  // stage direction in the line ('MOTH[give]: …') puts them in that act (give, point, aim, surrender, call, drink…)
   function talkShots(a, b, lines) {
     const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, sx = -uz, sz = ux, ya = (a.y ?? P.pos.y) + 1.62, yb = (b.y ?? 0) + 1.62;
-    return lines.map((ln, k) => {
-      const mine = ln.startsWith('YOU');
+    const actor = b && b.m && b.m.ch ? b : null, face = () => Math.atan2(-(P.pos.x - b.x), -(P.pos.z - b.z));
+    return lines.map((raw, k) => {
+      const dir = raw.match(/^([^:\[]+)\[(\w+)\]: /), ln = dir ? dir[1] + ': ' + raw.slice(dir[0].length) : raw, mine = ln.startsWith('YOU');
       const [cx, cz, lx, lz, cy, ly] = mine ? [b.x + ux * 1.1 + sx * 0.7, b.z + uz * 1.1 + sz * 0.7, a.x, a.z, yb + 0.05, ya] : [a.x - ux * 1.1 + sx * 0.7, a.z - uz * 1.1 + sz * 0.7, b.x, b.z, ya + 0.05, yb];
-      const words = ln.split(' ').length;
-      return { from: [cx, cy, cz], to: [cx + sx * 0.25, cy, cz + sz * 0.25], look: [lx, ly - 0.05, lz], dur: Math.max(2.6, words * 0.33), say: ln, fov: 42 };
+      const words = ln.split(' ').length, act = dir ? dir[2] : mine ? 'listen' : 'chat';
+      return { from: [cx, cy, cz], to: [cx + sx * 0.25, cy, cz + sz * 0.25], look: [lx, ly - 0.05, lz], dur: Math.max(2.6, words * 0.33), say: ln, fov: 42,
+        do: actor && actor.alive ? () => NPCS.actOn(actor, act, 999, face()) : null, end: k === lines.length - 1 && actor ? () => NPCS.actOff(actor) : null };
     });
   }
+  // a shot with something happening in it: do() as it starts
+  const shot = (from, to, look, say, dur, o = {}) => ({ from, to, look, look2: o.look2, say, dur: dur ?? Math.max(3, (say || '').split(' ').length * 0.34), fov: o.fov ?? 48, do: o.do, end: o.end });
+  const act = (f, a, T, face) => f && f.alive && NPCS.actOn(f, a, T, face), unact = (f) => f && NPCS.actOff(f);
+  // send someone somewhere (a route of [x, z, wait]), or have them stay at your side
+  function walkTo(f, pts, speed = 1.3) { if (!f) return; unact(f); f.route = pts; f.ri = 0; f.arrived = false; f.idle = 0; f.speed = speed; f.fig.paused = false; f.fig.loop = false; }
+  function follow(f, dt) { if (!f || !f.alive) return; const d = Math.hypot(P.pos.x - f.x, P.pos.z - f.z); if (d > 2.6) { f.route = [[P.pos.x, P.pos.z]]; f.ri = 0; f.arrived = false; f.idle = 0; f.speed = d > 9 ? 3.2 : d > 5 ? 2.2 : 1.3; } else { f.idle = 0.5; } }
+  // armed men at posts for this mission (they're cleared when it ends); how many are still standing
+  const squad = (pts, o) => BOTS.squad(pts, o), standing = (gs) => gs.filter((g) => !g.killed).length;
   // a slow aerial: from a point high over the map down toward a target, with the handler's lines spread across it
   function flyover(path, lines, dur = 4.2) { return path.map((p, k) => ({ from: p.from, to: p.to, look: p.look, look2: p.look2, dur: p.dur ?? dur, say: lines[k] || '', fov: p.fov || 55 })); }
   const intelCase = (() => {
@@ -143,18 +155,18 @@ const MISSION = (() => {
     [HV('They know your face now. Every militiaman in town is coming for you.'), HV('There’s a boat at the end of the jetty. Run.')], 4.5);
 
   // ---------------- state ----------------
-  const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind };
+  const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind, shot, act, unact, walkTo, follow, squad, standing };
   const MISSIONS = MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : MAP.id === 'bahamas' ? bahamasMissions(CTX) : DAR;
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
   function start(i, quiet = false) {
     if (state === 'run' && cur()?.teardown) cur().teardown();
-    clearFigs(); flags = {}; intelCase.visible = false;
+    clearFigs(); BOTS.clearSquads(); flags = {}; intelCase.visible = false;
     mi = i; si = 0;
     try { localStorage.setItem(KEY, String(mi)); } catch { }
     if (!cur()) { state = 'free'; return; }
-    state = 'run'; cur().setup?.(); cur().steps[0].enter?.();
+    state = 'run'; cur().setup?.(); enterStep();
     const banner = () => show(`MISSION ${mi + 1} — ${cur().title}`, cur().brief, 10);
     if (cur().intro && !quiet) CINEMA.play(cur().intro(), banner); else banner();
   }
@@ -164,11 +176,25 @@ const MISSION = (() => {
     feed(`<span class="s">MISSION COMPLETE +${m.reward}${bonus ? ` · CLEAN +${bonus}` : ''}</span>`);
     show(`MISSION ${mi + 1} COMPLETE`, mi + 1 < MISSIONS.length ? `+${m.reward + bonus} · next: ${MISSIONS[mi + 1].title}` : `+${m.reward + bonus} · You made it out. The town is yours to roam.`, 6);
     audio.switchMode();
-    m.teardown?.();
+    m.teardown?.(); BOTS.clearSquads();
     state = 'between'; wait = 7;
     if (m.outro) { state = 'outro'; CINEMA.play(m.outro(), () => { state = 'between'; wait = 4; }); }
   }
-  function advance() { const prev = cur().steps[si]; si++; const go = () => { if (si >= cur().steps.length) { complete(); return; } cur().steps[si].enter?.(); audio.pouch(); }; if (prev.cut) CINEMA.play(prev.cut(), go); else go(); }
+  // per-step state: a clock running down, being seen, holding E, a choice waiting
+  let timeLeft = 0, seenT = 0, held = 0;
+  function enterStep() {
+    const m = cur(); while (si < m.steps.length && m.steps[si].skip && m.steps[si].skip()) si++;
+    if (si >= m.steps.length) { complete(); return; }
+    const st = m.steps[si]; timeLeft = st.time || 0; seenT = 0; held = 0; st.enter?.();
+  }
+  function advance() { const prev = cur().steps[si]; si++; const go = () => { enterStep(); if (state === 'run') audio.pouch(); }; if (prev.cut) CINEMA.play(prev.cut(), go); else go(); }
+  // a step's checkpoint: back to the latest step marked cp (where you're put back) — or this one
+  function checkpoint() { const m = cur(); let k = si; while (k > 0 && !m.steps[k].cp) k--; return m.steps[k].cp ? k : si; }
+  function fail(msg) {
+    const m = cur(); show('NOT LIKE THAT', msg, 4);
+    if (m.reset) si = m.reset(si); else { si = checkpoint(); const cp = m.steps[si].cp; if (cp) { const q = typeof cp === 'function' ? cp() : cp; P.pos.set(q.x, q.y ?? COL.ground(q.x, q.z, 3), q.z); P.vel.set(0, 0, 0); STREAM.prime(P.pos); } }
+    enterStep();
+  }
   const SCOPED = () => WD().scope && P.adsT > 0.8 && P.fpT > 0.8;
   const _p = new V3();
   function update(dt) {
@@ -184,11 +210,21 @@ const MISSION = (() => {
     }
     m.tick?.(dt);
     const st = m.steps[si];
-    const fail = st.tick ? st.tick(dt) : null;
-    if (fail) { show('NOT LIKE THAT', fail, 4); si = m.reset ? m.reset(si) : si; m.steps[si].enter?.(); }
+    let why = st.tick ? st.tick(dt) : null;
+    if (!why && st.time && (timeLeft -= dt) <= 0) why = st.late || 'Out of time.';
+    if (!why && st.stealth) { seenT = BOTS.spotted ? seenT + dt : Math.max(0, seenT - dt); if (seenT > 1.3) why = st.seen || 'They saw you. Stay out of sight — watch the triangles over their heads.'; }
+    let holdPr = '';
+    if (!why && st.hold) {
+      const H = st.hold, at = H.at(), close = near(at, H.r ?? 2.2, 2);
+      held = keys.KeyE && close ? held + dt : Math.max(0, held - dt * 0.5);
+      if (held >= H.secs) { advance(); return; }
+      holdPr = close ? `[HOLD E]  ${H.label}  ${Math.round(held / H.secs * 100)}%` : '';
+    }
+    if (why) { fail(why); return; }
     else if (st.done && st.done()) { advance(); return; }
-    obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? `<span style="opacity:.45">✓ ${q.text}</span>` : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>` : '')).filter(Boolean).join('<br>');
-    const pr = st.prompt ? st.prompt() : '';
+    const clock = st.time ? ` <span style="color:${timeLeft < 15 ? '#ff7a5a' : '#e8dcc4'}">⏱ ${Math.floor(timeLeft / 60)}:${String(Math.floor(timeLeft % 60)).padStart(2, '0')}</span>` : '';
+    obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? (q.skip && q.skip() ? '' : `<span style="opacity:.45">✓ ${q.text}</span>`) : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>${clock}${st.stealth ? ' <span style="color:#9ad0ff">· UNSEEN</span>' : ''}` : '')).filter(Boolean).join('<br>');
+    const pr = st.choice ? (st.choice.when ? st.choice.when() : true) ? `[Y]  ${st.choice.a}      [K]  ${st.choice.b}` : '' : holdPr || (st.prompt ? st.prompt() : '');
     setPrompt(prompt, pr);
     const t = st.where ? st.where() : null;
     if (!t) { way.style.display = 'none'; beam.visible = false; return; }
@@ -208,10 +244,18 @@ const MISSION = (() => {
     if (st.act && st.act()) { advance(); return true; }
     return false;
   }
+  function choose(k) {
+    if (state !== 'run' || CINEMA.active) return false;
+    const st = cur().steps[si]; if (!st.choice || (st.choice.when && !st.choice.when())) return false;
+    flags.choice = k; st.choice.pick?.(k); advance(); return true;
+  }
   function restart() { start(state === 'free' ? MISSIONS.length - 1 : mi); feed('<span class="m">MISSION RESTARTED</span>'); }
   return {
     get missions() { return MISSIONS; }, get flags() { return flags; },
-    update, interact, restart, start, retry: () => { start(Math.min(mi, MISSIONS.length - 1), true); feed('<span class="m">MISSION RESTARTED</span>'); }, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
+    get ctx() { return CTX; }, get busy() { return state === 'run' && !!cur(); },
+    update, interact, restart, start, choose,
+    // killed: back to the last checkpoint of this mission if it has one, else from the top
+    retry: () => { if (state === 'run' && si > 0 && cur().steps.slice(0, si + 1).some((q) => q.cp)) { const k = checkpoint(); const m = cur(); si = k; const cp = m.steps[k].cp; if (cp) { const q = typeof cp === 'function' ? cp() : cp; P.pos.set(q.x, q.y ?? COL.ground(q.x, q.z, 3), q.z); } enterStep(); feed('<span class="m">BACK TO THE LAST CHECKPOINT</span>'); return; } start(Math.min(mi, MISSIONS.length - 1), true); feed('<span class="m">MISSION RESTARTED</span>'); }, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },
     get target() { if (state !== 'run') return null; const st = cur().steps[si]; return st.where ? st.where() : null; },
   };
 })();

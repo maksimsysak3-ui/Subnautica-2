@@ -213,7 +213,7 @@ const BOTS = (() => {
     me.onNearMiss = () => { audio.crack(); P.shake = Math.min(1.5, P.shake + 0.35); };
     lastTracer = arena.time;
     // kasbah sentries at their posts (each post stays empty for a while after its man falls)
-    TOWN.guards.filter((g) => clock >= (g.deadUntil || 0) && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4)
+    TOWN.guards.filter((g) => !(g.mission && g.killed) && clock >= (g.deadUntil || 0) && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4)
       .sort((a, b) => Math.hypot(a.x - P.pos.x, a.z - P.pos.z) - Math.hypot(b.x - P.pos.x, b.z - P.pos.z)).slice(0, 14).forEach(spawnGuard);
     for (let i = 0; i < cap(); i++) spawnBot(i);
   }
@@ -238,7 +238,7 @@ const BOTS = (() => {
   function spawnGuard(g) {
     const lp = arena.nearestFree(toLocal(g.x, g.z));
     const team = g.team || sideAt(g.x, g.z);
-    const a = new Agent(arena, { team, pos: lp, yaw: g.yaw, profile: 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
+    const a = new Agent(arena, { team, pos: lp, yaw: g.yaw, profile: g.profile || 'operator', patrol: [lp, arena.nearestFree(toLocal(g.x - Math.sin(g.yaw) * 5, g.z - Math.cos(g.yaw) * 5))] });
     a.mission = 'guard'; a.kit = g.kit ?? kitFor(team);
     const v = makeView(a, views.length); v.post = g; views.push(v);
   }
@@ -250,6 +250,20 @@ const BOTS = (() => {
     const a = new Agent(arena, { team, pos: p, yaw: Math.random() * 6.28, profile: prof }); a.kit = kitFor(team);
     views.push(makeView(a, i));
     return true;
+  }
+  // mission squads: armed men posted at given spots (they hold their post and fight when they see you). They're kept
+  // with the town's guard posts, so they're still there if the fight moves on and comes back; clearSquads removes them.
+  const inArena = (g) => arena && Math.abs(g.x - arena.ox) < SIZE / 2 - 4 && Math.abs(g.z - arena.oz) < SIZE / 2 - 4;
+  function squad(points, o = {}) {
+    const gs = points.map(([x, z, yaw = 0]) => ({ x, z, yaw, team: o.team, kit: o.kit, profile: o.profile || 'operator', mission: true, tag: o.tag || 'mission' }));
+    for (const g of gs) { TOWN.guards.push(g); if (enabled && inArena(g)) spawnGuard(g); }
+    return gs;
+  }
+  function clearSquads(tag = 'mission') {
+    for (let i = TOWN.guards.length - 1; i >= 0; i--) {
+      const g = TOWN.guards[i]; if (!g.mission || g.tag !== tag) continue; TOWN.guards.splice(i, 1);
+      const k = views.findIndex((v) => v.post === g); if (k >= 0) { const v = views[k]; dropView(v); views.splice(k, 1); if (arena) arena.agents.splice(arena.agents.indexOf(v.agent), 1); }
+    }
   }
   function hurtPlayer(dmg, part) {
     if (P.dead || clock < graceUntil) return;
@@ -298,7 +312,7 @@ const BOTS = (() => {
     const a = v.agent, wx = a.pos.x + arena.ox, wz = a.pos.z + arena.oz, c = v.model.ch;
     v.y = damp(v.y, COL.ground(wx, wz, v.y + 0.3), 12, dt);
     if (!a.alive) {
-      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) v.post.deadUntil = clock + 240; else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
+      if (v.alive) { v.alive = false; v.deadT = 0; for (const m of v.hits) { const i = hitList.indexOf(m); if (i >= 0) hitList.splice(i, 1); } if (v.post) { v.post.deadUntil = clock + 240; v.post.killed = true; } else pending.push(extra ? 6 : RESPAWN_S); v.model.flash.visible = false; }
       v.deadT += dt; const k = Math.min(1, v.deadT / 0.6);
       c.root.position.set(wx, v.y, wz); c.root.rotation.set(-k * k * Math.PI / 2 * 0.92, v.yaw + Math.PI, 0);
       return;
@@ -407,5 +421,5 @@ const BOTS = (() => {
   }
   // a noise you made somewhere else (a thrown bottle): guards who hear it go and look there
   function noise(x, z, range) { if (!arena || !me) return; arena.emitSound({ x: x - arena.ox, y: 0, z: z - arena.oz }, range, 'noise', me.id); NPCS.alarm(x, z); }
-  return { update, hit, playerShot, bodies, ram, noise, FACTIONS, hold: (s) => { graceUntil = Math.max(graceUntil, clock + s); }, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
+  return { squad, clearSquads, get spotted() { return !!me && views.some((v) => v.agent.alive && v.agent.mem.get(me.id)?.visible); }, update, hit, playerShot, bodies, ram, noise, FACTIONS, hold: (s) => { graceUntil = Math.max(graceUntil, clock + s); }, hurt: (d) => hurtPlayer(d, d), setPressure: (n) => { extra = n; }, get clock() { return clock; }, takedown, canTakedown: (pos) => !!takedownTarget(pos), toggle: () => setEnabled(!enabled), reset: () => { if (enabled && MAP.ready) build(P.pos.x, P.pos.z); P.hp = 100; }, get arena() { return arena; }, get views() { return views; } };
 })();

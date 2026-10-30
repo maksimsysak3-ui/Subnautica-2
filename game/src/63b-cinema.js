@@ -34,7 +34,7 @@ const CINEMA = (() => {
   }
   function finish() {
     if (!shots) return;
-    shots = null; DBGCAM.on = false; document.body.classList.remove('cine'); ui().classList.remove('cine'); ui().style.display = 'none'; ui().querySelector('.cs').style.opacity = '0';
+    const all = shots; shots = null; DBGCAM.on = false; for (const s of all) s.end?.(); document.body.classList.remove('cine'); ui().classList.remove('cine'); ui().style.display = 'none'; ui().querySelector('.cs').style.opacity = '0';
     const d = done; done = null; d?.();
   }
   return {
@@ -45,12 +45,12 @@ const CINEMA = (() => {
       ui().style.display = 'block'; requestAnimationFrame(() => ui().classList.add('cine')); document.body.classList.add('cine');
       for (const k in keys) keys[k] = false; P.vel.set(0, 0, 0); P.trigger = false;
       BOTS.hold(list.reduce((a, s) => a + s.dur, 0) + 2);
-      line(shots[0]); apply();
+      line(shots[0]); shots[0].do?.(); apply();
     },
     update(dt) {
       if (!shots) return;
       t += dt;
-      if (t >= shots[i].dur) { i++; t = 0; if (i >= shots.length) { finish(); return; } line(shots[i]); }
+      if (t >= shots[i].dur) { i++; t = 0; if (i >= shots.length) { finish(); return; } line(shots[i]); shots[i].do?.(); }
       apply();
     },
     skip() { if (!shots) return false; finish(); return true; },

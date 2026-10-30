@@ -8,7 +8,7 @@ const NPCS = (() => {
   // a big crowd: the near ones are fully posed rigs, the rest a single baked mesh each (one draw call)
   // N posed civilians live near you (full rigs, collision, panic, talk); WALKERS more fill the streets out to the
   // draw distance. Beyond posing range everyone is drawn as an instance of one of K outfits.
-  const N = MAP.id === 'seoul' ? 50 : MAP.id === 'manor' ? 36 : 46, WALKERS = MAP.id === 'seoul' ? 820 : MAP.id === 'manor' ? 220 : MAP.id === 'bahamas' ? 560 : 600, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
+  const N = MAP.id === 'seoul' ? 36 : MAP.id === 'manor' ? 26 : 32, WALKERS = MAP.id === 'seoul' ? 470 : MAP.id === 'manor' ? 130 : MAP.id === 'bahamas' ? 320 : 350, K = 16, NEAR_POSE = 26, FAR = 85, PLAZA_N = 18, SHADOW_R = 16, R = 0.28;
   // squares where people linger (not the kasbah's: that's the militia's ground)
   const CIVIL = ['Harbour front', 'Resort beach', 'Pool deck', 'Straw market', 'Town square', 'Farm stand', 'Sports field', 'Forecourt', 'Front lawn', 'East lawn', 'Terrace', 'Place Lalla Yeto', 'Rahba Kedima', 'Jardin du Mellah', 'Quai des Pêcheurs', 'Mosque forecourt', 'Station plaza', 'Food alley', 'Market square', 'Gangnam plaza', 'Hangang park', 'Market plaza', 'Ahyeon plaza'];
   // a coarse head count on a 4 m grid, refreshed twice a second: goals and spawn points skip cells that already
@@ -260,7 +260,7 @@ const NPCS = (() => {
   // stand talking in twos and threes, look about, wade in the shallows; street walkers stop now and then for a call
   // and a few jog. The posed crowd near you is posed for it; the far crowd shows it in the instanced body.
   const SEATED = new Set(['sit', 'lie', 'sand']), STOPS = ['text', 'call', 'look', 'look', 'text', 'drink'];
-  const ACT_I = { sit: 1, sand: 1, call: 2, drink: 2, chat: 3, text: 4, photo: 4 }, _eA = new THREE.Euler();
+  const ACT_I = { sit: 1, sand: 1, call: 2, drink: 2, chat: 3, text: 4, photo: 4, give: 4, aim: 4, point: 2, surrender: 2, listen: 0 }, _eA = new THREE.Euler();
   let seatGrid = null;
   function seatsNear(x, z, r) {
     if (!seatGrid) {
@@ -362,6 +362,21 @@ const NPCS = (() => {
     } else if (a === 'look') {
       c.head.rotation.set(-0.05, Math.sin(t * 0.35) * 0.75, 0);
       arms(c, (side, sh, o) => ({ t: o.set(side * 0.09, hy - 0.02, -0.16), p: [side, 0, 0.2] }));
+    } else if (a === 'give') {   // holding something out to you
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.12, hy + 0.28, 0.48), p: [-1, -1, 0] } : null));
+      prop(v, 'phone', _h.set(-0.12, hy + 0.3, 0.52));
+    } else if (a === 'point') {   // showing you the way
+      c.head.rotation.set(0, 0.25, 0);
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.35, hy + 0.55, 0.55), p: [-1, 0, 0] } : null));
+    } else if (a === 'aim') {   // a pistol held out in both hands
+      arms(c, (side, sh, o) => ({ t: o.set(side * 0.04 - 0.02, hy + 0.55, 0.55), p: [side, -1, 0] }));
+      prop(v, 'phone', _h.set(-0.02, hy + 0.6, 0.62));
+    } else if (a === 'surrender') {   // hands up
+      c.head.rotation.set(0.1, 0, 0);
+      arms(c, (side, sh, o) => ({ t: o.set(side * 0.28, hy + 1.05, 0.05), p: [side, 0, -0.5] }));
+    } else if (a === 'listen') {   // arms folded, nodding along
+      c.head.rotation.set(0.08 + Math.sin(t * 1.9) * 0.05, 0, 0);
+      arms(c, (side, sh, o) => ({ t: o.set(-side * 0.1, hy + 0.3, 0.2), p: [side, -1, 0] }));
     } else if (a === 'wade') {
       c.head.rotation.set(-0.05, Math.sin(t * 0.3) * 0.6, 0);
       arms(c, (side, sh, o) => ({ t: o.set(side * (0.34 + Math.sin(t * 1.3 + side) * 0.05), hy - 0.08, 0.12), p: [side, 0, -0.5] }));
@@ -728,5 +743,7 @@ const NPCS = (() => {
     figs.push(v); return v;
   }
   function removeFigure(v) { const i = figs.indexOf(v); if (i >= 0) figs.splice(i, 1); setHits(v, false); scene.remove(v.m.ch.root); }
-  return { update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; }, get walkers() { return walkers; }, get VAR() { return VAR; } };
+  // missions and cutscenes put people into an act (or take them out of it)
+  const actOn = (v, a, T = 999, face) => { if (v.act) endAct(v); setAct(v, a, T, face ?? v.yaw); }, actOff = (v) => { if (v.act) endAct(v); };
+  return { actOn, actOff, update, alarm, conceal, hit, knockout, bodies, honk, bump, spawnFigure, removeFigure, talk, promptTalk, outfit: (over = {}) => ({ ...outfit(), ...over }), get figs() { return figs; }, canKnockout: (pos) => !!koTarget(pos), get civs() { return civs; }, get walkers() { return walkers; }, get VAR() { return VAR; } };
 })();
