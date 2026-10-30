@@ -789,13 +789,13 @@ function updateRange(dt, time) {
   const eyeW = ch.eye.getWorldPosition(T.e);
   if (P.vehicle) eyeW.add(_rideOff.set(-Math.sin(P.vehicle.yaw) * 0.24, 0.06, -Math.cos(P.vehicle.yaw) * 0.24));   // riding: eyes ahead of the chest, over the bars
   P.camY = damp(P.camY, eyeW.y, 12, dt);
-  const off = P.vehicle ? (P.vehicle.kind === 'cart' ? T.a.set(0, 1.5, 5.6) : T.a.set(0, 0.7, 3.9)) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
+  const off = P.vehicle ? (P.vehicle.kind === 'cart' ? T.a.set(0, 1.5, 5.6) : P.vehicle.kind === 'jet' ? T.a.set(0, 1.25, 5.0) : T.a.set(0, 0.7, 3.9)) : T.a.set(lerp(0.78, 0.66, P.adsT), lerp(0.24, 0.1, P.adsT), lerp(2.7, 1.5, P.adsT));
   _e1.set(pitch, yaw, 0, 'YXZ'); off.applyQuaternion(_q2.setFromEuler(_e1));
   // shoulder camera: pull in when a wall is between you and the camera
   const pivot = T.b.set(P.pos.x, P.camY + 0.05, P.pos.z), offLen = off.length();
   const camHit = COL.ray(pivot, T.c.copy(off).divideScalar(offLen), offLen + 0.3);
   const tp = camHit ? pivot.addScaledVector(T.c, Math.max(0.15, camHit.t - 0.3)) : pivot.add(off);
-  tp.y = Math.max(tp.y, terrainH(tp.x, tp.z) + 0.25);
+  tp.y = Math.max(tp.y, terrainH(tp.x, tp.z) + 0.25, MAP.waterY !== undefined ? MAP.waterY + 0.45 : -1e9);
   T.camBase.copy(tp).lerp(eyeW, P.fpT);
 
   // aim point from the camera centre
@@ -822,7 +822,7 @@ function updateRange(dt, time) {
     camera.position.lerp(T.e.set(P.pos.x + bx * (2.4 + e * 2.2), P.pos.y + 1.4 + e * 3.4, P.pos.z + bz * (2.4 + e * 2.2)), Math.min(1, 0.15 + e)); camera.lookAt(P.pos.x - Math.sin(P.yaw) * 0.8, P.pos.y + 0.25, P.pos.z - Math.cos(P.yaw) * 0.8); }
   SCOPE.update(WD().scope ? smooth(clamp((P.adsT * P.fpT - 0.82) / 0.18, 0, 1)) : 0);
   const W = WD();
-  const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2;
+  const fovT = lerp(P.fp ? 74 : 68, P.fp ? W.ads[1] : W.ads[0], smooth(P.adsT)) + P.sprintT * 5 + P.shake * 1.2 + (P.vehicle ? clamp(Math.hypot(P.vel.x, P.vel.z) / 22, 0, 1) * 8 : 0);
   if (Math.abs(camera.fov - fovT) > 0.01) { camera.fov = fovT; camera.updateProjectionMatrix(); }
 
   trigger(time);

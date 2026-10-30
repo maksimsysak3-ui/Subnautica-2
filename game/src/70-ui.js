@@ -253,7 +253,7 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'bahamas') { BSEA.update(time); PATROL.update(dt, time); } if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'bahamas') { BSEA.update(time); PATROL.update(dt, time); JET.update(dt); } if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);
@@ -282,7 +282,7 @@ window.__dbg.walk = (path, o = {}) => {
   return out;
 };
 window.__dbg.step = (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { time += dt; updateRange(dt, time); updateBullets(dt); } return [P.pos.x, P.pos.y, P.pos.z].map((v) => +v.toFixed(2)); };
-window.__dbg.COL = COL; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.CINEMA = CINEMA; window.__dbg.THROW = THROW; window.__dbg.TRAFFIC = TRAFFIC; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
+window.__dbg.COL = COL; window.__dbg.JET = JET; window.__dbg.SUBWAY = SUBWAY; window.__dbg.DOORS = DOORS; window.__dbg.CINEMA = CINEMA; window.__dbg.THROW = THROW; window.__dbg.TRAFFIC = TRAFFIC; window.__dbg.MAP = MAP; window.__dbg.cam = DBGCAM; window.__dbg.BOTS = BOTS;
 // debug: the planning grid as an image (2 m per pixel): street, pave, built, reserved, wall
 window.__dbg.gridImage = () => {
   const n = GR.N / 2, cv = document.createElement('canvas'); cv.width = cv.height = n; const g = cv.getContext('2d'), im = g.createImageData(n, n);

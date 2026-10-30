@@ -43,23 +43,6 @@ const SCOOTER = (() => {
     const stand = add(new THREE.BoxGeometry(0.03, 0.28, 0.03), dark, 0.16, 0.12, -0.05, 0, 0, 0.35);
     return { g, steer, fw, rw, stand };
   }
-  // a jetski: a white hull with a stripe, the seat, the bars on their column, the intake grille behind
-  function jetModel(col) {
-    const g = new THREE.Group(), hull = mat(0xf4f4f0, { r: 0.3, m: 0.2 }), paint = mat(col, { r: 0.25, m: 0.3 }), dark = mat(0x1c1c1e, { r: 0.6, m: 0.2 }), chrome = mat(0xd8dade, { r: 0.15, m: 0.95 });
-    const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, p = g) => { const o = M(geo, m, p, x, y, z, rx, ry, rz); o.castShadow = true; return o; };
-    add(new THREE.SphereGeometry(0.5, 14, 10).scale(1.15, 0.55, 3.0), hull, 0, 0.2, 0.1);
-    add(new THREE.BoxGeometry(1.1, 0.12, 2.6), paint, 0, 0.32, -0.1);
-    add(new THREE.SphereGeometry(0.35, 12, 8).scale(1.4, 0.6, 1.6), paint, 0, 0.45, 0.85);
-    add(new THREE.BoxGeometry(0.4, 0.2, 1.3), dark, 0, 0.58, -0.35);
-    add(new THREE.BoxGeometry(1.05, 0.05, 0.9), dark, 0, 0.37, -1.15);
-    const steer = new THREE.Group(); steer.position.set(0, 0.78, 0.42); steer.rotation.x = -0.35; g.add(steer);
-    add(new THREE.CylinderGeometry(0.05, 0.06, 0.3, 8), dark, 0, -0.1, 0, 0, 0, 0, steer);
-    add(new THREE.CylinderGeometry(0.016, 0.016, 0.66, 8), chrome, 0, 0.06, 0, 0, 0, Math.PI / 2, steer);
-    for (const sx of [-1, 1]) add(new THREE.CylinderGeometry(0.022, 0.022, 0.12, 8), dark, sx * 0.3, 0.06, 0, 0, 0, Math.PI / 2, steer);
-    add(new THREE.BoxGeometry(0.3, 0.1, 0.16), mat(0x1a2430, { r: 0.1, m: 0.4 }), 0, 0.14, 0.08, 0, 0, 0, steer);
-    const nop = new THREE.Group(); g.add(nop);
-    return { g, steer, fw: nop, rw: nop, stand: nop };
-  }
   // a golf cart: the tub, the bench seat and its back, a roof on four posts, the windscreen, the wheel on its column
   function cartModel(col) {
     const g = new THREE.Group(), paint = mat(col, { r: 0.3, m: 0.3 }), seat = mat(0xe8e0d0, { r: 0.85, m: 0 }), dark = mat(0x1c1c1e, { r: 0.6, m: 0.2 }), chrome = mat(0xd8dade, { r: 0.15, m: 0.9 }), tyre = mat(0x121214, { r: 0.9, m: 0 });
@@ -80,7 +63,7 @@ const SCOOTER = (() => {
   function spawn() {
     const carts = MAP.id === 'bahamas' ? BAHAMAS.carts.map((c) => [...c, 'cart']) : [];
     for (const [x, z, yaw, col, kind] of SPOTS.concat(carts)) {
-      const jet = kind === 'jet', m = jet ? jetModel(col) : kind === 'cart' ? cartModel(col) : model(col); scene.add(m.g);
+      const jet = kind === 'jet', m = jet ? JET.model(col) : kind === 'cart' ? cartModel(col) : model(col); scene.add(m.g);
       const s = { m, kind, x, z, y: jet ? MAP.waterY : COL.ground(x, z, 0.3), yaw, v: 0, vx: 0, vz: 0, lean: jet || kind === 'cart' ? 0 : 0.22, steer: 0, steerIn: 0, slip: 0, pitch: 0 };
       if (jet && terrainH(s.x, s.z) > MAP.waterY - 0.35) { let b = null; for (let r = 1.5; r < 30 && !b; r += 1.5) for (let k = 0; k < 12 && !b; k++) { const a = k / 12 * Math.PI * 2, x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r; if (terrainH(x, z) < MAP.waterY - 0.5) b = [x, z]; } if (b) { s.x = b[0]; s.z = b[1]; } }   // find enough water to float in
       list.push(s);
@@ -170,43 +153,15 @@ const SCOOTER = (() => {
     audio.skid(clamp((s.slip - 0.8) / 4, 0, 1) * (sp > 2 ? 1 : 0));
     if (thr && sp > 1) P.shake = Math.min(0.3, P.shake + dt * 0.4);
   }
-  // on the water: no grip but the hull's keel, so it slides wide through turns; it noses up when you open it up
-  // and planes; waves lift it; run it up the beach and it stops dead
-  let sprayT = 0;
+  // on the water: JET does the hull, the water and the spray; here it's what riding it does to you
   function driveJet(dt) {
-    const s = riding, thr = keys.KeyW ? 1 : 0, rev = keys.KeyS ? 1 : 0, carve = keys.Space ? 1 : 0;
-    s.steerIn = damp(s.steerIn, (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0), 7, dt);
-    const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
-    let v = s.vx * fx + s.vz * fz; const VMAX = 22;
-    if (thr) v += 7.5 * (1 - Math.max(0, v) / VMAX) * dt;
-    if (rev) v = Math.max(-3, v - 6 * dt);
-    v *= Math.exp(-(thr ? 0.12 : 0.6) * dt);
-    const yawRate = s.steerIn * (1.1 + Math.min(1, Math.abs(v) / 8) * 0.9) * (carve ? 1.6 : 1) * clamp(Math.abs(v) / 2 + 0.25, 0, 1) * Math.sign(v || 1);
-    s.yaw += yawRate * dt;
-    const nfx = -Math.sin(s.yaw), nfz = -Math.cos(s.yaw), along = s.vx * nfx + s.vz * nfz, latX = s.vx - along * nfx, latZ = s.vz - along * nfz, keep = Math.exp(-(carve ? 4.5 : 2.2) * dt);
-    const vNew = v + (along - (s.vx * fx + s.vz * fz));
-    s.vx = nfx * vNew + latX * keep; s.vz = nfz * vNew + latZ * keep;
-    const nx = s.x + s.vx * dt, nz = s.z + s.vz * dt;
-    // beach or rocks ahead: stop, bounce back a little
-    if (terrainH(nx, nz) > MAP.waterY - 0.25) { const sp = Math.hypot(s.vx, s.vz); if (sp > 6) { P.shake = Math.min(1.5, P.shake + 0.6); audio.crash(sp / 25); } s.vx *= -0.2; s.vz *= -0.2; }
-    else {
-      const p = { x: nx, y: s.y, z: nz }; COL.resolve(p, 0.6, 1.2);
-      const push = Math.hypot(p.x - nx, p.z - nz); if (push > 1e-3) { const sp = Math.hypot(s.vx, s.vz); if (sp > 6) { P.shake = Math.min(1.5, P.shake + 0.5); audio.crash(sp / 25); } s.vx *= 0.4; s.vz *= 0.4; }
-      s.x = p.x; s.z = p.z;
-    }
-    const sp = Math.hypot(s.vx, s.vz), tt = performance.now() / 1000;
-    s.y = damp(s.y, MAP.waterY + waveH(s.x, s.z, tt) + Math.min(0.12, sp * 0.008), 10, dt);
-    s.pitch = damp(s.pitch, thr ? clamp(sp / VMAX, 0, 1) * 0.12 - (sp > 12 ? 0.05 : 0) : 0, 3, dt) + Math.sin(tt * 3.1) * 0.004 * sp;
-    s.lean = damp(s.lean, -s.steerIn * clamp(sp / 10, 0, 1) * 0.45, 5, dt);
-    s.steer = damp(s.steer, s.steerIn * 0.5, 10, dt);
-    // spray off the hull and a wake behind
-    if (sp > 3 && (sprayT -= dt) <= 0) { sprayT = 0.05; const bx = s.x - nfx * 1.4, bz = s.z - nfz * 1.4; emitPuff(new V3(bx, MAP.waterY + 0.2, bz), 0xf4fbff, 0.18, 0.9, new V3(-nfx * 2 + (Math.random() - 0.5) * 2, 2.2 + sp * 0.08, -nfz * 2 + (Math.random() - 0.5) * 2), 0.5, 2.4); if (Math.abs(s.steerIn) > 0.3) emitPuff(new V3(s.x + nfz * s.steerIn * 0.6, MAP.waterY + 0.2, s.z - nfx * s.steerIn * 0.6), 0xffffff, 0.14, 0.7, new V3(nfz * s.steerIn * 3, 2.4, -nfx * s.steerIn * 3), 0.45, 2); }
+    const s = riding, { sp, VMAX } = JET.drive(s, dt, keys), thr = keys.KeyW ? 1 : 0;
     if (sp > 3) { NPCS.bump(s.x, s.z, sp); BOTS.ram(s.x, s.z, sp); }
     P.pos.set(s.x, s.y, s.z); P.vel.set(s.vx, 0, s.vz); placeModel(s);
-    s.camYaw = s.camYaw === undefined ? s.yaw : s.camYaw + wrapPI(s.yaw - s.camYaw) * Math.min(1, dt * 3);
-    if (performance.now() - lastLookT > 1200 && sp > 1.2) P.yaw += wrapPI(s.camYaw - P.yaw) * Math.min(1, dt * 3.5);
-    audio.engine(true, clamp(sp / VMAX, 0, 1) * 0.9 + thr * 0.25, thr);
-    if (thr && sp > 4) P.shake = Math.min(0.25, P.shake + dt * 0.3);
+    s.camYaw = s.camYaw === undefined ? s.yaw : s.camYaw + wrapPI(s.yaw - s.camYaw) * Math.min(1, dt * 2.6);
+    if (performance.now() - lastLookT > 1200 && sp > 1.2) P.yaw += wrapPI(s.camYaw - P.yaw) * Math.min(1, dt * 3);
+    audio.engine(true, clamp(sp / VMAX, 0, 1) * 0.9 + thr * 0.25 + (s.air ? 0.15 : 0), thr);
+    if (sp > 4 && !s.air) P.shake = Math.min(0.18, P.shake + dt * 0.12 * sp / VMAX);
   }
   // a golf cart: electric, about 30 km/h flat out, steers like a car (no lean, no slide); it won't go into the sea
   // or onto the jetties, and it bumps off walls rather than throwing you
@@ -257,13 +212,15 @@ const SCOOTER = (() => {
   function poseRider(dt) {
     const s = riding, c = ch, d = c.d;
     c.root.position.set(s.x, s.y, s.z); c.root.quaternion.copy(s.m.g.quaternion);
-    const jet = s.kind === 'jet', cart = s.kind === 'cart';
-    c.pelvis.position.set(cart ? 0.26 : 0, jet ? 0.92 : cart ? 0.86 : 0.8, jet ? -0.45 : cart ? -0.3 : -0.2); c.pelvis.rotation.set(0, 0, 0);
-    c.spine.rotation.set(0.1 + Math.min(0.1, Math.hypot(s.vx, s.vz) * 0.008), 0, s.steerIn * 0.08);
+    const jet = s.kind === 'jet', cart = s.kind === 'cart', spd = Math.hypot(s.vx, s.vz);
+    c.pelvis.position.set(cart ? 0.26 : 0, jet ? 0.6 + (s.air ? 0.12 : 0) : cart ? 0.86 : 0.8, jet ? -0.32 : cart ? -0.3 : -0.2); c.pelvis.rotation.set(0, 0, 0);
+    // on the jetski you hunch over the bars as it gets going and throw your weight into the turn
+    if (jet) c.spine.rotation.set(0.28 + clamp(spd / 24, 0, 1) * 0.22, s.steerIn * 0.12, s.steerIn * 0.28 * clamp(spd / 8, 0.3, 1));
+    else c.spine.rotation.set(0.1 + Math.min(0.1, spd * 0.008), 0, s.steerIn * 0.08);
     c.head.rotation.set(-0.2 - P.pitch * 0.6, clamp(wrapPI(P.yaw - s.yaw), -1.2, 1.2), 0);
     c.root.updateMatrixWorld(true);
     for (const [leg, hipA, side] of [[c.legL, c.hipL, 1], [c.legR, c.hipR, -1]]) {
-      const hip = toRoot(hipA, T.a), foot = jet ? _c.set(side * 0.36, 0.42 + d.ankle * 0.5, -0.2) : cart ? _c.set(0.26 + side * 0.16, 0.62 + d.ankle * 0.5, 0.42) : _c.set(side * 0.15, 0.3 + d.ankle * 0.5, 0.26);
+      const hip = toRoot(hipA, T.a), foot = jet ? _c.set(side * 0.34, 0.34 + d.ankle * 0.5, 0.02) : cart ? _c.set(0.26 + side * 0.16, 0.62 + d.ankle * 0.5, 0.42) : _c.set(side * 0.15, 0.3 + d.ankle * 0.5, 0.26);
       ik(hip, foot, d.thigh, d.shin, T.pole.set(side * 0.1, 0.2, 1), T.mid, T.end);
       placeSeg(leg.thigh, hip, T.mid, T.fwd); placeSeg(leg.shin, T.mid, T.end, T.fwd);
       leg.foot.position.copy(T.end); leg.foot.rotation.set(0.1, 0, 0);
