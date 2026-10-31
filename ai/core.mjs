@@ -309,10 +309,10 @@ export class Agent {
           // a civilian blending in (disguiseClose) holds at any distance. Behaving perfectly, nothing builds — what was there fades.
           // a look that lingers wears the disguise thin: after ~4 s of watching you within 15 m it starts to fail.
           // Officers (veterans) know faces: to them a disguise only half works, and only at a distance.
-          let st = this.stare.get(o.id) || 0; st = dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
-          const hold = clamp(1 - (st - 4) / 5, 0, 1);
-          const close = this.officer ? clamp((d - 4) / 10, 0, 1) * 0.5 : 1;
-          const eff2 = dg * hold * close;
+          // ordinary men take the clothes at face value. Officers (veterans) know faces: a look that lingers on you
+          // (~4 s within 15 m) wears the disguise away — keep moving, keep your distance from them.
+          let st = this.stare.get(o.id) || 0; st = this.officer && dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
+          const eff2 = dg * clamp(1 - (st - 4) / 4, 0, 1);
           if (eff2 >= 0.85 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
           else if (dg) rate *= 1 - eff2;
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));

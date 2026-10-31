@@ -12638,10 +12638,10 @@ class Agent {
           // a civilian blending in (disguiseClose) holds at any distance. Behaving perfectly, nothing builds — what was there fades.
           // a look that lingers wears the disguise thin: after ~4 s of watching you within 15 m it starts to fail.
           // Officers (veterans) know faces: to them a disguise only half works, and only at a distance.
-          let st = this.stare.get(o.id) || 0; st = dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
-          const hold = clamp(1 - (st - 4) / 5, 0, 1);
-          const close = this.officer ? clamp((d - 4) / 10, 0, 1) * 0.5 : 1;
-          const eff2 = dg * hold * close;
+          // ordinary men take the clothes at face value. Officers (veterans) know faces: a look that lingers on you
+          // (~4 s within 15 m) wears the disguise away — keep moving, keep your distance from them.
+          let st = this.stare.get(o.id) || 0; st = this.officer && dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
+          const eff2 = dg * clamp(1 - (st - 4) / 4, 0, 1);
           if (eff2 >= 0.85 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
           else if (dg) rate *= 1 - eff2;
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
@@ -15329,8 +15329,8 @@ function expandCampaign(id, M, ctx) {
         { text: 'Get behind him and grab him (E)', skip: () => F().choice !== 0, where: () => live(F().contact, 'CONTACT')(), act: () => { const c = F().contact; return c.alive && near(c, 2) && ctx.behind(c); }, prompt: () => (near(F().contact, 2) ? (ctx.behind(F().contact) ? '[E]  GRAB HIM' : 'GET BEHIND HIM') : ''),
           cut: () => talkShots(P.pos, F().contact, ['CONTACT[surrender]: Easy! Easy. I just carry things.', 'YOU: Where to?', 'CONTACT[surrender]: The warehouse on the quay. The office upstairs. Everything goes through there — guns, money, names.', 'CONTACT[surrender]: Please. They’ll kill me for this.']) },
         { ...o[2], skip: () => F().choice === 0 }, { ...o[3], skip: () => F().choice === 0, cut: () => [{ from: [P.pos.x + 2, 2.2, P.pos.z + 2], to: [P.pos.x + 1.5, 1.8, P.pos.z + 1.5], look: [P.pos.x, 0.6, P.pos.z], dur: 4, say: 'YOU: A warehouse address on the quay. And a key.', fov: 45 }] },
-        goal('Get into the warehouse office on the quay without being seen', () => S().warehouseOffice, 3, 'OFFICE', { stealth: true, dy: 2.5, enter: () => { if (!F().wh) F().wh = squad([[106, 97, 1], [122, 99, -1], [110, 86, 0], [121, 84, 3]], { profile: 'veteran' }); }, cp: P3(96, 60) }),
-        holdAt('Copy the shipping manifest', () => S().warehouseOffice, 6, 'COPYING THE MANIFEST', { name: 'MANIFEST', stealth: true }),
+        goal('Get into the warehouse office on the quay: sneak in, or put on a docker’s clothes (knock one out, F then E) and walk in — weapons hidden', () => S().warehouseOffice, 3, 'OFFICE', { dy: 2.5, enter: () => { if (!F().wh) F().wh = squad([[106, 97, 1], [122, 99, -1], [121, 84, 3]], { profile: 'operator' }); if (!F().dk) F().dk = fig({ kit: kit({ top: 'tshirt', topColor: '#6a6a5a', headwear: 'beanie', hatColor: '#3a3a3a' }), route: [[98, 90, 4], [102, 84, 5]], loop: true, speed: 0.6 }); }, tick: () => (BOTS.spotted && !P.disguise ? (F().sp = (F().sp || 0) + 1 / 60) > 1.3 ? 'They saw you. Try the docker’s clothes.' : null : null), cp: P3(96, 60) }),
+        holdAt('Copy the shipping manifest', () => S().warehouseOffice, 6, 'COPYING THE MANIFEST', { name: 'MANIFEST' }),
         goal('The dockers saw the light. Get back into the medina — Rahba Kedima', P3(-51, -87), 10, 'RAHBA KEDIMA', { time: 210, enter: pressure(2), cut: () => [{ from: [-40, 8, -70], to: [-48, 5, -80], look: [-51, 1.5, -87], dur: 5, say: HV('The manifest. Guns in, people out — and every payment signed off by a broker in Seoul. That’s where this goes next.'), fov: 50 }] }),
       ];
       m.reset = (step) => (reset0 ? reset0(step) : step);
