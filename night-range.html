@@ -2593,9 +2593,9 @@ const SKY = (() => {
     HOR.copy(u.hor.value);
     ring.visible = false;   // no mountains in the Bahamas: open sea to the horizon
     sunDir.set(-0.45, 0.78, 0.42).normalize();
-    sun.color.set(0xfff4e0); sun.intensity = 3.3;
+    sun.color.set(0xfff2dc); sun.intensity = 3.6; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
     scene.fog.color.setRGB(0.66, 0.82, 0.94); scene.background.copy(scene.fog.color);
-    HEMI.color.setRGB(0.62, 0.78, 1.0); HEMI.groundColor.setRGB(0.86, 0.8, 0.66); HEMI.intensity = 0.8;
+    HEMI.color.setRGB(0.6, 0.78, 1.0); HEMI.groundColor.setRGB(0.9, 0.82, 0.64); HEMI.intensity = 0.9;
   }
   // dusk: the sun just over the trees, a long orange light, the sky going violet overhead
   function dusk() {
@@ -2604,10 +2604,10 @@ const SKY = (() => {
     u.zen.value.setRGB(0.07, 0.1, 0.28); u.hor.value.setRGB(0.95, 0.5, 0.3); u.glowc.value.setRGB(1.0, 0.52, 0.22);
     HOR.copy(u.hor.value);
     ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.3, 0.22, 0.26); });
-    sunDir.set(0.86, 0.15, -0.48).normalize();
-    sun.color.set(0xffa060); sun.intensity = 1.8;
+    sunDir.set(0.84, 0.22, -0.48).normalize();
+    sun.color.set(0xffa868); sun.intensity = 2.3; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
     scene.fog.color.setRGB(0.58, 0.42, 0.4); scene.background.copy(scene.fog.color);
-    HEMI.color.setRGB(0.5, 0.52, 0.72); HEMI.groundColor.setRGB(0.32, 0.24, 0.2); HEMI.intensity = 0.5;
+    HEMI.color.setRGB(0.56, 0.56, 0.78); HEMI.groundColor.setRGB(0.36, 0.28, 0.22); HEMI.intensity = 0.62;
     MAP.lampGain = 2.6;
   }
   function night() {
@@ -10979,7 +10979,7 @@ function bahamasTown() {
   W.box(1.4, 2.0, 1.4, 50, 1.0, -20, 0xe8e4dc, { t: TX.stone }); W.solid(1.4, 2.0, 1.4, 50, 1.0, -20, 'stone'); W.cyl(0.3, 0.35, 1.6, 50, 2.8, -20, 0x6a8a7a, { seg: 8, layer: 'metal' }); W.sphere(0.3, 0.32, 0.3, 50, 3.85, -20, 0x6a8a7a, { layer: 'metal' });
   W.box(0.5, 3.4, 0.5, 28, 1.7, -40, 0xe8e4dc, { t: TX.stone }); W.solid(0.8, 3.4, 0.8, 28, 1.7, -40, 'stone'); W.box(1.6, 0.4, 1.6, 28, 0.2, -40, 0xe8e4dc, { t: TX.stone });
   W.scope({ lod: 1 }, () => {
-    for (const [x, z] of [[25, -18], [53, -43], [25, -43], [53, -33]]) { W.cyl(0.18, 0.3, 3.2, x, 1.6, z, 0x6a5040, { seg: 7 }); W.sphere(3.2, 1.2, 3.2, x, 3.6, z, 0x3a7a2a, { t: TX.leaf }); for (let i = 0; i < 10; i++) W.sphere(0.6, 0.35, 0.6, x + mr(-2.6, 2.6), 4.1 + mr(-0.2, 0.4), z + mr(-2.6, 2.6), mpick([0xe8402a, 0xf0582a, 0xd8302a]), { seg: 6 }); }
+    for (const [x, z] of [[25, -18], [53, -43], [25, -43], [53, -33]]) { W.cyl(0.18, 0.3, 3.2, x, 1.6, z, 0x6a5040, { seg: 7 }); W.sphere(4.4, 1.6, 4.4, x, 3.7, z, 0x3a7a2a, { t: TX.leaf }); for (let i = 0; i < 12; i++) { const a = mr(0, 6.28), r = mr(0, 1.7); W.sphere(0.7, 0.3, 0.7, x + Math.cos(a) * r, 3.7 + 0.75 * Math.sqrt(1 - (r / 2.2) ** 2), z + Math.sin(a) * r, mpick([0xe8402a, 0xf0582a, 0xd8302a]), { seg: 6 }); } }
     for (const [x, z, r] of [[30, -24, 0], [48, -24, 0], [30, -36, Math.PI], [48, -36, Math.PI], [39, -17, 0], [39, -43, Math.PI]]) bench(x, 0.03, z, r);
     for (const [x, z] of [[22.5, -46], [55.5, -46], [22.5, -14], [55.5, -14]]) lampPostOld(x, 0, z, 4.2);
     trashBin(36, 0, -45); trashBin(44, 0, -15);
@@ -11386,6 +11386,73 @@ async function buildWorld() {
   if (Object.keys(PROF).length) console.log('[t] PROF ' + Object.entries(PROF).sort((a, b) => b[1].tris - a[1].tris).slice(0, 40).map(([k, v]) => `${k}:${(v.tris / 1e6).toFixed(2)}M/${v.calls}`).join(' '));
   console.log(`[map] built in ${MAP.buildMs} ms`, W.stats(), `${COL.list.length} colliders, ${MAP.lamps.length} lamps, ${MAP.meshes.length} meshes`);
 }
+// =====================================================================
+//  Grass and wild flowers: the manor's lawns and the island's open ground
+// =====================================================================
+// Clumps of blades (one geometry, instanced) swaying in the wind in the vertex shader, with flowers among them.
+// Laid in 48 m patches over open ground only (not roads, paving, buildings or the lake); patches beyond ~110 m
+// aren't drawn, so the cost stays with what's around you.
+const LAWN = (() => {
+  const ON = MAP.id === 'manor' || MAP.id === 'bahamas';
+  let built = false; const patches = [], uT = { value: 0 };
+  function clumpGeo(base, tip) {
+    const pos = [], col = [], c0 = new THREE.Color(base), c1 = new THREE.Color(tip);
+    for (let i = 0; i < 7; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * 0.16, x = Math.cos(a) * r, z = Math.sin(a) * r, h = 0.22 + Math.random() * 0.3, w = 0.035, lean = 0.08 + Math.random() * 0.1, lx = Math.cos(a) * lean, lz = Math.sin(a) * lean, px = -Math.sin(a) * w, pz = Math.cos(a) * w;
+      pos.push(x - px, 0, z - pz, x + px, 0, z + pz, x + lx, h, z + lz);
+      col.push(c0.r, c0.g, c0.b, c0.r, c0.g, c0.b, c1.r, c1.g, c1.b);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+    // blades light like the ground under them, not like paper held to the sun
+    const n = g.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+    return g;
+  }
+  function windy(m) {
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uT = uT;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uT;').replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        float k = transformed.y * 2.2, w = sin(uT * 1.6 + ip.x * 0.21 + ip.z * 0.17) * 0.6 + sin(uT * 3.1 + ip.x * 0.7) * 0.25;
+        transformed.x += w * 0.06 * k; transformed.z += w * 0.035 * k;`);
+    };
+    return m;
+  }
+  function build() {
+    built = true;
+    const isl = MAP.id === 'bahamas';
+    const geo = clumpGeo(isl ? 0x4e7a32 : 0x38602a, isl ? 0xb4c46a : 0x86b04e);
+    const mat = windy(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    const fgeo = new THREE.IcosahedronGeometry(0.045, 0), fmat = windy(new THREE.MeshLambertMaterial({ emissive: 0x111111 }));
+    const FLOW = isl ? [0xf04a8a, 0xffd040, 0xff7a3a, 0xf8f8f0] : [0xf0f0f8, 0xffd84a, 0xb07ae8, 0xe84a5a];
+    const R = isl ? { x0: -250, x1: 250, z0: -140, z1: 140 } : { x0: -255, x1: 255, z0: -255, z1: 255 }, S = 48, dens = isl ? 0.22 : 0.42;
+    const ok = (x, z) => {
+      const g = GR.get(x, z); if (g !== GR.FREE && !(g === GR.PAVE && !isl && !GR.roadAt(x, z) && (TOWN.plazas || []).some((r) => /lawn/i.test(r.name) && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1))) return false;
+      const h = terrainH(x, z); if (isl ? h < -0.05 || islandSD(x, z) > -14 : Math.abs(h) > 0.35) return false;
+      return COL.ground(x, z, h + 1.0) < h + 0.12;   // nothing standing here (a deck, a bench, a wall)
+    };
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new V3(), s = new V3(), col = new THREE.Color();
+    for (let x0 = R.x0; x0 < R.x1; x0 += S) for (let z0 = R.z0; z0 < R.z1; z0 += S) {
+      const pts = [];
+      for (let i = 0, n = Math.round(S * S * dens); i < n; i++) { const x = x0 + Math.random() * S, z = z0 + Math.random() * S; if (ok(x, z)) pts.push([x, z]); }
+      if (pts.length < 20) continue;
+      const im = new THREE.InstancedMesh(geo, mat, pts.length), nf = Math.floor(pts.length * 0.06), fm = new THREE.InstancedMesh(fgeo, fmat, Math.max(1, nf));
+      pts.forEach(([x, z], i) => { const sc = 0.7 + Math.random() * 0.7; q.setFromAxisAngle(UP, Math.random() * 6.28); m4.compose(p.set(x, terrainH(x, z) + 0.05, z), q, s.set(sc, sc * (0.8 + Math.random() * 0.5), sc)); im.setMatrixAt(i, m4); });
+      for (let i = 0; i < nf; i++) { const [x, z] = pts[(Math.random() * pts.length) | 0]; m4.compose(p.set(x + 0.05, terrainH(x, z) + 0.33 + Math.random() * 0.12, z), q.identity(), s.set(1, 0.7, 1)); fm.setMatrixAt(i, m4); fm.setColorAt(i, col.set(FLOW[(Math.random() * FLOW.length) | 0])); }
+      fm.count = nf;
+      for (const m of [im, fm]) { m.receiveShadow = true; m.castShadow = false; m.computeBoundingSphere(); scene.add(m); }
+      patches.push({ x: x0 + S / 2, z: z0 + S / 2, ms: [im, fm] });
+    }
+  }
+  return {
+    update(dt) {
+      if (!ON || !MAP.ready) return;
+      if (!built) build();
+      uT.value += dt;
+      const c = camera.position, far = (Math.min(MAP.drawDist || 140, 140) - 24) ** 2;
+      for (const P2 of patches) { const v = (P2.x - c.x) ** 2 + (P2.z - c.z) ** 2 < far && !DOORS.inside; for (const m of P2.ms) m.visible = v; }
+    },
+  };
+})();
 // =====================================================================
 //  Weapons + player state
 // =====================================================================
@@ -12515,6 +12582,8 @@ class Agent {
     this.look = { yaw, pitch: 0 }; this.stance = 'stand'; this.moveMode = 'walk';
     this.health = 100; this.alive = true; this.controller = controller;
     this.prof = { ...(PROFILES[profile] || profile) };
+    this.officer = profile === 'veteran';   // higher-ups know the faces under the uniforms
+    this.stare = new Map();
     this.r = rng(seed ?? (world.rand() * 1e9) | 0);
     this.W = { ...TUNE.weapon, mag: TUNE.weapon.cap, chamber: 1 };
     this.reloadUntil = 0; this.nextShotT = 0; this.burstLeft = 0; this.burstPauseUntil = 0;
@@ -12567,9 +12636,14 @@ class Agent {
           const dg = o.disguiseFor ? o.disguiseFor(this.team) : o.disguise;   // host may judge the clothes per observer's side
           // in someone else's clothes: a uniform only survives a distant look (they know their own men's faces);
           // a civilian blending in (disguiseClose) holds at any distance. Behaving perfectly, nothing builds — what was there fades.
-          const close = o.disguiseClose ? 1 : clamp((d - 2.5) / 5, 0, 1);
-          if (dg >= 0.9 && close === 1 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
-          else if (dg) rate *= 1 - dg * close;
+          // a look that lingers wears the disguise thin: after ~4 s of watching you within 15 m it starts to fail.
+          // Officers (veterans) know faces: to them a disguise only half works, and only at a distance.
+          let st = this.stare.get(o.id) || 0; st = dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
+          const hold = clamp(1 - (st - 4) / 5, 0, 1);
+          const close = this.officer ? clamp((d - 4) / 10, 0, 1) * 0.5 : 1;
+          const eff2 = dg * hold * close;
+          if (eff2 >= 0.85 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
+          else if (dg) rate *= 1 - eff2;
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);
@@ -15475,7 +15549,7 @@ const DISGUISE = (() => {
     const running = P.sprintT > 0.5, sneaking = P.crouch, aiming = P.ads, restricted = inRestricted();
     if (P.disguise === 'militia') return (P.holstered ? 0.97 : aiming ? (WD().scope ? 0.25 : 0.4) : 0.92) * (running ? 0.62 : 1) * (sneaking ? 0.55 : 1);
     if (!P.holstered) return 0;   // a civilian with a rifle out is no civilian
-    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.3 : 1);
+    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.9 : 1);   // somewhere you shouldn't be: they look harder (and longer)
   }
   // what one side makes of you: their own men's clothes fool them; a rival's clothes make you a target
   function levelFor(team) { if (P.disguise === 'militia' && P.disguiseTeam !== team) return 0; return level(); }
@@ -16248,7 +16322,7 @@ const MENU = (() => {
   const sc = new THREE.Scene(); sc.background = new THREE.Color(0x05060a);
   const cam = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.02, 60);
   const base = { pos: new V3(0, 1.3, 0.62), look: new V3(0, 0.95, -1.2) };
-  let active = false, built = false, hover = null, opened = null, openT = 0, t = 0, fan = null, rain = null, mouse = { x: 0, y: 0 }, smoke = [];
+  let active = false, built = false, hover = null, hoverB = null, binders = [], sorted = false, toastT = 0, opened = null, openT = 0, t = 0, fan = null, rain = null, mouse = { x: 0, y: 0 }, smoke = [];
   const ray = new THREE.Raycaster(), files = [];
   const readLight = new THREE.PointLight(0xfff0d8, 0, 2.5, 1.5); sc.add(readLight);   // a soft reading light when a file is up
   const std = (c, r = 0.7, m = 0, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...o });
@@ -16392,6 +16466,21 @@ const MENU = (() => {
       g.userData = { c, hinge, home: g.position.clone(), homeRot: g.rotation.clone(), lift: 0, open: 0 };
       files.push(g);
     });
+    // two binders stood at the back of the desk: the case files (click to sort the folders) and team missions (soon)
+    const spineTex = (label, col) => { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 512; const q = cv.getContext('2d'); q.fillStyle = col; q.fillRect(0, 0, 128, 512); q.fillStyle = 'rgba(255,255,255,.08)'; q.fillRect(0, 0, 10, 512); q.fillStyle = '#efe5cf'; q.fillRect(16, 50, 96, 330); q.save(); q.translate(64, 215); q.rotate(-Math.PI / 2); q.fillStyle = '#1c1c1c'; q.font = '700 40px Rajdhani, sans-serif'; q.textAlign = 'center'; q.textBaseline = 'middle'; q.fillText(label, 0, 0); q.restore(); q.fillStyle = 'rgba(0,0,0,.4)'; q.beginPath(); q.arc(64, 448, 20, 0, 6.3); q.fill(); const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return tx; };
+    [['CASE FILES', '#6a1e1a', 0.27, 'cases'], ['TEAM MISSIONS', '#1a3a6a', 0.343, 'team']].forEach(([label, col, x, id]) => {
+      const g = new THREE.Group(); g.position.set(x, 0.806, -0.41); g.rotation.y = -0.1; sc.add(g);
+      const m = std(new THREE.Color(col), 0.55), tex = spineTex(label, col), sp = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0x6a6258, roughness: 0.55 });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.32, 0.27), [m, m, m, m, sp, m]); b.position.y = 0.16; b.castShadow = true; g.add(b);
+      box(0.06, 0.012, 0.012, brass, 0, 0.29, 0.13, g);
+      g.userData = { binder: id, lift: 0, home: g.position.clone() }; binders.push(g);
+    });
+  }
+  // the folders: spread across the desk, or sorted into a neat row in front of the case binder
+  function sortFiles() {
+    sorted = !sorted; audio.pouch();
+    files.forEach((g, i) => { const u = g.userData, n = files.length; if (!u.spread) u.spread = { p: u.home.clone(), r: u.homeRot.clone() };
+      if (sorted) { u.home.set(-0.42 + i * 0.84 / (n - 1), 0.806 + i * 0.004, -0.16); u.homeRot.set(0, 0, 0); } else { u.home.copy(u.spread.p); u.homeRot.copy(u.spread.r); } });
   }
   // ---------------- HTML layer: title, hint, the dossier's buttons ----------------
   const ui = document.createElement('div'); ui.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:20;display:none;font-family:Rajdhani,sans-serif;color:#e8dcc4';
@@ -16447,6 +16536,7 @@ const MENU = (() => {
     if (e.target.closest && e.target.closest('button')) return;
     if (opened) { close(); return; }
     if (hover) open(hover);
+    else if (hoverB) { if (hoverB.userData.binder === 'team') { audio.holster(); toastT = 2.6; } else sortFiles(); }
   });
   addEventListener('keydown', (e) => { if (!active) return; if (e.code === 'Escape') close(); if (e.code === 'Enter' && opened) go(); });
   addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
@@ -16468,8 +16558,11 @@ const MENU = (() => {
       ndc.set(mouse.x, mouse.y); ray.setFromCamera(ndc, cam);
       const hit = ray.intersectObjects(files, true)[0];
       if (hit) { let o = hit.object; while (o && !files.includes(o)) o = o.parent; hover = o; }
-      document.body.style.cursor = hover ? 'pointer' : 'default';
-      $m('mHint').textContent = hover ? `${hover.userData.c.id === 'op' ? 'PERSONNEL FILE' : 'CASE ' + hover.userData.c.no + ' — ' + hover.userData.c.title}  ·  CLICK TO OPEN` : 'CHOOSE A FILE ON THE DESK';
+      hoverB = null; if (!hover) { const hb = ray.intersectObjects(binders, true)[0]; if (hb) { let o = hb.object; while (o && !binders.includes(o)) o = o.parent; hoverB = o; } }
+      for (const b of binders) { b.userData.lift = damp(b.userData.lift, b === hoverB ? 1 : 0, 12, dt); b.position.y = b.userData.home.y + b.userData.lift * 0.02; }
+      document.body.style.cursor = hover || hoverB ? 'pointer' : 'default';
+      if (toastT > 0) { toastT -= dt; $m('mHint').textContent = 'TEAM MISSIONS — COMING SOON'; }
+      else $m('mHint').textContent = hoverB ? (hoverB.userData.binder === 'team' ? 'TEAM MISSIONS  ·  CLICK TO OPEN' : `CASE FILES  ·  CLICK TO ${sorted ? 'SPREAD' : 'SORT'} THE FOLDERS`) : hover ? `${hover.userData.c.id === 'op' ? 'PERSONNEL FILE' : 'CASE ' + hover.userData.c.no + ' — ' + hover.userData.c.title}  ·  CLICK TO OPEN` : 'CHOOSE A FILE ON THE DESK';
     }
     // files: lift on hover; the opened one comes up to the camera and opens
     for (const g of files) {
@@ -16479,11 +16572,12 @@ const MENU = (() => {
       const k = smooth(clamp(u.open, 0, 1));
       // reading position: in front of the camera, tilted to face it
       const read = _v.copy(cam.position).add(new V3(0.16, -0.04, -0.56).applyQuaternion(cam.quaternion));
-      g.position.lerpVectors(u.home, read, k); g.position.y += u.lift * 0.03 * (1 - k);
+      u.cur = u.cur || u.home.clone(); u.cur.lerp(u.home, 1 - Math.exp(-8 * dt));
+      g.position.lerpVectors(u.cur, read, k); g.position.y += u.lift * 0.03 * (1 - k);
       // face the camera: folder up (+y) toward the eye, its top edge (−z) toward the top of the screen
       const y = new V3().subVectors(cam.position, read).normalize(), up = new V3(0, 1, 0).applyQuaternion(cam.quaternion), z = up.sub(y.clone().multiplyScalar(up.dot(y))).normalize().negate(), x = new V3().crossVectors(y, z);
       const rq = new THREE.Quaternion().setFromRotationMatrix(_m4.makeBasis(x, y, z));
-      _q.setFromEuler(u.homeRot); g.quaternion.copy(_q).slerp(rq, k);
+      _q.setFromEuler(u.homeRot); u.curQ = u.curQ || _q.clone(); u.curQ.slerp(_q, 1 - Math.exp(-8 * dt)); g.quaternion.copy(u.curQ).slerp(rq, k);
       u.hinge.rotation.z = smooth(clamp(u.open * 1.4 - 0.3, 0, 1)) * Math.PI * 0.97;
     }
     const ko = files.reduce((m, g) => Math.max(m, g.userData.open), 0);
@@ -16878,7 +16972,7 @@ function frame(now) {
   fillLight.position.set(P.pos.x - 1.6, py + 1.7, P.pos.z + 2.6);
   if (DBGCAM.on) { camera.position.copy(DBGCAM.pos); camera.rotation.set(DBGCAM.pitch, DBGCAM.yaw, 0, 'YXZ'); camera.fov = DBGCAM.fov; camera.updateProjectionMatrix(); }
   LAMPS.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos, time);
-  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'bahamas') { BSEA.update(time); PATROL.update(dt, time); JET.update(dt); } if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
+  SKY.update(camera, DBGCAM.on ? DBGCAM.pos : P.pos); SEA.update(time); RAIN.update(dt, camera); if (MAP.id === 'bahamas') { BSEA.update(time); PATROL.update(dt, time); JET.update(dt); } LAWN.update(dt); if (MAP.id === 'seoul' && MAP.ready) seoulTick(dt, camera);
   STREAM.update(dt, DBGCAM.on ? DBGCAM.pos : P.pos);
   QUALITY.update(dt);
   W.updateLOD(camera);

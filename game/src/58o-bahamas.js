@@ -472,7 +472,7 @@ function bahamasTown() {
   W.box(1.4, 2.0, 1.4, 50, 1.0, -20, 0xe8e4dc, { t: TX.stone }); W.solid(1.4, 2.0, 1.4, 50, 1.0, -20, 'stone'); W.cyl(0.3, 0.35, 1.6, 50, 2.8, -20, 0x6a8a7a, { seg: 8, layer: 'metal' }); W.sphere(0.3, 0.32, 0.3, 50, 3.85, -20, 0x6a8a7a, { layer: 'metal' });
   W.box(0.5, 3.4, 0.5, 28, 1.7, -40, 0xe8e4dc, { t: TX.stone }); W.solid(0.8, 3.4, 0.8, 28, 1.7, -40, 'stone'); W.box(1.6, 0.4, 1.6, 28, 0.2, -40, 0xe8e4dc, { t: TX.stone });
   W.scope({ lod: 1 }, () => {
-    for (const [x, z] of [[25, -18], [53, -43], [25, -43], [53, -33]]) { W.cyl(0.18, 0.3, 3.2, x, 1.6, z, 0x6a5040, { seg: 7 }); W.sphere(3.2, 1.2, 3.2, x, 3.6, z, 0x3a7a2a, { t: TX.leaf }); for (let i = 0; i < 10; i++) W.sphere(0.6, 0.35, 0.6, x + mr(-2.6, 2.6), 4.1 + mr(-0.2, 0.4), z + mr(-2.6, 2.6), mpick([0xe8402a, 0xf0582a, 0xd8302a]), { seg: 6 }); }
+    for (const [x, z] of [[25, -18], [53, -43], [25, -43], [53, -33]]) { W.cyl(0.18, 0.3, 3.2, x, 1.6, z, 0x6a5040, { seg: 7 }); W.sphere(4.4, 1.6, 4.4, x, 3.7, z, 0x3a7a2a, { t: TX.leaf }); for (let i = 0; i < 12; i++) { const a = mr(0, 6.28), r = mr(0, 1.7); W.sphere(0.7, 0.3, 0.7, x + Math.cos(a) * r, 3.7 + 0.75 * Math.sqrt(1 - (r / 2.2) ** 2), z + Math.sin(a) * r, mpick([0xe8402a, 0xf0582a, 0xd8302a]), { seg: 6 }); } }
     for (const [x, z, r] of [[30, -24, 0], [48, -24, 0], [30, -36, Math.PI], [48, -36, Math.PI], [39, -17, 0], [39, -43, Math.PI]]) bench(x, 0.03, z, r);
     for (const [x, z] of [[22.5, -46], [55.5, -46], [22.5, -14], [55.5, -14]]) lampPostOld(x, 0, z, 4.2);
     trashBin(36, 0, -45); trashBin(44, 0, -15);

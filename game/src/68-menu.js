@@ -8,7 +8,7 @@ const MENU = (() => {
   const sc = new THREE.Scene(); sc.background = new THREE.Color(0x05060a);
   const cam = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.02, 60);
   const base = { pos: new V3(0, 1.3, 0.62), look: new V3(0, 0.95, -1.2) };
-  let active = false, built = false, hover = null, opened = null, openT = 0, t = 0, fan = null, rain = null, mouse = { x: 0, y: 0 }, smoke = [];
+  let active = false, built = false, hover = null, hoverB = null, binders = [], sorted = false, toastT = 0, opened = null, openT = 0, t = 0, fan = null, rain = null, mouse = { x: 0, y: 0 }, smoke = [];
   const ray = new THREE.Raycaster(), files = [];
   const readLight = new THREE.PointLight(0xfff0d8, 0, 2.5, 1.5); sc.add(readLight);   // a soft reading light when a file is up
   const std = (c, r = 0.7, m = 0, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, ...o });
@@ -152,6 +152,21 @@ const MENU = (() => {
       g.userData = { c, hinge, home: g.position.clone(), homeRot: g.rotation.clone(), lift: 0, open: 0 };
       files.push(g);
     });
+    // two binders stood at the back of the desk: the case files (click to sort the folders) and team missions (soon)
+    const spineTex = (label, col) => { const cv = document.createElement('canvas'); cv.width = 128; cv.height = 512; const q = cv.getContext('2d'); q.fillStyle = col; q.fillRect(0, 0, 128, 512); q.fillStyle = 'rgba(255,255,255,.08)'; q.fillRect(0, 0, 10, 512); q.fillStyle = '#efe5cf'; q.fillRect(16, 50, 96, 330); q.save(); q.translate(64, 215); q.rotate(-Math.PI / 2); q.fillStyle = '#1c1c1c'; q.font = '700 40px Rajdhani, sans-serif'; q.textAlign = 'center'; q.textBaseline = 'middle'; q.fillText(label, 0, 0); q.restore(); q.fillStyle = 'rgba(0,0,0,.4)'; q.beginPath(); q.arc(64, 448, 20, 0, 6.3); q.fill(); const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return tx; };
+    [['CASE FILES', '#6a1e1a', 0.27, 'cases'], ['TEAM MISSIONS', '#1a3a6a', 0.343, 'team']].forEach(([label, col, x, id]) => {
+      const g = new THREE.Group(); g.position.set(x, 0.806, -0.41); g.rotation.y = -0.1; sc.add(g);
+      const m = std(new THREE.Color(col), 0.55), tex = spineTex(label, col), sp = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0x6a6258, roughness: 0.55 });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.32, 0.27), [m, m, m, m, sp, m]); b.position.y = 0.16; b.castShadow = true; g.add(b);
+      box(0.06, 0.012, 0.012, brass, 0, 0.29, 0.13, g);
+      g.userData = { binder: id, lift: 0, home: g.position.clone() }; binders.push(g);
+    });
+  }
+  // the folders: spread across the desk, or sorted into a neat row in front of the case binder
+  function sortFiles() {
+    sorted = !sorted; audio.pouch();
+    files.forEach((g, i) => { const u = g.userData, n = files.length; if (!u.spread) u.spread = { p: u.home.clone(), r: u.homeRot.clone() };
+      if (sorted) { u.home.set(-0.42 + i * 0.84 / (n - 1), 0.806 + i * 0.004, -0.16); u.homeRot.set(0, 0, 0); } else { u.home.copy(u.spread.p); u.homeRot.copy(u.spread.r); } });
   }
   // ---------------- HTML layer: title, hint, the dossier's buttons ----------------
   const ui = document.createElement('div'); ui.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:20;display:none;font-family:Rajdhani,sans-serif;color:#e8dcc4';
@@ -207,6 +222,7 @@ const MENU = (() => {
     if (e.target.closest && e.target.closest('button')) return;
     if (opened) { close(); return; }
     if (hover) open(hover);
+    else if (hoverB) { if (hoverB.userData.binder === 'team') { audio.holster(); toastT = 2.6; } else sortFiles(); }
   });
   addEventListener('keydown', (e) => { if (!active) return; if (e.code === 'Escape') close(); if (e.code === 'Enter' && opened) go(); });
   addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
@@ -228,8 +244,11 @@ const MENU = (() => {
       ndc.set(mouse.x, mouse.y); ray.setFromCamera(ndc, cam);
       const hit = ray.intersectObjects(files, true)[0];
       if (hit) { let o = hit.object; while (o && !files.includes(o)) o = o.parent; hover = o; }
-      document.body.style.cursor = hover ? 'pointer' : 'default';
-      $m('mHint').textContent = hover ? `${hover.userData.c.id === 'op' ? 'PERSONNEL FILE' : 'CASE ' + hover.userData.c.no + ' — ' + hover.userData.c.title}  ·  CLICK TO OPEN` : 'CHOOSE A FILE ON THE DESK';
+      hoverB = null; if (!hover) { const hb = ray.intersectObjects(binders, true)[0]; if (hb) { let o = hb.object; while (o && !binders.includes(o)) o = o.parent; hoverB = o; } }
+      for (const b of binders) { b.userData.lift = damp(b.userData.lift, b === hoverB ? 1 : 0, 12, dt); b.position.y = b.userData.home.y + b.userData.lift * 0.02; }
+      document.body.style.cursor = hover || hoverB ? 'pointer' : 'default';
+      if (toastT > 0) { toastT -= dt; $m('mHint').textContent = 'TEAM MISSIONS — COMING SOON'; }
+      else $m('mHint').textContent = hoverB ? (hoverB.userData.binder === 'team' ? 'TEAM MISSIONS  ·  CLICK TO OPEN' : `CASE FILES  ·  CLICK TO ${sorted ? 'SPREAD' : 'SORT'} THE FOLDERS`) : hover ? `${hover.userData.c.id === 'op' ? 'PERSONNEL FILE' : 'CASE ' + hover.userData.c.no + ' — ' + hover.userData.c.title}  ·  CLICK TO OPEN` : 'CHOOSE A FILE ON THE DESK';
     }
     // files: lift on hover; the opened one comes up to the camera and opens
     for (const g of files) {
@@ -239,11 +258,12 @@ const MENU = (() => {
       const k = smooth(clamp(u.open, 0, 1));
       // reading position: in front of the camera, tilted to face it
       const read = _v.copy(cam.position).add(new V3(0.16, -0.04, -0.56).applyQuaternion(cam.quaternion));
-      g.position.lerpVectors(u.home, read, k); g.position.y += u.lift * 0.03 * (1 - k);
+      u.cur = u.cur || u.home.clone(); u.cur.lerp(u.home, 1 - Math.exp(-8 * dt));
+      g.position.lerpVectors(u.cur, read, k); g.position.y += u.lift * 0.03 * (1 - k);
       // face the camera: folder up (+y) toward the eye, its top edge (−z) toward the top of the screen
       const y = new V3().subVectors(cam.position, read).normalize(), up = new V3(0, 1, 0).applyQuaternion(cam.quaternion), z = up.sub(y.clone().multiplyScalar(up.dot(y))).normalize().negate(), x = new V3().crossVectors(y, z);
       const rq = new THREE.Quaternion().setFromRotationMatrix(_m4.makeBasis(x, y, z));
-      _q.setFromEuler(u.homeRot); g.quaternion.copy(_q).slerp(rq, k);
+      _q.setFromEuler(u.homeRot); u.curQ = u.curQ || _q.clone(); u.curQ.slerp(_q, 1 - Math.exp(-8 * dt)); g.quaternion.copy(u.curQ).slerp(rq, k);
       u.hinge.rotation.z = smooth(clamp(u.open * 1.4 - 0.3, 0, 1)) * Math.PI * 0.97;
     }
     const ko = files.reduce((m, g) => Math.max(m, g.userData.open), 0);

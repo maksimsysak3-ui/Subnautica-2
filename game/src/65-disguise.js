@@ -30,7 +30,7 @@ const DISGUISE = (() => {
     const running = P.sprintT > 0.5, sneaking = P.crouch, aiming = P.ads, restricted = inRestricted();
     if (P.disguise === 'militia') return (P.holstered ? 0.97 : aiming ? (WD().scope ? 0.25 : 0.4) : 0.92) * (running ? 0.62 : 1) * (sneaking ? 0.55 : 1);
     if (!P.holstered) return 0;   // a civilian with a rifle out is no civilian
-    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.3 : 1);
+    return 0.97 * (running ? 0.66 : 1) * (sneaking ? 0.5 : 1) * (restricted ? 0.9 : 1);   // somewhere you shouldn't be: they look harder (and longer)
   }
   // what one side makes of you: their own men's clothes fool them; a rival's clothes make you a target
   function levelFor(team) { if (P.disguise === 'militia' && P.disguiseTeam !== team) return 0; return level(); }

@@ -799,9 +799,9 @@ const SKY = (() => {
     HOR.copy(u.hor.value);
     ring.visible = false;   // no mountains in the Bahamas: open sea to the horizon
     sunDir.set(-0.45, 0.78, 0.42).normalize();
-    sun.color.set(0xfff4e0); sun.intensity = 3.3;
+    sun.color.set(0xfff2dc); sun.intensity = 3.6; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
     scene.fog.color.setRGB(0.66, 0.82, 0.94); scene.background.copy(scene.fog.color);
-    HEMI.color.setRGB(0.62, 0.78, 1.0); HEMI.groundColor.setRGB(0.86, 0.8, 0.66); HEMI.intensity = 0.8;
+    HEMI.color.setRGB(0.6, 0.78, 1.0); HEMI.groundColor.setRGB(0.9, 0.82, 0.64); HEMI.intensity = 0.9;
   }
   // dusk: the sun just over the trees, a long orange light, the sky going violet overhead
   function dusk() {
@@ -810,10 +810,10 @@ const SKY = (() => {
     u.zen.value.setRGB(0.07, 0.1, 0.28); u.hor.value.setRGB(0.95, 0.5, 0.3); u.glowc.value.setRGB(1.0, 0.52, 0.22);
     HOR.copy(u.hor.value);
     ring.traverse((o) => { if (o.isMesh) o.material.color.setRGB(0.3, 0.22, 0.26); });
-    sunDir.set(0.86, 0.15, -0.48).normalize();
-    sun.color.set(0xffa060); sun.intensity = 1.8;
+    sunDir.set(0.84, 0.22, -0.48).normalize();
+    sun.color.set(0xffa868); sun.intensity = 2.3; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 3;
     scene.fog.color.setRGB(0.58, 0.42, 0.4); scene.background.copy(scene.fog.color);
-    HEMI.color.setRGB(0.5, 0.52, 0.72); HEMI.groundColor.setRGB(0.32, 0.24, 0.2); HEMI.intensity = 0.5;
+    HEMI.color.setRGB(0.56, 0.56, 0.78); HEMI.groundColor.setRGB(0.36, 0.28, 0.22); HEMI.intensity = 0.62;
     MAP.lampGain = 2.6;
   }
   function night() {

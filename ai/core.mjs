@@ -253,6 +253,8 @@ export class Agent {
     this.look = { yaw, pitch: 0 }; this.stance = 'stand'; this.moveMode = 'walk';
     this.health = 100; this.alive = true; this.controller = controller;
     this.prof = { ...(PROFILES[profile] || profile) };
+    this.officer = profile === 'veteran';   // higher-ups know the faces under the uniforms
+    this.stare = new Map();
     this.r = rng(seed ?? (world.rand() * 1e9) | 0);
     this.W = { ...TUNE.weapon, mag: TUNE.weapon.cap, chamber: 1 };
     this.reloadUntil = 0; this.nextShotT = 0; this.burstLeft = 0; this.burstPauseUntil = 0;
@@ -305,9 +307,14 @@ export class Agent {
           const dg = o.disguiseFor ? o.disguiseFor(this.team) : o.disguise;   // host may judge the clothes per observer's side
           // in someone else's clothes: a uniform only survives a distant look (they know their own men's faces);
           // a civilian blending in (disguiseClose) holds at any distance. Behaving perfectly, nothing builds — what was there fades.
-          const close = o.disguiseClose ? 1 : clamp((d - 2.5) / 5, 0, 1);
-          if (dg >= 0.9 && close === 1 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
-          else if (dg) rate *= 1 - dg * close;
+          // a look that lingers wears the disguise thin: after ~4 s of watching you within 15 m it starts to fail.
+          // Officers (veterans) know faces: to them a disguise only half works, and only at a distance.
+          let st = this.stare.get(o.id) || 0; st = dg && d < 15 ? st + dt : Math.max(0, st - dt * 0.5); this.stare.set(o.id, st);
+          const hold = clamp(1 - (st - 4) / 5, 0, 1);
+          const close = this.officer ? clamp((d - 4) / 10, 0, 1) * 0.5 : 1;
+          const eff2 = dg * hold * close;
+          if (eff2 >= 0.85 && !flash) { rate = 0; s = Math.max(0, s - V.decay * 0.5 * dt); }
+          else if (dg) rate *= 1 - eff2;
           if (flash) rate += V.flash * Math.sqrt(acuity) * (1 / (1 + d / 120));
           s = Math.min(1.6, s + rate * dt);
         } else s = Math.max(0, s - V.decay * dt);
