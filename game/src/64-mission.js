@@ -30,9 +30,10 @@ const MISSION = (() => {
     const actor = b && b.m && b.m.ch ? b : null, face = () => Math.atan2(-(P.pos.x - b.x), -(P.pos.z - b.z));
     return lines.map((raw, k) => {
       const dir = raw.match(/^([^:\[]+)\[(\w+)\]: /), ln = dir ? dir[1] + ': ' + raw.slice(dir[0].length) : raw, mine = ln.startsWith('YOU');
-      const [cx, cz, lx, lz, cy, ly] = mine ? [b.x + ux * 1.1 + sx * 0.7, b.z + uz * 1.1 + sz * 0.7, a.x, a.z, yb + 0.05, ya] : [a.x - ux * 1.1 + sx * 0.7, a.z - uz * 1.1 + sz * 0.7, b.x, b.z, ya + 0.05, yb];
+      // over the listener's shoulder, wide enough that the speaker's face and hands are clear of them
+      const [cx, cz, lx, lz, cy, ly] = mine ? [b.x + ux * 1.7 + sx * 1.15, b.z + uz * 1.7 + sz * 1.15, a.x, a.z, yb + 0.12, ya - 0.2] : [a.x - ux * 1.7 + sx * 1.15, a.z - uz * 1.7 + sz * 1.15, b.x, b.z, ya + 0.12, yb - 0.2];
       const words = ln.split(' ').length, act = dir ? dir[2] : mine ? 'listen' : 'chat';
-      return { from: [cx, cy, cz], to: [cx + sx * 0.25, cy, cz + sz * 0.25], look: [lx, ly - 0.05, lz], dur: Math.max(2.6, words * 0.33), say: ln, fov: 42,
+      return { from: [cx, cy, cz], to: [cx + sx * 0.25, cy, cz + sz * 0.25], look: [lx, ly - 0.05, lz], dur: Math.max(2.6, words * 0.33), say: ln, fov: 46,
         do: actor && actor.alive ? () => NPCS.actOn(actor, act, 999, face()) : null, end: k === lines.length - 1 && actor ? () => NPCS.actOff(actor) : null };
     });
   }
@@ -41,7 +42,17 @@ const MISSION = (() => {
   const act = (f, a, T, face) => f && f.alive && NPCS.actOn(f, a, T, face), unact = (f) => f && NPCS.actOff(f);
   // send someone somewhere (a route of [x, z, wait]), or have them stay at your side
   function walkTo(f, pts, speed = 1.3) { if (!f) return; unact(f); f.route = pts; f.ri = 0; f.arrived = false; f.idle = 0; f.speed = speed; f.fig.paused = false; f.fig.loop = false; }
-  function follow(f, dt) { if (!f || !f.alive) return; const d = Math.hypot(P.pos.x - f.x, P.pos.z - f.z); if (d > 2.6) { f.route = [[P.pos.x, P.pos.z]]; f.ri = 0; f.arrived = false; f.idle = 0; f.speed = d > 9 ? 3.2 : d > 5 ? 2.2 : 1.3; } else { f.idle = 0.5; } }
+  // following you: along the path you actually walked (a trail of crumbs), so they come round corners the way you did
+  function follow(f, dt) {
+    if (!f || !f.alive) return;
+    const tr = f._trail || (f._trail = [[f.x, f.z]]), last = tr[tr.length - 1];
+    if (Math.hypot(P.pos.x - last[0], P.pos.z - last[1]) > 1.5) { tr.push([P.pos.x, P.pos.z]); if (tr.length > 80) tr.shift(); }
+    const d = Math.hypot(P.pos.x - f.x, P.pos.z - f.z);
+    if (d > 2.6) {
+      let k = 0, bd = 1e9; tr.forEach((c, i) => { const q = Math.hypot(c[0] - f.x, c[1] - f.z); if (q < bd) { bd = q; k = i; } });
+      f.route = [...tr.slice(k + 1), [P.pos.x, P.pos.z]]; f.ri = 0; f.arrived = false; f.idle = 0; f.speed = d > 9 ? 3.4 : d > 5 ? 2.4 : 1.4;
+    } else { f.idle = 0.5; }
+  }
   // armed men at posts for this mission (they're cleared when it ends); how many are still standing
   const squad = (pts, o) => BOTS.squad(pts, o), standing = (gs) => gs.filter((g) => !g.killed).length;
   // a slow aerial: from a point high over the map down toward a target, with the handler's lines spread across it
@@ -155,8 +166,8 @@ const MISSION = (() => {
     [HV('They know your face now. Every militiaman in town is coming for you.'), HV('There’s a boat at the end of the jetty. Run.')], 4.5);
 
   // ---------------- state ----------------
-  const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind, shot, act, unact, walkTo, follow, squad, standing };
-  const MISSIONS = MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : MAP.id === 'bahamas' ? bahamasMissions(CTX) : DAR;
+  const CTX = { fig, live, near, kit, S, flags: () => flags, show, talkShots, flyover, behind, shot, act, unact, walkTo, follow, squad, standing, lanePart, HV };
+  const MISSIONS = expandCampaign(MAP.id, MAP.id === 'seoul' ? seoulMissions(CTX) : MAP.id === 'manor' ? manorMissions(CTX) : MAP.id === 'bahamas' ? bahamasMissions(CTX) : DAR, CTX);
   const KEY = `${MAP.id}.campaign`;
   let mi = (() => { try { return +(localStorage.getItem(KEY) || 0); } catch { return 0; } })(), si = 0, state = 'init', wait = 0;
   const cur = () => MISSIONS[mi];
@@ -223,7 +234,7 @@ const MISSION = (() => {
     if (why) { fail(why); return; }
     else if (st.done && st.done()) { advance(); return; }
     const clock = st.time ? ` <span style="color:${timeLeft < 15 ? '#ff7a5a' : '#e8dcc4'}">⏱ ${Math.floor(timeLeft / 60)}:${String(Math.floor(timeLeft % 60)).padStart(2, '0')}</span>` : '';
-    obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? (q.skip && q.skip() ? '' : `<span style="opacity:.45">✓ ${q.text}</span>`) : k === si ? `<b style="color:#ffd27a">▸ ${q.text}</b>${clock}${st.stealth ? ' <span style="color:#9ad0ff">· UNSEEN</span>' : ''}` : '')).filter(Boolean).join('<br>');
+    obj.innerHTML = `MISSION ${mi + 1} · ${m.title}<br>` + m.steps.map((q, k) => (k < si ? (q.skip && q.skip() ? '' : `<span style="opacity:.45">✓ ${tx(q)}</span>`) : k === si ? `<b style="color:#ffd27a">▸ ${tx(q)}</b>${clock}${st.stealth ? ' <span style="color:#9ad0ff">· UNSEEN</span>' : ''}` : '')).filter(Boolean).join('<br>');
     const pr = st.choice ? (st.choice.when ? st.choice.when() : true) ? `[Y]  ${st.choice.a}      [K]  ${st.choice.b}` : '' : holdPr || (st.prompt ? st.prompt() : '');
     setPrompt(prompt, pr);
     const t = st.where ? st.where() : null;
@@ -244,6 +255,7 @@ const MISSION = (() => {
     if (st.act && st.act()) { advance(); return true; }
     return false;
   }
+  const tx = (q) => (typeof q.text === 'function' ? q.text() : q.text);
   function choose(k) {
     if (state !== 'run' || CINEMA.active) return false;
     const st = cur().steps[si]; if (!st.choice || (st.choice.when && !st.choice.when())) return false;
@@ -252,7 +264,7 @@ const MISSION = (() => {
   function restart() { start(state === 'free' ? MISSIONS.length - 1 : mi); feed('<span class="m">MISSION RESTARTED</span>'); }
   return {
     get missions() { return MISSIONS; }, get flags() { return flags; },
-    get ctx() { return CTX; }, get busy() { return state === 'run' && !!cur(); },
+    get ctx() { return CTX; }, _skip: () => advance(),   // test harness only get busy() { return state === 'run' && !!cur(); },
     update, interact, restart, start, choose,
     // killed: back to the last checkpoint of this mission if it has one, else from the top
     retry: () => { if (state === 'run' && si > 0 && cur().steps.slice(0, si + 1).some((q) => q.cp)) { const k = checkpoint(); const m = cur(); si = k; const cp = m.steps[k].cp; if (cp) { const q = typeof cp === 'function' ? cp() : cp; P.pos.set(q.x, q.y ?? COL.ground(q.x, q.z, 3), q.z); } enterStep(); feed('<span class="m">BACK TO THE LAST CHECKPOINT</span>'); return; } start(Math.min(mi, MISSIONS.length - 1), true); feed('<span class="m">MISSION RESTARTED</span>'); }, get stage() { return state === 'run' ? `${mi}:${si}` : state; }, get index() { return mi; }, get count() { return MISSIONS.length; },

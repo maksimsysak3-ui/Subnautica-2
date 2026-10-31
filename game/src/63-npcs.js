@@ -357,8 +357,9 @@ const NPCS = (() => {
       prop(v, 'cup', _h.copy(hand).add(_v.set(0, 0.04, 0.02)));
     } else if (a === 'chat') {
       c.head.rotation.set(Math.sin(t * 2.6) * 0.06, Math.sin(t * 0.7) * 0.15, 0);
-      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.2 + Math.sin(t * 2.3) * 0.07, hy + 0.2 + Math.sin(t * 1.7) * 0.1, 0.24 + Math.sin(t * 3.1) * 0.05), p: [-1, -1, -0.2] }
-        : (v.seed % 1 > 0.5 ? { t: o.set(0.24, hy + 0.04, -0.02), p: [1, 0, -0.3] } : null)));
+      // talking with their hands: at chest height, big enough to read across a street; some use both
+      arms(c, (side, sh, o) => (side < 0 ? { t: o.set(-0.24 + Math.sin(t * 2.3) * 0.12, hy + 0.45 + Math.sin(t * 1.7) * 0.16, 0.32 + Math.sin(t * 3.1) * 0.08), p: [-1, -1, -0.2] }
+        : (v.seed % 1 > 0.5 ? { t: o.set(0.22 + Math.sin(t * 1.9 + 1) * 0.1, hy + 0.36 + Math.sin(t * 2.2 + 2) * 0.13, 0.28), p: [1, -1, -0.2] } : { t: o.set(0.24, hy + 0.04, -0.02), p: [1, 0, -0.3] })));
     } else if (a === 'look') {
       c.head.rotation.set(-0.05, Math.sin(t * 0.35) * 0.75, 0);
       arms(c, (side, sh, o) => ({ t: o.set(side * 0.09, hy - 0.02, -0.16), p: [side, 0, 0.2] }));
@@ -403,8 +404,10 @@ const NPCS = (() => {
     const sp = v.panic > 0 ? v.speed * 3.1 : v.speed;
     dx /= L; dz /= L;
     const ox = v.x, oz = v.z, p = { x: v.x + dx * sp * dt, y: v.y, z: v.z + dz * sp * dt };
-    COL.resolve(p, R, 1.7);
-    v.x = p.x; v.z = p.z; v.y = damp(v.y, COL.ground(v.x, v.z, v.y + 0.3), 12, dt);
+    // in the water people can haul themselves up onto a jetty or a deck, like you can
+    const up = MAP.waterY !== undefined && terrainH(v.x, v.z) < MAP.waterY + 0.35 ? 1.3 : 0.3;
+    COL.resolve(p, R, 1.7, Math.max(0.45, up));
+    v.x = p.x; v.z = p.z; v.y = damp(v.y, COL.ground(v.x, v.z, v.y + up), 12, dt);
     v.vx = (v.x - ox) / dt; v.vz = (v.z - oz) / dt;
     v.yaw += wrap(Math.atan2(-dx, -dz) - v.yaw) * Math.min(1, dt * (v.panic > 0 ? 10 : 5));
     // blocked (stall, parked car, someone's doorstep): turn back / choose another spot

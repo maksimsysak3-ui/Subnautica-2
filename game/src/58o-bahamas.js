@@ -340,6 +340,7 @@ function bahamasVillage() {
   for (let k = 0; k < 6; k++) W.cyl(2.4 - k * 0.16, 2.4 - (k + 1) * 0.16, 3, LX, 1.5 + k * 3, LZ, k % 2 ? 0xd83a2a : 0xf8f8f4, { seg: 16 });
   W.cyl(1.7, 1.7, 2.2, LX, 19.1, LZ, 0x9ac8d8, { layer: 'glass', seg: 12 }); W.cone(2.0, 1.8, LX, 21.1, LZ, 0x2a2a2a, { seg: 12, layer: 'metal' }); W.sphere(0.8, 0.8, 0.8, LX, 19.1, LZ, 0xfff8d0, { layer: 'glow' });
   W.solid(4.8, 22, 4.8, LX, 11, LZ, 'stone'); cottageB(LX - 9, LZ + 6, Math.PI / 2, 7, 8, 1, 0xf8f8f4, { fence: false });
+  GR.rect(LX, LZ, 6, 6, 0, GR.BUILT); GR.rect(LX - 9, LZ + 6, 9, 8, Math.PI / 2, GR.BUILT);   // the tower and the keeper's cottage are taken ground
   TOWN.spots.harbour = { x: -100, z: -128 }; TOWN.spots.harbourJetty = { x: -100, y: 0.55, z: -164 }; TOWN.spots.shacks = { x: -114, z: -112 };
   TOWN.spots.market = { x: -2, z: -110 }; TOWN.spots.lighthouse = { x: 240, z: -10 }; TOWN.spots.pierEnd = { x: 0, y: 0.85, z: 266 };
 }
@@ -387,10 +388,10 @@ function bahamasResort() {
   TOWN.staff.push({ x: bx, z: bz - 2.3, y: by + 0.4, yaw: 0, role: 'bar' });
   TOWN.spots.beachBar = { x: bx, y: by + 0.4, z: bz + 0.2 };
   // the overwater bungalows: a long boardwalk out into the lagoon, thatched huts on stilts either side
-  jetty(0, 132, 0, 262, 3.2, 0.75);
+  jetty(0, 132, 0, 264, 3.2, 0.75);   // runs onto the restaurant platform (no gap of water to step over)
   for (let k = 0; k < 10; k++) for (const s of [-1, 1]) {
     const z = 150 + k * 11, x = s * 9;
-    jetty(s * 1.6, z, s * 4.5, z, 1.6, 0.75);
+    jetty(s * 1.6, z, s * 5.4, z, 1.6, 0.75);   // onto the bungalow's deck
     W.box(8, 0.3, 8, x, 0.7, z, 0xb89a72, { t: TX.wood }); W.solid(8, 0.5, 8, x, 0.6, z, 'wood', { walk: true });
     W.scope({ lod: 1 }, () => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) W.cyl(0.18, 0.18, 3.6, x + sx * 3.6, -1.1, z + sz * 3.6, 0x6a5040, { seg: 6 }); });
     W.box(6, 3, 5, x, 2.35, z - 0.5, 0xf8f4e8, { t: TX.wood }); W.solid(6, 3, 5, x, 2.35, z - 0.5, 'wood');
