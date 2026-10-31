@@ -130,6 +130,7 @@ function enterCustom() {
 }
 $('bEnter').onclick = () => { if (MAP.id) enterRange(); else MENU.open(); };
 $('bCases').onclick = () => { location.search = ''; };
+$('bRestart').onclick = () => { if (!confirm('Restart this campaign from mission 1? Side jobs stay done.')) return; MISSION.start(0); if (lockFallback) setPaused(false); else requestLock(); };
 $('bResume').onclick = () => { if (lockFallback) setPaused(false); else requestLock(); };
 $('bCustom').onclick = enterCustom;
 $('bReset').onclick = () => { resetRange(); };
